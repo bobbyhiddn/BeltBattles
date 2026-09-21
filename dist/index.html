@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>BELTBATTLES — prototype v2</title>
+<style>
+  @font-face{font-family:'px';src:local('Courier New');}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:#050b12;color:#e9f1e5;font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+  #wrap{width:min(96vw,900px);padding:10px}
+  h1{font-size:18px;letter-spacing:2px;margin:8px 0 2px;color:#f6cf48;text-shadow:2px 2px 0 #501e1e}
+  #sub{font-size:12px;color:#8fa3b0;margin-bottom:8px}
+  #stage{position:relative;width:100%;aspect-ratio:16/9;background:#050b12;border:4px solid #2d3732;box-shadow:0 0 0 4px #101820,0 0 32px #000}
+  canvas{width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges;cursor:crosshair;touch-action:manipulation}
+  #hud{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+  button{font-family:inherit;font-weight:bold;font-size:14px;background:#f38f32;color:#101418;border:0;border-bottom:4px solid #7a3c10;padding:10px 14px;cursor:pointer}
+  button:active{transform:translateY(2px);border-bottom-width:2px}
+  button.ghost{background:#2d3732;color:#e9f1e5;border-bottom-color:#101418}
+  #log{margin-top:8px;background:#0a141c;border:2px solid #2d3732;height:86px;overflow:hidden;font-size:12px;padding:6px;color:#9fd4a8}
+  #hint{font-size:12px;color:#8fa3b0;margin-top:6px}
+  .bar{height:10px;background:#2d3732;flex:1;position:relative}
+  .bar>i{position:absolute;inset:0;transform-origin:left;background:#59df67}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>⚙ BELTBATTLES <span style="color:#40e0da">v2</span></h1>
+  <div id="sub">FURNACE vs WEAVER · tap a deck tile to cycle FACTORY → BELT → GATE → TURRET · then START BATTLE</div>
+  <div id="stage"><canvas id="c" width="480" height="270"></canvas></div>
+  <div id="hud">
+    <button id="battle">▶ START BATTLE</button>
+    <button id="reset" class="ghost">RESET DECK</button>
+    <button id="sound" class="ghost">SOUND: ON</button>
+  </div>
+  <div id="log"></div>
+  <div id="hint">Megaman-style pixel build · BeltBreaker palette (#050B12, amber glow, ore colors) · Tangora-style depth + juice. Works with mouse + touch.</div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+ctx.imageSmoothingEnabled=false;
+const W=480,H=270;
+// palette (BeltBreaker)
+const P={bg:'#050b12',panel:'#0a141c',steel:'#2d3732',steel2:'#5a5f64',hull:'#b4bec8',amber:'#f6cf48',orange:'#f38f32',blue:'#2899e8',green:'#59df67',teal:'#40e0da',red:'#ef5b4e',ice:'#80e5ef',cream:'#e9f1e5'};
+// audio: tiny square-wave sfx
+let AC=null,soundOn=true;
+function beep(f,d,type='square',v=.08){if(!soundOn)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(AC.destination);o.start();g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.stop(AC.currentTime+d);}catch(e){}}
+const sfx={place:()=>beep(520,.09),gate:()=>beep(880,.12),fire:()=>beep(180,.12,'sawtooth',.07),hit:()=>beep(120,.15,'sawtooth',.09),boom:()=>beep(60,.4,'sawtooth',.12),win:()=>{beep(523,.12);setTimeout(()=>beep(659,.12),120);setTimeout(()=>beep(784,.2),240);}};
+// deck model: 8x6 grid of tiles
+const GW=8,GH=6,T=22,OX=18,OY=52;
+let grid=[],ammo=[],parts=[],shots=[],shake=0,flash=0,time=0,battle=false,enemyHP=100,playerHP=100,spawnT=0;
+function defaultDeck(){grid=[];for(let y=0;y<GH;y++){for(let x=0;x<GW;x++){let t='belt';if(x===0&&y%2===0)t='factory';if(x===GW-1)t='turret';if(x===4&&y%2===1)t='gate';grid.push(t);}}}
+defaultDeck();
+const logEl=document.getElementById('log');
+function log(m){const d=document.createElement('div');d.textContent='› '+m;logEl.prepend(d);while(logEl.children.length>5)logEl.lastChild.remove();}
+log('Deck loaded. Tap tiles to rewire, then START BATTLE.');
+function tileAt(px,py){const x=Math.floor((px-OX)/T),y=Math.floor((py-OY)/T);if(x<0||y<0||x>=GW||y>=GH)return -1;return y*GW+x;}
+const order=['factory','belt','gate','turret'];
+function click(px,py){const i=tileAt(px,py);if(i<0)return;grid[i]=order[(order.indexOf(grid[i])+1)%order.length];sfx.place();puff(OX+(i%GW)*T+T/2,OY+Math.floor(i/GW)*T+T/2,P.amber,6);}
+cv.addEventListener('pointerdown',e=>{const r=cv.getBoundingClientRect();click((e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height);});
+document.getElementById('reset').onclick=()=>{defaultDeck();battle=false;ammo=[];shots=[];enemyHP=100;playerHP=100;log('Deck reset.');};
+document.getElementById('sound').onclick=e=>{soundOn=!soundOn;e.target.textContent='SOUND: '+(soundOn?'ON':'OFF');};
+document.getElementById('battle').onclick=()=>{battle=true;spawnT=0;log('Battle started! Factories stamping ammo…');sfx.gate();};
+function puff(x,y,c,n){for(let i=0;i<n;i++)parts.push({x,y,vx:(Math.random()-.5)*60,vy:(Math.random()-.7)*60,life:.5+Math.random()*.4,c});}
+// pixel helpers
+function R(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x|0,y|0,w|0,h|0);}
+function glow(x,y,r,c,a){const g=ctx.createRadialGradient(x,y,1,x,y,r);g.addColorStop(0,`rgba(${c},${a})`);g.addColorStop(1,`rgba(${c},0)`);ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);}
+function drawBackground(){R(0,0,W,H,P.bg);
+  // parallax pipes
+  ctx.fillStyle='#0a141c';for(let i=0;i<6;i++){const y=20+i*44+Math.sin(time*.3+i)*2;ctx.fillRect(0,y,W,10);}
+  ctx.fillStyle='#101d28';for(let i=0;i<24;i++){const x=((i*97-time*12)%(W+40))-20;ctx.fillRect(x,30+(i%5)*44,26,6);}
+  // rivets
+  ctx.fillStyle='#1b2a36';for(let x=8;x<W;x+=24)for(let y=8;y<H;y+=24)ctx.fillRect(x,y,2,2);
+  glow(60,40,70,'255,185,86',.10);glow(420,40,70,'255,185,86',.10);
+}
+function drawTile(x,y,t,i){const px=OX+x*T,py=OY+y*T;const bob=battle?Math.sin(time*6+i)*1:0;
+  R(px,py,T,T,'#0d1822');R(px,py,T,2,'#1e3140');R(px,py+T-2,T,2,'#060b11');
+  if(t==='belt'){R(px+2,py+6,T-4,10,'#22303c');R(px+2,py+6,T-4,2,'#5a6f82');
+    const off=(time*40)%8;ctx.fillStyle='#f38f32';for(let k=-1;k<4;k++){const cx=px+2+k*8+off;ctx.fillRect(cx,py+9,4,4);}}
+  else if(t==='factory'){R(px+1,py+3,T-2,T-5,'#7a3c10');R(px+1,py+3,T-2,3,P.orange);R(px+4,py+8,5,5,P.amber);R(px+11,py+8,5,8,'#2d3732');R(px+11,py+8,5,2,P.ice);
+    if(battle&&Math.sin(time*5+i)>0.6){R(px+7,py-1,6,4,P.amber);}}
+  else if(t==='gate'){R(px+2,py+2,T-4,T-4,'#123a4a');R(px+2,py+2,T-4,3,P.teal);R(px+2,py+T-5,T-4,3,P.teal);
+    const on=battle&&Math.sin(time*8+i)>0;R(px+7,py+6,8,10,on?P.teal:'#1e5a6e');if(on)glow(px+T/2,py+T/2,18,'64,224,218',.35);}
+  else if(t==='turret'){R(px+4,py+8,14,10,P.steel2);R(px+4,py+8,14,2,P.hull);R(px+8,py+2,6,8,'#501e1e');R(px+8,py+2,6,2,P.red);
+    R(px+16,py+10+bob,6,3,'#101418');if(flash>0){R(px+22,py+8+bob,6,6,P.amber);glow(px+25,py+11,16,'246,207,72',.6);}}
+}
+function drawEnemy(){const ex=400,ey=120; // Weaver cruiser, chunky sprite
+  const wob=Math.sin(time*2)*2;
+  glow(ex,ey+wob,60,'239,91,78',.18);
+  R(ex-40,ey-24+wob,80,48,'#3a2330');R(ex-40,ey-24+wob,80,4,P.red);R(ex-40,ey+20+wob,80,4,'#1c1018');
+  R(ex-20,ey-34+wob,40,12,'#5a2f3d');R(ex-14,ey-32+wob,28,4,P.red);
+  R(ex-46,ey-8+wob,10,16,P.steel2);R(ex+36,ey-8+wob,10,16,P.steel2);
+  // eye
+  R(ex-8,ey-6+wob,16,12,'#101418');R(ex-5,ey-4+wob,10,6,battle?'#ff3b30':P.amber);
+  // hp bar
+  R(ex-40,ey-42+wob,80,6,'#101418');R(ex-39,ey-41+wob,78*(enemyHP/100),4,enemyHP>30?P.green:P.red);
+}
+function update(dt){
+  time+=dt;
+  if(shake>0)shake-=dt*3;if(flash>0)flash-=dt*4;
+  // spawn ammo from factories
+  if(battle){spawnT-=dt;if(spawnT<=0){spawnT=.5;
+    for(let y=0;y<GH;y++){const i=y*GW;if(grid[i]==='factory'){ammo.push({gx:0,gy:y,p:0,pow:1});sfx.place();}}
+  }}
+  // move ammo along row path
+  for(const a of ammo){a.p+=dt*2.2;const nx=Math.floor(a.p);if(nx>GW-1){a.done=true;continue;}a.gx=nx;
+    if(grid[a.gy*GW+nx]==='gate'&&!a.charged){a.charged=true;a.pow=2;sfx.gate();puff(OX+nx*T+T/2,OY+a.gy*T+T/2,P.teal,8);}
+    if(grid[a.gy*GW+nx]==='turret'&&!a.fired){a.fired=true;a.done=true;shots.push({x:OX+nx*T+T,y:OY+a.gy*T+T/2,pow:a.pow});flash=1;shake=Math.min(1,shake+.4);sfx.fire();puff(OX+nx*T+T,OY+a.gy*T+T/2,P.amber,5);}
+  }
+  ammo=ammo.filter(a=>!a.done);
+  for(const s of shots){s.x+=dt*260;if(s.x>392){s.hit=true;enemyHP-=s.pow*4;shake=Math.min(1,shake+.5);sfx.hit();puff(s.x,120+(Math.random()-.5)*40,s.pow>1?P.teal:P.orange,10);
+    if(enemyHP<=0){enemyHP=0;battle=false;sfx.boom();sfx.win();for(let k=0;k<40;k++)puff(400,120,P.red,1);log('WEAVER destroyed. You win! RESET or rewire for another run.');}}}
+  shots=shots.filter(s=>!s.hit);
+  // enemy chip damage
+  if(battle&&Math.random()<dt*.3){playerHP-=2;sfx.hit();shake=Math.max(shake,.3);if(playerHP<=0){playerHP=0;battle=false;sfx.boom();log('Your cruiser went down. Hit RESET.');}}
+  for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=120*dt;p.life-=dt;}
+  parts=parts.filter(p=>p.life>0);
+}
+function draw(){
+  ctx.save();
+  if(shake>0)ctx.translate((Math.random()-.5)*shake*6,(Math.random()-.5)*shake*6);
+  drawBackground();
+  // deck plate
+  R(OX-6,OY-26,GW*T+12,16,'#2d3732');R(OX-6,OY-26,GW*T+12,3,P.hull);
+  ctx.fillStyle=P.amber;ctx.font='bold 10px monospace';ctx.fillText('YOUR CRUISER — TAP TILES TO REWIRE',OX-4,OY-14);
+  R(OX-6,OY-6,GW*T+12,GH*T+12,'#101820');R(OX-4,OY-4,GW*T+8,GH*T+8,'#0a141c');
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)drawTile(x,y,grid[y*GW+x],y*GW+x);
+  // ammo pucks with shadow (Tangora-style)
+  for(const a of ammo){const cx=OX+a.gx*T+T/2+((a.p%1)*T-T/2),cy=OY+a.gy*T+T/2+Math.sin(time*10+a.gy)*1.5;
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(cx+1,cy+5,5,2,0,0,7);ctx.fill();
+    if(a.pow>1)glow(cx,cy,14,'64,224,218',.5);
+    R(cx-4,cy-4,8,8,a.pow>1?P.teal:P.orange);R(cx-4,cy-4,8,2,'#fff');R(cx-2,cy-1,4,4,a.pow>1?'#0a2a33':'#7a3c10');}
+  for(const s of shots){R(s.x-4,s.y-2,8,4,s.pow>1?P.teal:P.amber);glow(s.x,s.y,12,'246,207,72',.5);}
+  for(const p of parts){ctx.globalAlpha=Math.max(0,p.life*2);R(p.x,p.y,3,3,p.c);ctx.globalAlpha=1;}
+  // player hp
+  R(OX-6,OY+GH*T+8,GW*T+12,10,'#101418');R(OX-4,OY+GH*T+10,(GW*T+8)*(playerHP/100),6,playerHP>30?P.green:P.red);
+  ctx.fillStyle=P.cream;ctx.font='bold 9px monospace';ctx.fillText('HULL '+Math.max(0,Math.round(playerHP))+'%',OX, OY+GH*T+32);
+  drawEnemy();
+  ctx.restore();
+}
+let last=performance.now();
+function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
