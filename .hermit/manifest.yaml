@@ -1,0 +1,7 @@
+# Hermit shell repo manifest — REQ-HWGH-003
+# This file roots the digital threading for this product.
+# Do not delete or rename.
+
+status: unregistered
+shell_repo: "ssh://localhost:23233/BeltBattles"
+created_at: "2026-09-21T22:00:38Z"
