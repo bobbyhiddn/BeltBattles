@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
-import { BAG_IDS, EVENTS, EVENT_IDS, INTRO_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId } from "../src/game/eventDefs";
-import { beginRoad, choicesFor, eventDue, eventFor, makeEvent, pickChoice } from "../src/game/events";
+import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId } from "../src/game/eventDefs";
+import { beginRoad, choicesFor, eventFor, makeEvent, pickChoice } from "../src/game/events";
 import { battleSeed, migrateRun, newRun, reroll, rollShop, type Run } from "../src/game/run";
 import { chooseFoe, finishDay, startDusk } from "../src/game/day";
 import { ITEMS, START_LIVES } from "../src/sim/content";
@@ -25,15 +25,28 @@ function atEvent(id: EventId, round = 3, seed = 4242): Run {
 }
 
 describe("road events: seeded selection", () => {
-  it("round 1 always has a gentle intro; later rounds 3 in every 4; the pick ignores the shop and battle streams", () => {
+  // 0.6.0b: every day has a fork and its event slot always holds a real event from the bag, so the
+  // day-1 intro set (INTRO_IDS) and the 3-in-4 quiet-road skip (eventDue) are gone on purpose.
+  it("0.6.0b: every day 1-10 has a bag event, fixed by the seed; day 1 is no special intro; the pick ignores the shop", () => {
+    const dayOne = new Set<EventId>();
     for (const seed of SEEDS) {
-      expect(eventDue(seed, 1)).toBe(true);
-      expect(INTRO_IDS).toContain(eventFor(seed, 1));
-      for (let b = 0; b < 3; b++) {
-        const block = [2, 3, 4, 5].map((r) => r + b * 4).filter((r) => eventDue(seed, r)).length;
-        expect(block).toBe(3);
+      for (let d = 1; d <= 10; d++) {
+        const id = eventFor(seed, d);
+        expect(BAG_IDS).toContain(id);
+        expect(eventFor(seed, d)).toBe(id); // deterministic
       }
-      expect(eventFor(seed, 5)).toBe(eventFor(seed, 5)); // deterministic
+      dayOne.add(eventFor(seed, 1));
+    }
+    expect(dayOne.size).toBeGreaterThan(2); // day 1 draws from the whole bag
+    for (const seed of SEEDS.slice(0, 20)) {
+      const a = newRun("furnace", seed);
+      const b = newRun("furnace", seed);
+      b.gold = 99;
+      reroll(b);
+      reroll(b);
+      beginRoad(a);
+      beginRoad(b);
+      expect(b.event).toEqual(a.event); // same event and rolls, whatever the caravan did
     }
   });
 
@@ -48,11 +61,12 @@ describe("road events: seeded selection", () => {
       for (let i = 1; i < shown.length; i++) expect(shown[i].id).not.toBe(shown[i - 1].id);
       const ten = new Set(shown.filter((s) => s.r <= 10).map((s) => s.id));
       expect(ten.size).toBeGreaterThanOrEqual(5);
+      expect(shown.filter((s) => s.r <= 10).length).toBe(10);
       total += shown.filter((s) => s.r <= 10).length;
     }
+    // 0.6.0b: no quiet roads any more, every day 1-10 has its event (was 7-8 per run)
     const perRun = total / SEEDS.length;
-    expect(perRun).toBeGreaterThanOrEqual(7); // 1 + about 3/4 of rounds 2-10
-    expect(perRun).toBeLessThanOrEqual(8);
+    expect(perRun).toBe(10);
   });
 
   it("every bag event shows up across seeds (8 of them); herald and sappers are out of the bag", () => {
@@ -210,9 +224,12 @@ describe("road events: save and load", () => {
       expect(beginRoad(loaded)).toBe(true); // still open, same event, same rolls
       expect(loaded.event).toEqual(run.event);
       expect(choicesFor(loaded)).toEqual(choicesFor(run));
-      pickChoice(loaded, 0);
+      // 0.6.0b: day 1 is no longer a gentle intro, so choice 0 can be blocked on a fresh run (the
+      // trader's SELL: NOTHING TO TRADE); take the first open choice instead.
+      const open = choicesFor(loaded).findIndex((c) => !c.blocked);
+      expect(pickChoice(loaded, open).ok).toBe(true);
       const after = migrateRun(JSON.parse(JSON.stringify(loaded)))!;
-      expect(after.event!.picked).toBe(0);
+      expect(after.event!.picked).toBe(open);
       expect(beginRoad(after)).toBe(false); // resolved: straight to the battle
       const g = after.gold;
       expect(pickChoice(after, 0).ok).toBe(false);
