@@ -13,6 +13,7 @@ import {
   cloneBuild, connectorClaims, defOf, kx, ky, occupancy, payloadDamage,
   routeInfo, routePolyline, type Build,
 } from "./deck";
+import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -145,6 +146,7 @@ export interface SideState {
   turrets: TurretState[];
   targets: Target[];
   stats: SideStats;
+  race?: RaceSide; // races: race mechanics state; undefined for Furnace and Weaver
 }
 
 export interface Projectile {
@@ -280,7 +282,15 @@ export class Battle {
     turrets.forEach((tu) => {
       targets.push({ kind: "turret", ref: tu.index, cell: -1, x: (tu.def.col0 + tu.def.width / 2) * CELL, y: -9, weight: 2 });
     });
-    return { side, build: b, hero: h, hull, factories, gates, routes, turrets, targets, stats: emptyStats() };
+    return {
+      side, build: b, hero: h, hull, factories, gates, routes, turrets, targets, stats: emptyStats(),
+      race: makeRaceSide(b.hero), // races:
+    };
+  }
+
+  /** races: payload ids for payloads created by race hooks (src/sim/races). */
+  newId(): number {
+    return this.nextId++;
   }
 
   /** Advance exactly one fixed tick. */
@@ -366,6 +376,7 @@ export class Battle {
       if (!f.routes.length || f.disrupted > 0) continue;
       f.timer -= dt;
       if (f.timer > 0) continue;
+      if (s.race && raceProduce(this, s, f, dt)) continue; // races: Crucible twin pour
       const n = f.routes.length;
       let placed = false;
       for (let k = 0; k < n; k++) {
@@ -476,10 +487,15 @@ export class Battle {
       if (front.s < r.L - 1e-6) continue;
       const tu = s.turrets[r.turret];
       if (!tu || tu.disrupted > 0) continue;
+      if (s.race && raceIntake(this, s, r, tu, front.p)) { // races: alloy fusion (no slot used)
+        r.ammo.shift();
+        continue;
+      }
       if (tu.phase === "load" && tu.stack.length < tu.def.window) {
         tu.stack.push(front.p);
         r.ammo.shift();
         this.events.push({ type: "load", side: s.side, turret: tu.index });
+        if (s.race) raceLoaded(this, s, r, tu, front.p); // races: blank sync stamp, bulwark plating
       }
     }
     for (const tu of s.turrets) {
@@ -586,7 +602,7 @@ export class Battle {
     const ammo = AMMO[pr.payload.ammo];
     const bonus = def.hull.fray * FRAY_BONUS;
     const total = pr.dmg + bonus;
-    def.hull.hp -= total;
+    def.hull.hp -= def.race ? raceAbsorb(def, total) : total; // races: bulwark plating soaks first
     def.hull.flash = 0.12;
     atk.stats.damage += total;
     if (ammo.fray > 0) def.hull.fray = Math.min(FRAY_MAX, def.hull.fray + ammo.fray);
@@ -641,7 +657,7 @@ export class Battle {
       }
       s.hull.burns = s.hull.burns.filter((b) => b.t > 0);
       if (burn > 0) {
-        s.hull.hp -= burn;
+        s.hull.hp -= s.race ? raceAbsorb(s, burn) : burn; // races: plating soaks Burn (not the wind)
         foe.stats.burnDealt += burn;
         foe.stats.damage += burn;
         s.hull.burnShown += burn;

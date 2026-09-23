@@ -2,6 +2,8 @@
 // accents); industrial-fantasy extensions add rust, brass, timber, verdigris, fire and
 // the dark wind's plum. Sprites should only use these named values.
 
+import type { Faction } from "../sim/content"; // races:
+
 export const C = {
   ink: "#050B12",
   night: "#0A131D",
@@ -115,7 +117,7 @@ export interface FactionPalette {
   glow: string;
 }
 
-export const FACTION: Record<"orc" | "elf", FactionPalette> = {
+const BASE_FACTION: Record<"orc" | "elf", FactionPalette> = { // races: renamed from FACTION (see below)
   orc: {
     hull0: C.rust0, hull1: C.rust1, hull2: C.rust2, hull3: C.rust3, hull4: C.rust4,
     trim0: C.steel0, trim1: C.steel1, trim2: C.steel2,
@@ -128,4 +130,13 @@ export const FACTION: Record<"orc" | "elf", FactionPalette> = {
     deck0: "#16232A", deck1: "#1E2F37", deck2: "#283C45",
     glow: C.ice,
   },
+};
+
+// races: PLACEHOLDER palettes for the new factions until the race-art pass lands real ones.
+export const FACTION: Record<Faction, FactionPalette> = {
+  ...BASE_FACTION,
+  human: BASE_FACTION.elf,
+  dwarf: BASE_FACTION.orc,
+  beastfolk: BASE_FACTION.orc,
+  unaligned: BASE_FACTION.elf,
 };

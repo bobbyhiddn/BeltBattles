@@ -84,19 +84,19 @@ which never fuse.
 
 | Field | Value |
 |---|---|
-| Hull / belt | 260 (very high) / 14 |
+| Hull / belt | 240 (very high) / 14 |
 | Factory | WARDWORKS 2x2: one BULWARK SLUG every 1.5 s, 1 output |
-| Ammo | BULWARK SLUG: base 5, ride scaling 0. Special: plates Bastion's hull on arrival |
+| Ammo | BULWARK SLUG: base 4, ride scaling 0. Special: plates Bastion's hull on arrival |
 | Turret | 1 HEAVY: col0 4, connectors [4, 5], fireInterval 1.2 s, window 3, flight 0.65 s |
 | Start | Wardworks at (4,6), straight 6-tile route up column 4 into connector 4. The gun is live. Connector 5 is free for a Stamp Press |
 
 **Plating rule.**
 - Arrival means the chamber. When a bulwark slug loads into Bastion's chamber, the hull gains
-  3 x the slug's split multiplier in plating, so a Splitter copy adds 1.8. The slug still fires
+  2 x the slug's split multiplier in plating, so a Splitter copy adds 1.2. The slug still fires
   normally.
 - It happens at load, not on firing. The spec says "on arrival", so delivery tempo drives
   defence. A full or jammed chamber, or a shocked turret, visibly starves the plating.
-- **Cap:** 30 plating. Excess is lost. **No decay**: plating lasts until it is spent or the
+- **Cap:** 24 plating. Excess is lost. **No decay**: plating lasts until it is spent or the
   battle ends. It resets between battles like all combat state.
 - **Absorption:** plating takes enemy impact damage (including the Fray bonus) and Burn ticks
   point for point before HP. Every impact damages the hull wherever it lands, so plating guards
