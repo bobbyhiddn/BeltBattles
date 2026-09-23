@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { Battle, simulate, type Payload } from "../src/sim/battle";
 import { startingBuild } from "../src/sim/ai";
 import { PLATE_CAP, PLATE_PER_SLUG, absorb, newPlateState, plateFor, plateOnLoad } from "../src/sim/races/bastion";
-import { raceWarlordBuild, startingRaceBuild } from "../src/sim/races/warlords";
+import { raceRefBuild, raceStartBuild } from "../src/sim/races/refBuilds";
 import { buildCost, dummyFoe, expectLegal, expectSaneBattles } from "./races.helpers";
 
-const start = () => startingRaceBuild("bastion", 1);
+const start = () => raceStartBuild("bastion", 1);
 const slug = (ammo: Payload["ammo"], mult = 1): Payload => ({
   id: 1, ammo, ride: 0, mult, flat: 0, burn: 0, shock: false, prior: 0, factory: 1, copy: false,
 });
@@ -56,21 +56,21 @@ describe("BASTION plating rule", () => {
   });
 });
 
-describe("BASTION warlords", () => {
-  it("are legal and escalate at every round 1-12", () => {
+describe("BASTION reference builds", () => {
+  it("are legal, honestly priced and escalate on every day 1-10", () => {
     let prev = -1;
-    for (let r = 1; r <= 12; r++) {
-      const w = raceWarlordBuild("bastion", r);
-      expectLegal(w, r);
-      expect(buildCost(w)).toBeGreaterThanOrEqual(prev);
+    for (let d = 1; d <= 10; d++) {
+      const w = raceRefBuild("bastion", d);
+      expectLegal(w, d);
+      expect(buildCost(w)).toBeGreaterThan(prev);
       prev = buildCost(w);
     }
-    expect(buildCost(raceWarlordBuild("bastion", 5))).toBe(14);
-    expect(buildCost(raceWarlordBuild("bastion", 10))).toBe(33);
+    expect(buildCost(raceRefBuild("bastion", 1))).toBe(6);
+    expect(buildCost(raceRefBuild("bastion", 10))).toBe(56);
     expectLegal(start(), 1);
   });
 
-  it("battles vs Furnace and Weaver (start and warlords, 10 seeds, both sides) end before the cap with no NaN", () => {
-    expectSaneBattles(start(), (r) => raceWarlordBuild("bastion", r));
+  it("battles vs Furnace and Weaver (start and days 1/5/10, 10 seeds, both sides) end before the cap with no NaN", () => {
+    expectSaneBattles("bastion", ["furnace", "weaver"]);
   });
 });

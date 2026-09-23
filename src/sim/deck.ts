@@ -7,6 +7,7 @@ import {
   AMMO, BELT_SPEED, CELL, GRID, HEROES, ITEMS,
   type HeroDef, type HeroId, type ItemDef,
 } from "./content";
+import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -298,7 +299,7 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
         mult *= e.split.mult;
         flat *= e.split.mult;
       }
-      if (e.speed) speed = e.speed;
+      if (e.speed && !speedLocked(b.hero)) speed = e.speed; // races: METRONOME belts ignore speed states
       prior++;
     }
     const last = i === n - 1;
@@ -307,7 +308,9 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
     time += outT;
     ride += outT;
   }
-  const total = payloadDamage(ammo.base, ammo.rideScale, ride, mult, flat);
+  const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
+    ? curveDamage(ammo, ride, mult, flat, pendulumShift(b, info.turret))
+    : payloadDamage(ammo.base, ammo.rideScale, ride, mult, flat);
   return { time, ride, dmg: total, copies, burn, shock };
 }
 

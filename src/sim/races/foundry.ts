@@ -82,9 +82,16 @@ export function crucibleProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: 
   return true;
 }
 
-/** Intake: fuse an arriving blank with a synced partner already in this chamber. */
-export function tryFuse(ctx: SimCtx, st: FoundryState, route: number, tu: TurretState, p: Payload): boolean {
-  if (p.ammo !== "blank") return false;
+/** Damage an alloy slug will fire for (its whole damage is in flat; see RACE_AMMO.alloy). */
+export function alloyDamage(p: Payload): number {
+  const a = RACE_AMMO.alloy;
+  return payloadDamage(a.base, a.rideScale, p.ride, p.mult, p.flat);
+}
+
+/** Intake: fuse an arriving blank with a synced partner already in this chamber. Returns the
+ *  alloy slug (the partner, fused in place) or null when nothing fused. */
+export function tryFuse(ctx: SimCtx, st: FoundryState, route: number, tu: TurretState, p: Payload): Payload | null {
+  if (p.ammo !== "blank") return null;
   for (let i = tu.stack.length - 1; i >= 0; i--) {
     const q = tu.stack[i];
     if (q.ammo !== "blank") continue;
@@ -93,9 +100,9 @@ export function tryFuse(ctx: SimCtx, st: FoundryState, route: number, tu: Turret
     fuse(q, p);
     st.sync.delete(q);
     st.fusions++;
-    return true;
+    return q;
   }
-  return false;
+  return null;
 }
 
 /** After a normal load: remember when and where a blank entered, for the sync rule. */

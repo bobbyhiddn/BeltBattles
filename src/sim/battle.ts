@@ -14,6 +14,7 @@ import {
   routeInfo, routePolyline, type Build,
 } from "./deck";
 import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
+import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -168,6 +169,7 @@ export type SimEvent =
   | { type: "process"; side: Side; gate: number; def: string }
   | { type: "commission"; side: Side; gate: number }
   | { type: "load"; side: Side; turret: number }
+  | { type: "fuse"; side: Side; turret: number; dmg: number } // races: two alloy blanks fused (FOUNDRY)
   | { type: "fire"; side: Side; turret: number; heavy: boolean; dmg: number; proj: number }
   | { type: "impact"; side: Side; x: number; y: number; dmg: number; heavy: boolean; kind: TargetKind; shock: boolean; burn: number; big: boolean }
   | { type: "jam"; side: Side; turret: number }
@@ -209,6 +211,7 @@ export class Battle {
     this.rng = new Rng(seed);
     this.record = { rules: RULES_VERSION, seed, builds: [cloneBuild(player), cloneBuild(enemy)] };
     this.sides = [this.makeSide(0, cloneBuild(player)), this.makeSide(1, cloneBuild(enemy))];
+    raceLink(this.sides); // races: a side facing SIPHON gets Drag state
   }
 
   private makeSide(side: Side, b: Build): SideState {
@@ -284,7 +287,7 @@ export class Battle {
     });
     return {
       side, build: b, hero: h, hull, factories, gates, routes, turrets, targets, stats: emptyStats(),
-      race: makeRaceSide(b.hero), // races:
+      race: makeRaceSide(b), // races:
     };
   }
 
@@ -332,8 +335,8 @@ export class Battle {
       for (let i = 0; i < r.cells.length; i++) {
         const g = r.gateAt[i];
         if (g && g.online && g.disrupted <= 0 && g.def.gate?.speed) state = g.def.gate.speed;
-        r.speedAt[i] = state;
-        const v = r.cellDisrupt[i] > 0 ? 0 : BELT_SPEED * state;
+        r.speedAt[i] = s.race ? raceBeltSpeed(this, s, r.index, i, state) : state; // races: speed lock, Drag
+        const v = r.cellDisrupt[i] > 0 ? 0 : BELT_SPEED * r.speedAt[i]; // races: was BELT_SPEED * state
         r.phase[i] += v * dt;
       }
     }
@@ -429,13 +432,15 @@ export class Battle {
         const a = r.ammo[i];
         const limit = i === 0 ? r.L : r.ammo[i - 1].s - AMMO_SPACING;
         const ci = Math.min(n - 1, Math.floor(a.s / CELL));
-        let v = BELT_SPEED * this.speedStateAt(r, a.s);
+        let v = BELT_SPEED * (s.race?.speedLock ? 1 : this.speedStateAt(r, a.s)); // races: METRONOME speed lock
         if (ci >= 0 && r.cellDisrupt[ci] > 0) v = 0;
+        const drag = s.race ? raceDrag(this, s, r.index, ci) : 1; // races: SIPHON Drag
+        if (drag !== 1) v *= drag; // races:
         const want = a.s + v * dt;
         let ns = Math.min(want, limit);
         if (ns < a.s) ns = a.s;
         const moved = ns - a.s;
-        if (v > 0 && moved > 0) a.p.ride += moved / v;
+        if (v > 0 && moved > 0 && drag === 1) a.p.ride += moved / v; // races: dragged movement isn't ride
         a.blocked = want > limit + 1e-6 || v === 0;
         if (a.blocked) pressure++;
         // process gates whose centres were crossed
@@ -553,7 +558,9 @@ export class Battle {
   private fire(s: SideState, tu: TurretState, p: Payload, k: number): void {
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
-    const dmg = payloadDamage(ammo.base, ammo.rideScale, p.ride, p.mult, p.flat);
+    const dmg = ammo.rideCurve // races: PENDULUM curve
+      ? raceCurveDamage(ammo, s, tu, p)
+      : payloadDamage(ammo.base, ammo.rideScale, p.ride, p.mult, p.flat);
     const target = this.pickTarget(foe);
     let tx = target.x, ty = target.y;
     if (target.kind === "hull") {
@@ -611,6 +618,7 @@ export class Battle {
     if (pr.payload.shock && pr.target.kind !== "hull") {
       shocked = this.disrupt(def, pr.target);
     }
+    if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
     this.events.push({
       type: "impact", side: def.side, x: pr.tx, y: pr.ty, dmg: total, heavy: pr.heavy,
       kind: pr.target.kind, shock: shocked, burn: pr.payload.burn, big: total >= 14,

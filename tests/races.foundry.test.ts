@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { key as K, routeInfo, type Build } from "../src/sim/deck";
 import { FUSE_MULT, SYNC_WINDOW, inSync } from "../src/sim/races/foundry";
-import { raceWarlordBuild, startingRaceBuild } from "../src/sim/races/warlords";
+import { raceRefBuild, raceStartBuild } from "../src/sim/races/refBuilds";
 import { buildCost, dummyFoe, expectLegal, expectSaneBattles, shots } from "./races.helpers";
 
-const start = () => startingRaceBuild("foundry", 1);
+const start = () => raceStartBuild("foundry", 1);
 const withRouteB = (cells: number[]): Build => {
   const b = start();
   b.routes[1] = { factory: 1, cells };
@@ -72,21 +72,36 @@ describe("FOUNDRY sync rule", () => {
   });
 });
 
-describe("FOUNDRY warlords", () => {
-  it("are legal and escalate at every round 1-12", () => {
+describe("FOUNDRY fuse event (ruling 10)", () => {
+  it("every fusion emits one fuse event with the gun and the alloy slug's damage", () => {
+    const b = new Battle(start(), dummyFoe(), 7);
+    const fuses: { turret: number; dmg: number }[] = [];
+    while (b.t < 20) {
+      b.step();
+      for (const ev of b.events) if (ev.type === "fuse" && ev.side === 0) fuses.push({ turret: ev.turret, dmg: ev.dmg });
+      b.events.length = 0;
+    }
+    expect(fuses.length).toBe(b.sides[0].race!.foundry.fusions);
+    expect(fuses.length).toBeGreaterThanOrEqual(8);
+    for (const f of fuses) expect(f).toEqual({ turret: 0, dmg: FUSE_MULT * 6 });
+  });
+});
+
+describe("FOUNDRY reference builds", () => {
+  it("are legal, honestly priced and escalate on every day 1-10", () => {
     let prev = -1;
-    for (let r = 1; r <= 12; r++) {
-      const w = raceWarlordBuild("foundry", r);
-      expectLegal(w, r);
-      expect(buildCost(w)).toBeGreaterThanOrEqual(prev);
+    for (let d = 1; d <= 10; d++) {
+      const w = raceRefBuild("foundry", d);
+      expectLegal(w, d);
+      expect(buildCost(w)).toBeGreaterThan(prev);
       prev = buildCost(w);
     }
-    expect(buildCost(raceWarlordBuild("foundry", 5))).toBe(14);
-    expect(buildCost(raceWarlordBuild("foundry", 10))).toBe(33);
+    expect(buildCost(raceRefBuild("foundry", 1))).toBe(6);
+    expect(buildCost(raceRefBuild("foundry", 10))).toBe(56);
     expectLegal(start(), 1);
   });
 
-  it("battles vs Furnace and Weaver (start and warlords, 10 seeds, both sides) end before the cap with no NaN", () => {
-    expectSaneBattles(start(), (r) => raceWarlordBuild("foundry", r));
+  it("battles vs Furnace and Weaver (start and days 1/5/10, 10 seeds, both sides) end before the cap with no NaN", () => {
+    expectSaneBattles("foundry", ["furnace", "weaver"]);
   });
 });
