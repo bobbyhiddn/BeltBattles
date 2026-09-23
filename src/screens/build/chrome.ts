@@ -6,7 +6,7 @@ import { ITEMS, REROLL_COST, RUN_LIVES, RUN_WINS } from "../../sim/content";
 import { beltUsed } from "../../sim/deck";
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
-import { drawText } from "../../render/font";
+import { drawText, wrap } from "../../render/font";
 import { beltIcon, coinIcon, heartIcon } from "../../render/sprites";
 import { button, inside, itemSlot, panel } from "../../ui/ui";
 import { optionsCard } from "../../ui/hud";
@@ -84,9 +84,15 @@ function drawRefitBanner(g: G, s: BuildScreen): void {
   panel(g, r, "dark");
   s.game.ui.add({ id: "refitbanner", r, block: true });
   const cx = r.x + r.w / 2, big = r.h >= 44;
-  drawText(g, "ROAD REFIT", cx, r.y + (big ? Math.floor(r.h / 2) - 16 : 5), C.yellow, { align: "center", outline: C.ink, scale: big ? 2 : 1 });
-  drawText(g, `AFTER ${s.refitFrom()} · THE CARAVAN HAS MOVED ON`, cx, r.y + (big ? Math.floor(r.h / 2) + 2 : 15), C.bone, { font: "3", align: "center" });
-  drawText(g, "PLACE YOUR NEW PARTS, THEN FIGHT", cx, r.y + (big ? Math.floor(r.h / 2) + 10 : 23), C.slate4, { font: "3", align: "center" });
+  // lines wrap to the panel (narrow portrait screens get more, shorter lines)
+  const info = wrap(`AFTER ${s.refitFrom()} · THE CARAVAN HAS MOVED ON`, r.w - 10, "3");
+  const hint = wrap("PLACE YOUR NEW PARTS, THEN FIGHT", r.w - 10, "3");
+  const blockH = (big ? 14 : 7) + 4 + (info.length + hint.length) * 8;
+  let ty = r.y + Math.max(4, Math.floor((r.h - blockH) / 2));
+  drawText(g, "ROAD REFIT", cx, ty, C.yellow, { align: "center", outline: C.ink, scale: big ? 2 : 1 });
+  ty += (big ? 14 : 7) + 5;
+  for (const ln of info) { drawText(g, ln, cx, ty, C.bone, { font: "3", align: "center" }); ty += 8; }
+  for (const ln of hint) { drawText(g, ln, cx, ty, C.slate4, { font: "3", align: "center" }); ty += 8; }
 }
 
 function drawCargo(g: G, s: BuildScreen): void {

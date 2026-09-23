@@ -88,12 +88,12 @@ export class BuildScreen implements Screen, EditHost {
     this.game.audio.music("prep");
     if (this.refit) {
       this.caravan.park();
-      this.game.toast("REFIT · THE CARAVAN HAS MOVED ON", C.yellow, "pickup");
+      this.game.toast("REFIT · CARAVAN GONE", C.yellow, "pickup");
     } else {
       this.caravan.arrive(this.offers().length);
       this.game.audio.play("horn");
       const sh = this.run.shop;
-      if (sh.discount > 0 || sh.free > 0) this.game.toast(sh.discount > 0 ? `SCOUT'S DEAL: PRICES -${sh.discount}` : `SCOUT'S WORD: ${sh.free} FREE REROLL`, C.lime);
+      if (sh.discount > 0 || sh.free > 0) this.game.toast(sh.discount > 0 ? `SCOUT: PRICES -${sh.discount}` : `SCOUT: ${sh.free} FREE REROLL`, C.lime);
     }
     saveRun(this.run);
   }

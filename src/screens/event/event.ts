@@ -9,7 +9,6 @@ import { EVENTS, type Choice } from "../../game/eventDefs";
 import { choicesFor, pickChoice } from "../../game/events";
 import { saveRun, type Run } from "../../game/run";
 import { settings } from "../../core/settings";
-import { ITEMS } from "../../sim/content";
 import { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
@@ -308,7 +307,7 @@ export function outcomeText(c: Choice, won: boolean): [string, string] {
   const d = c.gain[0];
   if (!d) return ["YOU MOVE ON", C.bone];
   switch (d.k) {
-    case "item": return [`GOT ${itemName(d.def)}${ITEMS[d.def].kind === "supply" ? "" : " · TO CARGO"}`, C.lime];
+    case "item": return [`GOT ${itemName(d.def)}`, C.lime]; // the outcome panel adds "<PART> IS IN CARGO"
     case "gold": return [`+${d.n} GOLD`, C.yellow];
     case "hull": return [`+${d.n} MAX HULL`, C.lime];
     case "lives": return [`+${d.n} LIFE`, C.lime];
