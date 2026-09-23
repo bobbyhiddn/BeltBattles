@@ -6,8 +6,9 @@
 // hashSeed(runSeed, "standin") streams, so shop rolls and battle seeds never move.
 
 import { hashSeed, Rng } from "../core/rng";
-import { HEROES, type Faction, type HeroId } from "./content";
+import { HEROES, ITEMS, START_GOLD, incomeFor, type Faction, type HeroId } from "./content";
 import type { Build } from "./deck";
+import { warlordBuild, warlordHull } from "./ai";
 import { PLANS, planBuild, type RivalLoadout } from "./rivalBuilds";
 
 export type RivalId =
@@ -175,7 +176,8 @@ export function warlordOffer(runSeed: number, day: number): WarlordOffer {
  * build exists for that day. The order is a shuffle of the 12 captains other than the Matriarch,
  * from hashSeed(runSeed, "standin"). No captain stands in twice in a run, and none stands in on a
  * day it is offered as a warlord: it waits for the next free day. Either faction may stand in, so
- * mirror matches happen. A stand-in fights with rivalBuild(id, day), a real legal day-N build.
+ * mirror matches happen. The game fights a stand-in with standInBuild(id, day), never with
+ * rivalBuild: an honest deck a player could own on that day (R1).
  */
 export function standInGhosts(runSeed: number): RivalId[] {
   const queue = new Rng(hashSeed(runSeed, "standin")).shuffle(RIVAL_IDS.filter((id) => id !== "matriarch"));
@@ -187,17 +189,96 @@ export function standInGhosts(runSeed: number): RivalId[] {
   });
 }
 
-/** The stand-in dusk ghost for a day (1-10) of the run seeded runSeed. */
+/**
+ * The stand-in dusk ghost for a day (1-10) of the run seeded runSeed. The game fights it with
+ * standInBuild(id, day), the captain's honest deck for that day (R1), not rivalBuild.
+ */
 export function standInGhost(runSeed: number, day: number): RivalId {
   return standInGhosts(runSeed)[clampDay(day) - 1];
 }
 
-/** A captain's deck plus the supplies and gold it represents, as it stands on a day (1-10). */
+/** A captain's plan as it stands on a day (1-10): the warlord deck, its supplies and its value. */
 export function rivalLoadout(id: RivalId, day: number): RivalLoadout {
   return planBuild(PLANS[id], day);
 }
 
-/** The captain's production build on a day (1-based): the same deck as warlord or stand-in. */
+/**
+ * The captain's road-warlord deck on a day (1-based): its plan plus the PvE hull ramp
+ * warlordHull(day), as the 0.4.0 warlords have it. Warlords are PvE and never cost a life, so
+ * this deck may exceed a player's budget and its hull need not be whole plating. The dusk
+ * fight never uses it: stand-ins fight with standInBuild(id, day).
+ */
 export function rivalBuild(id: RivalId, day: number): Build {
   return rivalLoadout(id, day).build;
+}
+
+// ------------------------------------------------------------ honest decks (rulings R1, R2)
+
+const PLATE_HULL = ITEMS.plating.supply!.hull!;
+const CRATE_BELT = ITEMS.beltcrate.supply!.belt!;
+
+/**
+ * The warlord hull ramp as whole plating (R2): max(0, round(warlordHull(day) / 25)), so 0 on
+ * days 1-4, 1 on days 5-6, 2 on days 7-9 and 3 on day 10. Stand-ins and the par player buy these
+ * plates instead of the fractional ramp, and pay for them.
+ */
+export function rampPlates(day: number): number {
+  return Math.max(0, Math.round(warlordHull(clampDay(day)) / PLATE_HULL));
+}
+
+/**
+ * The most gold a player can have received before the dusk fight of a day (1-based). It mirrors
+ * the async validator's maxGoldByDay: START_GOLD + incomeFor(d, true) for every d < day, so
+ * 8, 17, 27, 38, 50, 63, 77, 91, 105 and 119 on days 1-10.
+ */
+export function maxGoldByDay(day: number): number {
+  let gold = START_GOLD;
+  for (let d = 1; d < day; d++) gold += incomeFor(d, true);
+  return gold;
+}
+
+/** A deck's purchase value, broken down as the async validator's BuildCost. */
+export interface DeckCost {
+  items: number; // gold: every deck item (signature factories are free)
+  mods: number; // gold: turret gear
+  crates: number; // belt crates implied by beltCap above the hero's base (count)
+  plates: number; // armor plating implied by hullBonus (count)
+  total: number; // gold
+}
+
+const priceOf = (id: string): number =>
+  Object.prototype.hasOwnProperty.call(ITEMS, id) ? ITEMS[id].price : 0;
+
+/**
+ * What a deck costs, mirroring the async validator's buildCost exactly: item and mod prices
+ * (unknown ids cost 0), plus 2 g per belt crate implied by ceil((beltCap - hero belt) / 4) and
+ * 5 g per plating implied by ceil(hullBonus / 25), neither below 0. R1: an honest dusk deck
+ * costs at most maxGoldByDay(day).
+ */
+export function deckCost(b: Build): DeckCost {
+  const items = b.items.reduce((s, p) => s + priceOf(p.def), 0);
+  const mods = b.mods.reduce((s, m) => s + priceOf(m.def), 0);
+  const crates = Math.max(0, Math.ceil((b.beltCap - HEROES[b.hero].belt) / CRATE_BELT));
+  const plates = Math.max(0, Math.ceil(b.hullBonus / PLATE_HULL));
+  return { items, mods, crates, plates, total: items + mods + crates * ITEMS.beltcrate.price + plates * ITEMS.plating.price };
+}
+
+/**
+ * A captain's dusk-ghost deck on a day (R1, R2): the same plan as rivalBuild(id, day), but its
+ * hull is whole, paid-for plating, hullBonus = 25 x (the plan's plates + rampPlates(day)). It is
+ * a deck a player could own on that day: legal, every belt reaching a turret, and costing at
+ * most maxGoldByDay(day) for every captain but the Matriarch, who never stands in.
+ */
+export function standInBuild(id: RivalId, day: number): Build {
+  const l = rivalLoadout(id, day);
+  return { ...l.build, hullBonus: PLATE_HULL * (l.plating + rampPlates(day)) };
+}
+
+/**
+ * The par player of a day, the difficulty ladder's reference (R2): warlordBuild(hero, day) with
+ * its hull ramp converted to rampPlates(day) whole plates, so it is an honest deck too.
+ */
+export function honestReference(hero: HeroId, day: number): Build {
+  const d = clampDay(day);
+  return { ...warlordBuild(hero, d), hullBonus: PLATE_HULL * rampPlates(d) };
 }
