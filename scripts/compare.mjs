@@ -67,7 +67,7 @@ async function main() {
   }
   // 0.4.0 next to the reference studios
   const refs = [
-    ["BeltBreaker · workshop at game camera (art/bible/current/interiors/tour-workshop-play-lit.png)", join(REFS, "BeltBreaker/art/bible/current/interiors/tour-workshop-play-lit.png")],
+    ["BeltBreaker · workshop, game camera (interiors/tour-workshop-play-lit.png)", join(REFS, "BeltBreaker/art/bible/current/interiors/tour-workshop-play-lit.png")],
     ["BeltBreaker · containment combat (docs/images/containment-combat.png)", join(REFS, "BeltBreaker/docs/images/containment-combat.png")],
   ];
   const tiles = [
@@ -82,8 +82,8 @@ async function main() {
   const texts = [
     { x: PAD, y: 44, text: "BeltBattles 0.4.0 · battle (desk 6x)", size: 26, color: "#F38F32", bold: true },
     { x: PAD * 2 + 960, y: 44, text: "BeltBattles 0.4.0 · build (desk 4x)", size: 26, color: "#F38F32", bold: true },
-    { x: PAD, y: HEAD + 540 + 44, text: refs[0][0], size: 20, color: "#80E5EF" },
-    { x: PAD * 2 + 960, y: HEAD + 540 + 44, text: refs[1][0], size: 20, color: "#80E5EF" },
+    { x: PAD, y: HEAD + 540 + 44, text: refs[0][0], size: 18, color: "#80E5EF" },
+    { x: PAD * 2 + 960, y: HEAD + 540 + 44, text: refs[1][0], size: 18, color: "#80E5EF" },
     { x: PAD, y: HEAD * 2 + 1080 + 44, text: "Tangora · sprite grammar (docs/sprite-corrections-v1/...)  |  0.4.0 · hit frame", size: 20, color: "#80E5EF" },
     ...notes.map((t, i) => ({ x: PAD * 3 + 960, y: HEAD * 3 + 1080 + 26 + i * 27, text: t, size: 19, color: t.startsWith("MATCH") ? "#28FF64" : t.startsWith("GAP") ? "#EF5B4E" : "#D0CEB7" })),
   ];
