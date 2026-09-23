@@ -67,6 +67,10 @@ export const DUSK = (o, ghosts = [], frames = 60, toResult = false) => `(() => {
   g.render();
 })()`;
 export const END = (o, ghosts = []) => `(() => { bb.openEnd(${J(o)}, ${J(ghosts)}); ${STEP(60)} bb.game.render(); })()`;
+// 0.6.0b: the road fork at a dawn (optional extra page script, e.g. a portrait inspect), and a
+// warlord fight (with `outcome` in the options: its result card)
+export const FORK = (o, ghosts = [], extra = "") => `(() => { bb.openFork(${J(o)}, ${J(ghosts)}); ${STEP(60)} ${extra} bb.game.render(); })()`;
+export const WARLORD = (tier, o, frames) => `(() => { bb.openWarlord(${J(tier)}, ${J(o)}); ${STEP(frames)} bb.game.render(); })()`;
 const POOL = [
   { day: 2, hero: "weaver", wins: 1, losses: 0 }, { day: 3, hero: "furnace", wins: 1, losses: 1 },
   { day: 5, hero: "weaver", wins: 3, losses: 1 }, { day: 8, hero: "furnace", wins: 4, losses: 3 },
@@ -122,6 +126,22 @@ export const SHOTS = [
     ["run-complete", v, "title", 0, END({ results: "WWLWDWLWWW", seed: 777 }, POOL)],
     ["run-lost", v, "title", 0, END({ results: "WLLWLDLL", seed: 4242, hero: "weaver" }, POOL)],
     ["playback", v, "battle", 7, "bb.game.screen.setSpeed(0); for (let i = 0; i < 20; i++) bb.game.step(1 / 60); bb.game.render()"],
+  ]),
+  // 0.6.0b the road fork: day 1 (no intro rule), day 8 with the Iron Matriarch in the Hard slot, a
+  // warlord intro, a Hard win with its part pick, a loss with no life lost, the Matriarch's
+  // legendary win, dusk vs a stand-in captain, and a summary with warlord rows
+  ...["desk", "laptop", "phone", "small"].flatMap((v) => [
+    ["fork-day1", v, "title", 0, FORK({ day: 1 })],
+    ["fork-day8", v, "title", 0, FORK({ day: 8, wins: 5, losses: 2, lives: 3, gold: 31 })],
+    ["warlord-intro", v, "title", 0, WARLORD("hard", { day: 3, wins: 1, losses: 1, lives: 4 }, 75)],
+    ["warlord-win", v, "title", 0, WARLORD("hard", { day: 4, wins: 2, losses: 1, lives: 4, outcome: 0 }, 60)],
+    ["warlord-loss", v, "title", 0, WARLORD("easy", { day: 2, wins: 0, losses: 1, lives: 4, outcome: 1 }, 60)],
+    ["dusk-standin-intro", v, "title", 0, DUSK({ day: 6, wins: 3, losses: 2, lives: 3 }, [], 75)],
+    ["summary-warlords", v, "title", 0, END({ results: "WWLWDWLWWW", roads: "EMHvhVmEHv", seed: 777 }, POOL)],
+  ]),
+  ...["desk", "phone"].flatMap((v) => [
+    ["warlord-matriarch-win", v, "title", 0, WARLORD("hard", { day: 8, wins: 5, losses: 2, lives: 3, outcome: 0 }, 60)],
+    ["fork-inspect", v, "title", 0, FORK({ day: 5, wins: 3, losses: 1, lives: 4 }, [], "bb.game.screen.sel = 3;")],
   ]),
   ...["desk", "phone"].flatMap((v) => [
     ["playback-paused", v, "battle", 7, "bb.game.screen.setSpeed(0); bb.game.screen.togglePause(); bb.game.render()"],
