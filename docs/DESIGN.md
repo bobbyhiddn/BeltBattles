@@ -1,107 +1,112 @@
 # BeltBattles: full-game design (0.6.0 to 1.0)
 
 Written against 0.4.1 (rules `bb-0.4.0`) while 0.5.0 (cruiser spacing, road events) is in
-flight. Every pass keeps the rule the game already lives by: the battle sim is fixed-step,
-seeded and deterministic, and every enemy is a real production build under player rules.
-Lines marked **DECIDED** record the Prime's decisions; anything still **OPEN** is for the Prime.
+flight. **The plan of record is the Prime's roadmap, ROADMAP.md (revised 2026-09-23)**, built on
+the operator's Game Specification v0.2. Where this file and the roadmap disagree, the roadmap
+wins. Every pass keeps the rule the game already lives by: the battle sim is fixed-step, seeded
+and deterministic, and every enemy is a real production build under player rules.
+Lines marked **DECIDED** record the Prime's decisions.
 
-## 0.6.0 Rivals and finale
+## 0.6.0 The 10-day run and the warlord roster
 
-**Goal.** A run becomes three acts against named rival captains instead of the same warlord
-scaled by round. The data, builds, schedule and tests are already in: `src/sim/rivals.ts`,
-`src/sim/rivalBuilds.ts`, `tests/rivals*.test.ts`.
+**The run** (ROADMAP §1, spec §18). A run lasts 10 days, and each day has three stops:
+1. **Dawn: the caravan**, as today.
+2. **The road stop**: a road event (0.5.0), or a PvE warlord at Easy, Medium or Hard (spec §19).
+3. **Dusk: the ghost**, another player's saved build from the same day of their run.
 
-**Acts.**
+- You start with **5 lives**. A ghost loss costs one; lose the last and the dark wind catches you.
+- A warlord fight **never costs a life**. A loss only forfeits its reward.
+- Surviving day 10's dusk completes the run. It is scored by wins, so 10-0 is a flawless run.
+- Day 1's dusk is a real day-1 ghost. **There is no softened first fight anywhere**: every
+  captain's day-1 deck is its real plan.
+- Retired with the old plan: the three-act ladder, its banners, the boss finale and its retries,
+  and the round-1 opener layouts.
 
-| Act | Banner | Rounds | Fights |
-|---|---|---|---|
-| I | ACT I · THE CINDER ROAD | 1-3 | two tier-1 regulars, then the act-1 elite (round 3) |
-| II | ACT II · THE SKYWRIGHT PASS | 4-7 | three tier-2 regulars, then the act-2 elite (round 7) |
-| III | ACT III · THE GRAND FOUNDRY | 8-12 | two tier-3 regulars, the boss at round 10, retries at 11-12 |
+**The captains' two jobs** (ROADMAP §2). The 13 rival captains in `src/sim/rivals.ts` and
+`src/sim/rivalBuilds.ts` are the **warlord roster** met at the road stop, and the **stand-in
+ghosts** used at dusk whenever no player build exists for that day (offline, or before the
+ghost pool fills up).
 
-`rivalFor(runSeed, round)` picks regulars by shuffling each act's pool with
-`hashSeed(runSeed, "rival", act)`, so there are no repeats within a run and the shop and battle
-streams are not touched. The pools hold 3, 4 and 3 regulars for 2, 3 and 2 slots, so any two
-runs usually differ.
+| Captain | Faction | Tier | Difficulty | Trick | Portrait |
+|---|---|---|---|---|---|
+| SOOTJAW | Furnace / orc | 1 | Easy | SLOW COOKER | soot-black jaw on a glowing cinder pipe |
+| NETTLE | Weaver / elf | 1 | Easy | SHORT STITCH | crown of bent sewing needles |
+| GRUBNOSE | Furnace / orc | 1 | Easy | PRESS GANG | nose ring shaped like a press die |
+| MOTH QUEEN | Weaver / elf | 1, elite | Hard | FRAY STORM | moth-wing mantle, frayed glowing edges; amber elite corners |
+| SPARKFANG | Furnace / orc | 2 | Medium | SHOCK TROOPER | copper fang arcing a blue spark |
+| LACEWING | Weaver / elf | 2 | Medium | SPLITTER SWARM | lace veil splitting into twin tails |
+| RATCHET | Furnace / orc | 2 | Medium | OVERCLOCK | goggles with a spinning gear monocle |
+| EMBERLYN | Weaver / elf | 2 | Medium | EMBER WEAVE | braids tipped with smouldering embers |
+| OLD BULWARK | Furnace / orc | 2, elite | Hard | IRONCLAD | riveted iron plate over one eye; amber elite corners |
+| SILKSHADE | Weaver / elf | 3 | Hard | STATIC WEB | hooded face behind a crackling web |
+| LONGTOOTH | Furnace / orc | 3 | Hard | GATE CHAIN | one long tusk hung with gate tags |
+| HIGHSPIRE | Weaver / elf | 3 | Hard | TRIPLE THREAT | tall spire helm flying three pennants |
+| IRON MATRIARCH | Furnace / orc | 3, boss | Hard, days 8-10 only | GRAND FOUNDRY | crown of kiln chimneys venting fire; plum boss frame |
 
-**Win condition.**
-- Beat the boss, THE IRON MATRIARCH, to win the run. This replaces `RUN_WINS = 7`.
-- Every loss costs a life, as today (3 lives). Lose the last life and the run is lost at once, boss or not.
-- Losing to the boss at round 10 costs a life and sends you back to the caravan. You then retry at round 11, and at 12 if needed, while you have lives.
-- The boss buys one more plate and one more gate per retry (`matriarch` plan), so a retry needs a better deck, not luck.
-- There are 12 rounds at most. A run that is still alive after losing at round 12 is lost.
-- **DECIDED:** a draw with the boss counts as a loss that costs no life. You retry at the next round against the escalated boss, and a draw at round 12 loses the run.
-- **DECIDED:** reaching round 10 with 0 wins is allowed. The boss is the only gate.
+`difficultyOf(id)`: tier 1 is Easy and tier 2 is Medium; tier 3, the two elites and the Iron
+Matriarch are Hard. The rank only drives the portrait frame now. Portraits are 24x24 from
+`portraitImage(id)` in `src/render/portraits.ts`, on an orc or elf base.
 
-**Rewards.** Income stays `incomeFor(round, won)`, and beating the boss ends the run.
-**DECIDED:** beating an elite pays +3 gold and gives a free pick of 1 of 2 rare parts at the next
-caravan, so rounds 3 and 7 feel like milestones.
+**Every captain is a real production build.** Its hull is `warlordHull(day)` plus 25 per plate it
+bought. `rivalBuild(id, day)` is legal on every day 1-10 under the build screen's own checks, it
+costs no more than a player who won every day could have spent by then (on every day the captain
+can be met), and it never shrinks from one day to the next. A stamp press can be bought on a later
+day with its belt, like any player purchase.
 
-**NEXT BATTLE panel** (`drawFoe` / `drawIdle` in `src/screens/build/inspector.ts`):
-- The name comes from `RIVALS[id].name` instead of `warlordName`. It is red for regulars and gets an **ELITE** (amber) or **BOSS** (plum4) tag.
-- Line 2: `trick` in yellow, then `blurb` in bone, e.g. `SLOW COOKER · ONE LONG WINDING BELT. LATE, HOT SLUGS.`
-- Line 3 keeps the class line (`FURNACE · HULL 347`) and adds `TRY 2/3` on boss retries.
-- A 24x24 portrait on the left: `portraitImage(id)` from `src/render/portraits.ts` (a faction base plus the rival's feature and palette from `RIVALS[id].portrait`; the hero card uses `portraitImage(heroId)`).
-- In portrait layout the strip keeps 2 rows: name + tag, then trick. The blurb moves to the tap-to-inspect details.
+**The road stop's warlords.** `warlordOffer(runSeed, day)` returns `{ easy, medium, hard }`.
+- It draws from its own `hashSeed(runSeed, "warlords", slot, cycle)` stream, so shop rolls and battle seeds never move.
+- Each slot deals its pool in shuffled cycles (3 Easy, 4 Medium, 5 Hard captains), so every captain in a pool is offered once before any is offered twice.
+- No captain is offered on two consecutive days, in any slot. The one exception is the Iron Matriarch: she is the Hard warlord on each of days 8, 9 and 10, and never earlier.
 
-**Act banners.** A full-width banner shows for 1.6 s when the caravan arrives before rounds 1, 4
-and 8 (`actFor(round)`: title + name). Round 10 gets a FINALE banner with the boss portrait. The
-banner also shows how far you are through the act (e.g. `2 RIVALS · 1 ELITE`) and appears again
-on reload.
+**Stand-in ghosts.** `standInGhosts(runSeed)` gives one captain per day (`standInGhost(runSeed, day)`):
+- It is a seeded order of the 12 captains other than the Matriarch, from its own `hashSeed(runSeed, "standin")` stream.
+- No captain stands in twice in a run, and none stands in on a day it is offered as a warlord (it waits for the next free day).
+- Either faction may stand in, so mirror matches happen.
+- A stand-in fights with `rivalBuild(id, day)`: a real, legal day-N build.
 
-**Summary screen.** It lists every rival fought, in order: portrait, name, trick, round, result and
-time. The one who ended a lost run is highlighted, and a won run shows the boss last with a crown.
-It also shows `RIVALS BEATEN n/10`, plus elites and boss beaten.
+**Difficulty ladder** (`tests/rivals.difficulty.test.ts`). For each day, every captain the player
+can meet that day is fought by the other faction's day-N warlord over 20 seeds. A lower reference
+win rate and hull margin mean a harder captain. The test prints each difficulty's mean per day and
+asserts, on every day:
+- the Easy mean is easier than the Medium mean, which is easier than the Hard mean;
+- every Easy captain is easier than every Hard captain;
+- on days 8-10, the Iron Matriarch is the hardest captain;
+- against an Easy or Medium captain on days 1-3, the pacing-test decks' battles average 20-45 s.
 
-**Roster** (reference = today's warlord of the other faction at the same round, fought as the
-player over 20 seeds; a lower reference win rate means a harder rival. The margin is reference hull
-left minus rival hull left, as fractions. Values come from `tests/rivals.difficulty.test.ts`.)
+**Road-stop and dusk panels** (`drawFoe` / `drawIdle` in `src/screens/build/inspector.ts`):
+- The road stop shows three cards: portrait, name, an EASY / MEDIUM / HARD tag, `trick`, `blurb` and the reward.
+- The name is red for regulars, with an **ELITE** (amber) or **BOSS** (plum4) tag to match the portrait frame.
+- The dusk panel shows the ghost's hero, day and record. A stand-in shows its captain's name and portrait with a STAND-IN tag.
+- In portrait layout a card keeps 2 rows: name + tag, then trick. The blurb moves to tap-to-inspect.
 
-| Rival | Faction | Tier | Trick | Rounds | Ref win | Margin |
-|---|---|---|---|---|---|---|
-| SOOTJAW | Furnace / orc | 1 | SLOW COOKER | 1-2 | 50% | -0.06 |
-| NETTLE | Weaver / elf | 1 | SHORT STITCH | 1-2 | 50% | +0.11 |
-| GRUBNOSE | Furnace / orc | 1 | PRESS GANG | 1-2 | 100% | +0.33 |
-| MOTH QUEEN | Weaver / elf | act-1 elite | FRAY STORM | 3 | 0% | -0.28 |
-| SPARKFANG | Furnace / orc | 2 | SHOCK TROOPER | 4-6 | 88% | +0.21 |
-| LACEWING | Weaver / elf | 2 | SPLITTER SWARM | 4-6 | 67% | +0.03 |
-| RATCHET | Furnace / orc | 2 | OVERCLOCK | 4-6 | 38% | -0.06 |
-| EMBERLYN | Weaver / elf | 2 | EMBER WEAVE | 4-6 | 67% | -0.02 |
-| OLD BULWARK | Furnace / orc | act-2 elite | IRONCLAD | 7 | 0% | -0.33 |
-| SILKSHADE | Weaver / elf | 3 | STATIC WEB | 8-9 | 35% | -0.02 |
-| LONGTOOTH | Furnace / orc | 3 | GATE CHAIN | 8-9 | 15% | -0.22 |
-| HIGHSPIRE | Weaver / elf | 3 | TRIPLE THREAT | 8-9 | 3% | -0.28 |
-| IRON MATRIARCH | Furnace / orc | boss | GRAND FOUNDRY | 10-12 | 0% | -0.39 |
+**Summary screen.** Every fight in order: day, stop (warlord or ghost), opponent, result and
+time, plus lives left and `WINS n/10`. A completed run shows its day-10 ghost last.
 
-Every rival's hull is `warlordHull(round)` + 25 per plate it bought. Every deck costs no more than a
-player who won every round could have spent by then.
+**Decisions.**
+- (1)(2) **Retired:** boss draws and the boss gate went with the acts.
+- (3) **DECIDED:** a warlord win pays supplies and a chance at a part from the warlord's own build
+  (ROADMAP §1). Starting values: Easy +2 gold, Medium +4 gold, Hard +3 gold plus a pick of 1 of 2
+  rare parts, and the Iron Matriarch a legendary part. The 0.6.0 integration may tune them.
+- (4) **DECIDED:** mirror matches stay, for warlords and stand-in ghosts alike.
+- (5) **DECIDED:** SCOUT (1 gold) reveals tonight's dusk ghost's deck. SABOTAGE (4 gold: the
+  warlord fights with its day - 1 deck) and the herald's ELITE BOUNTY (stake 3 gold, 10 back on a
+  win) act only on warlord fights, because ghosts always run exactly as submitted.
+- (6) **DECIDED:** the daily-seed share code is superseded by async play (0.7.0).
+- (7) **DECIDED:** a store or itch.io wrapper is the operator's call at release.
 
-**First fight and elites** (asserted in `tests/rivals.difficulty.test.ts`):
-- At round 1, no tier-1 rival is harder than today's round-1 warlord for any pacing-test deck (start deck plus 0-2 gates): win rate at most 10 points lower, margin at most 0.05 lower, mirrors included.
-- Sootjaw and Nettle open round 1 on a softer `opener` layout: a 6-tile staircase, and a loom under the guns with long stitches. From round 2 they redraw into their full trick.
-- Each act elite leads every regular of its act by at least 0.08 margin. Moth Queen leads by 0.21 or more.
+## Later passes (candidate material)
 
-**DECIDED:** mirror matches stay. `rivalFor` keeps its `(runSeed, round)` signature; this is revisited
-when new races add rivals.
+ROADMAP §5 sets the release train: 0.7.0 async play, 0.8.0 humans and dwarves, 0.9.0 beastfolk
+and Siphon, 0.10.0 the full spec arsenal and the dark-wind map, 0.11.0 balance, progression and
+sound, then 1.0. The notes below predate that train. They are kept as candidate material for
+those passes, not as a schedule.
 
-**Road events (0.5.0) with rivals.** One seeded event with 2-3 priced choices sits between the caravan
-and each battle. Rivals give events something to point at:
-- SCOUT (1 gold) reveals the next rival's deck in the NEXT BATTLE panel.
-- SABOTAGE (4 gold) removes the rival's newest upgrade for this fight (`planBuild` at round - 1).
-- ELITE BOUNTY is offered only before rounds 3 and 7: stake 3 gold, get 10 back if you beat the elite.
-- **DECIDED:** all three are accepted. The 0.6.0 integration adds them to the 0.5.0 road-event table.
-
-## 0.7.0 Arsenal
-
-**Scope.** The operator's v0.2 spec asks for six heroes across five races (Orc Furnace, Elf Weaver,
-Human Foundry, Dwarf Bastion, Beastfolk Metronome, plus Siphon and a random pick), async matches
-against other players' saved builds, PvE warlords at Easy/Medium/Hard, and dark-wind map events.
-The Prime's revised roadmap governs 0.7.0 onward; ANVIL and VOLTA below are candidate mechanics only.
+### Arsenal (0.10.0)
 
 **Star merging.** Dropping a duplicate part onto its twin on the deck (or in cargo) merges them into
-★2. Two ★2 parts merge into ★3, so ★3 takes 4 copies. With 5 offers a round and a pool of ~32, 4
-copies are reachable in a 12-round run and 9 are not. A merged part keeps one tile, sells for half
-of everything paid into it, and shows ★ pips on its rarity strip.
+★2. Two ★2 parts merge into ★3, so ★3 takes 4 copies. With 5 offers a day and a pool of ~32, 4
+copies are reachable in a 10-day run and 9 are not. A merged part keeps one tile, sells for half of
+everything paid into it, and shows ★ pips on its rarity strip.
 
 | Part | ★1 | ★2 | ★3 |
 |---|---|---|---|
@@ -115,10 +120,12 @@ of everything paid into it, and shows ★ pips on its rarity strip.
 | Calibration | fires 25% faster | 35% | 45% |
 | Stamp Press | 1.4 s stamp | 1.2 s | 1.0 s |
 
-Supplies never merge. Rivals from 0.7.0 on may field ★2 parts in act III and ★3 parts at the boss only.
+Supplies never merge. Warlords may field ★2 parts from day 7, and ★3 parts only as the Iron Matriarch.
 
 **Parts pool, 14 to 32.** Every part carries 1-2 synergy tags: BURN, SHOCK, FRAY, SPEED, HAUL, SPLIT,
-ARMOR. A tag bonus lights up at 3 and 5 parts of one tag (e.g. BURN 3: burn ticks +25%).
+ARMOR. A tag bonus lights up at 3 and 5 parts of one tag (e.g. BURN 3: burn ticks +25%). ROADMAP §5
+names the spec arsenal (Venom Drip, Overclocker, Tollbooth and the rest); the parts below are
+candidates to fill the tags around it.
 
 | New part | Kind | Tags | Effect (★1) | Price |
 |---|---|---|---|---|
@@ -141,42 +148,38 @@ ARMOR. A tag bonus lights up at 3 and 5 parts of one tag (e.g. BURN 3: burn tick
 | LODESTONE | gate | SHOCK, HAUL | +1 flat per shocked hit this battle (max +6) | 7 |
 | GILT SEAL | mod | - | turret fires 2 per shot while Fray on the foe is 10+ | 7 |
 
-**Two new heroes** (candidate mechanics only, see the scope note):
-- **ANVIL**, Deepguild dwarves. CRUCIBLE (2x2, 2.0 s) stamps SLAG slugs: base 7, and each hit leaves slag on the struck machine (+0.4 s to its next stamp or shot, max +1.2 s). One heavy centre turret (connectors 4 and 5) plus one light turret at column 8. Hull 220, belt 16. Playstyle: GRIND THEM DOWN.
-- **VOLTA**, Sparkwright gnomes. DYNAMO (2x2, 0.9 s, 2 outputs) stamps CHARGE slugs: base 2, +1 per gate passed, and every machinery hit shocks. Two medium turrets (columns 2 and 7, window 2, 0.8 s). Hull 170, belt 20. Playstyle: GATES ARE AMMO.
-- Each hero gets 3 rivals of its own in 0.7.x: one per tier, plus a variant elite.
+**New heroes.** ROADMAP §4 sets them: Foundry (human), Bastion (dwarf), Metronome (beastfolk) and
+Siphon, with the details in RACES.md. The earlier ANVIL and VOLTA sketches are retired. Each new
+hero brings warlords of its own at Easy, Medium and Hard, built like today's captains.
 
-## 0.8.0 Progression
+### Progression (0.11.0)
 
-- **Unlocks.** Furnace and Weaver start open. Beating the act-2 elite once unlocks ANVIL, and beating the boss once unlocks VOLTA. Parts unlock in 3 batches of 6: the first boss kill with any hero unlocks batch 1, the second hero's boss kill batch 2, a COMMODORE clear batch 3.
-- **Difficulty tiers.** Beat the boss on one tier to open the next.
-  - DECKHAND: rivals -25 hull, 4 lives.
-  - CAPTAIN: as designed, 3 lives.
-  - COMMODORE: rivals +1 plate and elites field their next-round deck.
-  - ADMIRAL: rivals +2 plates, the boss has 1 retry, and income is -1 per round.
-- **Run history.** The last 20 runs go to `beltbattles.history.v1` (about 2 KB each): hero, tier, seed, result, rivals fought and beaten, the final deck, battle times and gold spent. Tapping a run shows its summary screen and a REPLAY SEED button.
-- **Daily seed.** `hashSeed("daily", "YYYY-MM-DD")` in UTC: the same rivals, shops and events for everyone that day. It works locally only and records the first attempt. **DECIDED:** the share code is deferred to the revised roadmap, because async play may replace it.
-- **Tutorial round.** On first launch only (skippable), round 0 against SCRAP DUMMY: a bare kiln with 6 belt tiles and hull -80. Three prompts: draw a belt to the turret, drop the free temper on it, press FIGHT. Nothing carries over.
+- **Unlocks.** Furnace and Weaver start open. ROADMAP §4's default unlocks Siphon with the first completed run. Parts unlock in 3 batches of 6, one per completed run with a different hero.
+- **Difficulty tiers.** Complete a run on one tier to open the next.
+  - DECKHAND: warlords and stand-ins -25 hull, 6 lives.
+  - CAPTAIN: as designed, 5 lives.
+  - COMMODORE: warlords and stand-ins +1 plate.
+  - ADMIRAL: warlords and stand-ins +2 plates, and income is -1 per day.
+- **Run history.** The last 20 runs go to `beltbattles.history.v1` (about 2 KB each): hero, tier, seed, result, every warlord and ghost fought, the final deck, battle times and gold spent. Tapping a run shows its summary screen.
+- **Tutorial.** On first launch only (skippable), a build-screen walkthrough with no battle: draw a belt to the turret, drop the free temper on it. Day 1's dusk is still a real ghost.
 
-## 0.9.0 Balance and sound
+### Balance and sound (0.11.0)
 
 - **Headless balance harness.** `npm run balance` runs a vitest file behind `BB_BALANCE=1`, like `tests/balance.test.ts`.
-  - A reference strategy plays full runs for 200 seeds per hero. It buys the highest `estimateRoute` gain it can place, rerolls when nothing fits, and uses the cheapest belt fix.
-  - It writes JSON and a text table: run win rate, per-round battle length, loss round, gold curve and each rival's kill rate.
+  - A reference strategy plays full 10-day runs for 200 seeds per hero. It buys the highest `estimateRoute` gain it can place, rerolls when nothing fits, and uses the cheapest belt fix.
+  - It writes JSON and a text table: completion rate, wins per run, per-day battle length, the day each run ended, the gold curve, and each warlord's and stand-in's win rate against it.
 - **Targets** (asserted in the harness, not in `npm test`):
-  - The reference strategy wins a base CAPTAIN run 50-65% of the time per hero.
-  - Rounds 1-3 average 20-45 s at 1x, and no battle exceeds 75 s before round 10.
-  - It beats the boss on the first try in 30-45% of won runs.
-  - No regular rival kills more than 35% of reference runs that reach it.
-  - Each elite kills 25-45%.
-- **Music.** Four loops from the existing WebAudio synth: caravan (96 bpm, 64 bars), battle for acts I-II (112 bpm), act III (120 bpm, minor) and boss (126 bpm, adds the kiln-roar drone). Each loop is 60-90 s, crossfades over 0.5 s and ducks under KO stingers.
-- **By-ear SFX pass.** Loudness-match every event against `fire` (heavy) = 0 dB. A split has its own chirp; burn ticks are quieter than hits (-9 dB); shock gets a crackle tail; act banners get a gong. A 6-voice cap per event type stops 4x playback from mashing.
+  - A solid player survives all 10 days about half the time (ROADMAP §1).
+  - Days 1-3 average 20-45 s at 1x, and no battle exceeds 75 s before day 10.
+  - The reference strategy's warlord win rate falls from Easy to Medium to Hard on every day.
+- **Music.** Four loops from the existing WebAudio synth: caravan (96 bpm, 64 bars), battle for days 1-5 (112 bpm), days 6-10 (120 bpm, minor) and the Iron Matriarch (126 bpm, adds the kiln-roar drone). Each loop is 60-90 s, crossfades over 0.5 s and ducks under KO stingers.
+- **By-ear SFX pass.** Loudness-match every event against `fire` (heavy) = 0 dB. A split has its own chirp; burn ticks are quieter than hits (-9 dB); shock gets a crackle tail; the dawn and dusk banners get a gong. A 6-voice cap per event type stops 4x playback from mashing.
 
 ## 1.0 release
 
 - **Performance on a mid-range phone** (Pixel 6a / iPhone 11 class):
   - 60 fps in the caravan and at 1x battle; at 4x playback the sim takes 4 ms or less per frame.
-  - No frame over 33 ms in a 10-round scripted playthrough (`scripts/playthrough.mjs`).
+  - No frame over 33 ms in a scripted 10-day playthrough (`scripts/playthrough.mjs`).
   - The JS heap stays flat across 5 runs.
-- **Single-file build.** `scripts/singlefile.mjs` produces one HTML file of at most 1.5 MB with no network requests. It loads offline from `file://`, and saves survive a version bump through a `version` migration.
-- **Release gate.** All tests are green, the balance harness is within targets and `RULES_VERSION` is bumped. The operator plays one full run per hero on a phone and approves. **DECIDED:** a store or itch.io wrapper is the operator's call at release.
+- **Single-file build.** `scripts/singlefile.mjs` produces one HTML file of at most 1.5 MB with no network requests. It loads offline from `file://` with the bundled ghost pool and stand-in captains, and saves survive a version bump through a `version` migration.
+- **Release gate.** All tests are green, the balance harness is within targets and `RULES_VERSION` is bumped. The operator plays one full run per hero on a phone and approves. A store or itch.io wrapper is the operator's call (decision 7).
