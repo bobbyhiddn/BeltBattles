@@ -55,7 +55,7 @@ function rival(
 }
 
 export const RIVALS: Record<RivalId, RivalDef> = {
-  sootjaw: rival("sootjaw", "SOOTJAW", "furnace", 1, "regular", "SLOW COOKER",
+  sootjaw: rival("sootjaw", "SOOTJAW", "furnace", 2, "regular", "SLOW COOKER",
     "ONE LONG WINDING BELT. LATE, HOT SLUGS.",
     ["rust2", "soil3", "fire3", "bone"], "soot-black jaw clamped on a glowing cinder pipe"),
   nettle: rival("nettle", "NETTLE", "weaver", 1, "regular", "SHORT STITCH",
@@ -73,7 +73,7 @@ export const RIVALS: Record<RivalId, RivalDef> = {
   lacewing: rival("lacewing", "LACEWING", "weaver", 2, "regular", "SPLITTER SWARM",
     "SPLITTERS TURN EVERY BOLT INTO TWO.",
     ["verd2", "verd4", "white", "cyan"], "lace veil that splits into twin tails"),
-  ratchet: rival("ratchet", "RATCHET", "furnace", 2, "regular", "OVERCLOCK",
+  ratchet: rival("ratchet", "RATCHET", "furnace", 1, "regular", "OVERCLOCK",
     "OVERDRIVE BELT, CALIBRATED GUN.",
     ["brass3", "yellow", "rust1", "steel3"], "goggles with a spinning gear monocle"),
   emberlyn: rival("emberlyn", "EMBERLYN", "weaver", 2, "regular", "EMBER WEAVE",
@@ -106,6 +106,8 @@ const clampDay = (day: number): number => {
 /**
  * A captain's warlord slot. Tier 1 is Easy and tier 2 is Medium. Tier 3, the two elites (MOTH
  * QUEEN, OLD BULWARK) and the IRON MATRIARCH are Hard; the Matriarch is met only on days 8-10.
+ * Part 4 moved SOOTJAW up to Medium (its 13-tile cooker out-hits every Easy deck from day 1) and
+ * RATCHET down to Easy, so the per-day ladder holds with 3 Easy, 4 Medium and 5 Hard captains.
  */
 export function difficultyOf(id: RivalId): Difficulty {
   const d = RIVALS[id];

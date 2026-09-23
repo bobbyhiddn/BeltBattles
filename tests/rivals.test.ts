@@ -24,8 +24,9 @@ function budget(day: number): number {
 describe("rival roster", () => {
   it("fills Easy, Medium and Hard from both factions; the Matriarch is Hard on days 8-10 only", () => {
     expect(RIVAL_IDS.length).toBe(13);
-    expect(warlordPool("easy")).toEqual(["sootjaw", "nettle", "grubnose"]);
-    expect(warlordPool("medium")).toEqual(["sparkfang", "lacewing", "ratchet", "emberlyn"]);
+    // Part 4: SOOTJAW moved up to Medium and RATCHET down to Easy (the per-day ladder).
+    expect(warlordPool("easy")).toEqual(["nettle", "grubnose", "ratchet"]);
+    expect(warlordPool("medium")).toEqual(["sootjaw", "sparkfang", "lacewing", "emberlyn"]);
     expect(warlordPool("hard")).toEqual(["mothqueen", "bulwark", "silkshade", "longtooth", "highspire"]);
     for (const d of DIFFICULTIES) expect(new Set(warlordPool(d).map((id) => RIVALS[id].faction)).size).toBe(2);
     for (const id of RIVAL_IDS) {
