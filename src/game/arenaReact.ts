@@ -8,6 +8,7 @@ import { CELL } from "../sim/content";
 import { C } from "../render/palette";
 import { hullBox, hullX, hullY, sx, sy } from "../render/frame";
 import { muzzleX, muzzleY } from "../render/cruiser";
+import type { Fx } from "../render/fx";
 import type { Arena } from "./arena";
 
 const HOT = [C.fire5, C.fire4, C.fire3, C.white] as const;
@@ -37,6 +38,21 @@ export function hitTrauma(dmg: number): number {
  *  1 world px on the frame it lands; heavier shells punch harder (up to 3 px). */
 export function hitKick(dmg: number, heavy: boolean): number {
   return Math.max(1.1, Math.min(3, dmg / (heavy ? 4 : 5)));
+}
+
+/** Exact camera offset (world px) a hit shows on its landing frame, whatever the noise does:
+ *  1 px for a light bolt, 2 px for any heavy shell or any hit of 6+ damage, 3 px from 10. */
+export function hitPunch(dmg: number, heavy: boolean): number {
+  return dmg >= 10 ? 3 : heavy || dmg >= 6 ? 2 : 1;
+}
+
+/** Camera response to a hit of `dmg` (as shown) from a shell travelling along (dx, dy):
+ *  trauma noise and a decaying kick, plus the deterministic landing-frame punch. */
+export function hitShake(fx: Fx, dmg: number, heavy: boolean, dx: number, dy: number): void {
+  fx.addTrauma(hitTrauma(dmg));
+  const kick = hitKick(dmg, heavy);
+  fx.kick(dx * kick, dy * kick);
+  fx.land(dx, dy, hitPunch(dmg, heavy));
 }
 
 /** Camera trauma of a KO (the hardest shake in the game). */
@@ -121,10 +137,9 @@ export function react(a: Arena, e: SimEvent): void {
       if (e.x > -2 && e.x < 122 && e.y > -2 && e.y < 122) fx.scorch(x, y, e.big ? 6 : e.heavy ? 5 : 3);
       if (e.burn > 0) fx.embers(x, y, 4);
       fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, String(dmg), e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
-      // shake scales with the damage dealt (light bolt ~1px, heavy shell ~2px, big hit 4-5px)
-      fx.addTrauma(hitTrauma(dmg));
-      const kick = hitKick(dmg, e.heavy);
-      fx.kick(-dx * kick, -dy * kick);
+      // shake scales with the damage dealt: the landing frame shows exactly 1 px for a light
+      // bolt and 2+ px for a heavy shell or 6+ damage; big hits add their trauma on top
+      hitShake(fx, dmg, e.heavy, -dx, -dy);
       if (e.big) {
         fx.ring(x, y, 14, C.fire4);
         if (!settings.reducedMotion) fx.screenFlash(C.fire4, 0.2);

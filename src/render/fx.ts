@@ -73,6 +73,10 @@ export class Fx {
   shakeY = 0;
   private kickX = 0;
   private kickY = 0;
+  // landing-frame punch of a hit: exact minimum offset (world px) on the next update
+  private landPx = 0;
+  private landX = 0;
+  private landY = 0;
   private seed = 1;
 
   /** Cosmetic RNG (never the simulation's). */
@@ -86,6 +90,7 @@ export class Fx {
     this.na = this.np = this.nd = 0;
     this.trauma = this.flash = this.hitstop = 0;
     this.kickX = this.kickY = this.shakeX = this.shakeY = 0;
+    this.landPx = this.landX = this.landY = 0;
   }
 
   get busy(): number {
@@ -117,6 +122,16 @@ export class Fx {
     this.kickY += dy;
   }
 
+  /** A hit lands: the next frame's camera offset is at least `px` world px (|x|+|y|), along
+   *  (dx, dy) if the noise and kick come out smaller. Deterministic: whatever the cosmetic RNG
+   *  returns, the landing frame shows the punch. The strongest punch of a frame wins. */
+  land(dx: number, dy: number, px: number): void {
+    if (px <= this.landPx) return;
+    this.landPx = px;
+    this.landX = Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? -1 : 1) : 0;
+    this.landY = this.landX === 0 ? (dy < 0 ? -1 : 1) : 0;
+  }
+
   update(dt: number): void {
     this.trauma = Math.max(0, this.trauma - dt * 1.7);
     const k = Math.pow(0.78, dt * 60);
@@ -129,7 +144,12 @@ export class Fx {
       const s = this.trauma * Math.sqrt(this.trauma);
       this.shakeX = Math.round((this.rnd() * 2 - 1) * 7 * s + this.kickX);
       this.shakeY = Math.round((this.rnd() * 2 - 1) * 6 * s + this.kickY);
+      if (this.landPx > 0 && Math.abs(this.shakeX) + Math.abs(this.shakeY) < this.landPx) {
+        this.shakeX = this.landX * this.landPx;
+        this.shakeY = this.landY * this.landPx;
+      }
     }
+    this.landPx = 0;
     this.flash = Math.max(0, this.flash - dt * 5);
     this.parts.update(dt);
     let i = 0;
