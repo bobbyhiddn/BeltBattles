@@ -1,5 +1,6 @@
-// Game shell: canvas + main loop, screen switching with a pixel-iris wipe, input routing
-// (UI regions registered last frame first, then the active screen) and toasts.
+// Game shell: canvas + main loop, per-screen integer view scale, screen switching with a
+// pixel-iris wipe, input routing (UI regions registered last frame first, then the active
+// screen), toasts, and frame timing for the tooling hooks.
 
 import { Audio, type Sfx } from "../audio/audio";
 import { applyView, bindInput, computeView, type InputSink, type View } from "../core/io";
@@ -11,6 +12,8 @@ import type { Run } from "./run";
 
 export interface Screen {
   toastY?: number;
+  /** Integer device-pixel scale for this screen; default framing when absent. */
+  pickScale?(pw: number, ph: number, portrait: boolean): number;
   enter?(): void;
   update(dt: number): void;
   draw(g: G): void;
@@ -27,6 +30,8 @@ interface Toast {
   t: number;
 }
 
+const PERF_N = 600;
+
 export class Game implements InputSink {
   readonly canvas: HTMLCanvasElement;
   readonly g: G;
@@ -41,18 +46,22 @@ export class Game implements InputSink {
   private wipeDir = 0; // +1 closing, -1 opening
   private toastMsg: Toast | null = null;
   private last = 0;
+  /** Frame timing ring buffers (ms): CPU time of step+render, and rAF interval. */
+  readonly perfWork = new Float32Array(PERF_N);
+  readonly perfGap = new Float32Array(PERF_N);
+  perfN = 0;
 
   constructor(canvas: HTMLCanvasElement, first: (game: Game) => Screen) {
     this.canvas = canvas;
     const g = canvas.getContext("2d", { alpha: false });
     if (!g) throw new Error("2D canvas unavailable");
     this.g = g;
-    this.view = computeView(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+    this.screen = first(this);
+    this.view = this.computeView();
     applyView(canvas, this.view);
     bindInput(canvas, () => this.view, this);
     window.addEventListener("resize", () => this.resize());
     document.addEventListener("visibilitychange", () => { this.last = performance.now(); });
-    this.screen = first(this);
     this.screen.enter?.();
   }
 
@@ -60,8 +69,13 @@ export class Game implements InputSink {
   get H(): number { return this.view.H; }
   get portrait(): boolean { return this.view.portrait; }
 
+  private computeView(): View {
+    const s = this.screen;
+    return computeView(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1, s.pickScale ? s.pickScale.bind(s) : undefined);
+  }
+
   resize(): void {
-    this.view = computeView(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+    this.view = this.computeView();
     applyView(this.canvas, this.view);
   }
 
@@ -86,13 +100,32 @@ export class Game implements InputSink {
   }
 
   private loop = (now: number): void => {
-    const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
+    const gap = now - this.last;
+    const dt = Math.min(0.05, Math.max(0, gap / 1000));
     this.last = now;
     this.t += dt;
+    const t0 = performance.now();
     this.step(dt);
     this.render();
+    const i = this.perfN % PERF_N;
+    this.perfWork[i] = performance.now() - t0;
+    this.perfGap[i] = gap;
+    this.perfN++;
     requestAnimationFrame(this.loop);
   };
+
+  /** Mean CPU ms per frame and mean rAF interval over the last n frames. */
+  perfStats(n = PERF_N): { frames: number; workMs: number; frameMs: number; maxWorkMs: number } {
+    const m = Math.min(n, this.perfN, PERF_N);
+    let w = 0, gsum = 0, mx = 0;
+    for (let k = 1; k <= m; k++) {
+      const i = (this.perfN - k) % PERF_N;
+      w += this.perfWork[i];
+      gsum += this.perfGap[i];
+      mx = Math.max(mx, this.perfWork[i]);
+    }
+    return { frames: m, workMs: m ? w / m : 0, frameMs: m ? gsum / m : 0, maxWorkMs: mx };
+  }
 
   /** Advance without rendering (used by tooling / headless checks). */
   step(dt: number): void {
@@ -106,6 +139,7 @@ export class Game implements InputSink {
           this.pending = null;
           this.ui.pressed = null;
           this.toastMsg = null;
+          this.resize();
           this.screen.enter?.();
         }
       } else if (this.wipeDir < 0 && this.wipe <= 0) {
@@ -132,10 +166,10 @@ export class Game implements InputSink {
   private drawToast(g: G): void {
     const m = this.toastMsg;
     if (!m) return;
-    const w = textWidth(m.text) + 14;
+    const w = Math.min(this.W - 4, textWidth(m.text) + 14);
     const x = Math.round(this.W / 2 - w / 2);
     const y = Math.round(this.screen.toastY ?? this.H / 2 - 8);
-    const lift = Math.max(0, (m.t - 1.45) * 40);
+    const lift = Math.max(0, Math.round((m.t - 1.45) * 40));
     if (m.t < 0.25 && Math.floor(m.t * 20) % 2) return;
     panel(g, { x, y: y + lift, w, h: 13 }, "glass");
     drawText(g, m.text, this.W / 2, y + 3 + lift, m.color, { align: "center" });
@@ -229,19 +263,4 @@ export class Game implements InputSink {
       font: "3", active: m === 0, onTap: () => this.cycleSound(),
     });
   }
-}
-
-/** Full-width title band with a big word and optional sub line. */
-export function drawBanner(g: G, W: number, y: number, text: string, color: string, sub?: string, k = 1): void {
-  const h = sub ? 30 : 20;
-  const bw = Math.round(W * Math.min(1, k));
-  const x0 = Math.round((W - bw) / 2);
-  g.globalAlpha = 0.82;
-  rect(g, x0, y, bw, h, C.ink);
-  g.globalAlpha = 1;
-  rect(g, x0, y, bw, 1, color);
-  rect(g, x0, y + h - 1, bw, 1, color);
-  if (k < 0.98) return;
-  drawText(g, text, W / 2, y + 4, color, { align: "center", scale: 2, outline: C.ink });
-  if (sub) drawText(g, sub, W / 2, y + 21, C.bone, { font: "3", align: "center" });
 }

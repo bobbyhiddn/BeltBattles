@@ -3,12 +3,15 @@
 
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
+import { drawArena } from "../game/arenaDraw";
 import { newRun, saveRun } from "../game/run";
 import { startingBuild } from "../sim/ai";
 import { AMMO, HEROES, ITEMS, type HeroId } from "../sim/content";
 import { C, FACTION } from "../render/palette";
 import { frame, rect, type G } from "../render/pixel";
 import { drawText, wrap } from "../render/font";
+import { HULL_A, HULL_L, frameForHull, hullBox } from "../render/frame";
+import { ArenaBg } from "../render/arenaBg";
 import { button, panel, para } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { TitleScreen } from "./title";
@@ -21,6 +24,7 @@ export class HeroScreen implements Screen {
   private t = 0;
   private swipe: { x: number; y: number } | null = null;
   private slide = 0; // carousel slide-in offset
+  private bg = new ArenaBg();
 
   constructor(private game: Game) {
     this.preview();
@@ -67,13 +71,11 @@ export class HeroScreen implements Screen {
     const P = FACTION[h.faction];
     drawText(g, "CHOOSE YOUR CRUISER", W / 2, 6, C.bone, { align: "center", outline: C.ink });
 
-    // preview window: in portrait it grows into whatever height the info card and the
-    // buttons leave, so tall phones do not end up with a dead band mid-screen
     const infoW = portrait ? W - 16 : Math.min(240, W - Math.round(W * 0.56) - 10);
     const blurbLines = h.blurb.reduce((n, ln) => n + wrap(ln, infoW).length, 0);
     const infoH = 93 + blurbLines * 9;
-    const pw = portrait ? Math.min(W - 16, 224) : 176;
-    const ph = portrait ? Math.max(140, Math.min(320, H - 20 - 14 - infoH - 45 - 14)) : 172;
+    const pw = Math.min(W - 16, HULL_A + 30);
+    const ph = portrait ? Math.max(HULL_L + 14, Math.min(HULL_L + 60, H - 20 - 14 - infoH - 45 - 14)) : HULL_L + 30;
     const px0 = portrait ? Math.round(W / 2 - pw / 2) : Math.round(W * 0.3 - pw / 2);
     const py0 = portrait ? 20 : Math.round(H / 2 - ph / 2 + 6);
     rect(g, px0 - 2, py0 - 2, pw + 4, ph + 4, C.ink);
@@ -82,16 +84,19 @@ export class HeroScreen implements Screen {
     g.beginPath();
     g.rect(px0, py0, pw, ph);
     g.clip();
-    const ox = Math.round(px0 + pw / 2 + this.slide), oy = Math.round(py0 + ph / 2 - 94);
-    this.arena.draw(g, ox, oy, W, H);
+    // the cruiser, bow up, parked on a pad; the dummy target sits far above the window
+    const hx0 = Math.round(px0 + pw / 2 - HULL_A / 2), hy = Math.round(py0 + (ph - HULL_L) / 2 + 3);
+    const hx = hx0 + Math.round(this.slide);
+    const pf = frameForHull(0, hx, hy);
+    this.arena.setFrames([pf, frameForHull(2, hx, hy - 400)], [[0, 1], [0, -1]]);
+    this.bg.draw(g, W, H, { hulls: [hullBox(frameForHull(0, hx0, hy))], vertical: true, gapLine: false, pad: { x: hx0 - 6, y: hy - 6, w: HULL_A + 12, h: HULL_L + 12 } }, this.t);
+    drawArena(g, this.arena, W, H);
     g.restore();
     button(ui, g, "prev", { x: px0 - 2, y: py0 + ph / 2 - 12, w: 16, h: 24 }, "<", { onTap: () => this.shift(-1) });
     button(ui, g, "next", { x: px0 + pw - 14, y: py0 + ph / 2 - 12, w: 16, h: 24 }, ">", { onTap: () => this.shift(1) });
     ui.add({ id: "swipe", r: { x: px0 + 16, y: py0, w: pw - 32, h: ph }, onDown: (x, y) => { this.swipe = { x, y }; } });
-    // page dots
     ORDER.forEach((_, k) => rect(g, px0 + pw / 2 - 6 + k * 8, py0 + ph + 5, 5, 3, k === this.i ? C.yellow : C.slate2));
 
-    // info card
     const ix = portrait ? 8 : Math.round(W * 0.56);
     const iw = infoW;
     let iy = portrait ? py0 + ph + 14 : py0;
@@ -104,18 +109,13 @@ export class HeroScreen implements Screen {
     iy += para(g, h.blurb, ix, iy, iw, C.bone, "5", 2) + 4;
     const fac = ITEMS[h.factory];
     const turrets = `${h.turrets.length} ${h.turrets[0].kind.toUpperCase()} TURRET${h.turrets.length > 1 ? "S" : ""}`;
-    const stats: [string, string][] = [
-      ["HULL", String(h.hull)],
-      ["BELT", `${h.belt} TILES`],
-      ["GUNS", turrets],
-      ["FACTORY", `${fac.name} · ${AMMO[h.ammo].name}`],
-    ];
-    panel(g, { x: ix, y: iy, w: iw, h: stats.length * 9 + 6 }, "inset");
+    const stats: [string, string][] = [["HULL", String(h.hull)], ["BELT", `${h.belt} TILES`], ["GUNS", turrets], ["FACTORY", `${fac.name} · ${AMMO[h.ammo].name}`]];
+    panel(g, { x: ix, y: iy, w: iw, h: stats.length * 9 + 8 }, "inset");
     stats.forEach(([k, v], n) => {
-      drawText(g, k, ix + 5, iy + 4 + n * 9, C.slate4, { font: "3" });
-      drawText(g, v, ix + 44, iy + 4 + n * 9, C.white, { font: "3" });
+      drawText(g, k, ix + 5, iy + 5 + n * 9, C.slate4, { font: "3" });
+      drawText(g, v, ix + 44, iy + 5 + n * 9, C.white, { font: "3" });
     });
-    iy += stats.length * 9 + 12;
+    iy += stats.length * 9 + 14;
     const bw = Math.min(iw, 150);
     const bx = portrait ? Math.round(W / 2 - bw / 2) : ix;
     const by = portrait ? Math.max(iy, H - 54) : iy;

@@ -1,15 +1,15 @@
-// Build-phase commands shared by drag-and-drop and the inspector buttons. Every command
-// validates first and only mutates the run when it succeeds.
+// Build-phase commands shared by drag-and-drop, tap-to-place and the inspector buttons.
+// Every command validates first and only mutates the run when it succeeds.
 
 import type { Game } from "../../game/game";
 import {
   buyOffer, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
 } from "../../game/run";
 import { CELL, GRID, ITEMS, sellValue } from "../../sim/content";
-import { canPlaceItem, moveItem, placeItem, removeRoute } from "../../sim/deck";
+import { canPlaceItem, key, moveItem, occupancy, placeItem, removeRoute } from "../../sim/deck";
 import type { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
-import { DECK_X, FWD_Y, footTL } from "../../render/world";
+import { footX, footY, localX, localY } from "../../render/frame";
 import { inside } from "../../ui/ui";
 import type { BuildLayout, Sel } from "./layout";
 
@@ -17,11 +17,14 @@ export interface Ctx {
   game: Game;
   run: Run;
   L: BuildLayout;
-  wfx: Fx; // world-space effects
-  ufx: Fx; // screen-space effects
+  wfx: Fx; // deck-space effects (screen coordinates)
+  ufx: Fx; // UI effects
   select(s: Sel): void;
   turretAt(x: number, y: number): number;
   coinPos(): { x: number; y: number };
+  touched(): void; // the build changed: rebuild render caches
+  placed(x: number, y: number): void; // successful placement at screen point (thunk + cues)
+  invalid(msg: string): void; // refused action: red shake + error
 }
 
 export type Src =
@@ -37,14 +40,14 @@ export type Src =
 export interface Carry {
   src: Src;
   def: string;
-  uid: number; // -1 while still in a wagon
+  uid: number; // -1 while still on a card
 }
 
 /** Buy a wagon offer. Supplies are consumed on the spot; returns the new cargo item. */
 export function buy(ctx: Ctx, wagon: number, slot: number): { ok: boolean; item?: InvItem } {
   const res = buyOffer(ctx.run, wagon, slot);
   if (!res.ok) {
-    ctx.game.error(res.reason ?? "CAN'T BUY");
+    ctx.invalid(res.reason ?? "CAN'T BUY");
     return { ok: false };
   }
   const offer = ctx.run.shop.wagons[wagon].offers[slot];
@@ -55,13 +58,13 @@ export function buy(ctx: Ctx, wagon: number, slot: number): { ok: boolean; item?
     const d = ITEMS[res.consumed];
     ctx.game.toast(d.supply?.belt ? `+${d.supply.belt} BELT CAPACITY` : `+${d.supply?.hull ?? 0} MAX HULL`, C.lime, "repair");
     ctx.select({ kind: "none" });
+    ctx.touched();
   }
   return { ok: true, item: res.item };
 }
 
 export function sell(ctx: Ctx, uid: number): void {
-  const it = ctx.run.inventory.find((i) => i.uid === uid);
-  if (!it) return;
+  if (!ctx.run.inventory.some((i) => i.uid === uid)) return;
   const v = sellInventory(ctx.run, uid);
   const cp = ctx.coinPos();
   ctx.ufx.popup(cp.x, cp.y + 10, `+${v}`, C.lime);
@@ -70,12 +73,10 @@ export function sell(ctx: Ctx, uid: number): void {
 }
 
 export function store(ctx: Ctx, uid: number): void {
-  if (!storePlaced(ctx.run, uid)) {
-    ctx.game.error("THE SIGNATURE FACTORY STAYS ABOARD");
-    return;
-  }
+  if (!storePlaced(ctx.run, uid)) return ctx.invalid("THE SIGNATURE FACTORY STAYS ABOARD");
   ctx.game.audio.play("pickup");
   ctx.select({ kind: "cargo", uid });
+  ctx.touched();
 }
 
 export function unfitMod(ctx: Ctx, turret: number): void {
@@ -84,6 +85,7 @@ export function unfitMod(ctx: Ctx, turret: number): void {
   storeMod(ctx.run, m.uid);
   ctx.game.audio.play("pickup");
   ctx.select({ kind: "cargo", uid: m.uid });
+  ctx.touched();
 }
 
 export function deleteRoute(ctx: Ctx, index: number): void {
@@ -91,23 +93,30 @@ export function deleteRoute(ctx: Ctx, index: number): void {
   removeRoute(ctx.run.build, index);
   ctx.game.audio.play("sell");
   ctx.select({ kind: "none" });
+  ctx.touched();
 }
 
 export function sellPrice(defId: string): number {
   return sellValue(ITEMS[defId]);
 }
 
-/** Deck cell under a screen point for an item of the given footprint (centred on it). */
+/** Deck cell for an item of the given footprint centred under a screen point. */
 export function dropCell(L: BuildLayout, x: number, y: number, size: number): { x: number; y: number } | null {
-  const lx = x - L.ox - DECK_X, ly = y - L.oy - FWD_Y;
-  if (lx < -8 || ly < -8 || lx > GRID * CELL + 8 || ly > GRID * CELL + 8) return null;
-  const cx = Math.floor(lx / CELL - (size - 1) / 2), cy = Math.floor(ly / CELL - (size - 1) / 2);
+  const lx = localX(L.frame, x, y) - (size - 1) * (CELL / 2), ly = localY(L.frame, x, y) - (size - 1) * (CELL / 2);
+  const m = GRID * CELL;
+  if (lx < -8 || ly < -8 || lx > m + 8 || ly > m + 8) return null;
+  const cx = Math.floor(lx / CELL), cy = Math.floor(ly / CELL);
   return { x: Math.max(0, Math.min(GRID - size, cx)), y: Math.max(0, Math.min(GRID - size, cy)) };
 }
 
-/** Resolve a drag-and-drop. Invalid drops leave everything where it was. */
-export function drop(ctx: Ctx, c: Carry, x: number, y: number): void {
-  const { run, L, game } = ctx;
+/** Is (x, y) a belt tile of the build? */
+export function onBelt(run: Run, x: number, y: number): boolean {
+  return occupancy(run.build)[key(x, y)].route >= 0;
+}
+
+/** Place / fit / store what is carried at a screen point. Returns false when refused. */
+export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
+  const { run, L } = ctx;
   const b = run.build;
   const def = ITEMS[c.def];
   const src = c.src;
@@ -115,73 +124,79 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): void {
     if (src.from === "offer") {
       const r = buy(ctx, src.wagon, src.slot);
       if (r.item) ctx.select({ kind: "cargo", uid: r.item.uid });
-    } else if (src.from === "deck") store(ctx, c.uid);
+      return r.ok;
+    }
+    if (src.from === "deck") store(ctx, c.uid);
     else if (src.from === "mod") {
       const m = b.mods.find((q) => q.uid === c.uid);
       if (m) unfitMod(ctx, m.turret);
     }
-    return;
+    return true;
   }
   const overHull = inside(L.hull, x, y);
   if (def.kind === "supply") {
-    if (src.from === "offer" && overHull) buy(ctx, src.wagon, src.slot);
-    return;
+    if (src.from === "offer" && overHull) return buy(ctx, src.wagon, src.slot).ok;
+    return false;
   }
   if (def.kind === "mod") {
     const t = ctx.turretAt(x, y);
     if (t < 0) {
-      if (overHull) game.error("DROP TURRET GEAR ON A TURRET");
-      return;
+      if (overHull) ctx.invalid("DROP TURRET GEAR ON A TURRET");
+      return false;
     }
     const cur = b.mods.find((m) => m.turret === t);
     if (cur && cur.uid !== c.uid) {
-      game.error("ONE PIECE OF GEAR PER TURRET");
-      return;
+      ctx.invalid("ONE PIECE OF GEAR PER TURRET");
+      return false;
     }
     if (src.from === "offer") {
       const r = buy(ctx, src.wagon, src.slot);
-      if (!r.item) return;
+      if (!r.item) return false;
       takeFromInventory(run, r.item.uid);
       b.mods.push({ uid: r.item.uid, def: r.item.def, turret: t });
     } else if (src.from === "cargo") {
       const it = takeFromInventory(run, c.uid);
-      if (!it) return;
+      if (!it) return false;
       b.mods.push({ uid: it.uid, def: it.def, turret: t });
     } else if (src.from === "mod") {
       const m = b.mods.find((q) => q.uid === c.uid);
       if (m) m.turret = t;
     }
-    game.audio.play("repair");
+    ctx.game.audio.play("repair");
     ctx.select({ kind: "turret", index: t });
-    return;
+    ctx.touched();
+    ctx.placed(x, y);
+    return true;
   }
   const cell = dropCell(L, x, y, def.size);
-  if (!cell) return;
+  if (!cell) return false;
   const ignore = src.from === "deck" ? c.uid : -1;
   const chk = canPlaceItem(b, c.def, cell.x, cell.y, ignore);
   if (!chk.ok) {
-    game.error(chk.reason ?? "CAN'T PLACE THAT");
-    return;
+    ctx.invalid(chk.reason ?? "CAN'T PLACE THAT");
+    return false;
   }
   let uid = c.uid;
   if (src.from === "offer") {
     const r = buy(ctx, src.wagon, src.slot);
-    if (!r.item) return;
+    if (!r.item) return false;
     takeFromInventory(run, r.item.uid);
     uid = r.item.uid;
     placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y });
   } else if (src.from === "cargo") {
     const it = takeFromInventory(run, c.uid);
-    if (!it) return;
+    if (!it) return false;
     placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y });
   } else if (src.from === "deck") {
     const r = moveItem(b, uid, cell.x, cell.y);
-    if (r.dropped) game.toast(`${r.dropped} BELT${r.dropped > 1 ? "S" : ""} CUT LOOSE`, C.yellow);
+    if (r.dropped) ctx.game.toast(`${r.dropped} BELT${r.dropped > 1 ? "S" : ""} CUT LOOSE`, C.yellow);
   }
-  const tl = footTL(0, cell.x, cell.y, def.size);
-  const cx = tl.x + (def.size * CELL) / 2, cy = tl.y + (def.size * CELL) / 2;
-  ctx.wfx.dust(cx, cy + 4, 8, -10);
-  ctx.wfx.sparkle(cx, cy - 2, 0.05);
-  game.audio.play("place");
+  const f = L.frame;
+  const px = footX(f, cell.x, cell.y, def.size) + (def.size * CELL) / 2;
+  const py = footY(f, cell.x, cell.y, def.size) + (def.size * CELL) / 2;
+  ctx.game.audio.play("place");
   ctx.select({ kind: "item", uid });
+  ctx.touched();
+  ctx.placed(px, py);
+  return true;
 }

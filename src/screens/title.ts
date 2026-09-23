@@ -1,22 +1,25 @@
-// Title: a live AI-vs-AI battle rolls behind the logo (attract mode), with New Run,
-// Continue, a how-to-play card and the sound toggle.
+// Title: a live AI-vs-AI battle rolls behind the logo (attract mode) in the same framing
+// as the real fight, with New Run, Continue, a how-to-play card and the options menu.
 
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
+import { drawArena } from "../game/arenaDraw";
+import { arenaIn } from "../game/battleLayout";
 import { loadRun } from "../game/run";
 import { startingBuild, warlordBuild } from "../sim/ai";
-import { HEROES, RULES_VERSION, type HeroId } from "../sim/content";
+import { HEROES, type HeroId } from "../sim/content";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap } from "../render/font";
 import { titleArt } from "../render/sprites";
-import { hullRect } from "../render/world";
-import { button, panel, para, type Rect } from "../ui/ui";
+import { ArenaBg } from "../render/arenaBg";
+import { button, panel, para } from "../ui/ui";
+import { optionsCard } from "../ui/hud";
 import { HeroScreen } from "./hero";
 import { BuildScreen } from "./build/build";
 
 const HELP = [
-  "1  BUY GATES FROM THE CARAVAN WAGONS.",
+  "1  BUY GATES FROM THE CARAVAN CARDS.",
   "2  DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE.",
   "3  DROP GATES ON THE BELT: BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN.",
   "4  LONGER CINDER ROUTES COOK HOTTER SLUGS. THREAD HITS FRAY ARMOR.",
@@ -28,8 +31,13 @@ export class TitleScreen implements Screen {
   private arena!: Arena;
   private n = 0;
   private overT = 0;
-  private help = false;
+  help = false;
+  private menu = false;
   private t = 0;
+  private bg = new ArenaBg();
+  private save = loadRun();
+  private layoutKey = "";
+  private hulls: { x: number; y: number; w: number; h: number }[] = [];
 
   constructor(private game: Game) {
     this.newArena();
@@ -43,115 +51,94 @@ export class TitleScreen implements Screen {
     this.arena.b.sides[0].hull.hp += 60; // keep the attract fight going a while
     this.n++;
     this.overT = 0;
+    this.layoutKey = "";
   }
-
-  private save = loadRun();
 
   enter(): void {
     this.game.audio.music(null);
     this.save = loadRun();
   }
 
+  private place(): void {
+    const { W, H, portrait } = this.game;
+    const k = `${W}x${H}${portrait}`;
+    if (k === this.layoutKey) return;
+    this.layoutKey = k;
+    const top = portrait ? 60 : Math.round(H * 0.08) + 40;
+    const panelH = this.save ? 90 : 62;
+    const a = arenaIn({ x: 0, y: top, w: W, h: Math.max(160, H - top - panelH - 14) }, portrait, portrait ? 28 : 48);
+    this.arena.setFrames(a.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
+    this.hulls = a.hulls;
+  }
+
   update(dt: number): void {
     this.t += dt;
+    this.place();
     this.arena.update(dt);
-    if (this.arena.b.over && (this.overT += dt) > 2.8) this.newArena();
+    if (this.arena.b.over && (this.overT += dt) > 3.2) this.newArena();
   }
 
   draw(g: G): void {
-    const { W, H } = this.game;
+    const { W, H, portrait, ui } = this.game;
     const game = this.game;
-    this.arena.draw(g, Math.round(W / 2), Math.round(H / 2), W, H);
-    // vignette bands for legibility
-    g.globalAlpha = 0.35;
+    this.place();
+    this.bg.draw(g, W, H, { hulls: this.hulls, vertical: portrait, gapLine: true }, this.t, this.arena.fx.shakeX, this.arena.fx.shakeY);
+    drawArena(g, this.arena, W, H);
+    g.globalAlpha = 0.45;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
 
-    const save = this.save;
-    const bw = 124, bh = 22;
-    const stackH = bh + 6 + (save ? bh + 12 : 0) + (bh - 4);
-    const L = this.layout(stackH, bw);
-    for (const r of L.backs) panel(g, r, "glass");
-    this.drawTitle(g, L.logoX, L.logoY);
-    drawText(g, "BUILD BELTS · COOK AMMO · BREAK HULLS", L.logoX, L.logoY + 30, C.bone, { font: "3", align: "center", outline: C.ink });
+    // logo band (a dark strip keeps it legible when the attract battle runs underneath)
+    const art = titleArt("BELTBATTLES", (gg, s, x, yy, c) => drawText(gg, s, x, yy, c), (s) => textWidth(s));
+    const ly = portrait ? 22 : Math.max(8, Math.round(H * 0.08));
+    g.globalAlpha = 0.7;
+    rect(g, 0, ly - 6, W, 44, C.ink);
+    g.globalAlpha = 1;
+    rect(g, 0, ly - 6, W, 1, C.slate1);
+    rect(g, 0, ly + 37, W, 1, C.slate1);
+    if (art.width + 6 <= W) g.drawImage(art, Math.round(W / 2 - art.width / 2), ly);
+    else drawText(g, "BELTBATTLES", W / 2, ly + 4, C.fire3, { align: "center", scale: 2, outline: C.ink });
+    drawText(g, "BUILD BELTS · COOK AMMO · BREAK HULLS", W / 2, ly + 30, C.bone, { font: "3", align: "center", outline: C.ink });
 
-    const bx = Math.round(L.btnX - bw / 2);
-    let by = L.btnY;
-    button(game.ui, g, "new", { x: bx, y: by, w: bw, h: bh }, "NEW RUN", {
-      primary: true, onTap: () => game.go(new HeroScreen(game)),
-    });
+    // command panel
+    const save = this.save;
+    const bw = Math.min(W - 24, 132), bh = 22;
+    const ph = 10 + bh + 6 + (save ? bh + 12 : 0) + (bh - 4) + 8;
+    const px = Math.round(W / 2 - (bw + 16) / 2), py = portrait ? H - ph - 10 : H - ph - Math.max(8, Math.round(H * 0.05));
+    panel(g, { x: px, y: py, w: bw + 16, h: ph }, "dark");
+    let by = py + 8;
+    const bx = px + 8;
+    button(ui, g, "new", { x: bx, y: by, w: bw, h: bh }, "NEW RUN", { primary: true, onTap: () => game.go(new HeroScreen(game)) });
     by += bh + 6;
     if (save) {
-      button(game.ui, g, "cont", { x: bx, y: by, w: bw, h: bh + 6 }, "CONTINUE", {
+      button(ui, g, "cont", { x: bx, y: by, w: bw, h: bh + 6 }, "CONTINUE", {
         sub: `ROUND ${save.round} · ${HEROES[save.hero].name} · ${save.wins}W ${save.losses}L`,
         onTap: () => this.continueRun(),
       });
       by += bh + 12;
     }
-    button(game.ui, g, "help", { x: bx, y: by, w: bw, h: bh - 4 }, this.help ? "CLOSE" : "HOW TO PLAY", {
+    const hw = Math.floor((bw - 4) / 2);
+    button(ui, g, "help", { x: bx, y: by, w: hw, h: bh - 4 }, this.help ? "CLOSE" : "HOW TO PLAY", {
       font: "3", active: this.help, onTap: () => { this.help = !this.help; },
     });
+    button(ui, g, "options", { x: bx + hw + 4, y: by, w: bw - hw - 4, h: bh - 4 }, "OPTIONS", { font: "3", onTap: () => { this.menu = true; } });
     game.soundButton(g, { x: W - 30, y: 4, w: 26, h: 13 });
-    drawText(g, RULES_VERSION.toUpperCase(), W - 4, H - 8, C.slate3, { font: "3", align: "right" });
-
+    drawText(g, "V0.4.0", W - 4, H - 8, C.slate3, { font: "3", align: "right" });
     if (this.help) this.drawHelp(g);
-  }
-
-  private logo(): HTMLCanvasElement {
-    return titleArt("BELTBATTLES", (gg, s, x, yy, c) => drawText(gg, s, x, yy, c), (s) => textWidth(s));
-  }
-
-  /**
-   * Put the logo and the button stack where the attract battle leaves room: the side
-   * columns in landscape, the strips above/below the cruisers in portrait. When a strip
-   * is too small (short phones, narrow windows) the group gets a glass backing instead.
-   */
-  private layout(stackH: number, bw: number): { logoX: number; logoY: number; btnX: number; btnY: number; backs: Rect[] } {
-    const { W, H } = this.game;
-    const hull = hullRect(0);
-    const halfW = -hull.x + 12; // hull plus treads and side studs
-    const reach = hull.y + hull.h + 6; // centre line to the far end of a hull
-    const logoW = this.logo().width;
-    const backs: Rect[] = [];
-    if (!this.game.portrait) {
-      const side = Math.floor(W / 2 - halfW);
-      if (side >= logoW + 8 && side >= bw + 12) {
-        const colL = Math.round(side / 2);
-        return { logoX: colL, logoY: Math.round(H / 2 - 34), btnX: W - colL, btnY: Math.round(H / 2 - stackH / 2), backs };
-      }
-    }
-    const free = Math.round(H / 2 - reach);
-    const block = 40; // logo (25) + gap + tagline
-    // cramped screens: start below the sound button so the two never overlap
-    const logoY = free >= block + 8 ? Math.round((free - block) / 2) + 2 : 23;
-    if (free < block + 8) backs.push({ x: 4, y: logoY - 5, w: W - 8, h: block + 8 });
-    const roomy = free >= stackH + 12;
-    const btnY = roomy ? Math.round(H - free + (free - stackH) / 2) : Math.round(H - stackH - 16);
-    if (!roomy) backs.push({ x: Math.round(W / 2 - bw / 2 - 6), y: btnY - 6, w: bw + 12, h: stackH + 12 });
-    return { logoX: Math.round(W / 2), logoY, btnX: Math.round(W / 2), btnY, backs };
-  }
-
-  private drawTitle(g: G, cx: number, y: number): void {
-    const art = this.logo();
-    if (art.width + 6 <= this.game.W) {
-      g.drawImage(art, Math.round(cx - art.width / 2), y);
-    } else {
-      drawText(g, "BELTBATTLES", cx, y + 4, C.fire3, { align: "center", scale: 2, outline: C.ink });
-    }
+    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; });
   }
 
   private drawHelp(g: G): void {
     const { W, H } = this.game;
     const w = Math.min(W - 16, 300);
     const x = Math.round((W - w) / 2);
-    const lines = HELP;
-    const rows = lines.reduce((n, ln) => n + wrap(ln, w - 16, "3").length, 0);
-    const h = 20 + rows * 7 + lines.length * 3 + 5;
+    const rows = HELP.reduce((n, ln) => n + wrap(ln, w - 16, "3").length, 0);
+    const h = 20 + rows * 7 + HELP.length * 3 + 5;
     const y = Math.round(Math.max(20, H / 2 - h / 2));
     panel(g, { x, y, w, h }, "raised");
     drawText(g, "HOW TO PLAY", W / 2, y + 6, C.yellow, { align: "center" });
     let yy = y + 20;
-    for (const ln of lines) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, "3", 2) + 3;
+    for (const ln of HELP) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, "3", 2) + 3;
     this.game.ui.add({ id: "helpcard", r: { x, y, w, h }, onTap: () => { this.help = false; } });
   }
 
@@ -163,9 +150,12 @@ export class TitleScreen implements Screen {
   }
 
   key(k: string): void {
-    if (k === "Enter" || k === " ") this.game.go(new HeroScreen(this.game));
+    if (k === "Escape") {
+      this.help = false;
+      this.menu = false;
+    } else if (this.menu) return;
+    else if (k === "Enter" || k === " ") this.game.go(new HeroScreen(this.game));
     else if (k === "c" || k === "C") this.continueRun();
     else if (k === "h" || k === "H" || k === "?") this.help = !this.help;
-    else if (k === "Escape") this.help = false;
   }
 }

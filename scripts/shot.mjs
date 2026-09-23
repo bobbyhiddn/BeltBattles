@@ -1,42 +1,20 @@
-// Headless screenshot harness: serves dist/ through a routed fake origin, opens screens
-// via window.bb and fast-forwards the game deterministically with game.step().
-// Usage: node scripts/shot.mjs [filter]   (writes shots/<name>.png, prints console errors)
+// Headless screenshot + metrics harness: serves dist/ through a routed fake origin, opens
+// screens via window.bb and fast-forwards the game deterministically with game.step().
+// Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/shot.mjs [outDir] [filter]
+// Writes <outDir>/<name>-<view>.png and <outDir>/../metrics.json; prints console errors.
 
 import { chromium } from "playwright-core";
-import { readFile, mkdir } from "node:fs/promises";
-import { extname, join, normalize } from "node:path";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { dirname, extname, join, normalize, resolve } from "node:path";
+import { SHOTS, VIEWS, prep } from "./shots-list.mjs";
+import { measure } from "./metrics.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const DIST = join(ROOT, "dist");
-const OUT = join(ROOT, "shots");
+const OUT = resolve(process.argv[2] ?? join(ROOT, "shots"));
+const filter = process.argv[3] ?? "";
 const ORIGIN = "http://bb.test";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json", ".svg": "image/svg+xml" };
-
-const VIEWS = {
-  phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
-  small: { viewport: { width: 360, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
-  desk: { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
-  laptop: { viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 },
-};
-
-// [name, view, screen, seconds to fast-forward after the wipe, optional page script]
-const SHOTS = [
-  ["title", "phone", "title", 1.5], ["title", "desk", "title", 1.5],
-  ["hero", "phone", "hero", 0.8], ["hero", "desk", "hero", 0.8],
-  ["build", "phone", "build", 0.8], ["build", "desk", "build", 0.8],
-  ["build", "small", "build", 0.8], ["build", "laptop", "build", 0.8],
-  ["build-offer", "desk", "build", 1.5, "bb.game.screen.select({kind:'offer',wagon:0,slot:0}); bb.game.render()"],
-  ["build-offer", "phone", "build", 1.5, "bb.game.screen.select({kind:'offer',wagon:0,slot:0}); bb.game.render()"],
-  ["title-help", "phone", "title", 1, "bb.game.screen.help = true; bb.game.render()"],
-  ["title", "small", "title", 1.5], ["hero", "small", "hero", 0.8],
-  ["battle-intro", "desk", "battle", 1.2],
-  ["battle-mid", "phone", "battle", 7], ["battle-mid", "desk", "battle", 7],
-  ["battle-late", "desk", "battle", 16],
-  ["battle-end", "desk", "battle", 60], ["battle-end", "phone", "battle", 60],
-  ["summary", "desk", "summary", 1], ["summary", "phone", "summary", 1],
-];
-
-const filter = process.argv[2] ?? "";
 
 async function serve(route) {
   const url = new URL(route.request().url());
@@ -50,13 +28,36 @@ async function serve(route) {
   }
 }
 
+/** Pick up the first affordable gate card and hold it over its suggested belt cell. */
+async function dragInProgress(page, touch) {
+  const plan = await page.evaluate(() => {
+    const p = window.bb.game.screen.dragPlan();
+    if (!p) return null;
+    return { a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y), def: p.def };
+  });
+  if (!plan) throw new Error("no drag plan (no affordable gate card)");
+  const steps = 10;
+  if (touch) {
+    const cdp = await page.context().newCDPSession(page);
+    const pt = (x, y) => [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(plan.a.x, plan.a.y) });
+    for (let i = 1; i <= steps; i++) {
+      const k = i / steps;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pt(plan.a.x + (plan.b.x - plan.a.x) * k, plan.a.y + (plan.b.y - plan.a.y) * k) });
+    }
+  } else {
+    await page.mouse.move(plan.a.x, plan.a.y);
+    await page.mouse.down();
+    await page.mouse.move(plan.b.x, plan.b.y, { steps });
+  }
+  await page.evaluate(() => { const g = window.bb.game; for (let i = 0; i < 12; i++) g.step(1 / 60); g.render(); });
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true });
-  const browser = await chromium.launch({
-    executablePath: "/usr/bin/chromium",
-    args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"],
-  });
+  const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
   const errors = [];
+  let count = 0;
   for (const [vname, vopts] of Object.entries(VIEWS)) {
     const shots = SHOTS.filter(([n, v]) => v === vname && `${n}-${v}`.includes(filter));
     if (!shots.length) continue;
@@ -67,24 +68,25 @@ async function main() {
     page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`[${vname}] ${m.type()}: ${m.text()}`); });
     await page.goto(`${ORIGIN}/index.html`);
     await page.waitForFunction(() => !!window.bb, null, { timeout: 10000 });
-    for (const [name, , screen, secs, script] of shots) {
-      const info = await page.evaluate(({ screen, secs }) => {
-        const g = window.bb.game;
-        g.run = null;
-        window.bb.open(screen, "furnace", 12345);
-        const frames = Math.round((0.6 + secs) * 60);
-        for (let i = 0; i < frames; i++) g.step(1 / 60);
-        g.render();
-        return { W: g.W, H: g.H, scale: g.view.scale, screen: g.screen.constructor.name };
-      }, { screen, secs });
+    for (const [name, , screen, secs, script, special] of shots) {
+      const info = await page.evaluate(prep, { screen, secs });
       if (script) await page.evaluate(script);
+      if (special === "drag") await dragInProgress(page, !!vopts.hasTouch);
       const file = join(OUT, `${name}-${vname}.png`);
       await page.screenshot({ path: file });
+      count++;
       console.log(`${name}-${vname}: ${info.screen} logical ${info.W}x${info.H} @${info.scale} -> ${file}`);
     }
     await ctx.close();
   }
+  if (!filter || filter === "metrics") {
+    const metrics = await measure(browser, ORIGIN, serve, errors);
+    const mfile = join(dirname(OUT), "metrics.json");
+    await writeFile(mfile, JSON.stringify(metrics, null, 2));
+    console.log(`metrics -> ${mfile}`);
+  }
   await browser.close();
+  console.log(`${count} shots`);
   if (errors.length) console.log("ERRORS:\n" + [...new Set(errors)].join("\n"));
   else console.log("no console errors");
 }

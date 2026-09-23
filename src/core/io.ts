@@ -10,15 +10,21 @@ export interface View {
   dpr: number;
 }
 
-export function computeView(cssW: number, cssH: number, dpr: number): View {
+/** Picks the integer device-pixel scale for a screen (each screen may frame itself). */
+export type ScalePick = (pw: number, ph: number, portrait: boolean) => number;
+
+/** Default: menus and title get a comfortable logical area per orientation. */
+export function defaultScale(pw: number, ph: number, portrait: boolean): number {
+  const minW = portrait ? 200 : 440;
+  const minH = portrait ? 400 : 346;
+  return Math.max(1, Math.floor(Math.min(pw / minW, ph / minH)));
+}
+
+export function computeView(cssW: number, cssH: number, dpr: number, pick?: ScalePick): View {
   const pw = Math.max(1, Math.floor(cssW * dpr));
   const ph = Math.max(1, Math.floor(cssH * dpr));
   const portrait = ph > pw * 1.05;
-  // Minimum logical area per orientation: the battle needs ~340px of height for both
-  // cruisers; portrait phones get a narrow tall canvas, desktops a wide one.
-  const minW = portrait ? 200 : 440;
-  const minH = portrait ? 400 : 346;
-  const scale = Math.max(1, Math.floor(Math.min(pw / minW, ph / minH)));
+  const scale = Math.max(1, Math.floor(pick ? pick(pw, ph, portrait) : defaultScale(pw, ph, portrait)));
   return { W: Math.floor(pw / scale), H: Math.floor(ph / scale), scale, portrait, dpr };
 }
 

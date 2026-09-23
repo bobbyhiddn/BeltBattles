@@ -1,8 +1,9 @@
-// Build-phase layout (portrait and landscape) and the merchant caravan's drive-in /
-// drive-out animation. Everything here is screen-space.
+// Build-screen layout. Reading order: shop cards (top) -> the cruiser at centre stage ->
+// cargo tray docked under it; FIGHT sits beside the bow. Landscape parks the cruiser bow
+// east (as it fights); portrait bow north. The screen picks its own integer scale.
 
 import type { Rect } from "../../ui/ui";
-import { WAGON_W } from "../../render/sprites";
+import { HULL_A, HULL_L, frameForHull, hullBox, type DeckFrame } from "../../render/frame";
 
 export type Sel =
   | { kind: "none" }
@@ -12,88 +13,112 @@ export type Sel =
   | { kind: "route"; index: number }
   | { kind: "turret"; index: number };
 
+export const CARD_W = 46;
+export const CARD_H = 42;
+const GAP = 3;
+const BAR_H = 14;
+const CARGO_H = 22;
+
 export interface BuildLayout {
   W: number;
   H: number;
   portrait: boolean;
   bar: Rect;
-  wagonY: number;
-  wagonX: number[]; // parked x for each wagon
+  cards: Rect[]; // slot rects in shop order (5 offers), plus the reroll slot at the end
   reroll: Rect;
-  ox: number; // screen position of the world origin
-  oy: number;
+  perRow: number;
+  tags: boolean; // room for merchant tags above the card groups
+  frame: DeckFrame;
   hull: Rect;
-  deck: Rect;
+  pad: Rect;
   cargo: Rect;
-  insp: Rect;
   fight: Rect;
-  info: Rect | null;
+  info: Rect; // inspector (landscape column) or info strip (portrait)
+  foe: Rect | null; // next-battle card (landscape)
 }
 
-export const HULL_TOP_WORLD = 20; // player hull top edge in world space
+const LAND_MIN_W = 430;
+const LAND_MIN_H = BAR_H + 6 + CARD_H + 4 + HULL_A + 3 + CARGO_H + 2;
+const PORT_MIN_W = HULL_A + 4;
+const PORT_FIXED = BAR_H + 3 + 2 * CARD_H + GAP + 4 + HULL_L + 4 + CARGO_H + 3;
 
-export function buildLayout(W: number, H: number, portrait: boolean, nWagons: number): BuildLayout {
-  const n = Math.max(1, nWagons);
-  const gap = Math.max(2, Math.min(8, Math.floor((W - n * WAGON_W) / (n + 1))));
-  const total = n * WAGON_W + (n - 1) * gap;
-  const ox = Math.floor(W / 2);
-  const wagonX = Array.from({ length: n }, (_, i) => Math.floor(ox - total / 2) + i * (WAGON_W + gap));
-  const bar: Rect = { x: 0, y: 0, w: W, h: 14 };
-  if (portrait) {
-    // Tall phones have spare height: spread it between the rows instead of leaving a
-    // dead band above FIGHT. The inspector never grows past what its content needs.
-    const spare = Math.max(0, H - 426);
-    const wagonY = 25 + Math.floor(spare * 0.2);
-    const hy = 72 + Math.floor(spare * 0.45);
-    const oy = hy - HULL_TOP_WORLD;
-    const cargo: Rect = { x: 4, y: hy + 148 + 11, w: W - 8, h: 22 };
-    const iy = cargo.y + cargo.h + 5;
-    const ih = Math.max(60, Math.min(INSP_MAX_H, H - iy - 33));
+export function buildScale(pw: number, ph: number, portrait: boolean): number {
+  for (let s = 12; s > 1; s--) {
+    const W = Math.floor(pw / s), H = Math.floor(ph / s);
+    if (!portrait && W >= LAND_MIN_W && H >= LAND_MIN_H) return s;
+    if (portrait && W >= PORT_MIN_W && H >= PORT_FIXED + 12) return s;
+  }
+  return 1;
+}
+
+function cardRow(n: number, x0: number, y: number, perRow: number, step: number): Rect[] {
+  const out: Rect[] = [];
+  for (let i = 0; i < n; i++) out.push({ x: x0 + (i % perRow) * step, y: y + Math.floor(i / perRow) * (CARD_H + GAP), w: CARD_W, h: CARD_H });
+  return out;
+}
+
+export function buildLayout(W: number, H: number, portrait: boolean, offers: number): BuildLayout {
+  const bar: Rect = { x: 0, y: 0, w: W, h: BAR_H };
+  const slots = offers + 1; // + reroll
+  if (!portrait) {
+    const tags = true;
+    const cy = BAR_H + 3 + 6;
+    const rowW = slots * CARD_W + (slots - 1) * GAP + 8;
+    const cards = cardRow(slots, Math.round(W / 2 - rowW / 2), cy, slots, CARD_W + GAP);
+    const reroll = cards.pop()!;
+    reroll.x += 8;
+    const colL = Math.min(136, Math.round(W * 0.28));
+    const colR = Math.min(150, Math.round(W * 0.3));
+    const top = cy + CARD_H + 5;
+    const avail = H - top - CARGO_H - 4;
+    const hy = top + Math.max(0, Math.floor((avail - HULL_A) / 2));
+    const cx0 = 6 + colL, cx1 = W - 6 - colR;
+    const hx = Math.round((cx0 + cx1) / 2 - HULL_L / 2);
+    const frame = frameForHull(1, hx, hy);
+    const hull = hullBox(frame);
+    const cw = Math.min(cx1 - cx0 - 8, 200);
+    const cargo: Rect = { x: Math.round((cx0 + cx1) / 2 - cw / 2), y: hull.y + HULL_A + 3, w: cw, h: CARGO_H };
+    const rx = cx1 + 4, rw = colR - 4;
     return {
-      W, H, portrait, bar, wagonY, wagonX,
-      reroll: { x: W - 70, y: wagonY + 29, w: 66, h: 14 },
-      ox, oy,
-      hull: { x: ox - 80, y: hy - 12, w: 160, h: 164 },
-      deck: { x: ox - 60, y: oy + 38, w: 120, h: 120 },
+      W, H, portrait, bar, cards, reroll, perRow: slots, tags, frame, hull,
+      pad: { x: hull.x - 5, y: hull.y - 5, w: hull.w + 10, h: hull.h + 10 },
       cargo,
-      insp: { x: 4, y: iy, w: W - 8, h: ih },
-      fight: { x: W - 94, y: H - 29, w: 90, h: 25 },
-      info: null,
+      fight: { x: rx, y: Math.round(hull.y + HULL_A / 2 - 16), w: rw, h: 32 },
+      info: { x: 6, y: top, w: colL - 8, h: cargo.y + CARGO_H - top },
+      foe: { x: rx, y: top, w: rw, h: 40 },
     };
   }
-  const stack = 8 + 26 + 12 + 148 + 11 + 22;
-  const top0 = Math.max(16, Math.floor((H - stack) / 2));
-  const wagonY = top0 + 8;
-  const hy = wagonY + 26 + 12;
-  const oy = hy - HULL_TOP_WORLD;
-  // Landscape: inspector in the left column (top-aligned with the caravan, only as tall
-  // as its content), next-battle card and FIGHT in the right column, cargo under the hull.
-  const lw = Math.min(196, ox - 80 - 14);
-  const ix = Math.max(6, ox - 88 - lw);
-  const cw = Math.min(230, Math.max(160, Math.floor(W * 0.36)), 2 * (ox - (ix + lw) - 6));
-  const cargo: Rect = { x: ox - Math.floor(cw / 2), y: hy + 148 + 11, w: cw, h: 22 };
-  const rx = ox + 88;
-  const rw = Math.min(196, W - rx - 8);
-  const fw = Math.min(150, rw - 4); // one width for the whole right column
+  const perRow = Math.max(1, Math.floor((W - 8 + GAP) / (CARD_W + GAP)));
+  const rows = Math.ceil(slots / perRow);
+  const tags = rows === 1;
+  const cy = BAR_H + 3 + (tags ? 6 : 0);
+  const used = Math.min(perRow, slots);
+  const rowW = used * CARD_W + (used - 1) * GAP;
+  const cards = cardRow(slots, Math.round(W / 2 - rowW / 2), cy, perRow, CARD_W + GAP);
+  const reroll = cards.pop()!;
+  const shopBottom = cy + rows * CARD_H + (rows - 1) * GAP;
+  const fixedBelow = 4 + HULL_L + 4 + CARGO_H + 3;
+  const spare = Math.max(0, H - shopBottom - fixedBelow);
+  const infoH = Math.min(58, spare);
+  const info: Rect = { x: 3, y: shopBottom + 2, w: W - 6, h: Math.max(0, infoH - 3) };
+  const hy = shopBottom + infoH + Math.max(0, Math.floor((spare - infoH) / 2)) + 4;
+  const frame = frameForHull(0, Math.round(W / 2 - HULL_A / 2), hy);
+  const hull = hullBox(frame);
+  const fw = Math.min(64, Math.round(W * 0.36));
+  const ry = hull.y + HULL_L + 4;
   return {
-    W, H, portrait, bar, wagonY, wagonX,
-    reroll: { x: Math.min(W - 78, wagonX[n - 1] + WAGON_W + 10), y: wagonY + 6, w: 70, h: 14 },
-    ox, oy,
-    hull: { x: ox - 80, y: hy - 12, w: 160, h: 164 },
-    deck: { x: ox - 60, y: oy + 38, w: 120, h: 120 },
-    cargo,
-    insp: { x: ix, y: wagonY, w: lw, h: Math.min(INSP_MAX_H, H - wagonY - 8) },
-    fight: { x: rx + 4, y: cargo.y + cargo.h - 28, w: fw, h: 28 },
-    info: { x: rx + 4, y: hy + 8, w: fw, h: 42 },
+    W, H, portrait, bar, cards, reroll, perRow, tags, frame, hull,
+    pad: { x: hull.x - 3, y: hull.y - 4, w: hull.w + 6, h: hull.h + 8 },
+    cargo: { x: 3, y: ry, w: W - fw - 9, h: CARGO_H },
+    fight: { x: W - fw - 3, y: ry - 1, w: fw, h: CARGO_H + 2 },
+    info,
+    foe: null,
   };
 }
 
-/** Tallest the inspector gets: header, a four-line description, stats, hint, button. */
-export const INSP_MAX_H = 150;
-
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
-/** Wagon convoy: drives in from the right, parks, opens; drives out to the left. */
+/** Caravan convoy: cards slide in from the right with a stagger; out to the left on reroll. */
 export class Caravan {
   state: "in" | "parked" | "out" = "in";
   t = 0;
@@ -114,8 +139,8 @@ export class Caravan {
 
   update(dt: number): void {
     this.t += dt;
-    if (this.state === "in" && this.t > (this.count - 1) * 0.12 + 0.98) this.state = "parked";
-    if (this.state === "out" && this.t > (this.count - 1) * 0.06 + 0.42) {
+    if (this.state === "in" && this.t > (this.count - 1) * 0.07 + 0.55) this.state = "parked";
+    if (this.state === "out" && this.t > (this.count - 1) * 0.04 + 0.3) {
       const f = this.then;
       this.then = null;
       this.state = "parked";
@@ -123,28 +148,17 @@ export class Caravan {
     }
   }
 
-  x(i: number, target: number, W: number): number {
+  /** Horizontal offset of card i (0 when parked). */
+  dx(i: number, W: number): number {
     if (this.state === "in") {
-      const s = W + 12 + i * 34;
-      const k = clamp01((this.t - i * 0.12) / 0.7);
-      return Math.round(s + (target - s) * (1 - Math.pow(1 - k, 3)));
+      const k = clamp01((this.t - i * 0.07) / 0.45);
+      return Math.round((W * 0.8) * Math.pow(1 - k, 3));
     }
     if (this.state === "out") {
-      const k = clamp01((this.t - i * 0.06) / 0.36);
-      return Math.round(target + (-WAGON_W - 30 - target) * k * k);
+      const k = clamp01((this.t - i * 0.04) / 0.25);
+      return Math.round(-W * k * k);
     }
-    return target;
-  }
-
-  open(i: number): number {
-    if (this.state === "out") return 0;
-    if (this.state === "parked") return 1;
-    return clamp01((this.t - i * 0.12 - 0.7) / 0.25);
-  }
-
-  moving(i: number): boolean {
-    if (this.state === "out") return this.t > i * 0.06;
-    return this.state === "in" && this.t - i * 0.12 < 0.7;
+    return 0;
   }
 
   get ready(): boolean {

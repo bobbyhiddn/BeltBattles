@@ -1,30 +1,20 @@
-// Juice: particles, frame animations, damage popups, screen shake, flashes, hit-stop.
+// Juice: pooled particles, frame animations, damage numbers, scorch decals, screen shake,
+// flashes and hit-stop. Nothing here allocates per frame; spawn calls reuse pooled slots.
+// Reduced Motion (settings) zeroes the camera shake and suppresses full-screen flashes but
+// keeps every gameplay cue (sparks, numbers, decals).
 
+import { settings } from "../core/settings";
 import { C } from "./palette";
-import { explosion, muzzleFlash, smokePuff, sparkStar } from "./sprites";
+import { DEBRIS, DUST, EMBER, Particles, SMOKE, SPARK, STREAK, cid } from "./particles";
+import { explosion, sparkStar } from "./sprites";
+import { muzzleFlash, ringSprite, scorchSprite } from "./fxsprites";
 import { drawText } from "./font";
 import type { G } from "./pixel";
 
-export type PKind = "px" | "smoke" | "ember" | "debris" | "streak" | "dust";
-
-export interface Particle {
-  kind: PKind;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  max: number;
-  color: string;
-  color2: string;
-  size: number;
-  grav: number;
-  drag: number;
-  dark: boolean;
-}
+const EX = 0, MF = 1, SP = 2, RING = 3;
 
 interface Anim {
-  kind: "ex" | "mf" | "spark";
+  kind: number;
   x: number;
   y: number;
   t: number;
@@ -32,9 +22,10 @@ interface Anim {
   frames: number;
   size: number;
   cool: boolean;
-  facing: 0 | 2;
+  dir: number;
   heavy: boolean;
   delay: number;
+  color: string;
 }
 
 interface Popup {
@@ -47,151 +38,225 @@ interface Popup {
   big: boolean;
 }
 
+interface Decal {
+  x: number;
+  y: number;
+  r: number;
+  v: number;
+  t: number;
+  max: number;
+}
+
+function pool<T>(n: number, make: () => T): T[] {
+  const a: T[] = [];
+  for (let i = 0; i < n; i++) a.push(make());
+  return a;
+}
+
+const SMOKE_LIGHT = cid(C.slate3), SMOKE_DARK = cid(C.slate0);
+const DUST0 = cid(C.soil5), DUST1 = cid(C.soil3);
+const EMB0 = cid(C.fire4), EMB1 = cid(C.fire1);
+
 export class Fx {
-  parts: Particle[] = [];
-  anims: Anim[] = [];
-  pops: Popup[] = [];
+  readonly parts = new Particles(1400);
+  private anims = pool<Anim>(128, () => ({ kind: 0, x: 0, y: 0, t: 0, fps: 0, frames: 0, size: 0, cool: false, dir: 0, heavy: false, delay: 0, color: C.white }));
+  private na = 0;
+  private pops = pool<Popup>(48, () => ({ x: 0, y: 0, text: "", color: C.white, t: 0, max: 1, big: false }));
+  private np = 0;
+  private decals = pool<Decal>(40, () => ({ x: 0, y: 0, r: 0, v: 0, t: 0, max: 1 }));
+  private nd = 0;
   trauma = 0;
   flash = 0; // screen flash 0..1
-  flashColor = C.white;
-  hitstop = 0;
+  flashColor: string = C.white;
+  hitstop = 0; // frames to freeze
   shakeX = 0;
   shakeY = 0;
+  private kickX = 0;
+  private kickY = 0;
   private seed = 1;
 
+  /** Cosmetic RNG (never the simulation's). */
   rnd(): number {
-    // local cosmetic RNG (never used by the simulation)
     this.seed = (this.seed * 1664525 + 1013904223) >>> 0;
     return this.seed / 4294967296;
   }
 
   clear(): void {
-    this.parts = [];
-    this.anims = [];
-    this.pops = [];
-    this.trauma = 0;
-    this.flash = 0;
-    this.hitstop = 0;
+    this.parts.clear();
+    this.na = this.np = this.nd = 0;
+    this.trauma = this.flash = this.hitstop = 0;
+    this.kickX = this.kickY = this.shakeX = this.shakeY = 0;
+  }
+
+  get busy(): number {
+    return this.parts.n + this.na;
+  }
+
+  /** Live counts (tooling / screenshots). */
+  stats(): { parts: number; anims: number; muzzles: number; explosions: number; bigFresh: number; pops: number } {
+    let muzzles = 0, explosions = 0, bigFresh = 0;
+    for (let i = 0; i < this.na; i++) {
+      const a = this.anims[i];
+      if (a.delay > 0) continue;
+      if (a.kind === MF) muzzles++;
+      else if (a.kind === EX) {
+        explosions++;
+        if (a.size >= 18 && a.t * a.fps < 3) bigFresh++;
+      }
+    }
+    return { parts: this.parts.n, anims: this.na, muzzles, explosions, bigFresh, pops: this.np };
   }
 
   addTrauma(a: number): void {
     this.trauma = Math.min(1, this.trauma + a);
   }
 
+  /** Directional punch (px), e.g. along the travel of a heavy shell. */
+  kick(dx: number, dy: number): void {
+    this.kickX += dx;
+    this.kickY += dy;
+  }
+
   update(dt: number): void {
-    // shake
-    this.trauma = Math.max(0, this.trauma - dt * 1.6);
-    const s = this.trauma * this.trauma;
-    this.shakeX = Math.round((this.rnd() * 2 - 1) * 6 * s);
-    this.shakeY = Math.round((this.rnd() * 2 - 1) * 5 * s);
-    this.flash = Math.max(0, this.flash - dt * 6);
-    const keep: Particle[] = [];
-    for (const p of this.parts) {
-      p.life -= dt;
-      if (p.life <= 0) continue;
-      p.vy += p.grav * dt;
-      const d = Math.pow(p.drag, dt * 60);
-      p.vx *= d;
-      p.vy *= d;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      keep.push(p);
+    this.trauma = Math.max(0, this.trauma - dt * 1.7);
+    const k = Math.pow(0.78, dt * 60);
+    this.kickX *= k;
+    this.kickY *= k;
+    if (settings.reducedMotion) {
+      this.shakeX = this.shakeY = 0;
+    } else {
+      const s = this.trauma * this.trauma;
+      this.shakeX = Math.round((this.rnd() * 2 - 1) * 7 * s + this.kickX);
+      this.shakeY = Math.round((this.rnd() * 2 - 1) * 6 * s + this.kickY);
     }
-    this.parts = keep;
-    this.anims = this.anims.filter((a) => {
-      if (a.delay > 0) {
-        a.delay -= dt;
-        return true;
-      }
-      a.t += dt;
-      return a.t * a.fps < a.frames;
-    });
-    this.pops = this.pops.filter((p) => {
+    this.flash = Math.max(0, this.flash - dt * 5);
+    this.parts.update(dt);
+    let i = 0;
+    while (i < this.na) {
+      const a = this.anims[i];
+      if (a.delay > 0) a.delay -= dt;
+      else a.t += dt;
+      if (a.delay <= 0 && a.t * a.fps >= a.frames) this.killAnim(i);
+      else i++;
+    }
+    i = 0;
+    while (i < this.np) {
+      const p = this.pops[i];
       p.t += dt;
-      return p.t < p.max;
-    });
-    if (this.parts.length > 900) this.parts.splice(0, this.parts.length - 900);
+      if (p.t >= p.max) this.swap(this.pops, i, --this.np);
+      else i++;
+    }
+    i = 0;
+    while (i < this.nd) {
+      const d = this.decals[i];
+      d.t += dt;
+      if (d.t >= d.max) this.swap(this.decals, i, --this.nd);
+      else i++;
+    }
   }
 
-  private push(p: Partial<Particle> & { x: number; y: number }): void {
-    this.parts.push({
-      kind: "px", vx: 0, vy: 0, life: 0.5, max: 0.5, color: C.white, color2: C.white, size: 1,
-      grav: 0, drag: 1, dark: false, ...p,
-    } as Particle);
+  private swap<T>(arr: T[], i: number, j: number): void {
+    const t = arr[i];
+    arr[i] = arr[j];
+    arr[j] = t;
   }
 
-  sparks(x: number, y: number, n: number, colors: string[], speed = 60, grav = 90): void {
+  private killAnim(i: number): void {
+    this.swap(this.anims, i, --this.na);
+  }
+
+  private anim(kind: number, x: number, y: number, fps: number, frames: number): Anim | null {
+    if (this.na >= this.anims.length) return null;
+    const a = this.anims[this.na++];
+    a.kind = kind; a.x = x; a.y = y; a.t = 0; a.fps = fps; a.frames = frames;
+    a.size = 0; a.cool = false; a.dir = 0; a.heavy = false; a.delay = 0; a.color = C.white;
+    return a;
+  }
+
+  // ------------------------------------------------------------ spawners
+
+  sparks(x: number, y: number, n: number, colors: readonly string[], speed = 70, grav = 0): void {
     for (let i = 0; i < n; i++) {
       const a = this.rnd() * Math.PI * 2;
-      const v = speed * (0.3 + this.rnd() * 0.9);
-      const life = 0.2 + this.rnd() * 0.35;
-      this.push({
-        kind: "px", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, life, max: life,
-        color: colors[i % colors.length], color2: colors[(i + 1) % colors.length], grav, drag: 0.93,
-      });
+      const v = speed * (0.35 + this.rnd() * 0.9);
+      const life = 0.18 + this.rnd() * 0.3;
+      this.parts.spawn(SPARK, x, y, Math.cos(a) * v, Math.sin(a) * v, life, cid(colors[i % colors.length]), cid(colors[(i + 1) % colors.length]), this.rnd() < 0.25 ? 2 : 1, grav, 0.9);
+    }
+  }
+
+  /** Sparks sprayed in a cone around (dx, dy). */
+  spray(x: number, y: number, n: number, dx: number, dy: number, colors: readonly string[], speed = 90): void {
+    const base = Math.atan2(dy, dx);
+    for (let i = 0; i < n; i++) {
+      const a = base + (this.rnd() - 0.5) * 1.3;
+      const v = speed * (0.45 + this.rnd() * 0.8);
+      this.parts.spawn(STREAK, x, y, Math.cos(a) * v, Math.sin(a) * v, 0.15 + this.rnd() * 0.2, cid(colors[i % colors.length]), cid(colors[colors.length - 1]), 1, 0, 0.88);
     }
   }
 
   embers(x: number, y: number, n: number): void {
     for (let i = 0; i < n; i++) {
       const life = 0.4 + this.rnd() * 0.6;
-      this.push({
-        kind: "ember", x: x + (this.rnd() - 0.5) * 4, y, vx: (this.rnd() - 0.5) * 10, vy: -12 - this.rnd() * 18,
-        life, max: life, color: C.fire4, color2: C.fire1, grav: -6, drag: 0.98,
-      });
+      this.parts.spawn(EMBER, x + (this.rnd() - 0.5) * 4, y, (this.rnd() - 0.5) * 10, -12 - this.rnd() * 18, life, EMB0, EMB1, 1, -6, 0.98);
     }
   }
 
   smoke(x: number, y: number, n: number, dark = false, rise = 10): void {
     for (let i = 0; i < n; i++) {
       const life = 0.6 + this.rnd() * 0.8;
-      this.push({
-        kind: "smoke", x: x + (this.rnd() - 0.5) * 3, y: y + (this.rnd() - 0.5) * 3, vx: (this.rnd() - 0.5) * 8,
-        vy: -rise * (0.5 + this.rnd()), life, max: life, size: 2 + Math.floor(this.rnd() * 3), dark, drag: 0.97,
-      });
+      const c = dark ? SMOKE_DARK : SMOKE_LIGHT;
+      this.parts.spawn(SMOKE, x + (this.rnd() - 0.5) * 3, y + (this.rnd() - 0.5) * 3, (this.rnd() - 0.5) * 8, -rise * (0.5 + this.rnd()), life, c, c, 2 + Math.floor(this.rnd() * 2), 0, 0.97);
     }
   }
 
   dust(x: number, y: number, n: number, vy = 18): void {
     for (let i = 0; i < n; i++) {
-      const life = 0.4 + this.rnd() * 0.5;
-      this.push({
-        kind: "dust", x: x + (this.rnd() - 0.5) * 6, y, vx: (this.rnd() - 0.5) * 10, vy: vy * (0.6 + this.rnd() * 0.6),
-        life, max: life, size: 1 + Math.floor(this.rnd() * 2), color: C.soil5, color2: C.soil3, drag: 0.95,
-      });
+      const a = this.rnd() * Math.PI * 2;
+      const v = 10 + this.rnd() * 16;
+      this.parts.spawn(DUST, x + (this.rnd() - 0.5) * 6, y, Math.cos(a) * v, Math.sin(a) * v * 0.6 + vy * 0.3, 0.35 + this.rnd() * 0.4, DUST0, DUST1, 1 + Math.floor(this.rnd() * 2), 0, 0.9);
     }
   }
 
-  debris(x: number, y: number, n: number, colors: string[]): void {
+  debris(x: number, y: number, n: number, colors: readonly string[], speed = 55): void {
     for (let i = 0; i < n; i++) {
       const a = this.rnd() * Math.PI * 2;
-      const v = 40 + this.rnd() * 70;
-      const life = 0.35 + this.rnd() * 0.4;
-      this.push({
-        kind: "debris", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life, max: life,
-        color: colors[i % colors.length], color2: C.ink, size: 2, grav: 120, drag: 0.9,
-      });
+      const v = speed * (0.4 + this.rnd() * 0.9);
+      this.parts.spawn(DEBRIS, x, y, Math.cos(a) * v, Math.sin(a) * v, 0.7 + this.rnd() * 0.6, cid(colors[i % colors.length]), cid(colors[i % colors.length]), 2, 260, 0.985, 1, 50 + this.rnd() * 70);
     }
-  }
-
-  streak(x: number, y: number, vx: number, vy: number, life: number, color: string): void {
-    this.push({ kind: "streak", x, y, vx, vy, life, max: life, color, color2: color });
   }
 
   explode(x: number, y: number, size: number, cool = false, delay = 0): void {
-    this.anims.push({ kind: "ex", x, y, t: 0, fps: 18, frames: 7, size, cool, facing: 0, heavy: true, delay });
+    const a = this.anim(EX, x, y, 18, 7);
+    if (!a) return;
+    a.size = size; a.cool = cool; a.delay = delay;
   }
 
-  muzzle(x: number, y: number, heavy: boolean, facing: 0 | 2): void {
-    this.anims.push({ kind: "mf", x, y, t: 0, fps: heavy ? 20 : 26, frames: heavy ? 3 : 2, size: 0, cool: false, facing, heavy, delay: 0 });
+  muzzle(x: number, y: number, heavy: boolean, dir: number): void {
+    const a = this.anim(MF, x, y, heavy ? 22 : 28, heavy ? 3 : 2);
+    if (!a) return;
+    a.heavy = heavy; a.dir = dir;
   }
 
   sparkle(x: number, y: number, delay = 0): void {
-    this.anims.push({ kind: "spark", x, y, t: 0, fps: 14, frames: 3, size: 0, cool: false, facing: 0, heavy: false, delay });
+    const a = this.anim(SP, x, y, 14, 3);
+    if (a) a.delay = delay;
+  }
+
+  ring(x: number, y: number, maxR: number, color: string, delay = 0): void {
+    const a = this.anim(RING, x, y, 30, Math.max(2, Math.floor(maxR / 2)));
+    if (!a) return;
+    a.color = color; a.delay = delay; a.size = maxR;
   }
 
   popup(x: number, y: number, text: string, color: string, big = false): void {
-    this.pops.push({ x, y, text, color, t: 0, max: big ? 1.1 : 0.8, big });
+    if (this.np >= this.pops.length) return;
+    const p = this.pops[this.np++];
+    p.x = x; p.y = y; p.text = text; p.color = color; p.t = 0; p.max = big ? 1.15 : 0.85; p.big = big;
+  }
+
+  scorch(x: number, y: number, r: number): void {
+    const d = this.nd < this.decals.length ? this.decals[this.nd++] : this.decals[Math.floor(this.rnd() * this.decals.length)];
+    d.x = x; d.y = y; d.r = r; d.v = Math.floor(this.rnd() * 4); d.t = 0; d.max = 5;
   }
 
   screenFlash(color: string, amount: number): void {
@@ -199,63 +264,43 @@ export class Fx {
     this.flash = Math.max(this.flash, amount);
   }
 
-  /** Draw world-space effects with offset (ox, oy) = screen position of world origin. */
-  draw(g: G, ox: number, oy: number): void {
-    for (const p of this.parts) {
-      const x = Math.round(p.x + ox), y = Math.round(p.y + oy);
-      const t = p.life / p.max;
-      switch (p.kind) {
-        case "smoke": {
-          const img = smokePuff(p.size, p.dark);
-          if (t < 0.35 && ((x + y) & 1)) break;
-          g.drawImage(img, x - img.width / 2, y - img.height / 2);
-          break;
-        }
-        case "ember": {
-          g.fillStyle = t > 0.5 ? p.color : p.color2;
-          g.fillRect(x, y, 1, 1);
-          break;
-        }
-        case "debris": {
-          g.fillStyle = p.color2;
-          g.fillRect(x - 1, y - 1, 3, 3);
-          g.fillStyle = p.color;
-          g.fillRect(x, y - 1, 1, 2);
-          break;
-        }
-        case "streak": {
-          g.fillStyle = p.color;
-          const len = 3;
-          const n = Math.hypot(p.vx, p.vy) || 1;
-          for (let k = 0; k < len; k++) g.fillRect(Math.round(x - (p.vx / n) * k), Math.round(y - (p.vy / n) * k), 1, 1);
-          break;
-        }
-        case "dust": {
-          g.fillStyle = t > 0.5 ? p.color : p.color2;
-          g.fillRect(x, y, p.size, p.size);
-          break;
-        }
-        default: {
-          g.fillStyle = t > 0.45 ? p.color : p.color2;
-          g.fillRect(x, y, p.size, p.size);
-        }
-      }
+  // ------------------------------------------------------------ drawing
+
+  drawDecals(g: G, ox: number, oy: number): void {
+    for (let i = 0; i < this.nd; i++) {
+      const d = this.decals[i];
+      const k = 1 - d.t / d.max;
+      g.globalAlpha = Math.min(0.7, k * 1.2);
+      const img = scorchSprite(d.r, d.v);
+      g.drawImage(img, Math.round(d.x + ox - img.width / 2), Math.round(d.y + oy - img.height / 2));
     }
-    for (const a of this.anims) {
+    g.globalAlpha = 1;
+  }
+
+  draw(g: G, ox: number, oy: number): void {
+    this.parts.draw(g, ox, oy);
+    for (let i = 0; i < this.na; i++) {
+      const a = this.anims[i];
       if (a.delay > 0) continue;
       const f = Math.min(a.frames - 1, Math.floor(a.t * a.fps));
       let img: HTMLCanvasElement;
-      if (a.kind === "ex") img = explosion(a.size, f, a.cool);
-      else if (a.kind === "mf") img = muzzleFlash(a.heavy ? "heavy" : "light", f, a.facing);
+      if (a.kind === EX) img = explosion(a.size, f, a.cool);
+      else if (a.kind === MF) img = muzzleFlash(a.heavy, f, a.dir);
+      else if (a.kind === RING) img = ringSprite(Math.min(a.size, 3 + f * 2), a.color);
       else img = sparkStar(f);
       g.drawImage(img, Math.round(a.x + ox - img.width / 2), Math.round(a.y + oy - img.height / 2));
     }
-    for (const p of this.pops) {
+  }
+
+  /** Damage numbers: pop up, hold, blink out. Drawn above everything in the world layer. */
+  drawPops(g: G, ox: number, oy: number): void {
+    for (let i = 0; i < this.np; i++) {
+      const p = this.pops[i];
       const k = p.t / p.max;
-      const rise = p.big ? 14 : 10;
-      const y = p.y + oy - rise * Math.min(1, k * 1.6);
-      if (k > 0.75 && Math.floor(p.t * 20) % 2) continue;
-      drawText(g, p.text, p.x + ox, y, p.color, { font: p.big ? "5" : "3", align: "center", outline: C.ink });
+      const rise = (p.big ? 16 : 11) * Math.min(1, k * 2.2);
+      if (k > 0.78 && Math.floor(p.t * 22) % 2) continue;
+      const col = p.t < 0.05 ? C.white : p.color;
+      drawText(g, p.text, Math.round(p.x + ox), Math.round(p.y + oy - rise), col, { align: "center", outline: C.ink, scale: p.big ? 2 : 1 });
     }
   }
 }

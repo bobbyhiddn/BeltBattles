@@ -1,0 +1,133 @@
+// Shop cards: each wagon offer is a large card (icon, name, price, rarity edge, merchant
+// stripe). Affordable cards pulse amber until something is bought (STUDY rule 13); the
+// selected card lifts with a drop shadow. REROLL uses the same card frame.
+
+import { ITEMS, MERCHANTS, REROLL_COST, type ItemDef, type MerchantId } from "../../sim/content";
+import { C, RARITY_COLOR } from "../../render/palette";
+import { frame, rect, type G } from "../../render/pixel";
+import { drawText, textWidth, wrap } from "../../render/font";
+import { coinIcon, itemIcon } from "../../render/sprites";
+import type { Rect } from "../../ui/ui";
+
+export const MERCHANT_COLOR: Record<MerchantId, string> = {
+  ironmonger: C.steel2,
+  tinker: C.cyan,
+  alchemist: C.plum4,
+  gunsmith: C.red,
+};
+
+const SHORT: Record<string, string> = { calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PLATE" };
+
+/** Card title split into at most two lines that fit the card. */
+export function cardName(def: ItemDef, w: number): string[] {
+  const name = SHORT[def.id] ?? def.name;
+  const lines = wrap(name, w, "3");
+  return lines.slice(0, 2);
+}
+
+export interface CardState {
+  sold: boolean;
+  affordable: boolean;
+  selected: boolean;
+  hover: boolean;
+  pulse: boolean;
+  hidden: boolean; // being dragged away
+  shake: number; // red shake time left (invalid drop)
+}
+
+function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: string, rarity: string, dim: boolean): void {
+  rect(g, x, y, w, h, C.ink);
+  rect(g, x + 1, y + 1, w - 2, h - 2, dim ? C.night : C.slate0);
+  rect(g, x + 1, y + 1, w - 2, 3, dim ? C.slate1 : stripe);
+  rect(g, x + 1, y + 4, w - 2, 1, C.ink);
+  rect(g, x + 1, y + 5, 1, h - 8, dim ? C.slate0 : C.slate2);
+  rect(g, x + w - 2, y + 5, 1, h - 8, C.navy);
+  rect(g, x + 1, y + h - 3, w - 2, 2, dim ? C.slate1 : rarity);
+}
+
+export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: MerchantId, s: CardState, t: number): void {
+  if (s.hidden) {
+    // empty cradle while the card is carried
+    rect(g, r.x, r.y, r.w, r.h, C.ink);
+    rect(g, r.x + 1, r.y + 1, r.w - 2, r.h - 2, C.night);
+    frame(g, r.x + 3, r.y + 3, r.w - 6, r.h - 6, C.slate1);
+    return;
+  }
+  const lift = s.selected ? 2 : s.hover ? 1 : 0;
+  const sh = s.shake > 0 ? Math.round(Math.sin(s.shake * 70) * 2) : 0;
+  const x = r.x + sh, y = r.y - lift;
+  if (lift) {
+    // drop shadow on the tray below the lifted card
+    rect(g, r.x + 2, r.y + r.h - 1, r.w - 1, 2, C.ink);
+    rect(g, r.x + r.w, r.y + 2, 1, r.h - 1, C.ink);
+  }
+  cardFrame(g, x, y, r.w, r.h, MERCHANT_COLOR[merchant], RARITY_COLOR[def.rarity], s.sold);
+  // rarity gem
+  rect(g, x + r.w - 6, y + 6, 4, 4, C.ink);
+  rect(g, x + r.w - 5, y + 7, 2, 2, s.sold ? C.slate1 : RARITY_COLOR[def.rarity]);
+  const icon = itemIcon(def.id);
+  const lines = cardName(def, r.w - 4);
+  const two = lines.length > 1;
+  g.drawImage(icon, Math.round(x + r.w / 2 - 6), y + (two ? 6 : 8));
+  let ny = y + (two ? 19 : 22);
+  for (const ln of lines) {
+    drawText(g, ln, x + r.w / 2, ny, s.sold ? C.slate2 : C.bone, { font: "3", align: "center" });
+    ny += 6;
+  }
+  if (s.sold) {
+    drawText(g, "SOLD", x + r.w / 2, y + r.h - 11, C.maroon, { font: "3", align: "center" });
+  } else {
+    const txt = String(price);
+    const tw = textWidth(txt) + 7;
+    const px = Math.round(x + r.w / 2 - tw / 2);
+    g.drawImage(coinIcon(), px, y + r.h - 11);
+    drawText(g, txt, px + 7, y + r.h - 12, s.affordable ? C.yellow : C.red, { outline: C.ink });
+  }
+  if (s.shake > 0) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, Math.floor(t * 20) % 2 ? C.red : C.maroon);
+  else if (s.selected) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, Math.floor(t * 6) % 2 ? C.white : C.yellow);
+  else if (s.hover) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
+  else if (s.pulse && !s.sold && s.affordable) {
+    // gentle staggered shimmer across the affordable cards, not a constant frame
+    const k = (Math.sin(t * 4 - r.x * 0.05) + 1) / 2;
+    if (k > 0.72) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, k > 0.9 ? C.yellow : C.amber);
+  }
+}
+
+/** Floating hover tooltip under a card (mouse only). */
+export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number): void {
+  const text = [def.desc[0], def.desc[1]].filter(Boolean) as string[];
+  const w = Math.max(textWidth(def.name), ...text.map((l) => textWidth(l, "3")), textWidth(describe(def), "3")) + 10;
+  const h = 22 + text.length * 7;
+  const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));
+  const y = r.y + r.h + 4;
+  rect(g, x + 2, y + 2, w, h, C.ink);
+  rect(g, x, y, w, h, C.ink);
+  rect(g, x + 1, y + 1, w - 2, h - 2, C.night);
+  rect(g, x + 1, y + 1, w - 2, 1, RARITY_COLOR[def.rarity]);
+  drawText(g, def.name, x + 5, y + 4, RARITY_COLOR[def.rarity], { outline: C.ink });
+  drawText(g, describe(def), x + 5, y + 13, C.slate4, { font: "3" });
+  text.forEach((l, i) => drawText(g, l, x + 5, y + 21 + i * 7, C.bone, { font: "3" }));
+}
+
+export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pressed: boolean): void {
+  const y = r.y + (pressed ? 1 : 0);
+  cardFrame(g, r.x, y, r.w, r.h, enabled ? C.amber : C.slate1, enabled ? C.amber : C.slate1, !enabled);
+  drawText(g, "REROLL", r.x + r.w / 2, y + 12, enabled ? C.white : C.slate2, { font: "3", align: "center" });
+  g.drawImage(coinIcon(), Math.round(r.x + r.w / 2 - 7), y + 22);
+  drawText(g, String(REROLL_COST), r.x + r.w / 2 + 1, y + 21, enabled ? C.yellow : C.slate2, { outline: C.ink });
+  if (hover && enabled) frame(g, r.x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
+}
+
+/** Merchant name tag above the first card of each wagon's group (single-row layouts). */
+export function drawTag(g: G, x: number, y: number, merchant: MerchantId): void {
+  const name = MERCHANTS[merchant].name;
+  rect(g, x, y + 2, 3, 3, MERCHANT_COLOR[merchant]);
+  drawText(g, name, x + 5, y, C.slate4, { font: "3" });
+}
+
+export function describe(def: ItemDef): string {
+  const kind = def.kind === "gate" ? "GATE" : def.kind === "factory" ? "FACTORY" : def.kind === "mod" ? "TURRET GEAR" : "SUPPLY";
+  return `${def.rarity.toUpperCase()} ${kind}`;
+}
+
+export { ITEMS };

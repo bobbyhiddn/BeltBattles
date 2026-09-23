@@ -53,16 +53,48 @@ export class UI {
 
 export type PanelStyle = "dark" | "raised" | "inset" | "glass";
 
+/**
+ * The one panel component (STUDY rule 12): 1px ink frame, a 2px bevel lit from the upper
+ * left, and corner rivets on anything big enough to carry them.
+ */
+export function bevel2(g: G, x: number, y: number, w: number, h: number, fill: string, hi1: string, hi2: string, lo1: string, lo2: string, rivet?: string): void {
+  rect(g, x, y, w, h, C.ink);
+  rect(g, x + 1, y + 1, w - 2, h - 2, fill);
+  rect(g, x + 1, y + 1, w - 2, 1, hi1);
+  rect(g, x + 1, y + 1, 1, h - 2, hi1);
+  rect(g, x + 1, y + h - 2, w - 2, 1, lo1);
+  rect(g, x + w - 2, y + 1, 1, h - 2, lo1);
+  if (w >= 8 && h >= 12) {
+    rect(g, x + 2, y + 2, w - 4, 1, hi2);
+    rect(g, x + 2, y + 2, 1, h - 4, hi2);
+    rect(g, x + 2, y + h - 3, w - 4, 1, lo2);
+    rect(g, x + w - 3, y + 2, 1, h - 4, lo2);
+  }
+  if (rivet && w >= 16 && h >= 12) {
+    rivetAt(g, x + 4, y + 4, rivet, lo2);
+    rivetAt(g, x + w - 5, y + 4, rivet, lo2);
+    rivetAt(g, x + 4, y + h - 5, rivet, lo2);
+    rivetAt(g, x + w - 5, y + h - 5, rivet, lo2);
+  }
+}
+
+function rivetAt(g: G, x: number, y: number, c: string, shade: string): void {
+  rect(g, x, y, 1, 1, c);
+  rect(g, x + 1, y + 1, 1, 1, shade);
+}
+
 export function panel(g: G, r: Rect, style: PanelStyle = "dark"): void {
   const { x, y, w, h } = r;
   switch (style) {
     case "raised":
-      bevel(g, x, y, w, h, C.slate1, C.slate3, C.slate0, C.ink);
+      bevel2(g, x, y, w, h, C.slate1, C.slate3, C.slate2, C.navy, C.slate0, C.slate4);
       break;
     case "inset":
       rect(g, x, y, w, h, C.ink);
       rect(g, x + 1, y + 1, w - 2, h - 2, C.night);
+      rect(g, x + 1, y + 1, w - 2, 1, C.ink);
       rect(g, x + 1, y + h - 2, w - 2, 1, C.slate1);
+      rect(g, x + w - 2, y + 1, 1, h - 2, C.slate0);
       break;
     case "glass":
       g.globalAlpha = 0.86;
@@ -72,10 +104,7 @@ export function panel(g: G, r: Rect, style: PanelStyle = "dark"): void {
       rect(g, x + 1, y + 1, w - 2, 1, C.slate2);
       break;
     default:
-      rect(g, x, y, w, h, C.ink);
-      rect(g, x + 1, y + 1, w - 2, h - 2, C.navy);
-      rect(g, x + 1, y + 1, w - 2, 1, C.slate2);
-      rect(g, x + 1, y + 2, 1, h - 3, C.slate1);
+      bevel2(g, x, y, w, h, C.navy, C.slate2, C.slate1, C.ink, C.night, C.slate3);
   }
 }
 
@@ -93,18 +122,20 @@ export interface ButtonOpts {
 export function button(ui: UI, g: G, id: string, r: Rect, label: string, o: ButtonOpts = {}): void {
   const pressed = ui.pressed === id && ui.pointer.down && inside(r, ui.pointer.x, ui.pointer.y);
   const hover = ui.hover === id;
-  let fill: string = C.slate2, hi: string = C.slate4, lo: string = C.slate0, text: string = C.white;
-  if (o.primary) { fill = C.amber; hi = C.fire4; lo = C.fire1; text = C.ink; }
-  if (o.danger) { fill = C.red; hi = C.fire4; lo = C.maroon; text = C.ink; }
-  if (o.active) { fill = C.cyan; hi = C.white; lo = C.deepblue; text = C.ink; }
-  if (o.disabled) { fill = C.slate1; hi = C.slate2; lo = C.slate0; text = C.slate3; }
-  if (hover && !o.disabled && !pressed) hi = C.white;
+  let fill: string = C.slate2, hi: string = C.slate4, hi2: string = C.slate3, lo: string = C.slate0, text: string = C.white;
+  if (o.primary) { fill = C.amber; hi = C.fire4; hi2 = C.fire3; lo = C.fire1; text = C.ink; }
+  if (o.danger) { fill = C.red; hi = C.fire4; hi2 = C.fire3; lo = C.maroon; text = C.ink; }
+  if (o.active) { fill = C.cyan; hi = C.white; hi2 = C.ice; lo = C.deepblue; text = C.ink; }
+  if (o.disabled) { fill = C.slate1; hi = C.slate2; hi2 = C.slate2; lo = C.slate0; text = C.slate3; }
+  if (hover && !o.disabled && !pressed) { hi = C.white; hi2 = hi2 === C.slate3 ? C.slate4 : hi2; }
   const dy = pressed ? 1 : 0;
   rect(g, r.x, r.y + r.h - 1, r.w, 1, C.ink); // drop edge
   if (pressed) {
     rect(g, r.x, r.y, r.w, r.h, C.ink);
     rect(g, r.x + 1, r.y + 2, r.w - 2, r.h - 3, lo);
     rect(g, r.x + 2, r.y + 3, r.w - 4, r.h - 5, fill);
+  } else if (r.h >= 12 && r.w >= 12) {
+    bevel2(g, r.x, r.y, r.w, r.h - 1, fill, hi, hi2, lo, fill === C.amber ? C.fire2 : lo);
   } else {
     bevel(g, r.x, r.y, r.w, r.h - 1, fill, hi, lo, C.ink);
   }

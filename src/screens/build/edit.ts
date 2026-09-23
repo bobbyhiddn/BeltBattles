@@ -1,18 +1,21 @@
-// Deck editing gestures: tap to inspect; drag to buy, place, move or store; drag out of a
-// factory (or grab an existing belt) to lay conveyor; hold a factory to lift and move it.
+// Deck editing gestures. Drag: buy/place/move/store, lay conveyor out of a factory, grab a
+// belt to reroute it, hold a factory to lift it. Tap: select; with a card or cargo item
+// selected, a tap on the deck places it there (touch parity with drag and drop).
 
-import { C } from "../../render/palette";
-import { frame, type G } from "../../render/pixel";
-import { factorySprite, gateSprite, itemIcon, shadowBlob } from "../../render/sprites";
-import { cellTL, footTL, w2cell } from "../../render/world";
-import { GRID, HEROES, ITEMS } from "../../sim/content";
+import { GRID } from "../../sim/content";
 import {
-  adjacentToFactory, canExtend, canPlaceItem, commitRoute, connectorFree, defOf, inGrid,
-  isFreeConnectorEnd, itemByUid, key, kx, ky, manhattanSteps, occupancy, routeInfo, routesOf,
+  adjacentToFactory, canExtend, commitRoute, connectorFree, defOf, inGrid, isFreeConnectorEnd,
+  itemByUid, key, kx, ky, manhattanSteps, occupancy, routeInfo, routesOf,
 } from "../../sim/deck";
-import { drop, dropCell, type Carry, type Ctx, type Src } from "./actions";
+import { HEROES, ITEMS } from "../../sim/content";
+import { C } from "../../render/palette";
+import { cellAt, footX, footY } from "../../render/frame";
+import { inside } from "../../ui/ui";
+import { drop, type Carry, type Ctx, type Src } from "./actions";
+import type { Sel } from "./layout";
 
 export interface EditHost extends Ctx {
+  sel: Sel;
   offerAt(x: number, y: number): { wagon: number; slot: number } | null;
   cargoAt(x: number, y: number): number | null;
 }
@@ -36,6 +39,7 @@ export class Editor {
   draw: Draw | null = null;
   px = 0;
   py = 0;
+  carryT = 0; // time since pick-up (lift animation)
   private lastWarn = "";
   private warnT = 0;
 
@@ -47,16 +51,20 @@ export class Editor {
 
   update(dt: number): void {
     this.warnT = Math.max(0, this.warnT - dt);
+    if (this.carry) this.carryT += dt;
     const p = this.press;
     if (p && p.src.from === "factory" && (p.t += dt) > 0.38) {
       const f = itemByUid(this.h.run.build, p.src.uid);
       this.press = null;
-      if (f) {
-        this.carry = { src: { from: "deck", uid: f.uid }, def: f.def, uid: f.uid };
-        this.h.game.audio.play("pickup");
-        this.h.select({ kind: "item", uid: f.uid });
-      }
+      if (f) this.lift({ src: { from: "deck", uid: f.uid }, def: f.def, uid: f.uid });
+      if (f) this.h.select({ kind: "item", uid: f.uid });
     } else if (p) p.t += dt;
+  }
+
+  private lift(c: Carry): void {
+    this.carry = c;
+    this.carryT = 0;
+    this.h.game.audio.play("pickup");
   }
 
   private pick(x: number, y: number): Src | null {
@@ -67,8 +75,8 @@ export class Editor {
     if (cu !== null) return { from: "cargo", uid: cu };
     const t = h.turretAt(x, y);
     if (t >= 0) return { from: "turret", index: t };
-    const c = w2cell(0, x - h.L.ox, y - h.L.oy);
-    if (!inGrid(c.cx, c.cy)) return null;
+    const c = cellAt(h.L.frame, x, y);
+    if (!inGrid(c.cx, c.cy)) return inside(h.L.hull, x, y) ? { from: "cell", k: -1 } : null;
     const k = key(c.cx, c.cy);
     const b = h.run.build;
     const occ = occupancy(b)[k];
@@ -84,11 +92,11 @@ export class Editor {
     this.px = x;
     this.py = y;
     const src = this.pick(x, y);
-    if (!src) {
+    if (!src && !inside(this.h.L.cargo, x, y)) {
       this.h.select({ kind: "none" });
       return;
     }
-    this.press = { src, x0: x, y0: y, t: 0 };
+    this.press = src ? { src, x0: x, y0: y, t: 0 } : null;
   }
 
   move(x: number, y: number): void {
@@ -104,7 +112,7 @@ export class Editor {
 
   up(x: number, y: number): void {
     if (this.press) {
-      this.tap(this.press.src);
+      this.tap(this.press.src, x, y);
       this.press = null;
     } else if (this.carry) {
       const c = this.carry;
@@ -122,11 +130,45 @@ export class Editor {
     this.draw = null;
   }
 
-  private tap(src: Src): void {
-    const s = this.h.select.bind(this.h);
+  /** The currently selected card or cargo item as something that can be placed. */
+  selectedCarry(): Carry | null {
+    const s = this.h.sel;
+    const run = this.h.run;
+    if (s.kind === "offer") {
+      const o = run.shop.wagons[s.wagon]?.offers[s.slot];
+      return o && !o.sold ? { src: { from: "offer", wagon: s.wagon, slot: s.slot }, def: o.def, uid: -1 } : null;
+    }
+    if (s.kind === "cargo") {
+      const it = run.inventory.find((i) => i.uid === s.uid);
+      return it ? { src: { from: "cargo", uid: it.uid }, def: it.def, uid: it.uid } : null;
+    }
+    return null;
+  }
+
+  private tap(src: Src, x: number, y: number): void {
+    const h = this.h;
+    const s = h.select.bind(h);
+    const onDeck = src.from === "cell" || src.from === "route" || src.from === "deck" || src.from === "factory" || src.from === "turret";
+    const held = this.selectedCarry();
+    if (held && onDeck) {
+      const def = ITEMS[held.def];
+      const hs = held.src;
+      if (hs.from === "offer") {
+        const price = h.run.shop.wagons[hs.wagon].offers[hs.slot].price;
+        if (h.run.gold < price) return h.invalid(`NEED ${price - h.run.gold} MORE GOLD`);
+      }
+      if (def.kind === "mod" && src.from !== "turret") return h.invalid("DROP TURRET GEAR ON A TURRET");
+      drop(h, held, x, y);
+      return;
+    }
+    const cur = h.sel;
     switch (src.from) {
-      case "offer": return s({ kind: "offer", wagon: src.wagon, slot: src.slot });
-      case "cargo": return s({ kind: "cargo", uid: src.uid });
+      case "offer":
+        if (cur.kind === "offer" && cur.wagon === src.wagon && cur.slot === src.slot) return s({ kind: "none" });
+        return s({ kind: "offer", wagon: src.wagon, slot: src.slot });
+      case "cargo":
+        if (cur.kind === "cargo" && cur.uid === src.uid) return s({ kind: "none" });
+        return s({ kind: "cargo", uid: src.uid });
       case "deck":
       case "factory": return s({ kind: "item", uid: src.uid });
       case "route": return s({ kind: "route", index: src.index });
@@ -142,26 +184,24 @@ export class Editor {
       case "offer": {
         const o = run.shop.wagons[src.wagon]?.offers[src.slot];
         if (!o || o.sold) return;
-        if (run.gold < o.price) return game.error(`NEED ${o.price - run.gold} MORE GOLD`);
-        this.carry = { src, def: o.def, uid: -1 };
-        game.audio.play("pickup");
+        if (run.gold < o.price) return this.h.invalid(`NEED ${o.price - run.gold} MORE GOLD`);
+        this.lift({ src, def: o.def, uid: -1 });
+        this.h.select({ kind: "offer", wagon: src.wagon, slot: src.slot });
         return;
       }
       case "cargo": {
         const it = run.inventory.find((i) => i.uid === src.uid);
-        if (it) this.carry = { src, def: it.def, uid: it.uid };
-        game.audio.play("pickup");
+        if (it) this.lift({ src, def: it.def, uid: it.uid });
         return;
       }
       case "deck": {
         const p = itemByUid(b, src.uid);
-        if (p) this.carry = { src, def: p.def, uid: p.uid };
-        game.audio.play("pickup");
+        if (p) this.lift({ src, def: p.def, uid: p.uid });
         return;
       }
       case "turret": {
         const m = b.mods.find((q) => q.turret === src.index);
-        if (m) this.carry = { src: { from: "mod", uid: m.uid }, def: m.def, uid: m.uid };
+        if (m) this.lift({ src: { from: "mod", uid: m.uid }, def: m.def, uid: m.uid });
         return;
       }
       case "route": {
@@ -173,6 +213,7 @@ export class Editor {
       case "factory":
         return this.startFrom(src.uid);
       case "cell": {
+        if (src.k < 0) return;
         const f = b.items.find((p) => defOf(p).kind === "factory" && adjacentToFactory(b, p.uid, src.k) >= 0);
         if (f) this.startFrom(f.uid);
         return;
@@ -209,7 +250,7 @@ export class Editor {
     const d = this.draw!;
     const { run, game, L } = this.h;
     const b = run.build;
-    const c = w2cell(0, x - L.ox, y - L.oy);
+    const c = cellAt(L.frame, x, y);
     if (!inGrid(c.cx, c.cy)) return;
     const k = key(c.cx, c.cy);
     const cells = d.cells;
@@ -217,7 +258,7 @@ export class Editor {
     const back = cells.indexOf(k);
     if (back >= 0) {
       cells.length = back + 1;
-      game.audio.play("belt");
+      game.audio.play("belt", cells.length);
       return;
     }
     if (!cells.length) {
@@ -230,7 +271,7 @@ export class Editor {
       }
       if (best < 0) return this.warn("NO ROOM BESIDE THE FACTORY");
       cells.push(best);
-      game.audio.play("belt");
+      game.audio.play("belt", cells.length);
       if (best === k) return;
     }
     for (const s of manhattanSteps(cells[cells.length - 1], k)) {
@@ -240,12 +281,13 @@ export class Editor {
         break;
       }
       cells.push(s);
-      game.audio.play("belt");
+      game.audio.play("belt", cells.length);
       if (chk.completes) {
         game.audio.play("connect");
-        const tl = cellTL(0, kx(s), ky(s));
-        this.h.wfx.sparkle(tl.x + 6, tl.y - 4);
-        this.h.wfx.sparks(tl.x + 6, tl.y, 6, [C.lime, C.white], 40, 0);
+        const f = L.frame;
+        const cx = footX(f, kx(s), ky(s)) + 6, cy = footY(f, kx(s), ky(s)) + 6;
+        this.h.wfx.sparkle(cx, cy);
+        this.h.wfx.sparks(cx, cy, 8, [C.lime, C.white], 40);
         break;
       }
     }
@@ -256,46 +298,21 @@ export class Editor {
     if (!d.cells.length) return;
     const b = this.h.run.build;
     const idx = commitRoute(b, d.factory, d.cells, d.replacing);
+    this.h.touched();
     if (!routeInfo(b, idx).connected) this.h.game.toast("BELT DOESN'T REACH A TURRET YET", C.yellow);
     this.h.select({ kind: "route", index: idx });
   }
 
-  /** View parameters for the deck renderer while a gesture is in progress. */
-  ghost(): { factory: number; cells: number[]; connected: boolean; valid: boolean } | null {
+  /** Belt being drawn, for the deck renderer. */
+  ghost(): { factory: number; cells: number[]; connected: boolean } | null {
     const d = this.draw;
     if (!d || !d.cells.length) return null;
-    return { factory: d.factory, cells: d.cells, connected: isFreeConnectorEnd(this.h.run.build, d.cells, d.replacing), valid: true };
+    return { factory: d.factory, cells: d.cells, connected: isFreeConnectorEnd(this.h.run.build, d.cells, d.replacing) };
   }
 
   freeConnectors(): number[] {
     const b = this.h.run.build;
     const rep = this.draw?.replacing ?? -1;
     return HEROES[b.hero].turrets.flatMap((t) => t.connectors).filter((col) => connectorFree(b, col, rep));
-  }
-
-  /** Carried item preview, drawn over everything. */
-  drawCarry(g: G, t: number): void {
-    const c = this.carry;
-    if (!c) return;
-    const { L, run } = this.h;
-    const def = ITEMS[c.def];
-    if (def.kind === "gate" || def.kind === "factory") {
-      const cell = dropCell(L, this.px, this.py, def.size);
-      if (cell) {
-        const ok = canPlaceItem(run.build, c.def, cell.x, cell.y, c.src.from === "deck" ? c.uid : -1).ok;
-        const tl = footTL(0, cell.x, cell.y, def.size);
-        const x = Math.round(L.ox + tl.x), y = Math.round(L.oy + tl.y);
-        g.globalAlpha = 0.8;
-        g.drawImage(def.kind === "factory" ? factorySprite(def.id, Math.floor(t * 6), false) : gateSprite(def.id, 0, false), x, y);
-        g.globalAlpha = 1;
-        frame(g, x - 1, y - 1, def.size * 12 + 2, def.size * 12 + 2, ok ? C.lime : Math.floor(t * 8) % 2 ? C.red : C.maroon);
-        return;
-      }
-    }
-    const ix = Math.round(this.px - 6), iy = Math.round(this.py - 20);
-    g.globalAlpha = 0.5;
-    g.drawImage(shadowBlob(8), ix + 2, iy + 16);
-    g.globalAlpha = 1;
-    g.drawImage(itemIcon(c.def), ix, iy + (Math.floor(t * 4) % 2));
   }
 }

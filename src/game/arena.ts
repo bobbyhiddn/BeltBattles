@@ -1,51 +1,110 @@
-// Live battle playback: the fixed-step simulation driven at a chosen speed and turned into
-// sound and screen juice (muzzle flashes, impacts, shake, hit-stop, popups). Shared by the
-// battle screen, the title attract loop and the hero preview.
+// Live battle playback: the fixed-step simulation driven at a chosen speed, turned into
+// sound and juice. Effects read sim state but never write it or touch the sim RNG, so a
+// battle played here ends exactly like simulate() (tests/arena.test.ts). Shared by the
+// battle screen, the title attract loop and the hero preview. No DOM access in update().
 
 import type { Audio } from "../audio/audio";
 import { Battle, type Side, type SimEvent } from "../sim/battle";
-import { CELL, HEROES, TICK } from "../sim/content";
-import { hullShade } from "../render/sprites";
+import { BELT_SPEED, CELL, HEROES, TICK, WINDOW_TIME } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { Fx } from "../render/fx";
-import { C } from "../render/palette";
-import { rect, type G } from "../render/pixel";
-import {
-  drawCloudShadows, drawCruiser, drawGround, drawProjectiles, drawWind, hullOrigin, hullRect, l2w, turretPivot,
-} from "../render/world";
+import { cruiserModel, type CruiserModel, type CruiserView } from "../render/cruiser";
+import type { DeckFrame } from "../render/frame";
+import { damageFx, react } from "./arenaReact";
+import { makeViews } from "./arenaDraw";
+
+const SIDES: Side[] = [0, 1];
+
+export interface SideFx {
+  model: CruiserModel;
+  beltPhase: Float32Array[];
+  windup: Float32Array;
+  recoil: Float32Array;
+  hpShown: number; // trailing (chip) portion of the hull bar
+  chipHold: number;
+  barFlash: number;
+  lastHp: number;
+  smokeT: number;
+}
+
+function sideFx(b: Battle, side: Side): SideFx {
+  const s = b.sides[side];
+  return {
+    model: cruiserModel(s.build),
+    beltPhase: s.routes.map((r) => new Float32Array(r.cells.length)),
+    windup: new Float32Array(s.turrets.length),
+    recoil: new Float32Array(s.turrets.length),
+    hpShown: s.hull.hp, chipHold: 0, barFlash: 0, lastHp: s.hull.hp, smokeT: 0,
+  };
+}
 
 export class Arena {
   b: Battle;
   readonly fx = new Fx();
+  readonly sfx: [SideFx, SideFx];
+  frames: [DeckFrame, DeckFrame] = [{ facing: 0, dx: 0, dy: 0 }, { facing: 2, dx: 0, dy: 0 }];
+  /** Frames actually drawn (base frames + drive-in offset), refreshed in place. */
+  readonly drawn: [DeckFrame, DeckFrame] = [{ facing: 0, dx: 0, dy: 0 }, { facing: 2, dx: 0, dy: 0 }];
+  enter: [number, number][] = [[0, 1], [0, -1]];
+  off: [number, number] = [0, 0]; // drive-in distance per side (px, away from the gap)
   speed = 1;
   paused = false;
-  scroll = 0;
   tread = 0;
-  clock = 0; // render clock: real seconds scaled by playback speed
-  offY: [number, number] = [0, 0]; // per-side draw offsets (drive-in animation)
+  clock = 0; // render clock (s, scaled by playback speed)
   sound: Audio | null;
-  quiet = false; // attract mode: no sound
-  show: [boolean, boolean] = [true, true]; // hero preview hides the dummy opponent
-  overT = 0; // seconds since the battle ended (fades the storm front out)
+  quiet = false;
+  show: [boolean, boolean] = [true, true];
+  overT = 0;
+  koT = -1; // seconds since the KO (drives slow-mo)
+  loser: Side | -1 = -1;
+  shakePeak = 0; // largest camera offset since the last reset (metrics)
+  readonly views: [CruiserView, CruiserView];
   private acc = 0;
 
   constructor(player: Build, enemy: Build, seed: number, sound: Audio | null) {
     this.b = new Battle(player, enemy, seed);
     this.sound = sound;
+    this.sfx = [sideFx(this.b, 0), sideFx(this.b, 1)];
+    this.views = makeViews(this);
+  }
+
+  setFrames(frames: [DeckFrame, DeckFrame], enter: [number, number][]): void {
+    this.frames = frames;
+    this.enter = enter;
+    this.syncFrames();
+  }
+
+  syncFrames(): void {
+    for (const side of SIDES) {
+      const f = this.frames[side], d = this.drawn[side];
+      d.facing = f.facing;
+      d.dx = f.dx + Math.round(this.enter[side][0] * this.off[side]);
+      d.dy = f.dy + Math.round(this.enter[side][1] * this.off[side]);
+    }
+  }
+
+  /** Playback time scale from the KO slow-mo (1 = normal). */
+  private koScale(): number {
+    if (this.koT < 0) return 1;
+    if (this.koT < 0.9) return 0.3;
+    return Math.min(1, 0.3 + (this.koT - 0.9) * 2.4);
   }
 
   /** Advance playback; returns the simulation events produced this frame. */
   update(dt: number, drive = true): SimEvent[] {
     const out: SimEvent[] = [];
-    let k = this.paused ? 0 : 1;
-    if (this.fx.hitstop > 0) {
-      this.fx.hitstop -= dt;
-      k *= 0.08;
+    const fx = this.fx;
+    if (fx.hitstop > 0) {
+      // hit-stop: hold the frame (sim, belts, shells) while the shake keeps ringing
+      fx.hitstop--;
+      fx.update(dt * 0.15);
+      this.trackShake();
+      return out;
     }
+    if (this.koT >= 0) this.koT += dt;
+    const k = (this.paused ? 0 : 1) * this.koScale();
     const sdt = dt * k * this.speed;
     this.clock += sdt;
-    this.scroll += dt * k * 12;
-    this.tread += dt * k * 12;
     if (drive && !this.b.over) {
       this.acc += sdt;
       let n = 0;
@@ -54,7 +113,7 @@ export class Arena {
         this.acc -= TICK;
         n++;
         for (const e of this.b.drainEvents()) {
-          this.react(e);
+          react(this, e);
           out.push(e);
         }
       }
@@ -62,15 +121,58 @@ export class Arena {
     if (this.b.over) {
       this.overT += dt;
       this.b.settle(dt * k);
-      // the wreck keeps smouldering
-      for (const side of [0, 1] as Side[]) {
-        if (this.b.sides[side].hull.hp > 0 || !this.show[side] || this.fx.rnd() > dt * 8) continue;
-        const h = this.hullCenter(side);
-        this.fx.smoke(h.x + (this.fx.rnd() - 0.5) * 120, h.y + (this.fx.rnd() - 0.5) * 110, 1, true, 12);
+    }
+    for (const side of SIDES) {
+      this.updateSide(side, sdt, dt * k);
+      if (this.show[side]) damageFx(this, side, dt * k);
+    }
+    fx.update(dt * k * Math.min(2, Math.max(1, this.speed * 0.75)));
+    this.trackShake();
+    return out;
+  }
+
+  private trackShake(): void {
+    const s = Math.abs(this.fx.shakeX) + Math.abs(this.fx.shakeY);
+    if (s > this.shakePeak) this.shakePeak = s;
+  }
+
+  private updateSide(side: Side, sdt: number, rdt: number): void {
+    const s = this.b.sides[side], f = this.sfx[side];
+    // belts advance by their real travel: a queued (blocked) cell stops, disrupted cells stop
+    for (let ri = 0; ri < s.routes.length; ri++) {
+      const r = s.routes[ri], ph = f.beltPhase[ri];
+      for (let i = 0; i < ph.length; i++) {
+        let v = r.cellDisrupt[i] > 0 || !r.connected ? 0 : BELT_SPEED * r.speedAt[i];
+        if (v > 0) {
+          for (let a = 0; a < r.ammo.length; a++) {
+            const am = r.ammo[a];
+            if (am.blocked && Math.min(ph.length - 1, Math.floor(am.s / CELL)) === i) { v = 0; break; }
+          }
+        }
+        ph[i] += v * sdt;
       }
     }
-    this.fx.update(dt * k * Math.min(2, Math.max(1, this.speed * 0.75)));
-    return out;
+    // turret wind-up (anticipation) and recoil read from chamber state
+    for (let i = 0; i < s.turrets.length; i++) {
+      const tu = s.turrets[i];
+      let w = 0;
+      if (tu.disrupted > 0) w = 0;
+      else if (tu.phase === "fire") w = tu.stack.length ? Math.max(0.35, 1 - tu.fireCd / 0.35) : 0;
+      else if (tu.stack.length) w = Math.min(0.85, Math.max(tu.loadTimer / WINDOW_TIME, tu.stack.length / tu.def.window) * 0.85);
+      f.windup[i] += (w - f.windup[i]) * Math.min(1, rdt * 14);
+      f.recoil[i] = Math.round(tu.recoil * tu.recoil * (tu.def.kind === "heavy" ? 5 : 3));
+    }
+    // hull bar chip damage: flash, hold, then drain
+    const hp = Math.max(0, s.hull.hp);
+    if (hp < f.lastHp - 0.01) {
+      f.barFlash = 0.12;
+      f.chipHold = 0.4;
+    }
+    f.lastHp = hp;
+    f.barFlash = Math.max(0, f.barFlash - rdt);
+    if (f.chipHold > 0) f.chipHold -= rdt;
+    else if (f.hpShown > hp) f.hpShown = Math.max(hp, f.hpShown - rdt * Math.max(24, (f.hpShown - hp) * 3));
+    if (f.hpShown < hp) f.hpShown = hp;
   }
 
   /** Resolve the rest of the battle instantly (SKIP). Only the end event is animated. */
@@ -81,166 +183,11 @@ export class Arena {
       for (const e of this.b.drainEvents()) if (e.type === "end") out.push(e);
     }
     this.fx.clear();
-    for (const e of out) this.react(e);
+    for (const e of out) react(this, e);
     return out;
   }
 
-  private at(side: Side, lx: number, ly: number): { x: number; y: number } {
-    const p = l2w(side, lx, ly);
-    return { x: p.x, y: p.y + this.offY[side] };
-  }
-
-  hullCenter(side: Side): { x: number; y: number } {
-    const r = hullRect(side);
-    return { x: r.x + r.w / 2, y: r.y + r.h / 2 + this.offY[side] };
-  }
-
-  private react(e: SimEvent): void {
-    const fx = this.fx;
-    const snd = this.quiet ? null : this.sound;
-    const fast = this.speed > 2;
-    switch (e.type) {
-      case "produce": {
-        const f = this.b.sides[e.side].factories.find((q) => q.uid === e.factory);
-        if (!f) return;
-        const p = this.at(e.side, (f.x + f.def.size / 2) * CELL, (f.y + f.def.size / 2) * CELL);
-        fx.smoke(p.x + 4, p.y - 8, 1, true, 10);
-        if (f.def.id === "kiln") fx.embers(p.x, p.y - 6, 2);
-        if (e.side === 0) snd?.play("stamp");
-        return;
-      }
-      case "process": {
-        const gs = this.b.sides[e.side].gates.find((q) => q.uid === e.gate);
-        if (!gs) return;
-        const p = this.at(e.side, (gs.x + 0.5) * CELL, (gs.y + 0.5) * CELL);
-        if (e.def === "temper") {
-          fx.embers(p.x, p.y, 3);
-          if (e.side === 0) snd?.play("sizzle");
-        } else if (e.def === "coil") {
-          fx.sparks(p.x, p.y, 4, [C.ice, C.white], 40, 0);
-          if (e.side === 0) snd?.play("zap");
-        } else if (e.def === "whetstone") fx.sparks(p.x, p.y, 3, [C.yellow, C.white], 50);
-        else if (e.def === "splitter") fx.sparks(p.x, p.y, 3, [C.plum4, C.white], 30, 0);
-        else fx.sparks(p.x, p.y, 2, [C.bone, C.steel3], 24, 0);
-        return;
-      }
-      case "commission": {
-        const gs = this.b.sides[e.side].gates.find((q) => q.uid === e.gate);
-        if (!gs) return;
-        const p = this.at(e.side, (gs.x + 0.5) * CELL, (gs.y + 0.5) * CELL);
-        fx.sparkle(p.x, p.y);
-        if (e.side === 0) snd?.play("commission");
-        return;
-      }
-      case "load":
-        if (e.side === 0) snd?.play("load");
-        return;
-      case "fire": {
-        const td = this.b.sides[e.side].hero.turrets[e.turret];
-        const pv = turretPivot(e.side, td);
-        const tip = e.heavy ? 20 : 15;
-        const x = pv.x, y = pv.y + (e.side === 0 ? -tip : tip) + this.offY[e.side];
-        fx.muzzle(x, y, e.heavy, e.side === 0 ? 0 : 2);
-        fx.smoke(x, y, e.heavy ? 3 : 1, true, 6);
-        fx.addTrauma(e.heavy ? 0.13 : 0.025);
-        snd?.play(e.heavy ? "fire_heavy" : "fire_light");
-        return;
-      }
-      case "impact": {
-        const p = this.at(e.side, e.x, e.y);
-        const size = e.big ? 26 : e.heavy ? 18 : 10;
-        fx.explode(p.x, p.y, size, !e.heavy);
-        fx.sparks(p.x, p.y, e.heavy ? 8 : 4, e.heavy ? [C.fire4, C.fire3, C.white] : [C.ice, C.white], e.heavy ? 80 : 50);
-        if (e.heavy) {
-          fx.debris(p.x, p.y, e.big ? 8 : 4, [C.steel2, C.rust3, C.steel1]);
-          fx.smoke(p.x, p.y, 3, true, 12);
-        }
-        if (e.burn > 0) fx.embers(p.x, p.y, 4);
-        const dmg = Math.max(1, Math.round(e.dmg));
-        fx.popup(p.x + (fx.rnd() - 0.5) * 8, p.y - 6, String(dmg), e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
-        fx.addTrauma(e.big ? 0.42 : e.heavy ? 0.2 : 0.045);
-        if (e.big) {
-          fx.screenFlash(C.fire4, 0.22);
-          if (!fast) fx.hitstop = 0.07;
-          fx.explode(p.x + 7, p.y - 5, 14, false, 0.08);
-          snd?.play("boom");
-        } else snd?.play(e.heavy ? "impact" : "impact_small");
-        if (e.shock) {
-          fx.sparks(p.x, p.y, 6, [C.ice, C.white, C.cyan], 60, 0);
-          snd?.play("zap");
-        }
-        return;
-      }
-      case "jam": {
-        const td = this.b.sides[e.side].hero.turrets[e.turret];
-        const pv = turretPivot(e.side, td);
-        fx.smoke(pv.x, pv.y + this.offY[e.side], 4, true, 14);
-        snd?.play("jam");
-        return;
-      }
-      case "disrupt":
-        if (e.side === 1 || !fast) snd?.play("zap");
-        return;
-      case "burn": {
-        const h = this.hullCenter(e.side);
-        fx.popup(h.x + (fx.rnd() - 0.5) * 60, h.y - 20 + (fx.rnd() - 0.5) * 30, String(e.dmg), C.fire3);
-        return;
-      }
-      case "wind": {
-        for (const side of [0, 1] as Side[]) {
-          const h = this.hullCenter(side);
-          fx.popup(h.x - 50 + fx.rnd() * 20, h.y, String(Math.round(e.dmg)), C.plum4);
-        }
-        snd?.play("whoosh");
-        return;
-      }
-      case "windwarn":
-        snd?.play("siren");
-        return;
-      case "end": {
-        const loser: Side | -1 = e.winner === 0 ? 1 : e.winner === 1 ? 0 : -1;
-        if (loser === -1) return;
-        const h = this.hullCenter(loser);
-        for (let i = 0; i < 9; i++) {
-          const x = h.x + (fx.rnd() - 0.5) * 110, y = h.y + (fx.rnd() - 0.5) * 110;
-          fx.explode(x, y, 16 + Math.floor(fx.rnd() * 14), false, i * 0.11);
-        }
-        fx.debris(h.x, h.y, 16, [C.steel2, C.rust3, C.steel1, C.fire3]);
-        fx.smoke(h.x, h.y, 10, true, 16);
-        fx.addTrauma(0.9);
-        fx.screenFlash(C.white, 0.5);
-        snd?.play("boom");
-        return;
-      }
-    }
-  }
-
-  private drawWreck(g: G, side: Side, ox: number, oy: number): void {
-    const faction = HEROES[this.b.sides[side].build.hero].faction;
-    const o = hullOrigin(side);
-    g.globalAlpha = Math.min(0.6, this.overT * 1.2);
-    g.drawImage(hullShade(faction, side === 0 ? 0 : 2), Math.round(ox + o.x), Math.round(oy + o.y));
-    g.globalAlpha = 1;
-  }
-
-  draw(g: G, ox: number, oy: number, W: number, H: number): void {
-    const sx = ox + this.fx.shakeX, sy = oy + this.fx.shakeY;
-    drawGround(g, sx, sy, W, H, this.scroll);
-    drawCloudShadows(g, W, H, this.clock);
-    const b = this.b;
-    for (const side of [1, 0] as Side[]) {
-      if (!this.show[side]) continue;
-      const s = b.sides[side];
-      drawCruiser(g, { side, build: s.build, sim: s, simT: b.t, t: this.clock, treadPhase: this.tread }, sx, sy + this.offY[side]);
-      if (b.over && s.hull.hp <= 0) this.drawWreck(g, side, sx, sy + this.offY[side]);
-    }
-    drawProjectiles(g, b, sx, sy);
-    this.fx.draw(g, sx, sy);
-    drawWind(g, b.windLevel() * Math.max(0, 1 - this.overT / 1.2), W, H, this.clock);
-    if (this.fx.flash > 0) {
-      g.globalAlpha = Math.min(0.55, this.fx.flash);
-      rect(g, 0, 0, W, H, this.fx.flashColor);
-      g.globalAlpha = 1;
-    }
+  heroOf(side: Side): string {
+    return HEROES[this.b.sides[side].build.hero].name;
   }
 }
