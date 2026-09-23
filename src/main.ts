@@ -41,7 +41,7 @@ game.start();
       return game.go(new EventScreen(game));
     }
     if (screen === "summary") {
-      game.run = playOut({ hero, seed, results: "WLWLDLL" });
+      game.run = playOut({ hero, seed, results: "WLWLDLLL" }); // 5 losses: RUN LOST on day 8
       return game.go(new SummaryScreen(game));
     }
   },
