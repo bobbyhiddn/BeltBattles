@@ -42,8 +42,9 @@ async function fetchText(url: string, init: RequestInit, timeoutMs: number): Pro
 }
 
 function errText(e: unknown): string {
-  if (e instanceof Error) return e.name === "AbortError" ? "timeout" : e.message;
-  return String(e);
+  const name = typeof e === "object" && e !== null ? (e as { name?: unknown }).name : undefined;
+  if (name === "AbortError" || name === "TimeoutError") return "timeout"; // DOMException in some runtimes
+  return e instanceof Error ? e.message : String(e);
 }
 
 /** Check a server answer against the request; returns why it is unusable, or null. */
