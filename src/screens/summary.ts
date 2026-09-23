@@ -7,7 +7,8 @@ import { HEROES } from "../sim/content";
 import { Fx } from "../render/fx";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
-import { drawText } from "../render/font";
+import { drawText, wrap } from "../render/font";
+import { EVENTS } from "../game/eventDefs";
 import { HULL_A, HULL_L, frameForHull, hullBox } from "../render/frame";
 import { cruiserModel, drawDim, drawHull, drawTurrets, type CruiserView } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
@@ -38,7 +39,7 @@ export class SummaryScreen implements Screen {
 
   private layout(): { card: { x: number; y: number; w: number; h: number }; hx: number; hy: number } {
     const { W, H, portrait } = this.game;
-    const w = Math.min(W - 12, 220), h = 136;
+    const w = Math.min(W - 12, 220), h = this.run.events?.length ? 158 : 136;
     const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.66 - w / 2);
     const y = portrait ? Math.max(HULL_L + 30, H - h - 10) : Math.round(H / 2 - h / 2);
     const hx = Math.round(portrait ? W / 2 - HULL_A / 2 : W * 0.28 - HULL_A / 2);
@@ -98,6 +99,13 @@ export class SummaryScreen implements Screen {
       drawText(g, k, x + 12, y + 54 + i * 9, C.slate4, { font: "3" });
       drawText(g, val, x + w - 12, y + 54 + i * 9, C.white, { font: "3", align: "right" });
     });
+    // road events taken this run (0.5.0)
+    const taken = run.events ?? [];
+    if (taken.length) {
+      drawText(g, `ROAD EVENTS · ${taken.length}`, x + 12, y + 101, C.slate4, { font: "3" });
+      const names = taken.map((e) => `${EVENTS[e.id].title}${e.won ? "" : " (LOST)"}`).join(" · ");
+      wrap(names, w - 24, "3").slice(0, 2).forEach((ln, i) => drawText(g, ln, x + 12, y + 109 + i * 7, C.bone, { font: "3" }));
+    }
     button(ui, g, "again", { x: x + 10, y: y + h - 29, w: w / 2 - 14, h: 21 }, "NEW RUN", {
       primary: true, onTap: () => { this.game.run = null; this.game.go(new HeroScreen(this.game)); },
     });

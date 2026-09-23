@@ -29,13 +29,20 @@ function sky(g: G, w: number, h: number, storm: boolean): void {
   for (let i = 1; i < bands.length; i++) bayer(g, 0, Math.floor((hz * i) / bands.length) - 2, w, 2, bands[i], 0.5);
   if (!storm) bayer(g, 0, hz - 4, w, 4, C.rust2, 0.35); // last light on the horizon
   for (let k = 0; k < 14; k++) px(g, Math.floor(cellNoise(k, w, 3) * w), Math.floor(cellNoise(k, h, 5) * hz * 0.7), k % 3 ? C.slate3 : C.bone);
-  // distant mesas
-  for (let k = 0; k < 3; k++) {
-    const mw = 24 + Math.floor(cellNoise(k, 9, w) * 30), mh = 6 + Math.floor(cellNoise(k, 4, h) * 9);
-    const mx = Math.floor(cellNoise(k, 7, 11) * (w - mw));
-    rect(g, mx, hz - mh, mw, mh, C.plum1);
-    rect(g, mx + 2, hz - mh - 2, mw - 4, 2, C.plum1);
-    rect(g, mx + 2, hz - mh - 2, mw - 4, 1, storm ? C.plum2 : C.plum3); // rim light
+  // mesas: a far range, then two nearer buttes; sloped sides, a lit rim on the upper left
+  for (let layer = 0; layer < 2; layer++) {
+    const n = layer ? 2 : 3, body = layer ? C.soil1 : C.plum1, rim = storm ? C.plum2 : layer ? C.soil3 : C.plum3;
+    for (let k = 0; k < n; k++) {
+      const top = 10 + Math.floor(cellNoise(k, 9 + layer, w) * (layer ? 26 : 34));
+      const mh = (layer ? 12 : 7) + Math.floor(cellNoise(k, 4 + layer, h) * (layer ? 10 : 8));
+      const mx = Math.floor(cellNoise(k, 7 + layer, 11) * (w - top - 2 * mh));
+      for (let j = 0; j < mh; j++) {
+        const x0 = mx + mh - j, wj = top + 2 * j;
+        rect(g, x0, hz - mh + j, wj, 1, body);
+        px(g, x0, hz - mh + j, rim);
+      }
+      rect(g, mx + mh, hz - mh, top, 1, rim);
+    }
   }
   // ground + road
   rect(g, 0, hz, w, h - hz, C.soil2);
@@ -48,6 +55,18 @@ function sky(g: G, w: number, h: number, storm: boolean): void {
   rect(g, 0, ry + 9, w, 2, C.soil0);
   bayer(g, 0, ry + 13, w, 2, C.soil3, 0.4);
   for (let k = 0; k < 18; k++) px(g, Math.floor(cellNoise(k, 1, w) * w), hz + 2 + Math.floor(cellNoise(k, 2, h) * (h - hz - 3)), k % 2 ? C.soil4 : C.soil0);
+  // roadside scrub and rocks (foreground, below the road)
+  for (let k = 0; k < 6; k++) {
+    const sx = Math.floor(cellNoise(k, 21, w) * (w - 8)), sy = ry + 16 + Math.floor(cellNoise(k, 22, h) * Math.max(1, h - ry - 20));
+    if (k % 2) {
+      rect(g, sx, sy, 5, 2, C.scrub0);
+      px(g, sx + 1, sy - 1, C.scrub1);
+      px(g, sx + 3, sy - 1, C.scrub1);
+    } else {
+      rect(g, sx, sy, 4, 2, C.soil0);
+      rect(g, sx, sy - 1, 3, 1, C.soil4);
+    }
+  }
 }
 
 function put(g: G, img: Cv, x: number, y: number): void {
@@ -134,13 +153,18 @@ export function drawScene(g: G, id: EventId, x: number, y: number, w: number, h:
   }
   switch (id) {
     case "wreck": {
-      for (let k = 0; k < 7; k++) { // smoke plume
-        const p = (tt * 0.35 + k / 7) % 1;
-        const sx = cx + Math.round(Math.sin(p * 5 + k) * 2 + p * 6), sy = ry - 16 - Math.round(p * (h * 0.45));
-        rect(g, sx, sy, p < 0.4 ? 3 : 2, p < 0.4 ? 3 : 2, p < 0.3 ? C.slate2 : C.slate1);
+      for (let k = 0; k < 8; k++) { // smoke plume: big dark puffs thinning as they rise
+        const p = (tt * 0.35 + k / 8) % 1;
+        const sx = cx + Math.round(Math.sin(p * 5 + k) * 2 + p * 8), sy = ry - 15 - Math.round(p * (h * 0.45));
+        const s = p < 0.3 ? 5 : p < 0.6 ? 4 : 2;
+        rect(g, sx - 1, sy - 1, s + 2, s + 2, C.ink);
+        rect(g, sx, sy, s, s, p < 0.3 ? C.slate3 : p < 0.6 ? C.slate2 : C.slate1);
       }
-      const bob = Math.round(Math.sin(tt * 3) * 1.5);
-      g.drawImage(gateSprite(offer, Math.floor(tt * 8), Math.floor(tt * 2) % 2 === 0), cx + 20, ry - 22 + bob);
+      if (Math.floor(t * 5) % 3) { px(g, cx - 4, ry - 9, C.fire3); px(g, cx + 6, ry - 8, C.fire2); } // embers
+      if (offer) {
+        const bob = Math.round(Math.sin(tt * 3) * 1.5);
+        g.drawImage(gateSprite(offer, Math.floor(tt * 8), Math.floor(tt * 2) % 2 === 0), cx + 20, ry - 22 + bob);
+      }
       break;
     }
     case "cache":
@@ -149,7 +173,7 @@ export function drawScene(g: G, id: EventId, x: number, y: number, w: number, h:
       break;
     case "trader": {
       const b1 = Math.round(Math.sin(tt * 2.2) * 1.5), b2 = Math.round(Math.sin(tt * 2.2 + 1.7) * 1.5);
-      g.drawImage(itemIcon(offer), cx - 12, ry - 30 + b1);
+      if (offer) g.drawImage(itemIcon(offer), cx - 12, ry - 30 + b1);
       g.drawImage(coinIcon(), cx + 4, ry - 26 + b2);
       break;
     }

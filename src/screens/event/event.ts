@@ -13,10 +13,10 @@ import { ITEMS } from "../../sim/content";
 import { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
-import { drawText, textWidth } from "../../render/font";
+import { drawText, textWidth, wrap } from "../../render/font";
 import { ArenaBg } from "../../render/arenaBg";
 import { drawScene } from "../../render/scenes";
-import { button, panel } from "../../ui/ui";
+import { button, panel, type Rect } from "../../ui/ui";
 import { optionsCard } from "../../ui/hud";
 import { drawRunBar, newAnchors, type AnchorKind } from "../../ui/runbar";
 import { deltaIcon, deltaText, drawChoiceCard, itemName } from "./cards";
@@ -49,6 +49,11 @@ export class EventScreen implements Screen {
   private bg = new ArenaBg();
   private leaving = false;
   private readonly onPick = [0, 1, 2].map((i) => () => this.pick(i));
+  private readonly onRefit = () => this.refit();
+  private readonly onFight = () => this.fight();
+  private readonly onMenu = () => { this.menu = true; };
+  private readonly tmp = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly tmp2 = { x: 0, y: 0, w: 0, h: 0 };
   private readonly cv = { hover: false, pressed: false, state: "open" as "open" | "chosen" | "other", won: true, shake: 0, t: 0, flash: false };
   private lkey = "";
 
@@ -74,7 +79,7 @@ export class EventScreen implements Screen {
   }
 
   get toastY(): number {
-    return Math.round(this.L.scene.y + this.L.scene.h / 2 - 6);
+    return this.L.scene.y + 4; // along the top of the scene, clear of the props on the road
   }
 
   private layout(): EventLayout {
@@ -112,7 +117,7 @@ export class EventScreen implements Screen {
     this.outcome = outcomeText(c, this.won);
     const r = this.L.cards[i];
     const x0 = r.x + r.w / 2, y0 = r.y + 25;
-    for (const d of c.cost) if (d.k === "gold") this.ufx.popup(this.anchors.gold.x, this.anchors.gold.y + 10, `-${d.n}`, C.red);
+    for (const d of c.cost) if (d.k === "gold") this.ufx.popup(this.anchors.gold.x, this.anchors.gold.y + 16, `-${d.n}`, C.red);
     if (this.won) {
       for (const d of c.gain) {
         const kind: AnchorKind | null = d.k === "gold" ? "gold" : d.k === "lives" ? "lives" : d.k === "hull" ? "hull" : d.k === "belt" ? "belt" : d.k === "item" ? "cargo" : null;
@@ -154,7 +159,7 @@ export class EventScreen implements Screen {
       if (f.t >= 0.55) {
         const a = this.anchors[f.kind];
         this.flash[f.kind] = 0.3;
-        this.ufx.popup(a.x, a.y + 10, f.text, C.lime);
+        this.ufx.popup(a.x, a.y + 16, f.text, C.lime);
         this.flies.splice(i, 1);
       }
     }
@@ -168,22 +173,22 @@ export class EventScreen implements Screen {
     const run = this.run, ev = run.event!, def = EVENTS[ev.id];
     this.bg.draw(g, W, H, { hulls: [], vertical: portrait, gapLine: false }, this.t);
     panel(g, L.panel, "dark");
-    // header: kind chip + title (+ round on wide screens)
-    const kw = textWidth(def.kind, "3") + 6;
-    rect(g, L.panel.x + 4, L.titleY + (L.titleScale > 1 ? 3 : 1), kw, 8, C.amber);
-    drawText(g, def.kind, L.panel.x + 7, L.titleY + (L.titleScale > 1 ? 5 : 3), C.ink, { font: "3" });
-    drawText(g, def.title, L.panel.x + 9 + kw, L.titleY, C.yellow, { scale: L.titleScale, outline: C.ink });
-    if (!portrait) drawText(g, `ROUND ${run.round} · ON THE ROAD`, L.panel.x + L.panel.w - 6, L.titleY + 5, C.slate4, { font: "3", align: "right" });
     const s = L.scene;
     rect(g, s.x - 1, s.y - 1, s.w + 2, s.h + 2, C.ink);
-    const offer = ev.id === "wreck" ? gainItem(this.choices[0]) ?? "temper" : ev.id === "trader" ? gainItem(this.choices[1]) ?? "coil" : "temper";
+    // the part a salvage/trade shows; gone from the scene once salvaged or swapped
+    const taken = (ev.id === "wreck" && ev.picked === 0) || (ev.id === "trader" && ev.picked === 1);
+    const offer = taken ? "" : ev.id === "wreck" ? gainItem(this.choices[0]) ?? "temper" : ev.id === "trader" ? gainItem(this.choices[1]) ?? "coil" : "temper";
     drawScene(g, ev.id, s.x, s.y, s.w, s.h, run.hero, offer, this.t, settings.reducedMotion);
-    for (let i = 0; i < 2; i++) drawText(g, def.text[i], W / 2, L.textY + i * 8, C.bone, { font: "3", align: "center" });
-    // choice cards
+    this.drawHeader(g);
+    // choice cards (after a pick: the chosen card slides to the first slot, the rest give way)
     const cv = this.cv;
     for (let i = 0; i < this.choices.length; i++) {
-      const r = L.cards[i];
       const id = CARD_IDS[i];
+      let r = L.cards[i];
+      if (this.phase === "result") {
+        if (i !== ev.picked && this.pt > 0.25) continue;
+        if (i === ev.picked && i > 0) r = slide(L.cards[i], L.cards[0], Math.min(1, this.pt / 0.25), this.tmp);
+      }
       cv.hover = ui.hover === id;
       cv.pressed = ui.pressed === id && ui.pointer.down;
       cv.state = this.phase === "choose" ? "open" : i === ev.picked ? "chosen" : "other";
@@ -194,8 +199,8 @@ export class EventScreen implements Screen {
       drawChoiceCard(g, r, this.choices[i], i, cv);
       if (this.phase === "choose") ui.add({ id, r, onTap: this.onPick[i], block: true });
     }
-    if (this.phase === "result" && this.pt > 0.6) this.drawOutcome(g);
-    drawRunBar(g, this.game, run, this.flash, this.anchors, () => { this.menu = true; });
+    if (this.phase === "result" && this.pt > 0.3) this.drawOutcome(g);
+    drawRunBar(g, this.game, run, this.flash, this.anchors, this.onMenu);
     this.drawFlies(g);
     this.ufx.drawPops(g, 0, 0);
     if (this.menu) {
@@ -216,24 +221,59 @@ export class EventScreen implements Screen {
     }
   }
 
+  /** Kind chip + title (+ flavour: a column beside the scene in landscape, under it in portrait). */
+  private drawHeader(g: G): void {
+    const L = this.L, run = this.run, def = EVENTS[run.event!.id];
+    const kw = textWidth(def.kind, "3") + 6;
+    if (!L.portrait) {
+      let y = L.titleY;
+      rect(g, L.titleX, y, kw, 8, C.amber);
+      drawText(g, def.kind, L.titleX + 3, y + 2, C.ink, { font: "3" });
+      y += 12;
+      for (const ln of wrap(def.title, Math.floor(L.textW / 2))) {
+        drawText(g, ln, L.titleX, y, C.yellow, { scale: 2, outline: C.ink });
+        y += 17;
+      }
+      y += 3;
+      for (const ln of wrap(`${def.text[0]} ${def.text[1]}`, L.textW, "3")) {
+        drawText(g, ln, L.titleX, y, C.bone, { font: "3" });
+        y += 8;
+      }
+      drawText(g, `ROUND ${run.round} · ON THE ROAD`, L.titleX, L.panel.y + L.panel.h - 11, C.slate4, { font: "3" });
+      return;
+    }
+    rect(g, L.titleX, L.titleY + 1, kw, 8, C.amber);
+    drawText(g, def.kind, L.titleX + 3, L.titleY + 3, C.ink, { font: "3" });
+    drawText(g, def.title, L.titleX + kw + 4, L.titleY + 1, C.yellow, { outline: C.ink });
+    for (let i = 0; i < 2; i++) drawText(g, def.text[i], L.textX, L.textY + i * 8, C.bone, { font: "3", align: "center" });
+  }
+
   private drawOutcome(g: G): void {
     const L = this.L, ui = this.game.ui;
-    const k = Math.min(1, (this.pt - 0.6) / 0.2);
-    const r = { ...L.actions, y: L.actions.y + Math.round((1 - k) * 12) };
+    const k = Math.min(1, (this.pt - 0.3) / 0.2);
+    const o = L.outcome;
+    const r = this.tmp2;
+    r.x = o.x; r.y = o.y + Math.round((1 - k) * 10); r.w = o.w; r.h = o.h;
     panel(g, r, "raised");
     ui.add({ id: "outcome", r, block: true });
     const [text, color] = this.outcome;
-    drawText(g, text, L.portrait ? r.x + r.w / 2 : r.x + 10, r.y + (L.portrait ? 7 : Math.floor(r.h / 2) - 3), color, { outline: C.ink, align: L.portrait ? "center" : "left" });
-    const bh = 19, by = L.portrait ? r.y + r.h - bh - 5 : r.y + Math.floor((r.h - bh) / 2);
+    const stack = L.portrait || r.w < 240;
+    const bh = 19;
+    const sub = this.deckItem ? `${itemName(this.deckItem)} IS IN CARGO` : "";
+    const blockH = 7 + (sub ? 10 : 0) + 6 + bh; // stacked: text, sub line, buttons
+    const top = r.y + Math.max(4, Math.floor((r.h - blockH) / 2));
+    const by = stack ? top + blockH - bh : r.y + Math.floor((r.h - bh) / 2);
+    const ty = stack ? top : r.y + Math.floor(r.h / 2) - 7;
+    drawText(g, text, stack ? r.x + r.w / 2 : r.x + 8, ty, color, { outline: C.ink, align: stack ? "center" : "left" });
     if (this.deckItem) {
-      const bw = L.portrait ? Math.floor((r.w - 16) / 2) : 76;
-      const x0 = L.portrait ? r.x + 6 : r.x + r.w - 2 * bw - 14;
-      button(ui, g, "refit", { x: x0, y: by, w: bw, h: bh }, "REFIT", { primary: true, onTap: () => this.refit() });
-      button(ui, g, "fightnow", { x: x0 + bw + 4, y: by, w: bw, h: bh }, "FIGHT NOW", { onTap: () => this.fight() });
-      if (!L.portrait) drawText(g, `${itemName(this.deckItem)} IS IN CARGO`, r.x + 10, r.y + Math.floor(r.h / 2) + 7, C.slate4, { font: "3" });
+      drawText(g, sub, stack ? r.x + r.w / 2 : r.x + 8, ty + 11, C.slate4, { font: "3", align: stack ? "center" : "left" });
+      const bw = stack ? Math.floor((r.w - 16) / 2) : 68;
+      const x0 = stack ? r.x + 6 : r.x + r.w - 2 * bw - 12;
+      button(ui, g, "refit", { x: x0, y: by, w: bw, h: bh }, "REFIT", { primary: true, onTap: this.onRefit });
+      button(ui, g, "fightnow", { x: x0 + bw + 4, y: by, w: bw, h: bh }, "FIGHT NOW", { onTap: this.onFight });
     } else {
-      const bw = L.portrait ? r.w - 12 : 90;
-      button(ui, g, "evfight", { x: L.portrait ? r.x + 6 : r.x + r.w - bw - 8, y: by, w: bw, h: bh }, "FIGHT!", { primary: true, onTap: () => this.fight() });
+      const bw = stack ? r.w - 12 : 80;
+      button(ui, g, "evfight", { x: stack ? r.x + 6 : r.x + r.w - bw - 8, y: by, w: bw, h: bh }, "FIGHT!", { primary: true, onTap: this.onFight });
     }
   }
 
@@ -244,6 +284,15 @@ export class EventScreen implements Screen {
     else if ((k === "r" || k === "R") && this.pt > 0.3) this.refit();
     else if ((k === "f" || k === "F" || k === "Enter" || k === " ") && this.pt > 0.3) this.fight();
   }
+}
+
+function slide(a: Rect, b: Rect, k: number, out: Rect): Rect {
+  const e = k * k * (3 - 2 * k);
+  out.x = Math.round(a.x + (b.x - a.x) * e);
+  out.y = Math.round(a.y + (b.y - a.y) * e);
+  out.w = a.w;
+  out.h = a.h;
+  return out;
 }
 
 function gainItem(c: Choice | undefined): string | undefined {
