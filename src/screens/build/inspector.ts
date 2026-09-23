@@ -115,6 +115,12 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
   }
 }
 
+/** True when a hovered card or a selection has details to show (otherwise the idle cards). */
+export function hasDetails(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null): boolean {
+  const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
+  return spec(ctx, show, !!hover) !== null;
+}
+
 export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect): void {
   if (area.h < 14) return;
   const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
@@ -152,13 +158,14 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean): void {
   const b = run.build;
   const foe = enemyBuild(run);
   const used = beltUsed(b), cap = b.beltCap;
-  if (!column && area.h < 50) {
+  if (!column && area.h < 30) {
     panel(g, area, "dark");
     drawText(g, "NEXT", area.x + 5, area.y + 5, C.slate4, { font: "3" });
     drawText(g, warlordName(foe.hero, run.round), area.x + 24, area.y + 4, C.red, { outline: C.ink });
     drawText(g, `${HEROES[foe.hero].name} · HULL ${HEROES[foe.hero].hull + foe.hullBonus} · BELT ${used}/${cap}`, area.x + 5, area.y + 14, C.bone, { font: "3" });
     return;
   }
+  if (!column) return drawHeroStrip(g, run, area);
   const rows: [string, string, string][] = [
     ["HULL", String(h.hull + b.hullBonus), C.white],
     ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],
@@ -181,11 +188,48 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean): void {
   }
 }
 
-/** Landscape next-battle card beside FIGHT. */
+/** Portrait hero card (strip): name and faction, playstyle, then HULL · BELT · FEEDS and RUN rows. */
+function drawHeroStrip(g: G, run: Run, r: Rect): void {
+  const h = HEROES[run.hero];
+  const b = run.build;
+  const used = beltUsed(b), cap = b.beltCap;
+  const feeds = connectedRouteCount(b), intakes = h.turrets.reduce((n, tt) => n + tt.connectors.length, 0);
+  panel(g, r, "dark");
+  let y = r.y + 5;
+  drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });
+  drawText(g, h.factionName, r.x + r.w - 5, y + 1, C.slate4, { font: "3", align: "right" });
+  y += 11;
+  drawText(g, `PLAYSTYLE: ${h.pattern}`, r.x + 5, y, C.yellow, { font: "3" });
+  y += 9;
+  const stats: [string, string, string][] = [
+    ["HULL", String(h.hull + b.hullBonus), C.white],
+    ["BELT", `${used}/${cap}`, used >= cap ? C.amber : C.white],
+    ["FEEDS", `${feeds}/${intakes}`, feeds ? C.lime : C.red],
+  ];
+  let x = r.x + 5;
+  for (const [k, v, c] of stats) {
+    x += drawText(g, k, x, y, C.slate4, { font: "3" }) + 3;
+    x += drawText(g, v, x, y, c, { font: "3" }) + 8;
+  }
+  y += 8;
+  if (y + 5 <= r.y + r.h - 3) {
+    const x2 = r.x + 5 + drawText(g, "RUN", r.x + 5, y, C.slate4, { font: "3" }) + 3;
+    drawText(g, `${run.wins}/${RUN_WINS} WINS · ${run.lives}/${RUN_LIVES} LIVES`, x2, y, C.white, { font: "3" });
+  }
+}
+
+/** Next-battle card: beside FIGHT in landscape (3 rows); a 2-row strip in portrait. */
 export function drawFoe(g: G, run: Run, r: Rect): void {
   panel(g, r, "dark");
   const foe = enemyBuild(run);
+  const name = warlordName(foe.hero, run.round);
+  const cls = `${HEROES[foe.hero].name} · HULL ${HEROES[foe.hero].hull + foe.hullBonus}`;
   drawText(g, "NEXT BATTLE", r.x + 5, r.y + 5, C.slate4, { font: "3" });
-  drawText(g, warlordName(foe.hero, run.round), r.x + 5, r.y + 13, C.red, { outline: C.ink });
-  drawText(g, `${HEROES[foe.hero].name} · HULL ${HEROES[foe.hero].hull + foe.hullBonus}`, r.x + 5, r.y + 24, C.bone, { font: "3" });
+  if (r.h < 32) {
+    drawText(g, cls, r.x + r.w - 5, r.y + 5, C.bone, { font: "3", align: "right" });
+    drawText(g, name, r.x + 5, r.y + 13, C.red, { outline: C.ink });
+    return;
+  }
+  drawText(g, name, r.x + 5, r.y + 13, C.red, { outline: C.ink });
+  drawText(g, cls, r.x + 5, r.y + 24, C.bone, { font: "3" });
 }

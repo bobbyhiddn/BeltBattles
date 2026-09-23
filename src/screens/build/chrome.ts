@@ -13,7 +13,7 @@ import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import type { BuildScreen } from "./build";
 import { drawCard, drawReroll, drawTag, drawTooltip } from "./shop";
-import { drawDetails, drawFoe } from "./inspector";
+import { drawDetails, drawFoe, hasDetails } from "./inspector";
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 
 function drawTopBar(g: G, s: BuildScreen): void {
@@ -102,10 +102,19 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const ui = s.game.ui;
   drawShop(g, s);
   drawCargo(g, s);
-  if (L.foe) drawFoe(g, s.run, L.foe);
   const cue = s.placedOnce && !s.ed.busy;
   button(ui, g, "fight", L.fight, "FIGHT!", { primary: true, blink: s.armed > 0, active: cue && Math.floor(s.t * 3) % 2 === 1, onTap: () => s.fight() });
-  drawDetails(g, s, s.sel, s.hover, L.info);
+  if (!L.portrait) {
+    if (L.foe) drawFoe(g, s.run, L.foe);
+    drawDetails(g, s, s.sel, s.hover, L.info);
+  } else if (hasDetails(s, s.sel, s.hover) || !L.foe) {
+    drawDetails(g, s, s.sel, s.hover, L.info); // a selection or hover uses the whole band
+  } else {
+    // idle portrait band: hero card over the NEXT BATTLE panel
+    drawFoe(g, s.run, L.foe);
+    const top = { x: L.info.x, y: L.info.y, w: L.info.w, h: L.foe.y - 2 - L.info.y };
+    if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top);
+  }
   drawTopBar(g, s);
   // drag feedback and contextual cues
   const c = s.ed.carry;

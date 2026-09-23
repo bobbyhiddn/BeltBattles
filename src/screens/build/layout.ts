@@ -18,6 +18,12 @@ export const CARD_H = 42;
 const GAP = 3;
 const BAR_H = 14;
 const CARGO_H = 22;
+/** Portrait: how far the bow turrets' barrels reach past the hull's bow edge (heavy: tip 20 px
+ *  ahead of a pivot 9 px into the 14 px bow band), so no panel covers them. */
+export const BARREL = 15;
+/** Portrait NEXT BATTLE panel height, and the band holding it under the hero/details strip. */
+export const FOE_H = 24;
+const PORT_BAND = 43 + 2 + FOE_H;
 
 export interface BuildLayout {
   W: number;
@@ -33,20 +39,20 @@ export interface BuildLayout {
   pad: Rect;
   cargo: Rect;
   fight: Rect;
-  info: Rect; // inspector (landscape column) or info strip (portrait)
-  foe: Rect | null; // next-battle card (landscape)
+  info: Rect; // inspector (landscape column) or the whole info band (portrait)
+  foe: Rect | null; // next-battle card: beside FIGHT (landscape), bottom of the info band (portrait)
 }
 
 const LAND_MIN_W = 430;
 const LAND_MIN_H = BAR_H + 6 + CARD_H + 4 + HULL_A + 3 + CARGO_H + 2;
 const PORT_MIN_W = HULL_A + 4;
-const PORT_FIXED = BAR_H + 3 + 2 * CARD_H + GAP + 4 + HULL_L + 4 + CARGO_H + 3;
+const PORT_FIXED = BAR_H + 3 + 2 * CARD_H + GAP + 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
 
 export function buildScale(pw: number, ph: number, portrait: boolean): number {
   for (let s = 12; s > 1; s--) {
     const W = Math.floor(pw / s), H = Math.floor(ph / s);
     if (!portrait && W >= LAND_MIN_W && H >= LAND_MIN_H) return s;
-    if (portrait && W >= PORT_MIN_W && H >= PORT_FIXED + 12) return s;
+    if (portrait && W >= PORT_MIN_W && H >= PORT_FIXED) return s;
   }
   return 1;
 }
@@ -97,11 +103,13 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
   const cards = cardRow(slots, Math.round(W / 2 - rowW / 2), cy, perRow, CARD_W + GAP);
   const reroll = cards.pop()!;
   const shopBottom = cy + rows * CARD_H + (rows - 1) * GAP;
-  const fixedBelow = 4 + HULL_L + 4 + CARGO_H + 3;
+  // Band between the shop and the bow turrets' barrel tips: idle it holds the hero card over
+  // the NEXT BATTLE panel; a selection or hover shows the details panel across all of it.
+  const fixedBelow = 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
   const spare = Math.max(0, H - shopBottom - fixedBelow);
-  const infoH = Math.min(58, spare);
-  const info: Rect = { x: 3, y: shopBottom + 2, w: W - 6, h: Math.max(0, infoH - 3) };
-  const hy = shopBottom + infoH + Math.max(0, Math.floor((spare - infoH) / 2)) + 4;
+  const band = Math.min(PORT_BAND, spare);
+  const info: Rect = { x: 3, y: shopBottom + 2, w: W - 6, h: band };
+  const hy = info.y + band + 2 + BARREL + Math.floor((spare - band) / 2);
   const frame = frameForHull(0, Math.round(W / 2 - HULL_A / 2), hy);
   const hull = hullBox(frame);
   const fw = Math.min(64, Math.round(W * 0.36));
@@ -112,7 +120,7 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     cargo: { x: 3, y: ry, w: W - fw - 9, h: CARGO_H },
     fight: { x: W - fw - 3, y: ry - 1, w: fw, h: CARGO_H + 2 },
     info,
-    foe: null,
+    foe: band >= FOE_H ? { x: info.x, y: info.y + band - FOE_H, w: info.w, h: FOE_H } : null,
   };
 }
 
