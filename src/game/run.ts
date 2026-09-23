@@ -1,4 +1,6 @@
-// Run state: rounds, gold, lives, owned equipment and the caravan shop (spec §17, §18).
+// Run state: rounds, gold, lives, owned equipment, the caravan shop (spec §17, §18) and, from
+// 0.5.0, the road event between the caravan and the battle (stage, event, foe and next-caravan
+// modifiers). Saving and the v3 -> v4 migration live in save.ts.
 
 import { hashSeed, Rng } from "../core/rng";
 import {
@@ -7,8 +9,11 @@ import {
   type HeroId, type MerchantId, type Rarity,
 } from "../sim/content";
 import { removeItem, type Build } from "../sim/deck";
-import { startingBuild, warlordBuild } from "../sim/ai";
+import { startingBuild, warlordBuild, warlordName } from "../sim/ai";
 import type { Side, SideStats } from "../sim/battle";
+import type { EventId, EventState } from "./eventDefs";
+
+export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3 } from "./save";
 
 export interface InvItem {
   uid: number;
@@ -29,15 +34,36 @@ export interface Wagon {
 export interface Shop {
   wagons: Wagon[];
   rerolls: number;
+  discount: number; // every price -n (min 1) in this caravan (a scout's deal)
+  free: number; // free rerolls left in this caravan
 }
 
 export interface RoundResult {
   round: number;
   outcome: "win" | "loss" | "draw";
   income: number;
+  bounty?: number; // extra gold for beating an accepted challenge (0.5.0)
   time: number;
   player: SideStats;
   enemy: SideStats;
+}
+
+/** Where the round stands: shopping, on the road (event), refitting after it, or fighting. */
+export type Stage = "caravan" | "event" | "refit" | "battle";
+
+/** This round's foe modifiers from an event: warlord from `boost` rounds ahead, hull change, win bonus. */
+export interface FoeMods {
+  round: number;
+  boost: number;
+  hull: number;
+  bounty: number;
+}
+
+export interface TakenEvent {
+  round: number;
+  id: EventId;
+  choice: string;
+  won: boolean;
 }
 
 export interface Run {
@@ -56,24 +82,46 @@ export interface Run {
   nextUid: number;
   history: RoundResult[];
   over: null | "won" | "lost";
+  // 0.5.0 (save v4)
+  stage: Stage;
+  event: EventState | null;
+  foe: FoeMods | null;
+  nextShop: { discount: number; free: number };
+  events: TakenEvent[];
 }
 
-const SAVE_KEY = "beltbattles.run.v3";
-const MAX_ROUNDS = 12;
+export const RUN_VERSION = 4;
+export const MAX_ROUNDS = 12;
 
 export function newRun(hero: HeroId, seed: number): Run {
   const run: Run = {
-    version: 3, seed, hero, enemyHero: hero === "furnace" ? "weaver" : "furnace",
+    version: RUN_VERSION, seed, hero, enemyHero: hero === "furnace" ? "weaver" : "furnace",
     round: 1, gold: START_GOLD, lives: RUN_LIVES, wins: 0, losses: 0,
-    build: startingBuild(hero, 1), inventory: [], shop: { wagons: [], rerolls: 0 },
+    build: startingBuild(hero, 1), inventory: [], shop: { wagons: [], rerolls: 0, discount: 0, free: 0 },
     nextUid: 100, history: [], over: null,
+    stage: "caravan", event: null, foe: null, nextShop: { discount: 0, free: 0 }, events: [],
   };
   rollShop(run);
   return run;
 }
 
+/** This round's event foe modifiers, if any. */
+export function activeFoe(run: Run): FoeMods | null {
+  return run.foe && run.foe.round === run.round ? run.foe : null;
+}
+
+/** The warlord this round: an accepted challenge brings the build from `boost` rounds ahead. */
 export function enemyBuild(run: Run): Build {
-  return warlordBuild(run.enemyHero, run.round);
+  const f = activeFoe(run);
+  const b = warlordBuild(run.enemyHero, run.round + (f?.boost ?? 0));
+  if (f?.hull) b.hullBonus += f.hull;
+  return b;
+}
+
+export function foeName(run: Run): string {
+  const f = activeFoe(run);
+  const name = warlordName(run.enemyHero, run.round + (f?.boost ?? 0));
+  return f?.boost ? `ELITE ${name}` : name;
 }
 
 export function battleSeed(run: Run): number {
@@ -100,14 +148,16 @@ export function rollShop(run: Run): void {
     if (!choices.length) choices = pool.filter((d) => !w.offers.some((o) => o.def === d.id));
     if (!choices.length) choices = pool;
     const d = rng.pick(choices);
-    w.offers.push({ def: d.id, price: d.price, sold: false });
+    w.offers.push({ def: d.id, price: Math.max(1, d.price - (run.shop.discount || 0)), sold: false });
   }
   run.shop.wagons = wagons;
 }
 
+/** Reroll the caravan: a free reroll (scout) first, else REROLL_COST gold. Same roll sequence either way. */
 export function reroll(run: Run): boolean {
-  if (run.gold < REROLL_COST) return false;
-  run.gold -= REROLL_COST;
+  if ((run.shop.free || 0) > 0) run.shop.free--;
+  else if (run.gold < REROLL_COST) return false;
+  else run.gold -= REROLL_COST;
   run.shop.rerolls++;
   rollShop(run);
   return true;
@@ -180,20 +230,24 @@ export function sellInventory(run: Run, uid: number): number {
 export function finishRound(run: Run, winner: Side | -1, time: number, player: SideStats, enemy: SideStats): RoundResult {
   const outcome = winner === 0 ? "win" : winner === 1 ? "loss" : "draw";
   const income = incomeFor(run.round, outcome === "win");
-  const res: RoundResult = { round: run.round, outcome, income, time, player, enemy };
+  const bounty = outcome === "win" ? activeFoe(run)?.bounty ?? 0 : 0;
+  const res: RoundResult = { round: run.round, outcome, income, bounty, time, player, enemy };
   run.history.push(res);
   if (outcome === "win") run.wins++;
   if (outcome === "loss") {
     run.losses++;
     run.lives--;
   }
-  run.gold += income;
+  run.gold += income + bounty;
+  run.foe = null;
   if (run.wins >= RUN_WINS) run.over = "won";
   else if (run.lives <= 0) run.over = "lost";
   else if (run.round >= MAX_ROUNDS) run.over = run.wins >= run.losses ? "won" : "lost";
   if (!run.over) {
     run.round++;
-    run.shop = { wagons: [], rerolls: 0 };
+    run.stage = "caravan";
+    run.shop = { wagons: [], rerolls: 0, discount: run.nextShop.discount, free: run.nextShop.free };
+    run.nextShop = { discount: 0, free: 0 };
     rollShop(run);
   }
   return res;
@@ -201,25 +255,4 @@ export function finishRound(run: Run, winner: Side | -1, time: number, player: S
 
 export function merchantName(m: MerchantId): string {
   return MERCHANTS[m].name;
-}
-
-export function saveRun(run: Run | null): void {
-  try {
-    if (!run || run.over) localStorage.removeItem(SAVE_KEY);
-    else localStorage.setItem(SAVE_KEY, JSON.stringify(run));
-  } catch {
-    /* storage unavailable */
-  }
-}
-
-export function loadRun(): Run | null {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const r = JSON.parse(raw) as Run;
-    if (r.version !== 3 || !r.build || !r.shop) return null;
-    return r;
-  } catch {
-    return null;
-  }
 }

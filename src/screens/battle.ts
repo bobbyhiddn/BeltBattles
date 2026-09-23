@@ -6,8 +6,7 @@ import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, type BattleLayout } from "../game/battleLayout";
-import { battleSeed, enemyBuild, finishRound, saveRun, type RoundResult } from "../game/run";
-import { warlordName } from "../sim/ai";
+import { battleSeed, enemyBuild, finishRound, foeName, saveRun, type RoundResult } from "../game/run";
 import { HEROES } from "../sim/content";
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
@@ -42,8 +41,9 @@ export class BattleScreen implements Screen {
 
   constructor(private game: Game) {
     const run = game.run!;
-    const foe = enemyBuild(run);
-    this.foeName = warlordName(foe.hero, run.round);
+    const foe = enemyBuild(run); // an accepted road challenge brings a warlord from later rounds
+    this.foeName = foeName(run);
+    run.stage = "battle";
     this.arena = new Arena(run.build, foe, battleSeed(run), game.audio);
     this.arena.off = [60, 260];
     this.bar = {
