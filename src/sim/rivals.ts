@@ -150,9 +150,11 @@ function slotOrder(runSeed: number, slot: Difficulty, n: number): RivalId[] {
 }
 
 /**
- * The whole run's road-stop warlords (index 0 = day 1). On days 8-10 the Hard slot is always
- * the IRON MATRIARCH, so she is the one captain offered on consecutive days. Every other captain
- * is never offered two days running, in any slot.
+ * The whole run's road-stop warlords (index 0 = day 1), for a run in which the IRON MATRIARCH is
+ * never beaten: on days 8-10 the Hard slot is always her, so she is the one captain offered on
+ * consecutive days (R3). Every other captain is never offered two days running, in any slot.
+ * Once she is beaten, warlordOffer(runSeed, day, matriarchBeatenOn) replaces her; this unbeaten
+ * schedule is what standInGhosts() avoids, so stand-ins never depend on the fight's outcome.
  */
 export function warlordOffers(runSeed: number): WarlordOffer[] {
   const easy = slotOrder(runSeed, "easy", RUN_DAYS);
@@ -168,9 +170,28 @@ export function warlordOffers(runSeed: number): WarlordOffer[] {
 /**
  * The warlords offered at a day's road stop (day 1-10) in the run seeded runSeed. Beating one
  * pays supplies and a chance at a part from its build; losing never costs a life (ROADMAP §1).
+ *
+ * R3, the Matriarch rule: the IRON MATRIARCH holds the Hard slot on days 8-10 until the player
+ * beats her. Pass the day she was beaten as matriarchBeatenOn (8-10; omitted, or below 8, means
+ * unbeaten). From the next day the Hard slot shows a regular Hard captain instead, so her
+ * legendary reward can be won only once per run. The replacement is deterministic from
+ * (runSeed, day, matriarchBeatenOn), drawn from its own hashSeed(runSeed, "warlords", "hard",
+ * "after", day) stream; it is never that day's standInGhost and never yesterday's Hard captain.
+ * The Easy and Medium slots, and every day up to the one she is beaten, match warlordOffers().
  */
-export function warlordOffer(runSeed: number, day: number): WarlordOffer {
-  return warlordOffers(runSeed)[clampDay(day) - 1];
+export function warlordOffer(runSeed: number, day: number, matriarchBeatenOn?: number): WarlordOffer {
+  const d = clampDay(day);
+  const offer = warlordOffers(runSeed)[d - 1];
+  const beaten = matriarchBeatenOn === undefined ? NaN : Math.floor(matriarchBeatenOn);
+  if (!(beaten >= MATRIARCH_DAY) || d <= beaten) return offer;
+  let hard: RivalId = "matriarch";
+  for (let day2 = beaten + 1; day2 <= d; day2++) {
+    const standIn: RivalId = standInGhost(runSeed, day2), yesterday: RivalId = hard;
+    const order = new Rng(hashSeed(runSeed, "warlords", "hard", "after", day2)).shuffle(warlordPool("hard"));
+    // Always found: the Hard pool has 5 captains and at most 2 are excluded.
+    hard = order.find((id) => id !== standIn && id !== yesterday)!;
+  }
+  return { ...offer, hard };
 }
 
 /**
