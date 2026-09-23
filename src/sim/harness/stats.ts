@@ -18,7 +18,8 @@ export function wilson(pts: number, n: number, z = Z95): Rate {
   const den = 1 + z2 / n;
   const mid = (p + z2 / (2 * n)) / den;
   const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / den;
-  return { p, lo: Math.max(0, mid - half), hi: Math.min(1, mid + half), n, pts };
+  // clamp around p: at p = 1 (or 0) float rounding can leave hi a hair below p (lo above it)
+  return { p, lo: Math.min(p, Math.max(0, mid - half)), hi: Math.max(p, Math.min(1, mid + half)), n, pts };
 }
 
 export const BAND_LO = 0.35, BAND_HI = 0.65;

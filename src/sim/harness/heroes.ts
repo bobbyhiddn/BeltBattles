@@ -1,44 +1,35 @@
 // Balance harness: the one local adapter between the harness and per-hero content.
-// ai.ts knows Furnace and Weaver; races/warlords.ts knows FOUNDRY and BASTION. Races part 2
-// adds a hero-generic heroStartBuild / heroRefBuild and PLAYABLE_HEROES; integration swaps
-// the three exports below for those (and METRONOME / SIPHON then join automatically).
+// Races part 2 gives every hero a starting deck and an honest reference deck (heroBuilds.ts:
+// nearest-plate plating, within maxGoldByDay), so this file only re-exports them, fixes the
+// harness hero list and applies each hero's shop rules (HERO_RULES.shopExclude).
 
-import { startingBuild, warlordBuild } from "../ai";
-import { HEROES, ITEMS, type HeroId } from "../content";
-import type { Build } from "../deck";
-import { raceWarlordBuild, startingRaceBuild } from "../races/warlords";
-import { buildCost, maxGoldByDay } from "../../net/validate";
+import { HEROES, ITEMS, type HeroId, type ItemDef } from "../content";
+import { PLATE_STEP, heroRefBuild, heroStartBuild, rampPlates } from "../heroBuilds";
+import { heroRules } from "../races/data";
 
-/** Heroes the sim can build today, in report order. Part 2: PLAYABLE_HEROES. */
-export const HARNESS_HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
-
-const isRace = (h: HeroId): h is "foundry" | "bastion" => h === "foundry" || h === "bastion";
-
-/** The hero's starting deck (signature factory wired to a live gun). Part 2: heroStartBuild. */
-export function heroStartBuild(hero: HeroId, uid0: number): Build {
-  if (isRace(hero)) return startingRaceBuild(hero, uid0);
-  if (hero !== "furnace" && hero !== "weaver") throw new Error(`harness: no starting build for ${hero}`);
-  return startingBuild(hero, uid0);
-}
-
-/** The hand-made reference (warlord) deck for a day, as authored. Part 2: heroRefBuild. */
-export function heroWarlordBuild(hero: HeroId, day: number): Build {
-  if (isRace(hero)) return raceWarlordBuild(hero, day);
-  if (hero !== "furnace" && hero !== "weaver") throw new Error(`harness: no reference build for ${hero}`);
-  return warlordBuild(hero, day);
-}
+export { PLATE_STEP, heroRefBuild, heroStartBuild, rampPlates };
 
 /**
- * The reference deck at an honest price, for calibration against random builds of the same
- * day: the warlord's machinery unchanged, its hull offset (warlordHull, negative on early
- * days) replaced by whole plating that fits the day's gold (tools/samplePool.ts, variant 0).
+ * Every hero the sim can build, in report order. Deliberately not PLAYABLE_HEROES (the heroes
+ * the game offers today): balance has to be measured before a hero ships.
  */
-export function heroRefBuild(hero: HeroId, day: number): Build {
-  const b = heroWarlordBuild(hero, day);
-  const plate = ITEMS.plating.supply!.hull!;
-  b.hullBonus = Math.max(0, Math.round(b.hullBonus / plate)) * plate;
-  while (b.hullBonus > 0 && buildCost(b).total > maxGoldByDay(day)) b.hullBonus -= plate;
-  return b;
-}
+export const HARNESS_HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
 
 export const heroName = (h: HeroId): string => HEROES[h].name;
+
+/**
+ * Item ids the caravan never offers `hero`: its HERO_RULES.shopExclude (Metronome: Grease,
+ * Brake, Overdrive; speed states don't move its belts) plus every item no merchant sells
+ * (ESCAPEMENT and LONGCASE have no merchant until the 0.9.0 caravan).
+ */
+export function shopExcluded(hero: HeroId): Set<string> {
+  const out = new Set(heroRules(hero).shopExclude);
+  for (const d of Object.values(ITEMS)) if (d.kind !== "factory" && !d.merchant) out.add(d.id);
+  return out;
+}
+
+/** What `hero` can buy of one kind ("gate" or "mod"): merchant-sold and not excluded. */
+export function shopItems(hero: HeroId, kind: "gate" | "mod"): ItemDef[] {
+  const ex = shopExcluded(hero);
+  return Object.values(ITEMS).filter((d) => d.kind === kind && !!d.merchant && !ex.has(d.id));
+}

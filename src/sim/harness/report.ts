@@ -83,7 +83,7 @@ export function balanceMarkdown(res: TourneyResult, meta: RunMeta): string {
     }
   }
   L.push("", "## Calibration: the hand-made reference build inside its hero's population", "");
-  L.push("Reference = warlordBuild (Furnace, Weaver) or raceWarlordBuild (Foundry, Bastion) for that day, hull offset replaced by whole plating within budget.");
+  L.push("Reference = heroRefBuild(hero, day) from src/sim/heroBuilds.ts (honest: nearest-plate plating, within maxGoldByDay).");
   L.push("Rank 1 = beats every random build of its hero against the same gauntlet.", "");
   const cal = res.days.filter((d) => d.calibration);
   L.push(`| hero | ${cal.map((d) => `day ${d.day}`).join(" | ")} |`, `|---|${cal.map(() => "---").join("|")}|`);

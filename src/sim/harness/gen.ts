@@ -6,28 +6,33 @@
 // belt crates + rerouting (length and connector) and Stamp Press lines.
 
 import type { Rng } from "../../core/rng";
-import { GRID, HEROES, ITEMS, rarityWeights, type HeroId } from "../content";
+import { GRID, HEROES, ITEMS, rarityWeights, type HeroId, type ItemDef } from "../content";
 import { cloneBuild, footprint, occupancy, routesOf, type Build } from "../deck";
 import { buildCost, maxGoldByDay } from "../../net/validate";
-import { heroStartBuild } from "./heroes";
+import { heroStartBuild, shopItems } from "./heroes";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
 
 export type Lever = "gate" | "mod" | "plating" | "route" | "press";
 export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "press"];
 
-const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant);
-const MODS = Object.values(ITEMS).filter((d) => d.kind === "mod" && d.merchant);
 const CRATE = ITEMS.beltcrate, PLATE = ITEMS.plating, PRESS = ITEMS.press;
 const CRATE_BELT = CRATE.supply!.belt!, PLATE_HULL = PLATE.supply!.hull!;
-const MIN_GATE = Math.min(...GATES.map((g) => g.price));
-const MIN_MOD = Math.min(...MODS.map((m) => m.price));
 export const MAX_TILES = 40; // longest route the generator draws
 export const MAX_ROUTE_EDITS = 4; // reroute attempts per build (they cost no gold, so they are capped)
 
 class Shopper {
   uid = 100;
   edits = 0;
-  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng) {}
+  readonly gates: ItemDef[]; // gates this hero's caravan sells (shopExclude honoured)
+  readonly mods: ItemDef[];
+  readonly minGate: number;
+  readonly minMod: number;
+  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng) {
+    this.gates = shopItems(b.hero, "gate");
+    this.mods = shopItems(b.hero, "mod");
+    this.minGate = Math.min(...this.gates.map((g) => g.price));
+    this.minMod = Math.min(...this.mods.map((m) => m.price));
+  }
 
   left(): number {
     return this.budget - buildCost(this.b).total;
@@ -61,8 +66,8 @@ class Shopper {
   can(l: Lever): boolean {
     const left = this.left(), b = this.b;
     if (l === "plating") return left >= PLATE.price;
-    if (l === "gate") return left >= MIN_GATE && this.freeRouteCells().length > 0;
-    if (l === "mod") return left >= MIN_MOD && HEROES[b.hero].turrets.some((_, t) => !b.mods.some((m) => m.turret === t));
+    if (l === "gate") return left >= this.minGate && this.freeRouteCells().length > 0;
+    if (l === "mod") return left >= this.minMod && HEROES[b.hero].turrets.some((_, t) => !b.mods.some((m) => m.turret === t));
     if (l === "press") return left >= PRESS.price && freeConnectors(b).length > 0;
     return this.edits < MAX_ROUTE_EDITS && b.routes.length > 0;
   }
@@ -82,10 +87,10 @@ class Shopper {
   /** A gate on a free belt tile; the type is drawn with the shop's rarity weights for the day. */
   gate(): boolean {
     const left = this.left(), w = rarityWeights(this.day);
-    const pool = GATES.filter((d) => d.price <= left && w[d.rarity] > 0);
+    const pool = this.gates.filter((d) => d.price <= left && w[d.rarity] > 0);
     const cells = this.freeRouteCells();
     if (!pool.length || !cells.length) return false;
-    const d = this.rng.weighted(pool, (g) => w[g.rarity] / GATES.filter((x) => x.rarity === g.rarity).length);
+    const d = this.rng.weighted(pool, (g) => w[g.rarity] / this.gates.filter((x) => x.rarity === g.rarity).length);
     const k = this.rng.pick(cells);
     this.b.items.push({ uid: this.uid++, def: d.id, x: k % GRID, y: Math.floor(k / GRID) });
     return true;
@@ -97,7 +102,7 @@ class Shopper {
     const free = h.turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
     const fed = new Set(b.routes.map((r) => h.turrets.findIndex((t) => t.connectors.includes(r.cells[r.cells.length - 1] % GRID))));
     const live = free.filter((t) => fed.has(t));
-    const pool = MODS.filter((d) => d.price <= left);
+    const pool = this.mods.filter((d) => d.price <= left);
     if (!pool.length || !free.length) return false;
     b.mods.push({ uid: this.uid++, def: this.rng.pick(pool).id, turret: this.rng.pick(live.length ? live : free) });
     return true;

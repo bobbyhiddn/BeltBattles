@@ -7,19 +7,20 @@ import { DEFAULT_OPTS, runTournament, type TourneyOpts } from "../src/sim/harnes
 
 // Balance harness tournament: a tiny end-to-end run, determinism, and the statistics.
 
-const TINY: TourneyOpts = { ...DEFAULT_OPTS, days: [1, 5], pop: 6, gauntlet: 3, seeds: 1, elites: 2, calibrationDays: [1] };
+// All six heroes on day 1 (short battles); the determinism check uses three heroes on day 3.
+const TINY: TourneyOpts = { ...DEFAULT_OPTS, days: [1], pop: 4, gauntlet: 2, seeds: 1, elites: 2, calibrationDays: [1] };
 
 describe("harness tournament", () => {
   it("a tiny end-to-end run finishes in under 30 s with a well-formed matrix", async () => {
     const t0 = performance.now();
     const res = await runTournament(TINY);
     expect(performance.now() - t0).toBeLessThan(30_000);
-    expect(res.days.map((d) => d.day)).toEqual([1, 5]);
+    expect(res.days.map((d) => d.day)).toEqual([1]);
     for (const d of res.days) {
       expect(d.budget).toBe(maxGoldByDay(d.day));
       for (const a of HARNESS_HEROES) {
         expect(d.elites[a]).toHaveLength(2);
-        expect(d.popScores[a]).toHaveLength(6);
+        expect(d.popScores[a]).toHaveLength(4);
         for (const e of d.elites[a]) expect(validateBuild(e.build, d.day).errors).toEqual([]);
         for (const b of HARNESS_HEROES) {
           if (a === b) continue;
@@ -35,18 +36,17 @@ describe("harness tournament", () => {
         }
       }
       // pop matrix: A-pop x B-gauntlet + B-pop x A-gauntlet - overlap, x2 battles per pairing
-      expect(d.pop["furnace|weaver"].n).toBe((6 * 3 + 6 * 3 - 3 * 3) * 2);
+      expect(d.pop["furnace|weaver"].n).toBe((4 * 2 + 4 * 2 - 2 * 2) * 2);
       expect(d.elite["furnace|weaver"].n).toBe(2 * 2 * 2);
     }
-    expect(res.days[0].calibration!.furnace.of).toBe(7);
-    expect(res.days[1].calibration).toBeUndefined();
+    expect(res.days[0].calibration!.furnace.of).toBe(5);
     const md = balanceMarkdown(res, { runtimeMs: 1, workers: 1, command: "test", perDayMs: {} });
-    expect(md).toContain("## Day 5");
+    expect(md).toContain("## Day 1");
     expect(md).toContain("Calibration");
   }, 60_000);
 
   it("the same seed gives identical tournament results", async () => {
-    const o: TourneyOpts = { ...TINY, days: [3], pop: 4, gauntlet: 2 };
+    const o: TourneyOpts = { ...TINY, heroes: ["furnace", "metronome", "siphon"], days: [3], pop: 4, gauntlet: 2 };
     const a = await runTournament(o);
     const b = await runTournament(o);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
