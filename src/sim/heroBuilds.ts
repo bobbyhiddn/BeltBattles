@@ -1,16 +1,17 @@
 // One entry point for every hero's starting build and reference builds (races ruling 2).
-// Furnace and Weaver come from ai.ts (startingBuild, and warlordBuild with its hull bonus
-// rounded down to whole plating and never negative); the four race heroes come from
-// races/refBuilds.ts. Every caller gets a deck of the hero it asked for: ai.ts alone would
-// hand back a Loom deck labelled FOUNDRY.
+// Furnace and Weaver come from ai.ts: startingBuild, and warlordBuild with its hull bonus
+// replaced by the reference plating ramp, PLATE_STEP x rampPlates(day) (the warlord curve
+// rounded to the NEAREST plate, never negative, as the dusk stand-in and the rival captains
+// do). The four race heroes come from races/refBuilds.ts, on the same ramp. Every caller gets
+// a deck of the hero it asked for: ai.ts alone would hand back a Loom deck labelled FOUNDRY.
 
 import { startingBuild, warlordBuild } from "./ai";
 import type { HeroId } from "./content";
 import type { Build } from "./deck";
 import { isRaceHero } from "./races/data";
-import { REF_DAYS, raceRefBuild, raceStartBuild, refDay, wholePlating } from "./races/refBuilds";
+import { PLATE_STEP, REF_DAYS, raceRefBuild, raceStartBuild, rampPlates, refDay } from "./races/refBuilds";
 
-export { REF_DAYS };
+export { PLATE_STEP, REF_DAYS, rampPlates };
 
 /** Heroes the game offers today. The 0.8.0/0.9.0 integration grows this list. */
 export const PLAYABLE_HEROES: readonly HeroId[] = ["furnace", "weaver"];
@@ -24,6 +25,5 @@ export function heroStartBuild(hero: HeroId, uid0 = 1): Build {
 export function heroRefBuild(hero: HeroId, day: number): Build {
   const d = refDay(day);
   if (isRaceHero(hero)) return raceRefBuild(hero, d);
-  const b = warlordBuild(hero, d);
-  return { ...b, hullBonus: wholePlating(b.hullBonus) };
+  return { ...warlordBuild(hero, d), hullBonus: PLATE_STEP * rampPlates(d) };
 }

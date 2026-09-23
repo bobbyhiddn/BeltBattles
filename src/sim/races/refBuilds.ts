@@ -16,15 +16,24 @@ export const REF_DAYS = 10;
 const U = 9000; // reference-build uid base (matches the ai.ts warlords)
 const PRESS_AT: [number, number] = [6, 6];
 
+/** Hull of one ARMOR PLATING purchase (+25): the step of every reference hull bonus. */
+export const PLATE_STEP = ITEMS.plating.supply!.hull!;
+
 /** A hull bonus rounded down to whole ARMOR PLATING steps (+25 each), never negative. */
 export function wholePlating(bonus: number): number {
-  const step = ITEMS.plating.supply!.hull!;
-  return Math.max(0, Math.floor(bonus / step) * step);
+  return Math.max(0, Math.floor(bonus / PLATE_STEP) * PLATE_STEP);
 }
 
-/** Reference hull bonus: the ai.ts warlord curve in whole plating (0 to day 5, +25 days 6-7, +50 days 8-10). */
+/** Plates in the reference ramp on `day`: the ai.ts warlord curve rounded to the NEAREST plate,
+ *  never negative. This is the honest-ghost rule the dusk stand-in (src/game/honest.ts) and the
+ *  rival captains (src/sim/rivals.ts) use too, so all three agree. Days 1-10: 0,0,0,0,1,1,2,2,2,3. */
+export function rampPlates(day: number): number {
+  return Math.max(0, Math.round(warlordHull(day) / PLATE_STEP));
+}
+
+/** Reference hull bonus: PLATE_STEP x rampPlates(day) (0 to day 4, +25 days 5-6, +50 days 7-9, +75 day 10). */
 export function refHull(day: number): number {
-  return wholePlating(warlordHull(day));
+  return PLATE_STEP * rampPlates(day);
 }
 
 /** Clamp a day into 1..REF_DAYS. */
@@ -60,55 +69,55 @@ const REF_BASE: Record<RaceHeroId, Layout> = { ...START, metronome: { ...START.m
 type Buy = { gates?: [string, number, number][]; press?: number[]; mod?: [string, number] };
 
 // One entry per day (1-10). Gold in comments is the running purchase cost including the
-// reference plating (refHull: 1 plating = 5 g on days 6-7, 2 on days 8-10).
+// reference plating (refHull, 5 g a plate: 1 plate on days 5-6, 2 on days 7-9, 3 on day 10).
 const STEPS: Record<RaceHeroId, Buy[]> = {
   foundry: [ // mirror the processing on both fusing routes; a Stamp Press lights gun 2
     { gates: [["whetstone", 2, 3], ["whetstone", 3, 3]] }, // d1  6 g: fused 1.5 x (5 + 5) = 15
     { gates: [["temper", 2, 4]] }, // d2  9 g
     { gates: [["temper", 3, 4]] }, // d3 12 g
     { gates: [["longhaul", 2, 2]] }, // d4 17 g
-    { gates: [["longhaul", 3, 2]] }, // d5 22 g
+    { gates: [["longhaul", 3, 2]] }, // d5 27 g
     { mod: ["calibrate", 0] }, // d6 32 g
-    { press: colUp(6) }, // d7 40 g: gun 2 fires plain slugs
+    { press: colUp(6) }, // d7 45 g: gun 2 fires plain slugs
     { gates: [["whetstone", 6, 3]] }, // d8 48 g
     { gates: [["temper", 6, 4]] }, // d9 51 g
-    { mod: ["calibrate", 1] }, // d10 56 g
+    { mod: ["calibrate", 1] }, // d10 61 g
   ],
   bastion: [ // harden the bulwark line, then a Stamp Press into the heavy gun's second connector
     { gates: [["whetstone", 4, 3], ["temper", 4, 4]] }, // d1  6 g
     { gates: [["grease", 4, 5]] }, // d2  9 g: plating starts sooner
     { gates: [["longhaul", 4, 2]] }, // d3 14 g
     { mod: ["calibrate", 0] }, // d4 19 g
-    { press: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }, // d5 27 g (13/14 belt)
+    { press: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }, // d5 32 g (13/14 belt)
     { gates: [["whetstone", 5, 3]] }, // d6 35 g
-    { gates: [["temper", 5, 4]] }, // d7 38 g
+    { gates: [["temper", 5, 4]] }, // d7 43 g
     { gates: [["coil", 4, 1]] }, // d8 48 g
     { gates: [["grease", 5, 5]] }, // d9 51 g
-    { gates: [["longhaul", 5, 2]] }, // d10 56 g
+    { gates: [["longhaul", 5, 2]] }, // d10 61 g
   ],
   metronome: [ // 10-tile beat route (no speed gates: they are inert and excluded from its shop)
     { gates: [["whetstone", 2, 4], ["temper", 2, 3]] }, // d1  6 g: 10 + 2 dmg, 2 Burn
     { gates: [["longhaul", 2, 2]] }, // d2 11 g
     { mod: ["calibrate", 0] }, // d3 16 g
     { gates: [["coil", 4, 1]] }, // d4 21 g
-    { press: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }, // d5 29 g (17/20 belt)
+    { press: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }, // d5 34 g (17/20 belt)
     { gates: [["whetstone", 5, 3]] }, // d6 37 g
-    { gates: [["temper", 5, 4]] }, // d7 40 g
+    { gates: [["temper", 5, 4]] }, // d7 45 g
     { gates: [["splitter", 3, 2]] }, // d8 52 g: copies keep the parent's ride time
     { gates: [["longhaul", 5, 2]] }, // d9 57 g
-    { gates: [["whetstone", 4, 2]] }, // d10 60 g
+    { gates: [["whetstone", 4, 2]] }, // d10 65 g
   ],
   siphon: [ // process both leech lines; ECHO borrows the enemy's processing for free
     { gates: [["whetstone", 2, 3], ["whetstone", 7, 3]] }, // d1  6 g
     { gates: [["temper", 2, 4]] }, // d2  9 g
     { gates: [["coil", 2, 2]] }, // d3 14 g: a non-hull DRAG hit disrupts and drags
     { mod: ["calibrate", 0] }, // d4 19 g
-    { gates: [["longhaul", 7, 2]] }, // d5 24 g
+    { gates: [["longhaul", 7, 2]] }, // d5 29 g
     { gates: [["temper", 7, 4]] }, // d6 32 g
-    { mod: ["calibrate", 1] }, // d7 37 g
+    { mod: ["calibrate", 1] }, // d7 42 g
     { gates: [["longhaul", 2, 1]] }, // d8 47 g
     { gates: [["whetstone", 2, 5]] }, // d9 50 g
-    { gates: [["whetstone", 7, 5]] }, // d10 53 g
+    { gates: [["whetstone", 7, 5]] }, // d10 58 g
   ],
 };
 

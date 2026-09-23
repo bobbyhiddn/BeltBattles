@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
-import { HEROES, type HeroId } from "../src/sim/content";
-import { PLAYABLE_HEROES, REF_DAYS, heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
+import { HEROES, ITEMS, type HeroId } from "../src/sim/content";
+import { PLATE_STEP, PLAYABLE_HEROES, REF_DAYS, heroRefBuild, heroStartBuild, rampPlates } from "../src/sim/heroBuilds";
 import { isRaceHero } from "../src/sim/races/data";
+import { refHull } from "../src/sim/races/refBuilds";
 import { buildCost, expectLegal, maxGoldByDay } from "./races.helpers";
 
-// races rulings 2 and 3: one entry point for every hero, and every reference build is a deck a
-// player could own that day (whole plating, cost within maxGoldByDay, validate.ts rules).
+// races rulings 2 and 3 (amended by Step A): one entry point for every hero, and every reference
+// build is a deck a player could own that day (whole plating on the nearest-plate ramp, cost
+// within maxGoldByDay, validate.ts rules).
 
 const ALL = Object.keys(HEROES) as HeroId[];
 const DAYS = Array.from({ length: REF_DAYS }, (_, i) => i + 1);
@@ -31,18 +33,36 @@ describe("heroBuilds: one entry point for all six heroes", () => {
     }
   });
 
-  it("Furnace and Weaver delegate to ai.ts, with the hull bonus in whole plating and never negative", () => {
+  it("the plating ramp rounds the warlord curve to the NEAREST plate, never negative (Step A)", () => {
+    expect(PLATE_STEP).toBe(ITEMS.plating.supply!.hull!);
+    expect(PLATE_STEP).toBe(25);
+    expect(DAYS.map(rampPlates)).toEqual([0, 0, 0, 0, 1, 1, 2, 2, 2, 3]);
+    for (const d of DAYS) expect(rampPlates(d)).toBe(Math.max(0, Math.round(warlordHull(d) / PLATE_STEP)));
+    expect(DAYS.map(refHull)).toEqual([0, 0, 0, 0, 25, 25, 50, 50, 50, 75]);
+  });
+
+  it("Furnace and Weaver delegate to ai.ts: warlordBuild with hullBonus = step x rampPlates(day)", () => {
     for (const h of ["furnace", "weaver"] as const) {
       expect(heroStartBuild(h, 7)).toEqual(startingBuild(h, 7));
       for (const d of DAYS) {
         const w = warlordBuild(h, d);
         const b = heroRefBuild(h, d);
-        expect({ ...b, hullBonus: 0 }).toEqual({ ...w, hullBonus: 0 });
-        expect(b.hullBonus).toBe(Math.max(0, Math.floor(warlordHull(d) / 25) * 25));
+        expect(b.hullBonus, `${h} day ${d}`).toBe(PLATE_STEP * rampPlates(d));
+        // every other field (hero, items, routes, mods, beltCap) is warlordBuild's, unchanged
+        expect({ ...b, hullBonus: w.hullBonus }, `${h} day ${d}`).toEqual(w);
+        expect(Object.keys(b).sort()).toEqual(Object.keys(w).sort());
       }
     }
-    expect(heroRefBuild("furnace", 1).hullBonus).toBe(0); // was -27
-    expect(heroRefBuild("weaver", 10).hullBonus).toBe(50); // was 72
+    expect(heroRefBuild("furnace", 1).hullBonus).toBe(0); // warlord -27
+    expect(heroRefBuild("furnace", 5).hullBonus).toBe(25); // warlord 17
+    expect(heroRefBuild("weaver", 10).hullBonus).toBe(75); // warlord 72
+  });
+
+  it("the race heroes ride the same ramp: hullBonus = step x rampPlates(day)", () => {
+    for (const h of ALL.filter(isRaceHero)) {
+      for (const d of DAYS) expect(heroRefBuild(h, d).hullBonus, `${h} day ${d}`).toBe(PLATE_STEP * rampPlates(d));
+      expect(heroStartBuild(h).hullBonus).toBe(0);
+    }
   });
 
   it("days outside 1-10 clamp to the nearest reference day", () => {

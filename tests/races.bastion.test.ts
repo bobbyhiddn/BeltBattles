@@ -66,7 +66,7 @@ describe("BASTION reference builds", () => {
       prev = buildCost(w);
     }
     expect(buildCost(raceRefBuild("bastion", 1))).toBe(6);
-    expect(buildCost(raceRefBuild("bastion", 10))).toBe(56);
+    expect(buildCost(raceRefBuild("bastion", 10))).toBe(61); // 46 g of parts + 3 plates (nearest-plate ramp)
     expectLegal(start(), 1);
   });
 
