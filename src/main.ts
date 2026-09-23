@@ -8,7 +8,10 @@ import type { EventId } from "./game/eventDefs";
 import type { HeroId } from "./sim/content";
 import { settings, setReducedMotion } from "./core/settings";
 import { VERSION } from "./version";
-import { addGhosts, clearPool, pinClassicFoe, playOut, setupRun, type GhostSpec, type RunSpec } from "./tooling";
+import { addGhosts, clearPool, pinClassicFoe, playOut, setupFork, setupRun, setupWarlord, type GhostSpec, type RunSpec } from "./tooling";
+import { ForkScreen } from "./screens/fork/fork";
+import { forkFor } from "./game/road";
+import type { Difficulty } from "./sim/rivals";
 import { loadPool } from "./game/ghosts";
 import { deckCost, maxGoldByDay } from "./sim/rivals";
 import type { Build } from "./sim/deck";
@@ -81,17 +84,38 @@ game.start();
     game.run = setupRun(o);
     game.go(new BattleScreen(game));
   },
-  openEnd(o: RunSpec & { results: string }, ghosts: GhostSpec[] = []): void {
+  openEnd(o: RunSpec & { results: string; roads?: string }, ghosts: GhostSpec[] = []): void {
     clearPool();
     addGhosts(ghosts);
     game.run = playOut(o);
     game.go(new SummaryScreen(game));
   },
+  /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */
+  openFork(o: RunSpec & { matriarchBeatenOn?: number } = {}, ghosts: GhostSpec[] = []): void {
+    clearPool();
+    addGhosts(ghosts);
+    game.run = setupFork(o);
+    game.go(new ForkScreen(game));
+  },
+  /** 0.6.0b: a warlord fight picked at the fork; with `outcome` its result card (0 win, 1 loss). */
+  openWarlord(tier: Difficulty, o: RunSpec & { matriarchBeatenOn?: number; outcome?: 0 | 1 | -1 } = {}): void {
+    clearPool();
+    game.run = setupWarlord(tier, o);
+    game.go(new BattleScreen(game, "warlord"));
+  },
+  /** 0.6.0b: today's fork and the dusk foe it leads to, for the scripted-run log. */
+  forkInfo() {
+    const run = game.run;
+    if (!run) return null;
+    const f = forkFor(run);
+    return { day: run.day, event: f.event, warlords: f.warlords, road: run.road, warlord: run.warlord, lives: run.lives, gold: run.gold, matriarchBeatenOn: run.matriarchBeatenOn };
+  },
   /** Current screen name (for harness assertions). */
   screen(): string {
     const s = game.screen;
     return s instanceof TitleScreen ? "title" : s instanceof HeroScreen ? "hero" : s instanceof BuildScreen ? "build"
-      : s instanceof BattleScreen ? "battle" : s instanceof SummaryScreen ? "summary" : s instanceof EventScreen ? "event" : "?";
+      : s instanceof BattleScreen ? (s.kind === "warlord" ? "warlord" : "battle") : s instanceof SummaryScreen ? "summary"
+      : s instanceof EventScreen ? "event" : s instanceof ForkScreen ? "fork" : "?";
   },
   /** Logical -> CSS pixel factor and the UI regions of the last frame. */
   regions(): { id: string; x: number; y: number; w: number; h: number }[] {

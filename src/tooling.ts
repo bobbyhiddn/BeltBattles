@@ -8,6 +8,8 @@ import { warlordName } from "./sim/ai";
 import { RULES_VERSION, START_LIVES, type HeroId } from "./sim/content";
 import type { SideStats } from "./sim/battle";
 import { honestStandInBuild, strongHonestBuild } from "./game/honest";
+import { finishWarlord, pickPending, pickRoad, takePart } from "./game/road";
+import type { Difficulty } from "./sim/rivals";
 
 export interface GhostSpec {
   day: number;
@@ -79,15 +81,41 @@ export function pinClassicFoe(run: Run): void {
 
 const ZERO = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 1, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
 
-/** Play a run to its end without battles (summary shots): each day takes the first open road
- *  choice, then dusk against the pool (or a stand-in) with the scripted result W / L / D. */
-export function playOut(o: RunSpec & { results: string }): Run {
+/** Play a run to its end without battles (summary shots). Each day's road stop comes from `roads`
+ *  (per day: "V"/"v" the event, taking its first open choice; "E"/"M"/"H" a warlord of that tier
+ *  won, "e"/"m"/"h" lost; default the event), then dusk against the pool (or a stand-in) with the
+ *  scripted result W / L / D. */
+export function playOut(o: RunSpec & { results: string; roads?: string }): Run {
   const run = newRun(o.hero ?? "furnace", o.seed ?? 12345);
+  let i = 0;
   for (const ch of o.results) {
     if (run.over) break;
-    if (beginRoad(run)) pickChoice(run, Math.max(0, choicesFor(run).findIndex((c) => !c.blocked)));
+    const r = o.roads?.[i++] ?? "V";
+    const tier = ({ e: "easy", m: "medium", h: "hard" } as const)[r.toLowerCase() as "e" | "m" | "h"];
+    if (tier) {
+      pickRoad(run, tier);
+      finishWarlord(run, r === r.toUpperCase() ? 0 : 1, 18 + run.day * 2.3);
+      if (pickPending(run.warlord)) takePart(run, 0);
+    } else if (beginRoad(run)) pickChoice(run, Math.max(0, choicesFor(run).findIndex((c) => !c.blocked)));
     startDusk(run, loadPool());
     finishDay(run, ch === "W" ? 0 : ch === "L" ? 1 : -1, 20 + run.day * 3.1, ZERO, ZERO);
   }
+  return run;
+}
+
+/** A run at the dawn of `day` that has gone to the fork (fork shots). */
+export function setupFork(o: RunSpec & { matriarchBeatenOn?: number } = {}): Run {
+  const run = setupRun(o);
+  run.matriarchBeatenOn = o.matriarchBeatenOn ?? null;
+  run.stage = "fork";
+  return run;
+}
+
+/** A run that picked the warlord of `tier` at today's fork; with `outcome` its fight is already
+ *  over (result-card shots): 0 a win (a Hard win keeps its part pick open), 1 a loss. */
+export function setupWarlord(tier: Difficulty, o: RunSpec & { matriarchBeatenOn?: number; outcome?: 0 | 1 | -1 } = {}): Run {
+  const run = setupFork(o);
+  pickRoad(run, tier);
+  if (o.outcome !== undefined) finishWarlord(run, o.outcome, 24.6);
   return run;
 }
