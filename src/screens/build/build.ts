@@ -3,7 +3,9 @@
 
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type Run } from "../../game/run";
-import { HEROES, ITEMS, REROLL_COST } from "../../sim/content";
+import { beginRoad } from "../../game/events";
+import { EVENTS } from "../../game/eventDefs";
+import { HEROES, ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
 import { connectedRouteCount, defOf, itemByUid, kx, ky } from "../../sim/deck";
 import { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
@@ -19,9 +21,12 @@ import { deleteRoute, sell, store } from "./actions";
 import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
 import { BattleScreen } from "../battle";
+import { EventScreen } from "../event/event";
 
 export class BuildScreen implements Screen, EditHost {
   run: Run;
+  /** REFIT after a road event (0.5.0): the deck and cargo only; the caravan has moved on. */
+  readonly refit: boolean;
   L: BuildLayout;
   readonly wfx = new Fx();
   readonly ufx = new Fx();
@@ -45,6 +50,8 @@ export class BuildScreen implements Screen, EditHost {
   constructor(public game: Game) {
     if (!game.run) throw new Error("BuildScreen needs a run");
     this.run = game.run;
+    this.refit = this.run.stage === "refit" || this.run.stage === "battle";
+    if (this.refit) this.caravan.park();
     this.L = this.layout();
     this.ed = new Editor(this);
     this.model = cruiserModel(this.run.build);
@@ -60,7 +67,13 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   private layout(): BuildLayout {
-    return buildLayout(this.game.W, this.game.H, this.game.portrait, this.offers().length);
+    return buildLayout(this.game.W, this.game.H, this.game.portrait, this.refit ? OFFERS : this.offers().length);
+  }
+
+  /** Title of the road event this refit follows (banner text). */
+  refitFrom(): string {
+    const ev = this.run.event;
+    return ev && ev.round === this.run.round ? EVENTS[ev.id].title : "THE ROAD";
   }
 
   /** Offers in display order (grouped by wagon). */
@@ -72,9 +85,16 @@ export class BuildScreen implements Screen, EditHost {
 
   enter(): void {
     this.L = this.layout();
-    this.caravan.arrive(this.offers().length);
     this.game.audio.music("prep");
-    this.game.audio.play("horn");
+    if (this.refit) {
+      this.caravan.park();
+      this.game.toast("REFIT · THE CARAVAN HAS MOVED ON", C.yellow, "pickup");
+    } else {
+      this.caravan.arrive(this.offers().length);
+      this.game.audio.play("horn");
+      const sh = this.run.shop;
+      if (sh.discount > 0 || sh.free > 0) this.game.toast(sh.discount > 0 ? `SCOUT'S DEAL: PRICES -${sh.discount}` : `SCOUT'S WORD: ${sh.free} FREE REROLL`, C.lime);
+    }
     saveRun(this.run);
   }
 
@@ -110,7 +130,7 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   offerAt(x: number, y: number): { wagon: number; slot: number } | null {
-    if (!this.caravan.ready) return null;
+    if (this.refit || !this.caravan.ready) return null;
     const list = this.offers();
     for (let i = 0; i < list.length; i++) {
       const r = this.L.cards[i];
@@ -148,10 +168,11 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   doReroll(): void {
-    if (!this.caravan.ready || this.ed.busy) return;
-    if (this.run.gold < REROLL_COST) return this.invalid(`A REROLL COSTS ${REROLL_COST}G`);
+    if (this.refit || !this.caravan.ready || this.ed.busy) return;
+    const free = this.run.shop.free > 0;
+    if (!free && this.run.gold < REROLL_COST) return this.invalid(`A REROLL COSTS ${REROLL_COST}G`);
     reroll(this.run);
-    this.ufx.popup(this.coinX, 12, `-${REROLL_COST}`, C.yellow);
+    this.ufx.popup(this.coinX, 12, free ? "FREE" : `-${REROLL_COST}`, free ? C.lime : C.yellow);
     this.game.audio.play("coin");
     if (this.sel.kind === "offer") this.sel = { kind: "none" };
     this.caravan.leave(() => {
@@ -168,9 +189,11 @@ export class BuildScreen implements Screen, EditHost {
       this.invalid("NO BELT FEEDS A TURRET! FIGHT AGAIN TO GO ANYWAY");
       return;
     }
+    // leaving the caravan: this round's road event first (if one is due and not yet resolved)
+    const open = beginRoad(this.run);
     saveRun(this.run);
     this.game.audio.play("go");
-    this.game.go(new BattleScreen(this.game));
+    this.game.go(open ? new EventScreen(this.game) : new BattleScreen(this.game));
   }
 
   update(dt: number): void {
@@ -230,9 +253,28 @@ export class BuildScreen implements Screen, EditHost {
     }
   }
 
-  /** Tooling: logical centre of the first affordable gate card and of its suggested belt cell. */
+  /** Tooling: logical centre of the first affordable gate card (or, in a refit or when none, the
+   *  first gate in cargo) and of its suggested belt cell. */
   dragPlan(): { from: { x: number; y: number }; to: { x: number; y: number }; def: string } | null {
-    const list = this.offers();
+    const plan = this.offerPlan();
+    if (plan) return plan;
+    const n = Math.min(this.cargoSlots(), this.run.inventory.length);
+    for (let i = 0; i < n; i++) {
+      const it = this.run.inventory[i];
+      const cell = ITEMS[it.def].kind === "gate" ? suggestCell(this.run.build, it.def) : null;
+      if (!cell) continue;
+      const r = this.slotRect(i);
+      return {
+        from: { x: r.x + r.w / 2, y: r.y + r.h / 2 },
+        to: { x: footX(this.L.frame, cell.x, cell.y) + 6, y: footY(this.L.frame, cell.x, cell.y) + 6 },
+        def: it.def,
+      };
+    }
+    return null;
+  }
+
+  private offerPlan(): { from: { x: number; y: number }; to: { x: number; y: number }; def: string } | null {
+    const list = this.refit ? [] : this.offers();
     for (let i = 0; i < list.length; i++) {
       const o = this.run.shop.wagons[list[i].wagon].offers[list[i].slot];
       const d = ITEMS[o.def];

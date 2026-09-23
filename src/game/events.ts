@@ -144,6 +144,7 @@ export function pickChoice(run: Run, i: number): PickResult {
   run.events.push({ round: run.round, id: ev.id, choice: c.label, won });
   const item = won ? c.gain.find((d) => d.k === "item") : undefined;
   const deckItem = item && item.k === "item" && ITEMS[item.def].kind !== "supply" ? item.def : undefined;
+  if (deckItem) ev.item = deckItem;
   return { ok: true, choice: c, won, deckItem };
 }
 

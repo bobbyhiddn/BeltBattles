@@ -39,6 +39,7 @@ export interface EventState {
   pick: number; // fixed at creation: which part a salvage or trade offers
   picked: number; // -1 until resolved; then the choice index (resolved events can't be picked again)
   won?: boolean;
+  item?: string; // deck equipment the pick put in cargo (offers REFIT, also after a reload)
 }
 
 export interface EventDef {

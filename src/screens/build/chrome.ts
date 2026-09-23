@@ -2,7 +2,7 @@
 // next-battle card, the details panel, drag feedback and the pause/options menu.
 
 import { saveRun } from "../../game/run";
-import { ITEMS, RUN_LIVES, RUN_WINS } from "../../sim/content";
+import { ITEMS, REROLL_COST, RUN_LIVES, RUN_WINS } from "../../sim/content";
 import { beltUsed } from "../../sim/deck";
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
@@ -69,9 +69,24 @@ function drawShop(g: G, s: BuildScreen): void {
     }, t);
   }
   const rr = { ...L.reroll, x: L.reroll.x + s.caravan.dx(list.length, L.W) };
-  const ok = run.gold >= 2 && s.caravan.ready;
-  drawReroll(g, rr, ok, s.game.ui.hover === "reroll", s.game.ui.pressed === "reroll");
+  const free = run.shop.free > 0;
+  const ok = (free || run.gold >= REROLL_COST) && s.caravan.ready;
+  drawReroll(g, rr, ok, s.game.ui.hover === "reroll", s.game.ui.pressed === "reroll", free);
   s.game.ui.add({ id: "reroll", r: rr, onTap: () => s.doReroll(), block: true });
+}
+
+/** Refit after a road event: the caravan's row becomes one bolted notice (no cards, no reroll). */
+function drawRefitBanner(g: G, s: BuildScreen): void {
+  const L = s.L;
+  const first = L.cards[0], last = L.reroll;
+  const x = Math.min(first.x, last.x), y = first.y - (L.tags ? 7 : 0);
+  const r = { x, y, w: Math.max(first.x + first.w, last.x + last.w) - x, h: Math.max(first.y + first.h, last.y + last.h) - y };
+  panel(g, r, "dark");
+  s.game.ui.add({ id: "refitbanner", r, block: true });
+  const cx = r.x + r.w / 2, big = r.h >= 44;
+  drawText(g, "ROAD REFIT", cx, r.y + (big ? Math.floor(r.h / 2) - 16 : 5), C.yellow, { align: "center", outline: C.ink, scale: big ? 2 : 1 });
+  drawText(g, `AFTER ${s.refitFrom()} · THE CARAVAN HAS MOVED ON`, cx, r.y + (big ? Math.floor(r.h / 2) + 2 : 15), C.bone, { font: "3", align: "center" });
+  drawText(g, "PLACE YOUR NEW PARTS, THEN FIGHT", cx, r.y + (big ? Math.floor(r.h / 2) + 10 : 23), C.slate4, { font: "3", align: "center" });
 }
 
 function drawCargo(g: G, s: BuildScreen): void {
@@ -100,7 +115,8 @@ function drawCargo(g: G, s: BuildScreen): void {
 export function drawBuildChrome(g: G, s: BuildScreen): void {
   const L = s.L;
   const ui = s.game.ui;
-  drawShop(g, s);
+  if (s.refit) drawRefitBanner(g, s);
+  else drawShop(g, s);
   drawCargo(g, s);
   const cue = s.placedOnce && !s.ed.busy;
   button(ui, g, "fight", L.fight, "FIGHT!", { primary: true, blink: s.armed > 0, active: cue && Math.floor(s.t * 3) % 2 === 1, onTap: () => s.fight() });

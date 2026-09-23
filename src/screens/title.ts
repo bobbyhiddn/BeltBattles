@@ -18,14 +18,16 @@ import { button, panel, para } from "../ui/ui";
 import { optionsCard } from "../ui/hud";
 import { HeroScreen } from "./hero";
 import { BuildScreen } from "./build/build";
+import { EventScreen } from "./event/event";
+import { VERSION } from "../version";
 
 const HELP = [
   "1  BUY GATES FROM THE CARAVAN CARDS.",
   "2  DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE.",
   "3  DROP GATES ON THE BELT: BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN.",
   "4  LONGER CINDER ROUTES COOK HOTTER SLUGS. THREAD HITS FRAY ARMOR.",
-  "5  PRESS FIGHT. YOUR CRUISER BATTLES ON ITS OWN.",
-  "6  WIN 7 BATTLES BEFORE YOU LOSE 3.",
+  "5  PRESS FIGHT. ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3): SALVAGE, TRADES, BETS, REPAIRS, BOUNTIES.",
+  "6  YOUR CRUISER BATTLES ON ITS OWN. WIN 7 BATTLES BEFORE YOU LOSE 3.",
 ];
 
 export class TitleScreen implements Screen {
@@ -126,7 +128,7 @@ export class TitleScreen implements Screen {
     });
     button(ui, g, "options", { x: bx + hw + 4, y: by, w: bw - hw - 4, h: bh - 4 }, "OPTIONS", { font: "3", onTap: () => { this.menu = true; } });
     game.soundButton(g, { x: W - 30, y: 4, w: 26, h: 13 });
-    drawText(g, "V0.4.1", W - 4, H - 8, C.slate3, { font: "3", align: "right" });
+    drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
     if (this.help) this.drawHelp(g);
     if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; });
   }
@@ -149,7 +151,9 @@ export class TitleScreen implements Screen {
     const run = loadRun();
     if (!run) return;
     this.game.run = run;
-    this.game.go(new BuildScreen(this.game));
+    // on the road: the same event (resolved or not); after it: a refit (the caravan is gone)
+    const onRoad = run.stage === "event" && !!run.event && run.event.round === run.round;
+    this.game.go(onRoad ? new EventScreen(this.game) : new BuildScreen(this.game));
   }
 
   key(k: string): void {
