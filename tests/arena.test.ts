@@ -94,6 +94,15 @@ describe("effects do not change results", () => {
     expect(heavy).toBeGreaterThan(light * 1.5);
     expect(big).toBeGreaterThan(heavy);
     expect(ko).toBeGreaterThan(big);
+    // even a light bolt nudges the camera at least 1 world px on the frame it lands
+    for (let k = 0; k < 50; k++) {
+      const fx = new Fx();
+      for (let i = 0; i < k; i++) fx.rnd();
+      fx.addTrauma(hitTrauma(3));
+      fx.kick(hitKick(3, false), 0);
+      fx.update(1 / 60);
+      expect(Math.abs(fx.shakeX) + Math.abs(fx.shakeY)).toBeGreaterThanOrEqual(1);
+    }
     setReducedMotion(true);
     expect(shakeAfter(KO_TRAUMA, 3)).toBe(0);
     setReducedMotion(false);

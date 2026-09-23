@@ -22,12 +22,12 @@ function shakeOnHit(side = -1) {
   const hp0 = a.b.sides.map((x) => x.hull.hp);
   let hitAt = -1, frames = 0;
   for (let i = 0; i < 60 * 30; i++) {
+    a.shakePeak = 0; // so the recorded peak starts with the frame the hit lands on
     g.step(1 / 60);
     frames++;
     if (a.b.sides.some((x, k) => (side < 0 || side === k) && x.hull.hp < hp0[k])) { hitAt = a.b.t; break; }
   }
-  a.shakePeak = 0;
-  let maxX = 0, maxY = 0;
+  let maxX = Math.abs(a.fx.shakeX), maxY = Math.abs(a.fx.shakeY);
   for (let i = 0; i < 8; i++) {
     g.step(1 / 60);
     maxX = Math.max(maxX, Math.abs(a.fx.shakeX));

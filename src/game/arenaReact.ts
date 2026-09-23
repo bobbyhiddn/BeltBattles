@@ -33,9 +33,10 @@ export function hitTrauma(dmg: number): number {
   return Math.min(0.65, 0.04 + dmg * 0.03);
 }
 
-/** Directional camera kick (px) along the shell's travel: heavier shells punch harder. */
+/** Directional camera kick (px) along the shell's travel: every hit nudges the camera at least
+ *  1 world px on the frame it lands; heavier shells punch harder (up to 3 px). */
 export function hitKick(dmg: number, heavy: boolean): number {
-  return Math.min(3, dmg / (heavy ? 4 : 5));
+  return Math.max(1.1, Math.min(3, dmg / (heavy ? 4 : 5)));
 }
 
 /** Camera trauma of a KO (the hardest shake in the game). */
