@@ -71,9 +71,19 @@ export async function road(page, touch, log, at, state) {
   if (pick < 0) pick = ev.choices.findIndex((c, i) => i >= (ev.day % 2) && !c.blocked);
   if (pick < 0) pick = ev.choices.length - 1;
   await tapRegion(page, touch, `choice${pick}`);
-  const after = await page.evaluate(() => ({ picked: window.bb.game.run.event.picked, gold: window.bb.game.run.gold, item: window.bb.game.screen.deckItem || "" }));
+  const after = await page.evaluate(() => ({ picked: window.bb.game.run.event.picked, gold: window.bb.game.run.gold, item: window.bb.game.screen.deckItem || "", reveal: !!window.bb.game.screen.reveal, bounty: window.bb.game.run.bounty, sabotage: window.bb.game.run.sabotage }));
   state.picks++;
-  log(`[${at()}] picked ${pick + 1} ${ev.choices[pick].label} -> resolved (picked ${after.picked}), gold ${after.gold}${after.item ? `, part ${after.item} -> REFIT / FIGHT NOW` : ""}`);
+  log(`[${at()}] picked ${pick + 1} ${ev.choices[pick].label} -> resolved (picked ${after.picked}), gold ${after.gold}${after.item ? `, part ${after.item} -> REFIT / FIGHT NOW` : ""}${after.bounty ? `, ELITE BOUNTY pending (+${after.bounty.pay} on the next Hard win)` : ""}${after.sabotage ? ", SABOTAGE pending (next warlord)" : ""}`);
+  if (after.reveal) {
+    // 0.6.0b SCOUT: the revealed deck is tonight's stored dusk foe; then FIGHT NOW (dusk must fight it)
+    const spied = await page.evaluate(() => { const d = window.bb.game.run.dusk; return { name: d.name, build: JSON.stringify(d.build) }; });
+    state.scouted = spied;
+    log(`[${at()}] SCOUT REPORT: tonight's dusk is ${spied.name}; REFIT / FIGHT NOW -> FIGHT NOW`);
+    await page.waitForFunction(() => window.bb.game.screen.pt > 0.7, null, { timeout: 5000 });
+    await tapRegion(page, touch, "fightnow");
+    await settle(page, "battle");
+    return;
+  }
   if (after.item) {
     await page.waitForFunction(() => window.bb.game.screen.pt > 0.7, null, { timeout: 5000 });
     if (!state.refitDone) {
@@ -159,6 +169,12 @@ export async function scriptedRun(page, touch, log, opts) {
     else state.standins++;
     state.foes++;
     state.spend.push(`day ${foe.day} ${foe.kind === "ghost" ? "pool ghost" : `stand-in ${foe.name}`} ${foe.cost}/${foe.budget}`);
+    if (state.scouted) {
+      const same = state.scouted.name === foe.name && state.scouted.build === foe.build;
+      log(`[${at()}] dusk fights the scouted deck (name + build): ${same}`);
+      if (!same) throw new Error("the dusk foe is not the deck SCOUT revealed");
+      state.scouted = null;
+    }
     if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
     log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foeLine(foe)}), same as the dawn preview: ${foe.name === dawn.foe}`);
     if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);

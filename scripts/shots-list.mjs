@@ -142,6 +142,14 @@ export const SHOTS = [
   ...["desk", "phone"].flatMap((v) => [
     ["warlord-matriarch-win", v, "title", 0, WARLORD("hard", { day: 8, wins: 5, losses: 2, lives: 3, outcome: 0 }, 60)],
     ["fork-inspect", v, "title", 0, FORK({ day: 5, wins: 3, losses: 1, lives: 4 }, [], "bb.game.screen.sel = 3;")],
+    // B3: the retargeted events, SCOUT's reveal (SPY, then REFIT / FIGHT NOW), and a fork with a
+    // pending ELITE BOUNTY and SABOTAGE (inspecting the Hard card)
+    ["event-sappers", v, "title", 0, EVENT("sappers", { round: 4, gold: 9 })],
+    ["event-scout-reveal", v, "title", 0, EVENT("scout", { round: 3, gold: 5 }, 2, 70)],
+    ["fork-pending", v, "title", 0, FORK({ day: 6, wins: 3, losses: 2, lives: 3, bounty: true, sabotage: true }, [], "bb.game.screen.sel = 3;")],
+  ]),
+  ...["laptop", "small"].flatMap((v) => [
+    ["event-scout-reveal", v, "title", 0, EVENT("scout", { round: 3, gold: 5 }, 2, 70)],
   ]),
   ...["desk", "phone"].flatMap((v) => [
     ["playback-paused", v, "battle", 7, "bb.game.screen.setSpeed(0); bb.game.screen.togglePause(); bb.game.render()"],

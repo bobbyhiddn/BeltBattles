@@ -104,9 +104,12 @@ export function playOut(o: RunSpec & { results: string; roads?: string }): Run {
 }
 
 /** A run at the dawn of `day` that has gone to the fork (fork shots). */
-export function setupFork(o: RunSpec & { matriarchBeatenOn?: number } = {}): Run {
+export function setupFork(o: RunSpec & { matriarchBeatenOn?: number; bounty?: boolean; sabotage?: boolean } = {}): Run {
   const run = setupRun(o);
   run.matriarchBeatenOn = o.matriarchBeatenOn ?? null;
+  // B3 shots: a pending ELITE BOUNTY / SABOTAGE bought on an earlier day
+  if (o.bounty) run.bounty = { day: Math.max(1, run.day - 1), stake: 3, pay: 10 };
+  if (o.sabotage) run.sabotage = { day: Math.max(1, run.day - 1) };
   run.stage = "fork";
   return run;
 }

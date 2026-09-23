@@ -91,7 +91,7 @@ game.start();
     game.go(new SummaryScreen(game));
   },
   /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */
-  openFork(o: RunSpec & { matriarchBeatenOn?: number } = {}, ghosts: GhostSpec[] = []): void {
+  openFork(o: RunSpec & { matriarchBeatenOn?: number; bounty?: boolean; sabotage?: boolean } = {}, ghosts: GhostSpec[] = []): void {
     clearPool();
     addGhosts(ghosts);
     game.run = setupFork(o);

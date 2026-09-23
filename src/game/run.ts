@@ -57,15 +57,6 @@ export interface DayResult {
  *  fight picked there, refitting after it, or the dusk fight. */
 export type Stage = "caravan" | "fork" | "event" | "warlord" | "refit" | "battle";
 
-/** Road-event foe modifiers (0.5.0). Kept as the seam for 0.6.0b's warlords: a dusk ghost runs
- *  exactly as submitted, so nothing here is ever applied to it. */
-export interface FoeMods {
-  day: number;
-  boost: number;
-  hull: number;
-  bounty: number;
-}
-
 export interface TakenEvent {
   day: number;
   id: EventId;
@@ -103,7 +94,6 @@ export interface Run {
   over: null | "complete" | "lost";
   stage: Stage;
   event: EventState | null;
-  foe: FoeMods | null;
   nextShop: { discount: number; free: number };
   events: TakenEvent[];
   dusk: DuskFoe | null;
@@ -130,7 +120,7 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
     day: 1, gold: START_GOLD, lives: START_LIVES, wins: 0, losses: 0,
     build: startingBuild(hero, 1), inventory: [], shop: { wagons: [], rerolls: 0, discount: 0, free: 0 },
     nextUid: 100, history: [], over: null,
-    stage: "caravan", event: null, foe: null, nextShop: { discount: 0, free: 0 }, events: [], dusk: null,
+    stage: "caravan", event: null, nextShop: { discount: 0, free: 0 }, events: [], dusk: null,
     road: null, warlord: null, warlords: [], matriarchBeatenOn: null, bounty: null, sabotage: null,
   };
   rollShop(run);

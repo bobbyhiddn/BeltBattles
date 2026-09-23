@@ -64,15 +64,20 @@ export function drawWarlordCard(g: G, r: Rect, id: RivalId, tier: Difficulty, rw
   frameCard(g, r, v);
   const d = RIVALS[id], rk = rankTag(id);
   if (compact) {
+    // DESIGN.md: 2 rows in portrait: name + tags, then the trick (with a short reward); the blurb,
+    // the full reward and any SABOTAGED / BOUNTY note are in the tap-to-inspect panel
     drawPortrait(g, id, r.x + 5, r.y + Math.round((r.h - 24) / 2));
-    const x = r.x + 34;
-    let tx = x + drawText(g, d.name, x, r.y + 5, nameColor(id), { outline: C.ink }) + 4;
-    tx += tag(g, TIER_LABEL[tier], tx, r.y + 5, TIER_COLOR[tier]) + 2;
-    if (rk) tag(g, rk.text, tx, r.y + 5, rk.color, rk.text === "BOSS" ? C.white : C.ink);
-    drawText(g, d.trick, x, r.y + 16, C.yellow, { font: "3" });
-    const note = v.notes.length ? ` · ${v.notes.join(" · ")}` : "";
-    drawText(g, rewardText(rw) + note, x, r.y + 25, C.slate4, { font: "3" });
-    if (rw.parts.length) drawParts(g, rw.parts, r.x + r.w - 12 - rw.parts.length * 16, r.y + r.h - 18);
+    const x = r.x + 34, y1 = r.y + Math.round(r.h / 2) - 11, y2 = y1 + 13;
+    let tx = x + drawText(g, d.name, x, y1, nameColor(id), { outline: C.ink }) + 4;
+    tx += tag(g, TIER_LABEL[tier], tx, y1, TIER_COLOR[tier]) + 2;
+    if (rk) tag(g, rk.text, tx, y1, rk.color, rk.text === "BOSS" ? C.white : C.ink);
+    const t2 = x + drawText(g, d.trick, x, y2, C.yellow, { font: "3" }) + 6;
+    const short = rw.legendary ? `+${rw.gold}G +LEGEND.` : rw.parts.length ? `+${rw.gold}G +PART` : `+${rw.gold}G`;
+    const sw = drawText(g, short, t2, y2, C.lime, { font: "3" });
+    // a pending SABOTAGE / BOUNTY: an amber "!" (spelled out in the inspect panel)
+    if (v.notes.length) drawText(g, "!", t2 + sw + 3, y2, C.amber, { font: "3" });
+    const ix = r.x + r.w - 12 - rw.parts.length * 16;
+    if (rw.parts.length && ix > t2 + sw + 8) drawParts(g, rw.parts, ix, r.y + Math.round(r.h / 2) - 3);
     return;
   }
   let y = r.y + 4;
@@ -116,13 +121,13 @@ export function drawEventCard(g: G, r: Rect, id: EventId, hero: HeroId, v: ForkC
   frameCard(g, r, v);
   const def = EVENTS[id];
   if (compact) {
-    rect(g, r.x + 5, r.y + 5, 24, 24, C.ink);
-    drawScene(g, id, r.x + 6, r.y + 6, 22, 22, hero, "temper", v.t, true);
-    const x = r.x + 34;
-    const tw = tag(g, "ROAD EVENT", x, r.y + 5, C.amber);
-    tag(g, def.kind, x + tw + 2, r.y + 5, C.slate3);
-    drawText(g, def.title, x, r.y + 15, C.yellow, { outline: C.ink });
-    drawText(g, "NO FIGHT · NO WARLORD", x, r.y + 26, C.slate4, { font: "3" });
+    const py = r.y + Math.round((r.h - 24) / 2);
+    rect(g, r.x + 5, py, 24, 24, C.ink);
+    drawScene(g, id, r.x + 6, py + 1, 22, 22, hero, "temper", v.t, true);
+    const x = r.x + 34, y1 = r.y + Math.round(r.h / 2) - 11;
+    const tw = tag(g, "ROAD EVENT", x, y1, C.amber);
+    tag(g, def.kind, x + tw + 2, y1, C.slate3);
+    drawText(g, def.title, x, y1 + 12, C.yellow, { outline: C.ink });
     return;
   }
   let y = r.y + 4;

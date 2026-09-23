@@ -147,7 +147,8 @@ describe("save v6 and migrations", () => {
     const base = newRun("furnace", 77, "x");
     const a = migrateRun(JSON.parse(JSON.stringify(v4Of(base, 4, 2))))!;
     // 0.6.0b: v4 -> v5 -> v6, so it lands on version 6
-    expect([a.version, a.day, a.lives, a.dusk, a.foe]).toEqual([6, 4, 4, null, null]);
+    // 0.6.0b (B3): run.foe (0.5.0's warlord modifiers) is retired; pending road effects live in run.bounty / run.sabotage
+    expect([a.version, a.day, a.lives, a.dusk, (a as { foe?: unknown }).foe, a.bounty, a.sabotage]).toEqual([6, 4, 4, null, undefined, null, null]);
     expect(typeof a.runId).toBe("string");
     expect(a.events[0]).toEqual({ day: 1, id: "wreck", choice: "SALVAGE", won: true });
     expect(a.history[0].day).toBe(1);

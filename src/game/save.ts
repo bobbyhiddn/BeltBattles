@@ -95,7 +95,7 @@ export function migrateRun(raw: unknown): Run | null {
   r.shop.free = r.shop.free ?? 0;
   r.stage = r.stage ?? "caravan";
   r.event = r.event ?? null;
-  r.foe = r.foe ?? null;
+  delete r.foe; // 0.5.0's warlord modifiers: retired (0.6.0b keeps run.bounty / run.sabotage)
   r.nextShop = r.nextShop ?? { discount: 0, free: 0 };
   r.events = r.events ?? [];
   r.history = r.history ?? [];

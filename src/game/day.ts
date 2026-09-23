@@ -74,7 +74,6 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
     run.lives = Math.max(0, run.lives - 1);
   }
   run.gold += income;
-  run.foe = null;
   if (run.lives <= 0) run.over = "lost";
   else if (run.day >= RUN_DAYS) run.over = "complete";
   if (!run.over) {

@@ -19,6 +19,8 @@ import { button, panel, type Rect } from "../../ui/ui";
 import { optionsCard } from "../../ui/hud";
 import { drawRunBar, newAnchors, type AnchorKind } from "../../ui/runbar";
 import { deltaIcon, deltaText, drawChoiceCard, itemName } from "./cards";
+import { drawReveal } from "./reveal";
+import { storedFoe } from "../../game/day";
 import { eventLayout, eventScale, type EventLayout } from "./layout";
 import { BattleScreen } from "../battle";
 import { BuildScreen } from "../build/build";
@@ -40,6 +42,8 @@ export class EventScreen implements Screen {
   won = true;
   outcome: [string, string] = ["", C.bone];
   deckItem: string | undefined;
+  /** SCOUT's SPY: tonight's dusk deck is shown over the scene (then REFIT / FIGHT NOW). */
+  reveal = false;
   private shake = { i: -1, t: 0 };
   private flies: Fly[] = [];
   private readonly flash: Record<AnchorKind, number> = { gold: 0, lives: 0, hull: 0, belt: 0, cargo: 0 };
@@ -69,6 +73,7 @@ export class EventScreen implements Screen {
       const c = this.choices[ev.picked];
       if (c) this.outcome = outcomeText(c, this.won);
       this.deckItem = ev.item;
+      this.reveal = !!ev.reveal;
     }
     this.L = this.layout();
   }
@@ -78,7 +83,8 @@ export class EventScreen implements Screen {
   }
 
   get toastY(): number {
-    return this.L.scene.y + 4; // along the top of the scene, clear of the props on the road
+    // along the top of the scene, clear of the props on the road; under SCOUT's report: its foot
+    return this.reveal ? this.L.scene.y + this.L.scene.h - 16 : this.L.scene.y + 4;
   }
 
   private layout(): EventLayout {
@@ -113,6 +119,7 @@ export class EventScreen implements Screen {
     this.pt = 0;
     this.won = !!res.won;
     this.deckItem = res.deckItem;
+    this.reveal = !!this.run.event?.reveal;
     this.outcome = outcomeText(c, this.won);
     const r = this.L.cards[i];
     const x0 = r.x + r.w / 2, y0 = r.y + 25;
@@ -134,7 +141,7 @@ export class EventScreen implements Screen {
   }
 
   refit(): void {
-    if (this.phase !== "result" || !this.deckItem) return;
+    if (this.phase !== "result" || !(this.deckItem || this.reveal)) return;
     this.run.stage = "refit";
     this.go(new BuildScreen(this.game));
   }
@@ -163,7 +170,7 @@ export class EventScreen implements Screen {
       }
     }
     this.ufx.update(dt);
-    if (this.phase === "result" && !this.deckItem && this.pt >= AUTO) this.fight();
+    if (this.phase === "result" && !this.deckItem && !this.reveal && this.pt >= AUTO) this.fight();
   }
 
   draw(g: G): void {
@@ -178,6 +185,8 @@ export class EventScreen implements Screen {
     const taken = (ev.id === "wreck" && ev.picked === 0) || (ev.id === "trader" && ev.picked === 1);
     const offer = taken ? "" : ev.id === "wreck" ? gainItem(this.choices[0]) ?? "temper" : ev.id === "trader" ? gainItem(this.choices[1]) ?? "coil" : "temper";
     drawScene(g, ev.id, s.x, s.y, s.w, s.h, run.hero, offer, this.t, settings.reducedMotion);
+    const spied = this.reveal && this.phase === "result" && this.pt > 0.3 ? storedFoe(run) : null;
+    if (spied) drawReveal(g, s, spied);
     this.drawHeader(g);
     // choice cards (after a pick: the chosen card slides to the first slot, the rest give way)
     const cv = this.cv;
@@ -261,13 +270,14 @@ export class EventScreen implements Screen {
     const [text, color] = this.outcome;
     const stack = L.portrait || r.w < 240;
     const bh = 19;
-    const sub = this.deckItem ? `${itemName(this.deckItem)} IS IN CARGO` : "";
+    const spied = this.reveal ? storedFoe(this.run) : null;
+    const sub = this.deckItem ? `${itemName(this.deckItem)} IS IN CARGO` : spied ? `DUSK: ${spied.name}` : "";
     const blockH = 7 + (sub ? 10 : 0) + 6 + bh; // stacked: text, sub line, buttons
     const top = r.y + Math.max(4, Math.floor((r.h - blockH) / 2));
     const by = stack ? top + blockH - bh : r.y + Math.floor((r.h - bh) / 2);
     const ty = stack ? top : r.y + Math.floor(r.h / 2) - 7;
     drawText(g, text, stack ? r.x + r.w / 2 : r.x + 8, ty, color, { outline: C.ink, align: stack ? "center" : "left" });
-    if (this.deckItem) {
+    if (this.deckItem || this.reveal) {
       drawText(g, sub, stack ? r.x + r.w / 2 : r.x + 8, ty + 11, C.slate4, { font: "3", align: stack ? "center" : "left" });
       const bw = stack ? Math.floor((r.w - 16) / 2) : 68;
       const x0 = stack ? r.x + 6 : r.x + r.w - 2 * bw - 12;
@@ -315,8 +325,9 @@ export function outcomeText(c: Choice, won: boolean): [string, string] {
     case "hull": return [`+${d.n} MAX HULL`, C.lime];
     case "lives": return [`+${d.n} LIFE`, C.lime];
     case "belt": return [`+${d.n} BELT CAPACITY`, C.lime];
-    case "bounty": return ["CHALLENGE ACCEPTED", C.amber];
-    case "foeHull": return [`FOE HULL ${d.n} THIS ROUND`, C.lime];
+    case "bounty": return [`STAKED: +${d.n} ON YOUR NEXT HARD WIN`, C.amber];
+    case "sabotage": return ["SAPPERS HIRED: NEXT WARLORD WEAKER", C.lime];
+    case "reveal": return ["SCOUTED: TONIGHT'S DUSK DECK", C.lime];
     case "discount": return [`NEXT CARAVAN: PRICES -${d.n}`, C.lime];
     case "reroll": return [`NEXT CARAVAN: ${d.n} FREE REROLL`, C.lime];
     default: return ["DONE", C.bone];
@@ -327,5 +338,6 @@ function sfxFor(c: Choice, won: boolean): Sfx {
   if (c.odds !== undefined) return won ? "win" : "lose";
   const d = c.gain[0];
   if (!d) return "whoosh";
-  return d.k === "item" ? "pickup" : d.k === "gold" || d.k === "discount" || d.k === "reroll" ? "coin" : d.k === "bounty" ? "horn" : d.k === "foeHull" ? "stamp" : "repair";
+  return d.k === "item" ? "pickup" : d.k === "gold" || d.k === "discount" || d.k === "reroll" ? "coin" : d.k === "bounty" ? "horn"
+    : d.k === "sabotage" ? "stamp" : d.k === "reveal" ? "whoosh" : "repair";
 }

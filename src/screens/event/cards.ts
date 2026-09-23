@@ -20,8 +20,8 @@ export function deltaIcon(d: Delta): HTMLCanvasElement {
     case "hull": return shieldIcon();
     case "belt": return beltIcon();
     case "item": return itemIcon(d.def);
-    case "elite": case "foeHull": return skullIcon();
-    case "discount": return tagIcon();
+    case "sabotage": return skullIcon();
+    case "reveal": case "discount": return tagIcon();
     case "reroll": return rerollIcon();
   }
 }
@@ -38,9 +38,9 @@ export function deltaText(d: Delta, cost: boolean): string {
     case "hull": return `${s}${d.n} HULL`;
     case "belt": return `${s}${d.n} BELT`;
     case "item": return itemName(d.def);
-    case "elite": return "ELITE FOE";
-    case "foeHull": return `FOE HULL ${d.n}`;
-    case "bounty": return `+${d.n} ON A WIN`;
+    case "bounty": return `+${d.n} ON A HARD WIN`;
+    case "sabotage": return "WEAKER WARLORD";
+    case "reveal": return "DUSK DECK";
     case "discount": return `PRICES -${d.n}`;
     case "reroll": return `${d.n} FREE REROLL`;
   }

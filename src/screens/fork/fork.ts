@@ -81,8 +81,8 @@ export class ForkScreen implements Screen {
       const y = top + 22 + Math.max(0, Math.floor((H - top - 22 - 6 - ch) / 2));
       return { cards: [0, 1, 2, 3].map((i) => ({ x: x0 + i * (cw + gap), y, w: cw, h: ch })), head: y - 16, detail: null };
     }
-    const gap = 4, ch = 38, cw = W - 8;
-    const detailH = 56;
+    const gap = 4, ch = 32, cw = W - 8;
+    const detailH = 66;
     const total = 4 * ch + 3 * gap + 8 + detailH;
     const y0 = top + 20 + Math.max(0, Math.floor((H - top - 20 - 6 - total) / 2));
     const cards = [0, 1, 2, 3].map((i) => ({ x: 4, y: y0 + i * (ch + gap), w: cw, h: ch }));
@@ -168,12 +168,13 @@ export class ForkScreen implements Screen {
     } else {
       const tier = PICKS[i] as Difficulty, id = this.fork.warlords[tier], inf = this.info(tier);
       title = `${RIVALS[id].name} · ${RIVALS[id].trick}`;
-      lines = [RIVALS[id].blurb, rewardText(inf.reward) + " · A LOSS COSTS NO LIFE"];
+      const notes = inf.notes.map((n) => (n === "SABOTAGED" ? "! SABOTAGED: YESTERDAY'S DECK" : `! ${n} ON A WIN`));
+      lines = [RIVALS[id].blurb, rewardText(inf.reward), "A LOSS COSTS NO LIFE", ...notes];
     }
     drawText(g, title, r.x + 5, r.y + 5, C.yellow, { font: "3" });
     let y = r.y + 14;
-    for (const ln of lines.flatMap((l) => wrap(l, r.w - 74, "3")).slice(0, 5)) {
-      drawText(g, ln, r.x + 5, y, C.bone, { font: "3" });
+    for (const ln of lines.flatMap((l) => wrap(l, r.w - 74, "3")).slice(0, 7)) {
+      drawText(g, ln, r.x + 5, y, ln.startsWith("!") ? C.amber : C.bone, { font: "3" });
       y += 7;
     }
     button(ui, g, "forkgo", { x: r.x + r.w - 62, y: r.y + r.h - 24, w: 58, h: 20 }, i === 0 ? "TAKE IT" : "FIGHT", {

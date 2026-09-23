@@ -1,14 +1,16 @@
-// Road events (0.5.0, REQ-BQR-002): which event a day gets, and what a choice does.
-// The rules live in run state only: gold, lives, cargo, build.hullBonus, build.beltCap and the
-// next caravan's modifiers. The battle sim is untouched, and so is the dusk ghost (0.6.0): the
-// foe-modifying events (herald, sappers) are out of the bag until 0.6.0b retargets them to
-// warlords. Selection uses its own seed streams, so shop rolls and battle seeds are unchanged.
+// Road events (0.5.0, REQ-BQR-002): which event a day's fork offers, and what a choice does.
+// The rules live in run state only: gold, lives, cargo, build.hullBonus, build.beltCap, the next
+// caravan's modifiers and (0.6.0b, decision 5) a pending ELITE BOUNTY / SABOTAGE that act only on
+// the next warlord fight, or SCOUT's stored dusk foe. The battle sim is untouched and a dusk ghost
+// runs exactly as submitted. Selection uses its own seed streams (shop rolls and battle seeds stay).
 
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, START_LIVES } from "../sim/content";
 import { beltUsed, removeItem } from "../sim/deck";
 import { BAG_IDS, EVENTS, EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "./eventDefs";
-import type { FoeMods, Run } from "./run";
+import type { Run } from "./run";
+import { chooseFoe, storedFoe } from "./day";
+import { loadPool } from "./ghosts";
 
 /** A run's event order (0.6.0b): shuffled bags of the bag events, from day 1 (no intro rule).
  *  Never the same twice in a row. */
@@ -73,19 +75,12 @@ export function choicesFor(run: Run, ev: EventState | null = run.event): Choice[
   return list;
 }
 
-/** Today's foe modifiers (created on first use). 0.6.0: recorded only; a dusk ghost ignores them. */
-export function foeMods(run: Run): FoeMods {
-  if (!run.foe || run.foe.day !== run.day) run.foe = { day: run.day, boost: 0, hull: 0, bounty: 0 };
-  return run.foe;
-}
-
 function pay(run: Run, d: Delta): void {
   switch (d.k) {
     case "gold": run.gold -= d.n; break;
     case "hull": run.build.hullBonus -= d.n; break;
     case "belt": run.build.beltCap -= d.n; break;
     case "lives": run.lives -= d.n; break;
-    case "elite": foeMods(run).boost += d.n; break;
     case "item": {
       const uid = d.uid ?? -1;
       if (d.from === "deck") removeItem(run.build, uid);
@@ -97,16 +92,18 @@ function pay(run: Run, d: Delta): void {
   }
 }
 
-function receive(run: Run, d: Delta): void {
+function receive(run: Run, d: Delta, c: Choice): void {
   switch (d.k) {
     case "gold": run.gold += d.n; break;
     case "lives": run.lives = Math.min(START_LIVES, run.lives + d.n); break;
     case "hull": run.build.hullBonus += d.n; break;
     case "belt": run.build.beltCap += d.n; break;
     case "item": run.inventory.push({ uid: run.nextUid++, def: d.def }); break;
-    case "elite": foeMods(run).boost += d.n; break;
-    case "foeHull": foeMods(run).hull += d.n; break;
-    case "bounty": foeMods(run).bounty += d.n; break;
+    // 0.6.0b (decision 5): these act only on warlord fights (road.ts), never on a dusk ghost
+    case "bounty": run.bounty = { day: run.day, stake: c.cost.reduce((s, q) => s + (q.k === "gold" ? q.n : 0), 0), pay: d.n }; break;
+    case "sabotage": run.sabotage = { day: run.day }; break;
+    // SCOUT: tonight's dusk foe is picked now and stored, so dusk fights exactly the deck shown
+    case "reveal": if (!storedFoe(run)) run.dusk = chooseFoe(run, loadPool()); break;
     case "discount": run.nextShop.discount += d.n; break;
     case "reroll": run.nextShop.free += d.n; break;
   }
@@ -131,9 +128,10 @@ export function pickChoice(run: Run, i: number): PickResult {
   if (c.blocked) return { ok: false, reason: c.blocked };
   for (const d of c.cost) pay(run, d);
   const won = c.odds === undefined || ev.roll < c.odds;
-  if (won) for (const d of c.gain) receive(run, d);
+  if (won) for (const d of c.gain) receive(run, d, c);
   ev.picked = i;
   ev.won = won;
+  if (won && c.gain.some((d) => d.k === "reveal")) ev.reveal = true;
   run.events.push({ day: run.day, id: ev.id, choice: c.label, won });
   const item = won ? c.gain.find((d) => d.k === "item") : undefined;
   const deckItem = item && item.k === "item" && ITEMS[item.def].kind !== "supply" ? item.def : undefined;
