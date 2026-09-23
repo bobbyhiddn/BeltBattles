@@ -4,8 +4,6 @@
 // gold on average and none of them wins a run by itself.
 
 import { ITEMS, type Rarity } from "../sim/content";
-import { warlordBuild, warlordName } from "../sim/ai";
-import { HEROES } from "../sim/content";
 import type { Run } from "./run";
 
 export type EventId = "wreck" | "cache" | "trader" | "dice" | "dock" | "herald" | "sappers" | "scout" | "storm" | "smuggler";
@@ -17,9 +15,9 @@ export type Delta =
   | { k: "hull"; n: number } // max hull (build.hullBonus)
   | { k: "belt"; n: number } // belt capacity
   | { k: "item"; def: string; uid?: number; from?: "cargo" | "deck" | "mod" } // gain: new cargo item; cost: that exact part
-  | { k: "elite"; n: number } // warlord foe from n days ahead (0.6.0b: warlords only; never a ghost)
-  | { k: "foeHull"; n: number } // warlord foe hull (negative = weaker)
-  | { k: "bounty"; n: number } // extra gold for beating that warlord
+  | { k: "bounty"; n: number } // ELITE BOUNTY: n gold for beating your next HARD warlord (run.bounty)
+  | { k: "sabotage" } // SABOTAGE: your next warlord fights with its day - 1 deck (run.sabotage)
+  | { k: "reveal" } // SCOUT: tonight's dusk foe is picked and stored now, its deck shown
   | { k: "discount"; n: number } // next caravan: every price -n (min 1)
   | { k: "reroll"; n: number }; // next caravan: n free rerolls
 
@@ -40,6 +38,7 @@ export interface EventState {
   picked: number; // -1 until resolved; then the choice index (resolved events can't be picked again)
   won?: boolean;
   item?: string; // deck equipment the pick put in cargo (offers REFIT, also after a reload)
+  reveal?: boolean; // SCOUT's SPY: tonight's dusk deck was revealed (offers REFIT, also after a reload)
 }
 
 export interface EventDef {
@@ -79,12 +78,6 @@ export function tradeGood(run: Run): Good | null {
   ];
   all.sort((a, b) => rank[a.from] - rank[b.from] || ITEMS[a.def].price - ITEMS[b.def].price || a.uid - b.uid);
   return all[0] ?? null;
-}
-
-/** The warlord if you accept a challenge from `boost` days ahead (0.6.0b retargets this to warlords). */
-export function eliteFoe(run: Run, boost: number): { name: string; hull: number } {
-  const b = warlordBuild(run.enemyHero, run.day + boost);
-  return { name: warlordName(run.enemyHero, run.day + boost), hull: HEROES[run.enemyHero].hull + b.hullBonus };
 }
 
 export const EVENTS: Record<EventId, EventDef> = {
@@ -144,31 +137,28 @@ export const EVENTS: Record<EventId, EventDef> = {
     ],
   },
   herald: {
-    id: "herald", title: "WARLORD'S HERALD", kind: "BOUNTY",
-    text: ["A HERALD BLOCKS THE ROAD: HIS CHAMPION", "WANTS YOUR HULL. A PURSE FOR THE WINNER."],
-    choices: (run) => {
-      const f = eliteFoe(run, 2);
-      return [
-        { label: "ACCEPT", cost: [{ k: "elite", n: 2 }], gain: [{ k: "bounty", n: 8 }], note: `${f.name} · HULL ${f.hull}` },
-        moveOn("DECLINE"),
-      ];
-    },
+    id: "herald", title: "WARLORD'S HERALD", kind: "ELITE BOUNTY",
+    text: ["A HERALD TAKES WAGERS ON THE ROAD:", "BEAT YOUR NEXT HARD WARLORD FOR A PURSE."],
+    choices: () => [
+      { label: "STAKE 3", cost: [gold(3)], gain: [{ k: "bounty", n: 10 }], note: "LOST OR UNFOUGHT: GONE" },
+      moveOn("DECLINE"),
+    ],
   },
   sappers: {
-    id: "sappers", title: "ELVEN SAPPERS", kind: "MERCENARIES",
-    text: ["ELVEN SAPPERS OFFER TO MINE", "YOUR FOE'S ROAD. FOR COIN."],
+    id: "sappers", title: "ELVEN SAPPERS", kind: "SABOTAGE",
+    text: ["ELVEN SAPPERS OFFER TO RAID", "A WARLORD'S DEPOT. FOR COIN."],
     choices: () => [
-      { label: "HIRE", cost: [gold(2)], gain: [{ k: "foeHull", n: -25 }] },
+      { label: "HIRE", cost: [gold(4)], gain: [{ k: "sabotage" }], note: "NEXT WARLORD: YESTERDAY'S DECK" },
       moveOn(),
     ],
   },
   scout: {
     id: "scout", title: "CARAVAN SCOUT", kind: "SCOUT",
-    text: ["A TINKER'S SCOUT RIDES AHEAD", "TO THE NEXT CARAVAN."],
+    text: ["A TINKER'S SCOUT RIDES AHEAD", "TO THE NEXT CARAVAN, OR TO TONIGHT'S FOE."],
     choices: () => [
       { label: "HAGGLE", cost: [], gain: [{ k: "discount", n: 1 }] },
       { label: "SEND WORD", cost: [], gain: [{ k: "reroll", n: 1 }] },
-      moveOn(),
+      { label: "SPY", cost: [gold(1)], gain: [{ k: "reveal" }], note: "SEE TONIGHT'S DUSK DECK" },
     ],
   },
   storm: {
@@ -191,10 +181,8 @@ export const EVENTS: Record<EventId, EventDef> = {
 };
 
 export const EVENT_IDS = Object.keys(EVENTS) as EventId[];
-/** Events that act on the foe. A dusk ghost runs exactly as submitted, so they are out of the bag
- *  for now; their definitions stay because 0.6.0b retargets them to warlords. */
+/** Events that act on warlords (0.6.0b, decision 5): the ELITE BOUNTY and SABOTAGE. They never
+ *  touch a dusk ghost, which runs exactly as submitted. */
 export const WARLORD_EVENT_IDS: EventId[] = ["herald", "sappers"];
-/** The events a run can draw on the road. */
-export const BAG_IDS: EventId[] = EVENT_IDS.filter((id) => !WARLORD_EVENT_IDS.includes(id));
-/** Gentle intros for day 1: free gains only. */
-export const INTRO_IDS: EventId[] = ["wreck", "cache"];
+/** The events a run can draw on the road: all of them (0.6.0b puts herald and sappers back). */
+export const BAG_IDS: EventId[] = [...EVENT_IDS];

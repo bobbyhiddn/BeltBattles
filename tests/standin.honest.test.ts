@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { deckCost, honestStandIn, honestStandInBuild, maxGoldByDay, plateHull, rampPlates, strongHonestBuild } from "../src/game/honest";
-import { standIn } from "../src/game/ghosts";
+// 0.6.0b: honest.ts is tooling only; rampPlates, maxGoldByDay and deckCost live in src/sim/rivals.ts,
+// and the dusk stand-in is standInFoe (the run's rival captain with standInBuild), not standIn
+import { honestStandIn, honestStandInBuild, plateHull, strongHonestBuild } from "../src/game/honest";
+import { RIVALS, deckCost, maxGoldByDay, rampPlates, standInBuild, standInGhost } from "../src/sim/rivals";
+import { standInFoe } from "../src/game/ghosts";
 import { chooseFoe } from "../src/game/day";
 import { newRun } from "../src/game/run";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
@@ -21,7 +24,8 @@ function refBuildCost(b: Build): number {
   return items + mods + crates * crate.price + plates * plate.price;
 }
 
-describe("honest stand-in helpers (M3b)", () => {
+// 0.6.0b: the honest helpers are tooling decks now (makeGhost, pinClassicFoe), not the dusk stand-in
+describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in", () => {
   it("plateHull is ARMOR PLATING's +25 hull", () => {
     expect(plateHull).toBe(25);
     expect(ITEMS.plating.supply!.hull).toBe(25);
@@ -42,12 +46,13 @@ describe("honest stand-in helpers (M3b)", () => {
   it("deckCost mirrors buildCost: items + mods + crates above the base belt + plating", () => {
     const decks: Build[] = [startingBuild("furnace", 1), startingBuild("weaver", 1)];
     for (const h of BOTH) for (const d of DAYS) decks.push(warlordBuild(h, d), honestStandInBuild(h, d), strongHonestBuild(h, d, 6));
-    for (const b of decks) expect(deckCost(b)).toBe(refBuildCost(b));
+    // 0.6.0b: deckCost returns the BuildCost breakdown { items, mods, crates, plates, total }
+    for (const b of decks) expect(deckCost(b).total).toBe(refBuildCost(b));
     // hand-checked: furnace cooker (kiln 0, temper 3, brake 3, longhaul 5, press 8, grease 3,
     // whetstone 3), calibrate 5, beltCap 18 = 1 crate (2), 3 plates (15)
-    expect(deckCost({ ...warlordBuild("furnace", 10), hullBonus: 75 })).toBe(25 + 5 + 2 + 15);
-    expect(deckCost({ ...startingBuild("weaver", 1), hullBonus: 26 })).toBe(10); // 26 hull needs 2 plates
-    expect(deckCost({ ...startingBuild("weaver", 1), hullBonus: -27 })).toBe(0); // negative hull buys nothing
+    expect(deckCost({ ...warlordBuild("furnace", 10), hullBonus: 75 })).toEqual({ items: 25, mods: 5, crates: 1, plates: 3, total: 25 + 5 + 2 + 15 });
+    expect(deckCost({ ...startingBuild("weaver", 1), hullBonus: 26 }).total).toBe(10); // 26 hull needs 2 plates
+    expect(deckCost({ ...startingBuild("weaver", 1), hullBonus: -27 }).total).toBe(0); // negative hull buys nothing
   });
 
   it("for both heroes on days 1-10: whole non-negative plating, within the day's gold, day 1 has none", () => {
@@ -60,7 +65,7 @@ describe("honest stand-in helpers (M3b)", () => {
         expect(b.hullBonus).toBeGreaterThanOrEqual(0);
         expect(b.hullBonus % plateHull).toBe(0);
         expect(b.hullBonus).toBe(s.plates * plateHull);
-        expect(deckCost(b)).toBeLessThanOrEqual(maxGoldByDay(d));
+        expect(deckCost(b).total).toBeLessThanOrEqual(maxGoldByDay(d)); // 0.6.0b: deckCost(b).total
         // today's content fits without dropping anything: today's gates, rampPlates(day) plating
         expect(s.fromDay).toBe(d);
         expect(s.plates).toBe(rampPlates(d));
@@ -70,18 +75,24 @@ describe("honest stand-in helpers (M3b)", () => {
     }
   });
 
-  it("standIn brings the honest deck and stays deterministic for a seed and day", () => {
+  // 0.6.0b: the stand-in is standInFoe, the run's captain standInGhost(seed, day) with its honest
+  // standInBuild deck and name (no longer honestStandInBuild of a seeded hero)
+  it("standInFoe brings the captain's honest standInBuild deck and stays deterministic for a seed and day", () => {
     for (const seed of [1, 555, 12345, 644245094]) {
       for (const d of DAYS) {
-        const a = standIn(seed, d), b = standIn(seed, d);
+        const a = standInFoe(seed, d), b = standInFoe(seed, d);
         expect(b).toEqual(a);
-        expect(a.build).toEqual(honestStandInBuild(a.hero, d));
+        const id = standInGhost(seed, d);
+        expect(a.id).toBe(id);
+        expect(a.build).toEqual(standInBuild(id, d));
+        expect([a.hero, a.name]).toEqual([RIVALS[id].hero, RIVALS[id].name]);
         const run = newRun("weaver", seed, "me");
         run.day = d;
         const f = chooseFoe(run, []);
         expect(f.kind).toBe("standin");
         expect(f.build).toEqual(a.build);
-        expect(deckCost(f.build)).toBeLessThanOrEqual(maxGoldByDay(d));
+        expect([f.name, f.rival]).toEqual([a.name, id]);
+        expect(deckCost(f.build).total).toBeLessThanOrEqual(maxGoldByDay(d));
       }
     }
   });
@@ -93,8 +104,9 @@ describe("honest stand-in helpers (M3b)", () => {
           const b = strongHonestBuild(h, d, reach);
           expect(b.hullBonus % plateHull).toBe(0);
           expect(b.hullBonus).toBeGreaterThanOrEqual(0);
-          expect(deckCost(b)).toBeLessThanOrEqual(maxGoldByDay(d));
-          expect(maxGoldByDay(d) - deckCost(b)).toBeLessThan(ITEMS.plating.price); // the rest went on plating
+          // 0.6.0b: deckCost(b).total (deckCost returns the cost breakdown)
+          expect(deckCost(b).total).toBeLessThanOrEqual(maxGoldByDay(d));
+          expect(maxGoldByDay(d) - deckCost(b).total).toBeLessThan(ITEMS.plating.price); // the rest went on plating
         }
       }
     }

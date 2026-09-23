@@ -5,7 +5,8 @@ import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
 import { duskFoe } from "../../game/day";
 import { loadPool } from "../../game/ghosts";
-import { beginRoad } from "../../game/events";
+import { leaveCaravan } from "../../game/road";
+import { ForkScreen } from "../fork/fork";
 import { EVENTS } from "../../game/eventDefs";
 import { HEROES, ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
 import { connectedRouteCount, defOf, itemByUid, kx, ky } from "../../sim/deck";
@@ -195,11 +196,12 @@ export class BuildScreen implements Screen, EditHost {
       this.invalid("NO BELT FEEDS A TURRET! FIGHT AGAIN TO GO ANYWAY");
       return;
     }
-    // leaving the caravan: this round's road event first (if one is due and not yet resolved)
-    const open = beginRoad(this.run);
+    // 0.6.0b: leaving the caravan goes to the road fork (after a REFIT: on to dusk)
+    const next = leaveCaravan(this.run);
     saveRun(this.run);
     this.game.audio.play("go");
-    this.game.go(open ? new EventScreen(this.game) : new BattleScreen(this.game));
+    this.game.go(next === "fork" ? new ForkScreen(this.game) : next === "event" ? new EventScreen(this.game)
+      : next === "warlord" ? new BattleScreen(this.game, "warlord") : new BattleScreen(this.game));
   }
 
   update(dt: number): void {

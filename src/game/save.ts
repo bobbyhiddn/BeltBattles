@@ -1,15 +1,21 @@
-// Run save/load. Save v5 (0.6.0) is the 10-day run: `day` (was `round`), 5 lives, a run id and
-// today's stored dusk opponent. Older saves still load, migrated in place:
+// Run save/load. Save v6 (0.6.0b) is the 10-day run with the road fork: today's fork pick, the
+// stored warlord fight and its result, every warlord result, matriarchBeatenOn (R3), a pending
+// ELITE BOUNTY and a pending SABOTAGE. Older saves still load, migrated in place:
 //  v3 (0.3.0-0.4.1) -> v4: at its caravan, no road event taken yet this round;
 //  v4 (0.5.0) -> v5: day = its round (at most 10), lives + 2 (at most 5), no ghost picked yet
 //  (picked when dusk starts). 0.5.0's road modifiers of its warlord are dropped (a ghost runs as
-//  submitted), and an open WARLORD'S HERALD / ELVEN SAPPERS event (out of the bag) is dropped.
+//  submitted), and an open WARLORD'S HERALD / ELVEN SAPPERS event (out of the bag) is dropped;
+//  v5 (0.6.0a) -> v6: a save past its caravan already took its road stop (its event, or a quiet
+//  road), so its fork pick is the event; no warlord fought yet, nothing pending; a stored pool
+//  ghost's stamp moves to the v1 snapshot fields.
 
 import { RUN_DAYS, START_LIVES, type HeroId } from "../sim/content";
 import { warlordName } from "../sim/ai";
+import { toId } from "./ghostSnapshot";
 import type { Run } from "./run";
 
-export const SAVE_KEY = "beltbattles.run.v5";
+export const SAVE_KEY = "beltbattles.run.v6";
+export const SAVE_KEY_V5 = "beltbattles.run.v5";
 export const SAVE_KEY_V4 = "beltbattles.run.v4";
 export const SAVE_KEY_V3 = "beltbattles.run.v3";
 
@@ -17,6 +23,7 @@ export const SAVE_KEY_V3 = "beltbattles.run.v3";
 type Raw = Record<string, any>;
 
 const clampDay = (n: unknown): number => Math.max(1, Math.min(RUN_DAYS, Math.floor(Number(n) || 1)));
+const STAGES = ["caravan", "fork", "event", "warlord", "refit", "battle"];
 
 function v3to4(r: Raw): void {
   r.version = 4;
@@ -57,34 +64,60 @@ function v4to5(r: Raw): void {
   if (r.over === "won") r.over = "complete";
 }
 
-/** Bring a parsed save up to v5, or null if it isn't a usable run. Pure (tests call it directly). */
+function v5to6(r: Raw): void {
+  r.version = 6;
+  const day = clampDay(r.day);
+  const past = r.stage === "event" || r.stage === "refit" || r.stage === "battle";
+  r.road = past ? { day, pick: "event" } : null;
+  r.warlord = null;
+  r.warlords = [];
+  r.matriarchBeatenOn = null;
+  r.bounty = null;
+  r.sabotage = null;
+  const rec = r.dusk?.record as Raw | undefined;
+  if (rec) {
+    r.dusk.record = {
+      wins: Math.max(0, Number(rec.wins) || 0), lives: Math.max(1, Number(rec.lives) || 1),
+      runId: toId(rec.runId), playerId: toId(rec.playerId), createdAt: Math.max(0, Number(rec.createdAt ?? rec.savedAt) || 0),
+    };
+  }
+}
+
+/** Bring a parsed save up to v6, or null if it isn't a usable run. Pure (tests call it directly). */
 export function migrateRun(raw: unknown): Run | null {
   const r = raw as Raw | null;
   if (!r || typeof r !== "object" || !r.build || !r.shop || !Array.isArray(r.inventory)) return null;
   if (r.version === 3) v3to4(r);
   if (r.version === 4) v4to5(r);
-  if (r.version !== 5) return null;
+  if (r.version === 5) v5to6(r);
+  if (r.version !== 6) return null;
   r.shop.discount = r.shop.discount ?? 0;
   r.shop.free = r.shop.free ?? 0;
   r.stage = r.stage ?? "caravan";
   r.event = r.event ?? null;
-  r.foe = r.foe ?? null;
+  delete r.foe; // 0.5.0's warlord modifiers: retired (0.6.0b keeps run.bounty / run.sabotage)
   r.nextShop = r.nextShop ?? { discount: 0, free: 0 };
   r.events = r.events ?? [];
   r.history = r.history ?? [];
   r.dusk = r.dusk ?? null;
   r.over = r.over ?? null;
+  r.road = r.road ?? null;
+  r.warlord = r.warlord ?? null;
+  r.warlords = Array.isArray(r.warlords) ? r.warlords : [];
+  r.matriarchBeatenOn = typeof r.matriarchBeatenOn === "number" ? r.matriarchBeatenOn : null;
+  r.bounty = r.bounty ?? null;
+  r.sabotage = r.sabotage ?? null;
   r.day = clampDay(r.day);
   r.lives = Math.max(0, Math.min(START_LIVES, Number(r.lives) || 0));
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;
-  if (!["caravan", "event", "refit", "battle"].includes(r.stage)) r.stage = "caravan";
+  if (!STAGES.includes(r.stage)) r.stage = "caravan";
+  if (r.stage === "warlord" && !(r.warlord && r.warlord.day === r.day)) r.stage = "fork";
   return r as unknown as Run;
 }
 
 export function saveRun(run: Run | null): void {
   try {
-    localStorage.removeItem(SAVE_KEY_V3);
-    localStorage.removeItem(SAVE_KEY_V4);
+    for (const k of [SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5]) localStorage.removeItem(k);
     if (!run || run.over) localStorage.removeItem(SAVE_KEY);
     else localStorage.setItem(SAVE_KEY, JSON.stringify(run));
   } catch {
@@ -94,7 +127,8 @@ export function saveRun(run: Run | null): void {
 
 export function loadRun(): Run | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem(SAVE_KEY_V4) ?? localStorage.getItem(SAVE_KEY_V3);
+    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem(SAVE_KEY_V5)
+      ?? localStorage.getItem(SAVE_KEY_V4) ?? localStorage.getItem(SAVE_KEY_V3);
     if (!raw) return null;
     return migrateRun(JSON.parse(raw));
   } catch {

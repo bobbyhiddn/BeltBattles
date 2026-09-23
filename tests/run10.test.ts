@@ -30,7 +30,7 @@ describe("the 10-day run", () => {
     expect(START_LIVES).toBe(5);
     const run = newRun("weaver", 7);
     expect([run.day, run.lives, run.wins, run.losses, run.over, run.dusk]).toEqual([1, 5, 0, 0, null, null]);
-    expect(run.version).toBe(5);
+    expect(run.version).toBe(6); // 0.6.0b: save v6 (RUN_VERSION = 6, the road fork fields)
   });
 
   it("a dusk loss costs 1 life, a draw costs none and scores no win; income is indexed by day", () => {
@@ -84,9 +84,10 @@ describe("the 10-day run", () => {
 });
 
 describe("dusk: the opponent is picked when dusk starts and stored", () => {
+  // 0.6.0b: a GhostSnapshot v1 (rules, playerId, createdAt); `losses` only sets lives now
   const ghost = (day: number, wins: number, losses: number, runId: string): GhostSnapshot => ({
-    v: 1, rulesVersion: RULES_VERSION, hero: "weaver", day, wins, losses, lives: 5 - losses,
-    build: startingBuild("weaver", 1), runId, savedAt: 1,
+    v: 1, rules: RULES_VERSION, hero: "weaver", day, wins, lives: 5 - losses,
+    build: startingBuild("weaver", 1), runId, playerId: "p-test", createdAt: 1,
   });
 
   it("the build screen's preview is the pick dusk makes; a reload fights the same ghost even if the pool changed", () => {
@@ -105,7 +106,7 @@ describe("dusk: the opponent is picked when dusk starts and stored", () => {
     expect(duskFoe(loaded, [])).toEqual(f);
     finishDay(loaded, W, 30, STATS, STATS);
     expect(loaded.dusk).toBe(null);
-    expect(loaded.history[0].foe).toBe("GHOST · WEAVER · 0-0");
+    expect(loaded.history[0].foe).toBe("GHOST · WEAVER · 0W 5♥"); // 0.6.0b: hero, wins, lives (no W-L)
     expect(loaded.history[0].ghost).toBe(true);
   });
 
@@ -116,7 +117,11 @@ describe("dusk: the opponent is picked when dusk starts and stored", () => {
   });
 });
 
-describe("save v5 and migrations", () => {
+// 0.6.0b: the save is v6; v3/v4/v5 saves migrate up to it. newRun carries the v6 road fields,
+// which no older save has, so the old-save fixtures drop them.
+const V6_FIELDS = ["road", "warlord", "warlords", "matriarchBeatenOn", "bounty", "sabotage"];
+
+describe("save v6 and migrations", () => {
   function v4Of(run: Run, round: number, lives: number): Record<string, unknown> {
     const r = clone(run) as unknown as Record<string, unknown>;
     r.version = 4;
@@ -125,22 +130,25 @@ describe("save v5 and migrations", () => {
     delete r.day;
     delete r.runId;
     delete r.dusk;
+    for (const k of V6_FIELDS) delete r[k]; // 0.6.0b: a v4 save has no v6 fields
     r.foe = { round, boost: 2, hull: 0, bounty: 8 };
     r.events = [{ round: 1, id: "wreck", choice: "SALVAGE", won: true }];
     r.history = [{ round: 1, outcome: "win", income: 9, bounty: 0, time: 30, player: STATS, enemy: STATS }];
     return r;
   }
 
-  it("v5 round-trips unchanged", () => {
+  it("v6 round-trips unchanged", () => { // 0.6.0b: newRun is v6 now
     const run = newRun("weaver", 5, "rt");
     startDusk(run, []);
     expect(migrateRun(JSON.parse(JSON.stringify(run)))).toEqual(run);
   });
 
-  it("a v4 mid-run save loads with day = its round (at most 10), lives + 2 (at most 5), no ghost picked yet", () => {
+  it("a v4 mid-run save loads (via v5, as v6) with day = its round (at most 10), lives + 2 (at most 5), no ghost picked yet", () => {
     const base = newRun("furnace", 77, "x");
     const a = migrateRun(JSON.parse(JSON.stringify(v4Of(base, 4, 2))))!;
-    expect([a.version, a.day, a.lives, a.dusk, a.foe]).toEqual([5, 4, 4, null, null]);
+    // 0.6.0b: v4 -> v5 -> v6, so it lands on version 6
+    // 0.6.0b (B3): run.foe (0.5.0's warlord modifiers) is retired; pending road effects live in run.bounty / run.sabotage
+    expect([a.version, a.day, a.lives, a.dusk, (a as { foe?: unknown }).foe, a.bounty, a.sabotage]).toEqual([6, 4, 4, null, undefined, null, null]);
     expect(typeof a.runId).toBe("string");
     expect(a.events[0]).toEqual({ day: 1, id: "wreck", choice: "SALVAGE", won: true });
     expect(a.history[0].day).toBe(1);
@@ -162,19 +170,24 @@ describe("save v5 and migrations", () => {
     expect(m.stage).toBe("event");
     expect(m.event!.day).toBe(3);
     expect(m.event!.id).toBe("dice");
+    expect(m.road).toEqual({ day: 3, pick: "event" }); // 0.6.0b (v5 -> v6): past its caravan, the fork pick is the event
     const herald = v4Of(base, 3, 1);
     herald.stage = "event";
     herald.event = { round: 3, id: "herald", roll: 0.5, pick: 0.5, picked: -1 };
     const h = migrateRun(JSON.parse(JSON.stringify(herald)))!;
     expect([h.stage, h.event]).toEqual(["caravan", null]);
+    expect(h.road).toBe(null); // 0.6.0b: back at its caravan, no fork pick yet
   });
 
-  it("a v3 save migrates through v4 to v5", () => {
+  it("a v3 save migrates through v4 and v5 to v6", () => {
     const run = newRun("weaver", 777, "z") as unknown as Record<string, unknown>;
     const v3: Record<string, unknown> = { ...clone(run), version: 3, round: 2, lives: 3, shop: { wagons: (run.shop as { wagons: unknown }).wagons, rerolls: 0 } };
-    for (const k of ["day", "runId", "dusk", "stage", "event", "foe", "nextShop", "events"]) delete v3[k];
+    // 0.6.0b: a v3 save has none of the v6 fields either
+    for (const k of ["day", "runId", "dusk", "stage", "event", "foe", "nextShop", "events", ...V6_FIELDS]) delete v3[k];
     const m = migrateRun(JSON.parse(JSON.stringify(v3)))!;
-    expect([m.version, m.day, m.lives, m.stage, m.event, m.dusk]).toEqual([5, 2, 5, "caravan", null, null]);
+    // 0.6.0b: v3 -> v4 -> v5 -> v6 lands on version 6, with the v6 road fields at their defaults
+    expect([m.version, m.day, m.lives, m.stage, m.event, m.dusk]).toEqual([6, 2, 5, "caravan", null, null]);
+    expect([m.road, m.warlord, m.warlords, m.matriarchBeatenOn, m.bounty, m.sabotage]).toEqual([null, null, [], null, null, null]);
     expect([m.shop.discount, m.shop.free]).toEqual([0, 0]);
     expect(m.events).toEqual([]);
     expect(migrateRun({ version: 2, build: {}, shop: {}, inventory: [] })).toBe(null);

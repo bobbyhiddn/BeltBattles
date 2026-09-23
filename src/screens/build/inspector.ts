@@ -11,6 +11,7 @@ import { rect, type G } from "../../render/pixel";
 import { drawText, wrap } from "../../render/font";
 import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
+import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, sell, sellPrice, store, unfitMod, type Ctx } from "./actions";
 import type { Sel } from "./layout";
 import { describe } from "./shop";
@@ -228,12 +229,19 @@ function foeClass(foe: DuskFoe): string {
 export function drawFoe(g: G, foe: DuskFoe, r: Rect): void {
   panel(g, r, "dark");
   const head = foe.kind === "ghost" ? "NEXT BATTLE · DUSK GHOST" : "NEXT BATTLE · DUSK";
-  drawText(g, r.h < 32 ? "NEXT BATTLE" : head, r.x + 5, r.y + 5, C.slate4, { font: "3" });
+  // 0.6.0b: a stand-in is a rival captain: its portrait, its name and a STAND-IN tag
+  const rival = foe.kind === "standin" ? foe.rival : undefined;
+  const ps = r.h >= 32 ? 24 : 16;
+  if (rival) drawPortrait(g, rival, r.x + 5, r.y + Math.round((r.h - ps) / 2), ps);
+  const x0 = rival ? r.x + 5 + ps + 5 : r.x + 5;
+  drawText(g, r.h < 32 ? "NEXT BATTLE" : head, x0, r.y + 5, C.slate4, { font: "3" });
   if (r.h < 32) {
     drawText(g, foeClass(foe), r.x + r.w - 5, r.y + 5, C.bone, { font: "3", align: "right" });
-    drawText(g, foe.name, r.x + 5, r.y + 13, C.red, { outline: C.ink });
+    const nw = drawText(g, foe.name, x0, r.y + 13, C.red, { outline: C.ink });
+    if (rival) tag(g, "STAND-IN", x0 + nw + 4, r.y + 14, C.slate3);
     return;
   }
-  drawText(g, foe.name, r.x + 5, r.y + 13, C.red, { outline: C.ink });
-  drawText(g, foeClass(foe), r.x + 5, r.y + 24, C.bone, { font: "3" });
+  const nw = drawText(g, foe.name, x0, r.y + 13, C.red, { outline: C.ink });
+  if (rival) tag(g, "STAND-IN", x0 + nw + 4, r.y + 14, C.slate3);
+  drawText(g, foeClass(foe), x0, r.y + 24, C.bone, { font: "3" });
 }

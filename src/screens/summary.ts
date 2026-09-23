@@ -16,6 +16,7 @@ import { cruiserModel, drawDim, drawHull, drawTurrets, type CruiserView } from "
 import { drawMachinery } from "../render/machinery";
 import { ArenaBg } from "../render/arenaBg";
 import { button, panel } from "../ui/ui";
+import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
 import { HeroScreen } from "./hero";
 import { TitleScreen } from "./title";
 
@@ -52,10 +53,31 @@ export class SummaryScreen implements Screen {
     this.game.audio.play(this.complete ? "win" : "lose");
   }
 
+  /** 0.6.0b: every fight of the run in order: each day's warlord fight (if one was picked), then its dusk. */
+  fights(): { day: number; stop: string; stopColor: string; foe: string; foeColor: string; outcome: "win" | "loss" | "draw"; time: number }[] {
+    const run = this.run;
+    const out: ReturnType<SummaryScreen["fights"]> = [];
+    for (const d of run.history) {
+      for (const w of run.warlords.filter((q) => q.day === d.day)) {
+        out.push({ day: w.day, stop: TIER_LABEL[w.tier], stopColor: TIER_COLOR[w.tier], foe: w.name, foeColor: nameColor(w.id), outcome: w.outcome, time: w.time });
+      }
+      const ev = run.events.find((e) => e.day === d.day);
+      const warlordDay = run.warlords.some((q) => q.day === d.day);
+      const stop = warlordDay ? "DUSK" : ev ? EVENTS[ev.id].kind : "DUSK";
+      out.push({ day: d.day, stop, stopColor: warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time });
+    }
+    return out;
+  }
+
+  private rowH(): number {
+    const rows = Math.max(1, this.fights().length);
+    return Math.max(6, Math.min(ROW, Math.floor((this.game.H - 8 - 110) / rows)));
+  }
+
   private layout(): { card: { x: number; y: number; w: number; h: number }; hx: number; hy: number } {
     const { W, H, portrait } = this.game;
-    const rows = Math.max(1, this.run.history.length);
-    const w = Math.min(W - 12, 232), h = 64 + rows * ROW + 38;
+    const rows = Math.max(1, this.fights().length);
+    const w = Math.min(W - 12, 252), h = 64 + rows * this.rowH() + 12 + 38;
     const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.64 - w / 2);
     const y = portrait ? Math.max(HULL_L + 20, H - h - 8) : Math.max(4, Math.round(H / 2 - h / 2));
     const hx = Math.round(portrait ? W / 2 - HULL_A / 2 : Math.min(W * 0.26, x - 12 - HULL_A / 2) - HULL_A / 2);
@@ -116,29 +138,34 @@ export class SummaryScreen implements Screen {
     });
   }
 
-  /** One row per day: DAY · ROAD (the event taken) · DUSK (the opponent) · W / L / D. */
+  /** One row per fight: DAY · STOP (warlord tier, or the road event before a dusk) · OPPONENT ·
+   *  TIME · W / L / D; then lives left and WINS n/10 (dusk wins). */
   private drawDays(g: G, x: number, y: number, w: number): void {
     const run = this.run;
-    const cDay = x, cRoad = x + 14, cRes = x + w - 11;
-    const roadW = Math.round((w - 14 - 12) * 0.42);
-    const cFoe = cRoad + roadW + 4, foeW = cRes - 3 - cFoe;
+    const rh = this.rowH();
+    const cDay = x, cStop = x + 16, cRes = x + w - 10, cTime = cRes - 4;
+    const stopW = 38, cFoe = cStop + stopW + 3, foeW = cTime - 22 - cFoe;
     drawText(g, "DAY", cDay, y, C.slate3, { font: "3" });
-    drawText(g, "ROAD", cRoad + 2, y, C.slate3, { font: "3" });
-    drawText(g, "DUSK", cFoe, y, C.slate3, { font: "3" });
+    drawText(g, "STOP", cStop, y, C.slate3, { font: "3" });
+    drawText(g, "OPPONENT", cFoe, y, C.slate3, { font: "3" });
+    drawText(g, "TIME", cTime, y, C.slate3, { font: "3", align: "right" });
     rect(g, x, y + 7, w, 1, C.slate1);
     let ry = y + 10;
-    for (const d of run.history) {
-      const ev = run.events.find((e) => e.day === d.day);
-      const road = ev ? `${EVENTS[ev.id].title}${ev.won ? "" : " (LOST)"}` : "QUIET ROAD";
-      drawText(g, String(d.day), cDay + 9, ry, C.slate4, { font: "3", align: "right" });
-      drawText(g, fit(road, roadW), cRoad + 2, ry, ev ? C.bone : C.slate3, { font: "3" });
-      drawText(g, fit(d.foe, foeW), cFoe, ry, d.ghost ? C.ice : C.bone, { font: "3" });
-      const c = d.outcome === "win" ? C.lime : d.outcome === "loss" ? C.red : C.slate3;
-      rect(g, cRes, ry - 2, 11, 9, C.ink);
-      rect(g, cRes + 1, ry - 1, 9, 7, c);
-      drawText(g, d.outcome === "win" ? "W" : d.outcome === "loss" ? "L" : "D", cRes + 4, ry, C.ink, { font: "3" });
-      ry += ROW;
+    for (const f of this.fights()) {
+      drawText(g, String(f.day), cDay + 8, ry, C.slate4, { font: "3", align: "right" });
+      drawText(g, fit(f.stop, stopW), cStop, ry, f.stopColor, { font: "3" });
+      drawText(g, fit(f.foe, foeW), cFoe, ry, f.foeColor, { font: "3" });
+      const s = Math.round(f.time);
+      drawText(g, `${Math.floor(s / 60)}:${s % 60 < 10 ? "0" : ""}${s % 60}`, cTime, ry, C.slate4, { font: "3", align: "right" });
+      const c = f.outcome === "win" ? C.lime : f.outcome === "loss" ? C.red : C.slate3;
+      rect(g, cRes, ry - 1, 10, 7, C.ink);
+      rect(g, cRes + 1, ry, 8, 5, c);
+      drawText(g, f.outcome === "win" ? "W" : f.outcome === "loss" ? "L" : "D", cRes + 3, ry, C.ink, { font: "3" });
+      ry += rh;
     }
+    rect(g, x, ry, w, 1, C.slate1);
+    const lives = `${run.lives} ${run.lives === 1 ? "LIFE" : "LIVES"} LEFT`;
+    drawText(g, `${lives} · WINS ${run.wins}/${RUN_DAYS}`, x + w / 2, ry + 3, C.white, { font: "3", align: "center" });
   }
 
   key(k: string): void {

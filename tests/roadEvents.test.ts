@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
-import { BAG_IDS, EVENTS, EVENT_IDS, INTRO_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId } from "../src/game/eventDefs";
-import { beginRoad, choicesFor, eventDue, eventFor, makeEvent, pickChoice } from "../src/game/events";
+import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId } from "../src/game/eventDefs";
+import { beginRoad, choicesFor, eventFor, makeEvent, pickChoice } from "../src/game/events";
 import { battleSeed, migrateRun, newRun, reroll, rollShop, type Run } from "../src/game/run";
 import { chooseFoe, finishDay, startDusk } from "../src/game/day";
 import { ITEMS, START_LIVES } from "../src/sim/content";
@@ -25,15 +25,28 @@ function atEvent(id: EventId, round = 3, seed = 4242): Run {
 }
 
 describe("road events: seeded selection", () => {
-  it("round 1 always has a gentle intro; later rounds 3 in every 4; the pick ignores the shop and battle streams", () => {
+  // 0.6.0b: every day has a fork and its event slot always holds a real event from the bag, so the
+  // day-1 intro set (INTRO_IDS) and the 3-in-4 quiet-road skip (eventDue) are gone on purpose.
+  it("0.6.0b: every day 1-10 has a bag event, fixed by the seed; day 1 is no special intro; the pick ignores the shop", () => {
+    const dayOne = new Set<EventId>();
     for (const seed of SEEDS) {
-      expect(eventDue(seed, 1)).toBe(true);
-      expect(INTRO_IDS).toContain(eventFor(seed, 1));
-      for (let b = 0; b < 3; b++) {
-        const block = [2, 3, 4, 5].map((r) => r + b * 4).filter((r) => eventDue(seed, r)).length;
-        expect(block).toBe(3);
+      for (let d = 1; d <= 10; d++) {
+        const id = eventFor(seed, d);
+        expect(BAG_IDS).toContain(id);
+        expect(eventFor(seed, d)).toBe(id); // deterministic
       }
-      expect(eventFor(seed, 5)).toBe(eventFor(seed, 5)); // deterministic
+      dayOne.add(eventFor(seed, 1));
+    }
+    expect(dayOne.size).toBeGreaterThan(2); // day 1 draws from the whole bag
+    for (const seed of SEEDS.slice(0, 20)) {
+      const a = newRun("furnace", seed);
+      const b = newRun("furnace", seed);
+      b.gold = 99;
+      reroll(b);
+      reroll(b);
+      beginRoad(a);
+      beginRoad(b);
+      expect(b.event).toEqual(a.event); // same event and rolls, whatever the caravan did
     }
   });
 
@@ -48,17 +61,19 @@ describe("road events: seeded selection", () => {
       for (let i = 1; i < shown.length; i++) expect(shown[i].id).not.toBe(shown[i - 1].id);
       const ten = new Set(shown.filter((s) => s.r <= 10).map((s) => s.id));
       expect(ten.size).toBeGreaterThanOrEqual(5);
+      expect(shown.filter((s) => s.r <= 10).length).toBe(10);
       total += shown.filter((s) => s.r <= 10).length;
     }
+    // 0.6.0b: no quiet roads any more, every day 1-10 has its event (was 7-8 per run)
     const perRun = total / SEEDS.length;
-    expect(perRun).toBeGreaterThanOrEqual(7); // 1 + about 3/4 of rounds 2-10
-    expect(perRun).toBeLessThanOrEqual(8);
+    expect(perRun).toBe(10);
   });
 
-  it("every bag event shows up across seeds (8 of them); herald and sappers are out of the bag", () => {
-    expect(BAG_IDS.length).toBeGreaterThanOrEqual(8);
+  // 0.6.0b (B3): herald (ELITE BOUNTY) and sappers (SABOTAGE) act on warlords now, so they are back in the bag
+  it("every bag event shows up across seeds (all 10 of them, herald and sappers back in the bag)", () => {
+    expect(BAG_IDS.length).toBe(10);
     expect(WARLORD_EVENT_IDS).toEqual(["herald", "sappers"]);
-    expect(EVENT_IDS).toEqual(expect.arrayContaining(["herald", "sappers"])); // definitions kept for 0.6.0b
+    expect(BAG_IDS).toEqual(expect.arrayContaining(["herald", "sappers"]));
     const seen = new Set<string>();
     for (const seed of SEEDS) for (let r = 1; r <= 10; r++) { const id = eventFor(seed, r); if (id) seen.add(id); }
     expect([...seen].sort()).toEqual([...BAG_IDS].sort());
@@ -115,10 +130,11 @@ describe("road events: every choice applies exactly what it shows", () => {
           expect(run.build.beltCap - before.build.beltCap).toBe(sumOf(gains, "belt") - sumOf(c.cost, "belt"));
           expect(run.nextShop.discount - before.nextShop.discount).toBe(sumOf(gains, "discount"));
           expect(run.nextShop.free - before.nextShop.free).toBe(sumOf(gains, "reroll"));
-          const foe = run.foe && run.foe.day === run.day ? run.foe : { boost: 0, hull: 0, bounty: 0 };
-          expect(foe.boost).toBe(sumOf(c.cost, "elite") + sumOf(gains, "elite"));
-          expect(foe.hull).toBe(sumOf(gains, "foeHull"));
-          expect(foe.bounty).toBe(sumOf(gains, "bounty"));
+          // 0.6.0b (B3): the warlord effects are pending run state (ELITE BOUNTY, SABOTAGE) and SCOUT's
+          // SPY stores tonight's dusk foe; nothing else is touched
+          expect(run.bounty?.pay ?? 0).toBe(sumOf(gains, "bounty"));
+          expect(!!run.sabotage).toBe(gains.some((d) => d.k === "sabotage"));
+          expect(!!run.dusk).toBe(gains.some((d) => d.k === "reveal"));
           const gotItems = gains.filter((d) => d.k === "item").map((d) => (d as { def: string }).def);
           const lostUids = c.cost.filter((d) => d.k === "item").map((d) => (d as { uid?: number }).uid);
           const beforeCargo = before.inventory.filter((it) => !lostUids.includes(it.uid)).map((it) => it.def);
@@ -163,17 +179,21 @@ describe("road events: every choice applies exactly what it shows", () => {
     expect(run.gold).toBe(g + ITEMS.temper.price);
   });
 
-  it("0.6.0: an accepted herald challenge is only recorded (for 0.6.0b's warlords); the dusk ghost is unchanged and pays no bounty", () => {
+  // 0.6.0b (B3): the herald is the ELITE BOUNTY (stake 3, +10 on the next Hard warlord win): it is
+  // pending run state, and the dusk ghost is unchanged and pays no bounty (tests/retarget.test.ts
+  // covers the warlord side)
+  it("0.6.0b: a staked ELITE BOUNTY is pending for the next Hard warlord; the dusk ghost is unchanged and pays no bounty", () => {
     const run = atEvent("herald", 2);
     const plain = clone(run);
     expect(pickChoice(run, 0).ok).toBe(true);
-    expect(run.foe).toEqual({ day: 2, boost: 2, hull: 0, bounty: 8 });
+    expect(run.bounty).toEqual({ day: 2, stake: 3, pay: 10 });
+    expect(run.gold).toBe(plain.gold - 3);
     expect(chooseFoe(run, [])).toEqual(chooseFoe(plain, []));
     startDusk(run, []);
     const g0 = run.gold;
     const r = finishRound(run, 0, 30, STATS, STATS);
     expect(run.gold - g0).toBe(r.income);
-    expect(run.foe).toBe(null);
+    expect(run.bounty).toEqual({ day: 2, stake: 3, pay: 10 }); // still waiting for a Hard warlord
   });
 
   it("scout deals reach the next caravan: prices -1 (same items) and a free reroll", () => {
@@ -210,9 +230,12 @@ describe("road events: save and load", () => {
       expect(beginRoad(loaded)).toBe(true); // still open, same event, same rolls
       expect(loaded.event).toEqual(run.event);
       expect(choicesFor(loaded)).toEqual(choicesFor(run));
-      pickChoice(loaded, 0);
+      // 0.6.0b: day 1 is no longer a gentle intro, so choice 0 can be blocked on a fresh run (the
+      // trader's SELL: NOTHING TO TRADE); take the first open choice instead.
+      const open = choicesFor(loaded).findIndex((c) => !c.blocked);
+      expect(pickChoice(loaded, open).ok).toBe(true);
       const after = migrateRun(JSON.parse(JSON.stringify(loaded)))!;
-      expect(after.event!.picked).toBe(0);
+      expect(after.event!.picked).toBe(open);
       expect(beginRoad(after)).toBe(false); // resolved: straight to the battle
       const g = after.gold;
       expect(pickChoice(after, 0).ok).toBe(false);
@@ -237,9 +260,9 @@ describe("road events: value", () => {
         case "lives": return d.n * 5;
         case "reroll": return d.n * 2;
         case "discount": return d.n * 2.5;
-        case "bounty": return d.n * 0.5;
-        case "foeHull": return -d.n * 0.12;
-        case "elite": return d.n * 1.2;
+        case "bounty": return d.n * 0.5; // 0.6.0b: +n on the next Hard warlord win
+        case "sabotage": return 3; // 0.6.0b: a weaker next warlord (about a plate's worth)
+        case "reveal": return 1; // 0.6.0b: tonight's dusk deck shown
         default: return 0;
       }
     };

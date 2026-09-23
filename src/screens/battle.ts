@@ -8,12 +8,15 @@ import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, type BattleLayout } from "../game/battleLayout";
-import { battleSeed, saveRun, type DayResult, type DuskFoe } from "../game/run";
+import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, ghostOf, startDusk } from "../game/day";
 import { loadPool, saveGhost } from "../game/ghosts";
+import { finishWarlord, pickPending, takePart, todaysWarlord, warlordSeed } from "../game/road";
 import { HEROES, RUN_DAYS } from "../sim/content";
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
+import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
+import { drawWarlordResult, type WarlordActions } from "./warlordHud";
 import { drawText, textWidth } from "../render/font";
 import { ArenaBg } from "../render/arenaBg";
 import { banner, optionsCard } from "../ui/hud";
@@ -45,12 +48,30 @@ export class BattleScreen implements Screen {
   private hpInt: [number, number] = [-1, -1];
   private bar: BarState;
 
-  constructor(private game: Game) {
+  /** 0.6.0b: "warlord" is the road-stop fight (PvE, never costs a life), "dusk" the ghost. */
+  readonly kind: "dusk" | "warlord";
+  readonly warlord: WarlordFight | null = null;
+  private readonly wact: WarlordActions;
+
+  constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
-    this.foe = startDusk(run, loadPool()); // dusk starts: pick once, store, save
+    this.kind = kind;
+    const w = kind === "warlord" ? todaysWarlord(run) : null;
+    if (kind === "warlord" && !w) throw new Error("no warlord fight today");
+    if (w) {
+      // the stored fight: same deck, same seed, so a reload replays it exactly
+      this.warlord = w;
+      run.stage = "warlord";
+      this.foe = { day: w.day, kind: "standin", name: w.name, hero: w.hero, build: w.build, rival: w.id };
+    } else this.foe = startDusk(run, loadPool()); // dusk starts: pick once, store, save
     saveRun(run);
     this.foeName = this.foe.name;
-    this.arena = new Arena(run.build, this.foe.build, battleSeed(run), game.audio);
+    this.wact = {
+      take: [0, 1].map((i) => () => this.take(i)),
+      refit: () => this.refitNow(),
+      fight: () => this.toDusk(),
+    };
+    this.arena = new Arena(run.build, this.foe.build, w ? warlordSeed(run) : battleSeed(run), game.audio);
     this.arena.off = [60, 260];
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
@@ -60,7 +81,45 @@ export class BattleScreen implements Screen {
       onPause: () => this.togglePause(),
     };
     this.relayout();
+    if (w?.result) {
+      // reloaded on the result card: show the stored result, never fight or pay again
+      this.arena.off = [0, 0];
+      this.arena.syncFrames();
+      this.arena.finish();
+      this.phase = "result";
+      this.pt = 9;
+    }
   }
+
+  /** A Hard win's part pick: the part goes to cargo (then REFIT / FIGHT NOW). */
+  take(i: number): void {
+    if (!this.warlord || this.phase !== "result") return;
+    const d = takePart(this.game.run!, i);
+    if (!d) return;
+    saveRun(this.game.run);
+    this.game.audio.play("pickup");
+  }
+
+  /** After a warlord part: refit the deck (the caravan is gone), then FIGHT to dusk. */
+  refitNow(): void {
+    if (!this.warlord || this.leaving) return;
+    this.leaving = true;
+    this.game.run!.stage = "refit";
+    saveRun(this.game.run);
+    this.game.go(new BuildScreen(this.game));
+  }
+
+  /** On to the dusk ghost (FIGHT NOW / ON TO DUSK). */
+  toDusk(): void {
+    if (!this.warlord || this.leaving || pickPending(this.warlord)) return;
+    this.leaving = true;
+    this.game.run!.stage = "battle";
+    saveRun(this.game.run);
+    this.game.audio.play("go");
+    this.game.go(new BattleScreen(this.game, "dusk"));
+  }
+
+  private leaving = false;
 
   pickScale(pw: number, ph: number, portrait: boolean): number {
     return battleScale(pw, ph, portrait);
@@ -109,6 +168,18 @@ export class BattleScreen implements Screen {
   private end(): void {
     const run = this.game.run!;
     const b = this.arena.b;
+    if (this.warlord) {
+      // PvE: gold (and a part) on a win; lives never change
+      const r = finishWarlord(run, (b.winner ?? -1) as 0 | 1 | -1, b.t);
+      this.wOutcome = r?.outcome ?? "draw";
+      saveRun(run);
+      this.phase = "outro";
+      this.pt = 0;
+      this.arena.speed = 1;
+      this.arena.paused = false;
+      this.game.audio.music(null);
+      return;
+    }
     const mine = ghostOf(run); // the deck exactly as it fought tonight, with the record entering it
     this.result = finishDay(run, b.winner ?? -1, b.t, b.sides[0].stats, b.sides[1].stats);
     saveGhost(mine);
@@ -132,8 +203,16 @@ export class BattleScreen implements Screen {
   }
 
   private next(): void {
+    if (this.warlord) return this.toDusk();
     const run = this.game.run!;
     this.game.go(run.over ? new SummaryScreen(this.game) : new BuildScreen(this.game));
+  }
+
+  private wOutcome: "win" | "loss" | "draw" = "draw";
+
+  /** The outcome of the fight just played (warlord or dusk). */
+  private outcome(): "win" | "loss" | "draw" | undefined {
+    return this.warlord ? this.warlord.result?.outcome ?? this.wOutcome : this.result?.outcome;
   }
 
   update(dt: number): void {
@@ -174,7 +253,7 @@ export class BattleScreen implements Screen {
       if (this.phase === "outro" && this.pt > 2.5) {
         this.phase = "result";
         this.pt = 0;
-        const o = this.result?.outcome;
+        const o = this.outcome();
         this.game.audio.play(o === "win" ? "win" : o === "loss" ? "lose" : "ready");
       }
     }
@@ -191,7 +270,11 @@ export class BattleScreen implements Screen {
     const cy = Math.round(H / 2);
     if (this.phase === "intro") {
       const k = Math.min(1, this.pt / 0.35);
-      banner(g, W, cy - 16, `DUSK · DAY ${this.foe.day}/${RUN_DAYS}`, C.yellow, `VS ${this.foeName}`, k);
+      const w = this.warlord;
+      const head = w ? `ROAD · DAY ${this.foe.day}/${RUN_DAYS}` : `DUSK · DAY ${this.foe.day}/${RUN_DAYS}`;
+      const sub = w ? `VS ${this.foeName} · ${TIER_LABEL[w.tier]} WARLORD` : `VS ${this.foeName}`;
+      banner(g, W, cy - 16, head, w ? C.amber : C.yellow, sub, k);
+      if (this.foe.rival && k >= 1) this.drawCaptain(g, cy + 22);
       if (this.pt > INTRO && this.count <= 3) drawText(g, String(this.count), W / 2, cy - 50, C.white, { align: "center", scale: 4, outline: C.ink });
     } else if (this.phase === "fight" && this.pt < 0.7 && Math.floor(this.pt * 10) % 2 === 0) {
       drawText(g, "FIGHT!", W / 2, cy - 11, C.yellow, { align: "center", scale: 3, outline: C.ink });
@@ -199,8 +282,10 @@ export class BattleScreen implements Screen {
     if (this.windBanner > 0 && Math.floor(this.windBanner * 6) % 2 === 0) {
       banner(g, W, cy - 16, "DARK WIND", C.plum4, "THE STORM HURTS BOTH HULLS", 1);
     }
-    if (this.phase === "outro" && this.result && this.pt > 0.55) {
-      const o = this.result.outcome;
+    if (this.phase === "result" && this.warlord?.result) drawWarlordResult(g, this.game, this.warlord, this.pt, this.wact);
+    const oc = this.outcome();
+    if (this.phase === "outro" && oc && this.pt > 0.55) {
+      const o = oc;
       const k = Math.min(1, (this.pt - 0.55) / 0.25);
       banner(g, W, cy - 18, o === "win" ? "VICTORY!" : o === "loss" ? "DEFEAT" : "DRAW", o === "win" ? C.lime : o === "loss" ? C.red : C.bone, o === "win" ? "THEIR HULL BREAKS" : o === "loss" ? "YOUR HULL BREAKS" : undefined, k, 3);
     }
@@ -209,6 +294,21 @@ export class BattleScreen implements Screen {
     }
     if (this.paused && this.phase !== "result") this.drawPaused(g);
     if (this.menu) this.drawMenu(g);
+  }
+
+  /** Intro: the captain's portrait, name and tag (the warlord's tier, or STAND-IN at dusk). */
+  private drawCaptain(g: G, y: number): void {
+    const id = this.foe.rival!;
+    const w = this.warlord;
+    const label = w ? TIER_LABEL[w.tier] : "STAND-IN";
+    const nw = textWidth(this.foeName);
+    const tw = textWidth(label, "3") + 5;
+    const total = 24 + 6 + Math.max(nw, tw);
+    const x = Math.round(this.game.W / 2 - total / 2);
+    panel(g, { x: x - 5, y: y - 4, w: total + 10, h: 32 }, "dark");
+    drawPortrait(g, id, x, y);
+    drawText(g, this.foeName, x + 30, y + 2, nameColor(id), { outline: C.ink });
+    tag(g, label, x + 30, y + 14, w ? TIER_COLOR[w.tier] : C.slate3);
   }
 
   /** In-place pause: a small chip (PAUSED, how to resume, MENU) that leaves the battlefield visible. */

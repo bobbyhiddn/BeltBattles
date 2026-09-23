@@ -19,6 +19,8 @@ import { optionsCard } from "../ui/hud";
 import { HeroScreen } from "./hero";
 import { BuildScreen } from "./build/build";
 import { EventScreen } from "./event/event";
+import { ForkScreen } from "./fork/fork";
+import { BattleScreen } from "./battle";
 import { VERSION } from "../version";
 
 const HELP = [
@@ -150,9 +152,12 @@ export class TitleScreen implements Screen {
     const run = loadRun();
     if (!run) return;
     this.game.run = run;
-    // on the road: the same event (resolved or not); after it: a refit (the caravan is gone)
+    // on the road: the same event (resolved or not); at the fork: the fork; mid-warlord: the same
+    // fight again (same deck, same seed); after the road stop: a refit (the caravan is gone)
     const onRoad = run.stage === "event" && !!run.event && run.event.day === run.day;
-    this.game.go(onRoad ? new EventScreen(this.game) : new BuildScreen(this.game));
+    const warlord = run.stage === "warlord" && !!run.warlord && run.warlord.day === run.day;
+    this.game.go(onRoad ? new EventScreen(this.game) : run.stage === "fork" ? new ForkScreen(this.game)
+      : warlord ? new BattleScreen(this.game, "warlord") : new BuildScreen(this.game));
   }
 
   key(k: string): void {
