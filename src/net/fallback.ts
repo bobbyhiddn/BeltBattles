@@ -1,23 +1,23 @@
 // Offline ghosts: the dusk fight must always have an opponent, even with no network or
-// an empty pool (ROADMAP §3). Order of preference: a bundled pool ghost, then a
-// stand-in built from the other faction's warlord for that day. 0.6.0 swaps the
-// warlord stand-in for the rival captains.
+// an empty pool (ROADMAP §3). Order of preference: a bundled pool ghost, then a stand-in
+// drawn from the bundled full-purse stand-in pool (src/sim/standInPool.ts): a legal deck of
+// another faction's hero for that day that spends at least 90% of the day's gold.
 
 import { Rng } from "../core/rng";
 import { HEROES, RULES_VERSION, RUN_LIVES, type HeroId } from "../sim/content";
-import { warlordBuild } from "../sim/ai";
+import { PLAYABLE_HEROES } from "../sim/heroBuilds";
+import { standInPick } from "../sim/standInPool";
 import { pickGhost, type MatchRequest } from "./matchmaking";
 import { checkSnapshot, MAX_DAY, MAX_LIVES, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
 
 /**
- * Heroes a stand-in (or sample-pool) ghost may play: only those ai.ts can build, because
- * startingBuild/warlordBuild know Furnace and Weaver alone. Enumerating HEROES would pick
- * FOUNDRY/BASTION and hand them a Furnace deck (snapshot.build.hero mismatch). Races part 2
- * adds PLAYABLE_HEROES and a hero-generic heroRefBuild; integration swaps this list for those.
- * Any hero may still REQUEST a stand-in; it just fights one of these.
+ * Heroes a stand-in (or sample-pool) ghost may play: the heroes the game offers
+ * (PLAYABLE_HEROES). Each needs decks in the stand-in pool (STAND_IN_POOL_HEROES), because
+ * standInPick throws for a hero outside it; tests/net-fallback-standins.test.ts fails if a
+ * playable hero has none. Any hero may still REQUEST a stand-in; it fights one of these.
  */
-export const STAND_IN_HEROES: readonly HeroId[] = ["furnace", "weaver"];
+export const STAND_IN_HEROES: readonly HeroId[] = PLAYABLE_HEROES;
 
 /** The hero a stand-in ghost plays: another faction's hero, chosen by seed. */
 export function rivalHero(hero: HeroId, seed = 0): HeroId {
@@ -26,9 +26,10 @@ export function rivalHero(hero: HeroId, seed = 0): HeroId {
 }
 
 /**
- * Stand-in ghost for (hero, day, seed): warlordBuild of the other faction at that day.
- * Its record mirrors the requester's so the pre-fight card reads sensibly. Warlord
- * builds are trusted local content and are NOT budget-validated (see REPORT findings).
+ * Stand-in ghost for (hero, day, seed): standInPick(foe, day, seed), a full-purse deck of
+ * another faction's hero from the bundled stand-in pool. Every pool deck passes
+ * validateBuild for its day (tests/standInPool.test.ts). Its record mirrors the requester's
+ * so the pre-fight card reads sensibly. The playerId string is unchanged for compatibility.
  */
 export function offlineGhost(hero: HeroId, day: number, seed: number, record?: { wins: number; lives: number }): PoolEntry {
   const d = Math.min(MAX_DAY, Math.max(1, Math.floor(day)));
@@ -36,7 +37,7 @@ export function offlineGhost(hero: HeroId, day: number, seed: number, record?: {
   const wins = Math.min(d - 1, Math.max(0, Math.floor(record?.wins ?? 0)));
   const lives = Math.min(MAX_LIVES, Math.max(1, Math.floor(record?.lives ?? RUN_LIVES)));
   const snapshot = checkSnapshot({
-    v: 1, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build: warlordBuild(foe, d),
+    v: 1, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build: standInPick(foe, d, seed),
     runId: `offline-${(seed >>> 0).toString(16)}`, playerId: "offline-warlord", createdAt: 0,
   });
   return { id: `offline-${foe}-d${d}`, snapshot };
@@ -87,7 +88,7 @@ export interface FallbackRequest extends MatchRequest {
   seed: number; // e.g. the day's battle seed; picks within the pool and names the stand-in
 }
 
-/** Best offline opponent: a matching bundled-pool ghost, else the warlord stand-in. */
+/** Best offline opponent: a matching bundled-pool ghost, else the stand-in pool's deck (offlineGhost). */
 export function fallbackGhost(req: FallbackRequest, pool: readonly PoolEntry[] = []): PoolEntry {
   const hit = pickGhost(pool, req, new Rng(req.seed));
   return hit ?? offlineGhost(req.hero, req.day, req.seed, { wins: req.wins, lives: req.lives });

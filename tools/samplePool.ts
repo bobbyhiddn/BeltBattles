@@ -1,31 +1,38 @@
-// Deterministic sample ghost pool: 2 heroes x 10 days x 2 variants = 40 snapshots.
-// Variant 0 is the day's warlord made purchasable (whole plating, within the day's
-// budget); variant 1 is a seeded shopper spending that budget on the starting layout.
-// Every snapshot passes validateBuild, so the pool doubles as validator coverage.
-// Heroes come from STAND_IN_HEROES (the ones ai.ts can build), not Object.keys(HEROES).
+// Deterministic sample ghost pool: 2 heroes x 10 days x 2 variants = 40 snapshots, drawn from
+// the bundled full-purse stand-in pool (src/sim/standInPool.ts), because the bundled pool is the
+// client's first offline choice, ahead of the stand-in: variant 0 is the day's par, variant 1 a
+// seeded pick that is never the same deck as the par. Every snapshot passes validateBuild, so
+// the pool doubles as validator coverage. Heroes come from STAND_IN_HEROES (PLAYABLE_HEROES).
+// Records (wins, lives) are drawn exactly as before the switch: variant 1's rng first replays
+// the retired shopper's draws, so only the decks changed.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, RUN_LIVES, type HeroId } from "../src/sim/content";
-import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
+import { startingBuild } from "../src/sim/ai";
 import { occupancy, type Build } from "../src/sim/deck";
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { checkSnapshot, encodeSnapshot, MAX_DAY, type GhostSnapshot } from "../src/net/snapshot";
+import { encodeStandIn, standInParIndex, standInPickIndex, standInPool } from "../src/sim/standInPool";
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
 const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant);
 const MODS = Object.values(ITEMS).filter((d) => d.kind === "mod" && d.merchant);
 
-/** Variant 0: the warlord deck with its hull bonus rounded to whole plating that fits the budget. */
-function legalWarlord(hero: HeroId, day: number): Build {
-  const b = warlordBuild(hero, day);
-  b.hullBonus = Math.max(0, Math.round(warlordHull(day) / PLATE)) * PLATE;
-  while (b.hullBonus > 0 && buildCost(b).total > maxGoldByDay(day)) b.hullBonus -= PLATE;
-  return b;
+/** The sample deck: variant 0 = the par; variant 1 = standInPick's entry for `seed`, stepped
+ *  deterministically to the next entry while it is the same deck as the par. */
+export function sampleDeck(hero: HeroId, day: number, v: number, seed: number): Build {
+  const pool = standInPool(hero, day), par = standInParIndex(hero, day);
+  if (v === 0) return pool[par].build;
+  const parCode = encodeStandIn(pool[par].build);
+  let i = standInPickIndex(hero, day, seed);
+  for (let step = 0; step < pool.length && encodeStandIn(pool[i].build) === parCode; step++) i = (i + 1) % pool.length;
+  return pool[i].build;
 }
 
-/** Variant 1: gates on free belt tiles, a turret module, plating; never over budget. */
+/** Retired variant-1 shopper (gates, a module, plating on the starting layout). Its deck is no
+ *  longer used; it only replays its rng draws so each snapshot keeps its record. */
 function shopper(hero: HeroId, day: number, rng: Rng): Build {
   const b = startingBuild(hero, 1);
   const budget = maxGoldByDay(day);
@@ -57,8 +64,10 @@ export function generateSamplePool(): GhostSnapshot[] {
   for (const hero of STAND_IN_HEROES) {
     for (let v = 0; v < 2; v++) {
       for (let day = 1; day <= MAX_DAY; day++) {
-        const rng = new Rng(hashSeed("sample-pool", hero, v, day));
-        const build = v === 0 ? legalWarlord(hero, day) : shopper(hero, day, rng);
+        const seed = hashSeed("sample-pool", hero, v, day);
+        const rng = new Rng(seed);
+        if (v === 1) shopper(hero, day, rng); // replay the retired shopper's draws: records unchanged
+        const build = sampleDeck(hero, day, v, seed);
         const wins = rng.int(day);
         const losses = Math.min(RUN_LIVES - 1, rng.int(day - wins));
         const snap = checkSnapshot({

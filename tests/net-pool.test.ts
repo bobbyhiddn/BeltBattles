@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { warlordBuild } from "../src/sim/ai";
+import { standInPick } from "../src/sim/standInPool";
 import { RULES_VERSION } from "../src/sim/content";
 import { fallbackGhost, loadGhostPool, offlineGhost, rivalHero } from "../src/net/fallback";
 import { encodeSnapshot, ghostId } from "../src/net/snapshot";
@@ -41,18 +41,18 @@ describe("sample pool and offline fallback", () => {
     expect(() => loadGhostPool("{}")).toThrow(/array/);
   });
 
-  it("the offline ghost is the other faction's warlord for that day", () => {
+  it("the offline ghost is a stand-in pool deck of the other faction's hero for that day", () => {
     const g = offlineGhost("furnace", 4, 99, { wins: 2, lives: 2 });
     expect(rivalHero("furnace")).toBe("weaver");
     expect(rivalHero("weaver")).toBe("furnace");
     expect(g.id).toBe("offline-weaver-d4");
     expect(g.snapshot).toMatchObject({ hero: "weaver", day: 4, wins: 2, lives: 2, rules: RULES_VERSION });
-    expect(g.snapshot.build).toEqual(warlordBuild("weaver", 4));
+    expect(g.snapshot.build).toEqual(standInPick("weaver", 4, 99));
     expect(() => encodeSnapshot(g.snapshot)).not.toThrow();
     expect(offlineGhost("weaver", 1, 5, { wins: 7, lives: 0 }).snapshot).toMatchObject({ hero: "furnace", wins: 0, lives: 1 });
   });
 
-  it("fallbackGhost prefers a matching pool ghost, then the warlord stand-in", () => {
+  it("fallbackGhost prefers a matching pool ghost, then the stand-in", () => {
     const { entries } = loadGhostPool(samplePoolJson());
     const req = { rules: RULES_VERSION, day: 6, wins: 3, lives: 2, playerId: "me", seen: [] as string[], hero: "weaver" as const, seed: 42 };
     const hit = fallbackGhost(req, entries);
