@@ -130,7 +130,8 @@ export class Arena {
       this.updateSide(side, sdt, dt * k);
       if (this.show[side]) damageFx(this, side, dt * k);
     }
-    fx.update(dt * k * Math.min(2, Math.max(1, this.speed * 0.75)));
+    // effects follow the playback: slowed with 0.5X (0.6.0), sped up to at most 2x at 2X/4X
+    fx.update(dt * k * (this.speed < 1 ? this.speed : Math.min(2, Math.max(1, this.speed * 0.75))));
     this.trackShake();
     return out;
   }
