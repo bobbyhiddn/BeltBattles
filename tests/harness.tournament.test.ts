@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { maxGoldByDay, validateBuild } from "../src/net/validate";
-import { HARNESS_HEROES } from "../src/sim/harness/heroes";
+import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
+import { HARNESS_HEROES, heroRefBuild } from "../src/sim/harness/heroes";
 import { balanceMarkdown } from "../src/sim/harness/report";
 import { bandFlag, wilson } from "../src/sim/harness/stats";
-import { DEFAULT_OPTS, runTournament, type TourneyOpts } from "../src/sim/harness/tournament";
+import { DEFAULT_OPTS, playJob, runTournament, type Runner, type TourneyOpts } from "../src/sim/harness/tournament";
 
 // Balance harness tournament: a tiny end-to-end run, determinism, and the statistics.
 
@@ -38,12 +38,34 @@ describe("harness tournament", () => {
       // pop matrix: A-pop x B-gauntlet + B-pop x A-gauntlet - overlap, x2 battles per pairing
       expect(d.pop["furnace|weaver"].n).toBe((4 * 2 + 4 * 2 - 2 * 2) * 2);
       expect(d.elite["furnace|weaver"].n).toBe(2 * 2 * 2);
+      for (const a of HARNESS_HEROES) {
+        // mirror: the 2 builds outside the gauntlet x the hero's 2 gauntlet builds x 2 battles
+        expect(d.pop[`${a}|${a}`].n).toBe(2 * 2 * 2);
+        expect(d.elite[`${a}|${a}`]).toBeUndefined();
+        expect(d.spend[a].min).toBeLessThanOrEqual(d.spend[a].median);
+        expect(d.spend[a].max).toBeLessThanOrEqual(d.budget);
+      }
     }
-    expect(res.days[0].calibration!.furnace.of).toBe(5);
+    const cal = res.days[0].calibration!.furnace;
+    expect(cal.of).toBe(5);
+    expect(cal.cost).toBe(buildCost(heroRefBuild("furnace", 1)).total);
+    expect(cal.popCost).toEqual(res.days[0].spend.furnace);
     const md = balanceMarkdown(res, { runtimeMs: 1, workers: 1, command: "test", perDayMs: {} });
     expect(md).toContain("## Day 1");
     expect(md).toContain("Calibration");
+    expect(md).toContain("## Mirror cells");
+    expect(md).toContain("## Lever traits");
   }, 60_000);
+
+  it("results do not depend on the order jobs are played in (any worker split)", async () => {
+    const o: TourneyOpts = { ...TINY, heroes: ["weaver", "bastion"], pop: 3, gauntlet: 2 };
+    const backwards: Runner = async (field, jobs) => {
+      const out = new Array<number>(jobs.length);
+      for (let i = jobs.length - 1; i >= 0; i--) out[i] = playJob(field, jobs[i]);
+      return out;
+    };
+    expect(JSON.stringify(await runTournament(o, backwards))).toBe(JSON.stringify(await runTournament(o)));
+  }, 30_000);
 
   it("the same seed gives identical tournament results", async () => {
     const o: TourneyOpts = { ...TINY, heroes: ["furnace", "metronome", "siphon"], days: [3], pop: 4, gauntlet: 2 };
