@@ -119,7 +119,7 @@ export async function scriptedRun(page, touch, log, opts) {
   const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
   const state = { refitDone: false, picks: 0, reloadSame: false, losses: [], ghosts: 0, standins: 0, placed: 0 };
   const n = await page.evaluate((pool) => { window.bb.clearPool(); return window.bb.addGhosts(pool); }, opts.pool);
-  log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power ? ` (strong)` : ""}`).join(", ")}`);
+  log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ")}`);
   await tapRegion(page, touch, "new");
   await settle(page, "hero");
   await tapRegion(page, touch, "go");

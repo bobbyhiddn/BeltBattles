@@ -103,7 +103,7 @@ export const SHOTS = [
   // events sheet (desk + phone) and the refit that follows a salvaged part
   ...["desk", "phone"].flatMap((v) => [
     ["event-trader", v, "title", 0, EVENT("trader", { cargo: "whetstone" })],
-    ["event-dock", v, "title", 0, EVENT("dock", { gold: 9, lives: 3 })], // PATCH UP disabled: LIVES FULL
+    ["event-dock", v, "title", 0, EVENT("dock", { gold: 9, lives: 5 })], // PATCH UP disabled: LIVES FULL at START_LIVES (5)
     ["event-herald", v, "title", 0, EVENT("herald", { round: 2 })],
     ["event-storm", v, "title", 0, EVENT("storm")],
     ["event-smuggler", v, "title", 0, EVENT("smuggler")],
