@@ -1,10 +1,11 @@
 # BeltBattles races: FOUNDRY, BASTION, METRONOME, SIPHON
 
 Build spec for the four new heroes (spec §6, §7, §11-§15, §25; roadmap §4). Numbers are
-first-pass balance values. FOUNDRY and BASTION are implemented in `src/sim/races/`, and these
-are their shipped values. METRONOME and SIPHON are specified here for the follow-up job.
-**OPEN** marks a decision left to the Prime. The layout contract (factory 2x2, turret kind and
-col0, width 2) is fixed by the art brief. Nothing here changes Furnace or Weaver.
+first-pass balance values. All four heroes run in the battle sim (`src/sim/races/`), and these
+are their shipped values. The Prime's rulings on part 1's open items are in §6. **OPEN** marks
+what is still undecided. The layout contract (factory 2x2, turret kind and col0, width 2) is
+fixed by the art brief. Nothing here changes Furnace or Weaver: `tests/races.golden.test.ts`
+pins their battles bit for bit.
 
 ## 0. Shared rules (all heroes, already live in 0.4.1)
 
@@ -60,8 +61,10 @@ which never fuse.
   4 tiles at 1x) meets the next pour's blank.
 - The route inspector already reports arrival time per route. The UI should add a SYNC tick
   when two routes into one gun land within 0.25 s.
-- **OPEN (not built):** a human-pool gate ASSAY STAMP (rare, 5 g) that turns a passing plain
-  slug into an alloy blank. That would let Stamp Press lines become fusion partners.
+- **Deferred (ruling 7):** a human-pool gate ASSAY STAMP (rare, 5 g) that turns a passing plain
+  slug into an alloy blank. It waits for the full-arsenal pass (0.10.0) and isn't built.
+- Every fusion emits a `fuse` battle event `{ side, turret, dmg }` after the `load` event
+  (ruling 10). Furnace and Weaver never emit one.
 
 **Gates.**
 - Splitter: splits a blank into two 60% copies on one belt. Copies can't fuse with each other
@@ -115,7 +118,7 @@ which never fuse.
 **Impact model.** The Wardworks is a factory target (weight 3). A Shock on it pauses production,
 and so plating, for 1.6 s. The heavy turret is one weight-2 target.
 
-## 3. METRONOME (Beastfolk, BEASTFOLK PACKS): hit the beat (follow-up job)
+## 3. METRONOME (Beastfolk, BEASTFOLK PACKS): hit the beat
 
 | Field | Value |
 |---|---|
@@ -140,27 +143,41 @@ and so plating, for 1.6 s. The heavy turret is one weight-2 target.
 - Under- and over-shooting cost the same. A congested queue adds no ride, because blocked time
   is excluded.
 
-Implementation note: add an optional `rideCurve(ride)` on AmmoDef, used in place of
-`base + rideScale x ride` in `payloadDamage` callers. It needs a races hook in `Battle.fire`
-and in `estimateRoute`.
+Implementation: `AmmoDef.rideCurve(ride)` replaces `base + rideScale x ride`. `Battle.fire`
+and `estimateRoute` use it, with the firing turret's sweet-spot shift. The speed lock is
+`HERO_RULES.metronome.speedLock` (`races/data.ts`): transport, the belt render state and
+`estimateRoute` all run speed-locked belts at 1x.
 
-**Module swap between days (rules only).**
+**Module swap between days (ruling 4).**
 1. The adaptable turret has one hardpoint, like every turret.
 2. During preparation, Metronome may unmount its module to inventory and mount any owned turret
    module, free and as often as it likes. The mount locks when the battle starts.
-3. Other heroes lose that freedom: a mounted module stays until sold.
-   **OPEN:** today (0.4.1) every hero can unmount modules (`storeMod`). Making the swap
-   Metronome-only changes Furnace and Weaver UX, so the Prime decides.
-4. **OPEN:** beastfolk-pool modules ESCAPEMENT (sweet spot -1.2 s, 3 tiles) and LONGCASE
-   (+1.2 s). They make the swap a real counter-pick.
+3. Other heroes keep a mounted module until they sell it, from the 0.9.0 integration on.
+- Data: `HERO_RULES[hero].freeModuleSwap`, true for Metronome only (a races table, so
+  HeroDef is untouched). `storeMod` and the build screen are unchanged until 0.9.0 honours it.
+
+**ESCAPEMENT and LONGCASE (ruling 5).** Beastfolk-pool turret modules: rare, 5 g, priced like
+Calibration.
+- ESCAPEMENT moves the sweet spot 1.2 s earlier: peak at ride 3.0 s, a 7-tile route.
+- LONGCASE moves it 1.2 s later: peak at ride 5.4 s, a 13-tile route.
+- They affect pendulum slugs only (`PEAK_SHIFT`). On any other ammo they do nothing.
+- No merchant sells them yet: `ITEM_POOL` marks them beastfolk, and the 0.9.0 caravan offers
+  faction pools. So today no Furnace or Weaver shop changes, and no reference build uses them.
+- Head art, display only (`adaptableHead`): no beastfolk module shows HAMMER, ESCAPEMENT shows
+  REPEATER and LONGCASE shows LANCE.
 
 **Gates and impacts.**
-- Speed gates are inert. **OPEN:** hide them from Metronome's wagons.
-- Splitter copies keep the parent's ride time.
+- Speed gates are inert. `HERO_RULES.metronome.shopExclude` lists Grease, Brake and Overdrive
+  so the caravan won't offer them to Metronome (ruling 6; honoured at integration).
+- Splitter copies keep the parent's ride time. A copy can re-ride at most one tick of belt
+  (≤ 1/60 s), an older sim quirk shared with Furnace and kept for bit-identity.
 - Whetstone, Long Haul, Temper and Coil work as usual.
 - The Clockworks is a weight-3 target and the adaptable turret weight 2.
 
-## 4. SIPHON (Unaligned, SUMP DRIFTERS): bleed their line (follow-up job)
+## 4. SIPHON (Unaligned, SUMP DRIFTERS): bleed their line
+
+The sixth hero, unlocked by the first completed run (ruling 9). That gate comes later; the
+battle sim runs Siphon in full now.
 
 | Field | Value |
 |---|---|
@@ -175,6 +192,8 @@ and in `estimateRoute`.
   into the right gun carry ECHO. A route with no gun carries DRAG.
 - This is deterministic, readable on the belt, and the player picks by routing. Alternating per
   stamp was rejected: a blocked route flips the parity for good.
+- Implementation: the mark is the ammo kind (`leechDrag` or `leechEcho`, both base 3), so
+  Splitter copies keep it. The Sump is fed round robin like the Loom (`sumpProduce`).
 
 **Drag.**
 - When a DRAG leech strikes a belt tile, the struck segment runs at x0.25 of its speed state
@@ -183,8 +202,14 @@ and in `estimateRoute`.
   of its routes. A turret hit drags the last segment of each route feeding it. A bare-hull hit
   deals damage only.
 - Re-hits refresh the 3.0 s; they don't stack.
-- Dragged movement isn't eligible ride time, so Drag never cooks Furnace slugs hotter.
+- Dragged movement isn't eligible ride time, so Drag never cooks Furnace slugs hotter. A slug
+  crawling through a dragged segment gains no ride there, so it arrives cooler.
 - Metronome belts are immune.
+- Implementation: gate cells are the nodes, so a segment is a run of plain belt cells between
+  gates (`segments`). A gate hit drags the run that starts right after the gate; nothing is
+  dragged if the next cell is another gate or the route ends. Drag lives on the struck side
+  (`RaceSide.drag`, per-cell end times). A Furnace or Weaver side gets that state only when it
+  faces a Siphon (`raceLink`).
 
 **Echo.** The Prime's proposal, refined:
 - Siphon keeps an echo memory: the most recent enemy payload that struck its cruiser.
@@ -193,6 +218,8 @@ and in `estimateRoute`.
 - It doesn't copy base damage, ride scaling or split multipliers. Those are the enemy's ammo
   and factory, not its processing. An empty memory gives a plain leech.
 - The memory isn't consumed. Each new enemy impact overwrites it.
+- An alloy slug keeps its fused base damage in `flat`, so Echo copies only the part above a
+  plain fusion: flat - 9. A copied Fray stack lands on impact, like a thread slug's.
 - Why: gates are never fired, so "last fired module" has no referent. The payload that just hit
   you is concrete, visible and deterministic. Copying at load shows the charge in the chamber
   before it fires. Echo gets stronger the more the enemy processes, which is Siphon's counter
@@ -207,16 +234,90 @@ and in `estimateRoute`.
 
 ## 5. Balance intent and open items
 
-- Target: each new hero wins 35-65% against Furnace and Weaver at an equal gold budget. That
-  means warlord builds of the same round, with the same `warlordHull(round)` offset.
-  `output/matchups.md` measures FOUNDRY and BASTION. METRONOME and SIPHON values above are
-  first guesses for the follow-up to tune.
-- **OPEN (UI pass):**
-  - a FUSE event and visual (the sim emits a `load` event today);
-  - a plating bar on the hull plate;
-  - a SYNC marker in the route inspector;
-  - Drag and Echo overlays.
-- **OPEN:** turret target weight is 2 per gun, so three-gun Weaver draws more turret hits than
-  one-gun Bastion (spec §15 asks for this difference to be accounted for). No change is made.
-- **OPEN:** Siphon's place at launch (roadmap default: a sixth hero unlocked by the first
-  completed run).
+- Target: each new hero wins 35-65% against Furnace and Weaver at an equal gold budget. The
+  separate balance harness measures that over populations of legal builds, and tuning happens
+  there. The numbers in §1-§4 are first-pass values; none was tuned to a table.
+- `output/matchups6.md` (6x6, reference builds, days 1/5/10, 20 seeds from both sides) is a
+  report, not a target. Fixed builds make most cells 0% or 100%. Its test asserts only sanity:
+  every battle ends before BATTLE_CAP, every number is finite, and both sides fire.
+- **OPEN (balance harness): reference spend.** Furnace and Weaver references (ai.ts
+  `warlordBuild`) spend far less than the race heroes' references: 0 of 8 g on day 1 against
+  6 of 8, and 45-47 g against 58-65 g on day 10 (§7). Not fixed here; the harness owns spend.
+- **OPEN (ruling 8): turret target weights.** Weight is 2 per gun, so three-gun Weaver draws
+  more turret hits than one-gun Bastion (spec §15). Changing it alters Furnace and Weaver
+  battles, so it waits for the balance pass.
+- **OPEN (0.8.0/0.9.0 integration, UI and caravan):**
+  - a FUSE visual for the `fuse` event (the sim emits it);
+  - a plating bar on the hull plate (`race.plating.plate`, cap 24);
+  - a SYNC marker in the route inspector (two routes into one gun within 0.25 s);
+  - Drag and Echo overlays (dragged cells in `race.drag.until`; the echo memory in
+    `race.echo.mem`, copied into each ECHO leech at load);
+  - adaptable head art from `adaptableHead` (HAMMER, REPEATER, LANCE);
+  - the build screen honours `freeModuleSwap`; the caravan honours `shopExclude` and
+    `ITEM_POOL`;
+  - `PLAYABLE_HEROES` grows as heroes ship, and Siphon unlocks after the first completed run.
+- **Deferred (ruling 7):** ASSAY STAMP, in the full-arsenal pass (0.10.0).
+
+## 6. Prime rulings (part 2)
+
+1. **Reference builds, not warlords.** "Warlord" is the Easy/Medium/Hard captain roster. The
+   per-hero decks are reference builds in `src/sim/races/refBuilds.ts`: `raceStartBuild(hero,
+   uid0)` and `raceRefBuild(hero, day)`. A run is 10 days, so days 1-10; other days clamp.
+2. **One entry point**, `src/sim/heroBuilds.ts`: `heroStartBuild(hero)` and
+   `heroRefBuild(hero, day)` for all six heroes, and `PLAYABLE_HEROES = ["furnace", "weaver"]`.
+   Furnace and Weaver delegate to ai.ts: `startingBuild`, and `warlordBuild(hero, day)` with
+   `hullBonus = PLATE_STEP x rampPlates(day)`. Items, modules and belt stay as `warlordBuild`
+   makes them. Every hero and day returns a deck of the requested hero (tested).
+3. **Honest budget.** All 60 reference builds are decks a player could own that day: the
+   validate.ts rules, whole plates, never negative, and purchase cost at most
+   `maxGoldByDay(day)` (START_GOLD plus `incomeFor(d, true)` for each earlier day). Day 1 is a
+   real fight: no handicap and no softened layout.
+   - **Amended (Step A): the plating ramp rounds to the NEAREST plate.**
+     `rampPlates(day) = max(0, round(warlordHull(day) / 25))`, which is 0,0,0,0,1,1,2,2,2,3
+     for days 1-10, so the reference hull bonus is 0/0/0/0/25/25/50/50/50/75. The dusk
+     stand-in (`src/game/honest.ts`) and the rival captains (`src/sim/rivals.ts`) use the same
+     rule, so all three agree. The first cut rounded down (+25 days 6-7, +50 days 8-10).
+     `wholePlating` (round down) stays for other uses.
+4. **Module swap** (spec line 394): `HERO_RULES.metronome.freeModuleSwap` (§3).
+5. **ESCAPEMENT and LONGCASE**: beastfolk-pool turret modules, rare, 5 g (§3).
+6. **Speed gates stay inert on Metronome belts**; `shopExclude` hides them (§3).
+7. **ASSAY STAMP** waits for 0.10.0 and isn't built.
+8. **Turret target weights** stay as they are: OPEN for the balance pass (§5).
+9. **SIPHON is the sixth hero**, unlocked by the first completed run. The sim runs it in full.
+10. **`fuse` event** `{ side, turret, dmg }`, emitted after `load` when two blanks fuse.
+    Furnace and Weaver never emit one (tested).
+
+## 7. Final numbers and reference builds
+
+**METRONOME (shipped).** Hull 200, belt 20. CLOCKWORKS: 1.3 s, 1 output. Pendulum slug:
+2 + 8 x max(0, 1 - |ride - 4.2 - shift| / 3.0), then x mult + flat, at least 1. ADAPTABLE gun
+[4, 5]: 0.9 s, window 3, flight 0.55 s. Every belt runs at 1x (`speedLock`). ESCAPEMENT shift
+-1.2 s (peak 7 tiles), LONGCASE +1.2 s (peak 13 tiles). `freeModuleSwap` true; `shopExclude`
+Grease, Brake, Overdrive.
+
+**SIPHON (shipped).** Hull 190, belt 20. SUMP: 0.9 s, 2 outputs, round robin. Leech slug:
+base 3, no ride scaling, marked by destination (right gun ECHO, anything else DRAG). 2 LIGHT
+guns, [2] and [7]: 0.6 s, window 2, flight 0.34 s. Drag: x0.25 for 3.0 s (`DRAG_MULT`,
+`DRAG_TIME`), refreshed, never stacked. Echo caps: flat +6, Burn 4, Shock, Fray 1 (`ECHO_CAP`).
+
+**Reference builds** (`heroRefBuild`, days 1-10). Purchase cost in gold, as validate.ts
+`buildCost` counts it (items, modules, belt crates above base, plating):
+
+| hero | d1 | d2 | d3 | d4 | d5 | d6 | d7 | d8 | d9 | d10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| budget (maxGoldByDay) | 8 | 17 | 27 | 38 | 50 | 63 | 77 | 91 | 105 | 119 |
+| FURNACE | 0 | 3 | 5 | 8 | 18 | 31 | 39 | 42 | 42 | 47 |
+| WEAVER | 0 | 3 | 6 | 11 | 19 | 24 | 32 | 40 | 40 | 45 |
+| FOUNDRY | 6 | 9 | 12 | 17 | 27 | 32 | 45 | 48 | 51 | 61 |
+| BASTION | 6 | 9 | 14 | 19 | 32 | 35 | 43 | 48 | 51 | 61 |
+| METRONOME | 6 | 11 | 16 | 21 | 34 | 37 | 45 | 52 | 57 | 65 |
+| SIPHON | 6 | 9 | 14 | 19 | 29 | 32 | 42 | 47 | 50 | 58 |
+| plates (rampPlates) | 0 | 0 | 0 | 0 | 1 | 1 | 2 | 2 | 2 | 3 |
+
+- FOUNDRY mirrors its processing on both fusing routes; a Stamp Press lights gun 2 on day 7.
+- BASTION hardens the bulwark line; a Stamp Press feeds the heavy gun's second connector on day 5.
+- METRONOME redraws its route to 10 tiles (the peak) and never buys speed gates; a Stamp Press
+  joins on day 5 and a Splitter on day 8.
+- SIPHON processes both leech lines and mounts Calibration on both guns.
+- Race heroes add a purchase every day. Furnace and Weaver follow ai.ts, which buys nothing on
+  day 1 and nothing new on day 9 (§5, reference spend).

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
 import { simulate, type Battle } from "../src/sim/battle";
 import type { HeroId } from "../src/sim/content";
-import { heroRefBuild } from "../src/sim/heroBuilds";
+import { heroRefBuild, rampPlates } from "../src/sim/heroBuilds";
 import { buildCost, expectSane, maxGoldByDay } from "./races.helpers";
 
 // races: 6x6 matchup table of the reference builds (src/sim/heroBuilds.ts) on days 1, 5 and 10.
@@ -84,6 +84,13 @@ describe("races 6x6 matchups (reference builds, 20 seeds x both sides, days 1/5/
       const gold = HEROES.map((h) => `${h} ${buildCost(heroRefBuild(h, d))}`).join(", ");
       lines.push("", `Deck cost (gold): ${gold}.`, "");
     }
+    const ALL_DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
+    lines.push("## Reference-build cost against the day budget (gold), days 1-10", "");
+    lines.push(`| hero | ${ALL_DAYS.map((d) => `d${d}`).join(" | ")} |`, `|---|${ALL_DAYS.map(() => "---").join("|")}|`);
+    lines.push(`| budget: maxGoldByDay | ${ALL_DAYS.map(maxGoldByDay).join(" | ")} |`);
+    for (const h of HEROES) lines.push(`| ${h.toUpperCase()} | ${ALL_DAYS.map((d) => buildCost(heroRefBuild(h, d))).join(" | ")} |`);
+    lines.push(`| plates: rampPlates(day), 5 g each | ${ALL_DAYS.map(rampPlates).join(" | ")} |`, "");
+    lines.push("Cost counts items, modules, belt crates above the hero's base and plating (validate.ts buildCost).", "");
     lines.push("Seeds: 101 + 7919k, k = 0..19.");
     const md = lines.join("\n") + "\n";
     // eslint-disable-next-line no-console
