@@ -116,10 +116,19 @@ export async function measure(browser, origin, serve, errors) {
       const a = window.bb.game.screen.arena;
       return { ...s, fps: s.frameMs ? +(1000 / s.frameMs).toFixed(1) : 0, battleSeconds: a ? +a.b.t.toFixed(1) : null, particles: a ? a.fx.stats().parts : null };
     });
+    // 0.5.0: the road-event screen's frame time (10 s, real rAF loop, animated vignette)
+    await page.evaluate(() => { window.bb.openEvent("wreck", { round: 1, gold: 8 }); });
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.bb.game.perfN = 0; });
+    await page.waitForTimeout(10000);
+    v.eventFrameTime = await page.evaluate(() => {
+      const s = window.bb.game.perfStats(600);
+      return { ...s, fps: s.frameMs ? +(1000 / s.frameMs).toFixed(1) : 0, screen: window.bb.screen() };
+    });
     v.checks = checks(vname, v);
     v.passes = v.checks.all;
     out.views[vname] = v;
-    console.log(`metrics ${vname}: scale ${v.scale} gap ${v.gap.logical}px (${v.gap.css} css, ${v.gap.share}) deck ${v.shortAxisShare} checks ${v.passes ? "PASS" : "FAIL " + JSON.stringify(v.checks)} shake ${v.shakeOnHit.peakLogicalPx}/${v.shakeOnHeavyHit.peakLogicalPx} rm ${v.shakeOnHitReducedMotion.peakLogicalPx}/${v.shakeOnHeavyHitReducedMotion.peakLogicalPx} ko ${v.shakeOnKO.peakLogicalPx} (rm ${v.shakeOnKOReducedMotion.peakLogicalPx}) work ${v.frameTime.workMs.toFixed(2)}ms`);
+    console.log(`metrics ${vname}: scale ${v.scale} gap ${v.gap.logical}px (${v.gap.css} css, ${v.gap.share}) deck ${v.shortAxisShare} checks ${v.passes ? "PASS" : "FAIL " + JSON.stringify(v.checks)} shake ${v.shakeOnHit.peakLogicalPx}/${v.shakeOnHeavyHit.peakLogicalPx} rm ${v.shakeOnHitReducedMotion.peakLogicalPx}/${v.shakeOnHeavyHitReducedMotion.peakLogicalPx} ko ${v.shakeOnKO.peakLogicalPx} (rm ${v.shakeOnKOReducedMotion.peakLogicalPx}) work ${v.frameTime.workMs.toFixed(2)}ms (event screen ${v.eventFrameTime.workMs.toFixed(2)}ms, ${v.eventFrameTime.fps} fps)`);
     await ctx.close();
   }
   out.allPass = Object.values(out.views).every((v) => v.passes);
