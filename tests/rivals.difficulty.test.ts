@@ -46,15 +46,18 @@ for (const id of RIVAL_IDS) {
 const warlordScore = (h: HeroId, r: number) => versus(warlordBuild(other(h), r), warlordBuild(h, r));
 const score = (id: RivalId) => rivalScore.get(id)!;
 
-/** The player decks tests/pacing.test.ts uses for rounds 1-3: the start deck plus 0-2 gates. */
-function playerDeck(h: HeroId, round: number): Build {
+/** A tests/pacing.test.ts player deck: the hero's start deck plus its first `n` (0-2) gates. */
+function pacingDeck(h: HeroId, n: number): Build {
   const b = JSON.parse(JSON.stringify(startingBuild(h, 1))) as Build;
   const gates: [string, number, number][] = h === "furnace"
     ? [["temper", 4, 3], ["whetstone", 4, 2]]
     : [["grease", 4, 3], ["whetstone", 1, 3]];
-  gates.slice(0, Math.min(2, round - 1)).forEach(([def, x, y], i) => b.items.push({ uid: 500 + i, def, x, y }));
+  gates.slice(0, n).forEach(([def, x, y], i) => b.items.push({ uid: 500 + i, def, x, y }));
   return b;
 }
+/** The pacing-test deck a player brings to rounds 1-3 (0, 1 and 2 gates). */
+const playerDeck = (h: HeroId, round: number) => pacingDeck(h, Math.min(2, round - 1));
+const ELITE_GAP = 0.08; // an act elite's margin sits at least this far below every regular's
 const fmt = (s: Score) => `ref wins ${(s.rate * 100).toFixed(0).padStart(3)}%  margin ${s.margin.toFixed(3).padStart(6)}  avg ${s.t.toFixed(1)}s`;
 
 describe("rival difficulty ladder (reference = other faction's warlord, 20 seeds)", () => {
@@ -85,14 +88,39 @@ describe("rival difficulty ladder (reference = other faction's warlord, 20 seeds
     }
   });
 
-  it("each act elite is harder than every regular rival of its act", () => {
+  it("round 1: every tier-1 rival is no harder than today's round-1 opponent, for every pacing deck", () => {
+    // Today's round-1 opponent is the other hero's warlord. A rival may cost the player at
+    // most 10 points of win rate and 0.05 of margin against it, mirror matches included.
+    const lines = ["round 1 (player deck vs today's warlord, then vs each tier-1 rival):"];
+    for (const h of ["furnace", "weaver"] as HeroId[]) {
+      for (const n of [0, 1, 2]) {
+        const deck = pacingDeck(h, n);
+        const base = versus(deck, warlordBuild(other(h), 1));
+        lines.push(`  ${h.padEnd(7)} +${n} gates vs ${other(h)} warlord: ${fmt(base)}`);
+        for (const id of rivalPool(1, "regular")) {
+          const s = versus(deck, rivalBuild(id, 1));
+          lines.push(`      vs ${RIVALS[id].name.padEnd(9)} ${fmt(s)}  (rate ${((s.rate - base.rate) * 100).toFixed(0)}, margin ${(s.margin - base.margin).toFixed(3)})`);
+          expect(s.rate, `${h} +${n} vs ${id} win rate`).toBeGreaterThanOrEqual(base.rate - 0.1 - 1e-9);
+          expect(s.margin, `${h} +${n} vs ${id} margin`).toBeGreaterThanOrEqual(base.margin - 0.05);
+        }
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(lines.join("\n"));
+  });
+
+  it(`each act elite is harder than every regular rival of its act, by ${ELITE_GAP}+ margin`, () => {
+    const lines: string[] = [];
     for (const act of [1, 2] as const) {
       const [elite] = rivalPool(act, "elite");
       for (const id of rivalPool(act, "regular")) {
+        lines.push(`  ${RIVALS[elite].name} leads ${RIVALS[id].name} by ${(score(id).margin - score(elite).margin).toFixed(3)}`);
         expect(score(elite).rate, `${elite} vs ${id}`).toBeLessThanOrEqual(score(id).rate);
-        expect(score(elite).margin, `${elite} vs ${id}`).toBeLessThan(score(id).margin);
+        expect(score(id).margin - score(elite).margin, `${elite} vs ${id}`).toBeGreaterThanOrEqual(ELITE_GAP);
       }
     }
+    // eslint-disable-next-line no-console
+    console.log(lines.join("\n"));
   });
 
   it("regular rivals get harder act by act, relative to the round's own warlord", () => {

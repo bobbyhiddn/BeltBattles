@@ -10,6 +10,7 @@ import {
   ACTS, RIVALS, RIVAL_IDS, actFor, rivalBuild, rivalFor, rivalLoadout, rivalPool, rivalRounds,
   rivalSchedule, rivalSlot, type RivalId,
 } from "../src/sim/rivals";
+import { PLANS, planBuild } from "../src/sim/rivalBuilds";
 import { battleSeed, newRun } from "../src/game/run";
 
 const ALLOWED = new Set([
@@ -127,6 +128,19 @@ describe("rival builds are legal production builds", () => {
       }
     });
   }
+
+  it("round-1 openers only change round 1 and keep the same factories", () => {
+    const facs = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind === "factory").map((p) => `${p.uid}:${p.def}`);
+    for (const id of RIVAL_IDS) {
+      const plan = PLANS[id];
+      if (!plan.opener) continue;
+      expect(plan.opener.map((f) => f.def), id).toEqual(plan.factories.map((f) => f.def));
+      expect(facs(rivalBuild(id, 1)), id).toEqual(facs(rivalBuild(id, 2)));
+      expect(rivalBuild(id, 1).routes, id).not.toEqual(planBuild({ ...plan, opener: undefined }, 1).build.routes);
+      expect(rivalBuild(id, 2)).toEqual(planBuild({ ...plan, opener: undefined }, 2).build);
+    }
+    expect(RIVAL_IDS.filter((id) => PLANS[id].opener)).toEqual(["sootjaw", "nettle"]);
+  });
 
   it("the legality replay rejects broken decks (the check is not vacuous)", () => {
     const base = () => JSON.parse(JSON.stringify(rivalBuild("matriarch", 10))) as Build;
