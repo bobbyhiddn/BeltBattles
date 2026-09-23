@@ -1,0 +1,104 @@
+// Balance harness: random belt routes. A route is a self-avoiding orthogonal path from a
+// cell beside its factory to a turret connector on the forward row (y = 0), with an exact
+// tile count. Found by randomised depth-first search with distance/parity pruning and an
+// expansion budget, so it is fast, deterministic for a given Rng, and may fail (null).
+
+import type { Rng } from "../../core/rng";
+import { GRID, HEROES, ITEMS } from "../content";
+import { DX, DY, footprint, inGrid, key, kx, ky, type Build } from "../deck";
+
+const dist = (a: number, b: number) => Math.abs(kx(a) - kx(b)) + Math.abs(ky(a) - ky(b));
+
+/** Cells a new or rerouted belt may not use: machinery, other routes' belts, the forward row. */
+export function blockedCells(b: Build, skipRoute = -1): Uint8Array {
+  const bl = new Uint8Array(GRID * GRID);
+  for (const p of b.items) for (const k of footprint(ITEMS[p.def], p.x, p.y)) if (k >= 0 && k < bl.length) bl[k] = 1;
+  b.routes.forEach((r, i) => {
+    if (i !== skipRoute) for (const k of r.cells) bl[k] = 1;
+  });
+  for (let x = 0; x < GRID; x++) bl[key(x, 0)] = 1; // only the target connector is ever entered
+  return bl;
+}
+
+/** Free cells orthogonally adjacent to a size x size footprint at (fx, fy). */
+export function startCells(fx: number, fy: number, size: number, bl: Uint8Array): number[] {
+  const fp = new Set<number>();
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) fp.add(key(fx + i, fy + j));
+  const out: number[] = [];
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      const k = key(x, y);
+      if (fp.has(k) || bl[k]) continue;
+      for (let d = 0; d < 4; d++) {
+        const nx = x - DX[d], ny = y - DY[d];
+        if (inGrid(nx, ny) && fp.has(key(nx, ny))) {
+          out.push(k);
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Connector columns not claimed by any route other than `except` (route index). */
+export function freeConnectors(b: Build, except = -1): number[] {
+  const taken = new Set<number>();
+  b.routes.forEach((r, i) => {
+    if (i === except || !r.cells.length) return;
+    const last = r.cells[r.cells.length - 1];
+    if (ky(last) === 0) taken.add(kx(last));
+  });
+  return HEROES[b.hero].turrets.flatMap((t) => t.connectors).filter((c) => !taken.has(c));
+}
+
+/** Shortest possible route (tiles) from any start to connector column `col`, or Infinity. */
+export function minTiles(starts: number[], col: number): number {
+  let best = Infinity;
+  for (const s of starts) best = Math.min(best, dist(s, key(col, 0)) + 1);
+  return best;
+}
+
+/** A random route of exactly `tiles` cells from one of `starts` into (col, 0), or null. */
+export function randomPath(bl: Uint8Array, starts: number[], col: number, tiles: number, rng: Rng, budget = 1200): number[] | null {
+  const target = key(col, 0);
+  const ok = rng.shuffle(starts.filter((s) => {
+    const slack = tiles - 1 - dist(s, target);
+    return slack >= 0 && slack % 2 === 0;
+  }));
+  const path: number[] = [];
+  const seen = new Uint8Array(GRID * GRID);
+  let left = budget;
+  const dfs = (k: number): boolean => {
+    if (--left < 0) return false;
+    path.push(k);
+    seen[k] = 1;
+    const remaining = tiles - path.length;
+    if (remaining === 0) {
+      if (k === target) return true;
+    } else {
+      const dirs = rng.shuffle([0, 1, 2, 3]);
+      for (const d of dirs) {
+        const nx = kx(k) + DX[d], ny = ky(k) + DY[d];
+        if (!inGrid(nx, ny)) continue;
+        const n = key(nx, ny);
+        if (seen[n]) continue;
+        if (n === target ? remaining !== 1 : bl[n]) continue;
+        const r = remaining - 1;
+        const dn = dist(n, target);
+        if (dn > r || (r - dn) % 2 !== 0) continue;
+        if (dfs(n)) return true;
+      }
+    }
+    path.pop();
+    seen[k] = 0;
+    return false;
+  };
+  for (const s of ok) {
+    if (left < 0) break;
+    if (s === target ? tiles === 1 : !bl[s]) {
+      if (dfs(s)) return [...path];
+    }
+  }
+  return null;
+}
