@@ -20,7 +20,7 @@ game.start();
   game,
   settings,
   setReducedMotion,
-  version: "0.4.0",
+  version: "0.4.1",
   open(screen: string, hero: HeroId = "furnace", seed = 12345): void {
     if (screen === "title") return game.go(new TitleScreen(game));
     if (screen === "hero") return game.go(new HeroScreen(game));

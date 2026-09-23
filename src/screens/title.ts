@@ -123,7 +123,7 @@ export class TitleScreen implements Screen {
     });
     button(ui, g, "options", { x: bx + hw + 4, y: by, w: bw - hw - 4, h: bh - 4 }, "OPTIONS", { font: "3", onTap: () => { this.menu = true; } });
     game.soundButton(g, { x: W - 30, y: 4, w: 26, h: 13 });
-    drawText(g, "V0.4.0", W - 4, H - 8, C.slate3, { font: "3", align: "right" });
+    drawText(g, "V0.4.1", W - 4, H - 8, C.slate3, { font: "3", align: "right" });
     if (this.help) this.drawHelp(g);
     if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; });
   }

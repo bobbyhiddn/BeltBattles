@@ -2,7 +2,10 @@
 // camera shake offset on a recorded hit (with Reduced Motion off and on), and the average
 // frame time over 10 s of live battle in the real requestAnimationFrame loop.
 
+import { readFileSync } from "node:fs";
 import { VIEWS } from "./shots-list.mjs";
+
+const VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
 function openBattle({ rm }) {
   const g = window.bb.game;
@@ -52,7 +55,7 @@ function shakeOnKO() {
 }
 
 export async function measure(browser, origin, serve, errors) {
-  const out = { version: "0.4.0", generated: new Date().toISOString(), target: { shortAxisShare: 0.8 }, views: {} };
+  const out = { version: VERSION, generated: new Date().toISOString(), target: { shortAxisShare: 0.8 }, views: {} };
   for (const [vname, vopts] of Object.entries(VIEWS)) {
     const ctx = await browser.newContext(vopts);
     await ctx.route(`${origin}/**`, serve);
