@@ -1,0 +1,172 @@
+import { describe, expect, it } from "vitest";
+import { hashSeed, Rng } from "../src/core/rng";
+import { GHOST_KEY, POOL_MAX, loadPool, pickGhost, saveGhost, standIn, type GhostSnapshot } from "../src/game/ghosts";
+import { chooseFoe, finishDay, ghostOf, startDusk } from "../src/game/day";
+import { battleSeed, buyOffer, newRun, reroll } from "../src/game/run";
+import { beginRoad, choicesFor, pickChoice } from "../src/game/events";
+import { startingBuild, warlordBuild, warlordName } from "../src/sim/ai";
+import { honestStandInBuild } from "../src/game/honest";
+import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES } from "../src/sim/content";
+import { beltUsed } from "../src/sim/deck";
+import { Battle, simulate, type SideStats } from "../src/sim/battle";
+
+const STATS = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
+
+class MemStore {
+  data = new Map<string, string>();
+  getItem(k: string): string | null { return this.data.get(k) ?? null; }
+  setItem(k: string, v: string): void { this.data.set(k, v); }
+}
+
+const snap = (o: Partial<GhostSnapshot> = {}): GhostSnapshot => ({
+  v: 1, rulesVersion: RULES_VERSION, hero: "weaver", day: 3, wins: 1, losses: 1, lives: 4,
+  build: startingBuild("weaver", 1), runId: "other", savedAt: 0, ...o,
+});
+
+describe("the local ghost pool", () => {
+  it("saves and loads snapshots, keeps at most 300 and drops the oldest", () => {
+    const st = new MemStore();
+    expect(loadPool(st)).toEqual([]);
+    saveGhost(snap({ savedAt: 1 }), st);
+    expect(loadPool(st)).toEqual([snap({ savedAt: 1 })]);
+    for (let i = 2; i <= POOL_MAX + 5; i++) saveGhost(snap({ savedAt: i }), st);
+    const pool = loadPool(st);
+    expect(POOL_MAX).toBe(300);
+    expect(pool.length).toBe(300);
+    expect(pool[0].savedAt).toBe(6);
+    expect(pool[299].savedAt).toBe(305);
+    expect(st.data.has(GHOST_KEY)).toBe(true);
+  });
+
+  it("ignores storage errors and malformed entries", () => {
+    const broken = { getItem: () => { throw new Error("denied"); }, setItem: () => { throw new Error("full"); } };
+    expect(loadPool(broken)).toEqual([]);
+    expect(() => saveGhost(snap(), broken)).not.toThrow();
+    const st = new MemStore();
+    st.setItem(GHOST_KEY, "{not json");
+    expect(loadPool(st)).toEqual([]);
+    st.setItem(GHOST_KEY, JSON.stringify([snap(), { v: 2 }, null, { ...snap(), build: null }]));
+    expect(loadPool(st)).toEqual([snap()]);
+    expect(saveGhost(snap(), undefined)).toBe(undefined); // no localStorage in node: a no-op
+  });
+});
+
+describe("pickGhost", () => {
+  const q = { rulesVersion: RULES_VERSION, day: 3, runId: "me", wins: 2, losses: 0, seed: 1234 };
+
+  it("only the same rules version and day, never the current run", () => {
+    expect(pickGhost([snap({ rulesVersion: "bb-0.3.0" }), snap({ day: 4 }), snap({ runId: "me" })], q)).toBe(null);
+    const ok = snap({ savedAt: 9 });
+    expect(pickGhost([snap({ day: 2 }), ok, snap({ runId: "me", wins: 2, losses: 0 })], q)).toEqual(ok);
+  });
+
+  it("prefers the nearest W-L record", () => {
+    const far = snap({ wins: 0, losses: 2 }), near = snap({ wins: 2, losses: 1 }), exact = snap({ wins: 2, losses: 0 });
+    expect(pickGhost([far, near], q)).toEqual(near);
+    expect(pickGhost([far, near, exact], q)).toEqual(exact);
+  });
+
+  it("breaks ties with hashSeed(seed, 'ghost', day): deterministic, and the seed matters", () => {
+    const ties = Array.from({ length: 7 }, (_, i) => snap({ wins: 2, losses: 0, savedAt: i }));
+    const a = pickGhost(ties, q)!;
+    expect(pickGhost(ties, q)).toBe(a);
+    expect(a).toBe(ties[hashSeed(1234, "ghost", 3) % 7]);
+    const picks = new Set(Array.from({ length: 40 }, (_, s) => pickGhost(ties, { ...q, seed: s })!.savedAt));
+    expect(picks.size).toBeGreaterThan(3);
+  });
+
+  it("no match: a stand-in (today's honest warlord deck with a seeded hero, today's naming)", () => {
+    const run = newRun("furnace", 555, "me");
+    run.day = 6;
+    const f = chooseFoe(run, [snap({ day: 5 })]);
+    const s = standIn(555, 6);
+    expect(f.kind).toBe("standin");
+    expect(f.hero).toBe(s.hero);
+    // M3b: the gates of warlordBuild(hero, 6), hull from 1 plate (+25) instead of warlordHull(6) = +28
+    expect(f.build).toEqual(honestStandInBuild(s.hero, 6));
+    expect(f.build).toEqual({ ...warlordBuild(s.hero, 6), hullBonus: 25 });
+    expect(f.name).toBe(warlordName(s.hero, 6));
+    const heroes = new Set(Array.from({ length: 30 }, (_, i) => standIn(i, 1).hero));
+    expect(heroes.size).toBe(2); // seeded: both heroes show up, mirror matches included
+  });
+
+  it("a ghost's build is fought exactly as submitted", () => {
+    const them = newRun("weaver", 31, "them");
+    them.day = 2;
+    them.build.items.push({ uid: 500, def: "temper", x: 4, y: 3 });
+    const g = ghostOf(them, 5);
+    const before = JSON.stringify(g);
+    const me = newRun("furnace", 32, "me");
+    me.day = 2;
+    const f = startDusk(me, [g]);
+    expect(f.kind).toBe("ghost");
+    expect(f.build).toEqual(g.build);
+    expect(f.name).toBe(`GHOST · ${HEROES.weaver.name} · 0-0`);
+    const b = new Battle(me.build, f.build, battleSeed(me));
+    while (!b.over && b.ticks < 60 * 200) b.step();
+    const ref = simulate(me.build, g.build, battleSeed(me));
+    expect([b.winner, b.ticks, b.sides[1].hull.hp]).toEqual([ref.winner, ref.ticks, ref.sides[1].hull.hp]);
+    expect(JSON.stringify(g)).toBe(before);
+    expect(f.build).toEqual(g.build);
+  });
+});
+
+describe("soft-lock sweep: 300 seeded 10-day runs against a filling pool", () => {
+  it("every run ends at day 10 or at 0 lives; invariants hold; later runs meet pool ghosts", () => {
+    const pool: GhostSnapshot[] = [];
+    let complete = 0, lost = 0, picks = 0, draws = 0, ghostsLate = 0, dusksLate = 0;
+    for (let n = 0; n < 300; n++) {
+      const seed = 101 + n * 104729;
+      const rng = new Rng(hashSeed(seed, "softlock"));
+      const run = newRun(n % 2 ? "weaver" : "furnace", seed, `run-${n}`);
+      for (let guard = 0; guard < 20 && !run.over; guard++) {
+        if (rng.chance(0.2)) reroll(run);
+        run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {
+          if (!o.sold && run.gold >= o.price && rng.chance(0.5)) expect(buyOffer(run, wi, si).ok).toBe(true);
+        }));
+        if (beginRoad(run)) {
+          const ok = choicesFor(run).map((c, i) => (c.blocked ? -1 : i)).filter((i) => i >= 0);
+          expect(ok.length).toBeGreaterThan(0);
+          expect(pickChoice(run, ok[rng.int(ok.length)]).ok).toBe(true);
+          picks++;
+        }
+        expect(beginRoad(run)).toBe(false);
+        const foe = startDusk(run, pool);
+        if (foe.kind === "standin") expect(foe.build.routes.length).toBeGreaterThan(0);
+        else expect(foe.record!.runId).not.toBe(run.runId);
+        if (n >= 200) { dusksLate++; if (foe.kind === "ghost") ghostsLate++; }
+        const mine = ghostOf(run, n * 100 + guard);
+        const u = rng.next();
+        const winner = u < 0.45 ? 0 : u < 0.9 ? 1 : -1;
+        if (winner === -1) draws++;
+        finishDay(run, winner, 30, STATS, STATS);
+        pool.push(mine);
+        if (pool.length > 300) pool.shift();
+        expect(run.gold).toBeGreaterThanOrEqual(0);
+        expect(run.lives).toBeGreaterThanOrEqual(0);
+        expect(run.lives).toBeLessThanOrEqual(START_LIVES);
+        const uids = [...run.inventory.map((i) => i.uid), ...run.build.items.map((p) => p.uid), ...run.build.mods.map((m) => m.uid)];
+        expect(new Set(uids).size).toBe(uids.length);
+        expect(beltUsed(run.build)).toBeLessThanOrEqual(run.build.beltCap);
+      }
+      expect(run.over).not.toBe(null);
+      if (run.over === "complete") {
+        complete++;
+        expect([run.day, run.history.length]).toEqual([RUN_DAYS, RUN_DAYS]);
+        expect(run.lives).toBeGreaterThan(0);
+      } else {
+        lost++;
+        expect(run.lives).toBe(0);
+        expect(run.day).toBeLessThanOrEqual(RUN_DAYS);
+      }
+      expect(run.wins + run.losses + run.history.filter((h) => h.outcome === "draw").length).toBe(run.history.length);
+    }
+    expect(complete + lost).toBe(300);
+    expect(pool.length).toBe(300);
+    expect(draws).toBeGreaterThan(50);
+    expect(picks).toBeGreaterThan(300 * 3);
+    expect(ghostsLate / dusksLate).toBeGreaterThan(0.9);
+    // eslint-disable-next-line no-console
+    console.log(`soft-lock sweep: 300 runs, ${complete} complete, ${lost} lost, ${draws} draws, ${picks} event picks, late runs met ghosts at ${ghostsLate}/${dusksLate} dusks`);
+  });
+});

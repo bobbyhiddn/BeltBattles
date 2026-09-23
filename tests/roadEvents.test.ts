@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
-import { EVENTS, EVENT_IDS, INTRO_IDS, type Choice, type Delta, type EventId } from "../src/game/eventDefs";
+import { BAG_IDS, EVENTS, EVENT_IDS, INTRO_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId } from "../src/game/eventDefs";
 import { beginRoad, choicesFor, eventDue, eventFor, makeEvent, pickChoice } from "../src/game/events";
-import { battleSeed, enemyBuild, finishRound, foeName, migrateRun, newRun, reroll, rollShop, type Run } from "../src/game/run";
-import { warlordBuild } from "../src/sim/ai";
-import { HEROES, ITEMS, RUN_LIVES } from "../src/sim/content";
-import { beltUsed } from "../src/sim/deck";
+import { battleSeed, migrateRun, newRun, reroll, rollShop, type Run } from "../src/game/run";
+import { chooseFoe, finishDay, startDusk } from "../src/game/day";
+import { ITEMS, START_LIVES } from "../src/sim/content";
 import type { SideStats } from "../src/sim/battle";
 
 const SEEDS = Array.from({ length: 300 }, (_, i) => 1 + i * 7919);
 const clone = (r: Run): Run => JSON.parse(JSON.stringify(r)) as Run;
 const STATS: SideStats = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
+const finishRound = finishDay; // 0.6.0: a round is a day
 
-/** A run sitting on the road before `round`'s battle with event `id`, plenty of gold and a spare part. */
+/** A run sitting on the road before `day`'s dusk with event `id`, plenty of gold and a spare part. */
 function atEvent(id: EventId, round = 3, seed = 4242): Run {
   const run = newRun("furnace", seed);
-  run.round = round;
+  run.day = round;
   run.gold = 20;
   run.lives = 2;
   run.inventory.push({ uid: run.nextUid++, def: "whetstone" });
@@ -55,11 +55,13 @@ describe("road events: seeded selection", () => {
     expect(perRun).toBeLessThanOrEqual(8);
   });
 
-  it("every event shows up across seeds, and there are at least 8 of them", () => {
-    expect(EVENT_IDS.length).toBeGreaterThanOrEqual(8);
+  it("every bag event shows up across seeds (8 of them); herald and sappers are out of the bag", () => {
+    expect(BAG_IDS.length).toBeGreaterThanOrEqual(8);
+    expect(WARLORD_EVENT_IDS).toEqual(["herald", "sappers"]);
+    expect(EVENT_IDS).toEqual(expect.arrayContaining(["herald", "sappers"])); // definitions kept for 0.6.0b
     const seen = new Set<string>();
     for (const seed of SEEDS) for (let r = 1; r <= 10; r++) { const id = eventFor(seed, r); if (id) seen.add(id); }
-    expect([...seen].sort()).toEqual([...EVENT_IDS].sort());
+    expect([...seen].sort()).toEqual([...BAG_IDS].sort());
   });
 
   it("shop rolls and battle seeds are unchanged by events", () => {
@@ -113,7 +115,7 @@ describe("road events: every choice applies exactly what it shows", () => {
           expect(run.build.beltCap - before.build.beltCap).toBe(sumOf(gains, "belt") - sumOf(c.cost, "belt"));
           expect(run.nextShop.discount - before.nextShop.discount).toBe(sumOf(gains, "discount"));
           expect(run.nextShop.free - before.nextShop.free).toBe(sumOf(gains, "reroll"));
-          const foe = run.foe && run.foe.round === run.round ? run.foe : { boost: 0, hull: 0, bounty: 0 };
+          const foe = run.foe && run.foe.day === run.day ? run.foe : { boost: 0, hull: 0, bounty: 0 };
           expect(foe.boost).toBe(sumOf(c.cost, "elite") + sumOf(gains, "elite"));
           expect(foe.hull).toBe(sumOf(gains, "foeHull"));
           expect(foe.bounty).toBe(sumOf(gains, "bounty"));
@@ -139,7 +141,8 @@ describe("road events: every choice applies exactly what it shows", () => {
     expect(pickChoice(run, 1).ok).toBe(false);
     expect(run.gold).toBe(4);
     const dock = atEvent("dock");
-    dock.lives = RUN_LIVES;
+    dock.lives = START_LIVES; // PATCH UP heals up to START_LIVES (5)
+    expect(choicesFor({ ...dock, lives: START_LIVES - 1 })[1].blocked).toBe(undefined);
     expect(choicesFor(dock)[1].blocked).toBe("LIVES FULL");
     const trader = atEvent("trader");
     trader.inventory = [];
@@ -160,19 +163,17 @@ describe("road events: every choice applies exactly what it shows", () => {
     expect(run.gold).toBe(g + ITEMS.temper.price);
   });
 
-  it("an accepted challenge brings the warlord from 2 rounds ahead and pays its bounty only on a win", () => {
+  it("0.6.0: an accepted herald challenge is only recorded (for 0.6.0b's warlords); the dusk ghost is unchanged and pays no bounty", () => {
     const run = atEvent("herald", 2);
+    const plain = clone(run);
     expect(pickChoice(run, 0).ok).toBe(true);
-    expect(enemyBuild(run)).toEqual(warlordBuild(run.enemyHero, 4));
-    expect(foeName(run).startsWith("ELITE")).toBe(true);
-    const win = clone(run), loss = clone(run);
-    const g0 = win.gold;
-    const r = finishRound(win, 0, 30, STATS, STATS);
-    expect(r.bounty).toBe(8);
-    expect(win.gold - g0).toBe(r.income + 8);
-    expect(finishRound(loss, 1, 30, STATS, STATS).bounty).toBe(0);
-    expect(win.foe).toBe(null);
-    expect(enemyBuild(win)).toEqual(warlordBuild(win.enemyHero, 3));
+    expect(run.foe).toEqual({ day: 2, boost: 2, hull: 0, bounty: 8 });
+    expect(chooseFoe(run, [])).toEqual(chooseFoe(plain, []));
+    startDusk(run, []);
+    const g0 = run.gold;
+    const r = finishRound(run, 0, 30, STATS, STATS);
+    expect(run.gold - g0).toBe(r.income);
+    expect(run.foe).toBe(null);
   });
 
   it("scout deals reach the next caravan: prices -1 (same items) and a free reroll", () => {
@@ -219,66 +220,11 @@ describe("road events: save and load", () => {
     }
   });
 
-  it("an old v3 save still loads (migrated to v4 at its caravan)", () => {
-    const run = newRun("weaver", 777) as unknown as Record<string, unknown>;
-    const v3: Record<string, unknown> = { ...run, version: 3, shop: { wagons: (run.shop as { wagons: unknown }).wagons, rerolls: 0 } };
-    for (const k of ["stage", "event", "foe", "nextShop", "events"]) delete v3[k];
-    const m = migrateRun(JSON.parse(JSON.stringify(v3)))!;
-    expect(m.version).toBe(4);
-    expect(m.stage).toBe("caravan");
-    expect(m.event).toBe(null);
-    expect(m.shop.discount).toBe(0);
-    expect(m.shop.free).toBe(0);
-    expect(m.events).toEqual([]);
-    expect(migrateRun({ version: 2, build: {}, shop: {}, inventory: [] })).toBe(null);
-  });
+  // 0.6.0: the v3 migration test and the 12-round soft-lock sweep moved to tests/run10.test.ts
+  // (v3 -> v4 -> v5) and tests/ghosts.test.ts (300 ten-day runs against a filling ghost pool).
 });
 
-describe("road events: soft-lock sweep", () => {
-  it("200+ seeded runs with random choices end (won or lost) within 12 rounds; invariants hold", () => {
-    let won = 0, lost = 0, picks = 0;
-    for (let n = 0; n < 240; n++) {
-      const seed = 101 + n * 104729;
-      const rng = new Rng(hashSeed(seed, "softlock"));
-      const run = newRun(n % 2 ? "weaver" : "furnace", seed);
-      for (let guard = 0; guard < 20 && !run.over; guard++) {
-        // caravan: sometimes buy the first affordable offer
-        for (const w of run.shop.wagons) for (const o of w.offers) {
-          if (!o.sold && run.gold >= o.price && rng.chance(0.5)) {
-            run.gold -= o.price;
-            o.sold = true;
-            if (ITEMS[o.def].kind !== "supply") run.inventory.push({ uid: run.nextUid++, def: o.def });
-          }
-        }
-        if (beginRoad(run)) {
-          const cs = choicesFor(run);
-          const ok = cs.map((c, i) => (c.blocked ? -1 : i)).filter((i) => i >= 0);
-          expect(ok.length).toBeGreaterThan(0); // a free choice is always open
-          expect(pickChoice(run, ok[rng.int(ok.length)]).ok).toBe(true);
-          picks++;
-        }
-        expect(beginRoad(run)).toBe(false);
-        expect(enemyBuild(run).routes.length).toBeGreaterThan(0);
-        finishRound(run, rng.chance(0.55) ? 0 : 1, 30, STATS, STATS); // stubbed battle: seeded coin flip
-        expect(run.gold).toBeGreaterThanOrEqual(0);
-        expect(run.lives).toBeGreaterThanOrEqual(0);
-        expect(run.lives).toBeLessThanOrEqual(RUN_LIVES);
-        const uids = [...run.inventory.map((i) => i.uid), ...run.build.items.map((p) => p.uid), ...run.build.mods.map((m) => m.uid)];
-        expect(new Set(uids).size).toBe(uids.length);
-        expect(HEROES[run.hero].hull + run.build.hullBonus).toBeGreaterThanOrEqual(100);
-        expect(beltUsed(run.build)).toBeLessThanOrEqual(run.build.beltCap);
-      }
-      expect(run.over).not.toBe(null);
-      expect(run.history.length).toBeLessThanOrEqual(12);
-      if (run.over === "won") won++;
-      else lost++;
-    }
-    expect(won + lost).toBe(240);
-    expect(picks).toBeGreaterThan(240 * 3);
-    // eslint-disable-next-line no-console
-    console.log(`soft-lock sweep: 240 runs, ${won} won, ${lost} lost, ${picks} event picks`);
-  });
-
+describe("road events: value", () => {
   it("an event is worth about +2 to +4 gold on average (reference pricing)", () => {
     // value of each choice in gold: shop price for items, 0.2 G per hull (plating 5G/25), 0.5 G per belt
     // (crate 2G/4), 5 G per life, 2 G per free reroll, 2.5 G per discount point, bounty x 0.5 (win odds)

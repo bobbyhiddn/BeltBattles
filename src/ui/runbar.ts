@@ -1,10 +1,11 @@
-// Run HUD bar for the road-event screen (0.5.0): gold, lives, max hull, belt capacity and cargo,
-// each with an anchor the event rewards fly to (the value flashes white when one lands), plus
-// MENU and SND. Same ink strip as the build screen's bar.
+// Run HUD bar for the road-event screen (0.5.0): gold, the 5 lives, max hull, belt capacity and
+// cargo, each with an anchor the event rewards fly to (the value flashes white when one lands),
+// the W-L record where it fits (0.6.0), plus MENU and SND. Same ink strip as the build screen's bar.
 
 import type { Game } from "../game/game";
 import type { Run } from "../game/run";
-import { HEROES, RUN_LIVES } from "../sim/content";
+import { record } from "../game/day";
+import { HEROES, START_LIVES } from "../sim/content";
 import { beltUsed } from "../sim/deck";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -29,10 +30,10 @@ export function drawRunBar(g: G, game: Game, run: Run, flash: Record<AnchorKind,
   const gs = String(run.gold);
   drawText(g, gs, x + 7, 4, flash.gold > 0 ? C.white : C.yellow, { outline: C.ink });
   x += 7 + textWidth(gs) + 7;
-  for (let i = 0; i < RUN_LIVES; i++) g.drawImage(heartIcon(i < run.lives), x + i * 7, 4);
+  for (let i = 0; i < START_LIVES; i++) g.drawImage(heartIcon(i < run.lives), x + i * 6, 4);
   out.lives.x = x + 8; out.lives.y = 6;
-  if (flash.lives > 0) rect(g, x - 1, 10, RUN_LIVES * 7, 1, C.white);
-  x += RUN_LIVES * 7 + 5;
+  if (flash.lives > 0) rect(g, x - 1, 10, START_LIVES * 6, 1, C.white);
+  x += START_LIVES * 6 + 5;
   g.drawImage(shieldIcon(), x, 4);
   out.hull.x = x + 2; out.hull.y = 6;
   const hs = String(HEROES[run.hero].hull + run.build.hullBonus);
@@ -48,6 +49,12 @@ export function drawRunBar(g: G, game: Game, run: Run, flash: Record<AnchorKind,
   if (x + 8 + textWidth(cs, "3") < W - 58) {
     g.drawImage(crateIcon(), x, 5);
     drawText(g, cs, x + 8, 5, flash.cargo > 0 ? C.white : C.bone, { font: "3" });
+    x += 8 + textWidth(cs, "3") + 7;
+    const wl = record(run);
+    if (x + textWidth(`W-L ${wl}`, "3") < W - 58) {
+      x += drawText(g, "W-L", x, 5, C.slate4, { font: "3" }) + 3;
+      drawText(g, wl, x, 5, C.white, { font: "3" });
+    }
   }
   game.soundButton(g, { x: W - 27, y: 1, w: 25, h: 12 });
   button(ui, g, "menu", { x: W - 55, y: 1, w: 27, h: 12 }, "MENU", { font: "3", onTap: onMenu });

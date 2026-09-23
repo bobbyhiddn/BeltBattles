@@ -238,12 +238,15 @@ export class EventScreen implements Screen {
         drawText(g, ln, L.titleX, y, C.bone, { font: "3" });
         y += 8;
       }
-      drawText(g, `ROUND ${run.round} · ON THE ROAD`, L.titleX, L.panel.y + L.panel.h - 11, C.slate4, { font: "3" });
+      drawText(g, `DAY ${run.day} · ON THE ROAD`, L.titleX, L.panel.y + L.panel.h - 11, C.slate4, { font: "3" });
       return;
     }
     rect(g, L.titleX, L.titleY + 1, kw, 8, C.amber);
     drawText(g, def.kind, L.titleX + 3, L.titleY + 3, C.ink, { font: "3" });
-    drawText(g, def.title, L.titleX + kw + 4, L.titleY + 1, C.yellow, { outline: C.ink });
+    const tw = drawText(g, def.title, L.titleX + kw + 4, L.titleY + 1, C.yellow, { outline: C.ink });
+    // portrait has no footer: the day sits at the end of the title row when it fits
+    const day = `DAY ${run.day}`, right = L.panel.x + L.panel.w - 5;
+    if (L.titleX + kw + 4 + tw + 6 + textWidth(day, "3") <= right) drawText(g, day, right, L.titleY + 2, C.slate4, { font: "3", align: "right" });
     for (let i = 0; i < 2; i++) drawText(g, def.text[i], L.textX, L.textY + i * 8, C.bone, { font: "3", align: "center" });
   }
 

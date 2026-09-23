@@ -1,2 +1,2 @@
 // One version string for the title screen and the tooling hook (keep in step with package.json).
-export const VERSION = "0.5.0";
+export const VERSION = "0.6.0-a";

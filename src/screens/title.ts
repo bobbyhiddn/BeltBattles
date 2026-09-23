@@ -7,7 +7,7 @@ import { drawArena } from "../game/arenaDraw";
 import { arenaIn } from "../game/battleLayout";
 import { loadRun } from "../game/run";
 import { startingBuild, warlordBuild } from "../sim/ai";
-import { HEROES, type HeroId } from "../sim/content";
+import { HEROES, RUN_DAYS, type HeroId } from "../sim/content";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap } from "../render/font";
@@ -22,12 +22,11 @@ import { EventScreen } from "./event/event";
 import { VERSION } from "../version";
 
 const HELP = [
-  "1  BUY GATES FROM THE CARAVAN CARDS.",
-  "2  DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE.",
-  "3  DROP GATES ON THE BELT: BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN.",
-  "4  LONGER CINDER ROUTES COOK HOTTER SLUGS. THREAD HITS FRAY ARMOR.",
-  "5  PRESS FIGHT. ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3): SALVAGE, TRADES, BETS, REPAIRS, BOUNTIES.",
-  "6  YOUR CRUISER BATTLES ON ITS OWN. WIN 7 BATTLES BEFORE YOU LOSE 3.",
+  "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.",
+  "2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).",
+  "3  AT DAWN, BUY GATES FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE.",
+  "4  DROP GATES ON THE BELT: BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
+  "5  ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3). AT DUSK YOUR CRUISER FIGHTS ON ITS OWN: 0.5X-4X, SKIP, II OR P TO PAUSE.",
 ];
 
 export class TitleScreen implements Screen {
@@ -117,7 +116,7 @@ export class TitleScreen implements Screen {
     by += bh + 6;
     if (save) {
       button(ui, g, "cont", { x: bx, y: by, w: bw, h: bh + 6 }, "CONTINUE", {
-        sub: `ROUND ${save.round} · ${HEROES[save.hero].name} · ${save.wins}W ${save.losses}L`,
+        sub: `DAY ${save.day}/${RUN_DAYS} · ${HEROES[save.hero].name} · ${save.wins}-${save.losses}`,
         onTap: () => this.continueRun(),
       });
       by += bh + 12;
@@ -152,7 +151,7 @@ export class TitleScreen implements Screen {
     if (!run) return;
     this.game.run = run;
     // on the road: the same event (resolved or not); after it: a refit (the caravan is gone)
-    const onRoad = run.stage === "event" && !!run.event && run.event.round === run.round;
+    const onRoad = run.stage === "event" && !!run.event && run.event.day === run.day;
     this.game.go(onRoad ? new EventScreen(this.game) : new BuildScreen(this.game));
   }
 

@@ -1,7 +1,9 @@
-// Scripted run with real input (mouse on desk, touch taps on phones). UI targets are found
-// through window.bb.regions(); deck cells through the build screen's dragPlan(). 0.5.0: every
-// FIGHT may lead to a road event; the run picks event choices with real taps, uses REFIT once
-// (placing the salvaged part), and fights on to the run summary.
+// Scripted 10-day run with real input (mouse on desk, touch taps on phones). UI targets are found
+// through window.bb.regions(); deck cells through the build screen's dragPlan(). 0.6.0: each day is
+// DAWN (buy + place with real drags/taps) -> the ROAD (an event picked with a real tap, REFIT once)
+// -> DUSK vs the ghost from a pre-seeded local pool (or a stand-in). The run reloads the page once
+// mid-battle, taps CONTINUE and checks it fights the same ghost; day 1 exercises 0.5X, II pause and
+// 4X; later days SKIP. It plays on to the end screen (or stops after `days` days).
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -33,25 +35,21 @@ async function tapRegion(page, touch, id) {
 }
 
 /** Drag (mouse) or tap-select + tap-place (touch) the build screen's planned part onto its belt tile. */
-async function placePlanned(page, touch, log, at, what) {
+async function placePlanned(page, touch) {
   const plan = await page.evaluate(() => {
     const p = window.bb.game.screen.dragPlan();
     return p && { a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y), def: p.def };
   });
-  if (!plan) throw new Error(`no ${what} to place`);
+  if (!plan) return null;
   const n0 = await page.evaluate(() => window.bb.game.run.build.items.length);
   if (touch) {
     await press(page, true, plan.a);
-    const sel = await page.evaluate(() => window.bb.game.screen.sel.kind);
-    log(`[${at()}] tap ${what} ${plan.def} -> selected (${sel}), ghost shown on the suggested belt tile`);
     await press(page, true, plan.b);
   } else {
     await page.mouse.move(plan.a.x, plan.a.y);
     await page.mouse.down();
     await page.mouse.move(plan.b.x, plan.b.y, { steps: 12 });
     await sleep(150);
-    const carrying = await page.evaluate(() => !!window.bb.game.screen.ed.carry);
-    log(`[${at()}] drag ${what} ${plan.def} over the deck (carrying: ${carrying})`);
     await page.mouse.up();
   }
   await page.waitForFunction((n) => window.bb.game.run.build.items.length === n + 1, n0, { timeout: 5000 });
@@ -61,91 +59,139 @@ async function placePlanned(page, touch, log, at, what) {
 /** After FIGHT: a road event (pick with a real tap, maybe REFIT) or straight to the battle. */
 async function road(page, touch, log, at, state) {
   const s = await settleAny(page, ["event", "battle"]);
-  if (s === "battle") return log(`[${at()}] FIGHT -> quiet road -> battle`);
+  if (s === "battle") return log(`[${at()}] FIGHT -> quiet road -> DUSK`);
   const ev = await page.evaluate(() => {
     const sc = window.bb.game.screen, run = window.bb.game.run;
-    return { id: run.event.id, round: run.round, gold: run.gold, choices: sc.choices.map((c) => ({ label: c.label, blocked: c.blocked || "", item: c.gain.some((d) => d.k === "item") })) };
+    return { id: run.event.id, day: run.day, gold: run.gold, choices: sc.choices.map((c) => ({ label: c.label, blocked: c.blocked || "", item: c.gain.some((d) => d.k === "item") })) };
   });
-  log(`[${at()}] FIGHT -> EVENT ${ev.id} (round ${ev.round}, ${ev.gold} gold): ${ev.choices.map((c, i) => `${i + 1} ${c.label}${c.blocked ? ` [${c.blocked}]` : ""}`).join(" | ")}`);
-  // prefer a part (to REFIT once), else the first open choice after it, else the last (always free)
+  log(`[${at()}] FIGHT -> ROAD EVENT ${ev.id} (day ${ev.day}, ${ev.gold} gold): ${ev.choices.map((c, i) => `${i + 1} ${c.label}${c.blocked ? ` [${c.blocked}]` : ""}`).join(" | ")}`);
   let pick = state.refitDone ? -1 : ev.choices.findIndex((c) => c.item && !c.blocked);
-  if (pick < 0) pick = ev.choices.findIndex((c, i) => i >= (ev.round % 2) && !c.blocked);
+  if (pick < 0) pick = ev.choices.findIndex((c, i) => i >= (ev.day % 2) && !c.blocked);
   if (pick < 0) pick = ev.choices.length - 1;
   await tapRegion(page, touch, `choice${pick}`);
-  const after = await page.evaluate(() => ({ picked: window.bb.game.run.event.picked, gold: window.bb.game.run.gold, cargo: window.bb.game.run.inventory.length, item: window.bb.game.screen.deckItem || "" }));
+  const after = await page.evaluate(() => ({ picked: window.bb.game.run.event.picked, gold: window.bb.game.run.gold, item: window.bb.game.screen.deckItem || "" }));
   state.picks++;
-  log(`[${at()}] picked ${pick + 1} ${ev.choices[pick].label} -> resolved (picked ${after.picked}), gold ${after.gold}, cargo ${after.cargo}${after.item ? `, part ${after.item} -> REFIT / FIGHT NOW offered` : ""}`);
+  log(`[${at()}] picked ${pick + 1} ${ev.choices[pick].label} -> resolved (picked ${after.picked}), gold ${after.gold}${after.item ? `, part ${after.item} -> REFIT / FIGHT NOW` : ""}`);
   if (after.item) {
-    await page.waitForFunction(() => window.bb.game.screen.pt > 0.7, null, { timeout: 5000 }); // outcome panel settled
+    await page.waitForFunction(() => window.bb.game.screen.pt > 0.7, null, { timeout: 5000 });
     if (!state.refitDone) {
       await tapRegion(page, touch, "refit");
       await settle(page, "build");
-      const refit = await page.evaluate(() => ({ refit: window.bb.game.screen.refit, offers: window.bb.regions().filter((r) => r.id === "reroll").length }));
-      log(`[${at()}] REFIT -> build screen in refit mode: ${refit.refit}, caravan gone (reroll regions: ${refit.offers})`);
-      const def = await placePlanned(page, touch, log, at, "cargo part");
-      log(`[${at()}] placed ${def} from cargo`);
+      const def = await placePlanned(page, touch);
+      log(`[${at()}] REFIT -> placed ${def} from cargo -> FIGHT`);
       state.refitDone = true;
       await tapRegion(page, touch, "fight");
       await settle(page, "battle");
-      return log(`[${at()}] FIGHT (refit) -> battle`);
+      return;
     }
     await tapRegion(page, touch, "fightnow");
   }
   await settle(page, "battle");
-  log(`[${at()}] -> battle`);
+  log(`[${at()}] -> DUSK`);
 }
 
-export async function scriptedRun(page, touch, log) {
-  const t0 = Date.now();
-  const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
-  const state = { refitDone: false, picks: 0 };
-  await tapRegion(page, touch, "new");
-  await settle(page, "hero");
-  log(`[${at()}] NEW RUN -> hero select`);
-  await tapRegion(page, touch, "go");
-  await settle(page, "build");
-  await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
-  const before = await page.evaluate(() => ({ gold: window.bb.game.run.gold, items: window.bb.game.run.build.items.length, hero: window.bb.game.run.hero, seed: window.bb.game.run.seed }));
-  log(`[${at()}] COMMAND -> build screen (${before.hero}, seed ${before.seed}, ${before.gold} gold, ${before.items} deck item)`);
-  const def = await placePlanned(page, touch, log, at, "card");
-  const after = await page.evaluate(() => {
-    const run = window.bb.game.run;
-    const p = run.build.items[run.build.items.length - 1];
-    return { gold: run.gold, x: p.x, y: p.y, cue: window.bb.game.screen.placedOnce };
-  });
-  log(`[${at()}] BUY + PLACE: ${def} at deck cell (${after.x},${after.y}), gold ${before.gold} -> ${after.gold}, FIGHT cue: ${after.cue}`);
+// M3b: every dusk foe is logged with its hullBonus and deckCost against the day's gold budget
+const foeOf = (page) => page.evaluate(() => {
+  const d = window.bb.game.run.dusk;
+  return d && {
+    day: d.day, kind: d.kind, name: d.name, hero: d.hero, build: JSON.stringify(d.build),
+    hull: d.build.hullBonus, cost: window.bb.deckCost(d.build), budget: window.bb.maxGoldByDay(d.day),
+    mine: window.bb.deckCost(window.bb.game.run.build),
+  };
+});
+const honestFoe = (f) => f.hull >= 0 && f.hull % 25 === 0 && f.cost <= f.budget;
+const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, deckCost ${f.cost} of ${f.budget} gold: ${honestFoe(f) ? "honest" : "NOT HONEST"}; your deck ${f.mine}`;
 
-  // round 1: road event, then a real battle at 4x to the end
+/** Reload the page mid-battle, CONTINUE from the title, and check the same ghost comes back. */
+async function reloadAndContinue(page, touch, log, at, state) {
+  const before = await foeOf(page);
+  await page.reload();
+  await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title", null, { timeout: 15000 });
+  const sub = await page.evaluate(() => window.bb.game.screen.save && { day: window.bb.game.screen.save.day, stage: window.bb.game.screen.save.stage });
+  log(`[${at()}] RELOAD mid-battle -> title, CONTINUE offered (save: day ${sub.day}, stage ${sub.stage}); before the reload: ${before ? `${before.name} (${foeLine(before)})` : "no dusk foe stored"}`);
+  await tapRegion(page, touch, "cont");
+  await settle(page, "build");
+  const dawn = await page.evaluate(() => ({ foe: window.bb.game.screen.foe.name, refit: window.bb.game.screen.refit }));
   await tapRegion(page, touch, "fight");
   await road(page, touch, log, at, state);
-  await tapRegion(page, touch, "sp2");
-  log(`[${at()}] speed 4X`);
-  await page.waitForFunction(() => window.bb.game.screen.phase === "result", null, { timeout: 90000 });
-  const r1 = await page.evaluate(() => {
-    const run = window.bb.game.run, h = run.history[run.history.length - 1];
-    return { outcome: h.outcome, time: h.time.toFixed(1), income: h.income, bounty: h.bounty || 0, wins: run.wins, losses: run.losses };
-  });
-  log(`[${at()}] BATTLE END -> round summary card: ${r1.outcome.toUpperCase()} in ${r1.time}s sim, income +${r1.income}G${r1.bounty ? ` bounty +${r1.bounty}G` : ""} (${r1.wins}W ${r1.losses}L)`);
+  const again = await foeOf(page);
+  const same = !!before && !!again && before.name === again.name && before.build === again.build && before.day === again.day;
+  state.reloadSame = same;
+  log(`[${at()}] CONTINUE -> refit build (refit ${dawn.refit}, NEXT BATTLE ${dawn.foe}) -> FIGHT -> dusk vs ${again.name}: same ghost as before the reload (name + build): ${same}`);
+  if (!same) throw new Error("the reload did not keep the same dusk opponent");
+}
 
-  // continue until the run ends: FIGHT -> (event) -> SKIP -> next
-  for (let round = 2; round <= 14; round++) {
-    await tapRegion(page, touch, "next");
-    const s = await settleAny(page, ["build", "summary"]);
-    if (s === "summary") break;
+export async function scriptedRun(page, touch, log, opts) {
+  const t0 = Date.now();
+  const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
+  const state = { refitDone: false, picks: 0, reloadSame: false, losses: [], ghosts: 0, standins: 0, placed: 0, foes: 0, dishonest: [] };
+  const n = await page.evaluate((pool) => { window.bb.clearPool(); return window.bb.addGhosts(pool); }, opts.pool);
+  log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ")}`);
+  await tapRegion(page, touch, "new");
+  await settle(page, "hero");
+  await tapRegion(page, touch, "go");
+  for (let day = 1; day <= 10; day++) {
+    await settle(page, "build");
     await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
+    const dawn = await page.evaluate(() => {
+      const run = window.bb.game.run, s = window.bb.game.screen;
+      return { day: run.day, gold: run.gold, lives: run.lives, wl: `${run.wins}-${run.losses}`, foe: s.foe.name, kind: s.foe.kind, seed: run.seed };
+    });
+    log(`[${at()}] DAWN · DAY ${dawn.day}/10: ${dawn.gold} gold, ${dawn.lives} lives, W-L ${dawn.wl}; NEXT BATTLE ${dawn.foe} (${dawn.kind})${day === 1 ? `, seed ${dawn.seed}` : ""}`);
+    const parts = [];
+    for (let k = 0; k < 2; k++) {
+      const def = await placePlanned(page, touch);
+      if (!def) break;
+      parts.push(def);
+      state.placed++;
+    }
+    if (parts.length) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ")}`);
     await tapRegion(page, touch, "fight");
     await road(page, touch, log, at, state);
-    await tapRegion(page, touch, "skip");
-    await page.waitForFunction(() => window.bb.game.screen.phase === "result", null, { timeout: 30000 });
+    const foe = await foeOf(page);
+    if (foe.kind === "ghost") state.ghosts++;
+    else state.standins++;
+    state.foes++;
+    if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
+    log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foeLine(foe)}), same as the dawn preview: ${foe.name === dawn.foe}`);
+    if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);
+    if (day === 1) {
+      await page.waitForFunction(() => window.bb.game.screen.phase === "fight", null, { timeout: 15000 });
+      await tapRegion(page, touch, "sp0");
+      await sleep(600);
+      await tapRegion(page, touch, "pause");
+      const p = await page.evaluate(() => ({ paused: window.bb.game.screen.paused, t: window.bb.game.screen.arena.b.t }));
+      await sleep(500);
+      const still = await page.evaluate((t) => window.bb.game.screen.arena.b.t === t, p.t);
+      await tapRegion(page, touch, "pause");
+      const resumed = await page.evaluate(() => !window.bb.game.screen.paused);
+      log(`[${at()}] playback: 0.5X, II -> paused ${p.paused} (sim held at ${p.t.toFixed(2)}s: ${still}), II -> resumed ${resumed}, then 4X`);
+      await tapRegion(page, touch, "sp3");
+    } else await tapRegion(page, touch, "skip");
+    await page.waitForFunction(() => window.bb.game.screen.phase === "result", null, { timeout: 90000 });
+    await page.waitForFunction(() => window.bb.regions().some((r) => r.id === "next"), null, { timeout: 5000 });
     const r = await page.evaluate(() => {
       const run = window.bb.game.run, h = run.history[run.history.length - 1];
-      return { round: h.round, outcome: h.outcome, time: h.time.toFixed(1), bounty: h.bounty || 0, wins: run.wins, losses: run.losses };
+      return { day: h.day, outcome: h.outcome, time: h.time.toFixed(1), income: h.income, lives: run.lives, wl: `${run.wins}-${run.losses}`, over: run.over };
     });
-    log(`[${at()}] round ${r.round}: SKIP -> ${r.outcome.toUpperCase()} (${r.time}s sim)${r.bounty ? ` bounty +${r.bounty}G` : ""} -> ${r.wins}W ${r.losses}L`);
+    if (r.outcome === "loss") state.losses.push(`day ${r.day}: ${dawn.lives} -> ${r.lives} lives`);
+    log(`[${at()}] RESULT CARD: ${r.outcome === "win" ? "WIN" : r.outcome === "loss" ? "LOSS -1 LIFE" : "DRAW"} (${r.time}s sim), income +${r.income}G, lives ${r.lives}, W-L ${r.wl}${r.over ? `, run ${r.over}` : ""}`);
+    if (r.over || (day >= opts.days && (!opts.untilLoss || state.losses.length))) break;
+    await tapRegion(page, touch, "next");
   }
-  await settle(page, "summary");
-  const s = await page.evaluate(() => ({ over: window.bb.game.run.over, wins: window.bb.game.run.wins, losses: window.bb.game.run.losses, events: window.bb.game.run.events.map((e) => `${e.id}:${e.choice}`) }));
-  log(`[${at()}] RUN SUMMARY screen: run ${s.over}, ${s.wins} wins, ${s.losses} losses; road events taken: ${s.events.join(", ")}`);
-  log(`[${at()}] checks: event choices picked ${state.picks} (>= 1: ${state.picks >= 1}), REFIT used: ${state.refitDone}`);
-  if (state.picks < 1 || !state.refitDone) throw new Error("scripted run did not pick an event choice and use REFIT");
+  const end = await page.evaluate(() => {
+    const run = window.bb.game.run;
+    return { over: run.over, day: run.day, wl: `${run.wins}-${run.losses}`, lives: run.lives, days: run.history.map((h) => `D${h.day} ${(run.events.find((e) => e.day === h.day) || { id: "quiet" }).id} / ${h.foe} / ${h.outcome}`) };
+  });
+  if (end.over) {
+    await tapRegion(page, touch, "next");
+    await settle(page, "summary");
+    log(`[${at()}] END SCREEN: ${end.over === "complete" ? "RUN COMPLETE" : "RUN LOST"} on day ${end.day}, W-L ${end.wl}, ${end.lives} lives`);
+  } else log(`[${at()}] stopped after day ${end.day - 1 || end.day} as planned (run continues), W-L ${end.wl}, ${end.lives} lives`);
+  log(`[${at()}] days: ${end.days.join(" | ")}`);
+  log(`[${at()}] checks: event picks ${state.picks}, REFIT ${state.refitDone}, dusk losses ${state.losses.join("; ") || "none"}, reload kept the ghost ${state.reloadSame}, pool ghosts met ${state.ghosts}, stand-ins ${state.standins}, parts placed ${state.placed}, honest dusk decks ${state.foes - state.dishonest.length}/${state.foes}${state.dishonest.length ? ` (NOT HONEST: ${state.dishonest.join(", ")})` : ""}`);
+  const days = end.days.length;
+  if (state.picks < 1 || !state.losses.some((l) => l.includes("5 -> 4")) || !state.reloadSame || days < 3) throw new Error("scripted run missed a required step (event, 5 -> 4 loss, reload with the same ghost, 3+ days)");
+  if (state.dishonest.length) throw new Error(`a dusk foe was not an honest deck (${state.dishonest.join(", ")})`);
+  return { ...end, state };
 }
