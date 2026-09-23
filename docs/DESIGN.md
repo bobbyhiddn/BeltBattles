@@ -29,13 +29,13 @@ ghost pool fills up).
 
 | Captain | Faction | Tier | Difficulty | Trick | Portrait |
 |---|---|---|---|---|---|
-| SOOTJAW | Furnace / orc | 1 | Easy | SLOW COOKER | soot-black jaw on a glowing cinder pipe |
 | NETTLE | Weaver / elf | 1 | Easy | SHORT STITCH | crown of bent sewing needles |
 | GRUBNOSE | Furnace / orc | 1 | Easy | PRESS GANG | nose ring shaped like a press die |
+| RATCHET | Furnace / orc | 1 (was 2) | Easy | OVERCLOCK | goggles with a spinning gear monocle |
 | MOTH QUEEN | Weaver / elf | 1, elite | Hard | FRAY STORM | moth-wing mantle, frayed glowing edges; amber elite corners |
+| SOOTJAW | Furnace / orc | 2 (was 1) | Medium | SLOW COOKER | soot-black jaw on a glowing cinder pipe |
 | SPARKFANG | Furnace / orc | 2 | Medium | SHOCK TROOPER | copper fang arcing a blue spark |
 | LACEWING | Weaver / elf | 2 | Medium | SPLITTER SWARM | lace veil splitting into twin tails |
-| RATCHET | Furnace / orc | 2 | Medium | OVERCLOCK | goggles with a spinning gear monocle |
 | EMBERLYN | Weaver / elf | 2 | Medium | EMBER WEAVE | braids tipped with smouldering embers |
 | OLD BULWARK | Furnace / orc | 2, elite | Hard | IRONCLAD | riveted iron plate over one eye; amber elite corners |
 | SILKSHADE | Weaver / elf | 3 | Hard | STATIC WEB | hooded face behind a crackling web |
@@ -45,32 +45,57 @@ ghost pool fills up).
 
 `difficultyOf(id)`: tier 1 is Easy and tier 2 is Medium; tier 3, the two elites and the Iron
 Matriarch are Hard. The rank only drives the portrait frame now. Portraits are 24x24 from
-`portraitImage(id)` in `src/render/portraits.ts`, on an orc or elf base.
+`portraitImage(id)` in `src/render/portraits.ts`, on an orc or elf base. Part 4 moved SOOTJAW up
+to Medium (its 13-tile cooker out-hits every Easy deck from day 1) and RATCHET down to Easy (a
+bare kiln until day 5), so the per-day ladder holds with 3 Easy, 4 Medium and 5 Hard captains.
 
-**Every captain is a real production build.** Its hull is `warlordHull(day)` plus 25 per plate it
-bought. `rivalBuild(id, day)` is legal on every day 1-10 under the build screen's own checks, it
-costs no more than a player who won every day could have spent by then (on every day the captain
-can be met), and it never shrinks from one day to the next. A stamp press can be bought on a later
-day with its belt, like any player purchase.
+**Every captain is a real production build: one plan, two decks** (R1, R2 below). The plan is legal
+on every day 1-10 under the build screen's own checks and never shrinks from one day to the next. A
+stamp press is bought only together with a gate for its belt.
+- **Warlord deck** `rivalBuild(id, day)`: the plan plus the PvE hull ramp `warlordHull(day)` (-27 on
+  day 1 up to +72 on day 10). Warlords never cost a life, so this deck may exceed a player's budget
+  and its hull need not be whole plating.
+- **Stand-in deck** `standInBuild(id, day)`: the same plan with `hullBonus = 25 x (plan plates +
+  rampPlates(day))`, paid for. The game fights every stand-in with this deck, never `rivalBuild`.
 
 **The road stop's warlords.** `warlordOffer(runSeed, day)` returns `{ easy, medium, hard }`.
 - It draws from its own `hashSeed(runSeed, "warlords", slot, cycle)` stream, so shop rolls and battle seeds never move.
 - Each slot deals its pool in shuffled cycles (3 Easy, 4 Medium, 5 Hard captains), so every captain in a pool is offered once before any is offered twice.
-- No captain is offered on two consecutive days, in any slot. The one exception is the Iron Matriarch: she is the Hard warlord on each of days 8, 9 and 10, and never earlier.
+- No captain is offered on two consecutive days, in any slot. The one exception is the Iron Matriarch: she is the Hard warlord on days 8, 9 and 10 until beaten (R3), and never earlier.
+- `warlordOffer(runSeed, day, matriarchBeatenOn?)` applies R3; `warlordOffers(runSeed)` is the unbeaten schedule.
 
 **Stand-in ghosts.** `standInGhosts(runSeed)` gives one captain per day (`standInGhost(runSeed, day)`):
 - It is a seeded order of the 12 captains other than the Matriarch, from its own `hashSeed(runSeed, "standin")` stream.
 - No captain stands in twice in a run, and none stands in on a day it is offered as a warlord (it waits for the next free day).
 - Either faction may stand in, so mirror matches happen.
-- A stand-in fights with `rivalBuild(id, day)`: a real, legal day-N build.
+- The game fights a stand-in with `standInBuild(id, day)`: an honest deck a player could own that day (R1).
+
+**Rulings (DECIDED, Part 4).**
+- **R1 Honest ghosts.** Every dusk opponent, stand-ins included, is an honest deck: its hull is a
+  whole, non-negative number of +25 plates; its cost by the async validator's `buildCost` (items,
+  mods, belt crates above the hero's base belt, plating; mirrored by `deckCost`) is at most
+  `maxGoldByDay(day)` = START_GOLD + incomeFor(d, true) for every d < day (8, 17, 27 ... 119); every
+  belt reaches a turret. Road warlords are PvE, keep `warlordHull(day)` and may exceed the budget.
+- **R2 Honest hull.** `rampPlates(day) = max(0, round(warlordHull(day) / 25))`: 0 on days 1-4, 1 on
+  5-6, 2 on 7-9, 3 on 10. Stand-ins buy these plates on top of their plan's. The ladder's par player
+  gets the same conversion: `honestReference(hero, day)` is `warlordBuild(hero, day)` with 25 x
+  `rampPlates(day)` hull.
+- **R3 The Matriarch rule.** She holds the Hard slot on days 8-10 until the player beats her, the one
+  exception to the no-consecutive-days rule. From the next day the Hard slot shows a regular Hard
+  captain, never that day's stand-in, so her legendary reward can be won once per run. Stand-ins
+  never change. She never stands in, so her deck alone may exceed the budget (+2 plates on day 8).
+- **R4 Difficulty.** The base run is the real game: 5 lives, honest ghosts. HEAT levels only go up
+  from it (Progression below); nothing goes below the base, and ghosts always run as submitted.
 
 **Difficulty ladder** (`tests/rivals.difficulty.test.ts`). For each day, every captain the player
-can meet that day is fought by the other faction's day-N warlord over 20 seeds. A lower reference
-win rate and hull margin mean a harder captain. The test prints each difficulty's mean per day and
-asserts, on every day:
-- the Easy mean is easier than the Medium mean, which is easier than the Hard mean;
-- every Easy captain is easier than every Hard captain;
-- on days 8-10, the Iron Matriarch is the hardest captain;
+can meet is fought as a warlord (`rivalBuild`) by the par player, `honestReference` of the other
+faction, over 20 seeds (side 0). The margin is the par player's hull left minus the captain's, so a
+lower margin is a harder captain. The test prints the ladder and the stand-in pool, and asserts on
+every day 1-10:
+- by mean margin Easy > Medium > Hard, each gap at least 0.05, and every Easy captain above every Hard one;
+- the Easy mean margin is above 0 (a par deck beats Easy on average) and the Hard mean is below 0;
+- on days 8-10, the Iron Matriarch has the lowest margin of all;
+- the 12 stand-in decks' (`standInBuild`) mean margin is between -0.25 and +0.25;
 - against an Easy or Medium captain on days 1-3, the pacing-test decks' battles average 20-45 s.
 
 **Road-stop and dusk panels** (`drawFoe` / `drawIdle` in `src/screens/build/inspector.ts`):
@@ -155,12 +180,13 @@ hero brings warlords of its own at Easy, Medium and Hard, built like today's cap
 ### Progression (0.11.0)
 
 - **Unlocks.** Furnace and Weaver start open. ROADMAP §4's default unlocks Siphon with the first completed run. Parts unlock in 3 batches of 6, one per completed run with a different hero.
-- **Difficulty tiers.** Complete a run on one tier to open the next.
-  - DECKHAND: warlords and stand-ins -25 hull, 6 lives.
-  - CAPTAIN: as designed, 5 lives.
-  - COMMODORE: warlords and stand-ins +1 plate.
-  - ADMIRAL: warlords and stand-ins +2 plates, and income is -1 per day.
-- **Run history.** The last 20 runs go to `beltbattles.history.v1` (about 2 KB each): hero, tier, seed, result, every warlord and ghost fought, the final deck, battle times and gold spent. Tapping a run shows its summary screen.
+- **Difficulty (R4, DECIDED).** The base run is the real game: 5 lives and honest ghosts. There is no
+  softer tier: nothing goes below the base. Completing a run unlocks optional HEAT levels above it,
+  each opened by completing a run at the one below:
+  - HEAT 1: warlords +1 plate. HEAT 2: warlords +2 plates.
+  - HEAT 3: as HEAT 2, and income is -1 per day. HEAT 4: as HEAT 3, with 4 lives.
+  - Ghosts, stand-ins included, always run exactly as submitted at every HEAT level.
+- **Run history.** The last 20 runs go to `beltbattles.history.v1` (about 2 KB each): hero, HEAT, seed, result, every warlord and ghost fought, the final deck, battle times and gold spent. Tapping a run shows its summary screen.
 - **Tutorial.** On first launch only (skippable), a build-screen walkthrough with no battle: draw a belt to the turret, drop the free temper on it. Day 1's dusk is still a real ghost.
 
 ### Balance and sound (0.11.0)
