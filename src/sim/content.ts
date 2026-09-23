@@ -225,15 +225,17 @@ export function itemsSoldBy(m: MerchantId): ItemDef[] {
   return Object.values(ITEMS).filter((d) => d.merchant === m);
 }
 
-export const RUN_ROUNDS = 10; // pacing target
-export const RUN_WINS = 7; // wins to complete a run
-export const RUN_LIVES = 3; // losses allowed before the run ends
+// 0.6.0: a run is RUN_DAYS days (dawn caravan -> the road -> a dusk ghost). A dusk loss costs a
+// life, a draw costs none; at 0 lives the run is lost, surviving day 10's dusk completes it.
+export const RUN_DAYS = 10;
+export const START_LIVES = 5; // tunable by the balance pass
 export const START_GOLD = 8;
 export const REROLL_COST = 2;
 export const OFFERS = 5;
 
-export function incomeFor(round: number, won: boolean): number {
-  return 6 + Math.min(round, 6) + (won ? 2 : 0);
+/** Gold after a dusk fight, indexed by day (0.5.0's round curve). */
+export function incomeFor(day: number, won: boolean): number {
+  return 6 + Math.min(day, 6) + (won ? 2 : 0);
 }
 
 export function rarityWeights(round: number): Record<Rarity, number> {

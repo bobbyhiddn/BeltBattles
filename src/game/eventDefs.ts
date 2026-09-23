@@ -17,9 +17,9 @@ export type Delta =
   | { k: "hull"; n: number } // max hull (build.hullBonus)
   | { k: "belt"; n: number } // belt capacity
   | { k: "item"; def: string; uid?: number; from?: "cargo" | "deck" | "mod" } // gain: new cargo item; cost: that exact part
-  | { k: "elite"; n: number } // this round's foe is the warlord from n rounds ahead
-  | { k: "foeHull"; n: number } // this round's foe hull (negative = weaker)
-  | { k: "bounty"; n: number } // extra gold if you win this round
+  | { k: "elite"; n: number } // warlord foe from n days ahead (0.6.0b: warlords only; never a ghost)
+  | { k: "foeHull"; n: number } // warlord foe hull (negative = weaker)
+  | { k: "bounty"; n: number } // extra gold for beating that warlord
   | { k: "discount"; n: number } // next caravan: every price -n (min 1)
   | { k: "reroll"; n: number }; // next caravan: n free rerolls
 
@@ -33,7 +33,7 @@ export interface Choice {
 }
 
 export interface EventState {
-  round: number;
+  day: number;
   id: EventId;
   roll: number; // fixed at creation: a gamble's outcome can't change by reloading
   pick: number; // fixed at creation: which part a salvage or trade offers
@@ -81,10 +81,10 @@ export function tradeGood(run: Run): Good | null {
   return all[0] ?? null;
 }
 
-/** The foe this round if you accept a challenge from `boost` rounds ahead. */
+/** The warlord if you accept a challenge from `boost` days ahead (0.6.0b retargets this to warlords). */
 export function eliteFoe(run: Run, boost: number): { name: string; hull: number } {
-  const b = warlordBuild(run.enemyHero, run.round + boost);
-  return { name: warlordName(run.enemyHero, run.round + boost), hull: HEROES[run.enemyHero].hull + b.hullBonus };
+  const b = warlordBuild(run.enemyHero, run.day + boost);
+  return { name: warlordName(run.enemyHero, run.day + boost), hull: HEROES[run.enemyHero].hull + b.hullBonus };
 }
 
 export const EVENTS: Record<EventId, EventDef> = {
@@ -191,5 +191,10 @@ export const EVENTS: Record<EventId, EventDef> = {
 };
 
 export const EVENT_IDS = Object.keys(EVENTS) as EventId[];
-/** Gentle intros for round 1: free gains only. */
+/** Events that act on the foe. A dusk ghost runs exactly as submitted, so they are out of the bag
+ *  for now; their definitions stay because 0.6.0b retargets them to warlords. */
+export const WARLORD_EVENT_IDS: EventId[] = ["herald", "sappers"];
+/** The events a run can draw on the road. */
+export const BAG_IDS: EventId[] = EVENT_IDS.filter((id) => !WARLORD_EVENT_IDS.includes(id));
+/** Gentle intros for day 1: free gains only. */
 export const INTRO_IDS: EventId[] = ["wreck", "cache"];
