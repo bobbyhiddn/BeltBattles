@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#050B12" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>BeltBattles</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #050b12;
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #stage {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      canvas#game {
+        display: block;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        touch-action: none;
+        outline: none;
+      }
+      noscript {
+        color: #d0ceb7;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><canvas id="game" tabindex="0" aria-label="BeltBattles game"></canvas></div>
+    <noscript>BeltBattles needs JavaScript.</noscript>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

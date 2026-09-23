@@ -1,0 +1,20 @@
+{
+  "name": "beltbattles",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "description": "BeltBattles — industrial-fantasy conveyor autobattler (first playable prototype).",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "shot": "node scripts/shot.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.55.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.2.2",
+    "vitest": "^4.0.0"
+  }
+}
