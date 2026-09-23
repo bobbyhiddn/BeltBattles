@@ -3,7 +3,7 @@
 Written against 0.4.1 (rules `bb-0.4.0`) while 0.5.0 (cruiser spacing, road events) is in
 flight. Every pass keeps the rule the game already lives by: the battle sim is fixed-step,
 seeded and deterministic, and every enemy is a real production build under player rules.
-Items marked **OPEN** are decisions for the Prime.
+Lines marked **DECIDED** record the Prime's decisions; anything still **OPEN** is for the Prime.
 
 ## 0.6.0 Rivals and finale
 
@@ -30,18 +30,18 @@ runs usually differ.
 - Losing to the boss at round 10 costs a life and sends you back to the caravan. You then retry at round 11, and at 12 if needed, while you have lives.
 - The boss buys one more plate and one more gate per retry (`matriarch` plan), so a retry needs a better deck, not luck.
 - There are 12 rounds at most. A run that is still alive after losing at round 12 is lost.
-- **OPEN:** a draw with the boss. Proposal: it counts as a loss but costs no life, and at round 12 it is a loss.
-- **OPEN:** reaching round 10 with 0 wins is possible if draws pile up. Proposal: allow it; the boss is the gate.
+- **DECIDED:** a draw with the boss counts as a loss that costs no life. You retry at the next round against the escalated boss, and a draw at round 12 loses the run.
+- **DECIDED:** reaching round 10 with 0 wins is allowed. The boss is the only gate.
 
-**Rewards.** Income stays `incomeFor(round, won)`. Beating an elite adds +3 gold and beating the
-boss ends the run. Proposal: elites also drop one free rare part (a caravan pick of 2) to make
-round 3 and 7 feel like milestones.
+**Rewards.** Income stays `incomeFor(round, won)`, and beating the boss ends the run.
+**DECIDED:** beating an elite pays +3 gold and gives a free pick of 1 of 2 rare parts at the next
+caravan, so rounds 3 and 7 feel like milestones.
 
 **NEXT BATTLE panel** (`drawFoe` / `drawIdle` in `src/screens/build/inspector.ts`):
 - The name comes from `RIVALS[id].name` instead of `warlordName`. It is red for regulars and gets an **ELITE** (amber) or **BOSS** (plum4) tag.
 - Line 2: `trick` in yellow, then `blurb` in bone, e.g. `SLOW COOKER · ONE LONG WINDING BELT. LATE, HOT SLUGS.`
 - Line 3 keeps the class line (`FURNACE · HULL 347`) and adds `TRY 2/3` on boss retries.
-- A 24x24 portrait on the left, drawn from `RIVALS[id].portrait` (3-4 named palette colours plus one feature).
+- A 24x24 portrait on the left: `portraitImage(id)` from `src/render/portraits.ts` (a faction base plus the rival's feature and palette from `RIVALS[id].portrait`; the hero card uses `portraitImage(heroId)`).
 - In portrait layout the strip keeps 2 rows: name + tag, then trick. The blurb moves to the tap-to-inspect details.
 
 **Act banners.** A full-width banner shows for 1.6 s when the caravan arrives before rounds 1, 4
@@ -59,10 +59,10 @@ left minus rival hull left, as fractions. Values come from `tests/rivals.difficu
 
 | Rival | Faction | Tier | Trick | Rounds | Ref win | Margin |
 |---|---|---|---|---|---|---|
-| SOOTJAW | Furnace / orc | 1 | SLOW COOKER | 1-2 | 0% | -0.19 |
-| NETTLE | Weaver / elf | 1 | SHORT STITCH | 1-2 | 50% | +0.06 |
+| SOOTJAW | Furnace / orc | 1 | SLOW COOKER | 1-2 | 50% | -0.06 |
+| NETTLE | Weaver / elf | 1 | SHORT STITCH | 1-2 | 50% | +0.11 |
 | GRUBNOSE | Furnace / orc | 1 | PRESS GANG | 1-2 | 100% | +0.33 |
-| MOTH QUEEN | Weaver / elf | act-1 elite | FRAY STORM | 3 | 0% | -0.23 |
+| MOTH QUEEN | Weaver / elf | act-1 elite | FRAY STORM | 3 | 0% | -0.28 |
 | SPARKFANG | Furnace / orc | 2 | SHOCK TROOPER | 4-6 | 88% | +0.21 |
 | LACEWING | Weaver / elf | 2 | SPLITTER SWARM | 4-6 | 67% | +0.03 |
 | RATCHET | Furnace / orc | 2 | OVERCLOCK | 4-6 | 38% | -0.06 |
@@ -74,17 +74,29 @@ left minus rival hull left, as fractions. Values come from `tests/rivals.difficu
 | IRON MATRIARCH | Furnace / orc | boss | GRAND FOUNDRY | 10-12 | 0% | -0.39 |
 
 Every rival's hull is `warlordHull(round)` + 25 per plate it bought. Every deck costs no more than a
-player who won every round could have spent by then. **OPEN:** the rival's faction ignores the
-player's hero, so a Furnace player can meet a Furnace rival. Proposal: keep the mirrors (they teach
-by example), but guarantee at least one other-faction regular per act.
+player who won every round could have spent by then.
+
+**First fight and elites** (asserted in `tests/rivals.difficulty.test.ts`):
+- At round 1, no tier-1 rival is harder than today's round-1 warlord for any pacing-test deck (start deck plus 0-2 gates): win rate at most 10 points lower, margin at most 0.05 lower, mirrors included.
+- Sootjaw and Nettle open round 1 on a softer `opener` layout: a 6-tile staircase, and a loom under the guns with long stitches. From round 2 they redraw into their full trick.
+- Each act elite leads every regular of its act by at least 0.08 margin. Moth Queen leads by 0.21 or more.
+
+**DECIDED:** mirror matches stay. `rivalFor` keeps its `(runSeed, round)` signature; this is revisited
+when new races add rivals.
 
 **Road events (0.5.0) with rivals.** One seeded event with 2-3 priced choices sits between the caravan
 and each battle. Rivals give events something to point at:
 - SCOUT (1 gold) reveals the next rival's deck in the NEXT BATTLE panel.
 - SABOTAGE (4 gold) removes the rival's newest upgrade for this fight (`planBuild` at round - 1).
 - ELITE BOUNTY is offered only before rounds 3 and 7: stake 3 gold, get 10 back if you beat the elite.
+- **DECIDED:** all three are accepted. The 0.6.0 integration adds them to the 0.5.0 road-event table.
 
 ## 0.7.0 Arsenal
+
+**Scope.** The operator's v0.2 spec asks for six heroes across five races (Orc Furnace, Elf Weaver,
+Human Foundry, Dwarf Bastion, Beastfolk Metronome, plus Siphon and a random pick), async matches
+against other players' saved builds, PvE warlords at Easy/Medium/Hard, and dark-wind map events.
+The Prime's revised roadmap governs 0.7.0 onward; ANVIL and VOLTA below are candidate mechanics only.
 
 **Star merging.** Dropping a duplicate part onto its twin on the deck (or in cargo) merges them into
 ★2. Two ★2 parts merge into ★3, so ★3 takes 4 copies. With 5 offers a round and a pool of ~32, 4
@@ -129,7 +141,7 @@ ARMOR. A tag bonus lights up at 3 and 5 parts of one tag (e.g. BURN 3: burn tick
 | LODESTONE | gate | SHOCK, HAUL | +1 flat per shocked hit this battle (max +6) | 7 |
 | GILT SEAL | mod | - | turret fires 2 per shot while Fray on the foe is 10+ | 7 |
 
-**Two new heroes** (factions and names **OPEN**):
+**Two new heroes** (candidate mechanics only, see the scope note):
 - **ANVIL**, Deepguild dwarves. CRUCIBLE (2x2, 2.0 s) stamps SLAG slugs: base 7, and each hit leaves slag on the struck machine (+0.4 s to its next stamp or shot, max +1.2 s). One heavy centre turret (connectors 4 and 5) plus one light turret at column 8. Hull 220, belt 16. Playstyle: GRIND THEM DOWN.
 - **VOLTA**, Sparkwright gnomes. DYNAMO (2x2, 0.9 s, 2 outputs) stamps CHARGE slugs: base 2, +1 per gate passed, and every machinery hit shocks. Two medium turrets (columns 2 and 7, window 2, 0.8 s). Hull 170, belt 20. Playstyle: GATES ARE AMMO.
 - Each hero gets 3 rivals of its own in 0.7.x: one per tier, plus a variant elite.
@@ -143,7 +155,7 @@ ARMOR. A tag bonus lights up at 3 and 5 parts of one tag (e.g. BURN 3: burn tick
   - COMMODORE: rivals +1 plate and elites field their next-round deck.
   - ADMIRAL: rivals +2 plates, the boss has 1 retry, and income is -1 per round.
 - **Run history.** The last 20 runs go to `beltbattles.history.v1` (about 2 KB each): hero, tier, seed, result, rivals fought and beaten, the final deck, battle times and gold spent. Tapping a run shows its summary screen and a REPLAY SEED button.
-- **Daily seed.** `hashSeed("daily", "YYYY-MM-DD")` in UTC: the same rivals, shops and events for everyone that day. It works locally only and records the first attempt. **OPEN:** whether a share code is needed.
+- **Daily seed.** `hashSeed("daily", "YYYY-MM-DD")` in UTC: the same rivals, shops and events for everyone that day. It works locally only and records the first attempt. **DECIDED:** the share code is deferred to the revised roadmap, because async play may replace it.
 - **Tutorial round.** On first launch only (skippable), round 0 against SCRAP DUMMY: a bare kiln with 6 belt tiles and hull -80. Three prompts: draw a belt to the turret, drop the free temper on it, press FIGHT. Nothing carries over.
 
 ## 0.9.0 Balance and sound
@@ -167,4 +179,4 @@ ARMOR. A tag bonus lights up at 3 and 5 parts of one tag (e.g. BURN 3: burn tick
   - No frame over 33 ms in a 10-round scripted playthrough (`scripts/playthrough.mjs`).
   - The JS heap stays flat across 5 runs.
 - **Single-file build.** `scripts/singlefile.mjs` produces one HTML file of at most 1.5 MB with no network requests. It loads offline from `file://`, and saves survive a version bump through a `version` migration.
-- **Release gate.** All tests are green, the balance harness is within targets and `RULES_VERSION` is bumped. The operator plays one full run per hero on a phone and approves. **OPEN:** whether the operator wants a store or itch.io wrapper, or the single file only.
+- **Release gate.** All tests are green, the balance harness is within targets and `RULES_VERSION` is bumped. The operator plays one full run per hero on a phone and approves. **DECIDED:** a store or itch.io wrapper is the operator's call at release.
