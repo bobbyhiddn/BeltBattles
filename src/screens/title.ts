@@ -12,19 +12,22 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap } from "../render/font";
 import { titleArt } from "../render/sprites";
+import { HULL_L } from "../render/frame";
 import { ArenaBg } from "../render/arenaBg";
 import { button, panel, para } from "../ui/ui";
 import { optionsCard } from "../ui/hud";
 import { HeroScreen } from "./hero";
 import { BuildScreen } from "./build/build";
+import { EventScreen } from "./event/event";
+import { VERSION } from "../version";
 
 const HELP = [
   "1  BUY GATES FROM THE CARAVAN CARDS.",
   "2  DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE.",
   "3  DROP GATES ON THE BELT: BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN.",
   "4  LONGER CINDER ROUTES COOK HOTTER SLUGS. THREAD HITS FRAY ARMOR.",
-  "5  PRESS FIGHT. YOUR CRUISER BATTLES ON ITS OWN.",
-  "6  WIN 7 BATTLES BEFORE YOU LOSE 3.",
+  "5  PRESS FIGHT. ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3): SALVAGE, TRADES, BETS, REPAIRS, BOUNTIES.",
+  "6  YOUR CRUISER BATTLES ON ITS OWN. WIN 7 BATTLES BEFORE YOU LOSE 3.",
 ];
 
 export class TitleScreen implements Screen {
@@ -66,7 +69,9 @@ export class TitleScreen implements Screen {
     this.layoutKey = k;
     const top = portrait ? 60 : Math.round(H * 0.08) + 40;
     const panelH = this.save ? 90 : 62;
-    const a = arenaIn({ x: 0, y: top, w: W, h: Math.max(160, H - top - panelH - 14) }, portrait, portrait ? 28 : 48);
+    // open floor between the bows like the real battle (0.5.0): ~20% of the firing axis, with 6 px spare in the box
+    const box = { x: 0, y: top, w: W, h: Math.max(160, H - top - panelH - 14) };
+    const a = arenaIn(box, portrait, Math.min(Math.round((portrait ? H : W) * 0.2), (portrait ? box.h : box.w) - 2 * HULL_L - 12));
     this.arena.setFrames(a.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
     this.hulls = a.hulls;
   }
@@ -123,7 +128,7 @@ export class TitleScreen implements Screen {
     });
     button(ui, g, "options", { x: bx + hw + 4, y: by, w: bw - hw - 4, h: bh - 4 }, "OPTIONS", { font: "3", onTap: () => { this.menu = true; } });
     game.soundButton(g, { x: W - 30, y: 4, w: 26, h: 13 });
-    drawText(g, "V0.4.1", W - 4, H - 8, C.slate3, { font: "3", align: "right" });
+    drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
     if (this.help) this.drawHelp(g);
     if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; });
   }
@@ -146,7 +151,9 @@ export class TitleScreen implements Screen {
     const run = loadRun();
     if (!run) return;
     this.game.run = run;
-    this.game.go(new BuildScreen(this.game));
+    // on the road: the same event (resolved or not); after it: a refit (the caravan is gone)
+    const onRoad = run.stage === "event" && !!run.event && run.event.round === run.round;
+    this.game.go(onRoad ? new EventScreen(this.game) : new BuildScreen(this.game));
   }
 
   key(k: string): void {

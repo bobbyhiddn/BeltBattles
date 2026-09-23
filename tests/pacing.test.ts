@@ -32,6 +32,9 @@ const CASES: [string, Build, HeroId, number][] = [
   ["weaver start", W, "furnace", 3],
   ["weaver + grease", withGates(W, [["grease", 4, 3]]), "furnace", 2],
   ["weaver + grease + whetstone", withGates(W, [["grease", 4, 3], ["whetstone", 1, 3]]), "furnace", 3],
+  // 0.5.0 road events: an accepted challenge in round 2 brings the warlord from round 4 (elite)
+  ["ELITE: furnace + temper (r2 challenge)", withGates(F, [["temper", 4, 3]]), "weaver", 4],
+  ["ELITE: weaver + grease (r2 challenge)", withGates(W, [["grease", 4, 3]]), "furnace", 4],
 ];
 
 describe("pacing (rounds 1-3 at 1x)", () => {

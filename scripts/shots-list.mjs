@@ -43,6 +43,17 @@ export const KO_FRAME = `(() => {
   g.render();
 })()`;
 
+// 0.5.0 road events: open a given event (with round/gold/lives/cargo), optionally pick a choice
+// and step `after` frames (the result beat), optionally press REFIT.
+export const EVENT = (id, o = {}, pick = -1, after = 0, refit = false) => `(() => {
+  const g = bb.game;
+  bb.openEvent(${JSON.stringify(id)}, ${JSON.stringify(o)});
+  for (let i = 0; i < 60; i++) g.step(1 / 60);
+  if (${pick} >= 0) { g.render(); g.screen.pick(${pick}); for (let i = 0; i < ${after}; i++) g.step(1 / 60); }
+  if (${refit}) { g.screen.refit(); for (let i = 0; i < 60; i++) g.step(1 / 60); }
+  g.render();
+})()`;
+
 // [name, view, screen, seconds after the wipe, page script, special input]
 export const SHOTS = [
   ["title", "phone", "title", 1.5], ["title", "desk", "title", 1.5],
@@ -66,4 +77,20 @@ export const SHOTS = [
   ["build-drag", "phone", "build", 1.2, null, "drag"],
   // extra framing evidence for the two remaining views
   ["battle-mid", "laptop", "battle", 7], ["battle-mid", "small", "battle", 7],
+  // 0.5.0 road events: a 3-choice event (one bet unaffordable) and the beat just after a pick
+  ...["desk", "laptop", "phone", "small"].flatMap((v) => [
+    ["event", v, "title", 0, EVENT("dice", { gold: 5 })],
+    ["event-result", v, "title", 0, EVENT("wreck", { round: 1, gold: 8 }, 0, 20)],
+  ]),
+  // events sheet (desk + phone) and the refit that follows a salvaged part
+  ...["desk", "phone"].flatMap((v) => [
+    ["event-trader", v, "title", 0, EVENT("trader", { cargo: "whetstone" })],
+    ["event-dock", v, "title", 0, EVENT("dock", { gold: 9, lives: 3 })], // PATCH UP disabled: LIVES FULL
+    ["event-herald", v, "title", 0, EVENT("herald", { round: 2 })],
+    ["event-storm", v, "title", 0, EVENT("storm")],
+    ["event-smuggler", v, "title", 0, EVENT("smuggler")],
+    ["event-scout", v, "title", 0, EVENT("scout")],
+    ["event-refit-offer", v, "title", 0, EVENT("wreck", { round: 1, gold: 8 }, 0, 70)],
+    ["build-refit", v, "title", 0, EVENT("wreck", { round: 1, gold: 8 }, 0, 70, true)],
+  ]),
 ];

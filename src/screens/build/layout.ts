@@ -139,6 +139,14 @@ export class Caravan {
     this.t = 0;
   }
 
+  /** No caravan (refit after a road event): nothing slides, input is live at once. */
+  park(): void {
+    this.state = "parked";
+    this.t = 0;
+    this.count = 0;
+    this.then = null;
+  }
+
   leave(then: () => void): void {
     this.state = "out";
     this.t = 0;

@@ -2,8 +2,7 @@
 // turret) with its action button; idle it shows the cruiser card. Landscape uses the left
 // column (sized to its content), portrait the strip between the shop and the deck.
 
-import { enemyBuild, type Run } from "../../game/run";
-import { warlordName } from "../../sim/ai";
+import { enemyBuild, foeName, type Run } from "../../game/run";
 import { HEROES, ITEMS, MERCHANTS, RUN_LIVES, RUN_WINS } from "../../sim/content";
 import { beltUsed, connectedRouteCount, defOf, estimateRoute, itemByUid, key, routeInfo, routesOf } from "../../sim/deck";
 import { C, RARITY_COLOR } from "../../render/palette";
@@ -161,7 +160,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean): void {
   if (!column && area.h < 30) {
     panel(g, area, "dark");
     drawText(g, "NEXT", area.x + 5, area.y + 5, C.slate4, { font: "3" });
-    drawText(g, warlordName(foe.hero, run.round), area.x + 24, area.y + 4, C.red, { outline: C.ink });
+    drawText(g, foeName(run), area.x + 24, area.y + 4, C.red, { outline: C.ink });
     drawText(g, `${HEROES[foe.hero].name} · HULL ${HEROES[foe.hero].hull + foe.hullBonus} · BELT ${used}/${cap}`, area.x + 5, area.y + 14, C.bone, { font: "3" });
     return;
   }
@@ -222,7 +221,7 @@ function drawHeroStrip(g: G, run: Run, r: Rect): void {
 export function drawFoe(g: G, run: Run, r: Rect): void {
   panel(g, r, "dark");
   const foe = enemyBuild(run);
-  const name = warlordName(foe.hero, run.round);
+  const name = foeName(run);
   const cls = `${HEROES[foe.hero].name} · HULL ${HEROES[foe.hero].hull + foe.hullBonus}`;
   drawText(g, "NEXT BATTLE", r.x + 5, r.y + 5, C.slate4, { font: "3" });
   if (r.h < 32) {

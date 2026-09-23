@@ -109,12 +109,15 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number): void {
   text.forEach((l, i) => drawText(g, l, x + 5, y + 21 + i * 7, C.bone, { font: "3" }));
 }
 
-export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pressed: boolean): void {
+export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pressed: boolean, free = false): void {
   const y = r.y + (pressed ? 1 : 0);
-  cardFrame(g, r.x, y, r.w, r.h, enabled ? C.amber : C.slate1, enabled ? C.amber : C.slate1, !enabled);
+  cardFrame(g, r.x, y, r.w, r.h, enabled ? (free ? C.lime : C.amber) : C.slate1, enabled ? C.amber : C.slate1, !enabled);
   drawText(g, "REROLL", r.x + r.w / 2, y + 12, enabled ? C.white : C.slate2, { font: "3", align: "center" });
-  g.drawImage(coinIcon(), Math.round(r.x + r.w / 2 - 7), y + 22);
-  drawText(g, String(REROLL_COST), r.x + r.w / 2 + 1, y + 21, enabled ? C.yellow : C.slate2, { outline: C.ink });
+  if (free) drawText(g, "FREE", r.x + r.w / 2, y + 21, C.lime, { outline: C.ink, align: "center" });
+  else {
+    g.drawImage(coinIcon(), Math.round(r.x + r.w / 2 - 7), y + 22);
+    drawText(g, String(REROLL_COST), r.x + r.w / 2 + 1, y + 21, enabled ? C.yellow : C.slate2, { outline: C.ink });
+  }
   if (hover && enabled) frame(g, r.x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
 }
 

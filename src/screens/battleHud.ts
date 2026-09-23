@@ -129,7 +129,8 @@ export function drawResult(g: G, game: Game, r: RoundResult, foe: string, pt: nu
     ry += 8;
   }
   ry += 3;
-  drawText(g, `INCOME +${r.income}G`, x + 10, ry, C.yellow);
+  const iw = drawText(g, `INCOME +${r.income}G`, x + 10, ry, C.yellow);
+  if (r.bounty) drawText(g, `BOUNTY +${r.bounty}`, x + 14 + iw, ry + 1, C.lime, { font: "3" });
   for (let i = 0; i < RUN_LIVES; i++) g.drawImage(heartIcon(i < run.lives), x + w - 12 - (RUN_LIVES - i) * 7, ry + 1);
   ry += 11;
   drawText(g, "WINS", x + 10, ry + 1, C.slate4, { font: "3" });

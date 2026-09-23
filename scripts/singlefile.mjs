@@ -44,6 +44,10 @@ async function main() {
   for (const vname of ["desk", "phone"]) {
     const ctx = await browser.newContext(VIEWS[vname]);
     const page = await ctx.newPage();
+    // pin the new-run seed (the hero screen seeds from Math.random) so the run is reproducible:
+    // both pins give the WRECKED RAIDER salvage as round 1's intro event, so REFIT comes up
+    const pin = vname === "desk" ? 0.3 : 0.5;
+    await page.addInitScript((r) => { Math.random = () => r; }, pin);
     const errors = [];
     page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
     page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`); });
@@ -52,7 +56,7 @@ async function main() {
     try {
       await page.goto(url);
       await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title", null, { timeout: 15000 });
-      log(`loaded from file:// : title screen up, version ${await page.evaluate(() => window.bb.version)}`);
+      log(`loaded from file:// : title screen up, version ${await page.evaluate(() => window.bb.version)} (Math.random pinned to ${pin} -> run seed ${(pin * 0x7fffffff) | 0})`);
       await scriptedRun(page, !!VIEWS[vname].hasTouch, log);
     } catch (e) {
       failed++;

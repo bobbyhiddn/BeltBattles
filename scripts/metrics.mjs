@@ -54,8 +54,29 @@ function shakeOnKO() {
   return { koAtSimSeconds: +a.b.t.toFixed(2), peakLogicalPx: a.shakePeak, peakCssPx: a.shakePeak * k };
 }
 
+// 0.5.0 targets: open floor between the bows >= 17 % of the firing axis (20 % on desk and
+// phone), deck share of the short axis >= 0.60 (replaces 0.4.x's 0.80), and the 0.4.1 shake
+// checks (light bolt exactly 1 px, heavy shell >= 2 px, 0 with Reduced Motion).
+const GAP_TARGET = { desk: 0.2, phone: 0.2, laptop: 0.17, small: 0.17 };
+const DECK_TARGET = 0.6;
+
+function checks(vname, v) {
+  const c = {
+    gap: v.gap.share >= GAP_TARGET[vname],
+    deckShare: v.shortAxisShare >= DECK_TARGET,
+    shakeLight: v.shakeOnHit.peakLogicalPx === 1,
+    shakeHeavy: v.shakeOnHeavyHit.peakLogicalPx >= 2,
+    reducedMotion: v.shakeOnHitReducedMotion.peakLogicalPx === 0 && v.shakeOnHeavyHitReducedMotion.peakLogicalPx === 0 && v.shakeOnKOReducedMotion.peakLogicalPx === 0,
+  };
+  return { ...c, all: Object.values(c).every(Boolean) };
+}
+
 export async function measure(browser, origin, serve, errors) {
-  const out = { version: VERSION, generated: new Date().toISOString(), target: { shortAxisShare: 0.8 }, views: {} };
+  const out = {
+    version: VERSION, generated: new Date().toISOString(),
+    target: { gapShare: GAP_TARGET, deckShare: DECK_TARGET, shake: { lightPx: 1, heavyMinPx: 2, reducedMotionPx: 0 } },
+    views: {},
+  };
   for (const [vname, vopts] of Object.entries(VIEWS)) {
     const ctx = await browser.newContext(vopts);
     await ctx.route(`${origin}/**`, serve);
@@ -69,9 +90,11 @@ export async function measure(browser, origin, serve, errors) {
     Object.assign(v, await page.evaluate(() => {
       const g = window.bb.game;
       const d = g.screen.deckMetrics();
-      return { scale: g.view.scale, logical: { W: g.W, H: g.H }, deckAreaCss: d.rect, shortAxisShare: +d.share.toFixed(4), longAxisShare: +d.longShare.toFixed(4) };
+      return {
+        scale: g.view.scale, logical: { W: g.W, H: g.H }, deckAreaCss: d.rect,
+        shortAxisShare: +d.share.toFixed(4), deckShare: +d.share.toFixed(4), longAxisShare: +d.longShare.toFixed(4), gap: d.gap,
+      };
     }));
-    v.passes = v.shortAxisShare >= 0.8;
     v.shakeOnHit = await page.evaluate(shakeOnHit, -1);
     await page.evaluate(openBattle, { rm: false });
     v.shakeOnHeavyHit = await page.evaluate(shakeOnHit, 1);
@@ -93,9 +116,22 @@ export async function measure(browser, origin, serve, errors) {
       const a = window.bb.game.screen.arena;
       return { ...s, fps: s.frameMs ? +(1000 / s.frameMs).toFixed(1) : 0, battleSeconds: a ? +a.b.t.toFixed(1) : null, particles: a ? a.fx.stats().parts : null };
     });
+    // 0.5.0: the road-event screen's frame time (10 s, real rAF loop, animated vignette)
+    await page.evaluate(() => { window.bb.openEvent("wreck", { round: 1, gold: 8 }); });
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.bb.game.perfN = 0; });
+    await page.waitForTimeout(10000);
+    v.eventFrameTime = await page.evaluate(() => {
+      const s = window.bb.game.perfStats(600);
+      return { ...s, fps: s.frameMs ? +(1000 / s.frameMs).toFixed(1) : 0, screen: window.bb.screen() };
+    });
+    v.checks = checks(vname, v);
+    v.passes = v.checks.all;
     out.views[vname] = v;
-    console.log(`metrics ${vname}: share ${v.shortAxisShare} shake ${v.shakeOnHit.peakLogicalPx}/${v.shakeOnHeavyHit.peakLogicalPx} rm ${v.shakeOnHitReducedMotion.peakLogicalPx}/${v.shakeOnHeavyHitReducedMotion.peakLogicalPx} ko ${v.shakeOnKO.peakLogicalPx} (rm ${v.shakeOnKOReducedMotion.peakLogicalPx}) work ${v.frameTime.workMs.toFixed(2)}ms`);
+    console.log(`metrics ${vname}: scale ${v.scale} gap ${v.gap.logical}px (${v.gap.css} css, ${v.gap.share}) deck ${v.shortAxisShare} checks ${v.passes ? "PASS" : "FAIL " + JSON.stringify(v.checks)} shake ${v.shakeOnHit.peakLogicalPx}/${v.shakeOnHeavyHit.peakLogicalPx} rm ${v.shakeOnHitReducedMotion.peakLogicalPx}/${v.shakeOnHeavyHitReducedMotion.peakLogicalPx} ko ${v.shakeOnKO.peakLogicalPx} (rm ${v.shakeOnKOReducedMotion.peakLogicalPx}) work ${v.frameTime.workMs.toFixed(2)}ms (event screen ${v.eventFrameTime.workMs.toFixed(2)}ms, ${v.eventFrameTime.fps} fps)`);
     await ctx.close();
   }
+  out.allPass = Object.values(out.views).every((v) => v.passes);
+  console.log(`metrics checks: ${out.allPass ? "ALL PASS" : "FAIL"}`);
   return out;
 }
