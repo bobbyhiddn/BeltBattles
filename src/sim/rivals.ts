@@ -6,7 +6,7 @@
 // hashSeed(runSeed, "standin") streams, so shop rolls and battle seeds never move.
 
 import { hashSeed, Rng } from "../core/rng";
-import { HEROES, ITEMS, START_GOLD, incomeFor, type Faction, type HeroId } from "./content";
+import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type Faction, type HeroId } from "./content";
 import type { Build } from "./deck";
 import { warlordBuild, warlordHull } from "./ai";
 import { PLANS, planBuild, type RivalLoadout } from "./rivalBuilds";
@@ -23,8 +23,8 @@ export type RivalTier = 1 | 2 | 3;
 /** A warlord slot at the road stop (spec §19): the player picks one of the three each day. */
 export type Difficulty = "easy" | "medium" | "hard";
 
-/** Days in a run: dawn caravan, the road stop, then the dusk ghost (ROADMAP §1). */
-export const RUN_DAYS = 10;
+/** Days in a run (ROADMAP §1): declared once in content.ts, re-exported for the roster's callers. */
+export { RUN_DAYS };
 /** The Iron Matriarch is the Hard warlord from this day to RUN_DAYS, and is never met before it. */
 export const MATRIARCH_DAY = 8;
 /** The three road-stop slots, easiest first. */

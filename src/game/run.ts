@@ -12,8 +12,11 @@ import { removeItem, type Build } from "../sim/deck";
 import { startingBuild } from "../sim/ai";
 import type { SideStats } from "../sim/battle";
 import type { EventId, EventState } from "./eventDefs";
+import type { RivalId } from "../sim/rivals";
+import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
 
-export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4 } from "./save";
+export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5 } from "./save";
+export type { PendingBounty, PendingSabotage, RoadChoice, RoadPick, WarlordFight, WarlordResult } from "./roadTypes";
 
 export interface InvItem {
   uid: number;
@@ -50,8 +53,9 @@ export interface DayResult {
   enemy: SideStats;
 }
 
-/** Where the day stands: dawn caravan, on the road (event), refitting after it, or the dusk fight. */
-export type Stage = "caravan" | "event" | "refit" | "battle";
+/** Where the day stands (0.6.0b): dawn caravan, the road fork, the road event or the warlord
+ *  fight picked there, refitting after it, or the dusk fight. */
+export type Stage = "caravan" | "fork" | "event" | "warlord" | "refit" | "battle";
 
 /** Road-event foe modifiers (0.5.0). Kept as the seam for 0.6.0b's warlords: a dusk ghost runs
  *  exactly as submitted, so nothing here is ever applied to it. */
@@ -76,7 +80,8 @@ export interface DuskFoe {
   name: string;
   hero: HeroId;
   build: Build; // fought exactly as stored
-  record?: { wins: number; losses: number; lives: number; runId: string; savedAt: number }; // a pool ghost's stamp
+  rival?: RivalId; // a stand-in's captain (portrait, STAND-IN tag)
+  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number }; // a pool ghost's stamp
 }
 
 export interface Run {
@@ -102,9 +107,16 @@ export interface Run {
   nextShop: { discount: number; free: number };
   events: TakenEvent[];
   dusk: DuskFoe | null;
+  // 0.6.0b, the road fork (road.ts)
+  road: RoadChoice | null; // today's fork pick
+  warlord: WarlordFight | null; // today's warlord fight (stored at the pick, so a reload replays it)
+  warlords: WarlordResult[]; // every warlord fight of the run, in order (summary)
+  matriarchBeatenOn: number | null; // R3: the day the Iron Matriarch was beaten
+  bounty: PendingBounty | null; // ELITE BOUNTY: rides on the next Hard warlord fight
+  sabotage: PendingSabotage | null; // SABOTAGE: the next warlord fights weakened
 }
 
-export const RUN_VERSION = 5;
+export const RUN_VERSION = 6;
 
 let runCounter = 0;
 /** A fresh run id: the seed plus the clock and a session counter (unique across quick restarts). */
@@ -119,6 +131,7 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
     build: startingBuild(hero, 1), inventory: [], shop: { wagons: [], rerolls: 0, discount: 0, free: 0 },
     nextUid: 100, history: [], over: null,
     stage: "caravan", event: null, foe: null, nextShop: { discount: 0, free: 0 }, events: [], dusk: null,
+    road: null, warlord: null, warlords: [], matriarchBeatenOn: null, bounty: null, sabotage: null,
   };
   rollShop(run);
   return run;

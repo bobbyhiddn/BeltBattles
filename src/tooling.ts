@@ -28,8 +28,8 @@ export function makeGhost(s: GhostSpec): GhostSnapshot {
   const build = power > 0 ? strongHonestBuild(hero, s.day, power) : honestStandInBuild(hero, Math.max(1, s.day + power));
   const losses = s.losses ?? 0;
   return {
-    v: 1, rulesVersion: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, losses, lives: START_LIVES - losses,
-    build, runId: s.runId ?? "tool-pool", savedAt: Date.now(),
+    v: 1, rules: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, lives: Math.max(1, START_LIVES - losses),
+    build, runId: s.runId ?? "tool-pool", playerId: "tool-player", createdAt: Date.now(),
   };
 }
 

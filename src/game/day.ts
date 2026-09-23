@@ -5,27 +5,29 @@
 
 import { HEROES, RULES_VERSION, RUN_DAYS, incomeFor } from "../sim/content";
 import type { Side, SideStats } from "../sim/battle";
-import { pickGhost, standIn, type GhostSnapshot } from "./ghosts";
+import { pickGhost, standInFoe, type GhostSnapshot } from "./ghosts";
+import { playerId } from "./ghostSnapshot";
 import { rollShop, type DayResult, type DuskFoe, type Run } from "./run";
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-/** How a pool ghost is named on the NEXT BATTLE card and the enemy plate. */
-export function ghostName(g: Pick<GhostSnapshot, "hero" | "wins" | "losses">): string {
-  return `GHOST · ${HEROES[g.hero].name} · ${g.wins}-${g.losses}`;
+/** How a pool ghost is named on the NEXT BATTLE card and the enemy plate: its hero, and the wins
+ *  and lives it carried into that dusk (a v1 snapshot has no loss count). */
+export function ghostName(g: Pick<GhostSnapshot, "hero" | "wins" | "lives">): string {
+  return `GHOST · ${HEROES[g.hero].name} · ${g.wins}W ${g.lives}♥`;
 }
 
-/** Choose today's dusk opponent from the pool (or a stand-in). Pure: the caller stores it. */
+/** Choose today's dusk opponent from the pool (or the day's stand-in captain). Pure: the caller stores it. */
 export function chooseFoe(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
-  const g = pickGhost(pool, { rulesVersion: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, losses: run.losses, seed: run.seed });
+  const g = pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, lives: run.lives, seed: run.seed });
   if (g) {
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, losses: g.losses, lives: g.lives, runId: g.runId, savedAt: g.savedAt },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt },
     };
   }
-  const s = standIn(run.seed, run.day);
-  return { day: run.day, kind: "standin", name: s.name, hero: s.hero, build: s.build };
+  const s = standInFoe(run.seed, run.day);
+  return { day: run.day, kind: "standin", name: s.name, hero: s.hero, build: s.build, rival: s.id };
 }
 
 /** Today's stored dusk opponent, if dusk has started. */
@@ -46,11 +48,11 @@ export function startDusk(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
   return f;
 }
 
-/** The player's own snapshot as it fights today's dusk (the record entering the fight). */
-export function ghostOf(run: Run, savedAt = Date.now()): GhostSnapshot {
+/** The player's own v1 snapshot as it fights today's dusk (wins and lives going INTO the fight). */
+export function ghostOf(run: Run, createdAt = Date.now(), player = playerId()): GhostSnapshot {
   return {
-    v: 1, rulesVersion: RULES_VERSION, hero: run.hero, day: run.day, wins: run.wins, losses: run.losses,
-    lives: run.lives, build: clone(run.build), runId: run.runId, savedAt,
+    v: 1, rules: RULES_VERSION, hero: run.hero, day: run.day, wins: run.wins, lives: Math.max(1, run.lives),
+    build: clone(run.build), runId: run.runId, playerId: player, createdAt: Math.max(0, Math.floor(createdAt)),
   };
 }
 
@@ -79,6 +81,8 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
     run.day++;
     run.stage = "caravan";
     run.dusk = null;
+    run.road = null;
+    run.warlord = null;
     run.shop = { wagons: [], rerolls: 0, discount: run.nextShop.discount, free: run.nextShop.free };
     run.nextShop = { discount: 0, free: 0 };
     rollShop(run);

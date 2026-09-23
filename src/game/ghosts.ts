@@ -1,27 +1,18 @@
-// Dusk ghosts (0.6.0, REQ-BFG-008): a ghost is a snapshot of a player's deck exactly as it fought
-// dusk on day N. After every dusk fight the player's own snapshot joins a local pool; at dusk the
-// game picks a ghost from the same rules version and the same day, never one from the current run,
-// nearest in W-L record, ties broken by a seeded hash. With no match a stand-in fights instead.
+// Dusk ghosts (0.6.0, REQ-BFG-008): a ghost is a GhostSnapshot v1 (ghostSnapshot.ts, the async
+// contract) of a player's deck exactly as it fought dusk on day N. After every dusk fight the
+// player's own snapshot joins a local pool; at dusk the game picks a ghost from the same rules
+// version and the same day, never one from the current run, ranked by |wins difference| then
+// |lives difference| (ref async matchmaking), ties broken by a seeded hash. With no match the day's
+// stand-in fights instead: a rival captain with its honest deck (standInFoe).
 // Kept small on purpose: async play (0.7.0, src/net/*) replaces the storage and the matchmaking.
 
-import { hashSeed, Rng } from "../core/rng";
-import { HEROES, type HeroId } from "../sim/content";
-import { warlordName } from "../sim/ai";
+import { hashSeed } from "../core/rng";
+import type { HeroId } from "../sim/content";
 import type { Build } from "../sim/deck";
-import { honestStandInBuild } from "./honest";
+import { RIVALS, standInBuild, standInGhost, type RivalId } from "../sim/rivals";
+import { migrateSnapshot, playerId, type GhostSnapshot } from "./ghostSnapshot";
 
-export interface GhostSnapshot {
-  v: 1;
-  rulesVersion: string;
-  hero: HeroId;
-  day: number;
-  wins: number; // the record entering that dusk
-  losses: number;
-  lives: number;
-  build: Build; // the serialisable build the battle uses
-  runId: string;
-  savedAt: number;
-}
+export type { GhostSnapshot } from "./ghostSnapshot";
 
 export const GHOST_KEY = "beltbattles.ghosts.v1";
 export const POOL_MAX = 300;
@@ -37,25 +28,28 @@ function storage(s?: Store): Store | null {
   }
 }
 
-function valid(g: unknown): g is GhostSnapshot {
-  const q = g as GhostSnapshot | null;
-  return !!q && q.v === 1 && typeof q.rulesVersion === "string" && typeof q.day === "number" && !!HEROES[q.hero]
-    && typeof q.wins === "number" && typeof q.losses === "number" && typeof q.runId === "string"
-    && !!q.build && Array.isArray(q.build.items) && Array.isArray(q.build.routes) && Array.isArray(q.build.mods);
-}
-
-/** The local pool, oldest first (malformed entries are skipped; storage errors give an empty pool). */
+/** The local pool, oldest first. 0.6.0a entries migrate to v1 on load; malformed entries are
+ *  skipped; storage errors give an empty pool. */
 export function loadPool(s?: Store): GhostSnapshot[] {
   try {
-    const raw = storage(s)?.getItem(GHOST_KEY);
+    const st = storage(s);
+    const raw = st?.getItem(GHOST_KEY);
     const arr: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr.filter(valid) : [];
+    if (!Array.isArray(arr)) return [];
+    const me = playerId(s);
+    const out: GhostSnapshot[] = [];
+    for (const e of arr) {
+      const g = migrateSnapshot(e, me);
+      if (g) out.push(g);
+    }
+    return out;
   } catch {
     return [];
   }
 }
 
-/** Add a snapshot to the pool, dropping the oldest past POOL_MAX. Storage errors are ignored. */
+/** Add a snapshot to the pool (the whole pool is written back as v1), dropping the oldest past
+ *  POOL_MAX. Storage errors are ignored. */
 export function saveGhost(g: GhostSnapshot, s?: Store): void {
   try {
     const st = storage(s);
@@ -70,36 +64,51 @@ export function saveGhost(g: GhostSnapshot, s?: Store): void {
 }
 
 export interface GhostQuery {
-  rulesVersion: string;
+  rules: string;
   day: number;
   runId: string;
-  wins: number;
-  losses: number;
+  wins: number; // going into tonight's dusk
+  lives: number; // going into tonight's dusk
   seed: number;
 }
 
-/** Same rules version and day, never the current run, nearest W-L record; ties by a seeded hash. */
+/**
+ * Same rules version and day, never the current run; rank by |wins - q.wins|, then
+ * |lives - q.lives| (as the async matchmaking does); ties by hashSeed(seed, "ghost", day) over the
+ * best rank in pool order. (The local pool is this player's own earlier runs, so it excludes the
+ * current run, not the player id; the async server excludes the player id.)
+ */
 export function pickGhost(pool: readonly GhostSnapshot[], q: GhostQuery): GhostSnapshot | null {
   let best: GhostSnapshot[] = [];
-  let bestD = Infinity;
+  let bw = Infinity, bl = Infinity;
   for (const g of pool) {
-    if (!valid(g) || g.rulesVersion !== q.rulesVersion || g.day !== q.day || g.runId === q.runId) continue;
-    const d = Math.abs(g.wins - q.wins) + Math.abs(g.losses - q.losses);
-    if (d < bestD) {
-      bestD = d;
+    if (g.rules !== q.rules || g.day !== q.day || g.runId === q.runId) continue;
+    const dw = Math.abs(g.wins - q.wins), dl = Math.abs(g.lives - q.lives);
+    if (dw < bw || (dw === bw && dl < bl)) {
       best = [g];
-    } else if (d === bestD) best.push(g);
+      bw = dw;
+      bl = dl;
+    } else if (dw === bw && dl === bl) best.push(g);
   }
   if (!best.length) return null;
   return best[hashSeed(q.seed, "ghost", q.day) % best.length];
 }
 
-const STAND_IN_HEROES: HeroId[] = ["furnace", "weaver"];
+/** A dusk stand-in: the day's rival captain and the deck it brings. */
+export interface StandInFoe {
+  id: RivalId;
+  hero: HeroId;
+  name: string;
+  build: Build;
+}
 
-/** No ghost for this day: an honest deck (honest.ts: today's warlord gates, hull only from plating
- *  a player could buy, within the day's gold) with a seeded hero, under today's warlord naming.
- *  0.6.0b swaps the rival captains' standInBuild in here. */
-export function standIn(seed: number, day: number): { hero: HeroId; name: string; build: Build } {
-  const hero = new Rng(hashSeed(seed, "standin", day)).pick(STAND_IN_HEROES);
-  return { hero, name: warlordName(hero, day), build: honestStandInBuild(hero, day) };
+/**
+ * No ghost for this day: the run's stand-in captain, standInGhost(runSeed, day), with its honest
+ * deck standInBuild(id, day) (R1: whole paid plating, within maxGoldByDay(day)). The one place the
+ * stand-in deck is chosen, so 0.6.0c can swap the deck source (e.g. full-purse stand-ins).
+ */
+export function standInFoe(runSeed: number, day: number): StandInFoe {
+  const id = standInGhost(runSeed, day);
+  const r = RIVALS[id];
+  return { id, hero: r.hero, name: r.name, build: standInBuild(id, day) };
 }
