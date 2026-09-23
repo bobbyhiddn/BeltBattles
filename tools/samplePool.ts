@@ -2,11 +2,13 @@
 // Variant 0 is the day's warlord made purchasable (whole plating, within the day's
 // budget); variant 1 is a seeded shopper spending that budget on the starting layout.
 // Every snapshot passes validateBuild, so the pool doubles as validator coverage.
+// Heroes come from STAND_IN_HEROES (the ones ai.ts can build), not Object.keys(HEROES).
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, RUN_LIVES, type HeroId } from "../src/sim/content";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
 import { occupancy, type Build } from "../src/sim/deck";
+import { STAND_IN_HEROES } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { checkSnapshot, encodeSnapshot, MAX_DAY, type GhostSnapshot } from "../src/net/snapshot";
 
@@ -52,7 +54,7 @@ function shopper(hero: HeroId, day: number, rng: Rng): Build {
 
 export function generateSamplePool(): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
-  for (const hero of Object.keys(HEROES) as HeroId[]) {
+  for (const hero of STAND_IN_HEROES) {
     for (let v = 0; v < 2; v++) {
       for (let day = 1; day <= MAX_DAY; day++) {
         const rng = new Rng(hashSeed("sample-pool", hero, v, day));

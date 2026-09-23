@@ -10,9 +10,18 @@ import { pickGhost, type MatchRequest } from "./matchmaking";
 import { checkSnapshot, MAX_DAY, MAX_LIVES, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
 
+/**
+ * Heroes a stand-in (or sample-pool) ghost may play: only those ai.ts can build, because
+ * startingBuild/warlordBuild know Furnace and Weaver alone. Enumerating HEROES would pick
+ * FOUNDRY/BASTION and hand them a Furnace deck (snapshot.build.hero mismatch). Races part 2
+ * adds PLAYABLE_HEROES and a hero-generic heroRefBuild; integration swaps this list for those.
+ * Any hero may still REQUEST a stand-in; it just fights one of these.
+ */
+export const STAND_IN_HEROES: readonly HeroId[] = ["furnace", "weaver"];
+
 /** The hero a stand-in ghost plays: another faction's hero, chosen by seed. */
 export function rivalHero(hero: HeroId, seed = 0): HeroId {
-  const foes = (Object.keys(HEROES) as HeroId[]).filter((id) => HEROES[id].faction !== HEROES[hero].faction);
+  const foes = STAND_IN_HEROES.filter((id) => HEROES[id].faction !== HEROES[hero].faction);
   return foes.length ? foes[(seed >>> 0) % foes.length] : hero;
 }
 
