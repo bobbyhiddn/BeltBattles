@@ -12,5 +12,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // the rivals' seeded sim sweeps take 1-3 s each on an idle machine; on a shared, loaded host
+    // they can pass vitest's 5 s default, so allow 30 s per test (no assertion changes)
+    testTimeout: 30000,
   },
 } as any);
