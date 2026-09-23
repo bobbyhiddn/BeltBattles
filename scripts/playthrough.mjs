@@ -5,9 +5,11 @@
 // mid-battle, taps CONTINUE and checks it fights the same ghost; day 1 exercises 0.5X, II pause and
 // 4X; later days SKIP. It plays on to the end screen (or stops after `days` days).
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+import { roadStop } from "./roadstop.mjs";
 
-async function settle(page, screen, timeout = 20000) {
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export async function settle(page, screen, timeout = 20000) {
   await page.waitForFunction((s) => window.bb.screen() === s && !window.bb.game.transitioning, screen, { timeout });
 }
 
@@ -30,12 +32,12 @@ async function press(page, touch, p) {
   await sleep(120);
 }
 
-async function tapRegion(page, touch, id) {
+export async function tapRegion(page, touch, id) {
   await press(page, touch, await regionCenter(page, id));
 }
 
 /** Drag (mouse) or tap-select + tap-place (touch) the build screen's planned part onto its belt tile. */
-async function placePlanned(page, touch) {
+export async function placePlanned(page, touch) {
   const plan = await page.evaluate(() => {
     const p = window.bb.game.screen.dragPlan();
     return p && { a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y), def: p.def };
@@ -57,9 +59,9 @@ async function placePlanned(page, touch) {
 }
 
 /** After FIGHT: a road event (pick with a real tap, maybe REFIT) or straight to the battle. */
-async function road(page, touch, log, at, state) {
+export async function road(page, touch, log, at, state) {
   const s = await settleAny(page, ["event", "battle"]);
-  if (s === "battle") return log(`[${at()}] FIGHT -> quiet road -> DUSK`);
+  if (s === "battle") return log(`[${at()}] FIGHT -> today's road stop is done -> DUSK`);
   const ev = await page.evaluate(() => {
     const sc = window.bb.game.screen, run = window.bb.game.run;
     return { id: run.event.id, day: run.day, gold: run.gold, choices: sc.choices.map((c) => ({ label: c.label, blocked: c.blocked || "", item: c.gain.some((d) => d.k === "item") })) };
@@ -124,7 +126,11 @@ async function reloadAndContinue(page, touch, log, at, state) {
 export async function scriptedRun(page, touch, log, opts) {
   const t0 = Date.now();
   const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
-  const state = { refitDone: false, picks: 0, reloadSame: false, losses: [], ghosts: 0, standins: 0, placed: 0, foes: 0, dishonest: [] };
+  const state = {
+    refitDone: false, picks: 0, reloadSame: false, losses: [], ghosts: 0, standins: 0, placed: 0, foes: 0, dishonest: [],
+    // 0.6.0b road fork
+    forkPicks: {}, tapPicks: 0, warlordLosses: [], livesChanged: [], matriarchDays: [], reloadWarlordSame: false, warlordRefit: false, dayLog: [], spend: [],
+  };
   const n = await page.evaluate((pool) => { window.bb.clearPool(); return window.bb.addGhosts(pool); }, opts.pool);
   log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ")}`);
   await tapRegion(page, touch, "new");
@@ -147,11 +153,12 @@ export async function scriptedRun(page, touch, log, opts) {
     }
     if (parts.length) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ")}`);
     await tapRegion(page, touch, "fight");
-    await road(page, touch, log, at, state);
+    await roadStop(page, touch, log, at, state, (opts.roads || "")[day - 1] || "v", day === opts.reloadWarlordDay);
     const foe = await foeOf(page);
     if (foe.kind === "ghost") state.ghosts++;
     else state.standins++;
     state.foes++;
+    state.spend.push(`day ${foe.day} ${foe.kind === "ghost" ? "pool ghost" : `stand-in ${foe.name}`} ${foe.cost}/${foe.budget}`);
     if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
     log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foeLine(foe)}), same as the dawn preview: ${foe.name === dawn.foe}`);
     if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);
@@ -191,7 +198,18 @@ export async function scriptedRun(page, touch, log, opts) {
   log(`[${at()}] days: ${end.days.join(" | ")}`);
   log(`[${at()}] checks: event picks ${state.picks}, REFIT ${state.refitDone}, dusk losses ${state.losses.join("; ") || "none"}, reload kept the ghost ${state.reloadSame}, pool ghosts met ${state.ghosts}, stand-ins ${state.standins}, parts placed ${state.placed}, honest dusk decks ${state.foes - state.dishonest.length}/${state.foes}${state.dishonest.length ? ` (NOT HONEST: ${state.dishonest.join(", ")})` : ""}`);
   const days = end.days.length;
-  if (state.picks < 1 || !state.losses.some((l) => l.includes("5 -> 4")) || !state.reloadSame || days < 3) throw new Error("scripted run missed a required step (event, 5 -> 4 loss, reload with the same ghost, 3+ days)");
+  const fp = state.forkPicks;
+  log(`[${at()}] road: ${state.dayLog.map((d) => `D${d.day} ${d.road}`).join(" | ")}`);
+  log(`[${at()}] fork picks: event ${fp.v || 0}, easy ${fp.e || 0}, medium ${fp.m || 0}, hard ${fp.h || 0} (by tap: ${state.tapPicks}); warlord losses ${state.warlordLosses.join("; ") || "none"}; lives changed by a warlord: ${state.livesChanged.join(", ") || "never"}; Matriarch met on day(s) ${state.matriarchDays.join(", ") || "-"}; reload mid-warlord kept the fight: ${state.reloadWarlordSame}`);
+  log(`[${at()}] dusk spend (deckCost/budget): ${state.spend.join(" | ")}`);
+  const sis = await page.evaluate(() => window.bb.standInSpend(window.bb.game.run.seed));
+  log(`[${at()}] this run's stand-in captain per day (used when no pool ghost matches; standInBuild deckCost/budget): ${sis.map((s) => `D${s.day} ${s.name} +${s.hull} ${s.cost}/${s.budget}`).join(" | ")}`);
+  if (state.livesChanged.length) throw new Error(`a warlord fight changed lives (${state.livesChanged.join(", ")})`);
+  if (days < 3) throw new Error("scripted run played fewer than 3 days");
+  if (opts.check === "desk" && (["v", "e", "m", "h"].some((k) => (fp[k] || 0) < 2) || !state.warlordLosses.length || !state.matriarchDays.includes(8) || days < 10)) {
+    throw new Error("desk run missed a required step (each tier twice, an event twice, a warlord loss, the Matriarch on day 8, 10 days)");
+  }
+  if (opts.check === "phone" && (state.tapPicks < 1 || !state.reloadWarlordSame)) throw new Error("phone run missed a required step (a fork pick by tap, a reload mid-warlord with the same fight)");
   if (state.dishonest.length) throw new Error(`a dusk foe was not an honest deck (${state.dishonest.join(", ")})`);
   return { ...end, state };
 }

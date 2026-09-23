@@ -143,8 +143,8 @@ export class SummaryScreen implements Screen {
   private drawDays(g: G, x: number, y: number, w: number): void {
     const run = this.run;
     const rh = this.rowH();
-    const cDay = x, cStop = x + 13, cRes = x + w - 10, cTime = cRes - 4;
-    const stopW = 40, cFoe = cStop + stopW + 3, foeW = cTime - 22 - cFoe;
+    const cDay = x, cStop = x + 16, cRes = x + w - 10, cTime = cRes - 4;
+    const stopW = 38, cFoe = cStop + stopW + 3, foeW = cTime - 22 - cFoe;
     drawText(g, "DAY", cDay, y, C.slate3, { font: "3" });
     drawText(g, "STOP", cStop, y, C.slate3, { font: "3" });
     drawText(g, "OPPONENT", cFoe, y, C.slate3, { font: "3" });

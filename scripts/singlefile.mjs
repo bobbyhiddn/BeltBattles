@@ -44,15 +44,17 @@ async function inline() {
 // makeGhost -> honest.ts: whole plating, deckCost within maxGoldByDay(day)); the log shows each
 // dusk foe's hullBonus and deckCost and fails the run if one is not honest.
 const G = (day, hero, wins, losses, power = 0) => ({ day, hero, wins, losses, power, runId: "earlier-run" });
+// 0.6.0b road fork: `roads` is each day's fork pick (v event, e/m/h the warlord of that tier).
+// Desk picks every tier at least twice and the event three times, and takes the Hard slot on day 8
+// (the Iron Matriarch, R3); phone (touch) picks by tap (inspect, then go) and reloads in the middle
+// of day 2's Medium warlord fight, which must resume as the same fight.
 const RUNS = {
   desk: {
-    days: 10, reloadDay: 4,
+    days: 10, reloadDay: 4, roads: "emhvemvhhv", check: "desk",
     pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6), G(4, "weaver", 2, 1), G(5, "furnace", 3, 1, -2), G(6, "weaver", 3, 2, -2),
       G(7, "furnace", 4, 2, -2), G(8, "weaver", 5, 2, -2), G(9, "furnace", 5, 3, -2), G(10, "weaver", 6, 3, -2)],
   },
-  // phone: at least 3 days, then on until the first dusk loss (an honest 17-gold day-2 ghost does
-  // not always beat a deck that also holds a salvaged part, so a strong honest day-3 ghost follows)
-  phone: { days: 3, untilLoss: true, reloadDay: 2, pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6), G(3, "furnace", 2, 0, 6)] },
+  phone: { days: 3, roads: "emv", reloadWarlordDay: 2, check: "phone", pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6)] },
 };
 
 async function main() {
