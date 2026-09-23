@@ -1,7 +1,9 @@
-// Rival captains (0.6.0 groundwork). A run becomes three acts against named rivals, with
-// an elite at the end of acts 1 and 2 and a boss finale. This file holds the roster data
-// and the schedule; the decks live in rivalBuilds.ts. The schedule draws from its own
-// hashSeed(runSeed, "rival", act) stream, so the shop and battle streams are untouched.
+// Rival captains (0.6.0 groundwork), fitted to the 10-day run (ROADMAP §1-2). The 13 captains
+// have two jobs: the PvE warlord roster met at the road stop, at Easy, Medium or Hard (spec §19),
+// and stand-in dusk ghosts whenever no player build exists for the day. This file holds the
+// roster data, the daily warlord offer and the stand-in order; the decks live in rivalBuilds.ts.
+// The offer and the stand-ins draw from their own hashSeed(runSeed, "warlords", ...) and
+// hashSeed(runSeed, "standin") streams, so shop rolls and battle seeds never move.
 
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, type Faction, type HeroId } from "./content";
@@ -13,8 +15,19 @@ export type RivalId =
   | "sparkfang" | "lacewing" | "ratchet" | "emberlyn" | "bulwark"
   | "silkshade" | "longtooth" | "highspire" | "matriarch";
 
+/** Regular, elite or boss. It drives the portrait frame: amber corners for elites, plum for the boss. */
 export type RivalRank = "regular" | "elite" | "boss";
-export type Act = 1 | 2 | 3;
+/** A captain's build tier, 1-3. difficultyOf() maps tier and rank to a warlord slot. */
+export type RivalTier = 1 | 2 | 3;
+/** A warlord slot at the road stop (spec §19): the player picks one of the three each day. */
+export type Difficulty = "easy" | "medium" | "hard";
+
+/** Days in a run: dawn caravan, the road stop, then the dusk ghost (ROADMAP §1). */
+export const RUN_DAYS = 10;
+/** The Iron Matriarch is the Hard warlord from this day to RUN_DAYS, and is never met before it. */
+export const MATRIARCH_DAY = 8;
+/** The three road-stop slots, easiest first. */
+export const DIFFICULTIES: readonly Difficulty[] = ["easy", "medium", "hard"];
 
 export interface Portrait {
   palette: string[]; // 3-4 names from src/render/palette.ts (C)
@@ -26,7 +39,7 @@ export interface RivalDef {
   name: string; // all caps, at most 14 characters
   hero: HeroId;
   faction: Faction;
-  tier: Act; // the act the rival belongs to
+  tier: RivalTier;
   rank: RivalRank;
   trick: string; // NEXT BATTLE panel title
   blurb: string; // NEXT BATTLE panel line
@@ -34,7 +47,7 @@ export interface RivalDef {
 }
 
 function rival(
-  id: RivalId, name: string, hero: HeroId, tier: Act, rank: RivalRank,
+  id: RivalId, name: string, hero: HeroId, tier: RivalTier, rank: RivalRank,
   trick: string, blurb: string, palette: string[], feature: string,
 ): RivalDef {
   return { id, name, hero, faction: HEROES[hero].faction, tier, rank, trick, blurb, portrait: { palette, feature } };
@@ -84,81 +97,107 @@ export const RIVALS: Record<RivalId, RivalDef> = {
 
 export const RIVAL_IDS = Object.keys(RIVALS) as RivalId[];
 
-export const RIVAL_ROUNDS = 12; // hard cap on rounds in a rival run (run.ts MAX_ROUNDS)
-export const BOSS_ROUND = 10; // first round of the finale
+const clampDay = (day: number): number => {
+  const d = Math.floor(day);
+  return d >= 1 ? Math.min(RUN_DAYS, d) : 1;
+};
 
-export interface ActDef {
-  act: Act;
-  title: string; // act banner, e.g. "ACT I"
-  name: string; // act banner subtitle
-  first: number; // first round of the act
-  last: number; // last round of the act (the elite or the finale's final retry)
-}
-
-export const ACTS: ActDef[] = [
-  { act: 1, title: "ACT I", name: "THE CINDER ROAD", first: 1, last: 3 },
-  { act: 2, title: "ACT II", name: "THE SKYWRIGHT PASS", first: 4, last: 7 },
-  { act: 3, title: "ACT III", name: "THE GRAND FOUNDRY", first: 8, last: 12 },
-];
-
-export interface RivalSlot {
-  round: number;
-  act: Act;
-  rank: RivalRank;
-  index: number; // position within the act's regular draw (or boss attempt number)
-}
-
-/** Rounds 1-2 tier 1, 3 act-1 elite, 4-6 tier 2, 7 act-2 elite, 8-9 tier 3, 10-12 boss. */
-export function rivalSlot(round: number): RivalSlot {
-  const r = Math.max(1, Math.min(RIVAL_ROUNDS, Math.floor(round)));
-  if (r <= 2) return { round: r, act: 1, rank: "regular", index: r - 1 };
-  if (r === 3) return { round: r, act: 1, rank: "elite", index: 0 };
-  if (r <= 6) return { round: r, act: 2, rank: "regular", index: r - 4 };
-  if (r === 7) return { round: r, act: 2, rank: "elite", index: 0 };
-  if (r <= 9) return { round: r, act: 3, rank: "regular", index: r - 8 };
-  return { round: r, act: 3, rank: "boss", index: r - BOSS_ROUND };
-}
-
-export function actFor(round: number): ActDef {
-  return ACTS[rivalSlot(round).act - 1];
-}
-
-/** Rivals that can fill a slot, in roster order. */
-export function rivalPool(act: Act, rank: RivalRank): RivalId[] {
-  return RIVAL_IDS.filter((id) => RIVALS[id].tier === act && RIVALS[id].rank === rank);
-}
-
-/** The rival fought in a round of the run seeded runSeed. No regular repeats within a run. */
-export function rivalFor(runSeed: number, round: number): RivalId {
-  const s = rivalSlot(round);
-  const pool = rivalPool(s.act, s.rank);
-  if (s.rank !== "regular") return pool[0];
-  const order = new Rng(hashSeed(runSeed, "rival", s.act)).shuffle([...pool]);
-  return order[s.index % order.length];
-}
-
-/** The whole run's rival for rounds 1..12 (index 0 = round 1). */
-export function rivalSchedule(runSeed: number): RivalId[] {
-  return Array.from({ length: RIVAL_ROUNDS }, (_, i) => rivalFor(runSeed, i + 1));
-}
-
-/** Every round a rival can be fought in. */
-export function rivalRounds(id: RivalId): number[] {
+/**
+ * A captain's warlord slot. Tier 1 is Easy and tier 2 is Medium. Tier 3, the two elites (MOTH
+ * QUEEN, OLD BULWARK) and the IRON MATRIARCH are Hard; the Matriarch is met only on days 8-10.
+ */
+export function difficultyOf(id: RivalId): Difficulty {
   const d = RIVALS[id];
-  const out: number[] = [];
-  for (let r = 1; r <= RIVAL_ROUNDS; r++) {
-    const s = rivalSlot(r);
-    if (s.act === d.tier && s.rank === d.rank) out.push(r);
+  if (d.rank !== "regular" || d.tier === 3) return "hard";
+  return d.tier === 1 ? "easy" : "medium";
+}
+
+/** The days a captain can be met, as a warlord or a stand-in ghost: 1-10, the Matriarch 8-10. */
+export function rivalDays(id: RivalId): number[] {
+  const first = id === "matriarch" ? MATRIARCH_DAY : 1;
+  return Array.from({ length: RUN_DAYS - first + 1 }, (_, i) => first + i);
+}
+
+/** The captains that fill a slot on days 1-7, in roster order (the Matriarch is never in a pool). */
+export function warlordPool(slot: Difficulty): RivalId[] {
+  return RIVAL_IDS.filter((id) => id !== "matriarch" && difficultyOf(id) === slot);
+}
+
+/** The three warlords a road stop offers, one per difficulty. */
+export interface WarlordOffer {
+  easy: RivalId;
+  medium: RivalId;
+  hard: RivalId;
+}
+
+/**
+ * One slot's captains for days 1..n: its pool shuffled from hashSeed(runSeed, "warlords", slot,
+ * cycle), reshuffled whenever it runs out. If a new cycle would open on yesterday's captain, its
+ * first two swap. So every captain in a pool is offered once before any is offered twice.
+ */
+function slotOrder(runSeed: number, slot: Difficulty, n: number): RivalId[] {
+  const pool = warlordPool(slot);
+  const out: RivalId[] = [];
+  for (let cycle = 0; out.length < n; cycle++) {
+    const order = new Rng(hashSeed(runSeed, "warlords", slot, cycle)).shuffle([...pool]);
+    if (order[0] === out[out.length - 1]) [order[0], order[1]] = [order[1], order[0]];
+    out.push(...order);
   }
-  return out;
+  return out.slice(0, n);
 }
 
-/** A rival's deck plus the supplies and gold it represents, as it stands at a round. */
-export function rivalLoadout(id: RivalId, round: number): RivalLoadout {
-  return planBuild(PLANS[id], round);
+/**
+ * The whole run's road-stop warlords (index 0 = day 1). On days 8-10 the Hard slot is always
+ * the IRON MATRIARCH, so she is the one captain offered on consecutive days. Every other captain
+ * is never offered two days running, in any slot.
+ */
+export function warlordOffers(runSeed: number): WarlordOffer[] {
+  const easy = slotOrder(runSeed, "easy", RUN_DAYS);
+  const medium = slotOrder(runSeed, "medium", RUN_DAYS);
+  const hard = slotOrder(runSeed, "hard", MATRIARCH_DAY - 1);
+  return easy.map((e, i) => ({
+    easy: e,
+    medium: medium[i],
+    hard: i + 1 >= MATRIARCH_DAY ? "matriarch" : hard[i],
+  }));
 }
 
-/** The rival's production build for a round (1-based); escalates with the round. */
-export function rivalBuild(id: RivalId, round: number): Build {
-  return rivalLoadout(id, round).build;
+/**
+ * The warlords offered at a day's road stop (day 1-10) in the run seeded runSeed. Beating one
+ * pays supplies and a chance at a part from its build; losing never costs a life (ROADMAP §1).
+ */
+export function warlordOffer(runSeed: number, day: number): WarlordOffer {
+  return warlordOffers(runSeed)[clampDay(day) - 1];
+}
+
+/**
+ * The run's stand-in dusk ghosts, one per day (index 0 = day 1). They are used whenever no player
+ * build exists for that day. The order is a shuffle of the 12 captains other than the Matriarch,
+ * from hashSeed(runSeed, "standin"). No captain stands in twice in a run, and none stands in on a
+ * day it is offered as a warlord: it waits for the next free day. Either faction may stand in, so
+ * mirror matches happen. A stand-in fights with rivalBuild(id, day), a real legal day-N build.
+ */
+export function standInGhosts(runSeed: number): RivalId[] {
+  const queue = new Rng(hashSeed(runSeed, "standin")).shuffle(RIVAL_IDS.filter((id) => id !== "matriarch"));
+  return warlordOffers(runSeed).map((o) => {
+    const offered = new Set<RivalId>([o.easy, o.medium, o.hard]);
+    // Always found: day d has 13 - d captains queued and at most 3 of them offered.
+    const i = queue.findIndex((id) => !offered.has(id));
+    return queue.splice(i, 1)[0];
+  });
+}
+
+/** The stand-in dusk ghost for a day (1-10) of the run seeded runSeed. */
+export function standInGhost(runSeed: number, day: number): RivalId {
+  return standInGhosts(runSeed)[clampDay(day) - 1];
+}
+
+/** A captain's deck plus the supplies and gold it represents, as it stands on a day (1-10). */
+export function rivalLoadout(id: RivalId, day: number): RivalLoadout {
+  return planBuild(PLANS[id], day);
+}
+
+/** The captain's production build on a day (1-based): the same deck as warlord or stand-in. */
+export function rivalBuild(id: RivalId, day: number): Build {
+  return rivalLoadout(id, day).build;
 }

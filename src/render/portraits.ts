@@ -1,5 +1,5 @@
 // Captain portraits (0.6.0): 24x24 faces for every rival and both player heroes, for the
-// NEXT BATTLE panel, the act banners, the summary and the hero card. portraitPixels() is
+// road-stop warlord picker, the NEXT BATTLE panel, the summary and the hero card. portraitPixels() is
 // pure data; portraitImage() paints it once onto a cached canvas with the pixel.ts helpers.
 // Nothing calls portraitImage yet: the 0.6.0 integration wires it in.
 
@@ -76,7 +76,7 @@ function outline(p: Px): void {
   for (const i of edge) p[i] = "ink";
 }
 
-/** Corner brackets: amber for an act elite, a longer plum frame for the boss. */
+/** Corner brackets: amber for an elite (Moth Queen, Old Bulwark), a longer plum frame for the boss. */
 function paintFrame(p: Px, frame: Frame): void {
   if (!frame) return;
   const [n, c]: [number, ColorName] = frame === "boss" ? [6, "plum4"] : [4, "amber"];

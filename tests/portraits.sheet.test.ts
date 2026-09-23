@@ -6,7 +6,7 @@ import { deflateSync } from "node:zlib";
 import { C } from "../src/render/palette";
 import { PORTRAIT_KEYS, portraitPixels } from "../src/render/portraits";
 import { HEROES, type HeroId } from "../src/sim/content";
-import { RIVALS, type RivalId } from "../src/sim/rivals";
+import { RIVALS, difficultyOf, type RivalId } from "../src/sim/rivals";
 
 // Portrait contact sheet (not an assertion suite). Run: BB_SHEET=1 npx vitest run tests/portraits.sheet.test.ts
 // Writes portraits.png (every portrait at 6x, 5 per row, 6 px gutters, on the dark build-screen
@@ -69,7 +69,7 @@ it.runIf(on)("portrait contact sheet", () => {
     const hero = key in HEROES;
     const name = hero ? `${HEROES[key as HeroId].name} (hero)` : RIVALS[key as RivalId].name;
     const faction = hero ? HEROES[key as HeroId].faction : RIVALS[key as RivalId].faction;
-    const rank = hero ? "hero" : `${RIVALS[key as RivalId].rank}, act ${RIVALS[key as RivalId].tier}`;
+    const rank = hero ? "hero" : `${RIVALS[key as RivalId].rank}, tier ${RIVALS[key as RivalId].tier}, ${difficultyOf(key as RivalId)}`;
     lines.push(`  r${row + 1} c${col + 1}: ${key.padEnd(10)} ${name.padEnd(16)} ${faction.padEnd(4)} ${rank}`);
   });
   const dir = process.env.BB_SHEET_DIR || resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "output");

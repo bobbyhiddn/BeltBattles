@@ -7,10 +7,10 @@ import {
 } from "../src/sim/deck";
 import { BATTLE_CAP, HEROES, ITEMS, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import {
-  ACTS, RIVALS, RIVAL_IDS, actFor, rivalBuild, rivalFor, rivalLoadout, rivalPool, rivalRounds,
-  rivalSchedule, rivalSlot, type RivalId,
+  DIFFICULTIES, MATRIARCH_DAY, RIVALS, RIVAL_IDS, RUN_DAYS, difficultyOf, rivalBuild, rivalDays, rivalLoadout,
+  standInGhost, standInGhosts, warlordOffer, warlordOffers, warlordPool, type RivalId,
 } from "../src/sim/rivals";
-import { PLANS, planBuild } from "../src/sim/rivalBuilds";
+import { PLANS } from "../src/sim/rivalBuilds";
 import { battleSeed, newRun } from "../src/game/run";
 
 const ALLOWED = new Set([
@@ -18,6 +18,7 @@ const ALLOWED = new Set([
   "overdrive", "calibrate", "beltcrate", "plating",
 ]);
 const other = (h: HeroId): HeroId => (h === "furnace" ? "weaver" : "furnace");
+const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 
 /** Rebuild a deck from empty with the build screen's own checks; returns every problem found. */
 function legalityProblems(b: Build): string[] {
@@ -71,26 +72,28 @@ function legalityProblems(b: Build): string[] {
   return bad;
 }
 
-/** Gold a player who wins every round has had to spend before battle `round`. */
-function budget(round: number): number {
+/** Gold a player who wins every day has had to spend before the fights of day `day`. */
+function budget(day: number): number {
   let g = START_GOLD;
-  for (let r = 1; r < round; r++) g += incomeFor(r, true);
+  for (let r = 1; r < day; r++) g += incomeFor(r, true);
   return g;
 }
 
 describe("rival roster", () => {
-  it("has 8+ regulars over three tiers, two act elites and one boss, from both factions", () => {
-    const regular = RIVAL_IDS.filter((id) => RIVALS[id].rank === "regular");
-    expect(regular.length).toBeGreaterThanOrEqual(8);
-    for (const act of [1, 2, 3] as const) {
-      const pool = rivalPool(act, "regular");
-      expect(pool.length).toBeGreaterThanOrEqual(act === 2 ? 3 : 2);
-      expect(new Set(pool.map((id) => RIVALS[id].faction)).size).toBe(2);
+  it("fills Easy, Medium and Hard from both factions; the Matriarch is Hard on days 8-10 only", () => {
+    expect(RIVAL_IDS.length).toBe(13);
+    expect(warlordPool("easy")).toEqual(["sootjaw", "nettle", "grubnose"]);
+    expect(warlordPool("medium")).toEqual(["sparkfang", "lacewing", "ratchet", "emberlyn"]);
+    expect(warlordPool("hard")).toEqual(["mothqueen", "bulwark", "silkshade", "longtooth", "highspire"]);
+    for (const d of DIFFICULTIES) expect(new Set(warlordPool(d).map((id) => RIVALS[id].faction)).size).toBe(2);
+    for (const id of RIVAL_IDS) {
+      const r = RIVALS[id];
+      const want = r.rank !== "regular" || r.tier === 3 ? "hard" : r.tier === 1 ? "easy" : "medium";
+      expect(difficultyOf(id), id).toBe(want);
+      expect(rivalDays(id), id).toEqual(id === "matriarch" ? [8, 9, 10] : DAYS);
     }
-    expect(rivalPool(1, "elite").length).toBe(1);
-    expect(rivalPool(2, "elite").length).toBe(1);
-    expect(rivalPool(3, "elite").length).toBe(0);
-    expect(RIVAL_IDS.filter((id) => RIVALS[id].rank === "boss").length).toBe(1);
+    expect(difficultyOf("matriarch")).toBe("hard");
+    expect([RUN_DAYS, MATRIARCH_DAY]).toEqual([10, 8]);
   });
 
   it("every rival has a short caps name, a trick, a blurb and a portrait note", () => {
@@ -116,31 +119,18 @@ describe("rival roster", () => {
 
 describe("rival builds are legal production builds", () => {
   for (const id of RIVAL_IDS) {
-    it(`${id}: legal at every round 1-12, affordable at its scheduled rounds`, () => {
-      for (let r = 1; r <= 12; r++) {
-        const l = rivalLoadout(id, r);
+    it(`${id}: legal on every day 1-10, affordable on every day it can be met`, () => {
+      for (const day of DAYS) {
+        const l = rivalLoadout(id, day);
         const b = l.build;
         expect(b.hero).toBe(RIVALS[id].hero);
-        expect(legalityProblems(b), `${id} r${r}`).toEqual([]);
+        expect(legalityProblems(b), `${id} day ${day}`).toEqual([]);
         expect(b.beltCap).toBe(HEROES[b.hero].belt + 4 * l.crates);
-        expect(b.hullBonus).toBe(warlordHull(r) + 25 * l.plating);
-        if (rivalRounds(id).includes(r)) expect(l.value, `${id} r${r} value`).toBeLessThanOrEqual(budget(r));
+        expect(b.hullBonus).toBe(warlordHull(day) + 25 * l.plating);
+        if (rivalDays(id).includes(day)) expect(l.value, `${id} day ${day} value`).toBeLessThanOrEqual(budget(day));
       }
     });
   }
-
-  it("round-1 openers only change round 1 and keep the same factories", () => {
-    const facs = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind === "factory").map((p) => `${p.uid}:${p.def}`);
-    for (const id of RIVAL_IDS) {
-      const plan = PLANS[id];
-      if (!plan.opener) continue;
-      expect(plan.opener.map((f) => f.def), id).toEqual(plan.factories.map((f) => f.def));
-      expect(facs(rivalBuild(id, 1)), id).toEqual(facs(rivalBuild(id, 2)));
-      expect(rivalBuild(id, 1).routes, id).not.toEqual(planBuild({ ...plan, opener: undefined }, 1).build.routes);
-      expect(rivalBuild(id, 2)).toEqual(planBuild({ ...plan, opener: undefined }, 2).build);
-    }
-    expect(RIVAL_IDS.filter((id) => PLANS[id].opener)).toEqual(["sootjaw", "nettle"]);
-  });
 
   it("the legality replay rejects broken decks (the check is not vacuous)", () => {
     const base = () => JSON.parse(JSON.stringify(rivalBuild("matriarch", 10))) as Build;
@@ -158,18 +148,20 @@ describe("rival builds are legal production builds", () => {
     expect(legalityProblems(base())).toEqual([]);
   });
 
-  it("builds escalate with the round they are fought in and never shrink", () => {
+  it("builds never shrink from one day to the next, and grow over the days they are met", () => {
     for (const id of RIVAL_IDS) {
-      const rounds = rivalRounds(id);
-      for (let r = 2; r <= 12; r++) {
-        const a = rivalLoadout(id, r - 1), b = rivalLoadout(id, r);
-        expect(b.value).toBeGreaterThanOrEqual(a.value);
+      const at = PLANS[id].upgrades.map((u) => u.at);
+      expect(at, `${id} lists its upgrades in day order`).toEqual([...at].sort((x, y) => x - y));
+      for (let day = 2; day <= RUN_DAYS; day++) {
+        const a = rivalLoadout(id, day - 1), b = rivalLoadout(id, day);
+        expect(b.value, `${id} day ${day}`).toBeGreaterThanOrEqual(a.value);
+        expect(b.plating, `${id} day ${day}`).toBeGreaterThanOrEqual(a.plating);
         expect(b.build.items.length + b.build.mods.length).toBeGreaterThanOrEqual(a.build.items.length + a.build.mods.length);
+        for (const p of a.build.items) expect(b.build.items, `${id} day ${day}`).toContainEqual(p);
+        for (const r of a.build.routes) expect(b.build.routes, `${id} day ${day}`).toContainEqual(r);
       }
-      if (rounds.length > 1) {
-        const first = rivalLoadout(id, rounds[0]), last = rivalLoadout(id, rounds[rounds.length - 1]);
-        expect(last.value, id).toBeGreaterThan(first.value);
-      }
+      const days = rivalDays(id);
+      expect(rivalLoadout(id, days[days.length - 1]).value, id).toBeGreaterThan(rivalLoadout(id, days[0]).value);
     }
   });
 });
@@ -177,11 +169,11 @@ describe("rival builds are legal production builds", () => {
 describe("rival battles simulate cleanly", () => {
   const SEEDS = Array.from({ length: 10 }, (_, i) => (i + 1) * 7919);
   for (const id of RIVAL_IDS) {
-    it(`${id} vs both starting builds and the other warlord, 10 seeds per round`, () => {
-      for (const r of rivalRounds(id)) {
-        const foe = rivalBuild(id, r);
+    it(`${id} vs both starting builds and the other warlord, 10 seeds per day it can be met`, () => {
+      for (const day of rivalDays(id)) {
+        const foe = rivalBuild(id, day);
         const opponents: Build[] = [
-          startingBuild("furnace", 1), startingBuild("weaver", 1), warlordBuild(other(RIVALS[id].hero), r),
+          startingBuild("furnace", 1), startingBuild("weaver", 1), warlordBuild(other(RIVALS[id].hero), day),
         ];
         for (const p of opponents) {
           for (const seed of SEEDS) {
@@ -194,7 +186,7 @@ describe("rival battles simulate cleanly", () => {
               expect(Number.isFinite(s.stats.damage)).toBe(true);
               expect(Number.isFinite(s.stats.payloadSum)).toBe(true);
             }
-            expect(bt.sides[1].stats.shots).toBeGreaterThan(0); // the rival's production really fires
+            expect(bt.sides[1].stats.shots).toBeGreaterThan(0); // the captain's production really fires
           }
         }
       }
@@ -202,43 +194,77 @@ describe("rival battles simulate cleanly", () => {
   }
 });
 
-describe("rival schedule", () => {
+describe("road-stop warlords and stand-in ghosts (200 seeds)", () => {
   const SEEDS = Array.from({ length: 200 }, (_, i) => (i === 0 ? 0 : (i * 2654435761) >>> 0));
 
-  it("is deterministic, never repeats a regular, and follows the act plan (200 seeds)", () => {
+  it("offers are deterministic, and each slot's captain has that slot's difficulty", () => {
     const seen = new Set<RivalId>();
     for (const seed of SEEDS) {
-      const s = rivalSchedule(seed);
-      expect(rivalSchedule(seed)).toEqual(s);
-      s.forEach((id, i) => expect(rivalFor(seed, i + 1)).toBe(id));
-      const regular = s.filter((id) => RIVALS[id].rank === "regular");
-      expect(new Set(regular).size).toBe(regular.length);
-      expect(regular.length).toBe(7);
-      const tierOf = (r: number) => RIVALS[s[r - 1]].tier;
-      const rankOf = (r: number) => RIVALS[s[r - 1]].rank;
-      for (const r of [1, 2]) expect([tierOf(r), rankOf(r)]).toEqual([1, "regular"]);
-      expect([tierOf(3), rankOf(3)]).toEqual([1, "elite"]);
-      for (const r of [4, 5, 6]) expect([tierOf(r), rankOf(r)]).toEqual([2, "regular"]);
-      expect([tierOf(7), rankOf(7)]).toEqual([2, "elite"]);
-      for (const r of [8, 9]) expect([tierOf(r), rankOf(r)]).toEqual([3, "regular"]);
-      for (const r of [10, 11, 12]) expect(rankOf(r)).toBe("boss");
-      s.forEach((id) => seen.add(id));
+      const offers = warlordOffers(seed);
+      expect(offers.length).toBe(RUN_DAYS);
+      expect(warlordOffers(seed)).toEqual(offers);
+      DAYS.forEach((day) => {
+        const o = warlordOffer(seed, day);
+        expect(o).toEqual(offers[day - 1]);
+        for (const slot of DIFFICULTIES) {
+          expect(difficultyOf(o[slot]), `seed ${seed} day ${day} ${slot}`).toBe(slot);
+          seen.add(o[slot]);
+        }
+      });
     }
-    expect(seen.size).toBe(RIVAL_IDS.length); // every rival shows up in some run
+    expect(seen.size).toBe(RIVAL_IDS.length); // every captain is offered in some run
+    expect(warlordOffer(7, 0)).toEqual(warlordOffer(7, 1)); // days clamp to 1-10
+    expect(warlordOffer(7, 99)).toEqual(warlordOffer(7, 10));
   });
 
-  it("has act banners that match the slots, and leaves the shop and battle streams alone", () => {
-    for (let r = 1; r <= 12; r++) {
-      const a = actFor(r);
-      expect(a.act).toBe(rivalSlot(r).act);
-      expect(r).toBeGreaterThanOrEqual(a.first);
-      expect(r).toBeLessThanOrEqual(a.last);
+  it("the Matriarch is offered only in the Hard slot, and only on days 8-10 (always then)", () => {
+    for (const seed of SEEDS) {
+      for (const day of DAYS) {
+        const o = warlordOffer(seed, day);
+        expect(o.hard === "matriarch", `seed ${seed} day ${day}`).toBe(day >= MATRIARCH_DAY);
+        expect([o.easy, o.medium]).not.toContain("matriarch");
+      }
     }
-    expect(ACTS.map((a) => [a.first, a.last])).toEqual([[1, 3], [4, 7], [8, 12]]);
+  });
+
+  it("no captain is offered on two consecutive days, in any slot (the Matriarch's days 8-10 aside)", () => {
+    for (const seed of SEEDS) {
+      for (let day = 2; day <= RUN_DAYS; day++) {
+        const today = Object.values(warlordOffer(seed, day)).filter((id) => id !== "matriarch");
+        const yesterday = new Set(Object.values(warlordOffer(seed, day - 1)));
+        for (const id of today) expect(yesterday.has(id), `seed ${seed} day ${day}: ${id}`).toBe(false);
+      }
+    }
+  });
+
+  it("stand-ins: 10 distinct per run, never the Matriarch, never one of that day's warlords", () => {
+    const seen = new Set<RivalId>();
+    for (const seed of SEEDS) {
+      const s = standInGhosts(seed);
+      expect(standInGhosts(seed)).toEqual(s);
+      expect(s.length).toBe(RUN_DAYS);
+      expect(new Set(s).size).toBe(RUN_DAYS);
+      expect(s).not.toContain("matriarch");
+      DAYS.forEach((day) => {
+        const id = standInGhost(seed, day);
+        expect(id).toBe(s[day - 1]);
+        expect(Object.values(warlordOffer(seed, day)), `seed ${seed} day ${day}`).not.toContain(id);
+        expect(legalityProblems(rivalBuild(id, day))).toEqual([]);
+        seen.add(id);
+      });
+    }
+    expect(seen.size).toBe(RIVAL_IDS.length - 1); // all 12 stand in somewhere
+    expect(new Set([...seen].map((id) => RIVALS[id].faction)).size).toBe(2); // both factions: mirrors stay
+  });
+
+  it("the warlord and stand-in streams leave the shop and battle streams alone", () => {
     const run = newRun("furnace", 4242);
     const shop = JSON.stringify(run.shop), seed = battleSeed(run);
-    rivalSchedule(run.seed);
+    warlordOffers(run.seed);
+    standInGhosts(run.seed);
+    DAYS.forEach((day) => { warlordOffer(run.seed, day); standInGhost(run.seed, day); });
     expect(JSON.stringify(run.shop)).toBe(shop);
     expect(battleSeed(run)).toBe(seed);
+    expect(JSON.stringify(newRun("furnace", 4242).shop)).toBe(shop);
   });
 });
