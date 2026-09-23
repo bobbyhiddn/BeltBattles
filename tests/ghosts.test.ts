@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
-import { GHOST_KEY, POOL_MAX, loadPool, pickGhost, saveGhost, standIn, type GhostSnapshot } from "../src/game/ghosts";
+// 0.6.0b: standIn(seed, day) is gone; the dusk stand-in is standInFoe (a rival captain + standInBuild)
+import { GHOST_KEY, POOL_MAX, loadPool, pickGhost, saveGhost, standInFoe, type GhostSnapshot } from "../src/game/ghosts";
 import { chooseFoe, finishDay, ghostOf, startDusk } from "../src/game/day";
 import { battleSeed, buyOffer, newRun, reroll } from "../src/game/run";
 import { beginRoad, choicesFor, pickChoice } from "../src/game/events";
-import { startingBuild, warlordBuild, warlordName } from "../src/sim/ai";
-import { honestStandInBuild } from "../src/game/honest";
+import { startingBuild } from "../src/sim/ai";
+import { RIVALS, standInBuild, standInGhost } from "../src/sim/rivals";
 import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { beltUsed } from "../src/sim/deck";
 import { Battle, simulate, type SideStats } from "../src/sim/battle";
@@ -18,23 +19,25 @@ class MemStore {
   setItem(k: string, v: string): void { this.data.set(k, v); }
 }
 
+// 0.6.0b: a GhostSnapshot v1 (rules, playerId, createdAt; no rulesVersion, losses or savedAt)
 const snap = (o: Partial<GhostSnapshot> = {}): GhostSnapshot => ({
-  v: 1, rulesVersion: RULES_VERSION, hero: "weaver", day: 3, wins: 1, losses: 1, lives: 4,
-  build: startingBuild("weaver", 1), runId: "other", savedAt: 0, ...o,
+  v: 1, rules: RULES_VERSION, hero: "weaver", day: 3, wins: 1, lives: 4,
+  build: startingBuild("weaver", 1), runId: "other", playerId: "p-test", createdAt: 0, ...o,
 });
 
 describe("the local ghost pool", () => {
   it("saves and loads snapshots, keeps at most 300 and drops the oldest", () => {
     const st = new MemStore();
     expect(loadPool(st)).toEqual([]);
-    saveGhost(snap({ savedAt: 1 }), st);
-    expect(loadPool(st)).toEqual([snap({ savedAt: 1 })]);
-    for (let i = 2; i <= POOL_MAX + 5; i++) saveGhost(snap({ savedAt: i }), st);
+    // 0.6.0b: the v1 stamp is createdAt (savedAt is gone)
+    saveGhost(snap({ createdAt: 1 }), st);
+    expect(loadPool(st)).toEqual([snap({ createdAt: 1 })]);
+    for (let i = 2; i <= POOL_MAX + 5; i++) saveGhost(snap({ createdAt: i }), st);
     const pool = loadPool(st);
     expect(POOL_MAX).toBe(300);
     expect(pool.length).toBe(300);
-    expect(pool[0].savedAt).toBe(6);
-    expect(pool[299].savedAt).toBe(305);
+    expect(pool[0].createdAt).toBe(6);
+    expect(pool[299].createdAt).toBe(305);
     expect(st.data.has(GHOST_KEY)).toBe(true);
   });
 
@@ -52,41 +55,49 @@ describe("the local ghost pool", () => {
 });
 
 describe("pickGhost", () => {
-  const q = { rulesVersion: RULES_VERSION, day: 3, runId: "me", wins: 2, losses: 0, seed: 1234 };
+  // 0.6.0b: the query is { rules, day, runId, wins, lives, seed } (2-0 going into day 3 = 5 lives)
+  const q = { rules: RULES_VERSION, day: 3, runId: "me", wins: 2, lives: 5, seed: 1234 };
 
   it("only the same rules version and day, never the current run", () => {
-    expect(pickGhost([snap({ rulesVersion: "bb-0.3.0" }), snap({ day: 4 }), snap({ runId: "me" })], q)).toBe(null);
-    const ok = snap({ savedAt: 9 });
-    expect(pickGhost([snap({ day: 2 }), ok, snap({ runId: "me", wins: 2, losses: 0 })], q)).toEqual(ok);
+    // 0.6.0b: the rules version field is `rules`; the stamp is createdAt; lives replace losses
+    expect(pickGhost([snap({ rules: "bb-0.3.0" }), snap({ day: 4 }), snap({ runId: "me" })], q)).toBe(null);
+    const ok = snap({ createdAt: 9 });
+    expect(pickGhost([snap({ day: 2 }), ok, snap({ runId: "me", wins: 2, lives: 5 })], q)).toEqual(ok);
   });
 
-  it("prefers the nearest W-L record", () => {
-    const far = snap({ wins: 0, losses: 2 }), near = snap({ wins: 2, losses: 1 }), exact = snap({ wins: 2, losses: 0 });
+  // 0.6.0b: ranked by |wins diff| first, then |lives diff| (a v1 snapshot has no losses)
+  it("prefers the nearest wins, then the nearest lives", () => {
+    const far = snap({ wins: 0, lives: 5 }), near = snap({ wins: 2, lives: 4 }), exact = snap({ wins: 2, lives: 5 });
     expect(pickGhost([far, near], q)).toEqual(near);
     expect(pickGhost([far, near, exact], q)).toEqual(exact);
   });
 
   it("breaks ties with hashSeed(seed, 'ghost', day): deterministic, and the seed matters", () => {
-    const ties = Array.from({ length: 7 }, (_, i) => snap({ wins: 2, losses: 0, savedAt: i }));
+    // 0.6.0b: ties are equal wins and lives; createdAt tells them apart
+    const ties = Array.from({ length: 7 }, (_, i) => snap({ wins: 2, lives: 5, createdAt: i }));
     const a = pickGhost(ties, q)!;
     expect(pickGhost(ties, q)).toBe(a);
     expect(a).toBe(ties[hashSeed(1234, "ghost", 3) % 7]);
-    const picks = new Set(Array.from({ length: 40 }, (_, s) => pickGhost(ties, { ...q, seed: s })!.savedAt));
+    const picks = new Set(Array.from({ length: 40 }, (_, s) => pickGhost(ties, { ...q, seed: s })!.createdAt));
     expect(picks.size).toBeGreaterThan(3);
   });
 
-  it("no match: a stand-in (today's honest warlord deck with a seeded hero, today's naming)", () => {
+  // 0.6.0b: the stand-in is the run's rival captain (standInFoe) with its honest standInBuild deck
+  // and the captain's name, not a seeded hero's honest warlord deck under a warlord name
+  it("no match: the day's stand-in captain (standInFoe: its standInBuild deck, its name)", () => {
     const run = newRun("furnace", 555, "me");
     run.day = 6;
     const f = chooseFoe(run, [snap({ day: 5 })]);
-    const s = standIn(555, 6);
+    const s = standInFoe(555, 6);
+    const id = standInGhost(555, 6);
     expect(f.kind).toBe("standin");
-    expect(f.hero).toBe(s.hero);
-    // M3b: the gates of warlordBuild(hero, 6), hull from 1 plate (+25) instead of warlordHull(6) = +28
-    expect(f.build).toEqual(honestStandInBuild(s.hero, 6));
-    expect(f.build).toEqual({ ...warlordBuild(s.hero, 6), hullBonus: 25 });
-    expect(f.name).toBe(warlordName(s.hero, 6));
-    const heroes = new Set(Array.from({ length: 30 }, (_, i) => standIn(i, 1).hero));
+    expect([s.id, f.rival]).toEqual([id, id]);
+    expect(f.hero).toBe(RIVALS[id].hero);
+    expect(f.build).toEqual(standInBuild(id, 6));
+    expect(f.build).toEqual(s.build);
+    expect(f.build.hullBonus % 25).toBe(0); // whole paid plating (R1)
+    expect(f.name).toBe(RIVALS[id].name);
+    const heroes = new Set(Array.from({ length: 30 }, (_, i) => standInFoe(i, 1).hero));
     expect(heroes.size).toBe(2); // seeded: both heroes show up, mirror matches included
   });
 
@@ -101,7 +112,8 @@ describe("pickGhost", () => {
     const f = startDusk(me, [g]);
     expect(f.kind).toBe("ghost");
     expect(f.build).toEqual(g.build);
-    expect(f.name).toBe(`GHOST · ${HEROES.weaver.name} · 0-0`);
+    // 0.6.0b: a ghost is named by its hero, wins and lives going into dusk (no W-L)
+    expect(f.name).toBe(`GHOST · ${HEROES.weaver.name} · 0W 5♥`);
     const b = new Battle(me.build, f.build, battleSeed(me));
     while (!b.over && b.ticks < 60 * 200) b.step();
     const ref = simulate(me.build, g.build, battleSeed(me));
