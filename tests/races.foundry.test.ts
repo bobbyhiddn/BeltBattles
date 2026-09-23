@@ -3,6 +3,7 @@ import { Battle } from "../src/sim/battle";
 import { key as K, routeInfo, type Build } from "../src/sim/deck";
 import { FUSE_MULT, SYNC_WINDOW, inSync } from "../src/sim/races/foundry";
 import { raceRefBuild, raceStartBuild } from "../src/sim/races/refBuilds";
+import { heroRefBuild } from "../src/sim/heroBuilds";
 import { buildCost, dummyFoe, expectLegal, expectSaneBattles, shots } from "./races.helpers";
 
 const start = () => raceStartBuild("foundry", 1);
@@ -84,6 +85,21 @@ describe("FOUNDRY fuse event (ruling 10)", () => {
     expect(fuses.length).toBe(b.sides[0].race!.foundry.fusions);
     expect(fuses.length).toBeGreaterThanOrEqual(8);
     for (const f of fuses) expect(f).toEqual({ turret: 0, dmg: FUSE_MULT * 6 });
+  });
+
+  it("Furnace and Weaver battles never emit one", () => {
+    for (const [a, b] of [["furnace", "weaver"], ["weaver", "furnace"], ["furnace", "furnace"], ["weaver", "weaver"]] as const) {
+      for (const d of [1, 5, 10]) {
+        const bt = new Battle(heroRefBuild(a, d), heroRefBuild(b, d), d * 97);
+        let fuse = 0;
+        while (!bt.over) {
+          bt.step();
+          for (const ev of bt.events) if (ev.type === "fuse") fuse++;
+          bt.events.length = 0;
+        }
+        expect(fuse).toBe(0);
+      }
+    }
   });
 });
 
