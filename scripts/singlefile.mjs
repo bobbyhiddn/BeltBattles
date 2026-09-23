@@ -39,8 +39,10 @@ async function inline() {
 // 0.6.0: the local ghost pool each run starts with (as if this browser had played before). Desk
 // plays all 10 days (reload on day 4, a pool ghost); phone plays 3 days (reload on day 2). The
 // strong day-2 ghost makes sure a dusk is lost (5 -> 4 lives); day 3 has no ghost: a stand-in.
-// Days 5-10 on desk are under-built decks (a warlord build 2 days behind, -40 hull): against
-// day-matched warlord-strength ghosts this simple script (2 gates a day) is out by day 8 (3-5).
+// Days 5-10 on desk are under-built decks (the honest deck of 2 days earlier), so this simple
+// script (2 gates a day) plays all 10 days. M3b: every seeded ghost is an honest deck (tooling.ts
+// makeGhost -> honest.ts: whole plating, deckCost within maxGoldByDay(day)); the log shows each
+// dusk foe's hullBonus and deckCost and fails the run if one is not honest.
 const G = (day, hero, wins, losses, power = 0) => ({ day, hero, wins, losses, power, runId: "earlier-run" });
 const RUNS = {
   desk: {
@@ -48,7 +50,9 @@ const RUNS = {
     pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6), G(4, "weaver", 2, 1), G(5, "furnace", 3, 1, -2), G(6, "weaver", 3, 2, -2),
       G(7, "furnace", 4, 2, -2), G(8, "weaver", 5, 2, -2), G(9, "furnace", 5, 3, -2), G(10, "weaver", 6, 3, -2)],
   },
-  phone: { days: 3, reloadDay: 2, pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6)] },
+  // phone: at least 3 days, then on until the first dusk loss (an honest 17-gold day-2 ghost does
+  // not always beat a deck that also holds a salvaged part, so a strong honest day-3 ghost follows)
+  phone: { days: 3, untilLoss: true, reloadDay: 2, pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6), G(3, "furnace", 2, 0, 6)] },
 };
 
 async function main() {
@@ -82,7 +86,7 @@ async function main() {
     await ctx.close();
   }
   await browser.close();
-  log(failed ? `\nRESULT: FAIL (${failed})` : "\nRESULT: PASS (desk 10-day + phone 3-day scripted runs, no console errors)");
+  log(failed ? `\nRESULT: FAIL (${failed})` : "\nRESULT: PASS (desk 10-day + phone 3+-day scripted runs, honest dusk decks, no console errors)");
   if (LOG) await writeFile(LOG, lines.join("\n") + "\n");
   process.exit(failed ? 1 : 0);
 }

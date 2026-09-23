@@ -90,10 +90,17 @@ async function road(page, touch, log, at, state) {
   log(`[${at()}] -> DUSK`);
 }
 
+// M3b: every dusk foe is logged with its hullBonus and deckCost against the day's gold budget
 const foeOf = (page) => page.evaluate(() => {
   const d = window.bb.game.run.dusk;
-  return d && { day: d.day, kind: d.kind, name: d.name, build: JSON.stringify(d.build) };
+  return d && {
+    day: d.day, kind: d.kind, name: d.name, hero: d.hero, build: JSON.stringify(d.build),
+    hull: d.build.hullBonus, cost: window.bb.deckCost(d.build), budget: window.bb.maxGoldByDay(d.day),
+    mine: window.bb.deckCost(window.bb.game.run.build),
+  };
 });
+const honestFoe = (f) => f.hull >= 0 && f.hull % 25 === 0 && f.cost <= f.budget;
+const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, deckCost ${f.cost} of ${f.budget} gold: ${honestFoe(f) ? "honest" : "NOT HONEST"}; your deck ${f.mine}`;
 
 /** Reload the page mid-battle, CONTINUE from the title, and check the same ghost comes back. */
 async function reloadAndContinue(page, touch, log, at, state) {
@@ -101,7 +108,7 @@ async function reloadAndContinue(page, touch, log, at, state) {
   await page.reload();
   await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title", null, { timeout: 15000 });
   const sub = await page.evaluate(() => window.bb.game.screen.save && { day: window.bb.game.screen.save.day, stage: window.bb.game.screen.save.stage });
-  log(`[${at()}] RELOAD mid-battle -> title, CONTINUE offered (save: day ${sub.day}, stage ${sub.stage})`);
+  log(`[${at()}] RELOAD mid-battle -> title, CONTINUE offered (save: day ${sub.day}, stage ${sub.stage}); before the reload: ${before ? `${before.name} (${foeLine(before)})` : "no dusk foe stored"}`);
   await tapRegion(page, touch, "cont");
   await settle(page, "build");
   const dawn = await page.evaluate(() => ({ foe: window.bb.game.screen.foe.name, refit: window.bb.game.screen.refit }));
@@ -117,7 +124,7 @@ async function reloadAndContinue(page, touch, log, at, state) {
 export async function scriptedRun(page, touch, log, opts) {
   const t0 = Date.now();
   const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
-  const state = { refitDone: false, picks: 0, reloadSame: false, losses: [], ghosts: 0, standins: 0, placed: 0 };
+  const state = { refitDone: false, picks: 0, reloadSame: false, losses: [], ghosts: 0, standins: 0, placed: 0, foes: 0, dishonest: [] };
   const n = await page.evaluate((pool) => { window.bb.clearPool(); return window.bb.addGhosts(pool); }, opts.pool);
   log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ")}`);
   await tapRegion(page, touch, "new");
@@ -144,7 +151,9 @@ export async function scriptedRun(page, touch, log, opts) {
     const foe = await foeOf(page);
     if (foe.kind === "ghost") state.ghosts++;
     else state.standins++;
-    log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foe.kind === "ghost" ? "pool ghost" : "stand-in"}), same as the dawn preview: ${foe.name === dawn.foe}`);
+    state.foes++;
+    if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
+    log(`[${at()}] DUSK · DAY ${foe.day}: vs ${foe.name} (${foeLine(foe)}), same as the dawn preview: ${foe.name === dawn.foe}`);
     if (day === opts.reloadDay) await reloadAndContinue(page, touch, log, at, state);
     if (day === 1) {
       await page.waitForFunction(() => window.bb.game.screen.phase === "fight", null, { timeout: 15000 });
@@ -167,7 +176,7 @@ export async function scriptedRun(page, touch, log, opts) {
     });
     if (r.outcome === "loss") state.losses.push(`day ${r.day}: ${dawn.lives} -> ${r.lives} lives`);
     log(`[${at()}] RESULT CARD: ${r.outcome === "win" ? "WIN" : r.outcome === "loss" ? "LOSS -1 LIFE" : "DRAW"} (${r.time}s sim), income +${r.income}G, lives ${r.lives}, W-L ${r.wl}${r.over ? `, run ${r.over}` : ""}`);
-    if (r.over || day >= opts.days) break;
+    if (r.over || (day >= opts.days && (!opts.untilLoss || state.losses.length))) break;
     await tapRegion(page, touch, "next");
   }
   const end = await page.evaluate(() => {
@@ -180,8 +189,9 @@ export async function scriptedRun(page, touch, log, opts) {
     log(`[${at()}] END SCREEN: ${end.over === "complete" ? "RUN COMPLETE" : "RUN LOST"} on day ${end.day}, W-L ${end.wl}, ${end.lives} lives`);
   } else log(`[${at()}] stopped after day ${end.day - 1 || end.day} as planned (run continues), W-L ${end.wl}, ${end.lives} lives`);
   log(`[${at()}] days: ${end.days.join(" | ")}`);
-  log(`[${at()}] checks: event picks ${state.picks}, REFIT ${state.refitDone}, dusk losses ${state.losses.join("; ") || "none"}, reload kept the ghost ${state.reloadSame}, pool ghosts met ${state.ghosts}, stand-ins ${state.standins}, parts placed ${state.placed}`);
+  log(`[${at()}] checks: event picks ${state.picks}, REFIT ${state.refitDone}, dusk losses ${state.losses.join("; ") || "none"}, reload kept the ghost ${state.reloadSame}, pool ghosts met ${state.ghosts}, stand-ins ${state.standins}, parts placed ${state.placed}, honest dusk decks ${state.foes - state.dishonest.length}/${state.foes}${state.dishonest.length ? ` (NOT HONEST: ${state.dishonest.join(", ")})` : ""}`);
   const days = end.days.length;
   if (state.picks < 1 || !state.losses.some((l) => l.includes("5 -> 4")) || !state.reloadSame || days < 3) throw new Error("scripted run missed a required step (event, 5 -> 4 loss, reload with the same ghost, 3+ days)");
+  if (state.dishonest.length) throw new Error(`a dusk foe was not an honest deck (${state.dishonest.join(", ")})`);
   return { ...end, state };
 }

@@ -4,9 +4,10 @@ import { newRun, rollShop, type Run } from "./game/run";
 import { finishDay, startDusk } from "./game/day";
 import { GHOST_KEY, loadPool, saveGhost, type GhostSnapshot } from "./game/ghosts";
 import { beginRoad, choicesFor, pickChoice } from "./game/events";
-import { warlordBuild, warlordName } from "./sim/ai";
+import { warlordName } from "./sim/ai";
 import { RULES_VERSION, START_LIVES, type HeroId } from "./sim/content";
 import type { SideStats } from "./sim/battle";
+import { honestStandInBuild, strongHonestBuild } from "./game/honest";
 
 export interface GhostSpec {
   day: number;
@@ -14,15 +15,17 @@ export interface GhostSpec {
   wins?: number;
   losses?: number;
   runId?: string;
-  power?: number; // days of extra build and +20 hull per day (a strong ghost beats a fresh deck); negative: under-built
+  // 0: the day's honest warlord deck; > 0 strong: warlord gates up to `power` days ahead that fit the
+  // day's gold, the rest spent on plating; < 0 under-built: the honest deck of `-power` days earlier
+  power?: number;
 }
 
-/** A pool ghost for tooling: a real warlord production build, stamped like a player's snapshot. */
+/** A pool ghost for tooling: an honest warlord production build (M3b: whole plating, within the
+ *  gold a player can have by that dusk), stamped like a player's snapshot. */
 export function makeGhost(s: GhostSpec): GhostSnapshot {
   const hero = s.hero ?? "weaver";
   const power = s.power ?? 0;
-  const build = warlordBuild(hero, Math.max(1, Math.min(8, s.day + power)));
-  build.hullBonus += power * 20;
+  const build = power > 0 ? strongHonestBuild(hero, s.day, power) : honestStandInBuild(hero, Math.max(1, s.day + power));
   const losses = s.losses ?? 0;
   return {
     v: 1, rulesVersion: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, losses, lives: START_LIVES - losses,
@@ -66,12 +69,12 @@ export function setupRun(o: RunSpec = {}): Run {
   return run;
 }
 
-/** 0.5.0's opponent for this day (the other hero's warlord), stored as tonight's dusk foe, so
- *  bb.open("battle") (battle shots, metrics) keeps fighting the same builds as 0.5.0 did. */
+/** 0.5.0's matchup for this day (the other hero's warlord gates), stored as tonight's dusk foe, so
+ *  bb.open("battle") (battle shots, metrics) keeps the 0.5.0 layouts; M3b: with the honest hull. */
 export function pinClassicFoe(run: Run): void {
   if (run.dusk && run.dusk.day === run.day) return;
   const hero = run.enemyHero;
-  run.dusk = { day: run.day, kind: "standin", name: warlordName(hero, run.day), hero, build: warlordBuild(hero, run.day) };
+  run.dusk = { day: run.day, kind: "standin", name: warlordName(hero, run.day), hero, build: honestStandInBuild(hero, run.day) };
 }
 
 const ZERO = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 1, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;

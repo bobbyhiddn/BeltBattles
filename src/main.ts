@@ -10,6 +10,8 @@ import { settings, setReducedMotion } from "./core/settings";
 import { VERSION } from "./version";
 import { addGhosts, clearPool, pinClassicFoe, playOut, setupRun, type GhostSpec, type RunSpec } from "./tooling";
 import { loadPool } from "./game/ghosts";
+import { deckCost, maxGoldByDay } from "./game/honest";
+import type { Build } from "./sim/deck";
 import { TitleScreen } from "./screens/title";
 import { HeroScreen } from "./screens/hero";
 import { BuildScreen } from "./screens/build/build";
@@ -61,6 +63,9 @@ game.start();
   clearPool,
   addGhosts: (specs: GhostSpec[]) => addGhosts(specs),
   poolSize: () => loadPool().length,
+  /** M3b: what a deck costs (= buildCost) and the gold a player can have by a day's dusk. */
+  deckCost: (b: Build) => deckCost(b),
+  maxGoldByDay: (day: number) => maxGoldByDay(day),
   setupRun(o: RunSpec = {}): void {
     game.run = setupRun(o);
   },

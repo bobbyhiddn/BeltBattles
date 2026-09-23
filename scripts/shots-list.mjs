@@ -117,6 +117,7 @@ export const SHOTS = [
     ["dawn", v, "title", 0, DAWN({ day: 3, wins: 2, losses: 0, lives: 5, gold: 14 })],
     ["dawn-ghost", v, "title", 0, DAWN({ day: 4, wins: 2, losses: 1, lives: 4, gold: 11 }, [{ day: 4, hero: "weaver", wins: 2, losses: 1 }])],
     ["dusk-ghost", v, "title", 0, DUSK({ day: 4, wins: 2, losses: 1, lives: 4 }, [{ day: 4, hero: "weaver", wins: 2, losses: 1 }], 75)],
+    ["dusk-standin", v, "title", 0, DUSK({ day: 5, wins: 3, losses: 1, lives: 4 }, [], 75)], // M3b: honest stand-in, 1 plate
     ["dusk-loss", v, "title", 0, DUSK({ day: 2, wins: 1, losses: 0, lives: 5 }, [{ day: 2, hero: "furnace", wins: 1, losses: 0, power: 6 }], 40, true)],
     ["run-complete", v, "title", 0, END({ results: "WWLWDWLWWW", seed: 777 }, POOL)],
     ["run-lost", v, "title", 0, END({ results: "WLLWLDLL", seed: 4242, hero: "weaver" }, POOL)],
