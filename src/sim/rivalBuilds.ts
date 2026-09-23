@@ -69,7 +69,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   sootjaw: {
     hero: "furnace", crates: 0,
     factories: [F("kiln", 4, 7, [4, 6, "L3U2R2U2R1U2"])],
-    upgrades: [G(2, "temper", 2, 6), G(3, "brake", 1, 5), G(4, "whetstone", 3, 3), G(5, "longhaul", 4, 1)],
+    upgrades: [G(2, "brake", 1, 5), G(3, "temper", 2, 6), G(4, "whetstone", 3, 3), G(5, "longhaul", 4, 1)],
   },
   // SHORT STITCH: loom parked right under the guns; stubby belts fire first.
   nettle: {
@@ -83,13 +83,14 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     factories: [F("kiln", 3, 6, [4, 5, "U5"]), F("press", 6, 6, [6, 5, "L1U5"])],
     upgrades: [G(2, "whetstone", 5, 3), G(3, "temper", 4, 3), M(4, "calibrate", 0), G(5, "brake", 4, 5)],
   },
-  // ACT 1 ELITE, FRAY STORM: split bolts up the middle, oiled and whetted side belts.
+  // ACT 1 ELITE, FRAY STORM: split bolts up the middle, two long swept "wing" belts that
+  // dip behind the loom, whetted, and two armor plates.
   mothqueen: {
     hero: "weaver", crates: 0,
-    factories: [F("loom", 4, 3, [4, 2, "U2"], [3, 3, "L2U3"], [6, 3, "R2U3"])],
+    factories: [F("loom", 4, 4, [4, 3, "U3"], [3, 5, "L1D1L1U6"], [6, 5, "R1D1R1U6"])],
     upgrades: [
-      G(1, "splitter", 4, 2), G(1, "whetstone", 4, 1), G(1, "grease", 2, 3), G(1, "whetstone", 1, 1),
-      G(1, "grease", 7, 3), G(1, "whetstone", 8, 1), P(1), G(4, "temper", 1, 2), G(5, "temper", 8, 2),
+      G(1, "splitter", 4, 2), G(1, "whetstone", 4, 1), G(1, "whetstone", 1, 3), G(1, "whetstone", 8, 3),
+      P(1, 2), G(4, "temper", 1, 5), G(5, "temper", 8, 5), G(6, "grease", 2, 5), G(6, "grease", 7, 5),
     ],
   },
   // ---------------------------------------------------------------- act 2 (rounds 4-6)
@@ -98,8 +99,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "furnace", crates: 1,
     factories: [F("kiln", 4, 6, [4, 5, "L2U3R2U2"]), F("press", 7, 6, [7, 5, "L2U5"])],
     upgrades: [
-      G(4, "temper", 2, 4), G(4, "coil", 4, 1), G(4, "coil", 5, 3), G(5, "brake", 3, 2),
-      M(6, "calibrate", 0), G(7, "whetstone", 5, 1), G(8, "longhaul", 4, 2),
+      G(4, "temper", 2, 4), G(4, "coil", 4, 1), G(4, "coil", 5, 3), G(4, "brake", 3, 2),
+      G(5, "whetstone", 5, 1), M(6, "calibrate", 0), G(8, "longhaul", 4, 2),
     ],
   },
   // SPLITTER SWARM: splitters on both side belts, whetstones after them.
@@ -176,7 +177,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     factories: [F("kiln", 2, 7, [2, 6, "L1U4R2U1R1U1"]), F("press", 6, 6, [6, 5, "L1U5"])],
     upgrades: [
       G(1, "brake", 1, 6), G(1, "temper", 1, 4), G(1, "whetstone", 2, 2), G(1, "longhaul", 4, 1),
-      G(1, "coil", 5, 4), G(1, "whetstone", 5, 2), M(1, "calibrate", 0), P(1, 3),
+      G(1, "coil", 5, 4), G(1, "whetstone", 5, 2), M(1, "calibrate", 0), P(1, 4),
       G(11, "temper", 5, 5), P(11), G(12, "whetstone", 1, 3), P(12),
     ],
   },

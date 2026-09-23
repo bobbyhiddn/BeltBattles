@@ -51,7 +51,7 @@ export const RIVALS: Record<RivalId, RivalDef> = {
     "A STAMP PRESS FEEDS THE SECOND INTAKE.",
     ["rust3", "brass2", "steel1", "amber"], "nose ring shaped like a press die"),
   mothqueen: rival("mothqueen", "MOTH QUEEN", "weaver", 1, "elite", "FRAY STORM",
-    "SPLIT BOLTS, OILED BELTS. FRAY PILES UP.",
+    "SPLIT BOLTS, TWO PLATES. FRAY PILES UP.",
     ["plum3", "plum4", "ice", "verd4"], "moth-wing mantle with frayed, glowing edges"),
   sparkfang: rival("sparkfang", "SPARKFANG", "furnace", 2, "regular", "SHOCK TROOPER",
     "GALVANIC COILS STALL YOUR MACHINES.",
