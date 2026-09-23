@@ -5,6 +5,7 @@ import { chooseFoe, finishDay, ghostOf, startDusk } from "../src/game/day";
 import { battleSeed, buyOffer, newRun, reroll } from "../src/game/run";
 import { beginRoad, choicesFor, pickChoice } from "../src/game/events";
 import { startingBuild, warlordBuild, warlordName } from "../src/sim/ai";
+import { honestStandInBuild } from "../src/game/honest";
 import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { beltUsed } from "../src/sim/deck";
 import { Battle, simulate, type SideStats } from "../src/sim/battle";
@@ -74,14 +75,16 @@ describe("pickGhost", () => {
     expect(picks.size).toBeGreaterThan(3);
   });
 
-  it("no match: a stand-in (today's warlord generator with a seeded hero, today's naming)", () => {
+  it("no match: a stand-in (today's honest warlord deck with a seeded hero, today's naming)", () => {
     const run = newRun("furnace", 555, "me");
     run.day = 6;
     const f = chooseFoe(run, [snap({ day: 5 })]);
     const s = standIn(555, 6);
     expect(f.kind).toBe("standin");
     expect(f.hero).toBe(s.hero);
-    expect(f.build).toEqual(warlordBuild(s.hero, 6));
+    // M3b: the gates of warlordBuild(hero, 6), hull from 1 plate (+25) instead of warlordHull(6) = +28
+    expect(f.build).toEqual(honestStandInBuild(s.hero, 6));
+    expect(f.build).toEqual({ ...warlordBuild(s.hero, 6), hullBonus: 25 });
     expect(f.name).toBe(warlordName(s.hero, 6));
     const heroes = new Set(Array.from({ length: 30 }, (_, i) => standIn(i, 1).hero));
     expect(heroes.size).toBe(2); // seeded: both heroes show up, mirror matches included

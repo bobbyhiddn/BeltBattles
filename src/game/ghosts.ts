@@ -6,8 +6,9 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, type HeroId } from "../sim/content";
-import { warlordBuild, warlordName } from "../sim/ai";
+import { warlordName } from "../sim/ai";
 import type { Build } from "../sim/deck";
+import { honestStandInBuild } from "./honest";
 
 export interface GhostSnapshot {
   v: 1;
@@ -95,9 +96,10 @@ export function pickGhost(pool: readonly GhostSnapshot[], q: GhostQuery): GhostS
 
 const STAND_IN_HEROES: HeroId[] = ["furnace", "weaver"];
 
-/** No ghost for this day: today's opponent generator with a seeded hero, under today's warlord
- *  naming. 0.6.0b swaps the rival captains in here. */
+/** No ghost for this day: an honest deck (honest.ts: today's warlord gates, hull only from plating
+ *  a player could buy, within the day's gold) with a seeded hero, under today's warlord naming.
+ *  0.6.0b swaps the rival captains' standInBuild in here. */
 export function standIn(seed: number, day: number): { hero: HeroId; name: string; build: Build } {
   const hero = new Rng(hashSeed(seed, "standin", day)).pick(STAND_IN_HEROES);
-  return { hero, name: warlordName(hero, day), build: warlordBuild(hero, day) };
+  return { hero, name: warlordName(hero, day), build: honestStandInBuild(hero, day) };
 }
