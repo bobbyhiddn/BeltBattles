@@ -196,6 +196,7 @@ export class Battle {
   readonly sides: [SideState, SideState];
   projectiles: Projectile[] = [];
   events: SimEvent[] = [];
+  private drained: SimEvent[] = []; // the other half of the drainEvents() double buffer
   readonly rng: Rng;
   readonly record: BattleRecord;
   private nextId = 1;
@@ -696,9 +697,15 @@ export class Battle {
     }
   }
 
+  /** Hand over this tick's events without allocating: two arrays swap roles, so the array
+   *  returned stays valid until the next drainEvents() call, which clears and reuses it.
+   *  Read (or copy) the events before the next tick is drained. */
   drainEvents(): SimEvent[] {
     const ev = this.events;
-    this.events = [];
+    const next = this.drained;
+    next.length = 0;
+    this.events = next;
+    this.drained = ev;
     return ev;
   }
 }

@@ -60,6 +60,7 @@ export class Arena {
   shakePeak = 0; // largest camera offset since the last reset (metrics)
   readonly views: [CruiserView, CruiserView];
   private acc = 0;
+  private readonly out: SimEvent[] = []; // update()'s reused per-frame event list
 
   constructor(player: Build, enemy: Build, seed: number, sound: Audio | null) {
     this.b = new Battle(player, enemy, seed);
@@ -90,9 +91,11 @@ export class Arena {
     return Math.min(1, 0.3 + (this.koT - 0.9) * 2.4);
   }
 
-  /** Advance playback; returns the simulation events produced this frame. */
+  /** Advance playback; returns the simulation events produced this frame. The array is reused:
+   *  it is valid until the next update() call, so read it (or copy it) before then. */
   update(dt: number, drive = true): SimEvent[] {
-    const out: SimEvent[] = [];
+    const out = this.out;
+    out.length = 0;
     const fx = this.fx;
     if (fx.hitstop > 0) {
       // hit-stop: hold the frame (sim, belts, shells) while the shake keeps ringing
@@ -112,9 +115,10 @@ export class Arena {
         this.b.step();
         this.acc -= TICK;
         n++;
-        for (const e of this.b.drainEvents()) {
-          react(this, e);
-          out.push(e);
+        const ev = this.b.drainEvents();
+        for (let i = 0; i < ev.length; i++) {
+          react(this, ev[i]);
+          out.push(ev[i]);
         }
       }
     }

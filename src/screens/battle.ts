@@ -141,7 +141,9 @@ export class BattleScreen implements Screen {
         this.game.audio.play("go");
       }
     } else if (this.phase === "fight") {
-      for (const e of a.update(dt)) {
+      const ev = a.update(dt); // reused array, valid until the next update()
+      for (let i = 0; i < ev.length; i++) {
+        const e = ev[i];
         if (e.type === "windwarn") this.windBanner = 2.4;
         if (e.type === "end" && this.phase === "fight") this.end();
       }
