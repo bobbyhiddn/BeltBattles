@@ -1,14 +1,16 @@
-// Run summary: the campaign is over (7 wins, or out of lives). Shows the round-by-round
-// record and totals beside the cruiser (smoking wreck or rolling victor), then offers a new run.
+// Run end (0.6.0): RUN COMPLETE (10 days survived, the W-L record, FLAWLESS at 10-0) or RUN LOST
+// (the dark wind catches you, on day n). The card lists each day: the road event taken, the
+// dusk opponent and the result, beside the cruiser (rolling victor or smoking wreck).
 
 import type { Game, Screen } from "../game/game";
 import { saveRun, type Run } from "../game/run";
-import { HEROES } from "../sim/content";
+import { flawless, record } from "../game/day";
+import { EVENTS } from "../game/eventDefs";
+import { HEROES, RUN_DAYS } from "../sim/content";
 import { Fx } from "../render/fx";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
-import { drawText, wrap } from "../render/font";
-import { EVENTS } from "../game/eventDefs";
+import { drawText, textWidth } from "../render/font";
 import { HULL_A, HULL_L, frameForHull, hullBox } from "../render/frame";
 import { cruiserModel, drawDim, drawHull, drawTurrets, type CruiserView } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
@@ -16,6 +18,15 @@ import { ArenaBg } from "../render/arenaBg";
 import { button, panel } from "../ui/ui";
 import { HeroScreen } from "./hero";
 import { TitleScreen } from "./title";
+
+const ROW = 8;
+
+/** Fit a label into `w` px of the 3x5 face (trimmed, no ellipsis glyph needed). */
+function fit(s: string, w: number): string {
+  let t = s;
+  while (t.length > 1 && textWidth(t, "3") > w) t = t.slice(0, -1);
+  return t === s ? s : t.replace(/[ ·]+$/, "") + ".";
+}
 
 export class SummaryScreen implements Screen {
   private run: Run;
@@ -31,19 +42,24 @@ export class SummaryScreen implements Screen {
     };
   }
 
+  get complete(): boolean {
+    return this.run.over === "complete";
+  }
+
   enter(): void {
     saveRun(null);
     this.game.audio.music(null);
-    this.game.audio.play(this.run.over === "won" ? "win" : "lose");
+    this.game.audio.play(this.complete ? "win" : "lose");
   }
 
   private layout(): { card: { x: number; y: number; w: number; h: number }; hx: number; hy: number } {
     const { W, H, portrait } = this.game;
-    const w = Math.min(W - 12, 220), h = this.run.events?.length ? 158 : 136;
-    const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.66 - w / 2);
-    const y = portrait ? Math.max(HULL_L + 30, H - h - 10) : Math.round(H / 2 - h / 2);
-    const hx = Math.round(portrait ? W / 2 - HULL_A / 2 : W * 0.28 - HULL_A / 2);
-    const hy = Math.round(portrait ? Math.max(8, (y - HULL_L) / 2) : H / 2 - HULL_L / 2);
+    const rows = Math.max(1, this.run.history.length);
+    const w = Math.min(W - 12, 232), h = 64 + rows * ROW + 38;
+    const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.64 - w / 2);
+    const y = portrait ? Math.max(HULL_L + 20, H - h - 8) : Math.max(4, Math.round(H / 2 - h / 2));
+    const hx = Math.round(portrait ? W / 2 - HULL_A / 2 : Math.min(W * 0.26, x - 12 - HULL_A / 2) - HULL_A / 2);
+    const hy = Math.round(portrait ? Math.max(6, (y - HULL_L) / 2) : H / 2 - HULL_L / 2);
     return { card: { x, y, w, h }, hx, hy };
   }
 
@@ -52,17 +68,17 @@ export class SummaryScreen implements Screen {
     this.fx.update(dt);
     const { hx, hy } = this.layout();
     const hb = hullBox(frameForHull(0, hx, hy));
-    if (this.run.over !== "won" && Math.random() < dt * 7) {
+    if (!this.complete && Math.random() < dt * 7) {
       this.fx.smoke(hb.x + 20 + Math.random() * (hb.w - 40), hb.y + 20 + Math.random() * (hb.h - 40), 2, true, 16);
       if (Math.random() < 0.3) this.fx.embers(hb.x + 30 + Math.random() * (hb.w - 60), hb.y + 60, 3);
     }
-    if (this.run.over === "won" && Math.random() < dt * 3) this.fx.sparkle(hb.x + Math.random() * hb.w, hb.y + Math.random() * hb.h);
+    if (this.complete && Math.random() < dt * 3) this.fx.sparkle(hb.x + Math.random() * hb.w, hb.y + Math.random() * hb.h);
   }
 
   draw(g: G): void {
     const { W, H, ui } = this.game;
     const run = this.run;
-    const won = run.over === "won";
+    const won = this.complete;
     const { card, hx, hy } = this.layout();
     const v = this.view;
     v.frame = frameForHull(0, hx, hy);
@@ -75,43 +91,54 @@ export class SummaryScreen implements Screen {
     if (!won) drawDim(g, v, 0.55);
     this.fx.draw(g, 0, 0);
     const { x, y, w, h } = card;
+    const cx = x + w / 2;
     panel(g, card, "raised");
-    drawText(g, won ? "RUN COMPLETE!" : "CRUISER LOST", x + w / 2, y + 6, won ? C.lime : C.red, { align: "center", scale: 2, outline: C.ink });
-    const hero = HEROES[run.hero];
-    drawText(g, `${hero.name} · ${run.wins} WINS · ${run.losses} LOSSES`, x + w / 2, y + 23, C.bone, { font: "3", align: "center" });
-    const pip = 14;
-    const n = run.history.length;
-    const rx = Math.round(x + w / 2 - (n * pip) / 2);
-    run.history.forEach((r, i) => {
-      const c = r.outcome === "win" ? C.lime : r.outcome === "loss" ? C.red : C.slate3;
-      rect(g, rx + i * pip, y + 34, pip - 2, 12, C.ink);
-      rect(g, rx + i * pip + 1, y + 35, pip - 4, 10, c);
-      drawText(g, r.outcome === "win" ? "W" : r.outcome === "loss" ? "L" : "D", rx + i * pip + 6, y + 37, C.ink, { font: "3", align: "center" });
-    });
-    const dmg = run.history.reduce((s, r) => s + r.player.damage, 0);
-    const shots = run.history.reduce((s, r) => s + r.player.shots, 0);
-    const best = run.history.reduce((m, r) => Math.max(m, r.player.damage), 0);
-    const rows: [string, string][] = [
-      ["ROUNDS FOUGHT", String(n)], ["TOTAL DAMAGE", String(Math.round(dmg))], ["BEST ROUND", String(Math.round(best))],
-      ["SHOTS FIRED", String(shots)], ["GOLD LEFT", String(run.gold)],
-    ];
-    rows.forEach(([k, val], i) => {
-      drawText(g, k, x + 12, y + 54 + i * 9, C.slate4, { font: "3" });
-      drawText(g, val, x + w - 12, y + 54 + i * 9, C.white, { font: "3", align: "right" });
-    });
-    // road events taken this run (0.5.0)
-    const taken = run.events ?? [];
-    if (taken.length) {
-      drawText(g, `ROAD EVENTS · ${taken.length}`, x + 12, y + 101, C.slate4, { font: "3" });
-      const names = taken.map((e) => `${EVENTS[e.id].title}${e.won ? "" : " (LOST)"}`).join(" · ");
-      wrap(names, w - 24, "3").slice(0, 2).forEach((ln, i) => drawText(g, ln, x + 12, y + 109 + i * 7, C.bone, { font: "3" }));
+    drawText(g, won ? "RUN COMPLETE" : "RUN LOST", cx, y + 6, won ? C.lime : C.red, { align: "center", scale: 2, outline: C.ink });
+    const hero = HEROES[run.hero].name;
+    if (won) {
+      drawText(g, `${hero} · ${RUN_DAYS} DAYS SURVIVED · W-L ${record(run)}`, cx, y + 23, C.bone, { font: "3", align: "center" });
+      if (flawless(run)) {
+        const fw = textWidth("FLAWLESS") + 8;
+        rect(g, Math.round(cx - fw / 2), y + 31, fw, 11, C.yellow);
+        drawText(g, "FLAWLESS", cx, y + 33, C.ink, { align: "center" });
+      } else drawText(g, `${run.lives} ${run.lives === 1 ? "LIFE" : "LIVES"} LEFT · ${run.gold} GOLD`, cx, y + 33, C.slate4, { font: "3", align: "center" });
+    } else {
+      drawText(g, "THE DARK WIND CATCHES YOU", cx, y + 23, C.bone, { font: "3", align: "center" });
+      drawText(g, `ON DAY ${run.day} · ${hero} · W-L ${record(run)}`, cx, y + 32, C.slate4, { font: "3", align: "center" });
     }
-    button(ui, g, "again", { x: x + 10, y: y + h - 29, w: w / 2 - 14, h: 21 }, "NEW RUN", {
+    this.drawDays(g, x + 8, y + 48, w - 16);
+    const by = y + h - 27;
+    button(ui, g, "again", { x: x + 10, y: by, w: w / 2 - 14, h: 21 }, "NEW RUN", {
       primary: true, onTap: () => { this.game.run = null; this.game.go(new HeroScreen(this.game)); },
     });
-    button(ui, g, "title", { x: x + w / 2 + 4, y: y + h - 29, w: w / 2 - 14, h: 21 }, "TITLE", {
+    button(ui, g, "title", { x: x + w / 2 + 4, y: by, w: w / 2 - 14, h: 21 }, "TITLE", {
       onTap: () => { this.game.run = null; this.game.go(new TitleScreen(this.game)); },
     });
+  }
+
+  /** One row per day: DAY · ROAD (the event taken) · DUSK (the opponent) · W / L / D. */
+  private drawDays(g: G, x: number, y: number, w: number): void {
+    const run = this.run;
+    const cDay = x, cRoad = x + 14, cRes = x + w - 11;
+    const roadW = Math.round((w - 14 - 12) * 0.42);
+    const cFoe = cRoad + roadW + 4, foeW = cRes - 3 - cFoe;
+    drawText(g, "DAY", cDay, y, C.slate3, { font: "3" });
+    drawText(g, "ROAD", cRoad + 2, y, C.slate3, { font: "3" });
+    drawText(g, "DUSK", cFoe, y, C.slate3, { font: "3" });
+    rect(g, x, y + 7, w, 1, C.slate1);
+    let ry = y + 10;
+    for (const d of run.history) {
+      const ev = run.events.find((e) => e.day === d.day);
+      const road = ev ? `${EVENTS[ev.id].title}${ev.won ? "" : " (LOST)"}` : "QUIET ROAD";
+      drawText(g, String(d.day), cDay + 9, ry, C.slate4, { font: "3", align: "right" });
+      drawText(g, fit(road, roadW), cRoad + 2, ry, ev ? C.bone : C.slate3, { font: "3" });
+      drawText(g, fit(d.foe, foeW), cFoe, ry, d.ghost ? C.ice : C.bone, { font: "3" });
+      const c = d.outcome === "win" ? C.lime : d.outcome === "loss" ? C.red : C.slate3;
+      rect(g, cRes, ry - 2, 11, 9, C.ink);
+      rect(g, cRes + 1, ry - 1, 9, 7, c);
+      drawText(g, d.outcome === "win" ? "W" : d.outcome === "loss" ? "L" : "D", cRes + 4, ry, C.ink, { font: "3" });
+      ry += ROW;
+    }
   }
 
   key(k: string): void {

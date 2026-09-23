@@ -2,20 +2,24 @@
 // next-battle card, the details panel, drag feedback and the pause/options menu.
 
 import { saveRun } from "../../game/run";
-import { ITEMS, REROLL_COST, RUN_LIVES, RUN_WINS } from "../../sim/content";
+import { record } from "../../game/day";
+import { ITEMS, REROLL_COST, RUN_DAYS } from "../../sim/content";
 import { beltUsed } from "../../sim/deck";
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
-import { drawText, wrap } from "../../render/font";
-import { beltIcon, coinIcon, heartIcon } from "../../render/sprites";
+import { drawText, textWidth, wrap } from "../../render/font";
+import { beltIcon, coinIcon } from "../../render/sprites";
 import { button, inside, itemSlot, panel } from "../../ui/ui";
 import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
+import { drawHearts } from "../battleHud";
 import type { BuildScreen } from "./build";
 import { drawCard, drawReroll, drawTag, drawTooltip } from "./shop";
 import { drawDetails, drawFoe, hasDetails } from "./inspector";
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 
+/** Status bar: DAWN · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
+ *  the hero card below the shop), belt use when there is room, then MENU and SND. */
 function drawTopBar(g: G, s: BuildScreen): void {
   const { W, ui } = s.game;
   const run = s.run;
@@ -23,23 +27,31 @@ function drawTopBar(g: G, s: BuildScreen): void {
   rect(g, 0, 13, W, 1, C.slate1);
   rect(g, 0, 12, W, 1, C.navy);
   ui.add({ id: "bar", r: { x: 0, y: 0, w: W, h: 14 }, block: true });
-  drawText(g, `ROUND ${run.round}`, 4, 5, C.bone, { font: "3" });
-  const gx = 40;
-  g.drawImage(coinIcon(), gx, 4);
-  drawText(g, String(run.gold), gx + 7, 4, C.yellow, { outline: C.ink });
-  s.coinX = gx + 12;
-  const hx = gx + 28;
-  for (let i = 0; i < RUN_LIVES; i++) g.drawImage(heartIcon(i < run.lives), hx + i * 7, 4);
-  let wx = hx + 25;
-  for (let i = 0; i < RUN_WINS; i++) rect(g, wx + i * 5, 4, 4, 6, i < run.wins ? C.lime : C.slate1);
-  wx += RUN_WINS * 5 + 6;
+  const narrow = W < 200;
+  const sndW = narrow ? 19 : 25, menuW = narrow ? 21 : 27;
+  const sndX = W - 2 - sndW, menuX = sndX - 1 - menuW;
+  let x = 4;
+  x += drawText(g, "DAWN", x, 5, C.amber, { font: "3" });
+  x += drawText(g, ` · DAY ${run.day}/${RUN_DAYS}`, x, 5, C.bone, { font: "3" }) + 5;
+  g.drawImage(coinIcon(), x, 4);
+  s.coinX = x + 5;
+  x += 7 + drawText(g, String(run.gold), x + 7, 4, C.yellow, { outline: C.ink }) + 5;
+  x += drawHearts(g, x, 4, run.lives) + 5;
+  // the W-L record: labelled where it fits, bare beside the hearts on narrow portrait bars (the
+  // phone's bar has no room, so its hero card below the shop carries the record)
+  const wl = record(run);
+  if (x + textWidth(`W-L ${wl}`, "3") <= menuX - 4) {
+    x += drawText(g, "W-L", x, 5, C.slate4, { font: "3" }) + 3;
+    x += drawText(g, wl, x, 5, C.white, { font: "3" }) + 7;
+  } else if (x + textWidth(wl, "3") <= menuX - 4) x += drawText(g, wl, x, 5, C.white, { font: "3" }) + 7;
   const used = beltUsed(run.build), cap = run.build.beltCap;
-  if (W >= 200) {
-    g.drawImage(beltIcon(), wx, 6);
-    drawText(g, `${used}/${cap}`, wx + 9, 5, used >= cap ? C.amber : C.bone, { font: "3" });
+  const bt = `${used}/${cap}`;
+  if (x + 9 + textWidth(bt, "3") <= menuX - 3) {
+    g.drawImage(beltIcon(), x, 6);
+    drawText(g, bt, x + 9, 5, used >= cap ? C.amber : C.bone, { font: "3" });
   }
-  s.game.soundButton(g, { x: W - 27, y: 1, w: 25, h: 12 });
-  button(ui, g, "menu", { x: W - 55, y: 1, w: 27, h: 12 }, "MENU", { font: "3", onTap: () => { s.menu = true; } });
+  s.game.soundButton(g, { x: sndX, y: 1, w: sndW, h: 12 });
+  button(ui, g, "menu", { x: menuX, y: 1, w: menuW, h: 12 }, "MENU", { font: "3", onTap: () => { s.menu = true; } });
 }
 
 function drawShop(g: G, s: BuildScreen): void {
@@ -127,15 +139,15 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const cue = s.placedOnce && !s.ed.busy;
   button(ui, g, "fight", L.fight, "FIGHT!", { primary: true, blink: s.armed > 0, active: cue && Math.floor(s.t * 3) % 2 === 1, onTap: () => s.fight() });
   if (!L.portrait) {
-    if (L.foe) drawFoe(g, s.run, L.foe);
-    drawDetails(g, s, s.sel, s.hover, L.info);
+    if (L.foe) drawFoe(g, s.foe, L.foe);
+    drawDetails(g, s, s.sel, s.hover, L.info, s.foe);
   } else if (hasDetails(s, s.sel, s.hover) || !L.foe) {
-    drawDetails(g, s, s.sel, s.hover, L.info); // a selection or hover uses the whole band
+    drawDetails(g, s, s.sel, s.hover, L.info, s.foe); // a selection or hover uses the whole band
   } else {
     // idle portrait band: hero card over the NEXT BATTLE panel
-    drawFoe(g, s.run, L.foe);
+    drawFoe(g, s.foe, L.foe);
     const top = { x: L.info.x, y: L.info.y, w: L.info.w, h: L.foe.y - 2 - L.info.y };
-    if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top);
+    if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe);
   }
   drawTopBar(g, s);
   // drag feedback and contextual cues

@@ -1,35 +1,41 @@
-// Battle: both cruisers roll into frame, a 3-2-1 countdown, then the fight plays out at the
-// chosen speed. A hull break triggers the KO burst, slow-mo and a WIN/LOSE banner, then a
-// result card. The battle frames itself at its own integer scale (battleLayout).
+// Dusk battle: both cruisers roll into frame, a 3-2-1 countdown, then the fight plays out at the
+// chosen speed. A hull break triggers the KO burst, slow-mo and a WIN/LOSE banner, then the dusk
+// result card. 0.6.0: dusk starts when this screen is made: today's ghost (or stand-in) is picked
+// once, stored in the run and saved, so a reload fights the same one. After the fight the
+// player's own snapshot joins the local ghost pool. The battle frames itself (battleLayout).
 
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, type BattleLayout } from "../game/battleLayout";
-import { battleSeed, enemyBuild, finishRound, foeName, saveRun, type RoundResult } from "../game/run";
-import { HEROES } from "../sim/content";
+import { battleSeed, saveRun, type DayResult, type DuskFoe } from "../game/run";
+import { finishDay, ghostOf, startDusk } from "../game/day";
+import { loadPool, saveGhost } from "../game/ghosts";
+import { HEROES, RUN_DAYS } from "../sim/content";
 import { C } from "../render/palette";
 import type { G } from "../render/pixel";
-import { drawText } from "../render/font";
+import { drawText, textWidth } from "../render/font";
 import { ArenaBg } from "../render/arenaBg";
 import { banner, optionsCard } from "../ui/hud";
+import { button, panel } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { SummaryScreen } from "./summary";
 import { TitleScreen } from "./title";
-import { SPEEDS, drawBar, drawPlate, drawResult, type BarState } from "./battleHud";
+import { SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, type BarState } from "./battleHud";
 
 type Phase = "intro" | "fight" | "outro" | "result";
 const INTRO = 1.2; // drive-in seconds
 
 export class BattleScreen implements Screen {
   readonly arena: Arena;
+  readonly foe: DuskFoe;
   phase: Phase = "intro";
   private pt = 0;
-  private result: RoundResult | null = null;
+  private result: DayResult | null = null;
   readonly foeName: string;
   private windBanner = 0;
   private count = 4;
-  private speed = 0;
+  speed = SPEED_1X;
   menu = false;
   L!: BattleLayout;
   private bg = new ArenaBg();
@@ -41,17 +47,17 @@ export class BattleScreen implements Screen {
 
   constructor(private game: Game) {
     const run = game.run!;
-    const foe = enemyBuild(run); // an accepted road challenge brings a warlord from later rounds
-    this.foeName = foeName(run);
-    run.stage = "battle";
-    this.arena = new Arena(run.build, foe, battleSeed(run), game.audio);
+    this.foe = startDusk(run, loadPool()); // dusk starts: pick once, store, save
+    saveRun(run);
+    this.foeName = this.foe.name;
+    this.arena = new Arena(run.build, this.foe.build, battleSeed(run), game.audio);
     this.arena.off = [60, 260];
     this.bar = {
-      speed: 0, compact: false, showSpeeds: true,
+      speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
       onCycle: () => this.setSpeed((this.speed + 1) % SPEEDS.length),
       onSkip: () => this.skip(),
-      onMenu: () => { this.menu = true; this.arena.paused = true; },
+      onPause: () => this.togglePause(),
     };
     this.relayout();
   }
@@ -64,6 +70,17 @@ export class BattleScreen implements Screen {
     return Math.round(this.game.H / 2 - 8);
   }
 
+  /** Playback pause (II, P or Space): the fight holds still until resumed. */
+  get paused(): boolean {
+    return this.arena.paused && !this.menu;
+  }
+
+  togglePause(): void {
+    if (this.menu || this.phase === "result") return;
+    this.arena.paused = !this.arena.paused;
+    this.game.audio.play("click");
+  }
+
   enter(): void {
     this.relayout();
     this.game.audio.music("battle");
@@ -73,6 +90,7 @@ export class BattleScreen implements Screen {
   private bgSpec = { hulls: [] as { x: number; y: number; w: number; h: number }[], vertical: false, gapLine: true };
   private plateR = [{ x: 0, y: 0, w: 0, h: 0 }, { x: 0, y: 0, w: 0, h: 0 }];
   private onNext = () => this.next();
+  private openMenu = () => { this.menu = true; this.arena.paused = true; };
 
   private relayout(): void {
     const { W, H, portrait } = this.game;
@@ -84,18 +102,21 @@ export class BattleScreen implements Screen {
   }
 
   setSpeed(i: number): void {
-    this.speed = i;
-    this.arena.speed = SPEEDS[i];
+    this.speed = Math.max(0, Math.min(SPEEDS.length - 1, i));
+    this.arena.speed = SPEEDS[this.speed];
   }
 
   private end(): void {
     const run = this.game.run!;
     const b = this.arena.b;
-    this.result = finishRound(run, b.winner ?? -1, b.t, b.sides[0].stats, b.sides[1].stats);
+    const mine = ghostOf(run); // the deck exactly as it fought tonight, with the record entering it
+    this.result = finishDay(run, b.winner ?? -1, b.t, b.sides[0].stats, b.sides[1].stats);
+    saveGhost(mine);
     saveRun(run);
     this.phase = "outro";
     this.pt = 0;
     this.arena.speed = 1;
+    this.arena.paused = false;
     this.game.audio.music(null);
   }
 
@@ -106,6 +127,7 @@ export class BattleScreen implements Screen {
       this.arena.syncFrames();
     }
     if (this.phase !== "fight") return;
+    this.arena.paused = false;
     for (const e of this.arena.finish()) if (e.type === "end") this.end();
   }
 
@@ -116,7 +138,7 @@ export class BattleScreen implements Screen {
 
   update(dt: number): void {
     this.relayout();
-    if (this.menu) return;
+    if (this.menu || this.arena.paused) return; // paused: nothing moves, the sim holds its tick
     this.pt += dt;
     const a = this.arena;
     if (this.phase === "intro") {
@@ -161,7 +183,6 @@ export class BattleScreen implements Screen {
 
   draw(g: G): void {
     const { W, H } = this.game;
-    const L = this.L;
     const a = this.arena;
     this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
     drawArena(g, a, W, H);
@@ -170,7 +191,7 @@ export class BattleScreen implements Screen {
     const cy = Math.round(H / 2);
     if (this.phase === "intro") {
       const k = Math.min(1, this.pt / 0.35);
-      banner(g, W, cy - 16, `ROUND ${run.round}`, C.yellow, `VS ${this.foeName}`, k);
+      banner(g, W, cy - 16, `DUSK · DAY ${this.foe.day}/${RUN_DAYS}`, C.yellow, `VS ${this.foeName}`, k);
       if (this.pt > INTRO && this.count <= 3) drawText(g, String(this.count), W / 2, cy - 50, C.white, { align: "center", scale: 4, outline: C.ink });
     } else if (this.phase === "fight" && this.pt < 0.7 && Math.floor(this.pt * 10) % 2 === 0) {
       drawText(g, "FIGHT!", W / 2, cy - 11, C.yellow, { align: "center", scale: 3, outline: C.ink });
@@ -184,9 +205,22 @@ export class BattleScreen implements Screen {
       banner(g, W, cy - 18, o === "win" ? "VICTORY!" : o === "loss" ? "DEFEAT" : "DRAW", o === "win" ? C.lime : o === "loss" ? C.red : C.bone, o === "win" ? "THEIR HULL BREAKS" : o === "loss" ? "YOUR HULL BREAKS" : undefined, k, 3);
     }
     if (this.phase === "result" && this.result) {
-      drawResult(g, this.game, this.result, this.foeName, this.pt, this.game.run!.over ? "SEE THE RUN" : "BACK TO THE CARAVAN", this.onNext);
+      drawResult(g, this.game, this.result, this.pt, run.over ? "SEE THE RUN" : `ON TO DAWN · DAY ${run.day}`, this.onNext);
     }
+    if (this.paused && this.phase !== "result") this.drawPaused(g);
     if (this.menu) this.drawMenu(g);
+  }
+
+  /** In-place pause: a small chip (PAUSED, how to resume, MENU) that leaves the battlefield visible. */
+  private drawPaused(g: G): void {
+    const { W, H, ui } = this.game;
+    const hint = "II OR P TO RESUME";
+    const w = Math.max(textWidth("PAUSED", "5") * 2, textWidth(hint, "3")) + 44;
+    const r = { x: Math.round(W / 2 - w / 2), y: Math.round(H / 2 - 20), w, h: 28 };
+    panel(g, r, "dark");
+    drawText(g, "PAUSED", r.x + 6, r.y + 4, C.yellow, { scale: 2, outline: C.ink });
+    drawText(g, hint, r.x + 6, r.y + 20, C.slate4, { font: "3" });
+    button(ui, g, "pmenu", { x: r.x + r.w - 34, y: r.y + 5, w: 30, h: 18 }, "MENU", { font: "3", onTap: this.openMenu });
   }
 
   private drawHud(g: G): void {
@@ -217,9 +251,9 @@ export class BattleScreen implements Screen {
     const st = this.bar;
     st.speed = this.speed;
     st.compact = L.compact;
+    st.paused = this.paused;
     st.showSpeeds = this.phase === "fight" || this.phase === "intro";
     drawBar(g, this.game, this.arena, L.bar, this.clockText, st);
-    if (this.arena.paused && !this.menu) drawText(g, "PAUSED", this.game.W / 2, this.game.H / 2 - 30, C.yellow, { align: "center", scale: 2, outline: C.ink });
   }
 
   private drawMenu(g: G): void {
@@ -249,12 +283,12 @@ export class BattleScreen implements Screen {
   }
 
   key(k: string): void {
-    if (k === "1" || k === "2" || k === "3") this.setSpeed(Number(k) - 1);
+    if (k >= "1" && k <= "4" && k.length === 1) this.setSpeed(Number(k) - 1);
     else if (k === "s" || k === "S") this.skip();
     else if (k === "Escape") {
       this.menu = !this.menu;
       this.arena.paused = this.menu;
-    } else if (k === " " && this.phase !== "result") this.arena.paused = !this.arena.paused;
+    } else if ((k === " " || k === "p" || k === "P") && this.phase !== "result") this.togglePause();
     else if ((k === "Enter" || k === " ") && this.phase === "result" && this.pt > 0.35) this.next();
   }
 }

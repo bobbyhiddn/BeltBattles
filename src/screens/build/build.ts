@@ -2,7 +2,9 @@
 // bow. Drag and drop or tap-to-place; contextual cues replace the old instruction text.
 
 import type { Game, Screen } from "../../game/game";
-import { reroll, saveRun, type Run } from "../../game/run";
+import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
+import { duskFoe } from "../../game/day";
+import { loadPool } from "../../game/ghosts";
 import { beginRoad } from "../../game/events";
 import { EVENTS } from "../../game/eventDefs";
 import { HEROES, ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
@@ -43,6 +45,9 @@ export class BuildScreen implements Screen, EditHost {
   placedOnce = false; // something was placed this round -> point at FIGHT
   boughtOnce = false;
   hover: { wagon: number; slot: number } | null = null;
+  /** Tonight's dusk opponent: stored once dusk has started, else the pick dusk will make (the pool
+   *  only changes after a dusk fight, so the preview is the pick). Read once, not per frame. */
+  foe: DuskFoe;
   private model: CruiserModel;
   private view: CruiserView;
   private bg = new ArenaBg();
@@ -50,6 +55,7 @@ export class BuildScreen implements Screen, EditHost {
   constructor(public game: Game) {
     if (!game.run) throw new Error("BuildScreen needs a run");
     this.run = game.run;
+    this.foe = duskFoe(this.run, loadPool());
     this.refit = this.run.stage === "refit" || this.run.stage === "battle";
     if (this.refit) this.caravan.park();
     this.L = this.layout();
@@ -73,7 +79,7 @@ export class BuildScreen implements Screen, EditHost {
   /** Title of the road event this refit follows (banner text). */
   refitFrom(): string {
     const ev = this.run.event;
-    return ev && ev.round === this.run.round ? EVENTS[ev.id].title : "THE ROAD";
+    return ev && ev.day === this.run.day ? EVENTS[ev.id].title : "THE ROAD";
   }
 
   /** Offers in display order (grouped by wagon). */

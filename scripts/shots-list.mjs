@@ -7,10 +7,11 @@ export const VIEWS = {
   laptop: { viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 },
 };
 
-// In-page: reset the run, open a screen, fast-forward deterministically, render.
+// In-page: reset the run and the ghost pool, open a screen, fast-forward deterministically, render.
 export function prep({ screen, secs }) {
   const g = window.bb.game;
   g.run = null;
+  window.bb.clearPool();
   window.bb.setReducedMotion(false);
   window.bb.open(screen, "furnace", 12345);
   const frames = Math.round((0.6 + secs) * 60);
@@ -54,6 +55,23 @@ export const EVENT = (id, o = {}, pick = -1, after = 0, refit = false) => `(() =
   g.render();
 })()`;
 
+// 0.6.0 the 10-day run: a dawn (build) at a given day/record with a ghost pool; a dusk battle vs
+// that pool (optionally SKIP to its result card); a played-out run's end screen.
+const J = JSON.stringify;
+const STEP = (n) => `for (let i = 0; i < ${n}; i++) bb.game.step(1 / 60);`;
+export const DAWN = (o, ghosts = []) => `(() => { bb.openDawn(${J(o)}, ${J(ghosts)}); ${STEP(90)} bb.game.render(); })()`;
+export const DUSK = (o, ghosts = [], frames = 60, toResult = false) => `(() => {
+  const g = bb.game;
+  bb.openDusk(${J(o)}, ${J(ghosts)}); ${STEP(frames)}
+  if (${toResult}) { g.screen.skip(); for (let i = 0; i < 600 && g.screen.phase !== "result"; i++) g.step(1 / 60); ${STEP(40)} }
+  g.render();
+})()`;
+export const END = (o, ghosts = []) => `(() => { bb.openEnd(${J(o)}, ${J(ghosts)}); ${STEP(60)} bb.game.render(); })()`;
+const POOL = [
+  { day: 2, hero: "weaver", wins: 1, losses: 0 }, { day: 3, hero: "furnace", wins: 1, losses: 1 },
+  { day: 5, hero: "weaver", wins: 3, losses: 1 }, { day: 8, hero: "furnace", wins: 4, losses: 3 },
+];
+
 // [name, view, screen, seconds after the wipe, page script, special input]
 export const SHOTS = [
   ["title", "phone", "title", 1.5], ["title", "desk", "title", 1.5],
@@ -92,5 +110,21 @@ export const SHOTS = [
     ["event-scout", v, "title", 0, EVENT("scout")],
     ["event-refit-offer", v, "title", 0, EVENT("wreck", { round: 1, gold: 8 }, 0, 70)],
     ["build-refit", v, "title", 0, EVENT("wreck", { round: 1, gold: 8 }, 0, 70, true)],
+  ]),
+  // 0.6.0: dawn (DAY n/10, 5 hearts, NEXT BATTLE stand-in / pool ghost), dusk vs a pool ghost, the
+  // result card after a loss (-1 LIFE), RUN COMPLETE / RUN LOST, and the playback bar (0.5X, pause)
+  ...["desk", "laptop", "phone", "small"].flatMap((v) => [
+    ["dawn", v, "title", 0, DAWN({ day: 3, wins: 2, losses: 0, lives: 5, gold: 14 })],
+    ["dawn-ghost", v, "title", 0, DAWN({ day: 4, wins: 2, losses: 1, lives: 4, gold: 11 }, [{ day: 4, hero: "weaver", wins: 2, losses: 1 }])],
+    ["dusk-ghost", v, "title", 0, DUSK({ day: 4, wins: 2, losses: 1, lives: 4 }, [{ day: 4, hero: "weaver", wins: 2, losses: 1 }], 75)],
+    ["dusk-loss", v, "title", 0, DUSK({ day: 2, wins: 1, losses: 0, lives: 5 }, [{ day: 2, hero: "furnace", wins: 1, losses: 0, power: 6 }], 40, true)],
+    ["run-complete", v, "title", 0, END({ results: "WWLWDWLWWW", seed: 777 }, POOL)],
+    ["run-lost", v, "title", 0, END({ results: "WLLWLDLL", seed: 4242, hero: "weaver" }, POOL)],
+    ["playback", v, "battle", 7, "bb.game.screen.setSpeed(0); for (let i = 0; i < 20; i++) bb.game.step(1 / 60); bb.game.render()"],
+  ]),
+  ...["desk", "phone"].flatMap((v) => [
+    ["playback-paused", v, "battle", 7, "bb.game.screen.setSpeed(0); bb.game.screen.togglePause(); bb.game.render()"],
+    ["run-flawless", v, "title", 0, END({ results: "WWWWWWWWWW", seed: 99 }, POOL)],
+    ["title-help", v === "desk" ? "desk" : "small", "title", 1, "bb.game.screen.help = true; bb.game.render()"],
   ]),
 ];

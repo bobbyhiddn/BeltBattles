@@ -73,7 +73,7 @@ export function battleLayout(W: number, H: number, portrait: boolean): BattleLay
     const y0 = PLATE_L + Math.max(0, Math.floor((band - HULL_A) / 2));
     const p = frameForHull(1, x0, y0), e = frameForHull(3, x0 + HULL_L + gap, y0);
     const hp = hullBox(p), he = hullBox(e);
-    const barW = Math.min(W - 8, 120);
+    const barW = Math.min(W - 8, 150); // 0.6.0: room for 0.5X 1X 2X 4X + SKIP + II
     return {
       W, H, portrait, compact: false, frames: [p, e], hulls: [hp, he], deckArea: union(hp, he),
       gap, gapBox: { x: hp.x + HULL_L, y: hp.y, w: gap, h: HULL_A },
