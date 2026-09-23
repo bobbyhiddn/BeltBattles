@@ -68,8 +68,8 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   const icon = itemIcon(def.id);
   const lines = cardName(def, r.w - 4);
   const two = lines.length > 1;
-  g.drawImage(icon, Math.round(x + r.w / 2 - 6), y + (two ? 6 : 8));
-  let ny = y + (two ? 19 : 22);
+  g.drawImage(icon, Math.round(x + r.w / 2 - 6), y + (two ? 5 : 8));
+  let ny = y + (two ? 18 : 22);
   for (const ln of lines) {
     drawText(g, ln, x + r.w / 2, ny, s.sold ? C.slate2 : C.bone, { font: "3", align: "center" });
     ny += 6;

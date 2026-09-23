@@ -107,9 +107,10 @@ export function react(a: Arena, e: SimEvent): void {
       if (e.x > -2 && e.x < 122 && e.y > -2 && e.y < 122) fx.scorch(x, y, e.big ? 6 : e.heavy ? 5 : 3);
       if (e.burn > 0) fx.embers(x, y, 4);
       fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, String(dmg), e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
-      // shake scales with the damage dealt
-      fx.addTrauma(Math.min(0.62, 0.03 + dmg * 0.02));
-      fx.kick(-dx * Math.min(3, dmg / 5), -dy * Math.min(3, dmg / 5));
+      // shake scales with the damage dealt (light bolt ~1px, heavy shell ~2px, big hit 4-5px)
+      fx.addTrauma(Math.min(0.65, 0.04 + dmg * 0.03));
+      const kick = Math.min(3, dmg / (e.heavy ? 4 : 5));
+      fx.kick(-dx * kick, -dy * kick);
       if (e.big) {
         fx.ring(x, y, 14, C.fire4);
         if (!settings.reducedMotion) fx.screenFlash(C.fire4, 0.2);

@@ -65,6 +65,9 @@ export class Game implements InputSink {
     this.screen.enter?.();
   }
 
+  /** A screen change (wipe) is in progress; input is ignored until it opens. */
+  get transitioning(): boolean { return this.wipeDir !== 0 || !!this.pending; }
+
   get W(): number { return this.view.W; }
   get H(): number { return this.view.H; }
   get portrait(): boolean { return this.view.portrait; }

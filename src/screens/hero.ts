@@ -75,7 +75,7 @@ export class HeroScreen implements Screen {
     const blurbLines = h.blurb.reduce((n, ln) => n + wrap(ln, infoW).length, 0);
     const infoH = 93 + blurbLines * 9;
     const pw = Math.min(W - 16, HULL_A + 30);
-    const ph = portrait ? Math.max(HULL_L + 14, Math.min(HULL_L + 60, H - 20 - 14 - infoH - 45 - 14)) : HULL_L + 30;
+    const ph = portrait ? Math.max(HULL_L + 14, Math.min(HULL_L + 100, H - 20 - 14 - infoH - 54 - 14)) : HULL_L + 30;
     const px0 = portrait ? Math.round(W / 2 - pw / 2) : Math.round(W * 0.3 - pw / 2);
     const py0 = portrait ? 20 : Math.round(H / 2 - ph / 2 + 6);
     rect(g, px0 - 2, py0 - 2, pw + 4, ph + 4, C.ink);
