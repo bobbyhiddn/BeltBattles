@@ -49,20 +49,15 @@ Matriarch are Hard. The rank only drives the portrait frame now. Portraits are 2
 to Medium (its 13-tile cooker out-hits every Easy deck from day 1) and RATCHET down to Easy (a
 bare kiln until day 5), so the per-day ladder holds with 3 Easy, 4 Medium and 5 Hard captains.
 
-**Every captain is a real production build: one plan, two decks** (R1, R2 below). The plan is legal
-on every day 1-10 under the build screen's own checks and never shrinks from one day to the next. A
-stamp press is bought only together with a gate for its belt.
-- **Warlord deck** `rivalBuild(id, day)`: the plan plus the PvE hull ramp `warlordHull(day)` (-27 on
-  day 1 up to +72 on day 10). Warlords never cost a life, so this deck may exceed a player's budget
-  and its hull need not be whole plating.
-- **Stand-in deck** `standInBuild(id, day)`: the same plan with `hullBonus = 25 x (plan plates +
-  rampPlates(day))`, paid for. The game fights every stand-in with this deck, never `rivalBuild`.
+**Every captain is a real production build: one plan, two decks.** The plan is legal on every day
+1-10 under the build screen's own checks, never shrinks, and buys a stamp press only with a gate
+for its belt. The warlord deck `rivalBuild(id, day)` is the plan plus `warlordHull(day)` (R1); the
+stand-in deck `standInBuild(id, day)` is the plan with whole, paid plating (R2).
 
-**The road stop's warlords.** `warlordOffer(runSeed, day)` returns `{ easy, medium, hard }`.
+**The road stop's warlords.** `warlordOffer(runSeed, day, matriarchBeatenOn?)` returns `{ easy, medium, hard }`.
 - It draws from its own `hashSeed(runSeed, "warlords", slot, cycle)` stream, so shop rolls and battle seeds never move.
 - Each slot deals its pool in shuffled cycles (3 Easy, 4 Medium, 5 Hard captains), so every captain in a pool is offered once before any is offered twice.
-- No captain is offered on two consecutive days, in any slot. The one exception is the Iron Matriarch: she is the Hard warlord on days 8, 9 and 10 until beaten (R3), and never earlier.
-- `warlordOffer(runSeed, day, matriarchBeatenOn?)` applies R3; `warlordOffers(runSeed)` is the unbeaten schedule.
+- No captain is offered on two consecutive days, in any slot, except the Iron Matriarch on days 8-10 until beaten (R3). `warlordOffers(runSeed)` is the unbeaten schedule.
 
 **Stand-in ghosts.** `standInGhosts(runSeed)` gives one captain per day (`standInGhost(runSeed, day)`):
 - It is a seeded order of the 12 captains other than the Matriarch, from its own `hashSeed(runSeed, "standin")` stream.
@@ -87,16 +82,12 @@ stamp press is bought only together with a gate for its belt.
 - **R4 Difficulty.** The base run is the real game: 5 lives, honest ghosts. HEAT levels only go up
   from it (Progression below); nothing goes below the base, and ghosts always run as submitted.
 
-**Difficulty ladder** (`tests/rivals.difficulty.test.ts`). For each day, every captain the player
-can meet is fought as a warlord (`rivalBuild`) by the par player, `honestReference` of the other
-faction, over 20 seeds (side 0). The margin is the par player's hull left minus the captain's, so a
-lower margin is a harder captain. The test prints the ladder and the stand-in pool, and asserts on
-every day 1-10:
-- by mean margin Easy > Medium > Hard, each gap at least 0.05, and every Easy captain above every Hard one;
-- the Easy mean margin is above 0 (a par deck beats Easy on average) and the Hard mean is below 0;
-- on days 8-10, the Iron Matriarch has the lowest margin of all;
-- the 12 stand-in decks' (`standInBuild`) mean margin is between -0.25 and +0.25;
-- against an Easy or Medium captain on days 1-3, the pacing-test decks' battles average 20-45 s.
+**Difficulty ladder** (`tests/rivals.difficulty.test.ts`). Each day, every captain the player can
+meet is fought as a warlord by the par player (`honestReference`, other faction) over 20 seeds. The
+margin is the par player's hull left minus the captain's (lower is harder). Asserted on days 1-10:
+- by mean margin Easy > Medium > Hard, each gap 0.05 or more; every Easy captain above every Hard one;
+- the Easy mean is above 0 and the Hard mean below 0; on days 8-10 the Matriarch is the lowest;
+- the 12 `standInBuild` decks' mean margin is within ±0.25; days 1-3 pacing (Easy, Medium) is 20-45 s.
 
 **Road-stop and dusk panels** (`drawFoe` / `drawIdle` in `src/screens/build/inspector.ts`):
 - The road stop shows three cards: portrait, name, an EASY / MEDIUM / HARD tag, `trick`, `blurb` and the reward.
