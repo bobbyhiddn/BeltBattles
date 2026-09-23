@@ -14,14 +14,14 @@ export interface GhostSpec {
   wins?: number;
   losses?: number;
   runId?: string;
-  power?: number; // days of extra build and +20 hull per day (a strong ghost beats a fresh deck)
+  power?: number; // days of extra build and +20 hull per day (a strong ghost beats a fresh deck); negative: under-built
 }
 
 /** A pool ghost for tooling: a real warlord production build, stamped like a player's snapshot. */
 export function makeGhost(s: GhostSpec): GhostSnapshot {
   const hero = s.hero ?? "weaver";
   const power = s.power ?? 0;
-  const build = warlordBuild(hero, Math.min(8, s.day + power));
+  const build = warlordBuild(hero, Math.max(1, Math.min(8, s.day + power)));
   build.hullBonus += power * 20;
   const losses = s.losses ?? 0;
   return {
