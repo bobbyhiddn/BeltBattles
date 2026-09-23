@@ -230,14 +230,22 @@ export class BattleScreen implements Screen {
     ], close);
   }
 
-  /** Deck-area rectangle in CSS px and its share of the short viewport axis (metrics). */
-  deckMetrics(): { rect: { x: number; y: number; w: number; h: number }; share: number; longShare: number } {
+  /** Deck-area rectangle in CSS px, its share of the short viewport axis, and the open floor
+   *  between the bows: logical px, CSS px and share of the firing axis (metrics). */
+  deckMetrics(): {
+    rect: { x: number; y: number; w: number; h: number }; share: number; longShare: number;
+    gap: { logical: number; css: number; share: number };
+  } {
     const v = this.game.view, k = v.scale / v.dpr;
     const d = this.L.deckArea;
     const cw = window.innerWidth, ch = window.innerHeight;
     const r = { x: d.x * k, y: d.y * k, w: d.w * k, h: d.h * k };
     const portrait = ch > cw;
-    return { rect: r, share: portrait ? r.w / cw : r.h / ch, longShare: portrait ? r.h / ch : r.w / cw };
+    const gapCss = this.L.gap * k;
+    return {
+      rect: r, share: portrait ? r.w / cw : r.h / ch, longShare: portrait ? r.h / ch : r.w / cw,
+      gap: { logical: this.L.gap, css: +gapCss.toFixed(2), share: +(gapCss / (this.L.portrait ? ch : cw)).toFixed(4) },
+    };
   }
 
   key(k: string): void {

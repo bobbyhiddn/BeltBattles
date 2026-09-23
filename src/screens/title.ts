@@ -12,6 +12,7 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap } from "../render/font";
 import { titleArt } from "../render/sprites";
+import { HULL_L } from "../render/frame";
 import { ArenaBg } from "../render/arenaBg";
 import { button, panel, para } from "../ui/ui";
 import { optionsCard } from "../ui/hud";
@@ -66,7 +67,9 @@ export class TitleScreen implements Screen {
     this.layoutKey = k;
     const top = portrait ? 60 : Math.round(H * 0.08) + 40;
     const panelH = this.save ? 90 : 62;
-    const a = arenaIn({ x: 0, y: top, w: W, h: Math.max(160, H - top - panelH - 14) }, portrait, portrait ? 28 : 48);
+    // open floor between the bows like the real battle (0.5.0): ~20% of the firing axis, with 6 px spare in the box
+    const box = { x: 0, y: top, w: W, h: Math.max(160, H - top - panelH - 14) };
+    const a = arenaIn(box, portrait, Math.min(Math.round((portrait ? H : W) * 0.2), (portrait ? box.h : box.w) - 2 * HULL_L - 12));
     this.arena.setFrames(a.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
     this.hulls = a.hulls;
   }

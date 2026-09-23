@@ -77,6 +77,7 @@ function buildLayer(W: number, H: number, s: BgSpec): HTMLCanvasElement {
       for (const ty of [h.y + 3, h.y + h.h - 14]) dither(g, 0, Math.round(ty), W, 11, C.soil0, 0.45);
     }
   }
+  if (s.gapLine && s.hulls.length === 2) noMansLand(g, s);
   // painted front line between the bows
   if (s.gapLine && s.hulls.length === 2) {
     const [a, b] = s.hulls;
@@ -115,6 +116,45 @@ function buildLayer(W: number, H: number, s: BgSpec): HTMLCanvasElement {
     dither(g, 0, H - 1 - i, W, 1, C.ink, dens);
   }
   return c;
+}
+
+/** Old shell crater, lit from the upper left: shadowed upper-left wall, lit lower-right lip. */
+function crater(g: G, cx: number, cy: number, r: number): void {
+  for (let y = -r; y <= r; y++) {
+    for (let x = -r - 1; x <= r + 1; x++) {
+      const d = (x * x) / ((r + 1) * (r + 1)) + (y * y) / (r * r);
+      if (d > 1) continue;
+      const rim = d > 0.55;
+      const col = rim ? (x + y > 0 ? C.soil3 : C.soil0) : x + y < 0 ? C.soil0 : C.soil1;
+      if (!rim || BAYER[((cy + y) & 3) * 4 + ((cx + x) & 3)] < 11) rect(g, cx + x, cy + y, 1, 1, col);
+    }
+  }
+}
+
+/** Open floor between the bows (0.5.0): brass stop ticks just past the barrel tips and a few
+ *  old craters, all within the quiet soil ramp (STUDY rule 3). Deterministic per layout. */
+function noMansLand(g: G, s: BgSpec): void {
+  const [a, b] = s.hulls;
+  const v = s.vertical;
+  const first = v ? (a.y < b.y ? a : b) : a.x < b.x ? a : b, second = first === a ? b : a;
+  const g0 = v ? first.y + first.h : first.x + first.w, g1 = v ? second.y : second.x;
+  const gap = g1 - g0;
+  if (gap < 56) return;
+  const c0 = v ? Math.max(a.x, b.x) + 8 : Math.max(a.y, b.y) + 8;
+  const c1 = v ? Math.min(a.x + a.w, b.x + b.w) - 8 : Math.min(a.y + a.h, b.y + b.h) - 8;
+  for (const l of gap >= 80 ? [g0 + 19, g1 - 20] : []) {
+    for (let c = c0; c + 4 <= c1; c += 8) {
+      if (v) { rect(g, c, l, 4, 1, C.brass1); rect(g, c, l + 1, 4, 1, C.soil0); }
+      else { rect(g, l, c, 1, 4, C.brass1); rect(g, l + 1, c, 1, 4, C.soil0); }
+    }
+  }
+  const mid = Math.round((g0 + g1) / 2);
+  for (let k = 0; k < 4; k++) {
+    const along = g0 + 26 + Math.floor(cellNoise(k, gap, 41) * (gap - 52));
+    if (Math.abs(along - mid) < 7) continue;
+    const across = c0 + 6 + Math.floor(cellNoise(k, c1, 43) * Math.max(1, c1 - c0 - 12));
+    crater(g, v ? across : along, v ? along : across, 2 + (k % 2));
+  }
 }
 
 function hazardPad(g: G, p: Box): void {
