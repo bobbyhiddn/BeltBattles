@@ -98,9 +98,9 @@ export function warlordBuild(heroId: HeroId, round: number): Build {
   return { hero: "furnace", items, routes, mods, beltCap: 18, hullBonus: warlordHull(round) };
 }
 
-/** Warlords start weaker than the player and outgrow them round by round. */
-function warlordHull(round: number): number {
-  return (round - 1) * 8 - 20;
+/** Warlords start weaker than the player and outgrow them round by round (bb-0.4.0: x4/3). */
+export function warlordHull(round: number): number {
+  return (round - 1) * 11 - 27;
 }
 
 export function warlordName(heroId: HeroId, round: number): string {

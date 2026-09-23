@@ -1,7 +1,9 @@
 // Content definitions — all rules data lives here, separate from presentation.
 // Values are first-playable design values, not finished balance (spec §13, §24).
 
-export const RULES_VERSION = "bb-0.3.0";
+// bb-0.4.0: hulls +33% (and warlord hull steps / plating to match) so rounds 1-3 last
+// 20-45 s at 1x instead of 16-18 s; every win/loss in the balance probe is unchanged.
+export const RULES_VERSION = "bb-0.4.0";
 
 export const CELL = 12; // world pixels per deck cell
 export const GRID = 10; // 10x10 construction envelope
@@ -144,8 +146,8 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   plating: {
     id: "plating", name: "ARMOR PLATING", kind: "supply", rarity: "rare", price: 5, size: 1, merchant: "ironmonger",
-    desc: ["+20 MAX HULL", "FOR THE REST", "OF THE RUN."],
-    supply: { hull: 20 },
+    desc: ["+25 MAX HULL", "FOR THE REST", "OF THE RUN."],
+    supply: { hull: 25 },
   },
 };
 
@@ -189,14 +191,14 @@ export interface HeroDef {
 export const HEROES: Record<HeroId, HeroDef> = {
   furnace: {
     id: "furnace", name: "FURNACE", faction: "orc", factionName: "ORC WARBAND",
-    hull: 150, factory: "kiln", ammo: "cinder", belt: 14,
+    hull: 200, factory: "kiln", ammo: "cinder", belt: 14,
     turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", fireInterval: 1.0, window: 3, flight: 0.6 }],
     blurb: ["KILN SLUGS HEAT UP ON", "THE BELT. LONGER ROUTES", "HIT HARDER, BUT LATER."],
     pattern: "DELAY TO COOK",
   },
   weaver: {
     id: "weaver", name: "WEAVER", faction: "elf", factionName: "ELVEN SKYWRIGHTS",
-    hull: 135, factory: "loom", ammo: "thread", belt: 24,
+    hull: 180, factory: "loom", ammo: "thread", belt: 24,
     turrets: [
       { col0: 0, width: 2, connectors: [1], kind: "light", fireInterval: 0.55, window: 2, flight: 0.34 },
       { col0: 4, width: 2, connectors: [4], kind: "light", fireInterval: 0.55, window: 2, flight: 0.34 },
