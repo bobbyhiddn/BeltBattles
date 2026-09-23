@@ -4,8 +4,8 @@
 
 import { GRID, HEROES, ITEMS } from "../../sim/content";
 import { canPlaceItem, defOf, key, kx, ky, occupancy, type Build } from "../../sim/deck";
-import { C } from "../../render/palette";
-import { frame, rect, type G } from "../../render/pixel";
+import { C, RARITY_COLOR } from "../../render/palette";
+import { bevel, frame, rect, type G } from "../../render/pixel";
 import { footX, footY } from "../../render/frame";
 import { factorySprite, gateSprite, itemIcon } from "../../render/sprites";
 import { arrowDir } from "../../render/fxsprites";
@@ -66,13 +66,38 @@ export function drawGhostAt(g: G, L: BuildLayout, b: Build, defId: string, cell:
   return ok;
 }
 
-/** Carried item: snapped to the deck when over it, otherwise lifted under the pointer. */
+/** Lifted item tile (logical px): the 12 px icon at 2x, a 2 px rarity strip, bevel and outline. */
+export const LIFT_W = 28;
+export const LIFT_H = 30;
+
+/** The picked-up item at 2x: a bolted tile (1 px ink outline, bevel, rarity strip) with the
+ *  icon doubled, hovering `lift` px above the contact point (x, y), which gets an ink shadow. */
+export function drawLifted(g: G, defId: string, x: number, y: number, lift: number, alpha = 1): void {
+  const ix = Math.round(x - LIFT_W / 2), iy = Math.round(y - lift - LIFT_H);
+  // contact shadow on the ground under the item (tighter and darker than the tile)
+  g.globalAlpha = 0.5 * alpha;
+  rect(g, Math.round(x - 9), Math.round(y - 1), 18, 3, C.ink);
+  rect(g, Math.round(x - 6), Math.round(y - 2), 12, 5, C.ink);
+  g.globalAlpha = alpha;
+  bevel(g, ix, iy, LIFT_W, LIFT_H, C.slate1, C.slate3, C.slate0, C.ink);
+  rect(g, ix + 2, iy + LIFT_H - 4, LIFT_W - 4, 2, RARITY_COLOR[ITEMS[defId].rarity] ?? C.slate3);
+  const icon = itemIcon(defId);
+  g.drawImage(icon, 0, 0, icon.width, icon.height, ix + 2, iy + 2, icon.width * 2, icon.height * 2);
+  g.globalAlpha = 1;
+}
+
+/** Carried item: the 2x lifted tile above the pointer; over the deck it hovers above the snap
+ *  cell, which keeps its bracket and a faint 1x ghost of the exact footprint. */
 export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, py: number, t: number, turretAt: (x: number, y: number) => number): void {
   const def = ITEMS[c.def];
+  const bob = Math.floor(t * 4) % 2;
+  const lift = Math.min(8, Math.round(3 + 30 * Math.min(0.15, t)));
   if ((def.kind === "gate" || def.kind === "factory") && inside(L.hull, px, py)) {
     const cell = dropCell(L, px, py, def.size);
     if (cell) {
-      drawGhostAt(g, L, b, c.def, cell, c.src.from === "deck" ? c.uid : -1, t, 1, 3 + (Math.floor(t * 4) % 2));
+      drawGhostAt(g, L, b, c.def, cell, c.src.from === "deck" ? c.uid : -1, t, 0.55);
+      const half = (def.size * 12) / 2;
+      drawLifted(g, c.def, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half, half + 4 + bob);
       return;
     }
   }
@@ -86,16 +111,8 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
     }
   }
   if (def.kind === "supply" && inside(L.hull, px, py)) frame(g, L.hull.x - 2, L.hull.y - 2, L.hull.w + 4, L.hull.h + 4, C.lime);
-  // lifted: raised above the pointer, shadow on the ground below it
-  const bob = Math.floor(t * 4) % 2;
-  const lift = Math.min(8, Math.round(c ? 3 + 30 * Math.min(0.15, t) : 0));
-  g.globalAlpha = 0.5;
-  rect(g, Math.round(px - 5), Math.round(py + 2), 10, 3, C.ink);
-  g.globalAlpha = 1;
-  const ix = Math.round(px - 6), iy = Math.round(py - 6 - lift - bob);
-  rect(g, ix - 2, iy - 2, 16, 16, C.ink);
-  rect(g, ix - 1, iy - 1, 14, 14, C.slate1);
-  g.drawImage(itemIcon(c.def), ix, iy);
+  // lifted: the 2x tile above the pointer, contact shadow under the pointer
+  drawLifted(g, c.def, px, py, 4 + lift + bob);
 }
 
 /** Ghost preview + bouncing arrow at the suggested cell for the selected card / cargo item. */
@@ -108,7 +125,7 @@ export function drawSuggestion(g: G, L: BuildLayout, b: Build, defId: string, t:
     const td = h.turrets[ti];
     const x = Math.round(turretPivotX(L.frame, td.col0, td.width)), y = Math.round(turretPivotY(L.frame, td.col0, td.width));
     if (Math.floor(t * 4) % 2) frame(g, x - 13, y - 13, 26, 26, C.amber);
-    drawArrowAt(g, x, y - 16, 2, t);
+    drawLifted(g, defId, x, y, 15 + hoverBob(t), 0.92);
     return;
   }
   if (def.kind === "supply") {
@@ -119,9 +136,14 @@ export function drawSuggestion(g: G, L: BuildLayout, b: Build, defId: string, t:
   if (!cell) return;
   const pulse = 0.35 + 0.25 * Math.sin(t * 6);
   drawGhostAt(g, L, b, defId, cell, -1, t, pulse);
-  const x = footX(L.frame, cell.x, cell.y, def.size) + (def.size * 12) / 2;
-  const y = footY(L.frame, cell.x, cell.y, def.size);
-  drawArrowAt(g, x, y - 6, 2, t);
+  // the selected item is "picked up": the same 2x lifted tile bobs over the suggested cell
+  const half = (def.size * 12) / 2;
+  drawLifted(g, defId, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half, half + 4 + hoverBob(t), 0.92);
+}
+
+/** 0-3 px bob of a hovering tile (it dips toward its drop point). */
+function hoverBob(t: number): number {
+  return 3 - Math.round(Math.abs(Math.sin(t * 5)) * 3);
 }
 
 /** Chunky arrow pointing in screen dir, bobbing toward its target at (x, y). */
