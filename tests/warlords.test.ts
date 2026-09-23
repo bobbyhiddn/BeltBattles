@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { hashSeed } from "../src/core/rng";
 import { finishDay } from "../src/game/day";
 import {
-  MATRIARCH_GOLD, REWARD_GOLD, finishWarlord, forkFor, leaveCaravan, pickPending, pickRoad, takePart, topParts, warlordSeed,
+  MATRIARCH_GOLD, REWARD_GOLD, finishWarlord, forkFor, hardParts, leaveCaravan, pickPending, pickRoad, takePart, topParts, warlordSeed,
 } from "../src/game/road";
 import { battleSeed, migrateRun, newRun, rollShop, type Run } from "../src/game/run";
 import { simulate, type SideStats } from "../src/sim/battle";
@@ -74,16 +74,16 @@ describe("warlords: rewards", () => {
         seen.add(w.id);
         const parts = w.reward.parts;
         const pool = giveable(w.build);
-        expect(parts).toEqual(topParts(w.build, 2));
-        expect(parts).toEqual(pool.slice(0, 2));
+        // 0.6.0c: always 2; a deck with fewer giveable parts is filled from the captain's later decks
+        expect(parts).toEqual(hardParts(w.id, w.build, day));
+        expect(parts.slice(0, Math.min(2, pool.length))).toEqual(pool.slice(0, 2));
         if (pool.length < 2) short.push(`${w.id} day ${day} [${parts.join(" ")}]`);
-        else expect(parts).toHaveLength(2);
+        expect(parts).toHaveLength(2);
         expect(new Set(parts).size).toBe(parts.length);
-        for (const p of parts) {
-          expect(["kiln", "loom"]).not.toContain(p);
-          expect([...w.build.items.map((x) => x.def), ...w.build.mods.map((m) => m.def)]).toContain(p);
-        }
-        for (let i = 1; i < parts.length; i++) expect(ITEMS[parts[i - 1]].price).toBeGreaterThanOrEqual(ITEMS[parts[i]].price);
+        const own = parts.slice(0, Math.min(2, pool.length));
+        for (const p of parts) expect(["kiln", "loom"]).not.toContain(p);
+        for (const p of own) expect([...w.build.items.map((x) => x.def), ...w.build.mods.map((m) => m.def)]).toContain(p);
+        for (let i = 1; i < own.length; i++) expect(ITEMS[own[i - 1]].price).toBeGreaterThanOrEqual(ITEMS[own[i]].price);
         expect(w.reward.legendary).toBe(false);
         finishWarlord(run, 0, 30);
         expect(pickPending(run.warlord)).toBe(parts.length > 0);

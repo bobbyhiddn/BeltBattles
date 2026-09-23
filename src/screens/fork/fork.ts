@@ -5,7 +5,7 @@
 // take it again; a warlord pick stores the fight, so a reload replays exactly that fight.
 
 import type { Game, Screen } from "../../game/game";
-import { forkFor, pickRoad, roadChosen, warlordReward, warlordDeck, type Fork } from "../../game/road";
+import { forkFor, pickRoad, roadChosen, warlordReward, warlordDeck, warlordDeckDay, type Fork } from "../../game/road";
 import { saveRun, type Run, type RoadPick } from "../../game/run";
 import { settings } from "../../core/settings";
 import { RIVALS, RUN_DAYS, type Difficulty } from "../../sim/rivals";
@@ -64,7 +64,7 @@ export class ForkScreen implements Screen {
   private info(tier: Difficulty): { reward: ReturnType<typeof warlordReward>; notes: string[] } {
     const run = this.run, id = this.fork.warlords[tier];
     const sab = !!run.sabotage;
-    const reward = warlordReward(id, tier, warlordDeck(id, run.day, sab));
+    const reward = warlordReward(id, tier, warlordDeck(id, run.day, sab), warlordDeckDay(id, run.day, sab));
     const notes: string[] = [];
     if (sab) notes.push("SABOTAGED");
     if (tier === "hard" && run.bounty) notes.push(`+${run.bounty.pay} BOUNTY`);
