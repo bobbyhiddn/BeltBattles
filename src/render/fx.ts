@@ -125,7 +125,8 @@ export class Fx {
     if (settings.reducedMotion) {
       this.shakeX = this.shakeY = 0;
     } else {
-      const s = this.trauma * this.trauma;
+      // trauma^1.5: light bolts stay ~1 px, heavy shells 2-3 px, a KO 6+ px (world pixels)
+      const s = this.trauma * Math.sqrt(this.trauma);
       this.shakeX = Math.round((this.rnd() * 2 - 1) * 7 * s + this.kickX);
       this.shakeY = Math.round((this.rnd() * 2 - 1) * 6 * s + this.kickY);
     }

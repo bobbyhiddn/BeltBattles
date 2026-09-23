@@ -4,6 +4,24 @@ import { startingBuild, warlordBuild } from "../src/sim/ai";
 import { Arena } from "../src/game/arena";
 import { setReducedMotion } from "../src/core/settings";
 import type { HeroId } from "../src/sim/content";
+import { Fx } from "../src/render/fx";
+import { KO_TRAUMA, hitKick, hitTrauma } from "../src/game/arenaReact";
+
+/** Mean total camera offset (world px) over 20 frames after one hit, across 50 cosmetic-RNG offsets. */
+function shakeAfter(trauma: number, kick: number): number {
+  let total = 0;
+  for (let k = 0; k < 50; k++) {
+    const fx = new Fx();
+    for (let i = 0; i < k; i++) fx.rnd();
+    fx.addTrauma(trauma);
+    fx.kick(kick, 0);
+    for (let f = 0; f < 20; f++) {
+      fx.update(1 / 60);
+      total += Math.abs(fx.shakeX) + Math.abs(fx.shakeY);
+    }
+  }
+  return total / 50;
+}
 
 // Juice must never change a battle: playback through the Arena (muzzle flashes, shake,
 // hit-stop, KO slow-mo, speed changes) ends exactly like the headless simulation.
@@ -62,6 +80,22 @@ describe("effects do not change results", () => {
       else expect(peak).toBeGreaterThan(0);
       expect(parts).toBeGreaterThan(10);
     }
+    setReducedMotion(false);
+  });
+
+  it("camera shake scales with damage and the KO shakes hardest", () => {
+    setReducedMotion(false);
+    const light = shakeAfter(hitTrauma(3), hitKick(3, false));
+    const heavy = shakeAfter(hitTrauma(7), hitKick(7, true));
+    const big = shakeAfter(hitTrauma(16), hitKick(16, true));
+    const ko = shakeAfter(KO_TRAUMA, 0);
+    console.log(`shake (mean px-frames over 20 frames): light3 ${light.toFixed(2)} heavy7 ${heavy.toFixed(2)} big16 ${big.toFixed(2)} ko ${ko.toFixed(2)}`);
+    expect(light).toBeGreaterThan(0);
+    expect(heavy).toBeGreaterThan(light * 1.5);
+    expect(big).toBeGreaterThan(heavy);
+    expect(ko).toBeGreaterThan(big);
+    setReducedMotion(true);
+    expect(shakeAfter(KO_TRAUMA, 3)).toBe(0);
     setReducedMotion(false);
   });
 

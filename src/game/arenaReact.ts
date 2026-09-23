@@ -28,6 +28,19 @@ function hullCy(a: Arena, side: Side): number {
   return b.y + b.h / 2;
 }
 
+/** Camera trauma added by a hit: scales with the damage dealt (capped). */
+export function hitTrauma(dmg: number): number {
+  return Math.min(0.65, 0.04 + dmg * 0.03);
+}
+
+/** Directional camera kick (px) along the shell's travel: heavier shells punch harder. */
+export function hitKick(dmg: number, heavy: boolean): number {
+  return Math.min(3, dmg / (heavy ? 4 : 5));
+}
+
+/** Camera trauma of a KO (the hardest shake in the game). */
+export const KO_TRAUMA = 0.95;
+
 /** Screen direction (0 N, 1 E, 2 S, 3 W) a side's bow points. */
 function bowDir(a: Arena, side: Side): number {
   return a.drawn[side].facing;
@@ -108,8 +121,8 @@ export function react(a: Arena, e: SimEvent): void {
       if (e.burn > 0) fx.embers(x, y, 4);
       fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, String(dmg), e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
       // shake scales with the damage dealt (light bolt ~1px, heavy shell ~2px, big hit 4-5px)
-      fx.addTrauma(Math.min(0.65, 0.04 + dmg * 0.03));
-      const kick = Math.min(3, dmg / (e.heavy ? 4 : 5));
+      fx.addTrauma(hitTrauma(dmg));
+      const kick = hitKick(dmg, e.heavy);
       fx.kick(-dx * kick, -dy * kick);
       if (e.big) {
         fx.ring(x, y, 14, C.fire4);
@@ -194,7 +207,7 @@ function ko(a: Arena, winner: Side | -1): void {
   fx.ring(cx, cy, 26, C.white, 0.5);
   fx.debris(cx, cy, 22, KO_DEBRIS, 90);
   fx.smoke(cx, cy, 12, true, 16);
-  fx.addTrauma(0.95);
+  fx.addTrauma(KO_TRAUMA);
   if (!settings.reducedMotion) fx.screenFlash(C.white, 0.55);
   fx.hitstop = 4;
   if (a.sound && !a.quiet) a.sound.play("boom");
