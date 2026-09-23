@@ -7,8 +7,11 @@ product_name: BeltBattles
 shell_repo: "ssh://localhost:23233/BeltBattles"
 created_at: "2026-09-21T22:00:38Z"
 thread_root: "product:0b15efc8be4f7b05"
-updated_at: "2026-09-21T22:00:44Z"
+updated_at: "2026-09-23T18:54:36Z"
 projects:
   - id: 4867bf2efeb40423
     name: BeltBattles quality rebuild
+    phase: planning
+  - id: 97a5e85ab029b907
+    name: BeltBattles full game
     phase: planning
