@@ -16,7 +16,7 @@ import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
 
 export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5 } from "./save";
-export type { PendingBounty, PendingSabotage, RoadChoice, RoadPick, WarlordFight, WarlordResult } from "./roadTypes";
+export type { PendingBounty, PendingSabotage, RoadChoice, RoadPick, WarlordFight, WarlordOutcome, WarlordResult, WarlordReward } from "./roadTypes";
 
 export interface InvItem {
   uid: number;

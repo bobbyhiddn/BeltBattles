@@ -7,34 +7,25 @@
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, START_LIVES } from "../sim/content";
 import { beltUsed, removeItem } from "../sim/deck";
-import { BAG_IDS, EVENTS, EVENT_IDS, INTRO_IDS, type Choice, type Delta, type EventId, type EventState } from "./eventDefs";
+import { BAG_IDS, EVENTS, EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "./eventDefs";
 import type { FoeMods, Run } from "./run";
 
-/** Day 1 always has an event; from day 2 every block of 4 days skips exactly one seeded day (3 in 4). */
-export function eventDue(seed: number, day: number): boolean {
-  if (day <= 1) return true;
-  const block = Math.floor((day - 2) / 4);
-  return day !== 2 + block * 4 + new Rng(hashSeed(seed, "event-skip", block)).int(4);
-}
-
-/** A run's event order: a gentle intro, then shuffled bags of the bag events. Never the same twice in a row. */
+/** A run's event order (0.6.0b): shuffled bags of the bag events, from day 1 (no intro rule).
+ *  Never the same twice in a row. */
 export function eventSequence(seed: number, n: number): EventId[] {
-  const intro = new Rng(hashSeed(seed, "event-intro")).pick(INTRO_IDS);
-  const out: EventId[] = [intro];
+  const out: EventId[] = [];
   for (let bag = 0; out.length < n; bag++) {
-    const ids = new Rng(hashSeed(seed, "event-bag", bag)).shuffle(BAG_IDS.filter((id) => bag > 0 || id !== intro));
+    const ids = new Rng(hashSeed(seed, "event-bag", bag)).shuffle([...BAG_IDS]);
     if (ids[0] === out[out.length - 1]) [ids[0], ids[1]] = [ids[1], ids[0]];
     out.push(...ids);
   }
   return out.slice(0, n);
 }
 
-/** The event on the road before a day's dusk, or null for a quiet road. */
-export function eventFor(seed: number, day: number): EventId | null {
-  if (!eventDue(seed, day)) return null;
-  let k = 0;
-  for (let r = 1; r < day; r++) if (eventDue(seed, r)) k++;
-  return eventSequence(seed, k + 1)[k];
+/** The road event on a day's fork (0.6.0b): every day has one (no quiet-road skip). */
+export function eventFor(seed: number, day: number): EventId {
+  const d = Math.max(1, Math.floor(day) || 1);
+  return eventSequence(seed, d)[d - 1];
 }
 
 /** An event's own rolls come from hashSeed(seed, "event", day): fixed, so reloading can't re-roll them. */
@@ -43,13 +34,14 @@ export function makeEvent(seed: number, day: number, id: EventId): EventState {
   return { day, id, roll: rng.next(), pick: rng.next(), picked: -1 };
 }
 
-/** The caravan leaves: set up today's event if one is due. True when the player must choose. */
+/** Take today's road event (the fork's EVENT card; road.ts pickRoad, and a shorthand for tests and
+ *  tooling): the fork pick becomes "event" if none was made, the event is set up once. True while
+ *  the player must still choose; false once resolved (or when today's pick was a warlord). */
 export function beginRoad(run: Run): boolean {
-  if (!run.event || run.event.day !== run.day) {
-    const id = eventFor(run.seed, run.day);
-    run.event = id ? makeEvent(run.seed, run.day, id) : null;
-  }
-  const open = !!run.event && run.event.picked < 0;
+  if (!run.road || run.road.day !== run.day) run.road = { day: run.day, pick: "event" };
+  if (run.road.pick !== "event") return false;
+  if (!run.event || run.event.day !== run.day) run.event = makeEvent(run.seed, run.day, eventFor(run.seed, run.day));
+  const open = run.event.picked < 0;
   run.stage = open ? "event" : "battle";
   return open;
 }

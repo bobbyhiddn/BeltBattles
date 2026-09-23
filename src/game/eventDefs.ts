@@ -196,5 +196,3 @@ export const EVENT_IDS = Object.keys(EVENTS) as EventId[];
 export const WARLORD_EVENT_IDS: EventId[] = ["herald", "sappers"];
 /** The events a run can draw on the road. */
 export const BAG_IDS: EventId[] = EVENT_IDS.filter((id) => !WARLORD_EVENT_IDS.includes(id));
-/** Gentle intros for day 1: free gains only. */
-export const INTRO_IDS: EventId[] = ["wreck", "cache"];
