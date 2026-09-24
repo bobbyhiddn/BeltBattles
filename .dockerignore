@@ -1,0 +1,5 @@
+# The build context holds only what the image needs (see Dockerfile): the server bundle and the
+# staged game page. Everything else (node_modules, .git, src, tests, local ghost data) stays out.
+*
+!server/dist
+!deploy/public/index.html

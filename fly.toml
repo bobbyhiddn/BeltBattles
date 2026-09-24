@@ -1,0 +1,48 @@
+# BeltBattles on Fly: the game page and the ghost API from one small machine, ghosts in Tigris.
+# Deploy from this directory (the repo root) after `node deploy/stage.mjs <game.html>`; the exact
+# commands, checks, rollback and teardown are in deploy/RUNBOOK.md. The five Tigris variables
+# (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, AWS_REGION, BUCKET_NAME) are app
+# secrets set by `fly storage create`; they never appear here.
+
+app = "beltbattles"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  # Every deploy first writes the bundled sample pool into Tigris on a throwaway machine with the
+  # app's env and secrets. It prints written/unchanged/removed counts; a failure aborts the deploy.
+  release_command = "node /app/dist/ghost-server.mjs seed"
+
+[env]
+  BB_GHOST_STORE = "tigris"
+  BB_GHOST_UPLOADS = "closed"           # until 0.7.0 signed writes and the budget ceiling
+  BB_GHOST_TRUST_PROXY = "fly"          # client IP from Fly-Client-IP for the rate limit and log
+  BB_GHOST_HOST = "0.0.0.0"
+  BB_GHOST_PORT = "8080"
+  BB_GHOST_STATIC = "/app/public"       # serves /app/public/index.html at / and /index.html
+  BB_GHOST_ORIGINS = "https://beltbattles.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/v1/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
