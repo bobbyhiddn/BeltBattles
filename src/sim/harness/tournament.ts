@@ -10,7 +10,7 @@ import { simulate } from "../battle";
 import { ITEMS, type HeroId } from "../content";
 import type { Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs } from "../../net/validate";
-import { FUSE_MAX, fusible, starsOf } from "../stars";
+import { FUSE_MAX, fusible, perkAt, starsOf } from "../stars";
 import { randomBuild } from "./gen";
 import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "./heroes";
 import { buildTraits, type Traits } from "./levers";
@@ -113,6 +113,7 @@ export interface BenchRow {
   worse: number; // decks whose paired delta is below 0
   ci: [number, number] | null; // 95% t-interval of the mean paired delta over decks (n >= 2)
   same2?: number; // 3-star rows: decks whose 2-star variant was also played (the SAME AS 2-star comparison)
+  perk?: string; // 0.6.1p: the perk at this star, from the game's own stars.ts perkAt (report only; absent: none)
   flags: BenchFlag[];
   decks: BenchDeck[]; // every benched deck with its paired delta (the report lists them for WORSE rows)
 }
@@ -145,13 +146,15 @@ export interface DayResult {
   coreUse?: Partial<Record<HeroId, { pop: CoreUse; elites: CoreUse }>>;
 }
 
-/** 0.6.1b: bought turret cores in a set of builds: builds with at least one, cores fitted, per def, per star. */
-export interface CoreUse { builds: number; withCore: number; cores: number; byDef: Record<string, number>; stars: [number, number, number] }
+/** 0.6.1b: bought turret cores in a set of builds: builds with at least one, cores fitted, per def, per star.
+ *  0.6.1p: ramOnGatling = turrets carrying FINISHER RAM gear under a GATLING SPOOL core (content.ts:278: the ram
+ *  does nothing there, battle.ts:597; the game allows the pair, so the harness counts it and doesn't forbid it). */
+export interface CoreUse { builds: number; withCore: number; cores: number; byDef: Record<string, number>; stars: [number, number, number]; ramOnGatling: number }
 
 export function coreUseOf(builds: Build[]): CoreUse {
   const byDef: Record<string, number> = {};
   const stars: [number, number, number] = [0, 0, 0];
-  let withCore = 0, cores = 0;
+  let withCore = 0, cores = 0, ramOnGatling = 0;
   for (const b of builds) {
     const cs = b.mods.filter((m) => ITEMS[m.def]?.kind === "core");
     if (cs.length) withCore++;
@@ -159,9 +162,10 @@ export function coreUseOf(builds: Build[]): CoreUse {
     for (const c of cs) {
       byDef[c.def] = (byDef[c.def] ?? 0) + 1;
       stars[starsOf(c) - 1]++;
+      if (c.def === "gatling" && b.mods.some((m) => m.turret === c.turret && m.def === "ram")) ramOnGatling++;
     }
   }
-  return { builds: builds.length, withCore, cores, byDef, stars };
+  return { builds: builds.length, withCore, cores, byDef, stars, ramOnGatling };
 }
 
 export interface TourneyResult { opts: TourneyOpts; days: DayResult[]; battles: number }
@@ -482,9 +486,10 @@ export async function starBench(o: TourneyOpts, day: number, gauntlet: Build[], 
       same2 = cs.length;
       if (same2Cand.get(k) && cs.every((i) => sameOutcome(at[i][2]!, at[i][3]!))) flags.push("SAME AS ★2");
     }
+    const perk = perkAt(def, g.star); // 0.6.1p: the game's own name for the level (report only)
     rows.push({
       def, star: g.star, n: ds.length, skipped: g.insts.length - ds.length, skippedBase, wr1, wrN, delta: wrN.p - wr1.p,
-      worse: deltas.filter((d) => d < 0).length, ci: meanCI(deltas).ci, ...(same2 !== undefined ? { same2 } : {}), flags, decks,
+      worse: deltas.filter((d) => d < 0).length, ci: meanCI(deltas).ci, ...(same2 !== undefined ? { same2 } : {}), ...(perk ? { perk } : {}), flags, decks,
     });
   }
   return { rows, battles: (jobs.length + replay.length) * per };

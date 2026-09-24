@@ -160,8 +160,9 @@ function coreSection(res: TourneyResult): string[] {
   const L: string[] = ["", "## Turret cores (0.6.1b)", "", "Bought cores fitted in each hero's population and elites: builds with a core, cores per build, the star split and the defs (count). An empty socket runs the hero's signature core (never bought).", ""];
   const cell = (u: CoreUse) => {
     const defs = Object.entries(u.byDef).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([d, n]) => `${d} ${n}`).join(", ");
-    return `${u.withCore}/${u.builds}; ${(u.builds ? u.cores / u.builds : 0).toFixed(2)}/build; ★ ${u.stars.join("/")}${defs ? `; ${defs}` : ""}`;
+    return `${u.withCore}/${u.builds}; ${(u.builds ? u.cores / u.builds : 0).toFixed(2)}/build; ★ ${u.stars.join("/")}${defs ? `; ${defs}` : ""}; ram@gatling ${u.ramOnGatling}`;
   };
+  L.push("ram@gatling: turrets with FINISHER RAM gear under a GATLING SPOOL core (the ram does nothing there; the game allows the pair).", "");
   L.push("| day | hero | population | elites |", "|---|---|---|---|");
   for (const d of res.days) {
     if (!d.coreUse) continue;
@@ -188,7 +189,7 @@ export function benchSection(days: { day: number; bench?: BenchRow[] }[]): strin
   for (const d of days) {
     for (const r of d.bench ?? []) {
       const ci = r.ci ? ` [${sgn(r.ci[0])}, ${sgn(r.ci[1])}]` : "";
-      L.push(`| ${d.day} | ${r.def} | ${r.star} | ${r.n} | ${r.skipped} (${r.skippedBase}) | ${r.worse}/${r.n} | ${r.n ? `${sgn(r.delta)}${ci}` : "n/a"} | ${fmtRate(r.wr1)} | ${fmtRate(r.wrN)} | ${flagText(r) || "-"} |`);
+      L.push(`| ${d.day} | ${r.def}${r.perk ? ` (${r.perk})` : ""} | ${r.star} | ${r.n} | ${r.skipped} (${r.skippedBase}) | ${r.worse}/${r.n} | ${r.n ? `${sgn(r.delta)}${ci}` : "n/a"} | ${fmtRate(r.wr1)} | ${fmtRate(r.wrN)} | ${flagText(r) || "-"} |`);
     }
   }
   const flagged = days.flatMap((d) => (d.bench ?? []).filter((r) => r.flags.length).map((r) => ({ day: d.day, r })));
