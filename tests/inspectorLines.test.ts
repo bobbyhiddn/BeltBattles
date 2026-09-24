@@ -87,8 +87,9 @@ describe("F7 (the Prime's call): portrait action buttons (portraitButtons, pure 
     const band: Box = { x: 3, y: 100, w: 161, h: 69 }; // the phone build screen: W 167, info band x 3, w W - 6, h 69
     const cases: [string, string, string[], "top" | "row"][] = [
       ["HEAVY TURRET 1", "FED FROM COLUMN 5+6", ["REMOVE CORE", "REMOVE GEAR"], "row"], // review-061's F7 scenario
-      ["TEMPER", "COMMON GATE · GUNSMITH", ["BUY+MERGE 3G"], "row"],
-      ["TEMPER", "COMMON GATE · IN CARGO", ["SELL +2G"], "top"], // sized to its label, it fits beside the texts
+      // 0.6.2 BELTSIDE merge: the sub lines read RIG, as the player sees them (wording only; same row/top outcome)
+      ["TEMPER", "COMMON RIG · GUNSMITH", ["BUY+MERGE 3G"], "row"],
+      ["TEMPER", "COMMON RIG · IN CARGO", ["SELL +2G"], "top"], // sized to its label, it fits beside the texts
       ["BELT ROUTE", "FEEDS TURRET 1", ["REMOVE BELT"], "top"], // fits at the old 64 px width
     ];
     for (const [title, sub, labels, where] of cases) {

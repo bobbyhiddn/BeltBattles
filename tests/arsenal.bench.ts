@@ -3,13 +3,20 @@
 // (catalogue.json "headline") at 1, 2 and 3 stars. Not a test file itself (no .test suffix).
 import { Battle, type SimEvent, type SideState } from "../src/sim/battle";
 import { AMMO, type TurretDef } from "../src/sim/content";
-import { estimateRoute, key, payloadDamage, type Build } from "../src/sim/deck";
+import { estimateRoute, key, payloadDamage, rotField, type Build } from "../src/sim/deck";
+import { rotFacing } from "../src/sim/beltside";
 
 export const SEED = 12345;
 const K = key;
 const starField = (s: number) => (s > 1 ? { stars: s } : {});
 
-/** The Furnace bench: the Kiln at (4,6) on a straight 6-tile route into turret 0 (column 4); gates as [def, x, y, stars]. */
+/**
+ * The Furnace bench: the Kiln at (4,6) on a straight 6-tile route into turret 0 (column 4); rigs as [def, x, y, stars].
+ * 0.6.2 BELTSIDE merge: (x, y) is the belt tile the rig works, as 0.6.1p's gate stood on it; the rig stands west of it
+ * at (x - 1, y) and faces it (its first arrow points east), like tests/stars.test.ts's bench. On this straight route
+ * every shape lands exactly that one arrow (the others point at empty deck), so each bench keeps its tile, its order
+ * and its hit count.
+ */
 export function bench(gates: [string, number, number, number][] = [], mods: [string, number][] = [], hullBonus = 5000): Build {
   const b: Build = {
     hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }],
@@ -17,7 +24,7 @@ export function bench(gates: [string, number, number, number][] = [], mods: [str
     mods: [], beltCap: 30, hullBonus,
   };
   let uid = 10;
-  for (const [def, x, y, s] of gates) b.items.push({ uid: uid++, def, x, y, ...starField(s) });
+  for (const [def, x, y, s] of gates) b.items.push({ uid: uid++, def, x: x - 1, y, ...rotField(def, rotFacing(def, 1)), ...starField(s) });
   for (const [def, s] of mods) b.mods.push({ uid: uid++, def, turret: 0, ...starField(s) });
   return b;
 }

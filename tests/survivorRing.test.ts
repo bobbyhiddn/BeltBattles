@@ -11,8 +11,10 @@ import { gainModule } from "../src/game/fuse";
 // Every expectation comes from the model itself (a clone of the run, gained into), never from the
 // ring's own logic.
 
-const TWIN_CELL = { x: 4, y: 2 }; // belt cells of the FURNACE starting route (the desk run places gates there)
-const DROP_CELL = { x: 4, y: 1 };
+// 0.6.2 BELTSIDE merge: a rig stands beside the belt, never on it (R1), so the twin and the drop take the cells west
+// of the FURNACE starting route's tiles (4,2) and (4,1) (where 0.6.1r put them), each facing its tile (rot 1: east)
+const TWIN_CELL = { x: 3, y: 2, rot: 1 };
+const DROP_CELL = { x: 3, y: 1, rot: 1 };
 
 interface Stub { refit: boolean; caravan: { ready: boolean }; hover: null; sel: unknown; run: Run; ed: { carry: unknown } }
 

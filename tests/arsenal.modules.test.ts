@@ -6,8 +6,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, WINDOW_TIME, type HarassCause } from "../src/sim/content";
-import { key, type Build } from "../src/sim/deck";
+import { hitsOfRig, key, rigHits, rotField, type Build } from "../src/sim/deck";
+import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { barge, bench, busy, coilStall, est, finishers, pressDps, pressOnly, run, SEED, turretStall } from "./arsenal.bench";
+// 0.6.2 BELTSIDE merge (ref/BRIEF-beltside-merge-061.md): the decks are native rigs. The benches go through
+// arsenal.bench.ts's ported bench() (each rig beside the tile its gate stood on, one arrow on it); the LONG HAUL snake
+// is placed by hand; the MANTLET dead-offer check migrates its par-deck foe at setup. No assertion changed.
 
 type Metric = number | number[];
 export interface Row { id: string; headline: string; band?: [number, number]; at: (stars: number) => Metric }
@@ -70,12 +74,20 @@ describe("per-module benches: the headline metric rises 1 < 2 < 3 stars, within 
 describe("0.6.1p: the six pending perks, each applied", () => {
   it("LONG HAUL: priorCap 6 at 2 and 3 stars (1 star counts all 8 prior gates), in estimateRoute and the sim", () => {
     // a 12-tile snake route: 8 WHETSTONES, then LONG HAUL on the 9th tile
+    // 0.6.2 BELTSIDE merge: by hand, each rig beside its old tile with its one arrow on it: [x, y, facing] per tile
+    // 0-7 (tile 0 from the east, 1-3 from below, 4 from the west, 5-6 from above, 7 from the east); the LONG HAUL
+    // (II) east of tile 8, (5,3), whose west arrow works (4,3) and whose east arrow points at empty deck
+    const WHET: [number, number, 0 | 1 | 2 | 3][] = [[5, 5, 3], [3, 6, 0], [2, 6, 0], [1, 6, 0], [0, 4, 1], [2, 3, 2], [3, 3, 2], [5, 4, 3]];
     const snake = (s: number, haul = true): Build => {
       const b = bench();
       const cells = [K(4, 5), K(3, 5), K(2, 5), K(1, 5), K(1, 4), K(2, 4), K(3, 4), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
       b.routes = [{ factory: 1, cells }];
-      cells.slice(0, 8).forEach((k, i) => b.items.push({ uid: 20 + i, def: "whetstone", x: k % 10, y: Math.floor(k / 10) }));
-      if (haul) b.items.push({ uid: 40, def: "longhaul", x: 4, y: 3, ...(s > 1 ? { stars: s } : {}) });
+      WHET.forEach(([x, y, dir], i) => b.items.push({ uid: 20 + i, def: "whetstone", x, y, ...rotField("whetstone", rotFacing("whetstone", dir)) }));
+      if (haul) b.items.push({ uid: 40, def: "longhaul", x: 5, y: 3, ...(s > 1 ? { stars: s } : {}) });
+      // the port keeps the gates' hits: one per rig, WHETSTONE i on tile i and the LONG HAUL on tile 8
+      const hits = rigHits(b);
+      WHET.forEach((_, i) => expect(hitsOfRig(b, 20 + i, hits).map((h) => h.tile), `whetstone ${i}`).toEqual([i]));
+      if (haul) expect(hitsOfRig(b, 40, hits).map((h) => h.tile)).toEqual([8]);
       return b;
     };
     const d = [1, 2, 3].map((s) => est(snake(s)).dmg - est(snake(s, false)).dmg);
@@ -169,8 +181,13 @@ describe("0.6.1p: the six pending perks, each applied", () => {
 type Disrupt = { disrupt(s: unknown, t: { kind: string; ref: number; cell: number; x: number; y: number; weight: number }, secs: number, cause: HarassCause): boolean };
 const hit = (bt: Battle, kind: string, ref: number, cell: number, cause: HarassCause = "shock") =>
   (bt as unknown as Disrupt).disrupt(bt.sides[0], { kind, ref, cell, x: 0, y: 0, weight: 1 }, DISRUPT_TIME, cause);
-/** The weaver's day-6 par deck (golden-060 fixture, read only): a Coil deck. */
-const coilDeck = (): Build => (JSON.parse(readFileSync(new URL("./fixtures/golden-060/par.json", import.meta.url), "utf8")) as { decks: Record<string, Build> }).decks["par/weaver/6"];
+/** The weaver's day-6 par deck (golden-060 fixture, read only): a Coil deck. 0.6.2 BELTSIDE merge: an inline deck, so
+ *  it migrates at setup (D3, as any ghost or preset deck does at load); its COILs then work their old tiles as rigs. */
+const coilDeck = (): Build => {
+  const b = (JSON.parse(readFileSync(new URL("./fixtures/golden-060/par.json", import.meta.url), "utf8")) as { decks: Record<string, Build> }).decks["par/weaver/6"];
+  migrateInlineGates(b);
+  return b;
+};
 
 describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
   it("HOPPER: window +1/+2/+3 slots and +0.5/+1.0/+1.5 s; BOTTOMLESS never jams on a jamming deck", () => {
@@ -211,8 +228,9 @@ describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
       expect(skirt).toEqual(s === 3 ? [0, 0, 0, 1, 1, 1] : [0, 0, 0, 0, 0, 0]);
       expect(hit(bt, "belt", 0, 5), `${s} belt 5`).toBe(s !== 3); // the intake tile
       expect(hit(bt, "belt", 0, 0), `${s} belt 0`).toBe(true); // outside the skirt
-      expect(hit(bt, "gate", 10, -1), `${s} gate on tile 4`).toBe(s !== 3); // uid 10: the WHETSTONE at (4,1)
-      expect(hit(bt, "gate", 11, -1), `${s} gate on tile 2`).toBe(true); // uid 11: the WHETSTONE at (4,3)
+      // 0.6.2 BELTSIDE merge: the rigs stand at (3,1) and (3,3), each with its one arrow on its old tile (P6)
+      expect(hit(bt, "gate", 10, -1), `${s} gate on tile 4`).toBe(s !== 3); // uid 10: the WHETSTONE working (4,1)
+      expect(hit(bt, "gate", 11, -1), `${s} gate on tile 2`).toBe(true); // uid 11: the WHETSTONE working (4,3)
       expect(hit(bt, "factory", 1, -1)).toBe(true);
     }
     const plain = new Battle(bench(), barge(), SEED);

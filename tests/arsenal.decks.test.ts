@@ -6,17 +6,46 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { simulate } from "../src/sim/battle";
-import type { Build } from "../src/sim/deck";
+import { ITEMS } from "../src/sim/content";
+import { hitsOfRig, rigHits, type Build, type Placed } from "../src/sim/deck";
+import { migrateInlineGates } from "../src/sim/beltside";
 import { bench, busy } from "./arsenal.bench";
 
 const par = JSON.parse(readFileSync(new URL("./fixtures/golden-060/par.json", import.meta.url), "utf8")) as { decks: Record<string, Build> };
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
+// 0.6.2 BELTSIDE merge (ref/BRIEF-beltside-merge-061.md): the par decks are inline-gate decks frozen before the pivot,
+// and a gate standing on a belt makes no hits, so each par deck (the starred one and its opponent) migrates at setup,
+// as every ghost and preset deck does at load (D3: each gate moves beside its tile and faces it). Where D3's deck
+// order boxes a tile in, the port is by hand, as BELTSIDE's preset ports were (Decision 27): in par/furnace/6 the BRAKE
+// (moved first) takes (3,1), the one free cell beside the LONG HAUL's tile (4,1), so D3 would drop the LONG HAUL;
+// the BRAKE takes its other free side instead, (3,3) facing up, and the LONG HAUL takes (3,1), its east arrow on (4,1).
+// Every rig then lands exactly one arrow, on the tile its gate stood on (checked below). The bench decks go through
+// arsenal.bench.ts's ported bench(). No assertion changed.
+const HAND: Record<string, Placed[]> = {
+  "par/furnace/6": [{ uid: 9011, def: "brake", x: 3, y: 3 }, { uid: 9012, def: "longhaul", x: 3, y: 1 }],
+};
+function native(key: string): Build {
+  const inline = par.decks[key];
+  const b = clone(inline);
+  migrateInlineGates(b);
+  for (const h of HAND[key] ?? []) {
+    b.items = b.items.filter((p) => p.uid !== h.uid);
+    b.items.push({ ...h });
+  }
+  const hits = rigHits(b);
+  for (const g of inline.items.filter((p) => ITEMS[p.def].kind === "gate")) {
+    const cell = g.y * 10 + g.x;
+    const got = hitsOfRig(b, g.uid, hits).map((h) => b.routes[h.route].cells[h.tile]);
+    if (got.length !== 1 || got[0] !== cell) throw new Error(`${key}: ${g.def} ${g.uid} works ${JSON.stringify(got)}, not its old tile ${cell}`);
+  }
+  return b;
+}
 const SEEDS = [1, 2, 3, 4, 5];
 const FURNACE = "par/furnace/6", WEAVER = "par/weaver/6";
 
-/** The par deck `key` with its one copy of `def` (an item or a mod) at `stars`. */
+/** The par deck `key` (native: 0.6.2 BELTSIDE merge) with its one copy of `def` (an item or a mod) at `stars`. */
 function starredPar(key: string, def: string, stars: number): Build {
-  const b = clone(par.decks[key]);
+  const b = native(key);
   const copies = [...b.items.filter((i) => i.def === def), ...b.mods.filter((m) => m.def === def)];
   if (copies.length !== 1) throw new Error(`${key} holds ${copies.length} ${def}`);
   if (stars > 1) copies[0].stars = stars;
@@ -58,7 +87,7 @@ export interface DeckRow { dmg: number; wins: number }
 
 export function deckRows(c: Case): DeckRow[] {
   return [1, 2, 3].map((s) => {
-    const fights = SEEDS.map((seed) => simulate(c.at(s), clone(par.decks[c.opp]), seed));
+    const fights = SEEDS.map((seed) => simulate(c.at(s), native(c.opp), seed)); // 0.6.2 BELTSIDE merge: native
     return {
       dmg: fights.reduce((a, b) => a + b.sides[0].stats.damage, 0) / fights.length,
       wins: fights.filter((b) => b.winner === 0).length,
