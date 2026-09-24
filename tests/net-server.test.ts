@@ -125,7 +125,7 @@ describe("ghost server (in-process, port 0)", () => {
   it("reloads the JSON-lines file on restart", async () => {
     const again = createGhostServer({ dataDir: dir, log: () => {} });
     expect(again.store.size).toBe(20);
-    expect(again.store.bucket(RULES_VERSION, 3)).toHaveLength(4);
+    expect(await again.store.bucket(RULES_VERSION, 3)).toHaveLength(4);
   });
 
   it("rate-limits per IP", async () => {

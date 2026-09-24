@@ -45,6 +45,7 @@ declare module "node:fs" {
   export function writeFileSync(path: string, data: string): void;
   export function appendFileSync(path: string, data: string): void;
   export function existsSync(path: string): boolean;
+  export function renameSync(from: string, to: string): void;
 }
 
 declare module "node:path" {

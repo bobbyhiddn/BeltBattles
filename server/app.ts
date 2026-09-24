@@ -1,8 +1,9 @@
 // Zero-dependency ghost build server on node:http (ROADMAP §3). Local-first: main.ts
 // binds 127.0.0.1. Every uploaded deck is re-validated with the game's own deck rules
 // and gold budget; the server never trusts a client's claim that its build is legal.
+// Storage sits behind the async GhostStore interface (store.ts): JSON lines or Tigris.
 //
-//   GET  /v1/health
+//   GET  /v1/health                 never touches storage; reports the store kind
 //   POST /v1/ghosts                 body: canonical GhostSnapshot JSON  -> 201 { id } (200 if already stored)
 //   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2 -> 200 { id, snapshot } | 404
 
@@ -12,14 +13,16 @@ import { RULES_VERSION } from "../src/sim/content";
 import { matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, SnapshotError } from "../src/net/snapshot";
 import { validateBuild } from "../src/net/validate";
-import { GhostStore } from "./store";
+import { JsonlStore, StorageError, type GhostStore } from "./store";
 
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
 export const MAX_BODY_BYTES = MAX_SNAPSHOT_BYTES;
 const MAX_SEEN = 64;
 
 export interface ServerOptions {
-  dataDir: string;
+  /** The ghost store. Default: a JsonlStore over dataDir, loaded right away. */
+  store?: GhostStore;
+  dataDir?: string;
   origins?: string[]; // CORS allow-list (exact origins)
   rateLimit?: { windowMs: number; max: number }; // per client IP, all endpoints
   log?: (line: string) => void;
@@ -131,15 +134,21 @@ export function parseMatchQuery(q: URLSearchParams): MatchRequest {
   };
 }
 
+function openJsonl(dataDir: string | undefined, log: (line: string) => void): JsonlStore {
+  if (dataDir === undefined) throw new Error("createGhostServer: pass a store or a dataDir");
+  const store = new JsonlStore(dataDir);
+  const loaded = store.load();
+  log(`ghost store ${store.file}: ${loaded} ghosts loaded, ${store.skipped} bad lines skipped`);
+  return store;
+}
+
 export function createGhostServer(opts: ServerOptions): GhostServer {
   const log = opts.log ?? ((line: string) => console.log(line));
   const origins = new Set(opts.origins ?? DEFAULT_ORIGINS);
   const limiter = new RateLimiter(opts.rateLimit?.windowMs ?? 60_000, opts.rateLimit?.max ?? 120);
   const salt = opts.matchSalt ?? (() => Math.floor(Date.now() / 60_000));
-  const store = new GhostStore(opts.dataDir);
+  const store = opts.store ?? openJsonl(opts.dataDir, log);
   const started = Date.now();
-  const loaded = store.load();
-  log(`ghost store ${store.file}: ${loaded} ghosts loaded, ${store.skipped} bad lines skipped`);
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const method = req.method ?? "GET";
@@ -149,7 +158,11 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     switch (url.pathname) {
       case "/v1/health":
         only("GET");
-        return send(res, 200, { ok: true, rules: RULES_VERSION, ghosts: store.size, uptimeS: Math.round((Date.now() - started) / 1000) });
+        // never touches storage: `ghosts` counts what this process holds in memory
+        return send(res, 200, {
+          ok: true, rules: RULES_VERSION, store: store.kind, ghosts: store.size,
+          uptimeS: Math.round((Date.now() - started) / 1000),
+        });
       case "/v1/ghosts": {
         only("POST");
         const snap = decodeSnapshot(await readBody(req, MAX_BODY_BYTES));
@@ -158,13 +171,13 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         }
         const v = validateBuild(snap.build, snap.day);
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
-        const { id, created } = store.add(snap);
+        const { id, created } = await store.add(snap); // 201 only once the write is durable
         return send(res, created ? 201 : 200, { id });
       }
       case "/v1/ghosts/match": {
         only("GET");
         const m = parseMatchQuery(url.searchParams);
-        const hit = pickGhost(store.bucket(m.rules, m.day), m, new Rng(matchSeed(m, salt())));
+        const hit = pickGhost(await store.bucket(m.rules, m.day), m, new Rng(matchSeed(m, salt())));
         if (!hit) throw new HttpError(404, "no ghost for this rules version and day yet");
         return send(res, 200, { id: hit.id, snapshot: hit.snapshot });
       }
@@ -193,6 +206,10 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         send(res, e.status, { error: e.message, ...e.extra });
       } else if (e instanceof SnapshotError) {
         send(res, 400, { error: e.message });
+      } else if (e instanceof StorageError) {
+        log(`storage error: ${e.message}`); // op, key and status only: never credentials
+        res.setHeader("retry-after", 5);
+        send(res, 503, { error: "ghost storage unavailable, try again shortly" });
       } else if (e !== undefined) {
         log(`error: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
         if (!res.headersSent) send(res, 500, { error: "internal error" });
