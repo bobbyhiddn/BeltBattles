@@ -10,7 +10,7 @@ declare module "node:http" {
     method?: string;
     url?: string;
     headers: IncomingHttpHeaders;
-    socket: { remoteAddress?: string };
+    socket: { remoteAddress?: string; destroy(): void };
     on(event: "data", cb: (chunk: Uint8Array) => void): this;
     on(event: "end" | "close", cb: () => void): this;
     on(event: "error", cb: (err: Error) => void): this;
@@ -20,7 +20,7 @@ declare module "node:http" {
     statusCode: number;
     headersSent: boolean;
     setHeader(name: string, value: string | number): this;
-    end(body?: string): this;
+    end(body?: string | Uint8Array): this;
   }
   export interface AddressInfo {
     address: string;
@@ -46,6 +46,16 @@ declare module "node:fs" {
   export function appendFileSync(path: string, data: string): void;
   export function existsSync(path: string): boolean;
   export function renameSync(from: string, to: string): void;
+}
+
+declare module "node:crypto" {
+  interface Digest {
+    update(data: string | Uint8Array): this;
+    digest(): Uint8Array;
+    digest(encoding: "hex" | "base64"): string;
+  }
+  export function createHash(algorithm: string): Digest;
+  export function createHmac(algorithm: string, key: string | Uint8Array): Digest;
 }
 
 declare module "node:path" {

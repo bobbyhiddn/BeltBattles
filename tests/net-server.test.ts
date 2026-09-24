@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,10 +9,17 @@ import { encodeSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { generateSamplePool } from "../tools/samplePool";
 import { snap } from "./netHelpers";
+import { storeBackends } from "./netStores";
 
 const SHORE = "http://127.0.0.1:7778";
 const TWENTY = generateSamplePool().filter((s) => s.day <= 5); // 2 heroes x 2 variants x days 1-5
-let dir: string;
+
+function req(over: Partial<GhostRequest> = {}): GhostRequest {
+  return { rules: RULES_VERSION, day: 1, wins: 0, lives: 3, playerId: "me", seen: [], hero: "furnace", seed: 7, ...over };
+}
+
+// The server suite runs once per store: the JSON-lines file, and Tigris on the in-process fake S3.
+describe.each(storeBackends())("ghost server (in-process, port 0), $name store", (backend) => {
 let app: GhostServer;
 let base: string;
 const ids = new Map<string, GhostSnapshot>();
@@ -22,22 +29,17 @@ async function post(body: string, url = `${base}/v1/ghosts`) {
   return { status: r.status, body: await r.json() };
 }
 
-function req(over: Partial<GhostRequest> = {}): GhostRequest {
-  return { rules: RULES_VERSION, day: 1, wins: 0, lives: 3, playerId: "me", seen: [], hero: "furnace", seed: 7, ...over };
-}
-
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "bb-ghosts-"));
-  app = createGhostServer({ dataDir: dir, origins: [SHORE], rateLimit: { windowMs: 60_000, max: 1000 }, log: () => {}, matchSalt: () => 0 });
+  await backend.setup();
+  app = backend.server({ origins: [SHORE], rateLimit: { windowMs: 60_000, max: 1000 }, log: () => {}, matchSalt: () => 0 });
   base = `http://127.0.0.1:${await app.listen(0)}`;
 });
 
 afterAll(async () => {
   await app.close();
-  rmSync(dir, { recursive: true, force: true });
+  await backend.teardown();
 });
 
-describe("ghost server (in-process, port 0)", () => {
   it("reports health", async () => {
     const r = await fetch(`${base}/v1/health`);
     expect(r.status).toBe(200);
@@ -56,7 +58,7 @@ describe("ghost server (in-process, port 0)", () => {
     const again = await submitGhost(base, TWENTY[0], 3000);
     expect(again).toEqual({ ok: true, id: [...ids.keys()][0] });
     expect(app.store.size).toBe(20);
-    expect(readFileSync(join(dir, "ghosts.jsonl"), "utf8").trim().split("\n")).toHaveLength(20);
+    expect(backend.storedRecords()).toBe(20); // ghosts.jsonl lines, or player objects in the bucket
   });
 
   it("matches same rules and day, never your own ghost, never a seen one, then falls back", async () => {
@@ -122,21 +124,20 @@ describe("ghost server (in-process, port 0)", () => {
     expect(get.headers.get("access-control-allow-origin")).toBeNull();
   });
 
-  it("reloads the JSON-lines file on restart", async () => {
-    const again = createGhostServer({ dataDir: dir, log: () => {} });
+  it("reloads stored ghosts on restart (the JSON-lines file, or the bucket's objects)", async () => {
+    const again = backend.server({ log: () => {} });
+    for (let day = 1; day <= 5; day++) await again.store.bucket(RULES_VERSION, day); // Tigris loads lazily; no-op for JSON lines
     expect(again.store.size).toBe(20);
     expect(await again.store.bucket(RULES_VERSION, 3)).toHaveLength(4);
   });
 
   it("rate-limits per IP", async () => {
-    const d2 = mkdtempSync(join(tmpdir(), "bb-ghosts-rl-"));
-    const small = createGhostServer({ dataDir: d2, rateLimit: { windowMs: 60_000, max: 3 }, log: () => {} });
+    const small = backend.server({ rateLimit: { windowMs: 60_000, max: 3 }, log: () => {} }, true); // over fresh storage
     const url = `http://127.0.0.1:${await small.listen(0)}/v1/health`;
     const codes = [];
     for (let i = 0; i < 5; i++) codes.push((await fetch(url)).status);
     const last = await fetch(url);
     await small.close();
-    rmSync(d2, { recursive: true, force: true });
     expect(codes).toEqual([200, 200, 200, 429, 429]);
     expect(last.headers.get("retry-after")).toBe("60");
   });
