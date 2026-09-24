@@ -8,6 +8,7 @@ import {
   type HeroDef, type HeroId, type ItemDef,
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
+import { effectAt, starsOf } from "./stars";
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -19,6 +20,7 @@ export interface Placed {
   def: string;
   x: number;
   y: number;
+  stars?: number; // 0.6.1a: 2 or 3 after a merge; absent = 1 (never written as 1)
 }
 
 export interface RouteDef {
@@ -30,6 +32,7 @@ export interface ModPlacement {
   uid: number;
   def: string;
   turret: number;
+  stars?: number; // 0.6.1a: 2 or 3 after a merge; absent = 1 (never written as 1)
 }
 
 export interface Build {
@@ -278,7 +281,7 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
   const gateAt = new Map<number, ItemDef>();
   info.gateCells.forEach((ci, gi) => {
     const p = itemByUid(b, info.gates[gi]);
-    if (p) gateAt.set(ci, defOf(p));
+    if (p) gateAt.set(ci, effectAt(p.def, starsOf(p))); // 0.6.1a: the same star spec as Battle.makeSide
   });
   let time = 0, ride = 0, speed = 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
   // walk cell by cell: half cell entering, gate at the centre, half cell leaving

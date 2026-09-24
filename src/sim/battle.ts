@@ -14,6 +14,7 @@ import {
   routeInfo, routePolyline, type Build,
 } from "./deck";
 import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
+import { effectAt, starsOf } from "./stars";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
@@ -224,7 +225,7 @@ export class Battle {
     const gates: GateState[] = [];
     const gateByUid = new Map<number, GateState>();
     for (const p of b.items) {
-      const d = defOf(p);
+      const d = effectAt(p.def, starsOf(p)); // 0.6.1a: the gate's spec at its stars (1 star = ITEMS[def])
       if (d.kind !== "gate") continue;
       const g: GateState = {
         uid: p.uid, def: d, x: p.x, y: p.y, route: -1, cellIdx: -1, commissionAt: Infinity,
@@ -254,14 +255,14 @@ export class Battle {
     const factories: FactoryState[] = b.items
       .filter((p) => defOf(p).kind === "factory")
       .map((p) => ({
-        uid: p.uid, def: defOf(p), x: p.x, y: p.y,
+        uid: p.uid, def: effectAt(p.def, starsOf(p)), x: p.x, y: p.y, // 0.6.1a: factory spec at its stars
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
         timer: 0.35, rr: 0, disrupted: 0, flash: 0, stalled: false, produced: 0,
       }));
     const turrets: TurretState[] = h.turrets.map((def, i) => {
       let perShot = 1, fireMul = 1;
       for (const m of b.mods.filter((m) => m.turret === i)) {
-        const md = ITEMS[m.def]?.mod;
+        const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars
         if (md?.perShot) perShot = Math.max(perShot, md.perShot);
         if (md?.fireMul) fireMul *= md.fireMul;
       }

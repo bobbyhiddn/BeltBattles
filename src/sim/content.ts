@@ -56,6 +56,20 @@ export interface ModSpec {
   perShot?: number; // payloads per firing opportunity
 }
 
+/**
+ * 0.6.1a: the 2-star or 3-star override of a fusible module (ARSENAL.md §4.3, catalogue.json star2/star3).
+ * gate/factory/mod are merged over the 1-star spec by stars.ts:effectAt (levels 2 then 3, so a 2-star
+ * value carries to 3 stars unless 3 restates it). `pending` holds star values the 0.6.1a sim does not
+ * read yet (they need a new field or code path; a later job implements them). `perk` names the perk.
+ */
+export interface ItemLevel {
+  gate?: Partial<GateEffect>;
+  factory?: Partial<FactorySpec>;
+  mod?: Partial<ModSpec>;
+  perk?: string;
+  pending?: Record<string, number>;
+}
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -69,6 +83,7 @@ export interface ItemDef {
   factory?: FactorySpec;
   mod?: ModSpec;
   supply?: { belt?: number; hull?: number };
+  levels?: { 2?: ItemLevel; 3?: ItemLevel }; // 0.6.1a: star overrides (1 star = the spec above)
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -88,58 +103,88 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "press", name: "STAMP PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
     desc: ["STAMPS PLAIN SLUGS", "EVERY 1.4S. NEEDS A", "FREE TURRET INTAKE."],
     factory: { ammo: "plain", interval: 1.4, outputs: 1 },
+    levels: {
+      2: { factory: { interval: 1.1 }, pending: { base: 5 }, perk: "HARDENED DIES" },
+      3: { factory: { interval: 1 }, pending: { base: 7.5 }, perk: "MASTER DIES" },
+    },
   },
   // --- processing gates ---
   temper: {
     id: "temper", name: "TEMPER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
     desc: ["ADDS 2 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."],
     gate: { burn: 2 },
+    levels: { 2: { gate: { burn: 4 } }, 3: { gate: { burn: 7 } } },
   },
   whetstone: {
     id: "whetstone", name: "WHETSTONE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
     desc: ["+2 FLAT DAMAGE.", "BEFORE A SPLITTER,", "BOTH COPIES GAIN IT."],
     gate: { flat: 2 },
+    levels: { 2: { gate: { flat: 4 } }, 3: { gate: { flat: 7 } } },
   },
   grease: {
     id: "grease", name: "GREASE WORKS", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
     desc: ["BELTS AFTER THIS", "RUN 1.6X FASTER.", "LATER SPEED WINS."],
     gate: { speed: 1.6 },
+    levels: { 2: { gate: { speed: 2.3 } }, 3: { gate: { speed: 3.1 } } },
   },
   brake: {
     id: "brake", name: "BRAKE SHOE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
     desc: ["BELTS AFTER THIS", "RUN AT HALF SPEED.", "MORE TIME TO COOK."],
     gate: { speed: 0.5 },
+    levels: { 2: { gate: { speed: 0.31 } }, 3: { gate: { speed: 0.22 } } },
   },
   longhaul: {
     id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",
     desc: ["+2 DAMAGE FOR EACH", "GATE THE PAYLOAD", "ALREADY PASSED."],
     gate: { perPriorGate: 2 },
+    levels: {
+      2: { gate: { perPriorGate: 4 }, pending: { priorCap: 6 } },
+      3: { gate: { perPriorGate: 7 }, pending: { priorCap: 6 } },
+    },
   },
   coil: {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
     desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."],
     gate: { shock: true },
+    levels: {
+      2: { pending: { shock: 1.8, jump: 1 }, perk: "SPARK JUMP" },
+      3: { pending: { shock: 2.8, jump: 1 }, perk: "SPARK JUMP" },
+    },
   },
   splitter: {
     id: "splitter", name: "SPLITTER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker",
     desc: ["SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE."],
     gate: { split: { copies: 2, mult: 0.6 } },
+    levels: {
+      2: { gate: { split: { copies: 2, mult: 0.72 } }, perk: "CLEAN CUT" },
+      // THREE-WAY (3 copies at 57%) is pending: until then 3 stars split like 2 (CLEAN CUT)
+      3: { pending: { copies: 3, mult: 0.57 }, perk: "THREE-WAY" },
+    },
   },
   overdrive: {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker",
     desc: ["BELTS AFTER THIS", "RUN 3X FASTER.", "LEGENDARY TEMPO."],
     gate: { speed: 3 },
+    levels: {
+      2: { gate: { speed: 4 }, perk: "REDLINE" },
+      3: { gate: { speed: 5 }, pending: { flat: 3 }, perk: "AFTERBURNER" },
+    },
   },
   // --- turret equipment ---
   chamber: {
     id: "chamber", name: "EXT. CHAMBER", kind: "mod", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
     desc: ["TURRET FIRES TWO", "PAYLOADS PER SHOT.", "DROP ON A TURRET."],
     mod: { perShot: 2 },
+    levels: {
+      2: { mod: { perShot: 2 }, pending: { window: 1 }, perk: "WIDE BREECH" },
+      3: { mod: { perShot: 3 }, pending: { window: 1 }, perk: "TRIPLE BREECH" },
+    },
   },
   calibrate: {
     id: "calibrate", name: "CALIBRATION", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
     desc: ["TURRET FIRES 25%", "FASTER.", "DROP ON A TURRET."],
     mod: { fireMul: 0.75 },
+    levels: { 2: { mod: { fireMul: 0.58 } }, 3: { mod: { fireMul: 0.46 } } },
   },
   // --- supplies (consumed on purchase) ---
   beltcrate: {
@@ -254,6 +299,11 @@ export function rarityWeights(round: number): Record<Rarity, number> {
   };
 }
 
-export function sellValue(def: ItemDef): number {
-  return Math.max(1, Math.floor(def.price / 2));
+/**
+ * 0.6.1a: what a copy sells for, max(1, floor(valueOf(def, stars) / 2)) with valueOf = price x
+ * 2^(stars - 1) (stars.ts; inlined here so content.ts imports nothing from stars.ts).
+ */
+export function sellValue(def: ItemDef | string, stars = 1): number {
+  const d = typeof def === "string" ? ITEMS[def] : def;
+  return Math.max(1, Math.floor(((d?.price ?? 0) * 2 ** (stars - 1)) / 2));
 }

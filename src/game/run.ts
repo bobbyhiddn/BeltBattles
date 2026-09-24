@@ -21,6 +21,7 @@ export type { PendingBounty, PendingSabotage, RoadChoice, RoadPick, WarlordFight
 export interface InvItem {
   uid: number;
   def: string;
+  stars?: number; // 0.6.1a: 2 or 3 after a merge; absent = 1 (never written as 1)
 }
 
 export interface Offer {
