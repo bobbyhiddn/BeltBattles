@@ -65,7 +65,10 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
 ```
 
 - Builds on Fly's remote builder from this directory with ./Dockerfile and ./fly.toml; the
-  context is only server/dist and deploy/public/index.html (.dockerignore).
+  context is only server/dist and deploy/public/index.html (.dockerignore). The build log's context
+  transfer should be a few hundred kB (the bundle is about 110 kB, the page 239 kB); tens of MB
+  would mean node_modules got in and .dockerignore was not applied. Stop and report that.
+- The image is node:20-alpine plus about 350 kB; no npm install step appears in the build log.
 - The release command runs first, on a throwaway machine with the secrets. Expect in the output:
   `seed: rules bb-0.4.0, 40 pool ghosts on tigris (bucket beltbattles-ghosts at fly.storage.tigris.dev (virtual-hosted)): 40 written, 0 unchanged, 0 removed`.
   If it fails, the deploy stops and nothing is replaced; the output names the failing step.
