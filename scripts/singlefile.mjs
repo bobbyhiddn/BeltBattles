@@ -83,6 +83,18 @@ async function main() {
     // pin the new-run seed (the hero screen seeds from Math.random) so the run is reproducible:
     // both pins give the WRECKED RAIDER salvage as round 1's intro event, so REFIT comes up
     await page.addInitScript((r) => { Math.random = () => r; }, pin);
+    // 0.6.1a: echo every toast the game shows (re-hooked after each reload); MERGED ones are logged
+    await page.addInitScript(() => {
+      const hook = () => {
+        const g = window.bb?.game;
+        if (!g) return void setTimeout(hook, 20);
+        const show = g.toast.bind(g);
+        g.toast = (text, ...rest) => { console.info(`[toast] day ${g.run?.day ?? "-"}: ${text}`); return show(text, ...rest); };
+      };
+      hook();
+    });
+    const merges = [];
+    page.on("console", (m) => { if (m.type() === "info" && m.text().startsWith("[toast]") && m.text().includes("MERGED")) merges.push(m.text().slice(8)); });
     const errors = [];
     page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
     page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`); });
@@ -97,6 +109,7 @@ async function main() {
       failed++;
       log(`FAILED: ${e.message}`);
     }
+    log(merges.length ? `MERGED toasts (${merges.length}):\n  ${merges.join("\n  ")}` : "MERGED toasts: 0");
     log(errors.length ? `console errors (${errors.length}):\n  ${errors.join("\n  ")}` : "console errors: 0");
     if (errors.length) failed++;
     await ctx.close();
