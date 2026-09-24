@@ -9,13 +9,13 @@ import { Rng, hashSeed } from "../../core/rng";
 import { simulate } from "../battle";
 import type { HeroId } from "../content";
 import type { Build } from "../deck";
-import { buildCost, maxGoldByDay } from "../../net/validate";
+import { buildCost, maxGoldByDay, unfusedPairs } from "../../net/validate";
 import { fusible, starsOf } from "../stars";
 import { randomBuild } from "./gen";
 import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "./heroes";
 import { buildTraits, type Traits } from "./levers";
 import type { Stars } from "./shopper";
-import { wilson, type Rate } from "./stats";
+import { meanCI, wilson, type Rate } from "./stats";
 
 export interface TourneyOpts {
   seed: number;
@@ -51,6 +51,23 @@ export function playJob(field: Build[], j: Job): number {
 
 export const localRunner: Runner = async (field, jobs) => jobs.map((j) => playJob(field, j));
 
+/** Plays jobs like a Runner, but returns per job the exact outcome of every battle, in play order
+ *  (each seed: A as player, then A as enemy): "winner,duration,hull0,hull1" joined by ";". The star
+ *  bench's NO EFFECT and SAME AS 2-star checks compare these strings. */
+export type DetailRunner = (field: Build[], jobs: Job[]) => Promise<string[]>;
+
+export function jobDetail(field: Build[], j: Job): string {
+  const out: string[] = [];
+  for (const s of j.seeds) {
+    for (const r of [simulate(field[j.a], field[j.b], s), simulate(field[j.b], field[j.a], s)]) {
+      out.push(`${r.winner},${r.t},${r.sides[0].hull.hp},${r.sides[1].hull.hp}`);
+    }
+  }
+  return out.join(";");
+}
+
+export const localDetail: DetailRunner = async (field, jobs) => jobs.map((j) => jobDetail(field, j));
+
 export interface Spend { median: number; min: number; max: number }
 export interface Entry { hero: HeroId; idx: number; ref: boolean; build: Build; cost: number; score: Rate }
 export interface EliteInfo { idx: number; score: Rate; cost: number; build: Build }
@@ -68,17 +85,38 @@ export interface SplitStats { mean: number; min: number; max: number; splits: nu
  *  (stars > 1) per build. */
 export interface StarMix { n: number; p1: number; p2: number; p3: number; medianMerged: number; maxMerged: number }
 
+/** One benched deck of a row: its source (elite or par deck) and its paired delta, the mean over
+ *  its gauntlet jobs of (points at the star - points at 1 star), as a win rate (0-1 scale). */
+export interface BenchDeck { tag: string; par: boolean; delta: number }
+
+export type BenchFlag = "WORSE" | "NO EFFECT" | "SAME AS ★2";
+
 /** Star bench row (ARSENAL.md §9.2, "per-star win-rate deltas"): every elite/par deck holding
  *  `def` at 1 star, raised in place to 2 or 3 stars (same cell/turret, budget ignored), replayed
- *  against the day's gauntlet with the seeds/sides its 1-star baseline used. */
+ *  against the day's gauntlet on exactly the seeds and sides its 1-star deck played (paired). */
 export interface BenchRow {
   def: string;
   star: 2 | 3;
-  n: number; // decks benched (instances of def at 1-star in an elite or the par deck)
-  wr1: Rate;
+  n: number; // decks benched: instances of def at 1 star whose 1-star deck and star variant the game can build
+  skipped: number; // instances not played at this star: the variant (or its 1-star deck) holds an unfused pair
+  skippedBase: number; // of skipped: the 1-star deck itself holds an unfused pair (e.g. a par deck with 2 copies)
+  wr1: Rate; // description: pooled Wilson rates over the n decks' battles
   wrN: Rate;
-  delta: number; // wrN.p - wr1.p
-  flags: ("WORSE" | "NO EFFECT")[];
+  delta: number; // wrN.p - wr1.p = the mean of the decks' paired deltas
+  worse: number; // decks whose paired delta is below 0
+  ci: [number, number] | null; // 95% t-interval of the mean paired delta over decks (n >= 2)
+  same2?: number; // 3-star rows: decks whose 2-star variant was also played (the SAME AS 2-star comparison)
+  flags: BenchFlag[];
+  decks: BenchDeck[]; // every benched deck with its paired delta (the report lists them for WORSE rows)
+}
+
+/** D1 (F9): the deck is the unit. WORSE needs at least 3 decks, a mean paired delta below 0, and
+ *  the 95% t-interval of that mean entirely below 0. */
+export const BENCH_MIN_DECKS = 3;
+export function benchWorse(deltas: number[]): boolean {
+  if (deltas.length < BENCH_MIN_DECKS) return false;
+  const { mean, ci } = meanCI(deltas);
+  return mean < 0 && ci !== null && ci[1] < 0;
 }
 
 export interface DayResult {
@@ -108,11 +146,11 @@ export function spendOf(costs: number[]): Spend {
   return { median: n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2, min: s[0], max: s[n - 1] };
 }
 
-export async function runTournament(o: TourneyOpts, run: Runner = localRunner, log?: (m: string) => void): Promise<TourneyResult> {
+export async function runTournament(o: TourneyOpts, run: Runner = localRunner, log?: (m: string) => void, detail: DetailRunner = localDetail): Promise<TourneyResult> {
   const days: DayResult[] = [];
   let battles = 0;
   for (const day of o.days) {
-    const r = await runDay(o, day, run);
+    const r = await runDay(o, day, run, detail);
     battles += r.battles;
     log?.(`day ${day}: ${r.battles} battles`);
     days.push(r);
@@ -120,7 +158,7 @@ export async function runTournament(o: TourneyOpts, run: Runner = localRunner, l
   return { opts: o, days, battles };
 }
 
-export async function runDay(o: TourneyOpts, day: number, run: Runner): Promise<DayResult> {
+export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: DetailRunner = localDetail): Promise<DayResult> {
   const field: Entry[] = [];
   const blank: Rate = { p: 0, lo: 0, hi: 0, n: 0, pts: 0 };
   for (const hero of o.heroes) {
@@ -229,9 +267,9 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner): Promise<
     const sources: BenchSource[] = [];
     for (const h of o.heroes) {
       eliteIdx[h].forEach((i, k) => sources.push({ hero: h, tag: `${h} elite ${k}`, build: field[i].build }));
-      if (calibration?.[h]) sources.push({ hero: h, tag: `${h} par`, build: calibration[h].build });
+      if (calibration?.[h]) sources.push({ hero: h, tag: `${h} par`, build: calibration[h].build, par: true });
     }
-    const benchRes = await starBench(o, day, gauntletBuilds, sources, run);
+    const benchRes = await starBench(o, day, gauntletBuilds, sources, run, detail);
     bench = benchRes.rows;
     battles += benchRes.battles;
   }
@@ -286,7 +324,7 @@ export function starMixOf(builds: Build[]): StarMix {
   return { n, p1: share(1), p2: share(2), p3: share(3), medianMerged: median, maxMerged: mn ? sorted[mn - 1] : 0 };
 }
 
-export interface BenchSource { hero: HeroId; tag: string; build: Build }
+export interface BenchSource { hero: HeroId; tag: string; build: Build; par?: boolean }
 
 function withStar(b: Build, kind: "item" | "mod", uid: number, star: number): Build {
   const c = JSON.parse(JSON.stringify(b)) as Build;
@@ -297,60 +335,65 @@ function withStar(b: Build, kind: "item" | "mod", uid: number, star: number): Bu
   return c;
 }
 
-interface BenchInstance { def: string; kind: "item" | "mod"; uid: number; build: Build; tag: string }
+interface BenchInstance { src: number; def: string; kind: "item" | "mod"; uid: number }
+
+/** Seeds of the star bench: keyed by the SOURCE deck (not by field index), so the 1-star deck and
+ *  every 2- and 3-star variant of it play gauntlet member `g` on exactly the same seeds (F1). */
+export function benchSeeds(o: TourneyOpts, day: number, src: number, g: number): number[] {
+  return Array.from({ length: o.seeds }, (_, k) => hashSeed("bb-bench-battle", o.seed, day, src, g, k));
+}
 
 /**
  * ARSENAL.md §9.2: per-star win-rate deltas, so the balance pass catches "merging made it worse".
  * For every elite/par deck (`sources`) and every fusible module it holds at 1 star, two variants
- * (2 and 3 stars, same cell/turret, budget ignored) replay against `gauntlet` with the seeds the
- * 1-star baseline used. Aggregated per def x star: n decks, win rate at 1 and at that star, the
- * delta, WORSE (a higher star wins less and the Wilson intervals don't overlap) and NO EFFECT
- * (every single battle - same gauntlet member, same seed, same side - end with the identical
- * winner, both hulls and the duration as at 1 star: the level does nothing yet).
+ * (2 and 3 stars, same cell/turret, budget ignored).
+ * - Paired (F1): the 1-star deck and all its variants play each gauntlet member on the same seeds
+ *   (benchSeeds, keyed by the source deck), from both sides; the 1-star deck is played once.
+ * - Reachable only (F5): a variant, or a 1-star deck, holding an unfused pair (the game would have
+ *   fused it) is not played; each row counts its skipped instances (skippedBase: the 1-star deck).
+ * - Per def x star: every deck's paired delta; WORSE by the decks (D1, F9: benchWorse); the Wilson
+ *   rates stay as description. NO EFFECT: every battle of every deck ends exactly as at 1 star
+ *   (winner, both hulls, duration), so its delta is exactly 0. SAME AS ★2 (3-star rows): every
+ *   battle ends exactly as at 2 stars. The exact outcomes come from `detail`, which replays the
+ *   same jobs (same seeds) only for decks whose points already match job for job.
  */
-export async function starBench(o: TourneyOpts, day: number, gauntlet: Build[], sources: BenchSource[], run: Runner): Promise<{ rows: BenchRow[]; battles: number }> {
+export async function starBench(o: TourneyOpts, day: number, gauntlet: Build[], sources: BenchSource[], run: Runner, detail: DetailRunner = localDetail): Promise<{ rows: BenchRow[]; battles: number }> {
   const insts: BenchInstance[] = [];
-  for (const s of sources) {
-    for (const p of s.build.items) if (fusible(p.def) && starsOf(p) === 1) insts.push({ def: p.def, kind: "item", uid: p.uid, build: s.build, tag: s.tag });
-    for (const m of s.build.mods) if (fusible(m.def) && starsOf(m) === 1) insts.push({ def: m.def, kind: "mod", uid: m.uid, build: s.build, tag: s.tag });
-  }
+  sources.forEach((s, src) => {
+    for (const p of s.build.items) if (fusible(p.def) && starsOf(p) === 1) insts.push({ src, def: p.def, kind: "item", uid: p.uid });
+    for (const m of s.build.mods) if (fusible(m.def) && starsOf(m) === 1) insts.push({ src, def: m.def, kind: "mod", uid: m.uid });
+  });
   if (!insts.length || !gauntlet.length) return { rows: [], battles: 0 };
-  const per = o.seeds * 2;
-  const field: Build[] = [];
-  const at: { star: 1 | 2 | 3; idx: number }[][] = insts.map(() => []);
+  const per = o.seeds * 2, G = gauntlet.length;
+  const baseOk = sources.map((s) => unfusedPairs(s.build).length === 0);
+  // field: a source's 1-star deck (once, before its first played variant), then that variant
+  const field: Build[] = [], fieldSrc: number[] = [];
+  const baseAt = new Map<number, number>();
+  const at: Partial<Record<1 | 2 | 3, number>>[] = insts.map(() => ({}));
   insts.forEach((inst, i) => {
-    for (const star of [1, 2, 3] as const) {
-      at[i].push({ star, idx: field.length });
-      field.push(star === 1 ? inst.build : withStar(inst.build, inst.kind, inst.uid, star));
+    if (!baseOk[inst.src]) return;
+    for (const star of [2, 3] as const) {
+      const v = withStar(sources[inst.src].build, inst.kind, inst.uid, star);
+      if (unfusedPairs(v).length) continue;
+      if (!baseAt.has(inst.src)) {
+        baseAt.set(inst.src, field.length);
+        field.push(sources[inst.src].build);
+        fieldSrc.push(inst.src);
+      }
+      at[i][1] = baseAt.get(inst.src)!;
+      at[i][star] = field.length;
+      field.push(v);
+      fieldSrc.push(inst.src);
     }
   });
-  const gField = field.length;
   const allField = [...field, ...gauntlet];
-  const jobs: Job[] = [];
-  const seedsFor = (i: number, g: number) => Array.from({ length: o.seeds }, (_, k) => hashSeed("bb-bench-battle", o.seed, day, i, g, k));
-  for (let i = 0; i < field.length; i++) for (let g = 0; g < gauntlet.length; g++) jobs.push({ a: i, b: gField + g, seeds: seedsFor(i, g) });
-  const pts = await run(allField, jobs);
-  const scoreOf = (fieldIdx: number): Rate => {
-    let p = 0;
-    for (let g = 0; g < gauntlet.length; g++) p += pts[fieldIdx * gauntlet.length + g];
-    return wilson(p, gauntlet.length * per);
-  };
-  // NO EFFECT needs per-battle detail (winner, both hulls, duration), not just points: replay the
-  // 1-star and each variant directly (same seeds/sides) for a definitive per-instance check. Any
-  // fixed instance index works for the seed stream here (both sides of the comparison use the
-  // same one), since only "did 1-star and N-star see the same seeds" matters, not which exact
-  // values: reusing field index 0's stream keeps this independent of which group is being checked.
-  const outcomeEqual = (a: Build, b: Build): boolean => {
-    for (let g = 0; g < gauntlet.length; g++) {
-      for (const seed of seedsFor(0, g)) {
-        const x = simulate(a, gauntlet[g], seed), y = simulate(b, gauntlet[g], seed);
-        const xr = simulate(gauntlet[g], a, seed), yr = simulate(gauntlet[g], b, seed);
-        if (x.winner !== y.winner || x.t !== y.t || x.sides[0].hull.hp !== y.sides[0].hull.hp || x.sides[1].hull.hp !== y.sides[1].hull.hp) return false;
-        if (xr.winner !== yr.winner || xr.t !== yr.t || xr.sides[0].hull.hp !== yr.sides[0].hull.hp || xr.sides[1].hull.hp !== yr.sides[1].hull.hp) return false;
-      }
-    }
-    return true;
-  };
+  const jobsOf = (fs: number[]): Job[] => fs.flatMap((f) => gauntlet.map((_, g): Job => ({ a: f, b: field.length + g, seeds: benchSeeds(o, day, fieldSrc[f], g) })));
+  const jobs = jobsOf(field.map((_, f) => f));
+  const pts = field.length ? await run(allField, jobs) : [];
+  const ptsOf = (f: number, g: number) => pts[f * G + g];
+  const sumOf = (f: number) => gauntlet.reduce((s, _, g) => s + ptsOf(f, g), 0);
+  const samePts = (f: number, h: number) => gauntlet.every((_, g) => ptsOf(f, g) === ptsOf(h, g));
+
   const groups = new Map<string, { insts: number[]; star: 2 | 3 }>();
   insts.forEach((inst, i) => {
     for (const star of [2, 3] as const) {
@@ -359,25 +402,62 @@ export async function starBench(o: TourneyOpts, day: number, gauntlet: Build[], 
       groups.get(k)!.insts.push(i);
     }
   });
-  const rows: BenchRow[] = [];
-  for (const [key, g] of [...groups].sort(([a], [b]) => (a < b ? -1 : 1))) {
-    const def = key.slice(0, key.indexOf("*"));
-    let pts1 = 0, ptsN = 0, noEffect = true;
-    for (const i of g.insts) {
-      const a1 = at[i].find((x) => x.star === 1)!.idx, aN = at[i].find((x) => x.star === g.star)!.idx;
-      const r1 = scoreOf(a1), rN = scoreOf(aN);
-      pts1 += r1.pts;
-      ptsN += rN.pts;
-      if (noEffect && !outcomeEqual(field[a1], field[aN])) noEffect = false;
+  const keys = [...groups.keys()].sort((a, b) => (a < b ? -1 : 1));
+  const played = (i: number, star: 1 | 2 | 3) => at[i][star] !== undefined;
+  // exact outcomes are needed only where the points agree on every job (else the outcomes differ)
+  const need = new Set<number>();
+  const noEffectCand = new Map<string, boolean>(), same2Cand = new Map<string, boolean>();
+  for (const k of keys) {
+    const g = groups.get(k)!, ds = g.insts.filter((i) => played(i, g.star));
+    const ne = ds.length > 0 && ds.every((i) => samePts(at[i][1]!, at[i][g.star]!));
+    noEffectCand.set(k, ne);
+    if (ne) for (const i of ds) need.add(at[i][1]!).add(at[i][g.star]!);
+    if (g.star === 3) {
+      const cs = ds.filter((i) => played(i, 2));
+      const s2 = cs.length > 0 && cs.every((i) => samePts(at[i][2]!, at[i][3]!));
+      same2Cand.set(k, s2);
+      if (s2) for (const i of cs) need.add(at[i][2]!).add(at[i][3]!);
     }
-    const n1 = g.insts.length * gauntlet.length * per;
-    const wr1 = wilson(pts1, n1), wrN = wilson(ptsN, n1);
-    const flags: BenchRow["flags"] = [];
-    if (wrN.p < wr1.p && wrN.hi < wr1.lo) flags.push("WORSE");
-    if (noEffect) flags.push("NO EFFECT");
-    rows.push({ def, star: g.star, n: g.insts.length, wr1, wrN, delta: wrN.p - wr1.p, flags });
   }
-  return { rows, battles: jobs.length * per };
+  const needed = [...need].sort((a, b) => a - b);
+  const replay = jobsOf(needed);
+  const sig = new Map<number, string[]>();
+  if (replay.length) {
+    const out = await detail(allField, replay);
+    needed.forEach((f, j) => sig.set(f, out.slice(j * G, (j + 1) * G)));
+  }
+  const sameOutcome = (f: number, h: number) => gauntlet.every((_, g) => sig.get(f)![g] === sig.get(h)![g]);
+
+  const rows: BenchRow[] = [];
+  for (const k of keys) {
+    const g = groups.get(k)!, def = k.slice(0, k.indexOf("*"));
+    const ds = g.insts.filter((i) => played(i, g.star));
+    const skippedBase = g.insts.filter((i) => !baseOk[insts[i].src]).length;
+    let pts1 = 0, ptsN = 0;
+    const decks: BenchDeck[] = ds.map((i) => {
+      const s1 = sumOf(at[i][1]!), sN = sumOf(at[i][g.star]!), src = sources[insts[i].src];
+      pts1 += s1;
+      ptsN += sN;
+      return { tag: src.tag, par: !!src.par, delta: (sN - s1) / (G * per) };
+    });
+    const n1 = ds.length * G * per;
+    const wr1 = wilson(pts1, n1), wrN = wilson(ptsN, n1);
+    const deltas = decks.map((d) => d.delta);
+    const flags: BenchFlag[] = [];
+    if (benchWorse(deltas)) flags.push("WORSE");
+    if (noEffectCand.get(k) && ds.every((i) => sameOutcome(at[i][1]!, at[i][g.star]!))) flags.push("NO EFFECT");
+    let same2: number | undefined;
+    if (g.star === 3) {
+      const cs = ds.filter((i) => played(i, 2));
+      same2 = cs.length;
+      if (same2Cand.get(k) && cs.every((i) => sameOutcome(at[i][2]!, at[i][3]!))) flags.push("SAME AS ★2");
+    }
+    rows.push({
+      def, star: g.star, n: ds.length, skipped: g.insts.length - ds.length, skippedBase, wr1, wrN, delta: wrN.p - wr1.p,
+      worse: deltas.filter((d) => d < 0).length, ci: meanCI(deltas).ci, ...(same2 !== undefined ? { same2 } : {}), flags, decks,
+    });
+  }
+  return { rows, battles: (jobs.length + replay.length) * per };
 }
 
 function traitStats(entries: Entry[], startRoutes: number): TraitStats {

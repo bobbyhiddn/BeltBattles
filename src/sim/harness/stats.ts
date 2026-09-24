@@ -22,6 +22,29 @@ export function wilson(pts: number, n: number, z = Z95): Rate {
   return { p, lo: Math.min(p, Math.max(0, mid - half)), hi: Math.max(p, Math.min(1, mid + half)), n, pts };
 }
 
+/** Two-sided 95% Student-t critical value for `df` degrees of freedom (df >= 1): the table up to
+ *  30, then the Cornish-Fisher expansion (within 1e-4 of the exact value there). */
+const T975 = [
+  12.7062, 4.3027, 3.1824, 2.7764, 2.5706, 2.4469, 2.3646, 2.306, 2.2622, 2.2281, 2.201, 2.1788, 2.1604, 2.1448, 2.1314,
+  2.1199, 2.1098, 2.1009, 2.093, 2.086, 2.0796, 2.0739, 2.0687, 2.0639, 2.0595, 2.0555, 2.0518, 2.0484, 2.0452, 2.0423,
+];
+export function tCrit95(df: number): number {
+  if (!(df >= 1)) return Infinity;
+  if (df <= T975.length) return T975[Math.floor(df) - 1];
+  const z = Z95, v = df;
+  return z + (z ** 3 + z) / (4 * v) + (5 * z ** 5 + 16 * z ** 3 + 3 * z) / (96 * v * v) + (3 * z ** 7 + 19 * z ** 5 + 17 * z ** 3 - 15 * z) / (384 * v ** 3);
+}
+
+/** Mean of `xs` and its 95% t-interval (null below 2 values). */
+export function meanCI(xs: number[]): { mean: number; ci: [number, number] | null } {
+  const n = xs.length;
+  const mean = n ? xs.reduce((s, x) => s + x, 0) / n : 0;
+  if (n < 2) return { mean, ci: null };
+  const sd = Math.sqrt(xs.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1));
+  const half = (tCrit95(n - 1) * sd) / Math.sqrt(n);
+  return { mean, ci: [mean - half, mean + half] };
+}
+
 export const BAND_LO = 0.35, BAND_HI = 0.65;
 
 /** "ok" inside the 35-65% band, "edge" straddles a band edge, "out" wholly outside it. */

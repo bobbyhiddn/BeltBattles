@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   const perDayMs: Record<number, number> = {};
   for (const day of days) {
     const t = performance.now();
-    const d = await runDay(o, day, pool.run);
+    const d = await runDay(o, day, pool.run, pool.detail);
     perDayMs[day] = performance.now() - t;
     res.days.push(d);
     res.battles += d.battles;

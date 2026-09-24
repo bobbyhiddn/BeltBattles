@@ -4,7 +4,7 @@ import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../content";
 import { routeInfo, type Build } from "../deck";
 import { buildCost, maxGoldByDay } from "../../net/validate";
 import { bandFlag, fmtRate, pct, type Rate } from "./stats";
-import type { Spend, TourneyResult } from "./tournament";
+import type { BenchRow, Spend, TourneyResult } from "./tournament";
 
 export interface RunMeta { runtimeMs: number; workers: number; command: string; perDayMs: Record<number, number> }
 
@@ -146,17 +146,39 @@ function v2Sections(res: TourneyResult): string[] {
       L.push(`| ${d.day} | ${H(h)} | ${pct1(m.pop.p1)}/${pct1(m.pop.p2)}/${pct1(m.pop.p3)} | ${m.pop.medianMerged} [${m.pop.maxMerged}] | ${pct1(m.elites.p1)}/${pct1(m.elites.p2)}/${pct1(m.elites.p3)} | ${m.elites.medianMerged} [${m.elites.maxMerged}] |`);
     }
   }
-  L.push("", "## Star bench (0.6.1a)", "", "Every elite/par deck's fusible modules held at 1 star, raised in place to 2 and 3 stars (same cell/turret, budget ignored), replayed against the day's gauntlet. Win rate at 1-star and at that star, the delta, and 95% Wilson intervals. WORSE: a higher star wins less and the intervals don't overlap. NO EFFECT: every battle ends identically to 1-star (the level does nothing yet).", "");
-  L.push("| day | def | star | n | win rate @1 | win rate @star | delta | flags |", "|---|---|---|---|---|---|---|---|");
-  for (const d of res.days) {
+  L.push(...benchSection(res.days));
+  return L;
+}
+
+/** The star bench section (table, flag summary, and every WORSE row's decks with their paired deltas). */
+export function benchSection(days: { day: number; bench?: BenchRow[] }[]): string[] {
+  const L: string[] = [];
+  L.push("", "## Star bench (0.6.1a)", "", [
+    "Every elite/par deck's fusible modules held at 1 star, raised in place to 2 and 3 stars (same cell/turret, budget ignored), replayed against the day's gauntlet.",
+    "Paired: the 1-star deck and its variants play every gauntlet member on the same seeds, both sides. A variant (or 1-star deck) with an unfused pair is a deck the game can't build: it is skipped and counted (base = the 1-star deck itself holds the pair).",
+    "The unit is the deck: its paired delta is the mean over its gauntlet jobs of (win rate at the star - at 1 star). WORSE: at least 3 decks, mean delta below 0, and its 95% t-interval over decks entirely below 0.",
+    "The pooled Wilson win rates are description only. NO EFFECT: every battle ends exactly as at 1 star (winner, both hulls, duration; delta 0). SAME AS ★2 (3-star rows): every battle ends exactly as at 2 stars.",
+  ].join(" "), "");
+  const sgn = (x: number) => `${x >= 0 ? "+" : ""}${pct1(x)}`;
+  const flagText = (r: BenchRow) => r.flags.map((f) => (f === "SAME AS ★2" && r.same2 !== undefined && r.same2 < r.n ? `${f} (${r.same2} of ${r.n} decks comparable)` : f)).join(", ");
+  L.push("| day | def | star | decks | skipped (base) | worse | mean paired delta [95% t] | win rate @1 | win rate @star | flags |", "|---|---|---|---|---|---|---|---|---|---|");
+  for (const d of days) {
     for (const r of d.bench ?? []) {
-      L.push(`| ${d.day} | ${r.def} | ${r.star} | ${r.n} | ${fmtRate(r.wr1)} | ${fmtRate(r.wrN)} | ${r.delta >= 0 ? "+" : ""}${pct1(r.delta)} | ${r.flags.join(", ") || "-"} |`);
+      const ci = r.ci ? ` [${sgn(r.ci[0])}, ${sgn(r.ci[1])}]` : "";
+      L.push(`| ${d.day} | ${r.def} | ${r.star} | ${r.n} | ${r.skipped} (${r.skippedBase}) | ${r.worse}/${r.n} | ${r.n ? `${sgn(r.delta)}${ci}` : "n/a"} | ${fmtRate(r.wr1)} | ${fmtRate(r.wrN)} | ${flagText(r) || "-"} |`);
     }
   }
-  const flagged = res.days.flatMap((d) => (d.bench ?? []).filter((r) => r.flags.length).map((r) => ({ day: d.day, r })));
-  L.push("", "### WORSE / NO EFFECT summary", "");
+  const flagged = days.flatMap((d) => (d.bench ?? []).filter((r) => r.flags.length).map((r) => ({ day: d.day, r })));
+  L.push("", "### WORSE / NO EFFECT / SAME AS ★2 summary", "");
   if (!flagged.length) L.push("None flagged.");
-  for (const { day, r } of flagged) L.push(`- Day ${day} ${r.def} ★${r.star}: ${r.flags.join(", ")} (delta ${r.delta >= 0 ? "+" : ""}${pct1(r.delta)}, @1 ${fmtRate(r.wr1)}, @${r.star} ${fmtRate(r.wrN)})`);
+  for (const { day, r } of flagged) L.push(`- Day ${day} ${r.def} ★${r.star}: ${flagText(r)} (${r.worse}/${r.n} decks worse, mean paired delta ${sgn(r.delta)}${r.ci ? ` [${sgn(r.ci[0])}, ${sgn(r.ci[1])}]` : ""}; @1 ${fmtRate(r.wr1)}, @${r.star} ${fmtRate(r.wrN)})`);
+  const worse = days.flatMap((d) => (d.bench ?? []).filter((r) => r.flags.includes("WORSE")).map((r) => ({ day: d.day, r })));
+  if (worse.length) {
+    L.push("", "### WORSE rows: every deck with its paired delta (par = the hero's par deck)", "");
+    for (const { day, r } of worse) {
+      L.push(`- Day ${day} ${r.def} ★${r.star}: ${[...r.decks].sort((a, b) => a.delta - b.delta).map((k) => `${k.tag}${k.par ? " (PAR)" : ""} ${sgn(k.delta)}`).join("; ")}`);
+    }
+  }
   L.push("");
   return L;
 }
