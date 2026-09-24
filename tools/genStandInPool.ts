@@ -71,7 +71,11 @@ async function main(): Promise<void> {
   for (const hd of res.days) {
     for (const p of hd.picks) {
       const v = validateBuild(p.build, hd.day);
-      const unfused = unfusedPairs(p.build);
+      // The unfused-pair invariant is the stars-on flip rule (step 3); it must not apply when
+      // --stars off, which reproduces the legacy v1.1 pool byte-for-byte - 65 of its 120 decks
+      // hold same-star pairs that were never merge-aware in the first place (that is the whole
+      // reason this pool needs regenerating once stars are on).
+      const unfused = o.stars === "on" ? unfusedPairs(p.build) : [];
       if (!v.ok || p.build.hero !== hd.hero || unfused.length) {
         throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} is invalid: ${[...v.errors, ...unfused].join("; ")}`);
       }
