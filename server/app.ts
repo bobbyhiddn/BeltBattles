@@ -4,8 +4,15 @@
 // Storage sits behind the async GhostStore interface (store.ts): JSON lines or Tigris.
 //
 //   GET  /v1/health                 never touches storage; reports the store kind
-//   POST /v1/ghosts                 body: canonical GhostSnapshot JSON  -> 201 { id } (200 if already stored)
+//   POST /v1/ghosts                 body: canonical GhostSnapshot JSON, signed by the device key
+//                                   (x-bb-key, x-bb-sig; src/net/identity.ts) -> 201 { id } (200 if
+//                                   already stored). Refusals, in the order they are checked:
 //                                   403 { error } while uploads are closed (the body is not read)
+//                                   401 { error } a signing header is missing or malformed (the body
+//                                       is not read), or the signature does not match the exact bytes
+//                                   400 { error } not a valid snapshot
+//                                   403 { error } snapshot.playerId is not the signing key's playerId
+//                                   422 { error } foreign rules, or the deck fails validation
 //   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2 -> 200 { id, snapshot } | 404
 //   GET|HEAD / and /index.html      the game page, when staticDir (BB_GHOST_STATIC) is set
 
@@ -14,6 +21,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join } from "node:path";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
+import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
 import { matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, SnapshotError } from "../src/net/snapshot";
 import { validateBuild } from "../src/net/validate";
@@ -35,7 +43,7 @@ export interface ServerOptions {
   matchSalt?: () => number | string;
   /**
    * "closed": POST /v1/ghosts answers 403 without reading the body (seeding still works).
-   * Production runs closed until signed writes and the player budget ceiling land (0.7.0).
+   * Production runs closed until the game signs its uploads and the player budget ceiling lands (0.7.0).
    */
   uploads?: "open" | "closed";
   /**
@@ -78,7 +86,8 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-function readBody(req: IncomingMessage, max: number): Promise<string> {
+/** The exact body bytes received: at most `max` (413 over it, by content-length or while streaming). */
+function readBody(req: IncomingMessage, max: number): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const tooBig = () => new HttpError(413, `request body over ${max} bytes`);
     if (Number(req.headers["content-length"] ?? 0) > max) {
@@ -105,11 +114,7 @@ function readBody(req: IncomingMessage, max: number): Promise<string> {
         all.set(c, o);
         o += c.length;
       }
-      try {
-        resolve(new TextDecoder("utf-8", { fatal: true }).decode(all));
-      } catch {
-        reject(new HttpError(400, "request body is not UTF-8"));
-      }
+      resolve(all);
     });
     req.on("error", (e) => {
       if (!done) {
@@ -118,6 +123,15 @@ function readBody(req: IncomingMessage, max: number): Promise<string> {
       }
     });
   });
+}
+
+/** Body bytes as text: strict UTF-8, else 400. Decoded only after the signature over the bytes checks out. */
+function utf8(body: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(body);
+  } catch {
+    throw new HttpError(400, "request body is not UTF-8");
+  }
 }
 
 class RateLimiter {
@@ -247,9 +261,26 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         });
       case "/v1/ghosts": {
         only("POST");
-        // before the body is read: nothing is parsed, validated or stored (Node discards the rest)
+        // 1. before the body is read: nothing is parsed, validated or stored (Node discards the rest)
         if (uploads === "closed") throw new HttpError(403, "uploads are not open yet");
-        const snap = decodeSnapshot(await readBody(req, MAX_BODY_BYTES));
+        // 2. both signing headers present and well formed (syntax only), still before the body is read
+        const key = firstHeader(req, KEY_HEADER);
+        const sig = firstHeader(req, SIG_HEADER);
+        const unsigned = uploadHeaderError(key, sig);
+        if (unsigned) throw new HttpError(401, unsigned);
+        // 3. the exact bytes received, within the limit; the signature must cover exactly them.
+        //    verifyUpload (src/net/identity.ts) is the only verification code on this path.
+        const body = await readBody(req, MAX_BODY_BYTES);
+        const signer = await verifyUpload(body, key, sig);
+        if (!signer.ok) throw new HttpError(401, signer.error);
+        // 4. strict decode, unchanged (400)
+        const snap = decodeSnapshot(utf8(body));
+        // 5. a key uploads only under its own playerId: nobody can post as another player
+        if (snap.playerId !== signer.playerId) {
+          throw new HttpError(403, "snapshot.playerId is not the player id of the signing key (x-bb-key)");
+        }
+        // 6. unchanged: rules, the deck, then the store. The stored record is the same as before;
+        //    neither the key nor the signature is kept.
         if (snap.rules !== RULES_VERSION) {
           throw new HttpError(422, `rules ${snap.rules} not accepted: this server validates ${RULES_VERSION}`);
         }
@@ -284,7 +315,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     if (allowed) {
       res.setHeader("access-control-allow-origin", origin);
       res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
-      res.setHeader("access-control-allow-headers", "content-type");
+      res.setHeader("access-control-allow-headers", ["content-type", KEY_HEADER, SIG_HEADER].join(", "));
       res.setHeader("access-control-max-age", 600);
     }
     res.setHeader("vary", "Origin");
