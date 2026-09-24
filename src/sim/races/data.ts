@@ -7,8 +7,8 @@ import type { AmmoDef, Faction, HeroDef, HeroId, ItemDef } from "../content";
 export type RaceHeroId = "foundry" | "bastion" | "metronome" | "siphon";
 export type RaceAmmoKind = "blank" | "alloy" | "bulwark" | "pendulum" | "leechDrag" | "leechEcho";
 
-/** METRONOME pendulum curve (docs/RACES.md §3): 2 + 8 x max(0, 1 - |ride - 4.2| / 3.0). */
-export const PENDULUM = { floor: 2, swing: 8, peak: 4.2, spread: 3.0 } as const;
+/** METRONOME pendulum curve (docs/RACES.md §3): 4 + 4 x max(0, 1 - |ride - 4.2| / 4.0). */
+export const PENDULUM = { floor: 4, swing: 4, peak: 4.2, spread: 4.0 } as const;
 
 export function pendulumCurve(ride: number): number {
   return PENDULUM.floor + PENDULUM.swing * Math.max(0, 1 - Math.abs(ride - PENDULUM.peak) / PENDULUM.spread);
@@ -82,8 +82,8 @@ export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   },
   metronome: {
     id: "metronome", name: "METRONOME", faction: "beastfolk", factionName: "BEASTFOLK PACKS",
-    hull: 200, factory: "clockworks", ammo: "pendulum", belt: 20,
-    turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "adaptable", fireInterval: 0.9, window: 3, flight: 0.55 }],
+    hull: 210, factory: "clockworks", ammo: "pendulum", belt: 20,
+    turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "adaptable", fireInterval: 0.7, window: 3, flight: 0.55 }],
     blurb: ["PENDULUM SLUGS HIT", "HARDEST AFTER 10 TILES.", "NOTHING SPEEDS ITS BELTS."],
     pattern: "HIT THE BEAT",
   },
