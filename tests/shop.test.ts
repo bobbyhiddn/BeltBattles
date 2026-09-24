@@ -99,6 +99,55 @@ describe("shop: the familiar slot", () => {
   });
 });
 
+// 0.6.1r (review-061 F3, N1): the familiar slot follows the regular slots' rules too
+describe("shop: the familiar slot keeps one def per wagon (F3) and the legendary day gate (N1)", () => {
+  it("F-dup: owning every alchemist part at 1★ on day 7, no alchemist wagon offers one part twice (400 seeds)", () => {
+    let alchemist = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const run = newRun("furnace", seed * 7919);
+      // its regular slots fall back to owned parts (§5.2 step 2), where the familiar pick can land
+      run.inventory = ["temper", "whetstone", "coil", "drake"].map((def, i) => ({ uid: 900 + i, def }));
+      run.day = 7; // familiar chance 60%
+      rollShop(run);
+      const alch = run.shop.wagons.find((w) => w.merchant === "alchemist");
+      if (!alch) continue;
+      alchemist++;
+      const defs = alch.offers.map((o) => o.def);
+      expect(new Set(defs).size).toBe(defs.length);
+    }
+    expect(alchemist).toBeGreaterThan(50);
+  });
+
+  it("a wagon repeats a part only when its merchant stocks fewer parts today than the wagon has slots", () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      for (const day of [2, 5, 9]) {
+        const run = newRun(seed % 2 ? "weaver" : "furnace", seed * 104729 + day);
+        run.inventory = ["temper", "whetstone", "coil", "drake", "grease", "calibrate"].map((def, i) => ({ uid: 900 + i, def }));
+        run.day = day;
+        rollShop(run);
+        for (const w of run.shop.wagons) {
+          const distinct = new Set(w.offers.map((o) => o.def)).size;
+          if (distinct === w.offers.length) continue;
+          const stock = itemsSoldBy(w.merchant).filter((d) => d.rarity !== "legendary" || day >= 4).length;
+          expect(stock).toBeLessThan(w.offers.length); // today: the Quartermaster, whose only stock is HOPPER
+        }
+      }
+    }
+  });
+
+  it("F-latent: an owned legendary is never offered before day 4, not even by the familiar slot (400 seeds)", () => {
+    let legendary = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const run = newRun("furnace", seed * 104729);
+      run.inventory = [{ uid: 900, def: "overdrive" }];
+      run.day = 3;
+      rollShop(run);
+      legendary += run.shop.wagons.flatMap((w) => w.offers).filter((o) => ITEMS[o.def].rarity === "legendary").length;
+    }
+    expect(legendary).toBe(0);
+  });
+});
+
 describe("shop: the MERGE badge (shopBadge, live from mergePreview)", () => {
   it("is null unowned, MERGE ★2 on a 1★, MERGE ★3 on a chain, the grey wait on a 2★ only, and MAX on a 3★ only", () => {
     const run = newRun("furnace", 42);

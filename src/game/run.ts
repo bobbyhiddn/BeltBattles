@@ -212,6 +212,7 @@ function familiarCandidates(run: Run, merchants: MerchantId[]): FamiliarCandidat
   for (const m of merchants) {
     for (const d of itemsSoldBy(m)) {
       if (!fusible(d.id)) continue;
+      if (d.rarity === "legendary" && run.day < 4) continue; // review-061 N1: the shop's legendary day gate
       const levels = starLevelsOwned(run, d.id);
       const weight = levels.has(1) && levels.has(2) ? 12 : levels.has(2) ? 4 : levels.has(1) ? 0.5 : 0;
       if (weight > 0) out.push({ merchant: m, def: d.id, weight });
@@ -249,7 +250,9 @@ export function rollShop(run: Run): void {
     if (candidates.length) {
       const pick = rng.weighted(candidates, (c) => c.weight);
       const w = wagons.find((wg) => wg.merchant === pick.merchant)!;
-      const slotIdx = rng.int(w.offers.length);
+      let slotIdx = rng.int(w.offers.length); // drawn either way: the stream keeps its order
+      const same = w.offers.findIndex((o) => o.def === pick.def);
+      if (same >= 0) slotIdx = same; // review-061 F3: never two offers of one def in a wagon
       w.offers[slotIdx] = { def: pick.def, price: priceOf(ITEMS[pick.def]), sold: false };
     }
   }
