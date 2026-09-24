@@ -116,7 +116,9 @@ export interface ButtonOpts {
   font?: FontId;
   blink?: boolean;
   onTap?: () => void;
+  onBlocked?: () => void; // a press while disabled (e.g. toast why)
   sub?: string; // small second line
+  subColor?: string;
 }
 
 export function button(ui: UI, g: G, id: string, r: Rect, label: string, o: ButtonOpts = {}): void {
@@ -145,12 +147,26 @@ export function button(ui: UI, g: G, id: string, r: Rect, label: string, o: Butt
     // centre the label + sub block in the bevel's fill (rows y+2 .. y+h-4)
     const top = r.y + 2 + dy + Math.max(0, Math.floor((r.h - 5 - (fh + 8)) / 2));
     drawText(g, label, r.x + r.w / 2, top, text, { font, align: "center" });
-    drawText(g, o.sub, r.x + r.w / 2, top + fh + 3, text, { font: "3", align: "center" });
+    drawText(g, o.sub, r.x + r.w / 2, top + fh + 3, o.subColor ?? text, { font: "3", align: "center" });
   } else {
     const blinkOff = o.blink && Math.floor(performance.now() / 300) % 2 === 0;
     if (!blinkOff) drawText(g, label, r.x + r.w / 2, r.y + Math.floor((r.h - 1 - fh) / 2) + dy, text, { font, align: "center" });
   }
-  ui.add({ id, r, onTap: o.disabled ? undefined : o.onTap, block: true });
+  ui.add({ id, r, onTap: o.disabled ? o.onBlocked : o.onTap, block: true });
+}
+
+/** A disabled button that says why in red: under its label when both fit, else in its place
+ *  (wrapped). A press calls onBlocked (e.g. to toast the reason). */
+export function blockedButton(ui: UI, g: G, id: string, r: Rect, label: string, why: string, onBlocked?: () => void): void {
+  const fits = r.h >= 19 && textWidth(label) <= r.w - 6 && textWidth(why, "3") <= r.w - 6;
+  button(ui, g, id, r, fits ? label : "", { disabled: true, onBlocked, sub: fits ? why : undefined, subColor: C.red });
+  if (fits) return;
+  const lines = wrap(why, r.w - 6, "3");
+  let y = r.y + Math.floor((r.h - 1 - (lines.length * 7 - 2)) / 2);
+  for (const ln of lines) {
+    drawText(g, ln, r.x + r.w / 2, y, C.red, { font: "3", align: "center" });
+    y += 7;
+  }
 }
 
 /** Item slot (cargo tray / inspector icon). */

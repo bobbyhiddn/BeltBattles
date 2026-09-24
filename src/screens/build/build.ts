@@ -10,9 +10,10 @@ import { ForkScreen } from "../fork/fork";
 import { EVENTS } from "../../game/eventDefs";
 import { HEROES, ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
 import { connectedRouteCount, defOf, itemByUid, kx, ky } from "../../sim/deck";
+import { NOWHERE, fightBlock, routeCheck } from "../../game/routeCheck";
 import { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
-import { frame, type G } from "../../render/pixel";
+import { frame, rect, type G } from "../../render/pixel";
 import { footX, footY } from "../../render/frame";
 import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type CruiserModel, type CruiserView } from "../../render/cruiser";
 import { drawMachinery } from "../../render/machinery";
@@ -46,6 +47,11 @@ export class BuildScreen implements Screen, EditHost {
   placedOnce = false; // something was placed this round -> point at FIGHT
   boughtOnce = false;
   hover: { wagon: number; slot: number } | null = null;
+  /** Why FIGHT is blocked (a dead-end or broken belt, routeCheck.ts) and the routes at fault; read
+   *  once per frame in draw(). blockT flashes them after a refused press. */
+  block: string | undefined;
+  broken: number[] = [];
+  blockT = 0;
   /** Tonight's dusk opponent: stored once dusk has started, else the pick dusk will make (the pool
    *  only changes after a dusk fight, so the preview is the pick). Read once, not per frame. */
   foe: DuskFoe;
@@ -191,6 +197,12 @@ export class BuildScreen implements Screen, EditHost {
 
   fight(): void {
     if (this.ed.busy) return;
+    // a belt the ghost validator would refuse (dead end, crossing, ...) blocks the fight outright
+    const why = fightBlock(this.run.build);
+    if (why) {
+      this.blockT = 0.6;
+      return this.invalid(why);
+    }
     if (connectedRouteCount(this.run.build) === 0 && this.armed <= 0) {
       this.armed = 2.5;
       this.invalid("NO BELT FEEDS A TURRET! FIGHT AGAIN TO GO ANYWAY");
@@ -208,6 +220,7 @@ export class BuildScreen implements Screen, EditHost {
     this.t += dt;
     this.armed = Math.max(0, this.armed - dt);
     this.shakeT = Math.max(0, this.shakeT - dt);
+    this.blockT = Math.max(0, this.blockT - dt);
     this.thunkT = Math.max(0, this.thunkT - dt);
     this.caravan.update(dt);
     this.ed.update(dt);
@@ -219,9 +232,11 @@ export class BuildScreen implements Screen, EditHost {
   draw(g: G): void {
     const L = (this.L = this.layout());
     const { W, H, portrait } = this.game;
+    ({ block: this.block, broken: this.broken } = routeCheck(this.run.build));
     this.bg.draw(g, W, H, { hulls: [L.hull], vertical: portrait, gapLine: false, pad: L.pad }, this.t);
     const ghost = this.ed.ghost();
-    const guide = !!this.ed.draw || connectedRouteCount(this.run.build) === 0;
+    // free connectors glow while drawing, with no belt fed, or when a belt goes nowhere
+    const guide = !!this.ed.draw || connectedRouteCount(this.run.build) === 0 || this.block === NOWHERE;
     const v = this.view;
     v.frame = L.frame;
     v.t = this.t;
@@ -233,6 +248,7 @@ export class BuildScreen implements Screen, EditHost {
     if (bump) g.translate(0, bump);
     drawHull(g, v);
     drawMachinery(g, v);
+    this.drawBroken(g);
     drawTurrets(g, v);
     this.drawSelection(g);
     if (bump) g.translate(0, -bump);
@@ -241,6 +257,23 @@ export class BuildScreen implements Screen, EditHost {
     this.wfx.drawPops(g, 0, 0);
     this.ufx.draw(g, 0, 0);
     this.ufx.drawPops(g, 0, 0);
+  }
+
+  /** Belts that block FIGHT: a pulsing red tint and outline on every cell (brighter after a press). */
+  private drawBroken(g: G): void {
+    const b = this.run.build, f = this.L.frame;
+    const hot = this.blockT > 0;
+    const a = 0.2 + 0.15 * Math.sin(this.t * 6) + this.blockT * 0.5;
+    for (const i of this.broken) {
+      if (i === this.view.hideRoute || !b.routes[i]) continue;
+      for (const k of b.routes[i].cells) {
+        const x = Math.round(footX(f, kx(k), ky(k))), y = Math.round(footY(f, kx(k), ky(k)));
+        g.globalAlpha = a;
+        rect(g, x, y, 12, 12, C.red);
+        g.globalAlpha = 1;
+        frame(g, x, y, 12, 12, hot ? C.white : C.red);
+      }
+    }
   }
 
   private drawSelection(g: G): void {
