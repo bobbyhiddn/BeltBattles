@@ -46,7 +46,14 @@ export async function placePlanned(page, touch, reserve = 0) {
     return { a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y), def: p.def, left: run.gold - Math.max(0, ...prices) };
   });
   if (!plan || plan.left < reserve) return null;
-  const n0 = await page.evaluate(() => window.bb.game.run.build.items.length);
+  // 0.6.1a: a bought copy whose twin is placed merges into it (ARSENAL.md §4.1 rule 5), so the deck
+  // keeps its item count; the run's copy weight (sum of 2^(stars - 1) over deck, turrets and cargo)
+  // grows by one instead. A move from cargo adds a deck item and keeps the weight.
+  const count = () => {
+    const run = window.bb.game.run, w = (l) => l.reduce((s, c) => s + 2 ** ((c.stars || 1) - 1), 0);
+    return { items: run.build.items.length, weight: w(run.build.items) + w(run.build.mods) + w(run.inventory) };
+  };
+  const n0 = await page.evaluate(count);
   if (touch) {
     await press(page, true, plan.a);
     await press(page, true, plan.b);
@@ -57,8 +64,12 @@ export async function placePlanned(page, touch, reserve = 0) {
     await sleep(150);
     await page.mouse.up();
   }
-  await page.waitForFunction((n) => window.bb.game.run.build.items.length === n + 1, n0, { timeout: 5000 });
-  return plan.def;
+  await page.waitForFunction((n) => {
+    const run = window.bb.game.run, w = (l) => l.reduce((s, c) => s + 2 ** ((c.stars || 1) - 1), 0);
+    return run.build.items.length === n.items + 1 || w(run.build.items) + w(run.build.mods) + w(run.inventory) === n.weight + 1;
+  }, n0, { timeout: 5000 });
+  const merged = (await page.evaluate(() => window.bb.game.run.build.items.length)) === n0.items;
+  return merged ? `${plan.def} (merged)` : plan.def;
 }
 
 /** After FIGHT: a road event (pick with a real tap, maybe REFIT) or straight to the battle. */
