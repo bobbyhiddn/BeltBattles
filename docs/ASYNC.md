@@ -15,7 +15,7 @@ and 0.7.0 wire this in (checklist at the end).
        fetchGhost ◀────────────────GET /v1/ghosts/match──────────── pickGhost (same rules+day)
         │ error / timeout / 404 / invalid answer
         ▼
-       fallback.ts: bundled pool (pickGhost) ▶ warlord stand-in
+       fallback.ts: bundled pool (pickGhost) ▶ stand-in from the stand-in pool (standInPick)
  fight: simulate(player, ghost, battleSeed) on the device; replay.ts stores and replays the record
 ```
 
@@ -45,8 +45,8 @@ vite into `server/dist/`), `npm run server -- --port 7790 --data ./ghost-data`,
   `ghostId = "g" + cyrb53(canonical)` in hex. Resubmitting the same snapshot is idempotent.
 - Decoding is strict: unknown fields at any depth, missing fields, wrong types, non-integers,
   off-grid cells, ids outside `[A-Za-z0-9_-]{1,64}` and anything over **16 KB** all throw.
-- The shape allows a negative `hullBonus` only so battle records holding warlord stand-ins still
-  decode; `validateBuild` rejects it.
+- The shape allows a negative `hullBonus` only so battle records holding the earlier warlord
+  stand-ins still decode (stand-ins now come from the stand-in pool); `validateBuild` rejects it.
 
 ## Validation (`validateBuild(build, day)`)
 
@@ -95,7 +95,8 @@ numbers or sim behaviour) does to the pool:
 - Old ghosts stay in `ghosts.jsonl` and in memory, bucketed by rules. Old clients can still
   match each other; new clients start with an empty pool for the new version.
 - Until players refill it, new clients fall back to the bundled pool, which must be regenerated for the new
-  rules with `npm run gen:ghosts` (the loader rejects entries from other rules), and then the stand-ins.
+  rules with `npm run gen:ghosts` (the loader rejects entries from other rules), and then the stand-ins,
+  whose pool is regenerated with `npm run standins`.
 - Stored battle records from older rules can no longer be replayed by the new build.
   Keep the old build hosted if old replays matter.
 
@@ -105,8 +106,11 @@ numbers or sim behaviour) does to the pool:
 body or an unusable ghost (wrong rules or day, our own, already seen, or failing `validateBuild`),
 it returns `fallbackGhost(req, pool)`:
 1. a bundled-pool ghost chosen by `pickGhost` with `new Rng(req.seed)`, else
-2. `offlineGhost(hero, day, seed)`: `warlordBuild` of the other faction for that day, with
-   the requester's record. 0.6.0 swaps in the rival captains.
+2. `offlineGhost(hero, day, seed)`: `standInPick(foe, day, seed)`, a deck of the other faction
+   for that day from the bundled stand-in pool (`src/sim/standInPool.ts`), with the requester's
+   record. Every pool deck spends the full purse (at least 90% of `maxGoldByDay(day)`) and wins
+   at least half its battles against the day's par deck (`heroRefBuild`) of either faction. Its
+   playerId is still `"offline-warlord"`, kept for compatibility.
 
 `loadGhostPool(json)` strictly decodes each entry, requires the current rules and a passing
 `validateBuild`, drops duplicates, and reports rejected entries by index.
@@ -161,7 +165,7 @@ thousands. Past that, cap each (rules, day) bucket or move to SQLite.
 5. **Store the battle record.** `battleRecordFor(run.build, ghost.snapshot.build, battleSeed(run))`
    goes into the round history, for replays and bug reports (`replayBattle(record)` for playback).
 6. **Show the ghost before the fight:** its hero, its record (wins, losses, lives), the day,
-   and whether it is a player ghost (`source: "server"` or a pool id) or a warlord stand-in (`offline-…`).
+   and whether it is a player ghost (`source: "server"` or a pool id) or a stand-in (`offline-…`).
 7. **Config.** Set a server base URL. With none, the game plays offline (fallback only). Shore's
    origin must be listed in `--origins`.
 8. **Keep the budget honest.** When warlord rewards or map events start granting gold, items or supplies,

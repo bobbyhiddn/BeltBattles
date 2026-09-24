@@ -3,8 +3,11 @@
 // Writes <out>/balance-v1.md and <out>/balance-v1.json. Every run day is also a calibration day.
 // Battles fan out to worker threads (node:worker_threads, this same bundled file); results are
 // keyed by job, so the output is identical for any --workers value (1 runs in-process).
+//   npm run balance -- --compare a/balance-v1.json b/balance-v1.json
+// runs nothing: it compares the `days` tables of two runs (identical whatever the workers or
+// runtime) and exits 1 if they differ.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
 import { isMainThread } from "node:worker_threads";
@@ -21,7 +24,21 @@ else {
   });
 }
 
+/** --compare: true when the two balance JSON files hold identical `days` tables. */
+function compareRuns(fa: string, fb: string): boolean {
+  const [a, b] = [fa, fb].map((f) => JSON.parse(readFileSync(resolve(f), "utf8")) as { meta: RunMeta; battles: number; days: unknown });
+  const da = JSON.stringify(a.days), db = JSON.stringify(b.days);
+  console.log(`days identical: ${da === db} (${da.length} chars); workers ${a.meta.workers} vs ${b.meta.workers}; battles ${a.battles} vs ${b.battles}`);
+  return da === db;
+}
+
 async function main(): Promise<void> {
+  const cmp = process.argv.indexOf("--compare");
+  if (cmp >= 0) {
+    const [fa, fb] = process.argv.slice(cmp + 1, cmp + 3);
+    if (!fa || !fb || fa.startsWith("--") || fb.startsWith("--")) throw new Error("--compare needs two balance JSON files: --compare a.json b.json");
+    process.exit(compareRuns(fa, fb) ? 0 : 1);
+  }
   const days = flag("days")?.split(",").map(Number) ?? DEFAULT_OPTS.days;
   const o: TourneyOpts = {
     ...DEFAULT_OPTS,
