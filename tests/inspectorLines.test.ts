@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { levelLine, mergeLine, nextLine, portraitButtons, starEffectLine } from "../src/screens/build/inspector";
-import { textWidth } from "../src/render/font";
+import { textWidth, wrap } from "../src/render/font";
 import { newRun, type Run } from "../src/game/run";
 import { resolveCore } from "../src/sim/cores";
 import { ITEMS, type ItemDef } from "../src/sim/content";
@@ -107,6 +107,42 @@ describe("F7 (the Prime's call): portrait action buttons (portraitButtons, pure 
       }
       if (rects.length === 2) expect(hit(rects[0], rects[1])).toBe(false);
       expect(where === "top" ? rects.every((q) => q.y === band.y + 4) && shift === 0 : rects.every((q) => q.y === band.y + 21) && shift === 12).toBe(true);
+    }
+  });
+});
+
+// 0.6.1c: the six factories' lines, written out by hand from catalogue.json (star1-star3, perk)
+describe("0.6.1c: each factory's headline at each star, its perks named, and the phone band's 4 lines", () => {
+  const HEAD: Record<string, [string, string, string]> = {
+    doublestamp: ["2 X 3 DMG EVERY 2.2S", "2 X 5 DMG EVERY 1.6S", "3 X 5 DMG EVERY 1.6S"],
+    shottower: ["3 X 1 DMG EVERY 1.5S", "3 X 2 DMG EVERY 1.35S", "3 X 3 DMG EVERY 1.3S"],
+    hotswap: ["EMBER +2 · SPARK 1.6S · 1.5S", "EMBER +4 · SPARK 1.8S+JUMP · 1.3S", "EMBER +7 · SPARK 2.8S+JUMP · 1.1S"],
+    slagpot: ["7 DMG SLAG EVERY 2.8S", "12 DMG SLAG EVERY 2.2S", "15 DMG SLAG EVERY 1.75S"],
+    assembly: ["GATES ONLINE X0.5 · 1.8S", "GATES ONLINE X0.25 · 1.5S", "GATES ONLINE X0 · 1.3S · X2 4S"],
+    gantry: ["2 OUTPUTS · 3 DMG EVERY 1.2S", "3 OUTPUTS · 3 DMG EVERY 0.7S", "3 OUTPUTS · 6 DMG EVERY 0.7S"],
+  };
+  const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", "HOT START"], gantry: ["THIRD ARM", "HEAVY GANTRY"] };
+
+  it("starEffectLine, levelLine and nextLine (STAMP PRESS keeps its 0.6.1p line)", () => {
+    expect(starEffectLine("press", 2)).toBe("EVERY 1.1S · 5 DMG SLUGS");
+    for (const [def, h] of Object.entries(HEAD)) {
+      expect([1, 2, 3].map((s) => starEffectLine(def, s)), def).toEqual(h);
+      const [p2, p3] = PERK[def];
+      expect(levelLine(def, 2), def).toBe(`★2${p2 ? ` ${p2}` : ""}: ${h[1]}`);
+      expect(levelLine(def, 3), def).toBe(`★3${p3 ? ` ${p3}` : ""}: ${h[2]}`);
+      expect(nextLine(holding(def, [1]), def, 1), def).toBe(`NEXT ★2${p2 ? ` ${p2}` : ""}: ${h[1]} · 1 MORE COPY`);
+      expect(nextLine(holding(def, [2]), def, 2), def).toBe(`NEXT ★3${p3 && p3 !== p2 ? ` ${p3}` : ""}: ${h[2]} · 2 MORE COPIES`);
+      expect(mergeLine(holding(def, [1]), def), def).toBe(`MERGES WITH YOUR ${ITEMS[def].name} ★1 → ★2 · ${h[1]}`);
+    }
+    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT ★2: +4 BURN · 1 MORE COPY"); // gates unchanged
+  });
+
+  it("phone: a factory offer's headline and its MERGES WITH line fit the band's 4 body lines (3x5 face, 151 px)", () => {
+    for (const def of Object.keys(HEAD)) {
+      for (const owned of [[1], [2, 1]]) {
+        const lines = [starEffectLine(def, 1), mergeLine(holding(def, owned), def)!].flatMap((l) => wrap(l, 151, "3"));
+        expect(lines.length, `${def} ${owned}: ${lines.join(" / ")}`).toBeLessThanOrEqual(4);
+      }
     }
   });
 });
