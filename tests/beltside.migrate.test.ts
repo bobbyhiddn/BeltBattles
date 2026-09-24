@@ -6,7 +6,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { ITEMS, type HeroId } from "../src/sim/content";
+import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
+import { loadGhostPool, migrateV1 } from "../src/net/fallback";
 import { arrowCell, arrowsOf, cloneBuild, key as K, kx, ky, rotField, type Build, type Placed } from "../src/sim/deck";
 import {
   clearMigrationLog, migrateDeck, migrateInlineGates, migrationLog, neighbourOrder, rotFacing,
@@ -151,6 +152,26 @@ describe("D3: stranded rigs at each load boundary", () => {
     expect(log.stats.find((s) => s.source === "ghost")).toMatchObject({ moved: 1, dropped: 1 });
     expect(log.stats.find((s) => s.source === "preset:test")).toMatchObject({ dropped: 1 });
     expect(log.drops.filter((d) => d.includes("WHETSTONE"))).toHaveLength(3);
+  });
+
+  it("a v1 snapshot decoded from the network (the bundled pool, a server answer) migrates before it is validated", () => {
+    clearMigrationLog();
+    const g = {
+      v: 1, rules: RULES_VERSION, hero: "furnace", day: 3, wins: 1, lives: 3, runId: "r1", playerId: "p1", createdAt: 0,
+      build: furnace([{ uid: 5, def: "temper", x: 4, y: 3 }]),
+    };
+    expect(validateBuild(g.build as Build, 3).ok).toBe(false); // as written: a gate on a belt tile
+    const load = loadGhostPool([J(g)]);
+    expect(load.rejected).toEqual([]);
+    const s = load.entries[0].snapshot;
+    expect([s.v, s.build.items[1].x, s.build.items[1].y, s.build.items[1].rot]).toEqual([2, 3, 3, 1]);
+    expect(validateBuild(s.build, 3).ok).toBe(true);
+    expect(migrationLog().stats.find((x) => x.source === "ghost:net")).toMatchObject({ decks: 1, moved: 1, dropped: 0 });
+    // v2 (and a v1 with nothing on a belt) passes unchanged
+    const native = checkSnapshot({ ...J(g), v: 2, build: furnace([{ uid: 5, def: "temper", x: 3, y: 3, rot: 1 }]) });
+    expect(migrateV1(native)).toBe(native);
+    const clean = checkSnapshot({ ...J(g), build: furnace() });
+    expect(migrateV1(clean)).toEqual(clean);
   });
 });
 

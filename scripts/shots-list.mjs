@@ -237,4 +237,59 @@ export const SHOTS = [
       g.render();
     })()`],
   ]),
+  // 0.6.2 BELTSIDE (ref/DESIGN-beltside.md): rigs beside the belt on the tooling showcase decks (src/tooling.ts
+  // SHOWCASE, bb.openShowcase): rigs on both sides of one belt and its tile-by-tile timeline (V4), one LONG HAUL
+  // feeding two belts and an OVERDRIVE (X) at a belt junction with their rig panels, an IDLE rig, the drag
+  // preview (B1) auto-aimed and then turned by R (idle arrows dim), and battle frames with speed-tinted
+  // chevrons (V1), payload state (V2) and arrow flashes (V3).
+  ...["desk", "phone"].flatMap((v) => [
+    ["beltside-sides", v, "title", 0, SHOWCASE("sides", "")],
+    ["beltside-timeline", v, "title", 0, SHOWCASE("sides", "s.select({ kind: 'route', index: 0 });")],
+    ["beltside-twobelts", v, "title", 0, SHOWCASE("twobelts", "s.select({ kind: 'item', uid: 10 });")],
+    ["beltside-junction", v, "title", 0, SHOWCASE("junction", "s.select({ kind: 'item', uid: 10 });")],
+    ["beltside-idle", v, "title", 0, SHOWCASE("sides", "s.run.build.items.push({ uid: 40, def: 'coil', x: 0, y: 9 }); s.touched(); s.select({ kind: 'item', uid: 40 });")],
+    ["beltside-drag", v, "title", 0, SHOWCASE("junction", `const r = s.slotRect(0); s.ed.down(r.x + 9, r.y + 9); s.ed.move(...CELL(7, 2)); ${STEP(12)}`, { cargo: ["splitter"] })],
+    ["beltside-drag-rotated", v, "title", 0, SHOWCASE("junction", `const r = s.slotRect(0); s.ed.down(r.x + 9, r.y + 9); s.ed.move(...CELL(7, 2)); s.key("r"); ${STEP(12)}`, { cargo: ["splitter"] })],
+    ...[4, 7, 11].map((t) => [`beltside-battle-${t}s`, v, "title", 0, `(() => { bb.openShowcase("sides", "battle", { foe: "junction" }); ${STEP(60 * t)} bb.game.render(); })()`]),
+    // payload state (V2): a burning slug past the TEMPER and a shocked one on the overdriven press belt, then
+    // SPLITTER copies peeling apart
+    ["beltside-battle-burnshock", v, "title", 0, BATTLE_UNTIL("s.routes[0].ammo.some((a) => a.p.burn > 0 && a.processed >= 5) && s.routes[1].ammo.some((a) => a.p.shock && a.processed >= 2)")],
+    ["beltside-battle-peel", v, "title", 0, BATTLE_UNTIL("s.routes[0].ammo.some((a, k, l) => k > 0 && a.p.copy && l[k - 1].p.copy && l[k - 1].s - a.s > 1.5 && l[k - 1].s - a.s < 4)")],
+  ]),
+  // the smallest portrait (360x640): its inspector strip is a header only, so a selected belt's sub line carries the
+  // turret-end readout (inspector.ts subTight), and a rig's sub line says IDLE
+  ["beltside-timeline", "small", "title", 0, SHOWCASE("sides", "s.select({ kind: 'route', index: 0 });")],
+  ["beltside-idle", "small", "title", 0, SHOWCASE("sides", "s.run.build.items.push({ uid: 40, def: 'coil', x: 0, y: 9 }); s.touched(); s.select({ kind: 'item', uid: 40 });")],
 ];
+
+// 0.6.2 BELTSIDE: the "sides" showcase deck fighting "junction", stepped from 3 s until `cond` holds for the
+// player's side `s` (at most 20 s more)
+function BATTLE_UNTIL(cond) {
+  return `(() => {
+    bb.openShowcase("sides", "battle", { foe: "junction" });
+    const g = bb.game;
+    ${STEP(180)}
+    for (let i = 0; i < 60 * 20; i++) {
+      g.step(1 / 60);
+      const s = g.screen.arena.b.sides[0];
+      if (${cond}) break;
+    }
+    g.render();
+  })()`;
+}
+
+// 0.6.2 BELTSIDE: a showcase deck in the build screen, then `extra` (with s = the build screen, CELL(x, y) = the
+// logical point at the centre of deck cell (x, y) for the screen's facing: 12 px cells, a 120 px deck)
+function SHOWCASE(name, extra, o = {}) {
+  return `(() => {
+    bb.openShowcase(${J(name)}, "build", ${J(o)}); ${STEP(90)}
+    const s = bb.game.screen, f = s.L.frame, D = 120;
+    const CELL = (x, y) => {
+      const sx = f.facing === 0 || f.facing === 2 ? f.dx + x * 12 : f.facing === 1 ? f.dx + D - (y + 1) * 12 : f.dx + y * 12;
+      const sy = f.facing === 0 ? f.dy + y * 12 : f.facing === 2 ? f.dy + D - (y + 1) * 12 : f.dy + x * 12;
+      return [sx + 6, sy + 6];
+    };
+    ${extra}
+    bb.game.render();
+  })()`;
+}

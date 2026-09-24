@@ -4,7 +4,9 @@
 // another faction's hero for that day that spends at least 90% of the day's gold.
 
 import { Rng } from "../core/rng";
+import { migrateDeck } from "../sim/beltside";
 import { HEROES, RULES_VERSION, START_LIVES, type HeroId } from "../sim/content";
+import { cloneBuild } from "../sim/deck";
 import { PLAYABLE_HEROES } from "../sim/heroBuilds";
 import { standInPick } from "../sim/standInPool";
 import { pickGhost, type MatchRequest } from "./matchmaking";
@@ -45,6 +47,18 @@ export function offlineGhost(hero: HeroId, day: number, seed: number, record?: {
   return { id: `offline-${foe}-d${d}`, snapshot };
 }
 
+/**
+ * 0.6.2 BELTSIDE (DESIGN-beltside D3): decoding a v1 snapshot into a fight candidate is a load boundary. Its
+ * gates standing on belt tiles move beside them (a stranded one drops, logged under `source`), and a v1
+ * snapshot whose rigs now carry `rot` becomes v2 (only v2 carries it). v2 snapshots pass unchanged, and the
+ * codec (snapshot.ts) stays a strict canonical check, so ghost ids and the server are untouched.
+ */
+export function migrateV1(s: GhostSnapshot, source = "ghost:net"): GhostSnapshot {
+  if (s.v !== 1) return s;
+  const build = migrateDeck(cloneBuild(s.build), source);
+  return { ...s, build, v: build.items.some((p) => p.rot !== undefined) ? 2 : 1 };
+}
+
 export interface PoolLoad {
   entries: PoolEntry[];
   rejected: { index: number; error: string }[];
@@ -70,7 +84,7 @@ export function loadGhostPool(json: string | unknown): PoolLoad {
   const ids = new Set<string>();
   raw.forEach((item, index) => {
     try {
-      const snapshot = checkSnapshot(item);
+      const snapshot = migrateV1(checkSnapshot(item)); // 0.6.2 BELTSIDE: D3 before validateBuild
       if (snapshot.rules !== RULES_VERSION) throw new SnapshotError(`rules ${snapshot.rules} is not ${RULES_VERSION}`);
       const v = validateBuild(snapshot.build, snapshot.day);
       if (!v.ok) throw new SnapshotError(v.errors.join("; "));

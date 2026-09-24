@@ -3,7 +3,7 @@
 // it reports { ok: false } and the run simply continues offline.
 
 import { RULES_VERSION } from "../sim/content";
-import { fallbackGhost, type FallbackRequest } from "./fallback";
+import { fallbackGhost, migrateV1, type FallbackRequest } from "./fallback";
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
 
@@ -54,7 +54,7 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
   if (typeof id !== "string" || !id) return "answer has no id";
   let s: GhostSnapshot;
   try {
-    s = checkSnapshot(snapshot);
+    s = migrateV1(checkSnapshot(snapshot)); // 0.6.2 BELTSIDE: a v1 ghost's gates move beside its belts (D3)
   } catch (e) {
     return `bad snapshot: ${errText(e)}`;
   }

@@ -89,8 +89,17 @@ interface Spec {
   color: string;
   sub: string;
   subColor?: string; // 0.6.2 BELTSIDE: an IDLE rig's sub line warns
+  subShort?: string; // 0.6.2 BELTSIDE: the sub line where `sub` doesn't fit (the portrait strip beside two buttons)
+  // 0.6.2 BELTSIDE: the sub line (in yellow) when the panel has no room for a single text line (the 360x640 portrait
+  // strip is a header only): a belt's turret-end readout, so V4's DMG, BURN, SHOCK, SPD and TIME stay in sight.
+  // Variants from the fullest to the tightest: the first that fits is drawn, else the last, cut short at its end
+  // (the tightest one lists by importance: DMG, TIME, BURN, SHOCK, SPD, which the chevron tint also shows)
+  subTight?: string[];
   text: Line[];
   actions?: Action[]; // 0.6.1b: was a single `action`; the turret case needs REMOVE CORE and REMOVE GEAR
+  // 0.6.2 BELTSIDE: when the text overflows its panel, drop text[from..to) from the end and say so with
+  // more(n) instead of losing the last lines (a belt's timeline rows give way to its turret-end readout)
+  trim?: { from: number; to: number; more: (n: number) => Line };
 }
 
 /** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo. */
@@ -182,6 +191,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
         return {
           icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
           sub: idle ? "RIG · IDLE" : `RIG · ${new Set(hits.map((h) => h.dir)).size}/${arrows} ARROWS ON BELTS`,
+          subShort: idle ? undefined : `RIG · ${new Set(hits.map((h) => h.dir)).size}/${arrows} HIT`,
           subColor: idle ? C.amber : undefined,
           // the lines that matter most first: a short panel drops the last ones
           text: [
@@ -209,15 +219,26 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const w = walkRoute(b, show.index);
       const est = w.estimate;
       const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
+      const head: Line[] = [
+        ...(info.connected ? [] : [["ENDS SHORT OF A TURRET INTAKE.", C.amber] as Line]),
+        `${info.tiles} TILES · ${hitCount} HIT${hitCount === 1 ? "" : "S"}${hitCount ? " IN ORDER:" : ": NO RIG WORKS THIS BELT"}`,
+      ];
+      const rows = w.timeline.map((row) => `T${row.tile + 1}: ${row.hits.map((h) => hitLabel(h, w.locked)).join(" · ")}`);
+      const dmg = `DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? `X${est.copies}` : ""}`, spd = `${num(w.speedEnd)}X`, time = `${est.time.toFixed(1)}S`;
+      const tag = (burn: string, shock: string) => [...(est.burn ? [`${burn}${est.burn}`] : []), ...(est.shock ? [shock] : [])];
       return {
         icon: beltIcon(), title: "BELT ROUTE", color: C.white, sub: info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED",
+        subTight: info.connected
+          ? [[dmg, ...tag("BURN ", "SHOCK"), spd, time].join(" · "), [dmg, ...tag("B", "SHK"), spd, time].join(" · "), [dmg, time, ...tag("B", "SHK"), spd].join(" ")]
+          : undefined,
+        // the turret end, what a payload carries into the gun (DMG, BURN, SHOCK) and how it gets there (SPD,
+        // TIME), always stays in sight: on a short panel the last timeline rows give way first
         text: [
-          ...(info.connected ? [] : [["ENDS SHORT OF A TURRET INTAKE.", C.amber] as Line]),
-          `${info.tiles} TILES · ${hitCount} HIT${hitCount === 1 ? "" : "S"}${hitCount ? " IN ORDER:" : ": NO RIG WORKS THIS BELT"}`,
-          ...w.timeline.map((row) => `T${row.tile + 1}: ${row.hits.map((h) => hitLabel(h, w.locked)).join(" · ")}`),
-          [`AT THE GUN: DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? ` X${est.copies}` : ""} · SPD ${num(w.speedEnd)}X · TIME ${est.time.toFixed(1)}S`, C.yellow],
-          [`BURN ${est.burn} · ${est.shock ? "SHOCK" : "NO SHOCK"}`, est.burn || est.shock ? C.yellow : C.slate4],
+          ...head, ...rows,
+          [`AT THE GUN: DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? ` X${est.copies}` : ""} · BURN ${est.burn} · ${est.shock ? "SHOCK" : "NO SHOCK"}`, C.yellow],
+          [`SPD ${num(w.speedEnd)}X · TIME ${est.time.toFixed(1)}S TO THE GUN`, C.yellow],
         ],
+        trim: { from: head.length, to: head.length + rows.length, more: (n) => [`+${n} MORE HIT TILE${n === 1 ? "" : "S"} (NUMBERED ON THE DECK)`, C.slate4] },
         actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }],
       };
     }
@@ -329,9 +350,27 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     }
     headRight = x;
   }
-  fitHead(g, sp.title, r.x + 23, r.y + 4, headRight - (r.x + 23), sp.color, true);
-  fitHead(g, sp.sub, r.x + 23, r.y + 13, headRight - (r.x + 23), sp.subColor ?? C.slate4, false);
   let y = r.y + 25;
+  const fit = Math.max(0, Math.floor((maxY - y + 2) / lh)); // lines with y + lh - 2 <= maxY
+  fitHead(g, sp.title, r.x + 23, r.y + 4, headRight - (r.x + 23), sp.color, true);
+  // 0.6.2 BELTSIDE: a header-only panel shows `subTight` (in yellow, like the readout it stands for) instead
+  const subMax = headRight - (r.x + 23);
+  const tight = fit === 0 && !!sp.subTight?.length ? sp.subTight : null;
+  const sub = tight
+    ? (tight.find((s) => textWidth(s, "3") <= subMax) ?? tight[tight.length - 1])
+    : sp.subShort && textWidth(sp.sub, "3") > subMax ? sp.subShort : sp.sub;
+  fitHead(g, sub, r.x + 23, r.y + 13, subMax, tight ? C.yellow : sp.subColor ?? C.slate4, false);
+  if (sp.trim && lines.length > fit) {
+    // 0.6.2 BELTSIDE: drop trimmable entries from the end of their range (and say how many) until it fits
+    const { from, to, more } = sp.trim;
+    for (let cut = 1; cut <= to - from; cut++) {
+      lines = [...sp.text.slice(0, to - cut), more(cut), ...sp.text.slice(to)].flatMap((l) => {
+        const [s, c] = typeof l === "string" ? [l, C.bone] : l;
+        return wrap(s, wrapW, font).map((w): [string, string] => [w, c]);
+      });
+      if (lines.length <= fit) break;
+    }
+  }
   for (const [ln, col] of lines) {
     if (y + lh - 2 > maxY) break;
     drawText(g, ln, r.x + 5, y, col, { font });
