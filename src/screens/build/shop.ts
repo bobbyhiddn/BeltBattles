@@ -184,7 +184,8 @@ export function drawTag(g: G, x: number, y: number, merchant: MerchantId): void 
 
 export function describe(def: ItemDef): string {
   // 0.6.1b: kind "core" reads "TURRET CORE" (ARSENAL.md §8.1), distinct from gear's "TURRET GEAR"
-  const kind = def.kind === "gate" ? "GATE" : def.kind === "factory" ? "FACTORY" : def.kind === "mod" ? "TURRET GEAR" : def.kind === "core" ? "TURRET CORE" : "SUPPLY";
+  // 0.6.2 BELTSIDE: kind "gate" reads "RIG" (ref/DESIGN-beltside.md §1: the code keeps the kind)
+  const kind = def.kind === "gate" ? "RIG" : def.kind === "factory" ? "FACTORY" : def.kind === "mod" ? "TURRET GEAR" : def.kind === "core" ? "TURRET CORE" : "SUPPLY";
   return `${def.rarity.toUpperCase()} ${kind}`;
 }
 

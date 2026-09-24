@@ -3,31 +3,30 @@
 // suggested drop cell for a selected card, and an arrow at FIGHT once something is placed.
 
 import { GRID, HEROES, ITEMS } from "../../sim/content";
-import { canPlaceItem, defOf, key, kx, ky, occupancy, type Build } from "../../sim/deck";
+import { canPlaceItem, defOf, isRig, kx, ky, rigArrows, type Build } from "../../sim/deck";
+import { beltIndex, bestSpot, hitsIfPlaced } from "../../sim/beltside";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { bevel, frame, rect, type G } from "../../render/pixel";
-import { footX, footY } from "../../render/frame";
-import { factorySprite, gateSprite, itemIcon } from "../../render/sprites";
+import { drawText } from "../../render/font";
+import { footX, footY, sdir } from "../../render/frame";
+import { factorySprite, gateSprite, itemIcon, rigNozzle, rigTip, type ArrowState } from "../../render/sprites";
 import { arrowDir } from "../../render/fxsprites";
 import { turretPivotX, turretPivotY } from "../../render/cruiser";
 import { inside, type Rect } from "../../ui/ui";
 import { dropCell, type Carry } from "./actions";
 import type { BuildLayout } from "./layout";
 
-type Cell = { x: number; y: number };
+/** A deck cell; for a rig, with the rotation it would take there. */
+type Cell = { x: number; y: number; rot?: number };
 
-/** Best cell to suggest for a card: a free belt tile mid-route for gates, free space for factories. */
+/** Best cell to suggest for a card: 0.6.2 BELTSIDE: for a rig, the free cell beside a belt and the rotation
+ *  that land the most arrows on belts (H2, beltside.ts bestSpot), else any free cell; free space for factories. */
 export function suggestCell(b: Build, defId: string): Cell | null {
   const def = ITEMS[defId];
   if (def.kind === "gate") {
-    const occ = occupancy(b);
-    for (const r of b.routes) {
-      for (let i = Math.floor(r.cells.length / 2); i < r.cells.length + Math.floor(r.cells.length / 2); i++) {
-        const k = r.cells[i % r.cells.length];
-        if (occ[k].item < 0) return { x: kx(k), y: ky(k) };
-      }
-    }
-    for (let k = 0; k < GRID * GRID; k++) if (canPlaceItem(b, defId, kx(k), ky(k)).ok) return { x: kx(k), y: ky(k) };
+    const s = bestSpot(b, defId);
+    if (s) return { x: s.x, y: s.y, rot: s.rot };
+    for (let k = 0; k < GRID * GRID; k++) if (canPlaceItem(b, defId, kx(k), ky(k)).ok) return { x: kx(k), y: ky(k), rot: 0 };
     return null;
   }
   if (def.kind === "factory") {
@@ -41,11 +40,33 @@ function ghostSprite(defId: string, t: number): HTMLCanvasElement {
   return d.kind === "factory" ? factorySprite(d.id, Math.floor(t * 6), false) : gateSprite(d.id, 0, false);
 }
 
-/** Ghost of an item at a deck cell with a bracket: lime = works here, amber = inert, red = refused. */
+/**
+ * 0.6.2 BELTSIDE (B1): a rig's arrows as they would stand at `cell` at rotation `rot`: for every arrow that
+ * would work a belt tile, a bright nozzle and arrowhead, and that tile shaded and pulsing; a dim nozzle for
+ * every idle arrow. Returns the number of hits.
+ */
+export function drawRigPreview(g: G, L: BuildLayout, b: Build, defId: string, cell: Cell, rot: number, t: number): number {
+  const f = L.frame;
+  const hits = hitsIfPlaced(b, defId, cell.x, cell.y, rot, beltIndex(b));
+  const pulse = Math.floor(t * 6) % 2 === 1;
+  for (const h of hits) {
+    const tx = Math.round(footX(f, kx(h.cell), ky(h.cell))), ty = Math.round(footY(f, kx(h.cell), ky(h.cell)));
+    g.globalAlpha = 0.3;
+    rect(g, tx, ty, 12, 12, C.yellow);
+    g.globalAlpha = 1;
+    frame(g, tx, ty, 12, 12, pulse ? C.yellow : C.fire4);
+    g.drawImage(rigTip(sdir(f, h.dir), 1), tx, ty);
+  }
+  const x = Math.round(footX(f, cell.x, cell.y)), y = Math.round(footY(f, cell.x, cell.y));
+  for (const d of rigArrows(defId, rot)) g.drawImage(rigNozzle(sdir(f, d), hits.some((h) => h.dir === d) ? 1 : 0), x, y);
+  return hits.length;
+}
+
+/** Ghost of an item at a deck cell with a bracket: lime = works here, amber = inert (a rig: IDLE, no arrow
+ *  reaches a belt), red = refused. A rig shows its arrows at `cell.rot` (drawRigPreview). */
 export function drawGhostAt(g: G, L: BuildLayout, b: Build, defId: string, cell: Cell, ignoreUid: number, t: number, alpha = 0.75, lift = 0): boolean {
   const d = ITEMS[defId];
   const ok = canPlaceItem(b, defId, cell.x, cell.y, ignoreUid).ok;
-  const belt = d.kind !== "gate" || occupancy(b)[key(cell.x, cell.y)].route >= 0;
   const x = Math.round(footX(L.frame, cell.x, cell.y, d.size)), y = Math.round(footY(L.frame, cell.x, cell.y, d.size));
   const s = d.size * 12;
   if (lift > 0) {
@@ -57,8 +78,9 @@ export function drawGhostAt(g: G, L: BuildLayout, b: Build, defId: string, cell:
   g.globalAlpha = alpha;
   g.drawImage(ghostSprite(defId, t), x, y - lift);
   g.globalAlpha = 1;
+  const works = !isRig(defId) || (ok && drawRigPreview(g, L, b, defId, cell, cell.rot ?? 0, t) > 0);
   const blink = Math.floor(t * 8) % 2 === 1;
-  const col = !ok ? (blink ? C.red : C.maroon) : belt ? C.lime : C.amber;
+  const col = !ok ? (blink ? C.red : C.maroon) : works ? C.lime : C.amber;
   frame(g, x - 1, y - 1, s + 2, s + 2, col);
   // corner ticks make the snap read as a bracket
   rect(g, x - 2, y - 2, 3, 1, col); rect(g, x - 2, y - 2, 1, 3, col);
@@ -70,9 +92,32 @@ export function drawGhostAt(g: G, L: BuildLayout, b: Build, defId: string, cell:
 export const LIFT_W = 28;
 export const LIFT_H = 30;
 
+/** 0.6.2 BELTSIDE: a rig's arrows on the lifted tile (screen dirs and looks) and the label above it. */
+interface LiftedArrows {
+  dirs: number[];
+  states: ArrowState[];
+  label: string;
+  color: string;
+}
+
+/** The arrows a lifted rig shows for `cell` (or, off the deck, all dim at its rotation): "2 HITS", "IDLE" or
+ *  why the cell is refused. */
+function liftedArrows(L: BuildLayout, b: Build, c: Carry, cell: Cell | null): LiftedArrows {
+  const rot = cell?.rot ?? c.rot ?? 0;
+  const dirs = rigArrows(c.def, rot);
+  const chk = cell ? canPlaceItem(b, c.def, cell.x, cell.y, c.src.from === "deck" ? c.uid : -1) : null;
+  const hits = cell && chk?.ok ? hitsIfPlaced(b, c.def, cell.x, cell.y, rot, beltIndex(b)) : [];
+  const states = dirs.map((d): ArrowState => (hits.some((h) => h.dir === d) ? 1 : 0));
+  const sd = dirs.map((d) => sdir(L.frame, d));
+  if (!cell) return { dirs: sd, states, label: "", color: C.slate4 };
+  if (!chk?.ok) return { dirs: sd, states, label: chk?.reason ?? "", color: C.red };
+  return hits.length ? { dirs: sd, states, label: `${hits.length} HIT${hits.length > 1 ? "S" : ""}`, color: C.lime } : { dirs: sd, states, label: "IDLE", color: C.amber };
+}
+
 /** The picked-up item at 2x: a bolted tile (1 px ink outline, bevel, rarity strip) with the
- *  icon doubled, hovering `lift` px above the contact point (x, y), which gets an ink shadow. */
-export function drawLifted(g: G, defId: string, x: number, y: number, lift: number, alpha = 1): void {
+ *  icon doubled, hovering `lift` px above the contact point (x, y), which gets an ink shadow.
+ *  0.6.2 BELTSIDE: a rig shows its arrows at 2x on the tile, and its hits (or IDLE) above it. */
+export function drawLifted(g: G, defId: string, x: number, y: number, lift: number, alpha = 1, arrows?: LiftedArrows): void {
   const ix = Math.round(x - LIFT_W / 2), iy = Math.round(y - lift - LIFT_H);
   // contact shadow on the ground under the item (tighter and darker than the tile)
   g.globalAlpha = 0.5 * alpha;
@@ -83,21 +128,30 @@ export function drawLifted(g: G, defId: string, x: number, y: number, lift: numb
   rect(g, ix + 2, iy + LIFT_H - 4, LIFT_W - 4, 2, RARITY_COLOR[ITEMS[defId].rarity] ?? C.slate3);
   const icon = itemIcon(defId);
   g.drawImage(icon, 0, 0, icon.width, icon.height, ix + 2, iy + 2, icon.width * 2, icon.height * 2);
+  if (arrows) {
+    arrows.dirs.forEach((d, k) => g.drawImage(rigNozzle(d, arrows.states[k]), 0, 0, 12, 12, ix + 2, iy + 2, 24, 24));
+    if (arrows.label) drawText(g, arrows.label, x, iy - 7, arrows.color, { font: "3", align: "center", outline: C.ink });
+  }
   g.globalAlpha = 1;
 }
 
 /** Carried item: the 2x lifted tile above the pointer; over the deck it hovers above the snap
- *  cell, which keeps its bracket and a faint 1x ghost of the exact footprint. */
+ *  cell, which keeps its bracket and a faint 1x ghost of the exact footprint. 0.6.2 BELTSIDE (B1): a
+ *  carried rig shows its arrows at the snap cell (drawRigPreview) at the rotation the editor aims it to,
+ *  and hovers one cell higher, so the tile its forward arrow would work stays in sight. */
 export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, py: number, t: number, turretAt: (x: number, y: number) => number): void {
   const def = ITEMS[c.def];
   const bob = Math.floor(t * 4) % 2;
   const lift = Math.min(8, Math.round(3 + 30 * Math.min(0.15, t)));
+  const rig = isRig(c.def);
   if ((def.kind === "gate" || def.kind === "factory") && inside(L.hull, px, py)) {
     const cell = dropCell(L, px, py, def.size);
     if (cell) {
-      drawGhostAt(g, L, b, c.def, cell, c.src.from === "deck" ? c.uid : -1, t, 0.55);
+      const at: Cell = rig ? { ...cell, rot: c.rot ?? 0 } : cell;
+      drawGhostAt(g, L, b, c.def, at, c.src.from === "deck" ? c.uid : -1, t, 0.55);
       const half = (def.size * 12) / 2;
-      drawLifted(g, c.def, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half, half + 4 + bob);
+      drawLifted(g, c.def, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half,
+        half + 4 + bob + (rig ? 12 : 0), 1, rig ? liftedArrows(L, b, c, at) : undefined);
       return;
     }
   }
@@ -113,7 +167,7 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
   }
   if (def.kind === "supply" && inside(L.hull, px, py)) frame(g, L.hull.x - 2, L.hull.y - 2, L.hull.w + 4, L.hull.h + 4, C.lime);
   // lifted: the 2x tile above the pointer, contact shadow under the pointer
-  drawLifted(g, c.def, px, py, 4 + lift + bob);
+  drawLifted(g, c.def, px, py, 4 + lift + bob, 1, rig ? liftedArrows(L, b, c, null) : undefined);
 }
 
 /** Ghost preview + bouncing arrow at the suggested cell for the selected card / cargo item. */
@@ -138,9 +192,12 @@ export function drawSuggestion(g: G, L: BuildLayout, b: Build, defId: string, t:
   if (!cell) return;
   const pulse = 0.35 + 0.25 * Math.sin(t * 6);
   drawGhostAt(g, L, b, defId, cell, -1, t, pulse);
-  // the selected item is "picked up": the same 2x lifted tile bobs over the suggested cell
+  // the selected item is "picked up": the same 2x lifted tile bobs over the suggested cell (0.6.2: a rig with
+  // its arrows, one cell higher)
   const half = (def.size * 12) / 2;
-  drawLifted(g, defId, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half, half + 4 + hoverBob(t), 0.92);
+  const rig = isRig(defId);
+  drawLifted(g, defId, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half,
+    half + 4 + hoverBob(t) + (rig ? 12 : 0), 0.92, rig ? liftedArrows(L, b, { src: { from: "cell", k: -1 }, def: defId, uid: -1, rot: cell.rot }, cell) : undefined);
 }
 
 /** 0-3 px bob of a hovering tile (it dips toward its drop point). */

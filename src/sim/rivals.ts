@@ -86,14 +86,14 @@ export const RIVALS: Record<RivalId, RivalDef> = {
   silkshade: rival("silkshade", "SILKSHADE", "weaver", 3, "regular", "STATIC WEB",
     "A COIL ON EVERY BELT. SHOCK AFTER SHOCK.",
     ["plum2", "verd3", "cyan", "ink"], "hooded face behind a crackling web"),
-  longtooth: rival("longtooth", "LONGTOOTH", "furnace", 3, "regular", "GATE CHAIN",
-    "SIX GATES, THEN A LONG HAUL. HUGE SLUGS.",
+  longtooth: rival("longtooth", "LONGTOOTH", "furnace", 3, "regular", "RIG CHAIN",
+    "SIX RIGS, THEN A LONG HAUL. HUGE SLUGS.",
     ["rust3", "bone", "amber", "soil2"], "one long tusk hung with gate tags"),
   highspire: rival("highspire", "HIGHSPIRE", "weaver", 3, "regular", "TRIPLE THREAT",
     "BURN LEFT, SPLIT CENTRE, HAUL RIGHT.",
     ["verd2", "brass3", "white", "blue"], "tall spire helm flying three pennants"),
   matriarch: rival("matriarch", "IRON MATRIARCH", "furnace", 3, "boss", "GRAND FOUNDRY",
-    "KILN AND PRESS, EVERY GATE, HEAVY ARMOR.",
+    "KILN AND PRESS, EVERY RIG, HEAVY ARMOR.",
     ["rust1", "fire2", "brass4", "ink"], "crown of kiln chimneys venting fire"),
 };
 

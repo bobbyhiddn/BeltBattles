@@ -6,7 +6,7 @@
 // any run mutation no two fusible copies share a def and a star level below FUSE_MAX.
 
 import { ITEMS } from "../sim/content";
-import { coreFor, removeItem, routesOf } from "../sim/deck";
+import { coreFor, removeItem, rotField, routesOf } from "../sim/deck";
 import { FUSE_MAX, fusible, starField, starsOf } from "../sim/stars";
 import type { Run } from "./run";
 
@@ -22,9 +22,10 @@ export interface FuseStep {
   belts?: number; // belts removed with an absorbed factory (their tiles go back to belt capacity)
 }
 
-/** Where a gained copy goes: cargo (absent), a deck cell (caller checked canPlaceItem) or a turret: its
- *  hardpoint for gear, its core socket for a turret core (0.6.1b). */
-export type GainAt = { x: number; y: number } | { turret: number };
+/** Where a gained copy goes: cargo (absent), a deck cell (caller checked canPlaceItem; 0.6.2 BELTSIDE: a rig
+ *  takes `rot`, the drag preview's rotation) or a turret: its hardpoint for gear, its core socket for a turret
+ *  core (0.6.1b). */
+export type GainAt = { x: number; y: number; rot?: number } | { turret: number };
 
 /** What gainModule did: the new copy's uid, the merges, and where the module ended up. */
 export interface Gain {
@@ -151,7 +152,7 @@ export function gainModule(run: Run, def: string, at?: GainAt): Gain {
   const uid = run.nextUid++;
   if (at && "turret" in at && ITEMS[def]?.kind === "core") freeSocket(run, at.turret);
   if (at && "turret" in at) run.build.mods.push({ uid, def, turret: at.turret });
-  else if (at) run.build.items.push({ uid, def, x: at.x, y: at.y });
+  else if (at) run.build.items.push({ uid, def, x: at.x, y: at.y, ...rotField(def, at.rot ?? 0) }); // rot: rigs only, never 0
   else run.inventory.push({ uid, def });
   const steps = fuseFrom(run, uid);
   const fin = find(run, steps.length ? steps[steps.length - 1].survivor : uid)!;

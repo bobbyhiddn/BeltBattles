@@ -2,17 +2,17 @@
 // belt to reroute it, hold a factory to lift it. Tap: select; with a card or cargo item
 // selected, a tap on the deck places it there (touch parity with drag and drop).
 
-import { GRID } from "../../sim/content";
+import { GRID, rigShape } from "../../sim/content";
 import {
-  adjacentToFactory, canExtend, commitRoute, connectorFree, defOf, inGrid, isFreeConnectorEnd,
-  itemByUid, key, kx, ky, manhattanSteps, occupancy, routeInfo, routesOf,
+  adjacentToFactory, canExtend, commitRoute, connectorFree, defOf, inGrid, isFreeConnectorEnd, isRig,
+  itemByUid, key, kx, ky, manhattanSteps, occupancy, rotOf, routeInfo, routesOf,
 } from "../../sim/deck";
 import { HEROES, ITEMS } from "../../sim/content";
 import { outputsAt, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
-import { drop, type Carry, type Ctx, type Src } from "./actions";
+import { drop, dropCell, rigRotAt, rotate, type Carry, type Ctx, type Src } from "./actions";
 import type { Sel } from "./layout";
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 
@@ -110,6 +110,27 @@ export class Editor {
       this.begin(p.src);
     }
     if (this.draw) this.extendTo(x, y);
+    this.aim();
+  }
+
+  /** 0.6.2 BELTSIDE (B1): a carried rig's preview aims itself at the hovered cell (unless turned by hand). */
+  private aim(): void {
+    const c = this.carry;
+    if (!c || c.manual || !isRig(c.def) || !inside(this.h.L.hull, this.px, this.py)) return;
+    const cell = dropCell(this.h.L, this.px, this.py, 1);
+    if (cell) c.rot = rigRotAt(this.h.run.build, c, cell);
+  }
+
+  /** 0.6.2 BELTSIDE (B2): R while carrying a rig turns its preview a quarter turn clockwise, by hand from then on. */
+  rotateCarry(): boolean {
+    const c = this.carry;
+    if (!c || !isRig(c.def)) return false;
+    if (rigShape(c.def) !== "X") {
+      c.rot = ((c.rot ?? 0) + 1) % 4;
+      c.manual = true;
+      this.h.game.audio.play("belt");
+    }
+    return true;
   }
 
   up(x: number, y: number): void {
@@ -172,7 +193,12 @@ export class Editor {
       case "cargo":
         if (cur.kind === "cargo" && cur.uid === src.uid) return s({ kind: "none" });
         return s({ kind: "cargo", uid: src.uid });
-      case "deck":
+      case "deck": {
+        // 0.6.2 BELTSIDE (B2): a tap turns a placed rig a quarter turn clockwise, and selects it (its hits show)
+        const p = itemByUid(h.run.build, src.uid);
+        if (p && isRig(p.def)) rotate(h, p.uid);
+        return s({ kind: "item", uid: src.uid });
+      }
       case "factory": return s({ kind: "item", uid: src.uid });
       case "route": return s({ kind: "route", index: src.index });
       case "turret": return s({ kind: "turret", index: src.index });
@@ -199,7 +225,7 @@ export class Editor {
       }
       case "deck": {
         const p = itemByUid(b, src.uid);
-        if (p) this.lift({ src, def: p.def, uid: p.uid });
+        if (p) this.lift({ src, def: p.def, uid: p.uid, ...(isRig(p.def) ? { rot: rotOf(p) } : {}) }); // 0.6.2: a rig keeps its aim
         return;
       }
       case "turret": {

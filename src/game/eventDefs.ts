@@ -87,7 +87,7 @@ export function tradeGood(run: Run): Good | null {
 export const EVENTS: Record<EventId, EventDef> = {
   wreck: {
     id: "wreck", title: "WRECKED RAIDER", kind: "SALVAGE",
-    text: ["A RAIDER'S CRUISER SMOKES IN THE DUST.", "ONE OF ITS GATES STILL HUMS."],
+    text: ["A RAIDER'S CRUISER SMOKES IN THE DUST.", "ONE OF ITS RIGS STILL HUMS."],
     choices: (_run, ev) => [
       { label: "SALVAGE", cost: [], gain: [{ k: "item", def: at(SALVAGE, ev.pick) }] },
       { label: "SCRAP IT", cost: [], gain: [gold(4)] },
@@ -175,7 +175,7 @@ export const EVENTS: Record<EventId, EventDef> = {
   },
   smuggler: {
     id: "smuggler", title: "AMMO SMUGGLER", kind: "SMUGGLER",
-    text: ["A SMUGGLER SELLS HOT GATES FROM", "UNDER A TARP. NO QUESTIONS ASKED."],
+    text: ["A SMUGGLER SELLS HOT RIGS FROM", "UNDER A TARP. NO QUESTIONS ASKED."],
     choices: () => [
       { label: "BURN", cost: [gold(2)], gain: [{ k: "item", def: "temper" }] },
       { label: "SHOCK", cost: [gold(3)], gain: [{ k: "item", def: "coil" }] },

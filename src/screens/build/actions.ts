@@ -3,12 +3,13 @@
 
 import type { Game } from "../../game/game";
 import {
-  buyOffer, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
+  buyOffer, rotateRig, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
 } from "../../game/run";
 import { CELL, GRID, ITEMS, sellValue } from "../../sim/content";
 import { starField, starsOf } from "../../sim/stars";
 import { mergePreview, type Gain, type GainAt } from "../../game/fuse";
-import { canPlaceItem, key, moveItem, occupancy, placeItem, removeRoute } from "../../sim/deck";
+import { canPlaceItem, isRig, key, moveItem, occupancy, placeItem, removeRoute, rotField, setRot } from "../../sim/deck";
+import { bestRot } from "../../sim/beltside"; // 0.6.2 BELTSIDE: the preview's auto-aim
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { fitCore } from "../../game/run"; // 0.6.1b
 import type { Fx } from "../../render/fx";
@@ -45,6 +46,34 @@ export interface Carry {
   src: Src;
   def: string;
   uid: number; // -1 while still on a card
+  // 0.6.2 BELTSIDE (B1, B2): a rig's rotation as previewed; the preview aims itself at the hovered cell (the
+  // rotation with the most hits, ties keep this one) until R turns it by hand (`manual`)
+  rot?: number;
+  manual?: boolean;
+}
+
+/**
+ * 0.6.2 BELTSIDE: the rotation a carried rig takes at a deck cell: the one turned by hand, else the one that
+ * lands the most arrows on belts there (H2's greedy rule, beltside.ts bestRot), ties keeping the carried
+ * rotation. The drag preview and the drop both read this, so what the player sees is what lands.
+ */
+export function rigRotAt(b: Run["build"], c: Pick<Carry, "def" | "rot" | "manual">, cell: { x: number; y: number }): number {
+  if (c.manual) return c.rot ?? 0;
+  return bestRot(b, c.def, cell.x, cell.y, c.rot ?? 0).rot;
+}
+
+/** 0.6.2 BELTSIDE (B2): tap, ROTATE or R: a placed rig turns a quarter turn clockwise (an X rig faces every side). */
+export function rotate(ctx: Ctx, uid: number): void {
+  const p = ctx.run.build.items.find((q) => q.uid === uid);
+  if (!p || !isRig(p.def)) return;
+  if (!rotateRig(ctx.run, uid)) {
+    ctx.game.toast("AN X RIG FACES EVERY SIDE", C.slate4);
+    return;
+  }
+  ctx.game.audio.play("belt");
+  ctx.touched();
+  const f = ctx.L.frame;
+  ctx.wfx.ring(footX(f, p.x, p.y) + CELL / 2, footY(f, p.x, p.y) + CELL / 2, 7, C.yellow);
 }
 
 /** Buy a wagon offer. Supplies are consumed on the spot; returns the cargo item when the bought
@@ -240,18 +269,22 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
     ctx.invalid(chk.reason ?? "CAN'T PLACE THAT");
     return false;
   }
+  // 0.6.2 BELTSIDE: a rig lands at the rotation its preview showed (B1)
+  const rot = isRig(c.def) ? rigRotAt(b, c, cell) : 0;
   let uid = c.uid;
   if (src.from === "offer") {
-    const r = buy(ctx, src.wagon, src.slot, { x: cell.x, y: cell.y }); // placed first; a cargo twin merges into it
+    const r = buy(ctx, src.wagon, src.slot, { x: cell.x, y: cell.y, rot }); // placed first; a cargo twin merges into it
     if (!r.ok || !r.gain) return false;
     uid = r.gain.survivor;
   } else if (src.from === "cargo") {
     const it = takeFromInventory(run, c.uid);
     if (!it) return false;
-    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y, ...starField(starsOf(it)) }); // moving never fuses
+    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y, ...starField(starsOf(it)), ...rotField(c.def, rot) }); // moving never fuses
   } else if (src.from === "deck") {
     const r = moveItem(b, uid, cell.x, cell.y);
     if (r.dropped) ctx.game.toast(`${r.dropped} BELT${r.dropped > 1 ? "S" : ""} CUT LOOSE`, C.yellow);
+    const p = b.items.find((q) => q.uid === uid);
+    if (p && isRig(p.def)) setRot(p, rot);
   }
   const f = L.frame;
   const px = footX(f, cell.x, cell.y, def.size) + (def.size * CELL) / 2;

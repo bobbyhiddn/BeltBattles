@@ -11,12 +11,13 @@ import type { FuseStep } from "../../game/fuse";
 import { ForkScreen } from "../fork/fork";
 import { EVENTS } from "../../game/eventDefs";
 import { HEROES, ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
-import { connectedRouteCount, defOf, itemByUid, kx, ky } from "../../sim/deck";
+import { connectedRouteCount, defOf, hitsOfRig, isRig, itemByUid, kx, ky, rigHits, walkRoute } from "../../sim/deck";
 import { NOWHERE, fightBlock, routeCheck } from "../../game/routeCheck";
 import { settings } from "../../core/settings";
 import { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
+import { drawText } from "../../render/font";
 import { footX, footY } from "../../render/frame";
 import { itemIcon } from "../../render/sprites";
 import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type CruiserModel, type CruiserView } from "../../render/cruiser";
@@ -25,7 +26,7 @@ import { ArenaBg } from "../../render/arenaBg";
 import { inside, type Rect } from "../../ui/ui";
 import { Editor, type EditHost } from "./edit";
 import { buildLayout, buildScale, Caravan, type BuildLayout, type Sel } from "./layout";
-import { deleteRoute, sell, store } from "./actions";
+import { deleteRoute, rotate, sell, store } from "./actions";
 import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
 import { BattleScreen } from "../battle";
@@ -314,8 +315,19 @@ export class BuildScreen implements Screen, EditHost {
       if (!p || this.ed.carry) return;
       const size = defOf(p).size;
       frame(g, Math.round(footX(L.frame, p.x, p.y, size)) - 1, Math.round(footY(L.frame, p.x, p.y, size)) - 1, size * 12 + 2, size * 12 + 2, col);
+      // 0.6.2 BELTSIDE (V4): the belt tiles the selected rig works
+      if (isRig(p.def)) {
+        for (const h of hitsOfRig(b, p.uid, rigHits(b))) {
+          frame(g, Math.round(footX(L.frame, kx(h.cell), ky(h.cell))), Math.round(footY(L.frame, kx(h.cell), ky(h.cell))), 12, 12, C.yellow);
+        }
+      }
     } else if (s.kind === "route" && b.routes[s.index] && !this.ed.draw) {
       for (const k of b.routes[s.index].cells) frame(g, Math.round(footX(L.frame, kx(k), ky(k))), Math.round(footY(L.frame, kx(k), ky(k))), 12, 12, col);
+      // 0.6.2 BELTSIDE (V4): every tile with hits carries its number in the inspector's timeline (T1, T2, ...)
+      for (const row of walkRoute(b, s.index).timeline) {
+        const x = Math.round(footX(L.frame, kx(row.cell), ky(row.cell))), y = Math.round(footY(L.frame, kx(row.cell), ky(row.cell)));
+        drawText(g, String(row.tile + 1), x + 2, y + 2, C.yellow, { font: "3", outline: C.ink });
+      }
     } else if (s.kind === "turret") {
       const r = this.turretRect(s.index);
       frame(g, r.x, r.y, r.w, r.h, col);
@@ -507,7 +519,14 @@ export class BuildScreen implements Screen, EditHost {
       else this.sel = { kind: "none" };
     } else if (this.menu) return;
     else if (k === "f" || k === "F" || k === "Enter") this.fight();
-    else if (k === "r" || k === "R") this.doReroll();
+    else if (k === "r" || k === "R") {
+      // 0.6.2 BELTSIDE (B2): R turns the carried rig, else the selected placed rig; with no rig in hand, rerolls
+      if (this.ed.rotateCarry()) return;
+      const s = this.sel;
+      const p = s.kind === "item" ? itemByUid(this.run.build, s.uid) : undefined;
+      if (p && isRig(p.def)) rotate(this, p.uid);
+      else this.doReroll();
+    }
     else if (k === "Delete" || k === "Backspace") {
       const s = this.sel;
       if (s.kind === "cargo") sell(this, s.uid);

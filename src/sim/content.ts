@@ -182,19 +182,19 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   grease: {
     id: "grease", name: "GREASE WORKS", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
-    desc: ["BELTS AFTER THIS", "RUN 1.6X FASTER.", "LATER SPEED WINS."],
+    desc: ["BELT RUNS 1.6X FROM", "THE TILE IT HITS ON.", "LATER SPEED WINS."],
     gate: { speed: 1.6 },
     levels: { 2: { gate: { speed: 2.3 } }, 3: { gate: { speed: 3.1 } } },
   },
   brake: {
     id: "brake", name: "BRAKE SHOE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
-    desc: ["BELTS AFTER THIS", "RUN AT HALF SPEED.", "MORE TIME TO COOK."],
+    desc: ["BELT RUNS AT HALF", "SPEED FROM THE TILE", "IT HITS. SLOW COOK."],
     gate: { speed: 0.5 },
     levels: { 2: { gate: { speed: 0.31 } }, 3: { gate: { speed: 0.22 } } },
   },
   longhaul: {
     id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker", shape: "II",
-    desc: ["+2 DAMAGE FOR EACH", "GATE THE PAYLOAD", "ALREADY PASSED."],
+    desc: ["+2 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."],
     gate: { perPriorGate: 2 },
     levels: {
       2: { gate: { perPriorGate: 4 }, pending: { priorCap: 6 } },
@@ -222,7 +222,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   overdrive: {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker", shape: "X",
-    desc: ["BELTS AFTER THIS", "RUN 3X FASTER.", "LEGENDARY TEMPO."],
+    desc: ["4 ARROWS: EACH BELT", "IT HITS RUNS 3X", "FROM THAT TILE ON."],
     gate: { speed: 3 },
     levels: {
       2: { gate: { speed: 4 }, perk: "REDLINE" },

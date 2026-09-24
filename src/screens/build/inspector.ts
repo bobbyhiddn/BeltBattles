@@ -4,8 +4,11 @@
 
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
-import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES } from "../../sim/content";
-import { beltUsed, connectedRouteCount, defOf, estimateRoute, gearFor, itemByUid, key, routeInfo, routesOf } from "../../sim/deck";
+import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, rigShape } from "../../sim/content";
+import {
+  arrowsOf, beltUsed, connectedRouteCount, defOf, gearFor, hitsOfRig, itemByUid, routeInfo, routesOf, walkRoute,
+  type TimelineHit,
+} from "../../sim/deck";
 import { resolveCore, type TurretCore } from "../../sim/cores"; // 0.6.1b
 import { C, RARITY_COLOR } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
@@ -13,7 +16,7 @@ import { drawText, textWidth, wrap } from "../../render/font";
 import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
-import { buy, deleteRoute, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
+import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
 import { effectAt, FUSE_MAX, fusible, perkAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
 
@@ -27,7 +30,7 @@ function starEffectLine(def: string, stars: number): string {
   const e = effectAt(def, stars);
   if (e.gate?.burn) return `+${e.gate.burn} BURN`;
   if (e.gate?.flat) return `+${e.gate.flat} FLAT`;
-  if (e.gate?.perPriorGate) return `+${e.gate.perPriorGate}/GATE`;
+  if (e.gate?.perPriorGate) return `+${e.gate.perPriorGate}/HIT`;
   if (e.gate?.split) return `${e.gate.split.copies}X ${Math.round(e.gate.split.mult * 100)}%`;
   if (e.gate?.speed) return `SPEED X${e.gate.speed}`;
   if (e.factory) return `EVERY ${e.factory.interval}S`;
@@ -77,13 +80,39 @@ interface Action {
   onTap: () => void;
 }
 
+/** A line of the panel's text: plain (bone), or [text, colour] (0.6.2: warnings and the turret-end readout). */
+type Line = string | [string, string];
+
 interface Spec {
   icon: HTMLCanvasElement | null;
   title: string;
   color: string;
   sub: string;
-  text: string[];
+  subColor?: string; // 0.6.2 BELTSIDE: an IDLE rig's sub line warns
+  text: Line[];
   actions?: Action[]; // 0.6.1b: was a single `action`; the turret case needs REMOVE CORE and REMOVE GEAR
+}
+
+/** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo. */
+function placeHint(kind: string, drag: boolean): string {
+  const how = kind === "mod" || kind === "core" ? "TAP A TURRET TO FIT IT"
+    : kind === "gate" ? "TAP A CELL BESIDE A BELT: ITS ARROWS WORK THE BELT TILES THEY POINT AT"
+    : "TAP THE DECK TO PLACE IT";
+  return drag ? `${how}, OR DRAG IT THERE.` : `${how}.`;
+}
+
+const num = (x: number): string => String(+x.toFixed(2));
+
+/** 0.6.2 BELTSIDE (V4): one hit in a belt's timeline: the rig and what it did there (walkRoute). */
+function hitLabel(h: TimelineHit, locked: boolean): string {
+  const name = ITEMS[h.def].name;
+  if (h.split) return `${name} X${h.split.copies} AT ${Math.round(h.split.mult * 100)}%`;
+  if (h.prior !== undefined) return `${name} +${num(h.flat ?? 0)} (${h.prior} HIT${h.prior === 1 ? "" : "S"} BEFORE)`;
+  if (h.flat) return `${name} +${num(h.flat)}`;
+  if (h.burn) return `${name} BURN +${h.burn}`;
+  if (h.shock) return `${name} SHOCK`;
+  if (h.speed !== undefined) return `${name} ${num(h.speed)}X${locked ? " (LOCKED)" : h.won ? "" : " (BEATEN)"}`;
+  return name;
 }
 
 /** 0.6.1b: the core's firing summary rescaled by k ("3 PELLETS x 40%"), or "" for the identity routine
@@ -112,7 +141,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const d = ITEMS[o.def];
       const can = !o.sold && run.gold >= o.price;
       const merging = !o.sold && shopBadge(run, o.def)?.kind === "merge";
-      const hint = d.kind === "mod" || d.kind === "core" ? "TAP A TURRET OR DRAG IT THERE." : d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : "TAP A BELT TILE OR DRAG IT ON.";
+      const hint = d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true);
       const mLine = merging ? mergeLine(run, o.def) : null;
       return {
         icon: itemIcon(d.id), title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[show.wagon].merchant].name}`,
@@ -134,7 +163,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const next = nextLine(run, it.def, stars);
       return {
         icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
-        text: [...d.desc, ...(next ? [next] : []), d.kind === "mod" || d.kind === "core" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
+        text: [...d.desc, ...(next ? [next] : []), placeHint(d.kind, false)],
         actions: [{ id: "sell", label: `SELL +${sellPrice(d.id, stars)}G`, onTap: () => sell(ctx, it.uid) }],
       };
     }
@@ -143,27 +172,52 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       if (!p) return null;
       const d = defOf(p);
       const stars = starsOf(p);
-      const sub = d.kind === "factory" ? `FACTORY · BELTS ${routesOf(b, p.uid).length}/${d.factory?.outputs ?? 1}` : b.routes.some((q) => q.cells.includes(key(p.x, p.y))) ? "GATE · ON A BELT" : "GATE · NOT ON A BELT!";
       const sig = d.id === "kiln" || d.id === "loom";
       const next = sig ? null : nextLine(run, d.id, stars);
+      if (d.kind === "gate") {
+        // 0.6.2 BELTSIDE (V4): a rig's hits, or IDLE when none of its arrows lands on a belt
+        const hits = hitsOfRig(b, p.uid);
+        const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
+        const idle = hits.length === 0;
+        return {
+          icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+          sub: idle ? "RIG · IDLE" : `RIG · ${new Set(hits.map((h) => h.dir)).size}/${arrows} ARROWS ON BELTS`,
+          subColor: idle ? C.amber : undefined,
+          // the lines that matter most first: a short panel drops the last ones
+          text: [
+            ...(idle ? [["IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.", C.amber] as Line] : hits.map((h) => `→ BELT ${h.route + 1} · TILE ${h.tile + 1}`)),
+            x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE.",
+            ...d.desc, ...(next ? [next] : []),
+          ],
+          actions: [
+            ...(x ? [] : [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }]),
+            { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) },
+          ],
+        };
+      }
       return {
-        icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub,
-        text: [...d.desc, ...(next ? [next] : []), d.kind === "factory" ? "DRAG OUT OF IT TO LAY BELT." : "DRAG TO MOVE IT."],
+        icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+        sub: `FACTORY · BELTS ${routesOf(b, p.uid).length}/${d.factory?.outputs ?? 1}`,
+        text: [...d.desc, ...(next ? [next] : []), "DRAG OUT OF IT TO LAY BELT."],
         actions: sig ? [] : [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }],
       };
     }
     case "route": {
       if (!b.routes[show.index]) return null;
       const info = routeInfo(b, show.index);
-      const est = estimateRoute(b, show.index);
-      const fx = [est.burn ? `BURN ${est.burn}` : "", est.shock ? "SHOCK" : ""].filter(Boolean).join(" · ");
+      // 0.6.2 BELTSIDE (V4): the tile-by-tile timeline in R7 order, then the turret-end readout, from one walk
+      const w = walkRoute(b, show.index);
+      const est = w.estimate;
+      const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
       return {
         icon: beltIcon(), title: "BELT ROUTE", color: C.white, sub: info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED",
         text: [
-          info.connected ? "" : "ENDS SHORT OF A TURRET INTAKE.",
-          `${info.tiles} TILES · ${info.gates.length} GATES · ${est.time.toFixed(1)}S TO THE GUN`,
-          `DAMAGE ${est.dmg.toFixed(1)}${est.copies > 1 ? ` X${est.copies}` : ""}${fx ? ` · ${fx}` : ""}`,
-        ].filter(Boolean),
+          ...(info.connected ? [] : [["ENDS SHORT OF A TURRET INTAKE.", C.amber] as Line]),
+          `${info.tiles} TILES · ${hitCount} HIT${hitCount === 1 ? "" : "S"}${hitCount ? " IN ORDER:" : ": NO RIG WORKS THIS BELT"}`,
+          ...w.timeline.map((row) => `T${row.tile + 1}: ${row.hits.map((h) => hitLabel(h, w.locked)).join(" · ")}`),
+          [`AT THE GUN: DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? ` X${est.copies}` : ""} · SPD ${num(w.speedEnd)}X · TIME ${est.time.toFixed(1)}S`, C.yellow],
+          [`BURN ${est.burn} · ${est.shock ? "SHOCK" : "NO SHOCK"}`, est.burn || est.shock ? C.yellow : C.slate4],
+        ],
         actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }],
       };
     }
@@ -202,6 +256,18 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
   }
 }
 
+/** 0.6.2: a panel's title (the 5x7 face, outlined) or sub line (3x5) within `max` px: a title that doesn't fit
+ *  steps down to the 3x5 face, and whatever still doesn't fit is cut short with a dot. */
+function fitHead(g: G, s: string, x: number, y: number, max: number, color: string, title: boolean): void {
+  if (title && textWidth(s) <= max) {
+    drawText(g, s, x, y, color, { outline: C.ink });
+    return;
+  }
+  let t = s;
+  while (t.length > 1 && textWidth(t, "3") > max) t = `${t.slice(0, -2).trimEnd()}.`;
+  drawText(g, t, x, title ? y + 1 : y, color, title ? { font: "3", outline: C.ink } : { font: "3" });
+}
+
 /** True when a hovered card or a selection has details to show (otherwise the idle cards). */
 export function hasDetails(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null): boolean {
   const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
@@ -216,14 +282,19 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   if (!sp) return drawIdle(g, ctx.run, area, column, foe);
   const wrapW = area.w - 10;
   const acts = sp.actions ?? []; // 0.6.1b: 0-2 buttons (the turret case: REMOVE CORE, REMOVE GEAR)
-  // the description in the 5x7 face when it fits the area (easier to read), else the 3x5 face
+  // the description in the 5x7 face when it fits the area (easier to read), else the 3x5 face; 0.6.2: a line
+  // may carry its own colour (warnings, the belt's turret-end readout)
   const extra = acts.length ? acts.length * 19 + 3 : 4;
   let font: "5" | "3" = "5", lh = 9;
-  let lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
+  const wrapAll = (f: "5" | "3"): [string, string][] => sp.text.flatMap((l) => {
+    const [s, c] = typeof l === "string" ? [l, C.bone] : l;
+    return wrap(s, wrapW, f).map((w): [string, string] => [w, c]);
+  });
+  let lines = wrapAll(font);
   if (column ? 27 + lines.length * lh + extra > area.h : lines.length * lh - 2 > area.h - 29) {
     font = "3";
     lh = 7;
-    lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
+    lines = wrapAll(font);
   }
   const r = column ? { ...area, h: Math.min(area.h, 27 + lines.length * lh + extra) } : area;
   panel(g, r, "dark");
@@ -231,9 +302,8 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   rect(g, r.x + 4, r.y + 4, 16, 16, C.ink);
   rect(g, r.x + 5, r.y + 5, 14, 14, C.slate0);
   if (sp.icon) g.drawImage(sp.icon, r.x + 12 - Math.floor(sp.icon.width / 2), r.y + 12 - Math.floor(sp.icon.height / 2));
-  drawText(g, sp.title, r.x + 23, r.y + 4, sp.color, { outline: C.ink });
-  drawText(g, sp.sub, r.x + 23, r.y + 13, C.slate4, { font: "3" });
   let maxY = r.y + r.h - 4;
+  let headRight = r.x + r.w - 4; // 0.6.2: the title and sub line end left of this (the portrait strip's buttons)
   if (acts.length && column) {
     // landscape column: one full-width button per action, stacked bottom-up under the text
     let by = r.y + r.h - 5;
@@ -245,20 +315,26 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     }
     maxY = by;
   } else if (acts.length) {
-    // portrait strip: same top-right row as before, split between 1-2 buttons
+    // portrait strip: same top-right row as before, split between 1-2 buttons; 0.6.2: with two, each is sized
+    // to its label, so a long title (a rig: "GALVANIC COIL ★★") and its sub line stay in sight
     const h = 13, gap = 3;
-    const w = Math.min(64, Math.floor((r.w - 10 - gap * (acts.length - 1)) / acts.length));
-    let x = r.x + r.w - 4 - w;
+    const even = Math.min(64, Math.floor((r.w - 10 - gap * (acts.length - 1)) / acts.length));
+    let x = r.x + r.w - 4;
     for (let i = acts.length - 1; i >= 0; i--) {
       const a = acts[i];
+      const w = acts.length > 1 ? Math.min(even, Math.max(34, textWidth(a.label, "3") + 10)) : even;
+      x -= w;
       button(ctx.game.ui, g, a.id, { x, y: r.y + 4, w, h }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
-      x -= w + gap;
+      x -= gap;
     }
+    headRight = x;
   }
+  fitHead(g, sp.title, r.x + 23, r.y + 4, headRight - (r.x + 23), sp.color, true);
+  fitHead(g, sp.sub, r.x + 23, r.y + 13, headRight - (r.x + 23), sp.subColor ?? C.slate4, false);
   let y = r.y + 25;
-  for (const ln of lines) {
+  for (const [ln, col] of lines) {
     if (y + lh - 2 > maxY) break;
-    drawText(g, ln, r.x + 5, y, C.bone, { font });
+    drawText(g, ln, r.x + 5, y, col, { font });
     y += lh;
   }
 }

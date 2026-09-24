@@ -5,10 +5,10 @@
 import { hashSeed, Rng } from "../core/rng";
 import {
   ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES,
-  itemsSoldBy, rarityWeights, sellValue,
+  itemsSoldBy, rarityWeights, rigShape, sellValue,
   type HeroId, type ItemDef, type MerchantId, type Rarity,
 } from "../sim/content";
-import { removeItem, type Build } from "../sim/deck";
+import { removeItem, rotOf, setRot, type Build } from "../sim/deck";
 import { startingBuild } from "../sim/ai";
 import type { SideStats } from "../sim/battle";
 import type { EventId, EventState } from "./eventDefs";
@@ -351,6 +351,17 @@ export function storePlaced(run: Run, uid: number): boolean {
   if (d.id === "kiln" || d.id === "loom") return false; // signature factory stays aboard
   removeItem(run.build, uid);
   run.inventory.push({ uid, def: p.def, ...starField(starsOf(p)) }); // 0.6.1a: moving never fuses; stars ride along
+  return true;
+}
+
+/**
+ * 0.6.2 BELTSIDE (ref/DESIGN-beltside.md R4, B2): turn a placed rig a quarter turn clockwise; free while
+ * preparing. False for anything that is not a rig, and for an X rig, which faces every side.
+ */
+export function rotateRig(run: Run, uid: number): boolean {
+  const p = run.build.items.find((q) => q.uid === uid);
+  if (!p || rigShape(p.def) === undefined || rigShape(p.def) === "X") return false;
+  setRot(p, rotOf(p) + 1);
   return true;
 }
 

@@ -400,19 +400,52 @@ export interface RouteEstimate {
   shock: boolean;
 }
 
+/** 0.6.2 BELTSIDE (V4): what one hit did to the payload in the single-payload walk (walkRoute). */
+export interface TimelineHit {
+  uid: number;
+  def: string;
+  dir: Dir; // the arrow's direction (from the rig to the tile)
+  stars: number;
+  tier: HitTier;
+  flat?: number; // flat damage this hit added (WHETSTONE; LONG HAUL: perPriorGate x prior)
+  prior?: number; // LONG HAUL-type: the earlier hits it counted
+  burn?: number;
+  shock?: boolean;
+  split?: { copies: number; mult: number };
+  speed?: number; // a speed hit's state
+  won?: boolean; // its speed holds the tile (R7 item 4); false: a bigger change on the same tile beat it
+}
+
+/** One belt tile with hits, in the walk's order; `speed` is the belt's speed state from this tile on. */
+export interface TimelineRow {
+  tile: number;
+  cell: number;
+  hits: TimelineHit[]; // R7 order
+  speed: number;
+}
+
+export interface RouteWalk {
+  estimate: RouteEstimate;
+  timeline: TimelineRow[];
+  speedEnd: number; // the speed state at the turret end
+  locked: boolean; // races: METRONOME belts ignore speed states
+}
+
 /**
- * Deterministic single-payload walk used by the inspector (no congestion, rigs online). 0.6.2: each tile
- * applies its hits in R7 order (rigHits): additive, then LONG HAUL-type (counting every earlier hit,
- * this tile's additive ones included), then SPLITTER-type, then speed, whose winner (speedWinner) holds
- * from this tile downstream. Every hit counts as a prior hit.
+ * Deterministic single-payload walk (no congestion, rigs online), the one source of the inspector's numbers.
+ * 0.6.2: each tile applies its hits in R7 order (rigHits): additive, then LONG HAUL-type (counting every
+ * earlier hit, this tile's additive ones included), then SPLITTER-type, then speed, whose winner
+ * (speedWinner) holds from this tile downstream. Every hit counts as a prior hit. The timeline records what
+ * each hit did, tile by tile (V4).
  */
-export function estimateRoute(b: Build, index: number, hits = rigHits(b)): RouteEstimate {
+export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk {
   const info = routeInfo(b, index, undefined, undefined, hits);
   const r = b.routes[index];
   const f = itemByUid(b, r.factory);
   const ammo = f ? AMMO[defOf(f).factory!.ammo] : AMMO.plain;
   const tiles = hits[index] ?? [];
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
+  const timeline: TimelineRow[] = [];
   let time = 0, ride = 0, speed = 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
   // walk cell by cell: half cell entering, the hits at the centre, half cell leaving
   const n = r.cells.length;
@@ -421,23 +454,46 @@ export function estimateRoute(b: Build, index: number, hits = rigHits(b)): Route
     time += inHalf;
     ride += inHalf;
     const speeds: number[] = [];
+    const row: TimelineHit[] = [];
     for (const h of tiles[i] ?? []) {
-      const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate; // 0.6.1a: the same star spec as Battle.makeSide
+      const stars = starsOf(itemByUid(b, h.uid));
+      const e = effectAt(h.def, stars).gate; // 0.6.1a: the same star spec as Battle.makeSide
       if (!e) continue;
-      if (e.flat) flat += e.flat;
-      if (e.perPriorGate) flat += e.perPriorGate * prior;
-      if (e.burn) burn += e.burn;
-      if (e.shock) shock = true;
+      const th: TimelineHit = { uid: h.uid, def: h.def, dir: h.dir, stars, tier: h.tier };
+      if (e.flat) {
+        flat += e.flat;
+        th.flat = e.flat;
+      }
+      if (e.perPriorGate) {
+        flat += e.perPriorGate * prior;
+        th.flat = (th.flat ?? 0) + e.perPriorGate * prior;
+        th.prior = prior;
+      }
+      if (e.burn) {
+        burn += e.burn;
+        th.burn = e.burn;
+      }
+      if (e.shock) {
+        shock = true;
+        th.shock = true;
+      }
       if (e.split) {
         copies *= e.split.copies;
         mult *= e.split.mult;
         flat *= e.split.mult;
+        th.split = { ...e.split };
       }
-      if (e.speed) speeds.push(e.speed);
+      if (e.speed) {
+        speeds.push(e.speed);
+        th.speed = e.speed;
+      }
       prior++;
+      row.push(th);
     }
     const won = speedWinner(speeds);
     if (won !== undefined && !locked) speed = won;
+    for (const th of row) if (th.speed !== undefined) th.won = !locked && th.speed === won;
+    if (row.length) timeline.push({ tile: i, cell: r.cells[i], hits: row, speed });
     const last = i === n - 1;
     const outLen = last ? (info.connected ? CELL : 0) : CELL / 2;
     const outT = outLen / (BELT_SPEED * speed);
@@ -447,7 +503,12 @@ export function estimateRoute(b: Build, index: number, hits = rigHits(b)): Route
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat, pendulumShift(b, info.turret))
     : payloadDamage(ammo.base, ammo.rideScale, ride, mult, flat);
-  return { time, ride, dmg: total, copies, burn, shock };
+  return { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
+}
+
+/** The walk's estimate (walkRoute). */
+export function estimateRoute(b: Build, index: number, hits = rigHits(b)): RouteEstimate {
+  return walkRoute(b, index, hits).estimate;
 }
 
 // ---------------------------------------------------------------- editing
