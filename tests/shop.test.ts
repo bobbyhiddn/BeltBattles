@@ -3,7 +3,7 @@
 // never appears; 0.6.1p's HOPPER is the quartermaster's first stock), fills regular slots fresh-first, then may splice in at most one
 // "familiar" slot from owned fusible parts. See tests/fuse.test.ts for the merge core itself.
 import { describe, expect, it } from "vitest";
-import { buyOffer, newRun, rollShop, shopBadge, type Run } from "../src/game/run";
+import { buyOffer, migrateRun, newRun, rollShop, RUN_VERSION, shopBadge, type Run } from "../src/game/run";
 import { mergePreview } from "../src/game/fuse";
 import { ITEMS, OFFERS, itemsSoldBy, type ItemDef, type MerchantId } from "../src/sim/content";
 
@@ -348,6 +348,71 @@ describe("shop: badges and the survivor (folded from review-061's repro files)",
     }
     expect(missing).toBeGreaterThan(0);
     expect(drake).toBe(missing);
+  });
+});
+
+// 0.6.1r (review-061 N5, N6): robustness for stock and saves today's catalogue never produces (stubbed here);
+// tools-free proof that the working cases keep their stream: the rollShop comparison in output-0.6.1r/logs.
+describe("shop: robustness (N5, N6)", () => {
+  /** Run `fn` with only `keep` merchants stocked (the others' parts unsold), restored afterwards. */
+  function withOnly(keep: MerchantId[], fn: () => void): void {
+    const items = ITEMS as Record<string, ItemDef>;
+    const saved: [string, MerchantId][] = [];
+    for (const d of Object.values(items)) if (d.merchant && !keep.includes(d.merchant)) { saved.push([d.id, d.merchant]); d.merchant = undefined; }
+    try { fn(); } finally { for (const [id, m] of saved) items[id].merchant = m; }
+  }
+
+  it("a merchant with nothing to sell today (all-legendary stock before day 4) never rides, and no roll throws", () => {
+    withStubs({ __arcleg: { merchant: "arcane", rarity: "legendary" } }, () => {
+      let arcane = 0;
+      for (let seed = 1; seed <= 400; seed++) {
+        for (const day of [3, 4, 6]) {
+          let run: Run | undefined;
+          expect(() => { run = rolled(seed, day, [["grease"]]); }).not.toThrow();
+          const w = run!.shop.wagons.find((x) => x.merchant === "arcane");
+          if (day < 4) expect(w).toBeUndefined(); // weight 1 on day 3, but an empty day pool
+          if (w) { arcane++; expect(w.offers.every((o) => o.def === "__arcleg")).toBe(true); }
+          expect(run!.shop.wagons.flatMap((x) => x.offers)).toHaveLength(OFFERS);
+        }
+      }
+      expect(arcane).toBeGreaterThan(0); // from day 4 it sells the legendary
+    });
+  });
+
+  it("fewer stocked merchants than wagons: every slot goes to the ones drawn, and no roll throws", () => {
+    withOnly(["tinker"], () => {
+      for (let seed = 1; seed <= 300; seed++) {
+        for (const day of [1, 3, 5, 9]) {
+          let run: Run | undefined;
+          expect(() => { run = rolled(seed, day, [["grease"], ["brake", 2]]); }).not.toThrow();
+          expect(run!.shop.wagons.map((w) => w.merchant)).toEqual(["tinker"]);
+          const defs = run!.shop.wagons[0].offers.map((o) => o.def);
+          expect(defs).toHaveLength(OFFERS);
+          expect(new Set(defs).size).toBe(OFFERS); // the Tinker stocks 7-8 parts: all fresh
+        }
+      }
+    });
+    withOnly(["tinker", "alchemist"], () => {
+      for (let seed = 1; seed <= 300; seed++) {
+        const run = rolled(seed, 5);
+        expect(run.shop.wagons.length).toBeLessThanOrEqual(2);
+        expect(run.shop.wagons.flatMap((w) => w.offers)).toHaveLength(OFFERS);
+      }
+    });
+  });
+
+  it("N6: migrateRun turns a saved lastMerchants that isn't an array into [] (no version bump); arrays and absence stay", () => {
+    for (const bad of ["tinker", 5, { tinker: true }, null]) {
+      const m = migrateRun(JSON.parse(JSON.stringify({ ...newRun("furnace", 77), lastMerchants: bad })))!;
+      expect(m.version).toBe(RUN_VERSION);
+      expect(m.lastMerchants).toEqual([]);
+      expect(() => rollShop(m)).not.toThrow();
+    }
+    expect(RUN_VERSION).toBe(7);
+    const kept = migrateRun(JSON.parse(JSON.stringify({ ...newRun("furnace", 77), lastMerchants: ["tinker"] })))!;
+    expect(kept.lastMerchants).toEqual(["tinker"]);
+    const absent = migrateRun(JSON.parse(JSON.stringify(newRun("furnace", 77))))!;
+    expect("lastMerchants" in absent).toBe(false);
   });
 });
 

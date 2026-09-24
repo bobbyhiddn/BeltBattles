@@ -131,6 +131,9 @@ export function migrateRun(raw: unknown): Run | null {
   r.matriarchBeatenOn = typeof r.matriarchBeatenOn === "number" ? r.matriarchBeatenOn : null;
   r.bounty = r.bounty ?? null;
   r.sabotage = r.sabotage ?? null;
+  // 0.6.1r (review-061 N6): a saved lastMerchants that isn't an array reads as none (merchantWeight calls
+  // .includes on it); absent stays absent (no variety factor either way). Save v7, no bump.
+  if (r.lastMerchants !== undefined && !Array.isArray(r.lastMerchants)) r.lastMerchants = [];
   r.day = clampDay(r.day);
   r.lives = Math.max(0, Math.min(START_LIVES, Number(r.lives) || 0));
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;
