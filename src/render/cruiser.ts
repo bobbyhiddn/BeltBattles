@@ -10,6 +10,9 @@ import { disc, type G } from "./pixel";
 import { HULL_L, TURRET_LY, hullBox, sx, sy, turnX, turnY, type Box, type DeckFrame } from "./frame";
 import { HULL_M, TREAD_HX, TREAD_HY0, TREAD_LEN, TREAD_W, hullFlash, hullRim, hullShade, hullSprite, treadStrip } from "./hull";
 import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./turret";
+import { coreFor } from "../sim/deck"; // 0.6.1b: the core socket
+import { starsOf } from "../sim/stars"; // 0.6.1b
+import { gemColor } from "./coreArt"; // 0.6.1b
 
 export interface RouteModel {
   index: number;
@@ -156,6 +159,21 @@ function trect(g: G, f: DeckFrame, px: number, py: number, u: number, v: number,
   g.fillRect(x, y, ww, hh);
 }
 
+/** 0.6.1b: the 6x6 hexagon core socket gem at mount offset (u, v): ink rim, gem fill, one highlight pixel. */
+function socketGem(g: G, f: DeckFrame, px: number, py: number, u: number, v: number, col: string): void {
+  trect(g, f, px, py, u + 1, v, 4, 1, C.ink);
+  trect(g, f, px, py, u, v + 1, 6, 4, C.ink);
+  trect(g, f, px, py, u + 1, v + 5, 4, 1, C.ink);
+  trect(g, f, px, py, u + 1, v + 1, 4, 4, col);
+  trect(g, f, px, py, u + 2, v + 1, 2, 1, C.white);
+}
+
+/** 0.6.1b: star pips (ARSENAL.md §8.2/§8.4): two or three 2x1 yellow pips from (u, v); 1 star shows none. */
+function starPips(g: G, f: DeckFrame, px: number, py: number, u: number, v: number, stars: number): void {
+  if (stars < 2) return;
+  for (let k = 0; k < stars; k++) trect(g, f, px, py, u + k * 3, v, 2, 1, C.yellow);
+}
+
 function payloadColor(ammo: string): string {
   return ammo === "thread" ? C.ice : ammo === "plain" ? C.steel2 : C.fire3;
 }
@@ -199,12 +217,19 @@ export function drawTurrets(g: G, v: CruiserView): void {
       trect(g, f, px, py, pu + 1, pv + 1, 2, 2, loaded ? payloadColor(loaded.ammo) : C.slate1);
     }
     for (let m = 0; m < mods.length; m++) {
-      if (mods[m].turret !== i) continue;
+      if (mods[m].turret !== i || ITEMS[mods[m].def]?.kind === "core") continue; // 0.6.1b: gear only (the core has its socket)
       const bu = -pu - 5;
       trect(g, f, px, py, bu, -3, 5, 5, C.ink);
       trect(g, f, px, py, bu + 1, -2, 3, 3, mods[m].def === "chamber" ? C.lime : C.cyan);
       trect(g, f, px, py, bu + 2, -2, 1, 3, C.white);
+      starPips(g, f, px, py, bu, 3, starsOf(mods[m])); // 0.6.1b: 2 or 3 pips beside the hardpoint box
     }
+    // 0.6.1b: the core socket (ARSENAL.md §8.4): a 6x6 hexagon gem at the rear of the mount, on the side away
+    // from the gear box, in the bought core's gem colour or the faction glow (signature core); its pips beside it
+    const core = coreFor(v.build, i);
+    const su = td.kind === "heavy" ? 3 : 1, sv = pu - 8;
+    socketGem(g, f, px, py, su, sv, gemColor(core?.def, v.model.hero));
+    starPips(g, f, px, py, su - 9, sv + 2, starsOf(core)); // left of the gem (the chamber pips sit to its right)
     if (ts && ts.jamFx > 0 && Math.floor(v.t * 8) % 2) trect(g, f, px, py, -6, 4, 12, 2, C.red);
   }
 }

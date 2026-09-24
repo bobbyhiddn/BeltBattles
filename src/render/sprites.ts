@@ -4,6 +4,7 @@
 
 import { cellNoise } from "../core/rng";
 import { C, FACTION } from "./palette";
+import { drawCoreIcon } from "./coreArt"; // 0.6.1b
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
   px, rect, ring, rot90, silhouette, vline, type G,
@@ -445,7 +446,7 @@ export function itemIcon(id: string): Cv {
         break;
       }
       default: {
-        g.drawImage(gateSprite(id, 0, false), 0, 0);
+        if (!drawCoreIcon(g, id)) g.drawImage(gateSprite(id, 0, false), 0, 0); // 0.6.1b: turret cores (coreArt.ts)
       }
     }
     return c;
