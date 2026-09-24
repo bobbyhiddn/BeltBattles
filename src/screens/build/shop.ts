@@ -39,7 +39,8 @@ function drawMerchantGlyph(g: G, x: number, y: number, merchant: MerchantId): vo
   else if (shape === "diamond") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x + 1, y + 2, 1, 1, col); }
   else if (shape === "circle") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x + 1, y + 1, 1, 1, C.ink); rect(g, x + 1, y + 2, 1, 1, col); }
   else if (shape === "triangle") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x, y + 2, 3, 1, col); }
-  else if (shape === "cross") { rect(g, x + 1, y, 1, 3, col); rect(g, x, y + 1, 3, 1, col); }
+  // review-061 F6: an X; a 3x3 plus would repeat the tinker "diamond" pixel for pixel
+  else if (shape === "cross") { for (const [u, v] of [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2]]) rect(g, x + u, y + v, 1, 1, col); }
   else if (shape === "bar") rect(g, x, y + 1, 3, 1, col);
   else { rect(g, x, y, 3, 1, col); rect(g, x, y + 2, 3, 1, col); rect(g, x, y, 1, 3, col); rect(g, x + 2, y, 1, 3, col); }
 }
