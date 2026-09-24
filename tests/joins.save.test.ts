@@ -18,6 +18,7 @@ import { key as K, type Build } from "../src/sim/deck";
 import { simulate } from "../src/sim/battle";
 import { warlordBuild } from "../src/sim/ai";
 import { generateSamplePool } from "../tools/samplePool";
+import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
 const M = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
 const R = [K(2, 6), K(2, 5), K(2, 4), K(3, 4)];
@@ -131,9 +132,11 @@ describe("J12: the ghost server (in-process) takes a legal join and refuses an i
     const app = createGhostServer({ dataDir: dir, origins: [], rateLimit: { windowMs: 60_000, max: 1000 }, log: () => {}, matchSalt: () => 0 });
     try {
       const base = `http://127.0.0.1:${await app.listen(0)}`;
-      const ok = await submitGhost(base, snap(joined()), 3000);
+      const me = await testIdentity(0); // uploads are signed: each snapshot under the key's playerId
+      const ok = await submitGhost(base, ownedBy(snap(joined()), me), me, 3000);
       expect(ok.ok).toBe(true);
-      const post = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: { "content-type": "application/json" }, body: net.encodeSnapshot(snap(joined(K(3, 3)))) });
+      const body = net.encodeSnapshot(ownedBy(snap(joined(K(3, 3))), me));
+      const post = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
       expect(post.status).toBe(422);
       expect(((await post.json()) as { errors: string[] }).errors).toContain("route: route 1 can't join cell 33: NOT A BELT TILE");
     } finally {

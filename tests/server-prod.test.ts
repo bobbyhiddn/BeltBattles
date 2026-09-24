@@ -10,6 +10,7 @@ import { seedStore } from "../server/seed";
 import { generateSamplePool } from "../tools/samplePool";
 import type { FakeS3 } from "../tools/fakeS3";
 import { snap } from "./netHelpers";
+import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { startFake, storeBackends, tigrisFor } from "./netStores";
 
 // The switches production runs with (fly.toml): uploads closed, the client IP from Fly's proxy,
@@ -55,6 +56,18 @@ describe.each(storeBackends())("uploads closed, $name store", (backend) => {
     const m = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=2&wins=0&lives=3&player=closed-check&seen=`);
     expect(m.status).toBe(200);
     expect((await m.json()).snapshot.day).toBe(2);
+  });
+
+  it("0.7.0: closed is checked before the signature: a signed upload and a badly signed one are both 403, nothing stored", async () => {
+    const size = app.store.size;
+    const me = await testIdentity(0);
+    const body = encodeSnapshot(ownedBy(snap(), me));
+    const signed = await post(body, await signedHeaders(me, body));
+    expect(signed.status).toBe(403);
+    expect(await signed.json()).toEqual({ error: "uploads are not open yet" });
+    expect((await post(body, { "x-bb-key": "not-a-key", "x-bb-sig": "not-a-signature" })).status).toBe(403); // not 401
+    expect(app.store.size).toBe(size);
+    expect(backend.storedRecords()).toBe(0);
   });
 });
 
@@ -194,7 +207,9 @@ describe("uploads closed on Tigris makes no storage call", () => {
     expect(fake.requests).toHaveLength(0);
     const open = createGhostServer({ store: tigrisFor(fake), log: () => {} });
     const ob = await started(open);
-    const r2 = await fetch(`${ob}/v1/ghosts`, { method: "POST", headers: { "content-type": "application/json" }, body: encodeSnapshot(POOL[0]) });
+    const me = await testIdentity(0); // open uploads are signed: POOL[0] under the key's playerId
+    const body = encodeSnapshot(ownedBy(POOL[0], me));
+    const r2 = await fetch(`${ob}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
     expect(await (await fetch(`${ob}/v1/health`)).json()).toMatchObject({ uploads: "open" });
     await open.close();
     expect(r2.status).toBe(201);

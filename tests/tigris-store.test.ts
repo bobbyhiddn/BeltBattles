@@ -8,6 +8,7 @@ import { bucketPrefix, objectKey, parseKey, poolPrefix, storableRules, TigrisSto
 import { StorageError } from "../server/store";
 import { generateSamplePool } from "../tools/samplePool";
 import type { FakeS3 } from "../tools/fakeS3";
+import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { FAKE_CREDS, s3For, startFake, tigrisFor } from "./netStores";
 
 const POOL = generateSamplePool();
@@ -301,7 +302,10 @@ describe("server on the Tigris store", () => {
     const logs: string[] = [];
     const app = createGhostServer({ store: tigrisFor(fake, bucket), log: (l) => logs.push(l) });
     const base = `http://127.0.0.1:${await app.listen(0)}`;
-    const post = () => fetch(`${base}/v1/ghosts`, { method: "POST", headers: { "content-type": "application/json" }, body: encodeSnapshot(s) });
+    const me = await testIdentity(0); // uploads are signed: s under the key's playerId
+    const body = encodeSnapshot(ownedBy(s, me));
+    const headers = await signedHeaders(me, body);
+    const post = () => fetch(`${base}/v1/ghosts`, { method: "POST", headers, body });
     fake.failNext(3, 503, "PUT");
     const r1 = await post();
     expect(r1.status).toBe(503);

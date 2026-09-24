@@ -4,7 +4,10 @@
 // It starts the fake S3, shows two startup refusals, runs `seed` twice (fresh, then a no-op), starts
 // the server with fly.toml's settings (tigris store, uploads closed, Fly proxy IP, 0.0.0.0, the staged
 // page) except path-style addressing against the fake, times the first health answer, then curls
-// health, /, HEAD /, a match and a closed POST, and writes the transcript. Exit 1 if a check fails.
+// health, /, HEAD /, a match and a closed POST. Then (0.7.0 prep, REQ-BFG-016) it starts a second
+// server with uploads open and curls a ghost signed with a fresh device key (201, then 200 when
+// repeated), the same ghost unsigned (401) and one signed over other bytes (401). It writes the
+// transcript. Exit 1 if a check fails.
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -14,7 +17,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { FakeS3 } from "./fakeS3";
 import { generateSamplePool } from "./samplePool";
-import { encodeSnapshot, SNAPSHOT_VERSION } from "../src/net/snapshot";
+import { KEY_HEADER, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
+import { encodeSnapshot, ghostId, SNAPSHOT_VERSION } from "../src/net/snapshot";
 import { RULES_VERSION } from "../src/sim/content";
 
 function flag(name: string): string | undefined {
@@ -73,6 +77,37 @@ function freePort(): Promise<number> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const sha256 = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
+
+/** Spawn the bundle and wait for its first 200 from /v1/health; stop() sends SIGTERM and returns the output. */
+async function startServer(bundle: string, env: Record<string, string | undefined>, port: number): Promise<{ healthMs: number; stop(): Promise<string> }> {
+  const t0 = performance.now();
+  const proc = spawn(process.execPath, [bundle], { env });
+  const exited = new Promise<void>((r) => proc.on("exit", () => r()));
+  let out = "";
+  const dec = new TextDecoder();
+  proc.stdout?.on("data", (c) => (out += dec.decode(c)));
+  proc.stderr?.on("data", (c) => (out += dec.decode(c)));
+  let healthMs = -1;
+  for (let i = 0; i < 250 && healthMs < 0; i++) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/v1/health`);
+      if (r.status === 200) healthMs = Math.round(performance.now() - t0);
+    } catch {
+      await sleep(10);
+    }
+  }
+  return {
+    healthMs,
+    async stop() {
+      proc.kill("SIGTERM");
+      await exited;
+      return out;
+    },
+  };
+}
+
+// One request log line: time, method, path, status and duration. Nothing else: no client IP.
+const REQUEST_LINE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z (GET|HEAD|POST|OPTIONS) \/\S* \d{3} \d+ms$/;
 
 async function main(): Promise<void> {
   const bundle = resolve("server/dist/ghost-server.mjs");
@@ -208,6 +243,71 @@ async function main(): Promise<void> {
     "the request log holds no client IP: time, method, path, status and duration only");
   check(/SIGTERM: shutting down/.test(log), "SIGTERM shuts down cleanly");
   check(!log.includes("smoke-fake-secret") && !log.includes("AKIDSMOKE"), "no credential in the log");
+  say();
+
+  say("## 5. Uploads open (0.7.0 prep, REQ-BFG-016): only a signed upload is stored");
+  const openPort = await freePort();
+  const openEnv = { ...env, BB_GHOST_UPLOADS: "open", BB_GHOST_PORT: String(openPort), BB_GHOST_ORIGINS: `http://127.0.0.1:${openPort}` };
+  say(`env as in section 3, except BB_GHOST_UPLOADS=open, BB_GHOST_PORT=${openPort}, BB_GHOST_ORIGINS=http://127.0.0.1:${openPort}`);
+  const device = await loadIdentity(memoryKeyStore()); // a fresh device key, as a new browser makes one
+  check(device !== null, "WebCrypto (globalThis.crypto.subtle) makes a device key in this Node");
+  if (device) {
+    const players = () => fake.keys("bb-smoke").filter((k) => k.includes("/player/"));
+    const open = await startServer(bundle, openEnv, openPort);
+    say(`first 200 from /v1/health ${open.healthMs} ms after spawning the process`);
+    const base2 = `http://127.0.0.1:${openPort}`;
+    const h2 = await shell(`curl -sS ${base2}/v1/health`, "curl", ["-sS", `${base2}/v1/health`]);
+    check(open.healthMs >= 0 && /"uploads":"open"/.test(h2.out), "health: 200, uploads open");
+
+    const dir = mkdtempSync(join(tmpdir(), "bb-smoke-open-"));
+    const mine = { ...generateSamplePool()[0], runId: "smoke-run", playerId: device.playerId };
+    const bytes = new TextEncoder().encode(encodeSnapshot(mine));
+    const file = join(dir, "ghost.json");
+    writeFileSync(file, bytes);
+    const { key, sig } = await device.sign(bytes);
+    const other = join(dir, "other.json"); // the same ghost one second later: other bytes, not signed
+    writeFileSync(other, encodeSnapshot({ ...mine, createdAt: mine.createdAt + 1000 }));
+    const id = ghostId(mine);
+    const objectKey = `ghosts/${RULES_VERSION}/d${String(mine.day).padStart(2, "0")}/player/${id}.json`;
+    say(`device key: playerId ${device.playerId} (base64url of SHA-256 of the raw public key)`);
+    say(`  ${KEY_HEADER}: ${key}`);
+    say(`  ${SIG_HEADER}: ${sig}   (ECDSA P-256 over "bb-ghost-upload-1\\n" + the bytes of ghost.json)`);
+    const signed = ["-H", `${KEY_HEADER}: ${key}`, "-H", `${SIG_HEADER}: ${sig}`];
+    const post = (label: string, headers: string[], body: string) => shell(
+      `curl -sS -i -X POST -H 'content-type: application/json' ${label}--data-binary @${body === file ? "ghost.json" : "other.json"} ${base2}/v1/ghosts`,
+      "curl", ["-sS", "-i", "-X", "POST", "-H", "content-type: application/json", ...headers, "--data-binary", `@${body}`, `${base2}/v1/ghosts`]);
+
+    const p1 = await post("-H 'x-bb-key: <key>' -H 'x-bb-sig: <sig>' ", signed, file);
+    check(/HTTP\/1\.1 201/.test(p1.out) && p1.out.includes(`{"id":"${id}"}`), `signed upload: 201 with the ghost's content id ${id}`);
+    const stored = players().length === 1 && players()[0] === objectKey ? fake.getObject("bb-smoke", objectKey) ?? "" : "";
+    let record: Record<string, unknown> = {};
+    try {
+      record = JSON.parse(stored) as Record<string, unknown>;
+    } catch {
+      /* checked below */
+    }
+    check(Object.keys(record).join() === "id,at,snapshot" && record.id === id && !stored.includes(key) && !stored.includes(sig),
+      `one player object, ${objectKey}: the {id, at, snapshot} record, no key and no signature`);
+    const p2 = await post("-H 'x-bb-key: <key>' -H 'x-bb-sig: <sig>' ", signed, file);
+    check(/HTTP\/1\.1 200/.test(p2.out) && p2.out.includes(`{"id":"${id}"}`) && players().length === 1, "the same signed upload again: 200, same id, nothing new stored");
+    const p3 = await post("", [], file);
+    check(/HTTP\/1\.1 401/.test(p3.out) && p3.out.includes('{"error":"unsigned upload: the x-bb-key and x-bb-sig headers are required"}') && players().length === 1,
+      "the same ghost unsigned: 401, nothing stored");
+    const p4 = await post("-H 'x-bb-key: <key>' -H 'x-bb-sig: <sig>' ", signed, other);
+    check(/HTTP\/1\.1 401/.test(p4.out) && p4.out.includes('{"error":"x-bb-sig: the signature does not match this body and key"}') && players().length === 1,
+      "other bytes under that signature: 401, nothing stored");
+    rmSync(dir, { recursive: true, force: true });
+
+    const log2 = await open.stop();
+    say("server log (stdout), after SIGTERM:");
+    for (const l of log2.replace(/\n$/, "").split("\n")) say(`  ${l}`);
+    const lines2 = log2.split("\n").filter((l) => / (GET|HEAD|POST|OPTIONS) \//.test(l));
+    const posts = lines2.map((l) => / POST \/v1\/ghosts (\d{3}) /.exec(l)?.[1]).filter((s) => s !== undefined);
+    check(/uploads open\)/.test(log2) && posts.join(",") === "201,200,401,401", "the request log shows the four uploads: 201, 200, 401, 401");
+    check(lines2.length > 0 && lines2.every((l) => REQUEST_LINE.test(l)) && !log2.includes(device.playerId) && !log2.includes(key) && !log2.includes(sig),
+      "the request log holds no client IP, no key, no signature and no player id");
+    check(/SIGTERM: shutting down/.test(log2), "SIGTERM shuts down cleanly");
+  }
   await fake.close();
   say();
   say(failures ? `SMOKE FAILED: ${failures} check(s)` : "SMOKE PASSED: every check");

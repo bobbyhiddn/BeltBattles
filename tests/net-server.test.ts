@@ -5,10 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
-import { encodeSnapshot, type GhostSnapshot } from "../src/net/snapshot";
+import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
+import { encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { generateSamplePool } from "../tools/samplePool";
 import { snap } from "./netHelpers";
+import { identitiesFor, ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { storeBackends } from "./netStores";
 
 const SHORE = "http://127.0.0.1:7778";
@@ -23,14 +25,22 @@ describe.each(storeBackends())("ghost server (in-process, port 0), $name store",
 let app: GhostServer;
 let base: string;
 const ids = new Map<string, GhostSnapshot>();
+// 0.7.0: every upload is signed (src/net/identity.ts). Each sample player's ghosts go up signed by
+// its own fixed test key and carry that key's playerId (tests/netIdentity.ts); ME signs the rest.
+let owners: Map<string, Identity>;
+let ME: Identity;
+let OTHER: Identity;
 
 async function post(body: string, url = `${base}/v1/ghosts`) {
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body });
+  const r = await fetch(url, { method: "POST", headers: await signedHeaders(ME, body), body });
   return { status: r.status, body: await r.json() };
 }
 
 beforeAll(async () => {
   await backend.setup();
+  owners = await identitiesFor(TWENTY);
+  ME = await testIdentity(0);
+  OTHER = await testIdentity(1);
   app = backend.server({ origins: [SHORE], rateLimit: { windowMs: 60_000, max: 1000 }, log: () => {}, matchSalt: () => 0 });
   base = `http://127.0.0.1:${await app.listen(0)}`;
 });
@@ -49,13 +59,16 @@ afterAll(async () => {
   it("stores 20 submitted ghosts, idempotently", async () => {
     expect(TWENTY).toHaveLength(20);
     for (const s of TWENTY) {
-      const res = await submitGhost(base, s, 3000);
+      const owner = owners.get(s.playerId)!;
+      const mine = ownedBy(s, owner); // signed by its owner's key, under that key's playerId
+      const res = await submitGhost(base, mine, owner, 3000);
       expect(res.ok).toBe(true);
-      if (res.ok) ids.set(res.id, s);
+      if (res.ok) ids.set(res.id, mine);
     }
     expect(ids.size).toBe(20);
     expect(app.store.size).toBe(20);
-    const again = await submitGhost(base, TWENTY[0], 3000);
+    const first = owners.get(TWENTY[0].playerId)!;
+    const again = await submitGhost(base, ownedBy(TWENTY[0], first), first, 3000);
     expect(again).toEqual({ ok: true, id: [...ids.keys()][0] });
     expect(app.store.size).toBe(20);
     expect(backend.storedRecords()).toBe(20); // ghosts.jsonl lines, or player objects in the bucket
@@ -63,7 +76,7 @@ afterAll(async () => {
 
   it("matches same rules and day, never your own ghost, never a seen one, then falls back", async () => {
     for (let day = 1; day <= 5; day++) {
-      const me = "sample-furnace-0"; // owns one of the 4 ghosts stored for each day
+      const me = owners.get("sample-furnace-0")!.playerId; // owns one of the 4 ghosts stored for each day (its key's playerId)
       const seen: string[] = [];
       for (;;) {
         const g = await fetchGhost(base, req({ day, playerId: me, seen: [...seen] }), 3000);
@@ -95,7 +108,7 @@ afterAll(async () => {
   });
 
   it("rejects a bad deck, foreign rules, malformed JSON, oversize bodies and bad queries", async () => {
-    const s = snap();
+    const s = snap({ playerId: ME.playerId }); // post() signs with ME: past the signature, these are the old refusals
     const loom = { ...s, build: { ...s.build, items: [...s.build.items, { uid: 2, def: "loom", x: 0, y: 8 }] } };
     const bad = await post(JSON.stringify(loom));
     expect(bad.status).toBe(422);
@@ -141,6 +154,84 @@ afterAll(async () => {
     expect(codes).toEqual([200, 200, 200, 429, 429]);
     expect(last.headers.get("retry-after")).toBe("60");
   });
+
+  // 0.7.0, REQ-BFG-016: signed uploads. These run last: the 201 case adds a ghost to this store.
+  const upload = (body: string | Uint8Array, headers: Record<string, string>) =>
+    fetch(`${base}/v1/ghosts`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body })
+      .then(async (r) => ({ status: r.status, body: await r.json() }));
+  const stored = () => ({ size: app.store.size, records: backend.storedRecords() });
+
+  it("refuses an upload with a missing or malformed signing header: 401, before the body is read, nothing stored", async () => {
+    const before = stored();
+    const body = encodeSnapshot(snap({ playerId: ME.playerId }));
+    const { [KEY_HEADER]: key, [SIG_HEADER]: sig } = await signedHeaders(ME, body);
+    const cases: [string, Record<string, string>][] = [
+      ["no signing headers", {}],
+      ["no x-bb-sig", { [KEY_HEADER]: key }],
+      ["no x-bb-key", { [SIG_HEADER]: sig }],
+      ["x-bb-key not base64url", { [KEY_HEADER]: "not a key", [SIG_HEADER]: sig }],
+      ["x-bb-key padded", { [KEY_HEADER]: `${key}=`, [SIG_HEADER]: sig }],
+      ["x-bb-sig truncated", { [KEY_HEADER]: key, [SIG_HEADER]: sig.slice(0, 43) }],
+    ];
+    for (const [what, headers] of cases) {
+      const r = await upload(body, headers);
+      expect(r.status, what).toBe(401);
+      expect(r.body.error, what).toMatch(/^(unsigned upload: the x-bb-key and x-bb-sig headers are required|x-bb-key: |x-bb-sig: )/);
+    }
+    // an unsigned oversize body is a 401, not a 413: the headers are checked before the body is read
+    expect((await upload(" ".repeat(20_000), {})).status).toBe(401);
+    expect(stored()).toEqual(before);
+  });
+
+  it("refuses a tampered body and a signature by another key: 401, nothing stored", async () => {
+    const before = stored();
+    const body = encodeSnapshot(snap({ playerId: ME.playerId, createdAt: 1_790_000_000_002 }));
+    const headers = await signedHeaders(ME, body);
+    // one byte changed after signing; the result is still a valid, storable snapshot of ME's
+    const tampered = body.replace("1790000000002", "1790000000003");
+    expect(tampered).not.toBe(body);
+    expect(tampered.length).toBe(body.length);
+    const t = await upload(tampered, headers);
+    expect(t).toEqual({ status: 401, body: { error: "x-bb-sig: the signature does not match this body and key" } });
+    const byOther = await signedHeaders(OTHER, body);
+    expect((await upload(body, { [KEY_HEADER]: headers[KEY_HEADER], [SIG_HEADER]: byOther[SIG_HEADER] })).status).toBe(401);
+    expect((await upload(body, { [KEY_HEADER]: byOther[KEY_HEADER], [SIG_HEADER]: headers[SIG_HEADER] })).status).toBe(401);
+    expect(stored()).toEqual(before);
+  });
+
+  it("refuses a valid signature over a snapshot whose playerId belongs to another key: 403, nothing stored", async () => {
+    const before = stored();
+    const body = encodeSnapshot(snap({ playerId: OTHER.playerId })); // OTHER's playerId, signed by ME
+    const r = await upload(body, await signedHeaders(ME, body));
+    expect(r).toEqual({ status: 403, body: { error: "snapshot.playerId is not the player id of the signing key (x-bb-key)" } });
+    const old = encodeSnapshot(snap()); // a pre-0.7.0 random playerId: no key hashes to it
+    expect((await upload(old, await signedHeaders(ME, old))).status).toBe(403);
+    expect(stored()).toEqual(before);
+  });
+
+  it("stores a signed upload: 201, then 200 with the same id when repeated", async () => {
+    const before = stored();
+    const mine = snap({ playerId: ME.playerId, createdAt: 1_790_000_000_004 });
+    const body = encodeSnapshot(mine);
+    const first = await upload(body, await signedHeaders(ME, body));
+    expect(first).toEqual({ status: 201, body: { id: ghostId(mine) } });
+    const again = await upload(body, await signedHeaders(ME, body)); // a fresh signature over the same bytes
+    expect(again).toEqual({ status: 200, body: { id: ghostId(mine) } });
+    expect(stored()).toEqual({ size: before.size + 1, records: before.records + 1 });
+    const hit = (await app.store.bucket(RULES_VERSION, 1)).find((e) => e.id === ghostId(mine));
+    expect(hit?.snapshot).toEqual(mine);
+  });
+
+  it("OPTIONS lists both signing headers for the configured origins", async () => {
+    const pre = await fetch(`${base}/v1/ghosts`, {
+      method: "OPTIONS",
+      headers: { origin: SHORE, "access-control-request-method": "POST", "access-control-request-headers": "content-type,x-bb-key,x-bb-sig" },
+    });
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get("access-control-allow-origin")).toBe(SHORE);
+    expect(pre.headers.get("access-control-allow-headers")).toBe("content-type, x-bb-key, x-bb-sig");
+    expect(pre.headers.get("access-control-allow-methods")).toBe("GET, POST, OPTIONS");
+  });
 });
 
 describe("ghost client fallback", () => {
@@ -150,7 +241,8 @@ describe("ghost client fallback", () => {
     await closed.close();
     const refused = await fetchGhost(`http://127.0.0.1:${port}`, req({ day: 2 }), 1000);
     expect(refused).toMatchObject({ source: "fallback", id: "offline-weaver-d2" });
-    const sub = await submitGhost(`http://127.0.0.1:${port}`, snap(), 1000);
+    const me = await testIdentity(0); // uploads are signed: the snapshot carries the key's playerId
+    const sub = await submitGhost(`http://127.0.0.1:${port}`, ownedBy(snap(), me), me, 1000);
     expect(sub.ok).toBe(false);
 
     const hang = createServer(() => { /* never answers */ });
@@ -161,7 +253,7 @@ describe("ghost client fallback", () => {
     const slow = await fetchGhost(hb, req({ day: 3 }), 300);
     expect(slow).toMatchObject({ source: "fallback", error: "timeout", id: "offline-weaver-d3" });
     expect(Date.now() - t0).toBeLessThan(2000);
-    expect(await submitGhost(hb, snap(), 300)).toEqual({ ok: false, error: "timeout" });
+    expect(await submitGhost(hb, ownedBy(snap(), me), me, 300)).toEqual({ ok: false, error: "timeout" });
     hang.closeAllConnections();
     await new Promise<void>((r) => hang.close(() => r()));
   });
