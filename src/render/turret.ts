@@ -5,6 +5,7 @@
 import { C, FACTION } from "./palette";
 import { bevel, disc, ellipse, makeCanvas, rect, ring, type G } from "./pixel";
 import type { Facing } from "./frame";
+import type { Faction, TurretKind } from "../sim/content"; // races:
 
 type Cv = HTMLCanvasElement;
 export const TS = 48; // square canvas
@@ -45,19 +46,21 @@ class TP {
 const cache = new Map<string, TurretArt>();
 
 /** Muzzle distance from the pivot (no canvas needed: used by playback logic). */
-export const TURRET_TIP: Record<"heavy" | "light", number> = { heavy: 20, light: 15 };
+// races: PLACEHOLDER art mapping until the race-art pass: medium uses light art, adaptable heavy.
+const HEAVY_ART = (kind: TurretKind) => kind === "heavy" || kind === "adaptable"; // races:
+export const TURRET_TIP: Record<TurretKind, number> = { heavy: 20, light: 15, medium: 15, adaptable: 20 }; // races:
 
-export function turretArt(kind: "heavy" | "light", faction: "orc" | "elf", f: Facing): TurretArt {
+export function turretArt(kind: TurretKind, faction: Faction, f: Facing): TurretArt { // races: widened types
   const k = `${kind}:${faction}:${f}`;
   let a = cache.get(k);
   if (!a) {
-    a = kind === "heavy" ? heavy(faction, f) : light(faction, f);
+    a = HEAVY_ART(kind) ? heavy(faction, f) : light(faction, f); // races:
     cache.set(k, a);
   }
   return a;
 }
 
-function heavy(faction: "orc" | "elf", f: Facing): TurretArt {
+function heavy(faction: Faction, f: Facing): TurretArt { // races: widened faction
   const P = FACTION[faction];
   const [base, g] = makeCanvas(TS, TS);
   disc(g, c, c, 10.5, C.ink);
@@ -93,7 +96,7 @@ function heavy(faction: "orc" | "elf", f: Facing): TurretArt {
   return { base, barrel, tip: 20 };
 }
 
-function light(faction: "orc" | "elf", f: Facing): TurretArt {
+function light(faction: Faction, f: Facing): TurretArt { // races: widened faction
   const P = FACTION[faction];
   const [base, g] = makeCanvas(TS, TS);
   disc(g, c, c, 7.5, C.ink);
@@ -127,6 +130,6 @@ export const CRYSTAL_RAMP = [C.deepblue, C.blue, C.cyan, C.ice, C.white];
 /** Glow patch in turret-local space (breech slit / crystal core). */
 const GLOW_HEAVY: [number, number, number, number] = [-4, 3, 8, 2];
 const GLOW_LIGHT: [number, number, number, number] = [-2, -2, 4, 4];
-export function glowRect(kind: "heavy" | "light"): [number, number, number, number] {
-  return kind === "heavy" ? GLOW_HEAVY : GLOW_LIGHT;
+export function glowRect(kind: TurretKind): [number, number, number, number] { // races: widened kind
+  return HEAVY_ART(kind) ? GLOW_HEAVY : GLOW_LIGHT; // races:
 }

@@ -9,7 +9,15 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
-    "shot": "node scripts/shot.mjs"
+    "shot": "node scripts/shot.mjs",
+    "typecheck:server": "tsc -p tsconfig.server.json",
+    "build:server": "tsc -p tsconfig.server.json && vite build --config vite.server.config.ts",
+    "server": "npm run build:server && node server/dist/ghost-server.mjs",
+    "gen:ghosts": "npm run build:server && node server/dist/gen-ghost-pool.mjs",
+    "build:balance": "vite build --ssr tools/balance.ts --outDir tools/dist/balance --emptyOutDir --logLevel warn",
+    "balance": "npm run build:balance && node tools/dist/balance/balance.js",
+    "build:standins": "vite build --ssr tools/genStandInPool.ts --outDir tools/dist/standins --emptyOutDir --logLevel warn",
+    "standins": "npm run build:standins && node tools/dist/standins/genStandInPool.js"
   },
   "devDependencies": {
     "playwright-core": "^1.55.0",

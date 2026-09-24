@@ -1,6 +1,8 @@
 // Content definitions — all rules data lives here, separate from presentation.
 // Values are first-playable design values, not finished balance (spec §13, §24).
 
+import { RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, type RaceHeroId } from "./races/data"; // races:
+
 // bb-0.4.0: hulls +33% (and warlord hull steps / plating to match) so rounds 1-3 last
 // 20-45 s at 1x instead of 16-18 s; every win/loss in the balance probe is unchanged.
 export const RULES_VERSION = "bb-0.4.0";
@@ -26,9 +28,10 @@ export const COMMISSION_STEP = 0.6; // each further gate on the route adds this 
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 export type ItemKind = "gate" | "factory" | "mod" | "supply";
-export type AmmoKind = "cinder" | "thread" | "plain";
-export type HeroId = "furnace" | "weaver";
-export type Faction = "orc" | "elf";
+export type AmmoKind = "cinder" | "thread" | "plain" | RaceAmmoKind; // races: blank, alloy, bulwark, pendulum, leeches
+export type HeroId = "furnace" | "weaver" | RaceHeroId; // races: foundry, bastion, metronome, siphon
+export type Faction = "orc" | "elf" | "human" | "dwarf" | "beastfolk" | "unaligned"; // races: spec §6.2
+export type TurretKind = "heavy" | "light" | "medium" | "adaptable"; // races: medium (FOUNDRY), adaptable (METRONOME)
 export type MerchantId = "ironmonger" | "tinker" | "alchemist" | "gunsmith";
 
 export const RARITIES: Rarity[] = ["common", "rare", "epic", "legendary"];
@@ -149,6 +152,7 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["+25 MAX HULL", "FOR THE REST", "OF THE RUN."],
     supply: { hull: 25 },
   },
+  ...RACE_ITEMS, // races: CRUCIBLE, WARDWORKS, CLOCKWORKS, SUMP (not sold); ESCAPEMENT, LONGCASE (beastfolk pool)
 };
 
 export interface AmmoDef {
@@ -156,19 +160,21 @@ export interface AmmoDef {
   base: number; // base damage
   rideScale: number; // damage per second of eligible ride time
   fray: number; // Fray stacks applied on hit
+  rideCurve?: (ride: number) => number; // races: PENDULUM SLUG; replaces base + rideScale x ride
 }
 
 export const AMMO: Record<AmmoKind, AmmoDef> = {
   cinder: { name: "CINDER SLUG", base: 4, rideScale: 1.2, fray: 0 },
   thread: { name: "THREAD SLUG", base: 3, rideScale: 0, fray: 1 },
   plain: { name: "PLAIN SLUG", base: 3, rideScale: 0, fray: 0 },
+  ...RACE_AMMO, // races: ALLOY BLANK, ALLOY SLUG, BULWARK SLUG, PENDULUM SLUG, LEECH SLUGS
 };
 
 export interface TurretDef {
   col0: number; // leftmost deck column under the turret
   width: number; // columns spanned
   connectors: number[]; // deck columns (forward row) whose belts feed this turret
-  kind: "heavy" | "light";
+  kind: TurretKind; // races: was "heavy" | "light"
   fireInterval: number;
   window: number; // loading window size (LIFO stack)
   flight: number; // projectile flight time (s)
@@ -207,6 +213,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
     blurb: ["THE LOOM FEEDS THREE", "LIGHT TURRETS. EVERY", "HIT FRAYS THE HULL."],
     pattern: "STEADY PRESSURE",
   },
+  ...RACE_HEROES, // races: FOUNDRY (human), BASTION (dwarf), METRONOME (beastfolk), SIPHON — docs/RACES.md
 };
 
 export interface MerchantDef {
