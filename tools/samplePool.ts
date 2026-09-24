@@ -4,10 +4,11 @@
 // seeded pick that is never the same deck as the par. Every snapshot passes validateBuild, so
 // the pool doubles as validator coverage. Heroes come from STAND_IN_HEROES (PLAYABLE_HEROES).
 // Records (wins, lives) are drawn exactly as before the switch: variant 1's rng first replays
-// the retired shopper's draws, so only the decks changed.
+// the retired shopper's draws, so only the decks changed. Since the 0.6.0 merge lives count
+// down from START_LIVES (5; RUN_LIVES, 3, is gone): the same draws, lives 1..START_LIVES.
 
 import { Rng, hashSeed } from "../src/core/rng";
-import { GRID, HEROES, ITEMS, RULES_VERSION, RUN_LIVES, type HeroId } from "../src/sim/content";
+import { GRID, HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
 import { startingBuild } from "../src/sim/ai";
 import { occupancy, type Build } from "../src/sim/deck";
 import { STAND_IN_HEROES } from "../src/net/fallback";
@@ -69,9 +70,9 @@ export function generateSamplePool(): GhostSnapshot[] {
         if (v === 1) shopper(hero, day, rng); // replay the retired shopper's draws: records unchanged
         const build = sampleDeck(hero, day, v, seed);
         const wins = rng.int(day);
-        const losses = Math.min(RUN_LIVES - 1, rng.int(day - wins));
+        const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
         const snap = checkSnapshot({
-          v: 1, rules: RULES_VERSION, hero, day, wins, lives: RUN_LIVES - losses, build,
+          v: 1, rules: RULES_VERSION, hero, day, wins, lives: START_LIVES - losses, build,
           runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: EPOCH + out.length * 1000,
         });
         const val = validateBuild(snap.build, day);

@@ -4,7 +4,7 @@
 // another faction's hero for that day that spends at least 90% of the day's gold.
 
 import { Rng } from "../core/rng";
-import { HEROES, RULES_VERSION, RUN_LIVES, type HeroId } from "../sim/content";
+import { HEROES, RULES_VERSION, START_LIVES, type HeroId } from "../sim/content";
 import { PLAYABLE_HEROES } from "../sim/heroBuilds";
 import { standInPick } from "../sim/standInPool";
 import { pickGhost, type MatchRequest } from "./matchmaking";
@@ -35,7 +35,7 @@ export function offlineGhost(hero: HeroId, day: number, seed: number, record?: {
   const d = Math.min(MAX_DAY, Math.max(1, Math.floor(day)));
   const foe = rivalHero(hero, seed);
   const wins = Math.min(d - 1, Math.max(0, Math.floor(record?.wins ?? 0)));
-  const lives = Math.min(MAX_LIVES, Math.max(1, Math.floor(record?.lives ?? RUN_LIVES)));
+  const lives = Math.min(MAX_LIVES, Math.max(1, Math.floor(record?.lives ?? START_LIVES)));
   const snapshot = checkSnapshot({
     v: 1, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build: standInPick(foe, d, seed),
     runId: `offline-${(seed >>> 0).toString(16)}`, playerId: "offline-warlord", createdAt: 0,
