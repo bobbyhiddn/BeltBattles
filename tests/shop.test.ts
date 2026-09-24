@@ -47,7 +47,8 @@ describe("shop: fresh-first regular slots", () => {
     let sawAlchemist = 0;
     for (let seed = 1; seed <= 250; seed++) {
       const run = newRun("furnace", seed * 97);
-      run.inventory = [{ uid: 900, def: "whetstone" }, { uid: 901, def: "coil" }]; // alchemist's other two parts
+      // alchemist's other parts, incl. 0.6.1b's drake core -- own all but temper so it's still the one unowned part
+      run.inventory = [{ uid: 900, def: "whetstone" }, { uid: 901, def: "coil" }, { uid: 902, def: "drake" }];
       run.day = 1;
       rollShop(run);
       const alch = run.shop.wagons.find((w) => w.merchant === "alchemist");
