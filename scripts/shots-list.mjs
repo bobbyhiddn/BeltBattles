@@ -173,4 +173,10 @@ export const SHOTS = [
     ["summary-stops", v, "title", 0, END({ results: "WWLWDWLWWW", roads: "VVVVVVVVVV", seed: 777 }, POOL)],
     ["build-deadend", v, "build", 1.2, "bb.game.run.build.routes[0].cells.pop(); bb.game.render()"],
   ]),
+  // 0.6.0d: dusk stand-ins with their full-purse pool decks (standInPick) on days 1, 5 and 10 (an
+  // empty pool, seed 12345): the intro (portrait + STAND-IN) and mid-battle (about 5 s into the fight)
+  ...["desk", "phone"].flatMap((v) => [[1, 0, 0, 5], [5, 3, 1, 4], [10, 6, 3, 2]].flatMap(([day, wins, losses, lives]) => [
+    [`dusk-pool-d${day}-intro`, v, "title", 0, DUSK({ day, wins, losses, lives }, [], 75)],
+    [`dusk-pool-d${day}-mid`, v, "title", 0, DUSK({ day, wins, losses, lives }, [], 450)],
+  ])),
 ];
