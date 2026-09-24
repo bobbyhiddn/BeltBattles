@@ -12,7 +12,7 @@ import { addGhosts, clearPool, pinClassicFoe, playOut, setupFork, setupRun, setu
 import { ForkScreen } from "./screens/fork/fork";
 import { forkFor } from "./game/road";
 import type { Difficulty } from "./sim/rivals";
-import { loadPool, standInFoe } from "./game/ghosts";
+import { inStandInPool, loadPool, standInFoe } from "./game/ghosts";
 import { deckCost, maxGoldByDay } from "./sim/rivals";
 import type { Build } from "./sim/deck";
 import { TitleScreen } from "./screens/title";
@@ -104,11 +104,15 @@ game.start();
     game.run = setupWarlord(tier, o);
     game.go(new BattleScreen(game, "warlord"));
   },
-  /** 0.6.0b: the run's stand-in captain for each day 1-10 and its deckCost against maxGoldByDay. */
+  /** The run's stand-in captain for each day 1-10 and its deck's deckCost against maxGoldByDay;
+   *  0.6.0d: the deck is the pool pick (pool: true; floor = ceil(0.9 x budget)), or standInBuild. */
   standInSpend(runSeed: number) {
     return Array.from({ length: 10 }, (_, i) => {
-      const f = standInFoe(runSeed, i + 1);
-      return { day: i + 1, name: f.name, hull: f.build.hullBonus, cost: deckCost(f.build).total, budget: maxGoldByDay(i + 1) };
+      const f = standInFoe(runSeed, i + 1), budget = maxGoldByDay(i + 1);
+      return {
+        day: i + 1, name: f.name, hero: f.hero, pool: inStandInPool(f.hero), hull: f.build.hullBonus,
+        cost: deckCost(f.build).total, floor: Math.ceil(0.9 * budget), budget,
+      };
     });
   },
   /** 0.6.0b: today's fork and the dusk foe it leads to, for the scripted-run log. */

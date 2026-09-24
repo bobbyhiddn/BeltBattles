@@ -17,7 +17,9 @@ export function ghostName(g: Pick<GhostSnapshot, "hero" | "wins" | "lives">): st
   return `GHOST · ${HEROES[g.hero].name} · ${g.wins}W ${g.lives}♥`;
 }
 
-/** Choose today's dusk opponent from the pool (or the day's stand-in captain). Pure: the caller stores it. */
+/** Choose today's dusk opponent from the pool, or else the day's stand-in captain with its
+ *  full-purse stand-in pool deck (ghosts.ts standInFoe: standInPick since 0.6.0d, no longer the
+ *  cheaper standInBuild). Pure: the caller stores it in run.dusk, so the deck never re-rolls. */
 export function chooseFoe(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
   const g = pickGhost(pool, { rules: RULES_VERSION, day: run.day, runId: run.runId, wins: run.wins, lives: run.lives, seed: run.seed });
   if (g) {

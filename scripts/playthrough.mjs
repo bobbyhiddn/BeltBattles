@@ -238,7 +238,7 @@ export async function scriptedRun(page, touch, log, opts) {
   log(`[${at()}] fork picks: event ${fp.v || 0}, easy ${fp.e || 0}, medium ${fp.m || 0}, hard ${fp.h || 0} (by tap: ${state.tapPicks}); warlord losses ${state.warlordLosses.join("; ") || "none"}; lives changed by a warlord: ${state.livesChanged.join(", ") || "never"}; Matriarch met on day(s) ${state.matriarchDays.join(", ") || "-"}; reload mid-warlord kept the fight: ${state.reloadWarlordSame}`);
   log(`[${at()}] dusk spend (deckCost/budget): ${state.spend.join(" | ")}`);
   const sis = await page.evaluate(() => window.bb.standInSpend(window.bb.game.run.seed));
-  log(`[${at()}] this run's stand-in captain per day (used when no pool ghost matches; standInBuild deckCost/budget): ${sis.map((s) => `D${s.day} ${s.name} +${s.hull} ${s.cost}/${s.budget}`).join(" | ")}`);
+  log(`[${at()}] this run's stand-in captain per day (used when no pool ghost matches; 0.6.0d: the stand-in pool deck, standInPick, deckCost/budget): ${sis.map((s) => `D${s.day} ${s.name} +${s.hull} ${s.cost}/${s.budget}${s.pool ? "" : " (standInBuild fallback)"}`).join(" | ")}`);
   if (state.livesChanged.length) throw new Error(`a warlord fight changed lives (${state.livesChanged.join(", ")})`);
   if (days < 3) throw new Error("scripted run played fewer than 3 days");
   if (opts.check === "desk" && (["v", "e", "m", "h"].some((k) => (fp[k] || 0) < 2) || !state.warlordLosses.length || !state.matriarchDays.includes(8) || days < 10)) {
