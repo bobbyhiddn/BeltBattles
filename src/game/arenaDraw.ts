@@ -94,8 +94,10 @@ function drawShells(g: G, a: Arena): void {
     const k = Math.min(1, pr.t / pr.flight);
     const ad = AMMO[pr.payload.ammo];
     const tier = pr.payload.ammo === "cinder" ? heatTier(payloadDamage(pr.payload.base ?? ad.base, ad.rideScale, pr.payload.ride, pr.payload.mult, pr.payload.flat)) : 0;
+    // 0.6.1c: HOT SWAP's ember / spark slugs keep their tint in flight (a plain Payload with `preset`)
+    const kind = pr.payload.preset ?? pr.payload.ammo;
     // trail: earlier points of the same flight path, fading
-    const trail = trailColors(pr.payload.ammo, tier);
+    const trail = trailColors(kind, tier);
     const tw = pr.heavy ? 2 : 1;
     for (let j = trail.length; j >= 1; j--) {
       const kj = k - j * (pr.heavy ? 0.045 : 0.06);
@@ -122,10 +124,10 @@ function drawShells(g: G, a: Arena): void {
     const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : dy > 0 ? 2 : 0;
     // 0.6.1b (ARSENAL.md §8.4): a bought core's projectile shape -- SCATTER's pellet, DRAKE's flame
     // cone, SALVO's brass-banded volley round. ROTARY/PRESSURE/GATLING/HULLBREAKER fire the plain shell.
-    const img = pr.core === "scatter" ? pelletSprite(pr.payload.ammo, tier, dir)
+    const img = pr.core === "scatter" ? pelletSprite(kind, tier, dir)
       : pr.core === "drake" ? flameCone(dir)
       : pr.core === "salvo" ? volleySprite(pr.payload.ammo, tier, dir)
-      : shellSprite(pr.payload.ammo, tier, dir);
+      : shellSprite(kind, tier, dir);
     g.drawImage(img, Math.round(x - img.width / 2), Math.round(y - z - img.height / 2));
   }
 }

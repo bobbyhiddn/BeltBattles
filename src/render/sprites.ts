@@ -5,6 +5,7 @@
 import { cellNoise } from "../core/rng";
 import { C, FACTION } from "./palette";
 import { drawCoreIcon } from "./coreArt"; // 0.6.1b
+import { drawFactoryArt, drawFactoryIcon } from "./factoryArt"; // 0.6.1c: the wave-1 factories
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
   px, rect, ring, rot90, silhouette, vline, type G,
@@ -152,12 +153,20 @@ export function beltStopper(d: number): Cv {
 
 // ------------------------------------------------------------------ factories
 
-export function factorySprite(id: string, frameIdx: number, flash: boolean): Cv {
+/** 0.6.1c: a placed factory's star level for its art, 1..3 (absent or bad = 1). */
+function starLevel(stars: number): number {
+  return Number.isFinite(stars) ? Math.min(3, Math.max(1, Math.floor(stars))) : 1;
+}
+
+/** A 24x24 factory at frame `frameIdx` (mod 8). 0.6.1c: `stars` (default 1; only GANTRY PRESS's art reads it:
+ *  two chutes at 1 star, three at 2-3); a 1-star key is the same as before, other levels get their own. */
+export function factorySprite(id: string, frameIdx: number, flash: boolean, stars = 1): Cv {
   const f = ((frameIdx % 8) + 8) % 8;
-  return cached(`fac:${id}:${f}:${flash ? 1 : 0}`, () => {
+  const s = starLevel(stars);
+  return cached(`fac:${id}:${f}:${flash ? 1 : 0}${s > 1 ? `:${s}` : ""}`, () => {
     if (id === "kiln") return drawKiln(f, flash);
     if (id === "loom") return drawLoom(f, flash);
-    return drawPress(f, flash);
+    return drawFactoryArt(id, f, flash, s) ?? drawPress(f, flash); // 0.6.1c: the wave-1 factories (factoryArt.ts)
   });
 }
 
@@ -258,8 +267,9 @@ function drawPress(f: number, flash: boolean): Cv {
   return c;
 }
 
-export function factoryFlashSil(id: string): Cv {
-  return cached(`facS:${id}`, () => silhouette(factorySprite(id, 0, false), C.white));
+export function factoryFlashSil(id: string, stars = 1): Cv {
+  const s = starLevel(stars); // 0.6.1c: as factorySprite
+  return cached(`facS:${id}${s > 1 ? `:${s}` : ""}`, () => silhouette(factorySprite(id, 0, false, s), C.white));
 }
 
 // ------------------------------------------------------------------ gates
@@ -475,7 +485,8 @@ export function itemIcon(id: string): Cv {
         break;
       }
       default: {
-        if (!drawCoreIcon(g, id)) g.drawImage(gateSprite(id, 0, false), 0, 0); // 0.6.1b: turret cores (coreArt.ts)
+        // 0.6.1c: the wave-1 factories (factoryArt.ts); 0.6.1b: turret cores (coreArt.ts)
+        if (!drawFactoryIcon(g, id) && !drawCoreIcon(g, id)) g.drawImage(gateSprite(id, 0, false), 0, 0);
       }
     }
     return c;

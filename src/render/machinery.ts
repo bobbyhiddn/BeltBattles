@@ -4,6 +4,7 @@
 import { AMMO, BELT_SPEED, CELL, HEROES } from "../sim/content";
 import { defOf, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
 import { starsOf } from "../sim/stars";
+import type { FactoryState } from "../sim/battle"; // 0.6.1c: read-only render state (frame index)
 import { C } from "./palette";
 import { frame as frameRect, rect, type G } from "./pixel";
 import { drawText } from "./font";
@@ -147,7 +148,7 @@ function drawAmmo(g: G, v: CruiserView): void {
       const ad = AMMO[a.p.ammo];
       const tier = a.p.ammo === "cinder" ? heatTier(payloadDamage(ad.base, ad.rideScale, a.p.ride, a.p.mult, a.p.flat)) : 0;
       if (tier >= 3) g.drawImage(heatHalo(tier), x - 2, y - 2);
-      g.drawImage(ammoSprite(a.p.ammo, tier), x, y);
+      g.drawImage(ammoSprite(a.p.preset ?? a.p.ammo, tier), x, y); // 0.6.1c: HOT SWAP's ember / spark tint
       if (a.p.burn > 0 && Math.floor(v.t * 10 + a.p.id) % 2) rect(g, x + 3, y - 1, 1, 1, C.fire4);
       if (a.p.shock && Math.floor(v.t * 12 + a.p.id) % 3 === 0) rect(g, x + 6, y + 1, 1, 1, C.white);
     }
@@ -164,7 +165,7 @@ function drawChute(g: G, f: DeckFrame, k0: number, d0: number, id: string): void
   else localRect(f, lx + 9, ly + 2, 5, 8, box);
   rect(g, box.x, box.y, box.w, box.h, C.ink);
   rect(g, box.x + 1, box.y + 1, box.w - 2, box.h - 2, C.steel1);
-  const mouth = id === "kiln" ? C.fire2 : id === "loom" ? C.ice : C.steel3;
+  const mouth = id === "kiln" || id === "slagpot" ? C.fire2 : id === "loom" ? C.ice : C.steel3; // 0.6.1c: slag glows
   if (box.w > box.h) rect(g, box.x + 2, box.y + 2, box.w - 4, 1, mouth);
   else rect(g, box.x + 2, box.y + 2, 1, box.h - 4, mouth);
 }
@@ -180,23 +181,50 @@ function drawFactories(g: G, v: CruiserView): void {
     let fs = null;
     if (v.sim) for (const q of v.sim.factories) if (q.uid === p.uid) fs = q;
     const flash = !!fs && fs.flash > 0;
-    const fi = d.id === "loom" ? Math.floor(v.t * 9) : d.id === "press" ? (fs ? (flash ? 0 : 1) : Math.floor(v.t * 2)) : Math.floor(v.t * 7);
+    const fstars = animStars(v, p.uid, starsOf(p)); // 0.6.1c: the art's stars too (GANTRY PRESS's third chute pops with the pip)
+    const fi = d.id === "loom" ? Math.floor(v.t * 9) : d.id === "press" ? (fs ? (flash ? 0 : 1) : Math.floor(v.t * 2)) : factoryFrame(d.id, v.t, fs, flash, fstars);
     for (const rm of v.model.routes) {
       if (rm.factory === p.uid && rm.cells.length && rm.index !== v.hideRoute) drawChute(g, f, rm.cells[0], rm.d0, d.id);
     }
     if (v.ghost && v.ghost.factory === p.uid && v.ghost.cells.length) drawChute(g, f, v.ghost.cells[0], v.ghost.cells.length ? ghostD0(v, p.uid) : -1, d.id);
-    g.drawImage(factorySprite(d.id, fi, flash), x, y);
+    g.drawImage(factorySprite(d.id, fi, flash, fstars), x, y);
     if (flash && fs) {
       g.globalAlpha = Math.min(0.6, fs.flash * 3);
-      g.drawImage(factoryFlashSil(d.id), x, y);
+      g.drawImage(factoryFlashSil(d.id, fstars), x, y);
       g.globalAlpha = 1;
     }
     if (fs && fs.disrupted > 0) shock(g, x + 6, y + 6, v.t);
     if (fs && fs.stalled && Math.floor(v.t * 4) % 2) drawText(g, "!", x + 22, y - 2, C.yellow, { outline: C.ink });
-    const fstars = animStars(v, p.uid, starsOf(p));
     drawPips(g, x + 2, y + 21, 20, fstars, "left");
     if (fstars >= 3) frameRect(g, x, y, 24, 24, C.brass3);
     if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, 26, 26, v.t);
+  }
+}
+
+/**
+ * 0.6.1c: the frame index of each factory other than LOOM and STAMP PRESS (factorySprite reads it mod 8; the
+ * wave-1 contracts are in factoryArt.ts). In battle (`fs`) the wave-1 factories follow the sim's state -- `flash`
+ * right after a stamp, `produced` (stamps so far) and `rr` (the next route) -- read only; in the build view they
+ * run on the clock. KILN, the race factories and any other id keep 7 fps.
+ */
+function factoryFrame(id: string, t: number, fs: FactoryState | null, flash: boolean, stars: number): number {
+  switch (id) {
+    case "doublestamp": // stamp n thumps the left hammer when n is odd, the right one when even; idle: both up
+      return fs ? (flash ? (fs.produced % 2 ? 0 : 2) : 1) : Math.floor(t * 4);
+    case "hotswap": // the window of the preset stamped last (the cycle starts on EMBER), the drum turning
+      return fs ? (fs.produced % 2 ? 0 : 4) + (Math.floor(t * 6) % 4) : Math.floor(t * 2);
+    case "gantry": { // the head over the chute of the route fed last, down while it flashes
+      if (fs) {
+        const n = Math.max(1, fs.routes.length);
+        return ((fs.rr + n - 1) % n) * 2 + (flash ? 0 : 1);
+      }
+      const n = stars >= 2 ? 3 : 2;
+      return (Math.floor(t * 1.5) % n) * 2 + (Math.floor(t * 3) % 2);
+    }
+    case "shottower": return Math.floor(t * 8); // the shot keeps falling down the slot
+    case "slagpot": return Math.floor(t * 5);
+    case "assembly": return Math.floor(t * 6);
+    default: return Math.floor(t * 7);
   }
 }
 
