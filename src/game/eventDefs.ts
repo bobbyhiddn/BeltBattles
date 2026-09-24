@@ -4,6 +4,7 @@
 // gold on average and none of them wins a run by itself.
 
 import { ITEMS, type Rarity } from "../sim/content";
+import { starField, starsOf, valueOf } from "../sim/stars";
 import type { Run } from "./run";
 
 export type EventId = "wreck" | "cache" | "trader" | "dice" | "dock" | "herald" | "sappers" | "scout" | "storm" | "smuggler";
@@ -66,17 +67,20 @@ export interface Good {
   uid: number;
   def: string;
   from: "cargo" | "deck" | "mod";
+  stars?: number; // 0.6.1a: absent = 1
 }
 
-/** The trader wants your cheapest spare part: cargo first, then a gate on the deck, then turret gear. */
+/** The trader wants your cheapest spare part: cargo first, then a gate on the deck, then turret gear.
+ *  0.6.1a: "cheapest" is valueOf(def, stars), and SELL pays that value in full. */
 export function tradeGood(run: Run): Good | null {
   const rank = { cargo: 0, deck: 1, mod: 2 };
   const all: Good[] = [
-    ...run.inventory.map((i) => ({ uid: i.uid, def: i.def, from: "cargo" as const })),
-    ...run.build.items.filter((p) => ITEMS[p.def].kind === "gate").map((p) => ({ uid: p.uid, def: p.def, from: "deck" as const })),
-    ...run.build.mods.map((m) => ({ uid: m.uid, def: m.def, from: "mod" as const })),
+    ...run.inventory.map((i) => ({ uid: i.uid, def: i.def, from: "cargo" as const, ...starField(starsOf(i)) })),
+    ...run.build.items.filter((p) => ITEMS[p.def].kind === "gate").map((p) => ({ uid: p.uid, def: p.def, from: "deck" as const, ...starField(starsOf(p)) })),
+    ...run.build.mods.map((m) => ({ uid: m.uid, def: m.def, from: "mod" as const, ...starField(starsOf(m)) })),
   ];
-  all.sort((a, b) => rank[a.from] - rank[b.from] || ITEMS[a.def].price - ITEMS[b.def].price || a.uid - b.uid);
+  const v = (g: Good) => valueOf(g.def, starsOf(g));
+  all.sort((a, b) => rank[a.from] - rank[b.from] || v(a) - v(b) || a.uid - b.uid);
   return all[0] ?? null;
 }
 
@@ -112,7 +116,7 @@ export const EVENTS: Record<EventId, EventDef> = {
       const give: Delta = { k: "item", def: g.def, uid: g.uid, from: g.from };
       const note = g.from === "cargo" ? undefined : g.from === "deck" ? "FROM YOUR DECK" : "FROM A TURRET";
       return [
-        { label: "SELL", cost: [give], gain: [gold(d.price)], note },
+        { label: "SELL", cost: [give], gain: [gold(valueOf(g.def, starsOf(g)))], note }, // 0.6.1a: full value
         { label: "SWAP", cost: [give], gain: [{ k: "item", def: at(pool, ev.pick) }], note },
         moveOn(),
       ];

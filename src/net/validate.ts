@@ -17,6 +17,7 @@ import {
   routeInfo, routeWellFormed, type Build,
 } from "../sim/deck";
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
+import { starsOf, valueOf } from "../sim/stars";
 
 export interface Validation {
   ok: boolean;
@@ -45,8 +46,9 @@ export interface BuildCost {
 export function buildCost(b: Build): BuildCost {
   const h = HEROES[b.hero];
   const crate = ITEMS.beltcrate, plate = ITEMS.plating;
-  const items = b.items.reduce((s, p) => s + (itemDef(p.def)?.price ?? 0), 0);
-  const mods = b.mods.reduce((s, m) => s + (itemDef(m.def)?.price ?? 0), 0);
+  // 0.6.1a: value = price x 2^(stars - 1) (stars.ts valueOf; unknown ids 0), so a merged module costs exactly its copies
+  const items = b.items.reduce((s, p) => s + valueOf(p.def, starsOf(p)), 0);
+  const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
   const crates = Math.max(0, Math.ceil((b.beltCap - h.belt) / crate.supply!.belt!));
   const plates = Math.max(0, Math.ceil(b.hullBonus / plate.supply!.hull!));
   return { items, mods, crates, plates, total: items + mods + crates * crate.price + plates * plate.price };

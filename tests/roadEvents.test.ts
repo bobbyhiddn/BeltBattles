@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
 import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId } from "../src/game/eventDefs";
 import { beginRoad, choicesFor, eventFor, makeEvent, pickChoice } from "../src/game/events";
+import { gainModule } from "../src/game/fuse";
 import { battleSeed, migrateRun, newRun, reroll, rollShop, type Run } from "../src/game/run";
 import { chooseFoe, finishDay, startDusk } from "../src/game/day";
 import { ITEMS, START_LIVES } from "../src/sim/content";
@@ -137,8 +138,13 @@ describe("road events: every choice applies exactly what it shows", () => {
           expect(!!run.dusk).toBe(gains.some((d) => d.k === "reveal"));
           const gotItems = gains.filter((d) => d.k === "item").map((d) => (d as { def: string }).def);
           const lostUids = c.cost.filter((d) => d.k === "item").map((d) => (d as { uid?: number }).uid);
-          const beforeCargo = before.inventory.filter((it) => !lostUids.includes(it.uid)).map((it) => it.def);
-          expect(run.inventory.map((it) => it.def)).toEqual([...beforeCargo, ...gotItems]);
+          // 0.6.1a: a gained item enters through gainModule, so a twin of a cargo part merges (1+1 = 2 stars)
+          const want = clone(before);
+          want.inventory = want.inventory.filter((it) => !lostUids.includes(it.uid));
+          want.build.items = want.build.items.filter((p) => !lostUids.includes(p.uid));
+          want.build.mods = want.build.mods.filter((m) => !lostUids.includes(m.uid));
+          for (const def of gotItems) gainModule(want, def);
+          expect(run.inventory.map((it) => [it.def, it.stars ?? 1])).toEqual(want.inventory.map((it) => [it.def, it.stars ?? 1]));
           expect(run.event!.picked).toBe(i);
           // a resolved event can't be picked twice
           const again = clone(run);

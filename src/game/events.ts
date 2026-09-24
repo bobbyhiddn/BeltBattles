@@ -11,6 +11,7 @@ import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta,
 import type { Run } from "./run";
 import { chooseFoe, storedFoe } from "./day";
 import { loadPool } from "./ghosts";
+import { gainModule } from "./fuse";
 
 /** 0.6.0d: HERALD (ELITE BOUNTY) or SAPPERS (SABOTAGE) would be a dud on the last day: no warlord
  *  is left for the stake or the sabotage (blockReason's NO WARLORD LEFT). */
@@ -127,7 +128,7 @@ function receive(run: Run, d: Delta, c: Choice): void {
     case "lives": run.lives = Math.min(START_LIVES, run.lives + d.n); break;
     case "hull": run.build.hullBonus += d.n; break;
     case "belt": run.build.beltCap += d.n; break;
-    case "item": run.inventory.push({ uid: run.nextUid++, def: d.def }); break;
+    case "item": gainModule(run, d.def); break; // 0.6.1a: item rewards and the trader's SWAP merge
     // 0.6.0b (decision 5): these act only on warlord fights (road.ts), never on a dusk ghost
     case "bounty": run.bounty = { day: run.day, stake: c.cost.reduce((s, q) => s + (q.k === "gold" ? q.n : 0), 0), pay: d.n }; break;
     case "sabotage": run.sabotage = { day: run.day }; break;

@@ -12,7 +12,11 @@ import { drawText, textWidth, wrap } from "../../render/font";
 import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
-import { buy, deleteRoute, sell, sellPrice, store, unfitMod, type Ctx } from "./actions";
+import { buy, deleteRoute, selectGain, sell, sellPrice, store, unfitMod, type Ctx } from "./actions";
+import { effectAt, starsOf, starText } from "../../sim/stars";
+
+/** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
+const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
 import type { Sel } from "./layout";
 import { describe } from "./shop";
 
@@ -51,7 +55,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
           id: "buy", label: o.sold ? "SOLD" : d.kind === "supply" ? `BUY+USE ${o.price}G` : `BUY ${o.price}G`, primary: can, disabled: !can,
           onTap: () => {
             const res = buy(ctx, show.wagon, show.slot);
-            if (res.item) ctx.select({ kind: "cargo", uid: res.item.uid });
+            if (res.gain) selectGain(ctx, res.gain); // 0.6.1a: after a merge, the survivor
           },
         },
       };
@@ -61,9 +65,9 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       if (!it) return null;
       const d = ITEMS[it.def];
       return {
-        icon: itemIcon(d.id), title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
+        icon: itemIcon(d.id), title: starred(d.name, starsOf(it)), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
         text: [...d.desc, d.kind === "mod" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
-        action: { id: "sell", label: `SELL +${sellPrice(d.id)}G`, onTap: () => sell(ctx, it.uid) },
+        action: { id: "sell", label: `SELL +${sellPrice(d.id, starsOf(it))}G`, onTap: () => sell(ctx, it.uid) },
       };
     }
     case "item": {
@@ -73,7 +77,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const sub = d.kind === "factory" ? `FACTORY · BELTS ${routesOf(b, p.uid).length}/${d.factory?.outputs ?? 1}` : b.routes.some((q) => q.cells.includes(key(p.x, p.y))) ? "GATE · ON A BELT" : "GATE · NOT ON A BELT!";
       const sig = d.id === "kiln" || d.id === "loom";
       return {
-        icon: itemIcon(d.id), title: d.name, color: RARITY_COLOR[d.rarity], sub,
+        icon: itemIcon(d.id), title: starred(d.name, starsOf(p)), color: RARITY_COLOR[d.rarity], sub,
         text: [...d.desc, d.kind === "factory" ? "DRAG OUT OF IT TO LAY BELT." : "DRAG TO MOVE IT."],
         action: sig ? undefined : { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) },
       };
@@ -99,7 +103,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const mods = b.mods.filter((m) => m.turret === show.index);
       let every = td.fireInterval, per = 1;
       for (const m of mods) {
-        const md = ITEMS[m.def].mod;
+        const md = effectAt(m.def, starsOf(m)).mod; // 0.6.1a: the gear's spec at its stars
         if (md?.fireMul) every *= md.fireMul;
         if (md?.perShot) per = Math.max(per, md.perShot);
       }
@@ -107,7 +111,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       return {
         icon: gear ? itemIcon(gear.id) : null, title: `${td.kind.toUpperCase()} TURRET ${show.index + 1}`, color: C.white,
         sub: `FED FROM COLUMN ${td.connectors.map((c) => c + 1).join("+")}`,
-        text: [`FIRES EVERY ${every.toFixed(2)}S${per > 1 ? ` · ${per} PER SHOT` : ""}`, `CHAMBER ${td.window} SLUGS`, `GEAR: ${gear ? gear.name : "EMPTY HARDPOINT"}`],
+        text: [`FIRES EVERY ${every.toFixed(2)}S${per > 1 ? ` · ${per} PER SHOT` : ""}`, `CHAMBER ${td.window} SLUGS`, `GEAR: ${gear ? starred(gear.name, starsOf(mods[0])) : "EMPTY HARDPOINT"}`],
         action: gear ? { id: "unfit", label: "REMOVE GEAR", onTap: () => unfitMod(ctx, show.index) } : undefined,
       };
     }

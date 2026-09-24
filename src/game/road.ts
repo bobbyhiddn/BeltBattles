@@ -14,7 +14,9 @@ import { hashSeed } from "../core/rng";
 import { ITEMS } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { RIVALS, rivalBuild, rivalDays, warlordOffer, type Difficulty, type RivalId, type WarlordOffer } from "../sim/rivals";
+import { starsOf, valueOf } from "../sim/stars";
 import { beginRoad, eventFor } from "./events";
+import { gainModule } from "./fuse";
 import type { EventId } from "./eventDefs";
 import type { Run, RoadPick, WarlordFight, WarlordOutcome, WarlordReward } from "./run";
 
@@ -83,15 +85,17 @@ export function warlordDeckDay(id: RivalId, day: number, sabotaged = false): num
   return sabotaged && rivalDays(id).includes(day - 1) ? day - 1 : day;
 }
 
-/** A deck's n most expensive distinct parts (deck items and turret gear), signature factories and
- *  supplies excluded; ties by id. */
+/** A deck's n most valuable distinct parts (deck items and turret gear), signature factories and
+ *  supplies excluded; ties by id. 0.6.1a: ranked by valueOf(def, stars) of the def's best copy (a
+ *  starred warlord part ranks by its value); the pick always grants a 1-star copy (gainModule). */
 export function topParts(b: Build, n: number): string[] {
-  const defs = new Set<string>();
-  for (const p of b.items) if (!SIGNATURE.has(p.def)) defs.add(p.def);
-  for (const m of b.mods) defs.add(m.def);
-  return [...defs]
+  const best = new Map<string, number>();
+  const see = (def: string, v: number) => best.set(def, Math.max(best.get(def) ?? 0, v));
+  for (const p of b.items) if (!SIGNATURE.has(p.def)) see(p.def, valueOf(p.def, starsOf(p)));
+  for (const m of b.mods) see(m.def, valueOf(m.def, starsOf(m)));
+  return [...best.keys()]
     .filter((d) => ITEMS[d] && ITEMS[d].kind !== "supply" && !SIGNATURE.has(d))
-    .sort((a, c) => ITEMS[c].price - ITEMS[a].price || (a < c ? -1 : a > c ? 1 : 0))
+    .sort((a, c) => best.get(c)! - best.get(a)! || (a < c ? -1 : a > c ? 1 : 0))
     .slice(0, n);
 }
 
@@ -174,7 +178,7 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
   let took: string | null = null;
   if (won && w.reward.legendary && w.reward.parts.length) {
     took = w.reward.parts[0];
-    run.inventory.push({ uid: run.nextUid++, def: took });
+    gainModule(run, took); // 0.6.1a: a 1-star copy to cargo, then merged
   }
   if (won && w.id === "matriarch") run.matriarchBeatenOn = run.day;
   w.result = { outcome, time, gold, bountyPaid, parts: won ? [...w.reward.parts] : [], took };
@@ -189,7 +193,7 @@ export function takePart(run: Run, i: number): string | null {
   if (!w || !r || r.outcome !== "win" || r.took || w.reward.legendary) return null;
   const def = r.parts[i];
   if (!def) return null;
-  run.inventory.push({ uid: run.nextUid++, def });
+  gainModule(run, def); // 0.6.1a: a 1-star copy to cargo, then merged
   r.took = def;
   const log = run.warlords[run.warlords.length - 1];
   if (log && log.day === run.day) log.part = def;

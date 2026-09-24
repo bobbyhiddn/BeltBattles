@@ -3,6 +3,7 @@
 
 import { Game } from "./game/game";
 import { newRun } from "./game/run";
+import { gainModule } from "./game/fuse";
 import { beginRoad, makeEvent } from "./game/events";
 import type { EventId } from "./game/eventDefs";
 import type { HeroId } from "./sim/content";
@@ -57,7 +58,7 @@ game.start();
     run.day = o.day ?? o.round ?? 3;
     run.gold = o.gold ?? 9;
     run.lives = o.lives ?? 2;
-    if (o.cargo) run.inventory.push({ uid: run.nextUid++, def: o.cargo });
+    if (o.cargo) gainModule(run, o.cargo); // 0.6.1a: tooling gains go through gainModule too
     run.event = makeEvent(run.seed, run.day, id);
     run.stage = "event";
     game.run = run;

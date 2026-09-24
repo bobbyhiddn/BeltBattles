@@ -14,6 +14,8 @@ import type { SideStats } from "../sim/battle";
 import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
+import { starField, starsOf } from "../sim/stars";
+import { gainModule, mergePreview, type Gain, type GainAt } from "./fuse";
 
 export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5 } from "./save";
 export type { PendingBounty, PendingSabotage, RoadChoice, RoadPick, WarlordFight, WarlordOutcome, WarlordResult, WarlordReward } from "./roadTypes";
@@ -105,6 +107,7 @@ export interface Run {
   matriarchBeatenOn: number | null; // R3: the day the Iron Matriarch was beaten
   bounty: PendingBounty | null; // ELITE BOUNTY: rides on the next Hard warlord fight
   sabotage: PendingSabotage | null; // SABOTAGE: the next warlord fights weakened
+  fuseFx?: string[]; // 0.6.1a, cosmetic: merge toasts the build screen shows next ("MERGED: TEMPER ★2")
 }
 
 export const RUN_VERSION = 6;
@@ -170,28 +173,36 @@ export function reroll(run: Run): boolean {
 export interface BuyResult {
   ok: boolean;
   reason?: string;
-  item?: InvItem; // absent for consumed supplies
+  item?: InvItem; // the bought module when it ends up in cargo (absent for supplies or a placed result)
   consumed?: string;
+  gain?: Gain; // 0.6.1a: where the bought module ended up, and the merges it caused
 }
 
-/** Purchase exactly the offered item; a sold slot can never charge twice (spec §17). */
-export function buyOffer(run: Run, wagon: number, slot: number): BuyResult {
+/**
+ * Purchase exactly the offered item; a sold slot can never charge twice (spec §17). 0.6.1a: the
+ * module enters through gainModule (1 star, then merged). `at` is a drag's drop target (a deck cell
+ * the caller checked, or a turret). A drop that would merge ignores the target (buy plus merge,
+ * ARSENAL.md §4.1 rule 5), except when every twin is in cargo: then the copy is placed at the target
+ * first and the merge lands where it was dropped.
+ */
+export function buyOffer(run: Run, wagon: number, slot: number, at?: GainAt): BuyResult {
   const w = run.shop.wagons[wagon];
   const o = w?.offers[slot];
   if (!o) return { ok: false, reason: "NO SUCH OFFER" };
   if (o.sold) return { ok: false, reason: "SOLD" };
   if (run.gold < o.price) return { ok: false, reason: `NEED ${o.price - run.gold} MORE GOLD` };
+  const d = ITEMS[o.def];
+  const pv = at && d.kind !== "supply" ? mergePreview(run, o.def) : null;
   run.gold -= o.price;
   o.sold = true;
-  const d = ITEMS[o.def];
   if (d.kind === "supply") {
     if (d.supply?.belt) run.build.beltCap += d.supply.belt;
     if (d.supply?.hull) run.build.hullBonus += d.supply.hull;
     return { ok: true, consumed: d.id };
   }
-  const item: InvItem = { uid: run.nextUid++, def: o.def };
-  run.inventory.push(item);
-  return { ok: true, item };
+  const gain = gainModule(run, o.def, pv && pv.where !== "cargo" ? undefined : at);
+  const item = gain.where === "cargo" ? run.inventory.find((i) => i.uid === gain.survivor) : undefined;
+  return { ok: true, item, gain };
 }
 
 export function takeFromInventory(run: Run, uid: number): InvItem | undefined {
@@ -211,7 +222,7 @@ export function storePlaced(run: Run, uid: number): boolean {
   const d = ITEMS[p.def];
   if (d.id === "kiln" || d.id === "loom") return false; // signature factory stays aboard
   removeItem(run.build, uid);
-  run.inventory.push({ uid, def: p.def });
+  run.inventory.push({ uid, def: p.def, ...starField(starsOf(p)) }); // 0.6.1a: moving never fuses; stars ride along
   return true;
 }
 
@@ -219,14 +230,15 @@ export function storeMod(run: Run, uid: number): boolean {
   const i = run.build.mods.findIndex((m) => m.uid === uid);
   if (i < 0) return false;
   const m = run.build.mods.splice(i, 1)[0];
-  run.inventory.push({ uid: m.uid, def: m.def });
+  run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) }); // 0.6.1a: never fuses
   return true;
 }
 
+/** Sell a cargo copy for sellValue(def, stars) = max(1, floor(valueOf / 2)) (0.6.1a). */
 export function sellInventory(run: Run, uid: number): number {
   const it = takeFromInventory(run, uid);
   if (!it) return 0;
-  const v = sellValue(ITEMS[it.def]);
+  const v = sellValue(it.def, starsOf(it));
   run.gold += v;
   return v;
 }

@@ -90,7 +90,17 @@ export class Game implements InputSink {
 
   toast(text: string, color: string = C.bone, sfx?: Sfx): void {
     this.toastMsg = { text, color, t: 1.6 };
+    this.toastLog.push(text); // tooling: the scripted runs log merge toasts
+    if (this.toastLog.length > 200) this.toastLog.shift();
     if (sfx) this.audio.play(sfx);
+  }
+
+  /** 0.6.1a tooling: the most recent toast texts (bb.game.toastLog). */
+  readonly toastLog: string[] = [];
+
+  /** 0.6.1a: a toast is on screen (queued merge toasts wait for it). */
+  get toasting(): boolean {
+    return !!this.toastMsg;
   }
 
   error(text: string): void {
@@ -152,6 +162,9 @@ export class Game implements InputSink {
     }
     this.screen.update(dt);
     if (this.toastMsg && (this.toastMsg.t -= dt) <= 0) this.toastMsg = null;
+    // 0.6.1a: queued merge toasts (run.fuseFx, cosmetic), one at a time once the screen has settled
+    const fx = this.run?.fuseFx;
+    if (fx?.length && !this.toastMsg && this.wipeDir === 0) this.toast(fx.shift()!, C.lime);
   }
 
   render(): void {

@@ -9,6 +9,7 @@ import { RULES_VERSION, START_LIVES, type HeroId } from "./sim/content";
 import type { SideStats } from "./sim/battle";
 import { honestStandInBuild, strongHonestBuild } from "./game/honest";
 import { finishWarlord, pickPending, pickRoad, takePart } from "./game/road";
+import { gainModule } from "./game/fuse";
 import type { Difficulty } from "./sim/rivals";
 
 export interface GhostSpec {
@@ -56,6 +57,7 @@ export interface RunSpec {
   wins?: number;
   losses?: number;
   gold?: number;
+  cargo?: string[]; // 0.6.1a: modules gained into cargo, in order (each through gainModule, so pairs merge)
 }
 
 /** A run standing at the dawn of `day` with the given record (its caravan rolled for that day). */
@@ -67,6 +69,7 @@ export function setupRun(o: RunSpec = {}): Run {
   run.losses = o.losses ?? 0;
   run.gold = o.gold ?? run.gold;
   run.shop.rerolls = 0;
+  for (const def of o.cargo ?? []) gainModule(run, def);
   rollShop(run);
   return run;
 }

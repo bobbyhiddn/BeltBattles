@@ -79,6 +79,12 @@ export function outputsAt(def: string, stars: number): number {
   return effectAt(def, stars).factory?.outputs ?? 0;
 }
 
+/** The optional star field for a copy: {} at 1 star (never written as 1), else { stars }. */
+export function starField(stars: number): { stars?: number } {
+  const s = starsOf({ stars });
+  return s > 1 ? { stars: s } : {};
+}
+
 /** Player text for a star level: "★★" (the 5x7 font has a ★ glyph). */
 export function starText(stars: number): string {
   return "★".repeat(starsOf({ stars }));

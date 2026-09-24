@@ -6,6 +6,8 @@ import {
   buyOffer, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
 } from "../../game/run";
 import { CELL, GRID, ITEMS, sellValue } from "../../sim/content";
+import { starField, starsOf } from "../../sim/stars";
+import { mergePreview, type Gain, type GainAt } from "../../game/fuse";
 import { canPlaceItem, key, moveItem, occupancy, placeItem, removeRoute } from "../../sim/deck";
 import type { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
@@ -43,9 +45,11 @@ export interface Carry {
   uid: number; // -1 while still on a card
 }
 
-/** Buy a wagon offer. Supplies are consumed on the spot; returns the new cargo item. */
-export function buy(ctx: Ctx, wagon: number, slot: number): { ok: boolean; item?: InvItem } {
-  const res = buyOffer(ctx.run, wagon, slot);
+/** Buy a wagon offer. Supplies are consumed on the spot; returns the cargo item when the bought
+ *  module ends up in cargo. 0.6.1a: `at` is a drop target (see run.ts buyOffer); merges toast
+ *  through run.fuseFx on the build screen. */
+export function buy(ctx: Ctx, wagon: number, slot: number, at?: GainAt): { ok: boolean; item?: InvItem; gain?: Gain } {
+  const res = buyOffer(ctx.run, wagon, slot, at);
   if (!res.ok) {
     ctx.invalid(res.reason ?? "CAN'T BUY");
     return { ok: false };
@@ -60,7 +64,18 @@ export function buy(ctx: Ctx, wagon: number, slot: number): { ok: boolean; item?
     ctx.select({ kind: "none" });
     ctx.touched();
   }
-  return { ok: true, item: res.item };
+  if (res.gain?.steps.length) ctx.touched(); // a merge changed the deck or cargo
+  return { ok: true, item: res.item, gain: res.gain };
+}
+
+/** Select where a bought module ended up (after a merge it may be a placed twin). */
+export function selectGain(ctx: Ctx, g: Gain): void {
+  if (g.where === "cargo") ctx.select({ kind: "cargo", uid: g.survivor });
+  else if (g.where === "deck") ctx.select({ kind: "item", uid: g.survivor });
+  else {
+    const m = ctx.run.build.mods.find((q) => q.uid === g.survivor);
+    if (m) ctx.select({ kind: "turret", index: m.turret });
+  }
 }
 
 export function sell(ctx: Ctx, uid: number): void {
@@ -96,8 +111,9 @@ export function deleteRoute(ctx: Ctx, index: number): void {
   ctx.touched();
 }
 
-export function sellPrice(defId: string): number {
-  return sellValue(ITEMS[defId]);
+/** 0.6.1a: sellValue(def, stars) = max(1, floor(valueOf / 2)). */
+export function sellPrice(defId: string, stars = 1): number {
+  return sellValue(defId, stars);
 }
 
 /** Deck cell for an item of the given footprint centred under a screen point. */
@@ -138,6 +154,18 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
     if (src.from === "offer" && overHull) return buy(ctx, src.wagon, src.slot).ok;
     return false;
   }
+  // 0.6.1a: an offer that would merge into a placed twin is a buy plus a merge; the target doesn't matter
+  if (src.from === "offer") {
+    const pv = mergePreview(run, c.def);
+    if (pv && pv.where !== "cargo") {
+      const r = buy(ctx, src.wagon, src.slot);
+      if (!r.ok || !r.gain) return false;
+      selectGain(ctx, r.gain);
+      ctx.touched();
+      ctx.placed(x, y);
+      return true;
+    }
+  }
   if (def.kind === "mod") {
     const t = ctx.turretAt(x, y);
     if (t < 0) {
@@ -150,14 +178,12 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
       return false;
     }
     if (src.from === "offer") {
-      const r = buy(ctx, src.wagon, src.slot);
-      if (!r.item) return false;
-      takeFromInventory(run, r.item.uid);
-      b.mods.push({ uid: r.item.uid, def: r.item.def, turret: t });
+      const r = buy(ctx, src.wagon, src.slot, { turret: t }); // fitted first; a cargo twin merges into it
+      if (!r.ok) return false;
     } else if (src.from === "cargo") {
       const it = takeFromInventory(run, c.uid);
       if (!it) return false;
-      b.mods.push({ uid: it.uid, def: it.def, turret: t });
+      b.mods.push({ uid: it.uid, def: it.def, turret: t, ...starField(starsOf(it)) }); // moving never fuses
     } else if (src.from === "mod") {
       const m = b.mods.find((q) => q.uid === c.uid);
       if (m) m.turret = t;
@@ -178,15 +204,13 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
   }
   let uid = c.uid;
   if (src.from === "offer") {
-    const r = buy(ctx, src.wagon, src.slot);
-    if (!r.item) return false;
-    takeFromInventory(run, r.item.uid);
-    uid = r.item.uid;
-    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y });
+    const r = buy(ctx, src.wagon, src.slot, { x: cell.x, y: cell.y }); // placed first; a cargo twin merges into it
+    if (!r.ok || !r.gain) return false;
+    uid = r.gain.survivor;
   } else if (src.from === "cargo") {
     const it = takeFromInventory(run, c.uid);
     if (!it) return false;
-    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y });
+    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y, ...starField(starsOf(it)) }); // moving never fuses
   } else if (src.from === "deck") {
     const r = moveItem(b, uid, cell.x, cell.y);
     if (r.dropped) ctx.game.toast(`${r.dropped} BELT${r.dropped > 1 ? "S" : ""} CUT LOOSE`, C.yellow);

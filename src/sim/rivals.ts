@@ -8,6 +8,7 @@
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type Faction, type HeroId } from "./content";
 import type { Build } from "./deck";
+import { starsOf, valueOf } from "./stars";
 import { warlordBuild, warlordHull } from "./ai";
 import { PLANS, planBuild, type RivalLoadout } from "./rivalBuilds";
 
@@ -279,8 +280,9 @@ const priceOf = (id: string): number =>
  * costs at most maxGoldByDay(day).
  */
 export function deckCost(b: Build): DeckCost {
-  const items = b.items.reduce((s, p) => s + priceOf(p.def), 0);
-  const mods = b.mods.reduce((s, m) => s + priceOf(m.def), 0);
+  // 0.6.1a: items and mods sum valueOf(def, stars) = price x 2^(stars - 1) (a merged module costs exactly its copies)
+  const items = b.items.reduce((s, p) => s + valueOf(p.def, starsOf(p)), 0);
+  const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
   const crates = Math.max(0, Math.ceil((b.beltCap - HEROES[b.hero].belt) / CRATE_BELT));
   const plates = Math.max(0, Math.ceil(b.hullBonus / PLATE_HULL));
   return { items, mods, crates, plates, total: items + mods + crates * ITEMS.beltcrate.price + plates * ITEMS.plating.price };
