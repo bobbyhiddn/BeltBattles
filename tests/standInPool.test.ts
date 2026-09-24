@@ -35,6 +35,22 @@ describe("the stand-in pool v1.1 as the game uses it", () => {
     expect([...heroes].sort()).toEqual(["furnace", "weaver"]);
   });
 
+  it("prints the pool's recorded vsPar per hero and day (mean and minimum of standInPool(hero, day); no fights)", () => {
+    const pc = (x: number) => `${Math.round(x * 100)}%`;
+    const lines = ["stand-in pool v1.1 recorded vsPar (lower win rate vs both par decks), mean / min of 6:"];
+    for (const day of DAYS) {
+      const cols = STAND_IN_POOL_HEROES.map((hero) => {
+        const v = standInPool(hero, day).map((e) => e.vsPar);
+        const cost = standInPool(hero, day).map((e) => e.cost);
+        return `${hero} ${pc(v.reduce((a, b) => a + b, 0) / v.length)} / ${pc(Math.min(...v))} (${Math.min(...cost)}-${Math.max(...cost)}g)`;
+      });
+      lines.push(`  day ${String(day).padStart(2)} (budget ${maxGoldByDay(day)}g): ${cols.join(" | ")}`);
+    }
+    // eslint-disable-next-line no-console
+    console.log(lines.join("\n"));
+    expect(lines.length).toBe(1 + RUN_DAYS);
+  });
+
   it("every pool entry's vsPar is at least parFloor (0.5), and no hero/day is listed short", () => {
     expect(STAND_IN_DATA.parFloor).toBe(0.5);
     expect(STAND_IN_DATA.short).toEqual([]);

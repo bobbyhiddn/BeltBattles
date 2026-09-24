@@ -13,25 +13,28 @@ import {
 // the day's warlord with its hull ramp as whole paid plates, fought as the player (side 0) over
 // 20 seeds. The margin is the reference's hull left minus the captain's (fractions), so a higher
 // margin is an easier captain. Warlords are measured as rivalBuild (their PvE deck); the stand-in
-// pool is measured as standInBuild, the honest deck the dusk fight uses.
+// pool is measured as standInBuild, the captain's honest plan deck. 0.6.0d: the dusk fight now uses
+// the full-purse stand-in pool (standInPick; tests/standInPool.test.ts) and standInBuild is only its
+// fallback, so this table is the old dusk deck's; the printed line adds each hero's stand-in win rate.
 
 const SEEDS = Array.from({ length: 20 }, (_, i) => (i + 1) * 7919);
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const GAP = 0.05;
 const other = (h: HeroId): HeroId => (h === "furnace" ? "weaver" : "furnace");
 
-interface Score { rate: number; margin: number; t: number }
+interface Score { rate: number; margin: number; t: number; foe: number } // 0.6.0d: foe = the captain's win rate
 
 function versus(ref: Build, foe: Build): Score {
-  let wins = 0, margin = 0, t = 0;
+  let wins = 0, lost = 0, margin = 0, t = 0;
   for (const seed of SEEDS) {
     const b = simulate(ref, foe, seed);
     const [p, e] = b.sides;
     if (b.winner === 0) wins++;
+    if (b.winner === 1) lost++;
     margin += Math.max(0, p.hull.hp) / p.hull.max - Math.max(0, e.hull.hp) / e.hull.max;
     t += b.t;
   }
-  return { rate: wins / SEEDS.length, margin: margin / SEEDS.length, t: t / SEEDS.length };
+  return { rate: wins / SEEDS.length, margin: margin / SEEDS.length, t: t / SEEDS.length, foe: lost / SEEDS.length };
 }
 
 function mean(xs: Score[]): Score {
@@ -40,6 +43,7 @@ function mean(xs: Score[]): Score {
     rate: xs.reduce((a, s) => a + s.rate, 0) / n,
     margin: xs.reduce((a, s) => a + s.margin, 0) / n,
     t: xs.reduce((a, s) => a + s.t, 0) / n,
+    foe: xs.reduce((a, s) => a + s.foe, 0) / n,
   };
 }
 
@@ -90,7 +94,9 @@ describe("warlord difficulty ladder, day by day (reference = honestReference of 
     for (const day of DAYS) {
       const p = poolMean(day);
       const each = STAND_INS.map((id) => `${id} ${sgn(standIn.get(`${id}@${day}`)!.margin)}`).join(" ");
-      lines.push(`  day ${String(day).padStart(2)}: pool ref wins ${pct(p.rate)} margin ${sgn(p.margin)} | ${each}`);
+      // 0.6.0d: the old dusk decks' own win rate per hero (the same fights, no new sweep)
+      const hero = (h: HeroId) => pct(mean(STAND_INS.filter((id) => RIVALS[id].hero === h).map((id) => standIn.get(`${id}@${day}`)!)).foe);
+      lines.push(`  day ${String(day).padStart(2)}: pool ref wins ${pct(p.rate)} margin ${sgn(p.margin)} | standInBuild wins: furnace ${hero("furnace")} weaver ${hero("weaver")} | ${each}`);
     }
     // eslint-disable-next-line no-console
     console.log(lines.join("\n"));
