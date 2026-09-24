@@ -251,6 +251,33 @@ export const ITEMS: Record<string, ItemDef> = {
     mod: { fireMul: 0.75 },
     levels: { 2: { mod: { fireMul: 0.58 } }, 3: { mod: { fireMul: 0.46 } } },
   },
+  // --- 0.6.1p: the wave-1 turret mods (catalogue.json hopper, mantlet, ram; ARSENAL.md §3.3 Mods) ---
+  // HOPPER: the first Quartermaster stock (0.6.1d brought the merchant; its own parts are a later job).
+  // On a GATLING SPOOL turret its seconds do nothing (gatlingReady never reads windowTime); its slots still count.
+  hopper: {
+    id: "hopper", name: "HOPPER", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "quartermaster",
+    desc: ["CHAMBER HOLDS 1 MORE", "LOAD; WINDOWS STAY", "OPEN 0.5S LONGER."], tags: ["BURST", "TIMING"],
+    mod: { window: 1, windowTime: 0.5 },
+    levels: {
+      2: { mod: { window: 2, windowTime: 1 } },
+      3: { mod: { window: 3, windowTime: 1.5, noJam: true }, perk: "BOTTOMLESS" },
+    },
+  },
+  mantlet: {
+    id: "mantlet", name: "MANTLET", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "ironmonger",
+    desc: ["ARMORED TURRET:", "SHOCK AND CHAIN SLOWS", "CAN'T STALL IT."], tags: ["GUARD"],
+    mod: { immune: ["shock", "static", "arc", "drag"] }, // wave 1 has only shock; the rest arrive with wave 2
+    levels: {
+      2: { mod: { immune: ["shock", "static", "arc", "drag", "freeze", "sabot"] }, perk: "FULL PLATE" },
+      3: { mod: { intakeGuard: 3 }, perk: "BULWARK SKIRT" },
+    },
+  },
+  ram: {
+    id: "ram", name: "FINISHER RAM", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "tinker",
+    desc: ["THE LAST PAYLOAD OUT", "OF EACH WINDOW HITS", "40% HARDER."], tags: ["BURST", "TIMING"],
+    mod: { finisher: 0.4 }, // never on a GATLING SPOOL turret: it holds no window (battle.ts chambers)
+    levels: { 2: { mod: { finisher: 0.88 } }, 3: { mod: { finisher: 1.4 } } },
+  },
   // --- turret cores (0.6.1b, ARSENAL.md §2.3, catalogue.json): one socket per turret; numbers at heavy scale ---
   scatter: {
     id: "scatter", name: "SCATTER CHOKE", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",

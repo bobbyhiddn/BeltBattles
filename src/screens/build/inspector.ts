@@ -4,7 +4,8 @@
 
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
-import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES } from "../../sim/content";
+import { DISRUPT_TIME, HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, WINDOW_TIME } from "../../sim/content";
+import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import { beltUsed, connectedRouteCount, defOf, estimateRoute, gearFor, itemByUid, key, routeInfo, routesOf } from "../../sim/deck";
 import { resolveCore, type TurretCore } from "../../sim/cores"; // 0.6.1b
 import { C, RARITY_COLOR } from "../../render/palette";
@@ -22,21 +23,36 @@ const starred = (name: string, stars: number): string => (stars > 1 ? `${name} $
 import type { Sel } from "./layout";
 import { describe } from "./shop";
 
-/** 0.6.1d: the headline number at `stars`, `effectAt` read out short (ARSENAL.md §8.1, §8.2). */
+/**
+ * 0.6.1d: the headline number at `stars`, `effectAt` read out short (ARSENAL.md §8.1, §8.2). 0.6.1p: every applied
+ * star perk reads here too. OVERDRIVE's REDLINE/AFTERBURNER guards and MANTLET's freeze/sabot/static/arc/drag
+ * immunities act only once wave 2 adds those attacks, so no line promises them (only the perk's name shows).
+ */
 function starEffectLine(def: string, stars: number): string {
   const e = effectAt(def, stars);
-  if (e.gate?.burn) return `+${e.gate.burn} BURN`;
-  if (e.gate?.flat) return `+${e.gate.flat} FLAT`;
-  if (e.gate?.perPriorGate) return `+${e.gate.perPriorGate}/GATE`;
-  if (e.gate?.split) return `${e.gate.split.copies}X ${Math.round(e.gate.split.mult * 100)}%`;
-  if (e.gate?.speed) return `SPEED X${e.gate.speed}`;
-  if (e.factory) return `EVERY ${e.factory.interval}S`;
-  if (e.mod?.fireMul) return `FIRE X${e.mod.fireMul}`;
-  if (e.mod?.perShot) return `${e.mod.perShot}/SHOT`;
+  const gt = e.gate, m = e.mod;
+  if (gt?.burn) return `+${gt.burn} BURN`;
+  if (gt?.speed) return `SPEED X${gt.speed}${gt.flat ? ` · +${gt.flat} FLAT` : ""}`; // OVERDRIVE ★3: + AFTERBURNER's flat
+  if (gt?.flat) return `+${gt.flat} FLAT`;
+  if (gt?.perPriorGate) return `+${gt.perPriorGate}/GATE${gt.priorCap !== undefined ? ` · MAX ${gt.priorCap} GATES` : ""}`;
+  if (gt?.split) return `${gt.split.copies}X ${Math.round(gt.split.mult * 100)}%`;
+  if (gt?.shock) return `STALL ${(gt.shockTime ?? DISRUPT_TIME).toFixed(1)}S${gt.jump ? ` · JUMPS TO ${gt.jump} MORE` : ""}`;
+  if (e.factory) return `EVERY ${e.factory.interval}S${e.factory.base !== undefined ? ` · ${e.factory.base} DMG SLUGS` : ""}`;
+  if (m?.fireMul) return `FIRE X${m.fireMul}`;
+  if (m?.perShot) return `${m.perShot}/SHOT${m.window ? ` · +${m.window} SLOT` : ""}`;
+  if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.noJam ? " · NEVER JAMS" : ""}`; // HOPPER
+  if (m?.immune) return `SHOCK-PROOF${m.intakeGuard ? ` · GUARDS LAST ${m.intakeGuard} TILES` : ""}`; // MANTLET (wave 1: shock only)
+  if (m?.finisher) return `FINISHER +${Math.round(m.finisher * 100)}%`;
   const perk = perkAt(def, stars);
   if (perk) return perk;
-  if (e.gate?.shock) return "SHOCK";
   return "";
+}
+
+/** 0.6.1p (ARSENAL.md §8.2): the current level's numbers with its perk, "★2 CLEAN CUT: 2X 72%"; null at 1 star (desc says it). */
+function levelLine(def: string, stars: number): string | null {
+  if (stars <= 1 || !fusible(def)) return null;
+  const perk = perkAt(def, stars), eff = starEffectLine(def, stars);
+  return `★${stars}${perk ? ` ${perk}` : ""}${eff && eff !== perk ? `: ${eff}` : ""}`;
 }
 
 /** 0.6.1d (ARSENAL.md §8.1): "MERGES WITH YOUR TEMPER ★1 → ★2 · +4 BURN", live from mergePreview. */
@@ -132,9 +148,10 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const d = ITEMS[it.def];
       const stars = starsOf(it);
       const next = nextLine(run, it.def, stars);
+      const lvl = levelLine(it.def, stars); // 0.6.1p
       return {
         icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
-        text: [...d.desc, ...(next ? [next] : []), d.kind === "mod" || d.kind === "core" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
+        text: [...d.desc, ...(lvl ? [lvl] : []), ...(next ? [next] : []), d.kind === "mod" || d.kind === "core" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
         actions: [{ id: "sell", label: `SELL +${sellPrice(d.id, stars)}G`, onTap: () => sell(ctx, it.uid) }],
       };
     }
@@ -146,9 +163,10 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const sub = d.kind === "factory" ? `FACTORY · BELTS ${routesOf(b, p.uid).length}/${d.factory?.outputs ?? 1}` : b.routes.some((q) => q.cells.includes(key(p.x, p.y))) ? "GATE · ON A BELT" : "GATE · NOT ON A BELT!";
       const sig = d.id === "kiln" || d.id === "loom";
       const next = sig ? null : nextLine(run, d.id, stars);
+      const lvl = sig ? null : levelLine(d.id, stars); // 0.6.1p
       return {
         icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub,
-        text: [...d.desc, ...(next ? [next] : []), d.kind === "factory" ? "DRAG OUT OF IT TO LAY BELT." : "DRAG TO MOVE IT."],
+        text: [...d.desc, ...(lvl ? [lvl] : []), ...(next ? [next] : []), d.kind === "factory" ? "DRAG OUT OF IT TO LAY BELT." : "DRAG TO MOVE IT."],
         actions: sig ? [] : [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }],
       };
     }
@@ -185,14 +203,25 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const actions: Action[] = [];
       if (tc.bought) actions.push({ id: "unfitcore", label: "REMOVE CORE", onTap: () => unfitCore(ctx, show.index) });
       if (gear) actions.push({ id: "unfit", label: "REMOVE GEAR", onTap: () => unfitMod(ctx, show.index) });
+      // 0.6.1p: the window as the battle sees it (EXT. CHAMBER, HOPPER), and the GATLING clashes (the Prime's call):
+      // a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do nothing there
+      const tu = makeTurret(b, show.index, td);
+      const plain = tu.window === td.window && tu.windowTime === WINDOW_TIME && !tu.noJam;
+      const chamber = plain ? `CHAMBER ${td.window} SLUGS` : `CHAMBER ${tu.window} SLUGS · ${+tu.windowTime.toFixed(2)}S${tu.noJam ? " · NEVER JAMS" : ""}`;
+      const gstars = gm ? starsOf(gm) : 1;
+      const gearFx = gear ? starEffectLine(gear.id, gstars) : "";
+      const clash: string[] = [];
+      if (tc.routine === "gatling" && gear?.id === "hopper") clash.push(`GATLING: HOPPER'S +${effectAt("hopper", gstars).mod?.windowTime ?? 0}S DOES NOTHING`);
+      if (tc.routine === "gatling" && gear?.id === "ram") clash.push("GATLING: NO WINDOW, SO NO FINISHER");
       return {
         icon: gear ? itemIcon(gear.id) : null, title: `${td.kind.toUpperCase()} TURRET ${show.index + 1}`, color: C.white,
         sub: `FED FROM COLUMN ${td.connectors.map((c) => c + 1).join("+")}`,
         text: [
           `${shape ? `${shape} · ` : ""}FIRES EVERY ${every.toFixed(2)}S${per > 1 ? ` · ${per} PER SHOT` : ""}`,
-          `CHAMBER ${td.window} SLUGS`,
+          chamber,
           `CORE: ${coreName}`, // 0.6.1b: ARSENAL.md §8.4, hidden REMOVE CORE for a signature core
-          `GEAR: ${gear ? starred(gear.name, starsOf(gm!)) : "EMPTY HARDPOINT"}`,
+          `GEAR: ${gear ? `${starred(gear.name, gstars)}${gearFx ? ` · ${gearFx}` : ""}` : "EMPTY HARDPOINT"}`,
+          ...clash,
         ],
         actions,
       };

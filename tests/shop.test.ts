@@ -1,10 +1,10 @@
 // 0.6.1d: the shop's duplicate rules (ARSENAL.md §5.2, §5.3; REQ-BFG-019). rollShop draws merchants
-// by weight (a stockless merchant — scrapper, quartermaster, the arcane dealer, until a later job
-// stocks them — never appears), fills regular slots fresh-first, then may splice in at most one
+// by weight (a stockless merchant — scrapper and the arcane dealer, until a later job stocks them —
+// never appears; 0.6.1p's HOPPER is the quartermaster's first stock), fills regular slots fresh-first, then may splice in at most one
 // "familiar" slot from owned fusible parts. See tests/fuse.test.ts for the merge core itself.
 import { describe, expect, it } from "vitest";
 import { newRun, rollShop, shopBadge, type Run } from "../src/game/run";
-import { ITEMS, OFFERS } from "../src/sim/content";
+import { ITEMS, OFFERS, itemsSoldBy } from "../src/sim/content";
 
 function atDay(seed: number, day: number, hero: "furnace" | "weaver" = "furnace"): Run {
   const run = newRun(hero, seed);
@@ -29,16 +29,21 @@ describe("shop: caravan shape", () => {
     }
   });
 
-  it("a merchant with no stock today is never drawn (scrapper, quartermaster and the arcane dealer wait for a later job)", () => {
+  // 0.6.1p: HOPPER is the Quartermaster's first stock, so the Quartermaster now rides; its wagon offers only HOPPER
+  it("a merchant with no stock today is never drawn (scrapper and the arcane dealer wait for a later job)", () => {
+    expect(itemsSoldBy("quartermaster").map((d) => d.id)).toEqual(["hopper"]);
+    let quartermaster = 0;
     for (let seed = 1; seed <= 300; seed++) {
       for (const day of [1, 3, 5, 9]) {
         const run = atDay(seed * 31 + day, day);
         const merchants = run.shop.wagons.map((w) => w.merchant);
         expect(merchants).not.toContain("scrapper");
-        expect(merchants).not.toContain("quartermaster");
         expect(merchants).not.toContain("arcane"); // stronger than "no Arcane before day 3": not stocked at all yet
+        const qm = run.shop.wagons.find((w) => w.merchant === "quartermaster");
+        if (qm) { quartermaster++; for (const o of qm.offers) expect(o.def).toBe("hopper"); }
       }
     }
+    expect(quartermaster).toBeGreaterThan(0);
   });
 });
 

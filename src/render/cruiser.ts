@@ -13,6 +13,10 @@ import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./
 import { coreFor } from "../sim/deck"; // 0.6.1b: the core socket
 import { starsOf } from "../sim/stars"; // 0.6.1b
 import { gemColor } from "./coreArt"; // 0.6.1b
+import { gearStats } from "../sim/battle"; // 0.6.1p: the gear's window slots (EXT. CHAMBER, HOPPER)
+
+/** 0.6.1p: the hardpoint box colour per gear (catalogue.json art); anything else keeps 0.6.0's cyan. */
+const GEAR_BOX: Record<string, string> = { chamber: C.lime, hopper: C.brass3, mantlet: C.steel3, ram: C.red };
 
 export interface RouteModel {
   index: number;
@@ -208,9 +212,10 @@ export function drawTurrets(g: G, v: CruiserView): void {
         g.fillRect(Math.round(px + Math.cos(a) * R - 0.5), Math.round(py + Math.sin(a) * R - 0.5), 1, 1);
       }
     }
-    // chamber pips: loaded payloads beside the mount
+    // chamber pips: loaded payloads beside the mount (0.6.1p: one per window slot, EXT. CHAMBER and HOPPER included)
     const pu = td.kind === "heavy" ? 12 : 9;
-    for (let k = 0; k < td.window; k++) {
+    const win = ts ? ts.window : td.window + gearStats(v.build, i).window;
+    for (let k = 0; k < win; k++) {
       const pv = -4 + k * 4;
       trect(g, f, px, py, pu, pv, 4, 4, C.ink);
       const loaded = ts ? ts.stack[k] : undefined;
@@ -220,8 +225,9 @@ export function drawTurrets(g: G, v: CruiserView): void {
       if (mods[m].turret !== i || ITEMS[mods[m].def]?.kind === "core") continue; // 0.6.1b: gear only (the core has its socket)
       const bu = -pu - 5;
       trect(g, f, px, py, bu, -3, 5, 5, C.ink);
-      trect(g, f, px, py, bu + 1, -2, 3, 3, mods[m].def === "chamber" ? C.lime : C.cyan);
-      trect(g, f, px, py, bu + 2, -2, 1, 3, C.white);
+      trect(g, f, px, py, bu + 1, -2, 3, 3, GEAR_BOX[mods[m].def] ?? C.cyan);
+      if (mods[m].def === "mantlet") trect(g, f, px, py, bu + 2, -1, 1, 1, C.white); // MANTLET: one white rivet
+      else trect(g, f, px, py, bu + 2, -2, 1, 3, C.white);
       starPips(g, f, px, py, bu, 3, starsOf(mods[m])); // 0.6.1b: 2 or 3 pips beside the hardpoint box
     }
     // 0.6.1b: the core socket (ARSENAL.md §8.4): a 6x6 hexagon gem at the rear of the mount, on the side away

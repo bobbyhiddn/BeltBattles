@@ -93,7 +93,7 @@ function drawShells(g: G, a: Arena): void {
     const arc = pr.heavy ? 8 + dist * 0.09 : 0;
     const k = Math.min(1, pr.t / pr.flight);
     const ad = AMMO[pr.payload.ammo];
-    const tier = pr.payload.ammo === "cinder" ? heatTier(payloadDamage(ad.base, ad.rideScale, pr.payload.ride, pr.payload.mult, pr.payload.flat)) : 0;
+    const tier = pr.payload.ammo === "cinder" ? heatTier(payloadDamage(pr.payload.base ?? ad.base, ad.rideScale, pr.payload.ride, pr.payload.mult, pr.payload.flat)) : 0;
     // trail: earlier points of the same flight path, fading
     const trail = trailColors(pr.payload.ammo, tier);
     const tw = pr.heavy ? 2 : 1;
@@ -102,6 +102,14 @@ function drawShells(g: G, a: Arena): void {
       if (kj <= 0) continue;
       const tx = x0 + dx * kj, ty = y0 + dy * kj - Math.sin(kj * Math.PI) * arc;
       rect(g, Math.round(tx) - (tw >> 1), Math.round(ty) - (tw >> 1), tw, tw, trail[j - 1]);
+    }
+    // 0.6.1p FINISHER RAM (catalogue art): the finisher shot drags a 1 px red trail
+    if (pr.finisher) {
+      for (let j = 1; j <= 6; j++) {
+        const kj = k - j * 0.025;
+        if (kj <= 0) continue;
+        rect(g, Math.round(x0 + dx * kj), Math.round(y0 + dy * kj - Math.sin(kj * Math.PI) * arc), 1, 1, C.red);
+      }
     }
     const x = x0 + dx * k, y = y0 + dy * k;
     const z = Math.sin(k * Math.PI) * arc;
