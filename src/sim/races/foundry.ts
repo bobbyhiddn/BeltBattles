@@ -8,7 +8,7 @@ import type { FactoryState, Payload, SideState, SimEvent, TurretState } from "..
 import { RACE_AMMO } from "./data";
 
 export const SYNC_WINDOW = 0.25; // s: max gap between the two loads (15 ticks)
-export const FUSE_MULT = 1.5; // alloy slug = FUSE_MULT x (blank A + blank B)
+export const FUSE_MULT = 1.3; // alloy slug = FUSE_MULT x (blank A + blank B)
 const EPS = 1e-6; // float slack on accumulated battle time
 
 export interface SimCtx {

@@ -51,8 +51,8 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
 };
 
 export const RACE_AMMO: Record<RaceAmmoKind, AmmoDef> = {
-  blank: { name: "ALLOY BLANK", base: 3, rideScale: 0, fray: 0 },
-  // A fused slug carries its whole damage in `flat` (1.5 x both blanks), so base is 0.
+  blank: { name: "ALLOY BLANK", base: 3.5, rideScale: 0, fray: 0 },
+  // A fused slug carries its whole damage in `flat` (FUSE_MULT x both blanks), so base is 0.
   alloy: { name: "ALLOY SLUG", base: 0, rideScale: 0, fray: 0 },
   bulwark: { name: "BULWARK SLUG", base: 4, rideScale: 0, fray: 0 },
   // base is the curve's floor, for display; rideCurve replaces base + rideScale x ride.
@@ -65,7 +65,7 @@ export const RACE_AMMO: Record<RaceAmmoKind, AmmoDef> = {
 export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   foundry: {
     id: "foundry", name: "FOUNDRY", faction: "human", factionName: "HUMAN GUILDS",
-    hull: 190, factory: "crucible", ammo: "blank", belt: 18,
+    hull: 250, factory: "crucible", ammo: "blank", belt: 18,
     turrets: [
       { col0: 2, width: 2, connectors: [2, 3], kind: "medium", fireInterval: 0.8, window: 2, flight: 0.45 },
       { col0: 6, width: 2, connectors: [6, 7], kind: "medium", fireInterval: 0.8, window: 2, flight: 0.45 },
