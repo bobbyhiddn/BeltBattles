@@ -494,6 +494,35 @@ export function itemIcon(id: string): Cv {
         px(g, 6, 6, C.white); px(g, 5, 5, C.ice);
         break;
       }
+      // 0.6.1p: the wave-1 turret mods (catalogue.json art)
+      case "hopper": {
+        // a brass funnel hopper over the chamber pips
+        rect(g, 1, 1, 10, 3, C.ink);
+        hline(g, 2, 2, 8, C.brass2); hline(g, 2, 1, 8, C.brass4);
+        rect(g, 3, 4, 6, 2, C.ink); hline(g, 4, 4, 4, C.brass2);
+        rect(g, 4, 6, 4, 2, C.ink); hline(g, 5, 6, 2, C.brass3);
+        rect(g, 5, 8, 2, 1, C.brass1);
+        for (const x of [2, 5, 8]) { rect(g, x, 9, 3, 3, C.ink); px(g, x + 1, 10, C.lime); }
+        break;
+      }
+      case "mantlet": {
+        // a riveted steel shield plate over the mount
+        rect(g, 1, 0, 10, 12, C.ink);
+        bevel(g, 2, 1, 8, 9, C.steel2, C.steel3, C.steel1, C.ink);
+        rect(g, 3, 10, 6, 1, C.steel1); rect(g, 4, 11, 4, 1, C.steel0);
+        for (const [x, y] of [[3, 2], [8, 2], [3, 8], [8, 8]]) px(g, x, y, C.white);
+        vline(g, 5, 3, 5, C.steel0); vline(g, 6, 3, 5, C.steel3);
+        break;
+      }
+      case "ram": {
+        // a piston ram: steel rod, red head
+        rect(g, 0, 4, 5, 4, C.ink); rect(g, 1, 5, 3, 2, C.steel1);
+        rect(g, 4, 5, 5, 2, C.ink); hline(g, 4, 5, 5, C.steel2); hline(g, 4, 6, 5, C.steel0);
+        rect(g, 8, 2, 4, 8, C.ink);
+        rect(g, 9, 3, 2, 6, C.red); vline(g, 9, 3, 6, C.rust4);
+        px(g, 10, 4, C.white);
+        break;
+      }
       case "beltcrate": {
         bevel(g, 0, 3, 12, 9, C.wood2, C.wood3, C.wood1, C.ink);
         hline(g, 1, 7, 10, C.wood1);

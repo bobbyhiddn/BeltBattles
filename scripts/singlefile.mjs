@@ -54,13 +54,21 @@ const G = (day, hero, wins, losses, power = 0) => ({ day, hero, wins, losses, po
 // the 2-part fill). The run must lose a dusk from 5 to 4 lives and the day-4 dusk reload must meet
 // the same ghost (playthrough.mjs throws otherwise). Trials: with day 1 Easy, every Hard warlord on
 // days 4-7 beat the deck and the stake was lost; this road string wins day 4 and pays the bounty.
-// 0.6.2 BELTSIDE: since 0.6.1 (merges) the desk deck beats the day-2 ghost (the run already failed its
-// 5 -> 4 check at 8167743), and the day-4 Hard warlord now takes the bounty. The day-4 pool ghost is the
-// strong one instead (power 6): the desk run loses that dusk from 5 to 4 lives, then reloads it mid-fight.
+// 0.6.2 BELTSIDE (Decision 29): since 0.6.1 (merges) the desk deck beats the day-2 ghost (the run already failed its
+// 5 -> 4 check at 8167743), and the day-4 Hard warlord now takes the bounty. The day-4 pool ghost was made the
+// strong one instead (power 6): the desk run lost that dusk from 5 to 4 lives, then reloaded it mid-fight.
+// 0.6.1r F2: the strong ghost alone no longer forced that loss (from 0.6.1d's shop on, this seed's
+// desk deck won every dusk up to day 10). So on day 2 (`weakenDay`) the desk script stores every
+// part it gained TO CARGO before FIGHT: the bare starting deck always loses to the day-2 ghost, and
+// day 3's dawn puts the parts back (playthrough.mjs weakenDeck / restoreDeck).
+// beltside-062 (the merge brief): both fixed the same failure; F2 WON and Decision 29 is reverted (the day-4 ghost
+// is G(4, "weaver", 2, 1) again). F2 forces the loss by construction, whatever the shop rolls or the deck grows
+// into, where Decision 29 only bet that one ghost outguns one seed's deck. F2 is rig-aware here: a rig's panel has
+// TO CARGO, and the restore puts each rig back on its cell with its stars and its rot (the drop auto-aims).
 const RUNS = {
   desk: {
-    days: 10, reloadDay: 4, roads: "hvvhmemhev", check: "desk", take: { herald: ["STAKE 3", 3], scout: ["SPY", 1] },
-    pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6), G(4, "weaver", 2, 1, 6), G(5, "furnace", 3, 1, -2), G(6, "weaver", 3, 2, -2),
+    days: 10, reloadDay: 4, weakenDay: 2, roads: "hvvhmemhev", check: "desk", take: { herald: ["STAKE 3", 3], scout: ["SPY", 1] },
+    pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6), G(4, "weaver", 2, 1), G(5, "furnace", 3, 1, -2), G(6, "weaver", 3, 2, -2),
       G(7, "furnace", 4, 2, -2), G(8, "weaver", 5, 2, -2), G(9, "furnace", 5, 3, -2), G(10, "weaver", 6, 3, -2)],
   },
   phone: { days: 3, roads: "emv", reloadWarlordDay: 2, check: "phone", pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6)] },
@@ -72,8 +80,11 @@ const RUNS = {
   "fresh-furnace": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "furnace", buys: 8, pool: [] },
   "fresh-weaver": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "weaver", buys: 8, pool: [] },
 };
-// the view and Math.random pin of each run (fresh runs: desk, the desk run's seed)
-const PLAN = [["desk", "desk", 0.3], ["phone", "phone", 0.5], ["fresh-furnace", "desk", 0.3], ["fresh-weaver", "desk", 0.3]];
+// the view and Math.random pin of each run (fresh runs: desk, the desk run's seed). 0.6.1r (review
+// patch 0006): BB_RUNS=desk,phone,... runs a subset (unset: all 4), so V3 can be split across calls.
+const PLAN = [["desk", "desk", 0.3], ["phone", "phone", 0.5], ["fresh-furnace", "desk", 0.3], ["fresh-weaver", "desk", 0.3]]
+  .filter(([r]) => (process.env.BB_RUNS ?? r).split(",").includes(r));
+if (!PLAN.length) throw new Error(`BB_RUNS="${process.env.BB_RUNS}" names none of desk, phone, fresh-furnace, fresh-weaver`);
 
 async function main() {
   await inline();
@@ -118,7 +129,8 @@ async function main() {
     await ctx.close();
   }
   await browser.close();
-  log(failed ? `\nRESULT: FAIL (${failed})` : "\nRESULT: PASS (desk 10-day + phone 3+-day scripted runs, fresh-player FURNACE + WEAVER runs to the end, honest dusk decks, no console errors)");
+  const ran = PLAN.map(([r]) => r).join(", ");
+  log(failed ? `\nRESULT: FAIL (${failed}) [runs: ${ran}]` : `\nRESULT: PASS [runs: ${ran}] (desk 10-day + phone 3+-day scripted runs, fresh-player FURNACE + WEAVER runs to the end, honest dusk decks, no console errors)`);
   if (LOG) await writeFile(LOG, lines.join("\n") + "\n");
   process.exit(failed ? 1 : 0);
 }

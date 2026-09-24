@@ -408,7 +408,8 @@ export interface TimelineHit {
   stars: number;
   tier: HitTier;
   flat?: number; // flat damage this hit added (WHETSTONE; LONG HAUL: perPriorGate x prior)
-  prior?: number; // LONG HAUL-type: the earlier hits it counted
+  prior?: number; // LONG HAUL-type: the earlier hits it counted (at most its priorCap)
+  capped?: number; // beltside-062 (P3): LONG HAUL ★2/★3 saw more earlier hits than its priorCap; the cap ("MAX 6 HITS")
   burn?: number;
   shock?: boolean;
   split?: { copies: number; mult: number };
@@ -442,7 +443,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   const info = routeInfo(b, index, undefined, undefined, hits);
   const r = b.routes[index];
   const f = itemByUid(b, r.factory);
-  const ammo = f ? AMMO[defOf(f).factory!.ammo] : AMMO.plain;
+  // beltside-062 D1: 0.6.1p's star-resolved factory (STAMP PRESS dies set `base`), BELTSIDE's per-tile hits
+  const fs = f ? effectAt(f.def, starsOf(f)).factory : undefined; // 0.6.1p: at its stars (STAMP PRESS dies)
+  const ammo = fs ? AMMO[fs.ammo] : AMMO.plain;
+  const base = fs?.base ?? ammo.base;
   const tiles = hits[index] ?? [];
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   const timeline: TimelineRow[] = [];
@@ -465,9 +469,13 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
         th.flat = e.flat;
       }
       if (e.perPriorGate) {
-        flat += e.perPriorGate * prior;
-        th.flat = (th.flat ?? 0) + e.perPriorGate * prior;
-        th.prior = prior;
+        // beltside-062 D2 (DESIGN §11 P3): LONG HAUL ★2/★3 counts at most priorCap prior HITS (every earlier
+        // arrow application, this tile's tier-1 hits included), exactly as Battle.applyHit does
+        const counted = e.priorCap !== undefined ? Math.min(prior, e.priorCap) : prior;
+        flat += e.perPriorGate * counted;
+        th.flat = (th.flat ?? 0) + e.perPriorGate * counted;
+        th.prior = counted;
+        if (e.priorCap !== undefined && prior > e.priorCap) th.capped = e.priorCap;
       }
       if (e.burn) {
         burn += e.burn;
@@ -502,7 +510,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   }
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat, pendulumShift(b, info.turret))
-    : payloadDamage(ammo.base, ammo.rideScale, ride, mult, flat);
+    : payloadDamage(base, ammo.rideScale, ride, mult, flat); // beltside-062 D3: 0.6.1p's base (STAMP PRESS dies)
   return { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
 }
 

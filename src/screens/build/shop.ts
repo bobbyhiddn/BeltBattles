@@ -39,7 +39,8 @@ function drawMerchantGlyph(g: G, x: number, y: number, merchant: MerchantId): vo
   else if (shape === "diamond") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x + 1, y + 2, 1, 1, col); }
   else if (shape === "circle") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x + 1, y + 1, 1, 1, C.ink); rect(g, x + 1, y + 2, 1, 1, col); }
   else if (shape === "triangle") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x, y + 2, 3, 1, col); }
-  else if (shape === "cross") { rect(g, x + 1, y, 1, 3, col); rect(g, x, y + 1, 3, 1, col); }
+  // review-061 F6: an X; a 3x3 plus would repeat the tinker "diamond" pixel for pixel
+  else if (shape === "cross") { for (const [u, v] of [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2]]) rect(g, x + u, y + v, 1, 1, col); }
   else if (shape === "bar") rect(g, x, y + 1, 3, 1, col);
   else { rect(g, x, y, 3, 1, col); rect(g, x, y + 2, 3, 1, col); rect(g, x, y, 1, 3, col); rect(g, x + 2, y, 1, 3, col); }
 }
@@ -83,9 +84,12 @@ export function drawBadge(g: G, x: number, y: number, maxW: number, badge: ShopB
     label = "MAX"; bg = C.slate2; fg = C.bone;
   }
   const w = Math.min(maxW, textWidth(label, "3") + 4);
+  // 0.6.1r F1: the 3x5 label needs a bg row above and below it. Drawn at y+2 inside an ink-ringed
+  // box, its bottom row fell on the ink outline (ink on ink), so "MERGE ★2" lost a row. Same 7-row
+  // footprint: bg top to bottom with ink sides, and the label in rows 1-5.
   rect(g, x, y, w, 7, C.ink);
-  rect(g, x + 1, y + 1, w - 2, 5, bg);
-  drawText(g, label, x + w / 2, y + 2, fg, { font: "3", align: "center" });
+  rect(g, x + 1, y, w - 2, 7, bg);
+  drawText(g, label, x + w / 2, y + 1, fg, { font: "3", align: "center" });
 }
 
 function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: string, rarity: string, dim: boolean): void {
@@ -118,11 +122,12 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   // rarity gem
   rect(g, x + r.w - 6, y + 6, 4, 4, C.ink);
   rect(g, x + r.w - 5, y + 7, 2, 2, s.sold ? C.slate1 : RARITY_COLOR[def.rarity]);
-  if (s.badge && !s.sold) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
   const icon = itemIcon(def.id);
   const lines = cardName(def, r.w - 4);
   const two = lines.length > 1;
   g.drawImage(icon, Math.round(x + r.w / 2 - 6), y + (two ? 5 : 8));
+  // review-061 F1: the badge sits on top of the icon, or the icon hides its label
+  if (s.badge && !s.sold) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
   let ny = y + (two ? 18 : 22);
   for (const ln of lines) {
     drawText(g, ln, x + r.w / 2, ny, s.sold ? C.slate2 : C.bone, { font: "3", align: "center" });

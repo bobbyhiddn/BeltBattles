@@ -1,6 +1,6 @@
 // 0.6.1a: stars in the data model and the sim (stars.ts). Per-star benches (task item 20): for every
 // star number the 0.6.1a sim applies, 1 star < 2 < 3 on the module's headline metric, on a fixed deck.
-// Values stored in ItemDef.levels[n].pending are not applied yet (REPORT.md "pending perks").
+// 0.6.1p applied 0.6.1a's pending perks; their per-star benches are in tests/arsenal.modules.test.ts.
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { ITEMS, sellValue } from "../src/sim/content";
@@ -47,20 +47,16 @@ describe("stars.ts", () => {
     for (const id of Object.keys(ITEMS)) expect(effectAt(id, 1)).toBe(ITEMS[id]);
     expect(effectAt("temper", 2).gate).toEqual({ burn: 4 });
     expect(effectAt("temper", 3).gate).toEqual({ burn: 7 });
-    expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, outputs: 1 });
-    expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3 });
-    expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 2, mult: 0.72 } }); // THREE-WAY pending
+    // 0.6.1p: the pending perks are applied, so the dies, WIDE BREECH and THREE-WAY now merge in
+    expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, outputs: 1, base: 7.5 });
+    expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3, window: 1 });
+    expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 3, mult: 0.57 } });
     expect(ITEMS.temper.gate).toEqual({ burn: 2 }); // the 1-star spec is untouched
     expect(() => effectAt("nope", 2)).toThrow();
   });
-  it("every fusible live module carries 2- and 3-star levels; pending values and perks are stored", () => {
+  it("every fusible live module carries 2- and 3-star levels; nothing is pending any more (0.6.1p); perks are stored", () => {
     for (const id of LIVE) expect(ITEMS[id].levels?.[2] && ITEMS[id].levels?.[3], id).toBeTruthy();
-    expect(pendingAt("longhaul", 2)).toEqual({ priorCap: 6 });
-    expect(pendingAt("coil", 3)).toEqual({ shock: 2.8, jump: 1 });
-    expect(pendingAt("overdrive", 3)).toEqual({ flat: 3 });
-    expect(pendingAt("press", 2)).toEqual({ base: 5 });
-    expect(pendingAt("chamber", 2)).toEqual({ window: 1 });
-    expect(pendingAt("splitter", 3)).toEqual({ copies: 3, mult: 0.57 });
+    for (const id of LIVE) for (const s of [1, 2, 3]) expect(pendingAt(id, s), `${id} ${s}`).toEqual({});
     expect([perkAt("temper", 3), perkAt("overdrive", 2), perkAt("coil", 1)]).toEqual([undefined, "REDLINE", undefined]);
   });
   it("valueOf = price x 2^(stars-1); sellValue = max(1, floor(valueOf / 2)); outputsAt", () => {
@@ -94,28 +90,29 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
   it("BRAKE speed 0.5/0.31/0.22: more seconds on the belt", () => {
     expect(up(at3((s) => est(bench([["brake", 4, 4, s]])).time))).toBe(true);
   });
-  it("OVERDRIVE speed 3/4/5 (AFTERBURNER's +3 flat is pending)", () => {
+  it("OVERDRIVE speed 3/4/5 (AFTERBURNER's +3 flat: arsenal.modules.test.ts)", () => {
     const sp = at3((s) => run(bench([["overdrive", 4, 4, s]]), 5).sides[0].routes[0].speedAt[3]);
     expect(sp).toEqual([3, 4, 5]);
     expect(down(at3((s) => est(bench([["overdrive", 4, 4, s]])).time))).toBe(true);
   });
-  it("LONG HAUL +2/+4/+7 per prior gate (priorCap is pending)", () => {
+  it("LONG HAUL +2/+4/+7 per prior gate (priorCap: arsenal.modules.test.ts)", () => {
     const d = at3((s) => est(bench([["whetstone", 4, 4, 1], ["longhaul", 4, 2, s]])).dmg);
     expect(up(d)).toBe(true);
     expect(d[1] - d[0]).toBeCloseTo(2);
     expect(up(at3((s) => run(bench([["whetstone", 4, 4, 1], ["longhaul", 4, 2, s]])).sides[0].stats.damage))).toBe(true);
   });
-  it("SPLITTER CLEAN CUT 72% at 2 stars; 3 stars = 2 stars until THREE-WAY lands", () => {
+  it("SPLITTER CLEAN CUT 72% at 2 stars; THREE-WAY 3 copies at 57% at 3 stars (0.6.1p)", () => {
     const tot = at3((s) => { const e = est(bench([["splitter", 4, 3, s]])); return e.copies * e.dmg; });
-    expect(tot[0]).toBeLessThan(tot[1]);
-    expect(tot[2]).toBe(tot[1]);
-    expect(at3((s) => est(bench([["splitter", 4, 3, s]])).copies)).toEqual([2, 2, 2]);
+    expect(up(tot)).toBe(true);
+    expect(at3((s) => est(bench([["splitter", 4, 3, s]])).copies)).toEqual([2, 2, 3]);
   });
-  it("GALVANIC COIL: shock seconds and SPARK JUMP are pending, so 2 and 3 stars fight like 1", () => {
+  // 0.6.1p: the stall seconds and SPARK JUMP are applied; this barge never fires, so a stall can't change the
+  // damage it takes (the stall benches are in tests/arsenal.modules.test.ts)
+  it("GALVANIC COIL on the barge: 2 and 3 stars deal the same damage as 1", () => {
     const d = at3((s) => run(bench([["coil", 4, 3, s]])).sides[0].stats.damage);
     expect(new Set(d).size).toBe(1);
   });
-  it("STAMP PRESS interval 1.4/1.1/1.0: slugs stamped in 30 s (the base damage is pending)", () => {
+  it("STAMP PRESS interval 1.4/1.1/1.0: slugs stamped in 30 s (the dies: arsenal.modules.test.ts)", () => {
     const made = at3((s) => {
       const b = bench([], [], false);
       b.items.push({ uid: 7, def: "press", x: 6, y: 6, ...(s > 1 ? { stars: s } : {}) });
@@ -124,7 +121,7 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
     });
     expect(up(made)).toBe(true);
   });
-  it("EXT. CHAMBER per shot 2/2/3 (WIDE BREECH's window is pending)", () => {
+  it("EXT. CHAMBER per shot 2/2/3 (WIDE BREECH's window: arsenal.modules.test.ts)", () => {
     const per = at3((s) => new Battle(bench([], [["chamber", s]]), barge(), 1).sides[0].turrets[0].perShot);
     expect(per).toEqual([2, 2, 3]);
   });

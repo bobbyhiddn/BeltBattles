@@ -166,6 +166,12 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   drawCargo(g, s);
   const cue = s.placedOnce && !s.ed.busy && !s.block;
   drawFight(g, s, cue);
+  // contextual placement cue for a selected card or cargo part. 0.6.1r (item 11): drawn before the details panel,
+  // so in portrait the panel covers the part of a lifted gear/core that hovers over its turret up into the info
+  // band (it hid the panel's text); in landscape the two never meet
+  const c = s.ed.carry;
+  const held = c ? null : s.ed.selectedCarry();
+  if (held && !s.ed.busy) drawSuggestion(g, L, s.run.build, held.def, s.t);
   if (!L.portrait) {
     if (L.foe) drawFoe(g, s.foe, L.foe);
     drawDetails(g, s, s.sel, s.hover, L.info, s.foe);
@@ -178,13 +184,8 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe);
   }
   drawTopBar(g, s);
-  // drag feedback and contextual cues
-  const c = s.ed.carry;
+  // drag feedback (the placement suggestion is drawn above, before the details panel)
   if (c) drawCarry(g, L, s.run.build, c, s.ed.px, s.ed.py, s.ed.carryT, (x, y) => s.turretAt(x, y));
-  else {
-    const held = s.ed.selectedCarry();
-    if (held && !s.ed.busy) drawSuggestion(g, L, s.run.build, held.def, s.t);
-  }
   if (cue) drawFightCue(g, L.fight, L.portrait, s.t);
   // mouse hover tooltip under the card
   if (s.hover && !c && s.caravan.ready) {

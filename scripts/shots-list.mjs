@@ -260,6 +260,29 @@ export const SHOTS = [
   // turret-end readout (inspector.ts subTight), and a rig's sub line says IDLE
   ["beltside-timeline", "small", "title", 0, SHOWCASE("sides", "s.select({ kind: 'route', index: 0 });")],
   ["beltside-idle", "small", "title", 0, SHOWCASE("sides", "s.run.build.items.push({ uid: 40, def: 'coil', x: 0, y: 9 }); s.touched(); s.select({ kind: 'item', uid: 40 });")],
+  // beltside-062 (the merge brief): a ★3 rig's inspector with its perk line (0.6.1r's levelLine under its hits) while
+  // a shop card shows its MERGE badge (0.6.1r F1): the sides deck's SPLITTER at ★3 THREE-WAY beside a TEMPER offer
+  // (MERGE ★2 with the placed TEMPER), and the junction's OVERDRIVE (X, 4 hits) at ★3 AFTERBURNER beside a BRAKE
+  // offer, where the phone band must still show the hits (the flavour text gives way first)
+  ...["desk", "phone"].flatMap((v) => [
+    ["beltside-rig3-merge", v, "title", 0, RIG3_MERGE("sides", 16, "temper")],
+    ["beltside-rig3-x", v, "title", 0, RIG3_MERGE("junction", 10, "brake")],
+  ]),
+  // 0.6.1r F7 (review-061's scenario): the turret panel with a bought SCATTER CHOKE ★2 core AND CALIBRATION gear on
+  // turret 1, so it has two buttons (REMOVE CORE, REMOVE GEAR); in portrait they never cover the title or sub-line.
+  ...["desk", "phone"].map((v) => [
+    "build-core-gear", v, "build", 0.8,
+    "bb.game.run.build.mods.push({uid: 9001, def: 'scatter', turret: 0, stars: 2}, {uid: 9002, def: 'calibrate', turret: 0}); bb.game.screen.select({kind:'turret', index:0}); bb.game.render()",
+  ]),
+  // 0.6.1r item 11 (0.6.1p's gap 6): the three new mods. A caravan (forced past rollShop) with the Quartermaster's
+  // HOPPER, an Ironmonger MANTLET and a Tinker FINISHER RAM, each selected in turn; the turret inspector with each
+  // one fitted; and a battle frame with a finisher shot (Projectile.finisher) in flight, dragging its red trail.
+  ...["desk", "phone"].flatMap((v) => [
+    ...[["hopper", 2], ["mantlet", 0], ["ram", 1]].map(([def, wagon]) => [`shop-new-mods-${def}`, v, "title", 0, NEW_MODS(wagon)]),
+    ...["hopper", "mantlet", "ram"].map((def) => [`build-gear-${def}`, v, "build", 0.8,
+      `bb.game.run.build.mods.push({uid: 9001, def: '${def}', turret: 0}); bb.game.screen.select({kind:'turret', index:0}); bb.game.render()`]),
+    ["battle-finisher", v, "title", 0, finisherBattle()],
+  ]),
 ];
 
 // 0.6.2 BELTSIDE: the "sides" showcase deck fighting "junction", stepped from 3 s until `cond` holds for the
@@ -292,4 +315,57 @@ function SHOWCASE(name, extra, o = {}) {
     ${extra}
     bb.game.render();
   })()`;
+}
+
+// beltside-062: showcase `name` in the build screen with rig `uid` at ★3, selected (its inspector: hits, then the
+// perk line), and the first wagon's first offer forced to `offer`, a def the deck already holds at ★1, so that card
+// shows its MERGE badge (0.6.1d2/0.6.1r F1)
+function RIG3_MERGE(name, uid, offer) {
+  return SHOWCASE(name, `
+    const p = s.run.build.items.find((q) => q.uid === ${uid});
+    p.stars = 3;
+    const o = s.run.shop.wagons[0].offers[0];
+    o.def = ${J(offer)}; o.price = 3; o.sold = false;
+    s.touched();
+    s.select({ kind: "item", uid: ${uid} });
+    ${STEP(12)}`);
+}
+
+function NEW_MODS(wagon) {
+  return `(() => {
+    const g = bb.game;
+    bb.openDawn({ day: 5, gold: 30 }, []);
+    ${STEP(90)}
+    // rollShop's 3-wagon shape: 2, 2 and 1 offers (only the last wagon gets one slot)
+    g.run.shop.wagons = [
+      { merchant: "ironmonger", offers: [{ def: "mantlet", price: 4, sold: false }, { def: "beltcrate", price: 2, sold: false }] },
+      { merchant: "tinker", offers: [{ def: "ram", price: 5, sold: false }, { def: "grease", price: 3, sold: false }] },
+      { merchant: "quartermaster", offers: [{ def: "hopper", price: 4, sold: false }] },
+    ];
+    g.screen.select({ kind: "offer", wagon: ${wagon}, slot: 0 });
+    g.render();
+  })()`;
+}
+
+// FINISHER RAM on the FURNACE's heavy turret (CORE_BATTLE's pattern), stepped until one of its finisher shots is
+// 40% into its flight, so the 1 px red trail (arenaDraw.ts) is on screen (a function: SHOTS above uses it)
+function finisherBattle() {
+  return `(() => {
+  const bb = window.bb, g = bb.game;
+  try {
+    g.run = null;
+    bb.open("build", "furnace", 12345);
+    ${STEP(20)}
+    g.run.build.mods.push({ uid: 9001, def: "ram", turret: 0 });
+    bb.open("battle", "furnace", 12345);
+    let found = false;
+    for (let i = 0; i < 60 * 60 && !found; i++) {
+      g.step(1 / 60);
+      const a = g.screen.arena;
+      found = !!a && g.screen.phase === "fight" && a.b.projectiles.some((p) => p.finisher && p.from === 0 && p.t / p.flight >= 0.4);
+    }
+    if (!found) console.error("FINISHER_BATTLE: no finisher shot in flight within 60 s");
+    g.render();
+  } catch (e) { console.error("FINISHER_BATTLE: " + e.message + "\\n" + e.stack); }
+})()`;
 }

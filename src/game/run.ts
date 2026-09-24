@@ -167,11 +167,18 @@ function ownsDef(run: Run, def: string): boolean {
   return run.inventory.some((i) => i.def === def) || run.build.items.some((i) => i.def === def) || run.build.mods.some((i) => i.def === def);
 }
 
+/** What `m` can sell on `day`: its stock without legendaries before day 4 (the shop's day gate). */
+function dayPool(m: MerchantId, day: number): ItemDef[] {
+  return itemsSoldBy(m).filter((d) => d.rarity !== "legendary" || day >= 4);
+}
+
 /** ARSENAL.md §5.2 step 1: base weight, +1 per owned 1★ fusible part the merchant sells (max +3),
- *  x0.5 if `m` rode in yesterday's final caravan. A merchant with no stock today never appears. */
+ *  x0.5 if `m` rode in yesterday's final caravan. A merchant with no stock today never appears
+ *  (0.6.1r N5: judged on the day's pool, so an all-legendary stock waits for day 4; the bias still
+ *  counts every part it sells, so no weight changes for today's catalogue). */
 function merchantWeight(run: Run, m: MerchantId, day: number): number {
   const stock = itemsSoldBy(m);
-  if (!stock.length) return 0;
+  if (!dayPool(m, day).length) return 0;
   const base = baseMerchantWeight(m, day);
   if (base <= 0) return 0;
   let bias = 0;
@@ -191,7 +198,12 @@ function pickMerchants(run: Run, rng: Rng, n: number): MerchantId[] {
     chosen.push(pick);
     remaining.splice(remaining.indexOf(pick), 1);
   }
-  if (!chosen.includes("tinker") && !chosen.includes("alchemist")) chosen[chosen.length - 1] = "tinker";
+  if (!chosen.includes("tinker") && !chosen.includes("alchemist")) {
+    // 0.6.1r N5: only a gate seller with something to sell today; never index -1 of an empty list
+    const seller = (["tinker", "alchemist"] as const).find((m) => dayPool(m, run.day).length);
+    if (seller && chosen.length) chosen[chosen.length - 1] = seller;
+    else if (seller) chosen.push(seller);
+  }
   return chosen;
 }
 
@@ -212,6 +224,7 @@ function familiarCandidates(run: Run, merchants: MerchantId[]): FamiliarCandidat
   for (const m of merchants) {
     for (const d of itemsSoldBy(m)) {
       if (!fusible(d.id)) continue;
+      if (d.rarity === "legendary" && run.day < 4) continue; // review-061 N1: the shop's legendary day gate
       const levels = starLevelsOwned(run, d.id);
       const weight = levels.has(1) && levels.has(2) ? 12 : levels.has(2) ? 4 : levels.has(1) ? 0.5 : 0;
       if (weight > 0) out.push({ merchant: m, def: d.id, weight });
@@ -232,15 +245,19 @@ export function rollShop(run: Run): void {
   const merchants = pickMerchants(run, rng, nWagons);
   const wagons: Wagon[] = merchants.map((m) => ({ merchant: m, offers: [] }));
   const priceOf = (d: { price: number }) => Math.max(1, d.price - (run.shop.discount || 0));
-  for (let slot = 0; slot < OFFERS; slot++) {
-    const w = wagons[slot % nWagons];
-    const pool = itemsSoldBy(w.merchant).filter((d) => d.rarity !== "legendary" || run.day >= 4);
+  // 0.6.1r N5: slots go round the wagons actually drawn (fewer stocked merchants than wagons can't
+  // index past the list), and a slot with nothing to sell stays empty rather than rng.pick([]).
+  // Both only differ where the old code threw, so every roll that worked keeps its stream and offers.
+  for (let slot = 0; slot < OFFERS && wagons.length; slot++) {
+    const w = wagons[slot % wagons.length];
+    const pool = dayPool(w.merchant, run.day);
     const rarity = rollRarity(rng, run.day);
     const fresh = (d: ItemDef) => !w.offers.some((o) => o.def === d.id);
     let choices = pool.filter((d) => d.rarity === rarity && !ownsDef(run, d.id) && fresh(d));
     if (!choices.length) choices = pool.filter((d) => !ownsDef(run, d.id) && fresh(d));
     if (!choices.length) choices = pool.filter(fresh);
     if (!choices.length) choices = pool;
+    if (!choices.length) continue;
     const d = rng.pick(choices);
     w.offers.push({ def: d.id, price: priceOf(d), sold: false });
   }
@@ -249,11 +266,13 @@ export function rollShop(run: Run): void {
     if (candidates.length) {
       const pick = rng.weighted(candidates, (c) => c.weight);
       const w = wagons.find((wg) => wg.merchant === pick.merchant)!;
-      const slotIdx = rng.int(w.offers.length);
+      let slotIdx = rng.int(w.offers.length); // drawn either way: the stream keeps its order
+      const same = w.offers.findIndex((o) => o.def === pick.def);
+      if (same >= 0) slotIdx = same; // review-061 F3: never two offers of one def in a wagon
       w.offers[slotIdx] = { def: pick.def, price: priceOf(ITEMS[pick.def]), sold: false };
     }
   }
-  run.shop.wagons = wagons;
+  run.shop.wagons = wagons.filter((w) => w.offers.length > 0); // 0.6.1r N5: an empty wagon doesn't ride
 }
 
 export type ShopBadge = { kind: "merge"; toStars: number } | { kind: "wait" } | { kind: "max" };

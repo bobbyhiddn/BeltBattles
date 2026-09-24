@@ -382,6 +382,9 @@ export class BuildScreen implements Screen, EditHost {
     const o = this.run.shop.wagons[pick.wagon]?.offers[pick.slot];
     if (!o || o.sold) return undefined;
     const preview = mergePreview(this.run, o.def);
+    // review-061 F4: a carried offer whose only twin is in cargo lands where it is dropped, and the
+    // dropped copy survives (ARSENAL.md §4.1 rule 5), so no ring on the cargo twin during the carry.
+    if (preview?.where === "cargo" && this.ed.carry?.src.from === "offer") return undefined;
     return preview && preview.where !== "turret" ? preview.survivorUid : undefined;
   }
 
