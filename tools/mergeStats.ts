@@ -42,10 +42,34 @@ function starCounts(run: Run): { two: number; three: number } {
   return { two, three };
 }
 
+/** 0.6.1r item 12 (report only): duplicate offers at each dawn, before rerolls (the model never rerolls) and
+ *  before that dawn's buys, per day band. (a) caravans that show at least one copy of a part the player owns;
+ *  (b) per owned part (each distinct sold def owned that dawn is one sample), the caravans that show it. */
+interface DupStats { caravans: number; anyOwned: number; partSamples: number; partShown: number }
+// the brief's three bands, plus days 2-3 alone (day 1's dawn comes before any buy, so it owns nothing)
+const BANDS: [number, number][] = [[1, 3], [4, 6], [7, 10], [2, 3]];
+const newDup = (): DupStats[] => BANDS.map(() => ({ caravans: 0, anyOwned: 0, partSamples: 0, partShown: 0 }));
+
+function sampleDawn(run: Run, acc: DupStats[]): void {
+  const owned = new Set([...run.inventory, ...run.build.items, ...run.build.mods].map((i) => i.def).filter((d) => ITEMS[d]?.merchant));
+  const shown = new Set(run.shop.wagons.flatMap((w) => w.offers.map((o) => o.def)));
+  BANDS.forEach(([lo, hi], i) => {
+    if (run.day < lo || run.day > hi) return;
+    const b = acc[i];
+    b.caravans++;
+    if ([...owned].some((d) => shown.has(d))) b.anyOwned++;
+    for (const d of owned) {
+      b.partSamples++;
+      if (shown.has(d)) b.partShown++;
+    }
+  });
+}
+
 /** Toy model: buy on day 1, then for each later day pay yesterday's win income, reset and re-roll
  *  the caravan the way day.ts:finishDay does (lastMerchants captured, rerolls reset), and buy again. */
-function simulate(hero: HeroId, seed: number): { two: number; three: number } {
+function simulate(hero: HeroId, seed: number, dup: DupStats[] = newDup()): { two: number; three: number } {
   const run = newRun(hero, seed);
+  sampleDawn(run, dup);
   greedyBuy(run);
   for (let day = 2; day <= RUN_DAYS; day++) {
     run.gold += incomeFor(day - 1, true);
@@ -54,6 +78,7 @@ function simulate(hero: HeroId, seed: number): { two: number; three: number } {
     run.shop = { wagons: [], rerolls: 0, discount: run.nextShop.discount, free: run.nextShop.free };
     run.nextShop = { discount: 0, free: 0 };
     rollShop(run);
+    sampleDawn(run, dup);
     greedyBuy(run);
   }
   return starCounts(run);
@@ -64,8 +89,9 @@ const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length
 function report(hero: HeroId): void {
   const twos: number[] = [], threes: number[] = [];
   let atLeastOneThree = 0;
+  const dup = newDup();
   for (let i = 0; i < SEEDS; i++) {
-    const { two, three } = simulate(hero, hashSeed("mergestats", hero, i));
+    const { two, three } = simulate(hero, hashSeed("mergestats", hero, i), dup);
     twos.push(two);
     threes.push(three);
     if (three >= 1) atLeastOneThree++;
@@ -77,6 +103,15 @@ function report(hero: HeroId): void {
   console.log(`  2-star at run end: mean ${mtwo.toFixed(2)}  (design target 2-4: ${twoOk})`);
   console.log(`  3-star at run end: mean ${mthree.toFixed(2)}  (design target ~1, band 0.5-1.5: ${threeOk})`);
   console.log(`  runs with >=1 three-star: ${((atLeastOneThree / SEEDS) * 100).toFixed(0)}%`);
+  // 0.6.1r item 12: genre-study targets, report only (no shop number changes here)
+  const pct = (a: number, b: number) => (b ? `${((a / b) * 100).toFixed(1)}%` : "n/a");
+  const band = (v: number, lo: number, hi: number) => (v >= lo && v <= hi ? "in band" : v < lo ? "BELOW" : "ABOVE");
+  console.log(`  duplicate offers at dawn (before rerolls and before that dawn's buys):`);
+  BANDS.forEach(([lo, hi], i) => {
+    const d = dup[i], a = d.caravans ? d.anyOwned / d.caravans : 0, b = d.partSamples ? d.partShown / d.partSamples : 0;
+    console.log(`    days ${lo}-${hi}: (a) >=1 owned part shown ${pct(d.anyOwned, d.caravans)} of ${d.caravans} caravans (target 35-65%: ${band(a, 0.35, 0.65)})` +
+      ` | (b) a given owned part shown ${pct(d.partShown, d.partSamples)} of ${d.partSamples} part-caravans (target 8-27%: ${band(b, 0.08, 0.27)})`);
+  });
 }
 
 report("furnace");
