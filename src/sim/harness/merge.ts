@@ -17,7 +17,7 @@
 import type { HeroId } from "../content";
 import { ITEMS } from "../content";
 import type { Build } from "../deck";
-import { gainModule, mergePreview, unfusedInRun, type FuseWhere, type Gain, type GainAt } from "../../game/fuse";
+import { fuseAll, gainModule, mergePreview, unfusedInRun, type FuseStep, type FuseWhere, type Gain, type GainAt } from "../../game/fuse";
 import type { InvItem, Run } from "../../game/run";
 
 export type { InvItem };
@@ -85,4 +85,14 @@ export function cargoValue(cargo: readonly InvItem[]): number {
 /** 0.6.1b: the run-level fuse invariant (fuse.ts unfusedInRun) over the deck AND its cargo. */
 export function unfusedWithCargo(b: Build, cargo: readonly InvItem[]): string[] {
   return unfusedInRun(wrap(b, 0, cargo.map((i) => ({ ...i }))));
+}
+
+/** Part 2 (PAR~): a merged copy of `b` (not mutated), every same-def same-star pair fused with the game's own
+ *  src/game/fuse.ts:fuseAll (lowest stars first, then uid; the §4.1 survivor rules; an absorbed gate cell stays
+ *  belt, an absorbed factory drops its belts, an absorbed mod or core frees its spot). */
+export function fuseDeck(b: Build): { build: Build; steps: FuseStep[] } {
+  const c = JSON.parse(JSON.stringify(b)) as Build;
+  const run = wrap(c, 1 + Math.max(0, ...c.items.map((p) => p.uid), ...c.mods.map((m) => m.uid)));
+  const steps = fuseAll(run);
+  return { build: run.build, steps };
 }

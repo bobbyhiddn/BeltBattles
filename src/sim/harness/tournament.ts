@@ -8,8 +8,9 @@
 import { Rng, hashSeed } from "../../core/rng";
 import { simulate } from "../battle";
 import { ITEMS, type HeroId } from "../content";
-import type { Build } from "../deck";
-import { buildCost, maxGoldByDay, unfusedPairs } from "../../net/validate";
+import { key as cellKey, routeInfo, type Build } from "../deck";
+import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
+import { fuseDeck } from "./merge";
 import { FUSE_MAX, fusible, perkAt, starsOf } from "../stars";
 import { randomBuild } from "./gen";
 import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "./heroes";
@@ -96,7 +97,12 @@ export interface StarMix { n: number; p1: number; p2: number; p3: number; median
  *  its gauntlet jobs of (points at the star - points at 1 star), as a win rate (0-1 scale). */
 export interface BenchDeck { tag: string; par: boolean; delta: number }
 
-export type BenchFlag = "WORSE" | "NO EFFECT" | "SAME AS ★2";
+export type BenchFlag = "WORSE" | "NO EFFECT" | "SAME AS ★2" | "STEP WORSE";
+
+/** Part 2: the STEP column of a 3-star row. Per deck whose 2-star variant was also played, its paired step =
+ *  the mean over its gauntlet jobs of (points at 3 stars - points at 2 stars), on the SAME seeds and sides
+ *  (both variants of a source deck use benchSeeds keyed by that deck). D1 on the steps: STEP WORSE. */
+export interface BenchStep { n: number; mean: number; worse: number; ci: [number, number] | null; decks: BenchDeck[] }
 
 /** Star bench row (ARSENAL.md §9.2, "per-star win-rate deltas"): every elite/par deck holding
  *  `def` at 1 star, raised in place to 2 or 3 stars (same cell/turret, budget ignored), replayed
@@ -114,6 +120,7 @@ export interface BenchRow {
   ci: [number, number] | null; // 95% t-interval of the mean paired delta over decks (n >= 2)
   same2?: number; // 3-star rows: decks whose 2-star variant was also played (the SAME AS 2-star comparison)
   perk?: string; // 0.6.1p: the perk at this star, from the game's own stars.ts perkAt (report only; absent: none)
+  step?: BenchStep; // part 2, 3-star rows: each comparable deck's paired 3-star minus 2-star delta
   flags: BenchFlag[];
   decks: BenchDeck[]; // every benched deck with its paired delta (the report lists them for WORSE rows)
 }
@@ -144,6 +151,10 @@ export interface DayResult {
   bench?: BenchRow[];
   // 0.6.1b harness v2 part 2 (populated when cores are on): bought cores in the population and the elites.
   coreUse?: Partial<Record<HeroId, { pop: CoreUse; elites: CoreUse }>>;
+  // part 2 (stars on, report only): the PAR~ decks' KNOWN_FALLS copies at 1/2/3 stars (focusBench)
+  parTilde?: FocusDeck[];
+  // part 2 (stars on, report only, optional): splitter at 1/2/3 stars with / without HOPPER 3-star on its turret
+  hopperSplitter?: { with: FocusDeck[]; without: FocusDeck[] };
 }
 
 /** 0.6.1b: bought turret cores in a set of builds: builds with at least one, cores fitted, per def, per star.
@@ -285,6 +296,7 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
   }
 
   let mirror2: DayResult["mirror2"], starMix: DayResult["starMix"], bench: DayResult["bench"], coreUse: DayResult["coreUse"];
+  let parTilde: DayResult["parTilde"], hopperSplitter: DayResult["hopperSplitter"];
   if (o.stars === "on") {
     mirror2 = {};
     starMix = {};
@@ -306,9 +318,26 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
     const benchRes = await starBench(o, day, gauntletBuilds, sources, run, detail);
     bench = benchRes.rows;
     battles += benchRes.battles;
+    // part 2, PAR~ (report only): a merged copy (fuse.ts fuseAll, via the harness adapter) of each par deck that
+    // holds an unfused pair (the main bench skips those as bases), benched for the KNOWN_FALLS defs only
+    const parX: BenchSource[] = [];
+    for (const h of o.heroes) {
+      const pb = calibration?.[h]?.build;
+      if (pb && unfusedPairs(pb).length) parX.push({ hero: h, tag: `${h} par~`, build: fuseDeck(pb).build, par: true });
+    }
+    const kf = await focusBench(o, day, gauntletBuilds, parX, KNOWN_FALLS_DEFS, run, "bb-bench-parx");
+    parTilde = kf.decks;
+    battles += kf.battles;
+    // part 2, optional (report only): SPLITTER at 1/2/3 stars with HOPPER at 3 stars on its turret, beside
+    // the same decks without it, on shared seeds (both lists use the same focus key and source index)
+    const hp = hopperSources(sources);
+    const withH = await focusBench(o, day, gauntletBuilds, hp.with, ["splitter"], run, "bb-bench-hopper");
+    const without = await focusBench(o, day, gauntletBuilds, hp.without, ["splitter"], run, "bb-bench-hopper");
+    hopperSplitter = { with: withH.decks, without: without.decks };
+    battles += withH.battles + without.battles;
   }
 
-  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits, mirror2, starMix, bench, ...(coreUse ? { coreUse } : {}) };
+  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits, mirror2, starMix, bench, ...(coreUse ? { coreUse } : {}), ...(parTilde ? { parTilde } : {}), ...(hopperSplitter ? { hopperSplitter } : {}) };
 }
 
 // ---------------------------------------------------------------- 0.6.1a harness v2
@@ -480,19 +509,100 @@ export async function starBench(o: TourneyOpts, day: number, gauntlet: Build[], 
     const flags: BenchFlag[] = [];
     if (benchWorse(deltas)) flags.push("WORSE");
     if (noEffectCand.get(k) && ds.every((i) => sameOutcome(at[i][1]!, at[i][g.star]!))) flags.push("NO EFFECT");
-    let same2: number | undefined;
+    let same2: number | undefined, step: BenchStep | undefined;
     if (g.star === 3) {
       const cs = ds.filter((i) => played(i, 2));
       same2 = cs.length;
       if (same2Cand.get(k) && cs.every((i) => sameOutcome(at[i][2]!, at[i][3]!))) flags.push("SAME AS ★2");
+      // part 2 STEP: the 2- and 3-star variants of one instance share every seed (benchSeeds by source deck)
+      const sd: BenchDeck[] = cs.map((i) => {
+        const src = sources[insts[i].src];
+        return { tag: src.tag, par: !!src.par, delta: (sumOf(at[i][3]!) - sumOf(at[i][2]!)) / (G * per) };
+      });
+      const sds = sd.map((x) => x.delta);
+      step = { n: sd.length, mean: sds.length ? sds.reduce((s, x) => s + x, 0) / sds.length : 0, worse: sds.filter((x) => x < 0).length, ci: meanCI(sds).ci, decks: sd };
+      if (benchWorse(sds)) flags.push("STEP WORSE");
     }
     const perk = perkAt(def, g.star); // 0.6.1p: the game's own name for the level (report only)
     rows.push({
       def, star: g.star, n: ds.length, skipped: g.insts.length - ds.length, skippedBase, wr1, wrN, delta: wrN.p - wr1.p,
-      worse: deltas.filter((d) => d < 0).length, ci: meanCI(deltas).ci, ...(same2 !== undefined ? { same2 } : {}), ...(perk ? { perk } : {}), flags, decks,
+      worse: deltas.filter((d) => d < 0).length, ci: meanCI(deltas).ci, ...(same2 !== undefined ? { same2 } : {}), ...(perk ? { perk } : {}),
+      ...(step ? { step } : {}), flags, decks,
     });
   }
   return { rows, battles: (jobs.length + replay.length) * per };
+}
+
+/** Part 2: the two modules tests/arsenal.decks.test.ts lists in KNOWN_FALLS at c432bee (SPLITTER 2->3, BRAKE
+ *  SHOE 1->2->3). The KNOWN_FALLS report rows and the PAR~ bench cover exactly these. */
+export const KNOWN_FALLS_DEFS: readonly string[] = ["splitter", "brake"];
+
+/** Part 2 (report only): one copy of a focus def on a focus deck, with its points at 1, 2 and 3 stars against the
+ *  whole gauntlet (null: that variant holds an unfused pair, so the game can't build it), on shared seeds. */
+export interface FocusDeck { tag: string; hero: HeroId; par: boolean; def: string; uid: number; stars0: number; valid: boolean; pts: [number | null, number | null, number | null]; n: number }
+
+/** Seeds of the focus bench: keyed by the focus deck (a separate stream from benchSeeds), so a copy's 1-, 2- and
+ *  3-star variants play every gauntlet member on the same seeds. */
+export function focusSeeds(o: TourneyOpts, day: number, src: number, g: number, key = "bb-bench-focus"): number[] {
+  return Array.from({ length: o.seeds }, (_, k) => hashSeed(key, o.seed, day, src, g, k));
+}
+
+/**
+ * Part 2, PAR~ (report only; never in the main bench or its flags): every copy of a `defs` module on each source
+ * deck, at 1, 2 and 3 stars in place (budget ignored), against the gauntlet on paired seeds. Unlike the main
+ * bench a copy may start above 1 star (a merged par deck may hold a 2-star BRAKE SHOE): all three levels are set.
+ */
+export async function focusBench(o: TourneyOpts, day: number, gauntlet: Build[], sources: BenchSource[], defs: readonly string[], run: Runner, key = "bb-bench-focus"): Promise<{ decks: FocusDeck[]; battles: number }> {
+  const field: Build[] = [], jobs: Job[] = [];
+  const G = gauntlet.length, per = o.seeds * 2;
+  const decks: FocusDeck[] = [];
+  const slot: (number | null)[][] = [];
+  sources.forEach((s, src) => {
+    const copies = [...s.build.items.map((p) => ({ p, kind: "item" as const })), ...s.build.mods.map((p) => ({ p, kind: "mod" as const }))].filter((c) => defs.includes(c.p.def));
+    for (const { p, kind } of copies) {
+      const at: (number | null)[] = [];
+      for (const star of [1, 2, 3]) {
+        const v = withStar(s.build, kind, p.uid, star);
+        if (unfusedPairs(v).length) { at.push(null); continue; }
+        at.push(field.length);
+        field.push(v);
+      }
+      slot.push(at);
+      decks.push({ tag: s.tag, hero: s.hero, par: !!s.par, def: p.def, uid: p.uid, stars0: starsOf(p), valid: validateBuild(s.build, day).ok, pts: [null, null, null], n: G * per });
+      at.forEach((f) => { if (f !== null) gauntlet.forEach((_, g) => jobs.push({ a: f, b: -1 - g, seeds: focusSeeds(o, day, src, g, key) })); });
+    }
+  });
+  if (!jobs.length) return { decks, battles: 0 };
+  const allField = [...field, ...gauntlet];
+  for (const j of jobs) j.b = field.length + (-1 - j.b);
+  const pts = await run(allField, jobs);
+  const sum = new Map<number, number>();
+  jobs.forEach((j, i) => sum.set(j.a, (sum.get(j.a) ?? 0) + pts[i]));
+  decks.forEach((d, i) => { d.pts = slot[i].map((f) => (f === null ? null : sum.get(f)!)) as FocusDeck["pts"]; });
+  return { decks, battles: jobs.length * per };
+}
+
+/** Part 2, optional: the bench decks holding a 1-star SPLITTER on a route into a turret, each paired with a copy
+ *  that carries HOPPER at 3 stars as that turret's gear (replacing its gear, budget ignored). Decks
+ *  the game can't build (an unfused pair) are left out. `with[k]` and `without[k]` are the same deck. */
+export function hopperSources(sources: BenchSource[]): { with: BenchSource[]; without: BenchSource[] } {
+  const out = { with: [] as BenchSource[], without: [] as BenchSource[] };
+  for (const s of sources) {
+    const b = s.build;
+    if (unfusedPairs(b).length) continue;
+    const sp = b.items.find((p) => p.def === "splitter" && starsOf(p) === 1);
+    if (!sp) continue;
+    const ri = b.routes.findIndex((r) => r.cells.includes(cellKey(sp.x, sp.y)));
+    const turret = ri >= 0 ? routeInfo(b, ri).turret : -1;
+    if (turret < 0) continue;
+    const h = JSON.parse(JSON.stringify(b)) as Build;
+    h.mods = h.mods.filter((m) => !(m.turret === turret && ITEMS[m.def]?.kind !== "core"));
+    h.mods.push({ uid: 1 + Math.max(0, ...h.items.map((p) => p.uid), ...h.mods.map((m) => m.uid)), def: "hopper", turret, stars: 3 });
+    if (unfusedPairs(h).length) continue;
+    out.with.push({ ...s, tag: `${s.tag} +HOPPER★3`, build: h });
+    out.without.push(s);
+  }
+  return out;
 }
 
 function traitStats(entries: Entry[], startRoutes: number): TraitStats {

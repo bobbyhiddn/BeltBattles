@@ -12,8 +12,8 @@ import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { RULES_VERSION } from "../src/sim/content";
-import { balanceMarkdown, describeBuild, type RunMeta } from "../src/sim/harness/report";
-import { DEFAULT_OPTS, runDay, type TourneyOpts, type TourneyResult } from "../src/sim/harness/tournament";
+import { balanceMarkdown, beforeAfterSection, describeBuild, type RunMeta } from "../src/sim/harness/report";
+import { DEFAULT_OPTS, runDay, type DayResult, type TourneyOpts, type TourneyResult } from "../src/sim/harness/tournament";
 import { flag, num, serveJobs, workerRunner } from "./workers";
 
 if (!isMainThread) serveJobs();
@@ -33,6 +33,19 @@ function compareRuns(fa: string, fb: string): boolean {
 }
 
 async function main(): Promise<void> {
+  // part 2: --before-after a.json[,b.json...] c.json[,d.json...] [--out-md file]: runs nothing; the six perk
+  // modules' star rows of the first run(s) (e.g. output-h2/full/day-N, bf779de) beside the second's (c432bee)
+  const ba = process.argv.indexOf("--before-after");
+  if (ba >= 0) {
+    const [fa, fb] = process.argv.slice(ba + 1, ba + 3);
+    if (!fa || !fb || fa.startsWith("--") || fb.startsWith("--")) throw new Error("--before-after needs two comma-separated lists of balance JSON files");
+    const load = (list: string) => list.split(",").flatMap((f) => (JSON.parse(readFileSync(resolve(f), "utf8")) as { days: DayResult[] }).days);
+    const md = ["# BEFORE/AFTER (harness v2 part 2)", "", `before: ${fa}`, `after: ${fb}`, ...beforeAfterSection(load(fa), load(fb))].join("\n") + "\n";
+    const outMd = flag("out-md");
+    if (outMd) writeFileSync(resolve(outMd), md);
+    else console.log(md);
+    process.exit(0);
+  }
   const cmp = process.argv.indexOf("--compare");
   if (cmp >= 0) {
     const [fa, fb] = process.argv.slice(cmp + 1, cmp + 3);
