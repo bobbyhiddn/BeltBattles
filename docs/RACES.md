@@ -289,6 +289,9 @@ battle sim runs Siphon in full now.
 
 ## 7. Final numbers and reference builds
 
+**Tuning v1 (§8) supersedes the part-2 values below wherever they differ.** The layouts,
+rules and reference builds are unchanged.
+
 **METRONOME (shipped).** Hull 200, belt 20. CLOCKWORKS: 1.3 s, 1 output. Pendulum slug:
 2 + 8 x max(0, 1 - |ride - 4.2 - shift| / 3.0), then x mult + flat, at least 1. ADAPTABLE gun
 [4, 5]: 0.9 s, window 3, flight 0.55 s. Every belt runs at 1x (`speedLock`). ESCAPEMENT shift
@@ -321,3 +324,39 @@ guns, [2] and [7]: 0.6 s, window 2, flight 0.34 s. Drag: x0.25 for 3.0 s (`DRAG_
 - SIPHON processes both leech lines and mounts Calibration on both guns.
 - Race heroes add a purchase every day. Furnace and Weaver follow ai.ts, which buys nothing on
   day 1 and nothing new on day 9 (§5, reference spend).
+
+## 8. Tuning v1 (balance harness v1, six heroes, days 1/3/5/7/10)
+
+Numbers only, no new mechanics. Furnace and Weaver are untouched: their pairing and mirror
+cells in the harness are identical to v1.
+
+| hero | number | part 2 | tuning v1 |
+|---|---|---|---|
+| FOUNDRY | hull | 190 | 250 |
+| FOUNDRY | ALLOY BLANK base | 3 | 3.5 |
+| FOUNDRY | FUSE_MULT (alloy = x (dA + dB)) | 1.5 | 1.3 (a synced pour 9 -> 9.1) |
+| BASTION | WARDWORKS interval | 1.5 s | 1.1 s |
+| BASTION | BULWARK SLUG base | 4 | 5 |
+| BASTION | heavy gun fireInterval | 1.2 s | 0.75 s |
+| METRONOME | pendulum floor / swing / spread (peak 4.2 s) | 2 / 8 / 3.0 s | 4 / 4 / 4.0 s |
+| METRONOME | adaptable gun fireInterval | 0.9 s | 0.7 s |
+| METRONOME | hull | 200 | 210 |
+| SIPHON | leech base (DRAG and ECHO) | 3 | 5 |
+| SIPHON | SUMP interval | 0.9 s | 1.1 s |
+| SIPHON | hull | 190 | 220 |
+| SIPHON | ECHO_CAP flat / Burn (Shock, Fray 1 unchanged) | +6 / 4 | +3 / 2 |
+
+- The pendulum is 4 + 4 x max(0, 1 - |ride - 4.2 - shift| / 4.0): 8 at 10 tiles, 6.4 at 6
+  tiles, 4 at the ends. The beat still pays, but an off-beat deck is no longer dead weight and
+  the peak no longer decides fights on its own. ESCAPEMENT and LONGCASE still move the peak by
+  1.2 s.
+- One-gun heroes were capped by their gun, not their factory, from day 5 on, so BASTION and
+  METRONOME got faster guns. SIPHON's slower Sump gives late gates fewer payloads to multiply;
+  its higher base carries its early game.
+- Plating per slug (2) and its cap (24), SYNC_WINDOW, the Drag numbers and the belt sizes are
+  unchanged.
+- **OPEN:** on day 10 WEAVER's population still beats every one-gun or fusion hero (FURNACE
+  19%, FOUNDRY 16%, BASTION 16%, METRONOME 27%). A race-only number that lifts those cells to
+  35% would make the race beat FURNACE by far more than 65%. FOUNDRY's day-1 elites (97% vs
+  WEAVER) against its weak day-5 elites need a curve no single number gives. Details:
+  output/tune/REPORT-tune.md.
