@@ -5,9 +5,9 @@
 import { Rng } from "../core/rng";
 import {
   AMMO, AMMO_SPACING, BATTLE_CAP, BELT_SPEED, BURN_TIME, CELL, COMMISSION_BASE, COMMISSION_STEP,
-  DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, RULES_VERSION,
+  DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_SKIRT, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, RULES_VERSION,
   TICK, WIND_START, WIND_WARN, WINDOW_TIME,
-  type AmmoKind, type CoreRoutine, type HeroDef, type ItemDef, type TurretDef,
+  type AmmoKind, type CoreRoutine, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
 import { drakeConvert, pressureBonus, resolveCore, ROUTINES, type TurretCore } from "./cores"; // 0.6.1b
 import {
@@ -31,6 +31,10 @@ export interface Payload {
   prior: number; // gates visited
   factory: number;
   copy: boolean; // produced by a Splitter
+  // 0.6.1p: star perks, absent on every 1-star payload (Payload.shock stays a boolean: src/sim/races builds payloads)
+  shockTime?: number; // GALVANIC COIL 2-3 stars: the stall its Shock deals (absent: DISRUPT_TIME)
+  jump?: number; // GALVANIC COIL SPARK JUMP: nearest other machines its Shock also stalls
+  base?: number; // STAMP PRESS 2-3 stars: base damage, instead of AMMO[ammo].base
 }
 
 export interface BeltAmmo {
@@ -67,6 +71,9 @@ export interface RouteState {
   pts: { x: number; y: number }[];
   phase: number[]; // render: belt animation phase per cell (px)
   pressure: number; // blocked payloads on this route
+  // 0.6.1p: GUARD_* flags per cell (content.ts), set in makeSide: OVERDRIVE REDLINE/AFTERBURNER (read by wave 2's
+  // enemy slow and freeze; nothing in wave 1 does) and MANTLET ★3 BULWARK SKIRT (read by Battle.disrupt)
+  guard: number[];
 }
 
 export interface FactoryState {
@@ -105,6 +112,11 @@ export interface TurretState {
   windowTime: number; // the window closes this long after its first load (WINDOW_TIME unless the core sets it)
   spin: number; // GATLING SPOOL: the current interval multiplier (1 for every other routine)
   lastShot: number; // GATLING SPOOL: battle time of the last firing opportunity (-1: none yet)
+  // 0.6.1p: gear (makeTurret). window/windowTime above already include EXT. CHAMBER and HOPPER.
+  noJam: boolean; // HOPPER ★3 BOTTOMLESS
+  immune: HarassCause[]; // MANTLET: stalls Battle.disrupt ignores on this turret
+  intakeGuard: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into it share `immune`
+  finisher: number; // FINISHER RAM: + this share of damage on the payload that empties the window (never on a GATLING)
 }
 
 export interface HullState {
@@ -176,6 +188,7 @@ export interface Projectile {
   burn?: number; // Burn stacks it lands, instead of payload.burn (SCATTER splits them, DRAKE adds)
   burnTime?: number; // their duration, instead of BURN_TIME (DRAKE)
   noFray?: boolean; // SCATTER: only the first pellet applies the ammo's Fray stacks
+  finisher?: boolean; // 0.6.1p: a FINISHER RAM finisher (render: a 1 px red trail); absent otherwise
 }
 
 export type SimEvent =
@@ -268,6 +281,7 @@ export class Battle {
         index: i, factory: r.factory, cells: [...r.cells], connected: info.connected, turret: info.turret,
         L: info.length, gateAt, ammo: [], cellDisrupt: r.cells.map(() => 0), speedAt: r.cells.map(() => 1),
         pts: routePolyline(b, r, info.connected), phase: r.cells.map(() => 0), pressure: 0,
+        guard: r.cells.map(() => 0), // 0.6.1p
       };
     });
     const factories: FactoryState[] = b.items
@@ -278,6 +292,16 @@ export class Battle {
         timer: 0.35, rr: 0, disrupted: 0, flash: 0, stalled: false, produced: 0,
       }));
     const turrets: TurretState[] = h.turrets.map((def, i) => makeTurret(b, i, def)); // 0.6.1b: gear and core
+    // 0.6.1p: guard flags. OVERDRIVE ★2/★3 flags its own tile and every tile downstream (static: wave 2's hooks
+    // decide whether the gate must be online); a MANTLET ★3 turret's BULWARK SKIRT flags each connected route's last n tiles.
+    for (const r of routes) {
+      r.gateAt.forEach((g, ci) => {
+        const flags = g?.def.gate?.guard ?? 0;
+        if (flags) for (let j = ci; j < r.guard.length; j++) r.guard[j] |= flags;
+      });
+      const skirt = r.connected ? turrets[r.turret]?.intakeGuard ?? 0 : 0;
+      for (let j = Math.max(0, r.guard.length - skirt); j < r.guard.length; j++) r.guard[j] |= GUARD_SKIRT;
+    }
     const targets: Target[] = [];
     for (const r of routes) {
       r.cells.forEach((k, ci) => {
@@ -400,6 +424,7 @@ export class Battle {
             id: this.nextId++, ammo: spec.ammo, ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
             prior: 0, factory: f.uid, copy: false,
           };
+          if (spec.base !== undefined) p.base = spec.base; // 0.6.1p: STAMP PRESS dies (absent at 1 star)
           r.ammo.push({ p, s: 0, processed: -1, blocked: false });
           f.rr = (f.rr + k + 1) % n;
           f.timer = spec.interval;
@@ -456,8 +481,12 @@ export class Battle {
           a.processed++;
           const g = r.gateAt[a.processed];
           if (g && g.online && g.disrupted <= 0) {
-            const copy = this.applyGate(s, a, g);
-            if (copy) inserts.push({ after: a, copy });
+            // 0.6.1p: a SPLITTER returns 1 copy (2 at ★3 THREE-WAY); each goes in behind the one before it
+            let after = a;
+            for (const copy of this.applyGate(s, a, g)) {
+              inserts.push({ after, copy });
+              after = copy;
+            }
           }
         }
         a.s = ns;
@@ -470,26 +499,35 @@ export class Battle {
     }
   }
 
-  private applyGate(s: SideState, a: BeltAmmo, g: GateState): BeltAmmo | null {
+  /** A gate processes payload `a`; returns the copies a SPLITTER makes (copies - 1 of them), else []. */
+  private applyGate(s: SideState, a: BeltAmmo, g: GateState): BeltAmmo[] {
     const e = g.def.gate!;
     const p = a.p;
-    let copy: BeltAmmo | null = null;
+    const copies: BeltAmmo[] = [];
     if (e.flat) p.flat += e.flat;
-    if (e.perPriorGate) p.flat += e.perPriorGate * p.prior;
+    // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
+    if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
     if (e.burn) p.burn += e.burn;
-    if (e.shock) p.shock = true;
+    if (e.shock) {
+      p.shock = true;
+      // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
+      if (e.shockTime !== undefined) p.shockTime = Math.max(p.shockTime ?? DISRUPT_TIME, e.shockTime);
+      if (e.jump) p.jump = Math.max(p.jump ?? 0, e.jump);
+    }
     if (e.split) {
       p.mult *= e.split.mult;
       p.flat *= e.split.mult;
       p.copy = true;
-      const cp: Payload = { ...p, id: this.nextId++ };
-      copy = { p: cp, s: a.s - 0.01, processed: a.processed, blocked: false };
+      for (let c = 1; c < e.split.copies; c++) { // 0.6.1p: ★3 THREE-WAY makes two copies
+        const cp: Payload = { ...p, id: this.nextId++ };
+        copies.push({ p: cp, s: a.s - 0.01 * c, processed: a.processed, blocked: false });
+      }
     }
     p.prior++;
-    if (copy) copy.p.prior = p.prior;
+    for (const c of copies) c.p.prior = p.prior;
     g.flash = 0.22;
     this.events.push({ type: "process", side: s.side, gate: g.uid, def: g.def.id });
-    return copy;
+    return copies;
   }
 
   private chambers(s: SideState, dt: number): void {
@@ -535,7 +573,7 @@ export class Battle {
         }
       }
       if (tu.phase === "fire") {
-        if (waiting >= JAM_THRESHOLD && tu.jamCd <= 0 && tu.jamSkip === 0 && !rt.noJam(tu)) {
+        if (waiting >= JAM_THRESHOLD && tu.jamCd <= 0 && tu.jamSkip === 0 && !rt.noJam(tu) && !tu.noJam) { // 0.6.1p: + HOPPER ★3
           tu.jamSkip = 1;
           tu.jamRandom = true;
           tu.jamCd = JAM_COOLDOWN;
@@ -554,7 +592,10 @@ export class Battle {
               const idx = tu.jamRandom ? this.rng.int(tu.stack.length) : rt.select(tu); // identity: LIFO
               tu.jamRandom = false;
               const p = tu.stack.splice(idx, 1)[0];
-              this.fire(s, tu, p, k, queued);
+              // 0.6.1p FINISHER RAM: the payload that empties the window. A GATLING never holds a window
+              // (cores.ts gatlingReady), so none of its shots is a finisher (the Prime's call, brief 0.6.1p).
+              const fin = tu.finisher > 0 && tu.stack.length === 0 && tu.core.routine !== "gatling";
+              this.fire(s, tu, p, k, queued, fin);
             }
             tu.fireCd = rt.cadence(tu, this.t); // identity: interval
           }
@@ -567,13 +608,14 @@ export class Battle {
     }
   }
 
-  private fire(s: SideState, tu: TurretState, p: Payload, k: number, queued: number): void {
-    if (tu.core.bought) return this.fireCore(s, tu, p, k, queued); // 0.6.1b; the identity shot below is unchanged
+  private fire(s: SideState, tu: TurretState, p: Payload, k: number, queued: number, fin = false): void {
+    if (tu.core.bought) return this.fireCore(s, tu, p, k, queued, fin); // 0.6.1b; the identity shot below is unchanged
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
-    const dmg = ammo.rideCurve // races: PENDULUM curve
+    let dmg = ammo.rideCurve // races: PENDULUM curve
       ? raceCurveDamage(ammo, s, tu, p)
-      : payloadDamage(ammo.base, ammo.rideScale, p.ride, p.mult, p.flat);
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat); // 0.6.1p: p.base (STAMP PRESS dies)
+    if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM
     const target = this.pickTarget(foe);
     let tx = target.x, ty = target.y;
     if (target.kind === "hull") {
@@ -588,6 +630,7 @@ export class Battle {
     const proj: Projectile = {
       id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg, t: 0, flight, target, tx, ty, heavy,
     };
+    if (fin) proj.finisher = true; // 0.6.1p
     this.projectiles.push(proj);
     tu.recoil = 1;
     s.stats.shots++;
@@ -605,14 +648,14 @@ export class Battle {
    * - DRAKE: the flat bonus becomes Burn (1 stack per flatPerBurn), + addBurn, lasting burnTime; flight x flightMul.
    * ROTARY and GATLING fire like the identity shot (their hooks are in the chamber).
    */
-  private fireCore(s: SideState, tu: TurretState, p: Payload, k: number, queued: number): void {
+  private fireCore(s: SideState, tu: TurretState, p: Payload, k: number, queued: number, fin = false): void {
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
     const c = tu.core.spec, routine = tu.core.routine;
     const conv = routine === "drake" ? drakeConvert(c, p.flat) : { stacks: 0, used: 0 };
     let dmg = ammo.rideCurve
       ? Math.max(1, raceCurveDamage(ammo, s, tu, p) - conv.used)
-      : payloadDamage(ammo.base, ammo.rideScale, p.ride, p.mult, p.flat - conv.used);
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat - conv.used); // 0.6.1p: p.base
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
     if (routine === "pressure") dmg += pressureBonus(c, queued);
     else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
@@ -625,6 +668,7 @@ export class Battle {
       pellets = Math.max(1, c.pellets ?? 1);
       share = c.share ?? 1;
     }
+    if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM, after the core's own bonus (never set on a GATLING)
     const heavy = tu.def.kind === "heavy";
     for (let j = 0; j < pellets; j++) {
       const target = routine === "hullbreaker" ? hullTarget() : this.pickTarget(foe); // HULLBREAKER: no target draw
@@ -643,6 +687,7 @@ export class Battle {
         core: routine, burn: pellets > 1 ? Math.ceil(burn / pellets) : burn,
         ...(burnTime !== undefined ? { burnTime } : {}),
         ...(pellets > 1 ? { share, noFray: j > 0 } : {}),
+        ...(fin ? { finisher: true } : {}), // 0.6.1p
       };
       this.projectiles.push(proj);
       s.stats.shots++;
@@ -688,7 +733,9 @@ export class Battle {
     if (burn > 0) def.hull.burns.push({ dps: burn, t: pr.burnTime ?? BURN_TIME });
     let shocked = false;
     if (pr.payload.shock && pr.target.kind !== "hull") {
-      shocked = this.disrupt(def, pr.target);
+      const secs = pr.payload.shockTime ?? DISRUPT_TIME; // 0.6.1p: GALVANIC COIL ★2/★3 stall longer
+      shocked = this.disrupt(def, pr.target, secs, "shock");
+      if (pr.payload.jump) this.sparkJump(def, pr.target, secs, pr.payload.jump); // 0.6.1p: SPARK JUMP
     }
     if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
     this.events.push({
@@ -697,26 +744,34 @@ export class Battle {
     });
   }
 
-  private disrupt(s: SideState, t: Target): boolean {
+  /**
+   * Stall a machine for `secs` (a longer stall already running is kept: with 1-star coils every stall is
+   * DISRUPT_TIME, so this is exactly 0.6.0's overwrite). 0.6.1p MANTLET: a turret whose `immune` lists `cause` is
+   * not stalled, nor is a tile of its ★3 BULWARK SKIRT (RouteState.guard GUARD_SKIRT); false, and no event, then.
+   */
+  private disrupt(s: SideState, t: Target, secs = DISRUPT_TIME, cause: HarassCause = "shock"): boolean {
     switch (t.kind) {
       case "gate": {
         const g = s.gates.find((g) => g.uid === t.ref);
-        if (g) g.disrupted = DISRUPT_TIME;
+        if (g && g.route >= 0 && this.skirted(s, s.routes[g.route], g.cellIdx, cause)) return false;
+        if (g) g.disrupted = Math.max(g.disrupted, secs);
         break;
       }
       case "factory": {
         const f = s.factories.find((f) => f.uid === t.ref);
-        if (f) f.disrupted = DISRUPT_TIME;
+        if (f) f.disrupted = Math.max(f.disrupted, secs);
         break;
       }
       case "turret": {
         const tu = s.turrets[t.ref];
-        if (tu) tu.disrupted = DISRUPT_TIME;
+        if (tu && tu.immune.includes(cause)) return false;
+        if (tu) tu.disrupted = Math.max(tu.disrupted, secs);
         break;
       }
       case "belt": {
         const r = s.routes[t.ref];
-        if (r && t.cell >= 0) r.cellDisrupt[t.cell] = DISRUPT_TIME;
+        if (r && t.cell >= 0 && this.skirted(s, r, t.cell, cause)) return false;
+        if (r && t.cell >= 0) r.cellDisrupt[t.cell] = Math.max(r.cellDisrupt[t.cell], secs);
         break;
       }
       default:
@@ -724,6 +779,24 @@ export class Battle {
     }
     this.events.push({ type: "disrupt", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
     return true;
+  }
+
+  /** 0.6.1p MANTLET ★3: cell `ci` of route `r` lies in its turret's BULWARK SKIRT and that turret ignores `cause`. */
+  private skirted(s: SideState, r: RouteState | undefined, ci: number, cause: HarassCause): boolean {
+    if (!r || ci < 0 || !((r.guard[ci] ?? 0) & GUARD_SKIRT)) return false;
+    return s.turrets[r.turret]?.immune.includes(cause) ?? false;
+  }
+
+  /**
+   * 0.6.1p GALVANIC COIL ★2/★3 SPARK JUMP: the spark also stalls the `n` machines nearest the struck one (by
+   * distance between target centres; ties keep foe.targets order). No RNG draw.
+   */
+  private sparkJump(s: SideState, from: Target, secs: number, n: number): void {
+    const others = s.targets
+      .filter((t) => t.kind !== "hull" && !(t.kind === from.kind && t.ref === from.ref && t.cell === from.cell))
+      .map((t, i) => ({ t, i, d: (t.x - from.x) ** 2 + (t.y - from.y) ** 2 }))
+      .sort((a, b) => a.d - b.d || a.i - b.i);
+    for (const o of others.slice(0, n)) this.disrupt(s, o.t, secs, "shock");
   }
 
   private hullEffects(dt: number): void {
@@ -814,20 +887,48 @@ export class Battle {
  * stand-in TurretDef (the medium class).
  */
 export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
-  let perShot = 1, fireMul = 1;
-  for (const m of b.mods.filter((m) => m.turret === i)) {
-    const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
-    if (md?.perShot) perShot = Math.max(perShot, md.perShot);
-    if (md?.fireMul) fireMul *= md.fireMul;
-  }
+  const g = gearStats(b, i);
   const core = resolveCore(b, i, def);
   const c = core.spec;
-  const interval = def.fireInterval * fireMul;
+  const interval = def.fireInterval * g.fireMul;
+  const windowTime = c.windowTime ?? WINDOW_TIME;
   return {
     index: i, def, stack: [], phase: "load", loadTimer: 0, fireCd: 0, jamSkip: 0, jamRandom: false,
-    jamCd: 0, disrupted: 0, perShot, interval: c.intervalMul ? interval * c.intervalMul : interval, recoil: 0, jamFx: 0,
-    waiting: 0, core, window: def.window, windowTime: c.windowTime ?? WINDOW_TIME, spin: c.start ?? 1, lastShot: -1,
+    jamCd: 0, disrupted: 0, perShot: g.perShot, interval: c.intervalMul ? interval * c.intervalMul : interval, recoil: 0, jamFx: 0,
+    // 0.6.1p: EXT. CHAMBER ★2/★3 and HOPPER add window slots; HOPPER adds seconds to the core's window time (a
+    // GATLING never reads windowTime, cores.ts gatlingReady, so there HOPPER's seconds do nothing; its slots count)
+    waiting: 0, core, window: def.window + g.window, windowTime: g.windowTime ? windowTime + g.windowTime : windowTime,
+    spin: c.start ?? 1, lastShot: -1,
+    noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher,
   };
+}
+
+/** 0.6.1p: turret i's gear at its stars, folded (makeTurret; the inspector and the cruiser art read it too). */
+export interface GearStats {
+  perShot: number; // payloads per firing opportunity (the most any gear gives, at least 1)
+  fireMul: number; // x the fire interval
+  window: number; // + window slots
+  windowTime: number; // + window seconds
+  noJam: boolean;
+  immune: HarassCause[];
+  intakeGuard: number;
+  finisher: number;
+}
+
+export function gearStats(b: Build, i: number): GearStats {
+  const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, noJam: false, immune: [], intakeGuard: 0, finisher: 0 };
+  for (const m of b.mods.filter((m) => m.turret === i)) {
+    const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
+    if (md?.perShot) out.perShot = Math.max(out.perShot, md.perShot);
+    if (md?.fireMul) out.fireMul *= md.fireMul;
+    if (md?.window) out.window += md.window;
+    if (md?.windowTime) out.windowTime += md.windowTime;
+    if (md?.noJam) out.noJam = true;
+    if (md?.immune) for (const c of md.immune) if (!out.immune.includes(c)) out.immune.push(c);
+    if (md?.intakeGuard) out.intakeGuard = Math.max(out.intakeGuard, md.intakeGuard);
+    if (md?.finisher) out.finisher = Math.max(out.finisher, md.finisher);
+  }
+  return out;
 }
 
 /** Headless run to completion (tests / balance). */

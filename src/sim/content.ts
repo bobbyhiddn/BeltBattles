@@ -46,17 +46,42 @@ export interface GateEffect {
   perPriorGate?: number; // damage per gate already visited (Long Haul)
   speed?: number; // downstream speed state (later state wins)
   split?: { copies: number; mult: number }; // Splitter
+  // 0.6.1p: the star perks (ARSENAL.md §4.3, catalogue.json). Absent at 1 star, so 1-star decks fight as in 0.6.0.
+  priorCap?: number; // LONG HAUL 2-3 stars: prior gates counted at most
+  shockTime?: number; // GALVANIC COIL 2-3 stars: the stall in s (1 star: DISRUPT_TIME, 1.6 s, the catalogue's star1)
+  jump?: number; // GALVANIC COIL SPARK JUMP: the spark also stalls this many nearest other machines (no RNG)
+  guard?: number; // OVERDRIVE REDLINE/AFTERBURNER: GUARD_* flags on the tiles downstream (RouteState.guard)
 }
+
+/**
+ * 0.6.1p: RouteState.guard flags. OVERDRIVE ★2 REDLINE sets GUARD_SLOW downstream and ★3 AFTERBURNER adds
+ * GUARD_FREEZE; they act only once wave 2 adds enemy slow and freeze (nothing in wave 1 reads them). GUARD_SKIRT
+ * marks a MANTLET ★3 BULWARK SKIRT tile: the fed turret's immunities cover it (Battle.disrupt).
+ */
+export const GUARD_SLOW = 1;
+export const GUARD_FREEZE = 2;
+export const GUARD_SKIRT = 4;
+
+/** 0.6.1p: what stalls a machine (MANTLET immunities). Only "shock" exists in wave 1; wave 2 adds the rest. */
+export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabot";
 
 export interface FactorySpec {
   ammo: AmmoKind;
   interval: number; // seconds per stamp
   outputs: number; // routes it can feed
+  base?: number; // 0.6.1p: STAMP PRESS dies: base damage of its slugs (Payload.base), instead of AMMO[ammo].base
 }
 
 export interface ModSpec {
   fireMul?: number; // multiplies firing interval
   perShot?: number; // payloads per firing opportunity
+  // 0.6.1p (catalogue.json): EXT. CHAMBER WIDE BREECH, HOPPER, MANTLET and FINISHER RAM
+  window?: number; // + loading window slots (TurretState.window)
+  windowTime?: number; // + seconds before the window closes (TurretState.windowTime; GATLING never reads it)
+  noJam?: boolean; // HOPPER ★3 BOTTOMLESS: this turret never jams
+  immune?: HarassCause[]; // MANTLET: stalls this turret ignores (Battle.disrupt)
+  intakeGuard?: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into this turret share its immunities
+  finisher?: number; // FINISHER RAM: + this share of damage on the payload that empties a loading window
 }
 
 /** 0.6.1b: how a turret fires (ARSENAL.md §2). "identity" is today's firing: every hero's signature core. */
@@ -96,8 +121,9 @@ export type ModuleTag = "BURN" | "SHOCK" | "POISON" | "FRAY" | "EDGE" | "SPEED" 
 /**
  * 0.6.1a: the 2-star or 3-star override of a fusible module (ARSENAL.md §4.3, catalogue.json star2/star3).
  * gate/factory/mod are merged over the 1-star spec by stars.ts:effectAt (levels 2 then 3, so a 2-star
- * value carries to 3 stars unless 3 restates it). `pending` holds star values the 0.6.1a sim does not
- * read yet (they need a new field or code path; a later job implements them). `perk` names the perk.
+ * value carries to 3 stars unless 3 restates it). `pending` holds star values the sim does not read yet;
+ * 0.6.1p applied every 0.6.1a pending perk, so no live module stores any (the field stays for later waves).
+ * `perk` names the perk.
  */
 export interface ItemLevel {
   gate?: Partial<GateEffect>;
@@ -143,9 +169,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "press", name: "STAMP PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
     desc: ["STAMPS PLAIN SLUGS", "EVERY 1.4S. NEEDS A", "FREE TURRET INTAKE."],
     factory: { ammo: "plain", interval: 1.4, outputs: 1 },
-    levels: {
-      2: { factory: { interval: 1.1 }, pending: { base: 5 }, perk: "HARDENED DIES" },
-      3: { factory: { interval: 1 }, pending: { base: 7.5 }, perk: "MASTER DIES" },
+    levels: { // 0.6.1p: the dies (base damage 5 / 7.5, Payload.base) are applied
+      2: { factory: { interval: 1.1, base: 5 }, perk: "HARDENED DIES" },
+      3: { factory: { interval: 1, base: 7.5 }, perk: "MASTER DIES" },
     },
   },
   // --- processing gates ---
@@ -177,18 +203,18 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",
     desc: ["+2 DAMAGE FOR EACH", "GATE THE PAYLOAD", "ALREADY PASSED."],
     gate: { perPriorGate: 2 },
-    levels: {
-      2: { gate: { perPriorGate: 4 }, pending: { priorCap: 6 } },
-      3: { gate: { perPriorGate: 7 }, pending: { priorCap: 6 } },
+    levels: { // 0.6.1p: priorCap applied (1 star counts every prior gate, as in 0.6.0)
+      2: { gate: { perPriorGate: 4, priorCap: 6 } },
+      3: { gate: { perPriorGate: 7, priorCap: 6 } },
     },
   },
   coil: {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
     desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."],
-    gate: { shock: true },
-    levels: {
-      2: { pending: { shock: 1.8, jump: 1 }, perk: "SPARK JUMP" },
-      3: { pending: { shock: 2.8, jump: 1 }, perk: "SPARK JUMP" },
+    gate: { shock: true }, // 1 star stalls DISRUPT_TIME (1.6 s, catalogue star1) exactly as in 0.6.0
+    levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied
+      2: { gate: { shockTime: 1.8, jump: 1 }, perk: "SPARK JUMP" },
+      3: { gate: { shockTime: 2.8, jump: 1 }, perk: "SPARK JUMP" },
     },
   },
   splitter: {
@@ -197,17 +223,16 @@ export const ITEMS: Record<string, ItemDef> = {
     gate: { split: { copies: 2, mult: 0.6 } },
     levels: {
       2: { gate: { split: { copies: 2, mult: 0.72 } }, perk: "CLEAN CUT" },
-      // THREE-WAY (3 copies at 57%) is pending: until then 3 stars split like 2 (CLEAN CUT)
-      3: { pending: { copies: 3, mult: 0.57 }, perk: "THREE-WAY" },
+      3: { gate: { split: { copies: 3, mult: 0.57 } }, perk: "THREE-WAY" }, // 0.6.1p: applyGate makes 2 copies
     },
   },
   overdrive: {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker",
     desc: ["BELTS AFTER THIS", "RUN 3X FASTER.", "LEGENDARY TEMPO."],
     gate: { speed: 3 },
-    levels: {
-      2: { gate: { speed: 4 }, perk: "REDLINE" },
-      3: { gate: { speed: 5 }, pending: { flat: 3 }, perk: "AFTERBURNER" },
+    levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; the guard flags wait for wave 2's enemy slow and freeze
+      2: { gate: { speed: 4, guard: GUARD_SLOW }, perk: "REDLINE" },
+      3: { gate: { speed: 5, flat: 3, guard: GUARD_SLOW | GUARD_FREEZE }, perk: "AFTERBURNER" },
     },
   },
   // --- turret equipment ---
@@ -215,9 +240,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "chamber", name: "EXT. CHAMBER", kind: "mod", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
     desc: ["TURRET FIRES TWO", "PAYLOADS PER SHOT.", "DROP ON A TURRET."],
     mod: { perShot: 2 },
-    levels: {
-      2: { mod: { perShot: 2 }, pending: { window: 1 }, perk: "WIDE BREECH" },
-      3: { mod: { perShot: 3 }, pending: { window: 1 }, perk: "TRIPLE BREECH" },
+    levels: { // 0.6.1p: WIDE BREECH's window +1 applied (TurretState.window)
+      2: { mod: { perShot: 2, window: 1 }, perk: "WIDE BREECH" },
+      3: { mod: { perShot: 3, window: 1 }, perk: "TRIPLE BREECH" },
     },
   },
   calibrate: {

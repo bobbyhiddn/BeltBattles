@@ -31,7 +31,8 @@ const cache = new Map<string, ItemDef>();
 /**
  * The item's def with its spec at `stars`: ItemDef.levels[2] (and then levels[3]) merged over the
  * 1-star gate/factory/mod spec. At 1 star, or for an item without levels, it is ITEMS[def] itself,
- * so 1-star decks fight exactly as in 0.6.0. Values in levels[n].pending are NOT applied (0.6.1a).
+ * so 1-star decks fight exactly as in 0.6.0. Values in levels[n].pending are NOT applied (0.6.1p applied every
+ * 0.6.1a pending perk, so no live module stores any: pendingAt is {} for each).
  * Throws for an unknown def, like deck.ts:defOf.
  */
 export function effectAt(def: string, stars: number): ItemDef {

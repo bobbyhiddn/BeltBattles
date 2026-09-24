@@ -277,7 +277,9 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
   const info = routeInfo(b, index);
   const r = b.routes[index];
   const f = itemByUid(b, r.factory);
-  const ammo = f ? AMMO[defOf(f).factory!.ammo] : AMMO.plain;
+  const fs = f ? effectAt(f.def, starsOf(f)).factory : undefined; // 0.6.1p: at its stars (STAMP PRESS dies)
+  const ammo = fs ? AMMO[fs.ammo] : AMMO.plain;
+  const base = fs?.base ?? ammo.base;
   const gateAt = new Map<number, ItemDef>();
   info.gateCells.forEach((ci, gi) => {
     const p = itemByUid(b, info.gates[gi]);
@@ -294,7 +296,7 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
     if (g?.gate) {
       const e = g.gate;
       if (e.flat) flat += e.flat;
-      if (e.perPriorGate) flat += e.perPriorGate * prior;
+      if (e.perPriorGate) flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(prior, e.priorCap) : prior); // 0.6.1p
       if (e.burn) burn += e.burn;
       if (e.shock) shock = true;
       if (e.split) {
@@ -313,7 +315,7 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
   }
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat, pendulumShift(b, info.turret))
-    : payloadDamage(ammo.base, ammo.rideScale, ride, mult, flat);
+    : payloadDamage(base, ammo.rideScale, ride, mult, flat);
   return { time, ride, dmg: total, copies, burn, shock };
 }
 
