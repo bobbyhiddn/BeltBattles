@@ -280,6 +280,7 @@ function factoryBuild(def, stars) {
   return `(() => {
     const g = bb.game;
     ${placeFactory(def, stars)}
+    g.screen.touched(); // rebuild the screen's cruiser model, so the factory's new route is drawn
     g.screen.select({ kind: "item", uid: 9101 });
     g.render();
   })()`;
@@ -296,12 +297,14 @@ function factoryBattle(def, stars) {
     ${placeFactory(def, stars)}
     bb.open("battle", "furnace", 12345);
     let n = 0;
-    for (let i = 0; i < 60 * 30 && n < 3; i++) {
+    // SLAG POT's slow slag rarely has 3 on its belt before the chamber jams (about 25 s in), so it stops at 2
+    for (let i = 0; i < 60 * 30 && n < ${def === "slagpot" ? 2 : 3}; i++) {
       g.step(1 / 60);
       const a = g.screen.arena;
       n = a && g.screen.phase === "fight" ? a.b.sides[0].routes.filter((r) => r.factory === 9101).reduce((k, r) => k + r.ammo.length, 0) : 0;
     }
     if (n < 2) console.error("FACTORY_BATTLE: fewer than 2 ${def} slugs on its belt within 30 s");
+    for (let i = 0; i < 12; i++) g.step(1 / 60); // past the stamp's 0.18 s flash, so the sprite shows unwashed
     g.render();
   } catch (e) { console.error("FACTORY_BATTLE: " + e.message + "\\n" + e.stack); }
 })()`;
