@@ -146,6 +146,12 @@ export function drawScene(g: G, id: EventId, x: number, y: number, w: number, h:
   const ry = y + roadY(h);
   const cx = x + Math.round(w * 0.62);
   const tt = calm ? t * 0.4 : t;
+  // the moving bits stay inside the scene (SCOUT's wagon enters from 36 px left of it, storm
+  // streaks overrun both sides, smoke and exhaust rise past the top of a small thumbnail)
+  g.save();
+  g.beginPath();
+  g.rect(x, y, w, h);
+  g.clip();
   // the player's cruiser idles: exhaust puffs
   for (let k = 0; k < 3; k++) {
     const p = (tt * 0.9 + k / 3) % 1;
@@ -224,6 +230,7 @@ export function drawScene(g: G, id: EventId, x: number, y: number, w: number, h:
       break;
     }
   }
+  g.restore();
 }
 
 /** Test hook: drop cached layers (not used in play). */

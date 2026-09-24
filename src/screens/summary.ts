@@ -5,7 +5,7 @@
 import type { Game, Screen } from "../game/game";
 import { saveRun, type Run } from "../game/run";
 import { flawless, record } from "../game/day";
-import { EVENTS } from "../game/eventDefs";
+import type { EventId } from "../game/eventDefs";
 import { HEROES, RUN_DAYS } from "../sim/content";
 import { Fx } from "../render/fx";
 import { C } from "../render/palette";
@@ -21,6 +21,15 @@ import { HeroScreen } from "./hero";
 import { TitleScreen } from "./title";
 
 const ROW = 8;
+
+/** STOP column: one short word per road event (the event kinds run into OPPONENT). */
+const STOP_LABEL: Record<EventId, string> = {
+  wreck: "SALVAGE", cache: "CACHE", trader: "TRADER", dice: "GAMBLE", dock: "DOCK",
+  herald: "BOUNTY", sappers: "SABOTAGE", scout: "SCOUT", storm: "STORM", smuggler: "SMUGGLER",
+};
+/** Widest STOP label (events, warlord tiers, DUSK): the column is sized to it. */
+const STOP_W = Math.max(...[...Object.values(STOP_LABEL), ...Object.values(TIER_LABEL), "DUSK"].map((s) => textWidth(s, "3")));
+const STOP_GAP = 8; // clear space between STOP and OPPONENT
 
 /** Fit a label into `w` px of the 3x5 face (trimmed, no ellipsis glyph needed). */
 function fit(s: string, w: number): string {
@@ -63,7 +72,7 @@ export class SummaryScreen implements Screen {
       }
       const ev = run.events.find((e) => e.day === d.day);
       const warlordDay = run.warlords.some((q) => q.day === d.day);
-      const stop = warlordDay ? "DUSK" : ev ? EVENTS[ev.id].kind : "DUSK";
+      const stop = warlordDay ? "DUSK" : ev ? STOP_LABEL[ev.id] : "DUSK";
       out.push({ day: d.day, stop, stopColor: warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time });
     }
     return out;
@@ -144,7 +153,7 @@ export class SummaryScreen implements Screen {
     const run = this.run;
     const rh = this.rowH();
     const cDay = x, cStop = x + 16, cRes = x + w - 10, cTime = cRes - 4;
-    const stopW = 38, cFoe = cStop + stopW + 3, foeW = cTime - 22 - cFoe;
+    const stopW = STOP_W, cFoe = cStop + stopW + STOP_GAP, foeW = cTime - 22 - cFoe;
     drawText(g, "DAY", cDay, y, C.slate3, { font: "3" });
     drawText(g, "STOP", cStop, y, C.slate3, { font: "3" });
     drawText(g, "OPPONENT", cFoe, y, C.slate3, { font: "3" });
