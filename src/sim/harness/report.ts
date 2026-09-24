@@ -120,5 +120,43 @@ export function balanceMarkdown(res: TourneyResult, meta: RunMeta): string {
     for (const x of lopsided(res, kind).slice(0, 8)) L.push(`- Day ${x.day}: ${H(x.a)} over ${H(x.b)} ${fmtRate(x.rate)}`);
     L.push("");
   }
+  if (res.days.some((d) => d.mirror2 || d.starMix || d.bench)) L.push(...v2Sections(res));
   return L.join("\n") + "\n";
+}
+
+const pct1 = (x: number) => `${(100 * x).toFixed(1)}%`;
+
+/** 0.6.1a harness v2: mirror K=4 splits, star mix, and the star bench. Appended after every v1
+ *  section so a stars-off run's markdown (no v2 fields on any day) is exactly v1's output. */
+function v2Sections(res: TourneyResult): string[] {
+  const o = res.opts;
+  const L: string[] = ["## Mirror, K=4 splits (0.6.1a)", "", "Mean win rate of a random half of the population against the other half, both sides, same seeds per split; min-max over the 4 splits. A noise gauge (about 50%), not a balance target.", ""];
+  L.push(`| day | ${o.heroes.map(H).join(" | ")} |`, `|---|${o.heroes.map(() => "---").join("|")}|`);
+  for (const d of res.days) {
+    if (!d.mirror2) continue;
+    L.push(`| ${d.day} | ${o.heroes.map((h) => { const m = d.mirror2![h]; return m ? `${pct1(m.mean)} [${pct1(m.min)}-${pct1(m.max)}]` : "n/a"; }).join(" | ")} |`);
+  }
+  L.push("", "## Star mix (0.6.1a)", "", "Share of fusible modules (items + modules) at each star, and merged modules (>1 star) per build (median [max]). Population, then elites.", "");
+  L.push("| day | hero | pop 1/2/3-star | pop merged/build | elite 1/2/3-star | elite merged/build |", "|---|---|---|---|---|---|");
+  for (const d of res.days) {
+    if (!d.starMix) continue;
+    for (const h of o.heroes) {
+      const m = d.starMix[h];
+      if (!m) continue;
+      L.push(`| ${d.day} | ${H(h)} | ${pct1(m.pop.p1)}/${pct1(m.pop.p2)}/${pct1(m.pop.p3)} | ${m.pop.medianMerged} [${m.pop.maxMerged}] | ${pct1(m.elites.p1)}/${pct1(m.elites.p2)}/${pct1(m.elites.p3)} | ${m.elites.medianMerged} [${m.elites.maxMerged}] |`);
+    }
+  }
+  L.push("", "## Star bench (0.6.1a)", "", "Every elite/par deck's fusible modules held at 1 star, raised in place to 2 and 3 stars (same cell/turret, budget ignored), replayed against the day's gauntlet. Win rate at 1-star and at that star, the delta, and 95% Wilson intervals. WORSE: a higher star wins less and the intervals don't overlap. NO EFFECT: every battle ends identically to 1-star (the level does nothing yet).", "");
+  L.push("| day | def | star | n | win rate @1 | win rate @star | delta | flags |", "|---|---|---|---|---|---|---|---|");
+  for (const d of res.days) {
+    for (const r of d.bench ?? []) {
+      L.push(`| ${d.day} | ${r.def} | ${r.star} | ${r.n} | ${fmtRate(r.wr1)} | ${fmtRate(r.wrN)} | ${r.delta >= 0 ? "+" : ""}${pct1(r.delta)} | ${r.flags.join(", ") || "-"} |`);
+    }
+  }
+  const flagged = res.days.flatMap((d) => (d.bench ?? []).filter((r) => r.flags.length).map((r) => ({ day: d.day, r })));
+  L.push("", "### WORSE / NO EFFECT summary", "");
+  if (!flagged.length) L.push("None flagged.");
+  for (const { day, r } of flagged) L.push(`- Day ${day} ${r.def} ★${r.star}: ${r.flags.join(", ")} (delta ${r.delta >= 0 ? "+" : ""}${pct1(r.delta)}, @1 ${fmtRate(r.wr1)}, @${r.star} ${fmtRate(r.wrN)})`);
+  L.push("");
+  return L;
 }

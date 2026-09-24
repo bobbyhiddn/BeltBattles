@@ -10,9 +10,11 @@ import { simulate } from "../battle";
 import type { HeroId } from "../content";
 import type { Build } from "../deck";
 import { buildCost, maxGoldByDay } from "../../net/validate";
+import { fusible, starsOf } from "../stars";
 import { randomBuild } from "./gen";
 import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "./heroes";
 import { buildTraits, type Traits } from "./levers";
+import type { Stars } from "./shopper";
 import { wilson, type Rate } from "./stats";
 
 export interface TourneyOpts {
@@ -24,11 +26,12 @@ export interface TourneyOpts {
   seeds: number; // seeds per pairing; each seed is played from both sides
   elites: number;
   calibrationDays: number[]; // days that also rank the reference build
+  stars: Stars; // 0.6.1a harness v2: merge-aware population/gauntlet when "on" (the product default)
 }
 
 export const DEFAULT_OPTS: TourneyOpts = {
   seed: 1, days: [1, 3, 5, 7, 10], heroes: HARNESS_HEROES, pop: 40, gauntlet: 20, seeds: 2, elites: 8,
-  calibrationDays: [1, 3, 5, 7, 10],
+  calibrationDays: [1, 3, 5, 7, 10], stars: "on",
 };
 
 export interface Job { a: number; b: number; seeds: number[] } // field indices
@@ -55,6 +58,29 @@ export type TraitKey = keyof Traits;
 /** Per trait: builds with it (n) and their mean gauntlet score, beside those without it. */
 export type TraitStats = Record<TraitKey, { n: number; mean: number; restN: number; restMean: number }>;
 export interface Calibration { rank: number; of: number; score: Rate; build: Build; cost: number; popCost: Spend }
+
+/** 0.6.1a harness v2: K random 50/50 splits of a hero's population, each half played against the
+ *  other (both sides, same seeds per pairing). A noise gauge (about 50%), not a balance target:
+ *  v1's single split swung 35%-68% on sampling noise alone (races tuning v1). */
+export interface SplitStats { mean: number; min: number; max: number; splits: number[] }
+
+/** Share of a hero's modules (items + mods, fusible defs only) at each star, and merged modules
+ *  (stars > 1) per build. */
+export interface StarMix { n: number; p1: number; p2: number; p3: number; medianMerged: number; maxMerged: number }
+
+/** Star bench row (ARSENAL.md §9.2, "per-star win-rate deltas"): every elite/par deck holding
+ *  `def` at 1 star, raised in place to 2 or 3 stars (same cell/turret, budget ignored), replayed
+ *  against the day's gauntlet with the seeds/sides its 1-star baseline used. */
+export interface BenchRow {
+  def: string;
+  star: 2 | 3;
+  n: number; // decks benched (instances of def at 1-star in an elite or the par deck)
+  wr1: Rate;
+  wrN: Rate;
+  delta: number; // wrN.p - wr1.p
+  flags: ("WORSE" | "NO EFFECT")[];
+}
+
 export interface DayResult {
   day: number;
   budget: number;
@@ -66,6 +92,10 @@ export interface DayResult {
   popScores: Record<string, number[]>; // each hero's population win rates vs the gauntlet, by idx
   spend: Record<string, Spend>; // each hero's population spend (gold)
   traits: Record<string, TraitStats>;
+  // 0.6.1a harness v2 additions (populated when o.stars === "on"); every v1 field above is unchanged.
+  mirror2?: Partial<Record<HeroId, SplitStats>>;
+  starMix?: Partial<Record<HeroId, { pop: StarMix; elites: StarMix }>>;
+  bench?: BenchRow[];
 }
 
 export interface TourneyResult { opts: TourneyOpts; days: DayResult[]; battles: number }
@@ -95,7 +125,7 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner): Promise<
   const blank: Rate = { p: 0, lo: 0, hi: 0, n: 0, pts: 0 };
   for (const hero of o.heroes) {
     for (let i = 0; i < o.pop; i++) {
-      const build = randomBuild(hero, day, new Rng(hashSeed("bb-pop", o.seed, hero, day, i)));
+      const build = randomBuild(hero, day, new Rng(hashSeed("bb-pop", o.seed, hero, day, i)), o.stars);
       field.push({ hero, idx: i, ref: false, build, cost: buildCost(build).total, score: blank });
     }
     if (o.calibrationDays.includes(day)) {
@@ -183,7 +213,171 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner): Promise<
       calibration[h] = { rank: better + 1, of: popScores[h].length + 1, score: ref.score, build: ref.build, cost: ref.cost, popCost: spend[h] };
     }
   }
-  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits };
+
+  let mirror2: DayResult["mirror2"], starMix: DayResult["starMix"], bench: DayResult["bench"];
+  if (o.stars === "on") {
+    mirror2 = {};
+    starMix = {};
+    for (const h of o.heroes) {
+      const popBuilds = popOf(h).map((i) => field[i].build);
+      const r = await mirrorSplits(o, day, h, popBuilds, run);
+      mirror2[h] = r.stats;
+      battles += r.battles;
+      starMix[h] = { pop: starMixOf(popBuilds), elites: starMixOf(elites[h].map((e) => e.build)) };
+    }
+    const gauntletBuilds = gauntlet.map((i) => field[i].build);
+    const sources: BenchSource[] = [];
+    for (const h of o.heroes) {
+      eliteIdx[h].forEach((i, k) => sources.push({ hero: h, tag: `${h} elite ${k}`, build: field[i].build }));
+      if (calibration?.[h]) sources.push({ hero: h, tag: `${h} par`, build: calibration[h].build });
+    }
+    const benchRes = await starBench(o, day, gauntletBuilds, sources, run);
+    bench = benchRes.rows;
+    battles += benchRes.battles;
+  }
+
+  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits, mirror2, starMix, bench };
+}
+
+// ---------------------------------------------------------------- 0.6.1a harness v2
+
+/** K=4 random 50/50 splits of `pop`, each half played against the other (both sides, `o.seeds`
+ *  seeds per pairing). Report the mean and the min-max over the splits: a noise gauge, not a
+ *  balance target (see SplitStats doc). */
+export async function mirrorSplits(o: TourneyOpts, day: number, hero: HeroId, pop: Build[], run: Runner, K = 4): Promise<{ stats: SplitStats; battles: number }> {
+  const per = o.seeds * 2;
+  const splits: number[] = [];
+  let battles = 0;
+  for (let k = 0; k < K; k++) {
+    if (pop.length < 2) { splits.push(0.5); continue; }
+    const idx = new Rng(hashSeed("bb-mirror-split", o.seed, day, hero, k)).shuffle(pop.map((_, i) => i));
+    const half = Math.floor(idx.length / 2);
+    const A = idx.slice(0, half), B = idx.slice(half);
+    const jobs: Job[] = [];
+    for (const a of A) for (const b of B) {
+      jobs.push({ a, b, seeds: Array.from({ length: o.seeds }, (_, s) => hashSeed("bb-mirror-battle", o.seed, day, hero, k, a, b, s)) });
+    }
+    const pts = await run(pop, jobs);
+    const total = pts.reduce((s, p) => s + p, 0);
+    battles += jobs.length * per;
+    splits.push(jobs.length ? total / (jobs.length * per) : 0.5);
+  }
+  return { stats: { mean: splits.reduce((s, x) => s + x, 0) / splits.length, min: Math.min(...splits), max: Math.max(...splits), splits }, battles };
+}
+
+/** Share of fusible modules (items + mods) at each star, and merged (>1 star) modules per build. */
+export function starMixOf(builds: Build[]): StarMix {
+  const stars: number[] = [];
+  const merged: number[] = [];
+  for (const b of builds) {
+    let m = 0;
+    for (const p of [...b.items, ...b.mods]) {
+      if (!fusible(p.def)) continue;
+      const s = starsOf(p);
+      stars.push(s);
+      if (s > 1) m++;
+    }
+    merged.push(m);
+  }
+  const n = stars.length;
+  const share = (s: number) => (n ? stars.filter((x) => x === s).length / n : 0);
+  const sorted = [...merged].sort((a, b) => a - b), mn = sorted.length;
+  const median = mn ? (mn % 2 ? sorted[(mn - 1) / 2] : (sorted[mn / 2 - 1] + sorted[mn / 2]) / 2) : 0;
+  return { n, p1: share(1), p2: share(2), p3: share(3), medianMerged: median, maxMerged: mn ? sorted[mn - 1] : 0 };
+}
+
+export interface BenchSource { hero: HeroId; tag: string; build: Build }
+
+function withStar(b: Build, kind: "item" | "mod", uid: number, star: number): Build {
+  const c = JSON.parse(JSON.stringify(b)) as Build;
+  const arr = (kind === "item" ? c.items : c.mods) as { uid: number; stars?: number }[];
+  const o = arr.find((x) => x.uid === uid)!;
+  if (star > 1) o.stars = star;
+  else delete o.stars;
+  return c;
+}
+
+interface BenchInstance { def: string; kind: "item" | "mod"; uid: number; build: Build; tag: string }
+
+/**
+ * ARSENAL.md §9.2: per-star win-rate deltas, so the balance pass catches "merging made it worse".
+ * For every elite/par deck (`sources`) and every fusible module it holds at 1 star, two variants
+ * (2 and 3 stars, same cell/turret, budget ignored) replay against `gauntlet` with the seeds the
+ * 1-star baseline used. Aggregated per def x star: n decks, win rate at 1 and at that star, the
+ * delta, WORSE (a higher star wins less and the Wilson intervals don't overlap) and NO EFFECT
+ * (every single battle - same gauntlet member, same seed, same side - end with the identical
+ * winner, both hulls and the duration as at 1 star: the level does nothing yet).
+ */
+export async function starBench(o: TourneyOpts, day: number, gauntlet: Build[], sources: BenchSource[], run: Runner): Promise<{ rows: BenchRow[]; battles: number }> {
+  const insts: BenchInstance[] = [];
+  for (const s of sources) {
+    for (const p of s.build.items) if (fusible(p.def) && starsOf(p) === 1) insts.push({ def: p.def, kind: "item", uid: p.uid, build: s.build, tag: s.tag });
+    for (const m of s.build.mods) if (fusible(m.def) && starsOf(m) === 1) insts.push({ def: m.def, kind: "mod", uid: m.uid, build: s.build, tag: s.tag });
+  }
+  if (!insts.length || !gauntlet.length) return { rows: [], battles: 0 };
+  const per = o.seeds * 2;
+  const field: Build[] = [];
+  const at: { star: 1 | 2 | 3; idx: number }[][] = insts.map(() => []);
+  insts.forEach((inst, i) => {
+    for (const star of [1, 2, 3] as const) {
+      at[i].push({ star, idx: field.length });
+      field.push(star === 1 ? inst.build : withStar(inst.build, inst.kind, inst.uid, star));
+    }
+  });
+  const gField = field.length;
+  const allField = [...field, ...gauntlet];
+  const jobs: Job[] = [];
+  const seedsFor = (i: number, g: number) => Array.from({ length: o.seeds }, (_, k) => hashSeed("bb-bench-battle", o.seed, day, i, g, k));
+  for (let i = 0; i < field.length; i++) for (let g = 0; g < gauntlet.length; g++) jobs.push({ a: i, b: gField + g, seeds: seedsFor(i, g) });
+  const pts = await run(allField, jobs);
+  const scoreOf = (fieldIdx: number): Rate => {
+    let p = 0;
+    for (let g = 0; g < gauntlet.length; g++) p += pts[fieldIdx * gauntlet.length + g];
+    return wilson(p, gauntlet.length * per);
+  };
+  // NO EFFECT needs per-battle detail (winner, both hulls, duration), not just points: replay the
+  // 1-star and each variant directly (same seeds/sides) for a definitive per-instance check. Any
+  // fixed instance index works for the seed stream here (both sides of the comparison use the
+  // same one), since only "did 1-star and N-star see the same seeds" matters, not which exact
+  // values: reusing field index 0's stream keeps this independent of which group is being checked.
+  const outcomeEqual = (a: Build, b: Build): boolean => {
+    for (let g = 0; g < gauntlet.length; g++) {
+      for (const seed of seedsFor(0, g)) {
+        const x = simulate(a, gauntlet[g], seed), y = simulate(b, gauntlet[g], seed);
+        const xr = simulate(gauntlet[g], a, seed), yr = simulate(gauntlet[g], b, seed);
+        if (x.winner !== y.winner || x.t !== y.t || x.sides[0].hull.hp !== y.sides[0].hull.hp || x.sides[1].hull.hp !== y.sides[1].hull.hp) return false;
+        if (xr.winner !== yr.winner || xr.t !== yr.t || xr.sides[0].hull.hp !== yr.sides[0].hull.hp || xr.sides[1].hull.hp !== yr.sides[1].hull.hp) return false;
+      }
+    }
+    return true;
+  };
+  const groups = new Map<string, { insts: number[]; star: 2 | 3 }>();
+  insts.forEach((inst, i) => {
+    for (const star of [2, 3] as const) {
+      const k = `${inst.def}*${star}`;
+      if (!groups.has(k)) groups.set(k, { insts: [], star });
+      groups.get(k)!.insts.push(i);
+    }
+  });
+  const rows: BenchRow[] = [];
+  for (const [key, g] of [...groups].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const def = key.slice(0, key.indexOf("*"));
+    let pts1 = 0, ptsN = 0, noEffect = true;
+    for (const i of g.insts) {
+      const a1 = at[i].find((x) => x.star === 1)!.idx, aN = at[i].find((x) => x.star === g.star)!.idx;
+      const r1 = scoreOf(a1), rN = scoreOf(aN);
+      pts1 += r1.pts;
+      ptsN += rN.pts;
+      if (noEffect && !outcomeEqual(field[a1], field[aN])) noEffect = false;
+    }
+    const n1 = g.insts.length * gauntlet.length * per;
+    const wr1 = wilson(pts1, n1), wrN = wilson(ptsN, n1);
+    const flags: BenchRow["flags"] = [];
+    if (wrN.p < wr1.p && wrN.hi < wr1.lo) flags.push("WORSE");
+    if (noEffect) flags.push("NO EFFECT");
+    rows.push({ def, star: g.star, n: g.insts.length, wr1, wrN, delta: wrN.p - wr1.p, flags });
+  }
+  return { rows, battles: jobs.length * per };
 }
 
 function traitStats(entries: Entry[], startRoutes: number): TraitStats {

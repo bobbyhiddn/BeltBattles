@@ -40,6 +40,8 @@ async function main(): Promise<void> {
     process.exit(compareRuns(fa, fb) ? 0 : 1);
   }
   const days = flag("days")?.split(",").map(Number) ?? DEFAULT_OPTS.days;
+  const starsFlag = flag("stars") ?? "on";
+  if (starsFlag !== "on" && starsFlag !== "off") throw new Error(`--stars must be "on" or "off", got ${starsFlag}`);
   const o: TourneyOpts = {
     ...DEFAULT_OPTS,
     seed: num("seed", DEFAULT_OPTS.seed),
@@ -48,6 +50,7 @@ async function main(): Promise<void> {
     elites: num("elites", DEFAULT_OPTS.elites),
     days,
     calibrationDays: days,
+    stars: starsFlag,
   };
   o.gauntlet = Math.min(o.pop, num("gauntlet", Math.min(DEFAULT_OPTS.gauntlet, o.pop)));
   o.elites = Math.min(o.elites, o.pop);
@@ -70,7 +73,11 @@ async function main(): Promise<void> {
   const cmd = process.argv.slice(2).join(" ");
   const meta: RunMeta = { runtimeMs: performance.now() - t0, workers: nw, command: `npm run balance${cmd ? ` -- ${cmd}` : ""}`, perDayMs };
   mkdirSync(out, { recursive: true });
-  writeFileSync(resolve(out, "balance-v1.md"), balanceMarkdown(res, meta));
+  // 0.6.1a harness v2: stars on/off share the same tool and DayResult shape (v1's fields are
+  // untouched; the v2 sections are simply absent when stars is off). Both write balance-v2.*; use
+  // --out to keep an off run's files separate from an on run's for --compare (step 0's baseline
+  // is still balance-v1.json, from bf779de, for the very first stars-off regression check).
+  writeFileSync(resolve(out, "balance-v2.md"), balanceMarkdown(res, meta));
   const json = {
     meta: { ...meta, rules: RULES_VERSION, note: "rates: p = row hero win rate (draws half), lo/hi = Wilson 95%, n = battles; pop 'a|a' = mirror cell" },
     opts: o, battles: res.battles,
@@ -79,6 +86,6 @@ async function main(): Promise<void> {
       elites: Object.fromEntries(Object.entries(d.elites).map(([h, es]) => [h, es.map((e) => ({ ...e, desc: describeBuild(e.build, d.day) }))])),
     })),
   };
-  writeFileSync(resolve(out, "balance-v1.json"), JSON.stringify(json, null, 1) + "\n");
-  console.log(`${res.battles} battles in ${(meta.runtimeMs / 1000).toFixed(1)} s on ${nw} worker(s); wrote ${out}/balance-v1.md and balance-v1.json`);
+  writeFileSync(resolve(out, "balance-v2.json"), JSON.stringify(json, null, 1) + "\n");
+  console.log(`${res.battles} battles in ${(meta.runtimeMs / 1000).toFixed(1)} s on ${nw} worker(s); wrote ${out}/balance-v2.md and balance-v2.json (stars ${o.stars})`);
 }
