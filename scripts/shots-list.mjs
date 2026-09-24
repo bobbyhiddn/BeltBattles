@@ -243,4 +243,52 @@ export const SHOTS = [
     "build-core-gear", v, "build", 0.8,
     "bb.game.run.build.mods.push({uid: 9001, def: 'scatter', turret: 0, stars: 2}, {uid: 9002, def: 'calibrate', turret: 0}); bb.game.screen.select({kind:'turret', index:0}); bb.game.render()",
   ]),
+  // 0.6.1r item 11 (0.6.1p's gap 6): the three new mods. A caravan (forced past rollShop) with the Quartermaster's
+  // HOPPER, an Ironmonger MANTLET and a Tinker FINISHER RAM, each selected in turn; the turret inspector with each
+  // one fitted; and a battle frame with a finisher shot (Projectile.finisher) in flight, dragging its red trail.
+  ...["desk", "phone"].flatMap((v) => [
+    ...[["hopper", 2], ["mantlet", 0], ["ram", 1]].map(([def, wagon]) => [`shop-new-mods-${def}`, v, "title", 0, NEW_MODS(wagon)]),
+    ...["hopper", "mantlet", "ram"].map((def) => [`build-gear-${def}`, v, "build", 0.8,
+      `bb.game.run.build.mods.push({uid: 9001, def: '${def}', turret: 0}); bb.game.screen.select({kind:'turret', index:0}); bb.game.render()`]),
+    ["battle-finisher", v, "title", 0, finisherBattle()],
+  ]),
 ];
+
+function NEW_MODS(wagon) {
+  return `(() => {
+    const g = bb.game;
+    bb.openDawn({ day: 5, gold: 30 }, []);
+    ${STEP(90)}
+    // rollShop's 3-wagon shape: 2, 2 and 1 offers (only the last wagon gets one slot)
+    g.run.shop.wagons = [
+      { merchant: "ironmonger", offers: [{ def: "mantlet", price: 4, sold: false }, { def: "beltcrate", price: 2, sold: false }] },
+      { merchant: "tinker", offers: [{ def: "ram", price: 5, sold: false }, { def: "grease", price: 3, sold: false }] },
+      { merchant: "quartermaster", offers: [{ def: "hopper", price: 4, sold: false }] },
+    ];
+    g.screen.select({ kind: "offer", wagon: ${wagon}, slot: 0 });
+    g.render();
+  })()`;
+}
+
+// FINISHER RAM on the FURNACE's heavy turret (CORE_BATTLE's pattern), stepped until one of its finisher shots is
+// 40% into its flight, so the 1 px red trail (arenaDraw.ts) is on screen (a function: SHOTS above uses it)
+function finisherBattle() {
+  return `(() => {
+  const bb = window.bb, g = bb.game;
+  try {
+    g.run = null;
+    bb.open("build", "furnace", 12345);
+    ${STEP(20)}
+    g.run.build.mods.push({ uid: 9001, def: "ram", turret: 0 });
+    bb.open("battle", "furnace", 12345);
+    let found = false;
+    for (let i = 0; i < 60 * 60 && !found; i++) {
+      g.step(1 / 60);
+      const a = g.screen.arena;
+      found = !!a && g.screen.phase === "fight" && a.b.projectiles.some((p) => p.finisher && p.from === 0 && p.t / p.flight >= 0.4);
+    }
+    if (!found) console.error("FINISHER_BATTLE: no finisher shot in flight within 60 s");
+    g.render();
+  } catch (e) { console.error("FINISHER_BATTLE: " + e.message + "\\n" + e.stack); }
+})()`;
+}

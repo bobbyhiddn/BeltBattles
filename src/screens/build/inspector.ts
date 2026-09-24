@@ -310,24 +310,28 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   const acts = sp.actions ?? []; // 0.6.1b: 0-2 buttons (the turret case: REMOVE CORE, REMOVE GEAR)
   // 0.6.1r F7: the portrait buttons' place (the top row, or a row under the sub-line that moves the body down)
   const port = !column && acts.length ? portraitButtons(sp.title, sp.sub, acts.map((a) => a.label), area) : null;
-  const shift = port?.shift ?? 0;
+  // 0.6.1r (item 11): a sub-line wider than the desk column ("COMMON TURRET GEAR · QUARTERMASTER") breaks after its
+  // last " · " onto a second line at y+19, and the column's body moves down 4 px (the portrait band fits one line)
+  const cut = sp.sub.lastIndexOf(" · ");
+  const subs = column && cut > 0 && textWidth(sp.sub, "3") > area.w - 27 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub];
+  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 : 0);
   // the description in the 5x7 face when it fits the area (easier to read), else the 3x5 face
   const extra = acts.length ? acts.length * 19 + 3 : 4;
   let font: "5" | "3" = "5", lh = 9;
   let lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
-  if (column ? 27 + lines.length * lh + extra > area.h : lines.length * lh - 2 > area.h - 29 - shift) {
+  if (column ? 27 + shift + lines.length * lh + extra > area.h : lines.length * lh - 2 > area.h - 29 - shift) {
     font = "3";
     lh = 7;
     lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
   }
-  const r = column ? { ...area, h: Math.min(area.h, 27 + lines.length * lh + extra) } : area;
+  const r = column ? { ...area, h: Math.min(area.h, 27 + shift + lines.length * lh + extra) } : area;
   panel(g, r, "dark");
   ctx.game.ui.add({ id: "details", r, block: true });
   rect(g, r.x + 4, r.y + 4, 16, 16, C.ink);
   rect(g, r.x + 5, r.y + 5, 14, 14, C.slate0);
   if (sp.icon) g.drawImage(sp.icon, r.x + 12 - Math.floor(sp.icon.width / 2), r.y + 12 - Math.floor(sp.icon.height / 2));
   drawText(g, sp.title, r.x + 23, r.y + 4, sp.color, { outline: C.ink });
-  drawText(g, sp.sub, r.x + 23, r.y + 13, C.slate4, { font: "3" });
+  subs.forEach((s, i) => drawText(g, s, r.x + 23, r.y + 13 + i * 6, C.slate4, { font: "3" }));
   let maxY = r.y + r.h - 4;
   if (acts.length && column) {
     // landscape column: one full-width button per action, stacked bottom-up under the text
