@@ -158,6 +158,22 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
     expect(hash32(parts.join("|"))).toBe(553739242);
   }, 60_000);
 
+  it("F11: stars off: fullPurseBuild output reproduces bf779de exactly for a fixed seed set (pinned hash, computed at bf779de)", () => {
+    const hash32 = (s: string): number => {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+      return h >>> 0;
+    };
+    const parts: string[] = [];
+    for (const hero of ["furnace", "weaver"] as const) {
+      for (let day = 1; day <= 10; day++) {
+        for (let i = 0; i < 3; i++) parts.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-pin", hero, day, i), undefined, 60, "off")));
+      }
+    }
+    // 512167455 = the same 60 builds from bf779de's fullPurseBuild(hero, day, seed) (v1 signature)
+    expect(hash32(parts.join("|"))).toBe(512167455);
+  }, 60_000);
+
   it("stars off: fullPurseBuild also reproduces v1 exactly (no merge lever, no extra RNG draws)", () => {
     for (const hero of ["furnace", "weaver"] as const) {
       for (const day of [2, 6]) {

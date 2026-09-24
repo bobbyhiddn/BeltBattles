@@ -72,6 +72,10 @@ export const spendFloor = (day: number): number => Math.ceil(0.9 * maxGoldByDay(
  */
 export function topUp(b: Build, day: number, rng: Rng, floor = spendFloor(day), stars: Stars = "off", maxStars: number = FUSE_MAX): void {
   const s = new Shopper(b, maxGoldByDay(day), day, rng, stars, maxStars);
+  // F13: stars on, continue the deck's uid sequence. v1's fresh Shopper restarts at uid 100, which
+  // randomBuild has usually minted already (a duplicate uid, and gainModule finds copies by uid);
+  // stars off keeps that restart, duplicate included, so v1's output reproduces exactly.
+  if (stars === "on") s.uid = Math.max(...b.items.map((p) => p.uid), ...b.mods.map((m) => m.uid)) + 1;
   const slack = s.budget - floor; // gold the build may leave unspent
   while (s.left() >= PLATE.price) b.hullBonus += PLATE_HULL;
   const w = rarityWeights(day);
