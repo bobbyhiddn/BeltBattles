@@ -11,7 +11,8 @@ and 0.7.0 wire this in (checklist at the end).
 ```
  game client (browser, single-file build)             build server (node:http, no deps)
  ─────────────────────────────────────────            ───────────────────────────────────
- dusk: snapshot.ts ─ validate.ts ─ submitGhost ──POST /v1/ghosts──▶ decode ▶ validateBuild ▶ ghosts.jsonl
+ dusk: snapshot.ts ─ validate.ts ─ submitGhost ──POST /v1/ghosts──▶ verifyUpload ▶ decode ▶ validateBuild ▶ store
+       (signed with the device key: identity.ts)
        fetchGhost ◀────────────────GET /v1/ghosts/match──────────── pickGhost (same rules+day)
         │ error / timeout / 404 / invalid answer
         ▼
@@ -26,7 +27,8 @@ and 0.7.0 wire this in (checklist at the end).
 | `src/net/matchmaking.ts` | pure `pickGhost(pool, req, rng)`, `matchSeed` |
 | `src/net/replay.ts` | `battleRecordFor`, `replay`, `replayBattle`, rules-version refusal |
 | `src/net/fallback.ts` | `offlineGhost`, `loadGhostPool`, `fallbackGhost` |
-| `src/net/ghostClient.ts` | `fetchGhost` and `submitGhost`: fetch + AbortController, never throw |
+| `src/net/ghostClient.ts` | `fetchGhost` and `submitGhost` (signed): fetch + AbortController, never throw |
+| `src/net/identity.ts` | the device key, `loadIdentity`, `playerIdFromKey`, `verifyUpload` (0.7.0: see "Identity and signed uploads") |
 | `server/` | `app.ts` (routes), `store.ts` (the async `GhostStore` interface and the JSON-lines store), `tigrisStore.ts` (Tigris store), `s3.ts` + `sigv4.ts` (S3 client and signer, no SDK), `seed.ts` (the `seed` command), `config.ts` (flags and env), `main.ts` (CLI), `node.d.ts` (Node types) |
 | `tools/` | `samplePool.ts` (40 validated sample ghosts), `genGhostPool.ts` (writes the JSON), `fakeS3.ts` (in-process S3 for tests), `smoke.ts` (local smoke run) |
 | `deploy/`, `fly.toml`, `Dockerfile` | the Fly deploy kit: see "Running on Fly + Tigris" and `deploy/RUNBOOK.md` |
@@ -124,6 +126,8 @@ it returns `fallbackGhost(req, pool)`:
 - The server **re-validates every deck** (shape, legality, budget) and every rule lives in the
   shared TypeScript. The client also validates each ghost before simulating it, so a
   hostile server cannot crash the sim with a malformed deck.
+- Uploads are **signed** with a per-device key, and the server stores a ghost only under the
+  playerId of the key that signed it (see "Identity and signed uploads").
 - Limits: 16 KB bodies (checked by header and while streaming), a per-IP fixed-window rate limit
   (120/min by default), 10 s request and 5 s header timeouts, strict query parsing, a CORS
   allow-list (default `http://127.0.0.1:7778`, the local Shore), and a 127.0.0.1 bind by default.
@@ -131,15 +135,80 @@ it returns `fallbackGhost(req, pool)`:
   `replay()`, which already runs in Node, before counting a result. It would also rate-limit
   and dedupe by `runId` and sign stored results. No change to the snapshot format is needed.
 
+## Identity and signed uploads (0.7.0)
+
+REQ-BFG-016 and ROADMAP §3: no login is needed to play. Each device makes its own private key and
+a public player ID from it, and signs every upload, so nobody can post as you. `src/net/identity.ts`
+runs unchanged in the browser and in Node, through WebCrypto only (`globalThis.crypto.subtle`: no
+`Buffer`, no `node:crypto`). The server checks uploads with its `verifyUpload` and nothing else.
+
+| | The contract |
+|---|---|
+| Key | ECDSA P-256 with SHA-256 |
+| Private key | generated non-extractable and kept as a `CryptoKey`. In the browser it lives in IndexedDB, database `beltbattles-identity`, never in localStorage, which every page on the shared Shore origin can read |
+| Creation | once, add-if-absent, then read back: two tabs racing on a fresh browser both end up with the pair stored first |
+| Public key | exported `raw`: 65 bytes, uncompressed (`0x04`, x, y) |
+| `playerId` | base64url without padding of SHA-256(raw public key): 43 characters, which fits `ID_PATTERN` |
+| Signed message | the UTF-8 bytes of `"bb-ghost-upload-1\n"`, then the exact request body bytes |
+| Headers | `x-bb-key`: base64url(raw public key), 87 characters. `x-bb-sig`: base64url(the 64-byte signature in WebCrypto's r‖s form), 86 characters |
+| No `crypto.subtle` | on a plain-http page, which is not a secure context, `loadIdentity` returns null and the caller must not upload: the game plays offline |
+
+- base64url is RFC 4648 §5 without padding, and strict: a value with padding, `+`, `/`, whitespace
+  or non-zero unused bits is malformed. `x-bb-key` must decode to 65 bytes starting with `0x04`, so
+  one key has exactly one playerId, and `x-bb-sig` to 64 bytes.
+- `loadIdentity(store, subtle?)` returns `{ playerId, publicKey, sign(body) }`, where `sign` returns
+  the two header values, or null when there is no WebCrypto or the key store fails. It never throws.
+  The stores are `indexedDbKeyStore()` for the browser and `memoryKeyStore()` for tests and tools.
+- `playerIdFromKey(raw, subtle?)`. `verifyUpload(body, key, sig, subtle?)` returns
+  `{ ok: true, playerId }` or `{ ok: false, error }` and never throws. `uploadHeaderError(key, sig)`
+  is its syntax-only first half, which the server runs before it reads the body.
+- `submitGhost(baseUrl, snapshot, identity, timeoutMs?)` encodes the snapshot once, signs those
+  bytes and sends exactly them. A snapshot whose `playerId` is not `identity.playerId` returns
+  `{ ok: false, error }` without a request.
+
+**POST /v1/ghosts**, checked in this order:
+1. Uploads closed: 403, and the body is not read.
+2. `x-bb-key` or `x-bb-sig` missing or malformed: 401, and the body is not read.
+3. The body is read within the 16 KB limit (413 over it), then the signature is checked over the
+   exact bytes received: 401 if it does not match.
+4. The snapshot is decoded, strictly: 400 on an error.
+5. `snapshot.playerId` is not the key's playerId: 403.
+6. The rules version and `validateBuild` (422), then the store: 201, or 200 if the ghost is already
+   stored.
+
+The stored record keeps its format (`{"id","at","snapshot"}`): neither the key nor the signature is
+stored. A stored ghost's playerId is its key's hash, so the ghost names its owner without holding
+the key. CORS allows the headers `content-type, x-bb-key, x-bb-sig`. The rate limit and the IP-free
+request log are unchanged. `seed` writes the pool into the store directly: it never goes through
+POST and signs nothing.
+
+What signing buys: nobody can upload under a playerId whose private key they don't hold, and a
+body changed in transit is refused. What it doesn't: anyone can make new keys, so the per-IP rate
+limit and deck validation still bound a flood; it proves nothing about how the deck was played;
+and there is no nonce, so re-sending a signed upload stores nothing new (the ghost id is the
+content hash: 200).
+
+**Migration for the 0.7.0 wiring.** The key's playerId becomes the upload id: every snapshot the
+game uploads, and the `player` of every match request, is `identity.playerId`. 0.6.0's random
+id (`beltbattles.player.v1` in localStorage, `"p"` plus 20 base-36 characters) is never uploaded.
+It is kept only to recognize the player's own older local ghosts, which are stamped with it and are
+never fought. `submitGhost` refuses such a ghost as it is, because its playerId is not the key's.
+
 ## Privacy
 
-`playerId` and `runId` are anonymous random ids generated on the device, such as
-`crypto.randomUUID()` kept in localStorage. The id pattern cannot hold an e-mail address.
-Snapshots hold no names, no accounts and no IP addresses. The server's stdout request log holds
-the time, method, path, status and duration of each request, and nothing else: no client IP and
-no query string (the query holds the player id). The rate limit keys on the client IP (on Fly, the
-player's Fly-Client-IP) and keeps it in memory only, so no player address is written to the store
-or reaches Fly's log stream.
+`playerId` is the base64url SHA-256 hash of the device's public key (0.7.0; 0.6.0's anonymous
+random id stays on the device, see the migration rule above), and `runId` is an anonymous random id
+made on the device. The id pattern cannot hold an e-mail address, and neither id is linked to an
+account. The device key is made in the browser and never leaves it: the private key is
+non-extractable, kept in IndexedDB (database `beltbattles-identity`), and signs uploads only.
+Clearing the site's data deletes it; the next upload then comes from a new key and so a new
+playerId. An upload carries the public key and a signature. The server checks them and stores
+neither: the stored ghost is the snapshot alone. Snapshots hold no names, no accounts and no IP
+addresses. The server's stdout request log holds the time, method, path, status and duration of
+each request, and nothing else: no client IP, no query string (the query holds the player id),
+and no key, signature or player id. The rate limit keys on the client IP (on Fly, the player's
+Fly-Client-IP) and keeps it in memory only, so no player address is written to the store or reaches
+Fly's log stream.
 
 ## Hosting options (operator decides)
 
@@ -237,12 +306,13 @@ runs on a throwaway machine with the app's env and secrets, and a nonzero exit a
 **Why uploads are closed.**
 - Today's strict budget rule (shop gold only, see Validation) would reject honest 0.6.0b+ decks
   with 422, until 0.7.0's player budget ceiling replaces it (integration step 8 below).
-- Uploads are also unsigned: anyone could fill the pool or impersonate a player id.
+- The server now takes only signed uploads (see "Identity and signed uploads"), so nobody can post
+  under another player's id. The game does not sign or upload yet: that is the 0.7.0 wiring.
 - Production therefore runs with `BB_GHOST_UPLOADS=closed`. Players fight the seeded pool, and the
   client's offline fallback covers everything else.
-- Open uploads with 0.7.0, together with signed writes (REQ-BFG-016: a per-device key, which needs
-  `crypto.subtle` and so a secure origin; that is why the page is served from the API's HTTPS
-  origin) and the player budget ceiling.
+- Open uploads with 0.7.0, once the game signs its uploads (REQ-BFG-016: a per-device key, which
+  needs `crypto.subtle` and so a secure origin; that is why the page is served from the API's HTTPS
+  origin) and the player budget ceiling lands.
 
 **Scaling: when lazy bucket loads stop being enough.**
 - A first load of a (rules, day) bucket costs one LIST per 1,000 keys plus one GET per ghost, 16 at
@@ -265,12 +335,16 @@ runs on a throwaway machine with the app's env and secrets, and a nonzero exit a
 
 ## 0.6.0 / 0.7.0 integration: exactly what to wire
 
-1. **Identity.** Create `playerId` once (localStorage) and a fresh `runId` per run. Add
+1. **Identity.** Once per page load, `identity = await loadIdentity(indexedDbKeyStore())`. If it
+   is null (no `crypto.subtle` on a plain-http page, or no IndexedDB), play offline as if no server
+   were set (step 7): no upload and no match request. Otherwise `playerId = identity.playerId`.
+   0.6.0's random id stays in localStorage only to recognize the player's own older local ghosts
+   (the migration rule under "Identity and signed uploads"). Make a fresh `runId` per run. Add
    `seenGhosts: string[]` to `Run` (bump the save version).
 2. **Submit at dusk.** Before day N's fight, build
    `{ v: 1, rules: RULES_VERSION, hero: run.hero, day: N, wins: run.wins, lives: run.lives, build: run.build, runId, playerId, createdAt: Date.now() }`.
-   If `validateBuild(run.build, N).ok`, call `submitGhost(serverUrl, snap)` without awaiting it
-   (fire and forget). A failure never blocks the fight.
+   If `validateBuild(run.build, N).ok`, call `submitGhost(serverUrl, snap, identity)` without
+   awaiting it (fire and forget). A failure never blocks the fight.
 3. **Fetch the ghost.** `fetchGhost(serverUrl, { rules, day: N, wins, lives, playerId, seen: run.seenGhosts, hero: run.hero, seed: battleSeed(run) }, 4000, { pool })`.
    `pool` is `loadGhostPool(bundledJson).entries`. Push the returned `id` onto `run.seenGhosts`.
 4. **Fight it.** Replace `enemyBuild(run)` with `ghost.snapshot.build` and set the enemy hero
