@@ -21,7 +21,7 @@ import { describeBuild } from "../src/sim/harness/report";
 import { starMixOf } from "../src/sim/harness/tournament";
 import { pct } from "../src/sim/harness/stats";
 import {
-  STANDIN_DEFAULTS, dataModuleText, eligibleOf, genStandIns, poolVsPool, standInCommand, type Cand, type HeroDay, type StandInOpts,
+  STANDIN_DEFAULTS, dataModuleText, eligibleOf, genStandIns, poolVsPool, standInCommand, writtenProblems, type Cand, type HeroDay, type StandInOpts,
 } from "../src/sim/harness/standins";
 import { STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
 import { flag, num, serveJobs, workerRunner } from "./workers";
@@ -82,6 +82,14 @@ async function main(): Promise<void> {
       if (buildCost(p.build).total > maxGoldByDay(hd.day)) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} costs more than maxGoldByDay`);
     }
   }
+  // F2 (patch 0006's guard, kept on): check what is WRITTEN, not only what was scored. Every stored
+  // code of the candidate module is decoded again (star-aware) and must be exactly the scored deck.
+  const candidate = o.stars === "on" ? dataModuleText(o, res.days) : "";
+  if (o.stars === "on") {
+    const problems = writtenProblems(o, res.days, candidate);
+    if (problems.length) throw new Error(`the stand-in pool v2 candidate is not what was scored:\n${problems.join("\n")}`);
+    console.log(`written-module guard: all ${res.days.reduce((s, hd) => s + hd.picks.length, 0)} stored codes decode to exactly the scored decks`);
+  }
   const dump = flag("dump");
   if (dump) {
     const rows = res.days.map((hd) => ({
@@ -126,7 +134,7 @@ async function main(): Promise<void> {
   const secs = (performance.now() - t0) / 1000;
   const out = resolve(flag("out") ?? "../output-h2/pool-v2-dry");
   mkdirSync(out, { recursive: true });
-  writeFileSync(resolve(out, "standInPoolData.v2-dry-candidate.ts"), dataModuleText(o, res.days));
+  writeFileSync(resolve(out, "standInPoolData.v2-dry-candidate.ts"), candidate);
   writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, pvp, versusV11, { battles: res.battles, secs, workers: nw }));
   console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s) (${secs0.toFixed(1)} s to generate); DRY RUN, wrote ${out}/standInPoolData.v2-dry-candidate.ts and standin-pool.md (src/sim/standInPoolData.ts untouched)`);
 }

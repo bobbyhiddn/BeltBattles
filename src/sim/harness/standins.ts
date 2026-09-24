@@ -17,11 +17,12 @@
 import { hashSeed } from "../../core/rng";
 import { RULES_VERSION, type HeroId } from "../content";
 import type { Build } from "../deck";
-import { maxGoldByDay } from "../../net/validate";
+import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
 import { decodeStandIn, encodeStandIn } from "../standInPool";
 import { fullPurseBuild, spendFloor } from "./gen";
 import { heroRefBuild } from "./heroes";
 import type { Stars } from "./shopper";
+import { decodeStarred, encodeStarred } from "./standinCode";
 import type { Job, Runner } from "./tournament";
 
 /** Relaxation a hero/day needed: none, (a) widen, (b) grow, (c) elites, (d) best. */
@@ -80,13 +81,16 @@ export interface HeroDay {
 export interface Selection { picks: Cand[]; par: number; window: [number, number]; widened: boolean }
 
 /**
- * Every build is normalised before scoring so what is stored is exactly what was scored. v1's
- * code format (src/sim/standInPool.ts, untouched: it must keep decoding the shipped, all-1-star
- * v1.1 data) has no star field at all, so round-tripping a merge-aware ("on") build through it
- * would silently flatten every merge back to 1 star. "off" keeps the exact v1 round trip (needed
- * for --check byte-identity); "on" normalises with a plain structural clone instead.
+ * Every build is normalised through the code it is stored as, before scoring, so what is stored is
+ * exactly what was scored. "off" keeps the exact v1 round trip (src/sim/standInPool.ts, untouched;
+ * needed for --check byte-identity). "on" (F2) round-trips through the star-aware code of
+ * ./standinCode.ts: the v1 format has no star field, and would flatten every merge to 1 star.
  */
-const norm = (b: Build, stars: Stars): Build => (stars === "off" ? decodeStandIn(b.hero, encodeStandIn(b)) : (JSON.parse(JSON.stringify(b)) as Build));
+const norm = (b: Build, stars: Stars): Build => (stars === "off" ? decodeStandIn(b.hero, encodeStandIn(b)) : decodeStarred(b.hero, encodeStarred(b)));
+/** The code a candidate is stored as: v1 when "off" (all 1-star anyway), star-aware when "on". */
+export const standInCodeOf = (b: Build, stars: Stars): string => (stars === "off" ? encodeStandIn(b) : encodeStarred(b));
+/** The decoder that matches standInCodeOf. */
+export const decodeStandInCode = (hero: HeroId, code: string, stars: Stars): Build => (stars === "off" ? decodeStandIn(hero, code) : decodeStarred(hero, code));
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const byScore = (c: Cand[]) => [...c].sort((a, b) => b.score - a.score || a.idx - b.idx);
 const winRate = (pts: number[], battles: number) => pts.reduce((s, p) => s + p, 0) / battles;
@@ -218,7 +222,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
         const c: Cand[] = Array.from({ length: to - from }, (_, k) => {
           const idx = from + k, f = fullPurseBuild(hero, day, hashSeed("standin-pop", o.seed, hero, day, idx), spendFloor(day), 60, o.stars);
           const build = norm(f.build, o.stars);
-          return { idx, build, code: encodeStandIn(build), cost: f.cost, tries: f.tries, floorMet: f.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0 };
+          return { idx, build, code: standInCodeOf(build, o.stars), cost: f.cost, tries: f.tries, floorMet: f.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0 };
         });
         const field = [...gauntlet, ...refs, ...c.map((x) => x.build)];
         const jobs: Job[] = c.flatMap((x, i) => [
@@ -314,6 +318,50 @@ export function standInCommand(o: StandInOpts): string {
 
 const r4 = (x: number) => Number(x.toFixed(4));
 
+/** One tuple as written in a data module: hero, day, position, cost and build code. */
+export interface WrittenPick { hero: HeroId; day: number; i: number; cost: number; code: string }
+
+/** Parse the picks back out of dataModuleText's output (what is WRITTEN, not what is in memory). */
+export function writtenPicks(text: string): WrittenPick[] {
+  const out: WrittenPick[] = [];
+  let hero: HeroId | undefined, day = 0, i = 0;
+  for (const line of text.split("\n")) {
+    const h = /^ {4}([a-z]+): \[$/.exec(line);
+    if (h) { hero = h[1] as HeroId; continue; }
+    const d = /^ {6}\[\d+, \[ \/\/ day (\d+):/.exec(line);
+    if (d) { day = Number(d[1]); i = 0; continue; }
+    const t = /^ {8}\[(\d+), [-\d.]+, [-\d.]+, ("(?:[^"\\]|\\.)*"), [-\d.]+\],$/.exec(line);
+    if (t && hero) out.push({ hero, day, i: i++, cost: Number(t[1]), code: JSON.parse(t[2]) as string });
+  }
+  return out;
+}
+
+/**
+ * The stars-on invariant on what is WRITTEN (patch 0006's guard, F2): every tuple of `text` decodes
+ * (the star-aware decoder) to exactly the deck that was scored (same JSON), its stored cost is
+ * buildCost of that deck, and the deck passes validateBuild, has no unfused pair and fits the day's
+ * gold. Returns one message per problem (empty: the module is what was scored).
+ */
+export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): string[] {
+  const got = writtenPicks(text), problems: string[] = [];
+  const want = days.flatMap((hd) => hd.picks.map((p, i) => ({ hd, p, i })));
+  if (got.length !== want.length) problems.push(`the module holds ${got.length} picks, the run made ${want.length}`);
+  for (const { hd, p, i } of want) {
+    const w = got.find((x) => x.hero === hd.hero && x.day === hd.day && x.i === i);
+    const at = `stand-in ${hd.hero} d${hd.day} #${p.idx}`;
+    if (!w) { problems.push(`${at}: not in the written module`); continue; }
+    let back: Build;
+    try { back = decodeStandInCode(hd.hero, w.code, o.stars); } catch (e) { problems.push(`${at}: stored code does not decode (${String(e)})`); continue; }
+    if (JSON.stringify(back) !== JSON.stringify(p.build)) problems.push(`${at}: stored code decodes to a different deck than the one scored (cost ${buildCost(back).total} vs ${buildCost(p.build).total})`);
+    if (buildCost(back).total !== w.cost) problems.push(`${at}: stored cost ${w.cost} != buildCost of the stored deck ${buildCost(back).total}`);
+    const v = validateBuild(back, hd.day);
+    if (!v.ok) problems.push(`${at}: stored deck is invalid: ${v.errors.join("; ")}`);
+    if (o.stars === "on") for (const u of unfusedPairs(back)) problems.push(`${at}: stored deck has an ${u}`);
+    if (buildCost(back).total > maxGoldByDay(hd.day)) problems.push(`${at}: stored deck costs more than maxGoldByDay`);
+  }
+  return problems;
+}
+
 /** The generated data module (src/sim/standInPoolData.ts), byte-stable for the same options. */
 export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
   const L = [
@@ -329,8 +377,14 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
     `// Fewer than ${o.per} eligible in the window: (a) widen it upward by ${o.widen} points at a time, (b) grow the population`,
     `// to ${o.grow.join(", then ")} (same gauntlet), (c) allow elites, (d) take the ${o.per} builds with the highest vsPar (in short).`,
     "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1)]; each day is",
-    "// [par index, entries sorted by pct, window [lo, hi], population size, relaxation]. src/sim/standInPool.ts",
-    "// decodes the build codes.",
+    ...(o.stars === "off" ? [
+      "// [par index, entries sorted by pct, window [lo, hi], population size, relaxation]. src/sim/standInPool.ts",
+      "// decodes the build codes.",
+    ] : [
+      "// [par index, entries sorted by pct, window [lo, hi], population size, relaxation]. The build codes are",
+      "// star-aware (src/sim/harness/standinCode.ts: the v1 format plus *2 or *3 on an item or module word; no",
+      "// suffix is 1 star); src/sim/standInPool.ts decodes them once the flip ports that codec.",
+    ]),
     "",
     'import type { HeroId } from "./content";',
     "",
