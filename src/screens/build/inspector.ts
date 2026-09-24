@@ -162,8 +162,9 @@ function placeHint(kind: string, drag: boolean): string {
 
 const num = (x: number): string => String(+x.toFixed(2));
 
-/** 0.6.2 BELTSIDE (V4): one hit in a belt's timeline: the rig and what it did there (walkRoute). */
-function hitLabel(h: TimelineHit, locked: boolean): string {
+/** 0.6.2 BELTSIDE (V4): one hit in a belt's timeline: the rig and what it did there (walkRoute). beltside-062:
+ *  exported for tests (the LONG HAUL cap, P3). */
+export function hitLabel(h: TimelineHit, locked: boolean): string {
   const name = ITEMS[h.def].name;
   if (h.split) return `${name} X${h.split.copies} AT ${Math.round(h.split.mult * 100)}%`;
   // beltside-062 (DESIGN §11 P3): a LONG HAUL ★2/★3 that saw more earlier hits than its cap says so
