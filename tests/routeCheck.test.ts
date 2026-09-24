@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { BROKEN, NOWHERE, brokenRoutes, fightBlock, routeProblems } from "../src/game/routeCheck";
 import { newRun } from "../src/game/run";
-import { HEROES, type HeroId } from "../src/sim/content";
 import { adjacentToFactory, cloneBuild, key, type Build } from "../src/sim/deck";
+import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { RIVAL_IDS, rivalBuild, rivalDays } from "../src/sim/rivals";
 
-const HERO_IDS = Object.keys(HEROES) as HeroId[];
+/** The heroes a run can start with; race heroes get route coverage when they become playable (0.8.0). */
+const HERO_IDS = PLAYABLE_HEROES;
 
 /** Cells from (x, y0) straight up the column to the forward row. */
 const up = (x: number, y0: number): number[] => Array.from({ length: y0 + 1 }, (_, i) => key(x, y0 - i));
