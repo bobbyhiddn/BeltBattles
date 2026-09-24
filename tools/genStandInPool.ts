@@ -226,9 +226,11 @@ function poolMarkdownV2(
       if (s !== "all 1-star") L.push(`- ${H(hd.hero)} day ${hd.day} #${p.idx}: ${s}`);
     }
   }
-  L.push("", `## Robust re-play (ROBUST_BAND=0.10 of parFloor, ${o.robust} x refSeeds fresh seeds)`, "");
-  const removedTotal = days.reduce((s, hd) => s + hd.robustRemoved, 0);
-  L.push(removedTotal ? `${removedTotal} candidate(s) removed across all hero/day pairs (see the summary table's "robust removed" column for the split).` : "0 candidates removed: every borderline candidate held its vsPar under the fresh re-play.");
+  L.push("", `## Robust re-play (candidates clearing parFloor by at most ROBUST_BAND=0.10, re-played once at ${o.robust} x refSeeds fresh seeds)`, "");
+  const removedTotal = days.reduce((s, hd) => s + hd.robustRemoved, 0), replayedTotal = days.reduce((s, hd) => s + hd.robustReplayed, 0);
+  L.push(`${replayedTotal} candidate(s) re-played (each once, grow steps included); ${removedTotal} removed (their combined vsPar fell below parFloor). Candidates below the floor are never re-played, so none is promoted.`);
+  L.push("", `| hero | ${days.filter((hd) => hd.hero === o.heroes[0]).map((hd) => `d${hd.day}`).join(" | ")} |`, `|---|${days.filter((hd) => hd.hero === o.heroes[0]).map(() => "---").join("|")}|`);
+  for (const h of o.heroes) L.push(`| ${H(h)} re-played / removed | ${days.filter((hd) => hd.hero === h).map((hd) => `${hd.robustReplayed} / ${hd.robustRemoved}`).join(" | ")} |`);
   L.push("", "## Dry pool v2 vs the dry pool v2 (report only, stars-on picks both sides)", "", `| day | ${pvp.map((r) => r.day).join(" | ")} |`, `|---|${pvp.map(() => "---").join("|")}|`, `| ${H(o.heroes[0])} v2 win rate vs ${H(o.heroes[1])} v2 | ${pvp.map((r) => `${pct(r.rate)}`).join(" | ")} |`);
   L.push("", "## Dry pool v2 vs the shipped pool v1.1: do merged stand-ins get stronger?", "");
   L.push(`Per day, every pick of the row's v2 hero (the dry pool) against every pick of its v1.1 hero (the shipped pool, src/sim/standInPoolData.ts), ${o.seeds} seeds x both sides: the v2 side's win rate. The last row is the shipped pool against itself (the same numbers as \`npm run standins -- --versus\`), the reference for the cross-hero rows. ${meta.vsBattles} battles in these tables.`, "");

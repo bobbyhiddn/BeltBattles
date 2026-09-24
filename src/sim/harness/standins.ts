@@ -58,6 +58,7 @@ export interface Cand {
   idx: number; build: Build; code: string; cost: number; tries: number; floorMet: boolean; score: number; pct: number;
   vsRef: Partial<Record<HeroId, number>>; // win rate vs heroRefBuild(hero, day) of each pool hero
   vsPar: number; // floor(b): the lowest of vsRef
+  replayed?: boolean; // 0.6.1a: the robust re-play already ran on it (F12: never twice)
 }
 
 export interface HeroDay {
@@ -76,6 +77,7 @@ export interface HeroDay {
   parVsRef: Partial<Record<HeroId, number>>; // par's win rate vs heroRefBuild(hero, day)
   parVsElites: number; // par's win rate vs that day's elites of every pool hero
   robustRemoved: number; // 0.6.1a: candidates the robust re-play dropped below parFloor
+  robustReplayed: number; // 0.6.1a: candidates the robust re-play took (each once)
 }
 
 export interface Selection { picks: Cand[]; par: number; window: [number, number]; widened: boolean }
@@ -173,18 +175,26 @@ export function pickBest(pop: Cand[], o: StandInOpts): Selection {
   return { picks, par: nearest(picks, (window[0] + window[1]) / 2), window, widened: window[1] - window[0] > o.band[1] - o.band[0] };
 }
 
+/** A candidate the robust re-play takes: it clears the floor now, by at most ROBUST_BAND (F7: a
+ *  candidate below the floor was never eligible, so re-playing it could only promote it), and it
+ *  was not re-played before (F12: a grow step re-ranks the population, it doesn't re-play it). */
+export const robustBorderline = (c: Cand, o: StandInOpts): boolean => {
+  const d = c.vsPar - o.parFloor;
+  return !c.replayed && d >= 0 && d <= ROBUST_BAND;
+};
+
 /**
- * Robust floor (0.6.1a, ARSENAL.md §9.2): a candidate whose vsPar lies within ROBUST_BAND (0.10)
- * of parFloor is re-played against both par decks at `o.robust` x refSeeds fresh seeds (a
- * different seed stream from the original refSeeds sample). Its vsPar is recomputed over ALL its
- * par battles (the original refSeeds sample plus this re-play, combined per reference hero, then
- * the minimum across references) and stays there; it is "removed" (no longer eligible) only if
- * that combined vsPar now falls below parFloor where the original vsPar had cleared it. Mutates
- * `pop`'s candidates in place so the caller's normal eligibleOf/pickWindow picks up the change.
+ * Robust floor (0.6.1a, ARSENAL.md §9.2): a candidate whose vsPar clears parFloor by at most
+ * ROBUST_BAND (0.10) is re-played against both par decks at `o.robust` x refSeeds fresh seeds (a
+ * different seed stream from the original refSeeds sample), once. Its vsPar is recomputed over ALL
+ * its par battles (the original refSeeds sample plus this re-play, combined per reference hero, then
+ * the minimum across references) and stays there; it is "removed" (no longer eligible) when that
+ * combined vsPar falls below parFloor. Mutates `pop`'s candidates in place so the caller's normal
+ * eligibleOf/pickWindow picks up the change.
  */
-export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, pop: Cand[], refs: Build[], run: Runner): Promise<{ removed: number; battles: number }> {
-  const borderline = pop.filter((c) => Math.abs(c.vsPar - o.parFloor) <= ROBUST_BAND);
-  if (!borderline.length) return { removed: 0, battles: 0 };
+export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, pop: Cand[], refs: Build[], run: Runner): Promise<{ removed: number; battles: number; replayed: number }> {
+  const borderline = pop.filter((c) => robustBorderline(c, o));
+  if (!borderline.length) return { removed: 0, battles: 0, replayed: 0 };
   const n = Math.max(1, Math.round(o.robust)) * o.refSeeds;
   const field = [...refs, ...borderline.map((c) => c.build)];
   const jobs: Job[] = borderline.flatMap((c, i) =>
@@ -193,16 +203,16 @@ export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, po
   const origBattles = o.refSeeds * 2, replayBattles = n * 2;
   let removed = 0;
   borderline.forEach((c, i) => {
-    const wasEligible = c.vsPar >= o.parFloor;
     const combined = o.heroes.map((h, r) => {
       const origWins = (c.vsRef[h] ?? 0) * origBattles;
       const replayWins = pts[i * refs.length + r];
       return (origWins + replayWins) / (origBattles + replayBattles);
     });
     c.vsPar = Math.min(...combined);
-    if (wasEligible && c.vsPar < o.parFloor) removed++;
+    c.replayed = true;
+    if (c.vsPar < o.parFloor) removed++; // it cleared the floor before the re-play (robustBorderline)
   });
-  return { removed, battles: jobs.length * replayBattles };
+  return { removed, battles: jobs.length * replayBattles, replayed: borderline.length };
 }
 
 export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string) => void): Promise<{ days: HeroDay[]; battles: number }> {
@@ -242,12 +252,13 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       const rank = (pop: Cand[]) => percentiles(pop.map((c) => c.score)).forEach((p, i) => (pop[i].pct = round1(p)));
       const pop = await grow(0, o.pop);
       rank(pop);
-      // 0.6.1a robust floor: a candidate whose vsPar sits within ROBUST_BAND of parFloor is
-      // re-played at o.robust x refSeeds fresh seeds; only "on" (off must stay v1-exact for --check).
-      let robustRemoved = 0;
+      // 0.6.1a robust floor: a candidate whose vsPar clears parFloor by at most ROBUST_BAND is
+      // re-played (once) at o.robust x refSeeds fresh seeds; only "on" (off must stay v1-exact for --check).
+      let robustRemoved = 0, robustReplayed = 0;
       if (o.stars === "on") {
         const r = await robustReplay(o, hero, day, pop, refs, run);
         robustRemoved = r.removed;
+        robustReplayed = r.replayed;
         battles += r.battles;
       }
       let relax: Relax = "none";
@@ -258,8 +269,9 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
         pop.push(...(await grow(pop.length, n)));
         rank(pop);
         if (o.stars === "on") {
-          const r = await robustReplay(o, hero, day, pop, refs, run);
+          const r = await robustReplay(o, hero, day, pop, refs, run); // only the grown candidates (F12)
           robustRemoved += r.removed;
+          robustReplayed += r.replayed;
           battles += r.battles;
         }
         sel = pickWindow(pop, eligibleOf(pop, o, false), o);
@@ -278,7 +290,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       const floor = spendFloor(day);
       dayOut.push({
         hero, day, budget: maxGoldByDay(day), floor, pop, picks, par, window, relax, widened, short: picks.some((p) => p.cost < floor),
-        elites, parVsRef: { ...picks[par].vsRef }, parVsElites: 0, robustRemoved,
+        elites, parVsRef: { ...picks[par].vsRef }, parVsElites: 0, robustRemoved, robustReplayed,
       });
       log?.(`${hero} day ${day}: ${relax}, window ${window.join("-")} of ${pop.length}; picks pct ${picks.map((p) => p.pct).join(", ")}; vsPar ${picks.map((p) => p.vsPar).join(", ")}${robustRemoved ? `; robust re-play removed ${robustRemoved}` : ""}`);
     }

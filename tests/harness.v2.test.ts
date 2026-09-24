@@ -109,12 +109,65 @@ describe("harness v2: stand-in pool robust re-play", () => {
   });
 
   it("a borderline candidate that wins every re-play battle stays eligible (vsPar recomputed, not removed)", async () => {
-    const pop = [cand(o.parFloor - 0.02)]; // inside the band, currently just under the floor
+    // D3 (F7): moved just above the floor; a candidate below it is never re-played (next case)
+    const pop = [cand(o.parFloor + 0.02)]; // inside the band, currently just above the floor
     const alwaysWin: Runner = async (_field, jobs) => jobs.map(() => 2 * o.robust * o.refSeeds); // max points every job
     const { removed } = await robustReplay(o, "furnace", 5, pop, refs, alwaysWin);
     expect(removed).toBe(0);
-    expect(pop[0].vsPar).toBeGreaterThan(o.parFloor - 0.02); // pulled up by the (winning) re-play
+    expect(pop[0].vsPar).toBeGreaterThan(o.parFloor + 0.02); // pulled up by the (winning) re-play
   });
+
+  it("F7: a candidate below the floor (even within ROBUST_BAND of it) is not re-played, so the re-play can't promote it", async () => {
+    const pop = [cand(o.parFloor - 0.02), cand(o.parFloor - ROBUST_BAND)];
+    const shouldNotRun: Runner = async () => { throw new Error("robustReplay must not re-play a candidate below parFloor"); };
+    const { removed, battles, replayed } = await robustReplay(o, "furnace", 5, pop, refs, shouldNotRun);
+    expect([removed, battles, replayed]).toEqual([0, 0, 0]);
+    expect(pop.map((c) => c.vsPar)).toEqual([o.parFloor - 0.02, o.parFloor - ROBUST_BAND]);
+    expect(pop.some((c) => c.replayed)).toBe(false);
+  });
+
+  it("F7: exactly at the floor and exactly ROBUST_BAND above it are both re-played", async () => {
+    const pop = [cand(o.parFloor), cand(o.parFloor + ROBUST_BAND)];
+    const lose: Runner = async (_field, jobs) => jobs.map(() => 0);
+    const { removed, replayed } = await robustReplay(o, "furnace", 5, pop, refs, lose);
+    expect([removed, replayed]).toEqual([2, 2]);
+  });
+
+  it("F12: a candidate already re-played is not re-played again after a grow step (only the grown one is)", async () => {
+    const first = cand(o.parFloor + 0.05);
+    const pop = [first];
+    let jobsRun = 0;
+    const half: Runner = async (_field, jobs) => { jobsRun += jobs.length; return jobs.map((j) => j.seeds.length); };
+    const r1 = await robustReplay(o, "furnace", 5, pop, refs, half);
+    expect(r1.replayed).toBe(1);
+    expect(first.replayed).toBe(true);
+    const vs1 = first.vsPar;
+    pop.push({ ...cand(o.parFloor + 0.05), idx: 1 }); // a grow step adds a new borderline candidate
+    const r2 = await robustReplay(o, "furnace", 5, pop, refs, half);
+    expect(r2.replayed).toBe(1);
+    expect(r2.battles).toBe(refs.length * o.robust * o.refSeeds * 2);
+    expect(jobsRun).toBe(2 * refs.length);
+    expect(first.vsPar).toBe(vs1); // untouched the second time
+    const r3 = await robustReplay(o, "furnace", 5, pop, refs, half);
+    expect([r3.replayed, r3.battles]).toEqual([0, 0]);
+  });
+
+  it("review: genStandIns (stars on) really runs the robust re-play - a robust x refSeeds job reaches the runner", async () => {
+    const tiny = { ...STANDIN_DEFAULTS, pop: 6, gauntlet: 2, seeds: 1, elites: 2, refSeeds: 2, per: 2, grow: [8], stars: "on" as const };
+    let replayJobs = 0;
+    const half: Runner = async (_field, jobs) => jobs.map((j) => {
+      if (j.seeds.length === tiny.robust * tiny.refSeeds) replayJobs++;
+      return j.seeds.length; // exactly half the points: every vsPar = 0.5 = parFloor, so every candidate is borderline
+    });
+    const res = await genStandIns(tiny, half);
+    expect(replayJobs).toBeGreaterThan(0);
+    // F4: every candidate of every hero/day was re-played exactly once (they all sit on the floor)
+    for (const hd of res.days) {
+      expect(hd.robustReplayed, `${hd.hero} d${hd.day}`).toBe(hd.pop.length);
+      expect(hd.pop.every((c) => c.replayed)).toBe(true);
+    }
+    expect(replayJobs).toBe(res.days.reduce((s, hd) => s + hd.robustReplayed, 0) * tiny.heroes.length);
+  }, 60_000);
 
   it("end to end (tiny population): every dry pick is legal - validateBuild ok, unfusedPairs empty, within budget", async () => {
     const tiny = {
