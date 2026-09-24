@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { C, type ColorName } from "../src/render/palette";
 import { PORTRAIT_KEYS, portraitPixels, type PortraitKey } from "../src/render/portraits";
 import { HEROES } from "../src/sim/content";
+import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
 
 // Captain portraits are pure pixel data, so they are checked here without a canvas.
@@ -13,11 +14,11 @@ const FRAME = new Set<ColorName>(["amber", "plum3", "plum4"]);
 const onBorder = (x: number, y: number) => x === 0 || y === 0 || x === W - 1 || y === H - 1 || ((x === 2 || x === W - 3) && (y === 2 || y === H - 3));
 
 describe("captain portraits (24x24 pixel data)", () => {
-  it("every rival and every hero has exactly one portrait", () => {
+  it("every rival and every playable hero has exactly one portrait", () => {
     for (const id of RIVAL_IDS) expect(PORTRAIT_KEYS).toContain(id);
-    for (const h of Object.keys(HEROES)) expect(PORTRAIT_KEYS).toContain(h);
+    for (const h of PLAYABLE_HEROES) expect(PORTRAIT_KEYS).toContain(h);
     expect(new Set(PORTRAIT_KEYS).size).toBe(PORTRAIT_KEYS.length);
-    expect(PORTRAIT_KEYS.length).toBe(RIVAL_IDS.length + Object.keys(HEROES).length);
+    expect(PORTRAIT_KEYS.length).toBe(RIVAL_IDS.length + PLAYABLE_HEROES.length);
   });
 
   it("each portrait is 24x24 and uses only palette colour names or null", () => {
@@ -63,7 +64,7 @@ describe("captain portraits (24x24 pixel data)", () => {
       expect(corner, id).toBe(rank === "elite" ? "amber" : rank === "boss" ? "plum4" : null);
       expect([pix(px, W - 1, 0), pix(px, 0, H - 1), pix(px, W - 1, H - 1)], id).toEqual([corner, corner, corner]);
     }
-    for (const h of Object.keys(HEROES) as PortraitKey[]) expect(pix(portraitPixels(h).px, 0, 0), h).toBe(null);
+    for (const h of PLAYABLE_HEROES as readonly PortraitKey[]) expect(pix(portraitPixels(h).px, 0, 0), h).toBe(null);
   });
 
   it("orcs and elves keep their faction bases (rust skin with tusks, verdigris skin with long ears)", () => {

@@ -6,13 +6,17 @@
 import { C, type ColorName } from "./palette";
 import { makeCanvas, px } from "./pixel";
 import { FEATURES, PH, PW, asColor, at, blank, paintBase, put, type Base, type Look, type Px } from "./portraitArt";
-import { HEROES, type HeroId } from "../sim/content";
+import { HEROES } from "../sim/content";
+import { PLAYABLE_HEROES } from "../sim/heroBuilds";
 import { RIVALS, RIVAL_IDS, type RivalId } from "../sim/rivals";
 
-export type PortraitKey = RivalId | HeroId;
+/** Heroes with a portrait: the playable ones (PLAYABLE_HEROES, src/sim/heroBuilds.ts). The race
+ *  heroes are in HeroId but dormant; they get portraits when they become playable (0.8.0). */
+export type PortraitHero = "furnace" | "weaver";
+export type PortraitKey = RivalId | PortraitHero;
 
-/** Every portrait, rivals in roster order and then the heroes. */
-export const PORTRAIT_KEYS: PortraitKey[] = [...RIVAL_IDS, ...(Object.keys(HEROES) as HeroId[])];
+/** Every portrait, rivals in roster order and then the playable heroes. */
+export const PORTRAIT_KEYS: PortraitKey[] = [...RIVAL_IDS, ...(PLAYABLE_HEROES as readonly PortraitHero[])];
 
 export interface Portrait {
   w: 24;
@@ -25,7 +29,7 @@ type Ref = number | ColorName; // an index into the captain's palette, or a colo
 interface Spec { palette: string[]; look: [eye: Ref, garment: Ref, trim: Ref, hair: Ref] }
 
 /** Heroes have no rival entry, so their portrait notes live here. */
-const HERO_PORTRAIT: Record<HeroId, string[]> = {
+const HERO_PORTRAIT: Record<PortraitHero, string[]> = {
   furnace: ["rust1", "steel2", "fire3", "brass3"], // welding goggles pushed up on the brow
   weaver: ["verd2", "brass3", "ice", "bone"], // brass loom-shuttle hairpin trailing thread
 };
@@ -49,8 +53,8 @@ const LOOK: Record<PortraitKey, Spec["look"]> = {
   weaver: [2, 0, 1, 0],
 };
 
-function isHero(key: PortraitKey): key is HeroId {
-  return key in HEROES;
+function isHero(key: PortraitKey): key is PortraitHero {
+  return (PLAYABLE_HEROES as readonly string[]).includes(key);
 }
 
 function spec(key: PortraitKey): { base: Base; palette: ColorName[]; look: Look; frame: Frame } {
