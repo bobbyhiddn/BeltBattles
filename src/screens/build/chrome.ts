@@ -1,7 +1,7 @@
 // Build-screen chrome: status bar, shop card row, cargo tray, FIGHT with its cue, the
 // next-battle card, the details panel, drag feedback and the pause/options menu.
 
-import { saveRun } from "../../game/run";
+import { saveRun, shopBadge } from "../../game/run";
 import { record } from "../../game/day";
 import { ITEMS, REROLL_COST, RUN_DAYS } from "../../sim/content";
 import { beltUsed } from "../../sim/deck";
@@ -78,6 +78,7 @@ function drawShop(g: G, s: BuildScreen): void {
     drawCard(g, r, ITEMS[o.def], o.price, w.merchant, {
       sold: o.sold, affordable: run.gold >= o.price, selected: sel && !carry, hover: !!s.hover && s.hover.wagon === wagon && s.hover.slot === slot,
       pulse: !s.boughtOnce && s.sel.kind === "none", hidden: !!carry && carry.src.from === "offer" && carry.src.wagon === wagon && carry.src.slot === slot, shake,
+      badge: o.sold ? null : shopBadge(run, o.def), // 0.6.1d: live, never stored on the offer
     }, t);
   }
   const rr = { ...L.reroll, x: L.reroll.x + s.caravan.dx(list.length, L.W) };

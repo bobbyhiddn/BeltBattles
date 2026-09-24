@@ -3,6 +3,7 @@
 // selected card lifts with a drop shadow. REROLL uses the same card frame.
 
 import { ITEMS, MERCHANTS, REROLL_COST, type ItemDef, type MerchantId } from "../../sim/content";
+import type { ShopBadge } from "../../game/run";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
@@ -60,6 +61,29 @@ export interface CardState {
   pulse: boolean;
   hidden: boolean; // being dragged away
   shake: number; // red shake time left (invalid drop)
+  badge?: ShopBadge | null; // 0.6.1d: live from run.ts:shopBadge (mergePreview), never stored on the offer
+}
+
+/** 0.6.1d (ARSENAL.md §8.1): the MERGE badge, a small tab under the merchant stripe. MERGE ★3
+ *  (a chain) is gold and flashes at 2Hz; the grey "+1 ★2" marks a copy that won't merge yet
+ *  (a 2★ is owned, no 1★); MAX means only 3★ copies are owned. Sized to its text, not fixed 24x7,
+ *  so it never clips inside the 46-wide card (deviation from the design's literal pixel size).
+ */
+function drawBadge(g: G, x: number, y: number, maxW: number, badge: ShopBadge, t: number): void {
+  let bg: string, fg: string, label: string;
+  if (badge.kind === "merge") {
+    label = `MERGE ★${badge.toStars}`;
+    if (badge.toStars >= 3) { bg = Math.floor(t * 4) % 2 ? C.yellow : C.amber; fg = C.ink; }
+    else { bg = C.amber; fg = C.ink; }
+  } else if (badge.kind === "wait") {
+    label = "+1 ★2"; bg = C.slate2; fg = C.slate4;
+  } else {
+    label = "MAX"; bg = C.slate2; fg = C.bone;
+  }
+  const w = Math.min(maxW, textWidth(label, "3") + 4);
+  rect(g, x, y, w, 7, C.ink);
+  rect(g, x + 1, y + 1, w - 2, 5, bg);
+  drawText(g, label, x + w / 2, y + 2, fg, { font: "3", align: "center" });
 }
 
 function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: string, rarity: string, dim: boolean): void {
@@ -92,6 +116,7 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   // rarity gem
   rect(g, x + r.w - 6, y + 6, 4, 4, C.ink);
   rect(g, x + r.w - 5, y + 7, 2, 2, s.sold ? C.slate1 : RARITY_COLOR[def.rarity]);
+  if (s.badge && !s.sold) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
   const icon = itemIcon(def.id);
   const lines = cardName(def, r.w - 4);
   const two = lines.length > 1;

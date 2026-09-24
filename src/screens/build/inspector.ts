@@ -2,7 +2,7 @@
 // turret) with its action button; idle it shows the cruiser card. Landscape uses the left
 // column (sized to its content), portrait the strip between the shop and the deck.
 
-import type { DuskFoe, Run } from "../../game/run";
+import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES } from "../../sim/content";
 import { beltUsed, connectedRouteCount, defOf, estimateRoute, gearFor, itemByUid, key, routeInfo, routesOf } from "../../sim/deck";
@@ -14,12 +14,59 @@ import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
-import { effectAt, starsOf, starText } from "../../sim/stars";
+import { effectAt, FUSE_MAX, fusible, perkAt, starsOf, starText } from "../../sim/stars";
+import { gainModule, mergePreview } from "../../game/fuse";
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
 import type { Sel } from "./layout";
 import { describe } from "./shop";
+
+/** 0.6.1d: the headline number at `stars`, `effectAt` read out short (ARSENAL.md §8.1, §8.2). */
+function starEffectLine(def: string, stars: number): string {
+  const e = effectAt(def, stars);
+  if (e.gate?.burn) return `+${e.gate.burn} BURN`;
+  if (e.gate?.flat) return `+${e.gate.flat} FLAT`;
+  if (e.gate?.perPriorGate) return `+${e.gate.perPriorGate}/GATE`;
+  if (e.gate?.split) return `${e.gate.split.copies}X ${Math.round(e.gate.split.mult * 100)}%`;
+  if (e.gate?.speed) return `SPEED X${e.gate.speed}`;
+  if (e.factory) return `EVERY ${e.factory.interval}S`;
+  if (e.mod?.fireMul) return `FIRE X${e.mod.fireMul}`;
+  if (e.mod?.perShot) return `${e.mod.perShot}/SHOT`;
+  const perk = perkAt(def, stars);
+  if (perk) return perk;
+  if (e.gate?.shock) return "SHOCK";
+  return "";
+}
+
+/** 0.6.1d (ARSENAL.md §8.1): "MERGES WITH YOUR TEMPER ★1 → ★2 · +4 BURN", live from mergePreview. */
+function mergeLine(run: Run, def: string): string | null {
+  const preview = mergePreview(run, def);
+  if (!preview) return null;
+  const to = preview.toStars, from = to - 1;
+  const after = starEffectLine(def, to);
+  return `MERGES WITH YOUR ${ITEMS[def].name} ★${from} → ★${to}${after ? ` · ${after}` : ""}`;
+}
+
+/** How many more 1★ gains of `def` (bought, dropped, however) it takes to pass `atLeast` stars,
+ *  simulated on a cloned run through the real gainModule (no re-implemented fuse math). */
+function copiesToNextStar(run: Run, def: string, atLeast: number): number {
+  const clone = { ...run, build: JSON.parse(JSON.stringify(run.build)), inventory: run.inventory.map((i) => ({ ...i })), fuseFx: [] } as Run;
+  for (let n = 1; n <= 8; n++) {
+    const g = gainModule(clone, def);
+    if (g.stars > atLeast) return n;
+  }
+  return 8;
+}
+
+/** 0.6.1d (ARSENAL.md §8.2): "NEXT ★3: +7 BURN · 2 MORE COPIES"; null at ★3 or for a non-fusible id. */
+function nextLine(run: Run, def: string, stars: number): string | null {
+  if (!fusible(def) || stars >= FUSE_MAX) return null;
+  const next = stars + 1;
+  const eff = starEffectLine(def, next);
+  const copies = copiesToNextStar(run, def, stars);
+  return `NEXT ★${next}${eff ? `: ${eff}` : ""} · ${copies} MORE COPIES`;
+}
 
 interface Action {
   id: string;
@@ -64,12 +111,14 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       if (!o) return null;
       const d = ITEMS[o.def];
       const can = !o.sold && run.gold >= o.price;
+      const merging = !o.sold && shopBadge(run, o.def)?.kind === "merge";
       const hint = d.kind === "mod" || d.kind === "core" ? "TAP A TURRET OR DRAG IT THERE." : d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : "TAP A BELT TILE OR DRAG IT ON.";
+      const mLine = merging ? mergeLine(run, o.def) : null;
       return {
         icon: itemIcon(d.id), title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[show.wagon].merchant].name}`,
-        text: [...d.desc, hint],
+        text: [...d.desc, ...(mLine ? [mLine] : []), hint],
         actions: hovering ? [] : [{
-          id: "buy", label: o.sold ? "SOLD" : d.kind === "supply" ? `BUY+USE ${o.price}G` : `BUY ${o.price}G`, primary: can, disabled: !can,
+          id: "buy", label: o.sold ? "SOLD" : d.kind === "supply" ? `BUY+USE ${o.price}G` : merging ? `BUY+MERGE ${o.price}G` : `BUY ${o.price}G`, primary: can, disabled: !can,
           onTap: () => {
             const res = buy(ctx, show.wagon, show.slot);
             if (res.gain) selectGain(ctx, res.gain); // 0.6.1a: after a merge, the survivor
@@ -81,21 +130,25 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const it = run.inventory.find((i) => i.uid === show.uid);
       if (!it) return null;
       const d = ITEMS[it.def];
+      const stars = starsOf(it);
+      const next = nextLine(run, it.def, stars);
       return {
-        icon: itemIcon(d.id), title: starred(d.name, starsOf(it)), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
-        text: [...d.desc, d.kind === "mod" || d.kind === "core" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
-        actions: [{ id: "sell", label: `SELL +${sellPrice(d.id, starsOf(it))}G`, onTap: () => sell(ctx, it.uid) }],
+        icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
+        text: [...d.desc, ...(next ? [next] : []), d.kind === "mod" || d.kind === "core" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
+        actions: [{ id: "sell", label: `SELL +${sellPrice(d.id, stars)}G`, onTap: () => sell(ctx, it.uid) }],
       };
     }
     case "item": {
       const p = itemByUid(b, show.uid);
       if (!p) return null;
       const d = defOf(p);
+      const stars = starsOf(p);
       const sub = d.kind === "factory" ? `FACTORY · BELTS ${routesOf(b, p.uid).length}/${d.factory?.outputs ?? 1}` : b.routes.some((q) => q.cells.includes(key(p.x, p.y))) ? "GATE · ON A BELT" : "GATE · NOT ON A BELT!";
       const sig = d.id === "kiln" || d.id === "loom";
+      const next = sig ? null : nextLine(run, d.id, stars);
       return {
-        icon: itemIcon(d.id), title: starred(d.name, starsOf(p)), color: RARITY_COLOR[d.rarity], sub,
-        text: [...d.desc, d.kind === "factory" ? "DRAG OUT OF IT TO LAY BELT." : "DRAG TO MOVE IT."],
+        icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub,
+        text: [...d.desc, ...(next ? [next] : []), d.kind === "factory" ? "DRAG OUT OF IT TO LAY BELT." : "DRAG TO MOVE IT."],
         actions: sig ? [] : [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }],
       };
     }
