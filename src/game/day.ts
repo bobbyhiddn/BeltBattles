@@ -85,6 +85,8 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
     run.dusk = null;
     run.road = null;
     run.warlord = null;
+    // 0.6.1d: today's final caravan is tomorrow's variety check (ARSENAL.md §5.2 step 1).
+    run.lastMerchants = run.shop.wagons.map((w) => w.merchant);
     run.shop = { wagons: [], rerolls: 0, discount: run.nextShop.discount, free: run.nextShop.free };
     run.nextShop = { discount: 0, free: 0 };
     rollShop(run);

@@ -14,7 +14,34 @@ export const MERCHANT_COLOR: Record<MerchantId, string> = {
   tinker: C.cyan,
   alchemist: C.plum4,
   gunsmith: C.red,
+  scrapper: C.rust4,
+  quartermaster: C.verd3,
+  arcane: C.blue,
 };
+
+/** 0.6.1d (ARSENAL.md §8.1): colour is never the only cue, so each merchant tag also gets a shape. */
+export const MERCHANT_GLYPH: Record<MerchantId, "square" | "diamond" | "circle" | "triangle" | "cross" | "bar" | "ring"> = {
+  ironmonger: "square",
+  tinker: "diamond",
+  alchemist: "circle",
+  gunsmith: "triangle",
+  scrapper: "cross",
+  quartermaster: "bar",
+  arcane: "ring",
+};
+
+/** A 3x3 shape beside the merchant colour swatch (drawTag), so the cue never rests on colour alone. */
+function drawMerchantGlyph(g: G, x: number, y: number, merchant: MerchantId): void {
+  const shape = MERCHANT_GLYPH[merchant];
+  const col = MERCHANT_COLOR[merchant];
+  if (shape === "square") rect(g, x, y, 3, 3, col);
+  else if (shape === "diamond") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x + 1, y + 2, 1, 1, col); }
+  else if (shape === "circle") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x + 1, y + 1, 1, 1, C.ink); rect(g, x + 1, y + 2, 1, 1, col); }
+  else if (shape === "triangle") { rect(g, x + 1, y, 1, 1, col); rect(g, x, y + 1, 3, 1, col); rect(g, x, y + 2, 3, 1, col); }
+  else if (shape === "cross") { rect(g, x + 1, y, 1, 3, col); rect(g, x, y + 1, 3, 1, col); }
+  else if (shape === "bar") rect(g, x, y + 1, 3, 1, col);
+  else { rect(g, x, y, 3, 1, col); rect(g, x, y + 2, 3, 1, col); rect(g, x, y, 1, 3, col); rect(g, x + 2, y, 1, 3, col); }
+}
 
 const SHORT: Record<string, string> = { calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PLATE" };
 
@@ -124,7 +151,7 @@ export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pres
 /** Merchant name tag above the first card of each wagon's group (single-row layouts). */
 export function drawTag(g: G, x: number, y: number, merchant: MerchantId): void {
   const name = MERCHANTS[merchant].name;
-  rect(g, x, y + 2, 3, 3, MERCHANT_COLOR[merchant]);
+  drawMerchantGlyph(g, x, y + 2, merchant);
   drawText(g, name, x + 5, y, C.slate4, { font: "3" });
 }
 

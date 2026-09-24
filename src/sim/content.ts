@@ -33,7 +33,9 @@ export type AmmoKind = "cinder" | "thread" | "plain" | RaceAmmoKind; // races: b
 export type HeroId = "furnace" | "weaver" | RaceHeroId; // races: foundry, bastion, metronome, siphon
 export type Faction = "orc" | "elf" | "human" | "dwarf" | "beastfolk" | "unaligned"; // races: spec §6.2
 export type TurretKind = "heavy" | "light" | "medium" | "adaptable"; // races: medium (FOUNDRY), adaptable (METRONOME)
-export type MerchantId = "ironmonger" | "tinker" | "alchemist" | "gunsmith";
+export type MerchantId =
+  | "ironmonger" | "tinker" | "alchemist" | "gunsmith"
+  | "scrapper" | "quartermaster" | "arcane"; // 0.6.1d: ARSENAL wave 1 merchants (stock lands in a later job)
 
 export const RARITIES: Rarity[] = ["common", "rare", "epic", "legendary"];
 
@@ -398,6 +400,11 @@ export const MERCHANTS: Record<MerchantId, MerchantDef> = {
   tinker: { id: "tinker", name: "TINKER" },
   alchemist: { id: "alchemist", name: "ALCHEMIST" },
   gunsmith: { id: "gunsmith", name: "GUNSMITH" },
+  // 0.6.1d: no stock yet (a later job adds their parts), so itemsSoldBy is empty and rollShop's
+  // merchant weight is 0 for each until then (ARSENAL.md §5.2 step 1).
+  scrapper: { id: "scrapper", name: "SCRAPPER" },
+  quartermaster: { id: "quartermaster", name: "QUARTERMASTER" },
+  arcane: { id: "arcane", name: "ARCANE DEALER" },
 };
 
 export function itemsSoldBy(m: MerchantId): ItemDef[] {

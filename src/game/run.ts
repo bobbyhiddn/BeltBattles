@@ -6,7 +6,7 @@ import { hashSeed, Rng } from "../core/rng";
 import {
   ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES,
   itemsSoldBy, rarityWeights, sellValue,
-  type HeroId, type MerchantId, type Rarity,
+  type HeroId, type ItemDef, type MerchantId, type Rarity,
 } from "../sim/content";
 import { removeItem, type Build } from "../sim/deck";
 import { startingBuild } from "../sim/ai";
@@ -14,7 +14,7 @@ import type { SideStats } from "../sim/battle";
 import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
-import { starField, starsOf } from "../sim/stars";
+import { fusible, starField, starsOf } from "../sim/stars";
 import { gainModule, mergePreview, type Gain, type GainAt } from "./fuse";
 import { HEROES } from "../sim/content"; // 0.6.1b: fitCore
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
@@ -110,6 +110,7 @@ export interface Run {
   bounty: PendingBounty | null; // ELITE BOUNTY: rides on the next Hard warlord fight
   sabotage: PendingSabotage | null; // SABOTAGE: the next warlord fights weakened
   fuseFx?: string[]; // 0.6.1a, cosmetic: merge toasts the build screen shows next ("MERGED: TEMPER ★2")
+  lastMerchants?: MerchantId[]; // 0.6.1d: yesterday's final caravan (absent = no variety factor); save v7, no bump
 }
 
 export const RUN_VERSION = 7; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once)
@@ -142,24 +143,131 @@ function rollRarity(rng: Rng, day: number): Rarity {
   return rng.weighted(RARITIES, (r) => w[r]);
 }
 
+const ALL_MERCHANTS: MerchantId[] = ["ironmonger", "tinker", "alchemist", "gunsmith", "scrapper", "quartermaster", "arcane"];
+
+/** ARSENAL.md §5.2 step 1, base weight before the regular-trade and variety modifiers. */
+function baseMerchantWeight(m: MerchantId, day: number): number {
+  if (m === "scrapper" || m === "quartermaster") return 2;
+  if (m === "arcane") return day <= 2 ? 0 : day <= 4 ? 1 : 2;
+  return 3; // ironmonger, tinker, alchemist, gunsmith
+}
+
+/** Every star level (1-3) `def` is currently held at, across cargo, the deck and turrets. */
+function starLevelsOwned(run: Run, def: string): Set<number> {
+  const s = new Set<number>();
+  for (const i of run.inventory) if (i.def === def) s.add(starsOf(i));
+  for (const i of run.build.items) if (i.def === def) s.add(starsOf(i));
+  for (const i of run.build.mods) if (i.def === def) s.add(starsOf(i));
+  return s;
+}
+
+function ownsDef(run: Run, def: string): boolean {
+  return run.inventory.some((i) => i.def === def) || run.build.items.some((i) => i.def === def) || run.build.mods.some((i) => i.def === def);
+}
+
+/** ARSENAL.md §5.2 step 1: base weight, +1 per owned 1★ fusible part the merchant sells (max +3),
+ *  x0.5 if `m` rode in yesterday's final caravan. A merchant with no stock today never appears. */
+function merchantWeight(run: Run, m: MerchantId, day: number): number {
+  const stock = itemsSoldBy(m);
+  if (!stock.length) return 0;
+  const base = baseMerchantWeight(m, day);
+  if (base <= 0) return 0;
+  let bias = 0;
+  for (const d of stock) if (fusible(d.id) && starLevelsOwned(run, d.id).has(1)) bias++;
+  const w = base + Math.min(3, bias);
+  return run.lastMerchants?.includes(m) ? w * 0.5 : w;
+}
+
+/** Draw `n` distinct merchants by weight (no replacement), then guarantee a gate seller. */
+function pickMerchants(run: Run, rng: Rng, n: number): MerchantId[] {
+  const remaining = ALL_MERCHANTS.slice();
+  const chosen: MerchantId[] = [];
+  for (let i = 0; i < n && remaining.length; i++) {
+    const weights = remaining.map((m) => merchantWeight(run, m, run.day));
+    if (weights.every((w) => w <= 0)) break;
+    const pick = rng.weighted(remaining, (m) => merchantWeight(run, m, run.day));
+    chosen.push(pick);
+    remaining.splice(remaining.indexOf(pick), 1);
+  }
+  if (!chosen.includes("tinker") && !chosen.includes("alchemist")) chosen[chosen.length - 1] = "tinker";
+  return chosen;
+}
+
+/** ARSENAL.md §5.2 step 3: the familiar slot's chance by day. */
+function familiarChance(day: number): number {
+  if (day <= 1) return 0;
+  if (day <= 3) return 0.35;
+  if (day <= 6) return 0.5;
+  return 0.6; // days 7-10
+}
+
+interface FamiliarCandidate { merchant: MerchantId; def: string; weight: number }
+
+/** Owned fusible parts a merchant in this caravan sells, weighted 0.5 (only 1★ owned) / 4 (only 2★
+ *  owned) / 12 (1★ and 2★ owned: the next copy chains to 3★) / dropped at 0 (only 3★ owned). */
+function familiarCandidates(run: Run, merchants: MerchantId[]): FamiliarCandidate[] {
+  const out: FamiliarCandidate[] = [];
+  for (const m of merchants) {
+    for (const d of itemsSoldBy(m)) {
+      if (!fusible(d.id)) continue;
+      const levels = starLevelsOwned(run, d.id);
+      const weight = levels.has(1) && levels.has(2) ? 12 : levels.has(2) ? 4 : levels.has(1) ? 0.5 : 0;
+      if (weight > 0) out.push({ merchant: m, def: d.id, weight });
+    }
+  }
+  return out;
+}
+
+/**
+ * ARSENAL.md §5.2, on `hashSeed(seed, "shop", day, rerolls)`. Merchants are drawn by weight
+ * (step 1); regular slots are fresh-first (step 2: the rolled rarity and a def the player doesn't
+ * own, falling back to any rarity, then to owned parts); at most one familiar slot is spliced in
+ * after (step 3), drawn from owned fusible parts and weighted toward a 3★ chain.
+ */
 export function rollShop(run: Run): void {
   const rng = new Rng(hashSeed(run.seed, "shop", run.day, run.shop.rerolls));
   const nWagons = rng.chance(0.5) ? 2 : 3;
-  const all: MerchantId[] = rng.shuffle(["ironmonger", "tinker", "alchemist", "gunsmith"] as MerchantId[]);
-  const merchants = all.slice(0, nWagons);
-  if (!merchants.includes("tinker") && !merchants.includes("alchemist")) merchants[nWagons - 1] = "tinker";
+  const merchants = pickMerchants(run, rng, nWagons);
   const wagons: Wagon[] = merchants.map((m) => ({ merchant: m, offers: [] }));
+  const priceOf = (d: { price: number }) => Math.max(1, d.price - (run.shop.discount || 0));
   for (let slot = 0; slot < OFFERS; slot++) {
     const w = wagons[slot % nWagons];
     const pool = itemsSoldBy(w.merchant).filter((d) => d.rarity !== "legendary" || run.day >= 4);
     const rarity = rollRarity(rng, run.day);
-    let choices = pool.filter((d) => d.rarity === rarity && !w.offers.some((o) => o.def === d.id));
-    if (!choices.length) choices = pool.filter((d) => !w.offers.some((o) => o.def === d.id));
+    const fresh = (d: ItemDef) => !w.offers.some((o) => o.def === d.id);
+    let choices = pool.filter((d) => d.rarity === rarity && !ownsDef(run, d.id) && fresh(d));
+    if (!choices.length) choices = pool.filter((d) => !ownsDef(run, d.id) && fresh(d));
+    if (!choices.length) choices = pool.filter(fresh);
     if (!choices.length) choices = pool;
     const d = rng.pick(choices);
-    w.offers.push({ def: d.id, price: Math.max(1, d.price - (run.shop.discount || 0)), sold: false });
+    w.offers.push({ def: d.id, price: priceOf(d), sold: false });
+  }
+  if (rng.chance(familiarChance(run.day))) {
+    const candidates = familiarCandidates(run, merchants);
+    if (candidates.length) {
+      const pick = rng.weighted(candidates, (c) => c.weight);
+      const w = wagons.find((wg) => wg.merchant === pick.merchant)!;
+      const slotIdx = rng.int(w.offers.length);
+      w.offers[slotIdx] = { def: pick.def, price: priceOf(ITEMS[pick.def]), sold: false };
+    }
   }
   run.shop.wagons = wagons;
+}
+
+export type ShopBadge = { kind: "merge"; toStars: number } | { kind: "wait" } | { kind: "max" };
+
+/**
+ * The live MERGE badge (ARSENAL.md §8.1), never stored on the offer: recomputed from `mergePreview`
+ * every frame, because one purchase can change another card's badge. "wait" is the grey +1 ★2 (a
+ * 2★ is owned but no 1★, so this copy will not merge yet); "max" means only 3★ copies are owned.
+ */
+export function shopBadge(run: Run, def: string): ShopBadge | null {
+  const preview = mergePreview(run, def);
+  if (preview) return { kind: "merge", toStars: preview.toStars };
+  const levels = starLevelsOwned(run, def);
+  if (levels.has(2)) return { kind: "wait" };
+  if (levels.size > 0) return { kind: "max" };
+  return null;
 }
 
 /** Reroll the caravan: a free reroll (scout) first, else REROLL_COST gold. Same roll sequence either way. */
