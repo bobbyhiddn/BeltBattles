@@ -7,6 +7,7 @@ import { GRID, HEROES, ITEMS, type ItemDef } from "../content";
 import { cloneBuild, kx, ky, occupancy, routesOf, turretForColumn, type Build, type Placed } from "../deck";
 import { buildCost } from "../../net/validate";
 import { shopItems } from "./heroes";
+import { gainInto } from "./merge";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
 
 export const CRATE = ITEMS.beltcrate, PLATE = ITEMS.plating, PRESS = ITEMS.press;
@@ -18,17 +19,30 @@ export const isSpeedGate = (d: ItemDef): boolean => d.gate?.speed !== undefined;
 export const isFlatGate = (d: ItemDef): boolean => !!(d.gate?.flat || d.gate?.perPriorGate);
 export const isSplitter = (d: ItemDef): boolean => !!d.gate?.split;
 
+/** 0.6.1a: "on" (default) runs every gain through the game's merge rules (src/sim/harness/merge.ts);
+ *  "off" reproduces v1 exactly (same items, same RNG draws), for the byte-identical regression. */
+export type Stars = "on" | "off";
+
 export class Shopper {
   uid = 100;
   edits = 0;
   synced = false; // Crucible twins matched with mirrored speed gates; kept so after every lever
   ordered = false; // flat-bonus gates ahead of Splitters on every route; kept so after every lever
+  readonly stars: boolean; // true: every gain goes through gainInto (merge-aware); false: v1 raw pushes
   readonly gates: ItemDef[]; // gates this hero's caravan sells
   readonly mods: ItemDef[];
   readonly minGate: number;
   readonly minMod: number;
 
-  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng) {
+  // NOTE: defaults to "off" (v1-exact), not the harness's product-level "on" default, so every
+  // pre-existing call site that builds a Shopper without the new 5th argument — most importantly
+  // the protected tests/harness.*.test.ts, which hand-place items bypassing gainInto and then
+  // rely on sync/order landing a gate at an exact cell — reproduces v1 byte for byte with zero
+  // risk of merge-redirection. Every real "on" entry point (randomBuild/topUp/fullPurseBuild
+  // below, tournament.ts's DEFAULT_OPTS, standins.ts's STANDIN_DEFAULTS, and the CLIs' --stars
+  // flag) passes `stars` through explicitly, so "on" is still the default at every product surface.
+  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off") {
+    this.stars = stars === "on";
     this.gates = shopItems(b.hero, "gate");
     this.mods = shopItems(b.hero, "mod");
     this.minGate = Math.min(...this.gates.map((g) => g.price));
@@ -70,8 +84,12 @@ export class Shopper {
     return u >= 0 ? this.b.items.find((p) => p.uid === u) : undefined;
   }
 
+  /** Place a new gate/factory copy at cell k. 0.6.1a: routed through gainInto when stars is on,
+   *  so a same-def 1-star twin already on the deck absorbs it instead (ARSENAL.md §4.1); off,
+   *  this is the exact v1 push (same uid sequence, no RNG consumed either way). */
   placeGate(def: string, k: number): void {
-    this.b.items.push({ uid: this.uid++, def, x: kx(k), y: ky(k) });
+    if (this.stars) gainInto(this, this.b, def, { x: kx(k), y: ky(k) });
+    else this.b.items.push({ uid: this.uid++, def, x: kx(k), y: ky(k) });
   }
 
   removeItem(uid: number): void {

@@ -14,11 +14,13 @@
 import { GRID, HEROES, ITEMS, rarityWeights, type ItemDef } from "../content";
 import { cloneBuild, footprint, itemByUid, kx, ky, occupancy, routeInfo, routesOf, type Build, type Placed } from "../deck";
 import { buildCost } from "../../net/validate";
+import { fusibleCopies, gainInto, previewMerge } from "./merge";
 import { blockedCells, freeConnectors, startCells } from "./path";
 import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Shopper } from "./shopper";
+import type { GainAt } from "../../game/fuse";
 
-export type Lever = "gate" | "mod" | "plating" | "route" | "press" | "sync" | "order" | "drop";
-export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "press", "sync", "order", "drop"];
+export type Lever = "gate" | "mod" | "plating" | "route" | "press" | "sync" | "order" | "drop" | "merge";
+export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "press", "sync", "order", "drop", "merge"];
 
 export function canApply(s: Shopper, l: Lever): boolean {
   const left = s.left(), b = s.b;
@@ -31,6 +33,7 @@ export function canApply(s: Shopper, l: Lever): boolean {
     case "sync": return !s.synced && s.twinRoutes() !== null;
     case "order": return routesOutOfOrder(b).length > 0 || buyMoves(s).length > 0;
     case "drop": return left >= PRESS.price && freeConnectors(b).length === 0 && droppable(b).length > 0;
+    case "merge": return s.stars && mergeableDefs(s).length > 0;
   }
 }
 
@@ -44,6 +47,7 @@ export function applyLever(s: Shopper, l: Lever): boolean {
     case "sync": return sync(s);
     case "order": return order(s);
     case "drop": return drop(s);
+    case "merge": return merge(s);
   }
 }
 
@@ -72,7 +76,11 @@ function mod(s: Shopper): boolean {
   const live = free.filter((t) => fed.has(t));
   const pool = s.mods.filter((d) => d.price <= left);
   if (!pool.length || !free.length) return false;
-  b.mods.push({ uid: s.uid++, def: s.rng.pick(pool).id, turret: s.rng.pick(live.length ? live : free) });
+  // same RNG order as v1 (def, then turret) whether or not this ends up merging
+  const def = s.rng.pick(pool).id;
+  const turret = s.rng.pick(live.length ? live : free);
+  if (s.stars) gainInto(s, b, def, { turret });
+  else b.mods.push({ uid: s.uid++, def, turret });
   return true;
 }
 
@@ -287,16 +295,28 @@ function drop(s: Shopper): boolean {
 }
 
 /** A Stamp Press on a free 2x2 spot (not the forward row) with a line into a free connector;
- *  `carried` gates go onto the new line (any that don't fit are not bought). */
+ *  `carried` gates go onto the new line (any that don't fit are not bought). 0.6.1a: if a 1-star
+ *  Press is already placed elsewhere, this purchase merges into it instead (no new footprint or
+ *  route to find — a Press has one output at any star, so a second route would be illegal); any
+ *  `carried` gates then have nowhere new to go and are dropped, same as the trade-off ARSENAL.md
+ *  §4.1 rule 5 already accepts for a merging drop (the target is ignored, not honoured). */
 function pressLine(s: Shopper, carried: Placed[]): boolean {
   const b = s.b;
+  if (s.stars) {
+    const preview = previewMerge(b, s.uid, PRESS.id);
+    if (preview && preview.where !== "cargo") {
+      gainInto(s, b, PRESS.id, { x: 0, y: 0 }); // target ignored: merges into the existing placed press
+      return true;
+    }
+  }
   for (let tries = 0; tries < 8; tries++) {
     const x = s.rng.int(GRID - 1), y = 1 + s.rng.int(GRID - 2);
     const occ = occupancy(b);
     if (footprint(PRESS, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
     const snap = cloneBuild(b);
-    const uid = s.uid++;
-    b.items.push({ uid, def: PRESS.id, x, y });
+    const uid = s.uid; // gainInto (stars on) mints this same uid; the raw push (off) mints it too
+    if (s.stars) gainInto(s, b, PRESS.id, { x, y }); // no twin (checked above): lands at x,y, as pushed
+    else { b.items.push({ uid, def: PRESS.id, x, y }); s.uid++; }
     const bl = blockedCells(b);
     const cells = s.drawRoute(-1, startCells(x, y, PRESS.size, bl), bl, s.left());
     if (cells) {
@@ -309,4 +329,42 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
     s.restore(snap);
   }
   return false;
+}
+
+/** Fusible defs (below 3 stars, factories excluded: a Press's single route makes a second one
+ *  unplaceable, so it merges only opportunistically through the "press"/"drop" levers above) the
+ *  "merge" lever could buy one more 1-star copy of right now: affordable, and either an immediate
+ *  merge (a 1-star twin is already placed, so no new spot is needed) or a genuinely free spot. */
+function mergeableDefs(s: Shopper): string[] {
+  const b = s.b, left = s.left();
+  const present = fusibleCopies(b).filter((c) => c.kind !== "factory");
+  if (!present.length) return [];
+  const oneStar = new Set(present.filter((c) => c.stars === 1).map((c) => c.def));
+  const cells = s.freeRouteCells();
+  const freeT = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
+  return [...new Set(present.map((c) => c.def))].filter((d) => {
+    if (ITEMS[d].price > left) return false;
+    if (oneStar.has(d)) return true; // will merge immediately: no placement needed
+    return ITEMS[d].kind === "gate" ? cells.length > 0 : freeT.length > 0;
+  });
+}
+
+/** Buy one more 1-star copy of an existing fusible def (ARSENAL.md §4.1): the new lever that
+ *  teaches the shopper to actually grow stars, on top of the organic duplicates gate/mod/press
+ *  can already draw by chance. Repeated application on the same def is how 1+1+1+1 = 3-star. */
+function merge(s: Shopper): boolean {
+  const defs = mergeableDefs(s);
+  if (!defs.length) return false;
+  const b = s.b, def = s.rng.pick(defs), kind = ITEMS[def].kind;
+  let at: GainAt;
+  if (kind === "mod") {
+    const freeT = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
+    at = { turret: s.rng.pick(freeT.length ? freeT : [0]) };
+  } else {
+    const cells = s.freeRouteCells();
+    const k = s.rng.pick(cells.length ? cells : [0]);
+    at = { x: kx(k), y: ky(k) };
+  }
+  gainInto(s, b, def, at);
+  return true;
 }
