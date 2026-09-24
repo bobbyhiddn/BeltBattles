@@ -14,6 +14,7 @@
 import { GRID, HEROES, ITEMS, rarityWeights, type ItemDef } from "../content";
 import { cloneBuild, footprint, itemByUid, kx, ky, occupancy, routeInfo, routesOf, type Build, type Placed } from "../deck";
 import { buildCost } from "../../net/validate";
+import { starsOf } from "../stars";
 import { fusibleCopies, gainInto, previewMerge } from "./merge";
 import { blockedCells, freeConnectors, startCells } from "./path";
 import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Shopper } from "./shopper";
@@ -125,7 +126,9 @@ function sync(s: Shopper): boolean {
 }
 
 /** Same speed gate (or none) at every cell index of both twins; unmatched copies are bought
- *  when affordable, else the lone speed gate goes. */
+ *  when affordable, else the lone speed gate goes. 0.6.1a (F6): "same" is the same def AND the
+ *  same star level (a 2-star and a 1-star copy run at different speeds); stars off every copy is
+ *  1-star, so this is v1's def comparison. */
 function mirrorSpeed(s: Shopper): void {
   const tw = s.twinRoutes();
   if (!tw || !matchTwins(s, tw[0], tw[1])) return;
@@ -134,16 +137,21 @@ function mirrorSpeed(s: Shopper): void {
     const ga = s.itemAt(s.b.routes[a].cells[i]), gb = s.itemAt(s.b.routes[sib].cells[i]);
     const sa = ga && isSpeedGate(ITEMS[ga.def]) ? ga : undefined;
     const sb = gb && isSpeedGate(ITEMS[gb.def]) ? gb : undefined;
-    if (sa?.def === sb?.def) continue;
+    if (sa?.def === sb?.def && starsOf(sa) === starsOf(sb)) continue;
     if (sa && sb) s.removeItem(sb.uid); // different speeds: the sibling takes route a's
     const src = (sa ?? sb)!;
-    if (!copyGateTo(s, src.def, sa ? sib : a, i)) s.removeItem(src.uid);
+    if (!copyGateTo(s, src.def, starsOf(src), sa ? sib : a, i)) s.removeItem(src.uid);
   }
 }
 
-/** Buy `def` onto cell index i of route ri, first moving a non-speed gate there to a free tile. */
-function copyGateTo(s: Shopper, def: string, ri: number, i: number): boolean {
+/** Buy `def` onto cell index i of route ri, first moving a non-speed gate there to a free tile.
+ *  0.6.1a (F6): with stars on the bought copy must mirror a `stars` copy. A new copy lands at
+ *  1 star, and it merges into any 1-star twin (the source itself at 1 star): a copy that merges,
+ *  or lands at another star level, is no mirror, so nothing is bought and the caller drops the
+ *  lone gate. (So below 3 stars a same-def speed pair can't be mirrored at all: OPEN, owner.) */
+function copyGateTo(s: Shopper, def: string, stars: number, ri: number, i: number): boolean {
   if (s.left() < ITEMS[def].price || !s.canGain(def)) return false;
+  if (s.stars && (stars !== 1 || previewMerge(s.b, s.uid, def))) return false;
   const cells = s.b.routes[ri].cells, k = cells[i];
   const there = s.itemAt(k);
   if (there) {
@@ -168,6 +176,9 @@ function addSpeedPair(s: Shopper): void {
   if (!pool.length || !idx.length || !s.twinsMatched(a, sib)) return;
   const d = s.rng.weighted(pool, (g) => w[g.rarity]);
   const i = s.rng.pick(idx);
+  // F6 (stars on): the second new copy would merge into the first (a merge is no mirror), so a
+  // pair bought now can never stay mirrored; the draws above are kept, nothing is bought
+  if (s.stars) return;
   if (!s.canGain(d.id)) return; // F8 cap (always true at FUSE_MAX): the first copy
   s.placeGate(d.id, ra[i]);
   if (!s.canGain(d.id)) return; // the second copy may chain further than the first
@@ -262,7 +273,7 @@ export function buildTraits(b: Build, startRoutes: number): Traits {
     const occ = occupancy(b);
     const speeds = (ri: number) => b.routes[ri].cells.map((k) => {
       const p = b.items.find((q) => q.uid === occ[k].item);
-      return p && isSpeedGate(ITEMS[p.def]) ? p.def : "";
+      return p && isSpeedGate(ITEMS[p.def]) ? `${p.def}*${starsOf(p)}` : ""; // F6 (patch 0004): a 2-star and a 1-star copy run at different speeds
     });
     const sa = speeds(own[0]), sc = speeds(own[1]);
     synced = ia.turret >= 0 && ia.turret === ic.turret && ia.tiles === ic.tiles && sa.join() === sc.join();
