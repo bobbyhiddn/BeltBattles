@@ -5,7 +5,7 @@
 // runs exactly as submitted. Selection uses its own seed streams (shop rolls and battle seeds stay).
 
 import { hashSeed, Rng } from "../core/rng";
-import { HEROES, ITEMS, START_LIVES } from "../sim/content";
+import { HEROES, ITEMS, RUN_DAYS, START_LIVES } from "../sim/content";
 import { beltUsed, removeItem } from "../sim/deck";
 import { BAG_IDS, EVENTS, EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "./eventDefs";
 import type { Run } from "./run";
@@ -55,8 +55,10 @@ function owns(run: Run, d: Extract<Delta, { k: "item" }>): boolean {
   return run.inventory.some((i) => i.uid === uid);
 }
 
-/** Why a choice can't be taken right now, or undefined. */
+/** Why a choice can't be taken right now, or undefined. 0.6.0c: an ELITE BOUNTY or SABOTAGE on the
+ *  last day (run.day >= RUN_DAYS) could never pay, as no warlord is left: NO WARLORD LEFT. */
 export function blockReason(run: Run, c: Choice): string | undefined {
+  if (run.day >= RUN_DAYS && c.gain.some((d) => d.k === "bounty" || d.k === "sabotage")) return "NO WARLORD LEFT";
   for (const d of c.cost) {
     if (d.k === "gold" && run.gold < d.n) return `NEED ${d.n - run.gold} MORE GOLD`;
     if (d.k === "hull" && HEROES[run.hero].hull + run.build.hullBonus - d.n < 100) return "HULL TOO WEAK";

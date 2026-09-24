@@ -11,7 +11,8 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText } from "../render/font";
 import { itemIcon } from "../render/sprites";
-import { button, panel } from "../ui/ui";
+import { blockedButton, button, panel } from "../ui/ui";
+import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawHearts } from "./battleHud";
 import { itemName } from "./event/cards";
@@ -80,7 +81,10 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
     });
   } else if (r.took) {
     button(ui, g, "refit", { x: x + 10, y: by, w: bw, h: 20 }, "REFIT", { primary: true, onTap: a.refit });
-    button(ui, g, "fightnow", { x: x + 14 + bw, y: by, w: bw, h: 20 }, "FIGHT NOW", { onTap: a.fight });
+    const fr = { x: x + 14 + bw, y: by, w: bw, h: 20 };
+    const why = fightBlock(run.build); // a dead-end or broken belt: REFIT first (routeCheck.ts)
+    if (why) blockedButton(ui, g, "fightnow", fr, "FIGHT NOW", why);
+    else button(ui, g, "fightnow", fr, "FIGHT NOW", { onTap: a.fight });
   } else {
     button(ui, g, "next", { x: x + 10, y: by, w: cw - 20, h: 20 }, "ON TO DUSK", { primary: true, onTap: a.fight });
   }

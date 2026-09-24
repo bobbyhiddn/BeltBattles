@@ -67,8 +67,15 @@ export async function roadStop(page, touch, log, at, state, pick, reloadMid = fa
   await sleep(450);
   const r = await page.evaluate(() => {
     const run = window.bb.game.run, x = run.warlord.result;
-    return { outcome: x.outcome, time: x.time.toFixed(1), gold: x.gold, parts: x.parts, took: x.took, lives: run.lives, goldNow: run.gold };
+    return { outcome: x.outcome, time: x.time.toFixed(1), gold: x.gold, bountyPaid: x.bountyPaid, parts: x.parts, took: x.took, lives: run.lives, goldNow: run.gold };
   });
+  if (w.bounty) {
+    // 0.6.0c: HERALD's stake rides on this Hard warlord (run.bounty is taken when the fight starts)
+    state.bountyLog = r.outcome === "win"
+      ? `PAID +${r.bountyPaid}G on day ${w.day} vs ${w.name} (win ${r.gold}G = reward ${r.gold - r.bountyPaid} + bounty ${r.bountyPaid}; staked on day ${state.took.herald})`
+      : `LOST on day ${w.day} vs ${w.name} (${r.outcome}: the +${w.bounty}G bounty is gone; staked on day ${state.took.herald})`;
+    log(`[${at()}] ELITE BOUNTY ${state.bountyLog}`);
+  }
   const livesSame = r.lives === w.lives;
   if (!livesSame) state.livesChanged.push(`day ${w.day}`);
   if (r.outcome !== "win") state.warlordLosses.push(`day ${w.day} ${w.name}: lives ${w.lives} -> ${r.lives}`);

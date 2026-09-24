@@ -8,7 +8,7 @@ import { HEROES, ITEMS, MERCHANTS, START_LIVES } from "../../sim/content";
 import { beltUsed, connectedRouteCount, defOf, estimateRoute, itemByUid, key, routeInfo, routesOf } from "../../sim/deck";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
-import { drawText, wrap } from "../../render/font";
+import { drawText, textWidth, wrap } from "../../render/font";
 import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
@@ -129,8 +129,16 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   const column = area.h >= 70; // landscape column: size to content, button under the text
   if (!sp) return drawIdle(g, ctx.run, area, column, foe);
   const wrapW = area.w - 10;
-  const lines = sp.text.flatMap((l) => wrap(l, wrapW, "3"));
-  const r = column ? { ...area, h: Math.min(area.h, 27 + lines.length * 7 + (sp.action ? 22 : 4)) } : area;
+  // the description in the 5x7 face when it fits the area (easier to read), else the 3x5 face
+  const extra = sp.action ? 22 : 4;
+  let font: "5" | "3" = "5", lh = 9;
+  let lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
+  if (column ? 27 + lines.length * lh + extra > area.h : lines.length * lh - 2 > area.h - 29) {
+    font = "3";
+    lh = 7;
+    lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
+  }
+  const r = column ? { ...area, h: Math.min(area.h, 27 + lines.length * lh + extra) } : area;
   panel(g, r, "dark");
   ctx.game.ui.add({ id: "details", r, block: true });
   rect(g, r.x + 4, r.y + 4, 16, 16, C.ink);
@@ -148,9 +156,9 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   }
   let y = r.y + 25;
   for (const ln of lines) {
-    if (y + 5 > maxY) break;
-    drawText(g, ln, r.x + 5, y, C.bone, { font: "3" });
-    y += 7;
+    if (y + lh - 2 > maxY) break;
+    drawText(g, ln, r.x + 5, y, C.bone, { font });
+    y += lh;
   }
 }
 
@@ -166,6 +174,29 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe): vo
     return;
   }
   if (!column) return drawHeroStrip(g, run, area);
+  // landscape column: the stats in the 5x7 face when they fit (RUN split into RUN and LIVES)
+  const big: [string, string, string][] = [
+    ["HULL", String(h.hull + b.hullBonus), C.white],
+    ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],
+    ["FEEDS", `${connectedRouteCount(b)}/${h.turrets.reduce((n, tt) => n + tt.connectors.length, 0)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
+    ["RUN", `W-L ${record(run)}`, C.white],
+    ["LIVES", `${run.lives}/${START_LIVES}`, C.white],
+  ];
+  const kw = textWidth("FEEDS") + 6;
+  if (big.every(([, v]) => 10 + kw + textWidth(v) <= area.w) && 31 + big.length * 10 <= area.h) {
+    const r = { ...area, h: 31 + big.length * 10 };
+    panel(g, r, "dark");
+    drawText(g, h.name, r.x + 5, r.y + 5, C.white, { outline: C.ink });
+    drawText(g, h.factionName, r.x + r.w - 5, r.y + 6, C.slate4, { font: "3", align: "right" });
+    drawText(g, `PLAYSTYLE: ${h.pattern}`, r.x + 5, r.y + 16, C.yellow, { font: "3" });
+    let y = r.y + 27;
+    for (const [k, v, c] of big) {
+      drawText(g, k, r.x + 5, y, C.slate4);
+      drawText(g, v, r.x + 5 + kw, y, c);
+      y += 10;
+    }
+    return;
+  }
   const rows: [string, string, string][] = [
     ["HULL", String(h.hull + b.hullBonus), C.white],
     ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],

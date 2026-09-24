@@ -4,7 +4,8 @@
 // warlordHull and may exceed the budget), fought on its own seed hashSeed(runSeed, "warlord", day),
 // so a reload replays the same fight. It NEVER costs a life: a loss only forfeits the reward.
 // Rewards (decision 3): Easy +2 gold, Medium +4, Hard +3 and a pick of 1 of the warlord's 2 most
-// expensive distinct non-signature parts; the Iron Matriarch +5 and her most expensive part
+// expensive distinct non-signature parts (0.6.0c: always 2; a deck with fewer is filled from the
+// same captain's later decks, see hardParts); the Iron Matriarch +5 and her most expensive part
 // (LEGENDARY). R3: she holds the Hard slot on days 8-10 until beaten (run.matriarchBeatenOn).
 // Road events act only on warlords: a pending SABOTAGE weakens the next warlord, a pending ELITE
 // BOUNTY rides on the next Hard warlord. Dusk (day.ts) is unchanged: a ghost runs as submitted.
@@ -77,6 +78,11 @@ export function warlordDeck(id: RivalId, day: number, sabotaged = false): Build 
   return b;
 }
 
+/** The day of the rivalBuild a warlord fights with: day, or day - 1 when SABOTAGE swapped it. */
+export function warlordDeckDay(id: RivalId, day: number, sabotaged = false): number {
+  return sabotaged && rivalDays(id).includes(day - 1) ? day - 1 : day;
+}
+
 /** A deck's n most expensive distinct parts (deck items and turret gear), signature factories and
  *  supplies excluded; ties by id. */
 export function topParts(b: Build, n: number): string[] {
@@ -89,10 +95,28 @@ export function topParts(b: Build, n: number): string[] {
     .slice(0, n);
 }
 
-/** What beating this warlord pays (decision 3), from the deck it fights with. */
-export function warlordReward(id: RivalId, tier: Difficulty, deck: Build): WarlordReward {
+/** A Hard win's n parts (0.6.0c: every Hard pick offers 2): topParts of the deck it fought, and
+ *  when that deck has fewer, the rest from the same captain's later decks (rivalBuild(id, d) for
+ *  the days d in rivalDays(id) after deckDay, in order, each priciest first), skipping parts
+ *  already offered. */
+export function hardParts(id: RivalId, deck: Build, deckDay: number, n = 2): string[] {
+  const out = topParts(deck, n);
+  for (const d of rivalDays(id)) {
+    if (out.length >= n) break;
+    if (d <= deckDay) continue;
+    for (const p of topParts(rivalBuild(id, d), Infinity)) {
+      if (out.length >= n) break;
+      if (!out.includes(p)) out.push(p);
+    }
+  }
+  return out;
+}
+
+/** What beating this warlord pays (decision 3), from the deck it fights with (rivalBuild of
+ *  deckDay; warlordDeckDay). */
+export function warlordReward(id: RivalId, tier: Difficulty, deck: Build, deckDay: number): WarlordReward {
   if (id === "matriarch") return { gold: MATRIARCH_GOLD, parts: topParts(deck, 1), legendary: true };
-  return { gold: REWARD_GOLD[tier], parts: tier === "hard" ? topParts(deck, 2) : [], legendary: false };
+  return { gold: REWARD_GOLD[tier], parts: tier === "hard" ? hardParts(id, deck, deckDay) : [], legendary: false };
 }
 
 /** The warlord of a tier on today's fork, set up for the fight. Consumes a pending SABOTAGE (the
@@ -110,7 +134,7 @@ export function warlordFight(run: Run, tier: Difficulty): WarlordFight {
   const r = RIVALS[id];
   return {
     day: run.day, tier, id, name: r.name, hero: r.hero, build, sabotaged, bounty,
-    reward: warlordReward(id, tier, build), result: null,
+    reward: warlordReward(id, tier, build, warlordDeckDay(id, run.day, sabotaged)), result: null,
   };
 }
 

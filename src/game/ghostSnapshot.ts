@@ -11,6 +11,9 @@ export const SNAPSHOT_VERSION = 1;
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Where the anonymous player id lives (made once per device). */
 export const PLAYER_KEY = "beltbattles.player.v1";
+/** The async contract's bounds (ref/async-snapshot.ts): a run is 10 days; lives cap generously. */
+export const MAX_DAY = 10;
+export const MAX_LIVES = 9;
 
 export interface GhostSnapshot {
   v: 1;
@@ -39,16 +42,21 @@ function buildOk(b: unknown): b is Build {
     && Array.isArray(q.mods) && typeof q.beltCap === "number" && typeof q.hullBonus === "number";
 }
 
-/** Shape check of a v1 snapshot: exactly the contract's fields, ids matching ID_PATTERN. */
+/** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */
+const inRange = (v: unknown, min: number, max: number): boolean => isInt(v) && v >= min && v <= max;
+
+/** Shape check of a v1 snapshot: exactly the contract's fields, ids matching ID_PATTERN, and
+ *  (0.6.0c) checkSnapshot's numeric bounds exactly: day 1..MAX_DAY, wins 0..day - 1, lives
+ *  1..MAX_LIVES, createdAt 0..Number.MAX_SAFE_INTEGER. */
 export function isSnapshot(v: unknown): v is GhostSnapshot {
   const q = v as Raw | null;
   if (!q || typeof q !== "object" || Array.isArray(q)) return false;
   const keys = Object.keys(q);
   if (keys.length !== SNAPSHOT_KEYS.length || !SNAPSHOT_KEYS.every((k) => keys.includes(k))) return false;
-  return q.v === 1 && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && isInt(q.day) && q.day >= 1
-    && isInt(q.wins) && q.wins >= 0 && isInt(q.lives) && q.lives >= 1 && buildOk(q.build) && q.build.hero === q.hero
+  return q.v === 1 && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
+    && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
-    && ID_PATTERN.test(q.playerId) && isInt(q.createdAt) && q.createdAt >= 0;
+    && ID_PATTERN.test(q.playerId) && inRange(q.createdAt, 0, Number.MAX_SAFE_INTEGER);
 }
 
 /** Any string made safe for ID_PATTERN (invalid characters become "_", at most 64 long). */

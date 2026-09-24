@@ -85,6 +85,12 @@ export class Fx {
     return this.seed / 4294967296;
   }
 
+  /** Tooling (metrics, bb.seedFx): restart the cosmetic RNG at `seed`, so a measured shake
+   *  repeats exactly. Never the simulation's RNG. */
+  reseed(seed: number): void {
+    this.seed = seed >>> 0;
+  }
+
   clear(): void {
     this.parts.clear();
     this.na = this.np = this.nd = 0;

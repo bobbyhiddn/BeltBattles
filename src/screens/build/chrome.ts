@@ -130,14 +130,37 @@ function drawCargo(g: G, s: BuildScreen): void {
   if (carry && carry.src.from !== "cargo" && inside(r, s.ed.px, s.ed.py)) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, C.yellow);
 }
 
+/** FIGHT! beside the bow. A dead-end or broken belt (s.block) disables it and names why: under
+ *  FIGHT! when it fits, else as the label; a press toasts it (BuildScreen.fight). */
+function drawFight(g: G, s: BuildScreen, cue: boolean): void {
+  const ui = s.game.ui, r = s.L.fight, why = s.block;
+  if (!why) {
+    button(ui, g, "fight", r, "FIGHT!", { primary: true, blink: s.armed > 0, active: cue && Math.floor(s.t * 3) % 2 === 1, onTap: () => s.fight() });
+    return;
+  }
+  button(ui, g, "fight", r, "", { disabled: true, onBlocked: () => s.fight() });
+  const both = r.h >= 28 && textWidth(why, "3") <= r.w - 6;
+  const lines = both ? [why] : wrap(why, r.w - 6, "3");
+  const h = (both ? 11 : 0) + lines.length * 7 - 2;
+  let y = r.y + Math.floor((r.h - 1 - h) / 2);
+  if (both) {
+    drawText(g, "FIGHT!", r.x + r.w / 2, y, C.slate3, { align: "center" });
+    y += 11;
+  }
+  for (const ln of lines) {
+    drawText(g, ln, r.x + r.w / 2, y, C.red, { font: "3", align: "center" });
+    y += 7;
+  }
+}
+
 export function drawBuildChrome(g: G, s: BuildScreen): void {
   const L = s.L;
   const ui = s.game.ui;
   if (s.refit) drawRefitBanner(g, s);
   else drawShop(g, s);
   drawCargo(g, s);
-  const cue = s.placedOnce && !s.ed.busy;
-  button(ui, g, "fight", L.fight, "FIGHT!", { primary: true, blink: s.armed > 0, active: cue && Math.floor(s.t * 3) % 2 === 1, onTap: () => s.fight() });
+  const cue = s.placedOnce && !s.ed.busy && !s.block;
+  drawFight(g, s, cue);
   if (!L.portrait) {
     if (L.foe) drawFoe(g, s.foe, L.foe);
     drawDetails(g, s, s.sel, s.hover, L.info, s.foe);

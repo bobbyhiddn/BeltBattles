@@ -36,13 +36,16 @@ export async function tapRegion(page, touch, id) {
   await press(page, touch, await regionCenter(page, id));
 }
 
-/** Drag (mouse) or tap-select + tap-place (touch) the build screen's planned part onto its belt tile. */
-export async function placePlanned(page, touch) {
+/** Drag (mouse) or tap-select + tap-place (touch) the build screen's planned part onto its belt tile.
+ *  0.6.0c: `reserve` gold must be left after a shop buy (today's STAKE / SPY), else nothing is bought. */
+export async function placePlanned(page, touch, reserve = 0) {
   const plan = await page.evaluate(() => {
-    const p = window.bb.game.screen.dragPlan();
-    return p && { a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y), def: p.def };
+    const s = window.bb.game.screen, run = window.bb.game.run, p = s.dragPlan();
+    if (!p) return null;
+    const prices = s.refit ? [] : run.shop.wagons.flatMap((w) => w.offers).filter((o) => !o.sold && o.def === p.def && o.price <= run.gold).map((o) => o.price);
+    return { a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y), def: p.def, left: run.gold - Math.max(0, ...prices) };
   });
-  if (!plan) return null;
+  if (!plan || plan.left < reserve) return null;
   const n0 = await page.evaluate(() => window.bb.game.run.build.items.length);
   if (touch) {
     await press(page, true, plan.a);
@@ -67,7 +70,14 @@ export async function road(page, touch, log, at, state) {
     return { id: run.event.id, day: run.day, gold: run.gold, choices: sc.choices.map((c) => ({ label: c.label, blocked: c.blocked || "", item: c.gain.some((d) => d.k === "item") })) };
   });
   log(`[${at()}] FIGHT -> ROAD EVENT ${ev.id} (day ${ev.day}, ${ev.gold} gold): ${ev.choices.map((c, i) => `${i + 1} ${c.label}${c.blocked ? ` [${c.blocked}]` : ""}`).join(" | ")}`);
-  let pick = state.refitDone ? -1 : ev.choices.findIndex((c) => c.item && !c.blocked);
+  // 0.6.0c: the run's `take` list names a choice to take at an event (desk: HERALD's STAKE, SCOUT's SPY)
+  const want = state.take[ev.id];
+  let pick = want ? ev.choices.findIndex((c) => c.label === want[0] && !c.blocked) : -1;
+  if (want) {
+    if (pick >= 0) state.took[ev.id] = ev.day;
+    else log(`[${at()}] ${want[0]} is not open at ${ev.id} (${(ev.choices.find((c) => c.label === want[0]) || { blocked: "missing" }).blocked})`);
+  }
+  if (pick < 0 && !state.refitDone) pick = ev.choices.findIndex((c) => c.item && !c.blocked);
   if (pick < 0) pick = ev.choices.findIndex((c, i) => i >= (ev.day % 2) && !c.blocked);
   if (pick < 0) pick = ev.choices.length - 1;
   await tapRegion(page, touch, `choice${pick}`);
@@ -140,6 +150,8 @@ export async function scriptedRun(page, touch, log, opts) {
     refitDone: false, picks: 0, reloadSame: false, losses: [], ghosts: 0, standins: 0, placed: 0, foes: 0, dishonest: [],
     // 0.6.0b road fork
     forkPicks: {}, tapPicks: 0, warlordLosses: [], livesChanged: [], matriarchDays: [], reloadWarlordSame: false, warlordRefit: false, dayLog: [], spend: [],
+    // 0.6.0c: choices to take ({ eventId: [label, gold] }), the days they were taken, the bounty's end, scout check
+    take: opts.take || {}, took: {}, bountyLog: null, scoutFought: false,
   };
   const n = await page.evaluate((pool) => { window.bb.clearPool(); return window.bb.addGhosts(pool); }, opts.pool);
   log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ")}`);
@@ -155,13 +167,19 @@ export async function scriptedRun(page, touch, log, opts) {
     });
     log(`[${at()}] DAWN · DAY ${dawn.day}/10: ${dawn.gold} gold, ${dawn.lives} lives, W-L ${dawn.wl}; NEXT BATTLE ${dawn.foe} (${dawn.kind})${day === 1 ? `, seed ${dawn.seed}` : ""}`);
     const parts = [];
-    for (let k = 0; k < 2; k++) {
-      const def = await placePlanned(page, touch);
+    // keep today's STAKE / SPY affordable when the road goes to that event
+    const today = await page.evaluate(() => window.bb.forkInfo().event);
+    const want = ((opts.roads || "")[day - 1] || "v") === "v" ? state.take[today] : null;
+    const reserve = want ? want[1] : 0;
+    // backing a stake: the dawn before the bounty's Hard warlord spends freely (else 2 gates a day)
+    const backing = ((opts.roads || "")[day - 1] || "v") === "h" && !!state.took.herald && !state.bountyLog;
+    for (let k = 0; k < (backing ? 8 : 2); k++) {
+      const def = await placePlanned(page, touch, reserve);
       if (!def) break;
       parts.push(def);
       state.placed++;
     }
-    if (parts.length) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ")}`);
+    if (parts.length || reserve || backing) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}${backing ? " (backing the bounty: buying all it can)" : ""}`);
     await tapRegion(page, touch, "fight");
     await roadStop(page, touch, log, at, state, (opts.roads || "")[day - 1] || "v", day === opts.reloadWarlordDay);
     const foe = await foeOf(page);
@@ -173,6 +191,7 @@ export async function scriptedRun(page, touch, log, opts) {
       const same = state.scouted.name === foe.name && state.scouted.build === foe.build;
       log(`[${at()}] dusk fights the scouted deck (name + build): ${same}`);
       if (!same) throw new Error("the dusk foe is not the deck SCOUT revealed");
+      state.scoutFought = true;
       state.scouted = null;
     }
     if (!honestFoe(foe)) state.dishonest.push(`day ${foe.day}`);
@@ -224,6 +243,18 @@ export async function scriptedRun(page, touch, log, opts) {
   if (days < 3) throw new Error("scripted run played fewer than 3 days");
   if (opts.check === "desk" && (["v", "e", "m", "h"].some((k) => (fp[k] || 0) < 2) || !state.warlordLosses.length || !state.matriarchDays.includes(8) || days < 10)) {
     throw new Error("desk run missed a required step (each tier twice, an event twice, a warlord loss, the Matriarch on day 8, 10 days)");
+  }
+  if (opts.check === "desk") {
+    // 0.6.0c: the 0.6.0a throws are back (a dusk loss from 5 to 4 lives; CONTINUE after the dusk
+    // reload meets the same ghost), and the takes: HERALD's STAKE paid out or lost on the next Hard
+    // warlord, SCOUT's SPY followed by a dusk against the scouted deck
+    const took = Object.entries(state.took).map(([id, d]) => `${id} ${state.take[id][0]} on day ${d}`);
+    log(`[${at()}] takes: ${took.join(", ") || "none"}; bounty: ${state.bountyLog || "-"}; dusk fought the scouted deck: ${state.scoutFought}; dusk lost 5 -> 4: ${state.losses.some((l) => l.includes("5 -> 4"))}; dusk reload kept the ghost: ${state.reloadSame}`);
+    if (!state.losses.some((l) => l.includes("5 -> 4"))) throw new Error("desk run never lost a dusk fight from 5 to 4 lives");
+    if (!state.reloadSame) throw new Error("desk run: CONTINUE after the dusk reload did not meet the same ghost");
+    for (const id of Object.keys(state.take)) if (!state.took[id]) throw new Error(`desk run did not take ${id}'s ${state.take[id][0]}`);
+    if (state.took.herald && !state.bountyLog) throw new Error("desk run: the staked bounty never met a Hard warlord");
+    if (state.took.scout && !state.scoutFought) throw new Error("desk run: dusk never fought the scouted deck");
   }
   if (opts.check === "phone" && (state.tapPicks < 1 || !state.reloadWarlordSame)) throw new Error("phone run missed a required step (a fork pick by tap, a reload mid-warlord with the same fight)");
   if (state.dishonest.length) throw new Error(`a dusk foe was not an honest deck (${state.dishonest.join(", ")})`);

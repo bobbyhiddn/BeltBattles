@@ -6,11 +6,15 @@
 import { chromium } from "playwright-core";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, extname, join, normalize, resolve } from "node:path";
-import { SHOTS, VIEWS, prep } from "./shots-list.mjs";
+import { pathToFileURL } from "node:url";
 import { measure } from "./metrics.mjs";
 
+// BB_SHOTS: another shot-list module (a trial list; it re-exports VIEWS and prep from shots-list.mjs)
+const { SHOTS, VIEWS, prep } = await import(process.env.BB_SHOTS ? pathToFileURL(resolve(process.env.BB_SHOTS)).href : "./shots-list.mjs");
+
 const ROOT = new URL("..", import.meta.url).pathname;
-const DIST = join(ROOT, "dist");
+// BB_DIST: serve another build directory (parallel trial builds; default dist/)
+const DIST = process.env.BB_DIST ? resolve(process.env.BB_DIST) : join(ROOT, "dist");
 const OUT = resolve(process.argv[2] ?? join(ROOT, "shots"));
 const filter = process.argv[3] ?? "";
 const ORIGIN = "http://bb.test";

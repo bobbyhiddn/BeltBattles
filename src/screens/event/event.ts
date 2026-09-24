@@ -15,7 +15,8 @@ import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
 import { ArenaBg } from "../../render/arenaBg";
 import { drawScene } from "../../render/scenes";
-import { button, panel, type Rect } from "../../ui/ui";
+import { blockedButton, button, panel, type Rect } from "../../ui/ui";
+import { fightBlock } from "../../game/routeCheck";
 import { optionsCard } from "../../ui/hud";
 import { drawRunBar, newAnchors, type AnchorKind } from "../../ui/runbar";
 import { deltaIcon, deltaText, drawChoiceCard, itemName } from "./cards";
@@ -282,7 +283,10 @@ export class EventScreen implements Screen {
       const bw = stack ? Math.floor((r.w - 16) / 2) : 68;
       const x0 = stack ? r.x + 6 : r.x + r.w - 2 * bw - 12;
       button(ui, g, "refit", { x: x0, y: by, w: bw, h: bh }, "REFIT", { primary: true, onTap: this.onRefit });
-      button(ui, g, "fightnow", { x: x0 + bw + 4, y: by, w: bw, h: bh }, "FIGHT NOW", { onTap: this.onFight });
+      const fr = { x: x0 + bw + 4, y: by, w: bw, h: bh };
+      const why = fightBlock(this.run.build); // a dead-end or broken belt: REFIT first (routeCheck.ts)
+      if (why) blockedButton(ui, g, "fightnow", fr, "FIGHT NOW", why);
+      else button(ui, g, "fightnow", fr, "FIGHT NOW", { onTap: this.onFight });
     } else {
       const bw = stack ? r.w - 12 : 80;
       button(ui, g, "evfight", { x: stack ? r.x + 6 : r.x + r.w - bw - 8, y: by, w: bw, h: bh }, "FIGHT!", { primary: true, onTap: this.onFight });

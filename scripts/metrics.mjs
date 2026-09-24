@@ -54,6 +54,19 @@ function shakeOnKO() {
   return { koAtSimSeconds: +a.b.t.toFixed(2), peakLogicalPx: a.shakePeak, peakCssPx: a.shakePeak * k };
 }
 
+// 0.6.0c: each shake reading opens the battle, seeds its effects RNG and measures in ONE
+// evaluate, so the page's live rAF loop cannot step the battle (drawing on the effects RNG)
+// in between: every run of one build reads the same shake. bb.seedFx restarts only the
+// cosmetic effects RNG, never the simulation's.
+const FX_SEED = 1;
+function shake(page, rm, fn, arg) {
+  return page.evaluate(`(() => {
+    if ((${openBattle})(${JSON.stringify({ rm })}) !== "battle") throw new Error("metrics: the battle did not open");
+    if (!window.bb.seedFx(${FX_SEED})) throw new Error("metrics: bb.seedFx found no arena");
+    return (${fn})(${arg === undefined ? "" : JSON.stringify(arg)});
+  })()`);
+}
+
 // 0.5.0 targets: open floor between the bows >= 17 % of the firing axis (20 % on desk and
 // phone), deck share of the short axis >= 0.60 (replaces 0.4.x's 0.80), and the 0.4.1 shake
 // checks (light bolt exactly 1 px, heavy shell >= 2 px, 0 with Reduced Motion).
@@ -74,7 +87,7 @@ function checks(vname, v) {
 export async function measure(browser, origin, serve, errors) {
   const out = {
     version: VERSION, generated: new Date().toISOString(),
-    target: { gapShare: GAP_TARGET, deckShare: DECK_TARGET, shake: { lightPx: 1, heavyMinPx: 2, reducedMotionPx: 0 } },
+    target: { gapShare: GAP_TARGET, deckShare: DECK_TARGET, shake: { lightPx: 1, heavyMinPx: 2, reducedMotionPx: 0, fxSeed: FX_SEED } },
     views: {},
   };
   for (const [vname, vopts] of Object.entries(VIEWS)) {
@@ -95,17 +108,12 @@ export async function measure(browser, origin, serve, errors) {
         shortAxisShare: +d.share.toFixed(4), deckShare: +d.share.toFixed(4), longAxisShare: +d.longShare.toFixed(4), gap: d.gap,
       };
     }));
-    v.shakeOnHit = await page.evaluate(shakeOnHit, -1);
-    await page.evaluate(openBattle, { rm: false });
-    v.shakeOnHeavyHit = await page.evaluate(shakeOnHit, 1);
-    await page.evaluate(openBattle, { rm: true });
-    v.shakeOnHitReducedMotion = await page.evaluate(shakeOnHit, -1);
-    await page.evaluate(openBattle, { rm: true });
-    v.shakeOnHeavyHitReducedMotion = await page.evaluate(shakeOnHit, 1);
-    await page.evaluate(openBattle, { rm: false });
-    v.shakeOnKO = await page.evaluate(shakeOnKO);
-    await page.evaluate(openBattle, { rm: true });
-    v.shakeOnKOReducedMotion = await page.evaluate(shakeOnKO);
+    v.shakeOnHit = await shake(page, false, shakeOnHit, -1);
+    v.shakeOnHeavyHit = await shake(page, false, shakeOnHit, 1);
+    v.shakeOnHitReducedMotion = await shake(page, true, shakeOnHit, -1);
+    v.shakeOnHeavyHitReducedMotion = await shake(page, true, shakeOnHit, 1);
+    v.shakeOnKO = await shake(page, false, shakeOnKO);
+    v.shakeOnKOReducedMotion = await shake(page, true, shakeOnKO);
     // live frame timing: real rAF loop, 10 s of battle at 1x after the intro
     await page.evaluate(() => { window.bb.setReducedMotion(false); window.bb.game.run = null; window.bb.open("battle", "furnace", 777); });
     await page.waitForTimeout(3200);
