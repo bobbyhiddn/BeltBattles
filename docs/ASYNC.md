@@ -27,12 +27,14 @@ and 0.7.0 wire this in (checklist at the end).
 | `src/net/replay.ts` | `battleRecordFor`, `replay`, `replayBattle`, rules-version refusal |
 | `src/net/fallback.ts` | `offlineGhost`, `loadGhostPool`, `fallbackGhost` |
 | `src/net/ghostClient.ts` | `fetchGhost` and `submitGhost`: fetch + AbortController, never throw |
-| `server/` | `app.ts` (routes), `store.ts` (JSON lines), `main.ts` (CLI), `node.d.ts` (Node types) |
-| `tools/` | `samplePool.ts` (40 validated sample ghosts), `genGhostPool.ts` (writes the JSON) |
+| `server/` | `app.ts` (routes), `store.ts` (the async `GhostStore` interface and the JSON-lines store), `tigrisStore.ts` (Tigris store), `s3.ts` + `sigv4.ts` (S3 client and signer, no SDK), `seed.ts` (the `seed` command), `config.ts` (flags and env), `main.ts` (CLI), `node.d.ts` (Node types) |
+| `tools/` | `samplePool.ts` (40 validated sample ghosts), `genGhostPool.ts` (writes the JSON), `fakeS3.ts` (in-process S3 for tests), `smoke.ts` (local smoke run) |
+| `deploy/`, `fly.toml`, `Dockerfile` | the Fly deploy kit: see "Running on Fly + Tigris" and `deploy/RUNBOOK.md` |
 
 Scripts: `npm run build:server` (type-checks with `tsconfig.server.json`, then bundles with
 vite into `server/dist/`), `npm run server -- --port 7790 --data ./ghost-data`,
-`npm run gen:ghosts -- --out <file>`, `npm run typecheck:server`.
+`npm run gen:ghosts -- --out <file>`, `npm run typecheck:server`,
+`node server/dist/ghost-server.mjs seed`, `node deploy/stage.mjs <game.html>`, `npm run smoke`.
 
 ## Snapshot format (v1)
 
@@ -135,7 +137,8 @@ it returns `fallbackGhost(req, pool)`:
 `crypto.randomUUID()` kept in localStorage. The id pattern cannot hold an e-mail address.
 Snapshots hold no names, no accounts and no IP addresses. The server prints client IPs in its stdout
 request log (path and status only, never the query string, which holds the player id). If it
-goes public, keep log retention short or drop IPs from the log line.
+goes public, keep log retention short or drop IPs from the log line. On Fly the logged address is the
+player's (Fly-Client-IP) and the log goes to Fly's log stream, so that retention applies.
 
 ## Hosting options (operator decides)
 
@@ -145,10 +148,115 @@ goes public, keep log retention short or drop IPs from the log line.
 | Tailscale Funnel from this machine | ~1 h | €0 | Public HTTPS URL; online only while this machine is |
 | Small VPS (Hetzner CX22, DO basic) + Caddy TLS + domain | ~½ day | €4-6/mo + ~€12/yr domain | systemd unit, nightly copy of `ghosts.jsonl` |
 | Fly.io / Render / Railway + 1 GB volume | 2-4 h | ~$2-7/mo | Needs a volume for the JSON-lines file |
+| **Fly.io + Tigris (chosen)** | kit done | a few $/mo; the machine stops when idle | No volume: ghosts are Tigris objects. See "Running on Fly + Tigris" |
 | Cloudflare Workers + D1/KV | 1-2 days | free tier likely enough | Port `app.ts` to fetch handlers and the store to D1; `src/net` runs unchanged |
 
 At about 1 KB per ghost, 1 million ghosts is about 1 GB. The in-memory index is fine up to hundreds of
 thousands. Past that, cap each (rules, day) bucket or move to SQLite.
+
+## Running on Fly + Tigris
+
+One `shared-cpu-1x` machine with 256 MB in `iad` runs the bundle (`node:20-alpine`, no npm install)
+and serves both the game page (0.6.0-c, at `/`) and the API (`/v1/...`) from one HTTPS origin,
+https://beltbattles.fly.dev. It stops when idle and starts on the next request. Ghosts live in a
+Tigris bucket (Fly's S3-compatible object storage), so the machine has no volume and nothing to
+back up. The kit is `fly.toml`, `Dockerfile` and `.dockerignore` at the repo root, plus
+`deploy/stage.mjs`, `deploy/GAME_BUILD.txt` and `deploy/RUNBOOK.md` (the exact commands, the checks
+to run and rollback). `npm run smoke` runs the built bundle against the in-process fake S3.
+
+**Object layout.** One object per ghost, keyed by rules, day and content id:
+
+```
+ghosts/<rules>/d<DD>/pool/<id>.json     stand-in pool: written only by `seed`
+ghosts/<rules>/d<DD>/player/<id>.json   player uploads: written only by POST /v1/ghosts
+```
+
+- One (rules, day) bucket is one LIST prefix, `ghosts/<rules>/d<DD>/`.
+- The pool has its own prefix below it, so a seed lists, rewrites and deletes pool keys without
+  ever seeing a player key.
+- Keys use only `[A-Za-z0-9._/-]`, so ListObjectsV2 XML never needs unescaping. Rules strings that
+  would make a `.` or `..` path segment are refused.
+- `<id>` is the content hash (`ghostId`), so a key's body never changes.
+- Each body is the same `{"id","at","snapshot"}` record as a `ghosts.jsonl` line: concatenating the
+  objects gives a valid JSON-lines file.
+- A pool record's `at` is its `createdAt`, so re-seeding an unchanged pool writes nothing.
+- Deleting an old rules version means deleting the prefix `ghosts/<rules>/`.
+
+**How the store loads and writes** (`server/tigrisStore.ts`):
+- A start never touches storage. `/v1/health` answers at once (80 ms after spawn in the smoke run)
+  and never touches storage either; it reports `store: "tigris"`, the ghosts held in memory and the
+  uploads setting.
+- A bucket is listed on its first match request, and its objects are fetched 16 at a time and
+  cached. Concurrent requests share one load.
+- After `BB_GHOST_CACHE_TTL_S` (60 s) the next request lists the bucket again. It fetches only new
+  keys and drops vanished ones, so writes from other machines and re-seeds show up within the TTL.
+  If that refresh fails, the cached copy is served and the refresh is retried 5 s later.
+- At most 64 buckets are cached; the least recently used one is dropped.
+- Writes are durable first: HEAD the key (if the ghost is already there, answer 200 with the same
+  id), then PUT, then index. So a 201 always means the object exists.
+- Storage failures answer 503 with `retry-after: 5`, and the client falls back offline.
+- `server/s3.ts` has these limits:
+  - every call gets a 5 s timeout;
+  - it retries at most twice, with jittered backoff (200 ms, then 800 ms), and only after network
+    errors, timeouts or 5xx answers;
+  - requests are SigV4-signed over the payload's SHA-256 by `server/sigv4.ts`, which is tested
+    against the published AWS examples;
+  - errors carry the operation, key and status, never a header.
+
+**Environment** (`server/config.ts`; flags override env; a bad value stops the start with exit 2):
+
+| Variable | Production (fly.toml) | Default | Meaning |
+|---|---|---|---|
+| `BB_GHOST_STORE` | `tigris` | `jsonl` | backend |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `BUCKET_NAME` | app secrets from `fly storage create` | none | Tigris credentials, `https://fly.storage.tigris.dev`, `auto`, the bucket; with `tigris`, a missing one stops the start, and the message names the variable, never a value |
+| `BB_GHOST_S3_ADDRESSING` | (default) | `virtual` | `virtual` (`https://<bucket>.<host>/<key>`, what Tigris documents) or `path` |
+| `BB_GHOST_CACHE_TTL_S` | (default) | `60` | seconds a loaded bucket is served before it is listed again |
+| `BB_GHOST_UPLOADS` | `closed` | `open` | `closed`: POST /v1/ghosts answers 403 without reading the body |
+| `BB_GHOST_TRUST_PROXY` | `fly` | `none` | `fly`: client IP = `Fly-Client-IP`, else the first `X-Forwarded-For` hop, else the socket; `none` ignores both headers |
+| `BB_GHOST_STATIC` | `/app/public` | none | serve `<dir>/index.html` at `/` and `/index.html` (read once at start; missing = exit 2) |
+| `BB_GHOST_HOST`, `BB_GHOST_PORT` | `0.0.0.0`, `8080` | `127.0.0.1`, `7790` | listen address |
+| `BB_GHOST_ORIGINS` | `https://beltbattles.fly.dev` | the local Shore | CORS allow-list (the page itself is same-origin) |
+| `BB_GHOST_RATE`, `BB_GHOST_DATA` | (default) | `120`, `./ghost-data` | requests/min per client IP; the JSON-lines directory |
+
+**Seeding.** `node dist/ghost-server.mjs seed` is the `release_command`: before every release it
+runs on a throwaway machine with the app's env and secrets, and a nonzero exit aborts the deploy.
+- It first checks every sample-pool entry, and writes nothing if any check fails. The checks are:
+  strict decode, the current `RULES_VERSION`, `validateBuild`, no duplicates, and a non-empty pool.
+- Then it makes the pool for the current `RULES_VERSION` exactly the bundle: missing or differing
+  records are written, and pool records not in the bundle are deleted.
+- Pool records of other rules versions and every player upload are left alone.
+- It prints `written`, `unchanged` and `removed`. An unchanged bundle prints 0 / 40 / 0.
+- On the JSON-lines store the pool lives in `pool.jsonl`, replaced atomically; `ghosts.jsonl` stays
+  append-only.
+
+**Why uploads are closed.**
+- Today's strict budget rule (shop gold only, see Validation) would reject honest 0.6.0b+ decks
+  with 422, until 0.7.0's player budget ceiling replaces it (integration step 8 below).
+- Uploads are also unsigned: anyone could fill the pool or impersonate a player id.
+- Production therefore runs with `BB_GHOST_UPLOADS=closed`. Players fight the seeded pool, and the
+  client's offline fallback covers everything else.
+- Open uploads with 0.7.0, together with signed writes (REQ-BFG-016: a per-device key, which needs
+  `crypto.subtle` and so a secure origin; that is why the page is served from the API's HTTPS
+  origin) and the player budget ceiling.
+
+**Scaling: when lazy bucket loads stop being enough.**
+- A first load of a (rules, day) bucket costs one LIST per 1,000 keys plus one GET per ghost, 16 at
+  a time (about 20-50 ms each from `iad`).
+- A few hundred ghosts load well inside the client's 4 s match timeout. Around 1,000-2,000 ghosts
+  per bucket, a cold machine's first match gets close to that timeout, and the client falls back
+  offline.
+- Each machine also holds every loaded bucket in memory (roughly 5-10 KB per parsed ghost), so a
+  256 MB machine tops out at around ten thousand ghosts in total.
+- Before either limit is reached (uploads open plus real traffic), pick one of these:
+  1. A periodic compaction that writes one index object per bucket, `ghosts/<rules>/d<DD>/index.jsonl`
+     (all records), so a load is one GET plus a LIST of the keys newer than the index.
+  2. Cap what a bucket serves, such as the newest N ghosts per (wins, lives) band, and add the band
+     to the key so a match loads only its slice.
+  3. Move the index to a database (SQLite with LiteFS on a volume, or Postgres), keeping the objects
+     as the source of truth.
+
+  More machines don't help with this: each one loads buckets independently and only adds LIST
+  traffic.
 
 ## 0.6.0 / 0.7.0 integration: exactly what to wire
 
