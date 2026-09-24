@@ -171,13 +171,15 @@ export async function scriptedRun(page, touch, log, opts) {
     const today = await page.evaluate(() => window.bb.forkInfo().event);
     const want = ((opts.roads || "")[day - 1] || "v") === "v" ? state.take[today] : null;
     const reserve = want ? want[1] : 0;
-    for (let k = 0; k < 2; k++) {
+    // backing a stake: the dawn before the bounty's Hard warlord spends freely (else 2 gates a day)
+    const backing = ((opts.roads || "")[day - 1] || "v") === "h" && !!state.took.herald && !state.bountyLog;
+    for (let k = 0; k < (backing ? 8 : 2); k++) {
       const def = await placePlanned(page, touch, reserve);
       if (!def) break;
       parts.push(def);
       state.placed++;
     }
-    if (parts.length || reserve) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}`);
+    if (parts.length || reserve || backing) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}${backing ? " (backing the bounty: buying all it can)" : ""}`);
     await tapRegion(page, touch, "fight");
     await roadStop(page, touch, log, at, state, (opts.roads || "")[day - 1] || "v", day === opts.reloadWarlordDay);
     const foe = await foeOf(page);

@@ -49,12 +49,14 @@ const G = (day, hero, wins, losses, power = 0) => ({ day, hero, wins, losses, po
 // (the Iron Matriarch, R3); phone (touch) picks by tap (inspect, then go) and reloads in the middle
 // of day 2's Medium warlord fight, which must resume as the same fight.
 // 0.6.0c: this desk seed draws HERALD on day 2 and SCOUT on day 3: desk takes HERALD's STAKE 3
-// (the bounty rides on day 4's Hard warlord) and SCOUT's SPY (dusk must fight the revealed deck),
-// keeping that gold at dawn; the run must lose a dusk from 5 to 4 lives and the day-4 dusk reload
-// must meet the same ghost (playthrough.mjs throws otherwise).
+// (the bounty rides on day 4's Hard warlord, HIGHSPIRE) and SCOUT's SPY (dusk must fight the
+// revealed deck), keeping that gold at dawn; day 1 tries the Hard OLD BULWARK (the deck that needs
+// the 2-part fill). The run must lose a dusk from 5 to 4 lives and the day-4 dusk reload must meet
+// the same ghost (playthrough.mjs throws otherwise). Trials: with day 1 Easy, every Hard warlord on
+// days 4-7 beat the deck and the stake was lost; this road string wins day 4 and pays the bounty.
 const RUNS = {
   desk: {
-    days: 10, reloadDay: 4, roads: "evvhmemhmv", check: "desk", take: { herald: ["STAKE 3", 3], scout: ["SPY", 1] },
+    days: 10, reloadDay: 4, roads: "hvvhmemhev", check: "desk", take: { herald: ["STAKE 3", 3], scout: ["SPY", 1] },
     pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6), G(4, "weaver", 2, 1), G(5, "furnace", 3, 1, -2), G(6, "weaver", 3, 2, -2),
       G(7, "furnace", 4, 2, -2), G(8, "weaver", 5, 2, -2), G(9, "furnace", 5, 3, -2), G(10, "weaver", 6, 3, -2)],
   },
