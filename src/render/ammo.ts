@@ -91,6 +91,40 @@ export function shellSprite(kind: string, tier: number, dir: number): Cv {
   });
 }
 
+// 0.6.1b turret core projectile hooks (ARSENAL.md §8.4): SCATTER CHOKE's pellets, DRAKE NOZZLE's flame
+// cone and SALVO RACK's volley round. ROTARY/PRESSURE/GATLING/HULLBREAKER keep the plain shellSprite;
+// nothing about the sim changes, only what a fired core's projectile looks like in flight.
+
+/** SCATTER CHOKE: one pellet (5x5, a shrunk shell) -- each is a fraction of the shot, aimed anew. */
+export function pelletSprite(kind: string, tier: number, dir: number): Cv {
+  return cached(`pellet:${kind}:${tier}:${dir}`, () => {
+    if (kind === "thread") return orient(fromRows([".w.", "wiw", ".c."], { w: C.white, i: C.ice, c: C.cyan }), dir);
+    const [o, h, b] = kind === "plain" ? [C.ink, C.steel3, C.steel2] : HEAT[Math.max(0, Math.min(4, tier))];
+    return orient(fromRows([".o.", "ohb", ".b."], { o, h, b }), dir);
+  });
+}
+
+/** DRAKE NOZZLE: a short flame cone (5x5) that replaces the tracer in flight. */
+export function flameCone(dir: number): Cv {
+  return cached(`flamecone:${dir}`, () => orient(fromRows([
+    "..o..",
+    ".ohh.",
+    "ohhbb",
+    ".ohh.",
+    "..b..",
+  ], { o: C.fire1, h: C.fire4, b: C.fire3 }), dir));
+}
+
+/** SALVO RACK: a volley round (7x8, brass-banded) -- the same shell silhouette, marked as a volley shell. */
+export function volleySprite(kind: string, tier: number, dir: number): Cv {
+  return cached(`volley:${kind}:${tier}:${dir}`, () => {
+    const o = kind === "plain" || kind === "thread" ? C.ink : HEAT[Math.max(0, Math.min(4, tier))][0];
+    return orient(fromRows(["..o..", ".oho.", "ohhBo", "ohBBo", "oBBdo", "oBBdo", ".odo.", "..o.."], {
+      o, h: C.brass4, B: C.brass3, d: C.brass1,
+    }), dir);
+  });
+}
+
 const TRAIL_THREAD = [C.white, C.ice, C.cyan, C.blue];
 const TRAIL_PLAIN = [C.steel3, C.steel2, C.steel1, C.steel0];
 const TRAIL_HOT = [C.fire5, C.fire4, C.fire3, C.fire2, C.fire1];

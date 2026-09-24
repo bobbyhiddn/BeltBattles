@@ -10,7 +10,7 @@ import { rect, type G } from "../render/pixel";
 import { hullX, hullY, sx, sy, type DeckFrame } from "../render/frame";
 import { drawDim, drawHull, drawTurrets, muzzleX, muzzleY, type CruiserView } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
-import { heatTier, shadowDisc, shellSprite, trailColors } from "../render/ammo";
+import { flameCone, heatTier, pelletSprite, shadowDisc, shellSprite, trailColors, volleySprite } from "../render/ammo";
 import { drawWind } from "../render/world";
 import type { Side } from "../sim/battle";
 import type { Arena } from "./arena";
@@ -112,7 +112,12 @@ function drawShells(g: G, a: Arena): void {
       g.globalAlpha = 1;
     }
     const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : dy > 0 ? 2 : 0;
-    const img = shellSprite(pr.payload.ammo, tier, dir);
+    // 0.6.1b (ARSENAL.md §8.4): a bought core's projectile shape -- SCATTER's pellet, DRAKE's flame
+    // cone, SALVO's brass-banded volley round. ROTARY/PRESSURE/GATLING/HULLBREAKER fire the plain shell.
+    const img = pr.core === "scatter" ? pelletSprite(pr.payload.ammo, tier, dir)
+      : pr.core === "drake" ? flameCone(dir)
+      : pr.core === "salvo" ? volleySprite(pr.payload.ammo, tier, dir)
+      : shellSprite(pr.payload.ammo, tier, dir);
     g.drawImage(img, Math.round(x - img.width / 2), Math.round(y - z - img.height / 2));
   }
 }

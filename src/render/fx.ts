@@ -221,6 +221,12 @@ export class Fx {
     }
   }
 
+  /** 0.6.1b DRAKE NOZZLE: a short fire-cone puff at the muzzle, facing (dx, dy) -- its flame cone's launch. */
+  flameJet(x: number, y: number, dx: number, dy: number): void {
+    this.spray(x, y, 3, dx, dy, [C.fire4, C.fire3, C.fire1], 55);
+    this.embers(x, y, 2);
+  }
+
   embers(x: number, y: number, n: number): void {
     for (let i = 0; i < n; i++) {
       const life = 0.4 + this.rnd() * 0.6;

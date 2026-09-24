@@ -113,6 +113,7 @@ export function react(a: Arena, e: SimEvent): void {
       fx.muzzle(x + dx * 3, y + dy * 3, e.heavy, d);
       fx.spray(x, y, e.heavy ? 5 : 2, dx, dy, e.heavy ? HOT : COLD, e.heavy ? 90 : 70);
       fx.smoke(x, y, e.heavy ? 2 : 1, false, 6);
+      if (e.core === "drake") fx.flameJet(x + dx * 3, y + dy * 3, dx, dy); // 0.6.1b: the flame cone's launch
       fx.addTrauma(e.heavy ? 0.1 : 0.02);
       if (e.heavy) fx.kick(-dx, -dy);
       snd?.play(e.heavy ? "fire_heavy" : "fire_light");
