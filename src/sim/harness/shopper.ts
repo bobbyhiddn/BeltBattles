@@ -191,6 +191,7 @@ export class Shopper {
     b.routes[ri] = { factory: r.factory, cells };
     const spots = this.rng.shuffle([...cells]);
     carried.forEach((p, i) => b.items.push({ ...p, x: spots[i] % GRID, y: Math.floor(spots[i] / GRID) }));
-    return buildCost(b).total <= this.budget ? true : this.restore(snap);
+    // fix pass: deck + cargo within the day's gold (with cores off the cargo is empty: v1's deck-only check)
+    return this.left() >= 0 ? true : this.restore(snap);
   }
 }

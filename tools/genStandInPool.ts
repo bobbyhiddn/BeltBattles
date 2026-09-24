@@ -85,7 +85,8 @@ async function main(): Promise<void> {
       if (!v.ok || p.build.hero !== hd.hero || unfused.length) {
         throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} is invalid: ${[...v.errors, ...unfused].join("; ")}`);
       }
-      if (buildCost(p.build).total > maxGoldByDay(hd.day)) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} costs more than maxGoldByDay`);
+      // fix pass: deck + cargo (cargoGold is set only with cores on, so stars off and cores off are unchanged)
+      if (buildCost(p.build).total + (p.cargoGold ?? 0) > maxGoldByDay(hd.day)) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} costs more than maxGoldByDay${p.cargoGold ? ` (deck + cargo ${p.cargoGold} g)` : ""}`);
       // F8 (D4): stars on, a stand-in holds no module above STANDIN_MAX_STARS (2)
       if (o.stars === "on" && maxStarsOf(p.build) > STANDIN_MAX_STARS) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} holds a ${maxStarsOf(p.build)}-star module; stand-ins stop at ${STANDIN_MAX_STARS} stars`);
     }

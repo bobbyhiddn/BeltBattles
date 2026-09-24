@@ -80,6 +80,7 @@ export interface Cand {
   vsRef: Partial<Record<HeroId, number>>; // win rate vs heroRefBuild(hero, day) of each pool hero
   vsPar: number; // floor(b): the lowest of vsRef
   replayed?: boolean; // 0.6.1a: the robust re-play already ran on it (F12: never twice)
+  cargoGold?: number; // fix pass: fullPurseBuild's cargoGold (only when > 0, so cores on): gold in cargo, not in the deck
 }
 
 export interface HeroDay {
@@ -262,7 +263,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
             if (maxStarsOf(free) > STANDIN_MAX_STARS) capWould3++;
           }
           const build = norm(f.build, o.stars);
-          return { idx, build, code: standInCodeOf(build, o.stars), cost: f.cost, tries: f.tries, floorMet: f.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0 };
+          return { idx, build, code: standInCodeOf(build, o.stars), cost: f.cost, tries: f.tries, floorMet: f.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0, ...(f.cargoGold ? { cargoGold: f.cargoGold } : {}) };
         });
         const field = [...gauntlet, ...refs, ...c.map((x) => x.build)];
         const jobs: Job[] = c.flatMap((x, i) => [
@@ -438,7 +439,8 @@ export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): 
     if (!v.ok) problems.push(`${at}: stored deck is invalid: ${v.errors.join("; ")}`);
     if (o.stars === "on") for (const u of unfusedPairs(back)) problems.push(`${at}: stored deck has an ${u}`);
     if (o.stars === "on" && maxStarsOf(back) > STANDIN_MAX_STARS) problems.push(`${at}: stored deck holds a ${maxStarsOf(back)}-star module (stand-ins stop at ${STANDIN_MAX_STARS})`);
-    if (buildCost(back).total > maxGoldByDay(hd.day)) problems.push(`${at}: stored deck costs more than maxGoldByDay`);
+    // fix pass: the deck + the candidate's cargo (a stored code holds the deck only; cargoGold is 0 unless cores on)
+    if (buildCost(back).total + (p.cargoGold ?? 0) > maxGoldByDay(hd.day)) problems.push(`${at}: stored deck${p.cargoGold ? ` + cargo ${p.cargoGold} g` : ""} costs more than maxGoldByDay`);
   }
   return problems;
 }

@@ -393,7 +393,10 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
       b.routes.push({ factory: uid, cells });
       const spots = carried.length ? s.rng.shuffle([...cells]) : [];
       carried.slice(0, cells.length).forEach((p, i) => b.items.push({ ...p, x: kx(spots[i]), y: ky(spots[i]) }));
-      if (buildCost(b).total <= s.budget) return true;
+      // fix pass: deck + cargo within the day's gold (left() subtracts the cargo; with cores off the cargo is
+      // empty, so this is v1's `buildCost(b).total <= s.budget` exactly). The carried gates were lifted before
+      // the route was drawn, so this after-the-fact check is what keeps a drop within the gold.
+      if (s.left() >= 0) return true;
     }
     s.restore(snap);
   }
