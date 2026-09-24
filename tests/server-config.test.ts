@@ -30,6 +30,12 @@ describe("server config", () => {
     expect(readConfig([], { BB_GHOST_HOST: "0.0.0.0", BB_GHOST_PORT: "8080" })).toMatchObject({ host: "0.0.0.0", port: 8080 });
   });
 
+  it("uploads are open unless BB_GHOST_UPLOADS=closed", () => {
+    expect(readConfig([], {}).uploads).toBe("open");
+    expect(readConfig([], { BB_GHOST_UPLOADS: "closed" }).uploads).toBe("closed");
+    expect(configError([], { BB_GHOST_UPLOADS: "shut" })).toMatch(/BB_GHOST_UPLOADS must be one of open, closed/);
+  });
+
   it("BB_GHOST_STORE=tigris reads the five variables `fly storage create` sets; virtual-hosted unless told otherwise", () => {
     const c = readConfig([], TIGRIS);
     expect(c.store).toMatchObject({

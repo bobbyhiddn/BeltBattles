@@ -5,6 +5,7 @@
 //
 //   GET  /v1/health                 never touches storage; reports the store kind
 //   POST /v1/ghosts                 body: canonical GhostSnapshot JSON  -> 201 { id } (200 if already stored)
+//                                   403 { error } while uploads are closed (the body is not read)
 //   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2 -> 200 { id, snapshot } | 404
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -28,6 +29,11 @@ export interface ServerOptions {
   log?: (line: string) => void;
   /** Mixed into the match seed. Default: the current minute, so a retry gets the same ghost. */
   matchSalt?: () => number | string;
+  /**
+   * "closed": POST /v1/ghosts answers 403 without reading the body (seeding still works).
+   * Production runs closed until signed writes and the player budget ceiling land (0.7.0).
+   */
+  uploads?: "open" | "closed";
 }
 
 export interface GhostServer {
@@ -148,6 +154,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const limiter = new RateLimiter(opts.rateLimit?.windowMs ?? 60_000, opts.rateLimit?.max ?? 120);
   const salt = opts.matchSalt ?? (() => Math.floor(Date.now() / 60_000));
   const store = opts.store ?? openJsonl(opts.dataDir, log);
+  const uploads = opts.uploads ?? "open";
   const started = Date.now();
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -160,11 +167,13 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         only("GET");
         // never touches storage: `ghosts` counts what this process holds in memory
         return send(res, 200, {
-          ok: true, rules: RULES_VERSION, store: store.kind, ghosts: store.size,
+          ok: true, rules: RULES_VERSION, store: store.kind, ghosts: store.size, uploads,
           uptimeS: Math.round((Date.now() - started) / 1000),
         });
       case "/v1/ghosts": {
         only("POST");
+        // before the body is read: nothing is parsed, validated or stored (Node discards the rest)
+        if (uploads === "closed") throw new HttpError(403, "uploads are not open yet");
         const snap = decodeSnapshot(await readBody(req, MAX_BODY_BYTES));
         if (snap.rules !== RULES_VERSION) {
           throw new HttpError(422, `rules ${snap.rules} not accepted: this server validates ${RULES_VERSION}`);
