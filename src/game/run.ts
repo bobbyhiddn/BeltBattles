@@ -16,6 +16,8 @@ import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
 import { starField, starsOf } from "../sim/stars";
 import { gainModule, mergePreview, type Gain, type GainAt } from "./fuse";
+import { HEROES } from "../sim/content"; // 0.6.1b: fitCore
+import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 
 export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6 } from "./save";
 export type { PendingBounty, PendingSabotage, RoadChoice, RoadPick, WarlordFight, WarlordOutcome, WarlordResult, WarlordReward } from "./roadTypes";
@@ -226,11 +228,34 @@ export function storePlaced(run: Run, uid: number): boolean {
   return true;
 }
 
+/** Store turret equipment (gear or, 0.6.1b, a bought core: REMOVE CORE) back in cargo, stars kept. */
 export function storeMod(run: Run, uid: number): boolean {
   const i = run.build.mods.findIndex((m) => m.uid === uid);
   if (i < 0) return false;
   const m = run.build.mods.splice(i, 1)[0];
   run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) }); // 0.6.1a: never fuses
+  return true;
+}
+
+/**
+ * 0.6.1b: fit turret core `uid` (from cargo, or moved from another turret's socket) into turret `turret`'s
+ * socket. A bought core already there goes to cargo: a swap, never the gear rule. Moving never fuses (by the
+ * fuse invariant no twin exists). False when `uid` is not a core the run holds or the turret doesn't exist.
+ */
+export function fitCore(run: Run, uid: number, turret: number): boolean {
+  const b = run.build;
+  if (!Number.isInteger(turret) || turret < 0 || turret >= HEROES[b.hero].turrets.length) return false;
+  const inCargo = run.inventory.find((i) => i.uid === uid);
+  const fitted = b.mods.find((m) => m.uid === uid);
+  const def = inCargo?.def ?? fitted?.def;
+  if (!def || ITEMS[def]?.kind !== "core") return false;
+  if (fitted?.turret === turret) return true;
+  const old = coreFor(b, turret);
+  if (old) storeMod(run, old.uid);
+  if (inCargo) {
+    takeFromInventory(run, uid);
+    b.mods.push({ uid, def, turret, ...starField(starsOf(inCargo)) });
+  } else if (fitted) fitted.turret = turret;
   return true;
 }
 

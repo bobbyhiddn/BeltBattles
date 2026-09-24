@@ -9,6 +9,8 @@ import { CELL, GRID, ITEMS, sellValue } from "../../sim/content";
 import { starField, starsOf } from "../../sim/stars";
 import { mergePreview, type Gain, type GainAt } from "../../game/fuse";
 import { canPlaceItem, key, moveItem, occupancy, placeItem, removeRoute } from "../../sim/deck";
+import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
+import { fitCore } from "../../game/run"; // 0.6.1b
 import type { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
 import { footX, footY, localX, localY } from "../../render/frame";
@@ -94,13 +96,47 @@ export function store(ctx: Ctx, uid: number): void {
   ctx.touched();
 }
 
+/** REMOVE GEAR: the turret's gear goes to cargo (0.6.1b: its gear, never its core). */
 export function unfitMod(ctx: Ctx, turret: number): void {
-  const m = ctx.run.build.mods.find((q) => q.turret === turret);
+  const m = gearFor(ctx.run.build, turret);
   if (!m) return;
   storeMod(ctx.run, m.uid);
   ctx.game.audio.play("pickup");
   ctx.select({ kind: "cargo", uid: m.uid });
   ctx.touched();
+}
+
+/** 0.6.1b, REMOVE CORE: the turret's bought core goes to cargo, and the turret falls back to its signature core. */
+export function unfitCore(ctx: Ctx, turret: number): void {
+  const m = coreFor(ctx.run.build, turret);
+  if (!m) return;
+  storeMod(ctx.run, m.uid);
+  ctx.game.audio.play("pickup");
+  ctx.select({ kind: "cargo", uid: m.uid });
+  ctx.touched();
+}
+
+/** 0.6.1b: a turret core dropped on a turret (from an offer, cargo or another socket). A bought core already in
+ *  that socket goes to cargo with a "pickup" sound: a swap, not the gear rule. Moving never fuses. */
+function dropCore(ctx: Ctx, c: Carry, x: number, y: number, overHull: boolean): boolean {
+  const { run } = ctx;
+  const src = c.src;
+  const t = ctx.turretAt(x, y);
+  if (t < 0) {
+    if (overHull) ctx.invalid("DROP A TURRET CORE ON A TURRET");
+    return false;
+  }
+  const old = coreFor(run.build, t);
+  const swap = !!old && old.uid !== c.uid;
+  if (src.from === "offer") {
+    const r = buy(ctx, src.wagon, src.slot, { turret: t }); // fitted first (a swap); a cargo twin merges into it
+    if (!r.ok) return false;
+  } else if (!fitCore(run, c.uid, t)) return false;
+  ctx.game.audio.play(swap ? "pickup" : "repair");
+  ctx.select({ kind: "turret", index: t });
+  ctx.touched();
+  ctx.placed(x, y);
+  return true;
 }
 
 export function deleteRoute(ctx: Ctx, index: number): void {
@@ -145,7 +181,8 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
     if (src.from === "deck") store(ctx, c.uid);
     else if (src.from === "mod") {
       const m = b.mods.find((q) => q.uid === c.uid);
-      if (m) unfitMod(ctx, m.turret);
+      if (m && def.kind === "core") unfitCore(ctx, m.turret); // 0.6.1b
+      else if (m) unfitMod(ctx, m.turret);
     }
     return true;
   }
@@ -166,13 +203,14 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
       return true;
     }
   }
+  if (def.kind === "core") return dropCore(ctx, c, x, y, overHull); // 0.6.1b: the core socket
   if (def.kind === "mod") {
     const t = ctx.turretAt(x, y);
     if (t < 0) {
       if (overHull) ctx.invalid("DROP TURRET GEAR ON A TURRET");
       return false;
     }
-    const cur = b.mods.find((m) => m.turret === t);
+    const cur = gearFor(b, t); // 0.6.1b: the hardpoint only; a core in the socket doesn't take it
     if (cur && cur.uid !== c.uid) {
       ctx.invalid("ONE PIECE OF GEAR PER TURRET");
       return false;

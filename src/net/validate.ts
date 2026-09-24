@@ -189,14 +189,17 @@ export function validateBuild(build: Build, day: number): Validation {
   }
   if (belt > b.beltCap) errors.push(`route: ${belt} belt tiles exceed beltCap ${b.beltCap}`);
 
-  // turret hardpoints: mods only, a real turret, one per turret (turretHasFreeHardpoint)
-  const mounted = new Set<number>();
+  // turret equipment: a real turret; one mod per hardpoint (turretHasFreeHardpoint) and, 0.6.1b, one bought
+  // turret core per socket (deck.ts coreFor). Cores ride in build.mods, so buildCost already counts them.
+  const mounted = new Set<number>(), socketed = new Set<number>();
   for (const m of b.mods) {
     const d = ITEMS[m.def];
-    if (d.kind !== "mod") errors.push(`hardpoint: uid ${m.uid} ${d.name} is not turret equipment`);
+    const core = d.kind === "core";
+    if (d.kind !== "mod" && !core) errors.push(`hardpoint: uid ${m.uid} ${d.name} is not turret equipment`);
     if (m.turret >= h.turrets.length) errors.push(`hardpoint: uid ${m.uid} targets turret ${m.turret}; ${h.name} has ${h.turrets.length}`);
-    else if (mounted.has(m.turret)) errors.push(`hardpoint: turret ${m.turret} carries more than one module`);
-    mounted.add(m.turret);
+    else if (core && socketed.has(m.turret)) errors.push(`hardpoint: turret ${m.turret} carries more than one core`);
+    else if (!core && mounted.has(m.turret)) errors.push(`hardpoint: turret ${m.turret} carries more than one module`);
+    (core ? socketed : mounted).add(m.turret);
   }
 
   // supplies: only whole belt crates and whole plating are purchasable

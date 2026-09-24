@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { fuseAll, fuseFrom, gainModule, mergePreview, unfusedInRun, type FuseStep } from "../src/game/fuse";
-import { buyOffer, newRun, reroll, sellInventory, storeMod, storePlaced, takeFromInventory, type Run } from "../src/game/run";
+import { buyOffer, fitCore, newRun, reroll, sellInventory, storeMod, storePlaced, takeFromInventory, type Run } from "../src/game/run";
 import { finishDay, startDusk } from "../src/game/day";
 import { finishWarlord, pickPending, pickRoad, takePart, topParts } from "../src/game/road";
 import { tradeGood, EVENTS } from "../src/game/eventDefs";
@@ -275,7 +275,7 @@ function beltCells(run: Run, def: string, ignore = -1): { x: number; y: number }
 describe("invariant: no unfused pair after any mutation (300 seeded 10-day runs, random buyer)", () => {
   it("buys (card, cell, turret), sells, moves, stores, rerolls, road picks and dusk", () => {
     const bad: string[] = [];
-    let merges = 0, mutations = 0;
+    let merges = 0, mutations = 0, cores = 0;
     for (let seed = 1; seed <= 300; seed++) {
       const rng = new Rng(seed * 7919);
       const run = newRun(seed % 2 ? "furnace" : "weaver", seed, `inv-${seed}`);
@@ -283,9 +283,17 @@ describe("invariant: no unfused pair after any mutation (300 seeded 10-day runs,
         mutations++;
         const u = unfusedInRun(run);
         if (u.length) bad.push(`seed ${seed} day ${run.day} after ${what}: ${u.join(", ")}`);
+        // 0.6.1b: one bought core per socket and one piece of gear per hardpoint, after any mutation
+        for (let t = 0; t < turrets; t++) {
+          const on = run.build.mods.filter((m) => m.turret === t);
+          if (on.filter((m) => ITEMS[m.def].kind === "core").length > 1 || on.filter((m) => ITEMS[m.def].kind !== "core").length > 1) bad.push(`seed ${seed} after ${what}: turret ${t} holds ${on.map((m) => m.def).join("+")}`);
+        }
+        cores += run.build.mods.filter((m) => ITEMS[m.def].kind === "core").length;
       };
       const turrets = run.build.hero === "furnace" ? 1 : 3;
-      const freeTurret = () => [...Array(turrets).keys()].filter((t) => !run.build.mods.some((m) => m.turret === t));
+      // 0.6.1b: gear needs a free hardpoint (a core in the socket doesn't take it); a core fits any socket (a swap)
+      const freeTurret = () => [...Array(turrets).keys()].filter((t) => !run.build.mods.some((m) => m.turret === t && ITEMS[m.def].kind !== "core"));
+      const anyTurret = () => [...Array(turrets).keys()];
       while (!run.over) {
         for (let a = 0; a < 10; a++) {
           const op = rng.int(10);
@@ -294,7 +302,7 @@ describe("invariant: no unfused pair after any mutation (300 seeded 10-day runs,
             if (!slots.length) continue;
             const { o, wi, si } = rng.pick(slots);
             const k = ITEMS[o.def].kind;
-            const cells = k === "gate" ? beltCells(run, o.def) : [], ts = k === "mod" ? freeTurret() : [];
+            const cells = k === "gate" ? beltCells(run, o.def) : [], ts = k === "mod" ? freeTurret() : k === "core" ? anyTurret() : [];
             const at = rng.chance(0.5) ? undefined : cells.length ? rng.pick(cells) : ts.length ? { turret: rng.pick(ts) } : undefined;
             merges += buyOffer(run, wi, si, at).gain?.steps.length ?? 0;
             check(`buy ${o.def}`);
@@ -304,7 +312,8 @@ describe("invariant: no unfused pair after any mutation (300 seeded 10-day runs,
           } else if (op === 5 && run.inventory.length) {
             const it = rng.pick(run.inventory), k = ITEMS[it.def].kind;
             const cells = k === "gate" ? beltCells(run, it.def) : [], ts = k === "mod" ? freeTurret() : [];
-            if (cells.length) { takeFromInventory(run, it.uid); placeItem(run.build, { uid: it.uid, def: it.def, ...rng.pick(cells), ...starField(starsOf(it)) }); }
+            if (k === "core") fitCore(run, it.uid, rng.pick(anyTurret())); // 0.6.1b: fit (or swap) a core from cargo
+            else if (cells.length) { takeFromInventory(run, it.uid); placeItem(run.build, { uid: it.uid, def: it.def, ...rng.pick(cells), ...starField(starsOf(it)) }); }
             else if (ts.length) { takeFromInventory(run, it.uid); run.build.mods.push({ uid: it.uid, def: it.def, turret: rng.pick(ts), ...starField(starsOf(it)) }); }
             check("place from cargo");
           } else if (op === 6) {
@@ -342,5 +351,6 @@ describe("invariant: no unfused pair after any mutation (300 seeded 10-day runs,
     expect(bad.slice(0, 5)).toEqual([]);
     expect(merges).toBeGreaterThan(300); // the buyer does merge (not a vacuous pass)
     expect(mutations).toBeGreaterThan(20000);
+    expect(cores).toBeGreaterThan(1000); // 0.6.1b: the buyer does fit cores (core-turret states seen across mutations)
   });
 });

@@ -101,12 +101,13 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
       return;
     }
   }
-  if (def.kind === "mod") {
+  if (def.kind === "mod" || def.kind === "core") {
     const ti = turretAt(px, py);
     if (ti >= 0) {
       const td = HEROES[b.hero].turrets[ti];
       const x = Math.round(turretPivotX(L.frame, td.col0, td.width)), y = Math.round(turretPivotY(L.frame, td.col0, td.width));
-      const taken = b.mods.some((m) => m.turret === ti && m.uid !== c.uid);
+      // 0.6.1b: gear needs a free hardpoint; a core always fits its socket (a bought core there swaps to cargo)
+      const taken = def.kind === "mod" && b.mods.some((m) => m.turret === ti && m.uid !== c.uid && ITEMS[m.def]?.kind !== "core");
       frame(g, x - 13, y - 13, 26, 26, taken ? C.red : C.lime);
     }
   }
@@ -118,9 +119,10 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
 /** Ghost preview + bouncing arrow at the suggested cell for the selected card / cargo item. */
 export function drawSuggestion(g: G, L: BuildLayout, b: Build, defId: string, t: number): void {
   const def = ITEMS[defId];
-  if (def.kind === "mod") {
+  if (def.kind === "mod" || def.kind === "core") {
     const h = HEROES[b.hero];
-    const ti = h.turrets.findIndex((_, i) => !b.mods.some((m) => m.turret === i));
+    // 0.6.1b: gear goes to a free hardpoint, a core to a turret still on its signature core
+    const ti = h.turrets.findIndex((_, i) => !b.mods.some((m) => m.turret === i && (ITEMS[m.def]?.kind === "core") === (def.kind === "core")));
     if (ti < 0) return;
     const td = h.turrets[ti];
     const x = Math.round(turretPivotX(L.frame, td.col0, td.width)), y = Math.round(turretPivotY(L.frame, td.col0, td.width));

@@ -6,7 +6,7 @@
 // any run mutation no two fusible copies share a def and a star level below FUSE_MAX.
 
 import { ITEMS } from "../sim/content";
-import { removeItem, routesOf } from "../sim/deck";
+import { coreFor, removeItem, routesOf } from "../sim/deck";
 import { FUSE_MAX, fusible, starField, starsOf } from "../sim/stars";
 import type { Run } from "./run";
 
@@ -22,7 +22,8 @@ export interface FuseStep {
   belts?: number; // belts removed with an absorbed factory (their tiles go back to belt capacity)
 }
 
-/** Where a gained copy goes: cargo (absent), a deck cell (caller checked canPlaceItem) or a turret hardpoint. */
+/** Where a gained copy goes: cargo (absent), a deck cell (caller checked canPlaceItem) or a turret: its
+ *  hardpoint for gear, its core socket for a turret core (0.6.1b). */
 export type GainAt = { x: number; y: number } | { turret: number };
 
 /** What gainModule did: the new copy's uid, the merges, and where the module ended up. */
@@ -130,9 +131,25 @@ export function fuseAll(run: Run): FuseStep[] {
   }
 }
 
-/** THE way a module enters a run: a 1-star copy in cargo, on a deck cell or on a turret, then fused. */
+/**
+ * 0.6.1b: a turret core gained onto a turret takes its socket. A bought core already there goes to cargo with
+ * its stars: a swap, not the gear rule "ONE PIECE OF GEAR PER TURRET" (ARSENAL.md §2.1 rule 6). No merge can
+ * follow from the swap itself: by the invariant the swapped core has no twin.
+ */
+function freeSocket(run: Run, turret: number): void {
+  const old = coreFor(run.build, turret);
+  if (!old) return;
+  run.build.mods = run.build.mods.filter((m) => m.uid !== old.uid);
+  run.inventory.push({ uid: old.uid, def: old.def, ...starField(starsOf(old)) });
+}
+
+/** THE way a module enters a run: a 1-star copy in cargo, on a deck cell or on a turret, then fused.
+ *  0.6.1b: a core gained onto a turret swaps out the socket's bought core (freeSocket); gear on a turret is
+ *  the caller's check. The survivor rules treat cores like mods; an absorbed core frees its socket, so that
+ *  turret falls back to its signature core. */
 export function gainModule(run: Run, def: string, at?: GainAt): Gain {
   const uid = run.nextUid++;
+  if (at && "turret" in at && ITEMS[def]?.kind === "core") freeSocket(run, at.turret);
   if (at && "turret" in at) run.build.mods.push({ uid, def, turret: at.turret });
   else if (at) run.build.items.push({ uid, def, x: at.x, y: at.y });
   else run.inventory.push({ uid, def });

@@ -14,6 +14,7 @@ import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
 import { drop, type Carry, type Ctx, type Src } from "./actions";
 import type { Sel } from "./layout";
+import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 
 export interface EditHost extends Ctx {
   sel: Sel;
@@ -159,6 +160,7 @@ export class Editor {
         if (h.run.gold < price) return h.invalid(`NEED ${price - h.run.gold} MORE GOLD`);
       }
       if (def.kind === "mod" && src.from !== "turret") return h.invalid("DROP TURRET GEAR ON A TURRET");
+      if (def.kind === "core" && src.from !== "turret") return h.invalid("DROP A TURRET CORE ON A TURRET"); // 0.6.1b
       drop(h, held, x, y);
       return;
     }
@@ -201,7 +203,7 @@ export class Editor {
         return;
       }
       case "turret": {
-        const m = b.mods.find((q) => q.turret === src.index);
+        const m = gearFor(b, src.index) ?? coreFor(b, src.index); // 0.6.1b: the gear first, else the bought core
         if (m) this.lift({ src: { from: "mod", uid: m.uid }, def: m.def, uid: m.uid });
         return;
       }
