@@ -135,10 +135,11 @@ it returns `fallbackGhost(req, pool)`:
 
 `playerId` and `runId` are anonymous random ids generated on the device, such as
 `crypto.randomUUID()` kept in localStorage. The id pattern cannot hold an e-mail address.
-Snapshots hold no names, no accounts and no IP addresses. The server prints client IPs in its stdout
-request log (path and status only, never the query string, which holds the player id). If it
-goes public, keep log retention short or drop IPs from the log line. On Fly the logged address is the
-player's (Fly-Client-IP) and the log goes to Fly's log stream, so that retention applies.
+Snapshots hold no names, no accounts and no IP addresses. The server's stdout request log holds
+the time, method, path, status and duration of each request, and nothing else: no client IP and
+no query string (the query holds the player id). The rate limit keys on the client IP (on Fly, the
+player's Fly-Client-IP) and keeps it in memory only, so no player address is written to the store
+or reaches Fly's log stream.
 
 ## Hosting options (operator decides)
 

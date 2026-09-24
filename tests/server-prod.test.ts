@@ -58,7 +58,9 @@ describe.each(storeBackends())("uploads closed, $name store", (backend) => {
 });
 
 describe("rate limit behind Fly's proxy", () => {
-  const health = (base: string, headers: Record<string, string> = {}) => fetch(`${base}/v1/health`, { headers }).then((r) => r.status);
+  // One request log line: ISO time, method, path, status, duration. Nothing else, no address.
+  const REQUEST_LINE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z GET \/v1\/health (200|429) \d+ms$/;
+  const health =(base: string, headers: Record<string, string> = {}) => fetch(`${base}/v1/health`, { headers }).then((r) => r.status);
   const A = { "fly-client-ip": "203.0.113.1" };
   const B = { "fly-client-ip": "2001:db8::2" };
 
@@ -78,12 +80,15 @@ describe("rate limit behind Fly's proxy", () => {
     expect(a).toEqual([200, 200, 429]);
     expect(b).toEqual([200, 200]);
     expect(s).toEqual([200, 200, 429]);
+    // The limiter keyed on those addresses, but the request log holds none of them: time, method,
+    // path, status and duration only, so no player IP reaches Fly's log stream.
     const lines = logs.filter((l) => l.includes("/v1/health"));
-    expect(lines.filter((l) => l.includes(" 203.0.113.1 GET /v1/health "))).toHaveLength(3); // the log uses the same address
-    expect(lines.filter((l) => l.includes(" 2001:db8::2 GET /v1/health "))).toHaveLength(2);
-    expect(lines.filter((l) => /Z (127\.0\.0\.1|::ffff:127\.0\.0\.1) GET \/v1\/health /.test(l))).toHaveLength(3);
-    expect(lines.some((l) => l.includes("198.51.100."))).toBe(false);
-    expect(lines.some((l) => l.includes("<script>") || l.includes("not-an-ip"))).toBe(false);
+    expect(lines).toHaveLength(8);
+    for (const l of lines) expect(l).toMatch(REQUEST_LINE);
+    expect(lines.filter((l) => / 429 \d+ms$/.test(l))).toHaveLength(2);
+    for (const addr of ["203.0.113.1", "2001:db8::2", "127.0.0.1", "198.51.100.", "<script>", "not-an-ip"]) {
+      expect(logs.some((l) => l.includes(addr))).toBe(false);
+    }
   });
 
   it("without the flag both headers are ignored: one socket, one budget, whatever the headers say", async () => {
@@ -95,7 +100,8 @@ describe("rate limit behind Fly's proxy", () => {
     expect(codes).toEqual([200, 200, 429]);
     const lines = logs.filter((l) => l.includes("/v1/health"));
     expect(lines).toHaveLength(3);
-    for (const l of lines) expect(l).toMatch(/Z (127\.0\.0\.1|::ffff:127\.0\.0\.1) GET \/v1\/health /);
+    for (const l of lines) expect(l).toMatch(REQUEST_LINE); // no socket address either
+    expect(logs.some((l) => /127\.0\.0\.1|203\.0\.113\.1|2001:db8::2|198\.51\.100\.9/.test(l))).toBe(false);
   });
 });
 

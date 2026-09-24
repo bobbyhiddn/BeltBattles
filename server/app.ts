@@ -39,12 +39,14 @@ export interface ServerOptions {
    */
   uploads?: "open" | "closed";
   /**
-   * Whose address the rate limit and the request log use. "fly" (behind Fly's proxy): the
+   * Whose address the rate limit keys on. "fly" (behind Fly's proxy): the
    * Fly-Client-IP header, which Fly's proxy sets or overwrites on every request it forwards, else
    * the socket address. X-Forwarded-For is never used: Fly appends to it, so its first hop is
    * whatever the client sent, and a request without Fly-Client-IP did not come through the proxy,
    * so none of its hops can be trusted either.
    * Default "none": the socket address only; both headers are ignored, so nobody can spoof them.
+   * Either way the address stays in the limiter's memory: the request log never prints a client
+   * address, so no player IP reaches the host's log stream.
    */
   trustProxy?: "fly" | "none";
   /**
@@ -142,7 +144,7 @@ function firstHeader(req: IncomingMessage, name: string): string {
   return (Array.isArray(v) ? v[0] ?? "" : v ?? "").trim();
 }
 
-/** The client address for the rate limit and the request log (see ServerOptions.trustProxy). */
+/** The client address the rate limit keys on (see ServerOptions.trustProxy). Never logged. */
 export function clientIp(req: IncomingMessage, trust: "fly" | "none" = "none"): string {
   const socket = req.socket.remoteAddress ?? "unknown";
   if (trust !== "fly") return socket;
@@ -275,7 +277,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
 
   const server = createServer((req, res) => {
     const t0 = Date.now();
-    const ip = clientIp(req, trustProxy); // the rate limit's key and the log's address
+    const ip = clientIp(req, trustProxy); // the rate limit's key, held in memory only: never logged
     const url = new URL(req.url ?? "/", "http://ghost.local");
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
     const allowed = origin !== "" && origins.has(origin);
@@ -301,8 +303,9 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         log(`error: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
         if (!res.headersSent) send(res, 500, { error: "internal error" });
       }
-      // path only: queries carry the anonymous player id, which the log does not need
-      log(`${new Date().toISOString()} ${ip} ${req.method} ${url.pathname} ${res.statusCode} ${Date.now() - t0}ms`);
+      // time, method, path, status and duration only. No client address (the limiter keeps it in
+      // memory) and no query string (it carries the anonymous player id): neither is needed here.
+      log(`${new Date().toISOString()} ${req.method} ${url.pathname} ${res.statusCode} ${Date.now() - t0}ms`);
     };
     if (req.method === "OPTIONS") {
       if (allowed) {

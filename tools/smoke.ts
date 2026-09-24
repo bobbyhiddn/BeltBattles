@@ -200,7 +200,12 @@ async function main(): Promise<void> {
   say();
   say("## 4. Server log (stdout), after SIGTERM");
   for (const l of log.replace(/\n$/, "").split("\n")) say(`  ${l}`);
-  check(/203\.0\.113\.9 GET \/v1\/ghosts\/match 200/.test(log), "the request log shows the Fly-Client-IP address");
+  check(/rate \d+\/min per client IP \(Fly-Client-IP\)/.test(log), "the rate limit keys on Fly-Client-IP (BB_GHOST_TRUST_PROXY=fly)");
+  const requestLines = log.split("\n").filter((l) => / (GET|HEAD|POST|OPTIONS) \//.test(l));
+  check(requestLines.some((l) => / GET \/v1\/ghosts\/match 200 \d+ms$/.test(l)), "the request log shows the match request");
+  check(requestLines.length > 0 && !log.includes("203.0.113.9")
+    && requestLines.every((l) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z (GET|HEAD|POST|OPTIONS) \/\S* \d{3} \d+ms$/.test(l)),
+    "the request log holds no client IP: time, method, path, status and duration only");
   check(/SIGTERM: shutting down/.test(log), "SIGTERM shuts down cleanly");
   check(!log.includes("smoke-fake-secret") && !log.includes("AKIDSMOKE"), "no credential in the log");
   await fake.close();
