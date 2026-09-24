@@ -4,7 +4,7 @@
 export type Sfx =
   | "click" | "belt" | "connect" | "error" | "place" | "pickup" | "coin" | "sell" | "stamp" | "sizzle"
   | "zap" | "fire_heavy" | "fire_light" | "impact" | "impact_small" | "jam" | "commission" | "siren"
-  | "horn" | "ready" | "go" | "win" | "lose" | "boom" | "whoosh" | "load" | "repair";
+  | "horn" | "ready" | "go" | "win" | "lose" | "boom" | "whoosh" | "load" | "repair" | "fuse";
 
 type Wave = "p12" | "p25" | "p50" | "tri" | "saw";
 
@@ -198,7 +198,7 @@ export class Audio {
     const now = this.ctx.currentTime;
     const gap: Partial<Record<Sfx, number>> = {
       stamp: 0.07, sizzle: 0.09, fire_light: 0.045, commission: 0.08, load: 0.06, impact_small: 0.05,
-      zap: 0.08, belt: 0.02, impact: 0.05,
+      zap: 0.08, belt: 0.02, impact: 0.05, fuse: 0.12,
     };
     const lim = gap[name];
     if (lim) {
@@ -292,6 +292,17 @@ export class Audio {
       case "load": this.osc("p25", 620, 520, 0.025, 0.05, t, d); break;
       case "repair":
         for (let i = 0; i < 3; i++) this.osc("p25", 1400 + i * 300, 1400 + i * 300, 0.03, 0.06, t + i * 0.07, d);
+        break;
+      case "fuse":
+        // 0.6.1d (ARSENAL.md §8.3): two rising blips, a clink, and (★3, param>=3) a third blip + a quiet thump.
+        this.osc("p25", 660, 880, 0.09, 0.14, t, d);
+        this.osc("p25", 880, 1320, 0.09, 0.14, t + 0.1, d);
+        this.noise(0.05, 0.1, "bandpass", 4000, 4000, t + 0.16, d);
+        if (param >= 3) {
+          this.osc("p25", 1760, 1760, 0.08, 0.12, t + 0.24, d);
+          this.noise(0.5, 0.16, "lowpass", 700, 50, t + 0.24, d);
+          this.osc("tri", 65, 28, 0.4, 0.14, t + 0.24, d);
+        }
         break;
     }
   }

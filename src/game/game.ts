@@ -168,7 +168,12 @@ export class Game implements InputSink {
     // 0.6.1a: queued merge toasts (run.fuseFx, cosmetic), one at a time once the screen has settled;
     // the save-migration notice waits for the build screen (save.ts nextFuseToast)
     const fx = this.run?.fuseFx?.length && !this.toastMsg && this.wipeDir === 0 ? nextFuseToast(this.run, !!this.screen.mergeNotice) : undefined;
-    if (fx) this.toast(fx, C.lime);
+    if (fx) {
+      this.toast(fx, C.lime);
+      // 0.6.1d: the "MERGED: NAME ★n" toast (not its "N BELTS REMOVED" follow-up) plays the fuse Sfx.
+      const stars = /★(\d)/.exec(fx)?.[1];
+      if (stars) this.audio.play("fuse", Number(stars));
+    }
   }
 
   render(): void {
