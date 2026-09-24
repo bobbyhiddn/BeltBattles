@@ -4,15 +4,16 @@
 
 import type { DuskFoe, Run } from "../../game/run";
 import { record } from "../../game/day";
-import { HEROES, ITEMS, MERCHANTS, START_LIVES } from "../../sim/content";
-import { beltUsed, connectedRouteCount, defOf, estimateRoute, itemByUid, key, routeInfo, routesOf } from "../../sim/deck";
+import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES } from "../../sim/content";
+import { beltUsed, connectedRouteCount, defOf, estimateRoute, gearFor, itemByUid, key, routeInfo, routesOf } from "../../sim/deck";
+import { resolveCore, type TurretCore } from "../../sim/cores"; // 0.6.1b
 import { C, RARITY_COLOR } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
 import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
-import { buy, deleteRoute, selectGain, sell, sellPrice, store, unfitMod, type Ctx } from "./actions";
+import { buy, deleteRoute, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
 import { effectAt, starsOf, starText } from "../../sim/stars";
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
@@ -35,7 +36,23 @@ interface Spec {
   color: string;
   sub: string;
   text: string[];
-  action?: Action;
+  actions?: Action[]; // 0.6.1b: was a single `action`; the turret case needs REMOVE CORE and REMOVE GEAR
+}
+
+/** 0.6.1b: the core's firing summary rescaled by k ("3 PELLETS x 40%"), or "" for the identity routine
+ *  (ARSENAL.md §8.4). `tc.spec` is already k-scaled (resolveCore), so absolute numbers read straight off it. */
+function coreShape(tc: TurretCore): string {
+  const c = tc.spec;
+  switch (tc.routine) {
+    case "scatter": return `${c.pellets} PELLETS x ${Math.round((c.share ?? 1) * 100)}%`;
+    case "rotary": return `${c.order} LOAD FIRST`;
+    case "pressure": return `+${(c.perQueued ?? 0).toFixed(1)} DMG PER QUEUED`;
+    case "gatling": return `SPIN ${(c.start ?? 1).toFixed(2)}X TO ${(c.floor ?? 1).toFixed(2)}X`;
+    case "hullbreaker": return `HULL ONLY x${(c.hullMul ?? 1).toFixed(2)}`;
+    case "drake": return `+${c.addBurn} BURN ${c.burnTime}S`;
+    case "salvo": return `FULL VOLLEY +${(c.volleyFlat ?? 0).toFixed(1)} EACH`;
+    default: return "";
+  }
 }
 
 function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
@@ -47,17 +64,17 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       if (!o) return null;
       const d = ITEMS[o.def];
       const can = !o.sold && run.gold >= o.price;
-      const hint = d.kind === "mod" ? "TAP A TURRET OR DRAG IT THERE." : d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : "TAP A BELT TILE OR DRAG IT ON.";
+      const hint = d.kind === "mod" || d.kind === "core" ? "TAP A TURRET OR DRAG IT THERE." : d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : "TAP A BELT TILE OR DRAG IT ON.";
       return {
         icon: itemIcon(d.id), title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[show.wagon].merchant].name}`,
         text: [...d.desc, hint],
-        action: hovering ? undefined : {
+        actions: hovering ? [] : [{
           id: "buy", label: o.sold ? "SOLD" : d.kind === "supply" ? `BUY+USE ${o.price}G` : `BUY ${o.price}G`, primary: can, disabled: !can,
           onTap: () => {
             const res = buy(ctx, show.wagon, show.slot);
             if (res.gain) selectGain(ctx, res.gain); // 0.6.1a: after a merge, the survivor
           },
-        },
+        }],
       };
     }
     case "cargo": {
@@ -66,8 +83,8 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const d = ITEMS[it.def];
       return {
         icon: itemIcon(d.id), title: starred(d.name, starsOf(it)), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
-        text: [...d.desc, d.kind === "mod" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
-        action: { id: "sell", label: `SELL +${sellPrice(d.id, starsOf(it))}G`, onTap: () => sell(ctx, it.uid) },
+        text: [...d.desc, d.kind === "mod" || d.kind === "core" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
+        actions: [{ id: "sell", label: `SELL +${sellPrice(d.id, starsOf(it))}G`, onTap: () => sell(ctx, it.uid) }],
       };
     }
     case "item": {
@@ -79,7 +96,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       return {
         icon: itemIcon(d.id), title: starred(d.name, starsOf(p)), color: RARITY_COLOR[d.rarity], sub,
         text: [...d.desc, d.kind === "factory" ? "DRAG OUT OF IT TO LAY BELT." : "DRAG TO MOVE IT."],
-        action: sig ? undefined : { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) },
+        actions: sig ? [] : [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }],
       };
     }
     case "route": {
@@ -94,25 +111,37 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
           `${info.tiles} TILES · ${info.gates.length} GATES · ${est.time.toFixed(1)}S TO THE GUN`,
           `DAMAGE ${est.dmg.toFixed(1)}${est.copies > 1 ? ` X${est.copies}` : ""}${fx ? ` · ${fx}` : ""}`,
         ].filter(Boolean),
-        action: { id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) },
+        actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }],
       };
     }
     case "turret": {
       const td = HEROES[b.hero].turrets[show.index];
       if (!td) return null;
-      const mods = b.mods.filter((m) => m.turret === show.index);
+      const gm = gearFor(b, show.index); // 0.6.1b: gear only; the core has its own socket (coreFor via resolveCore)
+      const gear = gm ? ITEMS[gm.def] : null;
       let every = td.fireInterval, per = 1;
-      for (const m of mods) {
-        const md = effectAt(m.def, starsOf(m)).mod; // 0.6.1a: the gear's spec at its stars
+      if (gm) {
+        const md = effectAt(gm.def, starsOf(gm)).mod; // 0.6.1a: the gear's spec at its stars
         if (md?.fireMul) every *= md.fireMul;
         if (md?.perShot) per = Math.max(per, md.perShot);
       }
-      const gear = mods[0] ? ITEMS[mods[0].def] : null;
+      const tc = resolveCore(b, show.index, td); // 0.6.1b: bought core (k-scaled) or the signature core
+      if (tc.bought) every *= tc.spec.intervalMul ?? tc.spec.reloadMul ?? 1; // ROTARY / SALVO's static cadence change
+      const coreName = tc.bought ? starred(ITEMS[tc.def].name, tc.stars) : (SIGNATURE_CORES[tc.def]?.name ?? "SIGNATURE CORE");
+      const shape = coreShape(tc);
+      const actions: Action[] = [];
+      if (tc.bought) actions.push({ id: "unfitcore", label: "REMOVE CORE", onTap: () => unfitCore(ctx, show.index) });
+      if (gear) actions.push({ id: "unfit", label: "REMOVE GEAR", onTap: () => unfitMod(ctx, show.index) });
       return {
         icon: gear ? itemIcon(gear.id) : null, title: `${td.kind.toUpperCase()} TURRET ${show.index + 1}`, color: C.white,
         sub: `FED FROM COLUMN ${td.connectors.map((c) => c + 1).join("+")}`,
-        text: [`FIRES EVERY ${every.toFixed(2)}S${per > 1 ? ` · ${per} PER SHOT` : ""}`, `CHAMBER ${td.window} SLUGS`, `GEAR: ${gear ? starred(gear.name, starsOf(mods[0])) : "EMPTY HARDPOINT"}`],
-        action: gear ? { id: "unfit", label: "REMOVE GEAR", onTap: () => unfitMod(ctx, show.index) } : undefined,
+        text: [
+          `${shape ? `${shape} · ` : ""}FIRES EVERY ${every.toFixed(2)}S${per > 1 ? ` · ${per} PER SHOT` : ""}`,
+          `CHAMBER ${td.window} SLUGS`,
+          `CORE: ${coreName}`, // 0.6.1b: ARSENAL.md §8.4, hidden REMOVE CORE for a signature core
+          `GEAR: ${gear ? starred(gear.name, starsOf(gm!)) : "EMPTY HARDPOINT"}`,
+        ],
+        actions,
       };
     }
     default:
@@ -133,8 +162,9 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   const column = area.h >= 70; // landscape column: size to content, button under the text
   if (!sp) return drawIdle(g, ctx.run, area, column, foe);
   const wrapW = area.w - 10;
+  const acts = sp.actions ?? []; // 0.6.1b: 0-2 buttons (the turret case: REMOVE CORE, REMOVE GEAR)
   // the description in the 5x7 face when it fits the area (easier to read), else the 3x5 face
-  const extra = sp.action ? 22 : 4;
+  const extra = acts.length ? acts.length * 19 + 3 : 4;
   let font: "5" | "3" = "5", lh = 9;
   let lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
   if (column ? 27 + lines.length * lh + extra > area.h : lines.length * lh - 2 > area.h - 29) {
@@ -151,12 +181,26 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   drawText(g, sp.title, r.x + 23, r.y + 4, sp.color, { outline: C.ink });
   drawText(g, sp.sub, r.x + 23, r.y + 13, C.slate4, { font: "3" });
   let maxY = r.y + r.h - 4;
-  if (sp.action) {
-    const a = sp.action;
-    const w = column ? r.w - 10 : Math.min(64, r.w - 10), h = column ? 16 : 13;
-    const x = column ? r.x + 5 : r.x + r.w - w - 4, y = column ? r.y + r.h - h - 5 : r.y + 4;
-    button(ctx.game.ui, g, a.id, { x, y, w, h }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
-    if (column) maxY = y - 3;
+  if (acts.length && column) {
+    // landscape column: one full-width button per action, stacked bottom-up under the text
+    let by = r.y + r.h - 5;
+    for (let i = acts.length - 1; i >= 0; i--) {
+      by -= 16;
+      const a = acts[i];
+      button(ctx.game.ui, g, a.id, { x: r.x + 5, y: by, w: r.w - 10, h: 16 }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
+      by -= 3;
+    }
+    maxY = by;
+  } else if (acts.length) {
+    // portrait strip: same top-right row as before, split between 1-2 buttons
+    const h = 13, gap = 3;
+    const w = Math.min(64, Math.floor((r.w - 10 - gap * (acts.length - 1)) / acts.length));
+    let x = r.x + r.w - 4 - w;
+    for (let i = acts.length - 1; i >= 0; i--) {
+      const a = acts[i];
+      button(ctx.game.ui, g, a.id, { x, y: r.y + 4, w, h }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
+      x -= w + gap;
+    }
   }
   let y = r.y + 25;
   for (const ln of lines) {
