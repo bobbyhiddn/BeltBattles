@@ -156,6 +156,67 @@ async function reloadAndContinue(page, touch, log, at, state) {
   if (!same) throw new Error("the reload did not keep the same dusk opponent");
 }
 
+// 0.6.1r F2: the desk run's dusk loss, by construction. On `weakenDay`'s dawn, after its buys,
+// every part the run gained goes TO CARGO through the inspector (click the part, click TO CARGO),
+// so that dusk fights the bare starting deck. Against the pool's strong day-2 ghost that deck
+// always loses (the FURNACE kiln alone vs kiln, temper, brake and longhaul lost 1005 of 1005
+// battle seeds in 0.6.1r's check), whatever the shop rolled. The next dawn drags each part from
+// cargo back to its cell before buying. Escape clears the selection first: a click on a deck cell
+// while a cargo part is selected would drop that part there.
+const clearSel = (page) => page.keyboard.press("Escape").then(() => sleep(60));
+const deckParts = (page, keep) => page.evaluate((keep) => {
+  const s = window.bb.game.screen;
+  return window.bb.game.run.build.items.filter((p) => !keep.includes(p.uid)).map((p) => {
+    const c = s.fuseAnimPos({ where: "deck", survivor: p.uid }); // an existing build-screen helper: the part's centre
+    return { uid: p.uid, def: p.def, stars: p.stars || 1, cell: `${p.x},${p.y}`, at: window.bb.toClient(c.x, c.y) };
+  });
+}, keep);
+const partName = (p) => `${p.def}${p.stars > 1 ? ` ★${p.stars}` : ""} (${p.cell})`;
+
+async function weakenDeck(page, touch, log, at, keep) {
+  const parts = await deckParts(page, keep);
+  for (const p of parts) {
+    await clearSel(page);
+    await press(page, touch, p.at);
+    await page.waitForFunction((u) => { const s = window.bb.game.screen.sel; return s.kind === "item" && s.uid === u; }, p.uid, { timeout: 5000 });
+    await tapRegion(page, touch, "store");
+    await page.waitForFunction((u) => window.bb.game.run.inventory.some((i) => i.uid === u), p.uid, { timeout: 5000 });
+  }
+  await clearSel(page);
+  const left = await page.evaluate(() => ({ items: window.bb.game.run.build.items.map((p) => p.def), cost: window.bb.deckCost(window.bb.game.run.build) }));
+  log(`[${at()}] WEAKEN (F2, the dusk loss by construction): TO CARGO ${parts.map(partName).join(", ") || "nothing"} -> deck ${left.items.join(", ")} (deckCost ${left.cost}), the bare starting deck`);
+  return parts;
+}
+
+async function restoreDeck(page, touch, log, at, parts) {
+  for (const p of parts) {
+    await clearSel(page);
+    const from = await page.evaluate((u) => {
+      const s = window.bb.game.screen, i = window.bb.game.run.inventory.findIndex((it) => it.uid === u);
+      if (i < 0 || i >= s.cargoSlots()) return null;
+      const r = s.slotRect(i);
+      return window.bb.toClient(r.x + r.w / 2, r.y + r.h / 2);
+    }, p.uid);
+    if (!from) throw new Error(`restore: ${partName(p)} is not in a visible cargo slot`);
+    if (touch) {
+      await press(page, true, from);
+      await press(page, true, p.at);
+    } else {
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      await page.mouse.move(p.at.x, p.at.y, { steps: 12 });
+      await sleep(150);
+      await page.mouse.up();
+    }
+    await page.waitForFunction((u) => window.bb.game.run.build.items.some((q) => q.uid === u), p.uid, { timeout: 5000 });
+  }
+  await clearSel(page);
+  const back = await deckParts(page, []);
+  const same = parts.every((p) => back.some((q) => q.uid === p.uid && q.cell === p.cell && q.stars === p.stars));
+  log(`[${at()}] RESTORE: dragged ${parts.map(partName).join(", ") || "nothing"} from cargo back to the deck (same cells and stars: ${same})`);
+  if (!same) throw new Error("restore: a stored part did not come back to its cell");
+}
+
 export async function scriptedRun(page, touch, log, opts) {
   const t0 = Date.now();
   const at = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
@@ -191,6 +252,12 @@ export async function scriptedRun(page, touch, log, opts) {
       return { day: run.day, gold: run.gold, lives: run.lives, wl: `${run.wins}-${run.losses}`, foe: s.foe.name, kind: s.foe.kind, seed: run.seed };
     });
     log(`[${at()}] DAWN · DAY ${dawn.day}/10: ${dawn.gold} gold, ${dawn.lives} lives, W-L ${dawn.wl}; NEXT BATTLE ${dawn.foe} (${dawn.kind})${day === 1 ? `, seed ${dawn.seed}` : ""}`);
+    // 0.6.1r F2: the starting deck (kept aboard by weakenDeck), and yesterday's stored parts go back first
+    if (day === 1) state.startUids = await page.evaluate(() => window.bb.game.run.build.items.map((p) => p.uid));
+    if (state.stored && day === opts.weakenDay + 1) {
+      await restoreDeck(page, touch, log, at, state.stored);
+      state.stored = null;
+    }
     const parts = [];
     // keep today's STAKE / SPY affordable when the road goes to that event
     const today = await page.evaluate(() => window.bb.forkInfo().event);
@@ -205,6 +272,7 @@ export async function scriptedRun(page, touch, log, opts) {
       state.placed++;
     }
     if (parts.length || reserve || backing) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}${backing ? " (backing the bounty: buying all it can)" : ""}`);
+    if (day === opts.weakenDay) state.stored = await weakenDeck(page, touch, log, at, state.startUids);
     await tapRegion(page, touch, "fight");
     await roadStop(page, touch, log, at, state, (opts.roads || "")[day - 1] || "v", day === opts.reloadWarlordDay);
     const foe = await foeOf(page);
