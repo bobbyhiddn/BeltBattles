@@ -62,7 +62,7 @@ for (const h of PLAYABLE_HEROES) for (const d of DAYS) pars.push(entry(`par/${h}
 const standins: Entry[] = [];
 for (const h of PLAYABLE_HEROES) for (const d of DAYS) standins.push(entry(`standin/${h}/${d}`, h, d, standInPick(h, d, PICK_SEED)));
 
-const dir = resolve(process.cwd(), "tests/fixtures/golden-060");
+const dir = resolve("tests/fixtures/golden-060"); // relative to the working directory (the repo root)
 mkdirSync(dir, { recursive: true });
 const meta = {
   from: "c908f92 (0.6.0 + groundwork)", rules: RULES_VERSION, battleSeed: GOLDEN_SEED, pickSeed: PICK_SEED,
