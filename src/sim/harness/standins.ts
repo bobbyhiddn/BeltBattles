@@ -231,6 +231,21 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
   return { days: out, battles };
 }
 
+/** Report only: for each day, every pick of heroes[0] against every pick of heroes[1], `seeds`
+ *  seeds x both sides; heroes[0]'s win rate. `picks(hero, day)` supplies the decks. */
+export async function poolVsPool(o: StandInOpts, picks: (hero: HeroId, day: number) => Build[], run: Runner): Promise<{ day: number; rate: number; battles: number }[]> {
+  const [h0, h1] = o.heroes, out: { day: number; rate: number; battles: number }[] = [];
+  for (let day = 1; day <= 10; day++) {
+    const a = picks(h0, day), b = picks(h1, day);
+    const jobs: Job[] = a.flatMap((_, i) => b.map((_, j): Job => ({
+      a: i, b: a.length + j, seeds: Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-pvp", o.seed, day, i, j, k)),
+    })));
+    const pts = await run([...a, ...b], jobs);
+    out.push({ day, rate: winRate(pts, jobs.length * o.seeds * 2), battles: jobs.length * o.seeds * 2 });
+  }
+  return out;
+}
+
 /** Canonical command for the header: every generation option explicit, no --workers/--out/--check. */
 export function standInCommand(o: StandInOpts): string {
   const g = o.gauntlet !== STANDIN_DEFAULTS.gauntlet ? ` --gauntlet ${o.gauntlet}` : "";

@@ -1,10 +1,13 @@
 // Stand-in pool CLI: npm run standins -- [--seed 1] [--pop 64] [--band 40,60] [--per 6] [--par-floor 50]
-//   [--workers N] [--out ../output] [--check] [--dump pop.json]
+//   [--workers N] [--out ../output] [--check | --versus] [--dump pop.json]
 // Writes src/sim/standInPoolData.ts (the bundled pool the game copies with src/sim/standInPool.ts)
 // and <out>/standin-pool.md. --check regenerates in memory, compares with the committed data
 // module and exits 1 if they differ (nothing is written). --dump also writes every population
 // build (idx, cost, pct, score, win rate vs each reference) as JSON, for audits; it works with
-// --check. Battles fan out to worker threads; results are keyed by job, so the pool is identical
+// --check. --versus writes nothing: it plays the bundled pool (the data module this build was
+// bundled from) against itself, every pick of the first pool hero against every pick of the
+// second, and prints the first hero's win rate per day (the report's pool-vs-pool measure).
+// Battles fan out to worker threads; results are keyed by job, so the pool is identical
 // for any --workers value.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -16,8 +19,9 @@ import { validateBuild } from "../src/net/validate";
 import { describeBuild } from "../src/sim/harness/report";
 import { pct } from "../src/sim/harness/stats";
 import {
-  STANDIN_DEFAULTS, dataModuleText, eligibleOf, genStandIns, standInCommand, type HeroDay, type StandInOpts,
+  STANDIN_DEFAULTS, dataModuleText, eligibleOf, genStandIns, poolVsPool, standInCommand, type HeroDay, type StandInOpts,
 } from "../src/sim/harness/standins";
+import { STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
 import { flag, num, serveJobs, workerRunner } from "./workers";
 
 const DATA = "src/sim/standInPoolData.ts";
@@ -49,6 +53,13 @@ async function main(): Promise<void> {
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();
+  if (process.argv.includes("--versus")) {
+    const pvp = await poolVsPool(o, (h, d) => standInPool(h, d).map((e) => e.build), pool.run);
+    await pool.close();
+    console.log(`versus: the bundled pool (rules ${STAND_IN_POOL_RULES}), every ${H(o.heroes[0])} pick vs every ${H(o.heroes[1])} pick, ${o.seeds} seeds x both sides, ${((performance.now() - t0) / 1000).toFixed(1)} s on ${nw} worker(s)`);
+    for (const r of pvp) console.log(`versus: day ${r.day}: ${H(o.heroes[0])} pool wins ${pct(r.rate)} of ${r.battles}`);
+    return;
+  }
   const res = await genStandIns(o, pool.run, (m) => console.log(m));
   for (const hd of res.days) {
     for (const p of hd.picks) {
@@ -81,18 +92,19 @@ async function main(): Promise<void> {
     process.exit(same ? 0 : 1);
   }
   const secs = (performance.now() - t0) / 1000;
+  const pvp = await poolVsPool(o, (h, d) => res.days.find((x) => x.hero === h && x.day === d)!.picks.map((p) => p.build), pool.run);
   await pool.close();
   writeFileSync(path, text);
   const out = resolve(flag("out") ?? "../output");
   mkdirSync(out, { recursive: true });
-  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdown(o, res.days, { battles: res.battles, secs, workers: nw, bytes: text.length }));
+  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdown(o, res.days, pvp, { battles: res.battles, secs, workers: nw, bytes: text.length }));
   console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s); wrote ${DATA} (${text.length} bytes) and ${out}/standin-pool.md`);
 }
 
 const H = (h: HeroId) => HEROES[h].name;
 const STEP: Record<HeroDay["relax"], string> = { none: "none", widen: "(a) widen", grow: "(b) grow", elites: "(c) elites", best: "(d) best vsPar" };
 
-function poolMarkdown(o: StandInOpts, days: HeroDay[], run: { battles: number; secs: number; workers: number; bytes: number }): string {
+function poolMarkdown(o: StandInOpts, days: HeroDay[], pvp: { day: number; rate: number; battles: number }[], run: { battles: number; secs: number; workers: number; bytes: number }): string {
   const w = o.band[1] - o.band[0], refs = o.heroes.map((h) => `vs ${H(h)} ref`);
   const L = [
     "# BeltBattles stand-in pool v1.1 (full purse, par floor)",
@@ -118,6 +130,8 @@ function poolMarkdown(o: StandInOpts, days: HeroDay[], run: { battles: number; s
     const elig = eligibleOf(hd.pop, o, hd.relax === "elites" || hd.relax === "best").length;
     L.push(`| ${H(hd.hero)} | ${hd.day} | ${STEP[hd.relax]} | ${hd.window[0]}-${hd.window[1]} | ${hd.pop.length} | ${elig} | ${Math.min(...costs)}-${Math.max(...costs)} | ${Math.min(...pcts)}-${Math.max(...pcts)} | ${pct(Math.min(...vp))}-${pct(Math.max(...vp))} | ${hd.picks[hd.par].pct} | ${o.heroes.map((h) => pct(hd.parVsRef[h] ?? 0)).join(" / ")} | ${pct(hd.parVsElites)} |`);
   }
+  L.push("", `## ${H(o.heroes[0])} pool vs ${H(o.heroes[1])} pool (report only)`, "", `Every ${H(o.heroes[0])} pick against every ${H(o.heroes[1])} pick, ${o.seeds} seeds x both sides.`, "");
+  L.push(`| day | ${pvp.map((r) => r.day).join(" | ")} |`, `|---|${pvp.map(() => "---").join("|")}|`, `| ${H(o.heroes[0])} pool win rate | ${pvp.map((r) => `${pct(r.rate)}`).join(" | ")} |`, `| battles | ${pvp.map((r) => r.battles).join(" | ")} |`);
   const spend = days.filter((hd) => hd.short), best = days.filter((hd) => hd.relax === "best");
   L.push("", "## Exceptions", "");
   L.push(spend.length ? spend.map((hd) => `- ${H(hd.hero)} day ${hd.day}: picks under the spend floor ${hd.floor}: ${hd.picks.filter((p) => p.cost < hd.floor).map((p) => p.cost).join(", ")} g`).join("\n") : "- Spend floor: none. Every pick of every hero and day costs at least ceil(0.9 x maxGoldByDay).");
