@@ -68,6 +68,9 @@ declare module "node:path" {
 declare const process: {
   argv: string[];
   env: Record<string, string | undefined>;
+  execPath: string;
+  version: string;
+  exitCode: number | undefined;
   exit(code?: number): never;
   on(event: "SIGINT" | "SIGTERM", cb: () => void): void;
 };
