@@ -33,7 +33,7 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
   sump: {
     id: "sump", name: "SUMP", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["LEECH SLUGS: DRAG FOR", "THE LEFT GUN, ECHO", "FOR THE RIGHT GUN."],
-    factory: { ammo: "leechDrag", interval: 0.9, outputs: 2 },
+    factory: { ammo: "leechDrag", interval: 1.1, outputs: 2 },
   },
   // Beastfolk-pool turret modules (ruling 5). No merchant yet: the caravan offers faction pools
   // from 0.9.0 (ITEM_POOL below), so today no shop sells them and no Furnace/Weaver run changes.
@@ -58,8 +58,8 @@ export const RACE_AMMO: Record<RaceAmmoKind, AmmoDef> = {
   // base is the curve's floor, for display; rideCurve replaces base + rideScale x ride.
   pendulum: { name: "PENDULUM SLUG", base: PENDULUM.floor, rideScale: 0, fray: 0, rideCurve: pendulumCurve },
   // One leech, two marks: the Sump stamps the mark into the ammo kind, so Splitter copies keep it.
-  leechDrag: { name: "LEECH SLUG: DRAG", base: 3, rideScale: 0, fray: 0 },
-  leechEcho: { name: "LEECH SLUG: ECHO", base: 3, rideScale: 0, fray: 0 },
+  leechDrag: { name: "LEECH SLUG: DRAG", base: 5, rideScale: 0, fray: 0 },
+  leechEcho: { name: "LEECH SLUG: ECHO", base: 5, rideScale: 0, fray: 0 },
 };
 
 export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
@@ -89,7 +89,7 @@ export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   },
   siphon: {
     id: "siphon", name: "SIPHON", faction: "unaligned", factionName: "SUMP DRIFTERS",
-    hull: 190, factory: "sump", ammo: "leechDrag", belt: 20,
+    hull: 220, factory: "sump", ammo: "leechDrag", belt: 20,
     turrets: [
       { col0: 1, width: 2, connectors: [2], kind: "light", fireInterval: 0.6, window: 2, flight: 0.34 },
       { col0: 7, width: 2, connectors: [7], kind: "light", fireInterval: 0.6, window: 2, flight: 0.34 },
