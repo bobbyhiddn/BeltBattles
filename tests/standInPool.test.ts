@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { hashSeed } from "../src/core/rng";
 import { simulate } from "../src/sim/battle";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
+import type { Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
@@ -14,17 +16,31 @@ import {
 
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 const floor = (day: number) => Math.ceil(0.9 * maxGoldByDay(day));
+const dayData = (hero: HeroId, day: number) => STAND_IN_DATA.pools[hero]![day - 1];
+// hero/days that took their best-vsPar builds (relaxation "best"), listed with their vsPar values
+const parShort = new Set(STAND_IN_DATA.short.filter((s) => s.vsPar).map((s) => `${s.hero}|${s.day}`));
+
+/** A's win rate against B over `seeds`, each played from both sides (win 1, draw 0.5). */
+function winRate(a: Build, b: Build, seeds: number[]): number {
+  let pts = 0;
+  for (const s of seeds) {
+    const x = simulate(a, b, s).winner, y = simulate(b, a, s).winner;
+    pts += (x === 0 ? 1 : x === -1 ? 0.5 : 0) + (y === 1 ? 1 : y === -1 ? 0.5 : 0);
+  }
+  return pts / (2 * seeds.length);
+}
 
 describe("stand-in pool", () => {
   it("covers FURNACE and WEAVER with 6 entries per day, days 1-10, under the current RULES_VERSION", () => {
     expect(STAND_IN_POOL_HEROES).toEqual(["furnace", "weaver"]);
     expect(STAND_IN_POOL_RULES).toBe(RULES_VERSION);
     expect(STAND_IN_DATA.band).toEqual([40, 60]);
+    expect(STAND_IN_DATA.parFloor).toBe(0.5);
     for (const hero of STAND_IN_POOL_HEROES) for (const day of DAYS) expect(standInPool(hero, day), `${hero} d${day}`).toHaveLength(6);
   });
 
   it("every entry is legal for its day, the right hero, priced at buildCost, and meets the 90% floor", () => {
-    const short = new Set(STAND_IN_DATA.short.map((s) => `${s.hero}|${s.day}|${s.cost}`));
+    const short = new Set(STAND_IN_DATA.short.filter((s) => !s.vsPar).map((s) => `${s.hero}|${s.day}|${s.cost}`));
     for (const hero of STAND_IN_POOL_HEROES) {
       for (const day of DAYS) {
         for (const e of standInPool(hero, day)) {
@@ -41,12 +57,19 @@ describe("stand-in pool", () => {
     }
   });
 
-  it("entries are sorted by pct and lie inside the band (none widened)", () => {
+  it("entries are sorted by pct and lie inside their window, which starts at 40 or above and is 20 points wide unless widened", () => {
     for (const hero of STAND_IN_POOL_HEROES) {
       for (const day of DAYS) {
         const p = standInPool(hero, day).map((e) => e.pct);
+        const [, , [lo, hi], n, relax] = dayData(hero, day);
         expect(p).toEqual([...p].sort((a, b) => a - b));
-        for (const x of p) expect(x >= 40 && x <= 60, `${hero} d${day} pct ${x}`).toBe(true);
+        expect(lo, `${hero} d${day}`).toBeGreaterThanOrEqual(STAND_IN_DATA.band[0]);
+        for (const x of p) expect(x >= lo && x <= hi, `${hero} d${day} pct ${x} outside ${lo}-${hi}`).toBe(true);
+        if (relax === "none") expect(hi, `${hero} d${day}`).toBe(Math.min(100, Math.round((lo + 20) * 10) / 10));
+        if (relax === "widen") expect(hi - lo, `${hero} d${day}`).toBeGreaterThan(20);
+        expect(n, `${hero} d${day}`).toBe(relax === "none" || relax === "widen" ? STAND_IN_DATA.pop : n);
+        expect([64, 128, 256]).toContain(n);
+        if (lo === 40 && hi === 60) for (const x of p) expect(x >= 40 && x <= 60).toBe(true); // the old band, unmoved
       }
     }
   });
@@ -82,16 +105,46 @@ describe("stand-in pool", () => {
     expect(standInPick("furnace", 3, 7)).not.toBe(standInPick("furnace", 3, 7));
   });
 
-  it("standInPar is the entry nearest pct 50", () => {
+  it("standInPar is the stored par index: the entry nearest the middle of its window (pct 50 for the old band)", () => {
     for (const hero of STAND_IN_POOL_HEROES) {
       for (const day of DAYS) {
         const pool = standInPool(hero, day), par = standInParIndex(hero, day);
-        const best = Math.min(...pool.map((e) => Math.abs(e.pct - 50)));
-        expect(Math.abs(pool[par].pct - 50)).toBe(best);
+        const [stored, , [lo, hi]] = dayData(hero, day);
+        const mid = (lo + hi) / 2, dist = pool.map((e) => Math.abs(e.pct - mid));
+        expect(par, `${hero} d${day}`).toBe(stored);
+        expect(par, `${hero} d${day}`).toBe(dist.indexOf(Math.min(...dist))); // the first on a tie
         expect(standInPar(hero, day)).toEqual(pool[par].build);
+        if (lo === 40 && hi === 60) expect(Math.abs(pool[par].pct - 50)).toBe(Math.min(...pool.map((e) => Math.abs(e.pct - 50))));
       }
     }
   });
+
+  it("every entry wins at least half its battles against both par decks (vsPar >= 0.5), unless its hero/day is listed in short", () => {
+    for (const s of STAND_IN_DATA.short.filter((x) => x.vsPar)) {
+      expect(s.vsPar, `${s.hero} d${s.day}`).toEqual(standInPool(s.hero, s.day).map((e) => e.vsPar));
+    }
+    for (const hero of STAND_IN_POOL_HEROES) {
+      for (const day of DAYS) {
+        for (const e of standInPool(hero, day)) {
+          expect(e.vsPar).toBeLessThanOrEqual(1);
+          if (!parShort.has(`${hero}|${day}`)) expect(e.vsPar, `${hero} d${day} pct ${e.pct}`).toBeGreaterThanOrEqual(0.5);
+        }
+      }
+    }
+  });
+
+  it("each par, re-simulated against heroRefBuild of both factions (10 seeds x both sides), wins at least 50%: its stored vsPar", () => {
+    for (const hero of STAND_IN_POOL_HEROES) {
+      for (const day of DAYS) {
+        const par = standInPar(hero, day);
+        const rates = STAND_IN_POOL_HEROES.map((foe, r) =>
+          winRate(par, heroRefBuild(foe, day), Array.from({ length: 10 }, (_, k) => hashSeed("standin-ref", STAND_IN_DATA.seed, hero, day, r, k))));
+        const low = Math.min(...rates);
+        expect(low, `${hero} d${day}`).toBeCloseTo(standInPool(hero, day)[standInParIndex(hero, day)].vsPar, 6);
+        if (!parShort.has(`${hero}|${day}`)) expect(low, `${hero} d${day} vs refs ${rates.join(" / ")}`).toBeGreaterThanOrEqual(0.5);
+      }
+    }
+  }, 180_000);
 
   it("each par against heroRefBuild: a quick battle finishes with no NaN", () => {
     for (const hero of STAND_IN_POOL_HEROES) {

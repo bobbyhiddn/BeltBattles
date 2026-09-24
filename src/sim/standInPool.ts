@@ -1,8 +1,13 @@
 // Bundled full-purse stand-in decks for the dusk fight, days 1-10 (0.6.0c). The pool comes from
 // tools/genStandInPool.ts: per hero and day, a population of legal builds that each spend at
 // least 90% of maxGoldByDay(day), ranked by strength against a fixed gauntlet of that day's
-// builds; the picks are the builds whose strength percentile lies in the middle band (default
-// 40-60), and the par is the pick nearest the 50th percentile.
+// builds (pct = strength percentile). Par floor: each pick wins at least half its battles against
+// the day's par deck (heroRefBuild) of EITHER faction; vsPar is that lower win rate. The picks
+// are eligible builds (pct >= 40, vsPar >= 0.5, not among the population's top eighth) spread
+// across a 20-point window that starts at the lowest eligible pct (at 40 when no build lies
+// between 40 and it), and the par is the pick nearest the window's middle. A day with too
+// few eligible builds widens the window, grows its population, then allows elites; a day that
+// still falls short takes its best-vsPar builds and is listed in STAND_IN_DATA.short.
 // Portable: this file and its data module import only ./content and ./deck (and each other),
 // so the game can copy both as they are.
 //
@@ -30,6 +35,7 @@ export interface StandInEntry {
   build: Build;
   cost: number; // purchase cost in gold (items, modules, belt crates, plating)
   pct: number; // strength percentile inside its hero/day population (0-100)
+  vsPar: number; // lower win rate against the day's par decks of both factions, heroRefBuild (0-1)
 }
 
 const cellCode = (x: number, y: number): string => `${y}${x}`;
@@ -98,7 +104,7 @@ export function standInPool(hero: HeroId, day: number): StandInEntry[] {
   const d = dayPool(hero, day);
   if (!d) return [];
   const dd = standInDay(day);
-  return d[1].map(([cost, pct, , code]) => ({ hero, day: dd, build: decodeStandIn(hero, code), cost, pct }))
+  return d[1].map(([cost, pct, , code, vsPar]) => ({ hero, day: dd, build: decodeStandIn(hero, code), cost, pct, vsPar }))
     .sort((a, b) => a.pct - b.pct);
 }
 
@@ -125,7 +131,7 @@ export function standInPick(hero: HeroId, day: number, seed: number): Build {
   return decodeStandIn(hero, d[1][standInPickIndex(hero, day, seed)][3]);
 }
 
-/** Index (into standInPool(hero, day)) of the par: the pick nearest the 50th percentile. */
+/** Index (into standInPool(hero, day)) of the par: the pick nearest the middle of its window. */
 export function standInParIndex(hero: HeroId, day: number): number {
   return need(hero, day, "standInPar")[0];
 }
