@@ -237,4 +237,10 @@ export const SHOTS = [
       g.render();
     })()`],
   ]),
+  // 0.6.1r F7 (review-061's scenario): the turret panel with a bought SCATTER CHOKE ★2 core AND CALIBRATION gear on
+  // turret 1, so it has two buttons (REMOVE CORE, REMOVE GEAR); in portrait they never cover the title or sub-line.
+  ...["desk", "phone"].map((v) => [
+    "build-core-gear", v, "build", 0.8,
+    "bb.game.run.build.mods.push({uid: 9001, def: 'scatter', turret: 0, stars: 2}, {uid: 9002, def: 'calibrate', turret: 0}); bb.game.screen.select({kind:'turret', index:0}); bb.game.render()",
+  ]),
 ];

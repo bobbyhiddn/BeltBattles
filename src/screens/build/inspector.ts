@@ -267,6 +267,39 @@ export function hasDetails(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: num
   return spec(ctx, show, !!hover) !== null;
 }
 
+/**
+ * 0.6.1r F7 (review-061; the Prime's layout call): in portrait the 1-2 action buttons never cover the panel's
+ * title or sub-line. They keep the top-right row when it can hold them right of both texts (at the old even width,
+ * else each sized to its label); otherwise they take one row directly under the sub-line (and the icon box), and
+ * the body text moves down by that row (`shift`). Returns one rect per label, in action order (the last action
+ * sits at the right edge, as before). Exported for tests.
+ */
+export function portraitButtons(title: string, sub: string, labels: string[], r: Rect): { rects: Rect[]; shift: number } {
+  const n = labels.length, gap = 3, h = 13;
+  const clear = r.x + 23 + Math.max(textWidth(title) + 2, textWidth(sub, "3")) + 3; // the title's outline, then a gap
+  const even = Math.min(64, Math.floor((r.w - 10 - gap * (n - 1)) / n));
+  const sized = labels.map((l) => Math.min(even, Math.max(24, textWidth(l, "3") + 10)));
+  const place = (ws: number[], right: number, y: number): Rect[] => {
+    const out: Rect[] = [];
+    let x = right;
+    for (let i = ws.length - 1; i >= 0; i--) {
+      x -= ws[i];
+      out[i] = { x, y, w: ws[i], h };
+      x -= gap;
+    }
+    return out;
+  };
+  for (const ws of [labels.map(() => even), sized]) {
+    const rects = place(ws, r.x + r.w - 4, r.y + 4);
+    if (rects[0].x >= clear) return { rects, shift: 0 };
+  }
+  // the row: y+21..y+33, 1 px under the icon box (y+4..y+19) and 3 px under the sub-line (y+13..y+17). The body
+  // text, which began at y+25, starts 3 px under the row (y+37): a 12 px shift keeps 4 lines of the 3x5 face in
+  // the 69 px phone band (the turret case's CORE and GEAR lines both still show).
+  const w = Math.floor((r.w - 10 - gap * (n - 1)) / n);
+  return { rects: place(labels.map(() => w), r.x + r.w - 5, r.y + 21), shift: 12 };
+}
+
 export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe): void {
   if (area.h < 14) return;
   const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
@@ -275,11 +308,14 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   if (!sp) return drawIdle(g, ctx.run, area, column, foe);
   const wrapW = area.w - 10;
   const acts = sp.actions ?? []; // 0.6.1b: 0-2 buttons (the turret case: REMOVE CORE, REMOVE GEAR)
+  // 0.6.1r F7: the portrait buttons' place (the top row, or a row under the sub-line that moves the body down)
+  const port = !column && acts.length ? portraitButtons(sp.title, sp.sub, acts.map((a) => a.label), area) : null;
+  const shift = port?.shift ?? 0;
   // the description in the 5x7 face when it fits the area (easier to read), else the 3x5 face
   const extra = acts.length ? acts.length * 19 + 3 : 4;
   let font: "5" | "3" = "5", lh = 9;
   let lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
-  if (column ? 27 + lines.length * lh + extra > area.h : lines.length * lh - 2 > area.h - 29) {
+  if (column ? 27 + lines.length * lh + extra > area.h : lines.length * lh - 2 > area.h - 29 - shift) {
     font = "3";
     lh = 7;
     lines = sp.text.flatMap((l) => wrap(l, wrapW, font));
@@ -303,18 +339,11 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
       by -= 3;
     }
     maxY = by;
-  } else if (acts.length) {
-    // portrait strip: same top-right row as before, split between 1-2 buttons
-    const h = 13, gap = 3;
-    const w = Math.min(64, Math.floor((r.w - 10 - gap * (acts.length - 1)) / acts.length));
-    let x = r.x + r.w - 4 - w;
-    for (let i = acts.length - 1; i >= 0; i--) {
-      const a = acts[i];
-      button(ctx.game.ui, g, a.id, { x, y: r.y + 4, w, h }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
-      x -= w + gap;
-    }
+  } else if (port) {
+    // portrait strip: 1-2 buttons where portraitButtons put them (never over the title or the sub-line)
+    acts.forEach((a, i) => button(ctx.game.ui, g, a.id, port.rects[i], a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap }));
   }
-  let y = r.y + 25;
+  let y = r.y + 25 + shift;
   for (const ln of lines) {
     if (y + lh - 2 > maxY) break;
     drawText(g, ln, r.x + 5, y, C.bone, { font });

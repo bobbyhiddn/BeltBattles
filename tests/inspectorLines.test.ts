@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { levelLine, mergeLine, nextLine, starEffectLine } from "../src/screens/build/inspector";
+import { levelLine, mergeLine, nextLine, portraitButtons, starEffectLine } from "../src/screens/build/inspector";
+import { textWidth } from "../src/render/font";
 import { newRun, type Run } from "../src/game/run";
 import { resolveCore } from "../src/sim/cores";
 import { ITEMS, type ItemDef } from "../src/sim/content";
@@ -76,5 +77,36 @@ describe("N4: a turret core's lines show its headline at that star", () => {
     expect(starEffectLine("rotary", 1)).toBe("FIFO LOAD FIRST");
     expect(levelLine("rotary", 2)).toBe("★2 GREASED RACE: FIFO LOAD FIRST · FIRE X0.85");
     expect(levelLine("rotary", 3)).toBe("★3 CLEAN FEED: FIFO LOAD FIRST · FIRE X0.7 · NEVER JAMS");
+  });
+});
+
+describe("F7 (the Prime's call): portrait action buttons (portraitButtons, pure font metrics)", () => {
+  it("in the phone band the buttons never cover the title, the sub-line or the icon, and stay inside", () => {
+    type Box = { x: number; y: number; w: number; h: number };
+    const hit = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const band: Box = { x: 3, y: 100, w: 161, h: 69 }; // the phone build screen: W 167, info band x 3, w W - 6, h 69
+    const cases: [string, string, string[], "top" | "row"][] = [
+      ["HEAVY TURRET 1", "FED FROM COLUMN 5+6", ["REMOVE CORE", "REMOVE GEAR"], "row"], // review-061's F7 scenario
+      ["TEMPER", "COMMON GATE · GUNSMITH", ["BUY+MERGE 3G"], "row"],
+      ["TEMPER", "COMMON GATE · IN CARGO", ["SELL +2G"], "top"], // sized to its label, it fits beside the texts
+      ["BELT ROUTE", "FEEDS TURRET 1", ["REMOVE BELT"], "top"], // fits at the old 64 px width
+    ];
+    for (const [title, sub, labels, where] of cases) {
+      const { rects, shift } = portraitButtons(title, sub, labels, band);
+      const texts: Box[] = [
+        { x: band.x + 22, y: band.y + 3, w: textWidth(title) + 2, h: 9 }, // the 5x7 title with its 1 px outline
+        { x: band.x + 23, y: band.y + 13, w: textWidth(sub, "3"), h: 5 },
+        { x: band.x + 4, y: band.y + 4, w: 16, h: 16 }, // the icon box
+      ];
+      expect(rects).toHaveLength(labels.length);
+      for (const q of rects) {
+        for (const t of texts) expect(hit(q, t), `${labels.join("+")} vs ${title} / ${sub}`).toBe(false);
+        expect(q.x).toBeGreaterThanOrEqual(band.x + 4);
+        expect(q.x + q.w).toBeLessThanOrEqual(band.x + band.w - 4);
+        expect(q.w).toBeGreaterThanOrEqual(textWidth(labels[rects.indexOf(q)], "3") + 4); // the label fits its button
+      }
+      if (rects.length === 2) expect(hit(rects[0], rects[1])).toBe(false);
+      expect(where === "top" ? rects.every((q) => q.y === band.y + 4) && shift === 0 : rects.every((q) => q.y === band.y + 21) && shift === 12).toBe(true);
+    }
   });
 });
