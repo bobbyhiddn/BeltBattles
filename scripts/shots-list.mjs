@@ -71,6 +71,23 @@ export const END = (o, ghosts = []) => `(() => { bb.openEnd(${J(o)}, ${J(ghosts)
 // warlord fight (with `outcome` in the options: its result card)
 export const FORK = (o, ghosts = [], extra = "") => `(() => { bb.openFork(${J(o)}, ${J(ghosts)}); ${STEP(60)} ${extra} bb.game.render(); })()`;
 export const WARLORD = (tier, o, frames) => `(() => { bb.openWarlord(${J(tier)}, ${J(o)}); ${STEP(frames)} bb.game.render(); })()`;
+// 0.6.1b: a battle with a turret core fitted before the fight starts. `bb.open("build", ...)` first
+// so `game.run` exists (tooling-style: newRun, no shop purchase), the core is pushed straight onto
+// Build.mods (same pattern as build-deadend's direct route mutation below), then `bb.open("battle", ...)`
+// reuses that run (its `game.run ?? newRun(...)` no-ops once `game.run` is set) so the Arena's Battle
+// is built with the core already fitted.
+export const CORE_BATTLE = (def, turret = 0, stars = 1, frames = 210) => `(() => {
+  const bb = window.bb, g = bb.game;
+  try {
+    g.run = null;
+    bb.open("build", "furnace", 12345);
+    ${STEP(20)} // Game.go() drops a second pending screen until the first wipe clears (~0.24s)
+    g.run.build.mods.push({ uid: 9001, def: ${J(def)}, turret: ${turret}, stars: ${stars} });
+    bb.open("battle", "furnace", 12345);
+    ${STEP(frames)}
+    g.render();
+  } catch (e) { console.error("CORE_BATTLE: " + e.message + "\\n" + e.stack); }
+})()`;
 const POOL = [
   { day: 2, hero: "weaver", wins: 1, losses: 0 }, { day: 3, hero: "furnace", wins: 1, losses: 1 },
   { day: 5, hero: "weaver", wins: 3, losses: 1 }, { day: 8, hero: "furnace", wins: 4, losses: 3 },
@@ -179,4 +196,11 @@ export const SHOTS = [
     [`dusk-pool-d${day}-intro`, v, "title", 0, DUSK({ day, wins, losses, lives }, [], 75)],
     [`dusk-pool-d${day}-mid`, v, "title", 0, DUSK({ day, wins, losses, lives }, [], 450)],
   ])),
+  // 0.6.1b: the turret core socket + star pips (cruiser.ts) with the inspector's turret case open on
+  // a bought core (CORE: SCATTER CHOKE **, REMOVE CORE, GEAR: EMPTY HARDPOINT), portrait and landscape;
+  // and a battle with a core fitted, so SCATTER CHOKE's pellet render hook (ammo.ts) is on screen.
+  ...["desk", "phone"].flatMap((v) => [
+    ["build-core-socket", v, "build", 0.8, "bb.game.run.build.mods.push({uid: 9001, def: 'scatter', turret: 0, stars: 2}); bb.game.screen.select({kind:'turret', index:0}); bb.game.render()"],
+  ]),
+  ["battle-core", "desk", "title", 0, CORE_BATTLE("scatter", 0, 2, 600)],
 ];
