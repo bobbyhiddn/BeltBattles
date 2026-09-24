@@ -2,7 +2,7 @@
 // same simulation rules as the player (spec §19). Builds escalate by round.
 
 import { HEROES, type HeroId } from "./content";
-import { key, type Build, type Placed, type RouteDef } from "./deck";
+import { key, rotField, type Build, type Placed, type RouteDef } from "./deck";
 import { migrateDeck } from "./beltside";
 
 const K = (x: number, y: number) => key(x, y);
@@ -55,8 +55,8 @@ export function startingBuild(heroId: HeroId, uid0: number): Build {
   return migrateDeck({ hero: heroId, items: l.items, routes: l.routes, mods: [], beltCap: l.beltCap, hullBonus: 0 }, "preset:ai");
 }
 
-/** Enemy warlord build for a round (1-based). 0.6.2 BELTSIDE: a load boundary (D3): gates written on belt
- *  tiles (the 0.6.1 layouts) move beside them; once the layouts place rigs natively it is a safety net. */
+/** Enemy warlord build for a round (1-based). 0.6.2 BELTSIDE: the layouts place rigs natively; the D3
+ *  migration here is the load boundary's safety net (a no-op for these decks). */
 export function warlordBuild(heroId: HeroId, round: number): Build {
   return migrateDeck(warlordLayout(heroId, round), "preset:ai");
 }
@@ -64,18 +64,21 @@ export function warlordBuild(heroId: HeroId, round: number): Build {
 function warlordLayout(heroId: HeroId, round: number): Build {
   const U = 9000;
   let uid = U + 10;
-  const gate = (def: string, x: number, y: number): Placed => ({ uid: uid++, def, x, y });
+  // 0.6.2 BELTSIDE: each rig stands beside the belt tile it works, rot turning its arrows (M4 port of the 0.6.1
+  // inline layouts: from the D3 migration's cells, hand-placed so every rig works exactly its old tile and no
+  // other; the comment names that tile)
+  const gate = (def: string, x: number, y: number, rot = 0): Placed => ({ uid: uid++, def, x, y, ...rotField(def, rot) });
   if (heroId === "weaver") {
     const l = weaverBase(U);
     const items = [...l.items];
     const steps: Placed[] = [
-      gate("grease", 1, 3), // r2
-      gate("temper", 4, 2), // r3
-      gate("coil", 8, 3), // r4
-      gate("whetstone", 1, 4), // r5
-      gate("longhaul", 4, 1), // r6
-      gate("grease", 7, 5), // r7
-      gate("temper", 8, 2), // r8
+      gate("grease", 0, 3, 1), // r2: works (1,3)
+      gate("temper", 3, 2, 1), // r3: (4,2)
+      gate("coil", 7, 3, 1), // r4: (8,3)
+      gate("whetstone", 0, 4, 1), // r5: (1,4)
+      gate("longhaul", 3, 1), // r6: (4,1)
+      gate("grease", 7, 4, 2), // r7: (7,5)
+      gate("temper", 7, 2, 1), // r8: (8,2)
     ];
     for (let i = 0; i < Math.min(steps.length, round - 1); i++) items.push(steps[i]);
     const mods = round >= 8 ? [{ uid: uid++, def: "calibrate", turret: 1 }] : [];
@@ -85,21 +88,21 @@ function warlordLayout(heroId: HeroId, round: number): Build {
   if (round <= 2) {
     const l = furnaceStart(U);
     const items = [...l.items];
-    if (round === 2) items.push(gate("temper", 4, 3));
+    if (round === 2) items.push(gate("temper", 3, 3, 1)); // works (4,3)
     return { hero: "furnace", items, routes: l.routes, mods: [], beltCap: l.beltCap, hullBonus: warlordHull(round) };
   }
   const l = furnaceCooker(U);
-  const items = [...l.items, gate("temper", 2, 4)];
+  const items = [...l.items, gate("temper", 1, 4, 1)]; // works (2,4)
   const routes = [...l.routes];
-  if (round >= 4) items.push(gate("brake", 3, 2));
-  if (round >= 5) items.push(gate("longhaul", 4, 1));
+  if (round >= 4) items.push(gate("brake", 3, 3)); // (3,2), from below: (3,1) is the long haul's only way in
+  if (round >= 5) items.push(gate("longhaul", 3, 1)); // (4,1); its other arrow points at bare deck
   if (round >= 6) {
     const press = U + 1;
     items.push({ uid: press, def: "press", x: 6, y: 6 });
     routes.push({ factory: press, cells: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] });
   }
-  if (round >= 7) items.push(gate("grease", 5, 4));
-  if (round >= 8) items.push(gate("whetstone", 2, 3));
+  if (round >= 7) items.push(gate("grease", 4, 4, 1)); // (5,4)
+  if (round >= 8) items.push(gate("whetstone", 1, 3, 1)); // (2,3)
   const mods = round >= 6 ? [{ uid: uid++, def: "calibrate", turret: 0 }] : [];
   return { hero: "furnace", items, routes, mods, beltCap: 18, hullBonus: warlordHull(round) };
 }

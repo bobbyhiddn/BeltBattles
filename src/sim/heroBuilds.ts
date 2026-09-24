@@ -4,6 +4,8 @@
 // rounded to the NEAREST plate, never negative, as the dusk stand-in and the rival captains
 // do). The four race heroes come from races/refBuilds.ts, on the same ramp. Every caller gets
 // a deck of the hero it asked for: ai.ts alone would hand back a Loom deck labelled FOUNDRY.
+// 0.6.2 BELTSIDE: both sources place rigs natively beside the belt (and migrate at load, D3, as
+// a safety net), so these decks need nothing more here (tests/beltside.presets.test.ts).
 
 import { startingBuild, warlordBuild } from "./ai";
 import type { HeroId } from "./content";

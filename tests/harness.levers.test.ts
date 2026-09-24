@@ -2,30 +2,44 @@ import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { Battle } from "../src/sim/battle";
 import { HEROES, ITEMS } from "../src/sim/content";
-import { estimateRoute, key as K, occupancy, routeInfo, routesOf, type Build } from "../src/sim/deck";
+import { estimateRoute, hitsOfRig, key as K, occupancy, rigHits, routeInfo, routesOf, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { fullPurseBuild, randomBuild, spendFloor } from "../src/sim/harness/gen";
 import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "../src/sim/harness/heroes";
-import { applyLever, gateSeq, routesOutOfOrder } from "../src/sim/harness/levers";
-import { Shopper, isFlatGate, isSpeedGate, isSplitter } from "../src/sim/harness/shopper";
+import { applyLever, gateSeq, routesOutOfOrder, speedProfile } from "../src/sim/harness/levers";
+import { Shopper, isFlatGate, isSplitter } from "../src/sim/harness/shopper";
 
-// Balance harness v1 levers: Crucible sync, gate order, signature-route drop; no off-route gates.
+// Balance harness v1 levers: Crucible sync, rig order, signature-route drop; no idle rigs.
+// 0.6.2 BELTSIDE: rigs stand beside the belt (H2); a speed profile lists the speed rigs landing on each tile.
 
 const pop = (hero: string, day: number, n: number) =>
   Array.from({ length: n }, (_, i) => randomBuild(hero as Build["hero"], day, new Rng(hashSeed("bb-pop", 1, hero, day, i))));
 
-const speedAt = (b: Build, ri: number) => {
-  const occ = occupancy(b);
-  return b.routes[ri].cells.map((k) => {
-    const p = b.items.find((q) => q.uid === occ[k].item);
-    return p && isSpeedGate(ITEMS[p.def]) ? p.def : "-";
-  });
-};
+const speedAt = (b: Build, ri: number) => speedProfile(b, ri).map((x) => x || "-");
 
 describe("harness levers", () => {
-  it("sync: a lone speed gate on one Crucible route is mirrored at the same cell index", () => {
+  it("H2: a rig goes to the free cell beside its tile with the most hits on connected belts; ties go to the first in D3 order", () => {
+    // Weaver: belt B up column 4 into connector 4, belt A up column 6 then over to connector 8; column 5 lies between them
+    const b: Build = {
+      hero: "weaver", items: [{ uid: 1, def: "loom", x: 4, y: 5 }], mods: [], beltCap: 24, hullBonus: 0,
+      routes: [
+        { factory: 1, cells: [K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+        { factory: 1, cells: [K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(7, 1), K(8, 1), K(8, 0)] },
+      ],
+    };
+    expect(validateBuild(b, 3).errors).toEqual([]);
+    const s = new Shopper(b, maxGoldByDay(3), 3, new Rng(1));
+    const lh = s.placeRig("longhaul", 0, 1)!; // tile (4,3): left of travel is (3,3) with 1 hit, right is (5,3) with 2
+    expect([lh.x, lh.y, lh.rot]).toEqual([5, 3, 2]); // its first arrow faces the tile it was placed to work
+    expect(hitsOfRig(b, lh.uid).map((h) => [h.route, h.tile])).toEqual([[0, 1], [1, 2]]);
+    const ws = s.placeRig("whetstone", 0, 2)!; // tile (4,2): 1 hit either side, so the first in D3 order (left)
+    expect([ws.x, ws.y, ws.rot]).toEqual([3, 2, 1]);
+    expect(validateBuild(b, 3).errors).toEqual([]);
+  });
+
+  it("sync: a lone speed rig on one Crucible route is mirrored at the same tile index", () => {
     const b = heroStartBuild("foundry", 1);
-    b.items.push({ uid: 50, def: "grease", x: 2, y: 3 }); // route 0 (column 2), cell index 2
+    b.items.push({ uid: 50, def: "grease", x: 1, y: 3, rot: 1 }); // works route 0 (column 2), tile index 2
     const s = new Shopper(b, maxGoldByDay(5), 5, new Rng(3));
     expect(applyLever(s, "sync")).toBe(true);
     const [a, c] = routesOf(b, b.items[0].uid);
@@ -56,15 +70,21 @@ describe("harness levers", () => {
     expect(bt.sides[0].race!.foundry.fusions).toBeGreaterThan(0);
   }, 30_000);
 
-  it("order: flat-bonus gates move ahead of Splitters on the cells the gates already hold", () => {
-    const b = heroStartBuild("furnace", 1); // Kiln route: (4,5) .. (4,0)
-    b.items.push({ uid: 60, def: "splitter", x: 4, y: 4 }, { uid: 61, def: "temper", x: 4, y: 3 }, { uid: 62, def: "whetstone", x: 4, y: 2 });
+  it("order: flat-bonus rigs move ahead of Splitters on the cells the rigs already hold", () => {
+    const b = heroStartBuild("furnace", 1); // Kiln route: (4,5) .. (4,0); the rigs stand left of it
+    b.items.push(
+      { uid: 60, def: "splitter", x: 3, y: 4 }, // works tile 1 (4,4)
+      { uid: 61, def: "temper", x: 3, y: 3, rot: 1 }, // tile 2
+      { uid: 62, def: "whetstone", x: 3, y: 2, rot: 1 }, // tile 3
+    );
+    const cells = b.items.map((p) => K(p.x, p.y)).sort();
     const cost = buildCost(b).total;
     expect(routesOutOfOrder(b)).toEqual([0]);
     const s = new Shopper(b, maxGoldByDay(4), 4, new Rng(5));
     expect(applyLever(s, "order")).toBe(true);
-    expect(gateSeq(b, 0).map((g) => g.def.id)).toEqual(["whetstone", "temper", "splitter"]);
+    expect(gateSeq(b, 0).map((g) => [g.def.id, g.ci])).toEqual([["whetstone", 1], ["temper", 2], ["splitter", 3]]);
     expect(routesOutOfOrder(b)).toEqual([]);
+    expect(b.items.map((p) => K(p.x, p.y)).sort()).toEqual(cells); // the same cells, swapped
     expect(buildCost(b).total).toBe(cost);
     expect(validateBuild(b, 4).errors).toEqual([]);
   });
@@ -101,16 +121,27 @@ describe("harness levers", () => {
     expect(dropped).toBeGreaterThan(5);
   }, 30_000);
 
-  it("no gate is ever left off-route, and no Crucible route is ever dropped", () => {
+  it("no rig is ever left idle or on a belt tile (every rig lands an arrow on a connected belt), and no Crucible route is ever dropped", () => {
+    let rigs = 0, multi = 0;
     for (const hero of HARNESS_HEROES) {
       for (const day of [2, 6, 10]) {
         for (const b of pop(hero, day, 12)) {
-          const occ = occupancy(b);
-          for (const p of b.items) if (ITEMS[p.def].kind === "gate") expect(occ[K(p.x, p.y)].route, `${hero} d${day}`).toBeGreaterThanOrEqual(0);
+          const occ = occupancy(b), hits = rigHits(b);
+          for (const p of b.items) {
+            if (ITEMS[p.def].kind !== "gate") continue;
+            rigs++;
+            expect(occ[K(p.x, p.y)].route, `${hero} d${day}: ${p.def} on a belt`).toBe(-1);
+            const hs = hitsOfRig(b, p.uid, hits);
+            expect(hs.length, `${hero} d${day}: ${p.def} idle`).toBeGreaterThan(0);
+            for (const h of hs) expect(routeInfo(b, h.route, undefined, undefined, hits).connected).toBe(true);
+            if (hs.length >= 2) multi++;
+          }
           if (hero === "foundry") expect(routesOf(b, b.items.find((p) => p.def === "crucible")!.uid)).toHaveLength(2);
         }
       }
     }
+    expect(rigs).toBeGreaterThan(500);
+    expect(multi).toBeGreaterThan(0); // greedy placement finds multi-hit spots (H2)
   }, 60_000);
 
   it("fullPurseBuild spends at least 90% of the day's gold, legally, and is reproducible", () => {

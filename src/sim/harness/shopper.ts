@@ -1,10 +1,18 @@
 // Balance harness: the Shopper, the state randomBuild spends through. It holds the deck being
-// built, the day's budget and the hero's shop (shopExclude honoured), plus the belt and gate
+// built, the day's budget and the hero's shop (shopExclude honoured), plus the belt and rig
 // helpers every lever shares. Edits that can fail take a snapshot and restore it.
+// 0.6.2 BELTSIDE (ref/DESIGN-beltside.md H2): rigs stand beside the belt. The shopper picks a belt tile to
+// work and places the rig greedily: the free cell beside that tile and the rotation with the most hits on
+// connected belts, ties to the first candidate in D3 order (beltside.ts spotForTile). A rig that works only
+// a belt that moves or goes (its riders) is lifted and put back to work beside the new belt.
 
 import type { Rng } from "../../core/rng";
-import { GRID, HEROES, ITEMS, type ItemDef } from "../content";
-import { cloneBuild, kx, ky, occupancy, routesOf, turretForColumn, type Build, type Placed } from "../deck";
+import { HEROES, ITEMS, type ItemDef } from "../content";
+import {
+  arrowCell, cloneBuild, connectorClaims, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
+  type Build, type Dir, type Placed,
+} from "../deck";
+import { freeForRig, intakeCell, placeRigAt, spotForTile, type WouldHit } from "../beltside";
 import { buildCost } from "../../net/validate";
 import { shopItems } from "./heroes";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
@@ -18,12 +26,15 @@ export const isSpeedGate = (d: ItemDef): boolean => d.gate?.speed !== undefined;
 export const isFlatGate = (d: ItemDef): boolean => !!(d.gate?.flat || d.gate?.perPriorGate);
 export const isSplitter = (d: ItemDef): boolean => !!d.gate?.split;
 
+/** A filter on the hits a rig would make where it is being placed (beltside.ts spotForTile). */
+export type Accept = (hits: WouldHit[]) => boolean;
+
 export class Shopper {
   uid = 100;
   edits = 0;
-  synced = false; // Crucible twins matched with mirrored speed gates; kept so after every lever
-  ordered = false; // flat-bonus gates ahead of Splitters on every route; kept so after every lever
-  readonly gates: ItemDef[]; // gates this hero's caravan sells
+  synced = false; // Crucible twins matched with mirrored speed rigs; kept so after every lever
+  ordered = false; // flat-bonus rigs ahead of Splitters on every route; kept so after every lever
+  readonly gates: ItemDef[]; // rigs this hero's caravan sells (kind "gate")
   readonly mods: ItemDef[];
   readonly minGate: number;
   readonly minMod: number;
@@ -59,19 +70,70 @@ export class Shopper {
     while (this.otherBelt(skip) + tiles > this.b.beltCap) this.b.beltCap += CRATE_BELT;
   }
 
-  freeRouteCells(): number[] {
+  /** H2 counts hits on connected belts: the routes that reach a turret intake. */
+  connected(): (ri: number) => boolean {
+    const claims = connectorClaims(this.b);
+    const ok = new Set(this.b.routes.map((_, i) => i).filter((i) => routeInfo(this.b, i, claims, undefined, []).connected));
+    return (ri) => ok.has(ri);
+  }
+
+  /** Belt tiles [route, tile] of connected routes (of `only` when given) with a free cell beside them
+   *  (turret intakes left clear): the tiles a rig can be put to work on. */
+  rigTiles(only: (ri: number) => boolean = this.connected()): [number, number][] {
     const occ = occupancy(this.b);
-    return this.b.routes.flatMap((r) => r.cells).filter((k) => occ[k].item < 0);
+    const out: [number, number][] = [];
+    this.b.routes.forEach((r, ri) => {
+      if (!only(ri)) return;
+      r.cells.forEach((k, ti) => {
+        for (let d = 0; d < 4; d++) {
+          const n = arrowCell(kx(k), ky(k), d as Dir);
+          if (freeForRig(this.b, n, occ) && !intakeCell(this.b, n)) {
+            out.push([ri, ti]);
+            break;
+          }
+        }
+      });
+    });
+    return out;
   }
 
-  /** The item sitting on cell k, if any. */
-  itemAt(k: number): Placed | undefined {
-    const u = occupancy(this.b)[k].item;
-    return u >= 0 ? this.b.items.find((p) => p.uid === u) : undefined;
+  /**
+   * H2: put a rig to work on tile ti of route ri: the free cell beside it and the rotation with the most hits
+   * on connected belts (ties: the first candidate in D3 order), among placements `accept` allows. A new rig
+   * takes the next uid; a lifted one keeps its uid and stars. null when no cell beside the tile will do.
+   */
+  placeRig(def: string, ri: number, ti: number, accept?: Accept, keep?: Placed): Placed | null {
+    const s = spotForTile(this.b, def, ri, ti, this.connected(), undefined, accept);
+    if (!s) return null;
+    return placeRigAt(this.b, keep?.uid ?? this.uid++, def, s, keep?.stars);
   }
 
-  placeGate(def: string, k: number): void {
-    this.b.items.push({ uid: this.uid++, def, x: kx(k), y: ky(k) });
+  /** Rigs whose every hit lands on route ri: they go idle when it moves or goes, so they travel with it. */
+  ridersOf(ri: number): Placed[] {
+    const hits = rigHits(this.b);
+    return this.b.items.filter((p) => {
+      if (ITEMS[p.def].kind !== "gate") return false;
+      const hs = hitsOfRig(this.b, p.uid, hits);
+      return hs.length > 0 && hs.every((h) => h.route === ri);
+    });
+  }
+
+  /** Take rigs off the deck (their cells free up for belts). */
+  lift(rigs: Placed[]): void {
+    const off = new Set(rigs.map((p) => p.uid));
+    this.b.items = this.b.items.filter((p) => !off.has(p.uid));
+  }
+
+  /** Put lifted rigs back to work beside route ri, each on a random tile of it with a free side (H2 spot).
+   *  Returns how many found a place (in order: it stops at the first that finds none). */
+  reseat(rigs: Placed[], ri: number): number {
+    let n = 0;
+    for (const p of rigs) {
+      const tiles = this.rigTiles((r) => r === ri);
+      if (!tiles.length || !this.placeRig(p.def, ri, this.rng.pick(tiles)[1], undefined, p)) break;
+      n++;
+    }
+    return n;
   }
 
   removeItem(uid: number): void {
@@ -128,22 +190,21 @@ export class Shopper {
     return null;
   }
 
-  /** Move route `ri` onto a new belt (tile count `tiles`, connector `col`, or random); its gates ride along. */
+  /** Move route `ri` onto a new belt (tile count `tiles`, connector `col`, or random). Its riders (rigs that
+   *  work only it) are lifted first, so the new belt may use their cells, then put back to work beside it;
+   *  the move fails when one of them finds no place. Rigs that also work another belt stay where they are. */
   moveRoute(ri: number, tiles?: number, col?: number): boolean {
     const b = this.b, snap = cloneBuild(b), spare = this.left();
     const r = b.routes[ri];
     const f = b.items.find((p) => p.uid === r.factory)!;
-    const occ = occupancy(b);
-    const lifted = new Set(r.cells.map((k) => occ[k].item).filter((u) => u >= 0));
-    const carried = b.items.filter((p) => lifted.has(p.uid));
-    b.items = b.items.filter((p) => !lifted.has(p.uid));
+    const carried = this.ridersOf(ri);
+    this.lift(carried);
     const bl = blockedCells(b, ri);
     const cells = this.drawRoute(ri, startCells(f.x, f.y, ITEMS[f.def].size, bl), bl, spare, tiles, col);
-    if (!cells || cells.length < carried.length) return this.restore(snap);
+    if (!cells) return this.restore(snap);
     this.buyBelt(ri, cells.length);
     b.routes[ri] = { factory: r.factory, cells };
-    const spots = this.rng.shuffle([...cells]);
-    carried.forEach((p, i) => b.items.push({ ...p, x: spots[i] % GRID, y: Math.floor(spots[i] / GRID) }));
+    if (this.reseat(carried, ri) < carried.length) return this.restore(snap);
     return buildCost(b).total <= this.budget ? true : this.restore(snap);
   }
 }

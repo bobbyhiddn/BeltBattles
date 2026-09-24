@@ -7,8 +7,8 @@
 
 import { GRID, ITEMS, SHAPE_ARROWS, rigShape } from "./content";
 import {
-  adjacentToFactory, arrowCell, dirBetween, footprint, inGrid, key, kx, ky, occupancy, opposite, rigArrows,
-  rotField, type Build, type Dir, type Placed,
+  adjacentToFactory, arrowCell, dirBetween, footprint, hero, inGrid, key, kx, ky, occupancy, opposite, rigArrows,
+  rotField, turretForColumn, type Build, type Dir, type Placed,
 } from "./deck";
 
 // ---------------------------------------------------------------- the D3 migration
@@ -214,6 +214,12 @@ export function freeForRig(b: Build, k: number, occ = occupancy(b)): boolean {
   return k >= 0 && k < GRID * GRID && occ[k].item < 0 && occ[k].route < 0;
 }
 
+/** Is cell k a turret intake: a forward-row cell in a connector column? Legal for a rig (R1), but a rig
+ *  there shuts that intake to belts, so suggestions and the harness never pick one. */
+export function intakeCell(b: Build, k: number): boolean {
+  return ky(k) === 0 && turretForColumn(hero(b), kx(k)) >= 0;
+}
+
 /** One way to place a rig: its cell, rotation and the hits it makes. */
 export interface RigSpot {
   x: number;
@@ -224,12 +230,17 @@ export interface RigSpot {
 
 /**
  * H2 (greedy): where a rig of `def` should go to work belt tile `ti` of route `ri`. The candidates are the
- * tile's free orthogonal neighbours in D3 order; each takes the rotation with the most hits on belts
+ * tile's free orthogonal neighbours in D3 order, turret intakes left clear (intakeCell); each takes the
+ * rotation with the most hits on belts
  * accepted by `only` (default: every route), counting only rotations whose arrows reach the tile. The most
  * hits wins, ties go to the first candidate in D3 order, and within a candidate to the rotation that faces
- * the tile with its first arrow. null when no neighbour is free.
+ * the tile with its first arrow. `accept`, when given, rules out placements by the hits they would make
+ * (the harness keeps order and twin sync with it). null when no neighbour is free (or none is accepted).
  */
-export function spotForTile(b: Build, def: string, ri: number, ti: number, only?: (ri: number) => boolean, occ = occupancy(b)): RigSpot | null {
+export function spotForTile(
+  b: Build, def: string, ri: number, ti: number, only?: (ri: number) => boolean, occ = occupancy(b),
+  accept?: (hits: WouldHit[]) => boolean,
+): RigSpot | null {
   const r = b.routes[ri];
   const k0 = r?.cells[ti];
   if (k0 === undefined) return null;
@@ -237,11 +248,12 @@ export function spotForTile(b: Build, def: string, ri: number, ti: number, only?
   let best: RigSpot | null = null;
   for (const d of neighbourOrder(b, ri, ti)) {
     const k = arrowCell(kx(k0), ky(k0), d);
-    if (k < 0 || !freeForRig(b, k, occ)) continue;
+    if (k < 0 || !freeForRig(b, k, occ) || intakeCell(b, k)) continue;
     const face = rotFacing(def, opposite(d));
     for (const rot of [face, ...rotations(def).filter((q) => q !== face)]) {
       const hits = hitsIfPlaced(b, def, kx(k), ky(k), rot, belts);
       if (!hits.some((h) => h.cell === k0)) continue;
+      if (accept && !accept(hits)) continue;
       if (!best || hits.length > best.hits.length) best = { x: kx(k), y: ky(k), rot, hits };
     }
   }

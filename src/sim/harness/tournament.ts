@@ -13,6 +13,7 @@ import { buildCost, maxGoldByDay } from "../../net/validate";
 import { randomBuild } from "./gen";
 import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "./heroes";
 import { buildTraits, type Traits } from "./levers";
+import { rigValues, type RigValue } from "./rigs";
 import { wilson, type Rate } from "./stats";
 
 export interface TourneyOpts {
@@ -66,6 +67,7 @@ export interface DayResult {
   popScores: Record<string, number[]>; // each hero's population win rates vs the gauntlet, by idx
   spend: Record<string, Spend>; // each hero's population spend (gold)
   traits: Record<string, TraitStats>;
+  rigs: Record<string, RigValue>; // 0.6.2 BELTSIDE H1: landed arrows and their value, every population rig, by def
 }
 
 export interface TourneyResult { opts: TourneyOpts; days: DayResult[]; battles: number }
@@ -183,7 +185,8 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner): Promise<
       calibration[h] = { rank: better + 1, of: popScores[h].length + 1, score: ref.score, build: ref.build, cost: ref.cost, popCost: spend[h] };
     }
   }
-  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits };
+  const rigs = rigValues(field.filter((e) => !e.ref).map((e) => e.build));
+  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits, rigs };
 }
 
 function traitStats(entries: Entry[], startRoutes: number): TraitStats {

@@ -1,21 +1,28 @@
 // Balance harness levers: every way randomBuild spends gold or reshapes a deck. v0's five
 // (gate, mod, plating, route, press) plus three from v1:
 // - sync (FOUNDRY): Crucible twins matched (same length, the two connectors of one gun) and
-//   every speed gate mirrored at the same cell index on both routes, so twin blanks keep
+//   every speed rig hit mirrored at the same tile index on both routes, so twin blanks keep
 //   arriving together. Once applied, normalize() holds it after every later lever.
-// - order: flat-bonus gates (Whetstone, Long Haul) ahead of Splitters on every route: reorder
-//   in place, or buy the missing Splitter / flat gate. Also held by normalize().
+// - order: flat-bonus rigs (Whetstone, Long Haul) ahead of Splitters on every route: swap them
+//   in place, or buy the missing Splitter / flat rig. Also held by normalize().
 // - drop (WEAVER, SIPHON): the build screen's REMOVE BELT works on signature belts and
 //   validateBuild accepts a factory feeding fewer routes than it has outputs, so a signature
-//   route may be dropped to free a connector for a Stamp Press line; its gates move onto the
+//   route may be dropped to free a connector for a Stamp Press line; its rigs move beside the
 //   new line. Never for a twin-pour factory (one route alone never fuses).
-// Gates are never left off-route: they only act on payloads riding their cell.
+// 0.6.2 BELTSIDE (ref/DESIGN-beltside.md H2): the "gate" lever buys a rig. Rigs stand beside the belt and
+// are placed greedily (Shopper.placeRig): a belt tile to work, then the free cell beside it and the rotation
+// with the most hits on connected belts. A rig is never left idle: every rig lands at least one arrow on a
+// connected belt, and one whose belt moves or goes moves with it.
 
 import { GRID, HEROES, ITEMS, rarityWeights, type ItemDef } from "../content";
-import { cloneBuild, footprint, itemByUid, kx, ky, occupancy, routeInfo, routesOf, type Build, type Placed } from "../deck";
+import {
+  cloneBuild, footprint, hitsOfRig, itemByUid, occupancy, rigHits, rotOf, routeInfo, routesOf, setRot,
+  type Build, type Placed, type RigHit,
+} from "../deck";
+import { beltIndex, hitsIfPlaced, rotations, type WouldHit } from "../beltside";
 import { buildCost } from "../../net/validate";
 import { blockedCells, freeConnectors, startCells } from "./path";
-import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Shopper } from "./shopper";
+import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Accept, type Shopper } from "./shopper";
 
 export type Lever = "gate" | "mod" | "plating" | "route" | "press" | "sync" | "order" | "drop";
 export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "press", "sync", "order", "drop"];
@@ -24,7 +31,7 @@ export function canApply(s: Shopper, l: Lever): boolean {
   const left = s.left(), b = s.b;
   switch (l) {
     case "plating": return left >= PLATE.price;
-    case "gate": return left >= s.minGate && s.freeRouteCells().length > 0;
+    case "gate": return left >= s.minGate && s.rigTiles().length > 0;
     case "mod": return left >= s.minMod && HEROES[b.hero].turrets.some((_, t) => !b.mods.some((m) => m.turret === t));
     case "press": return left >= PRESS.price && freeConnectors(b).length > 0;
     case "route": return s.edits < MAX_ROUTE_EDITS && b.routes.length > 0;
@@ -53,15 +60,16 @@ export function normalize(s: Shopper): void {
   if (s.ordered) for (const ri of routesOutOfOrder(s.b)) sortRoute(s.b, ri);
 }
 
-/** A gate on a free belt tile; the type is drawn with the shop's rarity weights for the day. */
+/** A rig put to work on a random belt tile that has a free side (H2 placement); the type is drawn with
+ *  the shop's rarity weights for the day. */
 function gate(s: Shopper): boolean {
   const left = s.left(), w = rarityWeights(s.day);
   const pool = s.gates.filter((d) => d.price <= left && w[d.rarity] > 0);
-  const cells = s.freeRouteCells();
-  if (!pool.length || !cells.length) return false;
+  const tiles = s.rigTiles();
+  if (!pool.length || !tiles.length) return false;
   const d = s.rng.weighted(pool, (g) => w[g.rarity] / s.gates.filter((x) => x.rarity === g.rarity).length);
-  s.placeGate(d.id, s.rng.pick(cells));
-  return true;
+  const [ri, ti] = s.rng.pick(tiles);
+  return s.placeRig(d.id, ri, ti) !== null;
 }
 
 /** A turret module on a free hardpoint, preferring guns that some belt feeds. */
@@ -116,63 +124,90 @@ function sync(s: Shopper): boolean {
   return true;
 }
 
-/** Same speed gate (or none) at every cell index of both twins; unmatched copies are bought
- *  when affordable, else the lone speed gate goes. */
+/** Per tile of route ri, the speed rigs landing on it (defs, sorted, "+"-joined; "" for none): the belt's
+ *  speed profile. Two belts with the same profile hold the same speed on every tile (R7 item 4). */
+export function speedProfile(b: Build, ri: number, hits: RigHit[][][] = rigHits(b)): string[] {
+  return (hits[ri] ?? []).map((t) => t.filter((h) => isSpeedGate(ITEMS[h.def])).map((h) => h.def).sort().join("+"));
+}
+
+const speedHitsAt = (hits: RigHit[][][], ri: number, i: number): RigHit[] => (hits[ri]?.[i] ?? []).filter((h) => isSpeedGate(ITEMS[h.def]));
+
+/** Hits in `xs` with no same-def partner left in `ys` (multiset difference by def). */
+function unmatched(xs: RigHit[], ys: RigHit[]): RigHit[] {
+  const left = ys.map((h) => h.def);
+  return xs.filter((h) => {
+    const j = left.indexOf(h.def);
+    if (j < 0) return true;
+    left.splice(j, 1);
+    return false;
+  });
+}
+
+/** A new rig may land on the twins only once: at the tile it is placed to work. */
+const onceOnTwins = (a: number, c: number): Accept => (hs) => hs.filter((h) => h.route === a || h.route === c).length === 1;
+
+/** The same speed rigs (or none) on every tile index of both twins. A lone speed hit gets a copy bought
+ *  beside the other twin at the same tile when affordable, else its rig goes; where both twins have speed
+ *  hits that differ, the sibling takes route a's. A rig that lands on several twin tiles can defeat the
+ *  pairing; after a bounded number of fixes any speed rig still on the twins goes. */
 function mirrorSpeed(s: Shopper): void {
   const tw = s.twinRoutes();
   if (!tw || !matchTwins(s, tw[0], tw[1])) return;
-  const [a, sib] = tw;
-  for (let i = 0; i < s.b.routes[a].cells.length; i++) {
-    const ga = s.itemAt(s.b.routes[a].cells[i]), gb = s.itemAt(s.b.routes[sib].cells[i]);
-    const sa = ga && isSpeedGate(ITEMS[ga.def]) ? ga : undefined;
-    const sb = gb && isSpeedGate(ITEMS[gb.def]) ? gb : undefined;
-    if (sa?.def === sb?.def) continue;
-    if (sa && sb) s.removeItem(sb.uid); // different speeds: the sibling takes route a's
-    const src = (sa ?? sb)!;
-    if (!copyGateTo(s, src.def, sa ? sib : a, i)) s.removeItem(src.uid);
+  const [a, c] = tw;
+  for (let guard = 0; guard < 12; guard++) {
+    const hits = rigHits(s.b);
+    const pa = speedProfile(s.b, a, hits), pc = speedProfile(s.b, c, hits);
+    const i = pa.findIndex((x, j) => x !== pc[j]);
+    if (i < 0) return;
+    const la = speedHitsAt(hits, a, i), lc = speedHitsAt(hits, c, i);
+    const onlyA = unmatched(la, lc), onlyC = unmatched(lc, la);
+    if (onlyA.length && onlyC.length) {
+      s.removeItem(onlyC[0].uid); // different speeds: the sibling takes route a's
+      continue;
+    }
+    const src = onlyA[0] ?? onlyC[0];
+    if (!copyRigTo(s, src.def, onlyA.length ? c : a, i, onceOnTwins(a, c))) s.removeItem(src.uid);
+  }
+  const hits = rigHits(s.b);
+  if (speedProfile(s.b, a, hits).join() !== speedProfile(s.b, c, hits).join()) {
+    for (const h of [...hits[a], ...hits[c]].flat()) if (isSpeedGate(ITEMS[h.def])) s.removeItem(h.uid);
   }
 }
 
-/** Buy `def` onto cell index i of route ri, first moving a non-speed gate there to a free tile. */
-function copyGateTo(s: Shopper, def: string, ri: number, i: number): boolean {
+/** Buy `def` to work tile i of route ri, when affordable and a cell beside it is accepted. */
+function copyRigTo(s: Shopper, def: string, ri: number, i: number, accept: Accept): boolean {
   if (s.left() < ITEMS[def].price) return false;
-  const cells = s.b.routes[ri].cells, k = cells[i];
-  const there = s.itemAt(k);
-  if (there) {
-    const occ = occupancy(s.b);
-    const free = cells.filter((c, j) => j !== i && occ[c].item < 0);
-    if (!free.length) return false;
-    const to = s.rng.pick(free);
-    there.x = kx(to);
-    there.y = ky(to);
-  }
-  s.placeGate(def, k);
-  return true;
+  return s.placeRig(def, ri, i, accept) !== null;
 }
 
-/** Buy one speed gate pair at the same free cell index on both twins, when affordable. */
+/** Buy one speed rig pair at the same tile index of both twins (no speed hit there yet), when affordable. */
 function addSpeedPair(s: Shopper): void {
   const [a, sib] = s.twinRoutes()!;
   const w = rarityWeights(s.day), left = s.left();
   const pool = s.gates.filter((d) => isSpeedGate(d) && w[d.rarity] > 0 && 2 * d.price <= left);
-  const ra = s.b.routes[a].cells, rb = s.b.routes[sib].cells, occ = occupancy(s.b);
-  const idx = ra.map((_, i) => i).filter((i) => occ[ra[i]].item < 0 && occ[rb[i]].item < 0);
-  if (!pool.length || !idx.length || !s.twinsMatched(a, sib)) return;
+  if (!pool.length || !s.twinsMatched(a, sib)) return;
+  const hits = rigHits(s.b);
+  const pa = speedProfile(s.b, a, hits), pc = speedProfile(s.b, sib, hits);
+  const open = s.rigTiles((r) => r === a || r === sib);
+  const oa = new Set(open.filter(([r]) => r === a).map(([, t]) => t)), oc = new Set(open.filter(([r]) => r === sib).map(([, t]) => t));
+  const idx = pa.map((_, i) => i).filter((i) => pa[i] === "" && pc[i] === "" && oa.has(i) && oc.has(i));
+  if (!idx.length) return;
   const d = s.rng.weighted(pool, (g) => w[g.rarity]);
   const i = s.rng.pick(idx);
-  s.placeGate(d.id, ra[i]);
-  s.placeGate(d.id, rb[i]);
+  const snap = cloneBuild(s.b), once = onceOnTwins(a, sib);
+  if (!s.placeRig(d.id, a, i, once) || !s.placeRig(d.id, sib, i, once)) s.restore(snap);
 }
 
 interface SeqGate { uid: number; def: ItemDef; ci: number }
 
-/** Gates along route ri in travel order, with their cell index. */
-export function gateSeq(b: Build, ri: number): SeqGate[] {
-  const info = routeInfo(b, ri);
+/** Hits along route ri in travel order (tile, then R7), with their tile index; a rig appears once per arrow. */
+export function gateSeq(b: Build, ri: number, hits?: RigHit[][][]): SeqGate[] {
+  const info = routeInfo(b, ri, undefined, undefined, hits);
   return info.gates.map((u, j) => ({ uid: u, def: ITEMS[itemByUid(b, u)!.def], ci: info.gateCells[j] }));
 }
 
-/** Does a Splitter come before a flat-bonus gate on this route? */
+/** Does a Splitter hit come before a flat-bonus hit on this route? (On one tile R7 applies flat bonuses
+ *  first, so a Splitter hit only comes first from an earlier tile.) */
 export function outOfOrder(seq: SeqGate[]): boolean {
   let split = false;
   for (const g of seq) {
@@ -183,35 +218,67 @@ export function outOfOrder(seq: SeqGate[]): boolean {
 }
 
 export function routesOutOfOrder(b: Build): number[] {
-  return b.routes.map((_, ri) => ri).filter((ri) => outOfOrder(gateSeq(b, ri)));
+  const hits = rigHits(b);
+  return b.routes.map((_, ri) => ri).filter((ri) => outOfOrder(gateSeq(b, ri, hits)));
 }
 
-/** Flat-bonus gates first, then Splitters, on the cells those gates already hold. */
-function sortRoute(b: Build, ri: number): void {
-  const seq = gateSeq(b, ri).filter((g) => isFlatGate(g.def) || isSplitter(g.def));
-  const want = [...seq.filter((g) => isFlatGate(g.def)), ...seq.filter((g) => isSplitter(g.def))];
-  want.forEach((g, j) => {
-    const p = itemByUid(b, g.uid)!, k = b.routes[ri].cells[seq[j].ci];
-    p.x = kx(k);
-    p.y = ky(k);
-  });
+/** Turn rig p (where it stands) to work belt cell `tile`: of the rotations that reach it, the one with the
+ *  fewest hits `bad` rejects, then the most hits (H2), then its current rotation. */
+function aimAt(b: Build, p: Placed, tile: number, bad: (h: WouldHit) => boolean): void {
+  const belts = beltIndex(b), cur = rotOf(p);
+  let best: { rot: number; bad: number; n: number } | null = null;
+  for (const rot of [cur, ...rotations(p.def).filter((r) => r !== cur)]) {
+    const hs = hitsIfPlaced(b, p.def, p.x, p.y, rot, belts);
+    if (!hs.some((h) => h.cell === tile)) continue;
+    const nb = hs.filter(bad).length;
+    if (!best || nb < best.bad || (nb === best.bad && hs.length > best.n)) best = { rot, bad: nb, n: hs.length };
+  }
+  if (best) setRot(p, best.rot);
 }
 
-/** Purchases that create an ordered pair: a Splitter after a route's last flat gate, or a flat
- *  gate before a route's first Splitter. */
-function buyMoves(s: Shopper): { defs: ItemDef[]; cells: number[] }[] {
-  const w = rarityWeights(s.day), left = s.left(), occ = occupancy(s.b);
+/** Flat-bonus rigs first, then Splitters, on the cells those rigs already hold: the first Splitter that a
+ *  flat-bonus hit follows swaps cells with the last such flat-bonus rig, and each is turned to work the tile
+ *  the other worked (the Splitter reaching as little before it as it can, the flat rig as little after).
+ *  Repeats until the route is in order (a bounded number of swaps). Returns whether anything moved. */
+function sortRoute(b: Build, ri: number): boolean {
+  let moved = false;
+  for (let guard = 0; guard < 8; guard++) {
+    const seq = gateSeq(b, ri);
+    const si = seq.findIndex((g) => isSplitter(g.def));
+    let fi = -1;
+    seq.forEach((g, j) => { if (isFlatGate(g.def)) fi = j; });
+    if (si < 0 || fi < si) return moved;
+    const S = itemByUid(b, seq[si].uid)!, F = itemByUid(b, seq[fi].uid)!;
+    const sTile = b.routes[ri].cells[seq[si].ci], fTile = b.routes[ri].cells[seq[fi].ci];
+    [S.x, S.y, F.x, F.y] = [F.x, F.y, S.x, S.y];
+    aimAt(b, S, fTile, (h) => h.route === ri && h.tile < seq[fi].ci);
+    aimAt(b, F, sTile, (h) => h.route === ri && h.tile > seq[si].ci);
+    moved = true;
+  }
+  return moved;
+}
+
+/** Purchases that create an ordered pair: a Splitter at or after a route's last flat-bonus hit, or a
+ *  flat-bonus rig at or before its first Splitter hit (R7 puts flat bonuses first on a shared tile); the
+ *  new rig may not put any belt out of order. */
+function buyMoves(s: Shopper): { defs: ItemDef[]; ri: number; tiles: number[]; accept: Accept }[] {
+  const w = rarityWeights(s.day), left = s.left(), hits = rigHits(s.b);
   const ok = (d: ItemDef) => w[d.rarity] > 0 && d.price <= left;
   const splitters = s.gates.filter((d) => isSplitter(d) && ok(d)), flats = s.gates.filter((d) => isFlatGate(d) && ok(d));
-  const out: { defs: ItemDef[]; cells: number[] }[] = [];
-  s.b.routes.forEach((r, ri) => {
-    const seq = gateSeq(s.b, ri);
+  const seqs = s.b.routes.map((_, ri) => gateSeq(s.b, ri, hits));
+  const lastFlat = seqs.map((q) => Math.max(-1, ...q.filter((g) => isFlatGate(g.def)).map((g) => g.ci)));
+  const firstSplit = seqs.map((q) => Math.min(Infinity, ...q.filter((g) => isSplitter(g.def)).map((g) => g.ci)));
+  const splitOk: Accept = (hs) => hs.every((h) => h.tile >= lastFlat[h.route]);
+  const flatOk: Accept = (hs) => hs.every((h) => h.tile <= firstSplit[h.route]);
+  const open = s.rigTiles();
+  const out: { defs: ItemDef[]; ri: number; tiles: number[]; accept: Accept }[] = [];
+  seqs.forEach((seq, ri) => {
     const f = seq.filter((g) => isFlatGate(g.def)), sp = seq.filter((g) => isSplitter(g.def));
-    const free = r.cells.map((k, i) => (occ[k].item < 0 ? i : -1)).filter((i) => i >= 0);
-    const after = f.length ? free.filter((i) => i > f[f.length - 1].ci) : [];
-    const before = sp.length ? free.filter((i) => i < sp[0].ci) : [];
-    if (f.length && !sp.length && splitters.length && after.length) out.push({ defs: splitters, cells: after.map((i) => r.cells[i]) });
-    if (sp.length && !f.length && flats.length && before.length) out.push({ defs: flats, cells: before.map((i) => r.cells[i]) });
+    const free = open.filter(([r]) => r === ri).map(([, t]) => t);
+    const after = f.length ? free.filter((t) => t >= lastFlat[ri]) : [];
+    const before = sp.length ? free.filter((t) => t <= firstSplit[ri]) : [];
+    if (f.length && !sp.length && splitters.length && after.length) out.push({ defs: splitters, ri, tiles: after, accept: splitOk });
+    if (sp.length && !f.length && flats.length && before.length) out.push({ defs: flats, ri, tiles: before, accept: flatOk });
   });
   return out;
 }
@@ -219,48 +286,46 @@ function buyMoves(s: Shopper): { defs: ItemDef[]; cells: number[] }[] {
 function order(s: Shopper): boolean {
   s.ordered = true;
   const bad = routesOutOfOrder(s.b);
-  for (const ri of bad) sortRoute(s.b, ri);
-  if (bad.length) return true;
+  let moved = false;
+  for (const ri of bad) moved = sortRoute(s.b, ri) || moved;
+  if (bad.length) return moved;
   const moves = buyMoves(s);
   if (!moves.length) return false;
   const m = s.rng.pick(moves);
-  s.placeGate(s.rng.pick(m.defs).id, s.rng.pick(m.cells));
-  return true;
+  return s.placeRig(s.rng.pick(m.defs).id, m.ri, s.rng.pick(m.tiles), m.accept) !== null;
 }
 
 /** Which v1 lever shapes a finished build shows (for the report's trait table). */
 export interface Traits {
-  ordered: boolean; // some route has a flat gate before a Splitter, and none has one after a Splitter
-  reverse: boolean; // some route has a Splitter before a flat-bonus gate
-  synced: boolean; // Crucible twins matched with the same speed gates at every cell index
-  speedSynced: boolean; // synced, with at least one mirrored speed gate pair
+  ordered: boolean; // some route has a flat-bonus hit before a Splitter hit, and none has one after a Splitter
+  reverse: boolean; // some route has a Splitter hit before a flat-bonus hit
+  synced: boolean; // Crucible twins matched with the same speed rig hits at every tile index
+  speedSynced: boolean; // synced, with at least one mirrored speed hit pair
   dropped: boolean; // the signature factory feeds fewer routes than at the start (a route was dropped)
   press: boolean;
+  multi: boolean; // 0.6.2 BELTSIDE: some rig lands two or more arrows (on one belt or several)
 }
 
 export function buildTraits(b: Build, startRoutes: number): Traits {
-  const bad = routesOutOfOrder(b).length > 0;
+  const hits = rigHits(b);
+  const bad = b.routes.some((_, ri) => outOfOrder(gateSeq(b, ri, hits)));
   const both = b.routes.some((_, ri) => {
-    const seq = gateSeq(b, ri);
+    const seq = gateSeq(b, ri, hits);
     return seq.some((g) => isFlatGate(g.def)) && seq.some((g) => isSplitter(g.def));
   });
   const sig = b.items.find((p) => p.def === HEROES[b.hero].factory);
   const own = sig ? routesOf(b, sig.uid) : [];
   let synced = false, speedSynced = false;
   if (sig && ITEMS[sig.def].factory?.ammo === "blank" && own.length === 2) {
-    const [ia, ic] = own.map((ri) => routeInfo(b, ri));
-    const occ = occupancy(b);
-    const speeds = (ri: number) => b.routes[ri].cells.map((k) => {
-      const p = b.items.find((q) => q.uid === occ[k].item);
-      return p && isSpeedGate(ITEMS[p.def]) ? p.def : "";
-    });
-    const sa = speeds(own[0]), sc = speeds(own[1]);
+    const [ia, ic] = own.map((ri) => routeInfo(b, ri, undefined, undefined, hits));
+    const sa = speedProfile(b, own[0], hits), sc = speedProfile(b, own[1], hits);
     synced = ia.turret >= 0 && ia.turret === ic.turret && ia.tiles === ic.tiles && sa.join() === sc.join();
     speedSynced = synced && sa.some((d) => d !== "");
   }
+  const multi = b.items.some((p) => ITEMS[p.def].kind === "gate" && hitsOfRig(b, p.uid, hits).length >= 2);
   return {
     ordered: both && !bad, reverse: bad, synced, speedSynced,
-    dropped: own.length < startRoutes, press: b.items.some((p) => p.def === PRESS.id),
+    dropped: own.length < startRoutes, press: b.items.some((p) => p.def === PRESS.id), multi,
   };
 }
 
@@ -272,22 +337,21 @@ export function droppable(b: Build): number[] {
   return own.length >= 2 ? own : [];
 }
 
-/** REMOVE BELT on a signature route, then a Stamp Press line into the freed connector. */
+/** REMOVE BELT on a signature route, then a Stamp Press line into the freed connector; the dropped
+ *  route's riders (rigs that worked only it) move beside the new line. */
 function drop(s: Shopper): boolean {
   const own = droppable(s.b);
   if (!own.length) return false;
   const snap = cloneBuild(s.b);
   const ri = s.rng.pick(own);
-  const occ = occupancy(s.b);
-  const lifted = new Set(s.b.routes[ri].cells.map((k) => occ[k].item).filter((u) => u >= 0));
-  const carried = s.b.items.filter((p) => lifted.has(p.uid));
-  s.b.items = s.b.items.filter((p) => !lifted.has(p.uid));
+  const carried = s.ridersOf(ri);
+  s.lift(carried);
   s.b.routes.splice(ri, 1);
   return pressLine(s, carried) || s.restore(snap);
 }
 
 /** A Stamp Press on a free 2x2 spot (not the forward row) with a line into a free connector;
- *  `carried` gates go onto the new line (any that don't fit are not bought). */
+ *  `carried` rigs go to work beside the new line (any that find no place are not bought). */
 function pressLine(s: Shopper, carried: Placed[]): boolean {
   const b = s.b;
   for (let tries = 0; tries < 8; tries++) {
@@ -302,8 +366,7 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
     if (cells) {
       s.buyBelt(-1, cells.length);
       b.routes.push({ factory: uid, cells });
-      const spots = carried.length ? s.rng.shuffle([...cells]) : [];
-      carried.slice(0, cells.length).forEach((p, i) => b.items.push({ ...p, x: kx(spots[i]), y: ky(spots[i]) }));
+      s.reseat(carried, b.routes.length - 1);
       if (buildCost(b).total <= s.budget) return true;
     }
     s.restore(snap);

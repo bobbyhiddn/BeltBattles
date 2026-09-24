@@ -5,6 +5,7 @@ import { startingBuild, warlordBuild } from "../src/sim/ai";
 import { key as K, type Build } from "../src/sim/deck";
 
 // Balance report (not an assertion suite). Run: BB_BALANCE=1 npx vitest run tests/balance.test.ts
+// (BB_BALANCE_OUT=<file> writes somewhere other than /tmp/bb-balance.txt)
 const on = !!process.env.BB_BALANCE;
 
 function row(label: string, p: Build, e: Build) {
@@ -23,7 +24,7 @@ function row(label: string, p: Build, e: Build) {
   appendFileSync(REPORT, `${label}: player wins ${wins}/12, avg t ${(tsum / 12).toFixed(1)}s\n   ` + out.join("\n   ") + "\n");
 }
 
-const REPORT = "/tmp/bb-balance.txt";
+const REPORT = process.env.BB_BALANCE_OUT ?? "/tmp/bb-balance.txt";
 
 it.runIf(on)("balance report", () => {
   writeFileSync(REPORT, "");
@@ -32,14 +33,14 @@ it.runIf(on)("balance report", () => {
   for (let r = 1; r <= 7; r++) {
     row(`FURNACE start vs weaver r${r}`, f1, warlordBuild("weaver", r));
   }
-  // furnace with a long cooking route + temper + brake
+  // furnace with a long cooking route + temper + brake (0.6.2 BELTSIDE: rigs beside the tiles the gates stood on)
   const cook: Build = {
     hero: "furnace",
     items: [
       { uid: 1, def: "kiln", x: 4, y: 6 },
-      { uid: 2, def: "temper", x: 2, y: 4 },
-      { uid: 3, def: "brake", x: 3, y: 2 },
-      { uid: 4, def: "longhaul", x: 4, y: 1 },
+      { uid: 2, def: "temper", x: 1, y: 4, rot: 1 }, // works (2,4)
+      { uid: 3, def: "brake", x: 3, y: 3 }, // works (3,2)
+      { uid: 4, def: "longhaul", x: 3, y: 1 }, // works (4,1)
     ],
     routes: [{ factory: 1, cells: [K(4, 5), K(3, 5), K(2, 5), K(2, 4), K(2, 3), K(2, 2), K(3, 2), K(4, 2), K(4, 1), K(4, 0)] }],
     mods: [], beltCap: 18, hullBonus: 0,

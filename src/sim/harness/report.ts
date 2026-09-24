@@ -1,7 +1,7 @@
 // Balance harness report: markdown tables and build descriptions from a TourneyResult.
 
 import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../content";
-import { routeInfo, type Build } from "../deck";
+import { rigHits, routeInfo, type Build } from "../deck";
 import { buildCost, maxGoldByDay } from "../../net/validate";
 import { bandFlag, fmtRate, pct, type Rate } from "./stats";
 import type { Spend, TourneyResult } from "./tournament";
@@ -13,12 +13,13 @@ export function describeBuild(b: Build, day: number): string {
   const h = HEROES[b.hero];
   const counts = new Map<string, number>();
   for (const p of b.items) if (p.def !== h.factory) counts.set(ITEMS[p.def].name, (counts.get(ITEMS[p.def].name) ?? 0) + 1);
-  const items = [...counts].map(([n, c]) => (c > 1 ? `${n} x${c}` : n)).join(", ") || "no gates";
+  const items = [...counts].map(([n, c]) => (c > 1 ? `${n} x${c}` : n)).join(", ") || "no rigs";
   const mods = b.mods.map((m) => `${ITEMS[m.def].name} on gun ${m.turret + 1}`).join(", ") || "no modules";
+  const hits = rigHits(b);
   const routes = b.routes.map((r, i) => {
     const f = b.items.find((p) => p.uid === r.factory);
-    const info = routeInfo(b, i);
-    return `${f ? ITEMS[f.def].name : "?"} ${r.cells.length} tiles -> c${info.connector}${info.gates.length ? ` (${info.gates.length} gates)` : ""}`;
+    const info = routeInfo(b, i, undefined, undefined, hits);
+    return `${f ? ITEMS[f.def].name : "?"} ${r.cells.length} tiles -> c${info.connector}${info.gates.length ? ` (${info.gates.length} rig hits)` : ""}`;
   }).join("; ");
   const belt = b.routes.reduce((s, r) => s + r.cells.length, 0);
   const cost = buildCost(b);
@@ -104,14 +105,28 @@ export function balanceMarkdown(res: TourneyResult, meta: RunMeta): string {
   }
   L.push("", "## Lever traits in the population", "");
   L.push("Share of each hero's population with a trait, and the mean gauntlet score of builds with it vs without it.");
-  L.push("ordered = flat-bonus gates before a Splitter (no route the other way); reverse = a Splitter before a flat-bonus gate;");
-  L.push("synced = Crucible twins matched with mirrored speed gates (+speed: at least one mirrored pair); dropped = a signature route dropped for a Press line.", "");
-  L.push("| day | hero | ordered | reverse | synced | synced+speed | dropped | press |", "|---|---|---|---|---|---|---|---|");
+  L.push("ordered = flat-bonus rig hits before a Splitter hit (no route the other way); reverse = a Splitter hit before a flat-bonus hit;");
+  L.push("synced = Crucible twins matched with mirrored speed rig hits (+speed: at least one mirrored pair); dropped = a signature route dropped for a Press line;");
+  L.push("multi-hit = some rig lands two or more arrows (0.6.2 BELTSIDE).", "");
+  L.push("| day | hero | ordered | reverse | synced | synced+speed | dropped | press | multi-hit |", "|---|---|---|---|---|---|---|---|---|");
   for (const d of res.days) {
     for (const h of o.heroes) {
       const t = d.traits[h];
       const cell = (k: keyof typeof t) => (t[k].n ? `${t[k].n}: ${pct(t[k].mean)} vs ${pct(t[k].restMean)}` : "0");
-      L.push(`| ${d.day} | ${H(h)} | ${cell("ordered")} | ${cell("reverse")} | ${cell("synced")} | ${cell("speedSynced")} | ${cell("dropped")} | ${cell("press")} |`);
+      L.push(`| ${d.day} | ${H(h)} | ${cell("ordered")} | ${cell("reverse")} | ${cell("synced")} | ${cell("speedSynced")} | ${cell("dropped")} | ${cell("press")} | ${cell("multi")} |`);
+    }
+  }
+  L.push("", "## Rig arrows (H1: value per arrow that hits)", "");
+  L.push("Every rig in every population build (0.6.2 BELTSIDE). landed/rig = arrows that hit a belt tile per rig; a 0.6.1 gate processed exactly one tile,");
+  L.push("so landed/rig is the value multiplier at the same price. 2+ = rigs landing two or more arrows; 2 belts = rigs working two different belts.");
+  L.push("Per landed arrow: gold paid, and what it adds per payload from the route estimates with and without the rig (damage x copies,");
+  L.push("Burn stacks x copies, seconds to the turret saved; one payload, no congestion).", "");
+  L.push("| day | rig | arrows | n | landed/rig | 2+ | 2 belts | gold/arrow | +dmg/arrow | +burn/arrow | s saved/arrow |", "|---|---|---|---|---|---|---|---|---|---|---|");
+  for (const d of res.days) {
+    for (const v of Object.values(d.rigs ?? {})) {
+      if (!v.n) continue;
+      const per = (x: number) => (v.hits ? (x / v.hits).toFixed(2) : "—");
+      L.push(`| ${d.day} | ${ITEMS[v.def].name} | ${v.arrows} | ${v.n} | ${(v.hits / v.n).toFixed(2)} | ${pct(v.multi / v.n)} | ${pct(v.belts2 / v.n)} | ${per(v.gold)} | ${per(v.dmg)} | ${per(v.burn)} | ${per(v.time)} |`);
     }
   }
   L.push("", "## Most lopsided pairings", "");

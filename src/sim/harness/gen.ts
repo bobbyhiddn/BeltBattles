@@ -1,8 +1,9 @@
 // Balance harness: random legal, honestly priced builds. randomBuild(hero, day, rng) starts
 // from the hero's starting deck and spends up to maxGoldByDay(day) on the real shop levers
 // (levers.ts), drawn at random with per-build lever weights, so a population spans
-// plating-heavy to gate-heavy decks. Every output passes validateBuild(build, day); the same
+// plating-heavy to rig-heavy decks. Every output passes validateBuild(build, day); the same
 // Rng state gives the same build. fullPurseBuild adds a spend floor for the stand-in pool.
+// 0.6.2 BELTSIDE: rigs are placed natively beside the belt (H2, shopper.ts placeRig).
 
 import { Rng, hashSeed } from "../../core/rng";
 import { rarityWeights, type HeroId } from "../content";
@@ -49,8 +50,8 @@ export const spendFloor = (day: number): number => Math.ceil(0.9 * maxGoldByDay(
 
 /**
  * Spend what randomBuild left (under 5 gold, since plating is always on offer): plating while
- * 5 or more remains, then a 3 g gate on a free belt tile (useful) unless that strands gold the
- * floor needs, then belt crates (2 g each). Never exceeds the day's gold.
+ * 5 or more remains, then a 3 g rig beside a belt (useful: it lands an arrow; H2 placement) unless
+ * that strands gold the floor needs, then belt crates (2 g each). Never exceeds the day's gold.
  */
 export function topUp(b: Build, day: number, rng: Rng, floor = spendFloor(day)): void {
   const s = new Shopper(b, maxGoldByDay(day), day, rng);
@@ -58,10 +59,12 @@ export function topUp(b: Build, day: number, rng: Rng, floor = spendFloor(day)):
   while (s.left() >= PLATE.price) b.hullBonus += PLATE_HULL;
   const w = rarityWeights(day);
   const cheap = s.gates.filter((d) => d.price === 3 && w[d.rarity] > 0);
-  const cells = s.freeRouteCells();
+  const tiles = s.rigTiles();
   const left = s.left();
-  if (left >= 3 && cheap.length && cells.length && (left - 3 <= slack || left - 3 >= CRATE.price)) {
-    s.placeGate(rng.pick(cheap).id, rng.pick(cells));
+  if (left >= 3 && cheap.length && tiles.length && (left - 3 <= slack || left - 3 >= CRATE.price)) {
+    const def = rng.pick(cheap).id;
+    const [ri, ti] = rng.pick(tiles);
+    s.placeRig(def, ri, ti);
     normalize(s);
   }
   while (s.left() >= CRATE.price) b.beltCap += CRATE_BELT;

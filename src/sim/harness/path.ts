@@ -41,7 +41,9 @@ export function startCells(fx: number, fy: number, size: number, bl: Uint8Array)
   return out;
 }
 
-/** Connector columns not claimed by any route other than `except` (route index). */
+/** Connector columns not claimed by any route other than `except` (route index), and with no machinery
+ *  standing on the intake cell (0.6.2 BELTSIDE: a rig may stand there, and randomPath always lets a belt
+ *  enter its target, so such an intake is not free). */
 export function freeConnectors(b: Build, except = -1): number[] {
   const taken = new Set<number>();
   b.routes.forEach((r, i) => {
@@ -49,6 +51,7 @@ export function freeConnectors(b: Build, except = -1): number[] {
     const last = r.cells[r.cells.length - 1];
     if (ky(last) === 0) taken.add(kx(last));
   });
+  for (const p of b.items) for (const k of footprint(ITEMS[p.def], p.x, p.y)) if (ky(k) === 0) taken.add(kx(k));
   return HEROES[b.hero].turrets.flatMap((t) => t.connectors).filter((c) => !taken.has(c));
 }
 

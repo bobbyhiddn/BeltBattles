@@ -50,11 +50,19 @@ describe("harness tournament", () => {
     expect(cal.of).toBe(5);
     expect(cal.cost).toBe(buildCost(heroRefBuild("furnace", 1)).total);
     expect(cal.popCost).toEqual(res.days[0].spend.furnace);
+    // 0.6.2 BELTSIDE H1: every population rig is counted with its landed arrows (one per arrow at most)
+    const rigs = Object.values(res.days[0].rigs);
+    expect(rigs.reduce((n, v) => n + v.n, 0)).toBeGreaterThan(0);
+    for (const v of rigs) {
+      expect(v.hits).toBeGreaterThanOrEqual(v.n); // no idle rig in a harness build
+      expect(v.hits).toBeLessThanOrEqual(v.n * v.arrows);
+    }
     const md = balanceMarkdown(res, { runtimeMs: 1, workers: 1, command: "test", perDayMs: {} });
     expect(md).toContain("## Day 1");
     expect(md).toContain("Calibration");
     expect(md).toContain("## Mirror cells");
     expect(md).toContain("## Lever traits");
+    expect(md).toContain("## Rig arrows (H1: value per arrow that hits)");
   }, 60_000);
 
   it("results do not depend on the order jobs are played in (any worker split)", async () => {
