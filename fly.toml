@@ -1,8 +1,9 @@
 # BeltBattles on Fly: the game page and the ghost API from one small machine, ghosts in Tigris.
 # Deploy from this directory (the repo root) after `node deploy/stage.mjs <game.html>`; the exact
-# commands, checks, rollback and teardown are in deploy/RUNBOOK.md. The five Tigris variables
-# (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, AWS_REGION, BUCKET_NAME) are app
-# secrets set by `fly storage create`; they never appear here.
+# commands, checks, rollback and teardown are in deploy/RUNBOOK.md. The Tigris variables
+# (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, BUCKET_NAME, and AWS_REGION on
+# newer flyctl; the server defaults it to auto) are app secrets set by `fly storage create`; they
+# never appear here.
 
 app = "beltbattles"
 primary_region = "iad"

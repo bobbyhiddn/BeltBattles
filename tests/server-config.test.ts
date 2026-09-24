@@ -48,12 +48,16 @@ describe("server config", () => {
     expect(configError([], { BB_GHOST_TRUST_PROXY: "yes" })).toMatch(/BB_GHOST_TRUST_PROXY must be one of fly, none/);
   });
 
-  it("BB_GHOST_STORE=tigris reads the five variables `fly storage create` sets; virtual-hosted unless told otherwise", () => {
+  it("BB_GHOST_STORE=tigris reads the variables `fly storage create` sets; AWS_REGION defaults to auto; virtual-hosted unless told otherwise", () => {
     const c = readConfig([], TIGRIS);
     expect(c.store).toMatchObject({
       kind: "tigris", ttlMs: 60_000,
       s3: { endpoint: "https://fly.storage.tigris.dev", region: "auto", bucket: "beltbattles-ghosts", addressing: "virtual" },
     });
+    const { AWS_REGION: _region, ...withoutRegion } = TIGRIS; // Fly's documented output sets only four
+    expect(readConfig([], withoutRegion).store).toMatchObject({ kind: "tigris", s3: { region: "auto" } });
+    expect(readConfig([], { ...TIGRIS, AWS_REGION: "" }).store).toMatchObject({ s3: { region: "auto" } });
+    expect(readConfig([], { ...TIGRIS, AWS_REGION: "us-east-1" }).store).toMatchObject({ s3: { region: "us-east-1" } });
     const p = readConfig([], { ...TIGRIS, BB_GHOST_S3_ADDRESSING: "path", BB_GHOST_CACHE_TTL_S: "5" });
     expect(p.store).toMatchObject({ ttlMs: 5000, s3: { addressing: "path" } });
   });
@@ -68,8 +72,9 @@ describe("server config", () => {
 
   it("names every missing variable at once, and refuses bad values without echoing secrets", () => {
     const msg = configError([], { BB_GHOST_STORE: "tigris", AWS_SECRET_ACCESS_KEY: "tsec_should_not_appear" });
-    for (const name of ["AWS_ACCESS_KEY_ID", "AWS_ENDPOINT_URL_S3", "AWS_REGION", "BUCKET_NAME"]) expect(msg).toContain(name);
+    for (const name of ["AWS_ACCESS_KEY_ID", "AWS_ENDPOINT_URL_S3", "BUCKET_NAME"]) expect(msg).toContain(name);
     expect(msg).not.toContain("AWS_SECRET_ACCESS_KEY");
+    expect(msg).not.toContain("AWS_REGION"); // optional: defaults to auto
     expect(msg).not.toContain("tsec_should_not_appear");
     expect(configError([], { ...TIGRIS, AWS_ENDPOINT_URL_S3: "fly.storage.tigris.dev/x" })).toMatch(/AWS_ENDPOINT_URL_S3 must be a bare http\(s\) origin/);
     expect(configError([], { ...TIGRIS, BUCKET_NAME: "Bad_Name" })).toMatch(/BUCKET_NAME/);

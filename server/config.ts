@@ -11,8 +11,9 @@
 //   BB_GHOST_TRUST_PROXY  fly | none (default none): fly takes the client IP from Fly-Client-IP,
 //                     else the socket (X-Forwarded-For is never trusted); none ignores both headers
 //   BB_GHOST_STATIC   directory whose index.html is served at / and /index.html (default: none) --static
-//   tigris store: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, AWS_REGION and
-//   BUCKET_NAME (the secrets `fly storage create` sets on the app), plus
+//   tigris store: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3 and BUCKET_NAME
+//   (the secrets `fly storage create` sets on the app), AWS_REGION (default auto, Tigris' signing
+//   region; only newer flyctl versions set it), plus
 //   BB_GHOST_S3_ADDRESSING virtual | path (default virtual) and
 //   BB_GHOST_CACHE_TTL_S   seconds a loaded (rules, day) bucket is served before a re-list (default 60)
 
@@ -29,8 +30,12 @@ export class ConfigError extends Error {
   }
 }
 
-/** The variables `fly storage create` sets as app secrets; all are required for the tigris store. */
-export const TIGRIS_ENV = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_ENDPOINT_URL_S3", "AWS_REGION", "BUCKET_NAME"] as const;
+/**
+ * The variables the tigris store requires: the app secrets every `fly storage create` sets.
+ * AWS_REGION is optional (default "auto", Tigris' signing region): Fly's documented output sets
+ * only these four, and newer flyctl versions add AWS_REGION=auto.
+ */
+export const TIGRIS_ENV = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_ENDPOINT_URL_S3", "BUCKET_NAME"] as const;
 
 export type StoreConfig =
   | { kind: "jsonl"; dataDir: string }
@@ -91,7 +96,7 @@ export function tigrisOptions(env: Env): S3Options {
   }
   return {
     endpoint,
-    region: env.AWS_REGION!,
+    region: env.AWS_REGION || "auto",
     bucket: env.BUCKET_NAME!,
     accessKeyId: env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,

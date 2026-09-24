@@ -18,7 +18,7 @@ Names used below: app `beltbattles` (URL https://beltbattles.fly.dev), org `pers
 taken (Tigris names are global), use `beltbattles-ghosts-2026`; nothing else changes, because the
 server reads BUCKET_NAME from the secret. If the org is not `personal`, use the slug call 1 prints.
 
-**Secrets.** The five Tigris variables exist only as Fly app secrets. Never print them: keep the
+**Secrets.** The Tigris variables exist only as Fly app secrets. Never print them: keep the
 filter on call 2, never run `fly secrets list --json` through anything that echoes values, never run
 `env` over `fly ssh console`. The server never logs them either.
 
@@ -40,9 +40,12 @@ fly apps create beltbattles --org personal && set -o pipefail && fly storage cre
 - `2>&1` sends both streams through the filter; the filter drops every line naming the key id or
   the secret key (and any `tid_`/`tsec_` token, belt and braces). `pipefail` keeps a failing
   `fly storage create` from looking like success.
-- Expect `fly secrets list` to show exactly these names (digests and dates only, no values):
-  `AWS_ACCESS_KEY_ID`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `BUCKET_NAME`,
-  all staged for the first deployment.
+- Expect `fly secrets list` to show these names (digests and dates only, no values):
+  `AWS_ACCESS_KEY_ID`, `AWS_ENDPOINT_URL_S3`, `AWS_SECRET_ACCESS_KEY` and `BUCKET_NAME`, all
+  staged for the first deployment. Newer flyctl versions also set `AWS_REGION`; without it the
+  server uses `auto`. If any of the four is missing, stop before deploying: flyctl printed the
+  values instead of setting them (the filter hid them), so destroy the empty bucket and create it
+  again with `-a`.
 - Fallback for a taken app name: `fly apps create beltbattles-game --org personal`, then the same
   storage command with `-a beltbattles-game`. For a taken bucket name: `-n beltbattles-ghosts-2026`.
 
