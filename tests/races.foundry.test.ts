@@ -23,23 +23,23 @@ describe("FOUNDRY sync rule", () => {
     expect(inSync(0, true)).toBe(false); // same route/connector never fuses
   });
 
-  it("mirrored routes into one gun fuse every pour: alloy slugs of 1.5 x (3 + 3)", () => {
+  it("mirrored routes into one gun fuse every pour: alloy slugs of 1.3 x (3.5 + 3.5)", () => {
     const b = new Battle(start(), dummyFoe(), 7);
     const fired = shots(b, 20);
     expect(b.sides[0].race!.foundry.fusions).toBeGreaterThanOrEqual(8);
     expect(fired.length).toBeGreaterThanOrEqual(8);
     for (const s of fired) {
       expect(s.ammo).toBe("alloy");
-      expect(s.dmg).toBeCloseTo(FUSE_MULT * 6, 9);
+      expect(s.dmg).toBeCloseTo(FUSE_MULT * 7, 9);
     }
   });
 
-  it("a flat bonus on one blank carries into the fusion: 1.5 x (5 + 3) = 12", () => {
+  it("a flat bonus on one blank carries into the fusion: 1.3 x (5.5 + 3.5) = 11.7", () => {
     const b0 = start();
     b0.items.push({ uid: 2, def: "whetstone", x: 2, y: 3 });
     const fired = shots(new Battle(b0, dummyFoe(), 7), 20).filter((s) => s.ammo === "alloy");
     expect(fired.length).toBeGreaterThan(3);
-    expect(fired[fired.length - 1].dmg).toBeCloseTo(12, 9);
+    expect(fired[fired.length - 1].dmg).toBeCloseTo(11.7, 9);
   });
 
   it("a route 2 tiles longer (0.8 s late) never fuses, and every unmatched blank still fires", () => {
@@ -51,7 +51,7 @@ describe("FOUNDRY sync rule", () => {
     expect(fired.length).toBeGreaterThanOrEqual(20);
     for (const s of fired) {
       expect(s.ammo).toBe("blank");
-      expect(s.dmg).toBe(3);
+      expect(s.dmg).toBe(3.5);
     }
   });
 
@@ -84,7 +84,7 @@ describe("FOUNDRY fuse event (ruling 10)", () => {
     }
     expect(fuses.length).toBe(b.sides[0].race!.foundry.fusions);
     expect(fuses.length).toBeGreaterThanOrEqual(8);
-    for (const f of fuses) expect(f).toEqual({ turret: 0, dmg: FUSE_MULT * 6 });
+    for (const f of fuses) expect(f).toEqual({ turret: 0, dmg: FUSE_MULT * 7 });
   });
 
   it("Furnace and Weaver battles never emit one", () => {

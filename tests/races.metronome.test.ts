@@ -39,8 +39,8 @@ function chamberRides(b: Battle, secs: number, each?: (b: Battle) => void): Map<
 }
 
 describe("METRONOME pendulum curve", () => {
-  it("samples at 6, 8, 10 and 12 tiles: 5.73, 7.87, 10, 7.87 (curve, route estimate and battle)", () => {
-    const want: Record<number, number> = { 6: 2 + 8 * (1 - 1.6 / 3), 8: 2 + 8 * (1 - 0.8 / 3), 10: 10, 12: 2 + 8 * (1 - 0.8 / 3) };
+  it("samples at 6, 8, 10 and 12 tiles: 6.4, 7.2, 8, 7.2 (curve, route estimate and battle)", () => {
+    const want: Record<number, number> = { 6: 4 + 4 * (1 - 1.6 / 4), 8: 4 + 4 * (1 - 0.8 / 4), 10: 8, 12: 4 + 4 * (1 - 0.8 / 4) };
     for (const n of [6, 8, 10, 12]) {
       expect(pendulumCurve(ride(n))).toBeCloseTo(want[n], 9);
       const b = metro(n);
@@ -52,20 +52,20 @@ describe("METRONOME pendulum curve", () => {
       expect(fired.length).toBeGreaterThan(4);
       for (const s of fired) expect(s.dmg).toBeCloseTo(want[n], 9);
     }
-    expect(pendulumCurve(1.2)).toBeCloseTo(2, 12);
-    expect(pendulumCurve(7.2)).toBeCloseTo(2, 12);
-    expect(pendulumCurve(0)).toBe(2);
+    expect(pendulumCurve(0.2)).toBeCloseTo(4, 12);
+    expect(pendulumCurve(8.2)).toBeCloseTo(4, 12);
+    expect(pendulumCurve(0)).toBe(4);
   });
 
   it("ESCAPEMENT moves the peak to 7 tiles and LONGCASE to 13; no module peaks at 10", () => {
     for (const [mod, peak] of [[undefined, 10], ["escapement", 7], ["longcase", 13]] as const) {
       const dmg = TILES.map((n) => estimateRoute(metro(n, [], mod), 0).dmg);
       expect(TILES[dmg.indexOf(Math.max(...dmg))], String(mod)).toBe(peak);
-      expect(Math.max(...dmg)).toBeCloseTo(10, 9);
+      expect(Math.max(...dmg)).toBeCloseTo(8, 9);
       expect(peakRide(metro(10, [], mod), 0)).toBeCloseTo(ride(peak), 12);
       const fired = shots(new Battle(metro(peak, [], mod), dummyFoe(), 5), 15);
       expect(fired.length).toBeGreaterThan(4);
-      for (const s of fired) expect(s.dmg).toBeCloseTo(10, 9);
+      for (const s of fired) expect(s.dmg).toBeCloseTo(8, 9);
     }
     expect(PEAK_SHIFT).toEqual({ escapement: -1.2, longcase: 1.2 });
   });
@@ -92,7 +92,7 @@ describe("METRONOME speed lock", () => {
     expect(rides.size).toBeGreaterThan(15);
     for (const r of rides.values()) expect(r).toBeCloseTo(ride(10), 9);
     const lh = metro(10, [["grease", 2, 4], ["longhaul", 2, 3]]);
-    expect(estimateRoute(lh, 0).dmg).toBeCloseTo(10 + 2, 9); // Long Haul counts the Grease
+    expect(estimateRoute(lh, 0).dmg).toBeCloseTo(8 + 2, 9); // Long Haul counts the Grease
   });
 
   it("enemy Drag never lands on Metronome belts: ride stays exactly 0.4n + 0.2 s", () => {

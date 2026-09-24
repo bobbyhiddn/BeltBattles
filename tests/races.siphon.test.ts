@@ -150,12 +150,12 @@ describe("SIPHON Drag", () => {
 });
 
 describe("SIPHON Echo", () => {
-  it("remembers the added effects of a payload, capped: flat +6, Burn 4, Shock, Fray 1", () => {
-    expect(echoOf(pl("thread", { flat: 10, burn: 7, shock: true }), false)).toEqual({ flat: 6, burn: 4, shock: true, fray: 1 });
+  it("remembers the added effects of a payload, capped: flat +3, Burn 2, Shock, Fray 1", () => {
+    expect(echoOf(pl("thread", { flat: 10, burn: 7, shock: true }), false)).toEqual({ flat: 3, burn: 2, shock: true, fray: 1 });
     expect(echoOf(pl("cinder", { flat: 2, burn: 2, ride: 5 }), false)).toEqual({ flat: 2, burn: 2, shock: false, fray: 0 });
     expect(echoOf(pl("plain"), true).fray).toBe(ECHO_CAP.fray); // an echoed Fray echoes again
-    expect(addedFlat(pl("alloy", { flat: 9 }))).toBe(0); // a plain fusion is base damage, not processing
-    expect(addedFlat(pl("alloy", { flat: 15 }))).toBe(6); // 1.5 x (2 + 2) from two Whetstones
+    expect(addedFlat(pl("alloy", { flat: 9.1 }))).toBe(0); // a plain fusion is base damage, not processing
+    expect(addedFlat(pl("alloy", { flat: 14.3 }))).toBeCloseTo(5.2, 9); // 1.3 x (2 + 2) from two Whetstones
   });
 
   it("an ECHO leech copies the memory at load (flat x its split mult); the memory is not consumed", () => {
@@ -183,7 +183,7 @@ describe("SIPHON Echo", () => {
     run(b, 20, (bt) => {
       for (const pr of bt.projectiles) {
         if (pr.from !== 0) continue;
-        expect([pr.dmg, pr.payload.burn, pr.payload.shock]).toEqual([3, 0, false]);
+        expect([pr.dmg, pr.payload.burn, pr.payload.shock]).toEqual([5, 0, false]);
         n++;
       }
     });
