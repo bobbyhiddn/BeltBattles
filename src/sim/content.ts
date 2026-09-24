@@ -191,7 +191,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   // --- 0.6.1c: the six wave-1 factories (catalogue.json; ARSENAL.md §3.3 "Buyable factories"), values exactly ---
   doublestamp: {
-    id: "doublestamp", name: "DOUBLE STAMP", kind: "factory", rarity: "rare", price: 6, size: 2,
+    id: "doublestamp", name: "DOUBLE STAMP", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "ironmonger",
     desc: ["STAMPS TWO PLAIN", "SLUGS PER 2.2S CYCLE.", "QUEUE PRESSURE."], tags: ["VOLUME", "SPLIT"],
     factory: { ammo: "plain", interval: 2.2, outputs: 1, batch: 2 }, // base 3: the plain slug's
     levels: {
@@ -200,13 +200,13 @@ export const ITEMS: Record<string, ItemDef> = {
     },
   },
   shottower: {
-    id: "shottower", name: "SHOT TOWER", kind: "factory", rarity: "rare", price: 6, size: 2,
+    id: "shottower", name: "SHOT TOWER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "gunsmith",
     desc: ["DROPS 3 BUCKSHOT", "(1 DMG) EVERY 1.5S.", "GATES HIT EACH ONE."], tags: ["SPLIT", "FRAY", "VOLUME"],
     factory: { ammo: "shot", interval: 1.5, outputs: 1, batch: 3 }, // base 1: AMMO.shot
     levels: { 2: { factory: { interval: 1.35, base: 2 } }, 3: { factory: { interval: 1.3, base: 3 } } },
   },
   hotswap: {
-    id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2,
+    id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
     desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["BURN", "SHOCK", "TIMING"],
     factory: { ammo: "plain", interval: 1.5, outputs: 1, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
     levels: { // the spark tracks GALVANIC COIL: 1.8 s and 2.8 s with SPARK JUMP (0.6.1p's shockTime and jump)
@@ -215,13 +215,13 @@ export const ITEMS: Record<string, ItemDef> = {
     },
   },
   slagpot: {
-    id: "slagpot", name: "SLAG POT", kind: "factory", rarity: "rare", price: 7, size: 2,
+    id: "slagpot", name: "SLAG POT", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "ironmonger",
     desc: ["HEAVY SLAG SLUGS", "(7 DMG) THAT IGNORE", "BELT SPEED GATES."], tags: ["BURST", "HAUL"],
     factory: { ammo: "slag", interval: 2.8, outputs: 1 }, // base 7: AMMO.slag (fixed 0.75x belt speed)
     levels: { 2: { factory: { interval: 2.2, base: 12 } }, 3: { factory: { interval: 1.75, base: 15 } } },
   },
   assembly: {
-    id: "assembly", name: "ASSEMBLY LINE", kind: "factory", rarity: "common", price: 5, size: 2,
+    id: "assembly", name: "ASSEMBLY LINE", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "ironmonger",
     desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR GATES", "COMMISSION 2X FAST."], tags: ["TIMING", "VOLUME"],
     factory: { ammo: "plain", interval: 1.8, outputs: 1, commission: 0.5 },
     levels: {
@@ -230,7 +230,7 @@ export const ITEMS: Record<string, ItemDef> = {
     },
   },
   gantry: {
-    id: "gantry", name: "GANTRY PRESS", kind: "factory", rarity: "rare", price: 7, size: 2,
+    id: "gantry", name: "GANTRY PRESS", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
     desc: ["ONE PRESS, TWO", "OUTPUTS: FEEDS TWO", "INTAKES BY TURNS."], tags: ["VOLUME", "SPLIT"],
     factory: { ammo: "plain", interval: 1.2, outputs: 2 }, // base 3: the plain slug's
     levels: {

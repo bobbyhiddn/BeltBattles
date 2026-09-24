@@ -30,10 +30,14 @@ describe("shop: caravan shape", () => {
     }
   });
 
-  // 0.6.1p: HOPPER is the Quartermaster's first stock, so the Quartermaster now rides; its wagon offers only HOPPER
+  // 0.6.1p: HOPPER is the Quartermaster's first stock, so the Quartermaster now rides. 0.6.1c: he sells HOPPER and
+  // HOT SWAP, and M0's one-copy wagons show each at most once (his wagon holds at most 2 offers)
   it("a merchant with no stock today is never drawn (scrapper and the arcane dealer wait for a later job)", () => {
-    expect(itemsSoldBy("quartermaster").map((d) => d.id)).toEqual(["hopper"]);
+    expect(itemsSoldBy("quartermaster").map((d) => d.id)).toEqual(["hotswap", "hopper"]);
+    expect(itemsSoldBy("scrapper")).toEqual([]);
+    expect(itemsSoldBy("arcane")).toEqual([]);
     let quartermaster = 0;
+    const seen = new Set<string>();
     for (let seed = 1; seed <= 300; seed++) {
       for (const day of [1, 3, 5, 9]) {
         const run = atDay(seed * 31 + day, day);
@@ -41,10 +45,16 @@ describe("shop: caravan shape", () => {
         expect(merchants).not.toContain("scrapper");
         expect(merchants).not.toContain("arcane"); // stronger than "no Arcane before day 3": not stocked at all yet
         const qm = run.shop.wagons.find((w) => w.merchant === "quartermaster");
-        if (qm) { quartermaster++; for (const o of qm.offers) expect(o.def).toBe("hopper"); }
+        if (!qm) continue;
+        quartermaster++;
+        const defs = qm.offers.map((o) => o.def);
+        expect(defs.length).toBeLessThanOrEqual(2);
+        expect(new Set(defs).size).toBe(defs.length);
+        for (const d of defs) { expect(["hopper", "hotswap"]).toContain(d); seen.add(d); }
       }
     }
     expect(quartermaster).toBeGreaterThan(0);
+    expect([...seen].sort()).toEqual(["hopper", "hotswap"]);
   });
 });
 
