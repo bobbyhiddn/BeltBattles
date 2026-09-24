@@ -93,7 +93,7 @@ export class JsonlStore implements GhostStore {
   }
 
   get where(): string {
-    return this.file;
+    return this.dataDir; // ghosts.jsonl (uploads) and pool.jsonl (stand-in pool)
   }
 
   /** Read both files into memory (creating the data directory). Returns the ghost count. */

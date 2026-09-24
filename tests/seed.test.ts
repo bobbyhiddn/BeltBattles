@@ -1,0 +1,217 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { RULES_VERSION } from "../src/sim/content";
+import { ghostId, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
+import { createGhostServer } from "../server/app";
+import { checkPool, SeedError, seedStore } from "../server/seed";
+import { encodeRecord, JsonlStore, poolRecord, type GhostStore } from "../server/store";
+import { objectKey, parseKey } from "../server/tigrisStore";
+import { generateSamplePool } from "../tools/samplePool";
+import type { FakeS3 } from "../tools/fakeS3";
+import { startFake, tigrisFor } from "./netStores";
+
+const POOL = generateSamplePool(); // the bundle: 40 ghosts, days 1-10
+const BUNDLE = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
+const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; // valid, current rules, not in the bundle
+const OLD_RULES: GhostSnapshot = { ...POOL[0], rules: "bb-0.3.0" }; // another rules version's pool entry
+const PLAYER: GhostSnapshot = { ...POOL[12], playerId: "real-player-1", runId: "run-p1" };
+const entry = (s: GhostSnapshot): PoolEntry => ({ id: ghostId(s), snapshot: s });
+
+/** One storage backend as the seed sees it, with hooks to plant and inspect raw state. */
+interface Harness {
+  store(): GhostStore; // a new store instance (a fresh process) over the same storage
+  pool(rules?: string): Map<string, string>; // stored pool records for rules: id -> bytes
+  plantPool(e: PoolEntry, body?: string): void; // write a pool record behind the seed's back
+  plantJunk(): void; // something unreadable where the pool lives
+  players(): string; // every player record, raw, for "untouched" checks
+  writes(): number; // write operations so far
+}
+
+let fake: FakeS3;
+beforeAll(async () => {
+  fake = await startFake({ pageSize: 7 });
+});
+afterAll(async () => {
+  await fake.close();
+});
+
+let n = 0;
+const dirs: string[] = [];
+afterAll(() => {
+  for (const d of dirs) rmSync(d, { recursive: true, force: true });
+});
+
+function tigrisHarness(): Harness {
+  const bucket = `bb-seed-${++n}`;
+  fake.createBucket(bucket);
+  const mutating = () => fake.requests.filter((r) => r.bucket === bucket && (r.op === "PUT" || r.op === "DELETE")).length;
+  return {
+    store: () => tigrisFor(fake, bucket),
+    pool(rules = RULES_VERSION) {
+      const out = new Map<string, string>();
+      for (const k of fake.keys(bucket, `ghosts/${rules}/`)) {
+        if (!k.includes("/pool/")) continue;
+        out.set(parseKey(k)?.id ?? k, fake.getObject(bucket, k)!);
+      }
+      return out;
+    },
+    plantPool(e, body = poolRecord(e)) {
+      fake.putObject(bucket, objectKey("pool", e.snapshot.rules, e.snapshot.day, e.id), body);
+    },
+    plantJunk() {
+      fake.putObject(bucket, `ghosts/${RULES_VERSION}/d03/pool/junk.txt`, "not a ghost");
+    },
+    players() {
+      return fake.keys(bucket).filter((k) => k.includes("/player/")).map((k) => `${k}=${fake.getObject(bucket, k)}`).join("\n");
+    },
+    writes: mutating,
+  };
+}
+
+function jsonlHarness(): Harness {
+  const dir = mkdtempSync(join(tmpdir(), "bb-seed-"));
+  dirs.push(dir);
+  const poolFile = join(dir, "pool.jsonl");
+  const read = (f: string) => (existsSync(f) ? readFileSync(f, "utf8") : "");
+  let writes = 0;
+  let last = "";
+  return {
+    store() {
+      const s = new JsonlStore(dir);
+      s.load();
+      return s;
+    },
+    pool(rules = RULES_VERSION) {
+      const out = new Map<string, string>();
+      for (const line of read(poolFile).split("\n").filter(Boolean)) {
+        try {
+          const rec = JSON.parse(line) as { id: string; snapshot: GhostSnapshot };
+          if (rec.snapshot.rules === rules) out.set(rec.id, line);
+        } catch {
+          out.set(`unreadable:${line}`, line);
+        }
+      }
+      return out;
+    },
+    plantPool(e, body = poolRecord(e)) { // overwrite this ghost's line, as a PUT would overwrite its object
+      const others = read(poolFile).split("\n").filter((l) => l && !l.startsWith(`{"id":"${e.id}"`));
+      writeFileSync(poolFile, [...others, body].join("\n") + "\n");
+      last = read(poolFile);
+    },
+    plantJunk() {
+      appendFileSync(poolFile, "not a ghost\n");
+      last = read(poolFile);
+    },
+    players: () => read(join(dir, "ghosts.jsonl")),
+    writes() {
+      const now = read(poolFile);
+      if (now !== last) writes++;
+      last = now;
+      return writes;
+    },
+  };
+}
+
+describe.each([
+  { name: "tigris", make: tigrisHarness },
+  { name: "jsonl", make: jsonlHarness },
+])("seed on the $name store", ({ make }) => {
+  let h: Harness;
+  beforeEach(() => {
+    h = make();
+  });
+
+  const bundleRecords = () => new Map(BUNDLE.map((e) => [e.id, poolRecord(e)]));
+
+  it("writes the bundled pool; the pool for RULES_VERSION is then exactly the bundle, and every match day has it", async () => {
+    const r = await seedStore(h.store());
+    expect(r).toEqual({ rules: RULES_VERSION, entries: 40, written: 40, unchanged: 0, removed: 0 });
+    expect(h.pool()).toEqual(bundleRecords());
+    const store = h.store();
+    for (let day = 1; day <= 10; day++) {
+      const b = await store.bucket(RULES_VERSION, day);
+      expect(b.map((e) => e.id).sort()).toEqual(BUNDLE.filter((e) => e.snapshot.day === day).map((e) => e.id).sort());
+    }
+  });
+
+  it("a re-run changes nothing", async () => {
+    await seedStore(h.store());
+    const before = h.pool();
+    const writes = h.writes();
+    expect(await seedStore(h.store())).toMatchObject({ written: 0, unchanged: 40, removed: 0 });
+    expect(h.writes()).toBe(writes);
+    expect(h.pool()).toEqual(before);
+  });
+
+  it("removes stale pool entries (and junk under the pool), rewrites a changed one, leaves other rules versions alone", async () => {
+    await seedStore(h.store());
+    h.plantPool(entry(STALE));
+    h.plantJunk();
+    h.plantPool(BUNDLE[7], encodeRecord(BUNDLE[7].id, 1, BUNDLE[7].snapshot)); // same ghost, different bytes
+    h.plantPool(entry(OLD_RULES));
+    const r = await seedStore(h.store());
+    expect(r).toMatchObject({ written: 1, unchanged: 39, removed: 2 });
+    expect(h.pool()).toEqual(bundleRecords());
+    expect([...h.pool("bb-0.3.0").keys()]).toEqual([ghostId(OLD_RULES)]);
+  });
+
+  it("never touches player uploads", async () => {
+    const store = h.store();
+    await store.add(PLAYER, 42);
+    await store.add(POOL[3], 43); // a player who uploaded a deck identical to a pool entry
+    const players = h.players();
+    expect(players).not.toBe("");
+    h.plantPool(entry(STALE));
+    await seedStore(h.store());
+    await seedStore(h.store());
+    expect(h.players()).toBe(players);
+    const fresh = h.store();
+    const day = await fresh.bucket(RULES_VERSION, PLAYER.day);
+    expect(day.map((e) => e.id)).toContain(ghostId(PLAYER));
+    expect(day).toHaveLength(5); // 4 pool ghosts + the player's
+  });
+
+  it("fails the run, writing nothing, when any entry fails validateBuild (or is off-rules, or a duplicate)", async () => {
+    const bad = { ...POOL[0], build: { ...POOL[0].build, hullBonus: POOL[0].build.hullBonus + 500 } }; // 20 plates over day 1's budget
+    const err = await seedStore(h.store(), [...POOL, bad]).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SeedError);
+    expect((err as Error).message).toMatch(/1 of 41 pool entries failed their checks; nothing was written/);
+    expect((err as Error).message).toMatch(/entry 40 \(furnace day 1\): validateBuild: budget/);
+    expect(h.pool().size).toBe(0);
+    expect(h.writes()).toBe(0);
+    expect(() => checkPool([POOL[0], POOL[0]])).toThrow(/duplicate of ghost/);
+    expect(() => checkPool([{ ...POOL[0], rules: "bb-9.9.9" }])).toThrow(/rules bb-9\.9\.9 is not/);
+    expect(() => checkPool([{ nonsense: true }])).toThrow(/entry 0/);
+    expect(() => checkPool([])).toThrow(/empty/);
+  });
+
+  it("seeded ghosts are served by the match endpoint", async () => {
+    await seedStore(h.store());
+    const app = createGhostServer({ store: h.store(), log: () => {}, matchSalt: () => 0 });
+    const base = `http://127.0.0.1:${await app.listen(0)}`;
+    const codes: number[] = [];
+    for (let day = 1; day <= 10; day++) {
+      codes.push((await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=${day}&wins=0&lives=3&player=seed-check&seen=`)).status);
+    }
+    await app.close();
+    expect(codes).toEqual(Array(10).fill(200));
+  });
+});
+
+describe("seed on the JSON-lines store keeps ghosts.jsonl apart", () => {
+  it("writes pool.jsonl atomically and leaves ghosts.jsonl byte for byte", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "bb-seed-files-"));
+    dirs.push(dir);
+    writeFileSync(join(dir, "ghosts.jsonl"), encodeRecord(ghostId(PLAYER), 7, PLAYER) + "\n");
+    const before = readFileSync(join(dir, "ghosts.jsonl"), "utf8");
+    const s = new JsonlStore(dir);
+    s.load();
+    await seedStore(s);
+    expect(readFileSync(join(dir, "ghosts.jsonl"), "utf8")).toBe(before);
+    expect(readFileSync(join(dir, "pool.jsonl"), "utf8").trim().split("\n")).toHaveLength(40);
+    expect(existsSync(join(dir, "pool.jsonl.tmp"))).toBe(false);
+    expect(s.size).toBe(41);
+  });
+});

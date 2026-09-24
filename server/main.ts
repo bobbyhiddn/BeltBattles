@@ -1,6 +1,9 @@
 // Ghost server CLI. Build with `npm run build:server`, then:
-//   node server/dist/ghost-server.mjs [--port 7790] [--host 127.0.0.1] [--data ./ghost-data]
+//   node server/dist/ghost-server.mjs [serve] [--port 7790] [--host 127.0.0.1] [--data ./ghost-data]
 //                                     [--origins http://127.0.0.1:7778,...] [--rate 120]
+//   node server/dist/ghost-server.mjs seed   write the bundled sample pool into the configured store
+//                                            (the Fly release_command): prints written, unchanged
+//                                            and removed counts; exit 1 on any failure
 // Flags override env. Every setting, including BB_GHOST_STORE=jsonl|tigris and the Tigris
 // variables, is documented in config.ts; a bad one stops the start with exit code 2.
 
@@ -9,28 +12,47 @@ import { createGhostServer } from "./app";
 import { ConfigError, openStore, readConfig, type Config } from "./config";
 
 const log = (line: string) => console.log(line);
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function fail(e: unknown, code: number): never {
-  console.error(e instanceof Error ? e.message : String(e));
+  console.error(message(e));
   process.exit(code);
 }
 
+const argv = process.argv.slice(2);
+const command = argv[0] !== undefined && !argv[0].startsWith("--") ? argv.shift()! : "serve";
+
 let cfg: Config;
 try {
-  cfg = readConfig(process.argv.slice(2), process.env);
+  if (command !== "serve" && command !== "seed") throw new ConfigError(`unknown command "${command}": use serve (the default) or seed`);
+  cfg = readConfig(argv, process.env);
 } catch (e) {
   fail(e, e instanceof ConfigError ? 2 : 1);
 }
 
-const app = createGhostServer({ store: openStore(cfg.store, log), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log });
-app.listen(cfg.port, cfg.host).then(
-  (p) => log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per IP`),
-  (e: unknown) => fail(`cannot listen on ${cfg.host}:${cfg.port}: ${e instanceof Error ? e.message : String(e)}`, 1),
-);
+function serve(): void {
+  const app = createGhostServer({ store: openStore(cfg.store, log), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log });
+  app.listen(cfg.port, cfg.host).then(
+    (p) => log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per IP`),
+    (e: unknown) => fail(`cannot listen on ${cfg.host}:${cfg.port}: ${message(e)}`, 1),
+  );
+  for (const sig of ["SIGINT", "SIGTERM"] as const) {
+    process.on(sig, () => {
+      log(`${sig}: shutting down`);
+      app.close().then(() => process.exit(0));
+    });
+  }
+}
 
-for (const sig of ["SIGINT", "SIGTERM"] as const) {
-  process.on(sig, () => {
-    log(`${sig}: shutting down`);
-    app.close().then(() => process.exit(0));
-  });
+async function seed(): Promise<void> {
+  const { seedStore } = await import("./seed"); // the sample pool is only loaded for this command
+  const store = openStore(cfg.store, log);
+  const r = await seedStore(store);
+  log(`seed: rules ${r.rules}, ${r.entries} pool ghosts on ${store.kind} (${store.where}): ${r.written} written, ${r.unchanged} unchanged, ${r.removed} removed`);
+}
+
+if (command === "seed") {
+  seed().then(() => process.exit(0), (e: unknown) => fail(`seed failed: ${message(e)}`, 1));
+} else {
+  serve();
 }
