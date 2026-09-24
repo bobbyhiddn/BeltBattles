@@ -72,7 +72,8 @@ export function generateSamplePool(): GhostSnapshot[] {
         const wins = rng.int(day);
         const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
         const snap = checkSnapshot({
-          v: 1, rules: RULES_VERSION, hero, day, wins, lives: START_LIVES - losses, build,
+          // 0.6.2 BELTSIDE: a deck whose rigs carry `rot` travels in v2 (DESIGN-beltside D1)
+          v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero, day, wins, lives: START_LIVES - losses, build,
           runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: EPOCH + out.length * 1000,
         });
         const val = validateBuild(snap.build, day);

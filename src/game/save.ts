@@ -11,9 +11,15 @@
 //  v6 (0.6.0b-0.6.0d) -> v7 (0.6.1a, module merging): absent `stars` mean 1, so nothing is
 //  rewritten; then fuseAll runs once (a v6 run can hold duplicates such as two tempers), and when
 //  anything merged the next screen toasts "YOUR SPARE PARTS MERGED" (run.fuseFx, cosmetic).
+// 0.6.2 BELTSIDE (ref/DESIGN-beltside.md D3), every load, no version bump: gates standing ON belt tiles
+//  become rigs beside their belts (migrateInlineGates; idempotent, so a migrated run is untouched). A
+//  stranded rig of the player's deck goes to cargo, or is refunded at its value when cargo already holds
+//  MIGRATE_CARGO_CAP parts; the stored dusk foe and warlord decks drop theirs (logged).
 
 import { RUN_DAYS, START_LIVES, type HeroId } from "../sim/content";
 import { warlordName } from "../sim/ai";
+import { logMigration, migrateDeck, migrateInlineGates } from "../sim/beltside";
+import { starField, starsOf, valueOf } from "../sim/stars";
 import { toId } from "./ghostSnapshot";
 import { fuseAll } from "./fuse";
 import type { Run } from "./run";
@@ -22,6 +28,11 @@ export const SAVE_KEY = "beltbattles.run.v7";
 export const SAVE_KEY_V6 = "beltbattles.run.v6";
 /** 0.6.1a: the toast a migrated v6 run shows when its spare parts merged. */
 export const MIGRATE_TOAST = "YOUR SPARE PARTS MERGED";
+/** 0.6.2 BELTSIDE: the toast a run shows once its gates moved off the belts (next build screen). */
+export const BELTSIDE_TOAST = "RIGS NOW STAND BESIDE THE BELT";
+/** 0.6.2 BELTSIDE: cargo counts as full at this many parts: the smallest cargo tray (portrait, 160 px
+ *  wide) shows 4 slots, so a rig the migration puts in cargo is always in reach. */
+export const MIGRATE_CARGO_CAP = 4;
 export const SAVE_KEY_V5 = "beltbattles.run.v5";
 export const SAVE_KEY_V4 = "beltbattles.run.v4";
 export const SAVE_KEY_V3 = "beltbattles.run.v3";
@@ -90,6 +101,32 @@ function v5to6(r: Raw): void {
   }
 }
 
+/** 0.6.2 BELTSIDE, D3 at the save boundary (see the header). Pure on the raw save; returns what moved. */
+export function beltsideRun(r: Raw): { moved: number; cargoed: number; refunded: number; dropped: number } {
+  const m = migrateInlineGates(r.build);
+  let cargoed = 0, refunded = 0;
+  for (const p of m.stranded) {
+    if (r.inventory.length < MIGRATE_CARGO_CAP) {
+      r.inventory.push({ uid: p.uid, def: p.def, ...starField(starsOf(p)) });
+      cargoed++;
+    } else {
+      r.gold = (Number(r.gold) || 0) + valueOf(p.def, starsOf(p));
+      refunded++;
+    }
+  }
+  logMigration("save", m, { cargoed, refunded });
+  if (m.moved.length || m.stranded.length) r.fuseFx = [...(Array.isArray(r.fuseFx) ? r.fuseFx : []), BELTSIDE_TOAST];
+  const before = (b: Raw | undefined) => (b ? (b.items as unknown[]).length : 0);
+  let dropped = 0;
+  for (const [b, src] of [[r.dusk?.build, "save:dusk"], [r.warlord?.build, "save:warlord"]] as [Raw | undefined, string][]) {
+    if (!b || !Array.isArray(b.items) || !Array.isArray(b.routes)) continue;
+    const n = before(b);
+    migrateDeck(b as never, src);
+    dropped += n - before(b);
+  }
+  return { moved: m.moved.length, cargoed, refunded, dropped };
+}
+
 function v6to7(r: Raw): void {
   r.version = 7;
   const fx = Array.isArray(r.fuseFx) ? r.fuseFx : [];
@@ -102,7 +139,7 @@ function v6to7(r: Raw): void {
  *  toasts show on any settled screen; the migration notice waits for the next build screen. */
 export function nextFuseToast(run: Run, onBuildScreen: boolean): string | undefined {
   const fx = run.fuseFx;
-  const i = fx ? fx.findIndex((t) => t !== MIGRATE_TOAST || onBuildScreen) : -1;
+  const i = fx ? fx.findIndex((t) => (t !== MIGRATE_TOAST && t !== BELTSIDE_TOAST) || onBuildScreen) : -1;
   return i < 0 ? undefined : fx!.splice(i, 1)[0];
 }
 
@@ -136,6 +173,7 @@ export function migrateRun(raw: unknown): Run | null {
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;
   if (!STAGES.includes(r.stage)) r.stage = "caravan";
   if (r.stage === "warlord" && !(r.warlord && r.warlord.day === r.day)) r.stage = "fork";
+  if (Array.isArray(r.build.items) && Array.isArray(r.build.routes)) beltsideRun(r); // 0.6.2 BELTSIDE (D3): every load, idempotent
   return r as unknown as Run;
 }
 

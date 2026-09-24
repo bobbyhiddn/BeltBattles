@@ -11,9 +11,10 @@ import { resolveCore } from "../src/sim/cores";
 const CORES = ["scatter", "rotary", "pressure", "gatling", "hullbreaker", "drake", "salvo"];
 const MEDIUM: TurretDef = { col0: 4, width: 2, connectors: [4, 5], kind: "medium", fireInterval: 0.75, window: 2, flight: 0.45 };
 const SHORT = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
+// 0.6.2 BELTSIDE: the SPLITTERs stand beside the belts they split, west of (4,4) and east of (5,3)
 const busy = (): Build => ({
   hero: "furnace", mods: [], beltCap: 40, hullBonus: 0,
-  items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 }, { uid: 3, def: "splitter", x: 4, y: 4 }, { uid: 4, def: "splitter", x: 5, y: 4 }],
+  items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 }, { uid: 3, def: "splitter", x: 3, y: 4, rot: 1 }, { uid: 4, def: "splitter", x: 6, y: 3 }],
   routes: [{ factory: 1, cells: SHORT }, { factory: 2, cells: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }],
 });
 const barge = (): Build => ({ ...startingBuild("furnace", 500), routes: [], hullBonus: 2000 });

@@ -4,13 +4,15 @@
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { ITEMS, sellValue } from "../src/sim/content";
-import { estimateRoute, key, type Build } from "../src/sim/deck";
+import { estimateRoute, key, rotField, type Build } from "../src/sim/deck";
+import { rotFacing } from "../src/sim/beltside";
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, starsOf, valueOf } from "../src/sim/stars";
 
 const LIVE = ["temper", "whetstone", "grease", "brake", "longhaul", "coil", "splitter", "overdrive", "press", "chamber", "calibrate"];
 const K = key;
 
-/** Furnace bench: the Kiln at (4,6) on a straight 6-tile route to column 4; gates by [def, x, y, stars]. */
+/** Furnace bench: the Kiln at (4,6) on a straight 6-tile route to column 4; rigs by [def, x, y, stars]:
+ *  0.6.2 BELTSIDE, each rig stands west of belt tile (x, y) and faces it (its first arrow points east). */
 function bench(gates: [string, number, number, number][], mods: [string, number][] = [], kilnRoute = true): Build {
   const b: Build = {
     hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }],
@@ -18,7 +20,7 @@ function bench(gates: [string, number, number, number][], mods: [string, number]
     mods: [], beltCap: 30, hullBonus: 5000,
   };
   let uid = 10;
-  for (const [def, x, y, s] of gates) b.items.push({ uid: uid++, def, x, y, ...(s > 1 ? { stars: s } : {}) });
+  for (const [def, x, y, s] of gates) b.items.push({ uid: uid++, def, x: x - 1, y, ...rotField(def, rotFacing(def, 1)), ...(s > 1 ? { stars: s } : {}) });
   for (const [def, s] of mods) b.mods.push({ uid: uid++, def, turret: 0, ...(s > 1 ? { stars: s } : {}) });
   return b;
 }

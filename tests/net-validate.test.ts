@@ -100,7 +100,8 @@ describe("deck validation: rejections", () => {
 
   it("rejects over-budget decks", () => {
     const three = furnaceDeck({
-      items: [...furnaceDeck().items, { uid: 2, def: "temper", x: 4, y: 4 }, { uid: 3, def: "whetstone", x: 4, y: 3 }, { uid: 4, def: "grease", x: 4, y: 2 }],
+      // 0.6.2 BELTSIDE: rigs west of the belt, facing it
+      items: [...furnaceDeck().items, { uid: 2, def: "temper", x: 3, y: 4, rot: 1 }, { uid: 3, def: "whetstone", x: 3, y: 3, rot: 1 }, { uid: 4, def: "grease", x: 3, y: 2, rot: 1 }],
     });
     expect(errorsOf(three, 1)).toMatch(/budget: build costs 9 gold .* day 1 allows at most 8/);
     expect(validateBuild(three, 2).ok).toBe(true);

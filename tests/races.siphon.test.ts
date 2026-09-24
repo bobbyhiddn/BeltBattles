@@ -29,10 +29,11 @@ function run(b: Battle, secs: number, each?: (b: Battle) => void): void {
   }
 }
 
-/** Furnace deck with gates on its straight route: cells 0-1 | TEMPER (2) | 3 | WHETSTONE (4) | 5. */
+/** Furnace deck with rigs beside its straight route (0.6.2 BELTSIDE): a TEMPER works tile 2 and a WHETSTONE
+ *  tile 4, from the west. Each worked tile opens a segment: cells 0-1 | 2-3 | 4-5. */
 function gatedFurnace(): Build {
   const b = heroStartBuild("furnace", 1);
-  b.items.push({ uid: 20, def: "temper", x: 4, y: 3 }, { uid: 21, def: "whetstone", x: 4, y: 1 });
+  b.items.push({ uid: 20, def: "temper", x: 3, y: 3, rot: 1 }, { uid: 21, def: "whetstone", x: 3, y: 1, rot: 1 });
   return b;
 }
 
@@ -68,14 +69,14 @@ describe("SIPHON Drag", () => {
     const b = new Battle(gatedFurnace(), siphon(), 1);
     const s = b.sides[0];
     const r = s.routes[0];
-    expect(segments(r)).toEqual([[0, 1], [3, 3], [5, 5]]);
+    expect(segments(r)).toEqual([[0, 1], [2, 3], [4, 5]]);
     const spans = (t: Target) => dragSpans(s, t).map((x) => [x.route, ...x.span]);
     expect(spans(target(s, "belt", 0, 0))).toEqual([[0, 0, 1]]); // the struck segment
-    expect(spans(target(s, "belt", 0, 3))).toEqual([[0, 3, 3]]);
-    expect(spans(target(s, "gate", 20))).toEqual([[0, 3, 3]]); // downstream of the Temper
-    expect(spans(target(s, "gate", 21))).toEqual([[0, 5, 5]]); // downstream of the Whetstone
+    expect(spans(target(s, "belt", 0, 3))).toEqual([[0, 2, 3]]);
+    expect(spans(target(s, "gate", 20))).toEqual([[0, 2, 3]]); // downstream of the Temper, from the tile it works
+    expect(spans(target(s, "gate", 21))).toEqual([[0, 4, 5]]); // downstream of the Whetstone
     expect(spans(target(s, "factory", 1))).toEqual([[0, 0, 1]]); // first segment of each route
-    expect(spans(target(s, "turret", 0))).toEqual([[0, 5, 5]]); // last segment of each feeding route
+    expect(spans(target(s, "turret", 0))).toEqual([[0, 4, 5]]); // last segment of each feeding route
     expect(spans({ kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 })).toEqual([]); // damage only
   });
 

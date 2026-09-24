@@ -3,6 +3,7 @@ import { Battle, simulate, type Payload } from "../src/sim/battle";
 import { DISRUPT_TIME, HEROES, ITEMS, type HeroId } from "../src/sim/content";
 import { estimateRoute, key as K, routeInfo, type Build, type Placed } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
+import { migrateInlineGates } from "../src/sim/beltside";
 import { ITEM_POOL, PEAK_SHIFT, heroRules, pendulumCurve } from "../src/sim/races/data";
 import { adaptableHead, peakRide } from "../src/sim/races/metronome";
 import { dummyFoe, expectSaneBattles, shots } from "./races.helpers";
@@ -19,11 +20,14 @@ const ROUTES: Record<number, number[]> = {
 const TILES = Object.keys(ROUTES).map(Number);
 const ride = (n: number) => 0.4 * n + 0.2;
 
+/** 0.6.2 BELTSIDE: `gates` name the belt tiles their rigs work; D3 (migrateInlineGates) stands each beside its tile. */
 function metro(tiles: number, gates: [string, number, number][] = [], mod?: string): Build {
   const items: Placed[] = [{ uid: 1, def: "clockworks", x: 4, y: 6 }];
   gates.forEach(([def, x, y], i) => items.push({ uid: 10 + i, def, x, y }));
   const mods = mod ? [{ uid: 50, def: mod, turret: 0 }] : [];
-  return { hero: "metronome", items, routes: [{ factory: 1, cells: [...ROUTES[tiles]] }], mods, beltCap: 20, hullBonus: 0 };
+  const b: Build = { hero: "metronome", items, routes: [{ factory: 1, cells: [...ROUTES[tiles]] }], mods, beltCap: 20, hullBonus: 0 };
+  migrateInlineGates(b);
+  return b;
 }
 
 /** Rides of side-0 pendulum slugs as they sit in the chamber (ride no longer changes there). */

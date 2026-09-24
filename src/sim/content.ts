@@ -39,6 +39,24 @@ export type MerchantId =
 
 export const RARITIES: Rarity[] = ["common", "rare", "epic", "legendary"];
 
+/**
+ * 0.6.2 BELTSIDE (ref/DESIGN-beltside.md R2-R3): a gate is a RIG on its own deck cell beside the belt, and
+ * its arrows act on the belt tiles they point at. The shape is part of a rig def's identity: its arrows
+ * in local directions at rotation 0 (0 forward, 1 = +x, 2 back, 3 = -x, as in deck.ts). A def without
+ * `shape` takes RARITY_SHAPE[rarity]; a rare def picks II or L.
+ */
+export type RigShape = "I" | "II" | "L" | "T" | "X";
+export const SHAPE_ARROWS: Record<RigShape, readonly number[]> = {
+  I: [0], // one arrow
+  II: [1, 3], // a straight pair, left and right
+  L: [0, 1], // a bent pair
+  T: [0, 1, 3], // three arrows
+  X: [0, 1, 2, 3], // all four sides; ignores rotation
+};
+/** R2: arrows follow rarity. The default shape of each rarity. */
+export const RARITY_SHAPE: Record<Rarity, RigShape> = { common: "I", rare: "II", epic: "T", legendary: "X" };
+export const RARITY_ARROWS: Record<Rarity, number> = { common: 1, rare: 2, epic: 3, legendary: 4 };
+
 export interface GateEffect {
   burn?: number; // Burn stacks added
   shock?: boolean; // impact disrupts struck machinery
@@ -117,6 +135,7 @@ export interface ItemDef {
   size: 1 | 2; // footprint (cells per side)
   desc: string[]; // short lines, uppercase-friendly
   merchant?: MerchantId; // who sells it (undefined = not sold)
+  shape?: RigShape; // 0.6.2 BELTSIDE: a rig's arrow shape (kind "gate" only); absent = RARITY_SHAPE[rarity]
   gate?: GateEffect;
   factory?: FactorySpec;
   mod?: ModSpec;
@@ -174,7 +193,7 @@ export const ITEMS: Record<string, ItemDef> = {
     levels: { 2: { gate: { speed: 0.31 } }, 3: { gate: { speed: 0.22 } } },
   },
   longhaul: {
-    id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",
+    id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker", shape: "II",
     desc: ["+2 DAMAGE FOR EACH", "GATE THE PAYLOAD", "ALREADY PASSED."],
     gate: { perPriorGate: 2 },
     levels: {
@@ -183,7 +202,7 @@ export const ITEMS: Record<string, ItemDef> = {
     },
   },
   coil: {
-    id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
+    id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
     desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."],
     gate: { shock: true },
     levels: {
@@ -192,7 +211,7 @@ export const ITEMS: Record<string, ItemDef> = {
     },
   },
   splitter: {
-    id: "splitter", name: "SPLITTER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker",
+    id: "splitter", name: "SPLITTER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker", shape: "T",
     desc: ["SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE."],
     gate: { split: { copies: 2, mult: 0.6 } },
     levels: {
@@ -202,7 +221,7 @@ export const ITEMS: Record<string, ItemDef> = {
     },
   },
   overdrive: {
-    id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker",
+    id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker", shape: "X",
     desc: ["BELTS AFTER THIS", "RUN 3X FASTER.", "LEGENDARY TEMPO."],
     gate: { speed: 3 },
     levels: {
@@ -440,4 +459,11 @@ export function rarityWeights(round: number): Record<Rarity, number> {
 export function sellValue(def: ItemDef | string, stars = 1): number {
   const d = typeof def === "string" ? ITEMS[def] : def;
   return Math.max(1, Math.floor(((d?.price ?? 0) * 2 ** (stars - 1)) / 2));
+}
+
+/** 0.6.2 BELTSIDE: a rig def's shape (its own, else its rarity's); undefined for anything that is not a rig. */
+export function rigShape(def: ItemDef | string | undefined): RigShape | undefined {
+  const d = typeof def === "string" ? (Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined) : def;
+  if (!d || d.kind !== "gate") return undefined;
+  return d.shape ?? RARITY_SHAPE[d.rarity];
 }

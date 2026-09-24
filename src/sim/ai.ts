@@ -3,6 +3,7 @@
 
 import { HEROES, type HeroId } from "./content";
 import { key, type Build, type Placed, type RouteDef } from "./deck";
+import { migrateDeck } from "./beltside";
 
 const K = (x: number, y: number) => key(x, y);
 
@@ -51,11 +52,16 @@ function furnaceCooker(uid0: number): Layout {
 
 export function startingBuild(heroId: HeroId, uid0: number): Build {
   const l = heroId === "furnace" ? furnaceStart(uid0) : weaverBase(uid0);
-  return { hero: heroId, items: l.items, routes: l.routes, mods: [], beltCap: l.beltCap, hullBonus: 0 };
+  return migrateDeck({ hero: heroId, items: l.items, routes: l.routes, mods: [], beltCap: l.beltCap, hullBonus: 0 }, "preset:ai");
 }
 
-/** Enemy warlord build for a round (1-based). */
+/** Enemy warlord build for a round (1-based). 0.6.2 BELTSIDE: a load boundary (D3): gates written on belt
+ *  tiles (the 0.6.1 layouts) move beside them; once the layouts place rigs natively it is a safety net. */
 export function warlordBuild(heroId: HeroId, round: number): Build {
+  return migrateDeck(warlordLayout(heroId, round), "preset:ai");
+}
+
+function warlordLayout(heroId: HeroId, round: number): Build {
   const U = 9000;
   let uid = U + 10;
   const gate = (def: string, x: number, y: number): Placed => ({ uid: uid++, def, x, y });

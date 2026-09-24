@@ -11,6 +11,7 @@ import { newRun } from "../src/game/run";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
+import { pickLoss } from "./beltside.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const BOTH: HeroId[] = ["furnace", "weaver"];
@@ -88,7 +89,8 @@ describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in"
         const id = standInGhost(seed, d);
         expect(a.id).toBe(id);
         expect(a.build).toEqual(standInPick(RIVALS[id].hero, d, seed));
-        expect(deckCost(a.build).total).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(d)));
+        // 0.6.2 BELTSIDE: full purse as generated; as loaded it lacks only what D3 dropped (beltside.helpers)
+        expect(deckCost(a.build).total + pickLoss(RIVALS[id].hero, d, seed)).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(d)));
         expect([a.hero, a.name]).toEqual([RIVALS[id].hero, RIVALS[id].name]);
         const run = newRun("weaver", seed, "me");
         run.day = d;

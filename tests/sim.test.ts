@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { simulate, Battle } from "../src/sim/battle";
 import { startingBuild, warlordBuild } from "../src/sim/ai";
 import {
-  canExtend, cloneBuild, connectorClaims, estimateRoute, key, moveItem, routeInfo, type Build,
+  canExtend, cloneBuild, connectorClaims, estimateRoute, key, moveItem, rotField, routeInfo, type Build,
 } from "../src/sim/deck";
+import { rotFacing } from "../src/sim/beltside";
 import { buyOffer, newRun } from "../src/game/run";
 import { ITEMS } from "../src/sim/content";
 
@@ -67,12 +68,14 @@ describe("routing and timing (acceptance 1)", () => {
 
 describe("gate order (acceptance 2)", () => {
   const route = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
+  // 0.6.2 BELTSIDE: rigs stand west of the tiles they work, (4,4) then (4,2), facing east
+  const east = (def: string) => rotField(def, rotFacing(def, 1));
   const withGates = (a: string, b: string): Build =>
     furnace(route, {
       items: [
         { uid: 1, def: "kiln", x: 4, y: 6 },
-        { uid: 2, def: a, x: 4, y: 4 },
-        { uid: 3, def: b, x: 4, y: 2 },
+        { uid: 2, def: a, x: 3, y: 4, ...east(a) },
+        { uid: 3, def: b, x: 3, y: 2, ...east(b) },
       ],
     });
 
@@ -93,7 +96,7 @@ describe("gate order (acceptance 2)", () => {
   it("brake shoe cooks cinder slugs hotter but later", () => {
     const plain = estimateRoute(furnace(route), 0);
     const braked = estimateRoute(furnace(route, {
-      items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "brake", x: 4, y: 4 }],
+      items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "brake", x: 3, y: 4, ...east("brake") }],
     }), 0);
     expect(braked.time).toBeGreaterThan(plain.time);
     expect(braked.dmg).toBeGreaterThan(plain.dmg);
@@ -136,12 +139,13 @@ describe("congestion and determinism (acceptance 4)", () => {
   });
 
   it("over-production backs up and jams the chamber, reproducibly", () => {
+    // 0.6.2 BELTSIDE: a SPLITTER west of the kiln belt at (4,4) and one east of the press belt at (5,3)
     const b = furnace(SHORT, {
       items: [
         { uid: 1, def: "kiln", x: 4, y: 6 },
         { uid: 2, def: "press", x: 6, y: 6 },
-        { uid: 3, def: "splitter", x: 4, y: 4 },
-        { uid: 4, def: "splitter", x: 5, y: 4 },
+        { uid: 3, def: "splitter", x: 3, y: 4, rot: 1 },
+        { uid: 4, def: "splitter", x: 6, y: 3 },
       ],
       routes: [
         { factory: 1, cells: SHORT },

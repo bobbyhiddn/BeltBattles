@@ -68,17 +68,22 @@ export function isDragged(st: DragState, t: number, route: number, ci: number): 
   return !!u && ci >= 0 && ci < u.length && t < u[ci] - EPS;
 }
 
-/** Belt spans between machinery nodes on a route, as [first, last] cell index. Gate cells are nodes. */
+/**
+ * Belt spans between machinery nodes on a route, as [first, last] tile index. 0.6.2 BELTSIDE: rigs stand
+ * beside the belt, so the nodes are the tiles their arrows hit: each hit tile opens a new span, and every
+ * tile belongs to exactly one span (a hit tile is the first tile of the span downstream of it).
+ */
 export function segments(r: RouteState): [number, number][] {
   const out: [number, number][] = [];
-  let start = -1;
-  for (let i = 0; i < r.cells.length; i++) {
-    if (r.gateAt[i]) {
-      if (start >= 0) out.push([start, i - 1]);
-      start = -1;
-    } else if (start < 0) start = i;
+  if (!r.cells.length) return out;
+  let start = 0;
+  for (let i = 1; i < r.cells.length; i++) {
+    if (r.gateAt[i].length) {
+      out.push([start, i - 1]);
+      start = i;
+    }
   }
-  if (start >= 0) out.push([start, r.cells.length - 1]);
+  out.push([start, r.cells.length - 1]);
   return out;
 }
 
@@ -94,9 +99,9 @@ export function dragSpans(s: SideState, t: Target): { route: number; span: [numb
       if (r) add(r, segments(r).find(([a, b]) => t.cell >= a && t.cell <= b));
       break;
     }
-    case "gate": { // the segment downstream of the gate
+    case "gate": { // 0.6.2: the span downstream of each tile the rig hits (none when IDLE)
       const g = s.gates.find((q) => q.uid === t.ref);
-      if (g && g.route >= 0) add(s.routes[g.route], segments(s.routes[g.route]).find(([a]) => a === g.cellIdx + 1));
+      for (const h of g?.hits ?? []) add(s.routes[h.route], segments(s.routes[h.route]).find(([a]) => a === h.tile));
       break;
     }
     case "factory": { // the first segment of each of its routes

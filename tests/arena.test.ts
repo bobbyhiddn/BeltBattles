@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { simulate } from "../src/sim/battle";
 import { startingBuild, warlordBuild } from "../src/sim/ai";
+import { migrateInlineGates } from "../src/sim/beltside";
 import { Arena } from "../src/game/arena";
 import { setReducedMotion } from "../src/core/settings";
 import type { HeroId } from "../src/sim/content";
@@ -121,6 +122,7 @@ describe("effects do not change results", () => {
       routes: [{ factory: 1, cells: [54, 53, 52, 42, 32, 22, 23, 24, 14, 4] }],
       mods: [], beltCap: 18, hullBonus: 0,
     };
+    migrateInlineGates(cooker); // 0.6.2 BELTSIDE: the gates above stand on belt tiles; D3 puts each beside its tile
     const a = new Arena(cooker, warlordBuild("weaver", 1), 7, null);
     let frozen = -1;
     for (let i = 0; i < 60 * 90 && !a.b.over && frozen < 0; i++) {

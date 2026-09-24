@@ -90,7 +90,9 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     ];
     const bad: string[] = [];
     for (const s of POOL) {
-      expect(local.isSnapshot({ ...s, v: 1 }) && netOk({ ...s, v: 1 }), `v1 ${s.hero} d${s.day}`).toBe(true);
+      // 0.6.2 BELTSIDE: a v1 copy loads on both sides unless a rig carries `rot`, which only v2 allows
+      const rot = s.build.items.some((p) => p.rot !== undefined);
+      expect([local.isSnapshot({ ...s, v: 1 }), netOk({ ...s, v: 1 })], `v1 ${s.hero} d${s.day}`).toEqual([!rot, !rot]);
       for (const [name, v, stars, ok] of cases) {
         const x = starred(s, v, stars);
         const a = local.isSnapshot(x), b = netOk(x);

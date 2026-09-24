@@ -8,19 +8,23 @@
 // between 40 and it), and the par is the pick nearest the window's middle. A day with too
 // few eligible builds widens the window, grows its population, then allows elites; a day that
 // still falls short takes its best-vsPar builds and is listed in STAND_IN_DATA.short.
-// Portable: this file and its data module import only ./content and ./deck (and each other),
-// so the game can copy both as they are.
+// Portable: this file and its data module import only ./content, ./deck and ./beltside (and each
+// other; beltside.ts itself imports only ./content and ./deck), so the game can copy them as they are.
+// 0.6.2 BELTSIDE: decoding is a load boundary (DESIGN-beltside D3). The v1.1 decks were generated with
+// gates ON belt tiles; decodeStandIn moves each beside its belt (migrateInlineGates) and drops, and logs,
+// a gate with no free neighbour. The data stays as generated until the harness re-bakes it natively (D4).
 //
 // Build code (one string per deck): "<beltCap> <hullBonus>/<items>/<routes>/<mods>"
-//   items:  space-separated <itemId><yx>: the item's cell as two digits, row y then column x.
-//           The i-th item (1-based) gets uid i.
+//   items:  space-separated <itemId><yx>[r<rot>]: the item's cell as two digits, row y then column x,
+//           then (0.6.2, rigs only, never 0) its rotation. The i-th item (1-based) gets uid i.
 //   routes: space-separated <factoryItemNo>:<cells>: the feeding item's 1-based number, then
 //           the route's cells as concatenated two-digit yx keys, factory end first.
 //   mods:   space-separated <itemId><turret>; mod uids follow the items.
 // Example (Furnace starting deck): "14 0/kiln64/1:544434241404/"
 
 import { GRID, HEROES, ITEMS, type HeroId } from "./content";
-import type { Build, ModPlacement, Placed, RouteDef } from "./deck";
+import { rotOf, type Build, type ModPlacement, type Placed, type RouteDef } from "./deck";
+import { logMigration, migrateInlineGates } from "./beltside";
 import { STAND_IN_DATA, type StandInDay } from "./standInPoolData";
 
 /** RULES_VERSION the pool was generated (and scored) under. */
@@ -47,7 +51,8 @@ export function encodeStandIn(b: Build): string {
   const items = b.items.map((p, i) => {
     if (!/^[a-z]+$/.test(p.def)) throw new Error(`stand-in code: item id "${p.def}" is not lowercase letters`);
     no.set(p.uid, i + 1);
-    return `${p.def}${cellCode(p.x, p.y)}`;
+    const rot = rotOf(p);
+    return `${p.def}${cellCode(p.x, p.y)}${rot ? `r${rot}` : ""}`;
   });
   const routes = b.routes.map((r) => {
     const f = no.get(r.factory);
@@ -58,15 +63,40 @@ export function encodeStandIn(b: Build): string {
   return `${b.beltCap} ${b.hullBonus}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}`;
 }
 
-/** Decode a stand-in build code into a fresh Build for `hero`. */
+/**
+ * Decode a stand-in build code into a fresh Build for `hero`. 0.6.2 BELTSIDE: a load boundary; gates on
+ * belt tiles move beside their belts (D3), a stranded one is dropped (and logged), and the uids are then
+ * numbered again in item order (mods after the items), so encode and decode still round-trip.
+ */
 export function decodeStandIn(hero: HeroId, code: string): Build {
+  const b = decodeStandInRaw(hero, code);
+  const m = migrateInlineGates(b);
+  logMigration("standin", m, { dropped: m.stranded.length });
+  if (m.stranded.length) renumber(b);
+  return b;
+}
+
+/** Items get uids 1..n in order and mods n+1.., as the code format assigns them; routes follow their factory. */
+function renumber(b: Build): void {
+  const no = new Map<number, number>();
+  b.items.forEach((p, i) => {
+    no.set(p.uid, i + 1);
+    p.uid = i + 1;
+  });
+  for (const r of b.routes) r.factory = no.get(r.factory) ?? r.factory;
+  b.mods.forEach((m, j) => { m.uid = b.items.length + j + 1; });
+}
+
+/** The deck exactly as its code writes it, before the D3 migration (tests, and the harness re-bake). */
+export function decodeStandInRaw(hero: HeroId, code: string): Build {
   const [head, itemPart, routePart, modPart] = code.split("/");
   const [beltCap, hullBonus] = head.split(" ").map(Number);
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const items: Placed[] = words(itemPart).map((w, i) => {
-    const m = /^([a-z]+)(\d)(\d)$/.exec(w);
+    const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?$/.exec(w);
     if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
-    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]) };
+    if (m[4] && ITEMS[m[1]].kind !== "gate") throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
+    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}) };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {
     const m = /^(\d+):((?:\d\d)+)$/.exec(w);

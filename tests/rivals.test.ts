@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { simulate } from "../src/sim/battle";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
-import type { Build } from "../src/sim/deck";
+import { kx, ky, type Build } from "../src/sim/deck";
 import { BATTLE_CAP, HEROES, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import {
   DIFFICULTIES, MATRIARCH_DAY, RIVALS, RIVAL_IDS, RUN_DAYS, difficultyOf, rivalBuild, rivalDays, rivalLoadout,
@@ -79,15 +79,19 @@ describe("rival builds are legal production builds", () => {
     const base = () => JSON.parse(JSON.stringify(rivalBuild("matriarch", 10))) as Build;
     const stray = base();
     stray.mods.push({ uid: 1, def: "chamber", turret: 0 }); // not on the rival item list
-    const offBelt = base();
-    offBelt.items.push({ uid: 2, def: "temper", x: 9, y: 9 });
+    const idle = base();
+    idle.items.push({ uid: 2, def: "temper", x: 9, y: 9 }); // 0.6.2 BELTSIDE: no arrow reaches a belt
+    const onBelt = base();
+    onBelt.items.push({ uid: 3, def: "temper", x: kx(onBelt.routes[0].cells[2]), y: ky(onBelt.routes[0].cells[2]) }); // on a belt tile
     const short = base();
     short.routes[0].cells.pop(); // no longer reaches its intake
     const crossed = base();
     crossed.routes[1].cells.splice(1, 0, crossed.routes[0].cells[3]);
     const noFactory = base();
     noFactory.items = noFactory.items.filter((p) => p.def !== "kiln");
-    for (const b of [stray, offBelt, short, crossed, noFactory]) expect(legalityProblems(b).length).toBeGreaterThan(0);
+    for (const b of [stray, idle, onBelt, short, crossed, noFactory]) expect(legalityProblems(b).length).toBeGreaterThan(0);
+    expect(legalityProblems(idle)).toEqual(["rig temper@9,9 is IDLE"]);
+    expect(legalityProblems(onBelt)[0]).toMatch(/^rig temper@.*: BELT IN THE WAY$/);
     expect(legalityProblems(base())).toEqual([]);
   });
 

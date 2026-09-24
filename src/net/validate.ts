@@ -82,6 +82,9 @@ export function unfusedPairs(build: Build): string[] {
   return out;
 }
 
+/** 0.6.2 BELTSIDE (D2): a rig's rotation is 0..3 quarter turns (absent = 0). */
+const MAX_ROT = 3;
+
 function routeProblem(b: Build, i: number, occ: ReturnType<typeof occupancy>): string | null {
   const r = b.routes[i];
   if (!r.cells.length) return "has no belt tiles";
@@ -94,10 +97,7 @@ function routeProblem(b: Build, i: number, occ: ReturnType<typeof occupancy>): s
     if (seen.has(k)) return `revisits cell ${k} (no loops)`;
     seen.add(k);
     if (j > 0 && dirBetween(r.cells[j - 1], k) < 0) return `is broken between cells ${r.cells[j - 1]} and ${k}`;
-    const it = occ[k].item;
-    if (it >= 0 && itemDef(b.items.find((p) => p.uid === it)?.def ?? "")?.kind !== "gate") {
-      return `runs through non-gate machinery at cell ${k}`;
-    }
+    if (occ[k].item >= 0) return `runs through machinery at cell ${k}`; // 0.6.2 BELTSIDE (R1): no exception for rigs
   }
   return routeWellFormed(b, r) ? null : "is not well formed";
 }
@@ -131,6 +131,13 @@ export function validateBuild(build: Build, day: number): Validation {
   }
   if (FUSE_LIVE) for (const m of unfusedPairs(b)) errors.push(`item: ${m}`);
 
+  // 0.6.2 BELTSIDE (D2) rot: an integer 0..MAX_ROT (checkBuildShape already bounds it), on a rig only
+  for (const p of b.items) {
+    if (p.rot === undefined) continue;
+    if (!Number.isInteger(p.rot) || p.rot < 0 || p.rot > MAX_ROT) errors.push(`item: uid ${p.uid} has rot ${p.rot}; expected 0..${MAX_ROT}`);
+    else if (ITEMS[p.def].kind !== "gate") errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have a rot (only rigs turn)`);
+  }
+
   // purchasability and the signature factory
   let own = 0;
   for (const p of b.items) {
@@ -144,7 +151,9 @@ export function validateBuild(build: Build, day: number): Validation {
   }
   if (own !== 1) errors.push(`item: the deck must carry exactly one ${ITEMS[h.factory].name} (found ${own})`);
 
-  // placement: deck equipment only, on the deck, no overlaps (canPlaceItem = the editor's rule)
+  // placement: deck equipment only, on the deck, no overlaps (canPlaceItem = the editor's rule). 0.6.2
+  // BELTSIDE (D2, R1): canPlaceItem now refuses a rig on a belt tile too (BELT IN THE WAY), and routeProblem
+  // below refuses a route under any machinery, so no machinery stands on a belt tile.
   const owner = new Map<number, number>();
   for (const p of b.items) {
     const d = ITEMS[p.def];

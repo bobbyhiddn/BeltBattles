@@ -5,12 +5,17 @@
 
 import { HEROES, type HeroId } from "../sim/content";
 import type { Build } from "../sim/deck";
+import { migrateDeck } from "../sim/beltside";
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
 // isSnapshot accepts v1 (no stars anywhere, loads as 1 star) and v2; day.ts ghostOf writes v2.
+// 0.6.2 BELTSIDE (D1): v2 items may also carry `rot` (an integer 0..3, a rig's rotation; absent = 0; never
+// on a mod), with src/net/snapshot.ts. v2 is not live yet, so no v3. Every snapshot loaded into the pool
+// is a load boundary (D3): migrateSnapshot moves gates standing on belt tiles beside them.
 export const SNAPSHOT_VERSION = 2;
 const MAX_STARS = 3; // = stars.ts FUSE_MAX
+const MAX_ROT = 3; // 0.6.2: a rig's rotation, 0..3 quarter turns
 /** runId, playerId: anonymous, no personal data (same pattern as the async contract). */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Where the anonymous player id lives (made once per device). */
@@ -49,11 +54,21 @@ function starsOk(list: unknown[], v: number): boolean {
   });
 }
 
+/** 0.6.2 BELTSIDE: every item's `rot`: absent, or (v2 only) an integer 0..MAX_ROT; a mod never has one. */
+function rotOk(items: unknown[], mods: unknown[], v: number): boolean {
+  const has = (p: unknown) => !!p && typeof p === "object" && "rot" in p;
+  return !mods.some(has) && items.every((p) => {
+    if (!has(p)) return true;
+    const r = (p as { rot?: unknown }).rot;
+    return v >= 2 && isInt(r) && r >= 0 && r <= MAX_ROT;
+  });
+}
+
 function buildOk(b: unknown, v = SNAPSHOT_VERSION): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
     && Array.isArray(q.mods) && typeof q.beltCap === "number" && typeof q.hullBonus === "number"
-    && starsOk(q.items, v) && starsOk(q.mods, v);
+    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v);
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */
@@ -86,6 +101,15 @@ export function toId(s: unknown, fallback = "anon"): string {
  * player id (the local pool holds this player's own earlier runs) and loses its `losses` field.
  */
 export function migrateSnapshot(raw: unknown, playerId: string): GhostSnapshot | null {
+  const g = shapeSnapshot(raw, playerId);
+  if (!g) return null;
+  migrateDeck(g.build, "ghost"); // 0.6.2 BELTSIDE (D3): gates off the belts; a stranded one drops (logged)
+  // v1 can't carry `rot`: a v1 ghost whose rigs turned to face their old tiles is v2 now (v2 = v1 + stars + rot)
+  if (g.v === 1 && g.build.items.some((p) => p.rot !== undefined)) return { ...g, v: 2 };
+  return g;
+}
+
+function shapeSnapshot(raw: unknown, playerId: string): GhostSnapshot | null {
   if (isSnapshot(raw)) return raw;
   const q = raw as Raw | null;
   if (!q || typeof q !== "object" || q.v !== 1 || typeof q.rulesVersion !== "string") return null;

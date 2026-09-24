@@ -14,6 +14,7 @@ import { standInPick } from "../src/sim/standInPool";
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import type { SideStats } from "../src/sim/battle";
+import { pickLoss } from "./beltside.helpers";
 
 const STATS = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
 const mem = () => {
@@ -213,7 +214,8 @@ describe("standInFoe: the day's rival captain with its full-purse pool deck", ()
         expect(f.build.hullBonus).toBeGreaterThanOrEqual(0);
         expect(Number.isInteger(f.build.hullBonus / PLATE)).toBe(true);
         expect(deckCost(f.build).total).toBeLessThanOrEqual(maxGoldByDay(day));
-        expect(deckCost(f.build).total).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day)));
+        // 0.6.2 BELTSIDE: full purse as generated; as loaded it lacks only what D3 dropped (beltside.helpers)
+        expect(deckCost(f.build).total + pickLoss(f.hero, day, seed)).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day)));
         ids.add(f.id);
       }
       expect(ids.size).toBe(RUN_DAYS); // no captain stands in twice in a run

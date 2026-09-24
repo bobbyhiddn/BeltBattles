@@ -36,8 +36,10 @@ export function offlineGhost(hero: HeroId, day: number, seed: number, record?: {
   const foe = rivalHero(hero, seed);
   const wins = Math.min(d - 1, Math.max(0, Math.floor(record?.wins ?? 0)));
   const lives = Math.min(MAX_LIVES, Math.max(1, Math.floor(record?.lives ?? START_LIVES)));
+  const build = standInPick(foe, d, seed);
   const snapshot = checkSnapshot({
-    v: 1, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build: standInPick(foe, d, seed),
+    // 0.6.2 BELTSIDE: a stand-in deck's rigs may carry `rot`, which only v2 allows (DESIGN-beltside D1)
+    v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build,
     runId: `offline-${(seed >>> 0).toString(16)}`, playerId: "offline-warlord", createdAt: 0,
   });
   return { id: `offline-${foe}-d${d}`, snapshot };

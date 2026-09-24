@@ -1,8 +1,9 @@
 // Local mirror of the async validator's route checks (ref async-validate.ts: routeProblem and the
 // routes block of validateBuild). A deck whose belts a ghost upload would refuse can't FIGHT: every
-// route well formed, starting beside its factory, no loops, no broken steps, no non-gate machinery
-// on the path, no crossings, ending on a free turret connector; a factory feeds at most its outputs;
-// total belt <= beltCap. A deck with no routes at all passes. Reads deck.ts only.
+// route well formed, starting beside its factory, no loops, no broken steps, no machinery on the
+// path (0.6.2 BELTSIDE: rigs included, they stand beside the belt), no crossings, ending on a free
+// turret connector; a factory feeds at most its outputs; total belt <= beltCap. A deck with no
+// routes at all passes. Reads deck.ts only.
 
 import { GRID, ITEMS } from "../sim/content";
 import {
@@ -40,8 +41,7 @@ function routeProblem(b: Build, i: number, occ: Occ[]): string | null {
     if (seen.has(k)) return `revisits cell ${k} (no loops)`;
     seen.add(k);
     if (j > 0 && dirBetween(r.cells[j - 1], k) < 0) return `is broken between cells ${r.cells[j - 1]} and ${k}`;
-    const it = occ[k].item;
-    if (it >= 0 && kindOf(b, it) !== "gate") return `runs through non-gate machinery at cell ${k}`;
+    if (occ[k].item >= 0) return `runs through machinery at cell ${k}`; // 0.6.2 BELTSIDE (R1): rigs too
   }
   return routeWellFormed(b, r) ? null : "is not well formed";
 }

@@ -11,6 +11,7 @@ import { chooseFoe, startDusk } from "../src/game/day";
 import { migrateRun, newRun } from "../src/game/run";
 import { routeProblems } from "../src/game/routeCheck";
 import type { Build } from "../src/sim/deck";
+import { POOL_NATIVE, pickLoss, poolLoss } from "./beltside.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const SEEDS = Array.from({ length: 200 }, (_, n) => 7 + n * 104729); // run seeds are 31-bit, >= 0
@@ -58,9 +59,10 @@ describe("the stand-in pool v1.1 as the game uses it", () => {
       for (const day of DAYS) {
         const es = standInPool(hero, day);
         expect(es.length).toBe(STAND_IN_DATA.per);
-        for (const e of es) {
+        for (const [i, e] of es.entries()) {
           expect(e.vsPar).toBeGreaterThanOrEqual(STAND_IN_DATA.parFloor);
-          expect(deckCost(e.build).total).toBe(e.cost);
+          // 0.6.2 BELTSIDE: the deck as loaded lacks only the rigs D3 dropped (tests/beltside.helpers.ts)
+          expect(deckCost(e.build).total).toBe(e.cost - poolLoss(hero, day, i));
         }
       }
     }
@@ -91,7 +93,10 @@ describe("standInFoe: the day's captain with its standInPick deck (200 seeds x d
       for (const day of DAYS) {
         const b = standInFoe(seed, day).build;
         const cost = deckCost(b).total, budget = maxGoldByDay(day);
-        expect(cost).toBeGreaterThanOrEqual(Math.ceil(0.9 * budget));
+        // 0.6.2 BELTSIDE: full purse as generated; as loaded it lacks only what D3 dropped (none once native)
+        const loss = pickLoss(b.hero, day, seed);
+        expect(cost + loss).toBeGreaterThanOrEqual(Math.ceil(0.9 * budget));
+        if (POOL_NATIVE) expect(loss).toBe(0);
         expect(cost).toBeLessThanOrEqual(budget);
         expect(b.hullBonus).toBeGreaterThanOrEqual(0);
         expect(b.hullBonus % PLATE).toBe(0);

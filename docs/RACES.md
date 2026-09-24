@@ -207,7 +207,10 @@ battle sim runs Siphon in full now.
 - Metronome belts are immune.
 - Implementation: gate cells are the nodes, so a segment is a run of plain belt cells between
   gates (`segments`). A gate hit drags the run that starts right after the gate; nothing is
-  dragged if the next cell is another gate or the route ends. Drag lives on the struck side
+  dragged if the next cell is another gate or the route ends. 0.6.2 BELTSIDE: gates became rigs
+  beside the belt (ref DESIGN-beltside.md), so the nodes are the belt tiles a rig's arrows hit.
+  Each hit tile opens the segment downstream of it, every tile belongs to one segment, and a rig
+  hit drags the segment that starts at each tile it hits. Drag lives on the struck side
   (`RaceSide.drag`, per-cell end times). A Furnace or Weaver side gets that state only when it
   faces a Siphon (`raceLink`).
 

@@ -9,9 +9,12 @@ import type { Build, ModPlacement, Placed, RouteDef } from "../sim/deck";
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
+// 0.6.2 BELTSIDE (DESIGN-beltside D1): v2 items may also carry `rot` (an integer 0..MAX_ROT, a rig's
+// rotation; absent = 0), never a mod. v2 is not live yet, so `rot` joins v2 and no v3 is needed.
 export const SNAPSHOT_VERSION = 2;
 export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2];
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
+export const MAX_ROT = 3; // 0.6.2: a rig's rotation in quarter turns
 export const MAX_SNAPSHOT_BYTES = 16 * 1024; // encoded UTF-8 size cap (client, server, pool)
 export const MAX_DAY = 10; // a run is 10 days (ROADMAP §1)
 export const MAX_LIVES = 9; // generous cap: 0.4.1 starts with 3 lives, the 10-day run with 5
@@ -67,6 +70,13 @@ function stars(o: Obj, path: string, version: number): { stars?: number } {
   return { stars: int(o.stars, `${path}.stars`, 1, MAX_STARS) };
 }
 
+/** 0.6.2 BELTSIDE: the optional `rot` of an item: v2 only, an integer 0..MAX_ROT; kept as given. */
+function rot(o: Obj, path: string, version: number): { rot?: number } {
+  if (!has(o, "rot")) return {};
+  if (version < 2) throw new SnapshotError(`${path}.rot: not allowed in a v${version} snapshot`);
+  return { rot: int(o.rot, `${path}.rot`, 0, MAX_ROT) };
+}
+
 function int(v: unknown, path: string, min: number, max: number): number {
   if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max) {
     throw new SnapshotError(`${path}: expected an integer in ${min}..${max}`);
@@ -99,13 +109,14 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
   const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"]);
   if (!isHeroId(o.hero)) throw new SnapshotError(`${path}.hero: unknown hero`);
   const items = arr(o.items, `${path}.items`, MAX_ITEMS).map((it, i): Placed => {
-    const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars"]);
+    const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars", "rot"]);
     return {
       uid: int(p.uid, `${path}.items[${i}].uid`, 0, MAX_UID),
       def: str(p.def, `${path}.items[${i}].def`, DEF_PATTERN),
       x: int(p.x, `${path}.items[${i}].x`, 0, GRID - 1),
       y: int(p.y, `${path}.items[${i}].y`, 0, GRID - 1),
       ...stars(p, `${path}.items[${i}]`, version),
+      ...rot(p, `${path}.items[${i}]`, version),
     };
   });
   const routes = arr(o.routes, `${path}.routes`, MAX_ROUTES).map((rv, i): RouteDef => {

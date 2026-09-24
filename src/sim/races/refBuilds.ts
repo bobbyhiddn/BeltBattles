@@ -8,6 +8,7 @@
 // Use src/sim/heroBuilds.ts as the entry point; it covers all six heroes.
 
 import { warlordHull } from "../ai";
+import { migrateDeck } from "../beltside";
 import { ITEMS } from "../content";
 import { key as K, type Build, type Placed, type RouteDef } from "../deck";
 import { RACE_HEROES, type RaceHeroId } from "./data";
@@ -129,7 +130,7 @@ function layoutBuild(hero: RaceHeroId, l: Layout, uid0: number): Build {
 
 /** The deck a race hero starts a run with. */
 export function raceStartBuild(hero: RaceHeroId, uid0: number): Build {
-  return layoutBuild(hero, START[hero], uid0);
+  return migrateDeck(layoutBuild(hero, START[hero], uid0), "preset:race");
 }
 
 /** Reference build for a day (1-10; other days clamp). Legal, escalating and honestly priced. */
@@ -146,5 +147,5 @@ export function raceRefBuild(hero: RaceHeroId, day: number): Build {
     if (buy.mod) b.mods.push({ uid: uid++, def: buy.mod[0], turret: buy.mod[1] });
   }
   b.hullBonus = refHull(d);
-  return b;
+  return migrateDeck(b, "preset:race"); // 0.6.2 BELTSIDE: a load boundary (D3)
 }

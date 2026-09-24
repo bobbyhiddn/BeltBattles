@@ -21,7 +21,8 @@ describe("ghost snapshot format", () => {
   it("round-trips every warlord deck for both heroes on days 1-10", () => {
     for (const hero of ["furnace", "weaver"] as HeroId[]) {
       for (let day = 1; day <= 10; day++) {
-        const s = snap({ hero, day, build: warlordBuild(hero, day) }, hero);
+        // 0.6.2 BELTSIDE: a warlord's rigs carry `rot`, so its deck travels in v2 (D1)
+        const s = snap({ v: 2, hero, day, build: warlordBuild(hero, day) }, hero);
         expect(decodeSnapshot(encodeSnapshot(s))).toEqual(s);
       }
     }
@@ -55,7 +56,10 @@ describe("ghost snapshot format", () => {
     const cases: [string, (o: Loose) => void][] = [
       ["unknown top-level field", (o) => { o.extra = 1; }],
       ["unknown build field", (o) => { o.build.cheat = true; }],
-      ["unknown item field", (o) => { o.build.items[0].rot = 1; }],
+      ["unknown item field", (o) => { o.build.items[0].spin = 1; }],
+      ["rot in a v1 snapshot", (o) => { o.build.items[0].rot = 1; }], // 0.6.2 BELTSIDE: rot is v2 only
+      ["rot out of range", (o) => { o.v = 2; o.build.items[0].rot = 4; }],
+      ["rot on a mod", (o) => { o.v = 2; o.build.mods = [{ uid: 9, def: "chamber", turret: 0, rot: 1 }]; }],
       ["unknown route field", (o) => { o.build.routes[0].speed = 3; }],
       ["missing field", (o) => { delete o.playerId; }],
       ["missing build field", (o) => { delete o.build.mods; }],

@@ -3,7 +3,7 @@
 // stand-in deck, so both decks pass the same legality replay.
 
 import {
-  canExtend, canPlaceItem, commitRoute, connectorClaims, key, occupancy, placeItem, routeInfo,
+  canExtend, canPlaceItem, commitRoute, connectorClaims, hitsOfRig, placeItem, routeInfo,
   routesOf, turretHasFreeHardpoint, beltUsed, type Build,
 } from "../src/sim/deck";
 import { HEROES, ITEMS } from "../src/sim/content";
@@ -48,12 +48,14 @@ export function legalityProblems(b: Build): string[] {
     const n = routesOf(nb, f.uid).length;
     if (n < 1 || n > ITEMS[f.def].factory!.outputs) bad.push(`${f.def} feeds ${n} belts`);
   }
+  // 0.6.2 BELTSIDE: a rig stands beside the belt (canPlaceItem refuses a belt tile) and, in a preset deck,
+  // must work one: an IDLE rig (no arrow reaches a belt) is a wasted purchase
   for (const g of gates) {
     const chk = canPlaceItem(nb, g.def, g.x, g.y);
-    if (!chk.ok) bad.push(`gate ${g.def}@${g.x},${g.y}: ${chk.reason}`);
+    if (!chk.ok) bad.push(`rig ${g.def}@${g.x},${g.y}: ${chk.reason}`);
     else placeItem(nb, g);
-    if (occupancy(nb)[key(g.x, g.y)].route < 0) bad.push(`gate ${g.def}@${g.x},${g.y} is not on a belt`);
   }
+  for (const g of gates) if (!hitsOfRig(nb, g.uid).length) bad.push(`rig ${g.def}@${g.x},${g.y} is IDLE`);
   for (const m of b.mods) {
     if (ITEMS[m.def]?.kind !== "mod") bad.push(`${m.def} is not turret gear`);
     if (m.turret < 0 || m.turret >= h.turrets.length) bad.push(`no turret ${m.turret}`);

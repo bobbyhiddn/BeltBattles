@@ -5,6 +5,7 @@ import { STAND_IN_POOL_HEROES, standInPick } from "../src/sim/standInPool";
 import { STAND_IN_HEROES, fallbackGhost, offlineGhost, rivalHero } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { generateSamplePool } from "../tools/samplePool";
+import { pickLoss } from "./beltside.helpers";
 
 // The offline fallback draws its stand-ins from the bundled full-purse stand-in pool.
 
@@ -24,7 +25,8 @@ describe("fallback stand-ins", () => {
           expect(g.snapshot.build.hero).toBe(g.snapshot.hero);
           expect(HEROES[g.snapshot.hero].faction).not.toBe(HEROES[hero].faction);
           expect(g.snapshot.build).toEqual(standInPick(rivalHero(hero, seed), day, seed));
-          expect(buildCost(g.snapshot.build).total).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day)));
+          // 0.6.2 BELTSIDE: full purse as generated; as loaded it lacks only what D3 dropped (beltside.helpers)
+          expect(buildCost(g.snapshot.build).total + pickLoss(g.snapshot.hero, day, seed)).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day)));
         }
       }
     }

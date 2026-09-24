@@ -40,12 +40,12 @@ describe("save v7", () => {
   });
   it("v6 -> v7: a duplicate pair fuses once (placed beats cargo) and the next screen toasts YOUR SPARE PARTS MERGED", () => {
     const run = newRun("furnace", 11, "mig");
-    run.build.items.push({ uid: 200, def: "whetstone", x: 4, y: 3 });
+    run.build.items.push({ uid: 200, def: "whetstone", x: 3, y: 3, rot: 1 }); // 0.6.2 BELTSIDE: a rig beside the belt
     run.inventory.push({ uid: 201, def: "temper" }, { uid: 202, def: "temper" }, { uid: 203, def: "whetstone" }, { uid: 204, def: "coil" });
     const m = migrateRun(clone(v6(run)))!;
     expect(m.version).toBe(7);
     expect(m.inventory).toEqual([{ uid: 201, def: "temper", stars: 2 }, { uid: 204, def: "coil" }]);
-    expect(m.build.items.find((p) => p.uid === 200)).toEqual({ uid: 200, def: "whetstone", x: 4, y: 3, stars: 2 });
+    expect(m.build.items.find((p) => p.uid === 200)).toEqual({ uid: 200, def: "whetstone", x: 3, y: 3, rot: 1, stars: 2 });
     expect(m.fuseFx).toEqual([MIGRATE_TOAST]);
     expect(MIGRATE_TOAST).toBe("YOUR SPARE PARTS MERGED");
     const again = migrateRun(clone(m))!; // v7 now: no second fuse, no second toast
@@ -100,17 +100,22 @@ describe("GhostSnapshot v2", () => {
     expect(decodeSnapshot(encodeSnapshot(s))).toEqual(s);
     expect(s.build.items.find((p) => p.uid === 600)?.stars).toBe(3);
   });
-  it("a v1 snapshot loads as 1 star and fights like it", () => {
+  it("a v1 snapshot loads as 1 star and fights like it (0.6.2 BELTSIDE: its inline gate migrates first)", () => {
     const run = newRun("furnace", 22, "v1-run");
-    run.build.items.push({ uid: 700, def: "temper", x: 4, y: 3 });
-    const s = { ...ghostOf(run, 5, "p-me"), v: 1 as const };
+    run.build.items.push({ uid: 700, def: "temper", x: 3, y: 3, rot: 1 }); // today's deck: the rig west of (4,3)
+    const legacy = clone(run);
+    legacy.build.items[1] = { uid: 700, def: "temper", x: 4, y: 3 }; // the same deck as 0.6.1 wrote it: on the belt
+    const s = { ...ghostOf(legacy, 5, "p-me"), v: 1 as const };
     expect(isSnapshot(s)).toBe(true);
-    expect(migrateSnapshot(s, "p-other")).toEqual(s); // the local pool keeps a v1 entry as it is
     const back = checkSnapshot(s);
     expect(back.v).toBe(1);
     expect(back.build.items.every((p) => p.stars === undefined)).toBe(true);
+    // the local pool keeps a v1 entry, migrated (D3): the TEMPER moves left of travel and turns to face its
+    // tile, which needs rot, so the entry is v2 now; it is exactly today's deck and fights like it
+    const m = migrateSnapshot(clone(s), "p-other")!;
+    expect(m).toEqual({ ...s, v: 2, build: run.build });
     const foe = startingBuild("weaver", 1);
-    expect(simulate(back.build, foe, 3).sides[0].hull.hp).toBe(simulate(run.build, foe, 3).sides[0].hull.hp);
+    expect(simulate(m.build, foe, 3).sides[0].hull.hp).toBe(simulate(run.build, foe, 3).sides[0].hull.hp);
   });
   it("star bounds: 0, 4, 1.5 and \"2\" are rejected by both sides; any stars in v1 are rejected", () => {
     const base = ghostOf(starredRun(), 5, "p-me");
@@ -129,7 +134,7 @@ describe("GhostSnapshot v2", () => {
 describe("the validator (src/net/validate.ts)", () => {
   const deck = (stars?: number): Build => {
     const b = startingBuild("furnace", 1);
-    b.items.push({ uid: 50, def: "temper", x: 4, y: 3, ...(stars ? { stars } : {}) });
+    b.items.push({ uid: 50, def: "temper", x: 3, y: 3, rot: 1, ...(stars ? { stars } : {}) }); // 0.6.2: beside the belt
     return b;
   };
   it("buildCost is the sum of valueOf: a 3-star TEMPER costs 12, over day 1's 8 gold, fine on day 2", () => {
@@ -153,7 +158,7 @@ describe("the validator (src/net/validate.ts)", () => {
   it("unfusedPairs names each unmerged pair; FUSE_LIVE stays false, so validateBuild does not apply it yet", () => {
     expect(FUSE_LIVE).toBe(false);
     const b = deck();
-    b.items.push({ uid: 52, def: "temper", x: 4, y: 2 });
+    b.items.push({ uid: 52, def: "temper", x: 3, y: 2, rot: 1 });
     b.mods.push({ uid: 53, def: "calibrate", turret: 0 });
     expect(unfusedPairs(b)).toEqual(["UNFUSED PAIR: TEMPER ★1 x2"]);
     expect(validateBuild(b, 3).ok).toBe(true); // staged: the rule is written, not live
@@ -162,7 +167,7 @@ describe("the validator (src/net/validate.ts)", () => {
     b.items[1].stars = 3; b.items[2].stars = 3;
     expect(unfusedPairs(b)).toEqual([]); // two 3-star copies may coexist
     const c = deck();
-    c.items.push({ uid: 54, def: "temper", x: 4, y: 2 }, { uid: 55, def: "temper", x: 4, y: 1 });
+    c.items.push({ uid: 54, def: "temper", x: 3, y: 2, rot: 1 }, { uid: 55, def: "temper", x: 3, y: 1, rot: 1 });
     expect(unfusedPairs(c)).toEqual(["UNFUSED PAIR: TEMPER ★1 x3"]);
     expect(unfusedPairs({ ...startingBuild("weaver", 1), items: [...startingBuild("weaver", 1).items, { uid: 9, def: "loom", x: 0, y: 7 }] })).toEqual([]);
   });

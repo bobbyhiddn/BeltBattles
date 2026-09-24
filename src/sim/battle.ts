@@ -11,8 +11,8 @@ import {
 } from "./content";
 import { drakeConvert, pressureBonus, resolveCore, ROUTINES, type TurretCore } from "./cores"; // 0.6.1b
 import {
-  cloneBuild, connectorClaims, defOf, kx, ky, occupancy, payloadDamage,
-  routeInfo, routePolyline, type Build,
+  cloneBuild, connectorClaims, defOf, kx, ky, occupancy, payloadDamage, rigHits,
+  routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier,
 } from "./deck";
 import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { effectAt, starsOf } from "./stars";
@@ -36,21 +36,33 @@ export interface Payload {
 export interface BeltAmmo {
   p: Payload;
   s: number; // distance along route (px)
-  processed: number; // last cell index whose gate centre was passed
+  processed: number; // last tile index whose centre (and hits) was passed
   blocked: boolean;
 }
 
+/** 0.6.2 BELTSIDE: one arrow of a rig landing on a belt tile (deck.ts RigHit, bound to the rig's state). */
+export interface TileHit {
+  g: GateState;
+  dir: Dir; // the arrow's absolute deck-local direction
+  tier: HitTier; // R7 tier
+  route: number;
+  tile: number;
+}
+
+/** A rig (kind "gate"): machinery on its own cell whose arrows act on the belt tiles they point at. */
 export interface GateState {
   uid: number;
   def: ItemDef;
   x: number;
   y: number;
-  route: number; // route index or -1 (not on a route)
-  cellIdx: number;
+  route: number; // 0.6.2: the route of its first hit (route, then tile order), or -1 when IDLE
+  cellIdx: number; // 0.6.2: the tile of its first hit, or -1
+  hits: TileHit[]; // 0.6.2: every arrow that lands on a belt, in route, tile and R7 order ([] = IDLE)
   commissionAt: number;
   online: boolean;
   disrupted: number;
   flash: number; // render: time since last processed payload (counts down)
+  arrowFlash: number[]; // 0.6.2 render (V3): per absolute direction, counts down after that arrow applied
 }
 
 export interface RouteState {
@@ -60,7 +72,7 @@ export interface RouteState {
   connected: boolean;
   turret: number;
   L: number;
-  gateAt: (GateState | null)[];
+  gateAt: TileHit[][]; // 0.6.2: per tile, the hits landing on it in R7 order (was one gate or null)
   ammo: BeltAmmo[]; // front (largest s) first
   cellDisrupt: number[];
   speedAt: number[]; // render: speed state per cell
@@ -180,7 +192,7 @@ export interface Projectile {
 
 export type SimEvent =
   | { type: "produce"; side: Side; factory: number }
-  | { type: "process"; side: Side; gate: number; def: string }
+  | { type: "process"; side: Side; gate: number; def: string; dir: Dir; route: number; tile: number } // 0.6.2: the arrow and the tile it hit
   | { type: "commission"; side: Side; gate: number }
   | { type: "load"; side: Side; turret: number }
   | { type: "fuse"; side: Side; turret: number; dmg: number } // races: two alloy blanks fused (FOUNDRY)
@@ -202,6 +214,21 @@ export interface BattleRecord {
 /** The bare-hull target (a hull pick, or every HULLBREAKER shot). */
 function hullTarget(): Target {
   return { kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 };
+}
+
+/**
+ * 0.6.2 BELTSIDE, R7 item 4: the speed state one tile sets from its active speed hits (online, not
+ * disrupted): the biggest change on a log scale, a tie to the faster (deck.ts speedWinner); undefined
+ * when no speed hit is active there.
+ */
+export function tileSpeed(list: readonly TileHit[]): number | undefined {
+  let best: number | undefined;
+  for (const h of list) {
+    const sp = h.g.def.gate?.speed;
+    if (!sp || !h.g.online || h.g.disrupted > 0) continue;
+    best = best === undefined ? sp : speedWinner([best, sp]);
+  }
+  return best;
 }
 
 function emptyStats(): SideStats {
@@ -246,24 +273,35 @@ export class Battle {
       const d = effectAt(p.def, starsOf(p)); // 0.6.1a: the gate's spec at its stars (1 star = ITEMS[def])
       if (d.kind !== "gate") continue;
       const g: GateState = {
-        uid: p.uid, def: d, x: p.x, y: p.y, route: -1, cellIdx: -1, commissionAt: Infinity,
-        online: false, disrupted: 0, flash: 0,
+        uid: p.uid, def: d, x: p.x, y: p.y, route: -1, cellIdx: -1, hits: [], commissionAt: Infinity,
+        online: false, disrupted: 0, flash: 0, arrowFlash: [0, 0, 0, 0],
       };
       gates.push(g);
       gateByUid.set(p.uid, g);
     }
+    // 0.6.2 BELTSIDE: every arrow landing on a belt tile, per route and tile in R7 order (deck.ts rigHits).
+    // Commissioning keeps the old rule per route, counting rigs (not arrows) in order of their first hit
+    // there: the k-th rig on a route comes online at COMMISSION_BASE + COMMISSION_STEP x k, and a rig on
+    // several routes comes online at the earliest of those times. An IDLE rig never comes online.
+    const hits = rigHits(b);
     const routes: RouteState[] = b.routes.map((r, i) => {
-      const info = routeInfo(b, i, claims, occ);
-      const gateAt: (GateState | null)[] = r.cells.map(() => null);
-      info.gateCells.forEach((ci, gi) => {
-        const g = gateByUid.get(info.gates[gi]);
-        if (g) {
-          g.route = i;
-          g.cellIdx = ci;
-          g.commissionAt = COMMISSION_BASE + COMMISSION_STEP * gi;
-          gateAt[ci] = g;
+      const info = routeInfo(b, i, claims, occ, hits);
+      const rank = new Map<number, number>();
+      const gateAt: TileHit[][] = (hits[i] ?? r.cells.map(() => [])).map((list) => list.flatMap((h) => {
+        const g = gateByUid.get(h.uid);
+        if (!g) return [];
+        if (!rank.has(g.uid)) {
+          rank.set(g.uid, rank.size);
+          g.commissionAt = Math.min(g.commissionAt, COMMISSION_BASE + COMMISSION_STEP * (rank.size - 1));
         }
-      });
+        const th: TileHit = { g, dir: h.dir, tier: h.tier, route: i, tile: h.tile };
+        g.hits.push(th);
+        if (g.route < 0) {
+          g.route = i;
+          g.cellIdx = h.tile;
+        }
+        return [th];
+      }));
       return {
         index: i, factory: r.factory, cells: [...r.cells], connected: info.connected, turret: info.turret,
         L: info.length, gateAt, ammo: [], cellDisrupt: r.cells.map(() => 0), speedAt: r.cells.map(() => 1),
@@ -279,9 +317,10 @@ export class Battle {
       }));
     const turrets: TurretState[] = h.turrets.map((def, i) => makeTurret(b, i, def)); // 0.6.1b: gear and core
     const targets: Target[] = [];
+    // 0.6.2 BELTSIDE (R9): no machinery stands on a belt, so every belt tile is a belt target; a rig stays
+    // a gate target (weight 2) at its own cell, hitting a belt or IDLE.
     for (const r of routes) {
       r.cells.forEach((k, ci) => {
-        if (r.gateAt[ci]) return;
         targets.push({ kind: "belt", ref: r.index, cell: ci, x: kx(k) * CELL + 6, y: ky(k) * CELL + 6, weight: 1 });
       });
     }
@@ -322,11 +361,12 @@ export class Battle {
   private updateMachinery(s: SideState, dt: number): void {
     for (const g of s.gates) {
       if (g.flash > 0) g.flash -= dt;
+      for (let d = 0; d < 4; d++) if (g.arrowFlash[d] > 0) g.arrowFlash[d] = Math.max(0, g.arrowFlash[d] - dt);
       if (g.disrupted > 0) {
         g.disrupted = Math.max(0, g.disrupted - dt);
         s.stats.disrupted += dt;
       }
-      if (!g.online && g.route >= 0 && this.t >= g.commissionAt) {
+      if (!g.online && g.hits.length > 0 && this.t >= g.commissionAt) {
         g.online = true;
         this.events.push({ type: "commission", side: s.side, gate: g.uid });
       }
@@ -338,11 +378,12 @@ export class Battle {
           s.stats.disrupted += dt;
         }
       }
-      // speed states: later active speed gate wins for everything downstream of it
+      // speed states: the latest tile with an active speed hit wins for everything downstream of it
+      // (0.6.2, R7 item 4: several speed hits on one tile resolve by tileSpeed)
       let state = 1;
       for (let i = 0; i < r.cells.length; i++) {
-        const g = r.gateAt[i];
-        if (g && g.online && g.disrupted <= 0 && g.def.gate?.speed) state = g.def.gate.speed;
+        const won = tileSpeed(r.gateAt[i]);
+        if (won !== undefined) state = won;
         r.speedAt[i] = s.race ? raceBeltSpeed(this, s, r.index, i, state) : state; // races: speed lock, Drag
         const v = r.cellDisrupt[i] > 0 ? 0 : BELT_SPEED * r.speedAt[i]; // races: was BELT_SPEED * state
         r.phase[i] += v * dt;
@@ -372,7 +413,10 @@ export class Battle {
    */
   settle(dt: number): void {
     for (const s of this.sides) {
-      for (const g of s.gates) g.flash = Math.max(0, g.flash - dt);
+      for (const g of s.gates) {
+        g.flash = Math.max(0, g.flash - dt);
+        for (let d = 0; d < 4; d++) g.arrowFlash[d] = Math.max(0, g.arrowFlash[d] - dt);
+      }
       for (const f of s.factories) f.flash = Math.max(0, f.flash - dt);
       for (const tu of s.turrets) {
         tu.recoil = Math.max(0, tu.recoil - dt * 4);
@@ -425,8 +469,8 @@ export class Battle {
     for (let i = 0; i < r.cells.length; i++) {
       const centre = i * CELL + CELL / 2;
       if (centre >= pos) break;
-      const g = r.gateAt[i];
-      if (g && g.online && g.disrupted <= 0 && g.def.gate?.speed) state = g.def.gate.speed;
+      const won = tileSpeed(r.gateAt[i]);
+      if (won !== undefined) state = won;
     }
     return state;
   }
@@ -451,14 +495,11 @@ export class Battle {
         if (v > 0 && moved > 0 && drag === 1) a.p.ride += moved / v; // races: dragged movement isn't ride
         a.blocked = want > limit + 1e-6 || v === 0;
         if (a.blocked) pressure++;
-        // process gates whose centres were crossed
+        // apply the hits of every tile whose centre was crossed (0.6.2: R7 order, one per arrow)
         while (a.processed + 1 < n && (a.processed + 1) * CELL + CELL / 2 <= ns) {
           a.processed++;
-          const g = r.gateAt[a.processed];
-          if (g && g.online && g.disrupted <= 0) {
-            const copy = this.applyGate(s, a, g);
-            if (copy) inserts.push({ after: a, copy });
-          }
+          const list = r.gateAt[a.processed];
+          if (list.length) this.applyTile(s, a, list, inserts);
         }
         a.s = ns;
       }
@@ -470,7 +511,35 @@ export class Battle {
     }
   }
 
-  private applyGate(s: SideState, a: BeltAmmo, g: GateState): BeltAmmo | null {
+  /**
+   * 0.6.2 BELTSIDE: a payload crosses a tile centre: every active hit there applies in R7 order (the list is
+   * sorted). A SPLITTER-type hit's copy takes the rest of this tile's hits too, so the tile treats the
+   * original and its copies alike. A disrupted or uncommissioned rig stops all its arrows (R9).
+   */
+  private applyTile(s: SideState, a: BeltAmmo, list: TileHit[], inserts: { after: BeltAmmo; copy: BeltAmmo }[]): void {
+    let group: BeltAmmo[] | null = null; // the original plus copies made on this tile (only once a split happens)
+    for (const h of list) {
+      const g = h.g;
+      if (!g.online || g.disrupted > 0) continue;
+      const on: BeltAmmo[] = group ?? [a];
+      const made: BeltAmmo[] = [];
+      for (const x of on) {
+        const copy = this.applyHit(s, x, h);
+        if (copy) made.push(copy);
+      }
+      if (made.length) group = [...on, ...made];
+    }
+    if (!group) return;
+    // the copies trail the original in the order they were made, 0.01 px apart (one split: a.s - 0.01, as
+    // before); queued last-first because each insert lands right behind the original
+    for (let k = group.length - 1; k >= 1; k--) {
+      group[k].s = a.s - 0.01 * k;
+      inserts.push({ after: a, copy: group[k] });
+    }
+  }
+
+  private applyHit(s: SideState, a: BeltAmmo, h: TileHit): BeltAmmo | null {
+    const g = h.g;
     const e = g.def.gate!;
     const p = a.p;
     let copy: BeltAmmo | null = null;
@@ -488,7 +557,8 @@ export class Battle {
     p.prior++;
     if (copy) copy.p.prior = p.prior;
     g.flash = 0.22;
-    this.events.push({ type: "process", side: s.side, gate: g.uid, def: g.def.id });
+    g.arrowFlash[h.dir] = 0.22;
+    this.events.push({ type: "process", side: s.side, gate: g.uid, def: g.def.id, dir: h.dir, route: h.route, tile: h.tile });
     return copy;
   }
 

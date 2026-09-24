@@ -4,8 +4,8 @@
 // "forward" (toward the enemy); 1 = +x, 2 = back, 3 = -x.
 
 import {
-  AMMO, BELT_SPEED, CELL, GRID, HEROES, ITEMS,
-  type HeroDef, type HeroId, type ItemDef,
+  AMMO, BELT_SPEED, CELL, GRID, HEROES, ITEMS, SHAPE_ARROWS, rigShape,
+  type GateEffect, type HeroDef, type HeroId, type ItemDef,
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, starsOf } from "./stars";
@@ -21,6 +21,9 @@ export interface Placed {
   x: number;
   y: number;
   stars?: number; // 0.6.1a: 2 or 3 after a merge; absent = 1 (never written as 1)
+  // 0.6.2 BELTSIDE (D1): a rig's rotation in clockwise quarter turns, 1..3; absent = 0. Written only for
+  // rigs (kind "gate"), never as 0, never for an X rig (it ignores rotation).
+  rot?: number;
 }
 
 export interface RouteDef {
@@ -137,6 +140,7 @@ export function dirBetween(a: number, b: number): number {
   return -1;
 }
 
+/** R1 (0.6.2 BELTSIDE): no belt runs through machinery of any kind; the old gate-cell exception is gone. */
 export function routeWellFormed(b: Build, r: RouteDef): boolean {
   if (!r.cells.length) return false;
   const f = itemByUid(b, r.factory);
@@ -149,13 +153,138 @@ export function routeWellFormed(b: Build, r: RouteDef): boolean {
     if (k < 0 || k >= GRID * GRID || seen.has(k)) return false;
     seen.add(k);
     if (i > 0 && dirBetween(r.cells[i - 1], k) < 0) return false;
-    const it = occ[k].item;
-    if (it >= 0) {
-      const p = itemByUid(b, it);
-      if (!p || defOf(p).kind !== "gate") return false;
-    }
+    if (occ[k].item >= 0) return false;
   }
   return true;
+}
+
+// ---------------------------------------------------------------- rigs (0.6.2 BELTSIDE)
+
+/** A rig's rotation 0..3 (absent or malformed = 0). */
+export function rotOf(p: { rot?: number }): number {
+  const r = p.rot;
+  return typeof r === "number" && Number.isInteger(r) && r >= 0 && r <= 3 ? r : 0;
+}
+
+/** Is `def` a rig (a gate def)? */
+export function isRig(def: string): boolean {
+  return rigShape(def) !== undefined;
+}
+
+/** R3-R4: a rig def's arrows at rotation `rot`, as deck-local directions (d + rot) % 4, in shape order
+ *  (the first arrow first). X ignores rotation. [] for anything that is not a rig. */
+export function rigArrows(def: string | ItemDef, rot = 0): Dir[] {
+  const shape = rigShape(def);
+  if (!shape) return [];
+  const r = shape === "X" ? 0 : ((Math.floor(rot) % 4) + 4) % 4;
+  return SHAPE_ARROWS[shape].map((d) => ((d + r) % 4) as Dir);
+}
+
+/** A placed rig's arrows (absolute deck-local directions); [] for anything that is not a rig. */
+export function arrowsOf(p: Placed): Dir[] {
+  return rigArrows(p.def, rotOf(p));
+}
+
+/** The rot to store for a rig: undefined for 0 and for an X rig (D1: absent means 0). */
+export function rotField(def: string, rot: number): { rot?: number } {
+  const r = ((Math.floor(rot) % 4) + 4) % 4;
+  return r === 0 || rigShape(def) === "X" ? {} : { rot: r };
+}
+
+/** Set (or clear, at 0) a placed rig's rotation in place. */
+export function setRot(p: Placed, rot: number): void {
+  const f = rotField(p.def, rot);
+  if (f.rot === undefined) delete p.rot;
+  else p.rot = f.rot;
+}
+
+/** R7 tiers: 1 additive (flat, burn, shock), 2 LONG HAUL-type (perPriorGate), 3 SPLITTER-type, 4 speed. */
+export type HitTier = 1 | 2 | 3 | 4;
+
+/** The R7 tier of a rig effect. No rig mixes tiers today; a mixed effect (a future star perk such as
+ *  AFTERBURNER's flat on a speed rig) applies whole at its lowest-numbered tier, and its speed still
+ *  resolves per tile by speedWinner. */
+export function hitTier(e: GateEffect | undefined): HitTier {
+  if (!e) return 1;
+  if (e.flat || e.burn || e.shock) return 1;
+  if (e.perPriorGate) return 2;
+  if (e.split) return 3;
+  if (e.speed !== undefined) return 4;
+  return 1;
+}
+
+/** One arrow landing on one belt tile (R5). */
+export interface RigHit {
+  uid: number; // the rig
+  def: string;
+  dir: Dir; // the arrow's absolute deck-local direction (from the rig to the tile)
+  route: number; // route index
+  tile: number; // tile index along the route
+  cell: number; // the tile's cell key
+  tier: HitTier;
+}
+
+/** R7 order on one tile: tier, then rig uid, then arrow direction. */
+export function byR7(a: RigHit, b: RigHit): number {
+  return a.tier - b.tier || a.uid - b.uid || a.dir - b.dir;
+}
+
+/**
+ * R7 item 4: when several speed states land on one tile, the one furthest from 1.0x on a log scale
+ * wins, and a tie goes to the faster one. undefined when there is none.
+ */
+export function speedWinner(speeds: readonly number[]): number | undefined {
+  let best: number | undefined;
+  for (const s of speeds) {
+    if (!(s > 0)) continue;
+    if (best === undefined) {
+      best = s;
+      continue;
+    }
+    const d = Math.abs(Math.log(s)) - Math.abs(Math.log(best));
+    if (d > 1e-12 || (Math.abs(d) <= 1e-12 && s > best)) best = s;
+  }
+  return best;
+}
+
+/** The cell an arrow of a rig at (x, y) points at, or -1 off the deck. */
+export function arrowCell(x: number, y: number, dir: Dir): number {
+  const nx = x + DX[dir], ny = y + DY[dir];
+  return inGrid(nx, ny) ? key(nx, ny) : -1;
+}
+
+/**
+ * Every hit on the deck (R5, R7, R8): result[route][tile] lists the arrows landing on that belt tile in
+ * R7 order. An arrow hits when the orthogonal neighbour it points at is a belt tile of any route; an arrow
+ * at empty deck, machinery or off the deck is idle. A rig hits every belt its arrows reach, one hit per
+ * arrow, so a rig may hit several routes, or one route more than once. A rig standing on a belt tile
+ * (illegal since R1; migrateInlineGates moves it) makes no hits. Rigs are one cell (size 1).
+ */
+export function rigHits(b: Build): RigHit[][][] {
+  const out: RigHit[][][] = b.routes.map((r) => r.cells.map(() => []));
+  const where = new Map<number, number>(); // cell -> route * 1024 + tile (the last route wins, like occupancy)
+  b.routes.forEach((r, ri) => r.cells.forEach((k, ti) => where.set(k, ri * 1024 + ti)));
+  for (const p of b.items) {
+    const d = ITEMS[p.def];
+    if (!d || d.kind !== "gate" || where.has(key(p.x, p.y))) continue;
+    const tier = hitTier(effectAt(p.def, starsOf(p)).gate);
+    for (const dir of arrowsOf(p)) {
+      const k = arrowCell(p.x, p.y, dir);
+      const w = k >= 0 ? where.get(k) : undefined;
+      if (w === undefined) continue;
+      const route = Math.floor(w / 1024), tile = w % 1024;
+      out[route][tile].push({ uid: p.uid, def: p.def, dir, route, tile, cell: k, tier });
+    }
+  }
+  for (const r of out) for (const t of r) if (t.length > 1) t.sort(byR7);
+  return out;
+}
+
+/** The hits of one rig, in route, tile and R7 order ([] = IDLE). */
+export function hitsOfRig(b: Build, uid: number, hits = rigHits(b)): RigHit[] {
+  const out: RigHit[] = [];
+  for (const r of hits) for (const t of r) for (const h of t) if (h.uid === uid) out.push(h);
+  return out;
 }
 
 export interface RouteInfo {
@@ -164,13 +293,15 @@ export interface RouteInfo {
   turret: number; // -1 when not connected
   connector: number; // column or -1
   tiles: number;
-  gates: number[]; // gate uids in travel order
-  gateCells: number[]; // cell index within the route for each gate
+  gates: number[]; // 0.6.2: rig uids, one entry per hit, in travel order (tile, then R7); a rig appears once per arrow
+  gateCells: number[]; // tile index within the route for each entry of `gates`
   length: number; // travel distance in px (factory port -> turret intake or belt end)
   wellFormed: boolean;
 }
 
-export function routeInfo(b: Build, index: number, claims = connectorClaims(b), occ = occupancy(b)): RouteInfo {
+/** A route's connection and its hits. 0.6.2: `_occ` is unused (hits come from rigHits); it stays so the
+ *  callers that pass an occupancy keep their signature. Pass `hits` (rigHits(b)) to share one computation. */
+export function routeInfo(b: Build, index: number, claims = connectorClaims(b), _occ?: Occ[], hits?: RigHit[][][]): RouteInfo {
   const r = b.routes[index];
   const wf = routeWellFormed(b, r);
   let connected = false, turret = -1, connector = -1;
@@ -183,14 +314,11 @@ export function routeInfo(b: Build, index: number, claims = connectorClaims(b), 
     }
   }
   const gates: number[] = [], gateCells: number[] = [];
-  r.cells.forEach((k, i) => {
-    const it = occ[k].item;
-    if (it >= 0) {
-      const p = itemByUid(b, it);
-      if (p && defOf(p).kind === "gate") {
-        gates.push(it);
-        gateCells.push(i);
-      }
+  const tiles = (hits ?? rigHits(b))[index] ?? [];
+  tiles.forEach((list, i) => {
+    for (const h of list) {
+      gates.push(h.uid);
+      gateCells.push(i);
     }
   });
   const n = r.cells.length;
@@ -272,27 +400,30 @@ export interface RouteEstimate {
   shock: boolean;
 }
 
-/** Deterministic single-payload walk used by the inspector (no congestion, gates online). */
-export function estimateRoute(b: Build, index: number): RouteEstimate {
-  const info = routeInfo(b, index);
+/**
+ * Deterministic single-payload walk used by the inspector (no congestion, rigs online). 0.6.2: each tile
+ * applies its hits in R7 order (rigHits): additive, then LONG HAUL-type (counting every earlier hit,
+ * this tile's additive ones included), then SPLITTER-type, then speed, whose winner (speedWinner) holds
+ * from this tile downstream. Every hit counts as a prior hit.
+ */
+export function estimateRoute(b: Build, index: number, hits = rigHits(b)): RouteEstimate {
+  const info = routeInfo(b, index, undefined, undefined, hits);
   const r = b.routes[index];
   const f = itemByUid(b, r.factory);
   const ammo = f ? AMMO[defOf(f).factory!.ammo] : AMMO.plain;
-  const gateAt = new Map<number, ItemDef>();
-  info.gateCells.forEach((ci, gi) => {
-    const p = itemByUid(b, info.gates[gi]);
-    if (p) gateAt.set(ci, effectAt(p.def, starsOf(p))); // 0.6.1a: the same star spec as Battle.makeSide
-  });
+  const tiles = hits[index] ?? [];
+  const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   let time = 0, ride = 0, speed = 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
-  // walk cell by cell: half cell entering, gate at the centre, half cell leaving
+  // walk cell by cell: half cell entering, the hits at the centre, half cell leaving
   const n = r.cells.length;
   for (let i = 0; i < n; i++) {
     const inHalf = CELL / 2 / (BELT_SPEED * speed);
     time += inHalf;
     ride += inHalf;
-    const g = gateAt.get(i);
-    if (g?.gate) {
-      const e = g.gate;
+    const speeds: number[] = [];
+    for (const h of tiles[i] ?? []) {
+      const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate; // 0.6.1a: the same star spec as Battle.makeSide
+      if (!e) continue;
       if (e.flat) flat += e.flat;
       if (e.perPriorGate) flat += e.perPriorGate * prior;
       if (e.burn) burn += e.burn;
@@ -302,9 +433,11 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
         mult *= e.split.mult;
         flat *= e.split.mult;
       }
-      if (e.speed && !speedLocked(b.hero)) speed = e.speed; // races: METRONOME belts ignore speed states
+      if (e.speed) speeds.push(e.speed);
       prior++;
     }
+    const won = speedWinner(speeds);
+    if (won !== undefined && !locked) speed = won;
     const last = i === n - 1;
     const outLen = last ? (info.connected ? CELL : 0) : CELL / 2;
     const outT = outLen / (BELT_SPEED * speed);
@@ -319,6 +452,11 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
 
 // ---------------------------------------------------------------- editing
 
+/**
+ * R1 (0.6.2 BELTSIDE): deck equipment takes free cells, and nothing may stand on a belt tile: a rig goes
+ * beside the belt (it needs no belt in reach; with none it is IDLE). A factory being moved may still cover
+ * belts of its own routes, which moveItem drops.
+ */
 export function canPlaceItem(b: Build, defId: string, x: number, y: number, ignoreUid = -1): { ok: boolean; reason?: string } {
   const def = ITEMS[defId];
   if (!def) return { ok: false, reason: "UNKNOWN" };
@@ -328,10 +466,9 @@ export function canPlaceItem(b: Build, defId: string, x: number, y: number, igno
   for (const k of footprint(def, x, y)) {
     const o = occ[k];
     if (o.item >= 0 && o.item !== ignoreUid) return { ok: false, reason: "OCCUPIED" };
-    if (def.kind === "factory" && o.route >= 0) {
-      // a factory may not sit on belts (except belts of its own routes, which get dropped)
+    if (o.route >= 0) {
       const r = b.routes[o.route];
-      if (r.factory !== ignoreUid) return { ok: false, reason: "BELT IN THE WAY" };
+      if (!(def.kind === "factory" && r.factory === ignoreUid)) return { ok: false, reason: "BELT IN THE WAY" };
     }
   }
   return { ok: true };
@@ -414,10 +551,7 @@ export function canExtend(b: Build, factoryUid: number, pending: number[], k: nu
   }
   const occ = occupancy(b);
   const o = occ[k];
-  if (o.item >= 0) {
-    const p = itemByUid(b, o.item);
-    if (!p || defOf(p).kind !== "gate") return { ok: false, reason: "BLOCKED" };
-  }
+  if (o.item >= 0) return { ok: false, reason: "MACHINE IN THE WAY" }; // B3: every machine blocks a belt (R1)
   if (o.route >= 0 && o.route !== replacing) return { ok: false, reason: "BELTS CAN'T CROSS" };
   const used = beltUsed(b, replacing) + pending.length + 1;
   if (used > b.beltCap) return { ok: false, reason: "OUT OF BELT" };

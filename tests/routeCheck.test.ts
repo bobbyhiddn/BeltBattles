@@ -49,11 +49,14 @@ describe("routeCheck: legal decks", () => {
     }
   });
 
-  it("a hand-built route, and a gate on its path", () => {
+  it("a hand-built route, a rig beside it, and (0.6.2 BELTSIDE) a rig on its path, which breaks it", () => {
     const b = weaver();
     expect(fightBlock(b)).toBeUndefined();
-    b.items.push({ uid: 2, def: "temper", x: 4, y: 3 });
+    b.items.push({ uid: 2, def: "temper", x: 3, y: 3, rot: 1 });
     expect(whys(b)).toEqual([]);
+    b.items[b.items.length - 1].x = 4;
+    expect(whys(b)).toEqual([`route 0 runs through machinery at cell ${key(4, 3)}`]);
+    expect(fightBlock(b)).toBe(BROKEN);
   });
 });
 
@@ -78,10 +81,10 @@ describe("routeCheck: broken decks", () => {
     }
   });
 
-  it("a route through non-gate machinery", () => {
+  it("a route through machinery (0.6.2 BELTSIDE: any machinery, rigs included)", () => {
     const b = weaver();
     b.items.push({ uid: 2, def: "press", x: 3, y: 2 }); // covers 4,3 and 4,2
-    expect(whys(b)).toEqual([`route 0 runs through non-gate machinery at cell ${key(4, 3)}`]);
+    expect(whys(b)).toEqual([`route 0 runs through machinery at cell ${key(4, 3)}`]);
     expect(brokenRoutes(b)).toEqual([0]);
     expect(fightBlock(b)).toBe(BROKEN);
   });

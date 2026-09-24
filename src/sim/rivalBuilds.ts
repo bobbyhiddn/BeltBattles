@@ -12,6 +12,7 @@
 import { HEROES, ITEMS, type HeroId } from "./content";
 import { key, type Build, type ModPlacement, type Placed, type RouteDef } from "./deck";
 import { warlordHull } from "./ai";
+import { migrateDeck } from "./beltside";
 import type { RivalId } from "./rivals";
 
 /** Belt cells from (x, y) following moves such as "L3U2" (U = toward the turrets, row 0). */
@@ -221,12 +222,15 @@ export function planBuild(plan: RivalPlan, day: number): RivalLoadout {
     crates += u.crates ?? 0;
     plating += u.plating ?? 0;
   }
-  const value = [...items, ...mods].reduce((n, p) => n + ITEMS[p.def].price, 0)
-    + crates * ITEMS.beltcrate.price + plating * ITEMS.plating.price;
-  const build: Build = {
+  // 0.6.2 BELTSIDE: a load boundary (D3): a gate a plan writes on a belt tile moves beside it (a stranded
+  // one drops, logged); once the plans place rigs natively it is a safety net. The value counts the deck
+  // after it.
+  const build: Build = migrateDeck({
     hero: plan.hero, items, routes, mods,
     beltCap: HEROES[plan.hero].belt + crates * ITEMS.beltcrate.supply!.belt!,
     hullBonus: warlordHull(day) + plating * ITEMS.plating.supply!.hull!,
-  };
+  }, "preset:rival");
+  const value = [...build.items, ...mods].reduce((n, p) => n + ITEMS[p.def].price, 0)
+    + crates * ITEMS.beltcrate.price + plating * ITEMS.plating.price;
   return { build, crates, plating, value };
 }

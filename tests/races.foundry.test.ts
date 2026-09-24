@@ -36,7 +36,7 @@ describe("FOUNDRY sync rule", () => {
 
   it("a flat bonus on one blank carries into the fusion: 1.3 x (5.5 + 3.5) = 11.7", () => {
     const b0 = start();
-    b0.items.push({ uid: 2, def: "whetstone", x: 2, y: 3 });
+    b0.items.push({ uid: 2, def: "whetstone", x: 1, y: 3, rot: 1 }); // 0.6.2 BELTSIDE: west of (2,3) on route 0, facing it
     const fired = shots(new Battle(b0, dummyFoe(), 7), 20).filter((s) => s.ammo === "alloy");
     expect(fired.length).toBeGreaterThan(3);
     expect(fired[fired.length - 1].dmg).toBeCloseTo(11.7, 9);
