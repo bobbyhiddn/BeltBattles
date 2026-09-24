@@ -19,7 +19,8 @@ import { RULES_VERSION, type HeroId } from "../content";
 import type { Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
 import { decodeStandIn, encodeStandIn, standInPool } from "../standInPool";
-import { fullPurseBuild, spendFloor } from "./gen";
+import { FUSE_MAX, starsOf } from "../stars";
+import { fullPurseBuild, spendFloor, type FullPurse } from "./gen";
 import { heroRefBuild } from "./heroes";
 import type { Stars } from "./shopper";
 import { decodeStarred, encodeStarred } from "./standinCode";
@@ -48,6 +49,19 @@ export interface StandInOpts {
 
 export const ROBUST_BAND = 0.1;
 export const ROBUST_MULT = 4;
+
+/** F8 (decision D4, ARSENAL.md §9.2 "the Matriarch alone may carry a 3★"): with stars on, a stand-in
+ *  candidate holds no module above 2 stars. */
+export const STANDIN_MAX_STARS = 2;
+
+/** A stand-in candidate: a full-purse build. With stars on it is merge-aware and capped: the shopper
+ *  never buys a copy whose merge would go above STANDIN_MAX_STARS. Stars off: exactly v1. */
+export function standInCandidate(hero: HeroId, day: number, seed: number, stars: Stars): FullPurse {
+  return fullPurseBuild(hero, day, seed, spendFloor(day), 60, stars, stars === "on" ? STANDIN_MAX_STARS : FUSE_MAX);
+}
+
+/** The highest star level on a deck (1 when nothing is merged). */
+export const maxStarsOf = (b: Build): number => Math.max(1, ...[...b.items, ...b.mods].map((p) => starsOf(p)));
 
 export const STANDIN_DEFAULTS: StandInOpts = {
   seed: 1, pop: 64, band: [40, 60], per: 6, gauntlet: 20, seeds: 2, elites: 8, refSeeds: 10, heroes: ["furnace", "weaver"],
@@ -78,6 +92,8 @@ export interface HeroDay {
   parVsElites: number; // par's win rate vs that day's elites of every pool hero
   robustRemoved: number; // 0.6.1a: candidates the robust re-play dropped below parFloor
   robustReplayed: number; // 0.6.1a: candidates the robust re-play took (each once)
+  capAffected: number; // F8 (stars on): candidates the 2-star cap changed (the uncapped build of the same seed differs)
+  capWould3: number; // F8 (stars on): candidates whose uncapped build would hold a module above 2 stars
 }
 
 export interface Selection { picks: Cand[]; par: number; window: [number, number]; widened: boolean }
@@ -227,10 +243,17 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
     const dayOut: HeroDay[] = [];
     for (const hero of o.heroes) {
       const refSeeds = refs.map((_, r) => Array.from({ length: o.refSeeds }, (_, k) => hashSeed("standin-ref", o.seed, hero, day, r, k)));
+      let capAffected = 0, capWould3 = 0;
       // builds from..to-1 of this hero/day's population, scored vs the gauntlet and measured vs the references
       const grow = async (from: number, to: number): Promise<Cand[]> => {
         const c: Cand[] = Array.from({ length: to - from }, (_, k) => {
-          const idx = from + k, f = fullPurseBuild(hero, day, hashSeed("standin-pop", o.seed, hero, day, idx), spendFloor(day), 60, o.stars);
+          const idx = from + k, seed = hashSeed("standin-pop", o.seed, hero, day, idx), f = standInCandidate(hero, day, seed, o.stars);
+          if (o.stars === "on") {
+            // F8 report: the same candidate without the 2-star cap; did the cap change it?
+            const free = fullPurseBuild(hero, day, seed, spendFloor(day), 60, o.stars, FUSE_MAX).build;
+            if (encodeStarred(free) !== encodeStarred(f.build)) capAffected++;
+            if (maxStarsOf(free) > STANDIN_MAX_STARS) capWould3++;
+          }
           const build = norm(f.build, o.stars);
           return { idx, build, code: standInCodeOf(build, o.stars), cost: f.cost, tries: f.tries, floorMet: f.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0 };
         });
@@ -290,7 +313,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       const floor = spendFloor(day);
       dayOut.push({
         hero, day, budget: maxGoldByDay(day), floor, pop, picks, par, window, relax, widened, short: picks.some((p) => p.cost < floor),
-        elites, parVsRef: { ...picks[par].vsRef }, parVsElites: 0, robustRemoved, robustReplayed,
+        elites, parVsRef: { ...picks[par].vsRef }, parVsElites: 0, robustRemoved, robustReplayed, capAffected, capWould3,
       });
       log?.(`${hero} day ${day}: ${relax}, window ${window.join("-")} of ${pop.length}; picks pct ${picks.map((p) => p.pct).join(", ")}; vsPar ${picks.map((p) => p.vsPar).join(", ")}${robustRemoved ? `; robust re-play removed ${robustRemoved}` : ""}`);
     }
@@ -404,6 +427,7 @@ export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): 
     const v = validateBuild(back, hd.day);
     if (!v.ok) problems.push(`${at}: stored deck is invalid: ${v.errors.join("; ")}`);
     if (o.stars === "on") for (const u of unfusedPairs(back)) problems.push(`${at}: stored deck has an ${u}`);
+    if (o.stars === "on" && maxStarsOf(back) > STANDIN_MAX_STARS) problems.push(`${at}: stored deck holds a ${maxStarsOf(back)}-star module (stand-ins stop at ${STANDIN_MAX_STARS})`);
     if (buildCost(back).total > maxGoldByDay(hd.day)) problems.push(`${at}: stored deck costs more than maxGoldByDay`);
   }
   return problems;

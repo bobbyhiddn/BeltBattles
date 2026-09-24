@@ -6,8 +6,9 @@ import type { Rng } from "../../core/rng";
 import { GRID, HEROES, ITEMS, type ItemDef } from "../content";
 import { cloneBuild, kx, ky, occupancy, routesOf, turretForColumn, type Build, type Placed } from "../deck";
 import { buildCost } from "../../net/validate";
+import { FUSE_MAX } from "../stars";
 import { shopItems } from "./heroes";
-import { gainInto } from "./merge";
+import { gainInto, previewMerge } from "./merge";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
 
 export const CRATE = ITEMS.beltcrate, PLATE = ITEMS.plating, PRESS = ITEMS.press;
@@ -41,12 +42,22 @@ export class Shopper {
   // risk of merge-redirection. Every real "on" entry point (randomBuild/topUp/fullPurseBuild
   // below, tournament.ts's DEFAULT_OPTS, standins.ts's STANDIN_DEFAULTS, and the CLIs' --stars
   // flag) passes `stars` through explicitly, so "on" is still the default at every product surface.
-  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off") {
+  // maxStars (F8): the highest star a gain may merge up to. FUSE_MAX (3) everywhere but the stand-in
+  // candidates, which stay at 2 (ARSENAL.md §9.2: "the Matriarch alone may carry a 3★").
+  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off", readonly maxStars: number = FUSE_MAX) {
     this.stars = stars === "on";
     this.gates = shopItems(b.hero, "gate");
     this.mods = shopItems(b.hero, "mod");
     this.minGate = Math.min(...this.gates.map((g) => g.price));
     this.minMod = Math.min(...this.mods.map((m) => m.price));
+  }
+
+  /** May one more copy of `def` be gained? Always (no RNG, no preview) unless stars is on and the
+   *  cap is below FUSE_MAX; then not when the gain would merge up to more than maxStars. */
+  canGain(def: string): boolean {
+    if (!this.stars || this.maxStars >= FUSE_MAX) return true;
+    const pv = previewMerge(this.b, this.uid, def);
+    return !pv || pv.toStars <= this.maxStars;
   }
 
   left(): number {

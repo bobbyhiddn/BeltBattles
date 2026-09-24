@@ -8,6 +8,7 @@ import { Rng, hashSeed } from "../../core/rng";
 import { rarityWeights, type HeroId } from "../content";
 import type { Build } from "../deck";
 import { buildCost, maxGoldByDay } from "../../net/validate";
+import { FUSE_MAX } from "../stars";
 import { heroStartBuild } from "./heroes";
 import { LEVERS, applyLever, canApply, normalize, type Lever } from "./levers";
 import { CRATE, CRATE_BELT, PLATE, PLATE_HULL, Shopper, type Stars } from "./shopper";
@@ -55,9 +56,9 @@ function spend(s: Shopper, rng: Rng): void {
  * the protected tests/harness.*.test.ts — is untouched; tournament.ts's DEFAULT_OPTS.stars and
  * the CLIs' --stars flag default to "on", which is the harness's actual product-level default.
  */
-export function randomBuild(hero: HeroId, day: number, rng: Rng, stars: Stars = "off"): Build {
+export function randomBuild(hero: HeroId, day: number, rng: Rng, stars: Stars = "off", maxStars: number = FUSE_MAX): Build {
   const b = heroStartBuild(hero, 1);
-  spend(new Shopper(b, maxGoldByDay(day), day, rng, stars), rng);
+  spend(new Shopper(b, maxGoldByDay(day), day, rng, stars, maxStars), rng);
   return b;
 }
 
@@ -69,12 +70,12 @@ export const spendFloor = (day: number): number => Math.ceil(0.9 * maxGoldByDay(
  * 5 or more remains, then a 3 g gate on a free belt tile (useful) unless that strands gold the
  * floor needs, then belt crates (2 g each). Never exceeds the day's gold.
  */
-export function topUp(b: Build, day: number, rng: Rng, floor = spendFloor(day), stars: Stars = "off"): void {
-  const s = new Shopper(b, maxGoldByDay(day), day, rng, stars);
+export function topUp(b: Build, day: number, rng: Rng, floor = spendFloor(day), stars: Stars = "off", maxStars: number = FUSE_MAX): void {
+  const s = new Shopper(b, maxGoldByDay(day), day, rng, stars, maxStars);
   const slack = s.budget - floor; // gold the build may leave unspent
   while (s.left() >= PLATE.price) b.hullBonus += PLATE_HULL;
   const w = rarityWeights(day);
-  const cheap = s.gates.filter((d) => d.price === 3 && w[d.rarity] > 0);
+  const cheap = s.gates.filter((d) => d.price === 3 && w[d.rarity] > 0 && s.canGain(d.id));
   const cells = s.freeRouteCells();
   const left = s.left();
   if (left >= 3 && cheap.length && cells.length && (left - 3 <= slack || left - 3 >= CRATE.price)) {
@@ -91,12 +92,12 @@ export interface FullPurse { build: Build; cost: number; tries: number; floorMet
  * floor, else redraw (sub-seeds of `seed`). After `maxTries` it returns the highest-spend draw
  * with floorMet = false, so a caller can record the shortfall instead of hiding it.
  */
-export function fullPurseBuild(hero: HeroId, day: number, seed: number, floor = spendFloor(day), maxTries = 60, stars: Stars = "off"): FullPurse {
+export function fullPurseBuild(hero: HeroId, day: number, seed: number, floor = spendFloor(day), maxTries = 60, stars: Stars = "off", maxStars: number = FUSE_MAX): FullPurse {
   let best: FullPurse | null = null;
   for (let t = 0; t < maxTries; t++) {
     const rng = new Rng(hashSeed("full-purse", seed, t));
-    const b = randomBuild(hero, day, rng, stars);
-    topUp(b, day, rng, floor, stars);
+    const b = randomBuild(hero, day, rng, stars, maxStars);
+    topUp(b, day, rng, floor, stars, maxStars);
     const cost = buildCost(b).total;
     if (cost >= floor) return { build: b, cost, tries: t + 1, floorMet: true };
     if (!best || cost > best.cost) best = { build: b, cost, tries: t + 1, floorMet: false };

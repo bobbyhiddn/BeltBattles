@@ -60,7 +60,7 @@ export function normalize(s: Shopper): void {
 /** A gate on a free belt tile; the type is drawn with the shop's rarity weights for the day. */
 function gate(s: Shopper): boolean {
   const left = s.left(), w = rarityWeights(s.day);
-  const pool = s.gates.filter((d) => d.price <= left && w[d.rarity] > 0);
+  const pool = s.gates.filter((d) => d.price <= left && w[d.rarity] > 0 && s.canGain(d.id));
   const cells = s.freeRouteCells();
   if (!pool.length || !cells.length) return false;
   const d = s.rng.weighted(pool, (g) => w[g.rarity] / s.gates.filter((x) => x.rarity === g.rarity).length);
@@ -74,7 +74,7 @@ function mod(s: Shopper): boolean {
   const free = h.turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
   const fed = new Set(b.routes.map((r) => h.turrets.findIndex((t) => t.connectors.includes(r.cells[r.cells.length - 1] % GRID))));
   const live = free.filter((t) => fed.has(t));
-  const pool = s.mods.filter((d) => d.price <= left);
+  const pool = s.mods.filter((d) => d.price <= left && s.canGain(d.id));
   if (!pool.length || !free.length) return false;
   // same RNG order as v1 (def, then turret) whether or not this ends up merging
   const def = s.rng.pick(pool).id;
@@ -143,7 +143,7 @@ function mirrorSpeed(s: Shopper): void {
 
 /** Buy `def` onto cell index i of route ri, first moving a non-speed gate there to a free tile. */
 function copyGateTo(s: Shopper, def: string, ri: number, i: number): boolean {
-  if (s.left() < ITEMS[def].price) return false;
+  if (s.left() < ITEMS[def].price || !s.canGain(def)) return false;
   const cells = s.b.routes[ri].cells, k = cells[i];
   const there = s.itemAt(k);
   if (there) {
@@ -168,7 +168,9 @@ function addSpeedPair(s: Shopper): void {
   if (!pool.length || !idx.length || !s.twinsMatched(a, sib)) return;
   const d = s.rng.weighted(pool, (g) => w[g.rarity]);
   const i = s.rng.pick(idx);
+  if (!s.canGain(d.id)) return; // F8 cap (always true at FUSE_MAX): the first copy
   s.placeGate(d.id, ra[i]);
+  if (!s.canGain(d.id)) return; // the second copy may chain further than the first
   s.placeGate(d.id, rb[i]);
 }
 
@@ -209,7 +211,7 @@ function sortRoute(b: Build, ri: number): void {
  *  gate before a route's first Splitter. */
 function buyMoves(s: Shopper): { defs: ItemDef[]; cells: number[] }[] {
   const w = rarityWeights(s.day), left = s.left(), occ = occupancy(s.b);
-  const ok = (d: ItemDef) => w[d.rarity] > 0 && d.price <= left;
+  const ok = (d: ItemDef) => w[d.rarity] > 0 && d.price <= left && s.canGain(d.id);
   const splitters = s.gates.filter((d) => isSplitter(d) && ok(d)), flats = s.gates.filter((d) => isFlatGate(d) && ok(d));
   const out: { defs: ItemDef[]; cells: number[] }[] = [];
   s.b.routes.forEach((r, ri) => {
@@ -302,6 +304,7 @@ function drop(s: Shopper): boolean {
  *  §4.1 rule 5 already accepts for a merging drop (the target is ignored, not honoured). */
 function pressLine(s: Shopper, carried: Placed[]): boolean {
   const b = s.b;
+  if (!s.canGain(PRESS.id)) return false; // F8 cap (always true at FUSE_MAX and with stars off)
   if (s.stars) {
     const preview = previewMerge(b, s.uid, PRESS.id);
     if (preview && preview.where !== "cargo") {
@@ -343,7 +346,7 @@ function mergeableDefs(s: Shopper): string[] {
   const cells = s.freeRouteCells();
   const freeT = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
   return [...new Set(present.map((c) => c.def))].filter((d) => {
-    if (ITEMS[d].price > left) return false;
+    if (ITEMS[d].price > left || !s.canGain(d)) return false;
     if (oneStar.has(d)) return true; // will merge immediately: no placement needed
     return ITEMS[d].kind === "gate" ? cells.length > 0 : freeT.length > 0;
   });
