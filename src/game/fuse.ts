@@ -7,7 +7,7 @@
 
 import { ITEMS } from "../sim/content";
 import { removeItem, routesOf } from "../sim/deck";
-import { FUSE_MAX, fusible, starField, starsOf, starText } from "../sim/stars";
+import { FUSE_MAX, fusible, starField, starsOf } from "../sim/stars";
 import type { Run } from "./run";
 
 export type FuseWhere = "cargo" | "deck" | "turret";
@@ -104,10 +104,11 @@ function chain(run: Run, uid: number, arrivingFirst: boolean): FuseStep[] {
   return steps;
 }
 
-/** Cosmetic: the build screen toasts these in order ("MERGED: TEMPER ★2", "MERGED · 1 BELT REMOVED"). */
+/** Cosmetic: the build screen toasts these in order ("MERGED: TEMPER ★2", "MERGED · 1 BELT REMOVED").
+ *  Player text is ★ plus the level (ARSENAL.md §6 Naming); the inspect title spells it in glyphs ("TEMPER ★★"). */
 function queueFx(run: Run, steps: FuseStep[]): void {
   const last = steps[steps.length - 1];
-  const fx = [`MERGED: ${ITEMS[last.def].name} ${starText(last.stars)}`];
+  const fx = [`MERGED: ${ITEMS[last.def].name} ★${last.stars}`];
   const belts = steps.reduce((n, s) => n + (s.belts ?? 0), 0);
   if (belts) fx.push(`MERGED · ${belts} BELT${belts > 1 ? "S" : ""} REMOVED`);
   run.fuseFx = [...(run.fuseFx ?? []), ...fx];

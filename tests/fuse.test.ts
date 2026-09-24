@@ -45,7 +45,7 @@ describe("fusion: 1+1 = 2, 2+2 = 3, chains, and 3 is the maximum", () => {
     expect(a.steps).toEqual([]);
     expect(b.steps).toEqual<FuseStep[]>([{ def: "temper", absorbed: b.uid, survivor: a.uid, stars: 2, where: "cargo" }]);
     expect(copies(run, "temper")).toEqual([{ uid: a.uid, stars: 2, where: "cargo" }]);
-    expect(run.fuseFx).toEqual(["MERGED: TEMPER ★★"]);
+    expect(run.fuseFx).toEqual(["MERGED: TEMPER ★2"]);
   });
   it("2+2 = 3 stars, and a 1-star + 2-star + a new copy chain to 3 in one call", () => {
     const run = fresh();
@@ -55,6 +55,7 @@ describe("fusion: 1+1 = 2, 2+2 = 3, chains, and 3 is the maximum", () => {
     expect(copies(run, "whetstone")).toEqual([{ uid: two, stars: 3, where: "cargo" }]);
     expect(g.steps[0].survivor).toBe(one);
     expect(run.inventory.some((i) => i.stars === 1)).toBe(false); // stars: 1 is never written
+    expect(run.fuseFx).toEqual(["MERGED: WHETSTONE ★3"]); // one toast per gain, naming the final level
   });
   it("3 is the maximum: a fifth copy stays 1 star; two 3-star copies coexist", () => {
     const run = fresh();
@@ -109,7 +110,7 @@ describe("the survivor keeps its spot (ARSENAL.md §4.1 rule 4)", () => {
     expect(s2).toEqual([{ def: "press", absorbed: d, survivor: c, stars: 2, where: "deck", belts: 1 }]); // tie: lower uid
     expect(beltUsed(run2.build)).toBe(used - 2);
     expect(run2.build.routes.some((r) => r.factory === d)).toBe(false);
-    expect(run2.fuseFx).toEqual(["MERGED: STAMP PRESS ★★", "MERGED · 1 BELT REMOVED"]);
+    expect(run2.fuseFx).toEqual(["MERGED: STAMP PRESS ★2", "MERGED · 1 BELT REMOVED"]);
   });
   it("otherwise the lower uid survives; an absorbed mod frees its hardpoint", () => {
     const run = fresh("weaver");

@@ -53,8 +53,8 @@ describe("save v7", () => {
   });
   it("the migration notice waits for the next build screen; MERGED toasts show on any screen", () => {
     const run = newRun("furnace", 15, "fx");
-    run.fuseFx = [MIGRATE_TOAST, "MERGED: TEMPER ★★"];
-    expect(nextFuseToast(run, false)).toBe("MERGED: TEMPER ★★"); // e.g. the road event screen
+    run.fuseFx = [MIGRATE_TOAST, "MERGED: TEMPER ★2"];
+    expect(nextFuseToast(run, false)).toBe("MERGED: TEMPER ★2"); // e.g. the road event screen
     expect(nextFuseToast(run, false)).toBeUndefined();
     expect(run.fuseFx).toEqual([MIGRATE_TOAST]);
     expect(nextFuseToast(run, true)).toBe(MIGRATE_TOAST); // the build screen
