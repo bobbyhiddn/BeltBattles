@@ -52,6 +52,42 @@ export function ammoSprite(kind: string, tier: number): Cv {
   });
 }
 
+/**
+ * 0.6.2 BELTSIDE (V2): what a payload carries shows on the belt, for every ammo. Damage per payload brightens
+ * it at the heatTier thresholds (6, 9, 13, 18): cinder keeps its heat ramp; thread and plain slugs get a
+ * bright rim from tier 2 and a lit core at tier 4; from tier 3 every payload grows a halo (payloadHalo).
+ */
+export function payloadSprite(kind: string, tier: number): Cv {
+  const t = Math.max(0, Math.min(4, tier));
+  if (kind !== "thread" && kind !== "plain") return ammoSprite(kind, t);
+  return cached(`pay7:${kind}:${t}`, () => {
+    if (kind === "thread") {
+      return fromRows([".kkkkk.", "kbBBBbk", "kiwiwik", "kwiwiwk", "kiwiwik", "kbbbbdk", ".kkkkk."], {
+        k: t >= 3 ? C.white : t >= 2 ? C.cyan : C.ink, b: C.brass2, B: C.brass4, d: C.brass1, i: t >= 4 ? C.white : C.ice, w: C.white,
+      });
+    }
+    return fromRows([".kkkkk.", "kWSSssk", "kSsssdk", "kssssdk", "ksssddk", "ksdddkk", ".kkkkk."], {
+      k: t >= 3 ? C.white : t >= 2 ? C.steel3 : C.ink, W: C.white, S: t >= 4 ? C.white : C.steel3, s: C.steel2, d: C.steel1,
+    });
+  });
+}
+
+/** 0.6.2 BELTSIDE (V2): the halo behind a tier-3+ payload (11x11), in its ammo's colour. */
+export function payloadHalo(kind: string, tier: number): Cv {
+  if (kind !== "thread" && kind !== "plain") return heatHalo(tier);
+  return cached(`phalo:${kind}:${tier >= 4 ? 4 : 3}`, () => {
+    const [cv, g] = makeCanvas(11, 11);
+    g.fillStyle = kind === "thread" ? (tier >= 4 ? C.white : C.ice) : tier >= 4 ? C.white : C.steel3;
+    for (let y = 0; y < 11; y++) {
+      for (let x = 0; x < 11; x++) {
+        const d = Math.hypot(x + 0.5 - 5.5, y + 0.5 - 5.5);
+        if (d < 5.5 && d > 3 && ((x + y) & 1) === 0) g.fillRect(x, y, 1, 1);
+      }
+    }
+    return cv;
+  });
+}
+
 /** Soft dithered heat halo behind white-hot slugs (11x11). */
 export function heatHalo(tier: number): Cv {
   return cached(`halo:${tier}`, () => {

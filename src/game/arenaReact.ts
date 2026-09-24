@@ -5,6 +5,7 @@
 import { settings } from "../core/settings";
 import type { Side, SimEvent } from "../sim/battle";
 import { CELL } from "../sim/content";
+import { DX, DY } from "../sim/deck";
 import { C } from "../render/palette";
 import { hullBox, hullX, hullY, sx, sy } from "../render/frame";
 import { muzzleX, muzzleY } from "../render/cruiser";
@@ -83,7 +84,9 @@ export function react(a: Arena, e: SimEvent): void {
       const gs = a.b.sides[e.side].gates.find((q) => q.uid === e.gate);
       if (!gs) return;
       const fr = a.drawn[e.side];
-      const x = sx(fr, (gs.x + 0.5) * CELL, (gs.y + 0.5) * CELL), y = sy(fr, (gs.x + 0.5) * CELL, (gs.y + 0.5) * CELL);
+      // 0.6.2 BELTSIDE (V3): at the arrow's tip, where the rig works the belt tile it hit
+      const lx = (gs.x + 0.5 + DX[e.dir] * 0.6) * CELL, ly = (gs.y + 0.5 + DY[e.dir] * 0.6) * CELL;
+      const x = sx(fr, lx, ly), y = sy(fr, lx, ly);
       if (e.def === "temper") {
         fx.embers(x, y, 3);
         if (e.side === 0) snd?.play("sizzle");

@@ -1,8 +1,9 @@
 // Deck machinery for any facing: turret intakes, conveyor belts (animated by real travel),
 // chunky ammunition riding them, factories with output chutes, and processing gates.
 
-import { AMMO, BELT_SPEED, CELL, HEROES } from "../sim/content";
-import { defOf, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
+import { AMMO, AMMO_SPACING, BELT_SPEED, CELL, GRID, HEROES } from "../sim/content";
+import { DX, DY, defOf, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
+import type { GateState } from "../sim/battle";
 import { starsOf } from "../sim/stars";
 import { C } from "./palette";
 import { frame as frameRect, rect, type G } from "./pixel";
@@ -10,10 +11,10 @@ import { drawText } from "./font";
 import { footX, footY, localRect, sdir, sx, sy, type Box, type DeckFrame } from "./frame";
 import {
   BELT_PERIOD, beltCorner, beltStopper, beltStraight, boltIcon, factoryFlashSil, factorySprite, gateSil,
-  gateSprite, turntable, wrenchIcon,
+  gateSprite, rigNozzle, rigTip, speedTint, turntable, wrenchIcon, type ArrowState, type BeltTint,
 } from "./sprites";
-import { ammoSprite, heatHalo, heatTier } from "./ammo";
-import type { CruiserView } from "./cruiser";
+import { heatTier, payloadHalo, payloadSprite } from "./ammo";
+import type { CruiserView, RigModel } from "./cruiser";
 
 /** 0.6.1d2: two cosmetic, build-screen-only cues threaded through CruiserView without touching
  *  cruiser.ts (0.6.1b's custody): the survivor ring (which deck twin a hovered/selected shop offer
@@ -28,9 +29,9 @@ declare module "./cruiser" {
 }
 
 const box: Box = { x: 0, y: 0, w: 0, h: 0 };
-const pt = { x: 0, y: 0 };
+const pt = { x: 0, y: 0, ux: 0, uy: -1 };
 
-/** Point at distance s along an axis-aligned polyline (writes into `pt`). */
+/** Point at distance s along an axis-aligned polyline, and the unit direction of travel there (writes into `pt`). */
 function pointAt(pts: { x: number; y: number }[], s: number): void {
   let rem = Math.max(0, s);
   for (let i = 1; i < pts.length; i++) {
@@ -40,6 +41,8 @@ function pointAt(pts: { x: number; y: number }[], s: number): void {
       const t = len > 0 ? Math.min(1, rem / len) : 0;
       pt.x = a.x + (b.x - a.x) * t;
       pt.y = a.y + (b.y - a.y) * t;
+      pt.ux = Math.sign(b.x - a.x);
+      pt.uy = Math.sign(b.y - a.y);
       return;
     }
     rem -= len;
@@ -51,14 +54,14 @@ function pointAt(pts: { x: number; y: number }[], s: number): void {
 
 type Variant = "normal" | "warn" | "dead";
 
-function beltCell(g: G, f: DeckFrame, x: number, y: number, din: number, dout: number, phase: number, variant: Variant): void {
+function beltCell(g: G, f: DeckFrame, x: number, y: number, din: number, dout: number, phase: number, variant: Variant, tint: BeltTint = "n"): void {
   const si = sdir(f, din), so = sdir(f, dout);
   const fr = ((Math.floor(phase) % BELT_PERIOD) + BELT_PERIOD) % BELT_PERIOD;
   const a = opposite(si as Dir);
   if (a === opposite(so as Dir)) {
-    g.drawImage(beltStraight(so, fr, variant), x, y);
+    g.drawImage(beltStraight(so, fr, variant, tint), x, y);
   } else {
-    g.drawImage(beltCorner(a, so, fr, variant), x, y);
+    g.drawImage(beltCorner(a, so, fr, variant, tint), x, y);
     const right = so === (si + 1) % 4;
     g.drawImage(turntable(Math.floor(phase / 6) * (right ? 1 : -1), variant), x, y);
   }
@@ -109,7 +112,9 @@ function drawBelts(g: G, v: CruiserView): void {
         }
       }
       const phase = phases ? phases[i] : v.t * BELT_SPEED * rm.speeds[i];
-      beltCell(g, f, x, y, rm.din[i], rm.dout[i], phase, variant);
+      // V1: the chevrons move at the tile's speed and are tinted by its speed state (the sim's in battle,
+      // the all-rigs-online preview in the build screen)
+      beltCell(g, f, x, y, rm.din[i], rm.dout[i], phase, variant, speedTint(sr ? sr.speedAt[i] : rm.speeds[i]));
       if (sr && sr.cellDisrupt[i] > 0) shock(g, x, y, v.t);
     }
     if (!rm.connected && rm.cells.length) {
@@ -135,6 +140,49 @@ function drawGhost(g: G, v: CruiserView): void {
   }
 }
 
+/** 0.6.2 BELTSIDE (V2): split copies still closer than AMMO_SPACING ride side by side, up to 3 px either side of
+ *  the belt's centre line, easing back into single file as they separate: the pair visibly peels apart. */
+const PEEL = 3;
+function peel(r: { ammo: { s: number; p: { copy: boolean } }[] }, ai: number): number {
+  let off = 0;
+  const a = r.ammo[ai], ahead = r.ammo[ai - 1], behind = r.ammo[ai + 1];
+  if (ahead && a.p.copy && ahead.p.copy && ahead.s - a.s < AMMO_SPACING) off -= PEEL * (1 - (ahead.s - a.s) / AMMO_SPACING);
+  if (behind && a.p.copy && behind.p.copy && a.s - behind.s < AMMO_SPACING) off += PEEL * (1 - (a.s - behind.s) / AMMO_SPACING);
+  return Math.round(off);
+}
+
+/** Burn: the payload's top rim glows and embers flicker up off it, 2-4 by its stacks, each a bright head with a
+ *  cooler tail, yellow to red as it rises. Readable at 12 px cells: every burning payload shows at least two. */
+function embers(g: G, x: number, y: number, burn: number, t: number, id: number): void {
+  const f = Math.floor(t * 12) + id;
+  rect(g, x + 2, y, 3, 1, f % 2 ? C.fire4 : C.fire3); // the hot rim
+  const n = burn >= 7 ? 4 : burn >= 4 ? 3 : 2;
+  for (let e = 0; e < n; e++) {
+    if ((f + e * 2) % 7 === 0) continue; // flicker
+    const ph = (t * 2.4 + id * 0.37 + e / n) % 1;
+    const ex = x + ((id + e * 2) % 6), ey = y - 1 - Math.floor(ph * 4);
+    rect(g, ex, ey, 1, 1, ph < 0.4 ? C.fire5 : ph < 0.75 ? C.fire4 : C.fire3);
+    rect(g, ex, ey + 1, 1, 1, ph < 0.5 ? C.fire3 : C.fire2);
+  }
+}
+
+/** A 3-px zigzag bolt at each corner of the payload's rim: [dx, dy] of its first pixel, then its steps. */
+const BOLT_AT: [number, number, number, number][] = [[-2, 0, 1, 1], [7, -1, -1, 1], [8, 5, -1, -1], [-1, 7, 1, -1]];
+/** Shock: a blue-white bolt hops around the payload's rim, and the rim itself crackles ice on alternate frames. */
+function spark(g: G, x: number, y: number, t: number, id: number): void {
+  const f = Math.floor(t * 10) + id;
+  const [dx, dy, sx1, sy1] = BOLT_AT[f % 4];
+  rect(g, x + dx, y + dy, 1, 1, C.white);
+  rect(g, x + dx + sx1, y + dy + sy1, 1, 1, C.ice);
+  rect(g, x + dx, y + dy + 2 * sy1, 1, 1, C.white);
+  if (f % 2) {
+    rect(g, x + 1, y - 1, 5, 1, C.ice);
+    rect(g, x + 1, y + 7, 5, 1, C.ice);
+    rect(g, x - 1, y + 1, 1, 5, C.ice);
+    rect(g, x + 7, y + 1, 1, 5, C.ice);
+  }
+}
+
 function drawAmmo(g: G, v: CruiserView): void {
   const f = v.frame;
   const sim = v.sim!;
@@ -143,13 +191,15 @@ function drawAmmo(g: G, v: CruiserView): void {
     for (let ai = 0; ai < r.ammo.length; ai++) {
       const a = r.ammo[ai];
       pointAt(r.pts, a.s);
-      const x = Math.round(sx(f, pt.x, pt.y)) - 3, y = Math.round(sy(f, pt.x, pt.y)) - 3;
+      const off = peel(r, ai);
+      const lx = pt.x - pt.uy * off, ly = pt.y + pt.ux * off; // perpendicular to the travel
+      const x = Math.round(sx(f, lx, ly)) - 3, y = Math.round(sy(f, lx, ly)) - 3;
       const ad = AMMO[a.p.ammo];
-      const tier = a.p.ammo === "cinder" ? heatTier(payloadDamage(ad.base, ad.rideScale, a.p.ride, a.p.mult, a.p.flat)) : 0;
-      if (tier >= 3) g.drawImage(heatHalo(tier), x - 2, y - 2);
-      g.drawImage(ammoSprite(a.p.ammo, tier), x, y);
-      if (a.p.burn > 0 && Math.floor(v.t * 10 + a.p.id) % 2) rect(g, x + 3, y - 1, 1, 1, C.fire4);
-      if (a.p.shock && Math.floor(v.t * 12 + a.p.id) % 3 === 0) rect(g, x + 6, y + 1, 1, 1, C.white);
+      const tier = heatTier(payloadDamage(ad.base, ad.rideScale, a.p.ride, a.p.mult, a.p.flat)); // V2: every ammo
+      if (tier >= 3) g.drawImage(payloadHalo(a.p.ammo, tier), x - 2, y - 2);
+      g.drawImage(payloadSprite(a.p.ammo, tier), x, y);
+      if (a.p.burn > 0) embers(g, x, y, a.p.burn, v.t, a.p.id);
+      if (a.p.shock) spark(g, x, y, v.t, a.p.id);
     }
   }
 }
@@ -215,7 +265,40 @@ function ghostD0(v: CruiserView, uid: number): number {
   return -1;
 }
 
-function drawGates(g: G, v: CruiserView): void {
+/** 0.6.2 BELTSIDE (V3): the look of a rig's arrow k: idle when it reaches no belt; flash while its hit applies;
+ *  held while the rig is offline (commissioning or disrupted: R9 stops all its arrows); else live. */
+function arrowState(rm: RigModel, k: number, gs: GateState | null): ArrowState {
+  if (!rm.hit[k]) return 0;
+  if (!gs) return 1; // the build screen: every rig online
+  if (gs.arrowFlash[rm.dirs[k]] > 0) return 2;
+  return gs.online && gs.disrupted <= 0 ? 1 : 3;
+}
+
+function gateStateOf(v: CruiserView, uid: number): GateState | null {
+  if (v.sim) for (const q of v.sim.gates) if (q.uid === uid) return q;
+  return null;
+}
+
+/** V3: every arrow that hits a belt drives its arrowhead into that tile's edge (under the payloads). */
+function drawArrowTips(g: G, v: CruiserView): void {
+  const f = v.frame;
+  for (const p of v.build.items) {
+    if (p.uid === v.hideItem) continue;
+    const rm = v.model.rigs.get(p.uid);
+    if (!rm) continue;
+    const gs = gateStateOf(v, p.uid);
+    for (let k = 0; k < rm.dirs.length; k++) {
+      if (!rm.hit[k]) continue;
+      const d = rm.dirs[k], nx = p.x + DX[d], ny = p.y + DY[d];
+      if (nx < 0 || ny < 0 || nx >= GRID || ny >= GRID) continue;
+      g.drawImage(rigTip(sdir(f, d), arrowState(rm, k, gs)), Math.round(footX(f, nx, ny)), Math.round(footY(f, nx, ny)));
+    }
+  }
+}
+
+/** The rigs (kind "gate"): the body, its arrow nozzles (bright when they work a belt, dim when idle, white on a
+ *  hit), then commissioning, disruption, stars and the merge ring. */
+function drawRigs(g: G, v: CruiserView): void {
   const f = v.frame;
   const items = v.build.items;
   for (let n = 0; n < items.length; n++) {
@@ -223,8 +306,7 @@ function drawGates(g: G, v: CruiserView): void {
     const d = defOf(p);
     if (d.kind !== "gate" || p.uid === v.hideItem) continue;
     const x = Math.round(footX(f, p.x, p.y)), y = Math.round(footY(f, p.x, p.y));
-    let gs = null;
-    if (v.sim) for (const q of v.sim.gates) if (q.uid === p.uid) gs = q;
+    const gs = gateStateOf(v, p.uid);
     const active = !!gs && gs.flash > 0;
     g.drawImage(gateSprite(d.id, Math.floor(v.t * 8), active), x, y);
     if (active && gs) {
@@ -232,13 +314,15 @@ function drawGates(g: G, v: CruiserView): void {
       g.drawImage(gateSil(d.id), x, y);
       g.globalAlpha = 1;
     }
-    const onRoute = gs ? gs.route >= 0 : v.model.gateOnRoute.has(p.uid);
+    const onRoute = gs ? gs.hits.length > 0 : v.model.gateOnRoute.has(p.uid);
     if (!onRoute || (gs && !gs.online)) {
       g.globalAlpha = 0.55;
       rect(g, x + 1, y + 1, 10, 10, C.ink);
       g.globalAlpha = 1;
-      if (gs && !gs.online && Math.floor(v.t * 6) % 2) g.drawImage(wrenchIcon(), x + 4, y + 3);
     }
+    const rm = v.model.rigs.get(p.uid);
+    if (rm) for (let k = 0; k < rm.dirs.length; k++) g.drawImage(rigNozzle(sdir(f, rm.dirs[k]), arrowState(rm, k, gs)), x, y);
+    if (gs && !gs.online && onRoute && Math.floor(v.t * 6) % 2) g.drawImage(wrenchIcon(), x + 4, y + 3);
     if (gs && gs.disrupted > 0) shock(g, x, y, v.t);
     const gstars = animStars(v, p.uid, starsOf(p));
     drawPips(g, x + 1, y + 10, 10, gstars);
@@ -287,7 +371,8 @@ export function drawMachinery(g: G, v: CruiserView): void {
   drawIntakes(g, v);
   drawBelts(g, v);
   if (v.ghost) drawGhost(g, v);
+  drawArrowTips(g, v); // 0.6.2 BELTSIDE: arrowheads on the belt tiles, under the payloads riding past
   if (v.sim) drawAmmo(g, v);
   drawFactories(g, v);
-  drawGates(g, v);
+  drawRigs(g, v);
 }

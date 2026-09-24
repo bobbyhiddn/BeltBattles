@@ -4,7 +4,12 @@
 
 import { settings } from "../core/settings";
 import { HEROES, ITEMS, type HeroId } from "../sim/content";
-import { adjacentToFactory, routeDirs, routeInfo, routePolyline, type Build } from "../sim/deck";
+import {
+  adjacentToFactory, arrowsOf, hitsOfRig, itemByUid, rigHits, routeDirs, routeInfo, routePolyline, speedWinner,
+  type Build, type Dir,
+} from "../sim/deck";
+import { effectAt } from "../sim/stars"; // 0.6.2 BELTSIDE: preview speeds at the rig's stars
+import { speedLocked } from "../sim/races/metronome"; // races: METRONOME belts ignore speed states
 import { C } from "./palette";
 import { disc, type G } from "./pixel";
 import { HULL_L, TURRET_LY, hullBox, sx, sy, turnX, turnY, type Box, type DeckFrame } from "./frame";
@@ -20,36 +25,42 @@ export interface RouteModel {
   cells: number[];
   din: Int8Array;
   dout: Int8Array;
-  speeds: Float32Array; // speed state per cell with every gate online (build preview)
+  speeds: Float32Array; // speed state per cell with every rig online (build preview; 0.6.2: R7 per tile, at stars)
   connected: boolean;
   pts: { x: number; y: number }[];
   d0: number; // local dir from the factory into the first cell (-1 if detached)
+}
+
+/** 0.6.2 BELTSIDE: a placed rig's arrows (local dirs, shape order) and whether each lands on a belt tile. */
+export interface RigModel {
+  dirs: Dir[];
+  hit: boolean[];
 }
 
 export interface CruiserModel {
   hero: HeroId;
   routes: RouteModel[];
   connectedCols: Set<number>;
-  gateOnRoute: Set<number>;
+  gateOnRoute: Set<number>; // rigs with at least one hit (the others are IDLE)
+  rigs: Map<number, RigModel>; // 0.6.2 BELTSIDE: by rig uid
 }
 
 export function cruiserModel(b: Build): CruiserModel {
   const connectedCols = new Set<number>();
   const gateOnRoute = new Set<number>();
+  const hits = rigHits(b);
+  const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   const routes = b.routes.map((r, i): RouteModel => {
-    const info = routeInfo(b, i);
+    const info = routeInfo(b, i, undefined, undefined, hits);
     if (info.connected) connectedCols.add(info.connector);
     for (const uid of info.gates) gateOnRoute.add(uid);
     const dirs = routeDirs(b, r, info.connected);
     const speeds = new Float32Array(r.cells.length);
     let st = 1;
     for (let c = 0; c < r.cells.length; c++) {
-      const gi = info.gateCells.indexOf(c);
-      if (gi >= 0) {
-        const p = b.items.find((q) => q.uid === info.gates[gi]);
-        const sp = p ? ITEMS[p.def].gate?.speed : undefined;
-        if (sp) st = sp;
-      }
+      // R7 item 4: the tile's biggest speed change wins from here downstream (deck.ts speedWinner)
+      const won = locked ? undefined : speedWinner((hits[i]?.[c] ?? []).map((h) => effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate?.speed ?? 0));
+      if (won !== undefined) st = won;
       speeds[c] = st;
     }
     return {
@@ -58,7 +69,14 @@ export function cruiserModel(b: Build): CruiserModel {
       pts: routePolyline(b, r, info.connected), d0: r.cells.length ? adjacentToFactory(b, r.factory, r.cells[0]) : -1,
     };
   });
-  return { hero: b.hero, routes, connectedCols, gateOnRoute };
+  const rigs = new Map<number, RigModel>();
+  for (const p of b.items) {
+    if (ITEMS[p.def]?.kind !== "gate") continue;
+    const dirs = arrowsOf(p);
+    const mine = hitsOfRig(b, p.uid, hits);
+    rigs.set(p.uid, { dirs, hit: dirs.map((d) => mine.some((h) => h.dir === d)) });
+  }
+  return { hero: b.hero, routes, connectedCols, gateOnRoute, rigs };
 }
 
 export interface CruiserView {

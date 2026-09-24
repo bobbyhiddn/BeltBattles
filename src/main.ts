@@ -9,7 +9,7 @@ import type { EventId } from "./game/eventDefs";
 import type { HeroId } from "./sim/content";
 import { settings, setReducedMotion } from "./core/settings";
 import { VERSION } from "./version";
-import { addGhosts, clearPool, pinClassicFoe, playOut, setupFork, setupRun, setupWarlord, type GhostSpec, type RunSpec } from "./tooling";
+import { addGhosts, clearPool, pinClassicFoe, playOut, setupFork, setupRun, setupWarlord, showcaseRun, type GhostSpec, type RunSpec } from "./tooling";
 import { ForkScreen } from "./screens/fork/fork";
 import { forkFor } from "./game/road";
 import type { Difficulty } from "./sim/rivals";
@@ -79,6 +79,12 @@ game.start();
     addGhosts(ghosts);
     game.run = setupRun(o);
     game.go(new BuildScreen(game));
+  },
+  /** 0.6.2 BELTSIDE: a showcase deck (tooling.ts SHOWCASE) in the build screen or a dusk battle vs `foe`. */
+  openShowcase(name: string, screen: "build" | "battle" = "build", o: RunSpec & { foe?: string } = {}): void {
+    clearPool();
+    game.run = showcaseRun(name, o);
+    game.go(screen === "battle" ? new BattleScreen(game) : new BuildScreen(game));
   },
   openDusk(o: RunSpec = {}, ghosts: GhostSpec[] = []): void {
     clearPool();

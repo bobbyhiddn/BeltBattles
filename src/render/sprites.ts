@@ -27,6 +27,28 @@ export const BELT_PERIOD = 6;
 
 type BeltVariant = "normal" | "warn" | "dead";
 
+/**
+ * 0.6.2 BELTSIDE (V1): a belt tile's speed state, shown by the tint of its moving chevrons: "n" normal
+ * (1.0x, neutral grey-brown), "f" fast (above 1x, yellow), "o" OVERDRIVE (3x and up, hot red-orange), "s"
+ * slow (below 1x, cold blue: BRAKE SHOE, and the SIPHON's Drag).
+ */
+export type BeltTint = "n" | "f" | "o" | "s";
+
+export function speedTint(speed: number): BeltTint {
+  if (speed < 0.999) return "s";
+  if (speed >= 3 - 1e-6) return "o";
+  if (speed > 1.001) return "f";
+  return "n";
+}
+
+/** Chevron ramp [trough, mid, crest] per speed state. */
+const TINT: Record<BeltTint, [string, string, string]> = {
+  n: [C.belt1, C.soil4, C.soil5],
+  f: [C.belt1, C.brass1, C.yellow],
+  o: [C.fire0, C.fire1, C.fire3],
+  s: [C.belt1, C.deepblue, C.ice],
+};
+
 function railColors(v: BeltVariant): [string, string, string, string] {
   // [hi, mid, lo2, lo]
   if (v === "warn") return [C.yellow, C.amber, C.fire1, C.fire0];
@@ -34,10 +56,11 @@ function railColors(v: BeltVariant): [string, string, string, string] {
   return [C.steel3, C.steel1, C.steel2, C.steel0];
 }
 
-function beltN(frameIdx: number, v: BeltVariant): Cv {
-  return cached(`beltN:${frameIdx}:${v}`, () => {
+function beltN(frameIdx: number, v: BeltVariant, tint: BeltTint): Cv {
+  return cached(`beltN:${frameIdx}:${v}:${tint}`, () => {
     const [c, g] = makeCanvas(12, 12);
     const [hi, mid, mid2, lo] = railColors(v);
+    const [trough, cm, crest] = TINT[tint];
     vline(g, 0, 0, 12, C.ink);
     vline(g, 1, 0, 12, hi);
     vline(g, 2, 0, 12, mid);
@@ -50,7 +73,7 @@ function beltN(frameIdx: number, v: BeltVariant): Cv {
         const m = (((y - offs[j] + frameIdx) % BELT_PERIOD) + BELT_PERIOD) % BELT_PERIOD;
         let col = C.belt1;
         if (v === "dead") col = m === 0 ? C.belt2 : C.belt0;
-        else col = m === 0 ? C.belt3 : m === 1 ? C.belt2 : C.belt1;
+        else col = m === 0 ? crest : m === 1 ? cm : trough;
         px(g, 3 + j, y, col);
       }
     }
@@ -63,11 +86,11 @@ function beltN(frameIdx: number, v: BeltVariant): Cv {
   });
 }
 
-/** Straight belt flowing toward screen dir d (0=N,1=E,2=S,3=W). */
-export function beltStraight(d: number, frameIdx: number, v: BeltVariant = "normal"): Cv {
+/** Straight belt flowing toward screen dir d (0=N,1=E,2=S,3=W), its chevrons tinted by speed state. */
+export function beltStraight(d: number, frameIdx: number, v: BeltVariant = "normal", tint: BeltTint = "n"): Cv {
   const f = ((frameIdx % BELT_PERIOD) + BELT_PERIOD) % BELT_PERIOD;
-  return cached(`beltS:${d}:${f}:${v}`, () => {
-    const n = beltN(f, v);
+  return cached(`beltS:${d}:${f}:${v}:${tint}`, () => {
+    const n = beltN(f, v, tint);
     if (d === 0) return n;
     if (d === 1) return rot90(n);
     if (d === 2) return flipY(n);
@@ -86,16 +109,16 @@ const HALF_CLIP: Record<number, [number, number, number, number]> = {
  * Corner belt: enters from side `a` (screen dir of the side), leaves through side `b`.
  * Drawn as two half belts into a turntable housing.
  */
-export function beltCorner(a: number, b: number, frameIdx: number, v: BeltVariant = "normal"): Cv {
+export function beltCorner(a: number, b: number, frameIdx: number, v: BeltVariant = "normal", tint: BeltTint = "n"): Cv {
   const f = ((frameIdx % BELT_PERIOD) + BELT_PERIOD) % BELT_PERIOD;
-  return cached(`beltC:${a}:${b}:${f}:${v}`, () => {
+  return cached(`beltC:${a}:${b}:${f}:${v}:${tint}`, () => {
     const [c, g] = makeCanvas(12, 12);
     // housing plate
     const [hi, mid, , lo] = railColors(v);
     bevel(g, 0, 0, 12, 12, mid, hi, lo, C.ink);
     const inFlow = (a + 2) % 4; // moving away from side a
-    const partA = beltStraight(inFlow, f, v);
-    const partB = beltStraight(b, f, v);
+    const partA = beltStraight(inFlow, f, v, tint);
+    const partB = beltStraight(b, f, v, tint);
     const [ax, ay, aw, ah] = HALF_CLIP[a];
     const [bx, by, bw, bh] = HALF_CLIP[b];
     g.drawImage(partA, ax, ay, aw, ah, ax, ay, aw, ah);
@@ -275,6 +298,49 @@ export function gateSprite(id: string, frameIdx: number, active: boolean): Cv {
 
 export function gateSil(id: string): Cv {
   return cached(`gateS:${id}`, () => silhouette(gateSprite(id, 0, false), C.white));
+}
+
+// ------------------------------------------------------------------ rig arrows (0.6.2 BELTSIDE, V3)
+
+/** An arrow's look: 0 idle (dim stub, no belt in reach), 1 live (bright, works a belt tile), 2 flash (a hit
+ *  just applied), 3 held (aims at a belt, but the rig is offline: commissioning or disrupted). */
+export type ArrowState = 0 | 1 | 2 | 3;
+
+/** [fill, highlight] per arrow state. */
+const ARROW_FILL: Record<ArrowState, [string, string]> = {
+  0: [C.slate2, C.slate3],
+  1: [C.yellow, C.fire4],
+  2: [C.white, C.white],
+  3: [C.slate3, C.steel2],
+};
+
+/** Orient a 12x12 art drawn for screen dir N toward screen dir d (as beltStraight does). */
+function orient12(n: Cv, d: number): Cv {
+  if (d === 0) return n;
+  if (d === 1) return rot90(n);
+  if (d === 2) return flipY(n);
+  return flipX(rot90(n));
+}
+
+/** A rig's arrow nozzle on its own cell's edge, facing screen dir d: a 4-wide spout, drawn over the body. */
+export function rigNozzle(d: number, st: ArrowState): Cv {
+  return cached(`nozzle:${d}:${st}`, () => {
+    const [f, h] = ARROW_FILL[st];
+    const [c, g] = makeCanvas(12, 12);
+    g.drawImage(fromRows(["....khfk....", "....kffk....", "....kssk...."], { k: C.ink, f, h, s: C.steel2 }), 0, 0);
+    return orient12(c, d);
+  });
+}
+
+/** The arrowhead a working arrow drives into the belt tile it hits: on that tile's edge nearest the rig, in the
+ *  TILE's 12x12 frame, pointing along screen dir d. With the nozzle it reads as one arrow across the seam. */
+export function rigTip(d: number, st: ArrowState): Cv {
+  return cached(`tip:${d}:${st}`, () => {
+    const [f, h] = ARROW_FILL[st];
+    const [c, g] = makeCanvas(12, 12);
+    g.drawImage(fromRows([".....kk.....", "....khfk....", "...khfffk..."], { k: C.ink, f, h }), 0, 9);
+    return orient12(c, d);
+  });
 }
 
 function drawGate(g: G, id: string, f: number, active: boolean): void {

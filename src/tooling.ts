@@ -11,6 +11,77 @@ import { honestStandInBuild, strongHonestBuild } from "./game/honest";
 import { finishWarlord, pickPending, pickRoad, takePart } from "./game/road";
 import { gainModule } from "./game/fuse";
 import type { Difficulty } from "./sim/rivals";
+import { key as K, rotField, type Build, type Placed } from "./sim/deck";
+
+// ------------------------------------------------------------------ 0.6.2 BELTSIDE showcase decks (shots)
+
+const rig = (uid: number, def: string, x: number, y: number, rot = 0): Placed => ({ uid, def, x, y, ...rotField(def, rot) });
+
+/** Tooling decks that put the BELTSIDE rules on screen (scripts/shots-list.mjs). Each is a legal deck
+ *  (validateBuild) on its `day`; rot turns a rig's arrows clockwise from their shape (content.ts SHAPE_ARROWS). */
+export const SHOWCASE: Record<string, { hero: HeroId; day: number; build: () => Build }> = {
+  // FURNACE: rigs on both sides of one belt (TEMPER + WHETSTONE on (2,3), BRAKE + SPLITTER on (2,2)); speed
+  // states fast (GREASE), slow (BRAKE) and OVERDRIVE (the X on the press belt); Shock (COIL); idle arrows.
+  sides: {
+    hero: "furnace", day: 5,
+    build: () => ({
+      hero: "furnace", mods: [], beltCap: 18, hullBonus: 0,
+      items: [
+        { uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 },
+        rig(10, "temper", 1, 3, 1), rig(11, "whetstone", 3, 3, 3), rig(12, "grease", 1, 4, 1), rig(13, "brake", 3, 2, 3),
+        rig(14, "overdrive", 5, 3), rig(15, "coil", 7, 4, 3), rig(16, "splitter", 1, 2, 1),
+      ],
+      routes: [
+        { factory: 1, cells: [K(4, 5), K(3, 5), K(2, 5), K(2, 4), K(2, 3), K(2, 2), K(2, 1), K(3, 1), K(4, 1), K(4, 0)] },
+        { factory: 2, cells: [K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(5, 1), K(5, 0)] },
+      ],
+    }),
+  },
+  // WEAVER: one LONG HAUL (II) between two parallel belts feeds both; a GALV. COIL (L) works a corner twice
+  twobelts: {
+    hero: "weaver", day: 3,
+    build: () => ({
+      hero: "weaver", mods: [], beltCap: 24, hullBonus: 0,
+      items: [
+        { uid: 1, def: "loom", x: 4, y: 6 },
+        rig(10, "longhaul", 3, 3), rig(11, "temper", 5, 4, 3), rig(12, "whetstone", 1, 4, 1), rig(13, "coil", 7, 5, 1),
+        rig(14, "splitter", 5, 2, 3),
+      ],
+      routes: [
+        { factory: 1, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+        { factory: 1, cells: [K(3, 6), K(2, 6), K(2, 5), K(2, 4), K(2, 3), K(2, 2), K(2, 1), K(1, 1), K(1, 0)] },
+        { factory: 1, cells: [K(6, 6), K(7, 6), K(8, 6), K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)] },
+      ],
+    }),
+  },
+  // WEAVER: an OVERDRIVE (X) at a belt junction, all four arrows on two routes; a BRAKE on the third
+  junction: {
+    hero: "weaver", day: 4,
+    build: () => ({
+      hero: "weaver", mods: [], beltCap: 28, hullBonus: 0,
+      items: [{ uid: 1, def: "loom", x: 4, y: 6 }, rig(10, "overdrive", 5, 3), rig(11, "brake", 0, 4, 1), rig(12, "temper", 3, 3, 1)],
+      routes: [
+        { factory: 1, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(5, 2), K(5, 1), K(4, 1), K(4, 0)] },
+        { factory: 1, cells: [K(5, 5), K(5, 4), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(7, 1), K(8, 1), K(8, 0)] },
+        { factory: 1, cells: [K(3, 6), K(2, 6), K(1, 6), K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(1, 1), K(1, 0)] },
+      ],
+    }),
+  },
+};
+
+/** A run at the dawn of the showcase deck's day with that deck on board (and, for a battle, `foe` as
+ *  tonight's stored dusk opponent: another showcase deck, or the classic warlord). */
+export function showcaseRun(name: string, o: RunSpec & { foe?: string } = {}): Run {
+  const s = SHOWCASE[name];
+  if (!s) throw new Error(`no showcase deck "${name}"`);
+  const run = setupRun({ ...o, hero: s.hero, day: o.day ?? s.day });
+  run.build = s.build();
+  run.nextUid = 200;
+  const f = o.foe ? SHOWCASE[o.foe] : undefined;
+  if (f) run.dusk = { day: run.day, kind: "standin", name: o.foe!.toUpperCase(), hero: f.hero, build: f.build() };
+  else pinClassicFoe(run);
+  return run;
+}
 
 export interface GhostSpec {
   day: number;
