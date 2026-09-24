@@ -139,7 +139,10 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
     expect(sawThreeStarByDay10).toBeGreaterThan(0);
   }, 120_000);
 
-  it("stars off: randomBuild reproduces bf779de exactly for a fixed seed set (pinned hash)", () => {
+  // c432bee re-pin (harness v2 part 2, step 1): 553739242 (bf779de) -> 3255984614, computed with c432bee's
+  // OWN v1 harness, randomBuild(hero, day, rng), in a scratch export (output-h2b/step0/pins/). The v1
+  // shopper's mod pool grew from 2 to 5 at c432bee (HOPPER, MANTLET, FINISHER RAM have merchants).
+  it("stars off: randomBuild reproduces c432bee's v1 harness exactly for a fixed seed set (pinned hash, computed at c432bee)", () => {
     const hash32 = (s: string): number => {
       let h = 0x811c9dc5;
       for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
@@ -155,10 +158,10 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
         }
       }
     }
-    expect(hash32(parts.join("|"))).toBe(553739242);
+    expect(hash32(parts.join("|"))).toBe(3255984614);
   }, 60_000);
 
-  it("F11: stars off: fullPurseBuild output reproduces bf779de exactly for a fixed seed set (pinned hash, computed at bf779de)", () => {
+  it("F11: stars off: fullPurseBuild output reproduces c432bee's v1 harness exactly for a fixed seed set (pinned hash, computed at c432bee)", () => {
     const hash32 = (s: string): number => {
       let h = 0x811c9dc5;
       for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
@@ -170,8 +173,9 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
         for (let i = 0; i < 3; i++) parts.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-pin", hero, day, i), undefined, 60, "off")));
       }
     }
-    // 512167455 = the same 60 builds from bf779de's fullPurseBuild(hero, day, seed) (v1 signature)
-    expect(hash32(parts.join("|"))).toBe(512167455);
+    // 3150828827 = the same 60 builds from c432bee's own v1 fullPurseBuild(hero, day, seed, undefined, 60), in a
+    // scratch export (output-h2b/step0/pins/). At bf779de the pin was 512167455 (the v1 mod pool was 2 mods then).
+    expect(hash32(parts.join("|"))).toBe(3150828827);
   }, 60_000);
 
   it("stars off: fullPurseBuild also reproduces v1 exactly (no merge lever, no extra RNG draws)", () => {

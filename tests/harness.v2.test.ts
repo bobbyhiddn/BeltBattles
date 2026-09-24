@@ -7,7 +7,7 @@ import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net
 import { randomBuild } from "../src/sim/harness/gen";
 import { heroRefBuild, heroStartBuild } from "../src/sim/harness/heroes";
 import {
-  DEFAULT_OPTS, localRunner, mirrorSplits, starBench, starMixOf, type Runner,
+  DEFAULT_OPTS, localRunner, mirrorSplits, starBench, starMixOf, type DetailRunner, type Runner,
 } from "../src/sim/harness/tournament";
 import {
   ROBUST_BAND, STANDIN_DEFAULTS, genStandIns, robustReplay, type Cand,
@@ -47,7 +47,10 @@ describe("harness v2: tournament (mirror K=4, star mix, star bench)", () => {
     expect(mix.maxMerged).toBe(1);
   });
 
-  it("star bench: NO EFFECT fires for coil at 2 and 3 stars (its values are pending, ARSENAL.md section 4.3)", async () => {
+  // c432bee (harness v2 part 2, step 1): 0.6.1p applied coil's pending values (shockTime, SPARK JUMP), so coil
+  // is no longer a content-level NO EFFECT case. Same claim, controlled premise: the injected runner and detail
+  // runner read only the job's seeds, so a star level that changes nothing the runner sees must be NO EFFECT.
+  it("star bench: NO EFFECT fires for coil at 2 and 3 stars when the level changes no outcome (c432bee: controlled premise, a runner whose outcomes depend only on the seeds)", async () => {
     const day = 5;
     const b = heroStartBuild("furnace", 1);
     const cell = freeCells(b)[0];
@@ -55,7 +58,9 @@ describe("harness v2: tournament (mirror K=4, star mix, star bench)", () => {
     expect(validateBuild(b, day).errors).toEqual([]);
     const gauntlet = [heroStartBuild("weaver", 1), heroRefBuild("weaver", day)];
     const o = { ...DEFAULT_OPTS, seed: 9, seeds: 1 };
-    const { rows } = await starBench(o, day, gauntlet, [{ hero: "furnace", tag: "bench", build: b }], localRunner);
+    const seedsOnly: Runner = async (_f, jobs) => jobs.map((j) => j.seeds.reduce((t, s) => t + ((s >>> 0) % 5) * 0.5, 0));
+    const seedsDetail: DetailRunner = async (_f, jobs) => jobs.map((j) => j.seeds.join(","));
+    const { rows } = await starBench(o, day, gauntlet, [{ hero: "furnace", tag: "bench", build: b }], seedsOnly, seedsDetail);
     const coil2 = rows.find((r) => r.def === "coil" && r.star === 2);
     const coil3 = rows.find((r) => r.def === "coil" && r.star === 3);
     expect(coil2?.flags).toContain("NO EFFECT");

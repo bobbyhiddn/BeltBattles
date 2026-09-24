@@ -28,6 +28,22 @@ const variantOf = (b: Build, base: Build): string => {
 };
 const noDetail: DetailRunner = async (_f, jobs) => jobs.map(() => "same");
 
+/**
+ * c432bee (harness v2 part 2, step 1): 0.6.1p applied every pending star value, so no live module is a
+ * content-level NO EFFECT or SAME AS 2-star case any more. The rewritten cases keep their claims on a
+ * controlled premise: an injected runner (and detail runner) whose outcome depends only on the job's
+ * seeds and on whether the deck holds `def` at 1 star or at 2+ stars (every other module is ignored).
+ * Two decks that play the same seeds therefore score, and end, the same unless `def` crossed 1 star ->
+ * 2+ stars; seeding the variants by field index again (verify10's m1seed) breaks every such equality.
+ */
+const seedPts = (seeds: number[]): number => seeds.reduce((t, s) => t + ((s >>> 0) % 5) * 0.5, 0); // 0..2 per seed
+const raised = (b: Build, def: string): boolean => [...b.items, ...b.mods].some((p) => p.def === def && starsOf(p) >= 2);
+function controlled(def: string): { run: Runner; detail: DetailRunner } {
+  const run: Runner = async (field, jobs) => jobs.map((j) => (raised(field[j.a], def) ? Math.max(0, seedPts(j.seeds) - 1) : seedPts(j.seeds)));
+  const detail: DetailRunner = async (field, jobs) => jobs.map((j) => `${j.seeds.join(",")}${raised(field[j.a], def) ? "|up" : ""}`);
+  return { run, detail };
+}
+
 describe("star bench fix pass (F1, F5, F9)", () => {
   it("F1: an injected runner records the jobs - the 1-, 2- and 3-star variants of each instance carry identical seed lists against every gauntlet member", async () => {
     const day = 5;
@@ -59,34 +75,42 @@ describe("star bench fix pass (F1, F5, F9)", () => {
     expect(seeds.get("base|0")).not.toBe(seeds.get("base|1"));
   });
 
-  it("F1: NO EFFECT rows (coil, pending values) have points equal job for job and a delta of exactly 0, on a par deck with many battles", async () => {
+  it("F1: NO EFFECT rows have points equal job for job and a delta of exactly 0, on a par deck with many battles (c432bee: controlled premise, outcomes depend only on the seeds and on temper at 1 star vs 2+; coil is never read)", async () => {
     const day = 5;
-    const src = heroRefBuild("furnace", day);
-    expect(unfusedPairs(src)).toEqual([]);
+    const src = heroStartBuild("furnace", 1);
     put(src, 990, "coil", 0);
+    put(src, 991, "temper", 1);
+    expect(unfusedPairs(src)).toEqual([]);
     expect(validateBuild(src, 10).errors).toEqual([]);
     const gauntlet = [heroRefBuild("weaver", day), heroRefBuild("furnace", 3), heroStartBuild("weaver", 1), heroRefBuild("weaver", 7)];
     const o = { ...DEFAULT_OPTS, seed: 21, seeds: 3 };
-    const { rows } = await starBench(o, day, gauntlet, [{ hero: "furnace", tag: "furnace par", build: src, par: true }], localRunner, localDetail);
+    const { run, detail } = controlled("temper");
+    const { rows } = await starBench(o, day, gauntlet, [{ hero: "furnace", tag: "furnace par", build: src, par: true }], run, detail);
     for (const star of [2, 3]) {
       const r = rows.find((x) => x.def === "coil" && x.star === star)!;
+      expect(r.n).toBe(1);
       expect(r.flags).toContain("NO EFFECT");
       expect(r.delta).toBe(0);
       expect(r.wrN.pts).toBe(r.wr1.pts);
       expect(r.decks).toEqual([{ tag: "furnace par", par: true, delta: 0 }]);
+      // the def the runner does read has an effect: no NO EFFECT flag, a delta below 0
+      const t = rows.find((x) => x.def === "temper" && x.star === star)!;
+      expect(t.flags).not.toContain("NO EFFECT");
+      expect(t.delta).toBeLessThan(0);
     }
     // rows with an effect: the row delta is the mean of the decks' paired deltas
     for (const r of rows.filter((x) => x.n > 0)) expect(r.delta).toBeCloseTo(r.decks.reduce((s, d) => s + d.delta, 0) / r.n, 12);
   }, 60_000);
 
-  it("SAME AS ★2 fires on splitter 3-star (its level 3 is pending only) and chamber stays NO EFFECT at 2 stars", async () => {
+  it("SAME AS ★2 fires on a 3-star row whose every battle ends as at 2 stars (splitter), and chamber stays NO EFFECT at 2 stars (c432bee: controlled premise, outcomes depend only on the seeds and on splitter at 1 star vs 2+)", async () => {
     const day = 7;
     const b = heroStartBuild("weaver", 1);
     put(b, 900, "splitter", 0);
     b.mods.push({ uid: 901, def: "chamber", turret: 0 });
     const gauntlet = [heroStartBuild("furnace", 1), heroRefBuild("furnace", 5)];
     const o = { ...DEFAULT_OPTS, seed: 11, seeds: 2 };
-    const { rows } = await starBench(o, day, gauntlet, [{ hero: "weaver", tag: "bench", build: b }], localRunner, localDetail);
+    const { run, detail } = controlled("splitter");
+    const { rows } = await starBench(o, day, gauntlet, [{ hero: "weaver", tag: "bench", build: b }], run, detail);
     const s3 = rows.find((r) => r.def === "splitter" && r.star === 3)!;
     expect(s3.flags).toContain("SAME AS ★2");
     expect(s3.flags).not.toContain("NO EFFECT");
