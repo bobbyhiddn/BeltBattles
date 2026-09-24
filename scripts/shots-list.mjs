@@ -203,4 +203,38 @@ export const SHOTS = [
     ["build-core-socket", v, "build", 0.8, "bb.game.run.build.mods.push({uid: 9001, def: 'scatter', turret: 0, stars: 2}); bb.game.screen.select({kind:'turret', index:0}); bb.game.render()"],
   ]),
   ["battle-core", "desk", "title", 0, CORE_BATTLE("scatter", 0, 2, 600)],
+  // 0.6.1d2: the MERGE badge + survivor ring (a forced offer matching an owned cargo copy,
+  // selected so both the card badge and the cargo twin's yellow ring show), the merge animation
+  // mid-flight (a synthetic run.fuseAnim step stepped to just past its flash/ring beat), and all
+  // seven merchant wagons at once (forced past rollShop, for the wagon art/tag review).
+  ...["desk", "phone"].flatMap((v) => [
+    ["build-merge-badge", v, "title", 0, `(() => {
+      const g = bb.game;
+      bb.openDawn({ day: 3, cargo: ["temper"] }, []);
+      for (let i = 0; i < 90; i++) g.step(1 / 60);
+      const run = g.run, o = run.shop.wagons[0].offers[0];
+      o.def = "temper"; o.price = 3; o.sold = false;
+      g.screen.select({ kind: "offer", wagon: 0, slot: 0 });
+      g.render();
+    })()`],
+    ["build-merge-anim", v, "title", 0, `(() => {
+      const g = bb.game;
+      bb.openDawn({ day: 3, cargo: ["temper"] }, []);
+      for (let i = 0; i < 90; i++) g.step(1 / 60);
+      const run = g.run, uid = run.inventory[0].uid;
+      run.fuseAnim = [{ def: "temper", absorbed: -1, survivor: uid, stars: 2, where: "cargo" }];
+      for (let i = 0; i < 18; i++) g.step(1 / 60);
+      g.render();
+    })()`],
+    ["shop-7-merchants", v, "title", 0, `(() => {
+      const g = bb.game;
+      bb.openDawn({ day: 3 }, []);
+      for (let i = 0; i < 90; i++) g.step(1 / 60);
+      const run = g.run;
+      const anyDef = run.shop.wagons[0].offers[0].def;
+      const all = ["ironmonger", "tinker", "alchemist", "gunsmith", "scrapper", "quartermaster", "arcane"];
+      run.shop.wagons = all.map((merchant) => ({ merchant, offers: [{ def: anyDef, price: 3, sold: false }] }));
+      g.render();
+    })()`],
+  ]),
 ];
