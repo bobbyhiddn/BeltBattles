@@ -21,7 +21,8 @@ import { describeBuild } from "../src/sim/harness/report";
 import { starMixOf } from "../src/sim/harness/tournament";
 import { pct } from "../src/sim/harness/stats";
 import {
-  STANDIN_DEFAULTS, dataModuleText, eligibleOf, genStandIns, poolVsPool, standInCommand, writtenProblems, type Cand, type HeroDay, type StandInOpts,
+  STANDIN_DEFAULTS, dataModuleText, dryVersus, eligibleOf, genStandIns, poolVsPool, standInCommand, writtenProblems,
+  type Cand, type HeroDay, type StandInOpts, type VersusRow, type VersusTable,
 } from "../src/sim/harness/standins";
 import { STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
 import { flag, num, serveJobs, workerRunner } from "./workers";
@@ -128,14 +129,16 @@ async function main(): Promise<void> {
   // standInPoolData.ts (the shipped pool stays v1.1 until the flip); everything lands under
   // output-h2/pool-v2-dry/ (a data-module *candidate*, not wired up, and a star-aware report).
   const secs0 = (performance.now() - t0) / 1000;
-  const pvp = await poolVsPool(o, (h, d) => res.days.find((x) => x.hero === h && x.day === d)!.picks.map((p) => p.build), pool.run);
-  const versusV11 = await poolVsPool(o, (h, d) => standInPool(h, d).map((e) => e.build), pool.run);
+  // F3: the dry v2 picks against the shipped v1.1 picks (two getters; was v1.1 on both sides)
+  const vs = await dryVersus(o, res.days, pool.run);
   await pool.close();
   const secs = (performance.now() - t0) / 1000;
   const out = resolve(flag("out") ?? "../output-h2/pool-v2-dry");
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, "standInPoolData.v2-dry-candidate.ts"), candidate);
-  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, pvp, versusV11, { battles: res.battles, secs, workers: nw }));
+  const vsBattles = [...vs.v2v2, ...vs.tables.flatMap((t) => t.rows)].reduce((s, r) => s + r.battles, 0);
+  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles }));
+  writeFileSync(resolve(out, "versus.json"), JSON.stringify({ heroes: o.heroes, v2v2: vs.v2v2, tables: vs.tables }, null, 1) + "\n");
   console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s) (${secs0.toFixed(1)} s to generate); DRY RUN, wrote ${out}/standInPoolData.v2-dry-candidate.ts and standin-pool.md (src/sim/standInPoolData.ts untouched)`);
 }
 
@@ -195,8 +198,7 @@ function describeStars(c: Cand): string {
 
 /** Report for the stars-on DRY run: never wired up (src/sim/standInPoolData.ts untouched). */
 function poolMarkdownV2(
-  o: StandInOpts, days: HeroDay[], pvp: { day: number; rate: number; battles: number }[],
-  versusV11: { day: number; rate: number; battles: number }[], meta: { battles: number; secs: number; workers: number },
+  o: StandInOpts, days: HeroDay[], pvp: VersusRow[], tables: VersusTable[], meta: { battles: number; secs: number; workers: number; vsBattles: number },
 ): string {
   const L = [
     "# BeltBattles stand-in pool v2 - stars-on DRY RUN (not shipped)",
@@ -227,9 +229,13 @@ function poolMarkdownV2(
   L.push("", `## Robust re-play (ROBUST_BAND=0.10 of parFloor, ${o.robust} x refSeeds fresh seeds)`, "");
   const removedTotal = days.reduce((s, hd) => s + hd.robustRemoved, 0);
   L.push(removedTotal ? `${removedTotal} candidate(s) removed across all hero/day pairs (see the summary table's "robust removed" column for the split).` : "0 candidates removed: every borderline candidate held its vsPar under the fresh re-play.");
-  L.push("", "## Dry pool v2 vs the dry pool v2 (report only, stars-on picks both sides)", "", `| day | ${pvp.map((r) => r.day).join(" | ")} |`, `|---|${pvp.map(() => "---").join("|")}|`, `| ${H(o.heroes[0])} pool win rate | ${pvp.map((r) => `${pct(r.rate)}`).join(" | ")} |`);
-  L.push("", "## Dry pool v2 vs the shipped pool v1.1: do merged stand-ins get stronger?", "", `Every dry pool v2 pick (of heroes[0]) against every shipped v1.1 pick (of heroes[1]), ${o.seeds} seeds x both sides.`, "");
-  L.push(`| day | ${versusV11.map((r) => r.day).join(" | ")} |`, `|---|${versusV11.map(() => "---").join("|")}|`, `| ${H(o.heroes[0])} v2 win rate vs ${H(o.heroes[1])} v1.1 | ${versusV11.map((r) => `${pct(r.rate)}`).join(" | ")} |`, `| battles | ${versusV11.map((r) => r.battles).join(" | ")} |`);
-  L.push("", "(v2 picks its own heroes[0]/heroes[1] side of decks against the v1.1 pool's opposite side; a v2 rate above 50% on a day means that day's merge-aware picks beat the all-1-star v1.1 picks more often than not.)");
+  L.push("", "## Dry pool v2 vs the dry pool v2 (report only, stars-on picks both sides)", "", `| day | ${pvp.map((r) => r.day).join(" | ")} |`, `|---|${pvp.map(() => "---").join("|")}|`, `| ${H(o.heroes[0])} v2 win rate vs ${H(o.heroes[1])} v2 | ${pvp.map((r) => `${pct(r.rate)}`).join(" | ")} |`);
+  L.push("", "## Dry pool v2 vs the shipped pool v1.1: do merged stand-ins get stronger?", "");
+  L.push(`Per day, every pick of the row's v2 hero (the dry pool) against every pick of its v1.1 hero (the shipped pool, src/sim/standInPoolData.ts), ${o.seeds} seeds x both sides: the v2 side's win rate. The last row is the shipped pool against itself (the same numbers as \`npm run standins -- --versus\`), the reference for the cross-hero rows. ${meta.vsBattles} battles in these tables.`, "");
+  const days10 = tables[0]?.rows ?? [];
+  L.push(`| pairing | ${days10.map((r) => `d${r.day}`).join(" | ")} |`, `|---|${days10.map(() => "---").join("|")}|`);
+  for (const t of tables) L.push(`| ${H(t.a)} ${t.aPool} vs ${H(t.b)} ${t.bPool} | ${t.rows.map((r) => pct(r.rate)).join(" | ")} |`);
+  L.push("", `Battles per cell: ${tables.map((t) => `${H(t.a)} ${t.aPool} vs ${H(t.b)} ${t.bPool} ${t.rows[0]?.battles ?? 0}`).join("; ")} (per day: picks x picks x ${o.seeds} seeds x 2 sides).`);
+  L.push("", "(Same-hero rows: above 50% means that day's merge-aware v2 picks beat the all-1-star v1.1 picks of the same hero. Cross-hero rows: compare with the v1.1-vs-v1.1 reference row of that direction.)");
   return L.join("\n") + "\n";
 }

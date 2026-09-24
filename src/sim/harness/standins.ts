@@ -18,7 +18,7 @@ import { hashSeed } from "../../core/rng";
 import { RULES_VERSION, type HeroId } from "../content";
 import type { Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
-import { decodeStandIn, encodeStandIn } from "../standInPool";
+import { decodeStandIn, encodeStandIn, standInPool } from "../standInPool";
 import { fullPurseBuild, spendFloor } from "./gen";
 import { heroRefBuild } from "./heroes";
 import type { Stars } from "./shopper";
@@ -295,19 +295,54 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
   return { days: out, battles };
 }
 
-/** Report only: for each day, every pick of heroes[0] against every pick of heroes[1], `seeds`
- *  seeds x both sides; heroes[0]'s win rate. `picks(hero, day)` supplies the decks. */
-export async function poolVsPool(o: StandInOpts, picks: (hero: HeroId, day: number) => Build[], run: Runner): Promise<{ day: number; rate: number; battles: number }[]> {
-  const [h0, h1] = o.heroes, out: { day: number; rate: number; battles: number }[] = [];
+/** A pool's decks for (hero, day). */
+export type PicksOf = (hero: HeroId, day: number) => Build[];
+export interface VersusRow { day: number; rate: number; battles: number }
+
+/** Report only: for each day, every deck of `a.picks(a.hero, day)` against every deck of
+ *  `b.picks(b.hero, day)`, `seeds` seeds x both sides; A's win rate. Two getters (F3): A and B may
+ *  come from different pools, and A and B may be the same hero. */
+export async function versus(o: StandInOpts, a: { hero: HeroId; picks: PicksOf }, b: { hero: HeroId; picks: PicksOf }, run: Runner): Promise<VersusRow[]> {
+  const out: VersusRow[] = [];
   for (let day = 1; day <= 10; day++) {
-    const a = picks(h0, day), b = picks(h1, day);
-    const jobs: Job[] = a.flatMap((_, i) => b.map((_, j): Job => ({
-      a: i, b: a.length + j, seeds: Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-pvp", o.seed, day, i, j, k)),
+    const A = a.picks(a.hero, day), B = b.picks(b.hero, day);
+    const jobs: Job[] = A.flatMap((_, i) => B.map((_, j): Job => ({
+      a: i, b: A.length + j, seeds: Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-pvp", o.seed, day, i, j, k)),
     })));
-    const pts = await run([...a, ...b], jobs);
+    const pts = await run([...A, ...B], jobs);
     out.push({ day, rate: winRate(pts, jobs.length * o.seeds * 2), battles: jobs.length * o.seeds * 2 });
   }
   return out;
+}
+
+/** Report only: for each day, every pick of heroes[0] against every pick of heroes[1], `seeds`
+ *  seeds x both sides; heroes[0]'s win rate. `picks(hero, day)` supplies the decks (one pool). */
+export async function poolVsPool(o: StandInOpts, picks: PicksOf, run: Runner): Promise<VersusRow[]> {
+  const [h0, h1] = o.heroes;
+  return versus(o, { hero: h0, picks }, { hero: h1, picks }, run);
+}
+
+export interface VersusTable { a: HeroId; aPool: "v2" | "v1.1"; b: HeroId; bPool: "v2" | "v1.1"; rows: VersusRow[] }
+
+/** The shipped pool v1.1's decks (src/sim/standInPoolData.ts, untouched). */
+export const shippedPicks: PicksOf = (h, d) => standInPool(h, d).map((e) => e.build);
+
+/**
+ * F3: the stars-on dry pool v2 (`days`) against the shipped pool v1.1, per day: heroes[0] v2 vs
+ * heroes[0] v1.1, heroes[1] v2 vs heroes[1] v1.1, heroes[0] v2 vs heroes[1] v1.1 and heroes[1] v2
+ * vs heroes[0] v1.1 (A = v2, B = v1.1), then the reference heroes[0] v1.1 vs heroes[1] v1.1 (the
+ * shipped pool against itself, as --versus prints it). Plus v2 vs v2 (poolVsPool on the dry picks).
+ */
+export async function dryVersus(o: StandInOpts, days: HeroDay[], run: Runner, shipped: PicksOf = shippedPicks): Promise<{ v2v2: VersusRow[]; tables: VersusTable[] }> {
+  const v2: PicksOf = (h, d) => days.find((x) => x.hero === h && x.day === d)?.picks.map((p) => p.build) ?? [];
+  const [h0, h1] = o.heroes;
+  const v2v2 = await poolVsPool(o, v2, run);
+  const tables: VersusTable[] = [];
+  for (const [a, b] of [[h0, h0], [h1, h1], [h0, h1], [h1, h0]] as const) {
+    tables.push({ a, aPool: "v2", b, bPool: "v1.1", rows: await versus(o, { hero: a, picks: v2 }, { hero: b, picks: shipped }, run) });
+  }
+  tables.push({ a: h0, aPool: "v1.1", b: h1, bPool: "v1.1", rows: await versus(o, { hero: h0, picks: shipped }, { hero: h1, picks: shipped }, run) });
+  return { v2v2, tables };
 }
 
 /** Canonical command for the header: every generation option explicit, no --workers/--out/--check. */
