@@ -248,7 +248,8 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   gatling: {
     id: "gatling", name: "GATLING SPOOL", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "gunsmith",
-    desc: ["SPINS UP: EACH QUICK", "SHOT FIRES 6% FASTER", "DOWN TO 0.6X."], tags: ["TIMING", "VOLUME"],
+    // no loading window: a Prime-approved deviation from catalogue row 4 (oracle 5624d721a73a6282; cores.ts gatlingReady)
+    desc: ["NEVER WAITS: FIRES", "EACH LOAD AT ONCE.", "EACH QUICK SHOT 6%", "FASTER, TO 0.6X."], tags: ["TIMING", "VOLUME"],
     core: { routine: "gatling", start: 1.2, step: 0.06, floor: 0.6, gap: 2.5 },
     levels: { 2: { core: { step: 0.09, floor: 0.4 } }, 3: { core: { step: 0.12, floor: 0.29 } } },
   },

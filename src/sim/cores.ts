@@ -97,12 +97,22 @@ function gatlingCadence(tu: TurretState, t: number): number {
   return tu.interval * tu.spin;
 }
 
+/**
+ * GATLING SPOOL never holds a loading window (Prime-approved deviation from catalogue row 4, oracle
+ * 5624d721a73a6282): each load fires as soon as the barrel is ready, i.e. interval x spin has passed since the
+ * last shot, so a lone load on an idle barrel fires at once. While the barrel cools it keeps taking loads, up
+ * to its payloads per shot (EXT. CHAMBER) within the window size, and they fire together when it is ready.
+ */
+function gatlingReady(tu: TurretState): boolean {
+  return tu.stack.length > 0 && (tu.fireCd <= 0 || tu.stack.length >= Math.min(tu.window, tu.perShot));
+}
+
 export const ROUTINES: Record<CoreRoutine, Routine> = {
   identity: IDENTITY,
   scatter: IDENTITY, // shape: pellets (Battle.fireCore)
   rotary: { ...IDENTITY, select: (tu) => (tu.core.spec.order === "FIFO" ? 0 : lifo(tu)) }, // + windowTime, intervalMul
   pressure: IDENTITY, // noJam; shape: + perQueued x queued
-  gatling: { ...IDENTITY, cadence: gatlingCadence },
+  gatling: { ...IDENTITY, ready: gatlingReady, cadence: gatlingCadence },
   hullbreaker: IDENTITY, // shape: bare hull, x hullMul
   drake: IDENTITY, // shape: flat to Burn, + addBurn, burnTime, flightMul
   salvo: {
