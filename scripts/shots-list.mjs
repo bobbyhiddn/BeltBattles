@@ -156,4 +156,21 @@ export const SHOTS = [
     ["run-flawless", v, "title", 0, END({ results: "WWWWWWWWWW", seed: 99 }, POOL)],
     ["title-help", v === "desk" ? "desk" : "small", "title", 1, "bb.game.screen.help = true; bb.game.render()"],
   ]),
+  // 0.6.0c: a Hard win whose deck needed the fill (seed 1: OLD BULWARK on day 1 has only BRAKE; the
+  // second part comes from a later deck), and HERALD / SAPPERS on day 10 (NO WARLORD LEFT)
+  ...["desk", "laptop", "phone", "small"].flatMap((v) => [
+    ["warlord-hardfill", v, "title", 0, WARLORD("hard", { day: 1, seed: 1, outcome: 0 }, 60)],
+    ["event-herald-day10", v, "title", 0, EVENT("herald", { day: 10, gold: 9 })],
+  ]),
+  ...["desk", "phone"].flatMap((v) => [
+    ["event-sappers-day10", v, "title", 0, EVENT("sappers", { day: 10, gold: 9 })],
+    // a pressed FIGHT on a dead-end belt: the toast and the flashing belt
+    ["build-deadend-press", v, "build", 1.2, "bb.game.run.build.routes[0].cells.pop(); bb.game.screen.fight(); bb.game.step(1 / 60); bb.game.render()"],
+  ]),
+  // 0.6.0c: the end screen with every road event's STOP label (a 10-day run of events: one bag of
+  // all 10), and FIGHT blocked by a dead-end belt (the starting belt cut one tile short)
+  ...["desk", "laptop", "phone", "small"].flatMap((v) => [
+    ["summary-stops", v, "title", 0, END({ results: "WWLWDWLWWW", roads: "VVVVVVVVVV", seed: 777 }, POOL)],
+    ["build-deadend", v, "build", 1.2, "bb.game.run.build.routes[0].cells.pop(); bb.game.render()"],
+  ]),
 ];

@@ -21,6 +21,7 @@ import { BuildScreen } from "./screens/build/build";
 import { BattleScreen } from "./screens/battle";
 import { SummaryScreen } from "./screens/summary";
 import { EventScreen } from "./screens/event/event";
+import type { Arena } from "./game/arena";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -116,6 +117,13 @@ game.start();
     if (!run) return null;
     const f = forkFor(run);
     return { day: run.day, event: f.event, warlords: f.warlords, road: run.road, warlord: run.warlord, lives: run.lives, gold: run.gold, matriarchBeatenOn: run.matriarchBeatenOn };
+  },
+  /** 0.6.0c metrics: restart the current screen's arena effects RNG at `seed` (cosmetic, never
+   *  the sim's), so a measured shake repeats exactly. False when the screen has no arena. */
+  seedFx(seed: number): boolean {
+    const a = (game.screen as unknown as { arena?: Arena }).arena;
+    a?.fx.reseed(seed);
+    return !!a;
   },
   /** Current screen name (for harness assertions). */
   screen(): string {
