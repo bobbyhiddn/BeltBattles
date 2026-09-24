@@ -23,7 +23,7 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
   wardworks: {
     id: "wardworks", name: "WARDWORKS", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["STAMPS BULWARK SLUGS.", "EACH ONE PLATES THE", "HULL AS IT ARRIVES."],
-    factory: { ammo: "bulwark", interval: 1.5, outputs: 1 },
+    factory: { ammo: "bulwark", interval: 1.1, outputs: 1 },
   },
   clockworks: {
     id: "clockworks", name: "CLOCKWORKS", kind: "factory", rarity: "epic", price: 0, size: 2,
@@ -54,7 +54,7 @@ export const RACE_AMMO: Record<RaceAmmoKind, AmmoDef> = {
   blank: { name: "ALLOY BLANK", base: 3.5, rideScale: 0, fray: 0 },
   // A fused slug carries its whole damage in `flat` (FUSE_MULT x both blanks), so base is 0.
   alloy: { name: "ALLOY SLUG", base: 0, rideScale: 0, fray: 0 },
-  bulwark: { name: "BULWARK SLUG", base: 4, rideScale: 0, fray: 0 },
+  bulwark: { name: "BULWARK SLUG", base: 5, rideScale: 0, fray: 0 },
   // base is the curve's floor, for display; rideCurve replaces base + rideScale x ride.
   pendulum: { name: "PENDULUM SLUG", base: PENDULUM.floor, rideScale: 0, fray: 0, rideCurve: pendulumCurve },
   // One leech, two marks: the Sump stamps the mark into the ammo kind, so Splitter copies keep it.
@@ -76,7 +76,7 @@ export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   bastion: {
     id: "bastion", name: "BASTION", faction: "dwarf", factionName: "DWARVEN HOLDS",
     hull: 240, factory: "wardworks", ammo: "bulwark", belt: 14,
-    turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", fireInterval: 1.2, window: 3, flight: 0.65 }],
+    turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", fireInterval: 0.75, window: 3, flight: 0.65 }],
     blurb: ["BULWARK SLUGS PLATE", "THE HULL AS THEY", "REACH THE CHAMBER."],
     pattern: "PLATE AND ENDURE",
   },
