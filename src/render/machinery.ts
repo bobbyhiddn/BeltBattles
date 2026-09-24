@@ -3,6 +3,7 @@
 
 import { AMMO, BELT_SPEED, CELL, HEROES } from "../sim/content";
 import { defOf, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
+import { starsOf } from "../sim/stars";
 import { C } from "./palette";
 import { frame as frameRect, rect, type G } from "./pixel";
 import { drawText } from "./font";
@@ -180,6 +181,9 @@ function drawFactories(g: G, v: CruiserView): void {
     }
     if (fs && fs.disrupted > 0) shock(g, x + 6, y + 6, v.t);
     if (fs && fs.stalled && Math.floor(v.t * 4) % 2) drawText(g, "!", x + 22, y - 2, C.yellow, { outline: C.ink });
+    const fstars = starsOf(p);
+    drawPips(g, x + 2, y + 21, 20, fstars, "left");
+    if (fstars >= 3) frameRect(g, x, y, 24, 24, C.brass3);
   }
 }
 
@@ -223,6 +227,22 @@ function drawGates(g: G, v: CruiserView): void {
       if (gs && !gs.online && Math.floor(v.t * 6) % 2) g.drawImage(wrenchIcon(), x + 4, y + 3);
     }
     if (gs && gs.disrupted > 0) shock(g, x, y, v.t);
+    const gstars = starsOf(p);
+    drawPips(g, x + 1, y + 10, 10, gstars);
+    if (gstars >= 3) frameRect(g, x, y, 12, 12, C.brass3);
+  }
+}
+
+/** 0.6.1d (ARSENAL.md §8.2): none at ★1, two 2x1 yellow pips at ★2, three plus a 1px gold rim at
+ *  ★3. Gates centre them on the bottom row; factories (bottom-left) pass align "left". */
+function drawPips(g: G, x: number, y: number, w: number, stars: number, align: "center" | "left" = "center"): void {
+  if (stars < 2) return;
+  const n = stars >= 3 ? 3 : 2;
+  const totalW = n * 2 + (n - 1) * 1;
+  let px = align === "center" ? x + Math.max(0, Math.round((w - totalW) / 2)) : x;
+  for (let i = 0; i < n; i++) {
+    rect(g, px, y, 2, 1, C.yellow);
+    px += 3;
   }
 }
 

@@ -5,6 +5,7 @@ import { saveRun, shopBadge } from "../../game/run";
 import { record } from "../../game/day";
 import { ITEMS, REROLL_COST, RUN_DAYS } from "../../sim/content";
 import { beltUsed } from "../../sim/deck";
+import { starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
@@ -123,7 +124,7 @@ function drawCargo(g: G, s: BuildScreen): void {
       const sr = s.slotRect(i);
       const hidden = carry?.src.from === "cargo" && carry.uid === it.uid;
       const shake = s.shakeT > 0 && s.shakeSrc.kind === "cargo" && s.shakeSrc.uid === it.uid ? Math.round(Math.sin(s.shakeT * 70) * 2) : 0;
-      itemSlot(g, sr.x + shake, sr.y, hidden ? null : it.def, s.sel.kind === "cargo" && s.sel.uid === it.uid, s.t);
+      itemSlot(g, sr.x + shake, sr.y, hidden ? null : it.def, s.sel.kind === "cargo" && s.sel.uid === it.uid, s.t, hidden ? 1 : starsOf(it));
       if (shake) frame(g, sr.x - 1 + shake, sr.y - 1, 20, 20, C.red);
     }
     if (items.length > n) drawText(g, `+${items.length - n}`, r.x + r.w - 3, r.y + 8, C.yellow, { font: "3", align: "right" });

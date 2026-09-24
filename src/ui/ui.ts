@@ -169,8 +169,20 @@ export function blockedButton(ui: UI, g: G, id: string, r: Rect, label: string, 
   }
 }
 
-/** Item slot (cargo tray / inspector icon). */
-export function itemSlot(g: G, x: number, y: number, def: string | null, selected: boolean, t: number): void {
+/** 0.6.1d (ARSENAL.md §8.2): none at ★1, two 2x1 yellow pips at ★2, three plus a 1px gold rim at ★3. */
+function starPips(g: G, x: number, y: number, w: number, stars: number): void {
+  if (stars < 2) return;
+  const n = stars >= 3 ? 3 : 2;
+  const totalW = n * 2 + (n - 1) * 1;
+  let px = x + Math.max(0, Math.round((w - totalW) / 2));
+  for (let i = 0; i < n; i++) {
+    rect(g, px, y, 2, 1, C.yellow);
+    px += 3;
+  }
+}
+
+/** Item slot (cargo tray / inspector icon). `stars` defaults to 1 (no pips, no rim). */
+export function itemSlot(g: G, x: number, y: number, def: string | null, selected: boolean, t: number, stars = 1): void {
   rect(g, x, y, 18, 18, C.ink);
   rect(g, x + 1, y + 1, 16, 16, C.slate0);
   rect(g, x + 1, y + 16, 16, 1, C.slate1);
@@ -178,7 +190,9 @@ export function itemSlot(g: G, x: number, y: number, def: string | null, selecte
     const d = ITEMS[def];
     rect(g, x + 1, y + 16, 16, 1, RARITY_COLOR[d.rarity]);
     g.drawImage(itemIcon(def), x + 3, y + 3);
+    starPips(g, x + 1, y + 13, 16, stars);
   }
+  if (stars >= 3) frame(g, x, y, 18, 18, C.brass3);
   if (selected) frame(g, x - 1, y - 1, 20, 20, Math.floor(t * 6) % 2 ? C.white : C.yellow);
 }
 
