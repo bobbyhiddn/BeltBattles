@@ -9,6 +9,7 @@ import {
   adjacentToFactory, connectorClaims, dirBetween, itemByUid, occupancy, routeInfo, routeWellFormed,
   type Build, type Occ,
 } from "../sim/deck";
+import { outputsAt, starsOf } from "../sim/stars";
 
 /** FIGHT's short reasons: a belt that doesn't end on a free turret connector, any other problem. */
 export const NOWHERE = "BELT GOES NOWHERE";
@@ -72,7 +73,7 @@ export function routeProblems(b: Build): RouteProblem[] {
   });
   for (const [uid, list] of perFactory) {
     const p = itemByUid(b, uid);
-    const outs = p ? ITEMS[p.def]?.factory?.outputs ?? 1 : 1;
+    const outs = p && ITEMS[p.def] ? outputsAt(p.def, starsOf(p)) || 1 : 1; // 0.6.1a: outputs at its stars (= validate.ts)
     if (p && list.length > outs) add(list[outs], `${ITEMS[p.def].name} uid ${uid} feeds ${list.length} routes but has ${outs} output(s)`);
   }
   // one deck-wide overflow, pinned on the route whose tiles first run past the cap

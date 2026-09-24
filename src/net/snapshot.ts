@@ -7,7 +7,11 @@
 import { GRID, HEROES, type HeroId } from "../sim/content";
 import type { Build, ModPlacement, Placed, RouteDef } from "../sim/deck";
 
-export const SNAPSHOT_VERSION = 1;
+// 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
+// build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
+export const SNAPSHOT_VERSION = 2;
+export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2];
+export const MAX_STARS = 3; // = stars.ts FUSE_MAX
 export const MAX_SNAPSHOT_BYTES = 16 * 1024; // encoded UTF-8 size cap (client, server, pool)
 export const MAX_DAY = 10; // a run is 10 days (ROADMAP §1)
 export const MAX_LIVES = 9; // generous cap: 0.4.1 starts with 3 lives, the 10-day run with 5
@@ -20,7 +24,7 @@ const DEF_PATTERN = /^[a-z0-9_]{1,32}$/;
 const MAX_UID = 2 ** 31 - 1;
 
 export interface GhostSnapshot {
-  v: 1;
+  v: 1 | 2; // 0.6.1a: 2 carries stars; 1 still loads
   rules: string; // RULES_VERSION the build fought under
   hero: HeroId;
   day: number; // 1-10
@@ -48,12 +52,19 @@ export class SnapshotError extends Error {
 type Obj = Record<string, unknown>;
 const has = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
-function obj(v: unknown, path: string, keys: readonly string[]): Obj {
+function obj(v: unknown, path: string, keys: readonly string[], optional: readonly string[] = []): Obj {
   if (typeof v !== "object" || v === null || Array.isArray(v)) throw new SnapshotError(`${path}: expected an object`);
   const o = v as Obj;
-  for (const k of Object.keys(o)) if (!keys.includes(k)) throw new SnapshotError(`${path}.${k}: unknown field`);
+  for (const k of Object.keys(o)) if (!keys.includes(k) && !optional.includes(k)) throw new SnapshotError(`${path}.${k}: unknown field`);
   for (const k of keys) if (!has(o, k)) throw new SnapshotError(`${path}.${k}: missing`);
   return o;
+}
+
+/** 0.6.1a: the optional `stars` of an item or mod: v2 only, an integer 1..MAX_STARS; kept as given. */
+function stars(o: Obj, path: string, version: number): { stars?: number } {
+  if (!has(o, "stars")) return {};
+  if (version < 2) throw new SnapshotError(`${path}.stars: not allowed in a v${version} snapshot`);
+  return { stars: int(o.stars, `${path}.stars`, 1, MAX_STARS) };
 }
 
 function int(v: unknown, path: string, min: number, max: number): number {
@@ -80,18 +91,21 @@ export function isHeroId(v: unknown): v is HeroId {
 
 /**
  * Shape check for a Build: exact fields, integer types, grid ranges. Returns a canonical
- * copy. Legality (placement, routes, budget) is validate.ts's job.
+ * copy. Legality (placement, routes, budget) is validate.ts's job. 0.6.1a: `version` is the
+ * snapshot version the build travels in (default SNAPSHOT_VERSION): from v2 an item or mod may
+ * carry `stars` (1..MAX_STARS); in v1 it must be absent.
  */
-export function checkBuildShape(v: unknown, path = "build"): Build {
+export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_VERSION): Build {
   const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"]);
   if (!isHeroId(o.hero)) throw new SnapshotError(`${path}.hero: unknown hero`);
   const items = arr(o.items, `${path}.items`, MAX_ITEMS).map((it, i): Placed => {
-    const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"]);
+    const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars"]);
     return {
       uid: int(p.uid, `${path}.items[${i}].uid`, 0, MAX_UID),
       def: str(p.def, `${path}.items[${i}].def`, DEF_PATTERN),
       x: int(p.x, `${path}.items[${i}].x`, 0, GRID - 1),
       y: int(p.y, `${path}.items[${i}].y`, 0, GRID - 1),
+      ...stars(p, `${path}.items[${i}]`, version),
     };
   });
   const routes = arr(o.routes, `${path}.routes`, MAX_ROUTES).map((rv, i): RouteDef => {
@@ -103,11 +117,12 @@ export function checkBuildShape(v: unknown, path = "build"): Build {
     };
   });
   const mods = arr(o.mods, `${path}.mods`, MAX_MODS).map((mv, i): ModPlacement => {
-    const m = obj(mv, `${path}.mods[${i}]`, ["uid", "def", "turret"]);
+    const m = obj(mv, `${path}.mods[${i}]`, ["uid", "def", "turret"], ["stars"]);
     return {
       uid: int(m.uid, `${path}.mods[${i}].uid`, 0, MAX_UID),
       def: str(m.def, `${path}.mods[${i}].def`, DEF_PATTERN),
       turret: int(m.turret, `${path}.mods[${i}].turret`, 0, 15),
+      ...stars(m, `${path}.mods[${i}]`, version),
     };
   });
   return {
@@ -125,16 +140,17 @@ export function checkBuildShape(v: unknown, path = "build"): Build {
 /** Full strict check of a decoded value. Returns a canonical copy. */
 export function checkSnapshot(v: unknown): GhostSnapshot {
   const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"]);
-  if (o.v !== SNAPSHOT_VERSION) throw new SnapshotError(`snapshot.v: expected ${SNAPSHOT_VERSION}`);
+  if (o.v !== 1 && o.v !== 2) throw new SnapshotError(`snapshot.v: expected 1 or ${SNAPSHOT_VERSION}`);
+  const ver: 1 | 2 = o.v;
   const rules = str(o.rules, "snapshot.rules", RULES_PATTERN);
   if (!isHeroId(o.hero)) throw new SnapshotError("snapshot.hero: unknown hero");
   const day = int(o.day, "snapshot.day", 1, MAX_DAY);
   const wins = int(o.wins, "snapshot.wins", 0, day - 1);
   const lives = int(o.lives, "snapshot.lives", 1, MAX_LIVES);
-  const build = checkBuildShape(o.build, "snapshot.build");
+  const build = checkBuildShape(o.build, "snapshot.build", ver);
   if (build.hero !== o.hero) throw new SnapshotError("snapshot.build.hero: must equal snapshot.hero");
   return {
-    v: 1, rules, hero: o.hero, day, wins, lives, build,
+    v: ver, rules, hero: o.hero, day, wins, lives, build,
     runId: str(o.runId, "snapshot.runId", ID_PATTERN),
     playerId: str(o.playerId, "snapshot.playerId", ID_PATTERN),
     createdAt: int(o.createdAt, "snapshot.createdAt", 0, Number.MAX_SAFE_INTEGER),

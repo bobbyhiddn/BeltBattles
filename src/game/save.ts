@@ -7,14 +7,21 @@
 //  submitted), and an open WARLORD'S HERALD / ELVEN SAPPERS event (out of the bag) is dropped;
 //  v5 (0.6.0a) -> v6: a save past its caravan already took its road stop (its event, or a quiet
 //  road), so its fork pick is the event; no warlord fought yet, nothing pending; a stored pool
-//  ghost's stamp moves to the v1 snapshot fields.
+//  ghost's stamp moves to the v1 snapshot fields;
+//  v6 (0.6.0b-0.6.0d) -> v7 (0.6.1a, module merging): absent `stars` mean 1, so nothing is
+//  rewritten; then fuseAll runs once (a v6 run can hold duplicates such as two tempers), and when
+//  anything merged the next screen toasts "YOUR SPARE PARTS MERGED" (run.fuseFx, cosmetic).
 
 import { RUN_DAYS, START_LIVES, type HeroId } from "../sim/content";
 import { warlordName } from "../sim/ai";
 import { toId } from "./ghostSnapshot";
+import { fuseAll } from "./fuse";
 import type { Run } from "./run";
 
-export const SAVE_KEY = "beltbattles.run.v6";
+export const SAVE_KEY = "beltbattles.run.v7";
+export const SAVE_KEY_V6 = "beltbattles.run.v6";
+/** 0.6.1a: the toast a migrated v6 run shows when its spare parts merged. */
+export const MIGRATE_TOAST = "YOUR SPARE PARTS MERGED";
 export const SAVE_KEY_V5 = "beltbattles.run.v5";
 export const SAVE_KEY_V4 = "beltbattles.run.v4";
 export const SAVE_KEY_V3 = "beltbattles.run.v3";
@@ -83,14 +90,31 @@ function v5to6(r: Raw): void {
   }
 }
 
-/** Bring a parsed save up to v6, or null if it isn't a usable run. Pure (tests call it directly). */
+function v6to7(r: Raw): void {
+  r.version = 7;
+  const fx = Array.isArray(r.fuseFx) ? r.fuseFx : [];
+  r.fuseFx = [];
+  const steps = fuseAll(r as unknown as Run); // absent stars = 1: nothing else is rewritten
+  r.fuseFx = steps.length ? [...fx, MIGRATE_TOAST] : fx;
+}
+
+/** 0.6.1a, cosmetic: take the next queued merge toast for the screen on show (game.ts). MERGED
+ *  toasts show on any settled screen; the migration notice waits for the next build screen. */
+export function nextFuseToast(run: Run, onBuildScreen: boolean): string | undefined {
+  const fx = run.fuseFx;
+  const i = fx ? fx.findIndex((t) => t !== MIGRATE_TOAST || onBuildScreen) : -1;
+  return i < 0 ? undefined : fx!.splice(i, 1)[0];
+}
+
+/** Bring a parsed save up to v7, or null if it isn't a usable run. Pure (tests call it directly). */
 export function migrateRun(raw: unknown): Run | null {
   const r = raw as Raw | null;
   if (!r || typeof r !== "object" || !r.build || !r.shop || !Array.isArray(r.inventory)) return null;
   if (r.version === 3) v3to4(r);
   if (r.version === 4) v4to5(r);
   if (r.version === 5) v5to6(r);
-  if (r.version !== 6) return null;
+  if (r.version === 6) v6to7(r);
+  if (r.version !== 7) return null;
   r.shop.discount = r.shop.discount ?? 0;
   r.shop.free = r.shop.free ?? 0;
   r.stage = r.stage ?? "caravan";
@@ -117,7 +141,7 @@ export function migrateRun(raw: unknown): Run | null {
 
 export function saveRun(run: Run | null): void {
   try {
-    for (const k of [SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5]) localStorage.removeItem(k);
+    for (const k of [SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6]) localStorage.removeItem(k);
     if (!run || run.over) localStorage.removeItem(SAVE_KEY);
     else localStorage.setItem(SAVE_KEY, JSON.stringify(run));
   } catch {
@@ -127,7 +151,7 @@ export function saveRun(run: Run | null): void {
 
 export function loadRun(): Run | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem(SAVE_KEY_V5)
+    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem(SAVE_KEY_V6) ?? localStorage.getItem(SAVE_KEY_V5)
       ?? localStorage.getItem(SAVE_KEY_V4) ?? localStorage.getItem(SAVE_KEY_V3);
     if (!raw) return null;
     return migrateRun(JSON.parse(raw));

@@ -8,6 +8,7 @@ import {
   itemByUid, key, kx, ky, manhattanSteps, occupancy, routeInfo, routesOf,
 } from "../../sim/deck";
 import { HEROES, ITEMS } from "../../sim/content";
+import { outputsAt, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
@@ -228,7 +229,7 @@ export class Editor {
     const f = itemByUid(b, uid);
     if (!f) return;
     const d = defOf(f);
-    const outs = d.factory?.outputs ?? 1;
+    const outs = outputsAt(f.def, starsOf(f)) || 1; // 0.6.1a: outputs at its stars (= routeCheck.ts, validate.ts)
     const mine = routesOf(b, uid);
     let replacing = -1;
     if (mine.length >= outs) {

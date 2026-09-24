@@ -30,7 +30,7 @@ describe("the 10-day run", () => {
     expect(START_LIVES).toBe(5);
     const run = newRun("weaver", 7);
     expect([run.day, run.lives, run.wins, run.losses, run.over, run.dusk]).toEqual([1, 5, 0, 0, null, null]);
-    expect(run.version).toBe(6); // 0.6.0b: save v6 (RUN_VERSION = 6, the road fork fields)
+    expect(run.version).toBe(7); // 0.6.1a: save v7 (RUN_VERSION = 7, module stars); 0.6.0b's v6 added the road fork fields
   });
 
   it("a dusk loss costs 1 life, a draw costs none and scores no win; income is indexed by day", () => {
@@ -137,7 +137,7 @@ describe("save v6 and migrations", () => {
     return r;
   }
 
-  it("v6 round-trips unchanged", () => { // 0.6.0b: newRun is v6 now
+  it("v7 round-trips unchanged", () => { // 0.6.1a: newRun is v7 now (was v6 since 0.6.0b)
     const run = newRun("weaver", 5, "rt");
     startDusk(run, []);
     expect(migrateRun(JSON.parse(JSON.stringify(run)))).toEqual(run);
@@ -148,7 +148,8 @@ describe("save v6 and migrations", () => {
     const a = migrateRun(JSON.parse(JSON.stringify(v4Of(base, 4, 2))))!;
     // 0.6.0b: v4 -> v5 -> v6, so it lands on version 6
     // 0.6.0b (B3): run.foe (0.5.0's warlord modifiers) is retired; pending road effects live in run.bounty / run.sabotage
-    expect([a.version, a.day, a.lives, a.dusk, (a as { foe?: unknown }).foe, a.bounty, a.sabotage]).toEqual([6, 4, 4, null, undefined, null, null]);
+    // 0.6.1a: ... -> v6 -> v7 (module stars), so it lands on version 7
+    expect([a.version, a.day, a.lives, a.dusk, (a as { foe?: unknown }).foe, a.bounty, a.sabotage]).toEqual([7, 4, 4, null, undefined, null, null]);
     expect(typeof a.runId).toBe("string");
     expect(a.events[0]).toEqual({ day: 1, id: "wreck", choice: "SALVAGE", won: true });
     expect(a.history[0].day).toBe(1);
@@ -186,7 +187,7 @@ describe("save v6 and migrations", () => {
     for (const k of ["day", "runId", "dusk", "stage", "event", "foe", "nextShop", "events", ...V6_FIELDS]) delete v3[k];
     const m = migrateRun(JSON.parse(JSON.stringify(v3)))!;
     // 0.6.0b: v3 -> v4 -> v5 -> v6 lands on version 6, with the v6 road fields at their defaults
-    expect([m.version, m.day, m.lives, m.stage, m.event, m.dusk]).toEqual([6, 2, 5, "caravan", null, null]);
+    expect([m.version, m.day, m.lives, m.stage, m.event, m.dusk]).toEqual([7, 2, 5, "caravan", null, null]); // 0.6.1a: then v6 -> v7
     expect([m.road, m.warlord, m.warlords, m.matriarchBeatenOn, m.bounty, m.sabotage]).toEqual([null, null, [], null, null, null]);
     expect([m.shop.discount, m.shop.free]).toEqual([0, 0]);
     expect(m.events).toEqual([]);

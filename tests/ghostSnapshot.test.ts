@@ -51,8 +51,8 @@ describe("ghostOf: the player's own v1 snapshot", () => {
     expect([run.day, wins, lives]).toEqual([3, 1, 4]);
     const g = ghostOf(run, 1234.9, "p-me");
     expect(keysOf(g)).toEqual(KEYS);
-    expect(SNAPSHOT_VERSION).toBe(1);
-    expect([g.v, g.rules]).toEqual([1, RULES_VERSION]);
+    expect(SNAPSHOT_VERSION).toBe(2); // 0.6.1a: ghostOf writes v2 (stars ride in the build)
+    expect([g.v, g.rules]).toEqual([2, RULES_VERSION]);
     expect([g.hero, g.day, g.wins, g.lives, g.runId, g.playerId, g.createdAt]).toEqual(["weaver", 3, wins, lives, "run-a", "p-me", 1234]);
     expect(g.build).toEqual(run.build);
     expect(g.build).not.toBe(run.build); // a copy: later refits do not reach the pool
@@ -72,7 +72,8 @@ describe("ghostOf: the player's own v1 snapshot", () => {
     const missing: Record<string, unknown> = { ...g };
     delete missing.playerId;
     expect(isSnapshot(missing)).toBe(false);
-    expect(isSnapshot({ ...g, v: 2 })).toBe(false);
+    expect(isSnapshot({ ...g, v: 3 })).toBe(false); // 0.6.1a: v 2 is current
+    expect(isSnapshot({ ...g, v: 1 })).toBe(true); // and a v1 snapshot (no stars) still loads
     expect(isSnapshot({ ...g, playerId: "not an id!" })).toBe(false);
     expect(isSnapshot({ ...g, runId: "x".repeat(65) })).toBe(false);
   });

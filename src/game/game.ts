@@ -9,9 +9,12 @@ import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
 import { button, panel, UI, type Rect } from "../ui/ui";
 import type { Run } from "./run";
+import { nextFuseToast } from "./save";
 
 export interface Screen {
   toastY?: number;
+  /** 0.6.1a: true on the build screen, which shows the save-migration notice (save.ts MIGRATE_TOAST). */
+  mergeNotice?: boolean;
   /** Integer device-pixel scale for this screen; default framing when absent. */
   pickScale?(pw: number, ph: number, portrait: boolean): number;
   enter?(): void;
@@ -162,9 +165,10 @@ export class Game implements InputSink {
     }
     this.screen.update(dt);
     if (this.toastMsg && (this.toastMsg.t -= dt) <= 0) this.toastMsg = null;
-    // 0.6.1a: queued merge toasts (run.fuseFx, cosmetic), one at a time once the screen has settled
-    const fx = this.run?.fuseFx;
-    if (fx?.length && !this.toastMsg && this.wipeDir === 0) this.toast(fx.shift()!, C.lime);
+    // 0.6.1a: queued merge toasts (run.fuseFx, cosmetic), one at a time once the screen has settled;
+    // the save-migration notice waits for the build screen (save.ts nextFuseToast)
+    const fx = this.run?.fuseFx?.length && !this.toastMsg && this.wipeDir === 0 ? nextFuseToast(this.run, !!this.screen.mergeNotice) : undefined;
+    if (fx) this.toast(fx, C.lime);
   }
 
   render(): void {

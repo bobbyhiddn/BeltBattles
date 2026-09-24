@@ -35,8 +35,17 @@ function variants(s: net.GhostSnapshot): [string, unknown][] {
     ["malformed playerId", { ...s, playerId: "a@b.c" }],
     ["no runId", noRunId],
     ["extra key", { ...s, extra: 1 }],
-    ["v 2", { ...s, v: 2 }],
+    ["v 3", { ...s, v: 3 }], // 0.6.1a: v 2 is the current version (was the out-of-bounds "v 2")
   ];
+}
+
+/** 0.6.1a: `stars` on the first item and the first mod, in a v1 or a v2 snapshot. */
+function starred(s: net.GhostSnapshot, v: 1 | 2, stars: unknown): unknown {
+  const b = JSON.parse(JSON.stringify(s.build)) as net.GhostSnapshot["build"] & { items: Record<string, unknown>[]; mods: Record<string, unknown>[] };
+  b.items[0].stars = stars;
+  if (b.mods[0]) b.mods[0].stars = stars;
+  else b.items[b.items.length - 1].stars = stars;
+  return { ...s, v, build: b };
 }
 
 describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snapshot.ts", () => {
@@ -69,5 +78,27 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     }
     expect(mismatch).toEqual([]);
     expect(bothReject).toBeGreaterThan(0);
+  });
+
+  it("0.6.1a stars: v2 takes 1..3 on items and mods, v1 takes none; 0, 4, 1.5, \"2\" and null are rejected; v1 loads", () => {
+    expect([local.SNAPSHOT_VERSION, net.SNAPSHOT_VERSION]).toEqual([2, 2]);
+    const cases: [string, 1 | 2, unknown, boolean][] = [
+      ["v2 stars 1", 2, 1, true], ["v2 stars 2", 2, 2, true], ["v2 stars 3", 2, 3, true],
+      ["v2 stars 0", 2, 0, false], ["v2 stars 4", 2, 4, false], ["v2 stars 1.5", 2, 1.5, false],
+      ["v2 stars \"2\"", 2, "2", false], ["v2 stars null", 2, null, false],
+      ["v1 stars 1", 1, 1, false], ["v1 stars 2", 1, 2, false],
+    ];
+    const bad: string[] = [];
+    for (const s of POOL) {
+      expect(local.isSnapshot({ ...s, v: 1 }) && netOk({ ...s, v: 1 }), `v1 ${s.hero} d${s.day}`).toBe(true);
+      for (const [name, v, stars, ok] of cases) {
+        const x = starred(s, v, stars);
+        const a = local.isSnapshot(x), b = netOk(x);
+        if (a !== ok || b !== ok) bad.push(`${s.hero} d${s.day} ${name}: local ${a}, net ${b}, want ${ok}`);
+      }
+      const two = starred(s, 2, 2) as net.GhostSnapshot;
+      expect(net.decodeSnapshot(net.encodeSnapshot(two))).toEqual(two); // the v2 round trip keeps stars
+    }
+    expect(bad).toEqual([]);
   });
 });

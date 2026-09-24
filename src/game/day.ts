@@ -6,7 +6,7 @@
 import { HEROES, RULES_VERSION, RUN_DAYS, incomeFor } from "../sim/content";
 import type { Side, SideStats } from "../sim/battle";
 import { pickGhost, standInFoe, type GhostSnapshot } from "./ghosts";
-import { playerId } from "./ghostSnapshot";
+import { playerId, SNAPSHOT_VERSION } from "./ghostSnapshot";
 import { rollShop, type DayResult, type DuskFoe, type Run } from "./run";
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -50,10 +50,11 @@ export function startDusk(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
   return f;
 }
 
-/** The player's own v1 snapshot as it fights today's dusk (wins and lives going INTO the fight). */
+/** The player's own snapshot as it fights today's dusk (wins and lives going INTO the fight).
+ *  0.6.1a: v2, whose build carries each copy's stars (absent = 1). */
 export function ghostOf(run: Run, createdAt = Date.now(), player = playerId()): GhostSnapshot {
   return {
-    v: 1, rules: RULES_VERSION, hero: run.hero, day: run.day, wins: run.wins, lives: Math.max(1, run.lives),
+    v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero: run.hero, day: run.day, wins: run.wins, lives: Math.max(1, run.lives),
     build: clone(run.build), runId: run.runId, playerId: player, createdAt: Math.max(0, Math.floor(createdAt)),
   };
 }

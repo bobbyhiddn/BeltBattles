@@ -4,7 +4,7 @@
 //
 // Budget (see docs/ASYNC.md):
 //   maxGold(day) = START_GOLD + Σ_{d=1}^{day-1} incomeFor(d, won = true)
-//   cost(build)  = Σ price(deck items) + Σ price(turret mods)
+//   cost(build)  = Σ value(deck items) + Σ value(turret mods)   (0.6.1a: value = price × 2^(stars − 1))
 //                + price(beltcrate) × ceil((beltCap − hero.belt) / beltcrate.belt)
 //                + price(plating)   × ceil(hullBonus / plating.hull)
 //   valid iff cost(build) ≤ maxGold(day)
@@ -17,7 +17,7 @@ import {
   routeInfo, routeWellFormed, type Build,
 } from "../sim/deck";
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
-import { starsOf, valueOf } from "../sim/stars";
+import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../sim/stars";
 
 export interface Validation {
   ok: boolean;
@@ -55,6 +55,32 @@ export function buildCost(b: Build): BuildCost {
 }
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
+
+/**
+ * 0.6.1a (ARSENAL-DECISIONS call 1, staged): under auto-merge two fusible modules with the same def
+ * and the same stars below FUSE_MAX can't exist. validateBuild applies this rule only while FUSE_LIVE
+ * is true. It stays FALSE until the flip commit (RULES_VERSION bb-0.6.1, stand-in pool v2, harness
+ * v2, fused captains and par decks): today those still hold pairs.
+ */
+export const FUSE_LIVE = false;
+
+/** One message per def and star level (below FUSE_MAX) held more than once, e.g. "UNFUSED PAIR: TEMPER ★1 x2".
+ *  Supplies, signature factories and unknown ids are not fusible and never count. */
+export function unfusedPairs(build: Build): string[] {
+  const n = new Map<string, number>();
+  for (const p of [...build.items, ...build.mods]) {
+    const s = starsOf(p);
+    if (!fusible(p.def) || s >= FUSE_MAX) continue;
+    n.set(`${p.def}*${s}`, (n.get(`${p.def}*${s}`) ?? 0) + 1);
+  }
+  const out: string[] = [];
+  for (const [k, c] of n) {
+    if (c < 2) continue;
+    const [def, s] = k.split("*");
+    out.push(`UNFUSED PAIR: ${ITEMS[def].name} ★${s} x${c}`);
+  }
+  return out;
+}
 
 function routeProblem(b: Build, i: number, occ: ReturnType<typeof occupancy>): string | null {
   const r = b.routes[i];
@@ -95,6 +121,15 @@ export function validateBuild(build: Build, day: number): Validation {
     uids.add(p.uid);
   }
   if (errors.length) return { ok: false, errors };
+
+  // 0.6.1a stars: an integer 1..FUSE_MAX (absent = 1; checkBuildShape already bounds it); signature
+  // factories and supplies never merge, so theirs must be absent or 1
+  for (const p of [...b.items, ...b.mods]) {
+    if (p.stars === undefined) continue;
+    if (!Number.isInteger(p.stars) || p.stars < 1 || p.stars > FUSE_MAX) errors.push(`item: uid ${p.uid} has stars ${p.stars}; expected 1..${FUSE_MAX}`);
+    else if (p.stars > 1 && !fusible(p.def)) errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have ${p.stars} stars (signatures and supplies never merge)`);
+  }
+  if (FUSE_LIVE) for (const m of unfusedPairs(b)) errors.push(`item: ${m}`);
 
   // purchasability and the signature factory
   let own = 0;
@@ -149,7 +184,7 @@ export function validateBuild(build: Build, day: number): Validation {
   });
   for (const [uid, n] of perFactory) {
     const f = b.items.find((p) => p.uid === uid);
-    const outs = f ? ITEMS[f.def].factory?.outputs ?? 1 : 1;
+    const outs = f ? outputsAt(f.def, starsOf(f)) || 1 : 1; // 0.6.1a: outputs at its stars
     if (f && n > outs) errors.push(`route: ${ITEMS[f.def].name} uid ${uid} feeds ${n} routes but has ${outs} output(s)`);
   }
   if (belt > b.beltCap) errors.push(`route: ${belt} belt tiles exceed beltCap ${b.beltCap}`);

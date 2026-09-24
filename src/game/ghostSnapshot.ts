@@ -6,7 +6,11 @@
 import { HEROES, type HeroId } from "../sim/content";
 import type { Build } from "../sim/deck";
 
-export const SNAPSHOT_VERSION = 1;
+// 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
+// build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
+// isSnapshot accepts v1 (no stars anywhere, loads as 1 star) and v2; day.ts ghostOf writes v2.
+export const SNAPSHOT_VERSION = 2;
+const MAX_STARS = 3; // = stars.ts FUSE_MAX
 /** runId, playerId: anonymous, no personal data (same pattern as the async contract). */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Where the anonymous player id lives (made once per device). */
@@ -16,7 +20,7 @@ export const MAX_DAY = 10;
 export const MAX_LIVES = 9;
 
 export interface GhostSnapshot {
-  v: 1;
+  v: 1 | 2; // 0.6.1a: 2 carries stars; 1 still loads
   rules: string; // RULES_VERSION the build fought under
   hero: HeroId;
   day: number; // 1-10
@@ -36,16 +40,26 @@ type Raw = Record<string, any>;
 
 const isInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
 
-function buildOk(b: unknown): b is Build {
+/** 0.6.1a: every item's and mod's `stars`: absent, or (v2 only) an integer 1..MAX_STARS. */
+function starsOk(list: unknown[], v: number): boolean {
+  return list.every((p) => {
+    if (!p || typeof p !== "object" || !("stars" in p)) return true;
+    const s = (p as { stars?: unknown }).stars;
+    return v >= 2 && isInt(s) && s >= 1 && s <= MAX_STARS;
+  });
+}
+
+function buildOk(b: unknown, v = SNAPSHOT_VERSION): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
-    && Array.isArray(q.mods) && typeof q.beltCap === "number" && typeof q.hullBonus === "number";
+    && Array.isArray(q.mods) && typeof q.beltCap === "number" && typeof q.hullBonus === "number"
+    && starsOk(q.items, v) && starsOk(q.mods, v);
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */
 const inRange = (v: unknown, min: number, max: number): boolean => isInt(v) && v >= min && v <= max;
 
-/** Shape check of a v1 snapshot: exactly the contract's fields, ids matching ID_PATTERN, and
+/** Shape check of a v1 or (0.6.1a) v2 snapshot: exactly the contract's fields, ids matching ID_PATTERN, and
  *  (0.6.0c) checkSnapshot's numeric bounds exactly: day 1..MAX_DAY, wins 0..day - 1, lives
  *  1..MAX_LIVES, createdAt 0..Number.MAX_SAFE_INTEGER. */
 export function isSnapshot(v: unknown): v is GhostSnapshot {
@@ -53,8 +67,8 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   if (!q || typeof q !== "object" || Array.isArray(q)) return false;
   const keys = Object.keys(q);
   if (keys.length !== SNAPSHOT_KEYS.length || !SNAPSHOT_KEYS.every((k) => keys.includes(k))) return false;
-  return q.v === 1 && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
-    && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build) && q.build.hero === q.hero
+  return (q.v === 1 || q.v === 2) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
+    && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build, q.v) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
     && ID_PATTERN.test(q.playerId) && inRange(q.createdAt, 0, Number.MAX_SAFE_INTEGER);
 }
@@ -66,7 +80,8 @@ export function toId(s: unknown, fallback = "anon"): string {
 }
 
 /**
- * One pool entry up to v1, or null. A v1 entry is kept as it is; a 0.6.0a entry ({ v: 1,
+ * One pool entry up to v1 or v2, or null. A v1 or v2 entry is kept as it is (0.6.1a: v1 is NOT
+ * rewritten to v2; its copies load as 1 star); a 0.6.0a entry ({ v: 1,
  * rulesVersion, losses, savedAt, ... }) becomes { rules, createdAt, playerId } with this device's
  * player id (the local pool holds this player's own earlier runs) and loses its `losses` field.
  */

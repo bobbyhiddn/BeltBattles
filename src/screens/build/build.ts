@@ -31,6 +31,8 @@ export class BuildScreen implements Screen, EditHost {
   run: Run;
   /** REFIT after a road event (0.5.0): the deck and cargo only; the caravan has moved on. */
   readonly refit: boolean;
+  /** 0.6.1a: the build screen shows the save-migration notice ("YOUR SPARE PARTS MERGED"). */
+  readonly mergeNotice = true;
   L: BuildLayout;
   readonly wfx = new Fx();
   readonly ufx = new Fx();

@@ -17,7 +17,7 @@ import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordR
 import { starField, starsOf } from "../sim/stars";
 import { gainModule, mergePreview, type Gain, type GainAt } from "./fuse";
 
-export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5 } from "./save";
+export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6 } from "./save";
 export type { PendingBounty, PendingSabotage, RoadChoice, RoadPick, WarlordFight, WarlordOutcome, WarlordResult, WarlordReward } from "./roadTypes";
 
 export interface InvItem {
@@ -110,7 +110,7 @@ export interface Run {
   fuseFx?: string[]; // 0.6.1a, cosmetic: merge toasts the build screen shows next ("MERGED: TEMPER ★2")
 }
 
-export const RUN_VERSION = 6;
+export const RUN_VERSION = 7; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once)
 
 let runCounter = 0;
 /** A fresh run id: the seed plus the clock and a session counter (unique across quick restarts). */
