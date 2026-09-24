@@ -285,7 +285,13 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
     const p = itemByUid(b, info.gates[gi]);
     if (p) gateAt.set(ci, effectAt(p.def, starsOf(p))); // 0.6.1a: the same star spec as Battle.makeSide
   });
-  let time = 0, ride = 0, speed = 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
+  const fixed = ammo.fixedSpeed; // 0.6.1c SLAG: rides at its fixed speed whatever the speed gates (Battle.transport)
+  let time = 0, ride = 0, speed = fixed ?? 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
+  // 0.6.1c HOT SWAP: its slugs alternate EMBER and SPARK, so the walk shows the ember's Burn and the spark's Shock
+  for (const pr of fs?.cycle ?? []) {
+    if (pr.burn) burn = Math.max(burn, pr.burn);
+    if (pr.shock) shock = true;
+  }
   // walk cell by cell: half cell entering, gate at the centre, half cell leaving
   const n = r.cells.length;
   for (let i = 0; i < n; i++) {
@@ -304,7 +310,7 @@ export function estimateRoute(b: Build, index: number): RouteEstimate {
         mult *= e.split.mult;
         flat *= e.split.mult;
       }
-      if (e.speed && !speedLocked(b.hero)) speed = e.speed; // races: METRONOME belts ignore speed states
+      if (e.speed && !speedLocked(b.hero) && fixed === undefined) speed = e.speed; // races: METRONOME belts ignore speed states
       prior++;
     }
     const last = i === n - 1;

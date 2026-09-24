@@ -8,6 +8,14 @@ import { Battle } from "../src/sim/battle";
 import { DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, WINDOW_TIME, type HarassCause } from "../src/sim/content";
 import { key, type Build } from "../src/sim/deck";
 import { barge, bench, busy, coilStall, est, finishers, pressDps, pressOnly, run, SEED, turretStall } from "./arsenal.bench";
+import { batchGaps, factoryBench, factoryLight, factoryOut, gantryBench, gantryWeaver, stamps } from "./arsenal.bench"; // 0.6.1c
+import type { Payload } from "../src/sim/battle";
+import { AMMO_SPACING, BELT_SPEED } from "../src/sim/content";
+import { effectAt, outputsAt, starsOf } from "../src/sim/stars";
+import { overclocked } from "../src/sim/overclock";
+import { routeProblems } from "../src/game/routeCheck";
+import { gainModule } from "../src/game/fuse";
+import { newRun } from "../src/game/run";
 
 type Metric = number | number[];
 export interface Row { id: string; headline: string; band?: [number, number]; at: (stars: number) => Metric }
@@ -62,8 +70,27 @@ export function checkRow(r: Row): void {
   expect(m3 / m1, `${r.id} 3/1`).toBeLessThanOrEqual(b3 * 1.15);
 }
 
+/** 0.6.1c's six factories (catalogue.json headline and ratio; the output bench of tests/arsenal.bench.ts factoryOut). */
+export const FACTORY_ROWS: Row[] = [
+  { id: "doublestamp", headline: "Output dps (batch x base / interval)", band: [2.3, 3.5], at: (s) => factoryOut("doublestamp", s).dps },
+  { id: "shottower", headline: "Output dps (3 shots x base / interval)", band: [2.2, 3.5], at: (s) => factoryOut("shottower", s).dps },
+  // the headline's Burn 2 / 4 / 7 on each ember slug (interval and spark stall have their own asserts below)
+  { id: "hotswap", headline: "Burn per ember slug", band: [2.0, 3.5], at: (s) => est(factoryBench("hotswap", s, { only: true }), 0).burn },
+  { id: "slagpot", headline: "Output dps (base / interval)", band: [2.2, 3.4], at: (s) => factoryOut("slagpot", s).dps },
+  // x0.5 / x0.25 / x0: the share of commissioning time saved, read off the Kiln route's two gates
+  { id: "assembly", headline: "Commissioning time saved (1 - factor)", band: [1.5, 2.0], at: (s) => commissionSaved(s) },
+  { id: "gantry", headline: "Output dps, all outputs (base / interval)", band: [1.7, 3.4], at: (s) => factoryOut("gantry", s).dps },
+];
+
+const KILN_GATES: [string, number, number, number][] = [["whetstone", 4, 4, 1], ["whetstone", 4, 2, 1]];
+function commissionSaved(stars: number): number {
+  const at = (b: Build) => new Battle(b, barge(), SEED).sides[0].gates.filter((g) => g.x === 4).map((g) => g.commissionAt);
+  const base = at(bench(KILN_GATES)), got = at(factoryBench("assembly", stars, { gates: KILN_GATES }));
+  return 1 - got.reduce((a, b) => a + b, 0) / base.reduce((a, b) => a + b, 0);
+}
+
 describe("per-module benches: the headline metric rises 1 < 2 < 3 stars, within the catalogue's band", () => {
-  for (const r of [...LIVE_ROWS, ...WAVE1_ROWS]) it(`${r.id}: ${r.headline}`, () => checkRow(r));
+  for (const r of [...LIVE_ROWS, ...WAVE1_ROWS, ...FACTORY_ROWS]) it(`${r.id}: ${r.headline}`, () => checkRow(r));
   it("finishers() sees no finisher without FINISHER RAM", () => expect(finishers(busy()).fins).toBe(0));
 });
 
@@ -246,5 +273,194 @@ describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
       expect(f.fins).toBe(0);
       expect(f.damage).toBe(finishers(busy([["gatling", 1]])).damage);
     }
+  });
+});
+
+// 0.6.1c: the six wave-1 factories' special rules (brief 0.6.1c "Tests"; catalogue.json mechanic and simHook)
+const SPACING_S = AMMO_SPACING / BELT_SPEED; // a batch slug leaves the mouth once the one before has ridden 7 px
+
+describe("0.6.1c: the six factories' special rules", () => {
+  it("DOUBLE STAMP: the batch's other slugs wait in the mouth and leave AMMO_SPACING apart, right behind the first; TRIPLE DIES = 3", () => {
+    for (const s of [1, 2, 3]) {
+      const batch = s === 3 ? 3 : 2;
+      const bt = new Battle(factoryLight("doublestamp", s), barge(), SEED);
+      let first = false;
+      while (bt.t < 1 && !first) { bt.step(); first = bt.drainEvents().some((e) => e.type === "produce" && e.side === 0); }
+      expect(bt.sides[0].factories.find((f) => f.uid === 7)!.pending, `${s}: queued in the mouth`).toBe(batch - 1);
+      const o = factoryOut("doublestamp", s);
+      const gaps = batchGaps(o, effectAt("doublestamp", s).factory!.interval);
+      const cycles = o.produced - gaps.length;
+      expect(gaps.length, `${s} gaps`).toBeGreaterThanOrEqual((batch - 1) * (cycles - 1));
+      for (const g of gaps) expect(Math.abs(g - SPACING_S), `${s} gap ${g}`).toBeLessThan(1.5 / 60);
+      expect(o.bases).toEqual([s === 1 ? 3 : 5]);
+    }
+  });
+
+  it("SHOT TOWER: 3 shots per cycle at 1 / 2 / 3 damage, and a per-payload gate (TEMPER) hits each shot", () => {
+    expect([1, 2, 3].map((s) => factoryOut("shottower", s).bases)).toEqual([[1], [2], [3]]);
+    for (const s of [1, 2, 3]) {
+      const o = factoryOut("shottower", s);
+      expect(o.produced - batchGaps(o, effectAt("shottower", s).factory!.interval).length, `${s}: cycles`).toBe(Math.ceil(o.produced / 3));
+    }
+    let processed = 0, fired = 0;
+    const burns = new Set<number>(), seen = new Set<number>();
+    const bt = run(factoryBench("shottower", 1, { only: true, gates: [["temper", 5, 3, 1]] }), 20, barge(), SEED, (ev, b) => {
+      for (const e of ev) if (e.type === "process" && e.side === 0 && e.def === "temper") processed++;
+      for (const pr of b.projectiles) if (pr.from === 0 && !seen.has(pr.id)) { seen.add(pr.id); fired++; burns.add(pr.payload.burn); }
+    });
+    expect(fired).toBeGreaterThan(8); // the heavy chamber (1 a second, jamming on 2 shots a second) fires 12 in 20 s
+    expect([...burns]).toEqual([2]); // every shot fired carries TEMPER's 2 Burn
+    expect(processed).toBeGreaterThanOrEqual(fired);
+    expect(processed).toBeLessThanOrEqual(bt.sides[0].stats.produced);
+  });
+
+  it("HOT SWAP: EMBER then SPARK in turn at 1.5 / 1.3 / 1.1 s; Burn 2 / 4 / 7; Shock 1.6 s (DISRUPT_TIME), 1.8 s + jump, 2.8 s + jump", () => {
+    const burn = [2, 4, 7], stall = [undefined, 1.8, 2.8], jump = [undefined, 1, 1];
+    for (const s of [1, 2, 3]) {
+      const seen = new Map<number, Payload>();
+      run(factoryLight("hotswap", s), 12, barge(), SEED, (_ev, bt) => {
+        for (const r of bt.sides[0].routes) for (const a of r.ammo) if (!seen.has(a.p.id)) seen.set(a.p.id, { ...a.p });
+      });
+      const ps = [...seen.values()].sort((a, b) => a.id - b.id);
+      expect(ps.length).toBeGreaterThan(6);
+      ps.forEach((p, i) => {
+        const ember = i % 2 === 0;
+        expect(p.preset, `${s} #${i}`).toBe(ember ? "ember" : "spark");
+        expect([p.burn, p.shock, p.shockTime, p.jump]).toEqual(ember ? [burn[s - 1], false, undefined, undefined] : [0, true, stall[s - 1], jump[s - 1]]);
+      });
+      const t = factoryOut("hotswap", s).times, iv = effectAt("hotswap", s).factory!.interval;
+      for (let i = 1; i < t.length; i++) expect(Math.abs(t[i] - t[i - 1] - iv)).toBeLessThan(1.5 / 60);
+    }
+    expect(DISRUPT_TIME).toBe(1.6);
+  });
+
+  it("HOT SWAP: its sparks stall the machine they hit for 1.6 / 1.8 / 2.8 s, and at 2-3 stars SPARK JUMP stalls a second one", () => {
+    for (const s of [1, 2, 3]) {
+      const stalls = new Set<number>();
+      let maxPerTick = 0;
+      run(factoryLight("hotswap", s), 30, barge(), SEED, (ev, bt) => {
+        let n = 0;
+        for (const e of ev) {
+          if (e.type !== "disrupt" || e.side !== 1) continue;
+          const f = bt.sides[1];
+          const secs = e.kind === "gate" ? f.gates.find((g) => g.uid === e.ref)?.disrupted : e.kind === "factory" ? f.factories.find((x) => x.uid === e.ref)?.disrupted
+            : e.kind === "turret" ? f.turrets[e.ref]?.disrupted : f.routes[e.ref]?.cellDisrupt[e.cell];
+          stalls.add(+(secs ?? 0).toFixed(3));
+          n++;
+        }
+        maxPerTick = Math.max(maxPerTick, n);
+      });
+      expect([...stalls], `${s}`).toEqual([[1.6, 1.8, 2.8][s - 1]]);
+      expect(maxPerTick >= 2, `${s} jump`).toBe(s > 1);
+    }
+  });
+
+  it("SLAG POT: slag rides at a fixed 0.75x under GREASE WORKS and BRAKE SHOE (estimate and sim), and the gates still process it", () => {
+    const probe = (g: [string, number, number, number][]) => {
+      const b = factoryBench("slagpot", 1, { only: true, gates: g });
+      let first = -1, processed = 0;
+      run(b, 12, barge(), SEED, (ev, bt) => {
+        for (const e of ev) {
+          if (e.type === "load" && e.side === 0 && first < 0) first = bt.t;
+          if (e.type === "process" && e.side === 0) processed++;
+        }
+      });
+      return { first, est: est(b, 0).time, processed };
+    };
+    const none = probe([]), grease = probe([["grease", 5, 4, 1]]), brake = probe([["brake", 5, 4, 1]]);
+    expect(none.first).toBeGreaterThan(0);
+    expect([grease.first, brake.first]).toEqual([none.first, none.first]);
+    expect([grease.est, brake.est]).toEqual([none.est, none.est]);
+    expect(grease.processed).toBeGreaterThan(0);
+    expect(brake.processed).toBeGreaterThan(0);
+    const press = (g: [string, number, number, number][]) => est(factoryBench("press", 1, { only: true, gates: g }), 0).time;
+    expect(press([["grease", 5, 4, 1]])).toBeLessThan(press([])); // a plain slug on the same belt does feel them
+    expect(press([["brake", 5, 4, 1]])).toBeGreaterThan(press([]));
+    expect(none.est).toBeCloseTo(press([]) / 0.75, 9);
+    expect([1, 2, 3].map((s) => factoryOut("slagpot", s).bases)).toEqual([[7], [12], [15]]);
+  });
+
+  const GATES: [string, number, number, number][] = [["whetstone", 4, 4, 1], ["whetstone", 4, 2, 1], ["whetstone", 5, 3, 1]];
+  const gatesOf = (b: Build) => new Battle(b, barge(), SEED).sides[0].gates.map((g) => [g.x, g.y, +g.commissionAt.toFixed(9), g.hotUntil]);
+
+  it("ASSEMBLY LINE: every gate's commissionAt x0.5 / x0.25 / x0, its own belt's gates online at 0 s; without one, as before", () => {
+    expect(gatesOf(factoryBench("press", 1, { gates: GATES }))).toEqual([[4, 4, 1.2, undefined], [4, 2, 1.8, undefined], [5, 3, 1.2, undefined]]);
+    [0.5, 0.25, 0].forEach((f, i) => {
+      expect(gatesOf(factoryBench("assembly", i + 1, { gates: GATES }))).toEqual([
+        [4, 4, +(1.2 * f).toFixed(9), undefined], [4, 2, +(1.8 * f).toFixed(9), undefined], [5, 3, 0, i === 2 ? 4 : undefined],
+      ]);
+    });
+    // an Assembly Line off any belt runs nothing, so it changes nothing
+    const idle = factoryBench("assembly", 3, { gates: GATES });
+    idle.routes.pop();
+    expect(gatesOf(idle)).toEqual([[4, 4, 1.2, undefined], [4, 2, 1.8, undefined], [5, 3, Infinity, undefined]]);
+  });
+
+  it("ASSEMBLY LINE: the best factor wins with two on one deck (a ★1 and a ★2 on a Weaver: the Loom's gate at x0.25)", () => {
+    const b: Build = {
+      hero: "weaver", mods: [], beltCap: 30, hullBonus: 0,
+      items: [{ uid: 1, def: "loom", x: 0, y: 6 }, { uid: 7, def: "assembly", x: 4, y: 6 }, { uid: 8, def: "assembly", x: 7, y: 6, stars: 2 }, { uid: 10, def: "whetstone", x: 1, y: 3 }],
+      routes: [
+        { factory: 1, cells: [K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(1, 1), K(1, 0)] },
+        { factory: 7, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+        { factory: 8, cells: [K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)] },
+      ],
+    };
+    expect(routeProblems(b)).toEqual([]);
+    expect(gatesOf(b)).toEqual([[1, 3, 0.3, undefined]]);
+  });
+
+  it("ASSEMBLY LINE ★3 HOT START: its belt's gates apply twice for the first 4 s (WHETSTONE +4, then +2); never at 1-2 stars", () => {
+    for (const s of [1, 2, 3]) {
+      const flats: [number, number][] = [];
+      const done = new Set<number>();
+      run(factoryBench("assembly", s, { only: true, gates: [["whetstone", 5, 3, 1]] }), 10, barge(), SEED, (_ev, bt) => {
+        for (const a of bt.sides[0].routes[0].ammo) if (a.processed >= 3 && !done.has(a.p.id)) { done.add(a.p.id); flats.push([bt.t, a.p.flat]); }
+      });
+      expect(flats.length).toBeGreaterThan(3);
+      for (const [t, f] of flats) expect(f, `${s} at ${t}`).toBe(s === 3 && t < 4 ? 4 : 2);
+      if (s === 3) expect(flats.filter(([t]) => t < 4).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("overclock.ts (ARSENAL.md §3.4): Burn, flat and per-prior-gate double; a SPLITTER makes one extra copy; speed gates and Shock unchanged", () => {
+    expect(overclocked({ burn: 2 })).toEqual({ burn: 4 });
+    expect(overclocked({ flat: 2 })).toEqual({ flat: 4 });
+    expect(overclocked({ perPriorGate: 4, priorCap: 6 })).toEqual({ perPriorGate: 8, priorCap: 6 });
+    expect(overclocked({ split: { copies: 2, mult: 0.6 } })).toEqual({ split: { copies: 3, mult: 0.6 } });
+    expect(overclocked({ speed: 5, flat: 3 })).toEqual({ speed: 5, flat: 3 }); // OVERDRIVE ★3 is a speed gate: skipped
+    expect(overclocked({ shock: true, shockTime: 1.8, jump: 1 })).toEqual({ shock: true, shockTime: 1.8, jump: 1 });
+  });
+
+  it("GANTRY PRESS: outputs 2 / 3 (THIRD ARM) / 3; its third route is illegal at 1 star, legal at 2-3; every route fed in turn", () => {
+    expect([1, 2, 3].map((s) => outputsAt("gantry", s))).toEqual([2, 3, 3]);
+    for (const s of [1, 2, 3]) {
+      const b = gantryWeaver(s, 3);
+      expect(routeProblems(b).map((p) => p.route), `${s}`).toEqual(s === 1 ? [2] : []);
+      const st = stamps(b);
+      expect(Math.min(...st.perRoute), `${s}`).toBeGreaterThan(5);
+      expect(Math.max(...st.perRoute) - Math.min(...st.perRoute)).toBeLessThanOrEqual(1);
+      expect(st.bases).toEqual([s === 3 ? 6 : 3]);
+    }
+  });
+
+  it("merging: a placed factory with belts survives a bought copy and keeps its routes; the ★2 Gantry's third route is then legal", () => {
+    for (const def of ["doublestamp", "shottower", "hotswap", "slagpot", "assembly", "gantry"]) {
+      const r = newRun("furnace", 7, "fuse-061c");
+      r.build = def === "gantry" ? gantryBench(1, [], 0) : factoryBench(def, 1, { hullBonus: 0 });
+      const routes = JSON.stringify(r.build.routes);
+      gainModule(r, def);
+      const f = r.build.items.filter((p) => p.def === def);
+      expect(f.map((p) => [p.uid, starsOf(p)]), def).toEqual([[7, 2]]);
+      expect(JSON.stringify(r.build.routes), def).toBe(routes);
+      expect(r.inventory.some((i) => i.def === def), def).toBe(false);
+      expect(routeProblems(r.build), def).toEqual([]);
+    }
+    const w = newRun("weaver", 7, "fuse-061c-gantry");
+    w.build = gantryWeaver(1, 3);
+    expect(routeProblems(w.build).map((p) => p.route)).toEqual([2]); // 1 star: two outputs
+    gainModule(w, "gantry");
+    expect(starsOf(w.build.items.find((p) => p.def === "gantry"))).toBe(2);
+    expect(routeProblems(w.build)).toEqual([]); // THIRD ARM
   });
 });
