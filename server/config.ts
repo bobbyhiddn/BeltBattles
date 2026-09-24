@@ -8,6 +8,8 @@
 //   BB_GHOST_ORIGINS  CORS allow-list, comma-separated (default the local Shore)      --origins
 //   BB_GHOST_RATE     requests per minute per client IP (default 120)                 --rate
 //   BB_GHOST_UPLOADS  open | closed (default open): closed answers POST /v1/ghosts with 403
+//   BB_GHOST_TRUST_PROXY  fly | none (default none): fly takes the client IP from Fly-Client-IP,
+//                     then the first X-Forwarded-For hop; none ignores both headers
 //   tigris store: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, AWS_REGION and
 //   BUCKET_NAME (the secrets `fly storage create` sets on the app), plus
 //   BB_GHOST_S3_ADDRESSING virtual | path (default virtual) and
@@ -39,6 +41,7 @@ export interface Config {
   origins: string[];
   rate: number;
   uploads: "open" | "closed";
+  trustProxy: "fly" | "none";
   store: StoreConfig;
 }
 
@@ -106,6 +109,7 @@ export function readConfig(argv: readonly string[], env: Env): Config {
       .split(",").map((s) => s.trim()).filter(Boolean),
     rate: int(flag(argv, "rate") ?? env.BB_GHOST_RATE ?? "120", "rate (--rate, BB_GHOST_RATE)", 1, 1_000_000),
     uploads: oneOf(env, "BB_GHOST_UPLOADS", ["open", "closed"] as const, "open"),
+    trustProxy: oneOf(env, "BB_GHOST_TRUST_PROXY", ["fly", "none"] as const, "none"),
     store,
   };
 }

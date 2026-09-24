@@ -33,10 +33,10 @@ try {
 function serve(): void {
   const app = createGhostServer({
     store: openStore(cfg.store, log), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log,
-    uploads: cfg.uploads,
+    uploads: cfg.uploads, trustProxy: cfg.trustProxy,
   });
   app.listen(cfg.port, cfg.host).then(
-    (p) => log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}, uploads ${cfg.uploads}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per IP`),
+    (p) => log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}, uploads ${cfg.uploads}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per ${cfg.trustProxy === "fly" ? "client IP (Fly-Client-IP)" : "socket IP"}`),
     (e: unknown) => fail(`cannot listen on ${cfg.host}:${cfg.port}: ${message(e)}`, 1),
   );
   for (const sig of ["SIGINT", "SIGTERM"] as const) {

@@ -36,6 +36,12 @@ describe("server config", () => {
     expect(configError([], { BB_GHOST_UPLOADS: "shut" })).toMatch(/BB_GHOST_UPLOADS must be one of open, closed/);
   });
 
+  it("proxy headers are ignored unless BB_GHOST_TRUST_PROXY=fly", () => {
+    expect(readConfig([], {}).trustProxy).toBe("none");
+    expect(readConfig([], { BB_GHOST_TRUST_PROXY: "fly" }).trustProxy).toBe("fly");
+    expect(configError([], { BB_GHOST_TRUST_PROXY: "yes" })).toMatch(/BB_GHOST_TRUST_PROXY must be one of fly, none/);
+  });
+
   it("BB_GHOST_STORE=tigris reads the five variables `fly storage create` sets; virtual-hosted unless told otherwise", () => {
     const c = readConfig([], TIGRIS);
     expect(c.store).toMatchObject({

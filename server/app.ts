@@ -34,6 +34,12 @@ export interface ServerOptions {
    * Production runs closed until signed writes and the player budget ceiling land (0.7.0).
    */
   uploads?: "open" | "closed";
+  /**
+   * Whose address the rate limit and the request log use. "fly" (behind Fly's proxy): the
+   * Fly-Client-IP header, then the first X-Forwarded-For hop, then the socket address.
+   * Default "none": the socket address only; both headers are ignored, so nobody can spoof them.
+   */
+  trustProxy?: "fly" | "none";
 }
 
 export interface GhostServer {
@@ -116,6 +122,24 @@ class RateLimiter {
   }
 }
 
+const IP_TEXT = /^[0-9A-Fa-f:.]{2,45}$/; // an IPv4 or IPv6 literal; anything else is ignored
+
+function firstHeader(req: IncomingMessage, name: string): string {
+  const v = req.headers[name];
+  return (Array.isArray(v) ? v[0] ?? "" : v ?? "").trim();
+}
+
+/** The client address for the rate limit and the request log (see ServerOptions.trustProxy). */
+export function clientIp(req: IncomingMessage, trust: "fly" | "none" = "none"): string {
+  const socket = req.socket.remoteAddress ?? "unknown";
+  if (trust !== "fly") return socket;
+  const fly = firstHeader(req, "fly-client-ip");
+  if (IP_TEXT.test(fly)) return fly;
+  const hop = firstHeader(req, "x-forwarded-for").split(",")[0].trim();
+  if (IP_TEXT.test(hop)) return hop;
+  return socket;
+}
+
 function intParam(q: URLSearchParams, name: string, min: number, max: number): number {
   const v = q.get(name);
   if (v === null || !/^\d{1,4}$/.test(v) || Number(v) < min || Number(v) > max) {
@@ -155,6 +179,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const salt = opts.matchSalt ?? (() => Math.floor(Date.now() / 60_000));
   const store = opts.store ?? openJsonl(opts.dataDir, log);
   const uploads = opts.uploads ?? "open";
+  const trustProxy = opts.trustProxy ?? "none";
   const started = Date.now();
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -197,7 +222,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
 
   const server = createServer((req, res) => {
     const t0 = Date.now();
-    const ip = req.socket.remoteAddress ?? "unknown";
+    const ip = clientIp(req, trustProxy); // the rate limit's key and the log's address
     const url = new URL(req.url ?? "/", "http://ghost.local");
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
     const allowed = origin !== "" && origins.has(origin);
