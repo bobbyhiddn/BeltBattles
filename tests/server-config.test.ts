@@ -36,6 +36,12 @@ describe("server config", () => {
     expect(configError([], { BB_GHOST_UPLOADS: "shut" })).toMatch(/BB_GHOST_UPLOADS must be one of open, closed/);
   });
 
+  it("serves no page unless BB_GHOST_STATIC (or --static) names a directory", () => {
+    expect(readConfig([], {}).staticDir).toBeUndefined();
+    expect(readConfig([], { BB_GHOST_STATIC: "/app/public" }).staticDir).toBe("/app/public");
+    expect(readConfig(["--static", "/srv/page"], { BB_GHOST_STATIC: "/app/public" }).staticDir).toBe("/srv/page");
+  });
+
   it("proxy headers are ignored unless BB_GHOST_TRUST_PROXY=fly", () => {
     expect(readConfig([], {}).trustProxy).toBe("none");
     expect(readConfig([], { BB_GHOST_TRUST_PROXY: "fly" }).trustProxy).toBe("fly");

@@ -7,13 +7,17 @@
 //   POST /v1/ghosts                 body: canonical GhostSnapshot JSON  -> 201 { id } (200 if already stored)
 //                                   403 { error } while uploads are closed (the body is not read)
 //   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2 -> 200 { id, snapshot } | 404
+//   GET|HEAD / and /index.html      the game page, when staticDir (BB_GHOST_STATIC) is set
 
+import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { join } from "node:path";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, SnapshotError } from "../src/net/snapshot";
 import { validateBuild } from "../src/net/validate";
+import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
@@ -40,6 +44,12 @@ export interface ServerOptions {
    * Default "none": the socket address only; both headers are ignored, so nobody can spoof them.
    */
   trustProxy?: "fly" | "none";
+  /**
+   * Serve <staticDir>/index.html (the single-file game) at GET and HEAD / and /index.html, from
+   * the same HTTPS origin as the API. Read once, now; a missing file throws. Other paths outside
+   * /v1 stay 404.
+   */
+  staticDir?: string;
 }
 
 export interface GhostServer {
@@ -164,6 +174,42 @@ export function parseMatchQuery(q: URLSearchParams): MatchRequest {
   };
 }
 
+interface Page {
+  file: string;
+  body: Uint8Array;
+  etag: string;
+}
+
+/** Read the game page once. The error names the file and what is expected, nothing else. */
+export function loadPage(dir: string): Page {
+  const file = join(dir, "index.html");
+  let body: Uint8Array;
+  try {
+    body = readFileSync(file);
+  } catch (e) {
+    const code = (e as { code?: unknown }).code;
+    throw new Error(`static page: cannot read ${file}${typeof code === "string" ? ` (${code})` : ""}; BB_GHOST_STATIC must be a directory holding index.html`);
+  }
+  return { file, body, etag: `"${sha256Hex(body).slice(0, 32)}"` };
+}
+
+function sendPage(req: IncomingMessage, res: ServerResponse, page: Page, head: boolean): void {
+  res.setHeader("content-type", "text/html; charset=utf-8");
+  res.setHeader("cache-control", "no-cache"); // revalidate every time: a deploy is seen at once
+  res.setHeader("x-content-type-options", "nosniff");
+  res.setHeader("referrer-policy", "no-referrer");
+  res.setHeader("etag", page.etag);
+  const inm = firstHeader(req, "if-none-match").split(",").map((t) => t.trim().replace(/^W\//, ""));
+  if (inm.includes(page.etag)) {
+    res.statusCode = 304;
+    res.end();
+    return;
+  }
+  res.statusCode = 200;
+  res.setHeader("content-length", page.body.length);
+  res.end(head ? undefined : page.body);
+}
+
 function openJsonl(dataDir: string | undefined, log: (line: string) => void): JsonlStore {
   if (dataDir === undefined) throw new Error("createGhostServer: pass a store or a dataDir");
   const store = new JsonlStore(dataDir);
@@ -180,6 +226,8 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const store = opts.store ?? openJsonl(opts.dataDir, log);
   const uploads = opts.uploads ?? "open";
   const trustProxy = opts.trustProxy ?? "none";
+  const page = opts.staticDir === undefined ? null : loadPage(opts.staticDir);
+  if (page) log(`serving the game page ${page.file} (${page.body.length} bytes) at / and /index.html`);
   const started = Date.now();
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -215,6 +263,11 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         if (!hit) throw new HttpError(404, "no ghost for this rules version and day yet");
         return send(res, 200, { id: hit.id, snapshot: hit.snapshot });
       }
+      case "/":
+      case "/index.html":
+        if (!page) throw new HttpError(404, "not found");
+        if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "use GET or HEAD");
+        return sendPage(req, res, page, method === "HEAD");
       default:
         throw new HttpError(404, "not found");
     }

@@ -1,4 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { encodeSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
@@ -91,6 +94,68 @@ describe("rate limit behind Fly's proxy", () => {
     const lines = logs.filter((l) => l.includes("/v1/health"));
     expect(lines).toHaveLength(3);
     for (const l of lines) expect(l).toMatch(/Z (127\.0\.0\.1|::ffff:127\.0\.0\.1) GET \/v1\/health /);
+  });
+});
+
+describe("the game page from the same origin", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bb-static-"));
+  const html = "<!doctype html><title>BeltBattles</title><p>Förderband ⚙</p>\n"; // multi-byte: length is bytes
+  const bytes = new TextEncoder().encode(html).length;
+  let app: GhostServer;
+  let base: string;
+  beforeAll(async () => {
+    writeFileSync(join(dir, "index.html"), html);
+    app = createGhostServer({ store: tigrisFor(fakeForLimits), staticDir: dir, log: () => {} });
+    base = await started(app);
+    writeFileSync(join(dir, "index.html"), "<p>changed after start</p>"); // read once: this is never served
+  });
+  afterAll(async () => {
+    await app.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("serves index.html at GET / and /index.html with the agreed headers, read once at start", async () => {
+    for (const path of ["/", "/index.html"]) {
+      const r = await fetch(`${base}${path}`);
+      expect(r.status).toBe(200);
+      expect(r.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(r.headers.get("cache-control")).toBe("no-cache");
+      expect(r.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(r.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(r.headers.get("content-security-policy")).toBeNull(); // no CSP in this pass
+      expect(r.headers.get("content-length")).toBe(String(bytes));
+      expect(await r.text()).toBe(html);
+    }
+  });
+
+  it("answers HEAD with the headers and no body, revalidation with 304, other methods with 405, other paths with 404", async () => {
+    const head = await fetch(`${base}/`, { method: "HEAD" });
+    expect(head.status).toBe(200);
+    expect(head.headers.get("content-length")).toBe(String(bytes));
+    expect(head.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await head.text()).toBe("");
+    const etag = head.headers.get("etag")!;
+    expect(etag).toMatch(/^"[0-9a-f]{32}"$/);
+    const again = await fetch(`${base}/`, { headers: { "if-none-match": etag } });
+    expect(again.status).toBe(304);
+    expect(await again.text()).toBe("");
+    expect((await fetch(`${base}/`, { method: "POST", body: "x" })).status).toBe(405);
+    for (const path of ["/index.htm", "/game.html", "/favicon.ico", "/public/index.html", "/v1", "/v1/nope"]) {
+      expect((await fetch(`${base}${path}`)).status, path).toBe(404);
+    }
+    expect((await fetch(`${base}/v1/health`)).status).toBe(200);
+  });
+
+  it("a missing index.html stops the start with a clear error; without the option / stays 404", async () => {
+    const empty = mkdtempSync(join(tmpdir(), "bb-static-empty-"));
+    expect(() => createGhostServer({ store: tigrisFor(fakeForLimits), staticDir: empty, log: () => {} }))
+      .toThrow(new RegExp(`static page: cannot read ${join(empty, "index.html").replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")} \\(ENOENT\\); BB_GHOST_STATIC must be a directory holding index.html`));
+    rmSync(empty, { recursive: true, force: true });
+    const plain = createGhostServer({ store: tigrisFor(fakeForLimits), log: () => {} });
+    const pb = await started(plain);
+    const r = await fetch(`${pb}/`);
+    await plain.close();
+    expect(r.status).toBe(404);
   });
 });
 

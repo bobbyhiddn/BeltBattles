@@ -1,6 +1,6 @@
 // Ghost server CLI. Build with `npm run build:server`, then:
 //   node server/dist/ghost-server.mjs [serve] [--port 7790] [--host 127.0.0.1] [--data ./ghost-data]
-//                                     [--origins http://127.0.0.1:7778,...] [--rate 120]
+//                                     [--origins http://127.0.0.1:7778,...] [--rate 120] [--static dir]
 //   node server/dist/ghost-server.mjs seed   write the bundled sample pool into the configured store
 //                                            (the Fly release_command): prints written, unchanged
 //                                            and removed counts; exit 1 on any failure
@@ -8,7 +8,7 @@
 // variables, is documented in config.ts; a bad one stops the start with exit code 2.
 
 import { RULES_VERSION } from "../src/sim/content";
-import { createGhostServer } from "./app";
+import { createGhostServer, type GhostServer } from "./app";
 import { ConfigError, openStore, readConfig, type Config } from "./config";
 
 const log = (line: string) => console.log(line);
@@ -31,10 +31,15 @@ try {
 }
 
 function serve(): void {
-  const app = createGhostServer({
-    store: openStore(cfg.store, log), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log,
-    uploads: cfg.uploads, trustProxy: cfg.trustProxy,
-  });
+  let app: GhostServer;
+  try {
+    app = createGhostServer({
+      store: openStore(cfg.store, log), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log,
+      uploads: cfg.uploads, trustProxy: cfg.trustProxy, staticDir: cfg.staticDir,
+    });
+  } catch (e) {
+    fail(e, 2); // e.g. BB_GHOST_STATIC without an index.html
+  }
   app.listen(cfg.port, cfg.host).then(
     (p) => log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}, uploads ${cfg.uploads}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per ${cfg.trustProxy === "fly" ? "client IP (Fly-Client-IP)" : "socket IP"}`),
     (e: unknown) => fail(`cannot listen on ${cfg.host}:${cfg.port}: ${message(e)}`, 1),
