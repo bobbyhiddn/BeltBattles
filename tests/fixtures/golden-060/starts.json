@@ -1,0 +1,111 @@
+{
+ "entries": [
+  {
+   "key": "start/furnace",
+   "hero": "furnace",
+   "day": 1,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 1,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 1,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 0
+   },
+   "opp": "par/weaver/1",
+   "seed": 60600,
+   "winner": 1,
+   "t": 31.383333333332832,
+   "ticks": 1883,
+   "hulls": [
+    -5.7666666666664685,
+    15.593333333333607
+   ]
+  },
+  {
+   "key": "start/weaver",
+   "hero": "weaver",
+   "day": 1,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 1,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 1,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 1,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 1,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 0
+   },
+   "opp": "par/furnace/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 31.383333333332832,
+   "ticks": 1883,
+   "hulls": [
+    15.593333333333607,
+    -5.7666666666664685
+   ]
+  }
+ ]
+}

@@ -1,0 +1,11180 @@
+{
+ "entries": [
+  {
+   "key": "rival/sootjaw/1",
+   "hero": "furnace",
+   "day": 1,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -27
+   },
+   "opp": "par/weaver/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 27.96666666666636,
+   "ticks": 1678,
+   "hulls": [
+    8.033333333333346,
+    -1.1266666666664333
+   ]
+  },
+  {
+   "key": "rival/sootjaw/2",
+   "hero": "furnace",
+   "day": 2,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -16
+   },
+   "opp": "par/weaver/2",
+   "seed": 60600,
+   "winner": 0,
+   "t": 27.96666666666636,
+   "ticks": 1678,
+   "hulls": [
+    13.033333333333497,
+    -1.1266666666664333
+   ]
+  },
+  {
+   "key": "rival/sootjaw/3",
+   "hero": "furnace",
+   "day": 3,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -5
+   },
+   "opp": "par/weaver/3",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.799999999999873,
+   "ticks": 1488,
+   "hulls": [
+    -3.333333333331117,
+    17.419999999999675
+   ]
+  },
+  {
+   "key": "rival/sootjaw/4",
+   "hero": "furnace",
+   "day": 4,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 6
+   },
+   "opp": "par/weaver/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.55,
+   "ticks": 1353,
+   "hulls": [
+    32.000000000002196,
+    -14.026666666665733
+   ]
+  },
+  {
+   "key": "rival/sootjaw/5",
+   "hero": "furnace",
+   "day": 5,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 3,
+      "y": 3
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 17
+   },
+   "opp": "par/weaver/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.36666666666662,
+   "ticks": 1402,
+   "hulls": [
+    16.60000000000218,
+    -8.29999999999874
+   ]
+  },
+  {
+   "key": "rival/sootjaw/6",
+   "hero": "furnace",
+   "day": 6,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 3,
+      "y": 3
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 28
+   },
+   "opp": "par/weaver/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.299999999999958,
+   "ticks": 1398,
+   "hulls": [
+    19.733333333335583,
+    -8.033333333332077
+   ]
+  },
+  {
+   "key": "rival/sootjaw/7",
+   "hero": "furnace",
+   "day": 7,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 3,
+      "y": 3
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 39
+   },
+   "opp": "par/weaver/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.46666666666656,
+   "ticks": 1468,
+   "hulls": [
+    5.566666666668702,
+    -9.246666666665176
+   ]
+  },
+  {
+   "key": "rival/sootjaw/8",
+   "hero": "furnace",
+   "day": 8,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 50
+   },
+   "opp": "par/weaver/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.483333333333395,
+   "ticks": 1289,
+   "hulls": [
+    20.20000000000339,
+    -9.25999999999859
+   ]
+  },
+  {
+   "key": "rival/sootjaw/9",
+   "hero": "furnace",
+   "day": 9,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 61
+   },
+   "opp": "par/weaver/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.483333333333395,
+   "ticks": 1289,
+   "hulls": [
+    31.200000000001765,
+    -9.25999999999859
+   ]
+  },
+  {
+   "key": "rival/sootjaw/10",
+   "hero": "furnace",
+   "day": 10,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       64,
+       63,
+       62,
+       61,
+       51,
+       41,
+       42,
+       43,
+       33,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 72
+   },
+   "opp": "par/weaver/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.43333333333334,
+   "ticks": 1346,
+   "hulls": [
+    22.333333333334405,
+    -10.873333333331404
+   ]
+  },
+  {
+   "key": "rival/nettle/1",
+   "hero": "weaver",
+   "day": 1,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -27
+   },
+   "opp": "par/furnace/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 29.79999999999959,
+   "ticks": 1788,
+   "hulls": [
+    5.800000000000212,
+    -2.799999999999782
+   ]
+  },
+  {
+   "key": "rival/nettle/2",
+   "hero": "weaver",
+   "day": 2,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -16
+   },
+   "opp": "par/furnace/2",
+   "seed": 60600,
+   "winner": 1,
+   "t": 20.866666666666763,
+   "ticks": 1252,
+   "hulls": [
+    -0.059999999998109496,
+    50.000000000000014
+   ]
+  },
+  {
+   "key": "rival/nettle/3",
+   "hero": "weaver",
+   "day": 3,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -5
+   },
+   "opp": "par/furnace/3",
+   "seed": 60600,
+   "winner": 1,
+   "t": 21.46666666666673,
+   "ticks": 1288,
+   "hulls": [
+    -0.04666666666498358,
+    42.000000000000014
+   ]
+  },
+  {
+   "key": "rival/nettle/4",
+   "hero": "weaver",
+   "day": 4,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 6
+   },
+   "opp": "par/furnace/4",
+   "seed": 60600,
+   "winner": 1,
+   "t": 21.983333333333366,
+   "ticks": 1319,
+   "hulls": [
+    -6.913333333331491,
+    42.000000000000014
+   ]
+  },
+  {
+   "key": "rival/nettle/5",
+   "hero": "weaver",
+   "day": 5,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 17
+   },
+   "opp": "par/furnace/5",
+   "seed": 60600,
+   "winner": 1,
+   "t": 19.350000000000183,
+   "ticks": 1161,
+   "hulls": [
+    -1.5999999999984529,
+    89
+   ]
+  },
+  {
+   "key": "rival/nettle/6",
+   "hero": "weaver",
+   "day": 6,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 28
+   },
+   "opp": "par/furnace/6",
+   "seed": 60600,
+   "winner": 1,
+   "t": 25.649999999999824,
+   "ticks": 1539,
+   "hulls": [
+    -0.0033333333312064,
+    22.350000000000037
+   ]
+  },
+  {
+   "key": "rival/nettle/7",
+   "hero": "weaver",
+   "day": 7,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 39
+   },
+   "opp": "par/furnace/7",
+   "seed": 60600,
+   "winner": 1,
+   "t": 27.916666666666362,
+   "ticks": 1675,
+   "hulls": [
+    -0.00333333333113257,
+    23.0833333333335
+   ]
+  },
+  {
+   "key": "rival/nettle/8",
+   "hero": "weaver",
+   "day": 8,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 50
+   },
+   "opp": "par/furnace/8",
+   "seed": 60600,
+   "winner": 1,
+   "t": 26.149999999999796,
+   "ticks": 1569,
+   "hulls": [
+    -9.703333333331454,
+    46.850000000000065
+   ]
+  },
+  {
+   "key": "rival/nettle/9",
+   "hero": "weaver",
+   "day": 9,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 61
+   },
+   "opp": "par/furnace/9",
+   "seed": 60600,
+   "winner": 1,
+   "t": 26.583333333333105,
+   "ticks": 1595,
+   "hulls": [
+    -0.0033333333314133455,
+    46.41666666666676
+   ]
+  },
+  {
+   "key": "rival/nettle/10",
+   "hero": "weaver",
+   "day": 10,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9010,
+      "def": "whetstone",
+      "x": 2,
+      "y": 1
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 7,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       13,
+       12,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       16,
+       17,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 72
+   },
+   "opp": "par/furnace/10",
+   "seed": 60600,
+   "winner": 1,
+   "t": 28.249999999999677,
+   "ticks": 1695,
+   "hulls": [
+    -0.0033333333310145534,
+    47.750000000000185
+   ]
+  },
+  {
+   "key": "rival/grubnose/1",
+   "hero": "furnace",
+   "day": 1,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -27
+   },
+   "opp": "par/weaver/1",
+   "seed": 60600,
+   "winner": 1,
+   "t": 28.683333333332985,
+   "ticks": 1721,
+   "hulls": [
+    -4.683333333333334,
+    41.03666666666694
+   ]
+  },
+  {
+   "key": "rival/grubnose/2",
+   "hero": "furnace",
+   "day": 2,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -16
+   },
+   "opp": "par/weaver/2",
+   "seed": 60600,
+   "winner": 1,
+   "t": 29.13333333333296,
+   "ticks": 1748,
+   "hulls": [
+    -0.13333333333320324,
+    42.70666666666827
+   ]
+  },
+  {
+   "key": "rival/grubnose/3",
+   "hero": "furnace",
+   "day": 3,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -5
+   },
+   "opp": "par/weaver/3",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.76666666666654,
+   "ticks": 1486,
+   "hulls": [
+    -3.499999999997779,
+    59.940000000001206
+   ]
+  },
+  {
+   "key": "rival/grubnose/4",
+   "hero": "furnace",
+   "day": 4,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 6
+   },
+   "opp": "par/weaver/4",
+   "seed": 60600,
+   "winner": 1,
+   "t": 25.533333333333164,
+   "ticks": 1532,
+   "hulls": [
+    -1.0666666666646443,
+    55.140000000001194
+   ]
+  },
+  {
+   "key": "rival/grubnose/5",
+   "hero": "furnace",
+   "day": 5,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 17
+   },
+   "opp": "par/weaver/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.69999999999988,
+   "ticks": 1482,
+   "hulls": [
+    6.733333333335448,
+    -0.28333333333213073
+   ]
+  },
+  {
+   "key": "rival/grubnose/6",
+   "hero": "furnace",
+   "day": 6,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 28
+   },
+   "opp": "par/weaver/6",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.64999999999988,
+   "ticks": 1479,
+   "hulls": [
+    -0.0666666666644558,
+    4.816666666667869
+   ]
+  },
+  {
+   "key": "rival/grubnose/7",
+   "hero": "furnace",
+   "day": 7,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 39
+   },
+   "opp": "par/weaver/7",
+   "seed": 60600,
+   "winner": 1,
+   "t": 25.683333333333156,
+   "ticks": 1541,
+   "hulls": [
+    -6.683333333331327,
+    6.826666666668028
+   ]
+  },
+  {
+   "key": "rival/grubnose/8",
+   "hero": "furnace",
+   "day": 8,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 75
+   },
+   "opp": "par/weaver/8",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.199999999999907,
+   "ticks": 1452,
+   "hulls": [
+    -5.866666666665772,
+    21.543333333334722
+   ]
+  },
+  {
+   "key": "rival/grubnose/9",
+   "hero": "furnace",
+   "day": 9,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 86
+   },
+   "opp": "par/weaver/9",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.96666666666653,
+   "ticks": 1498,
+   "hulls": [
+    -0.0666666666669713,
+    13.910000000001387
+   ]
+  },
+  {
+   "key": "rival/grubnose/10",
+   "hero": "furnace",
+   "day": 10,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 3,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 122
+   },
+   "opp": "par/weaver/10",
+   "seed": 60600,
+   "winner": 1,
+   "t": 27.166666666666405,
+   "ticks": 1630,
+   "hulls": [
+    -0.06666666666809537,
+    15.430000000001765
+   ]
+  },
+  {
+   "key": "rival/mothqueen/1",
+   "hero": "weaver",
+   "day": 1,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -27
+   },
+   "opp": "par/furnace/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 26.083333333333133,
+   "ticks": 1565,
+   "hulls": [
+    30.876666666666818,
+    -1.5499999999984155
+   ]
+  },
+  {
+   "key": "rival/mothqueen/2",
+   "hero": "weaver",
+   "day": 2,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -16
+   },
+   "opp": "par/furnace/2",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.083333333333304,
+   "ticks": 1385,
+   "hulls": [
+    14.240000000002661,
+    -0.6666666666652976
+   ]
+  },
+  {
+   "key": "rival/mothqueen/3",
+   "hero": "weaver",
+   "day": 3,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 45
+   },
+   "opp": "par/furnace/3",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.083333333333304,
+   "ticks": 1385,
+   "hulls": [
+    40.81333333333673,
+    -0.6666666666652132
+   ]
+  },
+  {
+   "key": "rival/mothqueen/4",
+   "hero": "weaver",
+   "day": 4,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "temper",
+      "x": 1,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 56
+   },
+   "opp": "par/furnace/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.500000000000117,
+   "ticks": 1230,
+   "hulls": [
+    90.6166666666695,
+    -1.466666666665437
+   ]
+  },
+  {
+   "key": "rival/mothqueen/5",
+   "hero": "weaver",
+   "day": 5,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "temper",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "temper",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 67
+   },
+   "opp": "par/furnace/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.36666666666679,
+   "ticks": 1222,
+   "hulls": [
+    64.63000000000284,
+    -2.899999999998155
+   ]
+  },
+  {
+   "key": "rival/mothqueen/6",
+   "hero": "weaver",
+   "day": 6,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "temper",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "temper",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 78
+   },
+   "opp": "par/furnace/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.33333333333346,
+   "ticks": 1220,
+   "hulls": [
+    126.52333333333496,
+    -3.533333333331663
+   ]
+  },
+  {
+   "key": "rival/mothqueen/7",
+   "hero": "weaver",
+   "day": 7,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "temper",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "temper",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 89
+   },
+   "opp": "par/furnace/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.100000000000083,
+   "ticks": 1266,
+   "hulls": [
+    105.52000000000187,
+    -1.3999999999974786
+   ]
+  },
+  {
+   "key": "rival/mothqueen/8",
+   "hero": "weaver",
+   "day": 8,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "temper",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "temper",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 100
+   },
+   "opp": "par/furnace/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.100000000000083,
+   "ticks": 1266,
+   "hulls": [
+    88.42000000000174,
+    -1.399999999997571
+   ]
+  },
+  {
+   "key": "rival/mothqueen/9",
+   "hero": "weaver",
+   "day": 9,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "temper",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "temper",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 111
+   },
+   "opp": "par/furnace/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.100000000000083,
+   "ticks": 1266,
+   "hulls": [
+    99.41999999999912,
+    -1.399999999997571
+   ]
+  },
+  {
+   "key": "rival/mothqueen/10",
+   "hero": "weaver",
+   "day": 10,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "temper",
+      "x": 1,
+      "y": 5
+     },
+     {
+      "uid": 9014,
+      "def": "temper",
+      "x": 8,
+      "y": 5
+     },
+     {
+      "uid": 9015,
+      "def": "grease",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9016,
+      "def": "grease",
+      "x": 7,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 122
+   },
+   "opp": "par/furnace/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.866666666666706,
+   "ticks": 1312,
+   "hulls": [
+    41.62999999999988,
+    -0.06666666666438426
+   ]
+  },
+  {
+   "key": "rival/sparkfang/1",
+   "hero": "furnace",
+   "day": 1,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -27
+   },
+   "opp": "par/weaver/1",
+   "seed": 60600,
+   "winner": 1,
+   "t": 28.649999999999654,
+   "ticks": 1719,
+   "hulls": [
+    -4.649999999999989,
+    13.630000000000269
+   ]
+  },
+  {
+   "key": "rival/sparkfang/2",
+   "hero": "furnace",
+   "day": 2,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -16
+   },
+   "opp": "par/weaver/2",
+   "seed": 60600,
+   "winner": 1,
+   "t": 29.149999999999626,
+   "ticks": 1749,
+   "hulls": [
+    -0.14999999999986985,
+    13.130000000000244
+   ]
+  },
+  {
+   "key": "rival/sparkfang/3",
+   "hero": "furnace",
+   "day": 3,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -5
+   },
+   "opp": "par/weaver/3",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.750000000000046,
+   "ticks": 1305,
+   "hulls": [
+    35.13333333333549,
+    -5.25333333333128
+   ]
+  },
+  {
+   "key": "rival/sparkfang/4",
+   "hero": "furnace",
+   "day": 4,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 6
+   },
+   "opp": "par/weaver/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.033333333333307,
+   "ticks": 1382,
+   "hulls": [
+    29.90000000000208,
+    -4.319999999997964
+   ]
+  },
+  {
+   "key": "rival/sparkfang/5",
+   "hero": "furnace",
+   "day": 5,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "coil",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "brake",
+      "x": 3,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       57,
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9015,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 17
+   },
+   "opp": "par/weaver/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 25.966666666666473,
+   "ticks": 1558,
+   "hulls": [
+    26.100000000002744,
+    -10.726666666664464
+   ]
+  },
+  {
+   "key": "rival/sparkfang/6",
+   "hero": "furnace",
+   "day": 6,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "coil",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "brake",
+      "x": 3,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       57,
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9015,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 28
+   },
+   "opp": "par/weaver/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 26.033333333333136,
+   "ticks": 1562,
+   "hulls": [
+    19.233333333336006,
+    -10.993333333331126
+   ]
+  },
+  {
+   "key": "rival/sparkfang/7",
+   "hero": "furnace",
+   "day": 7,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "coil",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "brake",
+      "x": 3,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       57,
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9015,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 39
+   },
+   "opp": "par/weaver/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.233333333333295,
+   "ticks": 1394,
+   "hulls": [
+    31.766666666668698,
+    -1.6133333333311297
+   ]
+  },
+  {
+   "key": "rival/sparkfang/8",
+   "hero": "furnace",
+   "day": 8,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "coil",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "brake",
+      "x": 3,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       57,
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9015,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 75
+   },
+   "opp": "par/weaver/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.233333333333295,
+   "ticks": 1394,
+   "hulls": [
+    22.03333333333467,
+    -1.5799999999977947
+   ]
+  },
+  {
+   "key": "rival/sparkfang/9",
+   "hero": "furnace",
+   "day": 9,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "coil",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "brake",
+      "x": 3,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       57,
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9015,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 86
+   },
+   "opp": "par/weaver/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.233333333333295,
+   "ticks": 1394,
+   "hulls": [
+    33.033333333333445,
+    -1.5799999999977947
+   ]
+  },
+  {
+   "key": "rival/sparkfang/10",
+   "hero": "furnace",
+   "day": 10,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "coil",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 5,
+      "y": 3
+     },
+     {
+      "uid": 9013,
+      "def": "brake",
+      "x": 3,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       57,
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9015,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 122
+   },
+   "opp": "par/weaver/10",
+   "seed": 60600,
+   "winner": 1,
+   "t": 27.549999999999716,
+   "ticks": 1653,
+   "hulls": [
+    -4.7166666666685195,
+    3.2700000000017457
+   ]
+  },
+  {
+   "key": "rival/lacewing/1",
+   "hero": "weaver",
+   "day": 1,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -27
+   },
+   "opp": "par/furnace/1",
+   "seed": 60600,
+   "winner": 1,
+   "t": 30.316666666666226,
+   "ticks": 1819,
+   "hulls": [
+    -2.1533333333331113,
+    8.366666666666847
+   ]
+  },
+  {
+   "key": "rival/lacewing/2",
+   "hero": "weaver",
+   "day": 2,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -16
+   },
+   "opp": "par/furnace/2",
+   "seed": 60600,
+   "winner": 1,
+   "t": 20.83333333333343,
+   "ticks": 1250,
+   "hulls": [
+    -0.05999999999815439,
+    32.00000000000004
+   ]
+  },
+  {
+   "key": "rival/lacewing/3",
+   "hero": "weaver",
+   "day": 3,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -5
+   },
+   "opp": "par/furnace/3",
+   "seed": 60600,
+   "winner": 1,
+   "t": 21.3833333333334,
+   "ticks": 1283,
+   "hulls": [
+    -0.04666666666492718,
+    27.200000000000042
+   ]
+  },
+  {
+   "key": "rival/lacewing/4",
+   "hero": "weaver",
+   "day": 4,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 6
+   },
+   "opp": "par/furnace/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.83333333333343,
+   "ticks": 1250,
+   "hulls": [
+    9.760000000001831,
+    -4.7999999999999305
+   ]
+  },
+  {
+   "key": "rival/lacewing/5",
+   "hero": "weaver",
+   "day": 5,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 17
+   },
+   "opp": "par/furnace/5",
+   "seed": 60600,
+   "winner": 1,
+   "t": 19.416666666666845,
+   "ticks": 1165,
+   "hulls": [
+    -1.4999999999984586,
+    44.60000000000002
+   ]
+  },
+  {
+   "key": "rival/lacewing/6",
+   "hero": "weaver",
+   "day": 6,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 28
+   },
+   "opp": "par/furnace/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.916666666666647,
+   "ticks": 1375,
+   "hulls": [
+    27.38666666666887,
+    -4.19999999999998
+   ]
+  },
+  {
+   "key": "rival/lacewing/7",
+   "hero": "weaver",
+   "day": 7,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 39
+   },
+   "opp": "par/furnace/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.61666666666655,
+   "ticks": 1477,
+   "hulls": [
+    33.75333333333561,
+    -1.6000000000000112
+   ]
+  },
+  {
+   "key": "rival/lacewing/8",
+   "hero": "weaver",
+   "day": 8,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 50
+   },
+   "opp": "par/furnace/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.61666666666655,
+   "ticks": 1477,
+   "hulls": [
+    16.753333333335323,
+    -1.6000000000000112
+   ]
+  },
+  {
+   "key": "rival/lacewing/9",
+   "hero": "weaver",
+   "day": 9,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 61
+   },
+   "opp": "par/furnace/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.61666666666655,
+   "ticks": 1477,
+   "hulls": [
+    27.753333333335437,
+    -1.6000000000000112
+   ]
+  },
+  {
+   "key": "rival/lacewing/10",
+   "hero": "weaver",
+   "day": 10,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "splitter",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9011,
+      "def": "splitter",
+      "x": 7,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       43,
+       42,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       46,
+       47,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 72
+   },
+   "opp": "par/furnace/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 26.01666666666647,
+   "ticks": 1561,
+   "hulls": [
+    31.93666666666913,
+    -0.016666666666729727
+   ]
+  },
+  {
+   "key": "rival/ratchet/1",
+   "hero": "furnace",
+   "day": 1,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -27
+   },
+   "opp": "par/weaver/1",
+   "seed": 60600,
+   "winner": 1,
+   "t": 28.599999999999657,
+   "ticks": 1716,
+   "hulls": [
+    -4.6000000000000005,
+    32.00000000000031
+   ]
+  },
+  {
+   "key": "rival/ratchet/2",
+   "hero": "furnace",
+   "day": 2,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -16
+   },
+   "opp": "par/weaver/2",
+   "seed": 60600,
+   "winner": 1,
+   "t": 29.149999999999626,
+   "ticks": 1749,
+   "hulls": [
+    -0.14999999999986718,
+    31.450000000000344
+   ]
+  },
+  {
+   "key": "rival/ratchet/3",
+   "hero": "furnace",
+   "day": 3,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -5
+   },
+   "opp": "par/weaver/3",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.76666666666654,
+   "ticks": 1486,
+   "hulls": [
+    -3.3333333333311206,
+    58.40000000000009
+   ]
+  },
+  {
+   "key": "rival/ratchet/4",
+   "hero": "furnace",
+   "day": 4,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 6
+   },
+   "opp": "par/weaver/4",
+   "seed": 60600,
+   "winner": 1,
+   "t": 25.683333333333156,
+   "ticks": 1541,
+   "hulls": [
+    -1.3499999999980459,
+    72.91666666666679
+   ]
+  },
+  {
+   "key": "rival/ratchet/5",
+   "hero": "furnace",
+   "day": 5,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "overdrive",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 4,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9011,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 17
+   },
+   "opp": "par/weaver/5",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.916666666666533,
+   "ticks": 1495,
+   "hulls": [
+    -0.06666666666454772,
+    12.493333333336347
+   ]
+  },
+  {
+   "key": "rival/ratchet/6",
+   "hero": "furnace",
+   "day": 6,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "overdrive",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 4,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9011,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 28
+   },
+   "opp": "par/weaver/6",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.666666666666547,
+   "ticks": 1480,
+   "hulls": [
+    -0.06666666666441161,
+    13.42666666666968
+   ]
+  },
+  {
+   "key": "rival/ratchet/7",
+   "hero": "furnace",
+   "day": 7,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "overdrive",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 4,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9011,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 39
+   },
+   "opp": "par/weaver/7",
+   "seed": 60600,
+   "winner": 1,
+   "t": 25.58333333333316,
+   "ticks": 1535,
+   "hulls": [
+    -6.116666666664626,
+    37.39000000000353
+   ]
+  },
+  {
+   "key": "rival/ratchet/8",
+   "hero": "furnace",
+   "day": 8,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "overdrive",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9011,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 50
+   },
+   "opp": "par/weaver/8",
+   "seed": 60600,
+   "winner": 1,
+   "t": 22.450000000000006,
+   "ticks": 1347,
+   "hulls": [
+    -0.03333333333009156,
+    27.77333333333602
+   ]
+  },
+  {
+   "key": "rival/ratchet/9",
+   "hero": "furnace",
+   "day": 9,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "overdrive",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9011,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 61
+   },
+   "opp": "par/weaver/9",
+   "seed": 60600,
+   "winner": 1,
+   "t": 23.383333333333287,
+   "ticks": 1403,
+   "hulls": [
+    -1.7333333333317535,
+    20.806666666669344
+   ]
+  },
+  {
+   "key": "rival/ratchet/10",
+   "hero": "furnace",
+   "day": 10,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "overdrive",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9011,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 72
+   },
+   "opp": "par/weaver/10",
+   "seed": 60600,
+   "winner": 1,
+   "t": 24.016666666666584,
+   "ticks": 1441,
+   "hulls": [
+    -0.03333333333260599,
+    19.27333333333607
+   ]
+  },
+  {
+   "key": "rival/emberlyn/1",
+   "hero": "weaver",
+   "day": 1,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -27
+   },
+   "opp": "par/furnace/1",
+   "seed": 60600,
+   "winner": 1,
+   "t": 30.21666666666623,
+   "ticks": 1813,
+   "hulls": [
+    -1.9533333333331104,
+    14.56666666666686
+   ]
+  },
+  {
+   "key": "rival/emberlyn/2",
+   "hero": "weaver",
+   "day": 2,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -16
+   },
+   "opp": "par/furnace/2",
+   "seed": 60600,
+   "winner": 1,
+   "t": 20.816666666666766,
+   "ticks": 1249,
+   "hulls": [
+    -0.05999999999811842,
+    15.76666666666869
+   ]
+  },
+  {
+   "key": "rival/emberlyn/3",
+   "hero": "weaver",
+   "day": 3,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -5
+   },
+   "opp": "par/furnace/3",
+   "seed": 60600,
+   "winner": 1,
+   "t": 21.450000000000063,
+   "ticks": 1287,
+   "hulls": [
+    -0.013333333331604622,
+    12.833333333335254
+   ]
+  },
+  {
+   "key": "rival/emberlyn/4",
+   "hero": "weaver",
+   "day": 4,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 6
+   },
+   "opp": "par/furnace/4",
+   "seed": 60600,
+   "winner": 1,
+   "t": 21.93333333333337,
+   "ticks": 1316,
+   "hulls": [
+    -6.34666666666483,
+    4.633333333335241
+   ]
+  },
+  {
+   "key": "rival/emberlyn/5",
+   "hero": "weaver",
+   "day": 5,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 17
+   },
+   "opp": "par/furnace/5",
+   "seed": 60600,
+   "winner": 1,
+   "t": 19.36666666666685,
+   "ticks": 1162,
+   "hulls": [
+    -1.4333333333318419,
+    67.50000000000277
+   ]
+  },
+  {
+   "key": "rival/emberlyn/6",
+   "hero": "weaver",
+   "day": 6,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 28
+   },
+   "opp": "par/furnace/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.133333333333244,
+   "ticks": 1448,
+   "hulls": [
+    9.646666666668787,
+    -0.09999999999746634
+   ]
+  },
+  {
+   "key": "rival/emberlyn/7",
+   "hero": "weaver",
+   "day": 7,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 39
+   },
+   "opp": "par/furnace/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 26.13333333333313,
+   "ticks": 1568,
+   "hulls": [
+    26.320000000002175,
+    -5.433333333330393
+   ]
+  },
+  {
+   "key": "rival/emberlyn/8",
+   "hero": "weaver",
+   "day": 8,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 8,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 50
+   },
+   "opp": "par/furnace/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.566666666666666,
+   "ticks": 1354,
+   "hulls": [
+    42.86000000000203,
+    -1.9999999999973743
+   ]
+  },
+  {
+   "key": "rival/emberlyn/9",
+   "hero": "weaver",
+   "day": 9,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 8,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 61
+   },
+   "opp": "par/furnace/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.566666666666666,
+   "ticks": 1354,
+   "hulls": [
+    53.86000000000203,
+    -1.9999999999973743
+   ]
+  },
+  {
+   "key": "rival/emberlyn/10",
+   "hero": "weaver",
+   "day": 10,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "temper",
+      "x": 8,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       53,
+       52,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       56,
+       57,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": 72
+   },
+   "opp": "par/furnace/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.249999999999904,
+   "ticks": 1455,
+   "hulls": [
+    39.2200000000022,
+    -2.2666666666648734
+   ]
+  },
+  {
+   "key": "rival/bulwark/1",
+   "hero": "furnace",
+   "day": 1,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -2
+   },
+   "opp": "par/weaver/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 26.0999999999998,
+   "ticks": 1566,
+   "hulls": [
+    52.90000000000006,
+    -1.1399999999997155
+   ]
+  },
+  {
+   "key": "rival/bulwark/2",
+   "hero": "furnace",
+   "day": 2,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": 9
+   },
+   "opp": "par/weaver/2",
+   "seed": 60600,
+   "winner": 0,
+   "t": 26.0499999999998,
+   "ticks": 1563,
+   "hulls": [
+    57.95000000000006,
+    -1.089999999999713
+   ]
+  },
+  {
+   "key": "rival/bulwark/3",
+   "hero": "furnace",
+   "day": 3,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 45
+   },
+   "opp": "par/weaver/3",
+   "seed": 60600,
+   "winner": 0,
+   "t": 19.90000000000015,
+   "ticks": 1194,
+   "hulls": [
+    102.13333333333564,
+    -16.273333333332083
+   ]
+  },
+  {
+   "key": "rival/bulwark/4",
+   "hero": "furnace",
+   "day": 4,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 14,
+    "hullBonus": 56
+   },
+   "opp": "par/weaver/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 19.850000000000154,
+   "ticks": 1191,
+   "hulls": [
+    113.33333333333564,
+    -13.599999999998738
+   ]
+  },
+  {
+   "key": "rival/bulwark/5",
+   "hero": "furnace",
+   "day": 5,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "coil",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 67
+   },
+   "opp": "par/weaver/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 19.100000000000197,
+   "ticks": 1146,
+   "hulls": [
+    128.9999999999997,
+    -0.053333333332177754
+   ]
+  },
+  {
+   "key": "rival/bulwark/6",
+   "hero": "furnace",
+   "day": 6,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "coil",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 103
+   },
+   "opp": "par/weaver/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 19.08333333333353,
+   "ticks": 1145,
+   "hulls": [
+    150.36666666666275,
+    -0.053333333332178864
+   ]
+  },
+  {
+   "key": "rival/bulwark/7",
+   "hero": "furnace",
+   "day": 7,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "coil",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 114
+   },
+   "opp": "par/weaver/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.916666666666703,
+   "ticks": 1315,
+   "hulls": [
+    117.89999999999532,
+    -1.3066666666657791
+   ]
+  },
+  {
+   "key": "rival/bulwark/8",
+   "hero": "furnace",
+   "day": 8,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "coil",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 125
+   },
+   "opp": "par/weaver/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.916666666666703,
+   "ticks": 1315,
+   "hulls": [
+    95.06666666666484,
+    -2.1366666666657754
+   ]
+  },
+  {
+   "key": "rival/bulwark/9",
+   "hero": "furnace",
+   "day": 9,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "coil",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 136
+   },
+   "opp": "par/weaver/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.916666666666703,
+   "ticks": 1315,
+   "hulls": [
+    106.06666666666395,
+    -2.1366666666657754
+   ]
+  },
+  {
+   "key": "rival/bulwark/10",
+   "hero": "furnace",
+   "day": 10,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 2,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 2,
+      "y": 3
+     },
+     {
+      "uid": 9012,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "coil",
+      "x": 5,
+      "y": 2
+     },
+     {
+      "uid": 9016,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       53,
+       52,
+       42,
+       32,
+       22,
+       23,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9013,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 172
+   },
+   "opp": "par/weaver/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.85000000000004,
+   "ticks": 1311,
+   "hulls": [
+    144.46666666666087,
+    -0.0033333333324425812
+   ]
+  },
+  {
+   "key": "rival/silkshade/1",
+   "hero": "weaver",
+   "day": 1,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -27
+   },
+   "opp": "par/furnace/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 26.349999999999785,
+   "ticks": 1581,
+   "hulls": [
+    30.610000000000166,
+    -3.3833333333317013
+   ]
+  },
+  {
+   "key": "rival/silkshade/2",
+   "hero": "weaver",
+   "day": 2,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -16
+   },
+   "opp": "par/furnace/2",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.2999999999999,
+   "ticks": 1458,
+   "hulls": [
+    12.560000000001594,
+    -2.6666666666648458
+   ]
+  },
+  {
+   "key": "rival/silkshade/3",
+   "hero": "weaver",
+   "day": 3,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 8,
+      "y": 3
+     },
+     {
+      "uid": 9015,
+      "def": "temper",
+      "x": 6,
+      "y": 6
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -5
+   },
+   "opp": "par/furnace/3",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.033333333333363,
+   "ticks": 1322,
+   "hulls": [
+    25.633333333334843,
+    -5.333333333332045
+   ]
+  },
+  {
+   "key": "rival/silkshade/4",
+   "hero": "weaver",
+   "day": 4,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 8,
+      "y": 3
+     },
+     {
+      "uid": 9015,
+      "def": "temper",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9018,
+      "def": "whetstone",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     },
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 2
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 6
+   },
+   "opp": "par/furnace/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.56666666666678,
+   "ticks": 1234,
+   "hulls": [
+    28.9000000000019,
+    -5.299999999998944
+   ]
+  },
+  {
+   "key": "rival/silkshade/5",
+   "hero": "weaver",
+   "day": 5,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 8,
+      "y": 3
+     },
+     {
+      "uid": 9015,
+      "def": "temper",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9018,
+      "def": "whetstone",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     },
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 2
+     },
+     {
+      "uid": 9019,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 17
+   },
+   "opp": "par/furnace/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.08333333333336,
+   "ticks": 1325,
+   "hulls": [
+    5.136666666668062,
+    -0.5666666666648728
+   ]
+  },
+  {
+   "key": "rival/silkshade/6",
+   "hero": "weaver",
+   "day": 6,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 8,
+      "y": 3
+     },
+     {
+      "uid": 9015,
+      "def": "temper",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9018,
+      "def": "whetstone",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     },
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 2
+     },
+     {
+      "uid": 9019,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 78
+   },
+   "opp": "par/furnace/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.133333333333358,
+   "ticks": 1328,
+   "hulls": [
+    88.77666666666894,
+    -0.8666666666648877
+   ]
+  },
+  {
+   "key": "rival/silkshade/7",
+   "hero": "weaver",
+   "day": 7,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 8,
+      "y": 3
+     },
+     {
+      "uid": 9015,
+      "def": "temper",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9018,
+      "def": "whetstone",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     },
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 2
+     },
+     {
+      "uid": 9019,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 114
+   },
+   "opp": "par/furnace/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.049999999999915,
+   "ticks": 1443,
+   "hulls": [
+    73.95666666666683,
+    -2.2999999999977896
+   ]
+  },
+  {
+   "key": "rival/silkshade/8",
+   "hero": "weaver",
+   "day": 8,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 8,
+      "y": 3
+     },
+     {
+      "uid": 9015,
+      "def": "temper",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9018,
+      "def": "whetstone",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     },
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 2
+     },
+     {
+      "uid": 9019,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 125
+   },
+   "opp": "par/furnace/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.049999999999915,
+   "ticks": 1443,
+   "hulls": [
+    61.30666666666597,
+    -2.1333333333312123
+   ]
+  },
+  {
+   "key": "rival/silkshade/9",
+   "hero": "weaver",
+   "day": 9,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 8,
+      "y": 3
+     },
+     {
+      "uid": 9015,
+      "def": "temper",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9018,
+      "def": "whetstone",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     },
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 2
+     },
+     {
+      "uid": 9019,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 136
+   },
+   "opp": "par/furnace/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 24.049999999999915,
+   "ticks": 1443,
+   "hulls": [
+    72.30666666666603,
+    -2.1333333333312123
+   ]
+  },
+  {
+   "key": "rival/silkshade/10",
+   "hero": "weaver",
+   "day": 10,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9010,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 1
+     },
+     {
+      "uid": 9012,
+      "def": "coil",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 8,
+      "y": 3
+     },
+     {
+      "uid": 9015,
+      "def": "temper",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9018,
+      "def": "whetstone",
+      "x": 8,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       32,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       64,
+       65,
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     },
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 2
+     },
+     {
+      "uid": 9019,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 147
+   },
+   "opp": "par/furnace/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 25.28333333333318,
+   "ticks": 1517,
+   "hulls": [
+    78.95666666666628,
+    -0.016666666665447114
+   ]
+  },
+  {
+   "key": "rival/longtooth/1",
+   "hero": "furnace",
+   "day": 1,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -27
+   },
+   "opp": "par/weaver/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.48333333333345,
+   "ticks": 1229,
+   "hulls": [
+    65,
+    -5.546666666665102
+   ]
+  },
+  {
+   "key": "rival/longtooth/2",
+   "hero": "furnace",
+   "day": 2,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -16
+   },
+   "opp": "par/weaver/2",
+   "seed": 60600,
+   "winner": 0,
+   "t": 21.016666666666755,
+   "ticks": 1261,
+   "hulls": [
+    76.00000000000001,
+    -0.07999999999894203
+   ]
+  },
+  {
+   "key": "rival/longtooth/3",
+   "hero": "furnace",
+   "day": 3,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "coil",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 14,
+    "hullBonus": -5
+   },
+   "opp": "par/weaver/3",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.850000000000097,
+   "ticks": 1251,
+   "hulls": [
+    60.600000000002,
+    -16.879999999999136
+   ]
+  },
+  {
+   "key": "rival/longtooth/4",
+   "hero": "furnace",
+   "day": 4,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "coil",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9015,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "temper",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 18,
+    "hullBonus": 6
+   },
+   "opp": "par/weaver/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.999999999999975,
+   "ticks": 1380,
+   "hulls": [
+    29.933333333335447,
+    -0.05999999999750276
+   ]
+  },
+  {
+   "key": "rival/longtooth/5",
+   "hero": "furnace",
+   "day": 5,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "coil",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9015,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "temper",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 17
+   },
+   "opp": "par/weaver/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 16.700000000000333,
+   "ticks": 1002,
+   "hulls": [
+    104.6666666666685,
+    -21.333333333331588
+   ]
+  },
+  {
+   "key": "rival/longtooth/6",
+   "hero": "furnace",
+   "day": 6,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "coil",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9015,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "temper",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 28
+   },
+   "opp": "par/weaver/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 16.683333333333668,
+   "ticks": 1001,
+   "hulls": [
+    103.70000000000184,
+    -21.199999999998266
+   ]
+  },
+  {
+   "key": "rival/longtooth/7",
+   "hero": "furnace",
+   "day": 7,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "coil",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9015,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "temper",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 39
+   },
+   "opp": "par/weaver/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 17.150000000000308,
+   "ticks": 1029,
+   "hulls": [
+    105.5000000000019,
+    -0.09999999999755813
+   ]
+  },
+  {
+   "key": "rival/longtooth/8",
+   "hero": "furnace",
+   "day": 8,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "coil",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9015,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "temper",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 50
+   },
+   "opp": "par/weaver/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 17.150000000000308,
+   "ticks": 1029,
+   "hulls": [
+    88.90000000000293,
+    -0.06666666666423779
+   ]
+  },
+  {
+   "key": "rival/longtooth/9",
+   "hero": "furnace",
+   "day": 9,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "coil",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9015,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "temper",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 61
+   },
+   "opp": "par/weaver/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 17.150000000000308,
+   "ticks": 1029,
+   "hulls": [
+    99.90000000000126,
+    -0.06666666666423779
+   ]
+  },
+  {
+   "key": "rival/longtooth/10",
+   "hero": "furnace",
+   "day": 10,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 6,
+      "y": 7
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 6,
+      "y": 5
+     },
+     {
+      "uid": 9011,
+      "def": "whetstone",
+      "x": 4,
+      "y": 5
+     },
+     {
+      "uid": 9012,
+      "def": "brake",
+      "x": 2,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "coil",
+      "x": 3,
+      "y": 3
+     },
+     {
+      "uid": 9014,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9015,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 1
+     },
+     {
+      "uid": 9016,
+      "def": "temper",
+      "x": 5,
+      "y": 1
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       56,
+       55,
+       54,
+       53,
+       52,
+       42,
+       32,
+       33,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 72
+   },
+   "opp": "par/weaver/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 17.45000000000029,
+   "ticks": 1047,
+   "hulls": [
+    103.20000000000013,
+    -5.153333333330754
+   ]
+  },
+  {
+   "key": "rival/highspire/1",
+   "hero": "weaver",
+   "day": 1,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -27
+   },
+   "opp": "par/furnace/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 22.43333333333334,
+   "ticks": 1346,
+   "hulls": [
+    53.32000000000008,
+    -1.9333333333317921
+   ]
+  },
+  {
+   "key": "rival/highspire/2",
+   "hero": "weaver",
+   "day": 2,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -16
+   },
+   "opp": "par/furnace/2",
+   "seed": 60600,
+   "winner": 0,
+   "t": 18.833333333333545,
+   "ticks": 1130,
+   "hulls": [
+    16.39333333333522,
+    -0.06666666666579717
+   ]
+  },
+  {
+   "key": "rival/highspire/3",
+   "hero": "weaver",
+   "day": 3,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "grease",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 8,
+      "y": 4
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 8,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [],
+    "beltCap": 24,
+    "hullBonus": -5
+   },
+   "opp": "par/furnace/3",
+   "seed": 60600,
+   "winner": 0,
+   "t": 16.916666666666988,
+   "ticks": 1015,
+   "hulls": [
+    48.60666666666862,
+    -0.06666666666574654
+   ]
+  },
+  {
+   "key": "rival/highspire/4",
+   "hero": "weaver",
+   "day": 4,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "grease",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 8,
+      "y": 4
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 8,
+      "y": 2
+     },
+     {
+      "uid": 9018,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 6
+   },
+   "opp": "par/furnace/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 16.83333333333366,
+   "ticks": 1010,
+   "hulls": [
+    72.68666666666884,
+    -0.06666666666573766
+   ]
+  },
+  {
+   "key": "rival/highspire/5",
+   "hero": "weaver",
+   "day": 5,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "grease",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 8,
+      "y": 4
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 8,
+      "y": 2
+     },
+     {
+      "uid": 9018,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 42
+   },
+   "opp": "par/furnace/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 17.76666666666694,
+   "ticks": 1066,
+   "hulls": [
+    77.72000000000232,
+    -3.3333333333325803
+   ]
+  },
+  {
+   "key": "rival/highspire/6",
+   "hero": "weaver",
+   "day": 6,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "grease",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 8,
+      "y": 4
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 8,
+      "y": 2
+     },
+     {
+      "uid": 9018,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 53
+   },
+   "opp": "par/furnace/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 17.900000000000265,
+   "ticks": 1074,
+   "hulls": [
+    89.06000000000184,
+    -3.666666666665833
+   ]
+  },
+  {
+   "key": "rival/highspire/7",
+   "hero": "weaver",
+   "day": 7,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "grease",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 8,
+      "y": 4
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 8,
+      "y": 2
+     },
+     {
+      "uid": 9018,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 64
+   },
+   "opp": "par/furnace/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 19.450000000000177,
+   "ticks": 1167,
+   "hulls": [
+    89.76000000000211,
+    -1.9999999999985187
+   ]
+  },
+  {
+   "key": "rival/highspire/8",
+   "hero": "weaver",
+   "day": 8,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "grease",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 8,
+      "y": 4
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 8,
+      "y": 2
+     },
+     {
+      "uid": 9018,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 75
+   },
+   "opp": "par/furnace/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 19.450000000000177,
+   "ticks": 1167,
+   "hulls": [
+    79.66000000000186,
+    -2.06666666666515
+   ]
+  },
+  {
+   "key": "rival/highspire/9",
+   "hero": "weaver",
+   "day": 9,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "grease",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 8,
+      "y": 4
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 8,
+      "y": 2
+     },
+     {
+      "uid": 9018,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 86
+   },
+   "opp": "par/furnace/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 19.450000000000177,
+   "ticks": 1167,
+   "hulls": [
+    90.66000000000186,
+    -2.06666666666515
+   ]
+  },
+  {
+   "key": "rival/highspire/10",
+   "hero": "weaver",
+   "day": 10,
+   "deck": {
+    "hero": "weaver",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "loom",
+      "x": 4,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "temper",
+      "x": 2,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "splitter",
+      "x": 4,
+      "y": 4
+     },
+     {
+      "uid": 9013,
+      "def": "whetstone",
+      "x": 4,
+      "y": 2
+     },
+     {
+      "uid": 9014,
+      "def": "grease",
+      "x": 7,
+      "y": 6
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 8,
+      "y": 4
+     },
+     {
+      "uid": 9016,
+      "def": "longhaul",
+      "x": 8,
+      "y": 2
+     },
+     {
+      "uid": 9018,
+      "def": "coil",
+      "x": 1,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       54,
+       44,
+       34,
+       24,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       63,
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       11,
+       1
+      ]
+     },
+     {
+      "factory": 9001,
+      "cells": [
+       66,
+       67,
+       68,
+       58,
+       48,
+       38,
+       28,
+       18,
+       8
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9017,
+      "def": "calibrate",
+      "turret": 1
+     }
+    ],
+    "beltCap": 24,
+    "hullBonus": 97
+   },
+   "opp": "par/furnace/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.30000000000013,
+   "ticks": 1218,
+   "hulls": [
+    79.32000000000205,
+    -0.06666666666468055
+   ]
+  },
+  {
+   "key": "rival/matriarch/1",
+   "hero": "furnace",
+   "day": 1,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 73
+   },
+   "opp": "par/weaver/1",
+   "seed": 60600,
+   "winner": 0,
+   "t": 18.400000000000237,
+   "ticks": 1104,
+   "hulls": [
+    189,
+    -0.006666666666339659
+   ]
+  },
+  {
+   "key": "rival/matriarch/2",
+   "hero": "furnace",
+   "day": 2,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 84
+   },
+   "opp": "par/weaver/2",
+   "seed": 60600,
+   "winner": 0,
+   "t": 18.450000000000234,
+   "ticks": 1107,
+   "hulls": [
+    194,
+    -0.006666666666319564
+   ]
+  },
+  {
+   "key": "rival/matriarch/3",
+   "hero": "furnace",
+   "day": 3,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 95
+   },
+   "opp": "par/weaver/3",
+   "seed": 60600,
+   "winner": 0,
+   "t": 18.433333333333568,
+   "ticks": 1106,
+   "hulls": [
+    174.96666666666215,
+    -0.006666666666300024
+   ]
+  },
+  {
+   "key": "rival/matriarch/4",
+   "hero": "furnace",
+   "day": 4,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 106
+   },
+   "opp": "par/weaver/4",
+   "seed": 60600,
+   "winner": 0,
+   "t": 18.433333333333568,
+   "ticks": 1106,
+   "hulls": [
+    180.13333333332716,
+    -0.006666666666300024
+   ]
+  },
+  {
+   "key": "rival/matriarch/5",
+   "hero": "furnace",
+   "day": 5,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 117
+   },
+   "opp": "par/weaver/5",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.65000000000011,
+   "ticks": 1239,
+   "hulls": [
+    156.89999999999426,
+    -6.573333333333023
+   ]
+  },
+  {
+   "key": "rival/matriarch/6",
+   "hero": "furnace",
+   "day": 6,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 128
+   },
+   "opp": "par/weaver/6",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.65000000000011,
+   "ticks": 1239,
+   "hulls": [
+    149.8999999999935,
+    -6.57333333333302
+   ]
+  },
+  {
+   "key": "rival/matriarch/7",
+   "hero": "furnace",
+   "day": 7,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 139
+   },
+   "opp": "par/weaver/7",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.533333333333278,
+   "ticks": 1412,
+   "hulls": [
+    114.56666666665978,
+    -19.87333333333209
+   ]
+  },
+  {
+   "key": "rival/matriarch/8",
+   "hero": "furnace",
+   "day": 8,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 200
+   },
+   "opp": "par/weaver/8",
+   "seed": 60600,
+   "winner": 0,
+   "t": 23.549999999999944,
+   "ticks": 1413,
+   "hulls": [
+    145.0999999999938,
+    -19.873333333332084
+   ]
+  },
+  {
+   "key": "rival/matriarch/9",
+   "hero": "furnace",
+   "day": 9,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     },
+     {
+      "uid": 9017,
+      "def": "temper",
+      "x": 5,
+      "y": 5
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 236
+   },
+   "opp": "par/weaver/9",
+   "seed": 60600,
+   "winner": 0,
+   "t": 19.43333333333351,
+   "ticks": 1166,
+   "hulls": [
+    234.89999999999006,
+    -0.07333333333235914
+   ]
+  },
+  {
+   "key": "rival/matriarch/10",
+   "hero": "furnace",
+   "day": 10,
+   "deck": {
+    "hero": "furnace",
+    "items": [
+     {
+      "uid": 9001,
+      "def": "kiln",
+      "x": 2,
+      "y": 7
+     },
+     {
+      "uid": 9002,
+      "def": "press",
+      "x": 6,
+      "y": 6
+     },
+     {
+      "uid": 9010,
+      "def": "brake",
+      "x": 1,
+      "y": 6
+     },
+     {
+      "uid": 9011,
+      "def": "temper",
+      "x": 1,
+      "y": 4
+     },
+     {
+      "uid": 9012,
+      "def": "whetstone",
+      "x": 2,
+      "y": 2
+     },
+     {
+      "uid": 9013,
+      "def": "longhaul",
+      "x": 4,
+      "y": 1
+     },
+     {
+      "uid": 9014,
+      "def": "coil",
+      "x": 5,
+      "y": 4
+     },
+     {
+      "uid": 9015,
+      "def": "whetstone",
+      "x": 5,
+      "y": 2
+     },
+     {
+      "uid": 9017,
+      "def": "temper",
+      "x": 5,
+      "y": 5
+     },
+     {
+      "uid": 9018,
+      "def": "whetstone",
+      "x": 1,
+      "y": 3
+     }
+    ],
+    "routes": [
+     {
+      "factory": 9001,
+      "cells": [
+       62,
+       61,
+       51,
+       41,
+       31,
+       21,
+       22,
+       23,
+       13,
+       14,
+       4
+      ]
+     },
+     {
+      "factory": 9002,
+      "cells": [
+       56,
+       55,
+       45,
+       35,
+       25,
+       15,
+       5
+      ]
+     }
+    ],
+    "mods": [
+     {
+      "uid": 9016,
+      "def": "calibrate",
+      "turret": 0
+     }
+    ],
+    "beltCap": 18,
+    "hullBonus": 272
+   },
+   "opp": "par/weaver/10",
+   "seed": 60600,
+   "winner": 0,
+   "t": 20.266666666666797,
+   "ticks": 1216,
+   "hulls": [
+    266.16666666665503,
+    -0.07333333333195768
+   ]
+  }
+ ]
+}

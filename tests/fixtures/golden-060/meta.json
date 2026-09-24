@@ -1,0 +1,13 @@
+{
+ "from": "c908f92 (0.6.0 + groundwork)",
+ "rules": "bb-0.4.0",
+ "battleSeed": 60600,
+ "pickSeed": 20260924,
+ "note": "side 0 = the deck, side 1 = the other hero's par deck of the same day (par.json decks). Never edit.",
+ "counts": {
+  "rivals": 130,
+  "starts": 2,
+  "par": 20,
+  "standins": 20
+ }
+}
