@@ -61,30 +61,38 @@ const RUNS = {
       G(7, "furnace", 4, 2, -2), G(8, "weaver", 5, 2, -2), G(9, "furnace", 5, 3, -2), G(10, "weaver", 6, 3, -2)],
   },
   phone: { days: 3, roads: "emv", reloadWarlordDay: 2, check: "phone", pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6)] },
+  // 0.6.0d item 9, the feel check (logged, never pass/fail on the outcome): a fresh player with an
+  // empty ghost pool, so every dusk is a stand-in with its full-purse pool deck, from day 1 until the
+  // run ends, once per hero on the same run seed (so both meet the same captains and decks). The
+  // player spends like a new player would: up to 8 planned parts a dawn (not the desk run's 2).
+  // Roads: an event on odd days, an Easy or Medium warlord on even days (never a life at stake).
+  "fresh-furnace": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "furnace", buys: 8, pool: [] },
+  "fresh-weaver": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "weaver", buys: 8, pool: [] },
 };
+// the view and Math.random pin of each run (fresh runs: desk, the desk run's seed)
+const PLAN = [["desk", "desk", 0.3], ["phone", "phone", 0.5], ["fresh-furnace", "desk", 0.3], ["fresh-weaver", "desk", 0.3]];
 
 async function main() {
   await inline();
   const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
   const url = pathToFileURL(OUT).href;
   let failed = 0;
-  for (const vname of ["desk", "phone"]) {
+  for (const [rname, vname, pin] of PLAN) {
     const ctx = await browser.newContext(VIEWS[vname]);
     const page = await ctx.newPage();
     // pin the new-run seed (the hero screen seeds from Math.random) so the run is reproducible:
     // both pins give the WRECKED RAIDER salvage as round 1's intro event, so REFIT comes up
-    const pin = vname === "desk" ? 0.3 : 0.5;
     await page.addInitScript((r) => { Math.random = () => r; }, pin);
     const errors = [];
     page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
     page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`); });
     page.on("requestfailed", (r) => errors.push(`requestfailed: ${r.url()}`));
-    log(`\n== ${vname} (${VIEWS[vname].viewport.width}x${VIEWS[vname].viewport.height} @${VIEWS[vname].deviceScaleFactor}, ${VIEWS[vname].hasTouch ? "touch" : "mouse"}) ${url}`);
+    log(`\n== ${rname} (${VIEWS[vname].viewport.width}x${VIEWS[vname].viewport.height} @${VIEWS[vname].deviceScaleFactor}, ${VIEWS[vname].hasTouch ? "touch" : "mouse"}) ${url}`);
     try {
       await page.goto(url);
       await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title", null, { timeout: 15000 });
       log(`loaded from file:// : title screen up, version ${await page.evaluate(() => window.bb.version)} (Math.random pinned to ${pin} -> run seed ${(pin * 0x7fffffff) | 0})`);
-      await scriptedRun(page, !!VIEWS[vname].hasTouch, log, RUNS[vname]);
+      await scriptedRun(page, !!VIEWS[vname].hasTouch, log, RUNS[rname]);
     } catch (e) {
       failed++;
       log(`FAILED: ${e.message}`);
@@ -94,7 +102,7 @@ async function main() {
     await ctx.close();
   }
   await browser.close();
-  log(failed ? `\nRESULT: FAIL (${failed})` : "\nRESULT: PASS (desk 10-day + phone 3+-day scripted runs, honest dusk decks, no console errors)");
+  log(failed ? `\nRESULT: FAIL (${failed})` : "\nRESULT: PASS (desk 10-day + phone 3+-day scripted runs, fresh-player FURNACE + WEAVER runs to the end, honest dusk decks, no console errors)");
   if (LOG) await writeFile(LOG, lines.join("\n") + "\n");
   process.exit(failed ? 1 : 0);
 }

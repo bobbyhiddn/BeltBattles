@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 // 0.6.0b: honest.ts is tooling only; rampPlates, maxGoldByDay and deckCost live in src/sim/rivals.ts,
-// and the dusk stand-in is standInFoe (the run's rival captain with standInBuild), not standIn
+// and the dusk stand-in is standInFoe (the run's rival captain; 0.6.0d: with its stand-in pool deck
+// standInPick, no longer standInBuild), not standIn
 import { honestStandIn, honestStandInBuild, plateHull, strongHonestBuild } from "../src/game/honest";
-import { RIVALS, deckCost, maxGoldByDay, rampPlates, standInBuild, standInGhost } from "../src/sim/rivals";
+import { RIVALS, deckCost, maxGoldByDay, rampPlates, standInGhost } from "../src/sim/rivals";
+import { standInPick } from "../src/sim/standInPool";
 import { standInFoe } from "../src/game/ghosts";
 import { chooseFoe } from "../src/game/day";
 import { newRun } from "../src/game/run";
@@ -75,16 +77,18 @@ describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in"
     }
   });
 
-  // 0.6.0b: the stand-in is standInFoe, the run's captain standInGhost(seed, day) with its honest
-  // standInBuild deck and name (no longer honestStandInBuild of a seeded hero)
-  it("standInFoe brings the captain's honest standInBuild deck and stays deterministic for a seed and day", () => {
+  // 0.6.0b: the stand-in is standInFoe, the run's captain standInGhost(seed, day) and its name (no
+  // longer honestStandInBuild of a seeded hero). 0.6.0d: its deck is the stand-in pool's full-purse
+  // standInPick(hero, day, seed), no longer the captain's standInBuild(id, day)
+  it("standInFoe brings the captain's full-purse standInPick deck and stays deterministic for a seed and day", () => {
     for (const seed of [1, 555, 12345, 644245094]) {
       for (const d of DAYS) {
         const a = standInFoe(seed, d), b = standInFoe(seed, d);
         expect(b).toEqual(a);
         const id = standInGhost(seed, d);
         expect(a.id).toBe(id);
-        expect(a.build).toEqual(standInBuild(id, d));
+        expect(a.build).toEqual(standInPick(RIVALS[id].hero, d, seed));
+        expect(deckCost(a.build).total).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(d)));
         expect([a.hero, a.name]).toEqual([RIVALS[id].hero, RIVALS[id].name]);
         const run = newRun("weaver", seed, "me");
         run.day = d;

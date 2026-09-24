@@ -122,7 +122,9 @@ const foeOf = (page) => page.evaluate(() => {
   };
 });
 const honestFoe = (f) => f.hull >= 0 && f.hull % 25 === 0 && f.cost <= f.budget;
-const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, deckCost ${f.cost} of ${f.budget} gold: ${honestFoe(f) ? "honest" : "NOT HONEST"}; your deck ${f.mine}`;
+// 0.6.0d: a stand-in brings a stand-in pool deck, which spends at least ceil(0.9 x budget)
+const fullPurse = (f) => f.cost >= Math.ceil(0.9 * f.budget);
+const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, deckCost ${f.cost} of ${f.budget} gold: ${honestFoe(f) ? "honest" : "NOT HONEST"}${f.kind === "standin" ? `, full purse (>= ${Math.ceil(0.9 * f.budget)}): ${fullPurse(f)}` : ""}; your deck ${f.mine}`;
 
 /** Reload the page mid-battle, CONTINUE from the title, and check the same ghost comes back. */
 async function reloadAndContinue(page, touch, log, at, state) {
@@ -152,12 +154,24 @@ export async function scriptedRun(page, touch, log, opts) {
     forkPicks: {}, tapPicks: 0, warlordLosses: [], livesChanged: [], matriarchDays: [], reloadWarlordSame: false, warlordRefit: false, dayLog: [], spend: [],
     // 0.6.0c: choices to take ({ eventId: [label, gold] }), the days they were taken, the bounty's end, scout check
     take: opts.take || {}, took: {}, bountyLog: null, scoutFought: false,
+    // 0.6.0d feel check: one row per day (foe, deckCost/budget, result, lives)
+    feel: [],
   };
   const n = await page.evaluate((pool) => { window.bb.clearPool(); return window.bb.addGhosts(pool); }, opts.pool);
-  log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ")}`);
+  log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ") || "none (a fresh player: every dusk is a stand-in)"}`);
   await tapRegion(page, touch, "new");
   await settle(page, "hero");
+  // 0.6.0d: opts.hero picks the cruiser with the hero screen's > button (FURNACE first, then WEAVER)
+  for (let k = 0; opts.hero && k < 2 && (await page.evaluate(() => ["furnace", "weaver"][window.bb.game.screen.i])) !== opts.hero; k++) {
+    await tapRegion(page, touch, "next");
+  }
   await tapRegion(page, touch, "go");
+  if (opts.hero) {
+    await settle(page, "build");
+    const hero = await page.evaluate(() => window.bb.game.run.hero);
+    if (hero !== opts.hero) throw new Error(`hero select: got ${hero}, wanted ${opts.hero}`);
+    log(`[${at()}] COMMAND ${hero.toUpperCase()} (picked on the hero screen); buys up to ${opts.buys || 2} parts a dawn`);
+  }
   for (let day = 1; day <= 10; day++) {
     await settle(page, "build");
     await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
@@ -173,7 +187,7 @@ export async function scriptedRun(page, touch, log, opts) {
     const reserve = want ? want[1] : 0;
     // backing a stake: the dawn before the bounty's Hard warlord spends freely (else 2 gates a day)
     const backing = ((opts.roads || "")[day - 1] || "v") === "h" && !!state.took.herald && !state.bountyLog;
-    for (let k = 0; k < (backing ? 8 : 2); k++) {
+    for (let k = 0; k < (backing ? 8 : opts.buys || 2); k++) {
       const def = await placePlanned(page, touch, reserve);
       if (!def) break;
       parts.push(def);
@@ -217,6 +231,7 @@ export async function scriptedRun(page, touch, log, opts) {
       return { day: h.day, outcome: h.outcome, time: h.time.toFixed(1), income: h.income, lives: run.lives, wl: `${run.wins}-${run.losses}`, over: run.over };
     });
     if (r.outcome === "loss") state.losses.push(`day ${r.day}: ${dawn.lives} -> ${r.lives} lives`);
+    state.feel.push(`D${foe.day} ${foe.kind === "ghost" ? "ghost" : foe.name} (${foe.hero}) ${foe.cost}/${foe.budget}g vs yours ${foe.mine}g: ${r.outcome.toUpperCase()} ${r.time}s, ${r.lives} lives`);
     log(`[${at()}] RESULT CARD: ${r.outcome === "win" ? "WIN" : r.outcome === "loss" ? "LOSS -1 LIFE" : "DRAW"} (${r.time}s sim), income +${r.income}G, lives ${r.lives}, W-L ${r.wl}${r.over ? `, run ${r.over}` : ""}`);
     if (r.over || (day >= opts.days && (!opts.untilLoss || state.losses.length))) break;
     await tapRegion(page, touch, "next");
@@ -237,8 +252,13 @@ export async function scriptedRun(page, touch, log, opts) {
   log(`[${at()}] road: ${state.dayLog.map((d) => `D${d.day} ${d.road}`).join(" | ")}`);
   log(`[${at()}] fork picks: event ${fp.v || 0}, easy ${fp.e || 0}, medium ${fp.m || 0}, hard ${fp.h || 0} (by tap: ${state.tapPicks}); warlord losses ${state.warlordLosses.join("; ") || "none"}; lives changed by a warlord: ${state.livesChanged.join(", ") || "never"}; Matriarch met on day(s) ${state.matriarchDays.join(", ") || "-"}; reload mid-warlord kept the fight: ${state.reloadWarlordSame}`);
   log(`[${at()}] dusk spend (deckCost/budget): ${state.spend.join(" | ")}`);
+  if (opts.check === "fresh") {
+    // 0.6.0d feel check (logged, not pass/fail): never throws on the outcome
+    log(`[${at()}] FEEL ${String(opts.hero || "furnace").toUpperCase()} (empty pool, every dusk a stand-in): ${end.over === "complete" ? "RUN COMPLETE" : end.over === "lost" ? `RUN LOST on day ${end.day}` : "stopped"}, W-L ${end.wl}, ${end.lives} lives`);
+    for (const row of state.feel) log(`  ${row}`);
+  }
   const sis = await page.evaluate(() => window.bb.standInSpend(window.bb.game.run.seed));
-  log(`[${at()}] this run's stand-in captain per day (used when no pool ghost matches; standInBuild deckCost/budget): ${sis.map((s) => `D${s.day} ${s.name} +${s.hull} ${s.cost}/${s.budget}`).join(" | ")}`);
+  log(`[${at()}] this run's stand-in captain per day (used when no pool ghost matches; 0.6.0d: the stand-in pool deck, standInPick, deckCost/budget): ${sis.map((s) => `D${s.day} ${s.name} +${s.hull} ${s.cost}/${s.budget}${s.pool ? "" : " (standInBuild fallback)"}`).join(" | ")}`);
   if (state.livesChanged.length) throw new Error(`a warlord fight changed lives (${state.livesChanged.join(", ")})`);
   if (days < 3) throw new Error("scripted run played fewer than 3 days");
   if (opts.check === "desk" && (["v", "e", "m", "h"].some((k) => (fp[k] || 0) < 2) || !state.warlordLosses.length || !state.matriarchDays.includes(8) || days < 10)) {

@@ -7,24 +7,49 @@
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, RUN_DAYS, START_LIVES } from "../sim/content";
 import { beltUsed, removeItem } from "../sim/deck";
-import { BAG_IDS, EVENTS, EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "./eventDefs";
+import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "./eventDefs";
 import type { Run } from "./run";
 import { chooseFoe, storedFoe } from "./day";
 import { loadPool } from "./ghosts";
 
+/** 0.6.0d: HERALD (ELITE BOUNTY) or SAPPERS (SABOTAGE) would be a dud on the last day: no warlord
+ *  is left for the stake or the sabotage (blockReason's NO WARLORD LEFT). */
+const lastDayDud = (id: EventId): boolean => WARLORD_EVENT_IDS.includes(id);
+
+/**
+ * 0.6.0d, no dud last stop: when day RUN_DAYS (10) holds HERALD or SAPPERS, it swaps with the
+ * latest earlier day whose event is neither. The run still meets every event exactly once (the
+ * first bag is all 10 events), and an order whose day 10 was neither is left as it was.
+ */
+function keepDudsOffLastDay(order: EventId[]): void {
+  const last = RUN_DAYS - 1;
+  if (order.length <= last || !lastDayDud(order[last])) return;
+  for (let j = last - 1; j >= 0; j--) {
+    if (!lastDayDud(order[j])) {
+      [order[j], order[last]] = [order[last], order[j]];
+      return;
+    }
+  }
+}
+
 /** A run's event order (0.6.0b): shuffled bags of the bag events, from day 1 (no intro rule).
- *  Never the same twice in a row. */
+ *  Never the same twice in a row. 0.6.0d: never HERALD or SAPPERS on day 10 (keepDudsOffLastDay,
+ *  applied once the bag holding day 10 is drawn, before the next bag's no-repeat check). */
 export function eventSequence(seed: number, n: number): EventId[] {
   const out: EventId[] = [];
-  for (let bag = 0; out.length < n; bag++) {
+  const want = Math.max(n, RUN_DAYS); // day 10 is always drawn: the swap can reach back to any day
+  for (let bag = 0; out.length < want; bag++) {
     const ids = new Rng(hashSeed(seed, "event-bag", bag)).shuffle([...BAG_IDS]);
     if (ids[0] === out[out.length - 1]) [ids[0], ids[1]] = [ids[1], ids[0]];
+    const before = out.length;
     out.push(...ids);
+    if (before < RUN_DAYS && out.length >= RUN_DAYS) keepDudsOffLastDay(out);
   }
   return out.slice(0, n);
 }
 
-/** The road event on a day's fork (0.6.0b): every day has one (no quiet-road skip). */
+/** The road event on a day's fork (0.6.0b): every day has one (no quiet-road skip). 0.6.0d: day 10
+ *  is never HERALD or SAPPERS (eventSequence). */
 export function eventFor(seed: number, day: number): EventId {
   const d = Math.max(1, Math.floor(day) || 1);
   return eventSequence(seed, d)[d - 1];
@@ -56,7 +81,9 @@ function owns(run: Run, d: Extract<Delta, { k: "item" }>): boolean {
 }
 
 /** Why a choice can't be taken right now, or undefined. 0.6.0c: an ELITE BOUNTY or SABOTAGE on the
- *  last day (run.day >= RUN_DAYS) could never pay, as no warlord is left: NO WARLORD LEFT. */
+ *  last day (run.day >= RUN_DAYS) could never pay, as no warlord is left: NO WARLORD LEFT. 0.6.0d:
+ *  eventFor no longer draws HERALD or SAPPERS on day 10; the block stays as a safety net (a saved
+ *  run whose day-10 HERALD or SAPPERS was already stored in run.event, or a tooling-opened event). */
 export function blockReason(run: Run, c: Choice): string | undefined {
   if (run.day >= RUN_DAYS && c.gain.some((d) => d.k === "bounty" || d.k === "sabotage")) return "NO WARLORD LEFT";
   for (const d of c.cost) {
