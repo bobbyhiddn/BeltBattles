@@ -1,9 +1,11 @@
 // Ghost client (no UI). fetchGhost never fails: any network error, timeout, bad status,
 // empty or invalid answer falls back to fallback.ts. submitGhost never throws either;
-// it reports { ok: false } and the run simply continues offline.
+// it reports { ok: false } and the run simply continues offline. Every upload is signed with
+// the device key (identity.ts); without an identity (a plain-http page) there is no upload.
 
 import { RULES_VERSION } from "../sim/content";
 import { fallbackGhost, migrateV1, type FallbackRequest } from "./fallback";
+import { KEY_HEADER, SIG_HEADER, type Identity } from "./identity";
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
 
@@ -87,12 +89,22 @@ export async function fetchGhost(
   }
 }
 
-/** Upload tonight's snapshot. Encoding enforces the strict format and the 16 KB cap. */
-export async function submitGhost(baseUrl: string, snapshot: GhostSnapshot, timeoutMs = 4000): Promise<SubmitResult> {
+/**
+ * Upload tonight's snapshot, signed by this device's key. Encoding enforces the strict format and
+ * the 16 KB cap; the signature covers exactly the bytes sent (x-bb-key, x-bb-sig). A snapshot whose
+ * playerId is not identity.playerId is refused here, without a request: the server would refuse it.
+ */
+export async function submitGhost(
+  baseUrl: string, snapshot: GhostSnapshot, identity: Identity, timeoutMs = 4000,
+): Promise<SubmitResult> {
   try {
-    const body = encodeSnapshot(snapshot);
+    if (snapshot.playerId !== identity.playerId) {
+      return { ok: false, error: "snapshot.playerId is not this device's player id: not uploaded" };
+    }
+    const body = new TextEncoder().encode(encodeSnapshot(snapshot));
+    const { key, sig } = await identity.sign(body);
     const { status, text } = await fetchText(endpoint(baseUrl, "/v1/ghosts"), {
-      method: "POST", headers: { "content-type": "application/json" }, body,
+      method: "POST", headers: { "content-type": "application/json", [KEY_HEADER]: key, [SIG_HEADER]: sig }, body,
     }, timeoutMs);
     let parsed: { id?: unknown; error?: unknown } = {};
     try {
