@@ -12,7 +12,7 @@
 // Gates are never left off-route: they only act on payloads riding their cell.
 
 import { GRID, HEROES, ITEMS, rarityWeights, type ItemDef } from "../content";
-import { cloneBuild, footprint, itemByUid, kx, ky, occupancy, routeInfo, routesOf, type Build, type Placed } from "../deck";
+import { cloneBuild, coreFor, footprint, gearFor, itemByUid, kx, ky, occupancy, routeInfo, routesOf, type Build, type Placed } from "../deck";
 import { buildCost } from "../../net/validate";
 import { starsOf } from "../stars";
 import { fusibleCopies, gainInto, previewMerge } from "./merge";
@@ -20,21 +20,32 @@ import { blockedCells, freeConnectors, startCells } from "./path";
 import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Shopper } from "./shopper";
 import type { GainAt } from "../../game/fuse";
 
-export type Lever = "gate" | "mod" | "plating" | "route" | "press" | "sync" | "order" | "drop" | "merge";
-export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "press", "sync", "order", "drop", "merge"];
+// 0.6.1b (harness v2 part 2): "core" is last, so personality() draws its weight after every part-1
+// lever's, and only when cores are on: with cores off every RNG draw is exactly part 1's.
+export type Lever = "gate" | "mod" | "plating" | "route" | "press" | "sync" | "order" | "drop" | "merge" | "core";
+export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "press", "sync", "order", "drop", "merge", "core"];
+
+/** 0.6.1b: turrets whose gear hardpoint is free. The core socket is separate: deck.ts
+ *  turretHasFreeHardpoint/gearFor (c432bee deck.ts:483-489) count gear only. With no core fitted this is
+ *  exactly v1's "no module on the turret". */
+const gearFree = (b: Build): number[] => HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !gearFor(b, t));
+/** 0.6.1b: turrets whose core socket is empty (deck.ts coreFor, c432bee deck.ts:478): they run the hero's
+ *  implicit signature core (ARSENAL.md §2.1 rule 1), which is never an item and never bought. */
+const socketFree = (b: Build): number[] => HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !coreFor(b, t));
 
 export function canApply(s: Shopper, l: Lever): boolean {
   const left = s.left(), b = s.b;
   switch (l) {
     case "plating": return left >= PLATE.price;
     case "gate": return left >= s.minGate && s.freeRouteCells().length > 0;
-    case "mod": return left >= s.minMod && HEROES[b.hero].turrets.some((_, t) => !b.mods.some((m) => m.turret === t));
+    case "mod": return left >= s.minMod && gearFree(b).length > 0;
     case "press": return left >= PRESS.price && freeConnectors(b).length > 0;
     case "route": return s.edits < MAX_ROUTE_EDITS && b.routes.length > 0;
     case "sync": return !s.synced && s.twinRoutes() !== null;
     case "order": return routesOutOfOrder(b).length > 0 || buyMoves(s).length > 0;
     case "drop": return left >= PRESS.price && freeConnectors(b).length === 0 && droppable(b).length > 0;
     case "merge": return s.stars && mergeableDefs(s).length > 0;
+    case "core": return s.coresOn && left >= s.minCore;
   }
 }
 
@@ -49,6 +60,7 @@ export function applyLever(s: Shopper, l: Lever): boolean {
     case "order": return order(s);
     case "drop": return drop(s);
     case "merge": return merge(s);
+    case "core": return core(s);
   }
 }
 
@@ -71,17 +83,60 @@ function gate(s: Shopper): boolean {
 
 /** A turret module on a free hardpoint, preferring guns that some belt feeds. */
 function mod(s: Shopper): boolean {
-  const b = s.b, h = HEROES[b.hero], left = s.left();
-  const free = h.turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
-  const fed = new Set(b.routes.map((r) => h.turrets.findIndex((t) => t.connectors.includes(r.cells[r.cells.length - 1] % GRID))));
+  const b = s.b, left = s.left();
+  const free = gearFree(b); // 0.6.1b: a fitted core doesn't take the gear hardpoint
+  const fed = fedTurrets(b);
   const live = free.filter((t) => fed.has(t));
   const pool = s.mods.filter((d) => d.price <= left && s.canGain(d.id));
   if (!pool.length || !free.length) return false;
   // same RNG order as v1 (def, then turret) whether or not this ends up merging
   const def = s.rng.pick(pool).id;
   const turret = s.rng.pick(live.length ? live : free);
-  if (s.stars) gainInto(s, b, def, { turret });
+  if (s.stars) gainInto(s, b, def, { turret }, s.cargo);
   else b.mods.push({ uid: s.uid++, def, turret });
+  return true;
+}
+
+/** Turrets some belt feeds (the mod lever's "live" guns, v1). */
+function fedTurrets(b: Build): Set<number> {
+  const h = HEROES[b.hero];
+  return new Set(b.routes.map((r) => h.turrets.findIndex((t) => t.connectors.includes(r.cells[r.cells.length - 1] % GRID))));
+}
+
+/**
+ * 0.6.1b: buy a turret core the hero's caravan sells (shopItems(hero, "core"); drawn with the shop's rarity
+ * weights for the day, like the gate lever) and fit it, following the game (c432bee):
+ * - a copy that merges into a FITTED twin goes in as buyOffer does it (run.ts:330, `pv.where !== "cargo"`:
+ *   the gain enters cargo and gainModule fuses it into the placed twin, which keeps its socket; fuse.ts:74-85);
+ * - else an empty socket comes first (a fed gun preferred, as the mod lever does);
+ * - else a DIFFERENT core on a full socket is swapped: gainModule's freeSocket sends the bought core there to
+ *   cargo with its stars (fuse.ts:139-144, ARSENAL.md §2.1 rule 6); cargo doesn't fight, its gold stays spent.
+ *   A same-def core already fitted is never swapped out for its own copy.
+ * Every gain runs through gainInto (fuse.ts gainModule), which also merges with a cargo twin (placed beats
+ * cargo). The validator's rule (validate.ts:192-202: one core per socket, one mod per hardpoint) holds.
+ */
+function core(s: Shopper): boolean {
+  const b = s.b, left = s.left(), w = rarityWeights(s.day);
+  const pool = s.cores.filter((d) => d.price <= left && w[d.rarity] > 0 && s.canGain(d.id));
+  if (!pool.length) return false;
+  const d = s.rng.weighted(pool, (g) => w[g.rarity] / s.cores.filter((x) => x.rarity === g.rarity).length);
+  const pv = previewMerge(b, s.uid, d.id, s.cargo);
+  if (pv && pv.where !== "cargo") {
+    gainInto(s, b, d.id, { turret: 0 }, s.cargo); // merges into the fitted twin; the target is ignored (buyOffer)
+    return true;
+  }
+  const empty = socketFree(b);
+  let turret: number;
+  if (empty.length) {
+    const fed = fedTurrets(b), live = empty.filter((t) => fed.has(t));
+    turret = s.rng.pick(live.length ? live : empty);
+  } else {
+    const other = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => coreFor(b, t)!.def !== d.id);
+    if (!other.length) return false;
+    turret = s.rng.pick(other);
+    s.swaps++;
+  }
+  gainInto(s, b, d.id, { turret }, s.cargo);
   return true;
 }
 
@@ -317,9 +372,9 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
   const b = s.b;
   if (!s.canGain(PRESS.id)) return false; // F8 cap (always true at FUSE_MAX and with stars off)
   if (s.stars) {
-    const preview = previewMerge(b, s.uid, PRESS.id);
+    const preview = previewMerge(b, s.uid, PRESS.id, s.cargo);
     if (preview && preview.where !== "cargo") {
-      gainInto(s, b, PRESS.id, { x: 0, y: 0 }); // target ignored: merges into the existing placed press
+      gainInto(s, b, PRESS.id, { x: 0, y: 0 }, s.cargo); // target ignored: merges into the existing placed press
       return true;
     }
   }
@@ -329,7 +384,7 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
     if (footprint(PRESS, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
     const snap = cloneBuild(b);
     const uid = s.uid; // gainInto (stars on) mints this same uid; the raw push (off) mints it too
-    if (s.stars) gainInto(s, b, PRESS.id, { x, y }); // no twin (checked above): lands at x,y, as pushed
+    if (s.stars) gainInto(s, b, PRESS.id, { x, y }, s.cargo); // no twin (checked above): lands at x,y, as pushed
     else { b.items.push({ uid, def: PRESS.id, x, y }); s.uid++; }
     const bl = blockedCells(b);
     const cells = s.drawRoute(-1, startCells(x, y, PRESS.size, bl), bl, s.left());
@@ -355,11 +410,13 @@ function mergeableDefs(s: Shopper): string[] {
   if (!present.length) return [];
   const oneStar = new Set(present.filter((c) => c.stars === 1).map((c) => c.def));
   const cells = s.freeRouteCells();
-  const freeT = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
+  const freeT = gearFree(b); // 0.6.1b: gear hardpoints (== v1's free turrets when no core is fitted)
+  const freeS = socketFree(b); // 0.6.1b: a core copy that doesn't merge needs an empty socket (never a swap here)
   return [...new Set(present.map((c) => c.def))].filter((d) => {
     if (ITEMS[d].price > left || !s.canGain(d)) return false;
     if (oneStar.has(d)) return true; // will merge immediately: no placement needed
-    return ITEMS[d].kind === "gate" ? cells.length > 0 : freeT.length > 0;
+    const kind = ITEMS[d].kind;
+    return kind === "gate" ? cells.length > 0 : kind === "core" ? freeS.length > 0 : freeT.length > 0;
   });
 }
 
@@ -372,13 +429,16 @@ function merge(s: Shopper): boolean {
   const b = s.b, def = s.rng.pick(defs), kind = ITEMS[def].kind;
   let at: GainAt;
   if (kind === "mod") {
-    const freeT = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
+    const freeT = gearFree(b);
     at = { turret: s.rng.pick(freeT.length ? freeT : [0]) };
+  } else if (kind === "core") {
+    const freeS = socketFree(b); // 0.6.1b: a 1-star twin is fitted (merges, target ignored) or a socket is empty
+    at = { turret: s.rng.pick(freeS.length ? freeS : [0]) };
   } else {
     const cells = s.freeRouteCells();
     const k = s.rng.pick(cells.length ? cells : [0]);
     at = { x: kx(k), y: ky(k) };
   }
-  gainInto(s, b, def, at);
+  gainInto(s, b, def, at, s.cargo);
   return true;
 }

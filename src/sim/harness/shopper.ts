@@ -8,7 +8,7 @@ import { cloneBuild, kx, ky, occupancy, routesOf, turretForColumn, type Build, t
 import { buildCost } from "../../net/validate";
 import { FUSE_MAX } from "../stars";
 import { shopItems } from "./heroes";
-import { gainInto, previewMerge } from "./merge";
+import { cargoValue, gainInto, previewMerge, type InvItem } from "./merge";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
 
 export const CRATE = ITEMS.beltcrate, PLATE = ITEMS.plating, PRESS = ITEMS.press;
@@ -24,16 +24,28 @@ export const isSplitter = (d: ItemDef): boolean => !!d.gate?.split;
  *  "off" reproduces v1 exactly (same items, same RNG draws), for the byte-identical regression. */
 export type Stars = "on" | "off";
 
+/** 0.6.1b (harness v2 part 2): "on" lets the shopper buy turret cores and fit them (the "core" lever);
+ *  only effective with stars on. "off" (and stars off) buys none, with no RNG draw: exactly part 1. */
+export type Cores = "on" | "off";
+
 export class Shopper {
   uid = 100;
   edits = 0;
   synced = false; // Crucible twins matched with mirrored speed gates; kept so after every lever
   ordered = false; // flat-bonus gates ahead of Splitters on every route; kept so after every lever
   readonly stars: boolean; // true: every gain goes through gainInto (merge-aware); false: v1 raw pushes
+  readonly coresOn: boolean; // 0.6.1b: stars on AND cores on: the "core" lever may buy and fit cores
   readonly gates: ItemDef[]; // gates this hero's caravan sells
   readonly mods: ItemDef[];
+  readonly cores: ItemDef[]; // 0.6.1b: turret cores this hero's caravan sells (bought only when coresOn)
   readonly minGate: number;
   readonly minMod: number;
+  readonly minCore: number;
+  /** 0.6.1b: the run's cargo. A bought core swapped off a full socket lands here (fuse.ts freeSocket); it
+   *  doesn't fight, but its gold is spent (left() counts it) and a later copy may merge with it. Always
+   *  empty unless coresOn, so every other path is unchanged. */
+  cargo: InvItem[] = [];
+  swaps = 0; // 0.6.1b: cores swapped to cargo by the "core" lever
 
   // NOTE: defaults to "off" (v1-exact), not the harness's product-level "on" default, so every
   // pre-existing call site that builds a Shopper without the new 5th argument — most importantly
@@ -44,24 +56,30 @@ export class Shopper {
   // flag) passes `stars` through explicitly, so "on" is still the default at every product surface.
   // maxStars (F8): the highest star a gain may merge up to. FUSE_MAX (3) everywhere but the stand-in
   // candidates, which stay at 2 (ARSENAL.md §9.2: "the Matriarch alone may carry a 3★").
-  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off", readonly maxStars: number = FUSE_MAX) {
+  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off", readonly maxStars: number = FUSE_MAX, cores: Cores = "off") {
     this.stars = stars === "on";
+    this.coresOn = this.stars && cores === "on";
     this.gates = shopItems(b.hero, "gate");
     this.mods = shopItems(b.hero, "mod");
+    this.cores = shopItems(b.hero, "core");
     this.minGate = Math.min(...this.gates.map((g) => g.price));
     this.minMod = Math.min(...this.mods.map((m) => m.price));
+    this.minCore = Math.min(...this.cores.map((c) => c.price));
   }
 
   /** May one more copy of `def` be gained? Always (no RNG, no preview) unless stars is on and the
-   *  cap is below FUSE_MAX; then not when the gain would merge up to more than maxStars. */
+   *  cap is below FUSE_MAX; then not when the gain would merge up to more than maxStars. 0.6.1b: the
+   *  preview sees the cargo too (a copy can merge with a swapped-out core), so the cap covers cores. */
   canGain(def: string): boolean {
     if (!this.stars || this.maxStars >= FUSE_MAX) return true;
-    const pv = previewMerge(this.b, this.uid, def);
+    const pv = previewMerge(this.b, this.uid, def, this.cargo);
     return !pv || pv.toStars <= this.maxStars;
   }
 
+  /** Gold left: the budget minus the deck's value and (0.6.1b) the cargo's, which is 0 unless cores
+   *  were swapped, so this is exactly part 1's arithmetic whenever cores are off. */
   left(): number {
-    return this.budget - buildCost(this.b).total;
+    return this.budget - buildCost(this.b).total - (this.cargo.length ? cargoValue(this.cargo) : 0);
   }
 
   restore(snap: Build): false {
@@ -99,7 +117,7 @@ export class Shopper {
    *  so a same-def 1-star twin already on the deck absorbs it instead (ARSENAL.md §4.1); off,
    *  this is the exact v1 push (same uid sequence, no RNG consumed either way). */
   placeGate(def: string, k: number): void {
-    if (this.stars) gainInto(this, this.b, def, { x: kx(k), y: ky(k) });
+    if (this.stars) gainInto(this, this.b, def, { x: kx(k), y: ky(k) }, this.cargo);
     else this.b.items.push({ uid: this.uid++, def, x: kx(k), y: ky(k) });
   }
 

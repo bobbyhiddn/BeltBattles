@@ -44,6 +44,10 @@ async function main(): Promise<void> {
   if (!Number.isFinite(pf) || pf < 0 || pf > 100) throw new Error("--par-floor must be a win-rate percentage, e.g. 50");
   const starsFlag = flag("stars") ?? "on";
   if (starsFlag !== "on" && starsFlag !== "off") throw new Error(`--stars must be "on" or "off", got ${starsFlag}`);
+  // 0.6.1b (harness v2 part 2): --cores defaults to the --stars value; cores need stars on
+  const coresFlag = flag("cores") ?? starsFlag;
+  if (coresFlag !== "on" && coresFlag !== "off") throw new Error(`--cores must be "on" or "off", got ${coresFlag}`);
+  if (coresFlag === "on" && starsFlag === "off") throw new Error("--cores on needs --stars on (stars off is harness v1 exactly: no cores)");
   const o: StandInOpts = {
     ...STANDIN_DEFAULTS,
     seed: num("seed", STANDIN_DEFAULTS.seed),
@@ -53,6 +57,7 @@ async function main(): Promise<void> {
     band: [band[0], band[1]],
     parFloor: pf / 100,
     stars: starsFlag,
+    cores: coresFlag,
   };
   if (o.per < 1 || o.pop < o.per) throw new Error("--pop must be at least --per, and --per at least 1");
   const check = process.argv.includes("--check");

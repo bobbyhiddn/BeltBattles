@@ -3,8 +3,9 @@
 import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../content";
 import { routeInfo, type Build } from "../deck";
 import { buildCost, maxGoldByDay } from "../../net/validate";
+import { starsOf } from "../stars";
 import { bandFlag, fmtRate, pct, type Rate } from "./stats";
-import type { BenchRow, Spend, TourneyResult } from "./tournament";
+import type { BenchRow, CoreUse, Spend, TourneyResult } from "./tournament";
 
 export interface RunMeta { runtimeMs: number; workers: number; command: string; perDayMs: Record<number, number> }
 
@@ -12,9 +13,11 @@ export interface RunMeta { runtimeMs: number; workers: number; command: string; 
 export function describeBuild(b: Build, day: number): string {
   const h = HEROES[b.hero];
   const counts = new Map<string, number>();
-  for (const p of b.items) if (p.def !== h.factory) counts.set(ITEMS[p.def].name, (counts.get(ITEMS[p.def].name) ?? 0) + 1);
+  // 0.6.1b (part 2): a merged module shows its star ("TEMPER ★2"); a 1-star one reads exactly as in v1
+  const nm = (p: { def: string; stars?: number }) => `${ITEMS[p.def].name}${starsOf(p) > 1 ? ` ★${starsOf(p)}` : ""}`;
+  for (const p of b.items) if (p.def !== h.factory) counts.set(nm(p), (counts.get(nm(p)) ?? 0) + 1);
   const items = [...counts].map(([n, c]) => (c > 1 ? `${n} x${c}` : n)).join(", ") || "no gates";
-  const mods = b.mods.map((m) => `${ITEMS[m.def].name} on gun ${m.turret + 1}`).join(", ") || "no modules";
+  const mods = b.mods.map((m) => `${nm(m)}${ITEMS[m.def].kind === "core" ? " (core)" : ""} on gun ${m.turret + 1}`).join(", ") || "no modules";
   const routes = b.routes.map((r, i) => {
     const f = b.items.find((p) => p.uid === r.factory);
     const info = routeInfo(b, i);
@@ -146,7 +149,27 @@ function v2Sections(res: TourneyResult): string[] {
       L.push(`| ${d.day} | ${H(h)} | ${pct1(m.pop.p1)}/${pct1(m.pop.p2)}/${pct1(m.pop.p3)} | ${m.pop.medianMerged} [${m.pop.maxMerged}] | ${pct1(m.elites.p1)}/${pct1(m.elites.p2)}/${pct1(m.elites.p3)} | ${m.elites.medianMerged} [${m.elites.maxMerged}] |`);
     }
   }
+  if (res.days.some((d) => d.coreUse)) L.push(...coreSection(res));
   L.push(...benchSection(res.days));
+  return L;
+}
+
+/** 0.6.1b (harness v2 part 2): bought turret cores per hero and day, population then elites. */
+function coreSection(res: TourneyResult): string[] {
+  const o = res.opts;
+  const L: string[] = ["", "## Turret cores (0.6.1b)", "", "Bought cores fitted in each hero's population and elites: builds with a core, cores per build, the star split and the defs (count). An empty socket runs the hero's signature core (never bought).", ""];
+  const cell = (u: CoreUse) => {
+    const defs = Object.entries(u.byDef).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([d, n]) => `${d} ${n}`).join(", ");
+    return `${u.withCore}/${u.builds}; ${(u.builds ? u.cores / u.builds : 0).toFixed(2)}/build; ★ ${u.stars.join("/")}${defs ? `; ${defs}` : ""}`;
+  };
+  L.push("| day | hero | population | elites |", "|---|---|---|---|");
+  for (const d of res.days) {
+    if (!d.coreUse) continue;
+    for (const h of o.heroes) {
+      const u = d.coreUse[h];
+      if (u) L.push(`| ${d.day} | ${H(h)} | ${cell(u.pop)} | ${cell(u.elites)} |`);
+    }
+  }
   return L;
 }
 

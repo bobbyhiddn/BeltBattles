@@ -7,14 +7,14 @@
 
 import { Rng, hashSeed } from "../../core/rng";
 import { simulate } from "../battle";
-import type { HeroId } from "../content";
+import { ITEMS, type HeroId } from "../content";
 import type { Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs } from "../../net/validate";
-import { fusible, starsOf } from "../stars";
+import { FUSE_MAX, fusible, starsOf } from "../stars";
 import { randomBuild } from "./gen";
 import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "./heroes";
 import { buildTraits, type Traits } from "./levers";
-import type { Stars } from "./shopper";
+import type { Cores, Stars } from "./shopper";
 import { meanCI, wilson, type Rate } from "./stats";
 
 export interface TourneyOpts {
@@ -27,12 +27,19 @@ export interface TourneyOpts {
   elites: number;
   calibrationDays: number[]; // days that also rank the reference build
   stars: Stars; // 0.6.1a harness v2: merge-aware population/gauntlet when "on" (the product default)
+  // 0.6.1b harness v2 part 2: the shopper buys and fits turret cores; only with stars on. Absent = "off", so
+  // every pre-existing caller (and test) of DEFAULT_OPTS keeps part 1's exact path; the product surface is the
+  // CLI, whose --cores defaults to the --stars value (tools/balance.ts).
+  cores?: Cores;
 }
 
 export const DEFAULT_OPTS: TourneyOpts = {
   seed: 1, days: [1, 3, 5, 7, 10], heroes: HARNESS_HEROES, pop: 40, gauntlet: 20, seeds: 2, elites: 8,
   calibrationDays: [1, 3, 5, 7, 10], stars: "on",
 };
+
+/** 0.6.1b: cores are bought only with stars on and cores on (the CLI defaults cores to the stars flag). */
+export const coresOn = (o: { stars: Stars; cores?: Cores }): boolean => o.stars === "on" && o.cores === "on";
 
 export interface Job { a: number; b: number; seeds: number[] } // field indices
 /** Plays jobs over a field; returns, per job, a's points (win 1, draw 0.5) over 2 x seeds battles. */
@@ -134,6 +141,27 @@ export interface DayResult {
   mirror2?: Partial<Record<HeroId, SplitStats>>;
   starMix?: Partial<Record<HeroId, { pop: StarMix; elites: StarMix }>>;
   bench?: BenchRow[];
+  // 0.6.1b harness v2 part 2 (populated when cores are on): bought cores in the population and the elites.
+  coreUse?: Partial<Record<HeroId, { pop: CoreUse; elites: CoreUse }>>;
+}
+
+/** 0.6.1b: bought turret cores in a set of builds: builds with at least one, cores fitted, per def, per star. */
+export interface CoreUse { builds: number; withCore: number; cores: number; byDef: Record<string, number>; stars: [number, number, number] }
+
+export function coreUseOf(builds: Build[]): CoreUse {
+  const byDef: Record<string, number> = {};
+  const stars: [number, number, number] = [0, 0, 0];
+  let withCore = 0, cores = 0;
+  for (const b of builds) {
+    const cs = b.mods.filter((m) => ITEMS[m.def]?.kind === "core");
+    if (cs.length) withCore++;
+    cores += cs.length;
+    for (const c of cs) {
+      byDef[c.def] = (byDef[c.def] ?? 0) + 1;
+      stars[starsOf(c) - 1]++;
+    }
+  }
+  return { builds: builds.length, withCore, cores, byDef, stars };
 }
 
 export interface TourneyResult { opts: TourneyOpts; days: DayResult[]; battles: number }
@@ -163,7 +191,7 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
   const blank: Rate = { p: 0, lo: 0, hi: 0, n: 0, pts: 0 };
   for (const hero of o.heroes) {
     for (let i = 0; i < o.pop; i++) {
-      const build = randomBuild(hero, day, new Rng(hashSeed("bb-pop", o.seed, hero, day, i)), o.stars);
+      const build = randomBuild(hero, day, new Rng(hashSeed("bb-pop", o.seed, hero, day, i)), o.stars, FUSE_MAX, coresOn(o) ? "on" : "off");
       field.push({ hero, idx: i, ref: false, build, cost: buildCost(build).total, score: blank });
     }
     if (o.calibrationDays.includes(day)) {
@@ -252,16 +280,18 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
     }
   }
 
-  let mirror2: DayResult["mirror2"], starMix: DayResult["starMix"], bench: DayResult["bench"];
+  let mirror2: DayResult["mirror2"], starMix: DayResult["starMix"], bench: DayResult["bench"], coreUse: DayResult["coreUse"];
   if (o.stars === "on") {
     mirror2 = {};
     starMix = {};
+    if (coresOn(o)) coreUse = {};
     for (const h of o.heroes) {
       const popBuilds = popOf(h).map((i) => field[i].build);
       const r = await mirrorSplits(o, day, h, popBuilds, run);
       mirror2[h] = r.stats;
       battles += r.battles;
       starMix[h] = { pop: starMixOf(popBuilds), elites: starMixOf(elites[h].map((e) => e.build)) };
+      if (coreUse) coreUse[h] = { pop: coreUseOf(popBuilds), elites: coreUseOf(elites[h].map((e) => e.build)) };
     }
     const gauntletBuilds = gauntlet.map((i) => field[i].build);
     const sources: BenchSource[] = [];
@@ -274,7 +304,7 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
     battles += benchRes.battles;
   }
 
-  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits, mirror2, starMix, bench };
+  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits, mirror2, starMix, bench, ...(coreUse ? { coreUse } : {}) };
 }
 
 // ---------------------------------------------------------------- 0.6.1a harness v2

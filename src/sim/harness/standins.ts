@@ -22,7 +22,7 @@ import { decodeStandIn, encodeStandIn, standInPool } from "../standInPool";
 import { FUSE_MAX, starsOf } from "../stars";
 import { fullPurseBuild, spendFloor, type FullPurse } from "./gen";
 import { heroRefBuild } from "./heroes";
-import type { Stars } from "./shopper";
+import type { Cores, Stars } from "./shopper";
 import { decodeStarred, encodeStarred } from "./standinCode";
 import type { Job, Runner } from "./tournament";
 
@@ -45,7 +45,11 @@ export interface StandInOpts {
   stars: Stars; // 0.6.1a harness v2: merge-aware candidates when "on" (the product default)
   robust: number; // (multiplier) the re-play band and sample: within robustBand of parFloor gets
   // re-played at robust x refSeeds fresh seeds (ARSENAL.md: robustBand 0.10, robust 4)
+  cores?: Cores; // 0.6.1b (part 2): candidates and gauntlet buy and fit turret cores; only with stars on (absent = "off"; the CLI sets it)
 }
+
+/** 0.6.1b: cores are bought only with stars on and cores on. */
+const coresOf = (o: { stars: Stars; cores?: Cores }): Cores => (o.stars === "on" && o.cores === "on" ? "on" : "off");
 
 export const ROBUST_BAND = 0.1;
 export const ROBUST_MULT = 4;
@@ -55,9 +59,10 @@ export const ROBUST_MULT = 4;
 export const STANDIN_MAX_STARS = 2;
 
 /** A stand-in candidate: a full-purse build. With stars on it is merge-aware and capped: the shopper
- *  never buys a copy whose merge would go above STANDIN_MAX_STARS. Stars off: exactly v1. */
-export function standInCandidate(hero: HeroId, day: number, seed: number, stars: Stars): FullPurse {
-  return fullPurseBuild(hero, day, seed, spendFloor(day), 60, stars, stars === "on" ? STANDIN_MAX_STARS : FUSE_MAX);
+ *  never buys a copy whose merge would go above STANDIN_MAX_STARS. Stars off: exactly v1. 0.6.1b: with
+ *  cores on the cap covers cores too (Shopper.canGain previews every gain, cargo included; D4). */
+export function standInCandidate(hero: HeroId, day: number, seed: number, stars: Stars, cores: Cores = "off"): FullPurse {
+  return fullPurseBuild(hero, day, seed, spendFloor(day), 60, stars, stars === "on" ? STANDIN_MAX_STARS : FUSE_MAX, stars === "on" ? cores : "off");
 }
 
 /** The highest star level on a deck (1 when nothing is merged). */
@@ -66,6 +71,8 @@ export const maxStarsOf = (b: Build): number => Math.max(1, ...[...b.items, ...b
 export const STANDIN_DEFAULTS: StandInOpts = {
   seed: 1, pop: 64, band: [40, 60], per: 6, gauntlet: 20, seeds: 2, elites: 8, refSeeds: 10, heroes: ["furnace", "weaver"],
   parFloor: 0.5, widen: 10, grow: [128, 256], stars: "on", robust: ROBUST_MULT,
+  // 0.6.1b: `cores` absent = "off" here (part 1's exact path for every pre-existing caller); the CLI's --cores
+  // defaults to the --stars value (tools/genStandInPool.ts)
 };
 
 export interface Cand {
@@ -237,7 +244,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
   const per = o.seeds * 2;
   const seedsFor = (...parts: (string | number)[]) => Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-battle", o.seed, ...parts, k));
   for (let day = 1; day <= 10; day++) {
-    const gauntlet = o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(fullPurseBuild(g, day, hashSeed("standin-gauntlet", o.seed, g, day, i), spendFloor(day), 60, o.stars).build, o.stars)));
+    const gauntlet = o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(fullPurseBuild(g, day, hashSeed("standin-gauntlet", o.seed, g, day, i), spendFloor(day), 60, o.stars, FUSE_MAX, coresOf(o)).build, o.stars)));
     const refs = o.heroes.map((h) => heroRefBuild(h, day));
     const G = gauntlet.length, R = refs.length;
     const dayOut: HeroDay[] = [];
@@ -247,10 +254,10 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       // builds from..to-1 of this hero/day's population, scored vs the gauntlet and measured vs the references
       const grow = async (from: number, to: number): Promise<Cand[]> => {
         const c: Cand[] = Array.from({ length: to - from }, (_, k) => {
-          const idx = from + k, seed = hashSeed("standin-pop", o.seed, hero, day, idx), f = standInCandidate(hero, day, seed, o.stars);
+          const idx = from + k, seed = hashSeed("standin-pop", o.seed, hero, day, idx), f = standInCandidate(hero, day, seed, o.stars, coresOf(o));
           if (o.stars === "on") {
             // F8 report: the same candidate without the 2-star cap; did the cap change it?
-            const free = fullPurseBuild(hero, day, seed, spendFloor(day), 60, o.stars, FUSE_MAX).build;
+            const free = fullPurseBuild(hero, day, seed, spendFloor(day), 60, o.stars, FUSE_MAX, coresOf(o)).build;
             if (encodeStarred(free) !== encodeStarred(f.build)) capAffected++;
             if (maxStarsOf(free) > STANDIN_MAX_STARS) capWould3++;
           }
@@ -383,7 +390,10 @@ export async function dryVersus(o: StandInOpts, days: HeroDay[], run: Runner, sh
 /** Canonical command for the header: every generation option explicit, no --workers/--out/--check. */
 export function standInCommand(o: StandInOpts): string {
   const g = o.gauntlet !== STANDIN_DEFAULTS.gauntlet ? ` --gauntlet ${o.gauntlet}` : "";
-  return `npm run standins -- --seed ${o.seed} --pop ${o.pop} --band ${o.band[0]},${o.band[1]} --per ${o.per} --par-floor ${round1(o.parFloor * 100)}${g}`;
+  // 0.6.1b: --cores is printed only when it departs from its default (on with stars on); stars off never
+  // prints it, so the committed v1.1 module's header (--check) is unchanged.
+  const c = o.stars === "on" && coresOf(o) === "off" ? " --cores off" : "";
+  return `npm run standins -- --seed ${o.seed} --pop ${o.pop} --band ${o.band[0]},${o.band[1]} --per ${o.per} --par-floor ${round1(o.parFloor * 100)}${g}${c}`;
 }
 
 const r4 = (x: number) => Number(x.toFixed(4));

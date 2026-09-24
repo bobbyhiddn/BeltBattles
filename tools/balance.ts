@@ -42,6 +42,10 @@ async function main(): Promise<void> {
   const days = flag("days")?.split(",").map(Number) ?? DEFAULT_OPTS.days;
   const starsFlag = flag("stars") ?? "on";
   if (starsFlag !== "on" && starsFlag !== "off") throw new Error(`--stars must be "on" or "off", got ${starsFlag}`);
+  // 0.6.1b (harness v2 part 2): --cores defaults to the --stars value; cores need stars on
+  const coresFlag = flag("cores") ?? starsFlag;
+  if (coresFlag !== "on" && coresFlag !== "off") throw new Error(`--cores must be "on" or "off", got ${coresFlag}`);
+  if (coresFlag === "on" && starsFlag === "off") throw new Error("--cores on needs --stars on (stars off is harness v1 exactly: no cores)");
   const o: TourneyOpts = {
     ...DEFAULT_OPTS,
     seed: num("seed", DEFAULT_OPTS.seed),
@@ -51,6 +55,7 @@ async function main(): Promise<void> {
     days,
     calibrationDays: days,
     stars: starsFlag,
+    cores: coresFlag,
   };
   o.gauntlet = Math.min(o.pop, num("gauntlet", Math.min(DEFAULT_OPTS.gauntlet, o.pop)));
   o.elites = Math.min(o.elites, o.pop);
@@ -87,5 +92,5 @@ async function main(): Promise<void> {
     })),
   };
   writeFileSync(resolve(out, "balance-v2.json"), JSON.stringify(json, null, 1) + "\n");
-  console.log(`${res.battles} battles in ${(meta.runtimeMs / 1000).toFixed(1)} s on ${nw} worker(s); wrote ${out}/balance-v2.md and balance-v2.json (stars ${o.stars})`);
+  console.log(`${res.battles} battles in ${(meta.runtimeMs / 1000).toFixed(1)} s on ${nw} worker(s); wrote ${out}/balance-v2.md and balance-v2.json (stars ${o.stars}, cores ${o.cores})`);
 }
