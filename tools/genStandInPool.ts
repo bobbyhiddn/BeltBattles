@@ -14,12 +14,14 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
 import { isMainThread } from "node:worker_threads";
-import { HEROES, RULES_VERSION, type HeroId } from "../src/sim/content";
-import { validateBuild } from "../src/net/validate";
+import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
+import { validateBuild, buildCost, maxGoldByDay, unfusedPairs } from "../src/net/validate";
+import { starsOf } from "../src/sim/stars";
 import { describeBuild } from "../src/sim/harness/report";
+import { starMixOf } from "../src/sim/harness/tournament";
 import { pct } from "../src/sim/harness/stats";
 import {
-  STANDIN_DEFAULTS, dataModuleText, eligibleOf, genStandIns, poolVsPool, standInCommand, type HeroDay, type StandInOpts,
+  STANDIN_DEFAULTS, dataModuleText, eligibleOf, genStandIns, poolVsPool, standInCommand, type Cand, type HeroDay, type StandInOpts,
 } from "../src/sim/harness/standins";
 import { STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
 import { flag, num, serveJobs, workerRunner } from "./workers";
@@ -39,6 +41,8 @@ async function main(): Promise<void> {
   if (band.length !== 2 || band.some((x) => !Number.isFinite(x) || x < 0 || x > 100) || band[0] >= band[1]) throw new Error("--band must be lo,hi percentiles, e.g. 40,60");
   const pf = Number(flag("par-floor") ?? STANDIN_DEFAULTS.parFloor * 100);
   if (!Number.isFinite(pf) || pf < 0 || pf > 100) throw new Error("--par-floor must be a win-rate percentage, e.g. 50");
+  const starsFlag = flag("stars") ?? "on";
+  if (starsFlag !== "on" && starsFlag !== "off") throw new Error(`--stars must be "on" or "off", got ${starsFlag}`);
   const o: StandInOpts = {
     ...STANDIN_DEFAULTS,
     seed: num("seed", STANDIN_DEFAULTS.seed),
@@ -47,6 +51,7 @@ async function main(): Promise<void> {
     gauntlet: num("gauntlet", STANDIN_DEFAULTS.gauntlet),
     band: [band[0], band[1]],
     parFloor: pf / 100,
+    stars: starsFlag,
   };
   if (o.per < 1 || o.pop < o.per) throw new Error("--pop must be at least --per, and --per at least 1");
   const check = process.argv.includes("--check");
@@ -61,14 +66,18 @@ async function main(): Promise<void> {
     return;
   }
   const res = await genStandIns(o, pool.run, (m) => console.log(m));
+  // 0.6.1a: FUSE_LIVE is still false, so validateBuild alone does not reject an unfused pair
+  // (net/validate.ts gates that check behind FUSE_LIVE) - the generator must apply it itself.
   for (const hd of res.days) {
     for (const p of hd.picks) {
       const v = validateBuild(p.build, hd.day);
-      if (!v.ok || p.build.hero !== hd.hero) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} is invalid: ${v.errors.join("; ")}`);
+      const unfused = unfusedPairs(p.build);
+      if (!v.ok || p.build.hero !== hd.hero || unfused.length) {
+        throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} is invalid: ${[...v.errors, ...unfused].join("; ")}`);
+      }
+      if (buildCost(p.build).total > maxGoldByDay(hd.day)) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} costs more than maxGoldByDay`);
     }
   }
-  const text = dataModuleText(o, res.days);
-  const path = resolve(DATA);
   const dump = flag("dump");
   if (dump) {
     const rows = res.days.map((hd) => ({
@@ -78,27 +87,44 @@ async function main(): Promise<void> {
     writeFileSync(resolve(dump), JSON.stringify({ columns: ["idx", "cost", "floorMet", "pct", "score", ...o.heroes.map((h) => `vs ${h} ref`)], days: rows }));
     console.log(`dump: every population build of every hero and day written to ${resolve(dump)}`);
   }
-  if (check) {
-    await pool.close();
-    const secs = (performance.now() - t0) / 1000;
-    let old = "";
-    try {
-      old = readFileSync(path, "utf8");
-    } catch {
-      old = "";
+
+  if (o.stars === "off") {
+    // v1.1, byte for byte: unchanged from bf779de (the shipped pool stays v1.1 until the flip).
+    const text = dataModuleText(o, res.days);
+    const path = resolve(DATA);
+    if (check) {
+      await pool.close();
+      const secs = (performance.now() - t0) / 1000;
+      let old = "";
+      try { old = readFileSync(path, "utf8"); } catch { old = ""; }
+      const same = old === text;
+      console.log(`check: ${same ? "IDENTICAL" : "DIFFERS"}: regenerated ${text.length} bytes in memory (${res.battles} battles, ${secs.toFixed(1)} s, ${nw} workers) vs committed ${DATA} (${old.length} bytes)`);
+      process.exit(same ? 0 : 1);
     }
-    const same = old === text;
-    console.log(`check: ${same ? "IDENTICAL" : "DIFFERS"}: regenerated ${text.length} bytes in memory (${res.battles} battles, ${secs.toFixed(1)} s, ${nw} workers) vs committed ${DATA} (${old.length} bytes)`);
-    process.exit(same ? 0 : 1);
+    const secs = (performance.now() - t0) / 1000;
+    const pvp = await poolVsPool(o, (h, d) => res.days.find((x) => x.hero === h && x.day === d)!.picks.map((p) => p.build), pool.run);
+    await pool.close();
+    writeFileSync(path, text);
+    const out = resolve(flag("out") ?? "../output");
+    mkdirSync(out, { recursive: true });
+    writeFileSync(resolve(out, "standin-pool.md"), poolMarkdown(o, res.days, pvp, { battles: res.battles, secs, workers: nw, bytes: text.length }));
+    console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s); wrote ${DATA} (${text.length} bytes) and ${out}/standin-pool.md`);
+    return;
   }
-  const secs = (performance.now() - t0) / 1000;
+
+  // 0.6.1a harness v2, stars on: a DRY run only. Never touches src/sim/standInPool.ts or
+  // standInPoolData.ts (the shipped pool stays v1.1 until the flip); everything lands under
+  // output-h2/pool-v2-dry/ (a data-module *candidate*, not wired up, and a star-aware report).
+  const secs0 = (performance.now() - t0) / 1000;
   const pvp = await poolVsPool(o, (h, d) => res.days.find((x) => x.hero === h && x.day === d)!.picks.map((p) => p.build), pool.run);
+  const versusV11 = await poolVsPool(o, (h, d) => standInPool(h, d).map((e) => e.build), pool.run);
   await pool.close();
-  writeFileSync(path, text);
-  const out = resolve(flag("out") ?? "../output");
+  const secs = (performance.now() - t0) / 1000;
+  const out = resolve(flag("out") ?? "../output-h2/pool-v2-dry");
   mkdirSync(out, { recursive: true });
-  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdown(o, res.days, pvp, { battles: res.battles, secs, workers: nw, bytes: text.length }));
-  console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s); wrote ${DATA} (${text.length} bytes) and ${out}/standin-pool.md`);
+  writeFileSync(resolve(out, "standInPoolData.v2-dry-candidate.ts"), dataModuleText(o, res.days));
+  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, pvp, versusV11, { battles: res.battles, secs, workers: nw }));
+  console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s) (${secs0.toFixed(1)} s to generate); DRY RUN, wrote ${out}/standInPoolData.v2-dry-candidate.ts and standin-pool.md (src/sim/standInPoolData.ts untouched)`);
 }
 
 const H = (h: HeroId) => HEROES[h].name;
@@ -145,5 +171,53 @@ function poolMarkdown(o: StandInOpts, days: HeroDay[], pvp: { day: number; rate:
     });
     L.push("", `Par: ${pct(hd.parVsElites)} vs the day's elites. Top elite: ${pct(hd.elites[0].score)} (${hd.elites[0].cost} g).`);
   }
+  return L.join("\n") + "\n";
+}
+
+/** deck description with the star of each fusible copy shown (describeBuild groups by name only,
+ *  so a 2-star copy would otherwise be indistinguishable from a genuine duplicate). */
+function describeStars(c: Cand): string {
+  const starred = [...c.build.items, ...c.build.mods].filter((p) => starsOf(p) > 1).map((p) => `${ITEMS[p.def].name}*${starsOf(p)}`);
+  return starred.length ? starred.join(", ") : "all 1-star";
+}
+
+/** Report for the stars-on DRY run: never wired up (src/sim/standInPoolData.ts untouched). */
+function poolMarkdownV2(
+  o: StandInOpts, days: HeroDay[], pvp: { day: number; rate: number; battles: number }[],
+  versusV11: { day: number; rate: number; battles: number }[], meta: { battles: number; secs: number; workers: number },
+): string {
+  const L = [
+    "# BeltBattles stand-in pool v2 - stars-on DRY RUN (not shipped)",
+    "",
+    `Generated by \`${standInCommand(o)} --stars on\` (rules ${RULES_VERSION}): ${meta.battles} battles in ${meta.secs.toFixed(1)} s on ${meta.workers} worker thread(s).`,
+    "This is a dry run only: src/sim/standInPool.ts and src/sim/standInPoolData.ts are untouched (the shipped pool stays v1.1 until the flip, FUSE_LIVE = true). The candidate data module sits beside this file as standInPoolData.v2-dry-candidate.ts.",
+    "",
+    "Every pick below was confirmed (or the tool threw): validateBuild(pick, day) ok, unfusedPairs(pick) empty, and buildCost(pick).total <= maxGoldByDay(day). That is the flip's rule, applied by the generator itself because FUSE_LIVE is still false today.",
+    "",
+    "## Summary: picks, spend, vsPar (after the robust re-play), star mix",
+    "",
+    "| hero | day | relax | robust removed | picks cost | spend % of budget | vsPar min | vsPar mean | star mix (1/2/3-star) | merged/build (median [max]) |",
+    "|---|---|---|---|---|---|---|---|---|---|",
+  ];
+  for (const hd of days) {
+    const mix = starMixOf(hd.picks.map((p) => p.build));
+    const spendPct = hd.picks.map((p) => (100 * p.cost) / hd.budget);
+    const vp = hd.picks.map((p) => p.vsPar);
+    L.push(`| ${H(hd.hero)} | ${hd.day} | ${STEP[hd.relax]} | ${hd.robustRemoved} | ${Math.min(...hd.picks.map((p) => p.cost))}-${Math.max(...hd.picks.map((p) => p.cost))} | ${Math.min(...spendPct).toFixed(0)}-${Math.max(...spendPct).toFixed(0)}% | ${pct(Math.min(...vp))} | ${pct(vp.reduce((a, b) => a + b, 0) / vp.length)} | ${pct(mix.p1)}/${pct(mix.p2)}/${pct(mix.p3)} | ${mix.medianMerged} [${mix.maxMerged}] |`);
+  }
+  L.push("", "## Picks with a merged module (2 or 3 stars)", "");
+  for (const hd of days) {
+    for (const p of hd.picks) {
+      const s = describeStars(p);
+      if (s !== "all 1-star") L.push(`- ${H(hd.hero)} day ${hd.day} #${p.idx}: ${s}`);
+    }
+  }
+  L.push("", `## Robust re-play (ROBUST_BAND=0.10 of parFloor, ${o.robust} x refSeeds fresh seeds)`, "");
+  const removedTotal = days.reduce((s, hd) => s + hd.robustRemoved, 0);
+  L.push(removedTotal ? `${removedTotal} candidate(s) removed across all hero/day pairs (see the summary table's "robust removed" column for the split).` : "0 candidates removed: every borderline candidate held its vsPar under the fresh re-play.");
+  L.push("", "## Dry pool v2 vs the dry pool v2 (report only, stars-on picks both sides)", "", `| day | ${pvp.map((r) => r.day).join(" | ")} |`, `|---|${pvp.map(() => "---").join("|")}|`, `| ${H(o.heroes[0])} pool win rate | ${pvp.map((r) => `${pct(r.rate)}`).join(" | ")} |`);
+  L.push("", "## Dry pool v2 vs the shipped pool v1.1: do merged stand-ins get stronger?", "", `Every dry pool v2 pick (of heroes[0]) against every shipped v1.1 pick (of heroes[1]), ${o.seeds} seeds x both sides.`, "");
+  L.push(`| day | ${versusV11.map((r) => r.day).join(" | ")} |`, `|---|${versusV11.map(() => "---").join("|")}|`, `| ${H(o.heroes[0])} v2 win rate vs ${H(o.heroes[1])} v1.1 | ${versusV11.map((r) => `${pct(r.rate)}`).join(" | ")} |`, `| battles | ${versusV11.map((r) => r.battles).join(" | ")} |`);
+  L.push("", "(v2 picks its own heroes[0]/heroes[1] side of decks against the v1.1 pool's opposite side; a v2 rate above 50% on a day means that day's merge-aware picks beat the all-1-star v1.1 picks more often than not.)");
   return L.join("\n") + "\n";
 }

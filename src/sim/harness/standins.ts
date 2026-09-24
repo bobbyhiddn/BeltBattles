@@ -21,6 +21,7 @@ import { maxGoldByDay } from "../../net/validate";
 import { decodeStandIn, encodeStandIn } from "../standInPool";
 import { fullPurseBuild, spendFloor } from "./gen";
 import { heroRefBuild } from "./heroes";
+import type { Stars } from "./shopper";
 import type { Job, Runner } from "./tournament";
 
 /** Relaxation a hero/day needed: none, (a) widen, (b) grow, (c) elites, (d) best. */
@@ -39,11 +40,17 @@ export interface StandInOpts {
   parFloor: number; // lowest vsPar (0-1) a pick may have
   widen: number; // (a) window widening step, pct points
   grow: number[]; // (b) population sizes tried in turn
+  stars: Stars; // 0.6.1a harness v2: merge-aware candidates when "on" (the product default)
+  robust: number; // (multiplier) the re-play band and sample: within robustBand of parFloor gets
+  // re-played at robust x refSeeds fresh seeds (ARSENAL.md: robustBand 0.10, robust 4)
 }
+
+export const ROBUST_BAND = 0.1;
+export const ROBUST_MULT = 4;
 
 export const STANDIN_DEFAULTS: StandInOpts = {
   seed: 1, pop: 64, band: [40, 60], per: 6, gauntlet: 20, seeds: 2, elites: 8, refSeeds: 10, heroes: ["furnace", "weaver"],
-  parFloor: 0.5, widen: 10, grow: [128, 256],
+  parFloor: 0.5, widen: 10, grow: [128, 256], stars: "on", robust: ROBUST_MULT,
 };
 
 export interface Cand {
@@ -67,11 +74,19 @@ export interface HeroDay {
   elites: Cand[]; // report: the top `elites` builds of the base population
   parVsRef: Partial<Record<HeroId, number>>; // par's win rate vs heroRefBuild(hero, day)
   parVsElites: number; // par's win rate vs that day's elites of every pool hero
+  robustRemoved: number; // 0.6.1a: candidates the robust re-play dropped below parFloor
 }
 
 export interface Selection { picks: Cand[]; par: number; window: [number, number]; widened: boolean }
 
-const norm = (b: Build): Build => decodeStandIn(b.hero, encodeStandIn(b));
+/**
+ * Every build is normalised before scoring so what is stored is exactly what was scored. v1's
+ * code format (src/sim/standInPool.ts, untouched: it must keep decoding the shipped, all-1-star
+ * v1.1 data) has no star field at all, so round-tripping a merge-aware ("on") build through it
+ * would silently flatten every merge back to 1 star. "off" keeps the exact v1 round trip (needed
+ * for --check byte-identity); "on" normalises with a plain structural clone instead.
+ */
+const norm = (b: Build, stars: Stars): Build => (stars === "off" ? decodeStandIn(b.hero, encodeStandIn(b)) : (JSON.parse(JSON.stringify(b)) as Build));
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const byScore = (c: Cand[]) => [...c].sort((a, b) => b.score - a.score || a.idx - b.idx);
 const winRate = (pts: number[], battles: number) => pts.reduce((s, p) => s + p, 0) / battles;
@@ -154,13 +169,45 @@ export function pickBest(pop: Cand[], o: StandInOpts): Selection {
   return { picks, par: nearest(picks, (window[0] + window[1]) / 2), window, widened: window[1] - window[0] > o.band[1] - o.band[0] };
 }
 
+/**
+ * Robust floor (0.6.1a, ARSENAL.md §9.2): a candidate whose vsPar lies within ROBUST_BAND (0.10)
+ * of parFloor is re-played against both par decks at `o.robust` x refSeeds fresh seeds (a
+ * different seed stream from the original refSeeds sample). Its vsPar is recomputed over ALL its
+ * par battles (the original refSeeds sample plus this re-play, combined per reference hero, then
+ * the minimum across references) and stays there; it is "removed" (no longer eligible) only if
+ * that combined vsPar now falls below parFloor where the original vsPar had cleared it. Mutates
+ * `pop`'s candidates in place so the caller's normal eligibleOf/pickWindow picks up the change.
+ */
+export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, pop: Cand[], refs: Build[], run: Runner): Promise<{ removed: number; battles: number }> {
+  const borderline = pop.filter((c) => Math.abs(c.vsPar - o.parFloor) <= ROBUST_BAND);
+  if (!borderline.length) return { removed: 0, battles: 0 };
+  const n = Math.max(1, Math.round(o.robust)) * o.refSeeds;
+  const field = [...refs, ...borderline.map((c) => c.build)];
+  const jobs: Job[] = borderline.flatMap((c, i) =>
+    refs.map((_, r): Job => ({ a: refs.length + i, b: r, seeds: Array.from({ length: n }, (_, k) => hashSeed("standin-robust", o.seed, hero, day, c.idx, r, k)) })));
+  const pts = await run(field, jobs);
+  const origBattles = o.refSeeds * 2, replayBattles = n * 2;
+  let removed = 0;
+  borderline.forEach((c, i) => {
+    const wasEligible = c.vsPar >= o.parFloor;
+    const combined = o.heroes.map((h, r) => {
+      const origWins = (c.vsRef[h] ?? 0) * origBattles;
+      const replayWins = pts[i * refs.length + r];
+      return (origWins + replayWins) / (origBattles + replayBattles);
+    });
+    c.vsPar = Math.min(...combined);
+    if (wasEligible && c.vsPar < o.parFloor) removed++;
+  });
+  return { removed, battles: jobs.length * replayBattles };
+}
+
 export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string) => void): Promise<{ days: HeroDay[]; battles: number }> {
   const out: HeroDay[] = [];
   let battles = 0;
   const per = o.seeds * 2;
   const seedsFor = (...parts: (string | number)[]) => Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-battle", o.seed, ...parts, k));
   for (let day = 1; day <= 10; day++) {
-    const gauntlet = o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(fullPurseBuild(g, day, hashSeed("standin-gauntlet", o.seed, g, day, i)).build)));
+    const gauntlet = o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(fullPurseBuild(g, day, hashSeed("standin-gauntlet", o.seed, g, day, i), spendFloor(day), 60, o.stars).build, o.stars)));
     const refs = o.heroes.map((h) => heroRefBuild(h, day));
     const G = gauntlet.length, R = refs.length;
     const dayOut: HeroDay[] = [];
@@ -169,8 +216,8 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       // builds from..to-1 of this hero/day's population, scored vs the gauntlet and measured vs the references
       const grow = async (from: number, to: number): Promise<Cand[]> => {
         const c: Cand[] = Array.from({ length: to - from }, (_, k) => {
-          const idx = from + k, f = fullPurseBuild(hero, day, hashSeed("standin-pop", o.seed, hero, day, idx));
-          const build = norm(f.build);
+          const idx = from + k, f = fullPurseBuild(hero, day, hashSeed("standin-pop", o.seed, hero, day, idx), spendFloor(day), 60, o.stars);
+          const build = norm(f.build, o.stars);
           return { idx, build, code: encodeStandIn(build), cost: f.cost, tries: f.tries, floorMet: f.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0 };
         });
         const field = [...gauntlet, ...refs, ...c.map((x) => x.build)];
@@ -191,6 +238,14 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       const rank = (pop: Cand[]) => percentiles(pop.map((c) => c.score)).forEach((p, i) => (pop[i].pct = round1(p)));
       const pop = await grow(0, o.pop);
       rank(pop);
+      // 0.6.1a robust floor: a candidate whose vsPar sits within ROBUST_BAND of parFloor is
+      // re-played at o.robust x refSeeds fresh seeds; only "on" (off must stay v1-exact for --check).
+      let robustRemoved = 0;
+      if (o.stars === "on") {
+        const r = await robustReplay(o, hero, day, pop, refs, run);
+        robustRemoved = r.removed;
+        battles += r.battles;
+      }
       let relax: Relax = "none";
       let sel = pickWindow(pop, eligibleOf(pop, o, false), o);
       if (sel?.widened) relax = "widen";
@@ -198,6 +253,11 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
         if (sel || n <= pop.length) continue;
         pop.push(...(await grow(pop.length, n)));
         rank(pop);
+        if (o.stars === "on") {
+          const r = await robustReplay(o, hero, day, pop, refs, run);
+          robustRemoved += r.removed;
+          battles += r.battles;
+        }
         sel = pickWindow(pop, eligibleOf(pop, o, false), o);
         relax = "grow";
       }
@@ -214,9 +274,9 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       const floor = spendFloor(day);
       dayOut.push({
         hero, day, budget: maxGoldByDay(day), floor, pop, picks, par, window, relax, widened, short: picks.some((p) => p.cost < floor),
-        elites, parVsRef: { ...picks[par].vsRef }, parVsElites: 0,
+        elites, parVsRef: { ...picks[par].vsRef }, parVsElites: 0, robustRemoved,
       });
-      log?.(`${hero} day ${day}: ${relax}, window ${window.join("-")} of ${pop.length}; picks pct ${picks.map((p) => p.pct).join(", ")}; vsPar ${picks.map((p) => p.vsPar).join(", ")}`);
+      log?.(`${hero} day ${day}: ${relax}, window ${window.join("-")} of ${pop.length}; picks pct ${picks.map((p) => p.pct).join(", ")}; vsPar ${picks.map((p) => p.vsPar).join(", ")}${robustRemoved ? `; robust re-play removed ${robustRemoved}` : ""}`);
     }
     // the par against that day's elites of every pool hero (report only)
     for (const hd of dayOut) {
