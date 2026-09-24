@@ -68,8 +68,10 @@ export interface CardState {
  *  (a chain) is gold and flashes at 2Hz; the grey "+1 ★2" marks a copy that won't merge yet
  *  (a 2★ is owned, no 1★); MAX means only 3★ copies are owned. Sized to its text, not fixed 24x7,
  *  so it never clips inside the 46-wide card (deviation from the design's literal pixel size).
+ *  0.6.1d2: exported so warlord-pick cards (warlordHud.ts) and event-choice cards (event/cards.ts)
+ *  can draw the identical badge.
  */
-function drawBadge(g: G, x: number, y: number, maxW: number, badge: ShopBadge, t: number): void {
+export function drawBadge(g: G, x: number, y: number, maxW: number, badge: ShopBadge, t: number): void {
   let bg: string, fg: string, label: string;
   if (badge.kind === "merge") {
     label = `MERGE ★${badge.toStars}`;

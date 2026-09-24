@@ -181,8 +181,9 @@ function starPips(g: G, x: number, y: number, w: number, stars: number): void {
   }
 }
 
-/** Item slot (cargo tray / inspector icon). `stars` defaults to 1 (no pips, no rim). */
-export function itemSlot(g: G, x: number, y: number, def: string | null, selected: boolean, t: number, stars = 1): void {
+/** Item slot (cargo tray / inspector icon). `stars` defaults to 1 (no pips, no rim). 0.6.1d2:
+ *  `survivor` pulses a 1px yellow ring (a hovered/selected shop offer would merge into this copy). */
+export function itemSlot(g: G, x: number, y: number, def: string | null, selected: boolean, t: number, stars = 1, survivor = false): void {
   rect(g, x, y, 18, 18, C.ink);
   rect(g, x + 1, y + 1, 16, 16, C.slate0);
   rect(g, x + 1, y + 16, 16, 1, C.slate1);
@@ -193,6 +194,11 @@ export function itemSlot(g: G, x: number, y: number, def: string | null, selecte
     starPips(g, x + 1, y + 13, 16, stars);
   }
   if (stars >= 3) frame(g, x, y, 18, 18, C.brass3);
+  if (survivor) {
+    g.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 5));
+    frame(g, x - 1, y - 1, 20, 20, C.yellow);
+    g.globalAlpha = 1;
+  }
   if (selected) frame(g, x - 1, y - 1, 20, 20, Math.floor(t * 6) % 2 ? C.white : C.yellow);
 }
 

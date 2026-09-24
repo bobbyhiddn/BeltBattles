@@ -8,7 +8,7 @@ import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, RUN_DAYS, START_LIVES } from "../sim/content";
 import { beltUsed, removeItem } from "../sim/deck";
 import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "./eventDefs";
-import type { Run } from "./run";
+import { queueFuseAnim, type Run } from "./run";
 import { chooseFoe, storedFoe } from "./day";
 import { loadPool } from "./ghosts";
 import { gainModule } from "./fuse";
@@ -128,7 +128,7 @@ function receive(run: Run, d: Delta, c: Choice): void {
     case "lives": run.lives = Math.min(START_LIVES, run.lives + d.n); break;
     case "hull": run.build.hullBonus += d.n; break;
     case "belt": run.build.beltCap += d.n; break;
-    case "item": gainModule(run, d.def); break; // 0.6.1a: item rewards and the trader's SWAP merge
+    case "item": queueFuseAnim(run, gainModule(run, d.def)); break; // 0.6.1a: item rewards and the trader's SWAP merge
     // 0.6.0b (decision 5): these act only on warlord fights (road.ts), never on a dusk ghost
     case "bounty": run.bounty = { day: run.day, stake: c.cost.reduce((s, q) => s + (q.k === "gold" ? q.n : 0), 0), pay: d.n }; break;
     case "sabotage": run.sabotage = { day: run.day }; break;

@@ -3,12 +3,14 @@
 // Same frame grammar as the shop cards (ink edge, top stripe, bevel sides, bottom strip).
 
 import type { Choice, Delta } from "../../game/eventDefs";
+import type { ShopBadge } from "../../game/run";
 import { ITEMS } from "../../sim/content";
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
 import { beltIcon, coinIcon, heartIcon, itemIcon } from "../../render/sprites";
 import { rerollIcon, shieldIcon, skullIcon, tagIcon } from "../../render/eventArt";
+import { drawBadge } from "../build/shop";
 import type { Rect } from "../../ui/ui";
 
 const SHORT: Record<string, string> = { calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PLATE", grease: "GREASE", coil: "GALV. COIL" };
@@ -75,6 +77,7 @@ export interface CardView {
   shake: number;
   t: number;
   flash: boolean; // chosen-card blink (off with Reduced Motion)
+  badge?: ShopBadge | null; // 0.6.1d2: live from run.ts:shopBadge, for a choice that gains an item
 }
 
 export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView): void {
@@ -97,6 +100,13 @@ export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView)
   drawText(g, String(i + 1), x + 7, y + 9, C.ink, { font: "3" });
   drawText(g, c.label, x + 16, y + 8, dim ? C.slate3 : C.white, { outline: C.ink });
   if (c.odds !== undefined) drawText(g, `${Math.round(c.odds * 100)}% WIN`, x + r.w - 5, y + 9, dim ? C.slate3 : C.yellow, { font: "3", align: "right" });
+  // 0.6.1d2: the same MERGE/wait/MAX badge as the shop card, for a choice that gains an item.
+  // Never combined with odds today (a gamble's gain is always gold), but skip it defensively
+  // if it ever is, so the two never draw on top of each other.
+  else if (v.badge && v.state === "open") {
+    const bw = Math.min(50, r.w - 24);
+    drawBadge(g, x + r.w - bw - 4, y + 6, bw, v.badge, v.t);
+  }
   exchange(g, x + 5, y + 25, r.w - 10, c, dim);
   const note = c.blocked ?? c.note;
   if (note) drawText(g, note, x + 5, y + r.h - 9, c.blocked ? C.red : C.slate4, { font: "3" });

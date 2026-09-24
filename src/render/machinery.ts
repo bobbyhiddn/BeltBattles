@@ -15,6 +15,18 @@ import {
 import { ammoSprite, heatHalo, heatTier } from "./ammo";
 import type { CruiserView } from "./cruiser";
 
+/** 0.6.1d2: two cosmetic, build-screen-only cues threaded through CruiserView without touching
+ *  cruiser.ts (0.6.1b's custody): the survivor ring (which deck twin a hovered/selected shop offer
+ *  would merge into) and the merge animation's pip override (hide the newest pip until its "pop"
+ *  beat). Never turrets: 0.6.1b owns turret rendering. */
+declare module "./cruiser" {
+  interface CruiserView {
+    survivorUid?: number;
+    fuseAnimUid?: number;
+    fuseAnimStars?: number;
+  }
+}
+
 const box: Box = { x: 0, y: 0, w: 0, h: 0 };
 const pt = { x: 0, y: 0 };
 
@@ -181,9 +193,10 @@ function drawFactories(g: G, v: CruiserView): void {
     }
     if (fs && fs.disrupted > 0) shock(g, x + 6, y + 6, v.t);
     if (fs && fs.stalled && Math.floor(v.t * 4) % 2) drawText(g, "!", x + 22, y - 2, C.yellow, { outline: C.ink });
-    const fstars = starsOf(p);
+    const fstars = animStars(v, p.uid, starsOf(p));
     drawPips(g, x + 2, y + 21, 20, fstars, "left");
     if (fstars >= 3) frameRect(g, x, y, 24, 24, C.brass3);
+    if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, 26, 26, v.t);
   }
 }
 
@@ -227,10 +240,25 @@ function drawGates(g: G, v: CruiserView): void {
       if (gs && !gs.online && Math.floor(v.t * 6) % 2) g.drawImage(wrenchIcon(), x + 4, y + 3);
     }
     if (gs && gs.disrupted > 0) shock(g, x, y, v.t);
-    const gstars = starsOf(p);
+    const gstars = animStars(v, p.uid, starsOf(p));
     drawPips(g, x + 1, y + 10, 10, gstars);
     if (gstars >= 3) frameRect(g, x, y, 12, 12, C.brass3);
+    if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, 14, 14, v.t);
   }
+}
+
+/** 0.6.1d2: the merge animation's pip override for `uid` (Math.max(1, step.stars - 1) pre-pop, the
+ *  real value once popped or when nothing is animating on this uid). */
+function animStars(v: CruiserView, uid: number, real: number): number {
+  return v.fuseAnimUid === uid && v.fuseAnimStars !== undefined ? v.fuseAnimStars : real;
+}
+
+/** 0.6.1d2 (ARSENAL.md §8.1): a 1px yellow ring, pulsing in brightness, around the deck twin a
+ *  hovered or selected shop offer would merge into. */
+function drawSurvivorRing(g: G, x: number, y: number, w: number, h: number, t: number): void {
+  g.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 5));
+  frameRect(g, x, y, w, h, C.yellow);
+  g.globalAlpha = 1;
 }
 
 /** 0.6.1d (ARSENAL.md §8.2): none at ★1, two 2x1 yellow pips at ★2, three plus a 1px gold rim at

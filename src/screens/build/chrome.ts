@@ -119,12 +119,15 @@ function drawCargo(g: G, s: BuildScreen): void {
     drawText(g, "CARGO · EMPTY", r.x + r.w / 2, r.y + 9, C.slate3, { font: "3", align: "center" });
   } else {
     const n = s.cargoSlots();
+    const survivorUid = s.survivorUid(); // 0.6.1d2: the shop hover/selection's merge-target ring
+    const fc = s.fuseAnimCargo(); // 0.6.1d2: the merge animation's pip override, if it's in cargo
     for (let i = 0; i < Math.min(n, items.length); i++) {
       const it = items[i];
       const sr = s.slotRect(i);
       const hidden = carry?.src.from === "cargo" && carry.uid === it.uid;
       const shake = s.shakeT > 0 && s.shakeSrc.kind === "cargo" && s.shakeSrc.uid === it.uid ? Math.round(Math.sin(s.shakeT * 70) * 2) : 0;
-      itemSlot(g, sr.x + shake, sr.y, hidden ? null : it.def, s.sel.kind === "cargo" && s.sel.uid === it.uid, s.t, hidden ? 1 : starsOf(it));
+      const stars = hidden ? 1 : fc && fc.uid === it.uid ? fc.showStars : starsOf(it);
+      itemSlot(g, sr.x + shake, sr.y, hidden ? null : it.def, s.sel.kind === "cargo" && s.sel.uid === it.uid, s.t, stars, !hidden && it.uid === survivorUid);
       if (shake) frame(g, sr.x - 1 + shake, sr.y - 1, 20, 20, C.red);
     }
     if (items.length > n) drawText(g, `+${items.length - n}`, r.x + r.w - 3, r.y + 8, C.yellow, { font: "3", align: "right" });

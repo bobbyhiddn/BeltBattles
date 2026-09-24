@@ -6,15 +6,19 @@ import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
 import { duskFoe } from "../../game/day";
 import { loadPool } from "../../game/ghosts";
 import { leaveCaravan } from "../../game/road";
+import { mergePreview } from "../../game/fuse";
+import type { FuseStep } from "../../game/fuse";
 import { ForkScreen } from "../fork/fork";
 import { EVENTS } from "../../game/eventDefs";
 import { HEROES, ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
 import { connectedRouteCount, defOf, itemByUid, kx, ky } from "../../sim/deck";
 import { NOWHERE, fightBlock, routeCheck } from "../../game/routeCheck";
+import { settings } from "../../core/settings";
 import { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
 import { footX, footY } from "../../render/frame";
+import { itemIcon } from "../../render/sprites";
 import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type CruiserModel, type CruiserView } from "../../render/cruiser";
 import { drawMachinery } from "../../render/machinery";
 import { ArenaBg } from "../../render/arenaBg";
@@ -26,6 +30,19 @@ import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
 import { BattleScreen } from "../battle";
 import { EventScreen } from "../event/event";
+
+/** 0.6.1d2 (ARSENAL.md §8.3): 0.5s per merge step normally; reduced motion collapses lift/arc/ring/
+ *  sparkle to just the flash, so its "impact" beat comes almost immediately. */
+const FUSE_STEP_DUR = 0.5;
+const FUSE_REDUCED_DUR = 0.22;
+const FUSE_IMPACT_FRAC = 0.55; // normal-motion: fraction of the step before flash/ring/sparkle fire
+const FUSE_REDUCED_IMPACT_FRAC = 0.3;
+
+interface FuseAnimState {
+  step: FuseStep;
+  t: number;
+  fired: boolean; // the flash/ring/sparkle one-shot has fired for this step
+}
 
 export class BuildScreen implements Screen, EditHost {
   run: Run;
@@ -49,6 +66,9 @@ export class BuildScreen implements Screen, EditHost {
   placedOnce = false; // something was placed this round -> point at FIGHT
   boughtOnce = false;
   hover: { wagon: number; slot: number } | null = null;
+  /** 0.6.1d2: the merge animation's current step (lift/arc/flash/ring/sparkle then pips), drained
+   *  from run.fuseAnim one step at a time; null when idle. A tap anywhere skips the whole queue. */
+  private anim: FuseAnimState | null = null;
   /** Why FIGHT is blocked (a dead-end or broken belt, routeCheck.ts) and the routes at fault; read
    *  once per frame in draw(). blockT flashes them after a refused press. */
   block: string | undefined;
@@ -228,6 +248,7 @@ export class BuildScreen implements Screen, EditHost {
     this.ed.update(dt);
     this.wfx.update(dt);
     this.ufx.update(dt);
+    this.updateFuseAnim(dt);
     if (this.run.inventory.length || this.run.shop.wagons.some((w) => w.offers.some((o) => o.sold))) this.boughtOnce = true;
   }
 
@@ -246,6 +267,10 @@ export class BuildScreen implements Screen, EditHost {
     v.highlightConnectors = guide ? this.ed.freeConnectors() : undefined;
     v.hideRoute = ghost && this.ed.draw ? this.ed.draw.replacing : -1;
     v.hideItem = this.ed.carry?.src.from === "deck" ? this.ed.carry.uid : -1;
+    v.survivorUid = this.survivorUid();
+    const fd = this.fuseAnimDeck();
+    v.fuseAnimUid = fd?.uid;
+    v.fuseAnimStars = fd?.showStars;
     const bump = this.thunkT > 0.07 ? 1 : 0;
     if (bump) g.translate(0, bump);
     drawHull(g, v);
@@ -253,6 +278,7 @@ export class BuildScreen implements Screen, EditHost {
     this.drawBroken(g);
     drawTurrets(g, v);
     this.drawSelection(g);
+    this.drawFuseAnim(g);
     if (bump) g.translate(0, -bump);
     this.wfx.draw(g, 0, 0);
     drawBuildChrome(g, this);
@@ -334,7 +360,130 @@ export class BuildScreen implements Screen, EditHost {
     return null;
   }
 
+  /** 0.6.1d2 (ARSENAL.md §8.1): the cargo/deck uid the hovered (mouse) or else selected shop offer
+   *  would merge into, or undefined. Feeds the survivor ring in machinery.ts and itemSlot (via
+   *  chrome.ts's drawCargo). Never a turret: 0.6.1b owns turret rendering. */
+  survivorUid(): number | undefined {
+    if (this.refit || !this.caravan.ready) return undefined;
+    const pick = this.hover ?? (this.sel.kind === "offer" ? this.sel : null);
+    if (!pick) return undefined;
+    const o = this.run.shop.wagons[pick.wagon]?.offers[pick.slot];
+    if (!o || o.sold) return undefined;
+    const preview = mergePreview(this.run, o.def);
+    return preview && preview.where !== "turret" ? preview.survivorUid : undefined;
+  }
+
+  private fusePopped(): boolean {
+    const a = this.anim;
+    if (!a) return true;
+    const reduced = settings.reducedMotion;
+    const at = (reduced ? FUSE_REDUCED_DUR : FUSE_STEP_DUR) * (reduced ? FUSE_REDUCED_IMPACT_FRAC : FUSE_IMPACT_FRAC);
+    return a.t >= at;
+  }
+
+  /** 0.6.1d2: the deck item mid-merge-animation and its pip override (Math.max(1, step.stars - 1)
+   *  pre-pop, the real value once popped), or undefined when nothing is animating on the deck. */
+  fuseAnimDeck(): { uid: number; showStars: number } | undefined {
+    const a = this.anim;
+    if (!a || a.step.where !== "deck") return undefined;
+    return { uid: a.step.survivor, showStars: this.fusePopped() ? a.step.stars : Math.max(1, a.step.stars - 1) };
+  }
+
+  /** Same, for the cargo tray (chrome.ts's drawCargo). */
+  fuseAnimCargo(): { uid: number; showStars: number } | undefined {
+    const a = this.anim;
+    if (!a || a.step.where !== "cargo") return undefined;
+    return { uid: a.step.survivor, showStars: this.fusePopped() ? a.step.stars : Math.max(1, a.step.stars - 1) };
+  }
+
+  /** Drains run.fuseAnim one step at a time (chains play step after step); turret steps have no
+   *  deck frame to animate in, so they're dropped silently. Fires the ring/sparkle one-shot at the
+   *  impact beat (skipped under reduced motion, which shows only the flash and the pips). */
+  private updateFuseAnim(dt: number): void {
+    while (!this.anim && this.run.fuseAnim?.length) {
+      const step = this.run.fuseAnim.shift()!;
+      if (step.where !== "turret") this.anim = { step, t: 0, fired: false };
+    }
+    const a = this.anim;
+    if (!a) return;
+    a.t += dt;
+    const reduced = settings.reducedMotion;
+    const dur = reduced ? FUSE_REDUCED_DUR : FUSE_STEP_DUR;
+    const impactAt = dur * (reduced ? FUSE_REDUCED_IMPACT_FRAC : FUSE_IMPACT_FRAC);
+    if (!a.fired && a.t >= impactAt) {
+      a.fired = true;
+      if (!reduced) {
+        const pos = this.fuseAnimPos(a.step);
+        if (pos) {
+          this.wfx.ring(pos.x, pos.y, 10, C.yellow);
+          this.wfx.sparkle(pos.x - 3, pos.y - 2, 0);
+          this.wfx.sparkle(pos.x + 3, pos.y + 1, 0.05);
+          if (a.step.stars >= 3) this.wfx.sparkle(pos.x, pos.y - 4, 0.1);
+        }
+      }
+    }
+    if (a.t >= dur) this.anim = null;
+  }
+
+  /** Screen-space centre of a fuse step's (already-final) survivor: a cargo slot or a deck cell.
+   *  Null if it moved out of both since the merge (a rare race; the step is then just skipped). */
+  private fuseAnimPos(step: FuseStep): { x: number; y: number } | null {
+    if (step.where === "cargo") {
+      const i = this.run.inventory.findIndex((it) => it.uid === step.survivor);
+      if (i < 0 || i >= this.cargoSlots()) return null;
+      const r = this.slotRect(i);
+      return { x: r.x + 9, y: r.y + 9 };
+    }
+    if (step.where === "deck") {
+      const p = this.run.build.items.find((q) => q.uid === step.survivor);
+      if (!p) return null;
+      const d = defOf(p);
+      const s = d.size * 12;
+      return { x: footX(this.L.frame, p.x, p.y, d.size) + s / 2, y: footY(this.L.frame, p.x, p.y, d.size) + s / 2 };
+    }
+    return null;
+  }
+
+  /** The lift/arc + flash beats; ring/sparkle are one-shot particles fired from updateFuseAnim, and
+   *  the pips themselves are drawn by machinery.ts/chrome.ts from the fuseAnimDeck/fuseAnimCargo
+   *  override, so there's nothing more to draw once popped. */
+  private drawFuseAnim(g: G): void {
+    const a = this.anim;
+    if (!a) return;
+    const pos = this.fuseAnimPos(a.step);
+    if (!pos) return;
+    const reduced = settings.reducedMotion;
+    const dur = reduced ? FUSE_REDUCED_DUR : FUSE_STEP_DUR;
+    const p = Math.min(1, a.t / dur);
+    const impactFrac = reduced ? FUSE_REDUCED_IMPACT_FRAC : FUSE_IMPACT_FRAC;
+    if (!reduced && p < impactFrac) {
+      // lift + arc: the absorbed copy drops in from above and to the side
+      const k = p / impactFrac;
+      const ease = k * (2 - k);
+      const dx = (1 - ease) * -8;
+      const dy = (1 - ease) * -14 - Math.sin(ease * Math.PI) * 4;
+      g.globalAlpha = 0.4 + 0.6 * ease;
+      g.drawImage(itemIcon(a.step.def), Math.round(pos.x + dx - 6), Math.round(pos.y + dy - 6));
+      g.globalAlpha = 1;
+    }
+    if (p >= impactFrac && p < impactFrac + 0.18) {
+      const k = 1 - (p - impactFrac) / 0.18;
+      g.globalAlpha = Math.min(0.8, k);
+      rect(g, Math.round(pos.x - 7), Math.round(pos.y - 7), 14, 14, C.white);
+      g.globalAlpha = 1;
+    }
+  }
+
+  /** ARSENAL.md §8.3: a tap skips the whole queued sequence, not just the current step — the run
+   *  state is already final, so skipping is just clearing cosmetic state. */
+  private skipFuseAnim(): void {
+    if (!this.anim && !this.run.fuseAnim?.length) return;
+    this.anim = null;
+    if (this.run.fuseAnim?.length) this.run.fuseAnim = [];
+  }
+
   down(x: number, y: number): void {
+    this.skipFuseAnim(); // 0.6.1d2: a tap anywhere skips the merge animation to its end
     this.ed.down(x, y);
   }
 

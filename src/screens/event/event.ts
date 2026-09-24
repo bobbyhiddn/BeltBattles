@@ -5,9 +5,9 @@
 
 import type { Game, Screen } from "../../game/game";
 import type { Sfx } from "../../audio/audio";
-import { EVENTS, type Choice } from "../../game/eventDefs";
+import { EVENTS, type Choice, type Delta } from "../../game/eventDefs";
 import { choicesFor, pickChoice } from "../../game/events";
-import { saveRun, type Run } from "../../game/run";
+import { saveRun, shopBadge, type Run } from "../../game/run";
 import { settings } from "../../core/settings";
 import { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
@@ -19,7 +19,7 @@ import { blockedButton, button, panel, type Rect } from "../../ui/ui";
 import { fightBlock } from "../../game/routeCheck";
 import { optionsCard } from "../../ui/hud";
 import { drawRunBar, newAnchors, type AnchorKind } from "../../ui/runbar";
-import { deltaIcon, deltaText, drawChoiceCard, itemName } from "./cards";
+import { deltaIcon, deltaText, drawChoiceCard, itemName, type CardView } from "./cards";
 import { drawReveal } from "./reveal";
 import { storedFoe } from "../../game/day";
 import { eventLayout, eventScale, type EventLayout } from "./layout";
@@ -58,7 +58,7 @@ export class EventScreen implements Screen {
   private readonly onMenu = () => { this.menu = true; };
   private readonly tmp = { x: 0, y: 0, w: 0, h: 0 };
   private readonly tmp2 = { x: 0, y: 0, w: 0, h: 0 };
-  private readonly cv = { hover: false, pressed: false, state: "open" as "open" | "chosen" | "other", won: true, shake: 0, t: 0, flash: false };
+  private readonly cv: CardView = { hover: false, pressed: false, state: "open", won: true, shake: 0, t: 0, flash: false };
   private lkey = "";
 
   constructor(public game: Game) {
@@ -205,6 +205,9 @@ export class EventScreen implements Screen {
       cv.shake = this.shake.i === i ? this.shake.t : 0;
       cv.t = this.t;
       cv.flash = !settings.reducedMotion && this.phase === "result" && this.pt < 0.3 && Math.floor(this.pt * 20) % 2 === 0;
+      // 0.6.1d2: the same MERGE/wait/MAX badge as the shop card, for a choice that gains an item.
+      const itemGain = this.choices[i].gain.find((dl): dl is Extract<Delta, { k: "item" }> => dl.k === "item");
+      cv.badge = itemGain ? shopBadge(run, itemGain.def) : null;
       drawChoiceCard(g, r, this.choices[i], i, cv);
       if (this.phase === "choose") ui.add({ id, r, onTap: this.onPick[i], block: true });
     }

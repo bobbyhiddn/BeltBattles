@@ -18,7 +18,7 @@ import { starsOf, valueOf } from "../sim/stars";
 import { beginRoad, eventFor } from "./events";
 import { gainModule } from "./fuse";
 import type { EventId } from "./eventDefs";
-import type { Run, RoadPick, WarlordFight, WarlordOutcome, WarlordReward } from "./run";
+import { queueFuseAnim, type Run, type RoadPick, type WarlordFight, type WarlordOutcome, type WarlordReward } from "./run";
 
 export const ROAD_PICKS: readonly RoadPick[] = ["event", "easy", "medium", "hard"];
 export const REWARD_GOLD: Record<Difficulty, number> = { easy: 2, medium: 4, hard: 3 };
@@ -178,7 +178,7 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
   let took: string | null = null;
   if (won && w.reward.legendary && w.reward.parts.length) {
     took = w.reward.parts[0];
-    gainModule(run, took); // 0.6.1a: a 1-star copy to cargo, then merged
+    queueFuseAnim(run, gainModule(run, took)); // 0.6.1a: a 1-star copy to cargo, then merged
   }
   if (won && w.id === "matriarch") run.matriarchBeatenOn = run.day;
   w.result = { outcome, time, gold, bountyPaid, parts: won ? [...w.reward.parts] : [], took };
@@ -193,7 +193,7 @@ export function takePart(run: Run, i: number): string | null {
   if (!w || !r || r.outcome !== "win" || r.took || w.reward.legendary) return null;
   const def = r.parts[i];
   if (!def) return null;
-  gainModule(run, def); // 0.6.1a: a 1-star copy to cargo, then merged
+  queueFuseAnim(run, gainModule(run, def)); // 0.6.1a: a 1-star copy to cargo, then merged
   r.took = def;
   const log = run.warlords[run.warlords.length - 1];
   if (log && log.day === run.day) log.part = def;

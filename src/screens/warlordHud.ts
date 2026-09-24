@@ -5,7 +5,7 @@
 // (as after road events); otherwise ON TO DUSK.
 
 import type { Game } from "../game/game";
-import type { WarlordFight } from "../game/run";
+import { shopBadge, type WarlordFight } from "../game/run";
 import { START_LIVES } from "../sim/content";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -16,6 +16,7 @@ import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawHearts } from "./battleHud";
 import { itemName } from "./event/cards";
+import { drawBadge } from "./build/shop";
 
 export interface WarlordActions {
   take: (() => void)[];
@@ -78,6 +79,13 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
       const ic = itemIcon(d);
       g.drawImage(ic, bx + 4, by + 10 - Math.floor(ic.height / 2));
       drawText(g, itemName(d), bx + 18, by + 7, C.white, { font: "3" });
+      // 0.6.1d2: the same MERGE/wait/MAX badge as the shop card, bottom-right so it never
+      // crosses the name text (which isn't wrapped or truncated here).
+      const badge = shopBadge(run, d);
+      if (badge) {
+        const bw2 = Math.max(20, Math.min(34, bw - 6));
+        drawBadge(g, bx + bw - bw2 - 2, by + 12, bw2, badge, pt);
+      }
     });
   } else if (r.took) {
     button(ui, g, "refit", { x: x + 10, y: by, w: bw, h: 20 }, "REFIT", { primary: true, onTap: a.refit });

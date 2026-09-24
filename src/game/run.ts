@@ -15,7 +15,7 @@ import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
 import { fusible, starField, starsOf } from "../sim/stars";
-import { gainModule, mergePreview, type Gain, type GainAt } from "./fuse";
+import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { HEROES } from "../sim/content"; // 0.6.1b: fitCore
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 
@@ -111,6 +111,8 @@ export interface Run {
   sabotage: PendingSabotage | null; // SABOTAGE: the next warlord fights weakened
   fuseFx?: string[]; // 0.6.1a, cosmetic: merge toasts the build screen shows next ("MERGED: TEMPER ★2")
   lastMerchants?: MerchantId[]; // 0.6.1d: yesterday's final caravan (absent = no variety factor); save v7, no bump
+  fuseAnim?: FuseStep[]; // 0.6.1d2, cosmetic: merge steps queued for the build screen's animation
+  // (lift/arc/flash/ring/sparkle, then the pips pop in); see queueFuseAnim. Save v7, no bump.
 }
 
 export const RUN_VERSION = 7; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once)
@@ -270,6 +272,21 @@ export function shopBadge(run: Run, def: string): ShopBadge | null {
   return null;
 }
 
+/**
+ * 0.6.1d2: queue a gainModule chain's steps for the build screen's merge animation, cosmetic and
+ * next to fuseFx's toasts. Call at every gainModule call site (buyOffer here; road.ts and
+ * events.ts's item gains). Every queued step's `survivor`/`where` is normalized to the chain's
+ * FINAL resting copy (gain.survivor/gain.where): by the time the animation plays, an earlier
+ * step's own survivor may itself have been absorbed into a later step, so only the final uid is
+ * guaranteed to still exist. `stars` still rises step by step, so a chain still animates in place
+ * as two pulses (★2 then ★3) at the one spot that ends up holding the part.
+ */
+export function queueFuseAnim(run: Run, gain: Gain): void {
+  if (!gain.steps.length) return;
+  const queued = gain.steps.map((s) => ({ ...s, survivor: gain.survivor, where: gain.where }));
+  run.fuseAnim = [...(run.fuseAnim ?? []), ...queued];
+}
+
 /** Reroll the caravan: a free reroll (scout) first, else REROLL_COST gold. Same roll sequence either way. */
 export function reroll(run: Run): boolean {
   if ((run.shop.free || 0) > 0) run.shop.free--;
@@ -311,6 +328,7 @@ export function buyOffer(run: Run, wagon: number, slot: number, at?: GainAt): Bu
     return { ok: true, consumed: d.id };
   }
   const gain = gainModule(run, o.def, pv && pv.where !== "cargo" ? undefined : at);
+  queueFuseAnim(run, gain);
   const item = gain.where === "cargo" ? run.inventory.find((i) => i.uid === gain.survivor) : undefined;
   return { ok: true, item, gain };
 }
