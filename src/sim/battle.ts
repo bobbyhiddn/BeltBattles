@@ -7,8 +7,9 @@ import {
   AMMO, AMMO_SPACING, BATTLE_CAP, BELT_SPEED, BURN_TIME, CELL, COMMISSION_BASE, COMMISSION_STEP,
   DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, RULES_VERSION,
   TICK, WIND_START, WIND_WARN, WINDOW_TIME,
-  type AmmoKind, type HeroDef, type ItemDef, type TurretDef,
+  type AmmoKind, type CoreRoutine, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
+import { drakeConvert, pressureBonus, resolveCore, ROUTINES, type TurretCore } from "./cores"; // 0.6.1b
 import {
   cloneBuild, connectorClaims, defOf, kx, ky, occupancy, payloadDamage,
   routeInfo, routePolyline, type Build,
@@ -98,6 +99,12 @@ export interface TurretState {
   recoil: number; // render
   jamFx: number; // render
   waiting: number;
+  // 0.6.1b: the core socket (src/sim/cores.ts). Precomputed so chambers stops reading def.window and WINDOW_TIME.
+  core: TurretCore; // a bought core at its stars (x k), or the hero's signature identity core
+  window: number; // loading window size (TurretDef.window)
+  windowTime: number; // the window closes this long after its first load (WINDOW_TIME unless the core sets it)
+  spin: number; // GATLING SPOOL: the current interval multiplier (1 for every other routine)
+  lastShot: number; // GATLING SPOOL: battle time of the last firing opportunity (-1: none yet)
 }
 
 export interface HullState {
@@ -163,6 +170,12 @@ export interface Projectile {
   tx: number;
   ty: number;
   heavy: boolean;
+  // 0.6.1b: set only by a bought core (Battle.fireCore); absent on every identity shot
+  core?: CoreRoutine; // render hooks (pellets, flame cone, volley)
+  share?: number; // SCATTER pellet: its share of the payload, which also scales the Fray bonus
+  burn?: number; // Burn stacks it lands, instead of payload.burn (SCATTER splits them, DRAKE adds)
+  burnTime?: number; // their duration, instead of BURN_TIME (DRAKE)
+  noFray?: boolean; // SCATTER: only the first pellet applies the ammo's Fray stacks
 }
 
 export type SimEvent =
@@ -171,7 +184,7 @@ export type SimEvent =
   | { type: "commission"; side: Side; gate: number }
   | { type: "load"; side: Side; turret: number }
   | { type: "fuse"; side: Side; turret: number; dmg: number } // races: two alloy blanks fused (FOUNDRY)
-  | { type: "fire"; side: Side; turret: number; heavy: boolean; dmg: number; proj: number }
+  | { type: "fire"; side: Side; turret: number; heavy: boolean; dmg: number; proj: number; core?: CoreRoutine } // 0.6.1b: core set by a bought core
   | { type: "impact"; side: Side; x: number; y: number; dmg: number; heavy: boolean; kind: TargetKind; shock: boolean; burn: number; big: boolean }
   | { type: "jam"; side: Side; turret: number }
   | { type: "disrupt"; side: Side; kind: TargetKind; ref: number; cell: number }
@@ -184,6 +197,11 @@ export interface BattleRecord {
   rules: string;
   seed: number;
   builds: [Build, Build];
+}
+
+/** The bare-hull target (a hull pick, or every HULLBREAKER shot). */
+function hullTarget(): Target {
+  return { kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 };
 }
 
 function emptyStats(): SideStats {
@@ -259,18 +277,7 @@ export class Battle {
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
         timer: 0.35, rr: 0, disrupted: 0, flash: 0, stalled: false, produced: 0,
       }));
-    const turrets: TurretState[] = h.turrets.map((def, i) => {
-      let perShot = 1, fireMul = 1;
-      for (const m of b.mods.filter((m) => m.turret === i)) {
-        const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars
-        if (md?.perShot) perShot = Math.max(perShot, md.perShot);
-        if (md?.fireMul) fireMul *= md.fireMul;
-      }
-      return {
-        index: i, def, stack: [], phase: "load", loadTimer: 0, fireCd: 0, jamSkip: 0, jamRandom: false,
-        jamCd: 0, disrupted: 0, perShot, interval: def.fireInterval * fireMul, recoil: 0, jamFx: 0, waiting: 0,
-      };
-    });
+    const turrets: TurretState[] = h.turrets.map((def, i) => makeTurret(b, i, def)); // 0.6.1b: gear and core
     const targets: Target[] = [];
     for (const r of routes) {
       r.cells.forEach((k, ci) => {
@@ -497,7 +504,7 @@ export class Battle {
         r.ammo.shift();
         continue;
       }
-      if (tu.phase === "load" && tu.stack.length < tu.def.window) {
+      if (tu.phase === "load" && tu.stack.length < tu.window) { // 0.6.1b: was tu.def.window (the same number)
         tu.stack.push(front.p);
         r.ammo.shift();
         this.events.push({ type: "load", side: s.side, turret: tu.index });
@@ -517,16 +524,18 @@ export class Battle {
       if (tu.disrupted > 0) continue;
       if (tu.fireCd > 0) tu.fireCd = Math.max(0, tu.fireCd - dt);
       if (tu.jamCd > 0) tu.jamCd = Math.max(0, tu.jamCd - dt);
+      // 0.6.1b: the core's chamber hooks (src/sim/cores.ts ROUTINES); the identity hooks are the old rules
+      const rt = ROUTINES[tu.core.routine];
       if (tu.phase === "load") {
         if (tu.stack.length > 0) tu.loadTimer += dt;
-        if (tu.stack.length >= tu.def.window || (tu.stack.length > 0 && tu.loadTimer >= WINDOW_TIME)) {
+        if (rt.ready(tu)) { // identity: stack.length >= window || (stack.length > 0 && loadTimer >= WINDOW_TIME)
           tu.phase = "fire";
         } else if (tu.stack.length === 0 && tu.fireCd <= 0) {
           s.stats.idle += dt;
         }
       }
       if (tu.phase === "fire") {
-        if (waiting >= JAM_THRESHOLD && tu.jamCd <= 0 && tu.jamSkip === 0) {
+        if (waiting >= JAM_THRESHOLD && tu.jamCd <= 0 && tu.jamSkip === 0 && !rt.noJam(tu)) {
           tu.jamSkip = 1;
           tu.jamRandom = true;
           tu.jamCd = JAM_COOLDOWN;
@@ -539,13 +548,15 @@ export class Battle {
             tu.jamSkip--;
             tu.fireCd = tu.interval;
           } else {
-            for (let k = 0; k < tu.perShot && tu.stack.length; k++) {
-              const idx = tu.jamRandom ? this.rng.int(tu.stack.length) : tu.stack.length - 1;
+            const n = rt.count(tu); // identity: perShot
+            for (let k = 0; k < n && tu.stack.length; k++) {
+              const queued = tu.waiting + tu.stack.length; // PRESSURE BREECH: waiting plus its window, this load included
+              const idx = tu.jamRandom ? this.rng.int(tu.stack.length) : rt.select(tu); // identity: LIFO
               tu.jamRandom = false;
               const p = tu.stack.splice(idx, 1)[0];
-              this.fire(s, tu, p, k);
+              this.fire(s, tu, p, k, queued);
             }
-            tu.fireCd = tu.interval;
+            tu.fireCd = rt.cadence(tu, this.t); // identity: interval
           }
           if (tu.stack.length === 0) {
             tu.phase = "load";
@@ -556,7 +567,8 @@ export class Battle {
     }
   }
 
-  private fire(s: SideState, tu: TurretState, p: Payload, k: number): void {
+  private fire(s: SideState, tu: TurretState, p: Payload, k: number, queued: number): void {
+    if (tu.core.bought) return this.fireCore(s, tu, p, k, queued); // 0.6.1b; the identity shot below is unchanged
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
     const dmg = ammo.rideCurve // races: PENDULUM curve
@@ -584,9 +596,66 @@ export class Battle {
     this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg, proj: proj.id });
   }
 
+  /**
+   * 0.6.1b, the shape hook: what one payload fired by a bought core becomes (ARSENAL.md §2.3, catalogue.json).
+   * - SCATTER: `pellets` projectiles at `share` each, each aimed anew (a target draw per pellet); Burn is
+   *   divided between them (rounded up), Shock rides every pellet, only the first applies the ammo's Fray.
+   * - PRESSURE: + perQueued x min(maxCount, queued). SALVO: + volleyFlat on every volley shell.
+   * - HULLBREAKER: always bare hull (no target draw), x hullMul.
+   * - DRAKE: the flat bonus becomes Burn (1 stack per flatPerBurn), + addBurn, lasting burnTime; flight x flightMul.
+   * ROTARY and GATLING fire like the identity shot (their hooks are in the chamber).
+   */
+  private fireCore(s: SideState, tu: TurretState, p: Payload, k: number, queued: number): void {
+    const foe = this.sides[s.side === 0 ? 1 : 0];
+    const ammo = AMMO[p.ammo];
+    const c = tu.core.spec, routine = tu.core.routine;
+    const conv = routine === "drake" ? drakeConvert(c, p.flat) : { stacks: 0, used: 0 };
+    let dmg = ammo.rideCurve
+      ? Math.max(1, raceCurveDamage(ammo, s, tu, p) - conv.used)
+      : payloadDamage(ammo.base, ammo.rideScale, p.ride, p.mult, p.flat - conv.used);
+    let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
+    if (routine === "pressure") dmg += pressureBonus(c, queued);
+    else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
+    else if (routine === "hullbreaker") dmg *= c.hullMul ?? 1;
+    else if (routine === "drake") {
+      burn += conv.stacks + (c.addBurn ?? 0);
+      burnTime = c.burnTime;
+      flightMul = c.flightMul ?? 1;
+    } else if (routine === "scatter") {
+      pellets = Math.max(1, c.pellets ?? 1);
+      share = c.share ?? 1;
+    }
+    const heavy = tu.def.kind === "heavy";
+    for (let j = 0; j < pellets; j++) {
+      const target = routine === "hullbreaker" ? hullTarget() : this.pickTarget(foe); // HULLBREAKER: no target draw
+      let tx = target.x, ty = target.y;
+      if (target.kind === "hull") {
+        tx = this.rng.range(-6, 126);
+        ty = this.rng.range(-4, 124);
+      } else {
+        tx += this.rng.range(-3, 3);
+        ty += this.rng.range(-3, 3);
+      }
+      const flight = tu.def.flight * flightMul + Math.max(0, ty) / 120 * 0.22 + k * 0.08 + j * 0.03;
+      const pd = dmg * share;
+      const proj: Projectile = {
+        id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg: pd, t: 0, flight, target, tx, ty, heavy,
+        core: routine, burn: pellets > 1 ? Math.ceil(burn / pellets) : burn,
+        ...(burnTime !== undefined ? { burnTime } : {}),
+        ...(pellets > 1 ? { share, noFray: j > 0 } : {}),
+      };
+      this.projectiles.push(proj);
+      s.stats.shots++;
+      s.stats.payloadSum += pd;
+      this.events.push({ type: "fire", side: s.side, turret: tu.index, heavy, dmg: pd, proj: proj.id, core: routine });
+    }
+    tu.recoil = 1;
+    if (s.stats.firstShot < 0) s.stats.firstShot = this.t;
+  }
+
   private pickTarget(foe: SideState): Target {
     if (this.rng.next() < 0.5 || !foe.targets.length) {
-      return { kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 };
+      return hullTarget();
     }
     return this.rng.weighted(foe.targets, (t) => t.weight);
   }
@@ -608,13 +677,15 @@ export class Battle {
     const atk = this.sides[pr.from];
     const def = this.sides[pr.from === 0 ? 1 : 0];
     const ammo = AMMO[pr.payload.ammo];
-    const bonus = def.hull.fray * FRAY_BONUS;
+    // 0.6.1b: a SCATTER pellet's Fray bonus x its share, so Fray isn't multiplied (absent on identity shots)
+    const bonus = pr.share !== undefined ? def.hull.fray * FRAY_BONUS * pr.share : def.hull.fray * FRAY_BONUS;
     const total = pr.dmg + bonus;
     def.hull.hp -= def.race ? raceAbsorb(def, total) : total; // races: bulwark plating soaks first
     def.hull.flash = 0.12;
     atk.stats.damage += total;
-    if (ammo.fray > 0) def.hull.fray = Math.min(FRAY_MAX, def.hull.fray + ammo.fray);
-    if (pr.payload.burn > 0) def.hull.burns.push({ dps: pr.payload.burn, t: BURN_TIME });
+    if (ammo.fray > 0 && !pr.noFray) def.hull.fray = Math.min(FRAY_MAX, def.hull.fray + ammo.fray);
+    const burn = pr.burn ?? pr.payload.burn; // 0.6.1b: a core's Burn (SCATTER split, DRAKE added), else the payload's
+    if (burn > 0) def.hull.burns.push({ dps: burn, t: pr.burnTime ?? BURN_TIME });
     let shocked = false;
     if (pr.payload.shock && pr.target.kind !== "hull") {
       shocked = this.disrupt(def, pr.target);
@@ -622,7 +693,7 @@ export class Battle {
     if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
     this.events.push({
       type: "impact", side: def.side, x: pr.tx, y: pr.ty, dmg: total, heavy: pr.heavy,
-      kind: pr.target.kind, shock: shocked, burn: pr.payload.burn, big: total >= 14,
+      kind: pr.target.kind, shock: shocked, burn, big: total >= 14,
     });
   }
 
@@ -733,6 +804,30 @@ export class Battle {
     this.drained = ev;
     return ev;
   }
+}
+
+/**
+ * One turret's battle state (Battle.makeSide). Its gear first (mods keep their precedence over cores,
+ * ARSENAL.md §2.1 rule 7: CALIBRATION multiplies the interval, EXT. CHAMBER raises payloads per shot), then
+ * 0.6.1b its core (src/sim/cores.ts resolveCore): a bought core at its stars with its absolute numbers x k, or
+ * the hero's signature identity core, whose numbers are exactly today's. Exported for tests that fit a core to a
+ * stand-in TurretDef (the medium class).
+ */
+export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
+  let perShot = 1, fireMul = 1;
+  for (const m of b.mods.filter((m) => m.turret === i)) {
+    const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
+    if (md?.perShot) perShot = Math.max(perShot, md.perShot);
+    if (md?.fireMul) fireMul *= md.fireMul;
+  }
+  const core = resolveCore(b, i, def);
+  const c = core.spec;
+  const interval = def.fireInterval * fireMul;
+  return {
+    index: i, def, stack: [], phase: "load", loadTimer: 0, fireCd: 0, jamSkip: 0, jamRandom: false,
+    jamCd: 0, disrupted: 0, perShot, interval: c.intervalMul ? interval * c.intervalMul : interval, recoil: 0, jamFx: 0,
+    waiting: 0, core, window: def.window, windowTime: c.windowTime ?? WINDOW_TIME, spin: c.start ?? 1, lastShot: -1,
+  };
 }
 
 /** Headless run to completion (tests / balance). */

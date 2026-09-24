@@ -469,9 +469,22 @@ export function modsForTurret(b: Build, t: number): ModPlacement[] {
   return b.mods.filter((m) => m.turret === t);
 }
 
-/** One equipment hardpoint per turret. */
+/**
+ * 0.6.1b: turret t's bought core (a Build.mods entry whose def is kind "core"), or undefined: the turret then
+ * runs its hero's signature core (ARSENAL.md §2.1 rule 1). One socket per turret.
+ */
+export function coreFor(b: Build, t: number): ModPlacement | undefined {
+  return b.mods.find((m) => m.turret === t && ITEMS[m.def]?.kind === "core");
+}
+
+/** 0.6.1b: turret t's gear, the one piece of turret equipment on its hardpoint (anything in Build.mods but a core). */
+export function gearFor(b: Build, t: number): ModPlacement | undefined {
+  return b.mods.find((m) => m.turret === t && ITEMS[m.def]?.kind !== "core");
+}
+
+/** One equipment hardpoint per turret. 0.6.1b: counts gear only; the core socket is separate (coreFor). */
 export function turretHasFreeHardpoint(b: Build, t: number): boolean {
-  return modsForTurret(b, t).length < 1;
+  return !gearFor(b, t);
 }
 
 export function connectedRouteCount(b: Build): number {

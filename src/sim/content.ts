@@ -27,7 +27,8 @@ export const COMMISSION_BASE = 1.2; // first gate on a route comes online at thi
 export const COMMISSION_STEP = 0.6; // each further gate on the route adds this delay (s)
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
-export type ItemKind = "gate" | "factory" | "mod" | "supply";
+// 0.6.1b: "core" is a turret core (ARSENAL.md §1): it lives in Build.mods, one socket per turret, beside the one mod
+export type ItemKind = "gate" | "factory" | "mod" | "supply" | "core";
 export type AmmoKind = "cinder" | "thread" | "plain" | RaceAmmoKind; // races: blank, alloy, bulwark, pendulum, leeches
 export type HeroId = "furnace" | "weaver" | RaceHeroId; // races: foundry, bastion, metronome, siphon
 export type Faction = "orc" | "elf" | "human" | "dwarf" | "beastfolk" | "unaligned"; // races: spec §6.2
@@ -56,6 +57,40 @@ export interface ModSpec {
   perShot?: number; // payloads per firing opportunity
 }
 
+/** 0.6.1b: how a turret fires (ARSENAL.md §2). "identity" is today's firing: every hero's signature core. */
+export type CoreRoutine = "identity" | "scatter" | "rotary" | "pressure" | "gatling" | "hullbreaker" | "drake" | "salvo";
+
+/**
+ * 0.6.1b: a turret core's routine and numbers, written at heavy scale (ARSENAL.md §2.1 rule 4). The sim
+ * (src/sim/cores.ts scaleCore) multiplies the absolute per-shot numbers (perQueued, volleyFlat, addBurn) by
+ * the turret's classFactor; ratios, counts, cadence multipliers and times are not scaled.
+ */
+export interface CoreSpec {
+  routine: CoreRoutine;
+  pellets?: number; // SCATTER: pellets per payload, each aimed anew
+  share?: number; // SCATTER: each pellet's share of the payload's damage
+  order?: "LIFO" | "FIFO"; // ROTARY: which load fires first (identity: LIFO)
+  windowTime?: number; // ROTARY: the window closes this long after its first load (s), instead of WINDOW_TIME
+  intervalMul?: number; // ROTARY: x the fire interval
+  noJam?: boolean; // ROTARY 3 stars, PRESSURE: never jams
+  perQueued?: number; // PRESSURE: flat damage per payload queued at the turret (absolute)
+  maxCount?: number; // PRESSURE: payloads counted at most
+  start?: number; // GATLING: interval multiplier before any spin
+  step?: number; // GATLING: each quick shot cuts the multiplier by this
+  floor?: number; // GATLING: the lowest multiplier
+  gap?: number; // GATLING: a shot within this many seconds of the last is quick; a longer gap halves the spin
+  hullMul?: number; // HULLBREAKER: x damage; every shot hits bare hull
+  flatPerBurn?: number; // DRAKE: flat damage converted per Burn stack (rounded down)
+  addBurn?: number; // DRAKE: Burn stacks added per shot (absolute: x k, rounded half up, at least 1)
+  burnTime?: number; // DRAKE: the Burn this turret lands lasts this long (s), instead of BURN_TIME
+  flightMul?: number; // DRAKE: x flight time (a short spout)
+  volleyFlat?: number; // SALVO: flat damage per volley shell (absolute)
+  reloadMul?: number; // SALVO: x the fire interval after a volley
+}
+
+/** 0.6.1b: the shop tags (catalogue.json "tags"); a shop hint only, no tag-count bonus (ARSENAL-DECISIONS call 10). */
+export type ModuleTag = "BURN" | "SHOCK" | "POISON" | "FRAY" | "EDGE" | "SPEED" | "HAUL" | "SPLIT" | "BURST" | "HARASS" | "GUARD" | "TIMING" | "VOLUME";
+
 /**
  * 0.6.1a: the 2-star or 3-star override of a fusible module (ARSENAL.md §4.3, catalogue.json star2/star3).
  * gate/factory/mod are merged over the 1-star spec by stars.ts:effectAt (levels 2 then 3, so a 2-star
@@ -66,6 +101,7 @@ export interface ItemLevel {
   gate?: Partial<GateEffect>;
   factory?: Partial<FactorySpec>;
   mod?: Partial<ModSpec>;
+  core?: Partial<CoreSpec>; // 0.6.1b: a turret core's star values
   perk?: string;
   pending?: Record<string, number>;
 }
@@ -82,8 +118,10 @@ export interface ItemDef {
   gate?: GateEffect;
   factory?: FactorySpec;
   mod?: ModSpec;
+  core?: CoreSpec; // 0.6.1b: a turret core's firing routine (kind "core")
   supply?: { belt?: number; hull?: number };
   levels?: { 2?: ItemLevel; 3?: ItemLevel }; // 0.6.1a: star overrides (1 star = the spec above)
+  tags?: ModuleTag[]; // 0.6.1b: catalogue.json tags (set on the cores; a shop hint only)
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -186,6 +224,56 @@ export const ITEMS: Record<string, ItemDef> = {
     mod: { fireMul: 0.75 },
     levels: { 2: { mod: { fireMul: 0.58 } }, 3: { mod: { fireMul: 0.46 } } },
   },
+  // --- turret cores (0.6.1b, ARSENAL.md §2.3, catalogue.json): one socket per turret; numbers at heavy scale ---
+  scatter: {
+    id: "scatter", name: "SCATTER CHOKE", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
+    desc: ["SHOTS BURST INTO 3", "PELLETS AT 40%, EACH", "AIMED ANEW."], tags: ["SPLIT", "FRAY"],
+    core: { routine: "scatter", pellets: 3, share: 0.4 },
+    levels: { 2: { core: { pellets: 3, share: 0.48 } }, 3: { core: { pellets: 4, share: 0.42 } } },
+  },
+  rotary: {
+    id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "tinker",
+    desc: ["FIRES THE OLDEST", "LOAD FIRST. WINDOWS", "CLOSE IN 0.8S."], tags: ["TIMING"],
+    core: { routine: "rotary", order: "FIFO", windowTime: 0.8 },
+    levels: {
+      2: { core: { intervalMul: 0.85 }, perk: "GREASED RACE" },
+      3: { core: { intervalMul: 0.7, noJam: true }, perk: "CLEAN FEED" },
+    },
+  },
+  pressure: {
+    id: "pressure", name: "PRESSURE BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "tinker",
+    desc: ["+1.2 DAMAGE PER", "PAYLOAD QUEUED AT", "IT. NEVER JAMS."], tags: ["BURST", "VOLUME"],
+    core: { routine: "pressure", perQueued: 1.2, maxCount: 5, noJam: true },
+    levels: { 2: { core: { perQueued: 2.6 } }, 3: { core: { perQueued: 4.2 } } },
+  },
+  gatling: {
+    id: "gatling", name: "GATLING SPOOL", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "gunsmith",
+    desc: ["SPINS UP: EACH QUICK", "SHOT FIRES 6% FASTER", "DOWN TO 0.6X."], tags: ["TIMING", "VOLUME"],
+    core: { routine: "gatling", start: 1.2, step: 0.06, floor: 0.6, gap: 2.5 },
+    levels: { 2: { core: { step: 0.09, floor: 0.4 } }, 3: { core: { step: 0.12, floor: 0.29 } } },
+  },
+  hullbreaker: {
+    id: "hullbreaker", name: "HULLBREAKER", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
+    desc: ["NEVER HITS MACHINES.", "EVERY HULL HIT", "DEALS +30%."], tags: ["BURST"],
+    core: { routine: "hullbreaker", hullMul: 1.3 },
+    levels: { 2: { core: { hullMul: 1.66 } }, 3: { core: { hullMul: 2.05 } } },
+  },
+  drake: {
+    id: "drake", name: "DRAKE NOZZLE", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
+    desc: ["TURNS FLAT DAMAGE", "INTO BURN. ITS FIRES", "BURN 4S, NOT 3."], tags: ["BURN"],
+    core: { routine: "drake", flatPerBurn: 2, addBurn: 1, burnTime: 4, flightMul: 0.7 },
+    levels: {
+      2: { core: { flatPerBurn: 1.5, addBurn: 2, burnTime: 5 } },
+      3: { core: { flatPerBurn: 1, addBurn: 3, burnTime: 6 } },
+    },
+  },
+  // The catalogue's merchant is the Quartermaster, who arrives with job 0.6.1d; the Gunsmith sells it until then.
+  salvo: {
+    id: "salvo", name: "SALVO RACK", kind: "core", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
+    desc: ["WAITS FOR A FULL", "WINDOW, THEN FIRES", "IT ALL AT +2 EACH."], tags: ["BURST"],
+    core: { routine: "salvo", volleyFlat: 2, reloadMul: 1.6 },
+    levels: { 2: { core: { volleyFlat: 4.4 } }, 3: { core: { volleyFlat: 7 } } },
+  },
   // --- supplies (consumed on purchase) ---
   beltcrate: {
     id: "beltcrate", name: "BELT CRATE", kind: "supply", rarity: "common", price: 2, size: 1, merchant: "ironmonger",
@@ -225,6 +313,34 @@ export interface TurretDef {
   flight: number; // projectile flight time (s)
 }
 
+/**
+ * 0.6.1b: a turret's class factor k = clamp(fireInterval / 1.0 s, 0.4, 1.2) (ARSENAL.md §2.1 rule 4): heavy
+ * 1.0, medium 0.75, light 0.55. A core's absolute per-shot numbers are multiplied by it, so a light turret,
+ * which fires about 1.8x as often, gets about the same per-second value as a heavy one.
+ */
+export function classFactor(t: { fireInterval: number }): number {
+  return Math.min(1.2, Math.max(0.4, t.fireInterval / 1.0));
+}
+
+/**
+ * 0.6.1b: a hero's signature core (ARSENAL.md §2.1 rules 1-2). It is implicit: never an ITEMS entry, never in
+ * cargo, never sold, never merged. It runs the identity routine, today's firing, so a turret without a bought
+ * core fights exactly as in 0.6.0.
+ */
+export interface SignatureCore {
+  id: string;
+  name: string;
+}
+
+export const SIGNATURE_CORES: Record<string, SignatureCore> = {
+  kilnbreech: { id: "kilnbreech", name: "KILN BREECH" }, // FURNACE
+  loomshuttle: { id: "loomshuttle", name: "LOOM SHUTTLE" }, // WEAVER
+  cruciblebreech: { id: "cruciblebreech", name: "CRUCIBLE BREECH" }, // races: FOUNDRY
+  bulwarkcannon: { id: "bulwarkcannon", name: "BULWARK CANNON" }, // races: BASTION
+  pendulumhammer: { id: "pendulumhammer", name: "PENDULUM HAMMER" }, // races: METRONOME
+  leechneedle: { id: "leechneedle", name: "LEECH NEEDLE" }, // races: SIPHON
+};
+
 export interface HeroDef {
   id: HeroId;
   name: string;
@@ -237,6 +353,9 @@ export interface HeroDef {
   turrets: TurretDef[];
   blurb: string[];
   pattern: string;
+  // 0.6.1b: the signature core's id (SIGNATURE_CORES). Optional only because src/sim/races/data.ts (not ours
+  // to edit) builds its HeroDefs without it; HEROES below sets it for every hero.
+  core?: string;
 }
 
 export const HEROES: Record<HeroId, HeroDef> = {
@@ -246,6 +365,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
     turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", fireInterval: 1.0, window: 3, flight: 0.6 }],
     blurb: ["KILN SLUGS HEAT UP ON", "THE BELT. LONGER ROUTES", "HIT HARDER, BUT LATER."],
     pattern: "DELAY TO COOK",
+    core: "kilnbreech",
   },
   weaver: {
     id: "weaver", name: "WEAVER", faction: "elf", factionName: "ELVEN SKYWRIGHTS",
@@ -257,8 +377,14 @@ export const HEROES: Record<HeroId, HeroDef> = {
     ],
     blurb: ["THE LOOM FEEDS THREE", "LIGHT TURRETS. EVERY", "HIT FRAYS THE HULL."],
     pattern: "STEADY PRESSURE",
+    core: "loomshuttle",
   },
   ...RACE_HEROES, // races: FOUNDRY (human), BASTION (dwarf), METRONOME (beastfolk), SIPHON — docs/RACES.md
+  // 0.6.1b: the race heroes' signature cores, set on copies (races/data.ts stays as it is)
+  foundry: { ...RACE_HEROES.foundry, core: "cruciblebreech" },
+  bastion: { ...RACE_HEROES.bastion, core: "bulwarkcannon" },
+  metronome: { ...RACE_HEROES.metronome, core: "pendulumhammer" },
+  siphon: { ...RACE_HEROES.siphon, core: "leechneedle" },
 };
 
 export interface MerchantDef {

@@ -16,13 +16,14 @@ export function starsOf(x: { stars?: number } | undefined): number {
 }
 
 /**
- * True for every buyable gate, factory and mod (and, later, cores): they merge. Never for supplies
- * (consumed on purchase) or a hero signature (KILN, LOOM, the race factories: price 0, never in cargo).
+ * True for every buyable gate, factory, mod and turret core (0.6.1b): they merge. Never for supplies
+ * (consumed on purchase) or a hero signature (KILN, LOOM, the race factories: price 0, never in cargo;
+ * signature cores are not ITEMS at all).
  */
 export function fusible(def: string): boolean {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!d) return false;
-  return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod") && d.price > 0;
+  return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod" || d.kind === "core") && d.price > 0;
 }
 
 const cache = new Map<string, ItemDef>();
@@ -48,6 +49,7 @@ export function effectAt(def: string, stars: number): ItemDef {
     if (lv.gate) out.gate = { ...out.gate, ...lv.gate };
     if (lv.factory) out.factory = { ...out.factory!, ...lv.factory };
     if (lv.mod) out.mod = { ...out.mod, ...lv.mod };
+    if (lv.core) out.core = { ...out.core!, ...lv.core }; // 0.6.1b: a turret core's star values
   }
   cache.set(k, out);
   return out;
