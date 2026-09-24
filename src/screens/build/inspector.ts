@@ -4,10 +4,10 @@
 
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
-import { DISRUPT_TIME, HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, WINDOW_TIME } from "../../sim/content";
+import { DISRUPT_TIME, HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, WINDOW_TIME, classFactor } from "../../sim/content";
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import { beltUsed, connectedRouteCount, defOf, estimateRoute, gearFor, itemByUid, key, routeInfo, routesOf } from "../../sim/deck";
-import { resolveCore, type TurretCore } from "../../sim/cores"; // 0.6.1b
+import { resolveCore, scaleCore, type TurretCore } from "../../sim/cores"; // 0.6.1b; 0.6.1r N4: scaleCore
 import { C, RARITY_COLOR } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
@@ -15,7 +15,7 @@ import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
-import { effectAt, FUSE_MAX, fusible, perkAt, starsOf, starText } from "../../sim/stars";
+import { effectAt, FUSE_MAX, fusible, pendingAt, perkAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
@@ -28,9 +28,10 @@ import { describe } from "./shop";
  * star perk reads here too. OVERDRIVE's REDLINE/AFTERBURNER guards and MANTLET's freeze/sabot/static/arc/drag
  * immunities act only once wave 2 adds those attacks, so no line promises them (only the perk's name shows).
  */
-function starEffectLine(def: string, stars: number): string {
+export function starEffectLine(def: string, stars: number, k = 1): string {
   const e = effectAt(def, stars);
   const gt = e.gate, m = e.mod;
+  if (e.core) return coreLine(def, stars, k); // 0.6.1r N4: a core's headline at that star
   if (gt?.burn) return `+${gt.burn} BURN`;
   if (gt?.speed) return `SPEED X${gt.speed}${gt.flat ? ` · +${gt.flat} FLAT` : ""}`; // OVERDRIVE ★3: + AFTERBURNER's flat
   if (gt?.flat) return `+${gt.flat} FLAT`;
@@ -43,24 +44,52 @@ function starEffectLine(def: string, stars: number): string {
   if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.noJam ? " · NEVER JAMS" : ""}`; // HOPPER
   if (m?.immune) return `SHOCK-PROOF${m.intakeGuard ? ` · GUARDS LAST ${m.intakeGuard} TILES` : ""}`; // MANTLET (wave 1: shock only)
   if (m?.finisher) return `FINISHER +${Math.round(m.finisher * 100)}%`;
-  const perk = perkAt(def, stars);
+  const perk = livePerk(def, stars);
   if (perk) return perk;
   return "";
 }
 
-/** 0.6.1p (ARSENAL.md §8.2): the current level's numbers with its perk, "★2 CLEAN CUT: 2X 72%"; null at 1 star (desc says it). */
-function levelLine(def: string, stars: number): string | null {
+/** 0.6.1r (review-061 F5): the perk's name, unless the sim doesn't apply its values yet (levels[n].pending), so
+ *  the inspector never promises an effect that doesn't exist. 0.6.1p emptied every pending; later waves may not. */
+function livePerk(def: string, stars: number): string | undefined {
+  return Object.keys(pendingAt(def, stars)).length ? undefined : perkAt(def, stars);
+}
+
+/** 0.6.1r (review-061 N4): a turret core's headline at `stars` on a turret of class factor k: the turret panel's
+ *  own firing summary (coreShape) over the same k-scaled spec resolveCore builds (effectAt's core, scaleCore by k),
+ *  plus what only the fire rate shows there (ROTARY's intervalMul) and a NEVER JAMS a star adds (ROTARY ★3). */
+function coreLine(def: string, stars: number, k: number): string {
+  const raw = effectAt(def, stars).core!;
+  const tc: TurretCore = { def, bought: true, routine: raw.routine, stars, k, spec: scaleCore(raw, k) };
+  const base = ITEMS[def].core;
+  return [
+    coreShape(tc),
+    tc.spec.intervalMul ? `FIRE X${tc.spec.intervalMul}` : "",
+    tc.spec.noJam && !base?.noJam ? "NEVER JAMS" : "",
+  ].filter(Boolean).join(" · ");
+}
+
+/** 0.6.1r N4: the class factor a core in this run's cargo or shop would fire at: the hero's turrets (all of one
+ *  class today: FURNACE heavy k 1, WEAVER light k 0.55), as resolveCore scales it once fitted. */
+function heroK(run: Run): number {
+  const td = HEROES[run.hero]?.turrets[0];
+  return td ? classFactor(td) : 1;
+}
+
+/** 0.6.1p (ARSENAL.md §8.2): the current level's numbers with its perk, "★2 CLEAN CUT: 2X 72%"; null at 1 star (desc says it).
+ *  0.6.1r: exported for tests; `k` scales a core's numbers (heroK). */
+export function levelLine(def: string, stars: number, k = 1): string | null {
   if (stars <= 1 || !fusible(def)) return null;
-  const perk = perkAt(def, stars), eff = starEffectLine(def, stars);
+  const perk = livePerk(def, stars), eff = starEffectLine(def, stars, k);
   return `★${stars}${perk ? ` ${perk}` : ""}${eff && eff !== perk ? `: ${eff}` : ""}`;
 }
 
 /** 0.6.1d (ARSENAL.md §8.1): "MERGES WITH YOUR TEMPER ★1 → ★2 · +4 BURN", live from mergePreview. */
-function mergeLine(run: Run, def: string): string | null {
+export function mergeLine(run: Run, def: string): string | null {
   const preview = mergePreview(run, def);
   if (!preview) return null;
   const to = preview.toStars, from = to - 1;
-  const after = starEffectLine(def, to);
+  const after = starEffectLine(def, to, heroK(run));
   return `MERGES WITH YOUR ${ITEMS[def].name} ★${from} → ★${to}${after ? ` · ${after}` : ""}`;
 }
 
@@ -75,13 +104,14 @@ function copiesToNextStar(run: Run, def: string, atLeast: number): number {
   return 8;
 }
 
-/** 0.6.1d (ARSENAL.md §8.2): "NEXT ★3: +7 BURN · 2 MORE COPIES"; null at ★3 or for a non-fusible id. */
-function nextLine(run: Run, def: string, stars: number): string | null {
+/** 0.6.1d (ARSENAL.md §8.2): "NEXT ★3: +7 BURN · 2 MORE COPIES"; null at ★3 or for a non-fusible id.
+ *  0.6.1r (review-061 N2): "1 MORE COPY" in the singular. */
+export function nextLine(run: Run, def: string, stars: number): string | null {
   if (!fusible(def) || stars >= FUSE_MAX) return null;
   const next = stars + 1;
-  const eff = starEffectLine(def, next);
+  const eff = starEffectLine(def, next, heroK(run));
   const copies = copiesToNextStar(run, def, stars);
-  return `NEXT ★${next}${eff ? `: ${eff}` : ""} · ${copies} MORE COPIES`;
+  return `NEXT ★${next}${eff ? `: ${eff}` : ""} · ${copies} MORE ${copies === 1 ? "COPY" : "COPIES"}`;
 }
 
 interface Action {
@@ -148,7 +178,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const d = ITEMS[it.def];
       const stars = starsOf(it);
       const next = nextLine(run, it.def, stars);
-      const lvl = levelLine(it.def, stars); // 0.6.1p
+      const lvl = levelLine(it.def, stars, heroK(run)); // 0.6.1p; 0.6.1r N4: a core's numbers at the hero's k
       return {
         icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
         text: [...d.desc, ...(lvl ? [lvl] : []), ...(next ? [next] : []), d.kind === "mod" || d.kind === "core" ? "TAP A TURRET TO FIT IT." : "TAP A BELT TILE TO PLACE IT."],
