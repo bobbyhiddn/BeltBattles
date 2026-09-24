@@ -3,7 +3,9 @@
 #   node deploy/stage.mjs <game.html>
 # server/dist/ (the vite bundle; it imports only node: built-ins, so there is no npm install) and
 # deploy/public/index.html (the staged single-file game, recorded in deploy/GAME_BUILD.txt).
-FROM node:20-alpine
+# Node 22 LTS: Node 20 reached end of life on 2026-04-30. The bundle uses only node:http, fs, path
+# and crypto plus the global fetch; the server suites and the smoke run pass on 22 locally.
+FROM node:22-alpine
 
 ENV NODE_ENV=production
 WORKDIR /app

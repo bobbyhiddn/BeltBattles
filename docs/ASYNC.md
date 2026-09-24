@@ -156,8 +156,8 @@ thousands. Past that, cap each (rules, day) bucket or move to SQLite.
 
 ## Running on Fly + Tigris
 
-One `shared-cpu-1x` machine with 256 MB in `iad` runs the bundle (`node:20-alpine`, no npm install)
-and serves both the game page (0.6.0-c, at `/`) and the API (`/v1/...`) from one HTTPS origin,
+One `shared-cpu-1x` machine with 256 MB in `iad` runs the bundle (`node:22-alpine`, no npm install)
+and serves both the game page (the released 0.6.0, at `/`) and the API (`/v1/...`) from one HTTPS origin,
 https://beltbattles.fly.dev. It stops when idle and starts on the next request. Ghosts live in a
 Tigris bucket (Fly's S3-compatible object storage), so the machine has no volume and nothing to
 back up. The kit is `fly.toml`, `Dockerfile` and `.dockerignore` at the repo root, plus
@@ -188,8 +188,12 @@ ghosts/<rules>/d<DD>/player/<id>.json   player uploads: written only by POST /v1
   uploads setting.
 - A bucket is listed on its first match request, and its objects are fetched 16 at a time and
   cached. Concurrent requests share one load.
-- After `BB_GHOST_CACHE_TTL_S` (60 s) the next request lists the bucket again. It fetches only new
-  keys and drops vanished ones, so writes from other machines and re-seeds show up within the TTL.
+- After `BB_GHOST_CACHE_TTL_S` (60 s by default, 600 s in fly.toml) the next request lists the
+  bucket again. It fetches only new keys and drops vanished ones, so writes from other machines and
+  re-seeds show up within the TTL. On the one production machine every upload goes through this
+  process and is indexed at once, and a deploy (the re-seed) restarts it, so the TTL only delays
+  out-of-band changes. Each re-list is a Tigris Class A request (10,000 a month are free), which is
+  why production uses the longer TTL. Lower it if the app ever runs more than one machine.
   If that refresh fails, the cached copy is served and the refresh is retried 5 s later.
 - At most 64 buckets are cached; the least recently used one is dropped.
 - Writes are durable first: HEAD the key (if the ghost is already there, answer 200 with the same
@@ -210,9 +214,9 @@ ghosts/<rules>/d<DD>/player/<id>.json   player uploads: written only by POST /v1
 | `BB_GHOST_STORE` | `tigris` | `jsonl` | backend |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `BUCKET_NAME` | app secrets from `fly storage create` | none | Tigris credentials, `https://fly.storage.tigris.dev`, `auto`, the bucket; with `tigris`, a missing one stops the start, and the message names the variable, never a value |
 | `BB_GHOST_S3_ADDRESSING` | (default) | `virtual` | `virtual` (`https://<bucket>.<host>/<key>`, what Tigris documents) or `path` |
-| `BB_GHOST_CACHE_TTL_S` | (default) | `60` | seconds a loaded bucket is served before it is listed again |
+| `BB_GHOST_CACHE_TTL_S` | `600` | `60` | seconds a loaded bucket is served before it is listed again (each re-list is a Tigris Class A request) |
 | `BB_GHOST_UPLOADS` | `closed` | `open` | `closed`: POST /v1/ghosts answers 403 without reading the body |
-| `BB_GHOST_TRUST_PROXY` | `fly` | `none` | `fly`: client IP = `Fly-Client-IP`, else the first `X-Forwarded-For` hop, else the socket; `none` ignores both headers |
+| `BB_GHOST_TRUST_PROXY` | `fly` | `none` | `fly`: client IP = `Fly-Client-IP` (Fly's proxy sets or overwrites it), else the socket; `X-Forwarded-For` is never trusted, because its first hop is whatever the client sent; `none` ignores both headers |
 | `BB_GHOST_STATIC` | `/app/public` | none | serve `<dir>/index.html` at `/` and `/index.html` (read once at start; missing = exit 2) |
 | `BB_GHOST_HOST`, `BB_GHOST_PORT` | `0.0.0.0`, `8080` | `127.0.0.1`, `7790` | listen address |
 | `BB_GHOST_ORIGINS` | `https://beltbattles.fly.dev` | the local Shore | CORS allow-list (the page itself is same-origin) |
