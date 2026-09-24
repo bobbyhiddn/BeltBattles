@@ -40,7 +40,10 @@ export interface ServerOptions {
   uploads?: "open" | "closed";
   /**
    * Whose address the rate limit and the request log use. "fly" (behind Fly's proxy): the
-   * Fly-Client-IP header, then the first X-Forwarded-For hop, then the socket address.
+   * Fly-Client-IP header, which Fly's proxy sets or overwrites on every request it forwards, else
+   * the socket address. X-Forwarded-For is never used: Fly appends to it, so its first hop is
+   * whatever the client sent, and a request without Fly-Client-IP did not come through the proxy,
+   * so none of its hops can be trusted either.
    * Default "none": the socket address only; both headers are ignored, so nobody can spoof them.
    */
   trustProxy?: "fly" | "none";
@@ -144,10 +147,7 @@ export function clientIp(req: IncomingMessage, trust: "fly" | "none" = "none"): 
   const socket = req.socket.remoteAddress ?? "unknown";
   if (trust !== "fly") return socket;
   const fly = firstHeader(req, "fly-client-ip");
-  if (IP_TEXT.test(fly)) return fly;
-  const hop = firstHeader(req, "x-forwarded-for").split(",")[0].trim();
-  if (IP_TEXT.test(hop)) return hop;
-  return socket;
+  return IP_TEXT.test(fly) ? fly : socket; // X-Forwarded-For is never trusted (see ServerOptions.trustProxy)
 }
 
 function intParam(q: URLSearchParams, name: string, min: number, max: number): number {

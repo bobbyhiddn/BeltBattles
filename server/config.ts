@@ -9,7 +9,7 @@
 //   BB_GHOST_RATE     requests per minute per client IP (default 120)                 --rate
 //   BB_GHOST_UPLOADS  open | closed (default open): closed answers POST /v1/ghosts with 403
 //   BB_GHOST_TRUST_PROXY  fly | none (default none): fly takes the client IP from Fly-Client-IP,
-//                     then the first X-Forwarded-For hop; none ignores both headers
+//                     else the socket (X-Forwarded-For is never trusted); none ignores both headers
 //   BB_GHOST_STATIC   directory whose index.html is served at / and /index.html (default: none) --static
 //   tigris store: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, AWS_REGION and
 //   BUCKET_NAME (the secrets `fly storage create` sets on the app), plus

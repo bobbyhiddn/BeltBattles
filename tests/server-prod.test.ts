@@ -62,25 +62,27 @@ describe("rate limit behind Fly's proxy", () => {
   const A = { "fly-client-ip": "203.0.113.1" };
   const B = { "fly-client-ip": "2001:db8::2" };
 
-  it("with trustProxy fly: two Fly-Client-IP values get separate budgets; then the first X-Forwarded-For hop; then the socket", async () => {
+  it("with trustProxy fly: two Fly-Client-IP values get separate budgets; X-Forwarded-For is never trusted; else the socket", async () => {
     const logs: string[] = [];
     const fly = createGhostServer({ store: tigrisFor(fakeForLimits), trustProxy: "fly", rateLimit: { windowMs: 60_000, max: 2 }, log: (l) => logs.push(l) });
     const base = await started(fly);
     const a = [await health(base, A), await health(base, A), await health(base, A)];
     const b = [await health(base, B), await health(base, B)];
-    const xff = { "x-forwarded-for": "198.51.100.7, 10.0.0.1" };
-    const x = [await health(base, xff), await health(base, xff), await health(base, xff)];
+    // Without Fly-Client-IP the request did not come through Fly's proxy, and the first
+    // X-Forwarded-For hop is whatever the client sent: both fall back to the one socket budget.
+    const xff1 = { "x-forwarded-for": "198.51.100.7, 10.0.0.1" };
+    const xff2 = { "x-forwarded-for": "198.51.100.8" };
     const junk = { "fly-client-ip": "<script>", "x-forwarded-for": "not-an-ip" }; // ignored: falls back to the socket
-    const s = [await health(base), await health(base, junk), await health(base)];
+    const s = [await health(base, xff1), await health(base, junk), await health(base, xff2)];
     await fly.close();
     expect(a).toEqual([200, 200, 429]);
     expect(b).toEqual([200, 200]);
-    expect(x).toEqual([200, 200, 429]);
     expect(s).toEqual([200, 200, 429]);
     const lines = logs.filter((l) => l.includes("/v1/health"));
     expect(lines.filter((l) => l.includes(" 203.0.113.1 GET /v1/health "))).toHaveLength(3); // the log uses the same address
     expect(lines.filter((l) => l.includes(" 2001:db8::2 GET /v1/health "))).toHaveLength(2);
-    expect(lines.filter((l) => l.includes(" 198.51.100.7 GET /v1/health "))).toHaveLength(3);
+    expect(lines.filter((l) => /Z (127\.0\.0\.1|::ffff:127\.0\.0\.1) GET \/v1\/health /.test(l))).toHaveLength(3);
+    expect(lines.some((l) => l.includes("198.51.100."))).toBe(false);
     expect(lines.some((l) => l.includes("<script>") || l.includes("not-an-ip"))).toBe(false);
   });
 
