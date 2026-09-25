@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { levelLine, mergeLine, nextLine, portraitButtons, starEffectLine } from "../src/screens/build/inspector";
+import { levelLine, mergeLine, nextLine, portraitButtons, rigPanel, starEffectLine } from "../src/screens/build/inspector";
+import { key as K, rotField } from "../src/sim/deck"; // beltside-062c: P11
+import { rotFacing } from "../src/sim/beltside"; // beltside-062c: P11
 import { textWidth, wrap } from "../src/render/font";
 import { newRun, type Run } from "../src/game/run";
 import { resolveCore } from "../src/sim/cores";
@@ -146,5 +148,107 @@ describe("0.6.1c: each factory's headline at each star, its perks named, and the
         expect(lines.length, `${def} ${owned}: ${lines.join(" / ")}`).toBeLessThanOrEqual(4);
       }
     }
+  });
+});
+
+// beltside-062c (ref/DESIGN-beltside.md §12 P11): a placed rig's panel (inspector.ts rigPanel) lists its hits (or IDLE),
+// its star perk, the NEXT/MERGES line, the turn hint, then the flavour. A short panel drops lines from the end, so on
+// a phone the flavour gives way first and the hits last, and merge progress stays in sight.
+describe("P11: a rig's panel order, and the phone band", () => {
+  const SHORT = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
+  const SIDE = [K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(5, 1), K(5, 0)];
+  /** A Furnace with the Kiln's belt up column 4 and a STAMP PRESS belt up column 6; rig `def` (uid 10, ★stars) at (x, y)
+   *  with `rot`, and `spare` ★1 copies of it in cargo. */
+  function rigRun(def: string, stars: number, x: number, y: number, rot: number, spare: number): Run {
+    const run = newRun("furnace", 5, "p11");
+    run.inventory = Array.from({ length: spare }, (_, i) => ({ uid: 800 + i, def }));
+    run.build = {
+      hero: "furnace", mods: [], beltCap: 30, hullBonus: 0,
+      items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 7, def: "press", x: 6, y: 6 }, { uid: 10, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) }],
+      routes: [{ factory: 1, cells: [...SHORT] }, { factory: 7, cells: [...SIDE] }],
+    };
+    return run;
+  }
+  const text = (run: Run) => rigPanel(run, 10)!.text.map((l) => (typeof l === "string" ? l : l[0]));
+  const TURN = "TAP TO TURN (OR R). DRAG TO MOVE.";
+  const IDLE = "IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.";
+
+  it("hits (or IDLE), perk, NEXT, turn hint, flavour: written out by hand", () => {
+    // a ★2 SPLITTER (T) at (3,3) facing east: one arrow on the Kiln's (4,3), tile 3; one spare copy in cargo
+    expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
+      "→ BELT 1 · TILE 3", "★2 CLEAN CUT: 2X 72%", "NEXT ★3: 3X 57% · 1 MORE COPY", TURN,
+      "SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE.",
+    ]);
+    // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, then NEXT (no perk line at ★1)
+    expect(text(rigRun("longhaul", 1, 5, 3, 0, 0))).toEqual([
+      "→ BELT 1 · TILE 3", "→ BELT 2 · TILE 3", "NEXT ★2: +4/HIT · MAX 6 HITS · 1 MORE COPY", TURN,
+      "+2 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK.",
+    ]);
+    // an IDLE ★2 TEMPER: the amber warning leads
+    const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
+    expect(idle.text[0]).toEqual([IDLE, expect.any(String)]);
+    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE, "★2: +4 BURN", "NEXT ★3: +7 BURN · 2 MORE COPIES", TURN, "ADDS 2 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."]);
+    expect([idle.sub, idle.idle, idle.labels]).toEqual(["RIG · IDLE", true, ["ROTATE", "TO CARGO"]]);
+    // a ★3 X OVERDRIVE at (5,3): no NEXT past ★3, no ROTATE for an X
+    const x = rigPanel(rigRun("overdrive", 3, 5, 3, 0, 0), 10)!;
+    expect(text(rigRun("overdrive", 3, 5, 3, 0, 0))).toEqual([
+      "→ BELT 1 · TILE 3", "→ BELT 2 · TILE 3", "★3 AFTERBURNER: SPEED X5 · +3 FLAT", "FACES EVERY SIDE. DRAG TO MOVE.",
+      "4 ARROWS: EACH BELT", "IT HITS RUNS 3X", "FROM THAT TILE ON.",
+    ]);
+    expect([x.sub, x.subShort, x.labels]).toEqual(["RIG · 2/4 ARROWS ON BELTS", "RIG · 2/4 HIT", ["TO CARGO"]]);
+  });
+
+  // The phone build screen's info band (F7's test above): 161 x 69 px. drawDetails draws a rig's body in the 3x5 face
+  // (7 px lines; a rig's 5+ lines never fit the 5x7 face there) from y + 25 + shift, where shift is 12 when the buttons
+  // take their own row (portraitButtons, retried with the short sub line), so 4 or 6 body lines show, wrapped at 151 px.
+  const BAND = { x: 3, y: 100, w: 161, h: 69 };
+  function phone(run: Run): { fit: number; head: number; next: number } {
+    const rp = rigPanel(run, 10)!;
+    let port = portraitButtons(rp.title, rp.sub, rp.labels, BAND);
+    if (port.shift && rp.subShort) {
+      const short = portraitButtons(rp.title, rp.subShort, rp.labels, BAND);
+      if (!short.shift) port = short;
+    }
+    const fit = Math.floor((BAND.h - 4 - 25 - port.shift + 2) / 7);
+    const rows = rp.text.map((l) => wrap(typeof l === "string" ? l : l[0], BAND.w - 10, "3").length);
+    const nextAt = rp.text.findIndex((l) => typeof l === "string" && l.startsWith("NEXT "));
+    const turnAt = rp.text.findIndex((l) => l === TURN || l === "FACES EVERY SIDE. DRAG TO MOVE.");
+    const upTo = (i: number) => rows.slice(0, i).reduce((a, b) => a + b, 0);
+    return { fit, head: upTo(nextAt < 0 ? turnAt : nextAt), next: nextAt < 0 ? -1 : upTo(nextAt + 1) };
+  }
+  // Measured (beltside-062c): where the perk and NEXT lines both wrap to two lines, the NEXT line doesn't fit the 4-line
+  // band whole: its last words ("tail") give way beside a hit; beside the 2-line IDLE warning a ★2 COIL's NEXT line gives
+  // way whole ("whole"). A UI follow-up (shorter phone wording for these perk and NEXT lines) is flagged in MERGE-061c.md.
+  const KNOWN_PHONE_CUTS = new Map([
+    ["coil ★2 1hit", "tail"], ["coil ★2 2hit", "tail"], ["coil ★2 idle", "whole"],
+    ["longhaul ★2 2hit spare0", "tail"], ["longhaul ★2 idle spare0", "tail"],
+  ]);
+
+  it("phone: the hits (or IDLE) and the perk always show, the NEXT line whole (or, measured cuts, its start)", () => {
+    const LAYOUT: [string, (def: string) => [number, number, number]][] = [
+      ["1hit", (def) => [3, 3, rotFacing(def, 1)]], // beside the Kiln's belt, facing it
+      ["2hit", () => [5, 3, 0]], // between both belts (an I rig there points at empty deck: IDLE)
+      ["idle", () => [0, 9, 0]],
+    ];
+    let cases = 0;
+    for (const def of ["temper", "whetstone", "grease", "brake", "longhaul", "coil", "splitter", "overdrive"]) {
+      for (const s of [1, 2, 3]) for (const [lay, at] of LAYOUT) for (const spare of [0, 1]) {
+        const [x, y, rot] = at(def);
+        const p = phone(rigRun(def, s, x, y, rot, spare));
+        const id = `${def} ★${s} ${lay}`;
+        expect(p.head, `${id}: hits and perk`).toBeLessThanOrEqual(p.fit);
+        if (p.next < 0) continue; // ★3: no NEXT line
+        const cut = KNOWN_PHONE_CUTS.get(id) ?? KNOWN_PHONE_CUTS.get(`${id} spare${spare}`);
+        if (cut) {
+          expect(p.next, `${id}: a known cut`).toBeGreaterThan(p.fit);
+          if (cut === "tail") expect(p.head + 1, `${id}: the NEXT line starts in view`).toBeLessThanOrEqual(p.fit);
+          else expect(p.head, `${id}: hits and perk fill the band`).toBe(p.fit);
+        } else {
+          expect(p.next, `${id} spare${spare}: NEXT in view`).toBeLessThanOrEqual(p.fit);
+        }
+        cases++;
+      }
+    }
+    expect(cases).toBe(8 * 2 * 3 * 2); // ★1 and ★2 have a NEXT line
   });
 });

@@ -1,0 +1,373 @@
+// beltside-062c (ref/BRIEF-beltside-merge-061c.md, "New tests"): how 0.6.1c's factories and road items meet rigs
+// (ref/DESIGN-beltside.md §12, P7-P10; P11 is in tests/inspectorLines.test.ts), and MERGE-061's day-1 shop probe.
+// Every expected number is written out from the catalogue (content.ts), never recomputed with the code under test.
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { Battle } from "../src/sim/battle";
+import { AMMO, BELT_SPEED, GUARD_FREEZE, GUARD_SLOW, ITEMS, RULES_VERSION, TICK } from "../src/sim/content";
+import { hitsOfRig, key as K, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
+import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
+import { effectAt } from "../src/sim/stars";
+import { hitLabel } from "../src/screens/build/inspector";
+import { routeProblems } from "../src/game/routeCheck";
+import { beltsideRun } from "../src/game/save";
+import { EVENTS, salvagePool, smugglerPool, type EventId } from "../src/game/eventDefs";
+import { choicesFor, makeEvent } from "../src/game/events";
+import { newRun } from "../src/game/run";
+import { heroStartBuild } from "../src/sim/heroBuilds";
+import { decodeSnapshot, encodeSnapshot } from "../src/net/snapshot";
+import { validateBuild } from "../src/net/validate";
+import type { GhostSnapshot } from "../src/game/ghostSnapshot";
+import { barge, factoryBench, gantryWeaver, SEED } from "./arsenal.bench";
+import { roadDraws, type RoadDraws } from "./beltside.roadDraws";
+
+const J = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+const st = (s: number) => (s > 1 ? { stars: s } : {});
+/** A rig at (x, y) whose FIRST arrow points in absolute direction `dir` (0 up, 1 east, 2 down, 3 west). */
+const rig = (uid: number, def: string, x: number, y: number, dir: 0 | 1 | 2 | 3, stars = 1): Placed =>
+  ({ uid, def, x, y, ...rotField(def, rotFacing(def, dir)), ...st(stars) });
+
+// ---------------------------------------------------------------- P7: ASSEMBLY LINE and rigs
+
+/**
+ * The Kiln's belt up column 4, and factory `f` at (6,6) with its belt up column 6 (then (5,1), (5,0): the heavy
+ * turret's second intake). A LONG HAUL (II, rot 0) at (5,3) works both belts, one arrow each: west on the Kiln's (4,3)
+ * (tile 2), east on the factory's (6,3) (tile 2). A WHETSTONE works the Kiln's (4,4) only, another the factory's (6,4)
+ * only (both tile 1, the LONG HAUL's one prior hit), and a TEMPER at (0,9) is IDLE (its arrow points at empty deck).
+ */
+function p7(f: string, stars: number): Build {
+  return {
+    hero: "furnace", mods: [], beltCap: 30, hullBonus: 5000,
+    items: [
+      { uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 7, def: f, x: 6, y: 6, ...st(stars) },
+      { uid: 10, def: "longhaul", x: 5, y: 3 }, rig(11, "whetstone", 3, 4, 1), rig(12, "whetstone", 7, 4, 3), rig(13, "temper", 0, 9, 0),
+    ],
+    routes: [
+      { factory: 1, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+      { factory: 7, cells: [K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(5, 1), K(5, 0)] },
+    ],
+  };
+}
+const commission = (b: Build) => new Battle(b, barge(), SEED).sides[0].gates.map((g) => [g.uid, +g.commissionAt.toFixed(9), g.hotUntil]);
+
+describe("P7: ASSEMBLY LINE and rigs", () => {
+  it("one arrow on an Assembly Line's belt brings the rig online at 0 s; a Kiln-only rig at its scaled time; an IDLE rig never", () => {
+    const b = p7("assembly", 1);
+    expect(routeProblems(b)).toEqual([]);
+    expect(hitsOfRig(b, 10).map((h) => [h.route, h.cell])).toEqual([[0, K(4, 3)], [1, K(6, 3)]]);
+    expect([11, 12, 13].map((u) => hitsOfRig(b, u).map((h) => h.cell))).toEqual([[K(4, 4)], [K(6, 4)], []]);
+    // no Assembly Line (a STAMP PRESS in its place): BELTSIDE's per-route rule, the earliest route wins. The LONG HAUL
+    // is the second rig on both belts (1.2 + 0.6 s), each WHETSTONE the first on its belt (1.2 s)
+    expect(commission(p7("press", 1))).toEqual([[10, 1.8, undefined], [11, 1.2, undefined], [12, 1.2, undefined], [13, Infinity, undefined]]);
+    // ASSEMBLY LINE x0.5 / x0.25 / x0 (catalogue): the LONG HAUL is online at 0 s (one arrow on its belt; the Kiln's
+    // belt alone would give it 1.8 x f), the Kiln-only WHETSTONE at 1.2 x f; ★3 HOT START (4 s) on the whole rig
+    expect(commission(p7("assembly", 1))).toEqual([[10, 0, undefined], [11, 0.6, undefined], [12, 0, undefined], [13, Infinity, undefined]]);
+    expect(commission(p7("assembly", 2))).toEqual([[10, 0, undefined], [11, 0.3, undefined], [12, 0, undefined], [13, Infinity, undefined]]);
+    expect(commission(p7("assembly", 3))).toEqual([[10, 0, 4], [11, 0, undefined], [12, 0, 4], [13, Infinity, undefined]]);
+    // in the battle: the time of each rig's "commission" event; the IDLE rig never has one
+    for (const [s, whet] of [[1, 0.6], [2, 0.3], [3, 0]] as const) {
+      const bt = new Battle(p7("assembly", s), barge(), SEED);
+      const on = new Map<number, number>();
+      while (bt.t < 20 && !bt.over) {
+        bt.step();
+        for (const e of bt.drainEvents()) if (e.type === "commission" && e.side === 0) on.set(e.gate, bt.t);
+      }
+      expect(on.get(10), `${s}`).toBeCloseTo(TICK, 9); // the first tick
+      expect(on.get(12), `${s}`).toBeCloseTo(TICK, 9);
+      const late = on.get(11)! - Math.max(whet, TICK);
+      expect(late >= -1e-9 && late < TICK + 1e-9, `${s}: ${on.get(11)}`).toBe(true);
+      expect(on.has(13), `${s}`).toBe(false);
+      expect(bt.sides[0].gates.find((g) => g.uid === 13)!.online).toBe(false);
+    }
+  });
+
+  it("★3 HOT START overclocks both arrows of the rig (on either belt) for the first 4 s, then not; never at ★1/★2", () => {
+    for (const s of [1, 2, 3]) {
+      const bt = new Battle(p7("assembly", s), barge(), SEED);
+      const side = bt.sides[0];
+      const before = new Map<number, number>(); // payload -> its flat after the WHETSTONE tile (tile 1)
+      const seen = new Set<number>();
+      const rows: [number, number, number, number][] = []; // [route, t past the LONG HAUL, WHETSTONE gain, LONG HAUL gain]
+      while (bt.t < 12 && !bt.over) {
+        bt.step();
+        bt.drainEvents();
+        for (const r of side.routes) for (const a of r.ammo) {
+          if (a.processed === 1) before.set(a.p.id, a.p.flat);
+          else if (a.processed >= 2 && before.has(a.p.id) && !seen.has(a.p.id)) {
+            seen.add(a.p.id);
+            rows.push([r.index, bt.t, before.get(a.p.id)!, a.p.flat - before.get(a.p.id)!]);
+          }
+        }
+      }
+      const hot = (t: number) => s === 3 && t < 4 - 1e-6;
+      for (const [route, t, whet, haul] of rows) {
+        if (s === 3 && Math.abs(t - 4) < 1e-6) continue; // the tick that ends HOT START
+        // LONG HAUL ★1: +2 per prior hit (1: the WHETSTONE), overclocked +4, on the Kiln's belt as on the Assembly's
+        expect(haul, `★${s} route ${route} at ${t.toFixed(3)}`).toBe(hot(t) ? 4 : 2);
+        // the Kiln-only WHETSTONE is never hot; the Assembly's own is, while HOT START lasts (it hit earlier than t)
+        if (route === 0) expect(whet, `★${s} Kiln WHETSTONE`).toBe(2);
+        else if (hot(t)) expect(whet, `★${s} Assembly WHETSTONE`).toBe(4);
+      }
+      for (const route of [0, 1]) {
+        expect(rows.filter((r) => r[0] === route && hot(r[1])).length > 0, `★${s} route ${route}: hot hits`).toBe(s === 3);
+        expect(rows.filter((r) => r[0] === route && r[1] > 4 + 1e-6).length, `★${s} route ${route}: later hits`).toBeGreaterThan(2);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------- P8: SLAG rides at its fixed speed
+
+/** SLAG POT (★pot) alone on the factory bench's second intake (the Kiln off its route; tiles 0-6: (6,5), (5,5) .. (5,0)),
+ *  rig `speed` (★stars) at (4,3) working tile 3 (5,3) from the west (an X works only that tile too: the Kiln's column
+ *  is empty deck), and a TEMPER at (6,2) working tile 4 (5,2) from the east. */
+function slag(speed: string | null, stars = 1, pot = "slagpot"): Build {
+  const b = factoryBench(pot, 1, { only: true });
+  if (speed) b.items.push(rig(20, speed, 4, 3, 1, stars));
+  b.items.push(rig(21, "temper", 6, 2, 3));
+  return b;
+}
+const SPEEDS: [string, number][] = [1, 2, 3].flatMap((s) => [["brake", s], ["grease", s], ["overdrive", s]] as [string, number][]);
+
+describe("P8: SLAG rides at its fixed 0.75x", () => {
+  it("the decks: the speed rig works tile 3 only, the TEMPER tile 4 only", () => {
+    for (const [def] of SPEEDS.slice(0, 3)) {
+      const b = slag(def);
+      expect(routeProblems(b)).toEqual([]);
+      expect([hitsOfRig(b, 20).map((h) => h.tile), hitsOfRig(b, 21).map((h) => h.tile)], def).toEqual([[3], [4]]);
+    }
+    expect(AMMO.slag.fixedSpeed).toBe(0.75);
+  });
+
+  it("in the battle a BRAKE, GREASE or OVERDRIVE rig leaves slag at 0.75x (the tile's speed state still changes), every other part applies", () => {
+    const probe = (b: Build) => {
+      const bt = new Battle(b, barge(), SEED);
+      const r = bt.sides[0].routes[0];
+      const last = new Map<number, number>(), v = new Set<number>(), flat = new Set<number>(), burn = new Set<number>();
+      let processed = 0, produced = -1, loaded = -1;
+      while (bt.t < 20 && !bt.over) {
+        bt.step();
+        for (const e of bt.drainEvents()) {
+          if (e.side !== 0) continue;
+          if (e.type === "process" && e.gate === 20) processed++;
+          if (e.type === "produce" && produced < 0) produced = bt.t;
+          if (e.type === "load" && loaded < 0) loaded = bt.t;
+        }
+        for (const a of r.ammo) {
+          const prev = last.get(a.p.id);
+          if (prev !== undefined && !a.blocked && a.s > prev) v.add(+((a.s - prev) / TICK).toFixed(6));
+          last.set(a.p.id, a.s);
+          if (a.processed >= 4) {
+            flat.add(a.p.flat);
+            burn.add(a.p.burn);
+          }
+        }
+      }
+      return { v: [...v], flat: [...flat], burn: [...burn], processed, travel: loaded - produced, speedAt: r.speedAt[3], guard: r.guard };
+    };
+    const none = probe(slag(null));
+    expect(none.v).toEqual([BELT_SPEED * 0.75]);
+    for (const [def, s] of SPEEDS) {
+      const o = probe(slag(def, s));
+      const e = effectAt(def, s).gate!;
+      expect(o.v, `${def} ★${s}: slag's speed on every tile`).toEqual([BELT_SPEED * 0.75]);
+      expect(o.speedAt, `${def} ★${s}: the tile's state (for other payloads)`).toBe(e.speed);
+      expect(o.travel, `${def} ★${s}: stamp to chamber`).toBeCloseTo(none.travel, 9);
+      expect(o.processed, `${def} ★${s}: the rig still processes slag`).toBeGreaterThan(0);
+      expect(o.burn, `${def} ★${s}: the TEMPER's Burn`).toEqual([2]);
+      expect(o.flat, `${def} ★${s}: OVERDRIVE ★3 AFTERBURNER's +3 flat applies`).toEqual([def === "overdrive" && s === 3 ? 3 : 0]);
+      const g = def === "overdrive" ? [0, GUARD_SLOW, GUARD_SLOW | GUARD_FREEZE][s - 1] : 0; // REDLINE / AFTERBURNER flags
+      expect(o.guard, `${def} ★${s}: guard flags from tile 3 on`).toEqual([0, 0, 0, g, g, g, g]);
+    }
+  });
+
+  it("in the walk slag keeps 0.75x under every speed rig: no row claims a speed change, the hit reads LOCKED, the TEMPER burns", () => {
+    const none = walkRoute(slag(null), 0);
+    expect([none.fixed, none.speedEnd, none.estimate.burn]).toEqual([0.75, 0.75, 2]);
+    for (const [def, s] of SPEEDS) {
+      const w = walkRoute(slag(def, s), 0);
+      const e = effectAt(def, s).gate!;
+      expect(w.estimate.time, `${def} ★${s}`).toBeCloseTo(none.estimate.time, 12);
+      expect([w.fixed, w.speedEnd, w.locked]).toEqual([0.75, 0.75, false]);
+      expect(w.timeline.map((row) => [row.tile, row.speed])).toEqual([[3, 0.75], [4, 0.75]]);
+      const h = w.timeline[0].hits.find((x) => x.uid === 20)!;
+      expect([h.speed, h.won], `${def} ★${s}`).toEqual([e.speed, false]);
+      // the inspector's belt timeline (inspector.ts: hitLabel(h, w.locked || w.fixed !== undefined)); an OVERDRIVE ★3
+      // hit reads its AFTERBURNER flat first, as on any belt
+      expect(hitLabel(h, w.locked || w.fixed !== undefined)).toBe(def === "overdrive" && s === 3 ? "OVERDRIVE +3" : `${ITEMS[def].name} ${e.speed}X (LOCKED)`);
+      expect(w.estimate.burn).toBe(2);
+      expect(w.estimate.dmg).toBeCloseTo(none.estimate.dmg + (def === "overdrive" && s === 3 ? 3 : 0), 9);
+    }
+    // the control (0.6.1c's own): a STAMP PRESS slug on the same belt does feel the rigs, and its speed hit wins its tile
+    const press = (def: string | null) => walkRoute(slag(def, 1, "press"), 0);
+    expect(press("brake").estimate.time).toBeGreaterThan(press(null).estimate.time);
+    expect(press("grease").estimate.time).toBeLessThan(press(null).estimate.time);
+    expect([press("brake").timeline[0].hits[0].won, press("brake").fixed, press("brake").speedEnd]).toEqual([true, undefined, 0.5]);
+    expect(none.estimate.time).toBeCloseTo(press(null).estimate.time / 0.75, 9);
+  });
+
+  it("as in 0.6.1c, slag ignores the METRONOME speed lock and SIPHON's Drag, which hold other payloads (the silent check)", () => {
+    /** Each route's per-tick speeds of unblocked payloads over `secs`, calling `each` before every tick. */
+    const speeds = (bt: Battle, secs: number, each?: () => void): number[][] => {
+      const last = new Map<number, number>();
+      const out = bt.sides[0].routes.map(() => new Set<number>());
+      while (bt.t < secs && !bt.over) {
+        each?.();
+        bt.step();
+        bt.drainEvents();
+        bt.sides[0].routes.forEach((r, i) => {
+          for (const a of r.ammo) {
+            const prev = last.get(a.p.id);
+            if (prev !== undefined && !a.blocked && a.s > prev) out[i].add(+((a.s - prev) / TICK).toFixed(6));
+            last.set(a.p.id, a.s);
+          }
+        });
+      }
+      return out.map((s) => [...s]);
+    };
+    // METRONOME: its Clockworks' belt is locked at 1x; a SLAG POT beside it, under a GREASE rig, still rides at 0.75x
+    const metro: Build = {
+      hero: "metronome", mods: [], beltCap: 30, hullBonus: 5000,
+      items: [{ uid: 1, def: "clockworks", x: 4, y: 6 }, { uid: 7, def: "slagpot", x: 6, y: 6 }, rig(20, "grease", 6, 3, 3)],
+      routes: [{ factory: 1, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] }, { factory: 7, cells: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }],
+    };
+    expect(hitsOfRig(metro, 20).map((h) => [h.route, h.tile])).toEqual([[1, 3]]);
+    expect(speeds(new Battle(metro, barge(), SEED), 15)).toEqual([[BELT_SPEED], [BELT_SPEED * 0.75]]);
+    // SIPHON's Drag (x0.25) held on every tile of both belts: the Kiln's cinder crawls, the slag doesn't. The foe is a
+    // Siphon whose belts stop short of its guns (tests/races.siphon.test.ts's silentSiphon): only this test drags
+    const siphon = heroStartBuild("siphon", 1);
+    for (const r of siphon.routes) r.cells.pop();
+    const bt = new Battle(factoryBench("slagpot", 1), siphon, SEED);
+    const s0 = bt.sides[0];
+    expect(s0.race, "side 0 faces SIPHON: it has Drag state").toBeTruthy();
+    const drag = () => s0.routes.forEach((r, i) => r.cells.forEach((_, ci) => { s0.race!.drag.until[i][ci] = bt.t + 1; }));
+    expect(speeds(bt, 15, drag)).toEqual([[BELT_SPEED * 0.25], [BELT_SPEED * 0.75]]);
+  });
+
+  it("the walk and the battle agree for slag, the batch factories and HOT SWAP (a WHETSTONE on tile 3)", () => {
+    for (const f of ["slagpot", "doublestamp", "shottower", "hotswap"]) {
+      const b = factoryBench(f, 1, { only: true });
+      b.items.push(rig(20, "whetstone", 4, 3, 1));
+      const w = walkRoute(b, 0).estimate;
+      const bt = new Battle(b, barge(), SEED);
+      const f0 = bt.sides[0].factories.find((x) => x.uid === 7)!;
+      f0.timer = 1e9; // held until the WHETSTONE is online, then the stamps run
+      while (!bt.sides[0].gates.every((g) => g.online)) bt.step();
+      f0.timer = 0;
+      const born = new Map<number, number>();
+      const loads: { p: (typeof bt.sides)[0]["routes"][0]["ammo"][0]["p"]; t: number }[] = [];
+      while (bt.t < 30 && loads.length < 2) {
+        bt.step();
+        bt.drainEvents();
+        for (const a of bt.sides[0].routes[0].ammo) if (!born.has(a.p.id)) born.set(a.p.id, bt.t);
+        for (const p of bt.sides[0].turrets[0].stack) if (!loads.some((l) => l.p.id === p.id)) loads.push({ p, t: bt.t });
+      }
+      const first = loads[0];
+      const ad = AMMO[first.p.ammo];
+      expect(first.t - born.get(first.p.id)!, `${f}: stamp to chamber`).toBeCloseTo(w.time, 1);
+      expect(payloadDamage(first.p.base ?? ad.base, ad.rideScale, first.p.ride, first.p.mult, first.p.flat), `${f}: damage`).toBeCloseTo(w.dmg, 1);
+      // HOT SWAP: the walk shows the ember's Burn and the spark's Shock; the first two slugs carry one each
+      expect([w.burn, w.shock], f).toEqual(f === "hotswap" ? [2, true] : [0, false]);
+      if (f === "hotswap") expect(loads.map((l) => [l.p.preset, l.p.burn, l.p.shock])).toEqual([["ember", 2, false], ["spark", 0, true]]);
+    }
+  });
+});
+
+// ---------------------------------------------------------------- P9: GANTRY PRESS and rigs
+
+/** gantryWeaver(★2, 3 belts): the Loom off-route at (0,8), GANTRY PRESS at (4,6) on A (up column 4), B (west, up column 1)
+ *  and C (east, up column 8). An L COIL at (3,5), rot 1, works A's tile 0 (4,5) and B's tile 0 (3,6); a WHETSTONE works
+ *  A (4,3), a TEMPER B (1,4) and a BRAKE C (8,3). The three belts take 6 + 9 + 9 = 24 tiles, the Weaver's own belt, so
+ *  beltCap is 24 (the bench's 30 is no whole number of +4 crates over 24, which validateBuild rightly refuses). */
+function p9(): Build {
+  const b = gantryWeaver(2, 3);
+  b.beltCap = 24;
+  b.items.push(rig(20, "coil", 3, 5, 1), rig(21, "whetstone", 3, 3, 1), rig(22, "temper", 0, 4, 1), rig(23, "brake", 7, 3, 1));
+  return b;
+}
+
+describe("P9: GANTRY PRESS with rigs on its belts", () => {
+  it("a ★2 GANTRY with rigs on all three belts, one rig hitting two, passes routeProblems, beltsideRun and the snapshot validator", () => {
+    const b = p9();
+    expect(routeProblems(b)).toEqual([]);
+    expect(hitsOfRig(b, 20).map((h) => [h.route, h.cell])).toEqual([[0, K(4, 5)], [1, K(3, 6)]]);
+    expect([21, 22, 23].map((u) => hitsOfRig(b, u).map((h) => [h.route, h.cell]))).toEqual([[[0, K(4, 3)]], [[1, K(1, 4)]], [[2, K(8, 3)]]]);
+    expect(rigHits(b).map((r) => r.flat().length)).toEqual([2, 2, 1]);
+    // beltsideRun (every save load): a native GANTRY deck is left exactly as it is, load after load
+    const run = { build: J(b), inventory: [] as unknown[], gold: 10 };
+    for (let i = 0; i < 2; i++) {
+      expect(beltsideRun(run)).toEqual({ moved: 0, cargoed: 0, refunded: 0, dropped: 0 });
+      expect(run.build).toEqual(b);
+    }
+    // an old save with the same four as inline gates: D3 moves each beside its tile, with no GANTRY special case, and
+    // lands exactly the native deck above (the COIL's first arrow on its old tile, its second on B); idempotent
+    const inline = gantryWeaver(2, 3);
+    inline.beltCap = 24;
+    inline.items.push({ uid: 20, def: "coil", x: 4, y: 5 }, { uid: 21, def: "whetstone", x: 4, y: 3 }, { uid: 22, def: "temper", x: 1, y: 4 }, { uid: 23, def: "brake", x: 8, y: 3 });
+    const old = { build: J(inline), inventory: [] as unknown[], gold: 10 };
+    expect(beltsideRun(old)).toEqual({ moved: 4, cargoed: 0, refunded: 0, dropped: 0 });
+    expect(old.build).toEqual(b);
+    expect(beltsideRun(old)).toEqual({ moved: 0, cargoed: 0, refunded: 0, dropped: 0 });
+    expect(migrateInlineGates(J(b))).toEqual({ moved: [], stranded: [] });
+    // the ghost snapshot round trip (v2 carries rot) and the server's validator, with no special case
+    const snap: GhostSnapshot = { v: 2, rules: RULES_VERSION, hero: "weaver", day: 10, wins: 6, lives: 3, build: J(b), runId: "r1", playerId: "p1", createdAt: 0 };
+    const back = decodeSnapshot(encodeSnapshot(snap));
+    expect(back.build).toEqual(b);
+    const v = validateBuild(back.build, 10);
+    expect(v.errors).toEqual([]);
+    expect(v.ok).toBe(true);
+    // at 1 star the third belt is illegal, rigs or not (0.6.1c: outputs 2 / 3 / 3)
+    const one = J(b);
+    delete one.items.find((p) => p.uid === 7)!.stars;
+    expect(routeProblems(one).map((p) => p.route)).toEqual([2]);
+    expect(validateBuild(one, 10).ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------- P10: road items draw rigs by their tags
+
+describe("P10: SALVAGE, SMUGGLER and TRADER SWAP draw rigs with 0.6.1c's draw logic", () => {
+  it("every draw equals 0.6.1c's for the same seeds (4ecf202's draws, written by the same generator)", () => {
+    const fx = JSON.parse(readFileSync(new URL("./fixtures/beltside-062c/roadDraws-061c.json", import.meta.url), "utf8")) as RoadDraws & { source: string };
+    expect(fx.source).toBe("4ecf202");
+    const now = roadDraws();
+    expect(Object.keys(now.choices)).toHaveLength(108); // 3 events x 3 sets held x 12 seeds, 10 days each
+    expect(now.choices).toEqual(fx.choices);
+    expect(now.salvage).toEqual(fx.salvage);
+    expect(now.smuggler).toBe(fx.smuggler);
+    expect(now.swap).toEqual(fx.swap);
+    // the rigs join the pools by their tags and kind, with no code change (DESIGN §12 P10)
+    expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake"]);
+    expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([["temper"], ["coil"]]);
+    for (const d of Object.values(ITEMS).filter((x) => x.kind === "gate")) expect(d.tags?.length, d.id).toBeGreaterThan(0);
+  });
+
+  it("the cards say RIG: the wreck and the smuggler name rigs, and nothing on the three events says GATE", () => {
+    expect(EVENTS.wreck.text[1]).toBe("ONE OF ITS RIGS STILL HUMS.");
+    expect(EVENTS.smuggler.text[0]).toBe("A SMUGGLER SELLS HOT RIGS FROM");
+    for (const id of ["wreck", "smuggler", "trader"] as EventId[]) {
+      expect(EVENTS[id].text.join(" "), id).not.toMatch(/GATE/);
+      for (const seed of [1, 8, 10, 12345]) for (const day of [2, 5, 9]) {
+        const run = newRun("furnace", seed);
+        run.day = day;
+        run.inventory = [{ uid: 900, def: "temper" }, { uid: 901, def: "coil", stars: 2 }];
+        run.event = makeEvent(seed, day, id);
+        run.stage = "event";
+        for (const c of choicesFor(run)) expect([c.label, c.note ?? "", c.blocked ?? ""].join(" "), `${id} ${seed} ${day}`).not.toMatch(/GATE/);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------- MERGE-061's day-1 shop probe
+
+describe("MERGE-061's day-1 shop probe (seed 12345), after 0.6.1c M0", () => {
+  it("no wagon offers one part twice (0.6.1r's Quartermaster offered HOPPER three times)", () => {
+    for (const hero of ["furnace", "weaver"] as const) {
+      const run = newRun(hero, 12345);
+      expect(run.shop.wagons.length, hero).toBeGreaterThan(0);
+      if (process.env.BB_TABLES) console.log(`DAY1 ${hero} 12345 | ${run.shop.wagons.map((w) => `${w.merchant}: ${w.offers.map((o) => o.def).join(", ")}`).join(" | ")}`);
+      for (const w of run.shop.wagons) expect(new Set(w.offers.map((o) => o.def)).size, `${hero} ${w.merchant}`).toBe(w.offers.length);
+    }
+  });
+});

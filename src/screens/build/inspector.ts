@@ -207,6 +207,51 @@ export function hitLabel(h: TimelineHit, locked: boolean): string {
   return name;
 }
 
+/** beltside-062c: a placed rig's inspector panel, without its icon and button callbacks (spec adds them). */
+export interface RigPanel {
+  title: string;
+  sub: string;
+  subShort?: string; // the sub line beside the portrait strip's buttons
+  idle: boolean;
+  x: boolean; // an X rig: no ROTATE button
+  labels: string[]; // the buttons, in order
+  text: Line[];
+}
+
+/**
+ * 0.6.2 BELTSIDE (V4): a placed rig's panel: its hits, or IDLE when none of its arrows lands on a belt. The lines that
+ * matter most come first, because a short panel drops the last ones. beltside-062: a ★2/★3 rig's perk (0.6.1r's
+ * levelLine) comes right under its hits. beltside-062c (DESIGN §12 P11): hits (or IDLE), perk, NEXT/MERGES, turn hint,
+ * then the flavour, so on a phone the flavour gives way first and the hits last and merge progress stays in sight (as
+ * 0.6.1c's factory body leads with its headline and NEXT line). Exported for tests; null unless `uid` is a placed rig.
+ */
+export function rigPanel(run: Run, uid: number): RigPanel | null {
+  const p = itemByUid(run.build, uid);
+  if (!p) return null;
+  const d = defOf(p);
+  if (d.kind !== "gate") return null;
+  const stars = starsOf(p);
+  const hits = hitsOfRig(run.build, p.uid);
+  const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
+  const idle = hits.length === 0;
+  const lvl = levelLine(d.id, stars), next = nextLine(run, d.id, stars);
+  const on = new Set(hits.map((h) => h.dir)).size;
+  return {
+    title: starred(d.name, stars),
+    sub: idle ? "RIG · IDLE" : `RIG · ${on}/${arrows} ARROWS ON BELTS`,
+    subShort: idle ? undefined : `RIG · ${on}/${arrows} HIT`,
+    idle, x,
+    labels: [...(x ? [] : ["ROTATE"]), "TO CARGO"],
+    text: [
+      ...(idle ? [["IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.", C.amber] as Line] : hits.map((h) => `→ BELT ${h.route + 1} · TILE ${h.tile + 1}`)),
+      ...(lvl ? [lvl] : []),
+      ...(next ? [next] : []),
+      x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE.",
+      ...d.desc,
+    ],
+  };
+}
+
 /** 0.6.1b: the core's firing summary rescaled by k ("3 PELLETS x 40%"), or "" for the identity routine
  *  (ARSENAL.md §8.4). `tc.spec` is already k-scaled (resolveCore), so absolute numbers read straight off it. */
 function coreShape(tc: TurretCore): string {
@@ -270,28 +315,13 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const next = sig ? null : nextLine(run, d.id, stars);
       const lvl = sig ? null : levelLine(d.id, stars); // 0.6.1p
       if (d.kind === "gate") {
-        // 0.6.2 BELTSIDE (V4): a rig's hits, or IDLE when none of its arrows lands on a belt
-        const hits = hitsOfRig(b, p.uid);
-        const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
-        const idle = hits.length === 0;
+        // 0.6.2 BELTSIDE (V4): a rig's hits, or IDLE when none of its arrows lands on a belt (rigPanel)
+        const rp = rigPanel(run, p.uid)!;
         return {
-          icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
-          sub: idle ? "RIG · IDLE" : `RIG · ${new Set(hits.map((h) => h.dir)).size}/${arrows} ARROWS ON BELTS`,
-          subShort: idle ? undefined : `RIG · ${new Set(hits.map((h) => h.dir)).size}/${arrows} HIT`,
-          subColor: idle ? C.amber : undefined,
-          // the lines that matter most first: a short panel drops the last ones. beltside-062: a ★2/★3 rig's perk
-          // (0.6.1r's levelLine) comes right under its hits, so the flavour text gives way first and the hits last.
-          // beltside-062c (DESIGN §12 P11): hits (or IDLE), perk, NEXT/MERGES, turn hint, flavour, so the phone keeps
-          // merge progress in sight (as 0.6.1c's factory body leads with its headline and NEXT line)
-          text: [
-            ...(idle ? [["IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.", C.amber] as Line] : hits.map((h) => `→ BELT ${h.route + 1} · TILE ${h.tile + 1}`)),
-            ...(lvl ? [lvl] : []),
-            ...(next ? [next] : []),
-            x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE.",
-            ...d.desc,
-          ],
+          icon: itemIcon(d.id), title: rp.title, color: RARITY_COLOR[d.rarity], sub: rp.sub, subShort: rp.subShort,
+          subColor: rp.idle ? C.amber : undefined, text: rp.text,
           actions: [
-            ...(x ? [] : [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }]),
+            ...(rp.x ? [] : [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }]),
             { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) },
           ],
         };
@@ -317,7 +347,9 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
         ...(info.connected ? [] : [["ENDS SHORT OF A TURRET INTAKE.", C.amber] as Line]),
         `${info.tiles} TILES · ${hitCount} HIT${hitCount === 1 ? "" : "S"}${hitCount ? " IN ORDER:" : ": NO RIG WORKS THIS BELT"}`,
       ];
-      const rows = w.timeline.map((row) => `T${row.tile + 1}: ${row.hits.map((h) => hitLabel(h, w.locked)).join(" · ")}`);
+      // beltside-062c (DESIGN §12 P8): slag keeps its fixed speed, so on its belt a speed hit reads (LOCKED), as on a
+      // METRONOME belt: it changes nothing there, and nothing beat it
+      const rows = w.timeline.map((row) => `T${row.tile + 1}: ${row.hits.map((h) => hitLabel(h, w.locked || w.fixed !== undefined)).join(" · ")}`);
       const dmg = `DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? `X${est.copies}` : ""}`, spd = `${num(w.speedEnd)}X`, time = `${est.time.toFixed(1)}S`;
       const tag = (burn: string, shock: string) => [...(est.burn ? [`${burn}${est.burn}`] : []), ...(est.shock ? [shock] : [])];
       return {

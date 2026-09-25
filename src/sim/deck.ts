@@ -430,6 +430,8 @@ export interface RouteWalk {
   timeline: TimelineRow[];
   speedEnd: number; // the speed state at the turret end
   locked: boolean; // races: METRONOME belts ignore speed states
+  // beltside-062c (DESIGN §12 P8): 0.6.1c SLAG's fixed belt speed, which no speed hit changes (absent for other ammo)
+  fixed?: number;
 }
 
 /**
@@ -521,7 +523,9 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat, pendulumShift(b, info.turret))
     : payloadDamage(base, ammo.rideScale, ride, mult, flat); // beltside-062 D3: 0.6.1p's base (STAMP PRESS dies)
-  return { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
+  const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
+  if (fixed !== undefined) walk.fixed = fixed; // beltside-062c (P8)
+  return walk;
 }
 
 /** The walk's estimate (walkRoute). */
