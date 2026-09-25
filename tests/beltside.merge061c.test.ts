@@ -128,6 +128,10 @@ function slag(speed: string | null, stars = 1, pot = "slagpot"): Build {
   return b;
 }
 const SPEEDS: [string, number][] = [1, 2, 3].flatMap((s) => [["brake", s], ["grease", s], ["overdrive", s]] as [string, number][]);
+/** The flat part of a speed rig's effect, from the catalogue: OVERDRIVE ★3 AFTERBURNER +3; beltside-062-on-061 (DESIGN §13
+ *  P13): 0.6.1f's BRAKE ★2 HOT SHOE +2 and ★3 RED-HOT SHOE +5, mixed effects like AFTERBURNER. The rest have none. */
+const FLAT: Record<string, number> = { "overdrive 3": 3, "brake 2": 2, "brake 3": 5 };
+const flatOf = (def: string, s: number): number => FLAT[`${def} ${s}`] ?? 0;
 
 describe("P8: SLAG rides at its fixed 0.75x", () => {
   it("the decks: the speed rig works tile 3 only, the TEMPER tile 4 only", () => {
@@ -175,7 +179,8 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
       expect(o.travel, `${def} ★${s}: stamp to chamber`).toBeCloseTo(none.travel, 9);
       expect(o.processed, `${def} ★${s}: the rig still processes slag`).toBeGreaterThan(0);
       expect(o.burn, `${def} ★${s}: the TEMPER's Burn`).toEqual([2]);
-      expect(o.flat, `${def} ★${s}: OVERDRIVE ★3 AFTERBURNER's +3 flat applies`).toEqual([def === "overdrive" && s === 3 ? 3 : 0]);
+      // beltside-062-on-061 (P13): BRAKE ★2/★3's flat applies to slag too (P8: only the speed part does nothing)
+      expect(o.flat, `${def} ★${s}: a flat part applies (AFTERBURNER +3, HOT SHOE +2, RED-HOT SHOE +5)`).toEqual([flatOf(def, s)]);
       const g = def === "overdrive" ? [0, GUARD_SLOW, GUARD_SLOW | GUARD_FREEZE][s - 1] : 0; // REDLINE / AFTERBURNER flags
       expect(o.guard, `${def} ★${s}: guard flags from tile 3 on`).toEqual([0, 0, 0, g, g, g, g]);
     }
@@ -193,10 +198,11 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
       const h = w.timeline[0].hits.find((x) => x.uid === 20)!;
       expect([h.speed, h.won], `${def} ★${s}`).toEqual([e.speed, false]);
       // the inspector's belt timeline (inspector.ts: hitLabel(h, w.locked || w.fixed !== undefined)); an OVERDRIVE ★3
-      // hit reads its AFTERBURNER flat first, as on any belt
-      expect(hitLabel(h, w.locked || w.fixed !== undefined)).toBe(def === "overdrive" && s === 3 ? "OVERDRIVE +3" : `${ITEMS[def].name} ${e.speed}X (LOCKED)`);
+      // hit reads its AFTERBURNER flat first, as on any belt, and so does a BRAKE ★2/★3 its heat (P13: "BRAKE SHOE +2")
+      const flat = flatOf(def, s);
+      expect(hitLabel(h, w.locked || w.fixed !== undefined)).toBe(flat ? `${ITEMS[def].name} +${flat}` : `${ITEMS[def].name} ${e.speed}X (LOCKED)`);
       expect(w.estimate.burn).toBe(2);
-      expect(w.estimate.dmg).toBeCloseTo(none.estimate.dmg + (def === "overdrive" && s === 3 ? 3 : 0), 9);
+      expect(w.estimate.dmg).toBeCloseTo(none.estimate.dmg + flat, 9);
     }
     // the control (0.6.1c's own): a STAMP PRESS slug on the same belt does feel the rigs, and its speed hit wins its tile
     const press = (def: string | null) => walkRoute(slag(def, 1, "press"), 0);

@@ -117,14 +117,16 @@ export const WRAP_HEAD =
   "on belt max | factory stall s | jams | burn/copy | shock/copy | foe stalls /s | ms/step |";
 
 describe("P2 SPLITTER wrap bench (report only; BB_TABLES=1 prints)", () => {
-  it("the wrap lands 3 hits and the control 1; a stamp becomes 8 / 8 / 27 payloads against 2 / 2 / 3", () => {
+  // beltside-062-on-061 (DESIGN §13 P12): 0.6.1f's PERFECT CUT makes one extra copy per split at ★3 too, so the ★3 family
+  // is a measurement the retune moved: the wrap 27 -> 8, the control 3 -> 2 (★1/★2 unchanged)
+  it("the wrap lands 3 hits and the control 1; a stamp becomes 8 payloads against 2, at every star (P12)", () => {
     for (const s of [1, 2, 3]) {
       expect(hitsOfRig(wrapDeck(s, true), 12).map((h) => h.tile)).toEqual([3, 5, 7]);
       expect(hitsOfRig(wrapDeck(s, false), 12).map((h) => h.tile)).toEqual([5]);
       expect(hitsOfRig(wrapDeck(s, true), 10).map((h) => h.tile)).toEqual([1]);
       expect(hitsOfRig(wrapDeck(s, true), 11).map((h) => h.tile)).toEqual([2]);
-      expect(estimateRoute(wrapDeck(s, true), 0).copies).toBe(s === 3 ? 27 : 8);
-      expect(estimateRoute(wrapDeck(s, false), 0).copies).toBe(s === 3 ? 3 : 2);
+      expect(estimateRoute(wrapDeck(s, true), 0).copies).toBe(8);
+      expect(estimateRoute(wrapDeck(s, false), 0).copies).toBe(2);
     }
   });
 

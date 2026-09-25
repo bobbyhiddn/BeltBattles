@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle, type Payload } from "../src/sim/battle";
 import {
-  DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, ITEMS, RARITY_ARROWS, rigShape, type HarassCause,
+  DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, ITEMS, RARITY_ARROWS, rigShape, type HarassCause, type ItemDef,
 } from "../src/sim/content";
 import {
   estimateRoute, hitTier, hitsOfRig, key as K, rigArrows, rigHits, rotField, walkRoute, type Build, type Placed,
@@ -97,7 +97,10 @@ describe("P1: stars resolve first; shape is kept at every star (R10)", () => {
   });
 });
 
-describe("P2: SPLITTER, each hit one split; THREE-WAY makes two copies per hit", () => {
+// beltside-062-on-061 (DESIGN §13 P12): 0.6.1f retired THREE-WAY (copies 3, 57%) for PERFECT CUT (copies 2, 85%), so a
+// split makes one extra copy at every star. The ★3 rows below are measurements the retune moved: the wrap 27 -> 8, the
+// 1-hit control 3 -> 2, Decision 3's two ★3 SPLITTERs 9 -> 4 (mult 0.57 -> 0.85). No other number here changed.
+describe("P2: SPLITTER, each hit one split; a split makes one extra copy at every star (P12: PERFECT CUT)", () => {
   // A belt wrapped around a T SPLITTER at (5,3), rot 0: its forward, +x and -x arrows land on tiles 5, 3 and 7 of one
   // route (the Kiln's, fed at (6,6), into column 4). A WHETSTONE works tile 1, so the split scales a flat bonus too.
   const WRAP = [K(6, 6), K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(5, 2), K(4, 2), K(4, 3), K(3, 3), K(3, 2), K(3, 1), K(4, 1), K(4, 0)];
@@ -112,10 +115,10 @@ describe("P2: SPLITTER, each hit one split; THREE-WAY makes two copies per hit",
     return b;
   };
 
-  it("the wrap: three hits on one belt; up to 8 payloads at ★1 and ★2 and 27 at ★3, and the battle makes exactly that many", () => {
+  it("the wrap: three hits on one belt; up to 8 payloads at every star (P12), and the battle makes exactly that many", () => {
     expect(hitsOfRig(wrap(1), 10).map((h) => h.tile)).toEqual([3, 5, 7]);
     expect(hitsOfRig(wrap(1, false), 10).map((h) => h.tile)).toEqual([5]);
-    for (const [s, copies, mult] of [[1, 8, 0.6], [2, 8, 0.72], [3, 27, 0.57]] as const) {
+    for (const [s, copies, mult] of [[1, 8, 0.6], [2, 8, 0.72], [3, 8, 0.85]] as const) {
       const e = estimateRoute(wrap(s), 0);
       expect(e.copies, `★${s}`).toBe(copies);
       const fam = family(wrap(s), 7);
@@ -127,13 +130,13 @@ describe("P2: SPLITTER, each hit one split; THREE-WAY makes two copies per hit",
         expect(p.prior, `★${s} prior`).toBe(4); // the WHETSTONE and three SPLITTER hits
       }
       expect(new Set(fam.map((p) => p.id)).size).toBe(copies);
-      // the 1-hit control splits once
-      expect(estimateRoute(wrap(s, false), 0).copies).toBe(s === 3 ? 3 : 2);
-      expect(family(wrap(s, false), 5)).toHaveLength(s === 3 ? 3 : 2);
+      // the 1-hit control splits once: 2 payloads at every star (P12)
+      expect(estimateRoute(wrap(s, false), 0).copies).toBe(2);
+      expect(family(wrap(s, false), 5)).toHaveLength(2);
     }
   });
 
-  it("Decision 3: a second ★3 SPLITTER on the same tile also splits the first one's copies (3 x 3 = 9)", () => {
+  it("Decision 3: a second ★3 SPLITTER on the same tile also splits the first one's copies (2 x 2 = 4, P12)", () => {
     // the straight bench's tile 2, (4,3), from the west (rot 1) and from the east (rot 3); each T's other arrows are idle
     const b = (s: number): Build => {
       const d = bench();
@@ -141,12 +144,12 @@ describe("P2: SPLITTER, each hit one split; THREE-WAY makes two copies per hit",
       return d;
     };
     expect(rigHits(b(3))[0][2].map((h) => h.uid)).toEqual([10, 11]);
-    expect([1, 2, 3].map((s) => estimateRoute(b(s), 0).copies)).toEqual([4, 4, 9]);
+    expect([1, 2, 3].map((s) => estimateRoute(b(s), 0).copies)).toEqual([4, 4, 4]);
     const fam = family(b(3), 2);
-    expect(fam).toHaveLength(9);
-    for (const p of fam) expect(p.mult).toBeCloseTo(0.57 * 0.57, 12);
+    expect(fam).toHaveLength(4);
+    for (const p of fam) expect(p.mult).toBeCloseTo(0.85 * 0.85, 12);
     const w = walkRoute(b(3), 0);
-    expect(w.timeline[0].hits.map((h) => [h.uid, h.split?.copies])).toEqual([[10, 3], [11, 3]]);
+    expect(w.timeline[0].hits.map((h) => [h.uid, h.split?.copies])).toEqual([[10, 2], [11, 2]]);
   });
 });
 
@@ -239,14 +242,37 @@ describe("P5: OVERDRIVE ★2/★3 guard flags from every hit tile downstream, on
     }
   });
 
-  it("the flag is set whichever speed wins the tile: a BRAKE ★3 (0.22x) out-changes an OVERDRIVE ★2 (4x) there", () => {
+  // beltside-062-on-061 (DESIGN §13 P13): 0.6.1f keeps BRAKE SHOE at 0.5x at every star, so no catalogue slow out-changes
+  // an OVERDRIVE ★2 (4x) any more (only OVERDRIVE ★3's 5x does, and it sets the same flag). The rule is kept with a
+  // test-only stub rig at the retired BRAKE ★3's 0.22x (as F5 stubs modules in tests/inspectorLines.test.ts); the
+  // numbers are unchanged. The real BRAKE ★3 now loses the tile, and the flag is set all the same.
+  it("the flag is set whichever speed wins the tile: a 0.22x slow (the retired BRAKE ★3) out-changes an OVERDRIVE ★2 (4x) there", () => {
+    const items = ITEMS as Record<string, ItemDef>;
+    items.__slow22 = { id: "__slow22", name: "STUB SLOW", kind: "gate", rarity: "common", price: 3, size: 1, desc: ["A TEST RIG."], gate: { speed: 0.22 } };
+    try {
+      const b = bench();
+      b.items.push({ uid: 10, def: "overdrive", x: 3, y: 3, stars: 2 }, rigAt(11, "__slow22", 5, 3, 3));
+      const bt = new Battle(b, barge(), SEED);
+      for (let i = 0; i < 60 * 5; i++) bt.step();
+      const r = bt.sides[0].routes[0];
+      expect(r.speedAt.slice(2)).toEqual([0.22, 0.22, 0.22, 0.22]); // |ln 0.22| > |ln 4|: the slow holds the tile
+      expect(r.guard).toEqual([0, 0, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW]);
+    } finally {
+      delete items.__slow22;
+    }
+    expect(Object.keys(ITEMS)).not.toContain("__slow22");
+  });
+
+  it("P13: a real BRAKE ★3 (RED-HOT SHOE, 0.5x) now loses that tile to the OVERDRIVE ★2; the flag is set, the +5 flat applies", () => {
     const b = bench();
     b.items.push({ uid: 10, def: "overdrive", x: 3, y: 3, stars: 2 }, rigAt(11, "brake", 5, 3, 3, 3));
     const bt = new Battle(b, barge(), SEED);
     for (let i = 0; i < 60 * 5; i++) bt.step();
     const r = bt.sides[0].routes[0];
-    expect(r.speedAt.slice(2)).toEqual([0.22, 0.22, 0.22, 0.22]); // |ln 0.22| > |ln 4|: the BRAKE holds the tile
+    expect(r.speedAt.slice(2)).toEqual([4, 4, 4, 4]); // |ln 4| > |ln 0.5|: the OVERDRIVE holds the tile
     expect(r.guard).toEqual([0, 0, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW]);
+    const hits = walkRoute(b, 0).timeline[0].hits;
+    expect(hits.map((h) => [h.uid, h.tier, h.flat ?? 0, h.speed, h.won])).toEqual([[11, 1, 5, 0.5, false], [10, 4, 0, 4, true]]);
   });
 });
 
