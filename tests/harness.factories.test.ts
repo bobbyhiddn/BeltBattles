@@ -248,6 +248,9 @@ describe("harness factories (0.6.1c): the factory paths", () => {
       const s = shopper(b, 10, hashSeed("third-arm", seed), ["gantry"]);
       if (!applyLever(s, "press")) continue;
       const g = s.b.items.find((p) => p.def === "gantry")!;
+      // three connectors free: a 1-star GANTRY still feeds at most its 2 outputs
+      expect(routesOf(s.b, g.uid).length, `seed ${seed}: 1-star GANTRY routes`).toBeLessThanOrEqual(outputsAt("gantry", 1));
+      expect(problems(s.b, s.cargo, 10), `seed ${seed} after the press`).toEqual([]);
       if (routesOf(s.b, g.uid).length !== 2 || freeConnectors(s.b).length !== 1) continue;
       tried++;
       const bl = blockedCells(s.b), can = shortestTiles(bl, startCells(g.x, g.y, 2, bl), freeConnectors(s.b)[0]) !== Infinity;
