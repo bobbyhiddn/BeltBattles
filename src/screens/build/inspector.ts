@@ -175,15 +175,20 @@ function copiesToNextStar(run: Run, def: string, atLeast: number): number {
   return 8;
 }
 
-/** 0.6.2p (item 2): merge progress reads "NEEDS 2 MORE" / "NEEDS 1 MORE" (the old copy count read like a perk). */
-const needsMore = (copies: number): string => `NEEDS ${copies} MORE`;
+/** 0.6.2p: what a NEXT line says: the next star, the perk it brings (if the line names one), that star's effect line,
+ *  the current star's (`now`) and the 1★ copies still needed. Null at ★3 or for a non-fusible id. */
+interface NextParts {
+  next: number;
+  perk?: string;
+  eff: string;
+  now: string;
+  copies: number;
+}
 
-/** 0.6.1d (ARSENAL.md §8.2): "NEXT ★3: +7 BURN · NEEDS 2 MORE" (0.6.2p item 2: it ended in a copy count); null at
- *  ★3 or for a non-fusible id. */
-export function nextLine(run: Run, def: string, stars: number): string | null {
+function nextParts(run: Run, def: string, stars: number): NextParts | null {
   if (!fusible(def) || stars >= FUSE_MAX) return null;
   const next = stars + 1;
-  const eff = starEffectLine(def, next, heroK(run));
+  const eff = starEffectLine(def, next, heroK(run)), now = starEffectLine(def, stars, heroK(run));
   const copies = copiesToNextStar(run, def, stars);
   // 0.6.1c: a factory's NEXT line names the perk that star brings (TRIPLE DIES, HOT START, THIRD ARM, HEAVY GANTRY).
   // 0.6.1f: so does a gate's (HOT SHOE, RED-HOT SHOE, CLEAN CUT, PERFECT CUT; SPARK JUMP, REDLINE, AFTERBURNER), unless
@@ -191,7 +196,43 @@ export function nextLine(run: Run, def: string, stars: number): string | null {
   const kind = ITEMS[def].kind;
   const brings = (kind === "factory" || kind === "gate") && perkAt(def, next) !== perkAt(def, stars) ? livePerk(def, next) : undefined;
   const perk = brings !== eff ? brings : undefined;
-  return `NEXT ★${next}${perk ? ` ${perk}` : ""}${eff ? `: ${eff}` : ""} · ${needsMore(copies)}`;
+  return { next, eff, now, copies, ...(perk ? { perk } : {}) };
+}
+
+/** 0.6.2p (item 2): merge progress reads "NEEDS 2 MORE" / "NEEDS 1 MORE" (the old copy count read like a perk). */
+const needsMore = (copies: number): string => `NEEDS ${copies} MORE`;
+
+/** 0.6.2p (item 3): the NEXT line's forms, fullest first. The phone band uses the shorter ones (nextShort). */
+export type NextVariant = "full" | "short" | "headline" | "tight";
+
+/** The NEXT line from its parts: "full" names the perk and the effect; 0.6.2p (item 3) "short" drops the perk's name
+ *  (the perk line names it once merged); "headline" keeps only the first part of the effect (between " · ") that
+ *  differs from the current star's, the number that changes ("NEXT ★3: STALL 2.8S"); "tight" drops the effect too,
+ *  leaving the star and the merge progress. */
+function nextText(p: NextParts, variant: NextVariant = "full"): string {
+  if (variant === "tight") return `NEXT ★${p.next} · ${needsMore(p.copies)}`;
+  const perk = variant === "full" || !p.eff ? p.perk : undefined;
+  let eff = p.eff;
+  if (variant === "headline" && eff) {
+    const now = p.now.split(" · "), parts = eff.split(" · ");
+    eff = parts.find((x) => !now.includes(x)) ?? parts[0];
+  }
+  return `NEXT ★${p.next}${perk ? ` ${perk}` : ""}${eff ? `: ${eff}` : ""} · ${needsMore(p.copies)}`;
+}
+
+/** 0.6.1d (ARSENAL.md §8.2): "NEXT ★3: +7 BURN · NEEDS 2 MORE" (0.6.2p item 2: it ended in a copy count); null at
+ *  ★3 or for a non-fusible id. */
+export function nextLine(run: Run, def: string, stars: number): string | null {
+  const p = nextParts(run, def, stars);
+  return p ? nextText(p) : null;
+}
+
+/** 0.6.2p (item 3): the NEXT line's phone-short forms (as Spec.subShort; the desktop keeps nextLine): "short" without
+ *  the perk's name, "headline" with only the effect's first changed part, "tight" without the effect. Null where
+ *  nextLine is. */
+export function nextShort(run: Run, def: string, stars: number, variant: Exclude<NextVariant, "full"> = "short"): string | null {
+  const p = nextParts(run, def, stars);
+  return p ? nextText(p, variant) : null;
 }
 
 interface Action {
@@ -223,6 +264,17 @@ interface Spec {
   // 0.6.2 BELTSIDE: when the text overflows its panel, drop text[from..to) from the end and say so with
   // more(n) instead of losing the last lines (a belt's timeline rows give way to its turret-end readout)
   trim?: { from: number; to: number; more: (n: number) => Line };
+  // 0.6.2p (item 3): the entries at the top of `text` that must show whole (a rig's hits or IDLE, its perk and its NEXT
+  // line). Where they don't fit the panel (the phone band), the first of `tight` whose own first `keep` entries do is
+  // drawn instead, else the last of them; the desktop column keeps `text` (as subShort does for the sub line)
+  keep?: number;
+  tight?: Variant[];
+}
+
+/** 0.6.2p (item 3): a compact variant of a panel's text; its first `keep` entries must show whole. */
+interface Variant {
+  text: Line[];
+  keep: number;
 }
 
 /** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo. */
@@ -263,7 +315,13 @@ export interface RigPanel {
   x: boolean; // an X rig: no ROTATE button
   labels: string[]; // the buttons, in order
   text: Line[];
+  keep: number; // 0.6.2p (item 3): text's first entries that must show whole: the hits (or IDLE), the perk, the NEXT line
+  tight: Variant[]; // 0.6.2p (item 3): the phone band's compact texts, fullest first (Spec.tight, drawDetails)
 }
+
+/** 0.6.2p (item 3): the IDLE warning, and its phone-band form (the sub line says IDLE in amber; the turn hint follows). */
+export const IDLE_WARNING = "IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.";
+export const IDLE_SHORT = "IDLE: NO ARROW REACHES A BELT.";
 
 /**
  * 0.6.2 BELTSIDE (V4): a placed rig's panel: its hits, or IDLE when none of its arrows lands on a belt. The lines that
@@ -271,6 +329,11 @@ export interface RigPanel {
  * levelLine) comes right under its hits. beltside-062c (DESIGN §12 P11): hits (or IDLE), perk, NEXT/MERGES, turn hint,
  * then the flavour, so on a phone the flavour gives way first and the hits last and merge progress stays in sight (as
  * 0.6.1c's factory body leads with its headline and NEXT line). Exported for tests; null unless `uid` is a placed rig.
+ * 0.6.2p (item 3): the hits, perk and NEXT line show whole on a phone too: where they don't fit its band, drawDetails
+ * takes the first `tight` text whose do. Fullest first: the NEXT line without its perk's name (nextShort), then the
+ * hits on one line ("→ BELT 1 T3 · BELT 2 T3", as the belt panel numbers tiles) or IDLE's short warning, then the NEXT
+ * line with only the number that changes ("headline", where that is shorter), then just its star and merge progress.
+ * The perk line always stays whole.
  */
 export function rigPanel(run: Run, uid: number): RigPanel | null {
   const p = itemByUid(run.build, uid);
@@ -281,21 +344,32 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
   const hits = hitsOfRig(run.build, p.uid);
   const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
   const idle = hits.length === 0;
-  const lvl = levelLine(d.id, stars), next = nextLine(run, d.id, stars);
+  const lvl = levelLine(d.id, stars), parts = nextParts(run, d.id, stars);
   const on = new Set(hits.map((h) => h.dir)).size;
+  const lead: Line[] = idle ? [[IDLE_WARNING, C.amber]] : hits.map((h) => `→ BELT ${h.route + 1} · TILE ${h.tile + 1}`);
+  const leadTight: Line[] = idle ? [[IDLE_SHORT, C.amber]]
+    : hits.length > 1 ? [`→ ${hits.map((h) => `BELT ${h.route + 1} T${h.tile + 1}`).join(" · ")}`] : lead;
+  const tail = [x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE.", ...flavour(d.id, stars)]; // 0.6.2p item 1
+  const make = (head: Line[], next: string | null): Variant => {
+    const keep = [...head, ...(lvl ? [lvl] : []), ...(next ? [next] : [])];
+    return { text: [...keep, ...tail], keep: keep.length };
+  };
+  const full = make(lead, parts && nextText(parts));
+  const short = parts && nextText(parts, "short"), headline = parts && nextText(parts, "headline");
   return {
     title: starred(d.name, stars),
     sub: idle ? "RIG · IDLE" : `RIG · ${on}/${arrows} ARROWS ON BELTS`,
     subShort: idle ? undefined : `RIG · ${on}/${arrows} HIT`,
     idle, x,
     labels: [...(x ? [] : ["ROTATE"]), "TO CARGO"],
-    text: [
-      ...(idle ? [["IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.", C.amber] as Line] : hits.map((h) => `→ BELT ${h.route + 1} · TILE ${h.tile + 1}`)),
-      ...(lvl ? [lvl] : []),
-      ...(next ? [next] : []),
-      x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE.",
-      ...flavour(d.id, stars), // 0.6.2p item 1: the flavour at its stars
-    ],
+    text: full.text, keep: full.keep,
+    tight: parts
+      ? [
+        make(lead, short), make(leadTight, short),
+        ...(headline !== short ? [make(leadTight, headline)] : []),
+        make(leadTight, nextText(parts, "tight")),
+      ]
+      : [make(leadTight, null)],
   };
 }
 
@@ -374,7 +448,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
         const rp = rigPanel(run, p.uid)!;
         return {
           icon: itemIcon(d.id), title: rp.title, color: RARITY_COLOR[d.rarity], sub: rp.sub, subShort: rp.subShort,
-          subColor: rp.idle ? C.amber : undefined, text: rp.text,
+          subColor: rp.idle ? C.amber : undefined, text: rp.text, keep: rp.keep, tight: rp.tight, // 0.6.2p item 3
           actions: [
             ...(rp.x ? [] : [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }]),
             { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) },
@@ -481,6 +555,11 @@ function fitHead(g: G, s: string, x: number, y: number, max: number, color: stri
   let t = s;
   while (t.length > 1 && textWidth(t, "3") > max) t = `${t.slice(0, -2).trimEnd()}.`;
   drawText(g, t, x, title ? y + 1 : y, color, title ? { font: "3", outline: C.ink } : { font: "3" });
+}
+
+/** 0.6.2p (item 3): the rows `text`'s first `keep` entries wrap to at `w` px in `font` (drawDetails wraps each entry). */
+export function keptRows(text: readonly Line[], keep: number, w: number, font: "5" | "3"): number {
+  return text.slice(0, keep).reduce((n, l) => n + wrap(typeof l === "string" ? l : l[0], w, font).length, 0);
 }
 
 /** True when a hovered card or a selection has details to show (otherwise the idle cards). */
@@ -623,6 +702,14 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + i * 6, subMax, subColor, false));
   } else {
     fitHead(g, sp.subShort && textWidth(sp.sub, "3") > subMax ? sp.subShort : sp.sub, r.x + 23, r.y + 13, subMax, subColor, false);
+  }
+  if (sp.keep !== undefined && sp.tight?.length && keptRows(sp.text, sp.keep, wrapW, font) > fit) {
+    // 0.6.2p (item 3): the entries that must show whole don't fit (the phone band): the first compact text whose do
+    const v = sp.tight.find((t) => keptRows(t.text, t.keep, wrapW, font) <= fit) ?? sp.tight[sp.tight.length - 1];
+    lines = v.text.flatMap((l) => {
+      const [s, c] = typeof l === "string" ? [l, C.bone] : l;
+      return wrap(s, wrapW, font).map((w): [string, string] => [w, c]);
+    });
   }
   if (sp.trim && lines.length > fit) {
     // 0.6.2 BELTSIDE: drop trimmable entries from the end of their range (and say how many) until it fits

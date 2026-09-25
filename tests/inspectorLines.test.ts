@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { levelLine, mergeLine, nextLine, portraitButtons, rigPanel, starEffectLine } from "../src/screens/build/inspector";
+import {
+  IDLE_SHORT, IDLE_WARNING, keptRows, levelLine, mergeLine, nextLine, nextShort, portraitButtons, rigPanel, starEffectLine,
+} from "../src/screens/build/inspector";
 import { key as K, rotField } from "../src/sim/deck"; // beltside-062c: P11
 import { rotFacing } from "../src/sim/beltside"; // beltside-062c: P11
 import { textWidth, wrap } from "../src/render/font";
 import { newRun, type Run } from "../src/game/run";
 import { resolveCore } from "../src/sim/cores";
-import { ITEMS, type ItemDef } from "../src/sim/content";
+import { ITEMS, buyableModules, rigShape, type ItemDef } from "../src/sim/content";
 import { fusible, pendingAt } from "../src/sim/stars";
 
 // 0.6.1r (review-061 F5, N2, N4): the inspector's level, NEXT and MERGES WITH lines. Every expected string
@@ -66,6 +68,7 @@ describe("N2 / 0.6.2p item 2: merge progress, NEEDS 1 MORE and NEEDS 2 MORE", ()
         if (!line) continue;
         expect(line, d.id).toMatch(new RegExp(` · NEEDS ${s === 1 ? 1 : 2} MORE$`));
         expect(line, d.id).not.toMatch(/MORE COP(Y|IES)$/);
+        for (const v of ["short", "headline", "tight"] as const) expect(nextShort(holding(d.id, [s]), d.id, s, v), `${d.id} ${v}`).toMatch(/ · NEEDS [12] MORE$/);
         lines++;
       }
     }
@@ -219,11 +222,46 @@ describe("P11: a rig's panel order, and the phone band", () => {
     expect([x.sub, x.subShort, x.labels]).toEqual(["RIG · 2/4 ARROWS ON BELTS", "RIG · 2/4 HIT", ["TO CARGO"]]);
   });
 
+  it("0.6.2p (item 3): the phone band's compact texts, written out by hand", () => {
+    // a ★2 SPLITTER at (5,2): three arrows on belts (the Kiln's T4, the press belt's T4 and its bend's T6)
+    const rp = rigPanel(rigRun("splitter", 2, 5, 2, 0, 0), 10)!;
+    const flat = (t: (string | [string, string])[]) => t.map((l) => (typeof l === "string" ? l : l[0]));
+    expect(flat(rp.text.slice(0, rp.keep))).toEqual([
+      "→ BELT 1 · TILE 4", "→ BELT 2 · TILE 4", "→ BELT 2 · TILE 6", "★2 CLEAN CUT: 2 X 72%", "NEXT ★3 PERFECT CUT: 2 X 85% · NEEDS 2 MORE",
+    ]);
+    expect(rp.tight.map((v) => flat(v.text.slice(0, v.keep)))).toEqual([
+      ["→ BELT 1 · TILE 4", "→ BELT 2 · TILE 4", "→ BELT 2 · TILE 6", "★2 CLEAN CUT: 2 X 72%", "NEXT ★3: 2 X 85% · NEEDS 2 MORE"],
+      ["→ BELT 1 T4 · BELT 2 T4 · BELT 2 T6", "★2 CLEAN CUT: 2 X 72%", "NEXT ★3: 2 X 85% · NEEDS 2 MORE"],
+      ["→ BELT 1 T4 · BELT 2 T4 · BELT 2 T6", "★2 CLEAN CUT: 2 X 72%", "NEXT ★3 · NEEDS 2 MORE"],
+    ]);
+    // every variant keeps the turn hint and the flavour after the kept lines
+    for (const v of rp.tight) expect(flat(v.text.slice(v.keep))).toEqual(flat(rp.text.slice(rp.keep)));
+    // an IDLE ★2 GALVANIC COIL: the short warning (the sub line says RIG · IDLE; the turn hint follows), then the NEXT
+    // line's headline, the number that changes (STALL 1.8S -> 2.8S; JUMPS TO 1 MORE stays), before the bare star
+    const coil = rigPanel(rigRun("coil", 2, 0, 9, 0, 1), 10)!;
+    expect(coil.tight.map((v) => flat(v.text.slice(0, v.keep)))).toEqual([
+      [IDLE_WARNING, "★2 SPARK JUMP: STALL 1.8S · JUMPS TO 1 MORE", "NEXT ★3: STALL 2.8S · JUMPS TO 1 MORE · NEEDS 1 MORE"],
+      [IDLE_SHORT, "★2 SPARK JUMP: STALL 1.8S · JUMPS TO 1 MORE", "NEXT ★3: STALL 2.8S · JUMPS TO 1 MORE · NEEDS 1 MORE"],
+      [IDLE_SHORT, "★2 SPARK JUMP: STALL 1.8S · JUMPS TO 1 MORE", "NEXT ★3: STALL 2.8S · NEEDS 1 MORE"],
+      [IDLE_SHORT, "★2 SPARK JUMP: STALL 1.8S · JUMPS TO 1 MORE", "NEXT ★3 · NEEDS 1 MORE"],
+    ]);
+    // the headline: the first part of the next star's effect that isn't already the current star's
+    expect(nextShort(holding("coil", [2]), "coil", 2, "headline")).toBe("NEXT ★3: STALL 2.8S · NEEDS 2 MORE");
+    expect(nextShort(holding("surge", [2]), "surge", 2, "headline")).toBe("NEXT ★3: 5X FOR 1S / 2S · NEEDS 2 MORE");
+    expect(nextShort(holding("brake", [2]), "brake", 2, "headline")).toBe("NEXT ★3: +5 DMG · NEEDS 2 MORE"); // HALF SPEED stays
+    expect(nextShort(holding("brake", [1]), "brake", 1, "headline")).toBe("NEXT ★2: +2 DMG · NEEDS 1 MORE");
+    // ★3: no NEXT line; one compact text (the hits on one line)
+    const s3 = rigPanel(rigRun("splitter", 3, 5, 2, 0, 0), 10)!;
+    expect(s3.tight.map((v) => flat(v.text.slice(0, v.keep)))).toEqual([["→ BELT 1 T4 · BELT 2 T4 · BELT 2 T6", "★3 PERFECT CUT: 2 X 85%"]]);
+  });
+
   // The phone build screen's info band (F7's test above): 161 x 69 px. drawDetails draws a rig's body in the 3x5 face
   // (7 px lines; a rig's 5+ lines never fit the 5x7 face there) from y + 25 + shift, where shift is 12 when the buttons
   // take their own row (portraitButtons, retried with the short sub line), so 4 or 6 body lines show, wrapped at 151 px.
+  // 0.6.2p (item 3): where the kept lines (the hits or IDLE, the perk and the NEXT line: RigPanel.keep) don't fit the band
+  // whole, drawDetails draws the first compact text (RigPanel.tight) whose kept lines do, else the last; so does this model.
   const BAND = { x: 3, y: 100, w: 161, h: 69 };
-  function phone(run: Run): { fit: number; head: number; next: number } {
+  function phone(run: Run): { fit: number; head: number; next: number; variant: number } {
     const rp = rigPanel(run, 10)!;
     let port = portraitButtons(rp.title, rp.sub, rp.labels, BAND);
     if (port.shift && rp.subShort) {
@@ -231,54 +269,70 @@ describe("P11: a rig's panel order, and the phone band", () => {
       if (!short.shift) port = short;
     }
     const fit = Math.floor((BAND.h - 4 - 25 - port.shift + 2) / 7);
-    const rows = rp.text.map((l) => wrap(typeof l === "string" ? l : l[0], BAND.w - 10, "3").length);
-    const nextAt = rp.text.findIndex((l) => typeof l === "string" && l.startsWith("NEXT "));
-    const turnAt = rp.text.findIndex((l) => l === TURN || l === "FACES EVERY SIDE. DRAG TO MOVE.");
-    const upTo = (i: number) => rows.slice(0, i).reduce((a, b) => a + b, 0);
-    return { fit, head: upTo(nextAt < 0 ? turnAt : nextAt), next: nextAt < 0 ? -1 : upTo(nextAt + 1) };
+    const W = BAND.w - 10;
+    let v = { text: rp.text, keep: rp.keep }, variant = 0;
+    if (keptRows(rp.text, rp.keep, W, "3") > fit) {
+      const i = rp.tight.findIndex((t) => keptRows(t.text, t.keep, W, "3") <= fit);
+      v = rp.tight[i < 0 ? rp.tight.length - 1 : i];
+      variant = i < 0 ? -1 : i + 1;
+    }
+    const nextAt = v.text.findIndex((l) => typeof l === "string" && l.startsWith("NEXT "));
+    return { fit, head: keptRows(v.text, nextAt < 0 ? v.keep : nextAt, W, "3"), next: nextAt < 0 ? -1 : keptRows(v.text, nextAt + 1, W, "3"), variant };
   }
-  // Measured (beltside-062c): where the perk and NEXT lines both wrap to two lines, the NEXT line doesn't fit the 4-line
-  // band whole: its last words ("tail") give way beside a hit; beside the 2-line IDLE warning a ★2 COIL's NEXT line gives
-  // way whole ("whole"). A UI follow-up (shorter phone wording for these perk and NEXT lines) is flagged in MERGE-061c.md.
-  // Measured again (beltside-062-on-061), with 0.6.1f's NEXT line, which names the perk the next star brings: the five
-  // entries above hold as they were, and four more cut their tail (8 more cases, 16 of 96 in all): a ★2 BRAKE's "NEXT ★3
-  // RED-HOT SHOE: HALF SPEED · +5 DMG ..." and a ★2 SPLITTER's "NEXT ★3 PERFECT CUT: 2 X 85% ..." now wrap to two lines,
-  // so beside the 2-line IDLE warning (an I BRAKE "between both belts" is IDLE too), or below a SPLITTER's two hits,
-  // their last words give way. The NEXT line still starts in view in every one of them.
-  // 0.6.2p (item 2): "NEEDS 1 MORE" is a letter longer than "1 MORE COPY", so a ★2 LONG HAUL's "NEXT ★3: +7/HIT · MAX 6
-  // HITS · NEEDS 1 MORE" (a spare copy in cargo) wraps to two lines as well: its two entries lose their spare0 (18 of 96)
-  const KNOWN_PHONE_CUTS = new Map([
-    ["coil ★2 1hit", "tail"], ["coil ★2 2hit", "tail"], ["coil ★2 idle", "whole"],
-    ["longhaul ★2 2hit", "tail"], ["longhaul ★2 idle", "tail"],
-    ["brake ★2 2hit", "tail"], ["brake ★2 idle", "tail"], ["splitter ★2 2hit", "tail"], ["splitter ★2 idle", "tail"],
-  ]);
+  // History: measured at beltside-062c and again at beltside-062-on-061 on the 8 original rigs (96 cases with a NEXT
+  // line), 9 entries (16 cases) cut the NEXT line: its tail gave way beside a hit or the 2-line IDLE warning, or (★2 COIL,
+  // IDLE) the whole line did: coil ★2 1hit/2hit/idle, longhaul ★2 2hit/idle (no spare), brake ★2 2hit/idle, splitter ★2
+  // 2hit/idle. 0.6.2p item 2's "NEEDS 1 MORE", a letter longer than "1 MORE COPY", cut LONG HAUL's spare1 cases too (18).
+  // 0.6.2p (item 3): every buyable rig now, from the catalogue (23 at 65a36b7), at every star, on each layout its shape
+  // allows, with 0 and 1 spare copies: 396 cases, 264 with a NEXT line (62 of them cut at 65a36b7). With the compact
+  // texts none is cut: the full text shows in 198, the NEXT line without its perk's name in 4, the hits on one line or
+  // IDLE's short warning in 50, the NEXT line's headline (★2 COIL and SURGE VALVE) in 12, the bare NEXT line in none. A
+  // case may come back here only with a written reason, and its hits and perk must still show and its NEXT line start in
+  // view.
+  const KNOWN_PHONE_CUTS = new Map<string, string>();
 
-  it("phone: the hits (or IDLE) and the perk always show, the NEXT line whole (or, measured cuts, its start)", () => {
-    const LAYOUT: [string, (def: string) => [number, number, number]][] = [
-      ["1hit", (def) => [3, 3, rotFacing(def, 1)]], // beside the Kiln's belt, facing it
-      ["2hit", () => [5, 3, 0]], // between both belts (an I rig there points at empty deck: IDLE)
-      ["idle", () => [0, 9, 0]],
-    ];
-    let cases = 0;
-    for (const def of ["temper", "whetstone", "grease", "brake", "longhaul", "coil", "splitter", "overdrive"]) {
-      for (const s of [1, 2, 3]) for (const [lay, at] of LAYOUT) for (const spare of [0, 1]) {
-        const [x, y, rot] = at(def);
-        const p = phone(rigRun(def, s, x, y, rot, spare));
-        const id = `${def} ★${s} ${lay}`;
+  /** The layouts a rig's shape allows on this deck: beside the Kiln's belt facing it (1 hit); between both belts (II, T and
+   *  X; an L turned at (5,2) has one arrow on each belt: 2 hits); in the press belt's bend (T and X: 3 hits); in the far
+   *  corner (IDLE). An I rig has one arrow: 1 hit or IDLE. */
+  function layouts(def: string): [string, number, number, number, number][] {
+    const shape = rigShape(def)!;
+    return [
+      ["1hit", 3, 3, rotFacing(def, 1), 1],
+      ...(shape === "L" ? [["2hit", 5, 2, 3, 2]] : shape === "I" ? [] : [["2hit", 5, 3, 0, 2]]),
+      ...(shape === "T" || shape === "X" ? [["3hit", 5, 2, 0, 3]] : []),
+      ["idle", 0, 9, 0, 0],
+    ] as [string, number, number, number, number][];
+  }
+
+  it("phone: every buyable rig's hits (or IDLE), perk and NEXT line show whole, at every star, layout and spare", () => {
+    const rigs = buyableModules().filter((d) => d.kind === "gate").map((d) => d.id);
+    expect(rigs).toHaveLength(23);
+    let cases = 0, nextCases = 0;
+    for (const def of rigs) {
+      for (const s of [1, 2, 3]) for (const [lay, x, y, rot, want] of layouts(def)) for (const spare of [0, 1]) {
+        const run = rigRun(def, s, x, y, rot, spare);
+        const id = `${def} ★${s} ${lay} spare${spare}`;
+        const rp = rigPanel(run, 10)!;
+        expect(rp.idle ? 0 : rp.text.filter((l) => typeof l === "string" && l.startsWith("→ ")).length, `${id}: hits`).toBe(want);
+        const p = phone(run);
         expect(p.head, `${id}: hits and perk`).toBeLessThanOrEqual(p.fit);
-        if (p.next < 0) continue; // ★3: no NEXT line
-        const cut = KNOWN_PHONE_CUTS.get(id) ?? KNOWN_PHONE_CUTS.get(`${id} spare${spare}`);
-        if (cut) {
-          expect(p.next, `${id}: a known cut`).toBeGreaterThan(p.fit);
-          if (cut === "tail") expect(p.head + 1, `${id}: the NEXT line starts in view`).toBeLessThanOrEqual(p.fit);
-          else expect(p.head, `${id}: hits and perk fill the band`).toBe(p.fit);
-        } else {
-          expect(p.next, `${id} spare${spare}: NEXT in view`).toBeLessThanOrEqual(p.fit);
-        }
         cases++;
+        if (p.next < 0) continue; // ★3: no NEXT line
+        nextCases++;
+        if (KNOWN_PHONE_CUTS.has(id)) expect(p.head + 1, `${id}: the NEXT line starts in view`).toBeLessThanOrEqual(p.fit);
+        else expect(p.next, `${id}: the NEXT line whole (variant ${p.variant})`).toBeLessThanOrEqual(p.fit);
       }
     }
-    expect(cases).toBe(8 * 2 * 3 * 2); // ★1 and ★2 have a NEXT line
+    expect(KNOWN_PHONE_CUTS.size).toBe(0);
+    expect([cases, nextCases]).toEqual([396, 264]);
+  });
+
+  it("the desktop column keeps the full text: its kept lines fit the laptop's column (109 px, 3x5 face)", () => {
+    // the drawDetails rule only swaps the text where the kept lines overflow the panel; the laptop's landscape column
+    // (1366x768: W 455, column 119, text 109 px) holds 20+ lines, so the full text shows there
+    const rp = rigPanel(rigRun("coil", 2, 5, 2, 3, 0), 10)!;
+    expect(keptRows(rp.text, rp.keep, 109, "3")).toBeLessThanOrEqual(20);
+    expect(rp.text.some((l) => typeof l === "string" && l.startsWith("NEXT ★3: STALL 2.8S · JUMPS TO 1 MORE"))).toBe(true);
   });
 });
 
@@ -311,6 +365,9 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     expect(levelLine("splitter", 3)).toBe("★3 PERFECT CUT: 2 X 85%");
     expect(nextLine(holding("splitter", [1]), "splitter", 1)).toBe("NEXT ★2 CLEAN CUT: 2 X 72% · NEEDS 1 MORE");
     expect(nextLine(holding("splitter", [2]), "splitter", 2)).toBe("NEXT ★3 PERFECT CUT: 2 X 85% · NEEDS 2 MORE");
+    // 0.6.2p (item 3): the phone band's short form drops the perk's name, the tight one the effect too
+    expect(nextShort(holding("splitter", [2]), "splitter", 2)).toBe("NEXT ★3: 2 X 85% · NEEDS 2 MORE");
+    expect(nextShort(holding("splitter", [2]), "splitter", 2, "tight")).toBe("NEXT ★3 · NEEDS 2 MORE");
     expect(mergeLine(holding("splitter", [1]), "splitter")).toBe("MERGES WITH YOUR SPLITTER ★1 → ★2 · 2 X 72%");
     expect(mergeLine(holding("splitter", [2, 1]), "splitter")).toBe("MERGES WITH YOUR SPLITTER ★2 → ★3 · 2 X 85%");
   });
