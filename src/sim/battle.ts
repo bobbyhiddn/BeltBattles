@@ -16,7 +16,7 @@ import {
 } from "./deck";
 import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { effectAt, starsOf } from "./stars";
-import { overclocked } from "./overclock"; // 0.6.1c: ASSEMBLY LINE ★3 HOT START
+import { boostable, overclocked } from "./overclock";
 import { debuffedDamage, segmentBounds, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 
@@ -48,6 +48,11 @@ export interface Payload {
   heatBonus?: number;
   pulseSeen?: Record<number, number>;
   compound?: Payload;
+  poison?: number;
+  fray?: number;
+  frayCap?: number;
+  staticTime?: number;
+  boosters?: number[];
 }
 
 export interface BeltAmmo {
@@ -82,6 +87,10 @@ export interface GateState {
   wrecked: boolean;
   tolls: number;
   sorted: number; // SORTING ARM counts every arrow hit in battle order
+  cooldown: number;
+  fuse: number;
+  consumed: boolean;
+  boostedBy: { booster: GateState; route: number }[];
   flash: number; // render: time since last processed payload (counts down)
   arrowFlash: number[]; // 0.6.2 render (V3): per absolute direction, counts down after that arrow applied
   // 0.6.1c ASSEMBLY LINE ★3 HOT START: overclocked (overclock.ts) until this battle time (s). beltside-062c (DESIGN
@@ -172,6 +181,8 @@ export interface HullState {
   hp: number;
   max: number;
   fray: number;
+  frayMax: number;
+  poison: { stacks: number; t: number };
   burns: { dps: number; t: number }[];
   burnShown: number;
   windShown: number;
@@ -267,6 +278,8 @@ export type SimEvent =
   | { type: "arc" | "lance" | "splash"; side: Side; x: number; y: number }
   | { type: "freeze" | "slow" | "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
   | { type: "burn"; side: Side; dmg: number }
+  | { type: "poison"; side: Side; dmg: number }
+  | { type: "keg"; side: Side; gate: number }
   | { type: "wind"; dmg: number }
   | { type: "windwarn" }
   | { type: "end"; winner: Side | -1 };
@@ -331,7 +344,8 @@ export class Battle {
     const occ = occupancy(b);
     const claims = connectorClaims(b);
     const hull: HullState = {
-      hp: h.hull + b.hullBonus, max: h.hull + b.hullBonus, fray: 0, burns: [], burnShown: 0, windShown: 0, flash: 0,
+      hp: h.hull + b.hullBonus, max: h.hull + b.hullBonus, fray: 0, frayMax: FRAY_MAX,
+      poison: { stacks: 0, t: 0 }, burns: [], burnShown: 0, windShown: 0, flash: 0,
     };
     const gates: GateState[] = [];
     const gateByUid = new Map<number, GateState>();
@@ -341,6 +355,7 @@ export class Battle {
       const g: GateState = {
         uid: p.uid, def: d, x: p.x, y: p.y, route: -1, cellIdx: -1, hits: [], commissionAt: Infinity,
         online: false, disrupted: 0, frozen: 0, wrecked: false, tolls: d.gate?.toll ?? 0, sorted: 0,
+        cooldown: 0, fuse: d.gate?.keg?.fuse ?? 0, consumed: false, boostedBy: [],
         flash: 0, arrowFlash: [0, 0, 0, 0],
       };
       gates.push(g);
@@ -389,6 +404,16 @@ export class Battle {
         guard: r.cells.map(() => 0), // 0.6.1p
       };
     });
+    // Each Overclocker follows its belt to the first later payload-changing rig.
+    for (const r of routes) {
+      const ordered = r.gateAt.flat();
+      for (let i = 0; i < ordered.length; i++) {
+        const booster = ordered[i].g;
+        if (!booster.def.gate?.overclockCooldown) continue;
+        const target = ordered.slice(i + 1).find((h) => h.g !== booster && boostable(h.g.def.gate!));
+        if (target) target.g.boostedBy.push({ booster, route: r.index });
+      }
+    }
     const factories: FactoryState[] = b.items
       .filter((p) => defOf(p).kind === "factory")
       .map((p) => ({
@@ -475,9 +500,16 @@ export class Battle {
         if (!g.online && Number.isFinite(g.commissionAt)) g.commissionAt += dt;
       }
       if (stopped) s.stats.disrupted += dt;
-      if (!g.online && !g.wrecked && g.frozen <= 0 && g.hits.length > 0 && this.t >= g.commissionAt) {
+      if (!g.online && !g.wrecked && !g.consumed && g.frozen <= 0 && g.hits.length > 0 && this.t >= g.commissionAt) {
         g.online = true;
         this.events.push({ type: "commission", side: s.side, gate: g.uid });
+      }
+      if (!stopped && !g.wrecked && g.online) {
+        if (g.cooldown > 0) g.cooldown = Math.max(0, g.cooldown - dt);
+        if (g.def.gate?.keg && !g.consumed) {
+          g.fuse -= dt;
+          if (g.fuse <= 0) this.detonateKeg(s, g);
+        }
       }
     }
     for (const r of s.routes) {
@@ -525,6 +557,21 @@ export class Battle {
       if (stopped) s.stats.disrupted += dt;
     }
     if (s.hull.flash > 0) s.hull.flash = Math.max(0, s.hull.flash - dt);
+  }
+
+  private detonateKeg(s: SideState, g: GateState): void {
+    const keg = g.def.gate!.keg!;
+    g.consumed = true;
+    g.online = false;
+    const routes = new Set(g.hits.map((h) => h.route));
+    if (keg.wide) for (const r of s.routes) {
+      if (r.cells.some((k) => Math.abs(kx(k) - g.x) + Math.abs(ky(k) - g.y) === 1)) routes.add(r.index);
+    }
+    for (const id of routes) for (const a of s.routes[id].ammo) {
+      a.p.flat += keg.flat;
+      a.p.burn += keg.burn;
+    }
+    this.events.push({ type: "keg", side: s.side, gate: g.uid });
   }
 
   /**
@@ -752,13 +799,39 @@ export class Battle {
     const g = h.g;
     // 0.6.1c ASSEMBLY LINE ★3 HOT START: while it lasts the gate's effect applies twice (overclock.ts, ARSENAL.md §3.4).
     // beltside-062c (DESIGN §12 P7): hotUntil is the rig's, so every arrow of the rig is overclocked, on any belt
-    const e = g.hotUntil !== undefined && this.t < g.hotUntil ? overclocked(g.def.gate!) : g.def.gate!;
     const p = a.p;
+    if (g.def.gate?.overclockCooldown) (p.boosters ??= []).push(g.uid);
+    const booster = g.boostedBy.find(({ booster, route }) => route === h.route && p.boosters?.includes(booster.uid) && booster.online &&
+      !booster.wrecked && booster.disrupted <= 0 && booster.frozen <= 0 && booster.cooldown <= 0);
+    if (booster) {
+      booster.booster.cooldown = booster.booster.def.gate!.overclockCooldown!;
+      p.boosters = p.boosters!.filter((uid) => uid !== booster.booster.uid);
+    }
+    const doubled = !!booster || g.hotUntil !== undefined && this.t < g.hotUntil;
+    const e = doubled ? overclocked(g.def.gate!) : g.def.gate!;
     const copies: BeltAmmo[] = [];
     if (e.flat) p.flat += e.flat;
     // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
     if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
     if (e.burn) p.burn += e.burn;
+    if (e.poison) p.poison = (p.poison ?? 0) + e.poison;
+    if (e.burnPerRide) {
+      const original = g.def.gate!.burnPerRide!;
+      p.burn += (doubled ? 2 : 1) * Math.min(original.max, Math.floor(p.ride / original.seconds));
+    }
+    if (e.quench) {
+      p.flat += Math.min(e.quench.max, p.burn * e.quench.perBurn);
+      p.burn = 0;
+    }
+    if (e.staticTime) { p.static = true; p.staticTime = Math.max(p.staticTime ?? 0, e.staticTime); }
+    if (e.perStalled) {
+      const foe = this.sides[s.side === 0 ? 1 : 0];
+      const stalled = [...foe.gates, ...foe.factories, ...foe.turrets]
+        .filter((m) => m.disrupted > 0 || m.frozen > 0 || ("wrecked" in m && m.wrecked)).length;
+      p.flat += Math.min(e.perStalled.max, stalled * e.perStalled.each);
+    }
+    if (e.fray) { p.fray = (p.fray ?? 0) + e.fray; p.frayCap = Math.max(p.frayCap ?? 0, e.frayCap ?? 0); }
+    if (e.perTile) p.flat += Math.min(e.perTile.max, a.processed * e.perTile.each);
     if (e.shock) {
       p.shock = true;
       // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
@@ -942,8 +1015,11 @@ export class Battle {
       const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, q.ride, q.mult, q.flat + (q.heatBonus ?? 0));
       dmg = (debuffedDamage(dmg, p.debuffs) + debuffedDamage(qd, q.debuffs)) * (c.mult ?? 1);
       p.burn += q.burn;
+      burn += q.burn;
+      p.poison = (p.poison ?? 0) + (q.poison ?? 0);
       p.shock ||= q.shock;
       p.static ||= q.static;
+      p.staticTime = Math.max(p.staticTime ?? 0, q.staticTime ?? 0) || undefined;
       p.shockTime = Math.max(p.shockTime ?? 0, q.shockTime ?? 0) || undefined;
       p.jump = Math.max(p.jump ?? 0, q.jump ?? 0) || undefined;
     }
@@ -1054,7 +1130,14 @@ export class Battle {
     def.hull.hp -= def.race ? raceAbsorb(def, total) : total; // races: bulwark plating soaks first
     def.hull.flash = 0.12;
     atk.stats.damage += total;
-    if (ammo.fray > 0 && !pr.noFray) def.hull.fray = Math.min(FRAY_MAX, def.hull.fray + ammo.fray);
+    if (!pr.noFray && (ammo.fray > 0 || pr.payload.fray)) {
+      def.hull.frayMax = Math.max(def.hull.frayMax, FRAY_MAX + (pr.payload.frayCap ?? 0));
+      def.hull.fray = Math.min(def.hull.frayMax, def.hull.fray + ammo.fray + (pr.payload.fray ?? 0));
+    }
+    if (pr.payload.poison) {
+      def.hull.poison.stacks = Math.min(24, def.hull.poison.stacks + pr.payload.poison);
+      def.hull.poison.t = 6;
+    }
     const burn = pr.burn ?? pr.payload.burn; // 0.6.1b: a core's Burn (SCATTER split, DRAKE added), else the payload's
     if (burn > 0) def.hull.burns.push({ dps: burn, t: pr.burnTime ?? BURN_TIME });
     let shocked = false;
@@ -1065,7 +1148,7 @@ export class Battle {
     }
     if (pr.payload.static && hit.kind === "hull" && def.turrets.length) {
       const turret = def.turrets[this.rng.int(def.turrets.length)];
-      this.disrupt(def, def.targets.find((t) => t.kind === "turret" && t.ref === turret.index)!, DISRUPT_TIME, "static");
+      this.disrupt(def, def.targets.find((t) => t.kind === "turret" && t.ref === turret.index)!, pr.payload.staticTime ?? DISRUPT_TIME, "static");
     }
     if (pr.payload.arc && hit.kind !== "hull") this.sparkJump(def, hit, DISRUPT_TIME, pr.payload.arc, "arc");
     if (pr.payload.rip) {
@@ -1257,6 +1340,7 @@ export class Battle {
   /** Grapnel candidates use route distance, then route index and payload id for stable ties. */
   private rip(s: SideState, t: Target, count: number, reach: number): number {
     if (count <= 0 || reach < 0 || (t.kind !== "belt" && t.kind !== "gate")) return 0;
+    const keg = t.kind === "gate" ? s.gates.find((g) => g.uid === t.ref && !!g.def.gate?.keg) : undefined;
     const hits = t.kind === "belt" ? [{ route: t.ref, tile: t.cell }]
       : s.gates.find((g) => g.uid === t.ref)?.hits ?? [];
     const candidates = new Map<number, { route: number; ammo: BeltAmmo; distance: number }>();
@@ -1271,7 +1355,8 @@ export class Battle {
         if (!old || distance < old.distance) candidates.set(a.p.id, { route: h.route, ammo: a, distance });
       }
     }
-    if (!candidates.size || !this.acceptHarassment(s, t, "rip")) return 0;
+    if ((!candidates.size && !keg) || !this.acceptHarassment(s, t, "rip")) return 0;
+    if (keg) { keg.consumed = true; keg.online = false; }
     const picked = [...candidates.values()].sort((a, b) => a.distance - b.distance || a.route - b.route || a.ammo.p.id - b.ammo.p.id).slice(0, count);
     for (const c of picked) {
       const r = s.routes[c.route];
@@ -1350,6 +1435,14 @@ export class Battle {
           s.hull.burnShown -= shown;
           this.events.push({ type: "burn", side: s.side, dmg: shown });
         }
+      }
+      if (s.hull.poison.t > 0) {
+        const damage = s.hull.poison.stacks * 0.4 * Math.min(dt, s.hull.poison.t);
+        s.hull.poison.t = Math.max(0, s.hull.poison.t - dt);
+        s.hull.hp -= s.race ? raceAbsorb(s, damage) : damage;
+        foe.stats.damage += damage;
+        if (damage > 0) this.events.push({ type: "poison", side: s.side, dmg: damage });
+        if (s.hull.poison.t === 0) s.hull.poison.stacks = 0;
       }
     }
     if (!this.windWarned && this.t >= WIND_WARN) {

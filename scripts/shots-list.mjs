@@ -299,6 +299,14 @@ export const SHOTS = [
     // M5: holding one TEMPER, seed 8's day-3 wreck (pick 0.22 < 0.35) salvages the TEMPER it merges with: MERGE badge
     ["event-salvage-merge", v, "title", 0, EVENT("wreck", { seed: 8, round: 3, cargo: "temper" })],
   ]),
+  // 0.6.2b: every new foundry's selected art and live ammo, plus the carried-debuff marks on both layouts.
+  ...["desk", "phone"].flatMap((v) => [
+    ...[["scrapper", 3], ["sabot", 3], ["frostbite", 2], ["dragchain", 3], ["mimic", 3], ["limpet", 3]]
+      .map(([def, stars]) => [`build-wave2-${def}`, v, "build", 0.8, factoryBuild(def, stars)]),
+    ...[["scrapper", 3], ["sabot", 3], ["frostbite", 2], ["dragchain", 3], ["mimic", 3], ["limpet", 3]]
+      .map(([def, stars]) => [`battle-wave2-${def}`, v, "title", 0, factoryBattle(def, stars, 1)]),
+    ["battle-wave2-debuffs", v, "title", 0, debuffBattle()],
+  ]),
   // 0.6.1f (V5): the retuned merges in the inspector: a 2-star BRAKE SHOE (HOT SHOE) and a 3-star SPLITTER (PERFECT
   // CUT) on the starting Kiln belt, one of them selected (its level and NEXT lines), desk and phone
   ...["desk", "phone"].flatMap((v) => [
@@ -472,7 +480,7 @@ function ASM_GANTRY() {
 }
 
 // CORE_BATTLE's pattern, stepped until at least 2 of the factory's slugs ride its belt in the fight
-function factoryBattle(def, stars) {
+function factoryBattle(def, stars, want = def === "slagpot" ? 2 : 3) {
   return `(() => {
   const bb = window.bb, g = bb.game;
   try {
@@ -483,16 +491,35 @@ function factoryBattle(def, stars) {
     bb.open("battle", "furnace", 12345);
     let n = 0;
     // SLAG POT's slow slag rarely has 3 on its belt before the chamber jams (about 25 s in), so it stops at 2
-    for (let i = 0; i < 60 * 30 && n < ${def === "slagpot" ? 2 : 3}; i++) {
+    for (let i = 0; i < 60 * 30 && n < ${want}; i++) {
       g.step(1 / 60);
       const a = g.screen.arena;
       n = a && g.screen.phase === "fight" ? a.b.sides[0].routes.filter((r) => r.factory === 9101).reduce((k, r) => k + r.ammo.length, 0) : 0;
     }
-    if (n < 2) console.error("FACTORY_BATTLE: fewer than 2 ${def} slugs on its belt within 30 s");
+    if (n < ${want}) console.error("FACTORY_BATTLE: fewer than ${want} ${def} slugs on its belt within 30 s");
     for (let i = 0; i < 12; i++) g.step(1 / 60); // past the stamp's 0.18 s flash, so the sprite shows unwashed
+    if (${want} === 1) for (let i = 0; i < 60 * 2 && g.screen.phase === "fight" && g.screen.pt < 0.8; i++) g.step(1 / 60);
     g.render();
   } catch (e) { console.error("FACTORY_BATTLE: " + e.message + "\\n" + e.stack); }
 })()`;
+}
+
+function debuffBattle() {
+  return `(() => {
+    bb.openShowcase("sides", "battle", { foe: "junction" });
+    const g = bb.game;
+    ${STEP(180)}
+    for (let i = 0; i < 60 * 10; i++) {
+      const ammo = g.screen.arena?.b.sides[0].routes.flatMap((r) => r.ammo) ?? [];
+      if (ammo.length) {
+        ammo[0].p.debuffs = { chill: true, snag: true, sap: true };
+        break;
+      }
+      g.step(1 / 60);
+    }
+    for (let i = 0; i < 60 * 2 && g.screen.phase === "fight" && g.screen.pt < 0.8; i++) g.step(1 / 60);
+    g.render();
+  })()`;
 }
 
 function qmCaravan() {

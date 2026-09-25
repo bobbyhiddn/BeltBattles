@@ -36,7 +36,8 @@ function withFactory(hero: HeroId, def: string, seed: number): Build {
 describe("factory bench (0.6.1c)", () => {
   it("FACTORY_DEFS: STAMP PRESS first, then the six", () => {
     expect(FACTORY_DEFS[0]).toBe("press");
-    expect([...FACTORY_DEFS].sort()).toEqual(["assembly", "doublestamp", "gantry", "hotswap", "press", "shottower", "slagpot"]);
+    expect([...FACTORY_DEFS].sort()).toEqual(Object.values(ITEMS)
+      .filter((d) => d.kind === "factory" && d.merchant && d.price > 0).map((d) => d.id).sort());
   });
 
   it("factory rows are paired: every 2- and 3-star variant of a factory plays each gauntlet member on its 1-star deck's seeds, and the FACTORY table reads exactly those decks", async () => {

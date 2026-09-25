@@ -18,6 +18,7 @@ import { applyLever, canApply, droppable } from "../src/sim/harness/levers";
 import { cargoValue, unfusedWithCargo, type InvItem } from "../src/sim/harness/merge";
 import { freeConnectors } from "../src/sim/harness/path";
 import { PLATE, Shopper } from "../src/sim/harness/shopper";
+import { withLegacyStock } from "./catalogueLegacy";
 
 /** The slag rule read from the game's data alone (not the harness's fixedSpeedCells/isSpeedGate): no rig hit with a speed
  *  at its stars on a route whose factory's ammo, at the factory's stars, has AMMO.fixedSpeed. */
@@ -100,7 +101,7 @@ describe("harness factories (0.6.1c): the slag rule at the drop lever and at top
     }
   });
 
-  it("pinned on BELTSIDE: WEAVER d3 #129 reaches the drop's slag filter; the slag rule holds after every lever", () => {
+  it("pinned on BELTSIDE: WEAVER d3 #129 reaches the drop's slag filter; the slag rule holds after every lever", () => withLegacyStock(() => {
     // H2 rig placement moved the old v2 WEAVER d3 #73 case off this path. A search of the same v13-legal seeds on
     // BELTSIDE found WEAVER d3 #129, d5 #15 and d7 #104, and SIPHON d5 #93 and d7 #37. This pin keeps the D1 proof.
     const day = 3;
@@ -117,7 +118,7 @@ describe("harness factories (0.6.1c): the slag rule at the drop lever and at top
     expect(r.slag.skipped).toBeGreaterThan(0);
     expect(r.build.items.some((p) => p.def === "slagpot")).toBe(true);
     expect(slagProblems(r.build)).toEqual([]);
-  });
+  }));
 
   it("topUp's 3 g gate never lands on a slag route: with only SLAG POT cells free, a speed gate it draws is not bought (N1)", () => {
     const day = 10;

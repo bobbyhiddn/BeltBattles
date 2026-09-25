@@ -9,7 +9,9 @@ import type { GateEffect } from "./content";
  * RIVETER and POWDER KEG to the skipped list when they exist.
  */
 export function boostable(e: GateEffect): boolean {
-  return e.speed === undefined;
+  return e.speed === undefined && !e.pulse && !e.toll && !e.sift && !e.repair && !e.keg && !e.overclockCooldown &&
+    !!(e.burn || e.flat || e.perPriorGate || e.shock || e.split || e.poison || e.burnPerRide || e.quench ||
+      e.staticTime || e.perStalled || e.fray || e.perTile || e.heat || e.sort);
 }
 
 const cache = new WeakMap<GateEffect, GateEffect>();
@@ -28,6 +30,15 @@ export function overclocked(e: GateEffect): GateEffect {
   if (e.flat) o.flat = e.flat * 2;
   if (e.perPriorGate) o.perPriorGate = e.perPriorGate * 2;
   if (e.split) o.split = { copies: e.split.copies + 1, mult: e.split.mult };
+  if (e.poison) o.poison = e.poison * 2;
+  if (e.burnPerRide) o.burnPerRide = { ...e.burnPerRide, seconds: e.burnPerRide.seconds / 2 };
+  if (e.quench) o.quench = { ...e.quench, perBurn: e.quench.perBurn * 2 };
+  if (e.staticTime) o.staticTime = e.staticTime * 2;
+  if (e.perStalled) o.perStalled = { ...e.perStalled, each: e.perStalled.each * 2 };
+  if (e.fray) o.fray = e.fray * 2;
+  if (e.perTile) o.perTile = { ...e.perTile, each: e.perTile.each * 2 };
+  if (e.heat) o.heat = e.heat * 2;
+  if (e.sort) o.sort = { ...e.sort, copies: e.sort.copies + 1 };
   cache.set(e, o);
   return o;
 }

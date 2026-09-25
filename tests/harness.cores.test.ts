@@ -112,8 +112,8 @@ describe("harness cores (0.6.1b): legality", () => {
     // 1965100384 -> 3070968615, measured on this branch. BELTSIDE never had a pre-cores stars-on harness to compute
     // them with (the stars-off pins in tests/harness.merge.test.ts are the ones checked against beltside-062c's own
     // harness); cores off still draws nothing for the core lever (tests above), so the pins hold that path.
-    expect(hash32(a.join("|"))).toBe(2679854933);
-    expect(hash32(b.join("|"))).toBe(3070968615);
+    expect(hash32(a.join("|"))).toBe(2653640428);
+    expect(hash32(b.join("|"))).toBe(3082615155);
   }, 60_000);
 });
 
@@ -174,7 +174,8 @@ describe("harness cores (0.6.1b): the core paths, through the game's own gainMod
 
   it("the core lever: an empty socket comes first; a copy merges; a different core swaps to cargo, which costs gold but doesn't fight", () => {
     const rotary = ITEMS.rotary.price; // the cheapest core: a budget of deck + 3 makes it the only affordable one
-    expect(shopItems("weaver", "core").map((d) => d.id).sort()).toEqual(["drake", "gatling", "hullbreaker", "pressure", "rotary", "salvo", "scatter"]);
+    expect(shopItems("weaver", "core").map((d) => d.id).sort()).toEqual(
+      Object.values(ITEMS).filter((d) => d.kind === "core" && d.merchant).map((d) => d.id).sort());
     // empty socket first: WEAVER, turret 0 already has a core; the new core goes to an EMPTY socket
     const w = fitted("weaver", [{ uid: 50, def: "scatter", turret: 0 }]);
     const sw = new Shopper(w, buildCost(w).total + rotary, 5, new Rng(7), "on", FUSE_MAX, "on");

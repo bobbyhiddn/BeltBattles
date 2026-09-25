@@ -193,6 +193,16 @@ export function react(a: Arena, e: SimEvent): void {
         sy(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), `+${e.amount.toFixed(1)}`, C.lime);
       return;
     }
+    case "keg": {
+      const g = a.b.sides[e.side].gates.find((v) => v.uid === e.gate);
+      if (g) {
+        const x = sx(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL);
+        const y = sy(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL);
+        fx.explode(x, y, 26, false);
+        fx.scorch(x, y, 7);
+      }
+      return;
+    }
     case "freeze": case "slow": case "wreck": case "rip": case "limpet": {
       const [x, y] = machinePoint(a, e.side, e.kind, e.ref, e.cell);
       const col = e.type === "freeze" ? C.ice : e.type === "slow" ? C.amber : C.red;
@@ -207,6 +217,9 @@ export function react(a: Arena, e: SimEvent): void {
     case "harass": return;
     case "burn":
       fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, String(e.dmg), C.fire3);
+      return;
+    case "poison":
+      if (!fast && e.dmg >= 0.1) fx.popup(hullCx(a, e.side), hullCy(a, e.side), e.dmg.toFixed(1), C.lime);
       return;
     case "wind":
       for (const side of [0, 1] as Side[]) {

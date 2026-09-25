@@ -343,6 +343,14 @@ function drawRigs(g: G, v: CruiserView): void {
     const gs = gateStateOf(v, p.uid);
     const active = !!gs && gs.flash > 0;
     g.drawImage(gateSprite(d.id, Math.floor(v.t * 8), active), x, y);
+    if (d.id === "keg" && gs?.online && !gs.consumed) {
+      const full = gs.def.gate?.keg?.fuse ?? 12;
+      g.strokeStyle = C.yellow;
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(x + 6, y + 6, 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, gs.fuse / full));
+      g.stroke();
+    }
     if (active && gs) {
       g.globalAlpha = Math.min(0.7, gs.flash * 4);
       g.drawImage(gateSil(d.id), x, y);

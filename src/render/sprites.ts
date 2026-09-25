@@ -355,6 +355,66 @@ export function rigTip(d: number, st: ArrowState): Cv {
 
 function drawGate(g: G, id: string, f: number, active: boolean): void {
   switch (id) {
+    case "venom": {
+      bevel(g, 1, 1, 10, 10, C.green, C.lime, C.oil0, C.ink);
+      rect(g, 4, 2, 4, 5, C.ink); rect(g, 5, 3, 2, 4, C.lime);
+      px(g, 6, 8 + (f % 3), C.lime);
+      break;
+    }
+    case "overclocker": {
+      bevel(g, 1, 1, 10, 10, C.brass1, C.brass4, C.brass0, C.ink);
+      disc(g, 6, 6, 3.4, C.ink); disc(g, 6, 6, 2.5, C.bone);
+      const a = (f / 8) * Math.PI * 1.3 - 2;
+      line(g, 6, 6, 6 + Math.cos(a) * 2, 6 + Math.sin(a) * 2, C.red);
+      if (active) px(g, 9, 2, C.yellow);
+      break;
+    }
+    case "keg": {
+      bevel(g, 2, 1, 8, 10, C.ink, C.steel2, C.ink, C.ink);
+      hline(g, 2, 4, 8, C.brass3); hline(g, 2, 8, 8, C.brass3);
+      px(g, 6, 0, f % 2 ? C.yellow : C.fire4);
+      break;
+    }
+    case "bellows": {
+      bevel(g, 1, 1, 10, 10, C.rust1, C.rust3, C.rust0, C.ink);
+      rect(g, 2, 4, 6 + (f % 2), 4, C.fire2);
+      line(g, 4, 3, 7, 6, C.brass4);
+      px(g, 10, 5, C.fire4);
+      break;
+    }
+    case "quench": {
+      bevel(g, 1, 1, 10, 10, C.steel1, C.steel3, C.steel0, C.ink);
+      rect(g, 3, 3, 6, 7, C.ink);
+      hline(g, 4, 6 + f % 2, 4, C.cyan);
+      px(g, 6, 2, C.ice);
+      break;
+    }
+    case "staticbrush": {
+      bevel(g, 1, 1, 10, 10, C.cop1, C.cop3, C.cop0, C.ink);
+      hline(g, 2, 5, 8, C.steel3);
+      for (const x of [3, 5, 7, 9]) vline(g, x, 6, 3, C.ice);
+      px(g, 2 + f % 4, 2, C.white);
+      break;
+    }
+    case "lodestone": {
+      bevel(g, 1, 1, 10, 10, C.steel1, C.steel3, C.steel0, C.ink);
+      rect(g, 3, 3, 6, 6, C.ink);
+      vline(g, 4, 4, 4, C.red); vline(g, 7, 4, 4, C.blue);
+      hline(g, 4, 8, 4, C.brass4);
+      break;
+    }
+    case "barbed": {
+      bevel(g, 1, 1, 10, 10, C.wood1, C.wood3, C.wood0, C.ink);
+      disc(g, 6, 6, 3, C.ink); disc(g, 6, 6, 2, C.steel2);
+      for (const [x, y] of [[2, 6], [6, 2], [9, 6], [6, 9]]) px(g, x, y, C.white);
+      break;
+    }
+    case "counterweight": {
+      bevel(g, 1, 1, 10, 10, C.brass1, C.brass3, C.brass0, C.ink);
+      hline(g, 2, 3, 8, C.steel3); vline(g, 6, 3, 5, C.ink);
+      rect(g, 4, 7 + f % 2, 4, 2, C.steel2);
+      break;
+    }
     case "temper": {
       bevel(g, 1, 1, 10, 10, C.rust1, C.rust3, C.rust0, C.ink);
       const heat = [C.fire1, C.fire2, C.fire3];

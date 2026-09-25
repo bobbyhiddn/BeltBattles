@@ -81,6 +81,16 @@ export interface GateEffect {
   sort?: { every: number; copies: number };
   repair?: number;
   heat?: number;
+  poison?: number;
+  overclockCooldown?: number;
+  keg?: { fuse: number; flat: number; burn: number; wide?: boolean };
+  burnPerRide?: { seconds: number; max: number };
+  quench?: { perBurn: number; max: number };
+  staticTime?: number;
+  perStalled?: { each: number; max: number };
+  fray?: number;
+  frayCap?: number;
+  perTile?: { each: number; max: number };
 }
 
 /**
@@ -292,7 +302,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   scrapper: {
     id: "scrapper", name: "SCRAPPER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "scrapper",
-    desc: ["STAMPS SCRAP SLUGS", "WHEN HARASSMENT HITS", "THE FOE, OR EVERY 3S."], tags: ["HARASS", "VOLUME"],
+    desc: ["STAMPS SCRAP SLUGS", "WHEN HARASSMENT HITS", "FOE, OR EVERY 3S."], tags: ["HARASS", "VOLUME"],
     factory: { ammo: "plain", interval: 3, outputs: 1, trigger: "harass", scrapFlat: 3 },
     levels: { 2: { factory: { interval: 2.5, scrapFlat: 6.5 } }, 3: { factory: { interval: 2, scrapFlat: 10.5, bigHaul: true }, perk: "BIG HAUL" } },
   },
@@ -428,6 +438,57 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["ADDS +0.4 DAMAGE", "PER SECOND RIDDEN", "AFTER THIS RIG."], tags: ["HAUL", "TIMING"],
     gate: { heat: 0.4 }, levels: { 2: { gate: { heat: 0.9 } }, 3: { gate: { heat: 1.4 } } },
   },
+  venom: {
+    id: "venom", name: "VENOM DRIP", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
+    desc: ["ADDS 2 POISON.", "POOL TICKS AND", "REFRESHES ON HIT."], tags: ["POISON"],
+    gate: { poison: 2 }, levels: { 2: { gate: { poison: 4 } }, 3: { gate: { poison: 7 } } },
+  },
+  overclocker: {
+    id: "overclocker", name: "OVERCLOCKER", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker",
+    desc: ["DOUBLES THE NEXT", "BOOSTABLE RIG ONCE,", "THEN COOLS FOR 4S."], tags: ["TIMING", "BURST"],
+    gate: { overclockCooldown: 4 }, levels: { 2: { gate: { overclockCooldown: 1.8 } }, 3: { gate: { overclockCooldown: 1.15 } } },
+  },
+  keg: {
+    id: "keg", name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
+    desc: ["BLOWS AT 12S:", "PAYLOADS ON ITS BELT", "GAIN +6 AND BURN."], tags: ["BURST", "TIMING"],
+    gate: { keg: { fuse: 12, flat: 6, burn: 1 } }, levels: { 2: { gate: { keg: { fuse: 10, flat: 13, burn: 2 } } },
+      3: { gate: { keg: { fuse: 8, flat: 21, burn: 3, wide: true } }, perk: "WIDE BLAST" } },
+  },
+  bellows: {
+    id: "bellows", name: "BELLOWS", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
+    desc: ["ADDS BURN FROM", "RIDE TIME SO FAR,", "UP TO 4 STACKS."], tags: ["BURN", "HAUL"],
+    gate: { burnPerRide: { seconds: 2.5, max: 4 } }, levels: { 2: { gate: { burnPerRide: { seconds: 1.15, max: 9 } } },
+      3: { gate: { burnPerRide: { seconds: 0.7, max: 14 } } } },
+  },
+  quench: {
+    id: "quench", name: "QUENCH TANK", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
+    desc: ["TURNS BURN STACKS", "INTO +2 DAMAGE", "EACH, UP TO +12."], tags: ["BURN", "EDGE"],
+    gate: { quench: { perBurn: 2, max: 12 } }, levels: { 2: { gate: { quench: { perBurn: 4, max: 26 } } },
+      3: { gate: { quench: { perBurn: 6, max: 42 } } } },
+  },
+  staticbrush: {
+    id: "staticbrush", name: "STATIC BRUSH", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
+    desc: ["BARE-HULL HITS", "STALL A RANDOM", "ENEMY TURRET."], tags: ["SHOCK", "HARASS"],
+    gate: { staticTime: 0.6 }, levels: { 2: { gate: { staticTime: 1.3 } }, 3: { gate: { staticTime: 2.1 } } },
+  },
+  lodestone: {
+    id: "lodestone", name: "LODESTONE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "arcane",
+    desc: ["+1 DAMAGE FOR", "EACH ENEMY MACHINE", "STALLED RIGHT NOW."], tags: ["SHOCK", "EDGE"],
+    gate: { perStalled: { each: 1, max: 6 } }, levels: { 2: { gate: { perStalled: { each: 2.2, max: 13 } } },
+      3: { gate: { perStalled: { each: 3.5, max: 21 } } } },
+  },
+  barbed: {
+    id: "barbed", name: "BARBED SPOOL", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "quartermaster",
+    desc: ["HITS ADD 1 FRAY.", "LATER HITS DEAL", "+0.2 PER STACK."], tags: ["FRAY"],
+    gate: { fray: 1 }, levels: { 2: { gate: { fray: 2, frayCap: 3 }, perk: "RAZOR WIRE" },
+      3: { gate: { fray: 3, frayCap: 6 }, perk: "RAZOR WIRE" } },
+  },
+  counterweight: {
+    id: "counterweight", name: "COUNTERWEIGHT", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
+    desc: ["+0.5 DAMAGE PER", "BELT TILE ALREADY", "RIDDEN, MAX +6."], tags: ["HAUL", "EDGE"],
+    gate: { perTile: { each: 0.5, max: 6 } }, levels: { 2: { gate: { perTile: { each: 1.1, max: 13 } } },
+      3: { gate: { perTile: { each: 1.75, max: 21 } } } },
+  },
   // --- turret equipment ---
   chamber: {
     id: "chamber", name: "EXT. CHAMBER", kind: "mod", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
@@ -535,7 +596,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   mortar: {
     id: "mortar", name: "MORTAR TUBE", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "ironmonger",
-    desc: ["LOB FLIES 2.2X LONGER", "AND SPLASHES ONE", "MORE TARGET AT 50%."], tags: ["BURST", "HARASS"],
+    desc: ["LOB FLIES 2.2X LONG", "AND SPLASHES ONE", "MORE TARGET AT 50%."], tags: ["BURST", "HARASS"],
     core: { routine: "mortar", flightMul: 2.2, splash: 1, share: 0.5 },
     levels: { 2: { core: { splash: 2, share: 0.55 } }, 3: { core: { splash: 3, share: 0.58 } } },
   },
@@ -547,7 +608,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   tesla: {
     id: "tesla", name: "TESLA ARC", kind: "core", rarity: "epic", price: 8, size: 1, merchant: "arcane",
-    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% AND A 0.8S STALL."], tags: ["SHOCK", "HARASS"],
+    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS 0.8S STALL."], tags: ["SHOCK", "HARASS"],
     core: { routine: "tesla", arcs: 1, stall: 0.8, share: 0.25 },
     levels: { 2: { core: { arcs: 2, stall: 0.9 } }, 3: { core: { arcs: 3, stall: 0.93, share: 0.3 } } },
   },

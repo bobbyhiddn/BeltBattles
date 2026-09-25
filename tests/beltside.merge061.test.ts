@@ -60,7 +60,7 @@ function family(b: Build, last: number, route = 0, secs = 110): Payload[] {
 describe("P1: stars resolve first; shape is kept at every star (R10)", () => {
   it("effectAt keeps `shape` at 1-3 stars for every rig def, so a merge never adds arrows", () => {
     const rigs = Object.values(ITEMS).filter((d) => d.kind === "gate");
-    expect(rigs.map((d) => d.id).sort()).toEqual(["brake", "coil", "grease", "longhaul", "overdrive", "splitter", "temper", "whetstone"]);
+    expect(rigs).toHaveLength(23);
     for (const d of rigs) {
       for (const s of [1, 2, 3]) {
         const e = effectAt(d.id, s);

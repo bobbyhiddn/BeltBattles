@@ -15,6 +15,7 @@ import { HARNESS_HEROES, heroStartBuild } from "../src/sim/harness/heroes";
 import { fusibleCopies, gainInto, previewMerge } from "../src/sim/harness/merge";
 import { exceptPairs } from "./harnessLegacy";
 import { spotBeside } from "./beltside.helpers";
+import { withLegacyStock } from "./catalogueLegacy";
 
 const freeCells = (b: Build): number[] => {
   const occ = occupancy(b);
@@ -157,15 +158,17 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
       return h >>> 0;
     };
     const parts: string[] = [];
-    for (const hero of HARNESS_HEROES) {
-      for (const day of [1, 3, 5, 7, 10]) {
-        for (let i = 0; i < 3; i++) {
-          const b = randomBuild(hero, day, new Rng(hashSeed("off-pin", hero, day, i)), "off");
-          expect(exceptPairs(validateBuild(b, day).errors), `${hero} d${day} #${i}`).toEqual([]);
-          parts.push(JSON.stringify(b));
+    withLegacyStock(() => {
+      for (const hero of HARNESS_HEROES) {
+        for (const day of [1, 3, 5, 7, 10]) {
+          for (let i = 0; i < 3; i++) {
+            const b = randomBuild(hero, day, new Rng(hashSeed("off-pin", hero, day, i)), "off");
+            expect(exceptPairs(validateBuild(b, day).errors), `${hero} d${day} #${i}`).toEqual([]);
+            parts.push(JSON.stringify(b));
+          }
         }
       }
-    }
+    });
     expect(hash32(parts.join("|"))).toBe(2825511527);
   }, 60_000);
 
@@ -176,11 +179,13 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
       return h >>> 0;
     };
     const parts: string[] = [];
-    for (const hero of ["furnace", "weaver"] as const) {
-      for (let day = 1; day <= 10; day++) {
-        for (let i = 0; i < 3; i++) parts.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-pin", hero, day, i), undefined, 60, "off")));
+    withLegacyStock(() => {
+      for (const hero of ["furnace", "weaver"] as const) {
+        for (let day = 1; day <= 10; day++) {
+          for (let i = 0; i < 3; i++) parts.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-pin", hero, day, i), undefined, 60, "off")));
+        }
       }
-    }
+    });
     // 3150828827 = the same 60 builds from c432bee's own v1 fullPurseBuild(hero, day, seed, undefined, 60), in a
     // scratch export (output-h2b/step0/pins/). At bf779de the pin was 512167455 (the v1 mod pool was 2 mods then).
     // beltside-062-on-061 re-pin (P16, H2's rig placement): 3150828827 -> 555421802 = the same 60 builds from

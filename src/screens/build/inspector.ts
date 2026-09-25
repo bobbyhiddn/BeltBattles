@@ -39,6 +39,15 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   const e = effectAt(def, stars);
   const gt = e.gate, m = e.mod;
   if (e.core) return coreLine(def, stars, k); // 0.6.1r N4: a core's headline at that star
+  if (gt?.poison) return `+${gt.poison} POISON · 6S POOL`;
+  if (gt?.overclockCooldown) return `X2 NEXT RIG · ${gt.overclockCooldown}S COOLDOWN`;
+  if (gt?.keg) return `BLAST +${gt.keg.flat} · ${gt.keg.burn} BURN · ${gt.keg.fuse}S`;
+  if (gt?.burnPerRide) return `+1 BURN/${gt.burnPerRide.seconds}S · MAX ${gt.burnPerRide.max}`;
+  if (gt?.quench) return `+${gt.quench.perBurn}/BURN · MAX ${gt.quench.max} · CONSUMES BURN`;
+  if (gt?.staticTime) return `STATIC STALL ${gt.staticTime}S`;
+  if (gt?.perStalled) return `+${gt.perStalled.each}/STALLED · MAX ${gt.perStalled.max}`;
+  if (gt?.fray) return `+${gt.fray} FRAY${gt.frayCap ? ` · CAP +${gt.frayCap}` : ""}`;
+  if (gt?.perTile) return `+${gt.perTile.each}/TILE · MAX ${gt.perTile.max}`;
   if (gt?.burn) return `+${gt.burn} BURN`;
   // 0.6.1f BRAKE SHOE: half speed at every star; HOT SHOE and RED-HOT SHOE add friction heat (flat damage)
   if (gt?.speed && gt.speed < 1) return `${gt.speed === 0.5 ? "HALF SPEED" : `SPEED X${gt.speed}`}${gt.flat ? ` · +${gt.flat} DMG` : ""}`;
@@ -216,6 +225,10 @@ const num = (x: number): string => String(+x.toFixed(2));
  *  exported for tests (the LONG HAUL cap, P3). */
 export function hitLabel(h: TimelineHit, locked: boolean): string {
   const name = ITEMS[h.def].name;
+  if (h.timed) return `${name} ${h.timed}`;
+  if (h.poison) return `${name} POISON +${h.poison}`;
+  if (h.staticTime) return `${name} STATIC ${h.staticTime}S`;
+  if (h.fray) return `${name} FRAY +${h.fray}`;
   if (h.split) return `${name} X${h.split.copies} AT ${Math.round(h.split.mult * 100)}%`;
   // beltside-062 (DESIGN §11 P3): a LONG HAUL ★2/★3 that saw more earlier hits than its cap says so
   if (h.capped !== undefined) return `${name} +${num(h.flat ?? 0)} (MAX ${h.capped} HITS)`;

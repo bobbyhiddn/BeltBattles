@@ -411,6 +411,10 @@ export interface TimelineHit {
   prior?: number; // LONG HAUL-type: the earlier hits it counted (at most its priorCap)
   capped?: number; // beltside-062 (P3): LONG HAUL ★2/★3 saw more earlier hits than its priorCap; the cap ("MAX 6 HITS")
   burn?: number;
+  poison?: number;
+  fray?: number;
+  staticTime?: number;
+  timed?: string;
   shock?: boolean;
   split?: { copies: number; mult: number };
   speed?: number; // a speed hit's state
@@ -493,6 +497,28 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
         burn += e.burn;
         th.burn = e.burn;
       }
+      if (e.poison) th.poison = e.poison;
+      if (e.burnPerRide) {
+        const amount = Math.min(e.burnPerRide.max, Math.floor(ride / e.burnPerRide.seconds));
+        burn += amount;
+        th.burn = (th.burn ?? 0) + amount;
+      }
+      if (e.quench) {
+        const amount = Math.min(e.quench.max, burn * e.quench.perBurn);
+        flat += amount;
+        th.flat = (th.flat ?? 0) + amount;
+        burn = 0;
+      }
+      if (e.staticTime) th.staticTime = e.staticTime;
+      if (e.fray) th.fray = e.fray;
+      if (e.perTile) {
+        const amount = Math.min(e.perTile.max, i * e.perTile.each);
+        flat += amount;
+        th.flat = (th.flat ?? 0) + amount;
+      }
+      if (e.overclockCooldown) th.timed = `X2 EVERY ${e.overclockCooldown}S`;
+      if (e.keg) th.timed = `BLAST +${e.keg.flat} AT ${e.keg.fuse}S`;
+      if (e.perStalled) th.timed = `+${e.perStalled.each}/STALLED, MAX ${e.perStalled.max}`;
       if (e.shock) {
         shock = true;
         th.shock = true;

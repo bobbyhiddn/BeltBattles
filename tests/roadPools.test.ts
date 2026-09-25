@@ -52,19 +52,22 @@ const salvageOf = (run: Run) => gainOf(choicesFor(run)[0])!;
 describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
   it("SALVAGE's pool is every buyable common gate: 0.6.1's TEMPER, WHETSTONE, GREASE WORKS and BRAKE SHOE", () => {
     expect(salvagePool()).toEqual(ids(buyable().filter((d) => d.kind === "gate" && d.rarity === "common")));
-    expect([...salvagePool()].sort()).toEqual(["brake", "grease", "temper", "whetstone"]);
+    expect(salvagePool()).toContain("sifter");
+    expect(salvagePool()).toContain("tollbooth");
   });
 
   it("SMUGGLER's BURN and SHOCK pools are the gates tagged BURN and SHOCK (0.6.1: TEMPER, GALVANIC COIL); prices stay 2 and 3", () => {
     for (const tag of ["BURN", "SHOCK"] as ModuleTag[]) {
       expect(smugglerPool(tag)).toEqual(ids(buyable().filter((d) => d.kind === "gate" && !!d.tags?.includes(tag))));
     }
-    expect(smugglerPool("BURN")).toEqual(["temper"]);
-    expect(smugglerPool("SHOCK")).toEqual(["coil"]);
+    expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "quench"]);
+    expect(smugglerPool("SHOCK")).toEqual(["coil", "staticbrush", "lodestone"]);
     for (const seed of SEEDS.slice(0, 50)) for (const day of DAYS) {
       const [burn, shock] = choicesFor(atEvent("smuggler", seed, day));
-      expect([burn.label, burn.cost, gainOf(burn)]).toEqual(["BURN", [{ k: "gold", n: 2 }], "temper"]);
-      expect([shock.label, shock.cost, gainOf(shock)]).toEqual(["SHOCK", [{ k: "gold", n: 3 }], "coil"]);
+      expect([burn.label, burn.cost]).toEqual(["BURN", [{ k: "gold", n: 2 }]]);
+      expect([shock.label, shock.cost]).toEqual(["SHOCK", [{ k: "gold", n: 3 }]]);
+      expect(smugglerPool("BURN")).toContain(gainOf(burn));
+      expect(smugglerPool("SHOCK")).toContain(gainOf(shock));
     }
   });
 
@@ -73,15 +76,16 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     try {
       ITEMS.whetstone.tags = [...(whet ?? []), "BURN"];
       ITEMS.grease.tags = [...(grease ?? []), "SHOCK"];
-      expect(smugglerPool("BURN")).toEqual(["temper", "whetstone"]);
-      expect(smugglerPool("SHOCK")).toEqual(["grease", "coil"]);
+      expect(smugglerPool("BURN")).toContain("whetstone");
+      expect(smugglerPool("SHOCK")).toContain("grease");
       const pairs = new Set<string>();
       for (const seed of SEEDS.slice(0, 200)) {
         const [burn, shock] = choicesFor(atEvent("smuggler", seed, 5)).map(gainOf);
         expect(burn).not.toBe(shock);
         pairs.add(`${burn}+${shock}`);
       }
-      expect([...pairs].sort()).toEqual(["temper+coil", "temper+grease", "whetstone+coil", "whetstone+grease"]);
+      const wanted = smugglerPool("BURN").flatMap((b) => smugglerPool("SHOCK").filter((s) => s !== b).map((s) => `${b}+${s}`));
+      expect([...pairs].sort()).toEqual(wanted.sort());
     } finally {
       ITEMS.whetstone.tags = whet;
       ITEMS.grease.tags = grease;
@@ -127,7 +131,7 @@ describe("SALVAGE: fresh first, 35% a held gate that merges (MERGE badge)", () =
         expect(shopBadge(run, def)).toBeNull();
         seen.add(def);
       }
-      expect(seen.size).toBe(4 - held.length); // every fresh common gate shows
+      expect(seen.size).toBe(salvagePool().length - held.length); // every fresh common gate shows
     }
   });
 
@@ -149,7 +153,7 @@ describe("SALVAGE: fresh first, 35% a held gate that merges (MERGE badge)", () =
     console.log(`SALVAGE drew a held gate that merges in ${owned} of ${n} draws (${((100 * owned) / n).toFixed(1)}%)`);
     expect(owned / n).toBeGreaterThanOrEqual(0.3);
     expect(owned / n).toBeLessThanOrEqual(0.4);
-    expect([...seen].sort()).toEqual(["brake", "grease", "temper", "whetstone"]);
+    expect([...seen].sort()).toEqual([...salvagePool()].sort());
   });
 
   it("no fresh gate left: always one that merges (MERGE ★2, a chain MERGE ★3); none fresh and none merging: any common gate", () => {

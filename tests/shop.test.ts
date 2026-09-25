@@ -32,29 +32,32 @@ describe("shop: caravan shape", () => {
 
   // 0.6.1p: HOPPER is the Quartermaster's first stock, so the Quartermaster now rides. 0.6.1c: he sells HOPPER and
   // HOT SWAP, and M0's one-copy wagons show each at most once (his wagon holds at most 2 offers)
-  it("a merchant with no stock today is never drawn (scrapper and the arcane dealer wait for a later job)", () => {
-    expect(itemsSoldBy("quartermaster").map((d) => d.id)).toEqual(["hotswap", "hopper"]);
-    expect(itemsSoldBy("scrapper")).toEqual([]);
-    expect(itemsSoldBy("arcane")).toEqual([]);
+  it("newly stocked merchants ride only when their stock is available", () => {
+    const qmStock = itemsSoldBy("quartermaster").map((d) => d.id);
+    expect(qmStock).toContain("hotswap");
+    expect(qmStock).toContain("hopper");
+    expect(qmStock).toContain("barbed");
+    expect(itemsSoldBy("scrapper").length).toBeGreaterThan(0);
+    expect(itemsSoldBy("arcane").length).toBeGreaterThan(0);
     let quartermaster = 0;
     const seen = new Set<string>();
     for (let seed = 1; seed <= 300; seed++) {
       for (const day of [1, 3, 5, 9]) {
         const run = atDay(seed * 31 + day, day);
         const merchants = run.shop.wagons.map((w) => w.merchant);
-        expect(merchants).not.toContain("scrapper");
-        expect(merchants).not.toContain("arcane"); // stronger than "no Arcane before day 3": not stocked at all yet
+        if (day === 1) expect(merchants).not.toContain("arcane");
         const qm = run.shop.wagons.find((w) => w.merchant === "quartermaster");
         if (!qm) continue;
         quartermaster++;
         const defs = qm.offers.map((o) => o.def);
-        expect(defs.length).toBeLessThanOrEqual(2);
+        expect(defs.length).toBeLessThanOrEqual(3);
         expect(new Set(defs).size).toBe(defs.length);
-        for (const d of defs) { expect(["hopper", "hotswap"]).toContain(d); seen.add(d); }
+        for (const d of defs) { expect(qmStock).toContain(d); seen.add(d); }
       }
     }
     expect(quartermaster).toBeGreaterThan(0);
-    expect([...seen].sort()).toEqual(["hopper", "hotswap"]);
+    expect(seen).toContain("hotswap");
+    expect(seen).toContain("hopper");
   });
 });
 
@@ -64,7 +67,8 @@ describe("shop: fresh-first regular slots", () => {
     for (let seed = 1; seed <= 250; seed++) {
       const run = newRun("furnace", seed * 97);
       // alchemist's other parts, incl. 0.6.1b's drake core -- own all but temper so it's still the one unowned part
-      run.inventory = [{ uid: 900, def: "whetstone" }, { uid: 901, def: "coil" }, { uid: 902, def: "drake" }];
+      run.inventory = itemsSoldBy("alchemist").filter((d) => d.id !== "temper")
+        .map((d, i) => ({ uid: 900 + i, def: d.id }));
       run.day = 1;
       rollShop(run);
       const alch = run.shop.wagons.find((w) => w.merchant === "alchemist");
@@ -225,14 +229,21 @@ function withStubs(stubs: Record<string, Partial<ItemDef>>, fn: () => void): voi
   try { fn(); } finally { for (const id of Object.keys(stubs)) delete items[id]; }
 }
 
+/** Keep a historical isolated stock scenario while the live catalogue remains expanded. */
+function withMerchantParts(merchant: MerchantId, keep: string[], fn: () => void): void {
+  const hidden = itemsSoldBy(merchant).filter((d) => !keep.includes(d.id));
+  for (const d of hidden) d.merchant = undefined;
+  try { fn(); } finally { for (const d of hidden) d.merchant = merchant; }
+}
+
 describe("shop: the merchant draw (§5.2 step 1)", () => {
   it("weights: two weight-3 regulars ride equally, the weight-2 Quartermaster less, the guaranteed Tinker more", () => {
     const s = shares(5);
     expect(Math.abs(s.ironmonger - s.gunsmith)).toBeLessThan(band2(s.ironmonger, s.gunsmith));
     expect(s.ironmonger - s.quartermaster).toBeGreaterThan(band2(s.ironmonger, s.quartermaster));
     expect(s.tinker - s.ironmonger).toBeGreaterThan(band2(s.tinker, s.ironmonger));
-    expect(s.scrapper).toBe(0); // no stock yet
-    expect(s.arcane).toBe(0);
+    expect(s.scrapper).toBeGreaterThan(0);
+    expect(s.arcane).toBeGreaterThan(0);
   });
 
   it("a stocked Scrapper (stub) has the Quartermaster's weight 2", () => {
@@ -363,19 +374,21 @@ describe("shop: badges and the survivor (folded from review-061's repro files)",
   });
 
   it("fresh-first: owning whetstone + coil, a one-slot alchemist wagon that skips TEMPER offers the unowned DRAKE", () => {
-    let missing = 0, drake = 0;
-    for (let seed = 1; seed <= 250; seed++) {
-      const run = newRun("furnace", seed * 97);
-      run.inventory = [{ uid: 900, def: "whetstone" }, { uid: 901, def: "coil" }];
-      run.day = 1;
-      rollShop(run);
-      const alch = run.shop.wagons.find((w) => w.merchant === "alchemist");
-      if (!alch || alch.offers.some((o) => o.def === "temper")) continue;
-      missing++;
-      if (alch.offers.every((o) => o.def === "drake")) drake++;
-    }
-    expect(missing).toBeGreaterThan(0);
-    expect(drake).toBe(missing);
+    withMerchantParts("alchemist", ["temper", "whetstone", "coil", "drake"], () => {
+      let missing = 0, drake = 0;
+      for (let seed = 1; seed <= 250; seed++) {
+        const run = newRun("furnace", seed * 97);
+        run.inventory = [{ uid: 900, def: "whetstone" }, { uid: 901, def: "coil" }];
+        run.day = 1;
+        rollShop(run);
+        const alch = run.shop.wagons.find((w) => w.merchant === "alchemist");
+        if (!alch || alch.offers.some((o) => o.def === "temper")) continue;
+        missing++;
+        if (alch.offers.every((o) => o.def === "drake")) drake++;
+      }
+      expect(missing).toBeGreaterThan(0);
+      expect(drake).toBe(missing);
+    });
   });
 });
 
@@ -391,7 +404,8 @@ describe("shop: robustness (N5, N6)", () => {
   }
 
   it("a merchant with nothing to sell today (all-legendary stock before day 4) never rides, and no roll throws", () => {
-    withStubs({ __arcleg: { merchant: "arcane", rarity: "legendary" } }, () => {
+    withStubs({ __arcleg: { merchant: "arcane", rarity: "legendary" } }, () =>
+      withMerchantParts("arcane", ["__arcleg"], () => {
       let arcane = 0;
       for (let seed = 1; seed <= 400; seed++) {
         for (const day of [3, 4, 6]) {
@@ -404,7 +418,7 @@ describe("shop: robustness (N5, N6)", () => {
         }
       }
       expect(arcane).toBeGreaterThan(0); // from day 4 it sells the legendary
-    });
+      }));
   });
 
   it("fewer stocked merchants than wagons: every slot goes to the ones drawn, and no roll throws", () => {

@@ -13,8 +13,17 @@ import { exceptPairs } from "./harnessLegacy";
 // Balance harness v1 levers: Crucible sync, rig order, signature-route drop; no idle rigs.
 // 0.6.2 BELTSIDE: rigs stand beside the belt (H2); a speed profile lists the speed rigs landing on each tile.
 
-const pop = (hero: string, day: number, n: number) =>
-  Array.from({ length: n }, (_, i) => randomBuild(hero as Build["hero"], day, new Rng(hashSeed("bb-pop", 1, hero, day, i))));
+const pop = (hero: string, day: number, n: number) => {
+  const old = new Set(["temper", "whetstone", "grease", "brake", "longhaul", "coil", "splitter", "overdrive"]);
+  const added = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant && !old.has(d.id));
+  const merchants = added.map((d) => d.merchant!);
+  for (const d of added) d.merchant = undefined;
+  try {
+    return Array.from({ length: n }, (_, i) => randomBuild(hero as Build["hero"], day, new Rng(hashSeed("bb-pop", 1, hero, day, i))));
+  } finally {
+    added.forEach((d, i) => { d.merchant = merchants[i]; });
+  }
+};
 
 const speedAt = (b: Build, ri: number) => speedProfile(b, ri).map((x) => x || "-");
 

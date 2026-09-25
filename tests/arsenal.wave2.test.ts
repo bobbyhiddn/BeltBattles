@@ -5,13 +5,26 @@ import { estimateRoute, type Build } from "../src/sim/deck";
 import { resolveCore } from "../src/sim/cores";
 import { effectAt, outputsAt, valueOf } from "../src/sim/stars";
 import { starEffectLine } from "../src/screens/build/inspector";
-import { barge, bench, factoryBench } from "./arsenal.bench";
+import { buyOffer, newRun, rollShop } from "../src/game/run";
+import { barge, bench, factoryBench, factoryLight, gantryWeaver } from "./arsenal.bench";
 
 const GATES = ["tollbooth", "sifter", "surge", "sorting", "riveter", "heatjacket"];
 const FACTORIES = ["scrapper", "sabot", "frostbite", "dragchain", "mimic", "limpet"];
 const CORES = ["mortar", "grapnel", "tesla", "capacitor", "compound", "lance"];
 const MODS = ["flak", "spotter"];
 const WAVE = [...GATES, ...FACTORIES, ...CORES, ...MODS];
+const WAVE_STOCK: Record<string, [string, string, number]> = {
+  tollbooth: ["ironmonger", "common", 3], sifter: ["alchemist", "common", 3],
+  surge: ["tinker", "rare", 5], sorting: ["tinker", "epic", 7],
+  riveter: ["ironmonger", "rare", 5], heatjacket: ["quartermaster", "rare", 5],
+  scrapper: ["scrapper", "rare", 6], sabot: ["quartermaster", "epic", 9],
+  frostbite: ["arcane", "rare", 7], dragchain: ["scrapper", "common", 5],
+  mimic: ["arcane", "legendary", 11], limpet: ["scrapper", "epic", 8],
+  mortar: ["ironmonger", "rare", 6], grapnel: ["scrapper", "rare", 5],
+  tesla: ["arcane", "epic", 8], capacitor: ["arcane", "epic", 7],
+  compound: ["gunsmith", "epic", 7], lance: ["arcane", "legendary", 10],
+  flak: ["quartermaster", "rare", 5], spotter: ["gunsmith", "rare", 5],
+};
 const p = (id = 900): Payload => ({ id, ammo: "plain", ride: 0, mult: 1, flat: 0, burn: 0,
   shock: false, prior: 0, factory: 1, copy: false });
 const target = (s: SideState, kind: Target["kind"], ref: number, cell = -1): Target => {
@@ -29,8 +42,8 @@ function rig(def: string, stars: number, payload = p()): { bt: Battle; a: BeltAm
   until(bt, 0.12);
   return { bt, a };
 }
-function fitted(id: string, stars: number, foe: Build = barge(), payload = p()): Battle {
-  const bt = new Battle(bench([], [[id, stars]]), foe, 8);
+function fitted(id: string, stars: number, foe: Build = barge(), payload = p(), seed = 8): Battle {
+  const bt = new Battle(bench([], [[id, stars]]), foe, seed);
   bt.sides[0].factories[0].timer = 1000;
   const tu = bt.sides[0].turrets[0];
   tu.stack.push(payload);
@@ -47,6 +60,7 @@ describe("wave-2 stock and live star data", () => {
     expect(counts).toEqual([23, 13, 13, 7]);
     for (const id of WAVE) {
       const d = ITEMS[id];
+      expect([d.merchant, d.rarity, d.price], id).toEqual(WAVE_STOCK[id]);
       expect(d.merchant, id).toBeTruthy();
       expect(d.price, id).toBeGreaterThan(0);
       expect(itemsSoldBy(d.merchant!).some((stock) => stock.id === id), id).toBe(true);
@@ -56,6 +70,25 @@ describe("wave-2 stock and live star data", () => {
       expect(starEffectLine(id, 2), id).not.toBe("");
       expect(starEffectLine(id, 3), id).not.toBe("");
     }
+  });
+
+  it("puts each wave-2 part in an actual caravan offer that can be bought", () => {
+    const missing = new Set(WAVE);
+    for (let seed = 1; seed <= 4000 && missing.size; seed++) {
+      const run = newRun("furnace", seed);
+      run.day = 10;
+      rollShop(run);
+      for (const [wi, wagon] of run.shop.wagons.entries()) for (const [oi, offer] of wagon.offers.entries()) {
+        if (!missing.has(offer.def)) continue;
+        expect(wagon.merchant).toBe(ITEMS[offer.def].merchant);
+        expect(offer.price).toBe(ITEMS[offer.def].price);
+        run.gold = offer.price;
+        expect(buyOffer(run, wi, oi).ok, offer.def).toBe(true);
+        expect(run.inventory.some((item) => item.def === offer.def), offer.def).toBe(true);
+        missing.delete(offer.def);
+      }
+    }
+    expect([...missing]).toEqual([]);
   });
 
   it("matches every named star metric and scales core flat numbers only", () => {
@@ -165,6 +198,19 @@ describe("wave-2 factories and cores", () => {
         expect(outputsAt("mimic", stars)).toBe(stars === 3 ? 2 : 1);
       }
     }
+    for (const stars of [1, 2, 3]) {
+      const bt = new Battle(factoryLight("mimic", stars), barge(), 21);
+      until(bt, 0.36);
+      const f = bt.sides[0].factories.find((x) => x.def.id === "mimic")!;
+      expect(f.def.factory!.ammo).toBe("thread");
+      expect(bt.sides[0].routes[0].ammo[0].p.ammo).toBe("thread");
+      expect(f.def.factory!.interval).toBeCloseTo(ITEMS.loom.factory!.interval * [1.4, 1, 0.8][stars - 1]);
+    }
+    const twin = gantryWeaver(3, 2); twin.items[1].def = "mimic";
+    const bt = new Battle(twin, barge(), 21);
+    until(bt, 2);
+    expect(bt.sides[0].factories.find((f) => f.def.id === "mimic")!.routes).toHaveLength(2);
+    expect(bt.sides[0].routes.every((r) => r.ammo.length > 0)).toBe(true);
   });
   it("SCRAPPER banks accepted effects only, and BIG HAUL pays twice for a wreck", () => {
     for (const stars of [1, 3]) {
@@ -181,6 +227,42 @@ describe("wave-2 factories and cores", () => {
       expect(bt.sides[0].harassAccepted).toBe(1);
       bt.step();
       expect(f.triggerQueue + f.produced).toBe(stars === 3 ? 2 : 1);
+    }
+  });
+  it("SABOT's faster stars stamp more rounds, FROST spreads, and DRAG deepens its segment slow", () => {
+    const stamps: number[] = [];
+    for (const stars of [1, 2, 3]) {
+      const sabot = new Battle(factoryBench("sabot", stars, { only: true }), barge(), 11);
+      until(sabot, 8.1);
+      stamps.push(sabot.sides[0].factories.find((f) => f.def.id === "sabot")!.produced);
+
+      const frost = new Battle(bench(), bench([["whetstone", 4, 3, 1]]), 11);
+      const fs = frost.sides[1], ft = target(fs, "belt", 0, 2);
+      (frost as any).roundImpact(fs, ft, effectAt("frostbite", stars).factory!.round!, 0);
+      expect(fs.routes[0].cellFrozen[2]).toBe([2.5, 2.75, 3][stars - 1]);
+      expect(frost.events.filter((e) => e.type === "freeze")).toHaveLength(stars);
+
+      const drag = new Battle(bench(), bench([["whetstone", 4, 3, 1]]), 11);
+      const ds = drag.sides[1], dt = target(ds, "belt", 0, 2);
+      (drag as any).roundImpact(ds, dt, effectAt("dragchain", stars).factory!.round!, 0);
+      expect(ds.routes[0].cellSlow[2]).toEqual({ mul: [0.6, 0.4, 0.3][stars - 1], t: [3, 4.4, 6][stars - 1] });
+    }
+    expect(stamps[0]).toBeLessThan(stamps[1]);
+    expect(stamps[1]).toBeLessThan(stamps[2]);
+  });
+  it("LIMPET detonations deal each star's blast and gain timed stalls at stars 2 and 3", () => {
+    for (const stars of [1, 2, 3]) {
+      const bt = new Battle(bench(), barge(), 12);
+      bt.sides[0].factories[0].timer = 1000;
+      const foe = bt.sides[1], machine = target(foe, "factory", foe.factories[0].uid);
+      const hp = foe.hull.hp;
+      (bt as any).roundImpact(foe, machine, effectAt("limpet", stars).factory!.round!, 0);
+      until(bt, 2.95);
+      expect(foe.hull.hp).toBe(hp);
+      until(bt, 3.05);
+      expect(hp - foe.hull.hp).toBe([8, 18, 28][stars - 1]);
+      expect(foe.factories[0].disrupted).toBeGreaterThanOrEqual([0, 0.9, 1.5][stars - 1]);
+      expect(foe.factories[0].disrupted).toBeLessThanOrEqual([0, 1, 1.6][stars - 1]);
     }
   });
   it("special foundry shots telegraph, freeze or slow, and Limpets detonate later", () => {
@@ -231,6 +313,78 @@ describe("wave-2 factories and cores", () => {
       expect(lance.events.some((e) => e.type === "lance")).toBe(true);
     }
   });
+  it("GRAPNEL rips one, two or three real belt loads and ★3 banks its salvage perk", () => {
+    for (const stars of [1, 2, 3]) {
+      const bt = fitted("grapnel", stars, bench());
+      const foe = bt.sides[1], route = foe.routes[0];
+      route.ammo.length = 0;
+      for (const [id, s] of [[1, 31], [2, 43], [3, 55], [4, 79]])
+        route.ammo.push({ p: p(id), s, processed: 1, blocked: false });
+      const shot = bt.projectiles[0], hit = target(foe, "belt", 0, 2);
+      (bt as any).impact({ ...shot, target: hit, tx: hit.x, ty: hit.y });
+      expect(route.ammo.map((a) => a.p.id)).toEqual([1, 2, 3, 4].slice(stars));
+      expect(bt.sides[0].turrets[0].salvage).toBe(stars === 3 ? 3 : 0);
+    }
+  });
+  it("COMPOUND keeps both loads' Burn and Poison in its one shell", () => {
+    for (const stars of [1, 2, 3]) {
+      const bt = new Battle(bench([], [["compound", stars]]), barge(), 8);
+      bt.sides[0].factories[0].timer = 1000;
+      const first = p(1), second = p(2);
+      first.burn = 2; first.poison = 3; first.shock = true;
+      second.burn = 4; second.poison = 5; second.static = true; second.staticTime = 1.2;
+      const tu = bt.sides[0].turrets[0]; tu.stack.push(first, second);
+      bt.step();
+      const shot = bt.projectiles[0];
+      expect(bt.projectiles).toHaveLength(1);
+      expect(shot.burn).toBe(6);
+      expect(shot.payload.poison).toBe(8);
+      expect(shot.payload.shock).toBe(true);
+      expect(shot.payload.staticTime).toBe(1.2);
+      const hull = bt.sides[1].hull;
+      (bt as any).impact({ ...shot, target: { kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 } });
+      expect(hull.poison.stacks).toBe(8);
+      expect(hull.burns.at(-1)?.dps).toBe(6);
+    }
+  });
+  it("LODESTAR LANCE strikes progressively wider live target columns", () => {
+    const counts: number[] = [];
+    for (const stars of [1, 2, 3]) {
+      const foeBuild = barge();
+      for (let col = 0; col < 3; col++) foeBuild.items.push({ uid: 100 + col, def: "whetstone", x: col, y: 1 });
+      const bt = fitted("lance", stars, foeBuild);
+      const shot = bt.projectiles[0];
+      const foe = bt.sides[1];
+      const firstCol = Math.min(...foe.targets.map((t) => Math.floor(t.x / CELL)));
+      const expected = foe.targets.filter((t) => {
+        const col = Math.floor(t.x / CELL);
+        return col >= firstCol && col < firstCol + stars;
+      }).length;
+      (bt as any).impact({ ...shot, lance: { ...shot.lance!, col: firstCol } });
+      const landed = bt.events.filter((e) => e.type === "lance").length;
+      expect(landed).toBe(expected);
+      counts.push(landed);
+    }
+    expect(counts[0]).toBeLessThan(counts[1]);
+    expect(counts[1]).toBeLessThan(counts[2]);
+  });
+  it("TOLLBOOTH blocks GRAPNEL from fizzling a keg before any rip is accepted", () => {
+    const foe = bench([["tollbooth", 4, 4, 1], ["keg", 4, 3, 1]]);
+    const bt = fitted("grapnel", 1, foe);
+    const s = bt.sides[1], toll = s.gates.find((g) => g.def.id === "tollbooth")!;
+    const keg = s.gates.find((g) => g.def.id === "keg")!;
+    toll.online = keg.online = true;
+    s.routes[0].ammo.length = 0;
+    const hit = target(s, "gate", keg.uid), shot = bt.projectiles[0];
+    (bt as any).impact({ ...shot, target: hit, tx: hit.x, ty: hit.y });
+    expect(toll.tolls).toBe(1);
+    expect(keg.consumed).toBe(false);
+    expect(bt.sides[0].harassAccepted).toBe(0);
+    toll.tolls = 0;
+    (bt as any).impact({ ...shot, target: hit, tx: hit.x, ty: hit.y });
+    expect(keg.consumed).toBe(true);
+    expect(bt.sides[0].harassAccepted).toBe(1);
+  });
 });
 
 describe("wave-2 gear and stability", () => {
@@ -248,6 +402,25 @@ describe("wave-2 gear and stability", () => {
       expect(bt.sides[1].hull.hp).toBe(hp);
     }
   });
+  it("FLAK's seeded intercept rate rises at each star, one roll per incoming round", () => {
+    for (const stars of [1, 2, 3]) {
+      let stopped = 0;
+      for (let seed = 1; seed <= 400; seed++) {
+        const bt = new Battle(bench([], [["grapnel", 1]]), bench([], [["flak", stars]]), seed);
+        bt.sides[0].factories[0].timer = bt.sides[1].factories[0].timer = 1000;
+        const turret = bt.sides[0].turrets[0]; turret.stack.push(p()); turret.phase = "fire";
+        bt.step();
+        const shot = bt.projectiles[0];
+        (bt as any).flight(shot.flight / 2);
+        (bt as any).flight(shot.flight / 2);
+        const flakEvents = bt.events.filter((e) => e.type === "flak");
+        expect(flakEvents.length).toBeLessThanOrEqual(1);
+        if (flakEvents.length) stopped++;
+      }
+      expect(stopped / 400).toBeGreaterThan([0.18, 0.48, 0.78][stars - 1]);
+      expect(stopped / 400).toBeLessThan([0.32, 0.62, 0.92][stars - 1]);
+    }
+  });
   it("SPOTTER changes only its fitted turret's targeting, with EAGLE EYE never picking bare hull", () => {
     const first = fitted("spotter", 1);
     const second = fitted("spotter", 2);
@@ -256,6 +429,23 @@ describe("wave-2 gear and stability", () => {
     expect(second.sides[0].turrets[0].factoryWeight).toBe(2);
     expect(third.sides[0].turrets[0].alwaysMachine).toBe(true);
     expect(third.projectiles[0].target.kind).not.toBe("hull");
+  });
+  it("SPOTTER's second reroll and factory weights produce distinct seeded target counts", () => {
+    const counts: { hull: number; factory: number }[] = [];
+    for (const stars of [1, 2, 3]) {
+      const count = { hull: 0, factory: 0 };
+      for (let seed = 1; seed <= 400; seed++) {
+        const hit = fitted("spotter", stars, barge(), p(), seed).projectiles[0].target;
+        if (hit.kind === "hull") count.hull++;
+        if (hit.kind === "factory") count.factory++;
+      }
+      counts.push(count);
+    }
+    expect(counts[0].hull).toBeGreaterThan(counts[1].hull);
+    expect(counts[1].hull).toBeGreaterThan(counts[2].hull);
+    expect(counts[2].hull).toBe(0);
+    expect(counts[2].factory).toBeGreaterThan(counts[1].factory);
+    expect(counts[1].factory).toBeGreaterThan(counts[0].factory);
   });
   it("replays seeded new builds identically", () => {
     const b = factoryBench("frostbite", 2, { gates: [["heatjacket", 5, 3, 2]], mods: [["tesla", 2]], only: true });
