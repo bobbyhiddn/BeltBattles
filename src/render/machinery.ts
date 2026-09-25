@@ -93,6 +93,21 @@ function drawIntakes(g: G, v: CruiserView): void {
   }
 }
 
+/**
+ * 0.6.2p (item 5): the speed state a belt tile's chevrons show. A fixed-speed belt (RouteModel.fixed: SLAG POT's slag)
+ * carries payloads that speed rigs, slows and Drag never touch (Battle.transport), so its chevrons run at that fixed
+ * speed whatever state the sim (speedAt) or the build preview (speeds) holds for the tile; any other belt shows it (V1).
+ */
+export function chevronSpeed(speed: number, fixed?: number): number {
+  return fixed ?? speed;
+}
+
+/** 0.6.2p (item 5): that tile's chevron tint: neutral on a fixed-speed belt (nothing sped it up or slowed it down; its
+ *  own pace isn't a slow), else the speed state's tint (sprites.ts speedTint). */
+export function chevronTint(speed: number, fixed?: number): BeltTint {
+  return fixed !== undefined ? "n" : speedTint(speed);
+}
+
 function drawBelts(g: G, v: CruiserView): void {
   const f = v.frame;
   const sim = v.sim;
@@ -112,10 +127,12 @@ function drawBelts(g: G, v: CruiserView): void {
           if (am.blocked && Math.min(rm.cells.length - 1, Math.floor(am.s / CELL)) === i) { variant = "warn"; break; }
         }
       }
-      const phase = phases ? phases[i] : v.t * BELT_SPEED * rm.speeds[i];
-      // V1: the chevrons move at the tile's speed and are tinted by its speed state (the sim's in battle,
-      // the all-rigs-online preview in the build screen)
-      beltCell(g, f, x, y, rm.din[i], rm.dout[i], phase, variant, speedTint(sr ? sr.speedAt[i] : rm.speeds[i]));
+      // V1: the chevrons move at the tile's speed and are tinted by its speed state (the sim's in battle, advanced by
+      // Arena into beltPhase; the all-rigs-online preview in the build screen). 0.6.2p (item 5): a fixed-speed belt's
+      // chevrons keep its own pace, neutral (chevronSpeed, chevronTint)
+      const state = sr ? sr.speedAt[i] : rm.speeds[i];
+      const phase = phases ? phases[i] : v.t * BELT_SPEED * chevronSpeed(rm.speeds[i], rm.fixed);
+      beltCell(g, f, x, y, rm.din[i], rm.dout[i], phase, variant, chevronTint(state, rm.fixed));
       if (sr && sr.cellDisrupt[i] > 0) shock(g, x, y, v.t);
     }
     if (!rm.connected && rm.cells.length) {

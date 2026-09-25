@@ -9,6 +9,7 @@ import { BELT_SPEED, CELL, HEROES, TICK, WINDOW_TIME } from "../sim/content";
 import { turretSlots, type Build } from "../sim/deck";
 import { Fx } from "../render/fx";
 import { cruiserModel, type CruiserModel, type CruiserView } from "../render/cruiser";
+import { chevronSpeed } from "../render/machinery"; // 0.6.2p (item 5): a fixed-speed belt's chevrons
 import type { DeckFrame } from "../render/frame";
 import { damageFx, react } from "./arenaReact";
 import { makeViews } from "./arenaDraw";
@@ -144,11 +145,12 @@ export class Arena {
 
   private updateSide(side: Side, sdt: number, rdt: number): void {
     const s = this.b.sides[side], f = this.sfx[side];
-    // belts advance by their real travel: a queued (blocked) cell stops, disrupted cells stop
+    // belts advance by their real travel: a queued (blocked) cell stops, disrupted cells stop. 0.6.2p (item 5): a
+    // fixed-speed belt (SLAG POT) at its own pace, whatever its speed rigs and slows (render only: chevronSpeed)
     for (let ri = 0; ri < s.routes.length; ri++) {
-      const r = s.routes[ri], ph = f.beltPhase[ri];
+      const r = s.routes[ri], ph = f.beltPhase[ri], fixed = f.model.routes[ri]?.fixed;
       for (let i = 0; i < ph.length; i++) {
-        let v = r.cellDisrupt[i] > 0 || !r.connected ? 0 : BELT_SPEED * r.speedAt[i];
+        let v = r.cellDisrupt[i] > 0 || !r.connected ? 0 : BELT_SPEED * chevronSpeed(r.speedAt[i], fixed);
         if (v > 0) {
           for (let a = 0; a < r.ammo.length; a++) {
             const am = r.ammo[a];

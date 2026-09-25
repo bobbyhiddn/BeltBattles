@@ -3,7 +3,7 @@
 // geometry is precomputed once per build in a CruiserModel so drawing never allocates.
 
 import { settings } from "../core/settings";
-import { ITEMS, type HeroId, type TurretDef } from "../sim/content";
+import { AMMO, HEROES, ITEMS, type HeroId, type TurretDef } from "../sim/content";
 import {
   adjacentToFactory, arrowsOf, hero, hitsOfRig, itemByUid, rigHits, routeDirs, routeInfo, routePolyline, speedWinner,
   turretSlots, type Build, type Dir,
@@ -30,6 +30,9 @@ export interface RouteModel {
   din: Int8Array;
   dout: Int8Array;
   speeds: Float32Array; // speed state per cell with every rig online (build preview; 0.6.2: R7 per tile, at stars)
+  // 0.6.2p (item 5): the fixed belt speed its payloads ride at (SLAG POT's slag, AMMO.slag.fixedSpeed), which no speed
+  // rig, slow or Drag changes (Battle.transport), so its chevrons ignore `speeds` and the sim's speedAt (machinery.ts)
+  fixed?: number;
   connected: boolean;
   pts: { x: number; y: number }[];
   d0: number; // local dir from the factory into the first cell (-1 if detached)
@@ -47,6 +50,18 @@ export interface CruiserModel {
   connectedCols: Set<number>;
   gateOnRoute: Set<number>; // rigs with at least one hit (the others are IDLE)
   rigs: Map<number, RigModel>; // 0.6.2 BELTSIDE: by rig uid
+}
+
+/**
+ * 0.6.2p (item 5): the fixed belt speed of the payloads factory `uid` stamps (SLAG POT's slag: AMMO.slag.fixedSpeed),
+ * else undefined: its ammo at its stars as Battle stamps it (MIMIC FORGE stamps the hero's own ammo), read as walkRoute
+ * reads it. Render only: it decides nothing in the sim.
+ */
+export function fixedSpeedOf(b: Build, uid: number): number | undefined {
+  const f = itemByUid(b, uid);
+  const spec = f ? effectAt(f.def, starsOf(f)).factory : undefined;
+  if (!f || !spec) return undefined;
+  return AMMO[f.def === "mimic" ? HEROES[b.hero].ammo : spec.ammo]?.fixedSpeed;
 }
 
 export function cruiserModel(b: Build): CruiserModel {
@@ -67,8 +82,9 @@ export function cruiserModel(b: Build): CruiserModel {
       if (won !== undefined) st = won;
       speeds[c] = st;
     }
+    const fixed = fixedSpeedOf(b, r.factory);
     return {
-      index: i, factory: r.factory, cells: [...r.cells], connected: info.connected, speeds,
+      index: i, factory: r.factory, cells: [...r.cells], connected: info.connected, speeds, ...(fixed !== undefined ? { fixed } : {}),
       din: Int8Array.from(dirs.map((d) => d.din)), dout: Int8Array.from(dirs.map((d) => d.dout)),
       pts: routePolyline(b, r, info.connected), d0: r.cells.length ? adjacentToFactory(b, r.factory, r.cells[0]) : -1,
     };
