@@ -170,8 +170,11 @@ function copiesToNextStar(run: Run, def: string, atLeast: number): number {
   return 8;
 }
 
-/** 0.6.1d (ARSENAL.md §8.2): "NEXT ★3: +7 BURN · 2 MORE COPIES"; null at ★3 or for a non-fusible id.
- *  0.6.1r (review-061 N2): "1 MORE COPY" in the singular. */
+/** 0.6.2p (item 2): merge progress reads "NEEDS 2 MORE" / "NEEDS 1 MORE" (the old copy count read like a perk). */
+const needsMore = (copies: number): string => `NEEDS ${copies} MORE`;
+
+/** 0.6.1d (ARSENAL.md §8.2): "NEXT ★3: +7 BURN · NEEDS 2 MORE" (0.6.2p item 2: it ended in a copy count); null at
+ *  ★3 or for a non-fusible id. */
 export function nextLine(run: Run, def: string, stars: number): string | null {
   if (!fusible(def) || stars >= FUSE_MAX) return null;
   const next = stars + 1;
@@ -183,7 +186,7 @@ export function nextLine(run: Run, def: string, stars: number): string | null {
   const kind = ITEMS[def].kind;
   const brings = (kind === "factory" || kind === "gate") && perkAt(def, next) !== perkAt(def, stars) ? livePerk(def, next) : undefined;
   const perk = brings !== eff ? brings : undefined;
-  return `NEXT ★${next}${perk ? ` ${perk}` : ""}${eff ? `: ${eff}` : ""} · ${copies} MORE ${copies === 1 ? "COPY" : "COPIES"}`;
+  return `NEXT ★${next}${perk ? ` ${perk}` : ""}${eff ? `: ${eff}` : ""} · ${needsMore(copies)}`;
 }
 
 interface Action {
