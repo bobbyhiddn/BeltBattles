@@ -71,16 +71,24 @@ function warlordLayout(heroId: HeroId, round: number): Build {
   if (heroId === "weaver") {
     const l = weaverBase(U);
     const items = [...l.items];
-    const steps: Placed[] = [
+    const steps: (Placed | { fuse: "grease" | "temper" })[] = [
       gate("grease", 0, 3, 1), // r2: works (1,3)
       gate("temper", 3, 2, 1), // r3: (4,2)
       gate("coil", 7, 3, 1), // r4: (8,3)
       gate("whetstone", 0, 4, 1), // r5: (1,4)
       gate("longhaul", 3, 1), // r6: (4,1)
-      gate("grease", 7, 4, 2), // r7: (7,5)
-      gate("temper", 7, 2, 1), // r8: (8,2)
+      // Bought into cargo: the placed twins keep their cell and rotation as ★2 rigs.
+      { fuse: "grease" }, // r7: the first GREASE at (0,3) survives
+      { fuse: "temper" }, // r8: the first TEMPER at (3,2) survives
     ];
-    for (let i = 0; i < Math.min(steps.length, round - 1); i++) items.push(steps[i]);
+    for (let i = 0; i < Math.min(steps.length, round - 1); i++) {
+      const p = steps[i];
+      if ("fuse" in p) {
+        const twin = items.find((q) => q.def === p.fuse);
+        if (!twin || twin.stars) throw new Error(`Weaver par merge has no ★1 ${p.fuse}`);
+        twin.stars = 2;
+      } else items.push(p);
+    }
     const mods = round >= 8 ? [{ uid: uid++, def: "calibrate", turret: 1 }] : [];
     return { hero: "weaver", items, routes: l.routes, mods, beltCap: l.beltCap, hullBonus: warlordHull(round) };
   }

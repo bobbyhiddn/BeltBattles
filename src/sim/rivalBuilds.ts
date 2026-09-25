@@ -1,10 +1,10 @@
 // Rival captain decks (0.6.0 groundwork). Every rival is a real production build under the
 // same rules as the player and the warlords (spec §19): its hero's own signature factory
 // plus shop items only, belts drawn to free turret intakes, rigs beside the belts they work
-// (0.6.2 BELTSIDE: G(at, def, x, y, rot) is the rig's own cell and its turn; each plan was ported
-// from the 0.6.1 inline gates so every rig works exactly the tile its gate stood on, and no other
-// belt tile, tests/beltside.presets.test.ts), one piece of turret gear per turret, and supplies
-// (belt crates, armor plating) paid for like a player.
+// (0.6.2 BELTSIDE: G(at, def, x, y, rot) is the rig's own cell and its turn; rigs stand
+// beside the belt tile they work), one piece of turret gear per turret, and supplies
+// (belt crates, armor plating) paid for like a player. G2/M2 are an additional ★1 purchase
+// fused into an existing placed copy; the survivor keeps its cell, rotation or turret socket.
 // A plan is a day-1 deck plus the upgrades the captain has bought by a given day (1-10), and it
 // never shrinks. One plan feeds two decks (R2): the road warlord, planBuild() below with the PvE
 // hull ramp warlordHull(day), and the stand-in dusk ghost, rivals.ts standInBuild(), whose hull is
@@ -16,6 +16,7 @@ import { HEROES, ITEMS, type HeroId } from "./content";
 import { key, rotField, type Build, type ModPlacement, type Placed, type RouteDef } from "./deck";
 import { warlordHull } from "./ai";
 import { migrateDeck } from "./beltside";
+import { starsOf, valueOf } from "./stars";
 import type { RivalId } from "./rivals";
 
 /** Belt cells from (x, y) following moves such as "L3U2" (U = toward the turrets, row 0). */
@@ -49,6 +50,8 @@ export interface Upgrade {
   at: number; // first day (1-10) the captain owns it
   gate?: [def: string, x: number, y: number, rot?: number]; // 0.6.2 BELTSIDE: a rig beside its belt, turned rot quarter turns
   mod?: [def: string, turret: number];
+  fuseGate?: [def: string, x: number, y: number]; // buy a matching ★1 copy; the named placed rig survives as ★2
+  fuseMod?: [def: string, turret: number]; // same purchase for turret equipment
   factory?: FactoryPlan; // a stamp press bought that day, with the belt it feeds
   crates?: number; // belt crates bought (+4 belt each)
   plating?: number; // armor plating bought (+25 hull each)
@@ -71,6 +74,8 @@ export interface RivalLoadout {
 const F = (def: string, x: number, y: number, ...belts: Belt[]): FactoryPlan => ({ def, x, y, belts });
 const G = (at: number, def: string, x: number, y: number, rot = 0): Upgrade => ({ at, gate: [def, x, y, rot] });
 const M = (at: number, def: string, turret: number): Upgrade => ({ at, mod: [def, turret] });
+const G2 = (at: number, def: string, x: number, y: number): Upgrade => ({ at, fuseGate: [def, x, y] });
+const M2 = (at: number, def: string, turret: number): Upgrade => ({ at, fuseMod: [def, turret] });
 const P = (at: number, n = 1): Upgrade => ({ at, plating: n });
 /** A stamp press bought on day `at` with its belt, plus any belt crates the belt needs. */
 const X = (at: number, f: FactoryPlan, crates = 0): Upgrade => ({ at, factory: f, crates });
@@ -81,7 +86,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   nettle: {
     hero: "weaver", crates: 0,
     factories: [F("loom", 4, 1, [4, 0, ""], [3, 1, "L2U1"], [6, 1, "R2U1"])],
-    upgrades: [G(2, "whetstone", 2, 2), G(2, "whetstone", 7, 0, 2)],
+    upgrades: [G(2, "whetstone", 2, 2), G2(2, "whetstone", 2, 2)],
   },
   // PRESS GANG: a stamp press beside the kiln fills the heavy turret's second intake. The press
   // arrives on day 2 with a whetstone for its belt.
@@ -90,7 +95,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     factories: [F("kiln", 3, 6, [4, 5, "U5"])],
     upgrades: [
       G(2, "temper", 3, 3, 1), X(2, F("press", 6, 6, [6, 5, "L1U5"])), G(2, "whetstone", 6, 3, 3), G(2, "brake", 3, 5, 1),
-      M(5, "calibrate", 0), G(7, "whetstone", 3, 1, 1), P(8), P(10),
+      M(5, "calibrate", 0), G2(7, "whetstone", 6, 3), P(8), P(10),
     ],
   },
   // OVERCLOCK (Easy since Part 4): a bare kiln until day 5, then overdrive, a calibrated gun and a
@@ -100,7 +105,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     factories: [F("kiln", 2, 6, [3, 5, "R1U5"])],
     upgrades: [
       G(5, "overdrive", 3, 3), M(5, "calibrate", 0), G(5, "temper", 3, 4, 1),
-      X(8, F("press", 6, 6, [6, 5, "L1U5"])), G(8, "whetstone", 6, 2, 3), G(10, "whetstone", 3, 1, 1),
+      X(8, F("press", 6, 6, [6, 5, "L1U5"])), G(8, "whetstone", 6, 2, 3), G2(10, "whetstone", 6, 2),
     ],
   },
   // HARD ELITE, FRAY STORM: shocking split bolts up the middle (a coil before the
@@ -112,7 +117,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     factories: [F("loom", 4, 4, [4, 3, "U3"], [3, 5, "L1D1L1U6"], [6, 5, "R1D1R1U6"])],
     upgrades: [
       G(1, "coil", 3, 3, 1), G(1, "temper", 0, 3, 1), G(2, "splitter", 3, 2, 1), P(3, 2),
-      G(4, "temper", 0, 5, 1), G(5, "temper", 9, 5, 3), G(10, "grease", 2, 4, 2), G(10, "grease", 7, 4, 2),
+      G2(4, "temper", 0, 3), G(5, "temper", 9, 5, 3), G(10, "grease", 2, 4, 2),
+      G2(10, "grease", 2, 4), G(10, "grease", 7, 4, 2),
     ],
   },
   // ---------------------------------------------------------------- Medium (tier 2)
@@ -129,21 +135,23 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "furnace", crates: 0,
     factories: [F("kiln", 4, 6, [4, 5, "L2U3R2U2"])],
     upgrades: [
-      G(3, "temper", 1, 4, 1), G(5, "coil", 3, 1), X(5, F("press", 7, 6, [7, 5, "L2U5"]), 1), G(5, "coil", 6, 3, 3),
+      G(3, "temper", 1, 4, 1), G(5, "coil", 3, 1), X(5, F("press", 7, 6, [7, 5, "L2U5"]), 1),
+      G2(5, "coil", 3, 1), G(5, "coil", 6, 3, 3),
       G(5, "brake", 3, 3), G(5, "whetstone", 6, 1, 3), M(5, "calibrate", 0), G(7, "longhaul", 4, 3, 1), P(8), P(10),
     ],
   },
-  // SPLITTER SWARM: splitters on both side belts, a whetstone after one of them.
+  // SPLITTER SWARM: a ★2 splitter on day 2, one on each side belt by day 3, then a whetstone.
   lacewing: {
     hero: "weaver", crates: 0,
     factories: [F("loom", 4, 4, [4, 3, "U3"], [3, 4, "L2U4"], [6, 4, "R2U4"])],
-    upgrades: [G(2, "splitter", 2, 5), G(2, "splitter", 7, 3, 3), G(4, "whetstone", 0, 2, 1)],
+    upgrades: [G(2, "splitter", 2, 5), G2(2, "splitter", 2, 5), G(3, "splitter", 7, 3, 3), G(4, "whetstone", 0, 2, 1)],
   },
-  // EMBER WEAVE: a temper on two thread belts from day 2, on every belt from day 8.
+  // EMBER WEAVE: ★2 temper on the centre thread from day 2, another temper on the left from
+  // day 4, and a Drake Nozzle burning the right gun's output from day 8.
   emberlyn: {
     hero: "weaver", crates: 0,
     factories: [F("loom", 4, 5, [4, 4, "U4"], [3, 5, "L2U5"], [6, 5, "R2U5"])],
-    upgrades: [G(2, "temper", 3, 3, 1), G(2, "temper", 0, 4, 1), G(8, "temper", 7, 4, 1)],
+    upgrades: [G(2, "temper", 3, 3, 1), G2(2, "temper", 3, 3), G(4, "temper", 0, 4, 1), M(8, "drake", 2)],
   },
   // HARD ELITE, IRONCLAD: armor plates and a braked cooker behind them; the press comes on day 5
   // with a whetstone and a coil for its belt.
@@ -153,29 +161,31 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     upgrades: [
       G(1, "brake", 2, 6), P(1), G(3, "temper", 1, 3, 1), G(3, "longhaul", 3, 1), M(3, "calibrate", 0), P(3),
       X(5, F("press", 6, 6, [6, 5, "L1U5"]), 1), G(5, "whetstone", 4, 4, 1), G(5, "coil", 6, 2, 3), P(6),
-      G(10, "whetstone", 4, 3), P(10),
+      G2(10, "whetstone", 4, 4), P(10),
     ],
   },
   // ---------------------------------------------------------------- Hard (tier 3)
-  // STATIC WEB: an off-centre loom, one belt looping wide; a coil on every belt by day 3,
-  // calibration on every gun by day 5, then plates.
+  // STATIC WEB: an off-centre loom and a wide loop; a ★2 coil on the left, a coil on the right,
+  // ★2 calibration on one gun and calibration on another, then plates.
   silkshade: {
     hero: "weaver", crates: 0,
     factories: [F("loom", 2, 4, [2, 3, "L1U3"], [4, 4, "U4"], [3, 6, "R5U6"])],
     upgrades: [
-      G(1, "coil", 0, 2, 1), G(1, "temper", 0, 1, 1), G(2, "coil", 3, 2, 1), G(2, "whetstone", 3, 3, 1),
-      G(3, "coil", 7, 3, 1), G(3, "temper", 6, 5, 2), M(4, "calibrate", 0), M(4, "calibrate", 2),
-      G(4, "whetstone", 7, 5, 1), M(5, "calibrate", 1), P(6, 2), P(7),
+      G(1, "coil", 0, 2, 1), G(1, "temper", 0, 1, 1), G2(2, "coil", 0, 2), G(2, "whetstone", 3, 3, 1),
+      G(3, "coil", 7, 3, 1), G2(3, "temper", 0, 1), G(3, "temper", 6, 5, 2),
+      M(4, "calibrate", 0), M2(4, "calibrate", 0), M(5, "calibrate", 1), P(6, 2), P(7),
     ],
   },
   // GATE CHAIN: six rigs on one long cinder belt by day 4, a Long Haul cashes them in; the press
-  // comes on day 4 with a temper for its belt.
+  // comes on day 4 and gains its own temper on day 6.
   longtooth: {
     hero: "furnace", crates: 0,
     factories: [F("kiln", 6, 7, [6, 6, "U1L4U2R2U3"])],
     upgrades: [
-      G(1, "temper", 7, 5, 3), G(1, "whetstone", 4, 6), G(2, "brake", 1, 4, 1), G(3, "coil", 3, 4), G(3, "whetstone", 3, 2, 1),
-      G(4, "longhaul", 3, 1), X(4, F("press", 6, 1, [5, 1, "U1"]), 1), G(4, "temper", 5, 2), M(5, "calibrate", 0),
+      G(1, "temper", 7, 5, 3), G(1, "whetstone", 4, 6), G(2, "brake", 1, 4, 1), G(3, "coil", 3, 4),
+      G2(3, "whetstone", 4, 6), G(3, "whetstone", 3, 2, 1),
+      G(4, "longhaul", 3, 1), X(4, F("press", 6, 1, [5, 1, "U1"]), 1), G2(4, "temper", 7, 5),
+      M(5, "calibrate", 0), G(6, "temper", 5, 2),
     ],
   },
   // TRIPLE THREAT: burn on the left belt, split in the centre, a long haul on the right.
@@ -183,9 +193,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "weaver", crates: 0,
     factories: [F("loom", 4, 6, [4, 5, "U5"], [3, 6, "L2U6"], [6, 6, "R2U6"])],
     upgrades: [
-      G(1, "temper", 2, 7), G(1, "temper", 0, 4, 1), G(2, "splitter", 3, 4, 1), G(2, "whetstone", 3, 2, 1),
-      G(3, "grease", 7, 5, 2), G(3, "whetstone", 7, 4, 1), G(3, "longhaul", 7, 2), M(4, "calibrate", 1),
-      G(4, "coil", 0, 2, 1), P(5),
+      G(1, "temper", 2, 7), G2(1, "temper", 2, 7), G(2, "splitter", 3, 4, 1), G(2, "whetstone", 3, 2, 1),
+      G(3, "grease", 7, 5, 2), G2(3, "whetstone", 3, 2), G(3, "longhaul", 7, 2),
+      G(4, "whetstone", 7, 4, 1), M(4, "calibrate", 1), G(5, "coil", 0, 2, 1), P(5),
     ],
   },
   // ---------------------------------------------------------------- Hard, days 8-10 only
@@ -196,9 +206,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "furnace", crates: 1,
     factories: [F("kiln", 2, 7, [2, 6, "L1U4R2U1R1U1"]), F("press", 6, 6, [6, 5, "L1U5"])],
     upgrades: [
-      G(1, "brake", 1, 7), G(1, "temper", 0, 4, 1), G(1, "whetstone", 2, 1, 2), G(1, "longhaul", 4, 2, 3),
-      G(1, "coil", 4, 4, 1), G(1, "whetstone", 6, 2, 3), M(1, "calibrate", 0), P(1, 4), P(8, 2),
-      G(9, "temper", 5, 6), P(9), G(10, "whetstone", 0, 3, 1), P(10),
+      G(1, "brake", 1, 7), G(1, "temper", 0, 4, 1), G(1, "whetstone", 2, 1, 2), G2(1, "whetstone", 2, 1),
+      G(1, "longhaul", 4, 2, 3), G(1, "coil", 4, 4, 1), G(1, "whetstone", 6, 2, 3),
+      M(1, "calibrate", 0), P(1, 4), P(8, 2), G2(9, "temper", 0, 4), G(9, "temper", 5, 6),
+      P(9), G(10, "grease", 0, 3, 1), P(10),
     ],
   },
 };
@@ -222,6 +233,18 @@ export function planBuild(plan: RivalPlan, day: number): RivalLoadout {
     if (u.factory) addFactory(u.factory);
     if (u.gate) items.push({ uid: uid++, def: u.gate[0], x: u.gate[1], y: u.gate[2], ...rotField(u.gate[0], u.gate[3] ?? 0) });
     if (u.mod) mods.push({ uid: uid++, def: u.mod[0], turret: u.mod[1] });
+    if (u.fuseGate) {
+      const [def, x, y] = u.fuseGate;
+      const p = items.find((q) => q.def === def && q.x === x && q.y === y);
+      if (!p || starsOf(p) !== 1) throw new Error(`invalid ★2 rig purchase ${def}@${x},${y}`);
+      p.stars = 2;
+    }
+    if (u.fuseMod) {
+      const [def, turret] = u.fuseMod;
+      const p = mods.find((q) => q.def === def && q.turret === turret);
+      if (!p || starsOf(p) !== 1) throw new Error(`invalid ★2 turret purchase ${def}@${turret}`);
+      p.stars = 2;
+    }
     crates += u.crates ?? 0;
     plating += u.plating ?? 0;
   }
@@ -232,7 +255,7 @@ export function planBuild(plan: RivalPlan, day: number): RivalLoadout {
     beltCap: HEROES[plan.hero].belt + crates * ITEMS.beltcrate.supply!.belt!,
     hullBonus: warlordHull(day) + plating * ITEMS.plating.supply!.hull!,
   }, "preset:rival");
-  const value = [...build.items, ...mods].reduce((n, p) => n + ITEMS[p.def].price, 0)
+  const value = [...build.items, ...mods].reduce((n, p) => n + valueOf(p.def, starsOf(p)), 0)
     + crates * ITEMS.beltcrate.price + plating * ITEMS.plating.price;
   return { build, crates, plating, value };
 }
