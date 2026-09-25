@@ -319,7 +319,132 @@ export const SHOTS = [
   // working the Kiln belt beside a 3-star SPLITTER rig (PERFECT CUT), the belt selected: its timeline names the heat
   // first and PERFECT CUT's 2 X 85% after it, and the gun end reads the split heat, desk and phone
   ...["desk", "phone"].map((v) => ["beltside-061-brake-splitter", v, "build", 0.8, brakeSplitter()]),
+  // 0.6.2p (the polish brief), desk and phone: a placed SPLITTER at 1, 2 and 3 stars (item 1's flavour, item 2's NEEDS n
+  // MORE); the two old phone cuts on the inspector test's deck, a ★2 BRAKE SHOE IDLE and a ★2 SPLITTER on 2 belts (item
+  // 3: their NEXT lines now whole); a ★2 PRESSURE BREECH in a WEAVER's cargo (a core's flavour at the light turret's
+  // k 0.55, as its level line) and a placed ★2 SLAG POT's body (item 1); a SLAG POT belt worked by a GREASE WORKS and a
+  // BRAKE SHOE, in the build screen (the belt selected: both hits read LOCKED) and mid-battle: neutral chevrons at the
+  // slag's 0.75x (item 5). Item 4's parked shop row is beltside-061c-asm-gantry above; polish-long-names shows the
+  // hyphenated one-word names, a MERGE ★2 badge and the BUY+MERGE button.
+  ...["desk", "phone"].flatMap((v) => [
+    ...[1, 2, 3].map((s) => [`polish-splitter-${s}`, v, "build", 0.8, polishRig("splitter", s)]),
+    ["polish-brake2-idle", v, "title", 0, polishDeck("brake", 2, 0, 9, 0)],
+    ["polish-splitter2-2hit", v, "title", 0, polishDeck("splitter", 2, 5, 3, 0)],
+    ["polish-core2-weaver", v, "title", 0, polishCargo("pressure", 2, "weaver")],
+    ["polish-factory2-slagpot", v, "build", 0.8, factoryBuild("slagpot", 2)],
+    ["polish-slag-build", v, "build", 0.8, slagRigs(false)],
+    ["polish-slag-battle", v, "title", 0, slagRigs(true)],
+    ["polish-long-names", v, "title", 0, longNames()],
+  ]),
+  // 0.6.2p (item 4) on the 360x640 viewport too: the asm-gantry scene's parked shop row, and the long names
+  ["beltside-061c-asm-gantry", "small", "title", 0, ASM_GANTRY()],
+  ["polish-long-names", "small", "title", 0, longNames()],
 ];
+
+// 0.6.2p (item 4): the shop's three one-word names wider than a card (COUNTERWEIGHT, OVERCLOCKER, HULLBREAKER, now
+// hyphenated) in rollShop's 2-2-1 wagon shape, each at its merchant and price, with a COUNTERWEIGHT copy in cargo: its
+// card wears the MERGE ★2 badge and, selected, its panel shows the MERGES WITH line and the BUY+MERGE button
+function longNames() {
+  return `(() => {
+    const g = bb.game;
+    bb.openDawn({ day: 5, gold: 30, cargo: ["counterweight"] }, []);
+    ${STEP(90)}
+    g.run.shop.wagons = [
+      { merchant: "scrapper", offers: [{ def: "counterweight", price: 4, sold: false }, { def: "dragchain", price: 5, sold: false }] },
+      { merchant: "gunsmith", offers: [{ def: "hullbreaker", price: 5, sold: false }, { def: "escapement", price: 5, sold: false }] },
+      { merchant: "tinker", offers: [{ def: "overclocker", price: 6, sold: false }] },
+    ];
+    g.screen.select({ kind: "offer", wagon: 0, slot: 0 });
+    g.render();
+  })()`;
+}
+
+// 0.6.2p: rig `def` at ★`stars` west of the Kiln belt's (4,3), facing it (a T's first arrow east: rot 1), selected
+function polishRig(def, stars) {
+  return `(() => {
+    const g = bb.game;
+    g.run.build.items.push({ uid: 9301, def: ${J(def)}, x: 3, y: 3, rot: 1${stars > 1 ? `, stars: ${stars}` : ""} });
+    g.screen.touched();
+    g.screen.select({ kind: "item", uid: 9301 });
+    g.render();
+  })()`;
+}
+
+// 0.6.2p: tests/inspectorLines.test.ts's phone deck (the Kiln's belt up column 4, a STAMP PRESS belt up column 6 that
+// bends into column 5) with rig `def` (uid 10, ★stars) at (x, y) turned `rot`, no spare copy, selected
+function polishDeck(def, stars, x, y, rot) {
+  return `(() => {
+    const g = bb.game;
+    g.run = null;
+    bb.open("build", "furnace", 12345);
+    ${STEP(20)}
+    ${parked()}
+    const K = (x, y) => y * 10 + x, b = g.run.build; // the screen's view holds this build object: edit it in place
+    b.beltCap = 30;
+    b.items = [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 7, def: "press", x: 6, y: 6 },
+      { uid: 10, def: ${J(def)}, x: ${x}, y: ${y}${rot ? `, rot: ${rot}` : ""}${stars > 1 ? `, stars: ${stars}` : ""} }];
+    b.routes = [{ factory: 1, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+      { factory: 7, cells: [K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(5, 1), K(5, 0)] }];
+    g.screen.touched();
+    g.screen.select({ kind: "item", uid: 10 });
+    ${STEP(12)}
+    g.render();
+  })()`;
+}
+
+// 0.6.2p: a ★`stars` `def` in the cargo of a `hero` run, selected (its flavour, level and NEXT lines at the hero's k)
+function polishCargo(def, stars, hero) {
+  return `(() => {
+    const g = bb.game;
+    g.run = null;
+    bb.open("build", ${J(hero)}, 12345);
+    ${STEP(20)}
+    ${parked()}
+    g.run.inventory.push({ uid: 9401, def: ${J(def)}${stars > 1 ? `, stars: ${stars}` : ""} });
+    g.screen.select({ kind: "cargo", uid: 9401 });
+    ${STEP(12)}
+    g.render();
+  })()`;
+}
+
+// 0.6.2p: placeFactory's SLAG POT (★1) with a GREASE WORKS on its belt's (5,4) and a BRAKE SHOE on its (5,2), both east of
+// the belt facing west (rot 3). Build: the belt selected. Battle: stepped until both rigs are online and 2 slag slugs ride
+// the belt, one past the GREASE (where the sim's render-only speedAt reads 1.6x)
+function slagRigs(battle) {
+  const rigs = `g.run.build.items.push({ uid: 9121, def: "grease", x: 6, y: 4, rot: 3 }, { uid: 9122, def: "brake", x: 6, y: 2, rot: 3 });`;
+  if (!battle) {
+    return `(() => {
+      const g = bb.game;
+      ${placeFactory("slagpot", 1)}
+      ${rigs}
+      g.screen.touched();
+      g.screen.select({ kind: "route", index: 1 });
+      g.render();
+    })()`;
+  }
+  return `(() => {
+  const bb = window.bb, g = bb.game;
+  try {
+    g.run = null;
+    bb.open("build", "furnace", 12345);
+    ${STEP(20)}
+    ${placeFactory("slagpot", 1)}
+    ${rigs}
+    bb.open("battle", "furnace", 12345);
+    let ok = false;
+    for (let i = 0; i < 60 * 30 && !ok; i++) {
+      g.step(1 / 60);
+      const a = g.screen.arena;
+      if (!a || g.screen.phase !== "fight") continue;
+      const s = a.b.sides[0], r = s.routes.find((q) => q.factory === 9101);
+      const online = s.gates.filter((q) => q.uid === 9121 || q.uid === 9122).every((q) => q.online);
+      ok = online && !!r && r.ammo.length >= 2 && r.ammo.some((x) => x.s > 2.5 * 12);
+    }
+    if (!ok) console.error("SLAG_RIGS: no frame with both rigs online and 2 slag slugs on the belt within 30 s");
+    g.render();
+  } catch (e) { console.error("SLAG_RIGS: " + e.message + "\\n" + e.stack); }
+})()`;
+}
 
 // 0.6.2 BELTSIDE: the "sides" showcase deck fighting "junction", stepped from 3 s until `cond` holds for the
 // player's side `s` (at most 20 s more)
