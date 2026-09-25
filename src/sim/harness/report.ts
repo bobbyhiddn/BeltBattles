@@ -5,7 +5,7 @@ import { routeInfo, type Build } from "../deck";
 import { buildCost, maxGoldByDay } from "../../net/validate";
 import { perkAt, starsOf } from "../stars";
 import { bandFlag, fmtRate, meanCI, pct, type Rate } from "./stats";
-import type { BenchDeck, BenchRow, CoreUse, FocusDeck, Spend, TourneyResult } from "./tournament";
+import type { BenchDeck, BenchRow, CoreUse, DayResult, FactorySplit, FocusDeck, JobStats, Spend, TourneyResult } from "./tournament";
 
 export interface RunMeta { runtimeMs: number; workers: number; command: string; perDayMs: Record<number, number> }
 
@@ -153,6 +153,83 @@ function v2Sections(res: TourneyResult): string[] {
   L.push(...benchSection(res.days));
   if (res.days.some((d) => d.bench)) L.push(...knownFallsSection(res.days));
   if (res.days.some((d) => d.hopperSplitter)) L.push(...hopperSection(res.days));
+  // 0.6.1c (part 3): only a factories-on day carries these, so a factories-off report is part 2's
+  if (res.days.some((d) => d.factoryUse || d.factory || d.pressSlot)) L.push(...factorySections(res.days, o.heroes));
+  return L;
+}
+
+const nm = (def: string) => ITEMS[def]?.name ?? def;
+const ciText = (ci: [number, number] | null) => (ci ? ` [${sgn(ci[0])}, ${sgn(ci[1])}]` : "");
+
+/** 0.6.1c (harness v2 part 3): the factory usage table, the FACTORY table and the PRESS-SLOT rows. */
+export function factorySections(days: DayResult[], heroes: readonly HeroId[]): string[] {
+  const L: string[] = ["", "## Factories in the field (0.6.1c, factories on)", ""];
+  L.push("Per hero and day: decks holding each bought factory (of the population), their copies at 1/2/3 stars, GANTRY PRESS copies by routes fed (1/2/3), speed gates the shopper kept off slag routes (skipped = not bought / steered = put on another belt), speed gates found on a slag route (0 by the rule), and routes a merge's new output added. Elites: decks holding each factory.", "");
+  const defs = [...new Set(days.flatMap((d) => Object.values(d.factoryUse ?? {}).flatMap((u) => Object.keys(u!.pop.byDef))))];
+  L.push(`| day | hero | ${defs.map((d) => `${nm(d)} decks (★1/2/3)`).join(" | ")} | GANTRY routes 1/2/3 | slag skipped/steered | speed on slag | new-output routes | elites: decks per factory |`, `|---|---|${defs.map(() => "---").join("|")}|---|---|---|---|---|`);
+  for (const d of days) {
+    for (const h of heroes) {
+      const u = d.factoryUse?.[h];
+      if (!u) continue;
+      const p = u.pop, e = u.elites;
+      const cell = (def: string) => { const x = p.byDef[def]; return x && x.decks ? `${x.decks}/${p.builds} (${x.stars.join("/")})` : "0"; };
+      const el = defs.filter((def) => e.byDef[def]?.decks).map((def) => `${nm(def)} ${e.byDef[def].decks}`).join(", ") || "none";
+      L.push(`| ${d.day} | ${H(h)} | ${defs.map(cell).join(" | ")} | ${p.gantryRoutes.join("/")} | ${p.slag.skipped}/${p.slag.steered} | ${p.slagSpeed} | ${p.thirdArm} | ${el} (of ${e.builds}) |`);
+    }
+  }
+  L.push("", "## FACTORY table (0.6.1c): does a factory's merge step make it WORSE on real decks?", "");
+  L.push("From the star bench above (the same paired decks): each elite/par deck holding the factory at 1 star, raised in place to 2 and 3 stars. 1->2 = the 2-star row's paired delta, 1->3 = the 3-star row's, STEP 2->3 = its STEP (3-star minus 2-star on the same seeds). WORSE / STEP WORSE: the D1 rule (at least 3 decks, mean below 0, 95% t-interval below 0), per factory and per split.", "");
+  L.push("| day | factory | split | decks | 1->2 mean [95% t] (worse) | 1->3 | STEP decks | STEP 2->3 mean [95% t] (worse) | flags |", "|---|---|---|---|---|---|---|---|---|");
+  for (const d of days) {
+    for (const r of d.factory ?? []) {
+      const row = (s: FactorySplit, first: boolean) => {
+        const fl = [s.worse ? "WORSE" : "", s.stepWorse ? "STEP WORSE" : ""].filter(Boolean).join(", ");
+        const flags = first ? [...new Set([...r.flags, ...(fl ? fl.split(", ") : [])])].join(", ") : fl;
+        return `| ${d.day} | ${nm(r.def)}${first && perkAt(r.def, 2) ? ` (★2 ${perkAt(r.def, 2)})` : ""}${first && perkAt(r.def, 3) && perkAt(r.def, 3) !== perkAt(r.def, 2) ? ` (★3 ${perkAt(r.def, 3)})` : ""} | ${s.key === "all" ? "**all**" : s.key} | ${s.n} | ${s.n ? `${sgn(s.d12)}${ciText(s.ci12)} (${s.decks.filter((x) => x.delta < 0).length}/${s.n})` : "n/a"} | ${first ? (s.n ? sgn(r.d13) : "n/a") : ""} | ${s.nStep} | ${s.nStep ? `${sgn(s.step)}${ciText(s.ciStep)} (${s.steps.filter((x) => x.delta < 0).length}/${s.nStep})` : "n/a"} | ${flags || "-"} |`;
+      };
+      L.push(row(r.all, true));
+      for (const s of r.byHero) L.push(row({ ...s, key: H(s.key as HeroId) ?? s.key }, false));
+      for (const s of r.byRoutes ?? []) L.push(row({ ...s, key: `GANTRY on ${s.key}` }, false));
+    }
+  }
+  const flagged = days.flatMap((d) => (d.factory ?? []).flatMap((r) => [r.all, ...r.byHero, ...(r.byRoutes ?? [])].filter((s) => s.worse || s.stepWorse).map((s) => ({ day: d.day, r, s }))));
+  L.push("", "### FACTORY WORSE / STEP WORSE, with their decks", "");
+  if (!flagged.length) L.push("None: no factory's 1->2 or 2->3 step is WORSE by the D1 rule, overall or in any hero or route split.");
+  for (const { day, r, s } of flagged) {
+    if (s.worse) L.push(`- Day ${day} ${nm(r.def)} 1->2 (${s.key}): ${deckList(s.decks)}`);
+    if (s.stepWorse) L.push(`- Day ${day} ${nm(r.def)} 2->3 (${s.key}): ${deckList(s.steps)}`);
+  }
+  L.push("", "## PRESS-SLOT (0.6.1c, report only): the STAMP PRESS swapped for each factory at 1, 2 and 3 stars", "");
+  const ars = days.find((d) => d.pressSlot)?.pressSlot?.arsenal ?? [];
+  if (ars.length) {
+    L.push("The arsenal's own rows (tests/arsenal.decks.test.ts parSwap): par/furnace/6 with its Press swapped in place, against par/weaver/6 over seeds 1-5: mean damage dealt (wins), and jams per fight. The same deck (heroRefBuild(\"furnace\", 6)) leads each day's field rows below.", "");
+    L.push("| factory | dmg ★1 | dmg ★2 | dmg ★3 | 1->2 | 2->3 | jams/fight ★1/★2/★3 |", "|---|---|---|---|---|---|---|");
+    const rel = (a: number, b: number) => (a > 0 ? `${b >= a ? "+" : ""}${((100 * (b - a)) / a).toFixed(1)}%` : "n/a");
+    for (const r of ars) L.push(`| ${nm(r.def)} | ${r.dmg[0].toFixed(1)} (${r.wins[0]}W) | ${r.dmg[1].toFixed(1)} (${r.wins[1]}W) | ${r.dmg[2].toFixed(1)} (${r.wins[2]}W) | ${rel(r.dmg[0], r.dmg[1])} | ${rel(r.dmg[1], r.dmg[2])} | ${r.jams.map((j) => j.toFixed(1)).join("/")} |`);
+    L.push("");
+  }
+  L.push("In the field: each deck holding a STAMP PRESS (the arsenal's par/furnace/6 first, then every elite or par deck of the day), the Press swapped in place (same cell and route) for each factory at 1, 2 and 3 stars, against the day's whole gauntlet on the same seeds for every variant of a deck. Per factory: decks, the mean paired win-rate step 1->2 and 2->3 over decks [95% t] (decks worse), the damage per fight change of the mean, and jams per fight at ★1/★2/★3. A swap that holds an unfused pair (the deck already holds that factory at the same star) is not played.", "");
+  L.push("| day | factory | decks | 1->2 [95% t] (worse) | 2->3 [95% t] (worse) | dmg/fight ★1/★2/★3 | jams/fight ★1/★2/★3 |", "|---|---|---|---|---|---|---|");
+  for (const d of days) {
+    const ps = d.pressSlot;
+    if (!ps) continue;
+    for (const def of Object.keys(ps.decks[0]?.cells ?? {})) {
+      const full = ps.decks.filter((k) => k.cells[def]?.every((c) => c !== null));
+      const st = (a: number, b: number) => full.map((k) => (k.cells[def][b]!.pts - k.cells[def][a]!.pts) / k.battles);
+      const s12 = meanCI(st(0, 1)), s23 = meanCI(st(1, 2));
+      const per = (i: number, f: (c: JobStats) => number) => (full.length ? full.reduce((s, k) => s + f(k.cells[def][i]!) / k.battles, 0) / full.length : 0);
+      const dm = [0, 1, 2].map((i) => per(i, (c) => c.dmg).toFixed(1)).join("/"), jm = [0, 1, 2].map((i) => per(i, (c) => c.jams).toFixed(2)).join("/");
+      L.push(`| ${d.day} | ${nm(def)} | ${full.length} | ${full.length ? `${sgn(s12.mean)}${ciText(s12.ci)} (${st(0, 1).filter((x) => x < 0).length})` : "n/a"} | ${full.length ? `${sgn(s23.mean)}${ciText(s23.ci)} (${st(1, 2).filter((x) => x < 0).length})` : "n/a"} | ${dm} | ${jm} |`);
+    }
+  }
+  L.push("", "### PRESS-SLOT decks, per deck (win rate at ★1/★2/★3 against the gauntlet; jams per fight)", "");
+  for (const d of days) {
+    for (const k of d.pressSlot?.decks ?? []) {
+      const cells = Object.entries(k.cells).map(([def, cs]) => `${nm(def)} ${cs.map((c) => (c ? pct(c.pts / k.battles) : "—")).join("/")} (j ${cs.map((c) => (c ? (c.jams / k.battles).toFixed(1) : "—")).join("/")})`).join("; ");
+      L.push(`- Day ${d.day} ${k.tag}${k.par ? " (PAR)" : ""}, Press ★${k.pressStars} on ${k.routes} route(s): ${cells}`);
+    }
+  }
+  L.push("");
   return L;
 }
 

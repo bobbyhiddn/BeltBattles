@@ -8,14 +8,14 @@
 import { Rng, hashSeed } from "../../core/rng";
 import { simulate } from "../battle";
 import { ITEMS, type HeroId } from "../content";
-import { key as cellKey, routeInfo, type Build } from "../deck";
+import { key as cellKey, routeInfo, routesOf, type Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
 import { fuseDeck } from "./merge";
 import { FUSE_MAX, fusible, perkAt, starsOf } from "../stars";
 import { shopBuild, type Shopped } from "./gen";
-import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "./heroes";
+import { HARNESS_HEROES, heroRefBuild, heroStartBuild, shopFactories } from "./heroes";
 import { buildTraits, type Traits } from "./levers";
-import type { Cores, Factories, Stars } from "./shopper";
+import { fixedSpeedCells, isSpeedGate, type Cores, type Factories, type SlagCount, type Stars } from "./shopper";
 import { meanCI, wilson, type Rate } from "./stats";
 
 export interface TourneyOpts {
@@ -81,6 +81,24 @@ export function jobDetail(field: Build[], j: Job): string {
 }
 
 export const localDetail: DetailRunner = async (field, jobs) => jobs.map((j) => jobDetail(field, j));
+
+/** 0.6.1c (part 3, PRESS-SLOT): per job, a's points (exactly playJob's: the same battles), the damage a dealt and
+ *  the jams on a's turrets (battle.ts side stats), summed over its 2 x seeds battles. */
+export interface JobStats { pts: number; dmg: number; jams: number }
+export type StatsRunner = (field: Build[], jobs: Job[]) => Promise<JobStats[]>;
+
+export function jobStats(field: Build[], j: Job): JobStats {
+  let pts = 0, dmg = 0, jams = 0;
+  for (const s of j.seeds) {
+    const x = simulate(field[j.a], field[j.b], s), y = simulate(field[j.b], field[j.a], s);
+    pts += (x.winner === 0 ? 1 : x.winner === -1 ? 0.5 : 0) + (y.winner === 1 ? 1 : y.winner === -1 ? 0.5 : 0);
+    dmg += x.sides[0].stats.damage + y.sides[1].stats.damage;
+    jams += x.sides[0].stats.jams + y.sides[1].stats.jams;
+  }
+  return { pts, dmg, jams };
+}
+
+export const localStats: StatsRunner = async (field, jobs) => jobs.map((j) => jobStats(field, j));
 
 export interface Spend { median: number; min: number; max: number }
 export interface Entry { hero: HeroId; idx: number; ref: boolean; build: Build; cost: number; score: Rate }
@@ -161,6 +179,171 @@ export interface DayResult {
   parTilde?: FocusDeck[];
   // part 2 (stars on, report only, optional): splitter at 1/2/3 stars with / without HOPPER 3-star on its turret
   hopperSplitter?: { with: FocusDeck[]; without: FocusDeck[] };
+  // 0.6.1c harness v2 part 3 (populated only when factories are on, so a factories-off day is part 2's exactly)
+  factoryUse?: Partial<Record<HeroId, { pop: FactoryUse; elites: FactoryUse }>>;
+  factory?: FactoryRow[]; // the FACTORY table: the bench's factory rows, split by hero (and GANTRY PRESS by routes fed)
+  pressSlot?: PressSlot; // report only: decks holding a STAMP PRESS with the Press swapped for each factory at 1-3 stars
+}
+
+/** 0.6.1c: factories in a set of builds. byDef: decks holding the def and its copies at 1/2/3 stars; gantryRoutes:
+ *  GANTRY PRESS copies feeding 1, 2 and 3 routes; slag: speed gates the shopper kept off slag routes (population
+ *  only: from its Shopped counts); slagSpeed: speed gates found ON a slag route (the shopper's rule keeps it 0);
+ *  thirdArm: routes a merge's new output added (population only). */
+export interface FactoryUse {
+  builds: number;
+  byDef: Record<string, { decks: number; stars: [number, number, number] }>;
+  gantryRoutes: [number, number, number];
+  slag: SlagCount;
+  slagSpeed: number;
+  thirdArm: number;
+}
+
+export function factoryUseOf(builds: Build[], shops?: { slag: SlagCount; thirdArm: number }[]): FactoryUse {
+  const byDef: FactoryUse["byDef"] = {};
+  for (const d of FACTORY_DEFS) byDef[d] = { decks: 0, stars: [0, 0, 0] };
+  const gantryRoutes: [number, number, number] = [0, 0, 0];
+  let slagSpeed = 0;
+  for (const b of builds) {
+    const held = new Set<string>();
+    for (const p of b.items) {
+      if (!byDef[p.def]) continue;
+      held.add(p.def);
+      byDef[p.def].stars[starsOf(p) - 1]++;
+      if (p.def === "gantry") { const n = routesOf(b, p.uid).length; if (n >= 1 && n <= 3) gantryRoutes[n - 1]++; }
+    }
+    for (const d of held) byDef[d].decks++;
+    const slag = fixedSpeedCells(b);
+    for (const p of b.items) if (slag.has(cellKey(p.x, p.y)) && isSpeedGate(ITEMS[p.def])) slagSpeed++;
+  }
+  const slag = { skipped: 0, steered: 0 };
+  let thirdArm = 0;
+  for (const s of shops ?? []) { slag.skipped += s.slag.skipped; slag.steered += s.slag.steered; thirdArm += s.thirdArm; }
+  return { builds: builds.length, byDef, gantryRoutes, slag, slagSpeed, thirdArm };
+}
+
+/** 0.6.1c: every factory a hero can buy, STAMP PRESS first (shopFactories; the same for every hero at 4ecf202). */
+export const FACTORY_DEFS: readonly string[] = shopFactories("furnace").map((d) => d.id).sort((a, b) => (a === "press" ? -1 : b === "press" ? 1 : 0));
+
+/** 0.6.1c: one split of a FACTORY row (a hero, or a GANTRY PRESS route count): decks and paired deltas. */
+export interface FactorySplit { key: string; n: number; d12: number; ci12: [number, number] | null; worse: boolean; nStep: number; step: number; ciStep: [number, number] | null; stepWorse: boolean; decks: BenchDeck[]; steps: BenchDeck[] }
+/** 0.6.1c: the FACTORY table row of one factory on one day, from the star bench's def*2 and def*3 rows (the same
+ *  paired decks): 1->2 = the 2-star row's paired delta, 1->3 = the 3-star row's, 2->3 = its STEP. */
+export interface FactoryRow { def: string; all: FactorySplit; d13: number; flags: BenchFlag[]; byHero: FactorySplit[]; byRoutes?: FactorySplit[] }
+
+const splitOf = (key: string, decks: BenchDeck[], steps: BenchDeck[]): FactorySplit => {
+  const a = meanCI(decks.map((d) => d.delta)), s = meanCI(steps.map((d) => d.delta));
+  return {
+    key, n: decks.length, d12: decks.length ? a.mean : 0, ci12: a.ci, worse: benchWorse(decks.map((d) => d.delta)),
+    nStep: steps.length, step: steps.length ? s.mean : 0, ciStep: s.ci, stepWorse: benchWorse(steps.map((d) => d.delta)), decks, steps,
+  };
+};
+
+/** 0.6.1c: the FACTORY table from the bench rows. A benched deck holds its factory at 1 star exactly once (a
+ *  second 1-star copy is an unfused pair, which the bench never plays), so (tag, def) names the instance. */
+export function factoryRows(rows: BenchRow[], sources: BenchSource[]): FactoryRow[] {
+  const src = new Map(sources.map((s) => [s.tag, s]));
+  const out: FactoryRow[] = [];
+  for (const def of FACTORY_DEFS) {
+    const r2 = rows.find((r) => r.def === def && r.star === 2), r3 = rows.find((r) => r.def === def && r.star === 3);
+    if (!r2 && !r3) continue;
+    const d12 = r2?.decks ?? [], st = r3?.step?.decks ?? [];
+    const heroOf = (t: string) => src.get(t)?.hero ?? t.split(" ")[0];
+    const heroes = [...new Set([...d12, ...st].map((d) => heroOf(d.tag)))];
+    const row: FactoryRow = {
+      def, all: splitOf("all", d12, st), d13: r3?.delta ?? 0, flags: [...(r2?.flags ?? []), ...(r3?.flags ?? [])],
+      byHero: heroes.map((h) => splitOf(h, d12.filter((d) => heroOf(d.tag) === h), st.filter((d) => heroOf(d.tag) === h))),
+    };
+    if (def === "gantry") {
+      const routes = (t: string) => {
+        const b = src.get(t)?.build;
+        const g = b?.items.find((p) => p.def === "gantry" && starsOf(p) === 1);
+        return b && g ? routesOf(b, g.uid).length : 0;
+      };
+      row.byRoutes = [1, 2, 3].map((n) => splitOf(`${n} route${n > 1 ? "s" : ""}`, d12.filter((d) => routes(d.tag) === n), st.filter((d) => routes(d.tag) === n)));
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+/** 0.6.1c PRESS-SLOT (report only): one deck holding a STAMP PRESS, with the Press swapped in place (same uid,
+ *  cell and routes) for each factory at 1, 2 and 3 stars, against the whole gauntlet on the SAME seeds (focusSeeds
+ *  keyed by this deck). cells[def][star-1]: the stats summed over the gauntlet (null: the swap holds an unfused
+ *  pair, so the game can't build it). */
+export interface PressSlotDeck { tag: string; hero: HeroId; par: boolean; pressStars: number; routes: number; battles: number; cells: Record<string, (JobStats | null)[]> }
+/** 0.6.1c: the arsenal's own report-only rows (tests/arsenal.decks.test.ts parSwap), recomputed through the harness:
+ *  par/furnace/6 with its Press swapped, against par/weaver/6 over seeds 1-5; mean damage dealt, wins, jams per fight. */
+export interface ArsenalSlotRow { def: string; dmg: [number, number, number]; wins: [number, number, number]; jams: [number, number, number] }
+export interface PressSlot { decks: PressSlotDeck[]; arsenal: ArsenalSlotRow[] }
+
+export const PRESS_SLOT_KEY = "bb-bench-pressslot";
+export const ARSENAL_SLOT_SEEDS: readonly number[] = [1, 2, 3, 4, 5];
+
+/** `b` with its first STAMP PRESS (as parSwap finds it) swapped for `def` at `stars`, in place. */
+export function pressSwap(b: Build, def: string, stars: number): Build {
+  const c = JSON.parse(JSON.stringify(b)) as Build;
+  const p = c.items.find((i) => i.def === "press")!;
+  p.def = def;
+  if (stars > 1) p.stars = stars;
+  else delete p.stars;
+  return c;
+}
+
+/** The PRESS-SLOT decks: the arsenal's par/furnace/6 (heroRefBuild("furnace", 6), the golden-060 fixture's deck;
+ *  tests/harness.factories.test.ts checks it) first, then every bench source (elite or par) holding a STAMP PRESS. */
+export function pressSlotSources(sources: BenchSource[]): BenchSource[] {
+  const out: BenchSource[] = [{ hero: "furnace", tag: "par/furnace/6 (arsenal)", build: heroRefBuild("furnace", 6), par: true }];
+  for (const s of sources) if (s.build.items.some((p) => p.def === "press")) out.push(s);
+  return out;
+}
+
+export async function pressSlotBench(o: TourneyOpts, day: number, gauntlet: Build[], sources: BenchSource[], stats: StatsRunner): Promise<{ decks: PressSlotDeck[]; battles: number }> {
+  const field: Build[] = [], jobs: Job[] = [];
+  const G = gauntlet.length, per = o.seeds * 2;
+  const slots: { src: number; def: string; star: number; f: number | null }[] = [];
+  sources.forEach((s, src) => {
+    for (const def of FACTORY_DEFS) {
+      for (const star of [1, 2, 3]) {
+        const v = pressSwap(s.build, def, star);
+        if (unfusedPairs(v).length) { slots.push({ src, def, star, f: null }); continue; }
+        slots.push({ src, def, star, f: field.length });
+        field.push(v);
+        gauntlet.forEach((_, g) => jobs.push({ a: field.length - 1, b: -1 - g, seeds: focusSeeds(o, day, src, g, PRESS_SLOT_KEY) }));
+      }
+    }
+  });
+  const decks: PressSlotDeck[] = sources.map((s) => {
+    const p = s.build.items.find((i) => i.def === "press")!;
+    return { tag: s.tag, hero: s.hero, par: !!s.par, pressStars: starsOf(p), routes: routesOf(s.build, p.uid).length, battles: G * per, cells: {} };
+  });
+  if (!jobs.length) return { decks, battles: 0 };
+  for (const j of jobs) j.b = field.length + (-1 - j.b);
+  const res = await stats([...field, ...gauntlet], jobs);
+  const sum = new Map<number, JobStats>();
+  jobs.forEach((j, i) => {
+    const t = sum.get(j.a) ?? { pts: 0, dmg: 0, jams: 0 };
+    sum.set(j.a, { pts: t.pts + res[i].pts, dmg: t.dmg + res[i].dmg, jams: t.jams + res[i].jams });
+  });
+  for (const sl of slots) {
+    const d = decks[sl.src];
+    (d.cells[sl.def] ??= [null, null, null])[sl.star - 1] = sl.f === null ? null : sum.get(sl.f)!;
+  }
+  return { decks, battles: jobs.length * per };
+}
+
+/** The arsenal's report-only press-slot rows through the harness (see ArsenalSlotRow): 105 battles, in-process. */
+export function arsenalPressSlot(): ArsenalSlotRow[] {
+  const deck = heroRefBuild("furnace", 6), opp = heroRefBuild("weaver", 6);
+  return FACTORY_DEFS.map((def) => {
+    const row: ArsenalSlotRow = { def, dmg: [0, 0, 0], wins: [0, 0, 0], jams: [0, 0, 0] };
+    for (const star of [1, 2, 3]) {
+      const fights = ARSENAL_SLOT_SEEDS.map((seed) => simulate(pressSwap(deck, def, star), JSON.parse(JSON.stringify(opp)) as Build, seed));
+      row.dmg[star - 1] = fights.reduce((a, b) => a + b.sides[0].stats.damage, 0) / fights.length;
+      row.wins[star - 1] = fights.filter((b) => b.winner === 0).length;
+      row.jams[star - 1] = fights.reduce((a, b) => a + b.sides[0].stats.jams, 0) / fights.length;
+    }
+    return row;
+  });
 }
 
 /** 0.6.1b: bought turret cores in a set of builds: builds with at least one, cores fitted, per def, per star.
@@ -207,10 +390,10 @@ export async function runTournament(o: TourneyOpts, run: Runner = localRunner, l
   return { opts: o, days, battles };
 }
 
-export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: DetailRunner = localDetail): Promise<DayResult> {
+export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: DetailRunner = localDetail, stats: StatsRunner = localStats): Promise<DayResult> {
   const field: Entry[] = [];
   const blank: Rate = { p: 0, lo: 0, hi: 0, n: 0, pts: 0 };
-  const shopped = new Map<number, Shopped>(); // 0.6.1c: field index -> its shopper's counts (step 3's usage table)
+  const shopped = new Map<number, Shopped>(); // 0.6.1c: field index -> its shopper's counts (the usage table)
   for (const hero of o.heroes) {
     for (let i = 0; i < o.pop; i++) {
       // randomBuild(...) is shopBuild(...).build: the same draws; 0.6.1c keeps the shopper's slag/new-output counts
@@ -307,6 +490,7 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
 
   let mirror2: DayResult["mirror2"], starMix: DayResult["starMix"], bench: DayResult["bench"], coreUse: DayResult["coreUse"];
   let parTilde: DayResult["parTilde"], hopperSplitter: DayResult["hopperSplitter"];
+  let factoryUse: DayResult["factoryUse"], factory: DayResult["factory"], pressSlot: DayResult["pressSlot"];
   if (o.stars === "on") {
     mirror2 = {};
     starMix = {};
@@ -345,9 +529,21 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
     const without = await focusBench(o, day, gauntletBuilds, hp.without, ["splitter"], run, "bb-bench-hopper");
     hopperSplitter = { with: withH.decks, without: without.decks };
     battles += withH.battles + without.battles;
+    if (factoriesOn(o)) {
+      // 0.6.1c (part 3): the usage table, the FACTORY table (from the bench rows above: no new battle) and PRESS-SLOT
+      factoryUse = {};
+      for (const h of o.heroes) {
+        const idx = popOf(h);
+        factoryUse[h] = { pop: factoryUseOf(idx.map((i) => field[i].build), idx.map((i) => shopped.get(i)!)), elites: factoryUseOf(elites[h].map((e) => e.build)) };
+      }
+      factory = factoryRows(bench, sources);
+      const ps = await pressSlotBench(o, day, gauntletBuilds, pressSlotSources(sources), stats);
+      pressSlot = { decks: ps.decks, arsenal: arsenalPressSlot() };
+      battles += ps.battles;
+    }
   }
 
-  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits, mirror2, starMix, bench, ...(coreUse ? { coreUse } : {}), ...(parTilde ? { parTilde } : {}), ...(hopperSplitter ? { hopperSplitter } : {}) };
+  return { day, budget: maxGoldByDay(day), battles, pop, elite, elites, calibration, popScores, spend, traits, mirror2, starMix, bench, ...(coreUse ? { coreUse } : {}), ...(parTilde ? { parTilde } : {}), ...(hopperSplitter ? { hopperSplitter } : {}), ...(factoryUse ? { factoryUse } : {}), ...(factory ? { factory } : {}), ...(pressSlot ? { pressSlot } : {}) };
 }
 
 // ---------------------------------------------------------------- 0.6.1a harness v2
