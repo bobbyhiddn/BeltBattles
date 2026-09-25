@@ -51,7 +51,7 @@ describe("stars.ts", () => {
     expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, outputs: 1, base: 7.5 });
     expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3, window: 1 });
     expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 2, mult: 0.85 } });
-    expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.5, flat: 2 }, { speed: 0.5, flat: 5 }]); // 0.6.1f
+    expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.5, flat: 2, lockedFlat: 4 }, { speed: 0.5, flat: 5, lockedFlat: 7 }]);
     expect(ITEMS.temper.gate).toEqual({ burn: 2 }); // the 1-star spec is untouched
     expect(() => effectAt("nope", 2)).toThrow();
   });

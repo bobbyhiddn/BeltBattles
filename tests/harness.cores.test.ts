@@ -102,7 +102,7 @@ describe("harness cores (0.6.1b): legality", () => {
     expect(canApply(s, "core")).toBe(false);
   });
 
-  it("stars on + cores off reproduces the pre-cores harness exactly (pins computed at adb1da1, before step 2)", () => {
+  it("stars on + cores off is deterministic with the shared pool; Furnace/Weaver full-purse pin stays unchanged", () => {
     const a: string[] = [];
     for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("on-pin", hero, day, i)), "on", FUSE_MAX, "off")));
     const b: string[] = [];
@@ -112,8 +112,9 @@ describe("harness cores (0.6.1b): legality", () => {
     // 1965100384 -> 3070968615, measured on this branch. BELTSIDE never had a pre-cores stars-on harness to compute
     // them with (the stars-off pins in tests/harness.merge.test.ts are the ones checked against beltside-062c's own
     // harness); cores off still draws nothing for the core lever (tests above), so the pins hold that path.
-    expect(hash32(a.join("|"))).toBe(2653640428);
-    expect(hash32(b.join("|"))).toBe(3082615155);
+    // Combined shared-pool and expanded-catalogue pins are checked on the integrated branch.
+    expect(hash32(a.join("|"))).toBe(3990378578);
+    expect(hash32(b.join("|"))).toBe(3070968615);
   }, 60_000);
 });
 

@@ -4,7 +4,7 @@ import { HEROES } from "../src/sim/content";
 import { routeInfo } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { randomBuild } from "../src/sim/harness/gen";
-import { HARNESS_HEROES, heroRefBuild, heroStartBuild, shopExcluded } from "../src/sim/harness/heroes";
+import { HARNESS_HEROES, heroRefBuild, heroStartBuild, shopFactories, shopItems } from "../src/sim/harness/heroes";
 import { exceptPairs } from "./harnessLegacy";
 
 // Balance harness generator: legal, honestly priced, reproducible random builds.
@@ -39,15 +39,17 @@ describe("harness generator", () => {
     for (const [k, n] of Object.entries(levers)) expect(n, k).toBeGreaterThan(20);
   }, 60_000);
 
-  it("honours shop exclusions: Metronome buys no speed gates; nobody buys ESCAPEMENT or LONGCASE", () => {
-    expect([...shopExcluded("metronome")].sort()).toEqual(["brake", "escapement", "grease", "longcase", "overdrive"]);
-    expect([...shopExcluded("furnace")].sort()).toEqual(["escapement", "longcase"]);
+  it("draws from one shop set; dormant pendulum mods never enter generated decks", () => {
+    const ids = (hero: typeof HARNESS_HEROES[number]) => ["gate", "factory", "mod", "core"].flatMap((kind) =>
+      (kind === "factory" ? shopFactories(hero) : shopItems(hero, kind as "gate" | "mod" | "core")).map((d) => d.id)).sort();
+    const shared = ids("furnace");
+    for (const hero of HARNESS_HEROES) expect(ids(hero)).toEqual(shared);
+    for (const id of ["grease", "brake", "overdrive"]) expect(ids("metronome")).toContain(id);
     for (const hero of HARNESS_HEROES) {
-      const banned = shopExcluded(hero);
       for (const day of [4, 7, 10]) {
         for (let i = 0; i < 12; i++) {
           const b = randomBuild(hero, day, new Rng(hashSeed("exclude", hero, day, i)));
-          for (const p of [...b.items, ...b.mods]) expect(banned.has(p.def), `${hero} d${day} #${i} ${p.def}`).toBe(false);
+          for (const p of [...b.items, ...b.mods]) expect(["escapement", "longcase"], `${hero} d${day} #${i} ${p.def}`).not.toContain(p.def);
         }
       }
     }

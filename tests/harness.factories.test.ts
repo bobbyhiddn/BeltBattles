@@ -174,17 +174,17 @@ describe("harness factories (0.6.1c): legality", () => {
     }
   });
 
-  // P19 pins, computed independently at beltside-062-on-061 ebc2b5e with no factories argument. The merged branch
-  // must reproduce those builds exactly when factories are off; the old target-h3 pins measured an inline-gate board.
-  it("stars on + cores on + factories off reproduces BELTSIDE before the factory merge exactly", () => {
+  // P19 pins predate the shared-pool change. These new pins include Metronome's speed rigs while factories are off.
+  it("stars on + cores on + factories off is deterministic with the shared pool", () => {
     const a: string[] = [];
     const b: string[] = [];
     withLegacyStock(() => {
       for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("fac-off-pin", hero, day, i)), "on", FUSE_MAX, "on", "off")));
       for (const hero of HARNESS_HEROES) for (let day = 1; day <= 10; day++) for (let i = 0; i < 3; i++) b.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-fac-off-pin", hero, day, i), undefined, 60, "on", FUSE_MAX, "on", "off")));
     });
-    expect(hash32(a.join("|"))).toBe(1132566147);
-    expect(hash32(b.join("|"))).toBe(3790118784);
+    // REQ-BFG-021 changes Metronome's choices within the pre-expansion stock.
+    expect(hash32(a.join("|"))).toBe(788536636);
+    expect(hash32(b.join("|"))).toBe(1842022582);
   }, 240_000);
 });
 

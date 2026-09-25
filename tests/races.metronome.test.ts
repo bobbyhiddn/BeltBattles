@@ -96,7 +96,22 @@ describe("METRONOME speed lock", () => {
     expect(rides.size).toBeGreaterThan(15);
     for (const r of rides.values()) expect(r).toBeCloseTo(ride(10), 9);
     const lh = metro(10, [["grease", 2, 4], ["longhaul", 2, 3]]);
-    expect(estimateRoute(lh, 0).dmg).toBeCloseTo(8 + 2, 9); // Long Haul counts the Grease
+    expect(estimateRoute(lh, 0).dmg).toBeCloseTo(8 + 1 + 2, 9); // Grease adds locked damage; Long Haul still counts it
+  });
+
+  it("each speed rig gives locked belts useful damage at every star without moving the pendulum beat", () => {
+    for (const [def, x, y] of gates) for (const stars of [1, 2, 3]) {
+      const b = metro(10, [[def, x, y]]);
+      b.items.find((p) => p.def === def)!.stars = stars;
+      const bonus = ITEMS[def].levels?.[stars as 2 | 3]?.gate?.lockedFlat ?? ITEMS[def].gate!.lockedFlat!;
+      const ordinary = ITEMS[def].levels?.[stars as 2 | 3]?.gate?.flat ?? 0;
+      const walk = estimateRoute(b, 0);
+      expect(walk.ride, `${def} ${stars} stars`).toBeCloseTo(ride(10), 9);
+      expect(walk.dmg, `${def} ${stars} stars`).toBeCloseTo(8 + bonus + ordinary, 9);
+      const fired = shots(new Battle(b, dummyFoe(), 5), 15);
+      expect(fired.length).toBeGreaterThan(4);
+      for (const s of fired) expect(s.dmg, `${def} ${stars} stars`).toBeCloseTo(8 + bonus + ordinary, 9);
+    }
   });
 
   it("enemy Drag never lands on Metronome belts: ride stays exactly 0.4n + 0.2 s", () => {
@@ -137,11 +152,11 @@ describe("METRONOME speed lock", () => {
 });
 
 describe("METRONOME rules data (rulings 4-6)", () => {
-  it("free module swap is Metronome's alone; the caravan hides speed gates from it", () => {
+  it("free module swap and speed lock are Metronome's alone; there is no hero shop exclusion", () => {
     for (const h of Object.keys(HEROES) as HeroId[]) {
       expect(heroRules(h).freeModuleSwap, h).toBe(h === "metronome");
       expect(heroRules(h).speedLock, h).toBe(h === "metronome");
-      expect([...heroRules(h).shopExclude], h).toEqual(h === "metronome" ? ["grease", "brake", "overdrive"] : []);
+      expect("shopExclude" in heroRules(h), h).toBe(false);
     }
   });
 

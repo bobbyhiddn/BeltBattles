@@ -103,7 +103,7 @@ const STEPS: Record<RaceHeroId, Buy[]> = {
     { gates: [["grease", 7, 5, 3]] }, // d9 51 g -> (6,5): the press belt's first tile ((5,5) has no free side)
     { gates: [["longhaul", 6, 2, 2]] }, // d10 61 g -> (5,2)
   ],
-  metronome: [ // 10-tile beat route (no speed rigs: they are inert and excluded from its shop)
+  metronome: [ // 10-tile beat route; speed rigs preserve tempo and add locked-belt damage
     { gates: [["whetstone", 1, 4, 1], ["temper", 1, 3, 1]] }, // d1  6 g: 10 + 2 dmg, 2 Burn -> (2,4), (2,3)
     { gates: [["longhaul", 1, 2]] }, // d2 11 g -> (2,2)
     { mod: ["calibrate", 0] }, // d3 16 g

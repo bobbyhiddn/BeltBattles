@@ -1,5 +1,5 @@
 // Balance harness: the Shopper, the state randomBuild spends through. It holds the deck being
-// built, the day's budget and the hero's shop (shopExclude honoured), plus the belt and rig
+// built, the day's budget and the shared shop catalogue, plus the belt and rig
 // helpers every lever shares. Edits that can fail take a snapshot and restore it.
 // 0.6.2 BELTSIDE (ref/DESIGN-beltside.md H2): rigs stand beside the belt. The shopper picks a belt tile to
 // work and places the rig greedily: the free cell beside that tile and the rotation with the most hits on

@@ -1,7 +1,7 @@
 // Content definitions — all rules data lives here, separate from presentation.
 // Values are first-playable design values, not finished balance (spec §13, §24).
 
-import { RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, type RaceHeroId } from "./races/data"; // races:
+import { DORMANT_ITEMS, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, type RaceHeroId } from "./races/data"; // races:
 
 // bb-0.4.0: hulls +33% (and warlord hull steps / plating to match) so rounds 1-3 last
 // 20-45 s at 1x instead of 16-18 s; every win/loss in the balance probe is unchanged.
@@ -66,6 +66,7 @@ export interface GateEffect {
   flat?: number; // flat damage added
   perPriorGate?: number; // damage per gate already visited (Long Haul)
   speed?: number; // downstream speed state (later state wins)
+  lockedFlat?: number; // damage instead of speed when this hero's belts are tempo locked
   split?: { copies: number; mult: number }; // Splitter
   // 0.6.1p: the star perks (ARSENAL.md §4.3, catalogue.json). Absent at 1 star, so 1-star decks fight as in 0.6.0.
   priorCap?: number; // LONG HAUL 2-3 stars: prior gates counted at most
@@ -354,17 +355,17 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   grease: {
     id: "grease", name: "GREASE WORKS", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
-    desc: ["BELT RUNS 1.6X FROM", "THE TILE IT HITS ON.", "LATER SPEED WINS."], tags: ["SPEED"],
-    gate: { speed: 1.6 },
-    levels: { 2: { gate: { speed: 2.3 } }, 3: { gate: { speed: 3.1 } } },
+    desc: ["BELT RUNS 1.6X FROM", "ITS HIT. LOCKED BELTS", "GAIN +1 DAMAGE."], tags: ["SPEED"],
+    gate: { speed: 1.6, lockedFlat: 1 },
+    levels: { 2: { gate: { speed: 2.3, lockedFlat: 2 } }, 3: { gate: { speed: 3.1, lockedFlat: 4 } } },
   },
   brake: {
     id: "brake", name: "BRAKE SHOE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
-    desc: ["BELT RUNS AT HALF", "SPEED FROM THE TILE", "IT HITS. SLOW COOK."], tags: ["SPEED", "HAUL"],
-    gate: { speed: 0.5 },
+    desc: ["HALF SPEED FROM HIT.", "LOCKED BELTS GAIN", "+2 DAMAGE INSTEAD."], tags: ["SPEED", "HAUL"],
+    gate: { speed: 0.5, lockedFlat: 2 },
     levels: { // 0.6.1f: the slow stays at half speed (a deeper one starved the turret); the merge pays in friction heat
-      2: { gate: { speed: 0.5, flat: 2 }, perk: "HOT SHOE" },
-      3: { gate: { speed: 0.5, flat: 5 }, perk: "RED-HOT SHOE" },
+      2: { gate: { speed: 0.5, flat: 2, lockedFlat: 4 }, perk: "HOT SHOE" },
+      3: { gate: { speed: 0.5, flat: 5, lockedFlat: 7 }, perk: "RED-HOT SHOE" },
     },
   },
   longhaul: {
@@ -397,11 +398,11 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   overdrive: {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker", shape: "X",
-    desc: ["4 ARROWS: EACH BELT", "IT HITS RUNS 3X", "FROM THAT TILE ON."], tags: ["SPEED"],
-    gate: { speed: 3 },
+    desc: ["4 ARROWS: 3X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +3 DAMAGE."], tags: ["SPEED"],
+    gate: { speed: 3, lockedFlat: 3 },
     levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; the guard flags wait for wave 2's enemy slow and freeze
-      2: { gate: { speed: 4, guard: GUARD_SLOW }, perk: "REDLINE" },
-      3: { gate: { speed: 5, flat: 3, guard: GUARD_SLOW | GUARD_FREEZE }, perk: "AFTERBURNER" },
+      2: { gate: { speed: 4, lockedFlat: 6, guard: GUARD_SLOW }, perk: "REDLINE" },
+      3: { gate: { speed: 5, flat: 3, lockedFlat: 11, guard: GUARD_SLOW | GUARD_FREEZE }, perk: "AFTERBURNER" },
     },
   },
   tollbooth: {
@@ -768,7 +769,12 @@ export const MERCHANTS: Record<MerchantId, MerchantDef> = {
 };
 
 export function itemsSoldBy(m: MerchantId): ItemDef[] {
-  return Object.values(ITEMS).filter((d) => d.merchant === m);
+  return Object.values(ITEMS).filter((d) => d.merchant === m && !DORMANT_ITEMS.has(d.id));
+}
+
+/** The shared, hero-blind salvage catalogue; supplies and dormant prototypes are not buyable modules. */
+export function buyableModules(): ItemDef[] {
+  return Object.values(ITEMS).filter((d) => !!d.merchant && d.price > 0 && d.kind !== "supply" && !DORMANT_ITEMS.has(d.id));
 }
 
 // 0.6.0: a run is RUN_DAYS days (dawn caravan -> the road -> a dusk ghost). A dusk loss costs a

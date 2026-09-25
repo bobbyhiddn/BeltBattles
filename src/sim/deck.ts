@@ -484,6 +484,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
         flat += e.flat;
         th.flat = e.flat;
       }
+      if (locked && e.lockedFlat) {
+        flat += e.lockedFlat;
+        th.flat = (th.flat ?? 0) + e.lockedFlat;
+      }
       if (e.perPriorGate) {
         // beltside-062 D2 (DESIGN §11 P3): LONG HAUL ★2/★3 counts at most priorCap prior HITS (every earlier
         // arrow application, this tile's tier-1 hits included), exactly as Battle.applyHit does

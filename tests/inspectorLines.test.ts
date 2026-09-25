@@ -195,7 +195,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     const x = rigPanel(rigRun("overdrive", 3, 5, 3, 0, 0), 10)!;
     expect(text(rigRun("overdrive", 3, 5, 3, 0, 0))).toEqual([
       "→ BELT 1 · TILE 3", "→ BELT 2 · TILE 3", "★3 AFTERBURNER: SPEED X5 · +3 FLAT", "FACES EVERY SIDE. DRAG TO MOVE.",
-      "4 ARROWS: EACH BELT", "IT HITS RUNS 3X", "FROM THAT TILE ON.",
+      "4 ARROWS: 3X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +3 DAMAGE.",
     ]);
     expect([x.sub, x.subShort, x.labels]).toEqual(["RIG · 2/4 ARROWS ON BELTS", "RIG · 2/4 HIT", ["TO CARGO"]]);
   });

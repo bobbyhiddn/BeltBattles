@@ -35,8 +35,7 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
     desc: ["LEECH SLUGS: DRAG FOR", "THE LEFT GUN, ECHO", "FOR THE RIGHT GUN."],
     factory: { ammo: "leechDrag", interval: 1.1, outputs: 2 },
   },
-  // Beastfolk-pool turret modules (ruling 5). No merchant yet: the caravan offers faction pools
-  // from 0.9.0 (ITEM_POOL below), so today no shop sells them and no Furnace/Weaver run changes.
+  // Dormant pendulum modules. They gain a merchant only when useful on every hero's ammo.
   // Priced like CALIBRATION (rare, 5 g): a comparable single-gun upgrade.
   escapement: {
     id: "escapement", name: "ESCAPEMENT", kind: "mod", rarity: "rare", price: 5, size: 1,
@@ -105,13 +104,12 @@ export const isRaceHero = (id: string): id is RaceHeroId => id in RACE_HEROES;
 export interface HeroRules {
   freeModuleSwap: boolean; // may unmount/remount turret modules freely between days (spec §13)
   speedLock: boolean; // every belt runs at 1x: speed gates and enemy Drag have no effect
-  shopExclude: readonly string[]; // item ids the caravan should not offer this hero
 }
 
-const NO_RULES: HeroRules = { freeModuleSwap: false, speedLock: false, shopExclude: [] };
+const NO_RULES: HeroRules = { freeModuleSwap: false, speedLock: false };
 
 export const HERO_RULES: Partial<Record<HeroId, HeroRules>> = {
-  metronome: { freeModuleSwap: true, speedLock: true, shopExclude: ["grease", "brake", "overdrive"] },
+  metronome: { freeModuleSwap: true, speedLock: true },
 };
 
 export function heroRules(hero: HeroId): HeroRules {
@@ -121,7 +119,7 @@ export function heroRules(hero: HeroId): HeroRules {
 /**
  * Dormant items (REQ-BFG-021: one shared pool, no dead offers). ESCAPEMENT and LONGCASE move only pendulum slugs, so no
  * merchant sells them until they gain an effect on other ammo; then they join the one shared pool like every part.
- * No faction pools. (0.6.1f: replaces ITEM_POOL, which marked both "beastfolk".)
+ * No faction pools. Neither item counts as buyable until it has a cross-hero effect.
  */
 export const DORMANT_ITEMS: ReadonlySet<string> = new Set(["escapement", "longcase"]);
 

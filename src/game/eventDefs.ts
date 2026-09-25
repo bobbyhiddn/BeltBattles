@@ -3,8 +3,7 @@
 // events.ts applies exactly that and nothing else. Tuned so an event is worth about +2 to +4
 // gold on average and none of them wins a run by itself.
 
-import { ITEMS, type ItemDef, type ModuleTag, type Rarity } from "../sim/content";
-import { RACE_ITEMS } from "../sim/races/data";
+import { ITEMS, buyableModules, type ItemDef, type ModuleTag, type Rarity } from "../sim/content";
 import { fusible, starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
@@ -62,14 +61,12 @@ const moveOn = (label = "MOVE ON"): Choice => ({ ...MOVE_ON, label });
 // 2026-09-24): no draw reads the hero or race, only the catalogue, the parts the player holds and the
 // event's fixed `pick` (makeEvent's hashSeed(seed, "event", day) stream; no new stream).
 
-const RACE_IDS = new Set(Object.keys(RACE_ITEMS));
-
 /** A part a caravan sells and that merges: a merchant stocks it and stars.ts `fusible` holds (never a
- *  supply or a price-0 signature), and it is no race item. */
-const roadPart = (d: ItemDef): boolean => !!d.merchant && fusible(d.id) && !RACE_IDS.has(d.id);
+ *  supply, price-0 signature or dormant prototype). A new race module joins on merchant assignment. */
+const roadPart = (d: ItemDef): boolean => fusible(d.id);
 
 /** The ids of every road part that passes `test`, in catalogue order. */
-const roadParts = (test: (d: ItemDef) => boolean): string[] => Object.values(ITEMS).filter((d) => roadPart(d) && test(d)).map((d) => d.id);
+const roadParts = (test: (d: ItemDef) => boolean): string[] => buyableModules().filter((d) => roadPart(d) && test(d)).map((d) => d.id);
 
 /** SALVAGE's pool: the common gates (0.6.1: TEMPER, WHETSTONE, GREASE WORKS and BRAKE SHOE). */
 export const salvagePool = (): string[] => roadParts((d) => d.kind === "gate" && d.rarity === "common");

@@ -151,7 +151,7 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
   // beltside-062-on-061 re-pin (DESIGN §13 P16, moved by H2's rig placement): 3255984614 -> 2825511527, computed the
   // same way with beltside-062c's OWN harness (BELTSIDE's pre-v2 harness, v1 on rigs: randomBuild(hero, day, rng)) in
   // a scratch export: stars off, this harness reproduces it build for build.
-  it("stars off: randomBuild reproduces BELTSIDE's pre-v2 harness (beltside-062c) exactly for a fixed seed set (pinned hash)", () => {
+  it("stars off: randomBuild is deterministic with the shared pool for a fixed seed set", () => {
     const hash32 = (s: string): number => {
       let h = 0x811c9dc5;
       for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
@@ -169,7 +169,8 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
         }
       }
     });
-    expect(hash32(parts.join("|"))).toBe(2825511527);
+    // REQ-BFG-021 changes Metronome's choices within the pre-expansion stock.
+    expect(hash32(parts.join("|"))).toBe(675877753);
   }, 60_000);
 
   it("F11: stars off: fullPurseBuild output reproduces BELTSIDE's pre-v2 harness (beltside-062c) exactly for a fixed seed set (pinned hash)", () => {

@@ -9,8 +9,8 @@ import {
 } from "../src/game/eventDefs";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { migrateRun, newRun, rollShop, shopBadge, type Run } from "../src/game/run";
-import { ITEMS, RARITIES, type HeroId, type ItemDef, type ModuleTag } from "../src/sim/content";
-import { RACE_ITEMS } from "../src/sim/races/data";
+import { ITEMS, RARITIES, buyableModules, type HeroId, type ItemDef, type ModuleTag } from "../src/sim/content";
+import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { fusible } from "../src/sim/stars";
 import { hitsOfRig, key, type ModPlacement, type Placed } from "../src/sim/deck";
 import { routeProblems } from "../src/game/routeCheck"; // 0.6.2 BELTSIDE merge (0.6.1c)
@@ -21,11 +21,9 @@ const HEROES2: HeroId[] = ["furnace", "weaver"];
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 type Held = readonly (string | readonly [string, number])[];
 
-/** Independent of eventDefs: every part a merchant sells that merges (a priced gate, factory, mod or
- *  core), never a supply, a price-0 signature or a race item. Read off ITEMS when called. */
-const RACE = new Set(Object.keys(RACE_ITEMS));
+/** Every merchant-sold module, including future race modules, excluding dormant prototypes. */
 const buyable = (): ItemDef[] =>
-  Object.values(ITEMS).filter((d) => !!d.merchant && d.price > 0 && ["gate", "factory", "mod", "core"].includes(d.kind) && !RACE.has(d.id));
+  Object.values(ITEMS).filter((d) => !!d.merchant && d.price > 0 && ["gate", "factory", "mod", "core"].includes(d.kind) && !DORMANT_ITEMS.has(d.id));
 const ids = (ds: ItemDef[]) => ds.map((d) => d.id);
 
 /** A Furnace run on the road on `day` with event `id`, 20 gold and the parts `held` in cargo. */
@@ -99,19 +97,30 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     for (const kind of ["gate", "factory", "mod", "core"]) expect(all.some((id) => ITEMS[id].kind === kind), kind).toBe(true);
   });
 
-  it("no supply, signature or race item is in any pool (SALVAGE, SMUGGLER, UPGRADE)", () => {
+  it("no supply, signature or dormant item is in any pool; a newly sold race module joins", () => {
     const pools = () => [salvagePool(), smugglerPool("BURN"), smugglerPool("SHOCK"), ...RARITIES.map((r) => UPGRADE[r])].flat();
-    const bad = (id: string) => ITEMS[id].kind === "supply" || ITEMS[id].price <= 0 || RACE.has(id) || !ITEMS[id].merchant;
+    const bad = (id: string) => ITEMS[id].kind === "supply" || ITEMS[id].price <= 0 || DORMANT_ITEMS.has(id) || !ITEMS[id].merchant;
     expect(pools().filter(bad)).toEqual([]);
-    for (const id of ["kiln", "loom", "beltcrate", "plating", ...RACE]) expect(pools(), id).not.toContain(id);
+    for (const id of ["kiln", "loom", "beltcrate", "plating", ...DORMANT_ITEMS]) expect(pools(), id).not.toContain(id);
     const esc = ITEMS.escapement, hopper = ITEMS.hopper, sold = hopper.merchant;
     try {
-      esc.merchant = "gunsmith"; // a race part with a merchant is still never offered
+      esc.merchant = "gunsmith"; // explicit dormancy wins even if a merchant is assigned prematurely
       expect(pools()).not.toContain("escapement");
       delete hopper.merchant; // read when used: a part leaves with its merchant and joins again with it
       expect(UPGRADE.common).not.toContain("hopper");
       hopper.merchant = sold;
       expect(UPGRADE.common).toContain("hopper");
+      const crucible = ITEMS.crucible;
+      const price = crucible.price;
+      try {
+        crucible.price = 5;
+        crucible.merchant = "ironmonger";
+        expect(UPGRADE.epic).toContain("crucible"); // no race-identity filter
+        expect(buyableModules().map((d) => d.id)).toContain("crucible");
+      } finally {
+        crucible.price = price;
+        delete crucible.merchant;
+      }
     } finally {
       delete esc.merchant;
       hopper.merchant = sold;

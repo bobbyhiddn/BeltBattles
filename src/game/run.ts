@@ -9,7 +9,7 @@ import {
   type HeroId, type ItemDef, type MerchantId, type Rarity,
 } from "../sim/content";
 import { removeItem, rotOf, setRot, type Build } from "../sim/deck";
-import { startingBuild } from "../sim/ai";
+import { heroStartBuild } from "../sim/heroBuilds";
 import type { SideStats } from "../sim/battle";
 import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
@@ -127,7 +127,7 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
   const run: Run = {
     version: RUN_VERSION, seed, runId, hero, enemyHero: hero === "furnace" ? "weaver" : "furnace",
     day: 1, gold: START_GOLD, lives: START_LIVES, wins: 0, losses: 0,
-    build: startingBuild(hero, 1), inventory: [], shop: { wagons: [], rerolls: 0, discount: 0, free: 0 },
+    build: heroStartBuild(hero, 1), inventory: [], shop: { wagons: [], rerolls: 0, discount: 0, free: 0 },
     nextUid: 100, history: [], over: null,
     stage: "caravan", event: null, nextShop: { discount: 0, free: 0 }, events: [], dusk: null,
     road: null, warlord: null, warlords: [], matriarchBeatenOn: null, bounty: null, sabotage: null,

@@ -811,6 +811,7 @@ export class Battle {
     const e = doubled ? overclocked(g.def.gate!) : g.def.gate!;
     const copies: BeltAmmo[] = [];
     if (e.flat) p.flat += e.flat;
+    if (s.race?.speedLock && e.lockedFlat) p.flat += e.lockedFlat;
     // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
     if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
     if (e.burn) p.burn += e.burn;
