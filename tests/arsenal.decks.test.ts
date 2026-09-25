@@ -56,9 +56,11 @@ interface Case { id: string; deck: string; opp: string; at: (stars: number) => B
 
 const ASM_GATES: [string, number, number, number][] = [["temper", 4, 4, 1], ["whetstone", 4, 2, 1], ["temper", 5, 3, 1], ["whetstone", 5, 1, 1]];
 
-/** 0.6.1c: par/furnace/6 with its STAMP PRESS (the second intake) swapped for `def` at `stars` (report-only rows). */
+/** 0.6.1c: par/furnace/6 with its STAMP PRESS (the second intake) swapped for `def` at `stars` (report-only rows).
+ *  0.6.2 BELTSIDE merge (0.6.1c): from the native par deck (native(): each rig works its gate's old tile, checked), not
+ *  the raw inline one, whose gates stand on belt tiles and make no hits. */
 function parSwap(def: string, stars: number): Build {
-  const b = clone(par.decks[FURNACE]);
+  const b = native(FURNACE);
   const p = b.items.find((i) => i.def === "press")!;
   p.def = def;
   if (stars > 1) p.stars = stars;
