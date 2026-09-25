@@ -80,9 +80,9 @@ describe("rival builds are legal production builds", () => {
     const stray = base();
     stray.mods.push({ uid: 1, def: "chamber", turret: 0 }); // not on the rival item list
     const idle = base();
-    idle.items.push({ uid: 2, def: "temper", x: 9, y: 9 }); // 0.6.2 BELTSIDE: no arrow reaches a belt
+    idle.items.push({ uid: 2, def: "splitter", x: 9, y: 9 }); // 0.6.2 BELTSIDE: no arrow reaches a belt
     const onBelt = base();
-    onBelt.items.push({ uid: 3, def: "temper", x: kx(onBelt.routes[0].cells[2]), y: ky(onBelt.routes[0].cells[2]) }); // on a belt tile
+    onBelt.items.push({ uid: 3, def: "splitter", x: kx(onBelt.routes[0].cells[2]), y: ky(onBelt.routes[0].cells[2]) }); // on a belt tile
     const short = base();
     short.routes[0].cells.pop(); // no longer reaches its intake
     const crossed = base();
@@ -90,8 +90,8 @@ describe("rival builds are legal production builds", () => {
     const noFactory = base();
     noFactory.items = noFactory.items.filter((p) => p.def !== "kiln");
     for (const b of [stray, idle, onBelt, short, crossed, noFactory]) expect(legalityProblems(b).length).toBeGreaterThan(0);
-    expect(legalityProblems(idle)).toEqual(["rig temper@9,9 is IDLE"]);
-    expect(legalityProblems(onBelt)[0]).toMatch(/^rig temper@.*: BELT IN THE WAY$/);
+    expect(legalityProblems(idle)).toEqual(["rig splitter@9,9 is IDLE"]);
+    expect(legalityProblems(onBelt)[0]).toMatch(/^rig splitter@.*: BELT IN THE WAY$/);
     expect(legalityProblems(base())).toEqual([]);
   });
 
@@ -104,7 +104,16 @@ describe("rival builds are legal production builds", () => {
         expect(b.value, `${id} day ${day}`).toBeGreaterThanOrEqual(a.value);
         expect(b.plating, `${id} day ${day}`).toBeGreaterThanOrEqual(a.plating);
         expect(b.build.items.length + b.build.mods.length).toBeGreaterThanOrEqual(a.build.items.length + a.build.mods.length);
-        for (const p of a.build.items) expect(b.build.items, `${id} day ${day}`).toContainEqual(p);
+        for (const p of a.build.items) {
+          const next = b.build.items.find((q) => q.uid === p.uid);
+          expect(next, `${id} day ${day} uid ${p.uid}`).toMatchObject({ uid: p.uid, def: p.def, x: p.x, y: p.y });
+          expect(next!.stars ?? 1, `${id} day ${day} uid ${p.uid} stars`).toBeGreaterThanOrEqual(p.stars ?? 1);
+        }
+        for (const m of a.build.mods) {
+          const next = b.build.mods.find((q) => q.uid === m.uid);
+          expect(next, `${id} day ${day} turret uid ${m.uid}`).toMatchObject({ uid: m.uid, def: m.def, turret: m.turret });
+          expect(next!.stars ?? 1, `${id} day ${day} turret uid ${m.uid} stars`).toBeGreaterThanOrEqual(m.stars ?? 1);
+        }
         for (const r of a.build.routes) expect(b.build.routes, `${id} day ${day}`).toContainEqual(r);
       }
       const days = rivalDays(id);

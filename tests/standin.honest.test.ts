@@ -11,6 +11,7 @@ import { newRun } from "../src/game/run";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
+import { starsOf, valueOf } from "../src/sim/stars";
 import { pickLoss } from "./beltside.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
@@ -20,8 +21,8 @@ const BOTH: HeroId[] = ["furnace", "weaver"];
 function refBuildCost(b: Build): number {
   const h = HEROES[b.hero];
   const crate = ITEMS.beltcrate, plate = ITEMS.plating;
-  const items = b.items.reduce((s, p) => s + (ITEMS[p.def]?.price ?? 0), 0);
-  const mods = b.mods.reduce((s, m) => s + (ITEMS[m.def]?.price ?? 0), 0);
+  const items = b.items.reduce((s, p) => s + valueOf(p.def, starsOf(p)), 0);
+  const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
   const crates = Math.max(0, Math.ceil((b.beltCap - h.belt) / crate.supply!.belt!));
   const plates = Math.max(0, Math.ceil(b.hullBonus / plate.supply!.hull!));
   return items + mods + crates * crate.price + plates * plate.price;

@@ -4,14 +4,15 @@
 
 import {
   canExtend, canPlaceItem, commitRoute, connectorClaims, hitsOfRig, placeItem, routeInfo,
-  routesOf, turretHasFreeHardpoint, beltUsed, type Build,
+  routesOf, turretHasFreeHardpoint, coreFor, beltUsed, type Build,
 } from "../src/sim/deck";
 import { HEROES, ITEMS } from "../src/sim/content";
+import { unfusedPairs } from "../src/net/validate";
 
 /** Every item a rival deck may carry: the two signature factories and shop stock. */
 export const ALLOWED = new Set([
   "kiln", "loom", "press", "temper", "whetstone", "grease", "brake", "longhaul", "coil", "splitter",
-  "overdrive", "calibrate", "beltcrate", "plating",
+  "overdrive", "calibrate", "hopper", "drake", "beltcrate", "plating",
 ]);
 
 /** Rebuild a deck from empty with the build screen's own checks; returns every problem found. */
@@ -21,6 +22,7 @@ export function legalityProblems(b: Build): string[] {
   const nb: Build = { hero: b.hero, items: [], routes: [], mods: [], beltCap: b.beltCap, hullBonus: b.hullBonus };
   const uids = [...b.items, ...b.mods].map((p) => p.uid);
   if (new Set(uids).size !== uids.length) bad.push("duplicate uids");
+  bad.push(...unfusedPairs(b));
   for (const p of [...b.items, ...b.mods]) if (!ALLOWED.has(p.def)) bad.push(`stray item ${p.def}`);
   const facs = b.items.filter((p) => ITEMS[p.def]?.kind === "factory");
   const gates = b.items.filter((p) => ITEMS[p.def]?.kind === "gate");
@@ -57,9 +59,11 @@ export function legalityProblems(b: Build): string[] {
   }
   for (const g of gates) if (!hitsOfRig(nb, g.uid).length) bad.push(`rig ${g.def}@${g.x},${g.y} is IDLE`);
   for (const m of b.mods) {
-    if (ITEMS[m.def]?.kind !== "mod") bad.push(`${m.def} is not turret gear`);
+    const kind = ITEMS[m.def]?.kind;
+    if (kind !== "mod" && kind !== "core") bad.push(`${m.def} is not turret equipment`);
     if (m.turret < 0 || m.turret >= h.turrets.length) bad.push(`no turret ${m.turret}`);
-    else if (!turretHasFreeHardpoint(nb, m.turret)) bad.push(`turret ${m.turret} already has gear`);
+    else if (kind === "mod" && !turretHasFreeHardpoint(nb, m.turret)) bad.push(`turret ${m.turret} already has gear`);
+    else if (kind === "core" && coreFor(nb, m.turret)) bad.push(`turret ${m.turret} already has a core`);
     nb.mods.push(m);
   }
   b.routes.forEach((_, i) => { if (!routeInfo(b, i).connected) bad.push(`route ${i} not connected`); });

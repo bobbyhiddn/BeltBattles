@@ -10,6 +10,7 @@ import { battleSeed, migrateRun, newRun, rollShop, type Run } from "../src/game/
 import { simulate, type SideStats } from "../src/sim/battle";
 import { ITEMS } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
+import { starsOf, valueOf } from "../src/sim/stars";
 import { DIFFICULTIES, MATRIARCH_DAY, difficultyOf, warlordOffer } from "../src/sim/rivals";
 
 const SEEDS = Array.from({ length: 30 }, (_, i) => 11 + i * 7919);
@@ -25,12 +26,13 @@ function atDay(seed: number, day: number): Run {
   return run;
 }
 
-/** A deck's distinct parts a warlord can give away (no signature factory, no supply), priciest first. */
+/** A deck's distinct parts a warlord can give away, ranked by its best starred copy's value. */
 function giveable(b: Build): string[] {
-  const ids = new Set([...b.items.map((p) => p.def), ...b.mods.map((m) => m.def)]);
-  return [...ids]
+  const best = new Map<string, number>();
+  for (const p of [...b.items, ...b.mods]) best.set(p.def, Math.max(best.get(p.def) ?? 0, valueOf(p.def, starsOf(p))));
+  return [...best.keys()]
     .filter((d) => d !== "kiln" && d !== "loom" && ITEMS[d] && ITEMS[d].kind !== "supply")
-    .sort((a, c) => ITEMS[c].price - ITEMS[a].price || (a < c ? -1 : a > c ? 1 : 0));
+    .sort((a, c) => best.get(c)! - best.get(a)! || (a < c ? -1 : a > c ? 1 : 0));
 }
 
 describe("warlords: rewards", () => {
@@ -83,7 +85,8 @@ describe("warlords: rewards", () => {
         const own = parts.slice(0, Math.min(2, pool.length));
         for (const p of parts) expect(["kiln", "loom"]).not.toContain(p);
         for (const p of own) expect([...w.build.items.map((x) => x.def), ...w.build.mods.map((m) => m.def)]).toContain(p);
-        for (let i = 1; i < own.length; i++) expect(ITEMS[own[i - 1]].price).toBeGreaterThanOrEqual(ITEMS[own[i]].price);
+        const worth = (def: string) => Math.max(...[...w.build.items, ...w.build.mods].filter((p) => p.def === def).map((p) => valueOf(def, starsOf(p))));
+        for (let i = 1; i < own.length; i++) expect(worth(own[i - 1])).toBeGreaterThanOrEqual(worth(own[i]));
         expect(w.reward.legendary).toBe(false);
         finishWarlord(run, 0, 30);
         expect(pickPending(run.warlord)).toBe(parts.length > 0);
