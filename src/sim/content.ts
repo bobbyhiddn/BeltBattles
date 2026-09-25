@@ -220,7 +220,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   shottower: {
     id: "shottower", name: "SHOT TOWER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "gunsmith",
-    desc: ["DROPS 3 BUCKSHOT", "(1 DMG) EVERY 1.5S.", "GATES HIT EACH ONE."], tags: ["SPLIT", "FRAY", "VOLUME"],
+    desc: ["DROPS 3 BUCKSHOT", "(1 DMG) EVERY 1.5S.", "RIGS HIT EACH ONE."], tags: ["SPLIT", "FRAY", "VOLUME"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "shot", interval: 1.5, outputs: 1, batch: 3 }, // base 1: AMMO.shot
     levels: { 2: { factory: { interval: 1.35, base: 2 } }, 3: { factory: { interval: 1.3, base: 3 } } },
   },
@@ -235,13 +235,13 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   slagpot: {
     id: "slagpot", name: "SLAG POT", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "ironmonger",
-    desc: ["HEAVY SLAG SLUGS", "(7 DMG) THAT IGNORE", "BELT SPEED GATES."], tags: ["BURST", "HAUL"],
+    desc: ["HEAVY SLAG SLUGS", "(7 DMG) THAT IGNORE", "BELT SPEED RIGS."], tags: ["BURST", "HAUL"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "slag", interval: 2.8, outputs: 1 }, // base 7: AMMO.slag (fixed 0.75x belt speed)
     levels: { 2: { factory: { interval: 2.2, base: 12 } }, 3: { factory: { interval: 1.75, base: 15 } } },
   },
   assembly: {
     id: "assembly", name: "ASSEMBLY LINE", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "ironmonger",
-    desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR GATES", "COMMISSION 2X FAST."], tags: ["TIMING", "VOLUME"],
+    desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR RIGS", "COMMISSION 2X FAST."], tags: ["TIMING", "VOLUME"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "plain", interval: 1.8, outputs: 1, commission: 0.5 },
     levels: {
       2: { factory: { interval: 1.5, commission: 0.25 } },

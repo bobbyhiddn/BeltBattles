@@ -67,7 +67,8 @@ function factoryLine(f: FactorySpec): string {
     const em = f.cycle.find((p) => p.tint === "ember"), sp = f.cycle.find((p) => p.tint === "spark");
     return `EMBER +${em?.burn ?? 0} · SPARK ${(sp?.shockTime ?? DISRUPT_TIME).toFixed(1)}S${sp?.jump ? "+JUMP" : ""} · ${f.interval}S`;
   }
-  if (f.commission !== undefined) return `GATES ONLINE X${f.commission} · ${f.interval}S${f.hotStart ? ` · X2 ${f.hotStart}S` : ""}`; // ASSEMBLY LINE
+  // ASSEMBLY LINE (beltside-062c: players read RIG, DESIGN §1 and §12 P10)
+  if (f.commission !== undefined) return `RIGS ONLINE X${f.commission} · ${f.interval}S${f.hotStart ? ` · X2 ${f.hotStart}S` : ""}`;
   if (f.batch) return `${f.batch} X ${base} DMG EVERY ${f.interval}S`; // DOUBLE STAMP, SHOT TOWER
   if (AMMO[f.ammo]?.fixedSpeed) return `${base} DMG SLAG EVERY ${f.interval}S`; // SLAG POT
   if (f.outputs > 1) return `${f.outputs} OUTPUTS · ${base} DMG EVERY ${f.interval}S`; // GANTRY PRESS

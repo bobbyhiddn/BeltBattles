@@ -119,7 +119,8 @@ describe("0.6.1c: each factory's headline at each star, its perks named, and the
     shottower: ["3 X 1 DMG EVERY 1.5S", "3 X 2 DMG EVERY 1.35S", "3 X 3 DMG EVERY 1.3S"],
     hotswap: ["EMBER +2 · SPARK 1.6S · 1.5S", "EMBER +4 · SPARK 1.8S+JUMP · 1.3S", "EMBER +7 · SPARK 2.8S+JUMP · 1.1S"],
     slagpot: ["7 DMG SLAG EVERY 2.8S", "12 DMG SLAG EVERY 2.2S", "15 DMG SLAG EVERY 1.75S"],
-    assembly: ["GATES ONLINE X0.5 · 1.8S", "GATES ONLINE X0.25 · 1.5S", "GATES ONLINE X0 · 1.3S · X2 4S"],
+    // 0.6.2 BELTSIDE merge (0.6.1c): the headline reads RIGS, as the player sees it (wording only; the numbers are 0.6.1c's)
+    assembly: ["RIGS ONLINE X0.5 · 1.8S", "RIGS ONLINE X0.25 · 1.5S", "RIGS ONLINE X0 · 1.3S · X2 4S"],
     gantry: ["2 OUTPUTS · 3 DMG EVERY 1.2S", "3 OUTPUTS · 3 DMG EVERY 0.7S", "3 OUTPUTS · 6 DMG EVERY 0.7S"],
   };
   const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", "HOT START"], gantry: ["THIRD ARM", "HEAVY GANTRY"] };
