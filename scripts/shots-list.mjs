@@ -263,7 +263,57 @@ export const SHOTS = [
     // M5: holding one TEMPER, seed 8's day-3 wreck (pick 0.22 < 0.35) salvages the TEMPER it merges with: MERGE badge
     ["event-salvage-merge", v, "title", 0, EVENT("wreck", { seed: 8, round: 3, cargo: "temper" })],
   ]),
+  // 0.6.1f (V5): the retuned merges in the inspector: a 2-star BRAKE SHOE (HOT SHOE) and a 3-star SPLITTER (PERFECT
+  // CUT) on the starting Kiln belt, one of them selected (its level and NEXT lines), desk and phone
+  ...["desk", "phone"].flatMap((v) => [
+    ["build-gate-brake2", v, "build", 0.8, gateBuild(9201)],
+    ["build-gate-splitter3", v, "build", 0.8, gateBuild(9202)],
+    // M2's pewter shot on the dark belt, in a chamber pip and in flight (battle-factory-shottower stops at the mouth)
+    ["battle-shottower-flight", v, "title", 0, shotFlight()],
+  ]),
 ];
+
+// 0.6.1f: battle-factory-shottower's fight, stepped until a shot flies, one sits in a chamber pip and 2 ride its belt
+function shotFlight() {
+  return `(() => {
+  const bb = window.bb, g = bb.game;
+  try {
+    g.run = null;
+    bb.open("build", "furnace", 12345);
+    for (let i = 0; i < 20; i++) g.step(1 / 60);
+    ${placeFactory("shottower", 1)}
+    bb.open("battle", "furnace", 12345);
+    let ok = false;
+    for (let i = 0; i < 60 * 30 && !ok; i++) {
+      g.step(1 / 60);
+      const a = g.screen.arena;
+      if (!a || g.screen.phase !== "fight") continue;
+      const s = a.b.sides[0];
+      const flying = a.b.projectiles.some((p) => p.from === 0 && p.payload.ammo === "shot");
+      const piped = s.turrets.some((t) => t.stack.some((p) => p.ammo === "shot"));
+      const riding = s.routes.filter((r) => r.factory === 9101).reduce((k, r) => k + r.ammo.filter((x) => x.processed >= 2).length, 0) >= 2;
+      ok = flying && piped && riding;
+    }
+    if (!ok) console.error("SHOT_FLIGHT: no frame with a shot in flight, one in a chamber pip and 2 up the belt within 30 s");
+    g.render();
+  } catch (e) { console.error("SHOT_FLIGHT: " + e.message + "\\n" + e.stack); }
+})()`;
+}
+
+// 0.6.1f: BRAKE SHOE 2 stars (uid 9201) and SPLITTER 3 stars (uid 9202) on the first two free cells of the Kiln's belt
+function gateBuild(uid) {
+  return `(() => {
+    const g = bb.game, b = g.run.build;
+    const taken = new Set(b.items.map((p) => p.y * 10 + p.x));
+    const free = b.routes[0].cells.filter((c, i) => i > 0 && !taken.has(c));
+    if (free.length < 2) console.error("GATE_BUILD: fewer than 2 free cells on the Kiln belt");
+    b.items.push({ uid: 9201, def: "brake", x: free[0] % 10, y: Math.floor(free[0] / 10), stars: 2 });
+    b.items.push({ uid: 9202, def: "splitter", x: free[1] % 10, y: Math.floor(free[1] / 10), stars: 3 });
+    g.screen.touched(); // rebuild the screen's cruiser model, so the two gates are drawn
+    g.screen.select({ kind: "item", uid: ${uid} });
+    g.render();
+  })()`;
+}
 
 // 0.6.1c: [def, stars] for the factory shots (a hoisted function: SHOTS above is built at module load)
 function newFactories() {

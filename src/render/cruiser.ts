@@ -178,11 +178,12 @@ function starPips(g: G, f: DeckFrame, px: number, py: number, u: number, v: numb
   for (let k = 0; k < stars; k++) trect(g, f, px, py, u + k * 3, v, 2, 1, C.yellow);
 }
 
-/** A chamber pip's colour. 0.6.1c: the wave-1 kinds (SHOT's lead grey, SLAG's orange, HOT SWAP's ember red and
- *  spark blue; drawTurrets passes `preset ?? ammo`); every other kind as before. */
+/** A chamber pip's colour. 0.6.1c: the wave-1 kinds (SHOT's pewter since 0.6.1f, with a white highlight pixel that
+ *  drawTurrets adds; SLAG's orange, HOT SWAP's ember red and spark blue; drawTurrets passes `preset ?? ammo`); every
+ *  other kind as before. */
 function payloadColor(ammo: string): string {
   switch (ammo) {
-    case "shot": return C.steel1;
+    case "shot": return C.steel3;
     case "slag": return C.fire2;
     case "ember": return C.red;
     case "spark": return C.blue;
@@ -227,7 +228,9 @@ export function drawTurrets(g: G, v: CruiserView): void {
       const pv = -4 + k * 4;
       trect(g, f, px, py, pu, pv, 4, 4, C.ink);
       const loaded = ts ? ts.stack[k] : undefined;
-      trect(g, f, px, py, pu + 1, pv + 1, 2, 2, loaded ? payloadColor(loaded.preset ?? loaded.ammo) : C.slate1);
+      const kind = loaded ? loaded.preset ?? loaded.ammo : undefined;
+      trect(g, f, px, py, pu + 1, pv + 1, 2, 2, kind ? payloadColor(kind) : C.slate1);
+      if (kind === "shot") trect(g, f, px, py, pu + 1, pv + 1, 1, 1, C.white); // 0.6.1f: the pewter shot's highlight
     }
     for (let m = 0; m < mods.length; m++) {
       if (mods[m].turret !== i || ITEMS[mods[m].def]?.kind === "core") continue; // 0.6.1b: gear only (the core has its socket)
