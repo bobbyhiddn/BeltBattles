@@ -278,7 +278,35 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
     }
     console.log(`P15 pool v2 through D3: ${decks} decks, ${migrated} migrated, ${moved} rigs moved (${starredMoved} of them 2-star), ${drops.length} dropped:\n${drops.join("\n")}`);
     expect(decks).toBe(120);
-    expect(starredMoved).toBeGreaterThan(0); // stars really travel with migrated rigs
+    if (!POOL_NATIVE) expect(starredMoved).toBeGreaterThan(0); // stars really travel with migrated rigs
+    else {
+      // pool v2.1 (the D4 native re-bake): no pool deck needs D3 any more, so the stars check runs on inline copies. Every
+      // starred rig of every pool deck is put back ON the first belt tile it works, with no rotation (as a pre-BELTSIDE
+      // code stored a gate), and the loader's D3 step must take it off the belt again with its stars.
+      let inlined = 0;
+      for (const hero of STAND_IN_POOL_HEROES) {
+        for (let day = 1; day <= 10; day++) {
+          for (const t of STAND_IN_DATA.pools[hero]![day - 1][1]) {
+            const b = decodeStarredRaw(hero, t[3]), hits = rigHits(b);
+            for (const p of b.items.filter((q) => ITEMS[q.def].kind === "gate" && starsOf(q) > 1)) {
+              const h = hitsOfRig(b, p.uid, hits)[0];
+              if (!h) continue;
+              const inl = JSON.parse(JSON.stringify(b)) as Build, q = inl.items.find((x) => x.uid === p.uid)!;
+              const cell = inl.routes[h.route].cells[h.tile];
+              q.x = cell % 10;
+              q.y = Math.floor(cell / 10);
+              delete q.rot;
+              const m = migrateInlineGates(inl);
+              const back = m.moved.some((x) => x.uid === p.uid) ? inl.items.find((x) => x.uid === p.uid) : m.stranded.find((x) => x.uid === p.uid);
+              expect(back, `${hero} d${day} ${p.def}: D3 lost the inline rig`).toBeDefined();
+              expect(starsOf(back!), `${hero} d${day} ${p.def}`).toBe(starsOf(p));
+              inlined++;
+            }
+          }
+        }
+      }
+      expect(inlined).toBeGreaterThan(0);
+    }
     // measured on this branch (the D4 native re-bake empties it): 94 decks migrate, 230 rigs move, 63 are dropped
     expect([migrated, moved, drops.length]).toEqual(POOL_NATIVE ? [0, 0, 0] : [94, 230, 63]);
   });

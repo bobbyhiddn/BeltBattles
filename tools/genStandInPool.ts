@@ -16,9 +16,9 @@
 // --check refuses it. Before the flip (FUSE_LIVE
 // false) stars on was a dry run into <out> and stars off wrote the shipped v1.1 pool.
 // Harness v2 part 3 on the 0.6.1 release: --factories on|off defaults to the --stars value (--factories on
-// needs --stars on). The shipped pool v2 was generated before --factories existed, that is with factories
-// off: `--check --factories off` must print IDENTICAL, and a plain --check (factories on) prints DIFFERS
-// until a factory-aware pool ships. --dry (stars on; not with --check): the stars-on dry run on the live
+// needs --stars on). Pool v2 (the flip) was generated before --factories existed, that is with factories
+// off. Since pool v2.1 (0.6.2, the D4 native re-bake) the shipped pool is factory-aware: a plain --check
+// (factories on) prints IDENTICAL and `--check --factories off` DIFFERS. --dry (stars on; not with --check): the stars-on dry run on the live
 // code: it writes <out>/standInPoolData.v2-dry-candidate.ts, standin-pool.md and versus.json and never src;
 // its versus tables play the new picks against the pool this tool was bundled with (the shipped pool).
 

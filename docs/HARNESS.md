@@ -211,6 +211,27 @@ Part 3 sections (factories on only; a factories-off day carries none of them):
 - A factory-aware candidate for job E: `npm run standins -- --dry --out <dir>` (factories on by default) writes
   the candidate module, standin-pool.md and versus.json under `<dir>` and never touches src. Its picks may hold
   the six factories (at most 2 stars, like every stand-in module).
+- Since pool v2.1 (below) the shipped pool is factory-aware: a plain `npm run standins -- --check` prints
+  IDENTICAL, and `--check --factories off` prints DIFFERS.
+
+### Pool v2.1 (0.6.2: the D4 native re-bake; decision of the stand-in pool owner)
+
+- Generated on arsenal-062-combined 65a36b7 (wave-2 catalogue, E1/E2 par and captains, race par fusion, the shared
+  salvage pool) with the default options, stars, cores and factories on: `npm run standins -- --workers 22`, 299,200
+  battles. The header reads `--par-floor 50 --factories on`, and `npm run standins -- --check` prints IDENTICAL.
+- Native on BELTSIDE: no deck has a rig on a belt tile, so the loader's D3 step changes nothing (pool v2 on the same
+  head: 94 decks migrated, 230 rigs moved, 63 dropped). POOL_NATIVE is therefore true and the pool tests' strict
+  branches apply: a par's stored vsPar is its 10-seed re-simulation, or, when the robust re-play took it, a whole
+  number of hundredths from a borderline sample (tests/standInPool.gen.test.ts).
+- The picks use all 58 buyable modules (23 rigs, 13 factories, 13 cores, 9 mods); 82 of 120 hold a bought factory;
+  190 two-star copies and no 3-star; spend 90-100% of maxGoldByDay (mean 98%).
+- The genre band (targets.json filler-vs-par: stand-ins beat the day's par deck 50-60%) is NOT met: 0 of 20
+  hero-days. The picks beat the FURNACE par deck 92% of the time and the WEAVER par deck almost always; against the
+  average-deck field (the day's full-purse gauntlet) they win 59%. The cause is the par decks: heroRefBuild spends
+  0-51% of maxGoldByDay (nothing on day 1, 45-47 of 119 g on day 10), while a stand-in must spend at least 90%.
+- So no par ceiling went into the generator. The builds that lose to the WEAVER par deck have a median strength
+  percentile of 3-28, so a pool that met the band would be bottom-quartile filler, the failure the target exists to
+  prevent. The band needs a par deck that spends like a player (the balance pass); regenerate and re-check then.
 
 ## Regression pins
 

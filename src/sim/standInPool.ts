@@ -14,6 +14,8 @@
 // 0.6.2 BELTSIDE: decoding is a load boundary (DESIGN-beltside D3). The v1.1 decks were generated with
 // gates ON belt tiles; decodeStandIn moves each beside its belt (migrateInlineGates) and drops, and logs,
 // a gate with no free neighbour. The data stays as generated until the harness re-bakes it natively (D4).
+// Pool v2.1 (0.6.2) is that re-bake: generated on BELTSIDE with factories on, no stored deck has a rig on a belt
+// tile, so the migration changes nothing; it stays as the load boundary for any older code.
 //
 // Build code (one string per deck): "<beltCap> <hullBonus>/<items>/<routes>/<mods>"
 //   items:  space-separated <itemId><yx>[r<rot>]: the item's cell as two digits, row y then column x,

@@ -3,7 +3,8 @@
 // re-bakes it natively later); decodeStandIn migrates each deck (D3) and drops, and logs, a rig with no free
 // cell beside its tile. So a pool deck as the game loads it costs its generated cost minus what D3 dropped.
 // The pool tests assert the generation's properties (full purse, stored cost) on the deck as generated,
-// and exact equality once the pool is native (POOL_NATIVE: no deck needs the migration).
+// and exact equality once the pool is native (POOL_NATIVE: no deck needs the migration). Pool v2.1 (0.6.2, the D4
+// re-bake on arsenal-062-combined 65a36b7) is native, so POOL_NATIVE is true from it on.
 // beltside-062-on-061 (ref/DESIGN-beltside.md §13 P15): since the 0.6.1 flip the shipped pool is v2, whose codes carry
 // stars (*2), and the loader decodes with decodeStarred, a load boundary exactly as decodeStandIn is. The same rules
 // hold for v2: "as generated" is decodeStarredRaw (the star-aware raw decode), "as loaded" is decodeStarred.

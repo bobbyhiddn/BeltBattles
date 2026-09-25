@@ -7,6 +7,7 @@ import type { Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { POOL_NATIVE, poolLoss, poolRaw } from "./beltside.helpers";
 import { heroRefBuild } from "../src/sim/heroBuilds";
+import { ROBUST_BAND, ROBUST_MULT } from "../src/sim/harness/standins";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import {
   STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, decodeStandIn, decodeStarred, encodeStandIn, encodeStarred, standInPar, standInParIndex,
@@ -144,6 +145,7 @@ describe("stand-in pool", () => {
   // prints it (REPORT.md) instead of asserting the stored value.
   it("each par, re-simulated against heroRefBuild of both factions (10 seeds x both sides), wins at least 50%: its stored vsPar (strict once the pool is native)", () => {
     const drift: string[] = [];
+    let reReplayed = 0;
     for (const hero of STAND_IN_POOL_HEROES) {
       for (const day of DAYS) {
         const par = standInPar(hero, day);
@@ -153,11 +155,26 @@ describe("stand-in pool", () => {
         for (const x of rates) expect(x >= 0 && x <= 1, `${hero} d${day}`).toBe(true);
         drift.push(`${hero} d${day}: stored ${stored.toFixed(2)} now ${low.toFixed(2)} (vs ${rates.map((x) => x.toFixed(2)).join(" / ")})`);
         if (!POOL_NATIVE) continue;
-        expect(low, `${hero} d${day}`).toBeCloseTo(stored, 6);
-        if (!parShort.has(`${hero}|${day}`)) expect(low, `${hero} d${day} vs refs ${rates.join(" / ")}`).toBeGreaterThanOrEqual(0.5);
+        // pool v2.1 (the D4 native re-bake): the stored vsPar is this 10-seed sample, unless the generator's robust re-play
+        // (0.6.1a, ARSENAL.md §9.2) took the pick: that happens exactly when the sample cleared the floor by at most
+        // ROBUST_BAND, and then the stored value is over all ROBUST_MULT x 10 + 10 seeds x both sides (100 battles per
+        // par deck, so a whole number of hundredths). The re-play seeds need the candidate's population index, which the
+        // data module doesn't store, so a re-played par is checked by those two consequences, not re-played here.
+        if (Math.abs(low - stored) > 1e-6) {
+          expect(low, `${hero} d${day}: only a borderline sample is re-played`).toBeGreaterThanOrEqual(STAND_IN_DATA.parFloor - 1e-9);
+          expect(low, `${hero} d${day}: only a borderline sample is re-played`).toBeLessThanOrEqual(STAND_IN_DATA.parFloor + ROBUST_BAND + 1e-9);
+          expect(Math.abs(stored * 20 * (ROBUST_MULT + 1) - Math.round(stored * 20 * (ROBUST_MULT + 1))), `${hero} d${day} stored ${stored}`).toBeLessThan(1e-6);
+          reReplayed++;
+        }
+        if (!parShort.has(`${hero}|${day}`)) {
+          expect(low, `${hero} d${day} vs refs ${rates.join(" / ")}`).toBeGreaterThanOrEqual(0.5);
+          expect(stored, `${hero} d${day}`).toBeGreaterThanOrEqual(0.5);
+        }
       }
     }
     if (!POOL_NATIVE) console.log(`stand-in par vsPar under BELTSIDE (the pool is inline until the D4 re-bake):\n${drift.join("\n")}`);
+    // most pars are stored as their plain 10-seed sample; at 65a36b7 one (WEAVER day 2) was re-played
+    else expect(reReplayed, drift.join("\n")).toBeLessThan(STAND_IN_POOL_HEROES.length * DAYS.length);
   }, 180_000);
 
   it("each par against heroRefBuild: a quick battle finishes with no NaN", () => {
