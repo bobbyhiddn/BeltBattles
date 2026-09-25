@@ -84,8 +84,8 @@ describe("E1 golden: rig-free Furnace and Weaver battles under the long-belt cad
       });
     });
   }
-  it("Weaver mirror stays identical to the original fixture", () => {
-    for (const name of ["start weaver v weaver", "warlord r1 weaver v weaver"])
-      expect(golden.matchups[name]).toEqual(old.matchups[name]);
+  it("all rig-free matchups stay identical to the original fixture", () => {
+    for (const name of Object.keys(golden.matchups))
+      expect(golden.matchups[name], name).toEqual(old.matchups[name]);
   });
 });

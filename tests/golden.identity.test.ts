@@ -46,8 +46,9 @@ describe("golden-060 decks: current E1 battles match their separate fixture", ()
     for (const [, es] of groups) for (const e of es) expect(beltside.decks[e.key], e.key).toBeTruthy();
   });
   for (const [name, entries] of groups) {
-    it(`${name}: identical winner, ticks, hulls and shots (every battle with no rig on either side)`, () => {
+    it(`${name}: E1 fixture holds and historical rig-free drift is limited to Furnace cadence`, () => {
       const diffs: string[] = [];
+      const historicalDrift: string[] = [];
       for (const e of entries) {
         if (!rigFree(e.deck) || !rigFree(par.decks[e.opp])) continue; // 0.6.2 BELTSIDE: golden.beltside.test.ts
         const opp = par.decks[e.opp];
@@ -56,8 +57,13 @@ describe("golden-060 decks: current E1 battles match their separate fixture", ()
         const got = [b.winner, b.ticks, b.sides[0].hull.hp, b.sides[1].hull.hp, b.sides[0].stats.shots, b.sides[1].stats.shots];
         const want = beltside.decks[e.key];
         if (JSON.stringify(got) !== JSON.stringify(want)) diffs.push(`${e.key}: got ${JSON.stringify(got)} want ${JSON.stringify(want)}`);
+        const historical = { winner: e.winner, t: e.t, ticks: e.ticks, hulls: e.hulls };
+        const unchanged = { winner: b.winner, t: b.t, ticks: b.ticks, hulls: [b.sides[0].hull.hp, b.sides[1].hull.hp] };
+        if (JSON.stringify(unchanged) !== JSON.stringify(historical)) historicalDrift.push(e.key);
       }
       expect(diffs).toEqual([]);
+      expect(historicalDrift).toEqual(name.startsWith("rival captains")
+        ? ["rival/sootjaw/1", "rival/sparkfang/1"] : []);
     });
   }
 });
