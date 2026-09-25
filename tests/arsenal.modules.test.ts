@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, WINDOW_TIME, type HarassCause } from "../src/sim/content";
-import { hitsOfRig, key, rigHits, rotField, type Build } from "../src/sim/deck";
+import { arrowCell, arrowsOf, hitsOfRig, key, kx, ky, rigHits, rotField, type Build } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { barge, bench, busy, coilStall, est, finishers, pressDps, pressOnly, run, SEED, turretStall } from "./arsenal.bench";
 import { batchGaps, factoryBench, factoryLight, factoryOut, gantryBench, gantryWeaver, stamps } from "./arsenal.bench"; // 0.6.1c
@@ -88,7 +88,9 @@ export const FACTORY_ROWS: Row[] = [
 
 const KILN_GATES: [string, number, number, number][] = [["whetstone", 4, 4, 1], ["whetstone", 4, 2, 1]];
 function commissionSaved(stars: number): number {
-  const at = (b: Build) => new Battle(b, barge(), SEED).sides[0].gates.filter((g) => g.x === 4).map((g) => g.commissionAt);
+  // 0.6.2 BELTSIDE merge (0.6.1c): the rigs working the Kiln's belt (column 4) stand west of it, at x 3 (bench()),
+  // where the gates stood on it at x 4
+  const at = (b: Build) => new Battle(b, barge(), SEED).sides[0].gates.filter((g) => g.x === 3).map((g) => g.commissionAt);
   const base = at(bench(KILN_GATES)), got = at(factoryBench("assembly", stars, { gates: KILN_GATES }));
   return 1 - got.reduce((a, b) => a + b, 0) / base.reduce((a, b) => a + b, 0);
 }
@@ -399,7 +401,13 @@ describe("0.6.1c: the six factories' special rules", () => {
   });
 
   const GATES: [string, number, number, number][] = [["whetstone", 4, 4, 1], ["whetstone", 4, 2, 1], ["whetstone", 5, 3, 1]];
-  const gatesOf = (b: Build) => new Battle(b, barge(), SEED).sides[0].gates.map((g) => [g.x, g.y, +g.commissionAt.toFixed(9), g.hotUntil]);
+  // 0.6.2 BELTSIDE merge (0.6.1c): each row names the tile the rig works (the cell its one arrow points at, where the
+  // gate stood), not the rig's own cell beside it; factoryBench's benchRigsCheck holds each rig to exactly that tile
+  const gatesOf = (b: Build) => new Battle(b, barge(), SEED).sides[0].gates.map((g) => {
+    const p = b.items.find((q) => q.uid === g.uid)!;
+    const k = arrowCell(p.x, p.y, arrowsOf(p)[0]);
+    return [kx(k), ky(k), +g.commissionAt.toFixed(9), g.hotUntil];
+  });
 
   it("ASSEMBLY LINE: every gate's commissionAt x0.5 / x0.25 / x0, its own belt's gates online at 0 s; without one, as before", () => {
     expect(gatesOf(factoryBench("press", 1, { gates: GATES }))).toEqual([[4, 4, 1.2, undefined], [4, 2, 1.8, undefined], [5, 3, 1.2, undefined]]);
@@ -415,9 +423,14 @@ describe("0.6.1c: the six factories' special rules", () => {
   });
 
   it("ASSEMBLY LINE: the best factor wins with two on one deck (a ★1 and a ★2 on a Weaver: the Loom's gate at x0.25)", () => {
+    // 0.6.2 BELTSIDE merge (0.6.1c): the WHETSTONE is a rig beside the Loom's belt at (0,3), facing east, its one
+    // arrow on (1,3) where the gate stood (checked below)
     const b: Build = {
       hero: "weaver", mods: [], beltCap: 30, hullBonus: 0,
-      items: [{ uid: 1, def: "loom", x: 0, y: 6 }, { uid: 7, def: "assembly", x: 4, y: 6 }, { uid: 8, def: "assembly", x: 7, y: 6, stars: 2 }, { uid: 10, def: "whetstone", x: 1, y: 3 }],
+      items: [
+        { uid: 1, def: "loom", x: 0, y: 6 }, { uid: 7, def: "assembly", x: 4, y: 6 }, { uid: 8, def: "assembly", x: 7, y: 6, stars: 2 },
+        { uid: 10, def: "whetstone", x: 0, y: 3, ...rotField("whetstone", rotFacing("whetstone", 1)) },
+      ],
       routes: [
         { factory: 1, cells: [K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(1, 1), K(1, 0)] },
         { factory: 7, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
@@ -425,6 +438,7 @@ describe("0.6.1c: the six factories' special rules", () => {
       ],
     };
     expect(routeProblems(b)).toEqual([]);
+    expect(hitsOfRig(b, 10).map((h) => h.cell)).toEqual([K(1, 3)]); // 0.6.2 BELTSIDE merge (0.6.1c)
     expect(gatesOf(b)).toEqual([[1, 3, 0.3, undefined]]);
   });
 

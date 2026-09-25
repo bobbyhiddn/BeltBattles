@@ -12,7 +12,8 @@ import { migrateRun, newRun, rollShop, shopBadge, type Run } from "../src/game/r
 import { ITEMS, RARITIES, type HeroId, type ItemDef, type ModuleTag } from "../src/sim/content";
 import { RACE_ITEMS } from "../src/sim/races/data";
 import { fusible } from "../src/sim/stars";
-import type { ModPlacement, Placed } from "../src/sim/deck";
+import { hitsOfRig, key, type ModPlacement, type Placed } from "../src/sim/deck";
+import { routeProblems } from "../src/game/routeCheck"; // 0.6.2 BELTSIDE merge (0.6.1c)
 
 const SEEDS = Array.from({ length: 300 }, (_, i) => 1 + i * 7919);
 const DAYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -213,17 +214,20 @@ describe("what the card shows is what the choice grants, across a save and reloa
 
 // ---- One shared pool (the operator, 2026-09-24): only the hero differs ----
 interface Parts { cargo: { uid: number; def: string; stars?: number }[]; deck: Placed[]; mods: ModPlacement[] }
+// 0.6.2 BELTSIDE merge (0.6.1c): both heroes' starting belts run up column 4, so the deck parts are rigs beside it at
+// (3,3) and (3,2), facing east, each with its one arrow on the tile its gate stood on ((4,3), (4,2)); the LONG HAUL's
+// (II) other arrow points at empty deck. The draws read only which parts are held, so no expectation changes.
 const HELD: Record<string, Parts> = {
   none: { cargo: [], deck: [], mods: [] },
   some: {
     cargo: [{ uid: 900, def: "temper" }, { uid: 901, def: "hopper" }],
-    deck: [{ uid: 902, def: "whetstone", x: 4, y: 3 }],
+    deck: [{ uid: 902, def: "whetstone", x: 3, y: 3, rot: 1 }],
     mods: [{ uid: 903, def: "calibrate", turret: 0 }],
   },
   many: {
     cargo: [{ uid: 910, def: "temper", stars: 2 }, { uid: 911, def: "grease" }, { uid: 912, def: "brake", stars: 3 },
       { uid: 913, def: "coil" }, { uid: 914, def: "scatter" }, { uid: 915, def: "splitter" }],
-    deck: [{ uid: 916, def: "whetstone", x: 4, y: 3 }, { uid: 917, def: "longhaul", x: 4, y: 2 }],
+    deck: [{ uid: 916, def: "whetstone", x: 3, y: 3, rot: 1 }, { uid: 917, def: "longhaul", x: 3, y: 2 }],
     mods: [{ uid: 918, def: "chamber", turret: 0, stars: 2 }],
   },
 };
@@ -244,6 +248,15 @@ function heldRun(hero: HeroId, seed: number, day: number, held: Parts): Run {
 const badges = (run: Run, defs: (string | undefined)[]) => defs.map((d) => (d ? shopBadge(run, d) : null));
 
 describe("one shared pool: FURNACE and WEAVER get the very same offers and choices", () => {
+  it("0.6.2 BELTSIDE merge (0.6.1c): the held rigs stand beside both heroes' belts, one arrow each on its gate's old tile", () => {
+    const OLD: Record<number, number> = { 902: key(4, 3), 916: key(4, 3), 917: key(4, 2) };
+    for (const hero of HEROES2) for (const held of Object.values(HELD)) {
+      const run = heldRun(hero, 7, 3, held);
+      expect(routeProblems(run.build), hero).toEqual([]);
+      for (const p of held.deck) expect(hitsOfRig(run.build, p.uid).map((h) => h.cell), `${hero} ${p.def}`).toEqual([OLD[p.uid]]);
+    }
+  });
+
   it("rollShop: same seed, day, rerolls, merchants and parts held, same caravan and badges (100 seeds x days 1-10 x rerolls 0-1 x 3 sets)", () => {
     let cells = 0;
     for (const seed of SEEDS.slice(0, 100)) for (const day of DAYS) for (const rerolls of [0, 1]) for (const [k, held] of Object.entries(HELD)) {

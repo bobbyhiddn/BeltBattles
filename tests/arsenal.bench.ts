@@ -3,7 +3,7 @@
 // (catalogue.json "headline") at 1, 2 and 3 stars. Not a test file itself (no .test suffix).
 import { Battle, type SimEvent, type SideState } from "../src/sim/battle";
 import { AMMO, type TurretDef } from "../src/sim/content";
-import { estimateRoute, key, payloadDamage, rotField, type Build } from "../src/sim/deck";
+import { estimateRoute, hitsOfRig, key, payloadDamage, rigHits, rotField, setRot, type Build } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
 
 export const SEED = 12345;
@@ -160,16 +160,48 @@ export const SECOND = [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5
  * PRESS's place (uid 7 at (6,6)) on the second intake (column 5). `only` takes the Kiln off its route, so the turret
  * fires the factory's slugs alone. Gates go in as [def, x, y, stars]: column 5 (rows 0-4) is the factory's route.
  * GANTRY PRESS feeds two or three intakes: gantryBench and gantryWeaver.
+ * 0.6.2 BELTSIDE merge (0.6.1c): (x, y) is the belt tile the rig works. bench() stands a rig west of its tile, but west
+ * of column 5 is the Kiln's belt (column 4), where the rig would stand on a belt and make no hits. So a rig for a
+ * column-5 tile stands EAST of it, at (6, y), facing west (column 6, rows 0-4, is free deck); a rig for a Kiln tile
+ * keeps bench()'s west side. Uids and deck order stay bench()'s. benchRigsCheck then requires every rig to land
+ * exactly one arrow, on its tile (a rig whose tile `only` took off the belts is IDLE, as the gate there did nothing).
  */
 export function factoryBench(def: string, stars: number, o: { only?: boolean; gates?: [string, number, number, number][]; mods?: [string, number][]; hullBonus?: number } = {}): Build {
-  const b = bench(o.gates ?? [], o.mods ?? [], o.hullBonus ?? 5000);
+  const gates = o.gates ?? [];
+  const b = bench(gates, o.mods ?? [], o.hullBonus ?? 5000);
+  gates.forEach(([g, x], i) => {
+    if (x !== 5) return;
+    const p = b.items[1 + i]; // bench() pushes the rigs right after the Kiln, in order
+    p.x = 6;
+    setRot(p, rotFacing(g, 3));
+  });
   b.items.push({ uid: 7, def, x: 6, y: 6, ...starField(stars) });
   b.routes.push({ factory: 7, cells: [...SECOND] });
   if (o.only) b.routes.shift();
+  benchRigsCheck(b, gates);
   return b;
 }
 
-/** GANTRY PRESS on the Furnace: the Kiln parked off-route at (0,8), the Gantry (uid 7) at (4,6) feeding both heavy intakes (columns 4 and 5). */
+/**
+ * 0.6.2 BELTSIDE merge (0.6.1c): the rigs a bench made for `gates` (uids 10, 11, ... in order) each work exactly the
+ * tile its gate stood on: one arrow on it when that tile is a belt tile of `b`, else none (IDLE). Throws otherwise, so
+ * no bench silently loses a hit (a rig on a belt, or one reaching a second belt).
+ */
+export function benchRigsCheck(b: Build, gates: [string, number, number, number][]): void {
+  const hits = rigHits(b);
+  const belt = new Set(b.routes.flatMap((r) => r.cells));
+  gates.forEach(([g, x, y], i) => {
+    const got = hitsOfRig(b, 10 + i, hits).map((h) => h.cell);
+    const want = belt.has(K(x, y)) ? [K(x, y)] : [];
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      throw new Error(`bench rig ${g} for tile (${x},${y}) hits cells ${JSON.stringify(got)}, not ${JSON.stringify(want)}`);
+    }
+  });
+}
+
+/** GANTRY PRESS on the Furnace: the Kiln parked off-route at (0,8), the Gantry (uid 7) at (4,6) feeding both heavy intakes (columns 4 and 5).
+ *  0.6.2 BELTSIDE merge (0.6.1c): it takes no rigs. West of column 5 is its other belt (column 4), so a caller that adds
+ *  rigs puts each on a free side of its tile, facing it (as factoryBench does), and checks it with benchRigsCheck. */
 export function gantryBench(stars: number, mods: [string, number][] = [], hullBonus = 5000): Build {
   const b = bench([], mods, hullBonus);
   b.items[0] = { uid: 1, def: "kiln", x: 0, y: 8 };
