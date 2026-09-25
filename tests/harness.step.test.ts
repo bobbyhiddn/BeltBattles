@@ -84,25 +84,55 @@ describe("STEP column (3-star minus 2-star, paired on shared seeds)", () => {
   });
 });
 
+/**
+ * The deck with its first starred rig (else mod) split into two copies a star lower in the same place, or null. Only a
+ * part with no copy a star lower is split, so the split makes exactly one pair, whose merge restores the part.
+ */
+function splitStarred(b: Build): Build | null {
+  const d: Build = JSON.parse(JSON.stringify(b));
+  const next = 1 + Math.max(0, ...d.items.map((p) => p.uid), ...d.mods.map((m) => m.uid));
+  const single = (def: string, stars: number) => ![...d.items, ...d.mods].some((q) => q.def === def && starsOf(q) === stars - 1);
+  const i = d.items.findIndex((p) => starsOf(p) >= 2 && single(p.def, starsOf(p)) && d.routes.every((r) => r.factory !== p.uid));
+  if (i >= 0) {
+    d.items[i].stars = starsOf(d.items[i]) - 1;
+    d.items.splice(i + 1, 0, { ...d.items[i], uid: next });
+    return d;
+  }
+  const m = d.mods.findIndex((x) => starsOf(x) >= 2 && single(x.def, starsOf(x)));
+  if (m < 0) return null;
+  d.mods[m].stars = starsOf(d.mods[m]) - 1;
+  d.mods.splice(m + 1, 0, { ...d.mods[m], uid: next });
+  return d;
+}
+
 describe("PAR~ and the KNOWN_FALLS rows", () => {
   it("fuseDeck is src/game/fuse.ts:fuseAll on a wrapped deck (same deck as fuseAll on a real Run), and removes every unfused pair", () => {
+    // 0.6.2 (E2 par/captains + race par fusion): every par deck fuses its bought copies as it buys them, so no par
+    // deck holds a pair any more (before, FOUNDRY and SIPHON did every day). To keep real merges in this check, each
+    // par deck's first starred rig (else mod) is also split back into two copies a star lower, in the same place.
     let merged = 0;
     for (const hero of HARNESS_HEROES) {
       for (const day of [3, 7, 10]) {
+        const same = (deck: Build): number => {
+          const { build, steps } = fuseDeck(deck);
+          const run = newRun(hero, 1, "fuse-eq");
+          run.build = JSON.parse(JSON.stringify(deck));
+          run.nextUid = 1 + Math.max(0, ...deck.items.map((p) => p.uid), ...deck.mods.map((m) => m.uid));
+          fuseAll(run);
+          expect(JSON.stringify(build)).toBe(JSON.stringify(run.build));
+          expect(unfusedPairs(build)).toEqual([]);
+          expect(validateBuild(build, day).errors, `${hero} d${day}`).toEqual([]);
+          return steps.length;
+        };
         const par = heroRefBuild(hero, day);
-        const { build, steps } = fuseDeck(par);
-        const run = newRun(hero, 1, "fuse-eq");
-        run.build = JSON.parse(JSON.stringify(par));
-        run.nextUid = 1 + Math.max(0, ...par.items.map((p) => p.uid), ...par.mods.map((m) => m.uid));
-        fuseAll(run);
-        expect(JSON.stringify(build)).toBe(JSON.stringify(run.build));
-        expect(unfusedPairs(build)).toEqual([]);
-        expect(validateBuild(build, day).errors, `${hero} d${day}`).toEqual([]);
+        expect(unfusedPairs(par), `${hero} d${day} par`).toEqual([]);
+        expect(same(par), `${hero} d${day} par`).toBe(0);
         expect(JSON.stringify(par)).toBe(JSON.stringify(heroRefBuild(hero, day))); // the par deck itself is untouched
-        if (steps.length) merged++;
+        const split = splitStarred(par);
+        if (split && same(split) > 0) merged++;
       }
     }
-    expect(merged).toBeGreaterThan(0); // some par decks really hold pairs (FIX-REPORT: FOUNDRY, SIPHON every day ...)
+    expect(merged).toBeGreaterThan(0);
   });
 
   it("focusBench plays a copy at 1, 2 and 3 stars on shared seeds, whatever its start star; an unbuildable level is null", async () => {
