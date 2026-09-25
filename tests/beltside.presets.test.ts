@@ -2,17 +2,18 @@
 // warlord, hero/race reference, race start and rival captain deck stands beside the belt tile its 0.6.1 inline
 // gate stood on (the decks frozen from 8167743 in fixtures/beltside-062/inline-presets.json) and works exactly
 // that tile and no other belt tile, so the preset keeps its hits: the payload meets the same processing in the
-// same order as before the pivot. Where the old tile has no free side, the rig works the nearest tile of the
-// same belt that has one (EXCEPTIONS below; each keeps its place in the order of hits). Nothing is dropped, so
-// every deck costs what it did, and the D3 migration at each load boundary is a no-op.
+// same order as before the pivot. Race reference decks later bought matching copies that auto-merge; the
+// surviving rigs keep their native cells and hits, and the cost still includes every purchase. The D3
+// migration at each load boundary is a no-op.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { startingBuild, warlordBuild } from "../src/sim/ai";
 import { clearMigrationLog, migrateInlineGates, migrationLog } from "../src/sim/beltside";
 import { ITEMS, type HeroId } from "../src/sim/content";
-import { hitsOfRig, key as K, rigHits, routeInfo, type Build } from "../src/sim/deck";
+import { hitsOfRig, key as K, rigHits, type Build } from "../src/sim/deck";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
+import { fuseDeck } from "../src/sim/harness/merge";
 import { raceRefBuild, raceStartBuild } from "../src/sim/races/refBuilds";
 import type { RaceHeroId } from "../src/sim/races/data";
 import { rivalBuild, standInBuild, type RivalId } from "../src/sim/rivals";
@@ -32,13 +33,13 @@ function live(key: string): Build {
   throw new Error(`unknown preset key ${key}`);
 }
 
-/** Rigs whose 0.6.1 tile has no free side at all (belts and a factory on all four sides): they work the nearest
- *  tile of the same belt that has one. Every other boxed-in tile was freed by hand-placing a neighbouring rig. */
-const EXCEPTIONS: { keys: RegExp; from: [number, number]; to: [number, number] }[] = [
-  // GREASE WORKS on the press belt: (5,5) sits between the Ward Works, its belt and two press-belt tiles; it
-  // works the press belt's first tile, one tile earlier (no hit lies between)
-  { keys: /^(race|hero)\/ref\/bastion\/(9|10)$/, from: [5, 5], to: [6, 5] },
-];
+/** The frozen 0.6.1 race references still held unfused pairs. Compare their 0.6.2 builds
+ *  with those same purchases after the game's fusion rule, keeping the surviving rig's old hit. */
+function expectedDeck(r: Rec): Build {
+  return /^(race|hero)\/ref\/(foundry|bastion|metronome|siphon)\//.test(r.key)
+    ? fuseDeck(r.deck).build
+    : r.deck;
+}
 
 const rigsOf = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind === "gate");
 const machinery = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind !== "gate").map((p) => JSON.stringify(p)).sort();
@@ -66,47 +67,29 @@ describe("BELTSIDE M4: native rig placement in every preset deck", () => {
     expect(migrationLog().stats.filter((s) => s.source.startsWith("preset:"))).toEqual([]);
   });
 
-  it("unchanged live presets keep each frozen inline gate hit (or the listed nearest tile)", () => {
+  it("unchanged live presets keep each surviving rig on its original belt hit", () => {
     const bad: string[] = [];
-    let rigs = 0, moved = 0;
+    let rigs = 0;
     for (const r of inline) {
       if (rewritten(r.key)) continue;
       const b = live(r.key);
+      const prior = expectedDeck(r);
       const hits = rigHits(b);
-      // the same deck apart from where the rigs stand: machinery, routes, mods, belt, hull, and the same rigs
-      if (JSON.stringify(machinery(b)) !== JSON.stringify(machinery(r.deck))) bad.push(`${r.key}: machinery differs`);
-      if (JSON.stringify([b.routes, b.mods, b.beltCap, b.hullBonus]) !== JSON.stringify([r.deck.routes, r.deck.mods, r.deck.beltCap, r.deck.hullBonus])) bad.push(`${r.key}: routes, mods, belt or hull differ`);
-      const was = rigsOf(r.deck);
-      if (JSON.stringify(rigsOf(b).map((p) => [p.uid, p.def, p.stars ?? 1]).sort()) !== JSON.stringify(was.map((p) => [p.uid, p.def, p.stars ?? 1]).sort())) bad.push(`${r.key}: not the same rigs`);
-      if (buildCost(b).total !== buildCost(r.deck).total) bad.push(`${r.key}: cost ${buildCost(b).total} != ${buildCost(r.deck).total}`);
+      // The same purchases and routes, after the live fusion rule for race references.
+      if (JSON.stringify(machinery(b)) !== JSON.stringify(machinery(prior))) bad.push(`${r.key}: machinery differs`);
+      if (JSON.stringify([b.routes, b.mods, b.beltCap, b.hullBonus]) !== JSON.stringify([prior.routes, prior.mods, prior.beltCap, prior.hullBonus])) bad.push(`${r.key}: routes, mods, belt or hull differ`);
+      const was = rigsOf(prior);
+      if (JSON.stringify(rigsOf(b).map((p) => [p.uid, p.def, p.stars ?? 1]).sort()) !== JSON.stringify(was.map((p) => [p.uid, p.def, p.stars ?? 1]).sort())) bad.push(`${r.key}: fused rigs differ`);
+      if (buildCost(b).total !== buildCost(prior).total) bad.push(`${r.key}: cost ${buildCost(b).total} != ${buildCost(prior).total}`);
       for (const old of was) {
         rigs++;
-        const ex = EXCEPTIONS.find((e) => e.keys.test(r.key) && e.from[0] === old.x && e.from[1] === old.y);
-        const want = ex ? K(ex.to[0], ex.to[1]) : K(old.x, old.y);
-        if (ex) moved++;
+        const want = K(old.x, old.y);
         const got = hitsOfRig(b, old.uid, hits).map((h) => h.cell);
         if (got.length !== 1 || got[0] !== want) bad.push(`${r.key}: ${old.def} uid ${old.uid} hits [${got.join(",")}], want [${want}]`);
       }
     }
     expect(bad).toEqual([]);
     expect(rigs).toBeGreaterThan(100);
-    expect(moved).toBeGreaterThan(0);
   });
 
-  it("an excepted rig keeps its place in the order of hits on its belt (no hit lies between its old and new tile)", () => {
-    const bad: string[] = [];
-    for (const r of inline) {
-      for (const ex of EXCEPTIONS.filter((e) => e.keys.test(r.key))) {
-        const b = live(r.key);
-        const ri = b.routes.findIndex((q) => q.cells.includes(K(ex.from[0], ex.from[1])));
-        const cells = b.routes[ri].cells;
-        const [a, c] = [cells.indexOf(K(ex.from[0], ex.from[1])), cells.indexOf(K(ex.to[0], ex.to[1]))].sort((x, y) => x - y);
-        if (c < 0 || a < 0) { bad.push(`${r.key}: tiles not on one belt`); continue; }
-        const info = routeInfo(b, ri);
-        const between = info.gateCells.filter((t) => t > a && t < c);
-        if (between.length) bad.push(`${r.key}: ${between.length} hits between tiles ${a} and ${c}`);
-      }
-    }
-    expect(bad).toEqual([]);
-  });
 });

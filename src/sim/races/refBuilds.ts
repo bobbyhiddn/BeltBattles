@@ -7,6 +7,8 @@
 // purse, with no handicap. Builds escalate every day through day 10 (a run is 10 days).
 // Use src/sim/heroBuilds.ts as the entry point; it covers all six heroes.
 
+import { fuseFrom } from "../../game/fuse";
+import type { Run } from "../../game/run";
 import { warlordHull } from "../ai";
 import { migrateDeck } from "../beltside";
 import { ITEMS } from "../content";
@@ -143,13 +145,24 @@ export function raceRefBuild(hero: RaceHeroId, day: number): Build {
   const d = refDay(day);
   const b = layoutBuild(hero, REF_BASE[hero], U);
   let uid = U + 10;
+  // Preset purchases use the same merge chain as live shop gains. The arriving copy
+  // disappears when it meets a placed twin; the survivor keeps its cell and rotation.
+  const fusion = { build: b, inventory: [] } as unknown as Run;
   for (const buy of STEPS[hero].slice(0, d)) {
-    for (const [def, x, y, rot] of buy.gates ?? []) b.items.push({ uid: uid++, def, x, y, ...rotField(def, rot ?? 0) });
+    for (const [def, x, y, rot] of buy.gates ?? []) {
+      const placed = { uid: uid++, def, x, y, ...rotField(def, rot ?? 0) };
+      b.items.push(placed);
+      fuseFrom(fusion, placed.uid);
+    }
     if (buy.press) {
       b.items.push({ uid: U + 1, def: "press", x: PRESS_AT[0], y: PRESS_AT[1] });
       b.routes.push({ factory: U + 1, cells: [...buy.press] });
     }
-    if (buy.mod) b.mods.push({ uid: uid++, def: buy.mod[0], turret: buy.mod[1] });
+    if (buy.mod) {
+      const placed = { uid: uid++, def: buy.mod[0], turret: buy.mod[1] };
+      b.mods.push(placed);
+      fuseFrom(fusion, placed.uid);
+    }
   }
   b.hullBonus = refHull(d);
   return migrateDeck(b, "preset:race"); // 0.6.2 BELTSIDE: a load boundary (D3); a no-op for the native STEPS

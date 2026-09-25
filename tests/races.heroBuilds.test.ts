@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
 import { HEROES, ITEMS, type HeroId } from "../src/sim/content";
+import { hitsOfRig } from "../src/sim/deck";
+import { buildCost as serverCost, unfusedPairs, validateBuild } from "../src/net/validate";
+import { starsOf } from "../src/sim/stars";
 import { PLATE_STEP, PLAYABLE_HEROES, REF_DAYS, heroRefBuild, heroStartBuild, rampPlates } from "../src/sim/heroBuilds";
 import { isRaceHero } from "../src/sim/races/data";
 import { refHull } from "../src/sim/races/refBuilds";
@@ -108,6 +111,49 @@ describe("heroBuilds: honest budget (ruling 3)", () => {
       const b = heroRefBuild(h, 1);
       expect(b.hullBonus).toBe(0);
       if (isRaceHero(h)) expect(buildCost(b)).toBeGreaterThanOrEqual(6);
+    }
+  });
+});
+
+
+describe("race reference builds under live merging", () => {
+  it("all four race decks are pair free, affordable and valid on every day", () => {
+    for (const h of ["foundry", "bastion", "metronome", "siphon"] as const) {
+      for (const d of DAYS) {
+        const b = heroRefBuild(h, d);
+        const tag = `${h} day ${d}`;
+        expect(unfusedPairs(b), tag).toEqual([]);
+        expect(validateBuild(b, d), tag).toMatchObject({ ok: true, errors: [] });
+        expect(buildCost(b), tag).toBe(serverCost(b).total);
+        expect(serverCost(b).total, tag).toBeLessThanOrEqual(maxGoldByDay(d));
+      }
+    }
+  });
+
+  it("copies merge at purchase time and the first placed rig keeps its cell, turn and hit", () => {
+    const milestones = [
+      ["foundry", 1, "whetstone", [2]], ["foundry", 3, "temper", [2]],
+      ["foundry", 5, "longhaul", [2]], ["foundry", 8, "whetstone", [1, 2]],
+      ["foundry", 10, "calibrate", [2]],
+      ["bastion", 6, "whetstone", [2]], ["bastion", 7, "temper", [2]],
+      ["bastion", 9, "grease", [2]], ["bastion", 10, "longhaul", [2]],
+      ["metronome", 6, "whetstone", [2]], ["metronome", 7, "temper", [2]],
+      ["metronome", 9, "longhaul", [2]], ["metronome", 10, "whetstone", [1, 2]],
+      ["siphon", 1, "whetstone", [2]], ["siphon", 6, "temper", [2]],
+      ["siphon", 7, "calibrate", [2]], ["siphon", 8, "longhaul", [2]],
+      ["siphon", 9, "whetstone", [1, 2]], ["siphon", 10, "whetstone", [3]],
+    ] as const;
+    for (const [hero, day, def, want] of milestones) {
+      const b = heroRefBuild(hero, day);
+      const levels = [...b.items, ...b.mods].filter((p) => p.def === def).map(starsOf).sort();
+      expect(levels, `${hero} day ${day} ${def}`).toEqual(want);
+    }
+    for (const hero of ["foundry", "bastion", "metronome", "siphon"] as const) {
+      const first = heroRefBuild(hero, 1).items.find((p) => p.def === "whetstone")!;
+      const later = heroRefBuild(hero, 10);
+      const survivor = later.items.find((p) => p.uid === first.uid)!;
+      expect(survivor, `${hero} whetstone survivor`).toMatchObject({ x: first.x, y: first.y, rot: first.rot });
+      expect(hitsOfRig(later, survivor.uid).length, `${hero} whetstone hit`).toBe(1);
     }
   });
 });

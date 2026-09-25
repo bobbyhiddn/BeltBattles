@@ -6,6 +6,7 @@ import {
 } from "../src/sim/content";
 import { canPlaceItem, footprint, key as K, routeInfo, type Build } from "../src/sim/deck";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
+import { starsOf, valueOf } from "../src/sim/stars";
 
 /** Most gold a player can have received before the dusk fight of `day` (mirrors ref/async/validate.ts). */
 export function maxGoldByDay(day: number): number {
@@ -19,8 +20,8 @@ export function maxGoldByDay(day: number): number {
 export function buildCost(b: Build): number {
   const h = HEROES[b.hero];
   const crate = ITEMS.beltcrate, plate = ITEMS.plating;
-  const items = b.items.reduce((s, p) => s + (ITEMS[p.def]?.price ?? 0), 0);
-  const mods = b.mods.reduce((s, m) => s + (ITEMS[m.def]?.price ?? 0), 0);
+  const items = b.items.reduce((s, p) => s + valueOf(p.def, starsOf(p)), 0);
+  const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
   const crates = Math.max(0, Math.ceil((b.beltCap - h.belt) / crate.supply!.belt!));
   const plates = Math.max(0, Math.ceil(b.hullBonus / plate.supply!.hull!));
   return items + mods + crates * crate.price + plates * plate.price;
