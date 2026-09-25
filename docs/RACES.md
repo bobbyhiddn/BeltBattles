@@ -281,7 +281,7 @@ battle sim runs Siphon in full now.
      rule, so all three agree. The first cut rounded down (+25 days 6-7, +50 days 8-10).
      `wholePlating` (round down) stays for other uses.
 4. **Module swap** (spec line 394): `HERO_RULES.metronome.freeModuleSwap` (§3).
-5. **ESCAPEMENT and LONGCASE**: beastfolk-pool turret modules, rare, 5 g (§3).
+5. **ESCAPEMENT and LONGCASE**: beastfolk-pool turret modules, rare, 5 g (§3). (Since 0.6.1f that mark is the neutral DORMANT_ITEMS flag; there are no faction pools: one shared salvage pool, REQ-BFG-021.)
 6. **Speed gates stay inert on Metronome belts**; `shopExclude` hides them (§3).
 7. **ASSAY STAMP** waits for 0.10.0 and isn't built.
 8. **Turret target weights** stay as they are: OPEN for the balance pass (§5).
