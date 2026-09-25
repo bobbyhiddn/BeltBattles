@@ -4,9 +4,11 @@
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import type { Build } from "../src/sim/deck";
-import { buildCost, unfusedPairs, validateBuild } from "../src/net/validate";
+import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
+import { RULES_VERSION } from "../src/sim/content";
 import { decodeStandIn, encodeStandIn, standInPool, STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
+import { STAND_IN_DATA as V11 } from "./fixtures/standInPoolData.v1.1";
 import { randomBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { decodeStarred, encodeStarred } from "../src/sim/harness/standinCode";
@@ -50,7 +52,8 @@ describe("star-aware stand-in code (F2)", () => {
 
   it("1-star decks encode byte-identical to encodeStandIn (every v1.1 deck and stars-off random builds of every hero)", () => {
     let n = 0;
-    for (const hero of STAND_IN_POOL_HEROES) for (let day = 1; day <= 10; day++) for (const e of standInPool(hero, day)) { expect(encodeStarred(e.build)).toBe(encodeStandIn(e.build)); n++; }
+    // the v1.1 decks (fixture: the shipped pool is v2 since the 0.6.1 flip)
+    for (const [hero, days] of Object.entries(V11.pools)) for (const d of days!) for (const t of d[1]) { const b = decodeStandIn(hero as never, t[3]); expect(encodeStarred(b)).toBe(encodeStandIn(b)); n++; }
     for (const hero of HARNESS_HEROES) for (const day of [1, 4, 7, 10]) for (let i = 0; i < 4; i++) {
       const b = randomBuild(hero, day, new Rng(hashSeed("code-v1", hero, day, i)), "off");
       expect(encodeStarred(b)).toBe(encodeStandIn(b));
@@ -61,7 +64,7 @@ describe("star-aware stand-in code (F2)", () => {
 
   it("every v1.1 code decodes exactly as decodeStandIn decodes it (same objects, same key order)", () => {
     let n = 0;
-    for (const [hero, days] of Object.entries(STAND_IN_DATA.pools)) {
+    for (const [hero, days] of Object.entries(V11.pools)) {
       for (const d of days!) {
         for (const t of d[1]) {
           expect(JSON.stringify(decodeStarred(hero as never, t[3]))).toBe(JSON.stringify(decodeStandIn(hero as never, t[3])));
@@ -70,6 +73,29 @@ describe("star-aware stand-in code (F2)", () => {
       }
     }
     expect(n).toBe(120);
+  });
+
+  it("the shipped pool v2 (0.6.1 flip): the game's loader reads every stored code as the harness codec does, and each deck is legal, at most 2 stars, within the day's gold and round-trips byte for byte", () => {
+    let n = 0, starred = 0;
+    expect(STAND_IN_DATA.rules).toBe(RULES_VERSION);
+    for (const hero of STAND_IN_POOL_HEROES) {
+      for (let day = 1; day <= 10; day++) {
+        const codes = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);
+        standInPool(hero, day).forEach((e) => {
+          const code = codes.find((c) => JSON.stringify(decodeStarred(hero, c)) === JSON.stringify(e.build));
+          expect(code, `${hero} d${day}: the loader's deck is one of the stored codes`).toBeDefined();
+          expect(encodeStarred(e.build)).toBe(code);
+          expect(validateBuild(e.build, day).errors, `${hero} d${day}`).toEqual([]);
+          expect(maxStars(e.build)).toBeLessThanOrEqual(2);
+          expect(buildCost(e.build).total).toBe(e.cost);
+          expect(e.cost).toBeLessThanOrEqual(maxGoldByDay(day));
+          if (maxStars(e.build) > 1) starred++;
+          n++;
+        });
+      }
+    }
+    expect(n).toBe(120);
+    expect(starred).toBeGreaterThan(40); // merged decks are shipped, so a star-blind loader would be caught
   });
 
   it("stars-on dry pool (tiny): every WRITTEN pick decodes to the scored deck - stored cost == buildCost(decoded), validateBuild ok, no unfused pair; a v1-coded module is caught", async () => {

@@ -127,3 +127,25 @@ The KNOWN_FALLS retune (BRAKE SHOE, SPLITTER) is arsenal work; the harness only 
 - Stars off (v1 exact at c432bee): randomBuild 3255984614, fullPurseBuild 3150828827; the default stars-off balance
   run's days table equals c432bee's own v1 harness run (449,072 battles).
 - Stars on + cores off (part 1 exactly): randomBuild 3068763238, fullPurseBuild 1965100384.
+
+## The 0.6.1 flip (FUSE_LIVE = true, RULES_VERSION bb-0.6.1)
+
+- validateBuild rejects an unmerged same-star pair (`item: UNFUSED PAIR: ...`). The game validates foreign
+  decks only (ghosts, stand-ins, uploads). Stars-off harness builds (the v1 harness never merges), the par
+  decks and the captains (pairs until job E merges them) still hold pairs: tests check them against every
+  other rule (tests/harnessLegacy.ts `exceptPairs`), and the star bench records `valid: false` for them.
+- The shipped stand-in pool is pool v2: stars on, cores on, no module above 2 stars, star-aware codes (`*2`,
+  `*3`) that src/sim/standInPool.ts reads with `decodeStarred`. `npm run standins -- --stars on --cores on`
+  writes src/sim/standInPoolData.ts and `<out>/standin-pool.md`; add `--check` to compare a regeneration
+  with the committed module.
+- `--stars off` (the v1 harness, which never merges) is an audit run only: it writes
+  `<out>/standInPoolData.stars-off.ts`, never src, and `--stars off --check` is refused. It matched v1.1 byte
+  for byte at c432bee; sim changes since then move its scores (25,698 B at 0.6.1g, before and after the
+  flip alike, against v1.1's 25,602 B). The v1.1 data module lives on as
+  tests/fixtures/standInPoolData.v1.1.ts for the codec tests.
+- Stand-in and sample-pool snapshots travel as SNAPSHOT_VERSION (2): a v1 snapshot may not carry stars.
+- Pool v2 at the flip (seed 1, pop 64, band 40-60, per 6, par floor 50; harness f40a6d3 on 0.6.1g):
+  120 picks, none short, spend 91-100% of the budget, 0 modules above 2 stars. It does NOT meet the genre
+  study's filler-vs-par band (stand-ins beat par 50-60%): picks beat par 79-100% on average per hero and
+  day, and 100% on day 1, the same as v1.1. The par decks are rebuilt under merging in job E; the band fit
+  (a par ceiling in the generator) and the early-loss refund belong to that balance patch.

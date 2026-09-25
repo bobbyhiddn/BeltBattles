@@ -72,7 +72,7 @@ describe("the wave-1 mods and the star perks (0.6.1p)", () => {
 
   it("FINISHER RAM under a GATLING SPOOL core is legal (the game doesn't forbid it) and is counted, per turret", () => {
     const b: Build = heroStartBuild("weaver", 1);
-    b.mods.push({ uid: 900, def: "gatling", turret: 0 }, { uid: 901, def: "ram", turret: 0 }, { uid: 902, def: "gatling", turret: 1, stars: 2 }, { uid: 903, def: "ram", turret: 2 });
+    b.mods.push({ uid: 900, def: "gatling", turret: 0 }, { uid: 901, def: "ram", turret: 0 }, { uid: 902, def: "gatling", turret: 1, stars: 2 }, { uid: 903, def: "ram", turret: 2, stars: 2 }); // the 2nd RAM is 2 stars: two 1-star RAMs are an unmerged pair since the flip
     expect(validateBuild(b, 10).errors).toEqual([]);
     const u = coreUseOf([b, heroStartBuild("furnace", 1)]);
     expect(u).toMatchObject({ builds: 2, withCore: 1, cores: 2, ramOnGatling: 1, byDef: { gatling: 2 }, stars: [1, 1, 0] });

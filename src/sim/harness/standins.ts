@@ -466,7 +466,7 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
     ] : [
       "// [par index, entries sorted by pct, window [lo, hi], population size, relaxation]. The build codes are",
       "// star-aware (src/sim/harness/standinCode.ts: the v1 format plus *2 or *3 on an item or module word; no",
-      "// suffix is 1 star); src/sim/standInPool.ts decodes them once the flip ports that codec.",
+      "// suffix is 1 star); src/sim/standInPool.ts decodes them with decodeStarred (since the 0.6.1 flip).",
     ]),
     "",
     'import type { HeroId } from "./content";',

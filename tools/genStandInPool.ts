@@ -9,13 +9,19 @@
 // second, and prints the first hero's win rate per day (the report's pool-vs-pool measure).
 // Battles fan out to worker threads; results are keyed by job, so the pool is identical
 // for any --workers value.
+// 0.6.1 flip (FUSE_LIVE = true): the shipped pool is the stars-on, merge-aware pool v2. --stars on (the
+// default) writes src/sim/standInPoolData.ts, and --check compares a regeneration with it. --stars off
+// (the v1 harness, which never merges: it matched v1.1 byte for byte at c432bee, and later sim changes
+// move its scores) never writes into src: it writes <out>/standInPoolData.stars-off.ts for audits, and
+// --check refuses it. Before the flip (FUSE_LIVE
+// false) stars on was a dry run into <out> and stars off wrote the shipped v1.1 pool.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
-import { validateBuild, buildCost, maxGoldByDay, unfusedPairs } from "../src/net/validate";
+import { FUSE_LIVE, validateBuild, buildCost, maxGoldByDay, unfusedPairs } from "../src/net/validate";
 import { starsOf } from "../src/sim/stars";
 import { describeBuild } from "../src/sim/harness/report";
 import { starMixOf } from "../src/sim/harness/tournament";
@@ -61,6 +67,7 @@ async function main(): Promise<void> {
   };
   if (o.per < 1 || o.pop < o.per) throw new Error("--pop must be at least --per, and --per at least 1");
   const check = process.argv.includes("--check");
+  if (check && FUSE_LIVE && o.stars === "off") throw new Error(`--stars off --check: since the 0.6.1 flip (FUSE_LIVE) the committed ${DATA} is the stars-on pool v2; check it with --stars on`);
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();
@@ -72,18 +79,21 @@ async function main(): Promise<void> {
     return;
   }
   const res = await genStandIns(o, pool.run, (m) => console.log(m));
-  // 0.6.1a: FUSE_LIVE is still false, so validateBuild alone does not reject an unfused pair
-  // (net/validate.ts gates that check behind FUSE_LIVE) - the generator must apply it itself.
+  // 0.6.1a: while FUSE_LIVE was false validateBuild alone did not reject an unfused pair, so the
+  // generator applies the rule itself (stars on). Since the flip validateBuild applies it too, and
+  // stars off (the v1.1 audit reproduction) ignores exactly those pair errors.
   for (const hd of res.days) {
     for (const p of hd.picks) {
       const v = validateBuild(p.build, hd.day);
+      const pairErr = new Set(unfusedPairs(p.build).map((m) => `item: ${m}`));
+      const errors = o.stars === "off" ? v.errors.filter((e) => !pairErr.has(e)) : v.errors;
       // The unfused-pair invariant is the stars-on flip rule (step 3); it must not apply when
       // --stars off, which reproduces the legacy v1.1 pool byte-for-byte - 65 of its 120 decks
       // hold same-star pairs that were never merge-aware in the first place (that is the whole
       // reason this pool needs regenerating once stars are on).
       const unfused = o.stars === "on" ? unfusedPairs(p.build) : [];
-      if (!v.ok || p.build.hero !== hd.hero || unfused.length) {
-        throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} is invalid: ${[...v.errors, ...unfused].join("; ")}`);
+      if (errors.length || p.build.hero !== hd.hero || unfused.length) {
+        throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} is invalid: ${[...new Set([...errors, ...unfused.map((m) => `item: ${m}`)])].join("; ")}`);
       }
       // fix pass: deck + cargo (cargoGold is set only with cores on, so stars off and cores off are unchanged)
       if (buildCost(p.build).total + (p.cargoGold ?? 0) > maxGoldByDay(hd.day)) throw new Error(`stand-in ${hd.hero} d${hd.day} #${p.idx} costs more than maxGoldByDay${p.cargoGold ? ` (deck + cargo ${p.cargoGold} g)` : ""}`);
@@ -110,9 +120,10 @@ async function main(): Promise<void> {
   }
 
   if (o.stars === "off") {
-    // v1.1, byte for byte: unchanged from bf779de (the shipped pool stays v1.1 until the flip).
+    // The v1 harness pool (v1.1 byte for byte at c432bee; later sim changes move its scores). It was the
+    // shipped pool until the 0.6.1 flip; since then (FUSE_LIVE) it is written under --out, never into src.
     const text = dataModuleText(o, res.days);
-    const path = resolve(DATA);
+    const path = FUSE_LIVE ? resolve(flag("out") ?? "../output", "standInPoolData.stars-off.ts") : resolve(DATA);
     if (check) {
       await pool.close();
       const secs = (performance.now() - t0) / 1000;
@@ -125,11 +136,39 @@ async function main(): Promise<void> {
     const secs = (performance.now() - t0) / 1000;
     const pvp = await poolVsPool(o, (h, d) => res.days.find((x) => x.hero === h && x.day === d)!.picks.map((p) => p.build), pool.run);
     await pool.close();
-    writeFileSync(path, text);
     const out = resolve(flag("out") ?? "../output");
     mkdirSync(out, { recursive: true });
+    writeFileSync(path, text);
     writeFileSync(resolve(out, "standin-pool.md"), poolMarkdown(o, res.days, pvp, { battles: res.battles, secs, workers: nw, bytes: text.length }));
-    console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s); wrote ${DATA} (${text.length} bytes) and ${out}/standin-pool.md`);
+    console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s); wrote ${FUSE_LIVE ? path : DATA} (${text.length} bytes) and ${out}/standin-pool.md`);
+    return;
+  }
+
+  if (FUSE_LIVE) {
+    // 0.6.1 flip: the stars-on pool v2 IS the shipped pool: --check compares, otherwise it is written.
+    // The versus tables play the new picks against the pool this tool was bundled with (the committed
+    // module before this run: v1.1 at the flip itself).
+    const path = resolve(DATA);
+    if (check) {
+      await pool.close();
+      const secs = (performance.now() - t0) / 1000;
+      let old = "";
+      try { old = readFileSync(path, "utf8"); } catch { old = ""; }
+      const same = old === candidate;
+      console.log(`check: ${same ? "IDENTICAL" : "DIFFERS"}: regenerated ${candidate.length} bytes in memory (${res.battles} battles, ${secs.toFixed(1)} s, ${nw} workers) vs committed ${DATA} (${old.length} bytes)`);
+      process.exit(same ? 0 : 1);
+    }
+    const secs0 = (performance.now() - t0) / 1000;
+    const vs = await dryVersus(o, res.days, pool.run);
+    await pool.close();
+    const secs = (performance.now() - t0) / 1000;
+    writeFileSync(path, candidate);
+    const out = resolve(flag("out") ?? "../output");
+    mkdirSync(out, { recursive: true });
+    const vsBattles = [...vs.v2v2, ...vs.tables.flatMap((t) => t.rows)].reduce((s, r) => s + r.battles, 0);
+    writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: true, bytes: candidate.length }));
+    writeFileSync(resolve(out, "versus.json"), JSON.stringify({ heroes: o.heroes, v2v2: vs.v2v2, tables: vs.tables }, null, 1) + "\n");
+    console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s) (${secs0.toFixed(1)} s to generate); wrote ${DATA} (${candidate.length} bytes, rules ${RULES_VERSION}) and ${out}/standin-pool.md`);
     return;
   }
 
@@ -145,7 +184,7 @@ async function main(): Promise<void> {
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, "standInPoolData.v2-dry-candidate.ts"), candidate);
   const vsBattles = [...vs.v2v2, ...vs.tables.flatMap((t) => t.rows)].reduce((s, r) => s + r.battles, 0);
-  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles }));
+  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: false }));
   writeFileSync(resolve(out, "versus.json"), JSON.stringify({ heroes: o.heroes, v2v2: vs.v2v2, tables: vs.tables }, null, 1) + "\n");
   console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s) (${secs0.toFixed(1)} s to generate); DRY RUN, wrote ${out}/standInPoolData.v2-dry-candidate.ts and standin-pool.md (src/sim/standInPoolData.ts untouched)`);
 }
@@ -206,15 +245,15 @@ function describeStars(c: Cand): string {
 
 /** Report for the stars-on DRY run: never wired up (src/sim/standInPoolData.ts untouched). */
 function poolMarkdownV2(
-  o: StandInOpts, days: HeroDay[], pvp: VersusRow[], tables: VersusTable[], meta: { battles: number; secs: number; workers: number; vsBattles: number },
+  o: StandInOpts, days: HeroDay[], pvp: VersusRow[], tables: VersusTable[], meta: { battles: number; secs: number; workers: number; vsBattles: number; live?: boolean; bytes?: number },
 ): string {
   const L = [
-    "# BeltBattles stand-in pool v2 - stars-on DRY RUN (not shipped)",
+    meta.live ? "# BeltBattles stand-in pool v2 (merge-aware; shipped since the 0.6.1 flip)" : "# BeltBattles stand-in pool v2 - stars-on DRY RUN (not shipped)",
     "",
     `Generated by \`${standInCommand(o)} --stars on\` (rules ${RULES_VERSION}): ${meta.battles} battles in ${meta.secs.toFixed(1)} s on ${meta.workers} worker thread(s).`,
-    "This is a dry run only: src/sim/standInPool.ts and src/sim/standInPoolData.ts are untouched (the shipped pool stays v1.1 until the flip, FUSE_LIVE = true). The candidate data module sits beside this file as standInPoolData.v2-dry-candidate.ts.",
+    meta.live ? `This run wrote src/sim/standInPoolData.ts (${meta.bytes} bytes; FUSE_LIVE = true, rules ${RULES_VERSION}); src/sim/standInPool.ts decodes its star-aware codes with decodeStarred. The versus tables below call the pool this tool was bundled with (the committed module before this run) "v1.1"; at the flip that is v1.1 itself.` : "This is a dry run only: src/sim/standInPool.ts and src/sim/standInPoolData.ts are untouched (the shipped pool stays v1.1 until the flip, FUSE_LIVE = true). The candidate data module sits beside this file as standInPoolData.v2-dry-candidate.ts.",
     "",
-    "Every pick below was confirmed (or the tool threw): validateBuild(pick, day) ok, unfusedPairs(pick) empty, buildCost(pick).total <= maxGoldByDay(day), and no module above 2 stars (ARSENAL.md §9.2: the Matriarch alone may carry a 3★). That is the flip's rule, applied by the generator itself because FUSE_LIVE is still false today.",
+    `Every pick below was confirmed (or the tool threw): validateBuild(pick, day) ok, unfusedPairs(pick) empty, buildCost(pick).total <= maxGoldByDay(day), and no module above 2 stars (ARSENAL.md §9.2: the Matriarch alone may carry a 3★). That is the flip's rule, ${meta.live ? "live in validateBuild since the flip (FUSE_LIVE = true); the generator checks it as well." : "applied by the generator itself because FUSE_LIVE is still false today."}`,
     "The candidate module was checked as WRITTEN: every stored code (the star-aware format of src/sim/harness/standinCode.ts) decodes to exactly the scored deck, with its stored cost.",
     `2-star cap: a candidate's shopper never buys a copy whose merge would go above ${STANDIN_MAX_STARS} stars (the gauntlet it is scored against is not capped). "cap changed" = candidates whose uncapped build (same seed) differs; "would be 3★" = those whose uncapped build holds a 3-star module.`,
     "",

@@ -26,8 +26,8 @@ const raceParts = (b: Build): string[] => [...b.items, ...b.mods].map((p) => p.d
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 describe("the race groundwork is dormant: no race hero, item or ammo reaches the game", () => {
-  it("rules and roster are 0.6.0's, while the race entries do sit in HEROES, ITEMS and AMMO", () => {
-    expect(RULES_VERSION).toBe("bb-0.4.0");
+  it("rules are the 0.6.1 flip's and the roster is 0.6.0's, while the race entries do sit in HEROES, ITEMS and AMMO", () => {
+    expect(RULES_VERSION).toBe("bb-0.6.1");
     expect(PLAYABLE_HEROES).toEqual(["furnace", "weaver"]);
     for (const h of Object.keys(RACE_HEROES)) expect(HEROES).toHaveProperty(h);
     for (const d of RACE_ITEM) expect(ITEMS).toHaveProperty(d);

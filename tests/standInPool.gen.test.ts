@@ -8,7 +8,7 @@ import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import {
-  STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, decodeStandIn, encodeStandIn, standInPar, standInParIndex,
+  STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, decodeStandIn, decodeStarred, encodeStandIn, encodeStarred, standInPar, standInParIndex,
   standInPick, standInPickIndex, standInPool,
 } from "../src/sim/standInPool";
 
@@ -162,7 +162,8 @@ describe("stand-in pool", () => {
   it("build codes round-trip", () => {
     for (const hero of STAND_IN_POOL_HEROES) {
       for (const day of DAYS) {
-        for (const e of standInPool(hero, day)) expect(decodeStandIn(hero, encodeStandIn(e.build))).toEqual(e.build);
+        // star-aware since the 0.6.1 flip (pool v2 decks carry merge stars)
+        for (const e of standInPool(hero, day)) expect(decodeStarred(hero, encodeStarred(e.build))).toEqual(e.build);
       }
     }
     expect(() => decodeStandIn("furnace", "14 0/kiln6/1:54/")).toThrow(/bad item/);

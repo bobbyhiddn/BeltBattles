@@ -1,8 +1,9 @@
 // 0.6.1g M2 (REQ-BFG-019): the star-aware stand-in code in src/sim/standInPool.ts (encodeStarred / decodeStarred),
-// ported from the harness v2 codec (src/sim/harness/standinCode.ts, harness-v2 f40a6d3). (a) The live v1.1 pool
+// ported from the harness v2 codec (src/sim/harness/standinCode.ts, harness-v2 f40a6d3). (a) The v1.1 pool
 // decodes exactly as through decodeStandIn; (b) its 1-star decks encode exactly as through encodeStandIn; (c) 2- and
 // 3-star items and modules (turret cores and mods too) round-trip; (d) malformed suffixes are rejected with the
-// harness codec's own messages. The game still loads the pool through decodeStandIn, which rejects any suffix.
+// harness codec's own messages. Since the 0.6.1 flip the game loads the shipped pool v2 through decodeStarred, and the
+// v1.1 pool is the fixture tests/fixtures/standInPoolData.v1.1.ts.
 // The loader inlines stars.ts:starsOf (Prime, oracle 44379b651bb75fe6: it stays portable); the pin test below
 // holds that copy to stars.ts.
 import { describe, expect, it } from "vitest";
@@ -12,12 +13,13 @@ import {
   decodeStandIn, decodeStarred, encodeStandIn, encodeStarred, standInPool, STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES,
 } from "../src/sim/standInPool";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
+import { STAND_IN_DATA as V11 } from "./fixtures/standInPoolData.v1.1";
 import { FUSE_MAX, fusible, starsOf } from "../src/sim/stars";
 
-/** Every stored code of the live pool, with its hero and day. */
-function liveCodes(): { hero: HeroId; day: number; code: string }[] {
+/** Every stored code of the v1.1 pool (the fixture since the 0.6.1 flip), with its hero and day. */
+function v11Codes(): { hero: HeroId; day: number; code: string }[] {
   const out: { hero: HeroId; day: number; code: string }[] = [];
-  for (const [hero, days] of Object.entries(STAND_IN_DATA.pools)) {
+  for (const [hero, days] of Object.entries(V11.pools)) {
     days!.forEach((d, i) => {
       for (const t of d[1]) out.push({ hero: hero as HeroId, day: i + 1, code: t[3] });
     });
@@ -46,8 +48,8 @@ function starred(b: Build): Build {
 const EXAMPLE = "14 0/kiln64 temper44*2 grease34/1:544434241404/calibrate0*3"; // the harness test's own example
 
 describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
-  it("(a) every code of the live v1.1 pool, every hero and day, decodes via decodeStarred exactly as via decodeStandIn", () => {
-    const codes = liveCodes();
+  it("(a) every code of the v1.1 pool (the fixture since the 0.6.1 flip), every hero and day, decodes via decodeStarred exactly as via decodeStandIn", () => {
+    const codes = v11Codes();
     expect(new Set(codes.map((c) => `${c.hero}/${c.day}`)).size).toBe(STAND_IN_POOL_HEROES.length * STAND_IN_POOL_DAYS);
     for (const { hero, day, code } of codes) {
       expect(code, `${hero} d${day}`).not.toContain("*"); // v1.1 holds no starred word
@@ -60,15 +62,17 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
 
   it("(b) every 1-star deck of (a) encodes via encodeStarred byte-identical to encodeStandIn (and to its stored code)", () => {
     let n = 0;
-    for (const { hero, day, code } of liveCodes()) {
+    for (const { hero, day, code } of v11Codes()) {
       const b = decodeStandIn(hero, code);
       expect(encodeStarred(b), `${hero} d${day}`).toBe(encodeStandIn(b));
       expect(encodeStarred(b), `${hero} d${day}`).toBe(code);
       n++;
     }
+    // since the 0.6.1 flip the shipped pool is v2: every deck the loader returns encodes back to a stored code
     for (const hero of STAND_IN_POOL_HEROES) for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) {
+      const stored = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);
       for (const e of standInPool(hero, day)) {
-        expect(encodeStarred(e.build), `${hero} d${day}`).toBe(encodeStandIn(e.build));
+        expect(stored, `${hero} d${day}`).toContain(encodeStarred(e.build));
         n++;
       }
     }
@@ -82,7 +86,7 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
     expect(encodeStarred(ex)).toBe(EXAMPLE);
 
     let words = 0;
-    for (const { hero, day, code } of liveCodes()) {
+    for (const { hero, day, code } of v11Codes()) {
       const b = starred(decodeStandIn(hero, code));
       const c = encodeStarred(b), back = decodeStarred(hero, c);
       expect(back, `${hero} d${day} ${c}`).toEqual(b);
