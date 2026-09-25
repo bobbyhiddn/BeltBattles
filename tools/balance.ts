@@ -59,6 +59,10 @@ async function main(): Promise<void> {
   const coresFlag = flag("cores") ?? starsFlag;
   if (coresFlag !== "on" && coresFlag !== "off") throw new Error(`--cores must be "on" or "off", got ${coresFlag}`);
   if (coresFlag === "on" && starsFlag === "off") throw new Error("--cores on needs --stars on (stars off is harness v1 exactly: no cores)");
+  // 0.6.1c (harness v2 part 3): --factories defaults to the --stars value; the six wave-1 factories need stars on
+  const factoriesFlag = flag("factories") ?? starsFlag;
+  if (factoriesFlag !== "on" && factoriesFlag !== "off") throw new Error(`--factories must be "on" or "off", got ${factoriesFlag}`);
+  if (factoriesFlag === "on" && starsFlag === "off") throw new Error("--factories on needs --stars on (stars off is harness v1 exactly: the STAMP PRESS alone)");
   const o: TourneyOpts = {
     ...DEFAULT_OPTS,
     seed: num("seed", DEFAULT_OPTS.seed),
@@ -69,6 +73,8 @@ async function main(): Promise<void> {
     calibrationDays: days,
     stars: starsFlag,
     cores: coresFlag,
+    // 0.6.1c: set only when on, so a factories-off run's opts (and JSON) are part 2's exactly
+    ...(factoriesFlag === "on" ? { factories: factoriesFlag } : {}),
   };
   o.gauntlet = Math.min(o.pop, num("gauntlet", Math.min(DEFAULT_OPTS.gauntlet, o.pop)));
   o.elites = Math.min(o.elites, o.pop);
@@ -81,7 +87,7 @@ async function main(): Promise<void> {
   const perDayMs: Record<number, number> = {};
   for (const day of days) {
     const t = performance.now();
-    const d = await runDay(o, day, pool.run, pool.detail);
+    const d = await runDay(o, day, pool.run, pool.detail, pool.stats);
     perDayMs[day] = performance.now() - t;
     res.days.push(d);
     res.battles += d.battles;
@@ -105,5 +111,5 @@ async function main(): Promise<void> {
     })),
   };
   writeFileSync(resolve(out, "balance-v2.json"), JSON.stringify(json, null, 1) + "\n");
-  console.log(`${res.battles} battles in ${(meta.runtimeMs / 1000).toFixed(1)} s on ${nw} worker(s); wrote ${out}/balance-v2.md and balance-v2.json (stars ${o.stars}, cores ${o.cores})`);
+  console.log(`${res.battles} battles in ${(meta.runtimeMs / 1000).toFixed(1)} s on ${nw} worker(s); wrote ${out}/balance-v2.md and balance-v2.json (stars ${o.stars}, cores ${o.cores}, factories ${factoriesFlag})`);
 }

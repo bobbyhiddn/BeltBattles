@@ -13,10 +13,10 @@ import { FUSE_MAX } from "../stars";
 import { heroStartBuild } from "./heroes";
 import { LEVERS, applyLever, canApply, normalize, type Lever } from "./levers";
 import { cargoValue, type InvItem } from "./merge";
-import { CRATE, CRATE_BELT, PLATE, PLATE_HULL, Shopper, type Cores, type Stars } from "./shopper";
+import { CRATE, CRATE_BELT, PLATE, PLATE_HULL, Shopper, type Cores, type Factories, type SlagCount, type Stars } from "./shopper";
 
 export { LEVERS, type Lever };
-export { MAX_ROUTE_EDITS, MAX_TILES, type Cores, type Stars } from "./shopper";
+export { MAX_ROUTE_EDITS, MAX_TILES, type Cores, type Factories, type SlagCount, type Stars } from "./shopper";
 
 /** v1 levers: each build skips each of them outright with this chance (weight 0). */
 const V1_LEVERS: ReadonlySet<Lever> = new Set<Lever>(["sync", "order", "drop"]);
@@ -60,15 +60,17 @@ function spend(s: Shopper, rng: Rng, trace?: LeverTrace): void {
   }
 }
 
-/** 0.6.1b: randomBuild's deck plus its shopper's cargo (cores swapped off a full socket) and swap count. */
-export interface Shopped { build: Build; cargo: InvItem[]; swaps: number }
+/** 0.6.1b: randomBuild's deck plus its shopper's cargo (cores swapped off a full socket) and swap count.
+ *  0.6.1c: plus the speed gates kept off slag routes and the routes a merge's new output added (0 unless factories on). */
+export interface Shopped { build: Build; cargo: InvItem[]; swaps: number; slag: SlagCount; thirdArm: number }
 
-/** randomBuild with the shopper's cargo kept (and an optional per-lever trace, for tests). */
-export function shopBuild(hero: HeroId, day: number, rng: Rng, stars: Stars = "off", maxStars: number = FUSE_MAX, cores: Cores = "off", trace?: LeverTrace): Shopped {
+/** randomBuild with the shopper's cargo kept (and an optional per-lever trace, for tests). 0.6.1c: `factories`
+ *  is last so every earlier call keeps its meaning; "on" takes effect with stars on only. */
+export function shopBuild(hero: HeroId, day: number, rng: Rng, stars: Stars = "off", maxStars: number = FUSE_MAX, cores: Cores = "off", trace?: LeverTrace, factories: Factories = "off"): Shopped {
   const b = heroStartBuild(hero, 1);
-  const s = new Shopper(b, maxGoldByDay(day), day, rng, stars, maxStars, cores);
+  const s = new Shopper(b, maxGoldByDay(day), day, rng, stars, maxStars, cores, factories);
   spend(s, rng, trace);
-  return { build: b, cargo: s.cargo, swaps: s.swaps };
+  return { build: b, cargo: s.cargo, swaps: s.swaps, slag: s.slag, thirdArm: s.thirdArm };
 }
 
 /**
@@ -78,8 +80,8 @@ export function shopBuild(hero: HeroId, day: number, rng: Rng, stars: Stars = "o
  * the protected tests/harness.*.test.ts — is untouched; tournament.ts's DEFAULT_OPTS.stars and
  * the CLIs' --stars flag default to "on", which is the harness's actual product-level default.
  */
-export function randomBuild(hero: HeroId, day: number, rng: Rng, stars: Stars = "off", maxStars: number = FUSE_MAX, cores: Cores = "off"): Build {
-  return shopBuild(hero, day, rng, stars, maxStars, cores).build;
+export function randomBuild(hero: HeroId, day: number, rng: Rng, stars: Stars = "off", maxStars: number = FUSE_MAX, cores: Cores = "off", factories: Factories = "off"): Build {
+  return shopBuild(hero, day, rng, stars, maxStars, cores, undefined, factories).build;
 }
 
 /** The stand-in pool's spend floor: 90% of the day's gold, rounded up. */
@@ -90,8 +92,8 @@ export const spendFloor = (day: number): number => Math.ceil(0.9 * maxGoldByDay(
  * 5 or more remains, then a 3 g rig beside a belt (useful: it lands an arrow; H2 placement) unless
  * that strands gold the floor needs, then belt crates (2 g each). Never exceeds the day's gold.
  */
-export function topUp(b: Build, day: number, rng: Rng, floor = spendFloor(day), stars: Stars = "off", maxStars: number = FUSE_MAX, cores: Cores = "off", cargo: InvItem[] = []): void {
-  const s = new Shopper(b, maxGoldByDay(day), day, rng, stars, maxStars, cores);
+export function topUp(b: Build, day: number, rng: Rng, floor = spendFloor(day), stars: Stars = "off", maxStars: number = FUSE_MAX, cores: Cores = "off", cargo: InvItem[] = [], factories: Factories = "off"): void {
+  const s = new Shopper(b, maxGoldByDay(day), day, rng, stars, maxStars, cores, factories);
   s.cargo = cargo; // 0.6.1b: the build's cargo (empty unless cores were swapped): its gold stays spent
   // F13: stars on, continue the deck's uid sequence. v1's fresh Shopper restarts at uid 100, which
   // randomBuild has usually minted already (a duplicate uid, and gainModule finds copies by uid);
@@ -105,10 +107,14 @@ export function topUp(b: Build, day: number, rng: Rng, floor = spendFloor(day), 
   const tiles = s.rigTiles();
   const left = s.left();
   if (left >= 3 && cheap.length && tiles.length && (left - 3 <= slack || left - 3 >= CRATE.price)) {
-    const def = rng.pick(cheap).id;
-    const [ri, ti] = rng.pick(tiles);
-    s.placeRig(def, ri, ti);
-    normalize(s);
+    // same draws as before (the def, then the tile); 0.6.1c: factories on, a speed rig skips slag routes' tiles
+    // (beltside-062-h3, DESIGN §14 P20: rigTilesFor, the rig form of part 3's cellsFor; factories off: `tiles` itself)
+    const d = rng.pick(cheap), ok = s.rigTilesFor(d, tiles);
+    if (ok.length) {
+      const [ri, ti] = rng.pick(ok);
+      s.placeRig(d.id, ri, ti);
+      normalize(s);
+    }
   }
   while (s.left() >= CRATE.price) b.beltCap += CRATE_BELT;
 }
@@ -122,12 +128,12 @@ export interface FullPurse { build: Build; cost: number; tries: number; floorMet
  * floor, else redraw (sub-seeds of `seed`). After `maxTries` it returns the highest-spend draw
  * with floorMet = false, so a caller can record the shortfall instead of hiding it.
  */
-export function fullPurseBuild(hero: HeroId, day: number, seed: number, floor = spendFloor(day), maxTries = 60, stars: Stars = "off", maxStars: number = FUSE_MAX, cores: Cores = "off"): FullPurse {
+export function fullPurseBuild(hero: HeroId, day: number, seed: number, floor = spendFloor(day), maxTries = 60, stars: Stars = "off", maxStars: number = FUSE_MAX, cores: Cores = "off", factories: Factories = "off"): FullPurse {
   let best: FullPurse | null = null;
   for (let t = 0; t < maxTries; t++) {
     const rng = new Rng(hashSeed("full-purse", seed, t));
-    const { build: b, cargo } = shopBuild(hero, day, rng, stars, maxStars, cores);
-    topUp(b, day, rng, floor, stars, maxStars, cores, cargo);
+    const { build: b, cargo } = shopBuild(hero, day, rng, stars, maxStars, cores, undefined, factories);
+    topUp(b, day, rng, floor, stars, maxStars, cores, cargo, factories);
     const cost = buildCost(b).total;
     const cg = cargo.length ? { cargoGold: cargoValue(cargo) } : {};
     if (cost >= floor) return { build: b, cost, tries: t + 1, floorMet: true, ...cg };

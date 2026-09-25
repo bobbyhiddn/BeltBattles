@@ -5,25 +5,26 @@
 
 import { Worker, parentPort } from "node:worker_threads";
 import type { Build } from "../src/sim/deck";
-import { jobDetail, localDetail, localRunner, playJob, type DetailRunner, type Job, type Runner } from "../src/sim/harness/tournament";
+import { jobDetail, jobStats, localDetail, localRunner, localStats, playJob, type DetailRunner, type Job, type Runner, type StatsRunner } from "../src/sim/harness/tournament";
 
 // detail: play the chunk with jobDetail (exact per-battle outcomes, the star bench's NO EFFECT and
-// SAME AS 2-star checks) instead of playJob (points)
-interface Chunk { id: number; field: Build[]; jobs: Job[]; detail?: boolean }
+// SAME AS 2-star checks) instead of playJob (points); 0.6.1c stats: with jobStats (points, damage dealt and
+// jams, the PRESS-SLOT rows)
+interface Chunk { id: number; field: Build[]; jobs: Job[]; detail?: boolean; stats?: boolean }
 
-/** Worker side: play each chunk of jobs and post the points (or the exact outcomes) back. */
+/** Worker side: play each chunk of jobs and post the points (or the exact outcomes, or the stats) back. */
 export function serveJobs(): void {
-  parentPort!.on("message", (c: Chunk) => parentPort!.postMessage({ id: c.id, out: c.jobs.map((j) => (c.detail ? jobDetail(c.field, j) : playJob(c.field, j))) }));
+  parentPort!.on("message", (c: Chunk) => parentPort!.postMessage({ id: c.id, out: c.jobs.map((j) => (c.stats ? jobStats(c.field, j) : c.detail ? jobDetail(c.field, j) : playJob(c.field, j))) }));
 }
 
 /** A pool of `n` worker threads running `script`, fed chunks of jobs on demand. */
-export function workerRunner(n: number, script: string): { run: Runner; detail: DetailRunner; close: () => Promise<void> } {
-  if (n <= 1) return { run: localRunner, detail: localDetail, close: async () => {} };
+export function workerRunner(n: number, script: string): { run: Runner; detail: DetailRunner; stats: StatsRunner; close: () => Promise<void> } {
+  if (n <= 1) return { run: localRunner, detail: localDetail, stats: localStats, close: async () => {} };
   const workers = Array.from({ length: n }, () => new Worker(new URL(script)));
-  const dispatch = <T,>(field: Build[], jobs: Job[], detail: boolean) => new Promise<T[]>((done, fail) => {
+  const dispatch = <T,>(field: Build[], jobs: Job[], detail: boolean, stats = false) => new Promise<T[]>((done, fail) => {
     const size = Math.max(4, Math.ceil(jobs.length / (n * 8)));
     const chunks: Chunk[] = [];
-    for (let i = 0; i < jobs.length; i += size) chunks.push({ id: chunks.length, field, jobs: jobs.slice(i, i + size), ...(detail ? { detail } : {}) });
+    for (let i = 0; i < jobs.length; i += size) chunks.push({ id: chunks.length, field, jobs: jobs.slice(i, i + size), ...(detail ? { detail } : {}), ...(stats ? { stats } : {}) });
     const out = new Array<T>(jobs.length);
     let next = 0, pending = chunks.length;
     if (!pending) return done(out);
@@ -43,7 +44,8 @@ export function workerRunner(n: number, script: string): { run: Runner; detail: 
   });
   const run: Runner = (field, jobs) => dispatch<number>(field, jobs, false);
   const detail: DetailRunner = (field, jobs) => dispatch<string>(field, jobs, true);
-  return { run, detail, close: async () => void (await Promise.all(workers.map((w) => w.terminate()))) };
+  const stats: StatsRunner = (field, jobs) => dispatch<{ pts: number; dmg: number; jams: number }>(field, jobs, false, true);
+  return { run, detail, stats, close: async () => void (await Promise.all(workers.map((w) => w.terminate()))) };
 }
 
 export function flag(name: string): string | undefined {

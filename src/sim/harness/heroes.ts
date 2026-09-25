@@ -35,3 +35,11 @@ export function shopItems(hero: HeroId, kind: "gate" | "mod" | "core"): ItemDef[
   const ex = shopExcluded(hero);
   return Object.values(ITEMS).filter((d) => d.kind === kind && !!d.merchant && !ex.has(d.id));
 }
+
+/** 0.6.1c (harness v2 part 3): every factory `hero` can buy: kind "factory", a merchant, price > 0, not in its
+ *  shopExclude. At 4ecf202 that is STAMP PRESS and the six wave-1 factories; KILN, LOOM and the race factories
+ *  (no merchant, price 0) never are. Read from ITEMS, so a later factory with a merchant joins with no change. */
+export function shopFactories(hero: HeroId): ItemDef[] {
+  const ex = shopExcluded(hero);
+  return Object.values(ITEMS).filter((d) => d.kind === "factory" && !!d.merchant && d.price > 0 && !ex.has(d.id));
+}

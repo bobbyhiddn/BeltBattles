@@ -62,6 +62,26 @@ export function minTiles(starts: number[], col: number): number {
   return best;
 }
 
+/** 0.6.1c: the true shortest route (tiles) from any start to connector column `col` around the blocked cells
+ *  (breadth-first), or Infinity when it can't be reached. minTiles is the obstacle-free lower bound. */
+export function shortestTiles(bl: Uint8Array, starts: number[], col: number): number {
+  const target = key(col, 0), dist = new Int32Array(GRID * GRID).fill(-1), queue: number[] = [];
+  for (const s of starts) if (dist[s] < 0 && (s === target || !bl[s])) { dist[s] = 1; queue.push(s); }
+  for (let qi = 0; qi < queue.length; qi++) {
+    const k = queue[qi];
+    if (k === target) return dist[k];
+    for (let d = 0; d < 4; d++) {
+      const nx = kx(k) + DX[d], ny = ky(k) + DY[d];
+      if (!inGrid(nx, ny)) continue;
+      const n = key(nx, ny);
+      if (dist[n] >= 0 || (n !== target && bl[n])) continue;
+      dist[n] = dist[k] + 1;
+      queue.push(n);
+    }
+  }
+  return Infinity;
+}
+
 /** A random route of exactly `tiles` cells from one of `starts` into (col, 0), or null. */
 export function randomPath(bl: Uint8Array, starts: number[], col: number, tiles: number, rng: Rng, budget = 1200): number[] | null {
   const target = key(col, 0);

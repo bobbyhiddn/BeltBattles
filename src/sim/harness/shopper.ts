@@ -11,7 +11,7 @@
 // survivor) on its cell with its rotation (fuse.ts survivor rule 2); stars off is v2's stars-off, on rigs.
 
 import type { Rng } from "../../core/rng";
-import { HEROES, ITEMS, type ItemDef } from "../content";
+import { AMMO, HEROES, ITEMS, type ItemDef } from "../content";
 import {
   arrowCell, cloneBuild, connectorClaims, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
   type Build, type Dir, type Placed,
@@ -19,7 +19,7 @@ import {
 import { freeForRig, intakeCell, placeRigAt, spotForTile, type WouldHit } from "../beltside";
 import { buildCost } from "../../net/validate";
 import { FUSE_MAX } from "../stars";
-import { shopItems } from "./heroes";
+import { shopFactories, shopItems } from "./heroes";
 import { cargoValue, gainInto, previewMerge, type InvItem } from "./merge";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
 
@@ -43,6 +43,34 @@ export type Cores = "on" | "off";
 /** A filter on the hits a rig would make where it is being placed (beltside.ts spotForTile). */
 export type Accept = (hits: WouldHit[]) => boolean;
 
+/** 0.6.1c (harness v2 part 3): "on" lets the "press" and "drop" levers buy any factory the hero can buy
+ *  (shopFactories: STAMP PRESS and the six wave-1 factories, drawn with the day's rarity weights) and the
+ *  "merge" lever buy a factory copy that merges at once; only effective with stars on. "off" (and stars off)
+ *  buys the STAMP PRESS alone, with no new RNG draw: exactly part 2. */
+export type Factories = "on" | "off";
+
+/** 0.6.1c: does route `ri` carry a fixed-speed ammo (SLAG POT's slag, AMMO.slag.fixedSpeed; Battle.transport and
+ *  deck.ts estimateRoute ignore speed gates for it)? The ammo kind is the factory's own spec: no star level changes
+ *  it (tests/harness.factories.test.ts checks that at every star through the game's stars.ts), and the harness reads
+ *  no star value itself (tests/harness.mods.test.ts). */
+export function fixedSpeedRoute(b: Build, ri: number): boolean {
+  const f = b.items.find((p) => p.uid === b.routes[ri].factory);
+  const fs = f ? ITEMS[f.def].factory : undefined;
+  return !!fs && AMMO[fs.ammo]?.fixedSpeed !== undefined;
+}
+
+/** 0.6.1c: cells of fixed-speed (slag) routes: a speed rig hit there can do nothing (Battle.transport; DESIGN P8). */
+export function fixedSpeedCells(b: Build): Set<number> {
+  const out = new Set<number>();
+  b.routes.forEach((r, ri) => { if (fixedSpeedRoute(b, ri)) for (const k of r.cells) out.add(k); });
+  return out;
+}
+
+/** 0.6.1c: speed rigs the shopper kept off slag routes. skipped: not bought (no rig tile left on a non-slag route), or
+ *  a carried speed rig left behind by a drop onto a slag line; steered: bought to work a non-slag tile while some
+ *  candidate tiles were slag ones (beltside-062-h3, DESIGN §14 P20). */
+export interface SlagCount { skipped: number; steered: number }
+
 export class Shopper {
   uid = 100;
   edits = 0;
@@ -61,6 +89,11 @@ export class Shopper {
    *  empty unless coresOn, so every other path is unchanged. */
   cargo: InvItem[] = [];
   swaps = 0; // 0.6.1b: cores swapped to cargo by the "core" lever
+  readonly factoriesOn: boolean; // 0.6.1c: stars on AND factories on: any buyable factory (shopFactories)
+  readonly factories: ItemDef[]; // 0.6.1c: factories this hero can buy (read only when factoriesOn)
+  readonly minFactory: number;
+  slag: SlagCount = { skipped: 0, steered: 0 }; // 0.6.1c: speed gates kept off slag routes (factories on only)
+  thirdArm = 0; // 0.6.1c: routes added to a merged factory whose outputs grew (GANTRY PRESS at 2 stars: 3 outputs)
 
   // NOTE: defaults to "off" (v1-exact), not the harness's product-level "on" default, so every
   // pre-existing call site that builds a Shopper without the new 5th argument — most importantly
@@ -71,15 +104,88 @@ export class Shopper {
   // flag) passes `stars` through explicitly, so "on" is still the default at every product surface.
   // maxStars (F8): the highest star a gain may merge up to. FUSE_MAX (3) everywhere but the stand-in
   // candidates, which stay at 2 (ARSENAL.md §9.2: "the Matriarch alone may carry a 3★").
-  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off", readonly maxStars: number = FUSE_MAX, cores: Cores = "off") {
+  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off", readonly maxStars: number = FUSE_MAX, cores: Cores = "off", factories: Factories = "off") {
     this.stars = stars === "on";
     this.coresOn = this.stars && cores === "on";
+    this.factoriesOn = this.stars && factories === "on";
     this.gates = shopItems(b.hero, "gate");
     this.mods = shopItems(b.hero, "mod");
     this.cores = shopItems(b.hero, "core");
+    this.factories = shopFactories(b.hero);
     this.minGate = Math.min(...this.gates.map((g) => g.price));
     this.minMod = Math.min(...this.mods.map((m) => m.price));
     this.minCore = Math.min(...this.cores.map((c) => c.price));
+    this.minFactory = Math.min(...this.factories.map((f) => f.price));
+  }
+
+  /** 0.6.1c: free route cells a new gate of `def` may take. With factories on, a speed gate never takes a cell of
+   *  a slag route (it can do nothing there: AMMO.slag.fixedSpeed); counted in `slag` when that removes a cell, if
+   *  `count`. A copy that merges at once lands on its twin's cell (gainInto ignores the target), so its cells are
+   *  left as they are. Factories off (or not a speed gate): exactly `cells`, no count, no RNG. */
+  cellsFor(def: ItemDef, cells: number[], count = true): number[] {
+    if (!this.factoriesOn || !isSpeedGate(def)) return cells;
+    const slag = fixedSpeedCells(this.b);
+    if (!slag.size) return cells;
+    const pv = previewMerge(this.b, this.uid, def.id, this.cargo);
+    if (pv && pv.where !== "cargo") return cells;
+    const ok = cells.filter((k) => !slag.has(k));
+    if (count && ok.length < cells.length) {
+      if (ok.length) this.slag.steered++;
+      else this.slag.skipped++;
+    }
+    return ok;
+  }
+
+  /** beltside-062-h3 (DESIGN §14 P20): the slag routes a speed rig must not work, by route index; null when there is
+   *  nothing to keep it off: factories off (no RNG, nothing read), no slag route, or `def` is not a speed rig. */
+  slagRoutesOf(def: ItemDef): boolean[] | null {
+    if (!this.factoriesOn || !isSpeedGate(def)) return null;
+    const slag = this.b.routes.map((_, ri) => fixedSpeedRoute(this.b, ri));
+    return slag.some(Boolean) ? slag : null;
+  }
+
+  /** slagRoutesOf for a NEW copy of `def`: null too when the copy merges at once (gainInto puts it into its placed
+   *  twin, which keeps its cell and rotation, so where it was aimed doesn't matter), as part 3's cellsFor. */
+  slagRoutesFor(def: ItemDef): boolean[] | null {
+    const slag = this.slagRoutesOf(def);
+    if (!slag) return null;
+    const pv = previewMerge(this.b, this.uid, def.id, this.cargo);
+    return pv && pv.where !== "cargo" ? null : slag;
+  }
+
+  /** beltside-062-h3 (DESIGN §14 P20; the rig form of part 3's cellsFor): the rig tiles [route, tile] a new rig of
+   *  `def` may be put to work on. With factories on, a speed rig never works a tile of a slag route (it could do
+   *  nothing there: AMMO.slag.fixedSpeed); counted in `slag` when that removes a tile, if `count` (steered: some
+   *  tiles are left; skipped: none). Factories off (or not a speed rig, or a copy that merges at once): exactly
+   *  `tiles`, no count, no RNG. */
+  rigTilesFor(def: ItemDef, tiles: [number, number][], count = true): [number, number][] {
+    const slag = this.slagRoutesFor(def);
+    if (!slag) return tiles;
+    const ok = tiles.filter(([ri]) => !slag[ri]);
+    if (count && ok.length < tiles.length) {
+      if (ok.length) this.slag.steered++;
+      else this.slag.skipped++;
+    }
+    return ok;
+  }
+
+  /** rigTilesFor(def, rigTiles(only), false).length > 0, stopping at the first tile (B3's early exit): the slag-aware
+   *  probe. Factories off: hasRigTile(only) exactly. */
+  hasRigTileFor(def: ItemDef, only: (ri: number) => boolean = this.connected()): boolean {
+    const slag = this.slagRoutesFor(def);
+    return this.hasRigTile(slag ? (ri) => only(ri) && !slag[ri] : only);
+  }
+
+  /** beltside-062-h3 (DESIGN §14 P20, P21): speed-rig HITS on tiles of slag routes, one per hit. The shopper's rule
+   *  keeps it 0: a rig's arrows, not its cell, decide what it works, so a new slag belt drawn past an idle arrow of a
+   *  multi-arrow speed rig (OVERDRIVE, X) would count here. Factories off: 0, nothing read. */
+  speedOnSlag(): number {
+    if (!this.factoriesOn) return 0;
+    const slag = fixedSpeedCells(this.b);
+    if (!slag.size) return 0;
+    let n = 0;
+    for (const r of rigHits(this.b)) for (const t of r) for (const h of t) if (slag.has(h.cell) && isSpeedGate(ITEMS[h.def])) n++;
+    return n;
   }
 
   /** May one more copy of `def` be gained? Always (no RNG, no preview) unless stars is on and the
@@ -165,9 +271,14 @@ export class Shopper {
    * twin is placed it fuses into that twin instead, and the twin keeps its cell and rotation (P16); the
    * survivor is returned. Stars off: v2's raw push (the next uid), at the H2 spot. null when no cell beside
    * the tile will do (nothing is bought).
+   * beltside-062-h3 (DESIGN §14 P20): with factories on, a speed rig lands no arrow on a slag route, wherever else
+   * its arrows reach (an X OVERDRIVE beside two belts); a lifted rig is moved, never merged, so it always obeys it.
+   * Factories off: `accept` exactly.
    */
   placeRig(def: string, ri: number, ti: number, accept?: Accept, keep?: Placed): Placed | null {
-    const s = spotForTile(this.b, def, ri, ti, this.connected(), undefined, accept);
+    const slag = keep ? this.slagRoutesOf(ITEMS[def]) : this.slagRoutesFor(ITEMS[def]);
+    const ok: Accept | undefined = slag ? (hs) => hs.every((h) => !slag[h.route]) && (!accept || accept(hs)) : accept;
+    const s = spotForTile(this.b, def, ri, ti, this.connected(), undefined, ok);
     if (!s) return null;
     if (keep) return placeRigAt(this.b, keep.uid, def, s, keep.stars);
     if (this.stars) {
@@ -275,6 +386,7 @@ export class Shopper {
     this.buyBelt(ri, cells.length);
     b.routes[ri] = { factory: r.factory, cells };
     if (this.reseat(carried, ri) < carried.length) return this.restore(snap);
-    return this.left() >= 0 ? true : this.restore(snap);
+    // beltside-062-h3 (P20): nor may a moved slag belt run past a speed rig's arrow (factories off: always 0)
+    return this.left() >= 0 && !this.speedOnSlag() ? true : this.restore(snap);
   }
 }

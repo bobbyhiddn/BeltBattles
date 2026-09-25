@@ -19,16 +19,20 @@
 // sync, with H2's placeRig wherever v2 places a gate (a merging copy leaves the survivor on its cell with its
 // rotation). The twin sync compares, tile index by tile index, the speed hits that land there by def and
 // stars (v2 F6); a rig's rotation is what decides which tile its arrow lands on.
+// beltside-062-h3 (DESIGN §14 P19-P23): harness v2 part 3's factories on rigs. factoryToBuy, moreRoutes and the
+// factory merge are part 3's; the slag rule reads rig tiles and hits (P20, P21: Shopper.rigTilesFor, hasRigTileFor,
+// speedOnSlag), and the carried rigs go to work beside a new line before a GANTRY draws its extra routes (P22).
+// Factories off, every draw is beltside-062-on-061's (P19).
 
-import { GRID, HEROES, ITEMS, rarityWeights, type ItemDef } from "../content";
+import { AMMO, GRID, HEROES, ITEMS, rarityWeights, type ItemDef } from "../content";
 import {
   cloneBuild, coreFor, footprint, gearFor, hitsOfRig, itemByUid, occupancy, rigHits, rotOf, routeInfo, routesOf, setRot,
   type Build, type Placed, type RigHit,
 } from "../deck";
 import { beltIndex, hitsIfPlaced, rotations, type WouldHit } from "../beltside";
-import { starsOf } from "../stars";
+import { outputsAt, starsOf } from "../stars";
 import { fusibleCopies, gainInto, previewMerge } from "./merge";
-import { blockedCells, freeConnectors, startCells } from "./path";
+import { blockedCells, freeConnectors, shortestTiles, startCells } from "./path";
 import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Accept, type Shopper } from "./shopper";
 import type { GainAt } from "../../game/fuse";
 
@@ -51,11 +55,12 @@ export function canApply(s: Shopper, l: Lever): boolean {
     case "plating": return left >= PLATE.price;
     case "gate": return left >= s.minGate && s.hasRigTile();
     case "mod": return left >= s.minMod && gearFree(b).length > 0;
-    case "press": return left >= PRESS.price && freeConnectors(b).length > 0;
+    // 0.6.1c: with factories on, "press" and "drop" buy any factory the hero can buy (the cheapest decides)
+    case "press": return left >= (s.factoriesOn ? s.minFactory : PRESS.price) && freeConnectors(b).length > 0;
     case "route": return s.edits < MAX_ROUTE_EDITS && b.routes.length > 0;
     case "sync": return !s.synced && s.twinRoutes() !== null;
     case "order": return routesOutOfOrder(b).length > 0 || buyMoves(s).length > 0;
-    case "drop": return left >= PRESS.price && freeConnectors(b).length === 0 && droppable(b).length > 0;
+    case "drop": return left >= (s.factoriesOn ? s.minFactory : PRESS.price) && freeConnectors(b).length === 0 && droppable(b).length > 0;
     case "merge": return s.stars && mergeableDefs(s).length > 0;
     case "core": return s.coresOn && left >= s.minCore;
   }
@@ -90,7 +95,9 @@ function gate(s: Shopper): boolean {
   const tiles = s.rigTiles();
   if (!pool.length || !tiles.length) return false;
   const d = s.rng.weighted(pool, (g) => w[g.rarity] / s.gates.filter((x) => x.rarity === g.rarity).length);
-  const [ri, ti] = s.rng.pick(tiles);
+  const ok = s.rigTilesFor(d, tiles); // 0.6.1c (P20 on rigs): factories on, no speed rig works a slag route's tile (off: `tiles` itself)
+  if (!ok.length) return false;
+  const [ri, ti] = s.rng.pick(ok);
   return s.placeRig(d.id, ri, ti) !== null;
 }
 
@@ -438,39 +445,102 @@ function drop(s: Shopper): boolean {
   return pressLine(s, carried) || s.restore(snap);
 }
 
+/** 0.6.1c: the factory the "press" and "drop" levers buy. Factories off: the STAMP PRESS, with no RNG draw
+ *  (part 2 exactly). On: any factory the hero can buy (Shopper.factories = shopFactories: STAMP PRESS and the
+ *  six), affordable and within the stand-in cap, drawn with the day's rarity weights as the gate lever draws a
+ *  gate (content.ts rarityWeights; a rarity's weight shared by its defs). */
+export function factoryToBuy(s: Shopper): ItemDef | undefined {
+  if (!s.factoriesOn) return PRESS;
+  const left = s.left(), w = rarityWeights(s.day);
+  const pool = s.factories.filter((d) => d.price <= left && w[d.rarity] > 0 && s.canGain(d.id));
+  if (!pool.length) return undefined;
+  return s.rng.weighted(pool, (g) => w[g.rarity] / s.factories.filter((x) => x.rarity === g.rarity).length);
+}
+
+/** 0.6.1c: does `def` stamp a fixed-speed ammo (SLAG POT)? Its own spec and AMMO (see shopper.ts fixedSpeedRoute). */
+const fixedSpeedDef = (def: string): boolean => AMMO[ITEMS[def].factory?.ammo ?? "plain"]?.fixedSpeed !== undefined;
+
+/**
+ * 0.6.1c: routes into free connectors for the placed factory `uid`, up to outputsAt(its def, its stars)
+ * (validateBuild's rule): a GANTRY PRESS feeds every free connector it can reach, up to its outputs, and when a
+ * merge raises its outputs (2 stars: a third output) the same lever tries to add the new route (`merged`: counted in
+ * Shopper.thirdArm). A route that would take deck + cargo over the day's gold is not drawn. Every other factory
+ * has one output at every star and already feeds it, so this draws nothing for them (no RNG either).
+ */
+function moreRoutes(s: Shopper, uid: number, merged: boolean): void {
+  const b = s.b;
+  for (;;) {
+    const f = b.items.find((p) => p.uid === uid);
+    if (!f || routesOf(b, uid).length >= outputsAt(f.def, starsOf(f))) return;
+    const bl = blockedCells(b), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
+    let cells: number[] | null = null;
+    for (let t = 0; t < 3 && !cells; t++) cells = s.drawRoute(-1, starts, bl, s.left());
+    // random lengths wander (and the first belt walls off the next connector): then the shortest belt around the
+    // other belts into each free connector in turn (or 2 tiles longer, the next length of the same parity)
+    for (const c of cells ? [] : freeConnectors(b)) {
+      const lo = shortestTiles(bl, starts, c);
+      if (lo !== Infinity) cells = s.drawRoute(-1, starts, bl, s.left(), lo, c) ?? s.drawRoute(-1, starts, bl, s.left(), lo + 2, c);
+      if (cells) break;
+    }
+    if (!cells) return;
+    const snap = cloneBuild(b);
+    s.buyBelt(-1, cells.length);
+    b.routes.push({ factory: uid, cells });
+    if (s.left() < 0) { s.restore(snap); return; }
+    if (merged) s.thirdArm++;
+  }
+}
+
 /** A Stamp Press on a free 2x2 spot (not the forward row) with a line into a free connector;
  *  `carried` rigs go to work beside the new line (any that find no place are not bought). 0.6.1a: if a
  *  1-star Press is already placed elsewhere, this purchase merges into it instead (no new footprint or
  *  route to find — a Press has one output at any star, so a second route would be illegal); any
  *  `carried` rigs then have nowhere new to go and are dropped, same as the trade-off ARSENAL.md
- *  §4.1 rule 5 already accepts for a merging drop (the target is ignored, not honoured). */
+ *  §4.1 rule 5 already accepts for a merging drop (the target is ignored, not honoured).
+ *  0.6.1c (factories on): the factory is factoryToBuy's draw, placed the same way; a GANTRY PRESS then draws
+ *  a route into every free connector it can reach, up to its outputs (moreRoutes); a merge into a GANTRY that
+ *  raises its outputs tries the new route in the same lever; a speed rig carried onto a SLAG POT line is left
+ *  behind (it could do nothing there) and counted in Shopper.slag.skipped. Factories off: exactly part 2.
+ *  beltside-062-h3 (DESIGN §14 P20, P22): the carried rigs (`load`) go to work beside the new line first
+ *  (reseat), then a GANTRY draws its extra routes around every placed item, rigs included (blockedCells); the
+ *  fix pass also refuses a new slag line that runs past a speed rig's arrow (Shopper.speedOnSlag). */
 function pressLine(s: Shopper, carried: Placed[]): boolean {
   const b = s.b;
-  if (!s.canGain(PRESS.id)) return false; // F8 cap (always true at FUSE_MAX and with stars off)
+  const def = factoryToBuy(s);
+  if (!def) return false;
+  if (!s.canGain(def.id)) return false; // F8 cap (always true at FUSE_MAX and with stars off)
   if (s.stars) {
-    const preview = previewMerge(b, s.uid, PRESS.id, s.cargo);
+    const preview = previewMerge(b, s.uid, def.id, s.cargo);
     if (preview && preview.where !== "cargo") {
-      gainInto(s, b, PRESS.id, { x: 0, y: 0 }, s.cargo); // target ignored: merges into the existing placed press
+      const g = gainInto(s, b, def.id, { x: 0, y: 0 }, s.cargo); // target ignored: merges into the existing placed twin
+      if (s.factoriesOn) moreRoutes(s, g.survivor, true);
       return true;
     }
   }
+  const load = s.factoriesOn && fixedSpeedDef(def.id) ? carried.filter((p) => !isSpeedGate(ITEMS[p.def])) : carried;
   for (let tries = 0; tries < 8; tries++) {
     const x = s.rng.int(GRID - 1), y = 1 + s.rng.int(GRID - 2);
     const occ = occupancy(b);
-    if (footprint(PRESS, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
+    if (footprint(def, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
     const snap = cloneBuild(b);
     const uid = s.uid; // gainInto (stars on) mints this same uid; the raw push (off) mints it too
-    if (s.stars) gainInto(s, b, PRESS.id, { x, y }, s.cargo); // no twin (checked above): lands at x,y, as pushed
-    else { b.items.push({ uid, def: PRESS.id, x, y }); s.uid++; }
+    if (s.stars) gainInto(s, b, def.id, { x, y }, s.cargo); // no twin (checked above): lands at x,y, as pushed
+    else { b.items.push({ uid, def: def.id, x, y }); s.uid++; }
     const bl = blockedCells(b);
-    const cells = s.drawRoute(-1, startCells(x, y, PRESS.size, bl), bl, s.left());
+    const cells = s.drawRoute(-1, startCells(x, y, def.size, bl), bl, s.left());
     if (cells) {
       s.buyBelt(-1, cells.length);
       b.routes.push({ factory: uid, cells });
-      s.reseat(carried, b.routes.length - 1);
+      s.reseat(load, b.routes.length - 1); // P22: the carried rigs go to work beside the new line first
+      if (s.factoriesOn) moreRoutes(s, uid, false); // 0.6.1c: GANTRY PRESS, up to its outputs (around the rigs: P22)
       // fix pass: deck + cargo within the day's gold (left() subtracts the cargo; with cores off the cargo is
-      // empty, so this is `buildCost(b).total <= s.budget` exactly)
-      if (s.left() >= 0) return true;
+      // empty, so this is `buildCost(b).total <= s.budget` exactly). The carried rigs were lifted before the route
+      // was drawn, so this after-the-fact check is what keeps a drop within the gold. P20: and no speed-rig hit on a
+      // slag tile (factories off: speedOnSlag() is 0).
+      if (s.left() >= 0 && !s.speedOnSlag()) {
+        s.slag.skipped += carried.length - load.length;
+        return true;
+      }
     }
     s.restore(snap);
   }
@@ -482,19 +552,27 @@ function pressLine(s: Shopper, carried: Placed[]): boolean {
  *  "merge" lever could buy one more 1-star copy of right now: affordable, and either an immediate
  *  merge (a 1-star twin is already placed, so no new spot is needed) or a genuinely free spot
  *  (BELTSIDE: for a rig, a belt tile with a free cell beside it). */
-function mergeableDefs(s: Shopper): string[] {
+export function mergeableDefs(s: Shopper): string[] {
   const b = s.b, left = s.left();
-  const present = fusibleCopies(b).filter((c) => c.kind !== "factory");
+  // 0.6.1c: with factories on a factory copy is a candidate too, but only one that merges at once (below)
+  const present = fusibleCopies(b).filter((c) => c.kind !== "factory" || s.factoriesOn);
   if (!present.length) return [];
   const oneStar = new Set(present.filter((c) => c.stars === 1).map((c) => c.def));
-  let tiles: boolean | undefined; // is there a belt tile with a free side (asked lazily: hasRigTile)
+  let tiles: boolean | undefined, dry: boolean | undefined; // a belt tile with a free side; one on a non-slag route (lazy)
   const freeT = gearFree(b); // 0.6.1b: gear hardpoints (== v1's free turrets when no core is fitted)
   const freeS = socketFree(b); // 0.6.1b: a core copy that doesn't merge needs an empty socket (never a swap here)
   return [...new Set(present.map((c) => c.def))].filter((d) => {
     if (ITEMS[d].price > left || !s.canGain(d)) return false;
-    if (oneStar.has(d)) return true; // will merge immediately: no placement needed
     const kind = ITEMS[d].kind;
-    return kind === "gate" ? (tiles ??= s.hasRigTile()) : kind === "core" ? freeS.length > 0 : freeT.length > 0;
+    if (kind === "factory") { // 0.6.1c: merges at once into a placed twin (the game's own preview), so no footprint or route
+      const pv = previewMerge(b, s.uid, d, s.cargo);
+      return !!pv && pv.where !== "cargo";
+    }
+    if (oneStar.has(d)) return true; // will merge immediately: no placement needed
+    if (kind !== "gate") return kind === "core" ? freeS.length > 0 : freeT.length > 0;
+    // 0.6.1c (P20 on rigs): factories on, a speed rig's belt tiles leave out slag routes (factories off: hasRigTile()
+    // itself). Both probes are asked lazily and stop at the first tile (B3): the filter is the same for every speed def.
+    return s.slagRoutesFor(ITEMS[d]) ? (dry ??= s.hasRigTileFor(ITEMS[d])) : (tiles ??= s.hasRigTile());
   });
 }
 
@@ -514,8 +592,14 @@ function merge(s: Shopper): boolean {
   } else if (kind === "core") {
     const freeS = socketFree(b); // 0.6.1b: a 1-star twin is fitted (merges, target ignored) or a socket is empty
     at = { turret: s.rng.pick(freeS.length ? freeS : [0]) };
+  } else if (kind === "factory") {
+    // 0.6.1c (factories on only: mergeableDefs): the copy merges at once into its placed twin, which keeps its
+    // spot and routes (target ignored, as run.ts buyOffer); a GANTRY raised to 2 stars (3 outputs) tries its new route
+    const g = gainInto(s, b, def, { x: 0, y: 0 }, s.cargo);
+    moreRoutes(s, g.survivor, true);
+    return true;
   } else {
-    const tiles = s.rigTiles();
+    const tiles = s.rigTilesFor(ITEMS[def], s.rigTiles()); // 0.6.1c (P20 on rigs): factories off, rigTiles() itself
     const t = s.rng.pick(tiles.length ? tiles : [null]); // one draw either way, as v2's pick of a cell (or [0])
     if (t) return s.placeRig(def, t[0], t[1]) !== null; // H2 spot (gainInto: a placed 1-star twin absorbs it)
     at = { x: 0, y: 0 }; // no free tile: the copy merges into its placed 1-star twin (mergeableDefs), target ignored
