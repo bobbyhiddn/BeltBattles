@@ -143,16 +143,18 @@ describe("factory bench (0.6.1c)", () => {
   });
 
   it("a small day, factories on, carries the usage table, the FACTORY table and PRESS-SLOT; factories off carries none (part 2's day exactly)", async () => {
-    const small: TourneyOpts = { ...O, heroes: ["furnace", "foundry"], pop: 4, gauntlet: 2, elites: 1 };
-    const on = await runDay(small, 7, localRunner, localDetail, localStats);
+    // day 3 (not 7): the same assertions in about 9 s instead of 22 s (alone), so the suite's wall-clock check (part 1's
+    // tiny run in tests/harness.tournament.test.ts, under 30 s) keeps more margin when this file runs beside it
+    const small: TourneyOpts = { ...O, heroes: ["furnace", "foundry"], pop: 4, gauntlet: 2, elites: 1, days: [3], calibrationDays: [3] };
+    const on = await runDay(small, 3, localRunner, localDetail, localStats);
     expect(on.factoryUse && on.pressSlot && on.factory).toBeTruthy();
     expect(Object.keys(on.factoryUse!).sort()).toEqual(["foundry", "furnace"]);
     expect(on.pressSlot!.decks[0].tag).toBe("par/furnace/6 (arsenal)");
     expect(factorySections([on], small.heroes).join("\n")).toContain("## FACTORY table");
     const offO: TourneyOpts = { ...small, factories: "off" };
-    const off = await runDay(offO, 7, localRunner, localDetail, localStats);
+    const off = await runDay(offO, 3, localRunner, localDetail, localStats);
     expect("factoryUse" in off || "factory" in off || "pressSlot" in off).toBe(false);
     const { factories: _f, ...o2 } = offO;
-    expect(JSON.stringify(await runDay(o2 as TourneyOpts, 7, localRunner, localDetail))).toBe(JSON.stringify(off));
+    expect(JSON.stringify(await runDay(o2 as TourneyOpts, 3, localRunner, localDetail))).toBe(JSON.stringify(off));
   }, 240_000);
 });
