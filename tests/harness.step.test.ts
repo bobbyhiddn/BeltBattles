@@ -13,6 +13,7 @@ import { beforeAfterSection, byHero, fallSteps, hopperSection, knownFallsSection
 import {
   DEFAULT_OPTS, KNOWN_FALLS_DEFS, focusBench, hopperSources, runDay, starBench, type BenchRow, type BenchSource, type DetailRunner, type FocusDeck, type Runner,
 } from "../src/sim/harness/tournament";
+import { nativeRigs } from "./beltside.helpers";
 
 const freeCells = (b: Build): number[] => {
   const occ = occupancy(b);
@@ -22,6 +23,9 @@ const put = (b: Build, uid: number, def: string, i: number, stars?: number) => {
   const k = freeCells(b)[i];
   b.items.push({ uid, def, x: kx(k), y: ky(k), ...(stars ? { stars } : {}) });
 };
+// beltside-062-on-061 (F1-style port, DESIGN §13 P16): each deck is built exactly as v2 built it (put: a gate on the
+// i-th free belt cell), then made native before use (nativeRigs: every gate beside its tile, facing it, working
+// exactly it). hopperSources finds a SPLITTER's route by its hit, which is the route v2 found by its cell.
 /** Points depend on the job's seeds (0.5, 1 or 1.5 per seed) plus an offset by the def's stars: 1 star +0, 2 stars
  *  +0.5, 3 stars -0.5 per seed. Paired, every deck's 3-2 step is exactly -1 point per seed, i.e. -0.5 as a rate. */
 const base = (seeds: number[]) => seeds.reduce((t, s) => t + 0.5 + ((s >>> 0) % 3) * 0.5, 0);
@@ -35,6 +39,7 @@ function brakeDecks(n: number): BenchSource[] {
     const b = heroStartBuild("furnace", 1);
     b.hullBonus = k;
     put(b, 900, "brake", 0);
+    nativeRigs(b);
     return { hero: "furnace" as const, tag: k === 0 ? "furnace par" : `furnace elite ${k}`, build: b, par: k === 0 };
   });
 }
@@ -47,6 +52,7 @@ describe("STEP column (3-star minus 2-star, paired on shared seeds)", () => {
     const odd = heroStartBuild("weaver", 1);
     put(odd, 900, "brake", 0);
     put(odd, 800, "brake", 1, 2);
+    nativeRigs(odd);
     expect(unfusedPairs(odd)).toEqual([]);
     sources.push({ hero: "weaver", tag: "weaver elite 0", build: odd });
     const gauntlet = Array.from({ length: 4 }, (_, g) => ({ ...heroStartBuild("weaver", 1), hullBonus: 100 + g }));
@@ -103,6 +109,7 @@ describe("PAR~ and the KNOWN_FALLS rows", () => {
     const b = heroStartBuild("furnace", 1);
     put(b, 900, "brake", 0, 2); // a merged 2-star brake, as fuseAll leaves it on a PAR~ deck
     put(b, 901, "splitter", 1);
+    nativeRigs(b);
     const seen: string[][] = [];
     const run: Runner = async (field, jobs) => jobs.map((j) => { seen.push([String(starOf(field[j.a], "brake")), JSON.stringify(j.seeds), String(j.b)]); return starOf(field[j.a], "brake"); });
     const gauntlet = [heroStartBuild("weaver", 1), heroStartBuild("weaver", 1), heroStartBuild("weaver", 1)];
@@ -166,6 +173,7 @@ describe("optional: SPLITTER with HOPPER 3-star on its turret", () => {
   it("hopperSources pairs each deck holding a 1-star splitter on a route with a copy carrying HOPPER 3-star as that turret's gear; the section reads both on shared seeds", async () => {
     const b = heroStartBuild("weaver", 1);
     put(b, 900, "splitter", 0);
+    nativeRigs(b);
     b.mods.push({ uid: 950, def: "calibrate", turret: 0 }, { uid: 951, def: "chamber", turret: 1 }, { uid: 952, def: "scatter", turret: 0 });
     const lone = heroStartBuild("furnace", 1); // no splitter: left out
     const hp = hopperSources([{ hero: "weaver", tag: "weaver elite 0", build: b }, { hero: "furnace", tag: "furnace par", build: lone, par: true }]);

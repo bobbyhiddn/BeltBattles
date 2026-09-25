@@ -11,6 +11,7 @@ import {
   DEFAULT_OPTS, benchWorse, localDetail, localRunner, starBench, type BenchSource, type DetailRunner, type Job, type Runner,
 } from "../src/sim/harness/tournament";
 import { starsOf } from "../src/sim/stars";
+import { nativeRigs } from "./beltside.helpers";
 
 const freeCells = (b: Build): number[] => {
   const occ = occupancy(b);
@@ -20,6 +21,9 @@ const put = (b: Build, uid: number, def: string, i: number, stars?: number) => {
   const k = freeCells(b)[i];
   b.items.push({ uid, def, x: kx(k), y: ky(k), ...(stars ? { stars } : {}) });
 };
+// beltside-062-on-061 (F1-style port, DESIGN §13 P16): each deck is built exactly as v2 built it (put: a gate on the
+// i-th free belt cell), then made native before it is used: nativeRigs moves every gate beside its tile, facing it
+// (D3), and checks that each rig works exactly that tile. No assertion changed.
 /** Which variant a bench field deck is: "base", or "<uid>*<stars>" for the one raised module. */
 const variantOf = (b: Build, base: Build): string => {
   const was = new Map([...base.items, ...base.mods].map((p) => [p.uid, starsOf(p)]));
@@ -49,6 +53,7 @@ describe("star bench fix pass (F1, F5, F9)", () => {
     const day = 5;
     const src = heroStartBuild("furnace", 1);
     put(src, 900, "temper", 0);
+    nativeRigs(src);
     src.mods.push({ uid: 901, def: "calibrate", turret: 0 });
     const gauntlet = [heroStartBuild("weaver", 1), heroRefBuild("weaver", 3), heroRefBuild("furnace", 3)];
     const o = { ...DEFAULT_OPTS, seed: 4, seeds: 3 };
@@ -80,6 +85,7 @@ describe("star bench fix pass (F1, F5, F9)", () => {
     const src = heroStartBuild("furnace", 1);
     put(src, 990, "coil", 0);
     put(src, 991, "temper", 1);
+    nativeRigs(src);
     expect(unfusedPairs(src)).toEqual([]);
     expect(validateBuild(src, 10).errors).toEqual([]);
     const gauntlet = [heroRefBuild("weaver", day), heroRefBuild("furnace", 3), heroStartBuild("weaver", 1), heroRefBuild("weaver", 7)];
@@ -106,6 +112,7 @@ describe("star bench fix pass (F1, F5, F9)", () => {
     const day = 7;
     const b = heroStartBuild("weaver", 1);
     put(b, 900, "splitter", 0);
+    nativeRigs(b);
     b.mods.push({ uid: 901, def: "chamber", turret: 0 });
     const gauntlet = [heroStartBuild("furnace", 1), heroRefBuild("furnace", 5)];
     const o = { ...DEFAULT_OPTS, seed: 11, seeds: 2 };
@@ -124,10 +131,12 @@ describe("star bench fix pass (F1, F5, F9)", () => {
     const a = heroStartBuild("furnace", 1);
     put(a, 900, "temper", 0, 2); // a 2-star temper already on the deck
     put(a, 901, "temper", 1); // the benched 1-star temper: its 2-star variant would be an unfused 2-star pair
+    nativeRigs(a);
     expect(unfusedPairs(a)).toEqual([]);
     const p = heroStartBuild("weaver", 1);
     put(p, 910, "whetstone", 0);
     put(p, 911, "whetstone", 1); // a par-like deck holding an unfused 1-star pair: the game can't build it
+    nativeRigs(p);
     expect(unfusedPairs(p)).not.toEqual([]);
     let jobsSeen: Job[] = [], fieldSeen: Build[] = [];
     const record: Runner = async (field, jobs) => {
@@ -160,6 +169,7 @@ describe("star bench WORSE rule (D1, F9): the deck is the unit", () => {
       const b = heroStartBuild("furnace", 1);
       b.hullBonus = k;
       put(b, 900, "temper", 0);
+      nativeRigs(b);
       return { hero: "furnace", tag: `furnace elite ${k}`, build: b, par: k === 4 };
     });
     const G = 4;

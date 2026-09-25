@@ -14,15 +14,15 @@ import { fullPurseBuild, randomBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES, heroStartBuild } from "../src/sim/harness/heroes";
 import { fusibleCopies, gainInto, previewMerge } from "../src/sim/harness/merge";
 import { exceptPairs } from "./harnessLegacy";
+import { spotBeside } from "./beltside.helpers";
 
 const freeCells = (b: Build): number[] => {
   const occ = occupancy(b);
   return b.routes.flatMap((r) => r.cells).filter((k) => occ[k].item < 0);
 };
-const cellAt = (b: Build, i: number) => {
-  const k = freeCells(b)[i];
-  return { x: kx(k), y: ky(k) };
-};
+// beltside-062-on-061 (F1-style port, DESIGN §13 P16): v2 gained a gate onto the i-th free belt cell; a rig stands
+// beside that cell instead, facing it (D3's spot, spotBeside), and the gain carries its rotation (fuse.ts GainAt.rot)
+const cellAt = (b: Build, i: number, def = "temper") => spotBeside(b, def, freeCells(b)[i]);
 
 describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped build", () => {
   it("matches gainModule on a real Run for the same deck and gain sequence (1-star twins merging)", () => {
@@ -63,11 +63,15 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
     const final = b.items.filter((p) => p.def === "temper");
     expect(final).toHaveLength(1);
     expect(starsOf(final[0])).toBe(3);
+    // BELTSIDE (P16): the 2-star copy already at that level kept its spot through the chain: the 3-star rig stands on
+    // at0's cell with at0's rotation (#3/#4's rig at at1 was absorbed, and its cell is free deck again)
+    expect([final[0].x, final[0].y, final[0].rot ?? 0]).toEqual([at0.x, at0.y, at0.rot]);
     expect(unfusedPairs(b)).toEqual([]);
     expect(validateBuild(b, 10).errors).toEqual([]);
   });
 
-  it("survivor rules: an absorbed gate cell stays belt (route untouched); an absorbed mod frees its hardpoint", () => {
+  // BELTSIDE: a rig stands beside the belt, so an absorbed rig frees its own cell and the route is untouched either way
+  it("survivor rules: an absorbed rig leaves the route untouched; an absorbed mod frees its hardpoint", () => {
     const b = heroStartBuild("weaver", 1);
     const at0 = cellAt(b, 0);
     const routeLens = b.routes.map((r) => r.cells.length);
@@ -143,7 +147,10 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
   // c432bee re-pin (harness v2 part 2, step 1): 553739242 (bf779de) -> 3255984614, computed with c432bee's
   // OWN v1 harness, randomBuild(hero, day, rng), in a scratch export (output-h2b/step0/pins/). The v1
   // shopper's mod pool grew from 2 to 5 at c432bee (HOPPER, MANTLET, FINISHER RAM have merchants).
-  it("stars off: randomBuild reproduces c432bee's v1 harness exactly for a fixed seed set (pinned hash, computed at c432bee)", () => {
+  // beltside-062-on-061 re-pin (DESIGN §13 P16, moved by H2's rig placement): 3255984614 -> 2825511527, computed the
+  // same way with beltside-062c's OWN harness (BELTSIDE's pre-v2 harness, v1 on rigs: randomBuild(hero, day, rng)) in
+  // a scratch export: stars off, this harness reproduces it build for build.
+  it("stars off: randomBuild reproduces BELTSIDE's pre-v2 harness (beltside-062c) exactly for a fixed seed set (pinned hash)", () => {
     const hash32 = (s: string): number => {
       let h = 0x811c9dc5;
       for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
@@ -159,10 +166,10 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
         }
       }
     }
-    expect(hash32(parts.join("|"))).toBe(3255984614);
+    expect(hash32(parts.join("|"))).toBe(2825511527);
   }, 60_000);
 
-  it("F11: stars off: fullPurseBuild output reproduces c432bee's v1 harness exactly for a fixed seed set (pinned hash, computed at c432bee)", () => {
+  it("F11: stars off: fullPurseBuild output reproduces BELTSIDE's pre-v2 harness (beltside-062c) exactly for a fixed seed set (pinned hash)", () => {
     const hash32 = (s: string): number => {
       let h = 0x811c9dc5;
       for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
@@ -176,7 +183,9 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
     }
     // 3150828827 = the same 60 builds from c432bee's own v1 fullPurseBuild(hero, day, seed, undefined, 60), in a
     // scratch export (output-h2b/step0/pins/). At bf779de the pin was 512167455 (the v1 mod pool was 2 mods then).
-    expect(hash32(parts.join("|"))).toBe(3150828827);
+    // beltside-062-on-061 re-pin (P16, H2's rig placement): 3150828827 -> 555421802 = the same 60 builds from
+    // beltside-062c's own fullPurseBuild(hero, day, seed, undefined, 60) in a scratch export.
+    expect(hash32(parts.join("|"))).toBe(555421802);
   }, 60_000);
 
   it("stars off: fullPurseBuild also reproduces v1 exactly (no merge lever, no extra RNG draws)", () => {

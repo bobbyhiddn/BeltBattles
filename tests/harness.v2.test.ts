@@ -12,11 +12,14 @@ import {
 import {
   ROBUST_BAND, STANDIN_DEFAULTS, genStandIns, robustReplay, type Cand,
 } from "../src/sim/harness/standins";
+import { nativeRigs } from "./beltside.helpers";
 
 const freeCells = (b: Build): number[] => {
   const occ = occupancy(b);
   return b.routes.flatMap((r) => r.cells).filter((k) => occ[k].item < 0);
 };
+// beltside-062-on-061 (F1-style port, DESIGN §13 P16): each hand deck is built exactly as v2 built it (a gate on the
+// first free belt cell), then made native before use (nativeRigs: beside its tile, facing it, working exactly it).
 
 describe("harness v2: tournament (mirror K=4, star mix, star bench)", () => {
   it("mirrorSplits: 4 splits, each a well-formed rate, battle count matches the jobs actually played", async () => {
@@ -34,6 +37,7 @@ describe("harness v2: tournament (mirror K=4, star mix, star bench)", () => {
     const a = heroStartBuild("furnace", 1);
     const cellA = freeCells(a)[0];
     a.items.push({ uid: 950, def: "temper", x: kx(cellA), y: ky(cellA) }); // 1-star: the Kiln signature alone isn't fusible (price 0)
+    nativeRigs(a);
     const mixAllOnes = starMixOf([a, a]);
     expect(mixAllOnes.n).toBeGreaterThan(0);
     expect(mixAllOnes.p1).toBe(1);
@@ -42,6 +46,7 @@ describe("harness v2: tournament (mirror K=4, star mix, star bench)", () => {
     const b = heroStartBuild("weaver", 1);
     const cell = freeCells(b)[0];
     b.items.push({ uid: 900, def: "temper", x: kx(cell), y: ky(cell), stars: 2 });
+    nativeRigs(b);
     const mix = starMixOf([b]);
     expect(mix.p2).toBeGreaterThan(0);
     expect(mix.maxMerged).toBe(1);
@@ -55,6 +60,7 @@ describe("harness v2: tournament (mirror K=4, star mix, star bench)", () => {
     const b = heroStartBuild("furnace", 1);
     const cell = freeCells(b)[0];
     b.items.push({ uid: 900, def: "coil", x: kx(cell), y: ky(cell) });
+    nativeRigs(b);
     expect(validateBuild(b, day).errors).toEqual([]);
     const gauntlet = [heroStartBuild("weaver", 1), heroRefBuild("weaver", day)];
     const o = { ...DEFAULT_OPTS, seed: 9, seeds: 1 };
@@ -73,6 +79,7 @@ describe("harness v2: tournament (mirror K=4, star mix, star bench)", () => {
     const b = heroStartBuild("weaver", 1);
     const cells = freeCells(b);
     b.items.push({ uid: 900, def: "splitter", x: kx(cells[0]), y: ky(cells[0]) });
+    nativeRigs(b);
     b.mods.push({ uid: 901, def: "chamber", turret: 0 });
     expect(validateBuild(b, day).errors).toEqual([]);
     const gauntlet = [heroStartBuild("furnace", 1)];

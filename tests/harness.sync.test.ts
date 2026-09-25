@@ -4,36 +4,40 @@
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { HEROES, ITEMS } from "../src/sim/content";
-import { occupancy, routeInfo, routesOf, type Build } from "../src/sim/deck";
+import { itemByUid, rigHits, routeInfo, routesOf, type Build, type RigHit } from "../src/sim/deck";
 import { unfusedPairs, validateBuild } from "../src/net/validate";
 import { randomBuild } from "../src/sim/harness/gen";
 import { buildTraits } from "../src/sim/harness/levers";
 import { isSpeedGate } from "../src/sim/harness/shopper";
 import { starsOf } from "../src/sim/stars";
 
-/** v1's star-blind trait: Crucible twins matched and the same speed-gate DEF at every index. */
+// beltside-062-on-061 (F1-style port, DESIGN §13 P16): a speed rig stands beside the belt and works the tile its arrow
+// lands on, so "the speed gate at cell index i" of a twin route is read from the rig hits on its tile i (rigHits, R7
+// order), as buildTraits reads it; v2 read the gate standing on the cell. The assertions are unchanged.
+const speedHits = (hits: RigHit[][][], ri: number, i: number): RigHit[] => (hits[ri]?.[i] ?? []).filter((h) => isSpeedGate(ITEMS[h.def]));
+
+/** v1's star-blind trait: Crucible twins matched and the same speed-rig DEFs at every tile index. */
 function syncedByDefOnly(b: Build): boolean {
   const sig = b.items.find((p) => p.def === HEROES[b.hero].factory);
   const own = sig ? routesOf(b, sig.uid) : [];
   if (!(sig && ITEMS[sig.def].factory?.ammo === "blank" && own.length === 2)) return false;
   const [ia, ic] = own.map((ri) => routeInfo(b, ri));
-  const occ = occupancy(b);
-  const speeds = (ri: number) => b.routes[ri].cells.map((k) => {
-    const p = b.items.find((q) => q.uid === occ[k].item);
-    return p && isSpeedGate(ITEMS[p.def]) ? p.def : "";
-  });
+  const hits = rigHits(b);
+  const speeds = (ri: number) => b.routes[ri].cells.map((_, i) => speedHits(hits, ri, i).map((h) => h.def).sort().join("+"));
   return ia.turret >= 0 && ia.turret === ic.turret && ia.tiles === ic.tiles && speeds(own[0]).join() === speeds(own[1]).join();
 }
 
-/** The speed-gate pairs at the same cell index of the two twin routes. */
+/** The speed-rig pairs at the same tile index of the two twin routes: the first speed rig hitting each (two rigs). */
 function speedPairs(b: Build): [Build["items"][number], Build["items"][number]][] {
   const sig = b.items.find((p) => p.def === HEROES[b.hero].factory)!;
-  const [ra, rb] = routesOf(b, sig.uid).map((ri) => b.routes[ri].cells);
-  const occ = occupancy(b), at = (k: number) => b.items.find((q) => q.uid === occ[k].item);
+  const [ra, rb] = routesOf(b, sig.uid);
+  const hits = rigHits(b);
   const out: [Build["items"][number], Build["items"][number]][] = [];
-  ra.forEach((k, i) => {
-    const x = at(k), y = at(rb[i]);
-    if (x && y && isSpeedGate(ITEMS[x.def]) && isSpeedGate(ITEMS[y.def])) out.push([x, y]);
+  b.routes[ra].cells.forEach((_, i) => {
+    const xs = speedHits(hits, ra, i), ys = speedHits(hits, rb, i);
+    if (!xs.length || !ys.length) return;
+    const x = itemByUid(b, xs[0].uid)!, y = itemByUid(b, ys[0].uid)!;
+    if (x !== y) out.push([x, y]);
   });
   return out;
 }

@@ -107,8 +107,13 @@ describe("harness cores (0.6.1b): legality", () => {
     for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("on-pin", hero, day, i)), "on", FUSE_MAX, "off")));
     const b: string[] = [];
     for (const hero of ["furnace", "weaver"] as const) for (let day = 1; day <= 10; day++) for (let i = 0; i < 3; i++) b.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-on-pin", hero, day, i), undefined, 60, "on", FUSE_MAX, "off")));
-    expect(hash32(a.join("|"))).toBe(3068763238);
-    expect(hash32(b.join("|"))).toBe(1965100384);
+    // beltside-062-on-061 re-pin (DESIGN §13 P16, moved by H2's rig placement: every rig these builds buy stands where
+    // H2 puts it, and a merging copy leaves the survivor's cell and rotation): 3068763238 -> 2679854933 and
+    // 1965100384 -> 3070968615, measured on this branch. BELTSIDE never had a pre-cores stars-on harness to compute
+    // them with (the stars-off pins in tests/harness.merge.test.ts are the ones checked against beltside-062c's own
+    // harness); cores off still draws nothing for the core lever (tests above), so the pins hold that path.
+    expect(hash32(a.join("|"))).toBe(2679854933);
+    expect(hash32(b.join("|"))).toBe(3070968615);
   }, 60_000);
 });
 
