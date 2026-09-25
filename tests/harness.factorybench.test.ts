@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { ITEMS, type HeroId, type ItemDef } from "../src/sim/content";
-import { routesOf, type Build } from "../src/sim/deck";
+import { hitsOfRig, key, routesOf, type Build } from "../src/sim/deck";
 import { unfusedPairs } from "../src/net/validate";
 import { FUSE_MAX, starsOf } from "../src/sim/stars";
 import { randomBuild } from "../src/sim/harness/gen";
@@ -119,10 +119,21 @@ describe("factory bench (0.6.1c)", () => {
     expect(jobStats([a, b], j).dmg).toBeGreaterThan(0);
   });
 
-  it("the arsenal's press-slot deck is the golden-060 fixture's par/furnace/6 (and par/weaver/6 its opponent); arsenalPressSlot is its report-only table", () => {
+  it("the arsenal's press-slot deck is the golden-060 par/furnace/6 and par/weaver/6 on native rigs; arsenalPressSlot is its report-only table", () => {
     const par = JSON.parse(readFileSync(new URL("./fixtures/golden-060/par.json", import.meta.url), "utf8")) as { decks: Record<string, Build> };
-    expect(JSON.stringify(heroRefBuild("furnace", 6))).toBe(JSON.stringify(par.decks["par/furnace/6"]));
-    expect(JSON.stringify(heroRefBuild("weaver", 6))).toBe(JSON.stringify(par.decks["par/weaver/6"]));
+    for (const hero of ["furnace", "weaver"] as const) {
+      const old = par.decks[`par/${hero}/6`], current = heroRefBuild(hero, 6);
+      const gates = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind === "gate");
+      const withoutGates = (b: Build) => ({ ...b, items: b.items.filter((p) => ITEMS[p.def].kind !== "gate") });
+      expect(withoutGates(current)).toEqual(withoutGates(old));
+      expect(gates(current).map((p) => [p.uid, p.def, p.stars ?? 1])).toEqual(gates(old).map((p) => [p.uid, p.def, p.stars ?? 1]));
+      const belt = new Set(current.routes.flatMap((r) => r.cells));
+      for (const gate of gates(old)) {
+        const placed = gates(current).find((p) => p.uid === gate.uid)!;
+        expect(belt.has(key(placed.x, placed.y))).toBe(false);
+        expect(hitsOfRig(current, placed.uid).map((h) => h.cell), `${hero}: ${gate.def}`).toEqual([key(gate.x, gate.y)]);
+      }
+    }
     const rows = arsenalPressSlot();
     expect(rows.map((r) => r.def)).toEqual([...FACTORY_DEFS]);
     for (const r of rows) for (const x of r.dmg) expect(x).toBeGreaterThan(0);
@@ -140,6 +151,23 @@ describe("factory bench (0.6.1c)", () => {
     expect(u.slag).toEqual({ skipped: 1, steered: 3 });
     expect(u.thirdArm).toBe(1);
     expect(u.slagSpeed).toBe(0);
+  });
+
+  it("factoryUseOf counts a speed rig's hits on slag tiles even though its own cell is beside the belt", () => {
+    const b = heroStartBuild("weaver", 1);
+    b.routes = [];
+    const buyer = new Shopper(b, 500, 10, new Rng(13), "on", FUSE_MAX, "off", "on");
+    (buyer as unknown as { factories: ItemDef[] }).factories = [ITEMS.slagpot];
+    expect(applyLever(buyer, "press")).toBe(true);
+    const pot = b.items.find((p) => p.def === "slagpot")!;
+    const placer = new Shopper(b, 500, 10, new Rng(14), "off", FUSE_MAX, "off", "off");
+    const tiles = placer.rigTiles((ri) => b.routes[ri].factory === pot.uid);
+    expect(tiles.length).toBeGreaterThan(0);
+    const rig = placer.placeRig("grease", tiles[0][0], tiles[0][1])!;
+    expect(rig).not.toBeNull();
+    const hits = hitsOfRig(b, rig.uid).filter((h) => b.routes[h.route].factory === pot.uid);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(factoryUseOf([b]).slagSpeed).toBe(hits.length);
   });
 
   it("a small day, factories on, carries the usage table, the FACTORY table and PRESS-SLOT; factories off carries none (part 2's day exactly)", async () => {

@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { AMMO, ITEMS, type HeroId, type ItemDef } from "../src/sim/content";
-import { key, routesOf, type Build } from "../src/sim/deck";
+import { rigHits, routesOf, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
 import { FUSE_MAX, effectAt, outputsAt, starsOf } from "../src/sim/stars";
 import { fullPurseBuild, randomBuild, shopBuild } from "../src/sim/harness/gen";
@@ -32,7 +32,7 @@ const factoryCount = (b: Build) => b.items.filter((p) => isFactory(p.def)).lengt
 
 /** The stars-on invariant with factories on (brief step 2): validateBuild ok, no unfused pair (deck, and deck +
  *  cargo), deck + cargo within the day's gold, no factory feeding more routes than outputsAt(its stars), and (the
- *  slag rule) no speed gate on a slag route. */
+ *  slag rule) no speed-rig hit on a slag route. */
 function problems(b: Build, cargo: readonly InvItem[], day: number): string[] {
   const out: string[] = [...validateBuild(b, day).errors, ...unfusedPairs(b), ...unfusedWithCargo(b, cargo)];
   if (buildCost(b).total + cargoValue(cargo) > maxGoldByDay(day)) out.push(`over budget: ${buildCost(b).total} + cargo ${cargoValue(cargo)} > ${maxGoldByDay(day)}`);
@@ -42,7 +42,9 @@ function problems(b: Build, cargo: readonly InvItem[], day: number): string[] {
     if (n > outs) out.push(`${p.def}*${starsOf(p)} feeds ${n} routes, outputs ${outs}`);
   }
   const slag = fixedSpeedCells(b);
-  for (const p of b.items) if (isSpeedGate(ITEMS[p.def]) && slag.has(key(p.x, p.y))) out.push(`speed gate ${p.def} on a slag route`);
+  for (const route of rigHits(b)) for (const tile of route) for (const hit of tile) {
+    if (isSpeedGate(ITEMS[hit.def]) && slag.has(hit.cell)) out.push(`speed rig ${hit.def} on a slag route`);
+  }
   return out;
 }
 
@@ -170,15 +172,15 @@ describe("harness factories (0.6.1c): legality", () => {
     }
   });
 
-  // Step 1 pins (output-h3/step1/pins/pins-step1.test.ts), computed at the rebased tip 07e9d40 = f40a6d3 on 4ecf202,
-  // BEFORE any factory change: stars on + cores on, all six heroes. Factories off must reproduce them exactly.
-  it("stars on + cores on + factories off reproduces the pre-factories harness exactly (pins computed at the rebased tip, step 1)", () => {
+  // P19 pins, computed independently at beltside-062-on-061 ebc2b5e with no factories argument. The merged branch
+  // must reproduce those builds exactly when factories are off; the old target-h3 pins measured an inline-gate board.
+  it("stars on + cores on + factories off reproduces BELTSIDE before the factory merge exactly", () => {
     const a: string[] = [];
     for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("fac-off-pin", hero, day, i)), "on", FUSE_MAX, "on", "off")));
     const b: string[] = [];
     for (const hero of HARNESS_HEROES) for (let day = 1; day <= 10; day++) for (let i = 0; i < 3; i++) b.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-fac-off-pin", hero, day, i), undefined, 60, "on", FUSE_MAX, "on", "off")));
-    expect(hash32(a.join("|"))).toBe(349059202);
-    expect(hash32(b.join("|"))).toBe(46712332);
+    expect(hash32(a.join("|"))).toBe(1132566147);
+    expect(hash32(b.join("|"))).toBe(3790118784);
   }, 240_000);
 });
 
@@ -271,7 +273,7 @@ describe("harness factories (0.6.1c): the factory paths", () => {
     expect(gained).toBeGreaterThan(0);
   });
 
-  it("no speed gate on a slag route: the gate lever and the merge lever steer speed gates off it; cellsFor skips when only slag cells are free", () => {
+  it("no speed-rig hit on a slag route: the gate and merge levers steer speed rigs off it; rigTilesFor skips slag tiles", () => {
     const { s, uid } = placed("foundry", "slagpot");
     const slag = fixedSpeedCells(s.b);
     expect(slag.size).toBe(s.b.routes.filter((r) => r.factory === uid).reduce((n, r) => n + r.cells.length, 0));
@@ -281,12 +283,14 @@ describe("harness factories (0.6.1c): the factory paths", () => {
     expect(problems(s.b, s.cargo, 10)).toEqual([]);
     expect(s.slag.steered).toBeGreaterThan(0);
     const before = s.slag.skipped;
-    expect(s.cellsFor(ITEMS.overdrive, [...slag])).toEqual([]); // a speed gate with no twin placed: nowhere to go
+    const slagTiles = s.rigTiles().filter(([ri, ti]) => slag.has(s.b.routes[ri].cells[ti]));
+    expect(slagTiles.length).toBeGreaterThan(0);
+    expect(s.rigTilesFor(ITEMS.overdrive, slagTiles)).toEqual([]); // a speed rig with no twin: no slag tile to work
     expect(s.slag.skipped).toBe(before + 1);
-    expect(s.cellsFor(ITEMS.temper, [...slag])).toEqual([...slag]); // not a speed gate: any cell
-    // factories off: the rule is off too (no slag route can exist there), cellsFor is the identity with no count
+    expect(s.rigTilesFor(ITEMS.temper, slagTiles)).toEqual(slagTiles); // not a speed rig: any tile
+    // factories off: the rule is off too (no slag route can exist there), rigTilesFor is the identity with no count
     const off = new Shopper(s.b, 500, 10, new Rng(1), "on", FUSE_MAX, "off", "off");
-    expect(off.cellsFor(ITEMS.grease, [...slag])).toEqual([...slag]);
+    expect(off.rigTilesFor(ITEMS.grease, slagTiles)).toEqual(slagTiles);
     expect(off.slag).toEqual({ skipped: 0, steered: 0 });
   });
 });

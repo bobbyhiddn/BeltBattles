@@ -1,15 +1,15 @@
 // Harness v2 part 3 (REQ-BFG-026, REQ-BFG-019), verify13 D1 and N1: the slag rule at its last two enforcement points.
-// With factories on, no speed gate may sit on a SLAG POT route (AMMO.slag.fixedSpeed: Battle.transport ignores speed
-// gates there). tests/harness.factories.test.ts covers the rule at cellsFor, the gate lever and the merge lever. This
+// With factories on, no speed rig may hit a SLAG POT route (AMMO.slag.fixedSpeed: Battle.transport ignores speed
+// rigs there). tests/harness.factories.test.ts covers rigTilesFor, the gate lever and the merge lever. This
 // file covers the other two:
-// - the "drop" lever (pressLine, levers.ts): a dropped signature route's gates ride onto the new factory's line, except
-//   the speed gates when that factory is a SLAG POT; they are left behind (not bought) and counted in slag.skipped.
-//   verify13 D1: removing that filter left every harness test green while real builds put speed gates on slag routes;
-// - topUp's 3 g gate (gen.ts): it goes through cellsFor, so a speed gate drawn there skips the slag cells (N1).
+// - the "drop" lever (pressLine, levers.ts): a dropped signature route's rigs ride onto the new factory's line, except
+//   the speed rigs when that factory is a SLAG POT; they are left behind (not bought) and counted in slag.skipped.
+//   verify13 D1: removing that filter makes both drop tests fail while the topUp control stays green;
+// - topUp's 3 g rig (gen.ts): it goes through rigTilesFor, so a speed rig drawn there skips the slag tiles (N1).
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { AMMO, ITEMS, type ItemDef } from "../src/sim/content";
-import { key, routesOf, type Build } from "../src/sim/deck";
+import { hitsOfRig, rigHits, routesOf, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
 import { FUSE_MAX, effectAt, outputsAt, starsOf } from "../src/sim/stars";
 import { shopBuild, topUp } from "../src/sim/harness/gen";
@@ -19,17 +19,18 @@ import { cargoValue, unfusedWithCargo, type InvItem } from "../src/sim/harness/m
 import { freeConnectors } from "../src/sim/harness/path";
 import { PLATE, Shopper } from "../src/sim/harness/shopper";
 
-/** The slag rule read from the game's data alone (not the harness's fixedSpeedCells/isSpeedGate): no gate with a speed
+/** The slag rule read from the game's data alone (not the harness's fixedSpeedCells/isSpeedGate): no rig hit with a speed
  *  at its stars on a route whose factory's ammo, at the factory's stars, has AMMO.fixedSpeed. */
 function slagProblems(b: Build): string[] {
   const out: string[] = [];
+  const hits = rigHits(b);
   b.routes.forEach((r, ri) => {
     const f = b.items.find((p) => p.uid === r.factory);
     const ammo = f ? effectAt(f.def, starsOf(f)).factory?.ammo : undefined;
     if (!f || !ammo || AMMO[ammo]?.fixedSpeed === undefined) return;
-    const cells = new Set(r.cells);
-    for (const g of b.items) {
-      if (ITEMS[g.def]?.kind === "gate" && cells.has(key(g.x, g.y)) && effectAt(g.def, starsOf(g)).gate?.speed !== undefined) out.push(`speed gate ${g.def}*${starsOf(g)} on slag route ${ri} (${f.def})`);
+    for (const hit of hits[ri].flat()) {
+      const g = b.items.find((p) => p.uid === hit.uid)!;
+      if (effectAt(g.def, starsOf(g)).gate?.speed !== undefined) out.push(`speed rig ${g.def}*${starsOf(g)} on slag route ${ri} (${f.def})`);
     }
   });
   return out;
@@ -68,7 +69,10 @@ describe("harness factories (0.6.1c): the slag rule at the drop lever and at top
       const s = shopper(heroStartBuild("weaver", 1), 10, hashSeed("slag-drop", seed), ["slagpot"]);
       const loom = s.b.items.find((p) => p.def === "loom")!;
       expect(routesOf(s.b, loom.uid).length).toBe(3);
-      s.b.routes.forEach((r, ri) => { s.placeGate(SPEED[ri], r.cells[0]); s.placeGate(OTHER[ri], r.cells[1]); });
+      s.b.routes.forEach((_, ri) => {
+        expect(s.placeRig(SPEED[ri], ri, 0), `seed ${seed}: speed rig on route ${ri}`).not.toBeNull();
+        expect(s.placeRig(OTHER[ri], ri, 1), `seed ${seed}: other rig on route ${ri}`).not.toBeNull();
+      });
       expect(problems(s.b, s.cargo, 10), `seed ${seed}: the deck before the drop`).toEqual([]);
       // "drop" applies: every connector taken, the LOOM's three routes droppable, gold for the SLAG POT
       expect(freeConnectors(s.b)).toEqual([]);
@@ -83,8 +87,8 @@ describe("harness factories (0.6.1c): the slag rule at the drop lever and at top
       // the rule: no speed gate on the SLAG POT's route (the game's data, and the full invariant)
       expect(slagProblems(s.b), `seed ${seed}`).toEqual([]);
       expect(problems(s.b, s.cargo, 10), `seed ${seed}`).toEqual([]);
-      const onPot = new Set(s.b.routes.filter((r) => r.factory === pot.uid).flatMap((r) => r.cells));
-      const gatesOnPot = s.b.items.filter((p) => ITEMS[p.def].kind === "gate" && onPot.has(key(p.x, p.y))).map((p) => p.def);
+      const hits = rigHits(s.b);
+      const gatesOnPot = s.b.routes.flatMap((r, ri) => r.factory === pot.uid ? hits[ri].flat().map((h) => h.def) : []);
       // the carried speed gate was left behind (not bought: one fewer speed gate on the deck), and counted
       expect(s.b.items.filter((p) => hasSpeed(p.def)).length, `seed ${seed}: speed gates left on the deck`).toBe(2);
       expect(s.slag.skipped, `seed ${seed}: slag.skipped`).toBe(slag0.skipped + 1);
@@ -96,14 +100,12 @@ describe("harness factories (0.6.1c): the slag rule at the drop lever and at top
     }
   });
 
-  it("pinned at 1677977: WEAVER d3 #73 (verify13's seed, hashSeed(\"v13-legal\", \"weaver\", 3, 73)) reaches the drop's slag filter; the slag rule holds after every lever", () => {
-    // Found by a search of 6,000 randomBuilds at 1677977 (six heroes, days 1-10, seeds v13-legal #0-99): the builds whose
-    // "drop" leaves a speed gate off a SLAG POT line are WEAVER d3 #73, d5 #15, d6 #69, d7 #88 and SIPHON d5 #93,
-    // d8 #49. This is the smallest (10 levers): its 5th lever, "drop", buys a SLAG POT and leaves the dropped LOOM
-    // route's GREASE behind. Without the filter that GREASE rides onto the SLAG POT's route.
+  it("pinned on BELTSIDE: WEAVER d3 #129 reaches the drop's slag filter; the slag rule holds after every lever", () => {
+    // H2 rig placement moved the old v2 WEAVER d3 #73 case off this path. A search of the same v13-legal seeds on
+    // BELTSIDE found WEAVER d3 #129, d5 #15 and d7 #104, and SIPHON d5 #93 and d7 #37. This pin keeps the D1 proof.
     const day = 3;
     let levers = 0, filtered = 0, prev = 0;
-    const r = shopBuild("weaver", day, new Rng(hashSeed("v13-legal", "weaver", day, 73)), "on", FUSE_MAX, "on", (s, l, ok) => {
+    const r = shopBuild("weaver", day, new Rng(hashSeed("v13-legal", "weaver", day, 129)), "on", FUSE_MAX, "on", (s, l, ok) => {
       levers++;
       expect(slagProblems(s.b), `after lever ${levers} ${l} (${ok})`).toEqual([]);
       expect(problems(s.b, s.cargo, day), `after lever ${levers} ${l} (${ok})`).toEqual([]);
@@ -140,7 +142,7 @@ describe("harness factories (0.6.1c): the slag rule at the drop lever and at top
       if (gates.length) {
         placed++;
         expect(hasSpeed(gates[0].def), `seed ${seed}: ${gates[0].def}`).toBe(false);
-        expect(b.routes[0].cells).toContain(key(gates[0].x, gates[0].y)); // on the slag line: the only free cells
+        expect(hitsOfRig(b, gates[0].uid).some((h) => b.routes[0].cells.includes(h.cell))).toBe(true); // works the slag line
       } else skipped++;
     }
     // both branches ran: a 3 g gate that isn't a speed gate went onto the slag line, and a drawn speed gate was not bought
