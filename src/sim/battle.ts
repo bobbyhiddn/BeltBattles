@@ -43,6 +43,11 @@ export interface Payload {
   static?: boolean; // opt-in Static hull stall hook
   arc?: number; // opt-in nearest-machine arc count; each arc passes through the same guard
   rip?: { count: number; reach: number }; // opt-in Grapnel core hook, reach in belt tiles
+  heat?: number;
+  heatRide?: number;
+  heatBonus?: number;
+  pulseSeen?: Record<number, number>;
+  compound?: Payload;
 }
 
 export interface BeltAmmo {
@@ -76,6 +81,7 @@ export interface GateState {
   frozen: number;
   wrecked: boolean;
   tolls: number;
+  sorted: number; // SORTING ARM counts every arrow hit in battle order
   flash: number; // render: time since last processed payload (counts down)
   arrowFlash: number[]; // 0.6.2 render (V3): per absolute direction, counts down after that arrow applied
   // 0.6.1c ASSEMBLY LINE ★3 HOT START: overclocked (overclock.ts) until this battle time (s). beltside-062c (DESIGN
@@ -120,6 +126,10 @@ export interface FactoryState {
   // 0.6.1c (FactorySpec.batch / cycle): 0 for every factory without them, so those stamp exactly as before
   pending: number; // DOUBLE STAMP, SHOT TOWER: slugs of this cycle still waiting in the mouth for AMMO_SPACING
   cycleIdx: number; // HOT SWAP: the preset the next stamp writes
+  seenHarass: number;
+  seenWreck: number;
+  triggerQueue: number;
+  triggerCooldown: number;
 }
 
 export interface TurretState {
@@ -151,6 +161,11 @@ export interface TurretState {
   intakeGuard: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into it share `immune`
   finisher: number; // FINISHER RAM: + this share of damage on the payload that empties the window (never on a GATLING)
   intercept: number; // future Flak mod's chance; the side takes the maximum across its turrets
+  rerolls: number;
+  factoryWeight: number;
+  alwaysMachine: boolean;
+  charge: number;
+  salvage: number;
 }
 
 export interface HullState {
@@ -202,6 +217,7 @@ export interface SideState {
   targets: Target[];
   flak: number;
   harassAccepted: number; // future Scrapper consumes accepted enemy effects from this side
+  wreckAccepted: number;
   limpets: { at: number; target: Target; from: Side; blast: number; stall: number }[];
   stats: SideStats;
   race?: RaceSide; // races: race mechanics state; undefined for Furnace and Weaver
@@ -227,6 +243,10 @@ export interface Projectile {
   noFray?: boolean; // SCATTER: only the first pellet applies the ammo's Fray stacks
   finisher?: boolean; // 0.6.1p: a FINISHER RAM finisher (render: a 1 px red trail); absent otherwise
   flakChecked?: boolean;
+  splash?: number;
+  splashShare?: number;
+  tesla?: { arcs: number; stall: number; share: number };
+  lance?: { columns: number; share: number; col: number };
 }
 
 export type SimEvent =
@@ -243,6 +263,8 @@ export type SimEvent =
   | { type: "flak"; side: Side; proj: number }
   | { type: "toll"; side: Side; gate: number; remaining: number; cause: HarassCause }
   | { type: "harass"; side: Side; kind: TargetKind; ref: number; cell: number; cause: HarassCause }
+  | { type: "repair"; side: Side; amount: number; gate: number }
+  | { type: "arc" | "lance" | "splash"; side: Side; x: number; y: number }
   | { type: "freeze" | "slow" | "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
   | { type: "burn"; side: Side; dmg: number }
   | { type: "wind"; dmg: number }
@@ -318,7 +340,7 @@ export class Battle {
       if (d.kind !== "gate") continue;
       const g: GateState = {
         uid: p.uid, def: d, x: p.x, y: p.y, route: -1, cellIdx: -1, hits: [], commissionAt: Infinity,
-        online: false, disrupted: 0, frozen: 0, wrecked: false, tolls: d.gate?.toll ?? 0,
+        online: false, disrupted: 0, frozen: 0, wrecked: false, tolls: d.gate?.toll ?? 0, sorted: 0,
         flash: 0, arrowFlash: [0, 0, 0, 0],
       };
       gates.push(g);
@@ -370,10 +392,10 @@ export class Battle {
     const factories: FactoryState[] = b.items
       .filter((p) => defOf(p).kind === "factory")
       .map((p) => ({
-        uid: p.uid, def: effectAt(p.def, starsOf(p)), x: p.x, y: p.y, // 0.6.1a: factory spec at its stars
+        uid: p.uid, def: this.factoryDef(effectAt(p.def, starsOf(p)), h), x: p.x, y: p.y,
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
         timer: 0.35, rr: 0, disrupted: 0, frozen: 0, flash: 0, stalled: false, produced: 0,
-        pending: 0, cycleIdx: 0, // 0.6.1c
+        pending: 0, cycleIdx: 0, seenHarass: 0, seenWreck: 0, triggerQueue: 0, triggerCooldown: 0,
       }));
     const turrets: TurretState[] = h.turrets.map((def, i) => makeTurret(b, i, def)); // 0.6.1b: gear and core
     // 0.6.1p: guard flags. OVERDRIVE ★2/★3 flags its own tile and every tile downstream (static: wave 2's hooks
@@ -407,9 +429,17 @@ export class Battle {
     });
     return {
       side, build: b, hero: h, hull, factories, gates, routes, turrets, targets,
-      flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, limpets: [], stats: emptyStats(),
+      flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, wreckAccepted: 0,
+      limpets: [], stats: emptyStats(),
       race: makeRaceSide(b), // races:
     };
+  }
+
+  private factoryDef(def: ItemDef, hero: HeroDef): ItemDef {
+    const spec = def.factory;
+    if (def.id !== "mimic" || !spec) return def;
+    return { ...def, factory: { ...spec, ammo: hero.ammo,
+      interval: (ITEMS[hero.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) } };
   }
 
   /** races: payload ids for payloads created by race hooks (src/sim/races). */
@@ -466,7 +496,7 @@ export class Battle {
       // (0.6.2, R7 item 4: several speed hits on one tile resolve by tileSpeed)
       let state = 1;
       for (let i = 0; i < r.cells.length; i++) {
-        const won = tileSpeed(r.gateAt[i]);
+        const won = this.tileSpeedAt(r.gateAt[i]);
         if (won !== undefined) state = won;
         const shown = s.race ? raceBeltSpeed(this, s, r.index, i, state) : state; // races: speed lock, Drag
         const slow = !s.race?.speedLock && r.cellSlow[i].t > 0 && !this.routeGuardActive(r, i, GUARD_SLOW) ? r.cellSlow[i].mul : 1;
@@ -518,14 +548,25 @@ export class Battle {
 
   private produce(s: SideState, dt: number): void {
     for (const f of s.factories) {
+      const spec = f.def.factory!;
+      if (spec.trigger === "harass") {
+        const gained = s.harassAccepted - f.seenHarass + (spec.bigHaul ? s.wreckAccepted - f.seenWreck : 0);
+        f.triggerQueue = Math.min(3, f.triggerQueue + gained);
+        f.seenHarass = s.harassAccepted;
+        f.seenWreck = s.wreckAccepted;
+      }
       if (!f.routes.length || f.disrupted > 0 || f.frozen > 0) continue;
+      if (f.triggerCooldown > 0) f.triggerCooldown = Math.max(0, f.triggerCooldown - dt);
+      if (f.triggerQueue > 0 && f.triggerCooldown <= 0 && this.stamp(s, f)) {
+        f.triggerQueue--;
+        f.triggerCooldown = 0.6;
+      }
       // 0.6.1c DOUBLE STAMP / SHOT TOWER: the batch's waiting slugs leave the mouth as AMMO_SPACING frees, round-robin
       // like any stamp. A factory without a batch never has one waiting (pending stays 0).
       if (f.pending > 0 && this.stamp(s, f)) f.pending--;
       f.timer -= dt;
       if (f.timer > 0) continue;
       if (s.race && raceProduce(this, s, f, dt)) continue; // races: Crucible twin pour
-      const spec = f.def.factory!;
       if (f.pending === 0 && this.stamp(s, f)) {
         f.timer = spec.interval;
         if (spec.batch && spec.batch > 1) f.pending = spec.batch - 1; // 0.6.1c: the rest of the batch waits in the mouth
@@ -554,6 +595,8 @@ export class Battle {
           prior: 0, factory: f.uid, copy: false,
         };
         if (spec.base !== undefined) p.base = spec.base; // 0.6.1p: STAMP PRESS dies (absent at 1 star)
+        if (spec.scrapFlat !== undefined) p.flat += spec.scrapFlat;
+        if (spec.round) p.harass = { ...spec.round };
         if (spec.cycle?.length) { // 0.6.1c HOT SWAP: EMBER (+ Burn), then SPARK (+ Shock), in turn
           const pr = spec.cycle[f.cycleIdx % spec.cycle.length];
           f.cycleIdx = (f.cycleIdx + 1) % spec.cycle.length;
@@ -581,10 +624,35 @@ export class Battle {
     for (let i = 0; i < r.cells.length; i++) {
       const centre = i * CELL + CELL / 2;
       if (centre >= pos) break;
-      const won = tileSpeed(r.gateAt[i]);
+      const won = this.tileSpeedAt(r.gateAt[i]);
       if (won !== undefined) state = won;
     }
     return state;
+  }
+
+  private tileSpeedAt(list: readonly TileHit[]): number | undefined {
+    const speeds: number[] = [];
+    for (const h of list) {
+      const g = h.g;
+      if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
+      const e = g.def.gate!;
+      if (e.speed !== undefined) speeds.push(e.speed);
+      if (e.pulse) speeds.push(this.t % e.pulse.period < e.pulse.on ? e.pulse.speed : 1);
+    }
+    return speedWinner(speeds);
+  }
+
+  private pulseAt(r: RouteState, pos: number): GateState | undefined {
+    let pulse: GateState | undefined;
+    for (let i = 0; i < r.cells.length && i * CELL + CELL / 2 < pos; i++) {
+      for (const h of r.gateAt[i]) {
+        const g = h.g;
+        if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
+        if (g.def.gate?.speed !== undefined) pulse = undefined;
+        if (g.def.gate?.pulse) pulse = g;
+      }
+    }
+    return pulse;
   }
 
   private transport(s: SideState, dt: number): void {
@@ -612,7 +680,21 @@ export class Battle {
         let ns = Math.min(want, limit);
         if (ns < a.s) ns = a.s;
         const moved = ns - a.s;
-        if (v > 0 && moved > 0 && drag === 1) a.p.ride += moved / v; // races: dragged movement isn't ride
+        if (v > 0 && moved > 0 && drag === 1) {
+          const ride = moved / v;
+          a.p.ride += ride; // races: dragged movement isn't ride
+          if (a.p.heat) {
+            a.p.heatRide = (a.p.heatRide ?? 0) + ride;
+            a.p.heatBonus = (a.p.heatBonus ?? 0) + a.p.heat * ride;
+          }
+          const surge = fixed === undefined && !s.race?.speedLock ? this.pulseAt(r, a.s) : undefined;
+          const pulse = surge?.def.gate?.pulse;
+          if (surge && pulse && pulse.flat > 0 && this.t % pulse.period < pulse.on) {
+            const cycle = Math.floor(this.t / pulse.period);
+            const seen = a.p.pulseSeen ??= {};
+            if (seen[surge.uid] !== cycle) { seen[surge.uid] = cycle; a.p.flat += pulse.flat; }
+          }
+        }
         a.blocked = want > limit + 1e-6 || v === 0;
         if (a.blocked) pressure++;
         // apply the hits of every tile whose centre was crossed (0.6.2: R7 order, one per arrow)
@@ -683,13 +765,30 @@ export class Battle {
       if (e.shockTime !== undefined) p.shockTime = Math.max(p.shockTime ?? DISRUPT_TIME, e.shockTime);
       if (e.jump) p.jump = Math.max(p.jump ?? 0, e.jump);
     }
-    if (e.sift) siftDebuffs(p.debuffs, e.sift);
+    if (e.sift) {
+      const removed = siftDebuffs(p.debuffs, e.sift);
+      p.flat += removed * (e.siftFlat ?? 0) + (removed === 0 ? e.siftClean ?? 0 : 0);
+    }
+    if (e.heat) p.heat = (p.heat ?? 0) + e.heat;
+    if (e.repair) {
+      const repair = Math.min(e.repair, s.hull.max - s.hull.hp);
+      if (repair > 0) { s.hull.hp += repair; this.events.push({ type: "repair", side: s.side, amount: repair, gate: g.uid }); }
+    }
+    if (e.sort) {
+      g.sorted++;
+      if (g.sorted % e.sort.every === 0) for (let c = 1; c < e.sort.copies; c++) {
+        const cp: Payload = { ...p, id: this.nextId++, ...(p.debuffs ? { debuffs: { ...p.debuffs } } : {}),
+          ...(p.pulseSeen ? { pulseSeen: { ...p.pulseSeen } } : {}) };
+        copies.push({ p: cp, s: a.s - 0.01 * c, processed: a.processed, blocked: false });
+      }
+    }
     if (e.split) {
       p.mult *= e.split.mult;
       p.flat *= e.split.mult;
       p.copy = true;
       for (let c = 1; c < e.split.copies; c++) { // generic: copies - 1 new ones (an overclocked split makes one more)
-        const cp: Payload = { ...p, id: this.nextId++, ...(p.debuffs ? { debuffs: { ...p.debuffs } } : {}) };
+        const cp: Payload = { ...p, id: this.nextId++, ...(p.debuffs ? { debuffs: { ...p.debuffs } } : {}),
+          ...(p.pulseSeen ? { pulseSeen: { ...p.pulseSeen } } : {}) };
         copies.push({ p: cp, s: a.s - 0.01 * c, processed: a.processed, blocked: false });
       }
     }
@@ -731,6 +830,8 @@ export class Battle {
       tu.waiting = waiting;
       if (waiting > s.stats.maxQueue) s.stats.maxQueue = waiting;
       if (tu.disrupted > 0 || tu.frozen > 0) continue;
+      if (tu.core.routine === "capacitor" && tu.stack.length === 0)
+        tu.charge = Math.min(tu.core.spec.maxSeconds ?? 5, tu.charge + dt);
       if (tu.fireCd > 0) tu.fireCd = Math.max(0, tu.fireCd - dt);
       if (tu.jamCd > 0) tu.jamCd = Math.max(0, tu.jamCd - dt);
       // 0.6.1b: the core's chamber hooks (src/sim/cores.ts ROUTINES); the identity hooks are the old rules
@@ -763,6 +864,7 @@ export class Battle {
               const idx = tu.jamRandom ? this.rng.int(tu.stack.length) : rt.select(tu); // identity: LIFO
               tu.jamRandom = false;
               const p = tu.stack.splice(idx, 1)[0];
+              if (tu.core.routine === "compound" && tu.stack.length) p.compound = tu.stack.pop();
               // 0.6.1p FINISHER RAM: the payload that empties the window. A GATLING never holds a window
               // (cores.ts gatlingReady), so none of its shots is a finisher (the Prime's call, brief 0.6.1p).
               const fin = tu.finisher > 0 && tu.stack.length === 0 && tu.core.routine !== "gatling";
@@ -785,10 +887,10 @@ export class Battle {
     const ammo = AMMO[p.ammo];
     let dmg = ammo.rideCurve // races: PENDULUM curve
       ? raceCurveDamage(ammo, s, tu, p)
-      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat); // 0.6.1p: p.base (STAMP PRESS dies)
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat + (p.heatBonus ?? 0));
     if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM
     dmg = debuffedDamage(dmg, p.debuffs);
-    const target = this.pickTarget(foe, !!p.harass);
+    const target = this.pickTarget(foe, !!p.harass, tu);
     let tx = target.x, ty = target.y;
     if (target.kind === "hull") {
       tx = this.rng.range(-6, 126);
@@ -825,14 +927,26 @@ export class Battle {
     const foe = this.sides[s.side === 0 ? 1 : 0];
     const ammo = AMMO[p.ammo];
     const c = tu.core.spec, routine = tu.core.routine;
+    if (routine === "grapnel") p.rip = { count: c.rip ?? 1, reach: c.reach ?? 1 };
     const conv = routine === "drake" ? drakeConvert(c, p.flat) : { stacks: 0, used: 0 };
     let dmg = ammo.rideCurve
       ? Math.max(1, raceCurveDamage(ammo, s, tu, p) - conv.used)
-      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat - conv.used); // 0.6.1p: p.base
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat - conv.used + (p.heatBonus ?? 0));
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
     if (routine === "pressure") dmg += pressureBonus(c, queued);
     else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
     else if (routine === "hullbreaker") dmg *= c.hullMul ?? 1;
+    else if (routine === "capacitor") { dmg += (c.perSecond ?? 0) * tu.charge; tu.charge = 0; }
+    else if (routine === "compound" && p.compound) {
+      const q = p.compound, qa = AMMO[q.ammo];
+      const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, q.ride, q.mult, q.flat + (q.heatBonus ?? 0));
+      dmg = (debuffedDamage(dmg, p.debuffs) + debuffedDamage(qd, q.debuffs)) * (c.mult ?? 1);
+      p.burn += q.burn;
+      p.shock ||= q.shock;
+      p.static ||= q.static;
+      p.shockTime = Math.max(p.shockTime ?? 0, q.shockTime ?? 0) || undefined;
+      p.jump = Math.max(p.jump ?? 0, q.jump ?? 0) || undefined;
+    }
     else if (routine === "drake") {
       burn += conv.stacks + (c.addBurn ?? 0);
       burnTime = c.burnTime;
@@ -842,10 +956,11 @@ export class Battle {
       share = c.share ?? 1;
     }
     if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM, after the core's own bonus (never set on a GATLING)
-    dmg = debuffedDamage(dmg, p.debuffs);
+    if (tu.salvage) { dmg += tu.salvage; tu.salvage = 0; }
+    if (routine !== "compound" || !p.compound) dmg = debuffedDamage(dmg, p.debuffs);
     const heavy = tu.def.kind === "heavy";
     for (let j = 0; j < pellets; j++) {
-      const target = routine === "hullbreaker" ? hullTarget() : this.pickTarget(foe, !!p.harass); // HULLBREAKER: no target draw
+      const target = routine === "hullbreaker" ? hullTarget() : this.pickTarget(foe, !!p.harass, tu);
       let tx = target.x, ty = target.y;
       if (target.kind === "hull") {
         tx = this.rng.range(-6, 126);
@@ -854,7 +969,7 @@ export class Battle {
         tx += this.rng.range(-3, 3);
         ty += this.rng.range(-3, 3);
       }
-      const flight = this.roundFlight(tu.def.flight * flightMul + Math.max(0, ty) / 120 * 0.22 + k * 0.08 + j * 0.03, p);
+      const flight = this.roundFlight(tu.def.flight * (routine === "mortar" ? c.flightMul ?? 2.2 : flightMul) + Math.max(0, ty) / 120 * 0.22 + k * 0.08 + j * 0.03, p);
       const pd = dmg * share;
       const proj: Projectile = {
         id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg: pd, t: 0, flight, target, tx, ty, heavy,
@@ -862,6 +977,9 @@ export class Battle {
         ...(burnTime !== undefined ? { burnTime } : {}),
         ...(pellets > 1 ? { share, noFray: j > 0 } : {}),
         ...(fin ? { finisher: true } : {}), // 0.6.1p
+        ...(routine === "mortar" ? { splash: c.splash, splashShare: c.share } : {}),
+        ...(routine === "tesla" ? { tesla: { arcs: c.arcs ?? 1, stall: c.stall ?? 0.8, share: c.share ?? 0.25 } } : {}),
+        ...(routine === "lance" ? { lance: { columns: c.columns ?? 1, share: c.share ?? 0.2, col: Math.floor(target.x / CELL) } } : {}),
       };
       this.telegraph(proj);
       this.projectiles.push(proj);
@@ -873,16 +991,19 @@ export class Battle {
     if (s.stats.firstShot < 0) s.stats.firstShot = this.t;
   }
 
-  private pickTarget(foe: SideState, special = false): Target {
-    const first = this.pickOnce(foe);
-    return special && first.kind === "hull" ? this.pickOnce(foe) : first;
+  private pickTarget(foe: SideState, special = false, turret?: TurretState): Target {
+    if (turret?.alwaysMachine && foe.targets.length) return this.rng.weighted(foe.targets, (t) => t.weight * (t.kind === "factory" ? turret.factoryWeight : 1));
+    const weight = turret?.factoryWeight ?? 1;
+    let target = this.pickOnce(foe, weight);
+    for (let i = 0; i < (special ? 1 : 0) + (turret?.rerolls ?? 0) && target.kind === "hull"; i++) target = this.pickOnce(foe, weight);
+    return target;
   }
 
-  private pickOnce(foe: SideState): Target {
+  private pickOnce(foe: SideState, factoryWeight = 1): Target {
     if (this.rng.next() < 0.5 || !foe.targets.length) {
       return hullTarget();
     }
-    return this.rng.weighted(foe.targets, (t) => t.weight);
+    return this.rng.weighted(foe.targets, (t) => t.weight * (t.kind === "factory" ? factoryWeight : 1));
   }
 
   private roundFlight(flight: number, p: Payload): number {
@@ -898,7 +1019,7 @@ export class Battle {
 
   private isHarassingProjectile(pr: Projectile): boolean {
     const p = pr.payload;
-    return !!(p.harass || p.shock || p.static || p.arc || p.rip);
+    return !!(p.harass || p.shock || p.static || p.arc || p.rip || pr.tesla || pr.lance);
   }
 
   private flight(dt: number): void {
@@ -926,9 +1047,10 @@ export class Battle {
     const atk = this.sides[pr.from];
     const def = this.sides[pr.from === 0 ? 1 : 0];
     const ammo = AMMO[pr.payload.ammo];
+    const hit = pr.lance ? hullTarget() : pr.target;
     // 0.6.1b: a SCATTER pellet's Fray bonus x its share, so Fray isn't multiplied (absent on identity shots)
     const bonus = pr.share !== undefined ? def.hull.fray * FRAY_BONUS * pr.share : def.hull.fray * FRAY_BONUS;
-    const total = pr.dmg + bonus + (pr.payload.harass?.kind === "sabot" && pr.target.kind === "hull" ? 6 : 0);
+    const total = pr.dmg + bonus + (pr.payload.harass?.kind === "sabot" && hit.kind === "hull" ? 6 : 0);
     def.hull.hp -= def.race ? raceAbsorb(def, total) : total; // races: bulwark plating soaks first
     def.hull.flash = 0.12;
     atk.stats.damage += total;
@@ -936,23 +1058,62 @@ export class Battle {
     const burn = pr.burn ?? pr.payload.burn; // 0.6.1b: a core's Burn (SCATTER split, DRAKE added), else the payload's
     if (burn > 0) def.hull.burns.push({ dps: burn, t: pr.burnTime ?? BURN_TIME });
     let shocked = false;
-    if (pr.payload.shock && pr.target.kind !== "hull") {
+    if (pr.payload.shock && hit.kind !== "hull") {
       const secs = pr.payload.shockTime ?? DISRUPT_TIME; // 0.6.1p: GALVANIC COIL ★2/★3 stall longer
-      shocked = this.disrupt(def, pr.target, secs, "shock");
-      if (pr.payload.jump) this.sparkJump(def, pr.target, secs, pr.payload.jump); // 0.6.1p: SPARK JUMP
+      shocked = this.disrupt(def, hit, secs, "shock");
+      if (pr.payload.jump) this.sparkJump(def, hit, secs, pr.payload.jump); // 0.6.1p: SPARK JUMP
     }
-    if (pr.payload.static && pr.target.kind === "hull" && def.turrets.length) {
+    if (pr.payload.static && hit.kind === "hull" && def.turrets.length) {
       const turret = def.turrets[this.rng.int(def.turrets.length)];
       this.disrupt(def, def.targets.find((t) => t.kind === "turret" && t.ref === turret.index)!, DISRUPT_TIME, "static");
     }
-    if (pr.payload.arc && pr.target.kind !== "hull") this.sparkJump(def, pr.target, DISRUPT_TIME, pr.payload.arc, "arc");
-    if (pr.payload.rip) this.rip(def, pr.target, pr.payload.rip.count, pr.payload.rip.reach);
-    if (pr.payload.harass) this.roundImpact(def, pr.target, pr.payload.harass, pr.from, pr.payload.debuffs);
+    if (pr.payload.arc && hit.kind !== "hull") this.sparkJump(def, hit, DISRUPT_TIME, pr.payload.arc, "arc");
+    if (pr.payload.rip) {
+      const ripped = this.rip(def, hit, pr.payload.rip.count, pr.payload.rip.reach);
+      if (ripped && pr.core === "grapnel" && atk.turrets[pr.turret].core.stars >= 3)
+        atk.turrets[pr.turret].salvage += ripped * atk.turrets[pr.turret].core.k;
+    }
+    if (pr.payload.harass) this.roundImpact(def, hit, pr.payload.harass, pr.from, pr.payload.debuffs);
     if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
     this.events.push({
       type: "impact", side: def.side, x: pr.tx, y: pr.ty, dmg: total, heavy: pr.heavy,
-      kind: pr.target.kind, shock: shocked, burn, big: total >= 14,
+      kind: hit.kind, shock: shocked, burn, big: total >= 14,
     });
+    if (pr.splash) for (let i = 0; i < pr.splash; i++) {
+      const t = this.pickTarget(def, !!pr.payload.harass);
+      this.secondaryImpact(pr, t, pr.splashShare ?? 0.5, "splash");
+    }
+    if (pr.tesla) {
+      const origin = pr.target;
+      for (const t of this.nearestMachines(def, origin, pr.tesla.arcs)) {
+        const clean = { ...pr, payload: { ...pr.payload, harass: undefined, rip: undefined, shock: false, static: false, arc: undefined } };
+        this.secondaryImpact(clean, t, pr.tesla.share, "arc");
+        this.disrupt(def, t, pr.tesla.stall, "arc");
+      }
+    }
+    if (pr.lance) {
+      let count = 0;
+      const cols = pr.lance.columns;
+      for (const t of def.targets) {
+        if (count >= 10) break;
+        const col = Math.floor(t.x / CELL);
+        if (col < pr.lance.col || col >= pr.lance.col + cols) continue;
+        this.secondaryImpact(pr, t, pr.lance.share, "lance");
+        count++;
+      }
+    }
+  }
+
+  private secondaryImpact(pr: Projectile, target: Target, share: number, effect: "arc" | "lance" | "splash"): void {
+    this.events.push({ type: effect, side: pr.from === 0 ? 1 : 0, x: target.x, y: target.y });
+    this.impact({ ...pr, dmg: pr.dmg * share, target, tx: target.x, ty: target.y,
+      splash: undefined, tesla: undefined, lance: undefined });
+  }
+
+  private nearestMachines(s: SideState, from: Target, n: number): Target[] {
+    return s.targets.filter((t) => !(t.kind === from.kind && t.ref === from.ref && t.cell === from.cell))
+      .map((t, i) => ({ t, i, d: (t.x - from.x) ** 2 + (t.y - from.y) ** 2 }))
+      .sort((a, b) => a.d - b.d || a.i - b.i).slice(0, n).map((v) => v.t);
   }
 
   /** All accepted hostile effects pass here. Order: Flak in flight, then Toll, then route and Mantlet guards. */
@@ -986,6 +1147,7 @@ export class Battle {
     }
     if (g && g.hits.some((h) => this.skirted(s, s.routes[h.route], h.tile, cause))) return false;
     this.sides[s.side === 0 ? 1 : 0].harassAccepted++;
+    if (cause === "sabot" && t.kind === "gate") this.sides[s.side === 0 ? 1 : 0].wreckAccepted++;
     this.events.push({ type: "harass", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell, cause });
     return true;
   }
@@ -1002,17 +1164,32 @@ export class Battle {
 
   private roundImpact(s: SideState, t: Target, round: HarassRound, from: Side, debuffs?: PayloadDebuffs): void {
     if (round.kind === "sabot") {
+      let landed = false;
       if (t.kind === "gate") {
         if (!this.acceptHarassment(s, t, "sabot")) return;
         s.gates.find((g) => g.uid === t.ref)!.wrecked = true;
+        landed = true;
       } else if (t.kind === "belt") {
         if (!this.disrupt(s, t, 5, "sabot")) return;
+        landed = true;
       } else if (t.kind === "factory" || t.kind === "turret") {
         if (!this.disrupt(s, t, t.kind === "factory" ? 4 : 3, "sabot")) return;
       } else return;
       if (t.kind === "gate") this.events.push({ type: "wreck", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
+      if (round.shrapnel && landed) {
+        const hits = t.kind === "belt" ? [{ route: t.ref, tile: t.cell }]
+          : s.gates.find((g) => g.uid === t.ref)?.hits ?? [];
+        for (const h of hits) for (const ci of [h.tile - 1, h.tile + 1]) {
+          const r = s.routes[h.route];
+          if (r && ci >= 0 && ci < r.cells.length) {
+            const target = s.targets.find((x) => x.kind === "belt" && x.ref === h.route && x.cell === ci);
+            if (target) this.disrupt(s, target, 2, "sabot");
+          }
+        }
+      }
     } else if (round.kind === "frost") {
-      this.freeze(s, t, round.seconds);
+      if (this.freeze(s, t, round.seconds) && round.spread)
+        for (const other of this.nearestMachines(s, t, round.spread)) this.freeze(s, other, round.seconds);
     } else if (round.kind === "drag") {
       this.slowSegment(s, t, round.mul, round.seconds);
     } else {
@@ -1276,6 +1453,7 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     waiting: 0, core, window: def.window + g.window, windowTime: g.windowTime ? windowTime + g.windowTime : windowTime,
     spin: c.start ?? 1, lastShot: -1,
     noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher, intercept: g.intercept,
+    rerolls: g.rerolls, factoryWeight: g.factoryWeight, alwaysMachine: g.alwaysMachine, charge: 0, salvage: 0,
   };
 }
 
@@ -1290,10 +1468,14 @@ export interface GearStats {
   intakeGuard: number;
   finisher: number;
   intercept: number;
+  rerolls: number;
+  factoryWeight: number;
+  alwaysMachine: boolean;
 }
 
 export function gearStats(b: Build, i: number): GearStats {
-  const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, noJam: false, immune: [], intakeGuard: 0, finisher: 0, intercept: 0 };
+  const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, noJam: false, immune: [], intakeGuard: 0,
+    finisher: 0, intercept: 0, rerolls: 0, factoryWeight: 1, alwaysMachine: false };
   for (const m of b.mods.filter((m) => m.turret === i)) {
     const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
     if (md?.perShot) out.perShot = Math.max(out.perShot, md.perShot);
@@ -1305,6 +1487,9 @@ export function gearStats(b: Build, i: number): GearStats {
     if (md?.intakeGuard) out.intakeGuard = Math.max(out.intakeGuard, md.intakeGuard);
     if (md?.finisher) out.finisher = Math.max(out.finisher, md.finisher);
     if (md?.intercept) out.intercept = Math.max(out.intercept, md.intercept);
+    if (md?.rerolls) out.rerolls = Math.max(out.rerolls, md.rerolls);
+    if (md?.factoryWeight) out.factoryWeight = Math.max(out.factoryWeight, md.factoryWeight);
+    if (md?.alwaysMachine) out.alwaysMachine = true;
   }
   return out;
 }

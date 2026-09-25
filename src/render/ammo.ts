@@ -46,6 +46,12 @@ const TINT: Record<"ember" | "spark", [string, string, string, string]> = {
   ember: [C.fire4, C.fire3, C.red, C.fire1], // red/orange, fire
   spark: [C.white, C.ice, C.blue, C.deepblue], // blue/ice with a white glint
 };
+const ROUND_TINT: Record<string, [string, string, string, string]> = {
+  sabot: [C.red, C.verd3, C.verd2, C.verd0],
+  frost: [C.white, C.ice, C.cyan, C.blue],
+  drag: [C.white, C.steel3, C.steel1, C.steel0],
+  limpet: [C.fire4, C.rust3, C.rust2, C.rust0],
+};
 
 /** Belt item sprite (7x7). 0.6.1c kinds: "shot" (SHOT TOWER's small pellet, pewter since 0.6.1f), "slag" (SLAG POT: orange
  *  slag under a dark crust), "ember" and "spark" (HOT SWAP's tints of the plain slug). */
@@ -76,6 +82,13 @@ export function ammoSprite(kind: string, tier: number): Cv {
         k: C.ink, H: C.soil4, e: C.soil3, c: C.soil2, r: C.fire2, f: C.fire2, g: C.fire3, d: C.fire1,
       });
     }
+    if (ROUND_TINT[kind]) {
+      const [w, h, b, d] = ROUND_TINT[kind];
+      if (kind === "sabot") return fromRows(["...w...", "..khk..", ".kbbbk.", "kbbdbbk", ".kbbbk.", "..kdk..", "...k..."], { k: C.ink, w, h, b, d });
+      if (kind === "frost") return fromRows(["...w...", ".w.h.w.", "..hhh..", "whhb hhw".replace(" ", ""), "..hhh..", ".w.h.w.", "...w..."], { w, h, b, d });
+      if (kind === "drag") return fromRows([".kkkkk.", "khhddbk", "kddhhdk", "kbbddhk", "kdhhddk", "kbddhhk", ".kkkkk."], { k: C.ink, w, h, b, d });
+      return fromRows([".kkkkk.", "kbbhbbk", "kbhwhbk", "khwww hk".replace(" ", ""), "kbhwhbk", "kbbhbbk", ".kkkkk."], { k: C.ink, w, h, b, d });
+    }
     const [o, h, b, d] = HEAT[Math.max(0, Math.min(4, tier))];
     return fromRows([".ooooo.", "ohhbbbo", "ohbbbdo", "obbbbdo", "obbbddo", "obddddo", ".ooooo."], { o, h, b, d });
   });
@@ -103,6 +116,15 @@ export function payloadSprite(kind: string, tier: number): Cv {
 
 /** 0.6.2 BELTSIDE (V2): the halo behind a tier-3+ payload (11x11), in its ammo's colour. */
 export function payloadHalo(kind: string, tier: number): Cv {
+  if (ROUND_TINT[kind]) return cached(`roundhalo:${kind}:${tier}`, () => {
+    const [cv, g] = makeCanvas(11, 11);
+    g.fillStyle = ROUND_TINT[kind][1];
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      g.fillRect(Math.round(5 + Math.cos(a) * 4), Math.round(5 + Math.sin(a) * 4), 1, 1);
+    }
+    return cv;
+  });
   if (kind !== "thread" && kind !== "plain") return heatHalo(tier);
   return cached(`phalo:${kind}:${tier >= 4 ? 4 : 3}`, () => {
     const [cv, g] = makeCanvas(11, 11);
@@ -157,6 +179,9 @@ export function shellSprite(kind: string, tier: number, dir: number): Cv {
     } else if (kind === "ember" || kind === "spark") { // 0.6.1c: the plain shell in HOT SWAP's tints
       const [w, h, b, d] = TINT[kind];
       base = fromRows(["..o..", ".owo.", "ohhbo", "ohbbo", "obbdo", "obbdo", ".odo.", "..o.."], { o: C.ink, w, h, b, d });
+    } else if (ROUND_TINT[kind]) {
+      const [w, h, b, d] = ROUND_TINT[kind];
+      base = fromRows(["..w..", ".oho.", "ohhbo", "obbbo", "obbdo", ".odo.", "..o..", "..o.."], { o: C.ink, w, h, b, d });
     } else {
       const [o, h, b, d] = kind === "plain" ? [C.ink, C.steel3, C.steel2, C.steel0] : HEAT[Math.max(0, Math.min(4, tier))];
       base = fromRows(["..o..", ".oho.", "ohhbo", "ohbbo", "obbdo", "obbdo", ".odo.", "..o.."], { o, h, b, d });
@@ -218,6 +243,10 @@ const TRAIL_SHOT = [C.steel3, C.steel2];
 const TRAIL_SLAG = [C.fire2, C.fire1, C.soil3, C.soil2];
 const TRAIL_EMBER = [C.fire4, C.fire3, C.red, C.fire1];
 const TRAIL_SPARK = [C.white, C.ice, C.blue, C.deepblue];
+const TRAIL_SABOT = [C.red, C.verd3, C.verd0];
+const TRAIL_FROST = [C.white, C.ice, C.cyan, C.blue];
+const TRAIL_DRAG = [C.steel3, C.steel1, C.soil3];
+const TRAIL_LIMPET = [C.fire4, C.rust3, C.rust1];
 
 /** Trail colours, head to tail (shared arrays: called per shell per frame). */
 export function trailColors(kind: string, tier: number): readonly string[] {
@@ -227,6 +256,10 @@ export function trailColors(kind: string, tier: number): readonly string[] {
   if (kind === "slag") return TRAIL_SLAG;
   if (kind === "ember") return TRAIL_EMBER;
   if (kind === "spark") return TRAIL_SPARK;
+  if (kind === "sabot") return TRAIL_SABOT;
+  if (kind === "frost") return TRAIL_FROST;
+  if (kind === "drag") return TRAIL_DRAG;
+  if (kind === "limpet") return TRAIL_LIMPET;
   return tier >= 3 ? TRAIL_HOT : TRAIL_WARM;
 }
 

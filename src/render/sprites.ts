@@ -445,6 +445,42 @@ function drawGate(g: G, id: string, f: number, active: boolean): void {
       px(g, sp[0], sp[1], C.white);
       break;
     }
+    case "tollbooth": {
+      bevel(g, 1, 1, 10, 10, C.brass1, C.brass4, C.brass0, C.ink);
+      rect(g, 2, 4, 8, 2, C.ink); hline(g, 2, 4, 8, active ? C.white : C.red);
+      for (const x of [3, 8]) vline(g, x, 6, 4, C.steel2);
+      break;
+    }
+    case "sifter": {
+      bevel(g, 1, 1, 10, 10, C.steel1, C.steel3, C.steel0, C.ink);
+      for (let y = 3; y < 10; y += 2) hline(g, 2, y, 8, active ? C.white : C.cyan);
+      for (let x = 3; x < 10; x += 2) vline(g, x, 2, 8, C.ink);
+      break;
+    }
+    case "surge": {
+      bevel(g, 1, 1, 10, 10, C.cop1, C.cop3, C.cop0, C.ink);
+      disc(g, 6, 6, 3, C.ink); disc(g, 6, 6, 2, active ? C.white : C.fire3);
+      line(g, 2, 9, 5, 5, C.yellow); line(g, 7, 7, 10, 3, C.yellow);
+      break;
+    }
+    case "sorting": {
+      bevel(g, 1, 1, 10, 10, C.steel1, C.steel3, C.steel0, C.ink);
+      line(g, 3, 9, 6, 4, C.brass3); line(g, 6, 4, 9, 8, C.brass4);
+      for (const x of [3, 8]) { disc(g, x, 9, 1.5, C.ink); px(g, x, 9, active ? C.white : C.ice); }
+      break;
+    }
+    case "riveter": {
+      bevel(g, 1, 1, 10, 10, C.steel1, C.steel3, C.steel0, C.ink);
+      for (const x of [3, 8]) for (const y of [3, 8]) px(g, x, y, C.brass4);
+      hline(g, 4, 6, 4, active ? C.white : C.red); vline(g, 6, 4, 4, active ? C.white : C.red);
+      break;
+    }
+    case "heatjacket": {
+      bevel(g, 1, 1, 10, 10, C.rust1, C.rust3, C.rust0, C.ink);
+      rect(g, 3, 2, 6, 8, C.ink); rect(g, 4, 3, 4, 6, active ? C.fire4 : C.fire2);
+      for (const y of [4, 7]) hline(g, 2, y, 8, C.brass3);
+      break;
+    }
     default: {
       bevel(g, 1, 1, 10, 10, C.steel1, C.steel2, C.steel0, C.ink);
     }
@@ -502,6 +538,17 @@ export function itemIcon(id: string): Cv {
         vline(g, 6, 0, 4, C.cyan); vline(g, 6, 8, 4, C.cyan);
         hline(g, 0, 6, 4, C.cyan); hline(g, 8, 6, 4, C.cyan);
         px(g, 6, 6, C.white); px(g, 5, 5, C.ice);
+        break;
+      }
+      case "flak": {
+        bevel(g, 1, 1, 10, 10, C.steel1, C.steel3, C.steel0, C.ink);
+        for (const x of [3, 8]) { vline(g, x, 3, 7, C.ink); px(g, x, 2, C.fire3); }
+        line(g, 3, 5, 8, 5, C.white);
+        break;
+      }
+      case "spotter": {
+        ring(g, 6, 6, 5, C.ink); ring(g, 6, 6, 4, C.cyan);
+        vline(g, 6, 0, 12, C.ice); hline(g, 0, 6, 12, C.ice); disc(g, 6, 6, 1.5, C.red);
         break;
       }
       // 0.6.1p: the wave-1 turret mods (catalogue.json art)

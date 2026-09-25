@@ -18,8 +18,50 @@ export function drawFactoryArt(id: string, f: number, flash: boolean, stars: num
     case "slagpot": return drawSlagPot(f, flash);
     case "assembly": return drawAssembly(f, flash);
     case "gantry": return drawGantry(f, flash, stars);
+    case "scrapper": case "sabot": case "frostbite": case "dragchain": case "mimic": case "limpet":
+      return drawWave2Factory(id, f, flash, stars);
     default: return null;
   }
+}
+
+/** Wave-2 machines use a common deck footprint with a distinct working head and moving output. */
+function drawWave2Factory(id: string, f: number, flash: boolean, stars: number): Cv {
+  const [c, g] = makeCanvas(24, 24);
+  const body = id === "scrapper" ? C.soil3 : id === "sabot" ? C.verd3 : id === "frostbite" ? C.blue
+    : id === "dragchain" ? C.steel1 : id === "mimic" ? C.brass2 : C.rust2;
+  const lit = flash ? C.white : id === "frostbite" ? C.ice : id === "limpet" ? C.fire3 : C.brass4;
+  bevel(g, 1, 3, 22, 20, body, C.steel2, C.steel0, C.ink);
+  rect(g, 3, 18, 18, 4, C.ink);
+  hline(g, 4, 19, 16, C.belt2);
+  for (const x of [3, 19]) { rect(g, x, 20, 2, 3, C.ink); px(g, x, 20, C.steel3); }
+  if (id === "scrapper") {
+    for (const [x, y] of [[5, 14], [9, 11], [13, 14], [16, 12]]) disc(g, x, y, 3, C.soil2);
+    line(g, 17, 5, 17, 11, C.brass3); line(g, 17, 5, 10, 5, C.brass4);
+    line(g, 10, 5, 10 + f % 3, 10, C.steel3);
+    for (const x of [8, 12]) line(g, 10 + f % 3, 10, x, 13, lit);
+  } else if (id === "sabot") {
+    bevel(g, 3, 7, 13, 10, C.verd2, C.verd3, C.verd0, C.ink);
+    rect(g, 6, 9, 5, 5, C.ink); rect(g, 7, 10, 3, 3, C.red);
+    rect(g, 15, 9, 8, 4, C.ink); hline(g, 16, 10, 7, C.steel2);
+    px(g, 21, 10, lit);
+  } else if (id === "frostbite") {
+    disc(g, 12, 11, 7, C.ink); disc(g, 12, 11, 5.5, C.blue); disc(g, 12, 11, 3, C.ice);
+    line(g, 12, 4, 12, 18, C.white); line(g, 5, 11, 19, 11, C.cyan);
+    px(g, 12 + (f % 3) - 1, 11, lit);
+  } else if (id === "dragchain") {
+    disc(g, 8, 11, 5, C.ink); disc(g, 8, 11, 4, C.steel2);
+    disc(g, 16, 11, 5, C.ink); disc(g, 16, 11, 4, C.steel1);
+    for (let x = 4; x < 21; x += 3) rect(g, x, 10 + ((x + f) % 2), 3, 2, lit);
+  } else if (id === "mimic") {
+    for (const x of [5, 16]) { disc(g, x + 1, 11, 4, C.ink); disc(g, x + 1, 11, 2.6, C.brass4); }
+    line(g, 9, 8, 15, 14, C.white); line(g, 9, 14, 15, 8, C.white);
+    for (let i = 0; i < stars; i++) px(g, 8 + i * 4, 4, lit);
+  } else {
+    disc(g, 12, 11, 7, C.ink); disc(g, 12, 11, 5, C.rust3);
+    for (const x of [8, 12, 16]) { disc(g, x, 11 + ((f + x) % 2), 2, C.ink); px(g, x, 10 + ((f + x) % 2), lit); }
+    line(g, 5, 5, 19, 17, C.steel3);
+  }
+  return c;
 }
 
 /** The 5x5 brass gear (ASSEMBLY LINE's roof emblem, belt part and icon), top-left lit, ink hub. */
@@ -290,6 +332,18 @@ function drawGantry(f: number, flash: boolean, stars: number): Cv {
 /** Draw the 12x12 icon of a wave-1 factory (shop card, cargo, inspector); false for any other id. */
 export function drawFactoryIcon(g: G, id: string): boolean {
   switch (id) {
+    case "scrapper": case "sabot": case "frostbite": case "dragchain": case "mimic": case "limpet": {
+      const col = id === "scrapper" ? C.soil3 : id === "sabot" ? C.verd3 : id === "frostbite" ? C.ice
+        : id === "dragchain" ? C.steel2 : id === "mimic" ? C.brass4 : C.rust3;
+      bevel(g, 0, 1, 12, 11, col, C.steel2, C.steel0, C.ink);
+      if (id === "scrapper") { line(g, 2, 2, 8, 2, C.brass4); line(g, 8, 2, 8, 7, C.brass3); line(g, 8, 7, 5, 9, C.steel3); }
+      if (id === "sabot") { rect(g, 2, 4, 8, 3, C.ink); hline(g, 4, 5, 6, C.steel3); px(g, 10, 5, C.red); }
+      if (id === "frostbite") { line(g, 6, 2, 6, 10, C.white); line(g, 2, 6, 10, 6, C.white); }
+      if (id === "dragchain") for (const x of [2, 5, 8]) rect(g, x, 5, 3, 2, C.ink);
+      if (id === "mimic") { disc(g, 4, 6, 2, C.white); disc(g, 8, 6, 2, C.white); }
+      if (id === "limpet") for (const x of [3, 6, 9]) { disc(g, x, 6, 1.8, C.ink); px(g, x, 6, C.fire3); }
+      break;
+    }
     case "doublestamp": { // hazard corners, two hammer heads: the left one up (lit, shadowed), the right one down
       g.drawImage(fromRows([
         "kkkkkkkkkkkk",

@@ -7,8 +7,8 @@ export interface PayloadDebuffs {
 }
 
 export type HarassRound =
-  | { kind: "sabot" }
-  | { kind: "frost"; seconds: number }
+  | { kind: "sabot"; shrapnel?: boolean }
+  | { kind: "frost"; seconds: number; spread?: number }
   | { kind: "drag"; mul: number; seconds: number }
   | { kind: "limpet"; delay: number; blast: number; stall?: number };
 

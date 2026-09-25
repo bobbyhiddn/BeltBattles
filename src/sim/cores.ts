@@ -20,7 +20,7 @@ export const IDENTITY_CORE: CoreSpec = { routine: "identity" };
  * shell and added Burn stacks. They are multiplied by the turret's class factor k. Ratios (shares, x1.3),
  * counts (pellets, maxCount), cadence multipliers and times (windowTime, gap, burnTime) are not.
  */
-export const CORE_ABSOLUTE = ["perQueued", "volleyFlat", "addBurn"] as const;
+export const CORE_ABSOLUTE = ["perQueued", "volleyFlat", "addBurn", "perSecond"] as const;
 /** Stack counts among the absolute numbers: rounded half up, at least 1. */
 export const CORE_STACKS: readonly string[] = ["addBurn"];
 
@@ -122,6 +122,12 @@ export const ROUTINES: Record<CoreRoutine, Routine> = {
     count: (tu) => tu.stack.length,
     cadence: (tu) => tu.interval * (tu.core.spec.reloadMul ?? 1),
   },
+  mortar: IDENTITY,
+  grapnel: IDENTITY,
+  tesla: IDENTITY,
+  capacitor: IDENTITY,
+  compound: { ...IDENTITY, ready: (tu) => tu.stack.length >= 2 || (tu.stack.length > 0 && tu.loadTimer >= (tu.core.spec.hold ?? 3)) },
+  lance: IDENTITY,
 };
 
 /** DRAKE NOZZLE: Burn stacks from a payload's flat bonus (1 per flatPerBurn, rounded down) and the flat it uses. */

@@ -9,6 +9,7 @@ import { bevel, disc, hline, line, px, rect, ring, vline, type G } from "./pixel
 /** The socket gem colour of each bought core (catalogue art notes). */
 export const CORE_GEM: Record<string, string> = {
   scatter: C.steel3, rotary: C.cyan, pressure: C.amber, gatling: C.steel2, hullbreaker: C.red, drake: C.fire2, salvo: C.verd3,
+  mortar: C.rust3, grapnel: C.steel3, tesla: C.ice, capacitor: C.yellow, compound: C.brass4, lance: C.cyan,
 };
 
 /** The gem colour for turret core `def` (a bought core), or the hero's faction glow for its signature core. */
@@ -69,6 +70,32 @@ export function drawCoreIcon(g: G, id: string): boolean {
         rect(g, x + 1, y + 1, 2, 2, C.brass3);
         px(g, x + 1, y + 1, C.brass4);
       }
+      break;
+    case "mortar":
+      bevel(g, 1, 4, 10, 7, C.steel1, C.steel3, C.steel0, C.ink);
+      rect(g, 3, 1, 6, 7, C.ink); rect(g, 4, 2, 4, 6, C.rust2); hline(g, 4, 2, 4, C.rust4);
+      break;
+    case "grapnel":
+      line(g, 6, 11, 6, 3, C.steel3); line(g, 6, 3, 2, 6, C.steel3); line(g, 6, 3, 10, 6, C.steel3);
+      line(g, 6, 7, 3, 9, C.brass3); line(g, 6, 7, 9, 9, C.brass3); px(g, 6, 2, C.white);
+      break;
+    case "tesla":
+      disc(g, 6, 6, 5, C.ink); disc(g, 6, 6, 4, C.blue);
+      line(g, 3, 8, 7, 2, C.white); line(g, 7, 2, 6, 6, C.ice); line(g, 6, 6, 10, 4, C.white);
+      break;
+    case "capacitor":
+      bevel(g, 1, 2, 10, 9, C.steel1, C.steel3, C.steel0, C.ink);
+      for (const x of [3, 8]) rect(g, x, 3, 1, 7, C.yellow);
+      line(g, 4, 6, 8, 6, C.white); px(g, 6, 5, C.cyan);
+      break;
+    case "compound":
+      bevel(g, 1, 2, 10, 9, C.brass1, C.brass4, C.brass0, C.ink);
+      for (const x of [3, 7]) { rect(g, x, 3, 2, 6, C.ink); px(g, x, 4, C.steel3); }
+      line(g, 4, 9, 8, 11, C.white);
+      break;
+    case "lance":
+      bevel(g, 1, 1, 10, 10, C.blue, C.cyan, C.deepblue, C.ink);
+      vline(g, 6, 1, 10, C.white); hline(g, 3, 5, 6, C.ice); px(g, 6, 0, C.white);
       break;
     default:
       disc(g, 6, 6, 5, gemColor(id, "furnace"));

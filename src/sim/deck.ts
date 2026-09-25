@@ -447,7 +447,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   const f = itemByUid(b, r.factory);
   // beltside-062 D1: 0.6.1p's star-resolved factory (STAMP PRESS dies set `base`), BELTSIDE's per-tile hits
   const fs = f ? effectAt(f.def, starsOf(f)).factory : undefined; // 0.6.1p: at its stars (STAMP PRESS dies)
-  const ammo = fs ? AMMO[fs.ammo] : AMMO.plain;
+  const ammo = fs ? AMMO[f?.def === "mimic" ? HEROES[b.hero].ammo : fs.ammo] : AMMO.plain;
   const base = fs?.base ?? ammo.base;
   const tiles = hits[index] ?? [];
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
@@ -456,6 +456,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   // P8): no speed hit changes it, so the walk keeps `fixed` and the timeline never marks a speed hit as winning
   const fixed = ammo.fixedSpeed;
   let time = 0, ride = 0, speed = fixed ?? 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
+  let heat = 0, heatBonus = 0;
   // 0.6.1c HOT SWAP: its slugs alternate EMBER and SPARK, so the walk shows the ember's Burn and the spark's Shock
   for (const pr of fs?.cycle ?? []) {
     if (pr.burn) burn = Math.max(burn, pr.burn);
@@ -467,6 +468,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
     const inHalf = CELL / 2 / (BELT_SPEED * speed);
     time += inHalf;
     ride += inHalf;
+    heatBonus += heat * inHalf;
     const speeds: number[] = [];
     const row: TimelineHit[] = [];
     for (const h of tiles[i] ?? []) {
@@ -495,6 +497,14 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
         shock = true;
         th.shock = true;
       }
+      if (e.siftClean) { flat += e.siftClean; th.flat = (th.flat ?? 0) + e.siftClean; }
+      if (e.heat) heat += e.heat;
+      if (e.sort) copies *= 1 + (e.sort.copies - 1) / e.sort.every;
+      if (e.pulse) {
+        speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
+        th.speed = 1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period;
+        if (e.pulse.flat) { flat += e.pulse.flat; th.flat = (th.flat ?? 0) + e.pulse.flat; }
+      }
       if (e.split) {
         copies *= e.split.copies;
         mult *= e.split.mult;
@@ -519,10 +529,11 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
     const outT = outLen / (BELT_SPEED * speed);
     time += outT;
     ride += outT;
+    heatBonus += heat * outT;
   }
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat, pendulumShift(b, info.turret))
-    : payloadDamage(base, ammo.rideScale, ride, mult, flat); // beltside-062 D3: 0.6.1p's base (STAMP PRESS dies)
+    : payloadDamage(base, ammo.rideScale, ride, mult, flat + heatBonus); // includes HEAT JACKET's downstream ride
   const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
   if (fixed !== undefined) walk.fixed = fixed; // beltside-062c (P8)
   return walk;

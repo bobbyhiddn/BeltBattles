@@ -67,6 +67,12 @@ export function drawArena(g: G, a: Arena, W: number, H: number): void {
     drawTurrets(g, v);
     if (a.loser === v.side && a.koT > 0.35) drawDim(g, v, Math.min(0.62, (a.koT - 0.35) * 1.1));
   }
+  for (let s = 0; s < 2; s++) for (const charge of b.sides[s].limpets) {
+    const x = Math.round(sx(a.drawn[s], charge.target.x, charge.target.y));
+    const y = Math.round(sy(a.drawn[s], charge.target.x, charge.target.y));
+    const blink = Math.floor(a.clock * 8) % 2 === 0 ? C.fire4 : C.red;
+    rect(g, x - 2, y - 2, 5, 5, C.ink); rect(g, x - 1, y - 1, 3, 3, blink);
+  }
   if (!b.over) drawShells(g, a);
   a.fx.draw(g, 0, 0);
   a.fx.drawPops(g, 0, 0);
@@ -90,10 +96,14 @@ function drawShells(g: G, a: Arena): void {
     const x1 = sx(to, pr.tx, pr.ty), y1 = sy(to, pr.tx, pr.ty);
     const dx = x1 - x0, dy = y1 - y0;
     const dist = Math.abs(dx) + Math.abs(dy);
-    const arc = pr.heavy ? 8 + dist * 0.09 : 0;
+    const arc = pr.heavy || pr.core === "mortar" ? 8 + dist * 0.09 : 0;
     const k = Math.min(1, pr.t / pr.flight);
     const ad = AMMO[pr.payload.ammo];
-    const tier = pr.payload.ammo === "cinder" ? heatTier(payloadDamage(pr.payload.base ?? ad.base, ad.rideScale, pr.payload.ride, pr.payload.mult, pr.payload.flat)) : 0;
+    const tier = pr.payload.ammo === "cinder" ? heatTier(payloadDamage(pr.payload.base ?? ad.base, ad.rideScale, pr.payload.ride, pr.payload.mult, pr.payload.flat + (pr.payload.heatBonus ?? 0))) : 0;
+    if (pr.payload.harass) {
+      const c = Math.floor(a.clock * 6) % 2 ? C.red : C.fire4;
+      for (const [vx, vy] of [[-5, -5], [4, -5], [-5, 4], [4, 4]]) rect(g, Math.round(x1 + vx), Math.round(y1 + vy), 2, 2, c);
+    }
     // 0.6.1c: HOT SWAP's ember / spark slugs keep their tint in flight (a plain Payload with `preset`)
     const kind = pr.payload.preset ?? pr.payload.ammo;
     // trail: earlier points of the same flight path, fading

@@ -43,17 +43,26 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   // 0.6.1f BRAKE SHOE: half speed at every star; HOT SHOE and RED-HOT SHOE add friction heat (flat damage)
   if (gt?.speed && gt.speed < 1) return `${gt.speed === 0.5 ? "HALF SPEED" : `SPEED X${gt.speed}`}${gt.flat ? ` · +${gt.flat} DMG` : ""}`;
   if (gt?.speed) return `SPEED X${gt.speed}${gt.flat ? ` · +${gt.flat} FLAT` : ""}`; // OVERDRIVE ★3: + AFTERBURNER's flat
-  if (gt?.flat) return `+${gt.flat} FLAT`;
   // beltside-062 (DESIGN §11 P3): a rig's perk in BELTSIDE's words: LONG HAUL counts earlier HITS, up to its cap
   if (gt?.perPriorGate) return `+${gt.perPriorGate}/HIT${gt.priorCap !== undefined ? ` · MAX ${gt.priorCap} HITS` : ""}`;
   if (gt?.split) return `${gt.split.copies} X ${Math.round(gt.split.mult * 100)}%`; // 0.6.1f: "2 X 85%", as "3 X 1 DMG"
   if (gt?.shock) return `STALL ${(gt.shockTime ?? DISRUPT_TIME).toFixed(1)}S${gt.jump ? ` · JUMPS TO ${gt.jump} MORE` : ""}`;
+  if (gt?.toll) return `ABSORBS ${gt.toll} HITS${gt.tollFactory ? " · FACTORY TOO" : ""}`;
+  if (gt?.sift) return `SIFTS ${gt.sift === "all" ? "ALL" : gt.sift}${gt.siftFlat ? ` · +${gt.siftFlat}/MARK` : ""}${gt.siftClean ? ` · +${gt.siftClean} CLEAN` : ""}`;
+  if (gt?.pulse) return `${gt.pulse.speed}X FOR ${gt.pulse.on}S / ${gt.pulse.period}S${gt.pulse.flat ? ` · +${gt.pulse.flat}/PULSE` : ""}`;
+  if (gt?.sort) return `${gt.sort.copies} COPIES EVERY ${gt.sort.every}ND`;
+  if (gt?.repair) return `REPAIR ${gt.repair}/PASS`;
+  if (gt?.heat) return `+${gt.heat} DMG/RIDE SECOND`;
+  if (gt?.flat) return `+${gt.flat} FLAT`;
+  if (def === "mimic") return `SIGNATURE AMMO X${e.factory?.intervalMul} · ${e.factory?.outputs} OUTPUTS`;
   if (e.factory) return factoryLine(e.factory);
   if (m?.fireMul) return `FIRE X${m.fireMul}`;
   if (m?.perShot) return `${m.perShot}/SHOT${m.window ? ` · +${m.window} SLOT` : ""}`;
   if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.noJam ? " · NEVER JAMS" : ""}`; // HOPPER
   if (m?.immune) return `SHOCK-PROOF${m.intakeGuard ? ` · GUARDS LAST ${m.intakeGuard} TILES` : ""}`; // MANTLET (wave 1: shock only)
   if (m?.finisher) return `FINISHER +${Math.round(m.finisher * 100)}%`;
+  if (m?.intercept) return `${Math.round(m.intercept * 100)}% INTERCEPT`;
+  if (m?.rerolls || m?.alwaysMachine) return m.alwaysMachine ? `ALWAYS MACHINE · FACTORY X${m.factoryWeight}` : `${m.rerolls} REROLL${m.rerolls === 1 ? "" : "S"}${m.factoryWeight ? ` · FACTORY X${m.factoryWeight}` : ""}`;
   const perk = livePerk(def, stars);
   if (perk) return perk;
   return "";
@@ -65,6 +74,11 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
  */
 function factoryLine(f: FactorySpec): string {
   const base = f.base ?? AMMO[f.ammo]?.base ?? 0;
+  if (f.trigger) return `SCRAP +${f.scrapFlat} · IDLE ${f.interval}S${f.bigHaul ? " · BIG HAUL" : ""}`;
+  if (f.round?.kind === "sabot") return `SABOT EVERY ${f.interval}S${f.round.shrapnel ? " · SHRAPNEL" : ""}`;
+  if (f.round?.kind === "frost") return `FREEZE ${f.round.seconds}S · SPREAD ${f.round.spread}`;
+  if (f.round?.kind === "drag") return `SLOW X${f.round.mul} FOR ${f.round.seconds}S`;
+  if (f.round?.kind === "limpet") return `BLAST ${f.round.blast} IN ${f.round.delay}S${f.round.stall ? ` · STALL ${f.round.stall}S` : ""}`;
   if (f.cycle) { // HOT SWAP
     const em = f.cycle.find((p) => p.tint === "ember"), sp = f.cycle.find((p) => p.tint === "spark");
     return `EMBER +${em?.burn ?? 0} · SPARK ${(sp?.shockTime ?? DISRUPT_TIME).toFixed(1)}S${sp?.jump ? "+JUMP" : ""} · ${f.interval}S`;
@@ -270,6 +284,12 @@ function coreShape(tc: TurretCore): string {
     case "hullbreaker": return `HULL ONLY x${(c.hullMul ?? 1).toFixed(2)}`;
     case "drake": return `+${c.addBurn} BURN ${c.burnTime}S`;
     case "salvo": return `FULL VOLLEY +${(c.volleyFlat ?? 0).toFixed(1)} EACH`;
+    case "mortar": return `${c.splash} SPLASH X${c.share} · FLIGHT X${c.flightMul}`;
+    case "grapnel": return `RIP ${c.rip} WITHIN ${c.reach} TILES`;
+    case "tesla": return `${c.arcs} ARCS X${c.share} · STALL ${c.stall}S`;
+    case "capacitor": return `+${(c.perSecond ?? 0).toFixed(1)}/IDLE S · MAX ${c.maxSeconds}S`;
+    case "compound": return `2 LOADS X${c.mult} · HOLD ${c.hold}S`;
+    case "lance": return `${c.columns} COLUMNS X${c.share}`;
     default: return "";
   }
 }

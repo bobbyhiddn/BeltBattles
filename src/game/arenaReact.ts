@@ -3,7 +3,7 @@
 // on big hits; a KO burst with slow-mo when a hull breaks. Read-only on the simulation.
 
 import { settings } from "../core/settings";
-import type { Side, SimEvent } from "../sim/battle";
+import type { Side, SimEvent, TargetKind } from "../sim/battle";
 import { CELL } from "../sim/content";
 import { DX, DY } from "../sim/deck";
 import { C } from "../render/palette";
@@ -62,6 +62,11 @@ export const KO_TRAUMA = 0.95;
 /** Screen direction (0 N, 1 E, 2 S, 3 W) a side's bow points. */
 function bowDir(a: Arena, side: Side): number {
   return a.drawn[side].facing;
+}
+
+function machinePoint(a: Arena, side: Side, kind: TargetKind, ref: number, cell: number): [number, number] {
+  const t = a.b.sides[side].targets.find((v) => v.kind === kind && v.ref === ref && v.cell === cell);
+  return t ? [sx(a.drawn[side], t.x, t.y), sy(a.drawn[side], t.x, t.y)] : [hullCx(a, side), hullCy(a, side)];
 }
 
 export function react(a: Arena, e: SimEvent): void {
@@ -166,6 +171,40 @@ export function react(a: Arena, e: SimEvent): void {
     case "disrupt":
       if (e.side === 1 || !fast) snd?.play("zap");
       return;
+    case "telegraph": {
+      const [x, y] = machinePoint(a, e.side === 0 ? 1 : 0, e.target.kind, e.target.ref, e.target.cell);
+      fx.ring(x, y, 9, C.red);
+      return;
+    }
+    case "flak": {
+      fx.smoke(hullCx(a, e.side), hullCy(a, e.side), 4, true, 12);
+      fx.sparks(hullCx(a, e.side), hullCy(a, e.side), 6, STEEL, 55);
+      return;
+    }
+    case "toll": {
+      const g = a.b.sides[e.side].gates.find((v) => v.uid === e.gate);
+      if (g) fx.ring(sx(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL),
+        sy(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), 10, C.brass4);
+      return;
+    }
+    case "repair": {
+      const g = a.b.sides[e.side].gates.find((v) => v.uid === e.gate);
+      if (g && !fast) fx.popup(sx(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL),
+        sy(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), `+${e.amount.toFixed(1)}`, C.lime);
+      return;
+    }
+    case "freeze": case "slow": case "wreck": case "rip": case "limpet": {
+      const [x, y] = machinePoint(a, e.side, e.kind, e.ref, e.cell);
+      const col = e.type === "freeze" ? C.ice : e.type === "slow" ? C.amber : C.red;
+      fx.sparks(x, y, e.type === "wreck" || e.type === "limpet" ? 8 : 4, [col, C.white], 55);
+      return;
+    }
+    case "arc": case "lance": case "splash": {
+      const x = sx(a.drawn[e.side], e.x, e.y), y = sy(a.drawn[e.side], e.x, e.y);
+      fx.sparks(x, y, 4, e.type === "splash" ? HOT : SHOCK, 50);
+      return;
+    }
+    case "harass": return;
     case "burn":
       fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, String(e.dmg), C.fire3);
       return;

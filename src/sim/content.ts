@@ -32,7 +32,7 @@ export const COMMISSION_STEP = 0.6; // each further gate on the route adds this 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 // 0.6.1b: "core" is a turret core (ARSENAL.md §1): it lives in Build.mods, one socket per turret, beside the one mod
 export type ItemKind = "gate" | "factory" | "mod" | "supply" | "core";
-export type AmmoKind = "cinder" | "thread" | "plain" | "shot" | "slag" | RaceAmmoKind; // races: blank, alloy, bulwark, pendulum, leeches; 0.6.1c: shot, slag
+export type AmmoKind = "cinder" | "thread" | "plain" | "shot" | "slag" | "sabot" | "frost" | "drag" | "limpet" | RaceAmmoKind;
 export type HeroId = "furnace" | "weaver" | RaceHeroId; // races: foundry, bastion, metronome, siphon
 export type Faction = "orc" | "elf" | "human" | "dwarf" | "beastfolk" | "unaligned"; // races: spec §6.2
 export type TurretKind = "heavy" | "light" | "medium" | "adaptable"; // races: medium (FOUNDRY), adaptable (METRONOME)
@@ -75,6 +75,12 @@ export interface GateEffect {
   toll?: number; // future TOLLBOOTH: harassment hits absorbed on every route this rig reaches
   tollFactory?: boolean; // future TOLLBOOTH star 3: also protect the route's factory
   sift?: number | "all"; // future SIFTER: debuffs removed from a passing payload, in CHILL/SNAG/SAP order
+  siftFlat?: number;
+  siftClean?: number;
+  pulse?: { speed: number; on: number; period: number; flat: number };
+  sort?: { every: number; copies: number };
+  repair?: number;
+  heat?: number;
 }
 
 /**
@@ -100,6 +106,12 @@ export interface FactorySpec {
   cycle?: PayloadPreset[]; // HOT SWAP: each stamp writes the next preset, in turn (FactoryState.cycleIdx)
   commission?: number; // ASSEMBLY LINE: x every gate's commissionAt on its side (best wins); its own belts' gates are online at 0 s
   hotStart?: number; // ASSEMBLY LINE ★3 HOT START: its belts' gates are overclocked (x2, overclock.ts) for this many seconds
+  trigger?: "harass";
+  scrapFlat?: number;
+  bigHaul?: boolean;
+  round?: { kind: "sabot"; shrapnel?: boolean } | { kind: "frost"; seconds: number; spread: number } |
+    { kind: "drag"; mul: number; seconds: number } | { kind: "limpet"; delay: number; blast: number; stall?: number };
+  intervalMul?: number; // MIMIC: multiplied by the hero signature factory's interval
 }
 
 /** 0.6.1c HOT SWAP: what one step of the cycle writes on the slug at stamp time (catalogue.json hotswap). */
@@ -122,10 +134,14 @@ export interface ModSpec {
   intakeGuard?: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into this turret share its immunities
   finisher?: number; // FINISHER RAM: + this share of damage on the payload that empties a loading window
   intercept?: number; // future FLAK SCREEN: one side-wide intercept roll per incoming harassment projectile
+  rerolls?: number;
+  factoryWeight?: number;
+  alwaysMachine?: boolean;
 }
 
 /** 0.6.1b: how a turret fires (ARSENAL.md §2). "identity" is today's firing: every hero's signature core. */
-export type CoreRoutine = "identity" | "scatter" | "rotary" | "pressure" | "gatling" | "hullbreaker" | "drake" | "salvo";
+export type CoreRoutine = "identity" | "scatter" | "rotary" | "pressure" | "gatling" | "hullbreaker" | "drake" | "salvo" |
+  "mortar" | "grapnel" | "tesla" | "capacitor" | "compound" | "lance";
 
 /**
  * 0.6.1b: a turret core's routine and numbers, written at heavy scale (ARSENAL.md §2.1 rule 4). The sim
@@ -153,6 +169,16 @@ export interface CoreSpec {
   flightMul?: number; // DRAKE: x flight time (a short spout)
   volleyFlat?: number; // SALVO: flat damage per volley shell (absolute)
   reloadMul?: number; // SALVO: x the fire interval after a volley
+  splash?: number; // MORTAR extra impact targets
+  rip?: number; // GRAPNEL payloads removed
+  reach?: number; // GRAPNEL reach in cells
+  arcs?: number; // TESLA nearest machine targets
+  stall?: number; // TESLA stall seconds
+  perSecond?: number; // CAPACITOR flat per idle second
+  maxSeconds?: number;
+  mult?: number; // COMPOUND combined shell multiplier
+  hold?: number; // COMPOUND maximum window seconds
+  columns?: number; // LANCE struck deck columns
 }
 
 /** 0.6.1b: the shop tags (catalogue.json "tags"); a shop hint only, no tag-count bonus (ARSENAL-DECISIONS call 10). */
@@ -264,6 +290,45 @@ export const ITEMS: Record<string, ItemDef> = {
       3: { factory: { base: 6 }, perk: "HEAVY GANTRY" },
     },
   },
+  scrapper: {
+    id: "scrapper", name: "SCRAPPER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "scrapper",
+    desc: ["STAMPS SCRAP SLUGS", "WHEN HARASSMENT HITS", "THE FOE, OR EVERY 3S."], tags: ["HARASS", "VOLUME"],
+    factory: { ammo: "plain", interval: 3, outputs: 1, trigger: "harass", scrapFlat: 3 },
+    levels: { 2: { factory: { interval: 2.5, scrapFlat: 6.5 } }, 3: { factory: { interval: 2, scrapFlat: 10.5, bigHaul: true }, perk: "BIG HAUL" } },
+  },
+  sabot: {
+    id: "sabot", name: "SABOT FOUNDRY", kind: "factory", rarity: "epic", price: 9, size: 2, merchant: "quartermaster",
+    desc: ["TELEGRAPHED ROUNDS", "WRECK RIGS OR STALL", "OTHER MACHINERY."], tags: ["HARASS", "BURST"],
+    factory: { ammo: "sabot", interval: 6, outputs: 1, round: { kind: "sabot" } },
+    levels: { 2: { factory: { interval: 2.8 } }, 3: { factory: { interval: 1.9, round: { kind: "sabot", shrapnel: true } }, perk: "SHRAPNEL" } },
+  },
+  frostbite: {
+    id: "frostbite", name: "FROSTBITE FOUNDRY", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "arcane",
+    desc: ["FROST ROUNDS FREEZE", "MACHINES AND PAUSE", "THEIR TIMERS."], tags: ["HARASS"],
+    factory: { ammo: "frost", interval: 2.8, outputs: 1, round: { kind: "frost", seconds: 2.5, spread: 0 } },
+    levels: { 2: { factory: { round: { kind: "frost", seconds: 2.75, spread: 1 } }, perk: "HOARFROST" },
+      3: { factory: { round: { kind: "frost", seconds: 3, spread: 2 } }, perk: "HOARFROST" } },
+  },
+  dragchain: {
+    id: "dragchain", name: "DRAG CHAIN FOUNDRY", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "scrapper",
+    desc: ["CHAIN ROUNDS SLOW", "A BELT SEGMENT AND", "SNAG ITS PAYLOADS."], tags: ["HARASS", "SPEED"],
+    factory: { ammo: "drag", interval: 1.8, outputs: 1, round: { kind: "drag", mul: 0.6, seconds: 3 } },
+    levels: { 2: { factory: { round: { kind: "drag", mul: 0.4, seconds: 4.4 } } },
+      3: { factory: { round: { kind: "drag", mul: 0.3, seconds: 6 } } } },
+  },
+  mimic: {
+    id: "mimic", name: "MIMIC FORGE", kind: "factory", rarity: "legendary", price: 11, size: 2, merchant: "arcane",
+    desc: ["STAMPS YOUR HERO'S", "SIGNATURE AMMO INTO", "A SECOND ROUTE."], tags: ["VOLUME", "HAUL"],
+    factory: { ammo: "plain", interval: 1, intervalMul: 1.4, outputs: 1 },
+    levels: { 2: { factory: { intervalMul: 1 } }, 3: { factory: { intervalMul: 0.8, outputs: 2 }, perk: "TWIN SIGNET" } },
+  },
+  limpet: {
+    id: "limpet", name: "LIMPET WORKS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "scrapper",
+    desc: ["STICKY CHARGES BLOW", "3S LATER FOR HULL", "DAMAGE AND A STALL."], tags: ["BURST", "HARASS"],
+    factory: { ammo: "limpet", interval: 2.4, outputs: 1, round: { kind: "limpet", delay: 3, blast: 8 } },
+    levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 18, stall: 1 } } },
+      3: { factory: { round: { kind: "limpet", delay: 3, blast: 28, stall: 1.6 } } } },
+  },
   // --- processing gates ---
   temper: {
     id: "temper", name: "TEMPER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
@@ -329,6 +394,40 @@ export const ITEMS: Record<string, ItemDef> = {
       3: { gate: { speed: 5, flat: 3, guard: GUARD_SLOW | GUARD_FREEZE }, perk: "AFTERBURNER" },
     },
   },
+  tollbooth: {
+    id: "tollbooth", name: "TOLLBOOTH", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "ironmonger",
+    desc: ["GUARDS ITS BELT", "FROM THE FIRST 2", "HARASSMENT HITS."], tags: ["GUARD"],
+    gate: { toll: 2 }, levels: { 2: { gate: { toll: 4 } }, 3: { gate: { toll: 7, tollFactory: true }, perk: "FACTORY GUARD" } },
+  },
+  sifter: {
+    id: "sifter", name: "SIFTER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
+    desc: ["REMOVES CHILL, SNAG", "OR SAP FROM PASSING", "PAYLOADS IN ORDER."], tags: ["GUARD", "EDGE"],
+    gate: { sift: 1 }, levels: { 2: { gate: { sift: "all", siftFlat: 1 }, perk: "POLISH" },
+      3: { gate: { sift: "all", siftFlat: 2, siftClean: 1 }, perk: "FINE MESH" } },
+  },
+  surge: {
+    id: "surge", name: "SURGE VALVE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",
+    desc: ["PULSES 3X BELT", "SPEED FOR 1S IN", "EVERY 3S CYCLE."], tags: ["SPEED", "BURST", "TIMING"],
+    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 0 } },
+    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 2.5, flat: 1 } }, perk: "OVERPRESSURE" },
+      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 2 } }, perk: "HAMMER VALVE" } },
+  },
+  sorting: {
+    id: "sorting", name: "SORTING ARM", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker",
+    desc: ["COPIES EVERY 3RD", "PAYLOAD AT FULL", "STRENGTH."], tags: ["SPLIT", "TIMING"],
+    gate: { sort: { every: 3, copies: 2 } }, levels: { 2: { gate: { sort: { every: 2, copies: 2 } }, perk: "QUICK SORT" },
+      3: { gate: { sort: { every: 2, copies: 3 } }, perk: "TRIPLE SORT" } },
+  },
+  riveter: {
+    id: "riveter", name: "RIVETER", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger",
+    desc: ["EACH PASSING SLUG", "REPAIRS YOUR HULL", "BY 0.6."], tags: ["GUARD"],
+    gate: { repair: 0.6 }, levels: { 2: { gate: { repair: 1.3 } }, 3: { gate: { repair: 2.1 } } },
+  },
+  heatjacket: {
+    id: "heatjacket", name: "HEAT JACKET", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
+    desc: ["ADDS +0.4 DAMAGE", "PER SECOND RIDDEN", "AFTER THIS RIG."], tags: ["HAUL", "TIMING"],
+    gate: { heat: 0.4 }, levels: { 2: { gate: { heat: 0.9 } }, 3: { gate: { heat: 1.4 } } },
+  },
   // --- turret equipment ---
   chamber: {
     id: "chamber", name: "EXT. CHAMBER", kind: "mod", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
@@ -344,6 +443,17 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["TURRET FIRES 25%", "FASTER.", "DROP ON A TURRET."],
     mod: { fireMul: 0.75 },
     levels: { 2: { mod: { fireMul: 0.58 } }, 3: { mod: { fireMul: 0.46 } } },
+  },
+  flak: {
+    id: "flak", name: "FLAK SCREEN", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
+    desc: ["INTERCEPTS 25% OF", "INCOMING HARASSMENT", "ROUNDS SIDE-WIDE."], tags: ["GUARD"],
+    mod: { intercept: 0.25 }, levels: { 2: { mod: { intercept: 0.55 } }, 3: { mod: { intercept: 0.85 } } },
+  },
+  spotter: {
+    id: "spotter", name: "SPOTTER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
+    desc: ["TURRET REROLLS A", "BARE-HULL TARGET", "TOWARD MACHINERY."], tags: ["HARASS"],
+    mod: { rerolls: 1 }, levels: { 2: { mod: { rerolls: 2, factoryWeight: 2 }, perk: "FACTORY SPOT" },
+      3: { mod: { alwaysMachine: true, factoryWeight: 3 }, perk: "EAGLE EYE" } },
   },
   // --- 0.6.1p: the wave-1 turret mods (catalogue.json hopper, mantlet, ram; ARSENAL.md §3.3 Mods) ---
   // HOPPER: the first Quartermaster stock (0.6.1d brought the merchant; its own parts are a later job).
@@ -423,6 +533,42 @@ export const ITEMS: Record<string, ItemDef> = {
     core: { routine: "salvo", volleyFlat: 2, reloadMul: 1.6 },
     levels: { 2: { core: { volleyFlat: 4.4 } }, 3: { core: { volleyFlat: 7 } } },
   },
+  mortar: {
+    id: "mortar", name: "MORTAR TUBE", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "ironmonger",
+    desc: ["LOB FLIES 2.2X LONGER", "AND SPLASHES ONE", "MORE TARGET AT 50%."], tags: ["BURST", "HARASS"],
+    core: { routine: "mortar", flightMul: 2.2, splash: 1, share: 0.5 },
+    levels: { 2: { core: { splash: 2, share: 0.55 } }, 3: { core: { splash: 3, share: 0.58 } } },
+  },
+  grapnel: {
+    id: "grapnel", name: "GRAPNEL GUN", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "scrapper",
+    desc: ["BELT HITS RIP THE", "NEAREST ENEMY SLUG", "OFF THAT ROUTE."], tags: ["HARASS"],
+    core: { routine: "grapnel", rip: 1, reach: 1 }, levels: { 2: { core: { rip: 2, reach: 2 } },
+      3: { core: { rip: 3, reach: 3 }, perk: "SALVAGE LINE" } },
+  },
+  tesla: {
+    id: "tesla", name: "TESLA ARC", kind: "core", rarity: "epic", price: 8, size: 1, merchant: "arcane",
+    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% AND A 0.8S STALL."], tags: ["SHOCK", "HARASS"],
+    core: { routine: "tesla", arcs: 1, stall: 0.8, share: 0.25 },
+    levels: { 2: { core: { arcs: 2, stall: 0.9 } }, 3: { core: { arcs: 3, stall: 0.93, share: 0.3 } } },
+  },
+  capacitor: {
+    id: "capacitor", name: "CAPACITOR BANK", kind: "core", rarity: "epic", price: 7, size: 1, merchant: "arcane",
+    desc: ["IDLE TIME CHARGES", "NEXT SHOT: +2 PER", "SECOND, UP TO 5S."], tags: ["BURST", "TIMING"],
+    core: { routine: "capacitor", perSecond: 2, maxSeconds: 5 },
+    levels: { 2: { core: { perSecond: 4.4 } }, 3: { core: { perSecond: 7 } } },
+  },
+  compound: {
+    id: "compound", name: "COMPOUND BREECH", kind: "core", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
+    desc: ["PACKS TWO LOADS", "INTO ONE SHELL AT", "115% TOTAL DAMAGE."], tags: ["BURST"],
+    core: { routine: "compound", mult: 1.15, hold: 3 },
+    levels: { 2: { core: { mult: 1.33 } }, 3: { core: { mult: 1.52 } } },
+  },
+  lance: {
+    id: "lance", name: "LODESTAR LANCE", kind: "core", rarity: "legendary", price: 10, size: 1, merchant: "arcane",
+    desc: ["HITS THE HULL AND", "EVERY MACHINE IN", "ONE DECK COLUMN."], tags: ["SHOCK", "HARASS", "BURST"],
+    core: { routine: "lance", columns: 1, share: 0.2 },
+    levels: { 2: { core: { columns: 2, share: 0.22 } }, 3: { core: { columns: 3, share: 0.23 } } },
+  },
   // --- supplies (consumed on purchase) ---
   beltcrate: {
     id: "beltcrate", name: "BELT CRATE", kind: "supply", rarity: "common", price: 2, size: 1, merchant: "ironmonger",
@@ -452,6 +598,10 @@ export const AMMO: Record<AmmoKind, AmmoDef> = {
   plain: { name: "PLAIN SLUG", base: 3, rideScale: 0, fray: 0 },
   shot: { name: "BUCKSHOT", base: 1, rideScale: 0, fray: 0 }, // 0.6.1c SHOT TOWER: every per-payload gate hits each shot
   slag: { name: "SLAG SLUG", base: 7, rideScale: 0, fray: 0, fixedSpeed: 0.75 }, // 0.6.1c SLAG POT
+  sabot: { name: "SABOT ROUND", base: 4, rideScale: 0, fray: 0 },
+  frost: { name: "FROST ROUND", base: 2, rideScale: 0, fray: 0 },
+  drag: { name: "CHAIN ROUND", base: 2, rideScale: 0, fray: 0 },
+  limpet: { name: "LIMPET CHARGE", base: 2, rideScale: 0, fray: 0 },
   ...RACE_AMMO, // races: ALLOY BLANK, ALLOY SLUG, BULWARK SLUG, PENDULUM SLUG, LEECH SLUGS
 };
 

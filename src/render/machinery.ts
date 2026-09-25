@@ -196,7 +196,7 @@ function drawAmmo(g: G, v: CruiserView): void {
       const lx = pt.x - pt.uy * off, ly = pt.y + pt.ux * off; // perpendicular to the travel
       const x = Math.round(sx(f, lx, ly)) - 3, y = Math.round(sy(f, lx, ly)) - 3;
       const ad = AMMO[a.p.ammo];
-      const tier = heatTier(payloadDamage(ad.base, ad.rideScale, a.p.ride, a.p.mult, a.p.flat)); // V2: every ammo
+      const tier = heatTier(payloadDamage(a.p.base ?? ad.base, ad.rideScale, a.p.ride, a.p.mult, a.p.flat + (a.p.heatBonus ?? 0)));
       // beltside-062c: BELTSIDE's V2 payload with 0.6.1c's preset tint. payloadSprite hands every kind but thread
       // and plain to ammoSprite, so shot, slag and HOT SWAP's ember and spark slugs draw as 0.6.1c draws them; the
       // halo keeps the ammo's colour (a tinted slug is plain ammo, so a spark never gets a fire ring)
@@ -204,6 +204,9 @@ function drawAmmo(g: G, v: CruiserView): void {
       g.drawImage(payloadSprite(a.p.preset ?? a.p.ammo, tier), x, y); // 0.6.1c: HOT SWAP's ember / spark tint
       if (a.p.burn > 0) embers(g, x, y, a.p.burn, v.t, a.p.id);
       if (a.p.shock) spark(g, x, y, v.t, a.p.id);
+      if (a.p.debuffs?.chill) { rect(g, x - 1, y, 2, 2, C.ice); rect(g, x + 6, y + 5, 2, 2, C.ice); }
+      if (a.p.debuffs?.snag) rect(g, x - 1, y + 6, 3, 1, C.amber);
+      if (a.p.debuffs?.sap) rect(g, x + 5, y - 1, 3, 1, C.verd3);
     }
   }
 }
