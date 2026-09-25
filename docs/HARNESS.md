@@ -73,6 +73,8 @@ With factories on (stars on), the shopper buys every factory the hero can buy, n
   gate a drop carries onto a slag line is left behind. Counted in `Shopper.slag`: `skipped` (not bought) and
   `steered` (bought onto another belt). The ammo kind is read from the def's own spec (no star level changes it;
   tested), because the harness reads no star value itself.
+  Tests: tests/harness.factories.test.ts covers cellsFor, the gate lever and the merge lever; tests/harness.slag.test.ts
+  covers the drop lever (a unit case, and the pinned WEAVER d3 #73, whose drop reaches the filter) and topUp's 3 g gate.
 - **ASSEMBLY LINE, HOT SWAP, DOUBLE STAMP, SHOT TOWER and HOT START** need no harness logic: the sim applies them
   (commissioning, the preset cycle, batches and the pending mouth, the overclock).
 - **Stand-ins**: the 2-star cap covers factories (the draw and the merge lever ask `canGain` for every copy), and the
