@@ -102,7 +102,8 @@ describe("harness cores (0.6.1b): legality", () => {
     expect(canApply(s, "core")).toBe(false);
   });
 
-  it("stars on + cores off is deterministic with the expanded shared pool", () => {
+  // 0.6.2p (item 7a): retitled from "... is deterministic ..."; it pins two hashes (values unchanged)
+  it("pin: stars on + cores off, random and full-purse builds with the expanded shared pool hash to their pinned values", () => {
     const a: string[] = [];
     for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("on-pin", hero, day, i)), "on", FUSE_MAX, "off")));
     const b: string[] = [];

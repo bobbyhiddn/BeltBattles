@@ -2,7 +2,7 @@
 // Only TYPE imports from content.ts here: content.ts imports this file, so a value import
 // would create an evaluation cycle.
 
-import type { AmmoDef, Faction, HeroDef, HeroId, ItemDef } from "../content";
+import type { AmmoDef, HeroDef, HeroId, ItemDef } from "../content";
 
 export type RaceHeroId = "foundry" | "bastion" | "metronome" | "siphon";
 export type RaceAmmoKind = "blank" | "alloy" | "bulwark" | "pendulum" | "leechDrag" | "leechEcho";
@@ -104,7 +104,7 @@ export const isRaceHero = (id: string): id is RaceHeroId => id in RACE_HEROES;
 /** Hero rule flags kept out of HeroDef (rulings 4 and 6). */
 export interface HeroRules {
   freeModuleSwap: boolean; // may unmount/remount turret modules freely between days (spec §13)
-  speedLock: boolean; // every belt runs at 1x: speed gates and enemy Drag have no effect
+  speedLock: boolean; // every belt runs at 1x: speed rigs pay lockedFlat damage instead; enemy Drag and slows do nothing
 }
 
 const NO_RULES: HeroRules = { freeModuleSwap: false, speedLock: false };
@@ -123,6 +123,6 @@ export const DORMANT_ITEMS: ReadonlySet<string> = new Set();
 /** Pendulum sweet-spot shift (s) per turret module. It moves pendulum slugs only. */
 export const PEAK_SHIFT: Record<string, number> = { escapement: -1.2, longcase: 1.2 };
 
-/** Adaptable turret head art, display only: no beastfolk module = HAMMER. */
+/** Adaptable turret head art, display only: the timing gear on that turret picks the head; without it, HAMMER. */
 export type AdaptableHead = "hammer" | "repeater" | "lance";
 export const ADAPTABLE_HEAD: Record<string, AdaptableHead> = { escapement: "repeater", longcase: "lance" };
