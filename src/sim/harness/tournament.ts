@@ -12,10 +12,10 @@ import { key as cellKey, routeInfo, type Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
 import { fuseDeck } from "./merge";
 import { FUSE_MAX, fusible, perkAt, starsOf } from "../stars";
-import { randomBuild } from "./gen";
+import { shopBuild, type Shopped } from "./gen";
 import { HARNESS_HEROES, heroRefBuild, heroStartBuild } from "./heroes";
 import { buildTraits, type Traits } from "./levers";
-import type { Cores, Stars } from "./shopper";
+import type { Cores, Factories, Stars } from "./shopper";
 import { meanCI, wilson, type Rate } from "./stats";
 
 export interface TourneyOpts {
@@ -32,6 +32,10 @@ export interface TourneyOpts {
   // every pre-existing caller (and test) of DEFAULT_OPTS keeps part 1's exact path; the product surface is the
   // CLI, whose --cores defaults to the --stars value (tools/balance.ts).
   cores?: Cores;
+  // 0.6.1c harness v2 part 3: the "press"/"drop" levers buy any factory the hero can buy and the "merge" lever a
+  // factory copy that merges at once; only with stars on. Absent = "off" (part 2's exact path for every
+  // pre-existing caller); the CLI's --factories defaults to the --stars value (tools/balance.ts).
+  factories?: Factories;
 }
 
 export const DEFAULT_OPTS: TourneyOpts = {
@@ -41,6 +45,8 @@ export const DEFAULT_OPTS: TourneyOpts = {
 
 /** 0.6.1b: cores are bought only with stars on and cores on (the CLI defaults cores to the stars flag). */
 export const coresOn = (o: { stars: Stars; cores?: Cores }): boolean => o.stars === "on" && o.cores === "on";
+/** 0.6.1c: factories are bought only with stars on and factories on (the CLI defaults them to the stars flag). */
+export const factoriesOn = (o: { stars: Stars; factories?: Factories }): boolean => o.stars === "on" && o.factories === "on";
 
 export interface Job { a: number; b: number; seeds: number[] } // field indices
 /** Plays jobs over a field; returns, per job, a's points (win 1, draw 0.5) over 2 x seeds battles. */
@@ -204,9 +210,13 @@ export async function runTournament(o: TourneyOpts, run: Runner = localRunner, l
 export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: DetailRunner = localDetail): Promise<DayResult> {
   const field: Entry[] = [];
   const blank: Rate = { p: 0, lo: 0, hi: 0, n: 0, pts: 0 };
+  const shopped = new Map<number, Shopped>(); // 0.6.1c: field index -> its shopper's counts (step 3's usage table)
   for (const hero of o.heroes) {
     for (let i = 0; i < o.pop; i++) {
-      const build = randomBuild(hero, day, new Rng(hashSeed("bb-pop", o.seed, hero, day, i)), o.stars, FUSE_MAX, coresOn(o) ? "on" : "off");
+      // randomBuild(...) is shopBuild(...).build: the same draws; 0.6.1c keeps the shopper's slag/new-output counts
+      const sb = shopBuild(hero, day, new Rng(hashSeed("bb-pop", o.seed, hero, day, i)), o.stars, FUSE_MAX, coresOn(o) ? "on" : "off", undefined, factoriesOn(o) ? "on" : "off");
+      const build = sb.build;
+      shopped.set(field.length, sb);
       field.push({ hero, idx: i, ref: false, build, cost: buildCost(build).total, score: blank });
     }
     if (o.calibrationDays.includes(day)) {

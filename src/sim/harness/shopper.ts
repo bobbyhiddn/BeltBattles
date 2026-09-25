@@ -3,11 +3,11 @@
 // helpers every lever shares. Edits that can fail take a snapshot and restore it.
 
 import type { Rng } from "../../core/rng";
-import { GRID, HEROES, ITEMS, type ItemDef } from "../content";
+import { AMMO, GRID, HEROES, ITEMS, type ItemDef } from "../content";
 import { cloneBuild, kx, ky, occupancy, routesOf, turretForColumn, type Build, type Placed } from "../deck";
 import { buildCost } from "../../net/validate";
 import { FUSE_MAX } from "../stars";
-import { shopItems } from "./heroes";
+import { shopFactories, shopItems } from "./heroes";
 import { cargoValue, gainInto, previewMerge, type InvItem } from "./merge";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
 
@@ -28,6 +28,34 @@ export type Stars = "on" | "off";
  *  only effective with stars on. "off" (and stars off) buys none, with no RNG draw: exactly part 1. */
 export type Cores = "on" | "off";
 
+/** 0.6.1c (harness v2 part 3): "on" lets the "press" and "drop" levers buy any factory the hero can buy
+ *  (shopFactories: STAMP PRESS and the six wave-1 factories, drawn with the day's rarity weights) and the
+ *  "merge" lever buy a factory copy that merges at once; only effective with stars on. "off" (and stars off)
+ *  buys the STAMP PRESS alone, with no new RNG draw: exactly part 2. */
+export type Factories = "on" | "off";
+
+/** 0.6.1c: does route `ri` carry a fixed-speed ammo (SLAG POT's slag, AMMO.slag.fixedSpeed; Battle.transport and
+ *  deck.ts estimateRoute ignore speed gates for it)? The ammo kind is the factory's own spec: no star level changes
+ *  it (tests/harness.factories.test.ts checks that at every star through the game's stars.ts), and the harness reads
+ *  no star value itself (tests/harness.mods.test.ts). */
+export function fixedSpeedRoute(b: Build, ri: number): boolean {
+  const f = b.items.find((p) => p.uid === b.routes[ri].factory);
+  const fs = f ? ITEMS[f.def].factory : undefined;
+  return !!fs && AMMO[fs.ammo]?.fixedSpeed !== undefined;
+}
+
+/** 0.6.1c: cells of fixed-speed (slag) routes: a speed gate there can do nothing (Battle.transport). */
+export function fixedSpeedCells(b: Build): Set<number> {
+  const out = new Set<number>();
+  b.routes.forEach((r, ri) => { if (fixedSpeedRoute(b, ri)) for (const k of r.cells) out.add(k); });
+  return out;
+}
+
+/** 0.6.1c: speed gates the shopper kept off slag routes. skipped: not bought (no free non-slag cell), or a
+ *  carried speed gate left behind by a drop onto a slag line; steered: bought onto a non-slag cell while
+ *  some free cells were slag ones. */
+export interface SlagCount { skipped: number; steered: number }
+
 export class Shopper {
   uid = 100;
   edits = 0;
@@ -46,6 +74,11 @@ export class Shopper {
    *  empty unless coresOn, so every other path is unchanged. */
   cargo: InvItem[] = [];
   swaps = 0; // 0.6.1b: cores swapped to cargo by the "core" lever
+  readonly factoriesOn: boolean; // 0.6.1c: stars on AND factories on: any buyable factory (shopFactories)
+  readonly factories: ItemDef[]; // 0.6.1c: factories this hero can buy (read only when factoriesOn)
+  readonly minFactory: number;
+  slag: SlagCount = { skipped: 0, steered: 0 }; // 0.6.1c: speed gates kept off slag routes (factories on only)
+  thirdArm = 0; // 0.6.1c: routes added to a merged factory whose outputs grew (GANTRY PRESS at 2 stars: 3 outputs)
 
   // NOTE: defaults to "off" (v1-exact), not the harness's product-level "on" default, so every
   // pre-existing call site that builds a Shopper without the new 5th argument — most importantly
@@ -56,15 +89,36 @@ export class Shopper {
   // flag) passes `stars` through explicitly, so "on" is still the default at every product surface.
   // maxStars (F8): the highest star a gain may merge up to. FUSE_MAX (3) everywhere but the stand-in
   // candidates, which stay at 2 (ARSENAL.md §9.2: "the Matriarch alone may carry a 3★").
-  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off", readonly maxStars: number = FUSE_MAX, cores: Cores = "off") {
+  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off", readonly maxStars: number = FUSE_MAX, cores: Cores = "off", factories: Factories = "off") {
     this.stars = stars === "on";
     this.coresOn = this.stars && cores === "on";
+    this.factoriesOn = this.stars && factories === "on";
     this.gates = shopItems(b.hero, "gate");
     this.mods = shopItems(b.hero, "mod");
     this.cores = shopItems(b.hero, "core");
+    this.factories = shopFactories(b.hero);
     this.minGate = Math.min(...this.gates.map((g) => g.price));
     this.minMod = Math.min(...this.mods.map((m) => m.price));
     this.minCore = Math.min(...this.cores.map((c) => c.price));
+    this.minFactory = Math.min(...this.factories.map((f) => f.price));
+  }
+
+  /** 0.6.1c: free route cells a new gate of `def` may take. With factories on, a speed gate never takes a cell of
+   *  a slag route (it can do nothing there: AMMO.slag.fixedSpeed); counted in `slag` when that removes a cell, if
+   *  `count`. A copy that merges at once lands on its twin's cell (gainInto ignores the target), so its cells are
+   *  left as they are. Factories off (or not a speed gate): exactly `cells`, no count, no RNG. */
+  cellsFor(def: ItemDef, cells: number[], count = true): number[] {
+    if (!this.factoriesOn || !isSpeedGate(def)) return cells;
+    const slag = fixedSpeedCells(this.b);
+    if (!slag.size) return cells;
+    const pv = previewMerge(this.b, this.uid, def.id, this.cargo);
+    if (pv && pv.where !== "cargo") return cells;
+    const ok = cells.filter((k) => !slag.has(k));
+    if (count && ok.length < cells.length) {
+      if (ok.length) this.slag.steered++;
+      else this.slag.skipped++;
+    }
+    return ok;
   }
 
   /** May one more copy of `def` be gained? Always (no RNG, no preview) unless stars is on and the

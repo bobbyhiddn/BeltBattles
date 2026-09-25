@@ -54,6 +54,10 @@ async function main(): Promise<void> {
   const coresFlag = flag("cores") ?? starsFlag;
   if (coresFlag !== "on" && coresFlag !== "off") throw new Error(`--cores must be "on" or "off", got ${coresFlag}`);
   if (coresFlag === "on" && starsFlag === "off") throw new Error("--cores on needs --stars on (stars off is harness v1 exactly: no cores)");
+  // 0.6.1c (harness v2 part 3): --factories defaults to the --stars value; the six wave-1 factories need stars on
+  const factoriesFlag = flag("factories") ?? starsFlag;
+  if (factoriesFlag !== "on" && factoriesFlag !== "off") throw new Error(`--factories must be "on" or "off", got ${factoriesFlag}`);
+  if (factoriesFlag === "on" && starsFlag === "off") throw new Error("--factories on needs --stars on (stars off is harness v1 exactly: the STAMP PRESS alone)");
   const o: StandInOpts = {
     ...STANDIN_DEFAULTS,
     seed: num("seed", STANDIN_DEFAULTS.seed),
@@ -64,6 +68,7 @@ async function main(): Promise<void> {
     parFloor: pf / 100,
     stars: starsFlag,
     cores: coresFlag,
+    factories: factoriesFlag,
   };
   if (o.per < 1 || o.pop < o.per) throw new Error("--pop must be at least --per, and --per at least 1");
   const check = process.argv.includes("--check");
