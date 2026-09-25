@@ -149,3 +149,104 @@ export function turretStall(b: Build, foe: Build, seed: number, secs = 60, i = 0
 
 /** A TurretDef for tests that need the heavy Furnace turret. */
 export type { TurretDef };
+
+// ---------------------------------------------------------------- 0.6.1c: the six wave-1 factories
+
+/** The busy bench's second route: from (6,5), above a factory at (6,6), left to column 5 and up to the heavy turret. */
+export const SECOND = [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)];
+
+/**
+ * The factory bench (ARSENAL.md §10 item 1, "Factories"): the busy bench with factory `def` at `stars` in the STAMP
+ * PRESS's place (uid 7 at (6,6)) on the second intake (column 5). `only` takes the Kiln off its route, so the turret
+ * fires the factory's slugs alone. Gates go in as [def, x, y, stars]: column 5 (rows 0-4) is the factory's route.
+ * GANTRY PRESS feeds two or three intakes: gantryBench and gantryWeaver.
+ */
+export function factoryBench(def: string, stars: number, o: { only?: boolean; gates?: [string, number, number, number][]; mods?: [string, number][]; hullBonus?: number } = {}): Build {
+  const b = bench(o.gates ?? [], o.mods ?? [], o.hullBonus ?? 5000);
+  b.items.push({ uid: 7, def, x: 6, y: 6, ...starField(stars) });
+  b.routes.push({ factory: 7, cells: [...SECOND] });
+  if (o.only) b.routes.shift();
+  return b;
+}
+
+/** GANTRY PRESS on the Furnace: the Kiln parked off-route at (0,8), the Gantry (uid 7) at (4,6) feeding both heavy intakes (columns 4 and 5). */
+export function gantryBench(stars: number, mods: [string, number][] = [], hullBonus = 5000): Build {
+  const b = bench([], mods, hullBonus);
+  b.items[0] = { uid: 1, def: "kiln", x: 0, y: 8 };
+  b.items.push({ uid: 7, def: "gantry", x: 4, y: 6, ...starField(stars) });
+  b.routes = [
+    { factory: 7, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+    { factory: 7, cells: [K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] },
+  ];
+  return b;
+}
+
+/** GANTRY PRESS on a Weaver: the Loom parked off-route at (0,8), the Gantry (uid 7) at (4,6) on the first `n` of columns 4, 1 and 8. */
+export function gantryWeaver(stars: number, n = 3, hullBonus = 0): Build {
+  const cols = [
+    [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)],
+    [K(3, 6), K(2, 6), K(1, 6), K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(1, 1), K(1, 0)],
+    [K(6, 6), K(7, 6), K(8, 6), K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)],
+  ];
+  return {
+    hero: "weaver", items: [{ uid: 1, def: "loom", x: 0, y: 8 }, { uid: 7, def: "gantry", x: 4, y: 6, ...starField(stars) }],
+    routes: cols.slice(0, n).map((cells) => ({ factory: 7, cells })), mods: [], beltCap: 30, hullBonus,
+  };
+}
+
+export interface Stamps { produced: number; bases: number[]; dps: number; times: number[]; presets: string[]; perRoute: number[] }
+
+/**
+ * Factory `uid`'s stamps on side 0 of `b` over `secs` against the barge: the slugs, each distinct base damage, output
+ * dps (the sum of bases / secs), each stamp's battle time, each slug's HOT SWAP preset in order and the slugs per route.
+ * The slug a produce event stamped is the newest payload at the back of the factory's routes (no SPLITTER here).
+ */
+export function stamps(b: Build, uid = 7, secs = 30): Stamps {
+  let sum = 0, produced = 0;
+  const bases = new Set<number>(), times: number[] = [], presets: string[] = [];
+  const perRoute = b.routes.map(() => 0);
+  run(b, secs, barge(), SEED, (ev, bt) => {
+    for (const e of ev) {
+      if (e.type !== "produce" || e.side !== 0 || e.factory !== uid) continue;
+      let best: { id: number; ri: number; p: (typeof bt.sides)[0]["routes"][0]["ammo"][0]["p"] } | undefined;
+      for (const r of bt.sides[0].routes) {
+        const back = r.factory === uid ? r.ammo[r.ammo.length - 1] : undefined;
+        if (back && (!best || back.p.id > best.id)) best = { id: back.p.id, ri: r.index, p: back.p };
+      }
+      if (!best) continue;
+      const base = best.p.base ?? AMMO[best.p.ammo].base;
+      bases.add(base);
+      sum += base;
+      produced++;
+      times.push(bt.t);
+      if (best.p.preset) presets.push(best.p.preset);
+      perRoute[best.ri]++;
+    }
+  });
+  return { produced, bases: [...bases], dps: sum / secs, times, presets, perRoute };
+}
+
+/** The gaps (s) between consecutive stamps shorter than half the cycle: the slugs of one batch leaving the mouth. */
+export function batchGaps(s: Stamps, interval: number): number[] {
+  const gaps: number[] = [];
+  for (let i = 1; i < s.times.length; i++) if (s.times[i] - s.times[i - 1] < interval / 2) gaps.push(s.times[i] - s.times[i - 1]);
+  return gaps;
+}
+
+/**
+ * The output bench: a Weaver with the Loom parked off-route at (0,8) and factory `def` (uid 7) at (4,6) on column 4 into
+ * light turret 1, which has EXT. CHAMBER ★3 (load 3, fire 3 at once). Only the belt (AMMO_SPACING: 4.3 slugs/s) limits
+ * that chamber, so it never caps a factory; the heavy chamber tops out near 2 slugs/s (window 4 with EXT. CHAMBER ★3,
+ * the 4th load waits a full second), below SHOT TOWER ★2/★3.
+ */
+export function factoryLight(def: string, stars: number): Build {
+  return {
+    hero: "weaver", items: [{ uid: 1, def: "loom", x: 0, y: 8 }, { uid: 7, def, x: 4, y: 6, ...starField(stars) }],
+    routes: [{ factory: 7, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] }],
+    mods: [{ uid: 20, def: "chamber", turret: 1, stars: 3 }], beltCap: 30, hullBonus: 5000,
+  };
+}
+
+/** A factory's output: the output bench, or GANTRY PRESS on both heavy intakes with EXT. CHAMBER ★3 (1.4 slugs/s at most, never capped). */
+export const factoryOut = (def: string, stars: number, secs = 30): Stamps =>
+  stamps(def === "gantry" ? gantryBench(stars, [["chamber", 3]]) : factoryLight(def, stars), 7, secs);

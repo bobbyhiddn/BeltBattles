@@ -49,11 +49,15 @@ export function deltaText(d: Delta, cost: boolean): string {
 }
 
 function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean, right: number): number {
-  const icon = deltaIcon(d), text = deltaText(d, cost);
-  const w = icon.width + 2 + textWidth(text, "3");
+  const icon = deltaIcon(d);
+  let text = deltaText(d, cost);
+  let w = icon.width + 2 + textWidth(text, "3");
+  // 0.6.1c: road items draw from the whole catalogue, so a long part name can meet a long good on a
+  // narrow card; with no room for its name the part still shows its icon (the card never hides a gain)
+  if (x + w > right && d.k === "item") [text, w] = ["", icon.width];
   if (x + w > right) return x;
   g.drawImage(icon, x, cy - Math.floor(icon.height / 2));
-  drawText(g, text, x + icon.width + 2, cy - 2, dim ? C.slate3 : cost ? C.red : C.lime, { font: "3" });
+  if (text) drawText(g, text, x + icon.width + 2, cy - 2, dim ? C.slate3 : cost ? C.red : C.lime, { font: "3" });
   return x + w + 5;
 }
 

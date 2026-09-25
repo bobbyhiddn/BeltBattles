@@ -283,6 +283,17 @@ export const SHOTS = [
       `bb.game.run.build.mods.push({uid: 9001, def: '${def}', turret: 0}); bb.game.screen.select({kind:'turret', index:0}); bb.game.render()`]),
     ["battle-finisher", v, "title", 0, finisherBattle()],
   ]),
+  // 0.6.1c: the six new factories on the deck (selected, so the inspector shows each one's headline) and in battle
+  // (their slugs on the belt: ember/spark, shot and slag tints), desk and phone; HOT SWAP 2 stars, ASSEMBLY LINE 3
+  // (HOT START) and GANTRY PRESS 2 (THIRD ARM, three chutes). And a natural caravan (rollShop, seed 10, day 5) with the
+  // Quartermaster's wagon: HOT SWAP and HOPPER, each once (M0).
+  ...["desk", "phone"].flatMap((v) => [
+    ...newFactories().map(([def, stars]) => [`build-factory-${def}`, v, "build", 0.8, factoryBuild(def, stars)]),
+    ...newFactories().map(([def, stars]) => [`battle-factory-${def}`, v, "title", 0, factoryBattle(def, stars)]),
+    ["shop-quartermaster", v, "title", 0, qmCaravan()],
+    // M5: holding one TEMPER, seed 8's day-3 wreck (pick 0.22 < 0.35) salvages the TEMPER it merges with: MERGE badge
+    ["event-salvage-merge", v, "title", 0, EVENT("wreck", { seed: 8, round: 3, cargo: "temper" })],
+  ]),
 ];
 
 // 0.6.2 BELTSIDE: the "sides" showcase deck fighting "junction", stepped from 3 s until `cond` holds for the
@@ -297,6 +308,27 @@ function BATTLE_UNTIL(cond) {
       const s = g.screen.arena.b.sides[0];
       if (${cond}) break;
     }
+    g.render();
+  })()`;
+}
+
+// 0.6.1c: [def, stars] for the factory shots (a hoisted function: SHOTS above is built at module load)
+function newFactories() {
+  return [["doublestamp", 1], ["shottower", 1], ["hotswap", 2], ["slagpot", 1], ["assembly", 3], ["gantry", 2]];
+}
+
+// The factory at (6,6) on the free heavy intake (column 5), the starting Kiln route beside it (13 of 14 belt tiles)
+function placeFactory(def, stars) {
+  return `g.run.build.items.push({ uid: 9101, def: ${JSON.stringify(def)}, x: 6, y: 6${stars > 1 ? `, stars: ${stars}` : ""} });
+    g.run.build.routes.push({ factory: 9101, cells: [56, 55, 45, 35, 25, 15, 5] });`;
+}
+
+function factoryBuild(def, stars) {
+  return `(() => {
+    const g = bb.game;
+    ${placeFactory(def, stars)}
+    g.screen.touched(); // rebuild the screen's cruiser model, so the factory's new route is drawn
+    g.screen.select({ kind: "item", uid: 9101 });
     g.render();
   })()`;
 }
@@ -329,6 +361,42 @@ function RIG3_MERGE(name, uid, offer) {
     s.touched();
     s.select({ kind: "item", uid: ${uid} });
     ${STEP(12)}`);
+}
+
+// CORE_BATTLE's pattern, stepped until at least 2 of the factory's slugs ride its belt in the fight
+function factoryBattle(def, stars) {
+  return `(() => {
+  const bb = window.bb, g = bb.game;
+  try {
+    g.run = null;
+    bb.open("build", "furnace", 12345);
+    for (let i = 0; i < 20; i++) g.step(1 / 60);
+    ${placeFactory(def, stars)}
+    bb.open("battle", "furnace", 12345);
+    let n = 0;
+    // SLAG POT's slow slag rarely has 3 on its belt before the chamber jams (about 25 s in), so it stops at 2
+    for (let i = 0; i < 60 * 30 && n < ${def === "slagpot" ? 2 : 3}; i++) {
+      g.step(1 / 60);
+      const a = g.screen.arena;
+      n = a && g.screen.phase === "fight" ? a.b.sides[0].routes.filter((r) => r.factory === 9101).reduce((k, r) => k + r.ammo.length, 0) : 0;
+    }
+    if (n < 2) console.error("FACTORY_BATTLE: fewer than 2 ${def} slugs on its belt within 30 s");
+    for (let i = 0; i < 12; i++) g.step(1 / 60); // past the stamp's 0.18 s flash, so the sprite shows unwashed
+    g.render();
+  } catch (e) { console.error("FACTORY_BATTLE: " + e.message + "\\n" + e.stack); }
+})()`;
+}
+
+function qmCaravan() {
+  return `(() => {
+    const g = bb.game;
+    bb.openDawn({ day: 5, gold: 30, seed: 10 }, []);
+    for (let i = 0; i < 90; i++) g.step(1 / 60);
+    const w = g.run.shop.wagons.findIndex((x) => x.merchant === "quartermaster");
+    if (w < 0) console.error("QM_CARAVAN: no Quartermaster wagon");
+    else g.screen.select({ kind: "offer", wagon: w, slot: g.run.shop.wagons[w].offers.findIndex((o) => o.def === "hotswap") });
+    g.render();
+  })()`;
 }
 
 function NEW_MODS(wagon) {

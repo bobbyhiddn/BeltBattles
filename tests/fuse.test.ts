@@ -8,7 +8,7 @@ import { fuseAll, fuseFrom, gainModule, mergePreview, unfusedInRun, type FuseSte
 import { buyOffer, fitCore, newRun, reroll, sellInventory, storeMod, storePlaced, takeFromInventory, type Run } from "../src/game/run";
 import { finishDay, startDusk } from "../src/game/day";
 import { finishWarlord, pickPending, pickRoad, takePart, topParts } from "../src/game/road";
-import { tradeGood, EVENTS } from "../src/game/eventDefs";
+import { salvagePool, tradeGood, EVENTS } from "../src/game/eventDefs";
 import { setupRun, setupWarlord } from "../src/tooling";
 import type { SideStats } from "../src/sim/battle";
 import { ITEMS, sellValue, type HeroId } from "../src/sim/content";
@@ -178,8 +178,10 @@ describe("every source goes through gainModule", () => {
   it("road-event items: SALVAGE and the trader's SWAP", () => {
     const at = (id: "wreck" | "trader") => { const r = fresh(); r.day = 3; r.event = makeEvent(r.seed, 3, id); r.stage = "event"; return r; };
     const w = at("wreck");
+    // 0.6.1c: SALVAGE draws from the parts held (fresh first), so the twins are held before the card is
+    // read: holding a 1-star copy of every common gate, SALVAGE offers one of them, and it merges
+    for (const def of salvagePool()) put(w, def);
     const salvage = (choicesFor(w)[0].gain[0] as { def: string }).def;
-    put(w, salvage);
     pickChoice(w, 0);
     expect(copies(w, salvage).map((c) => c.stars)).toEqual([2]);
     const t = at("trader");

@@ -3,8 +3,10 @@
 // events.ts applies exactly that and nothing else. Tuned so an event is worth about +2 to +4
 // gold on average and none of them wins a run by itself.
 
-import { ITEMS, type Rarity } from "../sim/content";
-import { starField, starsOf, valueOf } from "../sim/stars";
+import { ITEMS, type ItemDef, type ModuleTag, type Rarity } from "../sim/content";
+import { RACE_ITEMS } from "../sim/races/data";
+import { fusible, starField, starsOf, valueOf } from "../sim/stars";
+import { mergePreview } from "./fuse";
 import type { Run } from "./run";
 
 export type EventId = "wreck" | "cache" | "trader" | "dice" | "dock" | "herald" | "sappers" | "scout" | "storm" | "smuggler";
@@ -50,18 +52,98 @@ export interface EventDef {
   choices(run: Run, ev: EventState): Choice[];
 }
 
-const at = <T>(arr: readonly T[], u: number): T => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(u * arr.length)))];
 const gold = (n: number): Delta => ({ k: "gold", n });
 const MOVE_ON: Choice = { label: "MOVE ON", cost: [], gain: [] };
 const moveOn = (label = "MOVE ON"): Choice => ({ ...MOVE_ON, label });
 
-const SALVAGE = ["temper", "whetstone", "grease", "brake"];
-const UPGRADE: Record<Rarity, string[]> = {
-  common: ["longhaul", "coil", "calibrate"],
-  rare: ["splitter", "chamber", "press"],
-  epic: ["splitter", "chamber", "press"],
-  legendary: ["splitter", "chamber"],
+// --- Road items (0.6.1c, ARSENAL.md §5.2 last paragraph) ---
+// SALVAGE, SMUGGLER and the trader's SWAP draw from pools read off the catalogue (ITEMS) each time,
+// so a part that gains a merchant joins them with no code change. One shared pool (the operator,
+// 2026-09-24): no draw reads the hero or race, only the catalogue, the parts the player holds and the
+// event's fixed `pick` (makeEvent's hashSeed(seed, "event", day) stream; no new stream).
+
+const RACE_IDS = new Set(Object.keys(RACE_ITEMS));
+
+/** A part a caravan sells and that merges: a merchant stocks it and stars.ts `fusible` holds (never a
+ *  supply or a price-0 signature), and it is no race item. */
+const roadPart = (d: ItemDef): boolean => !!d.merchant && fusible(d.id) && !RACE_IDS.has(d.id);
+
+/** The ids of every road part that passes `test`, in catalogue order. */
+const roadParts = (test: (d: ItemDef) => boolean): string[] => Object.values(ITEMS).filter((d) => roadPart(d) && test(d)).map((d) => d.id);
+
+/** SALVAGE's pool: the common gates (0.6.1: TEMPER, WHETSTONE, GREASE WORKS and BRAKE SHOE). */
+export const salvagePool = (): string[] => roadParts((d) => d.kind === "gate" && d.rarity === "common");
+
+/** SMUGGLER's BURN or SHOCK pool: the gates whose catalogue tags hold `tag` (0.6.1: TEMPER; GALVANIC COIL). */
+export const smugglerPool = (tag: ModuleTag): string[] => roadParts((d) => d.kind === "gate" && !!d.tags?.includes(tag));
+
+const ofRarity = (r: Rarity): string[] => roadParts((d) => d.rarity === r);
+
+/** TRADER SWAP's pools: UPGRADE[r] is every road part of rarity r (gates, factories, mods and cores),
+ *  read off the catalogue each time it is used. */
+export const UPGRADE: Readonly<Record<Rarity, string[]>> = {
+  get common() { return ofRarity("common"); },
+  get rare() { return ofRarity("rare"); },
+  get epic() { return ofRarity("epic"); },
+  get legendary() { return ofRarity("legendary"); },
 };
+
+/** The tier a SWAP gives for a good of each rarity: one step up, at most epic. These are the tiers of the
+ *  0.5.0 hand table (a common good swapped for a rare part; a rare, epic or legendary one for an epic). */
+export const SWAP_TIER: Record<Rarity, Rarity> = { common: "rare", rare: "epic", epic: "epic", legendary: "epic" };
+
+/** SALVAGE's odds of a part the player holds instead of a fresh one (ARSENAL.md §5.2). */
+export const SALVAGE_OWNED = 0.35;
+
+/** Draw from `arr` with the uniform number `u`, and return what is left of `u` (uniform again and
+ *  independent of the draw), so one fixed number can make several draws. Undefined for an empty pool. */
+function draw<T>(arr: readonly T[], u: number): [T | undefined, number] {
+  if (!arr.length) return [undefined, u];
+  const x = Math.min(Math.max(u, 0), 1 - Number.EPSILON) * arr.length;
+  const i = Math.floor(x);
+  return [arr[i], x - i];
+}
+
+const holds = (run: Run, def: string): boolean =>
+  run.inventory.some((i) => i.def === def) || run.build.items.some((p) => p.def === def) || run.build.mods.some((m) => m.def === def);
+
+/**
+ * SALVAGE's part: fresh first, a common gate the player holds no copy of; with SALVAGE_OWNED odds one
+ * the new copy merges with instead (mergePreview, so the card shows the shop's MERGE badge). With no
+ * fresh gate it draws a merging one, with no merging one a fresh one, with neither any of the pool.
+ * Only `pick` and the parts held decide it; they can't change while the event is open (and are saved
+ * with it), so the card shows what the choice grants, also after a reload.
+ */
+export function salvagePart(run: Run, pick: number): string | undefined {
+  const pool = salvagePool();
+  const fresh = pool.filter((id) => !holds(run, id));
+  const twins = pool.filter((id) => mergePreview(run, id) !== null);
+  if (!fresh.length || !twins.length) return draw(fresh.length ? fresh : twins.length ? twins : pool, pick)[0];
+  const p = SALVAGE_OWNED;
+  return pick < p ? draw(twins, pick / p)[0] : draw(fresh, (pick - p) / (1 - p))[0];
+}
+
+/** SMUGGLER's BURN part, then its SHOCK part from what is left of `pick` (never BURN's gate again while
+ *  the shock pool has another). */
+export function smugglerParts(pick: number): [string | undefined, string | undefined] {
+  const [burn, rest] = draw(smugglerPool("BURN"), pick);
+  const shock = smugglerPool("SHOCK");
+  const other = shock.filter((id) => id !== burn);
+  return [burn, draw(other.length ? other : shock, rest)[0]];
+}
+
+/** TRADER SWAP's part for a good of `def`: from UPGRADE[SWAP_TIER[its rarity]], never `def` itself. */
+export function swapPart(def: string, pick: number): string | undefined {
+  return draw(UPGRADE[SWAP_TIER[ITEMS[def].rarity]].filter((id) => id !== def), pick)[0];
+}
+
+/** A choice that gains part `def`; blocked when its pool had none (a catalogue without such a part). */
+function partChoice(label: string, cost: Delta[], def: string | undefined, note?: string): Choice {
+  const c: Choice = { label, cost, gain: def ? [{ k: "item", def }] : [] };
+  if (note !== undefined) c.note = note;
+  if (!def) c.blocked = "NONE ON OFFER";
+  return c;
+}
 
 export interface Good {
   uid: number;
@@ -87,9 +169,9 @@ export function tradeGood(run: Run): Good | null {
 export const EVENTS: Record<EventId, EventDef> = {
   wreck: {
     id: "wreck", title: "WRECKED RAIDER", kind: "SALVAGE",
-    text: ["A RAIDER'S CRUISER SMOKES IN THE DUST.", "ONE OF ITS RIGS STILL HUMS."],
-    choices: (_run, ev) => [
-      { label: "SALVAGE", cost: [], gain: [{ k: "item", def: at(SALVAGE, ev.pick) }] },
+    text: ["A RAIDER'S CRUISER SMOKES IN THE DUST.", "ONE OF ITS RIGS STILL HUMS."], // beltside-062c: BELTSIDE's text (P10)
+    choices: (run, ev) => [
+      partChoice("SALVAGE", [], salvagePart(run, ev.pick)), // 0.6.1c: fresh first, 35% one that merges
       { label: "SCRAP IT", cost: [], gain: [gold(4)] },
       moveOn(),
     ],
@@ -111,13 +193,11 @@ export const EVENTS: Record<EventId, EventDef> = {
         const none: Choice = { label: "SELL", cost: [], gain: [], blocked: "NOTHING TO TRADE" };
         return [none, { ...none, label: "SWAP" }, moveOn()];
       }
-      const d = ITEMS[g.def];
-      const pool = UPGRADE[d.rarity].filter((id) => id !== g.def);
       const give: Delta = { k: "item", def: g.def, uid: g.uid, from: g.from };
       const note = g.from === "cargo" ? undefined : g.from === "deck" ? "FROM YOUR DECK" : "FROM A TURRET";
       return [
         { label: "SELL", cost: [give], gain: [gold(valueOf(g.def, starsOf(g)))], note }, // 0.6.1a: full value
-        { label: "SWAP", cost: [give], gain: [{ k: "item", def: at(pool, ev.pick) }], note },
+        partChoice("SWAP", [give], swapPart(g.def, ev.pick), note), // 0.6.1c: UPGRADE from the catalogue
         moveOn(),
       ];
     },
@@ -175,12 +255,11 @@ export const EVENTS: Record<EventId, EventDef> = {
   },
   smuggler: {
     id: "smuggler", title: "AMMO SMUGGLER", kind: "SMUGGLER",
-    text: ["A SMUGGLER SELLS HOT RIGS FROM", "UNDER A TARP. NO QUESTIONS ASKED."],
-    choices: () => [
-      { label: "BURN", cost: [gold(2)], gain: [{ k: "item", def: "temper" }] },
-      { label: "SHOCK", cost: [gold(3)], gain: [{ k: "item", def: "coil" }] },
-      moveOn(),
-    ],
+    text: ["A SMUGGLER SELLS HOT RIGS FROM", "UNDER A TARP. NO QUESTIONS ASKED."], // beltside-062c: BELTSIDE's text (P10)
+    choices: (_run, ev) => {
+      const [burn, shock] = smugglerParts(ev.pick); // 0.6.1c: the catalogue's burn and shock gates
+      return [partChoice("BURN", [gold(2)], burn), partChoice("SHOCK", [gold(3)], shock), moveOn()];
+    },
   },
 };
 

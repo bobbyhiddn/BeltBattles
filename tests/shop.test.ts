@@ -30,10 +30,14 @@ describe("shop: caravan shape", () => {
     }
   });
 
-  // 0.6.1p: HOPPER is the Quartermaster's first stock, so the Quartermaster now rides; its wagon offers only HOPPER
+  // 0.6.1p: HOPPER is the Quartermaster's first stock, so the Quartermaster now rides. 0.6.1c: he sells HOPPER and
+  // HOT SWAP, and M0's one-copy wagons show each at most once (his wagon holds at most 2 offers)
   it("a merchant with no stock today is never drawn (scrapper and the arcane dealer wait for a later job)", () => {
-    expect(itemsSoldBy("quartermaster").map((d) => d.id)).toEqual(["hopper"]);
+    expect(itemsSoldBy("quartermaster").map((d) => d.id)).toEqual(["hotswap", "hopper"]);
+    expect(itemsSoldBy("scrapper")).toEqual([]);
+    expect(itemsSoldBy("arcane")).toEqual([]);
     let quartermaster = 0;
+    const seen = new Set<string>();
     for (let seed = 1; seed <= 300; seed++) {
       for (const day of [1, 3, 5, 9]) {
         const run = atDay(seed * 31 + day, day);
@@ -41,10 +45,16 @@ describe("shop: caravan shape", () => {
         expect(merchants).not.toContain("scrapper");
         expect(merchants).not.toContain("arcane"); // stronger than "no Arcane before day 3": not stocked at all yet
         const qm = run.shop.wagons.find((w) => w.merchant === "quartermaster");
-        if (qm) { quartermaster++; for (const o of qm.offers) expect(o.def).toBe("hopper"); }
+        if (!qm) continue;
+        quartermaster++;
+        const defs = qm.offers.map((o) => o.def);
+        expect(defs.length).toBeLessThanOrEqual(2);
+        expect(new Set(defs).size).toBe(defs.length);
+        for (const d of defs) { expect(["hopper", "hotswap"]).toContain(d); seen.add(d); }
       }
     }
     expect(quartermaster).toBeGreaterThan(0);
+    expect([...seen].sort()).toEqual(["hopper", "hotswap"]);
   });
 });
 
@@ -119,21 +129,39 @@ describe("shop: the familiar slot keeps one def per wagon (F3) and the legendary
     expect(alchemist).toBeGreaterThan(50);
   });
 
-  it("a wagon repeats a part only when its merchant stocks fewer parts today than the wagon has slots", () => {
-    for (let seed = 1; seed <= 300; seed++) {
-      for (const day of [2, 5, 9]) {
-        const run = newRun(seed % 2 ? "weaver" : "furnace", seed * 104729 + day);
-        run.inventory = ["temper", "whetstone", "coil", "drake", "grease", "calibrate"].map((def, i) => ({ uid: 900 + i, def }));
-        run.day = day;
-        rollShop(run);
-        for (const w of run.shop.wagons) {
-          const distinct = new Set(w.offers.map((o) => o.def)).size;
-          if (distinct === w.offers.length) continue;
-          const stock = itemsSoldBy(w.merchant).filter((d) => d.rarity !== "legendary" || day >= 4).length;
-          expect(stock).toBeLessThan(w.offers.length); // today: the Quartermaster, whose only stock is HOPPER
+  // 0.6.1c M0 (the Prime's call) replaces 0.6.1r's "a wagon repeats a part only when its merchant stocks fewer
+  // parts today than the wagon has slots": no wagon ever repeats a def. A slot whose wagon has run dry goes to
+  // the next wagon round, so the caravan keeps its 5 offers, and no wagon outgrows its merchant's day pool.
+  it("M0: no wagon repeats a def, and every caravan has 5 offers across 2-3 wagons (days 1-10, rerolls 0-1, owned none / half / every buyable part)", () => {
+    const merchants: MerchantId[] = ["ironmonger", "tinker", "alchemist", "gunsmith", "scrapper", "quartermaster", "arcane"];
+    const buyable = merchants.flatMap((m) => itemsSoldBy(m)).filter((d) => d.kind !== "supply").map((d) => d.id);
+    expect(buyable).toContain("overdrive"); // "every" owns the legendary too
+    const sets: Record<string, string[]> = { none: [], half: buyable.filter((_, i) => i % 2 === 0), every: buyable };
+    let qmWagons = 0;
+    for (const owned of Object.values(sets)) {
+      for (let seed = 1; seed <= 40; seed++) {
+        for (let day = 1; day <= 10; day++) {
+          for (const rerolls of [0, 1]) {
+            const run = newRun(seed % 2 ? "weaver" : "furnace", seed * 7919 + 13);
+            run.inventory = owned.map((def, i) => ({ uid: 900 + i, def }));
+            run.day = day;
+            run.shop.rerolls = rerolls;
+            rollShop(run);
+            expect(run.shop.wagons.flatMap((w) => w.offers).length).toBe(OFFERS);
+            expect(run.shop.wagons.length).toBeGreaterThanOrEqual(2);
+            expect(run.shop.wagons.length).toBeLessThanOrEqual(3);
+            for (const w of run.shop.wagons) {
+              const defs = w.offers.map((o) => o.def);
+              expect(new Set(defs).size).toBe(defs.length);
+              const stock = itemsSoldBy(w.merchant).filter((d) => d.rarity !== "legendary" || day >= 4).length;
+              expect(w.offers.length).toBeLessThanOrEqual(stock);
+              if (w.merchant === "quartermaster") qmWagons++;
+            }
+          }
         }
       }
     }
+    expect(qmWagons).toBeGreaterThan(100); // the one-part Quartermaster wagon was exercised
   });
 
   it("F-latent: an owned legendary is never offered before day 4, not even by the familiar slot (400 seeds)", () => {

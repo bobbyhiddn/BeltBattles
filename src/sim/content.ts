@@ -29,7 +29,7 @@ export const COMMISSION_STEP = 0.6; // each further gate on the route adds this 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 // 0.6.1b: "core" is a turret core (ARSENAL.md §1): it lives in Build.mods, one socket per turret, beside the one mod
 export type ItemKind = "gate" | "factory" | "mod" | "supply" | "core";
-export type AmmoKind = "cinder" | "thread" | "plain" | RaceAmmoKind; // races: blank, alloy, bulwark, pendulum, leeches
+export type AmmoKind = "cinder" | "thread" | "plain" | "shot" | "slag" | RaceAmmoKind; // races: blank, alloy, bulwark, pendulum, leeches; 0.6.1c: shot, slag
 export type HeroId = "furnace" | "weaver" | RaceHeroId; // races: foundry, bastion, metronome, siphon
 export type Faction = "orc" | "elf" | "human" | "dwarf" | "beastfolk" | "unaligned"; // races: spec §6.2
 export type TurretKind = "heavy" | "light" | "medium" | "adaptable"; // races: medium (FOUNDRY), adaptable (METRONOME)
@@ -88,6 +88,21 @@ export interface FactorySpec {
   interval: number; // seconds per stamp
   outputs: number; // routes it can feed
   base?: number; // 0.6.1p: STAMP PRESS dies: base damage of its slugs (Payload.base), instead of AMMO[ammo].base
+  // 0.6.1c: the wave-1 factories (catalogue.json simHook). Absent on KILN, LOOM, STAMP PRESS and every race factory,
+  // so those stamp exactly as before.
+  batch?: number; // DOUBLE STAMP, SHOT TOWER: slugs per cycle; the rest wait in the mouth for AMMO_SPACING (FactoryState.pending)
+  cycle?: PayloadPreset[]; // HOT SWAP: each stamp writes the next preset, in turn (FactoryState.cycleIdx)
+  commission?: number; // ASSEMBLY LINE: x every gate's commissionAt on its side (best wins); its own belts' gates are online at 0 s
+  hotStart?: number; // ASSEMBLY LINE ★3 HOT START: its belts' gates are overclocked (x2, overclock.ts) for this many seconds
+}
+
+/** 0.6.1c HOT SWAP: what one step of the cycle writes on the slug at stamp time (catalogue.json hotswap). */
+export interface PayloadPreset {
+  tint: "ember" | "spark"; // render: the slug's colour (render/ammo.ts)
+  burn?: number; // EMBER: Burn stacks
+  shock?: boolean; // SPARK: Shock (1 star: DISRUPT_TIME, as a 1-star GALVANIC COIL)
+  shockTime?: number; // SPARK 2-3 stars: the stall in s (0.6.1p's Payload.shockTime)
+  jump?: number; // SPARK 2-3 stars: SPARK JUMP (0.6.1p's Payload.jump)
 }
 
 export interface ModSpec {
@@ -193,34 +208,83 @@ export const ITEMS: Record<string, ItemDef> = {
       3: { factory: { interval: 1, base: 7.5 }, perk: "MASTER DIES" },
     },
   },
+  // --- 0.6.1c: the six wave-1 factories (catalogue.json; ARSENAL.md §3.3 "Buyable factories"), values exactly ---
+  doublestamp: {
+    id: "doublestamp", name: "DOUBLE STAMP", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "ironmonger",
+    desc: ["STAMPS TWO PLAIN", "SLUGS PER 2.2S CYCLE.", "QUEUE PRESSURE."], tags: ["VOLUME", "SPLIT"],
+    factory: { ammo: "plain", interval: 2.2, outputs: 1, batch: 2 }, // base 3: the plain slug's
+    levels: {
+      2: { factory: { interval: 1.6, base: 5 } },
+      3: { factory: { batch: 3 }, perk: "TRIPLE DIES" },
+    },
+  },
+  shottower: {
+    id: "shottower", name: "SHOT TOWER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "gunsmith",
+    desc: ["DROPS 3 BUCKSHOT", "(1 DMG) EVERY 1.5S.", "GATES HIT EACH ONE."], tags: ["SPLIT", "FRAY", "VOLUME"],
+    factory: { ammo: "shot", interval: 1.5, outputs: 1, batch: 3 }, // base 1: AMMO.shot
+    levels: { 2: { factory: { interval: 1.35, base: 2 } }, 3: { factory: { interval: 1.3, base: 3 } } },
+  },
+  hotswap: {
+    id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
+    desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["BURN", "SHOCK", "TIMING"],
+    factory: { ammo: "plain", interval: 1.5, outputs: 1, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
+    levels: { // the spark tracks GALVANIC COIL: 1.8 s and 2.8 s with SPARK JUMP (0.6.1p's shockTime and jump)
+      2: { factory: { interval: 1.3, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 1.8, jump: 1 }] } },
+      3: { factory: { interval: 1.1, cycle: [{ tint: "ember", burn: 7 }, { tint: "spark", shock: true, shockTime: 2.8, jump: 1 }] } },
+    },
+  },
+  slagpot: {
+    id: "slagpot", name: "SLAG POT", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "ironmonger",
+    desc: ["HEAVY SLAG SLUGS", "(7 DMG) THAT IGNORE", "BELT SPEED GATES."], tags: ["BURST", "HAUL"],
+    factory: { ammo: "slag", interval: 2.8, outputs: 1 }, // base 7: AMMO.slag (fixed 0.75x belt speed)
+    levels: { 2: { factory: { interval: 2.2, base: 12 } }, 3: { factory: { interval: 1.75, base: 15 } } },
+  },
+  assembly: {
+    id: "assembly", name: "ASSEMBLY LINE", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "ironmonger",
+    desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR GATES", "COMMISSION 2X FAST."], tags: ["TIMING", "VOLUME"],
+    factory: { ammo: "plain", interval: 1.8, outputs: 1, commission: 0.5 },
+    levels: {
+      2: { factory: { interval: 1.5, commission: 0.25 } },
+      3: { factory: { interval: 1.3, commission: 0, hotStart: 4 }, perk: "HOT START" },
+    },
+  },
+  gantry: {
+    id: "gantry", name: "GANTRY PRESS", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
+    desc: ["ONE PRESS, TWO", "OUTPUTS: FEEDS TWO", "INTAKES BY TURNS."], tags: ["VOLUME", "SPLIT"],
+    factory: { ammo: "plain", interval: 1.2, outputs: 2 }, // base 3: the plain slug's
+    levels: {
+      2: { factory: { interval: 0.7, outputs: 3 }, perk: "THIRD ARM" },
+      3: { factory: { base: 6 }, perk: "HEAVY GANTRY" },
+    },
+  },
   // --- processing gates ---
   temper: {
     id: "temper", name: "TEMPER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    desc: ["ADDS 2 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."],
+    desc: ["ADDS 2 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."], tags: ["BURN"],
     gate: { burn: 2 },
     levels: { 2: { gate: { burn: 4 } }, 3: { gate: { burn: 7 } } },
   },
   whetstone: {
     id: "whetstone", name: "WHETSTONE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    desc: ["+2 FLAT DAMAGE.", "BEFORE A SPLITTER,", "BOTH COPIES GAIN IT."],
+    desc: ["+2 FLAT DAMAGE.", "BEFORE A SPLITTER,", "BOTH COPIES GAIN IT."], tags: ["EDGE"],
     gate: { flat: 2 },
     levels: { 2: { gate: { flat: 4 } }, 3: { gate: { flat: 7 } } },
   },
   grease: {
     id: "grease", name: "GREASE WORKS", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
-    desc: ["BELT RUNS 1.6X FROM", "THE TILE IT HITS ON.", "LATER SPEED WINS."],
+    desc: ["BELT RUNS 1.6X FROM", "THE TILE IT HITS ON.", "LATER SPEED WINS."], tags: ["SPEED"],
     gate: { speed: 1.6 },
     levels: { 2: { gate: { speed: 2.3 } }, 3: { gate: { speed: 3.1 } } },
   },
   brake: {
     id: "brake", name: "BRAKE SHOE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
-    desc: ["BELT RUNS AT HALF", "SPEED FROM THE TILE", "IT HITS. SLOW COOK."],
+    desc: ["BELT RUNS AT HALF", "SPEED FROM THE TILE", "IT HITS. SLOW COOK."], tags: ["SPEED", "HAUL"],
     gate: { speed: 0.5 },
     levels: { 2: { gate: { speed: 0.31 } }, 3: { gate: { speed: 0.22 } } },
   },
   longhaul: {
     id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker", shape: "II",
-    desc: ["+2 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."],
+    desc: ["+2 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."], tags: ["HAUL", "EDGE"],
     gate: { perPriorGate: 2 },
     levels: { // 0.6.1p: priorCap applied (1 star counts every prior gate, as in 0.6.0)
       2: { gate: { perPriorGate: 4, priorCap: 6 } },
@@ -229,7 +293,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   coil: {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
-    desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."],
+    desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."], tags: ["SHOCK", "HARASS"],
     gate: { shock: true }, // 1 star stalls DISRUPT_TIME (1.6 s, catalogue star1) exactly as in 0.6.0
     levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied
       2: { gate: { shockTime: 1.8, jump: 1 }, perk: "SPARK JUMP" },
@@ -238,7 +302,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   splitter: {
     id: "splitter", name: "SPLITTER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker", shape: "T",
-    desc: ["SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE."],
+    desc: ["SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE."], tags: ["SPLIT"],
     gate: { split: { copies: 2, mult: 0.6 } },
     levels: {
       2: { gate: { split: { copies: 2, mult: 0.72 } }, perk: "CLEAN CUT" },
@@ -247,7 +311,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   overdrive: {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker", shape: "X",
-    desc: ["4 ARROWS: EACH BELT", "IT HITS RUNS 3X", "FROM THAT TILE ON."],
+    desc: ["4 ARROWS: EACH BELT", "IT HITS RUNS 3X", "FROM THAT TILE ON."], tags: ["SPEED"],
     gate: { speed: 3 },
     levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; the guard flags wait for wave 2's enemy slow and freeze
       2: { gate: { speed: 4, guard: GUARD_SLOW }, perk: "REDLINE" },
@@ -368,12 +432,15 @@ export interface AmmoDef {
   rideScale: number; // damage per second of eligible ride time
   fray: number; // Fray stacks applied on hit
   rideCurve?: (ride: number) => number; // races: PENDULUM SLUG; replaces base + rideScale x ride
+  fixedSpeed?: number; // 0.6.1c SLAG: always rides at this belt speed; speed gates and slows never change it (Battle.transport)
 }
 
 export const AMMO: Record<AmmoKind, AmmoDef> = {
   cinder: { name: "CINDER SLUG", base: 4, rideScale: 1.2, fray: 0 },
   thread: { name: "THREAD SLUG", base: 3, rideScale: 0, fray: 1 },
   plain: { name: "PLAIN SLUG", base: 3, rideScale: 0, fray: 0 },
+  shot: { name: "BUCKSHOT", base: 1, rideScale: 0, fray: 0 }, // 0.6.1c SHOT TOWER: every per-payload gate hits each shot
+  slag: { name: "SLAG SLUG", base: 7, rideScale: 0, fray: 0, fixedSpeed: 0.75 }, // 0.6.1c SLAG POT
   ...RACE_AMMO, // races: ALLOY BLANK, ALLOY SLUG, BULWARK SLUG, PENDULUM SLUG, LEECH SLUGS
 };
 

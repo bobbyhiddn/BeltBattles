@@ -450,7 +450,15 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   const tiles = hits[index] ?? [];
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   const timeline: TimelineRow[] = [];
-  let time = 0, ride = 0, speed = 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
+  // 0.6.1c SLAG: rides at its fixed speed whatever the speed gates (Battle.transport). beltside-062c (DESIGN §12
+  // P8): no speed hit changes it, so the walk keeps `fixed` and the timeline never marks a speed hit as winning
+  const fixed = ammo.fixedSpeed;
+  let time = 0, ride = 0, speed = fixed ?? 1, mult = 1, flat = 0, copies = 1, burn = 0, shock = false, prior = 0;
+  // 0.6.1c HOT SWAP: its slugs alternate EMBER and SPARK, so the walk shows the ember's Burn and the spark's Shock
+  for (const pr of fs?.cycle ?? []) {
+    if (pr.burn) burn = Math.max(burn, pr.burn);
+    if (pr.shock) shock = true;
+  }
   // walk cell by cell: half cell entering, the hits at the centre, half cell leaving
   const n = r.cells.length;
   for (let i = 0; i < n; i++) {
@@ -498,9 +506,11 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
       prior++;
       row.push(th);
     }
+    // beltside-062c (P8): 0.6.1c's per-hit `speed = e.speed` is BELTSIDE's per-tile speedWinner here; slag
+    // (`fixed`) keeps its speed, like a METRONOME lock, and no speed hit on its belt is marked as winning
     const won = speedWinner(speeds);
-    if (won !== undefined && !locked) speed = won;
-    for (const th of row) if (th.speed !== undefined) th.won = !locked && th.speed === won;
+    if (won !== undefined && !locked && fixed === undefined) speed = won;
+    for (const th of row) if (th.speed !== undefined) th.won = !locked && fixed === undefined && th.speed === won;
     if (row.length) timeline.push({ tile: i, cell: r.cells[i], hits: row, speed });
     const last = i === n - 1;
     const outLen = last ? (info.connected ? CELL : 0) : CELL / 2;

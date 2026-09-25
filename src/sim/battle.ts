@@ -12,10 +12,11 @@ import {
 import { drakeConvert, pressureBonus, resolveCore, ROUTINES, type TurretCore } from "./cores"; // 0.6.1b
 import {
   cloneBuild, connectorClaims, defOf, kx, ky, occupancy, payloadDamage, rigHits,
-  routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier,
+  routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier, type RigHit,
 } from "./deck";
 import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { effectAt, starsOf } from "./stars";
+import { overclocked } from "./overclock"; // 0.6.1c: ASSEMBLY LINE ★3 HOT START
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
@@ -35,6 +36,7 @@ export interface Payload {
   shockTime?: number; // GALVANIC COIL 2-3 stars: the stall its Shock deals (absent: DISRUPT_TIME)
   jump?: number; // GALVANIC COIL SPARK JUMP: nearest other machines its Shock also stalls
   base?: number; // STAMP PRESS 2-3 stars: base damage, instead of AMMO[ammo].base
+  preset?: "ember" | "spark"; // 0.6.1c HOT SWAP: the cycle step it was stamped with (render tint; burn/shock already written)
 }
 
 export interface BeltAmmo {
@@ -67,6 +69,9 @@ export interface GateState {
   disrupted: number;
   flash: number; // render: time since last processed payload (counts down)
   arrowFlash: number[]; // 0.6.2 render (V3): per absolute direction, counts down after that arrow applied
+  // 0.6.1c ASSEMBLY LINE ★3 HOT START: overclocked (overclock.ts) until this battle time (s). beltside-062c (DESIGN
+  // §12 P7): the whole rig, every arrow on any belt, once one of its arrows hits a ★3 Assembly Line's belt
+  hotUntil?: number;
 }
 
 export interface RouteState {
@@ -100,6 +105,9 @@ export interface FactoryState {
   flash: number; // render
   stalled: boolean;
   produced: number;
+  // 0.6.1c (FactorySpec.batch / cycle): 0 for every factory without them, so those stamp exactly as before
+  pending: number; // DOUBLE STAMP, SHOT TOWER: slugs of this cycle still waiting in the mouth for AMMO_SPACING
+  cycleIdx: number; // HOT SWAP: the preset the next stamp writes
 }
 
 export interface TurretState {
@@ -296,7 +304,12 @@ export class Battle {
     // Commissioning keeps the old rule per route, counting rigs (not arrows) in order of their first hit
     // there: the k-th rig on a route comes online at COMMISSION_BASE + COMMISSION_STEP x k, and a rig on
     // several routes comes online at the earliest of those times. An IDLE rig never comes online.
+    // beltside-062c (DESIGN §12 P7): 0.6.1c's ASSEMBLY LINE rule, per route. With a running Assembly Line, a
+    // route's time is scaled by the best factor, except on an Assembly Line's own belt, where it is 0 s (and
+    // ★3 HOT START overclocks the whole rig until hotUntil). The earliest time over the rig's routes still wins,
+    // so one arrow on an Assembly Line's belt brings the rig online at 0 s.
     const hits = rigHits(b);
+    const asm = assemblyLines(b, claims, occ, hits); // 0.6.1c ASSEMBLY LINE (empty without one: commissioning as before)
     const routes: RouteState[] = b.routes.map((r, i) => {
       const info = routeInfo(b, i, claims, occ, hits);
       const rank = new Map<number, number>();
@@ -305,7 +318,13 @@ export class Battle {
         if (!g) return [];
         if (!rank.has(g.uid)) {
           rank.set(g.uid, rank.size);
-          g.commissionAt = Math.min(g.commissionAt, COMMISSION_BASE + COMMISSION_STEP * (rank.size - 1));
+          let at = COMMISSION_BASE + COMMISSION_STEP * (rank.size - 1);
+          if (asm.own.size) { // 0.6.1c: x the best factor; online at 0 s on an Assembly Line's own belt (+ HOT START)
+            const hot = asm.own.get(i);
+            at = hot === undefined ? at * asm.factor : 0;
+            if (hot) g.hotUntil = Math.max(g.hotUntil ?? 0, hot);
+          }
+          g.commissionAt = Math.min(g.commissionAt, at);
         }
         const th: TileHit = { g, dir: h.dir, tier: h.tier, route: i, tile: h.tile };
         g.hits.push(th);
@@ -328,6 +347,7 @@ export class Battle {
         uid: p.uid, def: effectAt(p.def, starsOf(p)), x: p.x, y: p.y, // 0.6.1a: factory spec at its stars
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
         timer: 0.35, rr: 0, disrupted: 0, flash: 0, stalled: false, produced: 0,
+        pending: 0, cycleIdx: 0, // 0.6.1c
       }));
     const turrets: TurretState[] = h.turrets.map((def, i) => makeTurret(b, i, def)); // 0.6.1b: gear and core
     // 0.6.1p: guard flags. OVERDRIVE ★2/★3 flags its own tile and every tile downstream (static: wave 2's hooks
@@ -456,40 +476,61 @@ export class Battle {
   private produce(s: SideState, dt: number): void {
     for (const f of s.factories) {
       if (!f.routes.length || f.disrupted > 0) continue;
+      // 0.6.1c DOUBLE STAMP / SHOT TOWER: the batch's waiting slugs leave the mouth as AMMO_SPACING frees, round-robin
+      // like any stamp. A factory without a batch never has one waiting (pending stays 0).
+      if (f.pending > 0 && this.stamp(s, f)) f.pending--;
       f.timer -= dt;
       if (f.timer > 0) continue;
       if (s.race && raceProduce(this, s, f, dt)) continue; // races: Crucible twin pour
-      const n = f.routes.length;
-      let placed = false;
-      for (let k = 0; k < n; k++) {
-        const ri = f.routes[(f.rr + k) % n];
-        const r = s.routes[ri];
-        const back = r.ammo[r.ammo.length - 1];
-        if (!back || back.s >= AMMO_SPACING) {
-          const spec = f.def.factory!;
-          const p: Payload = {
-            id: this.nextId++, ammo: spec.ammo, ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
-            prior: 0, factory: f.uid, copy: false,
-          };
-          if (spec.base !== undefined) p.base = spec.base; // 0.6.1p: STAMP PRESS dies (absent at 1 star)
-          r.ammo.push({ p, s: 0, processed: -1, blocked: false });
-          f.rr = (f.rr + k + 1) % n;
-          f.timer = spec.interval;
-          f.flash = 0.18;
-          f.produced++;
-          f.stalled = false;
-          s.stats.produced++;
-          this.events.push({ type: "produce", side: s.side, factory: f.uid });
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
+      const spec = f.def.factory!;
+      if (f.pending === 0 && this.stamp(s, f)) {
+        f.timer = spec.interval;
+        if (spec.batch && spec.batch > 1) f.pending = spec.batch - 1; // 0.6.1c: the rest of the batch waits in the mouth
+      } else { // no room on any route (0.6.1c: or the last batch still fills the mouth): the next cycle waits
         f.stalled = true;
         f.timer = 0;
         s.stats.stalled += dt;
       }
     }
+  }
+
+  /**
+   * One slug from factory `f` onto its next route (round-robin) with AMMO_SPACING room; false if none has room.
+   * 0.6.1c: split out of produce so a batch's waiting slugs stamp the same way; HOT SWAP writes its next preset.
+   */
+  private stamp(s: SideState, f: FactoryState): boolean {
+    const n = f.routes.length;
+    for (let k = 0; k < n; k++) {
+      const ri = f.routes[(f.rr + k) % n];
+      const r = s.routes[ri];
+      const back = r.ammo[r.ammo.length - 1];
+      if (!back || back.s >= AMMO_SPACING) {
+        const spec = f.def.factory!;
+        const p: Payload = {
+          id: this.nextId++, ammo: spec.ammo, ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
+          prior: 0, factory: f.uid, copy: false,
+        };
+        if (spec.base !== undefined) p.base = spec.base; // 0.6.1p: STAMP PRESS dies (absent at 1 star)
+        if (spec.cycle?.length) { // 0.6.1c HOT SWAP: EMBER (+ Burn), then SPARK (+ Shock), in turn
+          const pr = spec.cycle[f.cycleIdx % spec.cycle.length];
+          f.cycleIdx = (f.cycleIdx + 1) % spec.cycle.length;
+          p.preset = pr.tint;
+          if (pr.burn) p.burn = pr.burn;
+          if (pr.shock) p.shock = true;
+          if (pr.shockTime !== undefined) p.shockTime = pr.shockTime;
+          if (pr.jump) p.jump = pr.jump;
+        }
+        r.ammo.push({ p, s: 0, processed: -1, blocked: false });
+        f.rr = (f.rr + k + 1) % n;
+        f.flash = 0.18;
+        f.produced++;
+        f.stalled = false;
+        s.stats.produced++;
+        this.events.push({ type: "produce", side: s.side, factory: f.uid });
+        return true;
+      }
+    }
+    return false;
   }
 
   private speedStateAt(r: RouteState, pos: number): number {
@@ -512,9 +553,11 @@ export class Battle {
         const a = r.ammo[i];
         const limit = i === 0 ? r.L : r.ammo[i - 1].s - AMMO_SPACING;
         const ci = Math.min(n - 1, Math.floor(a.s / CELL));
-        let v = BELT_SPEED * (s.race?.speedLock ? 1 : this.speedStateAt(r, a.s)); // races: METRONOME speed lock
+        // 0.6.1c SLAG: a fixed belt speed that speed gates, the speed lock and slows never change (a stalled tile still stops it)
+        const fixed = AMMO[a.p.ammo]?.fixedSpeed;
+        let v = BELT_SPEED * (fixed ?? (s.race?.speedLock ? 1 : this.speedStateAt(r, a.s))); // races: METRONOME speed lock
         if (ci >= 0 && r.cellDisrupt[ci] > 0) v = 0;
-        const drag = s.race ? raceDrag(this, s, r.index, ci) : 1; // races: SIPHON Drag
+        const drag = s.race && fixed === undefined ? raceDrag(this, s, r.index, ci) : 1; // races: SIPHON Drag
         if (drag !== 1) v *= drag; // races:
         const want = a.s + v * dt;
         let ns = Math.min(want, limit);
@@ -573,7 +616,9 @@ export class Battle {
    */
   private applyHit(s: SideState, a: BeltAmmo, h: TileHit): BeltAmmo[] {
     const g = h.g;
-    const e = g.def.gate!;
+    // 0.6.1c ASSEMBLY LINE ★3 HOT START: while it lasts the gate's effect applies twice (overclock.ts, ARSENAL.md §3.4).
+    // beltside-062c (DESIGN §12 P7): hotUntil is the rig's, so every arrow of the rig is overclocked, on any belt
+    const e = g.hotUntil !== undefined && this.t < g.hotUntil ? overclocked(g.def.gate!) : g.def.gate!;
     const p = a.p;
     const copies: BeltAmmo[] = [];
     if (e.flat) p.flat += e.flat;
@@ -962,6 +1007,28 @@ export class Battle {
  * the hero's signature identity core, whose numbers are exactly today's. Exported for tests that fit a core to a
  * stand-in TurretDef (the medium class).
  */
+/**
+ * 0.6.1c ASSEMBLY LINE (FactorySpec.commission), read once in makeSide. A running Assembly Line (one feeding a
+ * connected route) sets the side's commissioning factor, the best (lowest) one winning; `own` maps each of its
+ * routes to its HOT START seconds (0 below 3 stars). Without one `own` is empty and commissioning is as before.
+ * beltside-062c: `hits` (rigHits(b)) is only shared with routeInfo, so makeSide computes the hits once; connection
+ * doesn't depend on them.
+ */
+export function assemblyLines(
+  b: Build, claims = connectorClaims(b), occ = occupancy(b), hits?: RigHit[][][],
+): { factor: number; own: Map<number, number> } {
+  let factor = 1;
+  const own = new Map<number, number>();
+  b.routes.forEach((r, i) => {
+    const f = b.items.find((p) => p.uid === r.factory);
+    const fs = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, starsOf(f)).factory : undefined;
+    if (fs?.commission === undefined || !routeInfo(b, i, claims, occ, hits).connected) return;
+    factor = Math.min(factor, fs.commission);
+    own.set(i, fs.hotStart ?? 0);
+  });
+  return { factor, own };
+}
+
 export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
   const g = gearStats(b, i);
   const core = resolveCore(b, i, def);

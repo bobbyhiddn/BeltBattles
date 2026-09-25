@@ -7,6 +7,7 @@ import { record } from "../../game/day";
 import {
   DISRUPT_TIME, HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, WINDOW_TIME, classFactor, rigShape,
 } from "../../sim/content";
+import { AMMO, type FactorySpec, type ItemDef } from "../../sim/content"; // 0.6.1c: factory headlines
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 // beltside-062: BELTSIDE's walk and rig hits replace 0.6.1r's estimateRoute and key (the gate-on-a-belt sub line)
 import {
@@ -21,7 +22,7 @@ import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
-import { effectAt, FUSE_MAX, fusible, pendingAt, perkAt, starsOf, starText } from "../../sim/stars";
+import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
@@ -45,7 +46,7 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   if (gt?.perPriorGate) return `+${gt.perPriorGate}/HIT${gt.priorCap !== undefined ? ` · MAX ${gt.priorCap} HITS` : ""}`;
   if (gt?.split) return `${gt.split.copies}X ${Math.round(gt.split.mult * 100)}%`;
   if (gt?.shock) return `STALL ${(gt.shockTime ?? DISRUPT_TIME).toFixed(1)}S${gt.jump ? ` · JUMPS TO ${gt.jump} MORE` : ""}`;
-  if (e.factory) return `EVERY ${e.factory.interval}S${e.factory.base !== undefined ? ` · ${e.factory.base} DMG SLUGS` : ""}`;
+  if (e.factory) return factoryLine(e.factory);
   if (m?.fireMul) return `FIRE X${m.fireMul}`;
   if (m?.perShot) return `${m.perShot}/SHOT${m.window ? ` · +${m.window} SLOT` : ""}`;
   if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.noJam ? " · NEVER JAMS" : ""}`; // HOPPER
@@ -54,6 +55,32 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   const perk = livePerk(def, stars);
   if (perk) return perk;
   return "";
+}
+
+/**
+ * 0.6.1c: a factory's headline at its stars (catalogue.json "headline"), one phone line each (3x5 face, 151 px).
+ * STAMP PRESS keeps 0.6.1p's "EVERY 1.1S · 5 DMG SLUGS" (and the signatures, which never show a level line).
+ */
+function factoryLine(f: FactorySpec): string {
+  const base = f.base ?? AMMO[f.ammo]?.base ?? 0;
+  if (f.cycle) { // HOT SWAP
+    const em = f.cycle.find((p) => p.tint === "ember"), sp = f.cycle.find((p) => p.tint === "spark");
+    return `EMBER +${em?.burn ?? 0} · SPARK ${(sp?.shockTime ?? DISRUPT_TIME).toFixed(1)}S${sp?.jump ? "+JUMP" : ""} · ${f.interval}S`;
+  }
+  if (f.commission !== undefined) return `GATES ONLINE X${f.commission} · ${f.interval}S${f.hotStart ? ` · X2 ${f.hotStart}S` : ""}`; // ASSEMBLY LINE
+  if (f.batch) return `${f.batch} X ${base} DMG EVERY ${f.interval}S`; // DOUBLE STAMP, SHOT TOWER
+  if (AMMO[f.ammo]?.fixedSpeed) return `${base} DMG SLAG EVERY ${f.interval}S`; // SLAG POT
+  if (f.outputs > 1) return `${f.outputs} OUTPUTS · ${base} DMG EVERY ${f.interval}S`; // GANTRY PRESS
+  return `EVERY ${f.interval}S${f.base !== undefined ? ` · ${f.base} DMG SLUGS` : ""}`;
+}
+
+/** 0.6.1c: a bought factory's inspect body leads with its headline at its stars and the MERGES WITH / NEXT line, so
+ *  the phone band's 4 body lines (0.6.1r F7) keep both; its desc follows. Every other kind keeps desc first. */
+function body(d: ItemDef, stars: number, lines: (string | null)[], hint: string, k = 1): string[] {
+  const own = lines.filter((l): l is string => !!l);
+  if (d.kind !== "factory" || !fusible(d.id)) return [...d.desc, ...own, hint];
+  const head = stars > 1 ? own : [starEffectLine(d.id, stars, k), ...own];
+  return [...head, ...d.desc, hint];
 }
 
 /** 0.6.1r (review-061 F5): the perk's name, unless the sim doesn't apply its values yet (levels[n].pending), so
@@ -118,7 +145,9 @@ export function nextLine(run: Run, def: string, stars: number): string | null {
   const next = stars + 1;
   const eff = starEffectLine(def, next, heroK(run));
   const copies = copiesToNextStar(run, def, stars);
-  return `NEXT ★${next}${eff ? `: ${eff}` : ""} · ${copies} MORE ${copies === 1 ? "COPY" : "COPIES"}`;
+  // 0.6.1c: a factory's NEXT line names the perk that star brings (TRIPLE DIES, HOT START, THIRD ARM, HEAVY GANTRY)
+  const perk = ITEMS[def].kind === "factory" && perkAt(def, next) !== perkAt(def, stars) ? livePerk(def, next) : undefined;
+  return `NEXT ★${next}${perk ? ` ${perk}` : ""}${eff ? `: ${eff}` : ""} · ${copies} MORE ${copies === 1 ? "COPY" : "COPIES"}`;
 }
 
 interface Action {
@@ -207,7 +236,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const mLine = merging ? mergeLine(run, o.def) : null;
       return {
         icon: itemIcon(d.id), title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[show.wagon].merchant].name}`,
-        text: [...d.desc, ...(mLine ? [mLine] : []), hint],
+        text: body(d, 1, [mLine], hint, heroK(run)), // 0.6.1c: a factory leads with its headline
         actions: hovering ? [] : [{
           id: "buy", label: o.sold ? "SOLD" : d.kind === "supply" ? `BUY+USE ${o.price}G` : merging ? `BUY+MERGE ${o.price}G` : `BUY ${o.price}G`, primary: can, disabled: !can,
           onTap: () => {
@@ -226,7 +255,8 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const lvl = levelLine(it.def, stars, heroK(run)); // 0.6.1p; 0.6.1r N4: a core's numbers at the hero's k
       return {
         icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
-        text: [...d.desc, ...(lvl ? [lvl] : []), ...(next ? [next] : []), placeHint(d.kind, false)], // beltside-062
+        // beltside-062c: 0.6.1c's body (a factory leads with its headline) with BELTSIDE's placing hint
+        text: body(d, stars, [lvl, next], placeHint(d.kind, false), heroK(run)),
         actions: [{ id: "sell", label: `SELL +${sellPrice(d.id, stars)}G`, onTap: () => sell(ctx, it.uid) }],
       };
     }
@@ -249,12 +279,15 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
           subShort: idle ? undefined : `RIG · ${new Set(hits.map((h) => h.dir)).size}/${arrows} HIT`,
           subColor: idle ? C.amber : undefined,
           // the lines that matter most first: a short panel drops the last ones. beltside-062: a ★2/★3 rig's perk
-          // (0.6.1r's levelLine) comes right under its hits, so the flavour text gives way first and the hits last
+          // (0.6.1r's levelLine) comes right under its hits, so the flavour text gives way first and the hits last.
+          // beltside-062c (DESIGN §12 P11): hits (or IDLE), perk, NEXT/MERGES, turn hint, flavour, so the phone keeps
+          // merge progress in sight (as 0.6.1c's factory body leads with its headline and NEXT line)
           text: [
             ...(idle ? [["IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.", C.amber] as Line] : hits.map((h) => `→ BELT ${h.route + 1} · TILE ${h.tile + 1}`)),
             ...(lvl ? [lvl] : []),
+            ...(next ? [next] : []),
             x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE.",
-            ...d.desc, ...(next ? [next] : []),
+            ...d.desc,
           ],
           actions: [
             ...(x ? [] : [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }]),
@@ -262,10 +295,13 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
           ],
         };
       }
+      // beltside-062c: a placed factory (rigs have their own branch above, so 0.6.1c's "GATE · ON A BELT" sub is
+      // gone): 0.6.1c's outputs at its stars (GANTRY PRESS ★2 THIRD ARM feeds 3; = routeCheck.ts, validate.ts) and
+      // its body, which leads with the headline and the NEXT line
       return {
         icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
-        sub: `FACTORY · BELTS ${routesOf(b, p.uid).length}/${d.factory?.outputs ?? 1}`,
-        text: [...d.desc, ...(lvl ? [lvl] : []), ...(next ? [next] : []), "DRAG OUT OF IT TO LAY BELT."], // beltside-062: + 0.6.1p's lvl
+        sub: `FACTORY · BELTS ${routesOf(b, p.uid).length}/${outputsAt(d.id, stars) || 1}`,
+        text: body(d, stars, [lvl, next], "DRAG OUT OF IT TO LAY BELT."),
         actions: sig ? [] : [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }],
       };
     }

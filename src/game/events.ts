@@ -97,10 +97,15 @@ export function blockReason(run: Run, c: Choice): string | undefined {
   return undefined;
 }
 
-/** The choices of the current event with their blocked reasons filled in. */
+/** The choices of the current event with their blocked reasons filled in. 0.6.1c: a road item is drawn
+ *  from the parts the player holds, which the pick itself changes, so once resolved the picked card
+ *  shows the part the pick granted (ev.item, saved with the event), also after a reload. */
 export function choicesFor(run: Run, ev: EventState | null = run.event): Choice[] {
   if (!ev) return [];
   const list = EVENTS[ev.id].choices(run, ev);
+  const got = ev.picked >= 0 ? ev.item : undefined;
+  const chosen = got ? list[ev.picked] : undefined;
+  if (chosen && got) chosen.gain = chosen.gain.map((d) => (d.k === "item" ? { ...d, def: got } : d));
   for (const c of list) if (!c.blocked) c.blocked = blockReason(run, c);
   return list;
 }

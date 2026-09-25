@@ -247,19 +247,28 @@ export function rollShop(run: Run): void {
   const priceOf = (d: { price: number }) => Math.max(1, d.price - (run.shop.discount || 0));
   // 0.6.1r N5: slots go round the wagons actually drawn (fewer stocked merchants than wagons can't
   // index past the list), and a slot with nothing to sell stays empty rather than rng.pick([]).
-  // Both only differ where the old code threw, so every roll that worked keeps its stream and offers.
+  // 0.6.1c M0 (the Prime's call): a wagon never offers one part twice, so it holds at most as many
+  // offers as its merchant has distinct parts today. A regular slot whose wagon has no fresh def left
+  // goes to the next wagon round (slot+1, slot+2, ...) that has one and draws there, fresh-first as
+  // usual; if no wagon has one, the slot stays empty. rollRarity is still drawn once per slot, in slot
+  // order, so a caravan whose wagons never repeated a def keeps its stream and its offers.
+  const hasFresh = (wg: Wagon) => dayPool(wg.merchant, run.day).some((d) => !wg.offers.some((o) => o.def === d.id));
   for (let slot = 0; slot < OFFERS && wagons.length; slot++) {
-    const w = wagons[slot % wagons.length];
-    const pool = dayPool(w.merchant, run.day);
     const rarity = rollRarity(rng, run.day);
-    const fresh = (d: ItemDef) => !w.offers.some((o) => o.def === d.id);
+    let w: Wagon | undefined;
+    for (let k = 0; k < wagons.length && !w; k++) {
+      const cand = wagons[(slot + k) % wagons.length];
+      if (hasFresh(cand)) w = cand;
+    }
+    if (!w) continue;
+    const wagon = w;
+    const pool = dayPool(wagon.merchant, run.day);
+    const fresh = (d: ItemDef) => !wagon.offers.some((o) => o.def === d.id);
     let choices = pool.filter((d) => d.rarity === rarity && !ownsDef(run, d.id) && fresh(d));
     if (!choices.length) choices = pool.filter((d) => !ownsDef(run, d.id) && fresh(d));
     if (!choices.length) choices = pool.filter(fresh);
-    if (!choices.length) choices = pool;
-    if (!choices.length) continue;
     const d = rng.pick(choices);
-    w.offers.push({ def: d.id, price: priceOf(d), sold: false });
+    wagon.offers.push({ def: d.id, price: priceOf(d), sold: false });
   }
   if (rng.chance(familiarChance(run.day))) {
     const candidates = familiarCandidates(run, merchants);
