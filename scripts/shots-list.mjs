@@ -268,6 +268,10 @@ export const SHOTS = [
     ["beltside-rig3-merge", v, "title", 0, RIG3_MERGE("sides", 16, "temper")],
     ["beltside-rig3-x", v, "title", 0, RIG3_MERGE("junction", 10, "brake")],
   ]),
+  // beltside-062c (the 0.6.1c re-merge brief's new shot, DESIGN §12 P7/P9): a WEAVER deck with a rig on an ASSEMBLY
+  // LINE ★3's belt (a LONG HAUL, one arrow on it, selected) next to a GANTRY PRESS ★2 with rigs on two of its belts (a
+  // COIL working both at once, a WHETSTONE and a TEMPER)
+  ...["desk", "phone"].map((v) => ["beltside-061c-asm-gantry", v, "title", 0, ASM_GANTRY()]),
   // 0.6.1r F7 (review-061's scenario): the turret panel with a bought SCATTER CHOKE ★2 core AND CALIBRATION gear on
   // turret 1, so it has two buttons (REMOVE CORE, REMOVE GEAR); in portrait they never cover the title or sub-line.
   ...["desk", "phone"].map((v) => [
@@ -361,6 +365,33 @@ function RIG3_MERGE(name, uid, offer) {
     s.touched();
     s.select({ kind: "item", uid: ${uid} });
     ${STEP(12)}`);
+}
+
+// beltside-062c: the Loom parked off-route at (0,8); GANTRY PRESS ★2 at (4,6) on column 4 (A) and, west then up, column 1
+// (B); ASSEMBLY LINE ★3 at (7,6) up column 8. A COIL (L, rot 1) at (3,5) works A (4,5) and B (3,6), a WHETSTONE A (4,3),
+// a TEMPER B (1,4); a LONG HAUL (II) at (7,3) works the Assembly Line's (8,3) with one arrow (the other at empty deck)
+function ASM_GANTRY() {
+  return `(() => {
+    const g = bb.game;
+    g.run = null;
+    bb.open("build", "weaver", 12345);
+    ${STEP(20)}
+    const K = (x, y) => y * 10 + x;
+    g.run.build.items = [
+      { uid: 1, def: "loom", x: 0, y: 8 }, { uid: 9101, def: "gantry", x: 4, y: 6, stars: 2 }, { uid: 9102, def: "assembly", x: 7, y: 6, stars: 3 },
+      { uid: 9110, def: "coil", x: 3, y: 5, rot: 1 }, { uid: 9111, def: "whetstone", x: 3, y: 3, rot: 1 },
+      { uid: 9112, def: "temper", x: 0, y: 4, rot: 1 }, { uid: 9113, def: "longhaul", x: 7, y: 3 },
+    ];
+    g.run.build.routes = [
+      { factory: 9101, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+      { factory: 9101, cells: [K(3, 6), K(2, 6), K(1, 6), K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(1, 1), K(1, 0)] },
+      { factory: 9102, cells: [K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)] },
+    ];
+    g.screen.touched();
+    g.screen.select({ kind: "item", uid: 9113 });
+    ${STEP(12)}
+    g.render();
+  })()`;
 }
 
 // CORE_BATTLE's pattern, stepped until at least 2 of the factory's slugs ride its belt in the fight
