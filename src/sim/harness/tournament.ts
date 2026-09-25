@@ -8,7 +8,7 @@
 import { Rng, hashSeed } from "../../core/rng";
 import { simulate } from "../battle";
 import { ITEMS, type HeroId } from "../content";
-import { hitsOfRig, key as cellKey, routeInfo, routesOf, type Build } from "../deck";
+import { hitsOfRig, rigHits, routeInfo, routesOf, type Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
 import { fuseDeck } from "./merge";
 import { FUSE_MAX, fusible, perkAt, starsOf } from "../stars";
@@ -189,7 +189,7 @@ export interface DayResult {
 
 /** 0.6.1c: factories in a set of builds. byDef: decks holding the def and its copies at 1/2/3 stars; gantryRoutes:
  *  GANTRY PRESS copies feeding 1, 2 and 3 routes; slag: speed gates the shopper kept off slag routes (population
- *  only: from its Shopped counts); slagSpeed: speed gates found ON a slag route (the shopper's rule keeps it 0);
+ *  only: from its Shopped counts); slagSpeed: speed-rig HITS on a slag route (the shopper's rule keeps it 0);
  *  thirdArm: routes a merge's new output added (population only). */
 export interface FactoryUse {
   builds: number;
@@ -215,7 +215,9 @@ export function factoryUseOf(builds: Build[], shops?: { slag: SlagCount; thirdAr
     }
     for (const d of held) byDef[d].decks++;
     const slag = fixedSpeedCells(b);
-    for (const p of b.items) if (slag.has(cellKey(p.x, p.y)) && isSpeedGate(ITEMS[p.def])) slagSpeed++;
+    for (const route of rigHits(b)) for (const tile of route) for (const hit of tile) {
+      if (slag.has(hit.cell) && isSpeedGate(ITEMS[hit.def])) slagSpeed++;
+    }
   }
   const slag = { skipped: 0, steered: 0 };
   let thirdArm = 0;

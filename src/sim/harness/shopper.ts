@@ -118,24 +118,6 @@ export class Shopper {
     this.minFactory = Math.min(...this.factories.map((f) => f.price));
   }
 
-  /** 0.6.1c: free route cells a new gate of `def` may take. With factories on, a speed gate never takes a cell of
-   *  a slag route (it can do nothing there: AMMO.slag.fixedSpeed); counted in `slag` when that removes a cell, if
-   *  `count`. A copy that merges at once lands on its twin's cell (gainInto ignores the target), so its cells are
-   *  left as they are. Factories off (or not a speed gate): exactly `cells`, no count, no RNG. */
-  cellsFor(def: ItemDef, cells: number[], count = true): number[] {
-    if (!this.factoriesOn || !isSpeedGate(def)) return cells;
-    const slag = fixedSpeedCells(this.b);
-    if (!slag.size) return cells;
-    const pv = previewMerge(this.b, this.uid, def.id, this.cargo);
-    if (pv && pv.where !== "cargo") return cells;
-    const ok = cells.filter((k) => !slag.has(k));
-    if (count && ok.length < cells.length) {
-      if (ok.length) this.slag.steered++;
-      else this.slag.skipped++;
-    }
-    return ok;
-  }
-
   /** beltside-062-h3 (DESIGN §14 P20): the slag routes a speed rig must not work, by route index; null when there is
    *  nothing to keep it off: factories off (no RNG, nothing read), no slag route, or `def` is not a speed rig. */
   slagRoutesOf(def: ItemDef): boolean[] | null {
