@@ -307,6 +307,10 @@ export const SHOTS = [
     // M2's pewter shot on the dark belt, in a chamber pip and in flight (battle-factory-shottower stops at the mouth)
     ["battle-shottower-flight", v, "title", 0, shotFlight()],
   ]),
+  // beltside-062-on-061 (the 0.6.1 re-merge brief's new shot, DESIGN §13 P12/P13): a 2-star BRAKE SHOE rig (HOT SHOE)
+  // working the Kiln belt beside a 3-star SPLITTER rig (PERFECT CUT), the belt selected: its timeline names the heat
+  // first and PERFECT CUT's 2 X 85% after it, and the gun end reads the split heat, desk and phone
+  ...["desk", "phone"].map((v) => ["beltside-061-brake-splitter", v, "build", 0.8, brakeSplitter()]),
 ];
 
 // 0.6.2 BELTSIDE: the "sides" showcase deck fighting "junction", stepped from 3 s until `cond` holds for the
@@ -371,6 +375,20 @@ function gateBuild(uid) {
     b.items.push({ uid: 9202, def: "splitter", x: spot[1] % 10, y: Math.floor(spot[1] / 10), rot: 1, stars: 3 });
     g.screen.touched(); // rebuild the screen's cruiser model, so the two rigs are drawn
     g.screen.select({ kind: "item", uid: ${uid} });
+    g.render();
+  })()`;
+}
+
+// beltside-062-on-061: HOT SHOE (uid 9201) west of the Kiln belt's (4,4) and PERFECT CUT (uid 9202) west of (4,3), side
+// by side, both at rot 1 (facing east, onto the belt: tiles 1 and 2); the belt route selected (its timeline)
+function brakeSplitter() {
+  return `(() => {
+    const g = bb.game, b = g.run.build;
+    const taken = new Set(b.items.map((p) => p.y * 10 + p.x)), belt = new Set(b.routes.flatMap((r) => r.cells));
+    if ([43, 33].some((k) => taken.has(k) || belt.has(k)) || !belt.has(44) || !belt.has(34)) console.error("BRAKE_SPLITTER: the Kiln belt's west side is not free");
+    b.items.push({ uid: 9201, def: "brake", x: 3, y: 4, rot: 1, stars: 2 }, { uid: 9202, def: "splitter", x: 3, y: 3, rot: 1, stars: 3 });
+    g.screen.touched(); // rebuild the screen's cruiser model, so the two rigs are drawn
+    g.screen.select({ kind: "route", index: 0 });
     g.render();
   })()`;
 }
