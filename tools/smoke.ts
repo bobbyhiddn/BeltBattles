@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { FakeS3 } from "./fakeS3";
 import { generateSamplePool } from "./samplePool";
-import { encodeSnapshot } from "../src/net/snapshot";
+import { encodeSnapshot, SNAPSHOT_VERSION } from "../src/net/snapshot";
 import { RULES_VERSION } from "../src/sim/content";
 
 function flag(name: string): string | undefined {
@@ -181,7 +181,7 @@ async function main(): Promise<void> {
   const matchUrl = `${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=3&wins=1&lives=3&player=smoke-test&seen=`;
   const beforeMatch = fake.requests.length;
   const m = await shell(`curl -sS -i -H 'Fly-Client-IP: 203.0.113.9' '${matchUrl}'`, "curl", ["-sS", "-i", "-H", "Fly-Client-IP: 203.0.113.9", matchUrl], undefined, 700);
-  check(/HTTP\/1\.1 200/.test(m.out) && /"snapshot":\{"v":1,"rules":"bb-0\.4\.0","hero":"(furnace|weaver)","day":3/.test(m.out), "match day 3: 200 with a day-3 pool ghost");
+  check(/HTTP\/1\.1 200/.test(m.out) && new RegExp(`"snapshot":\\{"v":${SNAPSHOT_VERSION},"rules":"${RULES_VERSION.replace(/\./g, "\\.")}","hero":"(furnace|weaver)","day":3`).test(m.out), "match day 3: 200 with a day-3 pool ghost");
   say(`  fake S3 requests for that first match: ${ops(beforeMatch)}`);
   const beforeSecond = fake.requests.length;
   await run("curl", ["-sS", "-o", "/dev/null", matchUrl]);

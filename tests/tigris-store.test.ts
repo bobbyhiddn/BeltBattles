@@ -214,7 +214,7 @@ describe("Tigris store on the fake", () => {
     expect(two).toBe(one);
     expect(ops().filter((o) => o === "LIST")).toHaveLength(2); // one listing of 4 keys = 2 pages of 3
     expect(ops().filter((o) => o === "GET")).toHaveLength(4);
-    expect(fake.requests.filter((r) => r.op === "LIST").every((r) => r.key === "ghosts/bb-0.4.0/d03/")).toBe(true);
+    expect(fake.requests.filter((r) => r.op === "LIST").every((r) => r.key === `ghosts/${RULES_VERSION}/d03/`)).toBe(true);
     fake.requests.length = 0;
     expect(await store.bucket(RULES_VERSION, 3)).toHaveLength(4);
     expect(await store.bucket(RULES_VERSION, 4)).toHaveLength(0);
@@ -265,9 +265,9 @@ describe("Tigris store on the fake", () => {
   it("skips undecodable objects and foreign keys in a bucket, once", async () => {
     const logs: string[] = [];
     await tigrisFor(fake, bucket).add(DAY3[0]);
-    fake.putObject(bucket, "ghosts/bb-0.4.0/d03/player/gbroken.json", "{not json");
-    fake.putObject(bucket, "ghosts/bb-0.4.0/d03/player/gwrongid0000000.json", JSON.stringify({ id: "x", at: 0, snapshot: DAY3[1] }));
-    fake.putObject(bucket, "ghosts/bb-0.4.0/d03/notes.txt", "hello");
+    fake.putObject(bucket, `ghosts/${RULES_VERSION}/d03/player/gbroken.json`, "{not json");
+    fake.putObject(bucket, `ghosts/${RULES_VERSION}/d03/player/gwrongid0000000.json`, JSON.stringify({ id: "x", at: 0, snapshot: DAY3[1] }));
+    fake.putObject(bucket, `ghosts/${RULES_VERSION}/d03/notes.txt`, "hello");
     let now = 0;
     const store = tigrisFor(fake, bucket, { log: (l) => logs.push(l), now: () => now, ttlMs: 10 });
     expect((await store.bucket(RULES_VERSION, 3)).map((e) => e.id)).toEqual([ghostId(DAY3[0])]);
@@ -318,7 +318,7 @@ describe("server on the Tigris store", () => {
     const down = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=4&wins=0&lives=3&player=someone&seen=`);
     expect(down.status).toBe(503);
     await app.close();
-    expect(logs.join("\n")).toMatch(/storage error: PUT ghosts\/bb-0\.4\.0\/d03\/player\/g[0-9a-f]+\.json: HTTP 503/);
+    expect(logs.join("\n")).toMatch(new RegExp(`storage error: PUT ghosts/${RULES_VERSION.replace(/\./g, "\\.")}/d03/player/g[0-9a-f]+\\.json: HTTP 503`));
     expect(logs.join("\n")).not.toContain(FAKE_CREDS.secretAccessKey);
   });
 });
