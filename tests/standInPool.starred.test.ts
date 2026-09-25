@@ -5,11 +5,17 @@
 // harness codec's own messages. The game still loads the pool through decodeStandIn, which rejects any suffix.
 // The loader inlines stars.ts:starsOf (Prime, oracle 44379b651bb75fe6: it stays portable); the pin test below
 // holds that copy to stars.ts.
+// 0.6.2 BELTSIDE merge (beltside-062-on-061, ref/DESIGN-beltside.md §13 P15): decodeStarred is a load boundary like
+// decodeStandIn (D3: gates on belt tiles move beside their belts, keeping their stars) and both encoders write a rig's
+// rotation before its stars. The v1.1 codes stand gates ON belt tiles, so where a test compares a decoded deck with its
+// STORED code it decodes it as stored (decodeStandInRaw / decodeStarredRaw), and the small hand decks stand their TEMPER
+// beside the Kiln belt ("temper43r1": west of (4,4), facing it), as F1 ported inline decks. No assertion is dropped.
 import { describe, expect, it } from "vitest";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import type { Build, ModPlacement, Placed } from "../src/sim/deck";
 import {
-  decodeStandIn, decodeStarred, encodeStandIn, encodeStarred, standInPool, STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES,
+  decodeStandIn, decodeStandInRaw, decodeStarred, decodeStarredRaw, encodeStandIn, encodeStarred, standInPool,
+  STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES,
 } from "../src/sim/standInPool";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { FUSE_MAX, fusible, starsOf } from "../src/sim/stars";
@@ -44,6 +50,9 @@ function starred(b: Build): Build {
 }
 
 const EXAMPLE = "14 0/kiln64 temper44*2 grease34/1:544434241404/calibrate0*3"; // the harness test's own example
+// BELTSIDE: the example after D3: its TEMPER and GREASE stood on the Kiln belt's (4,4) and (4,3); each now stands west of
+// its tile (left of travel), rot 1 (its arrow points east, back at the tile), and the TEMPER keeps its ★2
+const EXAMPLE_RIGS = "14 0/kiln64 temper43r1*2 grease33r1/1:544434241404/calibrate0*3";
 
 describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
   it("(a) every code of the live v1.1 pool, every hero and day, decodes via decodeStarred exactly as via decodeStandIn", () => {
@@ -63,7 +72,8 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
     for (const { hero, day, code } of liveCodes()) {
       const b = decodeStandIn(hero, code);
       expect(encodeStarred(b), `${hero} d${day}`).toBe(encodeStandIn(b));
-      expect(encodeStarred(b), `${hero} d${day}`).toBe(code);
+      // BELTSIDE: the byte-identity with the stored code, on the deck exactly as stored (D3 moves its gates)
+      expect(encodeStarred(decodeStandInRaw(hero, code)), `${hero} d${day}`).toBe(code);
       n++;
     }
     for (const hero of STAND_IN_POOL_HEROES) for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) {
@@ -79,7 +89,10 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
     const ex = decodeStarred("furnace", EXAMPLE);
     expect(ex.items.map((p) => p.stars)).toEqual([undefined, 2, undefined]);
     expect(ex.mods).toEqual([{ uid: 4, def: "calibrate", turret: 0, stars: 3 }]);
-    expect(encodeStarred(ex)).toBe(EXAMPLE);
+    // BELTSIDE: decodeStarred migrates the example (P15); decoded as written, it encodes back to itself
+    expect(encodeStarred(ex)).toBe(EXAMPLE_RIGS);
+    expect(decodeStarred("furnace", EXAMPLE_RIGS)).toEqual(ex);
+    expect(encodeStarred(decodeStarredRaw("furnace", EXAMPLE))).toBe(EXAMPLE);
 
     let words = 0;
     for (const { hero, day, code } of liveCodes()) {
@@ -88,7 +101,10 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
       expect(back, `${hero} d${day} ${c}`).toEqual(b);
       expect(JSON.stringify(back), `${hero} d${day} ${c}`).toBe(JSON.stringify(b));
       expect(encodeStarred(back), `${hero} d${day}`).toBe(c); // canonical
-      expect(c.replace(/\*[23]/g, ""), `${hero} d${day}`).toBe(code); // the suffixes are the only change
+      // the suffixes are the only change (BELTSIDE: from the migrated 1-star deck's code; and, on the deck as stored,
+      // from the stored code itself)
+      expect(c.replace(/\*[23]/g, ""), `${hero} d${day}`).toBe(encodeStandIn(decodeStandIn(hero, code)));
+      expect(encodeStarred(starred(decodeStandInRaw(hero, code))).replace(/\*[23]/g, ""), `${hero} d${day}`).toBe(code);
       words += (c.match(/\*[23]/g) ?? []).length;
     }
     expect(words).toBeGreaterThan(240);
@@ -119,13 +135,13 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
     expect(FUSE_MAX).toBe(3); // decodeStarred's *2 / *3 and the inlined starsOf both assume it
     const seen: string[] = [];
     for (const v of [undefined, 0, 1, 2, 3, 4, 2.5, NaN, -1, Infinity]) {
-      const b = decodeStandIn("furnace", "14 0/kiln64 temper44/1:544434241404/calibrate0");
+      const b = decodeStandIn("furnace", "14 0/kiln64 temper43r1/1:544434241404/calibrate0"); // BELTSIDE: a rig beside (4,4)
       if (v !== undefined) {
         b.items[1].stars = v;
         b.mods[0].stars = v;
       }
       const want = starsOf({ stars: v }) > 1 ? `*${starsOf({ stars: v })}` : "";
-      expect(encodeStarred(b), `stars ${v}`).toBe(`14 0/kiln64 temper44${want}/1:544434241404/calibrate0${want}`);
+      expect(encodeStarred(b), `stars ${v}`).toBe(`14 0/kiln64 temper43r1${want}/1:544434241404/calibrate0${want}`);
       seen.push(want);
     }
     expect(seen).toEqual(["", "", "", "*2", "*3", "*3", "*2", "", "", ""]);
@@ -152,12 +168,12 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
   });
 
   it("(d) the encoder rejects what the harness encoder rejects, a module id that is not lowercase letters included", () => {
-    const b = decodeStandIn("furnace", "14 0/kiln64 temper44/1:544434241404/calibrate0");
+    const b = decodeStandIn("furnace", "14 0/kiln64 temper43r1/1:544434241404/calibrate0"); // BELTSIDE: a rig beside (4,4)
     expect(thrown(() => encodeStarred({ ...b, items: [{ ...b.items[0], def: "kiln2" }, b.items[1]] }))).toBe('stand-in code: item id "kiln2" is not lowercase letters');
     expect(thrown(() => encodeStarred({ ...b, routes: [{ factory: 9, cells: [54] }] }))).toBe("stand-in code: route fed by unknown uid 9");
     // encodeStandIn never checked module ids; the starred encoder, like the harness copy, does
     const odd = { ...b, mods: [{ ...b.mods[0], def: "Calibrate" }] };
     expect(thrown(() => encodeStarred(odd))).toBe('stand-in code: module id "Calibrate" is not lowercase letters');
-    expect(encodeStandIn(odd)).toBe("14 0/kiln64 temper44/1:544434241404/Calibrate0");
+    expect(encodeStandIn(odd)).toBe("14 0/kiln64 temper43r1/1:544434241404/Calibrate0");
   });
 });

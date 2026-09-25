@@ -121,6 +121,10 @@ export function decodeStandInRaw(hero: HeroId, code: string): Build {
 // A deck whose items and modules are all 1-star encodes byte-identical to encodeStandIn, and every v1 /
 // v1.1 code decodes exactly as decodeStandIn decodes it (same objects, same key order). Nothing calls
 // these yet: the game keeps loading the v1.1 pool through decodeStandIn until the flip.
+// beltside-062-on-061 (ref/DESIGN-beltside.md §13 P15): on BELTSIDE the star-aware decode is a load boundary
+// exactly as decodeStandIn is: the raw deck (decodeStarredRaw), then the D3 migration (a migrated rig keeps
+// its stars), then renumbering if a stranded rig was dropped (and logged). The raw code learns BELTSIDE's
+// rotation, before the stars: an item word is <id><yx>[r<rot>][*<stars>], e.g. "temper43r1*2".
 
 /** A copy's star level as stars.ts:starsOf (absent or below 1: 1; at most FUSE_MAX, 3); inlined so standInPool.ts imports nothing from stars.ts (portable), pinned by tests/standInPool.starred.test.ts. */
 function starsOf(x: { stars?: number } | undefined): number {
@@ -130,14 +134,16 @@ function starsOf(x: { stars?: number } | undefined): number {
 }
 const suffix = (p: { stars?: number }): string => (starsOf(p) > 1 ? `*${starsOf(p)}` : "");
 
-/** Encode a deck as a star-aware stand-in build code (uids are renumbered on decode). */
+/** Encode a deck as a star-aware stand-in build code (uids are renumbered on decode). beltside-062-on-061 (P15): a
+ *  rig's rotation is written as encodeStandIn writes it, before the stars. */
 export function encodeStarred(b: Build): string {
   if (GRID !== 10) throw new Error("stand-in build codes assume a 10x10 deck");
   const no = new Map<number, number>();
   const items = b.items.map((p, i) => {
     if (!/^[a-z]+$/.test(p.def)) throw new Error(`stand-in code: item id "${p.def}" is not lowercase letters`);
     no.set(p.uid, i + 1);
-    return `${p.def}${cellCode(p.x, p.y)}${suffix(p)}`;
+    const rot = rotOf(p);
+    return `${p.def}${cellCode(p.x, p.y)}${rot ? `r${rot}` : ""}${suffix(p)}`;
   });
   const routes = b.routes.map((r) => {
     const f = no.get(r.factory);
@@ -151,16 +157,31 @@ export function encodeStarred(b: Build): string {
   return `${b.beltCap} ${b.hullBonus}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}`;
 }
 
-/** Decode a star-aware (or v1) stand-in build code into a fresh Build for `hero`. */
+/**
+ * Decode a star-aware (or v1) stand-in build code into a fresh Build for `hero`. beltside-062-on-061 (DESIGN §13 P15):
+ * a load boundary exactly as decodeStandIn: gates on belt tiles move beside their belts (D3) with their stars, a
+ * stranded one is dropped (and logged), and the uids are then numbered again in item order (mods after the items).
+ */
 export function decodeStarred(hero: HeroId, code: string): Build {
+  const b = decodeStarredRaw(hero, code);
+  const m = migrateInlineGates(b);
+  logMigration("standin", m, { dropped: m.stranded.length });
+  if (m.stranded.length) renumber(b);
+  return b;
+}
+
+/** The star-aware deck exactly as its code writes it, before the D3 migration (0.6.1g's decodeStarred body; P15: the
+ *  item word takes BELTSIDE's rotation, rigs only and never 0, before the stars). */
+export function decodeStarredRaw(hero: HeroId, code: string): Build {
   const [head, itemPart, routePart, modPart] = code.split("/");
   const [beltCap, hullBonus] = head.split(" ").map(Number);
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
   const items: Placed[] = words(itemPart).map((w, i) => {
-    const m = /^([a-z]+)(\d)(\d)(?:\*([23]))?$/.exec(w);
+    const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?(?:\*([23]))?$/.exec(w);
     if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
-    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...star(m[4]) };
+    if (m[4] && ITEMS[m[1]].kind !== "gate") throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
+    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]) };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {
     const m = /^(\d+):((?:\d\d)+)$/.exec(w);
