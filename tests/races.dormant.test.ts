@@ -1,9 +1,5 @@
-// Nothing changes for players (0.6.0 groundwork merge). The race heroes, items and ammo sit in
-// HEROES, ITEMS and AMMO but stay dormant until they become playable (0.8.0): the game offers only
-// PLAYABLE_HEROES (hero select is the fixed furnace/weaver ORDER), the shop draws through
-// itemsSoldBy and no race item has a merchant, and every seeded draw a player meets (the caravan
-// shop, the road fork's captains and their part rewards, road-event parts, the dusk stand-in and
-// pool ghost) never yields a race hero, item or ammo. Portraits cover rivals and playable heroes.
+// Race heroes and their signature factories remain unplayable; the two timing mods from the
+// race table are sold in the shared pool before Metronome becomes playable.
 import { describe, expect, it } from "vitest";
 import { chooseFoe, ghostOf } from "../src/game/day";
 import { EVENT_IDS } from "../src/game/eventDefs";
@@ -19,24 +15,25 @@ import { RACE_AMMO, RACE_HEROES, RACE_ITEMS } from "../src/sim/races/data";
 import { RIVALS, RIVAL_IDS, rivalBuild, rivalDays } from "../src/sim/rivals";
 import { STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
 
-const RACE_ITEM = new Set(Object.keys(RACE_ITEMS));
+const RACE_ITEM = new Set(Object.keys(RACE_ITEMS).filter((id) => RACE_ITEMS[id].kind === "factory"));
 const RACE_AMMO_KIND = new Set<string>(Object.keys(RACE_AMMO));
 const PLAYABLE = new Set<string>(PLAYABLE_HEROES);
 const raceParts = (b: Build): string[] => [...b.items, ...b.mods].map((p) => p.def).filter((d) => RACE_ITEM.has(d));
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 
-describe("the race groundwork is dormant: no race hero, item or ammo reaches the game", () => {
+describe("race heroes and signature factories remain dormant while timing gear is shared", () => {
   it("rules are the 0.6.1 flip's and the roster is 0.6.0's, while the race entries do sit in HEROES, ITEMS and AMMO", () => {
     expect(RULES_VERSION).toBe("bb-0.6.1");
     expect(PLAYABLE_HEROES).toEqual(["furnace", "weaver"]);
     for (const h of Object.keys(RACE_HEROES)) expect(HEROES).toHaveProperty(h);
-    for (const d of RACE_ITEM) expect(ITEMS).toHaveProperty(d);
+    for (const d of Object.keys(RACE_ITEMS)) expect(ITEMS).toHaveProperty(d);
     for (const a of RACE_AMMO_KIND) expect(AMMO).toHaveProperty(a);
     expect(STAND_IN_POOL_HEROES.every((h) => PLAYABLE.has(h))).toBe(true);
   });
 
-  it("no race item has a merchant, so itemsSoldBy never offers one; no ownable factory makes race ammo", () => {
-    for (const d of Object.values(RACE_ITEMS)) expect(d.merchant, d.id).toBeUndefined();
+  it("race signature factories remain unsold; the two timing mods are merchant stock", () => {
+    for (const id of RACE_ITEM) expect(RACE_ITEMS[id].merchant, id).toBeUndefined();
+    for (const id of ["escapement", "longcase"]) expect(RACE_ITEMS[id].merchant, id).toBe("gunsmith");
     for (const m of Object.keys(MERCHANTS) as MerchantId[]) {
       expect(itemsSoldBy(m).filter((d) => RACE_ITEM.has(d.id)), m).toEqual([]);
       for (const d of itemsSoldBy(m)) if (d.factory) expect(RACE_AMMO_KIND.has(d.factory.ammo), d.id).toBe(false);
@@ -47,7 +44,7 @@ describe("the race groundwork is dormant: no race hero, item or ammo reaches the
     }
   });
 
-  it("the caravan shop (seeded draw, with rerolls) never offers a race item: 200 seeds x days 1-10", () => {
+  it("the caravan shop never offers a race signature factory: 200 seeds x days 1-10", () => {
     for (const hero of PLAYABLE_HEROES) {
       for (let seed = 1; seed <= 200; seed++) {
         for (const day of DAYS) {
@@ -66,7 +63,7 @@ describe("the race groundwork is dormant: no race hero, item or ammo reaches the
     }
   });
 
-  it("the road fork (seeded draw): every captain plays a playable hero, with no race part in its deck or rewards", () => {
+  it("the road fork captains play a playable hero without race signature factories", () => {
     for (let seed = 1; seed <= 200; seed++) {
       for (const day of DAYS) {
         for (const beaten of day >= 9 ? [null, 8] : [null]) {
@@ -83,7 +80,7 @@ describe("the race groundwork is dormant: no race hero, item or ammo reaches the
     for (const id of RIVAL_IDS) for (const day of rivalDays(id)) expect(raceParts(rivalBuild(id, day)), `${id} d${day}`).toEqual([]);
   });
 
-  it("road events (seeded picks) never give a race part: every event x 100 seeds x days 1-10", () => {
+  it("road events never give a race signature factory: every event x 100 seeds x days 1-10", () => {
     let given = 0;
     for (const id of EVENT_IDS) {
       for (let seed = 1; seed <= 100; seed++) {

@@ -191,6 +191,7 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
     // scratch export (output-h2b/step0/pins/). At bf779de the pin was 512167455 (the v1 mod pool was 2 mods then).
     // beltside-062-on-061 re-pin (P16, H2's rig placement): 3150828827 -> 555421802 = the same 60 builds from
     // beltside-062c's own fullPurseBuild(hero, day, seed, undefined, 60) in a scratch export.
+    // The legacy-stock pin stays at 555421802; live timing gear is excluded by withLegacyStock.
     expect(hash32(parts.join("|"))).toBe(555421802);
   }, 60_000);
 

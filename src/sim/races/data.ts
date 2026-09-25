@@ -35,17 +35,18 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
     desc: ["LEECH SLUGS: DRAG FOR", "THE LEFT GUN, ECHO", "FOR THE RIGHT GUN."],
     factory: { ammo: "leechDrag", interval: 1.1, outputs: 2 },
   },
-  // Dormant pendulum modules. They gain a merchant only when useful on every hero's ammo.
-  // Priced like CALIBRATION (rare, 5 g): a comparable single-gun upgrade.
+  // Timing gear joins the same merchant pool as every other module. Priced like CALIBRATION.
   escapement: {
-    id: "escapement", name: "ESCAPEMENT", kind: "mod", rarity: "rare", price: 5, size: 1,
-    desc: ["PENDULUM PEAK 1.2S", "EARLIER: BEST ON A", "7-TILE ROUTE."],
-    mod: {},
+    id: "escapement", name: "ESCAPEMENT", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
+    desc: ["FIRES 10% FASTER.", "PENDULUM PEAK 1.2S", "EARLIER: 7 TILES."], tags: ["TIMING"],
+    mod: { fireMul: 0.9 },
+    levels: { 2: { mod: { fireMul: 0.86 }, perk: "QUICK TICK" }, 3: { mod: { fireMul: 0.82 }, perk: "FAST TICK" } },
   },
   longcase: {
-    id: "longcase", name: "LONGCASE", kind: "mod", rarity: "rare", price: 5, size: 1,
-    desc: ["PENDULUM PEAK 1.2S", "LATER: BEST ON A", "13-TILE ROUTE."],
-    mod: {},
+    id: "longcase", name: "LONGCASE", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
+    desc: ["OTHER SLUGS: +1.5", "DMG AFTER 2S RIDE.", "PENDULUM PEAK +1.2S."], tags: ["TIMING", "HAUL"],
+    mod: { longRideFlat: 1.5, longRideMin: 2 },
+    levels: { 2: { mod: { longRideFlat: 2.5 }, perk: "DEEP WIND" }, 3: { mod: { longRideFlat: 4 }, perk: "FULL WIND" } },
   },
 };
 
@@ -116,12 +117,8 @@ export function heroRules(hero: HeroId): HeroRules {
   return HERO_RULES[hero] ?? NO_RULES;
 }
 
-/**
- * Dormant items (REQ-BFG-021: one shared pool, no dead offers). ESCAPEMENT and LONGCASE move only pendulum slugs, so no
- * merchant sells them until they gain an effect on other ammo; then they join the one shared pool like every part.
- * No faction pools. Neither item counts as buyable until it has a cross-hero effect.
- */
-export const DORMANT_ITEMS: ReadonlySet<string> = new Set(["escapement", "longcase"]);
+/** Prototypes without a useful cross-hero effect are excluded from every source of offers. */
+export const DORMANT_ITEMS: ReadonlySet<string> = new Set();
 
 /** Pendulum sweet-spot shift (s) per turret module. It moves pendulum slugs only. */
 export const PEAK_SHIFT: Record<string, number> = { escapement: -1.2, longcase: 1.2 };

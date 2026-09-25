@@ -2,7 +2,8 @@
 // over a fixed grid of seeds, days, picks and parts held. Not a test file itself (no .test suffix). It uses only APIs
 // that 0.6.1c (4ecf202) already has, so the very same function ran on a clean `git archive` of 4ecf202 to write
 // tests/fixtures/beltside-062c/roadDraws-061c.json, and tests/beltside.merge061c.test.ts runs it on this branch and
-// compares: the draw logic is 0.6.1c's (DESIGN §12 P10), so every draw must be identical.
+// compares the unchanged wreck and smuggler draws. Trader swaps intentionally change when new
+// sold modules enter the shared rarity pool.
 import { salvagePart, smugglerParts, swapPart, type Choice, type EventId } from "../src/game/eventDefs";
 import { choicesFor, makeEvent } from "../src/game/events";
 import { newRun, type Run } from "../src/game/run";

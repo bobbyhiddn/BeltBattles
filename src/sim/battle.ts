@@ -169,12 +169,14 @@ export interface TurretState {
   immune: HarassCause[]; // MANTLET: stalls Battle.disrupt ignores on this turret
   intakeGuard: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into it share `immune`
   finisher: number; // FINISHER RAM: + this share of damage on the payload that empties the window (never on a GATLING)
-  intercept: number; // future Flak mod's chance; the side takes the maximum across its turrets
+  intercept: number; // Flak mod's chance; the side takes the maximum across its turrets
   rerolls: number;
   factoryWeight: number;
   alwaysMachine: boolean;
   charge: number;
   salvage: number;
+  longRideFlat: number; // LONGCASE: damage on other ammo after its belt-ride threshold
+  longRideMin: number;
 }
 
 export interface HullState {
@@ -962,6 +964,7 @@ export class Battle {
     let dmg = ammo.rideCurve // races: PENDULUM curve
       ? raceCurveDamage(ammo, s, tu, p)
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat + (p.heatBonus ?? 0));
+    if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM
     dmg = debuffedDamage(dmg, p.debuffs);
     const target = this.pickTarget(foe, !!p.harass, tu);
@@ -1006,6 +1009,7 @@ export class Battle {
     let dmg = ammo.rideCurve
       ? Math.max(1, raceCurveDamage(ammo, s, tu, p) - conv.used)
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat - conv.used + (p.heatBonus ?? 0));
+    if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
     if (routine === "pressure") dmg += pressureBonus(c, queued);
     else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
@@ -1555,6 +1559,7 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     spin: c.start ?? 1, lastShot: -1,
     noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher, intercept: g.intercept,
     rerolls: g.rerolls, factoryWeight: g.factoryWeight, alwaysMachine: g.alwaysMachine, charge: 0, salvage: 0,
+    longRideFlat: g.longRideFlat, longRideMin: g.longRideMin,
   };
 }
 
@@ -1572,11 +1577,13 @@ export interface GearStats {
   rerolls: number;
   factoryWeight: number;
   alwaysMachine: boolean;
+  longRideFlat: number;
+  longRideMin: number;
 }
 
 export function gearStats(b: Build, i: number): GearStats {
   const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, noJam: false, immune: [], intakeGuard: 0,
-    finisher: 0, intercept: 0, rerolls: 0, factoryWeight: 1, alwaysMachine: false };
+    finisher: 0, intercept: 0, rerolls: 0, factoryWeight: 1, alwaysMachine: false, longRideFlat: 0, longRideMin: 0 };
   for (const m of b.mods.filter((m) => m.turret === i)) {
     const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
     if (md?.perShot) out.perShot = Math.max(out.perShot, md.perShot);
@@ -1591,6 +1598,10 @@ export function gearStats(b: Build, i: number): GearStats {
     if (md?.rerolls) out.rerolls = Math.max(out.rerolls, md.rerolls);
     if (md?.factoryWeight) out.factoryWeight = Math.max(out.factoryWeight, md.factoryWeight);
     if (md?.alwaysMachine) out.alwaysMachine = true;
+    if (md?.longRideFlat) {
+      out.longRideFlat = Math.max(out.longRideFlat, md.longRideFlat);
+      out.longRideMin = md.longRideMin ?? 0;
+    }
   }
   return out;
 }

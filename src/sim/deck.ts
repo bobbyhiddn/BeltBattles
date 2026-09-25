@@ -533,7 +533,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
       if (e.pulse) {
         speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
         th.speed = 1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period;
-        if (e.pulse.flat) { flat += e.pulse.flat; th.flat = (th.flat ?? 0) + e.pulse.flat; }
+        // 0.6.2: a tempo-locked belt ignores the pulse and its per-pulse flat, as Battle.transport does (lockedFlat pays)
+        if (e.pulse.flat && !locked) { flat += e.pulse.flat; th.flat = (th.flat ?? 0) + e.pulse.flat; }
       }
       if (e.split) {
         copies *= e.split.copies;
@@ -562,7 +563,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
     heatBonus += heat * outT;
   }
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
-    ? curveDamage(ammo, ride, mult, flat, pendulumShift(b, info.turret))
+    ? curveDamage(ammo, ride, mult, flat + heatBonus, pendulumShift(b, info.turret)) // 0.6.2: HEAT JACKET on the curve too
     : payloadDamage(base, ammo.rideScale, ride, mult, flat + heatBonus); // includes HEAT JACKET's downstream ride
   const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
   if (fixed !== undefined) walk.fixed = fixed; // beltside-062c (P8)

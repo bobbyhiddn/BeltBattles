@@ -65,6 +65,8 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   if (gt?.flat) return `+${gt.flat} FLAT`;
   if (def === "mimic") return `SIGNATURE AMMO X${e.factory?.intervalMul} · ${e.factory?.outputs} OUTPUTS`;
   if (e.factory) return factoryLine(e.factory);
+  if (def === "escapement" && m?.fireMul) return `FIRE X${m.fireMul} · PEAK -1.2S`;
+  if (def === "longcase" && m?.longRideFlat) return `+${m.longRideFlat} AFTER ${m.longRideMin}S · PEAK +1.2S`;
   if (m?.fireMul) return `FIRE X${m.fireMul}`;
   if (m?.perShot) return `${m.perShot}/SHOT${m.window ? ` · +${m.window} SLOT` : ""}`;
   if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.noJam ? " · NEVER JAMS" : ""}`; // HOPPER

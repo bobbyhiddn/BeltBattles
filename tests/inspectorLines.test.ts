@@ -262,6 +262,17 @@ describe("P11: a rig's panel order, and the phone band", () => {
 });
 
 // 0.6.1f: the retuned BRAKE SHOE (HOT SHOE, RED-HOT SHOE) and SPLITTER (PERFECT CUT), written out by hand
+describe("shared timing gear inspection", () => {
+  it("shows the pendulum shift and the cross-hero effect at every star", () => {
+    expect([1, 2, 3].map((s) => starEffectLine("escapement", s))).toEqual([
+      "FIRE X0.9 · PEAK -1.2S", "FIRE X0.86 · PEAK -1.2S", "FIRE X0.82 · PEAK -1.2S",
+    ]);
+    expect([1, 2, 3].map((s) => starEffectLine("longcase", s))).toEqual([
+      "+1.5 AFTER 2S · PEAK +1.2S", "+2.5 AFTER 2S · PEAK +1.2S", "+4 AFTER 2S · PEAK +1.2S",
+    ]);
+  });
+});
+
 describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () => {
   it("BRAKE SHOE: HALF SPEED at every star, +2 / +5 DMG from the heat", () => {
     expect([1, 2, 3].map((s) => starEffectLine("brake", s))).toEqual(["HALF SPEED", "HALF SPEED · +2 DMG", "HALF SPEED · +5 DMG"]);

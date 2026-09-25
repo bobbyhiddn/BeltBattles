@@ -1,158 +1,256 @@
 import { describe, expect, it } from "vitest";
-import { Battle } from "../src/sim/battle";
+import { appendFileSync, writeFileSync } from "node:fs";
+import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { spotForTile } from "../src/sim/beltside";
 import { HEROES, ITEMS, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
-import { estimateRoute, rigHits, routeInfo, type Build } from "../src/sim/deck";
+import { cloneBuild, key, rigHits, routeInfo, type Build } from "../src/sim/deck";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { validateBuild } from "../src/net/validate";
-import { shots } from "./races.helpers";
 
-const foe = (): Build => ({ ...heroStartBuild("furnace", 500), routes: [], hullBonus: 5000 });
-const fire = (b: Build) => shots(new Battle(b, foe(), 20210924), 15);
+const SEED = 20210924;
+const SECONDS = 18;
+const LONG = 32; // a fight long enough for an armed foe's hits, repairs and marks to reach the audited part
+const SEEDS = [SEED, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const uid = 901;
+const auditFile = process.env.BB_POOL_AUDIT_FILE;
+if (auditFile) writeFileSync(auditFile, "");
 
-/** Install a rig on the first live belt using the game's placement search, and verify its arrow lands. */
-function rig(b: Build, id: string, uid: number): void {
+/** A legal, unarmed opponent keeps each offensive comparison on the same 18-second clock. */
+function quietFoe(): Build {
+  const b = heroStartBuild("bastion", 500);
+  b.routes = [];
+  return b;
+}
+
+/** Stand a rig beside the first belt using the editor's placement search, with a live arrow. */
+function rig(b: Build, id: string, idNum: number): void {
   const r = b.routes[0];
   const order = [2, 3, 1, 4, 0, ...r.cells.map((_, i) => i)];
   for (const ti of order) {
     const spot = spotForTile(b, id, 0, ti);
     if (!spot) continue;
-    b.items.push({ uid, def: id, x: spot.x, y: spot.y, rot: spot.rot });
-    if ((rigHits(b)[0] ?? []).some((tile) => tile.some((hit) => hit.uid === uid))) return;
+    b.items.push({ uid: idNum, def: id, x: spot.x, y: spot.y, rot: spot.rot });
+    if ((rigHits(b)[0] ?? []).some((tile) => tile.some((hit) => hit.uid === idNum))) return;
     b.items.pop();
   }
   throw new Error(`${b.hero}: no active spot for ${id}`);
 }
 
-function gateProof(hero: HeroId, d: ItemDef): string {
-  const b = heroStartBuild(hero, 1);
-  if (d.id === "longhaul") rig(b, "whetstone", 900);
-  const before = estimateRoute(b, 0);
-  rig(b, d.id, 901);
-  const after = estimateRoute(b, 0);
-  expect(validateBuild(b, 10).errors, `${hero} ${d.id}: purchasable deck`).toEqual([]);
-  const hits = rigHits(b)[0].flat().filter((h) => h.uid === 901);
-  expect(hits.length, `${hero} ${d.id}: active arrows`).toBeGreaterThan(0);
-  if (d.gate?.burn) {
-    expect(after.burn).toBeGreaterThan(before.burn);
-    return `burn +${after.burn - before.burn}`;
+/** Stand a rig whose live arrow hits the first fitting tile of `tiles` on the first belt; returns that tile. */
+function rigAt(b: Build, id: string, idNum: number, tiles: number[]): number {
+  for (const ti of tiles) {
+    const spot = spotForTile(b, id, 0, ti);
+    if (!spot) continue;
+    b.items.push({ uid: idNum, def: id, x: spot.x, y: spot.y, rot: spot.rot });
+    if ((rigHits(b)[0]?.[ti] ?? []).some((hit) => hit.uid === idNum)) return ti;
+    b.items.pop();
   }
-  if (d.gate?.shock) {
-    expect(before.shock).toBe(false);
-    expect(after.shock).toBe(true);
-    return "shock on";
-  }
-  if (d.gate?.split) {
-    expect(after.copies).toBeGreaterThan(before.copies);
-    return `copies ${before.copies}>${after.copies}`;
-  }
-  if (d.gate?.speed) {
-    if (hero === "metronome") {
-      expect(after.ride).toBeCloseTo(before.ride, 9);
-      expect(after.time).toBeCloseTo(before.time, 9);
-      expect(after.dmg).toBeGreaterThan(before.dmg);
-      return `locked damage +${(after.dmg - before.dmg).toFixed(2)}`;
-    }
-    expect(after.time).not.toBeCloseTo(before.time, 4);
-    return `time ${before.time.toFixed(2)}>${after.time.toFixed(2)}`;
-  }
-  expect(after.dmg, `${hero} ${d.id}: route damage`).toBeGreaterThan(before.dmg);
-  return `damage +${(after.dmg - before.dmg).toFixed(2)}`;
+  throw new Error(`${b.hero}: no active spot for ${id} on tiles ${tiles.join(",")}`);
 }
 
-function factoryProof(hero: HeroId, d: ItemDef): string {
+/** First-belt tiles downstream of `t`, the longest ride first. */
+const later = (b: Build, t: number): number[] => b.routes[0].cells.map((_, i) => i).filter((i) => i > t).reverse();
+/** First-belt tiles upstream of `t`, the first processed tile first. */
+const earlier = (t: number): number[] => [1, 2, 0, ...Array.from({ length: t }, (_, i) => i)].filter((i, n, all) => i < t && all.indexOf(i) === n);
+
+/** Swap the productive signature location for one sold factory; keep the signature owned. */
+function boughtFactory(hero: HeroId, id: string): Build {
   const b = heroStartBuild(hero, 1);
+  b.routes = [b.routes[0]];
   const signature = b.items.find((p) => p.def === HEROES[hero].factory)!;
   const at = { x: signature.x, y: signature.y };
   signature.x = 0;
-  signature.y = 8; // still owned; the bought factory takes its productive location
-  b.items.push({ uid: 901, def: d.id, ...at });
-  b.routes = [{ ...b.routes[0], factory: 901 }]; // every factory has at least one output
-  expect(validateBuild(b, 10).errors, `${hero} ${d.id}: purchasable deck`).toEqual([]);
-  expect(routeInfo(b, 0).connected, `${hero} ${d.id}: connected route`).toBe(true);
-  const battle = new Battle(b, foe(), 20210924);
-  const fired = shots(battle, 15);
-  expect(battle.sides[0].factories.find((f) => f.uid === 901)?.produced, `${hero} ${d.id}: produced`).toBeGreaterThan(0);
-  expect(fired.length, `${hero} ${d.id}: fired`).toBeGreaterThan(0);
-  expect(fired.some((s) => s.dmg > 0), `${hero} ${d.id}: dealt damage`).toBe(true);
-  return `${d.factory!.ammo}: ${fired.length} shots`;
+  signature.y = 8;
+  b.items.push({ uid, def: id, ...at });
+  b.routes[0].factory = uid;
+  return b;
 }
 
-function modProof(hero: HeroId, d: ItemDef): string {
-  const b = heroStartBuild(hero, 1);
-  const base = new Battle(b, foe(), 20210924).sides[0].turrets[0];
-  b.mods.push({ uid: 901, def: d.id, turret: 0 });
-  expect(validateBuild(b, 10).errors, `${hero} ${d.id}: purchasable deck`).toEqual([]);
-  const battle = new Battle(b, foe(), 20210924);
-  const t = battle.sides[0].turrets[0];
-  const fired = shots(battle, 15);
-  expect(fired.length, `${hero} ${d.id}: fed turret fires`).toBeGreaterThan(0);
-  switch (d.id) {
-    case "chamber":
-      expect(t.perShot).toBeGreaterThan(base.perShot);
-      return `loads/shot ${base.perShot}>${t.perShot}`;
-    case "calibrate":
-      expect(t.interval).toBeLessThan(base.interval);
-      return `interval ${base.interval.toFixed(2)}>${t.interval.toFixed(2)}`;
-    case "hopper":
-      expect(t.window).toBeGreaterThan(base.window);
-      expect(t.windowTime).toBeGreaterThan(base.windowTime);
-      return `window ${base.window}>${t.window}`;
-    case "mantlet":
-      expect(t.immune).toContain("shock");
-      expect(base.immune).not.toContain("shock");
-      return "shock immune";
-    case "ram":
-      expect(t.finisher).toBeGreaterThan(base.finisher);
-      return `finisher +${t.finisher}`;
-    default: throw new Error(`unproved mod ${d.id}`);
+/** Test the two pendulum peaks at routes that make their shifts helpful. */
+function metroPeakRoute(b: Build, id: string): void {
+  const K = key;
+  b.routes[0].cells = id === "escapement"
+    ? [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(5, 1), K(5, 0)]
+    : [K(4, 5), K(3, 5), K(2, 5), K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(2, 2), K(3, 2), K(4, 2), K(5, 2), K(5, 1), K(5, 0)];
+}
+
+/**
+ * Both decks are legal on day 10; only the named purchase differs. Parts whose effect needs something already on
+ * the belt get it in both decks, the way a player would build them: LONG HAUL and OVERCLOCKER a WHETSTONE to count
+ * or boost, QUENCH a TEMPER's Burn to spend, BELLOWS a slow belt (Metronome's tempo lock ignores BRAKE SHOE, so it
+ * rides the long route instead), LODESTONE and SPOTTER a GALVANIC COIL whose stalls they price or aim.
+ */
+function decks(hero: HeroId, d: ItemDef): [Build, Build] {
+  let before = heroStartBuild(hero, 1);
+  if (d.kind === "factory") {
+    before.routes = [before.routes[0]];
+    return [before, boughtFactory(hero, d.id)];
   }
-}
-
-function coreProof(hero: HeroId, d: ItemDef): string {
-  const b = heroStartBuild(hero, 1);
-  b.mods.push({ uid: 901, def: d.id, turret: 0 });
-  expect(validateBuild(b, 10).errors, `${hero} ${d.id}: purchasable deck`).toEqual([]);
-  const battle = new Battle(b, foe(), 20210924);
-  const t = battle.sides[0].turrets[0];
-  expect(t.core.def).toBe(d.id);
-  expect(t.core.bought).toBe(true);
-  const c = t.core.spec;
-  switch (d.id) {
-    case "scatter": expect(c.pellets).toBeGreaterThan(1); break;
-    case "rotary":
-      expect(c.order).toBe("FIFO");
-      expect(t.windowTime).toBeLessThan(1.5);
-      break;
-    case "pressure": expect(c.perQueued).toBeGreaterThan(0); break;
-    case "gatling": expect(c.floor).toBeLessThan(c.start); break;
-    case "hullbreaker": expect(c.hullMul).toBeGreaterThan(1); break;
-    case "drake": expect(c.addBurn).toBeGreaterThan(0); break;
-    case "salvo": expect(c.volleyFlat).toBeGreaterThan(0); break;
-    default: throw new Error(`unproved core ${d.id}`);
+  let tiles: number[] | undefined; // where the audited rig stands, when its effect depends on the tile
+  if (d.kind === "gate" && d.id === "longhaul") rig(before, "whetstone", 900);
+  if (d.id === "overclocker") tiles = earlier(rigAt(before, "whetstone", 900, later(before, 1)));
+  if (d.id === "quench") tiles = later(before, rigAt(before, "temper", 900, [1, 2, 0]));
+  if (d.id === "bellows") {
+    if (hero === "metronome") { metroPeakRoute(before, "longcase"); tiles = later(before, 6); }
+    else tiles = later(before, rigAt(before, "brake", 900, [1, 0, 2]) + 1);
   }
-  const fired = shots(battle, 15);
-  expect(fired.length, `${hero} ${d.id}: bought core fires`).toBeGreaterThan(0);
-  return `${t.core.routine}: ${fired.length} shots`;
+  if (d.id === "sifter") tiles = later(before, 0); // marks picked up anywhere upstream reach it
+  if (d.id === "lodestone" || d.id === "spotter") rig(before, "coil", 900);
+  if (d.kind === "mod" && ["chamber", "calibrate", "escapement"].includes(d.id) && hero !== "metronome") {
+    before = boughtFactory(hero, "shottower");
+  }
+  if (d.kind === "mod" && d.id === "hopper") {
+    before = boughtFactory(hero, "shottower");
+    rig(before, "splitter", 903);
+    before.mods.push({ uid: 904, def: "salvo", turret: routeInfo(before, 0).turret });
+  }
+  if (d.kind === "mod" && ["escapement", "longcase"].includes(d.id) && hero === "metronome") metroPeakRoute(before, d.id);
+  const after = cloneBuild(before);
+  if (d.kind === "gate") {
+    if (tiles) rigAt(after, d.id, uid, tiles);
+    else rig(after, d.id, uid);
+  } else after.mods.push({ uid: 902, def: d.id, turret: routeInfo(before, 0).turret });
+  return [before, after];
 }
 
-const prove = (hero: HeroId, d: ItemDef): string => {
-  if (d.kind === "gate") return gateProof(hero, d);
-  if (d.kind === "factory") return factoryProof(hero, d);
-  if (d.kind === "mod") return modProof(hero, d);
-  if (d.kind === "core") return coreProof(hero, d);
-  throw new Error(`unproved kind ${d.kind}`);
+type Metrics = {
+  shots: number; payloadSum: number; damage: number; firstShot: number;
+  burnDealt: number; enemyHull: number; enemyFray: number; enemyDisrupt: number;
+  ownDisrupt: number; ownHull: number;
+  // the audited part's own action in this battle (evidence, never compared as an outcome)
+  tolls: number; flaks: number; repairs: number; rips: number; sifted: number; machineShots: number;
 };
 
-describe("REQ-BFG-021: every buyable module has a per-hero mechanic proof", () => {
+const marks = (p: Payload): number => Object.values(p.debuffs ?? {}).filter(Boolean).length;
+
+/** Read only outcomes of the actual tick simulation, including applied Shock, and count the part's own acts. */
+function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
+  const battle = new Battle(b, foe, seed);
+  let enemyDisrupt = 0, tolls = 0, flaks = 0, repairs = 0, rips = 0, sifted = 0, machineShots = 0;
+  // SIFTER leaves no event: count the payloads a rig of ours hits that lose a CHILL, SNAG or SAP mark on that hit
+  const sim = battle as unknown as { applyHit: (s: { side: number }, a: BeltAmmo, h: { g: { def: ItemDef } }) => BeltAmmo[] };
+  const applyHit = sim.applyHit.bind(battle);
+  sim.applyHit = (s, a, h) => {
+    const had = marks(a.p);
+    const made = applyHit(s, a, h);
+    if (s.side === 0 && h.g.def.gate?.sift && marks(a.p) < had) sifted++;
+    return made;
+  };
+  const aimed = new Set<number>();
+  while (!battle.over && battle.t < seconds) {
+    battle.step();
+    for (const e of battle.events) {
+      if (e.type === "disrupt" && e.side === 1) enemyDisrupt++;
+      if (e.type === "toll" && e.side === 0) tolls++;
+      if (e.type === "flak" && e.side === 0) flaks++;
+      if (e.type === "repair" && e.side === 0) repairs++;
+      if (e.type === "rip" && e.side === 1) rips++;
+    }
+    for (const pr of battle.projectiles) {
+      if (pr.from !== 0 || aimed.has(pr.id)) continue;
+      aimed.add(pr.id);
+      if (pr.target.kind !== "hull") machineShots++;
+    }
+    battle.events.length = 0;
+  }
+  const own = battle.sides[0], enemy = battle.sides[1];
+  return {
+    shots: own.stats.shots, payloadSum: own.stats.payloadSum, damage: own.stats.damage,
+    firstShot: own.stats.firstShot, burnDealt: own.stats.burnDealt,
+    enemyHull: enemy.hull.hp, enemyFray: enemy.hull.fray, enemyDisrupt,
+    ownDisrupt: own.stats.disrupted, ownHull: own.hull.hp,
+    tolls, flaks, repairs, rips, sifted, machineShots,
+  };
+}
+
+const offense: (keyof Metrics)[] = ["shots", "payloadSum", "damage", "firstShot", "burnDealt", "enemyHull", "enemyFray", "enemyDisrupt"];
+const defense: (keyof Metrics)[] = ["ownDisrupt", "ownHull"];
+const delta = (a: Metrics, b: Metrics, keys: (keyof Metrics)[]) => keys.filter((k) => Math.abs(a[k] - b[k]) > 1e-7);
+
+/** A legal shock attacker, with enough armor to keep a defensive test running. */
+function shockFoe(): Build {
+  const b = heroStartBuild("weaver", 500);
+  b.hullBonus = 250;
+  rig(b, "coil", 800);
+  return b;
+}
+
+/**
+ * A legal marking attacker. DRAG CHAIN's telegraphed rounds slow belt segments and SNAG the payloads riding them;
+ * Metronome's tempo lock ignores slows (no SNAG), so against it FROSTBITE's frozen cells CHILL the payloads instead.
+ */
+function markFoe(hero: HeroId): Build {
+  const b = boughtFactory("weaver", hero === "metronome" ? "frostbite" : "dragchain");
+  b.hullBonus = 250;
+  return b;
+}
+
+/**
+ * How a part is audited when an unarmed foe can't show its effect. An armed foe also aims at the new rig, so the two
+ * fights part ways even where the part does nothing: `proof` must count the part's own act in the bought fight.
+ * `more` must rise summed over every seed, for a part whose act is a shift in odds (SPOTTER's rerolls).
+ */
+type Scenario = {
+  foe?: (hero: HeroId) => Build; seconds?: number; seeds?: number[]; metrics?: (keyof Metrics)[];
+  proof?: keyof Metrics; more?: keyof Metrics;
+};
+const both = [...offense, ...defense];
+const SCENARIOS: Record<string, Scenario> = {
+  mantlet: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense },
+  tollbooth: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "tolls" },
+  flak: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "flaks" },
+  riveter: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "repairs" },
+  grapnel: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "rips" },
+  sifter: { foe: markFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "sifted" },
+  spotter: { seeds: SEEDS, metrics: ["enemyDisrupt"], more: "enemyDisrupt" },
+};
+
+/**
+ * The damage a flat or timing part must raise in its chosen fight (stats.damage includes Burn ticks): QUENCH trades
+ * Burn for hits, BELLOWS adds Burn, and SURGE's locked-belt damage is Metronome's (other belts get speed).
+ */
+function useful(id: string, hero: HeroId): ((m: Metrics) => number) | undefined {
+  if (id === "quench") return (m) => m.damage - m.burnDealt;
+  if (id === "bellows") return (m) => m.burnDealt;
+  if (id === "surge") return hero === "metronome" ? (m) => m.damage : undefined;
+  return ["escapement", "longcase", "heatjacket", "overclocker", "lodestone"].includes(id) ? (m) => m.damage : undefined;
+}
+
+describe("REQ-BFG-021: every buyable module changes a battle metric for every hero", () => {
   const rows = buyableModules();
-  expect(rows.map((d) => d.id).sort()).toEqual(Object.values(ITEMS).filter((d) => !!d.merchant && d.price > 0 && d.kind !== "supply").map((d) => d.id).sort());
+  it("audits exactly the sold, priced, non-supply catalogue", () => {
+    expect(rows.map((d) => d.id).sort()).toEqual(Object.values(ITEMS)
+      .filter((d) => !!d.merchant && d.price > 0 && d.kind !== "supply").map((d) => d.id).sort());
+    expect(rows.length).toBeGreaterThanOrEqual(58); // 0.6.2: wave 2 and the nine missing wave-1 rigs joined the audit
+  });
   for (const d of rows) for (const hero of HARNESS_HEROES) {
-    it(`${d.id} works for ${hero}`, () => {
-      const proof = prove(hero, d);
-      expect(proof.length).toBeGreaterThan(0);
-      if (process.env.BB_POOL_AUDIT) console.log(`AUDIT ${d.id} ${hero}: ${proof}`);
+    it(`${d.id} changes ${hero}'s battle`, () => {
+      const [before, after] = decks(hero, d);
+      expect(validateBuild(before, 10).errors, `${hero} ${d.id} before`).toEqual([]);
+      expect(validateBuild(after, 10).errors, `${hero} ${d.id} after`).toEqual([]);
+      const sc = SCENARIOS[d.id] ?? {};
+      const foe = (sc.foe ?? quietFoe)(hero);
+      expect(validateBuild(foe, 10).errors, `${hero} ${d.id} foe`).toEqual([]);
+      const seconds = sc.seconds ?? SECONDS;
+      let chosen: { seed: number; base: Metrics; bought: Metrics; changed: (keyof Metrics)[] } | undefined;
+      let last: { base: Metrics; bought: Metrics } | undefined;
+      const sum = { base: 0, bought: 0 };
+      for (const seed of sc.seeds ?? [SEED]) {
+        const base = run(before, foe, seed, seconds), bought = run(after, foe, seed, seconds);
+        last = { base, bought };
+        if (sc.more) { sum.base += base[sc.more]; sum.bought += bought[sc.more]; }
+        const changed = delta(base, bought, sc.metrics ?? offense);
+        if (!chosen && changed.length && (!sc.proof || bought[sc.proof] > 0)) chosen = { seed, base, bought, changed };
+        if (chosen && !sc.more) break;
+      }
+      expect(chosen, `${hero} ${d.id}: no battle metric changed ${JSON.stringify(last)}`).toBeDefined();
+      if (sc.proof) expect(chosen!.base[sc.proof], `${hero} ${d.id}: ${sc.proof} without the part`).toBe(0);
+      if (sc.more) expect(sum.bought, `${hero} ${d.id}: ${sc.more} over ${sc.seeds!.length} seeds`).toBeGreaterThan(sum.base);
+      const gain = useful(d.id, hero);
+      if (gain) expect(gain(chosen!.bought), `${hero} ${d.id}: useful damage`).toBeGreaterThan(gain(chosen!.base));
+      if (auditFile) appendFileSync(auditFile, `${JSON.stringify({ id: d.id, hero, ...chosen, ...(sc.more ? { sum } : {}) })}\n`);
+      if (process.env.BB_POOL_AUDIT) console.log(`AUDIT ${d.id} ${hero} ${JSON.stringify(chosen)}`);
     });
   }
 });

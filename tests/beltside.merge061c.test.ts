@@ -332,20 +332,25 @@ describe("P9: GANTRY PRESS with rigs on its belts", () => {
 
 // ---------------------------------------------------------------- P10: road items draw rigs by their tags
 
-describe("P10: SALVAGE, SMUGGLER and TRADER SWAP draw rigs with 0.6.1c's draw logic", () => {
-  it("expanded-stock draws stay deterministic with the same route and tag rules", () => {
+describe("P10: expanded road rig draws and shared timing gear", () => {
+  it("keeps wreck and smuggler draws stable while timing gear enters trader swaps", () => {
     const archive = JSON.parse(readFileSync(new URL("./fixtures/beltside-062c/roadDraws-061c.json", import.meta.url), "utf8")) as RoadDraws & { source: string };
-    expect(archive.source).toBe("4ecf202"); // historical old-stock snapshot stays archived
+    expect(archive.source).toBe("4ecf202");
     const now = roadDraws();
     const path = new URL("./fixtures/beltside-062c/roadDraws-062b.json", import.meta.url);
     if (process.env.BB_WRITE_ROAD_DRAWS) writeFileSync(path, JSON.stringify({ source: "arsenal-062b", ...now }, null, 2) + "\n");
-    const fx = JSON.parse(readFileSync(path, "utf8")) as RoadDraws & { source: string };
-    expect(fx.source).toBe("arsenal-062b");
+    const baseline = JSON.parse(readFileSync(path, "utf8")) as RoadDraws & { source: string };
+    expect(baseline.source).toBe("arsenal-062b");
     expect(Object.keys(now.choices)).toHaveLength(108); // 3 events x 3 sets held x 12 seeds, 10 days each
-    expect(now.choices).toEqual(fx.choices);
-    expect(now.salvage).toEqual(fx.salvage);
-    expect(now.smuggler).toBe(fx.smuggler);
-    expect(now.swap).toEqual(fx.swap);
+    const changed = Object.keys(now.choices).filter((k) => now.choices[k] !== baseline.choices[k]);
+    expect(changed.sort()).toEqual(Object.keys(now.choices).filter((k) => /^trader\|(some|many)\|/.test(k)).sort());
+    for (const k of Object.keys(now.choices).filter((k) => !changed.includes(k))) expect(now.choices[k], k).toBe(baseline.choices[k]);
+    expect(now.choices["trader|many|1"]).toContain("SWAP:longcase<grease");
+    expect(Object.values(now.choices).some((choice) => choice.includes("SWAP:escapement<temper"))).toBe(true);
+    expect(now.salvage).toEqual(baseline.salvage);
+    expect(now.smuggler).toBe(baseline.smuggler);
+    expect(Object.keys(now.swap).sort()).toEqual(Object.keys(baseline.swap).sort());
+    expect(now.swap).not.toEqual(baseline.swap); // two sold rare mods expand eligible swap tiers
     // the rigs join the pools by their tags and kind, with no code change (DESIGN §12 P10)
     expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake", "tollbooth", "sifter"]);
     expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([

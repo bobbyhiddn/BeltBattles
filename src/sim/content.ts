@@ -136,6 +136,8 @@ export interface PayloadPreset {
 
 export interface ModSpec {
   fireMul?: number; // multiplies firing interval
+  longRideFlat?: number; // LONGCASE: bonus on non-curve ammo after enough eligible belt ride
+  longRideMin?: number; // minimum eligible ride seconds for longRideFlat
   perShot?: number; // payloads per firing opportunity
   // 0.6.1p (catalogue.json): EXT. CHAMBER WIDE BREECH, HOPPER, MANTLET and FINISHER RAM
   window?: number; // + loading window slots (TurretState.window)
@@ -418,10 +420,12 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   surge: {
     id: "surge", name: "SURGE VALVE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",
-    desc: ["PULSES 3X BELT", "SPEED FOR 1S IN", "EVERY 3S CYCLE."], tags: ["SPEED", "BURST", "TIMING"],
-    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 0 } },
-    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 2.5, flat: 1 } }, perk: "OVERPRESSURE" },
-      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 2 } }, perk: "HAMMER VALVE" } },
+    desc: ["PULSES 3X SPEED FOR", "1S EVERY 3S. LOCKED", "BELTS GAIN +3 DMG."], tags: ["SPEED", "BURST", "TIMING"],
+    // 0.6.2 (REQ-BFG-021): a tempo-locked belt ignores the pulse and its per-pulse flat, so, like every other speed rig,
+    // SURGE pays locked belts damage instead: a rare's 3/6/10 (between BRAKE SHOE's 2/4/7 and OVERDRIVE's 3/6/11)
+    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 0 }, lockedFlat: 3 },
+    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 2.5, flat: 1 }, lockedFlat: 6 }, perk: "OVERPRESSURE" },
+      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 2 }, lockedFlat: 10 }, perk: "HAMMER VALVE" } },
   },
   sorting: {
     id: "sorting", name: "SORTING ARM", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker",
@@ -642,7 +646,7 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["+25 MAX HULL", "FOR THE REST", "OF THE RUN."],
     supply: { hull: 25 },
   },
-  ...RACE_ITEMS, // races: CRUCIBLE, WARDWORKS, CLOCKWORKS, SUMP (not sold); ESCAPEMENT, LONGCASE (beastfolk pool)
+  ...RACE_ITEMS, // race signature factories are unsold; timing gear joins the shared merchant pool
 };
 
 export interface AmmoDef {

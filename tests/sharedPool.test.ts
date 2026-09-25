@@ -35,18 +35,20 @@ function runAt(hero: HeroId, seed: number, day: number, rerolls: number): Run {
 describe("REQ-BFG-021: one hero-blind salvage catalogue", () => {
   it("catalogue, merchant stock, road rarity sets and harness draw sets agree", () => {
     const buyable = buyableModules();
-    expect(buyable.length).toBeGreaterThanOrEqual(27); // the 0.6.1 baseline; wave 2 grows this count
+    expect(buyable.length).toBeGreaterThanOrEqual(29); // 27 baseline modules plus the two timing mods
     const all = ids(buyable);
     for (const hero of HARNESS_HEROES) {
       const harness = ["gate", "mod", "core"].flatMap((kind) =>
         shopItems(hero, kind as "gate" | "mod" | "core")).concat(shopFactories(hero));
       expect(ids(harness), hero).toEqual(all);
-      for (const id of ["grease", "brake", "overdrive"]) expect(ids(harness), hero).toContain(id);
+      for (const id of ["grease", "brake", "overdrive", "escapement", "longcase"]) expect(ids(harness), hero).toContain(id);
     }
     const stocked = [...new Set((Object.values(ITEMS).map((d) => d.merchant).filter(Boolean) as MerchantId[])
       .flatMap((m) => itemsSoldBy(m).filter((d) => d.kind !== "supply").map((d) => d.id)))].sort();
     expect(stocked).toEqual(all);
     expect([...new Set(RARITIES.flatMap((rarity) => UPGRADE[rarity]))].sort()).toEqual(all);
+    for (const id of ["escapement", "longcase"]) expect(DORMANT_ITEMS.has(id)).toBe(false);
+    expect(ids(itemsSoldBy("gunsmith"))).toEqual(expect.arrayContaining(["escapement", "longcase"]));
     for (const id of DORMANT_ITEMS) {
       expect(all).not.toContain(id);
       expect(ITEMS[id].merchant).toBeUndefined();

@@ -102,7 +102,7 @@ describe("harness cores (0.6.1b): legality", () => {
     expect(canApply(s, "core")).toBe(false);
   });
 
-  it("stars on + cores off is deterministic with the shared pool; Furnace/Weaver full-purse pin stays unchanged", () => {
+  it("stars on + cores off is deterministic with the expanded shared pool", () => {
     const a: string[] = [];
     for (const hero of HARNESS_HEROES) for (const day of [1, 3, 5, 7, 10]) for (let i = 0; i < 3; i++) a.push(JSON.stringify(randomBuild(hero, day, new Rng(hashSeed("on-pin", hero, day, i)), "on", FUSE_MAX, "off")));
     const b: string[] = [];
@@ -112,9 +112,13 @@ describe("harness cores (0.6.1b): legality", () => {
     // 1965100384 -> 3070968615, measured on this branch. BELTSIDE never had a pre-cores stars-on harness to compute
     // them with (the stars-off pins in tests/harness.merge.test.ts are the ones checked against beltside-062c's own
     // harness); cores off still draws nothing for the core lever (tests above), so the pins hold that path.
-    // Combined shared-pool and expanded-catalogue pins are checked on the integrated branch.
-    expect(hash32(a.join("|"))).toBe(3990378578);
-    expect(hash32(b.join("|"))).toBe(3070968615);
+    // REQ-BFG-021: all-six random-build pin 2679854933 -> 3990378578 when Metronome gained speed rigs.
+    // 0.6.2 combined branch (wave-2 stock, E1/E2 par and captains, race par fusion, and REQ-BFG-021's timing gear sold
+    // to every hero), measured twice on arsenal-062-combined: all-six random builds 3990378578 -> 1781625131; Furnace/
+    // Weaver full purses 3070968615 -> 3672937531. On fac2bc2 alone the timing gear gave 1876268089 and 227470131.
+    // Fixed golden decks are unchanged.
+    expect(hash32(a.join("|"))).toBe(1781625131);
+    expect(hash32(b.join("|"))).toBe(3672937531);
   }, 60_000);
 });
 

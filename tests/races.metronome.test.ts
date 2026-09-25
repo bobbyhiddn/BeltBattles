@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Battle, simulate, type Payload } from "../src/sim/battle";
+import { Battle, type Payload } from "../src/sim/battle";
 import { DISRUPT_TIME, HEROES, ITEMS, type HeroId } from "../src/sim/content";
 import { estimateRoute, key as K, routeInfo, type Build, type Placed } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -74,20 +74,59 @@ describe("METRONOME pendulum curve", () => {
     expect(PEAK_SHIFT).toEqual({ escapement: -1.2, longcase: 1.2 });
   });
 
-  it("the modules touch pendulum slugs only: a Furnace carrying one fights exactly as before", () => {
-    const f = heroStartBuild("furnace", 1);
-    const esc: Build = { ...f, mods: [{ uid: 99, def: "escapement", turret: 0 }] };
-    const w = heroStartBuild("weaver", 100);
-    for (const seed of [1, 2, 3]) {
-      const a = simulate(f, w, seed), b = simulate(esc, w, seed);
-      expect([b.winner, b.ticks, b.sides[0].hull.hp, b.sides[1].hull.hp]).toEqual([a.winner, a.ticks, a.sides[0].hull.hp, a.sides[1].hull.hp]);
+  it("the timing mods have useful effects on other ammo without changing the pendulum curve", () => {
+    expect(ITEMS.escapement.mod).toEqual({ fireMul: 0.9 });
+    expect(ITEMS.longcase.mod).toEqual({ longRideFlat: 1.5, longRideMin: 2 });
+    expect(ITEMS.escapement.levels?.[2]?.mod?.fireMul).toBe(0.86);
+    expect(ITEMS.escapement.levels?.[3]?.mod?.fireMul).toBe(0.82);
+    expect(ITEMS.longcase.levels?.[2]?.mod?.longRideFlat).toBe(2.5);
+    expect(ITEMS.longcase.levels?.[3]?.mod?.longRideFlat).toBe(4);
+    expect(ITEMS.escapement.desc.join(" ")).toContain("FIRES 10% FASTER");
+    expect(ITEMS.longcase.desc.join(" ")).toContain("OTHER SLUGS: +1.5");
+    expect(ITEMS.longcase.desc.join(" ")).toContain("PENDULUM PEAK +1.2S");
+    for (const [id, tiles] of [["escapement", 7], ["longcase", 13]] as const) {
+      const b = metro(tiles, [], id);
+      b.mods[0].stars = 3;
+      expect(peakRide(b, 0)).toBeCloseTo(ride(tiles), 9);
+      expect(estimateRoute(b, 0).dmg).toBeCloseTo(8, 9);
     }
-    expect(estimateRoute(esc, 0)).toEqual(estimateRoute(f, 0));
+  });
+
+  it("HEAT JACKET's ride heat is flat damage on the pendulum curve, in the route estimate and in battle (0.6.2)", () => {
+    // the jacket works tile 3 (K(2,4)), whose centre a slug crosses at 1.4 s; it rides on to the chamber at ride(10)
+    const heatRide = ride(10) - (3 * 12 + 6) / 30;
+    for (const [stars, heat] of [[1, 0.4], [2, 0.9], [3, 1.4]] as const) {
+      const b = metro(10, [["heatjacket", 2, 4]]);
+      b.items.find((p) => p.def === "heatjacket")!.stars = stars;
+      const est = estimateRoute(b, 0);
+      expect(est.ride, `${stars} stars`).toBeCloseTo(ride(10), 9);
+      expect(est.dmg, `${stars} stars`).toBeCloseTo(8 + heat * heatRide, 6);
+      const fired = shots(new Battle(b, dummyFoe(), 5), 15);
+      expect(fired.length).toBeGreaterThan(4);
+      for (const s of fired) expect(s.dmg, `${stars} stars`).toBeCloseTo(8 + heat * heatRide, 1);
+    }
+  });
+
+  it("Longcase adds long-ride damage in both signature and bought-core firing", () => {
+    for (const core of [undefined, "hullbreaker"] as const) {
+      const base = heroStartBuild("furnace", 1);
+      if (core) base.mods.push({ uid: 50, def: core, turret: 0 });
+      const a = shots(new Battle(base, dummyFoe(), 5), 12);
+      expect(a.length).toBeGreaterThan(3);
+      for (const [stars, flat] of [[1, 1.5], [2, 2.5], [3, 4]] as const) {
+        const boosted: Build = { ...base, mods: [...base.mods, { uid: 51, def: "longcase", turret: 0, stars }] };
+        const b = shots(new Battle(boosted, dummyFoe(), 5), 12);
+        expect(b.length).toBe(a.length);
+        expect(b[0].dmg - a[0].dmg).toBeCloseTo(flat * (core ? 1.3 : 1), 9);
+      }
+    }
   });
 });
 
 describe("METRONOME speed lock", () => {
   const gates: [string, number, number][] = [["grease", 2, 4], ["brake", 2, 3], ["overdrive", 2, 2]];
+  // 0.6.2: SURGE VALVE's pulse is a speed change too, so a locked belt takes its locked flat instead (REQ-BFG-021)
+  const speedRigs: [string, number, number][] = [...gates, ["surge", 3, 2]];
 
   it("Grease, Brake and Overdrive leave ride at exactly 0.4n + 0.2 s, and still count as gates", () => {
     const b = metro(10, gates);
@@ -100,7 +139,7 @@ describe("METRONOME speed lock", () => {
   });
 
   it("each speed rig gives locked belts useful damage at every star without moving the pendulum beat", () => {
-    for (const [def, x, y] of gates) for (const stars of [1, 2, 3]) {
+    for (const [def, x, y] of speedRigs) for (const stars of [1, 2, 3]) {
       const b = metro(10, [[def, x, y]]);
       b.items.find((p) => p.def === def)!.stars = stars;
       const bonus = ITEMS[def].levels?.[stars as 2 | 3]?.gate?.lockedFlat ?? ITEMS[def].gate!.lockedFlat!;
@@ -160,16 +199,15 @@ describe("METRONOME rules data (rulings 4-6)", () => {
     }
   });
 
-  // 0.6.1f (REQ-BFG-021): a neutral dormant flag replaced ITEM_POOL's "beastfolk" mark; no faction pools
-  it("ESCAPEMENT and LONGCASE are dormant turret modules priced like Calibration: both dormant, no merchant sells either", () => {
-    expect([...DORMANT_ITEMS].sort()).toEqual(["escapement", "longcase"]);
+  it("ESCAPEMENT and LONGCASE are sold shared turret modules priced like Calibration", () => {
+    for (const id of ["escapement", "longcase"]) expect(DORMANT_ITEMS.has(id)).toBe(false);
     for (const id of ["escapement", "longcase"]) {
       const d = ITEMS[id];
       expect(d.kind).toBe("mod");
       expect(d.price).toBe(ITEMS.calibrate.price);
       expect(d.rarity).toBe(ITEMS.calibrate.rarity);
-      expect(d.merchant).toBeUndefined();
-      expect(DORMANT_ITEMS.has(id)).toBe(true);
+      expect(d.merchant).toBe("gunsmith");
+      expect(DORMANT_ITEMS.has(id)).toBe(false);
     }
   });
 

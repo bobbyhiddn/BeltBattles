@@ -92,7 +92,8 @@ export function raceBeltSpeed(ctx: SimCtx, s: SideState, route: number, ci: numb
 /** Fired damage of a ride-curve payload (PENDULUM), with the firing turret's sweet-spot shift. */
 export function raceCurveDamage(ammo: AmmoDef, s: SideState, tu: TurretState, p: Payload): number {
   const shift = s.race ? s.race.shift[tu.index] ?? 0 : pendulumShift(s.build, tu.index);
-  return curveDamage(ammo, p.ride, p.mult, p.flat, shift);
+  // 0.6.2: HEAT JACKET's downstream ride heat is flat damage on the pendulum curve too (payloadDamage adds it elsewhere)
+  return curveDamage(ammo, p.ride, p.mult, p.flat + (p.heatBonus ?? 0), shift);
 }
 
 /** After an impact: SIPHON's echo memory, a copied Fray stack, and Drag. */

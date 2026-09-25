@@ -97,15 +97,14 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     for (const kind of ["gate", "factory", "mod", "core"]) expect(all.some((id) => ITEMS[id].kind === kind), kind).toBe(true);
   });
 
-  it("no supply, signature or dormant item is in any pool; a newly sold race module joins", () => {
+  it("no supply, signature or dormant item is in any pool; sold timing gear joins", () => {
     const pools = () => [salvagePool(), smugglerPool("BURN"), smugglerPool("SHOCK"), ...RARITIES.map((r) => UPGRADE[r])].flat();
     const bad = (id: string) => ITEMS[id].kind === "supply" || ITEMS[id].price <= 0 || DORMANT_ITEMS.has(id) || !ITEMS[id].merchant;
     expect(pools().filter(bad)).toEqual([]);
     for (const id of ["kiln", "loom", "beltcrate", "plating", ...DORMANT_ITEMS]) expect(pools(), id).not.toContain(id);
-    const esc = ITEMS.escapement, hopper = ITEMS.hopper, sold = hopper.merchant;
+    for (const id of ["escapement", "longcase"]) expect(pools()).toContain(id);
+    const hopper = ITEMS.hopper, sold = hopper.merchant;
     try {
-      esc.merchant = "gunsmith"; // explicit dormancy wins even if a merchant is assigned prematurely
-      expect(pools()).not.toContain("escapement");
       delete hopper.merchant; // read when used: a part leaves with its merchant and joins again with it
       expect(UPGRADE.common).not.toContain("hopper");
       hopper.merchant = sold;
@@ -122,7 +121,6 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
         delete crucible.merchant;
       }
     } finally {
-      delete esc.merchant;
       hopper.merchant = sold;
     }
   });

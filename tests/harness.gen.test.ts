@@ -39,20 +39,12 @@ describe("harness generator", () => {
     for (const [k, n] of Object.entries(levers)) expect(n, k).toBeGreaterThan(20);
   }, 60_000);
 
-  it("draws from one shop set; dormant pendulum mods never enter generated decks", () => {
+  it("draws every buyable module from one shared shop set", () => {
     const ids = (hero: typeof HARNESS_HEROES[number]) => ["gate", "factory", "mod", "core"].flatMap((kind) =>
       (kind === "factory" ? shopFactories(hero) : shopItems(hero, kind as "gate" | "mod" | "core")).map((d) => d.id)).sort();
     const shared = ids("furnace");
     for (const hero of HARNESS_HEROES) expect(ids(hero)).toEqual(shared);
-    for (const id of ["grease", "brake", "overdrive"]) expect(ids("metronome")).toContain(id);
-    for (const hero of HARNESS_HEROES) {
-      for (const day of [4, 7, 10]) {
-        for (let i = 0; i < 12; i++) {
-          const b = randomBuild(hero, day, new Rng(hashSeed("exclude", hero, day, i)));
-          for (const p of [...b.items, ...b.mods]) expect(["escapement", "longcase"], `${hero} d${day} #${i} ${p.def}`).not.toContain(p.def);
-        }
-      }
-    }
+    for (const id of ["grease", "brake", "overdrive", "escapement", "longcase"]) expect(ids("metronome")).toContain(id);
   }, 30_000);
 
   it("spends the day's gold: what is left over buys nothing useful", () => {

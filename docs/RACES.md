@@ -156,20 +156,22 @@ and `estimateRoute` use it, with the firing turret's sweet-spot shift. The speed
 - Data: `HERO_RULES[hero].freeModuleSwap`, true for Metronome only (a races table, so
   HeroDef is untouched). `storeMod` and the build screen are unchanged until 0.9.0 honours it.
 
-**ESCAPEMENT and LONGCASE (ruling 5).** Dormant turret modules: rare, 5 g, priced like
+**ESCAPEMENT and LONGCASE (ruling 5).** Shared turret modules: rare, 5 g, priced like
 Calibration.
 - ESCAPEMENT moves the sweet spot 1.2 s earlier: peak at ride 3.0 s, a 7-tile route.
 - LONGCASE moves it 1.2 s later: peak at ride 5.4 s, a 13-tile route.
-- They affect pendulum slugs only (`PEAK_SHIFT`). On any other ammo they do nothing.
-- No merchant sells them: `DORMANT_ITEMS` flags them dormant until they gain an effect on other
-  ammo. Then they join the one shared pool like every part (REQ-BFG-021); there are no faction
-  pools. So today no Furnace or Weaver shop changes, and no reference build uses them.
+- Escapement also shortens its turret's fire interval by 10% on every ammo.
+- Longcase adds 1.5 fired damage to non-pendulum ammo with at least 2.0 s of eligible belt ride.
+  Pendulum damage keeps its shifted curve, with no added flat damage.
+- Fused Escapement shortens the interval by 14% at ★2 and 18% at ★3. Fused Longcase's
+  other-ammo bonus rises to 2.5 and 4 damage. The pendulum peak shifts stay at ±1.2 s.
+- The Gunsmith sells both in the one shared pool. `DORMANT_ITEMS` contains neither.
 - Head art, display only (`adaptableHead`): no beastfolk module shows HAMMER, ESCAPEMENT shows
   REPEATER and LONGCASE shows LANCE.
 
 **Gates and impacts.**
-- Speed gates are inert. `HERO_RULES.metronome.shopExclude` lists Grease, Brake and Overdrive
-  so the caravan won't offer them to Metronome (ruling 6; honoured at integration).
+- Metronome's belts stay at 1x speed. Grease, Brake and Overdrive add locked-belt damage at
+  their hit, so all three are useful offers without disturbing the pendulum beat.
 - Splitter copies keep the parent's ride time. A copy can re-ride at most one tick of belt
   (≤ 1/60 s), an older sim quirk shared with Furnace and kept for bit-identity.
 - Whetstone, Long Haul, Temper and Coil work as usual.
