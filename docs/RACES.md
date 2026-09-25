@@ -156,13 +156,14 @@ and `estimateRoute` use it, with the firing turret's sweet-spot shift. The speed
 - Data: `HERO_RULES[hero].freeModuleSwap`, true for Metronome only (a races table, so
   HeroDef is untouched). `storeMod` and the build screen are unchanged until 0.9.0 honours it.
 
-**ESCAPEMENT and LONGCASE (ruling 5).** Beastfolk-pool turret modules: rare, 5 g, priced like
+**ESCAPEMENT and LONGCASE (ruling 5).** Dormant turret modules: rare, 5 g, priced like
 Calibration.
 - ESCAPEMENT moves the sweet spot 1.2 s earlier: peak at ride 3.0 s, a 7-tile route.
 - LONGCASE moves it 1.2 s later: peak at ride 5.4 s, a 13-tile route.
 - They affect pendulum slugs only (`PEAK_SHIFT`). On any other ammo they do nothing.
-- No merchant sells them yet: `ITEM_POOL` marks them beastfolk, and the 0.9.0 caravan offers
-  faction pools. So today no Furnace or Weaver shop changes, and no reference build uses them.
+- No merchant sells them: `DORMANT_ITEMS` flags them dormant until they gain an effect on other
+  ammo. Then they join the one shared pool like every part (REQ-BFG-021); there are no faction
+  pools. So today no Furnace or Weaver shop changes, and no reference build uses them.
 - Head art, display only (`adaptableHead`): no beastfolk module shows HAMMER, ESCAPEMENT shows
   REPEATER and LONGCASE shows LANCE.
 
@@ -253,8 +254,9 @@ battle sim runs Siphon in full now.
   - Drag and Echo overlays (dragged cells in `race.drag.until`; the echo memory in
     `race.echo.mem`, copied into each ECHO leech at load);
   - adaptable head art from `adaptableHead` (HAMMER, REPEATER, LANCE);
-  - the build screen honours `freeModuleSwap`; the caravan honours `shopExclude` and
-    `ITEM_POOL`;
+  - the build screen honours `freeModuleSwap`; the caravan honours `shopExclude` (a
+    `DORMANT_ITEMS` part joins the one shared pool once it gains an effect on other ammo; no
+    faction pools);
   - `PLAYABLE_HEROES` grows as heroes ship, and Siphon unlocks after the first completed run.
 - **Deferred (ruling 7):** ASSAY STAMP, in the full-arsenal pass (0.10.0).
 

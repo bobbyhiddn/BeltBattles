@@ -118,8 +118,12 @@ export function heroRules(hero: HeroId): HeroRules {
   return HERO_RULES[hero] ?? NO_RULES;
 }
 
-/** Faction pools for items no merchant sells yet (ruling 5). The 0.9.0 caravan honours these. */
-export const ITEM_POOL: Record<string, Faction> = { escapement: "beastfolk", longcase: "beastfolk" };
+/**
+ * Dormant items (REQ-BFG-021: one shared pool, no dead offers). ESCAPEMENT and LONGCASE move only pendulum slugs, so no
+ * merchant sells them until they gain an effect on other ammo; then they join the one shared pool like every part.
+ * No faction pools. (0.6.1f: replaces ITEM_POOL, which marked both "beastfolk".)
+ */
+export const DORMANT_ITEMS: ReadonlySet<string> = new Set(["escapement", "longcase"]);
 
 /** Pendulum sweet-spot shift (s) per turret module. It moves pendulum slugs only. */
 export const PEAK_SHIFT: Record<string, number> = { escapement: -1.2, longcase: 1.2 };
