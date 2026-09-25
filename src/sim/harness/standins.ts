@@ -398,8 +398,11 @@ export function standInCommand(o: StandInOpts): string {
   // 0.6.1b: --cores is printed only when it departs from its default (on with stars on); stars off never
   // prints it, so the committed v1.1 module's header (--check) is unchanged.
   const c = o.stars === "on" && coresOf(o) === "off" ? " --cores off" : "";
-  // 0.6.1c: likewise --factories (on by default with stars on); stars off never prints it
-  const f = o.stars === "on" && factoriesOf(o) === "off" ? " --factories off" : "";
+  // 0.6.1c, on the 0.6.1 release: --factories is printed when it is ON (stars on + factories on), and never with
+  // factories off or stars off. The shipped pool v2 (the flip) was generated before --factories existed, so its
+  // header has no --factories: `--check --factories off` regenerates exactly that header, and a factories-on
+  // pool's header says --factories on, whatever the default is.
+  const f = factoriesOf(o) === "on" ? " --factories on" : "";
   return `npm run standins -- --seed ${o.seed} --pop ${o.pop} --band ${o.band[0]},${o.band[1]} --per ${o.per} --par-floor ${round1(o.parFloor * 100)}${g}${c}${f}`;
 }
 

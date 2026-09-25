@@ -15,6 +15,12 @@
 // move its scores) never writes into src: it writes <out>/standInPoolData.stars-off.ts for audits, and
 // --check refuses it. Before the flip (FUSE_LIVE
 // false) stars on was a dry run into <out> and stars off wrote the shipped v1.1 pool.
+// Harness v2 part 3 on the 0.6.1 release: --factories on|off defaults to the --stars value (--factories on
+// needs --stars on). The shipped pool v2 was generated before --factories existed, that is with factories
+// off: `--check --factories off` must print IDENTICAL, and a plain --check (factories on) prints DIFFERS
+// until a factory-aware pool ships. --dry (stars on; not with --check): the stars-on dry run on the live
+// code: it writes <out>/standInPoolData.v2-dry-candidate.ts, standin-pool.md and versus.json and never src;
+// its versus tables play the new picks against the pool this tool was bundled with (the shipped pool).
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
@@ -73,6 +79,9 @@ async function main(): Promise<void> {
   if (o.per < 1 || o.pop < o.per) throw new Error("--pop must be at least --per, and --per at least 1");
   const check = process.argv.includes("--check");
   if (check && FUSE_LIVE && o.stars === "off") throw new Error(`--stars off --check: since the 0.6.1 flip (FUSE_LIVE) the committed ${DATA} is the stars-on pool v2; check it with --stars on`);
+  // part 3 on the release: --dry keeps a stars-on dry run (written under --out, never src) with FUSE_LIVE true
+  const dry = process.argv.includes("--dry");
+  if (dry && (check || o.stars === "off")) throw new Error("--dry is a stars-on run that writes under --out only: it takes neither --check nor --stars off");
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();
@@ -149,7 +158,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (FUSE_LIVE) {
+  if (FUSE_LIVE && !dry) {
     // 0.6.1 flip: the stars-on pool v2 IS the shipped pool: --check compares, otherwise it is written.
     // The versus tables play the new picks against the pool this tool was bundled with (the committed
     // module before this run: v1.1 at the flip itself).
@@ -180,6 +189,7 @@ async function main(): Promise<void> {
   // 0.6.1a harness v2, stars on: a DRY run only. Never touches src/sim/standInPool.ts or
   // standInPoolData.ts (the shipped pool stays v1.1 until the flip); everything lands under
   // output-h2/pool-v2-dry/ (a data-module *candidate*, not wired up, and a star-aware report).
+  // Since the flip only --dry gets here (FUSE_LIVE): the same run, against the shipped pool v2.
   const secs0 = (performance.now() - t0) / 1000;
   // F3: the dry v2 picks against the shipped v1.1 picks (two getters; was v1.1 on both sides)
   const vs = await dryVersus(o, res.days, pool.run);
@@ -189,7 +199,7 @@ async function main(): Promise<void> {
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, "standInPoolData.v2-dry-candidate.ts"), candidate);
   const vsBattles = [...vs.v2v2, ...vs.tables.flatMap((t) => t.rows)].reduce((s, r) => s + r.battles, 0);
-  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: false }));
+  writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: false, liveDry: FUSE_LIVE }));
   writeFileSync(resolve(out, "versus.json"), JSON.stringify({ heroes: o.heroes, v2v2: vs.v2v2, tables: vs.tables }, null, 1) + "\n");
   console.log(`${res.battles} battles in ${secs.toFixed(1)} s on ${nw} worker(s) (${secs0.toFixed(1)} s to generate); DRY RUN, wrote ${out}/standInPoolData.v2-dry-candidate.ts and standin-pool.md (src/sim/standInPoolData.ts untouched)`);
 }
@@ -250,15 +260,16 @@ function describeStars(c: Cand): string {
 
 /** Report for the stars-on DRY run: never wired up (src/sim/standInPoolData.ts untouched). */
 function poolMarkdownV2(
-  o: StandInOpts, days: HeroDay[], pvp: VersusRow[], tables: VersusTable[], meta: { battles: number; secs: number; workers: number; vsBattles: number; live?: boolean; bytes?: number },
+  o: StandInOpts, days: HeroDay[], pvp: VersusRow[], tables: VersusTable[], meta: { battles: number; secs: number; workers: number; vsBattles: number; live?: boolean; bytes?: number; liveDry?: boolean },
 ): string {
+  // part 3 on the release: liveDry = a --dry run with FUSE_LIVE true (the shipped pool is then pool v2, not v1.1)
   const L = [
-    meta.live ? "# BeltBattles stand-in pool v2 (merge-aware; shipped since the 0.6.1 flip)" : "# BeltBattles stand-in pool v2 - stars-on DRY RUN (not shipped)",
+    meta.live ? "# BeltBattles stand-in pool v2 (merge-aware; shipped since the 0.6.1 flip)" : meta.liveDry ? "# BeltBattles stand-in pool - stars-on DRY RUN on the live code (--dry; not shipped)" : "# BeltBattles stand-in pool v2 - stars-on DRY RUN (not shipped)",
     "",
-    `Generated by \`${standInCommand(o)} --stars on\` (rules ${RULES_VERSION}): ${meta.battles} battles in ${meta.secs.toFixed(1)} s on ${meta.workers} worker thread(s).`,
-    meta.live ? `This run wrote src/sim/standInPoolData.ts (${meta.bytes} bytes; FUSE_LIVE = true, rules ${RULES_VERSION}); src/sim/standInPool.ts decodes its star-aware codes with decodeStarred. The versus tables below call the pool this tool was bundled with (the committed module before this run) "v1.1"; at the flip that is v1.1 itself.` : "This is a dry run only: src/sim/standInPool.ts and src/sim/standInPoolData.ts are untouched (the shipped pool stays v1.1 until the flip, FUSE_LIVE = true). The candidate data module sits beside this file as standInPoolData.v2-dry-candidate.ts.",
+    `Generated by \`${standInCommand(o)} --stars on${meta.liveDry ? " --dry" : ""}\` (rules ${RULES_VERSION}): ${meta.battles} battles in ${meta.secs.toFixed(1)} s on ${meta.workers} worker thread(s).`,
+    meta.live ? `This run wrote src/sim/standInPoolData.ts (${meta.bytes} bytes; FUSE_LIVE = true, rules ${RULES_VERSION}); src/sim/standInPool.ts decodes its star-aware codes with decodeStarred. The versus tables below call the pool this tool was bundled with (the committed module before this run) "v1.1"; at the flip that is v1.1 itself.` : meta.liveDry ? `This is a dry run only (--dry; FUSE_LIVE = true, rules ${RULES_VERSION}): src/sim/standInPoolData.ts is untouched. The candidate data module sits beside this file as standInPoolData.v2-dry-candidate.ts. The versus tables below call the pool this tool was bundled with (the shipped module: pool v2 since the 0.6.1 flip) "v1.1", and this run's picks "v2".` : "This is a dry run only: src/sim/standInPool.ts and src/sim/standInPoolData.ts are untouched (the shipped pool stays v1.1 until the flip, FUSE_LIVE = true). The candidate data module sits beside this file as standInPoolData.v2-dry-candidate.ts.",
     "",
-    `Every pick below was confirmed (or the tool threw): validateBuild(pick, day) ok, unfusedPairs(pick) empty, buildCost(pick).total <= maxGoldByDay(day), and no module above 2 stars (ARSENAL.md §9.2: the Matriarch alone may carry a 3★). That is the flip's rule, ${meta.live ? "live in validateBuild since the flip (FUSE_LIVE = true); the generator checks it as well." : "applied by the generator itself because FUSE_LIVE is still false today."}`,
+    `Every pick below was confirmed (or the tool threw): validateBuild(pick, day) ok, unfusedPairs(pick) empty, buildCost(pick).total <= maxGoldByDay(day), and no module above 2 stars (ARSENAL.md §9.2: the Matriarch alone may carry a 3★). That is the flip's rule, ${meta.live || meta.liveDry ? "live in validateBuild since the flip (FUSE_LIVE = true); the generator checks it as well." : "applied by the generator itself because FUSE_LIVE is still false today."}`,
     "The candidate module was checked as WRITTEN: every stored code (the star-aware format of src/sim/harness/standinCode.ts) decodes to exactly the scored deck, with its stored cost.",
     `2-star cap: a candidate's shopper never buys a copy whose merge would go above ${STANDIN_MAX_STARS} stars (the gauntlet it is scored against is not capped). "cap changed" = candidates whose uncapped build (same seed) differs; "would be 3★" = those whose uncapped build holds a 3-star module.`,
     "",
@@ -294,6 +305,8 @@ function poolMarkdownV2(
   L.push(`| pairing | ${days10.map((r) => `d${r.day}`).join(" | ")} |`, `|---|${days10.map(() => "---").join("|")}|`);
   for (const t of tables) L.push(`| ${H(t.a)} ${t.aPool} vs ${H(t.b)} ${t.bPool} | ${t.rows.map((r) => pct(r.rate)).join(" | ")} |`);
   L.push("", `Battles per cell: ${tables.map((t) => `${H(t.a)} ${t.aPool} vs ${H(t.b)} ${t.bPool} ${t.rows[0]?.battles ?? 0}`).join("; ")} (per day: picks x picks x ${o.seeds} seeds x 2 sides).`);
-  L.push("", "(Same-hero rows: above 50% means that day's merge-aware v2 picks beat the all-1-star v1.1 picks of the same hero. Cross-hero rows: compare with the v1.1-vs-v1.1 reference row of that direction.)");
+  L.push("", meta.liveDry
+    ? "(--dry on the live code: \"v2\" is this run's picks and \"v1.1\" the shipped pool (pool v2 since the flip). Same-hero rows: above 50% means that day's new picks beat the shipped picks of the same hero. Cross-hero rows: compare with the shipped-vs-shipped reference row of that direction.)"
+    : "(Same-hero rows: above 50% means that day's merge-aware v2 picks beat the all-1-star v1.1 picks of the same hero. Cross-hero rows: compare with the v1.1-vs-v1.1 reference row of that direction.)");
   return L.join("\n") + "\n";
 }

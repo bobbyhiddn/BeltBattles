@@ -3,6 +3,8 @@
 // the day's rarity weights), a GANTRY PRESS draws a route into every free connector it can reach up to its outputs
 // (and tries its new route when a merge raises them: THIRD ARM), the "merge" lever may buy a factory copy that
 // merges at once, and no speed gate goes onto a slag route (AMMO.slag.fixedSpeed).
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { AMMO, ITEMS, type HeroId, type ItemDef } from "../src/sim/content";
@@ -340,8 +342,25 @@ describe("harness factories (0.6.1c): stand-ins", () => {
     const three: Build = JSON.parse(JSON.stringify(s.b));
     three.items.find((p) => p.def === "gantry")!.stars = 3;
     expect(writtenProblems(o, [hd(three)], dataModuleText(o, [hd(three)])).some((p) => p.includes("3-star module"))).toBe(true);
-    expect(standInCommand(o)).not.toContain("--factories");
-    expect(standInCommand({ ...o, factories: "off" })).toContain("--factories off");
+    // On the 0.6.1 release (task 9dc97383c8c8b5a7): the header prints --factories on when factories are on, and
+    // nothing with factories off (the shipped pool v2's header predates --factories). Was: nothing when on, and
+    // "--factories off" when off (pre-flip, when the committed module was the stars-off v1.1).
+    expect(standInCommand(o)).toContain("--factories on");
+    expect(standInCommand({ ...o, factories: "off" })).not.toContain("--factories");
     expect(standInCommand({ ...o, stars: "off", factories: "on" })).not.toContain("--factories");
+  });
+
+  it("on the release: the shipped pool's header is standInCommand of the flip's options with factories off or on, so `standins --check --factories off` (or on) can regenerate it exactly", () => {
+    const header = readFileSync(resolve("src/sim/standInPoolData.ts"), "utf8").split("\n")[1];
+    const flip = { ...STANDIN_DEFAULTS, stars: "on" as const, cores: "on" as const };
+    const off = `//   ${standInCommand({ ...flip, factories: "off" })}`, on = `//   ${standInCommand({ ...flip, factories: "on" })}`;
+    expect(off).toBe(`//   ${standInCommand(flip)}`); // factories absent = off
+    expect(on).toBe(`${off} --factories on`);
+    expect([off, on]).toContain(header);
+    // at 689c2e8 the shipped pool is pool v2, generated before --factories existed: the factories-off header
+    expect(header).toBe(off);
+    // the header line is the one dataModuleText writes (line 2 of the module)
+    expect(dataModuleText({ ...flip, factories: "off" }, []).split("\n")[1]).toBe(off);
+    expect(dataModuleText({ ...flip, factories: "on" }, []).split("\n")[1]).toBe(on);
   });
 });
