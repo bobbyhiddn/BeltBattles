@@ -1,15 +1,28 @@
 // beltside-062-on-061 (ref/BRIEF-beltside-merge-061rel.md, "New tests"): how the rest of 0.6.1 meets rigs
-// (ref/DESIGN-beltside.md §13): P12 (SPLITTER after the retune), P13 (BRAKE SHOE ★2/★3, a mixed effect) and P14 (every
-// merge step is still an upgrade on rigs). Every expected number is written out from the catalogue (content.ts levels),
-// never recomputed with the code under test.
+// (ref/DESIGN-beltside.md §13): P12 (SPLITTER after the retune), P13 (BRAKE SHOE ★2/★3, a mixed effect), P14 (every
+// merge step is still an upgrade on rigs), P15 (pool v2 loads through D3), P16 (one harness), P17 (offline ghosts carry
+// stars and rotation) and P18 (RULES_VERSION). Every expected number is written out from the catalogue (content.ts
+// levels), never recomputed with the code under test.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { Rng, hashSeed } from "../src/core/rng";
 import { Battle, type Payload } from "../src/sim/battle";
-import { AMMO, BELT_SPEED, ITEMS, TICK } from "../src/sim/content";
-import { hitsOfRig, key as K, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
+import { AMMO, BELT_SPEED, ITEMS, RULES_VERSION, TICK } from "../src/sim/content";
+import { hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { hitLabel } from "../src/screens/build/inspector";
+import { validateBuild } from "../src/net/validate";
+import { decodeSnapshot, encodeSnapshot, checkSnapshot, SNAPSHOT_VERSION } from "../src/net/snapshot";
+import { offlineGhost } from "../src/net/fallback";
+import { decodeStarred, decodeStarredRaw, encodeStarred, STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
+import { STAND_IN_DATA } from "../src/sim/standInPoolData";
+import { decodeStarred as harnessDecode, encodeStarred as harnessEncode } from "../src/sim/harness/standinCode";
+import { fullPurseBuild, randomBuild } from "../src/sim/harness/gen";
+import { HARNESS_HEROES, heroStartBuild } from "../src/sim/harness/heroes";
+import { Shopper } from "../src/sim/harness/shopper";
+import { starsOf } from "../src/sim/stars";
 import { barge, bench, factoryBench, SEED } from "./arsenal.bench";
+import { POOL_NATIVE } from "./beltside.helpers";
 
 const st = (s: number) => (s > 1 ? { stars: s } : {});
 /** A rig at (x, y) whose FIRST arrow points in absolute direction `dir` (0 up, 1 east, 2 down, 3 west). */
@@ -231,5 +244,144 @@ describe("P14: the retuned rows fight on native rigs, each rig working exactly i
       const sp = bench([["splitter", 4, 3, s]], [], 0);
       expect(hitsOfRig(sp, 10).map((h) => h.cell), `splitter ★${s}`).toEqual([K(4, 3)]);
     }
+  });
+});
+
+// ---------------------------------------------------------------- P15: pool v2 loads through D3
+
+describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeStarred)", () => {
+  it("all 120 pool v2 decks load into a legal build for their day with nothing on a belt; migrated rigs keep their stars; the drops are counted and listed", () => {
+    let decks = 0, migrated = 0, moved = 0, starredMoved = 0;
+    const drops: string[] = [];
+    for (const hero of STAND_IN_POOL_HEROES) {
+      for (let day = 1; day <= 10; day++) {
+        STAND_IN_DATA.pools[hero]![day - 1][1].forEach((t, i) => {
+          const raw = decodeStarredRaw(hero, t[3]); // as generated: gates may stand on belt tiles
+          const mig = JSON.parse(JSON.stringify(raw)) as Build;
+          const m = migrateInlineGates(mig); // what the loader does, before renumbering
+          const loaded = decodeStarred(hero, t[3]);
+          decks++;
+          expect(validateBuild(loaded, day).errors, `${hero} d${day} #${i}`).toEqual([]);
+          const belt = new Set(loaded.routes.flatMap((r) => r.cells)), occ = occupancy(loaded);
+          expect([...belt].filter((k) => occ[k].item >= 0), `${hero} d${day} #${i}: machinery on a belt tile`).toEqual([]);
+          expect(encodeStarred(loaded), `${hero} d${day} #${i}`).toBe(encodeStarred(mig)); // the loader = raw + D3 (+ renumber)
+          if (m.moved.length || m.stranded.length) migrated++;
+          moved += m.moved.length;
+          for (const mv of m.moved) {
+            const before = raw.items.find((p) => p.uid === mv.uid)!, after = mig.items.find((p) => p.uid === mv.uid)!;
+            expect(starsOf(after), `${hero} d${day} #${i} uid ${mv.uid}`).toBe(starsOf(before));
+            if (starsOf(before) > 1) starredMoved++;
+          }
+          for (const p of m.stranded) drops.push(`${hero} d${day} #${i}: ${ITEMS[p.def].name}${starsOf(p) > 1 ? ` ★${starsOf(p)}` : ""} from (${p.x},${p.y})`);
+        });
+      }
+    }
+    console.log(`P15 pool v2 through D3: ${decks} decks, ${migrated} migrated, ${moved} rigs moved (${starredMoved} of them 2-star), ${drops.length} dropped:\n${drops.join("\n")}`);
+    expect(decks).toBe(120);
+    expect(starredMoved).toBeGreaterThan(0); // stars really travel with migrated rigs
+    // measured on this branch (the D4 native re-bake empties it): 94 decks migrate, 230 rigs move, 63 are dropped
+    expect([migrated, moved, drops.length]).toEqual(POOL_NATIVE ? [0, 0, 0] : [94, 230, 63]);
+  });
+
+  it("a deck with 2-star rigs and rotations round-trips through encodeStarred / decodeStarred; the loader and the harness codec agree on it", () => {
+    // the Furnace's Kiln belt up column 4; each rig works one tile of it: TEMPER 2-star (4,4) from the west, SPLITTER
+    // 2-star (4,3) from the east (T, rot 3), BRAKE (4,2) from the west, GALVANIC COIL 2-star (4,5) from the east (L, rot 2)
+    const b: Build = {
+      hero: "furnace",
+      items: [
+        { uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "temper", x: 3, y: 4, rot: 1, stars: 2 },
+        { uid: 3, def: "splitter", x: 5, y: 3, rot: 3, stars: 2 }, { uid: 4, def: "brake", x: 3, y: 2, rot: 1 },
+        { uid: 5, def: "coil", x: 5, y: 5, rot: 2, stars: 2 },
+      ],
+      routes: [{ factory: 1, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] }],
+      mods: [{ uid: 6, def: "calibrate", turret: 0, stars: 2 }], beltCap: 14, hullBonus: 0,
+    };
+    expect([2, 3, 4, 5].map((u) => hitsOfRig(b, u).map((h) => h.tile))).toEqual([[1], [2], [3], [0]]);
+    expect(validateBuild(b, 10).errors).toEqual([]);
+    const code = "14 0/kiln64 temper43r1*2 splitter35r3*2 brake23r1 coil55r2*2/1:544434241404/calibrate0*2"; // rotation, then stars
+    expect(encodeStarred(b)).toBe(code);
+    expect(harnessEncode(b)).toBe(code);
+    for (const back of [decodeStarred("furnace", code), decodeStarredRaw("furnace", code), harnessDecode("furnace", code)]) {
+      expect(back).toEqual(b);
+      expect(JSON.stringify(back)).toBe(JSON.stringify(b)); // same objects, same key order
+    }
+    // stars before the rotation, or a rotation on a non-rig, is no code (both codecs)
+    for (const dec of [decodeStarred, harnessDecode]) {
+      expect(() => dec("furnace", code.replace("temper43r1*2", "temper43*2r1"))).toThrow(/bad item/);
+      expect(() => dec("furnace", code.replace("kiln64", "kiln64r1"))).toThrow(/not a rig/);
+    }
+  });
+});
+
+// ---------------------------------------------------------------- P16: one harness
+
+describe("P16: one harness (harness v2's buying and merging, H2's placement)", () => {
+  it("stars-on harness builds put no machinery on a belt tile and no rig idle; some carry merged rigs", () => {
+    let rigs = 0, starred = 0;
+    const check = (b: Build, at: string) => {
+      const occ = occupancy(b), hits = rigHits(b);
+      expect(b.routes.flatMap((r) => r.cells).filter((k) => occ[k].item >= 0), `${at}: machinery on a belt tile`).toEqual([]);
+      for (const p of b.items.filter((q) => ITEMS[q.def].kind === "gate")) {
+        rigs++;
+        if (starsOf(p) > 1) starred++;
+        expect(hitsOfRig(b, p.uid, hits).length, `${at}: ${p.def} ${p.uid} idle`).toBeGreaterThan(0);
+      }
+    };
+    for (const hero of HARNESS_HEROES) for (const day of [3, 7, 10]) for (let i = 0; i < 4; i++) {
+      check(randomBuild(hero, day, new Rng(hashSeed("p16", hero, day, i)), "on"), `${hero} d${day} #${i}`);
+    }
+    for (const hero of ["furnace", "weaver"] as const) for (const day of [4, 8]) check(fullPurseBuild(hero, day, hashSeed("p16-fp", hero, day), undefined, 60, "on").build, `full purse ${hero} d${day}`);
+    expect(rigs).toBeGreaterThan(100);
+    expect(starred).toBeGreaterThan(0);
+  });
+
+  it("a merge keeps the surviving rig's cell and rotation (Shopper.placeRig, stars on, through the game's gainModule)", () => {
+    const b = heroStartBuild("furnace", 1); // the Kiln's belt up column 4
+    const s = new Shopper(b, 60, 10, new Rng(7), "on");
+    const first = s.placeRig("temper", 0, 1)!; // H2: west of (4,4), facing it
+    const spot = [first.uid, first.x, first.y, first.rot];
+    expect(spot).toEqual([first.uid, 3, 4, 1]);
+    const second = s.placeRig("temper", 0, 4)!; // put to work on tile 4, but a placed 1-star twin absorbs it
+    expect([second.uid, second.x, second.y, second.rot, starsOf(second)]).toEqual([...spot, 2]);
+    expect(b.items.filter((p) => p.def === "temper")).toHaveLength(1);
+    const third = s.placeRig("temper", 0, 3)!; // no 1-star twin: a new rig beside tile 3
+    expect([third.x, third.y, starsOf(third)]).toEqual([3, 2, 1]);
+    const fourth = s.placeRig("temper", 0, 5)!; // merges with the third, whose 2-star chains into the first
+    expect([fourth.uid, fourth.x, fourth.y, fourth.rot, starsOf(fourth)]).toEqual([...spot, 3]);
+    expect(b.items.filter((p) => p.def === "temper")).toHaveLength(1);
+    expect(validateBuild(b, 10).errors).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------- P17: offline ghosts carry stars and rotation
+
+describe("P17: offline ghosts carry stars and rotation (v2 snapshots)", () => {
+  it("offline ghosts built from 2-star rig decks round-trip through encodeSnapshot, validateBuild and decodeSnapshot unchanged", () => {
+    let starRigs = 0;
+    for (const hero of ["furnace", "weaver"] as const) for (let day = 1; day <= 10; day++) for (let seed = 0; seed < 6; seed++) {
+      const s = offlineGhost(hero, day, seed).snapshot;
+      expect(s.v).toBe(SNAPSHOT_VERSION);
+      expect(validateBuild(s.build, s.day).errors, `${hero} d${day} #${seed}`).toEqual([]);
+      const back = decodeSnapshot(encodeSnapshot(s));
+      expect(back).toEqual(s);
+      expect(JSON.stringify(back)).toBe(JSON.stringify(s));
+      if (s.build.items.some((p) => ITEMS[p.def].kind === "gate" && starsOf(p) === 2 && p.rot !== undefined)) starRigs++;
+    }
+    expect(starRigs).toBeGreaterThan(0); // pool v2's merged rigs, migrated with their rotation, travel as they are
+    // and a hand 2-star rig deck as an offline ghost (the P15 deck: rotations and stars on rigs and a mod)
+    const build = decodeStarred("furnace", "14 0/kiln64 temper43r1*2 splitter35r3*2 brake23r1 coil55r2*2/1:544434241404/calibrate0*2");
+    const g = checkSnapshot({ v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero: "furnace", day: 10, wins: 3, lives: 2, build, runId: "offline-p17", playerId: "offline-warlord", createdAt: 0 });
+    expect(validateBuild(g.build, g.day).errors).toEqual([]);
+    expect(decodeSnapshot(encodeSnapshot(g))).toEqual(g);
+    expect(decodeSnapshot(encodeSnapshot(g)).build).toEqual(build);
+  });
+});
+
+// ---------------------------------------------------------------- P18: RULES_VERSION
+
+describe("P18: RULES_VERSION", () => {
+  it("is the 0.6.1 release's bb-0.6.1 (BELTSIDE's own bump comes at the 0.6.2 release), and pool v2 was scored under it", () => {
+    expect(RULES_VERSION).toBe("bb-0.6.1");
+    expect(STAND_IN_DATA.rules).toBe(RULES_VERSION);
   });
 });
