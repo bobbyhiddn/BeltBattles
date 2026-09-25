@@ -726,7 +726,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
     id: "furnace", name: "FURNACE", faction: "orc", factionName: "ORC WARBAND",
     hull: 200, factory: "kiln", ammo: "cinder", belt: 14,
     turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", fireInterval: 1.0, window: 3, flight: 0.6 }],
-    blurb: ["KILN SLUGS HEAT UP ON", "THE BELT. LONGER ROUTES", "HIT HARDER, BUT LATER."],
+    blurb: ["KILN SLUGS HEAT UP ON", "LONG BELTS. AT 8+ TILES,", "BREECH FIRES EVERY 0.72S."],
     pattern: "DELAY TO COOK",
     core: "kilnbreech",
   },

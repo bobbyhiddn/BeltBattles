@@ -3,10 +3,10 @@
 // rig-free battles. This file freezes the BELTSIDE battles instead, from decks that never change: every
 // golden-060 deck and its par opponent, and the races golden's warlord r5/r10 decks (the 8167743 inline
 // presets, fixtures/beltside-062/inline-presets.json), each through migrateInlineGates (D3). A failure means
-// the BELTSIDE battle or the migration changed. The fixture was written at the beltside M1 commit:
-//   BB_GOLDEN_WRITE=1 npx vitest run tests/golden.beltside.test.ts
-// Never regenerate it to make a failing run pass.
-import { readFileSync, writeFileSync } from "node:fs";
+// the BELTSIDE battle or the migration changed. E1 adds Furnace's long-belt cadence, so current battles are
+// frozen separately in fixtures/beltside-062-e1/golden.json. The M1 fixture stays intact.
+//   BB_E1_GOLDEN_WRITE=1 npx vitest run tests/golden.beltside.test.ts
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { simulate } from "../src/sim/battle";
@@ -14,8 +14,8 @@ import { migrateInlineGates } from "../src/sim/beltside";
 import type { Build } from "../src/sim/deck";
 
 const here = (f: string) => fileURLToPath(new URL(f, import.meta.url));
-const FIXTURE = here("./fixtures/beltside-062/golden.json");
-const WRITE = !!process.env.BB_GOLDEN_WRITE;
+const FIXTURE = here("./fixtures/beltside-062-e1/golden.json");
+const WRITE = !!process.env.BB_E1_GOLDEN_WRITE;
 const load = <T>(f: string): T => JSON.parse(readFileSync(here(f), "utf8")) as T;
 
 interface Entry { key: string; deck: Build; opp: string; seed: number }
@@ -60,15 +60,16 @@ describe("beltside golden: BELTSIDE battles of the migrated golden-060 and warlo
   if (WRITE) {
     it("writes the golden fixture", () => {
       const g: Golden = {
-        generatedAt: "beltside M1", note: "simulate(migrateInlineGates(deck), migrateInlineGates(opponent), seed). Never edit.",
+        generatedAt: "beltside-062-e1", note: "E1 Furnace Breech fires every 0.72s on connected belts with at least 8 tiles; simulate(migrateInlineGates(deck), migrateInlineGates(opponent), seed).",
         decks: Object.fromEntries(g060.map((e) => [e.key, fight(e.deck, par.decks[e.opp], e.seed)])),
         warlords: Object.fromEntries(warlords().map(([name, p, e]) => [name, SEEDS.map((s) => fight(p, e, s))])),
       };
+      mkdirSync(here("./fixtures/beltside-062-e1"), { recursive: true });
       writeFileSync(FIXTURE, JSON.stringify(g).replace(/\],"/g, "],\n\"").replace(/\],\[/g, "],\n[") + "\n");
     });
     return;
   }
-  const golden = load<Golden>("./fixtures/beltside-062/golden.json");
+  const golden = load<Golden>("./fixtures/beltside-062-e1/golden.json");
   it("covers every golden-060 entry and every warlord matchup for 40 seeds", () => {
     expect(Object.keys(golden.decks).sort()).toEqual(g060.map((e) => e.key).sort());
     expect(Object.keys(golden.warlords).sort()).toEqual(warlords().map(([n]) => n).sort());

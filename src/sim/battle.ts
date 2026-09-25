@@ -1536,7 +1536,14 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
   const g = gearStats(b, i);
   const core = resolveCore(b, i, def);
   const c = core.spec;
-  const interval = def.fireInterval * g.fireMul;
+  // E1: Furnace's Breech keeps its opening cadence, then fires faster when a long belt feeds it.
+  // The existing heavy-gun class factor still comes from the hero's 1.0s base interval.
+  const longFurnaceBelt = b.hero === "furnace" && b.routes.some((r, ri) => {
+    if (r.cells.length < 8) return false;
+    const info = routeInfo(b, ri);
+    return info.connected && info.turret === i;
+  });
+  const interval = (longFurnaceBelt ? 0.72 : def.fireInterval) * g.fireMul;
   const windowTime = c.windowTime ?? WINDOW_TIME;
   return {
     index: i, def, stack: [], phase: "load", loadTimer: 0, fireCd: 0, jamSkip: 0, jamRandom: false,

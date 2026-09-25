@@ -6,18 +6,14 @@ import { startingBuild, warlordBuild } from "../src/sim/ai";
 import { ITEMS } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 
-// races: HARD RULE for the races work. Furnace and Weaver battles stay bit-for-bit identical.
-// The fixture was generated at ff6914a (0.4.1) BEFORE any sim edit:
-//   BB_GOLDEN_WRITE=1 npx vitest run tests/races.golden.test.ts
-// Never regenerate it to make a failing run pass: a failure means Furnace/Weaver changed.
-// 0.6.2 BELTSIDE (ref/DESIGN-beltside.md) changes Furnace and Weaver battles that carry gates, by design:
-// gates became rigs beside the belt. The fixture is kept as it is; matchups with no rig on either side
-// (the starting decks and round 1) must still match it bit for bit. The r5 and r10 warlord matchups carry
-// rigs: their BELTSIDE battles (from the 8167743 inline decks, migrated) are frozen in
-// fixtures/beltside-062/golden.json by tests/golden.beltside.test.ts, same seeds.
+// E1 adds Furnace's long-belt gun cadence. The ff6914a fixture remains intact; this fixture freezes
+// current rig-free Furnace/Weaver battles under the E1 rule. Rig-bearing matchups use the native
+// fixture in golden.beltside.test.ts. The unchanged Weaver mirror still matches ff6914a.
+//   BB_E1_GOLDEN_WRITE=1 npx vitest run tests/races.golden.test.ts
 
-const FIXTURE = fileURLToPath(new URL("./races.golden.json", import.meta.url));
-const WRITE = !!process.env.BB_GOLDEN_WRITE;
+const FIXTURE = fileURLToPath(new URL("./fixtures/beltside-062-e1/races.golden.json", import.meta.url));
+const OLD_FIXTURE = fileURLToPath(new URL("./races.golden.json", import.meta.url));
+const WRITE = !!process.env.BB_E1_GOLDEN_WRITE;
 const SEEDS = Array.from({ length: 40 }, (_, i) => 1 + i * 7919);
 
 // winner, end tick, player hull, enemy hull, player shots, enemy shots
@@ -56,27 +52,29 @@ function run(p: Build, e: Build, seed: number): Row {
   ];
 }
 
-describe("races golden: Furnace and Weaver battles are bit-for-bit unchanged", () => {
+const rigFree = (b: Build) => !b.items.some((q) => ITEMS[q.def]?.kind === "gate");
+
+describe("E1 golden: rig-free Furnace and Weaver battles under the long-belt cadence", () => {
   if (WRITE) {
     it("writes the golden fixture", () => {
-      const g: Golden = { generatedAt: "ff6914a", seeds: SEEDS, matchups: {} };
-      for (const [name, p, e] of matchups()) g.matchups[name] = SEEDS.map((s) => run(p, e, s));
+      const g: Golden = { generatedAt: "beltside-062-e1", seeds: SEEDS, matchups: {} };
+      for (const [name, p, e] of matchups().filter(([, p, e]) => rigFree(p) && rigFree(e))) g.matchups[name] = SEEDS.map((s) => run(p, e, s));
       writeFileSync(FIXTURE, JSON.stringify(g, null, 0).replace(/\],\[/g, "],\n[") + "\n");
     });
     return;
   }
   const golden = JSON.parse(readFileSync(FIXTURE, "utf8")) as Golden;
+  const old = JSON.parse(readFileSync(OLD_FIXTURE, "utf8")) as Golden;
   it("fixture covers 40 seeds for every matchup", () => {
     expect(golden.seeds).toEqual(SEEDS);
-    expect(Object.keys(golden.matchups).sort()).toEqual(matchups().map((m) => m[0]).sort());
+    expect(Object.keys(golden.matchups).sort()).toEqual(matchups().filter(([, p, e]) => rigFree(p) && rigFree(e)).map((m) => m[0]).sort());
   });
-  const rigFree = (b: Build) => !b.items.some((q) => ITEMS[q.def]?.kind === "gate");
   it("0.6.2 BELTSIDE: the start and round-1 matchups have no rig on either side; r5 and r10 do", () => {
     expect(matchups().filter(([, p, e]) => rigFree(p) && rigFree(e)).map(([n]) => n)).toEqual(matchups().map(([n]) => n).filter((n) => !/r5|r10/.test(n)));
   });
   for (const [name, p, e] of matchups()) {
     if (!rigFree(p) || !rigFree(e)) continue; // 0.6.2 BELTSIDE: frozen in golden.beltside.test.ts
-    it(`${name}: winner, end tick, hulls and shots match ff6914a for 40 seeds`, () => {
+    it(`${name}: winner, end tick, hulls and shots match E1 for 40 seeds`, () => {
       const want = golden.matchups[name];
       expect(want).toHaveLength(SEEDS.length);
       SEEDS.forEach((seed, i) => {
@@ -86,4 +84,8 @@ describe("races golden: Furnace and Weaver battles are bit-for-bit unchanged", (
       });
     });
   }
+  it("Weaver mirror stays identical to the original fixture", () => {
+    for (const name of ["start weaver v weaver", "warlord r1 weaver v weaver"])
+      expect(golden.matchups[name]).toEqual(old.matchups[name]);
+  });
 });
