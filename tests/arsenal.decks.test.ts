@@ -109,4 +109,8 @@ describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of mean d
     if (!process.env.BB_TABLES) return;
     for (const c of REPORT_ONLY) console.log(`REPORT-ONLY ${line(c, deckRows(c))}`);
   });
+
+  it("KNOWN_FALLS stays empty: every merge step is an upgrade (0.6.1f)", () => {
+    expect(KNOWN_FALLS).toEqual([]);
+  });
 });
