@@ -146,3 +146,42 @@ describe("0.6.1c: each factory's headline at each star, its perks named, and the
     }
   });
 });
+
+// 0.6.1f: the retuned BRAKE SHOE (HOT SHOE, RED-HOT SHOE) and SPLITTER (PERFECT CUT), written out by hand
+describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () => {
+  it("BRAKE SHOE: HALF SPEED at every star, +2 / +5 DMG from the heat", () => {
+    expect([1, 2, 3].map((s) => starEffectLine("brake", s))).toEqual(["HALF SPEED", "HALF SPEED · +2 DMG", "HALF SPEED · +5 DMG"]);
+    expect(levelLine("brake", 2)).toBe("★2 HOT SHOE: HALF SPEED · +2 DMG");
+    expect(levelLine("brake", 3)).toBe("★3 RED-HOT SHOE: HALF SPEED · +5 DMG");
+    expect(nextLine(holding("brake", [1]), "brake", 1)).toBe("NEXT ★2 HOT SHOE: HALF SPEED · +2 DMG · 1 MORE COPY");
+    expect(nextLine(holding("brake", [2]), "brake", 2)).toBe("NEXT ★3 RED-HOT SHOE: HALF SPEED · +5 DMG · 2 MORE COPIES");
+    expect(mergeLine(holding("brake", [1]), "brake")).toBe("MERGES WITH YOUR BRAKE SHOE ★1 → ★2 · HALF SPEED · +2 DMG");
+    expect(mergeLine(holding("brake", [2, 1]), "brake")).toBe("MERGES WITH YOUR BRAKE SHOE ★2 → ★3 · HALF SPEED · +5 DMG");
+  });
+
+  it("SPLITTER: 2 X 60% / 2 X 72% CLEAN CUT / 2 X 85% PERFECT CUT", () => {
+    expect([1, 2, 3].map((s) => starEffectLine("splitter", s))).toEqual(["2 X 60%", "2 X 72%", "2 X 85%"]);
+    expect(levelLine("splitter", 2)).toBe("★2 CLEAN CUT: 2 X 72%");
+    expect(levelLine("splitter", 3)).toBe("★3 PERFECT CUT: 2 X 85%");
+    expect(nextLine(holding("splitter", [1]), "splitter", 1)).toBe("NEXT ★2 CLEAN CUT: 2 X 72% · 1 MORE COPY");
+    expect(nextLine(holding("splitter", [2]), "splitter", 2)).toBe("NEXT ★3 PERFECT CUT: 2 X 85% · 2 MORE COPIES");
+    expect(mergeLine(holding("splitter", [1]), "splitter")).toBe("MERGES WITH YOUR SPLITTER ★1 → ★2 · 2 X 72%");
+    expect(mergeLine(holding("splitter", [2, 1]), "splitter")).toBe("MERGES WITH YOUR SPLITTER ★2 → ★3 · 2 X 85%");
+  });
+
+  it("the other speed gates keep their lines; a gate's NEXT line names the perk that star brings, once", () => {
+    expect([1, 2, 3].map((s) => starEffectLine("grease", s))).toEqual(["SPEED X1.6", "SPEED X2.3", "SPEED X3.1"]);
+    expect(starEffectLine("overdrive", 3)).toBe("SPEED X5 · +3 FLAT");
+    expect(nextLine(holding("overdrive", [2]), "overdrive", 2)).toBe("NEXT ★3 AFTERBURNER: SPEED X5 · +3 FLAT · 2 MORE COPIES");
+    expect(nextLine(holding("coil", [2]), "coil", 2)).toBe("NEXT ★3: STALL 2.8S · JUMPS TO 1 MORE · 2 MORE COPIES"); // SPARK JUMP already
+  });
+
+  it("phone: the headline and its MERGES WITH line fit the band's 4 body lines (3x5 face, 151 px)", () => {
+    for (const def of ["brake", "splitter"]) {
+      for (const owned of [[1], [2, 1]]) {
+        const lines = [starEffectLine(def, 1), mergeLine(holding(def, owned), def)!].flatMap((l) => wrap(l, 151, "3"));
+        expect(lines.length, `${def} ${owned}: ${lines.join(" / ")}`).toBeLessThanOrEqual(4);
+      }
+    }
+  });
+});

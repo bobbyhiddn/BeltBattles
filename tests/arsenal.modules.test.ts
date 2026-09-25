@@ -28,8 +28,13 @@ export const LIVE_ROWS: Row[] = [
   { id: "temper", headline: "Burn stacks per payload", band: [2.0, 3.5], at: (s) => est(bench([["temper", 4, 3, s]])).burn },
   { id: "whetstone", headline: "Flat damage", band: [2.0, 3.5], at: (s) => est(bench([["whetstone", 4, 3, s]])).dmg - est(bench()).dmg },
   { id: "grease", headline: "Speed above 1x", band: [2.2, 3.5], at: (s) => run(bench([["grease", 4, 4, s]]), 5).sides[0].routes[0].speedAt[3] - 1 },
-  // 60 px (5 tiles) of belt follow the gate's centre on this route
-  { id: "brake", headline: "Seconds added per tile vs 1x", band: [2.2, 3.5], at: (s) => (est(bench([["brake", 4, 4, s]])).time - est(bench()).time) / 5 },
+  // 60 px (5 tiles) of belt follow the gate's centre on this route. 0.6.1f: HALF SPEED at every star, so the seconds
+  // are equal and the heat rises (a tuple: no part falls, the flat rises); no band, since 1 star adds no flat. The
+  // equality and the flat's 0 / 2 / 5 are asserted exactly below.
+  { id: "brake", headline: "Seconds added per tile vs 1x; flat damage per payload", at: (s) => [
+    (est(bench([["brake", 4, 4, s]])).time - est(bench()).time) / 5,
+    +(est(bench([["brake", 4, 4, s]])).dmg - est(bench([["brake", 4, 4, 1]])).dmg).toFixed(6),
+  ] },
   { id: "longhaul", headline: "Flat damage per prior gate", band: [2.0, 3.5], at: (s) => est(bench([["whetstone", 4, 4, 1], ["longhaul", 4, 2, s]])).dmg - est(bench([["whetstone", 4, 4, 1]])).dmg },
   { id: "coil", headline: "Machine-seconds stalled per shocked machine hit", band: [2.25, 3.5], at: (s) => coilStall(s).perHit },
   { id: "splitter", headline: "Total damage above 100%", band: [2.2, 3.5], at: (s) => { const e = est(bench([["splitter", 4, 3, s]])); return (e.copies * e.dmg) / est(bench()).dmg - 1; } },
@@ -132,19 +137,29 @@ describe("0.6.1p: the six pending perks, each applied", () => {
     expect(a).toEqual(b);
   });
 
-  it("SPLITTER: THREE-WAY makes 3 copies at 57% (applyGate returns two new copies)", () => {
-    expect([1, 2, 3].map((s) => est(bench([["splitter", 4, 3, s]])).copies)).toEqual([2, 2, 3]);
-    let seen = -1;
-    run(bench([["splitter", 4, 3, 3]]), 4, barge(), SEED, (ev, bt) => {
-      if (seen >= 0 || !ev.some((e) => e.type === "process" && e.side === 0 && e.def === "splitter")) return;
-      const copies = bt.sides[0].routes[0].ammo.filter((a) => a.p.copy);
-      seen = copies.length;
-      for (const a of copies) expect(a.p.mult).toBeCloseTo(0.57);
-      expect(new Set(copies.map((a) => a.p.id)).size).toBe(copies.length);
-      const s = copies.map((a) => a.s);
-      expect(s[0] > s[1] && s[1] > s[2]).toBe(true); // front first, the belt order kept
-    });
-    expect(seen).toBe(3);
+  // 0.6.1f: PERFECT CUT replaced THREE-WAY (its third copy overfilled the chamber); the sim's generic copies loop stays
+  it("SPLITTER: PERFECT CUT makes 2 copies at 85% (applyGate returns one new copy, as at 1-2 stars)", () => {
+    expect([1, 2, 3].map((s) => est(bench([["splitter", 4, 3, s]])).copies)).toEqual([2, 2, 2]);
+    /** The copies on the belt right after the splitter's first cut: [count, mults, positions]. */
+    const firstCut = (b: Build, secs: number) => {
+      let out: [number, number[], number[]] = [-1, [], []];
+      run(b, secs, barge(), SEED, (ev, bt) => {
+        if (out[0] >= 0 || !ev.some((e) => e.type === "process" && e.side === 0 && e.def === "splitter")) return;
+        const copies = bt.sides[0].routes[0].ammo.filter((a) => a.p.copy);
+        expect(new Set(copies.map((a) => a.p.id)).size).toBe(copies.length);
+        out = [copies.length, copies.map((a) => a.p.mult), copies.map((a) => a.s)];
+      });
+      return out;
+    };
+    const [n, mults, s] = firstCut(bench([["splitter", 4, 3, 3]]), 4);
+    expect(n).toBe(2);
+    for (const m of mults) expect(m).toBeCloseTo(0.85);
+    expect(s[0] > s[1]).toBe(true); // front first, the belt order kept
+    // the generic loop still makes copies - 1: under ASSEMBLY LINE ★3 HOT START's overclock a 1-star splitter cuts 3
+    const [hn, hm, hs] = firstCut(factoryBench("assembly", 3, { only: true, gates: [["splitter", 5, 3, 1]] }), 4);
+    expect(hn).toBe(3);
+    for (const m of hm) expect(m).toBeCloseTo(0.6);
+    expect(hs[0] > hs[1] && hs[1] > hs[2]).toBe(true);
   });
 
   it("OVERDRIVE: AFTERBURNER +3 flat at 3 stars; REDLINE/AFTERBURNER guard flags set downstream, with no effect in wave 1", () => {
@@ -189,6 +204,23 @@ describe("0.6.1p: the six pending perks, each applied", () => {
       return m;
     };
     expect([1, 2, 3].map(most)).toEqual([3, 4, 4]);
+  });
+});
+
+describe("0.6.1f: BRAKE SHOE merges into heat, not a deeper slow (HOT SHOE, RED-HOT SHOE)", () => {
+  it("the seconds added per tile are equal at every star; the flat damage per payload is 0 / 2 / 5 exactly", () => {
+    const perTile = [1, 2, 3].map((s) => (est(bench([["brake", 4, 4, s]])).time - est(bench()).time) / 5);
+    expect(perTile[0]).toBeGreaterThan(0); // still a slow
+    expect([perTile[1], perTile[2]]).toEqual([perTile[0], perTile[0]]);
+    expect([1, 2, 3].map((s) => run(bench([["brake", 4, 4, s]]), 5).sides[0].routes[0].speedAt[3])).toEqual([0.5, 0.5, 0.5]);
+    // every payload past the shoe (cell 1) carries its heat, read off the sim (AFTERBURNER's probe)
+    const flats = (s: number) => {
+      const past = run(bench([["brake", 4, 4, s]]), 8).sides[0].routes[0].ammo.filter((a) => a.processed >= 1);
+      expect(past.length, `${s}`).toBeGreaterThan(0);
+      return [...new Set(past.map((a) => a.p.flat))];
+    };
+    expect([1, 2, 3].map(flats)).toEqual([[0], [2], [5]]);
+    expect([1, 2, 3].map((s) => est(bench([["brake", 4, 4, s]])).dmg - est(bench([["brake", 4, 4, 1]])).dmg).map((d) => +d.toFixed(9))).toEqual([0, 2, 5]);
   });
 });
 

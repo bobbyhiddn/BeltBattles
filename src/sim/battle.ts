@@ -517,7 +517,8 @@ export class Battle {
           a.processed++;
           const g = r.gateAt[a.processed];
           if (g && g.online && g.disrupted <= 0) {
-            // 0.6.1p: a SPLITTER returns 1 copy (2 at ★3 THREE-WAY); each goes in behind the one before it
+            // a SPLITTER returns copies - 1 new ones (1 at every star since 0.6.1f's PERFECT CUT; 2 while ASSEMBLY
+            // LINE's HOT START overclocks it); each goes in behind the one before it
             let after = a;
             for (const copy of this.applyGate(s, a, g)) {
               inserts.push({ after, copy });
@@ -555,7 +556,7 @@ export class Battle {
       p.mult *= e.split.mult;
       p.flat *= e.split.mult;
       p.copy = true;
-      for (let c = 1; c < e.split.copies; c++) { // 0.6.1p: ★3 THREE-WAY makes two copies
+      for (let c = 1; c < e.split.copies; c++) { // generic: copies - 1 new ones (an overclocked split makes one more)
         const cp: Payload = { ...p, id: this.nextId++ };
         copies.push({ p: cp, s: a.s - 0.01 * c, processed: a.processed, blocked: false });
       }
