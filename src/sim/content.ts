@@ -72,6 +72,9 @@ export interface GateEffect {
   shockTime?: number; // GALVANIC COIL 2-3 stars: the stall in s (1 star: DISRUPT_TIME, 1.6 s, the catalogue's star1)
   jump?: number; // GALVANIC COIL SPARK JUMP: the spark also stalls this many nearest other machines (no RNG)
   guard?: number; // OVERDRIVE REDLINE/AFTERBURNER: GUARD_* flags on the tiles downstream (RouteState.guard)
+  toll?: number; // future TOLLBOOTH: harassment hits absorbed on every route this rig reaches
+  tollFactory?: boolean; // future TOLLBOOTH star 3: also protect the route's factory
+  sift?: number | "all"; // future SIFTER: debuffs removed from a passing payload, in CHILL/SNAG/SAP order
 }
 
 /**
@@ -84,7 +87,7 @@ export const GUARD_FREEZE = 2;
 export const GUARD_SKIRT = 4;
 
 /** 0.6.1p: what stalls a machine (MANTLET immunities). Only "shock" exists in wave 1; wave 2 adds the rest. */
-export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabot";
+export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabot" | "rip" | "limpet" | "sap";
 
 export interface FactorySpec {
   ammo: AmmoKind;
@@ -118,6 +121,7 @@ export interface ModSpec {
   immune?: HarassCause[]; // MANTLET: stalls this turret ignores (Battle.disrupt)
   intakeGuard?: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into this turret share its immunities
   finisher?: number; // FINISHER RAM: + this share of damage on the payload that empties a loading window
+  intercept?: number; // future FLAK SCREEN: one side-wide intercept roll per incoming harassment projectile
 }
 
 /** 0.6.1b: how a turret fires (ARSENAL.md §2). "identity" is today's firing: every hero's signature core. */

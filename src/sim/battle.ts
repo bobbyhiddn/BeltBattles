@@ -5,7 +5,7 @@
 import { Rng } from "../core/rng";
 import {
   AMMO, AMMO_SPACING, BATTLE_CAP, BELT_SPEED, BURN_TIME, CELL, COMMISSION_BASE, COMMISSION_STEP,
-  DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_SKIRT, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, RULES_VERSION,
+  DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, RULES_VERSION,
   TICK, WIND_START, WIND_WARN, WINDOW_TIME,
   type AmmoKind, type CoreRoutine, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
@@ -17,6 +17,7 @@ import {
 import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { effectAt, starsOf } from "./stars";
 import { overclocked } from "./overclock"; // 0.6.1c: ASSEMBLY LINE ★3 HOT START
+import { debuffedDamage, segmentBounds, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
@@ -37,6 +38,11 @@ export interface Payload {
   jump?: number; // GALVANIC COIL SPARK JUMP: nearest other machines its Shock also stalls
   base?: number; // STAMP PRESS 2-3 stars: base damage, instead of AMMO[ammo].base
   preset?: "ember" | "spark"; // 0.6.1c HOT SWAP: the cycle step it was stamped with (render tint; burn/shock already written)
+  debuffs?: PayloadDebuffs; // carried across routes, copies and future junction handoffs
+  harass?: HarassRound; // opt-in round hook for the later foundries; ordinary ammo has no extra draws
+  static?: boolean; // opt-in Static hull stall hook
+  arc?: number; // opt-in nearest-machine arc count; each arc passes through the same guard
+  rip?: { count: number; reach: number }; // opt-in Grapnel core hook, reach in belt tiles
 }
 
 export interface BeltAmmo {
@@ -67,6 +73,9 @@ export interface GateState {
   commissionAt: number;
   online: boolean;
   disrupted: number;
+  frozen: number;
+  wrecked: boolean;
+  tolls: number;
   flash: number; // render: time since last processed payload (counts down)
   arrowFlash: number[]; // 0.6.2 render (V3): per absolute direction, counts down after that arrow applied
   // 0.6.1c ASSEMBLY LINE ★3 HOT START: overclocked (overclock.ts) until this battle time (s). beltside-062c (DESIGN
@@ -84,6 +93,8 @@ export interface RouteState {
   gateAt: TileHit[][]; // 0.6.2: per tile, the hits landing on it in R7 order (was one gate or null)
   ammo: BeltAmmo[]; // front (largest s) first
   cellDisrupt: number[];
+  cellFrozen: number[];
+  cellSlow: { mul: number; t: number }[];
   speedAt: number[]; // render: speed state per cell
   pts: { x: number; y: number }[];
   phase: number[]; // render: belt animation phase per cell (px)
@@ -102,6 +113,7 @@ export interface FactoryState {
   timer: number;
   rr: number;
   disrupted: number;
+  frozen: number;
   flash: number; // render
   stalled: boolean;
   produced: number;
@@ -121,6 +133,7 @@ export interface TurretState {
   jamRandom: boolean;
   jamCd: number;
   disrupted: number;
+  frozen: number;
   perShot: number;
   interval: number;
   recoil: number; // render
@@ -137,6 +150,7 @@ export interface TurretState {
   immune: HarassCause[]; // MANTLET: stalls Battle.disrupt ignores on this turret
   intakeGuard: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into it share `immune`
   finisher: number; // FINISHER RAM: + this share of damage on the payload that empties the window (never on a GATLING)
+  intercept: number; // future Flak mod's chance; the side takes the maximum across its turrets
 }
 
 export interface HullState {
@@ -186,6 +200,9 @@ export interface SideState {
   routes: RouteState[];
   turrets: TurretState[];
   targets: Target[];
+  flak: number;
+  harassAccepted: number; // future Scrapper consumes accepted enemy effects from this side
+  limpets: { at: number; target: Target; from: Side; blast: number; stall: number }[];
   stats: SideStats;
   race?: RaceSide; // races: race mechanics state; undefined for Furnace and Weaver
 }
@@ -209,6 +226,7 @@ export interface Projectile {
   burnTime?: number; // their duration, instead of BURN_TIME (DRAKE)
   noFray?: boolean; // SCATTER: only the first pellet applies the ammo's Fray stacks
   finisher?: boolean; // 0.6.1p: a FINISHER RAM finisher (render: a 1 px red trail); absent otherwise
+  flakChecked?: boolean;
 }
 
 export type SimEvent =
@@ -221,6 +239,11 @@ export type SimEvent =
   | { type: "impact"; side: Side; x: number; y: number; dmg: number; heavy: boolean; kind: TargetKind; shock: boolean; burn: number; big: boolean }
   | { type: "jam"; side: Side; turret: number }
   | { type: "disrupt"; side: Side; kind: TargetKind; ref: number; cell: number }
+  | { type: "telegraph"; side: Side; proj: number; round: HarassRound["kind"]; target: Target; impactAt: number }
+  | { type: "flak"; side: Side; proj: number }
+  | { type: "toll"; side: Side; gate: number; remaining: number; cause: HarassCause }
+  | { type: "harass"; side: Side; kind: TargetKind; ref: number; cell: number; cause: HarassCause }
+  | { type: "freeze" | "slow" | "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
   | { type: "burn"; side: Side; dmg: number }
   | { type: "wind"; dmg: number }
   | { type: "windwarn" }
@@ -246,7 +269,7 @@ export function tileSpeed(list: readonly TileHit[]): number | undefined {
   let best: number | undefined;
   for (const h of list) {
     const sp = h.g.def.gate?.speed;
-    if (!sp || !h.g.online || h.g.disrupted > 0) continue;
+    if (!sp || !h.g.online || h.g.disrupted > 0 || h.g.frozen > 0 || h.g.wrecked) continue;
     best = best === undefined ? sp : speedWinner([best, sp]);
   }
   return best;
@@ -295,7 +318,8 @@ export class Battle {
       if (d.kind !== "gate") continue;
       const g: GateState = {
         uid: p.uid, def: d, x: p.x, y: p.y, route: -1, cellIdx: -1, hits: [], commissionAt: Infinity,
-        online: false, disrupted: 0, flash: 0, arrowFlash: [0, 0, 0, 0],
+        online: false, disrupted: 0, frozen: 0, wrecked: false, tolls: d.gate?.toll ?? 0,
+        flash: 0, arrowFlash: [0, 0, 0, 0],
       };
       gates.push(g);
       gateByUid.set(p.uid, g);
@@ -336,7 +360,9 @@ export class Battle {
       }));
       return {
         index: i, factory: r.factory, cells: [...r.cells], connected: info.connected, turret: info.turret,
-        L: info.length, gateAt, ammo: [], cellDisrupt: r.cells.map(() => 0), speedAt: r.cells.map(() => 1),
+        L: info.length, gateAt, ammo: [], cellDisrupt: r.cells.map(() => 0),
+        cellFrozen: r.cells.map(() => 0), cellSlow: r.cells.map(() => ({ mul: 1, t: 0 })),
+        speedAt: r.cells.map(() => 1),
         pts: routePolyline(b, r, info.connected), phase: r.cells.map(() => 0), pressure: 0,
         guard: r.cells.map(() => 0), // 0.6.1p
       };
@@ -346,7 +372,7 @@ export class Battle {
       .map((p) => ({
         uid: p.uid, def: effectAt(p.def, starsOf(p)), x: p.x, y: p.y, // 0.6.1a: factory spec at its stars
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
-        timer: 0.35, rr: 0, disrupted: 0, flash: 0, stalled: false, produced: 0,
+        timer: 0.35, rr: 0, disrupted: 0, frozen: 0, flash: 0, stalled: false, produced: 0,
         pending: 0, cycleIdx: 0, // 0.6.1c
       }));
     const turrets: TurretState[] = h.turrets.map((def, i) => makeTurret(b, i, def)); // 0.6.1b: gear and core
@@ -380,7 +406,8 @@ export class Battle {
       targets.push({ kind: "turret", ref: tu.index, cell: -1, x: (tu.def.col0 + tu.def.width / 2) * CELL, y: -9, weight: 2 });
     });
     return {
-      side, build: b, hero: h, hull, factories, gates, routes, turrets, targets, stats: emptyStats(),
+      side, build: b, hero: h, hull, factories, gates, routes, turrets, targets,
+      flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, limpets: [], stats: emptyStats(),
       race: makeRaceSide(b), // races:
     };
   }
@@ -409,21 +436,31 @@ export class Battle {
     for (const g of s.gates) {
       if (g.flash > 0) g.flash -= dt;
       for (let d = 0; d < 4; d++) if (g.arrowFlash[d] > 0) g.arrowFlash[d] = Math.max(0, g.arrowFlash[d] - dt);
+      const stopped = g.disrupted > 0 || g.frozen > 0;
       if (g.disrupted > 0) {
         g.disrupted = Math.max(0, g.disrupted - dt);
-        s.stats.disrupted += dt;
       }
-      if (!g.online && g.hits.length > 0 && this.t >= g.commissionAt) {
+      if (g.frozen > 0) {
+        g.frozen = Math.max(0, g.frozen - dt);
+        if (!g.online && Number.isFinite(g.commissionAt)) g.commissionAt += dt;
+      }
+      if (stopped) s.stats.disrupted += dt;
+      if (!g.online && !g.wrecked && g.frozen <= 0 && g.hits.length > 0 && this.t >= g.commissionAt) {
         g.online = true;
         this.events.push({ type: "commission", side: s.side, gate: g.uid });
       }
     }
     for (const r of s.routes) {
       for (let i = 0; i < r.cellDisrupt.length; i++) {
+        const stopped = r.cellDisrupt[i] > 0 || r.cellFrozen[i] > 0;
         if (r.cellDisrupt[i] > 0) {
           r.cellDisrupt[i] = Math.max(0, r.cellDisrupt[i] - dt);
-          s.stats.disrupted += dt;
         }
+        if (r.cellFrozen[i] > 0) {
+          r.cellFrozen[i] = Math.max(0, r.cellFrozen[i] - dt);
+        }
+        if (stopped) s.stats.disrupted += dt;
+        if (r.cellSlow[i].t > 0) r.cellSlow[i].t = Math.max(0, r.cellSlow[i].t - dt);
       }
       // speed states: the latest tile with an active speed hit wins for everything downstream of it
       // (0.6.2, R7 item 4: several speed hits on one tile resolve by tileSpeed)
@@ -431,25 +468,31 @@ export class Battle {
       for (let i = 0; i < r.cells.length; i++) {
         const won = tileSpeed(r.gateAt[i]);
         if (won !== undefined) state = won;
-        r.speedAt[i] = s.race ? raceBeltSpeed(this, s, r.index, i, state) : state; // races: speed lock, Drag
-        const v = r.cellDisrupt[i] > 0 ? 0 : BELT_SPEED * r.speedAt[i]; // races: was BELT_SPEED * state
+        const shown = s.race ? raceBeltSpeed(this, s, r.index, i, state) : state; // races: speed lock, Drag
+        const slow = !s.race?.speedLock && r.cellSlow[i].t > 0 && !this.routeGuardActive(r, i, GUARD_SLOW) ? r.cellSlow[i].mul : 1;
+        r.speedAt[i] = shown * slow;
+        const v = r.cellDisrupt[i] > 0 || r.cellFrozen[i] > 0 ? 0 : BELT_SPEED * r.speedAt[i];
         r.phase[i] += v * dt;
       }
     }
     for (const f of s.factories) {
       if (f.flash > 0) f.flash -= dt;
+      const stopped = f.disrupted > 0 || f.frozen > 0;
       if (f.disrupted > 0) {
         f.disrupted = Math.max(0, f.disrupted - dt);
-        s.stats.disrupted += dt;
       }
+      if (f.frozen > 0) f.frozen = Math.max(0, f.frozen - dt);
+      if (stopped) s.stats.disrupted += dt;
     }
     for (const tu of s.turrets) {
       if (tu.recoil > 0) tu.recoil = Math.max(0, tu.recoil - dt * 4);
       if (tu.jamFx > 0) tu.jamFx = Math.max(0, tu.jamFx - dt);
+      const stopped = tu.disrupted > 0 || tu.frozen > 0;
       if (tu.disrupted > 0) {
         tu.disrupted = Math.max(0, tu.disrupted - dt);
-        s.stats.disrupted += dt;
       }
+      if (tu.frozen > 0) tu.frozen = Math.max(0, tu.frozen - dt);
+      if (stopped) s.stats.disrupted += dt;
     }
     if (s.hull.flash > 0) s.hull.flash = Math.max(0, s.hull.flash - dt);
   }
@@ -475,7 +518,7 @@ export class Battle {
 
   private produce(s: SideState, dt: number): void {
     for (const f of s.factories) {
-      if (!f.routes.length || f.disrupted > 0) continue;
+      if (!f.routes.length || f.disrupted > 0 || f.frozen > 0) continue;
       // 0.6.1c DOUBLE STAMP / SHOT TOWER: the batch's waiting slugs leave the mouth as AMMO_SPACING frees, round-robin
       // like any stamp. A factory without a batch never has one waiting (pending stays 0).
       if (f.pending > 0 && this.stamp(s, f)) f.pending--;
@@ -556,9 +599,15 @@ export class Battle {
         // 0.6.1c SLAG: a fixed belt speed that speed gates, the speed lock and slows never change (a stalled tile still stops it)
         const fixed = AMMO[a.p.ammo]?.fixedSpeed;
         let v = BELT_SPEED * (fixed ?? (s.race?.speedLock ? 1 : this.speedStateAt(r, a.s))); // races: METRONOME speed lock
-        if (ci >= 0 && r.cellDisrupt[ci] > 0) v = 0;
+        if (ci >= 0 && (r.cellDisrupt[ci] > 0 || r.cellFrozen[ci] > 0)) v = 0;
         const drag = s.race && fixed === undefined ? raceDrag(this, s, r.index, ci) : 1; // races: SIPHON Drag
         if (drag !== 1) v *= drag; // races:
+        if (ci >= 0 && r.cellFrozen[ci] > 0) (a.p.debuffs ??= {}).chill = true;
+        if (ci >= 0 && r.cellSlow[ci].t > 0 && !this.routeGuardActive(r, ci, GUARD_SLOW) && !s.race?.speedLock && fixed === undefined) {
+          v *= r.cellSlow[ci].mul;
+          (a.p.debuffs ??= {}).snag = true;
+        }
+        if (a.p.debuffs?.snag && fixed === undefined) v *= 0.8;
         const want = a.s + v * dt;
         let ns = Math.min(want, limit);
         if (ns < a.s) ns = a.s;
@@ -597,7 +646,7 @@ export class Battle {
     let group: BeltAmmo[] | null = null; // the original plus copies made on this tile (only once a split happens)
     for (const h of list) {
       const g = h.g;
-      if (!g.online || g.disrupted > 0) continue;
+      if (!g.online || g.disrupted > 0 || g.frozen > 0 || g.wrecked) continue;
       const on: BeltAmmo[] = group ?? [a];
       const made: BeltAmmo[] = [];
       for (const x of on) made.push(...this.applyHit(s, x, h));
@@ -634,12 +683,13 @@ export class Battle {
       if (e.shockTime !== undefined) p.shockTime = Math.max(p.shockTime ?? DISRUPT_TIME, e.shockTime);
       if (e.jump) p.jump = Math.max(p.jump ?? 0, e.jump);
     }
+    if (e.sift) siftDebuffs(p.debuffs, e.sift);
     if (e.split) {
       p.mult *= e.split.mult;
       p.flat *= e.split.mult;
       p.copy = true;
       for (let c = 1; c < e.split.copies; c++) { // generic: copies - 1 new ones (an overclocked split makes one more)
-        const cp: Payload = { ...p, id: this.nextId++ };
+        const cp: Payload = { ...p, id: this.nextId++, ...(p.debuffs ? { debuffs: { ...p.debuffs } } : {}) };
         copies.push({ p: cp, s: a.s - 0.01 * c, processed: a.processed, blocked: false });
       }
     }
@@ -658,7 +708,7 @@ export class Battle {
       const front = r.ammo[0];
       if (front.s < r.L - 1e-6) continue;
       const tu = s.turrets[r.turret];
-      if (!tu || tu.disrupted > 0) continue;
+      if (!tu || tu.disrupted > 0 || tu.frozen > 0) continue;
       if (s.race && raceIntake(this, s, r, tu, front.p)) { // races: alloy fusion (no slot used)
         r.ammo.shift();
         continue;
@@ -680,7 +730,7 @@ export class Battle {
       }
       tu.waiting = waiting;
       if (waiting > s.stats.maxQueue) s.stats.maxQueue = waiting;
-      if (tu.disrupted > 0) continue;
+      if (tu.disrupted > 0 || tu.frozen > 0) continue;
       if (tu.fireCd > 0) tu.fireCd = Math.max(0, tu.fireCd - dt);
       if (tu.jamCd > 0) tu.jamCd = Math.max(0, tu.jamCd - dt);
       // 0.6.1b: the core's chamber hooks (src/sim/cores.ts ROUTINES); the identity hooks are the old rules
@@ -737,7 +787,8 @@ export class Battle {
       ? raceCurveDamage(ammo, s, tu, p)
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat); // 0.6.1p: p.base (STAMP PRESS dies)
     if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM
-    const target = this.pickTarget(foe);
+    dmg = debuffedDamage(dmg, p.debuffs);
+    const target = this.pickTarget(foe, !!p.harass);
     let tx = target.x, ty = target.y;
     if (target.kind === "hull") {
       tx = this.rng.range(-6, 126);
@@ -747,11 +798,12 @@ export class Battle {
       ty += this.rng.range(-3, 3);
     }
     const heavy = tu.def.kind === "heavy";
-    const flight = tu.def.flight + Math.max(0, ty) / 120 * 0.22 + k * 0.08;
+    const flight = this.roundFlight(tu.def.flight + Math.max(0, ty) / 120 * 0.22 + k * 0.08, p);
     const proj: Projectile = {
       id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg, t: 0, flight, target, tx, ty, heavy,
     };
     if (fin) proj.finisher = true; // 0.6.1p
+    this.telegraph(proj);
     this.projectiles.push(proj);
     tu.recoil = 1;
     s.stats.shots++;
@@ -790,9 +842,10 @@ export class Battle {
       share = c.share ?? 1;
     }
     if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM, after the core's own bonus (never set on a GATLING)
+    dmg = debuffedDamage(dmg, p.debuffs);
     const heavy = tu.def.kind === "heavy";
     for (let j = 0; j < pellets; j++) {
-      const target = routine === "hullbreaker" ? hullTarget() : this.pickTarget(foe); // HULLBREAKER: no target draw
+      const target = routine === "hullbreaker" ? hullTarget() : this.pickTarget(foe, !!p.harass); // HULLBREAKER: no target draw
       let tx = target.x, ty = target.y;
       if (target.kind === "hull") {
         tx = this.rng.range(-6, 126);
@@ -801,7 +854,7 @@ export class Battle {
         tx += this.rng.range(-3, 3);
         ty += this.rng.range(-3, 3);
       }
-      const flight = tu.def.flight * flightMul + Math.max(0, ty) / 120 * 0.22 + k * 0.08 + j * 0.03;
+      const flight = this.roundFlight(tu.def.flight * flightMul + Math.max(0, ty) / 120 * 0.22 + k * 0.08 + j * 0.03, p);
       const pd = dmg * share;
       const proj: Projectile = {
         id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg: pd, t: 0, flight, target, tx, ty, heavy,
@@ -810,6 +863,7 @@ export class Battle {
         ...(pellets > 1 ? { share, noFray: j > 0 } : {}),
         ...(fin ? { finisher: true } : {}), // 0.6.1p
       };
+      this.telegraph(proj);
       this.projectiles.push(proj);
       s.stats.shots++;
       s.stats.payloadSum += pd;
@@ -819,17 +873,46 @@ export class Battle {
     if (s.stats.firstShot < 0) s.stats.firstShot = this.t;
   }
 
-  private pickTarget(foe: SideState): Target {
+  private pickTarget(foe: SideState, special = false): Target {
+    const first = this.pickOnce(foe);
+    return special && first.kind === "hull" ? this.pickOnce(foe) : first;
+  }
+
+  private pickOnce(foe: SideState): Target {
     if (this.rng.next() < 0.5 || !foe.targets.length) {
       return hullTarget();
     }
     return this.rng.weighted(foe.targets, (t) => t.weight);
   }
 
+  private roundFlight(flight: number, p: Payload): number {
+    return p.harass ? Math.max(1.2 + TICK, flight + 0.6) : flight;
+  }
+
+  private telegraph(pr: Projectile): void {
+    if (pr.payload.harass) this.events.push({
+      type: "telegraph", side: pr.from, proj: pr.id, round: pr.payload.harass.kind,
+      target: pr.target, impactAt: this.t + pr.flight,
+    });
+  }
+
+  private isHarassingProjectile(pr: Projectile): boolean {
+    const p = pr.payload;
+    return !!(p.harass || p.shock || p.static || p.arc || p.rip);
+  }
+
   private flight(dt: number): void {
     const keep: Projectile[] = [];
     for (const pr of this.projectiles) {
       pr.t += dt;
+      if (!pr.flakChecked && this.isHarassingProjectile(pr) && pr.t >= pr.flight / 2) {
+        pr.flakChecked = true;
+        const defender = this.sides[pr.from === 0 ? 1 : 0];
+        if (defender.flak > 0 && this.rng.next() < defender.flak) {
+          this.events.push({ type: "flak", side: defender.side, proj: pr.id });
+          continue;
+        }
+      }
       if (pr.t < pr.flight) {
         keep.push(pr);
         continue;
@@ -845,7 +928,7 @@ export class Battle {
     const ammo = AMMO[pr.payload.ammo];
     // 0.6.1b: a SCATTER pellet's Fray bonus x its share, so Fray isn't multiplied (absent on identity shots)
     const bonus = pr.share !== undefined ? def.hull.fray * FRAY_BONUS * pr.share : def.hull.fray * FRAY_BONUS;
-    const total = pr.dmg + bonus;
+    const total = pr.dmg + bonus + (pr.payload.harass?.kind === "sabot" && pr.target.kind === "hull" ? 6 : 0);
     def.hull.hp -= def.race ? raceAbsorb(def, total) : total; // races: bulwark plating soaks first
     def.hull.flash = 0.12;
     atk.stats.damage += total;
@@ -858,6 +941,13 @@ export class Battle {
       shocked = this.disrupt(def, pr.target, secs, "shock");
       if (pr.payload.jump) this.sparkJump(def, pr.target, secs, pr.payload.jump); // 0.6.1p: SPARK JUMP
     }
+    if (pr.payload.static && pr.target.kind === "hull" && def.turrets.length) {
+      const turret = def.turrets[this.rng.int(def.turrets.length)];
+      this.disrupt(def, def.targets.find((t) => t.kind === "turret" && t.ref === turret.index)!, DISRUPT_TIME, "static");
+    }
+    if (pr.payload.arc && pr.target.kind !== "hull") this.sparkJump(def, pr.target, DISRUPT_TIME, pr.payload.arc, "arc");
+    if (pr.payload.rip) this.rip(def, pr.target, pr.payload.rip.count, pr.payload.rip.reach);
+    if (pr.payload.harass) this.roundImpact(def, pr.target, pr.payload.harass, pr.from, pr.payload.debuffs);
     if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
     this.events.push({
       type: "impact", side: def.side, x: pr.tx, y: pr.ty, dmg: total, heavy: pr.heavy,
@@ -865,43 +955,164 @@ export class Battle {
     });
   }
 
-  /**
-   * Stall a machine for `secs` (a longer stall already running is kept: with 1-star coils every stall is
-   * DISRUPT_TIME, so this is exactly 0.6.0's overwrite). 0.6.1p MANTLET: a turret whose `immune` lists `cause` is
-   * not stalled, nor is a tile of its ★3 BULWARK SKIRT (RouteState.guard GUARD_SKIRT), nor (beltside-062, P6) a rig
-   * with at least one hit on such a tile; false, and no event, then.
-   */
-  private disrupt(s: SideState, t: Target, secs = DISRUPT_TIME, cause: HarassCause = "shock"): boolean {
-    switch (t.kind) {
-      case "gate": {
-        const g = s.gates.find((g) => g.uid === t.ref);
-        // beltside-062 B5 (DESIGN §11 P6): a rig is skirted when ANY of its hits lands on a skirt tile (not only its
-        // first hit, g.route/g.cellIdx); an IDLE rig (no hits) is never skirted
-        if (g && g.hits.some((h) => this.skirted(s, s.routes[h.route], h.tile, cause))) return false;
-        if (g) g.disrupted = Math.max(g.disrupted, secs);
-        break;
-      }
-      case "factory": {
-        const f = s.factories.find((f) => f.uid === t.ref);
-        if (f) f.disrupted = Math.max(f.disrupted, secs);
-        break;
-      }
-      case "turret": {
-        const tu = s.turrets[t.ref];
-        if (tu && tu.immune.includes(cause)) return false;
-        if (tu) tu.disrupted = Math.max(tu.disrupted, secs);
-        break;
-      }
-      case "belt": {
-        const r = s.routes[t.ref];
-        if (r && t.cell >= 0 && this.skirted(s, r, t.cell, cause)) return false;
-        if (r && t.cell >= 0) r.cellDisrupt[t.cell] = Math.max(r.cellDisrupt[t.cell], secs);
-        break;
-      }
-      default:
-        return false;
+  /** All accepted hostile effects pass here. Order: Flak in flight, then Toll, then route and Mantlet guards. */
+  private acceptHarassment(s: SideState, t: Target, cause: HarassCause): boolean {
+    if (t.kind === "hull") return false;
+    const r = t.kind === "belt" ? s.routes[t.ref] : undefined;
+    const g = t.kind === "gate" ? s.gates.find((g) => g.uid === t.ref) : undefined;
+    const f = t.kind === "factory" ? s.factories.find((f) => f.uid === t.ref) : undefined;
+    const tu = t.kind === "turret" ? s.turrets[t.ref] : undefined;
+    if (t.kind === "belt" && (!r || t.cell < 0 || t.cell >= r.cells.length)) return false;
+    if (t.kind === "gate" && !g || t.kind === "factory" && !f || t.kind === "turret" && !tu) return false;
+    if (g?.wrecked && cause !== "rip") return false;
+
+    const routeIds = t.kind === "belt" ? [t.ref]
+      : t.kind === "gate" ? [...new Set(g!.hits.map((h) => h.route))]
+      : t.kind === "factory" ? f!.routes
+      : t.kind === "turret" ? s.routes.filter((route) => route.connected && route.turret === t.ref).map((route) => route.index) : [];
+    const toll = s.gates.find((gate) => gate.online && !gate.wrecked && gate.disrupted <= 0 && gate.frozen <= 0 && gate.tolls > 0 &&
+      gate.hits.some((h) => routeIds.includes(h.route)) &&
+      (t.kind !== "factory" || gate.def.gate?.tollFactory));
+    if (toll) {
+      toll.tolls--;
+      this.events.push({ type: "toll", side: s.side, gate: toll.uid, remaining: toll.tolls, cause });
+      return false;
     }
+    if (t.kind === "turret" && tu!.immune.includes(cause)) return false;
+    if (t.kind === "belt") {
+      if (this.skirted(s, r, t.cell, cause)) return false;
+      if (cause === "drag" && this.routeGuardActive(r!, t.cell, GUARD_SLOW)) return false;
+      if (cause === "freeze" && this.routeGuardActive(r!, t.cell, GUARD_FREEZE)) return false;
+    }
+    if (g && g.hits.some((h) => this.skirted(s, s.routes[h.route], h.tile, cause))) return false;
+    this.sides[s.side === 0 ? 1 : 0].harassAccepted++;
+    this.events.push({ type: "harass", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell, cause });
+    return true;
+  }
+
+  private disrupt(s: SideState, t: Target, secs = DISRUPT_TIME, cause: HarassCause = "shock"): boolean {
+    if (secs <= 0 || !this.acceptHarassment(s, t, cause)) return false;
+    if (t.kind === "gate") s.gates.find((g) => g.uid === t.ref)!.disrupted = Math.max(s.gates.find((g) => g.uid === t.ref)!.disrupted, secs);
+    else if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.disrupted = Math.max(s.factories.find((f) => f.uid === t.ref)!.disrupted, secs);
+    else if (t.kind === "turret") s.turrets[t.ref].disrupted = Math.max(s.turrets[t.ref].disrupted, secs);
+    else if (t.kind === "belt") s.routes[t.ref].cellDisrupt[t.cell] = Math.max(s.routes[t.ref].cellDisrupt[t.cell], secs);
     this.events.push({ type: "disrupt", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
+    return true;
+  }
+
+  private roundImpact(s: SideState, t: Target, round: HarassRound, from: Side, debuffs?: PayloadDebuffs): void {
+    if (round.kind === "sabot") {
+      if (t.kind === "gate") {
+        if (!this.acceptHarassment(s, t, "sabot")) return;
+        s.gates.find((g) => g.uid === t.ref)!.wrecked = true;
+      } else if (t.kind === "belt") {
+        if (!this.disrupt(s, t, 5, "sabot")) return;
+      } else if (t.kind === "factory" || t.kind === "turret") {
+        if (!this.disrupt(s, t, t.kind === "factory" ? 4 : 3, "sabot")) return;
+      } else return;
+      if (t.kind === "gate") this.events.push({ type: "wreck", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
+    } else if (round.kind === "frost") {
+      this.freeze(s, t, round.seconds);
+    } else if (round.kind === "drag") {
+      this.slowSegment(s, t, round.mul, round.seconds);
+    } else {
+      s.limpets.push({ at: this.t + round.delay, target: t, from, blast: debuffedDamage(round.blast, debuffs), stall: round.stall ?? 0 });
+    }
+  }
+
+  private freeze(s: SideState, t: Target, secs: number): boolean {
+    if (secs <= 0 || !this.acceptHarassment(s, t, "freeze")) return false;
+    if (t.kind === "gate") {
+      const g = s.gates.find((g) => g.uid === t.ref)!;
+      g.frozen = Math.max(g.frozen, secs);
+    } else if (t.kind === "factory") {
+      const f = s.factories.find((f) => f.uid === t.ref)!;
+      f.frozen = Math.max(f.frozen, secs);
+    } else if (t.kind === "turret") {
+      const tu = s.turrets[t.ref];
+      tu.frozen = Math.max(tu.frozen, secs);
+    } else if (t.kind === "belt") {
+      const r = s.routes[t.ref];
+      r.cellFrozen[t.cell] = Math.max(r.cellFrozen[t.cell], secs);
+      for (const a of r.ammo) if (Math.floor(a.s / CELL) === t.cell) (a.p.debuffs ??= {}).chill = true;
+    }
+    this.events.push({ type: "freeze", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
+    return true;
+  }
+
+  /** A rig contributes nodes at arrow-hit belt tiles; its own deck cell is never a segment tile. */
+  private slowSegment(s: SideState, t: Target, mul: number, secs: number): boolean {
+    if (secs <= 0 || mul >= 1 || (t.kind !== "belt" && t.kind !== "gate" && t.kind !== "factory" && t.kind !== "turret")) return false;
+    if (t.kind === "factory" || t.kind === "turret") {
+      if (!this.acceptHarassment(s, t, "drag")) return false;
+      if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.timer += 0.8;
+      else s.turrets[t.ref].fireCd += 0.5;
+    } else {
+      const hits = t.kind === "belt" ? [{ route: t.ref, tile: t.cell }]
+        : s.gates.find((g) => g.uid === t.ref)?.hits ?? [];
+      const tiles = new Map<number, Set<number>>();
+      for (const h of hits) {
+        const r = s.routes[h.route];
+        if (!r || h.tile < 0 || h.tile >= r.cells.length) continue;
+        const [lo, hi] = segmentBounds(r.gateAt.map((list) => list.length > 0), h.tile);
+        for (let ci = lo; ci <= hi; ci++) {
+          if (this.routeGuardActive(r, ci, GUARD_SLOW) || s.race?.speedLock) continue;
+          if (!tiles.has(h.route)) tiles.set(h.route, new Set());
+          tiles.get(h.route)!.add(ci);
+        }
+      }
+      if (!tiles.size || !this.acceptHarassment(s, t, "drag")) return false;
+      for (const [ri, cells] of tiles) {
+        const r = s.routes[ri];
+        for (const ci of cells) {
+          const slow = r.cellSlow[ci];
+          slow.mul = Math.min(slow.t > 0 ? slow.mul : 1, mul);
+          slow.t = Math.max(slow.t, secs);
+        }
+        for (const a of r.ammo) if (cells.has(Math.floor(a.s / CELL)) && AMMO[a.p.ammo].fixedSpeed === undefined)
+          (a.p.debuffs ??= {}).snag = true;
+      }
+    }
+    this.events.push({ type: "slow", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
+    return true;
+  }
+
+  /** Grapnel candidates use route distance, then route index and payload id for stable ties. */
+  private rip(s: SideState, t: Target, count: number, reach: number): number {
+    if (count <= 0 || reach < 0 || (t.kind !== "belt" && t.kind !== "gate")) return 0;
+    const hits = t.kind === "belt" ? [{ route: t.ref, tile: t.cell }]
+      : s.gates.find((g) => g.uid === t.ref)?.hits ?? [];
+    const candidates = new Map<number, { route: number; ammo: BeltAmmo; distance: number }>();
+    for (const h of hits) {
+      const r = s.routes[h.route];
+      if (!r || h.tile < 0 || h.tile >= r.cells.length) continue;
+      const centre = h.tile * CELL + CELL / 2;
+      for (const a of r.ammo) {
+        const distance = Math.abs(a.s - centre);
+        if (distance > reach * CELL) continue;
+        const old = candidates.get(a.p.id);
+        if (!old || distance < old.distance) candidates.set(a.p.id, { route: h.route, ammo: a, distance });
+      }
+    }
+    if (!candidates.size || !this.acceptHarassment(s, t, "rip")) return 0;
+    const picked = [...candidates.values()].sort((a, b) => a.distance - b.distance || a.route - b.route || a.ammo.p.id - b.ammo.p.id).slice(0, count);
+    for (const c of picked) {
+      const r = s.routes[c.route];
+      r.ammo.splice(r.ammo.indexOf(c.ammo), 1);
+      this.events.push({ type: "rip", side: s.side, kind: "belt", ref: c.route, cell: Math.floor(c.ammo.s / CELL), payload: c.ammo.p.id });
+    }
+    return picked.length;
+  }
+
+  /** Future SAP sources can mark the nearest payload through the same guard. */
+  applyPayloadDebuff(s: SideState, t: Target, mark: keyof PayloadDebuffs): boolean {
+    if (t.kind !== "belt") return false;
+    const r = s.routes[t.ref];
+    if (!r || t.cell < 0 || t.cell >= r.cells.length) return false;
+    const centre = t.cell * CELL + CELL / 2;
+    const a = [...r.ammo].sort((x, y) => Math.abs(x.s - centre) - Math.abs(y.s - centre) || x.p.id - y.p.id)[0];
+    if (!a || !this.acceptHarassment(s, t, mark === "sap" ? "sap" : mark === "chill" ? "freeze" : "drag")) return false;
+    (a.p.debuffs ??= {})[mark] = true;
     return true;
   }
 
@@ -911,21 +1122,40 @@ export class Battle {
     return s.turrets[r.turret]?.immune.includes(cause) ?? false;
   }
 
+  /** Static route flags describe placement; only a working Overdrive grants the live protection. */
+  private routeGuardActive(r: RouteState, ci: number, flag: number): boolean {
+    for (let i = 0; i <= ci; i++) for (const h of r.gateAt[i]) {
+      const g = h.g;
+      if (g.online && !g.wrecked && g.disrupted <= 0 && g.frozen <= 0 && ((g.def.gate?.guard ?? 0) & flag)) return true;
+    }
+    return false;
+  }
+
   /**
    * 0.6.1p GALVANIC COIL ★2/★3 SPARK JUMP: the spark also stalls the `n` machines nearest the struck one (by
    * distance between target centres; ties keep foe.targets order). No RNG draw.
    */
-  private sparkJump(s: SideState, from: Target, secs: number, n: number): void {
+  private sparkJump(s: SideState, from: Target, secs: number, n: number, cause: HarassCause = "shock"): void {
     const others = s.targets
       .filter((t) => t.kind !== "hull" && !(t.kind === from.kind && t.ref === from.ref && t.cell === from.cell))
       .map((t, i) => ({ t, i, d: (t.x - from.x) ** 2 + (t.y - from.y) ** 2 }))
       .sort((a, b) => a.d - b.d || a.i - b.i);
-    for (const o of others.slice(0, n)) this.disrupt(s, o.t, secs, "shock");
+    for (const o of others.slice(0, n)) this.disrupt(s, o.t, secs, cause);
   }
 
   private hullEffects(dt: number): void {
     for (const s of this.sides) {
       const foe = this.sides[s.side === 0 ? 1 : 0];
+      for (let i = s.limpets.length - 1; i >= 0; i--) {
+        const charge = s.limpets[i];
+        if (this.t + 1e-9 < charge.at) continue;
+        s.limpets.splice(i, 1);
+        s.hull.hp -= s.race ? raceAbsorb(s, charge.blast) : charge.blast;
+        s.hull.flash = 0.12;
+        foe.stats.damage += charge.blast;
+        if (charge.stall > 0) this.disrupt(s, charge.target, charge.stall, "limpet");
+        this.events.push({ type: "limpet", side: s.side, kind: charge.target.kind, ref: charge.target.ref, cell: charge.target.cell });
+      }
       let burn = 0;
       for (const b of s.hull.burns) {
         const step = Math.min(dt, b.t);
@@ -1040,12 +1270,12 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
   const windowTime = c.windowTime ?? WINDOW_TIME;
   return {
     index: i, def, stack: [], phase: "load", loadTimer: 0, fireCd: 0, jamSkip: 0, jamRandom: false,
-    jamCd: 0, disrupted: 0, perShot: g.perShot, interval: c.intervalMul ? interval * c.intervalMul : interval, recoil: 0, jamFx: 0,
+    jamCd: 0, disrupted: 0, frozen: 0, perShot: g.perShot, interval: c.intervalMul ? interval * c.intervalMul : interval, recoil: 0, jamFx: 0,
     // 0.6.1p: EXT. CHAMBER ★2/★3 and HOPPER add window slots; HOPPER adds seconds to the core's window time (a
     // GATLING never reads windowTime, cores.ts gatlingReady, so there HOPPER's seconds do nothing; its slots count)
     waiting: 0, core, window: def.window + g.window, windowTime: g.windowTime ? windowTime + g.windowTime : windowTime,
     spin: c.start ?? 1, lastShot: -1,
-    noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher,
+    noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher, intercept: g.intercept,
   };
 }
 
@@ -1059,10 +1289,11 @@ export interface GearStats {
   immune: HarassCause[];
   intakeGuard: number;
   finisher: number;
+  intercept: number;
 }
 
 export function gearStats(b: Build, i: number): GearStats {
-  const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, noJam: false, immune: [], intakeGuard: 0, finisher: 0 };
+  const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, noJam: false, immune: [], intakeGuard: 0, finisher: 0, intercept: 0 };
   for (const m of b.mods.filter((m) => m.turret === i)) {
     const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
     if (md?.perShot) out.perShot = Math.max(out.perShot, md.perShot);
@@ -1073,6 +1304,7 @@ export function gearStats(b: Build, i: number): GearStats {
     if (md?.immune) for (const c of md.immune) if (!out.immune.includes(c)) out.immune.push(c);
     if (md?.intakeGuard) out.intakeGuard = Math.max(out.intakeGuard, md.intakeGuard);
     if (md?.finisher) out.finisher = Math.max(out.finisher, md.finisher);
+    if (md?.intercept) out.intercept = Math.max(out.intercept, md.intercept);
   }
   return out;
 }
