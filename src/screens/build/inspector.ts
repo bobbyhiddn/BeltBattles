@@ -40,11 +40,13 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   const gt = e.gate, m = e.mod;
   if (e.core) return coreLine(def, stars, k); // 0.6.1r N4: a core's headline at that star
   if (gt?.burn) return `+${gt.burn} BURN`;
+  // 0.6.1f BRAKE SHOE: half speed at every star; HOT SHOE and RED-HOT SHOE add friction heat (flat damage)
+  if (gt?.speed && gt.speed < 1) return `${gt.speed === 0.5 ? "HALF SPEED" : `SPEED X${gt.speed}`}${gt.flat ? ` · +${gt.flat} DMG` : ""}`;
   if (gt?.speed) return `SPEED X${gt.speed}${gt.flat ? ` · +${gt.flat} FLAT` : ""}`; // OVERDRIVE ★3: + AFTERBURNER's flat
   if (gt?.flat) return `+${gt.flat} FLAT`;
   // beltside-062 (DESIGN §11 P3): a rig's perk in BELTSIDE's words: LONG HAUL counts earlier HITS, up to its cap
   if (gt?.perPriorGate) return `+${gt.perPriorGate}/HIT${gt.priorCap !== undefined ? ` · MAX ${gt.priorCap} HITS` : ""}`;
-  if (gt?.split) return `${gt.split.copies}X ${Math.round(gt.split.mult * 100)}%`;
+  if (gt?.split) return `${gt.split.copies} X ${Math.round(gt.split.mult * 100)}%`; // 0.6.1f: "2 X 85%", as "3 X 1 DMG"
   if (gt?.shock) return `STALL ${(gt.shockTime ?? DISRUPT_TIME).toFixed(1)}S${gt.jump ? ` · JUMPS TO ${gt.jump} MORE` : ""}`;
   if (e.factory) return factoryLine(e.factory);
   if (m?.fireMul) return `FIRE X${m.fireMul}`;
@@ -111,7 +113,7 @@ function heroK(run: Run): number {
   return td ? classFactor(td) : 1;
 }
 
-/** 0.6.1p (ARSENAL.md §8.2): the current level's numbers with its perk, "★2 CLEAN CUT: 2X 72%"; null at 1 star (desc says it).
+/** 0.6.1p (ARSENAL.md §8.2): the current level's numbers with its perk, "★2 CLEAN CUT: 2 X 72%"; null at 1 star (desc says it).
  *  0.6.1r: exported for tests; `k` scales a core's numbers (heroK). */
 export function levelLine(def: string, stars: number, k = 1): string | null {
   if (stars <= 1 || !fusible(def)) return null;
@@ -146,8 +148,12 @@ export function nextLine(run: Run, def: string, stars: number): string | null {
   const next = stars + 1;
   const eff = starEffectLine(def, next, heroK(run));
   const copies = copiesToNextStar(run, def, stars);
-  // 0.6.1c: a factory's NEXT line names the perk that star brings (TRIPLE DIES, HOT START, THIRD ARM, HEAVY GANTRY)
-  const perk = ITEMS[def].kind === "factory" && perkAt(def, next) !== perkAt(def, stars) ? livePerk(def, next) : undefined;
+  // 0.6.1c: a factory's NEXT line names the perk that star brings (TRIPLE DIES, HOT START, THIRD ARM, HEAVY GANTRY).
+  // 0.6.1f: so does a gate's (HOT SHOE, RED-HOT SHOE, CLEAN CUT, PERFECT CUT; SPARK JUMP, REDLINE, AFTERBURNER), unless
+  // the perk's name is the whole effect line (a gate with no numbers reads "NEXT ★2: PERK" as before)
+  const kind = ITEMS[def].kind;
+  const brings = (kind === "factory" || kind === "gate") && perkAt(def, next) !== perkAt(def, stars) ? livePerk(def, next) : undefined;
+  const perk = brings !== eff ? brings : undefined;
   return `NEXT ★${next}${perk ? ` ${perk}` : ""}${eff ? `: ${eff}` : ""} · ${copies} MORE ${copies === 1 ? "COPY" : "COPIES"}`;
 }
 

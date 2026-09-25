@@ -4,7 +4,7 @@ import { DISRUPT_TIME, HEROES, ITEMS, type HeroId } from "../src/sim/content";
 import { estimateRoute, key as K, routeInfo, type Build, type Placed } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { migrateInlineGates } from "../src/sim/beltside";
-import { ITEM_POOL, PEAK_SHIFT, heroRules, pendulumCurve } from "../src/sim/races/data";
+import { DORMANT_ITEMS, PEAK_SHIFT, heroRules, pendulumCurve } from "../src/sim/races/data";
 import { adaptableHead, peakRide } from "../src/sim/races/metronome";
 import { dummyFoe, expectSaneBattles, shots } from "./races.helpers";
 
@@ -145,14 +145,16 @@ describe("METRONOME rules data (rulings 4-6)", () => {
     }
   });
 
-  it("ESCAPEMENT and LONGCASE are beastfolk-pool turret modules priced like Calibration, not sold yet", () => {
+  // 0.6.1f (REQ-BFG-021): a neutral dormant flag replaced ITEM_POOL's "beastfolk" mark; no faction pools
+  it("ESCAPEMENT and LONGCASE are dormant turret modules priced like Calibration: both dormant, no merchant sells either", () => {
+    expect([...DORMANT_ITEMS].sort()).toEqual(["escapement", "longcase"]);
     for (const id of ["escapement", "longcase"]) {
       const d = ITEMS[id];
       expect(d.kind).toBe("mod");
       expect(d.price).toBe(ITEMS.calibrate.price);
       expect(d.rarity).toBe(ITEMS.calibrate.rarity);
       expect(d.merchant).toBeUndefined();
-      expect(ITEM_POOL[id]).toBe("beastfolk");
+      expect(DORMANT_ITEMS.has(id)).toBe(true);
     }
   });
 

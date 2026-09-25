@@ -569,7 +569,9 @@ export class Battle {
         // apply the hits of every tile whose centre was crossed (0.6.2: R7 order, one per arrow)
         while (a.processed + 1 < n && (a.processed + 1) * CELL + CELL / 2 <= ns) {
           a.processed++;
-          // beltside-062 B1: BELTSIDE's per-tile hit list (0.6.1p's copies ride applyTile's trailing placement)
+          // beltside-062 B1: BELTSIDE's per-tile hit list. A SPLITTER hit returns copies - 1 new ones (1 at every
+          // star since 0.6.1f's PERFECT CUT; 2 while ASSEMBLY LINE's HOT START overclocks it); they ride
+          // applyTile's trailing placement, each behind the one before it
           const list = r.gateAt[a.processed];
           if (list.length) this.applyTile(s, a, list, inserts);
         }
@@ -587,8 +589,9 @@ export class Battle {
    * 0.6.2 BELTSIDE: a payload crosses a tile centre: every active hit there applies in R7 order (the list is
    * sorted). A SPLITTER-type hit's copies take the rest of this tile's hits too, so the tile treats the
    * original and its copies alike (Decision 3). A disrupted or uncommissioned rig stops all its arrows (R9).
-   * beltside-062 B2 (DESIGN §11 P2): each SPLITTER hit is one split, and ★3 THREE-WAY makes two copies per hit;
-   * a later hit on the same tile applies to the original and to every copy made so far.
+   * beltside-062 B2 (DESIGN §11 P2, §13 P12): each SPLITTER hit is one split, and a split makes one extra copy at
+   * every star (0.6.1f's PERFECT CUT; an overclocked split makes one more); a later hit on the same tile applies
+   * to the original and to every copy made so far.
    */
   private applyTile(s: SideState, a: BeltAmmo, list: TileHit[], inserts: { after: BeltAmmo; copy: BeltAmmo }[]): void {
     let group: BeltAmmo[] | null = null; // the original plus copies made on this tile (only once a split happens)
@@ -602,8 +605,8 @@ export class Battle {
     }
     if (!group) return;
     // the copies trail the original in the order they were made, 0.01 px apart (one split: a.s - 0.01, as
-    // before; one ★3 split: a.s - 0.01 and a.s - 0.02, as 0.6.1p); queued last-first because each insert lands
-    // right behind the original
+    // before; one overclocked split: a.s - 0.01 and a.s - 0.02, as the generic loop); queued last-first because
+    // each insert lands right behind the original
     for (let k = group.length - 1; k >= 1; k--) {
       group[k].s = a.s - 0.01 * k;
       inserts.push({ after: a, copy: group[k] });
@@ -612,7 +615,7 @@ export class Battle {
 
   /**
    * One rig arrow processes payload `a` (0.6.1p's applyGate body, unchanged); returns the copies a SPLITTER hit
-   * makes (copies - 1 of them: 1, or 2 at ★3 THREE-WAY), else [].
+   * makes (copies - 1 of them: 1 at every star since 0.6.1f, 2 while HOT START overclocks it), else [].
    */
   private applyHit(s: SideState, a: BeltAmmo, h: TileHit): BeltAmmo[] {
     const g = h.g;
@@ -635,7 +638,7 @@ export class Battle {
       p.mult *= e.split.mult;
       p.flat *= e.split.mult;
       p.copy = true;
-      for (let c = 1; c < e.split.copies; c++) { // 0.6.1p: ★3 THREE-WAY makes two copies
+      for (let c = 1; c < e.split.copies; c++) { // generic: copies - 1 new ones (an overclocked split makes one more)
         const cp: Payload = { ...p, id: this.nextId++ };
         copies.push({ p: cp, s: a.s - 0.01 * c, processed: a.processed, blocked: false });
       }

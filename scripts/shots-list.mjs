@@ -261,7 +261,8 @@ export const SHOTS = [
   ["beltside-timeline", "small", "title", 0, SHOWCASE("sides", "s.select({ kind: 'route', index: 0 });")],
   ["beltside-idle", "small", "title", 0, SHOWCASE("sides", "s.run.build.items.push({ uid: 40, def: 'coil', x: 0, y: 9 }); s.touched(); s.select({ kind: 'item', uid: 40 });")],
   // beltside-062 (the merge brief): a ★3 rig's inspector with its perk line (0.6.1r's levelLine under its hits) while
-  // a shop card shows its MERGE badge (0.6.1r F1): the sides deck's SPLITTER at ★3 THREE-WAY beside a TEMPER offer
+  // a shop card shows its MERGE badge (0.6.1r F1): the sides deck's SPLITTER at ★3 (PERFECT CUT since 0.6.1f; it was
+  // THREE-WAY) beside a TEMPER offer
   // (MERGE ★2 with the placed TEMPER), and the junction's OVERDRIVE (X, 4 hits) at ★3 AFTERBURNER beside a BRAKE
   // offer, where the phone band must still show the hits (the flavour text gives way first)
   ...["desk", "phone"].flatMap((v) => [
@@ -298,6 +299,14 @@ export const SHOTS = [
     // M5: holding one TEMPER, seed 8's day-3 wreck (pick 0.22 < 0.35) salvages the TEMPER it merges with: MERGE badge
     ["event-salvage-merge", v, "title", 0, EVENT("wreck", { seed: 8, round: 3, cargo: "temper" })],
   ]),
+  // 0.6.1f (V5): the retuned merges in the inspector: a 2-star BRAKE SHOE (HOT SHOE) and a 3-star SPLITTER (PERFECT
+  // CUT) on the starting Kiln belt, one of them selected (its level and NEXT lines), desk and phone
+  ...["desk", "phone"].flatMap((v) => [
+    ["build-gate-brake2", v, "build", 0.8, gateBuild(9201)],
+    ["build-gate-splitter3", v, "build", 0.8, gateBuild(9202)],
+    // M2's pewter shot on the dark belt, in a chamber pip and in flight (battle-factory-shottower stops at the mouth)
+    ["battle-shottower-flight", v, "title", 0, shotFlight()],
+  ]),
 ];
 
 // 0.6.2 BELTSIDE: the "sides" showcase deck fighting "junction", stepped from 3 s until `cond` holds for the
@@ -312,6 +321,56 @@ function BATTLE_UNTIL(cond) {
       const s = g.screen.arena.b.sides[0];
       if (${cond}) break;
     }
+    g.render();
+  })()`;
+}
+
+// 0.6.1f: battle-factory-shottower's fight, stepped until a shot flies, one sits in a chamber pip and 2 ride its belt
+function shotFlight() {
+  return `(() => {
+  const bb = window.bb, g = bb.game;
+  try {
+    g.run = null;
+    bb.open("build", "furnace", 12345);
+    for (let i = 0; i < 20; i++) g.step(1 / 60);
+    ${placeFactory("shottower", 1)}
+    bb.open("battle", "furnace", 12345);
+    let ok = false;
+    for (let i = 0; i < 60 * 30 && !ok; i++) {
+      g.step(1 / 60);
+      const a = g.screen.arena;
+      if (!a || g.screen.phase !== "fight") continue;
+      const s = a.b.sides[0];
+      const flying = a.b.projectiles.some((p) => p.from === 0 && p.payload.ammo === "shot");
+      const piped = s.turrets.some((t) => t.stack.some((p) => p.ammo === "shot"));
+      const riding = s.routes.filter((r) => r.factory === 9101).reduce((k, r) => k + r.ammo.filter((x) => x.processed >= 2).length, 0) >= 2;
+      ok = flying && piped && riding;
+    }
+    if (!ok) console.error("SHOT_FLIGHT: no frame with a shot in flight, one in a chamber pip and 2 up the belt within 30 s");
+    g.render();
+  } catch (e) { console.error("SHOT_FLIGHT: " + e.message + "\\n" + e.stack); }
+})()`;
+}
+
+// 0.6.1f: a 2-star BRAKE SHOE (uid 9201) and a 3-star SPLITTER (uid 9202) working the first two free tiles of the Kiln's
+// belt, one of them selected (its level and NEXT lines). beltside-062-on-061 (DESIGN R1, D3): 0.6.1f stood both ON those
+// tiles; each is now a rig beside its old tile, facing it, on D3's first side (left of travel): the belt runs up column 4
+// from the Kiln at (4,6), so the rigs stand west of (4,4) and (4,3) at rot 1 (an I's and a T's first arrow point +x)
+function gateBuild(uid) {
+  return `(() => {
+    const g = bb.game, b = g.run.build;
+    const taken = new Set(b.items.map((p) => p.y * 10 + p.x));
+    const belt = new Set(b.routes.flatMap((r) => r.cells));
+    const cells = b.routes[0].cells;
+    const tiles = cells.filter((c, i) => i > 0 && !taken.has(c)).slice(0, 2);
+    const spot = tiles.map((c) => c - 1); // the west neighbour: left of travel on a belt running up the deck (from c + 10)
+    if (tiles.length < 2 || tiles.some((c) => cells[cells.indexOf(c) - 1] !== c + 10) || spot.some((k) => k % 10 === 9 || taken.has(k) || belt.has(k))) {
+      console.error("GATE_BUILD: no free cell west of the Kiln belt's first two free tiles");
+    }
+    b.items.push({ uid: 9201, def: "brake", x: spot[0] % 10, y: Math.floor(spot[0] / 10), rot: 1, stars: 2 });
+    b.items.push({ uid: 9202, def: "splitter", x: spot[1] % 10, y: Math.floor(spot[1] / 10), rot: 1, stars: 3 });
+    g.screen.touched(); // rebuild the screen's cruiser model, so the two rigs are drawn
+    g.screen.select({ kind: "item", uid: ${uid} });
     g.render();
   })()`;
 }

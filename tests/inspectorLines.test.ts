@@ -174,9 +174,11 @@ describe("P11: a rig's panel order, and the phone band", () => {
   const IDLE = "IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.";
 
   it("hits (or IDLE), perk, NEXT, turn hint, flavour: written out by hand", () => {
-    // a ★2 SPLITTER (T) at (3,3) facing east: one arrow on the Kiln's (4,3), tile 3; one spare copy in cargo
+    // a ★2 SPLITTER (T) at (3,3) facing east: one arrow on the Kiln's (4,3), tile 3; one spare copy in cargo.
+    // beltside-062-on-061 (0.6.1f, DESIGN §13 P12): the perk and NEXT lines read 0.6.1f's words ("2 X 72%", and a NEXT
+    // line naming PERFECT CUT); they were "★2 CLEAN CUT: 2X 72%" and "NEXT ★3: 3X 57% · 1 MORE COPY" (THREE-WAY)
     expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
-      "→ BELT 1 · TILE 3", "★2 CLEAN CUT: 2X 72%", "NEXT ★3: 3X 57% · 1 MORE COPY", TURN,
+      "→ BELT 1 · TILE 3", "★2 CLEAN CUT: 2 X 72%", "NEXT ★3 PERFECT CUT: 2 X 85% · 1 MORE COPY", TURN,
       "SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE.",
     ]);
     // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, then NEXT (no perk line at ★1)
@@ -219,9 +221,15 @@ describe("P11: a rig's panel order, and the phone band", () => {
   // Measured (beltside-062c): where the perk and NEXT lines both wrap to two lines, the NEXT line doesn't fit the 4-line
   // band whole: its last words ("tail") give way beside a hit; beside the 2-line IDLE warning a ★2 COIL's NEXT line gives
   // way whole ("whole"). A UI follow-up (shorter phone wording for these perk and NEXT lines) is flagged in MERGE-061c.md.
+  // Measured again (beltside-062-on-061), with 0.6.1f's NEXT line, which names the perk the next star brings: the five
+  // entries above hold as they were, and four more cut their tail (8 more cases, 16 of 96 in all): a ★2 BRAKE's "NEXT ★3
+  // RED-HOT SHOE: HALF SPEED · +5 DMG ..." and a ★2 SPLITTER's "NEXT ★3 PERFECT CUT: 2 X 85% ..." now wrap to two lines,
+  // so beside the 2-line IDLE warning (an I BRAKE "between both belts" is IDLE too), or below a SPLITTER's two hits,
+  // their last words give way. The NEXT line still starts in view in every one of them.
   const KNOWN_PHONE_CUTS = new Map([
     ["coil ★2 1hit", "tail"], ["coil ★2 2hit", "tail"], ["coil ★2 idle", "whole"],
     ["longhaul ★2 2hit spare0", "tail"], ["longhaul ★2 idle spare0", "tail"],
+    ["brake ★2 2hit", "tail"], ["brake ★2 idle", "tail"], ["splitter ★2 2hit", "tail"], ["splitter ★2 idle", "tail"],
   ]);
 
   it("phone: the hits (or IDLE) and the perk always show, the NEXT line whole (or, measured cuts, its start)", () => {
@@ -250,5 +258,44 @@ describe("P11: a rig's panel order, and the phone band", () => {
       }
     }
     expect(cases).toBe(8 * 2 * 3 * 2); // ★1 and ★2 have a NEXT line
+  });
+});
+
+// 0.6.1f: the retuned BRAKE SHOE (HOT SHOE, RED-HOT SHOE) and SPLITTER (PERFECT CUT), written out by hand
+describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () => {
+  it("BRAKE SHOE: HALF SPEED at every star, +2 / +5 DMG from the heat", () => {
+    expect([1, 2, 3].map((s) => starEffectLine("brake", s))).toEqual(["HALF SPEED", "HALF SPEED · +2 DMG", "HALF SPEED · +5 DMG"]);
+    expect(levelLine("brake", 2)).toBe("★2 HOT SHOE: HALF SPEED · +2 DMG");
+    expect(levelLine("brake", 3)).toBe("★3 RED-HOT SHOE: HALF SPEED · +5 DMG");
+    expect(nextLine(holding("brake", [1]), "brake", 1)).toBe("NEXT ★2 HOT SHOE: HALF SPEED · +2 DMG · 1 MORE COPY");
+    expect(nextLine(holding("brake", [2]), "brake", 2)).toBe("NEXT ★3 RED-HOT SHOE: HALF SPEED · +5 DMG · 2 MORE COPIES");
+    expect(mergeLine(holding("brake", [1]), "brake")).toBe("MERGES WITH YOUR BRAKE SHOE ★1 → ★2 · HALF SPEED · +2 DMG");
+    expect(mergeLine(holding("brake", [2, 1]), "brake")).toBe("MERGES WITH YOUR BRAKE SHOE ★2 → ★3 · HALF SPEED · +5 DMG");
+  });
+
+  it("SPLITTER: 2 X 60% / 2 X 72% CLEAN CUT / 2 X 85% PERFECT CUT", () => {
+    expect([1, 2, 3].map((s) => starEffectLine("splitter", s))).toEqual(["2 X 60%", "2 X 72%", "2 X 85%"]);
+    expect(levelLine("splitter", 2)).toBe("★2 CLEAN CUT: 2 X 72%");
+    expect(levelLine("splitter", 3)).toBe("★3 PERFECT CUT: 2 X 85%");
+    expect(nextLine(holding("splitter", [1]), "splitter", 1)).toBe("NEXT ★2 CLEAN CUT: 2 X 72% · 1 MORE COPY");
+    expect(nextLine(holding("splitter", [2]), "splitter", 2)).toBe("NEXT ★3 PERFECT CUT: 2 X 85% · 2 MORE COPIES");
+    expect(mergeLine(holding("splitter", [1]), "splitter")).toBe("MERGES WITH YOUR SPLITTER ★1 → ★2 · 2 X 72%");
+    expect(mergeLine(holding("splitter", [2, 1]), "splitter")).toBe("MERGES WITH YOUR SPLITTER ★2 → ★3 · 2 X 85%");
+  });
+
+  it("the other speed gates keep their lines; a gate's NEXT line names the perk that star brings, once", () => {
+    expect([1, 2, 3].map((s) => starEffectLine("grease", s))).toEqual(["SPEED X1.6", "SPEED X2.3", "SPEED X3.1"]);
+    expect(starEffectLine("overdrive", 3)).toBe("SPEED X5 · +3 FLAT");
+    expect(nextLine(holding("overdrive", [2]), "overdrive", 2)).toBe("NEXT ★3 AFTERBURNER: SPEED X5 · +3 FLAT · 2 MORE COPIES");
+    expect(nextLine(holding("coil", [2]), "coil", 2)).toBe("NEXT ★3: STALL 2.8S · JUMPS TO 1 MORE · 2 MORE COPIES"); // SPARK JUMP already
+  });
+
+  it("phone: the headline and its MERGES WITH line fit the band's 4 body lines (3x5 face, 151 px)", () => {
+    for (const def of ["brake", "splitter"]) {
+      for (const owned of [[1], [2, 1]]) {
+        const lines = [starEffectLine(def, 1), mergeLine(holding(def, owned), def)!].flatMap((l) => wrap(l, 151, "3"));
+        expect(lines.length, `${def} ${owned}: ${lines.join(" / ")}`).toBeLessThanOrEqual(4);
+      }
+    }
   });
 });

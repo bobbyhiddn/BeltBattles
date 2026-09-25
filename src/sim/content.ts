@@ -280,7 +280,10 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "brake", name: "BRAKE SHOE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
     desc: ["BELT RUNS AT HALF", "SPEED FROM THE TILE", "IT HITS. SLOW COOK."], tags: ["SPEED", "HAUL"],
     gate: { speed: 0.5 },
-    levels: { 2: { gate: { speed: 0.31 } }, 3: { gate: { speed: 0.22 } } },
+    levels: { // 0.6.1f: the slow stays at half speed (a deeper one starved the turret); the merge pays in friction heat
+      2: { gate: { speed: 0.5, flat: 2 }, perk: "HOT SHOE" },
+      3: { gate: { speed: 0.5, flat: 5 }, perk: "RED-HOT SHOE" },
+    },
   },
   longhaul: {
     id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker", shape: "II",
@@ -306,7 +309,8 @@ export const ITEMS: Record<string, ItemDef> = {
     gate: { split: { copies: 2, mult: 0.6 } },
     levels: {
       2: { gate: { split: { copies: 2, mult: 0.72 } }, perk: "CLEAN CUT" },
-      3: { gate: { split: { copies: 3, mult: 0.57 } }, perk: "THREE-WAY" }, // 0.6.1p: applyGate makes 2 copies
+      // 0.6.1f: PERFECT CUT keeps THREE-WAY's damage budget (2 x 0.85 = 1.70 vs 3 x 0.57) with no third payload to jam
+      3: { gate: { split: { copies: 2, mult: 0.85 } }, perk: "PERFECT CUT" },
     },
   },
   overdrive: {

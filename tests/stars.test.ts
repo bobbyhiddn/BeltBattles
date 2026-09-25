@@ -47,10 +47,11 @@ describe("stars.ts", () => {
     for (const id of Object.keys(ITEMS)) expect(effectAt(id, 1)).toBe(ITEMS[id]);
     expect(effectAt("temper", 2).gate).toEqual({ burn: 4 });
     expect(effectAt("temper", 3).gate).toEqual({ burn: 7 });
-    // 0.6.1p: the pending perks are applied, so the dies, WIDE BREECH and THREE-WAY now merge in
+    // 0.6.1p: the pending perks are applied, so the dies and WIDE BREECH merge in; 0.6.1f: PERFECT CUT replaced THREE-WAY
     expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, outputs: 1, base: 7.5 });
     expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3, window: 1 });
-    expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 3, mult: 0.57 } });
+    expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 2, mult: 0.85 } });
+    expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.5, flat: 2 }, { speed: 0.5, flat: 5 }]); // 0.6.1f
     expect(ITEMS.temper.gate).toEqual({ burn: 2 }); // the 1-star spec is untouched
     expect(() => effectAt("nope", 2)).toThrow();
   });
@@ -87,8 +88,15 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
     expect(sp).toEqual([1.6, 2.3, 3.1]);
     expect(down(at3((s) => est(bench([["grease", 4, 4, s]])).time))).toBe(true);
   });
-  it("BRAKE speed 0.5/0.31/0.22: more seconds on the belt", () => {
-    expect(up(at3((s) => est(bench([["brake", 4, 4, s]])).time))).toBe(true);
+  // 0.6.1f: the deeper slow (0.31/0.22) starved the turret; the merge now pays in friction heat, not belt time
+  it("BRAKE speed 0.5 at every star (the same seconds on the belt); HOT SHOE +2 and RED-HOT SHOE +5 flat; damage in 30 s", () => {
+    const t = at3((s) => est(bench([["brake", 4, 4, s]])).time);
+    expect([t[1], t[2]]).toEqual([t[0], t[0]]);
+    expect(t[0]).toBeGreaterThan(est(bench([])).time); // still a slow
+    const d = at3((s) => est(bench([["brake", 4, 4, s]])).dmg);
+    expect(d[1] - d[0]).toBeCloseTo(2);
+    expect(d[2] - d[0]).toBeCloseTo(5);
+    expect(up(at3((s) => run(bench([["brake", 4, 4, s]])).sides[0].stats.damage))).toBe(true);
   });
   it("OVERDRIVE speed 3/4/5 (AFTERBURNER's +3 flat: arsenal.modules.test.ts)", () => {
     const sp = at3((s) => run(bench([["overdrive", 4, 4, s]]), 5).sides[0].routes[0].speedAt[3]);
@@ -101,10 +109,10 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
     expect(d[1] - d[0]).toBeCloseTo(2);
     expect(up(at3((s) => run(bench([["whetstone", 4, 4, 1], ["longhaul", 4, 2, s]])).sides[0].stats.damage))).toBe(true);
   });
-  it("SPLITTER CLEAN CUT 72% at 2 stars; THREE-WAY 3 copies at 57% at 3 stars (0.6.1p)", () => {
+  it("SPLITTER CLEAN CUT 72% at 2 stars; PERFECT CUT 85% at 3 stars, still 2 copies (0.6.1f: no third copy to jam)", () => {
     const tot = at3((s) => { const e = est(bench([["splitter", 4, 3, s]])); return e.copies * e.dmg; });
     expect(up(tot)).toBe(true);
-    expect(at3((s) => est(bench([["splitter", 4, 3, s]])).copies)).toEqual([2, 2, 3]);
+    expect(at3((s) => est(bench([["splitter", 4, 3, s]])).copies)).toEqual([2, 2, 2]);
   });
   // 0.6.1p: the stall seconds and SPARK JUMP are applied; this barge never fires, so a stall can't change the
   // damage it takes (the stall benches are in tests/arsenal.modules.test.ts)

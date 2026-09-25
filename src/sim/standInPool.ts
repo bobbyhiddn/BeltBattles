@@ -114,6 +114,70 @@ export function decodeStandInRaw(hero: HeroId, code: string): Build {
   return { hero, items, routes, mods, beltCap, hullBonus };
 }
 
+// 0.6.1g (REQ-BFG-019): the star-aware build code, ported unchanged from the harness v2 codec
+// (src/sim/harness/standinCode.ts, harness-v2 f40a6d3) ahead of the flip. It is the v1 code above plus
+// an optional "*2" or "*3" suffix on an item or module word (no suffix: 1 star), e.g.
+//   "14 0/kiln64 temper44*2/1:544434241404/calibrate0*3"
+// A deck whose items and modules are all 1-star encodes byte-identical to encodeStandIn, and every v1 /
+// v1.1 code decodes exactly as decodeStandIn decodes it (same objects, same key order). Nothing calls
+// these yet: the game keeps loading the v1.1 pool through decodeStandIn until the flip.
+
+/** A copy's star level as stars.ts:starsOf (absent or below 1: 1; at most FUSE_MAX, 3); inlined so standInPool.ts imports nothing from stars.ts (portable), pinned by tests/standInPool.starred.test.ts. */
+function starsOf(x: { stars?: number } | undefined): number {
+  const s = x?.stars;
+  if (typeof s !== "number" || !Number.isFinite(s) || s < 1) return 1;
+  return Math.min(3, Math.floor(s));
+}
+const suffix = (p: { stars?: number }): string => (starsOf(p) > 1 ? `*${starsOf(p)}` : "");
+
+/** Encode a deck as a star-aware stand-in build code (uids are renumbered on decode). */
+export function encodeStarred(b: Build): string {
+  if (GRID !== 10) throw new Error("stand-in build codes assume a 10x10 deck");
+  const no = new Map<number, number>();
+  const items = b.items.map((p, i) => {
+    if (!/^[a-z]+$/.test(p.def)) throw new Error(`stand-in code: item id "${p.def}" is not lowercase letters`);
+    no.set(p.uid, i + 1);
+    return `${p.def}${cellCode(p.x, p.y)}${suffix(p)}`;
+  });
+  const routes = b.routes.map((r) => {
+    const f = no.get(r.factory);
+    if (f === undefined) throw new Error(`stand-in code: route fed by unknown uid ${r.factory}`);
+    return `${f}:${r.cells.map((k) => cellCode(k % GRID, Math.floor(k / GRID))).join("")}`;
+  });
+  const mods = b.mods.map((m) => {
+    if (!/^[a-z]+$/.test(m.def)) throw new Error(`stand-in code: module id "${m.def}" is not lowercase letters`);
+    return `${m.def}${m.turret}${suffix(m)}`;
+  });
+  return `${b.beltCap} ${b.hullBonus}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}`;
+}
+
+/** Decode a star-aware (or v1) stand-in build code into a fresh Build for `hero`. */
+export function decodeStarred(hero: HeroId, code: string): Build {
+  const [head, itemPart, routePart, modPart] = code.split("/");
+  const [beltCap, hullBonus] = head.split(" ").map(Number);
+  const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
+  const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
+  const items: Placed[] = words(itemPart).map((w, i) => {
+    const m = /^([a-z]+)(\d)(\d)(?:\*([23]))?$/.exec(w);
+    if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
+    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...star(m[4]) };
+  });
+  const routes: RouteDef[] = words(routePart).map((w) => {
+    const m = /^(\d+):((?:\d\d)+)$/.exec(w);
+    if (!m || Number(m[1]) < 1 || Number(m[1]) > items.length) throw new Error(`stand-in code: bad route "${w}"`);
+    const cells: number[] = [];
+    for (let i = 0; i < m[2].length; i += 2) cells.push(Number(m[2][i]) * GRID + Number(m[2][i + 1]));
+    return { factory: Number(m[1]), cells };
+  });
+  const mods: ModPlacement[] = words(modPart).map((w, j) => {
+    const m = /^([a-z]+)(\d+)(?:\*([23]))?$/.exec(w);
+    if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad module "${w}"`);
+    return { uid: items.length + j + 1, def: m[1], turret: Number(m[2]), ...star(m[3]) };
+  });
+  if (!HEROES[hero]) throw new Error(`stand-in code: unknown hero "${hero}"`);
+  return { hero, items, routes, mods, beltCap, hullBonus };
+}
+
 /** Clamp a day into 1..10. */
 export function standInDay(day: number): number {
   return Number.isFinite(day) ? Math.max(1, Math.min(STAND_IN_POOL_DAYS, Math.floor(day))) : 1;

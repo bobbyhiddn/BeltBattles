@@ -85,8 +85,9 @@ export const CASES: Case[] = [
   { id: "gantry", deck: "gantry bench + calibrate", opp: WEAVER, at: (s) => gantryBench(s, [["calibrate", 1]], 0) },
 ];
 
-// Report-only rows (Prime call item 4, no assertion): does a fuller chamber turn THREE-WAY into an upgrade?
-// SPLITTER at 1-3 stars on its bench, with EXT. CHAMBER 3 stars or HOPPER 3 stars (BOTTOMLESS) on the turret.
+// Report-only rows (Prime call item 4, no assertion): SPLITTER at 1-3 stars on its bench, with EXT. CHAMBER 3 stars
+// or HOPPER 3 stars (BOTTOMLESS) on the turret. They asked whether a fuller chamber made THREE-WAY's third copy pay;
+// 0.6.1f's PERFECT CUT (2 copies at 85%) has no third copy, and they still show how the jam rows move.
 export const REPORT_ONLY: Case[] = [
   { id: "splitter + chamber 3*", deck: "bench", opp: WEAVER, at: (s) => bench([["splitter", 4, 3, s]], [["chamber", 3]], 0) },
   { id: "splitter + hopper 3*", deck: "bench", opp: WEAVER, at: (s) => bench([["splitter", 4, 3, s]], [["hopper", 3]], 0) },
@@ -100,12 +101,11 @@ export const REPORT_ONLY: Case[] = [
 
 type Step = "1->2" | "2->3";
 
-// Prime call, oracle e12bb91257ca8d00: fix in the post-wave-1 balance pass; this list must be empty before 0.6.1 reaches players.
-// Both are still fought and printed; only the listed steps skip the 3% assertion (a plain allowlist, not a ratchet).
-export const KNOWN_FALLS: { id: string; steps: Step[]; cause: string }[] = [
-  { id: "splitter", steps: ["2->3"], cause: "THREE-WAY's third copy overfills the chamber (jams per fight 1.2 -> 6.0)" },
-  { id: "brake", steps: ["1->2", "2->3"], cause: "the extra belt delay costs shots in fights of about 23 s" },
-];
+// Prime call, oracle e12bb91257ca8d00: this list must be empty before 0.6.1 reaches players. A listed row is still
+// fought and printed; only its listed steps skip the 3% assertion (a plain allowlist, not a ratchet).
+// 0.6.1f: empty. BRAKE SHOE (the deeper slow starved the turret) and SPLITTER (THREE-WAY's third copy jammed the
+// chamber) were retuned: HOT SHOE / RED-HOT SHOE keep half speed and add +2 / +5 flat; PERFECT CUT is 2 copies at 85%.
+export const KNOWN_FALLS: { id: string; steps: Step[]; cause: string }[] = [];
 const known = (id: string, step: Step) => KNOWN_FALLS.some((k) => k.id === id && k.steps.includes(step));
 
 export interface DeckRow { dmg: number; wins: number }
@@ -139,5 +139,9 @@ describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of mean d
   it("report-only rows print with BB_TABLES=1 (no assertion: Prime call, item 4)", () => {
     if (!process.env.BB_TABLES) return;
     for (const c of REPORT_ONLY) console.log(`REPORT-ONLY ${line(c, deckRows(c))}`);
+  });
+
+  it("KNOWN_FALLS stays empty: every merge step is an upgrade (0.6.1f)", () => {
+    expect(KNOWN_FALLS).toEqual([]);
   });
 });
