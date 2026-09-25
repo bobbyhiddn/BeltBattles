@@ -49,7 +49,7 @@ export function canApply(s: Shopper, l: Lever): boolean {
   const left = s.left(), b = s.b;
   switch (l) {
     case "plating": return left >= PLATE.price;
-    case "gate": return left >= s.minGate && s.rigTiles().length > 0;
+    case "gate": return left >= s.minGate && s.hasRigTile();
     case "mod": return left >= s.minMod && gearFree(b).length > 0;
     case "press": return left >= PRESS.price && freeConnectors(b).length > 0;
     case "route": return s.edits < MAX_ROUTE_EDITS && b.routes.length > 0;
@@ -487,14 +487,14 @@ function mergeableDefs(s: Shopper): string[] {
   const present = fusibleCopies(b).filter((c) => c.kind !== "factory");
   if (!present.length) return [];
   const oneStar = new Set(present.filter((c) => c.stars === 1).map((c) => c.def));
-  const tiles = s.rigTiles();
+  let tiles: boolean | undefined; // is there a belt tile with a free side (asked lazily: hasRigTile)
   const freeT = gearFree(b); // 0.6.1b: gear hardpoints (== v1's free turrets when no core is fitted)
   const freeS = socketFree(b); // 0.6.1b: a core copy that doesn't merge needs an empty socket (never a swap here)
   return [...new Set(present.map((c) => c.def))].filter((d) => {
     if (ITEMS[d].price > left || !s.canGain(d)) return false;
     if (oneStar.has(d)) return true; // will merge immediately: no placement needed
     const kind = ITEMS[d].kind;
-    return kind === "gate" ? tiles.length > 0 : kind === "core" ? freeS.length > 0 : freeT.length > 0;
+    return kind === "gate" ? (tiles ??= s.hasRigTile()) : kind === "core" ? freeS.length > 0 : freeT.length > 0;
   });
 }
 

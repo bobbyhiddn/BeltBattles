@@ -145,6 +145,18 @@ export class Shopper {
     return out;
   }
 
+  /** rigTiles(only).length > 0, stopping at the first such tile (the levers' yes/no checks run every step). */
+  hasRigTile(only: (ri: number) => boolean = this.connected()): boolean {
+    const occ = occupancy(this.b);
+    return this.b.routes.some((r, ri) => only(ri) && r.cells.some((k) => {
+      for (let d = 0; d < 4; d++) {
+        const n = arrowCell(kx(k), ky(k), d as Dir);
+        if (freeForRig(this.b, n, occ) && !intakeCell(this.b, n)) return true;
+      }
+      return false;
+    }));
+  }
+
   /**
    * H2: put a rig to work on tile ti of route ri: the free cell beside it and the rotation with the most hits
    * on connected belts (ties: the first candidate in D3 order), among placements `accept` allows. A lifted rig
