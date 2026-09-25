@@ -13,6 +13,7 @@ import {
   STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, dryVersus, genStandIns, maxStarsOf, shippedPicks, standInCandidate, versus, writtenProblems, type HeroDay,
 } from "../src/sim/harness/standins";
 import { localRunner, type Job, type Runner } from "../src/sim/harness/tournament";
+import { cpuMsSince, HARNESS_CPU_BUDGET_MS, HARNESS_HANG_TIMEOUT_MS } from "./harnessTiming";
 
 const deck = (hero: HeroId, hull: number): Build => ({ ...heroStartBuild(hero, 1), hullBonus: hull });
 
@@ -107,7 +108,9 @@ describe("no 3-star stand-ins (F8, decision D4)", () => {
 
   it("the tiny stars-on dry pool: no candidate or pick above 2 stars, the cap is reported, and a written 3-star pick is caught", async () => {
     const tiny = { ...STANDIN_DEFAULTS, pop: 6, gauntlet: 2, seeds: 1, elites: 2, refSeeds: 2, per: 2, grow: [8], stars: "on" as const };
+    const cpu0 = process.cpuUsage();
     const res = await genStandIns(tiny, localRunner);
+    expect(cpuMsSince(cpu0)).toBeLessThan(HARNESS_CPU_BUDGET_MS);
     for (const hd of res.days) {
       for (const c of hd.pop) expect(maxStarsOf(c.build), `${hd.hero} d${hd.day} #${c.idx}`).toBeLessThanOrEqual(STANDIN_MAX_STARS);
       expect(hd.capWould3).toBeLessThanOrEqual(hd.capAffected);
@@ -123,5 +126,5 @@ describe("no 3-star stand-ins (F8, decision D4)", () => {
     const doctored = res.days.map((x) => (x !== hd ? x : { ...x, picks: x.picks.map((q) => (q !== p ? q : { ...q, build: three, code: encodeStarred(three), cost: buildCost(three).total })) }));
     const problems = writtenProblems(tiny, doctored, dataModuleText(tiny, doctored));
     expect(problems.some((x) => x.includes("3-star module"))).toBe(true);
-  }, 120_000);
+  }, HARNESS_HANG_TIMEOUT_MS);
 });

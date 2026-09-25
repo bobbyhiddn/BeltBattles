@@ -4,6 +4,7 @@ import { HARNESS_HEROES, heroRefBuild } from "../src/sim/harness/heroes";
 import { balanceMarkdown } from "../src/sim/harness/report";
 import { bandFlag, wilson } from "../src/sim/harness/stats";
 import { DEFAULT_OPTS, playJob, runTournament, type Runner, type TourneyOpts } from "../src/sim/harness/tournament";
+import { cpuMsSince, HARNESS_CPU_BUDGET_MS, HARNESS_HANG_TIMEOUT_MS } from "./harnessTiming";
 
 // Balance harness tournament: a tiny end-to-end run, determinism, and the statistics.
 
@@ -11,12 +12,10 @@ import { DEFAULT_OPTS, playJob, runTournament, type Runner, type TourneyOpts } f
 const TINY: TourneyOpts = { ...DEFAULT_OPTS, days: [1], pop: 4, gauntlet: 2, seeds: 1, elites: 2, calibrationDays: [1] };
 
 describe("harness tournament", () => {
-  it("a tiny end-to-end run finishes in under 120 s with a well-formed matrix", async () => {
-    const t0 = performance.now();
+  it("a tiny end-to-end run stays within its CPU work budget and returns a well-formed matrix", async () => {
+    const cpu0 = process.cpuUsage();
     const res = await runTournament(TINY);
-    // G9: the old 30 s budget failed under machine load (30.6 s at load ~30 on the flip tree); the
-    // budget guards against a pathological slowdown, not raw speed
-    expect(performance.now() - t0).toBeLessThan(120_000);
+    expect(cpuMsSince(cpu0)).toBeLessThan(HARNESS_CPU_BUDGET_MS);
     expect(res.days.map((d) => d.day)).toEqual([1]);
     for (const d of res.days) {
       expect(d.budget).toBe(maxGoldByDay(d.day));
@@ -65,9 +64,10 @@ describe("harness tournament", () => {
     expect(md).toContain("## Mirror cells");
     expect(md).toContain("## Lever traits");
     expect(md).toContain("## Rig arrows (H1: value per arrow that hits)");
-  }, 60_000);
+  }, HARNESS_HANG_TIMEOUT_MS);
 
   it("results do not depend on the order jobs are played in (any worker split)", async () => {
+    const cpu0 = process.cpuUsage();
     const o: TourneyOpts = { ...TINY, heroes: ["weaver", "bastion"], pop: 3, gauntlet: 2 };
     const backwards: Runner = async (field, jobs) => {
       const out = new Array<number>(jobs.length);
@@ -75,16 +75,19 @@ describe("harness tournament", () => {
       return out;
     };
     expect(JSON.stringify(await runTournament(o, backwards))).toBe(JSON.stringify(await runTournament(o)));
-  }, 30_000);
+    expect(cpuMsSince(cpu0)).toBeLessThan(HARNESS_CPU_BUDGET_MS);
+  }, HARNESS_HANG_TIMEOUT_MS);
 
   it("the same seed gives identical tournament results", async () => {
+    const cpu0 = process.cpuUsage();
     const o: TourneyOpts = { ...TINY, heroes: ["furnace", "metronome", "siphon"], days: [3], pop: 4, gauntlet: 2 };
     const a = await runTournament(o);
     const b = await runTournament(o);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     const c = await runTournament({ ...o, seed: 2 });
     expect(JSON.stringify(c.days[0].elites)).not.toBe(JSON.stringify(a.days[0].elites));
-  }, 60_000);
+    expect(cpuMsSince(cpu0)).toBeLessThan(HARNESS_CPU_BUDGET_MS);
+  }, HARNESS_HANG_TIMEOUT_MS);
 
   it("Wilson intervals and band flags", () => {
     const r = wilson(50, 100);

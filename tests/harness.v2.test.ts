@@ -13,6 +13,7 @@ import {
   ROBUST_BAND, STANDIN_DEFAULTS, genStandIns, robustReplay, type Cand,
 } from "../src/sim/harness/standins";
 import { nativeRigs } from "./beltside.helpers";
+import { cpuMsSince, HARNESS_CPU_BUDGET_MS, HARNESS_HANG_TIMEOUT_MS } from "./harnessTiming";
 
 const freeCells = (b: Build): number[] => {
   const occ = occupancy(b);
@@ -185,7 +186,9 @@ describe("harness v2: stand-in pool robust re-play", () => {
     const tiny = {
       ...STANDIN_DEFAULTS, pop: 6, gauntlet: 2, seeds: 1, elites: 2, refSeeds: 2, per: 2, grow: [8], stars: "on" as const,
     };
+    const cpu0 = process.cpuUsage();
     const res = await genStandIns(tiny, localRunner);
+    expect(cpuMsSince(cpu0)).toBeLessThan(HARNESS_CPU_BUDGET_MS);
     expect(res.days.length).toBe(10 * tiny.heroes.length);
     for (const hd of res.days) {
       expect(hd.robustRemoved).toBeGreaterThanOrEqual(0);
@@ -196,5 +199,5 @@ describe("harness v2: stand-in pool robust re-play", () => {
         expect(p.build.hero).toBe(hd.hero);
       }
     }
-  }, 120_000);
+  }, HARNESS_HANG_TIMEOUT_MS);
 });
