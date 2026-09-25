@@ -152,9 +152,10 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   }
 }
 
-/** Floating hover tooltip under a card (mouse only). */
-export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number): void {
-  const text = [def.desc[0], def.desc[1]].filter(Boolean) as string[];
+/** Floating hover tooltip under a card (mouse only). 0.6.2p (item 1): `desc` is the offer's flavour (flavour.ts: a
+ *  1-star copy, a core's numbers at the hero's class factor); its first two lines show. */
+export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, desc: readonly string[] = def.desc): void {
+  const text = [desc[0], desc[1]].filter(Boolean) as string[];
   const w = Math.max(textWidth(def.name), ...text.map((l) => textWidth(l, "3")), textWidth(describe(def), "3")) + 10;
   const h = 22 + text.length * 7;
   const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));

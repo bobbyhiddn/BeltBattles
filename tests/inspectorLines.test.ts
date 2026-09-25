@@ -195,10 +195,10 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // a ★2 SPLITTER (T) at (3,3) facing east: one arrow on the Kiln's (4,3), tile 3; one spare copy in cargo.
     // beltside-062-on-061 (0.6.1f, DESIGN §13 P12): the perk and NEXT lines read 0.6.1f's words ("2 X 72%", and a NEXT
     // line naming PERFECT CUT); they were "★2 CLEAN CUT: 2X 72%" and "NEXT ★3: 3X 57% · 1 MORE COPY" (THREE-WAY).
-    // 0.6.2p: merge progress reads NEEDS 1 MORE (item 2)
+    // 0.6.2p: merge progress reads NEEDS 1 MORE (item 2), and the flavour its star's numbers, 72% (item 1; it said 60%)
     expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
       "→ BELT 1 · TILE 3", "★2 CLEAN CUT: 2 X 72%", "NEXT ★3 PERFECT CUT: 2 X 85% · NEEDS 1 MORE", TURN,
-      "SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE.",
+      "SPLITS A PAYLOAD IN", "TWO COPIES AT 72%.", "MORE BELT PRESSURE.",
     ]);
     // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, then NEXT (no perk line at ★1)
     expect(text(rigRun("longhaul", 1, 5, 3, 0, 0))).toEqual([
@@ -208,13 +208,13 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // an IDLE ★2 TEMPER: the amber warning leads
     const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
     expect(idle.text[0]).toEqual([IDLE, expect.any(String)]);
-    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE, "★2: +4 BURN", "NEXT ★3: +7 BURN · NEEDS 2 MORE", TURN, "ADDS 2 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."]);
+    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE, "★2: +4 BURN", "NEXT ★3: +7 BURN · NEEDS 2 MORE", TURN, "ADDS 4 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."]);
     expect([idle.sub, idle.idle, idle.labels]).toEqual(["RIG · IDLE", true, ["ROTATE", "TO CARGO"]]);
-    // a ★3 X OVERDRIVE at (5,3): no NEXT past ★3, no ROTATE for an X
+    // a ★3 X OVERDRIVE at (5,3): no NEXT past ★3, no ROTATE for an X; 0.6.2p: the flavour at ★3, 5X and +11 (was 3X, +3)
     const x = rigPanel(rigRun("overdrive", 3, 5, 3, 0, 0), 10)!;
     expect(text(rigRun("overdrive", 3, 5, 3, 0, 0))).toEqual([
       "→ BELT 1 · TILE 3", "→ BELT 2 · TILE 3", "★3 AFTERBURNER: SPEED X5 · +3 FLAT", "FACES EVERY SIDE. DRAG TO MOVE.",
-      "4 ARROWS: 3X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +3 DAMAGE.",
+      "4 ARROWS: 5X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +11 DAMAGE.",
     ]);
     expect([x.sub, x.subShort, x.labels]).toEqual(["RIG · 2/4 ARROWS ON BELTS", "RIG · 2/4 HIT", ["TO CARGO"]]);
   });

@@ -16,7 +16,8 @@ import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
 import type { BuildScreen } from "./build";
 import { drawCard, drawReroll, drawTag, drawTooltip } from "./shop";
-import { drawDetails, drawFoe, hasDetails } from "./inspector";
+import { drawDetails, drawFoe, hasDetails, heroK } from "./inspector";
+import { flavour } from "./flavour"; // 0.6.2p (item 1): the tooltip's flavour
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 
 /** Status bar: DAWN · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
@@ -191,7 +192,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   if (s.hover && !c && s.caravan.ready) {
     const idx = s.offers().findIndex((q) => q.wagon === s.hover!.wagon && q.slot === s.hover!.slot);
     const o = s.run.shop.wagons[s.hover.wagon]?.offers[s.hover.slot];
-    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W);
+    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, flavour(o.def, 1, heroK(s.run))); // 0.6.2p
   }
   if (s.menu) {
     optionsCard(s.game, g, "PAUSED", [

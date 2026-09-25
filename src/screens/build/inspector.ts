@@ -27,6 +27,7 @@ import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
+import { flavour } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -107,12 +108,15 @@ function factoryLine(f: FactorySpec): string {
 }
 
 /** 0.6.1c: a bought factory's inspect body leads with its headline at its stars and the MERGES WITH / NEXT line, so
- *  the phone band's 4 body lines (0.6.1r F7) keep both; its desc follows. Every other kind keeps desc first. */
-function body(d: ItemDef, stars: number, lines: (string | null)[], hint: string, k = 1): string[] {
+ *  the phone band's 4 body lines (0.6.1r F7) keep both; its desc follows. Every other kind keeps desc first.
+ *  0.6.2p (item 1): the desc is the module's flavour at its stars (flavour.ts; a core's numbers at k). Exported for
+ *  tests (the offer, cargo and placed-factory panels' text). */
+export function body(d: ItemDef, stars: number, lines: (string | null)[], hint: string, k = 1): string[] {
   const own = lines.filter((l): l is string => !!l);
-  if (d.kind !== "factory" || !fusible(d.id)) return [...d.desc, ...own, hint];
+  const desc = flavour(d.id, stars, k);
+  if (d.kind !== "factory" || !fusible(d.id)) return [...desc, ...own, hint];
   const head = stars > 1 ? own : [starEffectLine(d.id, stars, k), ...own];
-  return [...head, ...d.desc, hint];
+  return [...head, ...desc, hint];
 }
 
 /** 0.6.1r (review-061 F5): the perk's name, unless the sim doesn't apply its values yet (levels[n].pending), so
@@ -136,8 +140,9 @@ function coreLine(def: string, stars: number, k: number): string {
 }
 
 /** 0.6.1r N4: the class factor a core in this run's cargo or shop would fire at: the hero's turrets (all of one
- *  class today: FURNACE heavy k 1, WEAVER light k 0.55), as resolveCore scales it once fitted. */
-function heroK(run: Run): number {
+ *  class today: FURNACE heavy k 1, WEAVER light k 0.55), as resolveCore scales it once fitted. 0.6.2p: exported for
+ *  the shop tooltip's flavour (chrome.ts). */
+export function heroK(run: Run): number {
   const td = installedTurrets(run.build)[0]?.td; // 0.6.2s: the first installed turret (the hero's first, at the start)
   return td ? classFactor(td) : 1;
 }
@@ -289,7 +294,7 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
       ...(lvl ? [lvl] : []),
       ...(next ? [next] : []),
       x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE.",
-      ...d.desc,
+      ...flavour(d.id, stars), // 0.6.2p item 1: the flavour at its stars
     ],
   };
 }
