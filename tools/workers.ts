@@ -5,24 +5,26 @@
 
 import { Worker, parentPort } from "node:worker_threads";
 import type { Build } from "../src/sim/deck";
-import { localRunner, playJob, type Job, type Runner } from "../src/sim/harness/tournament";
+import { jobDetail, localDetail, localRunner, playJob, type DetailRunner, type Job, type Runner } from "../src/sim/harness/tournament";
 
-interface Chunk { id: number; field: Build[]; jobs: Job[] }
+// detail: play the chunk with jobDetail (exact per-battle outcomes, the star bench's NO EFFECT and
+// SAME AS 2-star checks) instead of playJob (points)
+interface Chunk { id: number; field: Build[]; jobs: Job[]; detail?: boolean }
 
-/** Worker side: play each chunk of jobs and post the points back. */
+/** Worker side: play each chunk of jobs and post the points (or the exact outcomes) back. */
 export function serveJobs(): void {
-  parentPort!.on("message", (c: Chunk) => parentPort!.postMessage({ id: c.id, pts: c.jobs.map((j) => playJob(c.field, j)) }));
+  parentPort!.on("message", (c: Chunk) => parentPort!.postMessage({ id: c.id, out: c.jobs.map((j) => (c.detail ? jobDetail(c.field, j) : playJob(c.field, j))) }));
 }
 
 /** A pool of `n` worker threads running `script`, fed chunks of jobs on demand. */
-export function workerRunner(n: number, script: string): { run: Runner; close: () => Promise<void> } {
-  if (n <= 1) return { run: localRunner, close: async () => {} };
+export function workerRunner(n: number, script: string): { run: Runner; detail: DetailRunner; close: () => Promise<void> } {
+  if (n <= 1) return { run: localRunner, detail: localDetail, close: async () => {} };
   const workers = Array.from({ length: n }, () => new Worker(new URL(script)));
-  const run: Runner = (field, jobs) => new Promise((done, fail) => {
+  const dispatch = <T,>(field: Build[], jobs: Job[], detail: boolean) => new Promise<T[]>((done, fail) => {
     const size = Math.max(4, Math.ceil(jobs.length / (n * 8)));
     const chunks: Chunk[] = [];
-    for (let i = 0; i < jobs.length; i += size) chunks.push({ id: chunks.length, field, jobs: jobs.slice(i, i + size) });
-    const out = new Array<number>(jobs.length);
+    for (let i = 0; i < jobs.length; i += size) chunks.push({ id: chunks.length, field, jobs: jobs.slice(i, i + size), ...(detail ? { detail } : {}) });
+    const out = new Array<T>(jobs.length);
     let next = 0, pending = chunks.length;
     if (!pending) return done(out);
     const feed = (w: Worker) => {
@@ -31,15 +33,17 @@ export function workerRunner(n: number, script: string): { run: Runner; close: (
     for (const w of workers) {
       w.removeAllListeners();
       w.on("error", fail);
-      w.on("message", (m: { id: number; pts: number[] }) => {
-        m.pts.forEach((p, i) => (out[m.id * size + i] = p));
+      w.on("message", (m: { id: number; out: T[] }) => {
+        m.out.forEach((p, i) => (out[m.id * size + i] = p));
         if (--pending === 0) done(out);
         else feed(w);
       });
       feed(w);
     }
   });
-  return { run, close: async () => void (await Promise.all(workers.map((w) => w.terminate()))) };
+  const run: Runner = (field, jobs) => dispatch<number>(field, jobs, false);
+  const detail: DetailRunner = (field, jobs) => dispatch<string>(field, jobs, true);
+  return { run, detail, close: async () => void (await Promise.all(workers.map((w) => w.terminate()))) };
 }
 
 export function flag(name: string): string | undefined {

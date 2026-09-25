@@ -9,35 +9,55 @@
 //   validateBuild accepts a factory feeding fewer routes than it has outputs, so a signature
 //   route may be dropped to free a connector for a Stamp Press line; its rigs move beside the
 //   new line. Never for a twin-pour factory (one route alone never fuses).
+// and harness v2's two: merge (buy one more copy of a fusible module the deck holds, so stars grow) and core
+// (0.6.1b: buy and fit a turret core), both through the game's gainModule (merge.ts gainInto).
 // 0.6.2 BELTSIDE (ref/DESIGN-beltside.md H2): the "gate" lever buys a rig. Rigs stand beside the belt and
 // are placed greedily (Shopper.placeRig): a belt tile to work, then the free cell beside it and the rotation
 // with the most hits on connected belts. A rig is never left idle: every rig lands at least one arrow on a
 // connected belt, and one whose belt moves or goes moves with it.
+// beltside-062-on-061 (DESIGN §13 P16): one harness. Harness v2's levers, canGain caps and F6 star-aware twin
+// sync, with H2's placeRig wherever v2 places a gate (a merging copy leaves the survivor on its cell with its
+// rotation). The twin sync compares, tile index by tile index, the speed hits that land there by def and
+// stars (v2 F6); a rig's rotation is what decides which tile its arrow lands on.
 
 import { GRID, HEROES, ITEMS, rarityWeights, type ItemDef } from "../content";
 import {
-  cloneBuild, footprint, hitsOfRig, itemByUid, occupancy, rigHits, rotOf, routeInfo, routesOf, setRot,
+  cloneBuild, coreFor, footprint, gearFor, hitsOfRig, itemByUid, occupancy, rigHits, rotOf, routeInfo, routesOf, setRot,
   type Build, type Placed, type RigHit,
 } from "../deck";
 import { beltIndex, hitsIfPlaced, rotations, type WouldHit } from "../beltside";
-import { buildCost } from "../../net/validate";
+import { starsOf } from "../stars";
+import { fusibleCopies, gainInto, previewMerge } from "./merge";
 import { blockedCells, freeConnectors, startCells } from "./path";
 import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Accept, type Shopper } from "./shopper";
+import type { GainAt } from "../../game/fuse";
 
-export type Lever = "gate" | "mod" | "plating" | "route" | "press" | "sync" | "order" | "drop";
-export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "press", "sync", "order", "drop"];
+// 0.6.1b (harness v2 part 2): "core" is last, so personality() draws its weight after every part-1
+// lever's, and only when cores are on: with cores off every RNG draw is exactly part 1's.
+export type Lever = "gate" | "mod" | "plating" | "route" | "press" | "sync" | "order" | "drop" | "merge" | "core";
+export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "press", "sync", "order", "drop", "merge", "core"];
+
+/** 0.6.1b: turrets whose gear hardpoint is free. The core socket is separate: deck.ts
+ *  turretHasFreeHardpoint/gearFor (c432bee deck.ts:483-489) count gear only. With no core fitted this is
+ *  exactly v1's "no module on the turret". */
+const gearFree = (b: Build): number[] => HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !gearFor(b, t));
+/** 0.6.1b: turrets whose core socket is empty (deck.ts coreFor, c432bee deck.ts:478): they run the hero's
+ *  implicit signature core (ARSENAL.md §2.1 rule 1), which is never an item and never bought. */
+const socketFree = (b: Build): number[] => HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !coreFor(b, t));
 
 export function canApply(s: Shopper, l: Lever): boolean {
   const left = s.left(), b = s.b;
   switch (l) {
     case "plating": return left >= PLATE.price;
     case "gate": return left >= s.minGate && s.rigTiles().length > 0;
-    case "mod": return left >= s.minMod && HEROES[b.hero].turrets.some((_, t) => !b.mods.some((m) => m.turret === t));
+    case "mod": return left >= s.minMod && gearFree(b).length > 0;
     case "press": return left >= PRESS.price && freeConnectors(b).length > 0;
     case "route": return s.edits < MAX_ROUTE_EDITS && b.routes.length > 0;
     case "sync": return !s.synced && s.twinRoutes() !== null;
     case "order": return routesOutOfOrder(b).length > 0 || buyMoves(s).length > 0;
     case "drop": return left >= PRESS.price && freeConnectors(b).length === 0 && droppable(b).length > 0;
+    case "merge": return s.stars && mergeableDefs(s).length > 0;
+    case "core": return s.coresOn && left >= s.minCore;
   }
 }
 
@@ -51,6 +71,8 @@ export function applyLever(s: Shopper, l: Lever): boolean {
     case "sync": return sync(s);
     case "order": return order(s);
     case "drop": return drop(s);
+    case "merge": return merge(s);
+    case "core": return core(s);
   }
 }
 
@@ -61,10 +83,10 @@ export function normalize(s: Shopper): void {
 }
 
 /** A rig put to work on a random belt tile that has a free side (H2 placement); the type is drawn with
- *  the shop's rarity weights for the day. */
+ *  the shop's rarity weights for the day (v2: among the defs one more copy of may be gained). */
 function gate(s: Shopper): boolean {
   const left = s.left(), w = rarityWeights(s.day);
-  const pool = s.gates.filter((d) => d.price <= left && w[d.rarity] > 0);
+  const pool = s.gates.filter((d) => d.price <= left && w[d.rarity] > 0 && s.canGain(d.id));
   const tiles = s.rigTiles();
   if (!pool.length || !tiles.length) return false;
   const d = s.rng.weighted(pool, (g) => w[g.rarity] / s.gates.filter((x) => x.rarity === g.rarity).length);
@@ -74,13 +96,60 @@ function gate(s: Shopper): boolean {
 
 /** A turret module on a free hardpoint, preferring guns that some belt feeds. */
 function mod(s: Shopper): boolean {
-  const b = s.b, h = HEROES[b.hero], left = s.left();
-  const free = h.turrets.map((_, t) => t).filter((t) => !b.mods.some((m) => m.turret === t));
-  const fed = new Set(b.routes.map((r) => h.turrets.findIndex((t) => t.connectors.includes(r.cells[r.cells.length - 1] % GRID))));
+  const b = s.b, left = s.left();
+  const free = gearFree(b); // 0.6.1b: a fitted core doesn't take the gear hardpoint
+  const fed = fedTurrets(b);
   const live = free.filter((t) => fed.has(t));
-  const pool = s.mods.filter((d) => d.price <= left);
+  const pool = s.mods.filter((d) => d.price <= left && s.canGain(d.id));
   if (!pool.length || !free.length) return false;
-  b.mods.push({ uid: s.uid++, def: s.rng.pick(pool).id, turret: s.rng.pick(live.length ? live : free) });
+  // same RNG order as v1 (def, then turret) whether or not this ends up merging
+  const def = s.rng.pick(pool).id;
+  const turret = s.rng.pick(live.length ? live : free);
+  if (s.stars) gainInto(s, b, def, { turret }, s.cargo);
+  else b.mods.push({ uid: s.uid++, def, turret });
+  return true;
+}
+
+/** Turrets some belt feeds (the mod lever's "live" guns, v1). */
+function fedTurrets(b: Build): Set<number> {
+  const h = HEROES[b.hero];
+  return new Set(b.routes.map((r) => h.turrets.findIndex((t) => t.connectors.includes(r.cells[r.cells.length - 1] % GRID))));
+}
+
+/**
+ * 0.6.1b: buy a turret core the hero's caravan sells (shopItems(hero, "core"); drawn with the shop's rarity
+ * weights for the day, like the gate lever) and fit it, following the game (c432bee):
+ * - a copy that merges into a FITTED twin goes in as buyOffer does it (run.ts:330, `pv.where !== "cargo"`:
+ *   the gain enters cargo and gainModule fuses it into the placed twin, which keeps its socket; fuse.ts:74-85);
+ * - else an empty socket comes first (a fed gun preferred, as the mod lever does);
+ * - else a DIFFERENT core on a full socket is swapped: gainModule's freeSocket sends the bought core there to
+ *   cargo with its stars (fuse.ts:139-144, ARSENAL.md §2.1 rule 6); cargo doesn't fight, its gold stays spent.
+ *   A same-def core already fitted is never swapped out for its own copy.
+ * Every gain runs through gainInto (fuse.ts gainModule), which also merges with a cargo twin (placed beats
+ * cargo). The validator's rule (validate.ts:192-202: one core per socket, one mod per hardpoint) holds.
+ */
+function core(s: Shopper): boolean {
+  const b = s.b, left = s.left(), w = rarityWeights(s.day);
+  const pool = s.cores.filter((d) => d.price <= left && w[d.rarity] > 0 && s.canGain(d.id));
+  if (!pool.length) return false;
+  const d = s.rng.weighted(pool, (g) => w[g.rarity] / s.cores.filter((x) => x.rarity === g.rarity).length);
+  const pv = previewMerge(b, s.uid, d.id, s.cargo);
+  if (pv && pv.where !== "cargo") {
+    gainInto(s, b, d.id, { turret: 0 }, s.cargo); // merges into the fitted twin; the target is ignored (buyOffer)
+    return true;
+  }
+  const empty = socketFree(b);
+  let turret: number;
+  if (empty.length) {
+    const fed = fedTurrets(b), live = empty.filter((t) => fed.has(t));
+    turret = s.rng.pick(live.length ? live : empty);
+  } else {
+    const other = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => coreFor(b, t)!.def !== d.id);
+    if (!other.length) return false;
+    turret = s.rng.pick(other);
+    s.swaps++;
+  }
+  gainInto(s, b, d.id, { turret }, s.cargo);
   return true;
 }
 
@@ -124,19 +193,27 @@ function sync(s: Shopper): boolean {
   return true;
 }
 
-/** Per tile of route ri, the speed rigs landing on it (defs, sorted, "+"-joined; "" for none): the belt's
- *  speed profile. Two belts with the same profile hold the same speed on every tile (R7 item 4). */
+/** A speed hit's identity for the twin sync: its rig's def and (v2 F6) star level, "grease" at 1 star and
+ *  "grease*2" above, so a stars-off profile reads exactly as before (a 2-star and a 1-star copy run at
+ *  different speeds, so they are different). */
+const speedKey = (b: Build, h: RigHit): string => {
+  const st = starsOf(itemByUid(b, h.uid));
+  return st > 1 ? `${h.def}*${st}` : h.def;
+};
+
+/** Per tile of route ri, the speed rigs landing on it (def and stars, sorted, "+"-joined; "" for none): the
+ *  belt's speed profile. Two belts with the same profile hold the same speed on every tile (R7 item 4). */
 export function speedProfile(b: Build, ri: number, hits: RigHit[][][] = rigHits(b)): string[] {
-  return (hits[ri] ?? []).map((t) => t.filter((h) => isSpeedGate(ITEMS[h.def])).map((h) => h.def).sort().join("+"));
+  return (hits[ri] ?? []).map((t) => t.filter((h) => isSpeedGate(ITEMS[h.def])).map((h) => speedKey(b, h)).sort().join("+"));
 }
 
 const speedHitsAt = (hits: RigHit[][][], ri: number, i: number): RigHit[] => (hits[ri]?.[i] ?? []).filter((h) => isSpeedGate(ITEMS[h.def]));
 
-/** Hits in `xs` with no same-def partner left in `ys` (multiset difference by def). */
-function unmatched(xs: RigHit[], ys: RigHit[]): RigHit[] {
-  const left = ys.map((h) => h.def);
+/** Hits in `xs` with no same-def, same-star partner left in `ys` (multiset difference by speedKey). */
+function unmatched(b: Build, xs: RigHit[], ys: RigHit[]): RigHit[] {
+  const left = ys.map((h) => speedKey(b, h));
   return xs.filter((h) => {
-    const j = left.indexOf(h.def);
+    const j = left.indexOf(speedKey(b, h));
     if (j < 0) return true;
     left.splice(j, 1);
     return false;
@@ -149,7 +226,8 @@ const onceOnTwins = (a: number, c: number): Accept => (hs) => hs.filter((h) => h
 /** The same speed rigs (or none) on every tile index of both twins. A lone speed hit gets a copy bought
  *  beside the other twin at the same tile when affordable, else its rig goes; where both twins have speed
  *  hits that differ, the sibling takes route a's. A rig that lands on several twin tiles can defeat the
- *  pairing; after a bounded number of fixes any speed rig still on the twins goes. */
+ *  pairing; after a bounded number of fixes any speed rig still on the twins goes. 0.6.1a (F6): "same" is
+ *  the same def AND the same star level; stars off every copy is 1-star, so this is v1's def comparison. */
 function mirrorSpeed(s: Shopper): void {
   const tw = s.twinRoutes();
   if (!tw || !matchTwins(s, tw[0], tw[1])) return;
@@ -160,13 +238,13 @@ function mirrorSpeed(s: Shopper): void {
     const i = pa.findIndex((x, j) => x !== pc[j]);
     if (i < 0) return;
     const la = speedHitsAt(hits, a, i), lc = speedHitsAt(hits, c, i);
-    const onlyA = unmatched(la, lc), onlyC = unmatched(lc, la);
+    const onlyA = unmatched(s.b, la, lc), onlyC = unmatched(s.b, lc, la);
     if (onlyA.length && onlyC.length) {
       s.removeItem(onlyC[0].uid); // different speeds: the sibling takes route a's
       continue;
     }
     const src = onlyA[0] ?? onlyC[0];
-    if (!copyRigTo(s, src.def, onlyA.length ? c : a, i, onceOnTwins(a, c))) s.removeItem(src.uid);
+    if (!copyRigTo(s, src.def, starsOf(itemByUid(s.b, src.uid)), onlyA.length ? c : a, i, onceOnTwins(a, c))) s.removeItem(src.uid);
   }
   const hits = rigHits(s.b);
   if (speedProfile(s.b, a, hits).join() !== speedProfile(s.b, c, hits).join()) {
@@ -174,13 +252,19 @@ function mirrorSpeed(s: Shopper): void {
   }
 }
 
-/** Buy `def` to work tile i of route ri, when affordable and a cell beside it is accepted. */
-function copyRigTo(s: Shopper, def: string, ri: number, i: number, accept: Accept): boolean {
-  if (s.left() < ITEMS[def].price) return false;
+/** Buy `def` to work tile i of route ri, when affordable and a cell beside it is accepted. 0.6.1a (F6): with
+ *  stars on the bought copy must mirror a `stars` copy. A new copy lands at 1 star, and it merges into any
+ *  1-star twin (the source itself at 1 star): a copy that merges, or lands at another star level, is no
+ *  mirror, so nothing is bought and the caller drops the lone rig. */
+function copyRigTo(s: Shopper, def: string, stars: number, ri: number, i: number, accept: Accept): boolean {
+  if (s.left() < ITEMS[def].price || !s.canGain(def)) return false;
+  if (s.stars && (stars !== 1 || previewMerge(s.b, s.uid, def))) return false;
   return s.placeRig(def, ri, i, accept) !== null;
 }
 
-/** Buy one speed rig pair at the same tile index of both twins (no speed hit there yet), when affordable. */
+/** Buy one speed rig pair at the same tile index of both twins (no speed hit there yet), when affordable.
+ *  F6 (stars on): the second new copy would merge into the first (a merge is no mirror), so a pair bought
+ *  now can never stay mirrored; the draws are kept, nothing is bought. */
 function addSpeedPair(s: Shopper): void {
   const [a, sib] = s.twinRoutes()!;
   const w = rarityWeights(s.day), left = s.left();
@@ -194,8 +278,10 @@ function addSpeedPair(s: Shopper): void {
   if (!idx.length) return;
   const d = s.rng.weighted(pool, (g) => w[g.rarity]);
   const i = s.rng.pick(idx);
+  if (s.stars) return;
+  if (!s.canGain(d.id)) return; // F8 cap (always true at FUSE_MAX and with stars off): the first copy
   const snap = cloneBuild(s.b), once = onceOnTwins(a, sib);
-  if (!s.placeRig(d.id, a, i, once) || !s.placeRig(d.id, sib, i, once)) s.restore(snap);
+  if (!s.placeRig(d.id, a, i, once) || !s.canGain(d.id) || !s.placeRig(d.id, sib, i, once)) s.restore(snap);
 }
 
 interface SeqGate { uid: number; def: ItemDef; ci: number }
@@ -260,10 +346,10 @@ function sortRoute(b: Build, ri: number): boolean {
 
 /** Purchases that create an ordered pair: a Splitter at or after a route's last flat-bonus hit, or a
  *  flat-bonus rig at or before its first Splitter hit (R7 puts flat bonuses first on a shared tile); the
- *  new rig may not put any belt out of order. */
+ *  new rig may not put any belt out of order. v2: only defs one more copy of may be gained. */
 function buyMoves(s: Shopper): { defs: ItemDef[]; ri: number; tiles: number[]; accept: Accept }[] {
   const w = rarityWeights(s.day), left = s.left(), hits = rigHits(s.b);
-  const ok = (d: ItemDef) => w[d.rarity] > 0 && d.price <= left;
+  const ok = (d: ItemDef) => w[d.rarity] > 0 && d.price <= left && s.canGain(d.id);
   const splitters = s.gates.filter((d) => isSplitter(d) && ok(d)), flats = s.gates.filter((d) => isFlatGate(d) && ok(d));
   const seqs = s.b.routes.map((_, ri) => gateSeq(s.b, ri, hits));
   const lastFlat = seqs.map((q) => Math.max(-1, ...q.filter((g) => isFlatGate(g.def)).map((g) => g.ci)));
@@ -299,7 +385,7 @@ function order(s: Shopper): boolean {
 export interface Traits {
   ordered: boolean; // some route has a flat-bonus hit before a Splitter hit, and none has one after a Splitter
   reverse: boolean; // some route has a Splitter hit before a flat-bonus hit
-  synced: boolean; // Crucible twins matched with the same speed rig hits at every tile index
+  synced: boolean; // Crucible twins matched with the same speed rig hits (def and stars) at every tile index
   speedSynced: boolean; // synced, with at least one mirrored speed hit pair
   dropped: boolean; // the signature factory feeds fewer routes than at the start (a route was dropped)
   press: boolean;
@@ -318,6 +404,8 @@ export function buildTraits(b: Build, startRoutes: number): Traits {
   let synced = false, speedSynced = false;
   if (sig && ITEMS[sig.def].factory?.ammo === "blank" && own.length === 2) {
     const [ia, ic] = own.map((ri) => routeInfo(b, ri, undefined, undefined, hits));
+    // F6 (patch 0004): speedProfile keys each speed hit by def and stars (a 2-star and a 1-star copy run at
+    // different speeds)
     const sa = speedProfile(b, own[0], hits), sc = speedProfile(b, own[1], hits);
     synced = ia.turret >= 0 && ia.turret === ic.turret && ia.tiles === ic.tiles && sa.join() === sc.join();
     speedSynced = synced && sa.some((d) => d !== "");
@@ -351,25 +439,87 @@ function drop(s: Shopper): boolean {
 }
 
 /** A Stamp Press on a free 2x2 spot (not the forward row) with a line into a free connector;
- *  `carried` rigs go to work beside the new line (any that find no place are not bought). */
+ *  `carried` rigs go to work beside the new line (any that find no place are not bought). 0.6.1a: if a
+ *  1-star Press is already placed elsewhere, this purchase merges into it instead (no new footprint or
+ *  route to find — a Press has one output at any star, so a second route would be illegal); any
+ *  `carried` rigs then have nowhere new to go and are dropped, same as the trade-off ARSENAL.md
+ *  §4.1 rule 5 already accepts for a merging drop (the target is ignored, not honoured). */
 function pressLine(s: Shopper, carried: Placed[]): boolean {
   const b = s.b;
+  if (!s.canGain(PRESS.id)) return false; // F8 cap (always true at FUSE_MAX and with stars off)
+  if (s.stars) {
+    const preview = previewMerge(b, s.uid, PRESS.id, s.cargo);
+    if (preview && preview.where !== "cargo") {
+      gainInto(s, b, PRESS.id, { x: 0, y: 0 }, s.cargo); // target ignored: merges into the existing placed press
+      return true;
+    }
+  }
   for (let tries = 0; tries < 8; tries++) {
     const x = s.rng.int(GRID - 1), y = 1 + s.rng.int(GRID - 2);
     const occ = occupancy(b);
     if (footprint(PRESS, x, y).some((k) => occ[k].item >= 0 || occ[k].route >= 0)) continue;
     const snap = cloneBuild(b);
-    const uid = s.uid++;
-    b.items.push({ uid, def: PRESS.id, x, y });
+    const uid = s.uid; // gainInto (stars on) mints this same uid; the raw push (off) mints it too
+    if (s.stars) gainInto(s, b, PRESS.id, { x, y }, s.cargo); // no twin (checked above): lands at x,y, as pushed
+    else { b.items.push({ uid, def: PRESS.id, x, y }); s.uid++; }
     const bl = blockedCells(b);
     const cells = s.drawRoute(-1, startCells(x, y, PRESS.size, bl), bl, s.left());
     if (cells) {
       s.buyBelt(-1, cells.length);
       b.routes.push({ factory: uid, cells });
       s.reseat(carried, b.routes.length - 1);
-      if (buildCost(b).total <= s.budget) return true;
+      // fix pass: deck + cargo within the day's gold (left() subtracts the cargo; with cores off the cargo is
+      // empty, so this is `buildCost(b).total <= s.budget` exactly)
+      if (s.left() >= 0) return true;
     }
     s.restore(snap);
   }
   return false;
+}
+
+/** Fusible defs (below 3 stars, factories excluded: a Press's single route makes a second one
+ *  unplaceable, so it merges only opportunistically through the "press"/"drop" levers above) the
+ *  "merge" lever could buy one more 1-star copy of right now: affordable, and either an immediate
+ *  merge (a 1-star twin is already placed, so no new spot is needed) or a genuinely free spot
+ *  (BELTSIDE: for a rig, a belt tile with a free cell beside it). */
+function mergeableDefs(s: Shopper): string[] {
+  const b = s.b, left = s.left();
+  const present = fusibleCopies(b).filter((c) => c.kind !== "factory");
+  if (!present.length) return [];
+  const oneStar = new Set(present.filter((c) => c.stars === 1).map((c) => c.def));
+  const tiles = s.rigTiles();
+  const freeT = gearFree(b); // 0.6.1b: gear hardpoints (== v1's free turrets when no core is fitted)
+  const freeS = socketFree(b); // 0.6.1b: a core copy that doesn't merge needs an empty socket (never a swap here)
+  return [...new Set(present.map((c) => c.def))].filter((d) => {
+    if (ITEMS[d].price > left || !s.canGain(d)) return false;
+    if (oneStar.has(d)) return true; // will merge immediately: no placement needed
+    const kind = ITEMS[d].kind;
+    return kind === "gate" ? tiles.length > 0 : kind === "core" ? freeS.length > 0 : freeT.length > 0;
+  });
+}
+
+/** Buy one more 1-star copy of an existing fusible def (ARSENAL.md §4.1): the new lever that
+ *  teaches the shopper to actually grow stars, on top of the organic duplicates gate/mod/press
+ *  can already draw by chance. Repeated application on the same def is how 1+1+1+1 = 3-star.
+ *  BELTSIDE: a rig copy goes to work on a random belt tile with a free side (H2's placeRig, through
+ *  gainInto), or, merging at once, into its placed twin, which keeps its cell and rotation. */
+function merge(s: Shopper): boolean {
+  const defs = mergeableDefs(s);
+  if (!defs.length) return false;
+  const b = s.b, def = s.rng.pick(defs), kind = ITEMS[def].kind;
+  let at: GainAt;
+  if (kind === "mod") {
+    const freeT = gearFree(b);
+    at = { turret: s.rng.pick(freeT.length ? freeT : [0]) };
+  } else if (kind === "core") {
+    const freeS = socketFree(b); // 0.6.1b: a 1-star twin is fitted (merges, target ignored) or a socket is empty
+    at = { turret: s.rng.pick(freeS.length ? freeS : [0]) };
+  } else {
+    const tiles = s.rigTiles();
+    const t = s.rng.pick(tiles.length ? tiles : [null]); // one draw either way, as v2's pick of a cell (or [0])
+    if (t) return s.placeRig(def, t[0], t[1]) !== null; // H2 spot (gainInto: a placed 1-star twin absorbs it)
+    at = { x: 0, y: 0 }; // no free tile: the copy merges into its placed 1-star twin (mergeableDefs), target ignored
+  }
+  gainInto(s, b, def, at, s.cargo);
+  return true;
 }

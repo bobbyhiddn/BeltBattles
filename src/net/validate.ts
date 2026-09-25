@@ -57,12 +57,13 @@ export function buildCost(b: Build): BuildCost {
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
 
 /**
- * 0.6.1a (ARSENAL-DECISIONS call 1, staged): under auto-merge two fusible modules with the same def
- * and the same stars below FUSE_MAX can't exist. validateBuild applies this rule only while FUSE_LIVE
- * is true. It stays FALSE until the flip commit (RULES_VERSION bb-0.6.1, stand-in pool v2, harness
- * v2, fused captains and par decks): today those still hold pairs.
+ * 0.6.1a (ARSENAL-DECISIONS call 1): under auto-merge two fusible modules with the same def and the
+ * same stars below FUSE_MAX can't exist. validateBuild applies this rule while FUSE_LIVE is true:
+ * LIVE since the 0.6.1 flip (RULES_VERSION bb-0.6.1, stand-in pool v2, harness v2). The game
+ * validates foreign decks only (ghosts, stand-ins, uploads); the captains and par decks still hold
+ * pairs until job E merges them, and the game never validates them.
  */
-export const FUSE_LIVE = false;
+export const FUSE_LIVE = true;
 
 /** One message per def and star level (below FUSE_MAX) held more than once, e.g. "UNFUSED PAIR: TEMPER ★1 x2".
  *  Supplies, signature factories and unknown ids are not fusible and never count. */

@@ -28,8 +28,10 @@ export function shopExcluded(hero: HeroId): Set<string> {
   return out;
 }
 
-/** What `hero` can buy of one kind ("gate" or "mod"): merchant-sold and not excluded. */
-export function shopItems(hero: HeroId, kind: "gate" | "mod"): ItemDef[] {
+/** What `hero` can buy of one kind ("gate", "mod" or, 0.6.1b, "core"): merchant-sold and not excluded.
+ *  Signature cores are never ITEMS entries (content.ts SIGNATURE_CORES), so they are never offered. The
+ *  stars-off shopper never asks for "core", so what it buys is unchanged. */
+export function shopItems(hero: HeroId, kind: "gate" | "mod" | "core"): ItemDef[] {
   const ex = shopExcluded(hero);
   return Object.values(ITEMS).filter((d) => d.kind === kind && !!d.merchant && !ex.has(d.id));
 }

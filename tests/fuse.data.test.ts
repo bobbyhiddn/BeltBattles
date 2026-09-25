@@ -155,13 +155,13 @@ describe("the validator (src/net/validate.ts)", () => {
     unk.items.push({ uid: 51, def: "nothing", x: 0, y: 0 });
     expect(validateBuild(unk, 5).errors).toContain('item: uid 51 is unknown item "nothing"');
   });
-  it("unfusedPairs names each unmerged pair; FUSE_LIVE stays false, so validateBuild does not apply it yet", () => {
-    expect(FUSE_LIVE).toBe(false);
+  it("unfusedPairs names each unmerged pair; FUSE_LIVE is true since the 0.6.1 flip, so validateBuild rejects one", () => {
+    expect(FUSE_LIVE).toBe(true);
     const b = deck();
     b.items.push({ uid: 52, def: "temper", x: 3, y: 2, rot: 1 });
     b.mods.push({ uid: 53, def: "calibrate", turret: 0 });
     expect(unfusedPairs(b)).toEqual(["UNFUSED PAIR: TEMPER ★1 x2"]);
-    expect(validateBuild(b, 3).ok).toBe(true); // staged: the rule is written, not live
+    expect(validateBuild(b, 3).errors).toEqual(["item: UNFUSED PAIR: TEMPER ★1 x2"]); // live: the pair is the only error
     b.items[2].stars = 2;
     expect(unfusedPairs(b)).toEqual([]);
     b.items[1].stars = 3; b.items[2].stars = 3;

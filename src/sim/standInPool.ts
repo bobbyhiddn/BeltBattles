@@ -1,4 +1,5 @@
-// Bundled full-purse stand-in decks for the dusk fight, days 1-10 (0.6.0c). The pool comes from
+// Bundled full-purse stand-in decks for the dusk fight, days 1-10 (0.6.0c; since the 0.6.1 flip, pool v2:
+// merge-aware decks whose modules carry stars, none above 2). The pool comes from
 // tools/genStandInPool.ts: per hero and day, a population of legal builds that each spend at
 // least 90% of maxGoldByDay(day), ranked by strength against a fixed gauntlet of that day's
 // builds (pct = strength percentile). Par floor: each pick wins at least half its battles against
@@ -20,6 +21,9 @@
 //   routes: space-separated <factoryItemNo>:<cells>: the feeding item's 1-based number, then
 //           the route's cells as concatenated two-digit yx keys, factory end first.
 //   mods:   space-separated <itemId><turret>; mod uids follow the items.
+//   stars:  since the 0.6.1 flip an item or module word may end in *2 or *3, its merge stars (no
+//           suffix: 1 star). The loader decodes with decodeStarred, which reads a v1 code exactly
+//           as decodeStandIn does.
 // Example (Furnace starting deck): "14 0/kiln64/1:544434241404/"
 
 import { GRID, HEROES, ITEMS, type HeroId } from "./content";
@@ -219,7 +223,7 @@ export function standInPool(hero: HeroId, day: number): StandInEntry[] {
   const d = dayPool(hero, day);
   if (!d) return [];
   const dd = standInDay(day);
-  return d[1].map(([cost, pct, , code, vsPar]) => ({ hero, day: dd, build: decodeStandIn(hero, code), cost, pct, vsPar }))
+  return d[1].map(([cost, pct, , code, vsPar]) => ({ hero, day: dd, build: decodeStarred(hero, code), cost, pct, vsPar }))
     .sort((a, b) => a.pct - b.pct);
 }
 
@@ -243,7 +247,7 @@ export function standInPickIndex(hero: HeroId, day: number, seed: number): numbe
 /** A deterministic stand-in deck for (hero, day, seed), as a fresh copy. Throws for a hero not in the pool. */
 export function standInPick(hero: HeroId, day: number, seed: number): Build {
   const d = need(hero, day, "standInPick");
-  return decodeStandIn(hero, d[1][standInPickIndex(hero, day, seed)][3]);
+  return decodeStarred(hero, d[1][standInPickIndex(hero, day, seed)][3]);
 }
 
 /** Index (into standInPool(hero, day)) of the par: the pick nearest the middle of its window. */
@@ -254,5 +258,5 @@ export function standInParIndex(hero: HeroId, day: number): number {
 /** The par stand-in deck for (hero, day), as a fresh copy. Throws for a hero not in the pool. */
 export function standInPar(hero: HeroId, day: number): Build {
   const d = need(hero, day, "standInPar");
-  return decodeStandIn(hero, d[1][d[0]][3]);
+  return decodeStarred(hero, d[1][d[0]][3]);
 }

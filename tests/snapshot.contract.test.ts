@@ -89,10 +89,19 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
       ["v1 stars 1", 1, 1, false], ["v1 stars 2", 1, 2, false],
     ];
     const bad: string[] = [];
+    // v1 still loads a star-free deck. Since the 0.6.1 flip sample decks (stand-in pool v2) may carry
+    // merge stars, which only v2 may hold: both sides must then refuse the v1 copy.
+    const starry = (s: net.GhostSnapshot): boolean => [...s.build.items, ...s.build.mods].some((p) => p.stars !== undefined);
+    expect(POOL.filter((s) => !starry(s)).length).toBeGreaterThan(0);
+    expect(POOL.filter((s) => starry(s)).length).toBeGreaterThan(0);
     for (const s of POOL) {
-      // 0.6.2 BELTSIDE: a v1 copy loads on both sides unless a rig carries `rot`, which only v2 allows
+      // 0.6.2 BELTSIDE: a v1 copy loads on both sides unless a rig carries `rot`, which only v2 allows; since the 0.6.1
+      // flip it may not carry merge stars either. beltside-062-on-061: both rules at once, on each side separately
+      // (BELTSIDE's form, which implies the flip's `local && net`), and a starred v1 copy is refused on both sides.
       const rot = s.build.items.some((p) => p.rot !== undefined);
-      expect([local.isSnapshot({ ...s, v: 1 }), netOk({ ...s, v: 1 })], `v1 ${s.hero} d${s.day}`).toEqual([!rot, !rot]);
+      const v1 = !rot && !starry(s);
+      expect([local.isSnapshot({ ...s, v: 1 }), netOk({ ...s, v: 1 })], `v1 ${s.hero} d${s.day}`).toEqual([v1, v1]);
+      if (starry(s)) expect(local.isSnapshot({ ...s, v: 1 }) || netOk({ ...s, v: 1 }), `v1 ${s.hero} d${s.day} starred`).toBe(false);
       for (const [name, v, stars, ok] of cases) {
         const x = starred(s, v, stars);
         const a = local.isSnapshot(x), b = netOk(x);

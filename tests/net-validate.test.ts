@@ -39,8 +39,9 @@ describe("deck validation: legal decks", () => {
         const v = validateBuild(warlordBuild(h, r), r);
         const c = buildCost(warlordBuild(h, r));
         if (!v.ok) findings.push(`${h} r${r} (cost ${c.total}/${maxGoldByDay(r)}): ${v.errors.join(" | ")}`);
-        // deck geometry must be legal; only supply or budget findings are allowed here
-        for (const e of v.errors) expect(e).toMatch(/^(supply|budget):/);
+        // deck geometry must be legal; only supply or budget findings are allowed here, plus (since the
+        // 0.6.1 flip) unmerged pairs: the captains hold them until job E merges them
+        for (const e of v.errors) expect(e).toMatch(/^(supply|budget):|^item: UNFUSED PAIR:/);
       }
     }
     console.log(`warlord validation findings (${findings.length} of 20 decks fail):\n` + findings.join("\n"));

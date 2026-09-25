@@ -10,7 +10,7 @@ import { cloneBuild } from "../sim/deck";
 import { PLAYABLE_HEROES } from "../sim/heroBuilds";
 import { standInPick } from "../sim/standInPool";
 import { pickGhost, type MatchRequest } from "./matchmaking";
-import { checkSnapshot, MAX_DAY, MAX_LIVES, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
+import { checkSnapshot, MAX_DAY, MAX_LIVES, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
 
 /**
@@ -32,6 +32,8 @@ export function rivalHero(hero: HeroId, seed = 0): HeroId {
  * another faction's hero from the bundled stand-in pool. Every pool deck passes
  * validateBuild for its day (tests/standInPool.test.ts). Its record mirrors the requester's
  * so the pre-fight card reads sensibly. The playerId string is unchanged for compatibility.
+ * Since the 0.6.1 flip a pool deck may carry merge stars, which only a v2 snapshot may hold,
+ * so the ghost travels as SNAPSHOT_VERSION.
  */
 export function offlineGhost(hero: HeroId, day: number, seed: number, record?: { wins: number; lives: number }): PoolEntry {
   const d = Math.min(MAX_DAY, Math.max(1, Math.floor(day)));
@@ -40,8 +42,9 @@ export function offlineGhost(hero: HeroId, day: number, seed: number, record?: {
   const lives = Math.min(MAX_LIVES, Math.max(1, Math.floor(record?.lives ?? START_LIVES)));
   const build = standInPick(foe, d, seed);
   const snapshot = checkSnapshot({
-    // 0.6.2 BELTSIDE: a stand-in deck's rigs may carry `rot`, which only v2 allows (DESIGN-beltside D1)
-    v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build,
+    // the 0.6.1 flip: a pool deck may carry merge stars, and (0.6.2 BELTSIDE, DESIGN-beltside D1) its rigs `rot`; only
+    // a v2 snapshot holds either, so the ghost travels as SNAPSHOT_VERSION (2)
+    v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build,
     runId: `offline-${(seed >>> 0).toString(16)}`, playerId: "offline-warlord", createdAt: 0,
   });
   return { id: `offline-${foe}-d${d}`, snapshot };

@@ -5,6 +5,10 @@
 // work and places the rig greedily: the free cell beside that tile and the rotation with the most hits on
 // connected belts, ties to the first candidate in D3 order (beltside.ts spotForTile). A rig that works only
 // a belt that moves or goes (its riders) is lifted and put back to work beside the new belt.
+// beltside-062-on-061 (DESIGN §13 P16, one harness): harness v2 decides what the bots buy, merge and keep
+// (stars, cores, cargo, canGain: every gain through the game's gainModule, merge.ts gainInto); H2 decides
+// where a rig goes and which way it faces. A new copy that merges into a placed twin leaves that twin (the
+// survivor) on its cell with its rotation (fuse.ts survivor rule 2); stars off is v2's stars-off, on rigs.
 
 import type { Rng } from "../../core/rng";
 import { HEROES, ITEMS, type ItemDef } from "../content";
@@ -14,7 +18,9 @@ import {
 } from "../deck";
 import { freeForRig, intakeCell, placeRigAt, spotForTile, type WouldHit } from "../beltside";
 import { buildCost } from "../../net/validate";
+import { FUSE_MAX } from "../stars";
 import { shopItems } from "./heroes";
+import { cargoValue, gainInto, previewMerge, type InvItem } from "./merge";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
 
 export const CRATE = ITEMS.beltcrate, PLATE = ITEMS.plating, PRESS = ITEMS.press;
@@ -26,6 +32,14 @@ export const isSpeedGate = (d: ItemDef): boolean => d.gate?.speed !== undefined;
 export const isFlatGate = (d: ItemDef): boolean => !!(d.gate?.flat || d.gate?.perPriorGate);
 export const isSplitter = (d: ItemDef): boolean => !!d.gate?.split;
 
+/** 0.6.1a: "on" (default) runs every gain through the game's merge rules (src/sim/harness/merge.ts);
+ *  "off" reproduces v1 exactly (same items, same RNG draws), for the byte-identical regression. */
+export type Stars = "on" | "off";
+
+/** 0.6.1b (harness v2 part 2): "on" lets the shopper buy turret cores and fit them (the "core" lever);
+ *  only effective with stars on. "off" (and stars off) buys none, with no RNG draw: exactly part 1. */
+export type Cores = "on" | "off";
+
 /** A filter on the hits a rig would make where it is being placed (beltside.ts spotForTile). */
 export type Accept = (hits: WouldHit[]) => boolean;
 
@@ -34,20 +48,53 @@ export class Shopper {
   edits = 0;
   synced = false; // Crucible twins matched with mirrored speed rigs; kept so after every lever
   ordered = false; // flat-bonus rigs ahead of Splitters on every route; kept so after every lever
+  readonly stars: boolean; // true: every gain goes through gainInto (merge-aware); false: v1 raw pushes
+  readonly coresOn: boolean; // 0.6.1b: stars on AND cores on: the "core" lever may buy and fit cores
   readonly gates: ItemDef[]; // rigs this hero's caravan sells (kind "gate")
   readonly mods: ItemDef[];
+  readonly cores: ItemDef[]; // 0.6.1b: turret cores this hero's caravan sells (bought only when coresOn)
   readonly minGate: number;
   readonly minMod: number;
+  readonly minCore: number;
+  /** 0.6.1b: the run's cargo. A bought core swapped off a full socket lands here (fuse.ts freeSocket); it
+   *  doesn't fight, but its gold is spent (left() counts it) and a later copy may merge with it. Always
+   *  empty unless coresOn, so every other path is unchanged. */
+  cargo: InvItem[] = [];
+  swaps = 0; // 0.6.1b: cores swapped to cargo by the "core" lever
 
-  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng) {
+  // NOTE: defaults to "off" (v1-exact), not the harness's product-level "on" default, so every
+  // pre-existing call site that builds a Shopper without the new 5th argument — most importantly
+  // the protected tests/harness.*.test.ts, which hand-place items bypassing gainInto and then
+  // rely on sync/order landing a rig at an exact spot — reproduces v1 byte for byte with zero
+  // risk of merge-redirection. Every real "on" entry point (randomBuild/topUp/fullPurseBuild
+  // below, tournament.ts's DEFAULT_OPTS, standins.ts's STANDIN_DEFAULTS, and the CLIs' --stars
+  // flag) passes `stars` through explicitly, so "on" is still the default at every product surface.
+  // maxStars (F8): the highest star a gain may merge up to. FUSE_MAX (3) everywhere but the stand-in
+  // candidates, which stay at 2 (ARSENAL.md §9.2: "the Matriarch alone may carry a 3★").
+  constructor(readonly b: Build, readonly budget: number, readonly day: number, readonly rng: Rng, stars: Stars = "off", readonly maxStars: number = FUSE_MAX, cores: Cores = "off") {
+    this.stars = stars === "on";
+    this.coresOn = this.stars && cores === "on";
     this.gates = shopItems(b.hero, "gate");
     this.mods = shopItems(b.hero, "mod");
+    this.cores = shopItems(b.hero, "core");
     this.minGate = Math.min(...this.gates.map((g) => g.price));
     this.minMod = Math.min(...this.mods.map((m) => m.price));
+    this.minCore = Math.min(...this.cores.map((c) => c.price));
   }
 
+  /** May one more copy of `def` be gained? Always (no RNG, no preview) unless stars is on and the
+   *  cap is below FUSE_MAX; then not when the gain would merge up to more than maxStars. 0.6.1b: the
+   *  preview sees the cargo too (a copy can merge with a swapped-out core), so the cap covers cores. */
+  canGain(def: string): boolean {
+    if (!this.stars || this.maxStars >= FUSE_MAX) return true;
+    const pv = previewMerge(this.b, this.uid, def, this.cargo);
+    return !pv || pv.toStars <= this.maxStars;
+  }
+
+  /** Gold left: the budget minus the deck's value and (0.6.1b) the cargo's, which is 0 unless cores
+   *  were swapped, so this is exactly part 1's arithmetic whenever cores are off. */
   left(): number {
-    return this.budget - buildCost(this.b).total;
+    return this.budget - buildCost(this.b).total - (this.cargo.length ? cargoValue(this.cargo) : 0);
   }
 
   restore(snap: Build): false {
@@ -78,7 +125,8 @@ export class Shopper {
   }
 
   /** Belt tiles [route, tile] of connected routes (of `only` when given) with a free cell beside them
-   *  (turret intakes left clear): the tiles a rig can be put to work on. */
+   *  (turret intakes left clear): the tiles a rig can be put to work on. (BELTSIDE's stand-in for v2's
+   *  freeRouteCells: a rig needs a free cell beside a belt, not a free belt tile.) */
   rigTiles(only: (ri: number) => boolean = this.connected()): [number, number][] {
     const occ = occupancy(this.b);
     const out: [number, number][] = [];
@@ -99,13 +147,22 @@ export class Shopper {
 
   /**
    * H2: put a rig to work on tile ti of route ri: the free cell beside it and the rotation with the most hits
-   * on connected belts (ties: the first candidate in D3 order), among placements `accept` allows. A new rig
-   * takes the next uid; a lifted one keeps its uid and stars. null when no cell beside the tile will do.
+   * on connected belts (ties: the first candidate in D3 order), among placements `accept` allows. A lifted rig
+   * (`keep`) keeps its uid and stars: it is moved, not gained, so it never merges. A new copy with stars on is
+   * gained through the game's gainModule at that spot and rotation (v2's placeGate): if a same-def, same-star
+   * twin is placed it fuses into that twin instead, and the twin keeps its cell and rotation (P16); the
+   * survivor is returned. Stars off: v2's raw push (the next uid), at the H2 spot. null when no cell beside
+   * the tile will do (nothing is bought).
    */
   placeRig(def: string, ri: number, ti: number, accept?: Accept, keep?: Placed): Placed | null {
     const s = spotForTile(this.b, def, ri, ti, this.connected(), undefined, accept);
     if (!s) return null;
-    return placeRigAt(this.b, keep?.uid ?? this.uid++, def, s, keep?.stars);
+    if (keep) return placeRigAt(this.b, keep.uid, def, s, keep.stars);
+    if (this.stars) {
+      const g = gainInto(this, this.b, def, { x: s.x, y: s.y, rot: s.rot }, this.cargo);
+      return this.b.items.find((p) => p.uid === g.survivor) ?? null;
+    }
+    return placeRigAt(this.b, this.uid++, def, s);
   }
 
   /** Rigs whose every hit lands on route ri: they go idle when it moves or goes, so they travel with it. */
@@ -192,7 +249,8 @@ export class Shopper {
 
   /** Move route `ri` onto a new belt (tile count `tiles`, connector `col`, or random). Its riders (rigs that
    *  work only it) are lifted first, so the new belt may use their cells, then put back to work beside it;
-   *  the move fails when one of them finds no place. Rigs that also work another belt stay where they are. */
+   *  the move fails when one of them finds no place. Rigs that also work another belt stay where they are.
+   *  Fix pass (v2): deck + cargo within the day's gold (with cores off the cargo is empty: the deck-only check). */
   moveRoute(ri: number, tiles?: number, col?: number): boolean {
     const b = this.b, snap = cloneBuild(b), spare = this.left();
     const r = b.routes[ri];
@@ -205,6 +263,6 @@ export class Shopper {
     this.buyBelt(ri, cells.length);
     b.routes[ri] = { factory: r.factory, cells };
     if (this.reseat(carried, ri) < carried.length) return this.restore(snap);
-    return buildCost(b).total <= this.budget ? true : this.restore(snap);
+    return this.left() >= 0 ? true : this.restore(snap);
   }
 }

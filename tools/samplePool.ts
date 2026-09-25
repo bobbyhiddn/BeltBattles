@@ -13,8 +13,8 @@ import { startingBuild } from "../src/sim/ai";
 import { occupancy, type Build } from "../src/sim/deck";
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
-import { checkSnapshot, encodeSnapshot, MAX_DAY, type GhostSnapshot } from "../src/net/snapshot";
-import { encodeStandIn, standInParIndex, standInPickIndex, standInPool } from "../src/sim/standInPool";
+import { checkSnapshot, encodeSnapshot, MAX_DAY, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { encodeStarred, standInParIndex, standInPickIndex, standInPool } from "../src/sim/standInPool";
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -26,9 +26,9 @@ const MODS = Object.values(ITEMS).filter((d) => d.kind === "mod" && d.merchant);
 export function sampleDeck(hero: HeroId, day: number, v: number, seed: number): Build {
   const pool = standInPool(hero, day), par = standInParIndex(hero, day);
   if (v === 0) return pool[par].build;
-  const parCode = encodeStandIn(pool[par].build);
+  const parCode = encodeStarred(pool[par].build); // star-aware: since the 0.6.1 flip two picks may differ only in stars
   let i = standInPickIndex(hero, day, seed);
-  for (let step = 0; step < pool.length && encodeStandIn(pool[i].build) === parCode; step++) i = (i + 1) % pool.length;
+  for (let step = 0; step < pool.length && encodeStarred(pool[i].build) === parCode; step++) i = (i + 1) % pool.length;
   return pool[i].build;
 }
 
@@ -72,8 +72,8 @@ export function generateSamplePool(): GhostSnapshot[] {
         const wins = rng.int(day);
         const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
         const snap = checkSnapshot({
-          // 0.6.2 BELTSIDE: a deck whose rigs carry `rot` travels in v2 (DESIGN-beltside D1)
-          v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero, day, wins, lives: START_LIVES - losses, build,
+          // v2: pool decks carry stars (the 0.6.1 flip) and rigs their `rot` (0.6.2 BELTSIDE, DESIGN-beltside D1)
+          v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins, lives: START_LIVES - losses, build,
           runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: EPOCH + out.length * 1000,
         });
         const val = validateBuild(snap.build, day);

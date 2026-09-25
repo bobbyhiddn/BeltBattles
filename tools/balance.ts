@@ -12,8 +12,8 @@ import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { RULES_VERSION } from "../src/sim/content";
-import { balanceMarkdown, describeBuild, type RunMeta } from "../src/sim/harness/report";
-import { DEFAULT_OPTS, runDay, type TourneyOpts, type TourneyResult } from "../src/sim/harness/tournament";
+import { balanceMarkdown, beforeAfterSection, describeBuild, type RunMeta } from "../src/sim/harness/report";
+import { DEFAULT_OPTS, runDay, type DayResult, type TourneyOpts, type TourneyResult } from "../src/sim/harness/tournament";
 import { flag, num, serveJobs, workerRunner } from "./workers";
 
 if (!isMainThread) serveJobs();
@@ -33,6 +33,19 @@ function compareRuns(fa: string, fb: string): boolean {
 }
 
 async function main(): Promise<void> {
+  // part 2: --before-after a.json[,b.json...] c.json[,d.json...] [--out-md file]: runs nothing; the six perk
+  // modules' star rows of the first run(s) (e.g. output-h2/full/day-N, bf779de) beside the second's (c432bee)
+  const ba = process.argv.indexOf("--before-after");
+  if (ba >= 0) {
+    const [fa, fb] = process.argv.slice(ba + 1, ba + 3);
+    if (!fa || !fb || fa.startsWith("--") || fb.startsWith("--")) throw new Error("--before-after needs two comma-separated lists of balance JSON files");
+    const load = (list: string) => list.split(",").flatMap((f) => (JSON.parse(readFileSync(resolve(f), "utf8")) as { days: DayResult[] }).days);
+    const md = ["# BEFORE/AFTER (harness v2 part 2)", "", `before: ${fa}`, `after: ${fb}`, ...beforeAfterSection(load(fa), load(fb))].join("\n") + "\n";
+    const outMd = flag("out-md");
+    if (outMd) writeFileSync(resolve(outMd), md);
+    else console.log(md);
+    process.exit(0);
+  }
   const cmp = process.argv.indexOf("--compare");
   if (cmp >= 0) {
     const [fa, fb] = process.argv.slice(cmp + 1, cmp + 3);
@@ -40,6 +53,12 @@ async function main(): Promise<void> {
     process.exit(compareRuns(fa, fb) ? 0 : 1);
   }
   const days = flag("days")?.split(",").map(Number) ?? DEFAULT_OPTS.days;
+  const starsFlag = flag("stars") ?? "on";
+  if (starsFlag !== "on" && starsFlag !== "off") throw new Error(`--stars must be "on" or "off", got ${starsFlag}`);
+  // 0.6.1b (harness v2 part 2): --cores defaults to the --stars value; cores need stars on
+  const coresFlag = flag("cores") ?? starsFlag;
+  if (coresFlag !== "on" && coresFlag !== "off") throw new Error(`--cores must be "on" or "off", got ${coresFlag}`);
+  if (coresFlag === "on" && starsFlag === "off") throw new Error("--cores on needs --stars on (stars off is harness v1 exactly: no cores)");
   const o: TourneyOpts = {
     ...DEFAULT_OPTS,
     seed: num("seed", DEFAULT_OPTS.seed),
@@ -48,6 +67,8 @@ async function main(): Promise<void> {
     elites: num("elites", DEFAULT_OPTS.elites),
     days,
     calibrationDays: days,
+    stars: starsFlag,
+    cores: coresFlag,
   };
   o.gauntlet = Math.min(o.pop, num("gauntlet", Math.min(DEFAULT_OPTS.gauntlet, o.pop)));
   o.elites = Math.min(o.elites, o.pop);
@@ -60,7 +81,7 @@ async function main(): Promise<void> {
   const perDayMs: Record<number, number> = {};
   for (const day of days) {
     const t = performance.now();
-    const d = await runDay(o, day, pool.run);
+    const d = await runDay(o, day, pool.run, pool.detail);
     perDayMs[day] = performance.now() - t;
     res.days.push(d);
     res.battles += d.battles;
@@ -70,7 +91,11 @@ async function main(): Promise<void> {
   const cmd = process.argv.slice(2).join(" ");
   const meta: RunMeta = { runtimeMs: performance.now() - t0, workers: nw, command: `npm run balance${cmd ? ` -- ${cmd}` : ""}`, perDayMs };
   mkdirSync(out, { recursive: true });
-  writeFileSync(resolve(out, "balance-v1.md"), balanceMarkdown(res, meta));
+  // 0.6.1a harness v2: stars on/off share the same tool and DayResult shape (v1's fields are
+  // untouched; the v2 sections are simply absent when stars is off). Both write balance-v2.*; use
+  // --out to keep an off run's files separate from an on run's for --compare (step 0's baseline
+  // is still balance-v1.json, from bf779de, for the very first stars-off regression check).
+  writeFileSync(resolve(out, "balance-v2.md"), balanceMarkdown(res, meta));
   const json = {
     meta: { ...meta, rules: RULES_VERSION, note: "rates: p = row hero win rate (draws half), lo/hi = Wilson 95%, n = battles; pop 'a|a' = mirror cell" },
     opts: o, battles: res.battles,
@@ -79,6 +104,6 @@ async function main(): Promise<void> {
       elites: Object.fromEntries(Object.entries(d.elites).map(([h, es]) => [h, es.map((e) => ({ ...e, desc: describeBuild(e.build, d.day) }))])),
     })),
   };
-  writeFileSync(resolve(out, "balance-v1.json"), JSON.stringify(json, null, 1) + "\n");
-  console.log(`${res.battles} battles in ${(meta.runtimeMs / 1000).toFixed(1)} s on ${nw} worker(s); wrote ${out}/balance-v1.md and balance-v1.json`);
+  writeFileSync(resolve(out, "balance-v2.json"), JSON.stringify(json, null, 1) + "\n");
+  console.log(`${res.battles} battles in ${(meta.runtimeMs / 1000).toFixed(1)} s on ${nw} worker(s); wrote ${out}/balance-v2.md and balance-v2.json (stars ${o.stars}, cores ${o.cores})`);
 }
