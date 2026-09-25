@@ -475,8 +475,18 @@ function ASM_GANTRY() {
     g.screen.touched();
     g.screen.select({ kind: "item", uid: 9113 });
     ${STEP(12)}
+    ${parked()}
     g.render();
   })()`;
+}
+
+// 0.6.2p (item 4): step on until the build screen's caravan has parked. Its cards slide in from the right for 0.83 s
+// (layout.ts Caravan: 0.55 s + 0.07 s a card); ASM_GANTRY rendered about 0.3 s in, so its phone shot caught five of the
+// six slots still past the right edge (the shop row itself fits: 3 a row from x 12 to 156 of the phone's 167 px).
+// Every other build shot already waits (prep's 0.8 s, or 90 frames after openDawn / openShowcase). A hoisted function:
+// SHOTS above is built at module load.
+function parked() {
+  return "for (let i = 0; i < 120 && bb.game.screen.caravan && !bb.game.screen.caravan.ready; i++) bb.game.step(1 / 60);";
 }
 
 // CORE_BATTLE's pattern, stepped until at least 2 of the factory's slugs ride its belt in the fight

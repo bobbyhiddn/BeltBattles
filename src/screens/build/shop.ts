@@ -45,7 +45,12 @@ function drawMerchantGlyph(g: G, x: number, y: number, merchant: MerchantId): vo
   else { rect(g, x, y, 3, 1, col); rect(g, x, y + 2, 3, 1, col); rect(g, x, y, 1, 3, col); rect(g, x + 2, y, 1, 3, col); }
 }
 
-const SHORT: Record<string, string> = { calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PLATE" };
+const SHORT: Record<string, string> = {
+  calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PLATE",
+  // 0.6.2p (item 4): a one-word name wider than the card's name width (CARD_W - 4 = 42 px in the 3x5 face: 11+
+  // letters) spilled past the card's edges, as wrap() breaks only at spaces; it breaks with a hyphen instead
+  counterweight: "COUNTER- WEIGHT", overclocker: "OVER- CLOCKER", hullbreaker: "HULL- BREAKER",
+};
 
 /** Card title split into at most two lines that fit the card. */
 export function cardName(def: ItemDef, w: number): string[] {
