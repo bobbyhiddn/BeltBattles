@@ -7,9 +7,14 @@
 // The stand-in pool v2 dry run stores these codes, so what is written is exactly what was scored.
 // It lives in the harness until the flip: porting it into src/sim/standInPool.ts (the loader the
 // game copies) is the arsenal owner's call, then decodeStandIn must accept the suffix (OPEN).
+// beltside-062-on-061 (ref/DESIGN-beltside.md §13 P15): the raw codec is the same here and in the loader
+// (src/sim/standInPool.ts encodeStarred / decodeStarredRaw), and both write and read BELTSIDE's rig rotation
+// before the stars: an item word is <id><yx>[r<rot>][*<stars>] (rot 1-3, rigs only; e.g. "temper43r1*2").
+// This decode is the raw one (the deck as written, no D3 migration): the harness decodes decks it wrote,
+// which stand natively; the game's load boundary is the loader's decodeStarred (raw, then migrateInlineGates).
 
 import { GRID, HEROES, ITEMS, type HeroId } from "../content";
-import type { Build, ModPlacement, Placed, RouteDef } from "../deck";
+import { rotOf, type Build, type ModPlacement, type Placed, type RouteDef } from "../deck";
 import { starsOf } from "../stars";
 
 const cellCode = (x: number, y: number): string => `${y}${x}`;
@@ -22,7 +27,8 @@ export function encodeStarred(b: Build): string {
   const items = b.items.map((p, i) => {
     if (!/^[a-z]+$/.test(p.def)) throw new Error(`stand-in code: item id "${p.def}" is not lowercase letters`);
     no.set(p.uid, i + 1);
-    return `${p.def}${cellCode(p.x, p.y)}${suffix(p)}`;
+    const rot = rotOf(p);
+    return `${p.def}${cellCode(p.x, p.y)}${rot ? `r${rot}` : ""}${suffix(p)}`;
   });
   const routes = b.routes.map((r) => {
     const f = no.get(r.factory);
@@ -43,9 +49,10 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
   const items: Placed[] = words(itemPart).map((w, i) => {
-    const m = /^([a-z]+)(\d)(\d)(?:\*([23]))?$/.exec(w);
+    const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?(?:\*([23]))?$/.exec(w);
     if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
-    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...star(m[4]) };
+    if (m[4] && ITEMS[m[1]].kind !== "gate") throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
+    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]) };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {
     const m = /^(\d+):((?:\d\d)+)$/.exec(w);

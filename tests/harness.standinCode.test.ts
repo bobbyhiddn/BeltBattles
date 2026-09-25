@@ -6,7 +6,10 @@ import { Rng, hashSeed } from "../src/core/rng";
 import type { Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
 import { RULES_VERSION } from "../src/sim/content";
-import { decodeStandIn, encodeStandIn, standInPool, STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
+import {
+  decodeStandIn, decodeStandInRaw, decodeStarred as loadStarred, decodeStarredRaw, encodeStandIn, standInPool, STAND_IN_POOL_HEROES,
+} from "../src/sim/standInPool";
+import { migrateInlineGates } from "../src/sim/beltside";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { STAND_IN_DATA as V11 } from "./fixtures/standInPoolData.v1.1";
 import { randomBuild } from "../src/sim/harness/gen";
@@ -14,7 +17,13 @@ import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { decodeStarred, encodeStarred } from "../src/sim/harness/standinCode";
 import { STANDIN_DEFAULTS, dataModuleText, genStandIns, writtenPicks, writtenProblems } from "../src/sim/harness/standins";
 import { localRunner } from "../src/sim/harness/tournament";
-import { starsOf } from "../src/sim/stars";
+import { starsOf, valueOf } from "../src/sim/stars";
+
+// beltside-062-on-061 (DESIGN §13 P15): the harness codec (standinCode.ts) is the raw codec, the same as the loader's
+// (encodeStarred / decodeStarredRaw, both with BELTSIDE's r<rot> before the stars); the loader's decodeStarred and
+// decodeStandIn are load boundaries (D3: migrateInlineGates). v1.1 and pool v2 were generated with gates ON belt tiles,
+// so where v2 compared the harness decode with the loader's, the raw layers are compared, and the loader's deck is
+// the stored deck after D3. No assertion is dropped.
 
 const shape = (b: Build) => ({
   items: b.items.map((p) => [p.def, starsOf(p), p.x, p.y].join()).sort(),
@@ -67,7 +76,8 @@ describe("star-aware stand-in code (F2)", () => {
     for (const [hero, days] of Object.entries(V11.pools)) {
       for (const d of days!) {
         for (const t of d[1]) {
-          expect(JSON.stringify(decodeStarred(hero as never, t[3]))).toBe(JSON.stringify(decodeStandIn(hero as never, t[3])));
+          expect(JSON.stringify(decodeStarred(hero as never, t[3]))).toBe(JSON.stringify(decodeStandInRaw(hero as never, t[3])));
+          expect(JSON.stringify(loadStarred(hero as never, t[3]))).toBe(JSON.stringify(decodeStandIn(hero as never, t[3])));
           n++;
         }
       }
@@ -82,12 +92,18 @@ describe("star-aware stand-in code (F2)", () => {
       for (let day = 1; day <= 10; day++) {
         const codes = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);
         standInPool(hero, day).forEach((e) => {
-          const code = codes.find((c) => JSON.stringify(decodeStarred(hero, c)) === JSON.stringify(e.build));
-          expect(code, `${hero} d${day}: the loader's deck is one of the stored codes`).toBeDefined();
-          expect(encodeStarred(e.build)).toBe(code);
+          const code = codes.find((c) => JSON.stringify(loadStarred(hero, c)) === JSON.stringify(e.build));
+          expect(code, `${hero} d${day}: the loader's deck is one of the stored codes (after D3)`).toBeDefined();
+          const raw = decodeStarred(hero, code!); // the harness codec: the deck as written
+          expect(JSON.stringify(raw)).toBe(JSON.stringify(decodeStarredRaw(hero, code!))); // = the loader's raw layer
+          expect(encodeStarred(raw)).toBe(code); // round-trips byte for byte
+          expect(encodeStarred(e.build)).toBe(encodeStarred(loadStarred(hero, code!)));
           expect(validateBuild(e.build, day).errors, `${hero} d${day}`).toEqual([]);
           expect(maxStars(e.build)).toBeLessThanOrEqual(2);
-          expect(buildCost(e.build).total).toBe(e.cost);
+          // the stored cost is the deck as generated; the loaded deck is that minus the rigs D3 dropped (no free cell)
+          const dropped = migrateInlineGates(JSON.parse(JSON.stringify(raw)) as Build).stranded;
+          expect(buildCost(raw).total).toBe(e.cost);
+          expect(buildCost(e.build).total + dropped.reduce((g, p) => g + valueOf(p.def, starsOf(p)), 0)).toBe(e.cost);
           expect(e.cost).toBeLessThanOrEqual(maxGoldByDay(day));
           if (maxStars(e.build) > 1) starred++;
           n++;

@@ -15,7 +15,8 @@ import {
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { checkSnapshot, decodeSnapshot, encodeSnapshot, SnapshotError } from "../src/net/snapshot";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
-import { decodeStandIn, decodeStandInRaw, encodeStandIn } from "../src/sim/standInPool";
+import { exceptPairs } from "./harnessLegacy";
+import { decodeStandIn, decodeStarredRaw, encodeStandIn } from "../src/sim/standInPool";
 import { migrateRun, newRun, type Run } from "../src/game/run";
 import { BELTSIDE_TOAST, MIGRATE_CARGO_CAP } from "../src/game/save";
 import { isSnapshot, migrateSnapshot, type GhostSnapshot } from "../src/game/ghostSnapshot";
@@ -183,7 +184,8 @@ const presets = (JSON.parse(readFileSync(here("./fixtures/beltside-062/inline-pr
 const golden = ["rivals", "par", "standins", "starts"].flatMap((f) =>
   (JSON.parse(readFileSync(here(`./fixtures/golden-060/${f}.json`), "utf8")) as { entries: Rec[] }).entries.map((e) => ({ ...e, source: "golden-060" })));
 const pool: Rec[] = (Object.keys(STAND_IN_DATA.pools) as HeroId[]).flatMap((hero) =>
-  STAND_IN_DATA.pools[hero]!.flatMap((d, i) => d[1].map((t, j) => ({ source: "standin", key: `standin/${hero}/${i + 1}/${j}`, hero, day: i + 1, deck: decodeStandInRaw(hero, t[3]) }))));
+  // beltside-062-on-061 (P15): pool v2 carries stars, so its decks are read as generated with the star-aware raw decode
+  STAND_IN_DATA.pools[hero]!.flatMap((d, i) => d[1].map((t, j) => ({ source: "standin", key: `standin/${hero}/${i + 1}/${j}`, hero, day: i + 1, deck: decodeStarredRaw(hero, t[3]) }))));
 
 /** A PvE deck (a road warlord's hull ramp is no whole plating and may be negative): judged as a deck on day 10 with no plating. */
 const pve = (r: Rec) => /^(ai\/warlord|rival\/warlord|rival\/)/.test(r.key);
@@ -206,12 +208,17 @@ describe("D3 over every deck that was valid before the pivot", () => {
     it(`${source}: every valid deck migrates to a deck that passes validateBuild; rigs keep their old tile`, () => {
       const row: Row = { source, decks: 0, validBefore: 0, validAfter: 0, migrated: 0, rigs: 0, moved: 0, cargoed: 0, refunded: 0, dropped: 0, valueDropped: 0 };
       const bad: string[] = [];
+      // beltside-062-on-061 (the 0.6.1 flip, FUSE_LIVE): validateBuild now rejects an unmerged same-star pair. The
+      // preset and golden decks hold such pairs until job E merges them (nothing in the game validates them), so, as
+      // the flip checks the par decks (tests/harnessLegacy.ts exceptPairs), they meet every rule but the pair rule.
+      // The stand-in pool (v2, merge-aware: no unmerged pair) meets every rule.
+      const rules = (errs: string[]): string[] => (source === "standin" ? errs : exceptPairs(errs));
       for (const r of all.filter((x) => x.source === source)) {
         row.decks++;
         const before = J(r.deck);
         row.rigs += before.items.filter((p) => ITEMS[p.def].kind === "gate").length;
         const [jb, day] = judged(r, before);
-        const wasValid = legacyErrors(jb, day).length === 0;
+        const wasValid = rules(legacyErrors(jb, day)).length === 0;
         const after = J(r.deck);
         const m = migrateInlineGates(after);
         const again = J(r.deck);
@@ -232,9 +239,9 @@ describe("D3 over every deck that was valid before the pivot", () => {
         if (!wasValid) continue;
         row.validBefore++;
         const [ja, dayA] = judged(r, after);
-        const v = validateBuild(ja, dayA);
-        if (v.ok) row.validAfter++;
-        else bad.push(`${r.key}: ${v.errors[0]}`);
+        const errs = rules(validateBuild(ja, dayA).errors);
+        if (!errs.length) row.validAfter++;
+        else bad.push(`${r.key}: ${errs[0]}`);
       }
       // the same decks as a player's save (cargo empty) put their stranded rigs in cargo, then refund them
       if (source === "standin" || source === "preset:hero") {

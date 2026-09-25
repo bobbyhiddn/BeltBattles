@@ -78,11 +78,16 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
       expect(encodeStarred(decodeStandInRaw(hero, code)), `${hero} d${day}`).toBe(code);
       n++;
     }
-    // since the 0.6.1 flip the shipped pool is v2: every deck the loader returns encodes back to a stored code
+    // since the 0.6.1 flip the shipped pool is v2: every deck the loader returns encodes back to a stored code.
+    // BELTSIDE (DESIGN §13 P15): the loader's deck is a stored code's deck after D3 (decodeStarred migrates), so it
+    // encodes back to the code of that migrated deck; and every stored code, decoded as written (decodeStarredRaw),
+    // encodes back to itself byte for byte
     for (const hero of STAND_IN_POOL_HEROES) for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) {
       const stored = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);
+      for (const c of stored) expect(encodeStarred(decodeStarredRaw(hero, c)), `${hero} d${day}`).toBe(c);
+      const loaded = stored.map((c) => encodeStarred(decodeStarred(hero, c)));
       for (const e of standInPool(hero, day)) {
-        expect(stored, `${hero} d${day}`).toContain(encodeStarred(e.build));
+        expect(loaded, `${hero} d${day}`).toContain(encodeStarred(e.build));
         n++;
       }
     }
