@@ -108,11 +108,28 @@ export function drawHearts(g: G, x: number, y: number, lives: number, t = 0, los
   return START_LIVES * 6 - 1;
 }
 
+/** The dusk result card's rows: [label, you, foe]. 0.6.2 RULE SHOCK ROW: SHOCK STALLS, beside the damage and Burn rows:
+ *  the enemy machines each side's Shock stalled (DayResult.shocks, counted by the Arena; "-" in a result saved before
+ *  0.6.2). Display only. */
+export function resultRows(r: Pick<DayResult, "player" | "enemy" | "shocks">): [string, string, string][] {
+  const p = r.player, e = r.enemy;
+  const idle = (s: typeof p) => `${Math.round((s.idle / Math.max(0.001, s.turretTime)) * 100)}%`;
+  return [
+    ["DAMAGE DEALT", String(Math.round(p.damage)), String(Math.round(e.damage))],
+    ["SHOTS", String(p.shots), String(e.shots)],
+    ["FIRST SHOT", p.firstShot < 0 ? "NEVER" : `${p.firstShot.toFixed(1)}S`, e.firstShot < 0 ? "NEVER" : `${e.firstShot.toFixed(1)}S`],
+    ["GUNS IDLE", idle(p), idle(e)],
+    ["JAMS", String(p.jams), String(e.jams)],
+    ["BURN DAMAGE", String(Math.round(p.burnDealt)), String(Math.round(e.burnDealt))],
+    ["SHOCK STALLS", r.shocks ? String(r.shocks[0]) : "-", r.shocks ? String(r.shocks[1]) : "-"],
+  ];
+}
+
 /** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. */
 export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void): void {
   const { W, H, ui } = game;
   const run = game.run!;
-  const w = Math.min(W - 10, 214), h = 162;
+  const w = Math.min(W - 10, 214), h = 170; // 0.6.2: +8 for the SHOCK STALLS row
   const x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - h / 2);
   const k = Math.min(1, pt / 0.25);
   g.globalAlpha = 0.55 * k;
@@ -134,16 +151,7 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   drawHearts(g, hx, yy + 42, after, pt, loss ? after : -1);
   if (loss) drawText(g, "-1 LIFE", hx + START_LIVES * 6 + 4, yy + 42, C.red, { font: "3", outline: C.ink });
   drawText(g, `W-L ${record(run)}`, x + w - 10, yy + 42, C.white, { font: "3", align: "right" });
-  const p = r.player, e = r.enemy;
-  const idle = (s: typeof p) => `${Math.round((s.idle / Math.max(0.001, s.turretTime)) * 100)}%`;
-  const rows: [string, string, string][] = [
-    ["DAMAGE DEALT", String(Math.round(p.damage)), String(Math.round(e.damage))],
-    ["SHOTS", String(p.shots), String(e.shots)],
-    ["FIRST SHOT", p.firstShot < 0 ? "NEVER" : `${p.firstShot.toFixed(1)}S`, e.firstShot < 0 ? "NEVER" : `${e.firstShot.toFixed(1)}S`],
-    ["GUNS IDLE", idle(p), idle(e)],
-    ["JAMS", String(p.jams), String(e.jams)],
-    ["BURN DAMAGE", String(Math.round(p.burnDealt)), String(Math.round(e.burnDealt))],
-  ];
+  const rows = resultRows(r);
   let ry = yy + 53;
   drawText(g, "YOU", x + w - 52, ry, C.lime, { font: "3", align: "right" });
   drawText(g, "FOE", x + w - 10, ry, C.red, { font: "3", align: "right" });

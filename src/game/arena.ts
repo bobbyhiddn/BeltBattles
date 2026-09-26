@@ -63,6 +63,15 @@ export class Arena {
   readonly views: [CruiserView, CruiserView];
   private acc = 0;
   private readonly out: SimEvent[] = []; // update()'s reused per-frame event list
+  /** 0.6.2 TUNE-M, RULE SHOCK ROW (display only): per side, the enemy machines its Shock stalled (the battle's own
+   *  "harass" events with cause "shock": each one a machine, belt tile or rig a Shock hit or its spark jump stopped),
+   *  counted from every event drained, played or skipped. The battle itself is untouched. */
+  readonly shocks: [number, number] = [0, 0];
+
+  /** Count one drained event into the readout tallies (shocks). */
+  private tally(e: SimEvent): void {
+    if (e.type === "harass" && e.cause === "shock") this.shocks[e.side === 0 ? 1 : 0]++;
+  }
 
   constructor(player: Build, enemy: Build, seed: number, sound: Audio | null) {
     this.b = new Battle(player, enemy, seed);
@@ -119,6 +128,7 @@ export class Arena {
         n++;
         const ev = this.b.drainEvents();
         for (let i = 0; i < ev.length; i++) {
+          this.tally(ev[i]);
           react(this, ev[i]);
           out.push(ev[i]);
         }
@@ -189,7 +199,10 @@ export class Arena {
     const out: SimEvent[] = [];
     while (!this.b.over && this.b.ticks < 60 * 200) {
       this.b.step();
-      for (const e of this.b.drainEvents()) if (e.type === "end") out.push(e);
+      for (const e of this.b.drainEvents()) {
+        this.tally(e);
+        if (e.type === "end") out.push(e);
+      }
     }
     this.fx.clear();
     for (const e of out) react(this, e);

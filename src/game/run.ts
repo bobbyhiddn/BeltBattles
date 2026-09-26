@@ -59,6 +59,7 @@ export interface DayResult {
   foe: string; // the dusk opponent as shown ("GHOST · WEAVER · 2-1" or a stand-in's name)
   ghost: boolean; // a pool ghost (false: a stand-in)
   refund?: number; // 0.6.2 RULE EARLY-LOSS REFUND: lives given back at the dawn this dusk leads into (absent: none)
+  shocks?: [number, number]; // 0.6.2 RULE SHOCK ROW: machines each side's Shock stalled (you, foe); absent before 0.6.2
   player: SideStats;
   enemy: SideStats;
 }

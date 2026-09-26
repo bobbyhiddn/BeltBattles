@@ -182,6 +182,7 @@ export class BattleScreen implements Screen {
     }
     const mine = ghostOf(run); // the deck exactly as it fought tonight, with the record entering it
     this.result = finishDay(run, b.winner ?? -1, b.t, b.sides[0].stats, b.sides[1].stats);
+    this.result.shocks = [this.arena.shocks[0], this.arena.shocks[1]]; // 0.6.2 RULE SHOCK ROW (the card's Shock row; saved in history)
     saveGhost(mine);
     saveRun(run);
     this.phase = "outro";
