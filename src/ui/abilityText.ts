@@ -615,6 +615,9 @@ const ENTRIES: Record<string, Entry> = {
         ...(hero && sig ? [`FOR ${hero.name}, THAT IS ${an(ammo)} ${every(sig.interval * mul)}.`] : []),
       ];
     },
+    // 0.6.2t2 (F3): the hero's example belongs to the rate it spells out, so it sits before ★3 TWIN SIGNET and the perk
+    // ends the text (after it, "FOR FURNACE, ..." read on from the name); without a hero there is no example
+    perkAt: (_e, x) => (x.hero ? 1 : 0),
     gist: (e) => {
       const mul = f(e).intervalMul ?? 1, belts2 = f(e).outputs > 1 ? `, FEEDS ${f(e).outputs} BELTS` : "";
       return Math.abs(mul - 1) < 1e-9 ? `AS OFTEN AS YOUR HERO'S FACTORY${belts2}` : `${rateText(mul)}${belts2}`;

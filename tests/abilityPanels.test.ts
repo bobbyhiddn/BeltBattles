@@ -273,13 +273,52 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
 });
 
 describe("0.6.2t T4: the panels' layout", () => {
-  it("a perk's name comes after the sentence it names, in the perk colour, never first", () => {
+  it("a perk's name comes after the sentence it names, in the perk colour, never first; nothing follows it on its line", () => {
     for (const { id, t } of PANELS) for (const l of lay(t.body, 116, "5")) {
       if (!l.b.perk) continue;
       const last = l.lines.at(-1)!.spans.at(-1)!;
       expect([last.t, last.c], id).toEqual([l.b.perk, PERK_COLOUR]);
       expect(l.lines[0].spans[0].t.startsWith("★"), `${id}: ${l.b.text}`).toBe(false);
     }
+    // 0.6.2t2 (F3): a perk's name ends its line. Every drawn line (desk and phone, whichever variant the plan takes) and
+    // every line of every variant laid out at the desk column's and the phone band's widths: no text after the name
+    let perks = 0;
+    /** The text after a perk's name on its line (null: no perk name there). */
+    const afterPerk = (line: PLine): string | null => {
+      const i = line.block.perk ? line.spans.findIndex((s) => s.t === line.block.perk && s.c === PERK_COLOUR) : -1;
+      return i < 0 ? null : line.spans.slice(i + 1).map((s) => s.t).join("").trim();
+    };
+    const check = (id: string, line: PLine) => {
+      const after = afterPerk(line);
+      if (after === null) return;
+      perks++;
+      expect(after, `${id}: text after ${line.block.perk}`).toBe("");
+    };
+    // the check's own test: a line where text runs on after the name fails it
+    const perk = "★3 TWIN SIGNET", block: Block = { role: "ability", text: "FEEDS 2 BELTS.", perk };
+    expect(afterPerk({ spans: [{ t: "FEEDS 2 BELTS. ", c: C.bone }, { t: perk, c: PERK_COLOUR }, { t: " FOR FURNACE,", c: C.bone }], font: "5", block, pitch: 9 }))
+      .toBe("FOR FURNACE,");
+    for (const { id, t } of PANELS) {
+      for (const area of [DESK, PHONE]) for (const v of visibleLines(planPanel(t, area))) if (v.line !== "rule") check(id, v.line);
+      for (const [w, font] of [[102, "5"], [116, "5"], [151, "3"]] as const) for (const v of [{ body: t.body, tight: false }, ...(t.variants ?? [])]) {
+        for (const l of lay(v.body, w, font, !!v.tight)) for (const line of l.lines) check(`${id} at ${w} (${font})`, line);
+      }
+    }
+    expect(perks).toBeGreaterThan(1000);
+    // MIMIC FORGE ★3 (the brief's case): the hero's example sits before ★3 TWIN SIGNET, so the name ends the text and
+    // nothing reads on from it ("TWIN SIGNET FOR FURNACE" at 881b38f)
+    for (const hero of ["furnace", "weaver"] as HeroId[]) {
+      const at = abilityText("mimic", 3, { hero });
+      expect([at.sentences.length, at.perk?.after], hero).toEqual([2, 1]);
+      expect(at.sentences[1], hero).toMatch(new RegExp(`^FOR ${hero.toUpperCase()}, THAT IS `));
+    }
+    const run = newRun("furnace", 5, "f3");
+    run.inventory = [{ uid: 900, def: "mimic", stars: 3 }];
+    const text = visibleLines(planPanel(cargoPanel(run, 900)!, DESK)).flatMap((v) => (v.line === "rule" ? ["--"] : [lineText(v.line.spans)]));
+    expect(text.slice(0, 10)).toEqual([
+      "STAMPS YOUR HERO'S", "SIGNATURE AMMO", "25% FASTER THAN ITS", "OWN FACTORY AND", "FEEDS 2 BELTS.",
+      "FOR FURNACE, THAT IS", "A CINDER SLUG EVERY", "1 SECOND.", "★3 TWIN SIGNET", "--", // the rule: no text reads on
+    ]);
   });
 
   it("the flavour is dimmer than the ability text and the hint dimmer again, in the small face after a rule", () => {
