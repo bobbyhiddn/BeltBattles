@@ -14,6 +14,8 @@
 // 0.6.2 CAND-A (ref/BRIEF-final-062-cand.md section 3; see the CAND-A section below):
 //   --uptake    no battles: turrets, gear, joins, two-belt rigs, landed arrows and FURNACE's F1 in the par field
 //   --extra     [--seeds 4] flag 1: the extra turret slot's lift on the par decks that fill it
+//   --ctrl K    [--seeds 4] [--sample N] a knob's control (join, turret, extra): each par deck against the same seed's
+//               run with --tune K=0 (the gold re-spent), beside the flag-3 ablation of the same part and its dead belts
 //   --stars     [--seeds 4] flag 2: starting turrets at 1/2/3 stars on the par decks (default --heroes weaver)
 //   --ablate    [--seeds 4] [--min 3] flag 3: each part's lift (whole deck vs the deck without it), REQ-BFG-033 (4)
 //   --joins     [--seeds 10] flag 4: junction-062's bench layouts against the par field; with --foes gauntlet
@@ -676,6 +678,62 @@ async function extraMode(days: number[], run: Runner, out: string, opts: PlayerO
   }
 }
 
+/** The flag-3 parts a CAND-A knob disallows (--ctrl): join -> "join", extra -> "extra", turret -> every "turret:<def>". */
+const knobParts = (knob: string, b: Build): PartKey[] =>
+  partsOf(b).filter((p) => (knob === "turret" ? p.startsWith("turret:") : p === knob));
+
+/**
+ * --ctrl <knob> (the joins control, ref/BRIEF-final-062-cand-resume.md step 3; knob: join, turret or extra): each par
+ * deck of seeds 1..sample (FULL) against the same seed's par run with --tune <knob>=0 (CTRL: the part never allowed,
+ * the gold re-spent by the policy), as --extra's CTRL; beside it, each deck that holds the part against the deck with the
+ * part ablated (ABL: --ablate's removal, whose belts are refed where they can be; its dead belts counted). Every variant
+ * of a deck meets the par field of both heroes on the same seeds (`seeds` x both sides per member, its own member left
+ * out); lifts are paired differences in points, the deck the unit, with a 95% t-interval.
+ */
+async function ctrlMode(days: number[], run: Runner, out: string, opts: PlayerOpts, k: number, seeds: number, sample: number, knob: string, tag: string): Promise<void> {
+  if (!["join", "turret", "extra"].includes(knob)) throw new Error(`--ctrl: unknown knob ${knob} (join, turret, extra)`);
+  for (const day of days) {
+    const t0 = performance.now();
+    const rows: unknown[] = [];
+    for (const hero of heroesOf()) {
+      const seedsK = parSeeds(Math.max(k, sample));
+      const ctrlOpts: PlayerOpts = { ...opts, tune: { ...(opts.tune ?? {}), [knob]: 0 } };
+      const vs: Row[] = [];
+      const meta = seedsK.map((s, i) => {
+        const full = playerBuild(hero, day, s, opts), ctrl = playerBuild(hero, day, s, ctrlOpts), pair = `${hero}|${s}`, self = i < k ? i : -1;
+        const parts = knobParts(knob, full);
+        let ablBuild: Build | undefined, ablDead = 0;
+        for (const p of parts) {
+          const a = ablate(ablBuild ?? full, p, day, s);
+          ablBuild = a.build;
+          ablDead += a.dead;
+        }
+        const abl = ablBuild ? { build: ablBuild, dead: ablDead } : null;
+        const at = vs.length;
+        vs.push({ build: full, pair, hero, self }, { build: ctrl, pair, hero, self });
+        if (abl) vs.push({ build: abl.build, pair, hero, self });
+        return {
+          seed: s, at, holds: parts.length > 0, parts, same: JSON.stringify(full) === JSON.stringify(ctrl), ctrlHolds: knobParts(knob, ctrl).length > 0,
+          value: deckCost(full).total, ctrlValue: deckCost(ctrl).total, ablValue: abl ? deckCost(abl.build).total : null, dead: abl ? abl.dead : null,
+        };
+      });
+      const res = await vsFieldPaired(vs, HEROES, day, run, k, seeds, `cand-ctrl-${knob}-${tag}`, opts);
+      const decks = meta.map((m) => ({
+        ...m, full: rowMean(res[m.at]), ctrl: rowMean(res[m.at + 1]), liftCtrl: liftOf(res[m.at], res[m.at + 1]),
+        ...(m.holds ? { abl: rowMean(res[m.at + 2]), liftAbl: liftOf(res[m.at], res[m.at + 2]) } : {}),
+      }));
+      const held = decks.filter((d) => d.holds);
+      const cAll = meanCI(decks.map((d) => d.liftCtrl)), cHeld = meanCI(held.map((d) => d.liftCtrl)), cAbl = meanCI(held.map((d) => d.liftAbl!));
+      const dead = sum(held.map((d) => d.dead ?? 0)), deadDecks = held.filter((d) => (d.dead ?? 0) > 0).length;
+      rows.push({ hero, day, n: decks.length, holders: held.length, liftCtrlAll: cAll, liftCtrlHolders: cHeld, liftAblate: cAbl, dead, deadDecks, decks });
+      console.log(`ctrl ${knob} ${tag} ${hero} d${day}: FULL - CTRL(${knob}=0) all ${decks.length} decks ${fmtLift(cAll)} pts | the ${held.length} holders ${fmtLift(cHeld)} | ablate ${fmtLift(cAbl)} pts, ${dead} dead belt(s) in ${deadDecks} deck(s)`);
+      for (const d of decks) console.log(`    s${d.seed}${d.holds ? ` [${d.parts.join(",")}]` : ""}: FULL ${pc(d.full)} (${d.value} g) CTRL ${pc(d.ctrl)} (${d.ctrlValue} g${d.same ? ", same deck" : ""}${d.ctrlHolds ? ", holds it" : ""})${d.holds ? ` ABL ${pc(d.abl!)} (${d.ablValue} g, ${d.dead} dead)` : ""}`);
+    }
+    writeFileSync(resolve(out, `ctrl-${knob}-${tag}-d${day}.json`), JSON.stringify({ day, k, sample: Math.max(k, sample), seeds, knob, rows }, null, 1));
+    console.log(`ctrl ${knob} ${tag} d${day} (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
+  }
+}
+
 /** `b` with the turrets in `slots` at `stars` (the installed def and uid; gear beyond a slot's gear slots comes off,
  *  last placed first, as deck.ts trimGear does). */
 function withStars(b0: Build, slots: readonly number[], stars: number): Build {
@@ -955,6 +1013,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--fingerprint")) fingerprintMode(days, opts, k);
   if (process.argv.includes("--uptake")) uptakeMode(days, out, opts, k, tag);
   if (process.argv.includes("--extra")) await extraMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), tag);
+  if (flag("ctrl")) await ctrlMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), flag("ctrl")!, tag);
   if (process.argv.includes("--stars")) await starsMode(days, pool.detail, out, opts, k, num("seeds", 4), tag);
   if (process.argv.includes("--ablate")) await ablateMode(days, pool.run, out, opts, k, num("seeds", 4), num("min", 3), tag);
   if (process.argv.includes("--joins")) {
