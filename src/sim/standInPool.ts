@@ -48,6 +48,9 @@
 //       POT belt joining the STAMP PRESS belt into a CARRONADE in the extra slot).
 // The v1 code (encodeStandIn / decodeStandIn) carries neither: its encoder refuses a deck with turrets or joins, and
 // its decoder refuses a turret section, so nothing is dropped silently.
+// Step 5 M5 (REQ-BFG-033: honesty is gold spent): a caravan-bound pool's tuple carries a sixth element, spent (the gold
+// the pick's run spent: deck value + rerolls + sale losses); standInPool returns it as StandInEntry.spent, and the
+// cost for a pool whose tuples have five elements (the full-purse pools up to v2.1).
 
 import { GRID, HEROES, ITEMS, type HeroId } from "./content";
 import { TURRET_UID0, rotOf, setTurretList, startingTurrets, type Build, type BuildTurret, type ModPlacement, type Placed, type RouteDef } from "./deck";
@@ -65,9 +68,14 @@ export interface StandInEntry {
   day: number;
   build: Build;
   cost: number; // purchase cost in gold (items, modules, belt crates, plating)
+  spent: number; // step 5 M5: the gold spent to assemble the deck: a caravan pool stores it (value + rerolls + sale losses); = cost for a full-purse pool
   pct: number; // strength percentile inside its hero/day population (0-100)
-  vsPar: number; // lower win rate against the day's par decks of both factions, heroRefBuild (0-1)
+  vsPar: number; // lower win rate against the day's par of both factions (0-1): the par field (par.ts parRefs) for a caravan pool, heroRefBuild for pool v2.1
 }
+
+/** Step 5 M5: a stored tuple as the loader reads it. The data module declares its own StandInTuple: five elements in a
+ *  full-purse pool (v2.1), six in a caravan pool, whose sixth is the gold spent. */
+type PoolTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent?: number];
 
 const cellCode = (x: number, y: number): string => `${y}${x}`;
 const V1_NO_TURRETS = "stand-in code: the v1 code carries no turrets and no belt joins (use encodeStarred / decodeStarred)";
@@ -294,7 +302,8 @@ export function standInPool(hero: HeroId, day: number): StandInEntry[] {
   const d = dayPool(hero, day);
   if (!d) return [];
   const dd = standInDay(day);
-  return d[1].map(([cost, pct, , code, vsPar]) => ({ hero, day: dd, build: decodeStarred(hero, code), cost, pct, vsPar }))
+  const entries: readonly PoolTuple[] = d[1];
+  return entries.map(([cost, pct, , code, vsPar, spent]) => ({ hero, day: dd, build: decodeStarred(hero, code), cost, spent: spent ?? cost, pct, vsPar }))
     .sort((a, b) => a.pct - b.pct);
 }
 

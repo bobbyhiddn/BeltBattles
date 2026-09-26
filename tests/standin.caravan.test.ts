@@ -3,13 +3,16 @@
 // a fixed policy mix, run seeds disjoint from the par field's, one run per candidate for every day. Every candidate is
 // legal, fused, within budget and at most 2 stars; a deck's turrets and joins pass through selection and the stored code;
 // the generation is deterministic and resumable; --par-band is off unless asked for.
+// M5 (REQ-BFG-033: honesty is gold spent): a caravan pool's tuples carry each pick's gold spent as a sixth element,
+// which the written-module guard checks and the loader returns (StandInEntry.spent); a full-purse pool is unchanged.
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { hashSeed } from "../src/core/rng";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { footprint, hullSlots, installTurret, key as K, kx, ky, occupancy, routeInfo, setJoin, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
-import { decodeStarred as loadStarred } from "../src/sim/standInPool";
+import { STAND_IN_POOL_HEROES, decodeStarred as loadStarred, standInPool } from "../src/sim/standInPool";
+import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import {
   CARAVAN_MIX, CARAVAN_POLICY, caravanCandidate, caravanDeck, caravanGauntlet, caravanGauntletSeedOf, caravanPolicyOf, caravanSeedOf, deckStats,
 } from "../src/sim/harness/caravan";
@@ -19,7 +22,7 @@ import { PLAYER_DAYS, playerBuild, playerRun } from "../src/sim/harness/player";
 import { decodeStarred, encodeStarred } from "../src/sim/harness/standinCode";
 import {
   STANDIN_DEFAULTS, STANDIN_MAX_STARS, caravanCand, dataModuleText, eligibleOf, genStandIns, maxStarsOf, parBandGap, pickBest, pickWindow,
-  standInCommand, writtenPicks, writtenProblems, type Cand, type DayResult, type HeroDay, type StandInOpts,
+  spentOf, standInCommand, writtenPicks, writtenProblems, type Cand, type DayResult, type HeroDay, type StandInOpts,
 } from "../src/sim/harness/standins";
 import type { Runner } from "../src/sim/harness/tournament";
 import { FUSE_MAX } from "../src/sim/stars";
@@ -312,5 +315,115 @@ describe("M2: deckStats (the dry run's turret and join counts)", () => {
     expect(deckStats(m)).toMatchObject({ turretsField: true, mergedStart: 1, beyondStart: 0, star2: expect.any(Number) });
     expect(deckStats(m).star2).toBe(deckStats(b).star2 + 1);
     expect(caravanDeck("weaver", 2, 1000, "typical", 2).meta.policy).toBe("typical");
+  });
+});
+
+// ---------------------------------------------------------------- M5: the gold spent (the sixth tuple element)
+
+/** The STAND_IN_DATA literal of a generated module's text: the data the game would load from it. */
+function moduleData(text: string): unknown {
+  const head = "export const STAND_IN_DATA: StandInData = ";
+  const at = text.indexOf(head);
+  expect(at).toBeGreaterThan(0);
+  return new Function(`return (${text.slice(at + head.length).replace(/;\s*$/, "")});`)() as unknown;
+}
+
+/** A fresh copy of the game's loader (src/sim/standInPool.ts) whose data module is `data`. */
+async function loaderWith(data: unknown): Promise<typeof import("../src/sim/standInPool")> {
+  vi.resetModules();
+  vi.doMock("../src/sim/standInPoolData", () => ({ STAND_IN_DATA: data }));
+  try {
+    return await import("../src/sim/standInPool");
+  } finally {
+    vi.doUnmock("../src/sim/standInPoolData");
+    vi.resetModules();
+  }
+}
+
+/** Line 2 of the committed data module: its command. Pool v2.1's legacy header has no --source. */
+const committedHeader = (): string => readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n")[1];
+
+describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full-purse pool doesn't", () => {
+  const tiny: StandInOpts = { ...STANDIN_DEFAULTS, pop: 8, gauntlet: 1, seeds: 1, elites: 1, refSeeds: 1, per: 2, grow: [12], stars: "on", par: "field", source: "caravan" };
+  const TUPLES_CARAVAN = "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1), spent (gold)]; each day is";
+  const TUPLES_V21 = "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1)]; each day is";
+  const TYPE_CARAVAN = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number, spent: number];";
+  const TYPE_V21 = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number];";
+
+  it("a caravan pool (fake runner) writes each pick's gold spent as a sixth element, the guard checks it, and the loader returns it", async () => {
+    const res = await genStandIns(tiny, fakeRun);
+    const text = dataModuleText(tiny, res.days);
+    expect(writtenProblems(tiny, res.days, text)).toEqual([]);
+    const written = writtenPicks(text);
+    expect(written).toHaveLength(20 * tiny.per);
+    let above = 0;
+    for (const hd of res.days) {
+      hd.picks.forEach((p, i) => {
+        const w = written.find((x) => x.hero === hd.hero && x.day === hd.day && x.i === i)!, m = p.caravan!, at = `${hd.hero} d${hd.day} #${p.idx}`;
+        expect(w.spent, at).toBe(spentOf(p));
+        expect(w.spent, at).toBe(m.spent);
+        expect(w.spent, at).toBe(p.cost + m.rerollGold + m.soldLoss); // cargoGold is 0: the deck, the rerolls and the sale losses
+        expect(w.cost, at).toBe(p.cost);
+        if (m.spent > p.cost) above++;
+      });
+    }
+    expect(above).toBeGreaterThan(0); // some picks rerolled or sold at a loss, so spent says more than the cost
+    // the guard: a stored spent that is not the scored candidate's is reported, and so is a missing one
+    const lines = text.split("\n"), k = lines.findIndex((l) => /^ {8}\[.*, \d+\],$/.test(l));
+    const off = [...lines], five = [...lines];
+    off[k] = off[k].replace(/, (\d+)\],$/, (_, s: string) => `, ${Number(s) + 1}],`);
+    five[k] = five[k].replace(/, \d+\],$/, "],");
+    expect(writtenProblems(tiny, res.days, off.join("\n")).filter((x) => x.includes("stored spent"))).toHaveLength(1);
+    expect(writtenProblems(tiny, res.days, five.join("\n")).filter((x) => x.includes("stored spent (none)"))).toHaveLength(1);
+    // the game's loader reads the written module: each entry's spent beside its cost, in the stored order
+    const L = await loaderWith(moduleData(text));
+    for (const hd of res.days) {
+      expect(L.standInPool(hd.hero, hd.day).map((e) => [e.cost, e.spent]), `${hd.hero} d${hd.day}`).toEqual(hd.picks.map((p) => [p.cost, spentOf(p)]));
+    }
+  }, 120_000);
+
+  it("a full-purse pool is written as before (five elements) and its entries' spent is their cost", async () => {
+    const fp: StandInOpts = { ...tiny, source: "fullpurse", par: "heroref" }; // the legacy options of pool v2.1
+    const res = await genStandIns(fp, fakeRun);
+    const text = dataModuleText(fp, res.days);
+    expect(writtenProblems(fp, res.days, text)).toEqual([]);
+    expect(writtenPicks(text)).toHaveLength(20 * fp.per);
+    for (const w of writtenPicks(text)) expect(w.spent).toBeUndefined();
+    const L = await loaderWith(moduleData(text));
+    for (const hd of res.days) expect(L.standInPool(hd.hero, hd.day).map((e) => [e.cost, e.spent])).toEqual(hd.picks.map((p) => [p.cost, p.cost]));
+  }, 120_000);
+
+  it("the committed pool: pool v2.1's entries (five elements) have spent = cost; a caravan pool's carry their sixth", () => {
+    const legacy = !committedHeader().includes("--source");
+    let n = 0;
+    for (const hero of STAND_IN_POOL_HEROES) {
+      for (let day = 1; day <= 10; day++) {
+        const tuples: readonly (readonly unknown[])[] = STAND_IN_DATA.pools[hero]![day - 1][1], es = standInPool(hero, day);
+        expect(es).toHaveLength(tuples.length);
+        es.forEach((e, i) => {
+          expect(tuples[i], `${hero} d${day} #${i}`).toHaveLength(legacy ? 5 : 6);
+          expect(e.spent, `${hero} d${day} #${i}`).toBe(legacy ? e.cost : tuples[i][5]);
+          expect(e.spent).toBeGreaterThanOrEqual(e.cost);
+          expect(e.spent).toBeLessThanOrEqual(maxGoldByDay(day));
+          n++;
+        });
+      }
+    }
+    expect(n).toBe(120);
+  });
+
+  it("the header documents the sixth element: a caravan pool's tuple line and StandInTuple; pool v2.1's lines are unchanged", () => {
+    const car = dataModuleText(tiny, []).split("\n"), fp = dataModuleText({ ...tiny, source: "fullpurse", par: "heroref" }, []).split("\n");
+    expect(car).toContain(TUPLES_CARAVAN);
+    expect(car).toContain(TYPE_CARAVAN);
+    expect(car.join("\n")).toContain("// spent is the gold the pick's run had spent by that dusk (maxGoldByDay less the gold it kept): the deck's value\n// + reroll gold + sale losses (REQ-BFG-033).");
+    expect(fp).toContain(TUPLES_V21);
+    expect(fp).toContain(TYPE_V21);
+    expect(fp.filter((l) => l.includes("spent"))).toEqual([]);
+    // the committed module: pool v2.1's legacy lines while it is committed, else the regen's (a caravan pool)
+    const committed = readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n");
+    const legacy = !committedHeader().includes("--source");
+    expect(committed).toContain(legacy ? TUPLES_V21 : TUPLES_CARAVAN);
+    expect(committed).toContain(legacy ? TYPE_V21 : TYPE_CARAVAN);
   });
 });

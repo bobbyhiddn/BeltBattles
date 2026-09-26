@@ -21,6 +21,9 @@
 // rules are the same for both sources. o.parBand [lo, hi] (off when absent) also requires lo <= vsPar <= hi, and (d) then
 // takes the builds nearest that band. The stand-in code carries Build.turrets and route joins (./standinCode.ts), so a
 // caravan deck keeps them. genStandIns' optional hooks save and load finished days (the CLI's --resume).
+// Step 5 M5 (REQ-BFG-033: honesty is gold spent): a caravan pool's data module stores each pick's gold spent (spentOf:
+// deck value + rerolls + sale losses, the spend floor's number) as a sixth tuple element; a full-purse pool is written
+// exactly as before (five elements; its gold spent is its cost).
 
 import { hashSeed } from "../../core/rng";
 import { RULES_VERSION, type HeroId } from "../content";
@@ -508,8 +511,9 @@ export function standInCommand(o: StandInOpts): string {
 
 const r4 = (x: number) => Number(x.toFixed(4));
 
-/** One tuple as written in a data module: hero, day, position, cost and build code. */
-export interface WrittenPick { hero: HeroId; day: number; i: number; cost: number; code: string }
+/** One tuple as written in a data module: hero, day, position, cost and build code. Step 5 M5: `spent`, the sixth
+ *  element, when the tuple has one (a caravan pool). */
+export interface WrittenPick { hero: HeroId; day: number; i: number; cost: number; code: string; spent?: number }
 
 /** Parse the picks back out of dataModuleText's output (what is WRITTEN, not what is in memory). */
 export function writtenPicks(text: string): WrittenPick[] {
@@ -520,8 +524,8 @@ export function writtenPicks(text: string): WrittenPick[] {
     if (h) { hero = h[1] as HeroId; continue; }
     const d = /^ {6}\[\d+, \[ \/\/ day (\d+):/.exec(line);
     if (d) { day = Number(d[1]); i = 0; continue; }
-    const t = /^ {8}\[(\d+), [-\d.]+, [-\d.]+, ("(?:[^"\\]|\\.)*"), [-\d.]+\],$/.exec(line);
-    if (t && hero) out.push({ hero, day, i: i++, cost: Number(t[1]), code: JSON.parse(t[2]) as string });
+    const t = /^ {8}\[(\d+), [-\d.]+, [-\d.]+, ("(?:[^"\\]|\\.)*"), [-\d.]+(?:, (\d+))?\],$/.exec(line);
+    if (t && hero) out.push({ hero, day, i: i++, cost: Number(t[1]), code: JSON.parse(t[2]) as string, ...(t[3] !== undefined ? { spent: Number(t[3]) } : {}) });
   }
   return out;
 }
@@ -530,7 +534,8 @@ export function writtenPicks(text: string): WrittenPick[] {
  * The stars-on invariant on what is WRITTEN (patch 0006's guard, F2): every tuple of `text` decodes
  * (the star-aware decoder) to exactly the deck that was scored (same JSON), its stored cost is
  * buildCost of that deck, and the deck passes validateBuild, has no unfused pair and fits the day's
- * gold. Returns one message per problem (empty: the module is what was scored).
+ * gold. Step 5 M5: a caravan pool's tuple stores the scored candidate's gold spent (spentOf), a
+ * full-purse pool's stores none. Returns one message per problem (empty: the module is what was scored).
  */
 export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): string[] {
   const got = writtenPicks(text), problems: string[] = [];
@@ -544,6 +549,9 @@ export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): 
     try { back = decodeStandInCode(hd.hero, w.code, o.stars); } catch (e) { problems.push(`${at}: stored code does not decode (${String(e)})`); continue; }
     if (JSON.stringify(back) !== JSON.stringify(p.build)) problems.push(`${at}: stored code decodes to a different deck than the one scored (cost ${buildCost(back).total} vs ${buildCost(p.build).total})`);
     if (buildCost(back).total !== w.cost) problems.push(`${at}: stored cost ${w.cost} != buildCost of the stored deck ${buildCost(back).total}`);
+    // step 5 M5: a caravan pool stores the gold spent the spend floor counted; a full-purse pool stores no sixth element
+    const spent = sourceOf(o) === "caravan" ? spentOf(p) : undefined;
+    if (w.spent !== spent) problems.push(`${at}: stored spent ${w.spent ?? "(none)"} != the scored candidate's gold spent ${spent ?? "(none: a full-purse pool stores five elements)"}`);
     const v = validateBuild(back, hd.day);
     if (!v.ok) problems.push(`${at}: stored deck is invalid: ${v.errors.join("; ")}`);
     if (o.stars === "on") for (const u of unfusedPairs(back)) problems.push(`${at}: stored deck has an ${u}`);
@@ -569,8 +577,11 @@ function caravanHeader(o: StandInOpts): string[] {
   ];
 }
 
-/** The generated data module (src/sim/standInPoolData.ts), byte-stable for the same options. */
+/** The generated data module (src/sim/standInPoolData.ts), byte-stable for the same options. Step 5 M5: a caravan
+ *  pool's tuples carry a sixth element, spent (spentOf: the gold the pick's run spent on it), and its header and its
+ *  StandInTuple say so; a full-purse pool is written exactly as before. */
 export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
+  const caravan = sourceOf(o) === "caravan";
   const L = [
     "// GENERATED by tools/genStandInPool.ts; do not edit by hand. Regenerate, or verify with --check:",
     `//   ${standInCommand(o)}`,
@@ -591,7 +602,7 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
     `// Fewer than ${o.per} eligible in the window: (a) widen it upward by ${o.widen} points at a time, (b) grow the population`,
     `// to ${o.grow.join(", then ")} (same gauntlet), (c) allow elites, (d) take the ${o.per} builds with the highest vsPar (in short).`,
     ...(o.parBand ? [`// Par band (--par-band): a pick also needs ${o.parBand[0]} <= vsPar <= ${o.parBand[1]}; (d) then takes the builds nearest the band.`] : []),
-    "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1)]; each day is",
+    `// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1)${caravan ? ", spent (gold)" : ""}]; each day is`,
     ...(o.stars === "off" ? [
       "// [par index, entries sorted by pct, window [lo, hi], population size, relaxation]. src/sim/standInPool.ts",
       "// decodes the build codes.",
@@ -599,15 +610,17 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
       "// [par index, entries sorted by pct, window [lo, hi], population size, relaxation]. The build codes are",
       "// star-aware (src/sim/harness/standinCode.ts: the v1 format plus *2 or *3 on an item or module word; no",
       "// suffix is 1 star); src/sim/standInPool.ts decodes them with decodeStarred (since the 0.6.1 flip).",
-      ...(sourceOf(o) === "caravan" ? [
+      ...(caravan ? [
         "// Step 5: a code also carries the deck's turrets (a fifth section, <id><slot>[*stars][!free]) and belt joins",
         "// (\">yx\" on a route word) when it has them; cost is the deck's value (rerolls and sale losses are gold spent).",
+        "// spent is the gold the pick's run had spent by that dusk (maxGoldByDay less the gold it kept): the deck's value",
+        "// + reroll gold + sale losses (REQ-BFG-033). The spend floor counts it; a pick below the floor is listed in short.",
       ] : []),
     ]),
     "",
     'import type { HeroId } from "./content";',
     "",
-    "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number];",
+    `export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number${caravan ? ", spent: number" : ""}];`,
     'export type StandInRelax = "none" | "widen" | "grow" | "elites" | "best";',
     "export type StandInDay = readonly [par: number, entries: readonly StandInTuple[], window: readonly [lo: number, hi: number], pop: number, relax: StandInRelax];",
     "/** A floor a hero/day missed: a pick under the spend floor (cost < floor, in gold); or, with vsPar, a day",
@@ -634,7 +647,7 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
     L.push(`    ${hero}: [`);
     for (const hd of days.filter((x) => x.hero === hero).sort((a, b) => a.day - b.day)) {
       L.push(`      [${hd.par}, [ // day ${hd.day}: floor ${hd.floor} of ${hd.budget} g; ${hd.relax}, window ${hd.window[0]}-${hd.window[1]} of ${hd.pop.length}`);
-      for (const p of hd.picks) L.push(`        [${p.cost}, ${p.pct}, ${r4(p.score)}, ${JSON.stringify(p.code)}, ${r4(p.vsPar)}],`);
+      for (const p of hd.picks) L.push(`        [${p.cost}, ${p.pct}, ${r4(p.score)}, ${JSON.stringify(p.code)}, ${r4(p.vsPar)}${caravan ? `, ${spentOf(p)}` : ""}],`);
       L.push(`      ], [${hd.window[0]}, ${hd.window[1]}], ${hd.pop.length}, "${hd.relax}"],`);
     }
     L.push("    ],");
