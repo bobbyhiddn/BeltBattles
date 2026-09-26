@@ -4,7 +4,7 @@
 // "forward" (toward the enemy); 1 = +x, 2 = back, 3 = -x.
 
 import {
-  AMMO, BELT_SPEED, CELL, GEAR_SLOTS, GRID, HEROES, HULL_SLOTS, ITEMS, JOIN_PACE, SHAPE_ARROWS, rigShape,
+  AMMO, BELT_SPEED, CELL, GEAR_SLOTS, GRID, HEROES, HULL_SLOTS, ITEMS, JOIN_LIMIT, JOIN_PACE, SHAPE_ARROWS, rigShape,
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake,
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
@@ -1159,6 +1159,8 @@ export const JOIN_NOT_BELT = "NOT A BELT TILE";
 export const JOIN_NOT_NEXT = "NOT NEXT TO ITS JOIN TILE";
 export const JOIN_OFF_DECK = "JOIN TILE OFF THE DECK";
 export const JOIN_NO_BELT = "NO BELT TO JOIN FROM";
+/** 0.6.2 TUNE-M, RULE JOIN LIMIT: a joining belt past the deck's JOIN_LIMIT ("2 JOINS PER DECK"). */
+export const JOIN_OVER_LIMIT = `${JOIN_LIMIT} JOINS PER DECK`;
 
 /** The main belt route i's join points at, by shape only (no loop check), or -1. */
 function rawJoin(b: Build, i: number, occ: Occ[]): number {
@@ -1173,8 +1175,46 @@ function rawJoin(b: Build, i: number, occ: Occ[]): number {
 /**
  * 0.6.2j (J2, J12): why route i's join is illegal, or null when it is legal or absent. The reasons are player text
  * (JOIN_*); validateBuild and routeCheck prefix them with the route. `occ` is occupancy(b).
+ * 0.6.2 TUNE-M, RULE JOIN LIMIT: a deck holds at most JOIN_LIMIT joining belts. A belt whose join is otherwise legal
+ * (joinShapeProblem: the 0.6.2j rules) is refused, JOIN_OVER_LIMIT, when JOIN_LIMIT belts before it in route order
+ * already join legally. So a deck with more keeps its first JOIN_LIMIT joins (the rest are open ends: validateBuild
+ * and routeCheck report them, pruneJoins clears them on load), and a deck with at most JOIN_LIMIT reads exactly as
+ * before. The battle (routeInfo / joinOf), the rating, the save loader, validateBuild (client and server upload),
+ * routeCheck's FIGHT gate and every way to make a join (canJoin, setJoin, joinTiles, the par player) go through it.
  */
 export function joinProblem(b: Build, i: number, occ = occupancy(b)): string | null {
+  const why = joinShapeProblem(b, i, occ);
+  if (why !== null || b.routes[i]?.join === undefined) return why;
+  let before = 0;
+  for (let k = 0; k < i && before < JOIN_LIMIT; k++) {
+    if (b.routes[k].join !== undefined && joinShapeProblem(b, k, occ) === null) before++;
+  }
+  return before >= JOIN_LIMIT ? JOIN_OVER_LIMIT : null;
+}
+
+/**
+ * 0.6.2 TUNE-M, RULE JOIN LIMIT: true when a deck holds more than JOIN_LIMIT belts whose join is legal by the 0.6.2j
+ * rules, so one of them is past the limit. A new join must not do that, wherever it is drawn: a redraw of an early
+ * belt into a join would otherwise push a later belt's join past the limit (canJoin, setJoin, joinTiles and the par
+ * player refuse it with JOIN_OVER_LIMIT).
+ */
+export function overJoinLimit(b: Build, occ = occupancy(b)): boolean {
+  let n = 0;
+  for (let k = 0; k < b.routes.length; k++) {
+    if (b.routes[k].join !== undefined && joinShapeProblem(b, k, occ) === null && ++n > JOIN_LIMIT) return true;
+  }
+  return false;
+}
+
+/** 0.6.2 TUNE-M, RULE JOIN LIMIT: the deck's joining belts, those whose join is legal (joinOf): at most JOIN_LIMIT. */
+export function joinCount(b: Build, occ = occupancy(b)): number {
+  let n = 0;
+  for (let k = 0; k < b.routes.length; k++) if (b.routes[k].join !== undefined && joinProblem(b, k, occ) === null) n++;
+  return n;
+}
+
+/** 0.6.2j (J2, J12): why route i's join is illegal by its own shape and chain (joinProblem before RULE JOIN LIMIT). */
+function joinShapeProblem(b: Build, i: number, occ: Occ[]): string | null {
   const r = b.routes[i];
   const j = r?.join;
   if (j === undefined) return null;
@@ -1341,10 +1381,19 @@ export function canJoin(b: Build, factoryUid: number, pending: number[], k: numb
   const idx = replacing >= 0 ? replacing : routes.length;
   routes[idx] = drawn;
   const trial: Build = { ...b, routes };
-  const why = joinProblem(trial, idx);
+  const why = newJoinProblem(trial, idx);
   if (why) return { ok: false, reason: why };
   const link = joinOf(trial, idx)!;
   return { ok: true, route: link.route, tile: link.tile };
+}
+
+/**
+ * Why a NEW join, route i's in `trial` (the deck as it would be with the join), is refused, or null: joinProblem, and
+ * 0.6.2 TUNE-M's RULE JOIN LIMIT across the deck (overJoinLimit), so a redraw of an early belt into a join never
+ * pushes a later belt's join past the limit. canJoin, joinTiles, setJoin and the par player (player.ts) ask this.
+ */
+export function newJoinProblem(trial: Build, i: number, occ = occupancy(trial)): string | null {
+  return joinProblem(trial, i, occ) ?? (overJoinLimit(trial, occ) ? JOIN_OVER_LIMIT : null);
 }
 
 /** 0.6.2j (J14 (e)): the tiles route i could legally join from its last cell (sorted cell keys; [] for none). */
@@ -1357,17 +1406,17 @@ export function joinTiles(b: Build, i: number): number[] {
     const k = arrowCell(kx(last), ky(last), d as Dir);
     if (k < 0) continue;
     const trial: Build = { ...b, routes: b.routes.map((q, qi) => (qi === i ? { ...q, join: k } : q)) };
-    if (joinProblem(trial, i) === null) out.push(k);
+    if (newJoinProblem(trial, i) === null) out.push(k);
   }
   return out.sort((x, y) => x - y);
 }
 
-/** 0.6.2j (J14 (e)): make route i join tile k; null when done, else the refusal (joinProblem) and nothing changes. */
+/** 0.6.2j (J14 (e)): make route i join tile k; null when done, else the refusal (newJoinProblem) and nothing changes. */
 export function setJoin(b: Build, i: number, k: number): string | null {
   const r = b.routes[i];
   if (!r) return JOIN_NO_BELT;
   const trial: Build = { ...b, routes: b.routes.map((q, qi) => (qi === i ? { ...q, join: k } : q)) };
-  const why = joinProblem(trial, i);
+  const why = newJoinProblem(trial, i);
   if (why === null) r.join = k;
   return why;
 }

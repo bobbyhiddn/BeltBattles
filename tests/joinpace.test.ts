@@ -114,6 +114,7 @@ describe("RULE JOIN PACE: the player reads it", () => {
     expect(joinPaceLines(deck(), 1)).toEqual([]);
     expect(joinPaceLines(deck(false), 2)).toEqual([]);
     // the rules card, where joins are explained
-    expect(HELP[2]).toContain(`DRAG A BELT INTO ANOTHER TO JOIN THEM: A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
+    expect(HELP[2]).toContain("DRAG A BELT INTO ANOTHER TO JOIN THEM");
+    expect(HELP[2]).toContain(`A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
   });
 });

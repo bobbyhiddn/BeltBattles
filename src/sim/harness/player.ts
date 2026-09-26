@@ -44,10 +44,10 @@
 //   field's fight length on that day, 24 s on day 1 to 9.5 s on day 10), not a 25 s fight on every day.
 
 import { Rng, hashSeed } from "../../core/rng";
-import { GRID, HEROES, ITEMS, REROLL_COST, type HeroId } from "../content";
+import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
 import {
   DX, DY, arrowCell, canFitGear, canSellTurret, cloneBuild, commitRoute, connectorClaims, coreFor, deadEndsAt, footprint,
-  gearOn, inGrid, installedTurrets, isTurretDef, itemByUid, joinProblem, joinersOf, key, kx, ky, occupancy, opposite,
+  gearOn, inGrid, installedTurrets, isTurretDef, itemByUid, joinCount, joinersOf, key, kx, ky, newJoinProblem, occupancy, opposite,
   rigArrows, rigHits, routeInfo, turretSlots, turretValue,
   type Build, type Dir, type ModPlacement,
 } from "../deck";
@@ -491,6 +491,9 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
     if (!best || rel > best.rel) best = { ...own, rel };
   }
   if (!pol.join) return best;
+  // TUNE-M, RULE JOIN LIMIT: a new factory's belt is the last route, so on a deck that already holds JOIN_LIMIT joins
+  // its join would be refused (commitRoute's pruneJoins leaves it an open end): no join plan
+  if (joinCount(b) >= JOIN_LIMIT) return best;
   const d = ITEMS[def], occ = occupancy(b), spare = beltFree(b);
   const targets = joinTargets(b);
   if (!targets.length) return best;
@@ -509,7 +512,7 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
   for (const n of near) {
     if (!n) continue;
     const after = place(n.x, n.y, [n.line]);
-    if (joinProblem(after, after.routes.length - 1) !== null) continue;
+    if (newJoinProblem(after, after.routes.length - 1) !== null) continue;
     const rel = relOf(after, base, day);
     if (!best || rel > best.rel) best = { x: n.x, y: n.y, routes: [n.line], rel };
   }
@@ -547,7 +550,7 @@ function joinRedraw(b: Build, ri: number, day: number, rng: Rng, base: number, b
     if (!l || l.cells.length > room) continue;
     const trial = cloneBuild(lifted);
     trial.routes[ri] = { factory: r.factory, cells: l.cells, join: l.join };
-    if (joinProblem(trial, ri) !== null) continue;
+    if (newJoinProblem(trial, ri) !== null) continue; // TUNE-M: never a join past RULE JOIN LIMIT, here or later
     if (editor(trial, day, rng).reseat(riders.map((p) => ({ ...p })), ri) < riders.length) continue;
     const rel = relOf(trial, base, day);
     if (!best || rel > best.rel) best = { build: trial, rel };

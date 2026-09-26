@@ -32,6 +32,10 @@ export const COMMISSION_STEP = 0.6; // each further gate on the route adds this 
 // at this share of its normal rate (its stamping timers run at this pace). It counts once, however long its chain; a
 // factory none of whose belts joins runs as before. The join itself stays free (REQ-BFG-027).
 export const JOIN_PACE = 0.7;
+// 0.6.2 TUNE-M, RULE JOIN LIMIT (the Prime's decision, oracle ea0abdc95439b4d8): a deck holds at most this many joining
+// belts. deck.ts joinProblem refuses the next one in route order ("2 JOINS PER DECK"); a saved deck with more keeps its
+// first two, and the rest become open ends (pruneJoins on load).
+export const JOIN_LIMIT = 2;
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 // 0.6.1b: "core" is a turret core (ARSENAL.md §1): it lives in Build.mods, one socket per turret, beside the one mod
