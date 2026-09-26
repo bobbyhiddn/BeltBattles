@@ -6,13 +6,20 @@
 // BELTSIDE preview, where every day fails). This test changes no shop behaviour. The release owner raises
 // RIG_CORE_MIN to 2 in REQ-BFG-033's one offer-mix tune; turret offers get their own guard
 // (tests/shopMix.turrets.test.ts, the turret task).
+// 0.6.2m (the mechanics head, REQ-BFG-033's offer-mix tune): RIG_CORE_MIN is 2, and the desk sample also holds rigs
+// to at least 2x turrets. Measured before the tune on 71d4a55: the fresh run passed (2.34-2.81x) but the desk sample
+// missed 2x on days 3-6 and 8-10 (1.68-1.98x): fresh-first turned the rig sellers' leftover cores into their offers
+// once the player owned most of their rigs. The tune (content.ts MERCHANTS): the TINKER and the ALCHEMIST sell no
+// cores (ROTARY and PRESSURE BREECH to the GUNSMITH, DRAKE NOZZLE to the ARCANE DEALER). After it: fresh 3.55-5.95x,
+// desk 4.22-6.39x cores; turrets 8.19x and up. The 3fbd553 desk-sample skip (days 3 and 9 at 1.49x) is gone.
 import { describe, expect, it } from "vitest";
 import { newRun, rollShop, type InvItem } from "../src/game/run";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 
-/** Rigs are offered at least this many times as often as turret cores, on every day 1-10 (REQ-BFG-029). */
-export const RIG_CORE_MIN = 1.5;
+/** Rigs are offered at least this many times as often as turret cores (and, in the desk sample, turrets), on every
+ *  day 1-10: REQ-BFG-033 (2x; REQ-BFG-029 asked 1.5x). */
+export const RIG_CORE_MIN = 2;
 
 const SEEDS = 2400; // seeded caravans per day (the brief asks for at least 2,000)
 const SEED0 = 7000; // caravan s uses run seed SEED0 + s (the same caravans as the REPORT's tables)
@@ -23,7 +30,7 @@ const DAYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 function mix(hero: HeroId, day: number, owned: readonly (readonly [string, number])[] = [], seeds = SEEDS) {
   const run = newRun(hero, SEED0, "shopmix");
   const inventory: InvItem[] = owned.map(([def, stars], i) => ({ uid: 5000 + i, def, ...(stars > 1 ? { stars } : {}) }));
-  let rigs = 0, cores = 0, offers = 0;
+  let rigs = 0, cores = 0, turrets = 0, offers = 0;
   for (let s = 1; s <= seeds; s++) {
     run.seed = SEED0 + s;
     run.day = day;
@@ -35,9 +42,10 @@ function mix(hero: HeroId, day: number, owned: readonly (readonly [string, numbe
       const kind = ITEMS[o.def].kind;
       if (kind === "gate") rigs++;
       else if (kind === "core") cores++;
+      else if (kind === "turret") turrets++;
     }
   }
-  return { rigs, cores, offers, ratio: rigs / cores };
+  return { rigs, cores, turrets, offers, ratio: rigs / cores, turretRatio: turrets ? rigs / turrets : Infinity };
 }
 
 // The 3fbd553 desk scripted run's own parts at each dawn (its log's "drag:" lines, merges applied): a realistic
@@ -56,12 +64,11 @@ DESK[8] = [...DESK[7], ["quench", 1], ["coil", 1]];
 DESK[9] = DESK[8].map(([d, s]) => [d, d === "longhaul" ? 2 : s]);
 DESK[10] = [...DESK[9], ["sifter", 1], ["barbed", 1]];
 
-// REQ-BFG-033: in the desk run's owned state these days miss RIG_CORE_MIN at 3fbd553 (1.49x each, REPORT section 3,
-// "OFFER-MIX FAIL"). This task changes no shop behaviour, so they are skipped here; the release owner's
-// REQ-BFG-033 offer-mix tune (rigs at least 2x cores and 2x turrets on every day) must bring them back.
-const DESK_SKIP_REQ_BFG_033 = new Set([3, 9]);
+// REQ-BFG-033: at 3fbd553 (no turrets in the caravan) the desk sample missed even 1.5x on days 3 and 9 (1.49x each,
+// output-0.6.2j REPORT section 2, "OFFER-MIX FAIL") and those days were skipped. With the tune every day passes at
+// RIG_CORE_MIN in both samples, so nothing is skipped.
 
-describe("the caravan's rig/core offer mix (REQ-BFG-029)", () => {
+describe("the caravan's rig/core offer mix (REQ-BFG-029, REQ-BFG-033)", () => {
   it("offers are hero-blind (REQ-BFG-021): every playable hero sees the same caravans", () => {
     for (const day of DAYS) {
       const [a, ...rest] = PLAYABLE_HEROES.map((h) => mix(h, day, [], 150));
@@ -79,11 +86,11 @@ describe("the caravan's rig/core offer mix (REQ-BFG-029)", () => {
   }
 
   for (const day of DAYS) {
-    const run = DESK_SKIP_REQ_BFG_033.has(day) ? it.skip : it;
-    run(`desk run's parts, day ${day}: rigs >= ${RIG_CORE_MIN}x cores over ${SEEDS} seeded caravans`, () => {
+    it(`desk run's parts, day ${day}: rigs >= ${RIG_CORE_MIN}x cores and turrets over ${SEEDS} seeded caravans`, () => {
       const m = mix("furnace", day, DESK[day]);
       expect(m.offers).toBe(SEEDS * 5);
       expect(m.ratio).toBeGreaterThanOrEqual(RIG_CORE_MIN);
+      expect(m.turretRatio).toBeGreaterThanOrEqual(RIG_CORE_MIN);
     });
   }
 });

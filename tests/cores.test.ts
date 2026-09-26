@@ -76,9 +76,11 @@ describe("the core resolver and the class factor", () => {
 
   it("the 7 cores: kind core, the catalogue's price, rarity and merchant (SALVO RACK at the Gunsmith for now)", () => {
     const got = CORES.map((id) => [id, ITEMS[id].kind, ITEMS[id].price, ITEMS[id].rarity, ITEMS[id].merchant].join(" "));
+    // 0.6.2m (REQ-BFG-033's offer-mix tune): the rig sellers sell no cores; ROTARY and PRESSURE BREECH moved from the
+    // Tinker to the Gunsmith, DRAKE NOZZLE from the Alchemist to the Arcane Dealer (content.ts MERCHANTS)
     expect(got).toEqual([
-      "scatter core 4 common gunsmith", "rotary core 3 common tinker", "pressure core 4 common tinker",
-      "gatling core 6 rare gunsmith", "hullbreaker core 5 rare gunsmith", "drake core 5 rare alchemist", "salvo core 7 epic gunsmith",
+      "scatter core 4 common gunsmith", "rotary core 3 common gunsmith", "pressure core 4 common gunsmith",
+      "gatling core 6 rare gunsmith", "hullbreaker core 5 rare gunsmith", "drake core 5 rare arcane", "salvo core 7 epic gunsmith",
     ]);
     for (const id of CORES) expect(ITEMS[id].desc.every((l) => l.length <= 20), id).toBe(true);
   });

@@ -589,7 +589,8 @@ export const ITEMS: Record<string, ItemDef> = {
     levels: { 2: { core: { pellets: 3, share: 0.48 } }, 3: { core: { pellets: 4, share: 0.42 } } },
   },
   rotary: {
-    id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "tinker",
+    // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
+    id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "gunsmith",
     desc: ["FIRES THE OLDEST", "LOAD FIRST. WINDOWS", "CLOSE IN 0.8S."], tags: ["TIMING"],
     core: { routine: "rotary", order: "FIFO", windowTime: 0.8 },
     levels: {
@@ -598,7 +599,8 @@ export const ITEMS: Record<string, ItemDef> = {
     },
   },
   pressure: {
-    id: "pressure", name: "PRESSURE BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "tinker",
+    // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
+    id: "pressure", name: "PRESSURE BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
     desc: ["+1.2 DAMAGE PER", "PAYLOAD QUEUED AT", "IT. NEVER JAMS."], tags: ["BURST", "VOLUME"],
     core: { routine: "pressure", perQueued: 1.2, maxCount: 5, noJam: true },
     levels: { 2: { core: { perQueued: 2.6 } }, 3: { core: { perQueued: 4.2 } } },
@@ -617,7 +619,8 @@ export const ITEMS: Record<string, ItemDef> = {
     levels: { 2: { core: { hullMul: 1.66 } }, 3: { core: { hullMul: 2.05 } } },
   },
   drake: {
-    id: "drake", name: "DRAKE NOZZLE", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
+    // 0.6.2m (REQ-BFG-033): sold by the ARCANE DEALER (was the ALCHEMIST; see MERCHANTS)
+    id: "drake", name: "DRAKE NOZZLE", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "arcane",
     desc: ["TURNS FLAT DAMAGE", "INTO BURN. ITS FIRES", "BURN 4S, NOT 3."], tags: ["BURN"],
     core: { routine: "drake", flatPerBurn: 2, addBurn: 1, burnTime: 4, flightMul: 0.7 },
     levels: {
@@ -913,6 +916,13 @@ export interface MerchantDef {
   name: string;
 }
 
+/**
+ * 0.6.2m (REQ-BFG-033, the offer-mix tune): the rig sellers, TINKER and ALCHEMIST, sell no turret cores. rollShop is
+ * fresh-first and every caravan has a rig seller, so a rig seller's cores were its leftovers: once a player owned most
+ * of its rigs, its slots turned to cores (the operator's "more turret cores than rigs"). ROTARY and PRESSURE BREECH
+ * moved to the GUNSMITH, DRAKE NOZZLE to the ARCANE DEALER. Rigs are now offered at least 2x as often as cores and as
+ * turrets on every day 1-10, for a fresh run and for one holding many rigs (tests/shopMix.test.ts).
+ */
 export const MERCHANTS: Record<MerchantId, MerchantDef> = {
   ironmonger: { id: "ironmonger", name: "IRONMONGER" },
   tinker: { id: "tinker", name: "TINKER" },

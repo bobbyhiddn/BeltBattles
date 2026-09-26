@@ -373,9 +373,11 @@ describe("shop: badges and the survivor (folded from review-061's repro files)",
     expect(run.fuseAnim!.map((f) => [f.stars, f.survivor, f.where])).toEqual([[2, 500, "deck"], [3, 500, "deck"]]);
   });
 
-  it("fresh-first: owning whetstone + coil, a one-slot alchemist wagon that skips TEMPER offers the unowned DRAKE", () => {
-    withMerchantParts("alchemist", ["temper", "whetstone", "coil", "drake"], () => {
-      let missing = 0, drake = 0;
+  // 0.6.2m (REQ-BFG-033): the Alchemist no longer sells DRAKE NOZZLE (a core, now the Arcane Dealer's), so its unowned
+  // rare here is VENOM DRIP, a rare rig: the same fresh-first case (common TEMPER unowned, WHETSTONE and COIL owned)
+  it("fresh-first: owning whetstone + coil, a one-slot alchemist wagon that skips TEMPER offers the unowned VENOM", () => {
+    withMerchantParts("alchemist", ["temper", "whetstone", "coil", "venom"], () => {
+      let missing = 0, drake = 0; // drake: wagons offering only the unowned rare (VENOM since 0.6.2m)
       for (let seed = 1; seed <= 250; seed++) {
         const run = newRun("furnace", seed * 97);
         run.inventory = [{ uid: 900, def: "whetstone" }, { uid: 901, def: "coil" }];
@@ -384,7 +386,7 @@ describe("shop: badges and the survivor (folded from review-061's repro files)",
         const alch = run.shop.wagons.find((w) => w.merchant === "alchemist");
         if (!alch || alch.offers.some((o) => o.def === "temper")) continue;
         missing++;
-        if (alch.offers.every((o) => o.def === "drake")) drake++;
+        if (alch.offers.every((o) => o.def === "venom")) drake++;
       }
       expect(missing).toBeGreaterThan(0);
       expect(drake).toBe(missing);
