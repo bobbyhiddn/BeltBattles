@@ -13,6 +13,7 @@ import { bestRot } from "../../sim/beltside"; // 0.6.2 BELTSIDE: the preview's a
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { fitCore } from "../../game/run"; // 0.6.1b
 import { canFitGear, gearSlotsAt, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
+import { dropTurret } from "./turretActions"; // 0.6.2s (REQ-BFG-031 S5)
 
 /** 0.6.2s (S4): why gear can't go on turret slot t, as a player sentence. */
 export function gearRefusal(b: Build, t: number, reason?: string): string {
@@ -49,6 +50,7 @@ export type Src =
   | { from: "route"; index: number; cell: number }
   | { from: "factory"; uid: number }
   | { from: "turret"; index: number }
+  | { from: "mount"; index: number } // 0.6.2s (REQ-BFG-031 S5): an installed turret lifted off TURRET SLOT `index`
   | { from: "cell"; k: number };
 
 export interface Carry {
@@ -214,6 +216,7 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
   const b = run.build;
   const def = ITEMS[c.def];
   const src = c.src;
+  if (def.kind === "turret") return dropTurret(ctx, c, x, y); // 0.6.2s (REQ-BFG-031 S5): install, swap, move, store
   if (inside(L.cargo, x, y)) {
     if (src.from === "offer") {
       const r = buy(ctx, src.wagon, src.slot);

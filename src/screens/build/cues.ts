@@ -166,6 +166,17 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
       frame(g, x - 13, y - 13, 26, 26, taken ? C.red : C.lime);
     }
   }
+  if (def.kind === "turret") {
+    // 0.6.2s (REQ-BFG-031 S5, S10): every TURRET SLOT is a target (amber brackets); the one under the pointer shows
+    // what the drop does: lime installs in an empty slot, yellow swaps with the turret there
+    const ti = turretAt(px, py);
+    turretSlots(b).forEach((s, i) => {
+      const x = Math.round(turretPivotX(L.frame, s.col0, s.width)), y = Math.round(turretPivotY(L.frame, s.col0, s.width));
+      const here = i === ti;
+      frame(g, x - 13, y - 13, 26, 26, here ? (s.turret && !(c.src.from === "mount" && c.src.index === i) ? C.yellow : C.lime) : C.amber);
+      if (here) frame(g, x - 14, y - 14, 28, 28, C.ink);
+    });
+  }
   if (def.kind === "supply" && inside(L.hull, px, py)) frame(g, L.hull.x - 2, L.hull.y - 2, L.hull.w + 4, L.hull.h + 4, C.lime);
   // lifted: the 2x tile above the pointer, contact shadow under the pointer
   drawLifted(g, c.def, px, py, 4 + lift + bob, 1, rig ? liftedArrows(L, b, c, null) : undefined);

@@ -15,6 +15,7 @@ import { inside } from "../../ui/ui";
 import { drop, dropCell, rigRotAt, rotate, type Carry, type Ctx, type Src } from "./actions";
 import type { Sel } from "./layout";
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
+import { turretSlots } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
 
 export interface EditHost extends Ctx {
   sel: Sel;
@@ -60,6 +61,12 @@ export class Editor {
       this.press = null;
       if (f) this.lift({ src: { from: "deck", uid: f.uid }, def: f.def, uid: f.uid });
       if (f) this.h.select({ kind: "item", uid: f.uid });
+    } else if (p && p.src.from === "turret" && !this.selectedCarry() && (p.t += dt) > 0.38) {
+      // 0.6.2s (REQ-BFG-031 S5): hold an installed turret to lift the turret itself (a drag lifts its gear first);
+      // not while a card or cargo part is picked for tap-to-place (a slow tap still fits it)
+      const index = p.src.index;
+      this.press = null;
+      this.liftMount(index);
     } else if (p) p.t += dt;
   }
 
@@ -67,6 +74,14 @@ export class Editor {
     this.carry = c;
     this.carryT = 0;
     this.h.game.audio.play("pickup");
+  }
+
+  /** 0.6.2s (REQ-BFG-031 S5): lift the turret installed in slot `index` (to move, swap or store it). */
+  private liftMount(index: number): void {
+    const t = turretSlots(this.h.run.build)[index]?.turret;
+    if (!t) return;
+    this.lift({ src: { from: "mount", index }, def: t.def, uid: t.uid });
+    this.h.select({ kind: "turret", index });
   }
 
   private pick(x: number, y: number): Src | null {
@@ -182,6 +197,7 @@ export class Editor {
       }
       if (def.kind === "mod" && src.from !== "turret") return h.invalid("DROP TURRET GEAR ON A TURRET");
       if (def.kind === "core" && src.from !== "turret") return h.invalid("DROP A TURRET CORE ON A TURRET"); // 0.6.1b
+      if (def.kind === "turret" && src.from !== "turret") return h.invalid("DROP A TURRET ON A TURRET SLOT"); // 0.6.2s
       drop(h, held, x, y);
       return;
     }
@@ -231,6 +247,7 @@ export class Editor {
       case "turret": {
         const m = gearFor(b, src.index) ?? coreFor(b, src.index); // 0.6.1b: the gear first, else the bought core
         if (m) this.lift({ src: { from: "mod", uid: m.uid }, def: m.def, uid: m.uid });
+        else this.liftMount(src.index); // 0.6.2s (S5): else the turret itself
         return;
       }
       case "route": {
