@@ -12,12 +12,14 @@
 // Three templates also correct a desc the UI can't change at its source: CALIBRATION's and ESCAPEMENT's desc quote the
 // interval's cut (25%, 10%) where the turret fires 33% and 11% faster, and ESCAPEMENT's, LONGCASE's and CLOCKWORKS'
 // quote glued seconds (1.2S, 2S, 4.2S); tests/races.metronome.test.ts pins those race descs, so the UI says it right.
+// 0.6.2rel: FB-B's QUENCH, SURGE and HOPPER rules (CAND-A 1) read here in the same words, and each buyable turret
+// (REQ-BFG-031) has a template too: its desc quotes the 1-star fire interval with a glued second.
 
 import { AMMO, BURN_TIME, FRAY_BONUS, ITEMS, SHAPE_ARROWS, type ItemDef } from "../../sim/content";
 import { PEAK_SHIFT, PENDULUM } from "../../sim/races/data";
 import { scaleCore } from "../../sim/cores";
 import { effectAt } from "../../sim/stars";
-import { n1, onlineIn, peakTiles, percent, rateText, seconds, speedText, times } from "../../ui/abilityText";
+import { every, n1, onlineIn, peakTiles, percent, plural, rateText, seconds, speedText, times } from "../../ui/abilityText";
 
 const WORDS = ["NONE", "ONE", "TWO", "THREE", "FOUR", "FIVE"];
 const word = (n: number): string => WORDS[n] ?? String(n);
@@ -64,9 +66,13 @@ export const STAR_FLAVOUR: Record<string, Template> = {
   sifter: (e) => (gate(e).sift === "all"
     ? ["REMOVES CHILL AND SNAG FROM EVERY PASSING PAYLOAD."]
     : ["REMOVES CHILL OR SNAG FROM PASSING PAYLOADS IN ORDER."]),
+  // 0.6.2 FB-B (CAND-A 1): every star pays its per-pulse flat (1/2/3); locked belts take lockedFlat instead (3/6/10)
   surge: (e) => {
     const p = gate(e).pulse!;
-    return [`PULSES ${speedText(p.speed)} FOR ${seconds(p.on)} EVERY ${seconds(p.period)}.`, `METRONOME'S LOCKED BELTS GAIN +${n1(gate(e).lockedFlat!)} DAMAGE.`];
+    return [
+      `PULSES ${speedText(p.speed)} FOR ${seconds(p.on)} EVERY ${seconds(p.period)}, +${n1(p.flat)} DAMAGE FOR EACH PULSE RIDDEN.`,
+      `METRONOME'S LOCKED BELTS GAIN +${n1(gate(e).lockedFlat!)} DAMAGE.`,
+    ];
   },
   sorting: (e) => {
     const s = gate(e).sort!;
@@ -82,7 +88,11 @@ export const STAR_FLAVOUR: Record<string, Template> = {
     return [`BLOWS AFTER ${seconds(k.fuse)}: ${k.wide ? "ALL BELTS BESIDE IT" : "PAYLOADS ON ITS BELT"} GAIN +${n1(k.flat)} DAMAGE AND ${k.burn} BURN.`];
   },
   bellows: (e) => [`ADDS BURN FROM RIDE TIME SO FAR, UP TO ${gate(e).burnPerRide!.max} STACKS.`],
-  quench: (e) => [`TURNS BURN STACKS INTO +${n1(gate(e).quench!.perBurn)} DAMAGE EACH, UP TO +${n1(gate(e).quench!.max)} DAMAGE.`],
+  // 0.6.2 FB-B (CAND-A 1): +flat to every payload it hits, then up to `stacks` Burn turn into +perBurn each (more stays Burn)
+  quench: (e) => {
+    const q = gate(e).quench!;
+    return [`+${n1(q.flat)} DAMAGE TO EVERY PAYLOAD.`, `TURNS UP TO ${q.stacks} BURN INTO +${n1(q.perBurn)} DAMAGE EACH.`];
+  },
   lodestone: (e) => [`+${n1(gate(e).perStalled!.each)} DAMAGE FOR EACH ENEMY MACHINE STALLED RIGHT NOW.`],
   barbed: (e) => [`HITS ADD ${gate(e).fray} FRAY.`, `LATER HITS DEAL +${n1(FRAY_BONUS)} DAMAGE FOR EACH STACK.`],
   counterweight: (e) => [`+${n1(gate(e).perTile!.each)} DAMAGE FOR EACH BELT TILE ALREADY RIDDEN, UP TO +${n1(gate(e).perTile!.max)} DAMAGE.`],
@@ -157,9 +167,15 @@ export const STAR_FLAVOUR: Record<string, Template> = {
     : (mod(e).rerolls ?? 0) > 1
       ? ["TURRET REROLLS BARE-HULL TARGETS TOWARD MACHINERY."]
       : ["TURRET REROLLS A BARE-HULL TARGET TOWARD MACHINERY."]),
+  // 0.6.2 FB-B (CAND-A 1): every star keeps ★1's +1 slot and +0.5 s; ★2/★3 hold 1/2 more loads while the gun fires
+  // (the store); ★3 never jams
   hopper: (e) => {
-    const w = mod(e).window!;
-    return [`CHAMBER HOLDS ${w} MORE LOAD${w === 1 ? "" : "S"} AND WAITS ${seconds(mod(e).windowTime!)} LONGER.`];
+    const md = mod(e), w = md.window!;
+    return [
+      `CHAMBER HOLDS ${w} MORE LOAD${w === 1 ? "" : "S"} AND WAITS ${seconds(md.windowTime!)} LONGER.`,
+      ...(md.store ? [`STORES ${md.store} MORE WHILE FIRING.`] : []),
+      ...(md.noJam ? ["NEVER JAMS."] : []),
+    ];
   },
   ram: (e) => [`THE LAST PAYLOAD OUT OF THE CHAMBER HITS ${percent(mod(e).finisher!)} HARDER.`],
   // the desc's numbers are pinned by tests/races.metronome.test.ts, so T2's units and the rate are fixed here, in the UI
@@ -174,6 +190,17 @@ export const STAR_FLAVOUR: Record<string, Template> = {
   // --- a signature factory whose desc quotes a glued second (METRONOME's; races/data.ts is left as it is) ---
   clockworks: () => ["STAMPS PENDULUM SLUGS.", `THEY PEAK AFTER ${seconds(PENDULUM.peak)} OF RIDE: ${peakTiles(PENDULUM.peak)} TILES.`],
 };
+
+/**
+ * 0.6.2rel (REQ-BFG-031, T7): every buyable turret's desc states its class, fire interval and loads ("HEAVY TURRET. FIRES
+ * EVERY 1S. HOLDS 3 LOADS.") and ★2/★3 change the interval (x0.9, x0.8), so each turret takes this template: the desc's
+ * words with that star's numbers (TurretSpec via effectAt) in T2's units. The desc stays the catalogue's 1-star storage.
+ */
+const turretFlavour: Template = (e) => {
+  const t = e.turret!;
+  return [`${t.class.toUpperCase()} TURRET.`, `FIRES ${every(t.fireInterval)}.`, `HOLDS ${plural(t.window, "LOAD")}.`];
+};
+for (const d of Object.values(ITEMS)) if (d.kind === "turret") STAR_FLAVOUR[d.id] = turretFlavour;
 
 /**
  * A module's flavour at `stars` (on a turret of class factor `k`, for a core's absolute numbers): its template's

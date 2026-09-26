@@ -9,7 +9,8 @@ import { key as K, setTurretList, turretSlots } from "../src/sim/deck";
 import type { Carry, Ctx } from "../src/screens/build/actions";
 import type { Sel } from "../src/screens/build/layout";
 import { deadEndsAfter, dropTurret, sellTurretAt } from "../src/screens/build/turretActions";
-import { deadEndLines, slotNotes, socketLines, turretFacts } from "../src/screens/build/turretPanel";
+import { deadEndLines, slotNotes, socketLines, turretFacts, type SocketRow } from "../src/screens/build/turretPanel";
+import { gist } from "../src/ui/abilityText"; // 0.6.2rel
 
 const CARGO = { x: 100, y: 100, w: 100, h: 20 };
 const HULL = { x: 0, y: 0, w: 60, h: 60 };
@@ -97,26 +98,32 @@ describe("0.6.2s build screen: turret commands (S5)", () => {
     expect(dropTurret(ctx, cargoCarry(run, 702), at(1).x, at(1).y)).toBe(true);
     expect(deadEndsAfter(ctx, [1])).toEqual([1]);
     expect(log.toasts.pop()).toBe("BELT 2 IS A DEAD END NOW");
-    expect(deadEndLines(b, 1)).toEqual([["BELT 2 IS A DEAD END: THIS TURRET TAKES NO BELT ON COLUMN 10. RE-ROUTE IT TO FIGHT.", expect.any(String)]]);
+    // 0.6.2rel: whole sentences (the panel draws them as warnings, in amber); the short form for a short band
+    expect(deadEndLines(b, 1)).toEqual(["BELT 2 IS A DEAD END: THIS TURRET TAKES NO BELT ON COLUMN 10. RE-ROUTE IT TO FIGHT."]);
+    expect(deadEndLines(b, 1, true)).toEqual(["BELT 2 IS A DEAD END ON COLUMN 10."]);
     // the slot emptied: an empty slot takes no belts either
     expect(dropTurret(ctx, mountCarry(run, 1), 150, 110)).toBe(true);
-    expect(deadEndLines(b, 1)[0][0]).toBe("BELT 2 IS A DEAD END: AN EMPTY SLOT TAKES NO BELT ON COLUMN 10. RE-ROUTE IT TO FIGHT.");
+    expect(deadEndLines(b, 1)[0]).toBe("BELT 2 IS A DEAD END: AN EMPTY SLOT TAKES NO BELT ON COLUMN 10. RE-ROUTE IT TO FIGHT.");
   });
 });
 
 describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
-  it("a turret card: fire rate and loads, gear slots, reason, intake, the next star", () => {
+  it("a turret card: its class, fire rate and loads, the star's rate, intake, gear slots and core socket, the next star", () => {
+    // 0.6.2rel (REQ-BFG-032): the glossary's turret block (abilityText.ts); the seconds as words at most two decimals
+    // (0.495 reads 0.49); merge progress is its own sentence on the panel ("1 MORE COPY TO MERGE."), not in the
+    // next-star line; the catalogue's reason line isn't shown (it repeats these facts at 1 star)
     expect(turretFacts("bombard", 1)).toEqual([
-      "FIRES EVERY 1 S AND HOLDS 4 LOADS.",
-      "2 GEAR SLOTS AND 1 CORE SOCKET.",
-      "A HEAVY GUN THAT HOLDS 4 LOADS.",
-      "IT TAKES BELTS ON BOTH ITS COLUMNS.",
-      "NEXT ★2: IT FIRES EVERY 0.9 S AND HAS 3 GEAR SLOTS. MERGE TWO ★1 COPIES TO GET IT.",
+      "A HEAVY TURRET THAT FIRES EVERY 1 SECOND AND HOLDS 4 LOADS.",
+      "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.",
+      "IT HAS 2 GEAR SLOTS AND 1 CORE SOCKET.",
+      "ITS SHOTS LAND 0.6 SECONDS AFTER IT FIRES.",
+      "NEXT STAR: FIRES EVERY 0.9 SECONDS, 3 GEAR SLOTS.",
     ]);
-    expect(turretFacts("dartgun", 2)[0]).toBe("FIRES EVERY 0.495 S AND HOLDS 2 LOADS.");
-    expect(turretFacts("dartgun", 2)).toContain("NEXT ★3: IT FIRES EVERY 0.44 S AND HAS 3 GEAR SLOTS. MERGE TWO ★2 COPIES TO GET IT.");
+    expect(turretFacts("dartgun", 2).slice(0, 2)).toEqual(["A LIGHT TURRET THAT FIRES EVERY 0.49 SECONDS AND HOLDS 2 LOADS.", "IT FIRES 11% FASTER THAN AT 1 STAR."]);
+    expect(turretFacts("dartgun", 2)).toContain("NEXT STAR: FIRES EVERY 0.44 SECONDS, 3 GEAR SLOTS.");
     expect(turretFacts("thunderer", 3)).toEqual([
-      "FIRES EVERY 0.64 S AND HOLDS 4 LOADS.", "6 GEAR SLOTS AND 1 CORE SOCKET.", expect.any(String), "IT TAKES BELTS ON BOTH ITS COLUMNS.",
+      "A HEAVY TURRET THAT FIRES EVERY 0.64 SECONDS AND HOLDS 4 LOADS.", "IT FIRES 25% FASTER THAN AT 1 STAR.",
+      "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.", "IT HAS 6 GEAR SLOTS AND 1 CORE SOCKET.", "ITS SHOTS LAND 0.5 SECONDS AFTER IT FIRES.",
     ]);
     expect(turretFacts("spikegun", 1)).toContain("IT TAKES A BELT ON ITS INNER COLUMN ONLY.");
     // plain sentences: no dot chains, every line ends with a full stop
@@ -134,12 +141,15 @@ describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
     setTurretList(b, [{ slot: 0, def: "scrapcannon", uid: 90, free: true }, { slot: 1, def: "siegegun", uid: 800 }]);
     b.mods.push({ uid: 801, def: "chamber", turret: 1, stars: 2 });
     const fx = (d: string, s: number) => `${d.toUpperCase()} AT ${s}`;
-    expect(socketLines(b, 1, "KILN BREECH", fx)).toEqual([
-      "CORE SOCKET: KILN BREECH", "GEAR SLOT 1: EXT. CHAMBER ★★, CHAMBER AT 2", "GEAR SLOT 2: EMPTY", "GEAR SLOT 3: EMPTY",
+    // 0.6.2rel: labelled rows (the panel aligns their values); a gear piece's clause after its name is the glossary's gist
+    const rows = (rs: SocketRow[]) => rs.map((r) => `${r.label}: ${r.text}`);
+    expect(rows(socketLines(b, 1, "KILN BREECH", fx))).toEqual([
+      "CORE: KILN BREECH", "GEAR 1: EXT. CHAMBER ★★: CHAMBER AT 2.", "GEAR 2: EMPTY", "GEAR 3: EMPTY",
     ]);
-    expect(socketLines(b, 1, "KILN BREECH", fx, true)).toEqual(["CORE SOCKET: KILN BREECH", "3 GEAR SLOTS: EXT. CHAMBER ★★, 2 EMPTY"]);
-    expect(socketLines(b, 0, "KILN BREECH", fx)).toEqual(["CORE SOCKET: KILN BREECH", "GEAR SLOT 1: EMPTY"]);
-    expect(slotNotes(b, 0)).toContain("YOUR HULL'S FREE STARTING TURRET. IT CAN'T BE SOLD AT 1 STAR.");
+    expect(rows(socketLines(b, 1, "KILN BREECH", fx, true))).toEqual(["CORE: KILN BREECH", "GEAR: EXT. CHAMBER ★★ AND 2 EMPTY"]);
+    expect(rows(socketLines(b, 0, "KILN BREECH", fx))).toEqual(["CORE: KILN BREECH", "GEAR: EMPTY"]);
+    expect(socketLines(b, 1, "KILN BREECH", (d, s) => gist(d, s))[1].text).toBe(`EXT. CHAMBER ★★: ${gist("chamber", 2)}.`);
+    expect(slotNotes(b, 0)).toContain("IT IS YOUR HULL'S FREE STARTING TURRET, SO IT CAN'T BE SOLD AT 1 STAR.");
     expect(slotNotes(b, 0)[0]).toBe("IT TAKES BELTS ON COLUMNS 5 AND 6.");
     expect(socketLines(b, 5, "X", fx)).toEqual([]);
   });

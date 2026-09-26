@@ -20,8 +20,12 @@ const FAMILY = process.argv[3] ?? "";
 const ORIGIN = "http://bb.test";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 const PLATFORMS = { desk: VIEWS.desk, phone: VIEWS.phone };
-/** Families in catalogue kind order, with their sheet names. */
-const FAMILIES = [["gate", "rigs", "RIGS"], ["factory", "factories", "FACTORIES"], ["core", "cores", "TURRET CORES"], ["mod", "gear", "TURRET GEAR"], ["supply", "supplies", "SUPPLIES"]];
+/** Families in catalogue kind order, with their sheet names (0.6.2rel: the 13 buyable turrets, REQ-BFG-031; a turret's
+ *  panel is the copy in cargo, like a core's or a piece of gear's). */
+const FAMILIES = [
+  ["gate", "rigs", "RIGS"], ["factory", "factories", "FACTORIES"], ["core", "cores", "TURRET CORES"], ["mod", "gear", "TURRET GEAR"],
+  ["turret", "turrets", "TURRETS"], ["supply", "supplies", "SUPPLIES"],
+];
 const PER_SHEET = 6; // modules (rows) a sheet
 const SCALE = 2; // logical px -> sheet px
 

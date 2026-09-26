@@ -17,10 +17,13 @@
 //   hitText(h, belt)             one rig hit in a belt's timeline (a labelled stat row; belt: free, locked or slag);
 //                                slagPulseExtra(rows, belt) the pulse damage a SLAG belt's walk counts but the sim never pays
 //   hasAbilityText(def), livePerk(def, stars): which modules have text; a star's perk unless its values are pending
+//   0.6.2rel, the turret panel's sentences: gatlingClashText(def, stars) (gear that does nothing on a GATLING SPOOL),
+//                                shieldText(n) (a MANTLET ★2/★3's shielded belt tiles), STALL_WORD (FB-B's stall names)
 //   units: seconds(), damage(), moreDamage(), percent(), faster(), speedText(), rateText(), times(), plural(), every(),
 //          nth(), onlineIn(), peakTiles(), n1(), n2()
-// Adding a module (the turret task's buyable turrets): one ENTRIES row (text, gist, optional card and perkAt) built from
-// these units; tests/abilityText.test.ts then needs its NUMBERS row, and every rule (T1-T7) applies to it unchanged.
+// Adding a module: one ENTRIES row (text, gist, optional card and perkAt) built from these units;
+// tests/abilityText.test.ts then needs its NUMBERS row, and every rule (T1-T7) applies to it unchanged. 0.6.2rel: the 13
+// buyable turrets (REQ-BFG-031) share one block (TURRET, below), read from each one's TurretSpec at its stars.
 // Numbers always come from the module's real spec at that star (effectAt; a core's absolute numbers x k, as scaleCore
 // does), from the catalogue's exported constants, or from SIM below (engine numbers no spec carries, each checked
 // against its source by tests/abilityText.test.ts). Turret modules the turret task adds route their text through here.
@@ -53,7 +56,7 @@ import {
 import { PEAK_SHIFT, PENDULUM } from "../sim/races/data";
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, pendingAt, perkAt } from "../sim/stars";
-import type { TimelineHit } from "../sim/deck";
+import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 
 /**
  * The engine's numbers that no module spec carries and the sim doesn't export. Each is quoted from its source
@@ -192,12 +195,46 @@ export const S = {
   machines: "A SHOT AT A MACHINE STILL DAMAGES THE ENEMY HULL.",
 };
 
-/** A turret's stalls a MANTLET ignores, as words (the spec's own list, in its order). */
-const CAUSE: Partial<Record<HarassCause, string>> = { shock: "SHOCK", static: "STATIC", arc: "ARCS", drag: "CHAINS", freeze: "FROST", sabot: "SABOTS" };
+/** 0.6.2 FB-B: the stalls a MANTLET's turret ignores, in the words the shop uses for their sources (drag: DRAG CHAIN
+ *  FOUNDRY, rip: GRAPNEL GUN); the spec's own list, in its order. */
+export const STALL_WORD: Record<HarassCause, string> = {
+  shock: "SHOCK", static: "STATIC", arc: "ARC", drag: "CHAIN", freeze: "FROST", sabot: "SABOT", rip: "GRAPNEL", limpet: "LIMPET", sap: "SAP",
+};
 function list(words: string[]): string {
   return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} AND ${words[words.length - 1]}`;
 }
-const immunities = (e: ItemDef): string => list((m(e).immune ?? []).map((k) => CAUSE[k]).filter((s): s is string => !!s));
+const immunities = (e: ItemDef): string => list((m(e).immune ?? []).map((k) => STALL_WORD[k]));
+/** 0.6.2 FB-B: MANTLET ★2 FULL PLATE shields the last tile of each belt into its turret, ★3 BULWARK SKIRT the last 3
+ *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it); a rig with an arrow on a shielded
+ *  tile is shielded too (Battle.skirted), against the turret's own list. */
+const shielded = (n: number): string => (n === 1
+  ? "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT."
+  : `SO DO THE LAST ${n} TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.`);
+/** MANTLET's clause at a star: at ★1 the stalls it ignores; above, the stalls that star adds and the tiles it shields. */
+function mantletGist(e: ItemDef, stars: number): string {
+  const was = stars > 1 ? effectAt("mantlet", stars - 1).mod?.immune ?? [] : [];
+  const added = (m(e).immune ?? []).filter((c) => !was.includes(c)), guard = m(e).intakeGuard ?? 0;
+  return [
+    ...(stars <= 1 ? [`IGNORES ${immunities(e)} STALLS`] : added.length ? [`IGNORES ${list(added.map((c) => STALL_WORD[c]))} TOO`] : []),
+    ...(guard ? [`SHIELDS THE LAST ${guard === 1 ? "TILE" : `${guard} TILES`} OF EACH BELT IN`] : []),
+  ].join(", ");
+}
+
+/** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's sentence for a turret whose MANTLET ★2/★3 shields `n` belt tiles. */
+export function shieldText(n: number): string {
+  return `SHIELDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN, AND THE RIGS WORKING ${n === 1 ? "IT" : "THEM"}.`;
+}
+
+/**
+ * 0.6.1p (the Prime's call) and 0.6.2 CAND-A: what a piece of gear can't do on a GATLING SPOOL, which never waits for a
+ * full chamber (cores.ts gatlingReady never reads the load time): HOPPER's longer load time (0.6.2 FB-B: its ★2/★3 store
+ * still takes loads while the barrel cools, tests/fb062.mech.test.ts) and FINISHER RAM's last load. Null for other gear.
+ */
+export function gatlingClashText(def: string, stars: number): string | null {
+  if (def === "hopper") return `GATLING SPOOL: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${effectAt(def, stars).mod?.store ? ", BUT ITS STORE STILL WORKS" : ""}.`;
+  if (def === "ram") return "GATLING SPOOL: NO FULL CHAMBER, SO THE FINISHER RAM DOES NOTHING.";
+  return null;
+}
 
 /** The belt tiles a pendulum slug rides by `secs` on a METRONOME belt (locked at normal speed: a tile every CELL /
  *  BELT_SPEED seconds, half a tile in): ESCAPEMENT's 3 s peak is 7 tiles, CLOCKWORKS' 4.2 s is 10, LONGCASE's 5.4 s 13. */
@@ -386,11 +423,17 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `BURN FOR RIDE TIME, UP TO ${g(e).burnPerRide!.max}`,
   },
   quench: {
-    text: (e) => [
-      `TURNS EACH BURN ON A PAYLOAD INTO ${damage(g(e).quench!.perBurn)}, UP TO ${damage(g(e).quench!.max)}.`,
-      "THE PAYLOAD LOSES ALL ITS BURN.",
-    ],
-    gist: (e) => `${damage(g(e).quench!.perBurn)} FOR EACH BURN, UP TO ${damage(g(e).quench!.max)}`,
+    // 0.6.2 FB-B (Battle.applyHit): + flat on every payload it hits; then up to `stacks` of the payload's Burn, each
+    // spent for perBurn more damage (a Burn is worth 1 damage a second for 3 seconds); any more Burn stays on it
+    text: (e) => {
+      const q = g(e).quench!;
+      return [
+        `ADDS ${damage(q.flat)} TO EACH PAYLOAD IT HITS, THEN TURNS UP TO ${q.stacks} OF ITS BURN INTO ${moreDamage(q.perBurn)} EACH.`,
+        "ANY MORE BURN STAYS ON THE PAYLOAD.",
+        S.burn,
+      ];
+    },
+    gist: (e) => `ADDS ${damage(g(e).quench!.flat)}, THEN ${moreDamage(g(e).quench!.perBurn)} FOR EACH BURN, UP TO ${g(e).quench!.stacks} BURN`,
     card: () => "TURNS BURN INTO DAMAGE",
   },
   staticbrush: {
@@ -775,27 +818,37 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "RE-AIMS SHOTS OFF BARE HULL",
   },
   hopper: {
-    // makeTurret: + window slots, + seconds to the load time (a GATLING never reads it); ★3 BOTTOMLESS never jams
-    text: (e) => [
-      `THE CHAMBER HOLDS ${plural(m(e).window!, "MORE LOAD")}, AND THE LOAD TIME IS ${seconds(m(e).windowTime!)} LONGER.`,
-      ...(m(e).noJam ? ["THE TURRET NEVER JAMS."] : []),
-      S.chamber,
-      "ON A GATLING SPOOL THE LONGER LOAD TIME DOES NOTHING.",
-    ],
-    perkAt: (e) => (m(e).noJam ? 1 : 0),
-    gist: (e) => `HOLDS ${plural(m(e).window!, "MORE LOAD")}${m(e).noJam ? ", NEVER JAMS" : `, LOAD TIME ${seconds(m(e).windowTime!)} LONGER`}`,
+    // makeTurret: + window slots, + seconds to the load time (a GATLING never reads it). 0.6.2 FB-B: every star keeps
+    // ★1's +1 slot and +0.5 s; ★2/★3 add a store (TurretState.storeMax 1/2: loads taken off the belt while the gun
+    // fires, dropped into the next chamber, Battle.chambers); ★3 BOTTOMLESS never jams
+    text: (e) => {
+      const md = m(e), store = md.store ?? 0;
+      return [
+        `THE CHAMBER HOLDS ${plural(md.window!, "MORE LOAD")}, AND THE LOAD TIME IS ${seconds(md.windowTime!)} LONGER.`,
+        ...(store ? [`WHILE THE TURRET FIRES, IT STORES ${plural(store, "LOAD")} FROM THE BELT FOR ITS NEXT CHAMBER.`] : []),
+        ...(md.noJam ? ["THE TURRET NEVER JAMS."] : []),
+        S.chamber,
+        "ON A GATLING SPOOL THE LONGER LOAD TIME DOES NOTHING.",
+      ];
+    },
+    perkAt: (e) => (m(e).noJam ? (m(e).store ? 2 : 1) : 0),
+    gist: (e) => {
+      const md = m(e);
+      return md.store ? `STORES ${plural(md.store, "LOAD")} WHILE IT FIRES${md.noJam ? ", NEVER JAMS" : ""}`
+        : `HOLDS ${plural(md.window!, "MORE LOAD")}, LOAD TIME ${seconds(md.windowTime!)} LONGER`;
+    },
     card: (e) => `CHAMBER HOLDS ${plural(m(e).window!, "MORE LOAD")}`,
   },
   mantlet: {
-    // Battle.acceptHarassment: the turret ignores its immune causes; ★3 BULWARK SKIRT: the last intakeGuard tiles of
-    // its belts, and the rigs working them, too (skirted)
+    // Battle.acceptHarassment: the turret ignores its immune causes (0.6.2 FB-B's words); ★2 FULL PLATE adds FROST and
+    // SABOT and shields the last tile of each belt into the turret, ★3 BULWARK SKIRT the last 3, and the rigs working them
     text: (e) => [
-      `THE TURRET IGNORES ${immunities(e)}.`,
-      ...(m(e).intakeGuard ? [`SO DO THE LAST ${m(e).intakeGuard} TILES OF EACH BELT INTO IT AND THE RIGS WORKING THEM.`] : []),
+      `THE TURRET IGNORES ${immunities(e)} STALLS.`,
+      ...(m(e).intakeGuard ? [shielded(m(e).intakeGuard!)] : []),
     ],
     perkAt: (e) => (m(e).intakeGuard ? 1 : 0),
-    gist: (e, x) => (m(e).intakeGuard ? `GUARDS THE LAST ${m(e).intakeGuard} BELT TILES` : x.stars >= 2 ? "IGNORES FROST AND SABOTS TOO" : `IGNORES ${immunities(e)}`),
-    card: () => "IGNORES SHOCK AND CHAINS",
+    gist: (e, x) => mantletGist(e, x.stars),
+    card: () => "IGNORES SHOCK AND CHAIN STALLS",
   },
   ram: {
     text: (e) => [`THE LOAD THAT EMPTIES THE CHAMBER DEALS ${percent(m(e).finisher!)} MORE DAMAGE.`, S.gatling],
@@ -829,8 +882,34 @@ const ENTRIES: Record<string, Entry> = {
   },
 };
 
-/** The modules with ability text: every buyable module and both supplies. A hero's signature factory (never sold) has
- *  none: its panel shows its catalogue desc (flavour.ts). */
+/** 0.6.2rel: a turret class as a word ("AN ADAPTABLE TURRET"). */
+const CLASS_WORD: Record<string, string> = { heavy: "HEAVY", medium: "MEDIUM", light: "LIGHT", adaptable: "ADAPTABLE" };
+
+/**
+ * 0.6.2rel (REQ-BFG-031 S2-S4, S6): the turret block, every buyable turret's entry (content.ts, kind "turret"), read
+ * from its TurretSpec at the star (effectAt): what it is (its class, how often it fires and the loads its chamber holds),
+ * the star's fire rate against 1 star (★2 fires every x0.9 of the interval, ★3 x0.8, said as a rate: x0.9 fires
+ * 1 / 0.9 = 11% faster), the columns it takes belts on (S2: both, or the inner one), its gear slots (S4: the rarity's
+ * GEAR_SLOTS + 1 for each star above 1, deck.ts gearSlotsOf) and its one core socket, and how soon its shots land.
+ */
+const TURRET: Entry = {
+  text: (e, x) => {
+    const t = e.turret!, one = ITEMS[e.id].turret!.fireInterval;
+    return [
+      `${an(CLASS_WORD[t.class] ?? t.class.toUpperCase())} TURRET THAT FIRES ${every(t.fireInterval)} AND HOLDS ${plural(t.window, "LOAD")}.`,
+      ...(t.fireInterval < one - 1e-9 ? [`IT FIRES ${faster(one / t.fireInterval)} THAN AT 1 STAR.`] : []),
+      t.intake === "inner" ? "IT TAKES A BELT ON ITS INNER COLUMN ONLY." : "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.",
+      `IT HAS ${plural(gearSlotsOf(e.id, x.stars), "GEAR SLOT")} AND 1 CORE SOCKET.`,
+      `ITS SHOTS LAND ${seconds(t.flight)} AFTER IT FIRES.`,
+    ];
+  },
+  gist: (e, x) => `FIRES ${every(e.turret!.fireInterval)}, ${plural(gearSlotsOf(e.id, x.stars), "GEAR SLOT")}`,
+  card: (e) => `FIRES ${every(e.turret!.fireInterval)}`, // the landscape card's two lines hold the rate; the panel the rest
+};
+for (const d of Object.values(ITEMS)) if (d.kind === "turret") ENTRIES[d.id] = TURRET;
+
+/** The modules with ability text: every buyable module (0.6.2rel: the turrets too) and both supplies. A hero's signature
+ *  factory (never sold) has none: its panel shows its catalogue desc (flavour.ts). */
 export function hasAbilityText(def: string): boolean {
   return Object.prototype.hasOwnProperty.call(ENTRIES, def);
 }
@@ -940,7 +1019,8 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.staticTime) return `${name} STALLS A TURRET ${n2(e.staticTime)} SEC ON BARE HULL`;
   if (e.poison) return `${name} +${e.poison} POISON`;
   if (e.fray) return `${name} +${e.fray} FRAY`;
-  if (e.quench) return `${name} +${damage(h.flat ?? 0)} FROM BURN`;
+  // 0.6.2 FB-B: its flat, plus perBurn for each Burn stack it spent (deck.ts walkRoute's quenched)
+  if (e.quench) return `${name} +${damage(h.flat ?? 0)}${h.quenched ? ` (${h.quenched} BURN SPENT)` : ""}`;
   const parts = [
     ...(h.flat ? [`+${damage(h.flat)}`] : []),
     ...(h.burn ? [`+${h.burn} BURN`] : []),

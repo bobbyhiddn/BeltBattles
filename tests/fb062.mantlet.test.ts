@@ -11,7 +11,8 @@ import { hitsOfRig, key, rigHits, rotField, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { rotFacing } from "../src/sim/beltside";
 import { effectAt } from "../src/sim/stars";
-import { levelLine, shieldLine, starEffectLine } from "../src/screens/build/inspector";
+import { shieldLine } from "../src/screens/build/inspector";
+import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2rel: the glossary's words (REQ-BFG-032)
 import { barge, bench, busy } from "./arsenal.bench";
 
 const STARS = [1, 2, 3];
@@ -184,16 +185,23 @@ describe("FB-B MANTLET: FULL PLATE shields the belt tile feeding its turret", ()
   });
 
   it("player text: each star line names the stalls and the shielded tile; the turret panel says rigs share it", () => {
-    expect(STARS.map((s) => starEffectLine("mantlet", s))).toEqual([
-      "STALL-PROOF: SHOCK, STATIC, ARC, CHAIN",
-      "+FROST, SABOT · SHIELDS THE BELT TILE FEEDING ITS TURRET",
-      "+FROST, SABOT · SHIELDS THE LAST 3 BELT TILES FEEDING ITS TURRET",
+    // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's sentences (abilityText) and clauses (gist); the perk's
+    // name follows the shield sentence it names
+    const six = "THE TURRET IGNORES SHOCK, STATIC, ARC, CHAIN, FROST AND SABOT STALLS.";
+    expect(STARS.map((s) => abilityText("mantlet", s).sentences)).toEqual([
+      ["THE TURRET IGNORES SHOCK, STATIC, ARC AND CHAIN STALLS."],
+      [six, "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT."],
+      [six, "SO DO THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM."],
     ]);
-    expect(levelLine("mantlet", 2)).toBe("★2 FULL PLATE: +FROST, SABOT · SHIELDS THE BELT TILE FEEDING ITS TURRET");
-    expect(levelLine("mantlet", 3)).toBe("★3 BULWARK SKIRT: +FROST, SABOT · SHIELDS THE LAST 3 BELT TILES FEEDING ITS TURRET");
+    expect([2, 3].map((s) => abilityText("mantlet", s).perk)).toEqual([{ name: "FULL PLATE", stars: 2, after: 1 }, { name: "BULWARK SKIRT", stars: 3, after: 1 }]);
+    expect(STARS.map((s) => gist("mantlet", s))).toEqual([
+      "IGNORES SHOCK, STATIC, ARC AND CHAIN STALLS",
+      "IGNORES FROST AND SABOT TOO, SHIELDS THE LAST TILE OF EACH BELT IN",
+      "SHIELDS THE LAST 3 TILES OF EACH BELT IN",
+    ]);
     expect([shieldLine(1), shieldLine(3)]).toEqual([
-      "SHIELDED: THE LAST TILE OF EACH BELT IN, AND RIGS WORKING IT",
-      "SHIELDED: THE LAST 3 TILES OF EACH BELT IN, AND RIGS WORKING THEM",
+      "SHIELDED: THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
+      "SHIELDED: THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.",
     ]);
   });
 });

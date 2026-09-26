@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { AMMO, ITEMS, type ItemDef } from "../src/sim/content";
-import { effectAt } from "../src/sim/stars";
+import { effectAt, fusible } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
 import { newRun } from "../src/game/run";
 import { flavour, flavourText, STAR_FLAVOUR } from "../src/screens/build/flavour";
 import { cargoPanel, itemPanel, rigPanel, type PanelText } from "../src/screens/build/inspector";
 import { textWidth } from "../src/render/font";
 import { wrapText } from "../src/ui/richText";
-import { MODULES, STARS, banned, fasterNum, numbers, pct, r1, rateNum } from "./textRules";
-import { fireLine, turretFacts } from "../src/screens/build/turretPanel"; // 0.6.2s
+import { MODULES, STARS, banned, fasterNum, numbers, pct, r1, r2, rateNum } from "./textRules";
+import { turretFacts } from "../src/screens/build/turretPanel"; // 0.6.2s
+import { abilityText } from "../src/ui/abilityText"; // 0.6.2rel: the turret block
 
 // 0.6.2p (item 1): star-aware flavour; 0.6.2t (REQ-BFG-032, T7): flavour is player text too. flavour() returns whole
 // sentences (each ends in a full stop; no hand-made line breaks, no layout variants), with T2's units (2.75 SECONDS,
@@ -36,7 +37,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number) => number[]> = {
   overdrive: (e) => [4, fasterNum(g(e).speed!), g(e).lockedFlat!], // 4 ARROWS: the X shape
   tollbooth: (e) => [g(e).toll!],
   sifter: () => [],
-  surge: (e) => [fasterNum(g(e).pulse!.speed), g(e).pulse!.on, g(e).pulse!.period, g(e).lockedFlat!],
+  surge: (e) => [fasterNum(g(e).pulse!.speed), g(e).pulse!.on, g(e).pulse!.period, g(e).pulse!.flat, g(e).lockedFlat!], // FB-B: flat 1/2/3
   sorting: (e) => (g(e).sort!.copies > 2 ? [g(e).sort!.copies - 1] : []), // EVERY THIRD / OTHER: checked in the pins
   riveter: (e) => [g(e).repair!],
   heatjacket: (e) => [g(e).heat!],
@@ -90,6 +91,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number) => number[]> = {
   ram: (e) => [pct(m(e).finisher!)],
   escapement: (e) => [rateNum(m(e).fireMul!), 1.2, 7], // PEAK_SHIFT and its 7 TILES
   longcase: (e) => [m(e).longRideFlat!, m(e).longRideMin!, 1.2],
+  // 0.6.2rel: the 13 turrets (REQ-BFG-031; de2c287's audit): the desc's interval at that star (★2 x0.9, ★3 x0.8, at most
+  // two decimals) and its loads
+  ...Object.fromEntries(MODULES.filter((d) => d.kind === "turret").map((d) => [d.id, (e: ItemDef) => [r2(e.turret!.fireInterval), e.turret!.window]])),
 };
 
 /** Modules without a template: their catalogue desc, joined into one string, shows at every star. */
@@ -192,10 +196,11 @@ const PINS: Record<string, [string, string, string]> = {
     "REMOVES CHILL AND SNAG FROM EVERY PASSING PAYLOAD.",
     "REMOVES CHILL AND SNAG FROM EVERY PASSING PAYLOAD.",
   ],
+  // 0.6.2rel: FB-B's (CAND-A 1) per-pulse damage at every star, in T7's words
   surge: [
-    "PULSES 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS. METRONOME'S LOCKED BELTS GAIN +3 DAMAGE.",
-    "PULSES 4 TIMES AS FAST FOR 1 SECOND EVERY 2.5 SECONDS. METRONOME'S LOCKED BELTS GAIN +6 DAMAGE.",
-    "PULSES 5 TIMES AS FAST FOR 1 SECOND EVERY 2 SECONDS. METRONOME'S LOCKED BELTS GAIN +10 DAMAGE.",
+    "PULSES 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, +1 DAMAGE FOR EACH PULSE RIDDEN. METRONOME'S LOCKED BELTS GAIN +3 DAMAGE.",
+    "PULSES 4 TIMES AS FAST FOR 1 SECOND EVERY 2.5 SECONDS, +2 DAMAGE FOR EACH PULSE RIDDEN. METRONOME'S LOCKED BELTS GAIN +6 DAMAGE.",
+    "PULSES 5 TIMES AS FAST FOR 1 SECOND EVERY 2 SECONDS, +3 DAMAGE FOR EACH PULSE RIDDEN. METRONOME'S LOCKED BELTS GAIN +10 DAMAGE.",
   ],
   sorting: [
     "COPIES EVERY THIRD PAYLOAD AT FULL STRENGTH.",
@@ -232,10 +237,11 @@ const PINS: Record<string, [string, string, string]> = {
     "ADDS BURN FROM RIDE TIME SO FAR, UP TO 9 STACKS.",
     "ADDS BURN FROM RIDE TIME SO FAR, UP TO 14 STACKS.",
   ],
+  // 0.6.2rel: FB-B's (CAND-A 1) rule: +1/+2/+3 on every payload, then up to 4/5/6 Burn at +3/+5/+7 each
   quench: [
-    "TURNS BURN STACKS INTO +2 DAMAGE EACH, UP TO +12 DAMAGE.",
-    "TURNS BURN STACKS INTO +4 DAMAGE EACH, UP TO +26 DAMAGE.",
-    "TURNS BURN STACKS INTO +6 DAMAGE EACH, UP TO +42 DAMAGE.",
+    "+1 DAMAGE TO EVERY PAYLOAD. TURNS UP TO 4 BURN INTO +3 DAMAGE EACH.",
+    "+2 DAMAGE TO EVERY PAYLOAD. TURNS UP TO 5 BURN INTO +5 DAMAGE EACH.",
+    "+3 DAMAGE TO EVERY PAYLOAD. TURNS UP TO 6 BURN INTO +7 DAMAGE EACH.",
   ],
   lodestone: [
     "+1 DAMAGE FOR EACH ENEMY MACHINE STALLED RIGHT NOW.",
@@ -272,10 +278,11 @@ const PINS: Record<string, [string, string, string]> = {
     "TURRET REROLLS BARE-HULL TARGETS TOWARD MACHINERY.",
     "TURRET AIMS AT MACHINERY ONLY, NEVER BARE HULL.",
   ],
+  // 0.6.2rel: FB-B's (CAND-A 1) rule: ★1's +1 slot and +0.5 s at every star, a store of 1/2 at ★2/★3, ★3 never jams
   hopper: [
     "CHAMBER HOLDS 1 MORE LOAD AND WAITS 0.5 SECONDS LONGER.",
-    "CHAMBER HOLDS 2 MORE LOADS AND WAITS 1 SECOND LONGER.",
-    "CHAMBER HOLDS 3 MORE LOADS AND WAITS 1.5 SECONDS LONGER.",
+    "CHAMBER HOLDS 1 MORE LOAD AND WAITS 0.5 SECONDS LONGER. STORES 1 MORE WHILE FIRING.",
+    "CHAMBER HOLDS 1 MORE LOAD AND WAITS 0.5 SECONDS LONGER. STORES 2 MORE WHILE FIRING. NEVER JAMS.",
   ],
   ram: [
     "THE LAST PAYLOAD OUT OF THE CHAMBER HITS 40% HARDER.",
@@ -357,15 +364,30 @@ const PINS: Record<string, [string, string, string]> = {
     "OTHER SLUGS: +2.5 DAMAGE AFTER 2 SECONDS OF RIDE. PENDULUM PEAK 1.2 SECONDS LATER.",
     "OTHER SLUGS: +4 DAMAGE AFTER 2 SECONDS OF RIDE. PENDULUM PEAK 1.2 SECONDS LATER.",
   ],
+  // --- 0.6.2rel: the 13 turrets (REQ-BFG-031): the desc ("HEAVY TURRET. FIRES EVERY 1S. HOLDS 3 LOADS.") with that star's
+  // interval (content.ts levels: ★2 x0.9, ★3 x0.8; 0.495 reads 0.49) in T2's units
+  scrapcannon: ["HEAVY TURRET. FIRES EVERY 1 SECOND. HOLDS 3 LOADS.", "HEAVY TURRET. FIRES EVERY 0.9 SECONDS. HOLDS 3 LOADS.", "HEAVY TURRET. FIRES EVERY 0.8 SECONDS. HOLDS 3 LOADS."],
+  rampart: ["HEAVY TURRET. FIRES EVERY 0.75 SECONDS. HOLDS 3 LOADS.", "HEAVY TURRET. FIRES EVERY 0.68 SECONDS. HOLDS 3 LOADS.", "HEAVY TURRET. FIRES EVERY 0.6 SECONDS. HOLDS 3 LOADS."],
+  dartgun: ["LIGHT TURRET. FIRES EVERY 0.55 SECONDS. HOLDS 2 LOADS.", "LIGHT TURRET. FIRES EVERY 0.49 SECONDS. HOLDS 2 LOADS.", "LIGHT TURRET. FIRES EVERY 0.44 SECONDS. HOLDS 2 LOADS."],
+  spikegun: ["LIGHT TURRET. FIRES EVERY 0.6 SECONDS. HOLDS 2 LOADS.", "LIGHT TURRET. FIRES EVERY 0.54 SECONDS. HOLDS 2 LOADS.", "LIGHT TURRET. FIRES EVERY 0.48 SECONDS. HOLDS 2 LOADS."],
+  carronade: ["MEDIUM TURRET. FIRES EVERY 0.8 SECONDS. HOLDS 2 LOADS.", "MEDIUM TURRET. FIRES EVERY 0.72 SECONDS. HOLDS 2 LOADS.", "MEDIUM TURRET. FIRES EVERY 0.64 SECONDS. HOLDS 2 LOADS."],
+  swivel: ["ADAPTABLE TURRET. FIRES EVERY 0.7 SECONDS. HOLDS 3 LOADS.", "ADAPTABLE TURRET. FIRES EVERY 0.63 SECONDS. HOLDS 3 LOADS.", "ADAPTABLE TURRET. FIRES EVERY 0.56 SECONDS. HOLDS 3 LOADS."],
+  twinneedle: ["LIGHT TURRET. FIRES EVERY 0.55 SECONDS. HOLDS 2 LOADS.", "LIGHT TURRET. FIRES EVERY 0.49 SECONDS. HOLDS 2 LOADS.", "LIGHT TURRET. FIRES EVERY 0.44 SECONDS. HOLDS 2 LOADS."],
+  hailgun: ["LIGHT TURRET. FIRES EVERY 0.45 SECONDS. HOLDS 3 LOADS.", "LIGHT TURRET. FIRES EVERY 0.41 SECONDS. HOLDS 3 LOADS.", "LIGHT TURRET. FIRES EVERY 0.36 SECONDS. HOLDS 3 LOADS."],
+  deckgun: ["MEDIUM TURRET. FIRES EVERY 0.8 SECONDS. HOLDS 3 LOADS.", "MEDIUM TURRET. FIRES EVERY 0.72 SECONDS. HOLDS 3 LOADS.", "MEDIUM TURRET. FIRES EVERY 0.64 SECONDS. HOLDS 3 LOADS."],
+  railgun: ["MEDIUM TURRET. FIRES EVERY 0.7 SECONDS. HOLDS 3 LOADS.", "MEDIUM TURRET. FIRES EVERY 0.63 SECONDS. HOLDS 3 LOADS.", "MEDIUM TURRET. FIRES EVERY 0.56 SECONDS. HOLDS 3 LOADS."],
+  bombard: ["HEAVY TURRET. FIRES EVERY 1 SECOND. HOLDS 4 LOADS.", "HEAVY TURRET. FIRES EVERY 0.9 SECONDS. HOLDS 4 LOADS.", "HEAVY TURRET. FIRES EVERY 0.8 SECONDS. HOLDS 4 LOADS."],
+  siegegun: ["HEAVY TURRET. FIRES EVERY 0.85 SECONDS. HOLDS 4 LOADS.", "HEAVY TURRET. FIRES EVERY 0.77 SECONDS. HOLDS 4 LOADS.", "HEAVY TURRET. FIRES EVERY 0.68 SECONDS. HOLDS 4 LOADS."],
+  thunderer: ["HEAVY TURRET. FIRES EVERY 0.8 SECONDS. HOLDS 4 LOADS.", "HEAVY TURRET. FIRES EVERY 0.72 SECONDS. HOLDS 4 LOADS.", "HEAVY TURRET. FIRES EVERY 0.64 SECONDS. HOLDS 4 LOADS."],
 };
 
 /** The landscape details column's text widths (layout.ts: LAND_MIN_W to the capped column) and the phone band's. */
 const WIDTHS: [number, "5" | "3"][] = [[102, "5"], [109, "5"], [116, "5"], [102, "3"], [109, "3"], [116, "3"], [151, "3"]];
 
 describe("0.6.2t T7: the flavour audit covers every buyable fusible module", () => {
-  it("23 rigs, 13 factories, 13 cores and 9 mods; each is audited (NUMBERS) and either templated (PINS) or unchanged", () => {
+  it("23 rigs, 13 factories, 13 cores, 9 mods and 13 turrets; each is audited (NUMBERS) and either templated (PINS) or unchanged", () => {
     const by = (kind: string) => MODULES.filter((d) => d.kind === kind).length;
-    expect([by("gate"), by("factory"), by("core"), by("mod")]).toEqual([23, 13, 13, 9]);
+    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret")]).toEqual([23, 13, 13, 9, 13]); // 0.6.2rel: turrets
     expect(Object.keys(NUMBERS).sort()).toEqual(MODULES.map((d) => d.id).sort());
     expect([...Object.keys(PINS), ...UNCHANGED].sort()).toEqual(MODULES.map((d) => d.id).sort());
     // CLOCKWORKS, METRONOME's signature factory, has a template too (its desc quotes a glued second); it is never sold
@@ -457,22 +479,26 @@ describe("0.6.2t: the panels show the flavour at the module's stars, set apart a
     const cp = cargoPanel(w, 21)!;
     expect(flav(cp)).toBe("+1.4 DAMAGE FOR EACH PAYLOAD QUEUED AT IT. NEVER JAMS.");
     expect(cp.body[0].text).toBe("SHOTS DEAL 1.4 MORE DAMAGE FOR EACH PAYLOAD WAITING, UP TO 5 PAYLOADS.");
-    // a ★3 HOPPER in cargo
+    // a ★3 HOPPER in cargo (0.6.2 FB-B: ★1's slot and seconds, a store of 2, never jams)
     w.inventory.push({ uid: 22, def: "hopper", stars: 3 });
-    expect(flav(cargoPanel(w, 22)!)).toBe("CHAMBER HOLDS 3 MORE LOADS AND WAITS 1.5 SECONDS LONGER.");
+    expect(flav(cargoPanel(w, 22)!)).toBe("CHAMBER HOLDS 1 MORE LOAD AND WAITS 0.5 SECONDS LONGER. STORES 2 MORE WHILE FIRING. NEVER JAMS.");
   });
 });
 
-describe("0.6.2s: the 13 turrets show their desc at 1 star only; the panels quote each star's numbers", () => {
-  it("every turret is fusible; flavour() is its desc; turretFacts leads with that star's fire interval and loads", () => {
+describe("0.6.2s: the 13 turrets' flavour and panels quote each star's numbers (0.6.2rel: in T7's words)", () => {
+  it("every turret is fusible; its flavour is its desc's words at that star; its text leads with that star's interval and loads", () => {
+    const TURRETS = MODULES.filter((d) => d.kind === "turret");
     expect(TURRETS).toHaveLength(13);
+    const units = (desc: string) => desc.replace(/(\d+(?:\.\d+)?)S\./, (_, n: string) => `${n} SECOND${n === "1" ? "" : "S"}.`);
     for (const t of TURRETS) {
       expect(fusible(t.id), t.id).toBe(true);
-      for (const s of STARS) expect(flavour(t.id, s), `${t.id} ★${s}`).toEqual(t.desc);
+      // at 1 star the template says the desc's words, its glued second in T2's units (0.6.2s kept the desc 1-star only)
+      expect(flavourText(t.id, 1), t.id).toBe(units(t.desc.join(" ")));
       for (const s of STARS) {
-        const e = effectAt(t.id, s).turret!;
-        expect(turretFacts(t.id, s)[0], `${t.id} ★${s}`).toBe(fireLine(t.id, s));
-        expect(numbers([fireLine(t.id, s)]), `${t.id} ★${s}`).toEqual([e.fireInterval, e.window]);
+        const e = effectAt(t.id, s).turret!, first = abilityText(t.id, s).sentences[0];
+        expect(turretFacts(t.id, s)[0], `${t.id} ★${s}`).toBe(first);
+        expect(numbers(first), `${t.id} ★${s}: ${first}`).toEqual([r2(e.fireInterval), e.window]);
+        expect(numbers(flavourText(t.id, s)), `${t.id} ★${s}`).toEqual([r2(e.fireInterval), e.window]);
       }
     }
   });

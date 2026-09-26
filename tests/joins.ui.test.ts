@@ -10,7 +10,7 @@ import { JOIN_PACE } from "../src/sim/content";
 import { frame as deckFrame } from "../src/render/frame";
 import { cruiserModel } from "../src/render/cruiser";
 import { Editor, type EditHost } from "../src/screens/build/edit";
-import { beltPanel } from "../src/screens/build/inspector";
+import { beltPanel, type Block } from "../src/screens/build/inspector";
 import type { Sel } from "../src/screens/build/layout";
 import { C } from "../src/render/palette";
 
@@ -162,52 +162,54 @@ describe("J14 (c): the FIGHT gate (routeCheck)", () => {
 
 describe("J10: the inspector's readouts through a join", () => {
   const items = [rig(10, "temper", 1, 5, 1), rig(13, "whetstone", 5, 4, 3)]; // R tile 1; the join tile
+  // 0.6.2rel (REQ-BFG-032): the readout through the text series' helpers: the glossary's hit rows, the JOINS row a whole
+  // sentence in cyan, no "·", the gun end as labelled stat pairs. A block as text: "LABEL: VALUE", or a grid's pairs.
+  const txt = (bs: readonly Block[]) => bs.map((b) => (b.cells ? b.cells.map(([l, v]) => `${l} ${v}`).join(", ") : `${b.label ? `${b.label}: ` : ""}${b.text}`));
+  const note = (n: number) => `+${n} MORE HIT TILE${n === 1 ? "" : "S"} (NUMBERED ON THE DECK)`;
 
   it("the joining belt: its own hits, JOINS BELT n AT TILE t, the main belt's hits from there, and the gun end", () => {
     const bp = beltPanel(run({ r: true, items }), 1)!;
-    // 0.6.2 TUNE-M, RULE JOIN PACE: the sub line and the head say the joined STAMP PRESS's pace (★1: every 1.4 s
-    // unjoined, 1.4 / JOIN_PACE joined)
-    expect(bp.sub).toBe(`JOINS BELT 1 · ${JOIN_PACE_PCT}% PACE · FEEDS TURRET 1`);
-    expect(bp.head).toEqual([
-      [JOIN_PACE_LINE, C.cyan],
-      [`A LOAD EVERY ${(1.4 / JOIN_PACE).toFixed(1)}S ON THIS BELT, NOT 1.4S.`, C.cyan],
-      "4 TILES · 2 HITS IN ORDER:",
-    ]);
-    expect(bp.rows).toEqual(["T2: TEMPER BURN +1", ["JOINS BELT 1 AT TILE 2", C.cyan], "T2: WHETSTONE +2"]);
-    expect(bp.foot[0]).toEqual([expect.stringMatching(/^AT THE GUN: DMG [\d.]+ · BURN 1 · NO SHOCK$/), C.yellow]);
-    expect(bp.subTight?.[0]).toMatch(/BURN 1/);
+    expect(bp.sub).toBe("JOINS BELT 1. FEEDS TURRET 1.");
+    expect(bp.subShort).toBe("JOINS BELT 1.");
+    expect(txt(bp.head)).toEqual(["4 TILES, 2 HITS:"]);
+    expect(txt(bp.rows)).toEqual(["T2: TEMPER +2 BURN", "JOINS BELT 1 AT TILE 2.", "T2: WHETSTONE +2 DAMAGE"]);
+    expect(bp.rows[1]).toMatchObject({ colour: C.cyan, join: true, trim: true });
+    expect(txt(bp.foot)[0]).toMatch(/^DMG [\d.]+, BURN 2$/);
+    expect(bp.headerOnly?.texts[0]).toMatch(/BURN 2/);
   });
 
-  it("the main belt says how many belts join it; its own lines don't change", () => {
+  it("the main belt says which belts join it; its own lines don't change", () => {
     const joined = beltPanel(run({ r: true, items }), 0)!;
     const open = beltPanel(run({ r: true, joined: false, items }), 0)!;
-    expect(joined.head).toEqual([["1 BELT JOINS IT: BELT 2", C.cyan], "6 TILES · 1 HIT IN ORDER:"]);
-    expect(open.head).toEqual(["6 TILES · 1 HIT IN ORDER:"]);
+    expect(txt(joined.head)).toEqual(["BELT 2 JOINS IT.", "6 TILES, 1 HIT:"]);
+    expect(joined.head[0]).toMatchObject({ colour: C.cyan, keep: true });
+    expect(txt(open.head)).toEqual(["6 TILES, 1 HIT:"]);
     expect(joined.rows).toEqual(open.rows);
     expect(joined.foot).toEqual(open.foot);
     expect(joined.sub).toBe(open.sub);
   });
 
   it("on a short panel (phones) the rows given way count hit tiles only: a JOINS line is none", () => {
-    const bp = beltPanel(run({ r: true, items }), 1)!; // rows: T2 TEMPER, JOINS BELT 1 AT TILE 2, T2 WHETSTONE
-    expect(bp.more(1)).toEqual(["+1 MORE HIT TILE (NUMBERED ON THE DECK)", C.slate4]);
-    expect(bp.more(2)).toEqual(["+1 MORE HIT TILE (NUMBERED ON THE DECK)", C.slate4]);
-    expect(bp.more(3)).toEqual(["+2 MORE HIT TILES (NUMBERED ON THE DECK)", C.slate4]);
+    const bp = beltPanel(run({ r: true, items }), 1)!; // rows: T2 TEMPER, JOINS BELT 1 AT TILE 2., T2 WHETSTONE
+    expect(bp.more(1)).toMatchObject({ role: "note", text: note(1) });
+    expect(bp.more(2)).toMatchObject({ role: "note", text: note(1) });
+    expect(bp.more(3)).toMatchObject({ role: "note", text: note(2) });
     // a join with no hit after it: dropping only its JOINS line shows that line itself
     const bare = beltPanel(run({ r: true, items: [rig(10, "temper", 1, 5, 1)] }), 1)!;
-    expect(bare.rows).toEqual(["T2: TEMPER BURN +1", ["JOINS BELT 1 AT TILE 2", C.cyan]]);
-    expect(bare.more(1)).toEqual(["JOINS BELT 1 AT TILE 2", C.cyan]);
-    expect(bare.more(2)).toEqual(["+1 MORE HIT TILE (NUMBERED ON THE DECK)", C.slate4]);
+    expect(txt(bare.rows)).toEqual(["T2: TEMPER +2 BURN", "JOINS BELT 1 AT TILE 2."]);
+    expect(bare.more(1)).toMatchObject({ text: "JOINS BELT 1 AT TILE 2.", colour: C.cyan, keep: true });
+    expect(bare.more(2)).toMatchObject({ role: "note", text: note(1) });
     // a belt without joins: as before 0.6.2j
-    expect(beltPanel(run({ r: true, joined: false, items }), 0)!.more(1)).toEqual(["+1 MORE HIT TILE (NUMBERED ON THE DECK)", C.slate4]);
+    expect(beltPanel(run({ r: true, joined: false, items }), 0)!.more(1)).toMatchObject({ role: "note", text: note(1) });
   });
 
   it("a belt that joins nothing reads exactly as before 0.6.2j", () => {
     const bp = beltPanel(run({ r: true, joined: false, items }), 1)!;
     expect(bp.sub).toBe("NOT CONNECTED");
-    expect(bp.subTight).toBeUndefined();
-    expect(bp.head).toEqual([["ENDS SHORT OF A TURRET INTAKE.", C.amber], "4 TILES · 1 HIT IN ORDER:"]);
-    expect(bp.rows).toEqual(["T2: TEMPER BURN +1"]);
+    expect(bp.headerOnly).toBeUndefined();
+    expect(txt(bp.head)).toEqual(["ENDS SHORT OF A TURRET INTAKE.", "4 TILES, 1 HIT:"]);
+    expect(bp.head[0].role).toBe("warn");
+    expect(txt(bp.rows)).toEqual(["T2: TEMPER +2 BURN"]);
   });
 });
 

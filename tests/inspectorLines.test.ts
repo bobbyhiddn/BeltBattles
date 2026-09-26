@@ -88,10 +88,11 @@ describe("N2 / T5: merge progress, 1 MORE COPY TO MERGE and 2 MORE COPIES TO MER
   it("0.6.2s: the hull's free starting turret counts toward a merge (S6, S7)", () => {
     // FURNACE's free ★1 SCRAP CANNON sits in slot 0: one more ★1 merges with it into a ★2, then the two ★2s make ★3
     expect([...new Set(startingTurrets("furnace").map((t) => t.def))]).toEqual(["scrapcannon"]);
-    expect(nextLine(holding("scrapcannon", [2]), "scrapcannon", 2)).toMatch(/ · NEEDS 1 MORE$/);
+    // 0.6.2rel (T5): merge progress is its own sentence after the next star's (the glossary's turret clause)
+    expect(nextLine(holding("scrapcannon", [2]), "scrapcannon", 2)).toBe("NEXT STAR: FIRES EVERY 0.8 SECONDS, 3 GEAR SLOTS. 1 MORE COPY TO MERGE.");
     // WEAVER starts with DART GUNs, not a SCRAP CANNON: the usual count
-    expect(nextLine(holding("scrapcannon", [2], "weaver"), "scrapcannon", 2)).toMatch(/ · NEEDS 2 MORE$/);
-    expect(nextLine(holding("bombard", [2]), "bombard", 2)).toMatch(/ · NEEDS 2 MORE$/);
+    expect(nextLine(holding("scrapcannon", [2], "weaver"), "scrapcannon", 2)).toMatch(/ 2 MORE COPIES TO MERGE\.$/);
+    expect(nextLine(holding("bombard", [2]), "bombard", 2)).toMatch(/ 2 MORE COPIES TO MERGE\.$/);
   });
 });
 

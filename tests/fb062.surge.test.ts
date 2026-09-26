@@ -11,7 +11,7 @@ import { cloneBuild, key, rigHits, walkRoute, type Build } from "../src/sim/deck
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars";
-import { levelLine, starEffectLine } from "../src/screens/build/inspector";
+import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2rel: the glossary's words (REQ-BFG-032)
 import { barge, bench } from "./arsenal.bench";
 
 const STARS = [1, 2, 3];
@@ -89,8 +89,14 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
     const d = ITEMS.surge;
     expect(d.desc.join(" ")).toBe("PULSES 3X SPEED FOR 1S EVERY 3S, +1 DMG PER PULSE RIDDEN. LOCKED BELTS +3 DMG.");
     expect(d.desc.every((l) => l.length <= 20)).toBe(true);
-    expect(STARS.map((s) => starEffectLine("surge", s))).toEqual(["3X FOR 1S / 3S · +1/PULSE", "4X FOR 1S / 2.5S · +2/PULSE", "5X FOR 1S / 2S · +3/PULSE"]);
-    expect(levelLine("surge", 2)).toBe("★2 OVERPRESSURE: 4X FOR 1S / 2.5S · +2/PULSE");
+    // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's opening sentence (abilityText) and clause (gist)
+    expect(STARS.map((s) => abilityText("surge", s).sentences[0])).toEqual([
+      "PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 1 DAMAGE.",
+      "PULSES ITS BELTS 4 TIMES AS FAST FOR 1 SECOND EVERY 2.5 SECONDS, EACH PULSE ADDING 2 DAMAGE.",
+      "PULSES ITS BELTS 5 TIMES AS FAST FOR 1 SECOND EVERY 2 SECONDS, EACH PULSE ADDING 3 DAMAGE.",
+    ]);
+    expect(STARS.map((s) => gist("surge", s))).toEqual(["3 TIMES AS FAST, 1 DAMAGE A PULSE", "4 TIMES AS FAST, 2 DAMAGE A PULSE", "5 TIMES AS FAST, 3 DAMAGE A PULSE"]);
+    expect(abilityText("surge", 2).perk).toEqual({ name: "OVERPRESSURE", stars: 2, after: 0 });
   });
 });
 

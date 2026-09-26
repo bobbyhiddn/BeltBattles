@@ -19,8 +19,8 @@ import { record } from "../../game/day";
 import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import {
-  arrowsOf, beltUsed, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo, routesOf,
-  turretSlots, walkRoute, type Build, type RigHit, type RouteWalk, type TimelineHit,
+  arrowsOf, beltUsed, canSellTurret, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo,
+  routesOf, turretSellValue, turretSlots, walkRoute, type Build, type RigHit, type RouteWalk, type TimelineHit,
 } from "../../sim/deck";
 import { joinersOf, type WalkJoin } from "../../sim/deck"; // 0.6.2j: belt joins
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
@@ -54,13 +54,16 @@ import { fusible, outputsAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
-  abilityText, cardText, gist, hasAbilityText, hitText, mergeProgressText, mergesWithText, n2, newPerk, nextStarHeadline,
-  nextStarText, percent, slagPulseExtra, type BeltKind, type TextOpts,
+  abilityText, cardText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergeProgressText, mergesWithText, n2,
+  newPerk, nextStarHeadline, nextStarText, percent, plural, shieldText, slagPulseExtra, type BeltKind, type TextOpts,
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
 import { describe } from "./shop";
-import { deadEndLines, slotActions, slotColor, slotIcon, slotNotes, slotSub, slotTitle, socketLines, turretSpec } from "./turretPanel"; // 0.6.2s
+import {
+  deadEndLines, freeNote, SLOT_HINT, slotActions, slotColor, slotIcon, slotLabels, slotNotes, slotSub, slotTitle, socketLines, turretHint,
+  turretSpec, type SocketRow,
+} from "./turretPanel"; // 0.6.2s; 0.6.2rel: its panels are PanelText too
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -104,6 +107,8 @@ export interface Block {
   alt?: string;
   /** A belt's timeline row: they give way from the end, and a note says how many (0.6.2 BELTSIDE's trim). */
   trim?: boolean;
+  /** 0.6.2j (J10): a timeline row that is a JOINS line, not a hit tile (the trim note counts hit tiles only). */
+  join?: boolean;
   /** The text's base colour (else the role's). */
   colour?: string;
 }
@@ -186,6 +191,7 @@ const hintBlock = (text: string): Block => ({ role: "hint", text, rank: 6 });
 
 /** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo. */
 function placeHint(kind: string, drag: boolean): string {
+  if (kind === "turret") return turretHint(drag); // 0.6.2s (S5): a turret goes into a TURRET SLOT
   const how = kind === "mod" || kind === "core" ? "TAP A TURRET TO FIT IT"
     : kind === "gate" ? "TAP A CELL BESIDE A BELT: ITS ARROWS WORK THE BELT TILES THEY POINT AT"
     : "TAP THE DECK TO PLACE IT";
@@ -357,9 +363,12 @@ export function cargoPanel(run: Run, uid: number): PanelText | null {
   const it = run.inventory.find((i) => i.uid === uid);
   if (!it) return null;
   const d = ITEMS[it.def], stars = starsOf(it), opts = textOpts(run);
+  // 0.6.2s (S6): a turret sells for turretSellValue, and a hull's free starting copy can't be sold at 1 star
+  const turret = d.kind === "turret", sellable = !turret || canSellTurret(it);
   const body: Block[] = [
     ...abilityBlocks(d.id, stars, opts),
     ...progressBlocks(run, d.id, stars),
+    ...(turret && it.free ? [{ role: "ability", text: freeNote(sellable), rank: 3 } as Block] : []),
     flavourBlock(d.id, stars, opts.k ?? 1),
     hintBlock(placeHint(d.kind, false)),
   ];
@@ -368,12 +377,14 @@ export function cargoPanel(run: Run, uid: number): PanelText | null {
     subShort: `${KIND_WORD[d.kind] ?? "PART"} · IN CARGO`, // T6: the rarity gives way first (the title shows it in colour)
     body,
     variants: tightForms(body),
-    labels: [`SELL +${sellPrice(d.id, stars)}G`],
+    labels: sellable ? [`SELL +${turret ? turretSellValue(it) : sellPrice(d.id, stars)}G`] : [],
   };
 }
 
 /** The kind as the panels name it (shop.ts describe, without the rarity). */
-const KIND_WORD: Record<string, string> = { gate: "RIG", factory: "FACTORY", mod: "TURRET GEAR", core: "TURRET CORE", supply: "SUPPLY" };
+const KIND_WORD: Record<string, string> = {
+  gate: "RIG", factory: "FACTORY", mod: "TURRET GEAR", core: "TURRET CORE", supply: "SUPPLY", turret: "TURRET",
+};
 
 /** A placed deck item: a rig (rigPanel), or a factory with its outputs at its stars (GANTRY PRESS ★2 THIRD ARM feeds 3)
  *  and its text; a hero's signature factory has no stars, no next star and no TO CARGO. */
@@ -399,12 +410,32 @@ export function itemPanel(run: Run, uid: number): PanelText | null {
   };
 }
 
+/** 0.6.2j: a belt's panel parts (routePanel adds the title and the button), exported for tests. */
+export interface BeltPanel {
+  sub: string;
+  subShort?: string;
+  headerOnly?: PanelText["headerOnly"];
+  /** The ENDS SHORT warning, the belts that join it, its tiles and hits. */
+  head: Block[];
+  /** The timeline in R7 order, a JOINS row where the walk joins another belt (they give way from the end). */
+  rows: Block[];
+  /** The gun end's readout, always in sight. */
+  foot: Block[];
+  /** What stands for the last n rows on a short panel (moreFor: hit tiles only, 0.6.2j). */
+  more: (n: number) => Block;
+}
+
 /**
  * A belt route (0.6.2 BELTSIDE, V4): its tiles and hits, the timeline in R7 order (0.6.2t: the glossary's hit rows, 0b.4),
  * then the gun end's readout in aligned stat pairs: DMG and BURN, SPD and TIME, and SHOCK and COPIES where they apply.
  * The readout always stays; on a short panel the last timeline rows give way first, and a note says how many.
+ * 0.6.2j (J10): a joining belt shows its own tiles' hits, a cyan "JOINS BELT n AT TILE t." row, then the main belt's
+ * hits from the join tile on (walkRoute continues through the join); its sub line names the belt it joins; a main belt
+ * says which belts join it. 0b.4 holds through a join (J15: the speed belongs to the payload): a SLAG joiner keeps its
+ * fixed speed past the join, so its speed hits there read NO EFFECT ON SLAG, never LOCKED; a normal payload joining a
+ * slag-fed belt rides that belt's speed state. A belt without joins reads as before. Null unless route `index` exists.
  */
-export function routePanel(run: Run, index: number): PanelText | null {
+export function beltPanel(run: Run, index: number): BeltPanel | null {
   const b = run.build;
   if (!b.routes[index]) return null;
   const info = routeInfo(b, index);
@@ -421,8 +452,20 @@ export function routePanel(run: Run, index: number): PanelText | null {
     [["SPD", spd], ["TIME", time]],
     ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", n2(est.copies)]] as [string, string][]] : []),
   ];
+  const joined = joinersOf(b, index); // 0.6.2j (J10): the belts that join this one
+  const joins = w.joins ?? [];
+  const joinRow = (j: WalkJoin): Block => ({ role: "row", text: `JOINS BELT ${j.route + 1} AT TILE ${j.tile + 1}.`, colour: C.cyan, trim: true, join: true });
+  const rows: Block[] = [];
+  w.timeline.forEach((row, i) => {
+    for (const j of joins) if (j.row === i) rows.push(joinRow(j));
+    rows.push({ role: "row", label: `T${row.tile + 1}`, text: row.hits.map((h) => hitText(h, belt)).join(", "), trim: true });
+  });
+  for (const j of joins) if (j.row >= w.timeline.length) rows.push(joinRow(j));
+  const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
   return {
-    title: "BELT ROUTE", color: C.white, sub: info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED",
+    // 0.6.2j: a joining belt's sub names the belt it joins (0.6.2rel: two short sentences, no "·")
+    sub: info.join ? `JOINS BELT ${info.join.route + 1}. ${feeds}.` : feeds,
+    ...(info.join ? { subShort: `JOINS BELT ${info.join.route + 1}.` } : {}),
     headerOnly: info.connected ? {
       texts: [
         `DMG ${dmg}, BURN ${est.burn}${est.shock ? ", SHOCK" : ""}, SPD ${percent(w.speedEnd)}, ${time}`,
@@ -431,72 +474,111 @@ export function routePanel(run: Run, index: number): PanelText | null {
       ],
       colour: C.yellow,
     } : undefined,
-    body: [
+    head: [
       ...(info.connected ? [] : [{ role: "warn", text: "ENDS SHORT OF A TURRET INTAKE.", keep: true } as Block]),
+      ...(joined.length ? [{
+        role: "hits", colour: C.cyan, keep: true,
+        text: joined.length === 1 ? `BELT ${joined[0] + 1} JOINS IT.` : `BELTS ${andList(joined.map((j) => j + 1))} JOIN IT.`,
+      } as Block] : []),
       { role: "hits", text: hitCount ? `${info.tiles} TILES, ${hitCount} HIT${hitCount === 1 ? "" : "S"}:` : `${info.tiles} TILES. NO RIG WORKS THIS BELT.`, keep: true },
-      ...w.timeline.map((row): Block => ({ role: "row", label: `T${row.tile + 1}`, text: row.hits.map((h) => hitText(h, belt)).join(", "), trim: true })),
-      ...cells.map((c): Block => ({ role: "grid", text: "", cells: c, keep: true })),
     ],
+    rows,
+    foot: cells.map((c): Block => ({ role: "grid", text: "", cells: c, keep: true })),
+    more: (n) => moreFor(rows.slice(rows.length - n)),
+  };
+}
+
+/** A belt route's panel (beltPanel with its title and REMOVE BELT). */
+export function routePanel(run: Run, index: number): PanelText | null {
+  const bp = beltPanel(run, index);
+  if (!bp) return null;
+  return {
+    title: "BELT ROUTE", color: C.white, sub: bp.sub, ...(bp.subShort ? { subShort: bp.subShort } : {}), headerOnly: bp.headerOnly,
+    body: [...bp.head, ...bp.rows, ...bp.foot],
     labels: ["REMOVE BELT"],
   };
 }
 
 /**
- * A turret (0.6.1b): its core and gear, each named in a row with its opening sentence under it (T5: the same sentence
- * as the module's own panel, the core at the turret's k), then its firing rows (0.6.2t: from makeTurret, the numbers the
- * battle fires by). On the phone band the CORE and GEAR rows always show; the rest follow while there is room.
+ * 0.6.1p: the GATLING clashes (the Prime's call): a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do
+ * nothing on its turret. 0.6.2 CAND-A: every piece of gear on slot t, in hardpoint order (0.6.2s S4), not only the
+ * first; a HOPPER's store still works there (tests/fb062.mech.test.ts). 0.6.2rel: whole sentences from the glossary
+ * (gatlingClashText). Exported for tests.
+ */
+export function gatlingClash(b: Build, t: number, routine: string): string[] {
+  if (routine !== "gatling") return [];
+  return gearOn(b, t).map((m) => gatlingClashText(m.def, starsOf(m))).filter((s): s is string => !!s);
+}
+
+/** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's sentence for a MANTLET ★2/★3 that shields `n` tiles: the last tile(s)
+ *  of every belt into this turret, and each rig working a shielded tile (the glossary's shieldText). Exported for tests. */
+export const shieldLine = (n: number): string => shieldText(n);
+
+/**
+ * A turret (0.6.1b) in its TURRET SLOT (0.6.2s, REQ-BFG-031 S10): its name, stars and rarity (the title) and its class
+ * and slot (the sub line); first the belts a swap left without an intake (S2/S5); then its CORE socket and every GEAR
+ * slot in hardpoint order (S4), filled or empty, each named in a row with its opening sentence under it (T5: the same
+ * sentence as the module's own panel, the core at the turret's k); its firing rows (0.6.2t: from makeTurret, the
+ * numbers the battle fires by; 0.6.2 FB-B: a HOPPER ★2/★3's store); a clash for each piece of gear a GATLING SPOOL
+ * idles (CAND-A); a MANTLET ★2/★3's shield (FB-B); its notes (turretPanel.ts slotNotes) and the move hint. The compact
+ * forms, fullest first: each socket's short effect (the glossary's gist) in its row; then the dead ends on one line each;
+ * then every gear slot on one row. The dead ends and the socket rows always show. Null unless a turret is installed.
  */
 export function turretPanel(run: Run, index: number): PanelText | null {
   const b = run.build;
-  const td = HEROES[b.hero].turrets[index];
+  const td = turretSlots(b)[index]?.td; // 0.6.2s: the installed turret (an empty slot: turretPanel.ts emptySlotPanel)
   if (!td) return null;
-  const gm = gearFor(b, index); // 0.6.1b: gear only; the core has its own socket (coreFor via resolveCore)
-  const gear = gm ? ITEMS[gm.def] : null;
-  const gstars = gm ? starsOf(gm) : 1;
+  const gm = gearFor(b, index); // 0.6.1b: the gear REMOVE GEAR takes; the core has its own socket (coreFor via resolveCore)
   const tc = resolveCore(b, index, td); // 0.6.1b: bought core (k-scaled) or the signature core
-  const tu = makeTurret(b, index, td); // its interval (gear, core, the long-belt cadence) and window (EXT. CHAMBER, HOPPER)
+  const tu = makeTurret(b, index, td); // its interval (every gear piece, the core, the long-belt cadence), window and store
   const every = tu.interval * (tc.bought ? tc.spec.reloadMul ?? 1 : 1); // SALVO's volley reload
   const coreName = tc.bought ? starred(ITEMS[tc.def].name, tc.stars) : (SIGNATURE_CORES[tc.def]?.name ?? "SIGNATURE CORE");
-  // the core's and the gear's opening sentences (T5: as their own panels read them); on a short band (the phone) a
-  // compact form puts each one's short effect (the glossary's gist) in its row instead
+  const o = (k: number): TextOpts => ({ k, hero: b.hero as HeroId });
+  // a socket's opening sentence (T5: as its own panel reads it); the compact forms use its gist in the row instead
   const first = (def: string, stars: number, k: number): Block[] => {
-    const at = abilityText(def, stars, { k, hero: b.hero as HeroId });
+    const at = abilityText(def, stars, o(k));
     const perk = at.perk && at.perk.after === 0 ? { perk: `★${at.perk.stars} ${at.perk.name}` } : {};
     return at.sentences.length ? [{ role: "ability", text: at.sentences[0], keep: true, ...perk }] : [];
   };
-  const withGist = (name: string, def: string, stars: number, k: number): string => {
-    const gs = gist(def, stars, { k, hero: b.hero as HeroId });
-    return gs ? `${name}: ${gs}.` : name;
-  };
-  const clash: Block[] = [];
-  // 0.6.1p (the Prime's call): a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do nothing there
-  if (tc.routine === "gatling" && gear?.id === "hopper") clash.push({ role: "warn", text: "GATLING SPOOL: THE HOPPER'S LONGER WAIT DOES NOTHING HERE.", rank: 2 });
-  if (tc.routine === "gatling" && gear?.id === "ram") clash.push({ role: "warn", text: "GATLING SPOOL: NO FULL CHAMBER, SO THE FINISHER RAM DOES NOTHING.", rank: 2 });
+  const coreGist = tc.bought ? gist(tc.def, tc.stars, o(tc.k)) : "";
+  const warn = (short: boolean) => deadEndLines(b, index, short).map((text): Block => ({ role: "warn", text, keep: true }));
+  const rowOf = (s: SocketRow): Block => ({ role: "row", label: s.label, text: s.text, keep: true });
   const noJam = tu.noJam || (tc.bought && tc.spec.noJam);
-  const gearName = gear ? starred(gear.name, gstars) : "EMPTY HARDPOINT";
+  // the turret's own numbers: kept in the full and gist forms (the gear-list form says them in an optional sentence)
   const stats: Block[] = [
-    { role: "row", label: "FIRES", text: `EVERY ${n2(every)} SEC${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}`, rank: 1 },
-    { role: "row", label: "CHAMBER", text: `${tu.window} LOADS, ${n2(tu.windowTime)} SEC${noJam ? ", NEVER JAMS" : ""}`, rank: 1 },
-    ...clash,
+    { role: "row", label: "FIRES", text: `EVERY ${n2(every)} SEC${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}`, keep: true },
+    {
+      role: "row", label: "CHAMBER", keep: true,
+      text: `${tu.window} LOADS, ${n2(tu.windowTime)} SEC${tu.storeMax ? `, STORES ${tu.storeMax} WHILE FIRING` : ""}${noJam ? ", NEVER JAMS" : ""}`,
+    },
+  ];
+  // a clash (a piece of gear that does nothing here) and the shield come before the optional stats sentence below
+  const rest: Block[] = [
+    ...gatlingClash(b, index, tc.routine).map((text): Block => ({ role: "warn", text, rank: 1 })), // CAND-A: every gear slot
+    ...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 1 } as Block] : []), // FB-B MANTLET
+    ...slotNotes(b, index).map((text): Block => ({ role: "ability", text, rank: 4 })),
+    hintBlock(SLOT_HINT),
   ];
   const body: Block[] = [
-    { role: "row", label: "CORE", text: coreName, keep: true },
-    ...(tc.bought ? first(tc.def, tc.stars, tc.k) : []),
-    { role: "row", label: "GEAR", text: gearName, keep: true },
-    ...(gear ? first(gear.id, gstars, 1) : []),
-    ...stats,
+    ...warn(false),
+    ...socketLines(b, index, coreName).flatMap((s, i) =>
+      [rowOf(s), ...(i === 0 ? (tc.bought ? first(tc.def, tc.stars, tc.k) : []) : s.def ? first(s.def, s.stars ?? 1, 1) : [])]),
+    ...stats, ...rest,
   ];
-  const compact: Block[] = [
-    { role: "row", label: "CORE", text: tc.bought ? withGist(coreName, tc.def, tc.stars, tc.k) : coreName, keep: true },
-    { role: "row", label: "GEAR", text: gear ? withGist(gearName, gear.id, gstars, 1) : gearName, keep: true },
-    ...stats,
-  ];
+  const gists = socketLines(b, index, coreGist ? `${coreName}: ${coreGist}.` : coreName, (d, s) => gist(d, s, o(1))).map(rowOf);
+  const list = socketLines(b, index, coreName, undefined, true).map(rowOf);
+  // the last form lists the gear on one row and says the stats in a sentence (the stat rows' long labels would narrow
+  // its value column)
+  const statsText: Block = {
+    role: "ability", rank: 2,
+    text: `IT FIRES ${everyText(every)}${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}, AND ITS CHAMBER HOLDS ${plural(tu.window, "LOAD")}${tu.storeMax ? `, ${tu.storeMax} MORE WHILE IT FIRES` : ""}.`,
+  };
+  const forms = [[...warn(false), ...gists, ...stats, ...rest], [...warn(true), ...gists, ...stats, ...rest], [...warn(true), ...list, statsText, ...rest]];
   return {
-    title: `${td.kind.toUpperCase()} TURRET ${index + 1}`, color: C.white,
-    sub: `FED FROM COLUMN ${td.connectors.map((c) => c + 1).join("+")}`,
+    title: slotTitle(b, index), color: slotColor(b, index), sub: slotSub(b, index),
     body,
-    variants: [{ body, tight: true }, { body: compact }, { body: compact, tight: true }],
-    labels: [...(tc.bought ? ["REMOVE CORE"] : []), ...(gear ? ["REMOVE GEAR"] : [])],
+    variants: [{ body, tight: true }, ...forms.flatMap((f) => [{ body: f }, { body: f, tight: true }])],
+    labels: [...(tc.bought ? ["REMOVE CORE"] : []), ...(gm ? ["REMOVE GEAR"] : []), ...slotLabels(b, index)],
   };
 }
 
@@ -627,6 +709,12 @@ export interface BodyPlan {
 
 /** A note for timeline rows that gave way (0.6.2 BELTSIDE's trim). */
 const moreNote = (n: number): Block => ({ role: "note", text: `+${n} MORE HIT TILE${n === 1 ? "" : "S"} (NUMBERED ON THE DECK)`, keep: true });
+/** 0.6.2j (J10): the block standing for the timeline rows that gave way: the note counts the hit tiles among them (a
+ *  JOINS row is none); when they hold no hit tile, the first of them shows as itself. */
+export function moreFor(dropped: readonly Block[]): Block {
+  const k = dropped.filter((b) => !b.join).length;
+  return !k && dropped.length ? { ...dropped[0], trim: false, keep: true } : moreNote(k);
+}
 
 /** Choose the blocks for `avail` px: every kept block, the timeline rows that fit (then a note for the rest), then the
  *  optional blocks by rank, each only if it fits whole. Returns them in display order. */
@@ -648,7 +736,7 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
     if (heightOf(seqOf(rows(trims.length), null)) <= avail) set = rows(trims.length);
     else {
       for (let n = trims.length - 1; n >= 0; n--) {
-        const nt = lay([moreNote(trims.length - n)], width, main, tight)[0];
+        const nt = lay([moreFor(trims.slice(n).map((l) => l.b))], width, main, tight)[0]; // 0.6.2j: hit tiles only
         if (heightOf(seqOf(rows(n), nt)) <= avail || n === 0) {
           set = rows(n);
           note = nt;
@@ -820,9 +908,12 @@ export function planPanel(sp: PanelText, area: Rect): PanelPlan {
     if (!short.shift) port = short;
   }
   if (port?.shift && area.h < PORT_ROW_MIN_H) port = { rects: topRowButtons(labels, area), shift: 0 };
-  // 0.6.1r (item 11): a sub-line wider than the desk column breaks after its last " · " onto a second line
-  const cut = sp.sub.lastIndexOf(" · ");
-  const subs = column && cut > 0 && textWidth(sp.sub, "3") > area.w - 27 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub];
+  // 0.6.1r (item 11): a sub-line wider than the desk column breaks after its last " · " onto a second line; 0.6.2rel:
+  // or after its last full stop (a joining belt's "JOINS BELT 1. FEEDS TURRET 1.")
+  const cut = sp.sub.lastIndexOf(" · "), stop = sp.sub.lastIndexOf(". ");
+  const subs = column && (cut > 0 || stop > 0) && textWidth(sp.sub, "3") > area.w - 27
+    ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
+    : [sp.sub];
   const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 : 0);
   const extra = labels.length ? labels.length * 19 + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
@@ -873,6 +964,8 @@ interface Spec {
 function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
   const { run } = ctx;
   const b = run.build;
+  const tp = turretSpec(ctx, show, hovering); // 0.6.2s (REQ-BFG-031 S10): turret cards and empty turret slots
+  if (tp !== undefined) return tp;
   switch (show.kind) {
     case "offer": {
       const t = offerPanel(run, show.wagon, show.slot);
@@ -915,14 +1008,16 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       return { icon: beltIcon(), text: t, actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }] };
     }
     case "turret": {
+      const td = turretSlots(b)[show.index]?.td; // 0.6.2s: the installed turret (an empty slot has none)
       const t = turretPanel(run, show.index);
-      if (!t) return null;
-      const gm = gearFor(b, show.index);
-      const tc = resolveCore(b, show.index, HEROES[b.hero].turrets[show.index]);
+      if (!td || !t) return null;
+      const gm = gearFor(b, show.index); // 0.6.1b: gear only; the core has its own socket (coreFor via resolveCore)
+      const tc = resolveCore(b, show.index, td);
       const actions: Action[] = [];
       if (tc.bought) actions.push({ id: "unfitcore", label: "REMOVE CORE", onTap: () => unfitCore(ctx, show.index) });
       if (gm) actions.push({ id: "unfit", label: "REMOVE GEAR", onTap: () => unfitMod(ctx, show.index) });
-      return { icon: gm ? itemIcon(gm.def) : null, text: t, actions };
+      // 0.6.2s (S10): the installed turret's icon; TO CARGO and SELL after the socket buttons
+      return { icon: slotIcon(b, show.index), text: t, actions: [...actions, ...slotActions(ctx, show.index)] };
     }
     default:
       return null;

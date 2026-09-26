@@ -12,8 +12,9 @@ import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { overclocked } from "../src/sim/overclock";
 import { effectAt } from "../src/sim/stars";
-import { hitLabel, levelLine, starEffectLine } from "../src/screens/build/inspector";
-import { wrap } from "../src/render/font";
+import { hitLabel } from "../src/screens/build/inspector";
+import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2rel: the glossary's words (REQ-BFG-032)
+import { wrapText } from "../src/ui/richText";
 import { barge, bench, est, run } from "./arsenal.bench";
 
 const RULE: Record<number, { flat: number; perBurn: number; stacks: number }> = {
@@ -114,14 +115,15 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
       const w = walkRoute(b, 0);
       const hit = w.timeline.find((row) => row.hits.some((h) => h.def === "quench"))!.hits.find((h) => h.def === "quench")!;
       expect([hit.flat, hit.quenched, w.estimate.burn], `TEMPER ★${temper}, QUENCH ★${s}`).toEqual([RULE[s].flat + spent * RULE[s].perBurn, spent, burn - spent]);
-      expect(hitLabel(hit, false)).toBe(`QUENCH TANK +${RULE[s].flat + spent * RULE[s].perBurn} (${spent} BURN SPENT)`);
+      // 0.6.2rel: the glossary's hit row (hitText, a free belt), its damage with the word DAMAGE
+      expect(hitLabel(hit, "free")).toBe(`QUENCH TANK +${RULE[s].flat + spent * RULE[s].perBurn} DAMAGE (${spent} BURN SPENT)`);
       const past = run(b, 10).sides[0].routes[0].ammo.filter((a) => a.processed >= 2);
       expect(past.length).toBeGreaterThan(0);
       for (const a of past) expect([a.p.flat, a.p.burn], `TEMPER ★${temper}, QUENCH ★${s}`).toEqual([hit.flat, burn - spent]);
     }
     // with no Burn upstream the timeline shows the floor alone
     const bare = walkRoute(bench([["quench", 4, 3, 2]]), 0).timeline[0].hits[0];
-    expect(hitLabel(bare, false)).toBe("QUENCH TANK +2");
+    expect(hitLabel(bare, "free")).toBe("QUENCH TANK +2 DAMAGE");
   });
 
   it("an overclocked QUENCH doubles its floor and its per-stack pay, over the same stacks", () => {
@@ -132,11 +134,13 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
     const d = ITEMS.quench;
     expect(d.desc.join(" ")).toBe("+1 DAMAGE TO EVERY PAYLOAD. TURNS UP TO 4 BURN INTO +3 EACH.");
     expect(d.desc.every((l) => l.length <= 20)).toBe(true);
-    expect(STARS.map((s) => starEffectLine("quench", s))).toEqual([
-      "+1 DMG · UP TO 4 BURN → +3 EACH", "+2 DMG · UP TO 5 BURN → +5 EACH", "+3 DMG · UP TO 6 BURN → +7 EACH",
-    ]);
-    expect(levelLine("quench", 3)).toBe("★3: +3 DMG · UP TO 6 BURN → +7 EACH");
-    for (const s of STARS) expect(wrap(starEffectLine("quench", s), 151, "3").length, `★${s} on a phone`).toBe(1);
+    // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's opening sentence (abilityText) and clause (gist)
+    expect(STARS.map((s) => abilityText("quench", s).sentences[0])).toEqual(STARS.map((s) =>
+      `ADDS ${RULE[s].flat} DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO ${RULE[s].stacks} OF ITS BURN INTO ${RULE[s].perBurn} MORE DAMAGE EACH.`));
+    expect(abilityText("quench", 1).sentences.slice(1, 2)).toEqual(["ANY MORE BURN STAYS ON THE PAYLOAD."]);
+    expect(gist("quench", 3)).toBe("ADDS 3 DAMAGE, THEN 7 MORE DAMAGE FOR EACH BURN, UP TO 6 BURN");
+    // the opening sentence, wrapped by the one helper, stays within three lines of the phone band
+    for (const s of STARS) expect(wrapText(abilityText("quench", s).sentences[0], 151, "3").length, `★${s} on a phone`).toBeLessThanOrEqual(3);
   });
 });
 

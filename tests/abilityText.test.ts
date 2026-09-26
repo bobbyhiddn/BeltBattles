@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
-  AMMO, BURN_TIME, COMMISSION_BASE, COMMISSION_STEP, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, WINDOW_TIME,
+  AMMO, BURN_TIME, COMMISSION_BASE, COMMISSION_STEP, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GEAR_SLOTS, HEROES, ITEMS, WINDOW_TIME,
   type ItemDef,
 } from "../src/sim/content";
 import { textWidth } from "../src/render/font";
@@ -86,7 +86,8 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   overclocker: (e) => [g(e).overclockCooldown!],
   keg: (e) => [g(e).keg!.flat, g(e).keg!.burn, g(e).keg!.fuse, ...BURN],
   bellows: (e) => [1, g(e).burnPerRide!.seconds, g(e).burnPerRide!.max, ...BURN],
-  quench: (e) => [g(e).quench!.perBurn, g(e).quench!.max],
+  // 0.6.2 FB-B: + flat on every payload, then up to `stacks` of its Burn at perBurn more each (the rest stays Burn)
+  quench: (e) => [g(e).quench!.flat, g(e).quench!.stacks, g(e).quench!.perBurn, ...BURN],
   staticbrush: (e) => [g(e).staticTime!],
   lodestone: (e) => [g(e).perStalled!.each, g(e).perStalled!.max],
   barbed: (e) => (g(e).frayCap ? [g(e).fray!, FRAY_MAX + g(e).frayCap, FRAY_BONUS] : [g(e).fray!, FRAY_BONUS, FRAY_MAX]),
@@ -151,14 +152,24 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   calibrate: (e) => [rateNum(m(e).fireMul!)],
   flak: (e) => [pct(m(e).intercept!)],
   spotter: (e) => (m(e).alwaysMachine ? [m(e).factoryWeight!] : m(e).factoryWeight ? [2, 2] : []), // UP TO TWICE, TWICE AS OFTEN
-  hopper: (e) => [m(e).window!, m(e).windowTime!, WINDOW_TIME],
-  mantlet: (e) => (m(e).intakeGuard ? [m(e).intakeGuard] : []),
+  // 0.6.2 FB-B: ★1's slot and seconds at every star; ★2/★3 store 1/2 loads while the turret fires (ModSpec.store)
+  hopper: (e) => [m(e).window!, m(e).windowTime!, ...(m(e).store ? [m(e).store] : []), WINDOW_TIME],
+  // 0.6.2 FB-B: ★2 shields THE LAST TILE of each belt in (no digit), ★3 THE LAST 3 TILES
+  mantlet: (e) => ((m(e).intakeGuard ?? 0) > 1 ? [m(e).intakeGuard!] : []),
   ram: (e) => [pct(m(e).finisher!)],
   escapement: (e) => [rateNum(m(e).fireMul!), 1.2, 7], // PEAK_SHIFT -1.2 s: 7 tiles (10 by default)
   longcase: (e) => [m(e).longRideMin!, m(e).longRideFlat!, 1.2, 13], // PEAK_SHIFT +1.2 s: 13 tiles
   // supplies
   beltcrate: (e) => [e.supply!.belt!],
   plating: (e) => [e.supply!.hull!],
+  // 0.6.2rel: the 13 turrets (REQ-BFG-031): the interval and loads at that star (★2 x0.9, ★3 x0.8 of the 1-star interval,
+  // said as the rate against 1 star: 11%, 25% FASTER THAN AT 1 STAR), TWO columns unless it takes the inner one only, its
+  // gear slots (the rarity's GEAR_SLOTS + 1 for each star above 1) and 1 core socket, and its shots' flight
+  ...Object.fromEntries(MODULES.filter((d) => d.kind === "turret").map((d) => [d.id, (e: ItemDef, _k: number, s: number) => {
+    const t = e.turret!, one = ITEMS[d.id].turret!.fireInterval;
+    return [r2(t.fireInterval), t.window, ...(s > 1 ? [fasterNum(one / t.fireInterval), 1] : []), ...(t.intake === "inner" ? [] : [2]),
+      GEAR_SLOTS[d.rarity] + s - 1, 1, r2(t.flight)];
+  }])),
 };
 /** Every module with ability text: the buyable modules at 1-3 stars, then each supply at its single level. */
 const ALL = [...MODULES, ...SUPPLIES];
@@ -170,12 +181,12 @@ const WIDTHS: [number, "5" | "3"][] = [[102, "5"], [109, "5"], [116, "5"], [102,
 const FUNCTION_WORDS = new Set(["A", "AN", "THE", "OF", "AT", "TO", "IN", "ON", "FOR", "AND", "OR", "WITH", "INTO", "FROM", "BY"]);
 
 describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
-  it("23 rigs, 13 factories, 13 cores, 9 mods and 2 supplies; each has ability text and an audit row", () => {
+  it("23 rigs, 13 factories, 13 cores, 9 mods, 13 turrets and 2 supplies; each has ability text and an audit row", () => {
     const by = (kind: string) => MODULES.filter((d) => d.kind === kind).length;
-    expect([by("gate"), by("factory"), by("core"), by("mod"), SUPPLIES.length]).toEqual([23, 13, 13, 9, 2]);
+    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([23, 13, 13, 9, 13, 2]);
     for (const d of ALL) expect(hasAbilityText(d.id), d.id).toBe(true);
     expect(Object.keys(NUMBERS).sort()).toEqual(ALL.map((d) => d.id).sort());
-    expect(CASES).toHaveLength((58 + 13) * 3 + 2); // cores twice: heavy (k 1) and light (k 0.55)
+    expect(CASES).toHaveLength((71 + 13) * 3 + 2); // 71 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
   });
 
   it("the numbers every sentence quotes are that star's values (effectAt; a core's x k)", () => {
@@ -209,6 +220,26 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     expect(at("scrapper", 3).perk).toEqual({ name: "BIG HAUL", stars: 3, after: 2 });
     expect(at("frostbite", 2).sentences[0]).toBe("STAMPS ROUNDS THAT FREEZE 2 MACHINES FOR 2.75 SECONDS.");
     expect(at("temper", 1).sentences).toEqual(["ADDS 2 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS."]);
+  });
+
+  it("0.6.2rel: FB-B's four modules and the turrets, written out", () => {
+    const at = (def: string, s: number) => abilityText(def, s);
+    expect(at("quench", 1).sentences[0]).toBe("ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 3 MORE DAMAGE EACH.");
+    expect(at("surge", 1).sentences[0]).toBe("PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 1 DAMAGE.");
+    expect(at("hopper", 2).sentences[1]).toBe("WHILE THE TURRET FIRES, IT STORES 1 LOAD FROM THE BELT FOR ITS NEXT CHAMBER.");
+    expect(at("mantlet", 2).sentences).toEqual([
+      "THE TURRET IGNORES SHOCK, STATIC, ARC, CHAIN, FROST AND SABOT STALLS.", "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
+    ]);
+    expect(at("bombard", 2)).toEqual({
+      sentences: [
+        "A HEAVY TURRET THAT FIRES EVERY 0.9 SECONDS AND HOLDS 4 LOADS.", "IT FIRES 11% FASTER THAN AT 1 STAR.",
+        "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.", "IT HAS 3 GEAR SLOTS AND 1 CORE SOCKET.", "ITS SHOTS LAND 0.6 SECONDS AFTER IT FIRES.",
+      ],
+    });
+    expect(at("hailgun", 1).sentences.slice(0, 2)).toEqual(["A LIGHT TURRET THAT FIRES EVERY 0.45 SECONDS AND HOLDS 3 LOADS.", "IT TAKES A BELT ON ITS INNER COLUMN ONLY."]);
+    expect(at("thunderer", 3).sentences[3]).toBe("IT HAS 6 GEAR SLOTS AND 1 CORE SOCKET."); // legendary 4, + 1 for each star above 1
+    expect(at("swivel", 1).sentences[0]).toBe("AN ADAPTABLE TURRET THAT FIRES EVERY 0.7 SECONDS AND HOLDS 3 LOADS.");
+    expect([cardText("bombard"), nextStarText("bombard", 1)]).toEqual(["FIRES EVERY 1 SECOND.", "NEXT STAR: FIRES EVERY 0.9 SECONDS, 3 GEAR SLOTS."]);
   });
 });
 

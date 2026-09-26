@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { newRun, type Run } from "../src/game/run";
-import { ITEMS, rigShape, type HeroId } from "../src/sim/content";
-import { key as K, rotField, walkRoute } from "../src/sim/deck";
+import { HEROES, ITEMS, rigShape, type HeroId } from "../src/sim/content";
+import { gearSlotsOf, key as K, rotField, setTurretList, turretSlots, walkRoute, type Placed } from "../src/sim/deck";
+import { emptySlotPanel } from "../src/screens/build/turretPanel";
 import { rotFacing } from "../src/sim/beltside";
 import { effectAt, fusible } from "../src/sim/stars";
 import { textWidth } from "../src/render/font";
@@ -12,7 +13,7 @@ import {
   ROLE, beltKind, cargoPanel, itemPanel, lay, offerPanel, planPanel, rigPanel, routePanel, turretPanel, visibleLines,
   type Block, type Laid, type PanelText, type PLine,
 } from "../src/screens/build/inspector";
-import { abilityText, cardText, gist, mergeProgressText } from "../src/ui/abilityText";
+import { abilityText, cardText, gist, mergeProgressText, speedText } from "../src/ui/abilityText";
 import { flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
 import { MODULES, STARS, SUPPLIES, banned } from "./textRules";
@@ -52,6 +53,53 @@ function layouts(def: string): [string, number, number, number][] {
   ] as [string, number, number, number][];
 }
 
+/** 0.6.2rel (REQ-BFG-031): the gear a turret can carry, one of each (a turret never takes a second copy of a def). */
+const GEAR = MODULES.filter((d) => d.kind === "mod").map((d) => d.id);
+/** A FURNACE with turret `def` (★stars) in slot 0 and `gear` in its hardpoints, in order, and a bought core if given. */
+function turretRun(def: string, stars: number, gear: [string, number][], core?: [string, number]): Run {
+  const run = newRun("furnace", 5, "turret");
+  setTurretList(run.build, [{ slot: 0, def, uid: 700, ...(stars > 1 ? { stars } : {}) }]);
+  gear.forEach(([g, s], i) => run.build.mods.push({ uid: 710 + i, def: g, turret: 0, ...(s > 1 ? { stars: s } : {}) } as Run["build"]["mods"][number]));
+  if (core) run.build.mods.push({ uid: 730, def: core[0], turret: 0, ...(core[1] > 1 ? { stars: core[1] } : {}) } as Run["build"]["mods"][number]);
+  return run;
+}
+/** n distinct pieces of gear at ★1, ★2, ★3 in turn. */
+const gearOf = (n: number): [string, number][] => GEAR.slice(0, n).map((g, i) => [g, 1 + (i % 3)]);
+/** 0.6.2rel: a FURNACE with a STAMP PRESS belt up column 10 under slot 1 and `def` in slot 1 (an inner-intake turret
+ *  leaves it a dead end; no turret there, an empty slot does too). */
+function deadEndRun(def?: string): Run {
+  const run = newRun("furnace", 5, "deadend");
+  run.build.items.push({ uid: 760, def: "press", x: 8, y: 6 });
+  run.build.routes.push({ factory: 760, cells: [5, 4, 3, 2, 1, 0].map((y) => K(9, y)) });
+  setTurretList(run.build, [{ slot: 0, def: "scrapcannon", uid: 90, free: true }, ...(def ? [{ slot: 1, def, uid: 761 }] : [])]);
+  return run;
+}
+
+/** 0.6.2rel (REQ-BFG-027, the joins series' J10 scene): the hero's factory feeds belt 1 up column 4; a `factory` at
+ *  (0,6) feeds belt 2, which joins belt 1 at its tile 2 (cell (4,4)); `items` beside them. */
+const JM = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
+const JR = [K(2, 6), K(2, 5), K(2, 4), K(3, 4)];
+function joinRun(o: { hero?: HeroId; main?: string; factory?: string; items?: Placed[] } = {}): Run {
+  const hero = o.hero ?? "furnace", run = newRun(hero, 5, "joins");
+  run.build = {
+    hero, mods: [], beltCap: 40, hullBonus: 0,
+    items: [{ uid: 1, def: o.main ?? HEROES[hero].factory, x: 4, y: 6 }, { uid: 2, def: o.factory ?? "press", x: 0, y: 6 }, ...(o.items ?? [])],
+    routes: [{ factory: 1, cells: [...JM] }, { factory: 2, cells: [...JR], join: K(4, 4) }],
+  };
+  run.inventory = [];
+  return run;
+}
+/** A rig facing west (dir 3) or east (dir 1) at (x, y), at ★stars. */
+const rigAt = (uid: number, def: string, x: number, y: number, dir: number, stars = 1): Placed =>
+  ({ uid, def, x, y, ...rotField(def, rotFacing(def, dir)), ...(stars > 1 ? { stars } : {}) });
+/** Speed rigs on belt 1 past the join tile (tiles 3 and 4), at ★stars. */
+const pastJoin = (stars: number): Placed[] => [rigAt(21, "grease", 5, 3, 3, stars), rigAt(22, "brake", 5, 2, 3, stars)];
+/** Hits before and after the join: every tile of belt 2 and of belt 1 from the join on. */
+const busyJoin = (): Placed[] => [
+  rigAt(31, "temper", 1, 5, 1), rigAt(32, "whetstone", 1, 4, 1), rigAt(33, "venom", 3, 5, 0), rigAt(34, "whetstone", 5, 4, 3),
+  rigAt(35, "temper", 5, 3, 3), rigAt(36, "barbed", 5, 2, 3), rigAt(37, "whetstone", 5, 1, 3), rigAt(38, "temper", 5, 0, 3),
+];
+
 /** Every inspect panel the tests fit: each buyable module at every star, where the game can show it. */
 function panels(): { id: string; kind: string; t: PanelText }[] {
   const out: { id: string; kind: string; t: PanelText }[] = [];
@@ -87,6 +135,39 @@ function panels(): { id: string; kind: string; t: PanelText }[] {
     run.shop.wagons = [{ merchant: d.merchant!, offers: [{ def: d.id, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
     out.push({ id: `offer ${d.id} held[${held}]`, kind: "offer", t: offerPanel(run, 0, 0)! });
   }
+  // 0.6.2rel (REQ-BFG-031): every turret installed at every star with every hardpoint count (none to all its gear slots;
+  // a legendary ★3 has 6), on its signature core and on a bought ★2 SCATTER CHOKE
+  for (const d of MODULES.filter((x) => x.kind === "turret")) for (const s of STARS) {
+    for (let n = 0; n <= gearSlotsOf(d.id, s); n++) for (const core of [undefined, ["scatter", 2] as [string, number]]) {
+      out.push({ id: `installed ${d.id} ★${s} gear${n}${core ? " core" : ""}`, kind: "installed", t: turretPanel(turretRun(d.id, s, gearOf(n), core), 0)! });
+    }
+  }
+  // FB-B on a turret: MANTLET ★2/★3's shield, HOPPER ★3's store, the GATLING clashes (every gear slot), and all at once
+  const special: [string, string, number, [string, number][], [string, number]?][] = [
+    ["mantlet2", "bombard", 1, [["mantlet", 2]]],
+    ["mantlet3-hopper3", "bombard", 2, [["mantlet", 3], ["hopper", 3]]],
+    ["hopper3-ram-gatling", "bombard", 2, [["hopper", 3], ["ram", 2]], ["gatling", 2]],
+    ["thunderer3-six-gatling", "thunderer", 3, [["hopper", 2], ["ram", 1], ["mantlet", 3], ["calibrate", 3], ["chamber", 2], ["spotter", 1]], ["gatling", 3]],
+  ];
+  for (const [id, def, s, gear, core] of special) out.push({ id: `installed ${id}`, kind: "installed", t: turretPanel(turretRun(def, s, gear, core), 0)! });
+  // the dead end a swap to an inner-intake turret leaves, and the one an empty slot leaves; every hero's empty slot
+  out.push({ id: "installed hailgun dead end", kind: "installed", t: turretPanel(deadEndRun("hailgun"), 1)! });
+  out.push({ id: "empty slot dead end", kind: "empty", t: emptySlotPanel(deadEndRun().build, 1) });
+  for (const hero of Object.keys(HEROES) as HeroId[]) {
+    const b = newRun(hero, 5, "empty").build;
+    turretSlots(b).forEach((sl, i) => { if (!sl.turret) out.push({ id: `empty slot ${hero} ${i}`, kind: "empty", t: emptySlotPanel(b, i) }); });
+  }
+  // 0.6.2rel (REQ-BFG-027): belt panels with joins: the joining belt and the main belt; a SLAG joiner and a slag-fed main
+  // belt (0b.4); METRONOME's locked belts; a joined belt whose rows give way on the phone
+  const joins: [string, Run][] = [
+    ...STARS.map((s): [string, Run] => [`joins ★${s}`, joinRun({ items: pastJoin(s) })]),
+    ...STARS.map((s): [string, Run] => [`slag joiner ★${s}`, joinRun({ factory: "slagpot", items: pastJoin(s) })]),
+    ...STARS.map((s): [string, Run] => [`slag main ★${s}`, joinRun({ main: "slagpot", items: pastJoin(s) })]),
+    ...STARS.map((s): [string, Run] => [`metronome ★${s}`, joinRun({ hero: "metronome", items: pastJoin(s) })]),
+    ["busy", joinRun({ items: busyJoin() })],
+    ["bare", joinRun({ items: [rigAt(31, "temper", 1, 5, 1)] })],
+  ];
+  for (const [id, run] of joins) for (const i of [0, 1]) out.push({ id: `belt ${id} route${i}`, kind: "belt", t: routePanel(run, i)! });
   return out;
 }
 const PANELS = panels();
@@ -131,7 +212,8 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
       for (const role of ["ability", "next", "merge", "merges", "hits", "warn"] as const) expect(r.roleWhole(role), `${id}: ${role}`).toBe(true);
       // what must show: the opening sentence and every perk-carrying block, the next-star line and merge progress
       const shownBlocks = r.plan.body.shown.map((l) => l.b);
-      expect(shownBlocks.some((b) => b.role === "ability" || b.role === "row"), `${id}: opening`).toBe(true);
+      // (0.6.2rel: a belt panel opens with its tiles and hits, the joins series' head)
+      expect(shownBlocks.some((b) => b.role === "ability" || b.role === "row" || (kind === "belt" && b.role === "hits")), `${id}: opening`).toBe(true);
       if (t.body.some((b) => b.role === "next")) {
         expect(shownBlocks.some((b) => b.role === "next"), `${id}: next star`).toBe(true);
         expect(shownBlocks.some((b) => b.role === "merge"), `${id}: merge progress`).toBe(true);
@@ -175,7 +257,7 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
       if (r.flavour === "whole") counts.flavourWhole++;
       else counts.flavourAbsent++;
     }
-    expect(small).toEqual([]); // the desk column's ability text never drops to the 3x5 face
+    expect(small, small.join("; ")).toEqual([]); // the desk column's ability text never drops to the 3x5 face
     console.log(`desk fit: ${JSON.stringify(counts)}`);
   });
 
@@ -290,6 +372,89 @@ describe("0b.4: a SLAG belt's readout says what the sim does there; METRONOME's 
       expect(text, `★${s}`).toContain(`GREASE WORKS +${g.lockedFlat} DAMAGE (LOCKED)`);
       expect(text, `★${s}`).toContain(`BRAKE SHOE +${(b.flat ?? 0) + b.lockedFlat!} DAMAGE (LOCKED)`);
       expect(text.join(" | "), `★${s}`).toContain("SPD 100% (LOCKED)");
+    }
+  });
+});
+
+describe("0b.4 through a join (0.6.2rel, J15: the speed belongs to the payload)", () => {
+  it("a SLAG joiner's rows past the join read NO EFFECT ON SLAG, never LOCKED or a locked bonus; its gun end is slag's", () => {
+    for (const s of STARS) {
+      const run = joinRun({ factory: "slagpot", items: pastJoin(s) }), w = walkRoute(run.build, 1);
+      expect([beltKind(w), w.locked, w.fixed, w.joins?.length], `★${s}`).toEqual(["slag", false, 0.75, 1]);
+      const text = readout(run, 1), all = text.join(" | ");
+      expect(text, `★${s}`).toContain("JOINS BELT 1 AT TILE 2.");
+      expect(all, `★${s}`).not.toMatch(/LOCKED/);
+      expect(text, `★${s}`).toContain("GREASE WORKS: NO EFFECT ON SLAG");
+      const flat = effectAt("brake", s).gate!.flat ?? 0;
+      expect(text, `★${s}`).toContain(flat ? `BRAKE SHOE +${flat} DAMAGE, NO SPEED CHANGE ON SLAG` : "BRAKE SHOE: NO EFFECT ON SLAG");
+      expect(all, `★${s}`).toContain("SPD 75% (SLAG)");
+    }
+  });
+
+  it("a normal payload joining a slag-fed belt rides that belt's speed state: its speed rigs change its speed", () => {
+    for (const s of STARS) {
+      const run = joinRun({ main: "slagpot", items: pastJoin(s) });
+      const joiner = walkRoute(run.build, 1), main = walkRoute(run.build, 0);
+      expect([beltKind(joiner), beltKind(main)], `★${s}`).toEqual(["free", "slag"]);
+      const text = readout(run, 1).join(" | ");
+      expect(text, `★${s}`).toContain(`GREASE WORKS ${speedText(effectAt("grease", s).gate!.speed!)}`);
+      expect(text, `★${s}`).not.toMatch(/NO EFFECT ON SLAG|LOCKED|\(SLAG\)/);
+      // the slag-fed main belt's own readout is unchanged by the join: its slag keeps its speed
+      expect(readout(run, 0).join(" | "), `★${s}`).toContain("GREASE WORKS: NO EFFECT ON SLAG");
+    }
+  });
+
+  it("METRONOME: a joined belt keeps (LOCKED) and the locked bonus past the join", () => {
+    for (const s of STARS) {
+      const run = joinRun({ hero: "metronome", items: pastJoin(s) }), w = walkRoute(run.build, 1);
+      expect([beltKind(w), w.locked], `★${s}`).toEqual(["locked", true]);
+      const text = readout(run, 1), g = effectAt("grease", s).gate!;
+      expect(text, `★${s}`).toContain(`GREASE WORKS +${g.lockedFlat} DAMAGE (LOCKED)`);
+      expect(text.join(" | "), `★${s}`).toContain("SPD 100% (LOCKED)");
+    }
+  });
+});
+
+describe("0.6.2rel: the join rows and the turret panels read by the text rules", () => {
+  it("J10 on the phone: a joined belt's rows give way from the end, and the note counts hit tiles only", () => {
+    const t = routePanel(joinRun({ items: busyJoin() }), 1)!;
+    expect(t.body.filter((b) => b.trim).map((b) => b.join ?? false)).toEqual([false, false, false, true, false, false, false, false, false]);
+    const plan = planPanel(t, PHONE);
+    const dropped = plan.body.dropped.filter((b) => b.trim), hits = dropped.filter((b) => !b.join).length;
+    expect(dropped.length, "rows give way on the phone").toBeGreaterThan(0);
+    const note = plan.body.shown.find((l) => l.b.role === "note");
+    expect(note?.b.text).toBe(`+${hits} MORE HIT TILE${hits === 1 ? "" : "S"} (NUMBERED ON THE DECK)`);
+    expect(fit(t, PHONE).keptWhole).toBe(true);
+  });
+
+  it("no \"·\" in any belt, turret or empty-slot panel, its header included; T2 in every sentence", () => {
+    for (const { id, t } of PANELS.filter((p) => ["belt", "installed", "empty"].includes(p.kind))) {
+      for (const s of [t.title, t.sub, t.subShort ?? "", ...t.body.map((b) => b.text)]) expect(s, `${id}: ${s}`).not.toContain("·");
+      for (const b of t.body.filter((x) => x.role === "ability" || x.role === "warn" || x.role === "hint")) expect(banned(b.text), `${id}: ${b.text}`).toEqual([]);
+    }
+    // a joining belt's sub line: two short sentences (the desk column breaks it after the first)
+    expect(routePanel(joinRun(), 1)!.sub).toBe("JOINS BELT 1. FEEDS TURRET 1.");
+    expect(planPanel(routePanel(joinRun(), 1)!, DESK).subs).toEqual(["JOINS BELT 1.", "FEEDS TURRET 1."]);
+  });
+
+  it("0b.2 on the join rows: no lone short word on a last line where pulling one more word down still fits", () => {
+    const texts = ["JOINS BELT 1 AT TILE 2.", "JOINS BELT 12 AT TILE 14.", "BELT 2 JOINS IT.", "BELTS 2, 3 AND 4 JOIN IT."];
+    for (const t of texts) for (const [w, font] of [[116, "5"], [102, "5"], [151, "3"], [90, "5"], [80, "5"]] as const) {
+      const lines = wrapText(t, w, font);
+      expect(stubLine(lines.at(-1)!) && lines.length > 1 && lines.at(-2)!.split(" ").length > 1
+        && textWidth(`${lines.at(-2)!.split(" ").at(-1)} ${lines.at(-1)}`, font) <= w, `${t} at ${w}: ${lines.join(" / ")}`).toBe(false);
+    }
+    // the mechanics head's desk readout left a lone "2" (joins-readout-desk.png): now the tile number keeps its word
+    expect(wrapText("JOINS BELT 1 AT TILE 2.", 116, "5")).toEqual(["JOINS BELT 1 AT", "TILE 2."]);
+  });
+
+  it("a turret with 6 hardpoints shows its core and every gear slot on the phone band and in the desk column", () => {
+    const t = turretPanel(turretRun("thunderer", 3, gearOf(6), ["gatling", 3]), 0)!;
+    for (const area of [PHONE, DESK]) {
+      const r = fit(t, area), shown = r.plan.body.shown.map((l) => l.b);
+      expect(r.keptWhole).toBe(true);
+      expect(shown.filter((b) => b.role === "row" && (b.label === "CORE" || b.label?.startsWith("GEAR"))).length).toBeGreaterThanOrEqual(2);
+      expect(shown.map((b) => b.text).join(" ")).toContain(GEAR.slice(0, 6).map((g) => ITEMS[g].name).at(-1)!);
     }
   });
 });

@@ -9,7 +9,7 @@ import { ITEMS, WINDOW_TIME } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars";
-import { levelLine, starEffectLine } from "../src/screens/build/inspector";
+import { abilityText, gist, nextStarText } from "../src/ui/abilityText"; // 0.6.2rel: the glossary's words (REQ-BFG-032)
 import { barge, bench, busy, run, SEED } from "./arsenal.bench";
 
 const STARS = [1, 2, 3];
@@ -141,10 +141,16 @@ describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that 
 
   it("player text: the star lines name the store; ★1's description is unchanged", () => {
     expect(ITEMS.hopper.desc).toEqual(["CHAMBER HOLDS 1 MORE", "LOAD; WINDOWS STAY", "OPEN 0.5S LONGER."]);
-    expect(STARS.map((s) => starEffectLine("hopper", s))).toEqual([
-      "+1 SLOT · +0.5S", "+1 SLOT · +0.5S · HOLDS 1 MORE WHILE FIRING", "+1 SLOT · +0.5S · HOLDS 2 MORE WHILE FIRING · NEVER JAMS",
+    // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's sentences (abilityText) and clauses (gist, NEXT STAR)
+    const chamber = "THE CHAMBER HOLDS 1 MORE LOAD, AND THE LOAD TIME IS 0.5 SECONDS LONGER.";
+    const store = (n: number) => `WHILE THE TURRET FIRES, IT STORES ${n} LOAD${n === 1 ? "" : "S"} FROM THE BELT FOR ITS NEXT CHAMBER.`;
+    expect(STARS.map((s) => abilityText("hopper", s).sentences.slice(0, s))).toEqual([
+      [chamber], [chamber, store(1)], [chamber, store(2), "THE TURRET NEVER JAMS."],
     ]);
-    expect(levelLine("hopper", 2)).toBe("★2: +1 SLOT · +0.5S · HOLDS 1 MORE WHILE FIRING");
-    expect(levelLine("hopper", 3)).toBe("★3 BOTTOMLESS: +1 SLOT · +0.5S · HOLDS 2 MORE WHILE FIRING · NEVER JAMS");
+    expect(abilityText("hopper", 3).perk).toEqual({ name: "BOTTOMLESS", stars: 3, after: 2 });
+    expect(STARS.map((s) => gist("hopper", s))).toEqual([
+      "HOLDS 1 MORE LOAD, LOAD TIME 0.5 SECONDS LONGER", "STORES 1 LOAD WHILE IT FIRES", "STORES 2 LOADS WHILE IT FIRES, NEVER JAMS",
+    ]);
+    expect(nextStarText("hopper", 1)).toBe("NEXT STAR: STORES 1 LOAD WHILE IT FIRES.");
   });
 });

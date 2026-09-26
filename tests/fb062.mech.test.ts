@@ -249,10 +249,12 @@ describe("2. HOPPER on the mechanics head: more gear slots, and the GATLING", ()
   });
 
   it("the GATLING clash lines read every gear slot (they read only the first before CAND-A)", () => {
-    const hop = "GATLING: HOPPER'S +0.5S DOES NOTHING", ram = "GATLING: NO WINDOW, SO NO FINISHER";
+    // 0.6.2rel (REQ-BFG-032): whole sentences from the glossary (gatlingClashText); a HOPPER ★2/★3's store still works
+    const hop = "GATLING SPOOL: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE.", hopStore = "GATLING SPOOL: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE, BUT ITS STORE STILL WORKS.";
+    const ram = "GATLING SPOOL: NO FULL CHAMBER, SO THE FINISHER RAM DOES NOTHING.";
     const b = bombard([["calibrate", 1], ["hopper", 2]]);
-    expect(gatlingClash(b, 0, "gatling")).toEqual([hop]); // the HOPPER in the second hardpoint
-    expect(gatlingClash(bombard([["ram", 1], ["hopper", 3]]), 0, "gatling")).toEqual([ram, hop]);
+    expect(gatlingClash(b, 0, "gatling")).toEqual([hopStore]); // the HOPPER in the second hardpoint
+    expect(gatlingClash(bombard([["ram", 1], ["hopper", 3]]), 0, "gatling")).toEqual([ram, hopStore]);
     expect(gatlingClash(bombard([["hopper", 1]]), 0, "gatling")).toEqual([hop]);
     expect(gatlingClash(b, 0, "identity")).toEqual([]);
     expect(gatlingClash(bombard([["calibrate", 1]]), 0, "gatling")).toEqual([]);
