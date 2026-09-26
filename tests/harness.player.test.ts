@@ -9,6 +9,14 @@ import { heroRefBuild } from "../src/sim/harness/heroes";
 import { balanceMarkdown } from "../src/sim/harness/report";
 import { STANDIN_DEFAULTS, dataModuleText, genStandIns, standInCommand, standInRefs } from "../src/sim/harness/standins";
 import { DEFAULT_OPTS, localRunner, runTournament, type Runner, type TourneyOpts } from "../src/sim/harness/tournament";
+// 0.6.2 CAND-A
+import { HEROES as HERO_DEFS } from "../src/sim/content";
+import {
+  cloneBuild, connectorClaims, feedOf, gearOn, hullSlots, installTurret, installedTurrets, joinOf, key as K, rigArrows, rigHits,
+  rotField, routeInfo, setTurretList, turretSlots, type Build, type Placed, type RouteDef,
+} from "../src/sim/deck";
+import { rateDeck } from "../src/sim/deckRating";
+import { type PlayerDay, type PlayerOpts } from "../src/sim/harness/player";
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -149,4 +157,180 @@ describe("par field (par.ts): the par of a hero and day is K par-player decks", 
     expect(medianIndex([0.2, 0.8, 0.4, 0.6])).toBe(2);
     expect(medianIndex([0.5, 0.5, 0.5, 0.5])).toBe(1);
   });
+});
+
+// ---------------------------------------------------------------- 0.6.2 CAND-A (ref/BRIEF-final-062-cand.md §2)
+// The par player on the mechanics head: turret slots (REQ-BFG-031), belt joins (REQ-BFG-027), multi-arrow aim.
+
+/** Every day of every par run (seeds 1..PAR_K, both heroes), with its seed. */
+const allDays = (opts: PlayerOpts = {}): { hero: (typeof HEROES)[number]; seed: number; d: PlayerDay }[] =>
+  HEROES.flatMap((hero) => parSeeds().flatMap((seed) => playerRun(hero, PLAYER_DAYS, seed, opts).map((d) => ({ hero, seed, d }))));
+/** The extra TURRET SLOT of a hull: the one with no starting turret. */
+const extraSlot = (b: Build): number => hullSlots(b.hero).findIndex((s) => !s.start);
+/** The turret slots some connected belt feeds (a joining belt's chain included). */
+const fed = (b: Build): Set<number> => {
+  const claims = connectorClaims(b);
+  return new Set(b.routes.map((_, i) => routeInfo(b, i, claims)).filter((r) => r.connected).map((r) => r.turret));
+};
+/** Each rig's belt hits, by uid. */
+const rigRoutes = (b: Build): Map<number, number[]> => {
+  const out = new Map<number, number[]>();
+  for (const r of rigHits(b)) for (const t of r) for (const h of t) out.set(h.uid, [...(out.get(h.uid) ?? []), h.route]);
+  return out;
+};
+
+describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets through the caravan (REQ-BFG-031)", () => {
+  it("one run buys a turret into the empty extra slot, installed and fed by a connected belt; every such deck is legal", () => {
+    const hits = allDays().filter((x) => x.d.buys.some((b) => b.into === "extra"));
+    expect(hits.length, "some par run fills the extra slot").toBeGreaterThan(0);
+    let fedSeen = 0;
+    for (const { hero, seed, d } of hits) {
+      const b = d.build, e = extraSlot(b), buy = d.buys.find((x) => x.into === "extra")!;
+      expect(buy.slot, `${hero} s${seed} d${d.day}`).toBe(e);
+      expect(ITEMS[buy.def].kind).toBe("turret");
+      expect(validateBuild(b, d.day).errors, `${hero} s${seed} d${d.day}`).toEqual([]);
+      if (turretSlots(b)[e].turret && fed(b).has(e)) fedSeen++;
+    }
+    expect(fedSeen, "a gun in the extra slot fires: a belt feeds it by dusk").toBeGreaterThan(0);
+  }, 300_000);
+
+  it("one run replaces a turret: the slot holds the bought def, the old one left the deck (cargo or sold) and the gold adds up", () => {
+    const hits = allDays().filter((x) => x.d.buys.some((b) => b.into === "replace"));
+    expect(hits.length, "some par run replaces a turret").toBeGreaterThan(0);
+    for (const { hero, seed, d } of hits) {
+      const buy = d.buys.find((x) => x.into === "replace")!;
+      expect(buy.replaced, `${hero} s${seed} d${d.day}`).toBeDefined();
+      expect(validateBuild(d.build, d.day).errors).toEqual([]);
+      expect(d.value + d.rerollGold + d.gold + d.soldLoss).toBe(maxGoldByDay(d.day));
+    }
+  });
+
+  it("gear goes into every gear slot a turret has: some par deck carries two or more gear pieces on one turret", () => {
+    const hit = allDays().find((x) => installedTurrets(x.d.build).some((v) => gearOn(x.d.build, v.slot).length >= 2));
+    expect(hit, "a turret with 2+ gear").toBeDefined();
+    const b = hit!.d.build;
+    for (const v of installedTurrets(b)) expect(gearOn(b, v.slot).length).toBeLessThanOrEqual(v.gearSlots);
+    expect(validateBuild(b, hit!.d.day).errors).toEqual([]);
+  });
+});
+
+describe("0.6.2 CAND-A: the par player draws joins and aims multi-arrow rigs (REQ-BFG-027, REQ-BFG-025)", () => {
+  it("one run joins a belt: every join in the par field is legal (joinOf), and the joining belt reaches a turret", () => {
+    const joined = allDays().filter((x) => x.d.build.routes.some((r) => r.join !== undefined));
+    expect(joined.length, "some par deck joins a belt").toBeGreaterThan(0);
+    for (const { hero, seed, d } of joined) {
+      const b = d.build;
+      b.routes.forEach((r, i) => {
+        if (r.join === undefined) return;
+        expect(joinOf(b, i), `${hero} s${seed} d${d.day} route ${i}`).toBeDefined();
+        expect(feedOf(b, i).connected, `${hero} s${seed} d${d.day} route ${i}`).toBe(true);
+      });
+    }
+    // and a factory bought today laid a joining belt (the new line joined another belt)
+    expect(allDays().some((x) => x.d.buys.some((b) => (b.joins ?? 0) > 0))).toBe(true);
+  });
+
+  it("one run places a rig whose arrows land on two belts", () => {
+    const hit = allDays().find((x) => [...rigRoutes(x.d.build).values()].some((rs) => new Set(rs).size >= 2));
+    expect(hit, "a two-belt rig").toBeDefined();
+    const b = hit!.d.build, [uid] = [...rigRoutes(b)].find(([, rs]) => new Set(rs).size >= 2)!;
+    const p = b.items.find((q) => q.uid === uid)!;
+    expect(rigArrows(p.def).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// junction-062's bench layouts (tests/joins.bench.test.ts), written out: FURNACE's KILN belt M into connector 4, a STAMP
+// PRESS (6,6) and a DOUBLE STAMP (1,6); WEAVER's LOOM belt A into turret 2 (connector 4), a STAMP PRESS (7,7), a DOUBLE
+// STAMP (0,6). The rig row stands west of M / A facing east.
+const rigRow = (day: number): [string, number][] =>
+  day >= 10 ? [["temper", 2], ["whetstone", 2], ["brake", 1], ["splitter", 1]] : day >= 7 ? [["temper", 2], ["whetstone", 2], ["brake", 1]] : [["temper", 1], ["whetstone", 1], ["brake", 1]];
+const st = (s: number) => (s > 1 ? { stars: s } : {});
+function benchDeck(hero: "furnace" | "weaver", day: number, three: boolean, routes: RouteDef[]): Build {
+  const f = hero === "furnace";
+  const items: Placed[] = f
+    ? [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 }, ...(three ? [{ uid: 3, def: "doublestamp", x: 1, y: 6 }] : [])]
+    : [{ uid: 1, def: "loom", x: 4, y: 5 }, { uid: 2, def: "press", x: 7, y: 7 }, ...(three ? [{ uid: 3, def: "doublestamp", x: 0, y: 6 }] : [])];
+  rigRow(day).forEach(([def, s], i) => items.push({ uid: 10 + i, def, x: 3, y: (f ? 4 : 3) - i, ...rotField(def, 1), ...st(s) }));
+  return {
+    hero, items, routes, mods: day >= 7 ? [{ uid: 30, def: "calibrate", turret: f ? 0 : 1 }] : [], beltCap: f ? (three ? 18 : 14) : 24,
+    hullBonus: heroRefBuild(hero, day).hullBonus,
+  };
+}
+const FM = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
+const F_P5 = [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)];
+const F_P5L = [K(7, 5), K(7, 4), K(7, 3), K(7, 2), K(7, 1), K(7, 0), K(6, 0), K(5, 0)];
+const JOIN_LAYOUTS: Record<string, (day: number) => Build> = {
+  F0: (d) => benchDeck("furnace", d, false, [{ factory: 1, cells: FM }, { factory: 2, cells: F_P5 }]),
+  F0L: (d) => benchDeck("furnace", d, false, [{ factory: 1, cells: FM }, { factory: 2, cells: F_P5L }]),
+  F1: (d) => benchDeck("furnace", d, false, [{ factory: 1, cells: FM }, { factory: 2, cells: [K(6, 5), K(5, 5)], join: K(4, 5) }]),
+  F3L: (d) => benchDeck("furnace", d, true, [{ factory: 1, cells: FM }, { factory: 2, cells: F_P5L }]),
+  F4: (d) => benchDeck("furnace", d, true, [{ factory: 1, cells: FM }, { factory: 2, cells: F_P5 }, { factory: 3, cells: [K(3, 6), K(3, 5)], join: K(4, 5) }]),
+  W4: (d) => benchDeck("weaver", d, true, [
+    { factory: 1, cells: [K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] }, { factory: 2, cells: [K(8, 6), K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)] },
+    { factory: 3, cells: [K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(1, 1), K(1, 0)] },
+  ]),
+  W5: (d) => benchDeck("weaver", d, true, [
+    { factory: 1, cells: [K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] }, { factory: 2, cells: [K(7, 6), K(6, 6), K(6, 5), K(6, 4), K(5, 4)], join: K(4, 4) },
+    { factory: 3, cells: [K(1, 5), K(2, 5), K(3, 5), K(3, 4)], join: K(4, 4) },
+  ]),
+};
+
+describe("0.6.2 CAND-A: the rating reads turrets and joins as the battle fights them (deckRating.ts)", () => {
+  it("the junction bench's findings: F1 (join the PRESS before the KILN's rig row) beats both join-free layouts; crowding loses", () => {
+    const v = (id: string, d: number) => rateDeck(JOIN_LAYOUTS[id](d)).value;
+    for (const d of [5, 7, 10]) {
+      for (const id of Object.keys(JOIN_LAYOUTS)) expect(validateBuild(JOIN_LAYOUTS[id](d), 10).errors, `${id} d${d}`).toEqual([]);
+      expect(v("F1", d), `d${d}: F1 > F0L`).toBeGreaterThan(v("F0L", d));
+      expect(v("F0L", d), `d${d}: F0L > F0 (E1's long belt)`).toBeGreaterThan(v("F0", d));
+      // three factories into one heavy intake is no better than the third idle (the bench: -8 to -13 points)
+      expect(v("F4", d), `d${d}: F4 <= F3L`).toBeLessThanOrEqual(v("F3L", d) * 1.02);
+    }
+    // three WEAVER factories into one light turret against one factory per turret (the bench: -21 on day 5, -43 on day 10)
+    for (const d of [5, 10]) expect(v("W5", d), `d${d}: W5 < W4`).toBeLessThan(v("W4", d));
+  });
+
+  it("an installed turret at its stars, in any slot, the extra slot's gun and E1 over a joined journey", () => {
+    // a saturated FURNACE deck (F0, no long belt): a 2-star SCRAP CANNON fires every 0.9 s, so the deck rates higher
+    const f0 = JOIN_LAYOUTS.F0(5), two = cloneBuild(f0);
+    setTurretList(two, [{ slot: 0, def: "scrapcannon", uid: 90, stars: 2, free: true }]); // the starting copy merged once
+    expect(installedTurrets(two)[0].td.fireInterval).toBeCloseTo(0.9, 9);
+    expect(rateDeck(two).value).toBeGreaterThan(rateDeck(f0).value);
+    // the PRESS's belt into a gun in the extra slot instead of the saturated SCRAP CANNON: two guns rate higher
+    const extra = cloneBuild(f0);
+    expect(installTurret(extra, { uid: 500, def: "carronade" }, 1).ok).toBe(true);
+    extra.routes[1] = { factory: 2, cells: [K(8, 6), K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)] };
+    expect(validateBuild(extra, 10).errors).toEqual([]);
+    expect(fed(extra)).toEqual(new Set([0, 1]));
+    expect(rateDeck(extra).value).toBeGreaterThan(rateDeck(f0).value);
+    // E1: F1's joined journey (2 + 6 = 8 tiles) is a long belt, so its breech fires every 0.72 s like F0L's 8-tile belt
+    const noE1 = cloneBuild(JOIN_LAYOUTS.F1(5));
+    noE1.routes[0] = { factory: 1, cells: FM };
+    expect(HERO_DEFS.furnace.factory).toBe("kiln");
+    expect(rateDeck(JOIN_LAYOUTS.F1(5)).value).toBe(rateDeck(noE1).value); // the same deck: the journey counts
+  });
+});
+
+describe("0.6.2 CAND-A: the policy variants still run", () => {
+  it("typical, sharp, --tune impulse=1 and the CAND-A knobs off: legal decks, the gold adds up, deterministic", () => {
+    const variants: PlayerOpts[] = [{}, { policy: "sharp" }, { tune: { impulse: 1 } }, { tune: { turret: 0, extra: 0, join: 0, aimTop: 0 } }, { tune: { extra: 0 } }];
+    for (const opts of variants) {
+      for (const hero of HEROES) {
+        for (const seed of [1, 2]) {
+          const run = playerRun(hero, PLAYER_DAYS, seed, opts);
+          for (const d of run) {
+            expect(validateBuild(d.build, d.day).errors, `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toEqual([]);
+            expect(d.value + d.rerollGold + d.gold + d.soldLoss).toBe(maxGoldByDay(d.day));
+          }
+          expect(JSON.stringify(playerRun(hero, 7, seed, { ...opts, trace: () => {} })[6].build)).toBe(JSON.stringify(run[6].build));
+        }
+      }
+    }
+    // the knobs do what they say: with extra 0 no deck fills the extra slot, with join 0 none joins
+    for (const hero of HEROES) for (const seed of [1, 2, 3, 4]) {
+      const b = playerBuild(hero, 10, seed, { tune: { extra: 0 } });
+      expect(turretSlots(b)[extraSlot(b)].turret, `${hero} s${seed}`).toBeUndefined();
+      expect(playerBuild(hero, 10, seed, { tune: { join: 0 } }).routes.some((r) => r.join !== undefined)).toBe(false);
+    }
+    expect(knobsOf().aimTop).toBe(4);
+  }, 300_000);
 });
