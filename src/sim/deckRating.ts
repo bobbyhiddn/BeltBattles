@@ -35,8 +35,9 @@ export const fightTime = (day: number): number => FIGHT_BY_DAY[Math.max(1, Math.
 export const EQ = { poison: 3, fray: 3, shock: 3, static: 4, perStalled: 1.5, overclock: 8, toll: 0.5, sift: 0.5 } as const;
 /** A harassment round's damage-equivalent per payload (content.ts FactorySpec.round), from its card. */
 export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 6, frost: 4, drag: 3, limpet: 8 };
-/** Gear and cores whose effect the rating doesn't compute (HOPPER, MANTLET, FLAK, SPOTTER, every bought core): the
- *  turret's damage x (1 + NOMINAL x the part's value in gold), the typical player's "pricier is better". */
+/** Gear and cores whose effect the rating doesn't compute (MANTLET, FLAK, SPOTTER, every bought core): the turret's
+ *  damage x (1 + NOMINAL x the part's value in gold), the typical player's "pricier is better". TUNE-M: not HOPPER, whose
+ *  window and window time the turret model reads (rateDeck `start`). */
 export const NOMINAL = 0.03;
 /**
  * 0.6.2 CAND-A: the share of what reaches its intake a turret fires, by its load (arrivals / its nominal rate, perShot
@@ -210,7 +211,11 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     for (const m of b.mods) {
       if (m.turret !== t || ITEMS[m.def]?.kind !== "mod") continue;
       const md = effectAt(m.def, starsOf(m)).mod ?? {};
-      if (!md.fireMul && !md.perShot && !md.finisher && !md.longRideFlat) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m));
+      // TUNE-M T3b (a rating bug): HOPPER's window and window time are modeled above (`start`: the loading window before
+      // the first shot; the finisher's split; ★3's noJam in firedShare), so it takes no NOMINAL credit on top. It took
+      // +12% / +24% / +48% of the turret's damage at ★1/★2/★3 (0.03 x 4/8/16 g), while its battle lift is negative
+      // (flag 3: -2 to -9; its control -12 to -32), so the par player bought it where it costs damage
+      if (!md.fireMul && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m));
     }
     offense += thr * eq * mult;
   }
