@@ -3,6 +3,8 @@
 // buy -> place -> FIGHT -> battle end -> round summary -> ... -> run summary.
 // Desk uses the mouse (drag and drop); phone uses touch taps (tap-to-select, tap-to-place).
 // Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/singlefile.mjs <out.html> [log.txt]
+// 0.6.2j: BB_RUNS=join-desk,join-phone runs the belt-join scenario (scripts/joinrun.mjs) instead of the scripted runs;
+// BB_SHOTS_DIR=<dir> saves its shots there.
 
 import { chromium } from "playwright-core";
 import { readFile, readdir, writeFile } from "node:fs/promises";
@@ -10,6 +12,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { VIEWS } from "./shots-list.mjs";
 import { scriptedRun } from "./playthrough.mjs";
+import { joinRun } from "./joinrun.mjs"; // 0.6.2j: the belt-join scenario (join-desk, join-phone)
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const DIST = join(ROOT, "dist");
@@ -79,12 +82,18 @@ const RUNS = {
   // Roads: an event on odd days, an Easy or Medium warlord on even days (never a life at stake).
   "fresh-furnace": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "furnace", buys: 8, pool: [] },
   "fresh-weaver": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "weaver", buys: 8, pool: [] },
+  // 0.6.2j (REQ-BFG-027): the belt-join scenario (scripts/joinrun.mjs), desk mouse and phone touch; BB_SHOTS_DIR saves
+  // its shots. Opt-in: only when BB_RUNS names it, so the default set of runs stays the 4 above.
+  "join-desk": { scenario: "join" },
+  "join-phone": { scenario: "join" },
 };
 // the view and Math.random pin of each run (fresh runs: desk, the desk run's seed). 0.6.1r (review
 // patch 0006): BB_RUNS=desk,phone,... runs a subset (unset: all 4), so V3 can be split across calls.
-const PLAN = [["desk", "desk", 0.3], ["phone", "phone", 0.5], ["fresh-furnace", "desk", 0.3], ["fresh-weaver", "desk", 0.3]]
-  .filter(([r]) => (process.env.BB_RUNS ?? r).split(",").includes(r));
-if (!PLAN.length) throw new Error(`BB_RUNS="${process.env.BB_RUNS}" names none of desk, phone, fresh-furnace, fresh-weaver`);
+// 0.6.2j: a 4th entry "opt-in" runs only when BB_RUNS names it.
+const PLAN = [["desk", "desk", 0.3], ["phone", "phone", 0.5], ["fresh-furnace", "desk", 0.3], ["fresh-weaver", "desk", 0.3],
+  ["join-desk", "desk", 0.3, "opt-in"], ["join-phone", "phone", 0.5, "opt-in"]]
+  .filter(([r, , , optIn]) => (process.env.BB_RUNS ?? (optIn ? "" : r)).split(",").includes(r));
+if (!PLAN.length) throw new Error(`BB_RUNS="${process.env.BB_RUNS}" names none of desk, phone, fresh-furnace, fresh-weaver, join-desk, join-phone`);
 
 async function main() {
   await inline();
@@ -118,7 +127,8 @@ async function main() {
       await page.goto(url);
       await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title", null, { timeout: 15000 });
       log(`loaded from file:// : title screen up, version ${await page.evaluate(() => window.bb.version)} (Math.random pinned to ${pin} -> run seed ${(pin * 0x7fffffff) | 0})`);
-      await scriptedRun(page, !!VIEWS[vname].hasTouch, log, RUNS[rname]);
+      if (RUNS[rname].scenario === "join") await joinRun(page, !!VIEWS[vname].hasTouch, log, { view: vname }); // 0.6.2j
+      else await scriptedRun(page, !!VIEWS[vname].hasTouch, log, RUNS[rname]);
     } catch (e) {
       failed++;
       log(`FAILED: ${e.message}`);
@@ -130,7 +140,11 @@ async function main() {
   }
   await browser.close();
   const ran = PLAN.map(([r]) => r).join(", ");
-  log(failed ? `\nRESULT: FAIL (${failed}) [runs: ${ran}]` : `\nRESULT: PASS [runs: ${ran}] (desk 10-day + phone 3+-day scripted runs, fresh-player FURNACE + WEAVER runs to the end, honest dusk decks, no console errors)`);
+  // 0.6.2j: the join runs alone say what they checked; every other set of runs prints exactly the line it always did
+  const what = PLAN.every(([r]) => RUNS[r].scenario === "join")
+    ? "the belt-join scenario: a join drawn with real input, a looping join refused, a dusk fight with the join, the dead end left by REMOVE BELT blocking FIGHT, no console errors"
+    : "desk 10-day + phone 3+-day scripted runs, fresh-player FURNACE + WEAVER runs to the end, honest dusk decks, no console errors";
+  log(failed ? `\nRESULT: FAIL (${failed}) [runs: ${ran}]` : `\nRESULT: PASS [runs: ${ran}] (${what})`);
   if (LOG) await writeFile(LOG, lines.join("\n") + "\n");
   process.exit(failed ? 1 : 0);
 }

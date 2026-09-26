@@ -67,6 +67,32 @@ export const SHOWCASE: Record<string, { hero: HeroId; day: number; build: () => 
       ],
     }),
   },
+  // 0.6.2j BELT JOINS (REQ-BFG-027): FURNACE, the KILN's belt up column 4 into the turret; a STAMP PRESS west of it whose
+  // belt joins the KILN's tile (4,4) from the side. A TEMPER works the joining belt, a WHETSTONE the join tile (both
+  // lines take it) and a BRAKE SHOE the tile after, so the shared stretch crowds and the join backs up at times.
+  // "joinsopen" is the same deck before the join is drawn (scripts/joinrun.mjs draws it with real input).
+  joins: {
+    hero: "furnace", day: 3,
+    build: () => ({
+      hero: "furnace", mods: [], beltCap: 14, hullBonus: 0,
+      items: [
+        { uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 0, y: 6 },
+        rig(10, "temper", 1, 5, 1), rig(11, "whetstone", 5, 4, 3), rig(12, "brake", 5, 3, 3),
+      ],
+      routes: [
+        { factory: 1, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+        { factory: 2, cells: [K(2, 6), K(2, 5), K(2, 4), K(3, 4)], join: K(4, 4) },
+      ],
+    }),
+  },
+  joinsopen: {
+    hero: "furnace", day: 3,
+    build: () => {
+      const b = SHOWCASE.joins.build();
+      b.routes.pop();
+      return b;
+    },
+  },
 };
 
 /** A run at the dawn of the showcase deck's day with that deck on board (and, for a battle, `foe` as

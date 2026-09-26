@@ -339,6 +339,16 @@ export const SHOTS = [
   // 0.6.2p (item 4) on the 360x640 viewport too: the asm-gantry scene's parked shop row, and the long names
   ["beltside-061c-asm-gantry", "small", "title", 0, ASM_GANTRY()],
   ["polish-long-names", "small", "title", 0, longNames()],
+  // 0.6.2j BELT JOINS (REQ-BFG-027, REQ-BFG-030): the "joins" showcase deck (src/tooling.ts; scripts/joinrun.mjs draws the
+  // same join with real input as scripts/singlefile.mjs's join-desk and join-phone runs): the finished join, the joining
+  // belt's readout through the join (JOINS BELT 1 AT TILE 2), the main belt's (1 BELT JOINS IT), and a battle frame with
+  // a STAMP PRESS slug crossing into the KILN's belt, desk and phone
+  ...["desk", "phone"].flatMap((v) => [
+    ["joins-done", v, "title", 0, SHOWCASE("joins", "")],
+    ["joins-readout", v, "title", 0, SHOWCASE("joins", "s.select({ kind: 'route', index: 1 });")],
+    ["joins-mainbelt", v, "title", 0, SHOWCASE("joins", "s.select({ kind: 'route', index: 0 });")],
+    ["joins-battle-cross", v, "title", 0, JOIN_CROSS()],
+  ]),
 ];
 
 // 0.6.2p (item 4): the shop's three one-word names wider than a card (COUNTERWEIGHT, OVERCLOCKER, HULLBREAKER, now
@@ -444,6 +454,24 @@ function slagRigs(battle) {
     g.render();
   } catch (e) { console.error("SLAG_RIGS: " + e.message + "\\n" + e.stack); }
 })()`;
+}
+
+// 0.6.2j: the "joins" showcase deck fighting "sides", stepped from 1 s until a joined payload is crossing into its main
+// belt (past the join tile's edge, short of its centre), at most 30 s more
+function JOIN_CROSS() {
+  return `(() => {
+    bb.openShowcase("joins", "battle", { foe: "sides" });
+    const g = bb.game;
+    ${STEP(60)}
+    for (let i = 0; i < 60 * 30; i++) {
+      g.step(1 / 60);
+      const a = g.screen.arena;
+      if (!a) continue;
+      const s = a.b.sides[0], r = s.routes.find((q) => q.join);
+      if (r && s.routes[r.join.route].ammo.some((x) => x.via === r.index && x.s > r.join.enter + 1 && x.s < r.join.enter + 5)) break;
+    }
+    g.render();
+  })()`;
 }
 
 // 0.6.2 BELTSIDE: the "sides" showcase deck fighting "junction", stepped from 3 s until `cond` holds for the
