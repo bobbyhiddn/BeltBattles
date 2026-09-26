@@ -25,6 +25,8 @@
 //   --forbid d1,d2  [--seeds 4] [--sample N] a part's control: each par deck against the same seed's run with
 //               --tune forbid=<def> (the part never taken, the gold re-spent), over the decks that hold it, beside its
 //               ablation; one forbid-<def>-<tag>-d<day>.json per def
+//   --rigs      [--sample N] no battles: each multi-arrow rig's copies, landed arrows (one belt / two belts) and gold
+//               per landed arrow in the par decks (T3)
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -41,7 +43,7 @@ import {
 } from "../src/sim/deck";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
-import { FUSE_MAX, starsOf } from "../src/sim/stars";
+import { FUSE_MAX, starsOf, valueOf } from "../src/sim/stars";
 import { fullPurseBuild, spendFloor } from "../src/sim/harness/gen";
 import { STANDIN_DEFAULTS, decodeStandInCode, standInCandidate, standInCodeOf } from "../src/sim/harness/standins";
 import { describeBuild } from "../src/sim/harness/report";
@@ -439,6 +441,51 @@ export function uptakeOf(b: Build): Uptake {
     extra: !!ex, extraBought: !!ex && !ex.free, replaced: slots.some((s) => !!s.start && !!s.turret && s.turret.def !== s.start),
     gear2: installedTurrets(b).some((v) => gearOn(b, v.slot).length >= 2), join, twoBelt, landed, twoBeltMulti, sigJoin, f1,
   };
+}
+
+/**
+ * TUNE-M T3 --rigs [--sample N] (no battles): per hero-day, each multi-arrow rig def (2-4 arrows) in the par decks of
+ * seeds 1..N: the decks holding it, its copies and their stars, the arrows that land on a belt tile (rigHits) per copy,
+ * split by copies whose arrows land on one belt and on two or more belts, and the gold per landed arrow (the copies'
+ * value, price x 2^(stars - 1), over their landed arrows). A 1-arrow common costs 3 g per landed arrow.
+ */
+function rigsMode(days: number[], out: string, opts: PlayerOpts, k: number, sample: number, tag: string): void {
+  const rows: unknown[] = [];
+  for (const hero of heroesOf()) {
+    for (const day of days) {
+      const decks = parSeeds(Math.max(k, sample)).map((s) => playerRun(hero, day, s, opts)[day - 1].build);
+      const per = new Map<string, { decks: number; copies: number; stars: number[]; one: number[]; two: number[]; gold: number }>();
+      for (const b of decks) {
+        const on = new Map<number, number[]>();
+        for (const r of rigHits(b)) for (const t of r) for (const h of t) on.set(h.uid, [...(on.get(h.uid) ?? []), h.route]);
+        const seen = new Set<string>();
+        for (const p of b.items) {
+          if (ITEMS[p.def].kind !== "gate" || rigArrows(p.def).length < 2) continue;
+          const e = per.get(p.def) ?? { decks: 0, copies: 0, stars: [], one: [], two: [], gold: 0 };
+          if (!seen.has(p.def)) { seen.add(p.def); e.decks++; }
+          const rs = on.get(p.uid) ?? [];
+          e.copies++;
+          e.stars.push(starsOf(p));
+          (new Set(rs).size >= 2 ? e.two : e.one).push(rs.length);
+          e.gold += valueOf(p.def, starsOf(p));
+          per.set(p.def, e);
+        }
+      }
+      for (const [def, e] of [...per.entries()].sort((a, b) => b[1].copies - a[1].copies)) {
+        const landed = sum(e.one) + sum(e.two);
+        const row = {
+          hero, day, def, arrows: rigArrows(def).length, price: ITEMS[def].price, decks: e.decks, of: decks.length, copies: e.copies,
+          stars: [1, 2, 3].map((s) => e.stars.filter((x) => x === s).length), landedPerCopy: landed / e.copies,
+          oneBelt: { copies: e.one.length, landed: e.one.length ? sum(e.one) / e.one.length : null },
+          twoBelt: { copies: e.two.length, landed: e.two.length ? sum(e.two) / e.two.length : null },
+          goldPerLanded: landed ? e.gold / landed : null,
+        };
+        rows.push(row);
+        console.log(`rigs ${tag} ${hero} d${day} ${def} (${row.arrows} arrows, ${row.price} g): ${e.decks}/${decks.length} decks, ${e.copies} copies (★ ${row.stars.join("/")}) | landed/copy ${row.landedPerCopy.toFixed(2)} (one belt ${e.one.length} x ${row.oneBelt.landed?.toFixed(2) ?? "-"}, two belts ${e.two.length} x ${row.twoBelt.landed?.toFixed(2) ?? "-"}) | ${row.goldPerLanded?.toFixed(2) ?? "-"} g per landed arrow`);
+      }
+    }
+  }
+  writeFileSync(resolve(out, `rigs-${tag}.json`), JSON.stringify({ k, sample: Math.max(k, sample), opts: { policy: opts.policy ?? "typical", tune: opts.tune ?? {} }, rows }, null, 1));
 }
 
 /** --uptake (no battles): per hero-day, how many of the K par decks hold each 0.6.2 mechanic (Uptake), the landed arrows
@@ -1084,6 +1131,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--extra")) await extraMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), tag);
   if (flag("ctrl")) await ctrlMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), flag("ctrl")!, tag);
   if (flag("forbid")) await forbidMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), flag("forbid")!.split(",").filter(Boolean), tag); // TUNE-M T1
+  if (process.argv.includes("--rigs")) rigsMode(days, out, opts, k, num("sample", k), tag); // TUNE-M T3
   if (process.argv.includes("--stars")) await starsMode(days, pool.detail, out, opts, k, num("seeds", 4), tag);
   if (process.argv.includes("--ablate")) await ablateMode(days, pool.run, out, opts, k, num("seeds", 4), num("min", 3), tag);
   if (process.argv.includes("--joins")) {
