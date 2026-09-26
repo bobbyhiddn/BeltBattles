@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { hashSeed } from "../src/core/rng";
 import { finishDay } from "../src/game/day";
 import {
-  MATRIARCH_GOLD, REWARD_GOLD, finishWarlord, forkFor, hardParts, leaveCaravan, pickPending, pickRoad, takePart, topParts, warlordSeed,
+  MATRIARCH_GOLD, REWARD_GOLD, finishWarlord, forkFor, hardParts, leaveCaravan, pickPending, pickRoad, rewardGold, takePart, topParts, warlordSeed,
 } from "../src/game/road";
 import { battleSeed, migrateRun, newRun, rollShop, type Run } from "../src/game/run";
 import { simulate, type SideStats } from "../src/sim/battle";
@@ -36,7 +36,7 @@ function giveable(b: Build): string[] {
 }
 
 describe("warlords: rewards", () => {
-  it("(a) a loss or draw keeps every life and pays 0; a win pays Easy 2, Medium 4, Hard 3 and keeps lives; idempotent", () => {
+  it("(a) a loss or draw keeps every life and pays 0; a win pays Easy 2 (3 from day 4), Medium 4, Hard 3 and keeps lives; idempotent", () => {
     expect(REWARD_GOLD).toEqual({ easy: 2, medium: 4, hard: 3 });
     for (const seed of SEEDS.slice(0, 10)) {
       for (const day of [1, 4, 7]) {
@@ -48,7 +48,7 @@ describe("warlords: rewards", () => {
             const g0 = run.gold, inv0 = defs(run);
             const out = finishWarlord(run, winner, 42)!;
             expect(out.outcome).toBe(winner === 0 ? "win" : winner === 1 ? "loss" : "draw");
-            const pay = winner === 0 ? REWARD_GOLD[tier] : 0;
+            const pay = winner === 0 ? rewardGold(tier, day) : 0; // 0.6.2 RULE EASY PAY: Easy +3 from day 4
             expect(out.gold).toBe(pay);
             expect(run.gold - g0).toBe(pay);
             expect(run.lives).toBe(1);

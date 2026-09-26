@@ -64,7 +64,8 @@ export class ForkScreen implements Screen {
   private info(tier: Difficulty): { reward: ReturnType<typeof warlordReward>; notes: string[] } {
     const run = this.run, id = this.fork.warlords[tier];
     const sab = !!run.sabotage;
-    const reward = warlordReward(id, tier, warlordDeck(id, run.day, sab), warlordDeckDay(id, run.day, sab));
+    // 0.6.2 RULE EASY PAY: the card shows today's pay (the run's day; SABOTAGE may swap the deck's day)
+    const reward = warlordReward(id, tier, warlordDeck(id, run.day, sab), warlordDeckDay(id, run.day, sab), run.day);
     const notes: string[] = [];
     if (sab) notes.push("SABOTAGED");
     if (tier === "hard" && run.bounty) notes.push(`+${run.bounty.pay} BOUNTY`);

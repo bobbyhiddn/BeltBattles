@@ -3,7 +3,7 @@
 // matriarchBeatenOn). A warlord fight is PvE: the captain's hero with rivalBuild(id, day) (it keeps
 // warlordHull and may exceed the budget), fought on its own seed hashSeed(runSeed, "warlord", day),
 // so a reload replays the same fight. It NEVER costs a life: a loss only forfeits the reward.
-// Rewards (decision 3): Easy +2 gold, Medium +4, Hard +3 and a pick of 1 of the warlord's 2 most
+// Rewards (decision 3): Easy +2 gold (0.6.2 RULE EASY PAY: +3 from day 4), Medium +4, Hard +3 and a pick of 1 of the warlord's 2 most
 // expensive distinct non-signature parts (0.6.0c: always 2; a deck with fewer is filled from the
 // same captain's later decks, see hardParts); the Iron Matriarch +5 and her most expensive part
 // (LEGENDARY). R3: she holds the Hard slot on days 8-10 until beaten (run.matriarchBeatenOn).
@@ -22,6 +22,14 @@ import { queueFuseAnim, type Run, type RoadPick, type WarlordFight, type Warlord
 
 export const ROAD_PICKS: readonly RoadPick[] = ["event", "easy", "medium", "hard"];
 export const REWARD_GOLD: Record<Difficulty, number> = { easy: 2, medium: 4, hard: 3 };
+/** 0.6.2 TUNE-M, RULE EASY PAY (ROADMAP 0.6.2): the Easy warlord pays EASY_PAY_LATE gold from day EASY_PAY_FROM on;
+ *  days 1-3 keep REWARD_GOLD.easy. Medium and Hard are unchanged. */
+export const EASY_PAY_FROM = 4;
+export const EASY_PAY_LATE = 3;
+/** What beating a warlord of `tier` pays in gold on run day `day` (the Matriarch aside: MATRIARCH_GOLD). */
+export function rewardGold(tier: Difficulty, day: number): number {
+  return tier === "easy" && day >= EASY_PAY_FROM ? EASY_PAY_LATE : REWARD_GOLD[tier];
+}
 export const MATRIARCH_GOLD = 5;
 /** SABOTAGE with no deck for the day before (the Matriarch on day 8): the warlord fights with -25 hull. */
 export const SABOTAGE_HULL = 25;
@@ -117,10 +125,11 @@ export function hardParts(id: RivalId, deck: Build, deckDay: number, n = 2): str
 }
 
 /** What beating this warlord pays (decision 3), from the deck it fights with (rivalBuild of
- *  deckDay; warlordDeckDay). */
-export function warlordReward(id: RivalId, tier: Difficulty, deck: Build, deckDay: number): WarlordReward {
+ *  deckDay; warlordDeckDay). 0.6.2 RULE EASY PAY: the gold on run day `day` (rewardGold; the run's day, not
+ *  SABOTAGE's deck day; it defaults to deckDay for callers that have no run). */
+export function warlordReward(id: RivalId, tier: Difficulty, deck: Build, deckDay: number, day = deckDay): WarlordReward {
   if (id === "matriarch") return { gold: MATRIARCH_GOLD, parts: topParts(deck, 1), legendary: true };
-  return { gold: REWARD_GOLD[tier], parts: tier === "hard" ? hardParts(id, deck, deckDay) : [], legendary: false };
+  return { gold: rewardGold(tier, day), parts: tier === "hard" ? hardParts(id, deck, deckDay) : [], legendary: false };
 }
 
 /** The warlord of a tier on today's fork, set up for the fight. Consumes a pending SABOTAGE (the
@@ -138,7 +147,7 @@ export function warlordFight(run: Run, tier: Difficulty): WarlordFight {
   const r = RIVALS[id];
   return {
     day: run.day, tier, id, name: r.name, hero: r.hero, build, sabotaged, bounty,
-    reward: warlordReward(id, tier, build, warlordDeckDay(id, run.day, sabotaged)), result: null,
+    reward: warlordReward(id, tier, build, warlordDeckDay(id, run.day, sabotaged), run.day), result: null,
   };
 }
 

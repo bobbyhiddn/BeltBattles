@@ -103,6 +103,7 @@ time, plus lives left and `WINS n/10`. A completed run shows its day-10 ghost la
 - (3) **DECIDED:** a warlord win pays supplies and a chance at a part from the warlord's own build
   (ROADMAP §1). Starting values: Easy +2 gold, Medium +4 gold, Hard +3 gold plus a pick of 1 of 2
   rare parts, and the Iron Matriarch a legendary part. The 0.6.0 integration may tune them.
+  0.6.2 RULE EASY PAY: Easy pays +3 gold from day 4 (days 1-3: +2).
 - (4) **DECIDED:** mirror matches stay, for warlords and stand-in ghosts alike.
 - (5) **DECIDED:** SCOUT (1 gold) reveals tonight's dusk ghost's deck. SABOTAGE (4 gold: the
   warlord fights with its day - 1 deck) and the herald's ELITE BOUNTY (stake 3 gold, 10 back on a
