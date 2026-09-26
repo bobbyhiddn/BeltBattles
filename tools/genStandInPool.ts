@@ -1,5 +1,7 @@
 // Stand-in pool CLI: npm run standins -- [--seed 1] [--pop 64] [--band 40,60] [--per 6] [--par-floor 50]
-//   [--workers N] [--out ../output] [--check | --versus] [--dump pop.json]
+//   [--par field|heroref] [--workers N] [--out ../output] [--check | --versus] [--dump pop.json]
+// FB-C: --par field (the default) measures the par floor against the par player's field (par.ts parRefs); --par heroref
+// is the legacy par deck, which pool v2.1 was generated with: its replay identity is `--check --par heroref`.
 // Writes src/sim/standInPoolData.ts (the bundled pool the game copies with src/sim/standInPool.ts)
 // and <out>/standin-pool.md. --check regenerates in memory, compares with the committed data
 // module and exits 1 if they differ (nothing is written). --dump also writes every population
@@ -64,8 +66,13 @@ async function main(): Promise<void> {
   const factoriesFlag = flag("factories") ?? starsFlag;
   if (factoriesFlag !== "on" && factoriesFlag !== "off") throw new Error(`--factories must be "on" or "off", got ${factoriesFlag}`);
   if (factoriesFlag === "on" && starsFlag === "off") throw new Error("--factories on needs --stars on (stars off is harness v1 exactly: the STAMP PRESS alone)");
+  // FB-C (REQ-BFG-026): --par field (default: the par player's field, src/sim/harness/par.ts parRefs) or heroref (the
+  // legacy heroRefBuild par; pool v2.1 was generated with it, so `--check --par heroref` replays the committed pool)
+  const parFlag = flag("par") ?? "field";
+  if (parFlag !== "field" && parFlag !== "heroref") throw new Error(`--par must be "field" or "heroref", got ${parFlag}`);
   const o: StandInOpts = {
     ...STANDIN_DEFAULTS,
+    par: parFlag,
     seed: num("seed", STANDIN_DEFAULTS.seed),
     pop: num("pop", STANDIN_DEFAULTS.pop),
     per: num("per", STANDIN_DEFAULTS.per),

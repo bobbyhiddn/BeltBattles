@@ -2,7 +2,8 @@
 // of full-purse builds (fullPurseBuild: legal, at least 90% of maxGoldByDay), each scored against
 // a fixed gauntlet of that day's full-purse builds of every pool hero (another seed; `seeds` seeds
 // per pairing, both sides). Strength percentile (pct) = share of the population scoring lower
-// (ties half). Par floor: every build also plays heroRefBuild(h, day) of each pool hero (the
+// (ties half). FB-C: the par comes from par.ts parRefs (o.par: "field" = the par player's field, the CLI default;
+// absent or "heroref" = the legacy par deck, as below). Par floor: every build also plays heroRefBuild(h, day) of each pool hero (the
 // game's par decks), `refSeeds` seeds x both sides; vsPar = floor(b) = its lowest win rate there.
 // Eligible: pct >= band[0], vsPar >= parFloor, spend floor met, and not among the population's
 // top eighth (the elites). Window: band[1] - band[0] points wide, starting at p0, the lowest
@@ -21,7 +22,7 @@ import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/
 import { decodeStandIn, encodeStandIn, standInPool } from "../standInPool";
 import { FUSE_MAX, starsOf } from "../stars";
 import { fullPurseBuild, spendFloor, type FullPurse } from "./gen";
-import { heroRefBuild } from "./heroes";
+import { parRefs, type ParSource } from "./par";
 import type { Cores, Factories, Stars } from "./shopper";
 import { decodeStarred, encodeStarred } from "./standinCode";
 import type { Job, Runner } from "./tournament";
@@ -47,6 +48,20 @@ export interface StandInOpts {
   // re-played at robust x refSeeds fresh seeds (ARSENAL.md: robustBand 0.10, robust 4)
   cores?: Cores; // 0.6.1b (part 2): candidates and gauntlet buy and fit turret cores; only with stars on (absent = "off"; the CLI sets it)
   factories?: Factories; // 0.6.1c (part 3): candidates and gauntlet buy any factory the hero can buy; only with stars on (absent = "off"; the CLI sets it)
+  // FB-C (REQ-BFG-026): the par the floor measures against, through par.ts parRefs. "field": the par player's field
+  // (K caravan-bound decks per pool hero; vsRef = the mean win rate over the members). Absent or "heroref": the legacy
+  // par deck heroRefBuild, exactly as before (pool v2.1 was generated with it). The CLI's --par defaults to "field".
+  par?: ParSource;
+}
+
+/** FB-C: the par source of a generation (absent: the legacy heroref, so every pre-existing caller is unchanged). */
+export const parSourceOf = (o: { par?: ParSource }): ParSource => o.par ?? "heroref";
+
+/** FB-C: the par decks of `day` for the pool heroes (parRefs), flattened, with each deck's pool-hero index. With
+ *  heroref that is one deck per hero, in hero order: the legacy refs exactly. */
+export function standInRefs(o: StandInOpts, day: number): { refs: Build[]; refHero: number[] } {
+  const by = o.heroes.map((h) => parRefs(h, day, parSourceOf(o)));
+  return { refs: by.flat(), refHero: by.flatMap((r, hi) => r.map(() => hi)) };
 }
 
 /** 0.6.1b: cores are bought only with stars on and cores on. */
@@ -220,7 +235,7 @@ export const robustBorderline = (c: Cand, o: StandInOpts): boolean => {
  * combined vsPar falls below parFloor. Mutates `pop`'s candidates in place so the caller's normal
  * eligibleOf/pickWindow picks up the change.
  */
-export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, pop: Cand[], refs: Build[], run: Runner): Promise<{ removed: number; battles: number; replayed: number }> {
+export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, pop: Cand[], refs: Build[], run: Runner, refHero: number[] = refs.map((_, r) => r)): Promise<{ removed: number; battles: number; replayed: number }> {
   const borderline = pop.filter((c) => robustBorderline(c, o));
   if (!borderline.length) return { removed: 0, battles: 0, replayed: 0 };
   const n = Math.max(1, Math.round(o.robust)) * o.refSeeds;
@@ -228,19 +243,23 @@ export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, po
   const jobs: Job[] = borderline.flatMap((c, i) =>
     refs.map((_, r): Job => ({ a: refs.length + i, b: r, seeds: Array.from({ length: n }, (_, k) => hashSeed("standin-robust", o.seed, hero, day, c.idx, r, k)) })));
   const pts = await run(field, jobs);
-  const origBattles = o.refSeeds * 2, replayBattles = n * 2;
+  // FB-C: a hero's par may be several decks (the par field): its battles are summed over its members; one deck per
+  // hero (heroref, refHero = [0, 1]) is the legacy arithmetic exactly
+  const members = o.heroes.map((_, hi) => refHero.filter((x) => x === hi).length);
   let removed = 0;
   borderline.forEach((c, i) => {
-    const combined = o.heroes.map((h, r) => {
+    const combined = o.heroes.map((h, hi) => {
+      const origBattles = o.refSeeds * 2 * members[hi], replayBattles = n * 2 * members[hi];
       const origWins = (c.vsRef[h] ?? 0) * origBattles;
-      const replayWins = pts[i * refs.length + r];
+      let replayWins = 0;
+      refs.forEach((_, r) => { if (refHero[r] === hi) replayWins += pts[i * refs.length + r]; });
       return (origWins + replayWins) / (origBattles + replayBattles);
     });
     c.vsPar = Math.min(...combined);
     c.replayed = true;
     if (c.vsPar < o.parFloor) removed++; // it cleared the floor before the re-play (robustBorderline)
   });
-  return { removed, battles: jobs.length * replayBattles, replayed: borderline.length };
+  return { removed, battles: jobs.length * n * 2, replayed: borderline.length }; // every job: n seeds x both sides
 }
 
 export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string) => void): Promise<{ days: HeroDay[]; battles: number }> {
@@ -250,7 +269,8 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
   const seedsFor = (...parts: (string | number)[]) => Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-battle", o.seed, ...parts, k));
   for (let day = 1; day <= 10; day++) {
     const gauntlet = o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(fullPurseBuild(g, day, hashSeed("standin-gauntlet", o.seed, g, day, i), spendFloor(day), 60, o.stars, FUSE_MAX, coresOf(o), factoriesOf(o)).build, o.stars)));
-    const refs = o.heroes.map((h) => heroRefBuild(h, day));
+    // FB-C: the par decks through par.ts parRefs (heroref: heroRefBuild of each pool hero, as before)
+    const { refs, refHero } = standInRefs(o, day);
     const G = gauntlet.length, R = refs.length;
     const dayOut: HeroDay[] = [];
     for (const hero of o.heroes) {
@@ -279,7 +299,12 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
         c.forEach((x, i) => {
           const at = i * (G + R);
           x.score = winRate(pts.slice(at, at + G), G * per);
-          o.heroes.forEach((h, r) => (x.vsRef[h] = pts[at + G + r] / (o.refSeeds * 2)));
+          // vsRef[h]: the win rate over every par deck of hero h (one deck with heroref: exactly the legacy rate)
+          o.heroes.forEach((h, hi) => {
+            let sum = 0, m = 0;
+            refs.forEach((_, r) => { if (refHero[r] === hi) { sum += pts[at + G + r]; m++; } });
+            x.vsRef[h] = sum / (m * o.refSeeds * 2);
+          });
           x.vsPar = Math.min(...o.heroes.map((h) => x.vsRef[h]!));
         });
         return c;
@@ -291,7 +316,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       // re-played (once) at o.robust x refSeeds fresh seeds; only "on" (off must stay v1-exact for --check).
       let robustRemoved = 0, robustReplayed = 0;
       if (o.stars === "on") {
-        const r = await robustReplay(o, hero, day, pop, refs, run);
+        const r = await robustReplay(o, hero, day, pop, refs, run, refHero);
         robustRemoved = r.removed;
         robustReplayed = r.replayed;
         battles += r.battles;
@@ -304,7 +329,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
         pop.push(...(await grow(pop.length, n)));
         rank(pop);
         if (o.stars === "on") {
-          const r = await robustReplay(o, hero, day, pop, refs, run); // only the grown candidates (F12)
+          const r = await robustReplay(o, hero, day, pop, refs, run, refHero); // only the grown candidates (F12)
           robustRemoved += r.removed;
           robustReplayed += r.replayed;
           battles += r.battles;
@@ -403,7 +428,10 @@ export function standInCommand(o: StandInOpts): string {
   // header has no --factories: `--check --factories off` regenerates exactly that header, and a factories-on
   // pool's header says --factories on, whatever the default is.
   const f = factoriesOf(o) === "on" ? " --factories on" : "";
-  return `npm run standins -- --seed ${o.seed} --pop ${o.pop} --band ${o.band[0]},${o.band[1]} --per ${o.per} --par-floor ${round1(o.parFloor * 100)}${g}${c}${f}`;
+  // FB-C: --par is printed for the par field and never for the legacy heroref par, so pool v2.1's header (generated
+  // before --par existed, against heroRefBuild) is regenerated exactly by `--check --par heroref`
+  const p = parSourceOf(o) === "field" ? " --par field" : "";
+  return `npm run standins -- --seed ${o.seed} --pop ${o.pop} --band ${o.band[0]},${o.band[1]} --per ${o.per} --par-floor ${round1(o.parFloor * 100)}${g}${c}${f}${p}`;
 }
 
 const r4 = (x: number) => Number(x.toFixed(4));
@@ -462,8 +490,13 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
     `// Seed ${o.seed}; RULES_VERSION ${RULES_VERSION}; ${o.per} picks per hero and day. Population: ${o.pop} full-purse builds per`,
     `// hero and day (each costing at least 90% of maxGoldByDay), scored against a gauntlet of ${o.gauntlet} builds per pool`,
     `// hero, ${o.seeds} seeds x both sides per pairing; pct = strength percentile inside the population.`,
-    `// Par floor: vsPar = the build's lowest win rate against heroRefBuild(h, day) of each pool hero h (the`,
-    `// par decks), ${o.refSeeds} seeds x both sides. A pick needs vsPar >= ${o.parFloor}, pct >= ${o.band[0]}, and must not be among`,
+    ...(parSourceOf(o) === "field" ? [
+      `// Par floor: vsPar = the build's lowest mean win rate against the par field of each pool hero h (par.ts parRefs:`,
+      `// the par player's decks of seeds 1-12), ${o.refSeeds} seeds x both sides per member. A pick needs vsPar >= ${o.parFloor}, pct >= ${o.band[0]}, and must not be among`,
+    ] : [
+      `// Par floor: vsPar = the build's lowest win rate against heroRefBuild(h, day) of each pool hero h (the`,
+      `// par decks), ${o.refSeeds} seeds x both sides. A pick needs vsPar >= ${o.parFloor}, pct >= ${o.band[0]}, and must not be among`,
+    ]),
     `// the population's top eighth (the elites). Picks spread across a ${o.band[1] - o.band[0]}-point window that starts at the`,
     `// lowest eligible pct (at ${o.band[0]} when no build lies below it); par = the pick nearest the window's middle.`,
     `// Fewer than ${o.per} eligible in the window: (a) widen it upward by ${o.widen} points at a time, (b) grow the population`,

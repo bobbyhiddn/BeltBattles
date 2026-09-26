@@ -6,6 +6,8 @@ import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net
 import { PLAYER_DAYS, knobsOf, playerBuild, playerRun } from "../src/sim/harness/player";
 import { PAR_K, medianIndex, parField, parRefs, parSeeds } from "../src/sim/harness/par";
 import { heroRefBuild } from "../src/sim/harness/heroes";
+import { STANDIN_DEFAULTS, dataModuleText, genStandIns, standInCommand, standInRefs } from "../src/sim/harness/standins";
+import type { Runner } from "../src/sim/harness/tournament";
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -90,6 +92,31 @@ describe("par field (par.ts): the par of a hero and day is K par-player decks", 
     expect(JSON.stringify(field[0])).toBe(JSON.stringify(playerBuild("weaver", 3, 1)));
     expect(parRefs("weaver", 3, "heroref")).toEqual([heroRefBuild("weaver", 3)]);
   });
+
+  it("the stand-in generator reads par through parRefs: the field of each pool hero with --par field, heroRefBuild otherwise", () => {
+    const field = standInRefs({ ...STANDIN_DEFAULTS, par: "field" }, 4);
+    expect(field.refs.map((b) => JSON.stringify(b))).toEqual([...parField("furnace", 4), ...parField("weaver", 4)].map((b) => JSON.stringify(b)));
+    expect(field.refHero).toEqual([...Array(PAR_K).fill(0), ...Array(PAR_K).fill(1)]);
+    const legacy = standInRefs(STANDIN_DEFAULTS, 4); // absent: the legacy par, so pool v2.1 replays exactly
+    expect(legacy.refs).toEqual([heroRefBuild("furnace", 4), heroRefBuild("weaver", 4)]);
+    expect(legacy.refHero).toEqual([0, 1]);
+    expect(standInCommand({ ...STANDIN_DEFAULTS, par: "field" })).toContain("--par field");
+    expect(standInCommand({ ...STANDIN_DEFAULTS, par: "heroref" })).not.toMatch(/--par (field|heroref)/); // --par-floor stays
+  });
+
+  it("genStandIns with the par field: vsRef is the mean over every member of a hero's field", async () => {
+    const tiny = { ...STANDIN_DEFAULTS, pop: 4, gauntlet: 1, seeds: 1, elites: 1, refSeeds: 1, per: 2, grow: [], stars: "on" as const, par: "field" as const };
+    const members = new Map<string, number>();
+    for (let day = 1; day <= 10; day++) for (const h of ["furnace", "weaver"] as const) parField(h, day).forEach((b, m) => members.set(JSON.stringify(b), m));
+    // a member of even index loses every battle to the candidate, an odd one wins every battle; anything else scores 0
+    const run: Runner = async (field, jobs) => jobs.map((j) => {
+      const m = members.get(JSON.stringify(field[j.b]));
+      return m === undefined ? 0 : m % 2 === 0 ? 2 * j.seeds.length : 0;
+    });
+    const res = await genStandIns(tiny, run);
+    for (const hd of res.days) for (const c of hd.pop) expect([c.vsRef.furnace, c.vsRef.weaver], `${hd.hero} d${hd.day}`).toEqual([0.5, 0.5]);
+    expect(dataModuleText(tiny, res.days)).toContain("--par field");
+  }, 60_000);
 
   it("medianIndex takes the lower median, ties to the lower index", () => {
     expect(medianIndex([0.9, 0.1, 0.5])).toBe(2);

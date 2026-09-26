@@ -365,9 +365,10 @@ describe("harness factories (0.6.1c): stand-ins", () => {
     expect(off).toBe(`//   ${standInCommand(flip)}`); // factories absent = off
     expect(on).toBe(`${off} --factories on`);
     expect([off, on]).toContain(header);
-    // pool v2.1 (0.6.2, the D4 native re-bake on arsenal-062-combined 65a36b7) is generated with factories on, so a plain
-    // `standins --check` (factories default to on) regenerates it. Was: at 689c2e8 the shipped pool was pool v2, generated
-    // before --factories existed, with the factories-off header.
+    // pool v2.1 (0.6.2, the D4 native re-bake on arsenal-062-combined 65a36b7) is generated with factories on and the
+    // legacy heroRefBuild par, so `standins --check --par heroref` (factories default to on) regenerates it (FB-C: the
+    // CLI's --par defaults to the par player's field). Was: at 689c2e8 the shipped pool was pool v2, generated before
+    // --factories existed, with the factories-off header.
     expect(header).toBe(on);
     // the header line is the one dataModuleText writes (line 2 of the module)
     expect(dataModuleText({ ...flip, factories: "off" }, []).split("\n")[1]).toBe(off);
