@@ -455,12 +455,14 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   surge: {
     id: "surge", name: "SURGE VALVE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",
-    desc: ["PULSES 3X SPEED FOR", "1S EVERY 3S. LOCKED", "BELTS GAIN +3 DMG."], tags: ["SPEED", "BURST", "TIMING"],
+    desc: ["PULSES 3X SPEED FOR", "1S EVERY 3S, +1 DMG", "PER PULSE RIDDEN.", "LOCKED BELTS +3 DMG."], tags: ["SPEED", "BURST", "TIMING"],
     // 0.6.2 (REQ-BFG-021): a tempo-locked belt ignores the pulse and its per-pulse flat, so, like every other speed rig,
     // SURGE pays locked belts damage instead: a rare's 3/6/10 (between BRAKE SHOE's 2/4/7 and OVERDRIVE's 3/6/11)
-    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 0 }, lockedFlat: 3 },
-    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 2.5, flat: 1 }, lockedFlat: 6 }, perk: "OVERPRESSURE" },
-      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 2 }, lockedFlat: 10 }, perk: "HAMMER VALVE" } },
+    // 0.6.2 FB-B (oracle 16085a6430e4cc6a): the per-pulse flat is 1/2/3 (was 0/1/2). At ★1 the pulse cut ride time on
+    // ride-scaled ammo and added nothing when the turret was the bottleneck (Furnace's audit cell: 78.3 -> 71.5)
+    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 1 }, lockedFlat: 3 },
+    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 2.5, flat: 2 }, lockedFlat: 6 }, perk: "OVERPRESSURE" },
+      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 3 }, lockedFlat: 10 }, perk: "HAMMER VALVE" } },
   },
   sorting: {
     id: "sorting", name: "SORTING ARM", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker",

@@ -144,14 +144,14 @@ describe("wave-2 rigs through BELTSIDE arrows", () => {
     }
     expect(rig("sifter", 3).a.p.flat).toBe(1);
   });
-  it("SURGE pulses route speed and its later stars pay for a ridden pulse", () => {
+  it("SURGE pulses route speed and every star pays for a ridden pulse (0.6.2 FB-B: +1/+2/+3, was 0/1/2)", () => {
     for (const stars of [1, 2, 3]) {
       const { bt, a } = rig("surge", stars);
       const speed = effectAt("surge", stars).gate!.pulse!.speed;
       expect(bt.sides[0].routes[0].speedAt[3]).toBe(speed);
       until(bt, 1.3);
       expect(bt.sides[0].routes[0].speedAt[3]).toBe(1);
-      expect(a.p.flat).toBeGreaterThanOrEqual(stars - 1);
+      expect(a.p.flat).toBe(stars); // one pulse ridden
     }
   });
   it("SORTING ARM copies every Nth full-strength slug", () => {
