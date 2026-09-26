@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   IDLE_SHORT, IDLE_WARNING, keptRows, levelLine, mergeLine, nextLine, nextShort, portraitButtons, rigPanel, starEffectLine,
 } from "../src/screens/build/inspector";
-import { key as K, rotField } from "../src/sim/deck"; // beltside-062c: P11
+import { key as K, rotField, startingTurrets } from "../src/sim/deck"; // beltside-062c: P11; 0.6.2s: startingTurrets
 import { rotFacing } from "../src/sim/beltside"; // beltside-062c: P11
 import { textWidth, wrap } from "../src/render/font";
 import { newRun, type Run } from "../src/game/run";
@@ -62,7 +62,10 @@ describe("N2 / 0.6.2p item 2: merge progress, NEEDS 1 MORE and NEEDS 2 MORE", ()
 
   it("every NEXT line ends in NEEDS n MORE, never in MORE COPY or MORE COPIES: every fusible module, 1 and 2 stars", () => {
     let lines = 0;
+    // 0.6.2s (S6/S7): FURNACE's free starting SCRAP CANNON counts toward a merge, so its own count is checked below
+    const own = new Set(startingTurrets("furnace").map((t) => t.def));
     for (const d of Object.values(ITEMS)) {
+      if (own.has(d.id)) continue;
       for (const s of [1, 2]) {
         const line = nextLine(holding(d.id, [s]), d.id, s);
         if (!line) continue;
@@ -73,8 +76,17 @@ describe("N2 / 0.6.2p item 2: merge progress, NEEDS 1 MORE and NEEDS 2 MORE", ()
       }
     }
     const fus = Object.keys(ITEMS).filter(fusible);
-    expect(fus).toHaveLength(58); // 23 rigs, 13 factories, 13 cores and 9 mods at 65a36b7
-    expect(lines).toBe(2 * fus.length);
+    expect(fus).toHaveLength(71); // 23 rigs, 13 factories, 13 cores and 9 mods at 65a36b7; + 13 turrets (0.6.2s)
+    expect(lines).toBe(2 * (fus.length - own.size));
+  });
+
+  it("0.6.2s: the hull's free starting turret counts toward a merge (S6, S7)", () => {
+    // FURNACE's free ★1 SCRAP CANNON sits in slot 0: one more ★1 merges with it into a ★2, then the two ★2s make ★3
+    expect([...new Set(startingTurrets("furnace").map((t) => t.def))]).toEqual(["scrapcannon"]);
+    expect(nextLine(holding("scrapcannon", [2]), "scrapcannon", 2)).toMatch(/ · NEEDS 1 MORE$/);
+    // WEAVER starts with DART GUNs, not a SCRAP CANNON: the usual count
+    expect(nextLine(holding("scrapcannon", [2], "weaver"), "scrapcannon", 2)).toMatch(/ · NEEDS 2 MORE$/);
+    expect(nextLine(holding("bombard", [2]), "bombard", 2)).toMatch(/ · NEEDS 2 MORE$/);
   });
 });
 

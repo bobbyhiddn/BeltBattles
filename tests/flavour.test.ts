@@ -6,6 +6,7 @@ import { newRun } from "../src/game/run";
 import { flavour, STAR_FLAVOUR } from "../src/screens/build/flavour";
 import { body, levelLine, rigPanel, starEffectLine } from "../src/screens/build/inspector";
 import { wrap } from "../src/render/font";
+import { fireLine, turretFacts } from "../src/screens/build/turretPanel"; // 0.6.2s
 
 // 0.6.2p (item 1): star-aware flavour. The inspector showed ItemDef.desc, the 1-star text, at every star (a ★3 SPLITTER
 // read "★3 PERFECT CUT: 2 X 85%" over "TWO COPIES AT 60%."). Rule: the flavour shown at N stars never states a number or
@@ -14,7 +15,12 @@ import { wrap } from "../src/render/font";
 // 1, 2 and 3 stars. Every expected string and number is written out here from the catalogue (content.ts), never with
 // flavour.ts's templates.
 
-const MODULES = buyableModules().filter((d) => fusible(d.id));
+// 0.6.2s (REQ-BFG-031): the 13 turrets are fusible modules too, but no panel shows a turret's desc beyond a 1-star
+// offer: the shop tooltip (chrome.ts) quotes flavour(def, 1), and every turret panel (offer, cargo, installed;
+// turretPanel.ts turretFacts) prints that copy's own fire interval and loads. Their desc stays the 1-star text; the
+// turret block at the end checks the panels' numbers at every star instead.
+const MODULES = buyableModules().filter((d) => fusible(d.id) && d.kind !== "turret");
+const TURRETS = buyableModules().filter((d) => d.kind === "turret");
 const STARS = [1, 2, 3] as const;
 const pct = (x: number): number => Math.round(x * 100);
 /** A core's k-scaled number as its level line shows it (toFixed(1)). */
@@ -258,5 +264,20 @@ describe("0.6.2p item 1: the panels show the flavour at the module's stars", () 
     // a ★3 HOPPER (gear) and a 1-star offer (the offer panel's stars are 1)
     expect(body(ITEMS.hopper, 3, [], "HINT").slice(0, 3)).toEqual(["CHAMBER HOLDS 3 MORE", "LOADS AND WINDOWS", "STAY 1.5S LONGER."]);
     expect(body(ITEMS.splitter, 1, [], "HINT").slice(0, 3)).toEqual(ITEMS.splitter.desc);
+  });
+});
+
+describe("0.6.2s: the 13 turrets show their desc at 1 star only; the panels quote each star's numbers", () => {
+  it("every turret is fusible; flavour() is its desc; turretFacts leads with that star's fire interval and loads", () => {
+    expect(TURRETS).toHaveLength(13);
+    for (const t of TURRETS) {
+      expect(fusible(t.id), t.id).toBe(true);
+      for (const s of STARS) expect(flavour(t.id, s), `${t.id} ★${s}`).toEqual(t.desc);
+      for (const s of STARS) {
+        const e = effectAt(t.id, s).turret!;
+        expect(turretFacts(t.id, s)[0], `${t.id} ★${s}`).toBe(fireLine(t.id, s));
+        expect(numbers([fireLine(t.id, s)]), `${t.id} ★${s}`).toEqual([e.fireInterval, e.window]);
+      }
+    }
   });
 });
