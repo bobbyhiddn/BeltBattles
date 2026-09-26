@@ -517,24 +517,32 @@ function rejoin(b: Build, day: number, rng: Rng, base: number): { build: Build; 
   let best: { build: Build; rel: number } | null = null;
   b.routes.forEach((r, ri) => {
     if (r.join !== undefined || joinersOf(b, ri).length || !routeInfo(b, ri, claims).connected) return;
-    const f = itemByUid(b, r.factory);
-    if (!f) return;
-    const lifted = cloneBuild(b), s = editor(lifted, day, rng);
-    const riders = s.ridersOf(ri);
-    s.lift(riders);
-    const bl = blockedCells(lifted, ri), { dist, prev } = bfs(bl, startCells(f.x, f.y, ITEMS[f.def].size, bl));
-    const room = r.cells.length + beltFree(b);
-    for (const t of joinTargets(lifted, ri)) {
-      const l = joinLine(lifted, dist, prev, t.route, t.tile);
-      if (!l || l.cells.length > room) continue;
-      const trial = cloneBuild(lifted);
-      trial.routes[ri] = { factory: r.factory, cells: l.cells, join: l.join };
-      if (joinProblem(trial, ri) !== null) continue;
-      if (editor(trial, day, rng).reseat(riders.map((p) => ({ ...p })), ri) < riders.length) continue;
-      const rel = relOf(trial, base);
-      if (!best || rel > best.rel) best = { build: trial, rel };
-    }
+    best = joinRedraw(b, ri, day, rng, base, best);
   });
+  return best;
+}
+
+/** Belt ri redrawn into each join target (another connected belt's tile up to its rig row) at its shortest line from
+ *  its factory (within its own tiles plus the free belt), its riders lifted and put back beside it: the best-rated
+ *  of those and `best` (rejoin's scan; parBench's refeedRoute). */
+function joinRedraw(b: Build, ri: number, day: number, rng: Rng, base: number, best: { build: Build; rel: number } | null): { build: Build; rel: number } | null {
+  const r = b.routes[ri], f = itemByUid(b, r.factory);
+  if (!f) return best;
+  const lifted = cloneBuild(b), s = editor(lifted, day, rng);
+  const riders = s.ridersOf(ri);
+  s.lift(riders);
+  const bl = blockedCells(lifted, ri), { dist, prev } = bfs(bl, startCells(f.x, f.y, ITEMS[f.def].size, bl));
+  const room = r.cells.length + beltFree(b);
+  for (const t of joinTargets(lifted, ri)) {
+    const l = joinLine(lifted, dist, prev, t.route, t.tile);
+    if (!l || l.cells.length > room) continue;
+    const trial = cloneBuild(lifted);
+    trial.routes[ri] = { factory: r.factory, cells: l.cells, join: l.join };
+    if (joinProblem(trial, ri) !== null) continue;
+    if (editor(trial, day, rng).reseat(riders.map((p) => ({ ...p })), ri) < riders.length) continue;
+    const rel = relOf(trial, base);
+    if (!best || rel > best.rel) best = { build: trial, rel };
+  }
   return best;
 }
 
@@ -1194,4 +1202,29 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
 export function playerBuild(hero: HeroId, day: number, seed: number, opts: PlayerOpts = {}): Build {
   const d = Math.max(1, Math.min(PLAYER_DAYS, Math.floor(day)));
   return playerRun(hero, d, seed, opts)[d - 1].build;
+}
+
+// ---------------------------------------------------------------- bench helper (CAND-A: parBench's ablations)
+
+/**
+ * CAND-A (tools/parBench.ts, flags 1 and 3): feed belt ri again as a player would once its turret has left or its
+ * join is undone: redrawn at its shortest into a free intake (the free redraw, within its tiles plus the free belt,
+ * its riders put back beside it, any join dropped), else, with `join`, into the best-rated join at a tile up to
+ * another connected belt's rig row. True when it was redrawn; otherwise `b` is unchanged. Deterministic per seed.
+ */
+export function refeedRoute(b: Build, ri: number, day: number, seed: number, join = true): boolean {
+  const r = b.routes[ri], f = r ? itemByUid(b, r.factory) : undefined;
+  if (!r || !f) return false;
+  const rng = new Rng(hashSeed("par-refeed", b.hero, day, ri, seed));
+  const bl = blockedCells(b, ri), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
+  const room = r.cells.length + beltFree(b);
+  const tries = freeConnectors(b, ri).map((col) => ({ col, len: shortestTiles(bl, starts, col) }))
+    .filter((c) => Number.isFinite(c.len) && c.len <= room).sort((x, y) => x.len - y.len || x.col - y.col);
+  for (const c of tries) if (editor(b, day, rng).moveRoute(ri, c.len, c.col)) return true;
+  if (!join) return false;
+  const j = joinRedraw(b, ri, day, rng, rateDeck(b).value, null);
+  if (!j) return false;
+  b.items = j.build.items;
+  b.routes = j.build.routes;
+  return true;
 }
