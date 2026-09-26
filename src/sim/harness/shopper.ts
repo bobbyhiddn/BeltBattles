@@ -16,7 +16,7 @@ import {
   arrowCell, cloneBuild, connectorClaims, hero, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
   type Build, type Dir, type Placed,
 } from "../deck";
-import { freeForRig, intakeCell, placeRigAt, spotForTile, type WouldHit } from "../beltside";
+import { freeForRig, intakeCell, placeRigAt, spotForTile, type RigSpot, type WouldHit } from "../beltside";
 import { buildCost } from "../../net/validate";
 import { FUSE_MAX } from "../stars";
 import { shopFactories, shopItems } from "./heroes";
@@ -258,9 +258,7 @@ export class Shopper {
    * Factories off: `accept` exactly.
    */
   placeRig(def: string, ri: number, ti: number, accept?: Accept, keep?: Placed): Placed | null {
-    const slag = keep ? this.slagRoutesOf(ITEMS[def]) : this.slagRoutesFor(ITEMS[def]);
-    const ok: Accept | undefined = slag ? (hs) => hs.every((h) => !slag[h.route]) && (!accept || accept(hs)) : accept;
-    const s = spotForTile(this.b, def, ri, ti, this.connected(), undefined, ok);
+    const s = this.rigSpot(def, ri, ti, accept, !!keep);
     if (!s) return null;
     if (keep) return placeRigAt(this.b, keep.uid, def, s, keep.stars);
     if (this.stars) {
@@ -268,6 +266,15 @@ export class Shopper {
       return this.b.items.find((p) => p.uid === g.survivor) ?? null;
     }
     return placeRigAt(this.b, this.uid++, def, s);
+  }
+
+  /** FB-C: placeRig's spot, without placing anything: the H2 cell and rotation for a rig of `def` put to work on tile ti
+   *  of route ri (the slag rule of P20 included; `moved`: a lifted rig, which never merges, so slagRoutesOf). The par
+   *  player (player.ts) buys through the game's buyOffer at this spot, so it places rigs exactly as the harness does. */
+  rigSpot(def: string, ri: number, ti: number, accept?: Accept, moved = false): RigSpot | null {
+    const slag = moved ? this.slagRoutesOf(ITEMS[def]) : this.slagRoutesFor(ITEMS[def]);
+    const ok: Accept | undefined = slag ? (hs) => hs.every((h) => !slag[h.route]) && (!accept || accept(hs)) : accept;
+    return spotForTile(this.b, def, ri, ti, this.connected(), undefined, ok);
   }
 
   /** Rigs whose every hit lands on route ri: they go idle when it moves or goes, so they travel with it. */
