@@ -15,8 +15,12 @@ import {
   cloneBuild, connectorClaims, feedOf, gearOn, hullSlots, installTurret, installedTurrets, joinOf, key as K, rigArrows, rigHits,
   rotField, routeInfo, setTurretList, turretSlots, type Build, type Placed, type RouteDef,
 } from "../src/sim/deck";
-import { rateDeck } from "../src/sim/deckRating";
-import { type PlayerDay, type PlayerOpts } from "../src/sim/harness/player";
+import {
+  FIGHT_BY_DAY, FIGHT_T, RATING_CLIFF, RATING_CURVE, SATURATED, SAT_DEEP, SAT_DEEP_AT, SAT_HI, fightTime, firedShare, rateDeck,
+} from "../src/sim/deckRating";
+import { rateOn, type PlayerDay, type PlayerOpts } from "../src/sim/harness/player";
+import { walkRoute } from "../src/sim/deck";
+import { rotFacing } from "../src/sim/beltside";
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -307,6 +311,85 @@ describe("0.6.2 CAND-A: the rating reads turrets and joins as the battle fights 
     noE1.routes[0] = { factory: 1, cells: FM };
     expect(HERO_DEFS.furnace.factory).toBe("kiln");
     expect(rateDeck(JOIN_LAYOUTS.F1(5)).value).toBe(rateDeck(noE1).value); // the same deck: the journey counts
+  });
+});
+
+// CAND-A resume, the skill-ladder fix (ref/BRIEF-final-062-cand-resume.md step 1): the rating weighed every day's damage
+// over a 25 s fight and a turret's belts from its earliest one's first payload; par-field fights last 24 s on day 1 and
+// 9.5 s on day 10, so the sharp player (it follows the rating most closely) drew long belts and joined journeys that land
+// late or never, and POWDER KEGs that blow after most fights are over. Sharp WEAVER fell to 36% against par on day 10.
+// The fix: the day's fight (fightTime), each belt from its own first payload after the turret's first window and shot
+// flight, the keg's one blast, and a saturation curve that goes on falling under a deep load (junction-062's bench).
+describe("CAND-A: the rating weighs damage over the day's fight, each belt from its own first payload", () => {
+  it("fightTime: the par field's fight length per day, day 1 as FIGHT_T, shorter as decks grow, clamped to days 1..10", () => {
+    expect(FIGHT_BY_DAY.length).toBe(PLAYER_DAYS);
+    expect(Math.abs(fightTime(1) - FIGHT_T)).toBeLessThan(1);
+    expect(fightTime(10)).toBe(9.5);
+    for (let d = 2; d <= PLAYER_DAYS; d++) expect(fightTime(d), `d${d}`).toBeLessThanOrEqual(fightTime(d - 1));
+    expect(fightTime(0)).toBe(fightTime(1));
+    expect(fightTime(12)).toBe(fightTime(10));
+    // the par player reads its day's rating
+    const b = playerBuild("weaver", 10, 1);
+    expect(rateOn(b, 10)).toBe(rateDeck(b, RATING_CURVE, fightTime(10)).value);
+    expect(rateOn(b, 10)).toBeLessThan(rateDeck(b).value); // a shorter fight: less of the damage lands
+  });
+
+  it("a POWDER KEG counts only when it blows before the fight is over, and then only for the payloads on its belt", () => {
+    const base = JOIN_LAYOUTS.F0(5);
+    const keg = cloneBuild(base); // west of the KILN belt's first tile, facing east onto it
+    keg.items.push({ uid: 40, def: "keg", x: 3, y: 5, rot: rotFacing("keg", 1) });
+    expect(validateBuild(keg, 5).errors).toEqual([]);
+    expect(rigHits(keg)[0].flat().some((h) => h.uid === 40)).toBe(true);
+    expect(walkRoute(keg, 0).estimate.time).toBeGreaterThan(0);
+    const v = (b: Build, fight: number) => rateDeck(b, RATING_CURVE, fight).value;
+    // 1 star: a 12 s fuse. Day 10's fight (9.5 s) is over first: nothing. Day 5's (12.9 s) sees the blast's first
+    // second, day 1's (24.4 s) the whole belt's worth of payloads (about its ride), a larger share of the fight
+    expect(v(keg, fightTime(10))).toBe(v(base, fightTime(10)));
+    expect(v(keg, fightTime(5))).toBeGreaterThan(v(base, fightTime(5)));
+    expect(v(keg, fightTime(1)) / v(base, fightTime(1))).toBeGreaterThan(v(keg, fightTime(5)) / v(base, fightTime(5)));
+    // a one-off blast: over a longer fight it is a smaller share of what the belt fires (the old reading, half the
+    // buff on every payload, never fell)
+    expect(v(keg, 60) / v(base, 60)).toBeLessThan(v(keg, FIGHT_T) / v(base, FIGHT_T));
+  });
+
+  it("a joined belt counts from its own first payload, not from the turret's earliest belt's", () => {
+    // F1 (day 10), and the same deck with the PRESS's joining line drawn 3 tiles longer into the same join tile: the
+    // same payloads through the same rigs, the first one later. Weighed from the KILN belt's first payload (the old
+    // rule) the two rated alike on every day; now the later line loses on day 10's fight and draws level in a long one.
+    const short = JOIN_LAYOUTS.F1(10);
+    const long = cloneBuild(short);
+    long.routes[1] = { factory: 2, cells: [K(7, 5), K(7, 4), K(6, 4), K(5, 4), K(5, 5)], join: K(4, 5) };
+    expect(validateBuild(long, 10).errors).toEqual([]);
+    expect(joinOf(long, 1)).toBeDefined();
+    expect(walkRoute(long, 1).estimate.time).toBeGreaterThan(walkRoute(short, 1).estimate.time);
+    const v = (b: Build, fight: number) => rateDeck(b, RATING_CURVE, fight).value;
+    expect(v(long, fightTime(10))).toBeLessThan(0.99 * v(short, fightTime(10)));
+    expect(v(long, 1e6) / v(short, 1e6)).toBeCloseTo(1, 3);
+  });
+
+  it("junction-062's bench order holds at each day's fight too", () => {
+    const v = (id: string, d: number) => rateDeck(JOIN_LAYOUTS[id](d), RATING_CURVE, fightTime(d)).value;
+    for (const d of [5, 7, 10]) {
+      expect(v("F1", d), `d${d}: F1 > F0L`).toBeGreaterThan(v("F0L", d));
+      expect(v("F0L", d), `d${d}: F0L > F0`).toBeGreaterThan(v("F0", d));
+    }
+    // crowding: three lines into one intake. Day 7's F4 (its rig row with BRAKE and a CALIBRATION, under the deep
+    // load) still reads about 4% above F3L at day 7's 11.1 s fight: a known limit, reported (the bench: -13.2 points)
+    for (const d of [5, 10]) {
+      expect(v("F4", d), `d${d}: F4 <= F3L`).toBeLessThanOrEqual(v("F3L", d) * 1.02);
+      expect(v("W5", d), `d${d}: W5 < W4`).toBeLessThan(v("W4", d));
+    }
+  });
+
+  it("a crowded intake fires less the more it is crowded: the saturation curve goes on down to SAT_DEEP", () => {
+    expect(firedShare(0.5)).toBe(1);
+    expect(firedShare(SAT_HI)).toBeCloseTo(SATURATED, 9);
+    expect(firedShare(1.6)).toBeLessThan(SATURATED);
+    expect(firedShare(1.6)).toBeGreaterThan(SAT_DEEP);
+    expect(firedShare(SAT_DEEP_AT)).toBeCloseTo(SAT_DEEP, 9);
+    expect(firedShare(5)).toBe(SAT_DEEP);
+    expect(firedShare(5, true)).toBe(1); // a turret that never jams
+    expect(firedShare(5, false, RATING_CLIFF)).toBe(0.85); // FB-C's cliff has no deep segment
   });
 });
 

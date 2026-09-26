@@ -4,7 +4,7 @@
 // (tests/harness.mods.test.ts: no src/sim/harness file reads star values itself) keeps every harness file off that
 // path. Nothing in the game imports it; the balance harness's par player (src/sim/harness/player.ts) does.
 
-import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS } from "./content";
+import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME } from "./content";
 import {
   beltStateAt, connectorClaims, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo, walkRoute,
   type Build, type RigHit,
@@ -15,6 +15,16 @@ import { effectAt, starsOf, valueOf } from "./stars";
 
 /** Seconds in a typical dusk fight (the desk run's fights last 17-29 s): damage is weighed by how much of it lands. */
 export const FIGHT_T = 25;
+/**
+ * 0.6.2 CAND-A (the skill-ladder fix): the mean length in seconds of a par-field fight at dusk of each day 1..10
+ * (the typical par field against itself, K = 12, FURNACE and WEAVER both ways, one battle per pairing; measured at
+ * 12c8e5a). FIGHT_T is day 1's; fights shorten as decks grow, to 9.5 s on day 10. Weighed over 25 s on every day, a
+ * belt whose first payload lands at 6-10 s kept 60-75% of its damage on day 10, when most fights are over by then,
+ * so the sharp player (it follows the rating most closely) drew long belts and long joined journeys that fire late.
+ */
+export const FIGHT_BY_DAY: readonly number[] = [24.4, 19.9, 15.7, 14.2, 12.9, 11.6, 11.1, 10.5, 10.1, 9.5];
+/** The par-field fight length of `day` (FIGHT_BY_DAY; days past the table read its last entry). */
+export const fightTime = (day: number): number => FIGHT_BY_DAY[Math.max(1, Math.min(FIGHT_BY_DAY.length, Math.floor(day))) - 1];
 
 /**
  * Damage-equivalents per payload of the effects the route walk doesn't turn into damage, read off the cards:
@@ -38,20 +48,31 @@ export const NOMINAL = 0.03;
  */
 export const SATURATED = 0.7;
 export const SAT_LO = 0.75, SAT_HI = 1.25;
-/** The rating's saturation model: the load where firing starts to fall (satLo), where it bottoms out (satHi) and the
- *  share fired from there on (saturated). RATING_CURVE is the default; RATING_CLIFF is FB-C's rule (all of it up to
- *  the turret's rate, 0.85 of the rate above it), kept for bench comparisons (tools/parBench.ts --ablate). */
-export interface RatingModel { satLo: number; satHi: number; saturated: number }
-export const RATING_CURVE: Readonly<RatingModel> = { satLo: SAT_LO, satHi: SAT_HI, saturated: SATURATED };
+/** CAND-A (the skill-ladder fix): past SAT_HI the share goes on falling, to SAT_DEEP at a load of SAT_DEEP_AT and
+ *  beyond (junction-062's saturated bench decks fired 0.53-0.66 of the rate; three lines into one heavy intake, F4,
+ *  lost 8-13 points to the third factory idle, F3L, which the flat 0.7 no longer showed once each belt is weighed
+ *  from its own first payload). */
+export const SAT_DEEP = 0.55, SAT_DEEP_AT = 2;
+/** The rating's saturation model: the load where firing starts to fall (satLo), where it reaches `saturated` (satHi),
+ *  and optionally where it bottoms out at `deep` (deepAt; absent: `saturated` from satHi on). RATING_CURVE is the
+ *  default; RATING_CLIFF is FB-C's rule (all of it up to the turret's rate, 0.85 of the rate above it), kept for bench
+ *  comparisons (tools/parBench.ts --ablate). */
+export interface RatingModel { satLo: number; satHi: number; saturated: number; deepAt?: number; deep?: number }
+export const RATING_CURVE: Readonly<RatingModel> = { satLo: SAT_LO, satHi: SAT_HI, saturated: SATURATED, deepAt: SAT_DEEP_AT, deep: SAT_DEEP };
 export const RATING_CLIFF: Readonly<RatingModel> = { satLo: 1, satHi: 1, saturated: 0.85 };
 /** The share a turret with load `rho` fires (1 for one that never jams). */
-export const firedShare = (rho: number, noJam = false, m: Readonly<RatingModel> = RATING_CURVE): number =>
-  noJam || rho <= m.satLo ? 1 : rho >= m.satHi ? m.saturated : 1 - ((1 - m.saturated) * (rho - m.satLo)) / (m.satHi - m.satLo);
+export const firedShare = (rho: number, noJam = false, m: Readonly<RatingModel> = RATING_CURVE): number => {
+  if (noJam || rho <= m.satLo) return 1;
+  if (rho < m.satHi) return 1 - ((1 - m.saturated) * (rho - m.satLo)) / (m.satHi - m.satLo);
+  if (m.deepAt === undefined || m.deep === undefined || m.deepAt <= m.satHi) return m.saturated;
+  return m.saturated - (m.saturated - m.deep) * Math.min(1, (rho - m.satHi) / (m.deepAt - m.satHi));
+};
 
 interface Feed { route: number; arrival: number; eq: number; first: number; ride: number }
 
-/** Per payload, the rig effects the walk leaves out (EQ), and the hull a RIVETER repairs per passing payload. */
-function hitExtras(b: Build, hits: RigHit[][][], ri: number): { eq: number; repair: number } {
+/** Per payload, the rig effects the walk leaves out (EQ), and the hull a RIVETER repairs per passing payload.
+ *  `fight`: the fight's length; `time`: the route's first payload's ride to its turret (walkRoute's estimate). */
+function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time: number): { eq: number; repair: number } {
   let eq = 0, repair = 0;
   for (const tile of hits[ri] ?? []) {
     for (const h of tile) {
@@ -61,7 +82,11 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number): { eq: number; repa
       if (e.fray) eq += EQ.fray * e.fray;
       if (e.staticTime) eq += EQ.static * e.staticTime;
       if (e.perStalled) eq += EQ.perStalled * e.perStalled.each;
-      if (e.keg) eq += 0.5 * (e.keg.flat + BURN_TIME * e.keg.burn); // it blows at 8-12 s: about half the fight
+      // POWDER KEG (battle.ts detonateKeg): `fuse` seconds into the fight it buffs the payloads then on its belt, once:
+      // about `time` seconds of the route's payloads, of the (fight - time) it fires, and none when the fight is over
+      // first. CAND-A (the skill-ladder fix): the rating read half the buff on every payload, whatever the fight; its
+      // ablation lift on the par field was +0.1 points on day 10 (fights of 9.5 s; fuses 12/10/8 s at 1/2/3 stars).
+      if (e.keg) eq += ((e.keg.flat + BURN_TIME * e.keg.burn) * Math.max(0, Math.min(fight, e.keg.fuse + time) - e.keg.fuse)) / Math.max(1, fight - time);
       if (e.overclockCooldown) eq += EQ.overclock / e.overclockCooldown;
       if (e.toll) eq += EQ.toll * e.toll;
       if (e.sift) eq += EQ.sift;
@@ -84,15 +109,21 @@ export interface DeckRating {
  * which it feeds by turns)). Per turret: the payloads it can fire per second (perShot / interval, with E1's 0.72 s
  * FURNACE breech from an 8-tile belt, CALIBRATION and a core's cadence) cap the payloads that arrive (a backlog
  * jams: 85%), FINISHER RAM and LONGCASE add their share, gear and cores the rating can't compute add NOMINAL; the
- * whole is weighed by the share of a FIGHT_T fight left after the first payload arrives.
+ * whole is weighed by the share of the fight left after the first payload arrives (CAND-A: per belt, below).
  * 0.6.2 CAND-A: the TURRET SLOTS as the battle fights them (deck.ts installedTurrets: a bought or replaced turret at
  * its stars, the extra slot's turret, every gear slot), E1's long belt on whatever turret it feeds (fireInterval x
  * FURNACE_LONG_BELT) counting a joining belt's whole journey (J14 (a)), and belt JOINS: a joining belt's walk goes on
  * through its main belt's rigs (walkRoute), its payloads load at the main belt's turret, and they enter the main belt
  * only into its gaps (J5: the main belt has right of way), so a main belt's join carries at most BELT_SPEED x its
  * speed there / AMMO_SPACING payloads a second, its own first.
+ * CAND-A (the skill-ladder fix): each belt's damage is weighed by the share of the fight left after ITS first payload
+ * arrives, not the turret's earliest belt's: with joins a turret takes several belts, and a long joined journey (its
+ * ride bonus and the main belt's rigs make its payloads the heaviest) was counted from the shortest belt's first
+ * arrival, though in a short fight it lands late or never. With one belt per turret this is the rule as before.
+ * `fight`: the fight's length in seconds, FIGHT_T by default; the par player passes its day's (fightTime), so damage
+ * is weighed by the share of that day's fight left after each first payload arrives, and RIVETER repairs half of it.
  */
-export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE): DeckRating {
+export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, fight = FIGHT_T): DeckRating {
   const h = HEROES[b.hero];
   const hits = rigHits(b), claims = connectorClaims(b), occ = occupancy(b);
   const outs = new Map<number, number>();
@@ -107,7 +138,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE):
     if (!f || !spec) return;
     const interval = f.def === "mimic" ? (ITEMS[h.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
     const est = walkRoute(b, ri, hits).estimate;
-    const x = hitExtras(b, hits, ri);
+    const x = hitExtras(b, hits, ri, fight, est.time);
     const arrival = (est.copies * (spec.batch ?? 1)) / (Math.max(0.1, interval) * (outs.get(r.factory) ?? 1));
     const eq = est.dmg + (spec.scrapFlat ?? 0) + BURN_TIME * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0);
     const list = feeds.get(info.turret) ?? [];
@@ -164,8 +195,13 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE):
       flows = fs.map((f) => f.arrival * (b.routes[f.route].join === undefined ? so : sj));
     }
     const inflow = flows.reduce((s, v) => s + v, 0);
-    let eq = fs.reduce((s, f, i) => s + flows[i] * f.eq, 0) / inflow;
-    if (g.longRideFlat) eq += g.longRideFlat * fs.reduce((s, f, i) => s + (f.ride >= g.longRideMin ? flows[i] : 0), 0) / inflow;
+    // CAND-A (the skill-ladder fix): each belt counts for the share of the fight left after ITS first payload lands.
+    // The turret's first shot waits for its loading window (cores.ts IDENTITY ready: `window` loads, or windowTime
+    // after the first load) and flies td.flight; a belt that arrives later joins a turret already firing.
+    const start = Math.min(...fs.map((f) => f.first)) + Math.min((core.spec.windowTime ?? WINDOW_TIME) + g.windowTime, (td.window + g.window - 1) / arrival);
+    const left = (f: Feed): number => Math.max(0.1, (fight - Math.max(f.first, start) - td.flight) / fight);
+    let eq = fs.reduce((s, f, i) => s + flows[i] * f.eq * left(f), 0) / inflow;
+    if (g.longRideFlat) eq += g.longRideFlat * fs.reduce((s, f, i) => s + (f.ride >= g.longRideMin ? flows[i] * left(f) : 0), 0) / inflow;
     let mult = 1 + (g.finisher ? g.finisher / (td.window + g.window) : 0);
     if (core.bought) mult *= 1 + NOMINAL * valueOf(core.def, core.stars);
     for (const m of b.mods) {
@@ -173,9 +209,8 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE):
       const md = effectAt(m.def, starsOf(m)).mod ?? {};
       if (!md.fireMul && !md.perShot && !md.finisher && !md.longRideFlat) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m));
     }
-    const first = Math.min(...fs.map((f) => f.first));
-    offense += thr * eq * mult * Math.max(0.1, (FIGHT_T - first) / FIGHT_T);
+    offense += thr * eq * mult;
   }
-  const defense = h.hull + b.hullBonus + repair * FIGHT_T * 0.5;
+  const defense = h.hull + b.hullBonus + repair * fight * 0.5;
   return { offense, defense, value: offense * defense };
 }

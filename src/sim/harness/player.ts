@@ -40,6 +40,8 @@
 //   main belt's rigs), E1's long journey, and a crowded intake (joiners starve at a saturated turret).
 // - AIM: a multi-arrow rig also tries the spots where most of its arrows land (`aimTop` of them), two-belt spots
 //   included: a player dragging a rig sees where its arrows land before dropping it (the game's drop auto-aims).
+// - CAND-A resume (the skill-ladder fix): the player reads its day's rating (rateOn: deckRating.ts fightTime, the par
+//   field's fight length on that day, 24 s on day 1 to 9.5 s on day 10), not a 25 s fight on every day.
 
 import { Rng, hashSeed } from "../../core/rng";
 import { GRID, HEROES, ITEMS, REROLL_COST, type HeroId } from "../content";
@@ -66,7 +68,7 @@ import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } f
 // FB-C: the rating (rateDeck and its constants) lives in src/sim/deckRating.ts, beside deck.ts: it reads starred
 // effects through stars.ts like the build screen's inspector, which no src/sim/harness file may do itself.
 export { EQ, FIGHT_T, NOMINAL, ROUND_EQ, SATURATED, rateDeck, type DeckRating } from "../deckRating";
-import { FIGHT_T, rateDeck } from "../deckRating";
+import { FIGHT_T, RATING_CURVE, fightTime, rateDeck } from "../deckRating";
 
 // ---------------------------------------------------------------- the policy
 
@@ -237,7 +239,14 @@ function afterGain(run: Run, def: string, at: GainAt | undefined): Build {
   return sim.build;
 }
 
-const relOf = (after: Build, base: number): number => (base > 0 ? rateDeck(after).value / base - 1 : rateDeck(after).value > 0 ? 1 : 0);
+/** CAND-A (the skill-ladder fix): the rating the player reads on `day`, its damage weighed over that day's fight
+ *  (deckRating.ts fightTime: 24 s on day 1 to 9.5 s on day 10; it was FIGHT_T, 25 s, on every day). */
+export const rateOn = (b: Build, day: number): number => rateDeck(b, RATING_CURVE, fightTime(day)).value;
+
+const relOf = (after: Build, base: number, day: number): number => {
+  const v = rateOn(after, day);
+  return base > 0 ? v / base - 1 : v > 0 ? 1 : 0;
+};
 
 /** A new Shopper on `b` for belt edits only: an unlimited purse (moveRoute's check), stars, cores and factories on. */
 const editor = (b: Build, day: number, rng: Rng): Shopper => new Shopper(b, Number.MAX_SAFE_INTEGER, day, rng, "on", FUSE_MAX, "on", "on");
@@ -297,7 +306,7 @@ function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = 
  * the offer (half its value back) and drops the new rig on that cell, turned for the most hits on connected belts
  * (the game's drop auto-aims; a speed rig never hits a slag belt, P20). Of those swaps, the best-rated; null: none.
  */
-function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, base: number): Omit<Cand, "wagon" | "slot" | "price"> | null {
+function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, base: number, day: number): Omit<Cand, "wagon" | "slot" | "price"> | null {
   const slag = s.slagRoutesFor(ITEMS[def]);
   const belts = beltIndex(b, s.connected());
   let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
@@ -313,7 +322,7 @@ function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, 
     }
     if (!spot) continue;
     placeRigAt(trial, uid, def, spot);
-    const r = relOf(trial, base);
+    const r = relOf(trial, base, day);
     if (!best || r > best.rel) best = { def, kind: "rig", merge: false, at: { x: spot.x, y: spot.y, rot: spot.rot }, swap: p.uid, rel: r };
   }
   return best;
@@ -461,7 +470,7 @@ function joinLine(b: Build, dist: Int32Array, prev: Int32Array, m: number, tile:
  * connected belt at a tile up to its rig row, from the free spot whose line there is shortest (ties: row order); the
  * best-rated plan. The editor's commitRoute writes each belt. null when none fits.
  */
-function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKnobs, base: number): { x: number; y: number; routes: Line[]; rel: number } | null {
+function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKnobs, base: number, day: number): { x: number; y: number; routes: Line[]; rel: number } | null {
   const place = (x: number, y: number, routes: Line[]): Build => {
     const after = cloneBuild(b);
     after.items.push({ uid, def, x, y });
@@ -478,7 +487,7 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
   for (const only of groups) {
     const own = factoryPlan(b, def, rng, pol.line, only);
     if (!own) continue;
-    const rel = relOf(place(own.x, own.y, own.routes), base);
+    const rel = relOf(place(own.x, own.y, own.routes), base, day);
     if (!best || rel > best.rel) best = { ...own, rel };
   }
   if (!pol.join) return best;
@@ -501,7 +510,7 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
     if (!n) continue;
     const after = place(n.x, n.y, [n.line]);
     if (joinProblem(after, after.routes.length - 1) !== null) continue;
-    const rel = relOf(after, base);
+    const rel = relOf(after, base, day);
     if (!best || rel > best.rel) best = { x: n.x, y: n.y, routes: [n.line], rel };
   }
   return best;
@@ -540,7 +549,7 @@ function joinRedraw(b: Build, ri: number, day: number, rng: Rng, base: number, b
     trial.routes[ri] = { factory: r.factory, cells: l.cells, join: l.join };
     if (joinProblem(trial, ri) !== null) continue;
     if (editor(trial, day, rng).reseat(riders.map((p) => ({ ...p })), ri) < riders.length) continue;
-    const rel = relOf(trial, base);
+    const rel = relOf(trial, base, day);
     if (!best || rel > best.rel) best = { build: trial, rel };
   }
   return best;
@@ -685,7 +694,7 @@ function turretCand(run: Run, def: string, pol: PolicyKnobs, rng: Rng, base: num
   if (g.where !== "cargo") return best;
   const consider = (sim: Run, back: number[], p: Pick<TurretPlan, "slot" | "moved" | "into" | "replaced">) => {
     const s = settle(sim, back);
-    const rel = relOf(sim.build, base);
+    const rel = relOf(sim.build, base, run.day);
     const cur = best[p.into];
     if (!cur || rel > cur.rel) best[p.into] = { plan: { copy: g.survivor, ...p, refit: s.refit, sell: s.sell, sold: s.sold, build: sim.build }, rel };
   };
@@ -740,7 +749,7 @@ function pairCand(run: Run, def: string, fdef: string, pol: PolicyKnobs, rng: Rn
     const after = cloneBuild(sim.build), uid = sim.nextUid;
     after.items.push({ uid, def: fdef, x: fp.x, y: fp.y });
     for (const l of fp.routes) commitRoute(after, uid, l.cells, -1);
-    const rel = relOf(after, base);
+    const rel = relOf(after, base, run.day);
     if (!best || rel > best.rel) best = { plan: { copy: g.survivor, slot: v.slot, into: "extra", refit: [], sell: [], sold: false, build: sim.build }, rel };
   }
   return best;
@@ -757,7 +766,7 @@ function reinstallCand(run: Run, rng: Rng, base: number): { uid: number; slot: n
       const sim = simRun(run);
       if (!installFromCargo(sim, it.uid, e).ok) continue;
       for (const fed of feedPlans(sim.build, e, run.day, rng)) {
-        const rel = relOf(fed, base);
+        const rel = relOf(fed, base, run.day);
         if (!best || rel > best.rel) best = { uid: it.uid, slot: e, build: fed, rel };
       }
     }
@@ -789,7 +798,7 @@ function growBelt(b: Build, day: number, rng: Rng, base: number): { build: Build
       const trial = cloneBuild(b);
       const s = editor(trial, day, rng);
       if (!s.moveRoute(ri, tiles, col)) continue;
-      const rel = relOf(trial, base);
+      const rel = relOf(trial, base, day);
       if (!best || rel > best.rel) best = { build: trial, tiles: tiles - r.cells.length, rel };
       break;
     }
@@ -807,8 +816,8 @@ const kindOf = (def: string): Kind => {
  *  belt crates with the belt they lengthen (pol.grow). CAND-A: turrets (turretCand), gear in any free gear slot of an
  *  installed turret, factory belts that join, and a multi-arrow rig's best-landing spots. */
 function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Cand[] {
-  const b = run.build;
-  const base = rateDeck(b).value;
+  const b = run.build, day = run.day;
+  const base = rateOn(b, day);
   const s = new Shopper(b, maxGoldByDay(run.day), run.day, rng, "on", maxStars, "on", "on");
   s.uid = run.nextUid;
   const out: Cand[] = [];
@@ -827,7 +836,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
       const after = cloneBuild(b);
       if (d.supply?.hull) after.hullBonus += d.supply.hull;
       if (d.supply?.belt) after.beltCap += d.supply.belt;
-      c = { def: o.def, kind: kindOf(o.def), merge: false, rel: relOf(after, base) };
+      c = { def: o.def, kind: kindOf(o.def), merge: false, rel: relOf(after, base, day) };
       if (d.supply?.belt) {
         // a belt crate is bought to lengthen a belt: the one that rates best with the new capacity
         const g = growBelt(after, run.day, rng, base);
@@ -837,17 +846,17 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
       const pv = mergePreview(run, o.def);
       if (pv && pv.toStars > maxStars) c = null; // over the cap (stand-in candidates stop at 2 stars)
       else if (pv && pv.where !== "cargo") {
-        c = { def: o.def, kind: kindOf(o.def), merge: true, rel: relOf(afterGain(run, o.def, { x: 0, y: 0 }), base) };
+        c = { def: o.def, kind: kindOf(o.def), merge: true, rel: relOf(afterGain(run, o.def, { x: 0, y: 0 }), base, day) };
       } else if (d.kind === "gate") {
         let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
         for (const sp of rigSpots(s, o.def, pol.place === "tile" ? rng : undefined, pol.aim, pol.aimTop)) {
           const after = cloneBuild(b);
           placeRigAt(after, run.nextUid, o.def, sp);
-          const r = relOf(after, base);
+          const r = relOf(after, base, day);
           if (!best || r > best.rel) best = { def: o.def, kind: "rig", merge: false, at: { x: sp.x, y: sp.y, rot: sp.rot }, rel: r };
         }
         // no free cell beside a belt: an upgrade sells a cheaper placed rig and puts the new one on its cell
-        if (!best && pol.upgrade && !s.hasRigTile()) best = rigSwap(b, s, o.def, o.price, run.nextUid, base);
+        if (!best && pol.upgrade && !s.hasRigTile()) best = rigSwap(b, s, o.def, o.price, run.nextUid, base, day);
         c = best;
       } else if (d.kind === "mod" || d.kind === "core") {
         // 0.6.2s (S4): gear into a free GEAR SLOT of an installed turret (never two copies of one def on a turret), a
@@ -861,7 +870,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
         for (const t of tries) {
           const after = cloneBuild(b);
           after.mods.push({ uid: run.nextUid, def: o.def, turret: t });
-          const r = relOf(after, base);
+          const r = relOf(after, base, day);
           if (!best || r > best.rel) best = { def: o.def, kind: kindOf(o.def), merge: false, at: { turret: t }, rel: r };
         }
         if (!free.length && pol.upgrade) {
@@ -874,14 +883,14 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
               after.mods = after.mods.filter((m) => m.uid !== old.uid);
               if (d.kind === "mod" && !canFitGear(after, t, o.def).ok) continue;
               after.mods.push({ uid: run.nextUid, def: o.def, turret: t });
-              const r = relOf(after, base);
+              const r = relOf(after, base, day);
               if (!best || r > best.rel) best = { def: o.def, kind: kindOf(o.def), merge: false, at: { turret: t }, swap: old.uid, rel: r };
             }
           }
         }
         c = best;
       } else if (d.kind === "factory") {
-        const fp = factoryCand(b, o.def, run.nextUid, rng, pol, base);
+        const fp = factoryCand(b, o.def, run.nextUid, rng, pol, base, day);
         if (fp) c = { def: o.def, kind: "factory", merge: false, at: { x: fp.x, y: fp.y }, routes: fp.routes, rel: fp.rel };
       } else if (d.kind === "turret" && pol.turret) {
         const tp = turretCand(run, o.def, pol, rng, base);
@@ -1072,7 +1081,7 @@ export const floorGold = (day: number, floor: number): number => Math.ceil(floor
 function dawnEdits(run: Run, pol: PolicyKnobs, rng: Rng): void {
   const need = pol.grow ? pol.minRel : pol.upgradeGain;
   if (pol.extra && pol.turret) {
-    const r = reinstallCand(run, rng, rateDeck(run.build).value);
+    const r = reinstallCand(run, rng, rateOn(run.build, run.day));
     if (r && r.rel > need) {
       if (!installFromCargo(run, r.uid, r.slot).ok) throw new Error(`par player: reinstall ${r.uid} -> slot ${r.slot} failed`);
       run.build.items = cloneBuild(r.build).items;
@@ -1081,7 +1090,7 @@ function dawnEdits(run: Run, pol: PolicyKnobs, rng: Rng): void {
     }
   }
   if (pol.join) {
-    const j = rejoin(run.build, run.day, rng, rateDeck(run.build).value);
+    const j = rejoin(run.build, run.day, rng, rateOn(run.build, run.day));
     if (j && j.rel > need) {
       run.build.items = j.build.items;
       run.build.routes = j.build.routes;
@@ -1103,7 +1112,7 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
   for (let guard = 0; guard < 80; guard++) {
     if (pol.grow && beltFree(run.build) > 0) {
       // free belt capacity: the player lengthens the belt that rates best with it (a free redraw in the game)
-      const g = growBelt(run.build, run.day, rng, rateDeck(run.build).value);
+      const g = growBelt(run.build, run.day, rng, rateOn(run.build, run.day));
       if (g && g.rel > pol.minRel) {
         run.build.items = g.build.items;
         run.build.routes = g.build.routes;
@@ -1122,7 +1131,7 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
       // out of room with gold to spend: the player lengthens a belt into its free capacity (a free redraw in the
       // game), the one that rates best, so rigs fit again; at most once a day, and never for a worse deck
       roomy = true;
-      const g = growBelt(run.build, run.day, rng, rateDeck(run.build).value);
+      const g = growBelt(run.build, run.day, rng, rateOn(run.build, run.day));
       if (g && g.rel >= -pol.harmless) {
         run.build.items = g.build.items;
         run.build.routes = g.build.routes;
@@ -1222,7 +1231,7 @@ export function refeedRoute(b: Build, ri: number, day: number, seed: number, joi
     .filter((c) => Number.isFinite(c.len) && c.len <= room).sort((x, y) => x.len - y.len || x.col - y.col);
   for (const c of tries) if (editor(b, day, rng).moveRoute(ri, c.len, c.col)) return true;
   if (!join) return false;
-  const j = joinRedraw(b, ri, day, rng, rateDeck(b).value, null);
+  const j = joinRedraw(b, ri, day, rng, rateOn(b, day), null);
   if (!j) return false;
   b.items = j.build.items;
   b.routes = j.build.routes;
