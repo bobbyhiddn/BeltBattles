@@ -286,7 +286,13 @@ describe("M2: --par-band (off by default) and the header command", () => {
   it("the header prints --source for every pool but the legacy full-purse + heroref one, and --par-band when set", () => {
     const cli: StandInOpts = { ...STANDIN_DEFAULTS, cores: "on", factories: "on" }; // the CLI's stars, cores and factories
     const base = standInCommand(cli); // absent source and par: pool v2.1's header exactly
-    expect(`//   ${base}`).toBe(readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n")[1]);
+    // the committed module's header (line 2) is one of them: pool v2.1's legacy header, or the step-5 regen's (the CLI
+    // defaults: --par field --source caravan, with --par-band when the regen used it), so its own command replays it
+    const header = readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n")[1];
+    const band = / --par-band ([\d.]+),([\d.]+)$/.exec(header);
+    const regen: StandInOpts = { ...cli, source: "caravan", par: "field", ...(band ? { parBand: [Number(band[1]), Number(band[2])] as [number, number] } : {}) };
+    expect([`//   ${base}`, `//   ${standInCommand(regen)}`]).toContain(header);
+    if (!header.includes("--source")) expect(header).toBe(`//   ${base}`); // pool v2.1
     expect(base).not.toMatch(/--source|--par (field|heroref)|--par-band/);
     expect(standInCommand({ ...cli, source: "fullpurse", par: "heroref" })).toBe(base);
     expect(standInCommand({ ...cli, source: "fullpurse", par: "field" })).toBe(`${base} --par field --source fullpurse`);

@@ -4,6 +4,7 @@
 // to the same deck. A deck without the two fields encodes exactly as the pre-step-5 encoder did (a frozen copy below),
 // every committed pool code round-trips byte for byte, and a decoded stand-in with turrets and joins survives the
 // GhostSnapshot v2 codec (src/net/snapshot.ts) unchanged.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
@@ -228,26 +229,34 @@ describe("M1: the stand-in codes carry turrets and joins (both codecs)", () => {
 });
 
 describe("M1: absent fields encode exactly as before, and older codes decode exactly as before", () => {
-  it("all 120 committed pool codes: both codecs decode them alike and re-encode them byte for byte (no turret section, no join)", () => {
-    let n = 0;
+  it("all 120 committed pool codes: both codecs decode them alike and re-encode them byte for byte (pool v2.1: no turret section, no join)", () => {
+    // Pool v2.1 (the full-purse pool, whose header predates --source) holds no turrets and no joins, and the frozen
+    // pre-step-5 encoder wrote every code. A caravan-bound pool (the step-5 regen: its header prints --source) may carry
+    // both: its codes must still decode alike in both codecs and re-encode byte for byte, a fifth section exactly when
+    // the deck carries Build.turrets, and every code without turrets or joins as the frozen encoder writes it.
+    const legacy = !readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n")[1].includes("--source");
+    let n = 0, turreted = 0, joined = 0;
     for (const hero of loader.STAND_IN_POOL_HEROES) {
       for (let day = 1; day <= 10; day++) {
         for (const t of STAND_IN_DATA.pools[hero]![day - 1][1]) {
           const code = t[3];
-          expect(code.split("/")).toHaveLength(4);
           const raw = loader.decodeStarredRaw(hero, code), h = harness.decodeStarred(hero, code);
           expect(JSON.stringify(h)).toBe(JSON.stringify(raw));
-          expect(JSON.stringify(loader.decodeStarred(hero, code))).toBe(JSON.stringify(raw)); // pool v2.1 is native
-          expect(raw.turrets).toBeUndefined();
-          expect(raw.routes.some((r) => r.join !== undefined)).toBe(false);
+          expect(JSON.stringify(loader.decodeStarred(hero, code))).toBe(JSON.stringify(raw)); // pool v2.1 on is native
           expect(loader.encodeStarred(raw)).toBe(code);
           expect(harness.encodeStarred(h)).toBe(code);
-          expect(legacyEncode(raw)).toBe(code);
+          const fifth = code.split("/").length === 5, join = raw.routes.some((r) => r.join !== undefined);
+          expect(code.split("/").length === 4 || fifth, code).toBe(true);
+          expect(raw.turrets !== undefined, code).toBe(fifth);
+          if (!fifth && !join) expect(legacyEncode(raw)).toBe(code);
+          if (fifth) turreted++;
+          if (join) joined++;
           n++;
         }
       }
     }
     expect(n).toBe(120);
+    if (legacy) expect([turreted, joined]).toEqual([0, 0]); // pool v2.1: every code is the frozen encoder's (above)
   });
 
   it("decks without turrets or joins encode as the frozen pre-step-5 encoder does: v1.1 decks, random builds of every hero, par-player decks", () => {
