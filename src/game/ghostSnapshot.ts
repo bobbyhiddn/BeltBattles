@@ -13,9 +13,17 @@ import { migrateDeck } from "../sim/beltside";
 // 0.6.2 BELTSIDE (D1): v2 items may also carry `rot` (an integer 0..3, a rig's rotation; absent = 0; never
 // on a mod), with src/net/snapshot.ts. v2 is not live yet, so no v3. Every snapshot loaded into the pool
 // is a load boundary (D3): migrateSnapshot moves gates standing on belt tiles beside them.
+// 0.6.2s TURRET SLOTS (REQ-BFG-031 S8): a v2 build may also carry `turrets` (absent = the hero's starting
+// layout), exactly as src/net/snapshot.ts checkBuildShape takes it: at most MAX_TURRETS strict entries
+// { slot 0..15, def, uid, stars? 1..3, free? (exactly true) }. Written only when present. No v3.
 export const SNAPSHOT_VERSION = 2;
 const MAX_STARS = 3; // = stars.ts FUSE_MAX
 const MAX_ROT = 3; // 0.6.2: a rig's rotation, 0..3 quarter turns
+const MAX_TURRETS = 8; // 0.6.2s: = src/net/snapshot.ts MAX_TURRETS
+const MAX_SLOT = 15; // 0.6.2s: = src/net/snapshot.ts MAX_SLOT
+const DEF_PATTERN = /^[a-z0-9_]{1,32}$/; // = src/net/snapshot.ts DEF_PATTERN
+const MAX_UID = 2 ** 31 - 1; // = src/net/snapshot.ts MAX_UID
+const TURRET_KEYS = ["slot", "def", "uid", "stars", "free"];
 /** runId, playerId: anonymous, no personal data (same pattern as the async contract). */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Where the anonymous player id lives (made once per device). */
@@ -64,11 +72,27 @@ function rotOk(items: unknown[], mods: unknown[], v: number): boolean {
   });
 }
 
+/** 0.6.2s TURRET SLOTS (S8): the build's `turrets`: absent, or (v2 only) an array of at most MAX_TURRETS strict
+ *  entries: slot (0..MAX_SLOT), def (DEF_PATTERN), uid (0..MAX_UID), optional stars (1..MAX_STARS) and free (exactly
+ *  true: false is never written); no other keys. */
+function turretsOk(q: object, v: number): boolean {
+  const list = (q as { turrets?: unknown }).turrets;
+  if (list === undefined) return true; // absent (an in-memory `turrets: undefined` too: JSON drops it)
+  if (v < 2 || !Array.isArray(list) || list.length > MAX_TURRETS) return false;
+  return list.every((t) => {
+    if (!t || typeof t !== "object" || Array.isArray(t)) return false;
+    const e = t as Raw;
+    return Object.keys(e).every((k) => TURRET_KEYS.includes(k)) && inRange(e.slot, 0, MAX_SLOT)
+      && typeof e.def === "string" && DEF_PATTERN.test(e.def) && inRange(e.uid, 0, MAX_UID)
+      && (!("stars" in e) || inRange(e.stars, 1, MAX_STARS)) && (!("free" in e) || e.free === true);
+  });
+}
+
 function buildOk(b: unknown, v = SNAPSHOT_VERSION): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
     && Array.isArray(q.mods) && typeof q.beltCap === "number" && typeof q.hullBonus === "number"
-    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v);
+    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v);
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */

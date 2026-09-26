@@ -7,21 +7,22 @@
 //   cost(build)  = Σ value(deck items) + Σ value(turret mods)   (0.6.1a: value = price × 2^(stars − 1))
 //                + price(beltcrate) × ceil((beltCap − hero.belt) / beltcrate.belt)
 //                + price(plating)   × ceil(hullBonus / plating.hull)
+//                + Σ turretValue(installed turrets)   (0.6.2s S7; 0 for a build without `turrets`)
 //   valid iff cost(build) ≤ maxGold(day)
 // Sales refund at most half the price and rerolls only spend, so no sequence of shop
 // actions can put more purchase value on the deck than the gold ever received.
 
 import { GRID, HEROES, ITEMS, START_GOLD, incomeFor, type ItemDef } from "../sim/content";
 import {
-  canPlaceItem, connectorClaims, dirBetween, adjacentToFactory, footprint, occupancy,
-  routeInfo, routeWellFormed, type Build,
+  canPlaceItem, connectorClaims, dirBetween, adjacentToFactory, footprint, hullSlots, occupancy,
+  routeInfo, routeWellFormed, turretSlots, turretsCost, type Build,
 } from "../sim/deck";
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../sim/stars";
 
 export interface Validation {
   ok: boolean;
-  errors: string[]; // each starts with a category: shape|item|placement|route|hardpoint|supply|budget
+  errors: string[]; // each starts with a category: shape|item|turret|placement|route|hardpoint|supply|budget
 }
 
 export function itemDef(id: string): ItemDef | undefined {
@@ -40,6 +41,9 @@ export interface BuildCost {
   mods: number;
   crates: number; // belt crates implied by beltCap above the hero's base (count)
   plates: number; // armor plating implied by hullBonus (count)
+  // 0.6.2s TURRET SLOTS (S7): the installed turrets' value (deck.ts turretsCost: price x (2^(stars-1) - 1 for the free
+  // starting copy)). Present only when the build carries `turrets`, so a starting-layout build's breakdown is unchanged.
+  turrets?: number;
   total: number; // gold
 }
 
@@ -51,7 +55,10 @@ export function buildCost(b: Build): BuildCost {
   const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
   const crates = Math.max(0, Math.ceil((b.beltCap - h.belt) / crate.supply!.belt!));
   const plates = Math.max(0, Math.ceil(b.hullBonus / plate.supply!.hull!));
-  return { items, mods, crates, plates, total: items + mods + crates * crate.price + plates * plate.price };
+  const total = items + mods + crates * crate.price + plates * plate.price;
+  if (!b.turrets) return { items, mods, crates, plates, total };
+  const turrets = turretsCost(b);
+  return { items, mods, crates, plates, turrets, total: total + turrets };
 }
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
@@ -66,7 +73,11 @@ const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
 export const FUSE_LIVE = true;
 
 /** One message per def and star level (below FUSE_MAX) held more than once, e.g. "UNFUSED PAIR: TEMPER ★1 x2".
- *  Supplies, signature factories and unknown ids are not fusible and never count. */
+ *  Supplies, signature factories and unknown ids are not fusible and never count. 0.6.2s TURRET SLOTS (S6, S7): the
+ *  installed turrets count too, after the items and mods, except that two FREE copies never merge with each other
+ *  (WEAVER starts with three free DART GUNs): per def and star level below FUSE_MAX, with N bought and F free copies,
+ *  it is a pair iff N >= 1 and N + F >= 2 (reported as x(N + F)). The starting layout (a build without `turrets`)
+ *  holds free copies only, so it never adds a message. */
 export function unfusedPairs(build: Build): string[] {
   const n = new Map<string, number>();
   for (const p of [...build.items, ...build.mods]) {
@@ -79,6 +90,21 @@ export function unfusedPairs(build: Build): string[] {
     if (c < 2) continue;
     const [def, s] = k.split("*");
     out.push(`UNFUSED PAIR: ${ITEMS[def].name} ★${s} x${c}`);
+  }
+  const t = new Map<string, { bought: number; free: number }>();
+  for (const x of build.turrets ?? []) {
+    const s = starsOf(x);
+    if (!fusible(x.def) || ITEMS[x.def].kind !== "turret" || s >= FUSE_MAX) continue;
+    const k = `${x.def}*${s}`;
+    const c = t.get(k) ?? { bought: 0, free: 0 };
+    if (x.free) c.free++;
+    else c.bought++;
+    t.set(k, c);
+  }
+  for (const [k, c] of t) {
+    if (c.bought < 1 || c.bought + c.free < 2) continue;
+    const [def, s] = k.split("*");
+    out.push(`UNFUSED PAIR: ${ITEMS[def].name} ★${s} x${c.bought + c.free}`);
   }
   return out;
 }
@@ -121,6 +147,21 @@ export function validateBuild(build: Build, day: number): Validation {
     if (uids.has(p.uid)) errors.push(`item: uid ${p.uid} is used twice`);
     uids.add(p.uid);
   }
+  // 0.6.2s TURRET SLOTS (S8): the installed turret list (absent = the starting layout: nothing to check here). Uids are
+  // unique together with the items' and mods'; each entry is a turret def in a slot of this hull, one turret per slot.
+  // deck.ts's slot helpers (hero(b), turretSlots) throw on a def that isn't a turret, so stop here if not.
+  const slots = hullSlots(b.hero);
+  const held = new Set<number>();
+  for (const t of b.turrets ?? []) {
+    const d = itemDef(t.def);
+    if (uids.has(t.uid)) errors.push(`turret: uid ${t.uid} is used twice`);
+    uids.add(t.uid);
+    if (!d) errors.push(`turret: uid ${t.uid} is unknown item "${t.def}"`);
+    else if (d.kind !== "turret") errors.push(`turret: uid ${t.uid} ${d.name} is not a turret`);
+    if (t.slot >= slots.length) errors.push(`turret: uid ${t.uid} is in slot ${t.slot}; ${h.name} has ${slots.length} turret slots`);
+    else if (held.has(t.slot)) errors.push(`turret: slot ${t.slot} holds more than one turret`);
+    held.add(t.slot);
+  }
   if (errors.length) return { ok: false, errors };
 
   // 0.6.1a stars: an integer 1..FUSE_MAX (absent = 1; checkBuildShape already bounds it); signature
@@ -129,6 +170,22 @@ export function validateBuild(build: Build, day: number): Validation {
     if (p.stars === undefined) continue;
     if (!Number.isInteger(p.stars) || p.stars < 1 || p.stars > FUSE_MAX) errors.push(`item: uid ${p.uid} has stars ${p.stars}; expected 1..${FUSE_MAX}`);
     else if (p.stars > 1 && !fusible(p.def)) errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have ${p.stars} stars (signatures and supplies never merge)`);
+  }
+  // 0.6.2s TURRET SLOTS: a turret's stars are 1..FUSE_MAX too (checkBuildShape already bounds them). S7: a free copy
+  // (the hull's starting copy, maybe merged) only of the hero's own starting defs, at most as many of a def as it starts with.
+  const starts = new Map<string, number>(), frees = new Map<string, number>();
+  for (const s of slots) if (s.start) starts.set(s.start, (starts.get(s.start) ?? 0) + 1);
+  for (const t of b.turrets ?? []) {
+    if (t.stars !== undefined && (!Number.isInteger(t.stars) || t.stars < 1 || t.stars > FUSE_MAX)) {
+      errors.push(`turret: uid ${t.uid} has stars ${t.stars}; expected 1..${FUSE_MAX}`);
+    }
+    if (!t.free) continue;
+    if (!starts.has(t.def)) errors.push(`turret: uid ${t.uid} ${ITEMS[t.def].name} is a free copy, but ${h.name} doesn't start with one`);
+    else frees.set(t.def, (frees.get(t.def) ?? 0) + 1);
+  }
+  for (const [def, n] of frees) {
+    const most = starts.get(def)!;
+    if (n > most) errors.push(`turret: ${n} free ${ITEMS[def].name} copies, but ${h.name} starts with ${most}`);
   }
   if (FUSE_LIVE) for (const m of unfusedPairs(b)) errors.push(`item: ${m}`);
 
@@ -199,17 +256,31 @@ export function validateBuild(build: Build, day: number): Validation {
   }
   if (belt > b.beltCap) errors.push(`route: ${belt} belt tiles exceed beltCap ${b.beltCap}`);
 
-  // turret equipment: a real turret; one mod per hardpoint (turretHasFreeHardpoint) and, 0.6.1b, one bought
-  // turret core per socket (deck.ts coreFor). Cores ride in build.mods, so buildCost already counts them.
-  const mounted = new Set<number>(), socketed = new Set<number>();
+  // turret equipment: a real turret; 0.6.1b, one bought turret core per socket (deck.ts coreFor). Cores ride in
+  // build.mods, so buildCost already counts them. 0.6.2s TURRET SLOTS (S4, S8): ModPlacement.turret is a slot of the
+  // hull (turretSlots); neither gear nor a core on an empty slot; at most the installed turret's GEAR SLOTS of gear
+  // (a 1-star common, so every starting turret, has one: one mod per hardpoint, turretHasFreeHardpoint, reported per
+  // extra piece as before; with more gear slots, once per turret) and never two copies of one gear def on a turret.
+  const views = turretSlots(b);
+  const installed = views.filter((s) => s.turret).length;
+  const gearOn = new Map<number, number>();
+  for (const m of b.mods) if (ITEMS[m.def].kind !== "core") gearOn.set(m.turret, (gearOn.get(m.turret) ?? 0) + 1);
+  const mounted = new Map<number, string[]>(), socketed = new Set<number>();
   for (const m of b.mods) {
     const d = ITEMS[m.def];
     const core = d.kind === "core";
     if (d.kind !== "mod" && !core) errors.push(`hardpoint: uid ${m.uid} ${d.name} is not turret equipment`);
-    if (m.turret >= h.turrets.length) errors.push(`hardpoint: uid ${m.uid} targets turret ${m.turret}; ${h.name} has ${h.turrets.length}`);
+    const v = views[m.turret];
+    const gear = mounted.get(m.turret) ?? [];
+    if (!v) errors.push(`hardpoint: uid ${m.uid} targets turret ${m.turret}; ${h.name} has ${views.length}`);
+    else if (!v.turret) errors.push(`hardpoint: uid ${m.uid} targets turret ${m.turret}; ${h.name} has ${installed} installed: uid ${m.uid} ${d.name} is on an empty turret slot ${m.turret}`);
     else if (core && socketed.has(m.turret)) errors.push(`hardpoint: turret ${m.turret} carries more than one core`);
-    else if (!core && mounted.has(m.turret)) errors.push(`hardpoint: turret ${m.turret} carries more than one module`);
-    (core ? socketed : mounted).add(m.turret);
+    else if (!core && gear.length >= v.gearSlots) {
+      if (v.gearSlots <= 1) errors.push(`hardpoint: turret ${m.turret} carries more than one module`);
+      else if (gear.length === v.gearSlots) errors.push(`hardpoint: turret ${m.turret} carries ${gearOn.get(m.turret)} gear; its turret has ${v.gearSlots} gear slots`);
+    } else if (!core && gear.includes(m.def)) errors.push(`hardpoint: turret ${m.turret} carries two ${d.name}`);
+    if (core) socketed.add(m.turret);
+    else mounted.set(m.turret, [...gear, m.def]);
   }
 
   // supplies: only whole belt crates and whole plating are purchasable
@@ -224,7 +295,8 @@ export function validateBuild(build: Build, day: number): Validation {
   // gold budget
   const cost = buildCost(b), max = maxGoldByDay(day);
   if (cost.total > max) {
-    errors.push(`budget: build costs ${cost.total} gold (items ${cost.items}, mods ${cost.mods}, ${cost.crates} crates, ${cost.plates} plating) but day ${day} allows at most ${max}`);
+    const turrets = cost.turrets ? `, turrets ${cost.turrets}` : ""; // 0.6.2s: only when the turrets cost anything
+    errors.push(`budget: build costs ${cost.total} gold (items ${cost.items}, mods ${cost.mods}, ${cost.crates} crates, ${cost.plates} plating${turrets}) but day ${day} allows at most ${max}`);
   }
   return { ok: errors.length === 0, errors };
 }

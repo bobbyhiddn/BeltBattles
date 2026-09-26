@@ -5,12 +5,15 @@
 // is strict: unknown fields, wrong types, out-of-range values and oversize input throw.
 
 import { GRID, HEROES, type HeroId } from "../sim/content";
-import type { Build, ModPlacement, Placed, RouteDef } from "../sim/deck";
+import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/deck";
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
 // 0.6.2 BELTSIDE (DESIGN-beltside D1): v2 items may also carry `rot` (an integer 0..MAX_ROT, a rig's
 // rotation; absent = 0), never a mod. v2 is not live yet, so `rot` joins v2 and no v3 is needed.
+// 0.6.2s TURRET SLOTS (REQ-BFG-031 S8): a v2 build may also carry `turrets` (at most MAX_TURRETS entries
+// { slot, def, uid, stars?, free? }; absent = the hero's starting layout). The encoder writes it only when
+// present, after the other build keys, so a build without it encodes byte-for-byte as before. No v3.
 export const SNAPSHOT_VERSION = 2;
 export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2];
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
@@ -21,6 +24,8 @@ export const MAX_LIVES = 9; // generous cap: 0.4.1 starts with 3 lives, the 10-d
 export const MAX_ITEMS = 64;
 export const MAX_ROUTES = 16;
 export const MAX_MODS = 16;
+export const MAX_TURRETS = 8; // 0.6.2s: build.turrets entries (a hull has at most 4 slots today)
+export const MAX_SLOT = 15; // 0.6.2s: a turret slot index (= the bound of ModPlacement.turret)
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/; // runId, playerId: anonymous, no personal data
 const RULES_PATTERN = /^[A-Za-z0-9._-]{1,32}$/;
 const DEF_PATTERN = /^[a-z0-9_]{1,32}$/;
@@ -77,6 +82,28 @@ function rot(o: Obj, path: string, version: number): { rot?: number } {
   return { rot: int(o.rot, `${path}.rot`, 0, MAX_ROT) };
 }
 
+/** 0.6.2s TURRET SLOTS (S8): the optional `turrets` of a build: v2 only, at most MAX_TURRETS strict entries
+ *  { slot, def, uid, stars?, free? }. `free` is exactly true when present (false is never written). The canonical
+ *  copy keeps the key order slot, def, uid, stars, free. */
+function turrets(o: Obj, path: string, version: number): { turrets?: BuildTurret[] } {
+  if (!has(o, "turrets") || o.turrets === undefined) return {}; // an in-memory `turrets: undefined` is absent (JSON drops it)
+  if (version < 2) throw new SnapshotError(`${path}.turrets: not allowed in a v${version} snapshot`);
+  return {
+    turrets: arr(o.turrets, `${path}.turrets`, MAX_TURRETS).map((tv, i): BuildTurret => {
+      const at = `${path}.turrets[${i}]`;
+      const t = obj(tv, at, ["slot", "def", "uid"], ["stars", "free"]);
+      if (has(t, "free") && t.free !== true) throw new SnapshotError(`${at}.free: expected true (absent = false)`);
+      return {
+        slot: int(t.slot, `${at}.slot`, 0, MAX_SLOT),
+        def: str(t.def, `${at}.def`, DEF_PATTERN),
+        uid: int(t.uid, `${at}.uid`, 0, MAX_UID),
+        ...stars(t, at, version),
+        ...(t.free === true ? { free: true } : {}),
+      };
+    }),
+  };
+}
+
 function int(v: unknown, path: string, min: number, max: number): number {
   if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max) {
     throw new SnapshotError(`${path}: expected an integer in ${min}..${max}`);
@@ -103,10 +130,11 @@ export function isHeroId(v: unknown): v is HeroId {
  * Shape check for a Build: exact fields, integer types, grid ranges. Returns a canonical
  * copy. Legality (placement, routes, budget) is validate.ts's job. 0.6.1a: `version` is the
  * snapshot version the build travels in (default SNAPSHOT_VERSION): from v2 an item or mod may
- * carry `stars` (1..MAX_STARS); in v1 it must be absent.
+ * carry `stars` (1..MAX_STARS); in v1 it must be absent. 0.6.2s: from v2 the build may carry `turrets`
+ * (see turrets()); the copy has the key only when the input has it, last.
  */
 export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_VERSION): Build {
-  const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"]);
+  const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"], ["turrets"]);
   if (!isHeroId(o.hero)) throw new SnapshotError(`${path}.hero: unknown hero`);
   const items = arr(o.items, `${path}.items`, MAX_ITEMS).map((it, i): Placed => {
     const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars", "rot"]);
@@ -145,6 +173,7 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     // negative values are shape-legal so stored battle records holding warlord stand-ins
     // (warlordHull is negative on days 1-3) still decode; validateBuild rejects them.
     hullBonus: int(o.hullBonus, `${path}.hullBonus`, -1000, 10000),
+    ...turrets(o, path, version),
   };
 }
 
