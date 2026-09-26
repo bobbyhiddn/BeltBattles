@@ -21,9 +21,12 @@
 // Run (as tools/parBench.ts, without a package.json script):
 //   npx vite build --ssr tools/luckReport.ts --outDir tools/dist/luckreport --emptyOutDir --logLevel warn
 //   node tools/dist/luckreport/luckReport.js [--runs 2000] [--seed 1] [--heroes furnace,weaver] [--json path]
-//     [--md path] [--workers N] [--literal] [--no-typical]
+//     [--md path] [--workers N] [--whatif 1000] [--literal] [--no-typical]
 // Seeds are seed..seed+runs-1. Runs fan out to worker threads; results are keyed by job, so the output never depends
 // on --workers, and the same seeds give the same output (the run time is printed apart from it).
+// --whatif N (default 1000; 0: off): for each flagged family, estimates of fixes on the first hero's N runs, never
+// applied to the game: each single-member change (rarity one step up, or the ARCANE DEALER as merchant), applied in
+// memory for its own runs only (withPatch), and a daily reroll cap of 4 or 2 on the CHASER.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -31,7 +34,8 @@ import { availableParallelism } from "node:os";
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { hashSeed } from "../src/core/rng";
 import {
-  HEROES, ITEMS, MERCHANTS, REROLL_COST, RUN_DAYS, itemsSoldBy, type HeroId, type ItemKind, type MerchantId, type ModuleTag,
+  HEROES, ITEMS, MERCHANTS, RARITIES, REROLL_COST, RUN_DAYS, itemsSoldBy,
+  type HeroId, type ItemKind, type MerchantId, type ModuleTag, type Rarity,
 } from "../src/sim/content";
 import { turretList } from "../src/sim/deck";
 import { buyOffer, newRun, reroll, type Run } from "../src/game/run";
@@ -153,6 +157,7 @@ export interface ChaserOpts {
   observe?: (run: Run, step: ChaserStep) => void; // called just before each purchase and reroll (tests)
   end?: (run: Run) => void; // called with the run at the end of day 10 (tests)
   literal?: boolean; // the brief's reroll rule read literally: reroll for missing members the caravan can't offer today
+  cap?: number; // what-if only: at most this many rerolls a day (a daily reroll cap); absent: none, as in the game
 }
 
 /**
@@ -217,6 +222,7 @@ export function chaserRun(hero: HeroId, members: readonly string[], seed: number
       if (!findable.length) break;
       const cheapest = Math.min(...findable.map((m) => ITEMS[m].price));
       if (run.gold < REROLL_COST + cheapest) break;
+      if (opts.cap !== undefined && run.shop.rerolls >= opts.cap) break;
       const s: ChaserStep = { day: d, act: "reroll", roll: run.shop.rerolls, before: run.gold, after: run.gold - REROLL_COST };
       opts.observe?.(run, s);
       if (!reroll(run)) throw new Error("luck chaser: reroll refused");
@@ -277,6 +283,27 @@ export function typicalRun(hero: HeroId, seed: number, families: readonly Family
 
 // ---------------------------------------------------------------- jobs (in process or on worker threads)
 
+/** A what-if content change of one member, applied in memory for one job and undone after it (never to the game). */
+export interface Patch {
+  def: string;
+  rarity?: Rarity;
+  merchant?: MerchantId;
+}
+
+/** Run `fn` with `p` applied to ITEMS in this process only, then restore the def exactly. */
+export function withPatch<T>(p: Patch | undefined, fn: () => T): T {
+  if (!p) return fn();
+  const d = ITEMS[p.def], old = { rarity: d.rarity, merchant: d.merchant };
+  try {
+    if (p.rarity) d.rarity = p.rarity;
+    if (p.merchant) d.merchant = p.merchant;
+    return fn();
+  } finally {
+    d.rarity = old.rarity;
+    d.merchant = old.merchant;
+  }
+}
+
 interface Job {
   id: number;
   kind: "typical" | "chaser";
@@ -284,13 +311,15 @@ interface Job {
   seeds: number[];
   family?: number; // chaser: the family's index in the table
   literal?: boolean;
+  patch?: Patch; // what-if: a member's rarity or merchant
+  cap?: number; // what-if: a daily reroll cap
 }
 
 function runJob(job: Job): TypicalOut[] | ChaserOut[] {
   const fams = familyTable().families;
   if (job.kind === "typical") return job.seeds.map((s) => typicalRun(job.hero, s, fams));
   const f = fams[job.family!];
-  return job.seeds.map((s) => chaserRun(job.hero, f.members, s, { literal: job.literal }));
+  return withPatch(job.patch, () => job.seeds.map((s) => chaserRun(job.hero, f.members, s, { literal: job.literal, cap: job.cap })));
 }
 
 /** Worker side: run each job posted and post its results back. */
@@ -356,6 +385,23 @@ export interface LuckOpts {
   literal?: boolean;
   typical?: boolean; // default true
   families?: ModuleTag[]; // only these families' CHASER (tests); default every family
+  whatif?: number; // runs per what-if of each flagged family (first hero, seeds seed..); 0 or absent: none
+}
+
+/** What-ifs for one flagged family, never applied to the game: each single-member change (its rarity one step up, or
+ *  its merchant the ARCANE DEALER), applied in memory for its own runs; and a daily reroll cap on the CHASER. */
+export interface WhatIfRow {
+  tag: ModuleTag;
+  base: Rate; // the family's CHASER rate on the what-if seeds, nothing changed
+  changes: { change: string; patch: Patch; rate: Rate }[]; // lowest rate first
+  caps: { cap: number; rate: Rate }[];
+}
+
+export interface WhatIf {
+  hero: HeroId;
+  runs: number;
+  seeds: [number, number];
+  rows: WhatIfRow[];
 }
 
 export interface LuckResult {
@@ -367,6 +413,55 @@ export interface LuckResult {
   target: number;
   table: FamilyTable;
   luck: HeroLuck[];
+  whatif?: WhatIf;
+}
+
+export const WHATIF_CAPS: readonly number[] = [4, 2];
+
+/** The single-member changes tried for a family: each member's rarity one step up, and each member not already sold
+ *  by the ARCANE DEALER moved to it (the rarest merchant: absent on days 1-2, half weight on days 3-4). */
+function memberChanges(members: readonly string[]): { change: string; patch: Patch }[] {
+  const out: { change: string; patch: Patch }[] = [];
+  for (const m of members) {
+    const d = ITEMS[m], up = RARITIES[RARITIES.indexOf(d.rarity) + 1];
+    if (up) out.push({ change: `${d.name} ${d.rarity} to ${up}`, patch: { def: m, rarity: up } });
+    if (d.merchant !== "arcane") out.push({ change: `${d.name} ${MERCHANTS[d.merchant!].name} to ARCANE DEALER`, patch: { def: m, merchant: "arcane" } });
+  }
+  return out;
+}
+
+async function whatIfs(o: LuckOpts, table: FamilyTable, tags: ModuleTag[]): Promise<WhatIf> {
+  const hero = o.heroes[0], runs = o.whatif!;
+  const seeds = Array.from({ length: runs }, (_, i) => o.seed + i);
+  const jobs: Job[] = [];
+  const index: { row: number; what: "base" | "change" | "cap"; k: number }[] = [];
+  const plan = tags.map((tag) => {
+    const family = table.families.findIndex((f) => f.tag === tag);
+    return { tag, family, changes: memberChanges(table.families[family].members) };
+  });
+  plan.forEach((p, row) => {
+    const add = (what: "base" | "change" | "cap", k: number, extra: Partial<Job>) => {
+      for (const s of chunks(seeds, 250)) {
+        jobs.push({ id: jobs.length, kind: "chaser", hero, seeds: s, family: p.family, ...(o.literal ? { literal: true } : {}), ...extra });
+        index.push({ row, what, k });
+      }
+    };
+    add("base", 0, {});
+    p.changes.forEach((c, k) => add("change", k, { patch: c.patch }));
+    WHATIF_CAPS.forEach((cap, k) => add("cap", k, { cap }));
+  });
+  const outs = await runJobs(jobs, o.workers ?? 1, o.script);
+  const rateOf = (row: number, what: string, k: number): Rate => {
+    const ch = outs.filter((_, j) => index[j].row === row && index[j].what === what && index[j].k === k).flat() as ChaserOut[];
+    return wilson(ch.filter((c) => c.day !== null).length, ch.length);
+  };
+  const rows = plan.map((p, row): WhatIfRow => ({
+    tag: p.tag,
+    base: rateOf(row, "base", 0),
+    changes: p.changes.map((c, k) => ({ ...c, rate: rateOf(row, "change", k) })).sort((a, b) => a.rate.p - b.rate.p || a.change.localeCompare(b.change)),
+    caps: WHATIF_CAPS.map((cap, k) => ({ cap, rate: rateOf(row, "cap", k) })),
+  }));
+  return { hero, runs, seeds: [seeds[0], seeds[seeds.length - 1]], rows };
 }
 
 export const TARGET = 0.1;
@@ -431,7 +526,12 @@ export async function luckReport(o: LuckOpts): Promise<LuckResult> {
       }),
     };
   });
-  return { runs: o.runs, seed: o.seed, seeds: [o.seed, o.seed + o.runs - 1], heroes: o.heroes, literal: !!o.literal, target: TARGET, table, luck };
+  const flagged = [...new Set(luck.flatMap((h) => h.families.filter((f) => f.flagged).map((f) => f.tag)))];
+  const whatif = o.whatif && flagged.length ? await whatIfs(o, table, flagged) : undefined;
+  return {
+    runs: o.runs, seed: o.seed, seeds: [o.seed, o.seed + o.runs - 1], heroes: o.heroes, literal: !!o.literal, target: TARGET, table, luck,
+    ...(whatif ? { whatif } : {}),
+  };
 }
 
 const pc = (x: number, dp = 1): string => `${(100 * x).toFixed(dp)}%`;
@@ -503,6 +603,13 @@ export function renderMarkdown(r: LuckResult): string {
         L.push(`| ${d.name} | ${kindOf(m.def)} | ${d.rarity} | ${MERCHANTS[d.merchant!].name} | ${d.price} | ${pc(m.offerRate)} | ${pc(m.everShown)} | ${pc(m.missingAtEnd)} |`);
       }
       L.push("", `Bottleneck: ${mem.slice(0, Math.min(2, mem.length)).map((m) => nameOf(m.def)).join(" and ")}.`, "");
+      const w = r.whatif?.rows.find((x) => x.tag === tag);
+      if (w && r.whatif) {
+        const best = w.changes.slice(0, 3).map((c) => `${c.change}: ${rateCI(c.rate)}`).join("; ");
+        L.push(`What-if (estimates only, nothing applied to the game; ${cap(r.whatif.hero)}, seeds ${r.whatif.seeds[0]}..${r.whatif.seeds[1]}): ` +
+          `unchanged ${rateCI(w.base)}. Best single member changes: ${best || "none possible"}. ` +
+          `A daily reroll cap: ${w.caps.map((c) => `${c.cap} a day ${rateCI(c.rate)}`).join(", ")}.`, "");
+      }
     }
   }
   return L.join("\n");
@@ -531,7 +638,7 @@ async function main(): Promise<void> {
   for (const h of heroes) if (!HEROES[h]) throw new Error(`--heroes: unknown hero ${h}`);
   const workers = intArg("workers", Math.max(1, availableParallelism() - 2));
   const r = await luckReport({
-    runs, seed, heroes, workers, script: import.meta.url,
+    runs, seed, heroes, workers, script: import.meta.url, whatif: intArg("whatif", 1000),
     literal: process.argv.includes("--literal"), typical: !process.argv.includes("--no-typical"),
   });
   const md = renderMarkdown(r);

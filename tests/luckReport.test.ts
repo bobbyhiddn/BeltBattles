@@ -9,7 +9,7 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { playerRun } from "../src/sim/harness/player";
 import { turretList } from "../src/sim/deck";
 import {
-  chaserRun, familyTable, luckReport, offerable, ownedDefs, renderMarkdown, typicalOwned, type ChaserStep,
+  chaserRun, familyTable, luckReport, offerable, ownedDefs, renderMarkdown, typicalOwned, withPatch, type ChaserStep,
 } from "../tools/luckReport";
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
@@ -117,6 +117,17 @@ describe("luck report: the TYPICAL buyer and the whole report", () => {
       const deck = playerRun(hero, RUN_DAYS, 1)[RUN_DAYS - 1].build;
       for (const d of [...deck.items, ...deck.mods, ...turretList(deck)].map((x) => x.def)) expect(owned[RUN_DAYS - 1].has(d)).toBe(true);
     }
+  });
+
+  it("a what-if change is undone after its runs, and the report's what-ifs leave ITEMS as they were", async () => {
+    const before = JSON.stringify(ITEMS);
+    const seen = withPatch({ def: "venom", rarity: "legendary", merchant: "arcane" }, () => `${ITEMS.venom.rarity} ${ITEMS.venom.merchant}`);
+    expect(seen).toBe("legendary arcane");
+    expect(JSON.stringify(ITEMS)).toBe(before);
+    const r = await luckReport({ runs: 2, seed: 1, heroes: ["furnace"], typical: false, families: ["POISON"], whatif: 2 });
+    expect(r.whatif?.rows.map((w) => w.tag)).toEqual(["POISON"]);
+    expect(r.whatif?.rows[0].changes.length).toBe(2); // VENOM DRIP: rare to epic, and the ARCANE DEALER as merchant
+    expect(JSON.stringify(ITEMS)).toBe(before);
   });
 
   it("the same seeds give the same output", async () => {
