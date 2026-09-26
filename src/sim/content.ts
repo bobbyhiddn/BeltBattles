@@ -87,7 +87,9 @@ export interface GateEffect {
   overclockCooldown?: number;
   keg?: { fuse: number; flat: number; burn: number; wide?: boolean };
   burnPerRide?: { seconds: number; max: number };
-  quench?: { perBurn: number; max: number };
+  // QUENCH TANK (0.6.2 FB-B): `flat` on every payload it hits, then up to `stacks` Burn stacks become `perBurn` each;
+  // Burn past `stacks` stays Burn (Battle.applyHit, deck.ts walkRoute)
+  quench?: { flat: number; perBurn: number; stacks: number };
   staticTime?: number;
   perStalled?: { each: number; max: number };
   fray?: number;
@@ -500,9 +502,13 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   quench: {
     id: "quench", name: "QUENCH TANK", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
-    desc: ["TURNS BURN STACKS", "INTO +2 DAMAGE", "EACH, UP TO +12."], tags: ["BURN", "EDGE"],
-    gate: { quench: { perBurn: 2, max: 12 } }, levels: { 2: { gate: { quench: { perBurn: 4, max: 26 } } },
-      3: { gate: { quench: { perBurn: 6, max: 42 } } } },
+    desc: ["+1 DAMAGE TO EVERY", "PAYLOAD. TURNS UP TO", "4 BURN INTO +3 EACH."], tags: ["BURN", "EDGE"],
+    // 0.6.2 FB-B (oracle 16085a6430e4cc6a): a Burn stack deals 1 dmg/s for BURN_TIME (3 s), so each stack QUENCH spends
+    // pays at least that (+3/+5/+7), and it spends only the 4/5/6 it pays for (more stays Burn). Every payload it hits
+    // also hardens +1/+2/+3 (EDGE), below WHETSTONE's 2/4/7, so a QUENCH with no Burn to spend isn't dead but stays a
+    // Burn payoff. Was: all Burn at +2/+4/+6 each, capped at +12/+26/+42 (★1 turned 2 Burn, 6 damage, into +4).
+    gate: { quench: { flat: 1, perBurn: 3, stacks: 4 } }, levels: { 2: { gate: { quench: { flat: 2, perBurn: 5, stacks: 5 } } },
+      3: { gate: { quench: { flat: 3, perBurn: 7, stacks: 6 } } } },
   },
   staticbrush: {
     id: "staticbrush", name: "STATIC BRUSH", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",

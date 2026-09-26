@@ -459,6 +459,7 @@ export interface TimelineHit {
   prior?: number; // LONG HAUL-type: the earlier hits it counted (at most its priorCap)
   capped?: number; // beltside-062 (P3): LONG HAUL ★2/★3 saw more earlier hits than its priorCap; the cap ("MAX 6 HITS")
   burn?: number;
+  quenched?: number; // 0.6.2 FB-B QUENCH TANK: the Burn stacks this hit spent (its flat above includes their value)
   poison?: number;
   fray?: number;
   staticTime?: number;
@@ -585,11 +586,13 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
         burn += amount;
         th.burn = (th.burn ?? 0) + amount;
       }
-      if (e.quench) {
-        const amount = Math.min(e.quench.max, burn * e.quench.perBurn);
+      if (e.quench) { // 0.6.2 FB-B: as Battle.applyHit (+ flat; up to `stacks` Burn at perBurn each; the rest stays Burn)
+        const spent = Math.min(burn, e.quench.stacks);
+        const amount = e.quench.flat + spent * e.quench.perBurn;
         flat += amount;
         th.flat = (th.flat ?? 0) + amount;
-        burn = 0;
+        th.quenched = spent;
+        burn -= spent;
       }
       if (e.staticTime) th.staticTime = e.staticTime;
       if (e.fray) th.fray = e.fray;

@@ -42,7 +42,9 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
     expect([1, 2, 3].map((s) => effectAt("overclocker", s).gate?.overclockCooldown)).toEqual([4, 1.8, 1.15]);
     expect([1, 2, 3].map((s) => effectAt("keg", s).gate?.keg?.flat)).toEqual([6, 13, 21]);
     expect([1, 2, 3].map((s) => effectAt("bellows", s).gate?.burnPerRide?.max)).toEqual([4, 9, 14]);
-    expect([1, 2, 3].map((s) => effectAt("quench", s).gate?.quench?.perBurn)).toEqual([2, 4, 6]);
+    // 0.6.2 FB-B (tests/fb062.quench.test.ts): +3/+5/+7 per Burn stack, up to 4/5/6 stacks, +1/+2/+3 on every payload
+    // (was +2/+4/+6 per stack, capped at +12/+26/+42 damage)
+    expect([1, 2, 3].map((s) => effectAt("quench", s).gate?.quench?.perBurn)).toEqual([3, 5, 7]);
     expect([1, 2, 3].map((s) => effectAt("staticbrush", s).gate?.staticTime)).toEqual([0.6, 1.3, 2.1]);
     expect([1, 2, 3].map((s) => effectAt("lodestone", s).gate?.perStalled?.each)).toEqual([1, 2.2, 3.5]);
     expect([1, 2, 3].map((s) => effectAt("barbed", s).gate?.fray)).toEqual([1, 2, 3]);
@@ -101,13 +103,13 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
     }
   });
 
-  it("Bellows counts ride time and Quench converts and consumes Burn", () => {
+  it("Bellows counts ride time and Quench converts Burn up to its cap (0.6.2 FB-B: the rest stays Burn)", () => {
     for (const stars of [1, 2, 3]) {
       const bellows = process("bellows", stars, 10);
       expect(bellows.a.p.burn).toBe([4, 8, 14][stars - 1]);
       const quench = process("quench", stars, 3, 10);
-      expect(quench.a.p.flat).toBe([12, 26, 42][stars - 1]);
-      expect(quench.a.p.burn).toBe(0);
+      expect(quench.a.p.flat).toBe([1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7][stars - 1]); // was 12 / 26 / 42 (all 10 spent)
+      expect(quench.a.p.burn).toBe([6, 5, 4][stars - 1]); // was 0
       expect(estimateRoute(bench([["temper", 4, 4, 1], ["quench", 4, 3, stars]]), 0).burn).toBe(0);
     }
   });

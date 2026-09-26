@@ -32,7 +32,7 @@ export function overclocked(e: GateEffect): GateEffect {
   if (e.split) o.split = { copies: e.split.copies + 1, mult: e.split.mult };
   if (e.poison) o.poison = e.poison * 2;
   if (e.burnPerRide) o.burnPerRide = { ...e.burnPerRide, seconds: e.burnPerRide.seconds / 2 };
-  if (e.quench) o.quench = { ...e.quench, perBurn: e.quench.perBurn * 2 };
+  if (e.quench) o.quench = { ...e.quench, flat: e.quench.flat * 2, perBurn: e.quench.perBurn * 2 }; // flat doubles; same stacks
   if (e.staticTime) o.staticTime = e.staticTime * 2;
   if (e.perStalled) o.perStalled = { ...e.perStalled, each: e.perStalled.each * 2 };
   if (e.fray) o.fray = e.fray * 2;

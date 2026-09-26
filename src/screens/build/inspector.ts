@@ -49,7 +49,7 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   if (gt?.overclockCooldown) return `X2 NEXT RIG · ${gt.overclockCooldown}S COOLDOWN`;
   if (gt?.keg) return `BLAST +${gt.keg.flat} · ${gt.keg.burn} BURN · ${gt.keg.fuse}S`;
   if (gt?.burnPerRide) return `+1 BURN/${gt.burnPerRide.seconds}S · MAX ${gt.burnPerRide.max}`;
-  if (gt?.quench) return `+${gt.quench.perBurn}/BURN · MAX ${gt.quench.max} · CONSUMES BURN`;
+  if (gt?.quench) return `+${gt.quench.flat} DMG · UP TO ${gt.quench.stacks} BURN → +${gt.quench.perBurn} EACH`; // 0.6.2 FB-B
   if (gt?.staticTime) return `STATIC STALL ${gt.staticTime}S`;
   if (gt?.perStalled) return `+${gt.perStalled.each}/STALLED · MAX ${gt.perStalled.max}`;
   if (gt?.fray) return `+${gt.fray} FRAY${gt.frayCap ? ` · CAP +${gt.frayCap}` : ""}`;
@@ -300,6 +300,7 @@ export function hitLabel(h: TimelineHit, locked: boolean): string {
   // beltside-062 (DESIGN §11 P3): a LONG HAUL ★2/★3 that saw more earlier hits than its cap says so
   if (h.capped !== undefined) return `${name} +${num(h.flat ?? 0)} (MAX ${h.capped} HITS)`;
   if (h.prior !== undefined) return `${name} +${num(h.flat ?? 0)} (${h.prior} HIT${h.prior === 1 ? "" : "S"} BEFORE)`;
+  if (h.quenched) return `${name} +${num(h.flat ?? 0)} (${h.quenched} BURN SPENT)`; // 0.6.2 FB-B QUENCH TANK
   if (h.flat) return `${name} +${num(h.flat)}`;
   if (h.burn) return `${name} BURN +${h.burn}`;
   if (h.shock) return `${name} SHOCK`;

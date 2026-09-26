@@ -889,9 +889,10 @@ export class Battle {
       const original = g.def.gate!.burnPerRide!;
       p.burn += (doubled ? 2 : 1) * Math.min(original.max, Math.floor(p.ride / original.seconds));
     }
-    if (e.quench) {
-      p.flat += Math.min(e.quench.max, p.burn * e.quench.perBurn);
-      p.burn = 0;
+    if (e.quench) { // 0.6.2 FB-B: + flat on every payload; up to `stacks` Burn stacks at perBurn each, the rest stays Burn
+      const spent = Math.min(p.burn, e.quench.stacks);
+      p.flat += e.quench.flat + spent * e.quench.perBurn;
+      p.burn -= spent;
     }
     if (e.staticTime) { p.static = true; p.staticTime = Math.max(p.staticTime ?? 0, e.staticTime); }
     if (e.perStalled) {
