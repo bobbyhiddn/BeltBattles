@@ -27,6 +27,8 @@
 //               ablation; one forbid-<def>-<tag>-d<day>.json per def
 //   --rigs      [--sample N] no battles: each multi-arrow rig's copies, landed arrows (one belt / two belts) and gold
 //               per landed arrow in the par decks (T3)
+//   --partstars d1,d2  [--seeds 4] [--sample N] a changed part's merge steps on the par decks that hold it (T6):
+//               every copy at 1, 2 and 3 stars in place, paired; WORSE / STEP WORSE by the star bench's D1 rule
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -904,6 +906,59 @@ async function starsMode(days: number[], detail: DetailRunner, out: string, opts
   }
 }
 
+/** TUNE-M T6: `b` with every copy of `def` (rigs and factories on the deck, gear and cores on turrets) at `stars`, in
+ *  place (same cell, rotation, turret and uid). */
+function withPartStars(b0: Build, def: string, stars: number): Build {
+  const b = cloneBuild(b0);
+  const set = (x: { stars?: number }) => { if (stars > 1) x.stars = stars; else delete x.stars; };
+  for (const p of b.items) if (p.def === def) set(p);
+  for (const m of b.mods) if (m.def === def) set(m);
+  return b;
+}
+
+/**
+ * TUNE-M T6 --partstars d1,d2,... [--seeds 4] [--sample N]: a changed part's merge steps on real decks (the harness star
+ * bench's rows and D1 rule, on the par field). Each par deck of seeds 1..N that holds the def (a rig, a factory, gear or
+ * a core) plays with every copy of it at 1, 2 and 3 stars in place, against the par field of both heroes (`seeds` x both
+ * sides per member, its own member left out), battle for battle. Per hero, day and def: ★2 - ★1, ★3 - ★1 and the STEP
+ * ★3 - ★2 (deck unit, 95% t), the battles each step makes better or worse (sign test), and the flags: WORSE (a star row
+ * vs ★1) and STEP WORSE (★3 - ★2) by the D1 rule (at least 3 decks, mean below 0, 95% interval below 0), NO EFFECT
+ * (every battle ends as at ★1).
+ */
+async function partStarsMode(days: number[], detail: DetailRunner, out: string, opts: PlayerOpts, k: number, seeds: number, sample: number, defs: string[], tag: string): Promise<void> {
+  for (const def of defs) if (!ITEMS[def]) throw new Error(`--partstars: unknown part ${def}`);
+  for (const day of days) {
+    const rows: unknown[] = [];
+    for (const hero of heroesOf()) {
+      const seedsK = parSeeds(Math.max(k, sample)), decks = seedsK.map((s) => playerBuild(hero, day, s, opts));
+      for (const def of defs) {
+        const holders = decks.map((b, i) => ({ b, i })).filter((x) => x.b.items.some((p) => p.def === def) || x.b.mods.some((m) => m.def === def));
+        if (!holders.length) { rows.push({ hero, day, def, n: 0 }); continue; }
+        const vs: Row[] = [], idx: number[][] = [[], [], []];
+        for (const { b, i } of holders) for (const st of [1, 2, 3]) {
+          vs.push({ build: withPartStars(b, def, st), pair: `${hero}|${seedsK[i]}`, hero, self: i < k ? i : -1 });
+          idx[st - 1].push(vs.length - 1);
+        }
+        const { rates, battles } = await vsFieldBattles(vs, HEROES, day, detail, k, seeds, `tune-partstars-${tag}`, opts);
+        const step = (hi: number, lo: number) => {
+          const lifts = holders.map((_, j) => liftOf(rates[idx[hi][j]], rates[idx[lo][j]]));
+          let better = 0, worse = 0;
+          holders.forEach((_, j) => battles[idx[hi][j]].forEach((p, x) => { const d = p - battles[idx[lo][j]][x]; if (d > 0) better++; else if (d < 0) worse++; }));
+          const c = meanCI(lifts);
+          return { ...c, better, worse, p: signTest(better, worse), d1: holders.length >= 3 && c.mean < 0 && !!c.ci && c.ci[1] < 0, lifts };
+        };
+        const s21 = step(1, 0), s31 = step(2, 0), s32 = step(2, 1);
+        const same = (a: number, b: number) => holders.every((_, j) => JSON.stringify(battles[idx[a][j]]) === JSON.stringify(battles[idx[b][j]]));
+        const flags = [s21.d1 || s31.d1 ? "WORSE" : "", s32.d1 ? "STEP WORSE" : "", same(1, 0) && same(2, 0) ? "NO EFFECT" : ""].filter(Boolean);
+        const at = [0, 1, 2].map((x) => mean(idx[x].map((r) => rowMean(rates[r]))));
+        rows.push({ hero, day, def, n: holders.length, rate: at, s21, s31, s32, flags, seeds: holders.map((h) => seedsK[h.i]) });
+        console.log(`partstars ${tag} ${hero} d${day} ${def}: ${holders.length} decks | 1* ${pc(at[0])} 2* ${pc(at[1])} 3* ${pc(at[2])} | 2-1 ${fmtLift(s21)} (${s21.better}/${s21.worse}) | 3-1 ${fmtLift(s31)} | STEP 3-2 ${fmtLift(s32)} (${s32.better}/${s32.worse}, p ${s32.p.toFixed(3)}) | ${flags.join(", ") || "-"}`);
+      }
+    }
+    writeFileSync(resolve(out, `partstars-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, defs, rows }, null, 1));
+  }
+}
+
 /**
  * --ablate (flag 3, REQ-BFG-033 clause 4; --days e.g. 5,7,10): every part (partsOf) in at least `min` par decks of a
  * hero-day is taken out of each deck that holds it (ablate), and that deck's win rate against the par field of both
@@ -1132,6 +1187,7 @@ async function main(): Promise<void> {
   if (flag("ctrl")) await ctrlMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), flag("ctrl")!, tag);
   if (flag("forbid")) await forbidMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), flag("forbid")!.split(",").filter(Boolean), tag); // TUNE-M T1
   if (process.argv.includes("--rigs")) rigsMode(days, out, opts, k, num("sample", k), tag); // TUNE-M T3
+  if (flag("partstars")) await partStarsMode(days, pool.detail, out, opts, k, num("seeds", 4), num("sample", k), flag("partstars")!.split(",").filter(Boolean), tag); // TUNE-M T6
   if (process.argv.includes("--stars")) await starsMode(days, pool.detail, out, opts, k, num("seeds", 4), tag);
   if (process.argv.includes("--ablate")) await ablateMode(days, pool.run, out, opts, k, num("seeds", 4), num("min", 3), tag);
   if (process.argv.includes("--joins")) {
