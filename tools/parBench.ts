@@ -8,6 +8,7 @@
 //               builds per pool hero, 2 seeds x both sides); population scores are cached in <cache>/pop-<hero>-<day>.json
 //   --pool      the shipped stand-in pool (v2.1) against the par field (brief 4a)
 //   --rivals    [--seeds 4] [--tq-seeds 20] the captains against the par field and honestReference (brief 4b-4d)
+//   --ladder    [--seeds 4] the skill ladder: par vs the random-pick field, calm and sharp vs the par field (brief 0c)
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -21,7 +22,7 @@ import { FUSE_MAX } from "../src/sim/stars";
 import { fullPurseBuild, spendFloor } from "../src/sim/harness/gen";
 import { STANDIN_DEFAULTS, decodeStandInCode, standInCandidate, standInCodeOf } from "../src/sim/harness/standins";
 import { describeBuild } from "../src/sim/harness/report";
-import { PAR_K, parSeeds, vsPar } from "../src/sim/harness/par";
+import { PAR_K, parField, parSeeds, vsPar } from "../src/sim/harness/par";
 import { fmtRate, meanCI, wilson } from "../src/sim/harness/stats";
 import { standInPool } from "../src/sim/standInPool";
 import { playerRun, type PlayerOpts } from "../src/sim/harness/player";
@@ -259,6 +260,37 @@ async function rivalsMode(days: number[], run: Runner, out: string, cache: strin
   }
 }
 
+/**
+ * --ladder (the skill ladder, brief 0c item 3; it replaces the percentile aim as the par player's sanity check): on the
+ * same seeds (parSeeds(k): the same runs, so the same first caravans), per hero and day, same-hero fields:
+ *   par vs random: the par field (typical) against the random-pick field (typical with impulse=1: every pick that is
+ *     not a merge is any offer the deck can take);
+ *   calm vs par: typical without misjudging or whims (noise=0, whim=0) against the par field;
+ *   sharp vs par: the sharp policy (no misjudging or whims, best spots, belts re-drawn to the best length) against it.
+ * `seeds` seeds x both sides per pairing; the row field's member is the unit of the 95% interval. One JSON per day.
+ */
+async function ladderMode(days: number[], run: Runner, out: string, k: number, seeds: number, tag: string): Promise<void> {
+  const RANDOM: PlayerOpts = { tune: { impulse: 1 } }, CALM: PlayerOpts = { tune: { noise: 0, whim: 0 } }, SHARP: PlayerOpts = { policy: "sharp" };
+  for (const day of days) {
+    const t0 = performance.now();
+    const rows: unknown[] = [];
+    for (const hero of (flag("heroes")?.split(",") as HeroId[] | undefined) ?? HEROES) {
+      const pairs: [string, PlayerOpts, PlayerOpts][] = [["par vs random", {}, RANDOM], ["calm vs par", CALM, {}], ["sharp vs par", SHARP, {}]];
+      const line: string[] = [];
+      for (const [label, rowOpts, refOpts] of pairs) {
+        const decks = parField(hero, day, k, rowOpts);
+        const res = await vsPar(decks, [hero], day, run, { key: `par-ladder-${label}`, k, seeds, player: refOpts });
+        const c = memberCI(res.map((r) => r[hero].rate));
+        rows.push({ hero, label, ...c, members: res.map((r) => r[hero].rate), rowValue: decks.map((b) => deckCost(b).total) });
+        line.push(`${label} ${ciOf(c)}`);
+      }
+      console.log(`ladder ${tag} ${hero} d${day}: ${line.join(" | ")}`);
+    }
+    writeFileSync(resolve(out, `ladder-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, rows }, null, 1));
+    console.log(`ladder ${tag} d${day} (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
+  }
+}
+
 async function main(): Promise<void> {
   const days = flag("days")?.split(",").map(Number) ?? Array.from({ length: 10 }, (_, i) => i + 1);
   const nw = num("workers", 4);
@@ -283,6 +315,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--pct")) await pctMode(days, pool.run, out, cache, opts, k, tag);
   if (process.argv.includes("--pool")) await poolMode(days, pool.run, out, opts, k, tag);
   if (process.argv.includes("--rivals")) await rivalsMode(days, pool.run, out, cache, opts, k, num("seeds", 4), num("tq-seeds", 20), tag);
+  if (process.argv.includes("--ladder")) await ladderMode(days, pool.run, out, k, num("seeds", 4), tag);
   await pool.close();
   console.log(`done in ${((performance.now() - t0) / 1000).toFixed(0)} s on ${nw} worker(s)`);
   void buildCost;
