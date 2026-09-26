@@ -536,6 +536,11 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
     for (let t = leg.from; t < b.routes[leg.route].cells.length; t++) path.push({ route: leg.route, tile: t });
   }
   const joins: WalkJoin[] = [];
+  // 0.6.2 CAND-A: the SURGE valves whose per-pulse flat this walk has counted. A valve pays a payload once per pulse
+  // (Battle.transport's pulseSeen, which the payload carries through a join), so a joined walk doesn't count the main
+  // belt's pulse again when the same valve (a two-belt spot: an arrow on this belt and one on the main belt before the
+  // join tile) already paid on an earlier leg. A walk with no join is unchanged.
+  const pulsed = new Set<number>();
   const n = path.length;
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];
@@ -545,7 +550,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
       if (fixed === undefined && !locked) { // J4, J15: from here on the main belt's speed state (slag keeps `fixed`)
         const st = beltStateAt(b, ri, tile, hits);
         speed = st.speed;
-        if (st.pulseFlat) flat += st.pulseFlat; // its SURGE pulse, once, as that belt's own walk counts it
+        // its SURGE pulse, once, as that belt's own walk counts it (not again for a valve already counted)
+        if (st.pulseFlat && !pulsed.has(st.pulseUid)) { flat += st.pulseFlat; pulsed.add(st.pulseUid); }
       }
     }
     const inHalf = CELL / 2 / (BELT_SPEED * speed);
@@ -615,7 +621,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
         speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
         th.speed = 1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period;
         // 0.6.2: a tempo-locked belt ignores the pulse and its per-pulse flat, as Battle.transport does (lockedFlat pays)
-        if (e.pulse.flat && !locked) { flat += e.pulse.flat; th.flat = (th.flat ?? 0) + e.pulse.flat; }
+        if (e.pulse.flat && !locked) { flat += e.pulse.flat; th.flat = (th.flat ?? 0) + e.pulse.flat; pulsed.add(h.uid); }
       }
       if (e.split) {
         copies *= e.split.copies;
@@ -1255,24 +1261,25 @@ export function joinersOf(b: Build, m: number, occ = occupancy(b)): number[] {
  * speedWinner, every rig online), and the per-pulse flat of a SURGE pulse that holds there (Battle.pulseAt: the last
  * pulse, cleared by a later speed hit). What a normal payload joining at tile j rides, whatever belt m's own ammo.
  */
-export function beltStateAt(b: Build, m: number, j: number, hits = rigHits(b)): { speed: number; pulseFlat: number } {
-  let speed = 1, pulseFlat = 0;
+export function beltStateAt(b: Build, m: number, j: number, hits = rigHits(b)): { speed: number; pulseFlat: number; pulseUid: number } {
+  let speed = 1, pulseFlat = 0, pulseUid = -1; // 0.6.2 CAND-A: pulseUid, the valve whose pulse holds there (-1: none)
   for (let i = 0; i < j; i++) {
     const speeds: number[] = [];
     for (const h of hits[m]?.[i] ?? []) {
       const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate;
       if (!e) continue;
-      if (e.speed !== undefined) pulseFlat = 0;
+      if (e.speed !== undefined) { pulseFlat = 0; pulseUid = -1; }
       if (e.pulse) {
         speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
         pulseFlat = e.pulse.flat;
+        pulseUid = h.uid;
       }
       if (e.speed) speeds.push(e.speed);
     }
     const won = speedWinner(speeds);
     if (won !== undefined) speed = won;
   }
-  return { speed, pulseFlat };
+  return { speed, pulseFlat, pulseUid };
 }
 
 export interface JoinCheck {

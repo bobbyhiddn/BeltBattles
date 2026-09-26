@@ -106,6 +106,21 @@ export function mantletLine(immune: readonly HarassCause[], intakeGuard: number)
   return tiles ? `${head} · ${tiles}` : head;
 }
 
+/**
+ * 0.6.1p: the GATLING clashes (the Prime's call): a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do
+ * nothing on its turret. 0.6.2 CAND-A: every piece of gear on slot t, in hardpoint order (0.6.2s S4), not only the
+ * first. A HOPPER's store still works there: it takes loads while the barrel cools (tests/fb062.mech.test.ts).
+ */
+export function gatlingClash(b: Build, t: number, routine: string): string[] {
+  if (routine !== "gatling") return [];
+  const out: string[] = [];
+  for (const m of gearOn(b, t)) {
+    if (m.def === "hopper") out.push(`GATLING: HOPPER'S +${effectAt("hopper", starsOf(m)).mod?.windowTime ?? 0}S DOES NOTHING`);
+    if (m.def === "ram") out.push("GATLING: NO WINDOW, SO NO FINISHER");
+  }
+  return out;
+}
+
 /** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's line for a MANTLET ★2/★3 that shields `n` tiles: the last tile(s) of
  *  every belt into this turret, and each rig beside the belt with an arrow working a shielded tile. */
 export function shieldLine(n: number): string {
@@ -595,10 +610,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const plain = tu.window === td.window && tu.windowTime === WINDOW_TIME && !tu.noJam && tu.storeMax === 0;
       const held = tu.storeMax ? ` · HOLDS ${tu.storeMax} MORE WHILE FIRING` : "";
       const chamber = plain ? `CHAMBER ${td.window} SLUGS` : `CHAMBER ${tu.window} SLUGS · ${+tu.windowTime.toFixed(2)}S${held}${tu.noJam ? " · NEVER JAMS" : ""}`;
-      const gstars = gm ? starsOf(gm) : 1;
-      const clash: string[] = [];
-      if (tc.routine === "gatling" && gear?.id === "hopper") clash.push(`GATLING: HOPPER'S +${effectAt("hopper", gstars).mod?.windowTime ?? 0}S DOES NOTHING`);
-      if (tc.routine === "gatling" && gear?.id === "ram") clash.push("GATLING: NO WINDOW, SO NO FINISHER");
+      const clash = gatlingClash(b, show.index, tc.routine);
       const shield = tu.intakeGuard > 0 ? [shieldLine(tu.intakeGuard)] : []; // 0.6.2 FB-B: MANTLET ★2/★3
       // 0.6.2s (REQ-BFG-031 S10): the installed turret's name, stars and rarity; its CORE SOCKET and every GEAR SLOT
       // (turretPanel.ts socketLines); belts a swap left without an intake first; TO CARGO and SELL
