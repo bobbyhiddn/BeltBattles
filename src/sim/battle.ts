@@ -184,6 +184,10 @@ export interface TurretState {
   spin: number; // GATLING SPOOL: the current interval multiplier (1 for every other routine)
   lastShot: number; // GATLING SPOOL: battle time of the last firing opportunity (-1: none yet)
   // 0.6.1p: gear (makeTurret). window/windowTime above already include EXT. CHAMBER and HOPPER.
+  // 0.6.2 FB-B HOPPER ★2/★3: loads taken off the belt while the gun fires (at most storeMax), with the route each came
+  // from; they drop into the next window (Battle.dropStore)
+  store: { p: Payload; route: number }[];
+  storeMax: number;
   noJam: boolean; // HOPPER ★3 BOTTOMLESS
   immune: HarassCause[]; // MANTLET: stalls Battle.disrupt ignores on this turret
   intakeGuard: number; // MANTLET ★2 FULL PLATE (1, 0.6.2 FB-B), ★3 BULWARK SKIRT (3): the last n tiles of each route into it share `immune`
@@ -964,6 +968,10 @@ export class Battle {
         r.ammo.shift();
         this.events.push({ type: "load", side: s.side, turret: tu.index });
         if (s.race) raceLoaded(this, s, r, tu, front.p); // races: blank sync stamp, bulwark plating
+      } else if (tu.phase === "fire" && tu.store.length < tu.storeMax) { // 0.6.2 FB-B: a HOPPER ★2/★3 store takes it
+        tu.store.push({ p: front.p, route: r.index });
+        r.ammo.shift();
+        this.events.push({ type: "load", side: s.side, turret: tu.index });
       }
     }
     for (const tu of s.turrets) {
@@ -1011,7 +1019,8 @@ export class Battle {
           } else {
             const n = rt.count(tu); // identity: perShot
             for (let k = 0; k < n && tu.stack.length; k++) {
-              const queued = tu.waiting + tu.stack.length; // PRESSURE BREECH: waiting plus its window, this load included
+              // PRESSURE BREECH: waiting plus its window, this load included (0.6.2 FB-B: plus a HOPPER's stored loads)
+              const queued = tu.waiting + tu.stack.length + tu.store.length;
               const idx = tu.jamRandom ? this.rng.int(tu.stack.length) : rt.select(tu); // identity: LIFO
               tu.jamRandom = false;
               const p = tu.stack.splice(idx, 1)[0];
@@ -1026,9 +1035,30 @@ export class Battle {
           if (tu.stack.length === 0) {
             tu.phase = "load";
             tu.loadTimer = 0;
+            if (tu.store.length) this.dropStore(s, tu); // 0.6.2 FB-B: HOPPER ★2/★3
           }
         }
       }
+    }
+  }
+
+  /**
+   * 0.6.2 FB-B HOPPER ★2/★3: the loads its store took while the gun fired enter the new window, oldest first, each as if
+   * it reached its intake now (a FOUNDRY blank can still fuse with a synced partner dropped before it). The window's
+   * timer starts with them. A window always has room for the store (1/2 loads; the smallest window with a HOPPER is 3).
+   */
+  private dropStore(s: SideState, tu: TurretState): void {
+    const held = tu.store;
+    tu.store = [];
+    for (const it of held) {
+      const r = s.routes[it.route];
+      if (s.race && raceIntake(this, s, r, tu, it.p)) continue; // races: alloy fusion (no slot used)
+      if (tu.stack.length >= tu.window) {
+        tu.store.push(it);
+        continue;
+      }
+      tu.stack.push(it.p);
+      if (s.race) raceLoaded(this, s, r, tu, it.p); // races: blank sync stamp, bulwark plating
     }
   }
 
@@ -1691,6 +1721,7 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     // GATLING never reads windowTime, cores.ts gatlingReady, so there HOPPER's seconds do nothing; its slots count)
     waiting: 0, core, window: def.window + g.window, windowTime: g.windowTime ? windowTime + g.windowTime : windowTime,
     spin: c.start ?? 1, lastShot: -1,
+    store: [], storeMax: g.store, // 0.6.2 FB-B: HOPPER ★2/★3
     noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher, intercept: g.intercept,
     rerolls: g.rerolls, factoryWeight: g.factoryWeight, alwaysMachine: g.alwaysMachine, charge: 0, salvage: 0,
     longRideFlat: g.longRideFlat, longRideMin: g.longRideMin,
@@ -1703,6 +1734,7 @@ export interface GearStats {
   fireMul: number; // x the fire interval
   window: number; // + window slots
   windowTime: number; // + window seconds
+  store: number; // HOPPER ★2/★3 (0.6.2 FB-B): loads held while the gun fires
   noJam: boolean;
   immune: HarassCause[];
   intakeGuard: number;
@@ -1716,7 +1748,7 @@ export interface GearStats {
 }
 
 export function gearStats(b: Build, i: number): GearStats {
-  const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, noJam: false, immune: [], intakeGuard: 0,
+  const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, store: 0, noJam: false, immune: [], intakeGuard: 0,
     finisher: 0, intercept: 0, rerolls: 0, factoryWeight: 1, alwaysMachine: false, longRideFlat: 0, longRideMin: 0 };
   for (const m of b.mods.filter((m) => m.turret === i)) {
     const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
@@ -1724,6 +1756,7 @@ export function gearStats(b: Build, i: number): GearStats {
     if (md?.fireMul) out.fireMul *= md.fireMul;
     if (md?.window) out.window += md.window;
     if (md?.windowTime) out.windowTime += md.windowTime;
+    if (md?.store) out.store = Math.max(out.store, md.store); // 0.6.2 FB-B: HOPPER ★2/★3
     if (md?.noJam) out.noJam = true;
     if (md?.immune) for (const c of md.immune) if (!out.immune.includes(c)) out.immune.push(c);
     if (md?.intakeGuard) out.intakeGuard = Math.max(out.intakeGuard, md.intakeGuard);

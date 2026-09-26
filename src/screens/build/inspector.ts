@@ -76,7 +76,8 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   if (def === "longcase" && m?.longRideFlat) return `+${m.longRideFlat} AFTER ${m.longRideMin}S · PEAK +1.2S`;
   if (m?.fireMul) return `FIRE X${m.fireMul}`;
   if (m?.perShot) return `${m.perShot}/SHOT${m.window ? ` · +${m.window} SLOT` : ""}`;
-  if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.noJam ? " · NEVER JAMS" : ""}`; // HOPPER
+  // HOPPER (0.6.2 FB-B: ★2/★3 keep ★1's slot and seconds and add a store for loads that arrive while the gun fires)
+  if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.store ? ` · HOLDS ${m.store} MORE WHILE FIRING` : ""}${m.noJam ? " · NEVER JAMS" : ""}`;
   if (m?.immune) return mantletLine(m.immune, m.intakeGuard ?? 0); // MANTLET (0.6.2 FB-B)
   if (m?.finisher) return `FINISHER +${Math.round(m.finisher * 100)}%`;
   if (m?.intercept) return `${Math.round(m.intercept * 100)}% INTERCEPT`;
@@ -590,8 +591,10 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       // 0.6.1p: the window as the battle sees it (EXT. CHAMBER, HOPPER), and the GATLING clashes (the Prime's call):
       // a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do nothing there
       const tu = makeTurret(b, show.index, td);
-      const plain = tu.window === td.window && tu.windowTime === WINDOW_TIME && !tu.noJam;
-      const chamber = plain ? `CHAMBER ${td.window} SLUGS` : `CHAMBER ${tu.window} SLUGS · ${+tu.windowTime.toFixed(2)}S${tu.noJam ? " · NEVER JAMS" : ""}`;
+      // 0.6.2 FB-B: + a HOPPER ★2/★3 store, the loads it holds while the gun fires
+      const plain = tu.window === td.window && tu.windowTime === WINDOW_TIME && !tu.noJam && tu.storeMax === 0;
+      const held = tu.storeMax ? ` · HOLDS ${tu.storeMax} MORE WHILE FIRING` : "";
+      const chamber = plain ? `CHAMBER ${td.window} SLUGS` : `CHAMBER ${tu.window} SLUGS · ${+tu.windowTime.toFixed(2)}S${held}${tu.noJam ? " · NEVER JAMS" : ""}`;
       const gstars = gm ? starsOf(gm) : 1;
       const clash: string[] = [];
       if (tc.routine === "gatling" && gear?.id === "hopper") clash.push(`GATLING: HOPPER'S +${effectAt("hopper", gstars).mod?.windowTime ?? 0}S DOES NOTHING`);

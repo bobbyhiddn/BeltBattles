@@ -286,6 +286,16 @@ export function drawTurrets(g: G, v: CruiserView): void {
       trect(g, f, px, py, pu + 1, pv + 1, 2, 2, kind ? payloadColor(kind) : C.slate1);
       if (kind === "shot") trect(g, f, px, py, pu + 1, pv + 1, 1, 1, C.white); // 0.6.1f: the pewter shot's highlight
     }
+    // 0.6.2 FB-B: a HOPPER ★2/★3 store beside the window pips, brass-rimmed (the HOPPER's colour): one pip per load it
+    // can hold while the gun fires, lit while it holds one
+    const held = ts ? ts.storeMax : gearStats(v.build, i).store;
+    for (let k = 0; k < held; k++) {
+      const pv = -4 + k * 4;
+      trect(g, f, px, py, pu + 5, pv, 4, 4, C.brass3);
+      const stored = ts ? ts.store[k]?.p : undefined;
+      const kind = stored ? stored.preset ?? stored.ammo : undefined;
+      trect(g, f, px, py, pu + 6, pv + 1, 2, 2, kind ? payloadColor(kind) : C.ink);
+    }
     let gi = 0; // 0.6.2s (S4): a turret's gear pieces sit side by side, in hardpoint order (the first where 0.6.1 drew it)
     for (let m = 0; m < mods.length; m++) {
       if (mods[m].turret !== i || ITEMS[mods[m].def]?.kind === "core") continue; // 0.6.1b: gear only (the core has its socket)

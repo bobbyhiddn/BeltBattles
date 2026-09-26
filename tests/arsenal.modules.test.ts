@@ -52,8 +52,9 @@ const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 /** 0.6.1p's three wave-1 turret mods (catalogue.json hopper, mantlet, ram). */
 export const WAVE1_ROWS: Row[] = [
-  // slots, seconds and BOTTOMLESS (1 = never jams), read off the battle's turret on the heavy bench (window 3, 1.5 s)
-  { id: "hopper", headline: "Window slots; loading window s; never jams", at: (s) => { const t = tu0(bench([], [["hopper", s]])); return [t.window - 3, +(t.windowTime - WINDOW_TIME).toFixed(3), t.noJam ? 1 : 0]; } },
+  // slots, seconds, the store (0.6.2 FB-B: loads held while the gun fires; ★2/★3 keep ★1's slot and seconds) and
+  // BOTTOMLESS (1 = never jams), read off the battle's turret on the heavy bench (window 3, 1.5 s)
+  { id: "hopper", headline: "Window slots; loading window s; store; never jams", at: (s) => { const t = tu0(bench([], [["hopper", s]])); return [t.window - 3, +(t.windowTime - WINDOW_TIME).toFixed(3), t.storeMax, t.noJam ? 1 : 0]; } },
   // immunities listed plus intake tiles guarded (4 / 6 + 1 / 6 + 3; 0.6.2 FB-B: FULL PLATE also shields the intake tile)
   { id: "mantlet", headline: "Immunities by star (+ guarded intake tiles)", at: (s) => { const t = tu0(bench([], [["mantlet", s]])); return t.immune.length + t.intakeGuard; } },
   { id: "ram", headline: "Finisher bonus", band: [2.2, 3.5], at: (s) => mean(finishers(busy([["ram", s]])).bonus) },
@@ -251,9 +252,12 @@ const coilDeck = (): Build => {
 };
 
 describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
-  it("HOPPER: window +1/+2/+3 slots and +0.5/+1.0/+1.5 s; BOTTOMLESS never jams on a jamming deck", () => {
-    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).window)).toEqual([4, 5, 6]);
-    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).windowTime)).toEqual([2, 2.5, 3]);
+  // 0.6.2 FB-B (tests/fb062.hopper.test.ts): every star keeps ★1's +1 slot and +0.5 s (was +1/+2/+3 and +0.5/+1.0/+1.5)
+  // and ★2/★3 add a store of 1/2 loads taken while the gun fires
+  it("HOPPER: window +1 slot and +0.5 s at every star, a store of 0/1/2; BOTTOMLESS never jams on a jamming deck", () => {
+    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).window)).toEqual([4, 4, 4]);
+    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).windowTime)).toEqual([2, 2, 2]);
+    expect([1, 2, 3].map((s) => tu0(bench([], [["hopper", s]])).storeMax)).toEqual([0, 1, 2]);
     const jams = (mods: [string, number][]) => run(busy(mods), 60).sides[0].stats.jams;
     expect(jams([])).toBeGreaterThan(0);
     expect(jams([["hopper", 3]])).toBe(0);

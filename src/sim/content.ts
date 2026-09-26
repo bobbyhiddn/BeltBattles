@@ -146,6 +146,7 @@ export interface ModSpec {
   // 0.6.1p (catalogue.json): EXT. CHAMBER WIDE BREECH, HOPPER, MANTLET and FINISHER RAM
   window?: number; // + loading window slots (TurretState.window)
   windowTime?: number; // + seconds before the window closes (TurretState.windowTime; GATLING never reads it)
+  store?: number; // HOPPER ★2/★3 (0.6.2 FB-B): loads taken off the belt while the gun fires, dropped into the next window
   noJam?: boolean; // HOPPER ★3 BOTTOMLESS: this turret never jams
   immune?: HarassCause[]; // MANTLET: stalls this turret ignores (Battle.disrupt)
   intakeGuard?: number; // MANTLET ★2 FULL PLATE (1, 0.6.2 FB-B) and ★3 BULWARK SKIRT (3): the last n tiles of each route into this turret share its immunities
@@ -570,9 +571,14 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "hopper", name: "HOPPER", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "quartermaster",
     desc: ["CHAMBER HOLDS 1 MORE", "LOAD; WINDOWS STAY", "OPEN 0.5S LONGER."], tags: ["BURST", "TIMING"],
     mod: { window: 1, windowTime: 0.5 },
+    // 0.6.2 FB-B (oracle 16085a6430e4cc6a): every star keeps ★1's window (+1 slot, +0.5 s). ★2/★3 add a store: while the
+    // gun fires it takes 1/2 loads off the belt, and they drop into the next window. On a sparse belt nothing waits, so
+    // ★2 fires exactly as ★1; loads arriving together (two belts, a split) no longer wait or jam. Was: ★2 +2 slots and
+    // +1.0 s, ★3 +3 and +1.5 s, whose extra slot sat empty on a sparse belt while the longer timer delayed each shot
+    // (E1 seed 1 day 7: HOPPER ★2 WORSE).
     levels: {
-      2: { mod: { window: 2, windowTime: 1 } },
-      3: { mod: { window: 3, windowTime: 1.5, noJam: true }, perk: "BOTTOMLESS" },
+      2: { mod: { store: 1 } },
+      3: { mod: { store: 2, noJam: true }, perk: "BOTTOMLESS" },
     },
   },
   mantlet: {
