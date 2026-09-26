@@ -633,15 +633,17 @@ export function ablate(b0: Build, key: PartKey, day: number, seed: number): { bu
  * never fills it (CTRL: --tune extra=0, the gold back to the policy), vs the par field of both heroes, `seeds` x both
  * sides per member, paired. 0.6.2s REPORT section 6: +50 to +76 points for FURNACE at +14 g (bench decks).
  */
-async function extraMode(days: number[], run: Runner, out: string, opts: PlayerOpts, k: number, seeds: number, tag: string): Promise<void> {
+async function extraMode(days: number[], run: Runner, out: string, opts: PlayerOpts, k: number, seeds: number, sample: number, tag: string): Promise<void> {
   for (const day of days) {
     const t0 = performance.now();
     const rows: unknown[] = [];
     for (const hero of heroesOf()) {
-      const e = extraSlotOf(hero), seedsK = parSeeds(k);
-      const fill = seedsK.map((s, i) => ({ s, i, b: playerBuild(hero, day, s, opts) })).filter((x) => !!turretSlots(x.b)[e]?.turret);
+      // the decks tested: par seeds 1..sample (--sample; default K), each against the K-member field (a seed above K is
+      // no field member, so it meets all K)
+      const e = extraSlotOf(hero), seedsK = parSeeds(Math.max(k, sample));
+      const fill = seedsK.map((s, i) => ({ s, i: i < k ? i : -1, b: playerBuild(hero, day, s, opts) })).filter((x) => !!turretSlots(x.b)[e]?.turret);
       if (!fill.length) {
-        rows.push({ hero, day, n: 0, of: k });
+        rows.push({ hero, day, n: 0, of: seedsK.length });
         console.log(`extra ${tag} ${hero} d${day}: no par deck fills the extra slot`);
         continue;
       }
@@ -660,13 +662,13 @@ async function extraMode(days: number[], run: Runner, out: string, opts: PlayerO
       const lE = fill.map((_, j) => liftOf(res[3 * j], res[3 * j + 1])), lC = fill.map((_, j) => liftOf(res[3 * j], res[3 * j + 2]));
       const cE = meanCI(lE), cC = meanCI(lC);
       rows.push({
-        hero, day, n: fill.length, of: k, liftEmpty: cE, liftCtrl: cC,
+        hero, day, n: fill.length, of: seedsK.length, liftEmpty: cE, liftCtrl: cC,
         decks: meta.map((m, j) => ({ ...m, full: rowMean(res[3 * j]), empty: rowMean(res[3 * j + 1]), ctrl: rowMean(res[3 * j + 2]), liftEmpty: lE[j], liftCtrl: lC[j], rates: { full: res[3 * j], empty: res[3 * j + 1], ctrl: res[3 * j + 2] } })),
       });
-      console.log(`extra ${tag} ${hero} d${day}: ${fill.length}/${k} fill it | FULL - EMPTY ${fmtLift(cE)} pts | FULL - CTRL(extra=0) ${fmtLift(cC)} pts`);
+      console.log(`extra ${tag} ${hero} d${day}: ${fill.length}/${seedsK.length} fill it | FULL - EMPTY ${fmtLift(cE)} pts | FULL - CTRL(extra=0) ${fmtLift(cC)} pts`);
       for (const [j, m] of meta.entries()) console.log(`    s${m.seed} ${m.turret}${m.gear.length ? ` + ${m.gear.join(",")}` : ""}: FULL ${pc(rowMean(res[3 * j]))} (${m.value} g) EMPTY ${pc(rowMean(res[3 * j + 1]))} (${m.emptyValue} g${m.dead ? `, ${m.dead} belt dead` : ""}) CTRL ${pc(rowMean(res[3 * j + 2]))} (${m.ctrlValue} g${m.ctrlFills ? "" : ", slot empty"})`);
     }
-    writeFileSync(resolve(out, `extra-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, rows }, null, 1));
+    writeFileSync(resolve(out, `extra-${tag}-d${day}.json`), JSON.stringify({ day, k, sample: Math.max(k, sample), seeds, rows }, null, 1));
     console.log(`extra ${tag} d${day} (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
   }
 }
@@ -917,7 +919,7 @@ async function main(): Promise<void> {
   // 0.6.2 CAND-A
   if (process.argv.includes("--fingerprint")) fingerprintMode(days, opts, k);
   if (process.argv.includes("--uptake")) uptakeMode(days, out, opts, k, tag);
-  if (process.argv.includes("--extra")) await extraMode(days, pool.run, out, opts, k, num("seeds", 4), tag);
+  if (process.argv.includes("--extra")) await extraMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), tag);
   if (process.argv.includes("--stars")) await starsMode(days, pool.detail, out, opts, k, num("seeds", 4), tag);
   if (process.argv.includes("--ablate")) await ablateMode(days, pool.run, out, opts, k, num("seeds", 4), num("min", 3), tag);
   if (process.argv.includes("--joins")) await joinsMode(days, pool.run, out, opts, k, num("seeds", 10), tag);
