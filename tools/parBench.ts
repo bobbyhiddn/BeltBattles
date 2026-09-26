@@ -10,6 +10,7 @@
 //   --rivals    [--seeds 4] [--tq-seeds 20] the captains against the par field and honestReference (brief 4b-4d)
 //   --ladder    [--seeds 4] the skill ladder: par vs the random-pick field, calm and sharp vs the par field (brief 0c)
 //   --mix       no battles: the spend mix of the par field and the full-purse population, and supply offer rates
+//   --desk      [--seeds 10] the desk run's seeded pool ghosts (scripts/singlefile.mjs) against the par field (step 5)
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -18,6 +19,7 @@ import { isMainThread } from "node:worker_threads";
 import { hashSeed } from "../src/core/rng";
 import { HEROES as HEROES_DEF, ITEMS, type HeroId } from "../src/sim/content";
 import { newRun, rollShop } from "../src/game/run";
+import { honestStandInBuild, strongHonestBuild } from "../src/game/honest";
 import { beltUsed, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { FUSE_MAX } from "../src/sim/stars";
@@ -333,6 +335,26 @@ function mixMode(days: number[], out: string, opts: PlayerOpts, k: number, tag: 
   writeFileSync(resolve(out, `mix-${tag}.json`), JSON.stringify({ k, rows }, null, 1));
 }
 
+/** The desk run's seeded pool ghosts (scripts/singlefile.mjs RUNS.desk.pool): [day, hero, power]; tooling.ts makeGhost
+ *  builds power > 0 as strongHonestBuild(hero, day, power) and power <= 0 as honestStandInBuild(hero, day + power). */
+const DESK_GHOSTS: [number, HeroId, number][] = [[1, "weaver", 0], [2, "furnace", 6], [4, "weaver", 0], [5, "furnace", -2], [6, "weaver", -2], [7, "furnace", -2], [8, "weaver", -2], [9, "furnace", -2], [10, "weaver", -2]];
+
+/**
+ * --desk (brief step 5): each desk-run pool ghost against the par field of its day (both heroes; the desk hero is
+ * FURNACE), `seeds` seeds x both sides per member: does a typical player's deck beat the ghost the desk run loses to?
+ */
+async function deskMode(run: Runner, out: string, k: number, seeds: number): Promise<void> {
+  const rows: unknown[] = [];
+  for (const [day, hero, power] of DESK_GHOSTS) {
+    const ghost = power > 0 ? strongHonestBuild(hero, day, power) : honestStandInBuild(hero, Math.max(1, day + power));
+    const res = (await vsPar([ghost], HEROES, day, run, { key: "par-desk", k, seeds }))[0];
+    const par = Object.fromEntries(HEROES.map((h) => [h, memberCI(res[h].members.map((x) => 1 - x))]));
+    rows.push({ day, hero, power, cost: deckCost(ghost).total, hullBonus: ghost.hullBonus, parWins: par });
+    console.log(`desk ghost d${day} ${hero} power ${power} (${deckCost(ghost).total} g, hull +${ghost.hullBonus}): par FURNACE beats it ${ciOf(par.furnace)} | par WEAVER beats it ${ciOf(par.weaver)}`);
+  }
+  writeFileSync(resolve(out, "desk-ghosts.json"), JSON.stringify({ k, seeds, rows }, null, 1));
+}
+
 async function main(): Promise<void> {
   const days = flag("days")?.split(",").map(Number) ?? Array.from({ length: 10 }, (_, i) => i + 1);
   const nw = num("workers", 4);
@@ -359,6 +381,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--pool")) await poolMode(days, pool.run, out, opts, k, tag);
   if (process.argv.includes("--rivals")) await rivalsMode(days, pool.run, out, cache, opts, k, num("seeds", 4), num("tq-seeds", 20), tag);
   if (process.argv.includes("--ladder")) await ladderMode(days, pool.run, out, k, num("seeds", 4), tag);
+  if (process.argv.includes("--desk")) await deskMode(pool.run, out, k, num("seeds", 10));
   await pool.close();
   console.log(`done in ${((performance.now() - t0) / 1000).toFixed(0)} s on ${nw} worker(s)`);
   void buildCost;

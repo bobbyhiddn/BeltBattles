@@ -72,6 +72,20 @@ export async function placePlanned(page, touch, reserve = 0) {
   return merged ? `${plan.def} (merged)` : plan.def;
 }
 
+// FB-C: the desk run's dawn spends like a player. It bought at most 2 planned gates a dawn (8 on the
+// bounty's day) and never rerolled, which left 36G unspent by day 9's dusk (deck 65 vs par 91,
+// maxGoldByDay 105). Now it buys planned parts until none is affordable and placeable, then taps the
+// caravan's REROLL (2G, or free) while that still leaves the reserve (today's STAKE / SPY) plus 3G for a
+// part, at most 4 rerolls a dawn.
+export async function rerollShop(page, touch, reserve = 0) {
+  const r = await page.evaluate(() => ({ gold: window.bb.game.run.gold, free: window.bb.game.run.shop.free || 0, n: window.bb.game.run.shop.rerolls }));
+  if (!r.free && r.gold - 2 < reserve + 3) return false;
+  await clearSel(page);
+  await tapRegion(page, touch, "reroll");
+  await page.waitForFunction((n) => window.bb.game.run.shop.rerolls === n + 1 && window.bb.game.screen.caravan.ready, r.n, { timeout: 10000 });
+  return true;
+}
+
 /** After FIGHT: a road event (pick with a real tap, maybe REFIT) or straight to the battle. */
 export async function road(page, touch, log, at, state) {
   const s = await settleAny(page, ["event", "battle"]);
@@ -282,13 +296,19 @@ export async function scriptedRun(page, touch, log, opts) {
     const reserve = want ? want[1] : 0;
     // backing a stake: the dawn before the bounty's Hard warlord spends freely (else 2 gates a day)
     const backing = ((opts.roads || "")[day - 1] || "v") === "h" && !!state.took.herald && !state.bountyLog;
-    for (let k = 0; k < (backing ? 8 : opts.buys || 2); k++) {
+    // FB-C: the desk run spends like a player (rerollShop), except on the F2 weaken day (its dusk loss by
+    // construction only needs the bare deck; what it buys goes to cargo anyway)
+    const spend = opts.check === "desk" && day !== opts.weakenDay, gold0 = dawn.gold;
+    let rerolls = 0;
+    for (let k = 0; k < (spend ? 30 : backing ? 8 : opts.buys || 2); k++) {
       const def = await placePlanned(page, touch, reserve);
+      if (!def && spend && rerolls < 4 && (await rerollShop(page, touch, reserve))) { rerolls++; continue; }
       if (!def) break;
       parts.push(def);
       state.placed++;
     }
-    if (parts.length || reserve || backing) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}${backing ? " (backing the bounty: buying all it can)" : ""}`);
+    const spent = spend ? await page.evaluate((g) => ({ gold: window.bb.game.run.gold, deck: window.bb.deckCost(window.bb.game.run.build), spent: g - window.bb.game.run.gold }), gold0) : null;
+    if (parts.length || reserve || backing) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}${backing ? " (backing the bounty: buying all it can)" : ""}${spent ? ` [FB-C spend: ${rerolls} reroll(s), gold ${gold0} -> ${spent.gold} (spent ${spent.spent}), deck ${spent.deck}]` : ""}`);
     if (day === opts.weakenDay) state.stored = await weakenDeck(page, touch, log, at, state.startUids);
     await tapRegion(page, touch, "fight");
     await roadStop(page, touch, log, at, state, (opts.roads || "")[day - 1] || "v", day === opts.reloadWarlordDay);
