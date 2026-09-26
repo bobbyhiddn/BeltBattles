@@ -114,8 +114,10 @@ captain a slot can hold, content.ts prices and merchants):
   the scout's discount or free reroll counts only when the next caravan comes by that dusk;
 - the discount is priced exactly for its model: rolls of at most `OFFERS` distinct defs (merchants are drawn
   without replacement, a wagon never repeats a def), every price −1 (min 1), rerolls at `REROLL_COST`, all the
-  gold a run can hold at that caravan (road parts counted as if sold at full value: the one deliberate
-  over-count, at most 12 gold of slack on day 10).
+  gold a run can hold at that caravan. That gold is a deliberate over-count: road parts count as if sold at
+  full value, and it comes from the best gold plan of those days, not from the deck's own plan. Against the
+  best plan one run can follow, the slack is 0, 0, 0, 1, 3, 6, 9, 10, 12 and 15 gold on days 1-10
+  (`tests/net-upload.slack.test.ts` pins it).
 
 A deck whose hull or belt came partly from the road is checked against the plans that took those events with
 those choices (`roadCapFor(day, mix)`), so the hull and belt are costed at their cheapest honest mix: the

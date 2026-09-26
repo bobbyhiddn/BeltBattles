@@ -486,8 +486,9 @@ export function explainRoadCap(day: number, mix: Mix = NO_MIX()): PlanDay[] {
 }
 
 /** Diagnostic (REPORT.md §2 slack, never used to validate): roadCap with the discounted caravan funded by the
- *  road's gold alone, every part kept on the deck. An honest plan at or above it exists whenever the event order
- *  and the shop's offers allow; roadCap - roadCapHoard is the over-count of gmax's liquid parts. */
+ *  road's gold alone, every part kept on the deck; roadCap - roadCapHoard is the over-count of gmax's liquid parts.
+ *  That gold still comes from gmax's best gold plan, not the deck's own plan: tests/net-upload.slack.test.ts
+ *  measures the whole slack against the best plan one run can follow. */
 export function roadCapHoard(day: number): number {
   return planDP(day, NO_MIX(), "deck", false, true).value;
 }
