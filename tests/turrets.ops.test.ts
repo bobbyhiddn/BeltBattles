@@ -7,6 +7,7 @@ import {
   canFitGear, cloneBuild, deadEndsAt, gearOn, gearSlotsAt, installTurret, installedTurrets, moveTurret, removeTurret,
   routeInfo, setTurretList, startingTurrets, turretSlots, type Build,
 } from "../src/sim/deck";
+import { key as K, kx, ky } from "../src/sim/deck"; // 0.6.2s step 4: BASTION plating on a moved turret
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { makeRaceSide } from "../src/sim/races";
 import { ECHO_TURRET } from "../src/sim/races/siphon";
@@ -221,6 +222,27 @@ describe("0.6.2s turret slots: race hooks on a bought or moved turret (S9)", () 
     installTurret(dart, { uid: 801, def: "dartgun" }, 0); // light, inner column only: col 3
     expect(turretSlots(dart)[0].intakes).toEqual([3]);
     expect(deadEndsAt(dart, 0)).toEqual([0]); // the belt to col 2 is a dead end now
+  });
+
+  it("BASTION plating comes from every bulwark slug a turret loads: a bought turret in slot 0 plates, and so does the RAMPART moved to the extra slot with its belt", () => {
+    const e = heroStartBuild("furnace");
+    const base = heroStartBuild("bastion");
+    const plated = (b: Build) => simulate(b, e, 5).sides[0].race!.plating.gained;
+    expect(plated(base)).toBeGreaterThan(0);
+    const bought = cloneBuild(base);
+    installTurret(bought, { uid: 830, def: "bombard" }, 0); // heavy, both columns: the same belt feeds it
+    expect(deadEndsAt(bought, 0)).toEqual([]);
+    expect(plated(bought)).toBeGreaterThan(0);
+    const moved = cloneBuild(base);
+    expect(moveTurret(moved, 0, 1).ok).toBe(true); // the RAMPART to the extra slot (cols 0-1); slot 0 is empty
+    expect(deadEndsAt(moved, 0)).toEqual([0]);
+    const r = moved.routes[0];
+    const i1 = r.cells.findIndex((k) => ky(k) === 1);
+    const x1 = kx(r.cells[i1]);
+    r.cells = [...r.cells.slice(0, i1 + 1), ...Array.from({ length: x1 - 1 }, (_, j) => K(x1 - 1 - j, 1)), K(1, 0)];
+    expect(routeInfo(moved, 0).connected).toBe(true);
+    expect(installedTurrets(moved).map((s) => s.slot)).toEqual([1]);
+    expect(plated(moved)).toBeGreaterThan(0);
   });
 
   it("METRONOME's pendulum shift is per slot; SIPHON's echo stays with slot 1 whatever turret sits there", () => {
