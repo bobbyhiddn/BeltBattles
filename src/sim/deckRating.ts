@@ -38,9 +38,15 @@ export const NOMINAL = 0.03;
  */
 export const SATURATED = 0.7;
 export const SAT_LO = 0.75, SAT_HI = 1.25;
+/** The rating's saturation model: the load where firing starts to fall (satLo), where it bottoms out (satHi) and the
+ *  share fired from there on (saturated). RATING_CURVE is the default; RATING_CLIFF is FB-C's rule (all of it up to
+ *  the turret's rate, 0.85 of the rate above it), kept for bench comparisons (tools/parBench.ts --ablate). */
+export interface RatingModel { satLo: number; satHi: number; saturated: number }
+export const RATING_CURVE: Readonly<RatingModel> = { satLo: SAT_LO, satHi: SAT_HI, saturated: SATURATED };
+export const RATING_CLIFF: Readonly<RatingModel> = { satLo: 1, satHi: 1, saturated: 0.85 };
 /** The share a turret with load `rho` fires (1 for one that never jams). */
-export const firedShare = (rho: number, noJam = false): number =>
-  noJam || rho <= SAT_LO ? 1 : rho >= SAT_HI ? SATURATED : 1 - ((1 - SATURATED) * (rho - SAT_LO)) / (SAT_HI - SAT_LO);
+export const firedShare = (rho: number, noJam = false, m: Readonly<RatingModel> = RATING_CURVE): number =>
+  noJam || rho <= m.satLo ? 1 : rho >= m.satHi ? m.saturated : 1 - ((1 - m.saturated) * (rho - m.satLo)) / (m.satHi - m.satLo);
 
 interface Feed { route: number; arrival: number; eq: number; first: number; ride: number }
 
@@ -86,7 +92,7 @@ export interface DeckRating {
  * only into its gaps (J5: the main belt has right of way), so a main belt's join carries at most BELT_SPEED x its
  * speed there / AMMO_SPACING payloads a second, its own first.
  */
-export function rateDeck(b: Build): DeckRating {
+export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE): DeckRating {
   const h = HEROES[b.hero];
   const hits = rigHits(b), claims = connectorClaims(b), occ = occupancy(b);
   const outs = new Map<number, number>();
@@ -148,7 +154,7 @@ export function rateDeck(b: Build): DeckRating {
     const cap = g.perShot / interval;
     const arrival = fs.reduce((s, f) => s + f.arrival, 0);
     const noJam = g.noJam || !!core.spec.noJam;
-    const thr = Math.min(arrival, cap) * firedShare(arrival / cap, noJam);
+    const thr = Math.min(arrival, cap) * firedShare(arrival / cap, noJam, model);
     // what each belt gets through the intake: all of it under the cap; over it, the belts that end at the intake fill
     // it first (a saturated main belt is dense, so its joiners find no gap, J5) and the joiners share what is left
     let flows = fs.map((f) => f.arrival);

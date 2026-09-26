@@ -42,6 +42,7 @@ import { PAR_K, parField, parSeeds, vsPar } from "../src/sim/harness/par";
 import { fmtRate, meanCI, wilson } from "../src/sim/harness/stats";
 import { standInPool } from "../src/sim/standInPool";
 import { playerBuild, playerRun, refeedRoute, type PlayerOpts } from "../src/sim/harness/player";
+import { RATING_CLIFF, RATING_CURVE, rateDeck } from "../src/sim/deckRating";
 import { RIVALS, RIVAL_IDS, deckCost, difficultyOf, honestReference, rivalBuild, rivalDays, standInBuild } from "../src/sim/rivals";
 import type { DetailRunner, Job, Runner } from "../src/sim/harness/tournament";
 import { flag, num, serveJobs, workerRunner } from "./workers";
@@ -526,6 +527,27 @@ function liftOf(a: Rates, b: Rates): number {
   return mean(d);
 }
 
+/** Ranks (1-based, ties share their average rank). */
+function ranks(xs: readonly number[]): number[] {
+  const order = xs.map((x, i) => ({ x, i })).sort((a, b) => a.x - b.x);
+  const out = new Array<number>(xs.length);
+  for (let s = 0; s < order.length;) {
+    let e = s;
+    while (e + 1 < order.length && order[e + 1].x === order[s].x) e++;
+    for (let j = s; j <= e; j++) out[order[j].i] = (s + e) / 2 + 1;
+    s = e + 1;
+  }
+  return out;
+}
+/** Spearman's rank correlation of xs and ys (NaN below 3 pairs or with no spread). */
+function spearman(xs: readonly number[], ys: readonly number[]): number {
+  if (xs.length < 3) return NaN;
+  const a = ranks(xs), b = ranks(ys), ma = mean(a), mb = mean(b);
+  let num = 0, da = 0, db = 0;
+  for (let i = 0; i < a.length; i++) { num += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) ** 2; db += (b[i] - mb) ** 2; }
+  return da > 0 && db > 0 ? num / Math.sqrt(da * db) : NaN;
+}
+
 /** Two-sided exact sign test: p of a split at least as uneven as better/worse under p = 0.5 (ties dropped). */
 function signTest(better: number, worse: number): number {
   const n = better + worse, lo = Math.min(better, worse);
@@ -718,11 +740,14 @@ async function ablateMode(days: number[], run: Runner, out: string, opts: Player
       decks.forEach((b, i) => { for (const p of partsOf(b)) holders.set(p, [...(holders.get(p) ?? []), i]); });
       const keys = [...holders.keys()].filter((p) => holders.get(p)!.length >= min).sort();
       const vs: Row[] = decks.map((b, i) => ({ build: b, pair: `${hero}|${seedsK[i]}`, hero, self: i }));
-      const meta: { key: PartKey; deck: number; row: number; dead: number; gold: number }[] = [];
+      // the par player's reading of the same removal (rateDeck: whole / ablated - 1), with the CAND-A saturation curve
+      // and with FB-C's cliff: does the rating the player shops by rank the parts as the battle does?
+      const rel = (a: Build, b: Build, m = RATING_CURVE) => { const x = rateDeck(b, m).value; return x > 0 ? rateDeck(a, m).value / x - 1 : 1; };
+      const meta: { key: PartKey; deck: number; row: number; dead: number; gold: number; relCurve: number; relCliff: number }[] = [];
       for (const key of keys) {
         for (const i of holders.get(key)!) {
           const a = ablate(decks[i], key, day, seedsK[i]);
-          meta.push({ key, deck: i, row: vs.length, dead: a.dead, gold: deckCost(decks[i]).total - deckCost(a.build).total });
+          meta.push({ key, deck: i, row: vs.length, dead: a.dead, gold: deckCost(decks[i]).total - deckCost(a.build).total, relCurve: rel(decks[i], a.build), relCliff: rel(decks[i], a.build, RATING_CLIFF) });
           vs.push({ build: a.build, pair: `${hero}|${seedsK[i]}`, hero, self: i });
         }
       }
@@ -731,14 +756,21 @@ async function ablateMode(days: number[], run: Runner, out: string, opts: Player
         const ms = meta.filter((m) => m.key === key);
         const lifts = ms.map((m) => liftOf(res[m.deck], res[m.row]));
         const c = meanCI(lifts);
-        return { key, n: ms.length, mean: c.mean, ci: c.ci, min: Math.min(...lifts), max: Math.max(...lifts), over10: lifts.filter((x) => x > 0.1).length, gold: mean(ms.map((m) => m.gold)), dead: sum(ms.map((m) => m.dead)), seeds: ms.map((m) => seedsK[m.deck]), lifts };
+        return {
+          key, n: ms.length, mean: c.mean, ci: c.ci, min: Math.min(...lifts), max: Math.max(...lifts), over10: lifts.filter((x) => x > 0.1).length,
+          gold: mean(ms.map((m) => m.gold)), dead: sum(ms.map((m) => m.dead)), relCurve: mean(ms.map((m) => m.relCurve)), relCliff: mean(ms.map((m) => m.relCliff)),
+          seeds: ms.map((m) => seedsK[m.deck]), lifts, rels: ms.map((m) => [m.relCurve, m.relCliff]),
+        };
       }).sort((x, y) => y.mean - x.mean);
       const base = decks.map((_, i) => rowMean(res[i]));
-      writeFileSync(resolve(out, `ablate-${tag}-${hero}-d${day}.json`), JSON.stringify({ day, hero, k, seeds, min, base, parts }, null, 1));
-      console.log(`ablate ${tag} ${hero} d${day}: ${keys.length} parts in ${min}+ of ${k} decks, ${meta.length} ablated decks (${((performance.now() - t0) / 1000).toFixed(0)} s); whole decks ${pc(mean(base))}`);
+      // rank agreement over every (part, deck) removal: Spearman's rho of the battle lift and each rating's rel
+      const all = meta.map((m) => ({ lift: liftOf(res[m.deck], res[m.row]), curve: m.relCurve, cliff: m.relCliff }));
+      const rCurve = spearman(all.map((x) => x.lift), all.map((x) => x.curve)), rCliff = spearman(all.map((x) => x.lift), all.map((x) => x.cliff));
+      writeFileSync(resolve(out, `ablate-${tag}-${hero}-d${day}.json`), JSON.stringify({ day, hero, k, seeds, min, base, spearman: { curve: rCurve, cliff: rCliff }, parts }, null, 1));
+      console.log(`ablate ${tag} ${hero} d${day}: ${keys.length} parts in ${min}+ of ${k} decks, ${meta.length} ablated decks (${((performance.now() - t0) / 1000).toFixed(0)} s); whole decks ${pc(mean(base))}; rating vs battle, Spearman over removals: curve ${rCurve.toFixed(2)} cliff ${rCliff.toFixed(2)}`);
       for (const p of parts) {
         const flagged = p.mean > 0.1 ? (p.over10 === p.n ? "  FLAG (every deck)" : "  FLAG (mean)") : "";
-        console.log(`    ${p.key.padEnd(22)} n ${String(p.n).padStart(2)} lift ${fmtLift(p) } min ${pp(p.min)} max ${pp(p.max)} >10 in ${p.over10}/${p.n} | ${p.gold.toFixed(1)} g${p.dead ? ` | ${p.dead} belt(s) dead` : ""}${flagged}`);
+        console.log(`    ${p.key.padEnd(22)} n ${String(p.n).padStart(2)} lift ${fmtLift(p)} min ${pp(p.min)} max ${pp(p.max)} >10 in ${p.over10}/${p.n} | ${p.gold.toFixed(1)} g | rating rel curve ${pp(p.relCurve)}% cliff ${pp(p.relCliff)}%${p.dead ? ` | ${p.dead} belt(s) dead` : ""}${flagged}`);
       }
     }
   }
@@ -820,6 +852,41 @@ async function joinsMode(days: number[], run: Runner, out: string, opts: PlayerO
   }
 }
 
+/** A policy spec "policy" or "policy|knob=v,knob=v" (--vs): the player options it names. */
+function specOpts(spec: string): PlayerOpts {
+  const [policy, tunes = ""] = spec.split("|");
+  const tune = Object.fromEntries(tunes.split(",").filter(Boolean).map((kv) => {
+    const [key, v] = kv.split("=");
+    return [key, key === "grow" ? v === "1" || v === "true" : Number.isFinite(Number(v)) ? Number(v) : v];
+  })) as PlayerOpts["tune"];
+  return { policy: policy as PlayerOpts["policy"], ...(Object.keys(tune ?? {}).length ? { tune } : {}) };
+}
+
+/**
+ * --vs "spec;spec;..." (the ladder's rows for any policy, e.g. "sharp|turret=0;typical|join=0"): per hero and day, the
+ * field of each spec (seeds 1..K) against the par field of the same hero, `seeds` x both sides per member, the row
+ * field's member the unit (as --ladder). "row@ref" plays the row field against the field of spec `ref` instead of the
+ * par field. Diagnoses which CAND-A knob moves the ladder.
+ */
+async function vsMode(days: number[], run: Runner, out: string, k: number, seeds: number, specs: string[], tag: string): Promise<void> {
+  for (const day of days) {
+    const rows: unknown[] = [];
+    for (const hero of heroesOf()) {
+      const line: string[] = [];
+      for (const spec of specs) {
+        const [row, ref] = spec.split("@");
+        const decks = parField(hero, day, k, specOpts(row));
+        const res = await vsPar(decks, [hero], day, run, { key: `par-vs-${spec}`, k, seeds, ...(ref ? { player: specOpts(ref) } : {}) });
+        const c = memberCI(res.map((r) => r[hero].rate));
+        rows.push({ hero, spec, ...c, members: res.map((r) => r[hero].rate), rowValue: decks.map((b) => deckCost(b).total) });
+        line.push(`${spec} ${ciOf(c)}`);
+      }
+      console.log(`vs ${tag} ${hero} d${day}: ${line.join(" | ")}`);
+    }
+    writeFileSync(resolve(out, `vs-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, specs, rows }, null, 1));
+  }
+}
+
 async function main(): Promise<void> {
   const days = flag("days")?.split(",").map(Number) ?? Array.from({ length: 10 }, (_, i) => i + 1);
   const nw = num("workers", 4);
@@ -854,6 +921,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--stars")) await starsMode(days, pool.detail, out, opts, k, num("seeds", 4), tag);
   if (process.argv.includes("--ablate")) await ablateMode(days, pool.run, out, opts, k, num("seeds", 4), num("min", 3), tag);
   if (process.argv.includes("--joins")) await joinsMode(days, pool.run, out, opts, k, num("seeds", 10), tag);
+  if (flag("vs")) await vsMode(days, pool.run, out, k, num("seeds", 4), flag("vs")!.split(";").filter(Boolean), tag);
   await pool.close();
   console.log(`done in ${((performance.now() - t0) / 1000).toFixed(0)} s on ${nw} worker(s)`);
   void buildCost;
