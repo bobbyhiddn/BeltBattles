@@ -52,16 +52,17 @@ export function intakeLine(def: string): string {
   return ITEMS[def].turret?.intake === "inner" ? "IT TAKES A BELT ON ITS INNER COLUMN ONLY." : "IT TAKES BELTS ON BOTH ITS COLUMNS.";
 }
 
-/** What the next star brings (S6 levels, S4 gear slots): "NEXT ★2: 4 LOADS AND 2 GEAR SLOTS." */
+/** What the next star brings (S6 levels, S4 gear slots): "NEXT ★2: IT HOLDS 5 LOADS AND HAS 3 GEAR SLOTS. MERGE TWO
+ *  ★1 COPIES TO GET IT." */
 export function nextStarLine(def: string, stars: number): string | null {
   if (stars >= 3) return null;
   const a = effectAt(def, stars).turret!, b = effectAt(def, stars + 1).turret!;
   const parts: string[] = [];
   if (b.fireInterval !== a.fireInterval) parts.push(`FIRES EVERY ${sec(b.fireInterval)} S`);
-  if (b.window !== a.window) parts.push(plural(b.window, "LOAD"));
-  parts.push(plural(gearSlotsOf(def, stars + 1), "GEAR SLOT"));
+  if (b.window !== a.window) parts.push(`HOLDS ${plural(b.window, "LOAD")}`);
+  parts.push(`HAS ${plural(gearSlotsOf(def, stars + 1), "GEAR SLOT")}`);
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} AND ${parts[parts.length - 1]}` : parts[0];
-  return `NEXT ★${stars + 1}: ${list}. TWO COPIES AT ★${stars} MERGE INTO ONE.`;
+  return `NEXT ★${stars + 1}: IT ${list}. MERGE TWO ★${stars} COPIES TO GET IT.`;
 }
 
 /** The facts of a turret card, most important first (a phone panel shows the first four lines). */
