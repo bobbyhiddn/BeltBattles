@@ -18,9 +18,10 @@ const EPS = 1e-9;
 
 export type LeechKind = "leechDrag" | "leechEcho";
 
-/** The mark a leech gets on this route: ECHO into the right gun, otherwise DRAG. */
+/** The mark a leech gets on this route: ECHO into the right gun, otherwise DRAG. 0.6.2j (J2, J7): a joining belt's
+ *  destination is its chain's turret (RouteJoin.feeds). */
 export function leechFor(r: RouteState): LeechKind {
-  return r.connected && r.turret === ECHO_TURRET ? "leechEcho" : "leechDrag";
+  return (r.connected && r.turret === ECHO_TURRET) || r.join?.feeds === ECHO_TURRET ? "leechEcho" : "leechDrag";
 }
 
 /** Sump production: round robin over its routes like the Loom, marking each leech. */

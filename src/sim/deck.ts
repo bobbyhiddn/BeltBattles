@@ -29,6 +29,10 @@ export interface Placed {
 export interface RouteDef {
   factory: number; // uid of the feeding factory
   cells: number[]; // cell keys (y*GRID+x) from factory-adjacent cell to the end
+  // 0.6.2j (REQ-BFG-027, J1): a JOINING belt's join tile, the cell key of another belt's tile that this belt feeds
+  // into from the side (its last cell is orthogonally next to it). Absent: today's belt, and never written for one.
+  // The main belt is the route that holds the tile (joinOf), never a route index.
+  join?: number;
 }
 
 export interface ModPlacement {
@@ -138,6 +142,7 @@ export function connectorClaims(b: Build): Map<number, number> {
   const claims = new Map<number, number>();
   b.routes.forEach((r, i) => {
     if (!r.cells.length) return;
+    if (r.join !== undefined) return; // 0.6.2j (J2): a joining belt claims no turret connector
     const last = r.cells[r.cells.length - 1];
     if (ky(last) !== 0) return;
     const col = kx(last);
@@ -322,8 +327,11 @@ export interface RouteInfo {
   tiles: number;
   gates: number[]; // 0.6.2: rig uids, one entry per hit, in travel order (tile, then R7); a rig appears once per arrow
   gateCells: number[]; // tile index within the route for each entry of `gates`
-  length: number; // travel distance in px (factory port -> turret intake or belt end)
+  length: number; // travel distance in px (factory port -> turret intake or belt end; 0.6.2j: a joining belt's own, to its join tile's side)
   wellFormed: boolean;
+  // 0.6.2j (J1, J2): set only on a joining belt whose join is legal. Such a belt claims no connector (connector -1);
+  // it is connected exactly when the belt at the end of its chain is, and `turret` is that belt's turret.
+  join?: JoinLink;
 }
 
 /** A route's connection and its hits. 0.6.2: `_occ` is unused (hits come from rigHits); it stays so the
@@ -332,7 +340,12 @@ export function routeInfo(b: Build, index: number, claims = connectorClaims(b), 
   const r = b.routes[index];
   const wf = routeWellFormed(b, r);
   let connected = false, turret = -1, connector = -1;
-  if (wf && r.cells.length) {
+  const link = r.join === undefined ? undefined : joinOf(b, index); // 0.6.2j (J1, J2)
+  if (link) {
+    const feed = feedOf(b, index, claims);
+    connected = feed.connected;
+    turret = feed.turret;
+  } else if (wf && r.cells.length) {
     const last = r.cells[r.cells.length - 1];
     if (ky(last) === 0 && claims.get(kx(last)) === index) {
       connected = true;
@@ -349,10 +362,12 @@ export function routeInfo(b: Build, index: number, claims = connectorClaims(b), 
     }
   });
   const n = r.cells.length;
-  return {
+  const info: RouteInfo = {
     index, connected, turret, connector, tiles: n, gates, gateCells,
-    length: routeLength(n, connected), wellFormed: wf,
+    length: link ? CELL * n : routeLength(n, connected), wellFormed: wf, // 0.6.2j: a joining belt ends at its join tile's side
   };
+  if (link) info.join = link;
+  return info;
 }
 
 export function routeLength(n: number, connected: boolean): number {
@@ -360,8 +375,9 @@ export function routeLength(n: number, connected: boolean): number {
   return connected ? CELL * n + CELL / 2 : CELL * n - CELL / 2;
 }
 
-/** Polyline for a route in deck-local pixels. */
-export function routePolyline(b: Build, r: RouteDef, connected: boolean): { x: number; y: number }[] {
+/** Polyline for a route in deck-local pixels. 0.6.2j: a joining belt (`join`, its legal JoinLink) runs on to its join
+ *  tile's side (its end, at `length` px) and then to the join tile's centre, where joined payloads are drawn crossing. */
+export function routePolyline(b: Build, r: RouteDef, connected: boolean, join?: JoinLink): { x: number; y: number }[] {
   const pts: { x: number; y: number }[] = [];
   if (!r.cells.length) return pts;
   const c = (k: number) => ({ x: kx(k) * CELL + CELL / 2, y: ky(k) * CELL + CELL / 2 });
@@ -370,7 +386,11 @@ export function routePolyline(b: Build, r: RouteDef, connected: boolean): { x: n
   const dd = d0 >= 0 ? d0 : 0;
   pts.push({ x: first.x - DX[dd] * CELL / 2, y: first.y - DY[dd] * CELL / 2 });
   for (const k of r.cells) pts.push(c(k));
-  if (connected) {
+  if (join) {
+    const last = c(r.cells[r.cells.length - 1]), jc = c(join.cell);
+    pts.push({ x: (last.x + jc.x) / 2, y: (last.y + jc.y) / 2 });
+    pts.push(jc);
+  } else if (connected) {
     const last = c(r.cells[r.cells.length - 1]);
     pts.push({ x: last.x, y: last.y - CELL / 2 });
     pts.push({ x: last.x, y: last.y - CELL });
@@ -394,14 +414,15 @@ export function pointAt(pts: { x: number; y: number }[], s: number): { x: number
   return pts[pts.length - 1];
 }
 
-/** Direction of travel entering and leaving each cell of a route (local dirs). */
-export function routeDirs(b: Build, r: RouteDef, connected: boolean): { din: number; dout: number }[] {
+/** Direction of travel entering and leaving each cell of a route (local dirs). 0.6.2j (J11): a joining belt's last
+ *  cell leaves toward its join tile (`join`, its legal JoinLink), so its chevrons run into the main belt's side. */
+export function routeDirs(b: Build, r: RouteDef, connected: boolean, join?: JoinLink): { din: number; dout: number }[] {
   const out: { din: number; dout: number }[] = [];
   for (let i = 0; i < r.cells.length; i++) {
     const din = i === 0 ? adjacentToFactory(b, r.factory, r.cells[0]) : dirBetween(r.cells[i - 1], r.cells[i]);
     let dout: number;
     if (i < r.cells.length - 1) dout = dirBetween(r.cells[i], r.cells[i + 1]);
-    else dout = connected ? 0 : din;
+    else dout = join ? join.dir : connected ? 0 : din;
     out.push({ din: din < 0 ? 0 : din, dout: dout < 0 ? 0 : dout });
   }
   return out;
@@ -454,6 +475,16 @@ export interface TimelineRow {
   cell: number;
   hits: TimelineHit[]; // R7 order
   speed: number;
+  route?: number; // 0.6.2j (J10): set on a main belt's rows after a join (the tile and cell are that belt's); absent on the walked belt's own
+}
+
+/** 0.6.2j (J10): the walk crossed into a main belt: its route, the join tile (index and cell) and the index of the
+ *  first timeline row on it (timeline.length when that belt has no hit from the join tile on). */
+export interface WalkJoin {
+  route: number;
+  tile: number;
+  cell: number;
+  row: number;
 }
 
 export interface RouteWalk {
@@ -463,6 +494,7 @@ export interface RouteWalk {
   locked: boolean; // races: METRONOME belts ignore speed states
   // beltside-062c (DESIGN §12 P8): 0.6.1c SLAG's fixed belt speed, which no speed hit changes (absent for other ammo)
   fixed?: number;
+  joins?: WalkJoin[]; // 0.6.2j (J10): the joins the walk went through, in order (absent when the belt joins nothing)
 }
 
 /**
@@ -471,6 +503,10 @@ export interface RouteWalk {
  * earlier hit, this tile's additive ones included), then SPLITTER-type, then speed, whose winner
  * (speedWinner) holds from this tile downstream. Every hit counts as a prior hit. The timeline records what
  * each hit did, tile by tile (V4).
+ * 0.6.2j (J10, J14 (a), J15): a joining belt's walk goes on through its join: its own tiles, then each main belt
+ * from the join tile on (journeyOf), where the payload takes every hit, rides that belt's speed state (beltStateAt;
+ * slag keeps `fixed`) and ends at the chain's turret. Tile-counting rules (COUNTERWEIGHT) count the journey's tiles.
+ * A belt that joins nothing walks exactly as before, and a main belt's own walk doesn't change when belts join it.
  */
 export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk {
   const info = routeInfo(b, index, undefined, undefined, hits);
@@ -480,7 +516,6 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   const fs = f ? effectAt(f.def, starsOf(f)).factory : undefined; // 0.6.1p: at its stars (STAMP PRESS dies)
   const ammo = fs ? AMMO[f?.def === "mimic" ? HEROES[b.hero].ammo : fs.ammo] : AMMO.plain;
   const base = fs?.base ?? ammo.base;
-  const tiles = hits[index] ?? [];
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   const timeline: TimelineRow[] = [];
   // 0.6.1c SLAG: rides at its fixed speed whatever the speed gates (Battle.transport). beltside-062c (DESIGN §12
@@ -493,16 +528,32 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
     if (pr.burn) burn = Math.max(burn, pr.burn);
     if (pr.shock) shock = true;
   }
-  // walk cell by cell: half cell entering, the hits at the centre, half cell leaving
-  const n = r.cells.length;
+  // walk cell by cell: half cell entering, the hits at the centre, half cell leaving. 0.6.2j (J14 (a)): along the
+  // payload's own journey, `i` counting the journey's tiles (= the tile index on a belt that joins nothing)
+  const path: { route: number; tile: number }[] = [];
+  for (const leg of info.join ? journeyOf(b, index) : [{ route: index, from: 0 }]) {
+    for (let t = leg.from; t < b.routes[leg.route].cells.length; t++) path.push({ route: leg.route, tile: t });
+  }
+  const joins: WalkJoin[] = [];
+  const n = path.length;
   for (let i = 0; i < n; i++) {
+    const { route: ri, tile } = path[i];
+    const cells = b.routes[ri].cells;
+    if (i > 0 && path[i - 1].route !== ri) { // 0.6.2j: the join tile of main belt ri
+      joins.push({ route: ri, tile, cell: cells[tile], row: timeline.length });
+      if (fixed === undefined && !locked) { // J4, J15: from here on the main belt's speed state (slag keeps `fixed`)
+        const st = beltStateAt(b, ri, tile, hits);
+        speed = st.speed;
+        if (st.pulseFlat) flat += st.pulseFlat; // its SURGE pulse, once, as that belt's own walk counts it
+      }
+    }
     const inHalf = CELL / 2 / (BELT_SPEED * speed);
     time += inHalf;
     ride += inHalf;
     heatBonus += heat * inHalf;
     const speeds: number[] = [];
     const row: TimelineHit[] = [];
-    for (const h of tiles[i] ?? []) {
+    for (const h of hits[ri]?.[tile] ?? []) {
       const stars = starsOf(itemByUid(b, h.uid));
       const e = effectAt(h.def, stars).gate; // 0.6.1a: the same star spec as Battle.makeSide
       if (!e) continue;
@@ -581,7 +632,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
     const won = speedWinner(speeds);
     if (won !== undefined && !locked && fixed === undefined) speed = won;
     for (const th of row) if (th.speed !== undefined) th.won = !locked && fixed === undefined && th.speed === won;
-    if (row.length) timeline.push({ tile: i, cell: r.cells[i], hits: row, speed });
+    if (row.length) timeline.push({ tile, cell: cells[tile], hits: row, speed, ...(ri !== index ? { route: ri } : {}) });
     const last = i === n - 1;
     const outLen = last ? (info.connected ? CELL : 0) : CELL / 2;
     const outT = outLen / (BELT_SPEED * speed);
@@ -594,6 +645,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
     : payloadDamage(base, ammo.rideScale, ride, mult, flat + heatBonus); // includes HEAT JACKET's downstream ride
   const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
   if (fixed !== undefined) walk.fixed = fixed; // beltside-062c (P8)
+  if (joins.length) walk.joins = joins; // 0.6.2j
   return walk;
 }
 
@@ -631,7 +683,8 @@ export function placeItem(b: Build, p: Placed): void {
   b.items.push({ ...p });
 }
 
-/** Remove an item from the deck. Factories take their routes with them. Returns removed belt tiles. */
+/** Remove an item from the deck. Factories take their routes with them. Returns removed belt tiles.
+ *  0.6.2j (J8): belts that joined a removed belt become open ends (pruneJoins). */
 export function removeItem(b: Build, uid: number): number {
   const p = itemByUid(b, uid);
   if (!p) return 0;
@@ -645,11 +698,13 @@ export function removeItem(b: Build, uid: number): number {
       }
       return true;
     });
+    pruneJoins(b);
   }
   return freed;
 }
 
-/** Move an item; factories keep routes whose first cell still attaches. */
+/** Move an item; factories keep routes whose first cell still attaches. 0.6.2j (J8): a belt that joined a belt cut
+ *  loose here becomes an open end (pruneJoins); one that joined a belt the move keeps stays joined. */
 export function moveItem(b: Build, uid: number, x: number, y: number): { dropped: number } {
   const p = itemByUid(b, uid);
   if (!p) return { dropped: 0 };
@@ -664,12 +719,15 @@ export function moveItem(b: Build, uid: number, x: number, y: number): { dropped
       if (!ok) dropped++;
       return ok;
     });
+    pruneJoins(b);
   }
   return { dropped };
 }
 
+/** 0.6.2j (J8): a belt that joined the removed one becomes an open end (pruneJoins). */
 export function removeRoute(b: Build, index: number): void {
   b.routes.splice(index, 1);
+  pruneJoins(b);
 }
 
 export function routesOf(b: Build, factoryUid: number): number[] {
@@ -725,13 +783,19 @@ export function isFreeConnectorEnd(b: Build, pending: number[], replacing: numbe
   return ky(last) === 0 && connectorFree(b, kx(last), replacing);
 }
 
-/** Commit a drawn route. Returns the new route index. */
-export function commitRoute(b: Build, factoryUid: number, cells: number[], replacing: number): number {
+/** Commit a drawn route. Returns the new route index. 0.6.2j (J3, J8): `join`, the join tile of a drawn belt that
+ *  ended by joining another (canJoin), is written only when given; a redraw that leaves a join tile clears the joins
+ *  into it (pruneJoins), and one that still covers it keeps them while they stay legal. */
+export function commitRoute(b: Build, factoryUid: number, cells: number[], replacing: number, join?: number): number {
+  const jf = join !== undefined ? { join } : {};
+  pruneJoins(b); // a stale join never comes back to life under the new belt (J8)
   if (replacing >= 0) {
-    b.routes[replacing] = { factory: factoryUid, cells: [...cells] };
+    b.routes[replacing] = { factory: factoryUid, cells: [...cells], ...jf };
+    pruneJoins(b);
     return replacing;
   }
-  b.routes.push({ factory: factoryUid, cells: [...cells] });
+  b.routes.push({ factory: factoryUid, cells: [...cells], ...jf });
+  pruneJoins(b);
   return b.routes.length - 1;
 }
 
@@ -1059,4 +1123,231 @@ export function deadEndsAt(b: Build, t: number): number[] {
     if (!routeInfo(b, i, claims).connected) out.push(i);
   });
   return out;
+}
+
+// ---------------------------------------------------------------- belt joins (0.6.2j, REQ-BFG-027, REQ-BFG-030)
+//
+// A joining belt (RouteDef.join) ends beside a tile of another belt, the main belt, and feeds into it from the side
+// (J1-J2). The main belt is the route that holds the join tile, never a route index (indices shift when a belt is
+// removed). Legal: the joining belt's last cell is orthogonally next to the join tile, the tile is a tile of a
+// different belt, and following joins onward from the main belt never reaches the joining belt. Chains are fine.
+// A joining belt claims no turret connector (connectorClaims); it is connected exactly when the belt at the end of
+// its chain is, and feeds that belt's turret (feedOf, through connectorClaims and turretForColumn only: J14 (d)).
+// An illegal join leaves an open-ended belt: the sim ignores it, routeCheck and validateBuild report it.
+
+/** 0.6.2j (J1): a joining belt's legal link into its main belt. */
+export interface JoinLink {
+  route: number; // the main belt: the route that holds the join tile
+  tile: number; // the join tile's index along the main belt
+  cell: number; // the join tile (RouteDef.join)
+  dir: Dir; // from the joining belt's last cell into the join tile
+}
+
+/** Player-facing reasons a join is refused (J3, J12). */
+export const JOIN_SELF = "CAN'T JOIN ITSELF";
+export const JOIN_LOOP = "WOULD LOOP";
+export const JOIN_NOT_BELT = "NOT A BELT TILE";
+export const JOIN_NOT_NEXT = "NOT NEXT TO ITS JOIN TILE";
+export const JOIN_OFF_DECK = "JOIN TILE OFF THE DECK";
+export const JOIN_NO_BELT = "NO BELT TO JOIN FROM";
+
+/** The main belt route i's join points at, by shape only (no loop check), or -1. */
+function rawJoin(b: Build, i: number, occ: Occ[]): number {
+  const r = b.routes[i];
+  const j = r?.join;
+  if (j === undefined || !Number.isInteger(j) || j < 0 || j >= GRID * GRID || !r.cells.length || r.cells.includes(j)) return -1;
+  const m = occ[j].route;
+  if (m < 0 || m === i || dirBetween(r.cells[r.cells.length - 1], j) < 0) return -1;
+  return m;
+}
+
+/**
+ * 0.6.2j (J2, J12): why route i's join is illegal, or null when it is legal or absent. The reasons are player text
+ * (JOIN_*); validateBuild and routeCheck prefix them with the route. `occ` is occupancy(b).
+ */
+export function joinProblem(b: Build, i: number, occ = occupancy(b)): string | null {
+  const r = b.routes[i];
+  const j = r?.join;
+  if (j === undefined) return null;
+  if (!Number.isInteger(j) || j < 0 || j >= GRID * GRID) return JOIN_OFF_DECK;
+  if (!r.cells.length) return JOIN_NO_BELT;
+  if (r.cells.includes(j)) return JOIN_SELF;
+  const m = occ[j].route;
+  if (m < 0) return JOIN_NOT_BELT;
+  if (m === i) return JOIN_SELF;
+  if (dirBetween(r.cells[r.cells.length - 1], j) < 0) return JOIN_NOT_NEXT;
+  // no loops: following joins onward from the main belt must never come back to this belt
+  const seen = new Set<number>();
+  for (let k = m; k >= 0 && !seen.has(k); k = rawJoin(b, k, occ)) {
+    if (k === i) return JOIN_LOOP;
+    seen.add(k);
+  }
+  return null;
+}
+
+/** 0.6.2j (J1, J2): route i's legal join, or undefined (none, or an illegal one: the belt is then an open end). */
+export function joinOf(b: Build, i: number, occ = occupancy(b)): JoinLink | undefined {
+  const r = b.routes[i];
+  if (r?.join === undefined || joinProblem(b, i, occ) !== null) return undefined;
+  const m = occ[r.join].route;
+  return { route: m, tile: b.routes[m].cells.indexOf(r.join), cell: r.join, dir: dirBetween(r.cells[r.cells.length - 1], r.join) as Dir };
+}
+
+/**
+ * 0.6.2j (J2): where route i's payloads end up: follow legal joins to the chain's end; connected when every belt on
+ * the way is well formed and the end claims a turret connector (connectorClaims), whose turret turretForColumn names.
+ * For a belt that joins nothing this is routeInfo's own rule. `end` is the chain's last belt.
+ */
+export function feedOf(b: Build, i: number, claims = connectorClaims(b), occ = occupancy(b)): { connected: boolean; turret: number; end: number } {
+  let m = i, wf = true;
+  for (let n = 0; n <= b.routes.length; n++) {
+    wf = wf && routeWellFormed(b, b.routes[m]);
+    const link = b.routes[m].join === undefined ? undefined : joinOf(b, m, occ);
+    if (!link) break;
+    m = link.route;
+  }
+  const r = b.routes[m];
+  const last = r.cells[r.cells.length - 1];
+  if (!wf || last === undefined || ky(last) !== 0 || claims.get(kx(last)) !== m) return { connected: false, turret: -1, end: m };
+  return { connected: true, turret: turretForColumn(hero(b), kx(last)), end: m };
+}
+
+/** 0.6.2j (J14 (a)): a payload's journey from route i, one leg per belt in travel order: its own belt from tile 0,
+ *  then each main belt from its join tile on. [{ route: i, from: 0 }] for a belt that joins nothing. */
+export function journeyOf(b: Build, i: number, occ = occupancy(b)): { route: number; from: number }[] {
+  const legs = [{ route: i, from: 0 }];
+  let m = i;
+  for (let n = 0; n < b.routes.length; n++) {
+    const link = b.routes[m].join === undefined ? undefined : joinOf(b, m, occ);
+    if (!link) break;
+    legs.push({ route: link.route, from: link.tile });
+    m = link.route;
+  }
+  return legs;
+}
+
+/** 0.6.2j (J2): the belt at the end of route i's chain of legal joins (i itself when it joins nothing). */
+export function chainEnd(b: Build, i: number, occ = occupancy(b)): number {
+  const legs = journeyOf(b, i, occ);
+  return legs[legs.length - 1].route;
+}
+
+/** 0.6.2j (J14 (a)): the belt tiles a payload from route i rides to the end of its chain (cells.length when it joins
+ *  nothing). */
+export function journeyTiles(b: Build, i: number, occ = occupancy(b)): number {
+  return journeyOf(b, i, occ).reduce((n, leg) => n + b.routes[leg.route].cells.length - leg.from, 0);
+}
+
+/** 0.6.2j (J10): the routes whose legal join lands on route m, in route order. */
+export function joinersOf(b: Build, m: number, occ = occupancy(b)): number[] {
+  const out: number[] = [];
+  b.routes.forEach((r, i) => {
+    if (r.join !== undefined && joinOf(b, i, occ)?.route === m) out.push(i);
+  });
+  return out;
+}
+
+/**
+ * 0.6.2j (J4, J15): the speed state belt m's tiles before tile j hand on to tile j (walkRoute's per-tile
+ * speedWinner, every rig online), and the per-pulse flat of a SURGE pulse that holds there (Battle.pulseAt: the last
+ * pulse, cleared by a later speed hit). What a normal payload joining at tile j rides, whatever belt m's own ammo.
+ */
+export function beltStateAt(b: Build, m: number, j: number, hits = rigHits(b)): { speed: number; pulseFlat: number } {
+  let speed = 1, pulseFlat = 0;
+  for (let i = 0; i < j; i++) {
+    const speeds: number[] = [];
+    for (const h of hits[m]?.[i] ?? []) {
+      const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate;
+      if (!e) continue;
+      if (e.speed !== undefined) pulseFlat = 0;
+      if (e.pulse) {
+        speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
+        pulseFlat = e.pulse.flat;
+      }
+      if (e.speed) speeds.push(e.speed);
+    }
+    const won = speedWinner(speeds);
+    if (won !== undefined) speed = won;
+  }
+  return { speed, pulseFlat };
+}
+
+export interface JoinCheck {
+  ok: boolean;
+  reason?: string;
+  route?: number; // ok: the main belt
+  tile?: number; // ok: the join tile's index along it
+}
+
+/**
+ * 0.6.2j (J3): can the pending belt (drawn from factoryUid, replacing route `replacing` or -1) end by joining the belt
+ * tile k it steps into? canExtend still answers "BELTS CAN'T CROSS" for that step (the builders rely on it); the
+ * editor asks this next. Checked on the deck as it would be committed, so a join into the belt being redrawn counts
+ * only where the redraw still covers it (J8). The join tile costs no belt (J9).
+ */
+export function canJoin(b: Build, factoryUid: number, pending: number[], k: number, replacing: number): JoinCheck {
+  if (!pending.length) return { ok: false, reason: "BELTS CAN'T CROSS" }; // a belt needs a tile of its own to join from
+  if (!inGrid(kx(k), ky(k))) return { ok: false, reason: "OFF THE DECK" };
+  if (dirBetween(pending[pending.length - 1], k) < 0) return { ok: false, reason: "ORTHOGONAL ONLY" };
+  const occ = occupancy(b);
+  if (occ[k].route < 0) return { ok: false, reason: JOIN_NOT_BELT };
+  if (occ[k].route === replacing || pending.includes(k)) return { ok: false, reason: JOIN_SELF };
+  const drawn: RouteDef = { factory: factoryUid, cells: [...pending], join: k };
+  const routes = [...b.routes];
+  const idx = replacing >= 0 ? replacing : routes.length;
+  routes[idx] = drawn;
+  const trial: Build = { ...b, routes };
+  const why = joinProblem(trial, idx);
+  if (why) return { ok: false, reason: why };
+  const link = joinOf(trial, idx)!;
+  return { ok: true, route: link.route, tile: link.tile };
+}
+
+/** 0.6.2j (J14 (e)): the tiles route i could legally join from its last cell (sorted cell keys; [] for none). */
+export function joinTiles(b: Build, i: number): number[] {
+  const r = b.routes[i];
+  if (!r?.cells.length) return [];
+  const last = r.cells[r.cells.length - 1];
+  const out: number[] = [];
+  for (let d = 0; d < 4; d++) {
+    const k = arrowCell(kx(last), ky(last), d as Dir);
+    if (k < 0) continue;
+    const trial: Build = { ...b, routes: b.routes.map((q, qi) => (qi === i ? { ...q, join: k } : q)) };
+    if (joinProblem(trial, i) === null) out.push(k);
+  }
+  return out.sort((x, y) => x - y);
+}
+
+/** 0.6.2j (J14 (e)): make route i join tile k; null when done, else the refusal (joinProblem) and nothing changes. */
+export function setJoin(b: Build, i: number, k: number): string | null {
+  const r = b.routes[i];
+  if (!r) return JOIN_NO_BELT;
+  const trial: Build = { ...b, routes: b.routes.map((q, qi) => (qi === i ? { ...q, join: k } : q)) };
+  const why = joinProblem(trial, i);
+  if (why === null) r.join = k;
+  return why;
+}
+
+/** 0.6.2j (J8, J14 (e)): route i joins nothing any more: an open end until redrawn. */
+export function clearJoin(b: Build, i: number): void {
+  if (b.routes[i]) delete b.routes[i].join;
+}
+
+/**
+ * 0.6.2j (J8): clear every join that is no longer legal (its main belt removed, cut loose by a factory move or redrawn
+ * off the join tile). Such a belt becomes an open-ended, unconnected belt and never re-attaches by itself. A deck
+ * without joins is untouched. Returns the number cleared.
+ */
+export function pruneJoins(b: Build): number {
+  if (!b.routes.some((r) => r.join !== undefined)) return 0;
+  const occ = occupancy(b);
+  const bad = b.routes.map((_, i) => joinProblem(b, i, occ) !== null);
+  let n = 0;
+  b.routes.forEach((r, i) => {
+    if (bad[i]) {
+      delete r.join;
+      n++;
+    }
+  });
+  return n;
 }

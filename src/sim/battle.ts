@@ -14,6 +14,7 @@ import {
   cloneBuild, connectorClaims, defOf, installedTurrets, kx, ky, occupancy, payloadDamage, rigHits,
   routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier, type RigHit,
 } from "./deck";
+import { journeyTiles, type JoinLink } from "./deck"; // 0.6.2j: belt joins
 import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { effectAt, starsOf } from "./stars";
 import { boostable, overclocked } from "./overclock";
@@ -53,6 +54,10 @@ export interface Payload {
   frayCap?: number;
   staticTime?: number;
   boosters?: number[];
+  // 0.6.2j (J14 (a)): set once the payload rides a main belt after a join: add it to a tile's index on the belt it
+  // rides to get that tile's place on the payload's own journey (its own belt's tiles, then the main belt's from the
+  // join tile on). Absent on every payload that never joined (0). Copies inherit it.
+  journeyOffset?: number;
 }
 
 export interface BeltAmmo {
@@ -60,6 +65,7 @@ export interface BeltAmmo {
   s: number; // distance along route (px)
   processed: number; // last tile index whose centre (and hits) was passed
   blocked: boolean;
+  via?: number; // 0.6.2j, render: the joining belt it entered this route from (drawn crossing until the join tile's centre)
 }
 
 /** 0.6.2 BELTSIDE: one arrow of a rig landing on a belt tile (deck.ts RigHit, bound to the rig's state). */
@@ -117,6 +123,18 @@ export interface RouteState {
   // 0.6.1p: GUARD_* flags per cell (content.ts), set in makeSide: OVERDRIVE REDLINE/AFTERBURNER (read by wave 2's
   // enemy slow and freeze; nothing in wave 1 does) and MANTLET ★3 BULWARK SKIRT (read by Battle.disrupt)
   guard: number[];
+  // 0.6.2j: set only on a joining belt (legal join). Its payloads go to the main belt at the join tile (Battle.joins),
+  // never into a turret: `connected` is false and `turret` -1 here; `join.feeds` is its chain's turret.
+  join?: RouteJoin;
+}
+
+/** 0.6.2j (J1-J6): a joining belt's link into its main belt, read once in makeSide. */
+export interface RouteJoin {
+  route: number; // the main belt (route index)
+  tile: number; // the join tile's index along it
+  enter: number; // where a joined payload enters the main belt: the join tile's upstream edge, tile x CELL (px)
+  tail: number; // J6: the path from this belt's end to its chain's turret intake (px)
+  feeds: number; // the chain's turret (routeInfo's J2 turret), or -1 when the chain reaches none
 }
 
 export interface FactoryState {
@@ -234,6 +252,7 @@ export interface SideState {
   limpets: { at: number; target: Target; from: Side; blast: number; stall: number }[];
   stats: SideStats;
   race?: RaceSide; // races: race mechanics state; undefined for Furnace and Weaver
+  joiners?: RouteState[]; // 0.6.2j (J5): the joining belts, lowest last-cell key first; absent without joins
 }
 
 export interface Projectile {
@@ -373,8 +392,10 @@ export class Battle {
     // so one arrow on an Assembly Line's belt brings the rig online at 0 s.
     const hits = rigHits(b);
     const asm = assemblyLines(b, claims, occ, hits); // 0.6.1c ASSEMBLY LINE (empty without one: commissioning as before)
+    const links: { link: JoinLink; feeds: number }[] = []; // 0.6.2j: the joining belts' legal joins, by route index
     const routes: RouteState[] = b.routes.map((r, i) => {
       const info = routeInfo(b, i, claims, occ, hits);
+      if (info.join) links[i] = { link: info.join, feeds: info.turret };
       const rank = new Map<number, number>();
       const gateAt: TileHit[][] = (hits[i] ?? r.cells.map(() => [])).map((list) => list.flatMap((h) => {
         const g = gateByUid.get(h.uid);
@@ -398,22 +419,30 @@ export class Battle {
         return [th];
       }));
       return {
-        index: i, factory: r.factory, cells: [...r.cells], connected: info.connected, turret: info.turret,
+        // 0.6.2j: a joining belt feeds no turret intake itself (connected false, turret -1; its join below)
+        index: i, factory: r.factory, cells: [...r.cells], connected: info.connected && !info.join, turret: info.join ? -1 : info.turret,
         L: info.length, gateAt, ammo: [], cellDisrupt: r.cells.map(() => 0),
         cellFrozen: r.cells.map(() => 0), cellSlow: r.cells.map(() => ({ mul: 1, t: 0 })),
         speedAt: r.cells.map(() => 1),
-        pts: routePolyline(b, r, info.connected), phase: r.cells.map(() => 0), pressure: 0,
+        pts: routePolyline(b, r, info.connected, info.join), phase: r.cells.map(() => 0), pressure: 0,
         guard: r.cells.map(() => 0), // 0.6.1p
       };
     });
-    // Each Overclocker follows its belt to the first later payload-changing rig.
+    const joiners = joinStates(routes, links); // 0.6.2j (J1-J6): none without joins
+    // Each Overclocker follows its belt to the first later payload-changing rig. 0.6.2j (J14 (a)): on a joining belt,
+    // along the payload's journey (journeyHits): past the join when its own belt has none left, unless the Overclocker
+    // also works that main belt (its own payloads would carry it there too)
     for (const r of routes) {
-      const ordered = r.gateAt.flat();
-      for (let i = 0; i < ordered.length; i++) {
+      const own = r.gateAt.flat();
+      const ordered = r.join ? [...own, ...journeyHits(routes, r)] : own;
+      const mains = r.join ? journeyRoutes(routes, r) : [];
+      for (let i = 0; i < own.length; i++) {
         const booster = ordered[i].g;
         if (!booster.def.gate?.overclockCooldown) continue;
         const target = ordered.slice(i + 1).find((h) => h.g !== booster && boostable(h.g.def.gate!));
-        if (target) target.g.boostedBy.push({ booster, route: r.index });
+        if (target && (target.route === r.index || !booster.hits.some((h) => mains.includes(h.route)))) {
+          target.g.boostedBy.push({ booster, route: target.route });
+        }
       }
     }
     const factories: FactoryState[] = b.items
@@ -463,6 +492,7 @@ export class Battle {
       flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, wreckAccepted: 0,
       limpets: [], stats: emptyStats(),
       race: makeRaceSide(b), // races:
+      ...(joiners.length ? { joiners } : {}), // 0.6.2j
     };
   }
 
@@ -487,6 +517,7 @@ export class Battle {
     for (const s of this.sides) this.updateMachinery(s, dt);
     for (const s of this.sides) this.produce(s, dt);
     for (const s of this.sides) this.transport(s, dt);
+    for (const s of this.sides) if (s.joiners) this.joins(s); // 0.6.2j (J5): after every belt has moved
     for (const s of this.sides) this.chambers(s, dt);
     this.flight(dt);
     this.hullEffects(dt);
@@ -770,6 +801,38 @@ export class Battle {
   }
 
   /**
+   * 0.6.2j (J4, J5; SPEC 8.3's ordering rule): once a tick, after every belt has moved (step), each joining belt, lowest
+   * last-cell key first (makeSide's joiners), hands the payload waiting at its end (s >= L) to its main belt: it
+   * enters at the join tile's upstream edge (`enter`, the same path distance to the tile's centre as on one continuous
+   * belt) when no main-belt payload is within AMMO_SPACING of that point, ahead or behind; otherwise it waits and its
+   * belt backs up behind it (transport's spacing). The main belt goes first; one payload per joiner per tick; no RNG.
+   * It keeps everything it carries, joins the main belt's list in path order, and takes the join tile's hits and every
+   * later one (processed = tile - 1). journeyOffset keeps its tile count on its own journey (J14 (a)).
+   */
+  private joins(s: SideState): void {
+    for (const r of s.joiners!) {
+      const a = r.ammo[0];
+      if (!a || a.s < r.L - 1e-6) continue;
+      const j = r.join!;
+      const m = s.routes[j.route];
+      let k = 0, gap = true;
+      for (let i = 0; i < m.ammo.length; i++) {
+        const d = m.ammo[i].s - j.enter;
+        if (Math.abs(d) < AMMO_SPACING) { gap = false; break; }
+        if (d > 0) k = i + 1;
+      }
+      if (!gap) continue; // J5: the main belt has right of way
+      r.ammo.shift();
+      a.p.journeyOffset = (a.p.journeyOffset ?? 0) + r.cells.length - j.tile;
+      a.s = j.enter;
+      a.processed = j.tile - 1;
+      a.blocked = false;
+      a.via = r.index;
+      m.ammo.splice(k, 0, a);
+    }
+  }
+
+  /**
    * 0.6.2 BELTSIDE: a payload crosses a tile centre: every active hit there applies in R7 order (the list is
    * sorted). A SPLITTER-type hit's copies take the rest of this tile's hits too, so the tile treats the
    * original and its copies alike (Decision 3). A disrupted or uncommissioned rig stops all its arrows (R9).
@@ -838,7 +901,8 @@ export class Battle {
       p.flat += Math.min(e.perStalled.max, stalled * e.perStalled.each);
     }
     if (e.fray) { p.fray = (p.fray ?? 0) + e.fray; p.frayCap = Math.max(p.frayCap ?? 0, e.frayCap ?? 0); }
-    if (e.perTile) p.flat += Math.min(e.perTile.max, a.processed * e.perTile.each);
+    // 0.6.2j (J14 (a)): COUNTERWEIGHT counts the tiles ridden on the payload's own journey
+    if (e.perTile) p.flat += Math.min(e.perTile.max, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each);
     if (e.shock) {
       p.shock = true;
       // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
@@ -904,6 +968,10 @@ export class Battle {
       // payloads backed up near this turret's intakes
       let waiting = 0;
       for (const r of s.routes) {
+        if (r.join) { // 0.6.2j (J6): a joining belt's queue counts where its path through the join is that close
+          if (r.join.feeds === tu.index) for (const a of r.ammo) if (a.blocked && a.s >= r.L + r.join.tail - 4 * CELL) waiting++;
+          continue;
+        }
         if (r.turret !== tu.index || !r.connected) continue;
         for (const a of r.ammo) if (a.blocked && a.s >= r.L - 4 * CELL) waiting++;
       }
@@ -1554,6 +1622,48 @@ export function turretAt(s: Pick<SideState, "turrets">, slot: number): TurretSta
  *  starting SCRAP CANNON's 0.6.1 cadence exactly). 0.6.2s: a share, so a bought or starred turret keeps its own pace. */
 export const FURNACE_LONG_BELT = 0.72;
 
+/**
+ * 0.6.2j (J1-J6): write each joining belt's RouteJoin (makeSide's legal joins, `links` by route index): its main belt,
+ * join tile and entry point, the chain's turret, and J6's tail (the path from its end to that turret's intake: the
+ * main belt from the entry point on, and that belt's own tail when it joins on in turn). Returns the joining belts
+ * lowest last-cell key first, J5's tie order. Empty for a deck without joins.
+ */
+function joinStates(routes: RouteState[], links: { link: JoinLink; feeds: number }[]): RouteState[] {
+  const out: RouteState[] = [];
+  links.forEach((l, i) => {
+    routes[i].join = { route: l.link.route, tile: l.link.tile, enter: l.link.tile * CELL, tail: 0, feeds: l.feeds };
+    out.push(routes[i]);
+  });
+  const tail = (r: RouteState, depth: number): number => {
+    const m = routes[r.join!.route];
+    return m.L - r.join!.enter + (m.join && depth < routes.length ? tail(m, depth + 1) : 0);
+  };
+  for (const r of out) r.join!.tail = tail(r, 0);
+  return out.sort((a, c) => a.cells[a.cells.length - 1] - c.cells[c.cells.length - 1]);
+}
+
+/** 0.6.2j (J14 (a)): the main belts a payload from joining belt r rides after its own, in order. */
+function journeyRoutes(routes: RouteState[], r: RouteState): number[] {
+  const out: number[] = [];
+  for (let cur = r, n = 0; cur.join && n < routes.length; n++) {
+    out.push(cur.join.route);
+    cur = routes[cur.join.route];
+  }
+  return out;
+}
+
+/** 0.6.2j (J14 (a)): the hits a payload from joining belt r meets past its join: each main belt's from its join tile
+ *  on, tile by tile in R7 order (the Overclocker's "next boostable rig" on the payload's journey). */
+function journeyHits(routes: RouteState[], r: RouteState): TileHit[] {
+  const out: TileHit[] = [];
+  for (let cur = r, n = 0; cur.join && n < routes.length; n++) {
+    const m = routes[cur.join.route];
+    for (let t = cur.join.tile; t < m.gateAt.length; t++) out.push(...m.gateAt[t]);
+    cur = m;
+  }
+  return out;
+}
+
 export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
   const g = gearStats(b, i);
   const core = resolveCore(b, i, def);
@@ -1561,7 +1671,7 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
   // E1: Furnace's Breech keeps its opening cadence, then fires faster when a long belt feeds it.
   // The existing heavy-gun class factor still comes from the hero's 1.0s base interval.
   const longFurnaceBelt = b.hero === "furnace" && b.routes.some((r, ri) => {
-    if (r.cells.length < 8) return false;
+    if ((r.join === undefined ? r.cells.length : journeyTiles(b, ri)) < 8) return false; // 0.6.2j (J14 (a)): its journey
     const info = routeInfo(b, ri);
     return info.connected && info.turret === i;
   });
