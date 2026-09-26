@@ -5,6 +5,7 @@
 import { cellNoise } from "../core/rng";
 import { C, FACTION } from "./palette";
 import { drawCoreIcon } from "./coreArt"; // 0.6.1b
+import { drawTurretIcon } from "./turretIcon"; // 0.6.2s (REQ-BFG-031)
 import { drawFactoryArt, drawFactoryIcon } from "./factoryArt"; // 0.6.1c: the wave-1 factories
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
@@ -659,7 +660,8 @@ export function itemIcon(id: string): Cv {
       }
       default: {
         // 0.6.1c: the wave-1 factories (factoryArt.ts); 0.6.1b: turret cores (coreArt.ts)
-        if (!drawFactoryIcon(g, id) && !drawCoreIcon(g, id)) g.drawImage(gateSprite(id, 0, false), 0, 0);
+        // 0.6.2s (REQ-BFG-031 S10): turret modules (turretIcon.ts)
+        if (!drawFactoryIcon(g, id) && !drawCoreIcon(g, id) && !drawTurretIcon(g, id)) g.drawImage(gateSprite(id, 0, false), 0, 0);
       }
     }
     return c;
