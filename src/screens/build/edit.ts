@@ -4,10 +4,10 @@
 
 import { GRID, rigShape } from "../../sim/content";
 import {
-  adjacentToFactory, canExtend, commitRoute, connectorFree, defOf, inGrid, isFreeConnectorEnd, isRig,
+  adjacentToFactory, canExtend, commitRoute, connectorFree, defOf, hero, inGrid, isFreeConnectorEnd, isRig,
   itemByUid, key, kx, ky, manhattanSteps, occupancy, rotOf, routeInfo, routesOf,
 } from "../../sim/deck";
-import { HEROES, ITEMS } from "../../sim/content";
+import { ITEMS } from "../../sim/content";
 import { outputsAt, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { cellAt, footX, footY } from "../../render/frame";
@@ -342,6 +342,6 @@ export class Editor {
   freeConnectors(): number[] {
     const b = this.h.run.build;
     const rep = this.draw?.replacing ?? -1;
-    return HEROES[b.hero].turrets.flatMap((t) => t.connectors).filter((col) => connectorFree(b, col, rep));
+    return hero(b).turrets.flatMap((t) => t.connectors).filter((col) => connectorFree(b, col, rep)); // 0.6.2s: installed intakes
   }
 }

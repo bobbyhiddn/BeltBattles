@@ -6,7 +6,7 @@
 import type { Audio } from "../audio/audio";
 import { Battle, type Side, type SimEvent } from "../sim/battle";
 import { BELT_SPEED, CELL, HEROES, TICK, WINDOW_TIME } from "../sim/content";
-import type { Build } from "../sim/deck";
+import { turretSlots, type Build } from "../sim/deck";
 import { Fx } from "../render/fx";
 import { cruiserModel, type CruiserModel, type CruiserView } from "../render/cruiser";
 import type { DeckFrame } from "../render/frame";
@@ -32,8 +32,9 @@ function sideFx(b: Battle, side: Side): SideFx {
   return {
     model: cruiserModel(s.build),
     beltPhase: s.routes.map((r) => new Float32Array(r.cells.length)),
-    windup: new Float32Array(s.turrets.length),
-    recoil: new Float32Array(s.turrets.length),
+    // 0.6.2s (REQ-BFG-031 S9): per TURRET SLOT (the index a turret's events carry), empty slots included
+    windup: new Float32Array(turretSlots(s.build).length),
+    recoil: new Float32Array(turretSlots(s.build).length),
     hpShown: s.hull.hp, chipHold: 0, barFlash: 0, lastHp: s.hull.hp, smokeT: 0,
   };
 }
@@ -158,8 +159,8 @@ export class Arena {
       }
     }
     // turret wind-up (anticipation) and recoil read from chamber state
-    for (let i = 0; i < s.turrets.length; i++) {
-      const tu = s.turrets[i];
+    for (let n = 0; n < s.turrets.length; n++) {
+      const tu = s.turrets[n], i = tu.index; // 0.6.2s: the slot
       let w = 0;
       if (tu.disrupted > 0) w = 0;
       else if (tu.phase === "fire") w = tu.stack.length ? Math.max(0.35, 1 - tu.fireCd / 0.35) : 0;

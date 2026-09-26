@@ -11,9 +11,12 @@ import { AMMO, type FactorySpec, type ItemDef } from "../../sim/content"; // 0.6
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 // beltside-062: BELTSIDE's walk and rig hits replace 0.6.1r's estimateRoute and key (the gate-on-a-belt sub line)
 import {
-  arrowsOf, beltUsed, connectedRouteCount, defOf, gearFor, hitsOfRig, itemByUid, routeInfo, routesOf, walkRoute,
-  type TimelineHit,
+  arrowsOf, beltUsed, connectedRouteCount, defOf, gearFor, hitsOfRig, installedTurrets, itemByUid, routeInfo, routesOf,
+  turretSlots, walkRoute, type Build, type TimelineHit,
 } from "../../sim/deck";
+
+/** 0.6.2s (REQ-BFG-031 S2): the build's intakes: its installed turrets' belt columns (an empty slot has none). */
+const intakeCount = (b: Build): number => turretSlots(b).reduce((n, s) => n + s.intakes.length, 0);
 import { resolveCore, scaleCore, type TurretCore } from "../../sim/cores"; // 0.6.1b; 0.6.1r N4: scaleCore
 import { C, RARITY_COLOR } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
@@ -134,7 +137,7 @@ function coreLine(def: string, stars: number, k: number): string {
 /** 0.6.1r N4: the class factor a core in this run's cargo or shop would fire at: the hero's turrets (all of one
  *  class today: FURNACE heavy k 1, WEAVER light k 0.55), as resolveCore scales it once fitted. */
 function heroK(run: Run): number {
-  const td = HEROES[run.hero]?.turrets[0];
+  const td = installedTurrets(run.build)[0]?.td; // 0.6.2s: the first installed turret (the hero's first, at the start)
   return td ? classFactor(td) : 1;
 }
 
@@ -410,7 +413,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       };
     }
     case "turret": {
-      const td = HEROES[b.hero].turrets[show.index];
+      const td = turretSlots(b)[show.index]?.td; // 0.6.2s: the installed turret (an empty slot has none)
       if (!td) return null;
       const gm = gearFor(b, show.index); // 0.6.1b: gear only; the core has its own socket (coreFor via resolveCore)
       const gear = gm ? ITEMS[gm.def] : null;
@@ -642,7 +645,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe): vo
   const big: [string, string, string][] = [
     ["HULL", String(h.hull + b.hullBonus), C.white],
     ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],
-    ["FEEDS", `${connectedRouteCount(b)}/${h.turrets.reduce((n, tt) => n + tt.connectors.length, 0)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
+    ["FEEDS", `${connectedRouteCount(b)}/${intakeCount(b)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
     ["RUN", `W-L ${record(run)}`, C.white],
     ["LIVES", `${run.lives}/${START_LIVES}`, C.white],
   ];
@@ -664,7 +667,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe): vo
   const rows: [string, string, string][] = [
     ["HULL", String(h.hull + b.hullBonus), C.white],
     ["BELT", `${used}/${cap} TILES`, used >= cap ? C.amber : C.white],
-    ["FEEDS", `${connectedRouteCount(b)}/${h.turrets.reduce((n, tt) => n + tt.connectors.length, 0)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
+    ["FEEDS", `${connectedRouteCount(b)}/${intakeCount(b)} INTAKES`, connectedRouteCount(b) ? C.lime : C.red],
     ["RUN", `W-L ${record(run)} · ${run.lives}/${START_LIVES} LIVES`, C.white],
   ];
   const r = column ? { ...area, h: Math.min(area.h, 29 + rows.length * 8) } : area;
@@ -688,7 +691,7 @@ function drawHeroStrip(g: G, run: Run, r: Rect): void {
   const h = HEROES[run.hero];
   const b = run.build;
   const used = beltUsed(b), cap = b.beltCap;
-  const feeds = connectedRouteCount(b), intakes = h.turrets.reduce((n, tt) => n + tt.connectors.length, 0);
+  const feeds = connectedRouteCount(b), intakes = intakeCount(b);
   panel(g, r, "dark");
   let y = r.y + 5;
   drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });

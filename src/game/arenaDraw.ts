@@ -91,8 +91,8 @@ function drawShells(g: G, a: Arena): void {
     const pr = b.projectiles[n];
     if (!a.show[pr.from]) continue;
     const from = a.drawn[pr.from], to = a.drawn[(1 - pr.from) as Side];
-    const hero = b.sides[pr.from].build.hero;
-    const x0 = muzzleX(from, hero, pr.turret, pr.id), y0 = muzzleY(from, hero, pr.turret, pr.id);
+    const hb = b.sides[pr.from].build; // 0.6.2s: the build's turret slots
+    const x0 = muzzleX(from, hb, pr.turret, pr.id), y0 = muzzleY(from, hb, pr.turret, pr.id);
     const x1 = sx(to, pr.tx, pr.ty), y1 = sy(to, pr.tx, pr.ty);
     const dx = x1 - x0, dy = y1 - y0;
     const dist = Math.abs(dx) + Math.abs(dy);

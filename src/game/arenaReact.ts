@@ -114,8 +114,8 @@ export function react(a: Arena, e: SimEvent): void {
       return;
     case "fire": {
       const fr = a.drawn[e.side];
-      const hero = a.b.sides[e.side].build.hero;
-      const x = muzzleX(fr, hero, e.turret, e.proj), y = muzzleY(fr, hero, e.turret, e.proj);
+      const hb = a.b.sides[e.side].build; // 0.6.2s: the build's turret slots
+      const x = muzzleX(fr, hb, e.turret, e.proj), y = muzzleY(fr, hb, e.turret, e.proj);
       const d = bowDir(a, e.side);
       const dx = d === 1 ? 1 : d === 3 ? -1 : 0, dy = d === 2 ? 1 : d === 0 ? -1 : 0;
       fx.muzzle(x + dx * 3, y + dy * 3, e.heavy, d);
@@ -163,8 +163,8 @@ export function react(a: Arena, e: SimEvent): void {
     }
     case "jam": {
       const fr = a.drawn[e.side];
-      const hero = a.b.sides[e.side].build.hero;
-      fx.smoke(muzzleX(fr, hero, e.turret), muzzleY(fr, hero, e.turret), 4, true, 14);
+      const hb = a.b.sides[e.side].build; // 0.6.2s: the build's turret slots
+      fx.smoke(muzzleX(fr, hb, e.turret), muzzleY(fr, hb, e.turret), 4, true, 14);
       snd?.play("jam");
       return;
     }

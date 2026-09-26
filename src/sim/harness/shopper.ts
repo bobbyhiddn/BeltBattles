@@ -11,9 +11,9 @@
 // survivor) on its cell with its rotation (fuse.ts survivor rule 2); stars off is v2's stars-off, on rigs.
 
 import type { Rng } from "../../core/rng";
-import { AMMO, HEROES, ITEMS, type ItemDef } from "../content";
+import { AMMO, ITEMS, type ItemDef } from "../content";
 import {
-  arrowCell, cloneBuild, connectorClaims, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
+  arrowCell, cloneBuild, connectorClaims, hero, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
   type Build, type Dir, type Placed,
 } from "../deck";
 import { freeForRig, intakeCell, placeRigAt, spotForTile, type WouldHit } from "../beltside";
@@ -319,7 +319,7 @@ export class Shopper {
 
   /** The other connector of route `ri`'s turret, if no route besides `ri` and `sib` claims it. */
   partnerCol(ri: number, sib: number): number {
-    const h = HEROES[this.b.hero], col = this.connectorOf(ri);
+    const h = hero(this.b), col = this.connectorOf(ri); // 0.6.2s: the build's slots (deck.ts hero)
     const t = col >= 0 ? turretForColumn(h, col) : -1;
     if (t < 0) return -1;
     const free = new Set([...freeConnectors(this.b, ri)].filter((c) => c !== col));
@@ -330,7 +330,7 @@ export class Shopper {
 
   /** Both twin routes the same length, into the two connectors of one turret. */
   twinsMatched(a: number, b: number): boolean {
-    const h = HEROES[this.b.hero], ca = this.connectorOf(a), cb = this.connectorOf(b);
+    const h = hero(this.b), ca = this.connectorOf(a), cb = this.connectorOf(b); // 0.6.2s: the build's slots
     if (ca < 0 || cb < 0 || ca === cb) return false;
     return this.b.routes[a].cells.length === this.b.routes[b].cells.length && turretForColumn(h, ca) === turretForColumn(h, cb);
   }

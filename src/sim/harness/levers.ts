@@ -26,8 +26,8 @@
 
 import { AMMO, GRID, HEROES, ITEMS, rarityWeights, type ItemDef } from "../content";
 import {
-  cloneBuild, coreFor, footprint, gearFor, hitsOfRig, itemByUid, occupancy, rigHits, rotOf, routeInfo, routesOf, setRot,
-  type Build, type Placed, type RigHit,
+  cloneBuild, coreFor, footprint, gearFor, hero, hitsOfRig, installedTurrets, itemByUid, occupancy, rigHits, rotOf,
+  routeInfo, routesOf, setRot, type Build, type Placed, type RigHit,
 } from "../deck";
 import { beltIndex, hitsIfPlaced, rotations, type WouldHit } from "../beltside";
 import { outputsAt, starsOf } from "../stars";
@@ -44,10 +44,15 @@ export const LEVERS: readonly Lever[] = ["gate", "mod", "plating", "route", "pre
 /** 0.6.1b: turrets whose gear hardpoint is free. The core socket is separate: deck.ts
  *  turretHasFreeHardpoint/gearFor (c432bee deck.ts:483-489) count gear only. With no core fitted this is
  *  exactly v1's "no module on the turret". */
-const gearFree = (b: Build): number[] => HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !gearFor(b, t));
+const gearFree = (b: Build): number[] => turretIndices(b).filter((t) => !gearFor(b, t));
+/** 0.6.2s (REQ-BFG-031 S9): the build's installed turrets' slots (deck.ts installedTurrets): 0..n-1 for the
+ *  starting layout, which is every deck the harness builds, so every list and RNG draw below is unchanged. */
+function turretIndices(b: Build): number[] {
+  return installedTurrets(b).map((s) => s.slot);
+}
 /** 0.6.1b: turrets whose core socket is empty (deck.ts coreFor, c432bee deck.ts:478): they run the hero's
  *  implicit signature core (ARSENAL.md §2.1 rule 1), which is never an item and never bought. */
-const socketFree = (b: Build): number[] => HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !coreFor(b, t));
+const socketFree = (b: Build): number[] => turretIndices(b).filter((t) => !coreFor(b, t));
 
 export function canApply(s: Shopper, l: Lever): boolean {
   const left = s.left(), b = s.b;
@@ -119,7 +124,7 @@ function mod(s: Shopper): boolean {
 
 /** Turrets some belt feeds (the mod lever's "live" guns, v1). */
 function fedTurrets(b: Build): Set<number> {
-  const h = HEROES[b.hero];
+  const h = hero(b); // 0.6.2s: the build's slots (an empty one has no connectors, so it never matches)
   return new Set(b.routes.map((r) => h.turrets.findIndex((t) => t.connectors.includes(r.cells[r.cells.length - 1] % GRID))));
 }
 
@@ -151,7 +156,7 @@ function core(s: Shopper): boolean {
     const fed = fedTurrets(b), live = empty.filter((t) => fed.has(t));
     turret = s.rng.pick(live.length ? live : empty);
   } else {
-    const other = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => coreFor(b, t)!.def !== d.id);
+    const other = turretIndices(b).filter((t) => coreFor(b, t)!.def !== d.id);
     if (!other.length) return false;
     turret = s.rng.pick(other);
     s.swaps++;

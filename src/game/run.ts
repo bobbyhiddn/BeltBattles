@@ -16,8 +16,10 @@ import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
 import { fusible, starField, starsOf } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
-import { HEROES } from "../sim/content"; // 0.6.1b: fitCore
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
+import {
+  canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretSellValue, turretSlots, type TurretOpResult,
+} from "../sim/deck"; // 0.6.2s (REQ-BFG-031): turret slots
 
 export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6 } from "./save";
 export type { PendingBounty, PendingSabotage, RoadChoice, RoadPick, WarlordFight, WarlordOutcome, WarlordResult, WarlordReward } from "./roadTypes";
@@ -26,6 +28,7 @@ export interface InvItem {
   uid: number;
   def: string;
   stars?: number; // 0.6.1a: 2 or 3 after a merge; absent = 1 (never written as 1)
+  free?: boolean; // 0.6.2s (REQ-BFG-031 S7): a turret holding its hull's free starting copy; absent = false
 }
 
 export interface Offer {
@@ -409,7 +412,8 @@ export function storeMod(run: Run, uid: number): boolean {
  */
 export function fitCore(run: Run, uid: number, turret: number): boolean {
   const b = run.build;
-  if (!Number.isInteger(turret) || turret < 0 || turret >= HEROES[b.hero].turrets.length) return false;
+  // 0.6.2s (REQ-BFG-031 S4): a core fits an installed turret's socket; an empty TURRET SLOT has no socket
+  if (!Number.isInteger(turret) || !turretSlots(b)[turret]?.turret) return false;
   const inCargo = run.inventory.find((i) => i.uid === uid);
   const fitted = b.mods.find((m) => m.uid === uid);
   const def = inCargo?.def ?? fitted?.def;
@@ -424,11 +428,60 @@ export function fitCore(run: Run, uid: number, turret: number): boolean {
   return true;
 }
 
-/** Sell a cargo copy for sellValue(def, stars) = max(1, floor(valueOf / 2)) (0.6.1a). */
+/** Sell a cargo copy for sellValue(def, stars) = max(1, floor(valueOf / 2)) (0.6.1a). 0.6.2s (S7): a turret sells
+ *  for turretSellValue (its value counts a free starting copy as 0); a 1-star starting turret can't be sold (0, kept). */
 export function sellInventory(run: Run, uid: number): number {
+  const held = run.inventory.find((i) => i.uid === uid);
+  if (held && isTurretDef(held.def) && !canSellTurret(held)) return 0;
   const it = takeFromInventory(run, uid);
   if (!it) return 0;
-  const v = sellValue(it.def, starsOf(it));
+  const v = isTurretDef(it.def) ? turretSellValue(it) : sellValue(it.def, starsOf(it));
+  run.gold += v;
+  return v;
+}
+
+// ---- 0.6.2s (REQ-BFG-031 S5): turrets between cargo and the hull's TURRET SLOTS (deck.ts does the work; what it
+// hands back goes to cargo with its stars and free flag). Moving never merges.
+
+function backToCargo(run: Run, r: TurretOpResult): void {
+  for (const t of r.turrets) run.inventory.push({ uid: t.uid, def: t.def, ...starField(starsOf(t)), ...(t.free ? { free: true } : {}) });
+  for (const m of r.mods) run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) });
+}
+
+/** Install cargo turret `uid` in slot `slot` (an occupied slot swaps: its turret goes to cargo). */
+export function installFromCargo(run: Run, uid: number, slot: number): TurretOpResult {
+  const it = run.inventory.find((i) => i.uid === uid);
+  if (!it || !isTurretDef(it.def)) return { ok: false, reason: "NOT A TURRET IN CARGO", turrets: [], mods: [] };
+  const r = installTurret(run.build, it, slot);
+  if (!r.ok) return r;
+  takeFromInventory(run, uid);
+  backToCargo(run, r);
+  return r;
+}
+
+/** Move the turret in slot `from` to slot `to` (an occupied target swaps). */
+export function moveInstalled(run: Run, from: number, to: number): TurretOpResult {
+  const r = moveTurret(run.build, from, to);
+  if (r.ok) backToCargo(run, r);
+  return r;
+}
+
+/** Take the turret in slot `slot` to cargo (its slot's core and gear go to cargo too). */
+export function storeTurret(run: Run, slot: number): TurretOpResult {
+  const r = removeTurret(run.build, slot);
+  if (r.ok) backToCargo(run, r);
+  return r;
+}
+
+/** Sell the turret in slot `slot` at turretSellValue; the slot's core and gear go to cargo. 0 (nothing changes) when
+ *  the slot is empty or holds a 1-star starting turret. */
+export function sellInstalled(run: Run, slot: number): number {
+  const t = turretSlots(run.build)[slot]?.turret;
+  if (!t || !canSellTurret(t)) return 0;
+  const r = removeTurret(run.build, slot);
+  if (!r.ok) return 0;
+  for (const m of r.mods) run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) });
+  const v = turretSellValue(t);
   run.gold += v;
   return v;
 }

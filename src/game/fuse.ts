@@ -6,11 +6,16 @@
 // any run mutation no two fusible copies share a def and a star level below FUSE_MAX.
 
 import { ITEMS } from "../sim/content";
-import { coreFor, removeItem, rotField, routesOf } from "../sim/deck";
+import { coreFor, removeItem, removeTurret, rotField, routesOf, setTurretList, turretList } from "../sim/deck";
 import { FUSE_MAX, fusible, starField, starsOf } from "../sim/stars";
-import type { Run } from "./run";
+import type { InvItem, Run } from "./run";
 
-export type FuseWhere = "cargo" | "deck" | "turret";
+// 0.6.2s (REQ-BFG-031 S6, S7): turrets merge like every buyable module. An installed turret is a copy "slot"
+// (Build.turrets, or the starting layout); a cargo turret is a cargo copy. Two FREE copies (each holding a hull's
+// starting copy) never merge with each other: WEAVER keeps its three starting DART GUNs. A merge result is free when
+// either copy was (it contains the starting copy), so its value is price x (2^(stars-1) - 1). An absorbed installed
+// turret empties its slot; that slot's core and gear go to cargo (an empty slot holds none).
+export type FuseWhere = "cargo" | "deck" | "turret" | "slot";
 
 /** One merge: `absorbed` merged into `survivor`, which now has `stars` and sits at `where`. */
 export interface FuseStep {
@@ -36,34 +41,54 @@ export interface Gain {
   where: FuseWhere;
 }
 
-interface Copy { uid: number; def: string; stars: number; where: FuseWhere; belts: number }
+interface Copy { uid: number; def: string; stars: number; where: FuseWhere; belts: number; free?: boolean; slot?: number }
 
 function copiesOf(run: Run, def?: string): Copy[] {
   const b = run.build;
   const out: Copy[] = [];
   for (const p of b.items) if (!def || p.def === def) out.push({ uid: p.uid, def: p.def, stars: starsOf(p), where: "deck", belts: routesOf(b, p.uid).length });
   for (const m of b.mods) if (!def || m.def === def) out.push({ uid: m.uid, def: m.def, stars: starsOf(m), where: "turret", belts: 0 });
-  for (const i of run.inventory) if (!def || i.def === def) out.push({ uid: i.uid, def: i.def, stars: starsOf(i), where: "cargo", belts: 0 });
+  // 0.6.2s: installed turrets (the starting layout's free copies when Build.turrets is absent)
+  for (const t of turretList(b)) if (!def || t.def === def) out.push({ uid: t.uid, def: t.def, stars: starsOf(t), where: "slot", belts: 0, ...(t.free ? { free: true } : {}), slot: t.slot });
+  for (const i of run.inventory) if (!def || i.def === def) out.push({ uid: i.uid, def: i.def, stars: starsOf(i), where: "cargo", belts: 0, ...(i.free ? { free: true } : {}) });
   return out;
 }
+
+/** 0.6.2s S6: may copies x and y (same def, same stars) merge? Not two free starting copies. */
+const mergeable = (x: Copy, y: Copy) => !(x.free && y.free);
 
 function find(run: Run, uid: number): Copy | undefined {
   return copiesOf(run).find((c) => c.uid === uid);
 }
 
-function setStars(run: Run, uid: number, stars: number): void {
-  const o = run.build.items.find((p) => p.uid === uid) ?? run.build.mods.find((m) => m.uid === uid) ?? run.inventory.find((i) => i.uid === uid);
+function setStars(run: Run, uid: number, stars: number, free = false): void {
+  const b = run.build;
+  const tl = turretList(b), t = tl.find((x) => x.uid === uid);
+  if (t) { // 0.6.2s: an installed turret (free stays set once the starting copy is inside)
+    if (stars > 1) t.stars = stars;
+    else delete t.stars;
+    if (free) t.free = true;
+    setTurretList(b, tl);
+    return;
+  }
+  const o = b.items.find((p) => p.uid === uid) ?? b.mods.find((m) => m.uid === uid) ?? run.inventory.find((i) => i.uid === uid);
   if (!o) return;
   if (stars > 1) o.stars = stars;
   else delete o.stars;
+  if (free && run.inventory.includes(o as InvItem)) (o as InvItem).free = true; // 0.6.2s: a cargo turret
 }
 
 /** Remove a copy from its spot. A gate's cell becomes plain belt (routes are RouteDef.cells), a
- *  factory takes its belts with it, a mod frees its hardpoint. Returns the belts removed. */
+ *  factory takes its belts with it, a mod frees its hardpoint. Returns the belts removed. 0.6.2s: an installed
+ *  turret empties its slot; the slot's core and gear go to cargo, stars kept. */
 function absorb(run: Run, c: Copy): number {
   if (c.where === "deck") {
     removeItem(run.build, c.uid);
     return c.belts;
+  }
+  if (c.where === "slot") {
+    for (const m of removeTurret(run.build, c.slot!).mods) run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) });
+    return 0;
   }
   if (c.where === "turret") run.build.mods = run.build.mods.filter((m) => m.uid !== c.uid);
   else run.inventory = run.inventory.filter((i) => i.uid !== c.uid);
@@ -91,13 +116,13 @@ function chain(run: Run, uid: number, arrivingFirst: boolean): FuseStep[] {
   let first = true;
   while (cur && fusible(cur.def) && cur.stars < FUSE_MAX) {
     const c = cur;
-    const twin = copiesOf(run, c.def).filter((t) => t.uid !== c.uid && t.stars === c.stars).sort((x, y) => x.uid - y.uid)[0];
+    const twin = copiesOf(run, c.def).filter((t) => t.uid !== c.uid && t.stars === c.stars && mergeable(c, t)).sort((x, y) => x.uid - y.uid)[0];
     if (!twin) break;
     const keep = survivorOf(c, twin, first && !arrivingFirst ? null : c.uid);
     const lose = keep === c ? twin : c;
     const belts = absorb(run, lose);
     const stars = c.stars + 1;
-    setStars(run, keep.uid, stars);
+    setStars(run, keep.uid, stars, !!lose.free); // 0.6.2s: free is kept when the starting copy merges in
     steps.push({ def: c.def, absorbed: lose.uid, survivor: keep.uid, stars, where: keep.where, ...(belts ? { belts } : {}) });
     cur = find(run, keep.uid);
     first = false;
@@ -126,7 +151,7 @@ export function fuseAll(run: Run): FuseStep[] {
   const steps: FuseStep[] = [];
   for (;;) {
     const all = copiesOf(run).filter((c) => fusible(c.def) && c.stars < FUSE_MAX).sort((x, y) => x.stars - y.stars || x.uid - y.uid);
-    const c = all.find((x) => all.some((y) => y !== x && y.def === x.def && y.stars === x.stars));
+    const c = all.find((x) => all.some((y) => y !== x && y.def === x.def && y.stars === x.stars && mergeable(x, y)));
     if (!c) return steps;
     steps.push(...chain(run, c.uid, false));
   }
@@ -170,9 +195,18 @@ export function mergePreview(run: Run, def: string): { toStars: number; survivor
 
 /** Invariant check: one message per def and star level (below FUSE_MAX) held more than once. */
 export function unfusedInRun(run: Run): string[] {
-  const n = new Map<string, number>();
-  for (const c of copiesOf(run)) if (fusible(c.def) && c.stars < FUSE_MAX) n.set(`${c.def}*${c.stars}`, (n.get(`${c.def}*${c.stars}`) ?? 0) + 1);
-  return [...n].filter(([, k]) => k > 1).map(([key, k]) => { const [d, s] = key.split("*"); return `UNFUSED PAIR: ${ITEMS[d].name} ★${s} x${k}`; });
+  // 0.6.2s: per def and star level, N ordinary and F free copies; a pair is unfused iff N >= 1 and N + F >= 2
+  // (two free starting copies never merge). With no free copies this is the 0.6.1a rule (k > 1).
+  const n = new Map<string, { n: number; f: number }>();
+  for (const c of copiesOf(run)) {
+    if (!fusible(c.def) || c.stars >= FUSE_MAX) continue;
+    const e = n.get(`${c.def}*${c.stars}`) ?? { n: 0, f: 0 };
+    if (c.free) e.f++;
+    else e.n++;
+    n.set(`${c.def}*${c.stars}`, e);
+  }
+  return [...n].filter(([, e]) => e.n >= 1 && e.n + e.f >= 2)
+    .map(([key, e]) => { const [d, s] = key.split("*"); return `UNFUSED PAIR: ${ITEMS[d].name} ★${s} x${e.n + e.f}`; });
 }
 
 /** A copy of `o` with the star field of `stars` (absent at 1 star): moving parts keeps their stars. */

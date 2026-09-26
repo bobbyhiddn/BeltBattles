@@ -3,8 +3,8 @@
 // hook in battle.ts is guarded on it, so Furnace/Weaver battles run exactly the pre-races code
 // path (tests/races.golden.test.ts).
 
-import { FRAY_MAX, HEROES, type AmmoDef } from "../content";
-import type { Build } from "../deck";
+import { FRAY_MAX, type AmmoDef } from "../content";
+import { turretSlots, type Build } from "../deck";
 import type { FactoryState, Payload, Projectile, RouteState, SideState, TurretState } from "../battle";
 import { absorb, newPlateState, plateOnLoad, type PlateState } from "./bastion";
 import {
@@ -33,7 +33,7 @@ export interface RaceSide {
 function newRaceSide(b: Build): RaceSide {
   return {
     hero: b.hero, foundry: newFoundryState(), plating: newPlateState(), speedLock: speedLocked(b.hero),
-    shift: HEROES[b.hero].turrets.map((_, i) => pendulumShift(b, i)),
+    shift: turretSlots(b).map((s) => pendulumShift(b, s.slot)), // 0.6.2s: per slot (an empty one has no mods: 0)
     drag: newDragState(b.routes), echo: newEchoState(),
   };
 }

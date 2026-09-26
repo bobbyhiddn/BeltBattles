@@ -8,7 +8,7 @@
 // HULLBREAKER skips the target draw.
 
 import { HEROES, classFactor, type CoreRoutine, type CoreSpec, type TurretDef } from "./content";
-import { coreFor, type Build } from "./deck";
+import { coreFor, turretSlots, type Build } from "./deck";
 import { effectAt, starsOf } from "./stars";
 import type { TurretState } from "./battle";
 
@@ -47,14 +47,20 @@ export interface TurretCore {
 
 /**
  * Turret t's core in build b: its bought core (coreFor) at its stars, scaled by k, or else the hero's signature
- * core running the identity routine. `td` defaults to the hero's TurretDef (tests pass a stand-in).
+ * core running the identity routine. `td` defaults to the turret installed in slot t (0.6.2s: deck.ts turretSlots;
+ * tests pass a stand-in). The signature core runs on any turret when no core is bought (S3).
  */
-export function resolveCore(b: Build, t: number, td: TurretDef = HEROES[b.hero].turrets[t]): TurretCore {
+export function resolveCore(b: Build, t: number, td: TurretDef = slotDef(b, t)): TurretCore {
   const k = classFactor(td);
   const m = coreFor(b, t);
   const spec = m ? effectAt(m.def, starsOf(m)).core : undefined;
   if (!m || !spec) return { def: HEROES[b.hero].core ?? "", bought: false, routine: "identity", stars: 1, k, spec: IDENTITY_CORE };
   return { def: m.def, bought: true, routine: spec.routine, stars: starsOf(m), k, spec: scaleCore(spec, k) };
+}
+
+/** 0.6.2s: the TurretDef installed in slot t (the helper); an empty or unknown slot falls back to the hull's starting turret. */
+function slotDef(b: Build, t: number): TurretDef {
+  return turretSlots(b)[t]?.td ?? HEROES[b.hero].turrets[t] ?? HEROES[b.hero].turrets[0];
 }
 
 /**

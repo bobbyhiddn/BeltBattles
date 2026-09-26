@@ -10,7 +10,7 @@
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
 import { startingBuild } from "../src/sim/ai";
-import { occupancy, type Build } from "../src/sim/deck";
+import { installedTurrets, occupancy, type Build } from "../src/sim/deck";
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { checkSnapshot, encodeSnapshot, MAX_DAY, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
@@ -42,7 +42,7 @@ function shopper(hero: HeroId, day: number, rng: Rng): Build {
     const left = budget - buildCost(b).total;
     const roll = rng.next();
     if (roll < 0.15) {
-      const free = HEROES[hero].turrets.map((_, i) => i).filter((t) => !b.mods.some((m) => m.turret === t));
+      const free = installedTurrets(b).map((s) => s.slot).filter((t) => !b.mods.some((m) => m.turret === t)); // 0.6.2s
       const d = rng.pick(MODS);
       if (free.length && d.price <= left) b.mods.push({ uid: uid++, def: d.id, turret: rng.pick(free) });
     } else if (roll < 0.3) {

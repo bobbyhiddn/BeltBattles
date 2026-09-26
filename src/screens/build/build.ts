@@ -10,8 +10,8 @@ import { mergePreview } from "../../game/fuse";
 import type { FuseStep } from "../../game/fuse";
 import { ForkScreen } from "../fork/fork";
 import { EVENTS } from "../../game/eventDefs";
-import { HEROES, ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
-import { connectedRouteCount, defOf, hitsOfRig, isRig, itemByUid, kx, ky, rigHits, walkRoute } from "../../sim/deck";
+import { ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
+import { connectedRouteCount, defOf, hitsOfRig, isRig, itemByUid, kx, ky, rigHits, turretSlots, walkRoute } from "../../sim/deck";
 import { NOWHERE, fightBlock, routeCheck } from "../../game/routeCheck";
 import { settings } from "../../core/settings";
 import { Fx } from "../../render/fx";
@@ -190,15 +190,17 @@ export class BuildScreen implements Screen, EditHost {
     return null;
   }
 
+  /** 0.6.2s (REQ-BFG-031 S9, S10): TURRET SLOT i's hit box (deck.ts turretSlots); an empty slot's mount is a heavy's size. */
   turretRect(i: number): Rect {
-    const td = HEROES[this.run.build.hero].turrets[i];
-    const x = turretPivotX(this.L.frame, td.col0, td.width), y = turretPivotY(this.L.frame, td.col0, td.width);
-    const r = td.kind === "heavy" ? 12 : 9;
+    const s = turretSlots(this.run.build)[i];
+    const x = turretPivotX(this.L.frame, s.col0, s.width), y = turretPivotY(this.L.frame, s.col0, s.width);
+    const r = !s.td || s.td.kind === "heavy" ? 12 : 9;
     return { x: Math.round(x - r), y: Math.round(y - r), w: r * 2, h: r * 2 };
   }
 
+  /** The TURRET SLOT under (x, y), empty or not, or -1. */
   turretAt(x: number, y: number): number {
-    const n = HEROES[this.run.build.hero].turrets.length;
+    const n = turretSlots(this.run.build).length;
     for (let i = 0; i < n; i++) if (inside(this.turretRect(i), x, y)) return i;
     return -1;
   }

@@ -2,17 +2,19 @@
 // brass filigree, crystal lamps, side fins and glow ports. Kept off the turret mounts.
 
 import { HEROES, type HeroId } from "../sim/content";
+import { turretSlots } from "../sim/deck";
 import { C, type FactionPalette } from "./palette";
 import { BOW, HULL_A, HULL_L, SIDE } from "./frame";
 import type { HullPainter } from "./hull";
 
 const A = HULL_A, L = HULL_L;
 
-/** Hull-local x spans covered by turret bases (kept clear of decoration). */
+/** Hull-local x spans covered by turret bases (kept clear of decoration). 0.6.2s (REQ-BFG-031 S1, S9): every TURRET
+ *  SLOT of the hull, the empty extra one too (any turret can go there; a heavy's base is the widest). No build here. */
 function turretSpans(hero: HeroId): [number, number][] {
-  return HEROES[hero].turrets.map((t) => {
-    const cx = SIDE + (t.col0 + t.width / 2) * 12;
-    const r = t.kind === "heavy" ? 14 : 10;
+  return turretSlots({ hero }).map((s) => {
+    const cx = SIDE + (s.col0 + s.width / 2) * 12;
+    const r = s.td ? (s.td.kind === "heavy" ? 14 : 10) : 14;
     return [cx - r, cx + r];
   });
 }

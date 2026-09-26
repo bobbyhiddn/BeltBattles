@@ -4,8 +4,8 @@
 // expansion budget, so it is fast, deterministic for a given Rng, and may fail (null).
 
 import type { Rng } from "../../core/rng";
-import { GRID, HEROES, ITEMS } from "../content";
-import { DX, DY, footprint, inGrid, key, kx, ky, type Build } from "../deck";
+import { GRID, ITEMS } from "../content";
+import { DX, DY, footprint, hero, inGrid, key, kx, ky, type Build } from "../deck";
 
 const dist = (a: number, b: number) => Math.abs(kx(a) - kx(b)) + Math.abs(ky(a) - ky(b));
 
@@ -52,7 +52,7 @@ export function freeConnectors(b: Build, except = -1): number[] {
     if (ky(last) === 0) taken.add(kx(last));
   });
   for (const p of b.items) for (const k of footprint(ITEMS[p.def], p.x, p.y)) if (ky(k) === 0) taken.add(kx(k));
-  return HEROES[b.hero].turrets.flatMap((t) => t.connectors).filter((c) => !taken.has(c));
+  return hero(b).turrets.flatMap((t) => t.connectors).filter((c) => !taken.has(c)); // 0.6.2s: installed intakes
 }
 
 /** Shortest possible route (tiles) from any start to connector column `col`, or Infinity. */

@@ -2,8 +2,8 @@
 // preview on deck cells (green on a belt, amber off-belt, red refused), a ghost at the
 // suggested drop cell for a selected card, and an arrow at FIGHT once something is placed.
 
-import { GRID, HEROES, ITEMS } from "../../sim/content";
-import { canPlaceItem, defOf, isRig, kx, ky, rigArrows, type Build } from "../../sim/deck";
+import { GRID, ITEMS } from "../../sim/content";
+import { canFitGear, canPlaceItem, defOf, hero, isRig, kx, ky, rigArrows, turretSlots, type Build } from "../../sim/deck";
 import { beltIndex, bestSpot, hitsIfPlaced } from "../../sim/beltside";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { bevel, frame, rect, type G } from "../../render/pixel";
@@ -158,10 +158,11 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
   if (def.kind === "mod" || def.kind === "core") {
     const ti = turretAt(px, py);
     if (ti >= 0) {
-      const td = HEROES[b.hero].turrets[ti];
-      const x = Math.round(turretPivotX(L.frame, td.col0, td.width)), y = Math.round(turretPivotY(L.frame, td.col0, td.width));
-      // 0.6.1b: gear needs a free hardpoint; a core always fits its socket (a bought core there swaps to cargo)
-      const taken = def.kind === "mod" && b.mods.some((m) => m.turret === ti && m.uid !== c.uid && ITEMS[m.def]?.kind !== "core");
+      const s = turretSlots(b)[ti]; // 0.6.2s (REQ-BFG-031 S9): the build's slot
+      const x = Math.round(turretPivotX(L.frame, s.col0, s.width)), y = Math.round(turretPivotY(L.frame, s.col0, s.width));
+      // 0.6.1b: gear needs a free hardpoint; a core always fits its socket (a bought core there swaps to cargo).
+      // 0.6.2s (S4): a free GEAR SLOT and no second copy of the def; an empty slot takes neither
+      const taken = !s.turret || (def.kind === "mod" && !canFitGear(b, ti, c.def, c.uid).ok);
       frame(g, x - 13, y - 13, 26, 26, taken ? C.red : C.lime);
     }
   }
@@ -174,9 +175,12 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
 export function drawSuggestion(g: G, L: BuildLayout, b: Build, defId: string, t: number): void {
   const def = ITEMS[defId];
   if (def.kind === "mod" || def.kind === "core") {
-    const h = HEROES[b.hero];
-    // 0.6.1b: gear goes to a free hardpoint, a core to a turret still on its signature core
-    const ti = h.turrets.findIndex((_, i) => !b.mods.some((m) => m.turret === i && (ITEMS[m.def]?.kind === "core") === (def.kind === "core")));
+    const h = hero(b); // 0.6.2s (REQ-BFG-031 S9): the build's slots; an empty one takes no gear or core
+    // 0.6.1b: gear goes to a free hardpoint, a core to a turret still on its signature core. 0.6.2s (S4): a turret
+    // with a free GEAR SLOT and no copy of this gear yet
+    const ti = h.turrets.findIndex((tt, i) => !tt.empty && (def.kind === "core"
+      ? !b.mods.some((m) => m.turret === i && ITEMS[m.def]?.kind === "core")
+      : canFitGear(b, i, defId).ok));
     if (ti < 0) return;
     const td = h.turrets[ti];
     const x = Math.round(turretPivotX(L.frame, td.col0, td.width)), y = Math.round(turretPivotY(L.frame, td.col0, td.width));

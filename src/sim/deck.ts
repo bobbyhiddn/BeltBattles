@@ -768,9 +768,11 @@ export function gearFor(b: Build, t: number): ModPlacement | undefined {
   return b.mods.find((m) => m.turret === t && ITEMS[m.def]?.kind !== "core");
 }
 
-/** One equipment hardpoint per turret. 0.6.1b: counts gear only; the core socket is separate (coreFor). */
+/** A free GEAR SLOT (hardpoint) on the turret in slot t. 0.6.1b: counts gear only; the core socket is separate
+ *  (coreFor). 0.6.2s (S4): a turret has gearSlotsAt(b, t) of them (a 1-star common has 1, as before); an empty
+ *  slot has none. */
 export function turretHasFreeHardpoint(b: Build, t: number): boolean {
-  return !gearFor(b, t);
+  return gearOn(b, t).length < gearSlotsAt(b, t);
 }
 
 export function connectedRouteCount(b: Build): number {
@@ -913,4 +915,148 @@ export function turretSellValue(c: { def: string; stars?: number; free?: boolean
 /** Deck cost of the installed turrets (S7): the sum of turretValue (0 for the starting layout). */
 export function turretsCost(b: Pick<Build, "hero" | "turrets">): number {
   return b.turrets ? b.turrets.reduce((s, t) => s + turretValue(t), 0) : 0;
+}
+
+// ---------------------------------------------------------------- turret operations (0.6.2s S4, S5, S11)
+// Pure operations on a Build, for the build screen (run.ts wraps them) and for the harness owner's builders. What
+// they take off the build (a displaced turret; cores and gear off an emptied or shrunk slot) they hand back for the
+// caller's cargo. Moving never merges (fuse.ts merges only as a copy is gained).
+
+/** A turret def (an ITEMS id of kind "turret"). */
+export function isTurretDef(def: string): boolean {
+  return (Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined)?.kind === "turret";
+}
+
+/** S4: the gear on slot t (every Build.mods entry there but a core) in HARDPOINT ORDER: their order in Build.mods,
+ *  which is placement order (new gear is appended). Battle.gearStats folds a turret's gear in exactly this order. */
+export function gearOn(b: Pick<Build, "mods">, t: number): ModPlacement[] {
+  return b.mods.filter((m) => m.turret === t && ITEMS[m.def]?.kind !== "core");
+}
+
+/** S4/S11: the GEAR SLOTS of slot t: its installed turret's (rarity + stars); 0 for an empty or unknown slot. */
+export function gearSlotsAt(b: Pick<Build, "hero" | "turrets">, t: number): number {
+  return turretSlots(b)[t]?.gearSlots ?? 0;
+}
+
+/** S4: may gear `def` go onto slot t? `exceptUid` is a copy already there that is being replaced or moved. */
+export function canFitGear(b: Build, t: number, def: string, exceptUid = -1): { ok: boolean; reason?: string } {
+  const s = turretSlots(b)[t];
+  if (!s) return { ok: false, reason: "NO SUCH TURRET SLOT" };
+  if (!s.turret) return { ok: false, reason: "EMPTY TURRET SLOT" };
+  const gear = gearOn(b, t).filter((m) => m.uid !== exceptUid);
+  if (gear.some((m) => m.def === def)) return { ok: false, reason: "THIS TURRET ALREADY HAS ONE" };
+  if (gear.length >= s.gearSlots) return { ok: false, reason: "NO FREE GEAR SLOT" };
+  return { ok: true };
+}
+
+function normTurret(t: BuildTurret): BuildTurret {
+  const s = starsOf(t);
+  return { slot: t.slot, def: t.def, uid: t.uid, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}) };
+}
+
+/** S8/S11: set the installed turrets (any order). Stored in slot order; the field is dropped when the list IS the
+ *  starting layout (same slots, defs, uids, stars and free flags), so such a build serializes exactly as before. */
+export function setTurretList(b: Build, list: readonly BuildTurret[]): void {
+  const out = list.map(normTurret).sort((x, y) => x.slot - y.slot);
+  const start = startingTurrets(b.hero).map(normTurret);
+  const same = out.length === start.length && out.every((t, i) => JSON.stringify(t) === JSON.stringify(start[i]));
+  if (same) delete b.turrets;
+  else b.turrets = out;
+}
+
+/** What a turret operation did and hands back for cargo: turrets (a displaced or removed one) and cores and gear
+ *  (off an emptied slot, or beyond a slot's new gear slots), in the order they go back: last placed first. */
+export interface TurretOpResult {
+  ok: boolean;
+  reason?: string;
+  turrets: TurretCopy[];
+  mods: ModPlacement[]; // their `turret` field names the slot they came off
+}
+
+const opFail = (reason: string): TurretOpResult => ({ ok: false, reason, turrets: [], mods: [] });
+
+const copyOfTurret = (t: BuildTurret): TurretCopy => {
+  const s = starsOf(t);
+  return { uid: t.uid, def: t.def, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}) };
+};
+
+/** An emptied slot holds no core and no gear (S4): take them off, last placed first. */
+function stripSlot(b: Build, t: number): ModPlacement[] {
+  const out = b.mods.filter((m) => m.turret === t).reverse();
+  b.mods = b.mods.filter((m) => m.turret !== t);
+  return out;
+}
+
+/** S5: gear beyond slot t's gear slots comes off, last placed first (the first gearSlots pieces in hardpoint order stay). */
+function trimGear(b: Build, t: number): ModPlacement[] {
+  const gear = gearOn(b, t), room = gearSlotsAt(b, t);
+  if (gear.length <= room) return [];
+  const back = gear.slice(room).reverse();
+  const off = new Set(back.map((m) => m.uid));
+  b.mods = b.mods.filter((m) => !off.has(m.uid));
+  return back;
+}
+
+const slotOk = (b: Pick<Build, "hero">, t: number) => Number.isInteger(t) && t >= 0 && t < hullSlots(b.hero).length;
+
+/**
+ * S5/S11 INSTALL: put turret copy `c` (from cargo) into slot t. On an occupied slot it is a swap: the old turret
+ * comes back for cargo. The slot's core and gear stay and move onto the new turret; gear beyond its gear slots comes
+ * back, last placed first. Any turret fits any slot.
+ */
+export function installTurret(b: Build, c: TurretCopy, t: number): TurretOpResult {
+  if (!isTurretDef(c.def)) return opFail("NOT A TURRET");
+  if (!slotOk(b, t)) return opFail("NO SUCH TURRET SLOT");
+  const list = turretList(b);
+  if (list.some((x) => x.uid === c.uid)) return opFail("ALREADY INSTALLED");
+  const old = list.find((x) => x.slot === t);
+  const next = list.filter((x) => x.slot !== t);
+  next.push({ slot: t, def: c.def, uid: c.uid, ...(c.stars ? { stars: c.stars } : {}), ...(c.free ? { free: true } : {}) });
+  setTurretList(b, next);
+  return { ok: true, turrets: old ? [copyOfTurret(old)] : [], mods: trimGear(b, t) };
+}
+
+/**
+ * S5/S11 MOVE / SWAP: move the turret in slot `from` to slot `to`; an occupied target swaps the two. Cores and gear
+ * stay in their slots and move onto the arriving turret; gear beyond a slot's new gear slots comes back (last placed
+ * first), and an emptied slot's core and gear come back.
+ */
+export function moveTurret(b: Build, from: number, to: number): TurretOpResult {
+  if (!slotOk(b, from) || !slotOk(b, to)) return opFail("NO SUCH TURRET SLOT");
+  const list = turretList(b);
+  const a = list.find((x) => x.slot === from);
+  if (!a) return opFail("EMPTY TURRET SLOT");
+  if (from === to) return { ok: true, turrets: [], mods: [] };
+  const other = list.find((x) => x.slot === to);
+  a.slot = to;
+  if (other) other.slot = from;
+  setTurretList(b, list);
+  const mods = other ? [...trimGear(b, from), ...trimGear(b, to)] : [...stripSlot(b, from), ...trimGear(b, to)];
+  return { ok: true, turrets: [], mods };
+}
+
+/** S5/S11 REMOVE: take the turret out of slot t (to cargo, or to sell it); the emptied slot's core and gear come back. */
+export function removeTurret(b: Build, t: number): TurretOpResult {
+  const list = turretList(b);
+  const a = list.find((x) => x.slot === t);
+  if (!a) return opFail("EMPTY TURRET SLOT");
+  setTurretList(b, list.filter((x) => x !== a));
+  return { ok: true, turrets: [copyOfTurret(a)], mods: stripSlot(b, t) };
+}
+
+/** S2/S5: the belts whose last tile sits under slot t's columns but that no intake takes any more (dead ends that
+ *  block FIGHT until fixed): route indices, for the build screen's warning. */
+export function deadEndsAt(b: Build, t: number): number[] {
+  const s = hullSlots(b.hero)[t];
+  if (!s) return [];
+  const claims = connectorClaims(b);
+  const out: number[] = [];
+  b.routes.forEach((r, i) => {
+    const last = r.cells[r.cells.length - 1];
+    if (last === undefined || ky(last) !== 0) return;
+    const col = kx(last);
+    if (col < s.col0 || col >= s.col0 + s.width) return;
+    if (!routeInfo(b, i, claims).connected) out.push(i);
+  });
+  return out;
 }

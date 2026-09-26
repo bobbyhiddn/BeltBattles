@@ -3,10 +3,10 @@
 // geometry is precomputed once per build in a CruiserModel so drawing never allocates.
 
 import { settings } from "../core/settings";
-import { HEROES, ITEMS, type HeroId } from "../sim/content";
+import { ITEMS, type HeroId, type TurretDef } from "../sim/content";
 import {
-  adjacentToFactory, arrowsOf, hitsOfRig, itemByUid, rigHits, routeDirs, routeInfo, routePolyline, speedWinner,
-  type Build, type Dir,
+  adjacentToFactory, arrowsOf, hero, hitsOfRig, itemByUid, rigHits, routeDirs, routeInfo, routePolyline, speedWinner,
+  turretSlots, type Build, type Dir,
 } from "../sim/deck";
 import { effectAt } from "../sim/stars"; // 0.6.2 BELTSIDE: preview speeds at the rig's stars
 import { speedLocked } from "../sim/races/metronome"; // races: METRONOME belts ignore speed states
@@ -18,7 +18,7 @@ import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./
 import { coreFor } from "../sim/deck"; // 0.6.1b: the core socket
 import { starsOf } from "../sim/stars"; // 0.6.1b
 import { gemColor } from "./coreArt"; // 0.6.1b
-import { gearStats } from "../sim/battle"; // 0.6.1p: the gear's window slots (EXT. CHAMBER, HOPPER)
+import { gearStats, turretAt } from "../sim/battle"; // 0.6.1p: the gear's window slots (EXT. CHAMBER, HOPPER); 0.6.2s: by slot
 
 /** 0.6.1p: the hardpoint box colour per gear (catalogue.json art); anything else keeps 0.6.0's cyan. */
 const GEAR_BOX: Record<string, string> = { chamber: C.lime, hopper: C.brass3, mantlet: C.steel3, ram: C.red };
@@ -209,15 +209,29 @@ function payloadColor(ammo: string): string {
   }
 }
 
+/** 0.6.2s (REQ-BFG-031 S10): an empty TURRET SLOT: a bolted ring plate with an open socket, no barrel. */
+function drawEmptyMount(g: G, f: DeckFrame, px: number, py: number): void {
+  trect(g, f, px, py, -7, -7, 14, 14, C.ink);
+  trect(g, f, px, py, -6, -6, 12, 12, C.slate1);
+  trect(g, f, px, py, -4, -4, 8, 8, C.ink);
+  trect(g, f, px, py, -3, -3, 6, 6, C.slate2);
+  for (const [u, v] of [[-6, -6], [5, -6], [-6, 5], [5, 5]]) trect(g, f, px, py, u, v, 1, 1, C.steel2);
+}
+
 export function drawTurrets(g: G, v: CruiserView): void {
   const f = v.frame;
-  const h = HEROES[v.model.hero];
+  // 0.6.2s (REQ-BFG-031 S9): the build's TURRET SLOTS (deck.ts hero(b): installed turrets, empty slots marked)
+  const h = hero(v.build);
   const mods = v.build.mods;
   for (let i = 0; i < h.turrets.length; i++) {
     const td = h.turrets[i];
+    if (td.empty) {
+      drawEmptyMount(g, f, Math.round(turretPivotX(f, td.col0, td.width)), Math.round(turretPivotY(f, td.col0, td.width)));
+      continue;
+    }
     const art = turretArt(td.kind, h.faction, f.facing);
     const px = Math.round(turretPivotX(f, td.col0, td.width)), py = Math.round(turretPivotY(f, td.col0, td.width));
-    const ts = v.sim ? v.sim.turrets[i] : undefined;
+    const ts = v.sim ? turretAt(v.sim, i) : undefined; // 0.6.2s: by slot
     const wind = v.windup ? v.windup[i] : 0;
     const rec = Math.round((v.recoil ? v.recoil[i] : 0) + (wind > 0.75 ? 1 : 0));
     g.drawImage(art.base, px - TS / 2, py - TS / 2);
@@ -250,9 +264,10 @@ export function drawTurrets(g: G, v: CruiserView): void {
       trect(g, f, px, py, pu + 1, pv + 1, 2, 2, kind ? payloadColor(kind) : C.slate1);
       if (kind === "shot") trect(g, f, px, py, pu + 1, pv + 1, 1, 1, C.white); // 0.6.1f: the pewter shot's highlight
     }
+    let gi = 0; // 0.6.2s (S4): a turret's gear pieces sit side by side, in hardpoint order (the first where 0.6.1 drew it)
     for (let m = 0; m < mods.length; m++) {
       if (mods[m].turret !== i || ITEMS[mods[m].def]?.kind === "core") continue; // 0.6.1b: gear only (the core has its socket)
-      const bu = -pu - 5;
+      const bu = -pu - 5 - 6 * gi++;
       trect(g, f, px, py, bu, -3, 5, 5, C.ink);
       trect(g, f, px, py, bu + 1, -2, 3, 3, GEAR_BOX[mods[m].def] ?? C.cyan);
       if (mods[m].def === "mantlet") trect(g, f, px, py, bu + 2, -1, 1, 1, C.white); // MANTLET: one white rivet
@@ -269,13 +284,19 @@ export function drawTurrets(g: G, v: CruiserView): void {
   }
 }
 
-/** Muzzle tip of turret i (barrel 0/1 for twin heavies), screen space. */
-export function muzzleX(f: DeckFrame, hero: HeroId, i: number, barrel = 0): number {
-  const td = HEROES[hero].turrets[i];
+/** 0.6.2s (REQ-BFG-031 S9): the TurretDef in slot i of a build (or of a hull's starting layout, given a HeroId). */
+function slotTd(who: HeroId | Pick<Build, "hero" | "turrets">, i: number): TurretDef {
+  const s = turretSlots(typeof who === "string" ? { hero: who } : who)[i];
+  return s?.td ?? { col0: s?.col0 ?? 4, width: s?.width ?? 2, connectors: [], kind: "light", fireInterval: 0, window: 0, flight: 0, empty: true };
+}
+
+/** Muzzle tip of the turret in slot i (barrel 0/1 for twin heavies), screen space. 0.6.2s: pass the build. */
+export function muzzleX(f: DeckFrame, who: HeroId | Pick<Build, "hero" | "turrets">, i: number, barrel = 0): number {
+  const td = slotTd(who, i);
   return turretPivotX(f, td.col0, td.width) + turnX(f, td.kind === "heavy" ? (barrel % 2 ? 3.5 : -3.5) : 0, -TURRET_TIP[td.kind]);
 }
 
-export function muzzleY(f: DeckFrame, hero: HeroId, i: number, barrel = 0): number {
-  const td = HEROES[hero].turrets[i];
+export function muzzleY(f: DeckFrame, who: HeroId | Pick<Build, "hero" | "turrets">, i: number, barrel = 0): number {
+  const td = slotTd(who, i);
   return turretPivotY(f, td.col0, td.width) + turnY(f, td.kind === "heavy" ? (barrel % 2 ? 3.5 : -3.5) : 0, -TURRET_TIP[td.kind]);
 }

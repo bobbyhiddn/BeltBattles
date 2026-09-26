@@ -11,7 +11,7 @@ import {
 } from "./content";
 import { drakeConvert, pressureBonus, resolveCore, ROUTINES, type TurretCore } from "./cores"; // 0.6.1b
 import {
-  cloneBuild, connectorClaims, defOf, kx, ky, occupancy, payloadDamage, rigHits,
+  cloneBuild, connectorClaims, defOf, installedTurrets, kx, ky, occupancy, payloadDamage, rigHits,
   routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier, type RigHit,
 } from "./deck";
 import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
@@ -424,7 +424,11 @@ export class Battle {
         timer: 0.35, rr: 0, disrupted: 0, frozen: 0, flash: 0, stalled: false, produced: 0,
         pending: 0, cycleIdx: 0, seenHarass: 0, seenWreck: 0, triggerQueue: 0, triggerCooldown: 0,
       }));
-    const turrets: TurretState[] = h.turrets.map((def, i) => makeTurret(b, i, def)); // 0.6.1b: gear and core
+    // 0.6.1b: gear and core. 0.6.2s (REQ-BFG-031 S9): one turret per OCCUPIED slot (deck.ts installedTurrets), in
+    // slot order, its index the slot index; an empty slot fights with nothing and is no target. With the starting
+    // layout that is exactly the hero's turrets 0..n-1, so every older deck fights as before.
+    const turrets: TurretState[] = installedTurrets(b).map((s) => makeTurret(b, s.slot, s.td));
+    const bySlot = (slot: number) => turrets.find((tu) => tu.index === slot);
     // 0.6.1p: guard flags. OVERDRIVE ★2/★3 flags its own tile and every tile downstream (static: wave 2's hooks
     // decide whether the gate must be online); a MANTLET ★3 turret's BULWARK SKIRT flags each connected route's last n tiles.
     // beltside-062 B4 (DESIGN §11 P5): a tile's flags are the OR of every hit landing on it, whichever speed wins
@@ -435,7 +439,7 @@ export class Battle {
         for (const h of list) flags |= h.g.def.gate?.guard ?? 0;
         if (flags) for (let j = ci; j < r.guard.length; j++) r.guard[j] |= flags;
       });
-      const skirt = r.connected ? turrets[r.turret]?.intakeGuard ?? 0 : 0;
+      const skirt = r.connected ? bySlot(r.turret)?.intakeGuard ?? 0 : 0;
       for (let j = Math.max(0, r.guard.length - skirt); j < r.guard.length; j++) r.guard[j] |= GUARD_SKIRT;
     }
     const targets: Target[] = [];
@@ -882,7 +886,7 @@ export class Battle {
       if (!r.connected || !r.ammo.length) continue;
       const front = r.ammo[0];
       if (front.s < r.L - 1e-6) continue;
-      const tu = s.turrets[r.turret];
+      const tu = turretAt(s, r.turret); // 0.6.2s: by slot
       if (!tu || tu.disrupted > 0 || tu.frozen > 0) continue;
       if (s.race && raceIntake(this, s, r, tu, front.p)) { // races: alloy fusion (no slot used)
         r.ammo.shift();
@@ -1158,8 +1162,8 @@ export class Battle {
     if (pr.payload.arc && hit.kind !== "hull") this.sparkJump(def, hit, DISRUPT_TIME, pr.payload.arc, "arc");
     if (pr.payload.rip) {
       const ripped = this.rip(def, hit, pr.payload.rip.count, pr.payload.rip.reach);
-      if (ripped && pr.core === "grapnel" && atk.turrets[pr.turret].core.stars >= 3)
-        atk.turrets[pr.turret].salvage += ripped * atk.turrets[pr.turret].core.k;
+      const gun = turretAt(atk, pr.turret); // 0.6.2s: by slot
+      if (ripped && pr.core === "grapnel" && gun && gun.core.stars >= 3) gun.salvage += ripped * gun.core.k;
     }
     if (pr.payload.harass) this.roundImpact(def, hit, pr.payload.harass, pr.from, pr.payload.debuffs);
     if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
@@ -1210,7 +1214,7 @@ export class Battle {
     const r = t.kind === "belt" ? s.routes[t.ref] : undefined;
     const g = t.kind === "gate" ? s.gates.find((g) => g.uid === t.ref) : undefined;
     const f = t.kind === "factory" ? s.factories.find((f) => f.uid === t.ref) : undefined;
-    const tu = t.kind === "turret" ? s.turrets[t.ref] : undefined;
+    const tu = t.kind === "turret" ? turretAt(s, t.ref) : undefined; // 0.6.2s: a turret target's ref is its slot
     if (t.kind === "belt" && (!r || t.cell < 0 || t.cell >= r.cells.length)) return false;
     if (t.kind === "gate" && !g || t.kind === "factory" && !f || t.kind === "turret" && !tu) return false;
     if (g?.wrecked && cause !== "rip") return false;
@@ -1244,7 +1248,7 @@ export class Battle {
     if (secs <= 0 || !this.acceptHarassment(s, t, cause)) return false;
     if (t.kind === "gate") s.gates.find((g) => g.uid === t.ref)!.disrupted = Math.max(s.gates.find((g) => g.uid === t.ref)!.disrupted, secs);
     else if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.disrupted = Math.max(s.factories.find((f) => f.uid === t.ref)!.disrupted, secs);
-    else if (t.kind === "turret") s.turrets[t.ref].disrupted = Math.max(s.turrets[t.ref].disrupted, secs);
+    else if (t.kind === "turret") turretAt(s, t.ref)!.disrupted = Math.max(turretAt(s, t.ref)!.disrupted, secs);
     else if (t.kind === "belt") s.routes[t.ref].cellDisrupt[t.cell] = Math.max(s.routes[t.ref].cellDisrupt[t.cell], secs);
     this.events.push({ type: "disrupt", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
     return true;
@@ -1294,7 +1298,7 @@ export class Battle {
       const f = s.factories.find((f) => f.uid === t.ref)!;
       f.frozen = Math.max(f.frozen, secs);
     } else if (t.kind === "turret") {
-      const tu = s.turrets[t.ref];
+      const tu = turretAt(s, t.ref)!;
       tu.frozen = Math.max(tu.frozen, secs);
     } else if (t.kind === "belt") {
       const r = s.routes[t.ref];
@@ -1311,7 +1315,7 @@ export class Battle {
     if (t.kind === "factory" || t.kind === "turret") {
       if (!this.acceptHarassment(s, t, "drag")) return false;
       if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.timer += 0.8;
-      else s.turrets[t.ref].fireCd += 0.5;
+      else turretAt(s, t.ref)!.fireCd += 0.5;
     } else {
       const hits = t.kind === "belt" ? [{ route: t.ref, tile: t.cell }]
         : s.gates.find((g) => g.uid === t.ref)?.hits ?? [];
@@ -1386,7 +1390,7 @@ export class Battle {
   /** 0.6.1p MANTLET ★3: cell `ci` of route `r` lies in its turret's BULWARK SKIRT and that turret ignores `cause`. */
   private skirted(s: SideState, r: RouteState | undefined, ci: number, cause: HarassCause): boolean {
     if (!r || ci < 0 || !((r.guard[ci] ?? 0) & GUARD_SKIRT)) return false;
-    return s.turrets[r.turret]?.immune.includes(cause) ?? false;
+    return turretAt(s, r.turret)?.immune.includes(cause) ?? false;
   }
 
   /** Static route flags describe placement; only a working Overdrive grants the live protection. */
@@ -1537,6 +1541,19 @@ export function assemblyLines(
   return { factor, own };
 }
 
+/**
+ * 0.6.2s (REQ-BFG-031 S9): side `s`'s turret in slot `slot` (TurretState.index), or undefined when that slot is empty.
+ * Turrets are one per occupied slot in slot order, so with the starting layout turrets[slot] is it (the fast path).
+ */
+export function turretAt(s: Pick<SideState, "turrets">, slot: number): TurretState | undefined {
+  const tu = s.turrets[slot];
+  return tu && tu.index === slot ? tu : s.turrets.find((x) => x.index === slot);
+}
+
+/** E1 (FURNACE): a turret fed by a belt of 8+ tiles fires at this share of its interval (1.0 s x 0.72 = 0.72 s, the
+ *  starting SCRAP CANNON's 0.6.1 cadence exactly). 0.6.2s: a share, so a bought or starred turret keeps its own pace. */
+export const FURNACE_LONG_BELT = 0.72;
+
 export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
   const g = gearStats(b, i);
   const core = resolveCore(b, i, def);
@@ -1548,7 +1565,7 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     const info = routeInfo(b, ri);
     return info.connected && info.turret === i;
   });
-  const interval = (longFurnaceBelt ? 0.72 : def.fireInterval) * g.fireMul;
+  const interval = (longFurnaceBelt ? def.fireInterval * FURNACE_LONG_BELT : def.fireInterval) * g.fireMul;
   const windowTime = c.windowTime ?? WINDOW_TIME;
   return {
     index: i, def, stack: [], phase: "load", loadTimer: 0, fireCd: 0, jamSkip: 0, jamRandom: false,

@@ -1,8 +1,8 @@
 // Deck machinery for any facing: turret intakes, conveyor belts (animated by real travel),
 // chunky ammunition riding them, factories with output chutes, and processing gates.
 
-import { AMMO, AMMO_SPACING, BELT_SPEED, CELL, GRID, HEROES } from "../sim/content";
-import { DX, DY, defOf, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
+import { AMMO, AMMO_SPACING, BELT_SPEED, CELL, GRID } from "../sim/content";
+import { DX, DY, defOf, hero, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
 import type { GateState } from "../sim/battle";
 import { starsOf } from "../sim/stars";
 import type { FactoryState } from "../sim/battle"; // 0.6.1c: read-only render state (frame index)
@@ -70,7 +70,7 @@ function beltCell(g: G, f: DeckFrame, x: number, y: number, din: number, dout: n
 
 function drawIntakes(g: G, v: CruiserView): void {
   const f = v.frame;
-  const h = HEROES[v.model.hero];
+  const h = hero(v.build); // 0.6.2s (REQ-BFG-031 S2): the installed turrets' intakes; an empty slot has none
   const blink = Math.floor(v.t * 6) % 2 === 1;
   for (let ti = 0; ti < h.turrets.length; ti++) {
     const cons = h.turrets[ti].connectors;

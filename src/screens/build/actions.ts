@@ -12,6 +12,15 @@ import { canPlaceItem, isRig, key, moveItem, occupancy, placeItem, removeRoute, 
 import { bestRot } from "../../sim/beltside"; // 0.6.2 BELTSIDE: the preview's auto-aim
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { fitCore } from "../../game/run"; // 0.6.1b
+import { canFitGear, gearSlotsAt, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
+
+/** 0.6.2s (S4): why gear can't go on turret slot t, as a player sentence. */
+export function gearRefusal(b: Build, t: number, reason?: string): string {
+  if (reason === "EMPTY TURRET SLOT") return "THIS TURRET SLOT IS EMPTY. INSTALL A TURRET FIRST.";
+  if (reason === "THIS TURRET ALREADY HAS ONE") return "THIS TURRET ALREADY CARRIES ONE OF THOSE.";
+  const n = gearSlotsAt(b, t);
+  return n <= 1 ? "ONE PIECE OF GEAR PER TURRET" : `ALL ${n} GEAR SLOTS ON THIS TURRET ARE FULL.`;
+}
 import type { Fx } from "../../render/fx";
 import { C } from "../../render/palette";
 import { footX, footY, localX, localY } from "../../render/frame";
@@ -155,6 +164,10 @@ function dropCore(ctx: Ctx, c: Carry, x: number, y: number, overHull: boolean): 
     if (overHull) ctx.invalid("DROP A TURRET CORE ON A TURRET");
     return false;
   }
+  if (!turretSlots(run.build)[t]?.turret) { // 0.6.2s (S4): an empty TURRET SLOT has no core socket
+    ctx.invalid("THIS TURRET SLOT IS EMPTY. INSTALL A TURRET FIRST.");
+    return false;
+  }
   const old = coreFor(run.build, t);
   const swap = !!old && old.uid !== c.uid;
   if (src.from === "offer") {
@@ -239,9 +252,11 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
       if (overHull) ctx.invalid("DROP TURRET GEAR ON A TURRET");
       return false;
     }
-    const cur = gearFor(b, t); // 0.6.1b: the hardpoint only; a core in the socket doesn't take it
-    if (cur && cur.uid !== c.uid) {
-      ctx.invalid("ONE PIECE OF GEAR PER TURRET");
+    // 0.6.1b: the hardpoints only; a core in the socket doesn't take one. 0.6.2s (REQ-BFG-031 S4): a turret has
+    // gearSlotsAt GEAR SLOTS (rarity + stars), holds one copy of a def, and an empty TURRET SLOT holds no gear
+    const fit = canFitGear(b, t, c.def, c.uid);
+    if (!fit.ok) {
+      ctx.invalid(gearRefusal(b, t, fit.reason));
       return false;
     }
     if (src.from === "offer") {
