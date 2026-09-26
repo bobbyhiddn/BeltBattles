@@ -51,7 +51,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number) => number[]> = {
   overdrive: (e) => [4, g(e).speed!, g(e).lockedFlat!], // 4 ARROWS: the X shape
   tollbooth: (e) => [g(e).toll!],
   sifter: () => [],
-  surge: (e) => [g(e).pulse!.speed, g(e).pulse!.on, g(e).pulse!.period, g(e).lockedFlat!],
+  surge: (e) => [g(e).pulse!.speed, g(e).pulse!.on, g(e).pulse!.period, g(e).pulse!.flat!, g(e).lockedFlat!], // FB-B: flat 1/2/3
   sorting: (e) => [g(e).sort!.every, ...(g(e).sort!.copies > 2 ? [g(e).sort!.copies - 1] : [])],
   riveter: (e) => [g(e).repair!],
   heatjacket: (e) => [g(e).heat!],
@@ -59,7 +59,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number) => number[]> = {
   overclocker: (e) => [g(e).overclockCooldown!],
   keg: (e) => [g(e).keg!.fuse, g(e).keg!.flat, ...(g(e).keg!.burn > 1 ? [g(e).keg!.burn] : [])], // 1 Burn reads AND BURN
   bellows: (e) => [g(e).burnPerRide!.max],
-  quench: (e) => [g(e).quench!.perBurn, g(e).quench!.max],
+  quench: (e) => [g(e).quench!.flat, g(e).quench!.stacks, g(e).quench!.perBurn], // FB-B: +flat, then up to `stacks` Burn
   staticbrush: () => [],
   lodestone: (e) => [g(e).perStalled!.each],
   barbed: (e) => [g(e).fray!, 0.2], // +0.2 PER STACK: FRAY_BONUS
@@ -100,7 +100,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number) => number[]> = {
   calibrate: (e) => [pct(1 - m(e).fireMul!)],
   flak: (e) => [pct(m(e).intercept!)],
   spotter: () => [],
-  hopper: (e) => [m(e).window!, m(e).windowTime!],
+  hopper: (e) => [m(e).window!, m(e).windowTime!, ...(m(e).store ? [m(e).store!] : [])], // FB-B: ★2/★3 store 1/2
   mantlet: () => [],
   ram: (e) => [pct(m(e).finisher!)],
   escapement: (e) => [pct(1 - m(e).fireMul!), 1.2, 7], // PEAK_SHIFT and its 7 TILES
@@ -121,7 +121,11 @@ const PINS: Record<string, [string, string, string]> = {
   overdrive: ["4 ARROWS: 3X SPEED / FROM HIT; LOCKED BELTS / GAIN +3 DAMAGE.", "4 ARROWS: 4X SPEED / FROM HIT; LOCKED BELTS / GAIN +6 DAMAGE.", "4 ARROWS: 5X SPEED / FROM HIT; LOCKED BELTS / GAIN +11 DAMAGE."],
   tollbooth: ["GUARDS ITS BELT / FROM THE FIRST 2 / HARASSMENT HITS.", "GUARDS ITS BELT / FROM THE FIRST 4 / HARASSMENT HITS.", "GUARDS ITS BELT / FROM THE FIRST 7 / HARASSMENT HITS."],
   sifter: ["REMOVES CHILL, SNAG / OR SAP FROM PASSING / PAYLOADS IN ORDER.", "REMOVES CHILL, SNAG / AND SAP FROM EVERY / PASSING PAYLOAD.", "REMOVES CHILL, SNAG / AND SAP FROM EVERY / PASSING PAYLOAD."],
-  surge: ["PULSES 3X SPEED FOR / 1S EVERY 3S. LOCKED / BELTS GAIN +3 DMG.", "PULSES 4X SPEED FOR / 1S EVERY 2.5S; / LOCKED BELT +6 DMG.", "PULSES 5X SPEED FOR / 1S EVERY 2S. LOCKED / BELTS: +10 DMG."],
+  surge: [
+    "PULSES 3X SPEED FOR / 1S EVERY 3S, +1 DMG / PER PULSE RIDDEN. / LOCKED BELTS +3 DMG.",
+    "PULSES 4X SPEED FOR / 1S PER 2.5S, +2 DMG / PER PULSE RIDDEN. / LOCKED BELTS +6 DMG.",
+    "PULSES 5X SPEED FOR / 1S EVERY 2S, +3 DMG / PER PULSE RIDDEN. / LOCKED BELT +10 DMG.",
+  ],
   sorting: ["COPIES EVERY 3RD / PAYLOAD AT FULL / STRENGTH.", "COPIES EVERY 2ND / PAYLOAD AT FULL / STRENGTH.", "COPIES EVERY 2ND / PAYLOAD TWICE AT / FULL STRENGTH."],
   riveter: ["EACH PASSING SLUG / REPAIRS YOUR HULL / BY 0.6.", "EACH PASSING SLUG / REPAIRS YOUR HULL / BY 1.3.", "EACH PASSING SLUG / REPAIRS YOUR HULL / BY 2.1."],
   heatjacket: ["ADDS +0.4 DAMAGE / PER SECOND RIDDEN / AFTER THIS RIG.", "ADDS +0.9 DAMAGE / PER SECOND RIDDEN / AFTER THIS RIG.", "ADDS +1.4 DAMAGE / PER SECOND RIDDEN / AFTER THIS RIG."],
@@ -129,7 +133,7 @@ const PINS: Record<string, [string, string, string]> = {
   overclocker: ["DOUBLES THE NEXT / BOOSTABLE RIG ONCE, / THEN COOLS FOR 4S.", "DOUBLES THE NEXT / BOOSTABLE RIG ONCE, / THEN COOLS 1.8S.", "DOUBLES THE NEXT / BOOSTABLE RIG ONCE, / THEN COOLS 1.15S."],
   keg: ["BLOWS AT 12S: / PAYLOADS ON ITS BELT / GAIN +6 AND BURN.", "BLOWS AT 10S: / PAYLOADS ON ITS BELT / GAIN +13, 2 BURN.", "BLOWS AT 8S: ALL / BELTS BESIDE IT / GAIN +21 AND 3 BURN."],
   bellows: ["ADDS BURN FROM / RIDE TIME SO FAR, / UP TO 4 STACKS.", "ADDS BURN FROM / RIDE TIME SO FAR, / UP TO 9 STACKS.", "ADDS BURN FROM / RIDE TIME SO FAR, / UP TO 14 STACKS."],
-  quench: ["TURNS BURN STACKS / INTO +2 DAMAGE / EACH, UP TO +12.", "TURNS BURN STACKS / INTO +4 DAMAGE / EACH, UP TO +26.", "TURNS BURN STACKS / INTO +6 DAMAGE / EACH, UP TO +42."],
+  quench: ["+1 DAMAGE TO EVERY / PAYLOAD. TURNS UP TO / 4 BURN INTO +3 EACH.", "+2 DAMAGE TO EVERY / PAYLOAD. TURNS UP TO / 5 BURN INTO +5 EACH.", "+3 DAMAGE TO EVERY / PAYLOAD. TURNS UP TO / 6 BURN INTO +7 EACH."],
   lodestone: ["+1 DAMAGE FOR / EACH ENEMY MACHINE / STALLED RIGHT NOW.", "+2.2 DAMAGE FOR / EACH ENEMY MACHINE / STALLED RIGHT NOW.", "+3.5 DAMAGE FOR / EACH ENEMY MACHINE / STALLED RIGHT NOW."],
   barbed: ["HITS ADD 1 FRAY. / LATER HITS DEAL / +0.2 PER STACK.", "HITS ADD 2 FRAY. / LATER HITS DEAL / +0.2 PER STACK.", "HITS ADD 3 FRAY. / LATER HITS DEAL / +0.2 PER STACK."],
   counterweight: ["+0.5 DAMAGE PER / BELT TILE ALREADY / RIDDEN, MAX +6.", "+1.1 DAMAGE PER / BELT TILE ALREADY / RIDDEN, MAX +13.", "+1.75 DAMAGE PER / BELT TILE ALREADY / RIDDEN, MAX +21."],
@@ -163,7 +167,7 @@ const PINS: Record<string, [string, string, string]> = {
   calibrate: ["TURRET FIRES 25% / FASTER. / DROP ON A TURRET.", "TURRET FIRES 42% / FASTER. / DROP ON A TURRET.", "TURRET FIRES 54% / FASTER. / DROP ON A TURRET."],
   flak: ["INTERCEPTS 25% OF / INCOMING HARASSMENT / ROUNDS SIDE-WIDE.", "INTERCEPTS 55% OF / INCOMING HARASSMENT / ROUNDS SIDE-WIDE.", "INTERCEPTS 85% OF / INCOMING HARASSMENT / ROUNDS SIDE-WIDE."],
   spotter: ["TURRET REROLLS A / BARE-HULL TARGET / TOWARD MACHINERY.", "TURRET REROLLS / BARE-HULL TARGETS / TOWARD MACHINERY.", "TURRET AIMS AT / MACHINERY ONLY, / NEVER BARE HULL."],
-  hopper: ["CHAMBER HOLDS 1 MORE / LOAD; WINDOWS STAY / OPEN 0.5S LONGER.", "CHAMBER HOLDS 2 MORE / LOADS AND WINDOWS / STAY 1S LONGER.", "CHAMBER HOLDS 3 MORE / LOADS AND WINDOWS / STAY 1.5S LONGER."],
+  hopper: ["CHAMBER HOLDS 1 MORE / LOAD; WINDOWS STAY / OPEN 0.5S LONGER.", "CHAMBER HOLDS 1 MORE / LOAD, +0.5S, AND 1 / MORE WHILE FIRING.", "+1 SLOT, +0.5S, AND / HOLDS 2 MORE WHILE / FIRING. NEVER JAMS."],
   ram: ["THE LAST PAYLOAD OUT / OF EACH WINDOW HITS / 40% HARDER.", "THE LAST PAYLOAD OUT / OF EACH WINDOW HITS / 88% HARDER.", "THE LAST PAYLOAD OUT / OF EACH WINDOW HITS / 140% HARDER."],
   escapement: ["FIRES 10% FASTER. / PENDULUM PEAK 1.2S / EARLIER: 7 TILES.", "FIRES 14% FASTER. / PENDULUM PEAK 1.2S / EARLIER: 7 TILES.", "FIRES 18% FASTER. / PENDULUM PEAK 1.2S / EARLIER: 7 TILES."],
   longcase: ["OTHER SLUGS: +1.5 / DMG AFTER 2S RIDE. / PENDULUM PEAK +1.2S.", "OTHER SLUGS: +2.5 / DMG AFTER 2S RIDE. / PENDULUM PEAK +1.2S.", "OTHER SLUGS: +4 / DMG AFTER 2S RIDE. / PENDULUM PEAK +1.2S."],
@@ -225,6 +229,28 @@ describe("0.6.2p item 1: star-aware flavour, every module x stars 1-3", () => {
     expect(STARS.map((s) => effectAt("longhaul", s).gate!.priorCap)).toEqual([undefined, 6, 6]);
   });
 
+  it("0.6.2 FB-B: QUENCH, SURGE and HOPPER say each star's rule; MANTLET's desc stays true at every star", () => {
+    // QUENCH TANK: +1/+2/+3 to every payload it hits, then up to 4/5/6 Burn into +3/+5/+7 each
+    expect(STARS.map((s) => { const q = effectAt("quench", s).gate!.quench!; return [q.flat, q.stacks, q.perBurn]; })).toEqual([[1, 4, 3], [2, 5, 5], [3, 6, 7]]);
+    // SURGE VALVE: every star pays its per-pulse flat (1/2/3); locked belts take 3/6/10 instead
+    expect(STARS.map((s) => [effectAt("surge", s).gate!.pulse!.flat, effectAt("surge", s).gate!.lockedFlat])).toEqual([[1, 3], [2, 6], [3, 10]]);
+    // HOPPER: +1 slot and +0.5 s at every star; ★2/★3 hold 1/2 more loads while the gun fires; ★3 never jams
+    expect(STARS.map((s) => { const h = effectAt("hopper", s).mod!; return [h.window, h.windowTime, h.store ?? 0, !!h.noJam]; }))
+      .toEqual([[1, 0.5, 0, false], [1, 0.5, 1, false], [1, 0.5, 2, true]]);
+    expect(STARS.map((s) => flavour("hopper", s).join(" ").includes("NEVER JAMS"))).toEqual([false, false, true]);
+    expect(STARS.map((s) => starEffectLine("hopper", s))).toEqual([
+      "+1 SLOT · +0.5S", "+1 SLOT · +0.5S · HOLDS 1 MORE WHILE FIRING", "+1 SLOT · +0.5S · HOLDS 2 MORE WHILE FIRING · NEVER JAMS",
+    ]);
+    // MANTLET stays in UNCHANGED: its desc quotes no number and names only ★1's stalls (SHOCK and CHAIN SLOWS), which
+    // every star keeps. What a star adds (FULL PLATE: FROST, SABOT and the belt tile feeding its turret; BULWARK SKIRT:
+    // the last 3 tiles) is on the level line, which the desc never contradicts.
+    expect(numbers(ITEMS.mantlet.desc)).toEqual([]);
+    for (const s of STARS) for (const c of ITEMS.mantlet.mod!.immune!) expect(effectAt("mantlet", s).mod!.immune, `★${s} ${c}`).toContain(c);
+    expect(STARS.map((s) => effectAt("mantlet", s).mod!.intakeGuard ?? 0)).toEqual([0, 1, 3]);
+    expect(starEffectLine("mantlet", 2)).toBe("+FROST, SABOT · SHIELDS THE BELT TILE FEEDING ITS TURRET");
+    expect(starEffectLine("mantlet", 3)).toBe("+FROST, SABOT · SHIELDS THE LAST 3 BELT TILES FEEDING ITS TURRET");
+  });
+
   it("no panel grows: as many lines, each within about 20 characters, and no more rows at any panel width", () => {
     // the landscape details column wraps the flavour at 102..118 px (layout.ts: LAND_MIN_W to the capped column), in
     // the 5x7 face or the 3x5 face; the phone band at 151 px (3x5)
@@ -262,7 +288,7 @@ describe("0.6.2p item 1: the panels show the flavour at the module's stars", () 
       "+1.4 DAMAGE PER", "PAYLOAD QUEUED AT", "IT. NEVER JAMS.", "★2: +1.4 DMG PER QUEUED", "HINT",
     ]);
     // a ★3 HOPPER (gear) and a 1-star offer (the offer panel's stars are 1)
-    expect(body(ITEMS.hopper, 3, [], "HINT").slice(0, 3)).toEqual(["CHAMBER HOLDS 3 MORE", "LOADS AND WINDOWS", "STAY 1.5S LONGER."]);
+    expect(body(ITEMS.hopper, 3, [], "HINT").slice(0, 3)).toEqual(["+1 SLOT, +0.5S, AND", "HOLDS 2 MORE WHILE", "FIRING. NEVER JAMS."]);
     expect(body(ITEMS.splitter, 1, [], "HINT").slice(0, 3)).toEqual(ITEMS.splitter.desc);
   });
 });

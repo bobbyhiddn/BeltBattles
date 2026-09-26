@@ -142,7 +142,7 @@ describe("par field (par.ts): the par of a hero and day is K par-player decks", 
     const legacy = await runTournament(o, localRunner); // absent: the legacy Reference, exactly
     for (const h of o.heroes) expect(legacy.days[0].calibration![h].build).toEqual(heroRefBuild(h, 1));
     expect(md(legacy)).toContain("Reference = heroRefBuild(hero, day)");
-  }, 120_000);
+  }, 300_000); // 0.6.2 CAND-A: 72 s alone, over 120 s in the full suite at --maxWorkers=4 beside the harness budget files
 
   it("medianIndex takes the lower median, ties to the lower index", () => {
     expect(medianIndex([0.9, 0.1, 0.5])).toBe(2);

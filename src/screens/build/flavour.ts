@@ -60,12 +60,15 @@ export const STAR_FLAVOUR: Record<string, Template> = {
   sifter: (e) => gate(e).sift === "all"
     ? [["REMOVES CHILL, SNAG", "AND SAP FROM EVERY", "PASSING PAYLOAD."]]
     : [["REMOVES CHILL, SNAG", "OR SAP FROM PASSING", "PAYLOADS IN ORDER."]],
+  // 0.6.2 FB-B: every star pays its per-pulse flat (1/2/3); locked belts take lockedFlat instead (3/6/10)
   surge: (e) => {
     const p = gate(e).pulse!, lf = num(gate(e).lockedFlat!), pulse = `PULSES ${num(p.speed)}X SPEED FOR`;
+    const every = `${num(p.on)}S EVERY ${num(p.period)}S, +${num(p.flat ?? 0)} DMG`, per = `${num(p.on)}S PER ${num(p.period)}S, +${num(p.flat ?? 0)} DMG`;
     return [
-      [pulse, `${num(p.on)}S EVERY ${num(p.period)}S. LOCKED`, `BELTS GAIN +${lf} DMG.`],
-      [pulse, `${num(p.on)}S EVERY ${num(p.period)}S. LOCKED`, `BELTS: +${lf} DMG.`],
-      [pulse, `${num(p.on)}S EVERY ${num(p.period)}S;`, `LOCKED BELT +${lf} DMG.`],
+      [pulse, every, "PER PULSE RIDDEN.", `LOCKED BELTS +${lf} DMG.`],
+      [pulse, every, "PER PULSE RIDDEN.", `LOCKED BELT +${lf} DMG.`],
+      [pulse, per, "PER PULSE RIDDEN.", `LOCKED BELTS +${lf} DMG.`],
+      [pulse, per, "PER PULSE RIDDEN.", `LOCKED BELT +${lf} DMG.`],
     ];
   },
   sorting: (e) => {
@@ -94,7 +97,11 @@ export const STAR_FLAVOUR: Record<string, Template> = {
     ];
   },
   bellows: (e) => [["ADDS BURN FROM", "RIDE TIME SO FAR,", `UP TO ${gate(e).burnPerRide!.max} STACKS.`]],
-  quench: (e) => [["TURNS BURN STACKS", `INTO +${num(gate(e).quench!.perBurn)} DAMAGE`, `EACH, UP TO +${num(gate(e).quench!.max)}.`]],
+  // 0.6.2 FB-B: +flat to every payload it hits, then up to `stacks` Burn turn into +perBurn each (more stays Burn)
+  quench: (e) => {
+    const q = gate(e).quench!;
+    return [[`+${num(q.flat)} DAMAGE TO EVERY`, "PAYLOAD. TURNS UP TO", `${q.stacks} BURN INTO +${num(q.perBurn)} EACH.`]];
+  },
   lodestone: (e) => [[`+${num(gate(e).perStalled!.each)} DAMAGE FOR`, "EACH ENEMY MACHINE", "STALLED RIGHT NOW."]],
   barbed: (e) => [[`HITS ADD ${gate(e).fray} FRAY.`, "LATER HITS DEAL", `+${num(FRAY_BONUS)} PER STACK.`]],
   counterweight: (e) => [[`+${num(gate(e).perTile!.each)} DAMAGE PER`, "BELT TILE ALREADY", `RIDDEN, MAX +${num(gate(e).perTile!.max)}.`]],
@@ -186,8 +193,11 @@ export const STAR_FLAVOUR: Record<string, Template> = {
     : (mod(e).rerolls ?? 0) > 1
       ? [["TURRET REROLLS", "BARE-HULL TARGETS", "TOWARD MACHINERY."]]
       : [["TURRET REROLLS A", "BARE-HULL TARGET", "TOWARD MACHINERY."]],
+  // 0.6.2 FB-B: every star keeps ★1's +1 slot and +0.5 s; ★2/★3 hold 1/2 more loads while the gun fires; ★3 never jams
   hopper: (e) => {
-    const w = mod(e).window!, s = num(mod(e).windowTime!);
+    const m = mod(e), w = m.window!, s = num(m.windowTime!), st = m.store ?? 0, slot = `+${w} SLOT${w === 1 ? "" : "S"}, +${s}S, AND`;
+    if (m.noJam) return [[slot, `HOLDS ${st} MORE WHILE`, "FIRING. NEVER JAMS."]];
+    if (st) return [[`CHAMBER HOLDS ${w} MORE`, `LOAD${w === 1 ? "" : "S"}, +${s}S, AND ${st}`, "MORE WHILE FIRING."], [slot, `HOLDS ${st} MORE WHILE`, "THE GUN FIRES."]];
     return [
       [`CHAMBER HOLDS ${w} MORE`, `LOAD${w === 1 ? "" : "S"}; WINDOWS STAY`, `OPEN ${s}S LONGER.`],
       [`CHAMBER HOLDS ${w} MORE`, `LOAD${w === 1 ? "" : "S"} AND WINDOWS`, `STAY ${s}S LONGER.`],
