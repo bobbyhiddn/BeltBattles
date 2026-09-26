@@ -4,7 +4,7 @@
 // "forward" (toward the enemy); 1 = +x, 2 = back, 3 = -x.
 
 import {
-  AMMO, BELT_SPEED, CELL, GEAR_SLOTS, GRID, HEROES, HULL_SLOTS, ITEMS, SHAPE_ARROWS, rigShape,
+  AMMO, BELT_SPEED, CELL, GEAR_SLOTS, GRID, HEROES, HULL_SLOTS, ITEMS, JOIN_PACE, SHAPE_ARROWS, rigShape,
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake,
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
@@ -1246,6 +1246,40 @@ export function chainEnd(b: Build, i: number, occ = occupancy(b)): number {
 export function journeyTiles(b: Build, i: number, occ = occupancy(b)): number {
   return journeyOf(b, i, occ).reduce((n, leg) => n + b.routes[leg.route].cells.length - leg.from, 0);
 }
+
+/**
+ * 0.6.2 TUNE-M, RULE JOIN PACE: the pace factory `uid` makes its loads at: JOIN_PACE when one of its belts joins another
+ * belt (a legal join, joinOf), else 1. A factory counts once, however long its chain (a joining belt whose main belt
+ * joins on in turn still paces only its own factory, once). Battle.makeSide runs the factory's timers at this pace;
+ * the build screen's belt and factory panels and the par player's rating (deckRating.ts) read it.
+ */
+export function factoryPace(b: Build, uid: number, occ = occupancy(b)): number {
+  for (let i = 0; i < b.routes.length; i++) {
+    if (b.routes[i].factory === uid && b.routes[i].join !== undefined && joinOf(b, i, occ)) return JOIN_PACE;
+  }
+  return 1;
+}
+
+/**
+ * 0.6.2 TUNE-M, RULE JOIN PACE: the build screen's load estimate for belt `index`: seconds between the loads its factory
+ * stamps onto it while nothing backs up. The factory's cycle (MIMIC FORGE: the hero factory's x its intervalMul) over its
+ * batch, shared by turns among its belts (a CRUCIBLE pours onto each at once), at its pace (factoryPace). Infinity for a
+ * belt with no factory. A trigger factory (SCRAPPER) reads its idle cycle.
+ */
+export function loadEvery(b: Build, index: number, occ = occupancy(b)): number {
+  const r = b.routes[index];
+  const f = r ? itemByUid(b, r.factory) : undefined;
+  const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, starsOf(f)).factory : undefined;
+  if (!r || !f || !spec) return Infinity;
+  const interval = f.def === "mimic" ? (ITEMS[HEROES[b.hero].factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
+  const shared = spec.ammo === "blank" ? 1 : b.routes.filter((q) => q.factory === r.factory).length;
+  return (interval * shared) / ((spec.batch ?? 1) * factoryPace(b, r.factory, occ));
+}
+
+/** 0.6.2 TUNE-M, RULE JOIN PACE: the player's words for a joined factory's pace ("JOINED: THIS FACTORY RUNS AT 60%
+ *  PACE."), one source for the factory and belt panels, the join toast and the rules text. */
+export const JOIN_PACE_PCT = Math.round(JOIN_PACE * 100);
+export const JOIN_PACE_LINE = `JOINED: THIS FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`;
 
 /** 0.6.2j (J10): the routes whose legal join lands on route m, in route order. */
 export function joinersOf(b: Build, m: number, occ = occupancy(b)): number[] {

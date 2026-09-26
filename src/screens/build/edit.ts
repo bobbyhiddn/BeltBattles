@@ -8,6 +8,7 @@ import {
   itemByUid, key, kx, ky, manhattanSteps, occupancy, rotOf, routeInfo, routesOf,
 } from "../../sim/deck";
 import { canJoin, joinOf } from "../../sim/deck"; // 0.6.2j: belt joins
+import { JOIN_PACE_PCT } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { ITEMS } from "../../sim/content";
 import { outputsAt, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
@@ -386,7 +387,8 @@ export class Editor {
     this.h.touched();
     const info = routeInfo(b, idx);
     if (!info.connected) this.h.game.toast("BELT DOESN'T REACH A TURRET YET", C.yellow);
-    else if (info.join) this.h.game.toast(`JOINS BELT ${info.join.route + 1}`, C.lime); // 0.6.2j (J3): no confirmation, just word
+    // 0.6.2j (J3): no confirmation, just word. 0.6.2 TUNE-M: RULE JOIN PACE, said where the join is made
+    else if (info.join) this.h.game.toast(`JOINS BELT ${info.join.route + 1} · FACTORY AT ${JOIN_PACE_PCT}% PACE`, C.lime);
     this.h.select({ kind: "route", index: idx });
   }
 

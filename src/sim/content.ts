@@ -28,6 +28,10 @@ export const WIND_START = 25; // dark wind damage begins (s)
 export const BATTLE_CAP = 120; // hard stop (s)
 export const COMMISSION_BASE = 1.2; // first gate on a route comes online at this time (s)
 export const COMMISSION_STEP = 0.6; // each further gate on the route adds this delay (s)
+// 0.6.2 TUNE-M, RULE JOIN PACE (the Prime's design decision): a factory whose belt joins another belt makes its loads
+// at this share of its normal rate (its stamping timers run at this pace). It counts once, however long its chain; a
+// factory none of whose belts joins runs as before. The join itself stays free (REQ-BFG-027).
+export const JOIN_PACE = 0.7;
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 // 0.6.1b: "core" is a turret core (ARSENAL.md §1): it lives in Build.mods, one socket per turret, beside the one mod

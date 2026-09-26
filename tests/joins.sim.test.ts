@@ -4,7 +4,7 @@
 // and meets the race hooks as a main-belt payload (J7). J14 (a): the payload's own journey; J14 (b): the shared stretch.
 import { describe, expect, it } from "vitest";
 import { Battle, assemblyLines, makeTurret, type Payload, type RouteState, type SideState } from "../src/sim/battle";
-import { AMMO_SPACING, CELL, GUARD_SKIRT, HEROES } from "../src/sim/content";
+import { AMMO_SPACING, CELL, GUARD_SKIRT, HEROES, JOIN_PACE } from "../src/sim/content";
 import { cloneBuild, joinOf, journeyTiles, key as K, rotField, type Build, type Placed } from "../src/sim/deck";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { DRAG_MULT, dragSpans } from "../src/sim/races/siphon";
@@ -33,6 +33,10 @@ function single(b: Build): Build {
   return s;
 }
 const quiet = (uid: number) => (s: SideState) => { s.factories.find((f) => f.uid === uid)!.routes = []; };
+// 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory stamps at JOIN_PACE of its rate. The J14 (a) comparisons below run the
+// continuous belt's factory at the same pace, so both decks stamp in step and the journeys compare tick for tick (the
+// pace itself: tests/joinpace.test.ts)
+const paced = (uid: number) => (s: SideState) => { s.factories.find((f) => f.uid === uid)!.pace = JOIN_PACE; };
 
 interface Load { tick: number; id: number; factory: number; ride: number; prior: number; flat: number; burn: number; heat: number; ammo: string }
 interface Run { bt: Battle; loads: Load[]; seenOn: Map<number, number> }
@@ -359,7 +363,7 @@ describe("J14 (a): the payload's own journey", () => {
   it("with no contention and no speed effects, a joined payload's hits, timing and LONG HAUL equal the continuous belt's", () => {
     const joined = deck(rigs);
     const a = run(joined, 60 * 25, quiet(1)).loads.filter((l) => l.factory === 2);
-    const c = run(single(joined), 60 * 25).loads.filter((l) => l.factory === 2);
+    const c = run(single(joined), 60 * 25, paced(2)).loads.filter((l) => l.factory === 2);
     expect(a.length).toBeGreaterThan(8);
     // from the 4th payload on every rig is online on both decks (commissioning ranks rigs per belt)
     expect(a.slice(3, 9).map(pick)).toEqual(c.slice(3, 9).map(pick));
@@ -373,7 +377,7 @@ describe("J14 (a): the payload's own journey", () => {
   it("by design (J4), a speed rig on the main belt before the join speeds the joined payload; the continuous belt misses it", () => {
     const fast = deck([rig(12, "grease", 5, 5, 3)]); // GREASE on M's tile 0
     const a = run(fast, 60 * 25, quiet(1)).loads.filter((l) => l.factory === 2);
-    const c = run(single(fast), 60 * 25).loads.filter((l) => l.factory === 2);
+    const c = run(single(fast), 60 * 25, paced(2)).loads.filter((l) => l.factory === 2);
     for (let i = 3; i < 8; i++) {
       expect(a[i].ride).toBeLessThan(c[i].ride);
       expect(a[i].tick).toBeLessThan(c[i].tick);
@@ -395,7 +399,7 @@ describe("J14 (a): the payload's own journey", () => {
   it("J15: a slag joiner's timing equals the same slug's on the continuous belt (no speed rigs)", () => {
     const joined = deck([], { joiner: "slagpot" });
     const a = run(joined, 60 * 30, quiet(1)).loads.filter((l) => l.factory === 2);
-    const c = run(single(joined), 60 * 30).loads.filter((l) => l.factory === 2);
+    const c = run(single(joined), 60 * 30, paced(2)).loads.filter((l) => l.factory === 2);
     expect(a.length).toBeGreaterThan(5);
     expect(a.map(pick)).toEqual(c.slice(0, a.length).map(pick));
   });

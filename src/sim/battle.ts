@@ -5,7 +5,7 @@
 import { Rng } from "../core/rng";
 import {
   AMMO, AMMO_SPACING, BATTLE_CAP, BELT_SPEED, BURN_TIME, CELL, COMMISSION_BASE, COMMISSION_STEP,
-  DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, RULES_VERSION,
+  DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, JOIN_PACE, RULES_VERSION,
   TICK, WIND_START, WIND_WARN, WINDOW_TIME,
   type AmmoKind, type CoreRoutine, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
@@ -158,6 +158,9 @@ export interface FactoryState {
   seenWreck: number;
   triggerQueue: number;
   triggerCooldown: number;
+  // 0.6.2 TUNE-M, RULE JOIN PACE: the pace its timers run at (produce: the stamping timer and a trigger's cooldown):
+  // JOIN_PACE when one of its belts joins another belt, else 1 (exactly as before: dt x 1 is dt)
+  pace: number;
 }
 
 export interface TurretState {
@@ -457,6 +460,8 @@ export class Battle {
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
         timer: 0.35, rr: 0, disrupted: 0, frozen: 0, flash: 0, stalled: false, produced: 0,
         pending: 0, cycleIdx: 0, seenHarass: 0, seenWreck: 0, triggerQueue: 0, triggerCooldown: 0,
+        // 0.6.2 TUNE-M, RULE JOIN PACE: one of its belts joins another (a legal join: joinStates set RouteState.join)
+        pace: routes.some((r) => r.factory === p.uid && r.join) ? JOIN_PACE : 1,
       }));
     // 0.6.1b: gear and core. 0.6.2s (REQ-BFG-031 S9): one turret per OCCUPIED slot (deck.ts installedTurrets), in
     // slot order, its index the slot index; an empty slot fights with nothing and is no target. With the starting
@@ -646,7 +651,8 @@ export class Battle {
         f.seenWreck = s.wreckAccepted;
       }
       if (!f.routes.length || f.disrupted > 0 || f.frozen > 0) continue;
-      if (f.triggerCooldown > 0) f.triggerCooldown = Math.max(0, f.triggerCooldown - dt);
+      // 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory's timers run at f.pace (1 for every other factory: dt as before)
+      if (f.triggerCooldown > 0) f.triggerCooldown = Math.max(0, f.triggerCooldown - dt * f.pace);
       if (f.triggerQueue > 0 && f.triggerCooldown <= 0 && this.stamp(s, f)) {
         f.triggerQueue--;
         f.triggerCooldown = 0.6;
@@ -654,7 +660,7 @@ export class Battle {
       // 0.6.1c DOUBLE STAMP / SHOT TOWER: the batch's waiting slugs leave the mouth as AMMO_SPACING frees, round-robin
       // like any stamp. A factory without a batch never has one waiting (pending stays 0).
       if (f.pending > 0 && this.stamp(s, f)) f.pending--;
-      f.timer -= dt;
+      f.timer -= dt * f.pace; // RULE JOIN PACE: a joined factory's cycle takes 1 / pace as long
       if (f.timer > 0) continue;
       if (s.race && raceProduce(this, s, f, dt)) continue; // races: Crucible twin pour
       if (f.pending === 0 && this.stamp(s, f)) {

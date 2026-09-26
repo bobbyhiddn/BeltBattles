@@ -15,6 +15,22 @@ import {
   turretSlots, walkRoute, type Build, type TimelineHit,
 } from "../../sim/deck";
 import { joinersOf, type WalkJoin } from "../../sim/deck"; // 0.6.2j: belt joins
+import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
+
+/**
+ * 0.6.2 TUNE-M, RULE JOIN PACE: the lines a joined factory's panels lead with (its own panel, and each of its belts'):
+ * JOIN_PACE_LINE ("JOINED: THIS FACTORY RUNS AT 70% PACE.") and, for belt `index` (or the factory's first belt), how
+ * often a load now leaves onto it against the unjoined rate. [] for a factory none of whose belts joins, so those
+ * panels read as before.
+ */
+export function joinPaceLines(b: Build, factoryUid: number, index = b.routes.findIndex((r) => r.factory === factoryUid)): Line[] {
+  const pace = factoryPace(b, factoryUid);
+  if (pace >= 1 || index < 0) return [];
+  const every = loadEvery(b, index);
+  const lines: Line[] = [[JOIN_PACE_LINE, C.cyan]];
+  if (Number.isFinite(every)) lines.push([`A LOAD EVERY ${every.toFixed(1)}S ON THIS BELT, NOT ${(every * pace).toFixed(1)}S.`, C.cyan]);
+  return lines;
+}
 
 /** 0.6.2s (REQ-BFG-031 S2): the build's intakes: its installed turrets' belt columns (an empty slot has none). */
 const intakeCount = (b: Build): number => turretSlots(b).reduce((n, s) => n + s.intakes.length, 0);
@@ -443,8 +459,10 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const est = w.estimate;
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
   const joined = joinersOf(b, index); // 0.6.2j (J10)
+  const paced = joinPaceLines(b, b.routes[index].factory, index); // 0.6.2 TUNE-M: RULE JOIN PACE ([] unless joined)
   const head: Line[] = [
     ...(info.connected ? [] : [["ENDS SHORT OF A TURRET INTAKE.", C.amber] as Line]),
+    ...paced,
     ...(joined.length ? [[`${joined.length} BELT${joined.length === 1 ? " JOINS" : "S JOIN"} IT: ${joined.map((j) => `BELT ${j + 1}`).join(", ")}`, C.cyan] as Line] : []),
     `${info.tiles} TILES · ${hitCount} HIT${hitCount === 1 ? "" : "S"}${hitCount ? " IN ORDER:" : ": NO RIG WORKS THIS BELT"}`,
   ];
@@ -469,7 +487,8 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const tag = (burn: string, shock: string) => [...(est.burn ? [`${burn}${est.burn}`] : []), ...(est.shock ? [shock] : [])];
   const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
   return {
-    sub: info.join ? `JOINS BELT ${info.join.route + 1} · ${feeds}` : feeds,
+    // 0.6.2 TUNE-M: a joining belt's sub line says its factory's pace too (the strip that shows only the header)
+    sub: info.join ? `JOINS BELT ${info.join.route + 1} · ${JOIN_PACE_PCT}% PACE · ${feeds}` : feeds,
     subTight: info.connected
       ? [[dmg, ...tag("BURN ", "SHOCK"), spd, time].join(" · "), [dmg, ...tag("B", "SHK"), spd, time].join(" · "), [dmg, time, ...tag("B", "SHK"), spd].join(" ")]
       : undefined,
@@ -569,7 +588,8 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       return {
         icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
         sub: `FACTORY · BELTS ${routesOf(b, p.uid).length}/${outputsAt(d.id, stars) || 1}`,
-        text: body(d, stars, [lvl, next], "DRAG OUT OF IT TO LAY BELT."),
+        // 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory leads with its pace ([] otherwise: the panel reads as before)
+        text: [...joinPaceLines(b, p.uid), ...body(d, stars, [lvl, next], "DRAG OUT OF IT TO LAY BELT.")],
         actions: sig ? [] : [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }],
       };
     }

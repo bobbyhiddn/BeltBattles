@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { newRun, type Run } from "../src/game/run";
 import { NOWHERE, brokenRoutes, fightBlock, routeProblems } from "../src/game/routeCheck";
 import { JOIN_LOOP, key as K, removeItem, removeRoute, rotField, routeInfo, type Build, type Placed } from "../src/sim/deck";
+import { JOIN_PACE_LINE, JOIN_PACE_PCT } from "../src/sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
+import { JOIN_PACE } from "../src/sim/content";
 import { frame as deckFrame } from "../src/render/frame";
 import { cruiserModel } from "../src/render/cruiser";
 import { Editor, type EditHost } from "../src/screens/build/edit";
@@ -71,7 +73,8 @@ describe("J3: drawing a join in the build screen", () => {
     ed.up(...at(4, 3));
     expect(rn.build.routes[1]).toEqual({ factory: 2, cells: R, join: K(4, 4) });
     expect(routeInfo(rn.build, 1)).toMatchObject({ connected: true, turret: 0 });
-    expect(log).toContain("toast:JOINS BELT 1");
+    // 0.6.2 TUNE-M, RULE JOIN PACE: the toast where the join is made says the joining factory's pace
+    expect(log).toContain(`toast:JOINS BELT 1 · FACTORY AT ${JOIN_PACE_PCT}% PACE`);
     expect(h.sel).toEqual({ kind: "route", index: 1 });
   });
 
@@ -162,8 +165,14 @@ describe("J10: the inspector's readouts through a join", () => {
 
   it("the joining belt: its own hits, JOINS BELT n AT TILE t, the main belt's hits from there, and the gun end", () => {
     const bp = beltPanel(run({ r: true, items }), 1)!;
-    expect(bp.sub).toBe("JOINS BELT 1 · FEEDS TURRET 1");
-    expect(bp.head).toEqual(["4 TILES · 2 HITS IN ORDER:"]);
+    // 0.6.2 TUNE-M, RULE JOIN PACE: the sub line and the head say the joined STAMP PRESS's pace (★1: every 1.4 s
+    // unjoined, 1.4 / JOIN_PACE joined)
+    expect(bp.sub).toBe(`JOINS BELT 1 · ${JOIN_PACE_PCT}% PACE · FEEDS TURRET 1`);
+    expect(bp.head).toEqual([
+      [JOIN_PACE_LINE, C.cyan],
+      [`A LOAD EVERY ${(1.4 / JOIN_PACE).toFixed(1)}S ON THIS BELT, NOT 1.4S.`, C.cyan],
+      "4 TILES · 2 HITS IN ORDER:",
+    ]);
     expect(bp.rows).toEqual(["T2: TEMPER BURN +2", ["JOINS BELT 1 AT TILE 2", C.cyan], "T2: WHETSTONE +2"]);
     expect(bp.foot[0]).toEqual([expect.stringMatching(/^AT THE GUN: DMG [\d.]+ · BURN 2 · NO SHOCK$/), C.yellow]);
     expect(bp.subTight?.[0]).toMatch(/BURN 2/);

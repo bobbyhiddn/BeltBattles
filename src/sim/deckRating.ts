@@ -6,8 +6,8 @@
 
 import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME } from "./content";
 import {
-  beltStateAt, connectorClaims, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo, walkRoute,
-  type Build, type RigHit,
+  beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
+  walkRoute, type Build, type RigHit,
 } from "./deck";
 import { FURNACE_LONG_BELT, gearStats } from "./battle";
 import { resolveCore } from "./cores";
@@ -122,12 +122,15 @@ export interface DeckRating {
  * arrival, though in a short fight it lands late or never. With one belt per turret this is the rule as before.
  * `fight`: the fight's length in seconds, FIGHT_T by default; the par player passes its day's (fightTime), so damage
  * is weighed by the share of that day's fight left after each first payload arrives, and RIVETER repairs half of it.
+ * 0.6.2 TUNE-M, RULE JOIN PACE: a factory one of whose belts joins another belt makes its loads at JOIN_PACE of its rate
+ * (deck.ts factoryPace), on every belt it feeds; a deck without joins rates exactly as before (x 1).
  */
 export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, fight = FIGHT_T): DeckRating {
   const h = HEROES[b.hero];
   const hits = rigHits(b), claims = connectorClaims(b), occ = occupancy(b);
-  const outs = new Map<number, number>();
+  const outs = new Map<number, number>(), pace = new Map<number, number>();
   for (const r of b.routes) outs.set(r.factory, (outs.get(r.factory) ?? 0) + 1);
+  for (const uid of outs.keys()) pace.set(uid, factoryPace(b, uid, occ));
   const feeds = new Map<number, Feed[]>(), longest = new Map<number, number>();
   const extras: number[] = [];
   b.routes.forEach((r, ri) => {
@@ -139,7 +142,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const interval = f.def === "mimic" ? (ITEMS[h.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
     const est = walkRoute(b, ri, hits).estimate;
     const x = hitExtras(b, hits, ri, fight, est.time);
-    const arrival = (est.copies * (spec.batch ?? 1)) / (Math.max(0.1, interval) * (outs.get(r.factory) ?? 1));
+    const arrival = (est.copies * (spec.batch ?? 1) * (pace.get(r.factory) ?? 1)) / (Math.max(0.1, interval) * (outs.get(r.factory) ?? 1));
     const eq = est.dmg + (spec.scrapFlat ?? 0) + BURN_TIME * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0);
     const list = feeds.get(info.turret) ?? [];
     list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride });

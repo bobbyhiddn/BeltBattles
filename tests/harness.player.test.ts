@@ -286,9 +286,13 @@ describe("0.6.2 CAND-A: the rating reads turrets and joins as the battle fights 
       for (const id of Object.keys(JOIN_LAYOUTS)) expect(validateBuild(JOIN_LAYOUTS[id](d), 10).errors, `${id} d${d}`).toEqual([]);
       expect(v("F1", d), `d${d}: F1 > F0L`).toBeGreaterThan(v("F0L", d));
       expect(v("F0L", d), `d${d}: F0L > F0 (E1's long belt)`).toBeGreaterThan(v("F0", d));
-      // three factories into one heavy intake is no better than the third idle (the bench: -8 to -13 points)
-      expect(v("F4", d), `d${d}: F4 <= F3L`).toBeLessThanOrEqual(v("F3L", d) * 1.02);
     }
+    // three factories into one heavy intake (one join) against the third idle. 0.6.2 TUNE-M, RULE JOIN PACE: the joined
+    // PRESS now stamps at JOIN_PACE, so the intake is less crowded. The gauntlet bench (parBench --joins --foes
+    // gauntlet at JOIN_PACE 0.7; OUT/tune/pace07) reads F4 - F3L -8.3 / +2.8 [-2.8, +8.3] / -6.9 points on d5/7/10
+    // (at full pace: -8.3 / -13.2 / -12.5). So F4 is no better on days 5 and 10, and level with F3L on day 7
+    for (const d of [5, 10]) expect(v("F4", d), `d${d}: F4 <= F3L`).toBeLessThanOrEqual(v("F3L", d) * 1.02);
+    expect(Math.abs(v("F4", 7) / v("F3L", 7) - 1), "d7: F4 level with F3L").toBeLessThan(0.06);
     // three WEAVER factories into one light turret against one factory per turret (the bench: -21 on day 5, -43 on day 10)
     for (const d of [5, 10]) expect(v("W5", d), `d${d}: W5 < W4`).toBeLessThan(v("W4", d));
   });
