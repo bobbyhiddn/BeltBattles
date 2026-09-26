@@ -14,6 +14,9 @@ import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/
 // 0.6.2s TURRET SLOTS (REQ-BFG-031 S8): a v2 build may also carry `turrets` (at most MAX_TURRETS entries
 // { slot, def, uid, stars?, free? }; absent = the hero's starting layout). The encoder writes it only when
 // present, after the other build keys, so a build without it encodes byte-for-byte as before. No v3.
+// 0.6.2j (REQ-BFG-027, J12): v2 routes may also carry `join` (a cell key 0..GRID*GRID-1: a joining belt's join
+// tile; absent = an ordinary belt). The encoder writes it only when present, so a snapshot without joins encodes
+// byte for byte as before and every older snapshot decodes identically. Its legality is validateBuild's.
 export const SNAPSHOT_VERSION = 2;
 export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2];
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
@@ -104,6 +107,13 @@ function turrets(o: Obj, path: string, version: number): { turrets?: BuildTurret
   };
 }
 
+/** 0.6.2j (J12): the optional `join` of a route: v2 only, a cell key 0..GRID*GRID-1; kept as given. */
+function join(o: Obj, path: string, version: number): { join?: number } {
+  if (!has(o, "join")) return {};
+  if (version < 2) throw new SnapshotError(`${path}.join: not allowed in a v${version} snapshot`);
+  return { join: int(o.join, `${path}.join`, 0, GRID * GRID - 1) };
+}
+
 function int(v: unknown, path: string, min: number, max: number): number {
   if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max) {
     throw new SnapshotError(`${path}: expected an integer in ${min}..${max}`);
@@ -148,11 +158,12 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     };
   });
   const routes = arr(o.routes, `${path}.routes`, MAX_ROUTES).map((rv, i): RouteDef => {
-    const r = obj(rv, `${path}.routes[${i}]`, ["factory", "cells"]);
+    const r = obj(rv, `${path}.routes[${i}]`, ["factory", "cells"], ["join"]);
     return {
       factory: int(r.factory, `${path}.routes[${i}].factory`, 0, MAX_UID),
       cells: arr(r.cells, `${path}.routes[${i}].cells`, GRID * GRID).map((c, j) =>
         int(c, `${path}.routes[${i}].cells[${j}]`, 0, GRID * GRID - 1)),
+      ...join(r, `${path}.routes[${i}]`, version), // 0.6.2j (J12)
     };
   });
   const mods = arr(o.mods, `${path}.mods`, MAX_MODS).map((mv, i): ModPlacement => {

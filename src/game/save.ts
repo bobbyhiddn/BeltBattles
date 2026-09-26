@@ -15,8 +15,12 @@
 //  become rigs beside their belts (migrateInlineGates; idempotent, so a migrated run is untouched). A
 //  stranded rig of the player's deck goes to cargo, or is refunded at its value when cargo already holds
 //  MIGRATE_CARGO_CAP parts; the stored dusk foe and warlord decks drop theirs (logged).
+// 0.6.2j (REQ-BFG-027, J12), save v7, no bump: a belt's `join` (RouteDef.join) is saved and loads as it was; saves
+//  without joins load exactly as before. On load a join that no longer holds is cleared (pruneJoins, J8), so it can
+//  never come back to life under a belt drawn later.
 
 import { RUN_DAYS, START_LIVES, type HeroId } from "../sim/content";
+import { pruneJoins, type Build } from "../sim/deck"; // 0.6.2j
 import { warlordName } from "../sim/ai";
 import { logMigration, migrateDeck, migrateInlineGates } from "../sim/beltside";
 import { starField, starsOf, valueOf } from "../sim/stars";
@@ -177,6 +181,13 @@ export function migrateRun(raw: unknown): Run | null {
   if (!STAGES.includes(r.stage)) r.stage = "caravan";
   if (r.stage === "warlord" && !(r.warlord && r.warlord.day === r.day)) r.stage = "fork";
   if (Array.isArray(r.build.items) && Array.isArray(r.build.routes)) beltsideRun(r); // 0.6.2 BELTSIDE (D3): every load, idempotent
+  if (Array.isArray(r.build.routes) && r.build.routes.some((q: Raw) => q && q.join !== undefined)) {
+    try {
+      pruneJoins(r.build as Build); // 0.6.2j (J8, J12): every load, idempotent; a deck without joins never gets here
+    } catch {
+      /* a deck the sim can't read: its joins stay as saved (the sim treats an illegal join as an open end) */
+    }
+  }
   return r as unknown as Run;
 }
 

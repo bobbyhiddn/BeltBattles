@@ -17,6 +17,7 @@ import {
   canPlaceItem, connectorClaims, dirBetween, adjacentToFactory, footprint, hullSlots, occupancy,
   routeInfo, routeWellFormed, turretSlots, turretsCost, type Build,
 } from "../sim/deck";
+import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../sim/stars";
 
@@ -226,7 +227,9 @@ export function validateBuild(build: Build, day: number): Validation {
   }
   if (errors.length) return { ok: false, errors }; // route checks assume a sane deck
 
-  // routes: well formed, no crossings, connected to a claimed connector, belt ≤ beltCap
+  // routes: well formed, no crossings, connected to a claimed connector, belt ≤ beltCap. 0.6.2j (J2, J12): a joining
+  // belt's join must be legal (joinProblem: next to its join tile, another belt's tile, not itself, no loop); it
+  // claims no connector and counts as connected when its chain ends on a claimed one; its cells alone count as belt
   const occ = occupancy(b);
   const claims = connectorClaims(b);
   const beltOwner = new Map<number, number>();
@@ -245,6 +248,8 @@ export function validateBuild(build: Build, day: number): Validation {
       if (o !== undefined) errors.push(`route: routes ${o} and ${i} cross at cell ${k}`);
       else beltOwner.set(k, i);
     }
+    const jp = joinProblem(b, i, occ); // 0.6.2j (J12); routeCheck.ts reports it in the same words
+    if (jp) errors.push(`route: route ${i} can't join cell ${r.join}: ${jp}`);
     if (!routeInfo(b, i, claims, occ).connected) {
       errors.push(`route: route ${i} does not end on a free turret connector (disconnected)`);
     }

@@ -3,7 +3,7 @@
 // A ghost is a player's deck exactly as it fought dusk on day N, with the record carried INTO that
 // fight. The local pool stores exactly this shape; 0.6.0a pool entries migrate on load.
 
-import { HEROES, type HeroId } from "../sim/content";
+import { GRID, HEROES, type HeroId } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { migrateDeck } from "../sim/beltside";
 
@@ -16,6 +16,8 @@ import { migrateDeck } from "../sim/beltside";
 // 0.6.2s TURRET SLOTS (REQ-BFG-031 S8): a v2 build may also carry `turrets` (absent = the hero's starting
 // layout), exactly as src/net/snapshot.ts checkBuildShape takes it: at most MAX_TURRETS strict entries
 // { slot 0..15, def, uid, stars? 1..3, free? (exactly true) }. Written only when present. No v3.
+// 0.6.2j (REQ-BFG-027, J12): v2 routes may also carry `join` (a cell key 0..99, a joining belt's join tile; absent =
+// an ordinary belt), with src/net/snapshot.ts; still v2.
 export const SNAPSHOT_VERSION = 2;
 const MAX_STARS = 3; // = stars.ts FUSE_MAX
 const MAX_ROT = 3; // 0.6.2: a rig's rotation, 0..3 quarter turns
@@ -88,11 +90,20 @@ function turretsOk(q: object, v: number): boolean {
   });
 }
 
+/** 0.6.2j (J12): every route's `join`: absent, or (v2 only) a cell key 0..GRID*GRID-1 (a joining belt's join tile). */
+function joinOk(routes: unknown[], v: number): boolean {
+  return routes.every((r) => {
+    if (!r || typeof r !== "object" || !("join" in r)) return true;
+    const j = (r as { join?: unknown }).join;
+    return v >= 2 && isInt(j) && j >= 0 && j < GRID * GRID;
+  });
+}
+
 function buildOk(b: unknown, v = SNAPSHOT_VERSION): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
     && Array.isArray(q.mods) && typeof q.beltCap === "number" && typeof q.hullBonus === "number"
-    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v);
+    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v) && joinOk(q.routes, v);
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */
