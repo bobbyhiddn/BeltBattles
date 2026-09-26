@@ -23,7 +23,8 @@ export function starsOf(x: { stars?: number } | undefined): number {
 export function fusible(def: string): boolean {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!d) return false;
-  return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod" || d.kind === "core") && d.price > 0;
+  // 0.6.2s (REQ-BFG-031 S6): turrets merge like every buyable module
+  return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod" || d.kind === "core" || d.kind === "turret") && d.price > 0;
 }
 
 const cache = new Map<string, ItemDef>();
@@ -51,6 +52,7 @@ export function effectAt(def: string, stars: number): ItemDef {
     if (lv.factory) out.factory = { ...out.factory!, ...lv.factory };
     if (lv.mod) out.mod = { ...out.mod, ...lv.mod };
     if (lv.core) out.core = { ...out.core!, ...lv.core }; // 0.6.1b: a turret core's star values
+    if (lv.turret) out.turret = { ...out.turret!, ...lv.turret }; // 0.6.2s: a turret's star values
   }
   cache.set(k, out);
   return out;

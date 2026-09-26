@@ -154,7 +154,9 @@ export interface Good {
 export function tradeGood(run: Run): Good | null {
   const rank = { cargo: 0, deck: 1, mod: 2 };
   const all: Good[] = [
-    ...run.inventory.map((i) => ({ uid: i.uid, def: i.def, from: "cargo" as const, ...starField(starsOf(i)) })),
+    // 0.6.2s (REQ-BFG-031): a turret in cargo is never a trade good (a free starting copy is worth 0 and can't be sold)
+    ...run.inventory.filter((i) => ITEMS[i.def]?.kind !== "turret")
+      .map((i) => ({ uid: i.uid, def: i.def, from: "cargo" as const, ...starField(starsOf(i)) })),
     ...run.build.items.filter((p) => ITEMS[p.def].kind === "gate").map((p) => ({ uid: p.uid, def: p.def, from: "deck" as const, ...starField(starsOf(p)) })),
     ...run.build.mods.map((m) => ({ uid: m.uid, def: m.def, from: "mod" as const, ...starField(starsOf(m)) })),
   ];

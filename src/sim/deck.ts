@@ -4,8 +4,8 @@
 // "forward" (toward the enemy); 1 = +x, 2 = back, 3 = -x.
 
 import {
-  AMMO, BELT_SPEED, CELL, GRID, HEROES, ITEMS, SHAPE_ARROWS, rigShape,
-  type GateEffect, type HeroDef, type HeroId, type ItemDef,
+  AMMO, BELT_SPEED, CELL, GEAR_SLOTS, GRID, HEROES, HULL_SLOTS, ITEMS, SHAPE_ARROWS, rigShape,
+  type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake,
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, starsOf } from "./stars";
@@ -45,6 +45,27 @@ export interface Build {
   mods: ModPlacement[];
   beltCap: number;
   hullBonus: number;
+  // 0.6.2s (REQ-BFG-031 S8): the installed turrets, one per occupied TURRET SLOT, in slot order. Absent means the
+  // hero's starting layout (startingTurrets: each starting slot holds its free starting copy, the extra slot is
+  // empty); written only when the layout differs from it (setTurretList), so older decks serialize as before.
+  turrets?: BuildTurret[];
+}
+
+/** 0.6.2s S8: one installed turret (a Build.turrets entry). A cargo copy is an InvItem with the same fields but `slot`. */
+export interface BuildTurret {
+  slot: number; // the hull slot index (ModPlacement.turret names the same index)
+  def: string; // an ITEMS id of kind "turret"
+  uid: number;
+  stars?: number; // 2 or 3 after a merge; absent = 1 (never written as 1)
+  free?: boolean; // S7: true when it contains the hull's starting copy; absent = false (never written as false)
+}
+
+/** A turret copy anywhere (a slot's or cargo's): what S7's value and selling read. */
+export interface TurretCopy {
+  uid: number;
+  def: string;
+  stars?: number;
+  free?: boolean;
 }
 
 export const key = (x: number, y: number) => y * GRID + x;
@@ -88,8 +109,14 @@ export function itemByUid(b: Build, uid: number): Placed | undefined {
   return b.items.find((p) => p.uid === uid);
 }
 
+/**
+ * The build's hero. 0.6.2s (REQ-BFG-031 S9, S12): its `turrets` are this build's resolved TURRET SLOTS
+ * (turretSlots), one per slot in slot order, an empty slot with no connectors, so turretForColumn,
+ * connectorClaims, routeInfo and connectorFree read the installed turrets' intakes without a line of route code
+ * changing. For a build with the starting layout, slot i < n is exactly the hero's turret i.
+ */
 export function hero(b: Build): HeroDef {
-  return HEROES[b.hero];
+  return slotHero(b);
 }
 
 export function beltUsed(b: Build, exceptRoute = -1): number {
@@ -749,4 +776,141 @@ export function turretHasFreeHardpoint(b: Build, t: number): boolean {
 export function connectedRouteCount(b: Build): number {
   const claims = connectorClaims(b);
   return claims.size;
+}
+
+// ---------------------------------------------------------------- turret slots (0.6.2s, REQ-BFG-031)
+
+/** S8: the uid of the free starting copy in starting slot i is TURRET_UID0 + i (below every run uid, 100+, and
+ *  above every stand-in pool uid, at most MAX_ITEMS + MAX_MODS = 80). */
+export const TURRET_UID0 = 90;
+
+/** The hull's TURRET SLOTS (S1): its starting turrets' spans, then the one extra slot. */
+export function hullSlots(heroId: HeroId): SlotDef[] {
+  return HEROES[heroId]?.slots ?? HULL_SLOTS[heroId];
+}
+
+/** S1/S8: the starting layout: each starting slot holds its free 1-star starting copy; the extra slot is empty. */
+export function startingTurrets(heroId: HeroId): BuildTurret[] {
+  const out: BuildTurret[] = [];
+  hullSlots(heroId).forEach((s, i) => {
+    if (s.start) out.push({ slot: i, def: s.start, uid: TURRET_UID0 + i, free: true });
+  });
+  return out;
+}
+
+/** The installed turrets of a build, in slot order (a copy: Build.turrets, or the starting layout when absent). */
+export function turretList(b: Pick<Build, "hero" | "turrets">): BuildTurret[] {
+  return (b.turrets ?? startingTurrets(b.hero)).map((t) => ({ ...t }));
+}
+
+/** S2: the columns of a slot that take belts: "both" takes both; "inner" the column nearer the deck's centre line
+ *  (x 4.5), a tie to the lower column. */
+export function slotIntakes(col0: number, width: number, intake: TurretIntake): number[] {
+  const cols = Array.from({ length: width }, (_, i) => col0 + i);
+  if (intake === "both") return cols;
+  const mid = (GRID - 1) / 2;
+  let best = cols[0];
+  for (const c of cols) if (Math.abs(c - mid) < Math.abs(best - mid)) best = c;
+  return [best];
+}
+
+/** A turret def's numbers at its stars, installed in `slot`: the TurretDef the battle, the render and the UI read. */
+export function turretDefIn(slot: Pick<SlotDef, "col0" | "width">, def: string, stars = 1): TurretDef {
+  const t = effectAt(def, stars).turret;
+  if (!t) throw new Error(`${def} is not a turret`);
+  return {
+    col0: slot.col0, width: slot.width, connectors: slotIntakes(slot.col0, slot.width, t.intake),
+    kind: t.class, fireInterval: t.fireInterval, window: t.window, flight: t.flight,
+  };
+}
+
+/** S4: a turret's GEAR SLOTS (hardpoints for mods; the core socket is separate): rarity (common 1, rare 2, epic 3,
+ *  legendary 4) plus one per star above 1. 0 for anything that is not a turret. */
+export function gearSlotsOf(def: string, stars = 1): number {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
+  if (!d || d.kind !== "turret") return 0;
+  return GEAR_SLOTS[d.rarity] + (starsOf({ stars }) - 1);
+}
+
+/** One resolved TURRET SLOT (turretSlots): its span, its installed turret (absent: empty), that turret's TurretDef
+ *  at its stars, the columns taking belts ([] when empty) and its gear slots (0 when empty). Read-only. */
+export interface SlotView {
+  slot: number;
+  col0: number;
+  width: number;
+  start?: string; // the hull's starting def for this slot (absent: the extra slot)
+  turret?: BuildTurret;
+  td?: TurretDef;
+  intakes: number[];
+  gearSlots: number;
+}
+
+function resolveSlots(heroId: HeroId, list: readonly BuildTurret[]): SlotView[] {
+  return hullSlots(heroId).map((s, i) => {
+    const t = list.find((x) => x.slot === i);
+    if (!t) return { slot: i, col0: s.col0, width: s.width, ...(s.start ? { start: s.start } : {}), intakes: [], gearSlots: 0 };
+    const td = turretDefIn(s, t.def, starsOf(t));
+    return {
+      slot: i, col0: s.col0, width: s.width, ...(s.start ? { start: s.start } : {}), turret: { ...t }, td,
+      intakes: td.connectors, gearSlots: gearSlotsOf(t.def, starsOf(t)),
+    };
+  });
+}
+
+const startViews = new Map<HeroId, SlotView[]>();
+
+/**
+ * THE helper (S9): every slot of the build's hull, in slot order, with its installed turret or empty. Every reader of
+ * a build's turrets goes through it (or installedTurrets / hero(b)). Pass { hero } alone for a hull with no build
+ * (hero select): the starting layout plus the empty slot. The starting layout's views are cached: don't mutate.
+ */
+export function turretSlots(b: Pick<Build, "hero" | "turrets">): SlotView[] {
+  if (b.turrets) return resolveSlots(b.hero, b.turrets);
+  let v = startViews.get(b.hero);
+  if (!v) startViews.set(b.hero, (v = resolveSlots(b.hero, startingTurrets(b.hero))));
+  return v;
+}
+
+/** The occupied slots, in slot order: what fights (Battle.makeSide makes one TurretState per entry). */
+export function installedTurrets(b: Pick<Build, "hero" | "turrets">): (SlotView & { turret: BuildTurret; td: TurretDef })[] {
+  return turretSlots(b).filter((s): s is SlotView & { turret: BuildTurret; td: TurretDef } => !!s.turret && !!s.td);
+}
+
+/** An empty slot as a TurretDef: its span and no connectors (hero(b)'s `turrets`); nothing fights in it. */
+function emptyTurretDef(s: SlotView): TurretDef {
+  return { col0: s.col0, width: s.width, connectors: [], kind: "light", fireInterval: 0, window: 0, flight: 0, empty: true };
+}
+
+const startHeroes = new Map<HeroId, HeroDef>();
+
+/** hero(b): the HeroDef with this build's slots as `turrets` (see hero). */
+function slotHero(b: Pick<Build, "hero" | "turrets">): HeroDef {
+  const make = () => ({ ...HEROES[b.hero], turrets: turretSlots(b).map((s) => s.td ?? emptyTurretDef(s)) });
+  if (b.turrets) return make();
+  let h = startHeroes.get(b.hero);
+  if (!h) startHeroes.set(b.hero, (h = make()));
+  return h;
+}
+
+/** S7: a turret copy's value: price x (2^(stars-1) - 1 if it holds the free starting copy). A 1-star starting turret
+ *  is worth 0; merged with one bought copy it is worth one price. 0 for anything that is not a turret. */
+export function turretValue(c: { def: string; stars?: number; free?: boolean }): number {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, c.def) ? ITEMS[c.def] : undefined;
+  if (!d || d.kind !== "turret") return 0;
+  return d.price * (2 ** (starsOf(c) - 1) - (c.free ? 1 : 0));
+}
+
+/** S7: a 1-star starting turret can't be sold (it can go to cargo and back). */
+export function canSellTurret(c: { def: string; stars?: number; free?: boolean }): boolean {
+  return !(c.free && starsOf(c) <= 1);
+}
+
+/** S5/S7: what selling a turret copy pays: the normal sell value, max(1, floor(value / 2)); 0 when it can't be sold. */
+export function turretSellValue(c: { def: string; stars?: number; free?: boolean }): number {
+  return canSellTurret(c) ? Math.max(1, Math.floor(turretValue(c) / 2)) : 0;
+}
+
+/** Deck cost of the installed turrets (S7): the sum of turretValue (0 for the starting layout). */
+export function turretsCost(b: Pick<Build, "hero" | "turrets">): number {
+  return b.turrets ? b.turrets.reduce((s, t) => s + turretValue(t), 0) : 0;
 }

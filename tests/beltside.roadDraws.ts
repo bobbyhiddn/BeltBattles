@@ -75,7 +75,8 @@ export function roadDraws(): RoadDraws {
     out.salvage[k] = PICKS.map((p) => salvagePart(run, p) ?? "-").join(",");
   }
   out.smuggler = PICKS.map((p) => smugglerParts(p).map((x) => x ?? "-").join("+")).join(",");
-  for (const def of Object.keys(ITEMS).filter((d) => fusible(d))) {
+  // 0.6.2s: turrets are fusible but never a trade good (eventDefs tradeGood), so no swap starts from one
+  for (const def of Object.keys(ITEMS).filter((d) => fusible(d) && ITEMS[d].kind !== "turret")) {
     out.swap[def] = PICKS.filter((_, i) => i % 4 === 0).map((p) => swapPart(def, p) ?? "-").join(",");
   }
   return out;

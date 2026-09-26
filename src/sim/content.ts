@@ -31,7 +31,8 @@ export const COMMISSION_STEP = 0.6; // each further gate on the route adds this 
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 // 0.6.1b: "core" is a turret core (ARSENAL.md §1): it lives in Build.mods, one socket per turret, beside the one mod
-export type ItemKind = "gate" | "factory" | "mod" | "supply" | "core";
+// 0.6.2s (REQ-BFG-031): "turret" is a turret: a module installed in a hull's TURRET SLOT (Build.turrets, deck.ts)
+export type ItemKind = "gate" | "factory" | "mod" | "supply" | "core" | "turret";
 export type AmmoKind = "cinder" | "thread" | "plain" | "shot" | "slag" | "sabot" | "frost" | "drag" | "limpet" | RaceAmmoKind;
 export type HeroId = "furnace" | "weaver" | RaceHeroId; // races: foundry, bastion, metronome, siphon
 export type Faction = "orc" | "elf" | "human" | "dwarf" | "beastfolk" | "unaligned"; // races: spec §6.2
@@ -209,9 +210,39 @@ export interface ItemLevel {
   factory?: Partial<FactorySpec>;
   mod?: Partial<ModSpec>;
   core?: Partial<CoreSpec>; // 0.6.1b: a turret core's star values
+  turret?: Partial<TurretSpec>; // 0.6.2s: a turret's star values
   perk?: string;
   pending?: Record<string, number>;
 }
+
+/**
+ * 0.6.2s (REQ-BFG-031) S2: which columns of its slot a turret takes belts on. "both": both columns; "inner": the
+ * column nearer the deck's centre line (x 4.5), a tie going to the lower column (deck.ts slotIntakes).
+ */
+export type TurretIntake = "both" | "inner";
+
+/**
+ * 0.6.2s S3: a turret's firing numbers, exactly the fields a hero's TurretDef had (its class is TurretDef.kind).
+ * Installed in a slot, it resolves to a TurretDef at the slot's columns (deck.ts turretSlots).
+ */
+export interface TurretSpec {
+  class: TurretKind;
+  fireInterval: number; // s between firing opportunities
+  window: number; // loading window size (LIFO stack)
+  flight: number; // projectile flight time (s)
+  intake: TurretIntake;
+}
+
+/** 0.6.2s S1: one TURRET SLOT of a hull: a fixed 2-column span in the forward row; `start` names its starting turret. */
+export interface SlotDef {
+  col0: number;
+  width: number;
+  start?: string; // the ITEMS id of the turret the hero starts with here; absent: the slot starts empty
+}
+
+/** 0.6.2s S3 prices (the balance pass may retune) and S4 gear slots by rarity (+1 per star above 1, deck.ts gearSlotsOf). */
+export const TURRET_PRICE: Record<Rarity, number> = { common: 6, rare: 8, epic: 10, legendary: 13 };
+export const GEAR_SLOTS: Record<Rarity, number> = { common: 1, rare: 2, epic: 3, legendary: 4 };
 
 export interface ItemDef {
   id: string;
@@ -227,6 +258,8 @@ export interface ItemDef {
   factory?: FactorySpec;
   mod?: ModSpec;
   core?: CoreSpec; // 0.6.1b: a turret core's firing routine (kind "core")
+  turret?: TurretSpec; // 0.6.2s: a turret's numbers (kind "turret")
+  reason?: string; // 0.6.2s: a turret's one-line reason to buy it (player text)
   supply?: { belt?: number; hull?: number };
   levels?: { 2?: ItemLevel; 3?: ItemLevel }; // 0.6.1a: star overrides (1 star = the spec above)
   tags?: ModuleTag[]; // 0.6.1b: catalogue.json tags (set on the cores; a shop hint only)
@@ -635,6 +668,52 @@ export const ITEMS: Record<string, ItemDef> = {
     core: { routine: "lance", columns: 1, share: 0.2 },
     levels: { 2: { core: { columns: 2, share: 0.22 } }, 3: { core: { columns: 3, share: 0.23 } } },
   },
+  // --- 0.6.2s turrets (REQ-BFG-031 S3): installed in a hull's TURRET SLOT (Build.turrets); any turret fits any slot.
+  // The six starting lines, one per distinct hero turret, are ordinary commons with exactly the heroes' 0.6.1
+  // numbers (HeroDef.slots names them). Star values (S6): ★2 window +1, ★3 window +1 and fire interval x0.85.
+  // No merchant: not sold before the shop step. Gear slots: rarity (common 1) + 1 per star above 1 (deck.ts).
+  scrapcannon: {
+    id: "scrapcannon", name: "SCRAP CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 3 LOADS."],
+    reason: "A heavy gun that takes a belt on both columns.",
+    turret: { class: "heavy", fireInterval: 1.0, window: 3, flight: 0.6, intake: "both" },
+    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.85 } } },
+  },
+  rampart: {
+    id: "rampart", name: "RAMPART CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    desc: ["HEAVY TURRET.", "FIRES EVERY 0.75S.", "HOLDS 3 LOADS."],
+    reason: "A quicker heavy gun with a slower shell.",
+    turret: { class: "heavy", fireInterval: 0.75, window: 3, flight: 0.65, intake: "both" },
+    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.6375 } } },
+  },
+  dartgun: {
+    id: "dartgun", name: "DART GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."],
+    reason: "A fast light gun on one inner column.",
+    turret: { class: "light", fireInterval: 0.55, window: 2, flight: 0.34, intake: "inner" },
+    levels: { 2: { turret: { window: 3 } }, 3: { turret: { window: 3, fireInterval: 0.4675 } } },
+  },
+  spikegun: {
+    id: "spikegun", name: "SPIKE GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    desc: ["LIGHT TURRET.", "FIRES EVERY 0.6S.", "HOLDS 2 LOADS."],
+    reason: "A light gun on one inner column.",
+    turret: { class: "light", fireInterval: 0.6, window: 2, flight: 0.34, intake: "inner" },
+    levels: { 2: { turret: { window: 3 } }, 3: { turret: { window: 3, fireInterval: 0.51 } } },
+  },
+  carronade: {
+    id: "carronade", name: "CARRONADE", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 2 LOADS."],
+    reason: "A medium gun that takes a belt on both columns.",
+    turret: { class: "medium", fireInterval: 0.8, window: 2, flight: 0.45, intake: "both" },
+    levels: { 2: { turret: { window: 3 } }, 3: { turret: { window: 3, fireInterval: 0.68 } } },
+  },
+  swivel: {
+    id: "swivel", name: "SWIVEL GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    desc: ["ADAPTABLE TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."],
+    reason: "An adaptable gun on both columns.",
+    turret: { class: "adaptable", fireInterval: 0.7, window: 3, flight: 0.55, intake: "both" },
+    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.595 } } },
+  },
   // --- supplies (consumed on purchase) ---
   beltcrate: {
     id: "beltcrate", name: "BELT CRATE", kind: "supply", rarity: "common", price: 2, size: 1, merchant: "ironmonger",
@@ -679,6 +758,7 @@ export interface TurretDef {
   fireInterval: number;
   window: number; // loading window size (LIFO stack)
   flight: number; // projectile flight time (s)
+  empty?: boolean; // 0.6.2s: an empty TURRET SLOT (deck.ts hero(b)): no connectors, nothing fights there
 }
 
 /**
@@ -724,7 +804,22 @@ export interface HeroDef {
   // 0.6.1b: the signature core's id (SIGNATURE_CORES). Optional only because src/sim/races/data.ts (not ours
   // to edit) builds its HeroDefs without it; HEROES below sets it for every hero.
   core?: string;
+  // 0.6.2s (REQ-BFG-031 S1): the hull's TURRET SLOTS. Slot i < turrets.length is starting turret i (same col0 and
+  // width) and names its starting def; the last slot is the one extra slot, empty at the start of a run. Optional
+  // for the same reason as `core`; HEROES sets it for every hero. `turrets` stays the starting layout's numbers.
+  slots?: SlotDef[];
 }
+
+/** 0.6.2s S1: each hull's slots. The extra slot's col0 is the brief's (FURNACE 8, BASTION 0, METRONOME 8, WEAVER 6,
+ *  FOUNDRY 4, SIPHON 4); each starting slot names the common turret with exactly that hero's 0.6.1 numbers. */
+export const HULL_SLOTS: Record<HeroId, SlotDef[]> = {
+  furnace: [{ col0: 4, width: 2, start: "scrapcannon" }, { col0: 8, width: 2 }],
+  weaver: [{ col0: 0, width: 2, start: "dartgun" }, { col0: 4, width: 2, start: "dartgun" }, { col0: 8, width: 2, start: "dartgun" }, { col0: 6, width: 2 }],
+  foundry: [{ col0: 2, width: 2, start: "carronade" }, { col0: 6, width: 2, start: "carronade" }, { col0: 4, width: 2 }],
+  bastion: [{ col0: 4, width: 2, start: "rampart" }, { col0: 0, width: 2 }],
+  metronome: [{ col0: 4, width: 2, start: "swivel" }, { col0: 8, width: 2 }],
+  siphon: [{ col0: 1, width: 2, start: "spikegun" }, { col0: 7, width: 2, start: "spikegun" }, { col0: 4, width: 2 }],
+};
 
 export const HEROES: Record<HeroId, HeroDef> = {
   furnace: {
@@ -734,6 +829,7 @@ export const HEROES: Record<HeroId, HeroDef> = {
     blurb: ["KILN SLUGS HEAT UP ON", "LONG BELTS. AT 8+ TILES,", "BREECH FIRES EVERY 0.72S."],
     pattern: "DELAY TO COOK",
     core: "kilnbreech",
+    slots: HULL_SLOTS.furnace,
   },
   weaver: {
     id: "weaver", name: "WEAVER", faction: "elf", factionName: "ELVEN SKYWRIGHTS",
@@ -746,13 +842,14 @@ export const HEROES: Record<HeroId, HeroDef> = {
     blurb: ["THE LOOM FEEDS THREE", "LIGHT TURRETS. EVERY", "HIT FRAYS THE HULL."],
     pattern: "STEADY PRESSURE",
     core: "loomshuttle",
+    slots: HULL_SLOTS.weaver,
   },
   ...RACE_HEROES, // races: FOUNDRY (human), BASTION (dwarf), METRONOME (beastfolk), SIPHON — docs/RACES.md
-  // 0.6.1b: the race heroes' signature cores, set on copies (races/data.ts stays as it is)
-  foundry: { ...RACE_HEROES.foundry, core: "cruciblebreech" },
-  bastion: { ...RACE_HEROES.bastion, core: "bulwarkcannon" },
-  metronome: { ...RACE_HEROES.metronome, core: "pendulumhammer" },
-  siphon: { ...RACE_HEROES.siphon, core: "leechneedle" },
+  // 0.6.1b: the race heroes' signature cores, set on copies (races/data.ts stays as it is); 0.6.2s: their slots too
+  foundry: { ...RACE_HEROES.foundry, core: "cruciblebreech", slots: HULL_SLOTS.foundry },
+  bastion: { ...RACE_HEROES.bastion, core: "bulwarkcannon", slots: HULL_SLOTS.bastion },
+  metronome: { ...RACE_HEROES.metronome, core: "pendulumhammer", slots: HULL_SLOTS.metronome },
+  siphon: { ...RACE_HEROES.siphon, core: "leechneedle", slots: HULL_SLOTS.siphon },
 };
 
 export interface MerchantDef {
