@@ -16,7 +16,8 @@
 //   --extra     [--seeds 4] flag 1: the extra turret slot's lift on the par decks that fill it
 //   --stars     [--seeds 4] flag 2: starting turrets at 1/2/3 stars on the par decks (default --heroes weaver)
 //   --ablate    [--seeds 4] [--min 3] flag 3: each part's lift (whole deck vs the deck without it), REQ-BFG-033 (4)
-//   --joins     [--seeds 10] flag 4: junction-062's bench layouts against the par field
+//   --joins     [--seeds 10] flag 4: junction-062's bench layouts against the par field; with --foes gauntlet
+//               [--seeds 12] against junction-062's own foes and seeds (its REPORT section 8 bench, on this head)
 //   --fingerprint  no battles: a hash of every par deck per hero-day (a refactor must not move them)
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
@@ -45,6 +46,8 @@ import { playerBuild, playerRun, refeedRoute, type PlayerOpts } from "../src/sim
 import { RATING_CLIFF, RATING_CURVE, rateDeck } from "../src/sim/deckRating";
 import { RIVALS, RIVAL_IDS, deckCost, difficultyOf, honestReference, rivalBuild, rivalDays, standInBuild } from "../src/sim/rivals";
 import type { DetailRunner, Job, Runner } from "../src/sim/harness/tournament";
+import { DEFAULT_OPTS, focusSeeds } from "../src/sim/harness/tournament";
+import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { flag, num, serveJobs, workerRunner } from "./workers";
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
@@ -854,6 +857,38 @@ async function joinsMode(days: number[], run: Runner, out: string, opts: PlayerO
   }
 }
 
+/** tests/joins.bench.test.ts JOIN_BENCH_KEY: the join bench's seed key. */
+const JOIN_BENCH_KEY = "bb-bench-joins";
+
+/**
+ * --joins --foes gauntlet (flag 4 on junction-062's own terms; --seeds default 12, its REPORT section 8 run): each
+ * layout against the day's harness gauntlet (heroRefBuild of the six HARNESS_HEROES) on the bench's own seeds
+ * (focusSeeds(DEFAULT_OPTS.seed, day, hero, foe, "bb-bench-joins"), each from both sides: tests/joins.bench.test.ts
+ * benchDay's battles), so the win rates are that table's on this head. One job per (layout, foe, seed); the pair
+ * (foe, seed) is the unit of every interval, and lifts are paired on it.
+ */
+async function joinsGauntletMode(days: number[], run: Runner, out: string, seeds: number, tag: string): Promise<void> {
+  for (const day of days) {
+    const t0 = performance.now();
+    const ids = Object.keys(JB), decks = ids.map((id) => JB[id](day));
+    const foes = HARNESS_HEROES.map((h) => heroRefBuild(h, day));
+    const o = { ...DEFAULT_OPTS, seeds };
+    const jobs: Job[] = [];
+    decks.forEach((b, i) => {
+      const src = b.hero === "furnace" ? 0 : 1;
+      foes.forEach((_, g) => { for (const s of focusSeeds(o, day, src, g, JOIN_BENCH_KEY)) jobs.push({ a: i, b: decks.length + g, seeds: [s] }); });
+    });
+    const pts = await run([...decks, ...foes], jobs);
+    const per = foes.length * seeds;
+    const units: Record<string, number[]> = Object.fromEntries(ids.map((id, i) => [id, pts.slice(i * per, (i + 1) * per).map((p) => p / 2)]));
+    const rate = Object.fromEntries(ids.map((id) => { const c = meanCI(units[id]); return [id, { mean: c.mean, ci: c.ci, battles: 2 * per }]; }));
+    const pairs = JB_PAIRS.map(([a, b, what]) => { const c = meanCI(units[a].map((x, u) => x - units[b][u])); return { a, b, what, mean: c.mean, ci: c.ci }; });
+    console.log(`joins gauntlet ${tag} d${day}: ${ids.map((id) => `${id} ${pc(rate[id].mean)}`).join(" ")} (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
+    for (const p of pairs) console.log(`    ${`${p.a} - ${p.b}`.padEnd(10)} ${fmtLift(p)} pts  ${p.what}`);
+    writeFileSync(resolve(out, `joins-gauntlet-${tag}-d${day}.json`), JSON.stringify({ day, seeds, foes: HARNESS_HEROES, rate, pairs, units }, null, 1));
+  }
+}
+
 /** A policy spec "policy" or "policy|knob=v,knob=v" (--vs): the player options it names. */
 function specOpts(spec: string): PlayerOpts {
   const [policy, tunes = ""] = spec.split("|");
@@ -922,7 +957,10 @@ async function main(): Promise<void> {
   if (process.argv.includes("--extra")) await extraMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), tag);
   if (process.argv.includes("--stars")) await starsMode(days, pool.detail, out, opts, k, num("seeds", 4), tag);
   if (process.argv.includes("--ablate")) await ablateMode(days, pool.run, out, opts, k, num("seeds", 4), num("min", 3), tag);
-  if (process.argv.includes("--joins")) await joinsMode(days, pool.run, out, opts, k, num("seeds", 10), tag);
+  if (process.argv.includes("--joins")) {
+    if (flag("foes") === "gauntlet") await joinsGauntletMode(days, pool.run, out, num("seeds", 12), tag);
+    else await joinsMode(days, pool.run, out, opts, k, num("seeds", 10), tag);
+  }
   if (flag("vs")) await vsMode(days, pool.run, out, k, num("seeds", 4), flag("vs")!.split(";").filter(Boolean), tag);
   await pool.close();
   console.log(`done in ${((performance.now() - t0) / 1000).toFixed(0)} s on ${nw} worker(s)`);
