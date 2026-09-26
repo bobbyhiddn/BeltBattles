@@ -5,7 +5,7 @@
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import {
-  DISRUPT_TIME, HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, WINDOW_TIME, classFactor, rigShape,
+  DISRUPT_TIME, HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, WINDOW_TIME, classFactor, rigShape, type HarassCause,
 } from "../../sim/content";
 import { AMMO, type FactorySpec, type ItemDef } from "../../sim/content"; // 0.6.1c: factory headlines
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
@@ -38,8 +38,9 @@ import { deadEndLines, slotActions, slotColor, slotIcon, slotNotes, slotSub, slo
 
 /**
  * 0.6.1d: the headline number at `stars`, `effectAt` read out short (ARSENAL.md §8.1, §8.2). 0.6.1p: every applied
- * star perk reads here too. OVERDRIVE's REDLINE/AFTERBURNER guards and MANTLET's freeze/sabot/static/arc/drag
- * immunities act only once wave 2 adds those attacks, so no line promises them (only the perk's name shows).
+ * star perk reads here too. OVERDRIVE's REDLINE/AFTERBURNER guards act only once enemy slows and freezes are guarded,
+ * so no line promises them (only the perk's name shows). 0.6.2 FB-B: wave 2's harassment is live, so MANTLET's line
+ * names the stalls it blocks and the belt tiles it shields (mantletLine).
  */
 export function starEffectLine(def: string, stars: number, k = 1): string {
   const e = effectAt(def, stars);
@@ -76,13 +77,38 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   if (m?.fireMul) return `FIRE X${m.fireMul}`;
   if (m?.perShot) return `${m.perShot}/SHOT${m.window ? ` · +${m.window} SLOT` : ""}`;
   if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.noJam ? " · NEVER JAMS" : ""}`; // HOPPER
-  if (m?.immune) return `SHOCK-PROOF${m.intakeGuard ? ` · GUARDS LAST ${m.intakeGuard} TILES` : ""}`; // MANTLET (wave 1: shock only)
+  if (m?.immune) return mantletLine(m.immune, m.intakeGuard ?? 0); // MANTLET (0.6.2 FB-B)
   if (m?.finisher) return `FINISHER +${Math.round(m.finisher * 100)}%`;
   if (m?.intercept) return `${Math.round(m.intercept * 100)}% INTERCEPT`;
   if (m?.rerolls || m?.alwaysMachine) return m.alwaysMachine ? `ALWAYS MACHINE · FACTORY X${m.factoryWeight}` : `${m.rerolls} REROLL${m.rerolls === 1 ? "" : "S"}${m.factoryWeight ? ` · FACTORY X${m.factoryWeight}` : ""}`;
   const perk = livePerk(def, stars);
   if (perk) return perk;
   return "";
+}
+
+/** 0.6.2 FB-B: the stalls a MANTLET blocks, in the words the shop uses for their sources (drag: DRAG CHAIN FOUNDRY). */
+const STALL_WORD: Record<HarassCause, string> = {
+  shock: "SHOCK", static: "STATIC", arc: "ARC", drag: "CHAIN", freeze: "FROST", sabot: "SABOT", rip: "GRAPNEL", limpet: "LIMPET", sap: "SAP",
+};
+
+/**
+ * 0.6.2 FB-B: MANTLET's line at a star. ★1 lists the stalls its turret ignores; a higher star lists the ones it adds
+ * (FULL PLATE: FROST and SABOT) and names the belt tiles it shields: ★2 the tile feeding its turret, ★3 BULWARK SKIRT
+ * the last 3 (on every belt into that turret; rigs working a shielded tile are shielded too, the turret panel says so).
+ */
+export function mantletLine(immune: readonly HarassCause[], intakeGuard: number): string {
+  const one = ITEMS.mantlet.mod?.immune ?? [];
+  const more = immune.filter((c) => !one.includes(c));
+  const head = more.length ? `+${more.map((c) => STALL_WORD[c]).join(", ")}` : `STALL-PROOF: ${immune.map((c) => STALL_WORD[c]).join(", ")}`;
+  const tiles = intakeGuard === 1 ? "SHIELDS THE BELT TILE FEEDING ITS TURRET"
+    : intakeGuard > 1 ? `SHIELDS THE LAST ${intakeGuard} BELT TILES FEEDING ITS TURRET` : "";
+  return tiles ? `${head} · ${tiles}` : head;
+}
+
+/** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's line for a MANTLET ★2/★3 that shields `n` tiles: the last tile(s) of
+ *  every belt into this turret, and each rig beside the belt with an arrow working a shielded tile. */
+export function shieldLine(n: number): string {
+  return `SHIELDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN, AND RIGS WORKING ${n === 1 ? "IT" : "THEM"}`;
 }
 
 /**
@@ -570,6 +596,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const clash: string[] = [];
       if (tc.routine === "gatling" && gear?.id === "hopper") clash.push(`GATLING: HOPPER'S +${effectAt("hopper", gstars).mod?.windowTime ?? 0}S DOES NOTHING`);
       if (tc.routine === "gatling" && gear?.id === "ram") clash.push("GATLING: NO WINDOW, SO NO FINISHER");
+      const shield = tu.intakeGuard > 0 ? [shieldLine(tu.intakeGuard)] : []; // 0.6.2 FB-B: MANTLET ★2/★3
       // 0.6.2s (REQ-BFG-031 S10): the installed turret's name, stars and rarity; its CORE SOCKET and every GEAR SLOT
       // (turretPanel.ts socketLines); belts a swap left without an intake first; TO CARGO and SELL
       return {
@@ -581,6 +608,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
           ...socketLines(b, show.index, coreName, (d, s) => starEffectLine(d, s), !!ctx.L?.portrait), // 0.6.1b: §8.4
           chamber,
           ...clash,
+          ...shield,
           ...slotNotes(b, show.index),
         ],
         actions: [...actions, ...slotActions(ctx, show.index)],

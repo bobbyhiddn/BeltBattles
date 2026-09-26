@@ -100,7 +100,8 @@ export interface GateEffect {
 /**
  * 0.6.1p: RouteState.guard flags. OVERDRIVE ★2 REDLINE sets GUARD_SLOW downstream and ★3 AFTERBURNER adds
  * GUARD_FREEZE; they act only once wave 2 adds enemy slow and freeze (nothing in wave 1 reads them). GUARD_SKIRT
- * marks a MANTLET ★3 BULWARK SKIRT tile: the fed turret's immunities cover it (Battle.disrupt).
+ * marks a tile a MANTLET shields (★2 FULL PLATE: the last tile, 0.6.2 FB-B; ★3 BULWARK SKIRT: the last 3): the fed
+ * turret's immunities cover it (Battle.disrupt).
  */
 export const GUARD_SLOW = 1;
 export const GUARD_FREEZE = 2;
@@ -147,7 +148,7 @@ export interface ModSpec {
   windowTime?: number; // + seconds before the window closes (TurretState.windowTime; GATLING never reads it)
   noJam?: boolean; // HOPPER ★3 BOTTOMLESS: this turret never jams
   immune?: HarassCause[]; // MANTLET: stalls this turret ignores (Battle.disrupt)
-  intakeGuard?: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into this turret share its immunities
+  intakeGuard?: number; // MANTLET ★2 FULL PLATE (1, 0.6.2 FB-B) and ★3 BULWARK SKIRT (3): the last n tiles of each route into this turret share its immunities
   finisher?: number; // FINISHER RAM: + this share of damage on the payload that empties a loading window
   intercept?: number; // future FLAK SCREEN: one side-wide intercept roll per incoming harassment projectile
   rerolls?: number;
@@ -577,9 +578,12 @@ export const ITEMS: Record<string, ItemDef> = {
   mantlet: {
     id: "mantlet", name: "MANTLET", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "ironmonger",
     desc: ["ARMORED TURRET:", "SHOCK AND CHAIN SLOWS", "CAN'T STALL IT."], tags: ["GUARD"],
-    mod: { immune: ["shock", "static", "arc", "drag"] }, // wave 1 has only shock; the rest arrive with wave 2
+    mod: { immune: ["shock", "static", "arc", "drag"] },
     levels: {
-      2: { mod: { immune: ["shock", "static", "arc", "drag", "freeze", "sabot"] }, perk: "FULL PLATE" },
+      // 0.6.2 FB-B (oracle 16085a6430e4cc6a): FULL PLATE also shields the belt tile feeding its turret (intakeGuard 1),
+      // and the rigs working it (DESIGN §11 P6), against the same stalls. Freeze and sabot rounds almost never strike
+      // the turret itself, so FULL PLATE alone changed no star-bench fight (the MANTLET ★2 NO EFFECT rows).
+      2: { mod: { immune: ["shock", "static", "arc", "drag", "freeze", "sabot"], intakeGuard: 1 }, perk: "FULL PLATE" },
       3: { mod: { intakeGuard: 3 }, perk: "BULWARK SKIRT" },
     },
   },

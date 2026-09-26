@@ -307,7 +307,8 @@ describe("P6: MANTLET ★3 BULWARK SKIRT guards every rig with a hit on a guarde
     expect(hit(bt, "gate", 10, -1, "freeze")).toBe(false); // FULL PLATE's immunities carry to ★3
   });
 
-  it("the same rig moved off the skirt is stalled; an IDLE rig is stalled; without ★3 nothing is skirted", () => {
+  // 0.6.2 FB-B: a ★2 MANTLET (FULL PLATE) now shields the intake tile (5) only, so this rig (tile 4) still stalls below ★3
+  it("the same rig moved off the skirt is stalled; an IDLE rig is stalled; below ★3 a rig on tile 4 is not skirted", () => {
     const off = new Battle(deck(3, { x: 5, y: 3 }), barge(), SEED); // route 0's tile 2 and route 1's tile 2
     expect(off.sides[0].gates.find((x) => x.uid === 10)!.hits.map((h) => [h.route, h.tile])).toEqual([[0, 2], [1, 2]]);
     expect(hit(off, "gate", 10, -1)).toBe(true);

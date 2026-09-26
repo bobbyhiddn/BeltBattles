@@ -121,7 +121,8 @@ export interface RouteState {
   phase: number[]; // render: belt animation phase per cell (px)
   pressure: number; // blocked payloads on this route
   // 0.6.1p: GUARD_* flags per cell (content.ts), set in makeSide: OVERDRIVE REDLINE/AFTERBURNER (read by wave 2's
-  // enemy slow and freeze; nothing in wave 1 does) and MANTLET ★3 BULWARK SKIRT (read by Battle.disrupt)
+  // enemy slow and freeze; nothing in wave 1 does) and the tiles a MANTLET shields (★2 FULL PLATE, 0.6.2 FB-B, and ★3
+  // BULWARK SKIRT; read by Battle.disrupt)
   guard: number[];
   // 0.6.2j: set only on a joining belt (legal join). Its payloads go to the main belt at the join tile (Battle.joins),
   // never into a turret: `connected` is false and `turret` -1 here; `join.feeds` is its chain's turret.
@@ -185,7 +186,7 @@ export interface TurretState {
   // 0.6.1p: gear (makeTurret). window/windowTime above already include EXT. CHAMBER and HOPPER.
   noJam: boolean; // HOPPER ★3 BOTTOMLESS
   immune: HarassCause[]; // MANTLET: stalls Battle.disrupt ignores on this turret
-  intakeGuard: number; // MANTLET ★3 BULWARK SKIRT: the last n tiles of each route into it share `immune`
+  intakeGuard: number; // MANTLET ★2 FULL PLATE (1, 0.6.2 FB-B), ★3 BULWARK SKIRT (3): the last n tiles of each route into it share `immune`
   finisher: number; // FINISHER RAM: + this share of damage on the payload that empties the window (never on a GATLING)
   intercept: number; // Flak mod's chance; the side takes the maximum across its turrets
   rerolls: number;
@@ -459,7 +460,8 @@ export class Battle {
     const turrets: TurretState[] = installedTurrets(b).map((s) => makeTurret(b, s.slot, s.td));
     const bySlot = (slot: number) => turrets.find((tu) => tu.index === slot);
     // 0.6.1p: guard flags. OVERDRIVE ★2/★3 flags its own tile and every tile downstream (static: wave 2's hooks
-    // decide whether the gate must be online); a MANTLET ★3 turret's BULWARK SKIRT flags each connected route's last n tiles.
+    // decide whether the gate must be online); a MANTLET turret's shield (★2 FULL PLATE: 1 tile, 0.6.2 FB-B; ★3 BULWARK
+    // SKIRT: 3) flags each connected route's last n tiles.
     // beltside-062 B4 (DESIGN §11 P5): a tile's flags are the OR of every hit landing on it, whichever speed wins
     // the tile, and they reach that tile and every tile downstream; an X rig flags each belt it hits.
     for (const r of routes) {
@@ -1395,6 +1397,9 @@ export class Battle {
         const [lo, hi] = segmentBounds(r.gateAt.map((list) => list.length > 0), h.tile);
         for (let ci = lo; ci <= hi; ci++) {
           if (this.routeGuardActive(r, ci, GUARD_SLOW) || s.race?.speedLock) continue;
+          // 0.6.2 FB-B: a tile a MANTLET shields (★2 FULL PLATE, ★3 BULWARK SKIRT) keeps out of a chain round's segment
+          // slow too, as a REDLINE tile does, wherever on the segment the round landed
+          if (this.skirted(s, r, ci, "drag")) continue;
           if (!tiles.has(h.route)) tiles.set(h.route, new Set());
           tiles.get(h.route)!.add(ci);
         }
@@ -1456,7 +1461,8 @@ export class Battle {
     return true;
   }
 
-  /** 0.6.1p MANTLET ★3: cell `ci` of route `r` lies in its turret's BULWARK SKIRT and that turret ignores `cause`. */
+  /** 0.6.1p MANTLET: cell `ci` of route `r` lies in its turret's shield (★3 BULWARK SKIRT; since 0.6.2 FB-B also ★2
+   *  FULL PLATE's intake tile) and that turret ignores `cause`. */
   private skirted(s: SideState, r: RouteState | undefined, ci: number, cause: HarassCause): boolean {
     if (!r || ci < 0 || !((r.guard[ci] ?? 0) & GUARD_SKIRT)) return false;
     return turretAt(s, r.turret)?.immune.includes(cause) ?? false;

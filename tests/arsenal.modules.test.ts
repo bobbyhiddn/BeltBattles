@@ -54,7 +54,7 @@ const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 export const WAVE1_ROWS: Row[] = [
   // slots, seconds and BOTTOMLESS (1 = never jams), read off the battle's turret on the heavy bench (window 3, 1.5 s)
   { id: "hopper", headline: "Window slots; loading window s; never jams", at: (s) => { const t = tu0(bench([], [["hopper", s]])); return [t.window - 3, +(t.windowTime - WINDOW_TIME).toFixed(3), t.noJam ? 1 : 0]; } },
-  // immunities listed plus intake tiles guarded (4 / 6 / 6 + 3); wave 1 has only shock, so FULL PLATE shows in wave 2
+  // immunities listed plus intake tiles guarded (4 / 6 + 1 / 6 + 3; 0.6.2 FB-B: FULL PLATE also shields the intake tile)
   { id: "mantlet", headline: "Immunities by star (+ guarded intake tiles)", at: (s) => { const t = tu0(bench([], [["mantlet", s]])); return t.immune.length + t.intakeGuard; } },
   { id: "ram", headline: "Finisher bonus", band: [2.2, 3.5], at: (s) => mean(finishers(busy([["ram", s]])).bonus) },
 ];
@@ -274,20 +274,21 @@ describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
     expect(d.sides[0].stats.damage).not.toBe(e.sides[0].stats.damage);
   });
 
-  it("MANTLET: shock/static/arc/drag at 1 star, + freeze and sabot (FULL PLATE), + the last 3 intake tiles (BULWARK SKIRT)", () => {
+  // 0.6.2 FB-B (tests/fb062.mantlet.test.ts): FULL PLATE also shields the intake tile (intakeGuard 1; was 0)
+  it("MANTLET: shock/static/arc/drag at 1 star, + freeze and sabot and the intake tile (FULL PLATE), + the last 3 intake tiles (BULWARK SKIRT)", () => {
     const tu = (s: number) => tu0(bench([], [["mantlet", s]]));
     expect(tu(1).immune).toEqual(["shock", "static", "arc", "drag"]);
     expect(tu(2).immune).toEqual(["shock", "static", "arc", "drag", "freeze", "sabot"]);
     expect(tu(3).immune).toEqual(tu(2).immune);
-    expect([1, 2, 3].map((s) => tu(s).intakeGuard)).toEqual([0, 0, 3]);
+    expect([1, 2, 3].map((s) => tu(s).intakeGuard)).toEqual([0, 1, 3]);
     for (const s of [1, 2, 3]) {
       const bt = new Battle(bench([["whetstone", 4, 1, 1], ["whetstone", 4, 3, 1]], [["mantlet", s]]), barge(), SEED);
       expect(hit(bt, "turret", 0, -1), `${s} shock`).toBe(false);
       expect(bt.sides[0].turrets[0].disrupted).toBe(0);
       expect(hit(bt, "turret", 0, -1, "freeze"), `${s} freeze`).toBe(s === 1);
       const skirt = bt.sides[0].routes[0].guard.map((g) => (g & GUARD_SKIRT ? 1 : 0));
-      expect(skirt).toEqual(s === 3 ? [0, 0, 0, 1, 1, 1] : [0, 0, 0, 0, 0, 0]);
-      expect(hit(bt, "belt", 0, 5), `${s} belt 5`).toBe(s !== 3); // the intake tile
+      expect(skirt).toEqual(s === 3 ? [0, 0, 0, 1, 1, 1] : s === 2 ? [0, 0, 0, 0, 0, 1] : [0, 0, 0, 0, 0, 0]);
+      expect(hit(bt, "belt", 0, 5), `${s} belt 5`).toBe(s === 1); // the intake tile
       expect(hit(bt, "belt", 0, 0), `${s} belt 0`).toBe(true); // outside the skirt
       // 0.6.2 BELTSIDE merge: the rigs stand at (3,1) and (3,3), each with its one arrow on its old tile (P6)
       expect(hit(bt, "gate", 10, -1), `${s} gate on tile 4`).toBe(s !== 3); // uid 10: the WHETSTONE working (4,1)
