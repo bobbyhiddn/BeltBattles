@@ -1,0 +1,380 @@
+// v070-validate M1/M3: a seeded, headless validation fuzzer. It plays random legal actions through the real
+// game functions (run.ts, events.ts, road.ts, fuse.ts, day.ts) for all 10 days of a run and records each
+// day's dusk deck exactly as it would fight (and upload). It is a validation fuzzer, not a par builder: it
+// never reads the harness buyers or playerBuild, and it leans on the risky paths (take road events, win
+// warlord fights, gamble and win, spend down the purse, discounted caravans) so its decks sit at the edge of
+// what an honest run can afford. Battles are not simulated: a fight's outcome is an input of finishWarlord and
+// finishDay, so the driver picks it (mostly wins), which covers every outcome an honest player can reach.
+//
+// It mirrors the build screen's guards (src/screens/build/actions.ts): gear goes only to a free hardpoint, a
+// placed item only where canPlaceItem allows, the signature factory stays aboard, moving never fuses; and, as
+// the FIGHT button does (routeCheck.ts fightBlock), a deck with a broken belt is refitted before dusk.
+
+import { Rng, hashSeed } from "../src/core/rng";
+import { GRID, HEROES, ITEMS, REROLL_COST, RUN_DAYS, type HeroId } from "../src/sim/content";
+import {
+  canExtend, canPlaceItem, cloneBuild, commitRoute, connectorFree, gearFor, isRig, key, kx, ky, moveItem, occupancy,
+  placeItem, removeRoute, rotField, routesOf, setRot, footprint, type Build,
+} from "../src/sim/deck";
+import { outputsAt, starField, starsOf } from "../src/sim/stars";
+import {
+  buyOffer, fitCore, newRun, reroll, rotateRig, sellInventory, storeMod, storePlaced, takeFromInventory, type Run,
+} from "../src/game/run";
+import { choicesFor, eventFor, pickChoice } from "../src/game/events";
+import { finishWarlord, leaveCaravan, pickPending, pickRoad, todaysWarlord, takePart } from "../src/game/road";
+import { finishDay, startDusk } from "../src/game/day";
+import { brokenRoutes, fightBlock } from "../src/game/routeCheck";
+import { unfusedInRun, type GainAt } from "../src/game/fuse";
+import type { SideStats } from "../src/sim/battle";
+import type { RoadPick } from "../src/game/roadTypes";
+
+/** Every hero a run can start with (newRun takes any HeroId; the four race heroes are not offered by the UI yet). */
+export const DRIVER_HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
+
+/** Every hero's signature factory: the build screen keeps it aboard ("THE SIGNATURE FACTORY STAYS ABOARD").
+ *  run.ts storePlaced only refuses KILN and LOOM, so the driver applies the rule to the race heroes itself
+ *  (REPORT.md §7: the race signatures can be stored, sold and traded through storePlaced today). */
+const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
+
+const ZERO = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 1, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
+
+export interface Dusk {
+  seed: number;
+  hero: HeroId;
+  day: number;
+  build: Build; // the deck exactly as it fights this dusk
+  road: string; // today's road stop, e.g. "event dice: BET 6 (won)" or "hard sootjaw: win, took press"
+  gold: number; // gold still held at dusk
+  invariant: string[]; // unfusedInRun at dusk: must stay empty (fuse.ts invariant)
+}
+
+export interface DriverRun {
+  seed: number;
+  hero: HeroId;
+  dusks: Dusk[];
+  run: Run; // the finished run (its events and warlords logs, for coverage counts)
+}
+
+/** Up to `tries` random cells where `def` may stand (canPlaceItem, the editor's rule); a rig also gets a rotation. */
+function randomCell(b: Build, def: string, rng: Rng, tries = 10, ignoreUid = -1): { x: number; y: number; rot?: number } | null {
+  const size = ITEMS[def].size;
+  for (let t = 0; t < tries; t++) {
+    const x = rng.int(GRID - size + 1), y = rng.int(GRID - size + 1);
+    if (canPlaceItem(b, def, x, y, ignoreUid).ok) return isRig(def) ? { x, y, rot: rng.int(4) } : { x, y };
+  }
+  return null;
+}
+
+/** A turret whose hardpoint is free (gear only; actions.ts refuses "ONE PIECE OF GEAR PER TURRET"), or -1. */
+function freeHardpoint(b: Build, rng: Rng): number {
+  const free = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !gearFor(b, t));
+  return free.length ? rng.pick(free) : -1;
+}
+
+/** Buy one offer the way the caravan does: supplies on the spot; a module to cargo, onto a deck cell or onto a
+ *  turret (buyOffer's drop target; a buy that merges into a placed twin ignores the target, as the UI does). */
+function buyOne(run: Run, rng: Rng, wagon: number, slot: number): boolean {
+  const o = run.shop.wagons[wagon].offers[slot];
+  const d = ITEMS[o.def];
+  let at: GainAt | undefined;
+  if (d.kind !== "supply" && rng.chance(0.6)) {
+    if (d.kind === "gate" || d.kind === "factory") at = randomCell(run.build, o.def, rng) ?? undefined;
+    else if (d.kind === "mod") {
+      const t = freeHardpoint(run.build, rng);
+      if (t >= 0) at = { turret: t };
+    } else if (d.kind === "core") at = { turret: rng.int(HEROES[run.hero].turrets.length) };
+  }
+  return buyOffer(run, wagon, slot, at).ok;
+}
+
+function affordable(run: Run): { wagon: number; slot: number }[] {
+  const out: { wagon: number; slot: number }[] = [];
+  run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {
+    if (!o.sold && o.price <= run.gold) out.push({ wagon: wi, slot: si });
+  }));
+  return out;
+}
+
+/** Move one cargo copy onto the deck or a turret (moving never fuses: actions.ts drop from "cargo"). */
+function placeFromCargo(run: Run, rng: Rng): void {
+  if (!run.inventory.length) return;
+  const it = rng.pick(run.inventory);
+  const d = ITEMS[it.def];
+  const b = run.build;
+  if (d.kind === "gate" || d.kind === "factory") {
+    const c = randomCell(b, it.def, rng);
+    if (!c) return;
+    const got = takeFromInventory(run, it.uid);
+    if (got) placeItem(b, { uid: got.uid, def: got.def, x: c.x, y: c.y, ...starField(starsOf(got)), ...rotField(got.def, c.rot ?? 0) });
+  } else if (d.kind === "mod") {
+    const t = freeHardpoint(b, rng);
+    if (t < 0) return;
+    const got = takeFromInventory(run, it.uid);
+    if (got) b.mods.push({ uid: got.uid, def: got.def, turret: t, ...starField(starsOf(got)) });
+  } else if (d.kind === "core") {
+    fitCore(run, it.uid, rng.int(HEROES[run.hero].turrets.length));
+  }
+}
+
+/** A deck-to-cargo move: a placed item (never a signature factory) or turret equipment. */
+function storeSome(run: Run, rng: Rng): void {
+  const b = run.build;
+  if (rng.chance(0.5) && b.mods.length) {
+    storeMod(run, rng.pick(b.mods).uid);
+    return;
+  }
+  const cand = b.items.filter((p) => !SIGNATURES.has(p.def));
+  if (cand.length) storePlaced(run, rng.pick(cand).uid);
+}
+
+function moveSome(run: Run, rng: Rng): void {
+  const b = run.build;
+  if (!b.items.length) return;
+  const p = rng.pick(b.items);
+  const c = randomCell(b, p.def, rng, 6, p.uid);
+  if (!c) return;
+  moveItem(b, p.uid, c.x, c.y);
+  const q = b.items.find((i) => i.uid === p.uid);
+  if (q && isRig(q.def)) setRot(q, c.rot ?? 0);
+}
+
+/**
+ * Draw a belt from a factory that has an output free to a free turret connector: a shortest path over free
+ * cells (no machinery, no belt), within the belt left, then checked step by step with canExtend (the editor's
+ * rule) before commitRoute.
+ */
+function drawRoute(run: Run, rng: Rng): void {
+  const b = run.build;
+  const factories = b.items.filter((p) => ITEMS[p.def].kind === "factory" && routesOf(b, p.uid).length < (outputsAt(p.def, starsOf(p)) || 1));
+  if (!factories.length) return;
+  const f = rng.pick(factories);
+  const occ = occupancy(b);
+  const free = (k: number) => occ[k].item < 0 && occ[k].route < 0;
+  const target = (k: number) => ky(k) === 0 && connectorFree(b, kx(k), -1);
+  const fp = new Set(footprint(ITEMS[f.def], f.x, f.y));
+  const starts: number[] = [];
+  for (const k of fp) {
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const x = kx(k) + dx, y = ky(k) + dy;
+      if (x < 0 || y < 0 || x >= GRID || y >= GRID) continue;
+      const n = key(x, y);
+      if (!fp.has(n) && free(n) && !starts.includes(n)) starts.push(n);
+    }
+  }
+  const left = b.beltCap - b.routes.reduce((s, r) => s + r.cells.length, 0);
+  const prev = new Map<number, number>();
+  const queue = rng.shuffle(starts.slice());
+  for (const s of queue) prev.set(s, -1);
+  let end = -1;
+  for (let qi = 0; qi < queue.length && end < 0; qi++) {
+    const k = queue[qi];
+    if (target(k)) { end = k; break; }
+    const dirs = rng.shuffle([[0, -1], [1, 0], [0, 1], [-1, 0]]);
+    for (const [dx, dy] of dirs) {
+      const x = kx(k) + dx, y = ky(k) + dy;
+      if (x < 0 || y < 0 || x >= GRID || y >= GRID) continue;
+      const n = key(x, y);
+      if (prev.has(n) || !free(n)) continue;
+      prev.set(n, k);
+      queue.push(n);
+    }
+  }
+  if (end < 0) return;
+  const cells: number[] = [];
+  for (let k = end; k >= 0; k = prev.get(k)!) cells.unshift(k);
+  if (cells.length > left) return;
+  const pending: number[] = [];
+  for (const k of cells) {
+    const chk = canExtend(b, f.uid, pending, k, -1);
+    if (!chk.ok) return;
+    pending.push(k);
+  }
+  commitRoute(b, f.uid, pending, -1);
+}
+
+/** The dawn caravan: random shop actions, then (most days) a spending spree down to `reserve` gold (kept for
+ *  a road stop that costs gold: a bet, the dock, the herald, the smuggler). */
+function caravan(run: Run, rng: Rng, reserve: number): void {
+  const spend = () => affordable(run).filter((o) => run.shop.wagons[o.wagon].offers[o.slot].price <= run.gold - reserve);
+  const n = 3 + rng.int(10);
+  for (let i = 0; i < n; i++) {
+    const a = rng.next();
+    if (a < 0.4) {
+      const list = spend();
+      if (list.length) {
+        const o = rng.pick(list);
+        buyOne(run, rng, o.wagon, o.slot);
+      }
+    } else if (a < 0.55) placeFromCargo(run, rng);
+    else if (a < 0.62) {
+      if (run.shop.free > 0 || run.gold >= REROLL_COST) reroll(run);
+    } else if (a < 0.67) {
+      if (run.inventory.length) sellInventory(run, rng.pick(run.inventory).uid);
+    } else if (a < 0.72) storeSome(run, rng);
+    else if (a < 0.77) {
+      const rigs = run.build.items.filter((p) => isRig(p.def));
+      if (rigs.length) rotateRig(run, rng.pick(rigs).uid);
+    } else if (a < 0.82) moveSome(run, rng);
+    else if (a < 0.95) drawRoute(run, rng);
+    else if (run.build.routes.length && rng.chance(0.3)) removeRoute(run.build, rng.int(run.build.routes.length));
+  }
+  if (rng.chance(0.85)) {
+    for (let guard = 0; guard < 40; guard++) {
+      const list = spend();
+      if (list.length) {
+        const o = rng.pick(list);
+        buyOne(run, rng, o.wagon, o.slot);
+      } else if ((run.shop.free > 0 || run.gold >= REROLL_COST + 3 + reserve) && rng.chance(0.6)) reroll(run);
+      else break;
+    }
+  }
+  for (let k = 0; k < 8; k++) placeFromCargo(run, rng);
+  if (rng.chance(0.5)) drawRoute(run, rng);
+}
+
+const TIERS: RoadPick[] = ["easy", "medium", "hard"];
+
+/**
+ * Which road stops a run takes. "mixed" (the default) is the risky random policy: the event half the time
+ * (mostly a real choice; a gamble mostly when it wins), else a warlord (mostly Hard), mostly won. The others
+ * isolate one path for the audit table (REPORT.md §1): "event:<id>:<LABEL>" takes that choice on the day its
+ * event comes up; "warlord:<tier>" fights that tier every day and wins; "none" gains nothing on the road. On
+ * every other day an isolated policy picks EASY and loses, which gives nothing.
+ */
+export type RoadPolicy = "mixed" | "none" | `event:${string}` | `warlord:${"easy" | "medium" | "hard"}` | `event:${string}|warlord:${string}`;
+
+function describeWarlord(run: Run, pick: RoadPick): string {
+  const w = todaysWarlord(run)!;
+  const took = w.result?.took ?? "";
+  return `${pick} ${w.id}${w.sabotaged ? " (sabotaged)" : ""}: ${w.result!.outcome}${took ? `, took ${took}` : ""}${w.result!.bountyPaid ? `, bounty ${w.result!.bountyPaid}` : ""}`;
+}
+
+function fight(run: Run, rng: Rng, pick: RoadPick, winP: number): string {
+  if (!pickRoad(run, pick).ok) return "none";
+  const w = todaysWarlord(run)!;
+  const r = rng.next();
+  finishWarlord(run, r < winP ? 0 : r < winP + (1 - winP) * 0.66 ? 1 : -1, 20 + run.day);
+  if (pickPending(run.warlord)) takePart(run, rng.int(w.result!.parts.length));
+  return describeWarlord(run, pick);
+}
+
+function takeChoice(run: Run, i: number): string {
+  const ev = run.event!;
+  const c = choicesFor(run)[i];
+  const res = pickChoice(run, i);
+  return `event ${ev.id}: ${c.label}${c.odds !== undefined ? (res.won ? " (won)" : " (lost)") : ""}`;
+}
+
+/** The event id and choice label an isolated event policy targets ("event:<id>:<LABEL>[|warlord:<tier>]"). */
+function target(policy: RoadPolicy): { id: string; label: string } | null {
+  if (!policy.startsWith("event:")) return null;
+  const [, id, label] = policy.split("|")[0].split(":");
+  return { id, label };
+}
+
+/** An isolated event policy's other days: "|warlord:<tier>" fights (and wins) that tier, else EASY lost. */
+function otherDays(policy: RoadPolicy): { tier: RoadPick; winP: number } {
+  const alt = policy.split("|")[1];
+  return alt?.startsWith("warlord:") ? { tier: alt.slice(8) as RoadPick, winP: 1 } : { tier: "easy", winP: 0 };
+}
+
+/** Today's road stop under `policy`. Returns a short description. */
+function roadStop(run: Run, rng: Rng, policy: RoadPolicy): string {
+  leaveCaravan(run);
+  if (policy === "mixed") {
+    const pick: RoadPick = rng.chance(0.5) ? "event" : rng.weighted(TIERS, (t) => (t === "hard" ? 6 : t === "medium" ? 2.5 : 1.5));
+    if (pick !== "event") return fight(run, rng, pick, 0.85);
+    if (!pickRoad(run, "event").ok) return "none";
+    const ev = run.event!;
+    const open = choicesFor(run).map((c, i) => ({ c, i })).filter(({ c }) => !c.blocked);
+    if (!open.length) return `event ${ev.id}: nothing open`;
+    const { i } = rng.weighted(open, ({ c }) => {
+      if (c.odds !== undefined) return ev.roll < c.odds ? 8 : 1.5; // gamble: mostly bets that win
+      return c.cost.length || c.gain.length ? 4 : 1; // mostly a real choice, sometimes MOVE ON
+    });
+    return takeChoice(run, i);
+  }
+  if (policy.startsWith("warlord:")) return fight(run, rng, policy.slice(8) as RoadPick, 1);
+  const t = target(policy);
+  if (t && eventFor(run.seed, run.day) === t.id) {
+    pickRoad(run, "event");
+    const list = choicesFor(run);
+    const i = list.findIndex((c) => c.label === t.label && !c.blocked);
+    const zero = list.findIndex((c) => !c.blocked && !c.cost.length && !c.gain.length);
+    if (i >= 0) return takeChoice(run, i);
+    if (zero >= 0) return takeChoice(run, zero); // the target choice is blocked (no gold, nothing to trade)
+    return `event ${t.id}: target blocked`;
+  }
+  const o = otherDays(policy);
+  return fight(run, rng, o.tier, o.winP); // default: EASY lost, nothing from the road today
+}
+
+/** Gold the caravan keeps back for today's road stop. */
+function reserveFor(run: Run, rng: Rng, policy: RoadPolicy): number {
+  const t = target(policy);
+  if (t) return eventFor(run.seed, run.day) === t.id ? 8 : 0;
+  if (policy === "mixed") return rng.chance(0.35) ? 2 + rng.int(9) : 0;
+  return 0;
+}
+
+/** REFIT after the road (no shop): road parts from cargo go onto the deck, a few moves. */
+function refit(run: Run, rng: Rng): void {
+  for (let k = 0; k < 6; k++) placeFromCargo(run, rng);
+  if (rng.chance(0.3)) moveSome(run, rng);
+  if (rng.chance(0.4)) drawRoute(run, rng);
+}
+
+/** FIGHT is blocked while a belt is broken or goes nowhere (routeCheck.ts): the player refits it away. */
+function unblock(run: Run): void {
+  for (let guard = 0; guard < 32 && fightBlock(run.build); guard++) {
+    const bad = brokenRoutes(run.build);
+    if (!bad.length) break;
+    removeRoute(run.build, bad[bad.length - 1]);
+  }
+}
+
+/** One seeded run of `hero`, all ten days (the driver keeps a life in hand, so every run reaches day 10). */
+export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed"): DriverRun {
+  const rng = new Rng(hashSeed("v070-driver", seed, hero, policy));
+  const run = newRun(hero, hashSeed("v070-run", seed, hero), `drv-${seed}-${hero}`);
+  const dusks: Dusk[] = [];
+  for (let day = 1; day <= RUN_DAYS && !run.over; day++) {
+    caravan(run, rng, reserveFor(run, rng, policy));
+    const road = roadStop(run, rng, policy);
+    refit(run, rng);
+    unblock(run);
+    dusks.push({ seed, hero, day: run.day, build: cloneBuild(run.build), road, gold: run.gold, invariant: unfusedInRun(run) });
+    startDusk(run, []);
+    const r = rng.next();
+    const winner = run.lives <= 1 || r < 0.8 ? 0 : r < 0.95 ? 1 : -1;
+    finishDay(run, winner, 20 + day, ZERO, ZERO);
+  }
+  return { seed, hero, dusks, run };
+}
+
+/** `n` runs, heroes in turn (run i plays DRIVER_HEROES[i % 6] on seed seed0 + i). */
+export function driveRuns(n: number, seed0 = 1, heroes: readonly HeroId[] = DRIVER_HEROES, policy: RoadPolicy = "mixed"): DriverRun[] {
+  const out: DriverRun[] = [];
+  for (let i = 0; i < n; i++) out.push(driveRun(seed0 + i, heroes[i % heroes.length], policy));
+  return out;
+}
+
+/** The audit's isolated paths (REPORT.md §1): every event choice that changes something, each warlord tier, none. */
+export const AUDIT_PATHS: readonly RoadPolicy[] = [
+  "none",
+  "event:wreck:SALVAGE", "event:wreck:SCRAP IT",
+  "event:cache:BELT SPOOL", "event:cache:COIN POUCH",
+  "event:trader:SELL", "event:trader:SWAP",
+  "event:dice:BET 3", "event:dice:BET 6",
+  "event:dock:PLATING", "event:dock:PATCH UP",
+  "event:herald:STAKE 3", "event:herald:STAKE 3|warlord:hard", "event:sappers:HIRE", "event:sappers:HIRE|warlord:hard",
+  "event:scout:HAGGLE", "event:scout:SEND WORD", "event:scout:SPY",
+  "event:storm:RIDE THROUGH",
+  "event:smuggler:BURN", "event:smuggler:SHOCK",
+  "warlord:easy", "warlord:medium", "warlord:hard",
+];
+
+/** An error message with its numbers masked, for grouping ("budget: build costs # gold ..."). */
+export function errorKind(e: string): string {
+  return e.replace(/-?\d+(\.\d+)?/g, "#").replace(/uid # [A-Z .'-]+? /, "uid # ");
+}
