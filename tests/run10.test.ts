@@ -42,10 +42,11 @@ describe("the 10-day run", () => {
     expect(r1.income).toBe(incomeFor(1, false));
     startDusk(run, []);
     finishDay(run, D, 30, STATS, STATS);
-    expect([run.lives, run.losses, run.wins, run.day]).toEqual([4, 1, 0, 3]);
+    // 0.6.2 RULE EARLY-LOSS REFUND (tests/refund.test.ts): day 3's dawn gives back the life lost on day 1 (4 -> 5)
+    expect([run.lives, run.losses, run.wins, run.day]).toEqual([5, 1, 0, 3]);
     startDusk(run, []);
     const r3 = finishDay(run, W, 30, STATS, STATS);
-    expect([run.lives, run.losses, run.wins, run.day]).toEqual([4, 1, 1, 4]);
+    expect([run.lives, run.losses, run.wins, run.day]).toEqual([5, 1, 1, 4]);
     expect(r3.income).toBe(incomeFor(3, true));
     expect(run.gold - g0).toBe(incomeFor(1, false) + incomeFor(2, false) + incomeFor(3, true));
     expect(record(run)).toBe("1-1");
@@ -59,7 +60,7 @@ describe("the 10-day run", () => {
     expect(flawless(perfect)).toBe(true);
     const bumpy = play([L, W, L, W, D, L, W, W, L, W]);
     expect(bumpy.over).toBe("complete");
-    expect([bumpy.wins, bumpy.losses, bumpy.lives]).toEqual([5, 4, 1]);
+    expect([bumpy.wins, bumpy.losses, bumpy.lives]).toEqual([5, 4, 2]); // 0.6.2: day 1's loss refunded at day 3's dawn
     expect(flawless(bumpy)).toBe(false);
     expect(bumpy.history.map((h) => h.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     const draws = play(Array(10).fill(D));
@@ -67,11 +68,13 @@ describe("the 10-day run", () => {
   });
 
   it("at 0 lives the run is lost on that day, even on day 10", () => {
-    const lost = play([L, L, W, L, L, L, W, W]);
+    // 0.6.2 RULE EARLY-LOSS REFUND: day 3's dawn gives back one of the lives lost on days 1-2, so this run needs a
+    // sixth loss (it was [L, L, W, L, L, L, W, W], lost on day 6 with 5 losses), and the day-10 run loses no early life
+    const lost = play([L, L, W, L, L, L, L, W]);
     expect(lost.over).toBe("lost");
-    expect([lost.day, lost.lives, lost.losses]).toEqual([6, 0, 5]);
-    expect(lost.history.length).toBe(6);
-    const late = play([W, L, W, L, W, L, W, L, W, L]);
+    expect([lost.day, lost.lives, lost.losses]).toEqual([7, 0, 6]);
+    expect(lost.history.length).toBe(7);
+    const late = play([W, W, L, W, L, L, W, L, W, L]);
     expect(late.over).toBe("lost");
     expect(late.day).toBe(10);
   });

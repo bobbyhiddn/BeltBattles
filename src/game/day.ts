@@ -3,7 +3,7 @@
 // in the run, so a reload fights the same one; the build screen previews the same pick. A dusk
 // loss costs a life, a draw none; 0 lives loses the run, surviving day 10's dusk completes it.
 
-import { HEROES, RULES_VERSION, RUN_DAYS, incomeFor } from "../sim/content";
+import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES, incomeFor } from "../sim/content";
 import type { Side, SideStats } from "../sim/battle";
 import { pickGhost, standInFoe, type GhostSnapshot } from "./ghosts";
 import { playerId, SNAPSHOT_VERSION } from "./ghostSnapshot";
@@ -64,7 +64,35 @@ export function record(run: Pick<Run, "wins" | "losses">): string {
   return `${run.wins}-${run.losses}`;
 }
 
-/** Apply a dusk result: income, the W-L record, a life on a loss; then the run ends or the next dawn comes. */
+/**
+ * 0.6.2 TUNE-M, RULE EARLY-LOSS REFUND (ROADMAP 0.6.2 §1, the genre study's cushion): a run that lost a life at dusk on
+ * day 1 or 2 gets REFUND_LIVES back at the dawn of day REFUND_DAY. Once per run (only that dawn, and run.refund records
+ * it), never above START_LIVES. A win or a draw pays more or the same and keeps every life, so a run that throws days
+ * 1-2 never reaches day 3's dusk with more lives or gold than one that won them.
+ */
+export const REFUND_DAY = 3;
+export const REFUND_LIVES = 1;
+/** The rule in the player's words (the dawn toast, the dusk card and the rules card). */
+export const REFUND_TEXT = `EARLY-LOSS REFUND: +${REFUND_LIVES} LIFE`;
+
+/** The build screen's dawn toast: REFUND_TEXT on the dawn the refund gave a life back, else null. */
+export const refundNotice = (run: Pick<Run, "day" | "refund">): string | null =>
+  run.refund && run.refund.day === run.day && run.refund.lives > 0 ? REFUND_TEXT : null;
+/** The dusk card's line when the dawn it leads to gives a life back ("+1 LIFE AT DAWN"), else null. */
+export const refundCardLine = (r: Pick<DayResult, "refund">): string | null => (r.refund ? `+${r.refund} LIFE AT DAWN` : null);
+
+/** Did the run lose a life at dusk before REFUND_DAY? (Lives are only ever lost at dusk.) */
+export const lostEarly = (run: Pick<Run, "history">): boolean => run.history.some((h) => h.day < REFUND_DAY && h.outcome === "loss");
+
+/** At the dawn run.day has just reached: the lives the early-loss refund gives back now, or null when it doesn't apply
+ *  (another day, no early loss, or already given). Pure. */
+export function earlyLossRefund(run: Pick<Run, "day" | "lives" | "history" | "refund">): number | null {
+  if (run.day !== REFUND_DAY || run.refund || !lostEarly(run)) return null;
+  return Math.max(0, Math.min(REFUND_LIVES, START_LIVES - run.lives));
+}
+
+/** Apply a dusk result: income, the W-L record, a life on a loss; then the run ends or the next dawn comes (0.6.2:
+ *  on day 3, with the early-loss refund). */
 export function finishDay(run: Run, winner: Side | -1, time: number, player: SideStats, enemy: SideStats): DayResult {
   const outcome = winner === 0 ? "win" : winner === 1 ? "loss" : "draw";
   const income = incomeFor(run.day, outcome === "win");
@@ -90,6 +118,13 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
     run.shop = { wagons: [], rerolls: 0, discount: run.nextShop.discount, free: run.nextShop.free };
     run.nextShop = { discount: 0, free: 0 };
     rollShop(run);
+    // 0.6.2 RULE EARLY-LOSS REFUND: the new dawn is day 3 and a life was lost on day 1 or 2: one back, once per run
+    const back = earlyLossRefund(run);
+    if (back !== null) {
+      run.refund = { day: run.day, lives: back };
+      run.lives += back;
+      if (back > 0) res.refund = back;
+    }
   }
   return res;
 }

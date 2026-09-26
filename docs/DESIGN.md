@@ -15,6 +15,8 @@ Lines marked **DECIDED** record the Prime's decisions.
 3. **Dusk: the ghost**, another player's saved build from the same day of their run.
 
 - You start with **5 lives**. A ghost loss costs one; lose the last and the dark wind catches you.
+  0.6.2 RULE EARLY-LOSS REFUND: lose a life on day 1 or 2 and the dawn of day 3 gives one back (once a run, never
+  above 5).
 - A warlord fight **never costs a life**. A loss only forfeits its reward.
 - Surviving day 10's dusk completes the run. It is scored by wins, so 10-0 is a flawless run.
 - Day 1's dusk is a real day-1 ghost. **There is no softened first fight anywhere**: every

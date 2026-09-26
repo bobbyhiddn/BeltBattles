@@ -3,7 +3,7 @@
 
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
-import { duskFoe } from "../../game/day";
+import { duskFoe, refundNotice } from "../../game/day";
 import { loadPool } from "../../game/ghosts";
 import { leaveCaravan } from "../../game/road";
 import { mergePreview } from "../../game/fuse";
@@ -130,7 +130,10 @@ export class BuildScreen implements Screen, EditHost {
       this.caravan.arrive(this.offers().length);
       this.game.audio.play("horn");
       const sh = this.run.shop;
-      if (sh.discount > 0 || sh.free > 0) this.game.toast(sh.discount > 0 ? `SCOUT: PRICES -${sh.discount}` : `SCOUT: ${sh.free} FREE REROLL`, C.lime);
+      const scout = sh.discount > 0 || sh.free > 0 ? (sh.discount > 0 ? `SCOUT: PRICES -${sh.discount}` : `SCOUT: ${sh.free} FREE REROLL`) : "";
+      // 0.6.2 RULE EARLY-LOSS REFUND: said at the dawn it gives the life back (toasts replace each other: one line)
+      const refund = refundNotice(this.run) ?? "";
+      if (refund || scout) this.game.toast([refund, scout].filter(Boolean).join(" · "), C.lime);
     }
     saveRun(this.run);
   }

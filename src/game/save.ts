@@ -175,6 +175,10 @@ export function migrateRun(raw: unknown): Run | null {
   // 0.6.1r (review-061 N6): a saved lastMerchants that isn't an array reads as none (merchantWeight calls
   // .includes on it); absent stays absent (no variety factor either way). Save v7, no bump.
   if (r.lastMerchants !== undefined && !Array.isArray(r.lastMerchants)) r.lastMerchants = [];
+  // 0.6.2 TUNE-M, RULE EARLY-LOSS REFUND (day.ts): a saved refund that isn't { day, lives } reads as given on day 3
+  // with nothing back (the dawn it belongs to is past), so a load never gives it twice. Save v7, no bump.
+  if (r.refund === null) delete r.refund;
+  else if (r.refund !== undefined && !(typeof r.refund === "object" && typeof r.refund.day === "number" && typeof r.refund.lives === "number")) r.refund = { day: 3, lives: 0 };
   r.day = clampDay(r.day);
   r.lives = Math.max(0, Math.min(START_LIVES, Number(r.lives) || 0));
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;

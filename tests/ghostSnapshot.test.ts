@@ -49,7 +49,7 @@ describe("ghostOf: the player's own v1 snapshot", () => {
     finishDay(run, 1, 30, STATS, STATS); // day 2: a loss
     startDusk(run, []);
     const wins = run.wins, lives = run.lives;
-    expect([run.day, wins, lives]).toEqual([3, 1, 4]);
+    expect([run.day, wins, lives]).toEqual([3, 1, 5]); // 0.6.2 RULE EARLY-LOSS REFUND: day 3's dawn gave day 2's life back
     const g = ghostOf(run, 1234.9, "p-me");
     expect(keysOf(g)).toEqual(KEYS);
     expect(SNAPSHOT_VERSION).toBe(2); // 0.6.1a: ghostOf writes v2 (stars ride in the build)
@@ -59,7 +59,7 @@ describe("ghostOf: the player's own v1 snapshot", () => {
     expect(g.build).not.toBe(run.build); // a copy: later refits do not reach the pool
     expect(isSnapshot(g)).toBe(true);
     finishDay(run, 1, 30, STATS, STATS); // tonight's loss does not reach the snapshot
-    expect([run.wins, run.lives]).toEqual([1, 3]);
+    expect([run.wins, run.lives]).toEqual([1, 4]);
     expect([g.wins, g.lives]).toEqual([wins, lives]);
     const d = ghostOf(run); // default stamp (the clock) and this device's id
     expect(isSnapshot(d)).toBe(true);

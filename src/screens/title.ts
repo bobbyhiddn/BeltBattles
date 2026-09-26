@@ -6,6 +6,7 @@ import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { arenaIn } from "../game/battleLayout";
 import { loadRun } from "../game/run";
+import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUND in the rules card
 import { startingBuild, warlordBuild } from "../sim/ai";
 import { HEROES, RUN_DAYS, type HeroId } from "../sim/content";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE and RULE JOIN LIMIT in the rules card
@@ -26,7 +27,8 @@ import { VERSION } from "../version";
 
 export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE)
   "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.",
-  "2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).",
+  // 0.6.2 TUNE-M: line 2 states RULE EARLY-LOSS REFUND (day.ts)
+  `2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. LOSE ON DAY 1 OR 2 AND DAY ${REFUND_DAY}'S DAWN GIVES ONE LIFE BACK (ONCE A RUN). YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).`,
   `3  AT DAWN, BUY RIGS FROM THE CARAVAN. DRAG OUT OF YOUR FACTORY TO LAY BELT TO A TURRET INTAKE. DRAG A BELT INTO ANOTHER TO JOIN THEM (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`,
   "4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, SHOCK, SPLIT, SPEED UP OR SLOW DOWN. LONGER CINDER ROUTES COOK HOTTER SLUGS.",
   "5  ON THE ROAD, EVENTS OFFER A CHOICE (KEYS 1-3). AT DUSK YOUR CRUISER FIGHTS ON ITS OWN: 0.5X-4X, SKIP, II OR P TO PAUSE.",

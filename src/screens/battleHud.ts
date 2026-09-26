@@ -5,7 +5,7 @@ import type { Game } from "../game/game";
 import type { Arena } from "../game/arena";
 import type { BattleLayout } from "../game/battleLayout";
 import type { DayResult } from "../game/run";
-import { record } from "../game/day";
+import { record, refundCardLine } from "../game/day";
 import { settings } from "../core/settings";
 import { START_LIVES, WIND_START } from "../sim/content";
 import type { Side } from "../sim/battle";
@@ -127,9 +127,11 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   drawText(g, title, W / 2, yy + 6, tc, { align: "center", scale: 2, outline: C.ink });
   drawText(g, `DUSK · DAY ${r.day} · ${r.time.toFixed(1)}S`, W / 2, yy + 23, C.slate4, { font: "3", align: "center" });
   drawText(g, `VS ${r.foe}`, W / 2, yy + 31, C.bone, { font: "3", align: "center" });
-  // lives, with the heart just lost blinking and -1 LIFE beside them; the W-L record on the right
+  // lives, with the heart just lost blinking and -1 LIFE beside them; the W-L record on the right. 0.6.2 RULE
+  // EARLY-LOSS REFUND: the hearts are the lives after this dusk (the refund comes at the dawn the card leads to)
   const hx = x + 10;
-  drawHearts(g, hx, yy + 42, run.lives, pt, loss ? run.lives : -1);
+  const after = run.lives - (r.refund ?? 0);
+  drawHearts(g, hx, yy + 42, after, pt, loss ? after : -1);
   if (loss) drawText(g, "-1 LIFE", hx + START_LIVES * 6 + 4, yy + 42, C.red, { font: "3", outline: C.ink });
   drawText(g, `W-L ${record(run)}`, x + w - 10, yy + 42, C.white, { font: "3", align: "right" });
   const p = r.player, e = r.enemy;
@@ -153,5 +155,8 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
     ry += 8;
   }
   drawText(g, `INCOME +${r.income}G`, x + 10, ry + 3, C.yellow);
+  // 0.6.2 RULE EARLY-LOSS REFUND: said here too, on the card that leads to that dawn
+  const back = refundCardLine(r);
+  if (back) drawText(g, back, x + w - 10, ry + 3, C.lime, { align: "right" });
   if (pt > 0.35) button(ui, g, "next", { x: x + 10, y: yy + h - 27, w: w - 20, h: 21 }, label, { primary: true, onTap: onNext });
 }

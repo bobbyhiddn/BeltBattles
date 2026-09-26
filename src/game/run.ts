@@ -58,6 +58,7 @@ export interface DayResult {
   time: number;
   foe: string; // the dusk opponent as shown ("GHOST · WEAVER · 2-1" or a stand-in's name)
   ghost: boolean; // a pool ghost (false: a stand-in)
+  refund?: number; // 0.6.2 RULE EARLY-LOSS REFUND: lives given back at the dawn this dusk leads into (absent: none)
   player: SideStats;
   enemy: SideStats;
 }
@@ -117,6 +118,9 @@ export interface Run {
   lastMerchants?: MerchantId[]; // 0.6.1d: yesterday's final caravan (absent = no variety factor); save v7, no bump
   fuseAnim?: FuseStep[]; // 0.6.1d2, cosmetic: merge steps queued for the build screen's animation
   // (lift/arc/flash/ring/sparkle, then the pips pop in); see queueFuseAnim. Save v7, no bump.
+  // 0.6.2 TUNE-M, RULE EARLY-LOSS REFUND (day.ts): set at the dawn of REFUND_DAY when the run lost a life on day 1 or 2,
+  // with the lives it gave back (0 when already at START_LIVES); once per run. Absent: no refund (yet). Save v7, no bump.
+  refund?: { day: number; lives: number };
 }
 
 export const RUN_VERSION = 7; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once)
