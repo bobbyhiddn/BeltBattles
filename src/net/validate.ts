@@ -20,6 +20,23 @@ import {
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../sim/stars";
+import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
+
+export { maxHonestSpend, roadCap } from "./roadCap";
+
+/**
+ * 0.7.0 (v070-validate D1): two modes, one validator. "strict" (the default) holds a deck to the shop alone:
+ * stand-ins, the bundled pool, the harness and the pool generator. "player" is for decks a real player
+ * uploaded (server/app.ts POST /v1/ghosts) or a ghost the server serves (ghostClient.ts): every strict rule,
+ * with the supply and budget blocks replaced by the road's reachable hull and belt and maxHonestSpend(day)
+ * (src/net/roadCap.ts). It accepts every deck strict accepts.
+ */
+export type ValidationMode = "strict" | "player";
+
+/** validateBuild in the player mode (see ValidationMode). */
+export function validateUpload(build: Build, day: number): Validation {
+  return validateBuild(build, day, "player");
+}
 
 export interface Validation {
   ok: boolean;
@@ -130,7 +147,7 @@ function routeProblem(b: Build, i: number, occ: ReturnType<typeof occupancy>): s
   return routeWellFormed(b, r) ? null : "is not well formed";
 }
 
-export function validateBuild(build: Build, day: number): Validation {
+export function validateBuild(build: Build, day: number, mode: ValidationMode = "strict"): Validation {
   let b: Build;
   try {
     b = checkBuildShape(build);
@@ -286,6 +303,12 @@ export function validateBuild(build: Build, day: number): Validation {
     } else if (!core && gear.includes(m.def)) errors.push(`hardpoint: turret ${m.turret} carries two ${d.name}`);
     if (core) socketed.add(m.turret);
     else mounted.set(m.turret, [...gear, m.def]);
+  }
+
+  // 0.7.0 player mode: the road's reachable hull and belt, and maxHonestSpend, replace the two blocks below
+  if (mode === "player") {
+    errors.push(...playerSupplyBudget(b, day, buildCost(b)));
+    return { ok: errors.length === 0, errors };
   }
 
   // supplies: only whole belt crates and whole plating are purchasable
