@@ -123,4 +123,34 @@ describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
     expect(turretSellValue({ def: "dartgun" })).toBe(3);
     for (const h of ALL) expect(turretsCost(heroStartBuild(h))).toBe(0);
   });
+
+  it("S3 step 4: seven new turrets (rare + epic per class, one legendary), each unlike its class's commons, not sold yet", () => {
+    const NEW: Record<string, [string, string]> = {
+      twinneedle: ["light", "rare"], hailgun: ["light", "epic"], deckgun: ["medium", "rare"], railgun: ["medium", "epic"],
+      bombard: ["heavy", "rare"], siegegun: ["heavy", "epic"], thunderer: ["heavy", "legendary"],
+    };
+    const turrets = Object.values(ITEMS).filter((d) => d.kind === "turret");
+    expect(turrets.map((d) => d.id).sort()).toEqual([...STARTERS, ...Object.keys(NEW)].sort());
+    const heroNames = new Set(Object.values(HEROES).map((h) => h.name));
+    const gear = { common: 1, rare: 2, epic: 3, legendary: 4 } as const;
+    for (const [id, [cls, rarity]] of Object.entries(NEW)) {
+      const d = ITEMS[id], t = d.turret!;
+      expect([d.kind, t.class, d.rarity]).toEqual(["turret", cls, rarity]);
+      expect(d.price).toBe(TURRET_PRICE[d.rarity]);
+      expect(d.merchant).toBeUndefined();
+      expect(d.reason && d.reason.length > 10).toBe(true);
+      expect(heroNames.has(d.name)).toBe(false);
+      expect(Object.values(ITEMS).filter((x) => x.name === d.name).length).toBe(1);
+      expect(gearSlotsOf(id)).toBe(gear[d.rarity]);
+      expect(gearSlotsOf(id, 3)).toBe(gear[d.rarity] + 2);
+      for (const c of turrets.filter((x) => x.rarity === "common" && x.turret!.class === cls)) {
+        const u = c.turret!;
+        const differs = u.fireInterval !== t.fireInterval || u.window !== t.window || u.flight !== t.flight || u.intake !== t.intake;
+        expect(differs).toBe(true);
+      }
+      expect(Object.keys(t).sort()).toEqual(["class", "fireInterval", "flight", "intake", "window"]);
+      expect(effectAt(id, 2).turret!.window).toBe(t.window + 1);
+      expect(effectAt(id, 3).turret!.fireInterval).toBeCloseTo(t.fireInterval * 0.85, 12);
+    }
+  });
 });
