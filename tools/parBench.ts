@@ -9,14 +9,16 @@
 //   --pool      the shipped stand-in pool (v2.1) against the par field (brief 4a)
 //   --rivals    [--seeds 4] [--tq-seeds 20] the captains against the par field and honestReference (brief 4b-4d)
 //   --ladder    [--seeds 4] the skill ladder: par vs the random-pick field, calm and sharp vs the par field (brief 0c)
+//   --mix       no battles: the spend mix of the par field and the full-purse population, and supply offer rates
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { hashSeed } from "../src/core/rng";
-import { type HeroId } from "../src/sim/content";
-import type { Build } from "../src/sim/deck";
+import { HEROES as HEROES_DEF, ITEMS, type HeroId } from "../src/sim/content";
+import { newRun, rollShop } from "../src/game/run";
+import { beltUsed, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { FUSE_MAX } from "../src/sim/stars";
 import { fullPurseBuild, spendFloor } from "../src/sim/harness/gen";
@@ -291,6 +293,46 @@ async function ladderMode(days: number[], run: Runner, out: string, k: number, s
   }
 }
 
+/**
+ * --mix (no battles; the percentile diagnostic's cause, brief 0c item 2): per hero-day, the mean spend mix of the par
+ * field and of the full-purse population (--pct's 64 standInCandidate builds): gold in rigs and factories (items),
+ * gear and cores (mods), belt crates, plating, and for the par player also rerolls, the loss on parts sold and unspent
+ * gold. Also how often a dawn's first caravan offers plating or a belt crate (rollShop on a fresh run of the day, 400
+ * seeds per hero-day), and the share of the population's crate gold that lengthens no belt (capacity above its longest
+ * route's tiles, rounded to whole crates).
+ */
+function mixMode(days: number[], out: string, opts: PlayerOpts, k: number, tag: string): void {
+  const rows: unknown[] = [];
+  const cr = ITEMS.beltcrate.price, pl = ITEMS.plating.price, crateBelt = ITEMS.beltcrate.supply!.belt!;
+  const mixOf = (b: Build) => { const c = deckCost(b); return { items: c.items, mods: c.mods, crates: c.crates * cr, plating: c.plates * pl, total: c.total }; };
+  const avg = <T extends Record<string, number>>(xs: T[]): T => Object.fromEntries(Object.keys(xs[0]).map((key) => [key, Math.round(10 * mean(xs.map((x) => x[key]))) / 10])) as T;
+  for (const hero of (flag("heroes")?.split(",") as HeroId[] | undefined) ?? HEROES) {
+    for (const day of days) {
+      const par = parSeeds(k).map((s) => playerRun(hero, day, s, opts)[day - 1]);
+      const parMix = avg(par.map((d) => ({ ...mixOf(d.build), rerolls: d.rerollGold, soldLoss: d.soldLoss, unspent: d.gold })));
+      const pop = Array.from({ length: STANDIN_DEFAULTS.pop }, (_, idx) => norm(standInCandidate(hero, day, hashSeed("standin-pop", SEED, hero, day, idx), "on", "on", "on").build));
+      const popMix = avg(pop.map(mixOf));
+      // crate gold no belt uses: whole crates of belt capacity above the tiles its belts hold (deck.ts beltUsed)
+      const idle = mean(pop.map((b) => Math.min(deckCost(b).crates, Math.floor(Math.max(0, b.beltCap - beltUsed(b)) / crateBelt)) * cr));
+      void HEROES_DEF;
+      let plating = 0, crate = 0;
+      const N = 400;
+      for (let s = 0; s < N; s++) {
+        const r = newRun(hero, hashSeed("par-mix-offers", hero, s), `mix-${hero}-${s}`);
+        r.day = day;
+        rollShop(r);
+        const defs = r.shop.wagons.flatMap((w) => w.offers.map((o) => o.def));
+        if (defs.includes("plating")) plating++;
+        if (defs.includes("beltcrate")) crate++;
+      }
+      rows.push({ hero, day, budget: maxGoldByDay(day), par: parMix, pop: popMix, popIdleCrateGold: Math.round(10 * idle) / 10, offers: { plating: plating / N, beltcrate: crate / N } });
+      const f = (m: Record<string, number>) => Object.entries(m).map(([key, v]) => `${key} ${v}`).join(" ");
+      console.log(`mix ${hero} d${day} (${maxGoldByDay(day)} g) | par: ${f(parMix)} | pop: ${f(popMix)} idle-crates ${idle.toFixed(1)} | offered: plating ${pc(plating / N)} crate ${pc(crate / N)}`);
+    }
+  }
+  writeFileSync(resolve(out, `mix-${tag}.json`), JSON.stringify({ k, rows }, null, 1));
+}
+
 async function main(): Promise<void> {
   const days = flag("days")?.split(",").map(Number) ?? Array.from({ length: 10 }, (_, i) => i + 1);
   const nw = num("workers", 4);
@@ -312,6 +354,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--show")) showMode(days, opts, k);
   if (flag("showpop")) showPopMode(days, num("showpop", 8), cache);
   if (process.argv.includes("--spend")) spendMode(days, out, opts, k, tag);
+  if (process.argv.includes("--mix")) mixMode(days, out, opts, k, tag);
   if (process.argv.includes("--pct")) await pctMode(days, pool.run, out, cache, opts, k, tag);
   if (process.argv.includes("--pool")) await poolMode(days, pool.run, out, opts, k, tag);
   if (process.argv.includes("--rivals")) await rivalsMode(days, pool.run, out, cache, opts, k, num("seeds", 4), num("tq-seeds", 20), tag);
