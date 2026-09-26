@@ -34,6 +34,7 @@ import { ROAD_PICKS, warlordDeck, warlordDeckDay, warlordReward } from "../game/
 import type { WarlordReward } from "../game/roadTypes";
 import { newRun, type Run } from "../game/run";
 import { gainModule } from "../game/fuse";
+import type { BuildCost } from "./validate"; // type only: validate.ts's buildCost is the strict mode's cost
 
 // ------------------------------------------------------------------ D4: the reviewed model
 
@@ -510,10 +511,11 @@ export function resetRoadCapMemo(): void {
  * reach by `day`: plates x +25 (bought) plus a mix of the road's hull choices (dock PLATING +20, RIDE THROUGH
  * -10), never under HULL_FLOOR after a hull cost; its belt the hero's base plus crates x +4 plus the road's belt
  * (the BELT SPOOL +4). The mix's events must fit in `day` road stops. Then, for some reachable mix,
- * cost = items + mods + plates x plating price + crates x crate price must be <= maxGoldByDay(day) +
- * roadCapFor(day, mix). Returns the errors (empty: the deck passes).
+ * cost = the parts (items, mods, 0.6.2s installed turrets: every buildCost term but the supplies) + plates x plating
+ * price + crates x crate price must be <= maxGoldByDay(day) + roadCapFor(day, mix). Returns the errors (empty: the
+ * deck passes).
  */
-export function playerSupplyBudget(b: Build, day: number, cost: { items: number; mods: number }): string[] {
+export function playerSupplyBudget(b: Build, day: number, cost: BuildCost): string[] {
   let f: PlayerFits;
   try {
     f = playerFits(b, day, cost);
@@ -535,7 +537,8 @@ export function playerSupplyBudget(b: Build, day: number, cost: { items: number;
   }
   if (!errors.length && best) {
     const road = best.mix.labels.length ? `, road ${best.mix.labels.join(" + ")}` : "";
-    errors.push(`budget: build costs ${best.cost} gold (items ${cost.items}, mods ${cost.mods}, ${best.crates} crates, ${best.plates} plating${road}) but a player's day ${day} allows at most ${best.allow} (maxGoldByDay ${shopGold(day)} + roadCap ${best.cap})`);
+    const turrets = cost.turrets ? `, turrets ${cost.turrets}` : ""; // as the strict message names them (0.6.2s)
+    errors.push(`budget: build costs ${best.cost} gold (items ${cost.items}, mods ${cost.mods}, ${best.crates} crates, ${best.plates} plating${turrets}${road}) but a player's day ${day} allows at most ${best.allow} (maxGoldByDay ${shopGold(day)} + roadCap ${best.cap})`);
   }
   return errors;
 }
@@ -545,7 +548,7 @@ export interface PlayerFit {
   mix: Mix;
   plates: number;
   crates: number;
-  cost: number; // items + mods + plates and crates at their prices
+  cost: number; // the parts (buildCost without its supplies) + plates and crates at their prices
   allow: number; // maxGoldByDay(day) + roadCapFor(day, mix)
   cap: number; // roadCapFor(day, mix)
 }
@@ -557,10 +560,13 @@ export interface PlayerFits {
 }
 
 /** The D3 search: every road mix that explains the deck's hull and belt by `day`, costed (throws RoadModelError). */
-export function playerFits(b: Build, day: number, cost: { items: number; mods: number }): PlayerFits {
+export function playerFits(b: Build, day: number, cost: BuildCost): PlayerFits {
   const h = HEROES[b.hero];
   const plate = ITEMS.plating, crate = ITEMS.beltcrate;
   const plateHull = plate.supply!.hull!, crateBelt = crate.supply!.belt!;
+  // The parts cost exactly what the strict mode says: buildCost's total without its supply terms, so items, mods, the
+  // 0.6.2s installed turrets (turretValue: a free starting copy is 0) and any later term are costed by the same code.
+  const parts = cost.total - cost.crates * crate.price - cost.plates * plate.price;
   const hullFits = (m: Mix) => {
     const r = b.hullBonus - m.hull;
     return r >= 0 && r % plateHull === 0 && (!m.hullCost || h.hull + b.hullBonus >= HULL_FLOOR);
@@ -580,7 +586,7 @@ export function playerFits(b: Build, day: number, cost: { items: number; mods: n
     if (!hf || !bf) continue;
     // plates and crates are bought; the rest of the hull and belt came from the road mix's events
     const plates = (b.hullBonus - m.hull) / plateHull, crates = (b.beltCap - h.belt - m.belt) / crateBelt;
-    const total = cost.items + cost.mods + plates * plate.price + crates * crate.price;
+    const total = parts + plates * plate.price + crates * crate.price;
     out.fits.push({ mix: m, plates, crates, cost: total, allow: shopGold(day) + cap, cap });
   }
   out.fits.sort((x, y) => (y.allow - y.cost) - (x.allow - x.cost)); // the cheapest honest mix first
