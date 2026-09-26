@@ -104,7 +104,7 @@ describe("P12: SPLITTER after the retune (PERFECT CUT): one split, one extra cop
       const w = walkRoute(b, 0);
       expect(w.timeline.map((r) => r.tile)).toEqual([2]);
       expect(w.timeline[0].hits.map((h) => [h.uid, h.tier, h.split])).toEqual([[10, 3, { copies: 2, mult: MULT[s] }]]);
-      expect(hitLabel(w.timeline[0].hits[0], "free")).toBe(`SPLITTER 2 COPIES AT ${Math.round(MULT[s] * 100)}%`); // 0.6.2t: was X2
+      expect(hitLabel(w.timeline[0].hits[0], "free")).toBe(`SPLITTER 2 COPIES AT ${Math.round(MULT[s] * 100)}% DAMAGE`); // 0.6.2t: was X2; 0.6.2t2 F2: DAMAGE
       expect(w.estimate.copies, `★${s} walk`).toBe(2);
       const fam = family(b, 2);
       expect(fam, `★${s} battle`).toHaveLength(2);

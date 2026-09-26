@@ -90,8 +90,11 @@ export interface Block {
   role: Role;
   /** Whole sentence(s); a stat row's value. */
   text: string;
-  /** A stat row's label (its values align after the widest label of the panel). */
+  /** A stat row's label (its values align after the widest label of the panel, or of its group). */
   label?: string;
+  /** 0.6.2t2 (F2): a stat row's alignment group: rows of one group share a value column (a turret's CORE and GEAR
+   *  name rows apart from its FIRES, CHAMBER and LOAD TIME rows); ungrouped rows share one. */
+  group?: string;
   /** A grid row: label and value pairs in two aligned columns (the belt's gun-end readout). */
   cells?: [string, string][];
   /** A perk's name, after the text in the perk colour, never split ("★3 TWIN SIGNET"). */
@@ -469,11 +472,12 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
     // 0.6.2j: a joining belt's sub names the belt it joins (0.6.2rel: two short sentences, no "·")
     sub: info.join ? `JOINS BELT ${info.join.route + 1}. ${feeds}.` : feeds,
     ...(info.join ? { subShort: `JOINS BELT ${info.join.route + 1}.` } : {}),
+    // 0.6.2t2 (F2): the header strip labels its time as the readout's grid does (TIME), never a bare number
     headerOnly: info.connected ? {
       texts: [
-        `DMG ${dmg}, BURN ${est.burn}${est.shock ? ", SHOCK" : ""}, SPD ${percent(w.speedEnd)}, ${time}`,
-        `DMG ${dmg}, ${time}, BURN ${est.burn}`,
-        `DMG ${dmg}, ${time}`,
+        `DMG ${dmg}, BURN ${est.burn}${est.shock ? ", SHOCK" : ""}, SPD ${percent(w.speedEnd)}, TIME ${time}`,
+        `DMG ${dmg}, TIME ${time}, BURN ${est.burn}`,
+        `DMG ${dmg}, TIME ${time}`,
       ],
       colour: C.yellow,
     } : undefined,
@@ -545,15 +549,24 @@ export function turretPanel(run: Run, index: number): PanelText | null {
   };
   const coreGist = tc.bought ? gist(tc.def, tc.stars, o(tc.k)) : "";
   const warn = (short: boolean) => deadEndLines(b, index, short).map((text): Block => ({ role: "warn", text, keep: true }));
-  const rowOf = (s: SocketRow): Block => ({ role: "row", label: s.label, text: s.text, keep: true });
+  // the CORE and GEAR socket rows name the parts; they align apart from the stat rows (0.6.2t2 F2: LOAD TIME's wider
+  // label moves only those)
+  const rowOf = (s: SocketRow): Block => ({ role: "row", label: s.label, text: s.text, keep: true, group: "part" });
   const noJam = tu.noJam || (tc.bought && tc.spec.noJam);
+  // 0.6.2t2 (F2): each number in a row names what it is, in the glossary's words. The LOAD TIME is the wait after the
+  // first load that fires a chamber that isn't full (cores.ts ready), read from the turret state the battle builds
+  // (makeTurret): its window time (the core's, else WINDOW_TIME, plus every HOPPER's seconds), which SALVO RACK doubles
+  // (its text says so); COMPOUND BREECH fires a lone load after its own hold instead; a GATLING SPOOL never waits, so it
+  // has no load time
+  const loadTime = tu.core.routine === "gatling" ? null : tu.core.routine === "compound" ? tu.core.spec.hold ?? 3 : tu.windowTime;
   // the turret's own numbers: kept in the full and gist forms (the gear-list form says them in an optional sentence)
   const stats: Block[] = [
     { role: "row", label: "FIRES", text: `EVERY ${n2(every)} SEC${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}`, keep: true },
     {
       role: "row", label: "CHAMBER", keep: true,
-      text: `${tu.window} LOADS, ${n2(tu.windowTime)} SEC${tu.storeMax ? `, STORES ${tu.storeMax} WHILE FIRING` : ""}${noJam ? ", NEVER JAMS" : ""}`,
+      text: `${tu.window} LOADS${tu.storeMax ? `, STORES ${tu.storeMax} WHILE FIRING` : ""}${noJam ? ", NEVER JAMS" : ""}`,
     },
+    ...(loadTime === null ? [] : [{ role: "row", label: "LOAD TIME", text: `${n2(loadTime)} SEC`, keep: true } as Block]),
   ];
   // a clash (a piece of gear that does nothing here) and the shield come before the optional stats sentence below
   const rest: Block[] = [
@@ -658,9 +671,10 @@ function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = fal
   return wrapRich(spans, width, font).map((s) => ({ spans: s, font, block: b, pitch }));
 }
 
-/** Lay out blocks: a panel's stat labels share one value column, and its grid rows two label columns. */
+/** Lay out blocks: a panel's stat labels share one value column (each group its own), its grid rows two label columns. */
 export function lay(bs: readonly Block[], width: number, main: FontId, tight = false): Laid[] {
-  const labels = bs.filter((b) => b.role === "row" && b.label).map((b) => textWidth(b.label!, main));
+  const labelsOf = (g?: string) => bs.filter((b) => b.role === "row" && b.label && b.group === g).map((b) => textWidth(b.label!, main));
+  const labels = labelsOf();
   const grids = bs.filter((b) => b.role === "grid" && b.cells);
   const colW = (i: number, j: 0 | 1) => Math.max(0, ...grids.flatMap((b) => (b.cells![i] ? [textWidth(b.cells![i][j], main)] : [])));
   // the second column starts at the half, or after the first column's widest value; two columns only if all fit
@@ -671,7 +685,8 @@ export function lay(bs: readonly Block[], width: number, main: FontId, tight = f
     grid: { two: at1 + l1 + gap + colW(1, 1) <= width, at1, l0, l1 },
   };
   return bs.map((b) => {
-    const lines = layBlock(b, width, main, cols, tight);
+    const own = b.group === undefined ? cols : { ...cols, labelW: Math.max(0, ...labelsOf(b.group)) + labelGap(main) };
+    const lines = layBlock(b, width, main, own, tight);
     return { b, lines, h: lines.reduce((n, l) => n + l.pitch, 0) };
   });
 }

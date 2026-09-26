@@ -1007,11 +1007,12 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
     const cap = h.capped !== undefined ? ` (UP TO ${h.capped} HITS)` : ` (${plural(h.prior ?? 0, "HIT")} BEFORE)`;
     return `${name} +${damage(h.flat ?? 0)}${cap}`;
   }
-  if (e.split) return `${name} ${h.split?.copies ?? e.split.copies} COPIES AT ${percent(h.split?.mult ?? e.split.mult)}`;
+  // 0.6.2t2 (F2): every number in a row says what it is ("AT 60% DAMAGE", "UP TO 6 DAMAGE"), as the ability text does
+  if (e.split) return `${name} ${h.split?.copies ?? e.split.copies} COPIES AT ${percent(h.split?.mult ?? e.split.mult)} DAMAGE`;
   if (e.sort) return `${name} COPIES EVERY ${nth(e.sort.every)} PAYLOAD${e.sort.copies > 2 ? ` ${times(e.sort.copies - 1)}` : ""}`;
   if (e.overclockCooldown) return `${name} DOUBLES THE NEXT RIG, THEN WAITS ${n2(e.overclockCooldown)} SEC`;
   if (e.keg) return `${name} +${damage(e.keg.flat)} AND ${e.keg.burn} BURN AFTER ${n2(e.keg.fuse)} SEC`;
-  if (e.perStalled) return `${name} +${damage(e.perStalled.each)} FOR EACH STALLED MACHINE, UP TO ${n1(e.perStalled.max)}`;
+  if (e.perStalled) return `${name} +${damage(e.perStalled.each)} FOR EACH STALLED MACHINE, UP TO ${damage(e.perStalled.max)}`;
   if (e.toll) return `${name} BLOCKS ${e.toll} HARASSMENT HITS`;
   if (e.sift) return `${name} REMOVES ${e.sift === "all" ? "EVERY MARK" : "ONE MARK"}${h.flat ? `, +${damage(h.flat)} IF CLEAN` : ""}`;
   if (e.repair) return `${name} REPAIRS ${n1(e.repair)} HULL`;

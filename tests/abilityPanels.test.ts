@@ -298,11 +298,15 @@ describe("0.6.2t T4: the panels' layout", () => {
     expect((plan.body.lines.at(-1) as PLine).block.role).toBe("hint");
   });
 
-  it("stat rows align: a panel's row values share one column, its grid values theirs", () => {
+  it("stat rows align: a panel's row values share one column (a turret's CORE and GEAR rows theirs), its grid values theirs", () => {
     const run = newRun("furnace", 5, "rows");
     run.build.mods.push({ uid: 5, def: "scatter", turret: 0, stars: 2 } as Run["build"]["mods"][number]);
-    const rows = lay(turretPanel(run, 0)!.body, 116, "5").filter((l) => l.b.role === "row").flatMap((l) => l.lines);
-    expect(new Set(rows.map((l) => l.indent)).size).toBe(1);
+    const laid = lay(turretPanel(run, 0)!.body, 116, "5").filter((l) => l.b.role === "row");
+    const indents = (labels: string[]) => new Set(laid.filter((l) => labels.includes(l.b.label!)).flatMap((l) => l.lines.map((x) => x.indent)));
+    expect(laid.map((l) => l.b.label)).toEqual(["CORE", "GEAR", "FIRES", "CHAMBER", "LOAD TIME"]);
+    // 0.6.2t2 (F2): the stat rows after the widest of their labels (LOAD TIME), the part names after CORE and GEAR
+    expect([...indents(["FIRES", "CHAMBER", "LOAD TIME"])]).toEqual([textWidth("LOAD TIME", "5") + 5]);
+    expect([...indents(["CORE", "GEAR"])]).toEqual([textWidth("CORE", "5") + 5]);
     const sr = slagRun(1);
     const grid = lay(routePanel(sr, sr.build.routes.length - 1)!.body, 116, "5").filter((l) => l.b.role === "grid").flatMap((l) => l.lines);
     expect(grid.length).toBeGreaterThan(0);
@@ -593,5 +597,83 @@ describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel"
     const plan = planPanel(t, DESK), at = plan.body.lines.indexOf("rule");
     expect((plan.body.lines[at + 1] as PLine).block.role).toBe("hint");
     expect(flavourText("temper", 1)).toBe("");
+  });
+});
+
+// 0.6.2t2 (REQ-BFG-032 F2): a stat row never shows a bare number; each number says what it is, in the glossary's words.
+describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
+  /** The numbers in a row's value that no unit or noun follows ("CHAMBER 3 LOADS, 1.5 SEC" at 881b38f: the 1.5). */
+  const bare = (text: string): string[] => {
+    const ws = text.replace(/[,():]/g, " ").split(/\s+/).filter(Boolean);
+    return ws.flatMap((w, i) => {
+      if (!/^[+-]?\d+(\.\d+)?%?$/.test(w)) return [];
+      const next = ws[i + 1] ?? "";
+      if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER)$/.test(next) ? [] : [w];
+      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES)$/.test(next) ? [] : [w];
+    });
+  };
+  /** A FURNACE (or WEAVER) with `core` and `gear` fitted to turret 1 at their stars. */
+  const fitted = (core: string | null, cs: number, gear: string | null, gs: number, hero: HeroId = "furnace"): Run => {
+    const run = newRun(hero, 5, "f2");
+    for (const [uid, def, s] of [[701, core, cs], [702, gear, gs]] as const) {
+      if (def) run.build.mods.push({ uid, def, turret: 0, ...(s > 1 ? { stars: s } : {}) } as Run["build"]["mods"][number]);
+    }
+    return run;
+  };
+  const rows = (t: PanelText): Record<string, string> => Object.fromEntries(t.body.filter((b) => b.role === "row" && b.label).map((b) => [b.label!, b.text]));
+
+  it("the turret's rows, written out: CHAMBER counts loads, LOAD TIME names the seconds (as each core reads them)", () => {
+    const stat = (core: string | null, cs: number, gear: string | null = null, gs = 1) => {
+      const r = rows(turretPanel(fitted(core, cs, gear, gs), 0)!);
+      return [r.FIRES, r.CHAMBER, r["LOAD TIME"]];
+    };
+    expect(stat(null, 1)).toEqual(["EVERY 1 SEC", "3 LOADS", "1.5 SEC"]); // the KILN BREECH: WINDOW_TIME
+    expect(stat("rotary", 1)).toEqual(["EVERY 1 SEC", "3 LOADS", "0.8 SEC"]); // CUTS THE LOAD TIME TO 0.8 SECONDS
+    expect(stat("rotary", 1, "hopper", 3)).toEqual(["EVERY 1 SEC", "6 LOADS, NEVER JAMS", "2.3 SEC"]); // + HOPPER's 1.5
+    expect(stat(null, 1, "hopper", 1)).toEqual(["EVERY 1 SEC", "4 LOADS", "2 SEC"]);
+    expect(stat("pressure", 2)).toEqual(["EVERY 1 SEC", "3 LOADS, NEVER JAMS", "1.5 SEC"]);
+    expect(stat("salvo", 1)).toEqual(["EVERY 1.6 SEC", "3 LOADS", "1.5 SEC"]); // its text: OR TWICE ITS LOAD TIME
+    expect(stat("compound", 1, "hopper", 3)).toEqual(["EVERY 1 SEC", "6 LOADS, NEVER JAMS", "3 SEC"]); // its own hold
+    expect(stat("gatling", 1, "hopper", 1)).toEqual(["EVERY 1 SEC", "4 LOADS", undefined]); // it never waits
+    expect(stat(null, 1, "chamber", 2)).toEqual(["EVERY 1 SEC, 2 LOADS EACH SHOT", "4 LOADS", "1.5 SEC"]);
+  });
+
+  it("every core and gear at every star, on a FURNACE (heavy) and a WEAVER (light) turret: no bare number in any row", () => {
+    const cores = [null, ...MODULES.filter((d) => d.kind === "core").map((d) => d.id)];
+    const gears = [null, ...MODULES.filter((d) => d.kind === "mod").map((d) => d.id)];
+    let n = 0;
+    for (const hero of ["furnace", "weaver"] as HeroId[]) for (const core of cores) for (const gear of gears) for (const s of STARS) {
+      const r = rows(turretPanel(fitted(core, s, gear, s, hero), 0)!);
+      const id = `${hero} ${core} ★${s} + ${gear} ★${s}`;
+      for (const [label, v] of Object.entries(r)) expect(bare(v), `${id}: ${label} ${v}`).toEqual([]);
+      expect(r.CHAMBER, id).toMatch(/^\d+ LOADS(, NEVER JAMS)?$/);
+      const routine = core ? ITEMS[core].core!.routine : "identity";
+      if (routine === "gatling") expect(r["LOAD TIME"], id).toBeUndefined();
+      else expect(r["LOAD TIME"], id).toMatch(/^\d+(\.\d+)? SEC$/);
+      if (routine === "compound") expect(r["LOAD TIME"], id).toBe(`${effectAt(core!, s).core!.hold} SEC`);
+      n++;
+    }
+    expect(n).toBe(2 * 14 * 10 * 3);
+  });
+
+  it("every rig's belt timeline row at every star (free, slag and METRONOME belts) and the header strip: no bare number", () => {
+    const check = (run: Run, i: number, id: string) => {
+      const t = routePanel(run, i)!;
+      for (const b of t.body.filter((x) => x.role === "row")) expect(bare(b.text), `${id}: ${b.label} ${b.text}`).toEqual([]);
+      for (const b of t.body.filter((x) => x.role === "grid")) for (const [l, v] of b.cells!) {
+        expect(l, `${id}: ${v}`).toMatch(/^(DMG|BURN|SPD|TIME|SHOCK|COPIES)$/); // each value sits beside its label
+        if (l === "TIME") expect(v, id).toMatch(/^\d+\.\d SEC$/);
+      }
+      for (const text of t.headerOnly?.texts ?? []) expect(text, id).toMatch(/, TIME \d+\.\d SEC/);
+    };
+    for (const d of MODULES.filter((x) => x.kind === "gate")) for (const s of STARS) check(rigRun(d.id, s, 3, 3, rotFacing(d.id, 1), 0), 0, `${d.id} ★${s}`);
+    for (const s of STARS) {
+      for (const run of [slagRun(s), slagRun(s, "surge")]) check(run, run.build.routes.length - 1, `slag ★${s}`);
+      check(metronomeRun(s), 0, `METRONOME ★${s}`);
+    }
+    // the two rows 881b38f left bare: SPLITTER's share and LODESTONE's cap
+    const row = (def: string, s: number) => routePanel(rigRun(def, s, 3, 3, rotFacing(def, 1), 0), 0)!.body.find((b) => b.role === "row")!.text;
+    expect(row("splitter", 1)).toBe("SPLITTER 2 COPIES AT 60% DAMAGE");
+    expect(row("lodestone", 2)).toBe("LODESTONE +2.2 DAMAGE FOR EACH STALLED MACHINE, UP TO 13 DAMAGE");
   });
 });
