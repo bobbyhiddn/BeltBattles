@@ -529,9 +529,13 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   lodestone: {
     id: "lodestone", name: "LODESTONE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "arcane",
-    desc: ["+1 DAMAGE FOR", "EACH ENEMY MACHINE", "STALLED RIGHT NOW."], tags: ["SHOCK", "EDGE"],
-    gate: { perStalled: { each: 1, max: 6 } }, levels: { 2: { gate: { perStalled: { each: 2.2, max: 13 } } },
-      3: { gate: { perStalled: { each: 3.5, max: 21 } } } },
+    desc: ["+1 DAMAGE ALWAYS,", "+1 PER ENEMY", "MACHINE STALLED."], tags: ["SHOCK", "EDGE"],
+    // 0.6.2 TUNE-M T2 (the Prime's decision, as QUENCH TANK's oracle 16085a6430e4cc6a): a floor, +1/+2/+3 flat on every
+    // payload it hits (below WHETSTONE's 2/4/7), with the per-stalled bonus on top. Was the per-stalled bonus alone, so
+    // a deck with no stall source got nothing from it at any star (NO EFFECT on FB-A and RB; CAND-A ablation FURNACE
+    // d10 -5.4).
+    gate: { flat: 1, perStalled: { each: 1, max: 6 } }, levels: { 2: { gate: { flat: 2, perStalled: { each: 2.2, max: 13 } } },
+      3: { gate: { flat: 3, perStalled: { each: 3.5, max: 21 } } } },
   },
   barbed: {
     id: "barbed", name: "BARBED SPOOL", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "quartermaster",

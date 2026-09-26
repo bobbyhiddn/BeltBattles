@@ -61,7 +61,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number) => number[]> = {
   bellows: (e) => [g(e).burnPerRide!.max],
   quench: (e) => [g(e).quench!.flat, g(e).quench!.stacks, g(e).quench!.perBurn], // FB-B: +flat, then up to `stacks` Burn
   staticbrush: () => [],
-  lodestone: (e) => [g(e).perStalled!.each],
+  lodestone: (e) => [g(e).flat!, g(e).perStalled!.each], // 0.6.2 TUNE-M T2: the floor, then +each per stalled machine
   barbed: (e) => [g(e).fray!, 0.2], // +0.2 PER STACK: FRAY_BONUS
   counterweight: (e) => [g(e).perTile!.each, g(e).perTile!.max],
   // factories
@@ -134,7 +134,7 @@ const PINS: Record<string, [string, string, string]> = {
   keg: ["BLOWS AT 12S: / PAYLOADS ON ITS BELT / GAIN +6 AND BURN.", "BLOWS AT 10S: / PAYLOADS ON ITS BELT / GAIN +13, 2 BURN.", "BLOWS AT 8S: ALL / BELTS BESIDE IT / GAIN +21 AND 3 BURN."],
   bellows: ["ADDS BURN FROM / RIDE TIME SO FAR, / UP TO 4 STACKS.", "ADDS BURN FROM / RIDE TIME SO FAR, / UP TO 9 STACKS.", "ADDS BURN FROM / RIDE TIME SO FAR, / UP TO 14 STACKS."],
   quench: ["+1 DAMAGE TO EVERY / PAYLOAD. TURNS UP TO / 4 BURN INTO +3 EACH.", "+2 DAMAGE TO EVERY / PAYLOAD. TURNS UP TO / 5 BURN INTO +5 EACH.", "+3 DAMAGE TO EVERY / PAYLOAD. TURNS UP TO / 6 BURN INTO +7 EACH."],
-  lodestone: ["+1 DAMAGE FOR / EACH ENEMY MACHINE / STALLED RIGHT NOW.", "+2.2 DAMAGE FOR / EACH ENEMY MACHINE / STALLED RIGHT NOW.", "+3.5 DAMAGE FOR / EACH ENEMY MACHINE / STALLED RIGHT NOW."],
+  lodestone: ["+1 DAMAGE ALWAYS, / +1 PER ENEMY / MACHINE STALLED.", "+2 DAMAGE ALWAYS, / +2.2 PER ENEMY / MACHINE STALLED.", "+3 DAMAGE ALWAYS, / +3.5 PER ENEMY / MACHINE STALLED."], // TUNE-M T2
   barbed: ["HITS ADD 1 FRAY. / LATER HITS DEAL / +0.2 PER STACK.", "HITS ADD 2 FRAY. / LATER HITS DEAL / +0.2 PER STACK.", "HITS ADD 3 FRAY. / LATER HITS DEAL / +0.2 PER STACK."],
   counterweight: ["+0.5 DAMAGE PER / BELT TILE ALREADY / RIDDEN, MAX +6.", "+1.1 DAMAGE PER / BELT TILE ALREADY / RIDDEN, MAX +13.", "+1.75 DAMAGE PER / BELT TILE ALREADY / RIDDEN, MAX +21."],
   press: ["STAMPS PLAIN SLUGS / EVERY 1.4S. NEEDS A / FREE TURRET INTAKE.", "STAMPS PLAIN SLUGS / EVERY 1.1S. NEEDS A / FREE TURRET INTAKE.", "STAMPS PLAIN SLUGS / EVERY 1S. NEEDS A / FREE TURRET INTAKE."],

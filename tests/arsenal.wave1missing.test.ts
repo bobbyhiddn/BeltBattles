@@ -123,7 +123,8 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
       lodestone.bt.sides[1].turrets[0].disrupted = 2;
       lodestone.bt.sides[1].factories[0].frozen = 2;
       (lodestone.bt as any).applyHit(lodestone.s, lodestone.a, lodestone.hit);
-      expect(lodestone.a.p.flat).toBeCloseTo([2, 4.4, 7][stars - 1]);
+      // 0.6.2 TUNE-M T2 (tests/tune062.lodestone.test.ts): its floor +1/+2/+3, then 2 stalled x 1/2.2/3.5 (was 2 / 4.4 / 7)
+      expect(lodestone.a.p.flat).toBeCloseTo([3, 6.4, 10][stars - 1]);
       const barbed = process("barbed", stars);
       strike(barbed.bt, barbed.a.p);
       expect(barbed.bt.sides[1].hull.fray).toBe(stars);

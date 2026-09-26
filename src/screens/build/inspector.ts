@@ -68,7 +68,8 @@ export function starEffectLine(def: string, stars: number, k = 1): string {
   if (gt?.burnPerRide) return `+1 BURN/${gt.burnPerRide.seconds}S · MAX ${gt.burnPerRide.max}`;
   if (gt?.quench) return `+${gt.quench.flat} DMG · UP TO ${gt.quench.stacks} BURN → +${gt.quench.perBurn} EACH`; // 0.6.2 FB-B
   if (gt?.staticTime) return `STATIC STALL ${gt.staticTime}S`;
-  if (gt?.perStalled) return `+${gt.perStalled.each}/STALLED · MAX ${gt.perStalled.max}`;
+  // 0.6.2 TUNE-M T2: LODESTONE's floor first (+1/+2/+3 on every payload), then its per-stalled bonus
+  if (gt?.perStalled) return `${gt.flat ? `+${gt.flat} DMG · ` : ""}+${gt.perStalled.each}/STALLED · MAX ${gt.perStalled.max}`;
   if (gt?.fray) return `+${gt.fray} FRAY${gt.frayCap ? ` · CAP +${gt.frayCap}` : ""}`;
   if (gt?.perTile) return `+${gt.perTile.each}/TILE · MAX ${gt.perTile.max}`;
   if (gt?.burn) return `+${gt.burn} BURN`;

@@ -118,8 +118,12 @@ describe("harness cores (0.6.1b): legality", () => {
     // to every hero), measured twice on arsenal-062-combined: all-six random builds 3990378578 -> 1781625131; Furnace/
     // Weaver full purses 3070968615 -> 3672937531. On fac2bc2 alone the timing gear gave 1876268089 and 227470131.
     // Fixed golden decks are unchanged.
-    expect(hash32(a.join("|"))).toBe(1781625131);
-    expect(hash32(b.join("|"))).toBe(3672937531);
+    // 0.6.2 TUNE-M T2, LODESTONE's floor (+1/+2/+3 flat on every payload): the generator now sees it add damage, so 5 of
+    // the 90 random builds and some full purses buy differently: 1781625131 -> 450651712 and 3672937531 -> 4190209584.
+    // With LODESTONE's old values patched back into ITEMS at runtime, both hashes read their old values again
+    // (output-beltside/final-062/tune/verify/pinpatch.test.ts), so the floor alone moves them.
+    expect(hash32(a.join("|"))).toBe(450651712);
+    expect(hash32(b.join("|"))).toBe(4190209584);
   }, 60_000);
 });
 

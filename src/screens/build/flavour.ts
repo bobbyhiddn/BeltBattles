@@ -102,7 +102,8 @@ export const STAR_FLAVOUR: Record<string, Template> = {
     const q = gate(e).quench!;
     return [[`+${num(q.flat)} DAMAGE TO EVERY`, "PAYLOAD. TURNS UP TO", `${q.stacks} BURN INTO +${num(q.perBurn)} EACH.`]];
   },
-  lodestone: (e) => [[`+${num(gate(e).perStalled!.each)} DAMAGE FOR`, "EACH ENEMY MACHINE", "STALLED RIGHT NOW."]],
+  // 0.6.2 TUNE-M T2: the floor on every payload (gate.flat), then +each per stalled enemy machine
+  lodestone: (e) => [[`+${num(gate(e).flat ?? 0)} DAMAGE ALWAYS,`, `+${num(gate(e).perStalled!.each)} PER ENEMY`, "MACHINE STALLED."]],
   barbed: (e) => [[`HITS ADD ${gate(e).fray} FRAY.`, "LATER HITS DEAL", `+${num(FRAY_BONUS)} PER STACK.`]],
   counterweight: (e) => [[`+${num(gate(e).perTile!.each)} DAMAGE PER`, "BELT TILE ALREADY", `RIDDEN, MAX +${num(gate(e).perTile!.max)}.`]],
   // --- factories ---
