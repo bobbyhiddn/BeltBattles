@@ -7,10 +7,10 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type Faction, type HeroId } from "./content";
-import type { Build } from "./deck";
 import { starsOf, valueOf } from "./stars";
+import { turretsCost, type Build } from "./deck";
 import { warlordBuild, warlordHull } from "./ai";
-import { PLANS, planBuild, type RivalLoadout } from "./rivalBuilds";
+import { PLANS, planBuild, type Luck, type RivalLoadout } from "./rivalBuilds";
 
 export type RivalId =
   | "sootjaw" | "nettle" | "grubnose" | "mothqueen"
@@ -221,9 +221,19 @@ export function standInGhost(runSeed: number, day: number): RivalId {
   return standInGhosts(runSeed)[clampDay(day) - 1];
 }
 
-/** A captain's plan as it stands on a day (1-10): the warlord deck, its supplies and its value. */
-export function rivalLoadout(id: RivalId, day: number): RivalLoadout {
-  return planBuild(PLANS[id], day);
+/**
+ * 0.6.2 TUNE-C (REQ-BFG-033): the shop luck a captain's warlord deck is assembled at, from its warlord slot: Easy and
+ * Medium ordinary, Hard good, the Iron Matriarch stars-aligned. Its stand-in deck is always ordinary (standInBuild).
+ */
+export function luckOf(id: RivalId): Luck {
+  if (id === "matriarch") return "stars";
+  return difficultyOf(id) === "hard" ? "good" : "ordinary";
+}
+
+/** A captain's plan as it stands on a day (1-10) at a luck tier (default: its warlord slot's, luckOf): the deck, its
+ *  supplies and its value. */
+export function rivalLoadout(id: RivalId, day: number, luck: Luck = luckOf(id)): RivalLoadout {
+  return planBuild(PLANS[id], day, luck);
 }
 
 /**
@@ -267,6 +277,7 @@ export interface DeckCost {
   mods: number; // gold: turret gear
   crates: number; // belt crates implied by beltCap above the hero's base (count)
   plates: number; // armor plating implied by hullBonus (count)
+  turrets?: number; // gold: installed turrets (deck.ts turretsCost); present only when the layout differs from the start
   total: number; // gold
 }
 
@@ -285,7 +296,11 @@ export function deckCost(b: Build): DeckCost {
   const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
   const crates = Math.max(0, Math.ceil((b.beltCap - HEROES[b.hero].belt) / CRATE_BELT));
   const plates = Math.max(0, Math.ceil(b.hullBonus / PLATE_HULL));
-  return { items, mods, crates, plates, total: items + mods + crates * ITEMS.beltcrate.price + plates * ITEMS.plating.price };
+  const total = items + mods + crates * ITEMS.beltcrate.price + plates * ITEMS.plating.price;
+  // 0.6.2 TUNE-C: the installed turrets' value, as the validator's buildCost counts it since 0.6.2s (S7)
+  if (!b.turrets) return { items, mods, crates, plates, total };
+  const turrets = turretsCost(b);
+  return { items, mods, crates, plates, turrets, total: total + turrets };
 }
 
 /**
@@ -295,7 +310,8 @@ export function deckCost(b: Build): DeckCost {
  * most maxGoldByDay(day) for every captain but the Matriarch, who never stands in.
  */
 export function standInBuild(id: RivalId, day: number): Build {
-  const l = rivalLoadout(id, day);
+  // TUNE-C (REQ-BFG-033): a stand-in is assembled at ordinary luck, whatever its warlord slot
+  const l = rivalLoadout(id, day, "ordinary");
   return { ...l.build, hullBonus: PLATE_HULL * (l.plating + rampPlates(day)) };
 }
 

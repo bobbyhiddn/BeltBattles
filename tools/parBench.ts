@@ -7,7 +7,9 @@
 //               generator's population and gauntlet, seed 1: 64 standInCandidate builds scored against 20 fullPurseBuild
 //               builds per pool hero, 2 seeds x both sides); population scores are cached in <cache>/pop-<hero>-<day>.json
 //   --pool      the shipped stand-in pool (v2.1) against the par field (brief 4a)
-//   --rivals    [--seeds 4] [--tq-seeds 20] the captains against the par field and honestReference (brief 4b-4d)
+//   --rivals    [--seeds 4] [--tq-seeds 20] the captains against the par field and honestReference (brief 4b-4d); TUNE-C:
+//               per field (FURNACE, WEAVER, both), the par field's top quartile / decile vs Hard, the stand-ins' fight
+//               lengths; [--ids a,b] [--no-honest] [--no-tq] [--tq-pop] (the full-purse population's top quartile)
 //   --ladder    [--seeds 4] the skill ladder: par vs the random-pick field, calm and sharp vs the par field (brief 0c)
 //   --mix       no battles: the spend mix of the par field and the full-purse population, and supply offer rates
 //   --desk      [--seeds 10] the desk run's seeded pool ghosts (scripts/singlefile.mjs) against the par field (step 5)
@@ -41,12 +43,13 @@ import { FUSE_MAX, starsOf } from "../src/sim/stars";
 import { fullPurseBuild, spendFloor } from "../src/sim/harness/gen";
 import { STANDIN_DEFAULTS, decodeStandInCode, standInCandidate, standInCodeOf } from "../src/sim/harness/standins";
 import { describeBuild } from "../src/sim/harness/report";
-import { PAR_K, parField, parSeeds, vsPar } from "../src/sim/harness/par";
+import { PAR_K, parField, parSeeds, roundRobin, vsPar, type VsPar } from "../src/sim/harness/par";
+import { nearestRank } from "../src/sim/harness/luck";
 import { fmtRate, meanCI, wilson } from "../src/sim/harness/stats";
 import { standInPool } from "../src/sim/standInPool";
 import { playerBuild, playerRun, refeedRoute, type PlayerOpts } from "../src/sim/harness/player";
 import { RATING_CLIFF, RATING_CURVE, rateDeck } from "../src/sim/deckRating";
-import { RIVALS, RIVAL_IDS, deckCost, difficultyOf, honestReference, rivalBuild, rivalDays, standInBuild } from "../src/sim/rivals";
+import { RIVALS, RIVAL_IDS, deckCost, difficultyOf, honestReference, rivalBuild, rivalDays, standInBuild, type RivalId } from "../src/sim/rivals";
 import type { DetailRunner, Job, Runner } from "../src/sim/harness/tournament";
 import { DEFAULT_OPTS, focusSeeds } from "../src/sim/harness/tournament";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
@@ -202,67 +205,107 @@ const ciOf = (c: { mean: number; lo: number; hi: number }): string => `${pc(c.me
  * --rivals (brief 4b-4d, and the ladder's reference): per day, every captain's warlord deck (rivalBuild; the Iron
  * Matriarch on days 8-10 only) and every named stand-in's dusk deck (standInBuild, the 12 captains other than the
  * Matriarch), plus on day 1 the shipped pool's day-1 picks (the 3fbd553 dusk source), against the par field of each hero
- * (vsPar: `seeds` seeds x both sides per member). The member is the unit of every interval (95% t over the K members).
+ * (`seeds` seeds x both sides per member). The member is the unit of every interval (95% t over the K members).
  * Next to it, the same decks against the warlord ladder's current reference, honestReference(the other faction, day)
- * (K x `seeds` seeds x both sides: as many battles), which shows what the new par would do to the ladder; no captain is
- * retimed. Top quartile vs Hard: the full-purse population's decks ranked nearest P75 (P90 for the Matriarch), by the
- * --pct population scores (cached), against each Hard captain's rivalBuild, `tqSeeds` seeds x both sides.
+ * (K x `seeds` seeds x both sides: as many battles; --no-honest skips it).
+ * 0.6.2 TUNE-C (ref/BRIEF-final-062-captains.md section 3):
+ * - every deck's rate against the FURNACE par field, the WEAVER par field and both (the calibration field is FURNACE's);
+ * - the battles keep their lengths: the stand-ins' fight lengths against par (median and IQR, per field);
+ * - the PAR FIELD's top quartile and top decile: each hero's members ranked by their mean against the whole par field
+ *   (both heroes, a round robin of `seeds` seeds x both sides per pairing), the members at or above the nearest-rank
+ *   P75 (P90), each against each Hard captain of the day (P90: the Iron Matriarch), `tqSeeds` seeds x both sides; the
+ *   rate is the member's (--no-tq skips it). --tq-pop adds the old reading, the full-purse population's decks nearest
+ *   P75 / P90 by the cached --pct scores;
+ * - --ids a,b restricts the captains (the seeds are keyed by the deck's tag, so a captain reads the same alone).
  * Writes <out>/rivals-<tag>-d<day>.json per day, so a cut loses at most one day.
  */
-async function rivalsMode(days: number[], run: Runner, out: string, cache: string, opts: PlayerOpts, k: number, seeds: number, tqSeeds: number, tag: string): Promise<void> {
+async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out: string, cache: string, opts: PlayerOpts, k: number, seeds: number, tqSeeds: number, tag: string): Promise<void> {
+  const only = flag("ids")?.split(",") as RivalId[] | undefined;
+  const pick = (id: RivalId) => !only || only.includes(id);
+  const honestOn = !process.argv.includes("--no-honest"), tqOn = !process.argv.includes("--no-tq"), tqPop = process.argv.includes("--tq-pop");
   for (const day of days) {
     const t0 = performance.now();
-    const warlords = RIVAL_IDS.filter((id) => rivalDays(id).includes(day));
-    const standIns = RIVAL_IDS.filter((id) => id !== "matriarch");
-    const pool = day === 1 ? HEROES.flatMap((h) => standInPool(h, day).map((e, i) => ({ tag: `pool/${h}#${i}`, hero: h, build: e.build }))) : [];
+    const warlords = RIVAL_IDS.filter((id) => rivalDays(id).includes(day) && pick(id));
+    const standIns = RIVAL_IDS.filter((id) => id !== "matriarch" && pick(id));
+    const pool = day === 1 && !only ? HEROES.flatMap((h) => standInPool(h, day).map((e, i) => ({ tag: `pool/${h}#${i}`, hero: h, build: e.build }))) : [];
     const decks = [
       ...warlords.map((id) => ({ tag: `warlord/${id}`, hero: RIVALS[id].hero, build: rivalBuild(id, day) })),
       ...standIns.map((id) => ({ tag: `standin/${id}`, hero: RIVALS[id].hero, build: standInBuild(id, day) })),
       ...pool,
     ];
-    const res = await vsPar(decks.map((d) => d.build), HEROES, day, run, { key: "par-rivals", k, seeds, player: opts });
+    const { res, times } = await vsParDetail(decks, day, detail, k, seeds, opts);
     // the ladder's reference: honestReference(the other faction), as many battles as against a field
-    const honest = HEROES.map((h) => honestReference(h, day));
-    const hSeeds = k * seeds;
-    const hJobs: Job[] = decks.flatMap((_, d) => HEROES.map((h, hi): Job => ({ a: d, b: decks.length + hi, seeds: Array.from({ length: hSeeds }, (_, s) => hashSeed("par-rivals-honest", day, d, h, s)) })));
-    const hPts = await run([...decks.map((d) => d.build), ...honest], hJobs);
-    const vsHonest = decks.map((_, d) => Object.fromEntries(HEROES.map((h, hi) => [h, hPts[d * HEROES.length + hi] / (2 * hSeeds)])) as Record<HeroId, number>);
+    let vsHonest: (Record<HeroId, number> | null)[] = decks.map(() => null);
+    if (honestOn) {
+      const honest = HEROES.map((h) => honestReference(h, day));
+      const hSeeds = k * seeds;
+      const hJobs: Job[] = decks.flatMap((d) => HEROES.map((h, hi): Job => ({ a: decks.indexOf(d), b: decks.length + hi, seeds: Array.from({ length: hSeeds }, (_, s) => hashSeed("par-rivals-honest", day, d.tag, h, s)) })));
+      const hPts = await run([...decks.map((d) => d.build), ...honest], hJobs);
+      vsHonest = decks.map((_, d) => Object.fromEntries(HEROES.map((h, hi) => [h, hPts[d * HEROES.length + hi] / (2 * hSeeds)])) as Record<HeroId, number>);
+    }
     const rows = decks.map((d, i) => ({
       tag: d.tag, hero: d.hero, cost: deckCost(d.build).total,
-      vs: Object.fromEntries(HEROES.map((h) => [h, { rate: res[i][h].rate, members: res[i][h].members }])),
+      vs: Object.fromEntries(HEROES.map((h) => [h, { rate: res[i][h].rate, members: res[i][h].members }])) as Record<HeroId, { rate: number; members: number[] }>,
       vsHonest: vsHonest[i],
+      times: Object.fromEntries(HEROES.map((h) => [h, times[i][h].map((t) => Math.round(10 * t) / 10)])) as Record<HeroId, number[]>,
     }));
-    // top quartile (P75; P90 for the Matriarch) of the full-purse population vs each Hard warlord of the day
     const hard = warlords.filter((id) => difficultyOf(id) === "hard");
-    const gauntlet = gauntletOf(day);
-    const tq: unknown[] = [];
-    for (const hero of HEROES) {
-      const pop = await population(hero, day, gauntlet, run, cache);
-      const order = pop.scores.map((s, idx) => ({ s, idx })).sort((a, b) => a.s - b.s || a.idx - b.idx);
-      for (const q of [0.75, 0.9]) {
-        const at = Math.round(q * (order.length - 1));
-        const picks = order.slice(Math.max(0, at - 2), at + 3).map((o) => o.idx);
-        const builds = picks.map((idx) => norm(standInCandidate(hero, day, hashSeed("standin-pop", SEED, hero, day, idx), "on", "on", "on").build));
-        const foes = q === 0.9 ? hard.filter((id) => id === "matriarch") : hard.filter((id) => id !== "matriarch");
-        if (!foes.length) continue;
-        const jobs: Job[] = builds.flatMap((_, b) => foes.map((id, f): Job => ({ a: b, b: builds.length + f, seeds: Array.from({ length: tqSeeds }, (_, s) => hashSeed("par-tq", day, hero, q, picks[b], id, s)) })));
-        const pts = await run([...builds, ...foes.map((id) => rivalBuild(id, day))], jobs);
-        const per = foes.map((id, f) => {
-          const rates = builds.map((_, b) => pts[b * foes.length + f] / (2 * tqSeeds));
-          return { id, rates, ...memberCI(rates) };
-        });
-        tq.push({ hero, q, picks, pct: picks.map((idx) => pctIn(pop.scores, pop.scores[idx])), per });
-        console.log(`tq ${tag} d${day} ${hero} P${Math.round(q * 100)} (${picks.length} decks) vs ${per.map((p) => `${p.id} ${ciOf(p)}`).join(" | ")}`);
+    // TUNE-C: the par field's top quartile (P75 and up) vs each Hard captain, and its top decile (P90 and up) vs the Matriarch
+    const tqPar: unknown[] = [];
+    if (tqOn && hard.length) {
+      const refs = HEROES.map((h) => parField(h, day, k, opts));
+      const strength = await roundRobin(refs.flat(), (i, j) => Array.from({ length: seeds }, (_, s) => hashSeed("par-tq-rank", day, i, j, s)), run);
+      for (const [hi, hero] of HEROES.entries()) {
+        const st = strength.slice(hi * k, (hi + 1) * k);
+        for (const q of [0.75, 0.9]) {
+          const foes = q === 0.9 ? hard.filter((id) => id === "matriarch") : hard.filter((id) => id !== "matriarch");
+          if (!foes.length) continue;
+          const cut = nearestRank(st, q);
+          const members = st.map((s, m) => ({ s, m })).filter((x) => x.s >= cut).map((x) => x.m);
+          const builds = members.map((m) => refs[hi][m]);
+          const jobs: Job[] = builds.flatMap((_, b) => foes.map((id, f): Job => ({ a: b, b: builds.length + f, seeds: Array.from({ length: tqSeeds }, (_, s) => hashSeed("par-tq-field", day, hero, members[b], id, s)) })));
+          const pts = await run([...builds, ...foes.map((id) => rivalBuild(id, day))], jobs);
+          const per = foes.map((id, f) => {
+            const rates = builds.map((_, b) => pts[b * foes.length + f] / (2 * tqSeeds));
+            return { id, rates, ...memberCI(rates) };
+          });
+          tqPar.push({ hero, q, members, strength: members.map((m) => st[m]), fieldStrength: st, per });
+          console.log(`tq par ${tag} d${day} ${hero} P${Math.round(q * 100)} (${members.length} of ${k} members) beats ${per.map((p) => `${p.id} ${ciOf(p)}`).join(" | ")}`);
+        }
       }
     }
-    // print: slot means (the unit: the par member) vs the par field of both heroes and of the other faction, and vs honestReference
+    // the full-purse population's decks nearest P75 (P90 for the Matriarch) vs each Hard warlord of the day (CAND-A's reading)
+    const tq: unknown[] = [];
+    if (tqPop && hard.length) {
+      const gauntlet = gauntletOf(day);
+      for (const hero of HEROES) {
+        const pop = await population(hero, day, gauntlet, run, cache);
+        const order = pop.scores.map((s, idx) => ({ s, idx })).sort((a, b) => a.s - b.s || a.idx - b.idx);
+        for (const q of [0.75, 0.9]) {
+          const at = Math.round(q * (order.length - 1));
+          const picks = order.slice(Math.max(0, at - 2), at + 3).map((o) => o.idx);
+          const builds = picks.map((idx) => norm(standInCandidate(hero, day, hashSeed("standin-pop", SEED, hero, day, idx), "on", "on", "on").build));
+          const foes = q === 0.9 ? hard.filter((id) => id === "matriarch") : hard.filter((id) => id !== "matriarch");
+          if (!foes.length) continue;
+          const jobs: Job[] = builds.flatMap((_, b) => foes.map((id, f): Job => ({ a: b, b: builds.length + f, seeds: Array.from({ length: tqSeeds }, (_, s) => hashSeed("par-tq", day, hero, q, picks[b], id, s)) })));
+          const pts = await run([...builds, ...foes.map((id) => rivalBuild(id, day))], jobs);
+          const per = foes.map((id, f) => {
+            const rates = builds.map((_, b) => pts[b * foes.length + f] / (2 * tqSeeds));
+            return { id, rates, ...memberCI(rates) };
+          });
+          tq.push({ hero, q, picks, pct: picks.map((idx) => pctIn(pop.scores, pop.scores[idx])), per });
+          console.log(`tq pop ${tag} d${day} ${hero} P${Math.round(q * 100)} (${picks.length} decks) vs ${per.map((p) => `${p.id} ${ciOf(p)}`).join(" | ")}`);
+        }
+      }
+    }
+    // print: slot means (the unit: the par member) vs each hero's par field and both, and vs honestReference
     const slotLine = (label: string, ids: string[], kind: "warlord" | "standin") => {
       const rs = rows.filter((r) => ids.some((id) => r.tag === `${kind}/${id}`));
       if (!rs.length) return;
+      const per = (h: HeroId) => memberCI(Array.from({ length: k }, (_, m) => mean(rs.map((r) => r.vs[h].members[m]))));
       const both = memberCI(HEROES.flatMap((h) => Array.from({ length: k }, (_, m) => mean(rs.map((r) => r.vs[h].members[m])))));
-      const oth = memberCI(Array.from({ length: k }, (_, m) => mean(rs.map((r) => r.vs[other(r.hero)].members[m]))));
-      const hon = mean(rs.map((r) => r.vsHonest[other(r.hero)]));
-      console.log(`rivals ${tag} d${day} ${label.padEnd(16)} (${rs.length}) vs par field ${ciOf(both)} | vs other faction's field ${ciOf(oth)} | vs honestReference (other) ${pc(hon)}`);
+      const hon = honestOn ? ` | vs honestReference (other) ${pc(mean(rs.map((r) => r.vsHonest![other(r.hero)])))}` : "";
+      console.log(`rivals ${tag} d${day} ${label.padEnd(16)} (${rs.length}) vs FURNACE ${ciOf(per("furnace"))} | WEAVER ${ciOf(per("weaver"))} | both ${ciOf(both)}${hon}`);
     };
     slotLine("easy", warlords.filter((id) => difficultyOf(id) === "easy"), "warlord");
     slotLine("medium", warlords.filter((id) => difficultyOf(id) === "medium"), "warlord");
@@ -271,18 +314,68 @@ async function rivalsMode(days: number[], run: Runner, out: string, cache: strin
     slotLine("named dusk decks", standIns, "standin");
     for (const r of rows.filter((x) => !x.tag.startsWith("pool/"))) {
       const both = memberCI(HEROES.flatMap((h) => r.vs[h].members));
-      console.log(`    ${r.tag.padEnd(20)} ${String(r.cost).padStart(3)}g vs furnace ${pc(r.vs.furnace.rate)} weaver ${pc(r.vs.weaver.rate)} (both ${ciOf(both)}) | honest: furnace ${pc(r.vsHonest.furnace)} weaver ${pc(r.vsHonest.weaver)}`);
+      const hon = r.vsHonest ? ` | honest: furnace ${pc(r.vsHonest.furnace)} weaver ${pc(r.vsHonest.weaver)}` : "";
+      console.log(`    ${r.tag.padEnd(20)} ${String(r.cost).padStart(3)}g vs FURNACE ${pc(r.vs.furnace.rate)} WEAVER ${pc(r.vs.weaver.rate)} (both ${ciOf(both)})${hon}`);
     }
+    // the stand-ins' fight lengths against par: median [P25-P75] per field
+    const lens = (h?: HeroId) => rows.filter((r) => r.tag.startsWith("standin/")).flatMap((r) => (h ? r.times[h] : HEROES.flatMap((x) => r.times[x])));
+    const q3 = (xs: number[]) => (xs.length ? `${quantile(xs, 0.5).toFixed(1)} s [${quantile(xs, 0.25).toFixed(1)}-${quantile(xs, 0.75).toFixed(1)}]` : "-");
+    if (standIns.length) console.log(`length ${tag} d${day} par vs the named stand-ins: FURNACE ${q3(lens("furnace"))} | WEAVER ${q3(lens("weaver"))} | both ${q3(lens())}`);
     if (day === 1) {
       // 4c: the par field's day-1 decks against the day-1 dusk opponents; loss = the opponents' win rate, per par member
       for (const [label, pre] of [["named stand-ins", "standin/"], ["pool v2.1 picks", "pool/"]] as const) {
         const opp = rows.filter((r) => r.tag.startsWith(pre));
+        if (!opp.length) continue;
         for (const h of HEROES) console.log(`first ${tag} d1 par ${h} loses to ${label} (${opp.length}): ${ciOf(memberCI(Array.from({ length: k }, (_, m) => mean(opp.map((r) => r.vs[h].members[m])))))}`);
       }
     }
-    writeFileSync(resolve(out, `rivals-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, tqSeeds, rows, tq }, null, 1));
+    writeFileSync(resolve(out, `rivals-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, tqSeeds, rows, tqPar, tq }, null, 1));
     console.log(`rivals ${tag} d${day}: ${decks.length} decks (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
   }
+}
+
+/** Linear-interpolated quantile of xs (q in 0..1). */
+function quantile(xs: readonly number[], q: number): number {
+  const s = [...xs].sort((a, b) => a - b), at = q * (s.length - 1), lo = Math.floor(at), hi = Math.ceil(at);
+  return s[lo] + (s[hi] - s[lo]) * (at - lo);
+}
+
+/**
+ * vsPar with the battles' lengths (TUNE-C): each deck against each member of both heroes' par fields, `seeds` seeds x
+ * both sides, on seeds hashSeed("par-rivals", day, tag, hero, member, s) (keyed by the deck's tag, not its index, so a
+ * captain reads the same with --ids as in the full table), through the detail runner. res[d][hero]: vsPar's shape;
+ * times[d][hero]: every battle's length (s).
+ */
+async function vsParDetail(decks: { tag: string; build: Build }[], day: number, detail: DetailRunner, k: number, seeds: number, opts: PlayerOpts): Promise<{ res: Record<HeroId, VsPar>[]; times: Record<HeroId, number[]>[] }> {
+  const refs = HEROES.map((h) => parField(h, day, k, opts));
+  const field = [...decks.map((d) => d.build), ...refs.flat()];
+  const at: number[] = [];
+  let off = decks.length;
+  for (const r of refs) { at.push(off); off += r.length; }
+  const jobs: Job[] = [], where: [number, number, number][] = [];
+  decks.forEach((dk, d) => HEROES.forEach((h, hi) => refs[hi].forEach((_, m) => {
+    jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed("par-rivals", day, dk.tag, h, m, s)) });
+    where.push([d, hi, m]);
+  })));
+  const got = await detail(field, jobs);
+  const res = decks.map(() => Object.fromEntries(HEROES.map((h, hi) => [h, { rate: 0, battles: 0, pts: 0, members: refs[hi].map(() => 0) }])) as Record<HeroId, VsPar>);
+  const times = decks.map(() => Object.fromEntries(HEROES.map((h) => [h, [] as number[]])) as Record<HeroId, number[]>);
+  got.forEach((s, x) => {
+    const [d, hi, m] = where[x];
+    const r = res[d][HEROES[hi]];
+    let pts = 0;
+    const bs = s.split(";");
+    bs.forEach((b, i) => {
+      const [w, t] = b.split(",").map(Number);
+      pts += i % 2 === 0 ? (w === 0 ? 1 : w === -1 ? 0.5 : 0) : (w === 1 ? 1 : w === -1 ? 0.5 : 0);
+      times[d][HEROES[hi]].push(t);
+    });
+    r.members[m] = pts / bs.length;
+    r.pts += pts;
+    r.battles += bs.length;
+  });
+  for (const r of res) for (const h of HEROES) r[h].rate = mean(r[h].members);
+  return { res, times };
 }
 
 /**
@@ -1006,7 +1099,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--mix")) mixMode(days, out, opts, k, tag);
   if (process.argv.includes("--pct")) await pctMode(days, pool.run, out, cache, opts, k, tag);
   if (process.argv.includes("--pool")) await poolMode(days, pool.run, out, opts, k, tag);
-  if (process.argv.includes("--rivals")) await rivalsMode(days, pool.run, out, cache, opts, k, num("seeds", 4), num("tq-seeds", 20), tag);
+  if (process.argv.includes("--rivals")) await rivalsMode(days, pool.run, pool.detail, out, cache, opts, k, num("seeds", 4), num("tq-seeds", 20), tag);
   if (process.argv.includes("--ladder")) await ladderMode(days, pool.run, out, k, num("seeds", 4), tag);
   if (process.argv.includes("--desk")) await deskMode(pool.run, out, k, num("seeds", 10));
   // 0.6.2 CAND-A
