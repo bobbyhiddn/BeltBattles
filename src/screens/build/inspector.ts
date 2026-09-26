@@ -11,7 +11,7 @@ import { AMMO, type FactorySpec, type ItemDef } from "../../sim/content"; // 0.6
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 // beltside-062: BELTSIDE's walk and rig hits replace 0.6.1r's estimateRoute and key (the gate-on-a-belt sub line)
 import {
-  arrowsOf, beltUsed, connectedRouteCount, defOf, gearFor, hitsOfRig, installedTurrets, itemByUid, routeInfo, routesOf,
+  arrowsOf, beltUsed, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo, routesOf,
   turretSlots, walkRoute, type Build, type TimelineHit,
 } from "../../sim/deck";
 
@@ -32,6 +32,7 @@ import { gainModule, mergePreview } from "../../game/fuse";
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
 import type { Sel } from "./layout";
 import { describe } from "./shop";
+import { deadEndLines, slotActions, slotColor, slotIcon, slotNotes, slotTitle, socketLines, turretSpec } from "./turretPanel"; // 0.6.2s
 
 /**
  * 0.6.1d: the headline number at `stars`, `effectAt` read out short (ARSENAL.md §8.1, §8.2). 0.6.1p: every applied
@@ -315,6 +316,8 @@ function coreShape(tc: TurretCore): string {
 function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
   const { run } = ctx;
   const b = run.build;
+  const tp = turretSpec(ctx, show, hovering); // 0.6.2s (REQ-BFG-031 S10): turret cards and empty turret slots
+  if (tp !== undefined) return tp;
   switch (show.kind) {
     case "offer": {
       const o = run.shop.wagons[show.wagon]?.offers[show.slot];
@@ -418,8 +421,8 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const gm = gearFor(b, show.index); // 0.6.1b: gear only; the core has its own socket (coreFor via resolveCore)
       const gear = gm ? ITEMS[gm.def] : null;
       let every = td.fireInterval, per = 1;
-      if (gm) {
-        const md = effectAt(gm.def, starsOf(gm)).mod; // 0.6.1a: the gear's spec at its stars
+      for (const m of gearOn(b, show.index)) { // 0.6.2s (S4): every piece of gear, in hardpoint order
+        const md = effectAt(m.def, starsOf(m)).mod; // 0.6.1a: the gear's spec at its stars
         if (md?.fireMul) every *= md.fireMul;
         if (md?.perShot) per = Math.max(per, md.perShot);
       }
@@ -436,21 +439,23 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const plain = tu.window === td.window && tu.windowTime === WINDOW_TIME && !tu.noJam;
       const chamber = plain ? `CHAMBER ${td.window} SLUGS` : `CHAMBER ${tu.window} SLUGS · ${+tu.windowTime.toFixed(2)}S${tu.noJam ? " · NEVER JAMS" : ""}`;
       const gstars = gm ? starsOf(gm) : 1;
-      const gearFx = gear ? starEffectLine(gear.id, gstars) : "";
       const clash: string[] = [];
       if (tc.routine === "gatling" && gear?.id === "hopper") clash.push(`GATLING: HOPPER'S +${effectAt("hopper", gstars).mod?.windowTime ?? 0}S DOES NOTHING`);
       if (tc.routine === "gatling" && gear?.id === "ram") clash.push("GATLING: NO WINDOW, SO NO FINISHER");
+      // 0.6.2s (REQ-BFG-031 S10): the installed turret's name, stars and rarity; its CORE SOCKET and every GEAR SLOT
+      // (turretPanel.ts socketLines); belts a swap left without an intake first; TO CARGO and SELL
       return {
-        icon: gear ? itemIcon(gear.id) : null, title: `${td.kind.toUpperCase()} TURRET ${show.index + 1}`, color: C.white,
-        sub: `FED FROM COLUMN ${td.connectors.map((c) => c + 1).join("+")}`,
+        icon: slotIcon(b, show.index), title: slotTitle(b, show.index), color: slotColor(b, show.index),
+        sub: `${td.kind.toUpperCase()} TURRET ${show.index + 1} FED FROM COLUMN ${td.connectors.map((c) => c + 1).join("+")}`,
         text: [
+          ...deadEndLines(b, show.index),
           `${shape ? `${shape} · ` : ""}FIRES EVERY ${every.toFixed(2)}S${per > 1 ? ` · ${per} PER SHOT` : ""}`,
           chamber,
-          `CORE: ${coreName}`, // 0.6.1b: ARSENAL.md §8.4, hidden REMOVE CORE for a signature core
-          `GEAR: ${gear ? `${starred(gear.name, gstars)}${gearFx ? ` · ${gearFx}` : ""}` : "EMPTY HARDPOINT"}`,
+          ...socketLines(b, show.index, coreName, (d, s) => starEffectLine(d, s)), // 0.6.1b: ARSENAL.md §8.4
           ...clash,
+          ...slotNotes(b, show.index),
         ],
-        actions,
+        actions: [...actions, ...slotActions(ctx, show.index)],
       };
     }
     default:
