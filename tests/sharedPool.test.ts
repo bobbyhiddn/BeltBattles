@@ -37,16 +37,21 @@ describe("REQ-BFG-021: one hero-blind salvage catalogue", () => {
     const buyable = buyableModules();
     expect(buyable.length).toBeGreaterThanOrEqual(29); // 27 baseline modules plus the two timing mods
     const all = ids(buyable);
+    // 0.6.2s step 5 (REQ-BFG-031): merchants stock the 13 turrets, but turrets ride only in the caravan in 0.6.2: no
+    // road rarity set (eventDefs.ts roadPart) and no harness draw set holds one (the harness doesn't buy turrets)
+    const turrets = ids(buyable.filter((d) => d.kind === "turret"));
+    expect(turrets.length).toBe(13);
+    const parts = all.filter((id) => !turrets.includes(id));
     for (const hero of HARNESS_HEROES) {
       const harness = ["gate", "mod", "core"].flatMap((kind) =>
         shopItems(hero, kind as "gate" | "mod" | "core")).concat(shopFactories(hero));
-      expect(ids(harness), hero).toEqual(all);
+      expect(ids(harness), hero).toEqual(parts);
       for (const id of ["grease", "brake", "overdrive", "escapement", "longcase"]) expect(ids(harness), hero).toContain(id);
     }
     const stocked = [...new Set((Object.values(ITEMS).map((d) => d.merchant).filter(Boolean) as MerchantId[])
       .flatMap((m) => itemsSoldBy(m).filter((d) => d.kind !== "supply").map((d) => d.id)))].sort();
     expect(stocked).toEqual(all);
-    expect([...new Set(RARITIES.flatMap((rarity) => UPGRADE[rarity]))].sort()).toEqual(all);
+    expect([...new Set(RARITIES.flatMap((rarity) => UPGRADE[rarity]))].sort()).toEqual(parts);
     for (const id of ["escapement", "longcase"]) expect(DORMANT_ITEMS.has(id)).toBe(false);
     expect(ids(itemsSoldBy("gunsmith"))).toEqual(expect.arrayContaining(["escapement", "longcase"]));
     for (const id of DORMANT_ITEMS) {

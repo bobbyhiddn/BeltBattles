@@ -673,44 +673,46 @@ export const ITEMS: Record<string, ItemDef> = {
   // numbers (HeroDef.slots names them). Star values (S6, step 4c from the bench, output-0.6.2s/bench): ★2 fires every
   // fireInterval x0.9, ★3 every x0.8, window unchanged (the brief's ★2 window +1 lost to ★1 on real decks: a fuller
   // window waits longer to fire).
-  // No merchant: not sold before the shop step. Gear slots: rarity (common 1) + 1 per star above 1 (deck.ts).
+  // Gear slots: rarity (common 1) + 1 per star above 1 (deck.ts). Step 5 (the shop-roll change): the GUNSMITH sells
+  // every turret but the legendary THUNDERER, which the ARCANE DEALER sells (legendaries from day 4). Caravan only:
+  // turrets are never road parts in 0.6.2 (eventDefs.ts roadPart), and FAMILY_WEIGHT draws them at half weight.
   scrapcannon: {
-    id: "scrapcannon", name: "SCRAP CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    id: "scrapcannon", name: "SCRAP CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
     desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 3 LOADS."],
     reason: "A heavy gun that takes a belt on both columns.",
     turret: { class: "heavy", fireInterval: 1.0, window: 3, flight: 0.6, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.9 } }, 3: { turret: { fireInterval: 0.8 } } },
   },
   rampart: {
-    id: "rampart", name: "RAMPART CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    id: "rampart", name: "RAMPART CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
     desc: ["HEAVY TURRET.", "FIRES EVERY 0.75S.", "HOLDS 3 LOADS."],
     reason: "A quicker heavy gun with a slower shell.",
     turret: { class: "heavy", fireInterval: 0.75, window: 3, flight: 0.65, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.675 } }, 3: { turret: { fireInterval: 0.6 } } },
   },
   dartgun: {
-    id: "dartgun", name: "DART GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    id: "dartgun", name: "DART GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
     desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."],
     reason: "A fast light gun on one inner column.",
     turret: { class: "light", fireInterval: 0.55, window: 2, flight: 0.34, intake: "inner" },
     levels: { 2: { turret: { fireInterval: 0.495 } }, 3: { turret: { fireInterval: 0.44 } } },
   },
   spikegun: {
-    id: "spikegun", name: "SPIKE GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    id: "spikegun", name: "SPIKE GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
     desc: ["LIGHT TURRET.", "FIRES EVERY 0.6S.", "HOLDS 2 LOADS."],
     reason: "A light gun on one inner column.",
     turret: { class: "light", fireInterval: 0.6, window: 2, flight: 0.34, intake: "inner" },
     levels: { 2: { turret: { fireInterval: 0.54 } }, 3: { turret: { fireInterval: 0.48 } } },
   },
   carronade: {
-    id: "carronade", name: "CARRONADE", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    id: "carronade", name: "CARRONADE", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
     desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 2 LOADS."],
     reason: "A medium gun that takes a belt on both columns.",
     turret: { class: "medium", fireInterval: 0.8, window: 2, flight: 0.45, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
   },
   swivel: {
-    id: "swivel", name: "SWIVEL GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
+    id: "swivel", name: "SWIVEL GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
     desc: ["ADAPTABLE TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."],
     reason: "An adaptable gun on both columns.",
     turret: { class: "adaptable", fireInterval: 0.7, window: 3, flight: 0.55, intake: "both" },
@@ -720,49 +722,49 @@ export const ITEMS: Record<string, ItemDef> = {
   // differs from its class's commons in fireInterval, window, flight or intake, and only in those (no new battle
   // mechanics). Same star values as the commons: ★2 fire interval x0.9, ★3 x0.8, window unchanged.
   twinneedle: {
-    id: "twinneedle", name: "TWIN NEEDLE", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2,
+    id: "twinneedle", name: "TWIN NEEDLE", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2, merchant: "gunsmith",
     desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."],
     reason: "A light gun that takes belts on both columns.",
     turret: { class: "light", fireInterval: 0.55, window: 2, flight: 0.34, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.495 } }, 3: { turret: { fireInterval: 0.44 } } },
   },
   hailgun: {
-    id: "hailgun", name: "HAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2,
+    id: "hailgun", name: "HAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
     desc: ["LIGHT TURRET.", "FIRES EVERY 0.45S.", "HOLDS 3 LOADS."],
     reason: "The fastest gun: it fires every 0.45 s and holds 3 loads.",
     turret: { class: "light", fireInterval: 0.45, window: 3, flight: 0.3, intake: "inner" },
     levels: { 2: { turret: { fireInterval: 0.405 } }, 3: { turret: { fireInterval: 0.36 } } },
   },
   deckgun: {
-    id: "deckgun", name: "DECK GUN", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2,
+    id: "deckgun", name: "DECK GUN", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2, merchant: "gunsmith",
     desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 3 LOADS."],
     reason: "A medium gun that holds 3 loads, so fewer loads wait.",
     turret: { class: "medium", fireInterval: 0.8, window: 3, flight: 0.45, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
   },
   railgun: {
-    id: "railgun", name: "RAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2,
+    id: "railgun", name: "RAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
     desc: ["MEDIUM TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."],
     reason: "Fires every 0.7 s, and its shots land in 0.3 s.",
     turret: { class: "medium", fireInterval: 0.7, window: 3, flight: 0.3, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.63 } }, 3: { turret: { fireInterval: 0.56 } } },
   },
   bombard: {
-    id: "bombard", name: "BOMBARD", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2,
+    id: "bombard", name: "BOMBARD", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2, merchant: "gunsmith",
     desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 4 LOADS."],
     reason: "A heavy gun that holds 4 loads.",
     turret: { class: "heavy", fireInterval: 1.0, window: 4, flight: 0.6, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.9 } }, 3: { turret: { fireInterval: 0.8 } } },
   },
   siegegun: {
-    id: "siegegun", name: "SIEGE GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2,
+    id: "siegegun", name: "SIEGE GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
     desc: ["HEAVY TURRET.", "FIRES EVERY 0.85S.", "HOLDS 4 LOADS."],
     reason: "A heavy gun that fires every 0.85 s and holds 4 loads.",
     turret: { class: "heavy", fireInterval: 0.85, window: 4, flight: 0.55, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.765 } }, 3: { turret: { fireInterval: 0.68 } } },
   },
   thunderer: {
-    id: "thunderer", name: "THUNDERER", kind: "turret", rarity: "legendary", price: TURRET_PRICE.legendary, size: 2,
+    id: "thunderer", name: "THUNDERER", kind: "turret", rarity: "legendary", price: TURRET_PRICE.legendary, size: 2, merchant: "arcane",
     desc: ["HEAVY TURRET.", "FIRES EVERY 0.8S.", "HOLDS 4 LOADS."],
     reason: "A heavy gun that fires every 0.8 s, with 4 gear slots.",
     turret: { class: "heavy", fireInterval: 0.8, window: 4, flight: 0.5, intake: "both" },
@@ -953,6 +955,20 @@ export function rarityWeights(round: number): Record<Rarity, number> {
     legendary: round >= 4 ? 2 + (round - 4) * 1.5 : 0,
   };
 }
+
+/**
+ * 0.6.2s (REQ-BFG-031 step 5, REQ-BFG-033): a family's weight when a wagon draws an offer among its choices (run.ts
+ * rollShop: rng.weighted over the choices by the def's kind, instead of an even pick). Rigs are the caravan's
+ * staple: on every day 1-10 they are offered at least 2x as often as turrets and at least 2x as often as cores,
+ * averaged over 4,000+ seeded caravans per day (tests/shopMix.turrets.test.ts); one caravan may show more of
+ * anything. A turret weighs half: the GUNSMITH stocks 12 of the 13 turrets beside its cores and mods, and at an even
+ * pick its turrets would take almost 60% of its offers. Cores keep 1: the gunsmith's turrets already take the draws
+ * that made cores too common (rig/core 1.87-2.26 before turrets, 2.47 or more with them), and a lower weight would
+ * cut cores further while the extra turret slot adds a core socket. Every family at weight 1 draws exactly as the
+ * even pick did, so a wagon whose choices hold no turret offers what it did before. The def's kind decides, never
+ * the hero (REQ-BFG-021).
+ */
+export const FAMILY_WEIGHT: Record<ItemKind, number> = { gate: 1, factory: 1, mod: 1, supply: 1, core: 1, turret: 0.5 };
 
 /**
  * 0.6.1a: what a copy sells for, max(1, floor(valueOf(def, stars) / 2)) with valueOf = price x

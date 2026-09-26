@@ -72,7 +72,7 @@ describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
     }
   });
 
-  it("S3: six common starting turrets with today's numbers, salvage names, price 6, not sold yet", () => {
+  it("S3: six common starting turrets with today's numbers, salvage names, price 6, sold by the GUNSMITH (step 5)", () => {
     const want: Record<string, [string, number, number, number, string]> = {
       scrapcannon: ["heavy", 1.0, 3, 0.6, "both"], rampart: ["heavy", 0.75, 3, 0.65, "both"],
       dartgun: ["light", 0.55, 2, 0.34, "inner"], spikegun: ["light", 0.6, 2, 0.34, "inner"],
@@ -84,7 +84,7 @@ describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
       expect(d.kind).toBe("turret");
       expect(d.rarity).toBe("common");
       expect(d.price).toBe(TURRET_PRICE.common);
-      expect(d.merchant).toBeUndefined();
+      expect(d.merchant).toBe("gunsmith"); // step 5: merchants stock turrets
       const t = d.turret!;
       expect([t.class, t.fireInterval, t.window, t.flight, t.intake]).toEqual(want[id]);
       expect(heroNames.has(d.name)).toBe(false);
@@ -125,7 +125,7 @@ describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
     for (const h of ALL) expect(turretsCost(heroStartBuild(h))).toBe(0);
   });
 
-  it("S3 step 4: seven new turrets (rare + epic per class, one legendary), each unlike its class's commons, not sold yet", () => {
+  it("S3 step 4: seven new turrets (rare + epic per class, one legendary), each unlike its class's commons, sold from step 5", () => {
     const NEW: Record<string, [string, string]> = {
       twinneedle: ["light", "rare"], hailgun: ["light", "epic"], deckgun: ["medium", "rare"], railgun: ["medium", "epic"],
       bombard: ["heavy", "rare"], siegegun: ["heavy", "epic"], thunderer: ["heavy", "legendary"],
@@ -138,7 +138,7 @@ describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
       const d = ITEMS[id], t = d.turret!;
       expect([d.kind, t.class, d.rarity]).toEqual(["turret", cls, rarity]);
       expect(d.price).toBe(TURRET_PRICE[d.rarity]);
-      expect(d.merchant).toBeUndefined();
+      expect(d.merchant).toBe(d.rarity === "legendary" ? "arcane" : "gunsmith"); // step 5: THUNDERER at the ARCANE DEALER
       expect(d.reason && d.reason.length > 10).toBe(true);
       expect(heroNames.has(d.name)).toBe(false);
       expect(Object.values(ITEMS).filter((x) => x.name === d.name).length).toBe(1);

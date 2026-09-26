@@ -12,7 +12,7 @@ import { migrateRun, newRun, rollShop, shopBadge, type Run } from "../src/game/r
 import { ITEMS, RARITIES, buyableModules, type HeroId, type ItemDef, type ModuleTag } from "../src/sim/content";
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { fusible } from "../src/sim/stars";
-import { hitsOfRig, key, type ModPlacement, type Placed } from "../src/sim/deck";
+import { hitsOfRig, key, startingTurrets, type ModPlacement, type Placed } from "../src/sim/deck";
 import { routeProblems } from "../src/game/routeCheck"; // 0.6.2 BELTSIDE merge (0.6.1c)
 
 const SEEDS = Array.from({ length: 300 }, (_, i) => 1 + i * 7919);
@@ -279,7 +279,14 @@ describe("one shared pool: FURNACE and WEAVER get the very same offers and choic
       });
       expect([a.hero, b.hero]).toEqual(HEROES2);
       expect(b.wagons, `s${seed} d${day} r${rerolls} ${k}`).toEqual(a.wagons);
-      expect(b.badges).toEqual(a.badges);
+      // 0.6.2s step 5 (REQ-BFG-031): the caravan offers turrets, and a hull's free starting turrets are the one part
+      // the two runs don't hold alike: an offer of one merges into it (MERGE ★2) for the hero whose hull has it. The
+      // offers are the same; every other badge is too.
+      a.wagons.flatMap((w) => w.offers.map((o) => o.def)).forEach((def, i) => {
+        const starts = HEROES2.map((h) => startingTurrets(h).some((t) => t.def === def));
+        if (starts.some(Boolean)) [a, b].forEach((x, j) => expect(x.badges[i], `${x.hero} ${def}`).toEqual(starts[j] ? { kind: "merge", toStars: 2 } : null));
+        else expect(b.badges[i], `s${seed} d${day} r${rerolls} ${k} ${def}`).toEqual(a.badges[i]);
+      });
       cells++;
     }
     expect(cells).toBe(6000);

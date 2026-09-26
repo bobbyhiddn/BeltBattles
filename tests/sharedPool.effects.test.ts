@@ -3,8 +3,12 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { spotForTile } from "../src/sim/beltside";
 import { HEROES, ITEMS, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
-import { cloneBuild, key, rigHits, routeInfo, type Build } from "../src/sim/deck";
+import {
+  cloneBuild, deadEndsAt, installTurret, key, rigHits, routeInfo, setTurretList, turretList, turretSlots, type Build,
+} from "../src/sim/deck";
+import { Rng } from "../src/core/rng";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
+import { blockedCells, randomPath, shortestTiles, startCells } from "../src/sim/harness/path";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { validateBuild } from "../src/net/validate";
 
@@ -54,10 +58,11 @@ const later = (b: Build, t: number): number[] => b.routes[0].cells.map((_, i) =>
 /** First-belt tiles upstream of `t`, the first processed tile first. */
 const earlier = (t: number): number[] => [1, 2, 0, ...Array.from({ length: t }, (_, i) => i)].filter((i, n, all) => i < t && all.indexOf(i) === n);
 
-/** Swap the productive signature location for one sold factory; keep the signature owned. */
-function boughtFactory(hero: HeroId, id: string): Build {
+/** Swap the productive signature location for one sold factory; keep the signature owned. 0.6.2s: `route` names the
+ *  start deck's belt it keeps (default the first). */
+function boughtFactory(hero: HeroId, id: string, route = 0): Build {
   const b = heroStartBuild(hero, 1);
-  b.routes = [b.routes[0]];
+  b.routes = [b.routes[route]];
   const signature = b.items.find((p) => p.def === HEROES[hero].factory)!;
   const at = { x: signature.x, y: signature.y };
   signature.x = 0;
@@ -65,6 +70,39 @@ function boughtFactory(hero: HeroId, id: string): Build {
   b.items.push({ uid, def: id, ...at });
   b.routes[0].factory = uid;
   return b;
+}
+
+/**
+ * 0.6.2s step 5 (REQ-BFG-031): the caravan sells turrets. A turret's numbers show where the belt brings more than a
+ * start deck's factory does, so, as for the fire-rate mods, a SHOT TOWER feeds it: on the first belt whose column the
+ * bought turret takes (S2 intakes). The bought turret replaces the starting turret in that belt's slot (which goes to
+ * cargo); a copy of that slot's own def merges into it instead (2 stars, still the free starting copy), as buying one
+ * does. TWIN NEEDLE's reason to buy is its second intake (it fires like a DART GUN): the column it takes and the
+ * replaced turret didn't gets a belt from the idle signature factory, as a player would add one (without the TWIN
+ * NEEDLE that belt is a dead end).
+ */
+function boughtTurret(hero: HeroId, id: string): [Build, Build] {
+  for (let r = 0; r < heroStartBuild(hero, 1).routes.length; r++) {
+    const before = boughtFactory(hero, "shottower", r);
+    const slot = routeInfo(before, 0).turret;
+    const after = cloneBuild(before);
+    const list = turretList(after);
+    if (list.find((t) => t.slot === slot)?.def === id) setTurretList(after, list.map((t) => (t.slot === slot ? { ...t, stars: 2 } : t)));
+    else installTurret(after, { uid: 902, def: id }, slot);
+    if (deadEndsAt(after, slot).length) continue;
+    const taken = new Set(turretSlots(before)[slot].intakes);
+    const col = id === "twinneedle" ? turretSlots(after)[slot].intakes.find((c) => !taken.has(c)) : undefined;
+    if (col !== undefined) {
+      const sig = after.items.find((p) => p.def === HEROES[hero].factory)!;
+      const bl = blockedCells(after);
+      const starts = startCells(sig.x, sig.y, ITEMS[sig.def].size, bl);
+      const cells = randomPath(bl, starts, col, shortestTiles(bl, starts, col), new Rng(1));
+      if (!cells) throw new Error(`${hero}: no belt from ${sig.def} to column ${col}`);
+      after.routes.push({ factory: sig.uid, cells });
+    }
+    return [before, after];
+  }
+  throw new Error(`${hero}: no belt that a ${id} takes`);
 }
 
 /** Test the two pendulum peaks at routes that make their shifts helpful. */
@@ -82,6 +120,7 @@ function metroPeakRoute(b: Build, id: string): void {
  * rides the long route instead), LODESTONE and SPOTTER a GALVANIC COIL whose stalls they price or aim.
  */
 function decks(hero: HeroId, d: ItemDef): [Build, Build] {
+  if (d.kind === "turret") return boughtTurret(hero, d.id);
   let before = heroStartBuild(hero, 1);
   if (d.kind === "factory") {
     before.routes = [before.routes[0]];
@@ -204,6 +243,7 @@ const SCENARIOS: Record<string, Scenario> = {
   grapnel: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "rips" },
   sifter: { foe: markFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "sifted" },
   spotter: { seeds: SEEDS, metrics: ["enemyDisrupt"], more: "enemyDisrupt" },
+  railgun: { seconds: LONG, seeds: SEEDS },
 };
 
 /**

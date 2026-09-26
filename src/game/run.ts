@@ -4,7 +4,7 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import {
-  ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES,
+  FAMILY_WEIGHT, ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES,
   itemsSoldBy, rarityWeights, rigShape, sellValue,
   type HeroId, type ItemDef, type MerchantId, type Rarity,
 } from "../sim/content";
@@ -18,7 +18,8 @@ import { fusible, starField, starsOf } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import {
-  canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretSellValue, turretSlots, type TurretOpResult,
+  canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
+  type TurretOpResult,
 } from "../sim/deck"; // 0.6.2s (REQ-BFG-031): turret slots
 
 export { loadRun, migrateRun, saveRun, SAVE_KEY, SAVE_KEY_V3, SAVE_KEY_V4, SAVE_KEY_V5, SAVE_KEY_V6 } from "./save";
@@ -157,17 +158,28 @@ function baseMerchantWeight(m: MerchantId, day: number): number {
   return 3; // ironmonger, tinker, alchemist, gunsmith
 }
 
-/** Every star level (1-3) `def` is currently held at, across cargo, the deck and turrets. */
+/**
+ * 0.6.2s (REQ-BFG-031 step 5, REQ-BFG-021): a hull's free 1-star starting turret (S7 `free`, in cargo or installed),
+ * which the shop never counts as owned. The starting turrets differ by hero, and a fresh run's caravan must be
+ * identical for every hero, so fresh-first, the merchant bias and the familiar slot can't read them. A free copy
+ * merged with a bought one (2+ stars) counts: the player bought into it.
+ */
+const startingCopy = (c: { stars?: number; free?: boolean }): boolean => !!c.free && starsOf(c) <= 1;
+
+/** Every star level (1-3) `def` is currently held at, across cargo, the deck and turrets. 0.6.2s (REQ-BFG-031 step 5):
+ *  and every turret copy the player bought, in cargo or installed (deck.ts turretList), never a startingCopy. */
 function starLevelsOwned(run: Run, def: string): Set<number> {
   const s = new Set<number>();
-  for (const i of run.inventory) if (i.def === def) s.add(starsOf(i));
+  for (const i of run.inventory) if (i.def === def && !startingCopy(i)) s.add(starsOf(i));
   for (const i of run.build.items) if (i.def === def) s.add(starsOf(i));
   for (const i of run.build.mods) if (i.def === def) s.add(starsOf(i));
+  for (const t of turretList(run.build)) if (t.def === def && !startingCopy(t)) s.add(starsOf(t));
   return s;
 }
 
+/** Fresh-first's "owned": a copy of `def` counts where starLevelsOwned counts it (so never a startingCopy). */
 function ownsDef(run: Run, def: string): boolean {
-  return run.inventory.some((i) => i.def === def) || run.build.items.some((i) => i.def === def) || run.build.mods.some((i) => i.def === def);
+  return starLevelsOwned(run, def).size > 0;
 }
 
 /** What `m` can sell on `day`: its stock without legendaries before day 4 (the shop's day gate). */
@@ -270,7 +282,9 @@ export function rollShop(run: Run): void {
     let choices = pool.filter((d) => d.rarity === rarity && !ownsDef(run, d.id) && fresh(d));
     if (!choices.length) choices = pool.filter((d) => !ownsDef(run, d.id) && fresh(d));
     if (!choices.length) choices = pool.filter(fresh);
-    const d = rng.pick(choices);
+    // 0.6.2s (REQ-BFG-031 step 5, REQ-BFG-033): drawn by FAMILY_WEIGHT (a turret weighs half); with no turret among
+    // the choices every weight is 1 and this is exactly the even pick it was, on the same one draw of the stream
+    const d = rng.weighted(choices, (c) => FAMILY_WEIGHT[c.kind]);
     wagon.offers.push({ def: d.id, price: priceOf(d), sold: false });
   }
   if (rng.chance(familiarChance(run.day))) {
