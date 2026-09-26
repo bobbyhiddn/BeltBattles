@@ -27,9 +27,30 @@
 //           suffix: 1 star). The loader decodes with decodeStarred, which reads a v1 code exactly
 //           as decodeStandIn does.
 // Example (Furnace starting deck): "14 0/kiln64/1:544434241404/"
+//
+// 0.6.2 step 5 (REQ-BFG-031 turret slots, REQ-BFG-027 belt joins): the star-aware code (encodeStarred /
+// decodeStarred) carries Build.turrets and RouteDef.join. Both are optional, so a deck without them encodes byte for
+// byte as before and every older code decodes exactly as before:
+//   "<beltCap> <hullBonus>/<items>/<routes>/<mods>[/<turrets>]"
+//   join:    a route word may end in ">yx", its join tile (the cell key of the main belt's tile it feeds into, as two
+//            digits, row y then column x): "3:79695949>48" is item 3's belt over 79 69 59 49 into the belt tile at 48.
+//   turrets: a fifth section, written only when the deck carries Build.turrets (absent = the hull's starting layout,
+//            as setTurretList writes it; a list that encodes like the starting layout is not written either): one word
+//            <id><slot>[*<stars>][!] per installed turret, in slot order; "!" = a free copy (it holds the hull's
+//            starting copy); a slot without a word is empty. Uids: a free copy of def d takes the starting uid
+//            (TURRET_UID0 + slot) of d's starting slots, in slot order; every other turret follows the mods (items
+//            1..n, mods n+1..n+m, turrets n+m+1..).
+//   Examples (tests/standin.turrets.test.ts decodes and validates each):
+//     "14 0/kiln64/1:544434241404//scrapcannon0*2!" (FURNACE's SCRAP CANNON merged to 2 stars);
+//     "14 0/kiln64 press66/1:544434241404 2:68584838281808/calibrate0 hopper1/scrapcannon0! deckgun1" (a DECK GUN bought
+//       into the extra slot, fed by a STAMP PRESS belt, with a HOPPER on it);
+//     "18 0/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1" (a SLAG
+//       POT belt joining the STAMP PRESS belt into a CARRONADE in the extra slot).
+// The v1 code (encodeStandIn / decodeStandIn) carries neither: its encoder refuses a deck with turrets or joins, and
+// its decoder refuses a turret section, so nothing is dropped silently.
 
 import { GRID, HEROES, ITEMS, type HeroId } from "./content";
-import { rotOf, type Build, type ModPlacement, type Placed, type RouteDef } from "./deck";
+import { TURRET_UID0, rotOf, setTurretList, startingTurrets, type Build, type BuildTurret, type ModPlacement, type Placed, type RouteDef } from "./deck";
 import { logMigration, migrateInlineGates } from "./beltside";
 import { STAND_IN_DATA, type StandInDay } from "./standInPoolData";
 
@@ -49,10 +70,13 @@ export interface StandInEntry {
 }
 
 const cellCode = (x: number, y: number): string => `${y}${x}`;
+const V1_NO_TURRETS = "stand-in code: the v1 code carries no turrets and no belt joins (use encodeStarred / decodeStarred)";
 
-/** Encode a deck as a stand-in build code (uids are renumbered on decode). */
+/** Encode a deck as a stand-in build code (uids are renumbered on decode). Step 5: the v1 code has no turret section
+ *  and no join, so a deck with Build.turrets or a joining belt is refused (encodeStarred carries both). */
 export function encodeStandIn(b: Build): string {
   if (GRID !== 10) throw new Error("stand-in build codes assume a 10x10 deck");
+  if (b.turrets || b.routes.some((r) => r.join !== undefined)) throw new Error(V1_NO_TURRETS);
   const no = new Map<number, number>();
   const items = b.items.map((p, i) => {
     if (!/^[a-z]+$/.test(p.def)) throw new Error(`stand-in code: item id "${p.def}" is not lowercase letters`);
@@ -82,7 +106,8 @@ export function decodeStandIn(hero: HeroId, code: string): Build {
   return b;
 }
 
-/** Items get uids 1..n in order and mods n+1.., as the code format assigns them; routes follow their factory. */
+/** Items get uids 1..n in order and mods n+1.., as the code format assigns them; routes follow their factory. Step 5:
+ *  turrets numbered after the mods (every one but a free copy's starting uid, TURRET_UID0 + slot) follow them. */
 function renumber(b: Build): void {
   const no = new Map<number, number>();
   b.items.forEach((p, i) => {
@@ -91,11 +116,16 @@ function renumber(b: Build): void {
   });
   for (const r of b.routes) r.factory = no.get(r.factory) ?? r.factory;
   b.mods.forEach((m, j) => { m.uid = b.items.length + j + 1; });
+  let next = b.items.length + b.mods.length;
+  for (const t of b.turrets ?? []) if (t.uid < TURRET_UID0) t.uid = ++next;
 }
 
-/** The deck exactly as its code writes it, before the D3 migration (tests, and the harness re-bake). */
+/** The deck exactly as its code writes it, before the D3 migration (tests, and the harness re-bake). Step 5: a code
+ *  with a turret section is refused (the v1 route word already refuses a join). */
 export function decodeStandInRaw(hero: HeroId, code: string): Build {
-  const [head, itemPart, routePart, modPart] = code.split("/");
+  const parts = code.split("/");
+  if (parts.length > 4) throw new Error(V1_NO_TURRETS);
+  const [head, itemPart, routePart, modPart] = parts;
   const [beltCap, hullBonus] = head.split(" ").map(Number);
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const items: Placed[] = words(itemPart).map((w, i) => {
@@ -140,8 +170,41 @@ function starsOf(x: { stars?: number } | undefined): number {
 }
 const suffix = (p: { stars?: number }): string => (starsOf(p) > 1 ? `*${starsOf(p)}` : "");
 
+/** Step 5: a route's join suffix, ">yx" (empty for a belt that joins nothing). */
+function joinSuffix(r: RouteDef): string {
+  if (r.join === undefined) return "";
+  if (!Number.isInteger(r.join) || r.join < 0 || r.join >= GRID * GRID) throw new Error(`stand-in code: route join ${r.join} is not a cell key 0..${GRID * GRID - 1}`);
+  return `>${cellCode(r.join % GRID, Math.floor(r.join / GRID))}`;
+}
+
+/** Step 5: the turret words of a deck, <id><slot>[*<stars>][!] in slot order; undefined when the deck carries no
+ *  Build.turrets or its words are exactly the starting layout's (then the section is not written). */
+function turretWords(b: Build): string | undefined {
+  if (!b.turrets) return undefined;
+  const words = [...b.turrets].sort((x, y) => x.slot - y.slot).map((t) => {
+    if (!/^[a-z]+$/.test(t.def)) throw new Error(`stand-in code: turret id "${t.def}" is not lowercase letters`);
+    if (!Number.isInteger(t.slot) || t.slot < 0) throw new Error(`stand-in code: turret slot ${t.slot} is not a slot index`);
+    return `${t.def}${t.slot}${suffix(t)}${t.free ? "!" : ""}`;
+  }).join(" ");
+  return words === startingTurrets(b.hero).map((t) => `${t.def}${t.slot}!`).join(" ") ? undefined : words;
+}
+
+/** Step 5: the turret section's words as BuildTurret entries (uids: see the header), for setTurretList. */
+function decodeTurrets(hero: HeroId, part: string, after: number): BuildTurret[] {
+  const own = new Map<string, number[]>(); // def -> its starting copies' uids, slot order
+  for (const t of startingTurrets(hero)) own.set(t.def, [...(own.get(t.def) ?? []), t.uid]);
+  let next = after;
+  return part.split(" ").filter(Boolean).map((w) => {
+    const m = /^([a-z]+)(\d+)(?:\*([23]))?(!)?$/.exec(w);
+    if (!m || !ITEMS[m[1]] || ITEMS[m[1]].kind !== "turret") throw new Error(`stand-in code: bad turret "${w}"`);
+    const uid = (m[4] ? own.get(m[1])?.shift() : undefined) ?? ++next;
+    return { slot: Number(m[2]), def: m[1], uid, ...(m[3] ? { stars: Number(m[3]) } : {}), ...(m[4] ? { free: true } : {}) };
+  });
+}
+
 /** Encode a deck as a star-aware stand-in build code (uids are renumbered on decode). beltside-062-on-061 (P15): a
- *  rig's rotation is written as encodeStandIn writes it, before the stars. */
+ *  rig's rotation is written as encodeStandIn writes it, before the stars. Step 5: a joining belt's word ends in
+ *  ">yx" and Build.turrets is a fifth section (see the header); a deck without either encodes as before. */
 export function encodeStarred(b: Build): string {
   if (GRID !== 10) throw new Error("stand-in build codes assume a 10x10 deck");
   const no = new Map<number, number>();
@@ -154,13 +217,14 @@ export function encodeStarred(b: Build): string {
   const routes = b.routes.map((r) => {
     const f = no.get(r.factory);
     if (f === undefined) throw new Error(`stand-in code: route fed by unknown uid ${r.factory}`);
-    return `${f}:${r.cells.map((k) => cellCode(k % GRID, Math.floor(k / GRID))).join("")}`;
+    return `${f}:${r.cells.map((k) => cellCode(k % GRID, Math.floor(k / GRID))).join("")}${joinSuffix(r)}`;
   });
   const mods = b.mods.map((m) => {
     if (!/^[a-z]+$/.test(m.def)) throw new Error(`stand-in code: module id "${m.def}" is not lowercase letters`);
     return `${m.def}${m.turret}${suffix(m)}`;
   });
-  return `${b.beltCap} ${b.hullBonus}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}`;
+  const turrets = turretWords(b);
+  return `${b.beltCap} ${b.hullBonus}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`;
 }
 
 /**
@@ -177,9 +241,12 @@ export function decodeStarred(hero: HeroId, code: string): Build {
 }
 
 /** The star-aware deck exactly as its code writes it, before the D3 migration (0.6.1g's decodeStarred body; P15: the
- *  item word takes BELTSIDE's rotation, rigs only and never 0, before the stars). */
+ *  item word takes BELTSIDE's rotation, rigs only and never 0, before the stars). Step 5: a route word's ">yx" join
+ *  and the turret section (see the header), set through setTurretList (so the starting layout leaves no field). */
 export function decodeStarredRaw(hero: HeroId, code: string): Build {
-  const [head, itemPart, routePart, modPart] = code.split("/");
+  const parts = code.split("/");
+  if (parts.length > 5) throw new Error(`stand-in code: more than five sections in "${code}"`);
+  const [head, itemPart, routePart, modPart, turretPart] = parts;
   const [beltCap, hullBonus] = head.split(" ").map(Number);
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
@@ -190,11 +257,11 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
     return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]) };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {
-    const m = /^(\d+):((?:\d\d)+)$/.exec(w);
+    const m = /^(\d+):((?:\d\d)+)(?:>(\d)(\d))?$/.exec(w);
     if (!m || Number(m[1]) < 1 || Number(m[1]) > items.length) throw new Error(`stand-in code: bad route "${w}"`);
     const cells: number[] = [];
     for (let i = 0; i < m[2].length; i += 2) cells.push(Number(m[2][i]) * GRID + Number(m[2][i + 1]));
-    return { factory: Number(m[1]), cells };
+    return { factory: Number(m[1]), cells, ...(m[3] ? { join: Number(m[3]) * GRID + Number(m[4]) } : {}) };
   });
   const mods: ModPlacement[] = words(modPart).map((w, j) => {
     const m = /^([a-z]+)(\d+)(?:\*([23]))?$/.exec(w);
@@ -202,7 +269,9 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
     return { uid: items.length + j + 1, def: m[1], turret: Number(m[2]), ...star(m[3]) };
   });
   if (!HEROES[hero]) throw new Error(`stand-in code: unknown hero "${hero}"`);
-  return { hero, items, routes, mods, beltCap, hullBonus };
+  const b: Build = { hero, items, routes, mods, beltCap, hullBonus };
+  if (turretPart !== undefined) setTurretList(b, decodeTurrets(hero, turretPart, items.length + mods.length));
+  return b;
 }
 
 /** Clamp a day into 1..10. */
