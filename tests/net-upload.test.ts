@@ -9,7 +9,7 @@ import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
 import { blockReason } from "../src/game/events";
 import { ROAD_PICKS, warlordDeck, warlordDeckDay, warlordReward } from "../src/game/road";
-import { newRun } from "../src/game/run";
+import { newRun, storePlaced } from "../src/game/run";
 import { gainModule } from "../src/game/fuse";
 import {
   HULL_FLOOR, MODELLED_DELTAS, MODELLED_EVENTS, MODELLED_PICKS, MODELLED_REWARD_FIELDS, RoadModelError,
@@ -275,6 +275,22 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
       const s = validateBuild(b, d).errors.filter((e) => !/^(supply|budget):/.test(e));
       const p = validateUpload(b, d).errors.filter((e) => !/^(supply|budget):/.test(e));
       expect(p).toEqual(s);
+    }
+  });
+});
+
+describe("game bugs found on the way (REPORT.md §7)", () => {
+  // run.ts storePlaced refuses only KILN and LOOM ("THE SIGNATURE FACTORY STAYS ABOARD"). A race hero (newRun starts
+  // one; the UI does not offer them yet, heroBuilds.ts PLAYABLE_HEROES) can store its signature factory in cargo,
+  // then sell it for 1 gold or hand it to the TRADER (cargo first) for a free epic part; its dusk deck then has no
+  // signature factory, which both modes refuse. Not a one-line routing through gainModule (brief D6), so not fixed
+  // here: output-v070-validate/proposed/storePlaced-race-signatures.patch fixes it and turns this into it().
+  it.todo("storePlaced keeps every hero's signature factory aboard (the race heroes too)", () => {
+    for (const hero of ["foundry", "bastion", "metronome", "siphon"] as HeroId[]) {
+      const run = newRun(hero, 5);
+      const sig = run.build.items.find((p) => p.def === HEROES[hero].factory)!;
+      expect(storePlaced(run, sig.uid)).toBe(false);
+      expect(validateUpload(run.build, 1)).toEqual({ ok: true, errors: [] });
     }
   });
 });
