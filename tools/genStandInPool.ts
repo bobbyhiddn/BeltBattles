@@ -1,7 +1,16 @@
 // Stand-in pool CLI: npm run standins -- [--seed 1] [--pop 64] [--band 40,60] [--per 6] [--par-floor 50]
-//   [--par field|heroref] [--workers N] [--out ../output] [--check | --versus] [--dump pop.json]
+//   [--par field|heroref] [--source caravan|fullpurse] [--par-band lo,hi] [--workers N] [--out ../output]
+//   [--check [--against file] | --versus] [--dump pop.json] [--resume dir]
 // FB-C: --par field (the default) measures the par floor against the par player's field (par.ts parRefs); --par heroref
 // is the legacy par deck, which pool v2.1 was generated with: its replay identity is `--check --par heroref`.
+// Step 5 (REQ-BFG-033): --source caravan (the default) draws the population and the gauntlet from par-player runs
+// through the game's caravan (src/sim/harness/caravan.ts); --source fullpurse is standInCandidate, the source of every
+// pool up to v2.1: its replay identity is now `--check --par heroref --source fullpurse`. The source is written into
+// the header (except for the legacy full-purse + heroref pool, whose header predates both flags). --par-band lo,hi (off
+// by default; fractions, e.g. 0.5,0.6) also requires lo <= vsPar <= hi of a pick. --against <file>: --check compares
+// with that file instead of src/sim/standInPoolData.ts (a dry candidate). --resume <dir>: every finished day is saved
+// in <dir> and a later run with the same options and the same tool build loads it instead of playing it again, so a
+// run cut off by a time limit continues where it stopped (a --check that must prove determinism takes a fresh dir).
 // Writes src/sim/standInPoolData.ts (the bundled pool the game copies with src/sim/standInPool.ts)
 // and <out>/standin-pool.md. --check regenerates in memory, compares with the committed data
 // module and exits 1 if they differ (nothing is written). --dump also writes every population
@@ -24,7 +33,7 @@
 // code: it writes <out>/standInPoolData.v2-dry-candidate.ts, standin-pool.md and versus.json and never src;
 // its versus tables play the new picks against the pool this tool was bundled with (the shipped pool).
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { resolve } from "node:path";
 import { isMainThread } from "node:worker_threads";
@@ -32,12 +41,13 @@ import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { FUSE_LIVE, validateBuild, buildCost, maxGoldByDay, unfusedPairs } from "../src/net/validate";
 import { starsOf } from "../src/sim/stars";
 import { describeBuild } from "../src/sim/harness/report";
-import { starMixOf } from "../src/sim/harness/tournament";
+import { starMixOf, type Runner } from "../src/sim/harness/tournament";
 import { pct } from "../src/sim/harness/stats";
 import {
-  STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, dryVersus, eligibleOf, genStandIns, maxStarsOf, poolVsPool, standInCommand, writtenProblems,
-  type Cand, type HeroDay, type StandInOpts, type VersusRow, type VersusTable,
+  STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, dryVersus, eligibleOf, genStandIns, maxStarsOf, poolVsPool, sourceOf, standInCommand, writtenProblems,
+  type Cand, type DayResult, type GenHooks, type HeroDay, type StandInOpts, type VersusRow, type VersusTable,
 } from "../src/sim/harness/standins";
+import { CARAVAN_MIX, deckStats, type CaravanPolicy } from "../src/sim/harness/caravan";
 import { STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
 import { flag, num, serveJobs, workerRunner } from "./workers";
 
@@ -70,9 +80,24 @@ async function main(): Promise<void> {
   // legacy heroRefBuild par; pool v2.1 was generated with it, so `--check --par heroref` replays the committed pool)
   const parFlag = flag("par") ?? "field";
   if (parFlag !== "field" && parFlag !== "heroref") throw new Error(`--par must be "field" or "heroref", got ${parFlag}`);
+  // step 5 (REQ-BFG-033): --source caravan (default: par-player runs through the game's caravan) or fullpurse (the
+  // pools up to v2.1). The caravan player merges, buys cores and factories: stars, cores and factories stay on.
+  const sourceFlag = flag("source") ?? "caravan";
+  if (sourceFlag !== "caravan" && sourceFlag !== "fullpurse") throw new Error(`--source must be "caravan" or "fullpurse", got ${sourceFlag}`);
+  if (sourceFlag === "caravan" && (starsFlag !== "on" || coresFlag !== "on" || factoriesFlag !== "on")) {
+    throw new Error("--source caravan plays the par player, which merges its copies and buys cores and factories: it takes --stars, --cores and --factories on (their defaults); use --source fullpurse to switch them off");
+  }
+  // step 5 (REQ-BFG-026): --par-band lo,hi (fractions, off by default): a pick also needs lo <= vsPar <= hi
+  const bandArg = flag("par-band");
+  const parBand = bandArg === undefined ? undefined : bandArg.split(",").map(Number);
+  if (parBand && (parBand.length !== 2 || parBand.some((x) => !Number.isFinite(x) || x < 0 || x > 1) || parBand[0] >= parBand[1])) {
+    throw new Error("--par-band must be lo,hi win-rate fractions with lo < hi, e.g. 0.5,0.6");
+  }
   const o: StandInOpts = {
     ...STANDIN_DEFAULTS,
     par: parFlag,
+    source: sourceFlag,
+    ...(parBand ? { parBand: [parBand[0], parBand[1]] as [number, number] } : {}),
     seed: num("seed", STANDIN_DEFAULTS.seed),
     pop: num("pop", STANDIN_DEFAULTS.pop),
     per: num("per", STANDIN_DEFAULTS.per),
@@ -84,6 +109,9 @@ async function main(): Promise<void> {
     factories: factoriesFlag,
   };
   if (o.per < 1 || o.pop < o.per) throw new Error("--pop must be at least --per, and --per at least 1");
+  // step 5: --check compares with --against <file> when given (a dry candidate), else with the committed module
+  const against = flag("against");
+  const checkPath = resolve(against ?? DATA), checkName = against ? checkPath : `committed ${DATA}`;
   const check = process.argv.includes("--check");
   if (check && FUSE_LIVE && o.stars === "off") throw new Error(`--stars off --check: since the 0.6.1 flip (FUSE_LIVE) the committed ${DATA} is the stars-on pool v2; check it with --stars on`);
   // part 3 on the release: --dry keeps a stars-on dry run (written under --out, never src) with FUSE_LIVE true
@@ -99,7 +127,19 @@ async function main(): Promise<void> {
     for (const r of pvp) console.log(`versus: day ${r.day}: ${H(o.heroes[0])} pool wins ${pct(r.rate)} of ${r.battles}`);
     return;
   }
-  const res = await genStandIns(o, pool.run, (m) => console.log(m));
+  // step 5: the wall time spent waiting on battles (the rest is building decks, selecting and reporting)
+  let battleMs = 0, played = 0;
+  const timed: Runner = async (field, jobs) => {
+    const t = performance.now();
+    const out = await pool.run(field, jobs);
+    battleMs += performance.now() - t;
+    played += jobs.reduce((s, j) => s + 2 * j.seeds.length, 0);
+    return out;
+  };
+  const stamp = () => `[${((performance.now() - t0) / 1000).toFixed(0)} s]`;
+  const res = await genStandIns(o, timed, (m) => console.log(`${stamp()} ${m}`), resumeHooks(o, flag("resume")));
+  const genSecs = (performance.now() - t0) / 1000;
+  console.log(`time: ${genSecs.toFixed(1)} s to generate on ${nw} worker(s): ${(battleMs / 1000).toFixed(1)} s waiting on ${played} battles played here (${(played / Math.max(1e-9, battleMs / 1000)).toFixed(0)} per s; the pool's ${res.battles} include any loaded days'), ${(genSecs - battleMs / 1000).toFixed(1)} s building decks and selecting`);
   // 0.6.1a: while FUSE_LIVE was false validateBuild alone did not reject an unfused pair, so the
   // generator applies the rule itself (stars on). Since the flip validateBuild applies it too, and
   // stars off (the v1.1 audit reproduction) ignores exactly those pair errors.
@@ -132,11 +172,16 @@ async function main(): Promise<void> {
   }
   const dump = flag("dump");
   if (dump) {
+    // step 5: a caravan population adds each candidate's policy, run seed, gold spent, reroll gold, sale losses, unspent
+    // gold and vsPar (the floor measure after any robust re-play)
+    const caravan = sourceOf(o) === "caravan";
     const rows = res.days.map((hd) => ({
       hero: hd.hero, day: hd.day, relax: hd.relax, window: hd.window, par: hd.par, picks: hd.picks.map((p) => p.idx),
-      pop: hd.pop.map((c) => [c.idx, c.cost, c.floorMet ? 1 : 0, c.pct, c.score, ...o.heroes.map((h) => c.vsRef[h] ?? 0)]),
+      pop: hd.pop.map((c) => [c.idx, c.cost, c.floorMet ? 1 : 0, c.pct, c.score, ...o.heroes.map((h) => c.vsRef[h] ?? 0),
+        ...(caravan ? [c.caravan?.policy ?? "", c.caravan?.seed ?? 0, c.caravan?.spent ?? 0, c.caravan?.rerollGold ?? 0, c.caravan?.soldLoss ?? 0, c.caravan?.unspent ?? 0, c.vsPar] : [])]),
     }));
-    writeFileSync(resolve(dump), JSON.stringify({ columns: ["idx", "cost", "floorMet", "pct", "score", ...o.heroes.map((h) => `vs ${h} ref`)], days: rows }));
+    const extra = caravan ? ["policy", "seed", "spent", "rerollGold", "soldLoss", "unspent", "vsPar"] : [];
+    writeFileSync(resolve(dump), JSON.stringify({ columns: ["idx", "cost", "floorMet", "pct", "score", ...o.heroes.map((h) => `vs ${h} ref`), ...extra], days: rows }));
     console.log(`dump: every population build of every hero and day written to ${resolve(dump)}`);
   }
 
@@ -174,9 +219,9 @@ async function main(): Promise<void> {
       await pool.close();
       const secs = (performance.now() - t0) / 1000;
       let old = "";
-      try { old = readFileSync(path, "utf8"); } catch { old = ""; }
+      try { old = readFileSync(checkPath, "utf8"); } catch { old = ""; }
       const same = old === candidate;
-      console.log(`check: ${same ? "IDENTICAL" : "DIFFERS"}: regenerated ${candidate.length} bytes in memory (${res.battles} battles, ${secs.toFixed(1)} s, ${nw} workers) vs committed ${DATA} (${old.length} bytes)`);
+      console.log(`check: ${same ? "IDENTICAL" : "DIFFERS"}: regenerated ${candidate.length} bytes in memory (${res.battles} battles, ${secs.toFixed(1)} s, ${nw} workers) vs ${checkName} (${old.length} bytes)`);
       process.exit(same ? 0 : 1);
     }
     const secs0 = (performance.now() - t0) / 1000;
@@ -186,6 +231,7 @@ async function main(): Promise<void> {
     writeFileSync(path, candidate);
     const out = resolve(flag("out") ?? "../output");
     mkdirSync(out, { recursive: true });
+    writePicks(o, res.days, out);
     const vsBattles = [...vs.v2v2, ...vs.tables.flatMap((t) => t.rows)].reduce((s, r) => s + r.battles, 0);
     writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: true, bytes: candidate.length }));
     writeFileSync(resolve(out, "versus.json"), JSON.stringify({ heroes: o.heroes, v2v2: vs.v2v2, tables: vs.tables }, null, 1) + "\n");
@@ -205,6 +251,7 @@ async function main(): Promise<void> {
   const out = resolve(flag("out") ?? "../output-h2/pool-v2-dry");
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, "standInPoolData.v2-dry-candidate.ts"), candidate);
+  writePicks(o, res.days, out);
   const vsBattles = [...vs.v2v2, ...vs.tables.flatMap((t) => t.rows)].reduce((s, r) => s + r.battles, 0);
   writeFileSync(resolve(out, "standin-pool.md"), poolMarkdownV2(o, res.days, vs.v2v2, vs.tables, { battles: res.battles, secs, workers: nw, vsBattles, live: false, liveDry: FUSE_LIVE }));
   writeFileSync(resolve(out, "versus.json"), JSON.stringify({ heroes: o.heroes, v2v2: vs.v2v2, tables: vs.tables }, null, 1) + "\n");
@@ -213,6 +260,67 @@ async function main(): Promise<void> {
 
 const H = (h: HeroId) => HEROES[h].name;
 const STEP: Record<HeroDay["relax"], string> = { none: "none", widen: "(a) widen", grow: "(b) grow", elites: "(c) elites", best: "(d) best vsPar" };
+
+/** cyrb53: a fast 53-bit string hash (not cryptographic), as a hex string. */
+function hash53(text: string, seed = 0): string {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, "0");
+}
+
+/**
+ * Step 5 (--resume <dir>): save each finished day as <dir>/day-<d>.json and load it on a later run. The key is the
+ * generation options and a hash of this tool's own bundle (so any code change, player.ts or par.ts included, plays the
+ * day again); a file with another key, or one cut short (it doesn't parse), is ignored and overwritten.
+ */
+function resumeHooks(o: StandInOpts, dir: string | undefined): GenHooks | undefined {
+  if (!dir) return undefined;
+  const at = resolve(dir);
+  mkdirSync(at, { recursive: true });
+  const bundle = readFileSync(decodeURIComponent(new URL(import.meta.url).pathname), "utf8");
+  const tool = `${hash53(bundle)}${hash53(bundle, 1)}`;
+  const key = `${hash53(JSON.stringify({ o, rules: RULES_VERSION, tool }))}${hash53(JSON.stringify({ o, rules: RULES_VERSION, tool }), 1)}`;
+  const file = (day: number) => resolve(at, `day-${day}.json`);
+  console.log(`resume: days are saved in ${at} (key ${key.slice(0, 12)}, tool ${tool.slice(0, 12)})`);
+  return {
+    load: (day) => {
+      if (!existsSync(file(day))) return undefined;
+      try {
+        const saved = JSON.parse(readFileSync(file(day), "utf8")) as { key: string; day: number } & DayResult;
+        return saved.key === key && saved.day === day ? { days: saved.days, battles: saved.battles } : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    save: (day, r) => writeFileSync(file(day), JSON.stringify({ key, day, battles: r.battles, days: r.days })),
+  };
+}
+
+/** Step 5: <out>/picks.json for a caravan pool: every pick with its run (policy, seed), gold, vsPar and deck counts. */
+function writePicks(o: StandInOpts, days: HeroDay[], out: string): void {
+  if (sourceOf(o) !== "caravan") return;
+  const rows = days.flatMap((hd) => hd.picks.map((p, i) => ({
+    hero: hd.hero, day: hd.day, i, par: i === hd.par, idx: p.idx, relax: hd.relax, budget: hd.budget, cost: p.cost, pct: p.pct, score: p.score,
+    vsPar: p.vsPar, vsRef: p.vsRef, replayed: !!p.replayed, ...p.caravan, ...deckStats(p.build), code: p.code,
+  })));
+  writeFileSync(resolve(out, "picks.json"), JSON.stringify({ command: standInCommand(o), rules: RULES_VERSION, picks: rows }, null, 1) + "\n");
+}
+
+/** Step 5: the caravan picks of one hero-day, for the report: policy counts, spend, rerolls, stars, turrets, joins. */
+function caravanRow(hd: HeroDay): string {
+  const n = (pol: CaravanPolicy) => hd.picks.filter((p) => p.caravan?.policy === pol).length;
+  const pctOf = (x: number) => `${Math.round((100 * x) / hd.budget)}`;
+  const span = (xs: number[]) => (xs.length ? `${Math.min(...xs)}-${Math.max(...xs)}` : "-");
+  const st = hd.picks.map((p) => deckStats(p.build));
+  const sum = (f: (s: ReturnType<typeof deckStats>) => number) => st.reduce((a, s) => a + f(s), 0);
+  return `| ${H(hd.hero)} | ${hd.day} | ${STEP[hd.relax]} | ${[...new Set(CARAVAN_MIX)].map((pol) => n(pol)).join("/")} | ${span(hd.picks.map((p) => Number(pctOf(p.cost))))}% | ${span(hd.picks.map((p) => Number(pctOf(p.caravan?.spent ?? p.cost))))}% | ${span(hd.picks.map((p) => p.caravan?.rerollGold ?? 0))} | ${sum((s) => s.star2)}/${sum((s) => s.star3)} | ${sum((s) => s.mergedStart)} | ${sum((s) => s.beyondStart)} | ${sum((s) => s.joins)} |`;
+}
 
 function poolMarkdown(o: StandInOpts, days: HeroDay[], pvp: { day: number; rate: number; battles: number }[], run: { battles: number; secs: number; workers: number; bytes: number }): string {
   const w = o.band[1] - o.band[0], refs = o.heroes.map((h) => `vs ${H(h)} ref`);
@@ -293,6 +401,14 @@ function poolMarkdownV2(
   }
   const cap = days.reduce((s, hd) => s + hd.capAffected, 0), cap3 = days.reduce((s, hd) => s + hd.capWould3, 0), popN = days.reduce((s, hd) => s + hd.pop.length, 0);
   L.push("", `2-star cap: it changed ${cap} of ${popN} candidates; without it ${cap3} would hold a 3-star module.`);
+  if (sourceOf(o) === "caravan") {
+    // step 5: what the caravan-bound picks are (picks.json has every pick)
+    L.push("", "## Caravan picks (step 5, REQ-BFG-033)", "",
+      `Population: par-player runs through the game's caravan (src/sim/harness/caravan.ts), policies ${CARAVAN_MIX.join(", ")} by index. Spend = deck value / maxGoldByDay; spent = (deck value + reroll gold + sale losses) / maxGoldByDay. Stars count items, modules and installed turrets. "starting turret merged" = a free starting copy above 1 star in its own slot; "beyond start" = a bought turret, a turret in another slot than its start, or one in the extra slot.`, "",
+      `| hero | day | relax | picks ${[...new Set(CARAVAN_MIX)].join("/")} | spend | spent | reroll g | 2★/3★ | starting turret merged | beyond start | joins |`,
+      "|---|---|---|---|---|---|---|---|---|---|---|");
+    for (const hd of days) L.push(caravanRow(hd));
+  }
   L.push("", "## Picks with a merged module (2 or 3 stars)", "");
   for (const hd of days) {
     for (const p of hd.picks) {

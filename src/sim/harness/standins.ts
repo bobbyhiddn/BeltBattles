@@ -14,6 +14,13 @@
 // each size in `grow` (same gauntlet, deterministic); (c) allow elites; (d) take the `per`
 // builds with the highest vsPar (recorded in the data's short list). Every build is normalised
 // through the stand-in code first, so what is stored is exactly what was scored.
+// 0.6.2 step 5 (REQ-BFG-033): o.source "caravan" (the CLI default) draws the population and the gauntlet from
+// par-player runs through the game's caravan (./caravan.ts: policies typical/typical/sharp/loose by index, run seeds
+// disjoint from the par field's); absent or "fullpurse" is standInCandidate exactly, as above. A caravan candidate's
+// stored cost is its deck value; its spend floor counts the gold it spent (deck + rerolls + sale losses). The selection
+// rules are the same for both sources. o.parBand [lo, hi] (off when absent) also requires lo <= vsPar <= hi, and (d) then
+// takes the builds nearest that band. The stand-in code carries Build.turrets and route joins (./standinCode.ts), so a
+// caravan deck keeps them. genStandIns' optional hooks save and load finished days (the CLI's --resume).
 
 import { hashSeed } from "../../core/rng";
 import { RULES_VERSION, type HeroId } from "../content";
@@ -21,6 +28,9 @@ import type { Build } from "../deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../../net/validate";
 import { decodeStandIn, encodeStandIn, standInPool } from "../standInPool";
 import { FUSE_MAX, starsOf } from "../stars";
+import {
+  CARAVAN_MIX, CARAVAN_POLICY, caravanCandidate, caravanGauntlet, caravanGauntletSeedOf, caravanSeedOf, type CaravanMeta, type StandInSource,
+} from "./caravan";
 import { fullPurseBuild, spendFloor, type FullPurse } from "./gen";
 import { parRefs, type ParSource } from "./par";
 import type { Cores, Factories, Stars } from "./shopper";
@@ -52,10 +62,17 @@ export interface StandInOpts {
   // (K caravan-bound decks per pool hero; vsRef = the mean win rate over the members). Absent or "heroref": the legacy
   // par deck heroRefBuild, exactly as before (pool v2.1 was generated with it). The CLI's --par defaults to "field".
   par?: ParSource;
+  // step 5 (REQ-BFG-033): the population's source (./caravan.ts). Absent or "fullpurse": standInCandidate, exactly as
+  // before; the CLI's --source defaults to "caravan".
+  source?: StandInSource;
+  // step 5 (REQ-BFG-026): off when absent. [lo, hi]: a pick also needs lo <= vsPar <= hi (CLI --par-band lo,hi).
+  parBand?: [number, number];
 }
 
 /** FB-C: the par source of a generation (absent: the legacy heroref, so every pre-existing caller is unchanged). */
 export const parSourceOf = (o: { par?: ParSource }): ParSource => o.par ?? "heroref";
+/** Step 5: the population source of a generation (absent: the legacy full-purse builds). */
+export const sourceOf = (o: { source?: StandInSource }): StandInSource => o.source ?? "fullpurse";
 
 /** FB-C: the par decks of `day` for the pool heroes (parRefs), flattened, with each deck's pool-hero index. With
  *  heroref that is one deck per hero, in hero order: the legacy refs exactly. */
@@ -84,8 +101,8 @@ export function standInCandidate(hero: HeroId, day: number, seed: number, stars:
   return fullPurseBuild(hero, day, seed, spendFloor(day), 60, stars, stars === "on" ? STANDIN_MAX_STARS : FUSE_MAX, stars === "on" ? cores : "off", stars === "on" ? factories : "off");
 }
 
-/** The highest star level on a deck (1 when nothing is merged). */
-export const maxStarsOf = (b: Build): number => Math.max(1, ...[...b.items, ...b.mods].map((p) => starsOf(p)));
+/** The highest star level on a deck (1 when nothing is merged). Step 5: installed turrets count too (Build.turrets). */
+export const maxStarsOf = (b: Build): number => Math.max(1, ...[...b.items, ...b.mods, ...(b.turrets ?? [])].map((p) => starsOf(p)));
 
 export const STANDIN_DEFAULTS: StandInOpts = {
   seed: 1, pop: 64, band: [40, 60], per: 6, gauntlet: 20, seeds: 2, elites: 8, refSeeds: 10, heroes: ["furnace", "weaver"],
@@ -100,7 +117,12 @@ export interface Cand {
   vsPar: number; // floor(b): the lowest of vsRef
   replayed?: boolean; // 0.6.1a: the robust re-play already ran on it (F12: never twice)
   cargoGold?: number; // fix pass: fullPurseBuild's cargoGold (only when > 0, so cores on): gold in cargo, not in the deck
+  caravan?: CaravanMeta; // step 5: a caravan candidate's run (policy, seed) and gold; absent for a full-purse build
 }
+
+/** Step 5: the gold a candidate spent, for the spend floor: a caravan deck's spent gold (deck value + rerolls + sale
+ *  losses), else its cost. */
+export const spentOf = (c: Cand): number => c.caravan?.spent ?? c.cost;
 
 export interface HeroDay {
   hero: HeroId;
@@ -183,11 +205,15 @@ export function pickBand(c: Cand[], band: [number, number], per: number): { pick
   return { picks, par: nearest(picks, (lo + hi) / 2), widened };
 }
 
+/** Step 5: how far vsPar lies outside o.parBand (0 inside it, and always 0 when the option is off). */
+export const parBandGap = (o: Pick<StandInOpts, "parBand">, vsPar: number): number =>
+  (o.parBand ? Math.max(0, o.parBand[0] - vsPar, vsPar - o.parBand[1]) : 0);
+
 /** Builds a pick may be: pct >= band[0], vsPar >= parFloor, spend floor met, not an elite (the
- *  population's top eighth by score) unless `allowElites`. */
+ *  population's top eighth by score) unless `allowElites`. Step 5: with o.parBand, also inside the band. */
 export function eligibleOf(pop: Cand[], o: StandInOpts, allowElites: boolean): Cand[] {
   const top = new Set(allowElites ? [] : byScore(pop).slice(0, Math.ceil(pop.length / 8)).map((c) => c.idx));
-  return pop.filter((c) => c.floorMet && c.pct >= o.band[0] && c.vsPar >= o.parFloor && !top.has(c.idx));
+  return pop.filter((c) => c.floorMet && c.pct >= o.band[0] && c.vsPar >= o.parFloor && parBandGap(o, c.vsPar) === 0 && !top.has(c.idx));
 }
 
 /** The window from p0 (see the header), widened upward by `widen` until it holds `per` eligible
@@ -208,11 +234,12 @@ export function pickWindow(pop: Cand[], eligible: Cand[], o: StandInOpts): Selec
 }
 
 /** (d): the `per` builds (pct >= band[0], spend floor met when enough do) with the highest vsPar,
- *  lower pct first on ties; the window is the picks' pct span. */
+ *  lower pct first on ties; the window is the picks' pct span. Step 5: with o.parBand, the builds nearest the band
+ *  first (then the highest vsPar); without it the order is exactly as before. */
 export function pickBest(pop: Cand[], o: StandInOpts): Selection {
   const high = pop.filter((c) => c.pct >= o.band[0]), met = high.filter((c) => c.floorMet);
   const src = met.length >= o.per ? met : high.length >= o.per ? high : pop;
-  const picks = [...src].sort((a, b) => b.vsPar - a.vsPar || a.pct - b.pct || a.idx - b.idx).slice(0, o.per)
+  const picks = [...src].sort((a, b) => parBandGap(o, a.vsPar) - parBandGap(o, b.vsPar) || b.vsPar - a.vsPar || a.pct - b.pct || a.idx - b.idx).slice(0, o.per)
     .sort((a, b) => a.pct - b.pct || a.idx - b.idx);
   const window: [number, number] = [picks[0].pct, picks[picks.length - 1].pct];
   return { picks, par: nearest(picks, (window[0] + window[1]) / 2), window, widened: window[1] - window[0] > o.band[1] - o.band[0] };
@@ -262,13 +289,42 @@ export async function robustReplay(o: StandInOpts, hero: HeroId, day: number, po
   return { removed, battles: jobs.length * n * 2, replayed: borderline.length }; // every job: n seeds x both sides
 }
 
-export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string) => void): Promise<{ days: HeroDay[]; battles: number }> {
+/** Step 5: one finished day of a generation (every pool hero's HeroDay) and the battles it played. */
+export interface DayResult { days: HeroDay[]; battles: number }
+/** Step 5: save and load finished days (the CLI's --resume). A day's work depends on nothing but the options and the
+ *  day, so a loaded day is exactly the day the generation would compute. */
+export interface GenHooks {
+  load?: (day: number) => DayResult | undefined;
+  save?: (day: number, r: DayResult) => void;
+}
+
+/** Step 5: a caravan candidate as the generator scores it: its deck normalised through the stored code (Build.turrets
+ *  and joins pass through), its value as the cost, its run's gold (spend floor) and meta. */
+export function caravanCand(idx: number, d: { build: Build; floorMet: boolean; meta: CaravanMeta }, stars: Stars = "on"): Cand {
+  if (stars !== "on") throw new Error("the caravan source needs stars on: the par player merges its copies");
+  const build = norm(d.build, stars);
+  return { idx, build, code: standInCodeOf(build, stars), cost: buildCost(build).total, tries: 1, floorMet: d.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0, caravan: { ...d.meta } };
+}
+
+export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string) => void, hooks?: GenHooks): Promise<{ days: HeroDay[]; battles: number }> {
   const out: HeroDay[] = [];
   let battles = 0;
   const per = o.seeds * 2;
   const seedsFor = (...parts: (string | number)[]) => Array.from({ length: o.seeds }, (_, k) => hashSeed("standin-battle", o.seed, ...parts, k));
+  const caravan = sourceOf(o) === "caravan";
+  if (caravan && o.stars !== "on") throw new Error("the caravan source needs stars on: the par player merges its copies");
   for (let day = 1; day <= 10; day++) {
-    const gauntlet = o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(fullPurseBuild(g, day, hashSeed("standin-gauntlet", o.seed, g, day, i), spendFloor(day), 60, o.stars, FUSE_MAX, coresOf(o), factoriesOf(o)).build, o.stars)));
+    const saved = hooks?.load?.(day);
+    if (saved) {
+      out.push(...saved.days);
+      battles += saved.battles;
+      log?.(`day ${day}: loaded (${saved.battles} battles)`);
+      continue;
+    }
+    const before = battles;
+    // step 5: the caravan gauntlet is typical par-player decks of its own seeds (./caravan.ts)
+    const gauntlet = o.heroes.flatMap((g) => Array.from({ length: o.gauntlet }, (_, i) => norm(caravan ? caravanGauntlet(g, day, o.seed, i)
+      : fullPurseBuild(g, day, hashSeed("standin-gauntlet", o.seed, g, day, i), spendFloor(day), 60, o.stars, FUSE_MAX, coresOf(o), factoriesOf(o)).build, o.stars)));
     // FB-C: the par decks through par.ts parRefs (heroref: heroRefBuild of each pool hero, as before)
     const { refs, refHero } = standInRefs(o, day);
     const G = gauntlet.length, R = refs.length;
@@ -279,6 +335,15 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       // builds from..to-1 of this hero/day's population, scored vs the gauntlet and measured vs the references
       const grow = async (from: number, to: number): Promise<Cand[]> => {
         const c: Cand[] = Array.from({ length: to - from }, (_, k) => {
+          if (caravan) {
+            // step 5: candidate idx is its policy's run (./caravan.ts), capped at 2 stars; F8 report: the same player's
+            // run without the cap
+            const idx = from + k, d = caravanCandidate(hero, day, o.seed, idx, STANDIN_MAX_STARS);
+            const free = caravanCandidate(hero, day, o.seed, idx, FUSE_MAX).build;
+            if (encodeStarred(free) !== encodeStarred(d.build)) capAffected++;
+            if (maxStarsOf(free) > STANDIN_MAX_STARS) capWould3++;
+            return caravanCand(idx, d, o.stars);
+          }
           const idx = from + k, seed = hashSeed("standin-pop", o.seed, hero, day, idx), f = standInCandidate(hero, day, seed, o.stars, coresOf(o), factoriesOf(o));
           if (o.stars === "on") {
             // F8 report: the same candidate without the 2-star cap; did the cap change it?
@@ -349,7 +414,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       const elites = byScore(pop.slice(0, o.pop)).slice(0, o.elites);
       const floor = spendFloor(day);
       dayOut.push({
-        hero, day, budget: maxGoldByDay(day), floor, pop, picks, par, window, relax, widened, short: picks.some((p) => p.cost < floor),
+        hero, day, budget: maxGoldByDay(day), floor, pop, picks, par, window, relax, widened, short: picks.some((p) => spentOf(p) < floor),
         elites, parVsRef: { ...picks[par].vsRef }, parVsElites: 0, robustRemoved, robustReplayed, capAffected, capWould3,
       });
       log?.(`${hero} day ${day}: ${relax}, window ${window.join("-")} of ${pop.length}; picks pct ${picks.map((p) => p.pct).join(", ")}; vsPar ${picks.map((p) => p.vsPar).join(", ")}${robustRemoved ? `; robust re-play removed ${robustRemoved}` : ""}`);
@@ -363,6 +428,7 @@ export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string)
       hd.parVsElites = winRate(pts, jobs.length * per);
     }
     out.push(...dayOut);
+    hooks?.save?.(day, { days: dayOut, battles: battles - before });
   }
   return { days: out, battles };
 }
@@ -430,8 +496,14 @@ export function standInCommand(o: StandInOpts): string {
   const f = factoriesOf(o) === "on" ? " --factories on" : "";
   // FB-C: --par is printed for the par field and never for the legacy heroref par, so pool v2.1's header (generated
   // before --par existed, against heroRefBuild) is regenerated exactly by `--check --par heroref`
-  const p = parSourceOf(o) === "field" ? " --par field" : "";
-  return `npm run standins -- --seed ${o.seed} --pop ${o.pop} --band ${o.band[0]},${o.band[1]} --per ${o.per} --par-floor ${round1(o.parFloor * 100)}${g}${c}${f}${p}`;
+  // step 5: ... except with the caravan source, whose header must replay on its own: it prints --par heroref too
+  const legacy = sourceOf(o) === "fullpurse" && parSourceOf(o) === "heroref";
+  const p = parSourceOf(o) === "field" ? " --par field" : legacy ? "" : " --par heroref";
+  // step 5: --source is printed for every pool but the legacy one (full purse against heroRefBuild: pool v2.1, whose
+  // header predates the flag and is regenerated by `--check --par heroref --source fullpurse`); --par-band when set
+  const s = legacy ? "" : ` --source ${sourceOf(o)}`;
+  const band = o.parBand ? ` --par-band ${o.parBand[0]},${o.parBand[1]}` : "";
+  return `npm run standins -- --seed ${o.seed} --pop ${o.pop} --band ${o.band[0]},${o.band[1]} --per ${o.per} --par-floor ${round1(o.parFloor * 100)}${g}${c}${f}${p}${s}${band}`;
 }
 
 const r4 = (x: number) => Number(x.toFixed(4));
@@ -482,14 +554,31 @@ export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): 
   return problems;
 }
 
+/** Step 5: the population lines of a caravan pool's header (./caravan.ts). */
+function caravanHeader(o: StandInOpts): string[] {
+  const top = Math.max(o.pop, ...o.grow) - 1;
+  const loose = Object.entries(CARAVAN_POLICY.loose.tune ?? {}).map(([k, v]) => `${k} ${v}`).join(", ");
+  return [
+    `// Seed ${o.seed}; RULES_VERSION ${RULES_VERSION}; ${o.per} picks per hero and day. Population: ${o.pop} caravan-bound decks per`,
+    "// hero and day (REQ-BFG-033, src/sim/harness/caravan.ts): the day's dusk deck of a par-player run through the game's",
+    "// caravan (player.ts playerRun: offered parts at the offer price, paid rerolls; stand-ins stop at 2 stars), one run",
+    `// per candidate for every day; policies ${CARAVAN_MIX.join(", ")} by index (loose: typical with ${loose}); run seeds`,
+    `// ${caravanSeedOf(o.seed, 0)}-${caravanSeedOf(o.seed, top)}. Spend floor: the gold spent (deck + rerolls + sale losses) is at least 90% of maxGoldByDay.`,
+    `// Scored against a gauntlet of ${o.gauntlet} typical par-player decks per pool hero (run seeds ${caravanGauntletSeedOf(o.seed, 0)}-${caravanGauntletSeedOf(o.seed, Math.max(0, o.gauntlet - 1))}), ${o.seeds} seeds`,
+    "// x both sides per pairing; pct = strength percentile inside the population.",
+  ];
+}
+
 /** The generated data module (src/sim/standInPoolData.ts), byte-stable for the same options. */
 export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
   const L = [
     "// GENERATED by tools/genStandInPool.ts; do not edit by hand. Regenerate, or verify with --check:",
     `//   ${standInCommand(o)}`,
-    `// Seed ${o.seed}; RULES_VERSION ${RULES_VERSION}; ${o.per} picks per hero and day. Population: ${o.pop} full-purse builds per`,
-    `// hero and day (each costing at least 90% of maxGoldByDay), scored against a gauntlet of ${o.gauntlet} builds per pool`,
-    `// hero, ${o.seeds} seeds x both sides per pairing; pct = strength percentile inside the population.`,
+    ...(sourceOf(o) === "caravan" ? caravanHeader(o) : [
+      `// Seed ${o.seed}; RULES_VERSION ${RULES_VERSION}; ${o.per} picks per hero and day. Population: ${o.pop} full-purse builds per`,
+      `// hero and day (each costing at least 90% of maxGoldByDay), scored against a gauntlet of ${o.gauntlet} builds per pool`,
+      `// hero, ${o.seeds} seeds x both sides per pairing; pct = strength percentile inside the population.`,
+    ]),
     ...(parSourceOf(o) === "field" ? [
       `// Par floor: vsPar = the build's lowest mean win rate against the par field of each pool hero h (par.ts parRefs:`,
       `// the par player's decks of seeds 1-12), ${o.refSeeds} seeds x both sides per member. A pick needs vsPar >= ${o.parFloor}, pct >= ${o.band[0]}, and must not be among`,
@@ -501,6 +590,7 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
     `// lowest eligible pct (at ${o.band[0]} when no build lies below it); par = the pick nearest the window's middle.`,
     `// Fewer than ${o.per} eligible in the window: (a) widen it upward by ${o.widen} points at a time, (b) grow the population`,
     `// to ${o.grow.join(", then ")} (same gauntlet), (c) allow elites, (d) take the ${o.per} builds with the highest vsPar (in short).`,
+    ...(o.parBand ? [`// Par band (--par-band): a pick also needs ${o.parBand[0]} <= vsPar <= ${o.parBand[1]}; (d) then takes the builds nearest the band.`] : []),
     "// Tuples are [cost (gold), pct, score (win rate vs the gauntlet), build code, vsPar (0-1)]; each day is",
     ...(o.stars === "off" ? [
       "// [par index, entries sorted by pct, window [lo, hi], population size, relaxation]. src/sim/standInPool.ts",
@@ -509,6 +599,10 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
       "// [par index, entries sorted by pct, window [lo, hi], population size, relaxation]. The build codes are",
       "// star-aware (src/sim/harness/standinCode.ts: the v1 format plus *2 or *3 on an item or module word; no",
       "// suffix is 1 star); src/sim/standInPool.ts decodes them with decodeStarred (since the 0.6.1 flip).",
+      ...(sourceOf(o) === "caravan" ? [
+        "// Step 5: a code also carries the deck's turrets (a fifth section, <id><slot>[*stars][!free]) and belt joins",
+        "// (\">yx\" on a route word) when it has them; cost is the deck's value (rerolls and sale losses are gold spent).",
+      ] : []),
     ]),
     "",
     'import type { HeroId } from "./content";',
@@ -547,7 +641,7 @@ export function dataModuleText(o: StandInOpts, days: HeroDay[]): string {
   }
   L.push("  },");
   const short = [
-    ...days.flatMap((hd) => hd.picks.filter((p) => p.cost < hd.floor).map((p) => `{ hero: "${hd.hero}", day: ${hd.day}, cost: ${p.cost}, floor: ${hd.floor} }`)),
+    ...days.flatMap((hd) => hd.picks.filter((p) => spentOf(p) < hd.floor).map((p) => `{ hero: "${hd.hero}", day: ${hd.day}, cost: ${p.cost}, floor: ${hd.floor} }`)),
     ...days.filter((hd) => hd.relax === "best").map((hd) =>
       `{ hero: "${hd.hero}", day: ${hd.day}, cost: ${Math.min(...hd.picks.map((p) => p.cost))}, floor: ${hd.floor}, vsPar: [${hd.picks.map((p) => r4(p.vsPar)).join(", ")}] }`),
   ];

@@ -6,7 +6,8 @@
 //   --pct       the par field's strength percentile inside the harness's full-purse population (the stand-in
 //               generator's population and gauntlet, seed 1: 64 standInCandidate builds scored against 20 fullPurseBuild
 //               builds per pool hero, 2 seeds x both sides); population scores are cached in <cache>/pop-<hero>-<day>.json
-//   --pool      the shipped stand-in pool (v2.1) against the par field (brief 4a)
+//   --pool      the shipped stand-in pool (v2.1) against the par field (brief 4a); step 5: [--pool-data <file>] the picks
+//               of that data module instead (a dry candidate), with the same seeds
 //   --rivals    [--seeds 4] [--tq-seeds 20] the captains against the par field and honestReference (brief 4b-4d); TUNE-C:
 //               per field (FURNACE, WEAVER, both), the par field's top quartile / decile vs Hard, the stand-ins' fight
 //               lengths; [--ids a,b] [--no-honest] [--no-tq] [--tq-pop] (the full-purse population's top quartile)
@@ -53,12 +54,12 @@ import { heroRefBuild } from "../src/sim/heroBuilds";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { FUSE_MAX, starsOf, valueOf } from "../src/sim/stars";
 import { fullPurseBuild, spendFloor } from "../src/sim/harness/gen";
-import { STANDIN_DEFAULTS, decodeStandInCode, standInCandidate, standInCodeOf } from "../src/sim/harness/standins";
+import { STANDIN_DEFAULTS, decodeStandInCode, standInCandidate, standInCodeOf, writtenPicks } from "../src/sim/harness/standins";
 import { describeBuild } from "../src/sim/harness/report";
 import { PAR_K, parField, parSeeds, roundRobin, vsPar, type VsPar } from "../src/sim/harness/par";
 import { nearestRank } from "../src/sim/harness/luck";
 import { fmtRate, meanCI, wilson } from "../src/sim/harness/stats";
-import { standInPool } from "../src/sim/standInPool";
+import { decodeStarred, standInPool } from "../src/sim/standInPool";
 import { playerBuild, playerRun, refeedRoute, type PlayerOpts } from "../src/sim/harness/player";
 import { RATING_CLIFF, RATING_CURVE, rateDeck } from "../src/sim/deckRating";
 import { RIVALS, RIVAL_IDS, deckCost, difficultyOf, honestReference, rivalBuild, rivalDays, standInBuild, type RivalId } from "../src/sim/rivals";
@@ -192,12 +193,16 @@ const ciTxt = (c: [number, number] | null): string => (c ? `[${pc(Math.max(0, c[
 
 /** --pool: the shipped stand-in pool (v2.1) against the par field of both heroes, per hero-day: each pick's win rate
  *  against each hero's field (PAR_SEEDS x both sides per member), vsPar = the lower of the two (the generator's floor
- *  rule), the mean over the picks with its 95% t-interval (the pick is the unit), and the pooled Wilson rate per hero. */
-async function poolMode(days: number[], run: Runner, out: string, opts: PlayerOpts, k: number, tag: string): Promise<void> {
+ *  rule), the mean over the picks with its 95% t-interval (the pick is the unit), and the pooled Wilson rate per hero.
+ *  Step 5: --pool-data <file> measures the picks of that data module instead (a dry candidate: every stored code, read
+ *  by the game's loader decodeStarred), with the same seeds, so two pools compare pick for pick. */
+async function poolMode(days: number[], run: Runner, out: string, opts: PlayerOpts, k: number, tag: string, data?: string): Promise<void> {
   const rows: unknown[] = [];
+  const written = data ? writtenPicks(readFileSync(resolve(data), "utf8")) : undefined;
+  if (written && !written.length) throw new Error(`--pool-data ${data}: no picks in that file`);
   for (const day of days) {
     for (const hero of HEROES) {
-      const picks = standInPool(hero, day).map((e) => e.build);
+      const picks = written ? written.filter((w) => w.hero === hero && w.day === day).map((w) => decodeStarred(hero, w.code)) : standInPool(hero, day).map((e) => e.build);
       const res = await vsPar(picks, HEROES, day, run, { key: "par-pool", k, player: opts });
       const vp = res.map((r) => Math.min(...HEROES.map((h) => r[h].rate)));
       const m = meanCI(vp);
@@ -1338,7 +1343,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--spend")) spendMode(days, out, opts, k, tag);
   if (process.argv.includes("--mix")) mixMode(days, out, opts, k, tag);
   if (process.argv.includes("--pct")) await pctMode(days, pool.run, out, cache, opts, k, tag);
-  if (process.argv.includes("--pool")) await poolMode(days, pool.run, out, opts, k, tag);
+  if (process.argv.includes("--pool")) await poolMode(days, pool.run, out, opts, k, tag, flag("pool-data"));
   if (process.argv.includes("--rivals")) await rivalsMode(days, pool.run, pool.detail, out, cache, opts, k, num("seeds", 4), num("tq-seeds", 20), tag);
   if (process.argv.includes("--ladder")) await ladderMode(days, pool.run, out, k, num("seeds", 4), tag);
   if (process.argv.includes("--desk")) await deskMode(pool.run, out, k, num("seeds", 10));
