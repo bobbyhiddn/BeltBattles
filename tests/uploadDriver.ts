@@ -9,16 +9,25 @@
 // It mirrors the build screen's guards (src/screens/build/actions.ts): gear goes only to a free hardpoint, a
 // placed item only where canPlaceItem allows, the signature factory stays aboard, moving never fuses; and, as
 // the FIGHT button does (routeCheck.ts fightBlock), a deck with a broken belt is refitted before dusk.
+//
+// v070-validate-062m (M5, 7bcde98): it also plays the 0.6.2 mechanics through the real functions. TURRETS
+// (REQ-BFG-031): it buys them from the caravan (buyOffer, into cargo, as turretActions.ts buyTurret does), installs
+// them in any slot, an occupied one as a swap (run.ts installFromCargo), moves, swaps, stores and sells installed
+// ones (moveInstalled, storeTurret, sellInstalled; sellInventory in cargo), and puts gear only where canFitGear
+// allows (actions.ts), cores only on an installed turret (fitCore). BELT JOINS (REQ-BFG-027): some belts are drawn
+// to end by joining another belt (canJoin, then commitRoute with the join, as the editor does), and some existing
+// belts are rejoined (joinTiles, setJoin). Each run counts what it did (DriverRun.ops).
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, REROLL_COST, RUN_DAYS, type HeroId } from "../src/sim/content";
 import {
-  canExtend, canPlaceItem, cloneBuild, commitRoute, connectorFree, gearFor, isRig, key, kx, ky, moveItem, occupancy,
-  placeItem, removeRoute, rotField, routesOf, setRot, footprint, type Build,
+  canExtend, canFitGear, canJoin, canPlaceItem, cloneBuild, commitRoute, connectorFree, hullSlots, isRig, joinTiles, key, kx, ky,
+  moveItem, occupancy, placeItem, removeRoute, rotField, routesOf, setJoin, setRot, footprint, turretSlots, type Build,
 } from "../src/sim/deck";
 import { outputsAt, starField, starsOf } from "../src/sim/stars";
 import {
-  buyOffer, fitCore, newRun, reroll, rotateRig, sellInventory, storeMod, storePlaced, takeFromInventory, type Run,
+  buyOffer, fitCore, installFromCargo, moveInstalled, newRun, reroll, rotateRig, sellInstalled, sellInventory, storeMod,
+  storePlaced, storeTurret, takeFromInventory, type Run,
 } from "../src/game/run";
 import { choicesFor, eventFor, pickChoice } from "../src/game/events";
 import { finishWarlord, leaveCaravan, pickPending, pickRoad, todaysWarlord, takePart } from "../src/game/road";
@@ -53,7 +62,14 @@ export interface DriverRun {
   hero: HeroId;
   dusks: Dusk[];
   run: Run; // the finished run (its events and warlords logs, for coverage counts)
+  ops: Record<string, number>; // 062m: what the run did with turrets and joins (buy, install, swap, move, store, sell, join)
 }
+
+/** This run's operation counts (reset by driveRun). */
+let OPS: Record<string, number> = {};
+const bump = (op: string, n = 1): void => {
+  OPS[op] = (OPS[op] ?? 0) + n;
+};
 
 /** Up to `tries` random cells where `def` may stand (canPlaceItem, the editor's rule); a rig also gets a rotation. */
 function randomCell(b: Build, def: string, rng: Rng, tries = 10, ignoreUid = -1): { x: number; y: number; rot?: number } | null {
@@ -65,26 +81,83 @@ function randomCell(b: Build, def: string, rng: Rng, tries = 10, ignoreUid = -1)
   return null;
 }
 
-/** A turret whose hardpoint is free (gear only; actions.ts refuses "ONE PIECE OF GEAR PER TURRET"), or -1. */
-function freeHardpoint(b: Build, rng: Rng): number {
-  const free = HEROES[b.hero].turrets.map((_, t) => t).filter((t) => !gearFor(b, t));
-  return free.length ? rng.pick(free) : -1;
+/** A turret slot where gear `def` may go (actions.ts's rule, deck.ts canFitGear: an installed turret with a free
+ *  gear slot that holds no copy of `def`), or -1. */
+function gearSlot(b: Build, def: string, rng: Rng): number {
+  const ok = hullSlots(b.hero).map((_, t) => t).filter((t) => canFitGear(b, t, def).ok);
+  return ok.length ? rng.pick(ok) : -1;
+}
+
+/** An installed turret's slot (a core's socket; fitCore refuses an empty slot), or -1. */
+function installedSlot(b: Build, rng: Rng): number {
+  const ok = turretSlots(b).filter((s) => s.turret).map((s) => s.slot);
+  return ok.length ? rng.pick(ok) : -1;
+}
+
+/** Install cargo turret `uid` in a random slot of the hull (an occupied slot swaps: its turret goes to cargo). */
+function installSome(run: Run, rng: Rng, uid: number): void {
+  const slot = rng.int(hullSlots(run.hero).length);
+  const occupied = !!turretSlots(run.build)[slot]?.turret;
+  if (installFromCargo(run, uid, slot).ok) bump(occupied ? "turret swap in" : "turret install");
 }
 
 /** Buy one offer the way the caravan does: supplies on the spot; a module to cargo, onto a deck cell or onto a
- *  turret (buyOffer's drop target; a buy that merges into a placed twin ignores the target, as the UI does). */
+ *  turret (buyOffer's drop target; a buy that merges into a placed twin ignores the target, as the UI does).
+ *  062m: a turret is bought into cargo (merging with a copy the player holds) and mostly installed at once. */
 function buyOne(run: Run, rng: Rng, wagon: number, slot: number): boolean {
   const o = run.shop.wagons[wagon].offers[slot];
   const d = ITEMS[o.def];
+  if (d.kind === "turret") {
+    const res = buyOffer(run, wagon, slot);
+    if (!res.ok) return false;
+    bump(res.gain?.steps.length ? "turret buy (merged)" : "turret buy");
+    if (res.gain?.where === "cargo" && rng.chance(0.75)) installSome(run, rng, res.gain.survivor);
+    return true;
+  }
   let at: GainAt | undefined;
   if (d.kind !== "supply" && rng.chance(0.6)) {
     if (d.kind === "gate" || d.kind === "factory") at = randomCell(run.build, o.def, rng) ?? undefined;
     else if (d.kind === "mod") {
-      const t = freeHardpoint(run.build, rng);
+      const t = gearSlot(run.build, o.def, rng);
       if (t >= 0) at = { turret: t };
-    } else if (d.kind === "core") at = { turret: rng.int(HEROES[run.hero].turrets.length) };
+    } else if (d.kind === "core") {
+      const t = installedSlot(run.build, rng);
+      if (t >= 0) at = { turret: t };
+    }
   }
   return buyOffer(run, wagon, slot, at).ok;
+}
+
+/** One turret operation on the hull: install a cargo turret, move or swap an installed one, store it, sell it. */
+function turretOp(run: Run, rng: Rng, sell: boolean): void {
+  const slots = turretSlots(run.build);
+  const installed = slots.filter((s) => s.turret).map((s) => s.slot);
+  const cargo = run.inventory.filter((i) => ITEMS[i.def]?.kind === "turret");
+  const a = rng.next();
+  if (a < 0.35 && cargo.length) installSome(run, rng, rng.pick(cargo).uid);
+  else if (a < 0.65 && installed.length) {
+    const from = rng.pick(installed), to = rng.int(slots.length);
+    const swap = !!slots[to]?.turret && to !== from;
+    if (moveInstalled(run, from, to).ok && to !== from) bump(swap ? "turret swap slots" : "turret move");
+  } else if (a < 0.85 && installed.length) {
+    if (storeTurret(run, rng.pick(installed)).ok) bump("turret store");
+  } else if (sell && installed.length) {
+    if (sellInstalled(run, rng.pick(installed)) > 0) bump("turret sell (installed)");
+  } else if (sell && cargo.length) {
+    if (sellInventory(run, rng.pick(cargo).uid) > 0) bump("turret sell (cargo)");
+  }
+}
+
+/** Rejoin an existing belt: from its last cell into a tile of another belt (deck.ts joinTiles, setJoin). */
+function joinSome(run: Run, rng: Rng): void {
+  const b = run.build;
+  const cands = rng.shuffle(b.routes.map((_, i) => i).filter((i) => b.routes[i].join === undefined));
+  for (const i of cands.slice(0, 4)) {
+    const tiles = joinTiles(b, i);
+    if (!tiles.length) continue;
+    if (setJoin(b, i, rng.pick(tiles)) === null) bump("join set");
+    return;
+  }
 }
 
 function affordable(run: Run): { wagon: number; slot: number }[] {
@@ -107,13 +180,14 @@ function placeFromCargo(run: Run, rng: Rng): void {
     const got = takeFromInventory(run, it.uid);
     if (got) placeItem(b, { uid: got.uid, def: got.def, x: c.x, y: c.y, ...starField(starsOf(got)), ...rotField(got.def, c.rot ?? 0) });
   } else if (d.kind === "mod") {
-    const t = freeHardpoint(b, rng);
+    const t = gearSlot(b, it.def, rng);
     if (t < 0) return;
     const got = takeFromInventory(run, it.uid);
     if (got) b.mods.push({ uid: got.uid, def: got.def, turret: t, ...starField(starsOf(got)) });
   } else if (d.kind === "core") {
-    fitCore(run, it.uid, rng.int(HEROES[run.hero].turrets.length));
-  }
+    const t = installedSlot(b, rng);
+    if (t >= 0) fitCore(run, it.uid, t);
+  } else if (d.kind === "turret") installSome(run, rng, it.uid);
 }
 
 /** A deck-to-cargo move: a placed item (never a signature factory) or turret equipment. */
@@ -141,16 +215,33 @@ function moveSome(run: Run, rng: Rng): void {
 /**
  * Draw a belt from a factory that has an output free to a free turret connector: a shortest path over free
  * cells (no machinery, no belt), within the belt left, then checked step by step with canExtend (the editor's
- * rule) before commitRoute.
+ * rule) before commitRoute. 062m: sometimes (`joinP`) the belt instead ends beside another belt and joins it, if
+ * canJoin (the editor's check for a belt that steps into a belt tile) allows; commitRoute then carries the join.
  */
-function drawRoute(run: Run, rng: Rng): void {
+function drawRoute(run: Run, rng: Rng, joinP = 0.4): void {
   const b = run.build;
   const factories = b.items.filter((p) => ITEMS[p.def].kind === "factory" && routesOf(b, p.uid).length < (outputsAt(p.def, starsOf(p)) || 1));
   if (!factories.length) return;
   const f = rng.pick(factories);
   const occ = occupancy(b);
   const free = (k: number) => occ[k].item < 0 && occ[k].route < 0;
-  const target = (k: number) => ky(k) === 0 && connectorFree(b, kx(k), -1);
+  const wantJoin = b.routes.length > 0 && rng.chance(joinP);
+  let joinTile = -1;
+  /** A belt tile next to k that a belt ending at k could join (canJoin checks it after the path is drawn). */
+  const joinAt = (k: number): number => {
+    if (!wantJoin) return -1;
+    const near: number[] = [];
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const x = kx(k) + dx, y = ky(k) + dy;
+      if (x >= 0 && y >= 0 && x < GRID && y < GRID && occ[key(x, y)].route >= 0) near.push(key(x, y));
+    }
+    return near.length ? rng.pick(near) : -1;
+  };
+  const target = (k: number) => {
+    if (ky(k) === 0 && connectorFree(b, kx(k), -1)) return true;
+    joinTile = joinAt(k);
+    return joinTile >= 0;
+  };
   const fp = new Set(footprint(ITEMS[f.def], f.x, f.y));
   const starts: number[] = [];
   for (const k of fp) {
@@ -189,6 +280,12 @@ function drawRoute(run: Run, rng: Rng): void {
     if (!chk.ok) return;
     pending.push(k);
   }
+  if (joinTile >= 0) {
+    if (!canJoin(b, f.uid, pending, joinTile, -1).ok) return;
+    commitRoute(b, f.uid, pending, -1, joinTile);
+    bump("join drawn");
+    return;
+  }
   commitRoute(b, f.uid, pending, -1);
 }
 
@@ -196,27 +293,30 @@ function drawRoute(run: Run, rng: Rng): void {
  *  a road stop that costs gold: a bet, the dock, the herald, the smuggler). */
 function caravan(run: Run, rng: Rng, reserve: number): void {
   const spend = () => affordable(run).filter((o) => run.shop.wagons[o.wagon].offers[o.slot].price <= run.gold - reserve);
-  const n = 3 + rng.int(10);
+  const n = 3 + rng.int(12);
   for (let i = 0; i < n; i++) {
     const a = rng.next();
-    if (a < 0.4) {
+    if (a < 0.36) {
       const list = spend();
       if (list.length) {
         const o = rng.pick(list);
         buyOne(run, rng, o.wagon, o.slot);
       }
-    } else if (a < 0.55) placeFromCargo(run, rng);
-    else if (a < 0.62) {
+    } else if (a < 0.48) placeFromCargo(run, rng);
+    else if (a < 0.54) {
       if (run.shop.free > 0 || run.gold >= REROLL_COST) reroll(run);
-    } else if (a < 0.67) {
+    } else if (a < 0.58) {
       if (run.inventory.length) sellInventory(run, rng.pick(run.inventory).uid);
-    } else if (a < 0.72) storeSome(run, rng);
-    else if (a < 0.77) {
+    } else if (a < 0.62) storeSome(run, rng);
+    else if (a < 0.66) {
       const rigs = run.build.items.filter((p) => isRig(p.def));
       if (rigs.length) rotateRig(run, rng.pick(rigs).uid);
-    } else if (a < 0.82) moveSome(run, rng);
-    else if (a < 0.95) drawRoute(run, rng);
-    else if (run.build.routes.length && rng.chance(0.3)) removeRoute(run.build, rng.int(run.build.routes.length));
+    } else if (a < 0.70) moveSome(run, rng);
+    else if (a < 0.82) drawRoute(run, rng);
+    else if (a < 0.85) {
+      if (run.build.routes.length && rng.chance(0.3)) removeRoute(run.build, rng.int(run.build.routes.length));
+    } else if (a < 0.95) turretOp(run, rng, true); // 062m: turrets (install, swap, move, store, sell)
+    else joinSome(run, rng); // 062m: belt joins
   }
   if (rng.chance(0.85)) {
     for (let guard = 0; guard < 40; guard++) {
@@ -317,11 +417,14 @@ function reserveFor(run: Run, rng: Rng, policy: RoadPolicy): number {
   return 0;
 }
 
-/** REFIT after the road (no shop): road parts from cargo go onto the deck, a few moves. */
+/** REFIT after the road (no shop): road parts from cargo go onto the deck, a few moves. 062m: turrets can be
+ *  installed, moved and stored there too (never sold: the caravan has moved on), and belts joined. */
 function refit(run: Run, rng: Rng): void {
   for (let k = 0; k < 6; k++) placeFromCargo(run, rng);
   if (rng.chance(0.3)) moveSome(run, rng);
+  if (rng.chance(0.2)) turretOp(run, rng, false);
   if (rng.chance(0.4)) drawRoute(run, rng);
+  if (rng.chance(0.15)) joinSome(run, rng);
 }
 
 /** FIGHT is blocked while a belt is broken or goes nowhere (routeCheck.ts): the player refits it away. */
@@ -335,6 +438,7 @@ function unblock(run: Run): void {
 
 /** One seeded run of `hero`, all ten days (the driver keeps a life in hand, so every run reaches day 10). */
 export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed"): DriverRun {
+  OPS = {};
   const rng = new Rng(hashSeed("v070-driver", seed, hero, policy));
   const run = newRun(hero, hashSeed("v070-run", seed, hero), `drv-${seed}-${hero}`);
   const dusks: Dusk[] = [];
@@ -349,7 +453,7 @@ export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed
     const winner = run.lives <= 1 || r < 0.8 ? 0 : r < 0.95 ? 1 : -1;
     finishDay(run, winner, 20 + day, ZERO, ZERO);
   }
-  return { seed, hero, dusks, run };
+  return { seed, hero, dusks, run, ops: OPS };
 }
 
 /** `n` runs, heroes in turn (run i plays DRIVER_HEROES[i % 6] on seed seed0 + i). */

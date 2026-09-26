@@ -12,13 +12,31 @@ import { AUDIT_PATHS, DRIVER_HEROES, driveRuns, errorKind, type DriverRun } from
 const RUNS = Number(process.env.V070_DRIVER_RUNS ?? 2400); // 400 per hero
 const PATH_RUNS = Number(process.env.V070_DRIVER_PATH_RUNS ?? 36);
 
-interface Tally { decks: number; strict: number; strictKinds: Map<string, number>; player: string[]; extra: number[]; room: number[] }
+interface Tally {
+  decks: number; strict: number; strictKinds: Map<string, number>; player: string[]; extra: number[]; room: number[];
+  // 062m (M5 recheck 5): the 0.6.2 mechanics on the dusk decks, and the player/strict cost parity
+  bought: number; freeMerged: number; turretCost: number; joined: number; joins: number; parity: string[]; ops: Map<string, number>;
+}
 
 function tally(runs: DriverRun[]): Tally {
-  const t: Tally = { decks: 0, strict: 0, strictKinds: new Map(), player: [], extra: new Array(RUN_DAYS + 1).fill(-Infinity), room: new Array(RUN_DAYS + 1).fill(Infinity) };
+  const t: Tally = {
+    decks: 0, strict: 0, strictKinds: new Map(), player: [], extra: new Array(RUN_DAYS + 1).fill(-Infinity), room: new Array(RUN_DAYS + 1).fill(Infinity),
+    bought: 0, freeMerged: 0, turretCost: 0, joined: 0, joins: 0, parity: [], ops: new Map(),
+  };
   for (const r of runs) {
+    for (const [op, n] of Object.entries(r.ops)) t.ops.set(op, (t.ops.get(op) ?? 0) + n);
     for (const d of r.dusks) {
       t.decks++;
+      const list = d.build.turrets ?? [];
+      if (list.some((x) => !x.free)) t.bought++;
+      if (list.some((x) => x.free && (x.stars ?? 1) > 1)) t.freeMerged++;
+      if ((buildCost(d.build).turrets ?? 0) > 0) t.turretCost++;
+      const j = d.build.routes.filter((x) => x.join !== undefined).length;
+      if (j) t.joined++;
+      t.joins += j;
+      // recheck 1 on every deck: on the shop's grid the player mode costs the deck exactly as buildCost does
+      const plain = playerFits(d.build, d.day, buildCost(d.build)).fits.find((f) => f.mix.key === "");
+      if (plain && plain.cost !== buildCost(d.build).total) t.parity.push(`${r.hero} #${r.seed} d${d.day}: player ${plain.cost} vs buildCost ${buildCost(d.build).total}`);
       const s = validateBuild(d.build, d.day);
       if (!s.ok) {
         t.strict++;
@@ -46,7 +64,10 @@ describe("v070 M3: the upload driver through both modes", () => {
     console.log(`v070 driver: ${runs.length} runs (${[...heroes].join(", ")}), ${t.decks} dusk decks; strict refused ${t.strict}, player refused ${t.player.length}\n`
       + [...t.strictKinds].sort((a, b) => b[1] - a[1]).map(([k, n]) => `  strict ${n} x ${k}`).join("\n")
       + `\n  day: roadCap | most road value seen on a shop-grid deck (cost - maxGoldByDay) | least room left under the player ceiling\n`
-      + Array.from({ length: RUN_DAYS }, (_, i) => `  d${i + 1}: ${roadCap(i + 1)} | ${t.extra[i + 1]} | ${t.room[i + 1]}`).join("\n"));
+      + Array.from({ length: RUN_DAYS }, (_, i) => `  d${i + 1}: ${roadCap(i + 1)} | ${t.extra[i + 1]} | ${t.room[i + 1]}`).join("\n")
+      + `\n  062m mechanics on the dusk decks: ${t.bought} with a bought turret installed, ${t.freeMerged} with a starting turret merged up,`
+      + ` ${t.turretCost} with turret value in buildCost, ${t.joined} with a joined belt (${t.joins} joins); player/strict cost mismatches ${t.parity.length}\n`
+      + `  operations over all runs: ${[...t.ops].sort().map(([k, n]) => `${k} ${n}`).join(", ")}`);
     expect(runs.length).toBeGreaterThanOrEqual(2000);
     expect(heroes).toEqual(new Set(DRIVER_HEROES));
     expect(t.decks).toBe(runs.length * RUN_DAYS); // all ten dusks of every run
@@ -55,6 +76,14 @@ describe("v070 M3: the upload driver through both modes", () => {
     expect([...t.strictKinds.keys()].some((k) => k.startsWith("budget:"))).toBe(true);
     expect([...t.strictKinds.keys()].some((k) => k.startsWith("supply: hullBonus"))).toBe(true);
     for (let d = 1; d <= RUN_DAYS; d++) expect(t.room[d]).toBeGreaterThanOrEqual(0);
+    // 062m recheck 5: the driver really plays the turrets and the joins, and the player mode costs them as strict does
+    expect(t.parity.slice(0, 5)).toEqual([]);
+    expect(t.bought).toBeGreaterThan(t.decks / 20);
+    expect(t.turretCost).toBeGreaterThan(t.decks / 20);
+    expect(t.freeMerged).toBeGreaterThan(0);
+    expect(t.joined).toBeGreaterThan(t.decks / 50);
+    for (const op of ["turret buy", "turret buy (merged)", "turret install", "turret swap in", "turret move", "turret swap slots", "turret store",
+      "turret sell (installed)", "turret sell (cargo)", "join drawn", "join set"]) expect(t.ops.get(op) ?? 0, op).toBeGreaterThan(0);
   }, 900_000);
 
   it("each isolated road path of the M1 audit: the player mode refuses none", () => {
