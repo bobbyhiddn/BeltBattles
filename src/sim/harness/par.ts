@@ -10,6 +10,7 @@
 import { hashSeed } from "../../core/rng";
 import type { HeroId } from "../content";
 import type { Build } from "../deck";
+import { PLAYABLE_HEROES } from "../heroBuilds";
 import { heroRefBuild } from "./heroes";
 import { playerBuild, type PlayerOpts } from "./player";
 import type { Job, Runner } from "./tournament";
@@ -32,11 +33,19 @@ export function parField(hero: HeroId, day: number, k = PAR_K, player: PlayerOpt
 }
 
 /**
+ * The par source a hero actually has. The par player plays a real run, so it plays the game's playable heroes
+ * (PLAYABLE_HEROES: furnace, weaver); every other harness hero (the race heroes of the balance tournament) keeps the
+ * legacy par deck, heroRefBuild.
+ */
+export const parSourceFor = (hero: HeroId, source: ParSource): ParSource =>
+  source === "field" && PLAYABLE_HEROES.includes(hero) ? "field" : "heroref";
+
+/**
  * THE par of (hero, day), as the decks a par-relative check measures against. "field" (default): the par field;
  * "heroref": [heroRefBuild(hero, day)], the legacy par deck. A win rate "vs par" is the mean over these decks.
  */
 export function parRefs(hero: HeroId, day: number, source: ParSource = "field", k = PAR_K, player: PlayerOpts = {}): Build[] {
-  return source === "heroref" ? [heroRefBuild(hero, day)] : parField(hero, day, k, player);
+  return parSourceFor(hero, source) === "heroref" ? [heroRefBuild(hero, day)] : parField(hero, day, k, player);
 }
 
 /** Points to a win rate: a Runner returns points over 2 x seeds battles per job. */
@@ -75,6 +84,15 @@ export async function parDeck(hero: HeroId, day: number, run: Runner, k = PAR_K,
   const strength = await roundRobin(field, (i, j) => Array.from({ length: seeds }, (_, s) => hashSeed("par-field", hero, day, i, j, s)), run);
   const index = medianIndex(strength);
   return { hero, day, index, seed: parSeeds(k)[index], build: field[index], strength };
+}
+
+/**
+ * THE par as one deck, for a check that needs a single deck (the balance report's Reference line, tournament.ts
+ * calibration): the par deck (parDeck: the field's member of median strength) for "field", heroRefBuild for "heroref"
+ * (and for a hero the par player doesn't play, parSourceFor).
+ */
+export async function parReference(hero: HeroId, day: number, run: Runner, source: ParSource = "field"): Promise<Build> {
+  return parSourceFor(hero, source) === "field" ? (await parDeck(hero, day, run)).build : heroRefBuild(hero, day);
 }
 
 /** One deck's result against one hero's par: its win rate over every member, and the members' own rates. */

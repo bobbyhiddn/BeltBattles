@@ -4,10 +4,11 @@ import { describe, expect, it } from "vitest";
 import { ITEMS, REROLL_COST } from "../src/sim/content";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
 import { PLAYER_DAYS, knobsOf, playerBuild, playerRun } from "../src/sim/harness/player";
-import { PAR_K, medianIndex, parField, parRefs, parSeeds } from "../src/sim/harness/par";
+import { PAR_K, medianIndex, parDeck, parField, parReference, parRefs, parSeeds, parSourceFor } from "../src/sim/harness/par";
 import { heroRefBuild } from "../src/sim/harness/heroes";
+import { balanceMarkdown } from "../src/sim/harness/report";
 import { STANDIN_DEFAULTS, dataModuleText, genStandIns, standInCommand, standInRefs } from "../src/sim/harness/standins";
-import type { Runner } from "../src/sim/harness/tournament";
+import { DEFAULT_OPTS, localRunner, runTournament, type Runner, type TourneyOpts } from "../src/sim/harness/tournament";
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -117,6 +118,31 @@ describe("par field (par.ts): the par of a hero and day is K par-player decks", 
     for (const hd of res.days) for (const c of hd.pop) expect([c.vsRef.furnace, c.vsRef.weaver], `${hd.hero} d${hd.day}`).toEqual([0.5, 0.5]);
     expect(dataModuleText(tiny, res.days)).toContain("--par field");
   }, 60_000);
+
+  it("parSourceFor: the par player plays the playable heroes; race heroes keep heroRefBuild", () => {
+    expect(parSourceFor("furnace", "field")).toBe("field");
+    expect(parSourceFor("weaver", "field")).toBe("field");
+    expect(parSourceFor("foundry", "field")).toBe("heroref");
+    expect(parSourceFor("weaver", "heroref")).toBe("heroref");
+    expect(parRefs("foundry", 5)).toEqual([heroRefBuild("foundry", 5)]);
+  });
+
+  it("the balance report's Reference is parReference: the par deck with par \"field\", heroRefBuild when absent", async () => {
+    const o: TourneyOpts = { ...DEFAULT_OPTS, heroes: ["furnace", "weaver", "foundry"], days: [1], calibrationDays: [1], pop: 3, gauntlet: 2, seeds: 1, elites: 1 };
+    const field = await runTournament({ ...o, par: "field" }, localRunner);
+    for (const h of HEROES) {
+      const deck = await parDeck(h, 1, localRunner);
+      expect(field.days[0].calibration![h].build).toEqual(deck.build);
+      expect(await parReference(h, 1, localRunner)).toEqual(deck.build);
+      expect(await parReference(h, 1, localRunner, "heroref")).toEqual(heroRefBuild(h, 1));
+    }
+    expect(field.days[0].calibration!.foundry.build).toEqual(heroRefBuild("foundry", 1)); // no par player for race heroes
+    const md = (r: typeof field) => balanceMarkdown(r, { runtimeMs: 1, workers: 1, command: "test", perDayMs: {} });
+    expect(md(field)).toContain("Reference = the par deck, par.ts parReference");
+    const legacy = await runTournament(o, localRunner); // absent: the legacy Reference, exactly
+    for (const h of o.heroes) expect(legacy.days[0].calibration![h].build).toEqual(heroRefBuild(h, 1));
+    expect(md(legacy)).toContain("Reference = heroRefBuild(hero, day)");
+  }, 120_000);
 
   it("medianIndex takes the lower median, ties to the lower index", () => {
     expect(medianIndex([0.9, 0.1, 0.5])).toBe(2);

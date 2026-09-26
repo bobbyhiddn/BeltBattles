@@ -96,7 +96,10 @@ export function balanceMarkdown(res: TourneyResult, meta: RunMeta): string {
     }
   }
   L.push("", "## Calibration: the reference build inside its hero's population", "");
-  L.push("Reference = heroRefBuild(hero, day) from src/sim/heroBuilds.ts (honest: nearest-plate plating, within maxGoldByDay).");
+  // FB-C: the Reference comes from par.ts parReference (res.opts.par; absent = heroref, the legacy line exactly)
+  L.push(res.opts.par === "field"
+    ? "Reference = the par deck, par.ts parReference: the par player's field (playerBuild, seeds 1-12, a real run bound by the caravan's luck) and its member of median strength; heroes the par player doesn't play keep heroRefBuild(hero, day)."
+    : "Reference = heroRefBuild(hero, day) from src/sim/heroBuilds.ts (honest: nearest-plate plating, within maxGoldByDay).");
   L.push("Rank 1 = beats every random build of its hero against the same gauntlet. Spend: reference gold / population median [min-max].", "");
   const cal = res.days.filter((d) => d.calibration);
   L.push(`| hero | ${cal.map((d) => `day ${d.day}`).join(" | ")} |`, `|---|${cal.map(() => "---").join("|")}|`);

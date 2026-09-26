@@ -1,6 +1,8 @@
 // Balance harness v1 CLI: npm run balance -- [--pop 40] [--seeds 2] [--gauntlet 20] [--elites 8]
-//   [--days 1,3,5,7,10] [--seed 1] [--workers N] [--out ../output]
+//   [--days 1,3,5,7,10] [--seed 1] [--workers N] [--out ../output] [--par field|heroref]
 // Writes <out>/balance-v1.md and <out>/balance-v1.json. Every run day is also a calibration day.
+// FB-C: the calibration's Reference is THE par (par.ts parReference): --par field (default) = the par deck, the median
+// member of the par player's field; --par heroref = the legacy heroRefBuild.
 // Battles fan out to worker threads (node:worker_threads, this same bundled file); results are
 // keyed by job, so the output is identical for any --workers value (1 runs in-process).
 //   npm run balance -- --compare a/balance-v1.json b/balance-v1.json
@@ -63,8 +65,13 @@ async function main(): Promise<void> {
   const factoriesFlag = flag("factories") ?? starsFlag;
   if (factoriesFlag !== "on" && factoriesFlag !== "off") throw new Error(`--factories must be "on" or "off", got ${factoriesFlag}`);
   if (factoriesFlag === "on" && starsFlag === "off") throw new Error("--factories on needs --stars on (stars off is harness v1 exactly: the STAMP PRESS alone)");
+  // FB-C (REQ-BFG-026): --par field (default: the calibration's Reference is the par deck, par.ts parReference) or
+  // heroref (the legacy heroRefBuild Reference)
+  const parFlag = flag("par") ?? "field";
+  if (parFlag !== "field" && parFlag !== "heroref") throw new Error(`--par must be "field" or "heroref", got ${parFlag}`);
   const o: TourneyOpts = {
     ...DEFAULT_OPTS,
+    par: parFlag,
     seed: num("seed", DEFAULT_OPTS.seed),
     pop: num("pop", DEFAULT_OPTS.pop),
     seeds: num("seeds", DEFAULT_OPTS.seeds),

@@ -18,6 +18,7 @@ import { buildTraits, type Traits } from "./levers";
 import { rigValues, type RigValue } from "./rigs";
 import { fixedSpeedCells, isSpeedGate, type Cores, type Factories, type SlagCount, type Stars } from "./shopper";
 import { meanCI, wilson, type Rate } from "./stats";
+import { parReference, type ParSource } from "./par";
 
 export interface TourneyOpts {
   seed: number;
@@ -37,6 +38,10 @@ export interface TourneyOpts {
   // factory copy that merges at once; only with stars on. Absent = "off" (part 2's exact path for every
   // pre-existing caller); the CLI's --factories defaults to the --stars value (tools/balance.ts).
   factories?: Factories;
+  // FB-C (REQ-BFG-026): the calibration's Reference deck, through par.ts parReference. "field": the par deck (the
+  // median member of the par player's field; heroes the par player doesn't play keep heroRefBuild). Absent or
+  // "heroref": heroRefBuild (every pre-existing caller and test). The CLI's --par defaults to "field".
+  par?: ParSource;
 }
 
 export const DEFAULT_OPTS: TourneyOpts = {
@@ -407,7 +412,7 @@ export async function runDay(o: TourneyOpts, day: number, run: Runner, detail: D
       field.push({ hero, idx: i, ref: false, build, cost: buildCost(build).total, score: blank });
     }
     if (o.calibrationDays.includes(day)) {
-      const build = heroRefBuild(hero, day);
+      const build = await parReference(hero, day, run, o.par ?? "heroref"); // FB-C: THE par, one deck (par.ts)
       field.push({ hero, idx: -1, ref: true, build, cost: buildCost(build).total, score: blank });
     }
   }
