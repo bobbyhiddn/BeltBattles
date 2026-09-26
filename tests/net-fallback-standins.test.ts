@@ -6,8 +6,10 @@ import { STAND_IN_HEROES, fallbackGhost, offlineGhost, rivalHero } from "../src/
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { generateSamplePool } from "../tools/samplePool";
 import { pickLoss } from "./beltside.helpers";
+import { POOL_LEGACY, pickEntry } from "./standInPool.helpers";
 
-// The offline fallback draws its stand-ins from the bundled full-purse stand-in pool.
+// The offline fallback draws its stand-ins from the bundled stand-in pool (full purse up to pool v2.1; since step 5
+// caravan-bound, each pick having spent at least 90% of the day's gold).
 
 describe("fallback stand-ins", () => {
   it("every playable hero has stand-in decks (standInPick throws for a hero outside the pool)", () => {
@@ -25,8 +27,15 @@ describe("fallback stand-ins", () => {
           expect(g.snapshot.build.hero).toBe(g.snapshot.hero);
           expect(HEROES[g.snapshot.hero].faction).not.toBe(HEROES[hero].faction);
           expect(g.snapshot.build).toEqual(standInPick(rivalHero(hero, seed), day, seed));
-          // 0.6.2 BELTSIDE: full purse as generated; as loaded it lacks only what D3 dropped (beltside.helpers)
-          expect(buildCost(g.snapshot.build).total + pickLoss(g.snapshot.hero, day, seed)).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day)));
+          // 0.6.2 BELTSIDE: as generated; as loaded the deck lacks only what D3 dropped (beltside.helpers). Step 5 M5
+          // (decision D2): the floor applies to the pool entry's gold spent; the deck's value (buildCost) as generated is
+          // its stored cost, at most maxGoldByDay
+          const e = pickEntry(g.snapshot.hero, day, seed), value = buildCost(g.snapshot.build).total + pickLoss(g.snapshot.hero, day, seed);
+          expect(e.spent, `${hero} d${day} seed ${seed}`).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day)));
+          expect(e.spent).toBeLessThanOrEqual(maxGoldByDay(day));
+          expect(value).toBe(e.cost);
+          expect(value).toBeLessThanOrEqual(maxGoldByDay(day));
+          if (POOL_LEGACY) expect(value).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day))); // pool v2.1: the deck itself
         }
       }
     }

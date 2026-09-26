@@ -10,9 +10,16 @@ import { migrateRun, newRun } from "../src/game/run";
 import { startingBuild } from "../src/sim/ai";
 import { RULES_VERSION } from "../src/sim/content";
 import { startingTurrets, turretSlots, type Build, type BuildTurret } from "../src/sim/deck";
+import { decodeStarred } from "../src/sim/standInPool";
 import { generateSamplePool } from "../tools/samplePool";
+import { SAMPLE_POOL_V21 } from "./fixtures/samplePool.v2.1";
+import { POOL_LEGACY } from "./standInPool.helpers";
 
 const POOL = generateSamplePool();
+/** Step 5 M5: the sample pool as pool v2.1 gave it: generateSamplePool's snapshots (records, ids, times) with the decks
+ *  frozen in tests/fixtures/samplePool.v2.1.ts, so the old-snapshot test keeps testing turret-less snapshots whatever
+ *  pool is committed (a caravan-bound pool's decks may carry Build.turrets). While v2.1 is committed it is POOL. */
+const POOL_V21 = POOL.map((s) => net.checkSnapshot({ ...s, build: decodeStarred(s.hero, SAMPLE_POOL_V21[s.hero as "furnace" | "weaver"][Number(s.playerId.slice(-1))][s.day - 1]) }));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 function netOk(s: unknown): boolean {
@@ -54,10 +61,12 @@ function snapWith(turrets: unknown, v: 1 | 2 = 2): net.GhostSnapshot {
 }
 
 describe("turret slots in snapshots: old snapshots are untouched", () => {
-  it("every sample-pool snapshot (and its v1 copy where legal) encodes byte-for-byte as before and decodes identically", () => {
+  it("every sample-pool snapshot of pool v2.1 (its decks frozen; and its v1 copy where legal) encodes byte-for-byte as before and decodes identically", () => {
     expect(POOL).toHaveLength(40);
+    expect(POOL_V21).toHaveLength(40);
+    if (POOL_LEGACY) expect(POOL_V21).toEqual(POOL); // the fixture is the sample pool while pool v2.1 is committed
     let v1 = 0;
-    for (const s of POOL) {
+    for (const s of POOL_V21) {
       const copies: net.GhostSnapshot[] = [s];
       if (netOk({ ...s, v: 1 })) copies.push({ ...s, v: 1 });
       for (const c of copies) {

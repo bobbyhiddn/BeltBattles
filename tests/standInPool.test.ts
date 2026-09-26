@@ -14,6 +14,7 @@ import { migrateRun, newRun } from "../src/game/run";
 import { routeProblems } from "../src/game/routeCheck";
 import type { Build } from "../src/sim/deck";
 import { poolLoss } from "./beltside.helpers";
+import { POOL_LEGACY, POOL_PAR_BAND, POOL_PAR_SHORT } from "./standInPool.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const SEEDS = Array.from({ length: 200 }, (_, n) => 7 + n * 104729); // run seeds are 31-bit, >= 0
@@ -54,16 +55,25 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
     expect(lines.length).toBe(1 + RUN_DAYS);
   });
 
-  it("every pool entry's vsPar is at least parFloor (0.5), and no hero/day is listed short", () => {
+  // Step 5 M5 (decisions D1, D4): pool v2.1 lists no hero/day short. A caravan pool may list a day that took its
+  // best-vsPar builds (fallback (d), relaxation "best"; at this base one of the 20 did with --par-band 0.5,0.6), whose
+  // entries are exempt from parFloor and the band; a pick under the spend floor may not be listed (it is not honest).
+  it("every pool entry's vsPar is at least parFloor (0.5) and inside the header's --par-band, and no hero/day is listed short but a step-5 pool's day that took its best-vsPar builds (its entries exempt)", () => {
     expect(STAND_IN_DATA.parFloor).toBe(0.5);
-    expect(STAND_IN_DATA.short).toEqual([]);
+    if (POOL_LEGACY) expect(STAND_IN_DATA.short).toEqual([]);
+    for (const s of STAND_IN_DATA.short) {
+      expect(s.vsPar, `${s.hero} d${s.day}: only a day that took its best-vsPar builds is listed`).toBeDefined();
+      expect(STAND_IN_DATA.pools[s.hero]![s.day - 1][4], `${s.hero} d${s.day}`).toBe("best");
+    }
     for (const hero of STAND_IN_POOL_HEROES) {
       for (const day of DAYS) {
-        const es = standInPool(hero, day);
+        const es = standInPool(hero, day), exempt = POOL_PAR_SHORT.has(`${hero}|${day}`);
         expect(es.length).toBe(STAND_IN_DATA.per);
         for (const [i, e] of es.entries()) {
-          expect(e.vsPar).toBeGreaterThanOrEqual(STAND_IN_DATA.parFloor);
-          // 0.6.2 BELTSIDE: the deck as loaded lacks only the rigs D3 dropped (tests/beltside.helpers.ts)
+          if (!exempt) expect(e.vsPar).toBeGreaterThanOrEqual(STAND_IN_DATA.parFloor);
+          if (!exempt && POOL_PAR_BAND) expect(e.vsPar >= POOL_PAR_BAND[0] && e.vsPar <= POOL_PAR_BAND[1], `${hero} d${day} #${i}: vsPar ${e.vsPar} outside --par-band ${POOL_PAR_BAND.join(",")}`).toBe(true);
+          // 0.6.2 BELTSIDE: the deck as loaded lacks only the rigs D3 dropped (tests/beltside.helpers.ts); 0.6.2 TUNE-C
+          // (17df327): deckCost counts installed turrets as buildCost does, so a deck with a merged starting turret is priced right
           expect(deckCost(e.build).total).toBe(e.cost - poolLoss(hero, day, i));
         }
       }

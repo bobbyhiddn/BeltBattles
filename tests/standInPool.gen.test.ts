@@ -6,15 +6,21 @@ import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { POOL_NATIVE, poolLoss, poolRaw } from "./beltside.helpers";
+import { POOL_LEGACY, POOL_PAR, POOL_PAR_BAND, POOL_PAR_SHORT, POOL_SOURCE } from "./standInPool.helpers";
 import { heroRefBuild } from "../src/sim/heroBuilds";
-import { ROBUST_BAND, ROBUST_MULT } from "../src/sim/harness/standins";
+import {
+  ROBUST_BAND, ROBUST_MULT, STANDIN_DEFAULTS, STANDIN_MAX_STARS, caravanCand, robustBorderline, robustReplay, standInRefs, type Cand, type StandInOpts,
+} from "../src/sim/harness/standins";
+import { caravanCandidate } from "../src/sim/harness/caravan";
+import { localRunner, playJob } from "../src/sim/harness/tournament";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import {
   STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, decodeStandIn, decodeStarred, encodeStandIn, encodeStarred, standInPar, standInParIndex,
   standInPick, standInPickIndex, standInPool,
 } from "../src/sim/standInPool";
 
-// The bundled full-purse stand-in pool (0.6.0c dusk stand-ins) and its portable loader.
+// The bundled stand-in pool (0.6.0c dusk stand-ins) and its portable loader. Step 5 M5: the tests hold for pool v2.1
+// (full purse; every v2.1 pin while its legacy header is committed) and for a caravan-bound regen pool (decision D4).
 
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 const floor = (day: number) => Math.ceil(0.9 * maxGoldByDay(day));
@@ -32,6 +38,72 @@ function winRate(a: Build, b: Build, seeds: number[]): number {
   return pts / (2 * seeds.length);
 }
 
+const r4 = (x: number) => Number(x.toFixed(4)); // a stored vsPar (standins.ts dataModuleText)
+
+/** Step 5 M5: the options a step-5 pool was generated with, as far as its par needs them: its header's --par and
+ *  --par-band, its data's seed and parFloor, and the CLI's refSeeds (10) and robust multiplier. */
+const genOpts = (): StandInOpts => ({
+  ...STANDIN_DEFAULTS, seed: STAND_IN_DATA.seed, heroes: [...STAND_IN_POOL_HEROES], parFloor: STAND_IN_DATA.parFloor, par: POOL_PAR, source: POOL_SOURCE,
+  ...(POOL_PAR_BAND ? { parBand: [POOL_PAR_BAND[0], POOL_PAR_BAND[1]] as [number, number] } : {}),
+});
+
+/** Step 5 M5: the fixed spread of hero-days whose par a caravan pool's test re-simulates exactly: a par with a robust
+ *  re-play is 2,400 battles (with --par-band 0.5,0.6 nearly every pick has one), 20-60 s here depending on the load, so
+ *  all twenty would take ten minutes and more. */
+const PAR_SPREAD: readonly (readonly [HeroId, number])[] = [["furnace", 2], ["weaver", 4], ["furnace", 7], ["weaver", 9]];
+
+/**
+ * Step 5 M5: the par of (hero, day) re-simulated exactly as genStandIns (src/sim/harness/standins.ts) computed its
+ * stored vsPar: against the par of every pool hero (standInRefs: par.ts parRefs of the header's --par, the par field of
+ * 12 decks per hero), refSeeds seeds x both sides per member on the generator's seeds hashSeed("standin-ref", seed,
+ * hero, day, r, k); each hero's rate over its members, vsPar = the lowest. A sample at most ROBUST_BAND above parFloor
+ * (robustBorderline) was re-played once by robustReplay, run here as it is, on seeds that name the candidate's
+ * population index. The data module doesn't store that index: it is the caravan candidate below the day's population
+ * size whose code is the par's and whose re-play gives the stored value (NaN: none does).
+ */
+async function parVsPar(hero: HeroId, day: number): Promise<{ vsPar: number; sample: number; idx?: number }> {
+  const o = genOpts(), { refs, refHero } = standInRefs(o, day);
+  const [parIndex, entries, , popSize] = dayData(hero, day);
+  const code = entries[parIndex][3], stored = entries[parIndex][4], build = standInPar(hero, day);
+  const pts = refs.map((ref, r) => playJob([build, ref], { a: 0, b: 1, seeds: Array.from({ length: o.refSeeds }, (_, k) => hashSeed("standin-ref", o.seed, hero, day, r, k)) }));
+  const vsRef: Partial<Record<HeroId, number>> = {};
+  o.heroes.forEach((h, hi) => {
+    let sum = 0, m = 0;
+    refs.forEach((_, r) => { if (refHero[r] === hi) { sum += pts[r]; m++; } });
+    vsRef[h] = sum / (m * o.refSeeds * 2);
+  });
+  const sample = Math.min(...o.heroes.map((h) => vsRef[h]!));
+  if (!robustBorderline({ vsPar: sample } as Cand, o)) return { vsPar: sample, sample };
+  for (let idx = 0; idx < popSize; idx++) {
+    if (caravanCand(idx, caravanCandidate(hero, day, o.seed, idx, STANDIN_MAX_STARS)).code !== code) continue;
+    const c = { idx, build, vsRef: { ...vsRef }, vsPar: sample } as Cand;
+    await robustReplay(o, hero, day, [c], refs, localRunner, refHero);
+    if (r4(c.vsPar) === stored) return { vsPar: c.vsPar, sample, idx };
+  }
+  return { vsPar: NaN, sample };
+}
+
+/** Step 5 M5: test 2 for a caravan pool: the spread's pars re-simulated exactly, and every par at least parFloor and
+ *  inside the header's --par-band, unless its hero/day is listed short. */
+async function caravanPars(): Promise<void> {
+  expect(POOL_SOURCE, "a step-5 pool's par is re-simulated through its caravan candidates").toBe("caravan");
+  const lines: string[] = [];
+  for (const [hero, day] of PAR_SPREAD) {
+    const t0 = performance.now(), stored = standInPool(hero, day)[standInParIndex(hero, day)].vsPar, r = await parVsPar(hero, day);
+    lines.push(`${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)} (10-seed sample ${r4(r.sample)}${r.idx === undefined ? "" : `, robust re-play of candidate #${r.idx}`}; ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
+    expect(r4(r.vsPar), `${hero} d${day}: its stored vsPar, re-simulated against the par field`).toBe(stored);
+  }
+  for (const hero of STAND_IN_POOL_HEROES) {
+    for (const day of DAYS) {
+      if (POOL_PAR_SHORT.has(`${hero}|${day}`)) continue;
+      const vsPar = standInPool(hero, day)[standInParIndex(hero, day)].vsPar;
+      expect(vsPar, `${hero} d${day}`).toBeGreaterThanOrEqual(STAND_IN_DATA.parFloor);
+      if (POOL_PAR_BAND) expect(vsPar >= POOL_PAR_BAND[0] && vsPar <= POOL_PAR_BAND[1], `${hero} d${day}: par vsPar ${vsPar} outside --par-band ${POOL_PAR_BAND.join(",")}`).toBe(true);
+    }
+  }
+  console.log(`stand-in par vsPar re-simulated (--par ${POOL_PAR}${POOL_PAR_BAND ? ` --par-band ${POOL_PAR_BAND.join(",")}` : ""}):\n${lines.join("\n")}`);
+}
+
 describe("stand-in pool", () => {
   it("covers FURNACE and WEAVER with 6 entries per day, days 1-10, under the current RULES_VERSION", () => {
     expect(STAND_IN_POOL_HEROES).toEqual(["furnace", "weaver"]);
@@ -44,6 +116,8 @@ describe("stand-in pool", () => {
   // 0.6.2 BELTSIDE: the pool was generated with gates on belt tiles; decodeStandIn migrates each deck (D3),
   // which drops a rig with no free cell beside its tile. So the stored cost and the 90% floor hold for the
   // deck as generated, and the loaded deck costs exactly that minus what D3 dropped (nothing once native).
+  // Step 5 M5 (decision D2, honesty is gold spent): the 90% floor applies to the gold spent (a caravan pool's stored
+  // sixth element; pool v2.1's is its cost), and the deck's value, the stored cost, is at most maxGoldByDay.
   it("every entry is legal for its day, the right hero, priced at buildCost, and meets the 90% floor (as generated)", () => {
     const short = new Set(STAND_IN_DATA.short.filter((s) => !s.vsPar).map((s) => `${s.hero}|${s.day}|${s.cost}`));
     for (const hero of STAND_IN_POOL_HEROES) {
@@ -56,7 +130,14 @@ describe("stand-in pool", () => {
           expect(e.cost).toBe(buildCost(poolRaw(hero, day, i)).total);
           expect(buildCost(e.build).total, `${hero} d${day} #${i}`).toBe(e.cost - poolLoss(hero, day, i));
           if (POOL_NATIVE) expect(poolLoss(hero, day, i)).toBe(0);
-          if (!short.has(`${hero}|${day}|${e.cost}`)) expect(e.cost, `${hero} d${day}`).toBeGreaterThanOrEqual(floor(day));
+          expect(e.cost, `${hero} d${day} #${i}: the deck's value`).toBeLessThanOrEqual(maxGoldByDay(day));
+          expect(e.spent, `${hero} d${day} #${i}: gold spent covers the deck`).toBeGreaterThanOrEqual(e.cost);
+          expect(e.spent, `${hero} d${day} #${i}: gold spent`).toBeLessThanOrEqual(maxGoldByDay(day));
+          if (POOL_LEGACY) expect(e.spent).toBe(e.cost); // pool v2.1: full purse, its gold spent is its cost
+          if (!short.has(`${hero}|${day}|${e.cost}`)) {
+            expect(e.spent, `${hero} d${day} #${i}: gold spent`).toBeGreaterThanOrEqual(floor(day));
+            if (POOL_LEGACY) expect(e.cost, `${hero} d${day}`).toBeGreaterThanOrEqual(floor(day));
+          }
           expect(e.pct).toBeGreaterThanOrEqual(0);
           expect(e.pct).toBeLessThanOrEqual(100);
         }
@@ -143,7 +224,11 @@ describe("stand-in pool", () => {
   // 0.6.2 BELTSIDE: the stored vsPar was measured under the inline rules against the inline par decks. Until the
   // harness re-bakes the pool natively (D4, POOL_NATIVE), the re-simulation measures the BELTSIDE drift and
   // prints it (REPORT.md) instead of asserting the stored value.
-  it("each par, re-simulated against heroRefBuild of both factions (10 seeds x both sides), wins at least 50%: its stored vsPar (strict once the pool is native)", () => {
+  // Step 5 M5 (decision D4): pool v2.1 (the legacy header: full purse against heroRefBuild) is checked exactly as before.
+  // A caravan pool's par is measured against the par field: caravanPars re-simulates a fixed spread of hero-days exactly
+  // as the generator did (robust re-play included) and holds every par to parFloor and the header's --par-band.
+  it("each par, re-simulated against its pool's par (pool v2.1: heroRefBuild of both factions; a caravan pool: the par field, a fixed spread of 4 hero-days), 10 seeds x both sides, wins at least 50%: its stored vsPar (strict once the pool is native)", async () => {
+    if (!POOL_LEGACY) return caravanPars();
     const drift: string[] = [];
     let reReplayed = 0;
     for (const hero of STAND_IN_POOL_HEROES) {
@@ -175,7 +260,7 @@ describe("stand-in pool", () => {
     if (!POOL_NATIVE) console.log(`stand-in par vsPar under BELTSIDE (the pool is inline until the D4 re-bake):\n${drift.join("\n")}`);
     // most pars are stored as their plain 10-seed sample; at 65a36b7 one (WEAVER day 2) was re-played
     else expect(reReplayed, drift.join("\n")).toBeLessThan(STAND_IN_POOL_HEROES.length * DAYS.length);
-  }, 180_000);
+  }, 600_000);
 
   it("each par against heroRefBuild: a quick battle finishes with no NaN", () => {
     for (const hero of STAND_IN_POOL_HEROES) {

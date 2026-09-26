@@ -17,7 +17,7 @@ import { applyLever, canApply, factoryToBuy, mergeableDefs } from "../src/sim/ha
 import { cargoValue, unfusedWithCargo, type InvItem } from "../src/sim/harness/merge";
 import { blockedCells, freeConnectors, shortestTiles, startCells } from "../src/sim/harness/path";
 import { Shopper, fixedSpeedCells, isSpeedGate } from "../src/sim/harness/shopper";
-import { STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, maxStarsOf, standInCandidate, standInCommand, writtenProblems, type HeroDay } from "../src/sim/harness/standins";
+import { STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, maxStarsOf, standInCandidate, standInCommand, writtenProblems, type HeroDay, type StandInOpts } from "../src/sim/harness/standins";
 import { encodeStarred } from "../src/sim/harness/standinCode";
 import { withLegacyStock } from "./catalogueLegacy";
 
@@ -358,20 +358,32 @@ describe("harness factories (0.6.1c): stand-ins", () => {
     expect(standInCommand({ ...o, stars: "off", factories: "on" })).not.toContain("--factories");
   });
 
-  it("on the release: the shipped pool's header is standInCommand of the flip's options with factories off or on, so `standins --check --factories off` (or on) can regenerate it exactly", () => {
+  it("on the release: the shipped pool's header is standInCommand of the flip's options with factories off or on (since step 5, or of the regen's: --par field --source caravan), so `standins --check` with those options can regenerate it exactly", () => {
     const header = readFileSync(resolve("src/sim/standInPoolData.ts"), "utf8").split("\n")[1];
     const flip = { ...STANDIN_DEFAULTS, stars: "on" as const, cores: "on" as const };
     const off = `//   ${standInCommand({ ...flip, factories: "off" })}`, on = `//   ${standInCommand({ ...flip, factories: "on" })}`;
     expect(off).toBe(`//   ${standInCommand(flip)}`); // factories absent = off
     expect(on).toBe(`${off} --factories on`);
-    expect([off, on]).toContain(header);
-    // pool v2.1 (0.6.2, the D4 native re-bake on arsenal-062-combined 65a36b7) is generated with factories on and the
-    // legacy heroRefBuild par, so `standins --check --par heroref` (factories default to on) regenerates it (FB-C: the
-    // CLI's --par defaults to the par player's field). Was: at 689c2e8 the shipped pool was pool v2, generated before
-    // --factories existed, with the factories-off header.
-    expect(header).toBe(on);
+    // step 5 M5 (decisions D1, D4): the regen's header is standInCommand of the CLI's defaults (factories on, --par field
+    // --source caravan) with the --par-band the regen used (D1: 0.5,0.6), which its header records (as
+    // tests/standin.caravan.test.ts reads it since 408168f)
+    const band = / --par-band ([\d.]+),([\d.]+)$/.exec(header);
+    const regenOpts: StandInOpts = { ...flip, factories: "on", par: "field", source: "caravan", ...(band ? { parBand: [Number(band[1]), Number(band[2])] as [number, number] } : {}) };
+    const regen = `//   ${standInCommand(regenOpts)}`;
+    expect(regen).toBe(`${on} --par field --source caravan${band ? ` --par-band ${band[1]},${band[2]}` : ""}`);
+    expect([off, on, regen]).toContain(header);
+    if (!header.includes("--source")) {
+      // the legacy header, pool v2.1: every pin as before
+      expect([off, on]).toContain(header);
+      // pool v2.1 (0.6.2, the D4 native re-bake on arsenal-062-combined 65a36b7) is generated with factories on and the
+      // legacy heroRefBuild par, so `standins --check --par heroref` (factories default to on) regenerates it (FB-C: the
+      // CLI's --par defaults to the par player's field). Was: at 689c2e8 the shipped pool was pool v2, generated before
+      // --factories existed, with the factories-off header.
+      expect(header).toBe(on);
+    }
     // the header line is the one dataModuleText writes (line 2 of the module)
     expect(dataModuleText({ ...flip, factories: "off" }, []).split("\n")[1]).toBe(off);
     expect(dataModuleText({ ...flip, factories: "on" }, []).split("\n")[1]).toBe(on);
+    expect(dataModuleText(regenOpts, []).split("\n")[1]).toBe(regen);
   });
 });
