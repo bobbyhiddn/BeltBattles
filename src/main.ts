@@ -6,7 +6,8 @@ import { newRun } from "./game/run";
 import { gainModule } from "./game/fuse";
 import { beginRoad, makeEvent } from "./game/events";
 import type { EventId } from "./game/eventDefs";
-import type { HeroId } from "./sim/content";
+import { ITEMS, buyableModules, type HeroId } from "./sim/content";
+import { FUSE_MAX, fusible } from "./sim/stars";
 import { settings, setReducedMotion } from "./core/settings";
 import { VERSION } from "./version";
 import { addGhosts, clearPool, pinClassicFoe, playOut, setupFork, setupRun, setupWarlord, showcaseRun, type GhostSpec, type RunSpec } from "./tooling";
@@ -136,6 +137,12 @@ game.start();
     const a = (game.screen as unknown as { arena?: Arena }).arena;
     a?.fx.reseed(seed);
     return !!a;
+  },
+  /** 0.6.2t (REQ-BFG-032): the buyable modules (buyableModules()) and each supply: id, name, kind and top star, for
+   *  the ability-text contact sheet (scripts/contact-sheet.mjs). Read only; a module the catalogue adds shows up here. */
+  catalogue(): { id: string; name: string; kind: string; stars: number; merchant: string; price: number }[] {
+    return [...buyableModules(), ...Object.values(ITEMS).filter((d) => d.kind === "supply" && d.price > 0)]
+      .map((d) => ({ id: d.id, name: d.name, kind: d.kind, stars: fusible(d.id) ? FUSE_MAX : 1, merchant: d.merchant ?? "ironmonger", price: d.price }));
   },
   /** Current screen name (for harness assertions). */
   screen(): string {
