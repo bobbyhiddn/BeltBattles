@@ -54,8 +54,8 @@ import { fusible, outputsAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
-  abilityText, cardText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergeProgressText, mergesWithText, n2,
-  newPerk, nextStarHeadline, nextStarText, percent, plural, shieldText, slagPulseExtra, type BeltKind, type TextOpts,
+  abilityText, cardText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergeProgressText, mergesWithText, n2,
+  newPerk, nextStarHeadline, nextStarText, percent, plural, seconds, shieldText, slagPulseExtra, type BeltKind, type TextOpts,
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
@@ -101,6 +101,9 @@ export interface Block {
   perk?: string;
   /** Must show whole (T6's phone guarantee). */
   keep?: boolean;
+  /** 0.6.2rel2 (the rehearsal's nit 1): kept in the desk column (planBody's keepBig) as `keep` is; on the phone band an
+   *  optional block by its rank. A turret's gear clashes and MANTLET's shield. */
+  deskKeep?: boolean;
   /** An optional block's order when room is short: the lowest first (default 5). */
   rank?: number;
   /** Optional blocks of one chain show in order: once one doesn't fit, the later ones stay out too (an ability's
@@ -469,8 +472,9 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   for (const j of joins) if (j.row >= w.timeline.length) rows.push(joinRow(j));
   const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
   return {
-    // 0.6.2j: a joining belt's sub names the belt it joins (0.6.2rel: two short sentences, no "·")
-    sub: info.join ? `JOINS BELT ${info.join.route + 1}. ${feeds}.` : feeds,
+    // 0.6.2j: a joining belt's sub names the belt it joins (0.6.2rel: two short sentences, no "·"); 0.6.2rel2: a main
+    // belt's one sentence ends with its full stop too
+    sub: info.join ? `JOINS BELT ${info.join.route + 1}. ${feeds}.` : `${feeds}.`,
     ...(info.join ? { subShort: `JOINS BELT ${info.join.route + 1}.` } : {}),
     // 0.6.2t2 (F2): the header strip labels its time as the readout's grid does (TIME), never a bare number
     headerOnly: info.connected ? {
@@ -510,11 +514,15 @@ export function routePanel(run: Run, index: number): PanelText | null {
  * 0.6.1p: the GATLING clashes (the Prime's call): a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do
  * nothing on its turret. 0.6.2 CAND-A: every piece of gear on slot t, in hardpoint order (0.6.2s S4), not only the
  * first; a HOPPER's store still works there (tests/fb062.mech.test.ts). 0.6.2rel: whole sentences from the glossary
- * (gatlingClashText). Exported for tests.
+ * (gatlingClashText). 0.6.2rel2: the same clash on a COMPOUND BREECH, whose hold ignores HOPPER's seconds (cores.ts
+ * ROUTINES.compound). `short`: the desk's short lines (clashShortText), one for each clashing gear type. Exported for
+ * tests.
  */
-export function gatlingClash(b: Build, t: number, routine: string): string[] {
-  if (routine !== "gatling") return [];
-  return gearOn(b, t).map((m) => gatlingClashText(m.def, starsOf(m))).filter((s): s is string => !!s);
+export function gatlingClash(b: Build, t: number, routine: string, short = false): string[] {
+  if (routine !== "gatling" && routine !== "compound") return [];
+  const texts = gearOn(b, t).map((m) => (short ? clashShortText(m.def, routine) : gatlingClashText(m.def, starsOf(m), routine)));
+  const out = texts.filter((s): s is string => !!s);
+  return short ? [...new Set(out)] : out;
 }
 
 /** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's sentence for a MANTLET ★2/★3 that shields `n` tiles: the last tile(s)
@@ -563,15 +571,19 @@ export function turretPanel(run: Run, index: number): PanelText | null {
   const stats: Block[] = [
     { role: "row", label: "FIRES", text: `EVERY ${n2(every)} SEC${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}`, keep: true },
     {
+      // 0.6.2rel2: a HOPPER ★2/★3's store names what it counts (F2: no bare number), as its gist does
       role: "row", label: "CHAMBER", keep: true,
-      text: `${tu.window} LOADS${tu.storeMax ? `, STORES ${tu.storeMax} WHILE FIRING` : ""}${noJam ? ", NEVER JAMS" : ""}`,
+      text: `${tu.window} LOADS${tu.storeMax ? `, STORES ${plural(tu.storeMax, "LOAD")} WHILE FIRING` : ""}${noJam ? ", NEVER JAMS" : ""}`,
     },
     ...(loadTime === null ? [] : [{ role: "row", label: "LOAD TIME", text: `${n2(loadTime)} SEC`, keep: true } as Block]),
   ];
-  // a clash (a piece of gear that does nothing here) and the shield come before the optional stats sentence below
+  // a clash (a piece of gear that does nothing here) and the shield. 0.6.2rel2 (the rehearsal's nit 1): the desk column
+  // keeps both (deskKeep), so where they don't fit beside every gear piece's sentence the panel takes the gear's compact
+  // forms first (the gist rows, then the one-row list); only a panel whose one-row list leaves no room for them falls
+  // back to that list without them (the last forms below). The phone band ranks them first among its optional blocks.
   const rest: Block[] = [
-    ...gatlingClash(b, index, tc.routine).map((text): Block => ({ role: "warn", text, rank: 1 })), // CAND-A: every gear slot
-    ...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 1 } as Block] : []), // FB-B MANTLET
+    ...gatlingClash(b, index, tc.routine).map((text): Block => ({ role: "warn", text, rank: 1, deskKeep: true })), // CAND-A: every gear slot
+    ...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 1, deskKeep: true } as Block] : []), // FB-B MANTLET
     ...slotNotes(b, index).map((text): Block => ({ role: "ability", text, rank: 4 })),
     hintBlock(SLOT_HINT),
   ];
@@ -585,11 +597,30 @@ export function turretPanel(run: Run, index: number): PanelText | null {
   const list = socketLines(b, index, coreName, undefined, true).map(rowOf);
   // the last form lists the gear on one row and says the stats in a sentence (the stat rows' long labels would narrow
   // its value column)
-  const statsText: Block = {
-    role: "ability", rank: 2,
-    text: `IT FIRES ${everyText(every)}${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}, AND ITS CHAMBER HOLDS ${plural(tu.window, "LOAD")}${tu.storeMax ? `, ${tu.storeMax} MORE WHILE IT FIRES` : ""}.`,
-  };
-  const forms = [[...warn(false), ...gists, ...stats, ...rest], [...warn(true), ...gists, ...stats, ...rest], [...warn(true), ...list, statsText, ...rest]];
+  // 0.6.2rel2: then, where there is room after it (a chain: never alone), the stat rows' load time (their LOAD TIME row)
+  // and a chamber that never jams
+  const more = [...(loadTime === null ? [] : [`ITS LOAD TIME IS ${seconds(loadTime)}.`]), ...(noJam ? ["IT NEVER JAMS."] : [])];
+  const statsText: Block[] = [
+    {
+      role: "ability", rank: 2, chain: "stats",
+      text: `IT FIRES ${everyText(every)}${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}, AND ITS CHAMBER HOLDS ${plural(tu.window, "LOAD")}${tu.storeMax ? `, ${tu.storeMax} MORE WHILE IT FIRES` : ""}.`,
+    },
+    ...(more.length ? [{ role: "ability", rank: 2, chain: "stats", text: more.join(" ") } as Block] : []),
+  ];
+  const forms = [[...warn(false), ...gists, ...stats, ...rest], [...warn(true), ...gists, ...stats, ...rest], [...warn(true), ...list, ...statsText, ...rest]];
+  // 0.6.2rel2 (the release owner's answer d957272806131146): the desk's last rungs, for a turret whose one-row gear list
+  // leaves no room for the whole clash sentences: that list with each clash's short line; then the gear as a count of
+  // its pieces with the short lines (the names give way before the warning); the shield in each only if it fits. Last,
+  // a safety net no desk panel should need: the list with nothing kept but its rows. The phone never reaches these.
+  const optional = (bs: Block[]): Block[] => bs.map(({ deskKeep, ...x }) => x);
+  if (rest.some((x) => x.deskKeep)) {
+    const short = gatlingClash(b, index, tc.routine, true).map((text): Block => ({ role: "warn", text, rank: 1, deskKeep: true }));
+    const after = [...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 1 } as Block] : []), ...rest.filter((x) => !x.deskKeep)];
+    const pieces = gearOn(b, index).slice(0, turretSlots(b)[index]?.gearSlots ?? 0).length;
+    forms.push([...warn(true), ...list, ...statsText, ...short, ...after]);
+    if (short.length) forms.push([...warn(true), list[0], rowOf({ label: "GEAR", text: plural(pieces, "PIECE") }), ...statsText, ...short, ...after]);
+    forms.push(optional(forms[2]));
+  }
   return {
     title: slotTitle(b, index), color: slotColor(b, index), sub: slotSub(b, index),
     body,
@@ -806,12 +837,16 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
       dropped: from.filter((l) => !chosen.includes(l)).map((l) => l.b),
     };
   };
-  const big = lay(body, width, "5");
+  // 0.6.2rel2: in the desk column a deskKeep block is a kept block (so its panel takes a compact variant before it
+  // gives way); elsewhere it stays optional
+  const deskKept = (bs: readonly Block[]): Block[] =>
+    (keepBig && bs.some((b) => b.deskKeep) ? bs.map((b) => (b.deskKeep ? { ...b, keep: true } : b)) : [...bs]);
+  const big = lay(deskKept(body), width, "5");
   if (heightOf(big) <= avail) return finish("5", big, true, 0, big);
   // 0.6.2t: the desk column (keepBig) keeps the readable 5x7 face while its kept blocks fit it: the optional blocks
   // give way first, each whole or not at all, least important first (the flavour, then the ability's later sentences,
   // then the hint: 0.6.2t2 F4, deskRank); only then does the text drop to the 3x5 face
-  const texts: Variant[] = [{ body: [...body] }, ...(variants ?? [])];
+  const texts: Variant[] = [{ body: deskKept(body) }, ...(variants ?? []).map((t) => ({ ...t, body: deskKept(t.body) }))];
   if (keepBig) {
     for (let v = 0; v < texts.length; v++) {
       const t = texts[v];

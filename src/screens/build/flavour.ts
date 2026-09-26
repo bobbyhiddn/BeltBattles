@@ -12,6 +12,8 @@
 // The guard (tests/abilityPanels.test.ts, over buyableModules() and the supplies): in every panel, no flavour sentence
 // quotes a number the ability sentences there quote or repeats one of them. A new module without a KEPT_FLAVOUR row shows
 // its catalogue desc joined into one string, so that guard fails if the desc repeats its ability text.
+// 0.6.2rel2 (on the 0.6.2 candidate): the 13 buyable turrets (REQ-BFG-031) have rows too, and FB-B's QUENCH TANK, SURGE
+// VALVE, HOPPER and MANTLET keep nothing, like the rest of their families: their rules are all in the ability text.
 
 import { ITEMS } from "../../sim/content";
 import { PENDULUM } from "../../sim/races/data";
@@ -86,6 +88,28 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
   capacitor: [],
   compound: [],
   lance: [],
+  // --- turrets (0.6.2rel2, REQ-BFG-031): the ability text says each one's class, fire rate, chamber, columns, gear
+  // slots, core socket and when its shots land, so a turret keeps only a comparison that text can't make. Each claim
+  // holds at every star, because every turret's star values scale its fire interval by the same x0.9 and x0.8 and none
+  // moves its flight (content.ts; tests/flavour.test.ts checks both claims against the TurretDefs). The old catalogue
+  // `reason` lines restate the ability text (columns, loads, gear slots, the 1-star interval) or claim what the sim
+  // doesn't bear out (DECK GUN's "fewer loads wait"), so the other eleven keep nothing.
+  scrapcannon: [],
+  // character: the quickest heavy gun (0.75 s against 0.8-1 s at 1 star) and the slowest shell of any gun (0.65 s)
+  rampart: ["A QUICKER HEAVY GUN WITH A SLOWER SHELL."],
+  dartgun: [],
+  spikegun: [],
+  carronade: [],
+  swivel: [],
+  twinneedle: [],
+  // character: at any one star no gun fires as often (0.45 s at 1 star; the next are 0.55 s), but a ★3 DART GUN or
+  // TWIN NEEDLE (0.44 s) outpaces a ★1 HAIL GUN, so the claim names the star
+  hailgun: ["THE FASTEST GUN, STAR FOR STAR."],
+  deckgun: [],
+  railgun: [],
+  bombard: [],
+  siegegun: [],
+  thunderer: [],
   // --- supplies ---
   beltcrate: ["LONGER ROUTES COOK HOTTER PAYLOADS."], // character; "+4 BELT CAPACITY" is the ability text
   plating: [],

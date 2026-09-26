@@ -163,7 +163,7 @@ export interface SocketRow {
  * S4/S10: the CORE SOCKET and every GEAR SLOT of the turret in slot t, filled or empty, in hardpoint order, one row each
  * (a turret with one gear slot labels it GEAR). `gearText(def, stars)`, when given, is a gear piece's clause from the
  * glossary (abilityText.ts gist), after its name. `compact` (a short band): one GEAR row lists every slot, "EXT. CHAMBER
- * ★★, HOPPER AND 1 EMPTY".
+ * ★★, HOPPER AND 1 EMPTY SLOT".
  */
 export function socketLines(b: Build, t: number, coreName: string, gearText?: (def: string, stars: number) => string, compact = false): SocketRow[] {
   const s = turretSlots(b)[t];
@@ -173,7 +173,8 @@ export function socketLines(b: Build, t: number, coreName: string, gearText?: (d
   if (compact) {
     const names = gear.map((m) => starred(ITEMS[m.def].name, starsOf(m)));
     const empty = s.gearSlots - names.length;
-    const all = [...names, ...(empty ? [`${empty} EMPTY`] : [])];
+    // 0.6.2rel2 (the rehearsal's nit 2): the empty hardpoints say what they are, "3 EMPTY SLOTS", never a bare "3 EMPTY"
+    const all = [...names, ...(empty ? [`${empty} EMPTY SLOT${empty === 1 ? "" : "S"}`] : [])];
     out.push({ label: "GEAR", text: all.length > 1 ? `${all.slice(0, -1).join(", ")} AND ${all[all.length - 1]}` : all[0] ?? "NONE" });
     return out;
   }

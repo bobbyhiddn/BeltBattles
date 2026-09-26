@@ -5,15 +5,18 @@ import { HEROES, ITEMS, buyableModules, rigShape, type HeroId } from "../src/sim
 import { gearSlotsOf, key as K, rotField, setTurretList, turretSlots, walkRoute, type Placed } from "../src/sim/deck";
 import { emptySlotPanel } from "../src/screens/build/turretPanel";
 import { rotFacing } from "../src/sim/beltside";
+import { makeTurret, type TurretState } from "../src/sim/battle";
+import { ROUTINES } from "../src/sim/cores";
 import { effectAt, fusible } from "../src/sim/stars";
 import { textWidth } from "../src/render/font";
 import { C } from "../src/render/palette";
 import { buildLayout } from "../src/screens/build/layout";
 import {
-  ROLE, beltKind, cargoPanel, itemPanel, lay, offerPanel, planPanel, rigPanel, routePanel, turretPanel, visibleLines,
+  ROLE, beltKind, cargoPanel, gatlingClash, itemPanel, lay, offerPanel, planPanel, rigPanel, routePanel, shieldLine, turretPanel, visibleLines,
   type Block, type Laid, type PanelText, type PLine,
 } from "../src/screens/build/inspector";
-import { abilityText, cardText, gist, mergeProgressText, speedText } from "../src/ui/abilityText";
+import { socketLines } from "../src/screens/build/turretPanel";
+import { abilityText, cardText, clashShortText, gatlingClashText, gist, mergeProgressText, n2, speedText } from "../src/ui/abilityText";
 import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
 import { MODULES, STARS, SUPPLIES, banned, numbers, repeats, sentencesOf, starsOf } from "./textRules";
@@ -148,8 +151,23 @@ function panels(): { id: string; kind: string; t: PanelText }[] {
     ["mantlet3-hopper3", "bombard", 2, [["mantlet", 3], ["hopper", 3]]],
     ["hopper3-ram-gatling", "bombard", 2, [["hopper", 3], ["ram", 2]], ["gatling", 2]],
     ["thunderer3-six-gatling", "thunderer", 3, [["hopper", 2], ["ram", 1], ["mantlet", 3], ["calibrate", 3], ["chamber", 2], ["spotter", 1]], ["gatling", 3]],
+    // 0.6.2rel2: HOPPER on a COMPOUND BREECH (its hold ignores the load time), a HOPPER ★3 alone, a GATLING clash that fits
+    ["compound-hopper3", "bombard", 1, [["hopper", 3]], ["compound", 2]],
+    ["compound-hopper1-ram", "siegegun", 2, [["hopper", 1], ["ram", 2]], ["compound", 1]],
+    ["hopper3", "scrapcannon", 1, [["hopper", 3]]],
+    ["gatling-hopper1", "scrapcannon", 1, [["hopper", 1]], ["gatling", 1]],
+    // the release owner's answer d957272806131146: the six-gear THUNDERER of the rehearsal's text-turret-six-desk.png, and
+    // a two-piece GATLING turret with HOPPER and FINISHER RAM
+    ["thunderer-shot", "thunderer", 3, [["chamber", 2], ["calibrate", 3], ["hopper", 2], ["mantlet", 2], ["spotter", 1], ["ram", 1]], ["gatling", 2]],
+    ["gatling-hopper-ram", "bombard", 1, [["hopper", 1], ["ram", 1]], ["gatling", 1]],
   ];
   for (const [id, def, s, gear, core] of special) out.push({ id: `installed ${id}`, kind: "installed", t: turretPanel(turretRun(def, s, gear, core), 0)! });
+  // 0.6.2rel2: every turret's card as a hull's free starting copy (its note, then the kept flavour, then the hint)
+  for (const d of MODULES.filter((x) => x.kind === "turret")) for (const s of STARS) {
+    const run = newRun("furnace", 5, "t6");
+    run.inventory = [{ uid: 900, def: d.id, free: true, ...(s > 1 ? { stars: s } : {}) }];
+    out.push({ id: `cargo ${d.id} ★${s} free`, kind: "cargo", t: cargoPanel(run, 900)! });
+  }
   // the dead end a swap to an inner-intake turret leaves, and the one an empty slot leaves; every hero's empty slot
   out.push({ id: "installed hailgun dead end", kind: "installed", t: turretPanel(deadEndRun("hailgun"), 1)! });
   out.push({ id: "empty slot dead end", kind: "empty", t: emptySlotPanel(deadEndRun().build, 1) });
@@ -305,6 +323,26 @@ describe("0.6.2t T4: the panels' layout", () => {
       }
     }
     expect(perks).toBeGreaterThan(1000);
+    // 0.6.2rel2: that covers FB-B's perks (MANTLET ★2 FULL PLATE and ★3 BULWARK SKIRT, HOPPER ★3 BOTTOMLESS) and the perks a
+    // turret's own panels draw (its core's and gear's), on desk and phone. A turret itself has no star perk (content.ts)
+    const drawn = new Set<string>();
+    for (const { kind, t } of PANELS) {
+      for (const [area, band] of [[DESK, "desk"], [PHONE, "phone"]] as const) for (const v of visibleLines(planPanel(t, area))) {
+        if (v.line !== "rule" && afterPerk(v.line) !== null) drawn.add(`${band} ${v.line.block.perk}`).add(`${band} drawn on ${kind}`);
+      }
+      // every form laid out at the phone band's width (a turret's plan there takes a compact form: its gear rows carry
+      // the short effect, never a perk, so the forms with the sentences are checked this way)
+      for (const v of [{ body: t.body, tight: false }, ...(t.variants ?? [])]) for (const l of lay(v.body, 151, "3", !!v.tight)) {
+        if (l.lines.some((line) => afterPerk(line) !== null)) drawn.add(`phone laid on ${kind}`);
+      }
+    }
+    for (const band of ["desk", "phone"]) {
+      for (const perk of ["★2 FULL PLATE", "★3 BULWARK SKIRT", "★3 BOTTOMLESS"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(true);
+    }
+    // an installed turret's panel (the hero's turret with one module, or a slot's turret with its gear)
+    expect(drawn.has("desk drawn on turret") || drawn.has("desk drawn on installed"), "desk: a perk on a turret's panel").toBe(true);
+    expect(drawn.has("phone laid on turret") || drawn.has("phone laid on installed"), "phone: a perk on a turret's panel").toBe(true);
+    expect(MODULES.filter((d) => d.kind === "turret").flatMap((d) => STARS.map((s) => abilityText(d.id, s).perk)).filter(Boolean)).toEqual([]);
     // MIMIC FORGE ★3 (the brief's case): the hero's example sits before ★3 TWIN SIGNET, so the name ends the text and
     // nothing reads on from it ("TWIN SIGNET FOR FURNACE" at 881b38f)
     for (const hero of ["furnace", "weaver"] as HeroId[]) {
@@ -497,6 +535,12 @@ describe("0.6.2rel: the join rows and the turret panels read by the text rules",
       const r = fit(t, area), shown = r.plan.body.shown.map((l) => l.b);
       expect(r.keptWhole).toBe(true);
       expect(shown.filter((b) => b.role === "row" && (b.label === "CORE" || b.label?.startsWith("GEAR"))).length).toBeGreaterThanOrEqual(2);
+      // 0.6.2rel2 (the release owner's answer d957272806131146): where the desk has room for the gear's names or its clash
+      // warning but not both, the warning wins, and the gear row counts the pieces ("6 PIECES")
+      if (area === DESK && shown.some((b) => b.label === "GEAR" && b.text === "6 PIECES")) {
+        expect(shown.map((b) => b.text)).toContain("HOPPER: ITS LONGER LOAD TIME DOES NOTHING HERE.");
+        continue;
+      }
       expect(shown.map((b) => b.text).join(" ")).toContain(GEAR.slice(0, 6).map((g) => ITEMS[g].name).at(-1)!);
     }
   });
@@ -589,6 +633,14 @@ describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel"
     }
     for (const d of buyableModules()) for (const held of ["[]", "[1]", "[2,1]"]) expect(ids.has(`offer ${d.id} held${held}`), `${d.id} ${held}`).toBe(true);
     for (const d of SUPPLIES) expect(ids.has(`offer ${d.id} held[]`), d.id).toBe(true);
+    // 0.6.2rel2 (on the 0.6.2 candidate): a turret's own variants too: installed in a slot at every star (with every
+    // hardpoint count, above), its card (in cargo, and as a hull's free starting copy) and its offer; and the empty slots
+    const turrets = buyableModules().filter((d) => d.kind === "turret");
+    expect(turrets.length).toBe(13);
+    for (const d of turrets) for (const s of starsOf(d)) {
+      for (const id of [`installed ${d.id} ★${s} gear0`, `installed ${d.id} ★${s} gear1 core`, `cargo ${d.id} ★${s} free`]) expect(ids.has(id), id).toBe(true);
+    }
+    expect(PANELS.filter((p) => p.kind === "empty").length).toBeGreaterThan(Object.keys(HEROES).length);
   });
 
   it("no flavour sentence quotes a number the panel's ability sentences quote, or repeats one of them (the opening first)", () => {
@@ -603,8 +655,9 @@ describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel"
         expect(faults(f, ability), `${id}: "${f}"`).toEqual([]);
       }
     }
-    // the counts the REPORT quotes (881b38f: 1076 panels with a flavour block, 1491 sentences, 1330 of them flagged)
-    expect([flavoured, sentences]).toEqual([85, 85]);
+    // the counts the REPORT quotes (881b38f: 1076 panels with a flavour block, 1491 sentences, 1330 of them flagged; the
+    // 0.6.2t2 tip 85 and 85; 0.6.2rel2 on the 0.6.2 candidate: 24 more, RAMPART CANNON's and HAIL GUN's cards and offers)
+    expect([flavoured, sentences]).toEqual([109, 109]);
     console.log(`F1 guard: ${PANELS.length} panels, ${flavoured} with a flavour block, ${sentences} flavour sentences, 0 repeats`);
   });
 
@@ -649,21 +702,25 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
   };
 
   it("every desk panel with a hint shows it, unless its kept blocks and the hint alone overflow the column", () => {
-    const missing: string[] = [];
+    const missing: string[] = [], wrong: string[] = [];
     let withHint = 0;
     for (const { id, t } of PANELS) {
       if (!t.body.some((b) => b.role === "hint")) continue;
       withHint++;
-      // the text the plan chose (its variant), cut to the kept blocks and the hint: does the hint fit beside them?
+      // the text the plan chose (its variant), cut to the kept blocks and the hint: does the hint fit beside them? (0.6.2rel2:
+      // on the desk a deskKeep block, a turret's clash or shield, is a kept block)
       const v = planPanel(t, DESK).body.variant, body = v === 0 ? t.body : t.variants![v - 1].body;
-      const bare = { ...t, body: body.filter((b) => b.keep || b.role === "hint"), variants: [] };
-      expect(hintShown(t, DESK), id).toBe(hintShown(bare, DESK));
+      const bare = { ...t, body: body.filter((b) => b.keep || b.deskKeep || b.role === "hint"), variants: [] };
+      if (hintShown(t, DESK) !== hintShown(bare, DESK)) wrong.push(id);
       if (!hintShown(t, DESK)) missing.push(id);
     }
-    // the counts the REPORT quotes: polish-in 0 of 1076, 881b38f 295, now 60 (idle and many-hit ★1-★2 rigs, SURGE ★2)
-    expect([withHint, missing.length]).toEqual([1076, 60]);
-    expect(missing.every((id) => /^(rig|cargo surge ★2)/.test(id)), missing.join(", ")).toBe(true);
-    console.log(`F4 desk hints: ${withHint} panels with a hint, ${missing.length} without it`);
+    console.log(`F4 desk hints: ${withHint} panels with a hint, ${missing.length} without it: ${missing.join(", ")}`);
+    expect(wrong, wrong.join(", ")).toEqual([]);
+    // the counts the REPORT quotes: polish-in 0 of 1076, 881b38f 295, the 0.6.2t2 tip 60 (idle and many-hit ★1-★2 rigs,
+    // SURGE ★2); 0.6.2rel2 on the 0.6.2 candidate (turret slots, joins, FB-B): 141 of 1622, the 60's kind plus installed
+    // turrets whose socket rows, stat rows and kept clashes fill the column under their buttons, and MANTLET ★2 in cargo
+    expect([withHint, missing.length]).toEqual([1622, 141]);
+    expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
   it("the brief's case: a WEAVER's ★2 PRESSURE BREECH in cargo shows TAP A TURRET TO FIT IT. again (desk)", () => {
@@ -678,7 +735,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
   it("the phone band keeps its order: the ability's later sentences before the hint", () => {
     let hints = 0;
     for (const { t } of PANELS) if (hintShown(t, PHONE)) hints++;
-    expect(hints).toBe(111); // as at 881b38f
+    console.log(`F4 phone hints: ${hints} of ${PANELS.length} panels`);
+    expect(hints).toBe(115); // 111 at 881b38f; 0.6.2rel2 on the 0.6.2 candidate's panels (the REPORT gives b94077d's)
   });
 });
 
@@ -694,54 +752,96 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES)$/.test(next) ? [] : [w];
     });
   };
-  /** A FURNACE (or WEAVER) with `core` and `gear` fitted to turret 1 at their stars. */
-  const fitted = (core: string | null, cs: number, gear: string | null, gs: number, hero: HeroId = "furnace"): Run => {
-    const run = newRun(hero, 5, "f2");
-    for (const [uid, def, s] of [[701, core, cs], [702, gear, gs]] as const) {
-      if (def) run.build.mods.push({ uid, def, turret: 0, ...(s > 1 ? { stars: s } : {}) } as Run["build"]["mods"][number]);
-    }
-    return run;
-  };
-  const rows = (t: PanelText): Record<string, string> => Object.fromEntries(t.body.filter((b) => b.role === "row" && b.label).map((b) => [b.label!, b.text]));
+  /** 0.6.2rel2: turret `def` (★ts) in a FURNACE's slot 1 with `core` (★cs) and `gear` in its hardpoints, in order. */
+  const fitted = (def: string, ts: number, core: string | null, cs: number, gear: [string, number][] = []): Run =>
+    turretRun(def, ts, gear, core ? [core, cs] : undefined);
+  /** The stat rows (FIRES, CHAMBER, LOAD TIME: ungrouped, unlike the CORE and GEAR rows) of a panel's every form. */
+  const statRows = (t: PanelText): Block[] =>
+    [t.body, ...(t.variants ?? []).map((v) => v.body)].flat().filter((b) => b.role === "row" && !!b.label && b.group === undefined);
+  const CORES = [null, ...MODULES.filter((d) => d.kind === "core").map((d) => d.id)];
+  /** A heavy and a light gun with 1 hardpoint (★1 commons), the one gun with 6 (THUNDERER ★3, heavy) and the light gun
+   *  with the most (HAIL GUN ★3: 5; no light gun reaches 6). */
+  const GUNS: [string, number][] = [["scrapcannon", 1], ["dartgun", 1], ["thunderer", 3], ["hailgun", 3]];
 
-  it("the turret's rows, written out: CHAMBER counts loads, LOAD TIME names the seconds (as each core reads them)", () => {
-    const stat = (core: string | null, cs: number, gear: string | null = null, gs = 1) => {
-      const r = rows(turretPanel(fitted(core, cs, gear, gs), 0)!);
+  it("the turret's rows, written out: CHAMBER counts loads (and a HOPPER's store), LOAD TIME names the seconds", () => {
+    const stat = (core: string | null, cs: number, gear: [string, number][] = []) => {
+      const r = rows(turretPanel(fitted("scrapcannon", 1, core, cs, gear), 0)!);
       return [r.FIRES, r.CHAMBER, r["LOAD TIME"]];
     };
     expect(stat(null, 1)).toEqual(["EVERY 1 SEC", "3 LOADS", "1.5 SEC"]); // the KILN BREECH: WINDOW_TIME
     expect(stat("rotary", 1)).toEqual(["EVERY 1 SEC", "3 LOADS", "0.8 SEC"]); // CUTS THE LOAD TIME TO 0.8 SECONDS
-    expect(stat("rotary", 1, "hopper", 3)).toEqual(["EVERY 1 SEC", "6 LOADS, NEVER JAMS", "2.3 SEC"]); // + HOPPER's 1.5
-    expect(stat(null, 1, "hopper", 1)).toEqual(["EVERY 1 SEC", "4 LOADS", "2 SEC"]);
+    // 0.6.2 FB-B: every HOPPER star adds 1 slot and 0.5 SECONDS; ★2 and ★3 store 1 and 2 loads while firing; ★3 never jams
+    expect(stat("rotary", 1, [["hopper", 3]])).toEqual(["EVERY 1 SEC", "4 LOADS, STORES 2 LOADS WHILE FIRING, NEVER JAMS", "1.3 SEC"]);
+    expect(stat(null, 1, [["hopper", 1]])).toEqual(["EVERY 1 SEC", "4 LOADS", "2 SEC"]);
+    expect(stat(null, 1, [["hopper", 2]])).toEqual(["EVERY 1 SEC", "4 LOADS, STORES 1 LOAD WHILE FIRING", "2 SEC"]);
     expect(stat("pressure", 2)).toEqual(["EVERY 1 SEC", "3 LOADS, NEVER JAMS", "1.5 SEC"]);
     expect(stat("salvo", 1)).toEqual(["EVERY 1.6 SEC", "3 LOADS", "1.5 SEC"]); // its text: OR TWICE ITS LOAD TIME
-    expect(stat("compound", 1, "hopper", 3)).toEqual(["EVERY 1 SEC", "6 LOADS, NEVER JAMS", "3 SEC"]); // its own hold
-    expect(stat("gatling", 1, "hopper", 1)).toEqual(["EVERY 1 SEC", "4 LOADS", undefined]); // it never waits
-    expect(stat(null, 1, "chamber", 2)).toEqual(["EVERY 1 SEC, 2 LOADS EACH SHOT", "4 LOADS", "1.5 SEC"]);
+    // COMPOUND BREECH: its own hold; HOPPER's seconds don't move it (0.6.2rel2)
+    expect(stat("compound", 1, [["hopper", 3]])).toEqual(["EVERY 1 SEC", "4 LOADS, STORES 2 LOADS WHILE FIRING, NEVER JAMS", "3 SEC"]);
+    expect(stat("gatling", 1, [["hopper", 1]])).toEqual(["EVERY 1 SEC", "4 LOADS", undefined]); // it never waits
+    expect(stat(null, 1, [["chamber", 2]])).toEqual(["EVERY 1 SEC, 2 LOADS EACH SHOT", "4 LOADS", "1.5 SEC"]);
   });
 
-  it("every core and gear at every star, on a FURNACE (heavy) and a WEAVER (light) turret: no bare number in any row", () => {
-    const cores = [null, ...MODULES.filter((d) => d.kind === "core").map((d) => d.id)];
-    const gears = [null, ...MODULES.filter((d) => d.kind === "mod").map((d) => d.id)];
+  it("0.6.2rel2: LOAD TIME is what the battle waits, every core at every star, no HOPPER and HOPPER ★1-★3, heavy and light", () => {
+    // makeTurret builds the slot's turret as the battle does; each core's ready (cores.ts ROUTINES) is the wait
+    const load = {} as TurretState["stack"][number];
     let n = 0;
-    for (const hero of ["furnace", "weaver"] as HeroId[]) for (const core of cores) for (const gear of gears) for (const s of STARS) {
-      const r = rows(turretPanel(fitted(core, s, gear, s, hero), 0)!);
-      const id = `${hero} ${core} ★${s} + ${gear} ★${s}`;
-      for (const [label, v] of Object.entries(r)) expect(bare(v), `${id}: ${label} ${v}`).toEqual([]);
-      expect(r.CHAMBER, id).toMatch(/^\d+ LOADS(, NEVER JAMS)?$/);
+    for (const def of ["scrapcannon", "dartgun"]) for (const core of CORES) for (const s of STARS) for (const hs of [0, 1, 2, 3]) {
+      const run = fitted(def, 1, core, s, hs ? [["hopper", hs]] : []);
+      const tu = makeTurret(run.build, 0, turretSlots(run.build)[0].td!);
+      const shown = rows(turretPanel(run, 0)!)["LOAD TIME"];
+      const ready = (t: number) => ROUTINES[tu.core.routine].ready({ ...tu, stack: [load], loadTimer: t, fireCd: 0 });
+      const id = `${def} ${core ?? "signature"} ★${s}, HOPPER ★${hs}`;
+      n++;
+      if (tu.core.routine === "gatling") { // a lone load fires as soon as the barrel allows: no timer, so no LOAD TIME row
+        expect([shown, ready(0)], id).toEqual([undefined, true]);
+        continue;
+      }
+      const lt = tu.core.routine === "compound" ? tu.core.spec.hold ?? 3 : tu.windowTime; // COMPOUND: its hold, never windowTime
+      expect(shown, id).toBe(`${n2(lt)} SEC`);
+      expect(Math.abs(Number(n2(lt)) - lt), id).toBeLessThan(1e-9); // the row shows the wait exactly
+      const wait = tu.core.routine === "salvo" ? 2 * lt : lt; // SALVO RACK waits twice its load time, as its text says
+      expect([ready(wait - 0.01), ready(wait)], id).toEqual([false, true]);
+      // HOPPER adds 0.5 SECONDS for every star it has, except on a COMPOUND BREECH
+      const base = makeTurret(fitted(def, 1, core, s).build, 0, turretSlots(run.build)[0].td!);
+      expect(tu.windowTime - base.windowTime, id).toBeCloseTo(hs ? effectAt("hopper", hs).mod!.windowTime! : 0, 9);
+    }
+    expect(n).toBe(2 * 14 * 3 * 4);
+  });
+
+  it("every core and gear at every star, on heavy and light guns with 1 hardpoint and with the most: no bare number in a stat row", () => {
+    const gears = [null, ...GEAR];
+    let n = 0;
+    for (const [def, ts] of GUNS) for (const core of CORES) for (const gear of gears) for (const s of STARS) {
+      // the gear under test in the first hardpoint, then other pieces in every other one (never a second copy of a def)
+      const fill: [string, number][] = gear ? [gear, ...GEAR.filter((g) => g !== gear)].slice(0, gearSlotsOf(def, ts)).map((g): [string, number] => [g, s]) : [];
+      const t = turretPanel(fitted(def, ts, core, s, fill), 0)!;
+      const id = `${def} ★${ts} ${core} ★${s} + ${fill.map(([g]) => g).join(",")} ★${s}`;
+      for (const b of statRows(t)) expect(bare(b.text), `${id}: ${b.label} ${b.text}`).toEqual([]);
+      for (const [label, v] of Object.entries(rows(t))) expect(bare(v), `${id}: ${label} ${v}`).toEqual([]);
+      const r = rows(t);
+      expect(r.CHAMBER, id).toMatch(/^\d+ LOADS(, STORES \d+ LOADS? WHILE FIRING)?(, NEVER JAMS)?$/);
       const routine = core ? ITEMS[core].core!.routine : "identity";
       if (routine === "gatling") expect(r["LOAD TIME"], id).toBeUndefined();
       else expect(r["LOAD TIME"], id).toMatch(/^\d+(\.\d+)? SEC$/);
       if (routine === "compound") expect(r["LOAD TIME"], id).toBe(`${effectAt(core!, s).core!.hold} SEC`);
       n++;
     }
-    expect(n).toBe(2 * 14 * 10 * 3);
+    expect(GUNS.map(([d, s]) => gearSlotsOf(d, s))).toEqual([1, 1, 6, 5]);
+    expect(n).toBe(4 * 14 * 10 * 3);
   });
 
-  it("every rig's belt timeline row at every star (free, slag and METRONOME belts) and the header strip: no bare number", () => {
+  it("every rig's belt timeline row at every star (free, slag, METRONOME and joined belts) and the header strip: no bare number", () => {
+    let joinRows = 0;
     const check = (run: Run, i: number, id: string) => {
       const t = routePanel(run, i)!;
-      for (const b of t.body.filter((x) => x.role === "row")) expect(bare(b.text), `${id}: ${b.label} ${b.text}`).toEqual([]);
+      for (const b of t.body.filter((x) => x.role === "row")) {
+        // 0.6.2rel2: a JOINS row's numbers name a belt and a tile ("JOINS BELT 1 AT TILE 2."), each after its noun
+        if (b.join) {
+          joinRows++;
+          expect(b.text, id).toMatch(/^JOINS BELT \d+ AT TILE \d+\.$/);
+        } else expect(bare(b.text), `${id}: ${b.label} ${b.text}`).toEqual([]);
+      }
       for (const b of t.body.filter((x) => x.role === "grid")) for (const [l, v] of b.cells!) {
         expect(l, `${id}: ${v}`).toMatch(/^(DMG|BURN|SPD|TIME|SHOCK|COPIES)$/); // each value sits beside its label
         if (l === "TIME") expect(v, id).toMatch(/^\d+\.\d SEC$/);
@@ -752,10 +852,133 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     for (const s of STARS) {
       for (const run of [slagRun(s), slagRun(s, "surge")]) check(run, run.build.routes.length - 1, `slag ★${s}`);
       check(metronomeRun(s), 0, `METRONOME ★${s}`);
+      // 0.6.2rel2 (REQ-BFG-027): through a join, both belts: a plain join, a joined SLAG belt, a slag-fed main belt and
+      // METRONOME's locked belts, with speed rigs past the join at that star; then the busy join (a hit on every tile)
+      const joined: [string, Run][] = [
+        [`join ★${s}`, joinRun({ items: pastJoin(s) })], [`slag joiner ★${s}`, joinRun({ factory: "slagpot", items: pastJoin(s) })],
+        [`slag main ★${s}`, joinRun({ main: "slagpot", items: pastJoin(s) })], [`metronome join ★${s}`, joinRun({ hero: "metronome", items: pastJoin(s) })],
+      ];
+      for (const [id, run] of joined) for (const i of [0, 1]) check(run, i, `${id} belt ${i + 1}`);
     }
+    for (const i of [0, 1]) check(joinRun({ items: busyJoin() }), i, `busy join belt ${i + 1}`);
+    expect(joinRows).toBeGreaterThanOrEqual(13); // a JOINS row on every joining belt checked
     // the two rows 881b38f left bare: SPLITTER's share and LODESTONE's cap
     const row = (def: string, s: number) => routePanel(rigRun(def, s, 3, 3, rotFacing(def, 1), 0), 0)!.body.find((b) => b.role === "row")!.text;
     expect(row("splitter", 1)).toBe("SPLITTER 2 COPIES AT 60% DAMAGE");
     expect(row("lodestone", 2)).toBe("LODESTONE +2.2 DAMAGE FOR EACH STALLED MACHINE, UP TO 13 DAMAGE");
   });
 });
+
+// 0.6.2rel2: the rehearsal's nits 1, 2 and 5 (ACCEPTED.md, display only), and HOPPER on a COMPOUND BREECH (the 0.6.2t2
+// REPORT's note), checked in the sim first.
+describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND BREECH", () => {
+  const installed = (id: string) => PANELS.find((p) => p.id === `installed ${id}`)!.t;
+  const shown = (t: PanelText, area: typeof DESK) => planPanel(t, area).body.shown.map((l) => l.b.text);
+  /** The panel as b94077d planned it: its clashes and shield optional in every column (no deskKeep). */
+  const optional = (t: PanelText): PanelText => {
+    const strip = (bs: readonly Block[]) => bs.map(({ deskKeep, ...b }) => b);
+    return { ...t, body: strip(t.body), variants: (t.variants ?? []).map((v) => ({ ...v, body: strip(v.body) })) };
+  };
+
+  it("nit 1: the desk keeps a turret's clashes and MANTLET's shield, the gear list taking its compact form first", () => {
+    // the clash of a GATLING SPOOL's and a COMPOUND BREECH's HOPPER, and MANTLET's shield at ★2 and ★3, on the desk
+    for (const [id, text] of [["gatling-hopper1", gatlingClashText("hopper", 1, "gatling")!], ["compound-hopper3", gatlingClashText("hopper", 3, "compound")!],
+      ["mantlet2", shieldLine(1)], ["mantlet3-hopper3", shieldLine(3)]]) {
+      const plan = planPanel(installed(id), DESK);
+      expect([shown(installed(id), DESK).includes(text), plan.body.font], id).toEqual([true, "5"]);
+    }
+    // the desk ladder (the release owner's answer d957272806131146), first rung that fits: 1-3 the full, gist and one-row
+    // list forms keeping the whole clash sentences and the shield; 4 the one-row list with each clash's short line; 5 a
+    // count of the gear pieces with the short lines; the shield on 4 and 5 only if it fits; 6 a safety net (the list,
+    // nothing kept but its rows) that no panel may need
+    const shorts = new Set(["hopper", "ram"].flatMap((d) => ["gatling", "compound"].map((r) => clashShortText(d, r))).filter(Boolean));
+    const isCount = (b: Block) => b.label === "GEAR" && /^\d+ PIECES?$/.test(b.text);
+    const chosen = (t: PanelText): Block[] => {
+      const v = planPanel(t, DESK).body.variant;
+      return v === 0 ? t.body : t.variants![v - 1].body;
+    };
+    const rungOf = (t: PanelText): number => {
+      const v = planPanel(t, DESK).body.variant, body = chosen(t);
+      if (body.some(isCount)) return 5;
+      if (body.some((b) => shorts.has(b.text))) return 4;
+      if (body.some((b) => b.deskKeep)) return 3;
+      return v === t.variants!.length - 1 ? 6 : 4; // a shield-only turret's rung 4 is its one-row list, the shield optional
+    };
+    const rungs = new Map<number, string[]>(), rescued: string[] = [];
+    for (const { id, t } of PANELS.filter((p) => (p.kind === "installed" || p.kind === "turret") && p.t.body.some((b) => b.deskKeep))) {
+      const r = rungOf(t), plan = planPanel(t, DESK), texts = shown(t, DESK);
+      expect([plan.body.fits, plan.body.font], id).toEqual([true, "5"]);
+      rungs.set(r, [...(rungs.get(r) ?? []), `${id} (${plan.maxY - plan.y} px)`]);
+      const kept = t.body.filter((b) => b.deskKeep).map((b) => b.text); // the whole sentences
+      // rungs 1-3 show every whole sentence; 4 and 5 every short line (kept there)
+      const need = r <= 3 ? kept : chosen(t).filter((b) => b.deskKeep).map((b) => b.text);
+      expect(need.filter((s) => !texts.includes(s)), id).toEqual([]);
+      if (r >= 4) expect(need.every((s) => shorts.has(s)), id).toBe(true);
+      if (r === 5) { // the names gave way only because rung 4 didn't fit: without rung 5 the panel falls to the net
+        const no5 = { ...t, variants: t.variants!.filter((v) => !v.body.some(isCount)) };
+        expect(rungOf(no5), id).toBe(6);
+      }
+      // b94077d's plan (both optional) dropped one of them here: the stat rows or a gear sentence took the room
+      if (r <= 3 && !kept.every((s) => shown(optional(t), DESK).includes(s))) rescued.push(id);
+    }
+    console.log(`nit 1 desk rungs: ${[...rungs].sort().map(([r, ids]) => `rung ${r}: ${ids.length}${r >= 4 ? ` [${ids.join(", ")}]` : ""}`).join("; ")}; b94077d dropped and now kept: ${rescued.join(", ")}`);
+    expect(rungs.get(6) ?? []).toEqual([]);
+    expect(rescued).toContain("turret mantlet ★2"); // the rehearsal REPORT's 8c item 6: SCRAP CANNON with MANTLET ★2
+    // the six-gear THUNDERER of text-turret-six-desk.png shows both short lines, whole in the 5x7 face
+    const shot = installed("thunderer-shot"), shotPlan = planPanel(shot, DESK);
+    expect([shotPlan.body.fits, shotPlan.body.font]).toEqual([true, "5"]);
+    expect(shown(shot, DESK)).toEqual(expect.arrayContaining(["HOPPER: ITS LONGER LOAD TIME DOES NOTHING HERE.", "FINISHER RAM: DOES NOTHING HERE."]));
+    // a two-piece GATLING turret with HOPPER and FINISHER RAM keeps its gear's names (rung 4 or better)
+    const two = installed("gatling-hopper-ram");
+    expect(rungOf(two)).toBeLessThanOrEqual(4);
+    expect(planPanel(two, DESK).body.shown.some((l) => l.b.label === "GEAR" && l.b.text === "HOPPER AND FINISHER RAM")).toBe(true);
+  });
+
+  it("nit 2: the phone's one-row gear list counts its empty hardpoints as slots: 3 EMPTY SLOTS, 1 EMPTY SLOT", () => {
+    const gearRow = (gear: [string, number][]) => socketLines(turretRun("siegegun", 1, gear).build, 0, "KILN BREECH", undefined, true)[1].text;
+    expect(gearRow([])).toBe("3 EMPTY SLOTS");
+    expect(gearRow([["hopper", 2], ["ram", 1]])).toBe("HOPPER ★★, FINISHER RAM AND 1 EMPTY SLOT");
+    expect(gearRow([["hopper", 1], ["ram", 1], ["mantlet", 1]])).toBe("HOPPER, FINISHER RAM AND MANTLET");
+    const phone = planPanel(turretPanel(turretRun("siegegun", 1, []), 0)!, PHONE).body.shown.map((l) => l.b);
+    expect(phone.find((b) => b.label === "GEAR")?.text).toBe("3 EMPTY SLOTS");
+  });
+
+  it("nit 5: every belt's sub is whole sentences: a main belt's ends with a full stop, as a joining belt's does", () => {
+    const run = joinRun();
+    expect([routePanel(run, 0)!.sub, routePanel(run, 1)!.sub]).toEqual(["FEEDS TURRET 1.", "JOINS BELT 1. FEEDS TURRET 1."]);
+    for (const { id, t } of PANELS.filter((p) => p.kind === "belt")) expect(t.sub, id).toMatch(/^([A-Z0-9 ]+\. )*[A-Z0-9 ]+\.$/);
+  });
+
+  it("HOPPER on a COMPOUND BREECH: the sim ignores its seconds there (its slot and store still count); its clash says so", () => {
+    const load = {} as TurretState["stack"][number];
+    for (const cs of STARS) for (const hs of STARS) {
+      const id = `COMPOUND ★${cs}, HOPPER ★${hs}`;
+      const run = turretRun("bombard", 1, [["hopper", hs]], ["compound", cs]), plain = turretRun("bombard", 1, [], ["compound", cs]);
+      const [tu, bare] = [run, plain].map((r) => makeTurret(r.build, 0, turretSlots(r.build)[0].td!));
+      const hold = tu.core.spec.hold ?? 3;
+      // the window time grows by HOPPER's 0.5 SECONDS, but a lone load fires at the hold either way (cores.ts compound)
+      expect(tu.windowTime - bare.windowTime, id).toBeCloseTo(0.5, 9);
+      for (const t of [tu, bare]) {
+        const ready = (timer: number) => ROUTINES.compound.ready({ ...t, stack: [load], loadTimer: timer });
+        expect([ready(hold - 0.01), ready(hold)], id).toEqual([false, true]);
+      }
+      // what still counts: the extra chamber slot (makeTurret's window caps the loads a chamber takes, on every core) and
+      // the ★2/★3 store (the loads taken while the gun fires)
+      expect([tu.window - bare.window, tu.storeMax], id).toEqual([1, effectAt("hopper", hs).mod!.store ?? 0]);
+      // the clash, through the GATLING's mechanism: only the seconds do nothing; FINISHER RAM does fire there
+      expect(gatlingClash(run.build, 0, "compound"), id).toEqual([
+        `COMPOUND BREECH: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${hs > 1 ? ", BUT ITS STORE STILL WORKS" : ""}.`,
+      ]);
+      expect(rows(turretPanel(run, 0)!)["LOAD TIME"], id).toBe(`${n2(hold)} SEC`);
+    }
+    expect(gatlingClash(turretRun("bombard", 1, [["ram", 2]], ["compound", 1]).build, 0, "compound")).toEqual([]);
+    expect(gatlingClash(turretRun("bombard", 1, [["hopper", 1]], ["rotary", 1]).build, 0, "rotary")).toEqual([]);
+    // HOPPER's own text names both cores where its longer load time does nothing
+    for (const s of STARS) expect(abilityText("hopper", s).sentences.at(-1)).toBe("ON A GATLING SPOOL OR A COMPOUND BREECH THE LONGER LOAD TIME DOES NOTHING.");
+  });
+});
+
+/** A panel's labelled rows by label (the full form). */
+function rows(t: PanelText): Record<string, string> {
+  return Object.fromEntries(t.body.filter((b) => b.role === "row" && b.label).map((b) => [b.label!, b.text]));
+}

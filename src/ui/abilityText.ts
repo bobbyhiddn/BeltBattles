@@ -17,7 +17,8 @@
 //   hitText(h, belt)             one rig hit in a belt's timeline (a labelled stat row; belt: free, locked or slag);
 //                                slagPulseExtra(rows, belt) the pulse damage a SLAG belt's walk counts but the sim never pays
 //   hasAbilityText(def), livePerk(def, stars): which modules have text; a star's perk unless its values are pending
-//   0.6.2rel, the turret panel's sentences: gatlingClashText(def, stars) (gear that does nothing on a GATLING SPOOL),
+//   0.6.2rel, the turret panel's sentences: gatlingClashText(def, stars, routine) (gear that does nothing on a GATLING
+//                                SPOOL; 0.6.2rel2: HOPPER's seconds on a COMPOUND BREECH too),
 //                                shieldText(n) (a MANTLET ★2/★3's shielded belt tiles), STALL_WORD (FB-B's stall names)
 //   units: seconds(), damage(), moreDamage(), percent(), faster(), speedText(), rateText(), times(), plural(), every(),
 //          nth(), onlineIn(), peakTiles(), n1(), n2()
@@ -228,11 +229,30 @@ export function shieldText(n: number): string {
 /**
  * 0.6.1p (the Prime's call) and 0.6.2 CAND-A: what a piece of gear can't do on a GATLING SPOOL, which never waits for a
  * full chamber (cores.ts gatlingReady never reads the load time): HOPPER's longer load time (0.6.2 FB-B: its ★2/★3 store
- * still takes loads while the barrel cools, tests/fb062.mech.test.ts) and FINISHER RAM's last load. Null for other gear.
+ * still takes loads while the barrel cools, tests/fb062.mech.test.ts) and FINISHER RAM's last load. 0.6.2rel2: a
+ * COMPOUND BREECH (`routine` "compound") fires at 2 loads or after its own hold and never reads the load time either
+ * (cores.ts ROUTINES.compound), so HOPPER's seconds do nothing there too; its slot still counts (makeTurret's window caps
+ * what the chamber takes on every core), its store still works, and FINISHER RAM does fire there (the shot that empties
+ * the chamber). Null for other gear, and on any other core.
  */
-export function gatlingClashText(def: string, stars: number): string | null {
-  if (def === "hopper") return `GATLING SPOOL: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${effectAt(def, stars).mod?.store ? ", BUT ITS STORE STILL WORKS" : ""}.`;
-  if (def === "ram") return "GATLING SPOOL: NO FULL CHAMBER, SO THE FINISHER RAM DOES NOTHING.";
+export function gatlingClashText(def: string, stars: number, routine = "gatling"): string | null {
+  const core = routine === "gatling" ? "GATLING SPOOL" : routine === "compound" ? "COMPOUND BREECH" : null;
+  if (!core) return null;
+  if (def === "hopper") return `${core}: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${effectAt(def, stars).mod?.store ? ", BUT ITS STORE STILL WORKS" : ""}.`;
+  if (def === "ram" && routine === "gatling") return "GATLING SPOOL: NO FULL CHAMBER, SO THE FINISHER RAM DOES NOTHING.";
+  return null;
+}
+
+/**
+ * 0.6.2rel2 (the release owner's answer d957272806131146): a clash's short line, for a desk turret panel whose gear list
+ * leaves no room for the whole sentence (gatlingClashText): the same trigger, one line for each clashing gear type. It
+ * claims no more than the sentence does: only HOPPER's seconds do nothing (its slot and store still count), and FINISHER
+ * RAM nothing on a GATLING SPOOL.
+ */
+export function clashShortText(def: string, routine = "gatling"): string | null {
+  if (routine !== "gatling" && routine !== "compound") return null;
+  if (def === "hopper") return "HOPPER: ITS LONGER LOAD TIME DOES NOTHING HERE.";
+  if (def === "ram" && routine === "gatling") return "FINISHER RAM: DOES NOTHING HERE.";
   return null;
 }
 
@@ -831,7 +851,8 @@ const ENTRIES: Record<string, Entry> = {
         ...(store ? [`WHILE THE TURRET FIRES, IT STORES ${plural(store, "LOAD")} FROM THE BELT FOR ITS NEXT CHAMBER.`] : []),
         ...(md.noJam ? ["THE TURRET NEVER JAMS."] : []),
         S.chamber,
-        "ON A GATLING SPOOL THE LONGER LOAD TIME DOES NOTHING.",
+        // 0.6.2rel2: a COMPOUND BREECH never reads the load time either (cores.ts ROUTINES.compound: 2 loads or its hold)
+        "ON A GATLING SPOOL OR A COMPOUND BREECH THE LONGER LOAD TIME DOES NOTHING.",
       ];
     },
     perkAt: (e) => (m(e).noJam ? (m(e).store ? 2 : 1) : 0),

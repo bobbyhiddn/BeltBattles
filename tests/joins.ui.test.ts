@@ -205,7 +205,7 @@ describe("J10: the inspector's readouts through a join", () => {
 
   it("a belt that joins nothing reads exactly as before 0.6.2j", () => {
     const bp = beltPanel(run({ r: true, joined: false, items }), 1)!;
-    expect(bp.sub).toBe("NOT CONNECTED");
+    expect(bp.sub).toBe("NOT CONNECTED."); // 0.6.2rel2 (nit 5): a main belt's sub ends with its full stop too
     expect(bp.headerOnly).toBeUndefined();
     expect(txt(bp.head)).toEqual(["ENDS SHORT OF A TURRET INTAKE.", "4 TILES, 1 HIT:"]);
     expect(bp.head[0].role).toBe("warn");

@@ -146,7 +146,8 @@ describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
     expect(rows(socketLines(b, 1, "KILN BREECH", fx))).toEqual([
       "CORE: KILN BREECH", "GEAR 1: EXT. CHAMBER ★★: CHAMBER AT 2.", "GEAR 2: EMPTY", "GEAR 3: EMPTY",
     ]);
-    expect(rows(socketLines(b, 1, "KILN BREECH", fx, true))).toEqual(["CORE: KILN BREECH", "GEAR: EXT. CHAMBER ★★ AND 2 EMPTY"]);
+    // 0.6.2rel2 (nit 2): the empty hardpoints say what they are
+    expect(rows(socketLines(b, 1, "KILN BREECH", fx, true))).toEqual(["CORE: KILN BREECH", "GEAR: EXT. CHAMBER ★★ AND 2 EMPTY SLOTS"]);
     expect(rows(socketLines(b, 0, "KILN BREECH", fx))).toEqual(["CORE: KILN BREECH", "GEAR: EMPTY"]);
     expect(socketLines(b, 1, "KILN BREECH", (d, s) => gist(d, s))[1].text).toBe(`EXT. CHAMBER ★★: ${gist("chamber", 2)}.`);
     expect(slotNotes(b, 0)).toContain("IT IS YOUR HULL'S FREE STARTING TURRET, SO IT CAN'T BE SOLD AT 1 STAR.");

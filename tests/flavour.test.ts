@@ -23,6 +23,9 @@ const KEPT: Record<string, string[]> = {
   whetstone: ["BEFORE A SPLITTER, BOTH COPIES GAIN IT."],
   splitter: ["ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT."],
   beltcrate: ["LONGER ROUTES COOK HOTTER PAYLOADS."],
+  // 0.6.2rel2: two of the 13 turrets keep a comparison their ability text can't make (checked below against the TurretDefs)
+  rampart: ["A QUICKER HEAVY GUN WITH A SLOWER SHELL."],
+  hailgun: ["THE FASTEST GUN, STAR FOR STAR."],
 };
 /** Everything the catalogue sells: the buyable modules, then each supply. */
 const SOLD = [...buyableModules(), ...SUPPLIES];
@@ -33,9 +36,30 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
   it("has a row for every module and supply the catalogue sells (each has ability text), and for nothing else", () => {
     expect(SOLD.filter((d) => !hasAbilityText(d.id)).map((d) => d.id)).toEqual([]);
     expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual(SOLD.map((d) => d.id).sort());
+    // 0.6.2rel2 (the 0.6.2 candidate): 23 rigs, 13 factories, 13 cores, 9 gear, 13 turrets and 2 supplies
+    const byKind: Record<string, number> = {};
+    for (const d of SOLD) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
+    expect(byKind).toEqual({ gate: 23, factory: 13, core: 13, mod: 9, turret: 13, supply: 2 });
   });
 
-  it("pins: five modules keep one sentence each, at every star and class factor; every other module shows none", () => {
+  it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
+    const guns = SOLD.filter((d) => d.kind === "turret");
+    const at = (id: string, s: number) => effectAt(id, s).turret!;
+    for (const s of STARS) {
+      // RAMPART CANNON: the quickest heavy gun at its star, and the slowest shell of any gun
+      const heavy = guns.filter((d) => d.id !== "rampart" && at(d.id, s).class === "heavy");
+      expect(heavy.length, `★${s}`).toBe(4);
+      for (const d of heavy) expect(at("rampart", s).fireInterval, `★${s} ${d.id}`).toBeLessThan(at(d.id, s).fireInterval);
+      for (const d of guns.filter((x) => x.id !== "rampart")) expect(at("rampart", s).flight, `★${s} ${d.id}`).toBeGreaterThan(at(d.id, s).flight);
+      // HAIL GUN: no gun at the same star fires as often
+      for (const d of guns.filter((x) => x.id !== "hailgun")) expect(at("hailgun", s).fireInterval, `★${s} ${d.id}`).toBeLessThan(at(d.id, s).fireInterval);
+    }
+    // ...but not across stars: a ★3 DART GUN fires more often than a ★1 HAIL GUN, so the claim names the star
+    expect(at("dartgun", 3).fireInterval).toBeLessThan(at("hailgun", 1).fireInterval);
+    for (const id of ["quench", "surge", "hopper", "mantlet"]) expect(KEPT_FLAVOUR[id], id).toEqual([]);
+  });
+
+  it("pins: seven modules keep one sentence each, at every star and class factor; every other module shows none", () => {
     const counts = { moduleStars: 0, withFlavour: 0, sentences: 0 };
     for (const d of SOLD) for (const s of starsOf(d)) {
       counts.moduleStars++;
@@ -44,8 +68,9 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
       counts.sentences += n;
       if (n) counts.withFlavour++;
     }
-    // before and after (the REPORT): 881b38f showed 243 flavour sentences, some flavour at all 176 module-stars
-    expect(counts).toEqual({ moduleStars: 176, withFlavour: 13, sentences: 13 });
+    // before and after (the REPORT): 881b38f showed 243 flavour sentences, some flavour at all 176 module-stars; 0.6.2rel2
+    // adds the 13 turrets' 39 module-stars, 6 of them with flavour (RAMPART CANNON and HAIL GUN)
+    expect(counts).toEqual({ moduleStars: 215, withFlavour: 19, sentences: 19 });
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {
