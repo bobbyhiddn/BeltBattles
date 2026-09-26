@@ -734,9 +734,14 @@ export function moreFor(dropped: readonly Block[]): Block {
   return !k && dropped.length ? { ...dropped[0], trim: false, keep: true } : moreNote(k);
 }
 
+/** 0.6.2t2 (F4): the desk column's order for the optional blocks: the action hint right after the kept blocks (a turret's
+ *  stat rows aside), so it shows whenever it fits whole beside them; then the ability's later sentences, then the flavour. */
+const deskRank = (b: Block): number => (b.role === "hint" ? 1.5 : b.rank ?? 5);
+
 /** Choose the blocks for `avail` px: every kept block, the timeline rows that fit (then a note for the rest), then the
- *  optional blocks by rank, each only if it fits whole. Returns them in display order. */
-function choose(all: readonly Laid[], avail: number, width: number, main: FontId, tight = false): { chosen: Laid[]; fits: boolean } {
+ *  optional blocks by rank (`rankOf`), each only if it fits whole. Returns them in display order. */
+function choose(all: readonly Laid[], avail: number, width: number, main: FontId, tight = false,
+  rankOf: (b: Block) => number = (b) => b.rank ?? 5): { chosen: Laid[]; fits: boolean } {
   const seqOf = (s: Set<Laid>, note: Laid | null): Laid[] => {
     const seq = all.filter((l) => s.has(l));
     if (!note) return seq;
@@ -764,7 +769,7 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
     }
   }
   const optional = all.filter((l) => !l.b.keep && !l.b.trim)
-    .sort((a, b) => (a.b.rank ?? 5) - (b.b.rank ?? 5) || all.indexOf(a) - all.indexOf(b));
+    .sort((a, b) => rankOf(a.b) - rankOf(b.b) || all.indexOf(a) - all.indexOf(b));
   const stopped = new Set<string>(); // chains whose next block didn't fit: their later blocks stay out too
   for (const o of optional) {
     if (o.b.chain && stopped.has(o.b.chain)) continue;
@@ -804,15 +809,15 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
   const big = lay(body, width, "5");
   if (heightOf(big) <= avail) return finish("5", big, true, 0, big);
   // 0.6.2t: the desk column (keepBig) keeps the readable 5x7 face while its kept blocks fit it: the optional blocks
-  // give way first, each whole or not at all, least important first (the flavour, then the hint, then the ability's
-  // later sentences); only then does the text drop to the 3x5 face
+  // give way first, each whole or not at all, least important first (the flavour, then the ability's later sentences,
+  // then the hint: 0.6.2t2 F4, deskRank); only then does the text drop to the 3x5 face
   const texts: Variant[] = [{ body: [...body] }, ...(variants ?? [])];
   if (keepBig) {
     for (let v = 0; v < texts.length; v++) {
       const t = texts[v];
       if (t.tight || (t.sub && !subFits(t.sub))) continue; // the tight pitch is the 3x5 face's
       const all = v === 0 ? big : lay(t.body, width, "5");
-      const pick = choose(all, avail, width, "5");
+      const pick = choose(all, avail, width, "5", false, deskRank);
       if (pick.fits) return finish("5", pick.chosen, true, v, all, t);
     }
   }
@@ -822,7 +827,7 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
     if (t.sub && !subFits(t.sub)) continue;
     const room = avail + (t.tight ? 1 : 0);
     const all = lay(t.body, width, "3", !!t.tight);
-    const { chosen, fits } = choose(all, room, width, "3", !!t.tight);
+    const { chosen, fits } = choose(all, room, width, "3", !!t.tight, keepBig ? deskRank : undefined);
     last = finish("3", chosen, fits, v, all, t);
     if (fits) return last;
   }

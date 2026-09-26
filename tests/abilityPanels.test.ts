@@ -639,6 +639,49 @@ describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel"
   });
 });
 
+// 0.6.2t2 (REQ-BFG-032 F4): on the desk column the action hint shows whenever it fits whole beside the kept blocks: it
+// comes right after them (inspector.ts deskRank), before the ability's later sentences and the flavour.
+describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits whole", () => {
+  const hintShown = (t: PanelText, area: typeof DESK) => {
+    const plan = planPanel(t, area);
+    const drawn = new Set(visibleLines(plan).map((v) => v.line));
+    return plan.body.shown.some((l) => l.b.role === "hint" && l.lines.every((x) => drawn.has(x)));
+  };
+
+  it("every desk panel with a hint shows it, unless its kept blocks and the hint alone overflow the column", () => {
+    const missing: string[] = [];
+    let withHint = 0;
+    for (const { id, t } of PANELS) {
+      if (!t.body.some((b) => b.role === "hint")) continue;
+      withHint++;
+      // the text the plan chose (its variant), cut to the kept blocks and the hint: does the hint fit beside them?
+      const v = planPanel(t, DESK).body.variant, body = v === 0 ? t.body : t.variants![v - 1].body;
+      const bare = { ...t, body: body.filter((b) => b.keep || b.role === "hint"), variants: [] };
+      expect(hintShown(t, DESK), id).toBe(hintShown(bare, DESK));
+      if (!hintShown(t, DESK)) missing.push(id);
+    }
+    // the counts the REPORT quotes: polish-in 0 of 1076, 881b38f 295, now 60 (idle and many-hit ★1-★2 rigs, SURGE ★2)
+    expect([withHint, missing.length]).toEqual([1076, 60]);
+    expect(missing.every((id) => /^(rig|cargo surge ★2)/.test(id)), missing.join(", ")).toBe(true);
+    console.log(`F4 desk hints: ${withHint} panels with a hint, ${missing.length} without it`);
+  });
+
+  it("the brief's case: a WEAVER's ★2 PRESSURE BREECH in cargo shows TAP A TURRET TO FIT IT. again (desk)", () => {
+    const run = newRun("weaver", 5, "f4");
+    run.inventory = [{ uid: 900, def: "pressure", stars: 2 }];
+    const plan = planPanel(cargoPanel(run, 900)!, DESK);
+    const text = visibleLines(plan).flatMap((v) => (v.line === "rule" ? [] : [v.line]));
+    expect(text.at(-1)!.block.role).toBe("hint");
+    expect(lineText(text.at(-1)!.spans)).toBe("TAP A TURRET TO FIT IT.");
+  });
+
+  it("the phone band keeps its order: the ability's later sentences before the hint", () => {
+    let hints = 0;
+    for (const { t } of PANELS) if (hintShown(t, PHONE)) hints++;
+    expect(hints).toBe(111); // as at 881b38f
+  });
+});
+
 // 0.6.2t2 (REQ-BFG-032 F2): a stat row never shows a bare number; each number says what it is, in the glossary's words.
 describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
   /** The numbers in a row's value that no unit or noun follows ("CHAMBER 3 LOADS, 1.5 SEC" at 881b38f: the 1.5). */
