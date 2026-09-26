@@ -12,6 +12,7 @@ import { ForkScreen } from "../fork/fork";
 import { EVENTS } from "../../game/eventDefs";
 import { ITEMS, OFFERS, REROLL_COST } from "../../sim/content";
 import { connectedRouteCount, defOf, hitsOfRig, isRig, itemByUid, kx, ky, rigHits, turretSlots, walkRoute } from "../../sim/deck";
+import { joinOf } from "../../sim/deck"; // 0.6.2j: belt joins
 import { NOWHERE, fightBlock, routeCheck } from "../../game/routeCheck";
 import { settings } from "../../core/settings";
 import { Fx } from "../../render/fx";
@@ -325,6 +326,9 @@ export class BuildScreen implements Screen, EditHost {
       }
     } else if (s.kind === "route" && b.routes[s.index] && !this.ed.draw) {
       for (const k of b.routes[s.index].cells) frame(g, Math.round(footX(L.frame, kx(k), ky(k))), Math.round(footY(L.frame, kx(k), ky(k))), 12, 12, col);
+      // 0.6.2j (J10): a joining belt's join tile, where its payloads enter the main belt
+      const link = joinOf(b, s.index);
+      if (link) frame(g, Math.round(footX(L.frame, kx(link.cell), ky(link.cell))), Math.round(footY(L.frame, kx(link.cell), ky(link.cell))), 12, 12, C.cyan);
       // 0.6.2 BELTSIDE (V4): every tile with hits carries its number in the inspector's timeline (T1, T2, ...)
       for (const row of walkRoute(b, s.index).timeline) {
         const x = Math.round(footX(L.frame, kx(row.cell), ky(row.cell))), y = Math.round(footY(L.frame, kx(row.cell), ky(row.cell)));

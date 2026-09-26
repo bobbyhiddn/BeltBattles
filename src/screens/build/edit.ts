@@ -7,6 +7,7 @@ import {
   adjacentToFactory, canExtend, commitRoute, connectorFree, defOf, hero, inGrid, isFreeConnectorEnd, isRig,
   itemByUid, key, kx, ky, manhattanSteps, occupancy, rotOf, routeInfo, routesOf,
 } from "../../sim/deck";
+import { canJoin, joinOf } from "../../sim/deck"; // 0.6.2j: belt joins
 import { ITEMS } from "../../sim/content";
 import { outputsAt, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
@@ -34,6 +35,20 @@ export interface Draw {
   factory: number;
   cells: number[];
   replacing: number;
+  // 0.6.2j (J3): the draw stepped into another belt's tile and joins it there (canJoin): it is complete, and can't
+  // go on past it; dragging back over its own cells undoes it
+  join?: number;
+  // 0.6.2j (J3, J11): the belt tile the drag last tried to join and was refused, and why (the preview marks it)
+  refused?: { cell: number; reason: string };
+}
+
+/** 0.6.2j: the belt being drawn, as the deck renderer previews it (CruiserView.ghost). */
+export interface GhostBelt {
+  factory: number;
+  cells: number[];
+  connected: boolean;
+  join?: number; // J11: it will join this belt tile
+  refused?: { cell: number; reason: string }; // J11: a join the drag was refused, and why
 }
 
 export class Editor {
@@ -252,7 +267,12 @@ export class Editor {
       }
       case "route": {
         const r = b.routes[src.index];
-        if (r) this.draw = { factory: r.factory, cells: r.cells.slice(0, Math.max(1, src.cell + 1)), replacing: src.index };
+        if (r) {
+          const cells = r.cells.slice(0, Math.max(1, src.cell + 1));
+          // 0.6.2j (J3): a joining belt grabbed at its end keeps its join until the drag moves back off it
+          const keep = cells.length === r.cells.length && r.join !== undefined && joinOf(b, src.index) ? { join: r.join } : {};
+          this.draw = { factory: r.factory, cells, replacing: src.index, ...keep };
+        }
         game.audio.play("belt");
         return;
       }
@@ -300,10 +320,12 @@ export class Editor {
     if (!inGrid(c.cx, c.cy)) return;
     const k = key(c.cx, c.cy);
     const cells = d.cells;
+    if (d.refused && d.refused.cell !== k) delete d.refused; // 0.6.2j: the refused tile's mark follows the pointer off it
     if (cells.length && cells[cells.length - 1] === k) return;
     const back = cells.indexOf(k);
     if (back >= 0) {
       cells.length = back + 1;
+      delete d.join; // 0.6.2j (J3): back over its own belt, the draw no longer joins
       game.audio.play("belt", cells.length);
       return;
     }
@@ -321,8 +343,25 @@ export class Editor {
       if (best === k) return;
     }
     for (const s of manhattanSteps(cells[cells.length - 1], k)) {
+      if (d.join !== undefined) break; // 0.6.2j (J3): joined, the draw is complete (drag back over it to change it)
       const chk = canExtend(b, d.factory, cells, s, d.replacing);
       if (!chk.ok) {
+        // 0.6.2j (J3): stepping into another belt's tile joins that belt when it's legal (fast drags: the first belt
+        // tile they enter); otherwise the step is refused with the join's reason
+        if (chk.reason === "BELTS CAN'T CROSS") {
+          const jn = canJoin(b, d.factory, cells, s, d.replacing);
+          if (jn.ok) {
+            d.join = s;
+            delete d.refused;
+            game.audio.play("connect");
+            const f = L.frame;
+            this.h.wfx.sparkle(footX(f, kx(s), ky(s)) + 6, footY(f, kx(s), ky(s)) + 6);
+            break;
+          }
+          d.refused = { cell: s, reason: jn.reason ?? chk.reason };
+          this.warn(d.refused.reason);
+          break;
+        }
         if (chk.reason !== "ROUTE COMPLETE") this.warn(chk.reason ?? "BLOCKED");
         break;
       }
@@ -343,17 +382,28 @@ export class Editor {
     const d = this.draw!;
     if (!d.cells.length) return;
     const b = this.h.run.build;
-    const idx = commitRoute(b, d.factory, d.cells, d.replacing);
+    const idx = commitRoute(b, d.factory, d.cells, d.replacing, d.join); // 0.6.2j: the join, when the draw ended in one
     this.h.touched();
-    if (!routeInfo(b, idx).connected) this.h.game.toast("BELT DOESN'T REACH A TURRET YET", C.yellow);
+    const info = routeInfo(b, idx);
+    if (!info.connected) this.h.game.toast("BELT DOESN'T REACH A TURRET YET", C.yellow);
+    else if (info.join) this.h.game.toast(`JOINS BELT ${info.join.route + 1}`, C.lime); // 0.6.2j (J3): no confirmation, just word
     this.h.select({ kind: "route", index: idx });
   }
 
-  /** Belt being drawn, for the deck renderer. */
-  ghost(): { factory: number; cells: number[]; connected: boolean } | null {
+  /** Belt being drawn, for the deck renderer. 0.6.2j (J11): with the join it will make, or a join it was refused. */
+  ghost(): GhostBelt | null {
     const d = this.draw;
     if (!d || !d.cells.length) return null;
-    return { factory: d.factory, cells: d.cells, connected: isFreeConnectorEnd(this.h.run.build, d.cells, d.replacing) };
+    const b = this.h.run.build;
+    let connected = isFreeConnectorEnd(b, d.cells, d.replacing);
+    if (d.join !== undefined) { // it feeds whatever the belt it joins feeds
+      const m = occupancy(b)[d.join].route;
+      connected = m >= 0 && m !== d.replacing && routeInfo(b, m).connected;
+    }
+    return {
+      factory: d.factory, cells: d.cells, connected,
+      ...(d.join !== undefined ? { join: d.join } : {}), ...(d.refused ? { refused: { ...d.refused } } : {}),
+    };
   }
 
   freeConnectors(): number[] {

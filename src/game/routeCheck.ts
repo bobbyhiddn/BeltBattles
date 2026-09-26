@@ -2,14 +2,15 @@
 // routes block of validateBuild). A deck whose belts a ghost upload would refuse can't FIGHT: every
 // route well formed, starting beside its factory, no loops, no broken steps, no machinery on the
 // path (0.6.2 BELTSIDE: rigs included, they stand beside the belt), no crossings, ending on a free
-// turret connector; a factory feeds at most its outputs; total belt <= beltCap. A deck with no
-// routes at all passes. Reads deck.ts only.
+// turret connector (0.6.2j: or legally joining a belt whose chain ends on one); a factory feeds at most
+// its outputs; total belt <= beltCap. A deck with no routes at all passes. Reads deck.ts only.
 
 import { GRID, ITEMS } from "../sim/content";
 import {
   adjacentToFactory, connectorClaims, dirBetween, itemByUid, occupancy, routeInfo, routeWellFormed,
   type Build, type Occ,
 } from "../sim/deck";
+import { joinProblem } from "../sim/deck"; // 0.6.2j (J12, J14 (c)): belt joins, as validateBuild checks them
 import { outputsAt, starsOf } from "../sim/stars";
 
 /** FIGHT's short reasons: a belt that doesn't end on a free turret connector, any other problem. */
@@ -69,6 +70,10 @@ export function routeProblems(b: Build): RouteProblem[] {
       if (o !== undefined) add(i, `routes ${o} and ${i} cross at cell ${k}`);
       else beltOwner.set(k, i);
     }
+    // 0.6.2j (J12, J14 (c)): an illegal join is reported as validateBuild reports it; the belt is then an open end. A
+    // legal joining belt is connected exactly when its chain's end is (routeInfo), so it never reads NOWHERE for that.
+    const jp = joinProblem(safe, i, occ);
+    if (jp) add(i, `route ${i} can't join cell ${r.join}: ${jp}`);
     if (!routeInfo(safe, i, claims, occ).connected) add(i, `route ${i} does not end on a free turret connector (disconnected)`, true);
   });
   for (const [uid, list] of perFactory) {

@@ -150,7 +150,8 @@ export class Arena {
     for (let ri = 0; ri < s.routes.length; ri++) {
       const r = s.routes[ri], ph = f.beltPhase[ri], fixed = f.model.routes[ri]?.fixed;
       for (let i = 0; i < ph.length; i++) {
-        let v = r.cellDisrupt[i] > 0 || !r.connected ? 0 : BELT_SPEED * chevronSpeed(r.speedAt[i], fixed);
+        // 0.6.2j: a joining belt whose chain reaches a turret runs too (it feeds no intake itself)
+        let v = r.cellDisrupt[i] > 0 || !(r.connected || (r.join !== undefined && r.join.feeds >= 0)) ? 0 : BELT_SPEED * chevronSpeed(r.speedAt[i], fixed);
         if (v > 0) {
           for (let a = 0; a < r.ammo.length; a++) {
             const am = r.ammo[a];

@@ -14,6 +14,7 @@ import {
   arrowsOf, beltUsed, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo, routesOf,
   turretSlots, walkRoute, type Build, type TimelineHit,
 } from "../../sim/deck";
+import { joinersOf, type WalkJoin } from "../../sim/deck"; // 0.6.2j: belt joins
 
 /** 0.6.2s (REQ-BFG-031 S2): the build's intakes: its installed turrets' belt columns (an empty slot has none). */
 const intakeCount = (b: Build): number => turretSlots(b).reduce((n, s) => n + s.intakes.length, 0);
@@ -373,6 +374,70 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
   };
 }
 
+/** A belt's inspector panel, without its icon and button (spec adds them). 0.6.2j: exported for tests. */
+export interface BeltPanel {
+  sub: string;
+  subTight?: string[];
+  head: Line[];
+  rows: Line[]; // the timeline (trimmed from its end when the panel is short)
+  foot: Line[]; // the turret-end readout, always in sight
+  // the line standing for the last n rows on a short panel: "+k MORE HIT TILES", k counting hit tiles only (0.6.2j: a
+  // JOINS line is none; when the dropped rows hold no hit tile, the first of them stands for itself)
+  more: (n: number) => Line;
+}
+
+/**
+ * 0.6.2 BELTSIDE (V4): a belt's panel: its tile-by-tile timeline in R7 order, then the turret-end readout, from one
+ * walk. 0.6.2j (J10): a joining belt shows its own tiles' hits, a "JOINS BELT n AT TILE t" line, then the main belt's
+ * hits from the join tile on (walkRoute continues through the join), and its sub line names the belt it joins; a main
+ * belt says how many belts join it. A belt without joins reads exactly as before. Null unless route `index` exists.
+ */
+export function beltPanel(run: Run, index: number): BeltPanel | null {
+  const b = run.build;
+  if (!b.routes[index]) return null;
+  const info = routeInfo(b, index);
+  const w = walkRoute(b, index);
+  const est = w.estimate;
+  const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
+  const joined = joinersOf(b, index); // 0.6.2j (J10)
+  const head: Line[] = [
+    ...(info.connected ? [] : [["ENDS SHORT OF A TURRET INTAKE.", C.amber] as Line]),
+    ...(joined.length ? [[`${joined.length} BELT${joined.length === 1 ? " JOINS" : "S JOIN"} IT: ${joined.map((j) => `BELT ${j + 1}`).join(", ")}`, C.cyan] as Line] : []),
+    `${info.tiles} TILES · ${hitCount} HIT${hitCount === 1 ? "" : "S"}${hitCount ? " IN ORDER:" : ": NO RIG WORKS THIS BELT"}`,
+  ];
+  // beltside-062c (DESIGN §12 P8): slag keeps its fixed speed, so on its belt a speed hit reads (LOCKED), as on a
+  // METRONOME belt: it changes nothing there, and nothing beat it. 0.6.2j (J15): a slag joiner's too, past the join
+  const joins = w.joins ?? [];
+  const joinLine = (j: WalkJoin): Line => [`JOINS BELT ${j.route + 1} AT TILE ${j.tile + 1}`, C.cyan];
+  const rows: Line[] = [];
+  const hitRow: boolean[] = []; // per row: a hit tile (false: a JOINS line)
+  w.timeline.forEach((row, i) => {
+    for (const j of joins) if (j.row === i) { rows.push(joinLine(j)); hitRow.push(false); }
+    rows.push(`T${row.tile + 1}: ${row.hits.map((h) => hitLabel(h, w.locked || w.fixed !== undefined)).join(" · ")}`);
+    hitRow.push(true);
+  });
+  for (const j of joins) if (j.row >= w.timeline.length) { rows.push(joinLine(j)); hitRow.push(false); }
+  const more = (n: number): Line => {
+    const k = hitRow.slice(hitRow.length - n).filter(Boolean).length;
+    if (!k && n > 0) return rows[rows.length - n];
+    return [`+${k} MORE HIT TILE${k === 1 ? "" : "S"} (NUMBERED ON THE DECK)`, C.slate4];
+  };
+  const dmg = `DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? `X${est.copies}` : ""}`, spd = `${num(w.speedEnd)}X`, time = `${est.time.toFixed(1)}S`;
+  const tag = (burn: string, shock: string) => [...(est.burn ? [`${burn}${est.burn}`] : []), ...(est.shock ? [shock] : [])];
+  const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
+  return {
+    sub: info.join ? `JOINS BELT ${info.join.route + 1} · ${feeds}` : feeds,
+    subTight: info.connected
+      ? [[dmg, ...tag("BURN ", "SHOCK"), spd, time].join(" · "), [dmg, ...tag("B", "SHK"), spd, time].join(" · "), [dmg, time, ...tag("B", "SHK"), spd].join(" ")]
+      : undefined,
+    head, rows, more,
+    foot: [
+      [`AT THE GUN: DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? ` X${est.copies}` : ""} · BURN ${est.burn} · ${est.shock ? "SHOCK" : "NO SHOCK"}`, C.yellow],
+      [`SPD ${num(w.speedEnd)}X · TIME ${est.time.toFixed(1)}S TO THE GUN`, C.yellow],
+    ],
+  };
+}
+
 /** 0.6.1b: the core's firing summary rescaled by k ("3 PELLETS x 40%"), or "" for the identity routine
  *  (ARSENAL.md §8.4). `tc.spec` is already k-scaled (resolveCore), so absolute numbers read straight off it. */
 function coreShape(tc: TurretCore): string {
@@ -466,34 +531,14 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       };
     }
     case "route": {
-      if (!b.routes[show.index]) return null;
-      const info = routeInfo(b, show.index);
-      // 0.6.2 BELTSIDE (V4): the tile-by-tile timeline in R7 order, then the turret-end readout, from one walk
-      const w = walkRoute(b, show.index);
-      const est = w.estimate;
-      const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
-      const head: Line[] = [
-        ...(info.connected ? [] : [["ENDS SHORT OF A TURRET INTAKE.", C.amber] as Line]),
-        `${info.tiles} TILES · ${hitCount} HIT${hitCount === 1 ? "" : "S"}${hitCount ? " IN ORDER:" : ": NO RIG WORKS THIS BELT"}`,
-      ];
-      // beltside-062c (DESIGN §12 P8): slag keeps its fixed speed, so on its belt a speed hit reads (LOCKED), as on a
-      // METRONOME belt: it changes nothing there, and nothing beat it
-      const rows = w.timeline.map((row) => `T${row.tile + 1}: ${row.hits.map((h) => hitLabel(h, w.locked || w.fixed !== undefined)).join(" · ")}`);
-      const dmg = `DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? `X${est.copies}` : ""}`, spd = `${num(w.speedEnd)}X`, time = `${est.time.toFixed(1)}S`;
-      const tag = (burn: string, shock: string) => [...(est.burn ? [`${burn}${est.burn}`] : []), ...(est.shock ? [shock] : [])];
+      const bp = beltPanel(run, show.index);
+      if (!bp) return null;
       return {
-        icon: beltIcon(), title: "BELT ROUTE", color: C.white, sub: info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED",
-        subTight: info.connected
-          ? [[dmg, ...tag("BURN ", "SHOCK"), spd, time].join(" · "), [dmg, ...tag("B", "SHK"), spd, time].join(" · "), [dmg, time, ...tag("B", "SHK"), spd].join(" ")]
-          : undefined,
+        icon: beltIcon(), title: "BELT ROUTE", color: C.white, sub: bp.sub, subTight: bp.subTight,
         // the turret end, what a payload carries into the gun (DMG, BURN, SHOCK) and how it gets there (SPD,
         // TIME), always stays in sight: on a short panel the last timeline rows give way first
-        text: [
-          ...head, ...rows,
-          [`AT THE GUN: DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? ` X${est.copies}` : ""} · BURN ${est.burn} · ${est.shock ? "SHOCK" : "NO SHOCK"}`, C.yellow],
-          [`SPD ${num(w.speedEnd)}X · TIME ${est.time.toFixed(1)}S TO THE GUN`, C.yellow],
-        ],
-        trim: { from: head.length, to: head.length + rows.length, more: (n) => [`+${n} MORE HIT TILE${n === 1 ? "" : "S"} (NUMBERED ON THE DECK)`, C.slate4] },
+        text: [...bp.head, ...bp.rows, ...bp.foot],
+        trim: { from: bp.head.length, to: bp.head.length + bp.rows.length, more: bp.more }, // 0.6.2j: hit tiles only
         actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }],
       };
     }

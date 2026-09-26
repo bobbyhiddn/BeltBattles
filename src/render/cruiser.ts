@@ -8,6 +8,7 @@ import {
   adjacentToFactory, arrowsOf, hero, hitsOfRig, itemByUid, rigHits, routeDirs, routeInfo, routePolyline, speedWinner,
   turretSlots, type Build, type Dir,
 } from "../sim/deck";
+import type { JoinLink } from "../sim/deck"; // 0.6.2j: belt joins
 import { effectAt } from "../sim/stars"; // 0.6.2 BELTSIDE: preview speeds at the rig's stars
 import { speedLocked } from "../sim/races/metronome"; // races: METRONOME belts ignore speed states
 import { C } from "./palette";
@@ -36,6 +37,9 @@ export interface RouteModel {
   connected: boolean;
   pts: { x: number; y: number }[];
   d0: number; // local dir from the factory into the first cell (-1 if detached)
+  // 0.6.2j (J11): a joining belt's legal join (its last cell's chevrons run into the join tile, which gets the join
+  // mark). `connected` is J2's: its chain reaches a turret. The shared tiles stay the main belt's own (speeds included).
+  join?: JoinLink;
 }
 
 /** 0.6.2 BELTSIDE: a placed rig's arrows (local dirs, shape order) and whether each lands on a belt tile. */
@@ -71,9 +75,9 @@ export function cruiserModel(b: Build): CruiserModel {
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   const routes = b.routes.map((r, i): RouteModel => {
     const info = routeInfo(b, i, undefined, undefined, hits);
-    if (info.connected) connectedCols.add(info.connector);
+    if (info.connected && !info.join) connectedCols.add(info.connector); // 0.6.2j: a joining belt claims no connector
     for (const uid of info.gates) gateOnRoute.add(uid);
-    const dirs = routeDirs(b, r, info.connected);
+    const dirs = routeDirs(b, r, info.connected, info.join);
     const speeds = new Float32Array(r.cells.length);
     let st = 1;
     for (let c = 0; c < r.cells.length; c++) {
@@ -86,7 +90,8 @@ export function cruiserModel(b: Build): CruiserModel {
     return {
       index: i, factory: r.factory, cells: [...r.cells], connected: info.connected, speeds, ...(fixed !== undefined ? { fixed } : {}),
       din: Int8Array.from(dirs.map((d) => d.din)), dout: Int8Array.from(dirs.map((d) => d.dout)),
-      pts: routePolyline(b, r, info.connected), d0: r.cells.length ? adjacentToFactory(b, r.factory, r.cells[0]) : -1,
+      pts: routePolyline(b, r, info.connected, info.join), d0: r.cells.length ? adjacentToFactory(b, r.factory, r.cells[0]) : -1,
+      ...(info.join ? { join: info.join } : {}),
     };
   });
   const rigs = new Map<number, RigModel>();
@@ -113,7 +118,8 @@ export interface CruiserView {
   recoil?: Float32Array; // per turret px
   flash?: number; // hull hit flash 0..1
   highlightConnectors?: number[];
-  ghost?: { factory: number; cells: number[]; connected: boolean } | null;
+  // 0.6.2j (J11): the belt being drawn, with the join it will make or a join it was refused (and why)
+  ghost?: { factory: number; cells: number[]; connected: boolean; join?: number; refused?: { cell: number; reason: string } } | null;
   hideRoute?: number;
   hideItem?: number;
 }

@@ -3,6 +3,7 @@
 
 import { AMMO, AMMO_SPACING, BELT_SPEED, CELL, GRID } from "../sim/content";
 import { DX, DY, defOf, hero, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
+import { dirBetween } from "../sim/deck"; // 0.6.2j: the pending join's direction
 import type { GateState } from "../sim/battle";
 import { starsOf } from "../sim/stars";
 import type { FactoryState } from "../sim/battle"; // 0.6.1c: read-only render state (frame index)
@@ -135,10 +136,52 @@ function drawBelts(g: G, v: CruiserView): void {
       beltCell(g, f, x, y, rm.din[i], rm.dout[i], phase, variant, chevronTint(state, rm.fixed));
       if (sr && sr.cellDisrupt[i] > 0) shock(g, x, y, v.t);
     }
-    if (!rm.connected && rm.cells.length) {
+    if (!rm.connected && !rm.join && rm.cells.length) { // 0.6.2j: a joining belt runs on into its main belt
       const last = rm.cells[rm.cells.length - 1];
       g.drawImage(beltStopper(sdir(f, rm.dout[rm.dout.length - 1])), Math.round(footX(f, kx(last), ky(last))), Math.round(footY(f, kx(last), ky(last))));
     }
+  }
+  // 0.6.2j (J11): each join, marked on its join tile over the main belt (whose tile keeps its own chevrons and tint);
+  // in the build view, a payload pip crosses from the joining belt into it on a loop
+  for (let ri = 0; ri < routes.length; ri++) {
+    const rm = routes[ri];
+    if (!rm.join || ri === v.hideRoute || rm.join.route === v.hideRoute) continue;
+    joinMark(g, f, rm.join.cell, rm.join.dir, rm.connected ? C.cyan : C.slate4);
+    if (!sim && rm.connected) crossPips(g, v, rm.pts, rm.cells.length * CELL);
+  }
+}
+
+/**
+ * 0.6.2j (J11): the join mark on a join tile: a seam across the edge a joining belt enters by and an arrowhead
+ * pointing into the main belt, in `col` (cyan: no rig arrowhead uses it). Drawn in the tile's deck-local pixels with
+ * `dir` (the joining belt's direction into the tile) as +u, so it reads the same for every facing.
+ */
+function joinMark(g: G, f: DeckFrame, cell: number, dir: number, col: string): void {
+  const tx = kx(cell) * CELL, ty = ky(cell) * CELL;
+  const at = (u: number, v: number, c: string) => {
+    const lx = dir === 1 ? tx + u : dir === 3 ? tx + 11 - u : dir === 2 ? tx + 11 - v : tx + v;
+    const ly = dir === 1 ? ty + v : dir === 3 ? ty + 11 - v : dir === 2 ? ty + u : ty + 11 - u;
+    localRect(f, lx, ly, 1, 1, box);
+    rect(g, box.x, box.y, 1, 1, c);
+  };
+  for (let v = 1; v <= 10; v++) at(0, v, v === 1 || v === 10 ? C.brass3 : col); // the seam, brass rivets at its ends
+  for (let v = 2; v <= 9; v++) at(1, v, C.ink);
+  for (let v = 3; v <= 8; v++) at(2, v, v === 3 || v === 8 ? C.ink : col); // the arrowhead, ink-rimmed
+  for (let v = 4; v <= 7; v++) at(3, v, v === 4 || v === 7 ? C.ink : col);
+  at(4, 5, C.ink);
+  at(4, 6, C.ink);
+}
+
+/** 0.6.2j (J11), build view: two payload pips on a loop from a joining belt's last tile centre into its join tile's
+ *  centre (its polyline, `end` px = its end at the join tile's side), so the crossing reads before any battle. */
+function crossPips(g: G, v: CruiserView, pts: { x: number; y: number }[], end: number): void {
+  const f = v.frame;
+  for (let n = 0; n < 2; n++) {
+    const ph = (v.t * 0.9 + n / 2) % 1;
+    pointAt(pts, end - CELL / 2 + ph * CELL);
+    const x = Math.round(sx(f, pt.x, pt.y)) - 2, y = Math.round(sy(f, pt.x, pt.y)) - 2;
+    rect(g, x, y, 4, 4, C.ink);
+    rect(g, x + 1, y + 1, 2, 2, ph < 0.5 ? C.fire4 : C.bone);
   }
 }
 
@@ -148,13 +191,31 @@ function drawGhost(g: G, v: CruiserView): void {
   const f = v.frame;
   const gr: RouteDef = { factory: gh.factory, cells: gh.cells };
   const tmp: Build = { ...v.build, routes: [...v.build.routes, gr] };
-  const dirs = routeDirs(tmp, gr, gh.connected);
+  // 0.6.2j (J11): a pending drag that will join runs its last tile into the join tile and previews the join mark
+  const jdir = gh.join !== undefined ? dirBetween(gh.cells[gh.cells.length - 1], gh.join) : -1;
+  const link = jdir >= 0 ? { route: -1, tile: -1, cell: gh.join!, dir: jdir as Dir } : undefined;
+  const dirs = routeDirs(tmp, gr, gh.connected, link);
   const blink = Math.floor(v.t * 8) % 2 === 1;
   for (let i = 0; i < gh.cells.length; i++) {
     const k = gh.cells[i];
     const x = Math.round(footX(f, kx(k), ky(k))), y = Math.round(footY(f, kx(k), ky(k)));
     beltCell(g, f, x, y, dirs[i].din, dirs[i].dout, v.t * BELT_SPEED * 1.5, gh.connected ? "normal" : "warn");
     frameRect(g, x, y, 12, 12, gh.connected ? C.lime : blink ? C.yellow : C.amber);
+  }
+  if (link) {
+    const x = Math.round(footX(f, kx(link.cell), ky(link.cell))), y = Math.round(footY(f, kx(link.cell), ky(link.cell)));
+    joinMark(g, f, link.cell, link.dir, blink ? C.white : C.cyan);
+    frameRect(g, x, y, 12, 12, gh.connected ? C.lime : blink ? C.yellow : C.amber);
+  }
+  // J11: a join the drag was refused: a red cross on that belt tile (the reason is the error the drag showed)
+  if (gh.refused) {
+    const k = gh.refused.cell;
+    const x = Math.round(footX(f, kx(k), ky(k))), y = Math.round(footY(f, kx(k), ky(k)));
+    frameRect(g, x, y, 12, 12, C.red);
+    for (let i = 2; i <= 9; i++) {
+      rect(g, x + i, y + i, 1, 1, C.red);
+      rect(g, x + 11 - i, y + i, 1, 1, C.red);
+    }
   }
 }
 
@@ -208,7 +269,10 @@ function drawAmmo(g: G, v: CruiserView): void {
     const r = sim.routes[ri];
     for (let ai = 0; ai < r.ammo.length; ai++) {
       const a = r.ammo[ai];
-      pointAt(r.pts, a.s);
+      // 0.6.2j (J11): a payload that just joined crosses from its joining belt's side to the join tile's centre
+      const jr = a.via !== undefined ? sim.routes[a.via] : undefined;
+      if (jr?.join && a.s < jr.join.enter + CELL / 2) pointAt(jr.pts, jr.L + a.s - jr.join.enter);
+      else pointAt(r.pts, a.s);
       const off = peel(r, ai);
       const lx = pt.x - pt.uy * off, ly = pt.y + pt.ux * off; // perpendicular to the travel
       const x = Math.round(sx(f, lx, ly)) - 3, y = Math.round(sy(f, lx, ly)) - 3;
