@@ -31,7 +31,7 @@ export interface TurretPanelSpec {
   actions?: { id: string; label: string; primary?: boolean; danger?: boolean; disabled?: boolean; onTap: () => void }[];
 }
 
-const sec = (x: number): string => String(+x.toFixed(2));
+const sec = (x: number): string => String(+x.toFixed(3)); // 0.495 reads 0.495 (a star's x0.9)
 const plural = (n: number, one: string, many = `${one}S`): string => `${n} ${n === 1 ? one : many}`;
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
 const isTurret = (def: string): boolean => (Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined)?.kind === "turret";

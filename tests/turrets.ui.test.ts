@@ -111,12 +111,12 @@ describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
       "2 GEAR SLOTS AND 1 CORE SOCKET.",
       "A HEAVY GUN THAT HOLDS 4 LOADS.",
       "IT TAKES BELTS ON BOTH ITS COLUMNS.",
-      "NEXT ★2: IT HOLDS 5 LOADS AND HAS 3 GEAR SLOTS. MERGE TWO ★1 COPIES TO GET IT.",
+      "NEXT ★2: IT FIRES EVERY 0.9 S AND HAS 3 GEAR SLOTS. MERGE TWO ★1 COPIES TO GET IT.",
     ]);
-    expect(turretFacts("dartgun", 2)[0]).toBe("FIRES EVERY 0.55 S AND HOLDS 3 LOADS.");
-    expect(turretFacts("dartgun", 2)).toContain("NEXT ★3: IT FIRES EVERY 0.47 S AND HAS 3 GEAR SLOTS. MERGE TWO ★2 COPIES TO GET IT.");
+    expect(turretFacts("dartgun", 2)[0]).toBe("FIRES EVERY 0.495 S AND HOLDS 2 LOADS.");
+    expect(turretFacts("dartgun", 2)).toContain("NEXT ★3: IT FIRES EVERY 0.44 S AND HAS 3 GEAR SLOTS. MERGE TWO ★2 COPIES TO GET IT.");
     expect(turretFacts("thunderer", 3)).toEqual([
-      "FIRES EVERY 0.68 S AND HOLDS 5 LOADS.", "6 GEAR SLOTS AND 1 CORE SOCKET.", expect.any(String), "IT TAKES BELTS ON BOTH ITS COLUMNS.",
+      "FIRES EVERY 0.64 S AND HOLDS 4 LOADS.", "6 GEAR SLOTS AND 1 CORE SOCKET.", expect.any(String), "IT TAKES BELTS ON BOTH ITS COLUMNS.",
     ]);
     expect(turretFacts("spikegun", 1)).toContain("IT TAKES A BELT ON ITS INNER COLUMN ONLY.");
     // plain sentences: no dot chains, every line ends with a full stop

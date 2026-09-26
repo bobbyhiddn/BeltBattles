@@ -670,101 +670,103 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   // --- 0.6.2s turrets (REQ-BFG-031 S3): installed in a hull's TURRET SLOT (Build.turrets); any turret fits any slot.
   // The six starting lines, one per distinct hero turret, are ordinary commons with exactly the heroes' 0.6.1
-  // numbers (HeroDef.slots names them). Star values (S6): ★2 window +1, ★3 window +1 and fire interval x0.85.
+  // numbers (HeroDef.slots names them). Star values (S6, step 4c from the bench, output-0.6.2s/bench): ★2 fires every
+  // fireInterval x0.9, ★3 every x0.8, window unchanged (the brief's ★2 window +1 lost to ★1 on real decks: a fuller
+  // window waits longer to fire).
   // No merchant: not sold before the shop step. Gear slots: rarity (common 1) + 1 per star above 1 (deck.ts).
   scrapcannon: {
     id: "scrapcannon", name: "SCRAP CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
     desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 3 LOADS."],
     reason: "A heavy gun that takes a belt on both columns.",
     turret: { class: "heavy", fireInterval: 1.0, window: 3, flight: 0.6, intake: "both" },
-    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.85 } } },
+    levels: { 2: { turret: { fireInterval: 0.9 } }, 3: { turret: { fireInterval: 0.8 } } },
   },
   rampart: {
     id: "rampart", name: "RAMPART CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
     desc: ["HEAVY TURRET.", "FIRES EVERY 0.75S.", "HOLDS 3 LOADS."],
     reason: "A quicker heavy gun with a slower shell.",
     turret: { class: "heavy", fireInterval: 0.75, window: 3, flight: 0.65, intake: "both" },
-    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.6375 } } },
+    levels: { 2: { turret: { fireInterval: 0.675 } }, 3: { turret: { fireInterval: 0.6 } } },
   },
   dartgun: {
     id: "dartgun", name: "DART GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
     desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."],
     reason: "A fast light gun on one inner column.",
     turret: { class: "light", fireInterval: 0.55, window: 2, flight: 0.34, intake: "inner" },
-    levels: { 2: { turret: { window: 3 } }, 3: { turret: { window: 3, fireInterval: 0.4675 } } },
+    levels: { 2: { turret: { fireInterval: 0.495 } }, 3: { turret: { fireInterval: 0.44 } } },
   },
   spikegun: {
     id: "spikegun", name: "SPIKE GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
     desc: ["LIGHT TURRET.", "FIRES EVERY 0.6S.", "HOLDS 2 LOADS."],
     reason: "A light gun on one inner column.",
     turret: { class: "light", fireInterval: 0.6, window: 2, flight: 0.34, intake: "inner" },
-    levels: { 2: { turret: { window: 3 } }, 3: { turret: { window: 3, fireInterval: 0.51 } } },
+    levels: { 2: { turret: { fireInterval: 0.54 } }, 3: { turret: { fireInterval: 0.48 } } },
   },
   carronade: {
     id: "carronade", name: "CARRONADE", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
     desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 2 LOADS."],
     reason: "A medium gun that takes a belt on both columns.",
     turret: { class: "medium", fireInterval: 0.8, window: 2, flight: 0.45, intake: "both" },
-    levels: { 2: { turret: { window: 3 } }, 3: { turret: { window: 3, fireInterval: 0.68 } } },
+    levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
   },
   swivel: {
     id: "swivel", name: "SWIVEL GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2,
     desc: ["ADAPTABLE TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."],
     reason: "An adaptable gun on both columns.",
     turret: { class: "adaptable", fireInterval: 0.7, window: 3, flight: 0.55, intake: "both" },
-    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.595 } } },
+    levels: { 2: { turret: { fireInterval: 0.63 } }, 3: { turret: { fireInterval: 0.56 } } },
   },
   // 0.6.2s S3: seven more turrets, a rare and an epic of each of light, medium and heavy, and one legendary. Each
   // differs from its class's commons in fireInterval, window, flight or intake, and only in those (no new battle
-  // mechanics). Same star values as the commons: ★2 window +1, ★3 window +1 and fire interval x0.85.
+  // mechanics). Same star values as the commons: ★2 fire interval x0.9, ★3 x0.8, window unchanged.
   twinneedle: {
     id: "twinneedle", name: "TWIN NEEDLE", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2,
     desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."],
     reason: "A light gun that takes belts on both columns.",
     turret: { class: "light", fireInterval: 0.55, window: 2, flight: 0.34, intake: "both" },
-    levels: { 2: { turret: { window: 3 } }, 3: { turret: { window: 3, fireInterval: 0.4675 } } },
+    levels: { 2: { turret: { fireInterval: 0.495 } }, 3: { turret: { fireInterval: 0.44 } } },
   },
   hailgun: {
     id: "hailgun", name: "HAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2,
     desc: ["LIGHT TURRET.", "FIRES EVERY 0.45S.", "HOLDS 3 LOADS."],
     reason: "The fastest gun: it fires every 0.45 s and holds 3 loads.",
     turret: { class: "light", fireInterval: 0.45, window: 3, flight: 0.3, intake: "inner" },
-    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.3825 } } },
+    levels: { 2: { turret: { fireInterval: 0.405 } }, 3: { turret: { fireInterval: 0.36 } } },
   },
   deckgun: {
     id: "deckgun", name: "DECK GUN", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2,
     desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 3 LOADS."],
     reason: "A medium gun that holds 3 loads, so fewer loads wait.",
     turret: { class: "medium", fireInterval: 0.8, window: 3, flight: 0.45, intake: "both" },
-    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.68 } } },
+    levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
   },
   railgun: {
     id: "railgun", name: "RAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2,
     desc: ["MEDIUM TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."],
     reason: "Fires every 0.7 s, and its shots land in 0.3 s.",
     turret: { class: "medium", fireInterval: 0.7, window: 3, flight: 0.3, intake: "both" },
-    levels: { 2: { turret: { window: 4 } }, 3: { turret: { window: 4, fireInterval: 0.595 } } },
+    levels: { 2: { turret: { fireInterval: 0.63 } }, 3: { turret: { fireInterval: 0.56 } } },
   },
   bombard: {
     id: "bombard", name: "BOMBARD", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2,
     desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 4 LOADS."],
     reason: "A heavy gun that holds 4 loads.",
     turret: { class: "heavy", fireInterval: 1.0, window: 4, flight: 0.6, intake: "both" },
-    levels: { 2: { turret: { window: 5 } }, 3: { turret: { window: 5, fireInterval: 0.85 } } },
+    levels: { 2: { turret: { fireInterval: 0.9 } }, 3: { turret: { fireInterval: 0.8 } } },
   },
   siegegun: {
     id: "siegegun", name: "SIEGE GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2,
     desc: ["HEAVY TURRET.", "FIRES EVERY 0.85S.", "HOLDS 4 LOADS."],
     reason: "A heavy gun that fires every 0.85 s and holds 4 loads.",
     turret: { class: "heavy", fireInterval: 0.85, window: 4, flight: 0.55, intake: "both" },
-    levels: { 2: { turret: { window: 5 } }, 3: { turret: { window: 5, fireInterval: 0.7225 } } },
+    levels: { 2: { turret: { fireInterval: 0.765 } }, 3: { turret: { fireInterval: 0.68 } } },
   },
   thunderer: {
     id: "thunderer", name: "THUNDERER", kind: "turret", rarity: "legendary", price: TURRET_PRICE.legendary, size: 2,
     desc: ["HEAVY TURRET.", "FIRES EVERY 0.8S.", "HOLDS 4 LOADS."],
     reason: "A heavy gun that fires every 0.8 s, with 4 gear slots.",
     turret: { class: "heavy", fireInterval: 0.8, window: 4, flight: 0.5, intake: "both" },
-    levels: { 2: { turret: { window: 5 } }, 3: { turret: { window: 5, fireInterval: 0.68 } } },
+    levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
   },
   // --- supplies (consumed on purchase) ---
   beltcrate: {

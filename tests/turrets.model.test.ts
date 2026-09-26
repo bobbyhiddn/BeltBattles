@@ -90,11 +90,12 @@ describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
       expect(heroNames.has(d.name)).toBe(false);
       expect(Object.values(ITEMS).filter((x) => x.name === d.name).length).toBe(1);
       expect(fusible(id)).toBe(true);
-      // S6 star values: ★2 window +1, ★3 window +1 and fire interval x0.85
-      expect(effectAt(id, 2).turret!.window).toBe(t.window + 1);
-      expect(effectAt(id, 3).turret!.window).toBe(t.window + 1);
-      expect(effectAt(id, 3).turret!.fireInterval).toBeCloseTo(t.fireInterval * 0.85, 12);
-      expect(effectAt(id, 2).turret!.fireInterval).toBe(t.fireInterval);
+      // S6 star values (step 4c, from the bench: the brief's ★2 window +1 lost to ★1 on real decks): ★2 fires every
+      // fireInterval x0.9, ★3 every x0.8, window unchanged
+      expect(effectAt(id, 2).turret!.window).toBe(t.window);
+      expect(effectAt(id, 3).turret!.window).toBe(t.window);
+      expect(effectAt(id, 2).turret!.fireInterval).toBeCloseTo(t.fireInterval * 0.9, 12);
+      expect(effectAt(id, 3).turret!.fireInterval).toBeCloseTo(t.fireInterval * 0.8, 12);
     }
   });
 
@@ -149,8 +150,9 @@ describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
         expect(differs).toBe(true);
       }
       expect(Object.keys(t).sort()).toEqual(["class", "fireInterval", "flight", "intake", "window"]);
-      expect(effectAt(id, 2).turret!.window).toBe(t.window + 1);
-      expect(effectAt(id, 3).turret!.fireInterval).toBeCloseTo(t.fireInterval * 0.85, 12);
+      expect(effectAt(id, 2).turret!.window).toBe(t.window);
+      expect(effectAt(id, 2).turret!.fireInterval).toBeCloseTo(t.fireInterval * 0.9, 12);
+      expect(effectAt(id, 3).turret!.fireInterval).toBeCloseTo(t.fireInterval * 0.8, 12);
     }
   });
 });
