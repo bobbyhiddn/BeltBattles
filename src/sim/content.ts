@@ -384,7 +384,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   limpet: {
     id: "limpet", name: "LIMPET WORKS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "scrapper",
-    desc: ["STICKY CHARGES BLOW", "3S LATER FOR HULL", "DAMAGE AND A STALL."], tags: ["BURST", "HARASS"],
+    desc: ["STICKY CHARGES BLOW", "3 SECONDS LATER FOR", "HULL DAMAGE."], tags: ["BURST", "HARASS"], // 0.6.2t 0b.1: no stall at 1 star
     factory: { ammo: "limpet", interval: 2.4, outputs: 1, round: { kind: "limpet", delay: 3, blast: 8 } },
     levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 18, stall: 1 } } },
       3: { factory: { round: { kind: "limpet", delay: 3, blast: 28, stall: 1.6 } } } },

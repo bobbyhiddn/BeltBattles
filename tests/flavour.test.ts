@@ -410,7 +410,8 @@ describe("0.6.2t T7: star-aware flavour in whole sentences, every module x stars
     expect(STARS.map((s) => effectAt("brake", s).gate!.speed)).toEqual([0.5, 0.5, 0.5]); // HALF SPEED
   });
 
-  it("0b.1: LIMPET WORKS promises no stall at 1 star; from ★2 the flavour names the stall", () => {
+  it("0b.1: LIMPET WORKS promises no stall at 1 star (its catalogue desc too); from ★2 the flavour names the stall", () => {
+    expect(ITEMS.limpet.desc.join(" ")).toBe("STICKY CHARGES BLOW 3 SECONDS LATER FOR HULL DAMAGE.");
     expect(flavourText("limpet", 1)).not.toMatch(/STALL/);
     expect(STARS.map((s) => (effectAt("limpet", s).factory!.round as { stall?: number }).stall ?? 0)).toEqual([0, 1, 1.6]);
     expect([2, 3].map((s) => flavourText("limpet", s))).toEqual(Array(2).fill("STICKY CHARGES BLOW 3 SECONDS LATER FOR HULL DAMAGE AND A STALL."));
