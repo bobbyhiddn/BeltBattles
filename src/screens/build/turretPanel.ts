@@ -138,9 +138,17 @@ export function deadEndLines(b: Build, t: number): PanelLine[] {
   const s = turretSlots(b)[t];
   return deadEndsAt(b, t).map((ri): PanelLine => {
     const cells = b.routes[ri].cells, col = kx(cells[cells.length - 1]) + 1;
-    const why = s?.turret ? "THIS TURRET TAKES NO BELT THERE" : "AN EMPTY SLOT TAKES NO BELTS";
-    return [`BELT ${ri + 1} ENDS UNDER COLUMN ${col}, BUT ${why}. RE-ROUTE IT OR SWAP BACK TO FIGHT.`, C.amber];
+    const who = s?.turret ? "THIS TURRET TAKES" : "AN EMPTY SLOT TAKES";
+    return [`BELT ${ri + 1} IS A DEAD END: ${who} NO BELT ON COLUMN ${col}. RE-ROUTE IT TO FIGHT.`, C.amber];
   });
+}
+
+/** S2: the columns an installed turret takes belts on, as a sentence. */
+export function intakeColumnsLine(b: Build, t: number): string | null {
+  const s = turretSlots(b)[t];
+  if (!s?.turret) return null;
+  const cols = s.intakes.map((c) => c + 1);
+  return cols.length > 1 ? `IT TAKES BELTS ON COLUMNS ${cols.join(" AND ")}.` : `IT TAKES A BELT ON COLUMN ${cols[0]} ONLY.`;
 }
 
 /** An EMPTY TURRET SLOT's panel (S1, S2, S4). */
@@ -176,13 +184,21 @@ export function slotIcon(b: Build, t: number): HTMLCanvasElement | null {
 
 /**
  * S4/S10: the CORE SOCKET and every GEAR SLOT of the turret in slot t, filled or empty, in hardpoint order.
- * `gearText(def, stars)` is a gear piece's own effect line (inspector.ts starEffectLine).
+ * `gearText(def, stars)` is a gear piece's own effect line (inspector.ts starEffectLine). `compact` (the phone's
+ * four-line band): one line lists every gear slot, "3 GEAR SLOTS: EXT. CHAMBER, HOPPER, 1 EMPTY".
  */
-export function socketLines(b: Build, t: number, coreName: string, gearText: (def: string, stars: number) => string): string[] {
+export function socketLines(b: Build, t: number, coreName: string, gearText: (def: string, stars: number) => string, compact = false): string[] {
   const s = turretSlots(b)[t];
   if (!s?.turret) return [];
   const gear = gearOn(b, t);
   const out = [`CORE SOCKET: ${coreName}`];
+  if (compact) {
+    const names = gear.slice(0, s.gearSlots).map((m) => starred(ITEMS[m.def].name, starsOf(m)));
+    const empty = s.gearSlots - names.length;
+    const list = [...names, ...(empty ? [`${empty} EMPTY`] : [])].join(", ");
+    out.push(`${plural(s.gearSlots, "GEAR SLOT")}: ${list}`);
+    return out;
+  }
   for (let i = 0; i < s.gearSlots; i++) {
     const m = gear[i];
     if (!m) {
@@ -200,11 +216,19 @@ export function slotNotes(b: Build, t: number): string[] {
   const tu = turretSlots(b)[t]?.turret;
   if (!tu) return [];
   const d = ITEMS[tu.def];
+  const cols = intakeColumnsLine(b, t);
   return [
+    ...(cols ? [cols] : []),
     ...(tu.free && !canSellTurret(tu) ? ["YOUR HULL'S FREE STARTING TURRET. IT CAN'T BE SOLD AT 1 STAR."] : []),
     ...(d.reason ? [d.reason.toUpperCase()] : []),
     "HOLD IT, OR DRAG IT WITH NO GEAR ON, TO MOVE OR SWAP IT.",
   ];
+}
+
+/** An installed turret's sub line: its class and slot, "HEAVY TURRET IN SLOT 2". */
+export function slotSub(b: Build, t: number): string {
+  const td = turretSlots(b)[t]?.td;
+  return td ? `${td.kind.toUpperCase()} TURRET IN SLOT ${t + 1}` : `TURRET SLOT ${t + 1}`;
 }
 
 /** S5: an installed turret's TO CARGO and SELL buttons (a 1-star starting turret can't be sold). */

@@ -32,7 +32,7 @@ import { gainModule, mergePreview } from "../../game/fuse";
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
 import type { Sel } from "./layout";
 import { describe } from "./shop";
-import { deadEndLines, slotActions, slotColor, slotIcon, slotNotes, slotTitle, socketLines, turretSpec } from "./turretPanel"; // 0.6.2s
+import { deadEndLines, slotActions, slotColor, slotIcon, slotNotes, slotSub, slotTitle, socketLines, turretSpec } from "./turretPanel"; // 0.6.2s
 
 /**
  * 0.6.1d: the headline number at `stars`, `effectAt` read out short (ARSENAL.md §8.1, §8.2). 0.6.1p: every applied
@@ -446,12 +446,12 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       // (turretPanel.ts socketLines); belts a swap left without an intake first; TO CARGO and SELL
       return {
         icon: slotIcon(b, show.index), title: slotTitle(b, show.index), color: slotColor(b, show.index),
-        sub: `${td.kind.toUpperCase()} TURRET ${show.index + 1} FED FROM COLUMN ${td.connectors.map((c) => c + 1).join("+")}`,
+        sub: slotSub(b, show.index),
         text: [
           ...deadEndLines(b, show.index),
           `${shape ? `${shape} · ` : ""}FIRES EVERY ${every.toFixed(2)}S${per > 1 ? ` · ${per} PER SHOT` : ""}`,
+          ...socketLines(b, show.index, coreName, (d, s) => starEffectLine(d, s), !!ctx.L?.portrait), // 0.6.1b: §8.4
           chamber,
-          ...socketLines(b, show.index, coreName, (d, s) => starEffectLine(d, s)), // 0.6.1b: ARSENAL.md §8.4
           ...clash,
           ...slotNotes(b, show.index),
         ],
