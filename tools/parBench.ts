@@ -25,8 +25,8 @@
 //   --forbid d1,d2  [--seeds 4] [--sample N] a part's control: each par deck against the same seed's run with
 //               --tune forbid=<def> (the part never taken, the gold re-spent), over the decks that hold it, beside its
 //               ablation; one forbid-<def>-<tag>-d<day>.json per def
-//   --rigs      [--sample N] no battles: each multi-arrow rig's copies, landed arrows (one belt / two belts) and gold
-//               per landed arrow in the par decks (T3)
+//   --rigs      [--sample N] [--rigs-all] no battles: each multi-arrow rig's copies, landed arrows (one belt / two belts)
+//               and gold per landed arrow in the par decks (T3); --rigs-all counts the 1-arrow rigs too
 //   --partstars d1,d2  [--seeds 4] [--sample N] a changed part's merge steps on the par decks that hold it (T6):
 //               every copy at 1, 2 and 3 stars in place, paired; WORSE / STEP WORSE by the star bench's D1 rule
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
@@ -462,7 +462,7 @@ function rigsMode(days: number[], out: string, opts: PlayerOpts, k: number, samp
         for (const r of rigHits(b)) for (const t of r) for (const h of t) on.set(h.uid, [...(on.get(h.uid) ?? []), h.route]);
         const seen = new Set<string>();
         for (const p of b.items) {
-          if (ITEMS[p.def].kind !== "gate" || rigArrows(p.def).length < 2) continue;
+          if (ITEMS[p.def].kind !== "gate" || (rigArrows(p.def).length < 2 && !process.argv.includes("--rigs-all"))) continue;
           const e = per.get(p.def) ?? { decks: 0, copies: 0, stars: [], one: [], two: [], gold: 0 };
           if (!seen.has(p.def)) { seen.add(p.def); e.decks++; }
           const rs = on.get(p.uid) ?? [];
