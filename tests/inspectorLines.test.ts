@@ -206,19 +206,19 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // a ★2 SPLITTER (T) at (3,3) facing east: one arrow on the Kiln's (4,3), tile 3; one spare copy in cargo
     expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
       "→ BELT 1, TILE 3", "SPLITS EACH PAYLOAD INTO 2 COPIES AT 72% DAMAGE. ★2 CLEAN CUT", "EACH COPY KEEPS ALL OF THE BURN, POISON AND SHOCK.",
-      "NEXT STAR: 2 COPIES AT 85% DAMAGE. ★3 PERFECT CUT", "1 MORE COPY TO MERGE.", "SPLITS A PAYLOAD IN TWO COPIES AT 72%. MORE BELT PRESSURE.", TURN,
+      "NEXT STAR: 2 COPIES AT 85% DAMAGE. ★3 PERFECT CUT", "1 MORE COPY TO MERGE.", "ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT.", TURN,
     ]);
-    // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, no perk at ★1
+    // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, no perk at ★1; 0.6.2t2 (F1): no flavour kept
     expect(text(rigRun("longhaul", 1, 5, 3, 0, 0))).toEqual([
       "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", "ADDS 2 DAMAGE FOR EACH EARLIER RIG HIT.", "EVERY RIG HIT ON THE PAYLOAD COUNTS, SPEED RIGS TOO.",
-      "NEXT STAR: 4 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS.", "1 MORE COPY TO MERGE.", "+2 DAMAGE FOR EACH HIT THE PAYLOAD ALREADY TOOK.", TURN,
+      "NEXT STAR: 4 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS.", "1 MORE COPY TO MERGE.", TURN,
     ]);
     // an IDLE ★2 TEMPER: the amber warning leads
     const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
     expect([idle.body[0].role, idle.body[0].text]).toEqual(["warn", IDLE_WARNING]);
     expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([
       IDLE_WARNING, "ADDS 4 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS.", "NEXT STAR: ADDS 7 BURN.",
-      "2 MORE COPIES TO MERGE.", "ADDS 4 BURN. EACH BURN STACK DEALS 1 DAMAGE A SECOND FOR 3 SECONDS AFTER THE HIT.", TURN,
+      "2 MORE COPIES TO MERGE.", TURN,
     ]);
     expect([idle.sub, idle.subColor, idle.idle, idle.labels]).toEqual(["RIG · IDLE", C.amber, true, ["ROTATE", "TO CARGO"]]);
     // a ★3 X OVERDRIVE at (5,3): no next star past ★3, no ROTATE for an X
@@ -226,7 +226,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     expect(text(rigRun("overdrive", 3, 5, 3, 0, 0))).toEqual([
       "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", "MAKES THE BELTS PAST IT 5 TIMES AS FAST AND ADDS 3 DAMAGE TO EACH PAYLOAD. ★3 AFTERBURNER",
       "ENEMY CHAINS AND FROST CAN'T SLOW OR FREEZE THE BELTS PAST IT.", "ON METRONOME'S LOCKED BELTS IT ADDS 11 MORE DAMAGE INSTEAD OF THE SPEED CHANGE.",
-      "4 ARROWS: THE BELT RUNS 5 TIMES AS FAST FROM ITS HIT. METRONOME'S LOCKED BELTS GAIN +11 DAMAGE.", "FACES EVERY SIDE. DRAG TO MOVE.",
+      "FACES EVERY SIDE. DRAG TO MOVE.",
     ]);
     expect([x.sub, x.subShort, x.labels]).toEqual(["RIG · 2/4 ARROWS ON BELTS", "RIG · 2/4 HIT", ["TO CARGO"]]);
   });

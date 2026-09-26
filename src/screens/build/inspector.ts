@@ -184,8 +184,11 @@ function progressBlocks(run: Run, def: string, stars: number): Block[] {
   ];
 }
 
-/** The flavour (0.6.2p's star-aware desc, T7), whole or not at all (0b.5). */
-const flavourBlock = (def: string, stars: number, k: number): Block => ({ role: "flavour", text: flavourText(def, stars, k), rank: 7 });
+/** The flavour (T7), whole or not at all (0b.5); no block when nothing is kept (0.6.2t2 F1: the hint follows the text). */
+const flavourBlocks = (def: string, stars: number, k: number): Block[] => {
+  const text = flavourText(def, stars, k);
+  return text ? [{ role: "flavour", text, rank: 7 }] : [];
+};
 /** The action hint. */
 const hintBlock = (text: string): Block => ({ role: "hint", text, rank: 6 });
 
@@ -298,7 +301,7 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
   const rest = [
     ...abilityBlocks(d.id, stars, textOpts(run)),
     ...progressBlocks(run, d.id, stars),
-    flavourBlock(d.id, stars, 1),
+    ...flavourBlocks(d.id, stars, 1),
     hintBlock(x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE."),
   ];
   // T6 (phone): the hits (or the IDLE warning) move up into the header's sub line, where they fit there (planBody skips
@@ -345,7 +348,7 @@ export function offerPanel(run: Run, wagon: number, slot: number): PanelText | n
   const body: Block[] = [
     ...abilityBlocks(d.id, 1, opts),
     ...(mLine ? [mLine] : []),
-    flavourBlock(d.id, 1, opts.k ?? 1),
+    ...flavourBlocks(d.id, 1, opts.k ?? 1),
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true)),
   ];
   return {
@@ -369,7 +372,7 @@ export function cargoPanel(run: Run, uid: number): PanelText | null {
     ...abilityBlocks(d.id, stars, opts),
     ...progressBlocks(run, d.id, stars),
     ...(turret && it.free ? [{ role: "ability", text: freeNote(sellable), rank: 3 } as Block] : []),
-    flavourBlock(d.id, stars, opts.k ?? 1),
+    ...flavourBlocks(d.id, stars, opts.k ?? 1),
     hintBlock(placeHint(d.kind, false)),
   ];
   return {
@@ -398,7 +401,7 @@ export function itemPanel(run: Run, uid: number): PanelText | null {
   const body: Block[] = [
     ...(hasAbilityText(d.id) ? abilityBlocks(d.id, stars, textOpts(run)) : []),
     ...(sig ? [] : progressBlocks(run, d.id, stars)),
-    flavourBlock(d.id, stars, 1),
+    ...flavourBlocks(d.id, stars, 1),
     hintBlock("DRAG OUT OF IT TO LAY BELT."),
   ];
   return {

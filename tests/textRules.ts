@@ -48,6 +48,38 @@ export function numbers(text: string): number[] {
   return [...text.matchAll(/(\d+(?:\.\d+)?)|\b(ONE|TWO|THREE|FOUR|FIVE|TWICE)\b/g)].map((m) => (m[1] ? +m[1] : words[m[2]]));
 }
 
+/** 0.6.2t2 (F1): a paragraph's sentences (a break after a full stop, before the next sentence's first character). */
+export function sentencesOf(text: string): string[] {
+  return text ? text.split(/(?<=\.)\s+(?=[A-Z0-9+"'(★])/) : [];
+}
+
+/** Words that carry no content of their own (F1's repeat check skips them). */
+const STOP = new Set([
+  "A", "AN", "THE", "OF", "TO", "IN", "ON", "AT", "FOR", "AND", "OR", "BUT", "NOT", "NO", "IT", "ITS", "IS", "ARE", "BE",
+  "BY", "AS", "WITH", "FROM", "INTO", "THAT", "WHICH", "THEY", "THEIR", "THEM", "THIS", "THOSE", "EACH", "EVERY", "ALL",
+  "ANY", "YOUR", "YOU", "UP", "SO", "THEN", "THAN", "WHEN", "WHILE", "ALSO", "MORE", "LESS", "ONCE",
+]);
+/** A text's words: upper case, punctuation dropped (a decimal point kept). */
+const wordsOf = (s: string): string[] => s.toUpperCase().replace(/[^A-Z0-9%.']+/g, " ").split(" ").map((w) => w.replace(/^\.+|\.+$/g, "")).filter(Boolean);
+/** Its content words, a plural's S dropped (COPIES and COPY stay apart; that's fine for a guard). */
+const contentOf = (ws: string[]): string[] => ws.filter((w) => !STOP.has(w) && !/^\d/.test(w)).map((w) => (w.length > 3 && /[^S]S$/.test(w) ? w.slice(0, -1) : w));
+
+/**
+ * 0.6.2t2 (F1): true when a flavour sentence repeats an ability sentence: one holds the other word for word, or they share
+ * a run of three words (two of them content words), or most (60% or more) of the flavour's content words are in it.
+ */
+export function repeats(flavour: string, ability: string): boolean {
+  const fw = wordsOf(flavour), aw = wordsOf(ability);
+  if (!fw.length || !aw.length) return false;
+  const f = ` ${fw.join(" ")} `, a = ` ${aw.join(" ")} `;
+  if (a.includes(f) || f.includes(a)) return true;
+  const run = (ws: string[], i: number) => ws.slice(i, i + 3);
+  const runs = new Set(aw.slice(2).map((_, i) => run(aw, i).join(" ")));
+  if (fw.slice(2).some((_, i) => contentOf(run(fw, i)).length >= 2 && runs.has(run(fw, i).join(" ")))) return true;
+  const fc = contentOf(fw), ac = new Set(contentOf(aw));
+  return fc.length > 0 && fc.filter((w) => ac.has(w)).length / fc.length >= 0.6;
+}
+
 /** A percentage as the texts round it. */
 export const pct = (x: number): number => Math.round(x * 100);
 /** At most one decimal (damage), at most two (seconds). */

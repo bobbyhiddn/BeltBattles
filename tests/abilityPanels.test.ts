@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { newRun, type Run } from "../src/game/run";
-import { HEROES, ITEMS, rigShape, type HeroId } from "../src/sim/content";
+import { HEROES, ITEMS, buyableModules, rigShape, type HeroId } from "../src/sim/content";
 import { gearSlotsOf, key as K, rotField, setTurretList, turretSlots, walkRoute, type Placed } from "../src/sim/deck";
 import { emptySlotPanel } from "../src/screens/build/turretPanel";
 import { rotFacing } from "../src/sim/beltside";
@@ -14,9 +14,9 @@ import {
   type Block, type Laid, type PanelText, type PLine,
 } from "../src/screens/build/inspector";
 import { abilityText, cardText, gist, mergeProgressText, speedText } from "../src/ui/abilityText";
-import { flavourText } from "../src/screens/build/flavour";
+import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
-import { MODULES, STARS, SUPPLIES, banned } from "./textRules";
+import { MODULES, STARS, SUPPLIES, banned, numbers, repeats, sentencesOf, starsOf } from "./textRules";
 
 // 0.6.2t (REQ-BFG-032): the panels. T6's phone fit for every buyable module at every star (rigs, factories, cores,
 // gear and supplies; placed, in cargo, on offer and fitted), with KNOWN_PHONE_CUTS empty and the flavour whole or absent
@@ -290,7 +290,7 @@ describe("0.6.2t T4: the panels' layout", () => {
     expect(lum(ROLE.ability.colour)).toBeGreaterThan(lum(ROLE.flavour.colour));
     expect(lum(ROLE.flavour.colour)).toBeGreaterThan(lum(ROLE.hint.colour));
     expect([ROLE.flavour.small, ROLE.hint.small, ROLE.ability.small]).toEqual([true, true, false]);
-    const cargo = PANELS.find((p) => p.id === "cargo temper ★1 furnace spare0")!;
+    const cargo = PANELS.find((p) => p.id === "cargo whetstone ★1 furnace spare0")!; // 0.6.2t2: WHETSTONE keeps its tip
     const plan = planPanel(cargo.t, DESK);
     const at = plan.body.lines.indexOf("rule");
     expect(at).toBeGreaterThan(0);
@@ -511,5 +511,87 @@ describe("0b.1-0b.3: the other carry-overs", () => {
       expect(banned(b.text), `${id}: ${b.text}`).toEqual([]);
     }
     expect(C.bone).toBe(ROLE.ability.colour);
+  });
+});
+
+// 0.6.2t2 (REQ-BFG-032 F1): the dim flavour block adds something or isn't there. The guard runs over whatever the catalogue
+// sells (buyableModules() and the supplies), so it keeps failing for any future module whose flavour (its KEPT_FLAVOUR
+// row, else its catalogue desc) repeats its ability text.
+describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel", () => {
+  /** A panel's ability sentences and flavour sentences. */
+  const texts = (t: PanelText) => ({
+    ability: t.body.filter((b) => b.role === "ability").flatMap((b) => sentencesOf(b.text)),
+    flavour: t.body.filter((b) => b.role === "flavour").flatMap((b) => sentencesOf(b.text)),
+  });
+  /** Why a flavour sentence fails the guard beside these ability sentences ([] when it passes). */
+  const faults = (f: string, ability: string[]): string[] => {
+    const nums = new Set(ability.flatMap(numbers));
+    return [
+      ...numbers(f).filter((n) => nums.has(n)).map((n) => `quotes ${n}`),
+      ...ability.filter((a) => repeats(f, a)).map((a) => `repeats "${a}"`),
+      ...(repeats(f, ability.join(" ")) ? ["restates the ability text"] : []),
+    ];
+  };
+
+  it("covers every module the catalogue sells at each of its stars, and each supply: placed, cargo, offer (0, 1 or 2 held) and fitted", () => {
+    const ids = new Set(PANELS.map((p) => p.id));
+    for (const d of buyableModules()) for (const s of starsOf(d)) {
+      const want = [
+        `cargo ${d.id} ★${s} furnace spare0`,
+        ...(d.kind === "gate" ? [`rig ${d.id} ★${s} 1hit spare0`] : []),
+        ...(d.kind === "factory" ? [`placed ${d.id} ★${s} spare0`] : []),
+        ...(d.kind === "core" || d.kind === "mod" ? [`turret ${d.id} ★${s}`] : []),
+      ];
+      for (const id of want) expect(ids.has(id), id).toBe(true);
+    }
+    for (const d of buyableModules()) for (const held of ["[]", "[1]", "[2,1]"]) expect(ids.has(`offer ${d.id} held${held}`), `${d.id} ${held}`).toBe(true);
+    for (const d of SUPPLIES) expect(ids.has(`offer ${d.id} held[]`), d.id).toBe(true);
+  });
+
+  it("no flavour sentence quotes a number the panel's ability sentences quote, or repeats one of them (the opening first)", () => {
+    let flavoured = 0, sentences = 0;
+    for (const { id, t } of PANELS) {
+      const { ability, flavour } = texts(t);
+      if (flavour.length) flavoured++;
+      for (const f of flavour) {
+        sentences++;
+        expect(ability.length, `${id}: flavour without ability text`).toBeGreaterThan(0);
+        expect(repeats(f, ability[0]), `${id}: "${f}" repeats the opening "${ability[0]}"`).toBe(false);
+        expect(faults(f, ability), `${id}: "${f}"`).toEqual([]);
+      }
+    }
+    // the counts the REPORT quotes (881b38f: 1076 panels with a flavour block, 1491 sentences, 1330 of them flagged)
+    expect([flavoured, sentences]).toEqual([85, 85]);
+    console.log(`F1 guard: ${PANELS.length} panels, ${flavoured} with a flavour block, ${sentences} flavour sentences, 0 repeats`);
+  });
+
+  it("the guard catches what 881b38f showed: the effect restated, a number quoted again, MIMIC FORGE ★3's contradiction", () => {
+    const at = (def: string, s = 1) => abilityText(def, s).sentences;
+    // 881b38f's flavour, each against its own ability text: every one fails the guard
+    const old: [string, number, string][] = [
+      ["grease", 1, "THE BELT RUNS 60% FASTER FROM ITS HIT."], // a number quoted again
+      ["grease", 1, "METRONOME'S LOCKED BELTS GAIN +1 DAMAGE."],
+      ["temper", 1, "ADDS 2 BURN."], // the opening, cut short
+      ["temper", 1, "EACH BURN STACK DEALS 1 DAMAGE A SECOND FOR 3 SECONDS AFTER THE HIT."],
+      ["frostbite", 1, "FROST ROUNDS FREEZE MACHINES AND PAUSE THEIR TIMERS."], // the effect in other words
+      ["mimic", 3, "STAMPS YOUR HERO'S SIGNATURE AMMO INTO TWO MORE ROUTES."], // and TWO against FEEDS 2 BELTS
+    ];
+    for (const [def, s, f] of old) expect(faults(f, at(def, s)).length, `${def} ★${s}: ${f}`).toBeGreaterThan(0);
+    expect(faults("THE BELT RUNS 60% FASTER FROM ITS HIT.", at("grease"))).toEqual(["quotes 60"]);
+    expect(faults("STAMPS YOUR HERO'S SIGNATURE AMMO INTO TWO MORE ROUTES.", at("mimic", 3))[0]).toBe("quotes 2");
+    // the kept lines pass against their own ability text at every star
+    for (const [def, kept] of Object.entries(KEPT_FLAVOUR)) for (const f of kept) for (const s of starsOf(ITEMS[def])) {
+      expect(faults(f, at(def, s)), `${def} ★${s}: ${f}`).toEqual([]);
+    }
+  });
+
+  it("a panel whose module keeps no flavour shows the rule, then the hint (desk)", () => {
+    const run = newRun("furnace", 5, "f1");
+    run.inventory = [{ uid: 900, def: "temper" }];
+    const t = cargoPanel(run, 900)!;
+    expect(t.body.some((b) => b.role === "flavour")).toBe(false);
+    const plan = planPanel(t, DESK), at = plan.body.lines.indexOf("rule");
+    expect((plan.body.lines[at + 1] as PLine).block.role).toBe("hint");
+    expect(flavourText("temper", 1)).toBe("");
   });
 });
