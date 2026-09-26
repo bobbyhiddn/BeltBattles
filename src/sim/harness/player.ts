@@ -104,6 +104,10 @@ export interface PolicyKnobs {
   extra: number; // 1: a turret may go into the empty extra slot (0: never; the gold goes elsewhere: flag 1's control)
   join: number; // 1: a new factory's belt may join a belt, and a belt may be redrawn into a join (0: never)
   aimTop: number; // place "tile": a multi-arrow rig also tries this many of the spots where most of its arrows land
+  // 0.6.2 TUNE-M (T1, a part's control: parBench --forbid): optional, set by no policy. Part defs ("+"-joined) the player
+  // never takes: the caravan still rolls them and candidates() still judges them (the same RNG draws), but no merge,
+  // pick, whim, fill or crate buy takes one, and the change is never counted as spendable on one; the gold goes elsewhere.
+  forbid?: string;
 }
 
 export interface PlayerOpts {
@@ -208,7 +212,13 @@ interface Cand {
   swap?: number; // an upgrade: the uid of the fitted gear or core it replaces (stored, then sold)
   turret?: TurretPlan; // CAND-A: a turret offer's plan
   rel: number; // (rateDeck(after) - rateDeck(now)) / rateDeck(now)
+  banned?: boolean; // TUNE-M: its def is in pol.forbid (judged as usual, never taken)
 }
+
+/** TUNE-M (T1): the defs pol.forbid names (none for both policies). */
+const forbidden = (pol: PolicyKnobs): ReadonlySet<string> => new Set((pol.forbid ?? "").split("+").filter(Boolean));
+/** TUNE-M (T1): the candidates the player may take. */
+const allowed = (cs: readonly Cand[]): Cand[] => cs.filter((c) => !c.banned);
 
 /** A late sink (pickOffer): an upgrade that sells a part it replaces, or a turret that replaces a working one (a
  *  deliberate swap, taken for a clear gain only; the rating can't see a turret's window or shell flight). */
@@ -826,6 +836,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
   const out: Cand[] = [];
   const planned = new Map<string, Omit<Cand, "wagon" | "slot" | "price">[]>();
   const fed = fedTurrets(b);
+  const banned = forbidden(pol); // TUNE-M (T1): empty for both policies
   // CAND-A: the factories on offer, for a turret judged with the factory that would feed it (pairCand)
   const factories = run.shop.wagons.flatMap((w) => w.offers.filter((o) => !o.sold && ITEMS[o.def].kind === "factory").map((o) => ({ def: o.def, price: o.price })));
   run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {
@@ -902,7 +913,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
           for (const f of factories) {
             if (o.price + f.price > run.gold) continue;
             const pc = pairCand(run, o.def, f.def, pol, rng, base);
-            if (pc && (!extra || pc.rel > extra.rel)) extra = pc;
+            if (pc && !banned.has(f.def) && (!extra || pc.rel > extra.rel)) extra = pc; // TUNE-M: never with a forbidden factory
           }
         }
         if (extra) c = { def: o.def, kind: "turret", merge: false, turret: extra.plan, rel: extra.rel };
@@ -910,6 +921,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
       }
     }
     const cs = [...(c ? [c] : []), ...more];
+    if (banned.has(o.def)) for (const x of cs) x.banned = true; // TUNE-M (T1): judged, never taken
     planned.set(o.def, cs);
     push(cs);
   }));
@@ -935,23 +947,28 @@ function bestSpend(prices: number[], cap: number): number {
  */
 function pickOffer(cands: Cand[], gold: number, keep: number, pol: PolicyKnobs, rng: Rng, short = false): { c: Cand; why: PlayerBuy["why"] } | null {
   const judge = (c: Cand) => (c.rel * (pol.noise ? 1 + pol.noise * (2 * rng.next() - 1) : 1)) / c.price;
+  // TUNE-M (T1, pol.forbid): a forbidden candidate is judged like any other (the same RNG draws as a player without the
+  // knob) but never becomes the top; with no forbidden candidate this is the pick as before
   const best = (xs: Cand[]) => {
     let top: Cand | null = null, v = -Infinity;
     for (const x of xs) {
       const j = judge(x);
-      if (j > v) { v = j; top = x; }
+      if (!x.banned && j > v) { v = j; top = x; }
     }
     return top;
   };
   const merges = cands.filter((c) => c.merge && c.rel >= pol.mergeFloor);
-  if (merges.length) return { c: best(merges)!, why: "merge" };
+  if (merges.length) {
+    const m = best(merges);
+    if (m) return { c: m, why: "merge" };
+  }
   // an upgrade (a swap) is a late sink: only when nothing else helps, and only for a clear gain
   const plain = cands.filter((c) => !c.merge && !sinks(c) && c.rel > pol.minRel);
-  const help = plain.length ? plain : cands.filter((c) => sinks(c) && c.rel >= pol.upgradeGain);
-  if (!help.length) return null;
+  const help = allowed(plain).length ? plain : cands.filter((c) => sinks(c) && c.rel >= pol.upgradeGain);
+  if (!allowed(help).length) return null;
   // the change must stay spendable: on offers that do no harm, or, while the deck is short of the floor, on any
   // offer the fill would take (pol.fillFloor); then such an offer may itself be the pick that keeps the floor reachable
-  const ok = (c: Cand) => !sinks(c) && c.rel >= (short ? pol.fillFloor : -pol.harmless);
+  const ok = (c: Cand) => !sinks(c) && c.rel >= (short ? pol.fillFloor : -pol.harmless) && !c.banned;
   const harmless = cands.filter(ok);
   const keepsOf = (xs: Cand[], spendable: Cand[]) => xs.filter((c) => {
     const left = gold - c.price;
@@ -963,14 +980,18 @@ function pickOffer(cands: Cand[], gold: number, keep: number, pol: PolicyKnobs, 
     return left - bestSpend(prices, left) <= keep;
   });
   const any = cands.filter((c) => !c.merge && c.kind !== "crate");
-  if (pol.impulse > 0 && any.length && rng.next() < pol.impulse) {
+  // TUNE-M (T1): a random pick that lands on a forbidden candidate picks again among the allowed ones
+  const pickAllowed = (xs: Cand[]) => { const c = rng.pick(xs); return c.banned ? rng.pick(allowed(xs)) : c; };
+  if (pol.impulse > 0 && allowed(any).length && rng.next() < pol.impulse) {
     const ok = keepsOf(any, any);
-    return { c: rng.pick(ok.length ? ok : any), why: "impulse" };
+    return { c: pickAllowed(allowed(ok).length ? ok : any), why: "impulse" };
   }
   const keeps = keepsOf(short ? [...help, ...harmless.filter((c) => !c.merge && !help.includes(c))] : help, harmless);
   const keepsHelp = keeps.filter((c) => help.includes(c));
-  const pool = keepsHelp.length ? keepsHelp : keeps.length ? keeps : help;
-  if (pol.whim > 0 && rng.next() < pol.whim) return { c: rng.pick(pool), why: "whim" };
+  const poolOf = (kh: Cand[], ks: Cand[], hp: Cand[]) => (kh.length ? kh : ks.length ? ks : hp);
+  let pool = poolOf(keepsHelp, keeps, help);
+  if (!allowed(pool).length) pool = poolOf(allowed(keepsHelp), allowed(keeps), allowed(help)); // TUNE-M: only forbidden ones
+  if (pol.whim > 0 && rng.next() < pol.whim) return { c: pickAllowed(pool), why: "whim" };
   return { c: best(pool)!, why: "best" };
 }
 
@@ -1065,7 +1086,7 @@ function drawKilnBelt(run: Run, rng: Rng, tiles: number): void {
 /** The fill: harmless offers (else the least harmful down to pol.fillFloor), supplies first, then the best rating,
  *  then the dearer (it fills more of the purse). */
 function fillPick(cands: Cand[], pol: PolicyKnobs): Cand | null {
-  cands = cands.filter((c) => c.kind !== "turret"); // CAND-A: nobody swaps or adds a gun to fill the purse
+  cands = cands.filter((c) => c.kind !== "turret" && !c.banned); // CAND-A: nobody swaps or adds a gun to fill the purse
   let ok = cands.filter((c) => c.rel >= -pol.harmless);
   if (!ok.length) ok = cands.filter((c) => c.rel >= pol.fillFloor);
   const supply = (c: Cand) => (c.kind === "plating" || c.kind === "crate" ? 0 : 1);
@@ -1171,7 +1192,7 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
     break;
   }
   for (let guard = 0; guard < 20 && run.gold > pol.reserve; guard++) {
-    const cands = candidates(run, maxStars, rng, { ...pol, place: "best" }).filter((c) => c.kind === "crate");
+    const cands = candidates(run, maxStars, rng, { ...pol, place: "best" }).filter((c) => c.kind === "crate" && !c.banned);
     const crate = cands.sort((a, b) => b.rel - a.rel || a.wagon - b.wagon || a.slot - b.slot)[0];
     if (!crate) break;
     buy(run, crate, "crate", rolls, buys, opts.trace);

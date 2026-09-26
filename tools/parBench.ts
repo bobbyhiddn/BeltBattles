@@ -21,6 +21,10 @@
 //   --joins     [--seeds 10] flag 4: junction-062's bench layouts against the par field; with --foes gauntlet
 //               [--seeds 12] against junction-062's own foes and seeds (its REPORT section 8 bench, on this head)
 //   --fingerprint  no battles: a hash of every par deck per hero-day (a refactor must not move them)
+// 0.6.2 TUNE-M (ref/BRIEF-final-062-tune.md T1):
+//   --forbid d1,d2  [--seeds 4] [--sample N] a part's control: each par deck against the same seed's run with
+//               --tune forbid=<def> (the part never taken, the gold re-spent), over the decks that hold it, beside its
+//               ablation; one forbid-<def>-<tag>-d<day>.json per def
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -734,6 +738,71 @@ async function ctrlMode(days: number[], run: Runner, out: string, opts: PlayerOp
   }
 }
 
+/** TUNE-M (T1): the part keys (partsOf) of `b` whose def is `def` (a rig, a factory, gear, a core or a bought turret). */
+const defParts = (b: Build, def: string): PartKey[] => partsOf(b).filter((p) => p.includes(":") && p.slice(p.indexOf(":") + 1) === def);
+
+/**
+ * TUNE-M T1 --forbid d1,d2,... [--seeds 4] [--sample N]: a part's control (ref/BRIEF-final-062-tune.md T1). Per hero and
+ * day, each par deck of seeds 1..sample (FULL) against the same seed's par run with --tune forbid=<def> (CTRL: the caravan
+ * still rolls the part, the player never takes it and spends the gold elsewhere; player.ts judges its offers with the
+ * same RNG draws, so a run stays aligned until it would first take the part). Every variant meets the par field of both
+ * heroes on the same seeds (`seeds` x both sides per member, its own member left out; one seed key for every def, so
+ * FULL battles once per hero-day and a CTRL deck identical to its FULL deck reuses FULL's rates: the same battles).
+ * Beside it, each holder's ablation (--ablate's removal of each of the def's part keys; ABL, with its dead belts).
+ * The brief's lift: FULL - CTRL over the decks whose FULL holds the def (liftCtrlHolders), 95% t-interval, deck unit.
+ * Writes forbid-<def>-<tag>-d<day>.json in --ctrl's shape (knob "forbid:<def>") plus the RNG alignment: how many
+ * non-holders' CTRL decks are identical to FULL.
+ */
+async function forbidMode(days: number[], run: Runner, out: string, opts: PlayerOpts, k: number, seeds: number, sample: number, defs: string[], tag: string): Promise<void> {
+  for (const def of defs) if (!ITEMS[def]) throw new Error(`--forbid: unknown part ${def}`);
+  for (const day of days) {
+    const t0 = performance.now();
+    const rows = new Map<string, unknown[]>(defs.map((d) => [d, []]));
+    for (const hero of heroesOf()) {
+      const seedsK = parSeeds(Math.max(k, sample));
+      const self = (i: number): number => (i < k ? i : -1);
+      const key = `tune-forbid-${tag}`;
+      const full = seedsK.map((s) => playerBuild(hero, day, s, opts));
+      const fullRes = await vsFieldPaired(full.map((b, i) => ({ build: b, pair: `${hero}|${seedsK[i]}`, hero, self: self(i) })), HEROES, day, run, k, seeds, key, opts);
+      for (const def of defs) {
+        const ctrlOpts: PlayerOpts = { ...opts, tune: { ...(opts.tune ?? {}), forbid: def } };
+        const vs: Row[] = [];
+        const meta = seedsK.map((s, i) => {
+          const b = full[i], ctrl = playerBuild(hero, day, s, ctrlOpts), pair = `${hero}|${s}`;
+          const parts = defParts(b, def), same = JSON.stringify(b) === JSON.stringify(ctrl);
+          let ctrlAt = -1, ablAt = -1, abl: { build: Build; dead: number } | null = null;
+          if (!same) { ctrlAt = vs.length; vs.push({ build: ctrl, pair, hero, self: self(i) }); }
+          for (const p of parts) {
+            const a = ablate(abl?.build ?? b, p, day, s);
+            abl = { build: a.build, dead: (abl?.dead ?? 0) + a.dead };
+          }
+          if (abl) { ablAt = vs.length; vs.push({ build: abl.build, pair, hero, self: self(i) }); }
+          return {
+            seed: s, i, ctrlAt, ablAt, holds: parts.length > 0, parts, same, ctrlHolds: defParts(ctrl, def).length > 0,
+            value: deckCost(b).total, ctrlValue: deckCost(ctrl).total, ablValue: abl ? deckCost(abl.build).total : null, dead: abl ? abl.dead : null,
+          };
+        });
+        const res = vs.length ? await vsFieldPaired(vs, HEROES, day, run, k, seeds, key, opts) : [];
+        const decks = meta.map(({ ctrlAt, ablAt, i, ...m }) => {
+          const f = fullRes[i], c = ctrlAt >= 0 ? res[ctrlAt] : f;
+          return {
+            ...m, full: rowMean(f), ctrl: rowMean(c), liftCtrl: liftOf(f, c),
+            ...(ablAt >= 0 ? { abl: rowMean(res[ablAt]), liftAbl: liftOf(f, res[ablAt]) } : {}),
+          };
+        });
+        const held = decks.filter((d) => d.holds), rest = decks.filter((d) => !d.holds);
+        const cAll = meanCI(decks.map((d) => d.liftCtrl)), cHeld = meanCI(held.map((d) => d.liftCtrl)), cAbl = meanCI(held.map((d) => d.liftAbl!));
+        const dead = sum(held.map((d) => d.dead ?? 0)), deadDecks = held.filter((d) => (d.dead ?? 0) > 0).length;
+        const aligned = rest.filter((d) => d.same).length;
+        rows.get(def)!.push({ hero, day, part: def, n: decks.length, holders: held.length, liftCtrlAll: cAll, liftCtrlHolders: cHeld, liftAblate: cAbl, dead, deadDecks, nonHolders: rest.length, alignedNonHolders: aligned, gold: held.length ? mean(held.map((d) => d.value - (d.ablValue ?? d.value))) : null, decks });
+        console.log(`forbid ${def} ${tag} ${hero} d${day}: ${held.length}/${decks.length} hold it | FULL - CTRL holders ${held.length ? fmtLift(cHeld) : "-"} | all ${fmtLift(cAll)} | ablate ${held.length ? fmtLift(cAbl) : "-"} pts, ${dead} dead belt(s) | non-holders aligned ${aligned}/${rest.length}`);
+      }
+    }
+    for (const def of defs) writeFileSync(resolve(out, `forbid-${def}-${tag}-d${day}.json`), JSON.stringify({ day, k, sample: Math.max(k, sample), seeds, knob: `forbid:${def}`, rows: rows.get(def) }, null, 1));
+    console.log(`forbid ${tag} d${day} (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
+  }
+}
+
 /** `b` with the turrets in `slots` at `stars` (the installed def and uid; gear beyond a slot's gear slots comes off,
  *  last placed first, as deck.ts trimGear does). */
 function withStars(b0: Build, slots: readonly number[], stars: number): Build {
@@ -1014,6 +1083,7 @@ async function main(): Promise<void> {
   if (process.argv.includes("--uptake")) uptakeMode(days, out, opts, k, tag);
   if (process.argv.includes("--extra")) await extraMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), tag);
   if (flag("ctrl")) await ctrlMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), flag("ctrl")!, tag);
+  if (flag("forbid")) await forbidMode(days, pool.run, out, opts, k, num("seeds", 4), num("sample", k), flag("forbid")!.split(",").filter(Boolean), tag); // TUNE-M T1
   if (process.argv.includes("--stars")) await starsMode(days, pool.detail, out, opts, k, num("seeds", 4), tag);
   if (process.argv.includes("--ablate")) await ablateMode(days, pool.run, out, opts, k, num("seeds", 4), num("min", 3), tag);
   if (process.argv.includes("--joins")) {
