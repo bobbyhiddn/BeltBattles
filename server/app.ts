@@ -11,7 +11,7 @@ import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, SnapshotError } from "../src/net/snapshot";
-import { validateBuild } from "../src/net/validate";
+import { validateUpload } from "../src/net/validate";
 import { GhostStore } from "./store";
 
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
@@ -156,7 +156,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         if (snap.rules !== RULES_VERSION) {
           throw new HttpError(422, `rules ${snap.rules} not accepted: this server validates ${RULES_VERSION}`);
         }
-        const v = validateBuild(snap.build, snap.day);
+        const v = validateUpload(snap.build, snap.day); // 0.7.0: a player's deck, the player mode (road gold, parts, hull)
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
         const { id, created } = store.add(snap);
         return send(res, created ? 201 : 200, { id });
