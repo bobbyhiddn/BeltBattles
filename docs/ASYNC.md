@@ -65,18 +65,23 @@ Both use deck.ts's own rules, and every error starts with its category:
 - **shape**: the strict build shape, and day 1-10.
 - **item**: every item and mod exists; uids are unique; there is exactly one signature factory and it is the hero's own
   (a foreign Kiln or Loom is rejected); every other item is sold by a merchant.
+- **turret** (0.6.2s turret slots): each entry of `build.turrets` is a turret def in a slot of the hull, one per
+  slot, uids unique with the items' and mods', stars 1-3; a free copy only of the hero's own starting defs, at most
+  as many as it starts with.
 - **placement**: `canPlaceItem` (deck equipment only, on the deck, no factory on a belt) and
   no overlapping footprints.
 - **route**: `routeWellFormed` (starts beside its factory, orthogonal steps, no loops, passes
-  only through gates), no crossings, **connected** (ends on a turret connector it claims;
-  spec §8.1), routes per factory ≤ its outputs, belt tiles ≤ `beltCap`.
-- **hardpoint**: only turret equipment, on a turret the hero has, one module per turret.
+  only through gates), no crossings, **connected** (ends on a turret connector it claims, or, 0.6.2j, legally
+  joins a belt whose chain does; spec §8.1), routes per factory ≤ its outputs, belt tiles ≤ `beltCap`.
+- **hardpoint**: only turret equipment, on an installed turret; at most that turret's gear slots of gear, never
+  two copies of one gear on a turret, one core per socket.
 - **supply** (strict): `beltCap` = hero base + whole +4 belt crates; `hullBonus` = whole +25 plating.
 - **budget** (strict):
 
 ```
 maxGold(day) = START_GOLD + Σ_{d=1}^{day−1} incomeFor(d, won = true)     // 8, 17, 27, 38, 50, 63, 77, 91, 105, 119
 cost(build)  = Σ value(deck items) + Σ value(turret mods)                  // value = price × 2^(stars − 1)
+             + Σ turretValue(installed turrets)   // 0.6.2s: price × (2^(stars − 1) − 1 if it holds the free starting copy)
              + price(beltcrate) × ceil((beltCap − hero.belt) / 4)
              + price(plating)   × ceil(hullBonus / 25)
 valid ⇔ cost(build) ≤ maxGold(day)
@@ -99,9 +104,13 @@ The strict check refuses such honest decks.
 
 ```
 maxHonestSpend(day) = maxGold(day) + roadCap(day)       // roadCap 7, 18, 30, 46, 62, 80, 99, 116, 133, 155
-cost(build)         = Σ value(deck items) + Σ value(turret mods) + price(plating) × plates + price(beltcrate) × crates
+cost(build)         = parts + price(plating) × plates + price(beltcrate) × crates
+parts               = buildCost's own terms but the supplies: items, turret mods and the installed turrets
 valid ⇔ for some reachable mix: cost(build) ≤ maxGold(day) + roadCapFor(day, mix)
 ```
+The player mode prices the parts with the strict mode's own `buildCost`, so a new cost term (0.6.2s: the installed
+turrets, where a free starting copy is worth 0) is counted the same way in both modes. Turrets come only from the
+caravan (eventDefs.ts keeps them out of every road pool and trade), so the road ceiling needs no turret term.
 
 `roadCap(day)` is the most extra value any honest run can have put on its deck by that dusk. It is the best
 plan over the days 1..day, read from the live tables (eventDefs.ts `EVENTS`, road.ts `warlordReward` over every
@@ -230,8 +239,11 @@ thousands. Past that, cap each (rules, day) bucket or move to SQLite.
    The strict `validateBuild` stays the check for stand-ins, the bundled pool and the harness. When road
    content changes (a new event, choice kind or warlord reward), update `src/net/roadCap.ts` on purpose: its
    D4 guard test fails until it models the new content, and until then `validateUpload` refuses uploads with a
-   clear error. Buyable parts join automatically (prices and pools are read from the live tables). The 0.6.2
-   turret slots and belt joins must be rechecked when this branch is rebased (v070-validate REPORT.md §7).
+   clear error. Buyable parts join automatically (prices and pools are read from the live tables). Rebased onto
+   the 0.6.2 mechanics head 7bcde98 (v070-validate-062m): the player mode costs installed turrets through
+   `buildCost`, and validateBuild's turret and join rejections pass through it unchanged. Joined and turreted
+   ghosts go online only with the bb-0.6.2 RULES_VERSION bump: today the server and `fetchGhost` gate on RULES_VERSION
+   equality alone, and a client from before 0.6.2j refuses the `join` and `turrets` fields.
 9. **Decide on dead-end belts.** The build screen lets a player save a belt that doesn't
    reach a turret (a toast, not a refusal), but validation requires connected routes (spec
    §8.1). Either block FIGHT or the upload while any belt is unconnected, or relax that rule.
