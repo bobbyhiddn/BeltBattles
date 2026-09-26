@@ -4,7 +4,7 @@ import { AMMO, CELL, ITEMS, itemsSoldBy } from "../src/sim/content";
 import { estimateRoute, type Build } from "../src/sim/deck";
 import { resolveCore } from "../src/sim/cores";
 import { effectAt, outputsAt, valueOf } from "../src/sim/stars";
-import { starEffectLine } from "../src/screens/build/inspector";
+import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2t: the glossary
 import { buyOffer, newRun, rollShop } from "../src/game/run";
 import { barge, bench, factoryBench, factoryLight, gantryWeaver } from "./arsenal.bench";
 
@@ -66,9 +66,11 @@ describe("wave-2 stock and live star data", () => {
       expect(itemsSoldBy(d.merchant!).some((stock) => stock.id === id), id).toBe(true);
       expect(d.desc.every((line) => line.length <= 20), id).toBe(true);
       expect([1, 2, 3].map((s) => valueOf(id, s)), id).toEqual([d.price, d.price * 2, d.price * 4]);
-      expect(starEffectLine(id, 1), id).not.toBe("");
-      expect(starEffectLine(id, 2), id).not.toBe("");
-      expect(starEffectLine(id, 3), id).not.toBe("");
+      // 0.6.2t: the glossary's text at every star (it replaced starEffectLine's shorthand headline)
+      for (const s of [1, 2, 3]) {
+        expect(gist(id, s), `${id} ★${s}`).not.toBe("");
+        expect(abilityText(id, s).sentences.length, `${id} ★${s}`).toBeGreaterThan(0);
+      }
     }
   });
 

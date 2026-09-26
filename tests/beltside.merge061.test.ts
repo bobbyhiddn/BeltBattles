@@ -11,7 +11,8 @@ import {
 } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
 import { effectAt } from "../src/sim/stars";
-import { hitLabel, levelLine, starEffectLine } from "../src/screens/build/inspector";
+import { hitLabel } from "../src/screens/build/inspector";
+import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2t: the glossary (it replaced levelLine's shorthand)
 import { migrateRun, newRun, type Run } from "../src/game/run";
 import { BELTSIDE_TOAST, MIGRATE_CARGO_CAP, MIGRATE_TOAST } from "../src/game/save";
 import { SHOWCASE } from "../src/tooling";
@@ -153,7 +154,7 @@ describe("P2: SPLITTER, each hit one split; a split makes one extra copy at ever
   });
 });
 
-describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says MAX 6 HITS", () => {
+describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says UP TO 6 HITS", () => {
   // tests/arsenal.modules.test.ts's snake, native: 8 WHETSTONE rigs on tiles 0-7, the LONG HAUL on tile 8
   const WHET: [number, number, 0 | 1 | 2 | 3][] = [[5, 5, 3], [3, 6, 0], [2, 6, 0], [1, 6, 0], [0, 4, 1], [2, 3, 2], [3, 3, 2], [5, 4, 3]];
   const snake = (s: number): Build => {
@@ -172,11 +173,12 @@ describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says MAX 6 HIT
     expect([one.prior, one.flat, one.capped]).toEqual([8, 8 * perHit(1), undefined]);
     expect([two.prior, two.flat, two.capped]).toEqual([6, 6 * perHit(2), 6]);
     expect([three.prior, three.flat, three.capped]).toEqual([6, 6 * perHit(3), 6]);
-    expect(hitLabel(one, false)).toBe("LONG HAUL +8 (8 HITS BEFORE)");
-    expect(hitLabel(two, false)).toBe("LONG HAUL +12 (MAX 6 HITS)");
-    expect(starEffectLine("longhaul", 1)).toBe("+1/HIT");
-    expect(starEffectLine("longhaul", 2)).toBe("+2/HIT · MAX 6 HITS");
-    expect(levelLine("longhaul", 3)).toBe("★3: +3.5/HIT · MAX 6 HITS");
+    // 0.6.2t (REQ-BFG-032): the glossary's words; the stat row keeps its + and adds the unit, the cap reads UP TO
+    expect(hitLabel(one, "free")).toBe("LONG HAUL +16 DAMAGE (8 HITS BEFORE)");
+    expect(hitLabel(two, "free")).toBe("LONG HAUL +24 DAMAGE (UP TO 6 HITS)");
+    expect(gist("longhaul", 1)).toBe("2 DAMAGE FOR EACH EARLIER HIT");
+    expect(gist("longhaul", 2)).toBe("4 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS");
+    expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 7 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
     // the battle agrees: every payload past tile 8 carries 8 x 2 (the WHETSTONES) + LONG HAUL ★2 x 6
     for (const p of family(snake(2), 8)) expect(p.flat).toBeCloseTo(8 * 2 + perHit(2) * 6, 9);
   });

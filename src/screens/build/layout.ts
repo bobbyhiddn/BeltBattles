@@ -15,6 +15,11 @@ export type Sel =
 
 export const CARD_W = 46;
 export const CARD_H = 42;
+/** 0.6.2t (REQ-BFG-032, T5): a landscape shop card is wider (up to 70 px, as the row allows) and 4 px taller, so it
+ *  shows its one-line effect under its name (shop.ts drawCard). The phone's 46 x 42 cards keep the old face: a tap
+ *  opens the offer's panel, the tap preview. The reroll keeps CARD_W. */
+export const WIDE_CARD_MAX_W = 70;
+export const WIDE_CARD_H = 46;
 const GAP = 3;
 const BAR_H = 14;
 const CARGO_H = 22;
@@ -44,7 +49,14 @@ export interface BuildLayout {
 }
 
 const LAND_MIN_W = 430;
-const LAND_MIN_H = BAR_H + 6 + CARD_H + 4 + HULL_A + 3 + CARGO_H + 2;
+const LAND_MIN_H = BAR_H + 6 + WIDE_CARD_H + 4 + HULL_A + 3 + CARGO_H + 2;
+
+/** 0.6.2t (T5): a landscape offer card's width for `offers` cards in `W`: as wide as the row allows (the reroll keeps
+ *  CARD_W, 8 px apart), at most WIDE_CARD_MAX_W, never under CARD_W. Exported for the tests. */
+export function wideCardW(W: number, offers: number): number {
+  const room = Math.floor((W - 12 - CARD_W - offers * GAP - 8) / Math.max(1, offers));
+  return Math.max(CARD_W, Math.min(WIDE_CARD_MAX_W, room));
+}
 const PORT_MIN_W = HULL_A + 4;
 const PORT_FIXED = BAR_H + 3 + 2 * CARD_H + GAP + 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
 
@@ -69,13 +81,17 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
   if (!portrait) {
     const tags = true;
     const cy = BAR_H + 3 + 6;
-    const rowW = slots * CARD_W + (slots - 1) * GAP + 8;
-    const cards = cardRow(slots, Math.round(W / 2 - rowW / 2), cy, slots, CARD_W + GAP);
-    const reroll = cards.pop()!;
-    reroll.x += 8;
+    // 0.6.2t (T5): the offer cards are wide enough for their one-line effect (drawCard's wide face); the reroll keeps
+    // CARD_W; the row is as tall as the wide cards
+    const cardW = wideCardW(W, offers);
+    const rowW = offers * cardW + CARD_W + offers * GAP + 8;
+    const x0 = Math.round(W / 2 - rowW / 2);
+    const cards: Rect[] = [];
+    for (let i = 0; i < offers; i++) cards.push({ x: x0 + i * (cardW + GAP), y: cy, w: cardW, h: WIDE_CARD_H });
+    const reroll: Rect = { x: x0 + offers * (cardW + GAP) + 8, y: cy, w: CARD_W, h: WIDE_CARD_H };
     const colL = Math.min(136, Math.round(W * 0.28));
     const colR = Math.min(150, Math.round(W * 0.3));
-    const top = cy + CARD_H + 5;
+    const top = cy + WIDE_CARD_H + 5;
     const avail = H - top - CARGO_H - 4;
     const hy = top + Math.max(0, Math.floor((avail - HULL_A) / 2));
     const cx0 = 6 + colL, cx1 = W - 6 - colR;

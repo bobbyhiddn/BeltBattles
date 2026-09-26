@@ -3,7 +3,7 @@ import { Battle, type BeltAmmo, type Payload, type SideState } from "../src/sim/
 import { ITEMS } from "../src/sim/content";
 import { estimateRoute } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
-import { starEffectLine } from "../src/screens/build/inspector";
+import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2t: the glossary
 import { barge, bench } from "./arsenal.bench";
 
 const IDS = ["venom", "overclocker", "keg", "bellows", "quench", "staticbrush", "lodestone", "barbed", "counterweight"];
@@ -36,7 +36,11 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
     for (const id of IDS) {
       expect(ITEMS[id].merchant, id).toBeTruthy();
       expect(ITEMS[id].tags?.length, id).toBeGreaterThan(0);
-      for (const stars of [1, 2, 3]) expect(starEffectLine(id, stars), `${id} ★${stars}`).not.toBe("");
+      // 0.6.2t: the glossary's text at every star (it replaced starEffectLine's shorthand headline)
+      for (const stars of [1, 2, 3]) {
+        expect(gist(id, stars), `${id} ★${stars}`).not.toBe("");
+        expect(abilityText(id, stars).sentences.length, `${id} ★${stars}`).toBeGreaterThan(0);
+      }
     }
     expect([1, 2, 3].map((s) => effectAt("venom", s).gate?.poison)).toEqual([2, 4, 7]);
     expect([1, 2, 3].map((s) => effectAt("overclocker", s).gate?.overclockCooldown)).toEqual([4, 1.8, 1.15]);

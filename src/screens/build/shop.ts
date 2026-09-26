@@ -9,6 +9,8 @@ import { frame, rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
 import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
+import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
+import { CARD_W } from "./layout";
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
   ironmonger: C.steel2,
@@ -68,6 +70,17 @@ export interface CardState {
   hidden: boolean; // being dragged away
   shake: number; // red shake time left (invalid drop)
   badge?: ShopBadge | null; // 0.6.1d: live from run.ts:shopBadge (mergePreview), never stored on the offer
+  /** 0.6.2t (T5): the offer's one-line effect (abilityText.ts cardText), shown on a wide (landscape) card. */
+  effect?: string;
+}
+
+/** 0.6.2t (T5): the wide card's effect text: 2 lines of the 3x5 face, 2 px in from each edge (as the name's w - 4). */
+export const CARD_EFFECT_LINES = 2;
+export const cardEffectWidth = (w: number): number => w - 4;
+
+/** 0.6.2t: the effect's wrapped lines on a card `w` px wide (colourized: numbers white, keywords in their colours). */
+export function cardEffectLines(effect: string, w: number, colour: string = C.bone): RichLine[] {
+  return wrapRich(colourize(effect, colour), cardEffectWidth(w), "3");
 }
 
 /** 0.6.1d (ARSENAL.md §8.1): the MERGE badge, a small tab under the merchant stripe. MERGE ★3
@@ -128,22 +141,35 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   rect(g, x + r.w - 6, y + 6, 4, 4, C.ink);
   rect(g, x + r.w - 5, y + 7, 2, 2, s.sold ? C.slate1 : RARITY_COLOR[def.rarity]);
   const icon = itemIcon(def.id);
-  const lines = cardName(def, r.w - 4);
-  const two = lines.length > 1;
-  g.drawImage(icon, Math.round(x + r.w / 2 - 6), y + (two ? 5 : 8));
-  // review-061 F1: the badge sits on top of the icon, or the icon hides its label
-  if (s.badge && !s.sold) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
-  let ny = y + (two ? 18 : 22);
-  for (const ln of lines) {
-    drawText(g, ln, x + r.w / 2, ny, s.sold ? C.slate2 : C.bone, { font: "3", align: "center" });
-    ny += 6;
+  const wide = !!s.effect && r.w > CARD_W;
+  if (wide) {
+    // 0.6.2t (T5) the wide face: the icon at the left with the name beside it, then the one-line effect in 2 lines
+    // of the 3x5 face (numbers white, keywords in their battle colours); the merge badge at the bottom left and the
+    // price at the bottom right (a badge over the icon would cover the name here)
+    const nameLines = cardName(def, r.w - 26);
+    g.drawImage(icon, x + 4, y + 7);
+    nameLines.forEach((ln, i) => drawText(g, ln, x + 18, y + (nameLines.length > 1 ? 7 : 10) + i * 6, s.sold ? C.slate2 : C.bone, { font: "3" }));
+    cardEffectLines(s.effect!, r.w, s.sold ? C.slate2 : C.bone).slice(0, CARD_EFFECT_LINES).forEach((ln, i) =>
+      drawRich(g, s.sold ? ln.map((sp) => ({ ...sp, c: C.slate2 })) : ln, x + 2, y + 21 + i * 6, "3"));
+    if (s.badge && !s.sold) drawBadge(g, x + 3, y + r.h - 11, r.w - 30, s.badge, t);
+  } else {
+    const lines = cardName(def, r.w - 4);
+    const two = lines.length > 1;
+    g.drawImage(icon, Math.round(x + r.w / 2 - 6), y + (two ? 5 : 8));
+    // review-061 F1: the badge sits on top of the icon, or the icon hides its label
+    if (s.badge && !s.sold) drawBadge(g, x + 1, y + 5, r.w - 8, s.badge, t);
+    let ny = y + (two ? 18 : 22);
+    for (const ln of lines) {
+      drawText(g, ln, x + r.w / 2, ny, s.sold ? C.slate2 : C.bone, { font: "3", align: "center" });
+      ny += 6;
+    }
   }
   if (s.sold) {
     drawText(g, "SOLD", x + r.w / 2, y + r.h - 11, C.maroon, { font: "3", align: "center" });
   } else {
     const txt = String(price);
     const tw = textWidth(txt) + 7;
-    const px = Math.round(x + r.w / 2 - tw / 2);
+    const px = wide ? x + r.w - 5 - tw : Math.round(x + r.w / 2 - tw / 2); // 0.6.2t: the wide face's price sits right
     g.drawImage(coinIcon(), px, y + r.h - 11);
     drawText(g, txt, px + 7, y + r.h - 12, s.affordable ? C.yellow : C.red, { outline: C.ink });
   }
@@ -157,12 +183,20 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   }
 }
 
-/** Floating hover tooltip under a card (mouse only). 0.6.2p (item 1): `desc` is the offer's flavour (flavour.ts: a
- *  1-star copy, a core's numbers at the hero's class factor); its first two lines show. */
-export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, desc: readonly string[] = def.desc): void {
-  const text = [desc[0], desc[1]].filter(Boolean) as string[];
-  const w = Math.max(textWidth(def.name), ...text.map((l) => textWidth(l, "3")), textWidth(describe(def), "3")) + 10;
-  const h = 22 + text.length * 7;
+/** 0.6.2t (T5): the hover tooltip's text width: its sentence wraps to this many px of the 3x5 face. */
+export const TOOLTIP_TEXT_W = 150;
+
+/** The hover tooltip's wrapped lines for a sentence (the same wrap and colours as every panel). */
+export function tooltipLines(text: string): RichLine[] {
+  return text ? wrapRich(colourize(text, C.bone), TOOLTIP_TEXT_W, "3") : [];
+}
+
+/** Floating hover tooltip under a card (mouse only). 0.6.2t (T5): `text` is the offer's opening sentence from the
+ *  glossary (abilityText.ts, at 1 star and the hero's class factor), wrapped by the one helper, as its panel reads it. */
+export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text = ""): void {
+  const lines = tooltipLines(text);
+  const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(describe(def), "3")) + 10;
+  const h = 22 + lines.length * 7;
   const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));
   const y = r.y + r.h + 4;
   rect(g, x + 2, y + 2, w, h, C.ink);
@@ -171,7 +205,7 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, desc: readon
   rect(g, x + 1, y + 1, w - 2, 1, RARITY_COLOR[def.rarity]);
   drawText(g, def.name, x + 5, y + 4, RARITY_COLOR[def.rarity], { outline: C.ink });
   drawText(g, describe(def), x + 5, y + 13, C.slate4, { font: "3" });
-  text.forEach((l, i) => drawText(g, l, x + 5, y + 21 + i * 7, C.bone, { font: "3" }));
+  lines.forEach((l, i) => drawRich(g, l, x + 5, y + 21 + i * 7, "3"));
 }
 
 export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pressed: boolean, free = false): void {

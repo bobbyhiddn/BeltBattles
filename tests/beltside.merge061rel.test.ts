@@ -10,7 +10,7 @@ import { Battle, type Payload } from "../src/sim/battle";
 import { AMMO, BELT_SPEED, ITEMS, RULES_VERSION, TICK } from "../src/sim/content";
 import { hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
-import { hitLabel } from "../src/screens/build/inspector";
+import { beltKind, hitLabel } from "../src/screens/build/inspector";
 import { validateBuild } from "../src/net/validate";
 import { decodeSnapshot, encodeSnapshot, checkSnapshot, SNAPSHOT_VERSION } from "../src/net/snapshot";
 import { offlineGhost } from "../src/net/fallback";
@@ -104,7 +104,7 @@ describe("P12: SPLITTER after the retune (PERFECT CUT): one split, one extra cop
       const w = walkRoute(b, 0);
       expect(w.timeline.map((r) => r.tile)).toEqual([2]);
       expect(w.timeline[0].hits.map((h) => [h.uid, h.tier, h.split])).toEqual([[10, 3, { copies: 2, mult: MULT[s] }]]);
-      expect(hitLabel(w.timeline[0].hits[0], false)).toBe(`SPLITTER X2 AT ${Math.round(MULT[s] * 100)}%`);
+      expect(hitLabel(w.timeline[0].hits[0], "free")).toBe(`SPLITTER 2 COPIES AT ${Math.round(MULT[s] * 100)}%`); // 0.6.2t: was X2
       expect(w.estimate.copies, `★${s} walk`).toBe(2);
       const fam = family(b, 2);
       expect(fam, `★${s} battle`).toHaveLength(2);
@@ -152,7 +152,8 @@ describe("P13: BRAKE SHOE ★2/★3 (HOT SHOE, RED-HOT SHOE): the flat at tier 1
       expect(row.hits.map((h) => h.uid), `★${s}`).toEqual(s === 1 ? [11, 10] : [10, 11]);
       expect([brake.tier, brake.flat ?? 0, brake.speed, brake.won], `★${s}`).toEqual([s === 1 ? 4 : 1, HEAT[s], 0.5, true]);
       expect([row.speed, w.speedEnd]).toEqual([0.5, 0.5]);
-      expect(hitLabel(brake, false), `★${s}`).toBe(s === 1 ? "BRAKE SHOE 0.5X" : `BRAKE SHOE +${HEAT[s]}`);
+      // 0.6.2t: the speed in words (was 0.5X), and the heat with its unit
+      expect(hitLabel(brake, "free"), `★${s}`).toBe(s === 1 ? "BRAKE SHOE AT HALF SPEED" : `BRAKE SHOE AT HALF SPEED, +${HEAT[s]} DAMAGE`);
       // the battle: both payloads of the split carry the heat scaled by the SPLITTER (60%), and the tile runs at 0.5x
       const fam = family(b, 2);
       expect(fam).toHaveLength(2);
@@ -193,7 +194,8 @@ describe("P13: BRAKE SHOE ★2/★3 (HOT SHOE, RED-HOT SHOE): the flat at tier 1
       const h = w.timeline[0].hits[0];
       expect([w.fixed, w.speedEnd, w.timeline[0].speed], `★${s}`).toEqual([0.75, 0.75, 0.75]);
       expect([h.tier, h.flat ?? 0, h.speed, h.won], `★${s}`).toEqual([s === 1 ? 4 : 1, HEAT[s], 0.5, false]);
-      expect(hitLabel(h, w.locked || w.fixed !== undefined), `★${s}`).toBe(s === 1 ? "BRAKE SHOE 0.5X (LOCKED)" : `BRAKE SHOE +${HEAT[s]}`);
+      // 0.6.2t (0b.4): slag pays no locked bonus and ignores the speed, so ★1 does nothing there (it read "(LOCKED)")
+      expect(hitLabel(h, beltKind(w)), `★${s}`).toBe(s === 1 ? "BRAKE SHOE: NO EFFECT ON SLAG" : `BRAKE SHOE +${HEAT[s]} DAMAGE, NO SPEED CHANGE ON SLAG`);
       expect(w.estimate.time, `★${s}: no slower`).toBeCloseTo(none.estimate.time, 12);
       expect(w.estimate.dmg, `★${s}: + the heat`).toBeCloseTo(none.estimate.dmg + HEAT[s], 9);
       const f = firstLoad(b, 7);

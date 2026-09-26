@@ -8,7 +8,7 @@ import { AMMO, BELT_SPEED, GUARD_FREEZE, GUARD_SLOW, ITEMS, RULES_VERSION, TICK 
 import { hitsOfRig, key as K, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { effectAt } from "../src/sim/stars";
-import { hitLabel } from "../src/screens/build/inspector";
+import { beltKind, hitLabel } from "../src/screens/build/inspector";
 import { routeProblems } from "../src/game/routeCheck";
 import { beltsideRun } from "../src/game/save";
 import { EVENTS, salvagePool, smugglerPool, type EventId } from "../src/game/eventDefs";
@@ -186,7 +186,7 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
     }
   });
 
-  it("in the walk slag keeps 0.75x under every speed rig: no row claims a speed change, the hit reads LOCKED, the TEMPER burns", () => {
+  it("in the walk slag keeps 0.75x under every speed rig: no row claims a speed change, the hit reads NO EFFECT ON SLAG, the TEMPER burns", () => {
     const none = walkRoute(slag(null), 0);
     expect([none.fixed, none.speedEnd, none.estimate.burn]).toEqual([0.75, 0.75, effectAt("temper", 1).gate!.burn]);
     for (const [def, s] of SPEEDS) {
@@ -197,10 +197,12 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
       expect(w.timeline.map((row) => [row.tile, row.speed])).toEqual([[3, 0.75], [4, 0.75]]);
       const h = w.timeline[0].hits.find((x) => x.uid === 20)!;
       expect([h.speed, h.won], `${def} ★${s}`).toEqual([e.speed, false]);
-      // the inspector's belt timeline (inspector.ts: hitLabel(h, w.locked || w.fixed !== undefined)); an OVERDRIVE ★3
-      // hit reads its AFTERBURNER flat first, as on any belt, and so does a BRAKE ★2/★3 its heat (P13: "BRAKE SHOE +2")
+      // the inspector's belt timeline (inspector.ts: hitLabel(h, beltKind(w))). 0.6.2t (0b.4): on SLAG a speed hit
+      // changes nothing and pays no locked bonus, so it reads NO EFFECT ON SLAG (it read "(LOCKED)"); an OVERDRIVE ★3
+      // still adds its AFTERBURNER flat, and a BRAKE ★2/★3 its heat (P13), so those read their damage
       const flat = flatOf(def, s);
-      expect(hitLabel(h, w.locked || w.fixed !== undefined)).toBe(flat ? `${ITEMS[def].name} +${flat}` : `${ITEMS[def].name} ${e.speed}X (LOCKED)`);
+      expect(beltKind(w)).toBe("slag");
+      expect(hitLabel(h, beltKind(w))).toBe(flat ? `${ITEMS[def].name} +${flat} DAMAGE, NO SPEED CHANGE ON SLAG` : `${ITEMS[def].name}: NO EFFECT ON SLAG`);
       expect(w.estimate.burn).toBe(effectAt("temper", 1).gate!.burn);
       expect(w.estimate.dmg).toBeCloseTo(none.estimate.dmg + flat, 9);
     }

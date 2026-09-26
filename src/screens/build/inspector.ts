@@ -1,18 +1,26 @@
 // Details panel: explains the hovered or selected thing (card, cargo, deck item, belt route,
 // turret) with its action button; idle it shows the cruiser card. Landscape uses the left
 // column (sized to its content), portrait the strip between the shop and the deck.
+//
+// 0.6.2t (REQ-BFG-032): the body is blocks of whole sentences from the glossary (src/ui/abilityText.ts), wrapped by the
+// one helper (src/ui/richText.ts) at draw time (T4):
+// - the ability text: bone, numbers white, BURN / SHOCK / FREEZE / POISON / FASTER / SLOWER in their battle colours, and
+//   a perk's name right after the sentence it names, in the perk colour, never split;
+// - the next-star line ("NEXT STAR: FEEDS 3 BELTS.") and merge progress ("1 MORE COPY TO MERGE."), each its own line;
+// - stat rows with aligned values (a belt's timeline and gun-end readout, a turret's rows);
+// - then, set apart by a rule, the flavour (dimmer, the small face) and the action hint (dimmer again).
+// planPanel is the pure layout that drawDetails and the tests share: blocks marked `keep` always show whole (the phone
+// guarantee, T6: the opening sentence, the hits or IDLE, the perk and the next-star line, and merge progress); every
+// other block shows whole or not at all (the flavour too, 0b.5), in rank order while there is room. Where the kept blocks
+// don't fit, the panel's compact variants are tried, fullest first (0.6.2p item 3's approach).
 
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
-import {
-  DISRUPT_TIME, HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, WINDOW_TIME, classFactor, rigShape, type HarassCause,
-} from "../../sim/content";
-import { AMMO, type FactorySpec, type ItemDef } from "../../sim/content"; // 0.6.1c: factory headlines
+import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
-// beltside-062: BELTSIDE's walk and rig hits replace 0.6.1r's estimateRoute and key (the gate-on-a-belt sub line)
 import {
   arrowsOf, beltUsed, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo, routesOf,
-  turretSlots, walkRoute, type Build, type TimelineHit,
+  turretSlots, walkRoute, type Build, type RigHit, type RouteWalk, type TimelineHit,
 } from "../../sim/deck";
 import { joinersOf, type WalkJoin } from "../../sim/deck"; // 0.6.2j: belt joins
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
@@ -23,206 +31,130 @@ import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim
  * often a load now leaves onto it against the unjoined rate. [] for a factory none of whose belts joins, so those
  * panels read as before.
  */
-export function joinPaceLines(b: Build, factoryUid: number, index = b.routes.findIndex((r) => r.factory === factoryUid)): Line[] {
+export function joinPaceLines(b: Build, factoryUid: number, index = b.routes.findIndex((r) => r.factory === factoryUid)): [string, string][] {
   const pace = factoryPace(b, factoryUid);
   if (pace >= 1 || index < 0) return [];
   const every = loadEvery(b, index);
-  const lines: Line[] = [[JOIN_PACE_LINE, C.cyan]];
+  const lines: [string, string][] = [[JOIN_PACE_LINE, C.cyan]];
   if (Number.isFinite(every)) lines.push([`A LOAD EVERY ${every.toFixed(1)}S ON THIS BELT, NOT ${(every * pace).toFixed(1)}S.`, C.cyan]);
   return lines;
 }
 
 /** 0.6.2s (REQ-BFG-031 S2): the build's intakes: its installed turrets' belt columns (an empty slot has none). */
 const intakeCount = (b: Build): number => turretSlots(b).reduce((n, s) => n + s.intakes.length, 0);
-import { resolveCore, scaleCore, type TurretCore } from "../../sim/cores"; // 0.6.1b; 0.6.1r N4: scaleCore
+import { resolveCore } from "../../sim/cores"; // 0.6.1b
 import { C, RARITY_COLOR } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
-import { drawText, textWidth, wrap } from "../../render/font";
+import { drawText, textWidth, type FontId } from "../../render/font";
 import { beltIcon, itemIcon } from "../../render/sprites";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
-import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, starsOf, starText } from "../../sim/stars";
+import { fusible, outputsAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
-import { flavour } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars
-
-/** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
-const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
+import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
+import {
+  abilityText, cardText, gist, hasAbilityText, hitText, mergeProgressText, mergesWithText, n2, newPerk, nextStarHeadline,
+  nextStarText, percent, slagPulseExtra, type BeltKind, type TextOpts,
+} from "../../ui/abilityText";
+import { colourize, drawRich, lineText, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
 import { describe } from "./shop";
 import { deadEndLines, slotActions, slotColor, slotIcon, slotNotes, slotSub, slotTitle, socketLines, turretSpec } from "./turretPanel"; // 0.6.2s
 
-/**
- * 0.6.1d: the headline number at `stars`, `effectAt` read out short (ARSENAL.md §8.1, §8.2). 0.6.1p: every applied
- * star perk reads here too. OVERDRIVE's REDLINE/AFTERBURNER guards act only once enemy slows and freezes are guarded,
- * so no line promises them (only the perk's name shows). 0.6.2 FB-B: wave 2's harassment is live, so MANTLET's line
- * names the stalls it blocks and the belt tiles it shields (mantletLine).
- */
-export function starEffectLine(def: string, stars: number, k = 1): string {
-  const e = effectAt(def, stars);
-  const gt = e.gate, m = e.mod;
-  if (e.core) return coreLine(def, stars, k); // 0.6.1r N4: a core's headline at that star
-  if (gt?.poison) return `+${gt.poison} POISON · 6S POOL`;
-  if (gt?.overclockCooldown) return `X2 NEXT RIG · ${gt.overclockCooldown}S COOLDOWN`;
-  if (gt?.keg) return `BLAST +${gt.keg.flat} · ${gt.keg.burn} BURN · ${gt.keg.fuse}S`;
-  if (gt?.burnPerRide) return `+1 BURN/${gt.burnPerRide.seconds}S · MAX ${gt.burnPerRide.max}`;
-  if (gt?.quench) return `+${gt.quench.flat} DMG · UP TO ${gt.quench.stacks} BURN → +${gt.quench.perBurn} EACH`; // 0.6.2 FB-B
-  if (gt?.staticTime) return `STATIC STALL ${gt.staticTime}S`;
-  // 0.6.2 TUNE-M T2: LODESTONE's floor first (+1/+2/+3 on every payload), then its per-stalled bonus
-  if (gt?.perStalled) return `${gt.flat ? `+${gt.flat} DMG · ` : ""}+${gt.perStalled.each}/STALLED · MAX ${gt.perStalled.max}`;
-  if (gt?.fray) return `+${gt.fray} FRAY${gt.frayCap ? ` · CAP +${gt.frayCap}` : ""}`;
-  if (gt?.perTile) return `+${gt.perTile.each}/TILE · MAX ${gt.perTile.max}`;
-  if (gt?.burn) return `+${gt.burn} BURN`;
-  // 0.6.1f BRAKE SHOE: half speed at every star; HOT SHOE and RED-HOT SHOE add friction heat (flat damage)
-  if (gt?.speed && gt.speed < 1) return `${gt.speed === 0.5 ? "HALF SPEED" : `SPEED X${gt.speed}`}${gt.flat ? ` · +${gt.flat} DMG` : ""}`;
-  if (gt?.speed) return `SPEED X${gt.speed}${gt.flat ? ` · +${gt.flat} FLAT` : ""}`; // OVERDRIVE ★3: + AFTERBURNER's flat
-  // beltside-062 (DESIGN §11 P3): a rig's perk in BELTSIDE's words: LONG HAUL counts earlier HITS, up to its cap
-  if (gt?.perPriorGate) return `+${gt.perPriorGate}/HIT${gt.priorCap !== undefined ? ` · MAX ${gt.priorCap} HITS` : ""}`;
-  if (gt?.split) return `${gt.split.copies} X ${Math.round(gt.split.mult * 100)}%`; // 0.6.1f: "2 X 85%", as "3 X 1 DMG"
-  if (gt?.shock) return `STALL ${(gt.shockTime ?? DISRUPT_TIME).toFixed(1)}S${gt.jump ? ` · JUMPS TO ${gt.jump} MORE` : ""}`;
-  if (gt?.toll) return `ABSORBS ${gt.toll} HITS${gt.tollFactory ? " · FACTORY TOO" : ""}`;
-  if (gt?.sift) return `SIFTS ${gt.sift === "all" ? "ALL" : gt.sift}${gt.siftFlat ? ` · +${gt.siftFlat}/MARK` : ""}${gt.siftClean ? ` · +${gt.siftClean} CLEAN` : ""}`;
-  if (gt?.pulse) return `${gt.pulse.speed}X FOR ${gt.pulse.on}S / ${gt.pulse.period}S${gt.pulse.flat ? ` · +${gt.pulse.flat}/PULSE` : ""}`;
-  if (gt?.sort) return `${gt.sort.copies} COPIES EVERY ${gt.sort.every}ND`;
-  if (gt?.repair) return `REPAIR ${gt.repair}/PASS`;
-  if (gt?.heat) return `+${gt.heat} DMG/RIDE SECOND`;
-  if (gt?.flat) return `+${gt.flat} FLAT`;
-  if (def === "mimic") return `SIGNATURE AMMO X${e.factory?.intervalMul} · ${e.factory?.outputs} OUTPUTS`;
-  if (e.factory) return factoryLine(e.factory);
-  if (def === "escapement" && m?.fireMul) return `FIRE X${m.fireMul} · PEAK -1.2S`;
-  if (def === "longcase" && m?.longRideFlat) return `+${m.longRideFlat} AFTER ${m.longRideMin}S · PEAK +1.2S`;
-  if (m?.fireMul) return `FIRE X${m.fireMul}`;
-  if (m?.perShot) return `${m.perShot}/SHOT${m.window ? ` · +${m.window} SLOT` : ""}`;
-  // HOPPER (0.6.2 FB-B: ★2/★3 keep ★1's slot and seconds and add a store for loads that arrive while the gun fires)
-  if (m?.window) return `+${m.window} SLOT${m.window > 1 ? "S" : ""} · +${m.windowTime ?? 0}S${m.store ? ` · HOLDS ${m.store} MORE WHILE FIRING` : ""}${m.noJam ? " · NEVER JAMS" : ""}`;
-  if (m?.immune) return mantletLine(m.immune, m.intakeGuard ?? 0); // MANTLET (0.6.2 FB-B)
-  if (m?.finisher) return `FINISHER +${Math.round(m.finisher * 100)}%`;
-  if (m?.intercept) return `${Math.round(m.intercept * 100)}% INTERCEPT`;
-  if (m?.rerolls || m?.alwaysMachine) return m.alwaysMachine ? `ALWAYS MACHINE · FACTORY X${m.factoryWeight}` : `${m.rerolls} REROLL${m.rerolls === 1 ? "" : "S"}${m.factoryWeight ? ` · FACTORY X${m.factoryWeight}` : ""}`;
-  const perk = livePerk(def, stars);
-  if (perk) return perk;
-  return "";
-}
-
-/** 0.6.2 FB-B: the stalls a MANTLET blocks, in the words the shop uses for their sources (drag: DRAG CHAIN FOUNDRY). */
-const STALL_WORD: Record<HarassCause, string> = {
-  shock: "SHOCK", static: "STATIC", arc: "ARC", drag: "CHAIN", freeze: "FROST", sabot: "SABOT", rip: "GRAPNEL", limpet: "LIMPET", sap: "SAP",
-};
-
-/**
- * 0.6.2 FB-B: MANTLET's line at a star. ★1 lists the stalls its turret ignores; a higher star lists the ones it adds
- * (FULL PLATE: FROST and SABOT) and names the belt tiles it shields: ★2 the tile feeding its turret, ★3 BULWARK SKIRT
- * the last 3 (on every belt into that turret; rigs working a shielded tile are shielded too, the turret panel says so).
- */
-export function mantletLine(immune: readonly HarassCause[], intakeGuard: number): string {
-  const one = ITEMS.mantlet.mod?.immune ?? [];
-  const more = immune.filter((c) => !one.includes(c));
-  const head = more.length ? `+${more.map((c) => STALL_WORD[c]).join(", ")}` : `STALL-PROOF: ${immune.map((c) => STALL_WORD[c]).join(", ")}`;
-  const tiles = intakeGuard === 1 ? "SHIELDS THE BELT TILE FEEDING ITS TURRET"
-    : intakeGuard > 1 ? `SHIELDS THE LAST ${intakeGuard} BELT TILES FEEDING ITS TURRET` : "";
-  return tiles ? `${head} · ${tiles}` : head;
-}
-
-/**
- * 0.6.1p: the GATLING clashes (the Prime's call): a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do
- * nothing on its turret. 0.6.2 CAND-A: every piece of gear on slot t, in hardpoint order (0.6.2s S4), not only the
- * first. A HOPPER's store still works there: it takes loads while the barrel cools (tests/fb062.mech.test.ts).
- */
-export function gatlingClash(b: Build, t: number, routine: string): string[] {
-  if (routine !== "gatling") return [];
-  const out: string[] = [];
-  for (const m of gearOn(b, t)) {
-    if (m.def === "hopper") out.push(`GATLING: HOPPER'S +${effectAt("hopper", starsOf(m)).mod?.windowTime ?? 0}S DOES NOTHING`);
-    if (m.def === "ram") out.push("GATLING: NO WINDOW, SO NO FINISHER");
-  }
-  return out;
-}
-
-/** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's line for a MANTLET ★2/★3 that shields `n` tiles: the last tile(s) of
- *  every belt into this turret, and each rig beside the belt with an arrow working a shielded tile. */
-export function shieldLine(n: number): string {
-  return `SHIELDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN, AND RIGS WORKING ${n === 1 ? "IT" : "THEM"}`;
-}
-
-/**
- * 0.6.1c: a factory's headline at its stars (catalogue.json "headline"), one phone line each (3x5 face, 151 px).
- * STAMP PRESS keeps 0.6.1p's "EVERY 1.1S · 5 DMG SLUGS" (and the signatures, which never show a level line).
- */
-function factoryLine(f: FactorySpec): string {
-  const base = f.base ?? AMMO[f.ammo]?.base ?? 0;
-  if (f.trigger) return `SCRAP +${f.scrapFlat} · IDLE ${f.interval}S${f.bigHaul ? " · BIG HAUL" : ""}`;
-  if (f.round?.kind === "sabot") return `SABOT EVERY ${f.interval}S${f.round.shrapnel ? " · SHRAPNEL" : ""}`;
-  if (f.round?.kind === "frost") return `FREEZE ${f.round.seconds}S · SPREAD ${f.round.spread}`;
-  if (f.round?.kind === "drag") return `SLOW X${f.round.mul} FOR ${f.round.seconds}S`;
-  if (f.round?.kind === "limpet") return `BLAST ${f.round.blast} IN ${f.round.delay}S${f.round.stall ? ` · STALL ${f.round.stall}S` : ""}`;
-  if (f.cycle) { // HOT SWAP
-    const em = f.cycle.find((p) => p.tint === "ember"), sp = f.cycle.find((p) => p.tint === "spark");
-    return `EMBER +${em?.burn ?? 0} · SPARK ${(sp?.shockTime ?? DISRUPT_TIME).toFixed(1)}S${sp?.jump ? "+JUMP" : ""} · ${f.interval}S`;
-  }
-  // ASSEMBLY LINE (beltside-062c: players read RIG, DESIGN §1 and §12 P10)
-  if (f.commission !== undefined) return `RIGS ONLINE X${f.commission} · ${f.interval}S${f.hotStart ? ` · X2 ${f.hotStart}S` : ""}`;
-  if (f.batch) return `${f.batch} X ${base} DMG EVERY ${f.interval}S`; // DOUBLE STAMP, SHOT TOWER
-  if (AMMO[f.ammo]?.fixedSpeed) return `${base} DMG SLAG EVERY ${f.interval}S`; // SLAG POT
-  if (f.outputs > 1) return `${f.outputs} OUTPUTS · ${base} DMG EVERY ${f.interval}S`; // GANTRY PRESS
-  return `EVERY ${f.interval}S${f.base !== undefined ? ` · ${f.base} DMG SLUGS` : ""}`;
-}
-
-/** 0.6.1c: a bought factory's inspect body leads with its headline at its stars and the MERGES WITH / NEXT line, so
- *  the phone band's 4 body lines (0.6.1r F7) keep both; its desc follows. Every other kind keeps desc first.
- *  0.6.2p (item 1): the desc is the module's flavour at its stars (flavour.ts; a core's numbers at k). Exported for
- *  tests (the offer, cargo and placed-factory panels' text). */
-export function body(d: ItemDef, stars: number, lines: (string | null)[], hint: string, k = 1): string[] {
-  const own = lines.filter((l): l is string => !!l);
-  const desc = flavour(d.id, stars, k);
-  if (d.kind !== "factory" || !fusible(d.id)) return [...desc, ...own, hint];
-  const head = stars > 1 ? own : [starEffectLine(d.id, stars, k), ...own];
-  return [...head, ...desc, hint];
-}
-
-/** 0.6.1r (review-061 F5): the perk's name, unless the sim doesn't apply its values yet (levels[n].pending), so
- *  the inspector never promises an effect that doesn't exist. 0.6.1p emptied every pending; later waves may not. */
-function livePerk(def: string, stars: number): string | undefined {
-  return Object.keys(pendingAt(def, stars)).length ? undefined : perkAt(def, stars);
-}
-
-/** 0.6.1r (review-061 N4): a turret core's headline at `stars` on a turret of class factor k: the turret panel's
- *  own firing summary (coreShape) over the same k-scaled spec resolveCore builds (effectAt's core, scaleCore by k),
- *  plus what only the fire rate shows there (ROTARY's intervalMul) and a NEVER JAMS a star adds (ROTARY ★3). */
-function coreLine(def: string, stars: number, k: number): string {
-  const raw = effectAt(def, stars).core!;
-  const tc: TurretCore = { def, bought: true, routine: raw.routine, stars, k, spec: scaleCore(raw, k) };
-  const base = ITEMS[def].core;
-  return [
-    coreShape(tc),
-    tc.spec.intervalMul ? `FIRE X${tc.spec.intervalMul}` : "",
-    tc.spec.noJam && !base?.noJam ? "NEVER JAMS" : "",
-  ].filter(Boolean).join(" · ");
-}
+/** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
+const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
 
 /** 0.6.1r N4: the class factor a core in this run's cargo or shop would fire at: the hero's turrets (all of one
- *  class today: FURNACE heavy k 1, WEAVER light k 0.55), as resolveCore scales it once fitted. 0.6.2p: exported for
- *  the shop tooltip's flavour (chrome.ts). */
+ *  class today: FURNACE heavy k 1, WEAVER light k 0.55), as resolveCore scales it once fitted. */
 export function heroK(run: Run): number {
   const td = installedTurrets(run.build)[0]?.td; // 0.6.2s: the first installed turret (the hero's first, at the start)
   return td ? classFactor(td) : 1;
 }
 
-/** 0.6.1p (ARSENAL.md §8.2): the current level's numbers with its perk, "★2 CLEAN CUT: 2 X 72%"; null at 1 star (desc says it).
- *  0.6.1r: exported for tests; `k` scales a core's numbers (heroK). */
-export function levelLine(def: string, stars: number, k = 1): string | null {
-  if (stars <= 1 || !fusible(def)) return null;
-  const perk = livePerk(def, stars), eff = starEffectLine(def, stars, k);
-  return `★${stars}${perk ? ` ${perk}` : ""}${eff && eff !== perk ? `: ${eff}` : ""}`;
+/** 0.6.2t: the glossary's options for a run: its hero's class factor (a core's numbers) and its hero (MIMIC FORGE). */
+export function textOpts(run: Run): TextOpts {
+  return { k: heroK(run), hero: run.hero as HeroId };
 }
 
-/** 0.6.1d (ARSENAL.md §8.1): "MERGES WITH YOUR TEMPER ★1 → ★2 · +4 BURN", live from mergePreview. */
-export function mergeLine(run: Run, def: string): string | null {
-  const preview = mergePreview(run, def);
-  if (!preview) return null;
-  const to = preview.toStars, from = to - 1;
-  const after = starEffectLine(def, to, heroK(run));
-  return `MERGES WITH YOUR ${ITEMS[def].name} ★${from} → ★${to}${after ? ` · ${after}` : ""}`;
+// -------------------------------------------------------------------------------------------------------- the blocks
+
+/** A block's role sets its colour and face (T4). */
+export type Role = "hits" | "warn" | "ability" | "next" | "merges" | "merge" | "row" | "grid" | "note" | "flavour" | "hint";
+
+/** One block of a panel's body: whole sentences, a stat row or a grid row of stat pairs. */
+export interface Block {
+  role: Role;
+  /** Whole sentence(s); a stat row's value. */
+  text: string;
+  /** A stat row's label (its values align after the widest label of the panel). */
+  label?: string;
+  /** A grid row: label and value pairs in two aligned columns (the belt's gun-end readout). */
+  cells?: [string, string][];
+  /** A perk's name, after the text in the perk colour, never split ("★3 TWIN SIGNET"). */
+  perk?: string;
+  /** Must show whole (T6's phone guarantee). */
+  keep?: boolean;
+  /** An optional block's order when room is short: the lowest first (default 5). */
+  rank?: number;
+  /** Optional blocks of one chain show in order: once one doesn't fit, the later ones stay out too (an ability's
+   *  later sentences never show without the ones before them). */
+  chain?: string;
+  /** A shorter text for the last compact variant (the next-star line's headline, T6). */
+  alt?: string;
+  /** A belt's timeline row: they give way from the end, and a note says how many (0.6.2 BELTSIDE's trim). */
+  trim?: boolean;
+  /** The text's base colour (else the role's). */
+  colour?: string;
 }
+
+/** Each role's base colour and whether it always takes the small (3x5) face: the flavour dimmer than the ability text,
+ *  the hint dimmer again (T4). */
+export const ROLE: Record<Role, { colour: string; small: boolean }> = {
+  hits: { colour: C.bone, small: false },
+  warn: { colour: C.amber, small: false },
+  ability: { colour: C.bone, small: false },
+  next: { colour: C.bone, small: false },
+  merges: { colour: C.bone, small: false },
+  merge: { colour: C.steel3, small: false },
+  row: { colour: C.bone, small: false },
+  grid: { colour: C.yellow, small: false },
+  note: { colour: C.slate4, small: false },
+  flavour: { colour: C.steel2, small: true },
+  hint: { colour: C.slate3, small: true },
+};
+/** A stat label's colour. */
+const LABEL = C.slate4;
+
+/** The ability text as blocks: the opening sentence and the perk's sentence keep; the others give way first, from the
+ *  last (a chain: a later sentence never shows without the ones before it). */
+function abilityBlocks(def: string, stars: number, o: TextOpts): Block[] {
+  const at = abilityText(def, stars, o);
+  return at.sentences.map((text, i): Block => ({
+    role: "ability", text, keep: i === 0 || i === at.perk?.after, rank: 2, chain: "ability",
+    ...(at.perk && i === at.perk.after ? { perk: `★${at.perk.stars} ${at.perk.name}` } : {}),
+  }));
+}
+
+/** 0.6.2t (T6): a compact form of a panel for a short band (the phone), fullest first: its body; a header sub line in
+ *  place of the panel's (a rig's hits or its IDLE warning, moved up; used only where it fits the header); and `tight`:
+ *  the 3x5 body at a 6 px line pitch, 1 px higher (the 69 px phone band then holds 5 lines under a button row, not 4). */
+export interface Variant {
+  body: Block[];
+  sub?: string;
+  subColor?: string;
+  tight?: boolean;
+}
+
+/** The next-star line without the name of the perk that star brings (a compact variant). */
+const noNextPerk = (bs: readonly Block[]): Block[] => bs.map((b) => (b.role === "next" && b.perk ? { ...b, perk: undefined } : b));
+/** ...and at its headline, the first clause of the next star's effect (the last resort, as 0.6.2p's headline). */
+const headlineNext = (bs: readonly Block[]): Block[] => noNextPerk(bs).map((b) => (b.role === "next" && b.alt ? { ...b, text: b.alt } : b));
+
+/** The usual compact forms of a body: tight lines; then without the next star's perk name; then its headline. */
+const tightForms = (body: Block[]): Variant[] => [
+  { body, tight: true }, { body: noNextPerk(body), tight: true }, { body: headlineNext(body), tight: true },
+];
 
 /** How many more 1★ gains of `def` (bought, dropped, however) it takes to pass `atLeast` stars,
  *  simulated on a cloned run through the real gainModule (no re-implemented fuse math). */
@@ -235,107 +167,22 @@ function copiesToNextStar(run: Run, def: string, atLeast: number): number {
   return 8;
 }
 
-/** 0.6.2p: what a NEXT line says: the next star, the perk it brings (if the line names one), that star's effect line,
- *  the current star's (`now`) and the 1★ copies still needed. Null at ★3 or for a non-fusible id. */
-interface NextParts {
-  next: number;
-  perk?: string;
-  eff: string;
-  now: string;
-  copies: number;
+/** T5: the next-star line (and the perk that star brings) and merge progress; [] at the top star or when not fusible.
+ *  The next-star block carries its headline (`alt`, T6) for the last compact variant. */
+function progressBlocks(run: Run, def: string, stars: number): Block[] {
+  const next = nextStarText(def, stars, textOpts(run));
+  if (!next) return [];
+  const perk = newPerk(def, stars + 1), head = nextStarHeadline(def, stars, textOpts(run));
+  return [
+    { role: "next", text: next, keep: true, ...(perk ? { perk: `★${stars + 1} ${perk}` } : {}), ...(head ? { alt: head } : {}) },
+    { role: "merge", text: mergeProgressText(copiesToNextStar(run, def, stars)), keep: true },
+  ];
 }
 
-function nextParts(run: Run, def: string, stars: number): NextParts | null {
-  if (!fusible(def) || stars >= FUSE_MAX) return null;
-  const next = stars + 1;
-  const eff = starEffectLine(def, next, heroK(run)), now = starEffectLine(def, stars, heroK(run));
-  const copies = copiesToNextStar(run, def, stars);
-  // 0.6.1c: a factory's NEXT line names the perk that star brings (TRIPLE DIES, HOT START, THIRD ARM, HEAVY GANTRY).
-  // 0.6.1f: so does a gate's (HOT SHOE, RED-HOT SHOE, CLEAN CUT, PERFECT CUT; SPARK JUMP, REDLINE, AFTERBURNER), unless
-  // the perk's name is the whole effect line (a gate with no numbers reads "NEXT ★2: PERK" as before)
-  const kind = ITEMS[def].kind;
-  const brings = (kind === "factory" || kind === "gate") && perkAt(def, next) !== perkAt(def, stars) ? livePerk(def, next) : undefined;
-  const perk = brings !== eff ? brings : undefined;
-  return { next, eff, now, copies, ...(perk ? { perk } : {}) };
-}
-
-/** 0.6.2p (item 2): merge progress reads "NEEDS 2 MORE" / "NEEDS 1 MORE" (the old copy count read like a perk). */
-const needsMore = (copies: number): string => `NEEDS ${copies} MORE`;
-
-/** 0.6.2p (item 3): the NEXT line's forms, fullest first. The phone band uses the shorter ones (nextShort). */
-export type NextVariant = "full" | "short" | "headline" | "tight";
-
-/** The NEXT line from its parts: "full" names the perk and the effect; 0.6.2p (item 3) "short" drops the perk's name
- *  (the perk line names it once merged); "headline" keeps only the first part of the effect (between " · ") that
- *  differs from the current star's, the number that changes ("NEXT ★3: STALL 2.8S"); "tight" drops the effect too,
- *  leaving the star and the merge progress. */
-function nextText(p: NextParts, variant: NextVariant = "full"): string {
-  if (variant === "tight") return `NEXT ★${p.next} · ${needsMore(p.copies)}`;
-  const perk = variant === "full" || !p.eff ? p.perk : undefined;
-  let eff = p.eff;
-  if (variant === "headline" && eff) {
-    const now = p.now.split(" · "), parts = eff.split(" · ");
-    eff = parts.find((x) => !now.includes(x)) ?? parts[0];
-  }
-  return `NEXT ★${p.next}${perk ? ` ${perk}` : ""}${eff ? `: ${eff}` : ""} · ${needsMore(p.copies)}`;
-}
-
-/** 0.6.1d (ARSENAL.md §8.2): "NEXT ★3: +7 BURN · NEEDS 2 MORE" (0.6.2p item 2: it ended in a copy count); null at
- *  ★3 or for a non-fusible id. */
-export function nextLine(run: Run, def: string, stars: number): string | null {
-  const p = nextParts(run, def, stars);
-  return p ? nextText(p) : null;
-}
-
-/** 0.6.2p (item 3): the NEXT line's phone-short forms (as Spec.subShort; the desktop keeps nextLine): "short" without
- *  the perk's name, "headline" with only the effect's first changed part, "tight" without the effect. Null where
- *  nextLine is. */
-export function nextShort(run: Run, def: string, stars: number, variant: Exclude<NextVariant, "full"> = "short"): string | null {
-  const p = nextParts(run, def, stars);
-  return p ? nextText(p, variant) : null;
-}
-
-interface Action {
-  id: string;
-  label: string;
-  primary?: boolean;
-  danger?: boolean;
-  disabled?: boolean;
-  onTap: () => void;
-}
-
-/** A line of the panel's text: plain (bone), or [text, colour] (0.6.2: warnings and the turret-end readout). */
-type Line = string | [string, string];
-
-interface Spec {
-  icon: HTMLCanvasElement | null;
-  title: string;
-  color: string;
-  sub: string;
-  subColor?: string; // 0.6.2 BELTSIDE: an IDLE rig's sub line warns
-  subShort?: string; // 0.6.2 BELTSIDE: the sub line where `sub` doesn't fit (the portrait strip beside two buttons)
-  // 0.6.2 BELTSIDE: the sub line (in yellow) when the panel has no room for a single text line (the 360x640 portrait
-  // strip is a header only): a belt's turret-end readout, so V4's DMG, BURN, SHOCK, SPD and TIME stay in sight.
-  // Variants from the fullest to the tightest: the first that fits is drawn, else the last, cut short at its end
-  // (the tightest one lists by importance: DMG, TIME, BURN, SHOCK, SPD, which the chevron tint also shows)
-  subTight?: string[];
-  text: Line[];
-  actions?: Action[]; // 0.6.1b: was a single `action`; the turret case needs REMOVE CORE and REMOVE GEAR
-  // 0.6.2 BELTSIDE: when the text overflows its panel, drop text[from..to) from the end and say so with
-  // more(n) instead of losing the last lines (a belt's timeline rows give way to its turret-end readout)
-  trim?: { from: number; to: number; more: (n: number) => Line };
-  // 0.6.2p (item 3): the entries at the top of `text` that must show whole (a rig's hits or IDLE, its perk and its NEXT
-  // line). Where they don't fit the panel (the phone band), the first of `tight` whose own first `keep` entries do is
-  // drawn instead, else the last of them; the desktop column keeps `text` (as subShort does for the sub line)
-  keep?: number;
-  tight?: Variant[];
-}
-
-/** 0.6.2p (item 3): a compact variant of a panel's text; its first `keep` entries must show whole. */
-interface Variant {
-  text: Line[];
-  keep: number;
-}
+/** The flavour (0.6.2p's star-aware desc, T7), whole or not at all (0b.5). */
+const flavourBlock = (def: string, stars: number, k: number): Block => ({ role: "flavour", text: flavourText(def, stars, k), rank: 7 });
+/** The action hint. */
+const hintBlock = (text: string): Block => ({ role: "hint", text, rank: 6 });
 
 /** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo. */
 function placeHint(kind: string, drag: boolean): string {
@@ -345,56 +192,88 @@ function placeHint(kind: string, drag: boolean): string {
   return drag ? `${how}, OR DRAG IT THERE.` : `${how}.`;
 }
 
-const num = (x: number): string => String(+x.toFixed(2));
+// ---------------------------------------------------------------------------------------------- one-line helpers
 
-/** 0.6.2 BELTSIDE (V4): one hit in a belt's timeline: the rig and what it did there (walkRoute). beltside-062:
- *  exported for tests (the LONG HAUL cap, P3). */
-export function hitLabel(h: TimelineHit, locked: boolean): string {
-  const name = ITEMS[h.def].name;
-  if (h.timed) return `${name} ${h.timed}`;
-  if (h.poison) return `${name} POISON +${h.poison}`;
-  if (h.staticTime) return `${name} STATIC ${h.staticTime}S`;
-  if (h.fray) return `${name} FRAY +${h.fray}`;
-  if (h.split) return `${name} X${h.split.copies} AT ${Math.round(h.split.mult * 100)}%`;
-  // beltside-062 (DESIGN §11 P3): a LONG HAUL ★2/★3 that saw more earlier hits than its cap says so
-  if (h.capped !== undefined) return `${name} +${num(h.flat ?? 0)} (MAX ${h.capped} HITS)`;
-  if (h.prior !== undefined) return `${name} +${num(h.flat ?? 0)} (${h.prior} HIT${h.prior === 1 ? "" : "S"} BEFORE)`;
-  if (h.quenched) return `${name} +${num(h.flat ?? 0)} (${h.quenched} BURN SPENT)`; // 0.6.2 FB-B QUENCH TANK
-  if (h.flat) return `${name} +${num(h.flat)}`;
-  if (h.burn) return `${name} BURN +${h.burn}`;
-  if (h.shock) return `${name} SHOCK`;
-  if (h.speed !== undefined) return `${name} ${num(h.speed)}X${locked ? " (LOCKED)" : h.won ? "" : " (BEATEN)"}`;
-  return name;
+/** T5: an offer that merges on purchase: "MERGES WITH YOUR TEMPER INTO ★2: ADDS 4 BURN." (and the perk it brings);
+ *  null when buying it merges nothing. */
+export function mergeLine(run: Run, def: string): string | null {
+  const b = mergeBlock(run, def);
+  return b ? `${b.text}${b.perk ? ` ${b.perk}` : ""}` : null;
 }
 
-/** beltside-062c: a placed rig's inspector panel, without its icon and button callbacks (spec adds them). */
-export interface RigPanel {
-  title: string;
-  sub: string;
-  subShort?: string; // the sub line beside the portrait strip's buttons
-  idle: boolean;
-  x: boolean; // an X rig: no ROTATE button
-  labels: string[]; // the buttons, in order
-  text: Line[];
-  keep: number; // 0.6.2p (item 3): text's first entries that must show whole: the hits (or IDLE), the perk, the NEXT line
-  tight: Variant[]; // 0.6.2p (item 3): the phone band's compact texts, fullest first (Spec.tight, drawDetails)
+/** T5: the next-star line with the perk it brings, then merge progress: "NEXT STAR: ADDS 7 BURN. 2 MORE COPIES TO
+ *  MERGE."; null at the top star or for a non-fusible id. */
+export function nextLine(run: Run, def: string, stars: number): string | null {
+  const b = progressBlocks(run, def, stars);
+  return b.length ? `${b[0].text}${b[0].perk ? ` ${b[0].perk}` : ""} ${b[1].text}` : null;
 }
 
-/** 0.6.2p (item 3): the IDLE warning, and its phone-band form (the sub line says IDLE in amber; the turn hint follows). */
+/** 0.6.2 BELTSIDE: the IDLE warning, and its phone-band form (the sub line says IDLE in amber; the turn hint follows). */
 export const IDLE_WARNING = "IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT BESIDE ONE.";
 export const IDLE_SHORT = "IDLE: NO ARROW REACHES A BELT.";
+/** 0.6.2t: the IDLE warning where it moves up into a narrow header (the desk column's). */
+export const IDLE_HEAD = "IDLE: NO ARROW ON A BELT.";
+
+/** 0.6.2t (0b.4): which belt a walk is on: locked (METRONOME, speed-locked), slag (a SLAG POT's fixed speed) or free. */
+export function beltKind(w: RouteWalk): BeltKind {
+  return w.locked ? "locked" : w.fixed !== undefined ? "slag" : "free";
+}
+
+/** 0.6.2 BELTSIDE (V4): one hit in a belt's timeline (0.6.2t: the glossary's hitText, with 0b.4's slag and locked
+ *  readings: a SLAG belt never reads LOCKED or pays a locked bonus). Exported for tests. */
+export function hitLabel(h: TimelineHit, belt: BeltKind): string {
+  return hitText(h, belt);
+}
+
+/** "4 AND 6", "4, 5 AND 6". */
+function andList(xs: (string | number)[]): string {
+  return xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} AND ${xs[xs.length - 1]}`;
+}
+
+/** A rig's hits, one line each ("→ BELT 1, TILE 3"), or all on one line grouped by belt ("→ BELT 1 TILE 4, BELT 2 TILES
+ *  4 AND 6"): the phone band's compact form; `short` labels the tiles as the belt readout's rows do ("→ BELT 1 T4, BELT 2
+ *  T4 AND T6", the header's last resort). */
+function hitLines(hits: readonly RigHit[]): { full: string[]; compact: string; short: string } {
+  const by = new Map<number, number[]>();
+  for (const h of hits) by.set(h.route, [...(by.get(h.route) ?? []), h.tile + 1]);
+  return {
+    full: hits.map((h) => `→ BELT ${h.route + 1}, TILE ${h.tile + 1}`),
+    compact: `→ ${[...by].map(([r, ts]) => `BELT ${r + 1} ${ts.length === 1 ? `TILE ${ts[0]}` : `TILES ${andList(ts)}`}`).join(", ")}`,
+    short: `→ ${[...by].map(([r, ts]) => `BELT ${r + 1} ${andList(ts.map((t) => `T${t}`))}`).join(", ")}`,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------- the panels
+
+/** A panel's text: its header, body blocks, compact variants (fullest first) and its buttons' labels. Pure; spec()
+ *  adds the icon and the buttons' actions. Exported for the tests (planPanel on the phone band). */
+export interface PanelText {
+  title: string;
+  color: string;
+  sub: string;
+  subColor?: string; // 0.6.2 BELTSIDE: an IDLE rig's sub line warns
+  subShort?: string; // 0.6.2 BELTSIDE: the sub line where `sub` doesn't fit beside the portrait strip's buttons
+  /** A header-only strip's text (the 360x640 portrait): the fullest that fits, on up to two lines (0.6.2 BELTSIDE's
+   *  subTight for a belt's readout; 0.6.2t: an offer's one-line effect, the tap preview there). */
+  headerOnly?: { texts: string[]; colour: string };
+  body: Block[];
+  /** Compact forms for a short band, fullest first (planBody takes the first whose kept blocks fit). */
+  variants?: Variant[];
+  labels: string[];
+}
+
+/** A rig's panel extras (tests): IDLE, an X rig (no ROTATE). */
+export interface RigPanel extends PanelText {
+  idle: boolean;
+  x: boolean;
+}
 
 /**
- * 0.6.2 BELTSIDE (V4): a placed rig's panel: its hits, or IDLE when none of its arrows lands on a belt. The lines that
- * matter most come first, because a short panel drops the last ones. beltside-062: a ★2/★3 rig's perk (0.6.1r's
- * levelLine) comes right under its hits. beltside-062c (DESIGN §12 P11): hits (or IDLE), perk, NEXT/MERGES, turn hint,
- * then the flavour, so on a phone the flavour gives way first and the hits last and merge progress stays in sight (as
- * 0.6.1c's factory body leads with its headline and NEXT line). Exported for tests; null unless `uid` is a placed rig.
- * 0.6.2p (item 3): the hits, perk and NEXT line show whole on a phone too: where they don't fit its band, drawDetails
- * takes the first `tight` text whose do. Fullest first: the NEXT line without its perk's name (nextShort), then the
- * hits on one line ("→ BELT 1 T3 · BELT 2 T3", as the belt panel numbers tiles) or IDLE's short warning, then the NEXT
- * line with only the number that changes ("headline", where that is shorter), then just its star and merge progress.
- * The perk line always stays whole.
+ * 0.6.2 BELTSIDE (V4): a placed rig's panel: its hits, or IDLE when none of its arrows lands on a belt. beltside-062c
+ * (DESIGN §12 P11): the lines that matter most come first. 0.6.2t: the hits (or IDLE), the ability text (its opening
+ * sentence and its perk's sentence kept), the next-star line and merge progress, then the turn hint and the flavour. On
+ * the phone band the compact variants put the hits on one line (or IDLE's short warning), then drop the next star's
+ * perk name. Exported for tests; null unless `uid` is a placed rig.
  */
 export function rigPanel(run: Run, uid: number): RigPanel | null {
   const p = itemByUid(run.build, uid);
@@ -405,255 +284,446 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
   const hits = hitsOfRig(run.build, p.uid);
   const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
   const idle = hits.length === 0;
-  const lvl = levelLine(d.id, stars), parts = nextParts(run, d.id, stars);
   const on = new Set(hits.map((h) => h.dir)).size;
-  const lead: Line[] = idle ? [[IDLE_WARNING, C.amber]] : hits.map((h) => `→ BELT ${h.route + 1} · TILE ${h.tile + 1}`);
-  const leadTight: Line[] = idle ? [[IDLE_SHORT, C.amber]]
-    : hits.length > 1 ? [`→ ${hits.map((h) => `BELT ${h.route + 1} T${h.tile + 1}`).join(" · ")}`] : lead;
-  const tail = [x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE.", ...flavour(d.id, stars)]; // 0.6.2p item 1
-  const make = (head: Line[], next: string | null): Variant => {
-    const keep = [...head, ...(lvl ? [lvl] : []), ...(next ? [next] : [])];
-    return { text: [...keep, ...tail], keep: keep.length };
-  };
-  const full = make(lead, parts && nextText(parts));
-  const short = parts && nextText(parts, "short"), headline = parts && nextText(parts, "headline");
+  const hl = hitLines(hits);
+  const lead: Block[] = idle ? [{ role: "warn", text: IDLE_WARNING, keep: true }] : hl.full.map((t): Block => ({ role: "hits", text: t, keep: true }));
+  const leadTight: Block[] = idle ? [{ role: "warn", text: IDLE_SHORT, keep: true }]
+    : hits.length > 1 ? [{ role: "hits", text: hl.compact, keep: true }] : lead;
+  const rest = [
+    ...abilityBlocks(d.id, stars, textOpts(run)),
+    ...progressBlocks(run, d.id, stars),
+    flavourBlock(d.id, stars, 1),
+    hintBlock(x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE."),
+  ];
+  // T6 (phone): the hits (or the IDLE warning) move up into the header's sub line, where they fit there (planBody skips
+  // a head that doesn't): the compact list, then its short form with tile labels ("→ BELT 1 T4, BELT 2 T4 AND T6")
+  const heads: Pick<Variant, "sub" | "subColor">[] = idle ? [IDLE_SHORT, IDLE_HEAD].map((sub) => ({ sub, subColor: C.amber }))
+    : [...new Set([`RIG ${hl.compact}`, `RIG ${hl.short}`])].map((sub) => ({ sub }));
+  const forms = (body: Block[], tight: boolean): Variant[] => [...heads.map((h) => ({ body, ...h, tight })), { body: [...leadTight, ...body], tight }];
   return {
-    title: starred(d.name, stars),
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
     sub: idle ? "RIG · IDLE" : `RIG · ${on}/${arrows} ARROWS ON BELTS`,
     subShort: idle ? undefined : `RIG · ${on}/${arrows} HIT`,
-    idle, x,
+    subColor: idle ? C.amber : undefined,
+    body: [...lead, ...rest],
+    variants: [
+      { body: [...leadTight, ...rest] },
+      ...heads.map((h) => ({ body: rest, ...h })),
+      ...forms(rest, true),
+      ...forms(noNextPerk(rest), true),
+      ...forms(headlineNext(rest), true),
+    ],
     labels: [...(x ? [] : ["ROTATE"]), "TO CARGO"],
-    text: full.text, keep: full.keep,
-    tight: parts
-      ? [
-        make(lead, short), make(leadTight, short),
-        ...(headline !== short ? [make(leadTight, headline)] : []),
-        make(leadTight, nextText(parts, "tight")),
-      ]
-      : [make(leadTight, null)],
+    idle, x,
   };
 }
 
-/** A belt's inspector panel, without its icon and button (spec adds them). 0.6.2j: exported for tests. */
-export interface BeltPanel {
-  sub: string;
-  subTight?: string[];
-  head: Line[];
-  rows: Line[]; // the timeline (trimmed from its end when the panel is short)
-  foot: Line[]; // the turret-end readout, always in sight
-  // the line standing for the last n rows on a short panel: "+k MORE HIT TILES", k counting hit tiles only (0.6.2j: a
-  // JOINS line is none; when the dropped rows hold no hit tile, the first of them stands for itself)
-  more: (n: number) => Line;
+/** T5: the MERGES WITH block of an offer that merges on purchase (the perk that star brings after it). */
+function mergeBlock(run: Run, def: string): Block | null {
+  const preview = mergePreview(run, def);
+  if (!preview) return null;
+  const to = preview.toStars, perk = newPerk(def, to);
+  return { role: "merges", text: mergesWithText(def, to, textOpts(run)), keep: true, ...(perk ? { perk: `★${to} ${perk}` } : {}) };
+}
+
+/** A shop offer's panel, the phone's tap preview (T5): the module's 1-star ability text, the MERGES WITH line when it
+ *  merges on purchase, the hint and the flavour; on the header-only 360x640 strip, its one-line effect. */
+export function offerPanel(run: Run, wagon: number, slot: number): PanelText | null {
+  const o = run.shop.wagons[wagon]?.offers[slot];
+  if (!o) return null;
+  const d = ITEMS[o.def];
+  const merging = !o.sold && shopBadge(run, o.def)?.kind === "merge";
+  const opts = textOpts(run);
+  const mLine = merging ? mergeBlock(run, o.def) : null;
+  const one = cardText(d.id, opts);
+  const body: Block[] = [
+    ...abilityBlocks(d.id, 1, opts),
+    ...(mLine ? [mLine] : []),
+    flavourBlock(d.id, 1, opts.k ?? 1),
+    hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true)),
+  ];
+  return {
+    title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
+    subShort: describe(d), // T6: the merchant's name gives way first, so the button can share the title's row
+    headerOnly: one ? { texts: [one], colour: C.bone } : undefined,
+    body,
+    variants: tightForms(body),
+    labels: [o.sold ? "SOLD" : d.kind === "supply" ? `BUY+USE ${o.price}G` : merging ? `BUY+MERGE ${o.price}G` : `BUY ${o.price}G`],
+  };
+}
+
+/** A module in cargo: its ability text at its stars (a core's numbers at the hero's k), next star, merge progress. */
+export function cargoPanel(run: Run, uid: number): PanelText | null {
+  const it = run.inventory.find((i) => i.uid === uid);
+  if (!it) return null;
+  const d = ITEMS[it.def], stars = starsOf(it), opts = textOpts(run);
+  const body: Block[] = [
+    ...abilityBlocks(d.id, stars, opts),
+    ...progressBlocks(run, d.id, stars),
+    flavourBlock(d.id, stars, opts.k ?? 1),
+    hintBlock(placeHint(d.kind, false)),
+  ];
+  return {
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
+    subShort: `${KIND_WORD[d.kind] ?? "PART"} · IN CARGO`, // T6: the rarity gives way first (the title shows it in colour)
+    body,
+    variants: tightForms(body),
+    labels: [`SELL +${sellPrice(d.id, stars)}G`],
+  };
+}
+
+/** The kind as the panels name it (shop.ts describe, without the rarity). */
+const KIND_WORD: Record<string, string> = { gate: "RIG", factory: "FACTORY", mod: "TURRET GEAR", core: "TURRET CORE", supply: "SUPPLY" };
+
+/** A placed deck item: a rig (rigPanel), or a factory with its outputs at its stars (GANTRY PRESS ★2 THIRD ARM feeds 3)
+ *  and its text; a hero's signature factory has no stars, no next star and no TO CARGO. */
+export function itemPanel(run: Run, uid: number): PanelText | null {
+  const p = itemByUid(run.build, uid);
+  if (!p) return null;
+  const d = defOf(p);
+  if (d.kind === "gate") return rigPanel(run, uid);
+  const stars = starsOf(p);
+  const sig = !fusible(d.id);
+  const body: Block[] = [
+    ...(hasAbilityText(d.id) ? abilityBlocks(d.id, stars, textOpts(run)) : []),
+    ...(sig ? [] : progressBlocks(run, d.id, stars)),
+    flavourBlock(d.id, stars, 1),
+    hintBlock("DRAG OUT OF IT TO LAY BELT."),
+  ];
+  return {
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${outputsAt(d.id, stars) || 1}`,
+    body,
+    variants: tightForms(body),
+    labels: sig ? [] : ["TO CARGO"],
+  };
 }
 
 /**
- * 0.6.2 BELTSIDE (V4): a belt's panel: its tile-by-tile timeline in R7 order, then the turret-end readout, from one
- * walk. 0.6.2j (J10): a joining belt shows its own tiles' hits, a "JOINS BELT n AT TILE t" line, then the main belt's
- * hits from the join tile on (walkRoute continues through the join), and its sub line names the belt it joins; a main
- * belt says how many belts join it. A belt without joins reads exactly as before. Null unless route `index` exists.
+ * A belt route (0.6.2 BELTSIDE, V4): its tiles and hits, the timeline in R7 order (0.6.2t: the glossary's hit rows, 0b.4),
+ * then the gun end's readout in aligned stat pairs: DMG and BURN, SPD and TIME, and SHOCK and COPIES where they apply.
+ * The readout always stays; on a short panel the last timeline rows give way first, and a note says how many.
  */
-export function beltPanel(run: Run, index: number): BeltPanel | null {
+export function routePanel(run: Run, index: number): PanelText | null {
   const b = run.build;
   if (!b.routes[index]) return null;
   const info = routeInfo(b, index);
   const w = walkRoute(b, index);
+  const belt = beltKind(w);
   const est = w.estimate;
+  // 0b.4: the walk counts SURGE VALVE's pulse damage on a SLAG belt, where the sim never pays it
+  const dmg = Math.max(1, est.dmg - slagPulseExtra(w.timeline, belt)).toFixed(1);
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
-  const joined = joinersOf(b, index); // 0.6.2j (J10)
-  const paced = joinPaceLines(b, b.routes[index].factory, index); // 0.6.2 TUNE-M: RULE JOIN PACE ([] unless joined)
-  const head: Line[] = [
-    ...(info.connected ? [] : [["ENDS SHORT OF A TURRET INTAKE.", C.amber] as Line]),
-    ...paced,
-    ...(joined.length ? [[`${joined.length} BELT${joined.length === 1 ? " JOINS" : "S JOIN"} IT: ${joined.map((j) => `BELT ${j + 1}`).join(", ")}`, C.cyan] as Line] : []),
-    `${info.tiles} TILES · ${hitCount} HIT${hitCount === 1 ? "" : "S"}${hitCount ? " IN ORDER:" : ": NO RIG WORKS THIS BELT"}`,
+  const spd = belt === "locked" ? "100% (LOCKED)" : belt === "slag" ? `${percent(w.speedEnd)} (SLAG)` : percent(w.speedEnd);
+  const time = `${est.time.toFixed(1)} SEC`;
+  const cells: [string, string][][] = [
+    [["DMG", dmg], ["BURN", String(est.burn)]],
+    [["SPD", spd], ["TIME", time]],
+    ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", n2(est.copies)]] as [string, string][]] : []),
   ];
-  // beltside-062c (DESIGN §12 P8): slag keeps its fixed speed, so on its belt a speed hit reads (LOCKED), as on a
-  // METRONOME belt: it changes nothing there, and nothing beat it. 0.6.2j (J15): a slag joiner's too, past the join
-  const joins = w.joins ?? [];
-  const joinLine = (j: WalkJoin): Line => [`JOINS BELT ${j.route + 1} AT TILE ${j.tile + 1}`, C.cyan];
-  const rows: Line[] = [];
-  const hitRow: boolean[] = []; // per row: a hit tile (false: a JOINS line)
-  w.timeline.forEach((row, i) => {
-    for (const j of joins) if (j.row === i) { rows.push(joinLine(j)); hitRow.push(false); }
-    rows.push(`T${row.tile + 1}: ${row.hits.map((h) => hitLabel(h, w.locked || w.fixed !== undefined)).join(" · ")}`);
-    hitRow.push(true);
-  });
-  for (const j of joins) if (j.row >= w.timeline.length) { rows.push(joinLine(j)); hitRow.push(false); }
-  const more = (n: number): Line => {
-    const k = hitRow.slice(hitRow.length - n).filter(Boolean).length;
-    if (!k && n > 0) return rows[rows.length - n];
-    return [`+${k} MORE HIT TILE${k === 1 ? "" : "S"} (NUMBERED ON THE DECK)`, C.slate4];
-  };
-  const dmg = `DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? `X${est.copies}` : ""}`, spd = `${num(w.speedEnd)}X`, time = `${est.time.toFixed(1)}S`;
-  const tag = (burn: string, shock: string) => [...(est.burn ? [`${burn}${est.burn}`] : []), ...(est.shock ? [shock] : [])];
-  const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
   return {
-    // 0.6.2 TUNE-M: a joining belt's sub line says its factory's pace too (the strip that shows only the header)
-    sub: info.join ? `JOINS BELT ${info.join.route + 1} · ${JOIN_PACE_PCT}% PACE · ${feeds}` : feeds,
-    subTight: info.connected
-      ? [[dmg, ...tag("BURN ", "SHOCK"), spd, time].join(" · "), [dmg, ...tag("B", "SHK"), spd, time].join(" · "), [dmg, time, ...tag("B", "SHK"), spd].join(" ")]
-      : undefined,
-    head, rows, more,
-    foot: [
-      [`AT THE GUN: DMG ${est.dmg.toFixed(1)}${est.copies > 1 ? ` X${est.copies}` : ""} · BURN ${est.burn} · ${est.shock ? "SHOCK" : "NO SHOCK"}`, C.yellow],
-      [`SPD ${num(w.speedEnd)}X · TIME ${est.time.toFixed(1)}S TO THE GUN`, C.yellow],
+    title: "BELT ROUTE", color: C.white, sub: info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED",
+    headerOnly: info.connected ? {
+      texts: [
+        `DMG ${dmg}, BURN ${est.burn}${est.shock ? ", SHOCK" : ""}, SPD ${percent(w.speedEnd)}, ${time}`,
+        `DMG ${dmg}, ${time}, BURN ${est.burn}`,
+        `DMG ${dmg}, ${time}`,
+      ],
+      colour: C.yellow,
+    } : undefined,
+    body: [
+      ...(info.connected ? [] : [{ role: "warn", text: "ENDS SHORT OF A TURRET INTAKE.", keep: true } as Block]),
+      { role: "hits", text: hitCount ? `${info.tiles} TILES, ${hitCount} HIT${hitCount === 1 ? "" : "S"}:` : `${info.tiles} TILES. NO RIG WORKS THIS BELT.`, keep: true },
+      ...w.timeline.map((row): Block => ({ role: "row", label: `T${row.tile + 1}`, text: row.hits.map((h) => hitText(h, belt)).join(", "), trim: true })),
+      ...cells.map((c): Block => ({ role: "grid", text: "", cells: c, keep: true })),
     ],
+    labels: ["REMOVE BELT"],
   };
 }
 
-/** 0.6.1b: the core's firing summary rescaled by k ("3 PELLETS x 40%"), or "" for the identity routine
- *  (ARSENAL.md §8.4). `tc.spec` is already k-scaled (resolveCore), so absolute numbers read straight off it. */
-function coreShape(tc: TurretCore): string {
-  const c = tc.spec;
-  switch (tc.routine) {
-    case "scatter": return `${c.pellets} PELLETS x ${Math.round((c.share ?? 1) * 100)}%`;
-    case "rotary": return `${c.order} LOAD FIRST`;
-    case "pressure": return `+${(c.perQueued ?? 0).toFixed(1)} DMG PER QUEUED`;
-    case "gatling": return `SPIN ${(c.start ?? 1).toFixed(2)}X TO ${(c.floor ?? 1).toFixed(2)}X`;
-    case "hullbreaker": return `HULL ONLY x${(c.hullMul ?? 1).toFixed(2)}`;
-    case "drake": return `+${c.addBurn} BURN ${c.burnTime}S`;
-    case "salvo": return `FULL VOLLEY +${(c.volleyFlat ?? 0).toFixed(1)} EACH`;
-    case "mortar": return `${c.splash} SPLASH X${c.share} · FLIGHT X${c.flightMul}`;
-    case "grapnel": return `RIP ${c.rip} WITHIN ${c.reach} TILES`;
-    case "tesla": return `${c.arcs} ARCS X${c.share} · STALL ${c.stall}S`;
-    case "capacitor": return `+${(c.perSecond ?? 0).toFixed(1)}/IDLE S · MAX ${c.maxSeconds}S`;
-    case "compound": return `2 LOADS X${c.mult} · HOLD ${c.hold}S`;
-    case "lance": return `${c.columns} COLUMNS X${c.share}`;
-    default: return "";
-  }
+/**
+ * A turret (0.6.1b): its core and gear, each named in a row with its opening sentence under it (T5: the same sentence
+ * as the module's own panel, the core at the turret's k), then its firing rows (0.6.2t: from makeTurret, the numbers the
+ * battle fires by). On the phone band the CORE and GEAR rows always show; the rest follow while there is room.
+ */
+export function turretPanel(run: Run, index: number): PanelText | null {
+  const b = run.build;
+  const td = HEROES[b.hero].turrets[index];
+  if (!td) return null;
+  const gm = gearFor(b, index); // 0.6.1b: gear only; the core has its own socket (coreFor via resolveCore)
+  const gear = gm ? ITEMS[gm.def] : null;
+  const gstars = gm ? starsOf(gm) : 1;
+  const tc = resolveCore(b, index, td); // 0.6.1b: bought core (k-scaled) or the signature core
+  const tu = makeTurret(b, index, td); // its interval (gear, core, the long-belt cadence) and window (EXT. CHAMBER, HOPPER)
+  const every = tu.interval * (tc.bought ? tc.spec.reloadMul ?? 1 : 1); // SALVO's volley reload
+  const coreName = tc.bought ? starred(ITEMS[tc.def].name, tc.stars) : (SIGNATURE_CORES[tc.def]?.name ?? "SIGNATURE CORE");
+  // the core's and the gear's opening sentences (T5: as their own panels read them); on a short band (the phone) a
+  // compact form puts each one's short effect (the glossary's gist) in its row instead
+  const first = (def: string, stars: number, k: number): Block[] => {
+    const at = abilityText(def, stars, { k, hero: b.hero as HeroId });
+    const perk = at.perk && at.perk.after === 0 ? { perk: `★${at.perk.stars} ${at.perk.name}` } : {};
+    return at.sentences.length ? [{ role: "ability", text: at.sentences[0], keep: true, ...perk }] : [];
+  };
+  const withGist = (name: string, def: string, stars: number, k: number): string => {
+    const gs = gist(def, stars, { k, hero: b.hero as HeroId });
+    return gs ? `${name}: ${gs}.` : name;
+  };
+  const clash: Block[] = [];
+  // 0.6.1p (the Prime's call): a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do nothing there
+  if (tc.routine === "gatling" && gear?.id === "hopper") clash.push({ role: "warn", text: "GATLING SPOOL: THE HOPPER'S LONGER WAIT DOES NOTHING HERE.", rank: 2 });
+  if (tc.routine === "gatling" && gear?.id === "ram") clash.push({ role: "warn", text: "GATLING SPOOL: NO FULL CHAMBER, SO THE FINISHER RAM DOES NOTHING.", rank: 2 });
+  const noJam = tu.noJam || (tc.bought && tc.spec.noJam);
+  const gearName = gear ? starred(gear.name, gstars) : "EMPTY HARDPOINT";
+  const stats: Block[] = [
+    { role: "row", label: "FIRES", text: `EVERY ${n2(every)} SEC${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}`, rank: 1 },
+    { role: "row", label: "CHAMBER", text: `${tu.window} LOADS, ${n2(tu.windowTime)} SEC${noJam ? ", NEVER JAMS" : ""}`, rank: 1 },
+    ...clash,
+  ];
+  const body: Block[] = [
+    { role: "row", label: "CORE", text: coreName, keep: true },
+    ...(tc.bought ? first(tc.def, tc.stars, tc.k) : []),
+    { role: "row", label: "GEAR", text: gearName, keep: true },
+    ...(gear ? first(gear.id, gstars, 1) : []),
+    ...stats,
+  ];
+  const compact: Block[] = [
+    { role: "row", label: "CORE", text: tc.bought ? withGist(coreName, tc.def, tc.stars, tc.k) : coreName, keep: true },
+    { role: "row", label: "GEAR", text: gear ? withGist(gearName, gear.id, gstars, 1) : gearName, keep: true },
+    ...stats,
+  ];
+  return {
+    title: `${td.kind.toUpperCase()} TURRET ${index + 1}`, color: C.white,
+    sub: `FED FROM COLUMN ${td.connectors.map((c) => c + 1).join("+")}`,
+    body,
+    variants: [{ body, tight: true }, { body: compact }, { body: compact, tight: true }],
+    labels: [...(tc.bought ? ["REMOVE CORE"] : []), ...(gear ? ["REMOVE GEAR"] : [])],
+  };
 }
 
-function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
-  const { run } = ctx;
-  const b = run.build;
-  const tp = turretSpec(ctx, show, hovering); // 0.6.2s (REQ-BFG-031 S10): turret cards and empty turret slots
-  if (tp !== undefined) return tp;
-  switch (show.kind) {
-    case "offer": {
-      const o = run.shop.wagons[show.wagon]?.offers[show.slot];
-      if (!o) return null;
-      const d = ITEMS[o.def];
-      const can = !o.sold && run.gold >= o.price;
-      const merging = !o.sold && shopBadge(run, o.def)?.kind === "merge";
-      const hint = d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true);
-      const mLine = merging ? mergeLine(run, o.def) : null;
-      return {
-        icon: itemIcon(d.id), title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[show.wagon].merchant].name}`,
-        text: body(d, 1, [mLine], hint, heroK(run)), // 0.6.1c: a factory leads with its headline
-        actions: hovering ? [] : [{
-          id: "buy", label: o.sold ? "SOLD" : d.kind === "supply" ? `BUY+USE ${o.price}G` : merging ? `BUY+MERGE ${o.price}G` : `BUY ${o.price}G`, primary: can, disabled: !can,
-          onTap: () => {
-            const res = buy(ctx, show.wagon, show.slot);
-            if (res.gain) selectGain(ctx, res.gain); // 0.6.1a: after a merge, the survivor
-          },
-        }],
-      };
-    }
-    case "cargo": {
-      const it = run.inventory.find((i) => i.uid === show.uid);
-      if (!it) return null;
-      const d = ITEMS[it.def];
-      const stars = starsOf(it);
-      const next = nextLine(run, it.def, stars);
-      const lvl = levelLine(it.def, stars, heroK(run)); // 0.6.1p; 0.6.1r N4: a core's numbers at the hero's k
-      return {
-        icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
-        // beltside-062c: 0.6.1c's body (a factory leads with its headline) with BELTSIDE's placing hint
-        text: body(d, stars, [lvl, next], placeHint(d.kind, false), heroK(run)),
-        actions: [{ id: "sell", label: `SELL +${sellPrice(d.id, stars)}G`, onTap: () => sell(ctx, it.uid) }],
-      };
-    }
-    case "item": {
-      const p = itemByUid(b, show.uid);
-      if (!p) return null;
-      const d = defOf(p);
-      const stars = starsOf(p);
-      const sig = d.id === "kiln" || d.id === "loom";
-      const next = sig ? null : nextLine(run, d.id, stars);
-      const lvl = sig ? null : levelLine(d.id, stars); // 0.6.1p
-      if (d.kind === "gate") {
-        // 0.6.2 BELTSIDE (V4): a rig's hits, or IDLE when none of its arrows lands on a belt (rigPanel)
-        const rp = rigPanel(run, p.uid)!;
-        return {
-          icon: itemIcon(d.id), title: rp.title, color: RARITY_COLOR[d.rarity], sub: rp.sub, subShort: rp.subShort,
-          subColor: rp.idle ? C.amber : undefined, text: rp.text, keep: rp.keep, tight: rp.tight, // 0.6.2p item 3
-          actions: [
-            ...(rp.x ? [] : [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }]),
-            { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) },
-          ],
-        };
-      }
-      // beltside-062c: a placed factory (rigs have their own branch above, so 0.6.1c's "GATE · ON A BELT" sub is
-      // gone): 0.6.1c's outputs at its stars (GANTRY PRESS ★2 THIRD ARM feeds 3; = routeCheck.ts, validate.ts) and
-      // its body, which leads with the headline and the NEXT line
-      return {
-        icon: itemIcon(d.id), title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
-        sub: `FACTORY · BELTS ${routesOf(b, p.uid).length}/${outputsAt(d.id, stars) || 1}`,
-        // 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory leads with its pace ([] otherwise: the panel reads as before)
-        text: [...joinPaceLines(b, p.uid), ...body(d, stars, [lvl, next], "DRAG OUT OF IT TO LAY BELT.")],
-        actions: sig ? [] : [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }],
-      };
-    }
-    case "route": {
-      const bp = beltPanel(run, show.index);
-      if (!bp) return null;
-      return {
-        icon: beltIcon(), title: "BELT ROUTE", color: C.white, sub: bp.sub, subTight: bp.subTight,
-        // the turret end, what a payload carries into the gun (DMG, BURN, SHOCK) and how it gets there (SPD,
-        // TIME), always stays in sight: on a short panel the last timeline rows give way first
-        text: [...bp.head, ...bp.rows, ...bp.foot],
-        trim: { from: bp.head.length, to: bp.head.length + bp.rows.length, more: bp.more }, // 0.6.2j: hit tiles only
-        actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }],
-      };
-    }
-    case "turret": {
-      const td = turretSlots(b)[show.index]?.td; // 0.6.2s: the installed turret (an empty slot has none)
-      if (!td) return null;
-      const gm = gearFor(b, show.index); // 0.6.1b: gear only; the core has its own socket (coreFor via resolveCore)
-      const gear = gm ? ITEMS[gm.def] : null;
-      let every = td.fireInterval, per = 1;
-      for (const m of gearOn(b, show.index)) { // 0.6.2s (S4): every piece of gear, in hardpoint order
-        const md = effectAt(m.def, starsOf(m)).mod; // 0.6.1a: the gear's spec at its stars
-        if (md?.fireMul) every *= md.fireMul;
-        if (md?.perShot) per = Math.max(per, md.perShot);
-      }
-      const tc = resolveCore(b, show.index, td); // 0.6.1b: bought core (k-scaled) or the signature core
-      if (tc.bought) every *= tc.spec.intervalMul ?? tc.spec.reloadMul ?? 1; // ROTARY / SALVO's static cadence change
-      const coreName = tc.bought ? starred(ITEMS[tc.def].name, tc.stars) : (SIGNATURE_CORES[tc.def]?.name ?? "SIGNATURE CORE");
-      const shape = coreShape(tc);
-      const actions: Action[] = [];
-      if (tc.bought) actions.push({ id: "unfitcore", label: "REMOVE CORE", onTap: () => unfitCore(ctx, show.index) });
-      if (gear) actions.push({ id: "unfit", label: "REMOVE GEAR", onTap: () => unfitMod(ctx, show.index) });
-      // 0.6.1p: the window as the battle sees it (EXT. CHAMBER, HOPPER), and the GATLING clashes (the Prime's call):
-      // a GATLING never holds a window, so HOPPER's seconds and FINISHER RAM do nothing there
-      const tu = makeTurret(b, show.index, td);
-      // 0.6.2 FB-B: + a HOPPER ★2/★3 store, the loads it holds while the gun fires
-      const plain = tu.window === td.window && tu.windowTime === WINDOW_TIME && !tu.noJam && tu.storeMax === 0;
-      const held = tu.storeMax ? ` · HOLDS ${tu.storeMax} MORE WHILE FIRING` : "";
-      const chamber = plain ? `CHAMBER ${td.window} SLUGS` : `CHAMBER ${tu.window} SLUGS · ${+tu.windowTime.toFixed(2)}S${held}${tu.noJam ? " · NEVER JAMS" : ""}`;
-      const clash = gatlingClash(b, show.index, tc.routine);
-      const shield = tu.intakeGuard > 0 ? [shieldLine(tu.intakeGuard)] : []; // 0.6.2 FB-B: MANTLET ★2/★3
-      // 0.6.2s (REQ-BFG-031 S10): the installed turret's name, stars and rarity; its CORE SOCKET and every GEAR SLOT
-      // (turretPanel.ts socketLines); belts a swap left without an intake first; TO CARGO and SELL
-      return {
-        icon: slotIcon(b, show.index), title: slotTitle(b, show.index), color: slotColor(b, show.index),
-        sub: slotSub(b, show.index),
-        text: [
-          ...deadEndLines(b, show.index),
-          `${shape ? `${shape} · ` : ""}FIRES EVERY ${every.toFixed(2)}S${per > 1 ? ` · ${per} PER SHOT` : ""}`,
-          ...socketLines(b, show.index, coreName, (d, s) => starEffectLine(d, s), !!ctx.L?.portrait), // 0.6.1b: §8.4
-          chamber,
-          ...clash,
-          ...shield,
-          ...slotNotes(b, show.index),
-        ],
-        actions: [...actions, ...slotActions(ctx, show.index)],
-      };
-    }
-    default:
-      return null;
-  }
+// ------------------------------------------------------------------------------------------------------ the layout
+
+/** One drawn line of a panel's body. */
+export interface PLine {
+  spans: Span[];
+  font: FontId;
+  /** A stat row's label (drawn in the label colour at the left) and its value's indent. */
+  label?: string;
+  indent?: number;
+  /** A grid row's pairs: each label at x + at, its value at x + vx. */
+  cells?: { at: number; label: string; spans: Span[]; vx: number }[];
+  /** The block it belongs to (tests). */
+  block: Block;
+  /** The height it takes: its glyphs and the gap under them (LH, or 6 for a tight 3x5 line). */
+  pitch: number;
 }
+
+/** The pixel height a line takes in each face (its glyphs and the gap under them). */
+export const LH: Record<FontId, number> = { "5": 9, "3": 7 };
+/** 0.6.2t (T6): a tight variant's 3x5 line pitch (5 px glyphs, 1 px gap). */
+export const LH_TIGHT = 6;
+/** The rule between the ability text and the flavour or hint (T4: visibly separated). */
+export const DIVIDER = 4;
+
+/** A laid-out block: its lines and their height. */
+export interface Laid {
+  b: Block;
+  lines: PLine[];
+  h: number;
+}
+
+/** A face's gap after a stat label. */
+const labelGap = (font: FontId): number => (font === "5" ? 5 : 4);
+
+interface Cols {
+  labelW: number; // a stat row's value indent
+  /** The grid rows' geometry: two columns (the second at `at1`) when every pair fits them, else one pair a line. */
+  grid: { two: boolean; at1: number; l0: number; l1: number };
+}
+
+/** Lay one block into wrapped lines at `width` in the panel's main face (the flavour and hint take the small face);
+ *  `tight`: 3x5 lines at LH_TIGHT. */
+function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = false): PLine[] {
+  const font: FontId = ROLE[b.role].small ? "3" : main;
+  const pitch = font === "3" && tight ? LH_TIGHT : LH[font];
+  const base = b.colour ?? ROLE[b.role].colour;
+  if (b.role === "grid" && b.cells) {
+    const gp = cols.grid, gap = labelGap(font);
+    if (gp.two) {
+      return [{
+        spans: [], font, block: b, pitch,
+        cells: b.cells.map(([l, v], i) => ({ at: i ? gp.at1 : 0, label: l, spans: colourize(v, base), vx: i ? gp.at1 + gp.l1 + gap : gp.l0 + gap })),
+      }];
+    }
+    // one pair a line, the values aligned after the widest label
+    const lw = Math.max(gp.l0, gp.l1) + gap;
+    return b.cells.map(([l, v]) => ({ spans: [], font, block: b, pitch, cells: [{ at: 0, label: l, spans: colourize(v, base), vx: lw }] }));
+  }
+  if (b.role === "row") {
+    const indent = b.label ? cols.labelW : 0;
+    return wrapRich(colourize(b.text, base), width - indent, font)
+      .map((spans, i) => ({ spans, font, block: b, indent, pitch, ...(i === 0 && b.label ? { label: b.label } : {}) }));
+  }
+  let spans: Span[];
+  if (b.role === "next" && b.text.startsWith("NEXT STAR:")) {
+    spans = [{ t: "NEXT STAR:", c: PERK_COLOUR, whole: true }, { t: " ", c: base }, ...colourize(b.text.slice(10).trim(), base)];
+  } else if (b.role === "flavour") spans = colourize(b.text, base, base); // its numbers stay dim; its keywords keep their colours
+  else if (b.role === "hint" || b.role === "note") spans = [{ t: b.text, c: base }];
+  else spans = colourize(b.text, base);
+  if (b.perk) spans.push({ t: " ", c: base }, { t: b.perk, c: PERK_COLOUR, whole: true });
+  return wrapRich(spans, width, font).map((s) => ({ spans: s, font, block: b, pitch }));
+}
+
+/** Lay out blocks: a panel's stat labels share one value column, and its grid rows two label columns. */
+export function lay(bs: readonly Block[], width: number, main: FontId, tight = false): Laid[] {
+  const labels = bs.filter((b) => b.role === "row" && b.label).map((b) => textWidth(b.label!, main));
+  const grids = bs.filter((b) => b.role === "grid" && b.cells);
+  const colW = (i: number, j: 0 | 1) => Math.max(0, ...grids.flatMap((b) => (b.cells![i] ? [textWidth(b.cells![i][j], main)] : [])));
+  // the second column starts at the half, or after the first column's widest value; two columns only if all fit
+  const gap = labelGap(main), l0 = colW(0, 0), l1 = colW(1, 0);
+  const at1 = Math.max(Math.floor((width + gap) / 2), l0 + gap + colW(0, 1) + 6);
+  const cols: Cols = {
+    labelW: labels.length ? Math.max(...labels) + labelGap(main) : 0,
+    grid: { two: at1 + l1 + gap + colW(1, 1) <= width, at1, l0, l1 },
+  };
+  return bs.map((b) => {
+    const lines = layBlock(b, width, main, cols, tight);
+    return { b, lines, h: lines.reduce((n, l) => n + l.pitch, 0) };
+  });
+}
+
+/** The height of blocks in display order: a rule before the first small block (flavour, hint) after a big one. */
+export function heightOf(ls: readonly Laid[]): number {
+  let h = 0, big = false, ruled = false;
+  for (const l of ls) {
+    const small = ROLE[l.b.role].small;
+    if (small && big && !ruled) {
+      h += DIVIDER;
+      ruled = true;
+    }
+    if (!small) big = true;
+    h += l.h;
+  }
+  return h;
+}
+
+/** The body's plan: the main face, the blocks drawn (in order) and their lines. */
+export interface BodyPlan {
+  font: FontId;
+  shown: Laid[];
+  lines: (PLine | "rule")[];
+  height: number;
+  /** The kept blocks fit whole (false: the last variant is drawn, cut at the panel's end: a phone cut). */
+  fits: boolean;
+  /** Which text was used: 0 the full body, n the n-th compact variant. */
+  variant: number;
+  /** The variant's tight 3x5 pitch (its body starts 1 px higher). */
+  tight: boolean;
+  /** The variant's header sub line, in place of the panel's (a rig's hits or IDLE warning), and its colour. */
+  sub?: string;
+  subColor?: string;
+  /** The optional blocks left out. */
+  dropped: Block[];
+}
+
+/** A note for timeline rows that gave way (0.6.2 BELTSIDE's trim). */
+const moreNote = (n: number): Block => ({ role: "note", text: `+${n} MORE HIT TILE${n === 1 ? "" : "S"} (NUMBERED ON THE DECK)`, keep: true });
+
+/** Choose the blocks for `avail` px: every kept block, the timeline rows that fit (then a note for the rest), then the
+ *  optional blocks by rank, each only if it fits whole. Returns them in display order. */
+function choose(all: readonly Laid[], avail: number, width: number, main: FontId, tight = false): { chosen: Laid[]; fits: boolean } {
+  const seqOf = (s: Set<Laid>, note: Laid | null): Laid[] => {
+    const seq = all.filter((l) => s.has(l));
+    if (!note) return seq;
+    const lastTrim = [...seq].reverse().find((l) => l.b.trim);
+    const grid = seq.findIndex((l) => l.b.role === "grid");
+    const at = lastTrim ? seq.indexOf(lastTrim) + 1 : grid >= 0 ? grid : seq.length;
+    return [...seq.slice(0, at), note, ...seq.slice(at)];
+  };
+  let set = new Set(all.filter((l) => l.b.keep));
+  let note: Laid | null = null;
+  if (heightOf(seqOf(set, null)) > avail) return { chosen: seqOf(set, null), fits: false };
+  const trims = all.filter((l) => l.b.trim);
+  if (trims.length) {
+    const rows = (n: number) => new Set([...set, ...trims.slice(0, n)]);
+    if (heightOf(seqOf(rows(trims.length), null)) <= avail) set = rows(trims.length);
+    else {
+      for (let n = trims.length - 1; n >= 0; n--) {
+        const nt = lay([moreNote(trims.length - n)], width, main, tight)[0];
+        if (heightOf(seqOf(rows(n), nt)) <= avail || n === 0) {
+          set = rows(n);
+          note = nt;
+          break;
+        }
+      }
+    }
+  }
+  const optional = all.filter((l) => !l.b.keep && !l.b.trim)
+    .sort((a, b) => (a.b.rank ?? 5) - (b.b.rank ?? 5) || all.indexOf(a) - all.indexOf(b));
+  const stopped = new Set<string>(); // chains whose next block didn't fit: their later blocks stay out too
+  for (const o of optional) {
+    if (o.b.chain && stopped.has(o.b.chain)) continue;
+    const s = new Set([...set, o]);
+    if (heightOf(seqOf(s, note)) <= avail) set = s;
+    else if (o.b.chain) stopped.add(o.b.chain);
+  }
+  return { chosen: seqOf(set, note), fits: true };
+}
+
+/**
+ * Plan a panel's body for `avail` px at `width` (T6): the 5x7 face when every block fits it, else the 3x5 face with
+ * every kept block whole and the rest whole or absent; where the kept blocks don't fit, the first compact variant whose
+ * do (else the last, drawn until the space ends: a phone cut). A tight variant has 1 px more (its body starts 1 px
+ * higher). `subFits` says whether a variant's header sub line fits the header (else that variant is skipped).
+ */
+export function planBody(body: readonly Block[], variants: readonly Variant[] | undefined, width: number, avail: number,
+  subFits: (s: string) => boolean = () => true, keepBig = false): BodyPlan {
+  const finish = (font: FontId, chosen: Laid[], fits: boolean, variant: number, from: readonly Laid[], v?: Variant): BodyPlan => {
+    const lines: (PLine | "rule")[] = [];
+    let big = false, ruled = false;
+    for (const l of chosen) {
+      const small = ROLE[l.b.role].small;
+      if (small && big && !ruled) {
+        lines.push("rule");
+        ruled = true;
+      }
+      if (!small) big = true;
+      lines.push(...l.lines);
+    }
+    return {
+      font, shown: chosen, lines, height: heightOf(chosen), fits, variant, tight: !!v?.tight,
+      ...(v?.sub ? { sub: v.sub, subColor: v.subColor } : {}),
+      dropped: from.filter((l) => !chosen.includes(l)).map((l) => l.b),
+    };
+  };
+  const big = lay(body, width, "5");
+  if (heightOf(big) <= avail) return finish("5", big, true, 0, big);
+  // 0.6.2t: the desk column (keepBig) keeps the readable 5x7 face while its kept blocks fit it: the optional blocks
+  // give way first, each whole or not at all, least important first (the flavour, then the hint, then the ability's
+  // later sentences); only then does the text drop to the 3x5 face
+  const texts: Variant[] = [{ body: [...body] }, ...(variants ?? [])];
+  if (keepBig) {
+    for (let v = 0; v < texts.length; v++) {
+      const t = texts[v];
+      if (t.tight || (t.sub && !subFits(t.sub))) continue; // the tight pitch is the 3x5 face's
+      const all = v === 0 ? big : lay(t.body, width, "5");
+      const pick = choose(all, avail, width, "5");
+      if (pick.fits) return finish("5", pick.chosen, true, v, all, t);
+    }
+  }
+  let last: BodyPlan | null = null;
+  for (let v = 0; v < texts.length; v++) {
+    const t = texts[v];
+    if (t.sub && !subFits(t.sub)) continue;
+    const room = avail + (t.tight ? 1 : 0);
+    const all = lay(t.body, width, "3", !!t.tight);
+    const { chosen, fits } = choose(all, room, width, "3", !!t.tight);
+    last = finish("3", chosen, fits, v, all, t);
+    if (fits) return last;
+  }
+  return last!;
+}
+
+// ------------------------------------------------------------------------------------------- the panel's geometry
 
 /** 0.6.2: a panel's title (the 5x7 face, outlined) or sub line (3x5) within `max` px: a title that doesn't fit
  *  steps down to the 3x5 face, and whatever still doesn't fit is cut short with a dot. */
@@ -665,17 +735,6 @@ function fitHead(g: G, s: string, x: number, y: number, max: number, color: stri
   let t = s;
   while (t.length > 1 && textWidth(t, "3") > max) t = `${t.slice(0, -2).trimEnd()}.`;
   drawText(g, t, x, title ? y + 1 : y, color, title ? { font: "3", outline: C.ink } : { font: "3" });
-}
-
-/** 0.6.2p (item 3): the rows `text`'s first `keep` entries wrap to at `w` px in `font` (drawDetails wraps each entry). */
-export function keptRows(text: readonly Line[], keep: number, w: number, font: "5" | "3"): number {
-  return text.slice(0, keep).reduce((n, l) => n + wrap(typeof l === "string" ? l : l[0], w, font).length, 0);
-}
-
-/** True when a hovered card or a selection has details to show (otherwise the idle cards). */
-export function hasDetails(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null): boolean {
-  const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
-  return spec(ctx, show, !!hover) !== null;
 }
 
 /**
@@ -716,8 +775,8 @@ const PORT_ROW_MIN_H = 36;
 
 /**
  * beltside-062: BELTSIDE's portrait top row, for a strip too short for portraitButtons' second row (the header-only
- * 360x640 portrait, whose sub line carries a belt's compact readout): 1-2 buttons at the top right, one at the even
- * width, two each sized to its label; the title and sub line are cut short left of them (drawDetails, fitHead).
+ * 360x640 portrait): 1-2 buttons at the top right, one at the even width, two each sized to its label; the title and
+ * the header text are cut short left of them (drawDetails, fitHead).
  */
 function topRowButtons(labels: string[], r: Rect): Rect[] {
   const n = labels.length, gap = 3, h = 13;
@@ -733,55 +792,178 @@ function topRowButtons(labels: string[], r: Rect): Rect[] {
   return out;
 }
 
-export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe): void {
-  if (area.h < 14) return;
-  const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
-  const sp = spec(ctx, show, !!hover);
-  const column = area.h >= 70; // landscape column: size to content, button under the text
-  if (!sp) return drawIdle(g, ctx.run, area, column, foe);
+/** The whole panel's plan: its rect, the buttons' rects, the header and the body plan. Pure (drawDetails, tests). */
+export interface PanelPlan {
+  r: Rect;
+  column: boolean;
+  /** The portrait buttons' rects (null in the column: its buttons stack under the text). */
+  rects: Rect[] | null;
+  shift: number;
+  subs: string[];
+  subMax: number;
+  body: BodyPlan;
+  /** The body's top y and the last y a glyph may reach. */
+  y: number;
+  maxY: number;
+  /** A header-only strip (no body line fits): the header text drawn in place of the sub line, on 1-2 lines. */
+  headerOnly: { lines: string[]; colour: string } | null;
+}
+
+/** Lay out a panel in `area` (the landscape column when area.h >= 70, else the portrait band). */
+export function planPanel(sp: PanelText, area: Rect): PanelPlan {
+  const column = area.h >= 70; // landscape column: size to content, the buttons under the text
+  const labels = sp.labels;
   const wrapW = area.w - 10;
-  const acts = sp.actions ?? []; // 0.6.1b: 0-2 buttons (the turret case: REMOVE CORE, REMOVE GEAR)
-  const labels = acts.map((a) => a.label);
-  // 0.6.1r F7: the portrait buttons' place (the top row, or a row under the sub-line that moves the body down).
-  // beltside-062: where the full sub line sends them to that row but BELTSIDE's short one (Spec.subShort, a rig's
-  // "RIG · 2/3 HIT") lets them keep the top row, they keep it and the short sub line is drawn (the head, below), so
-  // the body keeps its two lines. A strip too short to hold that row (the header-only 360x640 portrait) keeps
-  // BELTSIDE's top row instead, and fitHead cuts the title and sub line short left of it.
-  let port = !column && acts.length ? portraitButtons(sp.title, sp.sub, labels, area) : null;
+  let port = !column && labels.length ? portraitButtons(sp.title, sp.sub, labels, area) : null;
   if (port?.shift && sp.subShort) {
     const short = portraitButtons(sp.title, sp.subShort, labels, area);
     if (!short.shift) port = short;
   }
   if (port?.shift && area.h < PORT_ROW_MIN_H) port = { rects: topRowButtons(labels, area), shift: 0 };
-  // 0.6.1r (item 11): a sub-line wider than the desk column ("COMMON TURRET GEAR · QUARTERMASTER") breaks after its
-  // last " · " onto a second line at y+19, and the column's body moves down 4 px (the portrait band fits one line)
+  // 0.6.1r (item 11): a sub-line wider than the desk column breaks after its last " · " onto a second line
   const cut = sp.sub.lastIndexOf(" · ");
   const subs = column && cut > 0 && textWidth(sp.sub, "3") > area.w - 27 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub];
   const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 : 0);
-  // the description in the 5x7 face when it fits the area (easier to read), else the 3x5 face; 0.6.2: a line
-  // may carry its own colour (warnings, the belt's turret-end readout)
-  const extra = acts.length ? acts.length * 19 + 3 : 4;
-  let font: "5" | "3" = "5", lh = 9;
-  const wrapAll = (f: "5" | "3"): [string, string][] => sp.text.flatMap((l) => {
-    const [s, c] = typeof l === "string" ? [l, C.bone] : l;
-    return wrap(s, wrapW, f).map((w): [string, string] => [w, c]);
-  });
-  let lines = wrapAll(font);
-  if (column ? 27 + shift + lines.length * lh + extra > area.h : lines.length * lh - 2 > area.h - 29 - shift) {
-    font = "3";
-    lh = 7;
-    lines = wrapAll(font);
+  const extra = labels.length ? labels.length * 19 + 3 : 4;
+  const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
+  const subMax = headRight - (area.x + 23);
+  // the body starts at y + 25 + shift (a tight variant's 1 px higher). The column grows to its text (27 + shift + body +
+  // extra, as 0.6.1r sized it); the band's text ends 4 px above its bottom edge. A variant's sub line must fit the header
+  const body = planBody(sp.body, sp.variants, wrapW, column ? area.h - 27 - shift - extra : area.h - 27 - shift,
+    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column);
+  const r = column ? { ...area, h: Math.min(area.h, 27 + shift + body.height + extra) } : area;
+  const y = r.y + 25 + shift - (body.tight ? 1 : 0);
+  const maxY = column && labels.length ? r.y + r.h - 5 - labels.length * 19 : r.y + r.h - 4;
+  // no body line fits (the header-only 360x640 strip): its header text instead of the sub line, on up to two lines
+  const headerOnly = !column && r.y + 25 + shift + 5 > maxY && sp.headerOnly
+    ? { lines: headerLines(sp.headerOnly.texts, subMax, r.w - 27), colour: sp.headerOnly.colour } : null;
+  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, body, y, maxY, headerOnly };
+}
+
+/** A header-only strip's text: the first of `texts` that fits one line of `first` px, else the fullest that fits two
+ *  (the first line beside the buttons, the second under them), else the last on two lines, the second cut. */
+export function headerLines(texts: readonly string[], first: number, second: number): string[] {
+  for (const t of texts) if (textWidth(t, "3") <= first) return [t];
+  for (const t of texts) {
+    const a = wrapRich([{ t, c: C.bone }], first, "3").map(lineText);
+    const rest = wrapRich([{ t: a.slice(1).join(" "), c: C.bone }], second, "3").map(lineText);
+    if (a.length > 1 && rest.length === 1 && textWidth(a[0], "3") <= first) return [a[0], rest[0]];
   }
-  const r = column ? { ...area, h: Math.min(area.h, 27 + shift + lines.length * lh + extra) } : area;
+  const t = texts[texts.length - 1], a = wrapRich([{ t, c: C.bone }], first, "3").map(lineText);
+  return [a[0], ...(a.length > 1 ? [a.slice(1).join(" ")] : [])];
+}
+
+// -------------------------------------------------------------------------------------------------------- drawing
+
+interface Action {
+  id: string;
+  label: string;
+  primary?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  onTap: () => void;
+}
+
+interface Spec {
+  icon: HTMLCanvasElement | null;
+  text: PanelText;
+  actions: Action[];
+}
+
+function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
+  const { run } = ctx;
+  const b = run.build;
+  switch (show.kind) {
+    case "offer": {
+      const t = offerPanel(run, show.wagon, show.slot);
+      const o = run.shop.wagons[show.wagon]?.offers[show.slot];
+      if (!t || !o) return null;
+      const can = !o.sold && run.gold >= o.price;
+      return {
+        icon: itemIcon(o.def), text: t,
+        actions: hovering ? [] : [{
+          id: "buy", label: t.labels[0], primary: can, disabled: !can,
+          onTap: () => {
+            const res = buy(ctx, show.wagon, show.slot);
+            if (res.gain) selectGain(ctx, res.gain); // 0.6.1a: after a merge, the survivor
+          },
+        }],
+      };
+    }
+    case "cargo": {
+      const t = cargoPanel(run, show.uid);
+      const it = run.inventory.find((i) => i.uid === show.uid);
+      if (!t || !it) return null;
+      return { icon: itemIcon(it.def), text: t, actions: [{ id: "sell", label: t.labels[0], onTap: () => sell(ctx, it.uid) }] };
+    }
+    case "item": {
+      const p = itemByUid(b, show.uid);
+      const t = p ? itemPanel(run, p.uid) : null;
+      if (!p || !t) return null;
+      const d = defOf(p);
+      const actions: Action[] = d.kind === "gate"
+        ? [
+          ...((t as RigPanel).x ? [] : [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }]),
+          { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) },
+        ]
+        : t.labels.length ? [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }] : [];
+      return { icon: itemIcon(d.id), text: t, actions };
+    }
+    case "route": {
+      const t = routePanel(run, show.index);
+      if (!t) return null;
+      return { icon: beltIcon(), text: t, actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }] };
+    }
+    case "turret": {
+      const t = turretPanel(run, show.index);
+      if (!t) return null;
+      const gm = gearFor(b, show.index);
+      const tc = resolveCore(b, show.index, HEROES[b.hero].turrets[show.index]);
+      const actions: Action[] = [];
+      if (tc.bought) actions.push({ id: "unfitcore", label: "REMOVE CORE", onTap: () => unfitCore(ctx, show.index) });
+      if (gm) actions.push({ id: "unfit", label: "REMOVE GEAR", onTap: () => unfitMod(ctx, show.index) });
+      return { icon: gm ? itemIcon(gm.def) : null, text: t, actions };
+    }
+    default:
+      return null;
+  }
+}
+
+/** True when a hovered card or a selection has details to show (otherwise the idle cards). */
+export function hasDetails(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null): boolean {
+  const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
+  return spec(ctx, show, !!hover) !== null;
+}
+
+/** Draw a body line at (x, y): a stat label and its value, a grid row, or rich spans. */
+function drawLine(g: G, l: PLine, x: number, y: number): void {
+  if (l.cells) {
+    for (const c of l.cells) {
+      drawText(g, c.label, x + c.at, y, LABEL, { font: l.font });
+      drawRich(g, c.spans, x + c.vx, y, l.font);
+    }
+    return;
+  }
+  if (l.label) drawText(g, l.label, x, y, LABEL, { font: l.font });
+  drawRich(g, l.spans, x + (l.indent ?? 0), y, l.font);
+}
+
+export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe): void {
+  if (area.h < 14) return;
+  const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
+  const sp = spec(ctx, show, !!hover);
+  const column = area.h >= 70;
+  if (!sp) return drawIdle(g, ctx.run, area, column, foe);
+  const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
+  const plan = planPanel(t, area);
+  const r = plan.r;
   panel(g, r, "dark");
   ctx.game.ui.add({ id: "details", r, block: true });
   rect(g, r.x + 4, r.y + 4, 16, 16, C.ink);
   rect(g, r.x + 5, r.y + 5, 14, 14, C.slate0);
   if (sp.icon) g.drawImage(sp.icon, r.x + 12 - Math.floor(sp.icon.width / 2), r.y + 12 - Math.floor(sp.icon.height / 2));
-  // beltside-062: the title and sub line (0.6.1r's subs included) are drawn after the buttons, once headRight is known
-  let maxY = r.y + r.h - 4;
-  let headRight = r.x + r.w - 4; // 0.6.2: the title and sub line end left of this (the portrait strip's buttons)
-  if (acts.length && column) {
+  const acts = sp.actions;
+  if (acts.length && plan.column) {
     // landscape column: one full-width button per action, stacked bottom-up under the text
     let by = r.y + r.h - 5;
     for (let i = acts.length - 1; i >= 0; i--) {
@@ -790,53 +972,48 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
       button(ctx.game.ui, g, a.id, { x: r.x + 5, y: by, w: r.w - 10, h: 16 }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
       by -= 3;
     }
-    maxY = by;
-  } else if (port) {
-    // portrait strip: 1-2 buttons where portraitButtons put them (never over the title or the sub-line); on the
-    // top row the title and sub line end left of them (0.6.2 headRight)
-    const rects = port.rects;
-    acts.forEach((a, i) => button(ctx.game.ui, g, a.id, rects[i], a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap }));
-    if (!port.shift) headRight = rects[0].x - 3;
+  } else if (plan.rects) {
+    acts.forEach((a, i) => button(ctx.game.ui, g, a.id, plan.rects![i], a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap }));
   }
-  let y = r.y + 25 + shift; // 0.6.1r: the body under F7's button row or the desk's two-line sub
-  const fit = Math.max(0, Math.floor((maxY - y + 2) / lh)); // lines with y + lh - 2 <= maxY
-  const subMax = headRight - (r.x + 23);
-  fitHead(g, sp.title, r.x + 23, r.y + 4, subMax, sp.color, true);
-  // 0.6.2 BELTSIDE: a header-only panel shows `subTight` (in yellow, like the readout it stands for) instead, and a
-  // sub line too wide beside the portrait buttons shows `subShort`; beltside-062: 0.6.1r's desk break (item 11) too
-  const tight = fit === 0 && !!sp.subTight?.length ? sp.subTight : null;
-  const subColor = sp.subColor ?? C.slate4;
-  if (tight) {
-    fitHead(g, tight.find((s) => textWidth(s, "3") <= subMax) ?? tight[tight.length - 1], r.x + 23, r.y + 13, subMax, C.yellow, false);
-  } else if (subs.length > 1) {
-    subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + i * 6, subMax, subColor, false));
-  } else {
-    fitHead(g, sp.subShort && textWidth(sp.sub, "3") > subMax ? sp.subShort : sp.sub, r.x + 23, r.y + 13, subMax, subColor, false);
-  }
-  if (sp.keep !== undefined && sp.tight?.length && keptRows(sp.text, sp.keep, wrapW, font) > fit) {
-    // 0.6.2p (item 3): the entries that must show whole don't fit (the phone band): the first compact text whose do
-    const v = sp.tight.find((t) => keptRows(t.text, t.keep, wrapW, font) <= fit) ?? sp.tight[sp.tight.length - 1];
-    lines = v.text.flatMap((l) => {
-      const [s, c] = typeof l === "string" ? [l, C.bone] : l;
-      return wrap(s, wrapW, font).map((w): [string, string] => [w, c]);
+  fitHead(g, t.title, r.x + 23, r.y + 4, plan.subMax, t.color, true);
+  const subColor = t.subColor ?? C.slate4;
+  if (plan.headerOnly) {
+    // the header-only strip (360x640): the header text in place of the sub line (a belt's readout; an offer's effect)
+    plan.headerOnly.lines.forEach((ln, i) => {
+      const max = i === 0 ? plan.subMax : r.w - 27;
+      if (textWidth(ln, "3") <= max) drawRich(g, colourize(ln, plan.headerOnly!.colour), r.x + 23, r.y + 13 + i * 6, "3");
+      else fitHead(g, ln, r.x + 23, r.y + 13 + i * 6, max, plan.headerOnly!.colour, false);
     });
+  } else if (plan.body.sub) {
+    // T6: a compact variant's own sub line (a rig's hits, or its IDLE warning in amber)
+    fitHead(g, plan.body.sub, r.x + 23, r.y + 13, plan.subMax, plan.body.subColor ?? subColor, false);
+  } else if (plan.subs.length > 1) {
+    plan.subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + i * 6, plan.subMax, subColor, false));
+  } else {
+    fitHead(g, t.subShort && textWidth(t.sub, "3") > plan.subMax ? t.subShort : t.sub, r.x + 23, r.y + 13, plan.subMax, subColor, false);
   }
-  if (sp.trim && lines.length > fit) {
-    // 0.6.2 BELTSIDE: drop trimmable entries from the end of their range (and say how many) until it fits
-    const { from, to, more } = sp.trim;
-    for (let n = 1; n <= to - from; n++) {
-      lines = [...sp.text.slice(0, to - n), more(n), ...sp.text.slice(to)].flatMap((l) => {
-        const [s, c] = typeof l === "string" ? [l, C.bone] : l;
-        return wrap(s, wrapW, font).map((w): [string, string] => [w, c]);
-      });
-      if (lines.length <= fit) break;
+  for (const v of visibleLines(plan)) {
+    if (v.line === "rule") rect(g, r.x + 5, v.y + 1, r.w - 10, 1, C.slate1);
+    else drawLine(g, v.line, r.x + 5, v.y);
+  }
+}
+
+/** The body lines drawDetails draws and their y: every line whose glyphs end by the panel's last y (a line past it is a
+ *  phone cut, which planBody avoids; the tests check that every kept line is here). Exported for tests. */
+export function visibleLines(plan: PanelPlan): { line: PLine | "rule"; y: number }[] {
+  const out: { line: PLine | "rule"; y: number }[] = [];
+  let y = plan.y;
+  for (const l of plan.body.lines) {
+    if (l === "rule") {
+      if (y + 1 <= plan.maxY) out.push({ line: l, y });
+      y += DIVIDER;
+      continue;
     }
+    if (y + (l.font === "5" ? 7 : 5) > plan.maxY) break;
+    out.push({ line: l, y });
+    y += l.pitch;
   }
-  for (const [ln, col] of lines) {
-    if (y + lh - 2 > maxY) break;
-    drawText(g, ln, r.x + 5, y, col, { font });
-    y += lh;
-  }
+  return out;
 }
 
 function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe): void {

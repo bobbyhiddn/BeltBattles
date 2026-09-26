@@ -16,8 +16,8 @@ import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
 import type { BuildScreen } from "./build";
 import { drawCard, drawReroll, drawTag, drawTooltip } from "./shop";
-import { drawDetails, drawFoe, hasDetails, heroK } from "./inspector";
-import { flavour } from "./flavour"; // 0.6.2p (item 1): the tooltip's flavour
+import { drawDetails, drawFoe, hasDetails, textOpts } from "./inspector";
+import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): the card's one-line effect, the tooltip's
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 
 /** Status bar: DAWN · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
@@ -81,6 +81,7 @@ function drawShop(g: G, s: BuildScreen): void {
       sold: o.sold, affordable: run.gold >= o.price, selected: sel && !carry, hover: !!s.hover && s.hover.wagon === wagon && s.hover.slot === slot,
       pulse: !s.boughtOnce && s.sel.kind === "none", hidden: !!carry && carry.src.from === "offer" && carry.src.wagon === wagon && carry.src.slot === slot, shake,
       badge: o.sold ? null : shopBadge(run, o.def), // 0.6.1d: live, never stored on the offer
+      effect: cardText(o.def, textOpts(run)), // 0.6.2t (T5): drawn on a wide (landscape) card
     }, t);
   }
   const rr = { ...L.reroll, x: L.reroll.x + s.caravan.dx(list.length, L.W) };
@@ -192,7 +193,8 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   if (s.hover && !c && s.caravan.ready) {
     const idx = s.offers().findIndex((q) => q.wagon === s.hover!.wagon && q.slot === s.hover!.slot);
     const o = s.run.shop.wagons[s.hover.wagon]?.offers[s.hover.slot];
-    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, flavour(o.def, 1, heroK(s.run))); // 0.6.2p
+    // 0.6.2t (T5): the offer's opening sentence, as its panel and card read it
+    if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, abilityText(o.def, 1, textOpts(s.run)).sentences[0] ?? "");
   }
   if (s.menu) {
     optionsCard(s.game, g, "PAUSED", [
