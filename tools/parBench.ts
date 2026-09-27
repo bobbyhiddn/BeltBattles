@@ -819,12 +819,14 @@ async function forbidMode(days: number[], run: Runner, out: string, opts: Player
         const meta = seedsK.map((s, i) => {
           const b = full[i], ctrl = playerBuild(hero, day, s, ctrlOpts), pair = `${hero}|${s}`;
           const parts = defParts(b, def), same = JSON.stringify(b) === JSON.stringify(ctrl);
-          let ctrlAt = -1, ablAt = -1, abl: { build: Build; dead: number } | null = null;
+          let ctrlAt = -1, ablAt = -1, ablBuild: Build | undefined, ablDead = 0;
           if (!same) { ctrlAt = vs.length; vs.push({ build: ctrl, pair, hero, self: self(i) }); }
           for (const p of parts) {
-            const a = ablate(abl?.build ?? b, p, day, s);
-            abl = { build: a.build, dead: (abl?.dead ?? 0) + a.dead };
+            const a = ablate(ablBuild ?? b, p, day, s);
+            ablBuild = a.build;
+            ablDead += a.dead;
           }
+          const abl: { build: Build; dead: number } | null = ablBuild ? { build: ablBuild, dead: ablDead } : null;
           if (abl) { ablAt = vs.length; vs.push({ build: abl.build, pair, hero, self: self(i) }); }
           return {
             seed: s, i, ctrlAt, ablAt, holds: parts.length > 0, parts, same, ctrlHolds: defParts(ctrl, def).length > 0,
