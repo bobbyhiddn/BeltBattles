@@ -1,8 +1,8 @@
 // Honest warlord-gate decks for TOOLING only (0.6.0a M3b, rulings R1/R2): the shots and scripted
 // runs seed their pool ghosts with these (makeGhost, pinClassicFoe). The game's dusk stand-ins are
-// the rival captains with a full-purse stand-in pool deck (ghosts.ts standInFoe: standInPick since
-// 0.6.0d; standInBuild is only its fallback for a hero outside the pool). rampPlates, maxGoldByDay and
-// deckCost have one definition each, in src/sim/rivals.ts; this file imports them.
+// the rival captains with their named builds (ghosts.ts standInFoe: standInBuild since 0.6.2 TUNE-C;
+// the stand-in pool's standInPick from 0.6.0d). rampPlates, maxGoldByDay and deckCost have one
+// definition each, in src/sim/rivals.ts; this file imports them.
 
 import { ITEMS, type HeroId } from "../sim/content";
 import { warlordBuild } from "../sim/ai";

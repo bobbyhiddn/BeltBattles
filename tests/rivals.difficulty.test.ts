@@ -12,9 +12,9 @@ import { parField } from "../src/sim/harness/par";
 // The per-day difficulty ladder (Part 4, rulings R1-R2), measured the way the player meets the
 // captains. The margin is the reference's hull left minus the captain's (fractions), so a higher
 // margin is an easier captain. Warlords are measured as rivalBuild (their PvE deck); the stand-in
-// pool is measured as standInBuild, the captain's honest plan deck. 0.6.0d: the dusk fight now uses
-// the full-purse stand-in pool (standInPick; tests/standInPool.test.ts) and standInBuild is only its
-// fallback, so this table is the old dusk deck's; the printed line adds each hero's stand-in win rate.
+// pool is measured as standInBuild, the captain's honest plan deck: since 0.6.2 TUNE-C the dusk deck
+// again (ghosts.ts standInFoe; from 0.6.0d it was the full-purse stand-in pool's standInPick); the
+// printed line adds each hero's stand-in win rate.
 // 0.6.2 TUNE-C (ref/BRIEF-final-062-captains.md section 6): the reference is the FURNACE PAR FIELD of the day, the
 // typical player the captain plans are calibrated against (src/sim/harness/par.ts parField, its first REF_K members),
 // fought as the player (side 0), 3 seeds per member: 24 battles per captain-day (20 before). The old reference,

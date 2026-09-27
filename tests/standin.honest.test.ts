@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 // 0.6.0b: honest.ts is tooling only; rampPlates, maxGoldByDay and deckCost live in src/sim/rivals.ts,
-// and the dusk stand-in is standInFoe (the run's rival captain; 0.6.0d: with its stand-in pool deck
-// standInPick, no longer standInBuild), not standIn
+// and the dusk stand-in is standInFoe (the run's rival captain; 0.6.2 TUNE-C: with its named build
+// standInBuild, as before 0.6.0d; from 0.6.0d the stand-in pool's standInPick), not standIn
 import { honestStandIn, honestStandInBuild, plateHull, strongHonestBuild } from "../src/game/honest";
-import { RIVALS, deckCost, maxGoldByDay, rampPlates, standInGhost } from "../src/sim/rivals";
-import { standInPick } from "../src/sim/standInPool";
+import { RIVALS, deckCost, maxGoldByDay, rampPlates, standInBuild, standInGhost } from "../src/sim/rivals";
 import { standInFoe } from "../src/game/ghosts";
 import { chooseFoe } from "../src/game/day";
 import { newRun } from "../src/game/run";
@@ -12,7 +11,6 @@ import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { starsOf, valueOf } from "../src/sim/stars";
-import { pickLoss } from "./beltside.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const BOTH: HeroId[] = ["furnace", "weaver"];
@@ -80,18 +78,16 @@ describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in"
   });
 
   // 0.6.0b: the stand-in is standInFoe, the run's captain standInGhost(seed, day) and its name (no
-  // longer honestStandInBuild of a seeded hero). 0.6.0d: its deck is the stand-in pool's full-purse
-  // standInPick(hero, day, seed), no longer the captain's standInBuild(id, day)
-  it("standInFoe brings the captain's full-purse standInPick deck and stays deterministic for a seed and day", () => {
+  // longer honestStandInBuild of a seeded hero). 0.6.2 TUNE-C: its deck is the captain's named build,
+  // standInBuild(id, day) (from 0.6.0d until TUNE-C the stand-in pool's full-purse standInPick)
+  it("standInFoe brings the captain's named standInBuild deck and stays deterministic for a seed and day", () => {
     for (const seed of [1, 555, 12345, 644245094]) {
       for (const d of DAYS) {
         const a = standInFoe(seed, d), b = standInFoe(seed, d);
         expect(b).toEqual(a);
         const id = standInGhost(seed, d);
         expect(a.id).toBe(id);
-        expect(a.build).toEqual(standInPick(RIVALS[id].hero, d, seed));
-        // 0.6.2 BELTSIDE: full purse as generated; as loaded it lacks only what D3 dropped (beltside.helpers)
-        expect(deckCost(a.build).total + pickLoss(RIVALS[id].hero, d, seed)).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(d)));
+        expect(a.build).toEqual(standInBuild(id, d));
         expect([a.hero, a.name]).toEqual([RIVALS[id].hero, RIVALS[id].name]);
         const run = newRun("weaver", seed, "me");
         run.day = d;

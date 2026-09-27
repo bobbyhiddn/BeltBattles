@@ -1,6 +1,8 @@
-// 0.6.0d D2: the dusk stand-ins bring full-purse decks from the stand-in pool v1.1
+// 0.6.0d D2: the dusk stand-ins brought full-purse decks from the stand-in pool v1.1
 // (src/sim/standInPool.ts + standInPoolData.ts, copied as they are from the balance harness).
-// standInFoe keeps the captain standInGhost(seed, day) and fights with standInPick(hero, day, seed).
+// 0.6.2 TUNE-C (REQ-BFG-024, REQ-BFG-026): standInFoe keeps the captain standInGhost(seed, day) and fights with its named
+// build, standInBuild(id, day). The pool stays in the code as the average-deck reference field (the balance harness)
+// and the async fallback's source (src/net/fallback.ts, tests/net-fallback-standins.test.ts); its own tests stay here.
 import { describe, expect, it, vi } from "vitest";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPick, standInPool } from "../src/sim/standInPool";
@@ -11,14 +13,14 @@ import { chooseFoe, startDusk } from "../src/game/day";
 import { migrateRun, newRun } from "../src/game/run";
 import { routeProblems } from "../src/game/routeCheck";
 import type { Build } from "../src/sim/deck";
-import { POOL_NATIVE, pickLoss, poolLoss } from "./beltside.helpers";
+import { poolLoss } from "./beltside.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const SEEDS = Array.from({ length: 200 }, (_, n) => 7 + n * 104729); // run seeds are 31-bit, >= 0
 const PLATE = 25; // ARMOR PLATING's hull (standin.honest.test.ts pins it)
 const J = (v: unknown): string => JSON.stringify(v);
 
-describe("the stand-in pool v1.1 as the game uses it", () => {
+describe("the stand-in pool v1.1 (the reference field and the async fallback)", () => {
   it("was generated under this RULES_VERSION (a stale pool fails here)", () => {
     expect(STAND_IN_POOL_RULES).toBe(RULES_VERSION);
     expect(STAND_IN_DATA.rules).toBe(RULES_VERSION);
@@ -69,8 +71,8 @@ describe("the stand-in pool v1.1 as the game uses it", () => {
   });
 });
 
-describe("standInFoe: the day's captain with its standInPick deck (200 seeds x days 1-10)", () => {
-  it("keeps standInGhost's id, name and hero; its build deep-equals standInPick(hero, day, seed); never the Matriarch", () => {
+describe("standInFoe: the day's captain with its named build (200 seeds x days 1-10)", () => {
+  it("keeps standInGhost's id, name and hero; its build deep-equals standInBuild(id, day); never the Matriarch", () => {
     for (const seed of SEEDS) {
       const ids = new Set<string>();
       for (const day of DAYS) {
@@ -79,24 +81,22 @@ describe("standInFoe: the day's captain with its standInPick deck (200 seeds x d
         expect(f.id).toBe(id);
         expect(f.id).not.toBe("matriarch");
         expect([f.name, f.hero, f.build.hero]).toEqual([RIVALS[id].name, RIVALS[id].hero, RIVALS[id].hero]);
-        expect(f.build).toEqual(standInPick(f.hero, day, seed));
+        expect(f.build).toEqual(standInBuild(id, day));
         ids.add(f.id);
       }
       expect(ids.size).toBe(RUN_DAYS); // still no captain twice in a run
     }
   });
 
-  it("every one of those decks is honest: >= ceil(0.9 x maxGoldByDay), <= maxGoldByDay, whole plating, no belt FIGHT refuses", () => {
+  // 0.6.2 TUNE-C: a named build spends what its plan bought by that day at ordinary luck (the ordinary caps: about the
+  // par field's median deck, tests/captains.luck.test.ts), no longer a full purse (>= ceil(0.9 x maxGoldByDay))
+  it("every one of those decks is honest: <= maxGoldByDay, whole plating, no belt FIGHT refuses", () => {
     let n = 0;
     const picked = new Map<string, Set<string>>();
     for (const seed of SEEDS) {
       for (const day of DAYS) {
         const b = standInFoe(seed, day).build;
         const cost = deckCost(b).total, budget = maxGoldByDay(day);
-        // 0.6.2 BELTSIDE: full purse as generated; as loaded it lacks only what D3 dropped (none once native)
-        const loss = pickLoss(b.hero, day, seed);
-        expect(cost + loss).toBeGreaterThanOrEqual(Math.ceil(0.9 * budget));
-        if (POOL_NATIVE) expect(loss).toBe(0);
         expect(cost).toBeLessThanOrEqual(budget);
         expect(b.hullBonus).toBeGreaterThanOrEqual(0);
         expect(b.hullBonus % PLATE).toBe(0);
@@ -109,8 +109,8 @@ describe("standInFoe: the day's captain with its standInPick deck (200 seeds x d
       }
     }
     expect(n).toBe(2000);
-    // both heroes stand in on every day, and the seed spreads the picks over the pool
-    expect(picked.size).toBe(STAND_IN_POOL_HEROES.length * RUN_DAYS);
+    // both heroes stand in on every day, and the seed spreads the stand-ins over each hero's six captains
+    expect(picked.size).toBe(2 * RUN_DAYS);
     for (const s of picked.values()) expect(s.size).toBeGreaterThanOrEqual(3);
   });
 
@@ -152,11 +152,12 @@ describe("the dusk fights the stored deck", () => {
     }
   });
 
-  it("a saved run whose stored foe has an old standInBuild deck keeps that deck (no save migration)", () => {
+  // 0.6.2 TUNE-C: the old deck is now the stand-in pool's (0.6.0d until TUNE-C); a run saved mid-dusk keeps it
+  it("a saved run whose stored foe has an old stand-in pool deck keeps that deck (no save migration)", () => {
     const run = newRun("weaver", 555, "me");
     run.day = 6;
     const id = standInGhost(555, 6);
-    const old: Build = standInBuild(id, 6);
+    const old: Build = standInPick(RIVALS[id].hero, 6, 555);
     run.dusk = { day: 6, kind: "standin", name: RIVALS[id].name, hero: RIVALS[id].hero, build: old, rival: id };
     run.stage = "battle";
     const back = migrateRun(JSON.parse(J(run)))!;
@@ -164,16 +165,18 @@ describe("the dusk fights the stored deck", () => {
     const f = startDusk(back, []);
     expect(f.build).toEqual(old);
     expect(f.build).not.toEqual(standInFoe(555, 6).build);
-    expect(chooseFoe({ ...back, dusk: null }, []).build).toEqual(standInFoe(555, 6).build); // a new pick is the pool's
+    expect(chooseFoe({ ...back, dusk: null }, []).build).toEqual(standInBuild(id, 6)); // a new pick is the named build
   });
 });
 
-describe("the fallback (a captain whose hero has no pool decks)", () => {
-  it("brings standInBuild(id, day), with the captain unchanged", async () => {
+// 0.6.2 TUNE-C: every stand-in is a captain with a plan, so standInFoe never reads the pool (before TUNE-C a captain
+// whose hero had no pool decks fell back to standInBuild; now every captain fights with it)
+describe("standInFoe never reads the stand-in pool", () => {
+  it("with the pool emptied (no heroes, standInPick throwing), every stand-in is unchanged: standInBuild(id, day)", async () => {
     vi.resetModules();
     vi.doMock("../src/sim/standInPool", async (importOriginal) => {
       const mod = await importOriginal<typeof import("../src/sim/standInPool")>();
-      return { ...mod, STAND_IN_POOL_HEROES: ["weaver"] };
+      return { ...mod, STAND_IN_POOL_HEROES: [], standInPick: () => { throw new Error("standInFoe read the pool"); } };
     });
     try {
       const g = await import("../src/game/ghosts");
@@ -183,8 +186,9 @@ describe("the fallback (a captain whose hero has no pool decks)", () => {
           const f = g.standInFoe(seed, day);
           const id = standInGhost(seed, day);
           expect([f.id, f.name, f.hero]).toEqual([id, RIVALS[id].name, RIVALS[id].hero]);
-          if (f.hero === "furnace") { furnace++; expect(f.build).toEqual(standInBuild(id, day)); }
-          else { weaver++; expect(f.build).toEqual(standInPick("weaver", day, seed)); }
+          expect(f.build).toEqual(standInBuild(id, day));
+          if (f.hero === "furnace") furnace++;
+          else weaver++;
         }
       }
       expect(furnace).toBeGreaterThan(0);
