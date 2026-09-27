@@ -11,6 +11,7 @@ import { RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, difficultyOf, luckOf, maxGoldByD
 import { LUCKS, PLANS, dayOwned, firstDay, type Luck, type Upgrade } from "../src/sim/rivalBuilds";
 import { LUCK_CAPS } from "../src/sim/harness/luckCapsData";
 import { LUCK_HEROES, luckMeasures, overCaps, parRunFingerprint, type LuckMeasures } from "../src/sim/harness/luck";
+import { buildCost } from "../src/net/validate";
 import { legalityProblems, SOLD } from "./rivals.legality";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
@@ -144,6 +145,20 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
         for (const r of a.routes) expect(b.routes, `${id} d${day}`).toContainEqual(r);
       }
     }
+  });
+
+  // TUNE-C: deckCost counts installed turrets (17df327), as the validator's buildCost does since 0.6.2s (S7); the two
+  // must agree, breakdown included, on every captain deck at every luck (the turret-buying plans among them)
+  it("deckCost is the validator's buildCost, total and breakdown, on every captain deck (turrets included)", () => {
+    let withTurrets = 0;
+    for (const id of RIVAL_IDS) for (const day of DAYS) for (const luck of LUCKS) {
+      const w = rivalLoadout(id, day, luck).build;
+      for (const b of id === "matriarch" ? [w] : [w, standInBuild(id, day)]) {
+        expect(deckCost(b), `${id} d${day} ${luck}`).toEqual(buildCost(b));
+        if (b.turrets) withTurrets++;
+      }
+    }
+    expect(withTurrets).toBeGreaterThan(0);
   });
 
   it("R1: every deck but the Iron Matriarch's costs at most maxGoldByDay(day)", () => {
