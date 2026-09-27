@@ -23,6 +23,10 @@
 //   --joins     [--seeds 10] flag 4: junction-062's bench layouts against the par field; with --foes gauntlet
 //               [--seeds 12] against junction-062's own foes and seeds (its REPORT section 8 bench, on this head)
 //   --fingerprint  no battles: a hash of every par deck per hero-day (a refactor must not move them)
+// 0.6.2 TUNE-C (ref/BRIEF-final-062-captains.md section 3 item 5):
+//   --synergy   [--seeds 4] [--variants 3] [--ids a,b] the synergy check: each captain's named build on days 5 and 9
+//               (the Iron Matriarch on day 10; --days picks others) against copies with its synergy parts swapped for
+//               off-plan parts of the same cost in the same slots (src/sim/harness/synergy.ts), paired per par member
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -50,6 +54,8 @@ import { standInPool } from "../src/sim/standInPool";
 import { playerBuild, playerRun, refeedRoute, type PlayerOpts } from "../src/sim/harness/player";
 import { RATING_CLIFF, RATING_CURVE, rateDeck } from "../src/sim/deckRating";
 import { RIVALS, RIVAL_IDS, deckCost, difficultyOf, honestReference, rivalBuild, rivalDays, standInBuild, type RivalId } from "../src/sim/rivals";
+import { PLANS } from "../src/sim/rivalBuilds";
+import { synergySwap, type Swap } from "../src/sim/harness/synergy";
 import type { DetailRunner, Job, Runner } from "../src/sim/harness/tournament";
 import { DEFAULT_OPTS, focusSeeds } from "../src/sim/harness/tournament";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
@@ -1075,6 +1081,67 @@ async function vsMode(days: number[], run: Runner, out: string, k: number, seeds
   }
 }
 
+/**
+ * --synergy (TUNE-C, ref/BRIEF-final-062-captains.md section 3 item 5; REQ-BFG-024): does each named build's synergy
+ * pay? Per day (default 5, 9 and 10), each captain's build (days 1-9: the 12 stand-in captains' standInBuild, the named
+ * dusk build; day 10: the Iron Matriarch's warlord deck, rivalBuild), beside `variants` copies with every synergy part
+ * (RivalPlan.synergy) swapped for an off-plan part of the same cost in the same slot (harness/synergy.ts synergySwap),
+ * against both par fields. Paired: a captain-day's decks meet par member m of hero h on the same seeds,
+ * hashSeed("par-synergy", day, id, h, m, s), `seeds` x both sides. The change is per member (the variants' mean rate
+ * minus the build's), with its 95% t-interval over the members. The synergy PAYS when the change's interval against the
+ * FURNACE field (the calibration field) lies below 0. Writes <out>/synergy-<tag>-d<day>.json per day.
+ */
+async function synergyMode(days: number[], run: Runner, out: string, opts: PlayerOpts, k: number, seeds: number, variants: number, tag: string): Promise<void> {
+  const only = flag("ids")?.split(",") as RivalId[] | undefined;
+  const ci = (xs: number[]) => { const m = meanCI(xs); return { mean: m.mean, lo: m.ci ? m.ci[0] : NaN, hi: m.ci ? m.ci[1] : NaN }; };
+  const sgn = (x: number) => `${x >= 0 ? "+" : ""}${(100 * x).toFixed(0)}`;
+  const fmtCh = (c: { mean: number; lo: number; hi: number }) => `${sgn(c.mean)} [${sgn(c.lo)} to ${sgn(c.hi)}]`;
+  for (const day of days) {
+    const t0 = performance.now();
+    const ids = (day === 10 ? ["matriarch" as RivalId] : RIVAL_IDS.filter((id) => id !== "matriarch")).filter((id) => !only || only.includes(id));
+    const groups = ids.map((id) => {
+      const pve = id === "matriarch";
+      const build = pve ? rivalBuild(id, day) : standInBuild(id, day);
+      const vs = Array.from({ length: variants }, (_, v) => synergySwap(id, PLANS[id], build, day, v, pve));
+      return { id, kind: pve ? "warlord" : "standin", build, vs };
+    });
+    const refs = HEROES.map((h) => parField(h, day, k, opts));
+    const decks = groups.flatMap((g) => [g.build, ...g.vs.map((x) => x.build)]);
+    const field = [...decks, ...refs.flat()];
+    const at: number[] = [];
+    let off = decks.length;
+    for (const r of refs) { at.push(off); off += r.length; }
+    const jobs: Job[] = [];
+    let d = 0;
+    for (const g of groups) {
+      for (let j = 0; j <= variants; j++, d++) {
+        HEROES.forEach((h, hi) => refs[hi].forEach((_, m) => jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed("par-synergy", day, g.id, h, m, s)) })));
+      }
+    }
+    const pts = await run(field, jobs);
+    let x = 0;
+    const rows = groups.map((g) => {
+      // rates[j][hero][m]: deck j (0 = the build, 1.. the swapped variants) against member m
+      const rates = Array.from({ length: variants + 1 }, () => Object.fromEntries(HEROES.map((h, hi) => [h, refs[hi].map(() => pts[x++] / (2 * seeds))])) as Record<HeroId, number[]>);
+      const change = (h: HeroId) => refs[HEROES.indexOf(h)].map((_, m) => mean(rates.slice(1).map((r) => r[h][m])) - rates[0][h][m]);
+      const ch = { furnace: ci(change("furnace")), weaver: ci(change("weaver")), both: ci([...change("furnace"), ...change("weaver")]) };
+      const swaps: Swap[][] = g.vs.map((v) => v.swaps);
+      return {
+        id: g.id, kind: g.kind, cost: deckCost(g.build).total, synergy: PLANS[g.id].synergy ?? [],
+        rate: Object.fromEntries(HEROES.map((h) => [h, mean(rates[0][h])])), members: rates[0],
+        variants: g.vs.map((v, j) => ({ swaps: v.swaps, kept: v.kept, cost: deckCost(v.build).total, rate: Object.fromEntries(HEROES.map((h) => [h, mean(rates[j + 1][h])])), members: rates[j + 1] })),
+        change: ch, pays: ch.furnace.hi < 0, parts: swaps[0]?.length ?? 0,
+      };
+    });
+    for (const r of rows) {
+      const sw = r.variants.map((v) => v.swaps.map((s) => `${s.from}->${s.to}${s.stars > 1 ? `*${s.stars}` : ""}${s.dGold ? `(${s.dGold > 0 ? "+" : ""}${s.dGold}g)` : ""}${s.tier === "off-plan" ? "" : `[${s.tier}]`}`).join(",") + (v.kept.length ? ` kept ${v.kept.join(",")}` : "")).join(" | ");
+      console.log(`synergy ${tag} d${day} ${r.id.padEnd(10)} ${r.kind} ${String(r.cost).padStart(3)}g: build F ${pc(r.rate.furnace)} W ${pc(r.rate.weaver)}; swapped F ${pc(mean(r.variants.map((v) => v.rate.furnace)))} W ${pc(mean(r.variants.map((v) => v.rate.weaver)))}; change F ${fmtCh(r.change.furnace)} W ${fmtCh(r.change.weaver)} both ${fmtCh(r.change.both)} -> ${r.pays ? "PAYS" : "does not pay"} | ${sw}`);
+    }
+    writeFileSync(resolve(out, `synergy-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, variants, rows }, null, 1));
+    console.log(`synergy ${tag} d${day}: ${rows.length} builds, ${rows.filter((r) => r.pays).length} pay (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
+  }
+}
+
 async function main(): Promise<void> {
   const days = flag("days")?.split(",").map(Number) ?? Array.from({ length: 10 }, (_, i) => i + 1);
   const nw = num("workers", 4);
@@ -1114,6 +1181,8 @@ async function main(): Promise<void> {
     else await joinsMode(days, pool.run, out, opts, k, num("seeds", 10), tag);
   }
   if (flag("vs")) await vsMode(days, pool.run, out, k, num("seeds", 4), flag("vs")!.split(";").filter(Boolean), tag);
+  // 0.6.2 TUNE-C
+  if (process.argv.includes("--synergy")) await synergyMode(flag("days") ? days : [5, 9, 10], pool.run, out, opts, k, num("seeds", 4), num("variants", 3), tag);
   await pool.close();
   console.log(`done in ${((performance.now() - t0) / 1000).toFixed(0)} s on ${nw} worker(s)`);
   void buildCost;
