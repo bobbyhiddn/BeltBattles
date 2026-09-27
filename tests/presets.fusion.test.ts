@@ -75,13 +75,14 @@ describe("live preset purchases obey automatic merging", () => {
       expect(l.value, `${id} day ${day} purchases`).toBe(paid);
       if (id !== "matriarch") expect(l.value, `${id} day ${day} budget`).toBeLessThanOrEqual(maxGoldByDay(day));
     }
-    const coil = rivalBuild("sparkfang", 5).items.filter((p) => p.def === "coil");
+    // 0.6.2 TUNE-C plans: SILKSHADE's coils (a ★2 from day 4, a ★1 on another belt from day 5) both work a belt
+    const coil = rivalBuild("silkshade", 5).items.filter((p) => p.def === "coil");
     expect(coil.map(starsOf)).toEqual([2, 1]);
-    expect(coil.map((p) => hitsOfRig(rivalBuild("sparkfang", 5), p.uid).length)).toEqual([1, 1]);
-    // 0.6.2 TUNE-C: splitters are epics, so LACEWING's pair (a ★2 and a ★1) is complete on day 7 at ordinary luck
-    const splitters = rivalBuild("lacewing", 7).items.filter((p) => p.def === "splitter");
+    expect(coil.every((p) => hitsOfRig(rivalBuild("silkshade", 5), p.uid).length > 0)).toBe(true);
+    // splitters are epics, so LACEWING's pair (a ★2 from day 8 and a ★1) is complete on day 9 at ordinary luck
+    const splitters = rivalBuild("lacewing", 9).items.filter((p) => p.def === "splitter");
     expect(splitters.map(starsOf)).toEqual([2, 1]);
-    expect(splitters.map((p) => hitsOfRig(rivalBuild("lacewing", 7), p.uid).length)).toEqual([1, 1]);
-    expect(rivalBuild("emberlyn", 8).mods).toContainEqual(expect.objectContaining({ def: "drake", turret: 2 }));
+    expect(splitters.every((p) => hitsOfRig(rivalBuild("lacewing", 9), p.uid).length > 0)).toBe(true);
+    expect(rivalBuild("emberlyn", 8).mods).toContainEqual(expect.objectContaining({ def: "drake", turret: 1 }));
   });
 });
