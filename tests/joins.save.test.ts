@@ -81,7 +81,13 @@ describe("J12: GhostSnapshot v2 carries the join", () => {
   });
 
   it("a snapshot without joins encodes and decodes exactly as before: no join key anywhere (the sample pool)", () => {
-    for (const s of generateSamplePool()) {
+    // step 5: a caravan-bound stand-in pool (the 0.6.2 regen) may hold joined decks. They round-trip as they are; the
+    // rest is the case named above.
+    const sample = generateSamplePool();
+    const plain = sample.filter((s) => s.build.routes.every((r) => r.join === undefined));
+    expect(plain.length).toBeGreaterThan(0);
+    for (const s of sample.filter((x) => !plain.includes(x))) expect(net.decodeSnapshot(net.encodeSnapshot(s))).toEqual(s);
+    for (const s of plain) {
       const text = net.encodeSnapshot(s);
       expect(text).not.toContain("join");
       const back = net.decodeSnapshot(text);

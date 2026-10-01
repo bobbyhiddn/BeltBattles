@@ -99,7 +99,10 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
       // flip it may not carry merge stars either. beltside-062-on-061: both rules at once, on each side separately
       // (BELTSIDE's form, which implies the flip's `local && net`), and a starred v1 copy is refused on both sides.
       const rot = s.build.items.some((p) => p.rot !== undefined);
-      const v1 = !rot && !starry(s);
+      // step 5: a caravan-bound pool deck (the 0.6.2 regen) may carry Build.turrets or a route join, which only v2 holds
+      // (0.6.2j: v1 refuses both)
+      const v2only = s.build.turrets !== undefined || s.build.routes.some((r) => r.join !== undefined);
+      const v1 = !rot && !starry(s) && !v2only;
       expect([local.isSnapshot({ ...s, v: 1 }), netOk({ ...s, v: 1 })], `v1 ${s.hero} d${s.day}`).toEqual([v1, v1]);
       if (starry(s)) expect(local.isSnapshot({ ...s, v: 1 }) || netOk({ ...s, v: 1 }), `v1 ${s.hero} d${s.day} starred`).toBe(false);
       for (const [name, v, stars, ok] of cases) {
@@ -110,6 +113,14 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
       const two = starred(s, 2, 2) as net.GhostSnapshot;
       expect(net.decodeSnapshot(net.encodeSnapshot(two))).toEqual(two); // the v2 round trip keeps stars
     }
+    // v1 loads: the 0.6.2 regen's sample decks may all hold a v2-only field (rot, stars, turrets, a join), so a sample
+    // deck with those cleared stands in for a star-free v1 deck, on both sides
+    const plain = JSON.parse(JSON.stringify(POOL[0])) as net.GhostSnapshot;
+    for (const p of plain.build.items) { delete p.stars; delete p.rot; }
+    for (const m of plain.build.mods) delete m.stars;
+    delete plain.build.turrets;
+    for (const r of plain.build.routes) delete r.join;
+    expect([local.isSnapshot({ ...plain, v: 1 }), netOk({ ...plain, v: 1 })]).toEqual([true, true]);
     expect(bad).toEqual([]);
   });
 });
