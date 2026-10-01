@@ -1,19 +1,29 @@
-// Deterministic sample ghost pool: 2 heroes x 10 days x 2 variants = 40 snapshots, drawn from
-// the bundled full-purse stand-in pool (src/sim/standInPool.ts), because the bundled pool is the
-// client's first offline choice, ahead of the stand-in: variant 0 is the day's par, variant 1 a
-// seeded pick that is never the same deck as the par. Every snapshot passes validateBuild, so
-// the pool doubles as validator coverage. Heroes come from STAND_IN_HEROES (PLAYABLE_HEROES).
-// Records (wins, lives) are drawn exactly as before the switch: variant 1's rng first replays
-// the retired shopper's draws, so only the decks changed. Since the 0.6.0 merge lives count
-// down from START_LIVES (5; RUN_LIVES, 3, is gone): the same draws, lives 1..START_LIVES.
+// Deterministic sample ghost pool, the server's seed pool (`seed`, `npm run gen:ghosts`), drawn from the bundled
+// full-purse stand-in pool (src/sim/standInPool.ts). Heroes come from STAND_IN_HEROES (PLAYABLE_HEROES).
+//  - sampleGhosts(): 2 heroes x 2 variants x 10 days = 40 snapshots. Variant 0 is the day's par, variant 1 a seeded
+//    pick that is never the same deck as the par. Records (wins, lives) are drawn exactly as before the switch to the
+//    stand-in pool: variant 1's rng first replays the retired shopper's draws, so only the decks changed. Since the
+//    0.6.0 merge lives count down from START_LIVES (5; RUN_LIVES, 3, is gone): the same draws, lives 1..START_LIVES.
+//  - 0.7.0a D5 (REQ-BFG-016): every record label is one a run can carry into that dusk under 0.6.2's run rules
+//    (src/net/records.ts). A drawn label no run reaches (three of them: day 3's 0W 3 lives and 1W 4 lives, which the
+//    early-loss refund makes impossible) keeps its wins and moves to the nearest reachable lives.
+//  - floorGhosts(), 0.7.0a D5: one more ghost per hero and day (variant 2, a third stand-in pool deck, never the par
+//    or variant 1's) with the day's floor record, no wins and the fewest lives a run can have (records.ts
+//    floorRecord). Under the record rule (D1) the floor ghosts are eligible for every reachable request, so every
+//    reachable state at every dusk has at least 2 eligible seed ghosts (uncoveredStates; tests/seed.records.test.ts).
+//  - generateSamplePool() = both, 60 snapshots. It fails loudly (throws) if a ghost fails validateBuild (the shop's
+//    strict rules) or validateUpload (the player mode, as POST /v1/ghosts checks an upload), if a label is not
+//    reachable, or if a reachable state has fewer than 2 eligible ghosts.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
 import { startingBuild } from "../src/sim/ai";
 import { installedTurrets, occupancy, type Build } from "../src/sim/deck";
 import { STAND_IN_HEROES } from "../src/net/fallback";
-import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
-import { checkSnapshot, encodeSnapshot, MAX_DAY, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { eligible } from "../src/net/matchmaking";
+import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
+import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
+import { checkSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { encodeStarred, standInParIndex, standInPickIndex, standInPool } from "../src/sim/standInPool";
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
@@ -21,14 +31,24 @@ const PLATE = ITEMS.plating.supply!.hull!;
 const GATES = Object.values(ITEMS).filter((d) => d.kind === "gate" && d.merchant);
 const MODS = Object.values(ITEMS).filter((d) => d.kind === "mod" && d.merchant);
 
-/** The sample deck: variant 0 = the par; variant 1 = standInPick's entry for `seed`, stepped
- *  deterministically to the next entry while it is the same deck as the par. */
+/** sampleGhosts' variants per hero and day (0 the par, 1 a seeded pick); floorGhosts adds variant FLOOR_VARIANT. */
+export const SAMPLE_VARIANTS = 2;
+export const FLOOR_VARIANT = 2;
+/** D5: every reachable state at every dusk has at least this many eligible seed ghosts under the record rule (D1). */
+export const MIN_ELIGIBLE = 2;
+
+const sampleSeed = (hero: HeroId, v: number, day: number): number => hashSeed("sample-pool", hero, v, day);
+
+/** The sample deck: variant 0 = the par; variant v >= 1 = standInPick's entry for `seed`, stepped deterministically to the
+ *  next entry while it is the same deck as the par (or, from variant 2, as an earlier variant's deck). */
 export function sampleDeck(hero: HeroId, day: number, v: number, seed: number): Build {
   const pool = standInPool(hero, day), par = standInParIndex(hero, day);
   if (v === 0) return pool[par].build;
-  const parCode = encodeStarred(pool[par].build); // star-aware: since the 0.6.1 flip two picks may differ only in stars
+  // star-aware codes: since the 0.6.1 flip two picks may differ only in stars
+  const taken = new Set([encodeStarred(pool[par].build)]);
+  for (let u = 1; u < v; u++) taken.add(encodeStarred(sampleDeck(hero, day, u, sampleSeed(hero, u, day))));
   let i = standInPickIndex(hero, day, seed);
-  for (let step = 0; step < pool.length && encodeStarred(pool[i].build) === parCode; step++) i = (i + 1) % pool.length;
+  for (let step = 0; step < pool.length && taken.has(encodeStarred(pool[i].build)); step++) i = (i + 1) % pool.length;
   return pool[i].build;
 }
 
@@ -60,29 +80,92 @@ function shopper(hero: HeroId, day: number, rng: Rng): Build {
   return b;
 }
 
-export function generateSamplePool(): GhostSnapshot[] {
+/** D5: a drawn label as a run can carry it: unchanged when reachable, else the same wins at the nearest reachable lives
+ *  (the higher one on a tie). Every wins count 0..day-1 is reachable with every life kept, so one always exists. */
+export function reachableLabel(day: number, wins: number, lives: number): DuskRecord {
+  if (isReachable(day, wins, lives)) return { wins, lives };
+  const same = reachableRecords(day).filter((r) => r.wins === wins);
+  if (!same.length) throw new Error(`no reachable record with ${wins} wins at dusk ${day}`);
+  return same.reduce((a, b) => (Math.abs(b.lives - lives) < Math.abs(a.lives - lives) || (Math.abs(b.lives - lives) === Math.abs(a.lives - lives) && b.lives > a.lives) ? b : a));
+}
+
+/** One seed ghost, checked: the strict shop rules and the player mode (D5), and a reachable label. */
+function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number): GhostSnapshot {
+  const snap = checkSnapshot({
+    // v2: pool decks carry stars (the 0.6.1 flip) and rigs their `rot` (0.6.2 BELTSIDE, DESIGN-beltside D1)
+    v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
+    runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: at,
+  });
+  const val = validateBuild(snap.build, day);
+  if (!val.ok) throw new Error(`sample ghost ${hero} v${v} day ${day} is invalid: ${val.errors.join("; ")}`);
+  const up = validateUpload(snap.build, day, snap.rules); // D5: an honest player could have uploaded it
+  if (!up.ok) throw new Error(`sample ghost ${hero} v${v} day ${day} fails validateUpload (player mode): ${up.errors.join("; ")}`);
+  if (!isReachable(day, snap.wins, snap.lives)) throw new Error(`sample ghost ${hero} v${v} day ${day}: ${snap.wins}W ${snap.lives} lives is not a record a run can carry into that dusk`);
+  return snap;
+}
+
+/** The 40 sample ghosts: variants 0 and 1 of each hero and day. */
+export function sampleGhosts(): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
   for (const hero of STAND_IN_HEROES) {
-    for (let v = 0; v < 2; v++) {
+    for (let v = 0; v < SAMPLE_VARIANTS; v++) {
       for (let day = 1; day <= MAX_DAY; day++) {
-        const seed = hashSeed("sample-pool", hero, v, day);
+        const seed = sampleSeed(hero, v, day);
         const rng = new Rng(seed);
         if (v === 1) shopper(hero, day, rng); // replay the retired shopper's draws: records unchanged
         const build = sampleDeck(hero, day, v, seed);
         const wins = rng.int(day);
         const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
-        const snap = checkSnapshot({
-          // v2: pool decks carry stars (the 0.6.1 flip) and rigs their `rot` (0.6.2 BELTSIDE, DESIGN-beltside D1)
-          v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins, lives: START_LIVES - losses, build,
-          runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: EPOCH + out.length * 1000,
-        });
-        const val = validateBuild(snap.build, day);
-        if (!val.ok) throw new Error(`sample ghost ${hero} v${v} day ${day} is invalid: ${val.errors.join("; ")}`);
-        out.push(snap);
+        out.push(seedGhost(hero, day, v, build, reachableLabel(day, wins, START_LIVES - losses), EPOCH + out.length * 1000));
       }
     }
   }
   return out;
+}
+
+/** D5: one floor ghost per hero and day (variant FLOOR_VARIANT, its own stand-in pool deck), with floorRecord(day).
+ *  `first`: its createdAt index, after the sample ghosts, so their records and ids never move. */
+export function floorGhosts(first = STAND_IN_HEROES.length * SAMPLE_VARIANTS * MAX_DAY): GhostSnapshot[] {
+  const out: GhostSnapshot[] = [];
+  for (const hero of STAND_IN_HEROES) {
+    for (let day = 1; day <= MAX_DAY; day++) {
+      const build = sampleDeck(hero, day, FLOOR_VARIANT, sampleSeed(hero, FLOOR_VARIANT, day));
+      out.push(seedGhost(hero, day, FLOOR_VARIANT, build, floorRecord(day), EPOCH + (first + out.length) * 1000));
+    }
+  }
+  return out;
+}
+
+export interface CoverageGap {
+  day: number;
+  wins: number;
+  lives: number;
+  eligible: number; // seed ghosts eligible for this request under D1
+}
+
+/** D5: every reachable (day, wins, lives) at a dusk with fewer than `min` eligible ghosts in `pool` (matchmaking.ts
+ *  eligible: same rules and day, another player, nothing seen yet, no better record). Empty: the pool covers them. */
+export function uncoveredStates(pool: readonly GhostSnapshot[], min = MIN_ELIGIBLE): CoverageGap[] {
+  const entries = pool.map((s) => ({ id: ghostId(s), snapshot: s }));
+  const out: CoverageGap[] = [];
+  for (let day = 1; day <= MAX_DAY; day++) {
+    for (const r of reachableRecords(day)) {
+      const n = eligible(entries, { rules: RULES_VERSION, day, wins: r.wins, lives: r.lives, playerId: "coverage-check", seen: [] }).length;
+      if (n < min) out.push({ day, wins: r.wins, lives: r.lives, eligible: n });
+    }
+  }
+  return out;
+}
+
+/** The seed pool: the 40 sample ghosts, then the 20 floor ghosts. Throws if a reachable state is not covered. */
+export function generateSamplePool(): GhostSnapshot[] {
+  const pool = [...sampleGhosts(), ...floorGhosts()];
+  const gaps = uncoveredStates(pool);
+  if (gaps.length) {
+    throw new Error(`the seed pool leaves ${gaps.length} reachable states with fewer than ${MIN_ELIGIBLE} eligible ghosts: `
+      + gaps.slice(0, 8).map((g) => `day ${g.day} ${g.wins}W ${g.lives} lives (${g.eligible})`).join(", "));
+  }
+  return pool;
 }
 
 /** One canonical snapshot per line inside a JSON array (diff-friendly). */

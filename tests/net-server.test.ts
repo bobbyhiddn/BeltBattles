@@ -9,13 +9,13 @@ import { NEW_PLAYER_RUNS, noBetterRecord } from "../src/net/matchmaking";
 import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
 import { encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
-import { generateSamplePool } from "../tools/samplePool";
+import { sampleGhosts } from "../tools/samplePool";
 import { snap } from "./netHelpers";
 import { identitiesFor, ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { storeBackends } from "./netStores";
 
 const SHORE = "http://127.0.0.1:7778";
-const TWENTY = generateSamplePool().filter((s) => s.day <= 5); // 2 heroes x 2 variants x days 1-5
+const TWENTY = sampleGhosts().filter((s) => s.day <= 5); // 2 heroes x 2 variants x days 1-5 (the sample ghosts, not the floor ghosts)
 
 function req(over: Partial<GhostRequest> = {}): GhostRequest {
   return { rules: RULES_VERSION, day: 1, wins: 0, lives: 3, playerId: "me", seen: [], hero: "furnace", seed: 7, ...over };

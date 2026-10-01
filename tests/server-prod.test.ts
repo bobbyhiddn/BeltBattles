@@ -52,7 +52,7 @@ describe.each(storeBackends())("uploads closed, $name store", (backend) => {
 
   it("seeding still works, and seeded ghosts are matched", async () => {
     const r = await seedStore(app.store);
-    expect(r.written + r.unchanged).toBe(40);
+    expect(r.written + r.unchanged).toBe(POOL.length); // 0.7.0a D5: the 60-ghost seed pool
     // 0.7.0a D1: a record a player can carry into dusk 2 (won day 1, every life): every seed ghost of day 2 is eligible
     const m = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=2&wins=1&lives=5&player=closed-check&seen=`);
     expect(m.status).toBe(200);

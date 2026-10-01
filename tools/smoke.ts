@@ -162,7 +162,8 @@ async function main(): Promise<void> {
 
   say("## 2. Seed (the release_command), twice");
   const s1 = await shell("node server/dist/ghost-server.mjs seed", process.execPath, [bundle, "seed"], env);
-  check(s1.code === 0 && /40 written, 0 unchanged, 0 removed/.test(s1.out), "first seed writes the 40-ghost pool");
+  const SEED_N = generateSamplePool().length; // 0.7.0a D5: 40 sample ghosts and 20 floor ghosts
+  check(s1.code === 0 && new RegExp(`${SEED_N} written, 0 unchanged, 0 removed`).test(s1.out), `first seed writes the ${SEED_N}-ghost pool`);
   const ops = (from: number) => {
     const c: Record<string, number> = {};
     for (const r of fake.requests.slice(from)) c[r.op] = (c[r.op] ?? 0) + 1;
@@ -171,10 +172,10 @@ async function main(): Promise<void> {
   say(`  fake S3 requests: ${ops(0)}`);
   const mark = fake.requests.length;
   const s2 = await shell("node server/dist/ghost-server.mjs seed", process.execPath, [bundle, "seed"], env);
-  check(s2.code === 0 && /0 written, 40 unchanged, 0 removed/.test(s2.out), "second seed changes nothing");
+  check(s2.code === 0 && new RegExp(`0 written, ${SEED_N} unchanged, 0 removed`).test(s2.out), "second seed changes nothing");
   say(`  fake S3 requests: ${ops(mark)}`);
   const pool = fake.keys("bb-smoke", `ghosts/${RULES_VERSION}/`);
-  check(pool.length === 40 && pool.every((k) => k.includes("/pool/")), `bucket holds 40 pool objects under ghosts/${RULES_VERSION}/dNN/pool/`);
+  check(pool.length === SEED_N && pool.every((k) => k.includes("/pool/")), `bucket holds ${SEED_N} pool objects under ghosts/${RULES_VERSION}/dNN/pool/`);
   say();
 
   say("## 3. Serve");

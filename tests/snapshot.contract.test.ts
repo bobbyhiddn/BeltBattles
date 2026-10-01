@@ -58,7 +58,7 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
   });
 
   it("both accept every sample-pool snapshot (both heroes, days 1-10, lives 1..START_LIVES)", () => {
-    expect(POOL).toHaveLength(40);
+    expect(POOL).toHaveLength(60); // 0.7.0a D5: the 40 sample ghosts and the 20 floor ghosts
     for (const s of POOL) {
       expect(local.isSnapshot(s), `local ${s.hero} d${s.day}`).toBe(true);
       expect(netOk(s), `net ${s.hero} d${s.day}`).toBe(true);

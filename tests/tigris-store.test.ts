@@ -6,13 +6,13 @@ import { S3Client, S3Error, parseListV2 } from "../server/s3";
 import { amzDate, sha256Hex, signV4 } from "../server/sigv4";
 import { bucketPrefix, objectKey, parseKey, poolPrefix, storableRules, TigrisStore } from "../server/tigrisStore";
 import { StorageError } from "../server/store";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool, sampleGhosts } from "../tools/samplePool";
 import type { FakeS3 } from "../tools/fakeS3";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { FAKE_CREDS, s3For, startFake, tigrisFor } from "./netStores";
 
 const POOL = generateSamplePool();
-const DAY3 = POOL.filter((g) => g.day === 3); // 4 ghosts
+const DAY3 = sampleGhosts().filter((g) => g.day === 3); // 4 ghosts (the sample ghosts; the seed pool adds 2 floor ghosts a day)
 const s = DAY3[0];
 let fake: FakeS3;
 let seq = 0;

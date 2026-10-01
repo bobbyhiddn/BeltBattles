@@ -284,7 +284,7 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
   it("the bundled ghost pool (tools/samplePool.ts): the strict loader takes every snapshot and the player mode accepts each", () => {
     const load = loadGhostPool(samplePoolJson());
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(40);
+    expect(load.entries).toHaveLength(60); // 0.7.0a D5: 40 sample ghosts and 20 floor ghosts
     let turrets = 0, joined = 0;
     for (const { snapshot: s } of load.entries) {
       expect(s.rules).toBe(RULES_VERSION);
@@ -414,4 +414,6 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // bought turret, with a joined belt, the joins, and with both a turret list and a joined belt.
 const POOL_CARRIES = { turrets: 46, bought: 32, joined: 82, joins: 129, both: 31 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
-const GHOST_POOL_CARRIES = [14, 28];
+// 0.7.0a D5: the seed pool's 40 sample ghosts carry 14 turret lists and 28 joined belts (as before); its 20 floor ghosts
+// add 10 and 13 (tests/seed.records.test.ts checks the split)
+const GHOST_POOL_CARRIES = [24, 41];

@@ -8,12 +8,12 @@ import { generateSamplePool, samplePoolJson } from "../tools/samplePool";
 import { snap } from "./netHelpers";
 
 describe("sample pool and offline fallback", () => {
-  it("generates 40 valid snapshots across days 1-10 for both heroes, reproducibly", () => {
+  it("generates 60 valid snapshots across days 1-10 for both heroes, reproducibly", () => {
     const pool = generateSamplePool();
-    expect(pool).toHaveLength(40);
+    expect(pool).toHaveLength(60); // 0.7.0a D5: 2 sample variants and 1 floor ghost per hero and day
     for (const hero of ["furnace", "weaver"]) {
       for (let day = 1; day <= 10; day++) {
-        expect(pool.filter((s) => s.hero === hero && s.day === day)).toHaveLength(2);
+        expect(pool.filter((s) => s.hero === hero && s.day === day)).toHaveLength(3);
       }
     }
     for (const s of pool) expect(validateBuild(s.build, s.day)).toEqual({ ok: true, errors: [] });
@@ -23,8 +23,8 @@ describe("sample pool and offline fallback", () => {
   it("loads the bundled pool JSON with every entry validated", () => {
     const load = loadGhostPool(samplePoolJson());
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(40);
-    expect(new Set(load.entries.map((e) => e.id)).size).toBe(40);
+    expect(load.entries).toHaveLength(60);
+    expect(new Set(load.entries.map((e) => e.id)).size).toBe(60);
   });
 
   it("rejects bad pool entries and keeps the good ones", () => {

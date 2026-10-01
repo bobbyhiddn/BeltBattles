@@ -12,7 +12,9 @@ import { generateSamplePool } from "../tools/samplePool";
 import type { FakeS3 } from "../tools/fakeS3";
 import { startFake, tigrisFor } from "./netStores";
 
-const POOL = generateSamplePool(); // the bundle: 40 ghosts, days 1-10
+// the bundle: 60 ghosts, days 1-10 (0.7.0a D5: 40 sample ghosts and 20 floor ghosts, tools/samplePool.ts)
+const POOL = generateSamplePool();
+const N = POOL.length;
 const BUNDLE = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
 const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; // valid, current rules, not in the bundle
 const OLD_RULES: GhostSnapshot = { ...POOL[0], rules: "bb-0.3.0" }; // another rules version's pool entry
@@ -23,12 +25,13 @@ const TURRET_DECKS = BUNDLE.filter((e) => e.snapshot.build.turrets !== undefined
 const JOIN_DECKS = BUNDLE.filter((e) => e.snapshot.build.routes.some((r) => r.join !== undefined));
 
 describe("the bundled pool the seed writes", () => {
-  it("is 40 v2 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
-    expect(POOL).toHaveLength(40);
+  it("is 60 v2 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
+    expect(N).toBe(60); // 0.7.0a D5: 2 heroes x (2 sample variants + 1 floor ghost) x 10 days
     for (const s of POOL) expect([s.v, s.rules]).toEqual([SNAPSHOT_VERSION, RULES_VERSION]);
     expect(TURRET_DECKS.length).toBeGreaterThan(0);
     expect(JOIN_DECKS.length).toBeGreaterThan(0);
-    expect(checkPool(POOL)).toHaveLength(40); // strict decode, the current rules, validateBuild, no duplicates
+    // strict decode, the current rules, validateUpload (the player mode), a reachable record, no duplicates
+    expect(checkPool(POOL)).toHaveLength(N);
   });
 });
 
@@ -140,7 +143,7 @@ describe.each([
 
   it("writes the bundled pool; the pool for RULES_VERSION is then exactly the bundle, and every match day has it", async () => {
     const r = await seedStore(h.store());
-    expect(r).toEqual({ rules: RULES_VERSION, entries: 40, written: 40, unchanged: 0, removed: 0 });
+    expect(r).toEqual({ rules: RULES_VERSION, entries: N, written: N, unchanged: 0, removed: 0 });
     expect(h.pool()).toEqual(bundleRecords());
     const store = h.store();
     for (let day = 1; day <= 10; day++) {
@@ -153,7 +156,7 @@ describe.each([
     await seedStore(h.store());
     const before = h.pool();
     const writes = h.writes();
-    expect(await seedStore(h.store())).toMatchObject({ written: 0, unchanged: 40, removed: 0 });
+    expect(await seedStore(h.store())).toMatchObject({ written: 0, unchanged: N, removed: 0 });
     expect(h.writes()).toBe(writes);
     expect(h.pool()).toEqual(before);
   });
@@ -165,7 +168,7 @@ describe.each([
     h.plantPool(BUNDLE[7], encodeRecord(BUNDLE[7].id, 1, BUNDLE[7].snapshot)); // same ghost, different bytes
     h.plantPool(entry(OLD_RULES));
     const r = await seedStore(h.store());
-    expect(r).toMatchObject({ written: 1, unchanged: 39, removed: 2 });
+    expect(r).toMatchObject({ written: 1, unchanged: N - 1, removed: 2 });
     expect(h.pool()).toEqual(bundleRecords());
     expect([...h.pool("bb-0.3.0").keys()]).toEqual([ghostId(OLD_RULES)]);
   });
@@ -183,15 +186,16 @@ describe.each([
     const fresh = h.store();
     const day = await fresh.bucket(RULES_VERSION, PLAYER.day);
     expect(day.map((e) => e.id)).toContain(ghostId(PLAYER));
-    expect(day).toHaveLength(5); // 4 pool ghosts + the player's
+    expect(day).toHaveLength(POOL.filter((s) => s.day === PLAYER.day).length + 1); // the day's pool ghosts + the player's
   });
 
-  it("fails the run, writing nothing, when any entry fails validateBuild (or is off-rules, or a duplicate)", async () => {
+  it("fails the run, writing nothing, when any entry fails validateUpload (or is off-rules, or a duplicate)", async () => {
     const bad = { ...POOL[0], build: { ...POOL[0].build, hullBonus: POOL[0].build.hullBonus + 500 } }; // 20 plates over day 1's budget
     const err = await seedStore(h.store(), [...POOL, bad]).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SeedError);
-    expect((err as Error).message).toMatch(/1 of 41 pool entries failed their checks; nothing was written/);
-    expect((err as Error).message).toMatch(/entry 40 \(furnace day 1\): validateBuild: budget/);
+    expect((err as Error).message).toMatch(new RegExp(`1 of ${N + 1} pool entries failed their checks; nothing was written`));
+    // 0.7.0a D5: the seed's deck check is validateUpload, the player (honest) mode an upload meets
+    expect((err as Error).message).toMatch(new RegExp(`entry ${N} \\(furnace day 1\\): validateUpload: budget`));
     expect(h.pool().size).toBe(0);
     expect(h.writes()).toBe(0);
     expect(() => checkPool([POOL[0], POOL[0]])).toThrow(/duplicate of ghost/);
@@ -219,7 +223,7 @@ describe.each([
     const store = h.store(); // a fresh process over the same storage
     const loaded = new Map<string, GhostSnapshot>();
     for (let day = 1; day <= 10; day++) for (const e of await store.bucket(RULES_VERSION, day)) loaded.set(e.id, e.snapshot);
-    expect(loaded.size).toBe(40);
+    expect(loaded.size).toBe(N);
     for (const e of [...TURRET_DECKS, ...JOIN_DECKS]) expect(loaded.get(e.id)).toEqual(e.snapshot);
   });
 });
@@ -234,8 +238,8 @@ describe("seed on the JSON-lines store keeps ghosts.jsonl apart", () => {
     s.load();
     await seedStore(s);
     expect(readFileSync(join(dir, "ghosts.jsonl"), "utf8")).toBe(before);
-    expect(readFileSync(join(dir, "pool.jsonl"), "utf8").trim().split("\n")).toHaveLength(40);
+    expect(readFileSync(join(dir, "pool.jsonl"), "utf8").trim().split("\n")).toHaveLength(N);
     expect(existsSync(join(dir, "pool.jsonl.tmp"))).toBe(false);
-    expect(s.size).toBe(41);
+    expect(s.size).toBe(N + 1);
   });
 });

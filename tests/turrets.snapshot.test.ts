@@ -11,11 +11,13 @@ import { startingBuild } from "../src/sim/ai";
 import { RULES_VERSION } from "../src/sim/content";
 import { startingTurrets, turretSlots, type Build, type BuildTurret } from "../src/sim/deck";
 import { decodeStarred } from "../src/sim/standInPool";
-import { generateSamplePool } from "../tools/samplePool";
+import { sampleGhosts } from "../tools/samplePool";
 import { SAMPLE_POOL_V21 } from "./fixtures/samplePool.v2.1";
 import { POOL_LEGACY } from "./standInPool.helpers";
 
-const POOL = generateSamplePool();
+// 0.7.0a: the 40 sample ghosts (variants 0 and 1), whose decks the v2.1 fixture freezes; the seed pool's floor ghosts
+// (variant 2, D5) came later and have no v2.1 deck
+const POOL = sampleGhosts();
 /** Step 5 M5: the sample pool as pool v2.1 gave it: generateSamplePool's snapshots (records, ids, times) with the decks
  *  frozen in tests/fixtures/samplePool.v2.1.ts, so the old-snapshot test keeps testing turret-less snapshots whatever
  *  pool is committed (a caravan-bound pool's decks may carry Build.turrets). While v2.1 is committed it is POOL. */
