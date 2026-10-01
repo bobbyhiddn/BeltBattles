@@ -11,7 +11,7 @@ and 0.7.0 wire this in (checklist at the end).
 ```
  game client (browser, single-file build)             build server (node:http, no deps)
  ─────────────────────────────────────────            ───────────────────────────────────
- dusk: snapshot.ts ─ validate.ts ─ submitGhost ──POST /v1/ghosts──▶ verifyUpload ▶ decode ▶ validateBuild ▶ store
+ dusk: snapshot.ts ─ validate.ts ─ submitGhost ──POST /v1/ghosts──▶ verifyUpload ▶ decode ▶ validateUpload ▶ store
        (signed with the device key: identity.ts)
        fetchGhost ◀────────────────GET /v1/ghosts/match──────────── pickGhost (same rules+day)
         │ error / timeout / 404 / invalid answer
@@ -23,7 +23,9 @@ and 0.7.0 wire this in (checklist at the end).
 | File | Role |
 |---|---|
 | `src/net/snapshot.ts` | `GhostSnapshot`, canonical encode/decode, strict checks, 16 KB cap, content ids |
-| `src/net/validate.ts` | `validateBuild(build, day)`, `maxGoldByDay`, `buildCost` |
+| `src/net/validate.ts` | `validateBuild(build, day, mode = "strict")`, `validateUpload` (the player mode), `maxGoldByDay`, `buildCost` |
+| `src/net/roadCap.ts` | the player mode's road ceiling: `roadCap`, `maxHonestSpend`, the reachable hull and belt, the D4 model |
+| `src/net/rulesGate.ts` | `parseRules`, `rulesAtLeast` and the gate that keeps turret slots and belt joins out of rules before bb-0.6.2 |
 | `src/net/matchmaking.ts` | pure `pickGhost(pool, req, rng)`, `matchSeed` |
 | `src/net/replay.ts` | `battleRecordFor`, `replay`, `replayBattle`, rules-version refusal |
 | `src/net/fallback.ts` | `offlineGhost`, `loadGhostPool`, `fallbackGhost` |
@@ -49,33 +51,108 @@ vite into `server/dist/`), `npm run server -- --port 7790 --data ./ghost-data`,
   `ghostId = "g" + cyrb53(canonical)` in hex. Resubmitting the same snapshot is idempotent.
 - Decoding is strict: unknown fields at any depth, missing fields, wrong types, non-integers,
   off-grid cells, ids outside `[A-Za-z0-9_-]{1,64}` and anything over **16 KB** all throw.
-- The shape allows a negative `hullBonus` only so battle records holding the earlier warlord
-  stand-ins still decode (stand-ins now come from the stand-in pool); `validateBuild` rejects it.
+- The shape allows a negative `hullBonus` so battle records holding the earlier warlord stand-ins still
+  decode (stand-ins now come from the stand-in pool). The strict `validateBuild` rejects it; the player mode
+  accepts exactly the hulls a run reaches (−10 after a RIDE THROUGH with no plating).
 
-## Validation (`validateBuild(build, day)`)
+## Validation (`validateBuild(build, day, mode)`)
 
-It uses deck.ts's own rules, and every error starts with its category:
+One validator, two modes (0.7.0 prep, v070-validate):
+- **strict** (`validateBuild(build, day)`, the default): the shop alone. It is the check for stand-ins, the
+  bundled pool (`fallback.ts loadGhostPool`), the harness and the pool generator, which are all generated
+  inside these rules.
+- **player** (`validateUpload(build, day, rules = RULES_VERSION)`): a deck a real player uploaded (`POST /v1/ghosts`)
+  or a ghost the server serves (`ghostClient.ts fetchGhost`). Every strict rule applies unchanged, except the
+  **supply** and **budget** blocks, which also count what the road puts on a deck (below). It accepts every deck
+  the strict mode accepts under today's rules. `rules` is the snapshot's rules version (0.7.0, v070-rel): see
+  **rules** below.
+
+Both use deck.ts's own rules, and every error starts with its category:
 - **shape**: the strict build shape, and day 1-10.
 - **item**: every item and mod exists; uids are unique; there is exactly one signature factory and it is the hero's own
   (a foreign Kiln or Loom is rejected); every other item is sold by a merchant.
+- **turret** (0.6.2s turret slots): each entry of `build.turrets` is a turret def in a slot of the hull, one per
+  slot, uids unique with the items' and mods', stars 1-3; a free copy only of the hero's own starting defs, at most
+  as many as it starts with.
 - **placement**: `canPlaceItem` (deck equipment only, on the deck, no factory on a belt) and
   no overlapping footprints.
 - **route**: `routeWellFormed` (starts beside its factory, orthogonal steps, no loops, passes
-  only through gates), no crossings, **connected** (ends on a turret connector it claims;
-  spec §8.1), routes per factory ≤ its outputs, belt tiles ≤ `beltCap`.
-- **hardpoint**: only turret equipment, on a turret the hero has, one module per turret.
-- **supply**: `beltCap` = hero base + whole +4 belt crates; `hullBonus` = whole +25 plating.
-- **budget**:
+  only through gates), no crossings, **connected** (ends on a turret connector it claims, or, 0.6.2j, legally
+  joins a belt whose chain does; spec §8.1), routes per factory ≤ its outputs, belt tiles ≤ `beltCap`. A join must be
+  legal (`deck.ts joinProblem`: next to its join tile, another belt's tile, no loop), and a deck holds at most
+  `JOIN_LIMIT` (2) joins: the next legal one in route order is refused, "2 JOINS PER DECK" (0.6.2 RULE JOIN LIMIT).
+  A join with an illegal shape keeps its shape reason and never counts. Both modes share this check.
+- **hardpoint**: only turret equipment, on an installed turret; at most that turret's gear slots of gear, never
+  two copies of one gear on a turret, one core per socket.
+- **rules** (`validateUpload` only, given the snapshot's `rules`): turret slots (a non-empty `build.turrets`) and belt
+  joins (any route `join`) are bb-0.6.2 rules. Under rules that predate bb-0.6.2, or that `src/net/rulesGate.ts` can't
+  read as `bb-MAJOR.MINOR.PATCH`, such a deck is refused with one error naming the rules and the feature.
+- **supply** (strict): `beltCap` = hero base + whole +4 belt crates; `hullBonus` = whole +25 plating.
+- **budget** (strict):
 
 ```
 maxGold(day) = START_GOLD + Σ_{d=1}^{day−1} incomeFor(d, won = true)     // 8, 17, 27, 38, 50, 63, 77, 91, 105, 119
-cost(build)  = Σ price(deck items) + Σ price(turret mods)
+cost(build)  = Σ value(deck items) + Σ value(turret mods)                  // value = price × 2^(stars − 1)
+             + Σ turretValue(installed turrets)   // 0.6.2s: price × (2^(stars − 1) − 1 if it holds the free starting copy)
              + price(beltcrate) × ceil((beltCap − hero.belt) / 4)
              + price(plating)   × ceil(hullBonus / 25)
 valid ⇔ cost(build) ≤ maxGold(day)
 ```
-This is a safe upper bound. Selling refunds at most half the price, rerolls only spend,
-and today the shop and round income are the only sources of gold, items and supplies.
+For the shop alone this is a safe upper bound: selling refunds at most half the value, rerolls only spend.
+
+### The player mode's supply and budget (`src/net/roadCap.ts`)
+
+The road puts more on a real player's deck than the shop's gold: road gold (warlord wins, the herald's bounty,
+bets, SCRAP IT, the coin pouch, RIDE THROUGH), free or cheap parts (SALVAGE, SMUGGLER, TRADER SWAP, a Hard
+win's pick, the Matriarch's part, each a 1-star copy through `gainModule`), the scout's discount or free reroll,
+and hull and belt off the shop's grid (dock PLATING +20 hull, RIDE THROUGH −10 hull, the BELT SPOOL +4 belt).
+The strict check refuses such honest decks.
+
+- **supply** (player): `hullBonus` = 25 × plates + a *mix* of the road's hull choices (dock PLATING +20, RIDE
+  THROUGH −10, each once a run), never below events.ts's HULL TOO WEAK floor after a hull cost; `beltCap` = hero
+  base + 4 × crates + the BELT SPOOL (+4, once). The mix's events must fit in the day's road stops (one a day):
+  a hull of 10 (dock + ride-through) is reachable from day 2, never on day 1.
+- **budget** (player):
+
+```
+maxHonestSpend(day) = maxGold(day) + roadCap(day)       // bb-0.6.2: roadCap 5, 17, 29, 43, 59, 74, 90, 110, 127, 149
+cost(build)         = parts + price(plating) × plates + price(beltcrate) × crates
+parts               = buildCost's own terms but the supplies: items, turret mods and the installed turrets
+valid ⇔ for some reachable mix: cost(build) ≤ maxGold(day) + roadCapFor(day, mix)
+```
+The player mode prices the parts with the strict mode's own `buildCost`, so a new cost term (0.6.2s: the installed
+turrets, where a free starting copy is worth 0) is counted the same way in both modes. Turrets come only from the
+caravan (eventDefs.ts keeps them out of every road pool and trade), so the road ceiling needs no turret term.
+
+`roadCap(day)` is the most extra value any honest run can have put on its deck by that dusk. It is the best
+plan over the days 1..day, read from the live tables (eventDefs.ts `EVENTS`, road.ts `warlordReward` over every
+captain a slot can hold, content.ts prices and merchants):
+- one road stop a day: the day's event or a warlord; each event at most once a run (days 1-10 are one bag of
+  all ten events); the Iron Matriarch from day 8, once; a staked bounty pays on the next Hard win; fights won
+  and bets won (the max);
+- **timing**: gold received on day d is spendable from caravan d+1 only (REFIT after the road has no shop), so
+  it counts only for d < day; parts, hull and belt reach the deck the same day (REFIT); gold paid always counts;
+  the scout's discount or free reroll counts only when the next caravan comes by that dusk;
+- the discount is priced exactly for its model: rolls of at most `OFFERS` distinct defs (merchants are drawn
+  without replacement, a wagon never repeats a def), every price −1 (min 1), rerolls at `REROLL_COST`, all the
+  gold a run can hold at that caravan. That gold is a deliberate over-count: road parts count as if sold at
+  full value, and it comes from the best gold plan of those days, not from the deck's own plan;
+- every Hard fight pays the best captain's part that day, with or without a SABOTAGE. A seed's Hard slot shows each
+  captain once on days 1-5 and never yesterday's, so this over-counts too: on bb-0.6.2 one captain alone pays the
+  day's best part on several days. A free SABOTAGE adds nothing (no best pay needs one).
+
+Against the best plan one run can follow (its own road gold funds its discount, every part stays on the deck, the
+captains one seed shows, no free SABOTAGE), the slack is 0, 0, 0, 2, 4, 6, 8, 10, 12 and 14 gold on days 1-10 on
+bb-0.6.2. Of that, up to 2 gold a day is the Hard rotation (`tests/net-upload.slack.test.ts` pins every part).
+
+A deck whose hull or belt came partly from the road is checked against the plans that took those events with
+those choices (`roadCapFor(day, mix)`), so the hull and belt are costed at their cheapest honest mix: the
+dock's plating costs its 2 gold and that day's road stop.
+
+New road content must update the ceiling on purpose: the Delta kinds, events, fork picks and warlord reward
+fields are reviewed lists in roadCap.ts (a new kind or event fails to compile, and tests/net-upload.test.ts's
+D4 guard fails). Anything unmodelled throws `RoadModelError`, and `validateUpload` then refuses with a
+`budget: the player ceiling is unavailable` error. It never passes a deck silently.
 
 ## Matchmaking (`pickGhost`)
 
@@ -93,6 +170,18 @@ fixed-step with one seeded Rng, so `replay(record)` reproduces the winner, end t
 hulls bit for bit (tested over 60 seeds, headless and frame by frame). `replay` and
 `replayBattle` **refuse** a record whose `rules` differ from `RULES_VERSION`.
 
+Turret slots and belt joins are bb-0.6.2 rules (0.7.0, v070-rel). `src/net/rulesGate.ts` is the one place that reads
+a rules version as a number. `rulesAtLeast(rules, "bb-0.6.2")` reads `bb-MAJOR.MINOR.PATCH` and refuses anything
+else. A build with a non-empty `turrets` or any route `join` under older or unreadable rules is refused on every
+accepting path, before the path's exact `RULES_VERSION` check:
+- the strict snapshot decoder `checkSnapshot`: `POST /v1/ghosts` (400) and the server's store, the client's upload
+  encoder, `fetchGhost` (falls back) and `loadGhostPool` (rejected);
+- `checkRecord` (`replay`, `replayBattle`): a `RulesMismatchError` naming the build;
+- `validateUpload(build, day, rules)`: a `rules:` error.
+
+It is defence in depth for a server that will accept more than one rules version. Today every path also demands
+`RULES_VERSION` exactly.
+
 Ghosts only match their own rules version. What a rules bump (any change to content.ts
 numbers or sim behaviour) does to the pool:
 - The server only accepts uploads under its own `RULES_VERSION`, so deploy it together with the game.
@@ -107,7 +196,7 @@ numbers or sim behaviour) does to the pool:
 ## Offline fallback
 
 `fetchGhost` never fails. On a network error, a timeout (AbortController), a non-200 answer, an empty
-body or an unusable ghost (wrong rules or day, our own, already seen, or failing `validateBuild`),
+body or an unusable ghost (wrong rules or day, our own, already seen, or failing `validateUpload`, the player mode),
 it returns `fallbackGhost(req, pool)`:
 1. a bundled-pool ghost chosen by `pickGhost` with `new Rng(req.seed)`, else
 2. `offlineGhost(hero, day, seed)`: `standInPick(foe, day, seed)`, a deck of the other faction
@@ -117,17 +206,19 @@ it returns `fallbackGhost(req, pool)`:
    playerId is still `"offline-warlord"`, kept for compatibility.
 
 `loadGhostPool(json)` strictly decodes each entry, requires the current rules and a passing
-`validateBuild`, drops duplicates, and reports rejected entries by index.
+`validateBuild` (the strict mode: the bundled pool is generated inside the shop's rules), drops duplicates,
+and reports rejected entries by index.
 
 ## Security stance
 
 - Fights are simulated **on the client**. The server never runs a battle and never receives
   results, so a cheater can only lie about their own record, which only changes whom they are matched with.
-- The server **re-validates every deck** (shape, legality, budget) and every rule lives in the
-  shared TypeScript. The client also validates each ghost before simulating it, so a
-  hostile server cannot crash the sim with a malformed deck.
+- The server **re-validates every deck** (shape, legality, and the player mode's budget) and every rule
+  lives in the shared TypeScript. The client also validates each ghost before simulating it (the player
+  mode), so a hostile server cannot crash the sim with a malformed deck.
 - Uploads are **signed** with a per-device key, and the server stores a ghost only under the
-  playerId of the key that signed it (see "Identity and signed uploads").
+  playerId of the key that signed it (see "Identity and signed uploads"). A body is validated only
+  after its signature and playerId check out.
 - Limits: 16 KB bodies (checked by header and while streaming), a per-IP fixed-window rate limit
   (120/min by default), 10 s request and 5 s header timeouts, strict query parsing, a CORS
   allow-list (default `http://127.0.0.1:7778`, the local Shore), and a 127.0.0.1 bind by default.
@@ -343,8 +434,9 @@ runs on a throwaway machine with the app's env and secrets, and a nonzero exit a
    `seenGhosts: string[]` to `Run` (bump the save version).
 2. **Submit at dusk.** Before day N's fight, build
    `{ v: 1, rules: RULES_VERSION, hero: run.hero, day: N, wins: run.wins, lives: run.lives, build: run.build, runId, playerId, createdAt: Date.now() }`.
-   If `validateBuild(run.build, N).ok`, call `submitGhost(serverUrl, snap, identity)` without
-   awaiting it (fire and forget). A failure never blocks the fight.
+   If `validateUpload(run.build, N).ok` (the player mode, as the server checks it), call
+   `submitGhost(serverUrl, snap, identity)` without awaiting it (fire and forget). A failure never
+   blocks the fight.
 3. **Fetch the ghost.** `fetchGhost(serverUrl, { rules, day: N, wins, lives, playerId, seen: run.seenGhosts, hero: run.hero, seed: battleSeed(run) }, 4000, { pool })`.
    `pool` is `loadGhostPool(bundledJson).entries`. Push the returned `id` onto `run.seenGhosts`.
 4. **Fight it.** Replace `enemyBuild(run)` with `ghost.snapshot.build` and set the enemy hero
@@ -355,9 +447,19 @@ runs on a throwaway machine with the app's env and secrets, and a nonzero exit a
    and whether it is a player ghost (`source: "server"` or a pool id) or a stand-in (`offline-…`).
 7. **Config.** Set a server base URL. With none, the game plays offline (fallback only). Shore's
    origin must be listed in `--origins`.
-8. **Keep the budget honest.** When warlord rewards or map events start granting gold, items or supplies,
-   add the most a player could gain by day N to `maxGoldByDay`, or add a separate allowance for items that aren't bought.
-   Otherwise honest decks will fail validation.
+8. **Keep the budget honest.** Done in 0.7.0 prep (v070-validate): the server (`POST /v1/ghosts`) and
+   `fetchGhost` check player decks in the player mode, `validateUpload`: the strict rules, with the road's
+   reachable hull and belt, and `cost ≤ maxHonestSpend(N) = maxGoldByDay(N) + roadCap(N)` (see Validation).
+   The strict `validateBuild` stays the check for stand-ins, the bundled pool and the harness. When road
+   content changes (a new event, choice kind or warlord reward), update `src/net/roadCap.ts` on purpose: its
+   D4 guard test fails until it models the new content, and until then `validateUpload` refuses uploads with a
+   clear error. Buyable parts join automatically (prices and pools are read from the live tables). Rebased onto
+   the 0.6.2 mechanics head 7bcde98 (v070-validate-062m): the player mode costs installed turrets through
+   `buildCost`, and validateBuild's turret and join rejections pass through it unchanged. Rebased onto the
+   published 0.6.2 (rel-062-final 40d2b2c, v070-validate-rel): RULES_VERSION is bb-0.6.2, so the server and
+   `fetchGhost` accept only bb-0.6.2 ghosts, and the ceiling was re-pinned for TUNE-C's warlord decks. The join
+   limit (2) is validateBuild's own, in both modes. The rules gate (`rulesGate.ts`, see Replay and rules
+   versions) keeps turrets and joins out of older rules on every accepting path. Uploads stay closed in production.
 9. **Decide on dead-end belts.** The build screen lets a player save a belt that doesn't
    reach a turret (a toast, not a refusal), but validation requires connected routes (spec
    §8.1). Either block FIGHT or the upload while any belt is unconnected, or relax that rule.

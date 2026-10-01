@@ -6,6 +6,7 @@
 
 import { GRID, HEROES, type HeroId } from "../sim/content";
 import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/deck";
+import { rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -17,6 +18,8 @@ import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/
 // 0.6.2j (REQ-BFG-027, J12): v2 routes may also carry `join` (a cell key 0..GRID*GRID-1: a joining belt's join
 // tile; absent = an ordinary belt). The encoder writes it only when present, so a snapshot without joins encodes
 // byte for byte as before and every older snapshot decodes identically. Its legality is validateBuild's.
+// 0.7.0 (v070-rel M2): turrets and joins are bb-0.6.2 rules. checkSnapshot refuses a build that carries them under rules
+// that predate bb-0.6.2 or can't be read as bb-MAJOR.MINOR.PATCH (rulesGate.ts), on every path that decodes or encodes.
 export const SNAPSHOT_VERSION = 2;
 export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2];
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
@@ -200,6 +203,8 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
   const lives = int(o.lives, "snapshot.lives", 1, MAX_LIVES);
   const build = checkBuildShape(o.build, "snapshot.build", ver);
   if (build.hero !== o.hero) throw new SnapshotError("snapshot.build.hero: must equal snapshot.hero");
+  const gate = rulesGateProblem(rules, build); // 0.7.0 (v070-rel M2): before any exact RULES_VERSION check of a caller
+  if (gate) throw new SnapshotError(`snapshot.rules: ${gate}`);
   return {
     v: ver, rules, hero: o.hero, day, wins, lives, build,
     runId: str(o.runId, "snapshot.runId", ID_PATTERN),

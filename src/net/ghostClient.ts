@@ -7,7 +7,7 @@ import { RULES_VERSION } from "../sim/content";
 import { fallbackGhost, migrateV1, type FallbackRequest } from "./fallback";
 import { KEY_HEADER, SIG_HEADER, type Identity } from "./identity";
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } from "./snapshot";
-import { validateBuild } from "./validate";
+import { validateUpload } from "./validate";
 
 export type GhostRequest = FallbackRequest;
 
@@ -64,7 +64,8 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
   if (s.day !== req.day) return `ghost day ${s.day} is not ${req.day}`;
   if (s.playerId === req.playerId) return "server returned our own ghost";
   if (req.seen.includes(id)) return "server returned a ghost already fought this run";
-  const v = validateBuild(s.build, s.day); // never simulate an unvalidated foreign deck
+  // never simulate an unvalidated foreign deck; a served ghost is a player's deck: the player mode (0.7.0)
+  const v = validateUpload(s.build, s.day);
   if (!v.ok) return `ghost deck invalid: ${v.errors[0]}`;
   return { id, snapshot: s };
 }

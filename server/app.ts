@@ -10,9 +10,11 @@
 //                                   403 { error } while uploads are closed (the body is not read)
 //                                   401 { error } a signing header is missing or malformed (the body
 //                                       is not read), or the signature does not match the exact bytes
-//                                   400 { error } not a valid snapshot
+//                                   400 { error } not a valid snapshot (the strict decode, which carries
+//                                       the rules gate: turret slots and belt joins need bb-0.6.2+)
 //                                   403 { error } snapshot.playerId is not the signing key's playerId
-//                                   422 { error } foreign rules, or the deck fails validation
+//                                   422 { error } foreign rules, or the deck fails validateUpload (the
+//                                       player mode), with its errors
 //   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2 -> 200 { id, snapshot } | 404
 //   GET|HEAD / and /index.html      the game page, when staticDir (BB_GHOST_STATIC) is set
 
@@ -24,7 +26,7 @@ import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
 import { matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, SnapshotError } from "../src/net/snapshot";
-import { validateBuild } from "../src/net/validate";
+import { validateUpload } from "../src/net/validate";
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 
@@ -284,7 +286,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         if (snap.rules !== RULES_VERSION) {
           throw new HttpError(422, `rules ${snap.rules} not accepted: this server validates ${RULES_VERSION}`);
         }
-        const v = validateBuild(snap.build, snap.day);
+        const v = validateUpload(snap.build, snap.day); // 0.7.0: a player's deck, the player mode (road gold, parts, hull)
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
         const { id, created } = await store.add(snap); // 201 only once the write is durable
         return send(res, created ? 201 : 200, { id });
