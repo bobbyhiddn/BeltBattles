@@ -12,7 +12,7 @@
 // Sales refund at most half the price and rerolls only spend, so no sequence of shop
 // actions can put more purchase value on the deck than the gold ever received.
 
-import { GRID, HEROES, ITEMS, START_GOLD, incomeFor, type ItemDef } from "../sim/content";
+import { GRID, HEROES, ITEMS, RULES_VERSION, START_GOLD, incomeFor, type ItemDef } from "../sim/content";
 import {
   canPlaceItem, connectorClaims, dirBetween, adjacentToFactory, footprint, hullSlots, occupancy,
   routeInfo, routeWellFormed, turretSlots, turretsCost, type Build,
@@ -21,6 +21,7 @@ import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
+import { rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules
 
 export { maxHonestSpend, roadCap } from "./roadCap";
 
@@ -33,14 +34,21 @@ export { maxHonestSpend, roadCap } from "./roadCap";
  */
 export type ValidationMode = "strict" | "player";
 
-/** validateBuild in the player mode (see ValidationMode). */
-export function validateUpload(build: Build, day: number): Validation {
+/**
+ * validateBuild in the player mode (see ValidationMode). 0.7.0 (v070-rel M2): `rules` is the rules version the deck
+ * travels under (its snapshot's; default this build's RULES_VERSION). A deck with turret slots or belt joins under rules
+ * that predate bb-0.6.2, or that can't be read, is refused with one "rules:" error naming both (rulesGate.ts). Joins
+ * past JOIN_LIMIT are validateBuild's own (deck.ts joinProblem: "2 JOINS PER DECK"), in both modes.
+ */
+export function validateUpload(build: Build, day: number, rules: string = RULES_VERSION): Validation {
+  const why = rulesGateProblem(rules, build);
+  if (why) return { ok: false, errors: [`rules: ${why}`] };
   return validateBuild(build, day, "player");
 }
 
 export interface Validation {
   ok: boolean;
-  errors: string[]; // each starts with a category: shape|item|turret|placement|route|hardpoint|supply|budget
+  errors: string[]; // each starts with a category: shape|item|turret|placement|route|hardpoint|supply|budget (validateUpload: also rules)
 }
 
 export function itemDef(id: string): ItemDef | undefined {

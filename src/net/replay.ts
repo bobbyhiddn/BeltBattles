@@ -6,6 +6,7 @@ import { RULES_VERSION } from "../sim/content";
 import { cloneBuild, type Build } from "../sim/deck";
 import { Battle, simulate, type BattleRecord, type Side } from "../sim/battle";
 import { checkBuildShape } from "./snapshot";
+import { rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules
 
 export interface BattleOutcome {
   winner: Side | -1 | null; // null only if the tick budget ran out first
@@ -14,8 +15,11 @@ export interface BattleOutcome {
 }
 
 export class RulesMismatchError extends Error {
-  constructor(readonly recordRules: string) {
-    super(`battle record was made under rules "${recordRules}"; this build runs "${RULES_VERSION}" and cannot replay it`);
+  /** `why` (0.7.0, v070-rel M2): the record's builds carry what its rules can't hold (rulesGate.ts). */
+  constructor(readonly recordRules: string, why?: string) {
+    super(why === undefined
+      ? `battle record was made under rules "${recordRules}"; this build runs "${RULES_VERSION}" and cannot replay it`
+      : `battle record under rules "${recordRules}" cannot replay: ${why}`);
     this.name = "RulesMismatchError";
   }
 }
@@ -32,9 +36,16 @@ export function battleRecordFor(player: Build, ghost: Build, seed: number): Batt
   return { rules: RULES_VERSION, seed: checkSeed(seed), builds: [cloneBuild(player), cloneBuild(ghost)] };
 }
 
-/** Refuse records from another rules version, then shape-check both builds. */
+/** Refuse records from another rules version, then shape-check both builds. 0.7.0 (v070-rel M2): first, turret slots or
+ *  belt joins under rules that predate bb-0.6.2 or can't be read (rulesGate.ts); the exact check still follows. */
 export function checkRecord(record: BattleRecord): BattleRecord {
   if (typeof record !== "object" || record === null) throw new Error("battle record: expected an object");
+  if (Array.isArray(record.builds)) {
+    record.builds.forEach((b, i) => {
+      const why = rulesGateProblem(record.rules, b);
+      if (why) throw new RulesMismatchError(String(record.rules), `builds[${i}]: ${why}`);
+    });
+  }
   if (record.rules !== RULES_VERSION) throw new RulesMismatchError(String(record.rules));
   if (!Array.isArray(record.builds) || record.builds.length !== 2) throw new Error("battle record: expected two builds");
   return {

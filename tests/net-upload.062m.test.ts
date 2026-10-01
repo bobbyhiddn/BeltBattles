@@ -300,11 +300,15 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
       expect(r.body.errors, what).toEqual(validateUpload(b, d.day).errors); // the player mode's errors, verbatim
       expect(r.body.errors!.some((e) => want.test(e)), `${what}: ${r.body.errors!.join(" | ")}`).toBe(true);
     }
-    // the exact RULES_VERSION check: string equality with the server's own (v070-rel: rel-062-final is bb-0.6.2, so the
-    // other rules are the older bb-0.6.1)
+    // other rules (v070-rel: rel-062-final is bb-0.6.2, so the older bb-0.6.1). This deck's turrets and joins are refused
+    // first, by the decoder's rules gate (M2 b, tests/net-upload.rulesgate.test.ts); a deck with neither meets the exact
+    // RULES_VERSION check, string equality with the server's own
     const older = await post(snapOf(d, { rules: "bb-0.6.1" }));
-    expect(older.status).toBe(422);
-    expect(older.body.error).toBe(`rules bb-0.6.1 not accepted: this server validates ${RULES_VERSION}`);
+    expect(older.status).toBe(400);
+    expect(older.body.error).toMatch(/^snapshot\.rules: rules bb-0\.6\.1 predate bb-0\.6\.2: turret slots \(build\.turrets\) and belt joins /);
+    const plain = await post(snapOf(d, { rules: "bb-0.6.1", hero: "furnace", build: furnaceDeck() }));
+    expect(plain.status).toBe(422);
+    expect(plain.body.error).toBe(`rules bb-0.6.1 not accepted: this server validates ${RULES_VERSION}`);
     expect(RULES_VERSION).toBe("bb-0.6.2");
   });
 
@@ -334,7 +338,8 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
       expect(off.error).toMatch(/^ghost deck invalid: turret: /);
       const other = await fetchGhost(url, req(2), 2000);
       expect(other.source).toBe("fallback");
-      expect(other.error).toBe(`ghost rules bb-0.6.1 do not match ${RULES_VERSION}`);
+      // v070-rel M2 (b): its turrets and joins under bb-0.6.1 are refused by the decoder's rules gate, before the rules match
+      expect(other.error).toMatch(/^bad snapshot: snapshot\.rules: rules bb-0\.6\.1 predate bb-0\.6\.2: turret slots \(build\.turrets\) and belt joins /);
     } finally {
       srv.closeAllConnections();
       await new Promise<void>((r) => srv.close(() => r()));
