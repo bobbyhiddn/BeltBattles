@@ -165,7 +165,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "weaver", crates: 0, synergy: ["splitter", "barbed"],
     factories: [F("loom", 4, 4, [4, 3, "U3"], [3, 5, "L1D1L1U6"], [6, 5, "R1D1R1U6"])],
     upgrades: [
-      G(1, "barbed", 3, 0), G(1, "temper", 3, 1, 1), M(2, "scatter", 1), P(2), P(3), G(3, "longhaul", 5, 0),
+      // FINAL-MEASURE: the long haul comes on day 4 at ordinary luck (the stand-in; WEAVER d3's ordinary value cap is 25
+      // g on the merged par field), still day 3 at good luck (the warlord)
+      G(1, "barbed", 3, 0), G(1, "temper", 3, 1, 1), M(2, "scatter", 1), P(2), P(3), soon(3, G(4, "longhaul", 5, 0)),
       M(4, "flak", 0), G(5, "splitter", 2, 4, 2), G(6, "staticbrush", 0, 1), G(7, "riveter", 5, 1), G(8, "venom", 0, 0),
       G(9, "counterweight", 2, 0), ...good(G2(10, "temper", 3, 1)),
     ],
