@@ -206,7 +206,9 @@ describe.each([
     const base = `http://127.0.0.1:${await app.listen(0)}`;
     const codes: number[] = [];
     for (let day = 1; day <= 10; day++) {
-      codes.push((await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=${day}&wins=0&lives=3&player=seed-check&seen=`)).status);
+      // 0.7.0a D1: the best record a player can carry into this dusk (day - 1 wins, every life), so every seed ghost of
+      // the day is eligible; no runs stated: a new player, matched against the seed pool only (D2)
+      codes.push((await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=${day}&wins=${day - 1}&lives=5&player=seed-check&seen=`)).status);
     }
     await app.close();
     expect(codes).toEqual(Array(10).fill(200));

@@ -3,8 +3,9 @@ import { mkdtempSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RULES_VERSION } from "../src/sim/content";
+import { RULES_VERSION, START_LIVES } from "../src/sim/content";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
+import { NEW_PLAYER_RUNS, noBetterRecord } from "../src/net/matchmaking";
 import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
 import { encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
@@ -79,7 +80,9 @@ afterAll(async () => {
       const me = owners.get("sample-furnace-0")!.playerId; // owns one of the 4 ghosts stored for each day (its key's playerId)
       const seen: string[] = [];
       for (;;) {
-        const g = await fetchGhost(base, req({ day, playerId: me, seen: [...seen] }), 3000);
+        // 0.7.0a: the best record a player can carry into this dusk (D1: every ghost of the day is eligible), and a
+        // player past the new-player pool (D2: uploads are matched only from NEW_PLAYER_RUNS finished runs)
+        const g = await fetchGhost(base, req({ day, playerId: me, seen: [...seen], wins: day - 1, lives: START_LIVES, runs: NEW_PLAYER_RUNS }), 3000);
         if (g.source === "fallback") {
           expect(g.error).toMatch(/no ghost/);
           expect(g.id).toBe(`offline-weaver-d${day}`);
@@ -101,10 +104,11 @@ afterAll(async () => {
   it("returns the nearest record first", async () => {
     const pool = TWENTY.filter((s) => s.day === 5);
     const target = pool[2];
-    const g = await fetchGhost(base, req({ day: 5, wins: target.wins, lives: target.lives, playerId: "nobody" }), 3000);
+    const g = await fetchGhost(base, req({ day: 5, wins: target.wins, lives: target.lives, playerId: "nobody", runs: NEW_PLAYER_RUNS }), 3000);
     expect(g.source).toBe("server");
     const d = (s: GhostSnapshot) => Math.abs(s.wins - target.wins) * 100 + Math.abs(s.lives - target.lives);
-    expect(d(g.snapshot)).toBe(Math.min(...pool.map(d)));
+    expect(noBetterRecord(g.snapshot, target)).toBe(true); // 0.7.0a D1
+    expect(d(g.snapshot)).toBe(Math.min(...pool.filter((s) => noBetterRecord(s, target)).map(d)));
   });
 
   it("rejects a bad deck, foreign rules, malformed JSON, oversize bodies and bad queries", async () => {

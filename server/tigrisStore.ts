@@ -18,7 +18,7 @@
 
 import { MAX_DAY, type GhostSnapshot, type PoolEntry, checkSnapshot, ghostId } from "../src/net/snapshot";
 import { S3Client } from "./s3";
-import { decodeRecord, encodeRecord, poolRecord, StorageError, type AddResult, type GhostStore, type SeedCounts } from "./store";
+import { decodeRecord, encodeRecord, poolRecord, StorageError, type AddResult, type BucketScope, type GhostStore, type SeedCounts } from "./store";
 
 export type GhostKind = "pool" | "player";
 
@@ -74,6 +74,7 @@ interface Bucket {
   inflight: Promise<void> | null; // single flight: concurrent requests share one refresh
   usedAt: number;
   view: PoolEntry[] | null; // cached answer for bucket()
+  poolView: PoolEntry[] | null; // cached answer for bucket(..., "pool"): pool/ keys only (0.7.0a D2)
 }
 
 export interface TigrisStoreOptions {
@@ -126,7 +127,7 @@ export class TigrisStore implements GhostStore {
     const k = `${rules}|${day}`;
     let b = this.buckets.get(k);
     if (!b) {
-      b = { byKey: new Map(), bad: new Set(), listedAt: 0, retryAt: 0, inflight: null, usedAt: 0, view: null };
+      b = { byKey: new Map(), bad: new Set(), listedAt: 0, retryAt: 0, inflight: null, usedAt: 0, view: null, poolView: null };
       this.buckets.set(k, b);
       if (this.buckets.size > this.maxBuckets) {
         let oldest: string | null = null, at = Infinity;
@@ -157,9 +158,10 @@ export class TigrisStore implements GhostStore {
   private remember(b: Bucket, key: string, e: PoolEntry): void {
     b.byKey.set(key, e);
     b.view = null;
+    b.poolView = null;
   }
 
-  async bucket(rules: string, day: number): Promise<readonly PoolEntry[]> {
+  async bucket(rules: string, day: number, scope: BucketScope = "all"): Promise<readonly PoolEntry[]> {
     if (!storableRules(rules) || !Number.isInteger(day) || day < 1 || day > MAX_DAY) return []; // nothing can be stored there
     const b = this.slot(rules, day);
     const now = this.now();
@@ -179,7 +181,7 @@ export class TigrisStore implements GhostStore {
         }
       }
     }
-    return this.view(b);
+    return scope === "pool" ? this.poolView(b) : this.view(b);
   }
 
   private view(b: Bucket): PoolEntry[] {
@@ -193,6 +195,20 @@ export class TigrisStore implements GhostStore {
       }
     }
     return b.view;
+  }
+
+  /** 0.7.0a D2: the bucket's seed pool only (keys under pool/, which only `seed` writes). */
+  private poolView(b: Bucket): PoolEntry[] {
+    if (!b.poolView) {
+      const seen = new Set<string>();
+      b.poolView = [];
+      for (const [key, e] of b.byKey) {
+        if (parseKey(key)?.kind !== "pool" || seen.has(e.id)) continue;
+        seen.add(e.id);
+        b.poolView.push(e);
+      }
+    }
+    return b.poolView;
   }
 
   /** LIST the bucket, GET only keys not held yet, drop keys that vanished. */
@@ -235,6 +251,7 @@ export class TigrisStore implements GhostStore {
     b.listedAt = started;
     b.retryAt = 0;
     b.view = null;
+    b.poolView = null;
   }
 
   async replacePool(rules: string, entries: readonly PoolEntry[]): Promise<SeedCounts> {

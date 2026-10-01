@@ -6,6 +6,7 @@
 import { RULES_VERSION } from "../sim/content";
 import { fallbackGhost, migrateV1, type FallbackRequest } from "./fallback";
 import { KEY_HEADER, SIG_HEADER, type Identity } from "./identity";
+import { noBetterRecord } from "./matchmaking";
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateUpload } from "./validate";
 
@@ -27,6 +28,7 @@ export function matchUrl(baseUrl: string, req: GhostRequest): string {
     rules: req.rules, day: String(req.day), wins: String(req.wins), lives: String(req.lives),
     player: req.playerId, seen: req.seen.join(","),
   });
+  if (req.runs !== undefined) q.set("runs", String(req.runs)); // 0.7.0a D2: finished runs on this device
   return endpoint(baseUrl, `/v1/ghosts/match?${q.toString()}`);
 }
 
@@ -64,6 +66,8 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
   if (s.day !== req.day) return `ghost day ${s.day} is not ${req.day}`;
   if (s.playerId === req.playerId) return "server returned our own ghost";
   if (req.seen.includes(id)) return "server returned a ghost already fought this run";
+  // 0.7.0a D1 on the client too: never fight a ghost with a better record (a server without D1 falls back here)
+  if (!noBetterRecord(s, req)) return `server returned a ghost with a better record (${s.wins}W ${s.lives} lives)`;
   // never simulate an unvalidated foreign deck; a served ghost is a player's deck: the player mode (0.7.0)
   const v = validateUpload(s.build, s.day);
   if (!v.ok) return `ghost deck invalid: ${v.errors[0]}`;

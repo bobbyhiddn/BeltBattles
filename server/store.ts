@@ -18,6 +18,9 @@ export const POOL_FILE = "pool.jsonl";
 
 export type StoreKind = "jsonl" | "tigris";
 
+/** 0.7.0a D2: what a bucket answers: every ghost, or only the seed pool (a new player's matches). */
+export type BucketScope = "all" | "pool";
+
 export interface AddResult {
   id: string;
   created: boolean; // false: the same snapshot was already stored (idempotent re-send)
@@ -42,8 +45,9 @@ export interface GhostStore {
    * indexed. Idempotent: re-sending the same snapshot resolves { id, created: false }.
    */
   add(snapshot: GhostSnapshot, at?: number): Promise<AddResult>;
-  /** Every ghost of one rules version and day: stand-in pool entries and player uploads. */
-  bucket(rules: string, day: number): Promise<readonly PoolEntry[]>;
+  /** Every ghost of one rules version and day: stand-in pool entries and player uploads. 0.7.0a D2: with scope
+   *  "pool", only the seed pool (`seed`'s entries; a ghost stored both ways counts as a seed ghost). */
+  bucket(rules: string, day: number, scope?: BucketScope): Promise<readonly PoolEntry[]>;
   /**
    * Make the stand-in pool of one rules version exactly `entries` (each already validated by
    * the caller). Pool entries of other rules versions and all player uploads are untouched.
@@ -86,6 +90,7 @@ export class JsonlStore implements GhostStore {
   private players = new Map<string, PoolEntry>(); // player uploads by id (ghosts.jsonl)
   private pool = new Map<string, PoolEntry>(); // stand-in pool by id, all rules versions (pool.jsonl)
   private buckets = new Map<string, PoolEntry[]>(); // "rules|day" -> pool entries, then uploads
+  private poolBuckets = new Map<string, PoolEntry[]>(); // "rules|day" -> pool entries only (0.7.0a D2)
 
   constructor(readonly dataDir: string) {
     this.file = join(dataDir, STORE_FILE);
@@ -122,14 +127,18 @@ export class JsonlStore implements GhostStore {
 
   private reindex(): void {
     this.buckets.clear();
-    for (const e of this.pool.values()) this.index(e);
+    this.poolBuckets.clear();
+    for (const e of this.pool.values()) {
+      this.index(e);
+      this.index(e, this.poolBuckets);
+    }
     for (const e of this.players.values()) this.index(e);
   }
 
-  private index(e: PoolEntry): void {
+  private index(e: PoolEntry, into = this.buckets): void {
     const k = bucketKey(e.snapshot.rules, e.snapshot.day);
-    const b = this.buckets.get(k);
-    if (!b) this.buckets.set(k, [e]);
+    const b = into.get(k);
+    if (!b) into.set(k, [e]);
     else if (!b.some((x) => x.id === e.id)) b.push(e);
   }
 
@@ -144,8 +153,8 @@ export class JsonlStore implements GhostStore {
     return { id, created: true };
   }
 
-  async bucket(rules: string, day: number): Promise<readonly PoolEntry[]> {
-    return this.buckets.get(bucketKey(rules, day)) ?? [];
+  async bucket(rules: string, day: number, scope: BucketScope = "all"): Promise<readonly PoolEntry[]> {
+    return (scope === "pool" ? this.poolBuckets : this.buckets).get(bucketKey(rules, day)) ?? [];
   }
 
   get size(): number {

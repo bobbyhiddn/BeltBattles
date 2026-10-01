@@ -316,7 +316,8 @@ describe("server on the Tigris store", () => {
     const r2 = await post();
     expect(r2.status).toBe(201);
     expect((await post()).status).toBe(200);
-    const match = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=3&wins=0&lives=3&player=someone&seen=`);
+    // 0.7.0a: the upload is matched for a player past the new-player pool (D2) with no worse a record (D1)
+    const match = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=3&wins=${s.wins}&lives=${s.lives}&player=someone&seen=&runs=3`);
     expect(match.status).toBe(200);
     fake.failNext(3, 503, "LIST");
     const down = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=4&wins=0&lives=3&player=someone&seen=`);

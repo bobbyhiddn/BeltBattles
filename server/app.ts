@@ -15,7 +15,10 @@
 //                                   403 { error } snapshot.playerId is not the signing key's playerId
 //                                   422 { error } foreign rules, or the deck fails validateUpload (the
 //                                       player mode), with its errors
-//   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2 -> 200 { id, snapshot } | 404
+//   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2&runs=n -> 200 { id, snapshot } | 404
+//                                   0.7.0a: never a ghost with a better record than wins/lives (D1,
+//                                   matchmaking.ts eligible); while runs < NEW_PLAYER_RUNS (absent = 0)
+//                                   only the seed pool is matched, never an upload (D2). None: 404
 //   GET|HEAD / and /index.html      the game page, when staticDir (BB_GHOST_STATIC) is set
 
 import { readFileSync } from "node:fs";
@@ -24,7 +27,7 @@ import { join } from "node:path";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
-import { matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
+import { isNewPlayer, matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, SnapshotError } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import { sha256Hex } from "./sigv4";
@@ -33,6 +36,7 @@ import { JsonlStore, StorageError, type GhostStore } from "./store";
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
 export const MAX_BODY_BYTES = MAX_SNAPSHOT_BYTES;
 const MAX_SEEN = 64;
+const MAX_RUNS = 9999; // 0.7.0a D2: the runs a match request may state (intParam reads at most 4 digits)
 
 export interface ServerOptions {
   /** The ghost store. Default: a JsonlStore over dataDir, loaded right away. */
@@ -189,6 +193,8 @@ export function parseMatchQuery(q: URLSearchParams): MatchRequest {
   return {
     rules, day: intParam(q, "day", 1, MAX_DAY), wins: intParam(q, "wins", 0, MAX_DAY),
     lives: intParam(q, "lives", 0, MAX_LIVES), playerId: player, seen,
+    // 0.7.0a D2: the client's finished runs; absent counts as 0 (a new player: seed pool only)
+    runs: q.has("runs") ? intParam(q, "runs", 0, MAX_RUNS) : 0,
   };
 }
 
@@ -294,8 +300,10 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
       case "/v1/ghosts/match": {
         only("GET");
         const m = parseMatchQuery(url.searchParams);
-        const hit = pickGhost(await store.bucket(m.rules, m.day), m, new Rng(matchSeed(m, salt())));
-        if (!hit) throw new HttpError(404, "no ghost for this rules version and day yet");
+        // 0.7.0a D2: a new player is matched against the seed pool only; D1 holds inside pickGhost (eligible)
+        const ghosts = await store.bucket(m.rules, m.day, isNewPlayer(m) ? "pool" : "all");
+        const hit = pickGhost(ghosts, m, new Rng(matchSeed(m, salt())));
+        if (!hit) throw new HttpError(404, "no ghost for this rules version, day and record yet");
         return send(res, 200, { id: hit.id, snapshot: hit.snapshot });
       }
       case "/":
