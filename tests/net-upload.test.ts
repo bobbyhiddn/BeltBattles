@@ -124,9 +124,12 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
   });
 
   it("per-day values (REPORT.md §2): pinned, so a content change that moves the ceiling is reviewed on purpose", () => {
+    // v070-rel (rel-062-final 40d2b2c): TUNE-C builds the Hard warlord decks at good luck and the Matriarch's at stars-aligned
+    // luck, so the Hard pick pays 5-7 on days 1-7 (was 7-8) and 10 from day 8, the Matriarch's part 10 (was 8); the
+    // offer mix, the events and the shop gold are unchanged (output-v070-rel/REPORT.md §2). 062m: 7 18 30 46 62 80 99 116 133 155.
     const table = Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1));
-    expect(table).toEqual([7, 18, 30, 46, 62, 80, 99, 116, 133, 155]);
-    expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([15, 35, 57, 84, 112, 143, 176, 207, 238, 274]);
+    expect(table).toEqual([5, 17, 29, 43, 59, 74, 90, 110, 127, 149]);
+    expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 34, 56, 81, 109, 137, 167, 201, 232, 268]);
     for (let d = 2; d <= RUN_DAYS; d++) expect(roadCap(d)).toBeGreaterThanOrEqual(roadCap(d - 1));
   });
 
@@ -152,7 +155,8 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
       expect(roadCapHoard(d)).toBeLessThanOrEqual(roadCap(d));
       if (d >= 2) expect(gmax(d, true)).toBeLessThanOrEqual(gmax(d));
     }
-    expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 0, 2, 4, 7, 9, 9, 12]);
+    // v070-rel: gmax's liquid road plan holds less (the Hard pick pays less on days 1-7). 062m: 0 0 0 0 2 4 7 9 9 12
+    expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 0, 2, 3, 4, 7, 8, 9]);
   });
 });
 
@@ -193,9 +197,10 @@ describe("player hull and belt rules (D3)", () => {
     expect(validateUpload(deck([], 0, 1), 1).ok).toBe(true);
     expect(validateUpload(furnaceDeck({ beltCap: HEROES.furnace.belt + 2 }), 5).errors.join()).toMatch(/^supply: beltCap 16 is not 14 \+ whole \+4 belt crates/);
     expect(validateUpload(furnaceDeck({ beltCap: HEROES.furnace.belt - 4 }), 5).errors.join()).toMatch(/^supply: beltCap 10/);
-    // the spool is free but takes a road stop: the cheapest mix wins (here the crate)
-    const b = deck(["temper", "whetstone", "grease", "brake"], 0, 1); // 12 + a crate (2) = 14 <= 15
+    // the spool is free but takes a road stop: the cheapest mix wins (here the crate). v070-rel: day 1 allows 13 (was 15)
+    const b = deck(["temper", "quench", "venom"], 0, 1); // 11 + a crate (2) = 13 <= 13; as a spool, 11 > 8 + roadCapFor(1, spool) 0
     expect(validateUpload(b, 1).ok).toBe(true);
+    expect(validateUpload(deck(["temper", "quench", "coil"], 0, 1), 1).errors.join()).toMatch(/^budget: build costs 14 gold .* allows at most 13 /); // 1 gold more
   });
 
   it("the mixes: every combination of the road's hull and belt choices, costed by the plans that take them", () => {

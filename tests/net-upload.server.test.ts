@@ -61,12 +61,12 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     const dock = snap({ build: { ...snap().build, hullBonus: 20 } });
     expect(validateBuild(dock.build, 1).ok).toBe(false);
     expect(await submitGhost(base, dock, 3000)).toMatchObject({ ok: true });
-    // over the player ceiling: refused on budget (day 1 allows maxHonestSpend(1) = 15; 4 plates cost 20)
+    // over the player ceiling: refused on budget (day 1 allows maxHonestSpend(1) = 13 on 40d2b2c, was 15; 4 plates cost 20)
     const rich = snap({ build: { ...snap().build, hullBonus: 100 } });
     expect(maxHonestSpend(1)).toBeLessThan(20);
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(rich) });
     expect(r.status).toBe(422);
-    expect(((await r.json()) as { errors: string[] }).errors.join()).toMatch(/^budget: build costs 20 gold .* allows at most 15/);
+    expect(((await r.json()) as { errors: string[] }).errors.join()).toMatch(/^budget: build costs 20 gold .* allows at most 13 /);
   });
 
   it("fetchGhost fights a served player ghost with a road hull; it still falls back on one the player mode refuses", async () => {

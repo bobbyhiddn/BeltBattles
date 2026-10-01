@@ -67,17 +67,18 @@ describe("062m recheck 1: turrets in the player budget", () => {
   });
 
   it("a deck one gold over the player ceiling because of its turrets is refused on budget, naming the turrets", () => {
-    // day 1 allows 15: HAIL GUN (10) + a plate (5) passes; with a crate (2) more it is over
-    const at = turreted([...FREE, { slot: 1, def: "hailgun", uid: 60 }], 1, 0);
+    // v070-rel: day 1 allows 13 on 40d2b2c (was 15 with HAIL GUN 10 + a plate): TWIN NEEDLE (8) + a plate (5) passes;
+    // with three crates instead of the plate it is one gold over
+    const at = turreted([...FREE, { slot: 1, def: "twinneedle", uid: 60 }], 1, 0);
     expect(buildCost(at).total).toBe(maxHonestSpend(1));
     expect(validateUpload(at, 1)).toEqual({ ok: true, errors: [] });
-    const one = turreted([...FREE, { slot: 1, def: "hailgun", uid: 60 }], 0, 3); // 10 + 3 crates: 16, one gold over
+    const one = turreted([...FREE, { slot: 1, def: "twinneedle", uid: 60 }], 0, 3); // 8 + 3 crates: 14, one gold over
     const over = turreted([{ slot: 0, def: "twinneedle", uid: 61 }, { slot: 1, def: "thunderer", uid: 62 }], 0, 1); // 8 + 13 + 2
-    for (const [b, turrets, crates] of [[one, 10, 3], [over, 21, 1]] as const) {
+    for (const [b, turrets, crates] of [[one, 8, 3], [over, 21, 1]] as const) {
       expect(buildCost(b).total).toBe(turrets + 2 * crates);
       const e = validateUpload(b, 1).errors;
       expect(e).toHaveLength(1);
-      expect(e[0]).toBe(`budget: build costs ${turrets + 2 * crates} gold (items 0, mods 0, ${crates} crates, 0 plating, turrets ${turrets}) but a player's day 1 allows at most 15 (maxGoldByDay 8 + roadCap 7)`);
+      expect(e[0]).toBe(`budget: build costs ${turrets + 2 * crates} gold (items 0, mods 0, ${crates} crates, 0 plating, turrets ${turrets}) but a player's day 1 allows at most 13 (maxGoldByDay 8 + roadCap 5)`);
       expect(validateBuild(b, 1).errors.some((x) => x.startsWith("budget:"))).toBe(true);
     }
   });
