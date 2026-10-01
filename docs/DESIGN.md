@@ -89,7 +89,9 @@ meet is fought as a warlord by the par player (`honestReference`, other faction)
 margin is the par player's hull left minus the captain's (lower is harder). Asserted on days 1-10:
 - by mean margin Easy > Medium > Hard, each gap 0.05 or more; every Easy captain above every Hard one;
 - the Easy mean is above 0 and the Hard mean below 0; on days 8-10 the Matriarch is the lowest;
-- the 12 `standInBuild` decks' mean margin is within ±0.25; days 1-3 pacing (Easy, Medium) is 20-45 s.
+- the 12 `standInBuild` decks' mean margin is within ±0.25; on days 1-3 the pacing-test decks' fights with Easy and
+  Medium captains last 15-45 s on average (a regression guard; 15 s since TUNE-C). Fight length as a balance target is
+  REQ-BFG-026's (Targets, below): a 10-30 s median dusk fight, 10.8-27.7 s on 0.6.2.
 
 **Road-stop and dusk panels** (`drawFoe` / `drawIdle` in `src/screens/build/inspector.ts`):
 - The road stop shows three cards: portrait, name, an EASY / MEDIUM / HARD tag, `trick`, `blurb` and the reward.
@@ -188,10 +190,18 @@ hero brings warlords of its own at Easy, Medium and Hard, built like today's cap
 - **Headless balance harness.** `npm run balance` runs a vitest file behind `BB_BALANCE=1`, like `tests/balance.test.ts`.
   - A reference strategy plays full 10-day runs for 200 seeds per hero. It buys the highest `estimateRoute` gain it can place, rerolls when nothing fits, and uses the cheapest belt fix.
   - It writes JSON and a text table: completion rate, wins per run, per-day battle length, the day each run ended, the gold curve, and each warlord's and stand-in's win rate against it.
-- **Targets** (asserted in the harness, not in `npm test`):
-  - A solid player survives all 10 days about half the time (ROADMAP §1).
-  - Days 1-3 average 20-45 s at 1x, and no battle exceeds 75 s before day 10.
-  - The reference strategy's warlord win rate falls from Easy to Medium to Hard on every day.
+- **Targets.** REQ-BFG-026's genre-study bands replaced REQ-BFG-005's (rounds 1-3 last 20-45 s; a reference strategy
+  wins 50-65%; a solid player survives about half the time). SC-TOOL (`tools/scorecard.ts`) and parBench measure them
+  against the genre study's `targets.json`, and each release's balance pass gives every miss a decision. On 0.6.2
+  (SCORECARD-0.6.2.md and its ADDENDUM-0.6.2.md):
+  - Run survival: a player who wins 50-55% of dusk fights finishes all 10 days 57-69% of the time. The run rules, with
+    the early-loss refund, give 56.8% at a 50% dusk win rate and 68.6% at 55% (SC-TOOL --survival); the par player's
+    runs finish 63.4% at a 56.1% win rate.
+  - Fight length: the median dusk fight runs 10-30 s at 1x (10.8-27.7 s; par against the stand-ins 26.4 s on day 1,
+    13.2 s on day 10), and no honest pairing's median is under 3 s (8.18 s at the shortest; SC-TOOL --fights).
+  - Output: no hero's median damage per second on a day is 2x another's (FURNACE vs WEAVER 1.03-1.10x; --output-gap).
+  - Warlords: the reference strategy's win rate falls from Easy to Medium to Hard on every day, and Hard beats par
+    55-80% (days 2-10 in band on 0.6.2; day 1 accepted as luck).
 - **Music.** Four loops from the existing WebAudio synth: caravan (96 bpm, 64 bars), battle for days 1-5 (112 bpm), days 6-10 (120 bpm, minor) and the Iron Matriarch (126 bpm, adds the kiln-roar drone). Each loop is 60-90 s, crossfades over 0.5 s and ducks under KO stingers.
 - **By-ear SFX pass.** Loudness-match every event against `fire` (heavy) = 0 dB. A split has its own chirp; burn ticks are quieter than hits (-9 dB); shock gets a crackle tail; the dawn and dusk banners get a gong. A 6-voice cap per event type stops 4x playback from mashing.
 
