@@ -300,21 +300,23 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
       expect(r.body.errors, what).toEqual(validateUpload(b, d.day).errors); // the player mode's errors, verbatim
       expect(r.body.errors!.some((e) => want.test(e)), `${what}: ${r.body.errors!.join(" | ")}`).toBe(true);
     }
-    // the only RULES_VERSION gate today: string equality with the server's own
-    const next = await post(snapOf(d, { rules: "bb-0.6.2" }));
-    expect(next.status).toBe(422);
-    expect(next.body.error).toBe(`rules bb-0.6.2 not accepted: this server validates ${RULES_VERSION}`);
-    expect(RULES_VERSION).toBe("bb-0.6.1");
+    // the exact RULES_VERSION check: string equality with the server's own (v070-rel: rel-062-final is bb-0.6.2, so the
+    // other rules are the older bb-0.6.1)
+    const older = await post(snapOf(d, { rules: "bb-0.6.1" }));
+    expect(older.status).toBe(422);
+    expect(older.body.error).toBe(`rules bb-0.6.1 not accepted: this server validates ${RULES_VERSION}`);
+    expect(RULES_VERSION).toBe("bb-0.6.2");
   });
 
   it("fetchGhost fights a served ghost with turrets and joins; it falls back on an illegal one and on other rules", async () => {
     const d = HONEST[0];
     const [what, bad] = turretCases(d.build)[0];
     // the stub server answers by the request's wins: 0 the honest ghost, 1 an illegal turret, 2 another rules version
+    // (v070-rel: the older bb-0.6.1, now that RULES_VERSION is bb-0.6.2)
     const srv = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
       const u = q.url ?? "";
-      const ghost = u.includes("wins=1") ? snapOf(d, { build: bad }) : u.includes("wins=2") ? snapOf(d, { rules: "bb-0.6.2" }) : snapOf(d);
+      const ghost = u.includes("wins=1") ? snapOf(d, { build: bad }) : u.includes("wins=2") ? snapOf(d, { rules: "bb-0.6.1" }) : snapOf(d);
       s.end(JSON.stringify({ id: "g062m", snapshot: ghost }));
     });
     await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));
@@ -332,7 +334,7 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
       expect(off.error).toMatch(/^ghost deck invalid: turret: /);
       const other = await fetchGhost(url, req(2), 2000);
       expect(other.source).toBe("fallback");
-      expect(other.error).toBe(`ghost rules bb-0.6.2 do not match ${RULES_VERSION}`);
+      expect(other.error).toBe(`ghost rules bb-0.6.1 do not match ${RULES_VERSION}`);
     } finally {
       srv.closeAllConnections();
       await new Promise<void>((r) => srv.close(() => r()));
