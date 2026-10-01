@@ -174,14 +174,14 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   // SLOW COOKER: the kiln at the back, one 13-tile serpentine so every slug cooks on the way. Synergy: the ride-time
   // rigs that pay off a long belt: a HEAT JACKET from day 3 (2 stars from day 6), BELLOWS from day 4 and a
   // COUNTERWEIGHT from day 6, with a quench tank, a temper, a whetstone and a long haul; a SPIKE GUN for the starting
-  // gun on day 8.
+  // gun on day 9 (FINAL-MEASURE: day 8 until the merged par field's ordinary turret cap fell to 0 on FURNACE day 8).
   sootjaw: {
     hero: "furnace", crates: 0, synergy: ["counterweight", "heatjacket", "bellows"],
     factories: [F("kiln", 4, 7, [4, 6, "L3U2R2U2R1U2"])],
     upgrades: [
       G(1, "quench", 3, 0), G(2, "temper", 3, 1, 1), G(3, "heatjacket", 2, 5, 1), M(3, "scatter", 0), G(4, "bellows", 5, 2),
       G(5, "whetstone", 5, 1, 3), G(6, "counterweight", 4, 3, 1), G2(6, "heatjacket", 2, 5), G(7, "longhaul", 2, 3),
-      T(8, "spikegun", 0), G(9, "venom", 3, 5, 1),
+      T(9, "spikegun", 0), G(9, "venom", 3, 5, 1),
     ],
   },
   // SHOCK TROOPER: synergy: a GALVANIC COIL on the kiln belt from day 1 (2 stars from day 7) stalls the enemy
