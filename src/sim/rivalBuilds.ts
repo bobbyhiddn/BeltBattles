@@ -249,7 +249,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(1, "coil", 3, 0), G(1, "temper", 5, 0, 3), M(2, "scatter", 1), G(2, "whetstone", 3, 1, 1), G(3, "staticbrush", 3, 3),
       ...good(G(3, "longhaul", 5, 1)), G2(4, "coil", 3, 0), G(4, "counterweight", 7, 0), G(5, "coil", 0, 0),
       G(5, "bellows", 7, 1), G(6, "lodestone", 4, 5, 1), G2(6, "staticbrush", 3, 3), G(6, "grease", 4, 7), M(7, "drake", 2),
-      G(8, "venom", 3, 2), M2(8, "drake", 2), M(9, "flak", 0),
+      // FINAL-MEASURE: the drake's second star comes on day 9 at ordinary luck (the stand-in; WEAVER d8's ordinary ★2 cap is
+      // 2 on the merged par field), still day 8 at good luck (the warlord)
+      G(8, "venom", 3, 2), soon(8, M2(9, "drake", 2)), M(9, "flak", 0),
     ],
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
