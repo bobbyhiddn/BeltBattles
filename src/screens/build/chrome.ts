@@ -175,15 +175,15 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const held = c ? null : s.ed.selectedCarry();
   if (held && !s.ed.busy) drawSuggestion(g, L, s.run.build, held.def, s.t);
   if (!L.portrait) {
-    if (L.foe) drawFoe(g, s.foe, L.foe);
-    drawDetails(g, s, s.sel, s.hover, L.info, s.foe);
+    if (L.foe) drawFoe(g, s.foe, L.foe, s.note());
+    drawDetails(g, s, s.sel, s.hover, L.info, s.foe, s.note());
   } else if (hasDetails(s, s.sel, s.hover) || !L.foe) {
-    drawDetails(g, s, s.sel, s.hover, L.info, s.foe); // a selection or hover uses the whole band
+    drawDetails(g, s, s.sel, s.hover, L.info, s.foe, s.note()); // a selection or hover uses the whole band
   } else {
     // idle portrait band: hero card over the NEXT BATTLE panel
-    drawFoe(g, s.foe, L.foe);
+    drawFoe(g, s.foe, L.foe, s.note());
     const top = { x: L.info.x, y: L.info.y, w: L.info.w, h: L.foe.y - 2 - L.info.y };
-    if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe);
+    if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe, s.note());
   }
   drawTopBar(g, s);
   // drag feedback (the placement suggestion is drawn above, before the details panel)

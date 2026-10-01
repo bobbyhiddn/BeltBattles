@@ -16,6 +16,7 @@
 
 import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
+import { FINDING_GHOST } from "../../game/session"; // 0.7.0a: the NEXT BATTLE card online
 import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import {
@@ -1113,12 +1114,12 @@ function drawLine(g: G, l: PLine, x: number, y: number): void {
   drawRich(g, l.spans, x + (l.indent ?? 0), y, l.font);
 }
 
-export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe): void {
+export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe, note: string | null = null): void {
   if (area.h < 14) return;
   const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
   const sp = spec(ctx, show, !!hover);
   const column = area.h >= 70;
-  if (!sp) return drawIdle(g, ctx.run, area, column, foe);
+  if (!sp) return drawIdle(g, ctx.run, area, column, foe, note);
   const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
   const plan = planPanel(t, area);
   const r = plan.r;
@@ -1181,15 +1182,17 @@ export function visibleLines(plan: PanelPlan): { line: PLine | "rule"; y: number
   return out;
 }
 
-function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe): void {
+function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, note: string | null = null): void {
   const h = HEROES[run.hero];
   const b = run.build;
   const used = beltUsed(b), cap = b.beltCap;
   if (!column && area.h < 30) {
     panel(g, area, "dark");
     drawText(g, "NEXT", area.x + 5, area.y + 5, C.slate4, { font: "3" });
-    drawText(g, foe.name, area.x + 24, area.y + 4, C.red, { outline: C.ink });
-    drawText(g, `${foeClass(foe)} · BELT ${used}/${cap} · W-L ${record(run)}`, area.x + 5, area.y + 14, C.bone, { font: "3" });
+    // 0.7.0a: online, until tonight's ghost is stored, the line says so instead of naming a foe
+    const searching = note === FINDING_GHOST;
+    drawText(g, searching ? note : foe.name, area.x + 24, area.y + 4, searching ? C.slate4 : C.red, { outline: C.ink });
+    drawText(g, `${searching ? "" : `${foeClass(foe)} · `}BELT ${used}/${cap} · W-L ${record(run)}`, area.x + 5, area.y + 14, C.bone, { font: "3" });
     return;
   }
   if (!column) return drawHeroStrip(g, run, area);
@@ -1275,16 +1278,27 @@ function foeClass(foe: DuskFoe): string {
 }
 
 /** Next-battle card (tonight's dusk opponent): beside FIGHT in landscape (3 rows); a 2-row strip
- *  in portrait. A pool ghost reads "GHOST · <HERO> · <W>-<L>", a stand-in its warlord name. */
-export function drawFoe(g: G, foe: DuskFoe, r: Rect): void {
+ *  in portrait. A pool ghost reads "GHOST · <HERO> · <W>-<L>", a stand-in its warlord name.
+ *  0.7.0a step 6 (online only; `note` null offline, 0.6.2's card): the head line names the source in small text, ONLINE
+ *  GHOST or OFFLINE STAND-IN; until tonight's ghost is stored the card says FINDING A GHOST... and names no foe. */
+export function drawFoe(g: G, foe: DuskFoe, r: Rect, note: string | null = null): void {
   panel(g, r, "dark");
-  const head = foe.kind === "ghost" ? "NEXT BATTLE · DUSK GHOST" : "NEXT BATTLE · DUSK";
+  if (note === FINDING_GHOST) {
+    drawText(g, r.h < 32 ? "NEXT BATTLE" : "NEXT BATTLE · DUSK", r.x + 5, r.y + 5, C.slate4, { font: "3" });
+    drawText(g, note, r.x + 5, r.y + 13, C.slate4, { outline: C.ink });
+    return;
+  }
+  const head0 = foe.kind === "ghost" ? "NEXT BATTLE · DUSK GHOST" : "NEXT BATTLE · DUSK";
   // 0.6.0b: a stand-in is a rival captain: its portrait, its name and a STAND-IN tag
   const rival = foe.kind === "standin" ? foe.rival : undefined;
   const ps = r.h >= 32 ? 24 : 16;
   if (rival) drawPortrait(g, rival, r.x + 5, r.y + Math.round((r.h - ps) / 2), ps);
   const x0 = rival ? r.x + 5 + ps + 5 : r.x + 5;
-  drawText(g, r.h < 32 ? "NEXT BATTLE" : head, x0, r.y + 5, C.slate4, { font: "3" });
+  const room = r.x + r.w - 5 - x0 - (r.h < 32 ? textWidth(foeClass(foe), "3") + 6 : 0);
+  const fits = (s: string) => textWidth(s, "3") <= room;
+  const head = !note ? (r.h < 32 ? "NEXT BATTLE" : head0)
+    : [`NEXT BATTLE · ${note}`, `NEXT · ${note}`, note].find(fits) ?? note;
+  drawText(g, head, x0, r.y + 5, C.slate4, { font: "3" });
   if (r.h < 32) {
     drawText(g, foeClass(foe), r.x + r.w - 5, r.y + 5, C.bone, { font: "3", align: "right" });
     const nw = drawText(g, foe.name, x0, r.y + 13, C.red, { outline: C.ink });

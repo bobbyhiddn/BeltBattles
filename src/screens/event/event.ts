@@ -23,7 +23,7 @@ import { deltaIcon, deltaText, drawChoiceCard, itemName, type CardView } from ".
 import { drawReveal } from "./reveal";
 import { storedFoe } from "../../game/day";
 import { eventLayout, eventScale, type EventLayout } from "./layout";
-import { BattleScreen } from "../battle";
+import { duskScreen } from "../battle"; // 0.7.0a: the dusk gate (offline: 0.6.2's BattleScreen at once)
 import { BuildScreen } from "../build/build";
 import { TitleScreen } from "../title";
 
@@ -151,7 +151,7 @@ export class EventScreen implements Screen {
     if (this.phase !== "result") return;
     this.run.stage = "battle";
     this.game.audio.play("go");
-    this.go(new BattleScreen(this.game));
+    this.go(duskScreen(this.game));
   }
 
   update(dt: number): void {

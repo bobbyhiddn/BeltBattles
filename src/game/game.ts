@@ -10,6 +10,7 @@ import { drawText, textWidth } from "../render/font";
 import { button, panel, UI, type Rect } from "../ui/ui";
 import type { Run } from "./run";
 import { nextFuseToast } from "./save";
+import { online } from "./session";
 
 export interface Screen {
   toastY?: number;
@@ -164,6 +165,7 @@ export class Game implements InputSink {
       }
     }
     this.screen.update(dt);
+    online()?.tick(this.run); // 0.7.0a: tonight's ghost, fetched and stored when a server URL is set (none: offline)
     if (this.toastMsg && (this.toastMsg.t -= dt) <= 0) this.toastMsg = null;
     // 0.6.1a: queued merge toasts (run.fuseFx, cosmetic), one at a time once the screen has settled;
     // the save-migration notice waits for the build screen (save.ts nextFuseToast)

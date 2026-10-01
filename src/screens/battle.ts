@@ -9,8 +9,11 @@ import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, type BattleLayout } from "../game/battleLayout";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
-import { finishDay, ghostOf, startDusk } from "../game/day";
+import { finishDay, ghostOf, startDusk, storedFoe } from "../game/day";
 import { loadPool, saveGhost } from "../game/ghosts";
+import { FINDING_GHOST, foeNote, online, onlineMode } from "../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2)
+import { battleRecordFor } from "../net/replay";
+import type { BattleRecord } from "../sim/battle";
 import { finishWarlord, pickPending, takePart, todaysWarlord, warlordSeed } from "../game/road";
 import { HEROES, RUN_DAYS } from "../sim/content";
 import { C } from "../render/palette";
@@ -50,6 +53,12 @@ export class BattleScreen implements Screen {
 
   /** 0.6.0b: "warlord" is the road-stop fight (PvE, never costs a life), "dusk" the ghost. */
   readonly kind: "dusk" | "warlord";
+  /** The fight's seed (battleSeed at dusk, warlordSeed on the road). */
+  private readonly seed: number;
+  /** 0.7.0a, online only: the dusk's battle record, stored with its result for the summary's REPLAY. */
+  private readonly record: BattleRecord | null;
+  /** 0.7.0a, online only: where the foe came from, in small text under the enemy plate. */
+  private readonly note: string | null;
   readonly warlord: WarlordFight | null = null;
   private readonly wact: WarlordActions;
 
@@ -63,15 +72,24 @@ export class BattleScreen implements Screen {
       this.warlord = w;
       run.stage = "warlord";
       this.foe = { day: w.day, kind: "standin", name: w.name, hero: w.hero, build: w.build, rival: w.id };
+    } else if (onlineMode()) {
+      // 0.7.0a online: the foe the session stored (the server's ghost, or 0.6.2's stand-in when the fetch fell back or
+      // hasn't answered: never the local pool), then tonight's deck goes up, once per dusk, fire and forget
+      this.foe = startDusk(run, [], { ghost: null });
+      online()!.submitDusk(run);
     } else this.foe = startDusk(run, loadPool()); // dusk starts: pick once, store, save
     saveRun(run);
     this.foeName = this.foe.name;
+    this.seed = w ? warlordSeed(run) : battleSeed(run);
+    // 0.7.0a: the dusk's battle record (both decks as they fight, the seed) for the summary's REPLAY; online only
+    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed) : null;
+    this.note = w ? null : foeNote(run, this.foe);
     this.wact = {
       take: [0, 1].map((i) => () => this.take(i)),
       refit: () => this.refitNow(),
       fight: () => this.toDusk(),
     };
-    this.arena = new Arena(run.build, this.foe.build, w ? warlordSeed(run) : battleSeed(run), game.audio);
+    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio);
     this.arena.off = [60, 260];
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
@@ -116,7 +134,7 @@ export class BattleScreen implements Screen {
     this.game.run!.stage = "battle";
     saveRun(this.game.run);
     this.game.audio.play("go");
-    this.game.go(new BattleScreen(this.game, "dusk"));
+    this.game.go(duskScreen(this.game));
   }
 
   private leaving = false;
@@ -183,6 +201,12 @@ export class BattleScreen implements Screen {
     const mine = ghostOf(run); // the deck exactly as it fought tonight, with the record entering it
     this.result = finishDay(run, b.winner ?? -1, b.t, b.sides[0].stats, b.sides[1].stats);
     this.result.shocks = [this.arena.shocks[0], this.arena.shocks[1]]; // 0.6.2 RULE SHOCK ROW (the card's Shock row; saved in history)
+    if (this.record) {
+      // 0.7.0a (online): the battle record and both final hulls, kept per dusk in the run's history for the REPLAY
+      this.result.record = this.record;
+      this.result.hulls = [b.sides[0].hull.hp, b.sides[1].hull.hp];
+      if (run.over) online()?.countRun(run); // D2: a finished run, won or lost
+    }
     saveGhost(mine);
     saveRun(run);
     this.phase = "outro";
@@ -343,6 +367,12 @@ export class BattleScreen implements Screen {
       r.h = p.h;
     }
     drawPlate(g, this.game, this.arena, this.plateR[1], 1, this.foeName, this.hpText[1]);
+    // 0.7.0a step 6 (online only): the foe's source in small text by its plate, online ghost or offline stand-in: in the
+    // free row above the plate when there is one (landscape; portrait with room), else just under it
+    if (this.note) {
+      const p = this.plateR[1];
+      drawText(g, this.note, p.x + 3, p.y >= 8 ? p.y - 7 : p.y + p.h + 2, C.slate4, { font: "3", outline: C.ink });
+    }
     drawPlate(g, this.game, this.arena, this.plateR[0], 0, HEROES[this.game.run!.hero].name, this.hpText[0]);
     const sec = Math.floor(b.t);
     if (sec !== this.clockSec) {
@@ -391,5 +421,48 @@ export class BattleScreen implements Screen {
       this.arena.paused = this.menu;
     } else if ((k === " " || k === "p" || k === "P") && this.phase !== "result") this.togglePause();
     else if ((k === "Enter" || k === " ") && this.phase === "result" && this.pt > 0.35) this.next();
+  }
+}
+
+/** 0.7.0a D4: the most the dusk waits for tonight's ghost: the fetch's own 4 s deadline (online.ts FETCH_TIMEOUT_MS)
+ *  plus a second for the device identity; then 0.6.2's stand-in fights. */
+export const DUSK_WAIT_S = 5;
+
+/**
+ * 0.7.0a: the way into a dusk fight (FIGHT after a refit, an event or a warlord). Offline (no server URL, or no
+ * identity), or with tonight's foe already stored, it is 0.6.2's BattleScreen at once. Online with the ghost still on
+ * its way (it is fetched from dawn, so this is rare), a short wait card holds the dusk until the answer is stored.
+ */
+export function duskScreen(game: Game): Screen {
+  if (!onlineMode() || storedFoe(game.run!)) return new BattleScreen(game);
+  return new DuskWaitScreen(game);
+}
+
+/** Online only: DUSK · DAY n and FINDING A GHOST... until the session stores tonight's foe (at most DUSK_WAIT_S). */
+export class DuskWaitScreen implements Screen {
+  private t = 0;
+  private left = false;
+
+  constructor(private game: Game) {}
+
+  update(dt: number): void {
+    this.t += dt;
+    const run = this.game.run!;
+    const s = online();
+    if (s && !s.failed) {
+      s.tick(run);
+      if (!storedFoe(run) && this.t >= DUSK_WAIT_S) s.settle(run); // D4: never wait longer; 0.6.2's stand-in
+    }
+    if (!this.left && (storedFoe(run) || !s || s.failed)) {
+      this.left = true;
+      this.game.go(new BattleScreen(this.game));
+    }
+  }
+
+  draw(g: G): void {
+    const { W, H } = this.game;
+    g.fillStyle = C.ink;
+    g.fillRect(0, 0, W, H);
+    banner(g, W, Math.round(H / 2) - 16, `DUSK · DAY ${this.game.run!.day}/${RUN_DAYS}`, C.yellow, FINDING_GHOST, 1);
   }
 }

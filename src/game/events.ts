@@ -11,6 +11,7 @@ import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta,
 import { queueFuseAnim, type Run } from "./run";
 import { chooseFoe, storedFoe } from "./day";
 import { loadPool } from "./ghosts";
+import { online, onlineMode } from "./session"; // 0.7.0a: the SCOUT's reveal online
 import { gainModule } from "./fuse";
 
 /** 0.6.0d: HERALD (ELITE BOUNTY) or SAPPERS (SABOTAGE) would be a dud on the last day: no warlord
@@ -137,8 +138,9 @@ function receive(run: Run, d: Delta, c: Choice): void {
     // 0.6.0b (decision 5): these act only on warlord fights (road.ts), never on a dusk ghost
     case "bounty": run.bounty = { day: run.day, stake: c.cost.reduce((s, q) => s + (q.k === "gold" ? q.n : 0), 0), pay: d.n }; break;
     case "sabotage": run.sabotage = { day: run.day }; break;
-    // SCOUT: tonight's dusk foe is picked now and stored, so dusk fights exactly the deck shown
-    case "reveal": if (!storedFoe(run)) run.dusk = chooseFoe(run, loadPool()); break;
+    // SCOUT: tonight's dusk foe is picked now and stored, so dusk fights exactly the deck shown. 0.7.0a online: the
+    // ghost the session fetched (or, if it hasn't answered yet, 0.6.2's stand-in: never wait); offline as 0.6.2
+    case "reveal": if (!storedFoe(run)) { if (onlineMode()) online()!.settle(run); else run.dusk = chooseFoe(run, loadPool()); } break;
     case "discount": run.nextShop.discount += d.n; break;
     case "reroll": run.nextShop.free += d.n; break;
   }

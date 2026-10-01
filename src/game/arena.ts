@@ -73,8 +73,9 @@ export class Arena {
     if (e.type === "harass" && e.cause === "shock") this.shocks[e.side === 0 ? 1 : 0]++;
   }
 
-  constructor(player: Build, enemy: Build, seed: number, sound: Audio | null) {
-    this.b = new Battle(player, enemy, seed);
+  /** 0.7.0a: `battle` (a replay: replayBattle(record), fresh and unstepped) is played instead of a new Battle. */
+  constructor(player: Build, enemy: Build, seed: number, sound: Audio | null, battle?: Battle) {
+    this.b = battle ?? new Battle(player, enemy, seed);
     this.sound = sound;
     this.sfx = [sideFx(this.b, 0), sideFx(this.b, 1)];
     this.views = makeViews(this);

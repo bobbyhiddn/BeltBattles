@@ -20,13 +20,26 @@ import type { Build } from "./sim/deck";
 import { TitleScreen } from "./screens/title";
 import { HeroScreen } from "./screens/hero";
 import { BuildScreen } from "./screens/build/build";
-import { BattleScreen } from "./screens/battle";
+import { BattleScreen, DuskWaitScreen } from "./screens/battle";
 import { SummaryScreen } from "./screens/summary";
 import { EventScreen } from "./screens/event/event";
 import type { Arena } from "./game/arena";
+import { onlineSession, resolveServerUrl, startOnline } from "./game/online";
+import { ReplayScreen } from "./screens/replay";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
+// 0.7.0a (decision D3): the ghost server URL, from ?server=<url> (saved; ?server=off clears it) or the build's
+// VITE_GHOST_SERVER. None, the default: no session, so the game plays offline exactly as 0.6.2 (no identity, no
+// IndexedDB, no request, no new storage key).
+const serverUrl = resolveServerUrl(location.search, (() => {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+})(), { origin: location.origin });
+if (serverUrl) startOnline(serverUrl);
 const game = new Game(canvas, (g) => new TitleScreen(g));
 game.start();
 
@@ -149,7 +162,29 @@ game.start();
     const s = game.screen;
     return s instanceof TitleScreen ? "title" : s instanceof HeroScreen ? "hero" : s instanceof BuildScreen ? "build"
       : s instanceof BattleScreen ? (s.kind === "warlord" ? "warlord" : "battle") : s instanceof SummaryScreen ? "summary"
-      : s instanceof EventScreen ? "event" : s instanceof ForkScreen ? "fork" : "?";
+      : s instanceof EventScreen ? "event" : s instanceof ForkScreen ? "fork" : s instanceof ReplayScreen ? "replay"
+      : s instanceof DuskWaitScreen ? "duskwait" : "?";
+  },
+  /** 0.7.0a tooling (read only): the online session, or null when offline (no server URL). No key, no signature. */
+  online() {
+    const s = onlineSession();
+    if (!s) return null;
+    const run = game.run;
+    const f = s.lastFetch;
+    return {
+      url: s.url, active: s.active, failed: s.failed, playerId: s.identity?.playerId ?? null, runs: s.runs(),
+      fetches: s.fetches, uploads: s.uploads, lastUpload: s.lastUpload,
+      lastFetch: f ? { source: f.source, id: f.id, error: f.error ?? null, hero: f.snapshot.hero, wins: f.snapshot.wins, lives: f.snapshot.lives } : null,
+      seen: run?.seenGhosts ?? [], dusk: run?.dusk ? { day: run.dusk.day, kind: run.dusk.kind, name: run.dusk.name, source: run.dusk.source ?? null, ghostId: run.dusk.ghostId ?? null } : null,
+      records: run ? run.history.filter((h) => h.record).length : 0,
+    };
+  },
+  /** 0.7.0a tooling: end the current run as lost and show its summary (the round history with its stored dusk records,
+   *  for the REPLAY check), without playing the remaining days. */
+  endRun(): void {
+    if (!game.run) return;
+    game.run.over = game.run.over ?? "lost";
+    game.go(new SummaryScreen(game));
   },
   /** Logical -> CSS pixel factor and the UI regions of the last frame. */
   regions(): { id: string; x: number; y: number; w: number; h: number }[] {

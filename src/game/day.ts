@@ -8,6 +8,7 @@ import type { Side, SideStats } from "../sim/battle";
 import { pickGhost, standInFoe, type GhostSnapshot } from "./ghosts";
 import { playerId, SNAPSHOT_VERSION } from "./ghostSnapshot";
 import { rollShop, type DayResult, type DuskFoe, type Run } from "./run";
+import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (type only)
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -42,9 +43,38 @@ export function duskFoe(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
   return storedFoe(run) ?? chooseFoe(run, pool);
 }
 
-/** Dusk starts: pick (once per day) and store the opponent. The caller saves the run. */
-export function startDusk(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
-  const f = storedFoe(run) ?? chooseFoe(run, pool);
+/** 0.7.0a (online play, src/game/online.ts): what the ghost server's answer makes of tonight's foe. A server ghost
+ *  (fetchGhost's source "server") fights as a kind "ghost" DuskFoe: ghostName, its hero, a cloned build and its record.
+ *  Anything else (fetchGhost's fallback, whose id starts with "offline-", or no answer at all) is 0.6.2's own dusk
+ *  stand-in, standInFoe, and never fetchGhost's stand-in pool deck: the fallback is 0.6.2's tuned dusk. Pure. */
+export function onlineFoe(run: Run, fetched: FetchedGhost | null): DuskFoe {
+  if (fetched && fetched.source === "server" && !fetched.id.startsWith("offline-")) {
+    const g = fetched.snapshot;
+    return {
+      day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt },
+      source: "online", ghostId: fetched.id,
+    };
+  }
+  const s = standInFoe(run.seed, run.day);
+  return { day: run.day, kind: "standin", name: s.name, hero: s.hero, build: s.build, rival: s.id, source: "offline" };
+}
+
+/** 0.7.0a: store tonight's foe from the server's answer, once (a stored foe stays), so a reload fights the same one; a
+ *  server ghost's id joins run.seenGhosts (no repeats in a run). The caller saves the run. */
+export function storeOnlineFoe(run: Run, fetched: FetchedGhost | null): DuskFoe {
+  const had = storedFoe(run);
+  if (had) return had;
+  const f = onlineFoe(run, fetched);
+  run.dusk = f;
+  if (f.ghostId) run.seenGhosts = [...(run.seenGhosts ?? []).filter((id) => id !== f.ghostId), f.ghostId];
+  return f;
+}
+
+/** Dusk starts: pick (once per day) and store the opponent. The caller saves the run. 0.7.0a: `online` (online play
+ *  only) takes the ghost server's answer instead of the local pool (storeOnlineFoe); offline it is absent, as in 0.6.2. */
+export function startDusk(run: Run, pool: readonly GhostSnapshot[], online?: { ghost: FetchedGhost | null }): DuskFoe {
+  const f = storedFoe(run) ?? (online ? storeOnlineFoe(run, online.ghost) : chooseFoe(run, pool));
   run.dusk = f;
   run.stage = "battle";
   return f;

@@ -17,7 +17,10 @@ import { drawMachinery } from "../render/machinery";
 import { ArenaBg } from "../render/arenaBg";
 import { button, panel } from "../ui/ui";
 import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
+import type { BattleRecord } from "../sim/battle";
+import { openReplay } from "../game/replays";
 import { HeroScreen } from "./hero";
+import { ReplayScreen } from "./replay";
 import { TitleScreen } from "./title";
 
 const ROW = 8;
@@ -30,6 +33,7 @@ const STOP_LABEL: Record<EventId, string> = {
 /** Widest STOP label (events, warlord tiers, DUSK): the column is sized to it. */
 const STOP_W = Math.max(...[...Object.values(STOP_LABEL), ...Object.values(TIER_LABEL), "DUSK"].map((s) => textWidth(s, "3")));
 const STOP_GAP = 8; // clear space between STOP and OPPONENT
+const REPLAY_W = textWidth("REPLAY", "3") + 6; // 0.7.0a M4: the REPLAY column (online runs' dusks)
 
 /** Fit a label into `w` px of the 3x5 face (trimmed, no ellipsis glyph needed). */
 function fit(s: string, w: number): string {
@@ -38,18 +42,32 @@ function fit(s: string, w: number): string {
   return t === s ? s : t.replace(/[ ·]+$/, "") + ".";
 }
 
+/** 0.7.0a M4: a dusk row's replay: playable, or why not (D6: another rules version says so). */
+interface RowReplay {
+  record: BattleRecord;
+  why: string | null; // null: REPLAY plays it
+}
+
 export class SummaryScreen implements Screen {
   private run: Run;
   private t = 0;
   private fx = new Fx();
   private bg = new ArenaBg();
   private view: CruiserView;
+  private entered = false;
+  /** 0.7.0a M4: per history index, the stored dusk record's replay (online runs only: offline dusks store none). */
+  private readonly replays = new Map<number, RowReplay>();
 
   constructor(private game: Game) {
     this.run = game.run!;
     this.view = {
       side: 0, build: this.run.build, model: cruiserModel(this.run.build), frame: frameForHull(0, 0, 0), t: 0, tread: 0,
     };
+    this.run.history.forEach((d, i) => {
+      if (!d.record) return;
+      const o = openReplay(d.record); // checked once here (rules, shapes); a fresh Battle is made when REPLAY is tapped
+      this.replays.set(i, { record: d.record, why: o.ok ? null : o.why });
+    });
   }
 
   get complete(): boolean {
@@ -57,24 +75,37 @@ export class SummaryScreen implements Screen {
   }
 
   enter(): void {
+    if (this.entered) return this.game.audio.music(null); // back from a replay: nothing to save or announce again
+    this.entered = true;
     saveRun(null);
     this.game.audio.music(null);
     this.game.audio.play(this.complete ? "win" : "lose");
   }
 
-  /** 0.6.0b: every fight of the run in order: each day's warlord fight (if one was picked), then its dusk. */
-  fights(): { day: number; stop: string; stopColor: string; foe: string; foeColor: string; outcome: "win" | "loss" | "draw"; time: number }[] {
+  /** 0.7.0a M4 (D6): play history[i]'s stored dusk record, read-only; another rules version is refused with its reason. */
+  replay(i: number): void {
+    const r = this.replays.get(i);
+    if (!r) return;
+    const o = openReplay(r.record);
+    if (!o.ok) return this.game.toast(o.why, C.amber);
+    const d = this.run.history[i];
+    this.game.go(new ReplayScreen(this.game, this, o.battle, { day: d.day, foe: d.foe }));
+  }
+
+  /** 0.6.0b: every fight of the run in order: each day's warlord fight (if one was picked), then its dusk. 0.7.0a: a
+   *  dusk row carries its history index (`at`) and, online, its replay. */
+  fights(): { day: number; stop: string; stopColor: string; foe: string; foeColor: string; outcome: "win" | "loss" | "draw"; time: number; at?: number; replay?: RowReplay }[] {
     const run = this.run;
     const out: ReturnType<SummaryScreen["fights"]> = [];
-    for (const d of run.history) {
+    run.history.forEach((d, at) => {
       for (const w of run.warlords.filter((q) => q.day === d.day)) {
         out.push({ day: w.day, stop: TIER_LABEL[w.tier], stopColor: TIER_COLOR[w.tier], foe: w.name, foeColor: nameColor(w.id), outcome: w.outcome, time: w.time });
       }
       const ev = run.events.find((e) => e.day === d.day);
       const warlordDay = run.warlords.some((q) => q.day === d.day);
       const stop = warlordDay ? "DUSK" : ev ? STOP_LABEL[ev.id] : "DUSK";
-      out.push({ day: d.day, stop, stopColor: warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time });
-    }
+      out.push({ day: d.day, stop, stopColor: warlordDay || !ev ? C.slate4 : C.amber, foe: d.foe, foeColor: d.ghost ? C.ice : C.bone, outcome: d.outcome, time: d.time, at, replay: this.replays.get(at) });
+    });
     return out;
   }
 
@@ -153,7 +184,9 @@ export class SummaryScreen implements Screen {
     const run = this.run;
     const rh = this.rowH();
     const cDay = x, cStop = x + 16, cRes = x + w - 10, cTime = cRes - 4;
-    const stopW = STOP_W, cFoe = cStop + stopW + STOP_GAP, foeW = cTime - 22 - cFoe;
+    // 0.7.0a M4: a REPLAY column beside TIME when any dusk stored its record (online runs); none offline, as 0.6.2
+    const repW = this.replays.size ? REPLAY_W : 0;
+    const stopW = STOP_W, cFoe = cStop + stopW + STOP_GAP, foeW = cTime - 22 - cFoe - repW, cRep = cTime - 20 - repW;
     drawText(g, "DAY", cDay, y, C.slate3, { font: "3" });
     drawText(g, "STOP", cStop, y, C.slate3, { font: "3" });
     drawText(g, "OPPONENT", cFoe, y, C.slate3, { font: "3" });
@@ -164,6 +197,12 @@ export class SummaryScreen implements Screen {
       drawText(g, String(f.day), cDay + 8, ry, C.slate4, { font: "3", align: "right" });
       drawText(g, fit(f.stop, stopW), cStop, ry, f.stopColor, { font: "3" });
       drawText(g, fit(f.foe, foeW), cFoe, ry, f.foeColor, { font: "3" });
+      if (f.replay && f.at !== undefined) {
+        // REPLAY plays the stored dusk (read-only); a record of other rules says so when tapped (D6)
+        const at = f.at, ok = f.replay.why === null;
+        drawText(g, ok ? "REPLAY" : "RULES", cRep, ry, ok ? C.ice : C.slate3, { font: "3" });
+        this.game.ui.add({ id: `replay${at}`, r: { x: cRep - 2, y: ry - 2, w: REPLAY_W - 2, h: Math.max(7, rh) }, onTap: () => this.replay(at) });
+      }
       const s = Math.round(f.time);
       drawText(g, `${Math.floor(s / 60)}:${s % 60 < 10 ? "0" : ""}${s % 60}`, cTime, ry, C.slate4, { font: "3", align: "right" });
       const c = f.outcome === "win" ? C.lime : f.outcome === "loss" ? C.red : C.slate3;

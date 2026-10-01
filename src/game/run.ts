@@ -10,7 +10,7 @@ import {
 } from "../sim/content";
 import { removeItem, rotOf, setRot, type Build } from "../sim/deck";
 import { heroStartBuild } from "../sim/heroBuilds";
-import type { SideStats } from "../sim/battle";
+import type { BattleRecord, SideStats } from "../sim/battle";
 import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
@@ -62,6 +62,9 @@ export interface DayResult {
   shocks?: [number, number]; // 0.6.2 RULE SHOCK ROW: machines each side's Shock stalled (you, foe); absent before 0.6.2
   player: SideStats;
   enemy: SideStats;
+  // 0.7.0a (online play only, src/game/online.ts; absent offline, so an offline save is 0.6.2's), save v7, no bump:
+  record?: BattleRecord; // battleRecordFor(your deck, the foe's, battleSeed): the summary's REPLAY plays it (read-only)
+  hulls?: [number, number]; // both hulls when the fight ended (you, foe): what a replay must reproduce
 }
 
 /** Where the day stands (0.6.0b): dawn caravan, the road fork, the road event or the warlord
@@ -84,6 +87,11 @@ export interface DuskFoe {
   build: Build; // fought exactly as stored
   rival?: RivalId; // a stand-in's captain (portrait, STAND-IN tag)
   record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number }; // a pool ghost's stamp
+  // 0.7.0a (online play only; absent offline), save v7, no bump: where tonight's foe came from, shown in small text on
+  // the NEXT BATTLE card and under the enemy plate: "online" a ghost from the ghost server, "offline" 0.6.2's stand-in
+  // after the fetch fell back (an error, a timeout, a 404 or an unusable answer)
+  source?: "online" | "offline";
+  ghostId?: string; // the server ghost's id (it joins Run.seenGhosts: no repeats in a run)
 }
 
 export interface Run {
@@ -122,6 +130,10 @@ export interface Run {
   // 0.6.2 TUNE-M, RULE EARLY-LOSS REFUND (day.ts): set at the dawn of REFUND_DAY when the run lost a life on day 1 or 2,
   // with the lives it gave back (0 when already at START_LIVES); once per run. Absent: no refund (yet). Save v7, no bump.
   refund?: { day: number; lives: number };
+  // 0.7.0a, online play only (src/game/online.ts; absent offline, so an offline save stays 0.6.2's). Save v7, no bump:
+  // a new optional field, as 0.6.2j's joins and TUNE-M's refund were; a v8 key would be a new storage key offline (D3).
+  seenGhosts?: string[]; // server ghost ids fought this run, sent as the match request's `seen` (no repeats in a run)
+  uploaded?: number; // the last day whose dusk deck was submitted (once per dusk, also across a reload)
 }
 
 export const RUN_VERSION = 7; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once)

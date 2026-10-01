@@ -24,7 +24,7 @@ import { pruneJoins, type Build } from "../sim/deck"; // 0.6.2j
 import { warlordName } from "../sim/ai";
 import { logMigration, migrateDeck, migrateInlineGates } from "../sim/beltside";
 import { starField, starsOf, valueOf } from "../sim/stars";
-import { toId } from "./ghostSnapshot";
+import { ID_PATTERN, toId } from "./ghostSnapshot";
 import { fuseAll } from "./fuse";
 import type { Run } from "./run";
 
@@ -147,6 +147,30 @@ export function nextFuseToast(run: Run, onBuildScreen: boolean): string | undefi
   return i < 0 ? undefined : fx!.splice(i, 1)[0];
 }
 
+/**
+ * 0.7.0a, save v7, no bump (a v8 key would be a new storage key written offline, which D3 rules out): online play adds
+ * optional fields an offline save never has (Run.seenGhosts and uploaded, DuskFoe.source and ghostId, DayResult.record
+ * and hulls). Kept when well formed, dropped otherwise, so no load trips over them; every older save loads as before.
+ */
+export function normalizeOnline(r: Raw): void {
+  if (r.seenGhosts !== undefined) {
+    if (Array.isArray(r.seenGhosts)) r.seenGhosts = r.seenGhosts.filter((id: unknown) => typeof id === "string" && ID_PATTERN.test(id)).slice(-64);
+    else delete r.seenGhosts;
+  }
+  if (r.uploaded !== undefined && !(Number.isInteger(r.uploaded) && r.uploaded >= 1 && r.uploaded <= RUN_DAYS)) delete r.uploaded;
+  const d = r.dusk as Raw | null | undefined;
+  if (d && typeof d === "object") {
+    if (d.source !== undefined && d.source !== "online" && d.source !== "offline") delete d.source;
+    if (d.ghostId !== undefined && !(typeof d.ghostId === "string" && ID_PATTERN.test(d.ghostId))) delete d.ghostId;
+  }
+  for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
+    if (!h || typeof h !== "object") continue;
+    const rec = h.record as Raw | undefined;
+    if (rec !== undefined && !(rec && typeof rec === "object" && typeof rec.rules === "string" && Array.isArray(rec.builds) && rec.builds.length === 2)) delete h.record;
+    if (h.hulls !== undefined && !(Array.isArray(h.hulls) && h.hulls.length === 2 && h.hulls.every((x: unknown) => typeof x === "number"))) delete h.hulls;
+  }
+}
+
 /** Bring a parsed save up to v7, or null if it isn't a usable run. Pure (tests call it directly). */
 export function migrateRun(raw: unknown): Run | null {
   const r = raw as Raw | null;
@@ -179,6 +203,7 @@ export function migrateRun(raw: unknown): Run | null {
   // with nothing back (the dawn it belongs to is past), so a load never gives it twice. Save v7, no bump.
   if (r.refund === null) delete r.refund;
   else if (r.refund !== undefined && !(typeof r.refund === "object" && typeof r.refund.day === "number" && typeof r.refund.lives === "number")) r.refund = { day: 3, lives: 0 };
+  normalizeOnline(r);
   r.day = clampDay(r.day);
   r.lives = Math.max(0, Math.min(START_LIVES, Number(r.lives) || 0));
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;

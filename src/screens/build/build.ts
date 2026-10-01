@@ -3,8 +3,9 @@
 
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
-import { duskFoe, refundNotice } from "../../game/day";
+import { duskFoe, refundNotice, storedFoe } from "../../game/day";
 import { loadPool } from "../../game/ghosts";
+import { foeNote, onlineMode } from "../../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2)
 import { leaveCaravan } from "../../game/road";
 import { mergePreview } from "../../game/fuse";
 import type { FuseStep } from "../../game/fuse";
@@ -30,7 +31,7 @@ import { buildLayout, buildScale, Caravan, type BuildLayout, type Sel } from "./
 import { deleteRoute, rotate, sell, store } from "./actions";
 import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
-import { BattleScreen } from "../battle";
+import { BattleScreen, duskScreen } from "../battle";
 import { EventScreen } from "../event/event";
 
 /** 0.6.1d2 (ARSENAL.md §8.3): 0.5s per merge step normally; reduced motion collapses lift/arc/ring/
@@ -86,7 +87,9 @@ export class BuildScreen implements Screen, EditHost {
   constructor(public game: Game) {
     if (!game.run) throw new Error("BuildScreen needs a run");
     this.run = game.run;
-    this.foe = duskFoe(this.run, loadPool());
+    // 0.7.0a online: the stored foe, or (until the session stores tonight's ghost) the stand-in the card hides behind
+    // FINDING A GHOST...; never the local pool. Offline exactly 0.6.2's preview.
+    this.foe = duskFoe(this.run, onlineMode() ? [] : loadPool());
     this.refit = this.run.stage === "refit" || this.run.stage === "battle";
     if (this.refit) this.caravan.park();
     this.L = this.layout();
@@ -242,11 +245,21 @@ export class BuildScreen implements Screen, EditHost {
     saveRun(this.run);
     this.game.audio.play("go");
     this.game.go(next === "fork" ? new ForkScreen(this.game) : next === "event" ? new EventScreen(this.game)
-      : next === "warlord" ? new BattleScreen(this.game, "warlord") : new BattleScreen(this.game));
+      : next === "warlord" ? new BattleScreen(this.game, "warlord") : duskScreen(this.game));
+  }
+
+  /** 0.7.0a step 6: the NEXT BATTLE card's source line (online only; null offline, 0.6.2's card). */
+  note(): string | null {
+    return foeNote(this.run, this.foe);
   }
 
   update(dt: number): void {
     this.t += dt;
+    if (onlineMode()) {
+      // 0.7.0a: tonight's ghost arrived (the session stored it): the NEXT BATTLE card shows it
+      const st = storedFoe(this.run);
+      if (st && st !== this.foe) this.foe = st;
+    }
     this.armed = Math.max(0, this.armed - dt);
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.blockT = Math.max(0, this.blockT - dt);
