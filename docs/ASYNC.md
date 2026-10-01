@@ -5,7 +5,8 @@ dusk in a fight against another player's **ghost**, meaning their saved build fr
 day of their own run. This covers the format, validation, matchmaking, replay, offline
 fallback and a small build server. 0.7.0a wires it into the game behind a server URL setting
 ("0.7.0a: what the game does online", at the end); with no URL, the default, the game plays
-offline exactly as 0.6.2.
+offline exactly as 0.6.2. 0.7.0 ships it: the Fly page plays online, the store has its admin tool
+("Operations"), and "0.7.0 for players" says what changes for a player.
 
 ## Architecture
 
@@ -203,6 +204,10 @@ summary's round history shows REPLAY on each such dusk: it plays `replayBattle(r
 (`src/screens/replay.ts`: the same arena, plates and playback bar, then the result and BACK). A replay is
 read-only: it changes no run state. A record whose rules differ says "REPLAY UNAVAILABLE (OTHER RULES)".
 Offline (no server URL) a dusk stores no record, as 0.6.2, so the summary has no REPLAY column.
+0.7.0 (R1 M1): on a phone (the viewport's short side under 500 CSS px) the REPLAY targets leave the 8 px rows,
+too small to tap: a strip under the round history holds one button per stored dusk (REPLAY DAY n, or RULES), each
+at least 44 CSS px tall and wide (`summaryLayout`, tests/summary.replaytap.test.ts). The desktop keeps the cell
+in the row.
 
 Turret slots and belt joins are bb-0.6.2 rules (0.7.0, v070-rel). `src/net/rulesGate.ts` is the one place that reads
 a rules version as a number. `rulesAtLeast(rules, "bb-0.6.2")` reads `bb-MAJOR.MINOR.PATCH` and refuses anything
@@ -536,6 +541,28 @@ node /app/dist/ghost-admin.mjs list --rules bb-0.6.2          # the same tool in
   - bad uploads planted straight into the store, past POST, are found;
   - the match route stops serving a deleted ghost: a fresh server at once, a running one after its cache TTL.
 
+## 0.7.0 for players
+
+0.7.0 is the async release. The battles don't change (the rules stay `bb-0.6.2`); what changes is who you fight
+at dusk, and what you can do after.
+
+- **Real ghosts at dusk.** On the Fly page (https://beltbattles.fly.dev), each dusk fights another player's deck
+  from the same day of their run, fetched from the ghost server and fought on your device. The NEXT BATTLE card and
+  the enemy plate say ONLINE GHOST.
+- **Fair matches.** You never meet a ghost with a better record than yours, and never the same ghost twice in a
+  run. Your first 3 finished runs meet only the seed ghosts: 60 honest decks, at least two for every record a run
+  can carry into each dusk.
+- **Your decks go up.** Each dusk deck is signed with a key your browser keeps, checked for an honest budget, and
+  becomes a ghost for others once uploads open. Uploads open later, on the operator's word; until then they are
+  refused quietly and nothing changes for you.
+- **REPLAY.** The run summary replays any online dusk, read-only. On a phone, each dusk gets a big REPLAY button
+  under the round history.
+- **Never stuck on the network.** If the server is slow or down, the dusk fights 0.6.2's own stand-in within a few
+  seconds, labelled OFFLINE STAND-IN.
+- **Anonymous.** No account and no personal data: your player id comes from a key made in your browser.
+- **The Shore page stays offline.** It plays exactly as 0.6.2 (the same foes, the same saves) unless opened with
+  `?server=`.
+
 ## 0.7.0a: what the game does online
 
 0.7.0a wires the async groundwork into the game (`src/game/online.ts`, `session.ts`, `day.ts`, the screens),
@@ -568,11 +595,15 @@ as the Prime's decisions D1-D6 set it. Uploads stay closed in production.
    fight): `ghostOf(run, Date.now(), identity.playerId)` (v2, bb-0.6.2) goes up with `submitGhost`, only if
    `validateUpload` (the player mode, as the server checks it) accepts it; a refused deck is a console.debug
    line. Fire and forget: 403 (closed), 401, 422 and network errors are silent, and nothing waits for them.
+   (The game says nothing; a browser's own network log still lists a refused POST, as Chromium's console does.)
 6. **The battle record.** `battleRecordFor(your deck, the foe's, battleSeed)` and both final hulls stay in the
    dusk's `DayResult`, for the summary's REPLAY ("Replay and rules versions", D6).
 7. **Show the source.** The NEXT BATTLE card and the enemy plate name it in small text: ONLINE GHOST, or
    OFFLINE STAND-IN after a fallback; the card says FINDING A GHOST... until the answer. Offline the card is
-   0.6.2's.
+   0.6.2's. 0.7.0 (R1 M1): the plate's line sits in the free row above the plate where the battle layout leaves one
+   (desktop 1920x1080, landscape screens with room). Elsewhere (phones in portrait and landscape, a 1366x768 laptop)
+   it goes inside the plate's strip as a grey tag before the name: ONLINE · WEAVER · 0W 5♥, or OFFLINE · <captain>.
+   0.7.0a drew it just under the plate there, on the enemy hull's top rail. The battle layout itself is unchanged.
 
 - **D2:** a finished run (won or lost) counts once in `beltbattles.runs.v1` (online only) and goes up as `runs`.
 - **D5:** the seed pool's rule, under "Seeding".
