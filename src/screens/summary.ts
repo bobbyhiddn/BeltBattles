@@ -35,6 +35,71 @@ const STOP_W = Math.max(...[...Object.values(STOP_LABEL), ...Object.values(TIER_
 const STOP_GAP = 8; // clear space between STOP and OPPONENT
 const REPLAY_W = textWidth("REPLAY", "3") + 6; // 0.7.0a M4: the REPLAY column (online runs' dusks)
 
+/** 0.7.0 (R1 M1): the smallest tap target on a phone, in CSS px (Apple's 44 pt). */
+export const TAP_CSS = 44;
+/** 0.7.0 (R1 M1): a phone's viewport is under this many CSS px on its short side (portrait phones are 320-430 px wide,
+ *  landscape ones as tall); desktops, laptops and tablets are not. */
+export const PHONE_CSS = 500;
+const STRIP_GAP = 2; // between the REPLAY strip's buttons
+
+/** What the summary's layout reads of the view (Game.view). */
+export interface SummaryView {
+  W: number;
+  H: number;
+  portrait: boolean;
+  scale: number; // device px per logical px
+  dpr: number;
+}
+
+export interface SummaryLayout {
+  card: { x: number; y: number; w: number; h: number };
+  hx: number; // the cruiser
+  hy: number;
+  rowH: number; // the round history's row pitch
+  /**
+   * 0.7.0 (R1 M1): on a phone with stored dusks, one REPLAY button per stored dusk (in history order), each at least
+   * TAP_CSS CSS px tall and wide, in a strip under the round history: 8 px rows can't hold a 44 px target each (20 rows
+   * of 44 px are taller than a phone). Null otherwise: desktop keeps 0.7.0a's REPLAY cell in the row; offline has none.
+   */
+  strip: { x: number; y: number; w: number; h: number }[] | null;
+}
+
+/**
+ * The run summary's layout (0.6.0; 0.7.0 R1 M1 adds `strip`). `fights` is the round history's row count, `replays` the
+ * stored dusks. Without a strip it is 0.7.0a's layout, exactly (and 0.6.2's, which has no replays).
+ */
+export function summaryLayout(v: SummaryView, fights: number, replays: number): SummaryLayout {
+  const { W, H, portrait } = v;
+  const rows = Math.max(1, fights);
+  const w = Math.min(W - 12, 252);
+  const k = v.scale / v.dpr; // CSS px per logical px
+  const phone = Math.min(W, H) * k < PHONE_CSS;
+  // the strip: rows of buttons TAP_CSS CSS px tall and at least as wide, spread evenly over the card's inner width
+  let grid: { cols: number; bw: number; bh: number; S: number } | null = null;
+  if (phone && replays > 0) {
+    const bh = Math.ceil(TAP_CSS / k), inner = w - 16;
+    const most = Math.max(1, Math.floor((inner + STRIP_GAP) / (bh + STRIP_GAP)));
+    const lines = Math.ceil(replays / most), cols = Math.ceil(replays / lines);
+    grid = { cols, bw: Math.floor((inner - (cols - 1) * STRIP_GAP) / cols), bh, S: lines * bh + (lines - 1) * STRIP_GAP };
+  }
+  const extra = grid ? grid.S - 8 : 0; // the strip sits between the lives line and NEW RUN / TITLE
+  const rowH = Math.max(6, Math.min(ROW, Math.floor((H - 8 - 110 - extra) / rows)));
+  const h = 64 + rows * rowH + 12 + 38 + extra;
+  const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.64 - w / 2);
+  let y = portrait ? Math.max(HULL_L + 20, H - h - 8) : Math.max(4, Math.round(H / 2 - h / 2));
+  if (grid && portrait && y + h > H - 4) y = Math.max(4, H - h - 8); // a long phone history slides over the cruiser
+  const hx = Math.round(portrait ? W / 2 - HULL_A / 2 : Math.min(W * 0.26, x - 12 - HULL_A / 2) - HULL_A / 2);
+  const hy = Math.round(portrait ? Math.max(6, (y - HULL_L) / 2) : H / 2 - HULL_L / 2);
+  let strip: SummaryLayout["strip"] = null;
+  if (grid) {
+    const g = grid, top = y + 58 + rows * rowH + 13; // 5 px under the lives line
+    strip = Array.from({ length: replays }, (_, i) => ({
+      x: x + 8 + (i % g.cols) * (g.bw + STRIP_GAP), y: top + Math.floor(i / g.cols) * (g.bh + STRIP_GAP), w: g.bw, h: g.bh,
+    }));
+  }
+  return { card: { x, y, w, h }, hx, hy, rowH, strip };
+}
+
 /** Fit a label into `w` px of the 3x5 face (trimmed, no ellipsis glyph needed). */
 function fit(s: string, w: number): string {
   let t = s;
@@ -109,20 +174,8 @@ export class SummaryScreen implements Screen {
     return out;
   }
 
-  private rowH(): number {
-    const rows = Math.max(1, this.fights().length);
-    return Math.max(6, Math.min(ROW, Math.floor((this.game.H - 8 - 110) / rows)));
-  }
-
-  private layout(): { card: { x: number; y: number; w: number; h: number }; hx: number; hy: number } {
-    const { W, H, portrait } = this.game;
-    const rows = Math.max(1, this.fights().length);
-    const w = Math.min(W - 12, 252), h = 64 + rows * this.rowH() + 12 + 38;
-    const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.64 - w / 2);
-    const y = portrait ? Math.max(HULL_L + 20, H - h - 8) : Math.max(4, Math.round(H / 2 - h / 2));
-    const hx = Math.round(portrait ? W / 2 - HULL_A / 2 : Math.min(W * 0.26, x - 12 - HULL_A / 2) - HULL_A / 2);
-    const hy = Math.round(portrait ? Math.max(6, (y - HULL_L) / 2) : H / 2 - HULL_L / 2);
-    return { card: { x, y, w, h }, hx, hy };
+  private layout(): SummaryLayout {
+    return summaryLayout(this.game.view, this.fights().length, this.replays.size);
   }
 
   update(dt: number): void {
@@ -141,7 +194,7 @@ export class SummaryScreen implements Screen {
     const { W, H, ui } = this.game;
     const run = this.run;
     const won = this.complete;
-    const { card, hx, hy } = this.layout();
+    const { card, hx, hy, rowH, strip } = this.layout();
     const v = this.view;
     v.frame = frameForHull(0, hx, hy);
     v.t = this.t;
@@ -168,7 +221,8 @@ export class SummaryScreen implements Screen {
       drawText(g, "THE DARK WIND CATCHES YOU", cx, y + 23, C.bone, { font: "3", align: "center" });
       drawText(g, `ON DAY ${run.day} · ${hero} · W-L ${record(run)}`, cx, y + 32, C.slate4, { font: "3", align: "center" });
     }
-    this.drawDays(g, x + 8, y + 48, w - 16);
+    this.drawDays(g, x + 8, y + 48, w - 16, rowH, !strip);
+    if (strip) this.drawStrip(g, strip);
     const by = y + h - 27;
     button(ui, g, "again", { x: x + 10, y: by, w: w / 2 - 14, h: 21 }, "NEW RUN", {
       primary: true, onTap: () => { this.game.run = null; this.game.go(new HeroScreen(this.game)); },
@@ -178,14 +232,31 @@ export class SummaryScreen implements Screen {
     });
   }
 
+  /** 0.7.0 (R1 M1): the phone's REPLAY strip, one button per stored dusk in history order (summaryLayout `strip`): REPLAY
+   *  and the day, or RULES for a record of other rules, which says why when tapped (D6). Same ids as the desk's cells. */
+  private drawStrip(g: G, strip: { x: number; y: number; w: number; h: number }[]): void {
+    const rows = this.fights().filter((f) => f.replay && f.at !== undefined);
+    rows.forEach((f, i) => {
+      const r = strip[i], at = f.at!, ok = f.replay!.why === null;
+      const label = ok ? "REPLAY" : "RULES", sub = `DAY ${f.day}`;
+      const one = `${label} ${sub}`;
+      if (textWidth(one) <= r.w - 8) {
+        button(this.game.ui, g, `replay${at}`, r, one, ok ? { onTap: () => this.replay(at) } : { disabled: true, onBlocked: () => this.replay(at) });
+      } else {
+        const font = textWidth(label) <= r.w - 6 ? "5" : "3";
+        button(this.game.ui, g, `replay${at}`, r, label, { font, sub, ...(ok ? { onTap: () => this.replay(at) } : { disabled: true, onBlocked: () => this.replay(at) }) });
+      }
+    });
+  }
+
   /** One row per fight: DAY · STOP (warlord tier, or the road event before a dusk) · OPPONENT ·
-   *  TIME · W / L / D; then lives left and WINS n/10 (dusk wins). */
-  private drawDays(g: G, x: number, y: number, w: number): void {
+   *  TIME · W / L / D; then lives left and WINS n/10 (dusk wins). 0.7.0 (R1 M1): `cells` false (a phone with stored
+   *  dusks) leaves out the REPLAY column; the strip under the history carries those targets. */
+  private drawDays(g: G, x: number, y: number, w: number, rh: number, cells: boolean): void {
     const run = this.run;
-    const rh = this.rowH();
     const cDay = x, cStop = x + 16, cRes = x + w - 10, cTime = cRes - 4;
     // 0.7.0a M4: a REPLAY column beside TIME when any dusk stored its record (online runs); none offline, as 0.6.2
-    const repW = this.replays.size ? REPLAY_W : 0;
+    const repW = cells && this.replays.size ? REPLAY_W : 0;
     const stopW = STOP_W, cFoe = cStop + stopW + STOP_GAP, foeW = cTime - 22 - cFoe - repW, cRep = cTime - 20 - repW;
     drawText(g, "DAY", cDay, y, C.slate3, { font: "3" });
     drawText(g, "STOP", cStop, y, C.slate3, { font: "3" });
@@ -197,7 +268,7 @@ export class SummaryScreen implements Screen {
       drawText(g, String(f.day), cDay + 8, ry, C.slate4, { font: "3", align: "right" });
       drawText(g, fit(f.stop, stopW), cStop, ry, f.stopColor, { font: "3" });
       drawText(g, fit(f.foe, foeW), cFoe, ry, f.foeColor, { font: "3" });
-      if (f.replay && f.at !== undefined) {
+      if (cells && f.replay && f.at !== undefined) {
         // REPLAY plays the stored dusk (read-only); a record of other rules says so when tapped (D6)
         const at = f.at, ok = f.replay.why === null;
         drawText(g, ok ? "REPLAY" : "RULES", cRep, ry, ok ? C.ice : C.slate3, { font: "3" });

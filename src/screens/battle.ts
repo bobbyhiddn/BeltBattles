@@ -27,7 +27,12 @@ import { button, panel } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { SummaryScreen } from "./summary";
 import { TitleScreen } from "./title";
-import { SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, type BarState } from "./battleHud";
+import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, plateSource, type BarState } from "./battleHud";
+
+/** 0.7.0 (R1 M1): the enemy plate's source line as BattleScreen draws it (see placeSource). */
+export type SourceLine =
+  | { place: "above"; text: string; box: { x: number; y: number; w: number; h: number } }
+  | { place: "plate"; tag: string; name: string };
 
 type Phase = "intro" | "fight" | "outro" | "result";
 const INTRO = 1.2; // drive-in seconds
@@ -166,6 +171,28 @@ export class BattleScreen implements Screen {
 
   private bgSpec = { hulls: [] as { x: number; y: number; w: number; h: number }[], vertical: false, gapLine: true };
   private plateR = [{ x: 0, y: 0, w: 0, h: 0 }, { x: 0, y: 0, w: 0, h: 0 }];
+  private src: SourceLine | null = null;
+
+  /**
+   * 0.7.0 (R1 M1): where the foe's source line goes, on the layout at rest (so it never jumps during the drive-in). Null
+   * offline (no note) and for warlords. "above": in the free row the layout leaves over the enemy plate, as 0.7.0a drew
+   * it (desktop 1920x1080), with its painted box; "plate": inside the plate's strip, a tag before the name, where no row
+   * is free (phones: 0.7.0a's line fell just under the plate, on the enemy hull's top rail). The layout is 0.6.2's.
+   */
+  private placeSource(): SourceLine | null {
+    if (this.note === null) return null;
+    const p = this.L.plates[1];
+    if (notePlace(this.L) === "above") {
+      return { place: "above", text: this.note, box: { x: p.x + 2, y: p.y - NOTE_ROW, w: textWidth(this.note, "3") + 2, h: NOTE_ROW - 1 } };
+    }
+    return { place: "plate", ...plateSource(this.foeName, this.note) };
+  }
+
+  /** 0.7.0 R1 tooling (read only; scripts/asynccheck.mjs M1): what placeSource decided for this layout. */
+  sourceLine(): SourceLine | null {
+    return this.src;
+  }
+
   private onNext = () => this.next();
   private openMenu = () => { this.menu = true; this.arena.paused = true; };
 
@@ -173,6 +200,7 @@ export class BattleScreen implements Screen {
     const { W, H, portrait } = this.game;
     if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait) return;
     this.L = battleLayout(W, H, portrait);
+    this.src = this.placeSource();
     this.arena.setFrames(this.L.frames, this.L.enter);
     this.bgSpec.hulls = this.L.hulls;
     this.bgSpec.vertical = portrait;
@@ -366,13 +394,11 @@ export class BattleScreen implements Screen {
       r.w = p.w;
       r.h = p.h;
     }
-    drawPlate(g, this.game, this.arena, this.plateR[1], 1, this.foeName, this.hpText[1]);
-    // 0.7.0a step 6 (online only): the foe's source in small text by its plate, online ghost or offline stand-in: in the
-    // free row above the plate when there is one (landscape; portrait with room), else just under it
-    if (this.note) {
-      const p = this.plateR[1];
-      drawText(g, this.note, p.x + 3, p.y >= 8 ? p.y - 7 : p.y + p.h + 2, C.slate4, { font: "3", outline: C.ink });
-    }
+    // 0.7.0a step 6 (online only): the foe's source in small text by its plate, online ghost or offline stand-in; 0.7.0
+    // (R1 M1): where sourceLine() puts it, riding with the plate
+    const src = this.src, p1 = this.plateR[1];
+    drawPlate(g, this.game, this.arena, p1, 1, src?.place === "plate" ? src.name : this.foeName, this.hpText[1], src?.place === "plate" ? src.tag : undefined);
+    if (src?.place === "above") drawText(g, src.text, p1.x + 3, p1.y - (NOTE_ROW - 1), C.slate4, { font: "3", outline: C.ink });
     drawPlate(g, this.game, this.arena, this.plateR[0], 0, HEROES[this.game.run!.hero].name, this.hpText[0]);
     const sec = Math.floor(b.t);
     if (sec !== this.clockSec) {

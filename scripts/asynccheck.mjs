@@ -1,13 +1,24 @@
 // 0.7.0a browser checks (REQ-BFG-016, decisions D3-D6): the built page (dist/) in Chromium through playwright-core,
-// with real input (scripts/playthrough.mjs's taps and drags). Two scenarios on 127.0.0.1 only:
+// with real input (scripts/playthrough.mjs's taps and drags), on 127.0.0.1 only:
 //  A. offline: no server URL. Day 1 from NEW RUN to the dusk result card: 0 console errors, no request beyond the page
 //     (index.html and its script), no IndexedDB database, only 0.6.2's storage keys, window.bb.online() null.
 //  B. online: ?server=<the local built ghost server> (seeded, BB_GHOST_UPLOADS=open, CORS for the page's origin). Day 1's
 //     dusk fetches a ghost (the NEXT BATTLE card and the enemy plate say ONLINE GHOST), the signed upload is accepted
 //     (201), the result stores the dusk's record; the summary's REPLAY plays it read-only (the same winner, time and
 //     hulls; the run unchanged) and BACK returns. 0 console errors.
-// Usage: npm run build && npm run build:server && node scripts/asynccheck.mjs <outDir>
-// Exit 1 if a check fails. Writes <outDir>/asynccheck.log, asynccheck.json and the screenshots.
+//  C. online, a ghost server too slow to answer (D4): the fetch gives up at 4 s and the dusk fights 0.6.2's stand-in.
+//  phone. online on a phone: the NEXT BATTLE strip and the dusk plate say ONLINE GHOST.
+// 0.7.0 (R1, REQ-BFG-016):
+//  M1. phone polish, on an iPhone portrait (390x844), an iPhone landscape (844x390), a small landscape phone (640x360) and
+//      desktop 1920x1080: where the enemy plate's source line is drawn (BattleScreen.sourceLine: the free row above the
+//      plate, else inside the plate's strip; never on the hull), and the summary's REPLAY target (regions(): at least 44
+//      CSS px tall and wide on a phone, 0.7.0a's cell on the desktop), tapped.
+// Usage: npm run build && npm run build:server && node scripts/asynccheck.mjs <outDir> [options]
+//   --only A,B,C,phone,M1   run these sections only (default: all of them)
+//   --dist <dir>            the build to serve (default dist/; e.g. a 0.7.0a build for M1's before shots)
+//   --tag <prefix>          the M1 screenshots' prefix (default "after")
+//   --name <base>           the log and json file names (default asynccheck)
+// Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json and the screenshots.
 
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
@@ -20,9 +31,19 @@ import { roadStop } from "./roadstop.mjs";
 import { VIEWS } from "./shots-list.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
-const DIST = join(ROOT, "dist");
+const args = process.argv.slice(2);
+const opt = (name, fallback) => {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 && args[i + 1] !== undefined ? args[i + 1] : fallback;
+};
+const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const BUNDLE = join(ROOT, "server", "dist", "ghost-server.mjs");
-const OUT = resolve(process.argv[2] ?? join(ROOT, "shots", "asynccheck"));
+const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "asynccheck"));
+const ONLY = opt("only", "A,B,C,phone,M1").split(",").map((s) => s.trim());
+const want = (section) => ONLY.includes(section);
+const TAG = opt("tag", "after");
+const NAME = opt("name", "asynccheck");
+const children = new Set(); // the ghost server processes this run started
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 const OLD_KEYS = ["beltbattles.run.v7", "beltbattles.ghosts.v1", "beltbattles.player.v1"]; // what 0.6.2 writes
 
@@ -84,6 +105,8 @@ async function ghostServer(origin, uploads = "open") {
   const env = { PATH: process.env.PATH, BB_GHOST_DATA: data, BB_GHOST_UPLOADS: uploads, BB_GHOST_HOST: "127.0.0.1", BB_GHOST_PORT: String(port), BB_GHOST_ORIGINS: origin };
   const seed = await run(process.execPath, [BUNDLE, "seed"], env);
   const proc = spawn(process.execPath, [BUNDLE], { env });
+  children.add(proc);
+  proc.on("exit", () => children.delete(proc));
   let out = "";
   proc.stdout.on("data", (c) => (out += c));
   proc.stderr.on("data", (c) => (out += c));
@@ -113,9 +136,9 @@ function newState() {
   };
 }
 
-/** A page with its console errors, page errors and every request it makes. */
+/** A page with its console errors, page errors and every request it makes. `view`: a VIEWS name, or context options. */
 async function openPage(browser, view, url) {
-  const ctx = await browser.newContext(VIEWS[view]);
+  const ctx = await browser.newContext(typeof view === "string" ? VIEWS[view] : view);
   const page = await ctx.newPage();
   const errors = [];
   const requests = [];
@@ -163,10 +186,10 @@ async function main() {
   const site = await pageServer();
   const shots = [];
   const result = {};
-  log(`# 0.7.0a browser checks: dist/ served at ${site.origin}; Chromium ${browser.version()}; ${new Date().toISOString()}`);
+  log(`# browser checks ${ONLY.join(", ")}: ${DIST} served at ${site.origin}; Chromium ${browser.version()}; ${new Date().toISOString()}`);
 
   // ---------------------------------------------------------------- A. offline (no server URL)
-  {
+  if (want("A")) {
     log("");
     log("## A. offline: no server URL (decision D3)");
     const { ctx, page, errors, requests } = await openPage(browser, "desk", `${site.origin}/index.html`);
@@ -193,7 +216,7 @@ async function main() {
   }
 
   // ---------------------------------------------------------------- B. online (?server= the local ghost server)
-  {
+  if (want("B")) {
     log("");
     log("## B. online: ?server= the local built ghost server (seeded, uploads open)");
     const gs = await ghostServer(site.origin);
@@ -267,7 +290,7 @@ async function main() {
   }
 
   // ---------------------------------------------------------------- C. a ghost server too slow to answer (D4)
-  {
+  if (want("C")) {
     log("");
     log("## C. online, the ghost server answers too slowly: the dusk falls back to 0.6.2's stand-in after the 4 s fetch (D4)");
     const gs = await ghostServer(site.origin);
@@ -320,7 +343,7 @@ async function main() {
   }
 
   // ---------------------------------------------------------------- the phone card (the NEXT BATTLE strip's source line)
-  {
+  if (want("phone")) {
     const gs = await ghostServer(site.origin);
     const { ctx, page, errors } = await openPage(browser, "phone", `${site.origin}/index.html?server=${encodeURIComponent(gs.base)}`);
     await page.waitForFunction(() => window.bb.online()?.active, null, { timeout: 15000 });
@@ -346,19 +369,115 @@ async function main() {
     await gs.stop();
   }
 
+  // ---------------------------------------------------------------- M1. phone polish (0.7.0 R1)
+  if (want("M1")) {
+    log("");
+    log(`## M1. phone polish (0.7.0 R1): the enemy plate's source line and the summary's REPLAY target [${TAG} build: ${DIST}]`);
+    const gs = await ghostServer(site.origin);
+    result.m1 = [];
+    for (const [name, view, touch, place] of M1_VIEWS) {
+      const url = `${site.origin}/index.html?server=${encodeURIComponent(gs.base)}`;
+      const { ctx, page, errors } = await openPage(browser, view, url);
+      const vp = `${view.viewport.width}x${view.viewport.height}@${view.deviceScaleFactor}`;
+      await page.waitForFunction(() => window.bb.online()?.active, null, { timeout: 15000 });
+      await tapRegion(page, touch, "new");
+      await settle(page, "hero");
+      await tapRegion(page, touch, "go");
+      await settle(page, "build");
+      await page.waitForFunction(() => window.bb.online().dusk?.source, null, { timeout: 10000 });
+      await tapRegion(page, touch, "fight");
+      await roadStop(page, touch, (s) => log(`  ${s}`), at, newState(), "v");
+      await settle(page, "battle");
+      await page.waitForFunction(() => window.bb.game.screen.phase === "fight", null, { timeout: 20000 });
+      await sleep(700);
+      const dusk = `${TAG}-m1-${name}-dusk.png`;
+      await page.screenshot({ path: join(OUT, dusk) });
+      shots.push(dusk);
+      const g = await page.evaluate(() => {
+        const s = window.bb.game.screen, v = window.bb.game.view;
+        const src = typeof s.sourceLine === "function" ? s.sourceLine() : "n/a (no sourceLine: a 0.7.0a build)";
+        return { note: s.note, foe: s.foeName, src, plate: s.L.plates[1], hull: s.L.hulls[1], k: v.scale / v.dpr, W: v.W, H: v.H, scale: v.scale };
+      });
+      // a close-up of the enemy plate and the top of its hull
+      const p = g.plate, top = Math.max(0, p.y - 10);
+      const c0 = await page.evaluate(([x, y]) => window.bb.toClient(x, y), [p.x - 8, top]);
+      const close = `${TAG}-m1-${name}-plate.png`;
+      await page.screenshot({ path: join(OUT, close), clip: { x: c0.x, y: c0.y, width: (p.w + 16) * g.k, height: (p.y - top + p.h + 24) * g.k } });
+      shots.push(close);
+      // where 0.7.0a drew the line: above the plate with a free row (p.y >= 8), else just under it (3x5 text, 4 px a glyph)
+      const oy = p.y >= 8 ? p.y - 7 : p.y + p.h + 2;
+      const old = { x: p.x + 2, y: oy - 1, w: 4 * (g.note ?? "").length + 1, h: 7 };
+      const onHull = old.x < g.hull.x + g.hull.w && g.hull.x < old.x + old.w && old.y < g.hull.y + g.hull.h && g.hull.y < old.y + old.h;
+      log(`[${at()}] M1 ${name} ${vp}: battle ${g.W}x${g.H} at x${g.scale}; enemy plate y ${p.y}; note ${g.note}; 0.7.0a's line at y ${oy}${onHull ? " (on the enemy hull)" : ""}; drawn: ${JSON.stringify(g.src)}`);
+      const src = g.src;
+      if (typeof src === "string") {
+        check(false, `M1 ${name}: the source line has a clean place (${src}; 0.7.0a's line ${onHull ? "sits on the enemy hull" : "is clear"})`);
+      } else if (place === "above") {
+        const b = src?.box;
+        const clear = !!b && b.y >= 0 && !(b.x < g.hull.x + g.hull.w && g.hull.x < b.x + b.w && b.y < g.hull.y + g.hull.h && g.hull.y < b.y + b.h) && b.y + b.h < p.y;
+        check(src?.place === "above" && src.text === g.note && clear, `M1 ${name} ${vp}: the source line ${g.note} is in the free row above the plate (y ${b?.y}..${b ? b.y + b.h - 1 : "?"}, the plate at ${p.y}), clear of the hull`);
+      } else {
+        const name0 = g.foe.startsWith("GHOST · ") ? g.foe.slice(8) : g.foe;
+        check(src?.place === "plate" && src.tag === "ONLINE" && src.name === name0 && onHull,
+          `M1 ${name} ${vp}: no row above the plate (0.7.0a's line fell on the hull's top rail); the plate itself reads ${src?.tag} · ${src?.name}`);
+      }
+      // the summary's REPLAY target, and a tap on it
+      await tapRegion(page, touch, "skip");
+      await page.waitForFunction(() => window.bb.game.screen.phase === "result", null, { timeout: 90000 });
+      await page.waitForFunction(() => window.bb.regions().some((r) => r.id === "next"), null, { timeout: 5000 });
+      await page.evaluate(() => window.bb.endRun());
+      await settle(page, "summary");
+      await page.waitForFunction(() => window.bb.regions().some((q) => /^replay\d+$/.test(q.id)), null, { timeout: 5000 });
+      const sum = `${TAG}-m1-${name}-summary.png`;
+      await page.screenshot({ path: join(OUT, sum) });
+      shots.push(sum);
+      const reg = await page.evaluate(() => {
+        const v = window.bb.game.view, k = v.scale / v.dpr;
+        return { r: window.bb.regions().find((q) => /^replay\d+$/.test(q.id)), k, W: v.W, H: v.H, scale: v.scale };
+      });
+      const r = reg.r;
+      const size = `${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px (summary ${reg.W}x${reg.H} at x${reg.scale})`;
+      if (touch) check(r.h >= 44 && r.w >= 44, `M1 ${name} ${vp}: the summary's REPLAY target ${r.id} is at least 44x44 CSS px: ${size}`);
+      else check(Math.abs(r.h - 8 * reg.k) < 0.01, `M1 ${name} ${vp}: the summary's REPLAY is 0.7.0a's cell in the round-history row (one 8 px row): ${size}`);
+      await tapRegion(page, touch, r.id);
+      await settle(page, "replay");
+      await sleep(600);
+      const rep = `${TAG}-m1-${name}-replay.png`;
+      await page.screenshot({ path: join(OUT, rep) });
+      shots.push(rep);
+      await tapRegion(page, touch, "skip"); // BACK shows once the replay has ended
+      await page.waitForFunction(() => window.bb.game.screen.over, null, { timeout: 90000 });
+      await tapRegion(page, touch, "replayback");
+      await settle(page, "summary");
+      check(errors.length === 0, `M1 ${name} ${vp}: tapping REPLAY plays the dusk and BACK returns to the summary, 0 console errors (${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""})`);
+      result.m1.push({ name, viewport: vp, battle: { W: g.W, H: g.H, scale: g.scale, plate: p, note: g.note, src: g.src, line070a: { y: oy, onHull } }, replay: { id: r.id, css: { x: r.x, y: r.y, w: r.w, h: r.h } }, errors });
+      await ctx.close();
+    }
+    await gs.stop();
+  }
+
   await browser.close();
   site.srv.close();
   const failed = checks.filter((c) => !c.ok);
   log("");
   log(failed.length ? `BROWSER CHECKS FAILED: ${failed.length} of ${checks.length}` : `BROWSER CHECKS PASSED: ${checks.length} of ${checks.length}`);
   log(`screenshots: ${shots.join(", ")}`);
-  writeFileSync(join(OUT, "asynccheck.log"), lines.join("\n") + "\n");
-  writeFileSync(join(OUT, "asynccheck.json"), JSON.stringify({ checks, result }, null, 2) + "\n");
+  writeFileSync(join(OUT, `${NAME}.log`), lines.join("\n") + "\n");
+  writeFileSync(join(OUT, `${NAME}.json`), JSON.stringify({ checks, result }, null, 2) + "\n");
   if (failed.length) process.exitCode = 1;
 }
 
+/** M1's views: [name, context, touch, where the plate's source line goes (BattleScreen.sourceLine)]. */
+const M1_VIEWS = [
+  ["phone", VIEWS.phone, true, "plate"], // 390x844 @3, the browser check's iPhone: the plate at the top edge
+  ["phone-land", { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }, true, "plate"],
+  ["small-land", { viewport: { width: 640, height: 360 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, true, "above"],
+  ["desk", VIEWS.desk, false, "above"], // 1920x1080
+];
+
 main().catch((e) => {
   console.error(e instanceof Error ? e.stack ?? e.message : String(e));
-  writeFileSync(join(OUT, "asynccheck.log"), lines.join("\n") + `\nERROR ${e instanceof Error ? e.stack : String(e)}\n`);
-  process.exitCode = 1;
+  writeFileSync(join(OUT, `${NAME}.log`), lines.join("\n") + `\nERROR ${e instanceof Error ? e.stack : String(e)}\n`);
+  for (const p of children) p.kill("SIGKILL"); // the ghost servers would keep the process (and its caller) alive
+  process.exit(1);
 });

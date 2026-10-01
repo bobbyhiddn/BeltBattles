@@ -6,6 +6,7 @@ import type { Arena } from "../game/arena";
 import type { BattleLayout } from "../game/battleLayout";
 import type { DayResult } from "../game/run";
 import { record, refundCardLine } from "../game/day";
+import { SOURCE_OFFLINE, SOURCE_ONLINE } from "../game/session";
 import { settings } from "../core/settings";
 import { START_LIVES, WIND_START } from "../sim/content";
 import type { Side } from "../sim/battle";
@@ -22,12 +23,51 @@ export const SPEED_LABELS = ["0.5X", "1X", "2X", "4X"];
 export const SPEED_1X = 1;
 const SPEED_IDS = ["sp0", "sp1", "sp2", "sp3"];
 
-/** Name plate: [NAME ▮▮▮▮▮▮▮▮ 147] on a dark panel, player lime / enemy red. */
-export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name: string, hpText: string): void {
+/**
+ * 0.7.0 (R1 M1, online only): the enemy plate's source line (session.ts foeNote: ONLINE GHOST or OFFLINE STAND-IN) is a
+ * row of 3x5 text with a 1 px ink outline, 1 px clear of the plate: it needs NOTE_ROW px free above the plate.
+ */
+export const NOTE_ROW = 8;
+const GHOST_PREFIX = "GHOST · "; // day.ts ghostName: "GHOST · WEAVER · 0W 5♥"
+
+/**
+ * 0.7.0 (R1 M1): where the enemy plate's source line goes on a battle layout (at rest; the line rides with its plate).
+ * "above": the free row the layout leaves over the plate, where 0.7.0a drew it (desktop 1920x1080, landscape screens with
+ * room). "plate": inside the plate's strip, as a tag before the name (plateSource), where no row is free: a phone's plate
+ * sits at the screen's top edge, and 0.7.0a's line then fell under it, on the enemy hull's top rail. The layout itself
+ * is never changed, so the framing (and the open floor's share) is 0.6.2's, online and offline.
+ */
+export function notePlace(L: Pick<BattleLayout, "plates">): "above" | "plate" {
+  return L.plates[1].y >= NOTE_ROW ? "above" : "plate";
+}
+
+/**
+ * 0.7.0 (R1 M1): the source line's form inside the enemy plate: a short tag and the name it goes with. An online ghost
+ * ("GHOST · WEAVER · 0W 5♥") is ONLINE · WEAVER · 0W 5♥: the tag says what GHOST said, and where it came from. A stand-in
+ * keeps its captain's name: OFFLINE · SILKSHADE. Any other note is its own tag.
+ */
+export function plateSource(name: string, note: string): { tag: string; name: string } {
+  if (note === SOURCE_ONLINE) return { tag: "ONLINE", name: name.startsWith(GHOST_PREFIX) ? name.slice(GHOST_PREFIX.length) : name };
+  if (note === SOURCE_OFFLINE) return { tag: "OFFLINE", name };
+  return { tag: note, name };
+}
+
+/** The tag as the plate draws it, before the name: "ONLINE ·". */
+export const plateTag = (tag: string) => `${tag} ·`;
+
+/** Name plate: [NAME ▮▮▮▮▮▮▮▮ 147] on a dark panel, player lime / enemy red. 0.7.0 (R1 M1): `tag` (online, the enemy
+ *  plate where no row is free above it) goes first, grey: [ONLINE · WEAVER · 0W 5♥ ▮▮▮▮ 147]. */
+export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name: string, hpText: string, tag?: string): void {
   const s = a.b.sides[side];
   const f = a.sfx[side];
   panel(g, r, "dark");
-  const tx = r.x + 3, ty = r.y + Math.floor((r.h - 5) / 2);
+  let tx = r.x + 3;
+  const ty = r.y + Math.floor((r.h - 5) / 2);
+  if (tag) {
+    const t = plateTag(tag);
+    drawText(g, t, tx, ty, C.slate4, { font: "3" });
+    tx += textWidth(t, "3") + 4;
+  }
   const nameW = textWidth(name, "3");
   const hpW = textWidth(hpText, "3");
   drawText(g, name, tx, ty, side === 0 ? C.white : C.red, { font: "3" });
