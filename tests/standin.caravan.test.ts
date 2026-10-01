@@ -168,6 +168,22 @@ function fakedDeck(hero: HeroId, from: number, seed: number, to: number): Build 
   throw new Error(`no faked join for ${hero} d${from} s${seed}`);
 }
 
+/**
+ * 0.6.2 CAND-A: the par player draws joins and fills more of the grid, so the faked deck starts from the first seed from
+ * `seed` on whose day-`from` deck holds no join and leaves room for the faked one (the assertions count exactly one join).
+ */
+function fakedDeckFrom(hero: HeroId, from: number, seed: number, to: number): Build {
+  for (let s = seed; s < seed + 24; s++) {
+    if (playerBuild(hero, from, s).routes.some((r) => r.join !== undefined)) continue;
+    try {
+      return fakedDeck(hero, from, s, to);
+    } catch {
+      // no room for the faked factory and its joining belt on this seed's deck: the next seed
+    }
+  }
+  throw new Error(`no faked join for ${hero} d${from} from s${seed}`);
+}
+
 function hd(o: StandInOpts, hero: HeroId, day: number, pop: Cand[]): HeroDay {
   const sel = pickWindow(pop, eligibleOf(pop, o, false), o)!;
   return {
@@ -181,7 +197,7 @@ describe("M2: turrets and joins pass through the generator (a faked playerBuild 
     const o: StandInOpts = { ...STANDIN_DEFAULTS, source: "caravan", par: "field", per: 2, band: [40, 60] };
     for (const hero of HEROES) {
       const day = 7;
-      const faked = fakedDeck(hero, 4, 3, day);
+      const faked = fakedDeckFrom(hero, 4, 3, day);
       expect(faked.turrets?.some((t) => t.def === "deckgun")).toBe(true);
       expect(faked.routes.filter((r) => r.join !== undefined)).toHaveLength(1);
       // the faked deck as a candidate: normalised through the stored code, like every caravan candidate
@@ -308,7 +324,11 @@ describe("M2: --par-band (off by default) and the header command", () => {
 
 describe("M2: deckStats (the dry run's turret and join counts)", () => {
   it("counts merged starting turrets, turrets beyond the starting layout and joins", () => {
-    const b = [1, 2, 3, 4, 5].map((s) => playerBuild("furnace", 3, s)).find((x) => !x.turrets)!;
+    const p = [1, 2, 3, 4, 5].map((s) => playerBuild("furnace", 3, s)).find((x) => !x.turrets)!;
+    // 0.6.2 CAND-A: the par player draws joins, so its deck counts its own; the same deck with its joins cleared counts none
+    expect(deckStats(p).joins).toBe(p.routes.filter((r) => r.join !== undefined).length);
+    const b = JSON.parse(JSON.stringify(p)) as Build;
+    for (const r of b.routes) delete r.join;
     expect(deckStats(b)).toMatchObject({ turretsField: false, mergedStart: 0, beyondStart: 0, joins: 0 });
     const m = JSON.parse(JSON.stringify(b)) as Build;
     m.turrets = [{ slot: 0, def: "scrapcannon", uid: 90, stars: 2, free: true }];

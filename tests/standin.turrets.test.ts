@@ -268,11 +268,14 @@ describe("M1: absent fields encode exactly as before, and older codes decode exa
     };
     for (const [hero, days] of Object.entries(V11.pools)) for (const d of days!) for (const t of d[1]) check(loader.decodeStandInRaw(hero as HeroId, t[3]));
     for (const hero of HARNESS_HEROES) for (const day of [1, 4, 7, 10]) for (let i = 0; i < 4; i++) check(randomBuild(hero, day, new Rng(hashSeed("m1-legacy", hero, day, i)), "on"));
+    // 0.6.2 CAND-A: the par player also draws joins, so only its decks without turrets and without joins qualify
+    let par = 0;
     for (const hero of ["furnace", "weaver"] as const) for (const day of [1, 5, 10]) for (let s = 1; s <= 12; s++) {
       const b = playerBuild(hero, day, s);
-      if (!b.turrets) check(b);
+      if (!b.turrets && !b.routes.some((r) => r.join !== undefined)) { check(b); par++; }
     }
-    expect(n).toBeGreaterThan(120 + 96 + 40);
+    expect(par).toBeGreaterThanOrEqual(12);
+    expect(n).toBe(120 + 96 + par);
   });
 
   it("a Build.turrets list that encodes like the starting layout (a WEAVER swap of two free DART GUNs) writes no section and decodes to no field", () => {
