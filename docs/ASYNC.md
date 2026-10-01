@@ -24,6 +24,7 @@ and 0.7.0 wire this in (checklist at the end).
 | `src/net/snapshot.ts` | `GhostSnapshot`, canonical encode/decode, strict checks, 16 KB cap, content ids |
 | `src/net/validate.ts` | `validateBuild(build, day, mode = "strict")`, `validateUpload` (the player mode), `maxGoldByDay`, `buildCost` |
 | `src/net/roadCap.ts` | the player mode's road ceiling: `roadCap`, `maxHonestSpend`, the reachable hull and belt, the D4 model |
+| `src/net/rulesGate.ts` | `parseRules`, `rulesAtLeast` and the gate that keeps turret slots and belt joins out of rules before bb-0.6.2 |
 | `src/net/matchmaking.ts` | pure `pickGhost(pool, req, rng)`, `matchSeed` |
 | `src/net/replay.ts` | `battleRecordFor`, `replay`, `replayBattle`, rules-version refusal |
 | `src/net/fallback.ts` | `offlineGhost`, `loadGhostPool`, `fallbackGhost` |
@@ -56,10 +57,11 @@ One validator, two modes (0.7.0 prep, v070-validate):
 - **strict** (`validateBuild(build, day)`, the default): the shop alone. It is the check for stand-ins, the
   bundled pool (`fallback.ts loadGhostPool`), the harness and the pool generator, which are all generated
   inside these rules.
-- **player** (`validateUpload(build, day)`): a deck a real player uploaded (`POST /v1/ghosts`) or a ghost the
-  server serves (`ghostClient.ts fetchGhost`). Every strict rule applies unchanged, except the **supply** and
-  **budget** blocks, which also count what the road puts on a deck (below). It accepts every deck the strict
-  mode accepts.
+- **player** (`validateUpload(build, day, rules = RULES_VERSION)`): a deck a real player uploaded (`POST /v1/ghosts`)
+  or a ghost the server serves (`ghostClient.ts fetchGhost`). Every strict rule applies unchanged, except the
+  **supply** and **budget** blocks, which also count what the road puts on a deck (below). It accepts every deck
+  the strict mode accepts under today's rules. `rules` is the snapshot's rules version (0.7.0, v070-rel): see
+  **rules** below.
 
 Both use deck.ts's own rules, and every error starts with its category:
 - **shape**: the strict build shape, and day 1-10.
@@ -72,9 +74,15 @@ Both use deck.ts's own rules, and every error starts with its category:
   no overlapping footprints.
 - **route**: `routeWellFormed` (starts beside its factory, orthogonal steps, no loops, passes
   only through gates), no crossings, **connected** (ends on a turret connector it claims, or, 0.6.2j, legally
-  joins a belt whose chain does; spec §8.1), routes per factory ≤ its outputs, belt tiles ≤ `beltCap`.
+  joins a belt whose chain does; spec §8.1), routes per factory ≤ its outputs, belt tiles ≤ `beltCap`. A join must be
+  legal (`deck.ts joinProblem`: next to its join tile, another belt's tile, no loop), and a deck holds at most
+  `JOIN_LIMIT` (2) joins: the next legal one in route order is refused, "2 JOINS PER DECK" (0.6.2 RULE JOIN LIMIT).
+  A join with an illegal shape keeps its shape reason and never counts. Both modes share this check.
 - **hardpoint**: only turret equipment, on an installed turret; at most that turret's gear slots of gear, never
   two copies of one gear on a turret, one core per socket.
+- **rules** (`validateUpload` only, given the snapshot's `rules`): turret slots (a non-empty `build.turrets`) and belt
+  joins (any route `join`) are bb-0.6.2 rules. Under rules that predate bb-0.6.2, or that `src/net/rulesGate.ts` can't
+  read as `bb-MAJOR.MINOR.PATCH`, such a deck is refused with one error naming the rules and the feature.
 - **supply** (strict): `beltCap` = hero base + whole +4 belt crates; `hullBonus` = whole +25 plating.
 - **budget** (strict):
 
@@ -103,7 +111,7 @@ The strict check refuses such honest decks.
 - **budget** (player):
 
 ```
-maxHonestSpend(day) = maxGold(day) + roadCap(day)       // roadCap 7, 18, 30, 46, 62, 80, 99, 116, 133, 155
+maxHonestSpend(day) = maxGold(day) + roadCap(day)       // bb-0.6.2: roadCap 5, 17, 29, 43, 59, 74, 90, 110, 127, 149
 cost(build)         = parts + price(plating) × plates + price(beltcrate) × crates
 parts               = buildCost's own terms but the supplies: items, turret mods and the installed turrets
 valid ⇔ for some reachable mix: cost(build) ≤ maxGold(day) + roadCapFor(day, mix)
@@ -124,9 +132,14 @@ captain a slot can hold, content.ts prices and merchants):
 - the discount is priced exactly for its model: rolls of at most `OFFERS` distinct defs (merchants are drawn
   without replacement, a wagon never repeats a def), every price −1 (min 1), rerolls at `REROLL_COST`, all the
   gold a run can hold at that caravan. That gold is a deliberate over-count: road parts count as if sold at
-  full value, and it comes from the best gold plan of those days, not from the deck's own plan. Against the
-  best plan one run can follow, the slack is 0, 0, 0, 1, 3, 6, 9, 10, 12 and 15 gold on days 1-10
-  (`tests/net-upload.slack.test.ts` pins it).
+  full value, and it comes from the best gold plan of those days, not from the deck's own plan;
+- every Hard fight pays the best captain's part that day, with or without a SABOTAGE. A seed's Hard slot shows each
+  captain once on days 1-5 and never yesterday's, so this over-counts too: on bb-0.6.2 one captain alone pays the
+  day's best part on several days. A free SABOTAGE adds nothing (no best pay needs one).
+
+Against the best plan one run can follow (its own road gold funds its discount, every part stays on the deck, the
+captains one seed shows, no free SABOTAGE), the slack is 0, 0, 0, 2, 4, 6, 8, 10, 12 and 14 gold on days 1-10 on
+bb-0.6.2. Of that, up to 2 gold a day is the Hard rotation (`tests/net-upload.slack.test.ts` pins every part).
 
 A deck whose hull or belt came partly from the road is checked against the plans that took those events with
 those choices (`roadCapFor(day, mix)`), so the hull and belt are costed at their cheapest honest mix: the
@@ -152,6 +165,18 @@ A `BattleRecord` is `{ rules, seed, builds: [player, ghost] }`. The seed is `bat
 fixed-step with one seeded Rng, so `replay(record)` reproduces the winner, end tick and both
 hulls bit for bit (tested over 60 seeds, headless and frame by frame). `replay` and
 `replayBattle` **refuse** a record whose `rules` differ from `RULES_VERSION`.
+
+Turret slots and belt joins are bb-0.6.2 rules (0.7.0, v070-rel). `src/net/rulesGate.ts` is the one place that reads
+a rules version as a number. `rulesAtLeast(rules, "bb-0.6.2")` reads `bb-MAJOR.MINOR.PATCH` and refuses anything
+else. A build with a non-empty `turrets` or any route `join` under older or unreadable rules is refused on every
+accepting path, before the path's exact `RULES_VERSION` check:
+- the strict snapshot decoder `checkSnapshot`: `POST /v1/ghosts` (400) and the server's store, the client's upload
+  encoder, `fetchGhost` (falls back) and `loadGhostPool` (rejected);
+- `checkRecord` (`replay`, `replayBattle`): a `RulesMismatchError` naming the build;
+- `validateUpload(build, day, rules)`: a `rules:` error.
+
+It is defence in depth for a server that will accept more than one rules version. Today every path also demands
+`RULES_VERSION` exactly.
 
 Ghosts only match their own rules version. What a rules bump (any change to content.ts
 numbers or sim behaviour) does to the pool:
@@ -241,9 +266,11 @@ thousands. Past that, cap each (rules, day) bucket or move to SQLite.
    D4 guard test fails until it models the new content, and until then `validateUpload` refuses uploads with a
    clear error. Buyable parts join automatically (prices and pools are read from the live tables). Rebased onto
    the 0.6.2 mechanics head 7bcde98 (v070-validate-062m): the player mode costs installed turrets through
-   `buildCost`, and validateBuild's turret and join rejections pass through it unchanged. Joined and turreted
-   ghosts go online only with the bb-0.6.2 RULES_VERSION bump: today the server and `fetchGhost` gate on RULES_VERSION
-   equality alone, and a client from before 0.6.2j refuses the `join` and `turrets` fields.
+   `buildCost`, and validateBuild's turret and join rejections pass through it unchanged. Rebased onto the
+   published 0.6.2 (rel-062-final 40d2b2c, v070-validate-rel): RULES_VERSION is bb-0.6.2, so the server and
+   `fetchGhost` accept only bb-0.6.2 ghosts, and the ceiling was re-pinned for TUNE-C's warlord decks. The join
+   limit (2) is validateBuild's own, in both modes. The rules gate (`rulesGate.ts`, see Replay and rules
+   versions) keeps turrets and joins out of older rules on every accepting path. Uploads stay closed in production.
 9. **Decide on dead-end belts.** The build screen lets a player save a belt that doesn't
    reach a turret (a toast, not a refusal), but validation requires connected routes (spec
    §8.1). Either block FIGHT or the upload while any belt is unconnected, or relax that rule.
