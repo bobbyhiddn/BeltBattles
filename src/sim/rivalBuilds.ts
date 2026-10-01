@@ -184,7 +184,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "furnace", crates: 0, synergy: ["counterweight", "heatjacket", "bellows"],
     factories: [F("kiln", 4, 7, [4, 6, "L3U2R2U2R1U2"])],
     upgrades: [
-      G(1, "quench", 3, 0), G(2, "temper", 3, 1, 1), G(3, "heatjacket", 2, 5, 1), M(3, "scatter", 0), G(4, "bellows", 5, 2),
+      // FINAL-MEASURE (the Prime's ladder fix, oracle e2d655e0): the quench tank comes on day 2 (was 1), so on day 1 the
+      // Medium slot stays 0.05 easier than Hard (rivals.difficulty), whose decks sit at the day-1 good-luck cap
+      G(2, "quench", 3, 0), G(2, "temper", 3, 1, 1), G(3, "heatjacket", 2, 5, 1), M(3, "scatter", 0), G(4, "bellows", 5, 2),
       G(5, "whetstone", 5, 1, 3), G(6, "counterweight", 4, 3, 1), G2(6, "heatjacket", 2, 5), G(7, "longhaul", 2, 3),
       T(9, "spikegun", 0), G(9, "venom", 3, 5, 1),
     ],
