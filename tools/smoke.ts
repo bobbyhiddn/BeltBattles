@@ -6,8 +6,8 @@
 // page) except path-style addressing against the fake, times the first health answer, then curls
 // health, /, HEAD /, a match and a closed POST. Then (0.7.0 prep, REQ-BFG-016) it starts a second
 // server with uploads open and curls a ghost signed with a fresh device key (201, then 200 when
-// repeated), the same ghost unsigned (401) and one signed over other bytes (401). It writes the
-// transcript. Exit 1 if a check fails.
+// repeated), the same ghost unsigned (401) and one signed over other bytes (401). The ghost is a
+// v2 pool deck with turrets and a join (0.6.2). It writes the transcript. Exit 1 if a check fails.
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -260,8 +260,13 @@ async function main(): Promise<void> {
     check(open.healthMs >= 0 && /"uploads":"open"/.test(h2.out), "health: 200, uploads open");
 
     const dir = mkdtempSync(join(tmpdir(), "bb-smoke-open-"));
-    const mine = { ...generateSamplePool()[0], runId: "smoke-run", playerId: device.playerId };
+    // 0.6.2's v2 snapshot: the first pool deck with turrets and a join, so the signature covers both
+    const v2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined));
+    if (!v2) throw new Error("the sample pool has no deck with turrets and a join");
+    const mine = { ...v2, runId: "smoke-run", playerId: device.playerId };
     const bytes = new TextEncoder().encode(encodeSnapshot(mine));
+    say(`ghost.json: ${mine.hero} day ${mine.day}, snapshot v${mine.v}, ${bytes.length} bytes, ${mine.build.turrets?.length ?? 0} turret(s), `
+      + `${mine.build.routes.filter((r) => r.join !== undefined).length} joining belt(s)`);
     const file = join(dir, "ghost.json");
     writeFileSync(file, bytes);
     const { key, sig } = await device.sign(bytes);
@@ -286,8 +291,9 @@ async function main(): Promise<void> {
     } catch {
       /* checked below */
     }
-    check(Object.keys(record).join() === "id,at,snapshot" && record.id === id && !stored.includes(key) && !stored.includes(sig),
-      `one player object, ${objectKey}: the {id, at, snapshot} record, no key and no signature`);
+    check(Object.keys(record).join() === "id,at,snapshot" && record.id === id && JSON.stringify(record.snapshot) === encodeSnapshot(mine)
+      && !stored.includes(key) && !stored.includes(sig),
+      `one player object, ${objectKey}: the {id, at, snapshot} record, the snapshot as signed (turrets and join included), no key and no signature`);
     const p2 = await post("-H 'x-bb-key: <key>' -H 'x-bb-sig: <sig>' ", signed, file);
     check(/HTTP\/1\.1 200/.test(p2.out) && p2.out.includes(`{"id":"${id}"}`) && players().length === 1, "the same signed upload again: 200, same id, nothing new stored");
     const p3 = await post("", [], file);
