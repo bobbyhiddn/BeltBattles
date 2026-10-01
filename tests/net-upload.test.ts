@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
-import { HEROES, ITEMS, OFFERS, REROLL_COST, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type Rarity } from "../src/sim/content";
+import { HEROES, ITEMS, OFFERS, REROLL_COST, RULES_VERSION, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type Rarity } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { MATRIARCH_DAY, maxGoldByDay as rivalsGold, warlordPool, DIFFICULTIES } from "../src/sim/rivals";
-import { STAND_IN_POOL_HEROES, standInPool } from "../src/sim/standInPool";
+import { STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
+import { loadGhostPool } from "../src/net/fallback";
+import { samplePoolJson } from "../tools/samplePool";
 import { randomBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
@@ -257,16 +259,41 @@ describe("adversarial decks (M3): each refused by the player mode with the right
 describe("superset (D1): the player mode accepts every deck the strict mode accepts", () => {
   it("all 120 stand-in pool decks pass both modes", () => {
     let n = 0;
+    const carry = { turrets: 0, bought: 0, joined: 0, joins: 0, both: 0 }; // v070-rel: the bb-0.6.2 pool (step 5)
     for (const hero of STAND_IN_POOL_HEROES) {
       for (let day = 1; day <= RUN_DAYS; day++) {
         for (const e of standInPool(hero, day)) {
           n++;
           expect(validateBuild(e.build, day), `${hero} d${day}`).toEqual({ ok: true, errors: [] });
           expect(validateUpload(e.build, day), `${hero} d${day}`).toEqual({ ok: true, errors: [] });
+          const t = (e.build.turrets ?? []).length > 0, j = e.build.routes.filter((r) => r.join !== undefined).length;
+          carry.turrets += t ? 1 : 0;
+          carry.bought += (e.build.turrets ?? []).some((x) => !x.free) ? 1 : 0;
+          carry.joined += j ? 1 : 0;
+          carry.joins += j;
+          carry.both += t && j ? 1 : 0;
         }
       }
     }
     expect(n).toBe(120);
+    console.log(`v070-rel: the ${STAND_IN_POOL_RULES} stand-in pool: ${n} decks; ${carry.turrets} carry a turret list (${carry.bought} with a bought turret), ${carry.joined} a joined belt (${carry.joins} joins), ${carry.both} both`);
+    expect(STAND_IN_POOL_RULES).toBe(RULES_VERSION);
+    expect(carry).toEqual(POOL_CARRIES);
+  });
+
+  it("the bundled ghost pool (tools/samplePool.ts): the strict loader takes every snapshot and the player mode accepts each", () => {
+    const load = loadGhostPool(samplePoolJson());
+    expect(load.rejected).toEqual([]);
+    expect(load.entries).toHaveLength(40);
+    let turrets = 0, joined = 0;
+    for (const { snapshot: s } of load.entries) {
+      expect(s.rules).toBe(RULES_VERSION);
+      expect(validateUpload(s.build, s.day), `${s.hero} d${s.day}`).toEqual({ ok: true, errors: [] });
+      turrets += (s.build.turrets ?? []).length > 0 ? 1 : 0;
+      joined += s.build.routes.some((r) => r.join !== undefined) ? 1 : 0;
+    }
+    console.log(`v070-rel: the bundled ghost pool: ${load.entries.length} snapshots; ${turrets} carry a turret list, ${joined} a joined belt`);
+    expect([turrets, joined]).toEqual(GHOST_POOL_CARRIES);
   });
 
   it("a harness sample (all six heroes, stars, cores and factories on): every deck strict accepts, player accepts", () => {
@@ -381,3 +408,10 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
     expect(validateUpload(deck(), 3).ok).toBe(true);
   });
 });
+
+// v070-rel M1 recheck 2 (output-v070-rel/REPORT.md §3): what the bb-0.6.2 bundled pools carry. A regenerated pool moves
+// these on purpose. The stand-in pool's decks: with a turret list (the layout differs from the hero's start), with a
+// bought turret, with a joined belt, the joins, and with both a turret list and a joined belt.
+const POOL_CARRIES = { turrets: 46, bought: 32, joined: 82, joins: 129, both: 31 };
+/** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
+const GHOST_POOL_CARRIES = [14, 28];
