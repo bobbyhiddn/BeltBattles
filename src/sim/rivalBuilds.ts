@@ -270,7 +270,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     factories: [F("kiln", 6, 7, [6, 6, "U1L4U2R2U3"])],
     upgrades: [
       G(1, "whetstone", 2, 2, 2), G(2, "venom", 3, 4, 1), G(3, "counterweight", 4, 4, 1), ...good(G(3, "riveter", 3, 1)),
-      M(4, "hullbreaker", 0), G(5, "longhaul", 5, 3), G(6, "temper", 1, 4, 1), G2(7, "whetstone", 2, 2),
+      // FINAL-MEASURE (the Prime's ladder fix, oracle e2d655e0): good luck brings the whetstone's second star on day 6
+      // (one day sooner; the warlord), so the Hard slot beats par on day 6 (rivals.difficulty)
+      M(4, "hullbreaker", 0), G(5, "longhaul", 5, 3), G(6, "temper", 1, 4, 1), soon(6, G2(7, "whetstone", 2, 2)),
       ...good(M(7, "mantlet", 0)), G(8, "overdrive", 7, 6), T(9, "railgun", 0),
     ],
   },
