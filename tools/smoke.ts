@@ -7,7 +7,11 @@
 // health, /, HEAD /, a match and a closed POST. Then (0.7.0 prep, REQ-BFG-016) it starts a second
 // server with uploads open and curls a ghost signed with a fresh device key (201, then 200 when
 // repeated), the same ghost unsigned (401) and one signed over other bytes (401). The ghost is a
-// v2 pool deck with turrets and a join (0.6.2). It writes the transcript. Exit 1 if a check fails.
+// v2 pool deck with turrets and a join (0.6.2). 0.7.0a (REQ-BFG-016): the match asks with a reachable
+// record and runs (D1, D2), the game's own submitGhost meets 403 while closed, and section 6 runs the
+// game's side against the open server: fetchGhost for a new player (a seed ghost) and an experienced one
+// (the upload), the fight as the game makes it (onlineFoe, battleSeed) and its record's replay, 404 to
+// 0.6.2's stand-in, and submitGhost's 201. It writes the transcript. Exit 1 if a check fails.
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -19,7 +23,15 @@ import { FakeS3 } from "./fakeS3";
 import { generateSamplePool } from "./samplePool";
 import { KEY_HEADER, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
 import { encodeSnapshot, ghostId, SNAPSHOT_VERSION } from "../src/net/snapshot";
-import { RULES_VERSION } from "../src/sim/content";
+import { RULES_VERSION, START_LIVES } from "../src/sim/content";
+// 0.7.0a: the game's side of the server (section 6, and the closed upload in section 3)
+import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
+import { noBetterRecord } from "../src/net/matchmaking";
+import { battleRecordFor, replay } from "../src/net/replay";
+import { simulate } from "../src/sim/battle";
+import { battleSeed, newRun } from "../src/game/run";
+import { onlineFoe } from "../src/game/day";
+import { standInFoe } from "../src/game/ghosts";
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -214,10 +226,14 @@ async function main(): Promise<void> {
   const hd = await shell(`curl -sS -I ${base}/index.html`, "curl", ["-sS", "-I", `${base}/index.html`]);
   check(/HTTP\/1\.1 200/.test(hd.out) && new RegExp(`content-length: ${record.bytes}`, "i").test(hd.out), "HEAD /index.html: 200, same length, no body");
 
-  const matchUrl = `${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=3&wins=1&lives=3&player=smoke-test&seen=`;
+  // 0.7.0a: a record a run can carry into dusk 3 (1 win, 5 lives) and a new player (runs 0: the seed pool only, D2)
+  const matchUrl = `${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=3&wins=1&lives=5&player=smoke-test&seen=&runs=0`;
   const beforeMatch = fake.requests.length;
   const m = await shell(`curl -sS -i -H 'Fly-Client-IP: 203.0.113.9' '${matchUrl}'`, "curl", ["-sS", "-i", "-H", "Fly-Client-IP: 203.0.113.9", matchUrl], undefined, 700);
   check(/HTTP\/1\.1 200/.test(m.out) && new RegExp(`"snapshot":\\{"v":${SNAPSHOT_VERSION},"rules":"${RULES_VERSION.replace(/\./g, "\\.")}","hero":"(furnace|weaver)","day":3`).test(m.out), "match day 3: 200 with a day-3 pool ghost");
+  const served = /"snapshot":\{"v":\d,"rules":"[^"]+","hero":"[a-z]+","day":3,"wins":(\d+),"lives":(\d+)/.exec(m.out);
+  check(!!served && noBetterRecord({ wins: Number(served[1]), lives: Number(served[2]) }, { wins: 1, lives: 5 }),
+    `0.7.0a D1: the match is no better a record than the request's 1W 5 lives (${served ? `${served[1]}W ${served[2]} lives` : "?"})`);
   say(`  fake S3 requests for that first match: ${ops(beforeMatch)}`);
   const beforeSecond = fake.requests.length;
   await run("curl", ["-sS", "-o", "/dev/null", matchUrl]);
@@ -228,6 +244,11 @@ async function main(): Promise<void> {
   const p = await shell(`curl -sS -i -X POST -H 'content-type: application/json' --data-binary @ghost.json ${base}/v1/ghosts`, "curl",
     ["-sS", "-i", "-X", "POST", "-H", "content-type: application/json", "--data-binary", `@${ghost}`, `${base}/v1/ghosts`]);
   check(/HTTP\/1\.1 403/.test(p.out) && p.out.includes('{"error":"uploads are not open yet"}'), "POST /v1/ghosts: 403, uploads are not open yet");
+  // 0.7.0a: the game's own upload (submitGhost, signed by a fresh device key) meets the same 403 while closed
+  const closedDevice = await loadIdentity(memoryKeyStore());
+  const closedSub = closedDevice ? await submitGhost(base, { ...generateSamplePool()[1], runId: "smoke-closed", playerId: closedDevice.playerId }, closedDevice, 4000) : null;
+  say(`  the game's submitGhost while closed: ${JSON.stringify(closedSub)}`);
+  check(!!closedSub && !closedSub.ok && closedSub.status === 403, "0.7.0a: the game's signed upload (submitGhost) while closed: 403");
   check(fake.keys("bb-smoke").every((k) => !k.includes("/player/")), "no player object was written");
   rmSync(tmp, { recursive: true, force: true });
 
@@ -305,13 +326,46 @@ async function main(): Promise<void> {
       "other bytes under that signature: 401, nothing stored");
     rmSync(dir, { recursive: true, force: true });
 
+    say();
+    say("## 6. The game's side (0.7.0a): fetchGhost, a fight and submitGhost against this server (src/net, src/game)");
+    const player2 = await loadIdentity(memoryKeyStore()); // another player's device
+    if (!player2) throw new Error("no second device key");
+    const day = mine.day;
+    const poolIds = generateSamplePool().filter((s) => s.day === day).map((s) => ghostId(s));
+    const reqOf = (runs: number, seen: string[], wins = day - 1, lives = START_LIVES): GhostRequest => ({
+      rules: RULES_VERSION, day, wins, lives, playerId: player2.playerId, seen, hero: "furnace", seed: 7, runs,
+    });
+    const fresh = await fetchGhost(base2, reqOf(0, []), 4000);
+    say(`  new player (runs 0): ${fresh.source} ${fresh.id} (${fresh.snapshot.hero}, ${fresh.snapshot.wins}W ${fresh.snapshot.lives} lives)`);
+    check(fresh.source === "server" && poolIds.includes(fresh.id) && fresh.id !== id, "D2: a new player's fetchGhost (runs 0) gets a seed ghost, never the upload");
+    const vet = await fetchGhost(base2, reqOf(3, poolIds), 4000);
+    say(`  experienced player (runs 3), every seed ghost of day ${day} seen: ${vet.source} ${vet.id}`);
+    check(vet.source === "server" && vet.id === id && noBetterRecord(vet.snapshot, reqOf(3, [])), "D2: from 3 finished runs, uploads are matched too (the signed upload, no better a record: D1)");
+    const run = newRun("weaver", 4242, "smoke-client-run");
+    run.day = day;
+    const foe = onlineFoe(run, vet); // the game's DuskFoe: a kind "ghost", fought on battleSeed
+    const seed = battleSeed(run);
+    const fight = simulate(run.build, foe.build, seed);
+    const again = replay(battleRecordFor(run.build, foe.build, seed));
+    say(`  the fight: ${foe.name} (${foe.kind}, ${foe.source}) on battleSeed ${seed}: winner ${fight.winner}, ${fight.t.toFixed(1)}s; the stored record replays to winner ${again.winner}`);
+    check(foe.kind === "ghost" && foe.source === "online" && fight.over && again.winner === fight.winner && again.ticks === fight.ticks
+      && again.hulls[0] === fight.sides[0].hull.hp && again.hulls[1] === fight.sides[1].hull.hp, "the client fights the fetched ghost; its battle record replays to the same result");
+    const none = await fetchGhost(base2, reqOf(3, [], 0, 0), 4000); // no ghost has fewer than one life: none eligible
+    const fallback = onlineFoe(run, none);
+    say(`  no eligible ghost: ${none.source} (${none.error}) -> ${fallback.kind} ${fallback.name}`);
+    check(none.source === "fallback" && /no ghost/.test(none.error ?? "") && fallback.kind === "standin" && fallback.name === standInFoe(run.seed, day).name,
+      "no eligible ghost: 404, and the game fights 0.6.2's own stand-in (standInFoe)");
+    const up2 = await submitGhost(base2, { ...generateSamplePool()[1], runId: "smoke-run-2", playerId: player2.playerId }, player2, 4000);
+    say(`  the game's submitGhost while open: ${JSON.stringify(up2)}`);
+    check(up2.ok && players().length === 2, "the game's signed upload (submitGhost) while open: 201, stored");
+
     const log2 = await open.stop();
     say("server log (stdout), after SIGTERM:");
     for (const l of log2.replace(/\n$/, "").split("\n")) say(`  ${l}`);
     const lines2 = log2.split("\n").filter((l) => / (GET|HEAD|POST|OPTIONS) \//.test(l));
     const posts = lines2.map((l) => / POST \/v1\/ghosts (\d{3}) /.exec(l)?.[1]).filter((s) => s !== undefined);
-    check(/uploads open\)/.test(log2) && posts.join(",") === "201,200,401,401", "the request log shows the four uploads: 201, 200, 401, 401");
-    check(lines2.length > 0 && lines2.every((l) => REQUEST_LINE.test(l)) && !log2.includes(device.playerId) && !log2.includes(key) && !log2.includes(sig),
+    check(/uploads open\)/.test(log2) && posts.join(",") === "201,200,401,401,201", "the request log shows the five uploads: 201, 200, 401, 401, then the game's 201");
+    check(lines2.length > 0 && lines2.every((l) => REQUEST_LINE.test(l)) && !log2.includes(device.playerId) && !log2.includes(player2.playerId) && !log2.includes(key) && !log2.includes(sig),
       "the request log holds no client IP, no key, no signature and no player id");
     check(/SIGTERM: shutting down/.test(log2), "SIGTERM shuts down cleanly");
   }
