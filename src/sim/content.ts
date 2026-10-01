@@ -417,11 +417,11 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   longhaul: {
     id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker", shape: "II",
-    desc: ["+2 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."], tags: ["HAUL", "EDGE"],
-    gate: { perPriorGate: 2 },
+    desc: ["+1 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."], tags: ["HAUL", "EDGE"],
+    gate: { perPriorGate: 1 },
     levels: { // 0.6.1p: priorCap applied (1 star counts every prior gate, as in 0.6.0)
-      2: { gate: { perPriorGate: 4, priorCap: 6 } },
-      3: { gate: { perPriorGate: 7, priorCap: 6 } },
+      2: { gate: { perPriorGate: 2, priorCap: 6 } },
+      3: { gate: { perPriorGate: 3.5, priorCap: 6 } },
     },
   },
   coil: {

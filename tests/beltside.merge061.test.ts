@@ -163,20 +163,22 @@ describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says MAX 6 HIT
     b.items.push({ uid: 40, def: "longhaul", x: 5, y: 3, ...st(s) });
     return b;
   };
+  /** LONG HAUL's damage per earlier hit at a star (0.6.2 TUNE LONGHAUL: 1 / 2 / 3.5). */
+  const perHit = (s: number): number => effectAt("longhaul", s).gate!.perPriorGate!;
 
   it("★2 after 8 prior hits counts 6, and the timeline marks the cap (★1 counts all 8, unmarked)", () => {
     const row = (s: number) => walkRoute(snake(s), 0).timeline.find((r) => r.tile === 8)!.hits[0];
     const one = row(1), two = row(2), three = row(3);
-    expect([one.prior, one.flat, one.capped]).toEqual([8, 16, undefined]);
-    expect([two.prior, two.flat, two.capped]).toEqual([6, 24, 6]);
-    expect([three.prior, three.flat, three.capped]).toEqual([6, 42, 6]);
-    expect(hitLabel(one, false)).toBe("LONG HAUL +16 (8 HITS BEFORE)");
-    expect(hitLabel(two, false)).toBe("LONG HAUL +24 (MAX 6 HITS)");
-    expect(starEffectLine("longhaul", 1)).toBe("+2/HIT");
-    expect(starEffectLine("longhaul", 2)).toBe("+4/HIT · MAX 6 HITS");
-    expect(levelLine("longhaul", 3)).toBe("★3: +7/HIT · MAX 6 HITS");
-    // the battle agrees: every payload past tile 8 carries 8 x 2 + 4 x 6
-    for (const p of family(snake(2), 8)) expect(p.flat).toBeCloseTo(8 * 2 + 4 * 6, 9);
+    expect([one.prior, one.flat, one.capped]).toEqual([8, 8 * perHit(1), undefined]);
+    expect([two.prior, two.flat, two.capped]).toEqual([6, 6 * perHit(2), 6]);
+    expect([three.prior, three.flat, three.capped]).toEqual([6, 6 * perHit(3), 6]);
+    expect(hitLabel(one, false)).toBe("LONG HAUL +8 (8 HITS BEFORE)");
+    expect(hitLabel(two, false)).toBe("LONG HAUL +12 (MAX 6 HITS)");
+    expect(starEffectLine("longhaul", 1)).toBe("+1/HIT");
+    expect(starEffectLine("longhaul", 2)).toBe("+2/HIT · MAX 6 HITS");
+    expect(levelLine("longhaul", 3)).toBe("★3: +3.5/HIT · MAX 6 HITS");
+    // the battle agrees: every payload past tile 8 carries 8 x 2 (the WHETSTONES) + LONG HAUL ★2 x 6
+    for (const p of family(snake(2), 8)) expect(p.flat).toBeCloseTo(8 * 2 + perHit(2) * 6, 9);
   });
 
   it("a hit counts even from the same tile's tier 1 (R7), and each arrow of one rig counts once (R8)", () => {
@@ -185,8 +187,8 @@ describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says MAX 6 HIT
     same.items.push(rigAt(10, "whetstone", 3, 3, 1), { uid: 11, def: "longhaul", x: 5, y: 3 });
     const h = walkRoute(same, 0).timeline[0].hits;
     expect(h.map((x) => [x.uid, x.tier])).toEqual([[10, 1], [11, 2]]);
-    expect([h[1].prior, h[1].flat]).toEqual([1, 2]);
-    expect(estimateRoute(same, 0).dmg - estimateRoute(bench(), 0).dmg).toBeCloseTo(2 + 2 * 1, 9);
+    expect([h[1].prior, h[1].flat]).toEqual([1, perHit(1)]);
+    expect(estimateRoute(same, 0).dmg - estimateRoute(bench(), 0).dmg).toBeCloseTo(2 + perHit(1) * 1, 9);
     // an L COIL on a corner lands both arrows on one belt: two prior hits for a later LONG HAUL. The belt turns at
     // (3,4); the COIL at (4,3), rot 2 (back and -x), works (4,4) (tile 1) and (3,3) (tile 3) from inside the bend
     const corner = bench();

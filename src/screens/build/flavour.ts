@@ -49,10 +49,14 @@ export const STAR_FLAVOUR: Record<string, Template> = {
     `${gate(e).speed === 0.5 ? "HALF SPEED" : `${num(gate(e).speed!)}X SPEED`} FROM HIT.`, "LOCKED BELTS GAIN",
     `+${num(gate(e).lockedFlat!)} DAMAGE INSTEAD.`,
   ]],
-  // ★2/★3 count at most priorCap earlier hits (0.6.1p), so "EACH HIT" gains its cap
+  // ★2/★3 count at most priorCap earlier hits (0.6.1p), so "EACH HIT" gains its cap; 0.6.2 TUNE LONGHAUL: ★3's
+  // "+3.5 DAMAGE FOR EACH" wraps on the narrowest panel, so a re-flow says "PER" instead
   longhaul: (e) => gate(e).priorCap === undefined
     ? [[`+${num(gate(e).perPriorGate!)} DAMAGE FOR EACH`, "HIT THE PAYLOAD", "ALREADY TOOK."]]
-    : [[`+${num(gate(e).perPriorGate!)} DAMAGE FOR EACH`, "EARLIER HIT, UP TO", `${gate(e).priorCap} HITS.`]],
+    : [
+      [`+${num(gate(e).perPriorGate!)} DAMAGE FOR EACH`, "EARLIER HIT, UP TO", `${gate(e).priorCap} HITS.`],
+      [`+${num(gate(e).perPriorGate!)} DAMAGE PER`, "EARLIER HIT, UP TO", `${gate(e).priorCap} HITS.`],
+    ],
   splitter: (e) => [["SPLITS A PAYLOAD IN", `${word(gate(e).split!.copies)} COPIES AT ${pct(gate(e).split!.mult)}%.`, "MORE BELT PRESSURE."]],
   overdrive: (e) => [[`4 ARROWS: ${num(gate(e).speed!)}X SPEED`, "FROM HIT; LOCKED BELTS", `GAIN +${num(gate(e).lockedFlat!)} DAMAGE.`]],
   tollbooth: (e) => [["GUARDS ITS BELT", `FROM THE FIRST ${gate(e).toll}`, "HARASSMENT HITS."]],

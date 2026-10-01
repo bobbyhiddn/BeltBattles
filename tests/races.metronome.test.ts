@@ -6,6 +6,7 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { migrateInlineGates } from "../src/sim/beltside";
 import { DORMANT_ITEMS, PEAK_SHIFT, heroRules, pendulumCurve } from "../src/sim/races/data";
 import { adaptableHead, peakRide } from "../src/sim/races/metronome";
+import { effectAt } from "../src/sim/stars";
 import { dummyFoe, expectSaneBattles, shots } from "./races.helpers";
 
 // Routes from the Clockworks at (4,6) into the adaptable turret (connectors 4 and 5), by tiles.
@@ -135,7 +136,7 @@ describe("METRONOME speed lock", () => {
     expect(rides.size).toBeGreaterThan(15);
     for (const r of rides.values()) expect(r).toBeCloseTo(ride(10), 9);
     const lh = metro(10, [["grease", 2, 4], ["longhaul", 2, 3]]);
-    expect(estimateRoute(lh, 0).dmg).toBeCloseTo(8 + 1 + 2, 9); // Grease adds locked damage; Long Haul still counts it
+    expect(estimateRoute(lh, 0).dmg).toBeCloseTo(8 + 1 + effectAt("longhaul", 1).gate!.perPriorGate!, 9); // Grease adds locked damage; Long Haul still counts it
   });
 
   it("each speed rig gives locked belts useful damage at every star without moving the pendulum beat", () => {

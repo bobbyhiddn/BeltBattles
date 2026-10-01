@@ -9,6 +9,7 @@ import {
   arrowsOf, canExtend, canPlaceItem, estimateRoute, hitTier, hitsOfRig, key as K, rigArrows, rigHits, rotField,
   rotOf, routeInfo, routeWellFormed, setRot, speedWinner, type Build, type Placed,
 } from "../src/sim/deck";
+import { effectAt } from "../src/sim/stars";
 
 // Deck-local directions: 0 forward (toward the enemy, -y), 1 = +x, 2 back (+y), 3 = -x.
 const RIGS = Object.values(ITEMS).filter((d) => d.kind === "gate");
@@ -153,8 +154,8 @@ describe("R5, R8: hits", () => {
     expect(mine.map((x) => [x.route, x.tile, x.dir])).toEqual([[0, 2, 1], [1, 4, 3]]);
     expect(routeInfo(b, 0).gates).toEqual([2, 3]);
     expect(routeInfo(b, 1).gates).toEqual([3]);
-    // route 0: WHETSTONE (+2) then LONG HAUL (+2 x 1 prior); route 1: LONG HAUL with no prior hit
-    expect(estimateRoute(b, 0).dmg - estimateRoute({ ...b, items: [b.items[0]] }, 0).dmg).toBeCloseTo(4);
+    // route 0: WHETSTONE (+2) then LONG HAUL (its ★1 value x 1 prior); route 1: LONG HAUL with no prior hit
+    expect(estimateRoute(b, 0).dmg - estimateRoute({ ...b, items: [b.items[0]] }, 0).dmg).toBeCloseTo(2 + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
     expect(estimateRoute(b, 1).dmg).toBeCloseTo(estimateRoute({ ...b, items: [b.items[0]] }, 1).dmg);
     const { ev } = run(b, 8);
     const routes = new Set(ev.filter((x) => x.type === "process" && x.gate === 3).map((x) => (x as { route: number }).route));
@@ -174,9 +175,9 @@ describe("R5, R8: hits", () => {
     expect(lh.map((x) => [x.tile, x.dir])).toEqual([[8, 3]]); // its east arrow points at empty deck
     const e = estimateRoute(b, 0);
     const ammo = AMMO.cinder;
-    expect(e.dmg).toBeCloseTo(ammo.base + ammo.rideScale * e.ride + 2 * 3); // LONG HAUL: 3 prior hits
+    expect(e.dmg).toBeCloseTo(ammo.base + ammo.rideScale * e.ride + effectAt("longhaul", 1).gate!.perPriorGate! * 3); // LONG HAUL: 3 prior hits
     const p = payloadPast(b, 8);
-    expect([p.prior, p.flat]).toEqual([4, 6]);
+    expect([p.prior, p.flat]).toEqual([4, effectAt("longhaul", 1).gate!.perPriorGate! * 3]);
   });
 });
 
@@ -186,8 +187,8 @@ describe("R7: several hits on one tile", () => {
     const b = furnace([rig(2, "longhaul", 3, 3), rig(3, "whetstone", 5, 3, 3)]);
     expect(rigHits(b)[0][2].map((x) => [x.uid, x.tier])).toEqual([[3, 1], [2, 2]]);
     const plain = estimateRoute(furnace(), 0);
-    expect(estimateRoute(b, 0).dmg - plain.dmg).toBeCloseTo(2 + 2 * 1);
-    expect(payloadPast(b, 2).flat).toBe(4);
+    expect(estimateRoute(b, 0).dmg - plain.dmg).toBeCloseTo(2 + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
+    expect(payloadPast(b, 2).flat).toBe(2 + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
   });
 
   it("a SPLITTER scales the flat bonus gained earlier on its own tile", () => {

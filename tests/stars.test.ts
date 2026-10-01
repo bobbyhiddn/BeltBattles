@@ -103,10 +103,10 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
     expect(sp).toEqual([3, 4, 5]);
     expect(down(at3((s) => est(bench([["overdrive", 4, 4, s]])).time))).toBe(true);
   });
-  it("LONG HAUL +2/+4/+7 per prior gate (priorCap: arsenal.modules.test.ts)", () => {
+  it("LONG HAUL +1/+2/+3.5 per prior gate (priorCap: arsenal.modules.test.ts)", () => {
     const d = at3((s) => est(bench([["whetstone", 4, 4, 1], ["longhaul", 4, 2, s]])).dmg);
     expect(up(d)).toBe(true);
-    expect(d[1] - d[0]).toBeCloseTo(2);
+    expect(d[1] - d[0]).toBeCloseTo(effectAt("longhaul", 2).gate!.perPriorGate! - effectAt("longhaul", 1).gate!.perPriorGate!);
     expect(up(at3((s) => run(bench([["whetstone", 4, 4, 1], ["longhaul", 4, 2, s]])).sides[0].stats.damage))).toBe(true);
   });
   it("SPLITTER CLEAN CUT 72% at 2 stars; PERFECT CUT 85% at 3 stars, still 2 copies (0.6.1f: no third copy to jam)", () => {

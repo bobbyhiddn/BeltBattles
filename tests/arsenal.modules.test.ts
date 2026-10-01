@@ -126,13 +126,13 @@ describe("0.6.1p: the six pending perks, each applied", () => {
       return b;
     };
     const d = [1, 2, 3].map((s) => est(snake(s)).dmg - est(snake(s, false)).dmg);
-    expect(d[0]).toBeCloseTo(2 * 8);
-    expect(d[1]).toBeCloseTo(4 * 6); // not 4 x 8
-    expect(d[2]).toBeCloseTo(7 * 6);
+    expect(d[0]).toBeCloseTo(effectAt("longhaul", 1).gate!.perPriorGate! * 8);
+    expect(d[1]).toBeCloseTo(effectAt("longhaul", 2).gate!.perPriorGate! * 6); // not ★2 x 8
+    expect(d[2]).toBeCloseTo(effectAt("longhaul", 3).gate!.perPriorGate! * 6);
     const bt = run(snake(2), 14);
     const past = bt.sides[0].routes[0].ammo.filter((a) => a.processed >= 8);
     expect(past.length).toBeGreaterThan(0);
-    for (const a of past) expect(a.p.flat).toBeCloseTo(8 * 2 + 4 * 6);
+    for (const a of past) expect(a.p.flat).toBeCloseTo(8 * 2 + effectAt("longhaul", 2).gate!.perPriorGate! * 6);
   });
 
   it("GALVANIC COIL: 1 star stalls exactly DISRUPT_TIME as in 0.6.0; 1.8 s and 2.8 s; SPARK JUMP stalls a second machine", () => {

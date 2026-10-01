@@ -110,14 +110,15 @@ describe("effects do not change results", () => {
   });
 
   it("big hits trigger a 2-4 frame hit-stop", () => {
-    // a long braked cooking route makes 14+ damage slugs
+    // a long braked cooking route makes 14+ damage slugs (0.6.2 TUNE LONGHAUL: the LONG HAUL is ★2, whose +2 per
+    // earlier hit is the old ★1's, so the slugs are what they were)
     const cooker = {
       hero: "furnace" as const,
       items: [
         { uid: 1, def: "kiln", x: 4, y: 6 },
         { uid: 2, def: "temper", x: 2, y: 4 },
         { uid: 3, def: "brake", x: 3, y: 2 },
-        { uid: 4, def: "longhaul", x: 4, y: 1 },
+        { uid: 4, def: "longhaul", x: 4, y: 1, stars: 2 },
       ],
       routes: [{ factory: 1, cells: [54, 53, 52, 42, 32, 22, 23, 24, 14, 4] }],
       mods: [], beltCap: 18, hullBonus: 0,

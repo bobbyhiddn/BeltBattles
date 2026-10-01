@@ -8,6 +8,7 @@ import {
   journeyTiles, key as K, moveItem, pruneJoins, removeItem, removeRoute, rotField, routeDirs, routeInfo, routePolyline,
   setJoin, walkRoute, type Build, type Placed,
 } from "../src/sim/deck";
+import { effectAt } from "../src/sim/stars";
 
 const rig = (uid: number, def: string, x: number, y: number, rot = 0): Placed => ({ uid, def, x, y, ...rotField(def, rot) });
 
@@ -297,7 +298,7 @@ describe("J10, J14 (a), J15: the walk through a join", () => {
       ["own", 1, [10]], [0, 1, [13]], [0, 3, [14]], [0, 4, [15]],
     ]);
     expect(w.joins).toEqual([{ route: 0, tile: 1, cell: K(4, 4), row: 1 }]);
-    expect(w.timeline[3].hits[0]).toMatchObject({ prior: 3, flat: 6 }); // LONG HAUL counts TEMPER + 2 WHETSTONEs
+    expect(w.timeline[3].hits[0]).toMatchObject({ prior: 3, flat: effectAt("longhaul", 1).gate!.perPriorGate! * 3 }); // LONG HAUL counts TEMPER + 2 WHETSTONEs
     expect(w.estimate.burn).toBe(2);
     expect(w.estimate).toEqual(estimateRoute(b, 1));
     // the main belt's own walk doesn't change when a belt joins it

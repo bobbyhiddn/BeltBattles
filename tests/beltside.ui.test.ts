@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { newRun, rotateRig, type Run } from "../src/game/run";
 import { gainModule } from "../src/game/fuse";
 import { estimateRoute, key as K, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
+import { effectAt } from "../src/sim/stars";
 import { frame as deckFrame } from "../src/render/frame";
 import { Editor, type EditHost } from "../src/screens/build/edit";
 import { rigRotAt } from "../src/screens/build/actions";
@@ -133,7 +134,7 @@ describe("V4: the belt timeline (walkRoute)", () => {
     expect(w.estimate).toEqual(estimateRoute(b, 0));
     expect(w.timeline.map((r) => r.tile)).toEqual([2, 4]);
     const [t2, t4] = w.timeline;
-    expect(t2.hits.map((x) => [x.def, x.flat, x.prior])).toEqual([["whetstone", 2, undefined], ["longhaul", 2, 1]]);
+    expect(t2.hits.map((x) => [x.def, x.flat, x.prior])).toEqual([["whetstone", 2, undefined], ["longhaul", effectAt("longhaul", 1).gate!.perPriorGate! * 1, 1]]);
     expect(t4.hits.map((x) => [x.def, x.speed, x.won])).toEqual([["grease", 1.6, false], ["brake", 0.5, true]]);
     expect([t2.speed, t4.speed, w.speedEnd, w.locked]).toEqual([1, 0.5, 0.5, false]);
     expect(J(walkRoute(b, 0))).toEqual(J(w)); // deterministic

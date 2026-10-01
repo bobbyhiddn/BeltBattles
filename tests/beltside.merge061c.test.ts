@@ -102,8 +102,8 @@ describe("P7: ASSEMBLY LINE and rigs", () => {
       const hot = (t: number) => s === 3 && t < 4 - 1e-6;
       for (const [route, t, whet, haul] of rows) {
         if (s === 3 && Math.abs(t - 4) < 1e-6) continue; // the tick that ends HOT START
-        // LONG HAUL ★1: +2 per prior hit (1: the WHETSTONE), overclocked +4, on the Kiln's belt as on the Assembly's
-        expect(haul, `★${s} route ${route} at ${t.toFixed(3)}`).toBe(hot(t) ? 4 : 2);
+        // LONG HAUL ★1: its +1 per prior hit (1: the WHETSTONE), overclocked +2, on the Kiln's belt as on the Assembly's
+        expect(haul, `★${s} route ${route} at ${t.toFixed(3)}`).toBe((hot(t) ? 2 : 1) * effectAt("longhaul", 1).gate!.perPriorGate!);
         // the Kiln-only WHETSTONE is never hot; the Assembly's own is, while HOT START lasts (it hit earlier than t)
         if (route === 0) expect(whet, `★${s} Kiln WHETSTONE`).toBe(2);
         else if (hot(t)) expect(whet, `★${s} Assembly WHETSTONE`).toBe(4);

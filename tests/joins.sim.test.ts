@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { Battle, assemblyLines, makeTurret, type Payload, type RouteState, type SideState } from "../src/sim/battle";
 import { AMMO_SPACING, CELL, GUARD_SKIRT, HEROES, JOIN_PACE } from "../src/sim/content";
 import { cloneBuild, joinOf, journeyTiles, key as K, rotField, type Build, type Placed } from "../src/sim/deck";
+import { effectAt } from "../src/sim/stars";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { DRAG_MULT, dragSpans } from "../src/sim/races/siphon";
 import { PLATE_PER_SLUG } from "../src/sim/races/bastion";
@@ -369,7 +370,7 @@ describe("J14 (a): the payload's own journey", () => {
     expect(a.slice(3, 9).map(pick)).toEqual(c.slice(3, 9).map(pick));
     const l = a[5];
     expect(l.prior).toBe(6); // TEMPER, HEAT JACKET, then the join tile's WHETSTONE, COUNTERWEIGHT, WHETSTONE, LONG HAUL
-    expect(l.flat).toBeCloseTo(2 + 2.5 + 2 + 2 * 5, 9); // COUNTERWEIGHT: 5 tiles ridden; LONG HAUL: 5 earlier hits
+    expect(l.flat).toBeCloseTo(2 + 2.5 + 2 + effectAt("longhaul", 1).gate!.perPriorGate! * 5, 9); // COUNTERWEIGHT: 5 tiles ridden; LONG HAUL: 5 earlier hits
     expect(l.burn).toBe(2);
     expect(l.heat).toBeGreaterThan(0);
   });

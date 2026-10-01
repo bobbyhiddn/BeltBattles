@@ -217,8 +217,8 @@ describe("P11: a rig's panel order, and the phone band", () => {
     ]);
     // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, then NEXT (no perk line at ★1)
     expect(text(rigRun("longhaul", 1, 5, 3, 0, 0))).toEqual([
-      "→ BELT 1 · TILE 3", "→ BELT 2 · TILE 3", "NEXT ★2: +4/HIT · MAX 6 HITS · NEEDS 1 MORE", TURN,
-      "+2 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK.",
+      "→ BELT 1 · TILE 3", "→ BELT 2 · TILE 3", "NEXT ★2: +2/HIT · MAX 6 HITS · NEEDS 1 MORE", TURN,
+      "+1 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK.",
     ]);
     // an IDLE ★2 TEMPER: the amber warning leads
     const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
