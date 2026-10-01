@@ -4,7 +4,7 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import {
-  FAMILY_WEIGHT, ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES,
+  FAMILY_WEIGHT, HEROES, ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES,
   itemsSoldBy, rarityWeights, rigShape, sellValue,
   type HeroId, type ItemDef, type MerchantId, type Rarity,
 } from "../sim/content";
@@ -398,7 +398,7 @@ export function storePlaced(run: Run, uid: number): boolean {
   const p = run.build.items.find((q) => q.uid === uid);
   if (!p) return false;
   const d = ITEMS[p.def];
-  if (d.id === "kiln" || d.id === "loom") return false; // signature factory stays aboard
+  if (Object.values(HEROES).some((h) => h.factory === d.id)) return false; // every hero's signature factory stays aboard
   removeItem(run.build, uid);
   run.inventory.push({ uid, def: p.def, ...starField(starsOf(p)) }); // 0.6.1a: moving never fuses; stars ride along
   return true;

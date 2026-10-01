@@ -325,12 +325,12 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
 });
 
 describe("game bugs found on the way (REPORT.md §7)", () => {
-  // run.ts storePlaced refuses only KILN and LOOM ("THE SIGNATURE FACTORY STAYS ABOARD"). A race hero (newRun starts
-  // one; the UI does not offer them yet, heroBuilds.ts PLAYABLE_HEROES) can store its signature factory in cargo,
-  // then sell it for 1 gold or hand it to the TRADER (cargo first) for a free epic part; its dusk deck then has no
-  // signature factory, which both modes refuse. Not a one-line routing through gainModule (brief D6), so not fixed
-  // here: output-v070-validate/proposed/storePlaced-race-signatures.patch fixes it and turns this into it().
-  it.todo("storePlaced keeps every hero's signature factory aboard (the race heroes too)", () => {
+  // run.ts storePlaced refused only KILN and LOOM ("THE SIGNATURE FACTORY STAYS ABOARD"). A race hero (newRun starts
+  // one; the UI does not offer them yet, heroBuilds.ts PLAYABLE_HEROES) could store its signature factory in cargo,
+  // then sell it for 1 gold or hand it to the TRADER (cargo first) for a free epic part; its dusk deck then had no
+  // signature factory, which both modes refuse. v070-validate kept this a .todo (brief D6). v070-rel M3 applies
+  // output-v070-validate/062m/proposed/storePlaced-race-signatures.patch: every hero's signature factory stays aboard.
+  it("storePlaced keeps every hero's signature factory aboard (the race heroes too)", () => {
     for (const hero of ["foundry", "bastion", "metronome", "siphon"] as HeroId[]) {
       const run = newRun(hero, 5);
       const sig = run.build.items.find((p) => p.def === HEROES[hero].factory)!;
