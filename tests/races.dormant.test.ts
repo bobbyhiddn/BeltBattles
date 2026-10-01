@@ -22,8 +22,8 @@ const raceParts = (b: Build): string[] => [...b.items, ...b.mods].map((p) => p.d
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 describe("race heroes and signature factories remain dormant while timing gear is shared", () => {
-  it("rules are the 0.6.1 flip's and the roster is 0.6.0's, while the race entries do sit in HEROES, ITEMS and AMMO", () => {
-    expect(RULES_VERSION).toBe("bb-0.6.1");
+  it("rules are 0.6.2's and the roster is still 0.6.0's, while the race entries do sit in HEROES, ITEMS and AMMO", () => {
+    expect(RULES_VERSION).toBe("bb-0.6.2");
     expect(PLAYABLE_HEROES).toEqual(["furnace", "weaver"]);
     for (const h of Object.keys(RACE_HEROES)) expect(HEROES).toHaveProperty(h);
     for (const d of Object.keys(RACE_ITEMS)) expect(ITEMS).toHaveProperty(d);

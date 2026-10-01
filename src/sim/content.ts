@@ -8,7 +8,9 @@ import { DORMANT_ITEMS, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, t
 // bb-0.6.1 (the flip): merging is live (net/validate.ts FUSE_LIVE): a deck holding two same-star
 // copies of a fusible module is illegal, and the stand-in pool v2 decks carry merge stars. Ghosts
 // and battle records made under older rules don't mix with these.
-export const RULES_VERSION = "bb-0.6.1";
+// bb-0.6.2 (BELTSIDE): turret slots, belt joins (JOIN PACE 0.7, at most 2 per deck), the LODESTONE floor,
+// LONG HAUL 1/2/3.5, TEMPER burn 1/2/4, EASY PAY, the early-loss REFUND, SHOCK ROW and the captains' named builds.
+export const RULES_VERSION = "bb-0.6.2";
 
 export const CELL = 12; // world pixels per deck cell
 export const GRID = 10; // 10x10 construction envelope
