@@ -232,7 +232,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     factories: [F("kiln", 4, 6, [4, 5, "L2U3R2U2"])],
     upgrades: [
       G(1, "brake", 4, 4, 2), G(1, "quench", 3, 1), G(2, "temper", 2, 1, 2), M(2, "scatter", 0), P(3), G(3, "venom", 3, 0),
-      ...good(soon(2, G2(3, "brake", 4, 4))), P(4), G(4, "heatjacket", 3, 4, 1), P(5), G(5, "longhaul", 5, 1), M(6, "flak", 0),
+      // FINAL-MEASURE: the long haul comes on day 6 at ordinary luck (the stand-in; FURNACE d5's ordinary value cap is 47
+      // g on the merged par field), still day 5 at good luck (the warlord)
+      ...good(soon(2, G2(3, "brake", 4, 4))), P(4), G(4, "heatjacket", 3, 4, 1), P(5), soon(5, G(6, "longhaul", 5, 1)), M(6, "flak", 0),
       G(7, "counterweight", 1, 2), G(8, "grease", 1, 4, 1), M2(9, "scatter", 0), G(9, "staticbrush", 5, 2),
     ],
   },
