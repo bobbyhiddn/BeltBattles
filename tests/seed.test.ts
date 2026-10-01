@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
-import { ghostId, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
+import { ghostId, SNAPSHOT_VERSION, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
 import { createGhostServer } from "../server/app";
 import { checkPool, SeedError, seedStore } from "../server/seed";
 import { encodeRecord, JsonlStore, poolRecord, type GhostStore } from "../server/store";
@@ -18,6 +18,19 @@ const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; /
 const OLD_RULES: GhostSnapshot = { ...POOL[0], rules: "bb-0.3.0" }; // another rules version's pool entry
 const PLAYER: GhostSnapshot = { ...POOL[12], playerId: "real-player-1", runId: "run-p1" };
 const entry = (s: GhostSnapshot): PoolEntry => ({ id: ghostId(s), snapshot: s });
+// 0.6.2's v2 snapshot: a build may carry turrets (REQ-BFG-031) and a route a join (REQ-BFG-027)
+const TURRET_DECKS = BUNDLE.filter((e) => e.snapshot.build.turrets !== undefined);
+const JOIN_DECKS = BUNDLE.filter((e) => e.snapshot.build.routes.some((r) => r.join !== undefined));
+
+describe("the bundled pool the seed writes", () => {
+  it("is 40 v2 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
+    expect(POOL).toHaveLength(40);
+    for (const s of POOL) expect([s.v, s.rules]).toEqual([SNAPSHOT_VERSION, RULES_VERSION]);
+    expect(TURRET_DECKS.length).toBeGreaterThan(0);
+    expect(JOIN_DECKS.length).toBeGreaterThan(0);
+    expect(checkPool(POOL)).toHaveLength(40); // strict decode, the current rules, validateBuild, no duplicates
+  });
+});
 
 /** One storage backend as the seed sees it, with hooks to plant and inspect raw state. */
 interface Harness {
@@ -197,6 +210,15 @@ describe.each([
     }
     await app.close();
     expect(codes).toEqual(Array(10).fill(200));
+  });
+
+  it("decks with turrets and joins are stored and loaded back intact", async () => {
+    await seedStore(h.store());
+    const store = h.store(); // a fresh process over the same storage
+    const loaded = new Map<string, GhostSnapshot>();
+    for (let day = 1; day <= 10; day++) for (const e of await store.bucket(RULES_VERSION, day)) loaded.set(e.id, e.snapshot);
+    expect(loaded.size).toBe(40);
+    for (const e of [...TURRET_DECKS, ...JOIN_DECKS]) expect(loaded.get(e.id)).toEqual(e.snapshot);
   });
 });
 
