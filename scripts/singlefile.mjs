@@ -76,7 +76,8 @@ const RUNS = {
   },
   phone: { days: 3, roads: "emv", reloadWarlordDay: 2, check: "phone", pool: [G(1, "weaver", 0, 0), G(2, "furnace", 1, 0, 6)] },
   // 0.6.0d item 9, the feel check (logged, never pass/fail on the outcome): a fresh player with an
-  // empty ghost pool, so every dusk is a stand-in with its full-purse pool deck, from day 1 until the
+  // empty ghost pool, so every dusk is a stand-in with its captain's named build (0.6.2 TUNE-C; before it, its
+  // full-purse pool deck), from day 1 until the
   // run ends, once per hero on the same run seed (so both meet the same captains and decks). The
   // player spends like a new player would: up to 8 planned parts a dawn (not the desk run's 2).
   // Roads: an event on odd days, an Easy or Medium warlord on even days (never a life at stake).

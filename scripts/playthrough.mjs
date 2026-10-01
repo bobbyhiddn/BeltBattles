@@ -147,9 +147,9 @@ const foeOf = (page) => page.evaluate(() => {
   };
 });
 const honestFoe = (f) => f.hull >= 0 && f.hull % 25 === 0 && f.cost <= f.budget;
-// 0.6.0d: a stand-in brings a stand-in pool deck, which spends at least ceil(0.9 x budget)
-const fullPurse = (f) => f.cost >= Math.ceil(0.9 * f.budget);
-const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, deckCost ${f.cost} of ${f.budget} gold: ${honestFoe(f) ? "honest" : "NOT HONEST"}${f.kind === "standin" ? `, full purse (>= ${Math.ceil(0.9 * f.budget)}): ${fullPurse(f)}` : ""}; your deck ${f.mine}`;
+// 0.6.2 TUNE-C: a stand-in brings its captain's named build (standInBuild: the plan at ordinary luck, whole paid
+// plating, at most the day's gold); 0.6.0d-0.6.2 it was a full-purse stand-in pool deck (>= ceil(0.9 x budget))
+const foeLine = (f) => `${f.kind === "ghost" ? "pool ghost" : "stand-in"} ${f.hero}, hullBonus +${f.hull}, deckCost ${f.cost} of ${f.budget} gold: ${honestFoe(f) ? "honest" : "NOT HONEST"}${f.kind === "standin" ? `, ${f.name}'s named build` : ""}; your deck ${f.mine}`;
 
 /** Reload the page mid-battle, CONTINUE from the title, and check the same ghost comes back. */
 async function reloadAndContinue(page, touch, log, at, state) {
@@ -374,7 +374,7 @@ export async function scriptedRun(page, touch, log, opts) {
     for (const row of state.feel) log(`  ${row}`);
   }
   const sis = await page.evaluate(() => window.bb.standInSpend(window.bb.game.run.seed));
-  log(`[${at()}] this run's stand-in captain per day (used when no pool ghost matches; 0.6.0d: the stand-in pool deck, standInPick, deckCost/budget): ${sis.map((s) => `D${s.day} ${s.name} +${s.hull} ${s.cost}/${s.budget}${s.pool ? "" : " (standInBuild fallback)"}`).join(" | ")}`);
+  log(`[${at()}] this run's stand-in captain per day (used when no pool ghost matches; 0.6.2 TUNE-C: the captain's named build, standInBuild, deckCost/budget): ${sis.map((s) => `D${s.day} ${s.name} +${s.hull} ${s.cost}/${s.budget}${s.pool ? " (stand-in pool deck)" : ""}`).join(" | ")}`);
   if (state.livesChanged.length) throw new Error(`a warlord fight changed lives (${state.livesChanged.join(", ")})`);
   if (days < 3) throw new Error("scripted run played fewer than 3 days");
   if (opts.check === "desk" && (["v", "e", "m", "h"].some((k) => (fp[k] || 0) < 2) || !state.warlordLosses.length || !state.matriarchDays.includes(8) || days < 10)) {

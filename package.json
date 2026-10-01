@@ -19,7 +19,9 @@
     "build:standins": "vite build --ssr tools/genStandInPool.ts --outDir tools/dist/standins --emptyOutDir --logLevel warn",
     "standins": "npm run build:standins && node tools/dist/standins/genStandInPool.js",
     "build:parbench": "vite build --ssr tools/parBench.ts --outDir tools/dist/parbench --emptyOutDir --logLevel warn",
-    "parbench": "npm run build:parbench && node tools/dist/parbench/parBench.js"
+    "parbench": "npm run build:parbench && node tools/dist/parbench/parBench.js",
+    "build:luckcaps": "vite build --ssr tools/luckCaps.ts --outDir tools/dist/luckcaps --emptyOutDir --logLevel warn",
+    "luckcaps": "npm run build:luckcaps && node tools/dist/luckcaps/luckCaps.js"
   },
   "devDependencies": {
     "playwright-core": "^1.55.0",

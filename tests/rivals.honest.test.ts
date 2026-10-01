@@ -3,7 +3,7 @@ import { warlordBuild, warlordHull } from "../src/sim/ai";
 import { routeInfo, type Build } from "../src/sim/deck";
 import { HEROES, ITEMS, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import {
-  RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, honestReference, maxGoldByDay, rampPlates, rivalBuild, rivalLoadout,
+  RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, honestReference, luckOf, maxGoldByDay, rampPlates, rivalBuild, rivalLoadout,
   standInBuild, standInGhosts,
 } from "../src/sim/rivals";
 import { legalityProblems } from "./rivals.legality";
@@ -58,7 +58,8 @@ describe("stand-in decks are honest (R1, R2)", () => {
       for (const day of DAYS) {
         const b = standInBuild(id, day);
         const w = rivalBuild(id, day);
-        const l = rivalLoadout(id, day);
+        // 0.6.2 TUNE-C (REQ-BFG-033): the stand-in is the plan at ORDINARY luck; the warlord deck at its slot's luck
+        const l = rivalLoadout(id, day, "ordinary"), lw = rivalLoadout(id, day);
         const why = `${id} day ${day}`;
         expect(legalityProblems(b), why).toEqual([]);
         expect(b.hullBonus, why).toBeGreaterThanOrEqual(0);
@@ -68,9 +69,11 @@ describe("stand-in decks are honest (R1, R2)", () => {
         b.routes.forEach((_, i) => expect(routeInfo(b, i).connected, `${why} route ${i}`).toBe(true));
         expect(deckCost(b).total, why).toBeLessThanOrEqual(maxGoldByDay(day));
         expect(deckCost(b).total, why).toBe(l.value + 5 * rampPlates(day));
-        // one plan, two decks: only the hull differs from the warlord deck
-        expect({ ...b, hullBonus: 0 }, why).toEqual({ ...w, hullBonus: 0 });
-        expect(w.hullBonus, why).toBe(warlordHull(day) + 25 * l.plating);
+        // one plan, two decks: only the hull differs from the plan at ordinary luck, which is the warlord deck of an
+        // Easy or Medium captain; a Hard warlord adds what good luck brings (and brings sooner)
+        expect({ ...b, hullBonus: 0 }, why).toEqual({ ...l.build, hullBonus: 0 });
+        if (luckOf(id) === "ordinary") expect({ ...b, hullBonus: 0 }, why).toEqual({ ...w, hullBonus: 0 });
+        expect(w.hullBonus, why).toBe(warlordHull(day) + 25 * lw.plating);
       }
     });
   }

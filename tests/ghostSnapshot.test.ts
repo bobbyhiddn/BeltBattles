@@ -9,12 +9,10 @@ import { GHOST_KEY, loadPool, pickGhost, saveGhost, standInFoe, type GhostSnapsh
 import { finishDay, ghostOf, startDusk } from "../src/game/day";
 import { newRun } from "../src/game/run";
 import { startingBuild } from "../src/sim/ai";
-import { RIVALS, deckCost, maxGoldByDay, standInGhost } from "../src/sim/rivals";
-import { standInPick } from "../src/sim/standInPool";
+import { RIVALS, deckCost, maxGoldByDay, standInBuild, standInGhost } from "../src/sim/rivals";
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import type { SideStats } from "../src/sim/battle";
-import { pickLoss } from "./beltside.helpers";
 
 const STATS = { damage: 0, shots: 0, firstShot: -1, idle: 0, turretTime: 0, jams: 0, burnDealt: 0, maxQueue: 0 } as unknown as SideStats;
 const mem = () => {
@@ -195,12 +193,14 @@ describe("pickGhost: nearest wins, then nearest lives, then a seeded tie-break",
   });
 });
 
-// 0.6.0d: the deck is the captain hero's full-purse pool pick, standInPick(hero, day, seed), not
-// standInBuild(id, day); so it also spends at least 90% of the day's gold (tests/standInPool.test.ts)
-describe("standInFoe: the day's rival captain with its full-purse pool deck", () => {
+// 0.6.2 TUNE-C (REQ-BFG-024, REQ-BFG-026): the deck is the captain's named build, standInBuild(id, day), the plan the
+// captain grows from day 1 to day 10 (from 0.6.0d until TUNE-C it was the stand-in pool's full-purse standInPick). It is
+// an honest deck (R1): whole paid plating and at most the day's gold (tests/captains.luck.test.ts: legal, within the
+// ordinary-luck caps).
+describe("standInFoe: the day's rival captain with its named build", () => {
   const PLATE = 25; // ARMOR PLATING's hull (standin.honest.test.ts pins it)
 
-  it("50 seeds x days 1-10: standInPick(hero of standInGhost(seed, day), day, seed), whole paid plating, 90-100% of maxGoldByDay, never the Matriarch", () => {
+  it("50 seeds x days 1-10: standInBuild(standInGhost(seed, day), day), whole paid plating, within maxGoldByDay, never the Matriarch", () => {
     for (let n = 0; n < 50; n++) {
       const seed = 1 + n * 7919;
       const ids = new Set<string>();
@@ -209,13 +209,11 @@ describe("standInFoe: the day's rival captain with its full-purse pool deck", ()
         const id = standInGhost(seed, day);
         expect(f.id).toBe(id);
         expect(f.id).not.toBe("matriarch");
-        expect(f.build).toEqual(standInPick(RIVALS[id].hero, day, seed));
+        expect(f.build).toEqual(standInBuild(id, day));
         expect([f.hero, f.name, f.build.hero]).toEqual([RIVALS[id].hero, RIVALS[id].name, RIVALS[id].hero]);
         expect(f.build.hullBonus).toBeGreaterThanOrEqual(0);
         expect(Number.isInteger(f.build.hullBonus / PLATE)).toBe(true);
         expect(deckCost(f.build).total).toBeLessThanOrEqual(maxGoldByDay(day));
-        // 0.6.2 BELTSIDE: full purse as generated; as loaded it lacks only what D3 dropped (beltside.helpers)
-        expect(deckCost(f.build).total + pickLoss(f.hero, day, seed)).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day)));
         ids.add(f.id);
       }
       expect(ids.size).toBe(RUN_DAYS); // no captain stands in twice in a run

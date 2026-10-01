@@ -3,15 +3,15 @@
 // player's own snapshot joins a local pool; at dusk the game picks a ghost from the same rules
 // version and the same day, never one from the current run, ranked by |wins difference| then
 // |lives difference| (ref async matchmaking), ties broken by a seeded hash. With no match the day's
-// stand-in fights instead: a rival captain with a full-purse deck from the stand-in pool
-// (standInFoe; 0.6.0d: standInPick from src/sim/standInPool.ts, pool v1.1).
+// stand-in fights instead: a rival captain with its named build, standInBuild(id, day) (standInFoe;
+// 0.6.2 TUNE-C; from 0.6.0d until then a full-purse deck from the stand-in pool, standInPick).
 // Kept small on purpose: async play (0.7.0, src/net/*) replaces the storage and the matchmaking.
 
 import { hashSeed } from "../core/rng";
 import type { HeroId } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { RIVALS, standInBuild, standInGhost, type RivalId } from "../sim/rivals";
-import { STAND_IN_POOL_HEROES, standInPick } from "../sim/standInPool";
+import { STAND_IN_POOL_HEROES } from "../sim/standInPool";
 import { migrateSnapshot, playerId, type GhostSnapshot } from "./ghostSnapshot";
 
 export type { GhostSnapshot } from "./ghostSnapshot";
@@ -104,25 +104,27 @@ export interface StandInFoe {
   build: Build;
 }
 
-/** True when the stand-in pool has decks for this hero (standInFoe's deck source). */
+/** True when the stand-in pool has decks for this hero. 0.6.2 TUNE-C: the pool is no longer the dusk
+ *  stand-in's deck source (standInFoe); it stays as the harness's average-deck reference field and the
+ *  async fallback's source (src/net/fallback.ts). */
 export function inStandInPool(hero: HeroId): boolean {
   return STAND_IN_POOL_HEROES.includes(hero);
 }
 
 /**
  * No ghost for this day: the run's stand-in captain, standInGhost(runSeed, day) (its id, name,
- * hero, portrait and STAND-IN tag as before). 0.6.0d: its deck is standInPick(hero, day, runSeed),
- * a full-purse deck from the stand-in pool v1.1 for the captain's hero: it costs at least 90% of
- * maxGoldByDay(day), whole paid plating, and beats both factions' par decks at least half the
- * time. The pick hashes the seed, hero and day, so runSeed is the whole seed. A captain whose
- * hero has no pool decks falls back to its honest plan deck, standInBuild(id, day) (R1); no 0.6
- * captain needs it (tests/standInPool.test.ts). The one place the stand-in deck is chosen; the
- * dusk stores the result in run.dusk, so a reload or a scouted foe fights the same deck, and a
+ * hero, portrait and STAND-IN tag as before). 0.6.2 TUNE-C (REQ-BFG-024, REQ-BFG-026): it fights
+ * with its named build, standInBuild(id, day): the captain's plan as it stands on that day at
+ * ordinary shop luck, with whole paid plating, legal and costing at most maxGoldByDay(day) (R1).
+ * The same plan grows from day 1 to day 10 and is also the captain's warlord deck (rivalBuild), so
+ * a player can learn a build, spot it and plan a counter. Every stand-in is a captain with a plan,
+ * so no hero falls back to the stand-in pool here (from 0.6.0d until TUNE-C the deck was the
+ * pool's full-purse standInPick(hero, day, runSeed)). The one place the stand-in deck is chosen;
+ * the dusk stores the result in run.dusk, so a reload or a scouted foe fights the same deck, and a
  * saved run keeps whatever deck its stored foe already had (no migration).
  */
 export function standInFoe(runSeed: number, day: number): StandInFoe {
   const id = standInGhost(runSeed, day);
   const r = RIVALS[id];
-  const build = inStandInPool(r.hero) ? standInPick(r.hero, day, runSeed) : standInBuild(id, day);
-  return { id, hero: r.hero, name: r.name, build };
+  return { id, hero: r.hero, name: r.name, build: standInBuild(id, day) };
 }

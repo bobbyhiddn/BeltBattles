@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
 // 0.6.0b: standIn(seed, day) is gone; the dusk stand-in is standInFoe (a rival captain + its deck;
-// 0.6.0d: the deck is the stand-in pool's standInPick, not standInBuild)
+// 0.6.2 TUNE-C: the deck is the captain's named build standInBuild; from 0.6.0d the pool's standInPick)
 import { GHOST_KEY, POOL_MAX, loadPool, pickGhost, saveGhost, standInFoe, type GhostSnapshot } from "../src/game/ghosts";
 import { chooseFoe, finishDay, ghostOf, startDusk } from "../src/game/day";
 import { battleSeed, buyOffer, newRun, reroll } from "../src/game/run";
 import { beginRoad, choicesFor, pickChoice } from "../src/game/events";
 import { startingBuild } from "../src/sim/ai";
-import { RIVALS, standInGhost } from "../src/sim/rivals";
-import { standInPick } from "../src/sim/standInPool";
+import { RIVALS, standInBuild, standInGhost } from "../src/sim/rivals";
 import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { beltUsed } from "../src/sim/deck";
 import { Battle, simulate, type SideStats } from "../src/sim/battle";
@@ -85,9 +84,9 @@ describe("pickGhost", () => {
   });
 
   // 0.6.0b: the stand-in is the run's rival captain (standInFoe) and the captain's name, not a
-  // seeded hero's honest warlord deck under a warlord name. 0.6.0d: its deck is the full-purse
-  // pool pick standInPick(hero, day, seed), no longer standInBuild(id, day)
-  it("no match: the day's stand-in captain (standInFoe: its standInPick pool deck, its name)", () => {
+  // seeded hero's honest warlord deck under a warlord name. 0.6.2 TUNE-C: its deck is the captain's
+  // named build standInBuild(id, day) (from 0.6.0d until TUNE-C the pool pick standInPick(hero, day, seed))
+  it("no match: the day's stand-in captain (standInFoe: its named standInBuild deck, its name)", () => {
     const run = newRun("furnace", 555, "me");
     run.day = 6;
     const f = chooseFoe(run, [snap({ day: 5 })]);
@@ -96,7 +95,7 @@ describe("pickGhost", () => {
     expect(f.kind).toBe("standin");
     expect([s.id, f.rival]).toEqual([id, id]);
     expect(f.hero).toBe(RIVALS[id].hero);
-    expect(f.build).toEqual(standInPick(RIVALS[id].hero, 6, 555));
+    expect(f.build).toEqual(standInBuild(id, 6));
     expect(f.build).toEqual(s.build);
     expect(f.build.hullBonus % 25).toBe(0); // whole paid plating (R1)
     expect(f.name).toBe(RIVALS[id].name);

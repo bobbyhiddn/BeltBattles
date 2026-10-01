@@ -1,7 +1,8 @@
 // 0.6.0c item 1 (REQ-BFG-010, decision 3): every Hard pick offers 2 parts. A fought deck with fewer
-// than 2 giveable parts (HIGHSPIRE day 1: temper; OLD BULWARK days 1-2: brake) is filled from the
-// same captain's later decks (rivalBuild(id, d), d in rivalDays(id) after the fought deck's day),
-// skipping parts already offered. The Iron Matriarch keeps her single LEGENDARY part.
+// than 2 giveable parts (0.6.2 TUNE-C plans: LONGTOOTH day 1, a whetstone; before them HIGHSPIRE day 1
+// and OLD BULWARK days 1-2) is filled from the same captain's later decks (rivalBuild(id, d), d in
+// rivalDays(id) after the fought deck's day), skipping parts already offered. The Iron Matriarch
+// keeps her single LEGENDARY part.
 import { describe, expect, it } from "vitest";
 import { hardParts, pickRoad, topParts, warlordDeckDay, warlordReward } from "../src/game/road";
 import { newRun } from "../src/game/run";
@@ -65,10 +66,9 @@ describe("every Hard pick offers 2 parts (0.6.0c)", () => {
     expect(filled).toBeGreaterThan(0);
   });
 
-  it("HIGHSPIRE day 1 and OLD BULWARK days 1-2 are filled from the captain's next decks", () => {
-    expect(topParts(rivalBuild("highspire", 1), 2)).toEqual(["temper"]);
-    expect(topParts(rivalBuild("bulwark", 1), 2)).toEqual(["brake"]);
-    for (const [id, day] of [["highspire", 1], ["bulwark", 1], ["bulwark", 2]] as [RivalId, number][]) {
+  it("LONGTOOTH day 1 (TUNE-C plans; before them HIGHSPIRE day 1 and OLD BULWARK days 1-2) is filled from the captain's next decks", () => {
+    expect(topParts(rivalBuild("longtooth", 1), 2)).toEqual(["whetstone"]);
+    for (const [id, day] of [["longtooth", 1]] as [RivalId, number][]) {
       const deck = rivalBuild(id, day);
       const own = topParts(deck, 2);
       expect(own).toHaveLength(1);
