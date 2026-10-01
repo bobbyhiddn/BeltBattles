@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { encodeSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
+import { readConfig } from "../server/config";
 import { seedStore } from "../server/seed";
 import { generateSamplePool } from "../tools/samplePool";
 import type { FakeS3 } from "../tools/fakeS3";
@@ -197,5 +198,29 @@ describe("uploads closed on Tigris makes no storage call", () => {
     expect(await (await fetch(`${ob}/v1/health`)).json()).toMatchObject({ uploads: "open" });
     await open.close();
     expect(r2.status).toBe(201);
+  });
+});
+
+describe("a start without BB_GHOST_UPLOADS refuses uploads", () => {
+  let fake: FakeS3;
+  beforeAll(async () => {
+    fake = await startFake();
+  });
+  afterAll(async () => {
+    await fake.close();
+  });
+
+  it("wired as main.ts wires it (readConfig, then createGhostServer with cfg.uploads): health says closed, POST 403, no storage call", async () => {
+    const cfg = readConfig([], {}); // an empty environment: the server program's defaults
+    const app = createGhostServer({ store: tigrisFor(fake), uploads: cfg.uploads, trustProxy: cfg.trustProxy, log: () => {} });
+    const base = await started(app);
+    const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: { "content-type": "application/json" }, body: encodeSnapshot(POOL[0]) });
+    const health = await (await fetch(`${base}/v1/health`)).json();
+    await app.close();
+    expect(cfg.uploads).toBe("closed");
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({ error: "uploads are not open yet" });
+    expect(health).toMatchObject({ ok: true, uploads: "closed" });
+    expect(fake.requests).toHaveLength(0);
   });
 });

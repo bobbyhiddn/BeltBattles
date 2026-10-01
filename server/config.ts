@@ -7,7 +7,8 @@
 //   BB_GHOST_PORT     listen port (default 7790)                                      --port
 //   BB_GHOST_ORIGINS  CORS allow-list, comma-separated (default the local Shore)      --origins
 //   BB_GHOST_RATE     requests per minute per client IP (default 120)                 --rate
-//   BB_GHOST_UPLOADS  open | closed (default open): closed answers POST /v1/ghosts with 403
+//   BB_GHOST_UPLOADS  open | closed (default closed): closed answers POST /v1/ghosts with 403;
+//                     only an explicit open takes uploads
 //   BB_GHOST_TRUST_PROXY  fly | none (default none): fly takes the client IP from Fly-Client-IP,
 //                     else the socket (X-Forwarded-For is never trusted); none ignores both headers
 //   BB_GHOST_STATIC   directory whose index.html is served at / and /index.html (default: none) --static
@@ -116,7 +117,7 @@ export function readConfig(argv: readonly string[], env: Env): Config {
     origins: (flag(argv, "origins") ?? env.BB_GHOST_ORIGINS ?? DEFAULT_ORIGINS.join(","))
       .split(",").map((s) => s.trim()).filter(Boolean),
     rate: int(flag(argv, "rate") ?? env.BB_GHOST_RATE ?? "120", "rate (--rate, BB_GHOST_RATE)", 1, 1_000_000),
-    uploads: oneOf(env, "BB_GHOST_UPLOADS", ["open", "closed"] as const, "open"),
+    uploads: oneOf(env, "BB_GHOST_UPLOADS", ["open", "closed"] as const, "closed"),
     trustProxy: oneOf(env, "BB_GHOST_TRUST_PROXY", ["fly", "none"] as const, "none"),
     staticDir: staticDir ? resolve(staticDir) : undefined,
     store,

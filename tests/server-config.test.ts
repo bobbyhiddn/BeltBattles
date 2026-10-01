@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { ConfigError, openStore, readConfig, TIGRIS_ENV } from "../server/config";
+
+/** fly.toml's [env] table, the production settings: its `KEY = "value"` lines up to the next table. */
+function flyEnv(): Record<string, string> {
+  const toml = readFileSync(new URL("../fly.toml", import.meta.url), "utf8");
+  const table = /^\[env\]\n([\s\S]*?)^\[/m.exec(toml);
+  if (!table) throw new Error("fly.toml has no [env] table");
+  const env: Record<string, string> = {};
+  for (const m of table[1].matchAll(/^\s*([A-Z0-9_]+)\s*=\s*"([^"]*)"/gm)) env[m[1]] = m[2];
+  return env;
+}
 
 const TIGRIS = {
   BB_GHOST_STORE: "tigris",
@@ -30,10 +41,24 @@ describe("server config", () => {
     expect(readConfig([], { BB_GHOST_HOST: "0.0.0.0", BB_GHOST_PORT: "8080" })).toMatchObject({ host: "0.0.0.0", port: 8080 });
   });
 
-  it("uploads are open unless BB_GHOST_UPLOADS=closed", () => {
-    expect(readConfig([], {}).uploads).toBe("open");
+  it("uploads are closed unless BB_GHOST_UPLOADS=open", () => {
+    expect(readConfig([], {}).uploads).toBe("closed");
+    expect(readConfig([], { BB_GHOST_UPLOADS: "" }).uploads).toBe("closed");
     expect(readConfig([], { BB_GHOST_UPLOADS: "closed" }).uploads).toBe("closed");
+    expect(readConfig([], { BB_GHOST_UPLOADS: "open" }).uploads).toBe("open");
     expect(configError([], { BB_GHOST_UPLOADS: "shut" })).toMatch(/BB_GHOST_UPLOADS must be one of open, closed/);
+  });
+
+  it("the production configuration (fly.toml's [env] and the Tigris secrets) has uploads closed, with or without that line", () => {
+    const fly = flyEnv();
+    expect(fly.BB_GHOST_UPLOADS).toBe("closed");
+    expect(readConfig([], { ...TIGRIS, ...fly })).toMatchObject({
+      uploads: "closed", trustProxy: "fly", host: "0.0.0.0", port: 8080, staticDir: "/app/public", store: { kind: "tigris" },
+    });
+    const { BB_GHOST_UPLOADS: _uploads, ...withoutLine } = fly; // a deploy that lost the line
+    expect(readConfig([], { ...TIGRIS, ...withoutLine }).uploads).toBe("closed");
+    // the image sets no BB_GHOST_UPLOADS of its own: fly.toml, or else the default, decides
+    expect(readFileSync(new URL("../Dockerfile", import.meta.url), "utf8")).not.toContain("BB_GHOST_UPLOADS");
   });
 
   it("serves no page unless BB_GHOST_STATIC (or --static) names a directory", () => {
