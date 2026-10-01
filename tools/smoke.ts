@@ -11,7 +11,9 @@
 // record and runs (D1, D2), the game's own submitGhost meets 403 while closed, and section 6 runs the
 // game's side against the open server: fetchGhost for a new player (a seed ghost) and an experienced one
 // (the upload), the fight as the game makes it (onlineFoe, battleSeed) and its record's replay, 404 to
-// 0.6.2's stand-in, and submitGhost's 201. It writes the transcript. Exit 1 if a check fails.
+// 0.6.2's stand-in, and submitGhost's 201. 0.7.0 (R1 M2): section 7 runs the built admin tool (ghost-admin.mjs) on the same
+// bucket from the same env: list, a refusal, revalidate finding a deck planted past POST (dry run, then --apply), and
+// wipe-uploads keeping the seed pool. It writes the transcript. Exit 1 if a check fails.
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -32,6 +34,9 @@ import { simulate } from "../src/sim/battle";
 import { battleSeed, newRun } from "../src/game/run";
 import { onlineFoe } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
+// 0.7.0 R1 M2: section 7 plants a bad upload straight into the bucket for the admin tool to find
+import { encodeRecord } from "../server/store";
+import { objectKey } from "../server/tigrisStore";
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -369,6 +374,39 @@ async function main(): Promise<void> {
       "the request log holds no client IP, no key, no signature and no player id");
     check(/SIGTERM: shutting down/.test(log2), "SIGTERM shuts down cleanly");
   }
+
+  say();
+  say("## 7. The ghost admin tool (0.7.0 R1 M2): the built server/dist/ghost-admin.mjs on the same store, from the same env");
+  const admin = resolve("server/dist/ghost-admin.mjs");
+  const keys = () => fake.keys("bb-smoke", `ghosts/${RULES_VERSION}/`);
+  const uploads = () => keys().filter((k) => k.includes("/player/"));
+  const total = (o: string) => /^ +all +(\d+) +(\d+) +(\d+)$/m.exec(o)?.slice(1).map(Number).join("/") ?? "?";
+  const a1 = await shell(`node server/dist/ghost-admin.mjs list --rules ${RULES_VERSION}`, process.execPath, [admin, "list", "--rules", RULES_VERSION], env);
+  const ups0 = uploads().length;
+  check(a1.code === 0 && total(a1.out) === `${SEED_N}/${ups0}/${ups0}`, `list: ${SEED_N} seed-pool ghosts, ${ups0} uploads by ${ups0} players (all: ${total(a1.out)})`);
+  const markA = fake.requests.length;
+  const a2 = await shell("node server/dist/ghost-admin.mjs list   # no --rules", process.execPath, [admin, "list"], env, 200);
+  check(a2.code === 2 && /--rules <bb-x\.y\.z> is required/.test(a2.out) && fake.requests.length === markA, "no --rules: exit 2, nothing read");
+  // a deck 20 plates over day 1's budget, written straight into the bucket (past POST and its validateUpload)
+  const p0 = generateSamplePool().find((s) => s.day === 1)!;
+  const cheat = { ...p0, playerId: "smoke-cheater", runId: "smoke-cheat", build: { ...p0.build, hullBonus: p0.build.hullBonus + 500 } };
+  const cheatKey = objectKey("player", RULES_VERSION, 1, ghostId(cheat));
+  fake.putObject("bb-smoke", cheatKey, encodeRecord(ghostId(cheat), 1, cheat));
+  const keys0 = keys(), deletes0 = fake.count("DELETE");
+  const a3 = await shell(`node server/dist/ghost-admin.mjs revalidate --rules ${RULES_VERSION}   # dry run`, process.execPath, [admin, "revalidate", "--rules", RULES_VERSION], env);
+  check(a3.code === 0 && a3.out.includes(`delete ${cheatKey}`) && /validateUpload: budget/.test(a3.out) && /plan: delete 1 record/.test(a3.out)
+    && /DRY RUN: nothing was deleted/.test(a3.out) && keys().join() === keys0.join() && fake.count("DELETE") === deletes0,
+    "revalidate (dry run): finds the planted over-budget upload, and deletes nothing");
+  const a4 = await shell(`node server/dist/ghost-admin.mjs revalidate --rules ${RULES_VERSION} --apply`, process.execPath, [admin, "revalidate", "--rules", RULES_VERSION, "--apply"], env);
+  check(a4.code === 0 && /APPLIED: deleted 1 of 1/.test(a4.out) && keys().join() === keys0.filter((k) => k !== cheatKey).join(),
+    "revalidate --apply: deletes exactly that object");
+  const a5 = await shell(`node server/dist/ghost-admin.mjs wipe-uploads --rules ${RULES_VERSION} --apply`, process.execPath, [admin, "wipe-uploads", "--rules", RULES_VERSION, "--apply"], env);
+  check(a5.code === 0 && new RegExp(`APPLIED: deleted ${ups0} of ${ups0}`).test(a5.out) && uploads().length === 0 && keys().length === SEED_N,
+    `wipe-uploads --apply: every upload gone, the ${SEED_N} seed-pool ghosts kept (no --pool)`);
+  const a6 = await shell(`node server/dist/ghost-admin.mjs list --rules ${RULES_VERSION}`, process.execPath, [admin, "list", "--rules", RULES_VERSION], env);
+  check(a6.code === 0 && total(a6.out) === `${SEED_N}/0/0`, `a later list agrees: ${total(a6.out)}`);
+  const adminOut = [a1, a2, a3, a4, a5, a6].map((r) => r.out).join("\n");
+  check(!adminOut.includes("smoke-fake-secret") && !adminOut.includes("AKIDSMOKE"), "no credential in the tool's output");
   await fake.close();
   say();
   say(failures ? `SMOKE FAILED: ${failures} check(s)` : "SMOKE PASSED: every check");

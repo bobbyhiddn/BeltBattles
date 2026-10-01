@@ -105,11 +105,17 @@ export function tigrisOptions(env: Env): S3Options {
   };
 }
 
-export function readConfig(argv: readonly string[], env: Env): Config {
+/** The store settings alone: BB_GHOST_STORE and the jsonl directory (--data) or the Tigris variables. The server
+ *  (readConfig) and the admin tool (ghostAdmin.ts, 0.7.0 R1) read the store the same way. */
+export function readStoreConfig(argv: readonly string[], env: Env): StoreConfig {
   const kind = oneOf(env, "BB_GHOST_STORE", ["jsonl", "tigris"] as const, "jsonl");
-  const store: StoreConfig = kind === "tigris"
+  return kind === "tigris"
     ? { kind, s3: tigrisOptions(env), ttlMs: 1000 * int(env.BB_GHOST_CACHE_TTL_S || "60", "BB_GHOST_CACHE_TTL_S", 1, 86_400) }
     : { kind, dataDir: resolve(flag(argv, "data") ?? env.BB_GHOST_DATA ?? "ghost-data") };
+}
+
+export function readConfig(argv: readonly string[], env: Env): Config {
+  const store = readStoreConfig(argv, env);
   const staticDir = flag(argv, "static") ?? env.BB_GHOST_STATIC;
   return {
     host: flag(argv, "host") ?? env.BB_GHOST_HOST ?? "127.0.0.1",

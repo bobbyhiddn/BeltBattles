@@ -47,6 +47,7 @@ declare module "node:fs" {
   export function appendFileSync(path: string, data: string): void;
   export function existsSync(path: string): boolean;
   export function renameSync(from: string, to: string): void;
+  export function unlinkSync(path: string): void; // 0.7.0 R1: ghostAdmin.ts
 }
 
 declare module "node:crypto" {

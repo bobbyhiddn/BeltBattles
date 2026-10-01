@@ -14,6 +14,7 @@
     "build:server": "tsc -p tsconfig.server.json && vite build --config vite.server.config.ts",
     "server": "npm run build:server && node server/dist/ghost-server.mjs",
     "gen:ghosts": "npm run build:server && node server/dist/gen-ghost-pool.mjs",
+    "ghosts:admin": "npm run build:server && node server/dist/ghost-admin.mjs",
     "stage": "node deploy/stage.mjs",
     "smoke": "npm run build:server && vite build --ssr tools/smoke.ts --outDir tools/dist/smoke --emptyOutDir --logLevel warn && node tools/dist/smoke/smoke.js",
     "build:balance": "vite build --ssr tools/balance.ts --outDir tools/dist/balance --emptyOutDir --logLevel warn",

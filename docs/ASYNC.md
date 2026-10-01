@@ -380,7 +380,8 @@ ghosts/<rules>/d<DD>/player/<id>.json   player uploads: written only by POST /v1
 - Each body is the same `{"id","at","snapshot"}` record as a `ghosts.jsonl` line: concatenating the
   objects gives a valid JSON-lines file.
 - A pool record's `at` is its `createdAt`, so re-seeding an unchanged pool writes nothing.
-- Deleting an old rules version means deleting the prefix `ghosts/<rules>/`.
+- Deleting an old rules version means deleting the prefix `ghosts/<rules>/`: `ghosts:admin wipe-uploads --pool`
+  (see "Operations").
 
 **How the store loads and writes** (`server/tigrisStore.ts`):
 - A start never touches storage. `/v1/health` answers at once (80 ms after spawn in the smoke run)
@@ -474,6 +475,49 @@ and 41 of 60).
 
   More machines don't help with this: each one loads buckets independently and only adds LIST
   traffic.
+
+## Operations: the ghost admin tool (0.7.0)
+
+Uploads don't open without a way to clean the store (the genre study's R4: a bulk wipe by version or by
+exploit). `server/ghostAdmin.ts` is that tool. `npm run build:server` builds it into `server/dist/ghost-admin.mjs`,
+so the Fly image carries it as `/app/dist/ghost-admin.mjs`. It reads the store exactly as the server does
+(`server/config.ts`): `BB_GHOST_STORE` and the Tigris variables, or the JSON-lines directory (`BB_GHOST_DATA` or
+`--data <dir>`). On the machine, run it with the app's own env and secrets; deploy/RUNBOOK.md has the exact
+commands.
+
+```
+npm run ghosts:admin -- list                     --rules bb-0.6.2
+npm run ghosts:admin -- revalidate               --rules bb-0.6.2 [--apply]
+npm run ghosts:admin -- wipe-uploads             --rules bb-0.6.2 [--apply] [--pool]
+npm run ghosts:admin -- remove-player <playerId> --rules bb-0.6.2 [--apply]
+node /app/dist/ghost-admin.mjs list --rules bb-0.6.2          # the same tool in the image
+```
+
+| Command | What it does |
+|---|---|
+| `list` | Per day: the seed-pool ghosts, the uploads and the distinct players who uploaded them, then the totals. Read only |
+| `revalidate` | Every stored upload goes through the checks `POST /v1/ghosts` runs: the strict decoder (with the rules gate), the exact rules and `validateUpload` in the player mode. It also gets the reachable-record check the seed applies (`src/net/records.ts`) and a check of its own id (and Tigris key). Each failure is listed with every reason; `--apply` deletes exactly those. Only this build's `RULES_VERSION`; for an older version use `wipe-uploads`. The signature can't be checked again: the server keeps neither the key nor the signature |
+| `wipe-uploads` | Every upload of that rules version. The seed pool goes only with `--pool`, and the next deploy's `seed` writes it back |
+| `remove-player <id>` | Every upload by that player. A seed-pool ghost is never touched |
+
+- **A dry run unless `--apply`.** It prints exactly what `--apply` would delete (each record's key or line, kind,
+  day, ghost id, player and reason) and deletes nothing.
+- **One rules version.** `--rules` is required, and nothing of another rules version is read or touched. On Tigris
+  the tool lists only `ghosts/<rules>/`. Objects there that are neither `pool/` nor `player/` are counted and left alone.
+- **Exactly the plan.** `--apply` deletes the records it printed: the keys on Tigris, or the exact lines it read on
+  JSON lines. The file is rewritten to a copy and renamed over the original; a line appended meanwhile makes it start
+  over. A record written after the plan is never deleted. Exit 0 when done (a dry run too), 1 on a storage error or an
+  apply that deleted less than its plan, 2 on a usage or settings error (nothing touched).
+- **A running server keeps a deleted ghost in memory** until it reloads its copy. On Tigris that is when the bucket
+  cache expires (`BB_GHOST_CACHE_TTL_S`, 600 s in fly.toml) or the machine restarts. On JSON lines it is only a
+  restart, so stop that server while the tool rewrites its files.
+- **Tested on both stores** (tests/ghost-admin.test.ts, Tigris through the in-process fake S3, set up from the same
+  env as the server's):
+  - a dry run deletes nothing;
+  - `--apply` deletes exactly the listed records, and a later `list` agrees;
+  - the seed pool and other rules versions stay;
+  - bad uploads planted straight into the store, past POST, are found;
+  - the match route stops serving a deleted ghost: a fresh server at once, a running one after its cache TTL.
 
 ## 0.7.0a: what the game does online
 
