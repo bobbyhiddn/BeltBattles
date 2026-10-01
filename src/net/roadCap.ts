@@ -76,7 +76,7 @@ export const MODELLED_EVENTS: Readonly<Record<EventId, "fixed" | "picks" | "good
 /** The fork's picks (road.ts ROAD_PICKS) and a warlord reward's fields (roadTypes.ts WarlordReward), as reviewed. */
 export const MODELLED_PICKS: readonly string[] = ["event", "easy", "medium", "hard"];
 const REWARD_MODEL: Record<keyof WarlordReward, string> = {
-  gold: "gold, spendable from the next caravan",
+  gold: "gold on the run's day (road.ts rewardGold; 0.6.2 EASY PAY: Easy 3 from day 4, SABOTAGE or not), spendable from the next caravan",
   parts: "a Hard win takes 1 of them (a 1-star copy through takePart/gainModule)",
   legendary: "the Matriarch: parts[0] straight to cargo (a 1-star copy through gainModule)",
 };
@@ -199,7 +199,8 @@ export interface WarlordPay {
 const payMemo = new Map<string, WarlordPay[]>();
 
 /** Every captain `slot` can hold on `day` (any run seed: the whole pool; the Matriarch from MATRIARCH_DAY), with
- *  and without a pending SABOTAGE (it swaps the deck, so the parts on offer), and what beating it pays. */
+ *  and without a pending SABOTAGE (it swaps the deck, so the parts on offer), and what beating it pays. The gold is
+ *  the run day's, as road.ts warlordFight reads it (0.6.2 EASY PAY: SABOTAGE swaps the deck, never the day's pay). */
 export function warlordPays(slot: Difficulty | "matriarch", day: number): readonly WarlordPay[] {
   const k = `${slot}|${day}`;
   const hit = payMemo.get(k);
@@ -209,7 +210,7 @@ export function warlordPays(slot: Difficulty | "matriarch", day: number): readon
   const out: WarlordPay[] = [];
   for (const id of ids) {
     for (const sabotaged of [false, true]) {
-      const r = warlordReward(id, tier, warlordDeck(id, day, sabotaged), warlordDeckDay(id, day, sabotaged));
+      const r = warlordReward(id, tier, warlordDeck(id, day, sabotaged), warlordDeckDay(id, day, sabotaged), day);
       checkReward(r);
       const prices = r.parts.map((p) => valueOf(p, 1));
       const part = !prices.length ? 0 : r.legendary ? prices[0] : Math.max(...prices);

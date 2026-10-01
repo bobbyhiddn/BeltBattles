@@ -8,12 +8,13 @@ import { randomBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
 import { blockReason } from "../src/game/events";
-import { ROAD_PICKS, warlordDeck, warlordDeckDay, warlordReward } from "../src/game/road";
+import { MATRIARCH_GOLD, ROAD_PICKS, rewardGold, warlordDeck, warlordDeckDay, warlordReward } from "../src/game/road";
 import { newRun, storePlaced } from "../src/game/run";
 import { gainModule } from "../src/game/fuse";
 import {
   HULL_FLOOR, MODELLED_DELTAS, MODELLED_EVENTS, MODELLED_PICKS, MODELLED_REWARD_FIELDS, RoadModelError,
   checkRoadModel, discountGain, explainRoadCap, gmax, maxHonestSpend, resetRoadCapMemo, roadCap, roadCapFor, roadCapHoard, roadMixes, roadOptions,
+  warlordPays,
 } from "../src/net/roadCap";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { furnaceDeck } from "./netHelpers";
@@ -83,6 +84,18 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
         }
       }
     }
+  });
+
+  it("a won fight pays the gold of the run's day, SABOTAGE or not (0.6.2 RULE EASY PAY: road.ts rewardGold)", () => {
+    // warlordFight passes run.day: a sabotaged Easy fight on day 4 fights its day-3 deck but pays day 4's 3 gold
+    for (let d = 1; d <= RUN_DAYS; d++) {
+      for (const slot of [...DIFFICULTIES, "matriarch"] as const) {
+        for (const p of warlordPays(slot, d)) {
+          expect(p.gold, `${slot} ${p.id}${p.sabotaged ? "*" : ""} d${d}`).toBe(slot === "matriarch" ? MATRIARCH_GOLD : rewardGold(slot, d));
+        }
+      }
+    }
+    expect([1, 3, 4, 10].map((d) => rewardGold("easy", d))).toEqual([2, 2, 3, 3]); // Easy +3 from day 4
   });
 
   it("day 1 counts only what reaches the deck before its dusk: the best part, never gold", () => {
