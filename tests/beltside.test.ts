@@ -131,9 +131,9 @@ describe("R5, R8: hits", () => {
     expect([info.gates, info.gateCells]).toEqual([[2, 3], [2, 2]]);
     const e = estimateRoute(b, 0), plain = estimateRoute(furnace(), 0);
     expect(e.dmg - plain.dmg).toBeCloseTo(2);
-    expect(e.burn).toBe(2);
+    expect(e.burn).toBe(effectAt("temper", 1).gate!.burn);
     const p = payloadPast(b, 2);
-    expect([p.flat, p.burn, p.prior]).toEqual([2, 2, 2]);
+    expect([p.flat, p.burn, p.prior]).toEqual([2, effectAt("temper", 1).gate!.burn, 2]);
     const { ev } = run(b, 6);
     const proc = ev.filter((x): x is Extract<SimEvent, { type: "process" }> => x.type === "process");
     expect(new Set(proc.map((x) => `${x.gate}:${x.dir}:${x.route}:${x.tile}`))).toEqual(new Set(["2:1:0:2", "3:3:0:2"]));

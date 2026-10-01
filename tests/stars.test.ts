@@ -45,14 +45,14 @@ describe("stars.ts", () => {
   });
   it("effectAt: 1 star is ITEMS[def] itself; levels merge over the spec; unknown ids throw", () => {
     for (const id of Object.keys(ITEMS)) expect(effectAt(id, 1)).toBe(ITEMS[id]);
-    expect(effectAt("temper", 2).gate).toEqual({ burn: 4 });
-    expect(effectAt("temper", 3).gate).toEqual({ burn: 7 });
+    expect(effectAt("temper", 2).gate).toEqual({ burn: 2 });
+    expect(effectAt("temper", 3).gate).toEqual({ burn: 4 });
     // 0.6.1p: the pending perks are applied, so the dies and WIDE BREECH merge in; 0.6.1f: PERFECT CUT replaced THREE-WAY
     expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, outputs: 1, base: 7.5 });
     expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3, window: 1 });
     expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 2, mult: 0.85 } });
     expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.5, flat: 2, lockedFlat: 4 }, { speed: 0.5, flat: 5, lockedFlat: 7 }]);
-    expect(ITEMS.temper.gate).toEqual({ burn: 2 }); // the 1-star spec is untouched
+    expect(ITEMS.temper.gate).toEqual({ burn: 1 }); // the 1-star spec is untouched
     expect(() => effectAt("nope", 2)).toThrow();
   });
   it("every fusible live module carries 2- and 3-star levels; nothing is pending any more (0.6.1p); perks are stored", () => {
@@ -73,8 +73,8 @@ describe("stars.ts", () => {
 });
 
 describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () => {
-  it("TEMPER burn 2/4/7 (estimate) and damage in 30 s", () => {
-    expect(at3((s) => est(bench([["temper", 4, 3, s]])).burn)).toEqual([2, 4, 7]);
+  it("TEMPER burn 1/2/4 (estimate) and damage in 30 s", () => {
+    expect(at3((s) => est(bench([["temper", 4, 3, s]])).burn)).toEqual(at3((s) => effectAt("temper", s).gate!.burn));
     expect(up(at3((s) => run(bench([["temper", 4, 3, s]])).sides[0].stats.damage))).toBe(true);
   });
   it("WHETSTONE flat +2/+4/+7 (estimate) and damage in 30 s", () => {

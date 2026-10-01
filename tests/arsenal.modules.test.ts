@@ -366,7 +366,7 @@ describe("0.6.1c: the six factories' special rules", () => {
       for (const pr of b.projectiles) if (pr.from === 0 && !seen.has(pr.id)) { seen.add(pr.id); fired++; burns.add(pr.payload.burn); }
     });
     expect(fired).toBeGreaterThan(8); // the heavy chamber (1 a second, jamming on 2 shots a second) fires 12 in 20 s
-    expect([...burns]).toEqual([2]); // every shot fired carries TEMPER's 2 Burn
+    expect([...burns]).toEqual([effectAt("temper", 1).gate!.burn]); // every shot fired carries TEMPER's ★1 Burn
     expect(processed).toBeGreaterThanOrEqual(fired);
     expect(processed).toBeLessThanOrEqual(bt.sides[0].stats.produced);
   });

@@ -284,7 +284,7 @@ describe("J8: removing, moving or redrawing the main belt clears the join; it ne
 describe("J10, J14 (a), J15: the walk through a join", () => {
   // rigs beside R and beside M before, at and after the join tile
   const rigs = [
-    rig(10, "temper", 1, 5, 1), // R tile 1: +2 burn
+    rig(10, "temper", 1, 5, 1), // R tile 1: +1 burn
     rig(12, "whetstone", 5, 5, 3), // M tile 0 (before the join): not the joiner's
     rig(13, "whetstone", 5, 4, 3), // M tile 1: the join tile
     rig(14, "whetstone", 5, 2, 3), // M tile 3
@@ -299,7 +299,7 @@ describe("J10, J14 (a), J15: the walk through a join", () => {
     ]);
     expect(w.joins).toEqual([{ route: 0, tile: 1, cell: K(4, 4), row: 1 }]);
     expect(w.timeline[3].hits[0]).toMatchObject({ prior: 3, flat: effectAt("longhaul", 1).gate!.perPriorGate! * 3 }); // LONG HAUL counts TEMPER + 2 WHETSTONEs
-    expect(w.estimate.burn).toBe(2);
+    expect(w.estimate.burn).toBe(effectAt("temper", 1).gate!.burn);
     expect(w.estimate).toEqual(estimateRoute(b, 1));
     // the main belt's own walk doesn't change when a belt joins it
     expect(walkRoute(b, 0)).toEqual(walkRoute(deck(rigs, false), 0));

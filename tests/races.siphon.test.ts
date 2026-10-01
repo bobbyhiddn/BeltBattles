@@ -7,6 +7,7 @@ import { raceBeltSpeed } from "../src/sim/races";
 import {
   DRAG_MULT, DRAG_TIME, ECHO_CAP, addedFlat, applyDrag, dragSpans, echoOf, echoOnLoad, isDragged, newEchoState, segments,
 } from "../src/sim/races/siphon";
+import { effectAt } from "../src/sim/stars";
 import { dummyFoe, expectSaneBattles } from "./races.helpers";
 
 const siphon = () => heroStartBuild("siphon", 1);
@@ -193,13 +194,14 @@ describe("SIPHON Echo", () => {
   });
 
   it("in battle it copies the last enemy payload: Furnace Burn, and Weaver's Fray lands back on Weaver", () => {
-    const f = new Battle(siphon(), heroRefBuild("furnace", 2), 3); // Furnace day 2: Temper, 2 Burn
+    const f = new Battle(siphon(), heroRefBuild("furnace", 2), 3); // Furnace day 2: Temper, its ★1 Burn
+    const tb = effectAt("temper", 1).gate!.burn;
     let burning = 0;
     run(f, 40, (bt) => {
-      for (const pr of bt.projectiles) if (pr.from === 0 && pr.payload.ammo === "leechEcho" && pr.payload.burn === 2) burning++;
+      for (const pr of bt.projectiles) if (pr.from === 0 && pr.payload.ammo === "leechEcho" && pr.payload.burn === tb) burning++;
     });
     expect(burning).toBeGreaterThan(0);
-    expect(f.sides[0].race!.echo.mem!.burn).toBe(2);
+    expect(f.sides[0].race!.echo.mem!.burn).toBe(tb);
     const w = new Battle(siphon(), heroStartBuild("weaver", 100), 3);
     let fray = 0;
     run(w, 40, (bt) => (fray = Math.max(fray, bt.sides[1].hull.fray)));

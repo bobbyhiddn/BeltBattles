@@ -110,7 +110,7 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
   it("the walk (inspector estimate) matches the battle behind a TEMPER, and its timeline names the Burn spent", () => {
     for (const temper of STARS) for (const s of STARS) {
       const b = bench([["temper", 4, 4, temper], ["quench", 4, 3, s]]);
-      const burn = [2, 4, 7][temper - 1], spent = Math.min(burn, RULE[s].stacks);
+      const burn = effectAt("temper", temper).gate!.burn!, spent = Math.min(burn, RULE[s].stacks);
       const w = walkRoute(b, 0);
       const hit = w.timeline.find((row) => row.hits.some((h) => h.def === "quench"))!.hits.find((h) => h.def === "quench")!;
       expect([hit.flat, hit.quenched, w.estimate.burn], `TEMPER ★${temper}, QUENCH ★${s}`).toEqual([RULE[s].flat + spent * RULE[s].perBurn, spent, burn - spent]);

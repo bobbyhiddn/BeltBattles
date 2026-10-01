@@ -278,7 +278,7 @@ function loaded(b: Build, secs = 30, from = 5): Map<number, { flat: number; burn
 }
 
 describe("3. QUENCH and SURGE on a joined payload: the join tile's hits and every hit after it", () => {
-  // a TEMPER ★3 (7 Burn) at (1,5) works R's tile 1, so the PRESS's payloads join M carrying 7 Burn; QUENCH / SURGE
+  // a TEMPER ★3 (4 Burn) at (1,5) works R's tile 1, so the PRESS's payloads join M carrying 4 Burn; QUENCH / SURGE
   // stand east of M, facing west: at (5,5) on M's tile 0 (before the join tile), (5,4) its tile 1 (the join tile) or
   // (5,2) its tile 3 (after it). The KILN's own payloads pass all three.
   const SPOT: Record<string, [number, number]> = { before: [5, 5], join: [5, 4], after: [5, 2] };
@@ -287,13 +287,13 @@ describe("3. QUENCH and SURGE on a joined payload: the join tile's hits and ever
   it("QUENCH: a joined payload takes it from the join tile on (+flat, then up to its stacks of Burn), never before", () => {
     for (const s of STARS) {
       const q = effectAt("quench", s).gate!.quench!;
-      const spent = Math.min(7, q.stacks); // 4 / 5 / 6
+      const burn = effectAt("temper", 3).gate!.burn!, spent = Math.min(burn, q.stacks); // TEMPER ★3's Burn, up to the stacks
       for (const [where, [x, y]] of Object.entries(SPOT)) {
         const b = chain([temper(), rig(11, "quench", x, y, 3, s)]);
         const got = loaded(b);
         const press = got.get(2)!, kiln = got.get(1)!;
         expect(press.length, `★${s} ${where}`).toBeGreaterThan(5);
-        const want = where === "before" ? { flat: 0, burn: 7 } : { flat: q.flat + spent * q.perBurn, burn: 7 - spent };
+        const want = where === "before" ? { flat: 0, burn } : { flat: q.flat + spent * q.perBurn, burn: burn - spent };
         for (const p of press) expect(p, `★${s} ${where}: a joined payload`).toEqual(want);
         for (const p of kiln) expect(p, `★${s} ${where}: the main belt's own`).toEqual({ flat: q.flat, burn: 0 });
         // the joining belt's walk (the inspector's readout, the par player's rating) says the same

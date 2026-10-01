@@ -173,9 +173,9 @@ describe("J10: the inspector's readouts through a join", () => {
       [`A LOAD EVERY ${(1.4 / JOIN_PACE).toFixed(1)}S ON THIS BELT, NOT 1.4S.`, C.cyan],
       "4 TILES · 2 HITS IN ORDER:",
     ]);
-    expect(bp.rows).toEqual(["T2: TEMPER BURN +2", ["JOINS BELT 1 AT TILE 2", C.cyan], "T2: WHETSTONE +2"]);
-    expect(bp.foot[0]).toEqual([expect.stringMatching(/^AT THE GUN: DMG [\d.]+ · BURN 2 · NO SHOCK$/), C.yellow]);
-    expect(bp.subTight?.[0]).toMatch(/BURN 2/);
+    expect(bp.rows).toEqual(["T2: TEMPER BURN +1", ["JOINS BELT 1 AT TILE 2", C.cyan], "T2: WHETSTONE +2"]);
+    expect(bp.foot[0]).toEqual([expect.stringMatching(/^AT THE GUN: DMG [\d.]+ · BURN 1 · NO SHOCK$/), C.yellow]);
+    expect(bp.subTight?.[0]).toMatch(/BURN 1/);
   });
 
   it("the main belt says how many belts join it; its own lines don't change", () => {
@@ -195,7 +195,7 @@ describe("J10: the inspector's readouts through a join", () => {
     expect(bp.more(3)).toEqual(["+2 MORE HIT TILES (NUMBERED ON THE DECK)", C.slate4]);
     // a join with no hit after it: dropping only its JOINS line shows that line itself
     const bare = beltPanel(run({ r: true, items: [rig(10, "temper", 1, 5, 1)] }), 1)!;
-    expect(bare.rows).toEqual(["T2: TEMPER BURN +2", ["JOINS BELT 1 AT TILE 2", C.cyan]]);
+    expect(bare.rows).toEqual(["T2: TEMPER BURN +1", ["JOINS BELT 1 AT TILE 2", C.cyan]]);
     expect(bare.more(1)).toEqual(["JOINS BELT 1 AT TILE 2", C.cyan]);
     expect(bare.more(2)).toEqual(["+1 MORE HIT TILE (NUMBERED ON THE DECK)", C.slate4]);
     // a belt without joins: as before 0.6.2j
@@ -207,7 +207,7 @@ describe("J10: the inspector's readouts through a join", () => {
     expect(bp.sub).toBe("NOT CONNECTED");
     expect(bp.subTight).toBeUndefined();
     expect(bp.head).toEqual([["ENDS SHORT OF A TURRET INTAKE.", C.amber], "4 TILES · 1 HIT IN ORDER:"]);
-    expect(bp.rows).toEqual(["T2: TEMPER BURN +2"]);
+    expect(bp.rows).toEqual(["T2: TEMPER BURN +1"]);
   });
 });
 

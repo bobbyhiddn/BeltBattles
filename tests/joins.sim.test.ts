@@ -69,7 +69,7 @@ const pick = (l: Load) => [l.tick, l.ride, l.prior, l.flat, l.burn, l.heat];
 describe("J4: hits, speeds and what a payload carries through the join", () => {
   it("a joined payload takes the join tile's hit and every later one, exactly once, and none before the join", () => {
     const b = deck([
-      rig(10, "temper", 1, 5, 1), // R tile 1: +2 burn
+      rig(10, "temper", 1, 5, 1), // R tile 1: +1 burn
       rig(12, "whetstone", 5, 5, 3), // M tile 0, before the join
       rig(13, "whetstone", 5, 4, 3), // M tile 1, the join tile
       rig(14, "whetstone", 5, 2, 3), // M tile 3
@@ -80,7 +80,7 @@ describe("J4: hits, speeds and what a payload carries through the join", () => {
     expect(kiln.length).toBeGreaterThan(5);
     expect(press.length).toBeGreaterThan(5);
     for (const l of kiln) expect([l.prior, l.flat, l.burn]).toEqual([3, 6, 0]);
-    for (const l of press) expect([l.prior, l.flat, l.burn]).toEqual([3, 4, 2]);
+    for (const l of press) expect([l.prior, l.flat, l.burn]).toEqual([3, 4, effectAt("temper", 1).gate!.burn]);
   });
 
   it("SPLITTER copies trail their original through the join, in order", () => {
@@ -371,7 +371,7 @@ describe("J14 (a): the payload's own journey", () => {
     const l = a[5];
     expect(l.prior).toBe(6); // TEMPER, HEAT JACKET, then the join tile's WHETSTONE, COUNTERWEIGHT, WHETSTONE, LONG HAUL
     expect(l.flat).toBeCloseTo(2 + 2.5 + 2 + effectAt("longhaul", 1).gate!.perPriorGate! * 5, 9); // COUNTERWEIGHT: 5 tiles ridden; LONG HAUL: 5 earlier hits
-    expect(l.burn).toBe(2);
+    expect(l.burn).toBe(effectAt("temper", 1).gate!.burn);
     expect(l.heat).toBeGreaterThan(0);
   });
 
@@ -422,7 +422,7 @@ describe("J14 (b): a rig beside the shared stretch hits every line that rides it
     for (const line of [0, 1, 2]) {
       const mine = late.filter((l) => seenOn.get(l.id) === line);
       expect(mine.length).toBeGreaterThan(3);
-      for (const l of mine) expect(l.burn).toBe(2);
+      for (const l of mine) expect(l.burn).toBe(effectAt("temper", 1).gate!.burn);
     }
   });
 });

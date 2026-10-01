@@ -112,7 +112,7 @@ const UNCHANGED = ["coil", "staticbrush", "sabot", "frostbite", "dragchain", "ro
 
 /** The pins, heavy scale (k 1): each templated module's flavour at ★1, ★2 and ★3, lines joined by " / ". */
 const PINS: Record<string, [string, string, string]> = {
-  temper: ["ADDS 2 BURN. / BURN: 1 DMG/S FOR 3S / PER STACK ON HIT.", "ADDS 4 BURN. / BURN: 1 DMG/S FOR 3S / PER STACK ON HIT.", "ADDS 7 BURN. / BURN: 1 DMG/S FOR 3S / PER STACK ON HIT."],
+  temper: ["ADDS 1 BURN. / BURN: 1 DMG/S FOR 3S / PER STACK ON HIT.", "ADDS 2 BURN. / BURN: 1 DMG/S FOR 3S / PER STACK ON HIT.", "ADDS 4 BURN. / BURN: 1 DMG/S FOR 3S / PER STACK ON HIT."],
   whetstone: ["+2 FLAT DAMAGE. / BEFORE A SPLITTER, / BOTH COPIES GAIN IT.", "+4 FLAT DAMAGE. / BEFORE A SPLITTER, / BOTH COPIES GAIN IT.", "+7 FLAT DAMAGE. / BEFORE A SPLITTER, / BOTH COPIES GAIN IT."],
   grease: ["BELT RUNS 1.6X FROM / ITS HIT. LOCKED BELTS / GAIN +1 DAMAGE.", "BELT RUNS 2.3X FROM / ITS HIT. LOCKED BELTS / GAIN +2 DAMAGE.", "BELT RUNS 3.1X FROM / ITS HIT. LOCKED BELTS / GAIN +4 DAMAGE."],
   brake: ["HALF SPEED FROM HIT. / LOCKED BELTS GAIN / +2 DAMAGE INSTEAD.", "HALF SPEED FROM HIT. / LOCKED BELTS GAIN / +4 DAMAGE INSTEAD.", "HALF SPEED FROM HIT. / LOCKED BELTS GAIN / +7 DAMAGE INSTEAD."],

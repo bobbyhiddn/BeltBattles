@@ -56,8 +56,8 @@ describe("F5: a perk whose values are still pending is never named (stubbed modu
 // "2 MORE COPIES" read like a perk
 describe("N2 / 0.6.2p item 2: merge progress, NEEDS 1 MORE and NEEDS 2 MORE", () => {
   it("TEMPER from 1★ needs 1 copy, from a lone 2★ needs 2", () => {
-    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT ★2: +4 BURN · NEEDS 1 MORE");
-    expect(nextLine(holding("temper", [2]), "temper", 2)).toBe("NEXT ★3: +7 BURN · NEEDS 2 MORE");
+    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT ★2: +2 BURN · NEEDS 1 MORE");
+    expect(nextLine(holding("temper", [2]), "temper", 2)).toBe("NEXT ★3: +4 BURN · NEEDS 2 MORE");
   });
 
   it("every NEXT line ends in NEEDS n MORE, never in MORE COPY or MORE COPIES: every fusible module, 1 and 2 stars", () => {
@@ -171,7 +171,7 @@ describe("0.6.1c: each factory's headline at each star, its perks named, and the
       expect(nextLine(holding(def, [2]), def, 2), def).toBe(`NEXT ★3${p3 && p3 !== p2 ? ` ${p3}` : ""}: ${h[2]} · NEEDS 2 MORE`);
       expect(mergeLine(holding(def, [1]), def), def).toBe(`MERGES WITH YOUR ${ITEMS[def].name} ★1 → ★2 · ${h[1]}`);
     }
-    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT ★2: +4 BURN · NEEDS 1 MORE"); // gates unchanged
+    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT ★2: +2 BURN · NEEDS 1 MORE"); // gates unchanged
   });
 
   it("phone: a factory offer's headline and its MERGES WITH line fit the band's 4 body lines (3x5 face, 151 px)", () => {
@@ -223,7 +223,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // an IDLE ★2 TEMPER: the amber warning leads
     const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
     expect(idle.text[0]).toEqual([IDLE, expect.any(String)]);
-    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE, "★2: +4 BURN", "NEXT ★3: +7 BURN · NEEDS 2 MORE", TURN, "ADDS 4 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."]);
+    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE, "★2: +2 BURN", "NEXT ★3: +4 BURN · NEEDS 2 MORE", TURN, "ADDS 2 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."]);
     expect([idle.sub, idle.idle, idle.labels]).toEqual(["RIG · IDLE", true, ["ROTATE", "TO CARGO"]]);
     // a ★3 X OVERDRIVE at (5,3): no NEXT past ★3, no ROTATE for an X; 0.6.2p: the flavour at ★3, 5X and +11 (was 3X, +3)
     const x = rigPanel(rigRun("overdrive", 3, 5, 3, 0, 0), 10)!;

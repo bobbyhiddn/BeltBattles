@@ -390,9 +390,9 @@ export const ITEMS: Record<string, ItemDef> = {
   // --- processing gates ---
   temper: {
     id: "temper", name: "TEMPER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    desc: ["ADDS 2 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."], tags: ["BURN"],
-    gate: { burn: 2 },
-    levels: { 2: { gate: { burn: 4 } }, 3: { gate: { burn: 7 } } },
+    desc: ["ADDS 1 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."], tags: ["BURN"],
+    gate: { burn: 1 },
+    levels: { 2: { gate: { burn: 2 } }, 3: { gate: { burn: 4 } } },
   },
   whetstone: {
     id: "whetstone", name: "WHETSTONE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
