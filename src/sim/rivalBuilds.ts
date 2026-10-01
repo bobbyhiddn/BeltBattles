@@ -151,9 +151,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "furnace", crates: 0, synergy: ["overdrive", "calibrate"],
     factories: [F("kiln", 2, 6, [3, 5, "R1U5"])],
     upgrades: [
-      G(1, "whetstone", 3, 2, 1), G(2, "counterweight", 3, 0), G(2, "brake", 5, 5, 3), M(3, "calibrate", 0),
+      // FINAL-MEASURE (the Prime's ladder fix, oracle e2d655e0): the whetstone comes on day 2 (was 1), the counterweight
+      // and the brake on day 3 (were 2), and the tollbooth, surge valve and long haul on day 9 (were 8), so the Easy
+      // OVERCLOCK stays easier than every Hard warlord on day 1 and than every Medium on days 2 and 8 (rivals.difficulty)
+      G(2, "whetstone", 3, 2, 1), G(3, "counterweight", 3, 0), G(3, "brake", 5, 5, 3), M(3, "calibrate", 0),
       G(3, "temper", 3, 3, 1), M(4, "gatling", 0), G(5, "overdrive", 5, 3), G(5, "quench", 3, 1), G(6, "venom", 3, 4),
-      M2(7, "calibrate", 0), G2(7, "brake", 5, 5), G(8, "tollbooth", 5, 1, 3), G(8, "surge", 4, 6, 1), G(8, "longhaul", 5, 4),
+      M2(7, "calibrate", 0), G2(7, "brake", 5, 5), G(9, "tollbooth", 5, 1, 3), G(9, "surge", 4, 6, 1), G(9, "longhaul", 5, 4),
       T(9, "dartgun", 0),
     ],
   },
