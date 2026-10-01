@@ -60,9 +60,9 @@ describe("F5: a perk whose values are still pending is never named (stubbed modu
 // "NEEDS 1 MORE" / "NEEDS 2 MORE" is gone everywhere)
 describe("N2 / T5: merge progress, 1 MORE COPY TO MERGE and 2 MORE COPIES TO MERGE", () => {
   it("TEMPER from 1★ needs 1 copy, from a lone 2★ needs 2", () => {
-    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT STAR: ADDS 4 BURN. 1 MORE COPY TO MERGE.");
-    expect(nextLine(holding("temper", [2]), "temper", 2)).toBe("NEXT STAR: ADDS 7 BURN. 2 MORE COPIES TO MERGE.");
-    expect(nextLine(holding("temper", [2, 1]), "temper", 2)).toBe("NEXT STAR: ADDS 7 BURN. 1 MORE COPY TO MERGE.");
+    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT STAR: ADDS 2 BURN. 1 MORE COPY TO MERGE.");
+    expect(nextLine(holding("temper", [2]), "temper", 2)).toBe("NEXT STAR: ADDS 4 BURN. 2 MORE COPIES TO MERGE.");
+    expect(nextLine(holding("temper", [2, 1]), "temper", 2)).toBe("NEXT STAR: ADDS 4 BURN. 1 MORE COPY TO MERGE.");
   });
 
   it("every fusible module at 1 and 2 stars: the next-star sentence, then merge progress, never NEEDS n MORE", () => {
@@ -177,7 +177,7 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
       expect(nextLine(holding(def, [2]), def, 2), def).toBe(`NEXT STAR: ${h[2]}.${p3 && p3 !== p2 ? ` ★3 ${p3}` : ""} 2 MORE COPIES TO MERGE.`);
       expect(mergeLine(holding(def, [1]), def), def).toBe(`MERGES WITH YOUR ${ITEMS[def].name} INTO ★2: ${h[1]}.${p2 ? ` ★2 ${p2}` : ""}`);
     }
-    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT STAR: ADDS 4 BURN. 1 MORE COPY TO MERGE."); // rigs alike
+    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT STAR: ADDS 2 BURN. 1 MORE COPY TO MERGE."); // rigs alike
   });
 });
 // beltside-062c (ref/DESIGN-beltside.md §12 P11): a placed rig's panel (inspector.ts rigPanel) lists its hits (or IDLE),
@@ -210,14 +210,14 @@ describe("P11: a rig's panel order, and the phone band", () => {
     ]);
     // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, no perk at ★1; 0.6.2t2 (F1): no flavour kept
     expect(text(rigRun("longhaul", 1, 5, 3, 0, 0))).toEqual([
-      "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", "ADDS 2 DAMAGE FOR EACH EARLIER RIG HIT.", "EVERY RIG HIT ON THE PAYLOAD COUNTS, SPEED RIGS TOO.",
-      "NEXT STAR: 4 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS.", "1 MORE COPY TO MERGE.", TURN,
+      "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", "ADDS 1 DAMAGE FOR EACH EARLIER RIG HIT.", "EVERY RIG HIT ON THE PAYLOAD COUNTS, SPEED RIGS TOO.",
+      "NEXT STAR: 2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS.", "1 MORE COPY TO MERGE.", TURN,
     ]);
     // an IDLE ★2 TEMPER: the amber warning leads
     const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
     expect([idle.body[0].role, idle.body[0].text]).toEqual(["warn", IDLE_WARNING]);
     expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([
-      IDLE_WARNING, "ADDS 4 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS.", "NEXT STAR: ADDS 7 BURN.",
+      IDLE_WARNING, "ADDS 2 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS.", "NEXT STAR: ADDS 4 BURN.",
       "2 MORE COPIES TO MERGE.", TURN,
     ]);
     expect([idle.sub, idle.subColor, idle.idle, idle.labels]).toEqual(["RIG · IDLE", C.amber, true, ["ROTATE", "TO CARGO"]]);

@@ -463,13 +463,16 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "HULL HITS STALL A TURRET",
   },
   lodestone: {
-    // Battle.applyHit: the foe's rigs, factories and turrets stalled, frozen or wrecked as the payload passes
+    // Battle.applyHit: the foe's rigs, factories and turrets stalled, frozen or wrecked as the payload passes.
+    // 0.6.2rel3 (TUNE-M T2, adf77b2): the floor (gate.flat, +1/+2/+3) on every payload it hits, then the per-stalled
+    // bonus on top, capped by perStalled.max; one sentence, so the floor never shows without the bonus or the other way.
+    // As short as the sentence it replaces (it must still fit the phone band and the desk column whole)
     text: (e) => [
-      `ADDS ${damage(g(e).perStalled!.each)} FOR EACH ENEMY MACHINE STALLED RIGHT NOW, UP TO ${damage(g(e).perStalled!.max)}.`,
+      `ADDS ${damage(g(e).flat ?? 0)}, AND ${n1(g(e).perStalled!.each)} FOR EACH ENEMY MACHINE STALLED, UP TO ${damage(g(e).perStalled!.max)}.`,
       "FROZEN AND WRECKED MACHINES COUNT; BELT TILES DON'T.",
     ],
-    gist: (e) => `${damage(g(e).perStalled!.each)} FOR EACH STALLED MACHINE, UP TO ${damage(g(e).perStalled!.max)}`,
-    card: (e) => `${damage(g(e).perStalled!.each)} FOR EACH STALLED MACHINE`,
+    gist: (e) => `ADDS ${damage(g(e).flat ?? 0)}, AND ${n1(g(e).perStalled!.each)} FOR EACH STALLED MACHINE`,
+    card: (e) => `${damage(g(e).flat ?? 0)}, MORE FOR EACH STALL`,
   },
   barbed: {
     // Battle.impact: the hull's fray limit rises to FRAY_MAX + frayCap (★2/★3 RAZOR WIRE)
@@ -1036,7 +1039,8 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.sort) return `${name} COPIES EVERY ${nth(e.sort.every)} PAYLOAD${e.sort.copies > 2 ? ` ${times(e.sort.copies - 1)}` : ""}`;
   if (e.overclockCooldown) return `${name} DOUBLES THE NEXT RIG, THEN WAITS ${n2(e.overclockCooldown)} SEC`;
   if (e.keg) return `${name} +${damage(e.keg.flat)} AND ${e.keg.burn} BURN AFTER ${n2(e.keg.fuse)} SEC`;
-  if (e.perStalled) return `${name} +${damage(e.perStalled.each)} FOR EACH STALLED MACHINE, UP TO ${damage(e.perStalled.max)}`;
+  // 0.6.2rel3 (TUNE-M T2): LODESTONE's floor is the hit's flat (walkRoute); its stall bonus waits for the battle
+  if (e.perStalled) return `${name} ${h.flat ? `+${damage(h.flat)}, ` : ""}+${damage(e.perStalled.each)} FOR EACH STALLED MACHINE, UP TO ${damage(e.perStalled.max)}`;
   if (e.toll) return `${name} BLOCKS ${e.toll} HARASSMENT HITS`;
   if (e.sift) return `${name} REMOVES ${e.sift === "all" ? "EVERY MARK" : "ONE MARK"}${h.flat ? `, +${damage(h.flat)} IF CLEAN` : ""}`;
   if (e.repair) return `${name} REPAIRS ${n1(e.repair)} HULL`;

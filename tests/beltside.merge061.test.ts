@@ -174,11 +174,11 @@ describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says UP TO 6 H
     expect([two.prior, two.flat, two.capped]).toEqual([6, 6 * perHit(2), 6]);
     expect([three.prior, three.flat, three.capped]).toEqual([6, 6 * perHit(3), 6]);
     // 0.6.2t (REQ-BFG-032): the glossary's words; the stat row keeps its + and adds the unit, the cap reads UP TO
-    expect(hitLabel(one, "free")).toBe("LONG HAUL +16 DAMAGE (8 HITS BEFORE)");
-    expect(hitLabel(two, "free")).toBe("LONG HAUL +24 DAMAGE (UP TO 6 HITS)");
-    expect(gist("longhaul", 1)).toBe("2 DAMAGE FOR EACH EARLIER HIT");
-    expect(gist("longhaul", 2)).toBe("4 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS");
-    expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 7 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
+    expect(hitLabel(one, "free")).toBe("LONG HAUL +8 DAMAGE (8 HITS BEFORE)");
+    expect(hitLabel(two, "free")).toBe("LONG HAUL +12 DAMAGE (UP TO 6 HITS)");
+    expect(gist("longhaul", 1)).toBe("1 DAMAGE FOR EACH EARLIER HIT");
+    expect(gist("longhaul", 2)).toBe("2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS");
+    expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 3.5 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
     // the battle agrees: every payload past tile 8 carries 8 x 2 (the WHETSTONES) + LONG HAUL ★2 x 6
     for (const p of family(snake(2), 8)) expect(p.flat).toBeCloseTo(8 * 2 + perHit(2) * 6, 9);
   });

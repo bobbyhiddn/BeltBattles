@@ -36,8 +36,17 @@ export function joinPaceLines(b: Build, factoryUid: number, index = b.routes.fin
   if (pace >= 1 || index < 0) return [];
   const every = loadEvery(b, index);
   const lines: [string, string][] = [[JOIN_PACE_LINE, C.cyan]];
-  if (Number.isFinite(every)) lines.push([`A LOAD EVERY ${every.toFixed(1)}S ON THIS BELT, NOT ${(every * pace).toFixed(1)}S.`, C.cyan]);
+  // 0.6.2rel3 (REQ-BFG-032 F2): the seconds in the glossary's words ("2 SECONDS"), as every other sentence says them
+  if (Number.isFinite(every)) lines.push([`A LOAD EVERY ${seconds(every)} ON THIS BELT, NOT ${seconds(every * pace)}.`, C.cyan]);
   return lines;
+}
+
+/** 0.6.2rel3: joinPaceLines as panel blocks, cyan as the join rows: the pace sentence always shows (keep); the load
+ *  sentence is optional and gives way early when room is short. [] unless the factory's belt joins another. */
+function joinPaceBlocks(b: Build, factoryUid: number, index?: number): Block[] {
+  return joinPaceLines(b, factoryUid, index).map(([text, colour], i): Block => (i === 0
+    ? { role: "hits", text, colour, keep: true }
+    : { role: "hits", text, colour, rank: 3 }));
 }
 
 /** 0.6.2s (REQ-BFG-031 S2): the build's intakes: its installed turrets' belt columns (an empty slot has none). */
@@ -405,6 +414,7 @@ export function itemPanel(run: Run, uid: number): PanelText | null {
   const stars = starsOf(p);
   const sig = !fusible(d.id);
   const body: Block[] = [
+    ...joinPaceBlocks(run.build, p.uid), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joined factory leads with its pace
     ...(hasAbilityText(d.id) ? abilityBlocks(d.id, stars, textOpts(run)) : []),
     ...(sig ? [] : progressBlocks(run, d.id, stars)),
     ...flavourBlocks(d.id, stars, 1),
@@ -474,7 +484,8 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   return {
     // 0.6.2j: a joining belt's sub names the belt it joins (0.6.2rel: two short sentences, no "·"); 0.6.2rel2: a main
     // belt's one sentence ends with its full stop too
-    sub: info.join ? `JOINS BELT ${info.join.route + 1}. ${feeds}.` : `${feeds}.`,
+    // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joining belt's sub says its factory's pace too, for the header strip
+    sub: info.join ? `JOINS BELT ${info.join.route + 1} AT ${JOIN_PACE_PCT}% PACE. ${feeds}.` : `${feeds}.`,
     ...(info.join ? { subShort: `JOINS BELT ${info.join.route + 1}.` } : {}),
     // 0.6.2t2 (F2): the header strip labels its time as the readout's grid does (TIME), never a bare number
     headerOnly: info.connected ? {
@@ -487,6 +498,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
     } : undefined,
     head: [
       ...(info.connected ? [] : [{ role: "warn", text: "ENDS SHORT OF A TURRET INTAKE.", keep: true } as Block]),
+      ...joinPaceBlocks(b, b.routes[index].factory, index), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): [] unless joined
       ...(joined.length ? [{
         role: "hits", colour: C.cyan, keep: true,
         text: joined.length === 1 ? `BELT ${joined[0] + 1} JOINS IT.` : `BELTS ${andList(joined.map((j) => j + 1))} JOIN IT.`,

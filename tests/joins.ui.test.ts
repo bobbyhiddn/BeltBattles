@@ -10,7 +10,7 @@ import { JOIN_PACE } from "../src/sim/content";
 import { frame as deckFrame } from "../src/render/frame";
 import { cruiserModel } from "../src/render/cruiser";
 import { Editor, type EditHost } from "../src/screens/build/edit";
-import { beltPanel, type Block } from "../src/screens/build/inspector";
+import { beltPanel, itemPanel, type Block } from "../src/screens/build/inspector";
 import type { Sel } from "../src/screens/build/layout";
 import { C } from "../src/render/palette";
 
@@ -169,13 +169,19 @@ describe("J10: the inspector's readouts through a join", () => {
 
   it("the joining belt: its own hits, JOINS BELT n AT TILE t, the main belt's hits from there, and the gun end", () => {
     const bp = beltPanel(run({ r: true, items }), 1)!;
-    expect(bp.sub).toBe("JOINS BELT 1. FEEDS TURRET 1.");
+    expect(bp.sub).toBe(`JOINS BELT 1 AT ${JOIN_PACE_PCT}% PACE. FEEDS TURRET 1.`);
     expect(bp.subShort).toBe("JOINS BELT 1.");
-    expect(txt(bp.head)).toEqual(["4 TILES, 2 HITS:"]);
-    expect(txt(bp.rows)).toEqual(["T2: TEMPER +2 BURN", "JOINS BELT 1 AT TILE 2.", "T2: WHETSTONE +2 DAMAGE"]);
+    // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): the joined STAMP PRESS's pace leads, cyan (★1: 1.4 s unjoined, 1.4 / JOIN_PACE joined)
+    expect(txt(bp.head)).toEqual([JOIN_PACE_LINE, `A LOAD EVERY ${+(1.4 / JOIN_PACE).toFixed(2)} SECONDS ON THIS BELT, NOT 1.4 SECONDS.`, "4 TILES, 2 HITS:"]);
+    expect(bp.head[0]).toMatchObject({ colour: C.cyan, keep: true });
+    expect(txt(bp.rows)).toEqual(["T2: TEMPER +1 BURN", "JOINS BELT 1 AT TILE 2.", "T2: WHETSTONE +2 DAMAGE"]);
     expect(bp.rows[1]).toMatchObject({ colour: C.cyan, join: true, trim: true });
-    expect(txt(bp.foot)[0]).toMatch(/^DMG [\d.]+, BURN 2$/);
-    expect(bp.headerOnly?.texts[0]).toMatch(/BURN 2/);
+    expect(txt(bp.foot)[0]).toMatch(/^DMG [\d.]+, BURN 1$/);
+    expect(bp.headerOnly?.texts[0]).toMatch(/BURN 1/);
+    // 0.6.2rel3: the joined factory's own panel leads with the pace too; the main belt's factory's never says it
+    const r = run({ r: true, items });
+    expect(itemPanel(r, r.build.routes[1].factory)!.body[0]).toMatchObject({ text: JOIN_PACE_LINE, colour: C.cyan, keep: true });
+    expect(itemPanel(r, r.build.routes[0].factory)!.body.map((x) => x.text)).not.toContain(JOIN_PACE_LINE);
   });
 
   it("the main belt says which belts join it; its own lines don't change", () => {
@@ -196,7 +202,7 @@ describe("J10: the inspector's readouts through a join", () => {
     expect(bp.more(3)).toMatchObject({ role: "note", text: note(2) });
     // a join with no hit after it: dropping only its JOINS line shows that line itself
     const bare = beltPanel(run({ r: true, items: [rig(10, "temper", 1, 5, 1)] }), 1)!;
-    expect(txt(bare.rows)).toEqual(["T2: TEMPER +2 BURN", "JOINS BELT 1 AT TILE 2."]);
+    expect(txt(bare.rows)).toEqual(["T2: TEMPER +1 BURN", "JOINS BELT 1 AT TILE 2."]);
     expect(bare.more(1)).toMatchObject({ text: "JOINS BELT 1 AT TILE 2.", colour: C.cyan, keep: true });
     expect(bare.more(2)).toMatchObject({ role: "note", text: note(1) });
     // a belt without joins: as before 0.6.2j
@@ -209,7 +215,7 @@ describe("J10: the inspector's readouts through a join", () => {
     expect(bp.headerOnly).toBeUndefined();
     expect(txt(bp.head)).toEqual(["ENDS SHORT OF A TURRET INTAKE.", "4 TILES, 1 HIT:"]);
     expect(bp.head[0].role).toBe("warn");
-    expect(txt(bp.rows)).toEqual(["T2: TEMPER +2 BURN"]);
+    expect(txt(bp.rows)).toEqual(["T2: TEMPER +1 BURN"]);
   });
 });
 

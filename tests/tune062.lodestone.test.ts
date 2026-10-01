@@ -10,8 +10,7 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { rivalBuild } from "../src/sim/rivals";
 import { overclocked } from "../src/sim/overclock";
 import { effectAt } from "../src/sim/stars";
-import { flavour } from "../src/screens/build/flavour";
-import { hitLabel, levelLine, starEffectLine } from "../src/screens/build/inspector";
+import { abilityText, cardText, gist, hitText, nextStarText } from "../src/ui/abilityText"; // 0.6.2rel3: REQ-BFG-032's glossary
 import { wrap } from "../src/render/font";
 import { barge, bench, est, run } from "./arsenal.bench";
 
@@ -92,16 +91,21 @@ describe("TUNE-M T2: LODESTONE's floor", () => {
     expect(overclocked({ flat: 1, perStalled: { each: 1, max: 6 } })).toEqual({ flat: 2, perStalled: { each: 2, max: 6 } });
   });
 
-  it("player text: the description, each star's flavour and level line, and the belt's timeline state the floor", () => {
+  it("player text: the description, each star's ability text and gist, the shop card and the belt's timeline state the floor", () => {
     expect(ITEMS.lodestone.desc).toEqual(["+1 DAMAGE ALWAYS,", "+1 PER ENEMY", "MACHINE STALLED."]);
-    expect(STARS.map((s) => flavour("lodestone", s).join(" / "))).toEqual([
-      "+1 DAMAGE ALWAYS, / +1 PER ENEMY / MACHINE STALLED.", "+2 DAMAGE ALWAYS, / +2.2 PER ENEMY / MACHINE STALLED.", "+3 DAMAGE ALWAYS, / +3.5 PER ENEMY / MACHINE STALLED.",
+    // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand; the floor leads the opening sentence
+    expect(STARS.map((s) => abilityText("lodestone", s).sentences[0])).toEqual([
+      "ADDS 1 DAMAGE, AND 1 FOR EACH ENEMY MACHINE STALLED, UP TO 6 DAMAGE.",
+      "ADDS 2 DAMAGE, AND 2.2 FOR EACH ENEMY MACHINE STALLED, UP TO 13 DAMAGE.",
+      "ADDS 3 DAMAGE, AND 3.5 FOR EACH ENEMY MACHINE STALLED, UP TO 21 DAMAGE.",
     ]);
-    expect(STARS.map((s) => starEffectLine("lodestone", s))).toEqual(["+1 DMG · +1/STALLED · MAX 6", "+2 DMG · +2.2/STALLED · MAX 13", "+3 DMG · +3.5/STALLED · MAX 21"]);
-    expect(levelLine("lodestone", 3)).toBe("★3: +3 DMG · +3.5/STALLED · MAX 21");
-    for (const s of STARS) expect(wrap(starEffectLine("lodestone", s), 151, "3").length, `★${s} on a phone`).toBe(1);
+    expect(STARS.map((s) => gist("lodestone", s))).toEqual([
+      "ADDS 1 DAMAGE, AND 1 FOR EACH STALLED MACHINE", "ADDS 2 DAMAGE, AND 2.2 FOR EACH STALLED MACHINE", "ADDS 3 DAMAGE, AND 3.5 FOR EACH STALLED MACHINE",
+    ]);
+    expect([nextStarText("lodestone", 1), cardText("lodestone")]).toEqual(["NEXT STAR: ADDS 2 DAMAGE, AND 2.2 FOR EACH STALLED MACHINE.", "1 DAMAGE, MORE FOR EACH STALL."]);
+    for (const s of STARS) expect(wrap(gist("lodestone", s), 151, "3").length, `★${s} on a phone`).toBeLessThanOrEqual(2);
     const hit = walkRoute(bench([["lodestone", 4, 3, 2]]), 0).timeline.flatMap((row) => row.hits).find((h) => h.def === "lodestone")!;
     expect(hit.flat).toBe(2);
-    expect(hitLabel(hit, false)).toContain("+2");
+    expect(hitText(hit, "free")).toBe("LODESTONE +2 DAMAGE, +2.2 DAMAGE FOR EACH STALLED MACHINE, UP TO 13 DAMAGE");
   });
 });

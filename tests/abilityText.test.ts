@@ -89,7 +89,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   // 0.6.2 FB-B: + flat on every payload, then up to `stacks` of its Burn at perBurn more each (the rest stays Burn)
   quench: (e) => [g(e).quench!.flat, g(e).quench!.stacks, g(e).quench!.perBurn, ...BURN],
   staticbrush: (e) => [g(e).staticTime!],
-  lodestone: (e) => [g(e).perStalled!.each, g(e).perStalled!.max],
+  lodestone: (e) => [g(e).flat!, g(e).perStalled!.each, g(e).perStalled!.max], // 0.6.2rel3 (TUNE-M T2): the floor first
   barbed: (e) => (g(e).frayCap ? [g(e).fray!, FRAY_MAX + g(e).frayCap, FRAY_BONUS] : [g(e).fray!, FRAY_BONUS, FRAY_MAX]),
   counterweight: (e) => [r1(g(e).perTile!.each), g(e).perTile!.max],
   // factories
@@ -206,7 +206,7 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
 
   it("the brief's cases, written out", () => {
     const at = (def: string, s: number) => abilityText(def, s);
-    expect(at("longhaul", 2).sentences[0]).toBe("ADDS 4 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
+    expect(at("longhaul", 2).sentences[0]).toBe("ADDS 2 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
     expect(at("overclocker", 1).sentences[0]).toBe("DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR 4 SECONDS.");
     expect(at("mimic", 3)).toEqual({
       sentences: ["STAMPS YOUR HERO'S SIGNATURE AMMO 25% FASTER THAN ITS OWN FACTORY AND FEEDS 2 BELTS."],
@@ -219,7 +219,7 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     ]);
     expect(at("scrapper", 3).perk).toEqual({ name: "BIG HAUL", stars: 3, after: 2 });
     expect(at("frostbite", 2).sentences[0]).toBe("STAMPS ROUNDS THAT FREEZE 2 MACHINES FOR 2.75 SECONDS.");
-    expect(at("temper", 1).sentences).toEqual(["ADDS 2 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS."]);
+    expect(at("temper", 1).sentences).toEqual(["ADDS 1 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS."]);
   });
 
   it("0.6.2rel: FB-B's four modules and the turrets, written out", () => {
@@ -304,12 +304,12 @@ describe("0.6.2t T5: next star, merge progress and MERGES WITH, as sentences", (
       }
     }
     expect(nextStarText("gantry", 1)).toBe("NEXT STAR: FEEDS 3 BELTS.");
-    expect(nextStarText("temper", 1)).toBe("NEXT STAR: ADDS 4 BURN.");
+    expect(nextStarText("temper", 1)).toBe("NEXT STAR: ADDS 2 BURN.");
   });
 
   it("merge progress and MERGES WITH read as whole sentences", () => {
     expect([mergeProgressText(1), mergeProgressText(2)]).toEqual(["1 MORE COPY TO MERGE.", "2 MORE COPIES TO MERGE."]);
-    expect(mergesWithText("temper", 2)).toBe("MERGES WITH YOUR TEMPER INTO ★2: ADDS 4 BURN.");
+    expect(mergesWithText("temper", 2)).toBe("MERGES WITH YOUR TEMPER INTO ★2: ADDS 2 BURN.");
     expect(mergesWithText("mimic", 3)).toBe("MERGES WITH YOUR MIMIC FORGE INTO ★3: 25% FASTER, FEEDS 2 BELTS.");
   });
 

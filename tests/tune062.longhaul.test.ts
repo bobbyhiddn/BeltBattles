@@ -8,8 +8,7 @@ import { ITEMS, rigShape } from "../src/sim/content";
 import { walkRoute, type Build } from "../src/sim/deck";
 import { overclocked } from "../src/sim/overclock";
 import { effectAt } from "../src/sim/stars";
-import { flavour } from "../src/screens/build/flavour";
-import { hitLabel, levelLine, starEffectLine } from "../src/screens/build/inspector";
+import { abilityText, cardText, gist, hitText, nextStarText } from "../src/ui/abilityText"; // 0.6.2rel3: REQ-BFG-032's glossary
 import { wrap } from "../src/render/font";
 import { bench, est, run } from "./arsenal.bench";
 
@@ -54,17 +53,16 @@ describe("TUNE LONGHAUL: +1 / +2 / +3.5 damage per earlier hit (was +2 / +4 / +7
     expect(overclocked({ perPriorGate: 1 })).toEqual({ perPriorGate: 2 });
   });
 
-  it("player text: the description, each star's flavour and level line, and the belt timeline state the new numbers", () => {
+  it("player text: the description, each star's ability text, gist and next star, and the belt timeline state the new numbers", () => {
     expect(ITEMS.longhaul.desc).toEqual(["+1 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."]);
-    expect(STARS.map((s) => flavour("longhaul", s).join(" / "))).toEqual([
-      "+1 DAMAGE FOR EACH / HIT THE PAYLOAD / ALREADY TOOK.",
-      "+2 DAMAGE FOR EACH / EARLIER HIT, UP TO / 6 HITS.",
-      "+3.5 DAMAGE PER / EARLIER HIT, UP TO / 6 HITS.", // the re-flow: "+3.5 DAMAGE FOR EACH" wraps on the narrowest panel
+    // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand (and the star flavour's ★3 re-flow: the glossary wraps whole words)
+    expect(STARS.map((s) => abilityText("longhaul", s).sentences[0])).toEqual([
+      "ADDS 1 DAMAGE FOR EACH EARLIER RIG HIT.", "ADDS 2 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.", "ADDS 3.5 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.",
     ]);
-    expect(STARS.map((s) => starEffectLine("longhaul", s))).toEqual(["+1/HIT", "+2/HIT · MAX 6 HITS", "+3.5/HIT · MAX 6 HITS"]);
-    expect(levelLine("longhaul", 3)).toBe("★3: +3.5/HIT · MAX 6 HITS");
-    for (const s of STARS) expect(wrap(starEffectLine("longhaul", s), 151, "3").length, `★${s} on a phone`).toBe(1);
+    expect(STARS.map((s) => gist("longhaul", s))).toEqual(["1 DAMAGE FOR EACH EARLIER HIT", "2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS", "3.5 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS"]);
+    expect([nextStarText("longhaul", 1), nextStarText("longhaul", 2)]).toEqual(["NEXT STAR: 2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS.", "NEXT STAR: 3.5 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS."]);
+    for (const s of STARS) expect(wrap(gist("longhaul", s), 151, "3").length, `★${s} on a phone`).toBeLessThanOrEqual(2);
     const hit = (s: number) => walkRoute(haul(s), 0).timeline.flatMap((row) => row.hits).find((h) => h.def === "longhaul")!;
-    expect(STARS.map((s) => hitLabel(hit(s), false))).toEqual(["LONG HAUL +1 (1 HIT BEFORE)", "LONG HAUL +2 (1 HIT BEFORE)", "LONG HAUL +3.5 (1 HIT BEFORE)"]);
+    expect(STARS.map((s) => hitText(hit(s), "free"))).toEqual(["LONG HAUL +1 DAMAGE (1 HIT BEFORE)", "LONG HAUL +2 DAMAGE (1 HIT BEFORE)", "LONG HAUL +3.5 DAMAGE (1 HIT BEFORE)"]);
   });
 });

@@ -9,8 +9,7 @@ import { BURN_TIME, ITEMS, rigShape } from "../src/sim/content";
 import { walkRoute, type Build } from "../src/sim/deck";
 import { overclocked } from "../src/sim/overclock";
 import { effectAt } from "../src/sim/stars";
-import { flavour } from "../src/screens/build/flavour";
-import { hitLabel, levelLine, starEffectLine } from "../src/screens/build/inspector";
+import { abilityText, cardText, gist, hitText, nextStarText } from "../src/ui/abilityText"; // 0.6.2rel3: REQ-BFG-032's glossary
 import { wrap } from "../src/render/font";
 import { bench, est, run } from "./arsenal.bench";
 
@@ -55,13 +54,14 @@ describe("TUNE TEMPER: Burn 1 / 2 / 4 at 1 / 2 / 3 stars (was 2 / 4 / 7)", () =>
     expect(overclocked({ burn: 1 })).toEqual({ burn: 2 });
   });
 
-  it("player text: the description, each star's flavour and level line, and the belt timeline state the new Burn", () => {
+  it("player text: the description, each star's ability text, gist and next star, and the belt timeline state the new Burn", () => {
     expect(ITEMS.temper.desc).toEqual(["ADDS 1 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."]);
-    expect(STARS.map((s) => flavour("temper", s)[0])).toEqual(["ADDS 1 BURN.", "ADDS 2 BURN.", "ADDS 4 BURN."]);
-    expect(STARS.map((s) => starEffectLine("temper", s))).toEqual(["+1 BURN", "+2 BURN", "+4 BURN"]);
-    expect([levelLine("temper", 2), levelLine("temper", 3)]).toEqual(["★2: +2 BURN", "★3: +4 BURN"]);
-    for (const s of STARS) expect(wrap(starEffectLine("temper", s), 151, "3").length, `★${s} on a phone`).toBe(1);
+    // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand
+    expect(STARS.map((s) => abilityText("temper", s).sentences[0])).toEqual(["ADDS 1 BURN TO EACH PAYLOAD IT HITS.", "ADDS 2 BURN TO EACH PAYLOAD IT HITS.", "ADDS 4 BURN TO EACH PAYLOAD IT HITS."]);
+    expect(STARS.map((s) => gist("temper", s))).toEqual(["ADDS 1 BURN", "ADDS 2 BURN", "ADDS 4 BURN"]);
+    expect([nextStarText("temper", 1), nextStarText("temper", 2), cardText("temper")]).toEqual(["NEXT STAR: ADDS 2 BURN.", "NEXT STAR: ADDS 4 BURN.", "ADDS 1 BURN."]);
+    for (const s of STARS) expect(wrap(gist("temper", s), 151, "3").length, `★${s} on a phone`).toBe(1);
     const hit = (s: number) => walkRoute(tempered(s), 0).timeline.flatMap((row) => row.hits).find((h) => h.def === "temper")!;
-    expect(STARS.map((s) => hitLabel(hit(s), false))).toEqual(["TEMPER BURN +1", "TEMPER BURN +2", "TEMPER BURN +4"]);
+    expect(STARS.map((s) => hitText(hit(s), "free"))).toEqual(["TEMPER +1 BURN", "TEMPER +2 BURN", "TEMPER +4 BURN"]);
   });
 });

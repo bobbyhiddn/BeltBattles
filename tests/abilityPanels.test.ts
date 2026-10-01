@@ -513,9 +513,10 @@ describe("0.6.2rel: the join rows and the turret panels read by the text rules",
       for (const s of [t.title, t.sub, t.subShort ?? "", ...t.body.map((b) => b.text)]) expect(s, `${id}: ${s}`).not.toContain("·");
       for (const b of t.body.filter((x) => x.role === "ability" || x.role === "warn" || x.role === "hint")) expect(banned(b.text), `${id}: ${b.text}`).toEqual([]);
     }
-    // a joining belt's sub line: two short sentences (the desk column breaks it after the first)
-    expect(routePanel(joinRun(), 1)!.sub).toBe("JOINS BELT 1. FEEDS TURRET 1.");
-    expect(planPanel(routePanel(joinRun(), 1)!, DESK).subs).toEqual(["JOINS BELT 1.", "FEEDS TURRET 1."]);
+    // a joining belt's sub line: two short sentences (the desk column breaks it after the first); 0.6.2rel3: the first
+    // says its factory's pace (TUNE-M, RULE JOIN PACE)
+    expect(routePanel(joinRun(), 1)!.sub).toBe("JOINS BELT 1 AT 70% PACE. FEEDS TURRET 1.");
+    expect(planPanel(routePanel(joinRun(), 1)!, DESK).subs).toEqual(["JOINS BELT 1 AT 70% PACE.", "FEEDS TURRET 1."]);
   });
 
   it("0b.2 on the join rows: no lone short word on a last line where pulling one more word down still fits", () => {
@@ -667,7 +668,7 @@ describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel"
     const old: [string, number, string][] = [
       ["grease", 1, "THE BELT RUNS 60% FASTER FROM ITS HIT."], // a number quoted again
       ["grease", 1, "METRONOME'S LOCKED BELTS GAIN +1 DAMAGE."],
-      ["temper", 1, "ADDS 2 BURN."], // the opening, cut short
+      ["temper", 1, "ADDS 1 BURN."], // the opening, cut short
       ["temper", 1, "EACH BURN STACK DEALS 1 DAMAGE A SECOND FOR 3 SECONDS AFTER THE HIT."],
       ["frostbite", 1, "FROST ROUNDS FREEZE MACHINES AND PAUSE THEIR TIMERS."], // the effect in other words
       ["mimic", 3, "STAMPS YOUR HERO'S SIGNATURE AMMO INTO TWO MORE ROUTES."], // and TWO against FEEDS 2 BELTS
@@ -865,7 +866,7 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     // the two rows 881b38f left bare: SPLITTER's share and LODESTONE's cap
     const row = (def: string, s: number) => routePanel(rigRun(def, s, 3, 3, rotFacing(def, 1), 0), 0)!.body.find((b) => b.role === "row")!.text;
     expect(row("splitter", 1)).toBe("SPLITTER 2 COPIES AT 60% DAMAGE");
-    expect(row("lodestone", 2)).toBe("LODESTONE +2.2 DAMAGE FOR EACH STALLED MACHINE, UP TO 13 DAMAGE");
+    expect(row("lodestone", 2)).toBe("LODESTONE +2 DAMAGE, +2.2 DAMAGE FOR EACH STALLED MACHINE, UP TO 13 DAMAGE");
   });
 });
 
@@ -945,8 +946,8 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
 
   it("nit 5: every belt's sub is whole sentences: a main belt's ends with a full stop, as a joining belt's does", () => {
     const run = joinRun();
-    expect([routePanel(run, 0)!.sub, routePanel(run, 1)!.sub]).toEqual(["FEEDS TURRET 1.", "JOINS BELT 1. FEEDS TURRET 1."]);
-    for (const { id, t } of PANELS.filter((p) => p.kind === "belt")) expect(t.sub, id).toMatch(/^([A-Z0-9 ]+\. )*[A-Z0-9 ]+\.$/);
+    expect([routePanel(run, 0)!.sub, routePanel(run, 1)!.sub]).toEqual(["FEEDS TURRET 1.", "JOINS BELT 1 AT 70% PACE. FEEDS TURRET 1."]);
+    for (const { id, t } of PANELS.filter((p) => p.kind === "belt")) expect(t.sub, id).toMatch(/^([A-Z0-9% ]+\. )*[A-Z0-9% ]+\.$/);
   });
 
   it("HOPPER on a COMPOUND BREECH: the sim ignores its seconds there (its slot and store still count); its clash says so", () => {

@@ -11,6 +11,7 @@ import {
 } from "../src/sim/deck";
 import { rateDeck } from "../src/sim/deckRating";
 import { joinPaceLines } from "../src/screens/build/inspector";
+import { seconds } from "../src/ui/abilityText"; // 0.6.2rel3: REQ-BFG-032's seconds
 import { HELP } from "../src/screens/title";
 import { C } from "../src/render/palette";
 
@@ -109,7 +110,7 @@ describe("RULE JOIN PACE: the player reads it", () => {
     // the joined factory's panel (and each of its belts') leads with it; an unjoined factory's reads as before
     expect(joinPaceLines(deck(), 2)).toEqual([
       [JOIN_PACE_LINE, C.cyan],
-      [`A LOAD EVERY ${(PRESS / JOIN_PACE).toFixed(1)}S ON THIS BELT, NOT ${PRESS.toFixed(1)}S.`, C.cyan],
+      [`A LOAD EVERY ${seconds(PRESS / JOIN_PACE)} ON THIS BELT, NOT ${seconds(PRESS)}.`, C.cyan], // 0.6.2rel3: "2 SECONDS", not "2.0S"
     ]);
     expect(joinPaceLines(deck(), 1)).toEqual([]);
     expect(joinPaceLines(deck(false), 2)).toEqual([]);
