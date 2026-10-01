@@ -171,7 +171,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // FINAL-MEASURE: the long haul comes on day 4 at ordinary luck (the stand-in; WEAVER d3's ordinary value cap is 25
       // g on the merged par field), still day 3 at good luck (the warlord)
       G(1, "barbed", 3, 0), G(1, "temper", 3, 1, 1), M(2, "scatter", 1), P(2), P(3), soon(3, G(4, "longhaul", 5, 0)),
-      M(4, "flak", 0), G(5, "splitter", 2, 4, 2), G(6, "staticbrush", 0, 1), G(7, "riveter", 5, 1), G(8, "venom", 0, 0),
+      // FINAL-MEASURE (the Prime's ladder fix, oracle e2d655e0): good luck brings the riveter on day 6 and the venom on
+      // day 7 (one day sooner; the warlord), so the Hard slot beats par on days 6 and 7 (rivals.difficulty)
+      M(4, "flak", 0), G(5, "splitter", 2, 4, 2), G(6, "staticbrush", 0, 1), soon(6, G(7, "riveter", 5, 1)), soon(7, G(8, "venom", 0, 0)),
       G(9, "counterweight", 2, 0), ...good(G2(10, "temper", 3, 1)),
     ],
   },
