@@ -172,7 +172,11 @@ export async function joinRun(page, touch, log, opts = {}) {
     return { onMain: m.ammo.filter((a) => a.via === ji.index).length, jams: s.stats.jams, maxQueue: s.stats.maxQueue };
   }, j);
   log(`[${at()}] so far: ${tally.onMain} joined payloads on the main belt now, jams ${tally.jams}, max queue ${tally.maxQueue}`);
-  await tapRegion(page, touch, "skip");
+  // 0.6.2 TUNE-M (RULE JOIN PACE): the joining factory runs at 70%, so the join need not crowd, and the crowd check above
+  // can step the fight to its end; a finished fight has no SKIP. Tap it only while the fight runs.
+  const live = await page.evaluate(() => window.bb.game.screen.phase === "fight" && window.bb.regions().some((r) => r.id === "skip"));
+  if (live) await tapRegion(page, touch, "skip");
+  log(`[${at()}] ${live ? "SKIP tapped (the fight was still running)" : "no SKIP to tap: the fight had already ended"}`);
   await page.waitForFunction(() => window.bb.game.screen.phase === "result", null, { timeout: 90000 });
   await page.waitForFunction(() => window.bb.regions().some((r) => r.id === "next"), null, { timeout: 5000 });
   const r = await page.evaluate(() => {
