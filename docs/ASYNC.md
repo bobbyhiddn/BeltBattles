@@ -3,8 +3,9 @@
 Groundwork for the 10-day run (ROADMAP §1, §3; spec §18, §20, §23): every day ends at
 dusk in a fight against another player's **ghost**, meaning their saved build from the same
 day of their own run. This covers the format, validation, matchmaking, replay, offline
-fallback and a small build server. The run, the sim and the screens are untouched; 0.6.0
-and 0.7.0 wire this in (checklist at the end).
+fallback and a small build server. 0.7.0a wires it into the game behind a server URL setting
+("0.7.0a: what the game does online", at the end); with no URL, the default, the game plays
+offline exactly as 0.6.2.
 
 ## Architecture
 
@@ -13,11 +14,11 @@ and 0.7.0 wire this in (checklist at the end).
  ─────────────────────────────────────────            ───────────────────────────────────
  dusk: snapshot.ts ─ validate.ts ─ submitGhost ──POST /v1/ghosts──▶ verifyUpload ▶ decode ▶ validateUpload ▶ store
        (signed with the device key: identity.ts)
-       fetchGhost ◀────────────────GET /v1/ghosts/match──────────── pickGhost (same rules+day)
-        │ error / timeout / 404 / invalid answer
+ dawn: fetchGhost ◀───────────────GET /v1/ghosts/match──────────── pickGhost (same rules+day, no better
+        │ error / timeout (4 s) / 404 / invalid answer                record: D1; runs < 3: seed pool only: D2)
         ▼
-       fallback.ts: bundled pool (pickGhost) ▶ stand-in from the stand-in pool (standInPick)
- fight: simulate(player, ghost, battleSeed) on the device; replay.ts stores and replays the record
+       the game (0.7.0a): 0.6.2's own dusk stand-in, standInFoe (fetchGhost's offline- fallback mapped)
+ fight: simulate(player, ghost, battleSeed) on the device; the dusk keeps battleRecordFor(...) for REPLAY
 ```
 
 | File | Role |
@@ -26,13 +27,16 @@ and 0.7.0 wire this in (checklist at the end).
 | `src/net/validate.ts` | `validateBuild(build, day, mode = "strict")`, `validateUpload` (the player mode), `maxGoldByDay`, `buildCost` |
 | `src/net/roadCap.ts` | the player mode's road ceiling: `roadCap`, `maxHonestSpend`, the reachable hull and belt, the D4 model |
 | `src/net/rulesGate.ts` | `parseRules`, `rulesAtLeast` and the gate that keeps turret slots and belt joins out of rules before bb-0.6.2 |
-| `src/net/matchmaking.ts` | pure `pickGhost(pool, req, rng)`, `matchSeed` |
+| `src/net/matchmaking.ts` | pure `pickGhost(pool, req, rng)`, `eligible` (with the record rule, D1), `isNewPlayer` and `NEW_PLAYER_RUNS` (D2), `matchSeed` |
+| `src/net/records.ts` | 0.7.0a: the records (wins, lives) a run can carry into each dusk under 0.6.2's run rules (`reachableRecords`, `isReachable`, `floorRecord`) |
 | `src/net/replay.ts` | `battleRecordFor`, `replay`, `replayBattle`, rules-version refusal |
 | `src/net/fallback.ts` | `offlineGhost`, `loadGhostPool`, `fallbackGhost` |
 | `src/net/ghostClient.ts` | `fetchGhost` and `submitGhost` (signed): fetch + AbortController, never throw |
 | `src/net/identity.ts` | the device key, `loadIdentity`, `playerIdFromKey`, `verifyUpload` (0.7.0: see "Identity and signed uploads") |
+| `src/game/online.ts`, `session.ts` | 0.7.0a: the game's online session (the server URL setting, the identity, the dawn fetch, the dusk upload, the finished-runs count); `session.ts` holds it for the screens and game logic |
+| `src/game/replays.ts`, `src/screens/replay.ts` | 0.7.0a: REPLAY of a stored dusk record from the run summary, read-only |
 | `server/` | `app.ts` (routes), `store.ts` (the async `GhostStore` interface and the JSON-lines store), `tigrisStore.ts` (Tigris store), `s3.ts` + `sigv4.ts` (S3 client and signer, no SDK), `seed.ts` (the `seed` command), `config.ts` (flags and env), `main.ts` (CLI), `node.d.ts` (Node types) |
-| `tools/` | `samplePool.ts` (40 validated sample ghosts), `genGhostPool.ts` (writes the JSON), `fakeS3.ts` (in-process S3 for tests), `smoke.ts` (local smoke run) |
+| `tools/` | `samplePool.ts` (the seed pool: 60 checked ghosts, see "Seeding"), `genGhostPool.ts` (writes the JSON), `fakeS3.ts` (in-process S3 for tests), `smoke.ts` (local smoke run) |
 | `deploy/`, `fly.toml`, `Dockerfile` | the Fly deploy kit: see "Running on Fly + Tigris" and `deploy/RUNBOOK.md` |
 
 Scripts: `npm run build:server` (type-checks with `tsconfig.server.json`, then bundles with
@@ -40,12 +44,20 @@ vite into `server/dist/`), `npm run server -- --port 7790 --data ./ghost-data`,
 `npm run gen:ghosts -- --out <file>`, `npm run typecheck:server`,
 `node server/dist/ghost-server.mjs seed`, `node deploy/stage.mjs <game.html>`, `npm run smoke`.
 
-## Snapshot format (v1)
+## Snapshot format (v2)
 
-`{ v: 1, rules, hero, day, wins, lives, build, runId, playerId, createdAt }`
+`{ v: 2, rules, hero, day, wins, lives, build, runId, playerId, createdAt }` (`SNAPSHOT_VERSION` = 2)
 
-- `rules` is `RULES_VERSION` at the fight. `day` is 1-10. `wins` (0..day−1) and `lives` (1..9) are the
-  record the player carried **into** that dusk fight. `build` is the deck exactly as it fought.
+- `rules` is `RULES_VERSION` at the fight (bb-0.6.2). `day` is 1-10. `wins` (0..day−1) and `lives` (1..9) are
+  the record the player carried **into** that dusk fight. `build` is the deck exactly as it fought.
+- v2 is v1 plus what a 0.6.2 deck can hold, each optional and written only when present: `stars` (1..3) on an
+  item or mod (merged copies), `rot` (0..3) on an item (a rig's rotation), `build.turrets` (at most 8 entries
+  `{ slot, def, uid, stars?, free? }`: the hull's turret slots) and `join` on a route (a joining belt's join
+  tile). A v1 snapshot still decodes (as 1-star copies, `migrateV1` moves its gates beside the belts); v1 may
+  hold none of the four. Turrets and joins need bb-0.6.2 rules or later (the rules gate, below).
+- The game writes v2: `ghostOf(run, createdAt, playerId)` in `src/game/day.ts` (0.7.0a uploads it under the
+  device key's playerId, see "0.7.0a: what the game does online"); `src/game/ghostSnapshot.ts` mirrors the
+  contract for the local pool, and tests/snapshot.contract.test.ts holds the two together.
 - Canonical JSON: fixed key order, no whitespace, arrays in build order (item and route
   order matter to the sim). `encode(decode(x))` is byte-stable, so the id is a content hash:
   `ghostId = "g" + cyrb53(canonical)` in hex. Resubmitting the same snapshot is idempotent.
@@ -163,12 +175,34 @@ via `rng.int`. That rank is sorted by id first, so the result depends only on th
 contents, the request and the rng. It returns `null` when nothing is left. The server seeds
 with `matchSeed(req, minute)`, so a retry within a minute returns the same ghost while later runs vary.
 
+0.7.0a adds two rules (the Prime's decisions):
+- **D1, the record rule:** a player is never handed a ghost with a better record. `eligible` keeps a ghost
+  only with fewer wins than the request, or as many wins and at most as many lives (`noBetterRecord`); the
+  ranking above then runs on what is left. It holds on the server and in every client-side pick
+  (`fallbackGhost`), and `fetchGhost` refuses a served ghost with a better record (it falls back), so a server
+  without the rule can't hand one over either.
+- **D2, the new-player pool:** a player's first `NEW_PLAYER_RUNS` = 3 finished runs (won or lost) match only
+  seed ghosts, never another player's upload. The request carries `runs`, the device's count of finished
+  runs; absent counts as 0. While `runs < 3` the route matches `store.bucket(rules, day, "pool")`, the seed
+  pool alone (`ghosts/<rules>/dNN/pool/` on Tigris, `pool.jsonl` on the JSON-lines store); the record rule
+  applies inside it too.
+- Nothing eligible: **404**, and the game falls back to 0.6.2's own stand-in.
+
+`GET /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2&runs=n`; `runs` is 0..9999.
+
 ## Replay and rules versions
 
 A `BattleRecord` is `{ rules, seed, builds: [player, ghost] }`. The seed is `battleSeed(run)`. The sim is
 fixed-step with one seeded Rng, so `replay(record)` reproduces the winner, end tick and both
 hulls bit for bit (tested over 60 seeds, headless and frame by frame). `replay` and
 `replayBattle` **refuse** a record whose `rules` differ from `RULES_VERSION`.
+
+**The REPLAY button (0.7.0a, decision D6).** Online, each dusk keeps its `battleRecordFor(your deck, the
+foe's deck, battleSeed(run))` and both final hulls in its `DayResult` (the run's round history). The run
+summary's round history shows REPLAY on each such dusk: it plays `replayBattle(record)` in the battle view
+(`src/screens/replay.ts`: the same arena, plates and playback bar, then the result and BACK). A replay is
+read-only: it changes no run state. A record whose rules differ says "REPLAY UNAVAILABLE (OTHER RULES)".
+Offline (no server URL) a dusk stores no record, as 0.6.2, so the summary has no REPLAY column.
 
 Turret slots and belt joins are bb-0.6.2 rules (0.7.0, v070-rel). `src/net/rulesGate.ts` is the one place that reads
 a rules version as a number. `rulesAtLeast(rules, "bb-0.6.2")` reads `bb-MAJOR.MINOR.PATCH` and refuses anything
@@ -187,9 +221,9 @@ numbers or sim behaviour) does to the pool:
 - The server only accepts uploads under its own `RULES_VERSION`, so deploy it together with the game.
 - Old ghosts stay in `ghosts.jsonl` and in memory, bucketed by rules. Old clients can still
   match each other; new clients start with an empty pool for the new version.
-- Until players refill it, new clients fall back to the bundled pool, which must be regenerated for the new
-  rules with `npm run gen:ghosts` (the loader rejects entries from other rules), and then the stand-ins,
-  whose pool is regenerated with `npm run standins`.
+- Until players refill it, new clients meet the seed pool, which must be regenerated for the new rules
+  (`npm run gen:ghosts` writes it; `seed` refuses entries of other rules), and then 0.6.2's own stand-in when
+  nothing is eligible; the stand-in pool is regenerated with `npm run standins`.
 - Stored battle records from older rules can no longer be replayed by the new build.
   Keep the old build hosted if old replays matter.
 
@@ -208,6 +242,11 @@ it returns `fallbackGhost(req, pool)`:
 `loadGhostPool(json)` strictly decodes each entry, requires the current rules and a passing
 `validateBuild` (the strict mode: the bundled pool is generated inside the shop's rules), drops duplicates,
 and reports rejected entries by index.
+
+**What the game does with a fallback (0.7.0a).** The game ships no ghost pool (the page stays its size) and
+calls `fetchGhost` without one, so its fallback is always `offlineGhost` (an `offline-` id). The game never
+fights that deck: any fallback becomes 0.6.2's own tuned dusk stand-in, `standInFoe(run.seed, day)` (the day's
+rival captain with its named build), labelled OFFLINE STAND-IN (`src/game/day.ts onlineFoe`).
 
 ## Security stance
 
@@ -318,7 +357,7 @@ thousands. Past that, cap each (rules, day) bucket or move to SQLite.
 ## Running on Fly + Tigris
 
 One `shared-cpu-1x` machine with 256 MB in `iad` runs the bundle (`node:22-alpine`, no npm install)
-and serves both the game page (the released 0.6.0, at `/`) and the API (`/v1/...`) from one HTTPS origin,
+and serves both the game page (the published build recorded in `deploy/GAME_BUILD.txt`, at `/`) and the API (`/v1/...`) from one HTTPS origin,
 https://beltbattles.fly.dev. It stops when idle and starts on the next request. Ghosts live in a
 Tigris bucket (Fly's S3-compatible object storage), so the machine has no volume and nothing to
 back up. The kit is `fly.toml`, `Dockerfile` and `.dockerignore` at the repo root, plus
@@ -386,24 +425,36 @@ ghosts/<rules>/d<DD>/player/<id>.json   player uploads: written only by POST /v1
 **Seeding.** `node dist/ghost-server.mjs seed` is the `release_command`: before every release it
 runs on a throwaway machine with the app's env and secrets, and a nonzero exit aborts the deploy.
 - It first checks every sample-pool entry, and writes nothing if any check fails. The checks are:
-  strict decode, the current `RULES_VERSION`, `validateBuild`, no duplicates, and a non-empty pool.
+  strict decode, the current `RULES_VERSION`, `validateUpload` (the player mode, as an upload is checked),
+  a record label a run can reach, no duplicates, and a non-empty pool.
 - Then it makes the pool for the current `RULES_VERSION` exactly the bundle: missing or differing
   records are written, and pool records not in the bundle are deleted.
 - Pool records of other rules versions and every player upload are left alone.
-- It prints `written`, `unchanged` and `removed`. An unchanged bundle prints 0 / 40 / 0.
+- It prints `written`, `unchanged` and `removed`. An unchanged bundle prints 0 / 60 / 0.
+
+**The seed rule (0.7.0a, decision D5).** The bb-0.6.2 seed pool (`tools/samplePool.ts generateSamplePool`,
+what `seed` and `npm run gen:ghosts` write) is 60 ghosts drawn from the stand-in pool: per hero and day, the
+40 sample ghosts' par deck and seeded pick, and one floor ghost (a third deck). Every seed ghost passes
+`validateUpload` in the player (honest) mode, and the shop's strict `validateBuild` too; the generator and the
+seed fail loudly if one doesn't. Every record label is reachable under 0.6.2's run rules (`src/net/records.ts`:
+5 lives, a loss costs 1, the early-loss refund at dawn 3, the DOCK's PATCH UP; checked against the run code).
+A floor ghost carries the weakest record a run can bring to that dusk (no wins and the fewest lives: 5 4 4 3 2
+1 1 1 1 1 over days 1-10), so under the record rule it is eligible for every reachable request: for every day
+1-10 and every reachable (wins, lives) at that dusk, at least 2 seed ghosts are eligible
+(tests/seed.records.test.ts; the generator throws otherwise). The pool keeps its turret and join decks (24
+and 41 of 60).
 - On the JSON-lines store the pool lives in `pool.jsonl`, replaced atomically; `ghosts.jsonl` stays
   append-only.
 
 **Why uploads are closed.**
-- Today's strict budget rule (shop gold only, see Validation) would reject honest 0.6.0b+ decks
-  with 422, until 0.7.0's player budget ceiling replaces it (integration step 8 below).
-- The server now takes only signed uploads (see "Identity and signed uploads"), so nobody can post
-  under another player's id. The game does not sign or upload yet: that is the 0.7.0 wiring.
-- Production therefore runs with `BB_GHOST_UPLOADS=closed`. Players fight the seeded pool, and the
-  client's offline fallback covers everything else.
-- Open uploads with 0.7.0, once the game signs its uploads (REQ-BFG-016: a per-device key, which
-  needs `crypto.subtle` and so a secure origin; that is why the page is served from the API's HTTPS
-  origin) and the player budget ceiling lands.
+- The server takes only signed uploads (see "Identity and signed uploads"), so nobody can post under
+  another player's id, and checks every deck in the player mode (`validateUpload`, the road's honest
+  ceiling). 0.7.0a's game signs and uploads its dusk deck when a server URL is set.
+- Production still runs with `BB_GHOST_UPLOADS=closed`: opening uploads is the operator's call, a separate
+  deploy step after signed uploads and the honest budget check both pass on the live server. Until then a
+  0.7.0a upload gets 403 (silently), players fight the seeded pool, and the game's fallback covers the rest.
+- A secure origin is needed for the device key (`crypto.subtle`); that is why the page is served from the
+  API's HTTPS origin.
 
 **Scaling: when lazy bucket loads stop being enough.**
 - A first load of a (rules, day) bucket costs one LIST per 1,000 keys plus one GET per ghost, 16 at
@@ -424,29 +475,52 @@ runs on a throwaway machine with the app's env and secrets, and a nonzero exit a
   More machines don't help with this: each one loads buckets independently and only adds LIST
   traffic.
 
-## 0.6.0 / 0.7.0 integration: exactly what to wire
+## 0.7.0a: what the game does online
 
-1. **Identity.** Once per page load, `identity = await loadIdentity(indexedDbKeyStore())`. If it
-   is null (no `crypto.subtle` on a plain-http page, or no IndexedDB), play offline as if no server
-   were set (step 7): no upload and no match request. Otherwise `playerId = identity.playerId`.
-   0.6.0's random id stays in localStorage only to recognize the player's own older local ghosts
-   (the migration rule under "Identity and signed uploads"). Make a fresh `runId` per run. Add
-   `seenGhosts: string[]` to `Run` (bump the save version).
-2. **Submit at dusk.** Before day N's fight, build
-   `{ v: 1, rules: RULES_VERSION, hero: run.hero, day: N, wins: run.wins, lives: run.lives, build: run.build, runId, playerId, createdAt: Date.now() }`.
-   If `validateUpload(run.build, N).ok` (the player mode, as the server checks it), call
-   `submitGhost(serverUrl, snap, identity)` without awaiting it (fire and forget). A failure never
-   blocks the fight.
-3. **Fetch the ghost.** `fetchGhost(serverUrl, { rules, day: N, wins, lives, playerId, seen: run.seenGhosts, hero: run.hero, seed: battleSeed(run) }, 4000, { pool })`.
-   `pool` is `loadGhostPool(bundledJson).entries`. Push the returned `id` onto `run.seenGhosts`.
-4. **Fight it.** Replace `enemyBuild(run)` with `ghost.snapshot.build` and set the enemy hero
-   from `ghost.snapshot.hero` for that day (it can be a mirror match). Keep `battleSeed(run)`.
-5. **Store the battle record.** `battleRecordFor(run.build, ghost.snapshot.build, battleSeed(run))`
-   goes into the round history, for replays and bug reports (`replayBattle(record)` for playback).
-6. **Show the ghost before the fight:** its hero, its record (wins, losses, lives), the day,
-   and whether it is a player ghost (`source: "server"` or a pool id) or a stand-in (`offline-…`).
-7. **Config.** Set a server base URL. With none, the game plays offline (fallback only). Shore's
-   origin must be listed in `--origins`.
+0.7.0a wires the async groundwork into the game (`src/game/online.ts`, `session.ts`, `day.ts`, the screens),
+as the Prime's decisions D1-D6 set it. Uploads stay closed in production.
+
+1. **The server URL setting (D3).** None by default, and then the game is offline exactly as 0.6.2: the same
+   dusk foes on the same seeds (`startDusk(run, loadPool())`: the local pool, else `standInFoe`), no identity,
+   no IndexedDB, no request and no new storage key. A URL comes from, in order:
+   - `?server=<https URL>` on the page (http only for localhost and 127.0.0.1), saved under
+     `beltbattles.server.v1`; `?server=off` clears it and plays offline; a bad value is ignored;
+   - the saved URL;
+   - the build's `VITE_GHOST_SERVER`: "" in the default build; "same-origin" means the page's own origin (a
+     later Fly page build, where the page and the API share the HTTPS origin). A page on another origin must
+     be in the server's `BB_GHOST_ORIGINS`.
+2. **Identity.** With a URL, one session per page load runs `loadIdentity(indexedDbKeyStore())` once. Null (no
+   WebCrypto, a plain-http origin other than localhost): the game plays offline, as 0.6.2. The key's playerId
+   is the upload id and the match request's `player`; 0.6.0's random id (`beltbattles.player.v1`) stays on the
+   device for the local pool and is never uploaded.
+3. **Fetch tonight's ghost (D4).** As soon as the day has no stored dusk foe (from dawn), the session calls
+   `fetchGhost(url, { rules: RULES_VERSION, day, wins, lives, playerId, seen: run.seenGhosts, hero, seed:
+   battleSeed(run), runs }, 4000)`. A server ghost becomes a `kind: "ghost"` DuskFoe (`ghostName(snapshot)`,
+   its hero, a cloned build, its record), stored in `run.dusk` and saved, so the NEXT BATTLE card shows it and
+   a reload fights the same ghost; its id joins `run.seenGhosts` (no repeats in a run). Any fallback (an
+   error, the 4 s timeout, a 404, an unusable answer) is 0.6.2's own `standInFoe`; no ghost pool ships in the
+   page. If the answer is still out at FIGHT, a DUSK · FINDING A GHOST... card holds the dusk at most 5 s.
+   Fetching at dawn can only send a lower record than the one carried into the dusk (PATCH UP may add a life
+   later that day), never a higher one, so the record rule (D1) still holds.
+4. **Fight it.** `startDusk` keeps the stored foe and the fight runs on `battleSeed(run)`, as before.
+5. **Submit at dusk.** Once per dusk (`run.uploaded`), as the dusk starts (the build committed, before the
+   fight): `ghostOf(run, Date.now(), identity.playerId)` (v2, bb-0.6.2) goes up with `submitGhost`, only if
+   `validateUpload` (the player mode, as the server checks it) accepts it; a refused deck is a console.debug
+   line. Fire and forget: 403 (closed), 401, 422 and network errors are silent, and nothing waits for them.
+6. **The battle record.** `battleRecordFor(your deck, the foe's, battleSeed)` and both final hulls stay in the
+   dusk's `DayResult`, for the summary's REPLAY ("Replay and rules versions", D6).
+7. **Show the source.** The NEXT BATTLE card and the enemy plate name it in small text: ONLINE GHOST, or
+   OFFLINE STAND-IN after a fallback; the card says FINDING A GHOST... until the answer. Offline the card is
+   0.6.2's.
+
+- **D2:** a finished run (won or lost) counts once in `beltbattles.runs.v1` (online only) and goes up as `runs`.
+- **D5:** the seed pool's rule, under "Seeding".
+- **Save v7, no bump:** `Run.seenGhosts` and `uploaded`, `DuskFoe.source` and `ghostId`, `DayResult.record` and
+  `hulls` are optional and absent offline (a v8 key would be a new key written offline); `save.ts
+  normalizeOnline` drops malformed ones, and every older save still loads.
+
+**Steps 8 and 9 of the 0.6.0 checklist, where they stand:**
+
 8. **Keep the budget honest.** Done in 0.7.0 prep (v070-validate): the server (`POST /v1/ghosts`) and
    `fetchGhost` check player decks in the player mode, `validateUpload`: the strict rules, with the road's
    reachable hull and belt, and `cost ≤ maxHonestSpend(N) = maxGoldByDay(N) + roadCap(N)` (see Validation).
@@ -460,6 +534,11 @@ runs on a throwaway machine with the app's env and secrets, and a nonzero exit a
    `fetchGhost` accept only bb-0.6.2 ghosts, and the ceiling was re-pinned for TUNE-C's warlord decks. The join
    limit (2) is validateBuild's own, in both modes. The rules gate (`rulesGate.ts`, see Replay and rules
    versions) keeps turrets and joins out of older rules on every accepting path. Uploads stay closed in production.
-9. **Decide on dead-end belts.** The build screen lets a player save a belt that doesn't
-   reach a turret (a toast, not a refusal), but validation requires connected routes (spec
-   §8.1). Either block FIGHT or the upload while any belt is unconnected, or relax that rule.
+   0.7.0a gates the game's own upload on the same `validateUpload`, and the seed pool too (D5). Left, as
+   v070-validate-rel's REPORT section 9 says: the ceiling's avoidable slack (0 0 0 2 4 6 8 10 12 14 gold over
+   days 1-10, a safe upper bound), and the gate as defence in depth.
+9. **Dead-end belts.** Decided in 0.6.x: the build screen blocks FIGHT while any belt is one an upload would
+   refuse (a dead end, a crossing, a broken step: `src/game/routeCheck.ts fightBlock`, a local mirror of
+   validateBuild's route block); a deck with no belt at all may still fight. 0.7.0a adds the upload gate: a deck
+   the player mode still refuses is simply not uploaded. Left: the mirror could call validate.ts itself now
+   that the page bundles it.
