@@ -13,19 +13,28 @@
 //      desktop 1920x1080: where the enemy plate's source line is drawn (BattleScreen.sourceLine: the free row above the
 //      plate, else inside the plate's strip; never on the hull), and the summary's REPLAY target (regions(): at least 44
 //      CSS px tall and wide on a phone, 0.7.0a's cell on the desktop), tapped.
-// Usage: npm run build && npm run build:server && node scripts/asynccheck.mjs <outDir> [options]
-//   --only A,B,C,phone,M1   run these sections only (default: all of them)
+//  D.  the single-file pages served at / by the built ghost server itself (BB_GHOST_STATIC, a temp directory), with no
+//      ?server=: the online page (npm run build:online, VITE_GHOST_SERVER=same-origin) with uploads open (a dusk ghost
+//      from the same origin, ONLINE GHOST on the card and the plate, the signed upload 201, requests only to that
+//      origin) and closed (the upload's 403 is silent and the run plays on); the offline page plays offline.
+// Usage: npm run build && npm run build:online && npm run build:server && node scripts/asynccheck.mjs <outDir> [options]
+//   --only A,B,C,phone,M1,D  run these sections only (default: all of them)
 //   --dist <dir>            the build to serve (default dist/; e.g. a 0.7.0a build for M1's before shots)
+//   --dist-online <dir>     D's online build when --pages is not given (default dist-online/)
+//   --pages <dir>           D's pages: BeltBattles-*-online.html and the offline BeltBattles-*.html (default: inline
+//                           dist-online/ and dist/ as scripts/singlefile.mjs does)
 //   --tag <prefix>          the M1 screenshots' prefix (default "after")
 //   --name <base>           the log and json file names (default asynccheck)
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json and the screenshots.
 
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
+import { inlineBuild } from "./inline.mjs";
 import { placePlanned, settle, sleep, tapRegion } from "./playthrough.mjs";
 import { roadStop } from "./roadstop.mjs";
 import { VIEWS } from "./shots-list.mjs";
@@ -37,9 +46,10 @@ const opt = (name, fallback) => {
   return i >= 0 && args[i + 1] !== undefined ? args[i + 1] : fallback;
 };
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
+const DIST_ONLINE = resolve(opt("dist-online", join(ROOT, "dist-online")));
 const BUNDLE = join(ROOT, "server", "dist", "ghost-server.mjs");
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "asynccheck"));
-const ONLY = opt("only", "A,B,C,phone,M1").split(",").map((s) => s.trim());
+const ONLY = opt("only", "A,B,C,phone,M1,D").split(",").map((s) => s.trim());
 const want = (section) => ONLY.includes(section);
 const TAG = opt("tag", "after");
 const NAME = opt("name", "asynccheck");
@@ -98,11 +108,14 @@ async function freePort() {
   return port;
 }
 
-/** The built ghost server (server/dist), JSON-lines store in a temp directory: seeded, uploads open, CORS for `origin`. */
-async function ghostServer(origin, uploads = "open") {
+/** The built ghost server (server/dist), JSON-lines store in a temp directory: seeded, uploads open, CORS for `origin`.
+ *  0.7.0 R1 (check D): `staticDir` (BB_GHOST_STATIC) makes it serve that directory's index.html at /; a null `origin`
+ *  allows its own origin, as fly.toml does. */
+async function ghostServer(origin, uploads = "open", staticDir = null) {
   const data = mkdtempSync(join(tmpdir(), "bb-asynccheck-"));
   const port = await freePort();
-  const env = { PATH: process.env.PATH, BB_GHOST_DATA: data, BB_GHOST_UPLOADS: uploads, BB_GHOST_HOST: "127.0.0.1", BB_GHOST_PORT: String(port), BB_GHOST_ORIGINS: origin };
+  const env = { PATH: process.env.PATH, BB_GHOST_DATA: data, BB_GHOST_UPLOADS: uploads, BB_GHOST_HOST: "127.0.0.1", BB_GHOST_PORT: String(port), BB_GHOST_ORIGINS: origin ?? `http://127.0.0.1:${port}` };
+  if (staticDir) env.BB_GHOST_STATIC = staticDir;
   const seed = await run(process.execPath, [BUNDLE, "seed"], env);
   const proc = spawn(process.execPath, [BUNDLE], { env });
   children.add(proc);
@@ -142,14 +155,20 @@ async function openPage(browser, view, url) {
   const page = await ctx.newPage();
   const errors = [];
   const requests = [];
-  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  const where = []; // 0.7.0 R1: each console error's source URL (Chromium's own network lines carry the resource's)
+  page.on("pageerror", (e) => {
+    errors.push(`pageerror: ${e.message}`);
+    where.push("pageerror");
+  });
   page.on("console", (m) => {
-    if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`);
+    if (m.type() !== "error" && m.type() !== "warning") return;
+    errors.push(`${m.type()}: ${m.text()}`);
+    where.push(m.location()?.url ?? "");
   });
   page.on("request", (r) => requests.push(`${r.method()} ${r.url()}`));
   await page.goto(url);
   await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
-  return { ctx, page, errors, requests };
+  return { ctx, page, errors, requests, where };
 }
 
 /** Day 1 with real input: NEW RUN, COMMAND (the first hero), buy and place a part, FIGHT, the road event, the dusk. */
@@ -369,6 +388,87 @@ async function main() {
     await gs.stop();
   }
 
+  // ---------------------------------------------------------------- D. the single-file pages at / of the ghost server itself
+  if (want("D")) {
+    log("");
+    log("## D. the single-file pages, served at / by the built ghost server itself (BB_GHOST_STATIC), no ?server= (0.7.0 R1 M3)");
+    const pages = await singlePages();
+    for (const [kind, p] of Object.entries(pages)) log(`${kind} page: ${p.from}, ${p.bytes} bytes, sha256 ${p.sha256}`);
+    result.d = { pages: Object.fromEntries(Object.entries(pages).map(([k, p]) => [k, { from: p.from, bytes: p.bytes, sha256: p.sha256 }])) };
+    for (const uploads of ["open", "closed"]) {
+      const tag = `D-online-${uploads}`;
+      const dir = mkdtempSync(join(tmpdir(), "bb-static-"));
+      writeFileSync(join(dir, "index.html"), pages.online.html);
+      const gs = await ghostServer(null, uploads, dir);
+      log(`[${at()}] ${tag}: ghost server ${gs.base} (uploads ${uploads}) serving the online page; seed exit ${gs.seed.code}; health ${JSON.stringify(gs.health)}`);
+      const { ctx, page, errors, requests, where } = await openPage(browser, "desk", `${gs.base}/`);
+      await page.waitForFunction(() => window.bb.online()?.active, null, { timeout: 15000 });
+      const s0 = await page.evaluate(() => window.bb.online());
+      const finish = await dayOne(page, shots, tag);
+      await page.waitForFunction(() => window.bb.online().dusk?.source, null, { timeout: 10000 });
+      const card = await page.evaluate(() => ({ note: window.bb.game.screen.note(), s: window.bb.online() }));
+      const r = await finish();
+      const plate = await page.evaluate(() => window.bb.game.screen.note ?? null);
+      await page.waitForFunction(() => window.bb.online().lastUpload !== null, null, { timeout: 10000 });
+      const up = await page.evaluate(() => window.bb.online().lastUpload);
+      const posts = gs.log().split("\n").filter((l) => / POST \/v1\/ghosts /.test(l));
+      log(`[${at()}] ${tag}: session ${s0.url}; card ${card.note}; fetched ${JSON.stringify(card.s.lastFetch)}; dusk ${r.outcome} vs ${r.foe}, record ${r.record}; plate ${plate}; upload ${JSON.stringify(up)}; server: ${posts.join(" | ")}`);
+      check(s0.url === gs.base, `${tag}: no ?server=: the online page plays against its own origin ${gs.base} (VITE_GHOST_SERVER=same-origin)`);
+      check(card.s.lastFetch?.source === "server" && card.note === "ONLINE GHOST" && plate === "ONLINE GHOST" && r.ghost,
+        `${tag}: the dusk fetches a ghost from the same origin; the card and the plate say ONLINE GHOST`);
+      if (uploads === "open") {
+        check(up?.ok === true && posts.some((l) => / POST \/v1\/ghosts 201 /.test(l)), `${tag}: tonight's signed upload is accepted (201)`);
+      } else {
+        check(up?.ok === false && up.status === 403 && posts.some((l) => / POST \/v1\/ghosts 403 /.test(l)), `${tag}: the upload meets 403 (uploads closed)`);
+        // the run plays on: NEXT goes on to the next dawn
+        await tapRegion(page, false, "next");
+        await page.waitForFunction(() => window.bb.game.run?.day === 2 && !window.bb.game.transitioning, null, { timeout: 20000 });
+        const after = await page.evaluate(() => ({ day: window.bb.game.run.day, screen: window.bb.screen(), lives: window.bb.game.run.lives }));
+        log(`[${at()}] ${tag}: after NEXT: day ${after.day}, screen ${after.screen}, lives ${after.lives}`);
+        check(r.record && after.day === 2, `${tag}: the 403 is silent and the run plays on (the dusk's record kept; NEXT goes on to day ${after.day})`);
+      }
+      const hosts = [...new Set(requests.map((u) => new URL(u.split(" ")[1]).origin))];
+      if (uploads === "open") {
+        check(errors.length === 0, `${tag}: 0 console errors (${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""})`);
+      } else {
+        // The game says nothing about the 403 (no page error, no console line of its own). Chromium itself logs every 4xx
+        // fetch as "Failed to load resource", located at the resource: that one line, for the refused POST, and no other.
+        const net = errors.map((e, i) => ({ e, at: where[i] }));
+        const only403 = net.length === 1 && /^error: Failed to load resource: the server responded with a status of 403/.test(net[0].e) && net[0].at === `${gs.base}/v1/ghosts`;
+        log(`[${at()}] ${tag}: console errors: ${JSON.stringify(net)}`);
+        check(only403, `${tag}: the game logs nothing; the one console line is Chromium's own network log of the refused upload (403 at ${gs.base}/v1/ghosts), no page error`);
+      }
+      check(hosts.length === 1 && hosts[0] === gs.base, `${tag}: requests only to that origin: ${hosts.join(", ")} (${requests.length} requests)`);
+      result.d[tag] = { session: s0.url, card, dusk: r, plate, upload: up, posts, errors, hosts };
+      await ctx.close();
+      await gs.stop();
+      rmSync(dir, { recursive: true, force: true });
+    }
+    {
+      const tag = "D-offline";
+      const dir = mkdtempSync(join(tmpdir(), "bb-static-"));
+      writeFileSync(join(dir, "index.html"), pages.offline.html);
+      const gs = await ghostServer(null, "open", dir);
+      const { ctx, page, errors, requests } = await openPage(browser, "desk", `${gs.base}/`);
+      const finish = await dayOne(page, shots, tag);
+      const card = await page.evaluate(() => window.bb.game.screen.note());
+      const r = await finish();
+      const after = await page.evaluate(async () => ({
+        online: window.bb.online(), keys: Object.keys(localStorage).sort(),
+        dbs: indexedDB.databases ? (await indexedDB.databases()).map((d) => d.name) : ["(databases() unsupported)"],
+      }));
+      log(`[${at()}] ${tag}: the offline page at ${gs.base}/: card ${card ?? "none"}; dusk ${r.outcome} vs ${r.foe}; requests ${requests.map((u) => u.replace(gs.base, "")).join(", ")}; keys ${after.keys.join(", ")}`);
+      check(after.online === null && card === null && !r.record, `${tag}: the offline page served the same way plays offline: no session, 0.6.2's card, no record`);
+      check(requests.length === 1 && requests[0] === `GET ${gs.base}/`, `${tag}: one request, the page itself (${requests.length})`);
+      check(after.dbs.length === 0 && after.keys.every((k) => OLD_KEYS.includes(k)), `${tag}: no IndexedDB, only 0.6.2's storage keys (${after.keys.join(", ")})`);
+      check(errors.length === 0, `${tag}: 0 console errors (${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""})`);
+      result.d[tag] = { card, dusk: r, requests, ...after, errors };
+      await ctx.close();
+      await gs.stop();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
   // ---------------------------------------------------------------- M1. phone polish (0.7.0 R1)
   if (want("M1")) {
     log("");
@@ -465,6 +565,28 @@ async function main() {
   writeFileSync(join(OUT, `${NAME}.log`), lines.join("\n") + "\n");
   writeFileSync(join(OUT, `${NAME}.json`), JSON.stringify({ checks, result }, null, 2) + "\n");
   if (failed.length) process.exitCode = 1;
+}
+
+/** Check D's two single-file pages: from --pages <dir> (BeltBattles-*-online.html and the other BeltBattles-*.html, as
+ *  output-v070-rc/pages/ holds them), else inlined from the builds (dist-online/ and dist/) as singlefile.mjs makes them. */
+async function singlePages() {
+  const out = {};
+  const dir = opt("pages", null);
+  if (dir) {
+    const files = readdirSync(dir).filter((f) => /^BeltBattles-.*\.html$/.test(f));
+    const online = files.filter((f) => f.endsWith("-online.html")), offline = files.filter((f) => !f.endsWith("-online.html"));
+    if (online.length !== 1 || offline.length !== 1) throw new Error(`--pages ${dir}: expected one online and one offline page, found: ${files.join(", ")}`);
+    out.online = { from: join(dir, online[0]), html: readFileSync(join(dir, online[0]), "utf8") };
+    out.offline = { from: join(dir, offline[0]), html: readFileSync(join(dir, offline[0]), "utf8") };
+  } else {
+    out.online = { from: `${DIST_ONLINE} (inlined)`, html: (await inlineBuild(DIST_ONLINE)).html };
+    out.offline = { from: `${DIST} (inlined)`, html: (await inlineBuild(DIST)).html };
+  }
+  for (const p of Object.values(out)) {
+    p.bytes = Buffer.byteLength(p.html);
+    p.sha256 = createHash("sha256").update(p.html).digest("hex");
+  }
+  return out;
 }
 
 /** M1's views: [name, context, touch, where the plate's source line goes (BattleScreen.sourceLine)]. */

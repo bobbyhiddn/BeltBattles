@@ -364,6 +364,23 @@ back up. The kit is `fly.toml`, `Dockerfile` and `.dockerignore` at the repo roo
 `deploy/stage.mjs`, `deploy/GAME_BUILD.txt` and `deploy/RUNBOOK.md` (the exact commands, the checks
 to run and rollback). `npm run smoke` runs the built bundle against the in-process fake S3.
 
+**The two pages (0.7.0).**
+- **The Fly page plays online.** `npm run build:online` is the same Vite build as `npm run build`, with
+  `VITE_GHOST_SERVER=same-origin`, into the gitignored `dist-online/`. The two bundles differ in that one setting
+  (tests/build.online.test.ts). `node scripts/singlefile.mjs <out.html> --dist dist-online` inlines it into the
+  single-file page.
+- **Where it plays.** Served at `/` by the ghost server (`BB_GHOST_STATIC`), it plays online against the origin that
+  serves it, with no `?server=`. Opened from file:// it has no origin, so it plays offline.
+- **The Shore page stays offline.** It is the default build (`dist/`): offline exactly as 0.6.2, unless opened with
+  `?server=`.
+- **Checked in a browser.** `node scripts/asynccheck.mjs <dir> --only D` serves both pages at `/` of the built server.
+  - The online page with uploads open: the dusk fetches a ghost from the same origin, the signed upload gets 201, and
+    every request goes to that origin.
+  - The online page with uploads closed: the 403 is silent and the run plays on.
+  - The offline page: no session and one request.
+- **The image records the page.** `deploy/GAME_BUILD.txt` names the page the image carries; the deploy step records
+  it.
+
 **Object layout.** One object per ghost, keyed by rules, day and content id:
 
 ```
@@ -530,9 +547,9 @@ as the Prime's decisions D1-D6 set it. Uploads stay closed in production.
    - `?server=<https URL>` on the page (http only for localhost and 127.0.0.1), saved under
      `beltbattles.server.v1`; `?server=off` clears it and plays offline; a bad value is ignored;
    - the saved URL;
-   - the build's `VITE_GHOST_SERVER`: "" in the default build; "same-origin" means the page's own origin (a
-     later Fly page build, where the page and the API share the HTTPS origin). A page on another origin must
-     be in the server's `BB_GHOST_ORIGINS`.
+   - the build's `VITE_GHOST_SERVER`: "" in the default build; "same-origin" means the page's own origin. That is
+     the Fly page (0.7.0: `npm run build:online`, see "Running on Fly + Tigris"), where the page and the API share the
+     HTTPS origin. A page on another origin must be in the server's `BB_GHOST_ORIGINS`.
 2. **Identity.** With a URL, one session per page load runs `loadIdentity(indexedDbKeyStore())` once. Null (no
    WebCrypto, a plain-http origin other than localhost): the game plays offline, as 0.6.2. The key's playerId
    is the upload id and the match request's `player`; 0.6.0's random id (`beltbattles.player.v1`) stays on the

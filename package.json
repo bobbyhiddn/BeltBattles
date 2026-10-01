@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
+    "build:online": "tsc --noEmit && VITE_GHOST_SERVER=same-origin vite build --outDir dist-online",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "shot": "node scripts/shot.mjs",

@@ -2,41 +2,38 @@
 // file:// in headless chromium and completes a scripted run with real input:
 // buy -> place -> FIGHT -> battle end -> round summary -> ... -> run summary.
 // Desk uses the mouse (drag and drop); phone uses touch taps (tap-to-select, tap-to-place).
-// Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/singlefile.mjs <out.html> [log.txt]
+// Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/singlefile.mjs <out.html> [log.txt] [--dist <build dir>]
 // 0.6.2j: BB_RUNS=join-desk,join-phone runs the belt-join scenario (scripts/joinrun.mjs) instead of the scripted runs;
 // BB_SHOTS_DIR=<dir> saves its shots there.
+// 0.7.0 (R1 M3): --dist names the Vite build to inline (default dist/): dist-online/ (npm run build:online) makes the
+// online page. From file:// it has no origin of its own, so it plays offline there, as the offline page does.
 
 import { chromium } from "playwright-core";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { VIEWS } from "./shots-list.mjs";
 import { scriptedRun } from "./playthrough.mjs";
 import { joinRun } from "./joinrun.mjs"; // 0.6.2j: the belt-join scenario (join-desk, join-phone)
+import { inlineBuild } from "./inline.mjs"; // 0.7.0 R1: shared with asynccheck.mjs (check D)
 
 const ROOT = new URL("..", import.meta.url).pathname;
-const DIST = join(ROOT, "dist");
-const OUT = resolve(process.argv[2] ?? join(ROOT, "BeltBattles-single.html"));
-const LOG = process.argv[3] ? resolve(process.argv[3]) : null;
+const argv = process.argv.slice(2);
+const di = argv.indexOf("--dist");
+const DIST = resolve(di >= 0 ? argv[di + 1] : join(ROOT, "dist"));
+const pos = argv.filter((_, i) => di < 0 || (i !== di && i !== di + 1));
+const OUT = resolve(pos[0] ?? join(ROOT, "BeltBattles-single.html"));
+const LOG = pos[1] ? resolve(pos[1]) : null;
 const lines = [];
 const log = (s) => { lines.push(s); console.log(s); };
 
 async function inline() {
-  let html = await readFile(join(DIST, "index.html"), "utf8");
-  const assets = await readdir(join(DIST, "assets"));
-  for (const f of assets.filter((a) => a.endsWith(".css"))) {
-    const css = await readFile(join(DIST, "assets", f), "utf8");
-    html = html.replace(new RegExp(`<link[^>]*href="\\./assets/${f}"[^>]*>`), () => `<style>${css}</style>`);
-  }
-  const scripts = assets.filter((a) => a.endsWith(".js"));
-  if (scripts.length !== 1) throw new Error(`expected one JS chunk, found ${scripts.length}`);
-  const js = (await readFile(join(DIST, "assets", scripts[0]), "utf8")).replace(/<\/script/gi, "<\\/script");
-  const tag = new RegExp(`<script[^>]*src="\\./assets/${scripts[0]}"[^>]*></script>`);
-  if (!tag.test(html)) throw new Error("module script tag not found in dist/index.html");
-  html = html.replace(tag, () => `<script type="module">${js}</script>`);
-  if (/src="\.\/assets\//.test(html) || /href="\.\/assets\//.test(html)) throw new Error("external asset reference left");
+  const { html, script, js } = await inlineBuild(DIST);
   await writeFile(OUT, html);
-  log(`inlined ${scripts[0]} (${js.length} bytes) -> ${OUT} (${html.length} bytes)`);
+  const bytes = Buffer.byteLength(html);
+  log(`inlined ${script} (${js.length} bytes) from ${DIST} -> ${OUT} (${html.length} bytes)`);
+  log(`page: ${bytes} bytes, sha256 ${createHash("sha256").update(html).digest("hex")}`);
 }
 
 // 0.6.0: the local ghost pool each run starts with (as if this browser had played before). Desk
