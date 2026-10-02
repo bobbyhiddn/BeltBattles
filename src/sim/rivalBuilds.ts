@@ -54,6 +54,10 @@ export interface FactoryPlan {
   x: number;
   y: number;
   belts: Belt[];
+  // 0.8.0 I1 M3 (VERIFIED-D1 Q8): a plan's base factory owned only from this day (absent: day 1). Before it the factory
+  // and its belts are missing; from it the deck is exactly what it was with the factory owned from day 1 (the same uid,
+  // place in the item list, cells and routes), so later days don't move.
+  at?: number;
 }
 
 /** TUNE-C: the shop luck a captain's deck is assembled at (REQ-BFG-033). */
@@ -297,7 +301,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   // maxGoldByDay.
   matriarch: {
     hero: "furnace", crates: 1, synergy: ["press", "longhaul", "brake"],
-    factories: [F("kiln", 2, 7, [2, 6, "L1U4R2U1R1U1"]), F("press", 6, 6, [6, 5, "L1U5"])],
+    // 0.8.0 I1 M3 (VERIFIED-D1 Q8, DESIGN-wave3.md 8 Q8): the STAMP PRESS (epic) from day 2, when the per-run draw unlocks
+    // epics; she is met on days 8-10 only, where her deck is exactly as tuned
+    factories: [F("kiln", 2, 7, [2, 6, "L1U4R2U1R1U1"]), { ...F("press", 6, 6, [6, 5, "L1U5"]), at: 2 }],
     upgrades: [
       ...stars(
         P(8), P(8), P(8), G(8, "brake", 3, 0, 1), G(8, "longhaul", 6, 0), M(8, "lance", 0), G(8, "temper", 4, 2, 1),
@@ -343,7 +349,7 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
     b.items.push({ uid: u, def: f.def, x: f.x, y: f.y });
     for (const [x, y, moves] of f.belts) b.routes.push({ factory: u, cells: walk(x, y, moves) });
   };
-  plan.factories.forEach((f, i) => addFactory(f, U + 1 + i));
+  plan.factories.forEach((f, i) => { if ((f.at ?? 1) <= day) addFactory(f, U + 1 + i); }); // 0.8.0 I1: FactoryPlan.at
   let crates = plan.crates, plating = 0, fu = U + 1 + plan.factories.length;
   for (const [i, u] of plan.upgrades.entries()) {
     const uid = U + 10 + i, tu = TURRET_UID + i;
