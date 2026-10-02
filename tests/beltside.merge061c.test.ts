@@ -2,7 +2,7 @@
 // (ref/DESIGN-beltside.md §12, P7-P10; P11 is in tests/inspectorLines.test.ts), and MERGE-061's day-1 shop probe.
 // Every expected number is written out from the catalogue (content.ts), never recomputed with the code under test.
 import { readFileSync, writeFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { AMMO, BELT_SPEED, GUARD_FREEZE, GUARD_SLOW, ITEMS, RULES_VERSION, TICK, withWave3 } from "../src/sim/content";
 import { hitsOfRig, key as K, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
@@ -334,6 +334,26 @@ describe("P9: GANTRY PRESS with rigs on its belts", () => {
 
 // ---------------------------------------------------------------- P10: road items draw rigs by their tags
 
+const ROAD_DRAWS_062B = new URL("./fixtures/beltside-062c/roadDraws-062b.json", import.meta.url);
+/**
+ * 0.8.0 T1 (VERIFIED-I1 call 3; I1 REPORT section 6 and open item 3): BB_WRITE_ROAD_DRAWS used to rewrite
+ * roadDraws-062b.json with today's draws. That file is a one-time capture: arsenal-062b's draws (0.6.2b's catalogue,
+ * wave 3 off, old saves), the history the check below compares today's draws against. Today's draws differ from it in
+ * exactly the 24 TRADER entries the check pins as changed since arsenal-062b, so a rewritten file erases that history
+ * and the check fails ("expected [] to deeply equal ['trader|many|1', ...]"); dae2177 did the same. So the switch
+ * refuses: it writes nothing and says why. The live draws keep their own fixture and switch (roadDraws-080.json,
+ * BB_WRITE_ROAD_DRAWS_080, the next test).
+ */
+export const REFUSE_062B = "roadDraws-062b.json is arsenal-062b's one-time capture of the road draws, the history this check compares against; "
+  + "rewriting it with today's draws would erase the 24 TRADER changes it pins, so it is never rewritten. "
+  + "The live draws are written by BB_WRITE_ROAD_DRAWS_080=1 (roadDraws-080.json).";
+/** With BB_WRITE_ROAD_DRAWS set: write nothing, say why (`say`), and return true. */
+function refuse062b(say: (msg: string) => void = console.warn): boolean {
+  if (!process.env.BB_WRITE_ROAD_DRAWS) return false;
+  say(`BB_WRITE_ROAD_DRAWS: not written. ${REFUSE_062B}`);
+  return true;
+}
+
 describe("P10: expanded road rig draws and shared timing gear", () => {
   // 0.8.0 I1 M3 (the brief's M2 list: "the beltside.merge061c road pools"; VERIFIED-D1 Q8): this history check (0.6.1c
   // -> 0.6.2b: timing gear joined the trader's swaps) runs in the world the 062b fixture pinned, wave 3 off for one call
@@ -342,8 +362,8 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     const archive = JSON.parse(readFileSync(new URL("./fixtures/beltside-062c/roadDraws-061c.json", import.meta.url), "utf8")) as RoadDraws & { source: string };
     expect(archive.source).toBe("4ecf202");
     const now = roadDraws(true);
-    const path = new URL("./fixtures/beltside-062c/roadDraws-062b.json", import.meta.url);
-    if (process.env.BB_WRITE_ROAD_DRAWS) writeFileSync(path, JSON.stringify({ source: "arsenal-062b", ...now }, null, 2) + "\n");
+    const path = ROAD_DRAWS_062B;
+    refuse062b(); // 0.8.0 T1: BB_WRITE_ROAD_DRAWS no longer rewrites this one-time capture (why: at refuse062b)
     const baseline = JSON.parse(readFileSync(path, "utf8")) as RoadDraws & { source: string };
     expect(baseline.source).toBe("arsenal-062b");
     expect(Object.keys(now.choices)).toHaveLength(108); // 3 events x 3 sets held x 12 seeds, 10 days each
@@ -364,9 +384,26 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     for (const d of Object.values(ITEMS).filter((x) => x.kind === "gate")) expect(d.tags?.length, d.id).toBeGreaterThan(0);
   }, false));
 
+  // 0.8.0 T1 (VERIFIED-I1 call 3): the 062b write switch refuses and says why; the capture's bytes stay as committed
+  it("BB_WRITE_ROAD_DRAWS never rewrites the 062b capture: it writes nothing and says why", () => {
+    const before = readFileSync(ROAD_DRAWS_062B);
+    const said: string[] = [];
+    vi.stubEnv("BB_WRITE_ROAD_DRAWS", "1");
+    try {
+      expect(refuse062b((m) => said.push(m))).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain("one-time capture");
+    expect(said[0]).toContain("BB_WRITE_ROAD_DRAWS_080");
+    expect(readFileSync(ROAD_DRAWS_062B).equals(before)).toBe(true);
+    if (!process.env.BB_WRITE_ROAD_DRAWS) expect(refuse062b(() => { throw new Error("said something with the switch off"); })).toBe(false);
+  });
+
   // 0.8.0 I1 M3: the live road draws (wave 3 in the pools, the per-run draw in every run), regenerated once with
-  // BB_WRITE_ROAD_DRAWS_080=1 npx vitest run tests/beltside.merge061c.test.ts (its own switch: BB_WRITE_ROAD_DRAWS writes
-  // 062b, arsenal-062b's snapshot that the history check above compares against)
+  // BB_WRITE_ROAD_DRAWS_080=1 npx vitest run tests/beltside.merge061c.test.ts (its own switch; BB_WRITE_ROAD_DRAWS no
+  // longer writes 062b, arsenal-062b's snapshot that the history check above compares against: 0.8.0 T1)
   it("0.8.0: the live road draws (wave 3's commons in SALVAGE, the per-run draw) are the regenerated fixture's", () => {
     const live = roadDraws();
     const path = new URL("./fixtures/beltside-062c/roadDraws-080.json", import.meta.url);
