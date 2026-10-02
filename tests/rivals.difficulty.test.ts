@@ -27,6 +27,19 @@ const SEEDS = Array.from({ length: 3 }, (_, i) => (i + 1) * 7919);
 const PACE_SEEDS = Array.from({ length: 20 }, (_, i) => (i + 1) * 7919);
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const GAP = 0.05;
+/** 0.8.0 I1 M3 (oracles 64485b535a06683c and 405facc95783b82c, the second replacing the first's single exception): B1's
+ *  open items, the three captain-days skipped by "days 8-10: the Iron Matriarch has the lowest margin of all". No rival
+ *  changed; the reference (the FURNACE par field) moved when wave 3 went on, and the order broke at M2, before the draw
+ *  (day 8 MOTH QUEEN -0.383 vs her -0.364; SILKSHADE below her on days 8, 9 and 10). At the tip (the draw and the
+ *  regrown pool) her margins are day 8 -0.409 (ref wins 8%), day 9 -0.527 (4%), day 10 -0.453 (8%), and three sit below:
+ *  day 8 MOTH QUEEN -0.423 (13%) and SILKSHADE -0.537 (13%), day 9 SILKSHADE -0.534 (13%). By win rate she is the hardest
+ *  on all three days. B1 owns the fix (VERIFIED-P1 section I). Each entry carries its measured gap (her margin minus
+ *  its) and a ceiling; the open-item test after the check pins them, and both go when B1 restores the order. */
+const B1_EXCEPTIONS: readonly { id: RivalId; day: number; gap: number; ceiling: number }[] = [
+  { id: "mothqueen", day: 8, gap: 0.014, ceiling: GAP },
+  { id: "silkshade", day: 8, gap: 0.128, ceiling: 0.15 },
+  { id: "silkshade", day: 9, gap: 0.007, ceiling: GAP },
+];
 const REFS = new Map<number, Build[]>();
 const refsOf = (day: number): Build[] => {
   if (!REFS.has(day)) REFS.set(day, parField("furnace", day, REF_K));
@@ -150,14 +163,32 @@ describe("warlord difficulty ladder, day by day (reference = the FURNACE par fie
     }
   });
 
+  // 0.8.0 I1 M3 (oracle 405facc95783b82c): the same predicate, every failing captain-day listed before one assertion, so
+  // one run names them all (a loop of expects stopped at the first and hid SILKSHADE behind MOTH QUEEN); B1's three
+  // open items (B1_EXCEPTIONS) are skipped, and the test after this one pins them
   it("days 8-10: the Iron Matriarch has the lowest margin of all", () => {
+    const violations: string[] = [];
     for (const day of DAYS.filter((d) => d >= MATRIARCH_DAY)) {
       for (const id of eligible(day)) {
         if (id === "matriarch") continue;
-        expect(score(id, day).margin, `day ${day}: ${id} ${fmt(score(id, day))} vs matriarch ${fmt(score("matriarch", day))}`)
-          .toBeGreaterThan(score("matriarch", day).margin);
+        if (B1_EXCEPTIONS.some((x) => x.id === id && x.day === day)) continue; // B1's open item (oracle 405facc95783b82c)
+        if (!(score(id, day).margin > score("matriarch", day).margin)) {
+          violations.push(`day ${day}: ${id} ${fmt(score(id, day))} vs matriarch ${fmt(score("matriarch", day))}`);
+        }
       }
     }
+    expect(violations).toEqual([]);
+  });
+
+  it("B1 open items: on day 8 MOTH QUEEN and SILKSHADE, and on day 9 SILKSHADE, sit below the Matriarch's margin; delete this test and the skips when B1 restores the order", () => {
+    const problems: string[] = [];
+    for (const { id, day, ceiling } of B1_EXCEPTIONS) {
+      const q = score(id, day), m = score("matriarch", day);
+      const line = `day ${day}: ${id} ${fmt(q)} vs matriarch ${fmt(m)}`;
+      if (q.margin > m.margin) problems.push(`${line}: the order came back`);
+      if (m.margin - q.margin >= ceiling) problems.push(`${line}: the gap ${(m.margin - q.margin).toFixed(3)} reached its ceiling ${ceiling}`);
+    }
+    expect(problems).toEqual([]);
   });
 
   it("every day: the stand-in pool's mean margin is between -0.25 and +0.25", () => {

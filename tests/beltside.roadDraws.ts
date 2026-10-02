@@ -27,8 +27,10 @@ const DRAW_SEEDS = Array.from({ length: 12 }, (_, i) => 1 + i * 7919);
 const PICKS = Array.from({ length: 64 }, (_, i) => (i + 0.5) / 64);
 const st = (s: number) => (s > 1 ? { stars: s } : {});
 
-function heldRun(seed: number, day: number, held: Held): Run {
+function heldRun(seed: number, day: number, held: Held, oldSave = false): Run {
   const run = newRun("furnace", seed);
+  // 0.8.0 I1 M3: an old save (a run without the per-run draw's wares: its road grants read the whole catalogue)
+  if (oldSave) delete (run as { wares?: unknown }).wares;
   run.day = day;
   run.gold = 20;
   let uid = 900;
@@ -56,13 +58,14 @@ export interface RoadDraws {
   swap: Record<string, string>; // good def -> swapPart over 16 picks
 }
 
-export function roadDraws(): RoadDraws {
+/** 0.8.0 I1 M3: `oldSave` plays every run as a save without wares (today's rule over the whole catalogue). */
+export function roadDraws(oldSave = false): RoadDraws {
   const out: RoadDraws = { choices: {}, salvage: {}, smuggler: "", swap: {} };
   for (const id of ["wreck", "smuggler", "trader"] as EventId[]) {
     for (const [k, held] of Object.entries(DRAW_HELD)) {
       for (const seed of DRAW_SEEDS) {
         out.choices[`${id}|${k}|${seed}`] = Array.from({ length: 10 }, (_, i) => {
-          const run = heldRun(seed, i + 1, held);
+          const run = heldRun(seed, i + 1, held, oldSave);
           run.event = makeEvent(seed, i + 1, id);
           run.stage = "event";
           return choicesFor(run).map(choiceKey).filter(Boolean).join(";");
@@ -71,7 +74,7 @@ export function roadDraws(): RoadDraws {
     }
   }
   for (const [k, held] of Object.entries(DRAW_HELD)) {
-    const run = heldRun(12345, 5, held);
+    const run = heldRun(12345, 5, held, oldSave);
     out.salvage[k] = PICKS.map((p) => salvagePart(run, p) ?? "-").join(",");
   }
   out.smuggler = PICKS.map((p) => smugglerParts(p).map((x) => x ?? "-").join("+")).join(",");

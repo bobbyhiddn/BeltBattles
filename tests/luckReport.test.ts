@@ -3,13 +3,14 @@
 // seeds give the same output; the family table matches content.ts; and `offerable` (the CHASER's reroll gate) matches
 // the day gates of the real caravan.
 import { describe, expect, it } from "vitest";
-import { ITEMS, REROLL_COST, RUN_DAYS, START_GOLD, buyableModules, incomeFor, type HeroId } from "../src/sim/content";
+import { ITEMS, REROLL_COST, RUN_DAYS, START_GOLD, buyableModules, incomeFor, wave3Live, withWave3, type HeroId } from "../src/sim/content";
 import { newRun, rollShop, type Run } from "../src/game/run";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { playerRun } from "../src/sim/harness/player";
 import { turretList } from "../src/sim/deck";
 import {
-  chaserRun, familyTable, luckReport, offerable, ownedDefs, renderMarkdown, typicalOwned, withPatch, type ChaserStep,
+  chaserRun, familyTable, luckReport, offerable, ownedDefs, renderMarkdown, runJob, typicalOwned, withPatch, type ChaserOut,
+  type ChaserStep,
 } from "../tools/luckReport";
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
@@ -129,10 +130,28 @@ describe("luck report: the TYPICAL buyer and the whole report", () => {
     expect(JSON.stringify(ITEMS)).toBe(before);
     // 0.8.0 P1 (family map v2): POISON folded into SWARM, so the what-ifs run on PLATE, five members while wave 3 is off
     // (TOLLBOOTH, SIFTER, RIVETER, FLAK SCREEN, MANTLET), each tried one rarity up and with the ARCANE DEALER as merchant
-    const r = await luckReport({ runs: 2, seed: 1, heroes: ["furnace"], typical: false, families: ["PLATE"], whatif: 2 });
+    // 0.8.0 I1 (oracle 64485b535a06683c): with wave 3 off (wave3: false). Live, PLATE has 14 members and under the per-run
+    // draw no family is flagged (the CHASER never completes PLATE), so a live report runs no what-if at all.
+    const r = await luckReport({ runs: 2, seed: 1, heroes: ["furnace"], typical: false, families: ["PLATE"], whatif: 2, wave3: false });
     expect(r.whatif?.rows.map((w) => w.tag)).toEqual(["PLATE"]);
     expect(r.whatif?.rows[0].changes.length).toBe(10); // was 2: VENOM DRIP rare to epic, and the ARCANE DEALER as merchant
     expect(JSON.stringify(ITEMS)).toBe(before);
+  });
+
+  // 0.8.0 I1 (oracle 64485b535a06683c): a worker thread starts with the live switch (WAVE3_LIVE, on), so each job must
+  // carry the report's wave3 and honour false too; in this process luckReport has already set the switch, which would
+  // hide a job that ignores it. Here the job runs where the switch is live, as in a worker thread.
+  it("a job runs with its own switch: wave3: false turns wave 3 off for it where the switch starts live (a worker thread)", () => {
+    expect(wave3Live()).toBe(true);
+    const plate = withWave3(() => familyTable().families.findIndex((f) => f.tag === "PLATE"), false);
+    const job = { id: 0, kind: "chaser" as const, hero: "furnace" as HeroId, seeds: [1], family: plate };
+    const off = runJob({ ...job, wave3: false }) as ChaserOut[];
+    expect(off[0].missing.length).toBe(5); // PLATE with wave 3 off: TOLLBOOTH, SIFTER, RIVETER, FLAK SCREEN, MANTLET
+    expect(JSON.stringify(off)).toBe(JSON.stringify(withWave3(() => runJob(job), false)));
+    expect(wave3Live()).toBe(true); // put back after the job
+    const live = runJob(job) as ChaserOut[];
+    expect(live[0].missing.length).toBe(familyTable().families.find((f) => f.tag === "PLATE")!.members.length);
+    expect(live[0].missing.length).toBe(14);
   });
 
   it("the same seeds give the same output", async () => {

@@ -222,7 +222,11 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     expect(UPGRADE.rare.filter(isWave3).length).toBeGreaterThan(0);
   });
 
-  it("no warlord prize, warlord deck or stand-in deck holds a wave-3 part", () => {
+  // 0.8.0 I1 M3 (oracle 64485b535a06683c): the stand-in pool is regrown through the per-run draw with wave 3 live
+  // (VERIFIED-D1 Q8), so its clause ("no stand-in deck holds a wave-3 part") gives way to two checks: the regrown pool
+  // holds all 15 wave-3 modules, and with the switch off every pool deck holding one is refused, one "not in the game yet"
+  // error per wave-3 part and no other error (the switch causes the refusal). The warlord clauses stay until N1.
+  it("no warlord prize or warlord deck holds a wave-3 part; the regrown stand-in pool holds all 15, and the switch off refuses each such deck for them alone", () => {
     const parts = (b: Build) => [...b.items.map((p) => p.def), ...b.mods.map((m) => m.def), ...(b.turrets ?? []).map((t) => t.def)];
     for (const id of RIVAL_IDS) for (const day of rivalDays(id)) {
       const deck = warlordDeck(id, day);
@@ -230,9 +234,24 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
       expect([...topParts(deck, 9), ...hardParts(id, deck, day, 4)].filter(isWave3), `${id} day ${day} prize`).toEqual([]);
       expect(parts(rivalBuild(id, day)).filter(isWave3)).toEqual([]);
     }
+    const inPool = new Set<string>();
+    let decks = 0;
     for (const hero of PLAYABLE_HEROES) for (let day = 1; day <= 10; day++) {
       expect(parts(warlordBuild(hero, day)).filter(isWave3)).toEqual([]);
-      for (const e of standInPool(hero, day)) expect(parts(e.build).filter(isWave3), `${hero} day ${day}`).toEqual([]);
+      for (const [i, e] of standInPool(hero, day).entries()) {
+        const w3 = [...e.build.items, ...e.build.mods].filter((p) => isWave3(p.def));
+        expect(parts(e.build).filter(isWave3), `${hero} day ${day} #${i}`).toEqual(w3.map((p) => p.def)); // no wave-3 turret
+        if (!w3.length) continue;
+        decks++;
+        for (const p of w3) inPool.add(p.def);
+        expect(validateBuild(e.build, day), `${hero} day ${day} #${i}, switch on`).toMatchObject({ ok: true, errors: [] });
+        expect(withWave3(() => validateBuild(e.build, day), false), `${hero} day ${day} #${i}, switch off`).toEqual({
+          ok: false, errors: w3.map((p) => `item: uid ${p.uid} ${ITEMS[p.def].name} is not in the game yet`),
+        });
+      }
     }
+    expect([...inPool].sort()).toEqual([...WAVE3_IDS].sort()); // all 15, STOKER among them
+    expect(inPool.has("stoker")).toBe(true);
+    expect(decks).toBeGreaterThan(0);
   });
 });

@@ -24,6 +24,8 @@
 //     [--md path] [--workers N] [--whatif 1000] [--literal] [--no-typical] [--wave3]
 // 0.8.0 P1: --wave3 measures with wave 3 on (content.ts's switch, WAVE3_LIVE): the family table reads the v2 tags of the
 // 86 modules, and the caravan offers wave 3. Every job carries the flag, so each worker thread turns its own switch on.
+// 0.8.0 I1 (oracle 64485b535a06683c): the `wave3` option has three states: true on, false off, absent the live game
+// (WAVE3_LIVE, on since I1 M2). The CLI sets it only with --wave3; without the flag it measures the live game.
 // Seeds are seed..seed+runs-1. Runs fan out to worker threads; results are keyed by job, so the output never depends
 // on --workers, and the same seeds give the same output (the run time is printed apart from it).
 // --whatif N (default 1000; 0: off): for each flagged family, estimates of fixes on the first hero's N runs, never
@@ -314,7 +316,7 @@ export function withPatch<T>(p: Patch | undefined, fn: () => T): T {
   }
 }
 
-interface Job {
+export interface Job {
   id: number;
   kind: "typical" | "chaser";
   hero: HeroId;
@@ -323,17 +325,21 @@ interface Job {
   literal?: boolean;
   patch?: Patch; // what-if: a member's rarity or merchant
   cap?: number; // what-if: a daily reroll cap
-  wave3?: boolean; // 0.8.0 P1: the job runs with wave 3 on (content.ts withWave3; a worker thread has its own copy of the switch)
+  // 0.8.0 P1: the job runs with wave 3 on (content.ts withWave3; a worker thread has its own copy of the switch).
+  // 0.8.0 I1 (oracle 64485b535a06683c): present only when the report's `wave3` is set, and then on or off; absent: the
+  // job reads the switch as it finds it (in a worker thread, the live game's WAVE3_LIVE).
+  wave3?: boolean;
 }
 
-function runJob(job: Job): TypicalOut[] | ChaserOut[] {
+/** One job, as a worker thread runs it (exported for tests: a job's own switch must hold where the switch starts live). */
+export function runJob(job: Job): TypicalOut[] | ChaserOut[] {
   const go = (): TypicalOut[] | ChaserOut[] => {
     const fams = familyTable().families;
     if (job.kind === "typical") return job.seeds.map((s) => typicalRun(job.hero, s, fams));
     const f = fams[job.family!];
     return withPatch(job.patch, () => job.seeds.map((s) => chaserRun(job.hero, f.members, s, { literal: job.literal, cap: job.cap })));
   };
-  return job.wave3 ? withWave3(go) : go();
+  return job.wave3 !== undefined ? withWave3(go, job.wave3) : go();
 }
 
 /** Worker side: run each job posted and post its results back. */
@@ -400,7 +406,9 @@ export interface LuckOpts {
   typical?: boolean; // default true
   families?: ModuleTag[]; // only these families' CHASER (tests); default every family
   whatif?: number; // runs per what-if of each flagged family (first hero, seeds seed..); 0 or absent: none
-  wave3?: boolean; // 0.8.0 P1: measure with wave 3 on (content.ts WAVE3_LIVE's switch), in this process and every job
+  // 0.8.0 P1: measure with wave 3 on (content.ts WAVE3_LIVE's switch), in this process and every job. 0.8.0 I1 (oracle
+  // 64485b535a06683c): three states, true on, false off, absent the live game (the switch untouched, no job carries it)
+  wave3?: boolean;
 }
 
 /** What-ifs for one flagged family, never applied to the game: each single-member change (its rarity one step up, or
@@ -457,7 +465,7 @@ async function whatIfs(o: LuckOpts, table: FamilyTable, tags: ModuleTag[]): Prom
   plan.forEach((p, row) => {
     const add = (what: "base" | "change" | "cap", k: number, extra: Partial<Job>) => {
       for (const s of chunks(seeds, 250)) {
-        jobs.push({ id: jobs.length, kind: "chaser", hero, seeds: s, family: p.family, ...(o.literal ? { literal: true } : {}), ...(o.wave3 ? { wave3: true } : {}), ...extra });
+        jobs.push({ id: jobs.length, kind: "chaser", hero, seeds: s, family: p.family, ...(o.literal ? { literal: true } : {}), ...(o.wave3 !== undefined ? { wave3: o.wave3 } : {}), ...extra });
         index.push({ row, what, k });
       }
     };
@@ -494,10 +502,11 @@ const chunks = (seeds: number[], size: number): number[][] => {
 };
 
 /** The whole report's numbers. Deterministic: the same options give the same result, whatever `workers`. 0.8.0 P1:
- *  with `wave3`, the family table and every job read the catalogue with wave 3 on; the switch is put back after. */
+ *  with `wave3`, the family table and every job read the catalogue with wave 3 on; the switch is put back after.
+ *  0.8.0 I1 (oracle 64485b535a06683c): `wave3: false` reads it with wave 3 off the same way; absent, the live game. */
 export async function luckReport(o: LuckOpts): Promise<LuckResult> {
   const was = wave3Live();
-  if (o.wave3) setWave3(true);
+  if (o.wave3 !== undefined) setWave3(o.wave3);
   try {
     return await luckReportNow(o);
   } finally {
@@ -513,7 +522,7 @@ async function luckReportNow(o: LuckOpts): Promise<LuckResult> {
   const jobs: Job[] = [];
   const index: { hero: HeroId; kind: "typical" | "chaser"; family?: number }[] = [];
   // the slow par player first, so its jobs start early; chasers are cheap
-  const w3 = o.wave3 ? { wave3: true } : {};
+  const w3 = o.wave3 !== undefined ? { wave3: o.wave3 } : {}; // 0.8.0 I1: a job carries the switch only when it is set
   if (typical) for (const hero of o.heroes) for (const s of chunks(seeds, 4)) {
     jobs.push({ id: jobs.length, kind: "typical", hero, seeds: s, ...w3 });
     index.push({ hero, kind: "typical" });
@@ -667,7 +676,9 @@ async function main(): Promise<void> {
   const r = await luckReport({
     runs, seed, heroes, workers, script: import.meta.url, whatif: intArg("whatif", 1000),
     literal: process.argv.includes("--literal"), typical: !process.argv.includes("--no-typical"),
-    wave3: process.argv.includes("--wave3"), // 0.8.0 P1: measure with wave 3 on
+    // 0.8.0 P1: --wave3 measures with wave 3 on. 0.8.0 I1 (oracle 64485b535a06683c): without the flag the field stays
+    // absent, so the report measures the live game (false would turn wave 3 off for every CLI run)
+    ...(process.argv.includes("--wave3") ? { wave3: true } : {}),
   });
   const md = renderMarkdown(r);
   const secs = (performance.now() - t0) / 1000;

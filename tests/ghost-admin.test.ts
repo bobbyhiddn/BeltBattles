@@ -291,7 +291,12 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
 
   it("the match route stops serving a deleted ghost: a fresh server at once; a running one when it reloads (Tigris: its cache TTL)", async () => {
     const { refs } = plantBad(h);
-    const seen = POOL.filter((s) => s.day === OVER.day).map(ghostId).concat(HONEST.filter((s) => s.day === OVER.day).map(ghostId));
+    // 0.8.0 I1 M3 (oracle 64485b535a06683c): the regrown stand-in pool gives the seed ghosts new ids, and BADID (POOL[30],
+    // a day-1 0W 5-lives ghost like OVER) now wins the match's tie-break against OVER. So `seen` also lists every other
+    // planted ghost, under each id it is planted with, and OVER is the only ghost the match can serve (BROKEN has no
+    // ghostId: its wins break the strict decoder, so it goes by its planted id alone).
+    const planted = [UNREACH, BADID].map(ghostId).concat(["gbroken00000001", "gnotitsid000001"]);
+    const seen = POOL.filter((s) => s.day === OVER.day).map(ghostId).concat(HONEST.filter((s) => s.day === OVER.day).map(ghostId), planted);
     const ask = async (app: GhostServer) => {
       const base = `http://127.0.0.1:${await app.listen(0)}`;
       const q = `rules=${RULES_VERSION}&day=${OVER.day}&wins=${OVER.wins}&lives=${OVER.lives}&player=someone&runs=3&seen=${seen.join(",")}`;

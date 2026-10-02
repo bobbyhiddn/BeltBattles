@@ -17,7 +17,9 @@ const POOL = generateSamplePool();
 const N = POOL.length;
 const BUNDLE = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
 const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; // valid, current rules, not in the bundle
-const OLD_RULES: GhostSnapshot = { ...POOL[0], rules: "bb-0.3.0" }; // another rules version's pool entry
+// another rules version's pool entry. 0.8.0 I1 M3 (oracle 64485b535a06683c): the first plain deck (no turret list, no
+// joined belt), as ghost-admin's OLD_POOL; the regrown pool's POOL[0] joins a belt, which bb-0.3.0 can't carry
+const OLD_RULES: GhostSnapshot = { ...POOL.find((s) => !s.build.turrets && !s.build.routes.some((r) => r.join !== undefined))!, rules: "bb-0.3.0" };
 const PLAYER: GhostSnapshot = { ...POOL[12], playerId: "real-player-1", runId: "run-p1" };
 const entry = (s: GhostSnapshot): PoolEntry => ({ id: ghostId(s), snapshot: s });
 // 0.6.2's v2 snapshot: a build may carry turrets (REQ-BFG-031) and a route a join (REQ-BFG-027)

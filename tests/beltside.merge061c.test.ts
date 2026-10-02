@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
-import { AMMO, BELT_SPEED, GUARD_FREEZE, GUARD_SLOW, ITEMS, RULES_VERSION, TICK } from "../src/sim/content";
+import { AMMO, BELT_SPEED, GUARD_FREEZE, GUARD_SLOW, ITEMS, RULES_VERSION, TICK, withWave3 } from "../src/sim/content";
 import { hitsOfRig, key as K, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { effectAt } from "../src/sim/stars";
@@ -335,10 +335,13 @@ describe("P9: GANTRY PRESS with rigs on its belts", () => {
 // ---------------------------------------------------------------- P10: road items draw rigs by their tags
 
 describe("P10: expanded road rig draws and shared timing gear", () => {
-  it("keeps wreck and smuggler draws stable while timing gear enters trader swaps", () => {
+  // 0.8.0 I1 M3 (the brief's M2 list: "the beltside.merge061c road pools"; VERIFIED-D1 Q8): this history check (0.6.1c
+  // -> 0.6.2b: timing gear joined the trader's swaps) runs in the world the 062b fixture pinned, wave 3 off for one call
+  // and old saves (no per-run draw), so every assertion keeps its meaning; the live draws are pinned in the next test
+  it("keeps wreck and smuggler draws stable while timing gear enters trader swaps (0.6.2's catalogue, old saves)", () => withWave3(() => {
     const archive = JSON.parse(readFileSync(new URL("./fixtures/beltside-062c/roadDraws-061c.json", import.meta.url), "utf8")) as RoadDraws & { source: string };
     expect(archive.source).toBe("4ecf202");
-    const now = roadDraws();
+    const now = roadDraws(true);
     const path = new URL("./fixtures/beltside-062c/roadDraws-062b.json", import.meta.url);
     if (process.env.BB_WRITE_ROAD_DRAWS) writeFileSync(path, JSON.stringify({ source: "arsenal-062b", ...now }, null, 2) + "\n");
     const baseline = JSON.parse(readFileSync(path, "utf8")) as RoadDraws & { source: string };
@@ -359,6 +362,26 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
       ["temper", "bellows", "quench"], ["coil", "staticbrush", "lodestone"],
     ]);
     for (const d of Object.values(ITEMS).filter((x) => x.kind === "gate")) expect(d.tags?.length, d.id).toBeGreaterThan(0);
+  }, false));
+
+  // 0.8.0 I1 M3: the live road draws (wave 3 in the pools, the per-run draw in every run), regenerated once with
+  // BB_WRITE_ROAD_DRAWS_080=1 npx vitest run tests/beltside.merge061c.test.ts (its own switch: BB_WRITE_ROAD_DRAWS writes
+  // 062b, arsenal-062b's snapshot that the history check above compares against)
+  it("0.8.0: the live road draws (wave 3's commons in SALVAGE, the per-run draw) are the regenerated fixture's", () => {
+    const live = roadDraws();
+    const path = new URL("./fixtures/beltside-062c/roadDraws-080.json", import.meta.url);
+    if (process.env.BB_WRITE_ROAD_DRAWS_080) writeFileSync(path, JSON.stringify({ source: "v080-wave3", ...live }, null, 2) + "\n");
+    const fixture = JSON.parse(readFileSync(path, "utf8")) as RoadDraws & { source: string };
+    expect(fixture.source).toBe("v080-wave3");
+    expect(live).toEqual({ choices: fixture.choices, salvage: fixture.salvage, smuggler: fixture.smuggler, swap: fixture.swap });
+    expect(Object.keys(live.choices)).toHaveLength(108);
+    // the pools: wave 3's three common rigs join SALVAGE; the SMUGGLER keeps the same six (keyed by effect)
+    expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake", "tollbooth", "sifter", "plateroller", "twingauge", "pincer"]);
+    expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([
+      ["temper", "bellows", "quench"], ["coil", "staticbrush", "lodestone"],
+    ]);
+    // the per-run draw moved the event draws themselves (the run's wares), not only the pools
+    expect(roadDraws(true).choices).not.toEqual(live.choices);
   });
 
   it("the cards say RIG: the wreck and the smuggler name rigs, and nothing on the three events says GATE", () => {
