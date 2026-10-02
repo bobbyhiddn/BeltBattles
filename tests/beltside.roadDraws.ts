@@ -4,6 +4,10 @@
 // tests/fixtures/beltside-062c/roadDraws-061c.json, and tests/beltside.merge061c.test.ts runs it on this branch and
 // compares the unchanged wreck and smuggler draws. Trader swaps intentionally change when new
 // sold modules enter the shared rarity pool.
+// 0.8.0 T1 (VERIFIED-I1 call 3): tests/fixtures/beltside-062c/roadDraws-062b.json is likewise a one-time capture
+// (arsenal-062b's draws, which the history check compares today's against), so BB_WRITE_ROAD_DRAWS no longer rewrites it
+// (tests/beltside.merge061c.test.ts, refuse062b). Only the live fixture roadDraws-080.json is rewritten from this
+// function, by BB_WRITE_ROAD_DRAWS_080.
 import { salvagePart, smugglerParts, swapPart, type Choice, type EventId } from "../src/game/eventDefs";
 import { choicesFor, makeEvent } from "../src/game/events";
 import { newRun, type Run } from "../src/game/run";

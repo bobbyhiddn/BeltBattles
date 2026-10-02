@@ -1,15 +1,19 @@
 // 0.6.1p: the deck-level check (brief 0.6.1p "Tests"; ARSENAL.md §4.3). For each module, star one copy in a par deck
 // that uses it (the day-6 par decks, read from the golden-060 fixture, never written) or, for a module no par deck
-// holds, in its bench deck (tests/arsenal.bench.ts, no hull bonus), and fight the other hero's day-6 par deck over
-// 5 seeds. Mean damage dealt must not fall by more than 3% from 1 star to 2 to 3; STAMP PRESS must now rise.
-// BB_TABLES=1 prints the table (REPORT.md).
+// holds, in its bench deck (tests/arsenal.bench.ts, no hull bonus), and fight the other hero's day-6 par deck.
+// The damage the deck deals must not fall by more than 3% from 1 star to 2 to 3; STAMP PRESS must now rise.
+// 0.8.0 T1 (backlog 315; tests/starRows.ts): the damage is what the deck deals before its own KO, with the opponent's KO
+// lifted, mean over 20 seeds (was: the real fight's damage dealt over 5 seeds). Every par row was 5W or 0W at every star,
+// so its damage was the opponent's hull plus overkill, or as long as the opponent let it live, and it flipped when only
+// the opponent's parts were tuned (0.6.2 TUNE-M). BB_TABLES=1 prints the table (REPORT.md): per star the measure, the
+// real fights won, the real fight's damage (the old measure) and how long the deck stood.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { simulate } from "../src/sim/battle";
 import { ITEMS } from "../src/sim/content";
 import { hitsOfRig, rigHits, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates } from "../src/sim/beltside";
 import { bench, busy, factoryBench, gantryBench } from "./arsenal.bench";
+import { starCell, starRows, type StarRow } from "./starRows";
 
 const par = JSON.parse(readFileSync(new URL("./fixtures/golden-060/par.json", import.meta.url), "utf8")) as { decks: Record<string, Build> };
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
@@ -40,7 +44,11 @@ function native(key: string): Build {
   }
   return b;
 }
-const SEEDS = [1, 2, 3, 4, 5];
+// 0.8.0 T1: 20 seeds (was 5). The noisiest rows (EXT. CHAMBER, GALVANIC COIL, STAMP PRESS: par/weaver/6's coil stalls a
+// random machine) swing about 9-12% a fight. At 20 seeds every asserted step passes in all four TUNE-M states and under
+// an opponent tune of +-10% (output-T1/REPORT.md gives each margin); the closest is ASSEMBLY LINE 2->3 (-2.5+-0.5% on 200
+// seeds), which B1's retune of the listed falls covers.
+const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
 const FURNACE = "par/furnace/6", WEAVER = "par/weaver/6";
 
 /** The par deck `key` (native: 0.6.2 BELTSIDE merge) with its one copy of `def` (an item or a mod) at `stars`. */
@@ -105,29 +113,32 @@ type Step = "1->2" | "2->3";
 // fought and printed; only its listed steps skip the 3% assertion (a plain allowlist, not a ratchet).
 // 0.6.1f: empty. BRAKE SHOE (the deeper slow starved the turret) and SPLITTER (THREE-WAY's third copy jammed the
 // chamber) were retuned: HOT SHOE / RED-HOT SHOE keep half speed and add +2 / +5 flat; PERFECT CUT is 2 copies at 85%.
-export const KNOWN_FALLS: { id: string; steps: Step[]; cause: string }[] = [];
+// 0.8.0 T1 (the Prime's call, oracle 7871a5e0c3396b2a): two real falls the saturated rows hid (5W and 0W at every star),
+// in all four TUNE-M states. B1 retunes ASSEMBLY LINE 2/3 stars and OVERDRIVE 2 stars and empties this list before the
+// 0.8.0 RC (plan DoD 3); its exit bar is in output-T1/REPORT.md ("For B1").
+export const KNOWN_FALLS: { id: string; steps: Step[]; cause: string; oracle: string }[] = [
+  { id: "assembly", steps: ["1->2"], oracle: "7871a5e0c3396b2a",
+    cause: "faster stamping jams the shared heavy gun (jams a fight 1.2 / 3.2 / 4.9, shots 26.1 / 25.0 / 23.5); 200 seeds: 1->2 -4.8±0.7%, 1->3 -7.1±0.6%" },
+  { id: "overdrive", steps: ["1->2"], oracle: "7871a5e0c3396b2a",
+    cause: "REDLINE's faster belt cuts the Kiln slugs' ride heat (the same 16.9 shots, -3.5% a shot); 200 seeds: 1->2 -2.5±0.6%, on the line" },
+];
 const known = (id: string, step: Step) => KNOWN_FALLS.some((k) => k.id === id && k.steps.includes(step));
 
-export interface DeckRow { dmg: number; wins: number }
+export type DeckRow = StarRow;
 
+/** 0.8.0 T1: the row's measure at 1, 2 and 3 stars (tests/starRows.ts), against the native opponent (0.6.2 BELTSIDE merge). */
 export function deckRows(c: Case): DeckRow[] {
-  return [1, 2, 3].map((s) => {
-    const fights = SEEDS.map((seed) => simulate(c.at(s), native(c.opp), seed)); // 0.6.2 BELTSIDE merge: native
-    return {
-      dmg: fights.reduce((a, b) => a + b.sides[0].stats.damage, 0) / fights.length,
-      wins: fights.filter((b) => b.winner === 0).length,
-    };
-  });
+  return starRows(c.at, () => native(c.opp), SEEDS);
 }
 
-const line = (c: Case, r: DeckRow[]) => `${c.id} | ${c.deck} | ${c.opp} | ${r.map((x) => `${x.dmg.toFixed(1)} (${x.wins}W)`).join(" | ")}`;
+const line = (c: Case, r: DeckRow[]) => `${c.id} | ${c.deck} | ${c.opp} | ${r.map((x) => starCell(x)).join(" | ")}`;
 
-describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of mean damage dealt (5 seeds)", () => {
+describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of the damage the deck deals before it falls (20 seeds, the opponent's KO lifted)", () => {
   for (const c of CASES) {
     it(`${c.id} (${c.deck} vs ${c.opp})`, () => {
       const r = deckRows(c);
       const fall = KNOWN_FALLS.find((k) => k.id === c.id);
-      if (fall) console.log(`KNOWN FALL (oracle e12bb91257ca8d00, ${fall.steps.join(", ")}: ${fall.cause}) ${line(c, r)}`);
+      if (fall) console.log(`KNOWN FALL (oracle ${fall.oracle}, ${fall.steps.join(", ")}: ${fall.cause}) ${line(c, r)}`);
       else if (process.env.BB_TABLES) console.log(`DECK ${line(c, r)}`);
       if (!known(c.id, "1->2")) expect(r[1].dmg, `${c.id} 1->2`).toBeGreaterThanOrEqual(r[0].dmg * 0.97);
       if (!known(c.id, "2->3")) expect(r[2].dmg, `${c.id} 2->3`).toBeGreaterThanOrEqual(r[1].dmg * 0.97);
@@ -141,7 +152,12 @@ describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of mean d
     for (const c of REPORT_ONLY) console.log(`REPORT-ONLY ${line(c, deckRows(c))}`);
   });
 
-  it("KNOWN_FALLS stays empty: every merge step is an upgrade (0.6.1f)", () => {
-    expect(KNOWN_FALLS).toEqual([]);
+  // 0.8.0 T1 (oracle 7871a5e0c3396b2a): was "KNOWN_FALLS stays empty" (0.6.1f). B1 empties the list before the 0.8.0 RC
+  // and sets this test back to toEqual([]).
+  it("KNOWN_FALLS holds exactly assembly 1->2 and overdrive 1->2 (oracle 7871a5e0c3396b2a); B1 empties it before the 0.8.0 RC", () => {
+    expect(KNOWN_FALLS.map((k) => ({ id: k.id, steps: k.steps, oracle: k.oracle }))).toEqual([
+      { id: "assembly", steps: ["1->2"], oracle: "7871a5e0c3396b2a" },
+      { id: "overdrive", steps: ["1->2"], oracle: "7871a5e0c3396b2a" },
+    ]);
   });
 });
