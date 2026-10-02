@@ -2,12 +2,14 @@
 // tests/arsenal.decks.test.ts, for the 15 wave-3 modules. Each module goes into a hero deck that uses it (DESIGN-wave3.md
 // 3.3's six-hero lines), at 1, 2 and 3 stars, and fights another hero. The damage the deck deals must not fall by more
 // than 3% from 1 star to 2 to 3, and the module's own measure (plating gained, stall seconds saved, stamps) must not fall
-// at all. 0.8.0 T1 (backlog 315; tests/starRows.ts): the fight is the deck at its own hull against the foe with its KO
-// lifted, until the deck's own KO, mean over 10 seeds; the damage is what the deck deals before it falls, and the own
-// measure is read over the same fight. (Until T1 both sides carried +3000 hull for the full 120 s over 5 seeds, so a part
-// that keeps the deck standing, the plating parts, never showed in the damage.) No wave-3 row needs an allowlist:
-// WAVE3_FALLS stays empty. tests/arsenal.decks.test.ts's KNOWN_FALLS holds two older rows (ASSEMBLY LINE, OVERDRIVE;
-// oracle 7871a5e0c3396b2a) that B1 retunes. BB_TABLES=1 prints the table (REPORT.md).
+// at all. 0.8.0 T1 (backlog 315; tests/starRows.ts): the damage comes from the deck at its own hull against the foe with
+// its KO lifted, until the deck's own KO, mean over 10 seeds: what the deck deals before it falls. (Until T1 both sides
+// carried +3000 hull for the full 120 s over 5 seeds, so a part that keeps the deck standing, the plating parts, never
+// showed in the damage.) The own measure stays on that P1 fight, both sides +3000 hull for the full 120 s over 5 seeds
+// (the Prime's call, oracle a102b9849dffd039): the measure least tied to the foe and to how long the deck lives, kept apart
+// from the damage, which already counts survival. No wave-3 row needs an allowlist: WAVE3_FALLS stays empty.
+// tests/arsenal.decks.test.ts's KNOWN_FALLS holds two older rows (ASSEMBLY LINE, OVERDRIVE; oracle 7871a5e0c3396b2a)
+// that B1 retunes. BB_TABLES=1 prints the table (REPORT.md).
 import { describe, expect, it } from "vitest";
 import { Battle, type SimEvent } from "../src/sim/battle";
 import { spotForTile, stokeSpots } from "../src/sim/beltside";
@@ -17,7 +19,7 @@ import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { K, item, latchDeck, withItem, withMod } from "./wave3.helpers";
 import { starCell, starRows, type StarRow } from "./starRows";
 
-const SEEDS = [1, 2, 3, 4, 5]; // STOKER's cap rows (capRows: both sides +3000 hull, 120 s)
+const SEEDS = [1, 2, 3, 4, 5]; // both sides +3000 hull, 120 s: STOKER's cap rows (capRows) and the rows' own measure (ownRow)
 const ROW_SEEDS = Array.from({ length: 10 }, (_, i) => i + 1); // 0.8.0 T1: the star rows (deckRows)
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
 
@@ -150,15 +152,36 @@ function pressFurnace(stars: number): Build {
   return b;
 }
 
-/** Both sides with +3000 hull: the fight runs its full 120 s (the dark wind can't end it). STOKER's cap rows. */
+/** Both sides with +3000 hull: the fight runs its full 120 s (the dark wind can't end it). STOKER's cap rows, own. */
 const sturdy = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus + 3000 });
 
-/** 0.8.0 T1: the row's measure and own measure at 1, 2 and 3 stars (tests/starRows.ts). */
-export function deckRows(c: Case): Row[] {
-  return starRows(c.at, c.vs, ROW_SEEDS, c.own);
+/** The row's own measure at 1, 2 and 3 stars on P1's fight: both sides +3000 hull, the full 120 s, SEEDS (oracle
+ *  a102b9849dffd039). */
+function ownRow(c: Case): number[] {
+  return [1, 2, 3].map((s) => {
+    let own = 0;
+    for (const seed of SEEDS) {
+      const bt = new Battle(sturdy(c.at(s)), sturdy(c.vs()), seed);
+      while (!bt.over && bt.ticks < 60 * 200) {
+        bt.step();
+        own += c.own!(bt, bt.events);
+        bt.events.length = 0;
+      }
+    }
+    return own / SEEDS.length;
+  });
 }
 
-const line = (c: Case, r: Row[]) => `${c.id} | ${c.deck} | ${c.foe} | ${r.map((x) => starCell(x, !!c.own)).join(" | ")}`;
+/** 0.8.0 T1: the row at 1, 2 and 3 stars: damage, real fights won and seconds stood from the new fight (tests/starRows.ts,
+ *  ROW_SEEDS); the own measure from P1's fight (ownRow). */
+export function deckRows(c: Case): Row[] {
+  const rows = starRows(c.at, c.vs, ROW_SEEDS);
+  if (c.own) ownRow(c).forEach((o, i) => { rows[i].own = o; });
+  return rows;
+}
+
+const line = (c: Case, r: Row[]) => `${c.id} | ${c.deck} | ${c.foe} | ${r.map((x) => starCell(x)).join(" | ")}`
+  + (c.own ? ` | own on both +3000, 120 s, 5 seeds: ${r.map((x) => x.own.toFixed(1)).join(" / ")}` : "");
 
 /** No wave-3 merge step falls (an allowlist, as tests/arsenal.decks.test.ts's KNOWN_FALLS; it must stay empty). */
 export const WAVE3_FALLS: { id: string; cause: string }[] = [];
