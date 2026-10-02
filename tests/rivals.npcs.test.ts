@@ -22,6 +22,9 @@ import { bestSpot } from "../src/sim/beltside";
 import { ITEMS, type HeroId } from "../src/sim/content";
 import { canFitGear, coreFor, installedTurrets, turretSlots } from "../src/sim/deck";
 import { valueOf } from "../src/sim/stars";
+import { LUCK_HEROES } from "../src/sim/harness/luck";
+import { LUCK_CAPS } from "../src/sim/harness/luckCapsData";
+import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 
 const SIX: RivalId[] = ["brasswick", "voss", "grimhold", "karsk", "lockjaw", "thistlemail"];
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
@@ -123,6 +126,21 @@ describe("the road and the stand-ins over 2,000 run seeds (0.8.0 N1)", () => {
       const after = mean((seed) => DAYS.map((day) => warlordOffer(seed, day, beaten).hard));
       for (const id of warlordPool("hard")) expect(after(id), `${id}, the Matriarch beaten on day ${beaten}`).toBeGreaterThan(1);
     }
+  });
+});
+
+describe("each captain's own hero's luck caps (0.8.0 N1 M1, VERIFIED-D1 Q11)", () => {
+  // captains.luck checks every captain against LUCK_CAPS.caps[its hero] and re-fingerprints the par runs of LUCK_HEROES
+  // only. So a hero dropped from LUCK_HEROES would leave its committed rows unchecked for staleness (N1 mutant
+  // c2-luck-heroes-no-foundry survived until this test): the caps are measured on every playable hero, and the table's
+  // fingerprints and rows cover exactly those heroes.
+  it("are measured on all four playable heroes, and the committed table covers exactly them", () => {
+    const sorted = (xs: readonly string[]) => [...xs].sort();
+    expect(sorted(LUCK_HEROES)).toEqual(sorted(PLAYABLE_HEROES));
+    expect(sorted(Object.keys(LUCK_CAPS.fingerprint))).toEqual(sorted(LUCK_HEROES));
+    expect(sorted(Object.keys(LUCK_CAPS.caps))).toEqual(sorted(LUCK_HEROES));
+    for (const h of LUCK_HEROES) expect(LUCK_CAPS.caps[h]?.length, h).toBe(RUN_DAYS);
+    for (const id of RIVAL_IDS) expect(LUCK_HEROES, id).toContain(RIVALS[id].hero);
   });
 });
 
