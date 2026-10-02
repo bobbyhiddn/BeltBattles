@@ -5,6 +5,7 @@
 import { HEROES, ITEMS, type HeroId } from "../sim/content";
 import { C, FACTION } from "./palette";
 import { bevel, disc, hline, line, px, rect, ring, vline, type G } from "./pixel";
+import { wave3Gem } from "./wave3Art"; // 0.8.0 A1: ANVIL BREECH's and STEAM BREECH's gems
 
 /** The socket gem colour of each bought core (catalogue art notes). */
 export const CORE_GEM: Record<string, string> = {
@@ -12,9 +13,10 @@ export const CORE_GEM: Record<string, string> = {
   mortar: C.rust3, grapnel: C.steel3, tesla: C.ice, capacitor: C.yellow, compound: C.brass4, lance: C.cyan,
 };
 
-/** The gem colour for turret core `def` (a bought core), or the hero's faction glow for its signature core. */
+/** The gem colour for turret core `def` (a bought core), or the hero's faction glow for its signature core. 0.8.0 A1:
+ *  wave 3's two cores after CORE_GEM (wave3Art.ts WAVE3_CORE_GEM). */
 export function gemColor(def: string | undefined, hero: HeroId): string {
-  return (def && CORE_GEM[def]) || FACTION[HEROES[hero].faction].glow;
+  return (def && (CORE_GEM[def] || wave3Gem(def))) || FACTION[HEROES[hero].faction].glow;
 }
 
 /** Draw the 12x12 icon of a bought turret core; false for any other id. */

@@ -8,6 +8,7 @@ import { drawCoreIcon } from "./coreArt"; // 0.6.1b
 import { drawTurretIcon } from "./turretIcon"; // 0.6.2s (REQ-BFG-031)
 import { drawFactoryArt, drawFactoryIcon } from "./factoryArt"; // 0.6.1c: the wave-1 factories
 import { raceFactoryArt } from "./raceArt"; // 0.8.0 H1: CRUCIBLE and WARDWORKS
+import { drawWave3Gate, drawWave3Icon, wave3FactoryArt } from "./wave3Art"; // 0.8.0 A1: wave 3's 15 modules
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
   px, rect, ring, rot90, silhouette, vline, type G,
@@ -191,8 +192,9 @@ export function factorySprite(id: string, frameIdx: number, flash: boolean, star
   return cached(`fac:${id}:${f}:${flash ? 1 : 0}${s > 1 ? `:${s}` : ""}`, () => {
     if (id === "kiln") return drawKiln(f, flash);
     if (id === "loom") return drawLoom(f, flash);
-    // 0.8.0 H1: FOUNDRY's CRUCIBLE and BASTION's WARDWORKS (raceArt.ts); 0.6.1c: the wave-1 factories (factoryArt.ts)
-    return raceFactoryArt(id, f, flash) ?? drawFactoryArt(id, f, flash, s) ?? drawPress(f, flash);
+    // 0.8.0 H1: FOUNDRY's CRUCIBLE and BASTION's WARDWORKS (raceArt.ts); 0.6.1c: the wave-1 factories (factoryArt.ts);
+    // 0.8.0 A1: wave 3's TWIN MOULD and ARMOR PRESS (wave3Art.ts)
+    return raceFactoryArt(id, f, flash) ?? drawFactoryArt(id, f, flash, s) ?? wave3FactoryArt(id, f, flash, s) ?? drawPress(f, flash);
   });
 }
 
@@ -545,6 +547,7 @@ function drawGate(g: G, id: string, f: number, active: boolean): void {
       break;
     }
     default: {
+      if (drawWave3Gate(g, id, f, active)) break; // 0.8.0 A1: wave 3's eight rigs (wave3Art.ts)
       bevel(g, 1, 1, 10, 10, C.steel1, C.steel2, C.steel0, C.ink);
     }
   }
@@ -663,7 +666,8 @@ export function itemIcon(id: string): Cv {
       default: {
         // 0.6.1c: the wave-1 factories (factoryArt.ts); 0.6.1b: turret cores (coreArt.ts)
         // 0.6.2s (REQ-BFG-031 S10): turret modules (turretIcon.ts)
-        if (!drawFactoryIcon(g, id) && !drawCoreIcon(g, id) && !drawTurretIcon(g, id)) g.drawImage(gateSprite(id, 0, false), 0, 0);
+        // 0.8.0 A1: wave 3's factories, cores and gear ask first (wave3Art.ts); its rigs fall through to their idle frame
+        if (!drawWave3Icon(g, id) && !drawFactoryIcon(g, id) && !drawCoreIcon(g, id) && !drawTurretIcon(g, id)) g.drawImage(gateSprite(id, 0, false), 0, 0);
       }
     }
     return c;
