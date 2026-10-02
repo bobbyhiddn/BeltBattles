@@ -522,6 +522,25 @@ export interface TimelineHit {
   // 0.8.0 P1, wave 3 (set only on a wave-3 rig's hit; its flat above holds the damage it adds):
   matched?: boolean; // E6 TWIN GAUGE: its belt is matched (matchedRoutes)
   others?: number; // E5 PINCER: the other rigs hitting its tile that it counts (at most its max)
+  plate?: number; // PLATE ROLLER, SHIELD WALL: plating it rolls onto your hull for this payload
+  plated?: { min: number; flat: number }; // SHIELD WALL: the damage it adds while your hull holds `min` plating (not in flat)
+  breaker?: { flat: number; floor: number }; // PLATE BREAKER: both numbers (flat holds the one the walk counts: platedDeck)
+  brace?: { mul: number; plated: number }; // BRACE FRAME: what it does to enemy stalls on this tile (no damage)
+  hold?: number; // TWIN LATCH: the seconds it may hold a payload here (when both its arrows hit belts)
+}
+
+/**
+ * 0.8.0 P1: does the deck plate its hull (E1)? A BASTION (its bulwark slugs), or any wave-3 plating source: a rig or
+ * factory whose effect plates (PLATE ROLLER, SHIELD WALL, ARMOR PRESS) or SEAM WELDER gear. The walk counts PLATE
+ * BREAKER's big number on such a deck and its floor on any other; the rating reads it for ANVIL and STEAM BREECH.
+ */
+export function platedDeck(b: Build): boolean {
+  if (b.hero === "bastion") return true;
+  for (const p of b.items) {
+    const d = ITEMS[p.def] ? effectAt(p.def, starsOf(p)) : undefined;
+    if (d?.gate?.plate || d?.factory?.plate) return true;
+  }
+  return b.mods.some((m) => !!(ITEMS[m.def] && effectAt(m.def, starsOf(m)).mod?.seam));
 }
 
 /** One belt tile with hits, in the walk's order; `speed` is the belt's speed state from this tile on. */
@@ -595,8 +614,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   // belt's pulse again when the same valve (a two-belt spot: an arrow on this belt and one on the main belt before the
   // join tile) already paid on an earlier leg. A walk with no join is unchanged.
   const pulsed = new Set<number>();
-  // 0.8.0 P1 (E6): which belts are matched, read only when a TWIN GAUGE hits one of the walk's tiles
+  // 0.8.0 P1 (E6): which belts are matched, read only when a TWIN GAUGE hits one of the walk's tiles; whether the deck
+  // plates its hull, read only when a PLATE BREAKER does
   let matched: boolean[] | undefined;
+  let plates: boolean | undefined;
   const n = path.length;
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];
@@ -686,7 +707,21 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
         th.flat = (th.flat ?? 0) + amount;
         th.others = others;
       }
-      if (e.latch) { flat += e.latch.flat; th.flat = (th.flat ?? 0) + e.latch.flat; } // TWIN LATCH (its hold is E4: no ride)
+      if (e.latch) { // TWIN LATCH: its damage (its hold is E4 and costs no ride)
+        flat += e.latch.flat;
+        th.flat = (th.flat ?? 0) + e.latch.flat;
+        th.hold = e.latch.hold;
+      }
+      if (e.plate) th.plate = e.plate; // PLATE ROLLER, SHIELD WALL: plating, no damage
+      if (e.plated) th.plated = { ...e.plated }; // SHIELD WALL: its bonus waits for 12 plating in the battle (not counted)
+      if (e.breaker) { // PLATE BREAKER: the big number on a deck that plates its hull, its floor on any other
+        plates ??= platedDeck(b);
+        const amount = plates ? e.breaker.flat : e.breaker.floor;
+        flat += amount;
+        th.flat = (th.flat ?? 0) + amount;
+        th.breaker = { ...e.breaker };
+      }
+      if (e.brace) th.brace = { ...e.brace };
       if (e.heat) heat += e.heat;
       if (e.sort) copies *= 1 + (e.sort.copies - 1) / e.sort.every;
       if (e.pulse) {

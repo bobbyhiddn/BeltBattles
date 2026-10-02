@@ -18,7 +18,7 @@ import { journeyTiles, type JoinLink } from "./deck"; // 0.6.2j: belt joins
 import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (stokers) and E6 (matched belts)
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
-import { inSync } from "./races/foundry"; // 0.8.0 P1 (E2): one pair rule, Foundry's sync rule, for any ammo
+import { inSync, pourAll } from "./races/foundry"; // 0.8.0 P1: E2's pair rule (Foundry's sync rule); TWIN MOULD's pour
 import { effectAt, starsOf } from "./stars";
 import { boostable, overclocked } from "./overclock";
 import { debuffedDamage, segmentBounds, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
@@ -119,6 +119,8 @@ export interface GateState {
 export interface LatchState {
   held: (BeltAmmo | null)[]; // the payload each arrow holds at its tile's centre
   since: number[]; // battle time each was held
+  at: (number | null)[]; // a staggered release still to come (oracle a0e94bc69949561f): battle time it lets that one go
+  same: boolean; // both arrows' belts end at one turret: release staggered so the two arrive together
 }
 
 export interface RouteState {
@@ -146,6 +148,8 @@ export interface RouteState {
   join?: RouteJoin;
   // 0.8.0 P1 (E4): per tile, the TWIN LATCH arrows that can hold a payload there (set only on a route a holding latch hits)
   holds?: TileHit[][];
+  // 0.8.0 P1: per tile, the BRACE FRAMEs hitting it (set only on a route a brace hits), as makeSide writes `guard`
+  braces?: GateState[][];
 }
 
 /** 0.6.2j (J1-J6): a joining belt's link into its main belt, read once in makeSide. */
@@ -184,6 +188,13 @@ export interface FactoryState {
   // at pace x (1 + the stokes of the active ones). `stoked`: the extra seconds of work they gave it (a counter, not stats)
   stokers?: { g: GateState; stoke: number }[];
   stoked?: number;
+  // 0.8.0 P1 (STOKER's cap, oracle a0e94bc69949561f): for a stoked factory, each turret its belts reach, the loads one of
+  // its stamps sends there (perStamp), and the other factories feeding that turret with theirs. Battle.stokedPace caps
+  // the stoke so the factory never stamps faster than the turret can take what the others leave of its live pace.
+  stokeCap?: { turret: number; perStamp: number; others: { f: FactoryState; perStamp: number }[] }[];
+  curPace?: number; // a stoked factory's stamp pace this tick (what another stoked factory sharing its turret reads)
+  // 0.8.0 P1, ARMOR PRESS: seconds to its next plating (set only on a press with a belt that reaches a turret)
+  plateTimer?: number;
 }
 
 export interface TurretState {
@@ -299,6 +310,7 @@ export interface SideState {
   pairs?: WeakMap<Payload, { at: number; route: number }>; // E2: when and through which route each chamber load entered
   latches?: GateState[]; // E4: its TWIN LATCHes whose two arrows hit belts
   spall?: TurretState[]; // SPALL CATCHER: its turrets carrying one
+  braced?: boolean; // BRACE FRAME: the side holds one
 }
 
 export interface Projectile {
@@ -487,8 +499,14 @@ export class Battle {
     // One arrow on a belt never holds (it only adds damage).
     const latches = gates.filter((g) => g.def.gate?.latch && g.hits.length === 2);
     for (const g of latches) {
-      g.latch = { held: [null, null], since: [0, 0] };
+      const ends = g.hits.map((h) => (routes[h.route].connected ? routes[h.route].turret : routes[h.route].join?.feeds ?? -1));
+      g.latch = { held: [null, null], since: [0, 0], at: [null, null], same: ends[0] >= 0 && ends[0] === ends[1] };
       for (const h of g.hits) (routes[h.route].holds ??= routes[h.route].cells.map(() => []))[h.tile].push(h);
+    }
+    // 0.8.0 P1: BRACE FRAME: each tile it hits remembers it (Battle.braceCut shortens stalls, freezes and chain slows there)
+    for (const g of gates) {
+      if (!g.def.gate?.brace) continue;
+      for (const h of g.hits) (routes[h.route].braces ??= routes[h.route].cells.map(() => []))[h.tile].push(g);
     }
     // Each Overclocker follows its belt to the first later payload-changing rig. 0.6.2j (J14 (a)): on a joining belt,
     // along the payload's journey (journeyHits): past the join when its own belt has none left, unless the Overclocker
@@ -516,6 +534,11 @@ export class Battle {
         // 0.6.2 TUNE-M, RULE JOIN PACE: one of its belts joins another (a legal join: joinStates set RouteState.join)
         pace: routes.some((r) => r.factory === p.uid && r.join) ? JOIN_PACE : 1,
       }));
+    // 0.8.0 P1, ARMOR PRESS: "IT NEEDS A BELT TO A TURRET TO WORK": its plating timer runs only with such a belt
+    for (const f of factories) {
+      const pl = f.def.factory?.plate;
+      if (pl && routes.some((r) => r.factory === f.uid && (r.connected || (r.join?.feeds ?? -1) >= 0))) f.plateTimer = pl.every;
+    }
     // 0.8.0 P1 (E3, the Prime's guard): a STOKER's arrows that point into a factory. Only a stoking rig counts such hits:
     // they bring it online (at COMMISSION_BASE, x a running ASSEMBLY LINE's factor) and stoke that factory's timers.
     if (gates.some((g) => g.def.gate?.stoke)) {
@@ -526,6 +549,24 @@ export class Battle {
         (f.stokers ??= []).push({ g, stoke: g.def.gate!.stoke! });
         f.stoked = 0;
         g.commissionAt = Math.min(g.commissionAt, asm.own.size ? COMMISSION_BASE * asm.factor : COMMISSION_BASE);
+      }
+      // STOKER's cap (oracle a0e94bc69949561f): which turrets each stoked factory's belts reach, and the loads a stamp of
+      // each factory feeding them sends there: a twin pour one a belt (a CRUCIBLE's blanks into one gun fuse into one
+      // load), any other stamp one belt in turn; a batch its slugs
+      const reach = (r: RouteState): number => (r.connected ? r.turret : r.join?.feeds ?? -1);
+      const perStampOf = (f: FactoryState, turret: number): number => {
+        const spec = f.def.factory!, into = routes.filter((r) => r.factory === f.uid && reach(r) === turret).length;
+        const loads = spec.ammo === "blank" ? Math.min(1, into) : spec.twin ? into : into / Math.max(1, f.routes.length);
+        return loads * (spec.batch ?? 1);
+      };
+      for (const f of factories) {
+        if (!f.stokers) continue;
+        const turrets = [...new Set(routes.filter((r) => r.factory === f.uid && reach(r) >= 0).map(reach))];
+        f.stokeCap = turrets.map((turret) => ({
+          turret, perStamp: perStampOf(f, turret),
+          others: factories.filter((g) => g !== f && routes.some((r) => r.factory === g.uid && reach(r) === turret))
+            .map((g) => ({ f: g, perStamp: perStampOf(g, turret) })),
+        }));
       }
     }
     // 0.6.1b: gear and core. 0.6.2s (REQ-BFG-031 S9): one turret per OCCUPIED slot (deck.ts installedTurrets), in
@@ -576,6 +617,7 @@ export class Battle {
       ...(turrets.some((tu) => tu.pairing) ? { pairs: new WeakMap<Payload, { at: number; route: number }>() } : {}),
       ...(latches.length ? { latches } : {}),
       ...(spall.length ? { spall } : {}),
+      ...(gates.some((g) => g.def.gate?.brace) ? { braced: true } : {}),
     };
   }
 
@@ -725,8 +767,11 @@ export class Battle {
         f.seenWreck = s.wreckAccepted;
       }
       if (!f.routes.length || f.disrupted > 0 || f.frozen > 0) continue;
-      // 0.8.0 P1 (E3): a stoked factory's timers run at pace x (1 + its active stokes); every other factory at f.pace
-      const pace = f.stokers ? this.stokedPace(f, dt) : f.pace;
+      // 0.8.0 P1 (E3): a stoked factory's stamp timer and trigger cooldown run at pace x (1 + its active stokes), capped
+      // so it never outruns its turrets (stokedPace); every other factory at f.pace
+      const pace = f.stokers ? this.stokedPace(s, f, dt) : f.pace;
+      // 0.8.0 P1: ARMOR PRESS's plating timer at the stamping pace, with the full stoke (it puts no payload on a belt)
+      if (f.plateTimer !== undefined) this.pressPlate(s, f, dt * (f.stokers ? f.pace * (1 + this.stokeOf(f)) : f.pace));
       // 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory's timers run at f.pace (1 for every other factory: dt as before)
       if (f.triggerCooldown > 0) f.triggerCooldown = Math.max(0, f.triggerCooldown - dt * pace);
       if (f.triggerQueue > 0 && f.triggerCooldown <= 0 && this.stamp(s, f)) {
@@ -739,6 +784,10 @@ export class Battle {
       f.timer -= dt * pace; // RULE JOIN PACE: a joined factory's cycle takes 1 / pace as long (0.8.0 P1: and a stoked one's)
       if (f.timer > 0) continue;
       if (s.race && raceProduce(this, s, f, dt)) continue; // races: Crucible twin pour
+      if (spec.twin) { // 0.8.0 P1: TWIN MOULD casts one slug onto every belt with room, on the same tick (the twin pour)
+        pourAll(this, s, f, dt, () => this.mouldSlug(f));
+        continue;
+      }
       if (f.pending === 0 && this.stamp(s, f)) {
         f.timer = spec.interval;
         if (spec.batch && spec.batch > 1) f.pending = spec.batch - 1; // 0.6.1c: the rest of the batch waits in the mouth
@@ -969,31 +1018,116 @@ export class Battle {
     }
   }
 
-  /** E4, each tick before transport: a latch lets both payloads go together on the tick each arrow holds one, one alone
-   *  after `hold` seconds, and everything it holds when it is stalled, frozen or wrecked. */
+  /**
+   * E4, each tick before transport. A stalled, frozen or wrecked latch lets everything go. When each arrow holds a
+   * payload (neither already on its way out): if both belts end at one turret, the payload with the longer trip left
+   * goes now and the other after the difference between their trips (tripTime, at the belts' speeds now), so both reach
+   * the turret together (the Prime's amendment, oracle a0e94bc69949561f: a latch's two tiles sit 2 cells apart and a
+   * gun's intakes 1, so a release on one tick lands them an odd number of tiles apart); belts that end at different
+   * turrets go together. No payload is held more than `hold` seconds in all; one alone goes after `hold` seconds.
+   */
   private latchTick(s: SideState, g: GateState): void {
-    const l = g.latch!, works = this.latchWorks(g), both = !!l.held[0] && !!l.held[1];
-    const hold = g.def.gate!.latch!.hold;
-    for (let i = 0; i < l.held.length; i++) {
-      if (l.held[i] && (!works || both || this.t - l.since[i] >= hold - 1e-9)) this.release(s, g, i);
+    const l = g.latch!, hold = g.def.gate!.latch!.hold;
+    if (!this.latchWorks(g)) {
+      for (let i = 0; i < l.held.length; i++) this.release(s, g, i);
+      return;
     }
+    for (let i = 0; i < l.held.length; i++) if (l.held[i] && l.at[i] !== null && this.t >= l.at[i]! - 1e-9) this.release(s, g, i);
+    if (l.held[0] && l.held[1] && l.at[0] === null && l.at[1] === null) {
+      if (!l.same) {
+        this.release(s, g, 0);
+        this.release(s, g, 1);
+      } else {
+        const trip = [0, 1].map((i) => this.tripTime(s, g.hits[i].route, l.held[i]!));
+        const first = trip[0] >= trip[1] ? 0 : 1, second = 1 - first;
+        this.release(s, g, first);
+        const at = Math.min(this.t + Math.abs(trip[0] - trip[1]), l.since[second] + hold);
+        if (at <= this.t + 1e-9) this.release(s, g, second);
+        else l.at[second] = at;
+      }
+    }
+    for (let i = 0; i < l.held.length; i++) if (l.held[i] && this.t - l.since[i] >= hold - 1e-9) this.release(s, g, i);
+  }
+
+  /** E4: the seconds payload `a` on route `ri` takes from where it is to its turret's intake at the belt's speeds now:
+   *  each CELL to the next tile centre at the speed the tile behind it sets (RouteState.speedAt; a fixed-speed slag
+   *  slug's own speed), the last stretch to the route's end too. A joining belt's trip stops at its join. */
+  private tripTime(s: SideState, ri: number, a: BeltAmmo): number {
+    const r = s.routes[ri];
+    const fixed = AMMO[a.p.ammo]?.fixedSpeed;
+    let t = 0;
+    for (let ci = Math.min(r.cells.length - 1, Math.max(0, Math.floor(a.s / CELL))); ci < r.cells.length; ci++) {
+      const from = Math.max(a.s, ci * CELL + CELL / 2), to = ci === r.cells.length - 1 ? r.L : (ci + 1) * CELL + CELL / 2;
+      if (to > from) t += (to - from) / (BELT_SPEED * Math.max(1e-6, fixed ?? r.speedAt[ci]));
+    }
+    return t;
   }
 
   /** E4: latch `g`'s arrow `i` lets its payload go. */
   private release(s: SideState, g: GateState, i: number): void {
-    const a = g.latch!.held[i];
+    const l = g.latch!, a = l.held[i];
+    l.at[i] = null;
     if (!a) return;
     delete a.hold;
-    g.latch!.held[i] = null;
+    l.held[i] = null;
     this.events.push({ type: "release", side: s.side, gate: g.uid, route: g.hits[i].route });
   }
 
-  /** E3: a stoked factory's pace: f.pace x (1 + the stokes of its working STOKERs); counts the extra work in f.stoked. */
-  private stokedPace(f: FactoryState, dt: number): number {
+  /** TWIN MOULD: one slug of its ammo (its dies' base from 2 stars), as Battle.stamp writes it. */
+  private mouldSlug(f: FactoryState): Payload {
+    const spec = f.def.factory!;
+    const p: Payload = { id: this.nextId++, ammo: spec.ammo, ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: f.uid, copy: false };
+    if (spec.base !== undefined) p.base = spec.base;
+    return p;
+  }
+
+  /** ARMOR PRESS: its plating timer runs `step` seconds (the stamping pace); each time it ends, `amount` plating (E1). */
+  private pressPlate(s: SideState, f: FactoryState, step: number): void {
+    const pl = f.def.factory!.plate!;
+    f.plateTimer! -= step;
+    if (f.plateTimer! > 1e-9) return;
+    this.addPlate(s, pl.amount);
+    f.plateTimer! += pl.every;
+  }
+
+  /** E3: the stoke of a factory's working STOKERs (online, not stalled, frozen or wrecked). */
+  private stokeOf(f: FactoryState): number {
     let k = 0;
     for (const st of f.stokers!) if (st.g.online && !st.g.wrecked && st.g.disrupted <= 0 && st.g.frozen <= 0) k += st.stoke;
-    if (k > 0) f.stoked = (f.stoked ?? 0) + dt * f.pace * k;
-    return k > 0 ? f.pace * (1 + k) : f.pace;
+    return k;
+  }
+
+  /**
+   * E3 with STOKER's cap (the Prime's call, oracle a0e94bc69949561f: "the stoke never makes a factory stamp faster than
+   * the turret its route feeds can take"): the pace of a stoked factory's stamp timer and trigger cooldown. Each turret
+   * its belts reach takes 1 / loadPace loads a second (read live); the other factories feeding it use their share of that
+   * (their stamp rate now x the loads a stamp sends there), and this factory may use what is left. With I0 its unstoked
+   * stamp interval (JOIN_PACE included) and Imin the shortest interval that leaves no turret over its pace (the largest
+   * over its turrets; Infinity where nothing is left), it stamps every max(I0 / (1 + stoke), min(I0, Imin)): the full
+   * stoke where the guns have room, never faster than they can take, never slower than unstoked. A factory with no belt
+   * to a turret keeps the full stoke. Counts the extra work in f.stoked.
+   */
+  private stokedPace(s: SideState, f: FactoryState, dt: number): number {
+    const k = this.stokeOf(f);
+    let pace = f.pace * (1 + k);
+    if (k > 0 && f.stokeCap?.length) {
+      const i0 = f.def.factory!.interval / f.pace;
+      let imin = 0;
+      for (const c of f.stokeCap) {
+        const tu = turretAt(s, c.turret);
+        if (!tu) continue;
+        // a turret fed by this factory alone takes its full pace (its loads come evenly); one other factories share keeps
+        // SHARED_HEADROOM of its pace free, since loads from several factories drift in and out of step and bunch up
+        let left = (c.others.length ? 1 - SHARED_HEADROOM : 1) / loadPace(tu);
+        for (const o of c.others) left -= ((o.f.stokers ? o.f.curPace ?? o.f.pace : o.f.pace) / o.f.def.factory!.interval) * o.perStamp;
+        imin = Math.max(imin, left > 1e-9 ? c.perStamp / left : Infinity);
+      }
+      const eff = Math.max(i0 / (1 + k), Math.min(i0, imin));
+      pace = f.def.factory!.interval / eff;
+    }
+    f.curPace = pace;
+    f.stoked = (f.stoked ?? 0) + dt * (pace - f.pace);
+    return pace;
   }
 
   /** E1: `n` plating onto side s's hull from a wave-3 part, up to PLATE_CAP (the same 24 BASTION's slugs fill); a
@@ -1113,6 +1247,14 @@ export class Battle {
     if (e.gauge) p.flat += h.matched ? e.gauge.matched : e.gauge.flat; // E6 TWIN GAUGE: more on a matched belt
     if (e.pincer) p.flat += e.pincer.flat + e.pincer.each * Math.min(e.pincer.max, this.crossfire(s, h)); // E5 PINCER
     if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
+    if (e.plate) this.addPlate(s, e.plate); // PLATE ROLLER, SHIELD WALL: plating for each payload it hits (E1)
+    if (e.plated && s.plate.plate >= e.plated.min) p.flat += e.plated.flat; // SHIELD WALL: after its plating, at 12+
+    if (e.breaker) { // PLATE BREAKER: takes 1 plating for + flat; with none to take, + floor (it never takes more)
+      if (s.plate.plate >= 1) {
+        this.spendPlate(s, 1);
+        p.flat += e.breaker.flat;
+      } else p.flat += e.breaker.floor;
+    }
     // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
     if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
     if (e.burn) p.burn += e.burn;
@@ -1205,6 +1347,7 @@ export class Battle {
     }
     for (const tu of s.turrets) {
       s.stats.turretTime += dt;
+      if (tu.core.routine === "steam") tu.plated = s.plate.plate > 0; // 0.8.0 P1: STEAM BREECH reads it in its cadence
       // payloads backed up near this turret's intakes
       let waiting = 0;
       for (const r of s.routes) {
@@ -1304,7 +1447,9 @@ export class Battle {
       ? raceCurveDamage(ammo, s, tu, p)
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, p.ride, p.mult, p.flat + (p.heatBonus ?? 0));
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
+    if (p.paired && tu.pairBonus) dmg *= 1 + tu.pairBonus; // 0.8.0 P1: TWIN TRIGGER on a paired load (E2), before the RAM
     if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM
+    if (tu.spallCharge) { dmg += tu.spallCharge; tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot
     dmg = debuffedDamage(dmg, p.debuffs);
     const target = this.pickTarget(foe, !!p.harass, tu);
     let tx = target.x, ty = target.y;
@@ -1352,6 +1497,7 @@ export class Battle {
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
     if (routine === "pressure") dmg += pressureBonus(c, queued);
     else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
+    else if (routine === "anvil") dmg += (c.anvilFlat ?? 0) + (c.perPlate ?? 0) * s.plate.plate; // 0.8.0 P1: ANVIL BREECH (x k)
     else if (routine === "hullbreaker") dmg *= c.hullMul ?? 1;
     else if (routine === "capacitor") { dmg += (c.perSecond ?? 0) * tu.charge; tu.charge = 0; }
     else if (routine === "compound" && p.compound) {
@@ -1375,8 +1521,11 @@ export class Battle {
       pellets = Math.max(1, c.pellets ?? 1);
       share = c.share ?? 1;
     }
+    // 0.8.0 P1: TWIN TRIGGER on a paired load (E2; a COMPOUND shell packing one counts), before the RAM
+    if (tu.pairBonus && (p.paired || p.compound?.paired)) dmg *= 1 + tu.pairBonus;
     if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM, after the core's own bonus (never set on a GATLING)
     if (tu.salvage) { dmg += tu.salvage; tu.salvage = 0; }
+    if (tu.spallCharge) { dmg += tu.spallCharge; tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot
     if (routine !== "compound" || !p.compound) dmg = debuffedDamage(dmg, p.debuffs);
     const heavy = tu.def.kind === "heavy";
     for (let j = 0; j < pellets; j++) {
@@ -1582,8 +1731,39 @@ export class Battle {
     return true;
   }
 
+  /**
+   * 0.8.0 P1, BRACE FRAME: the seconds an enemy stall, freeze or chain slow lasts on a tile working braces `list` hit (or
+   * on a brace itself): x the best working brace's multiplier there, its plated one while the hull holds plating. A
+   * `brace` event names the brace and the seconds it saved. The harassment is accepted first, so it still counts
+   * (an enemy SCRAPPER's stamp). Only a side holding a brace comes here.
+   */
+  private braceCut(s: SideState, list: readonly GateState[] | undefined, secs: number): number {
+    if (!list?.length) return secs;
+    const plated = s.plate.plate > 0;
+    let best: GateState | undefined, mul = 1;
+    for (const g of list) {
+      if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
+      const m = plated ? g.def.gate!.brace!.plated : g.def.gate!.brace!.mul;
+      if (m < mul) { mul = m; best = g; }
+    }
+    if (!best) return secs;
+    this.events.push({ type: "brace", side: s.side, gate: best.uid, saved: secs - secs * mul });
+    return secs * mul;
+  }
+
+  /** BRACE FRAME: the braces covering target t (a belt tile's, or t itself when it is a brace); undefined for none. */
+  private bracesAt(s: SideState, t: Target): readonly GateState[] | undefined {
+    if (t.kind === "belt") return s.routes[t.ref]?.braces?.[t.cell];
+    if (t.kind === "gate") {
+      const g = s.gates.find((x) => x.uid === t.ref);
+      return g?.def.gate?.brace ? [g] : undefined;
+    }
+    return undefined;
+  }
+
   private disrupt(s: SideState, t: Target, secs = DISRUPT_TIME, cause: HarassCause = "shock"): boolean {
     if (secs <= 0 || !this.acceptHarassment(s, t, cause)) return false;
+    if (s.braced) secs = this.braceCut(s, this.bracesAt(s, t), secs); // 0.8.0 P1: BRACE FRAME
     if (t.kind === "gate") s.gates.find((g) => g.uid === t.ref)!.disrupted = Math.max(s.gates.find((g) => g.uid === t.ref)!.disrupted, secs);
     else if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.disrupted = Math.max(s.factories.find((f) => f.uid === t.ref)!.disrupted, secs);
     else if (t.kind === "turret") turretAt(s, t.ref)!.disrupted = Math.max(turretAt(s, t.ref)!.disrupted, secs);
@@ -1629,6 +1809,7 @@ export class Battle {
 
   private freeze(s: SideState, t: Target, secs: number): boolean {
     if (secs <= 0 || !this.acceptHarassment(s, t, "freeze")) return false;
+    if (s.braced) secs = this.braceCut(s, this.bracesAt(s, t), secs); // 0.8.0 P1: BRACE FRAME
     if (t.kind === "gate") {
       const g = s.gates.find((g) => g.uid === t.ref)!;
       g.frozen = Math.max(g.frozen, secs);
@@ -1677,7 +1858,7 @@ export class Battle {
         for (const ci of cells) {
           const slow = r.cellSlow[ci];
           slow.mul = Math.min(slow.t > 0 ? slow.mul : 1, mul);
-          slow.t = Math.max(slow.t, secs);
+          slow.t = Math.max(slow.t, s.braced ? this.braceCut(s, r.braces?.[ci], secs) : secs); // 0.8.0 P1: BRACE FRAME
         }
         for (const a of r.ammo) if (cells.has(Math.floor(a.s / CELL)) && AMMO[a.p.ammo].fixedSpeed === undefined)
           (a.p.debuffs ??= {}).snag = true;
@@ -1711,7 +1892,11 @@ export class Battle {
     for (const c of picked) {
       const r = s.routes[c.route];
       r.ammo.splice(r.ammo.indexOf(c.ammo), 1);
-      if (c.ammo.hold) c.ammo.hold.g.latch!.held[c.ammo.hold.arrow] = null; // 0.8.0 P1 (E4): a ripped payload frees its latch
+      if (c.ammo.hold) { // 0.8.0 P1 (E4): a ripped payload frees its latch arrow
+        const l = c.ammo.hold.g.latch!;
+        l.held[c.ammo.hold.arrow] = null;
+        l.at[c.ammo.hold.arrow] = null;
+      }
       this.events.push({ type: "rip", side: s.side, kind: "belt", ref: c.route, cell: Math.floor(c.ammo.s / CELL), payload: c.ammo.p.id });
     }
     return picked.length;
@@ -1981,6 +2166,23 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
 
 /** 0.8.0 P1: the shortest load time gear can give a turret (TWIN TRIGGER, DESIGN-wave3.md 3.3 module 13). */
 export const LOAD_FLOOR = 0.3;
+
+/** 0.8.0 P1 (STOKER's cap): the share of a turret's pace a stoke leaves free when several factories feed the turret. */
+export const SHARED_HEADROOM = 0.1;
+
+/**
+ * 0.8.0 P1 (STOKER's cap): the seconds turret tu takes for each load when it fires flat out, read live: its interval
+ * (stars, CALIBRATION and a ROTARY's multiplier included) x its core's cadence now (STEAM BREECH plated or bare, a GATLING's
+ * spin), over the loads a shot takes (EXT. CHAMBER; a COMPOUND packs 2; a SALVO fires its whole chamber, then reloads).
+ */
+export function loadPace(tu: TurretState): number {
+  const c = tu.core.spec, routine = tu.core.routine;
+  if (routine === "salvo") return (tu.interval * (c.reloadMul ?? 1)) / Math.max(1, tu.window);
+  let cd = tu.interval;
+  if (routine === "steam") cd *= (tu.plated ? c.steamPlated : c.steamBare) ?? 1;
+  else if (routine === "gatling") cd *= tu.spin;
+  return cd / Math.max(1, routine === "compound" ? 2 * tu.perShot : tu.perShot);
+}
 
 /** 0.6.1p: turret i's gear at its stars, folded (makeTurret; the inspector and the cruiser art read it too). */
 export interface GearStats {

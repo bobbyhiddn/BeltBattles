@@ -52,6 +52,7 @@ import {
   type Build, type Dir, type ModPlacement,
 } from "../deck";
 import { beltIndex, freeForRig, hitsIfPlaced, intakeCell, placeRigAt, rotFacing, rotations, type RigSpot } from "../beltside";
+import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place beside factories
 import type { SideStats } from "../battle";
 import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../stars";
 import { buildCost, maxGoldByDay } from "../../net/validate";
@@ -267,6 +268,12 @@ const editor = (b: Build, day: number, rng: Rng): Shopper => new Shopper(b, Numb
  *  CAND-A: with `rng` and `top`, a multi-arrow rig also tries `top` of the spots where most of its arrows land (at
  *  least two: on two tiles of a belt or on two belts), at random among them. */
 function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = "h2", top = 0): RigSpot[] {
+  // 0.8.0 P1 (E3): a STOKER works factories, not belts: the free cells beside factories (beltside.ts stokeSpots), the
+  // most factories first; "tile" picks one of them at random, as it picks a belt tile for any other rig
+  if (ITEMS[def]?.gate?.stoke) {
+    const all = stokeSpots(s.b, def).map((sp): RigSpot => ({ x: sp.x, y: sp.y, rot: sp.rot, hits: [] }));
+    return rng ? (all.length ? [rng.pick(all)] : []) : all;
+  }
   const out: RigSpot[] = [];
   const seen = new Set<string>();
   const tiles = s.rigTilesFor(ITEMS[def], s.rigTiles(), false);

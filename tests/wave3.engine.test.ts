@@ -210,18 +210,40 @@ describe("E4: holds (TWIN LATCH, the Prime's Q7)", () => {
   const LATCH = () => item(40, "twinlatch", 4, 3); // between (3,3) on belt A and (5,3) on belt B
   const holdEv = (b: Build, secs = 12) => events(b, secs).filter((x) => ["hold", "release"].includes(x.e.type));
 
-  it("both arrows on belts: it holds each payload until the other belt brings one, then lets both go on one tick", () => {
+  it("both arrows on belts into one gun: it holds each payload until the other belt brings one, then lets the longer trip go first and the other after the difference (oracle a0e94bc69949561f)", () => {
     const b = withItem(latchDeck(), LATCH());
     const bt = new Battle(b, barge(), SEED);
     expect(bt.sides[0].latches?.map((g) => g.uid)).toEqual([40]);
+    expect(bt.sides[0].latches![0].latch!.same).toBe(true);
     expect(bt.sides[0].routes.map((r) => r.holds?.map((l) => l.length).join(""))).toEqual(["0010000", "0001000"]);
     const ev = holdEv(b);
     const holds = ev.filter((x) => x.e.type === "hold"), rel = ev.filter((x) => x.e.type === "release");
     expect(holds.length).toBeGreaterThan(6);
-    // releases come in pairs on one tick (one per belt), never one alone (B always brings one within 1 s here)
+    // belt A has 4 tiles left after its hold tile, belt B 3: A goes first, B one tile's time (0.4 s) later
+    const routes = rel.map((r) => (r.e as { route: number }).route);
+    expect(routes.length).toBeGreaterThan(5);
+    for (let i = 0; i + 1 < routes.length; i += 2) {
+      expect([routes[i], routes[i + 1]], `release ${i}`).toEqual([0, 1]);
+      expect(rel[i + 1].t - rel[i].t, `release ${i}`).toBeCloseTo(0.4, 6);
+    }
+  });
+
+  it("belts that end at different guns are let go on one tick", () => {
+    // WEAVER: press X (4,6) up column 4 into gun 1; press Y (2,6) up column 2, then into connector 1 (gun 0); the latch at
+    // (3,3) between (2,3) and (4,3)
+    const b: Build = {
+      hero: "weaver", items: [{ uid: 1, def: "loom", x: 0, y: 8 }, { uid: 2, def: "press", x: 2, y: 6 }, { uid: 3, def: "press", x: 4, y: 6 }, item(40, "twinlatch", 3, 3)],
+      routes: [
+        { factory: 2, cells: [K(2, 5), K(2, 4), K(2, 3), K(2, 2), K(2, 1), K(1, 1), K(1, 0)] },
+        { factory: 3, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] },
+      ], mods: [], beltCap: 30, hullBonus: 5000,
+    };
+    expect(new Battle(b, barge(), SEED).sides[0].latches![0].latch!.same).toBe(false);
+    const rel = holdEv(b).filter((x) => x.e.type === "release");
+    expect(rel.length).toBeGreaterThan(4);
     const byTick = new Map<number, number[]>();
     for (const r of rel) byTick.set(r.t, [...(byTick.get(r.t) ?? []), (r.e as { route: number }).route]);
-    for (const [t, routes] of byTick) expect(routes.sort(), `t ${t}`).toEqual([0, 1]);
+    for (const [t, rs] of byTick) expect(rs.sort(), `t ${t}`).toEqual([0, 1]);
   });
 
   /** Belt B's press (uid 3) held stalled from the first tick, so nothing ever reaches the latch's other arrow. */
@@ -271,16 +293,54 @@ describe("E4: holds (TWIN LATCH, the Prime's Q7)", () => {
     for (const r of rides) expect(r).toBeCloseTo(estimateRoute(b, 0).ride, 1); // 3.0 s, though each waited 1 s
   });
 
-  it("released together, the two payloads reach the gun an odd number of tiles apart (the hold tiles sit 2 apart, the intakes 1)", () => {
-    // DESIGN-wave3.md 3.3 module 5 promises pairs for TWIN TRIGGER through a latch. A latch's two tiles are 2 cells apart
-    // and a gun's two intakes 1 apart, so the belts left after the hold always differ by an odd number of tiles (here 4
-    // and 3): at one belt speed the released payloads arrive 0.4 s apart, outside SYNC_WINDOW. On a gun fast enough
-    // that nothing waits at its intakes, the latch turns the equal belts' pairs into none. Recorded in REPORT.md (Q).
-    const tilesLeft = (ri: number, tile: number) => latchDeck().routes[ri].cells.length - 1 - tile;
-    expect([tilesLeft(0, 2), tilesLeft(1, 3)]).toEqual([4, 3]);
-    const fast = (b: Build) => withMod(withMod(b, 50, "seamwelder"), 51, "calibrate", 0, 3);
-    expect(typeCount(events(fast(latchDeck()), 20), "pair", 0)).toBeGreaterThan(3); // equal belts, no latch: pairs
-    expect(typeCount(events(fast(withItem(latchDeck(), LATCH())), 20), "pair", 0)).toBe(0);
+  it("a latch alone makes pairs at a two-intake gun (LOCKJAW's layout: an 8-tile Kiln belt and a TWIN MOULD belt into connectors 4 and 5)", () => {
+    // a latch's two tiles sit 2 cells apart and a gun's intakes 1 apart, so the belts left after the hold differ by an odd
+    // number of tiles (here 4 and 3): the staggered release (the longer trip first) is what lands them together
+    const lockjaw = (latch: boolean): Build => ({
+      hero: "furnace",
+      items: [{ uid: 1, def: "kiln", x: 2, y: 6 }, { uid: 2, def: "twinmould", x: 6, y: 6 }, ...(latch ? [item(40, "twinlatch", 4, 3)] : [])],
+      routes: [
+        { factory: 1, cells: [K(2, 5), K(3, 5), K(3, 4), K(3, 3), K(3, 2), K(3, 1), K(4, 1), K(4, 0)] },
+        { factory: 2, cells: [K(7, 5), K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] },
+      ],
+      // CALIBRATION ★3: the gun takes every load as it comes, so a pair is two loads that arrive together (on a busy gun,
+      // loads that waited at both intakes pair anyway when its chamber opens: tested under E2)
+      mods: [{ uid: 50, def: "seamwelder", turret: 0 }, { uid: 51, def: "calibrate", turret: 0, stars: 3 }], beltCap: 30, hullBonus: 5000,
+    });
+    const without = typeCount(events(lockjaw(false), 30), "pair", 0), with_ = typeCount(events(lockjaw(true), 30), "pair", 0);
+    const moulded = run(lockjaw(true), 30).sides[0].factories.find((f) => f.uid === 2)!.produced;
+    // without a latch the Kiln (1.25 s) and the mould (1.8 s) meet by chance about every 3.6 s; with it, nearly every
+    // mould slug arrives with a Kiln slug
+    expect(with_, `${without} pairs without, ${with_} with, ${moulded} mould slugs`).toBeGreaterThanOrEqual(without + 5);
+    expect(with_).toBeGreaterThanOrEqual(moulded - 4);
+  });
+
+  it("on FOUNDRY's mirrored belts a latch never gives fewer fusions than no latch, with or without shocks on one belt", () => {
+    // the Crucible at (2,6) pours onto two 8-tile belts into gun 1: A up column 1 and in at column 2, B up column 4 and in
+    // at column 3; the latch at (3,2) works A's tile 5 and B's tile 4
+    const foundry = (latch: boolean): Build => {
+      const b = heroStartBuild("foundry", 1);
+      b.routes = [
+        { factory: 1, cells: [K(2, 5), K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(2, 2), K(2, 1), K(2, 0)] },
+        { factory: 1, cells: [K(4, 6), K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(3, 1), K(3, 0)] },
+      ];
+      if (latch) b.items.push(item(40, "twinlatch", 3, 2));
+      return b;
+    };
+    expect(heroStartBuild("foundry", 1).items[0]).toMatchObject({ uid: 1, def: "crucible", x: 2, y: 6 });
+    for (const shocks of [false, true]) {
+      const fuses = (b: Build) => {
+        let n = 0;
+        run(b, 40, barge(), SEED, (ev, bt) => {
+          if (shocks && bt.ticks % 180 === 0) bt.sides[0].routes[0].cellDisrupt[3] = 0.7; // a stall on belt A every 3 s
+          for (const e of ev) if (e.type === "fuse" && e.side === 0) n++;
+        });
+        return n;
+      };
+      const plain = fuses(foundry(false)), latched = fuses(foundry(true));
+      expect(latched, `shocks ${shocks}: ${plain} without, ${latched} with`).toBeGreaterThanOrEqual(plain);
+      expect(latched).toBeGreaterThan(5);
+    }
   });
 });
 

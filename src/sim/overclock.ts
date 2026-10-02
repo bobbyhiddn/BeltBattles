@@ -11,7 +11,10 @@ import type { GateEffect } from "./content";
 export function boostable(e: GateEffect): boolean {
   return e.speed === undefined && !e.pulse && !e.toll && !e.sift && !e.repair && !e.keg && !e.overclockCooldown &&
     !!(e.burn || e.flat || e.perPriorGate || e.shock || e.split || e.poison || e.burnPerRide || e.quench ||
-      e.staticTime || e.perStalled || e.fray || e.perTile || e.heat || e.sort);
+      e.staticTime || e.perStalled || e.fray || e.perTile || e.heat || e.sort ||
+      // 0.8.0 P1, wave 3 (DESIGN-wave3.md 3.2): plating, the gauge, the pincer, the latch's damage and the breaker.
+      // STOKER and BRACE FRAME act on no payload, so they stay unboostable.
+      e.plate || e.gauge || e.pincer || e.latch || e.breaker);
 }
 
 const cache = new WeakMap<GateEffect, GateEffect>();
@@ -39,6 +42,13 @@ export function overclocked(e: GateEffect): GateEffect {
   if (e.perTile) o.perTile = { ...e.perTile, each: e.perTile.each * 2 };
   if (e.heat) o.heat = e.heat * 2;
   if (e.sort) o.sort = { ...e.sort, copies: e.sort.copies + 1 };
+  // 0.8.0 P1, wave 3: plating, both gauge numbers, the pincer's flat and each, the latch's damage (its hold unchanged),
+  // and both breaker numbers (it still takes 1 plating). SHIELD WALL's plated bonus is not on the design's list.
+  if (e.plate) o.plate = e.plate * 2;
+  if (e.gauge) o.gauge = { flat: e.gauge.flat * 2, matched: e.gauge.matched * 2 };
+  if (e.pincer) o.pincer = { ...e.pincer, flat: e.pincer.flat * 2, each: e.pincer.each * 2 };
+  if (e.latch) o.latch = { ...e.latch, flat: e.latch.flat * 2 };
+  if (e.breaker) o.breaker = { flat: e.breaker.flat * 2, floor: e.breaker.floor * 2 };
   cache.set(e, o);
   return o;
 }

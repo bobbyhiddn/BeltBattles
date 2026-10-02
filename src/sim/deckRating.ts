@@ -9,7 +9,8 @@ import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
   walkRoute, type Build, type RigHit,
 } from "./deck";
-import { FURNACE_LONG_BELT, gearStats } from "./battle";
+import { platedDeck, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's plating and stokers
+import { FURNACE_LONG_BELT, SHARED_HEADROOM, gearStats } from "./battle";
 import { resolveCore } from "./cores";
 import { effectAt, starsOf, valueOf } from "./stars";
 
@@ -69,7 +70,11 @@ export const firedShare = (rho: number, noJam = false, m: Readonly<RatingModel> 
   return m.saturated - (m.saturated - m.deep) * Math.min(1, (rho - m.satHi) / (m.deepAt - m.satHi));
 };
 
-interface Feed { route: number; arrival: number; eq: number; first: number; ride: number }
+interface Feed {
+  route: number; arrival: number; eq: number; first: number; ride: number;
+  factory?: number; // 0.8.0 P1: the feeding factory (STOKER's cap counts the factories sharing a turret)
+  base?: number; // 0.8.0 P1: a stoked feed's arrival without the stoke
+}
 
 /** Per payload, the rig effects the walk leaves out (EQ), and the hull a RIVETER repairs per passing payload.
  *  `fight`: the fight's length; `time`: the route's first payload's ride to its turret (walkRoute's estimate). */
@@ -92,9 +97,28 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       if (e.toll) eq += EQ.toll * e.toll;
       if (e.sift) eq += EQ.sift;
       if (e.repair) repair += e.repair;
+      // 0.8.0 P1, wave 3 (D1's proxies, tools/wave3.ts): plating per payload rated as RIVETER's repair; SHIELD WALL's
+      // damage at 12+ plating for half the fight; BRACE FRAME as a guard like TOLLBOOTH's (1, 1.4, 1.7 at its stars)
+      if (e.plate) repair += e.plate;
+      if (e.plated) eq += e.plated.flat * 0.5;
+      if (e.brace) eq += (EQ.toll * (1 - e.brace.mul)) / 0.25;
     }
   }
   return { eq, repair };
+}
+
+/** 0.8.0 P1: the plating a plated deck's hull holds on average in a fight (ANVIL BREECH, STEAM BREECH): half the cap. */
+export const MEAN_PLATE = 12;
+
+/** 0.8.0 P1 (E2, TWIN TRIGGER): the share of a turret's loads that pair: 1 with two feeds of one rate whose first loads
+ *  land within the sync window (equal belts from factories that stamp together), or a FOUNDRY's blanks (fusions are
+ *  pairs); else 0. A rating's estimate, read only for a turret with TWIN TRIGGER. */
+function pairShare(b: Build, fs: readonly Feed[]): number {
+  if (fs.some((f) => { const r = b.routes[f.route], p = itemByUid(b, r.factory); return p && ITEMS[p.def]?.factory?.ammo === "blank"; }) && fs.length >= 2) return 1;
+  for (let i = 0; i < fs.length; i++) for (let j = i + 1; j < fs.length; j++) {
+    if (Math.abs(fs[i].first - fs[j].first) <= 0.25 && Math.abs(fs[i].arrival - fs[j].arrival) < 1e-9) return 1;
+  }
+  return 0;
 }
 
 export interface DeckRating {
@@ -134,6 +158,13 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
   for (const uid of outs.keys()) pace.set(uid, factoryPace(b, uid, occ));
   const feeds = new Map<number, Feed[]>(), longest = new Map<number, number>();
   const extras: number[] = [];
+  // 0.8.0 P1 (E3): each factory's stoke from the STOKERs aimed at it (empty without one: every rate as before)
+  const stoke = new Map<number, number>();
+  for (const sh of stokeHits(b)) {
+    const g = itemByUid(b, sh.uid);
+    stoke.set(sh.factory, (stoke.get(sh.factory) ?? 0) + (g ? effectAt(g.def, starsOf(g)).gate?.stoke ?? 0 : 0));
+  }
+  let plating = 0; // 0.8.0 P1: ARMOR PRESS plating a second, rated as repair
   b.routes.forEach((r, ri) => {
     const info = routeInfo(b, ri, claims, occ, hits);
     if (!info.connected || info.turret < 0) return;
@@ -143,10 +174,17 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const interval = f.def === "mimic" ? (ITEMS[h.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
     const est = walkRoute(b, ri, hits).estimate;
     const x = hitExtras(b, hits, ri, fight, est.time);
-    const arrival = (est.copies * (spec.batch ?? 1) * (pace.get(r.factory) ?? 1)) / (Math.max(0.1, interval) * (outs.get(r.factory) ?? 1));
+    // 0.8.0 P1: a TWIN MOULD casts onto each of its belts at once (each belt a slug a cast, as a CRUCIBLE pours); a stoked
+    // factory works x (1 + stoke); an ARMOR PRESS with a belt to a turret plates every `every` s (counted once)
+    const shared = spec.twin ? 1 : outs.get(r.factory) ?? 1;
+    const stoked = stoke.size ? 1 + (stoke.get(r.factory) ?? 0) : 1;
+    if (spec.plate && b.routes.findIndex((q, qi) => q.factory === r.factory && routeInfo(b, qi, claims, occ, hits).connected) === ri) {
+      plating += (spec.plate.amount * stoked * (pace.get(r.factory) ?? 1)) / spec.plate.every;
+    }
+    const arrival = (est.copies * (spec.batch ?? 1) * (pace.get(r.factory) ?? 1) * stoked) / (Math.max(0.1, interval) * shared);
     const eq = est.dmg + (spec.scrapFlat ?? 0) + BURN_TIME * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0);
     const list = feeds.get(info.turret) ?? [];
-    list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride });
+    list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride, ...(stoked > 1 ? { factory: r.factory, base: arrival / stoked } : stoke.size ? { factory: r.factory } : {}) });
     feeds.set(info.turret, list);
     const tiles = info.join ? journeyTiles(b, ri, occ) : r.cells.length; // E1 (battle.ts makeTurret): its journey
     longest.set(info.turret, Math.max(longest.get(info.turret) ?? 0, tiles));
@@ -186,7 +224,20 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     // battle.ts makeTurret: E1's long belt scales whatever turret it feeds, at that turret's stars
     let interval = td.fireInterval * (b.hero === "furnace" && (longest.get(t) ?? 0) >= 8 ? FURNACE_LONG_BELT : 1) * g.fireMul;
     if (core.spec.intervalMul) interval *= core.spec.intervalMul;
+    // 0.8.0 P1: STEAM BREECH fires at its plated rate on a deck that plates its hull, else at its bare one (cores.ts)
+    if (core.routine === "steam") interval *= (platedDeck(b) ? core.spec.steamPlated : core.spec.steamBare) ?? 1;
     const cap = g.perShot / interval;
+    // 0.8.0 P1 (STOKER's cap, as Battle.stokedPace): a stoke never feeds a turret past its pace (SHARED_HEADROOM of it
+    // kept free when several factories share it); the stoked feeds give their extra back, never below unstoked
+    const stokedFs = fs.filter((f) => f.base !== undefined);
+    if (stokedFs.length) {
+      const room = cap * (new Set(fs.map((f) => f.factory)).size > 1 ? 1 - SHARED_HEADROOM : 1);
+      const total = fs.reduce((s, f) => s + f.arrival, 0), extra = stokedFs.reduce((s, f) => s + f.arrival - f.base!, 0);
+      if (total > room && extra > 0) {
+        const keep = Math.max(0, extra - (total - room)) / extra;
+        for (const f of stokedFs) f.arrival = f.base! + (f.arrival - f.base!) * keep;
+      }
+    }
     const arrival = fs.reduce((s, f) => s + f.arrival, 0);
     const noJam = g.noJam || !!core.spec.noJam;
     const thr = Math.min(arrival, cap) * firedShare(arrival / cap, noJam, model);
@@ -206,8 +257,13 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const left = (f: Feed): number => Math.max(0.1, (fight - Math.max(f.first, start) - td.flight) / fight);
     let eq = fs.reduce((s, f, i) => s + flows[i] * f.eq * left(f), 0) / inflow;
     if (g.longRideFlat) eq += g.longRideFlat * fs.reduce((s, f, i) => s + (f.ride >= g.longRideMin ? flows[i] * left(f) : 0), 0) / inflow;
+    // 0.8.0 P1: ANVIL BREECH's flat on each shot, and its per-plating damage at MEAN_PLATE on a deck that plates its hull
+    if (core.routine === "anvil") eq += (core.spec.anvilFlat ?? 0) + (core.spec.perPlate ?? 0) * (platedDeck(b) ? MEAN_PLATE : 0);
     let mult = 1 + (g.finisher ? g.finisher / (td.window + g.window) : 0);
-    if (core.bought) mult *= 1 + NOMINAL * valueOf(core.def, core.stars);
+    // 0.8.0 P1: ANVIL and STEAM BREECH are computed above, so they take no NOMINAL credit; TWIN TRIGGER pays its pair
+    // bonus on the turret's share of paired loads (pairShare; its shorter load time is in `start`)
+    if (core.bought && core.routine !== "anvil" && core.routine !== "steam") mult *= 1 + NOMINAL * valueOf(core.def, core.stars);
+    if (g.pairBonus) mult *= 1 + g.pairBonus * pairShare(b, fs);
     for (const m of b.mods) {
       if (m.turret !== t || ITEMS[m.def]?.kind !== "mod") continue;
       const md = effectAt(m.def, starsOf(m)).mod ?? {};
@@ -219,6 +275,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     }
     offense += thr * eq * mult;
   }
-  const defense = h.hull + b.hullBonus + repair * fight * 0.5;
+  // 0.8.0 P1: ARMOR PRESS plating a second joins the repair rate (half a fight's worth, as RIVETER's)
+  const defense = h.hull + b.hullBonus + (repair + plating) * fight * 0.5;
   return { offense, defense, value: offense * defense };
 }

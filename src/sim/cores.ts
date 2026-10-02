@@ -20,7 +20,7 @@ export const IDENTITY_CORE: CoreSpec = { routine: "identity" };
  * shell and added Burn stacks. They are multiplied by the turret's class factor k. Ratios (shares, x1.3),
  * counts (pellets, maxCount), cadence multipliers and times (windowTime, gap, burnTime) are not.
  */
-export const CORE_ABSOLUTE = ["perQueued", "volleyFlat", "addBurn", "perSecond"] as const;
+export const CORE_ABSOLUTE = ["perQueued", "volleyFlat", "addBurn", "perSecond", "anvilFlat", "perPlate"] as const; // 0.8.0 P1: + ANVIL BREECH's
 /** Stack counts among the absolute numbers: rounded half up, at least 1. */
 export const CORE_STACKS: readonly string[] = ["addBurn"];
 
@@ -134,9 +134,10 @@ export const ROUTINES: Record<CoreRoutine, Routine> = {
   capacitor: IDENTITY,
   compound: { ...IDENTITY, ready: (tu) => tu.stack.length >= 2 || (tu.stack.length > 0 && tu.loadTimer >= (tu.core.spec.hold ?? 3)) },
   lance: IDENTITY,
-  // 0.8.0 P1, wave 3: ANVIL BREECH's flat and per-plating damage are its shape hook (Battle.fireCore)
+  // 0.8.0 P1, wave 3: ANVIL BREECH's flat and per-plating damage are its shape hook (Battle.fireCore); STEAM BREECH fires
+  // at the interval x steamPlated while the hull holds plating (Battle.chambers sets tu.plated each tick), else x steamBare
   anvil: IDENTITY,
-  steam: IDENTITY,
+  steam: { ...IDENTITY, cadence: (tu) => tu.interval * ((tu.plated ? tu.core.spec.steamPlated : tu.core.spec.steamBare) ?? 1) },
 };
 
 /** DRAKE NOZZLE: Burn stacks from a payload's flat bonus (1 per flatPerBurn, rounded down) and the flat it uses. */
