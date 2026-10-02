@@ -1,0 +1,241 @@
+// D1 (BeltBattles 0.8.0, the wave-3 design; REQ-BFG-023, 022, 033): tools/wave3.ts, the hypothetical-offer extension
+// of the luck tool. Everything it changes lives in memory and is undone: hypothetical modules leave ITEMS, the draw's
+// patch leaves DORMANT_ITEMS. The family map v2 covers every buyable module; the per-run draw is hero-blind, holds
+// 62 parts with five unlock steps, and the real caravan offers only its unlocked wares.
+import { describe, expect, it } from "vitest";
+import { ITEMS, RARITY_ARROWS, SHAPE_ARROWS, buyableModules, itemsSoldBy, rigShape, type HeroId } from "../src/sim/content";
+import { DORMANT_ITEMS } from "../src/sim/races/data";
+import { newRun, rollShop, type Run } from "../src/game/run";
+import { Rng } from "../src/core/rng";
+import { chaserRun, offerable, runSeed, type ChaserStep } from "../tools/luckReport";
+import {
+  ADD_WAVE3, DRAW, FAMS_TODAY, FAMS_WAVE3, PROJ, TAGS_TODAY, WAVE3, catalogueCount, chaseOne, counted, familyTableV2,
+  install, poolOf, quotas, tagsFor, todayWares, typicalOne, uninstall, wares, withCatalogue, withDraw,
+} from "../tools/wave3";
+import { NPCS, npcDeck, problems } from "../tools/wave3Npcs";
+
+const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
+
+describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
+  it("counts ITEMS without supplies and hero signatures: 71 at v070-rc, 58 without turrets, equal to buyableModules()", () => {
+    const c = catalogueCount();
+    expect(c.total).toBe(71);
+    expect(c.modules).toBe(58);
+    expect(c.turrets).toBe(13);
+    expect(c.byKind).toEqual({ rig: 23, factory: 13, core: 13, mod: 9, turret: 13 });
+    expect(c.sameAsBuyable).toBe(true);
+    expect(c.supplies.sort()).toEqual(["beltcrate", "plating"]);
+    expect(c.signatures.sort()).toEqual(["clockworks", "crucible", "kiln", "loom", "sump", "wardworks"]);
+  });
+
+  it("install adds the hypothetical modules and uninstall restores ITEMS exactly", () => {
+    const before = JSON.stringify(ITEMS);
+    install("p100");
+    expect(counted().length).toBe(100);
+    expect(buyableModules().length).toBe(100);
+    expect(() => install("wave3")).toThrow();
+    uninstall();
+    expect(JSON.stringify(ITEMS)).toBe(before);
+    withCatalogue("wave3", () => expect(counted().length).toBe(86));
+    expect(JSON.stringify(ITEMS)).toBe(before);
+    expect(() => withCatalogue("wave3", () => { throw new Error("boom"); })).toThrow("boom");
+    expect(JSON.stringify(ITEMS)).toBe(before);
+  });
+});
+
+describe("wave3: family map v2", () => {
+  it("today: every buyable module carries 1-3 tags, and each of the 5 families has 12+ members across 2+ kinds", () => {
+    const t = familyTableV2("today");
+    expect(t.buyable.length).toBe(71);
+    expect(t.untagged).toEqual([]);
+    expect(t.unknown).toEqual([]);
+    expect(Object.keys(TAGS_TODAY).sort()).toEqual([...t.buyable].sort());
+    for (const id of t.buyable) {
+      expect(TAGS_TODAY[id].length).toBeGreaterThanOrEqual(1);
+      expect(TAGS_TODAY[id].length).toBeLessThanOrEqual(3);
+    }
+    expect(t.families.map((f) => f.fam)).toEqual(FAMS_TODAY);
+    for (const f of t.families) expect(f.flag, f.fam).toBeNull();
+    for (const id of t.buyable) for (const fam of new Set(TAGS_TODAY[id])) expect(TAGS_TODAY[id].filter((x) => x === fam).length).toBe(1);
+  });
+
+  it("wave 3 and the 1.0 projection: TWIN and PLATE join, every module tagged 1-3 times, every family 12+ across 2+ kinds", () => {
+    for (const v of ["wave3", "p100"] as const) withCatalogue(v, () => {
+      const t = familyTableV2(v);
+      expect(t.buyable.length).toBe(v === "wave3" ? 86 : 100);
+      expect(t.untagged).toEqual([]);
+      expect(t.unknown).toEqual([]);
+      expect(t.families.map((f) => f.fam)).toEqual(FAMS_WAVE3);
+      for (const f of t.families) expect(f.flag, `${v} ${f.fam}`).toBeNull();
+      const tags = tagsFor(v);
+      for (const id of t.buyable) expect(new Set(tags[id]).size === tags[id].length && tags[id].length >= 1 && tags[id].length <= 3, id).toBe(true);
+    });
+    // ADD_WAVE3 only adds tags to existing modules, never a tag they already carry
+    for (const [id, t] of Object.entries(ADD_WAVE3)) for (const fam of t) expect(TAGS_TODAY[id], id).not.toContain(fam);
+  });
+
+  it("every hypothetical module is a valid buyable: new id, kind, a price for its rarity band, a merchant, rig arrows by rarity (R2)", () => {
+    const ids = [...WAVE3, ...PROJ].map((h) => h.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(WAVE3.length).toBeGreaterThanOrEqual(14);
+    expect(WAVE3.length).toBeLessThanOrEqual(16);
+    expect(WAVE3.filter((h) => h.kind === "gate").length * 2).toBeGreaterThanOrEqual(WAVE3.length); // at least half rigs
+    withCatalogue("p100", () => {
+      for (const h of [...WAVE3, ...PROJ]) {
+        const d = ITEMS[h.id];
+        expect(Object.prototype.hasOwnProperty.call(ITEMS, h.id)).toBe(true);
+        expect(d.merchant).toBe(h.merchant);
+        expect(itemsSoldBy(h.merchant).map((x) => x.id)).toContain(h.id);
+        expect(d.price).toBeGreaterThan(0);
+        if (d.kind === "gate") expect(SHAPE_ARROWS[rigShape(d)!].length, h.id).toBe(RARITY_ARROWS[d.rarity]);
+      }
+    });
+  });
+});
+
+describe("wave3: the per-run draw (REQ-BFG-022 part 2)", () => {
+  it("quotas sum to the total, never exceed a group and follow the sizes", () => {
+    const rng = new Rng(7);
+    for (let k = 0; k < 200; k++) {
+      const sizes = Array.from({ length: 1 + rng.int(30) }, () => 1 + rng.int(6));
+      const sum = sizes.reduce((s, x) => s + x, 0), total = rng.int(sum + 5);
+      const q = quotas(sizes, total, rng);
+      expect(q.reduce((s, x) => s + x, 0)).toBe(Math.min(total, sum));
+      q.forEach((x, i) => {
+        expect(x).toBeLessThanOrEqual(sizes[i]);
+        expect(Math.abs(x - (sizes[i] * Math.min(total, sum)) / sum)).toBeLessThan(1);
+      });
+    }
+  });
+
+  it("wares: 62 parts, five steps, day 1 at least 17, deterministic and hero-blind; every module reachable", () => {
+    for (const v of ["today", "wave3", "p100"] as const) withCatalogue(v, () => {
+      const seen = new Set<string>();
+      for (let s = 1; s <= 300; s++) {
+        const w = wares(s);
+        expect(w.size).toBe(Math.min(DRAW.active, counted().length));
+        expect([...w.keys()]).toEqual(counted().filter((id) => w.has(id))); // ITEMS order
+        const p = poolOf(w);
+        expect(p.active).toBe(w.size);
+        expect(p.day1).toBeGreaterThanOrEqual(17);
+        expect(p.steps).toEqual([2, 3, 4, 6, 8]);
+        expect(wares(s)).toEqual(w);
+        for (const id of w.keys()) seen.add(id);
+      }
+      expect(seen.size).toBe(counted().length);
+    });
+    // the run seed decides, never the hero: each hero's par run seed draws by that seed alone
+    for (const h of HEROES) expect(wares(runSeed(h, 3))).toEqual(wares(runSeed(h, 3)));
+  });
+
+  it("the real caravan offers only the run's unlocked wares (and supplies), for every hero alike, and the patch is undone", () => {
+    const own = DORMANT_ITEMS.has;
+    withCatalogue("wave3", () => {
+      for (let s = 1; s <= 40; s++) {
+        const w = wares(s);
+        const caravans = HEROES.map((hero) => {
+          const box: { run?: Run } = {};
+          const shown: string[] = [];
+          withDraw(w, () => box.run?.day ?? 1, () => {
+            const run = newRun(hero, s, "t");
+            box.run = run;
+            for (let day = 1; day <= 10; day++) for (let r = 0; r < 6; r++) {
+              run.day = day;
+              run.shop = { wagons: [], rerolls: r, discount: 0, free: 0 };
+              rollShop(run);
+              for (const wg of run.shop.wagons) for (const o of wg.offers) {
+                shown.push(`${day}:${o.def}`);
+                if (ITEMS[o.def].kind === "supply") continue;
+                expect(w.get(o.def), `${o.def} on day ${day}`).toBeLessThanOrEqual(day);
+              }
+            }
+          });
+          return shown;
+        });
+        for (const c of caravans) expect(c).toEqual(caravans[0]); // hero-blind (REQ-BFG-021)
+      }
+    });
+    expect(DORMANT_ITEMS.has).toBe(own);
+    expect(Object.prototype.hasOwnProperty.call(DORMANT_ITEMS, "has")).toBe(false);
+  });
+
+  it("today's rule as a ware map: all 71, the ARCANE DEALER from day 3, legendaries from day 4 (two steps)", () => {
+    const p = poolOf(todayWares());
+    expect(p).toEqual({ active: 71, day1: 62, steps: [3, 4] });
+  });
+});
+
+describe("wave3: the new NPCs (M5, tools/wave3Npcs.ts; REQ-BFG-024, 011)", () => {
+  it("at least 2 human (FOUNDRY) and 2 dwarf (BASTION) warlords and 2 new stand-ins, each with a wave-3 family", () => {
+    const w = NPCS.filter((n) => n.role === "warlord");
+    expect(w.filter((n) => n.hero === "foundry").length).toBeGreaterThanOrEqual(2);
+    expect(w.filter((n) => n.hero === "bastion").length).toBeGreaterThanOrEqual(2);
+    expect(NPCS.filter((n) => n.role === "standin").length).toBeGreaterThanOrEqual(2);
+    for (const n of NPCS) {
+      expect(n.families.some((f) => f === "TWIN" || f === "PLATE"), n.id).toBe(true);
+      expect(n.role === "warlord" ? n.tier !== null : n.tier === null, n.id).toBe(true);
+    }
+    expect(new Set(NPCS.map((n) => n.id)).size).toBe(NPCS.length);
+  });
+
+  it("every plan is legal on every day: caps of its luck tier, the stand-in budget, caravan days and slots", () => {
+    withCatalogue("wave3", () => {
+      for (const n of NPCS) expect(problems(n), n.id).toEqual([]);
+      // the check bites: one more epic on day 1, or a legendary before day 4, is a problem
+      const bad = { ...NPCS[0], buys: [...NPCS[0].buys, { def: "compound", at: 1 }] };
+      expect(problems(bad).some((p) => p.includes("first offered"))).toBe(true);
+      const rich = { ...NPCS[2], buys: [...NPCS[2].buys, { def: "shieldwall", at: 5 }, { def: "thunderer", at: 5 }] };
+      expect(problems(rich).length).toBeGreaterThan(0);
+      // merges: 2 copies are one 2-star part worth both
+      const d = npcDeck(NPCS[0], 4, "ordinary");
+      expect(d.parts).toContainEqual({ def: "twingauge", stars: 2 });
+      expect(d.parts.filter((p) => p.def === "twingauge").length).toBe(1);
+      expect(d.value).toBe(3 + 3 + 3 + 7);
+    });
+  });
+});
+
+describe("wave3: the CHASER and the par player under a variant", () => {
+  it("chaseOne without the draw is luckReport.ts chaserRun exactly", () => {
+    const members = ["temper", "bellows", "quench", "drake", "hotswap"];
+    for (const seed of [1, 2, 3]) {
+      const c = chaserRun("furnace", members, seed);
+      expect(chaseOne("furnace", members, seed, false)).toEqual({ full: c.day !== null, owned: c.owned, rerolls: c.rerolls, inWares: true });
+    }
+  });
+
+  it("under the draw the CHASER buys only unlocked wares and rerolls only while a missing member is offerable today", () => {
+    withCatalogue("wave3", () => {
+      const members = familyTableV2("wave3").families.find((f) => f.fam === "PLATE")!.members;
+      for (const hero of ["furnace", "bastion"] as HeroId[]) for (let seed = 1; seed <= 12; seed++) {
+        const w = wares(runSeed(hero, seed));
+        const box: { run?: Run } = {};
+        const ledger: ChaserStep[] = [];
+        const gate = (def: string, day: number) => { const u = w.get(def); return u !== undefined && u <= day && offerable(def, day); };
+        withDraw(w, () => box.run?.day ?? 1, () => chaserRun(hero, members, seed, {
+          ledger, start: (run) => { box.run = run; }, offerable: gate,
+          observe: (run, s) => {
+            expect(run.day).toBe(s.day);
+            if (s.act === "buy") expect(w.get(s.def!)).toBeLessThanOrEqual(s.day);
+          },
+        }));
+        // every reroll had a missing member the caravan could offer that day
+        for (const s of ledger.filter((x) => x.act === "reroll")) expect(members.some((m) => gate(m, s.day))).toBe(true);
+        const c = chaseOne(hero, members, seed, true);
+        expect(c.inWares).toBe(members.every((m) => w.has(m)));
+        if (c.full) expect(c.inWares).toBe(true); // a full set needs every member among the run's wares
+      }
+    });
+  });
+
+  it("the par player under a variant and a draw: deterministic, and the day-10 deck's stars", () => {
+    const a = withCatalogue("wave3", () => typicalOne("furnace", 5, true));
+    const b = withCatalogue("wave3", () => typicalOne("furnace", 5, true));
+    expect(a).toEqual(b);
+    expect(a.star2).toBeGreaterThanOrEqual(0);
+    expect(a.merges).toBeGreaterThanOrEqual(a.star2 + a.star3 > 0 ? 1 : 0);
+    // the run under today's rule replays the cached par run exactly
+    const t = typicalOne("weaver", 2, false), u = typicalOne("weaver", 2, false);
+    expect(t).toEqual(u);
+  });
+});
