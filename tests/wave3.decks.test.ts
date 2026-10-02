@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { Battle, type SimEvent } from "../src/sim/battle";
 import { spotForTile, stokeSpots } from "../src/sim/beltside";
 import { rigHits, type Build } from "../src/sim/deck";
+import { rateDeck } from "../src/sim/deckRating";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { K, item, latchDeck, withItem, withMod } from "./wave3.helpers";
 
@@ -214,5 +215,17 @@ describe("STOKER's cap (the Prime's call, oracle a0e94bc69949561f): a stoke neve
       for (const e of bt.drainEvents()) if (e.type === "produce" && e.side === 0) { if (last >= 0 && bt.t > 3) gaps.push(bt.t - last); last = bt.t; }
     }
     for (const g of gaps) expect(g).toBeGreaterThanOrEqual(1 - 1 / 60); // never faster than the heavy gun's 1 s
+  });
+
+  it("the par player rates the cap as the battle plays it (deckRating.ts): a capped stoke is worth no more than the gun takes", () => {
+    // FURNACE's 6-tile Kiln stamps every 1.25 s into a gun that takes a load a second: 1 star (1.04 s) fits under the cap,
+    // 2 and 3 stars (0.87 s, 0.74 s) are both held to the gun's 1 s, so they rate the same; the 8-tile Kiln's gun has room
+    // (0.72 s), so there every star rates higher
+    const rate = (base: () => Build, s: number) => rateDeck(s ? withItem(base(), item(70, "stoker", 6, 6, 0, s)) : base()).offense;
+    const six = [0, 1, 2, 3].map((s) => rate(furnaceStart, s)), eight = [0, 1, 2, 3].map((s) => rate(longKiln, s));
+    expect(six[1]).toBeGreaterThan(six[0]);
+    expect(six[2]).toBeGreaterThan(six[1]);
+    expect(six[3]).toBeCloseTo(six[2], 9);
+    for (let s = 1; s <= 3; s++) expect(eight[s], `8-tile ★${s}`).toBeGreaterThan(eight[s - 1]);
   });
 });
