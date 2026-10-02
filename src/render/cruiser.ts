@@ -19,7 +19,7 @@ import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./
 import { RACE_PIP, isArtRace, isRaceAmmo, raceTurretLook } from "./raceArt"; // 0.8.0 H1: FOUNDRY's and BASTION's art
 import { CLANK_FRAMES, CLANK_TIME, FUSE_FRAMES, FUSE_TIME, flashFrame, fuseFlash, platingClank, syncIcon } from "./raceFx"; // 0.8.0 H1 M3
 import { syncedTurrets } from "../sim/syncEstimate"; // 0.8.0 H1 M3: the deck's SYNC mark
-import { coreFor } from "../sim/deck"; // 0.6.1b: the core socket
+import { coreFor, stokeHits } from "../sim/deck"; // 0.6.1b: the core socket; 0.8.0 I1: a STOKER's factory hits
 import { starsOf } from "../sim/stars"; // 0.6.1b
 import { gemColor } from "./coreArt"; // 0.6.1b
 import { gearStats, turretAt } from "../sim/battle"; // 0.6.1p: the gear's window slots (EXT. CHAMBER, HOPPER); 0.6.2s: by slot
@@ -50,6 +50,9 @@ export interface RouteModel {
 export interface RigModel {
   dirs: Dir[];
   hit: boolean[];
+  // 0.8.0 I1 (VERIFIED-A1 G2, R5): per arrow, it points into a factory this STOKER works (deck.ts stokeHits). Its nozzle
+  // reads as working; its arrowhead stays belt-only (drawArrowTips draws under the factories). Set on a STOKER only.
+  stoke?: boolean[];
 }
 
 export interface CruiserModel {
@@ -99,12 +102,19 @@ export function cruiserModel(b: Build): CruiserModel {
       ...(info.join ? { join: info.join } : {}),
     };
   });
+  // 0.8.0 I1 (VERIFIED-A1 G2; VERIFIED-D1 Q6): a STOKER whose arrows point into a factory works it, so it is not IDLE
+  // (deck.ts stokeHits counts a stoking rig only; [] on any deck without one, so no other rig's mark moves)
+  const stokes = stokeHits(b);
+  for (const h of stokes) gateOnRoute.add(h.uid);
   const rigs = new Map<number, RigModel>();
   for (const p of b.items) {
     if (ITEMS[p.def]?.kind !== "gate") continue;
     const dirs = arrowsOf(p);
     const mine = hitsOfRig(b, p.uid, hits);
-    rigs.set(p.uid, { dirs, hit: dirs.map((d) => mine.some((h) => h.dir === d)) });
+    const rm: RigModel = { dirs, hit: dirs.map((d) => mine.some((h) => h.dir === d)) };
+    const own = stokes.filter((h) => h.uid === p.uid);
+    if (own.length) rm.stoke = dirs.map((d) => own.some((h) => h.dir === d));
+    rigs.set(p.uid, rm);
   }
   return { hero: b.hero, routes, connectedCols, gateOnRoute, rigs, sync: syncedTurrets(b) };
 }

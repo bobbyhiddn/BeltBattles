@@ -386,8 +386,9 @@ function ghostD0(v: CruiserView, uid: number): number {
 
 /** 0.6.2 BELTSIDE (V3): the look of a rig's arrow k: idle when it reaches no belt; flash while its hit applies;
  *  held while the rig is offline (commissioning or disrupted: R9 stops all its arrows); else live. */
-function arrowState(rm: RigModel, k: number, gs: GateState | null): ArrowState {
-  if (!rm.hit[k]) return 0;
+function arrowState(rm: RigModel, k: number, gs: GateState | null, nozzle = false): ArrowState {
+  // 0.8.0 I1 (VERIFIED-A1 G2): a STOKER's nozzle into a factory it works is not idle (its arrowhead stays belt-only)
+  if (!rm.hit[k] && !(nozzle && rm.stoke?.[k])) return 0;
   if (!gs) return 1; // the build screen: every rig online
   if (gs.arrowFlash[rm.dirs[k]] > 0) return 2;
   return gs.online && gs.disrupted <= 0 ? 1 : 3;
@@ -441,14 +442,15 @@ function drawRigs(g: G, v: CruiserView): void {
       g.drawImage(gateSil(d.id), x, y);
       g.globalAlpha = 1;
     }
-    const onRoute = gs ? gs.hits.length > 0 : v.model.gateOnRoute.has(p.uid);
+    // 0.8.0 I1 (VERIFIED-A1 G2): a STOKER's factory hits count too (the sim sets factoryHits on a stoking rig only)
+    const onRoute = gs ? gs.hits.length > 0 || !!gs.factoryHits : v.model.gateOnRoute.has(p.uid);
     if (!onRoute || (gs && !gs.online)) {
       g.globalAlpha = 0.55;
       rect(g, x + 1, y + 1, 10, 10, C.ink);
       g.globalAlpha = 1;
     }
     const rm = v.model.rigs.get(p.uid);
-    if (rm) for (let k = 0; k < rm.dirs.length; k++) g.drawImage(rigNozzle(sdir(f, rm.dirs[k]), arrowState(rm, k, gs)), x, y);
+    if (rm) for (let k = 0; k < rm.dirs.length; k++) g.drawImage(rigNozzle(sdir(f, rm.dirs[k]), arrowState(rm, k, gs, true)), x, y);
     if (gs && !gs.online && onRoute && Math.floor(v.t * 6) % 2) g.drawImage(wrenchIcon(), x + 4, y + 3);
     if (gs && gs.disrupted > 0) shock(g, x, y, v.t);
     const gstars = animStars(v, p.uid, starsOf(p));
