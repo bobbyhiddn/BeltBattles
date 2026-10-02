@@ -85,7 +85,10 @@ describe("luck report: the CHASER", () => {
       const run = last!;
       expect(JSON.stringify(run.build)).toBe(JSON.stringify(heroStartBuild(hero, 1)));
       expect(run.inventory.map((i) => i.def).sort()).toEqual([...bought].sort());
-      expect(out.owned).toBe(f.members.filter((m) => bought.includes(m)).length);
+      // 0.8.0 P1 (family map v2): turrets are family members, so the start deck's turret counts as owned without being bought (FURNACE's SCRAP CANNON in BURST and TWIN, WEAVER's DART GUN in SWARM)
+      const start = heroStartBuild(hero, 1);
+      const held = new Set([...start.items, ...start.mods, ...turretList(start)].map((x) => x.def));
+      expect(out.owned).toBe(f.members.filter((m) => bought.includes(m) || held.has(m)).length);
       expect(out.day === null).toBe(out.owned < f.members.length);
     }
     expect(buys).toBeGreaterThan(0);
@@ -124,14 +127,17 @@ describe("luck report: the TYPICAL buyer and the whole report", () => {
     const seen = withPatch({ def: "venom", rarity: "legendary", merchant: "arcane" }, () => `${ITEMS.venom.rarity} ${ITEMS.venom.merchant}`);
     expect(seen).toBe("legendary arcane");
     expect(JSON.stringify(ITEMS)).toBe(before);
-    const r = await luckReport({ runs: 2, seed: 1, heroes: ["furnace"], typical: false, families: ["POISON"], whatif: 2 });
-    expect(r.whatif?.rows.map((w) => w.tag)).toEqual(["POISON"]);
-    expect(r.whatif?.rows[0].changes.length).toBe(2); // VENOM DRIP: rare to epic, and the ARCANE DEALER as merchant
+    // 0.8.0 P1 (family map v2): POISON folded into SWARM, so the what-ifs run on PLATE, five members while wave 3 is off
+    // (TOLLBOOTH, SIFTER, RIVETER, FLAK SCREEN, MANTLET), each tried one rarity up and with the ARCANE DEALER as merchant
+    const r = await luckReport({ runs: 2, seed: 1, heroes: ["furnace"], typical: false, families: ["PLATE"], whatif: 2 });
+    expect(r.whatif?.rows.map((w) => w.tag)).toEqual(["PLATE"]);
+    expect(r.whatif?.rows[0].changes.length).toBe(10); // was 2: VENOM DRIP rare to epic, and the ARCANE DEALER as merchant
     expect(JSON.stringify(ITEMS)).toBe(before);
   });
 
   it("the same seeds give the same output", async () => {
-    const opts = { runs: 3, seed: 5, heroes: HEROES, families: ["POISON" as const, "FRAY" as const, "SPEED" as const] };
+    // 0.8.0 P1 (family map v2): three v2 families (were POISON, FRAY and SPEED, folded into SWARM and TEMPO)
+    const opts = { runs: 3, seed: 5, heroes: HEROES, families: ["FORGE" as const, "HARASS" as const, "TEMPO" as const] };
     const a = await luckReport(opts), b = await luckReport(opts);
     expect(JSON.stringify(b)).toBe(JSON.stringify(a));
     expect(renderMarkdown(b)).toBe(renderMarkdown(a));

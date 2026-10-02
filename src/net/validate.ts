@@ -12,7 +12,7 @@
 // Sales refund at most half the price and rerolls only spend, so no sequence of shop
 // actions can put more purchase value on the deck than the gold ever received.
 
-import { GRID, HEROES, ITEMS, RULES_VERSION, START_GOLD, incomeFor, type ItemDef } from "../sim/content";
+import { GRID, HEROES, ITEMS, RULES_VERSION, START_GOLD, incomeFor, isWave3, wave3Live, type ItemDef } from "../sim/content";
 import {
   canPlaceItem, connectorClaims, dirBetween, adjacentToFactory, footprint, hullSlots, occupancy,
   routeInfo, routeWellFormed, turretSlots, turretsCost, type Build,
@@ -170,6 +170,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   const uids = new Set<number>();
   for (const p of [...b.items, ...b.mods]) {
     if (!itemDef(p.def)) errors.push(`item: uid ${p.uid} is unknown item "${p.def}"`);
+    // 0.8.0 P1: a wave-3 module resolves in ITEMS, but while the switch is off (content.ts WAVE3_LIVE) no player can own one
+    else if (isWave3(p.def) && !wave3Live()) errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} is not in the game yet`);
     if (uids.has(p.uid)) errors.push(`item: uid ${p.uid} is used twice`);
     uids.add(p.uid);
   }

@@ -21,7 +21,9 @@
 // Run (as tools/parBench.ts, without a package.json script):
 //   npx vite build --ssr tools/luckReport.ts --outDir tools/dist/luckreport --emptyOutDir --logLevel warn
 //   node tools/dist/luckreport/luckReport.js [--runs 2000] [--seed 1] [--heroes furnace,weaver] [--json path]
-//     [--md path] [--workers N] [--whatif 1000] [--literal] [--no-typical]
+//     [--md path] [--workers N] [--whatif 1000] [--literal] [--no-typical] [--wave3]
+// 0.8.0 P1: --wave3 measures with wave 3 on (content.ts's switch, WAVE3_LIVE): the family table reads the v2 tags of the
+// 86 modules, and the caravan offers wave 3. Every job carries the flag, so each worker thread turns its own switch on.
 // Seeds are seed..seed+runs-1. Runs fan out to worker threads; results are keyed by job, so the output never depends
 // on --workers, and the same seeds give the same output (the run time is printed apart from it).
 // --whatif N (default 1000; 0: off): for each flagged family, estimates of fixes on the first hero's N runs, never
@@ -34,7 +36,7 @@ import { availableParallelism } from "node:os";
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { hashSeed } from "../src/core/rng";
 import {
-  HEROES, ITEMS, MERCHANTS, RARITIES, REROLL_COST, RUN_DAYS, itemsSoldBy,
+  HEROES, ITEMS, MERCHANTS, RARITIES, REROLL_COST, RUN_DAYS, itemsSoldBy, setWave3, wave3Live, withWave3,
   type HeroId, type ItemKind, type MerchantId, type ModuleTag, type Rarity,
 } from "../src/sim/content";
 import { turretList } from "../src/sim/deck";
@@ -318,13 +320,17 @@ interface Job {
   literal?: boolean;
   patch?: Patch; // what-if: a member's rarity or merchant
   cap?: number; // what-if: a daily reroll cap
+  wave3?: boolean; // 0.8.0 P1: the job runs with wave 3 on (content.ts withWave3; a worker thread has its own copy of the switch)
 }
 
 function runJob(job: Job): TypicalOut[] | ChaserOut[] {
-  const fams = familyTable().families;
-  if (job.kind === "typical") return job.seeds.map((s) => typicalRun(job.hero, s, fams));
-  const f = fams[job.family!];
-  return withPatch(job.patch, () => job.seeds.map((s) => chaserRun(job.hero, f.members, s, { literal: job.literal, cap: job.cap })));
+  const go = (): TypicalOut[] | ChaserOut[] => {
+    const fams = familyTable().families;
+    if (job.kind === "typical") return job.seeds.map((s) => typicalRun(job.hero, s, fams));
+    const f = fams[job.family!];
+    return withPatch(job.patch, () => job.seeds.map((s) => chaserRun(job.hero, f.members, s, { literal: job.literal, cap: job.cap })));
+  };
+  return job.wave3 ? withWave3(go) : go();
 }
 
 /** Worker side: run each job posted and post its results back. */
@@ -391,6 +397,7 @@ export interface LuckOpts {
   typical?: boolean; // default true
   families?: ModuleTag[]; // only these families' CHASER (tests); default every family
   whatif?: number; // runs per what-if of each flagged family (first hero, seeds seed..); 0 or absent: none
+  wave3?: boolean; // 0.8.0 P1: measure with wave 3 on (content.ts WAVE3_LIVE's switch), in this process and every job
 }
 
 /** What-ifs for one flagged family, never applied to the game: each single-member change (its rarity one step up, or
@@ -447,7 +454,7 @@ async function whatIfs(o: LuckOpts, table: FamilyTable, tags: ModuleTag[]): Prom
   plan.forEach((p, row) => {
     const add = (what: "base" | "change" | "cap", k: number, extra: Partial<Job>) => {
       for (const s of chunks(seeds, 250)) {
-        jobs.push({ id: jobs.length, kind: "chaser", hero, seeds: s, family: p.family, ...(o.literal ? { literal: true } : {}), ...extra });
+        jobs.push({ id: jobs.length, kind: "chaser", hero, seeds: s, family: p.family, ...(o.literal ? { literal: true } : {}), ...(o.wave3 ? { wave3: true } : {}), ...extra });
         index.push({ row, what, k });
       }
     };
@@ -483,8 +490,19 @@ const chunks = (seeds: number[], size: number): number[][] => {
   return out;
 };
 
-/** The whole report's numbers. Deterministic: the same options give the same result, whatever `workers`. */
+/** The whole report's numbers. Deterministic: the same options give the same result, whatever `workers`. 0.8.0 P1:
+ *  with `wave3`, the family table and every job read the catalogue with wave 3 on; the switch is put back after. */
 export async function luckReport(o: LuckOpts): Promise<LuckResult> {
+  const was = wave3Live();
+  if (o.wave3) setWave3(true);
+  try {
+    return await luckReportNow(o);
+  } finally {
+    setWave3(was);
+  }
+}
+
+async function luckReportNow(o: LuckOpts): Promise<LuckResult> {
   const table = familyTable();
   const seeds = Array.from({ length: o.runs }, (_, i) => o.seed + i);
   const typical = o.typical ?? true;
@@ -492,12 +510,13 @@ export async function luckReport(o: LuckOpts): Promise<LuckResult> {
   const jobs: Job[] = [];
   const index: { hero: HeroId; kind: "typical" | "chaser"; family?: number }[] = [];
   // the slow par player first, so its jobs start early; chasers are cheap
+  const w3 = o.wave3 ? { wave3: true } : {};
   if (typical) for (const hero of o.heroes) for (const s of chunks(seeds, 4)) {
-    jobs.push({ id: jobs.length, kind: "typical", hero, seeds: s });
+    jobs.push({ id: jobs.length, kind: "typical", hero, seeds: s, ...w3 });
     index.push({ hero, kind: "typical" });
   }
   for (const hero of o.heroes) for (const { i } of fams) for (const s of chunks(seeds, 200)) {
-    jobs.push({ id: jobs.length, kind: "chaser", hero, seeds: s, family: i, ...(o.literal ? { literal: true } : {}) });
+    jobs.push({ id: jobs.length, kind: "chaser", hero, seeds: s, family: i, ...(o.literal ? { literal: true } : {}), ...w3 });
     index.push({ hero, kind: "chaser", family: i });
   }
   const outs = await runJobs(jobs, o.workers ?? 1, o.script);
@@ -645,6 +664,7 @@ async function main(): Promise<void> {
   const r = await luckReport({
     runs, seed, heroes, workers, script: import.meta.url, whatif: intArg("whatif", 1000),
     literal: process.argv.includes("--literal"), typical: !process.argv.includes("--no-typical"),
+    wave3: process.argv.includes("--wave3"), // 0.8.0 P1: measure with wave 3 on
   });
   const md = renderMarkdown(r);
   const secs = (performance.now() - t0) / 1000;

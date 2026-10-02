@@ -134,6 +134,9 @@ export const ROUTINES: Record<CoreRoutine, Routine> = {
   capacitor: IDENTITY,
   compound: { ...IDENTITY, ready: (tu) => tu.stack.length >= 2 || (tu.stack.length > 0 && tu.loadTimer >= (tu.core.spec.hold ?? 3)) },
   lance: IDENTITY,
+  // 0.8.0 P1, wave 3: ANVIL BREECH's flat and per-plating damage are its shape hook (Battle.fireCore)
+  anvil: IDENTITY,
+  steam: IDENTITY,
 };
 
 /** DRAKE NOZZLE: Burn stacks from a payload's flat bonus (1 per flatPerBurn, rounded down) and the flat it uses. */

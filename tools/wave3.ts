@@ -9,6 +9,10 @@
 //   100, the 1.0 projection) join ITEMS in memory (install / withCatalogue) with a PROXY spec made of existing effect
 //   fields, so the caravan offers them and the par player can rate them; uninstall deletes them again. A proxy is never
 //   the module's design (output-D1/DESIGN-wave3.md has that): it only gives the par player a fair reason to buy it.
+//   0.8.0 P1 (BRIEF-wave3-P1 M1): wave 3 is now real (content.ts WAVE3_ITEMS, behind the WAVE3_LIVE switch), so the
+//   `wave3` variant turns the real modules on (content.ts setWave3) instead of installing proxies, and WAVE3 lists the
+//   real entries (their own specs). `p100` is the real wave 3 plus the 14 projected parts (PROJ, still proxies, in
+//   memory only). `today` keeps wave 3 off. uninstall puts the switch back as it was.
 // - The per-run draw (M4): wares(runSeed) picks the run's stock (DRAW.active parts, stratified by merchant, kind and
 //   rarity) and the day each one unlocks (epics day 2, the ARCANE DEALER day 3, legendaries day 4, two late restocks on
 //   days 6 and 8). withDraw makes the game's caravan (run.ts rollShop, through content.ts itemsSoldBy) offer only the
@@ -28,8 +32,8 @@ import { resolve } from "node:path";
 import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { hashSeed, Rng } from "../src/core/rng";
 import {
-  HEROES, ITEMS, MERCHANTS, RARITIES, RUN_DAYS, SHAPE_ARROWS, buyableModules, rigShape,
-  type HeroId, type ItemDef, type ItemKind, type MerchantId, type Rarity, type RigShape,
+  HEROES, ITEMS, MERCHANTS, RARITIES, RUN_DAYS, SHAPE_ARROWS, WAVE3_IDS, WAVE3_ITEMS, buyableModules, rigShape, setWave3,
+  wave3Live, type HeroId, type ItemDef, type ItemKind, type MerchantId, type Rarity, type RigShape,
 } from "../src/sim/content";
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { newRun, rollShop, type InvItem, type Run } from "../src/game/run";
@@ -100,41 +104,39 @@ export interface Hypo {
   why: string; // what the proxy stands for
 }
 
-const lv = <T extends object>(k: "gate" | "factory" | "core" | "mod", two: T, three: T) => ({ 2: { [k]: two }, 3: { [k]: three } });
-
-/** Wave 3: 15 modules (8 rigs, 2 factories, 2 cores, 3 mods). DESIGN-wave3.md section M3 is their full spec. */
-export const WAVE3: readonly Hypo[] = [
-  { id: "plateroller", name: "PLATE ROLLER", kind: "gate", rarity: "common", price: 3, merchant: "ironmonger", shape: "I", tags: ["PLATE", "SWARM"],
-    proxy: { gate: { repair: 0.5 }, levels: lv("gate", { repair: 1.1 }, { repair: 1.75 }) }, why: "plating per payload, rated as RIVETER's repair" },
-  { id: "twingauge", name: "TWIN GAUGE", kind: "gate", rarity: "common", price: 3, merchant: "tinker", shape: "I", tags: ["TWIN", "FORGE"],
-    proxy: { gate: { flat: 1.5 }, levels: lv("gate", { flat: 3.3 }, { flat: 5.25 }) }, why: "+1 flat, +2 more on a matched belt: about +1.5" },
-  { id: "pincer", name: "PINCER", kind: "gate", rarity: "common", price: 3, merchant: "alchemist", shape: "I", tags: ["FORGE"],
-    proxy: { gate: { flat: 1.5 }, levels: lv("gate", { flat: 3.3 }, { flat: 5.25 }) }, why: "+1, and +2 for each other rig on its tile: about +1.5" },
-  { id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, merchant: "ironmonger", shape: "L", tags: ["PLATE", "HARASS"],
-    proxy: { gate: { toll: 2 }, levels: lv("gate", { toll: 4 }, { toll: 7 }) }, why: "a guard, rated as TOLLBOOTH's" },
-  { id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, merchant: "tinker", shape: "II", tags: ["TWIN", "TEMPO"],
-    proxy: { gate: { flat: 1 }, levels: lv("gate", { flat: 2.2 }, { flat: 3.5 }) }, why: "+1 on each payload it releases" },
-  { id: "stoker", name: "STOKER", kind: "gate", rarity: "rare", price: 5, merchant: "scrapper", shape: "II", tags: ["TEMPO", "SWARM"],
-    proxy: { gate: { flat: 1 }, levels: lv("gate", { flat: 2.2 }, { flat: 3.5 }) }, why: "a factory 20% faster: about +1 per payload" },
-  { id: "platebreaker", name: "PLATE BREAKER", kind: "gate", rarity: "epic", price: 7, merchant: "scrapper", shape: "T", tags: ["PLATE", "FORGE"],
-    proxy: { gate: { flat: 3 }, levels: lv("gate", { flat: 6.6 }, { flat: 10.5 }) }, why: "spends plating for +4: about +3" },
-  { id: "shieldwall", name: "SHIELD WALL", kind: "gate", rarity: "legendary", price: 10, merchant: "ironmonger", shape: "X", tags: ["PLATE", "FORGE"],
-    proxy: { gate: { flat: 1, repair: 1 }, levels: lv("gate", { flat: 2.2, repair: 2.2 }, { flat: 3.5, repair: 3.5 }) }, why: "plating and damage per payload" },
-  { id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, merchant: "tinker", tags: ["TWIN", "SWARM"],
-    proxy: { factory: { ammo: "plain", interval: 1.8, outputs: 2 }, levels: lv("factory", { base: 5 }, { interval: 1.4, outputs: 3 }) }, why: "two plain slugs per cast, one on each belt" },
-  { id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, merchant: "ironmonger", tags: ["PLATE", "SWARM"],
-    proxy: { factory: { ammo: "plain", interval: 1.8, outputs: 1 }, levels: lv("factory", { interval: 1.6 }, { interval: 1.4 }) }, why: "plain slugs; its plating is unrated" },
-  { id: "anvil", name: "ANVIL BREECH", kind: "core", rarity: "rare", price: 6, merchant: "ironmonger", tags: ["PLATE", "BURST"],
-    proxy: { core: { routine: "hullbreaker", hullMul: 1 } }, why: "a bought core: the rating's NOMINAL credit" },
-  { id: "steambreech", name: "STEAM BREECH", kind: "core", rarity: "common", price: 4, merchant: "gunsmith", tags: ["PLATE", "TEMPO"],
-    proxy: { core: { routine: "hullbreaker", hullMul: 1 } }, why: "a bought core: the rating's NOMINAL credit" },
-  { id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, merchant: "gunsmith", tags: ["TWIN", "TEMPO"],
-    proxy: { mod: {} }, why: "gear the rating can't compute: NOMINAL credit" },
-  { id: "spallcatcher", name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, merchant: "quartermaster", tags: ["PLATE", "BURST"],
-    proxy: { mod: {} }, why: "gear the rating can't compute: NOMINAL credit" },
-  { id: "seamwelder", name: "SEAM WELDER", kind: "mod", rarity: "rare", price: 5, merchant: "arcane", tags: ["TWIN", "PLATE"],
-    proxy: { mod: {} }, why: "gear the rating can't compute: NOMINAL credit" },
+/**
+ * D1's wave-3 table (kind, rarity, price, merchant, shape, tags), kept as the design record. 0.8.0 P1: the modules are
+ * real now (content.ts WAVE3_ITEMS); tests/wave3.content.test.ts holds every real entry to this table, so the real
+ * catalogue is D1's design.
+ */
+export const WAVE3_DESIGN: readonly Omit<Hypo, "proxy" | "why">[] = [
+  { id: "plateroller", name: "PLATE ROLLER", kind: "gate", rarity: "common", price: 3, merchant: "ironmonger", shape: "I", tags: ["PLATE", "SWARM"] },
+  { id: "twingauge", name: "TWIN GAUGE", kind: "gate", rarity: "common", price: 3, merchant: "tinker", shape: "I", tags: ["TWIN", "FORGE"] },
+  { id: "pincer", name: "PINCER", kind: "gate", rarity: "common", price: 3, merchant: "alchemist", shape: "I", tags: ["FORGE"] },
+  { id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, merchant: "ironmonger", shape: "L", tags: ["PLATE", "HARASS"] },
+  { id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, merchant: "tinker", shape: "II", tags: ["TWIN", "TEMPO"] },
+  { id: "stoker", name: "STOKER", kind: "gate", rarity: "rare", price: 5, merchant: "scrapper", shape: "II", tags: ["TEMPO", "SWARM"] },
+  { id: "platebreaker", name: "PLATE BREAKER", kind: "gate", rarity: "epic", price: 7, merchant: "scrapper", shape: "T", tags: ["PLATE", "FORGE"] },
+  { id: "shieldwall", name: "SHIELD WALL", kind: "gate", rarity: "legendary", price: 10, merchant: "ironmonger", shape: "X", tags: ["PLATE", "FORGE"] },
+  { id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, merchant: "tinker", tags: ["TWIN", "SWARM"] },
+  { id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, merchant: "ironmonger", tags: ["PLATE", "SWARM"] },
+  { id: "anvil", name: "ANVIL BREECH", kind: "core", rarity: "rare", price: 6, merchant: "ironmonger", tags: ["PLATE", "BURST"] },
+  { id: "steambreech", name: "STEAM BREECH", kind: "core", rarity: "common", price: 4, merchant: "gunsmith", tags: ["PLATE", "TEMPO"] },
+  { id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, merchant: "gunsmith", tags: ["TWIN", "TEMPO"] },
+  { id: "spallcatcher", name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, merchant: "quartermaster", tags: ["PLATE", "BURST"] },
+  { id: "seamwelder", name: "SEAM WELDER", kind: "mod", rarity: "rare", price: 5, merchant: "arcane", tags: ["TWIN", "PLATE"] },
 ];
+
+/** Wave 3: 15 modules (8 rigs, 2 factories, 2 cores, 3 mods), read from the real entries (content.ts WAVE3_ITEMS): the
+ *  "proxy" is the module's own spec now. DESIGN-wave3.md section M3 is their full spec. */
+export const WAVE3: readonly Hypo[] = WAVE3_IDS.map((id): Hypo => {
+  const d = WAVE3_ITEMS[id];
+  return {
+    id, name: d.name, kind: d.kind, rarity: d.rarity, price: d.price, merchant: d.merchant!, ...(d.shape ? { shape: d.shape } : {}),
+    tags: [...(d.tags ?? [])] as Fam[], proxy: { gate: d.gate, factory: d.factory, core: d.core, mod: d.mod, levels: d.levels },
+    why: "the real module (content.ts WAVE3_ITEMS)",
+  };
+});
 
 /** A copy of an existing module's spec (effect fields and star levels) as a proxy. */
 const clone = (id: string): Hypo["proxy"] => {
@@ -180,11 +182,19 @@ export function tagsFor(v: Variant): Record<string, Fam[]> {
 export const famsFor = (v: Variant): readonly Fam[] => (v === "today" ? FAMS_TODAY : FAMS_WAVE3);
 
 const ADDED: string[] = [];
+/** 0.8.0 P1: while a variant is installed, the switch's state before it (null: nothing installed). */
+let SAVED: { live: boolean } | null = null;
 
-/** Add the variant's hypothetical modules to ITEMS (in memory). Throws if one is already there. */
+/**
+ * Install the variant (in memory). 0.8.0 P1: `today` keeps wave 3 off, `wave3` turns the real modules on (content.ts
+ * setWave3), `p100` turns them on and adds the 14 projected parts (PROJ) to ITEMS. Throws if a variant is already
+ * installed, or a projected id is already in ITEMS.
+ */
 export function install(v: Variant): void {
-  if (ADDED.length) throw new Error(`wave3: ${ADDED.length} hypothetical modules are already installed`);
-  for (const h of hyposOf(v)) {
+  if (ADDED.length || SAVED) throw new Error(`wave3: a variant is already installed (${ADDED.length} projected modules)`);
+  SAVED = { live: wave3Live() };
+  setWave3(v !== "today");
+  for (const h of v === "p100" ? PROJ : []) {
     if (Object.prototype.hasOwnProperty.call(ITEMS, h.id)) throw new Error(`wave3: ${h.id} is already in ITEMS`);
     ITEMS[h.id] = {
       id: h.id, name: h.name, kind: h.kind, rarity: h.rarity, price: h.price, merchant: h.merchant,
@@ -196,9 +206,11 @@ export function install(v: Variant): void {
   }
 }
 
-/** Remove every hypothetical module again. */
+/** Remove every projected module again, and put the switch back as it was before install. */
 export function uninstall(): void {
   for (const id of ADDED.splice(0)) delete ITEMS[id];
+  if (SAVED) setWave3(SAVED.live);
+  SAVED = null;
 }
 
 export function withCatalogue<T>(v: Variant, fn: () => T): T {
