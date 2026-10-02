@@ -264,8 +264,10 @@ export async function scriptedRun(page, touch, log, opts) {
   log(`[${at()}] ghost pool seeded with ${n} snapshots (earlier runs in this browser): ${opts.pool.map((g) => `day ${g.day} ${g.hero} ${g.wins}-${g.losses}${g.power > 0 ? " (strong)" : g.power < 0 ? " (under-built)" : ""}`).join(", ") || "none (a fresh player: every dusk is a stand-in)"}`);
   await tapRegion(page, touch, "new");
   await settle(page, "hero");
-  // 0.6.0d: opts.hero picks the cruiser with the hero screen's > button (FURNACE first, then WEAVER)
-  for (let k = 0; opts.hero && k < 2 && (await page.evaluate(() => ["furnace", "weaver"][window.bb.game.screen.i])) !== opts.hero; k++) {
+  // 0.6.0d: opts.hero picks the cruiser with the hero screen's > button (FURNACE first, then WEAVER). 0.8.0 H1: the hero on
+  // show is the screen's `current` (the roster, PLAYABLE_HEROES: FURNACE, WEAVER, FOUNDRY, BASTION); FURNACE and WEAVER take
+  // the same taps as before
+  for (let k = 0; opts.hero && k < 4 && (await page.evaluate(() => window.bb.game.screen.current)) !== opts.hero; k++) {
     await tapRegion(page, touch, "next");
   }
   await tapRegion(page, touch, "go");

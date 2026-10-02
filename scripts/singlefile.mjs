@@ -13,10 +13,15 @@ import { writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { VIEWS } from "./shots-list.mjs";
+import { VIEWS as SHOT_VIEWS } from "./shots-list.mjs";
 import { scriptedRun } from "./playthrough.mjs";
 import { joinRun } from "./joinrun.mjs"; // 0.6.2j: the belt-join scenario (join-desk, join-phone)
 import { inlineBuild } from "./inline.mjs"; // 0.7.0 R1: shared with asynccheck.mjs (check D)
+
+// 0.8.0 H1 M5: the shot views, and a small landscape phone (an iPhone SE turned) for the FOUNDRY and BASTION runs; kept out
+// of shots-list.mjs, whose every view the metrics pass measures
+const LAND = { viewport: { width: 667, height: 375 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+const VIEWS = { ...SHOT_VIEWS, land: LAND };
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const argv = process.argv.slice(2);
@@ -84,14 +89,26 @@ const RUNS = {
   // its shots. Opt-in: only when BB_RUNS names it, so the default set of runs stays the 4 above.
   "join-desk": { scenario: "join" },
   "join-phone": { scenario: "join" },
+  // 0.8.0 H1 M5 (REQ-BFG-011): FOUNDRY and BASTION played to the end by a fresh player (empty pool, every dusk a
+  // stand-in; the fresh-furnace and fresh-weaver plan), on the desk (mouse), the phone and a small landscape phone
+  // (touch). Opt-in: only when BB_RUNS names them.
+  "fresh-foundry": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "foundry", buys: 8, pool: [] },
+  "fresh-bastion": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "bastion", buys: 8, pool: [] },
+  "phone-foundry": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "foundry", buys: 8, pool: [] },
+  "phone-bastion": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "bastion", buys: 8, pool: [] },
+  "land-foundry": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "foundry", buys: 8, pool: [] },
+  "land-bastion": { days: 10, roads: "vevmvevmve", check: "fresh", hero: "bastion", buys: 8, pool: [] },
 };
 // the view and Math.random pin of each run (fresh runs: desk, the desk run's seed). 0.6.1r (review
 // patch 0006): BB_RUNS=desk,phone,... runs a subset (unset: all 4), so V3 can be split across calls.
 // 0.6.2j: a 4th entry "opt-in" runs only when BB_RUNS names it.
 const PLAN = [["desk", "desk", 0.3], ["phone", "phone", 0.5], ["fresh-furnace", "desk", 0.3], ["fresh-weaver", "desk", 0.3],
-  ["join-desk", "desk", 0.3, "opt-in"], ["join-phone", "phone", 0.5, "opt-in"]]
+  ["join-desk", "desk", 0.3, "opt-in"], ["join-phone", "phone", 0.5, "opt-in"],
+  // 0.8.0 H1 M5: the FOUNDRY and BASTION runs (opt-in)
+  ["fresh-foundry", "desk", 0.3, "opt-in"], ["fresh-bastion", "desk", 0.3, "opt-in"], ["phone-foundry", "phone", 0.5, "opt-in"],
+  ["phone-bastion", "phone", 0.5, "opt-in"], ["land-foundry", "land", 0.3, "opt-in"], ["land-bastion", "land", 0.3, "opt-in"]]
   .filter(([r, , , optIn]) => (process.env.BB_RUNS ?? (optIn ? "" : r)).split(",").includes(r));
-if (!PLAN.length) throw new Error(`BB_RUNS="${process.env.BB_RUNS}" names none of desk, phone, fresh-furnace, fresh-weaver, join-desk, join-phone`);
+if (!PLAN.length) throw new Error(`BB_RUNS="${process.env.BB_RUNS}" names none of desk, phone, fresh-furnace, fresh-weaver, join-desk, join-phone, fresh-foundry, fresh-bastion, phone-foundry, phone-bastion, land-foundry, land-bastion`);
 
 async function main() {
   await inline();
@@ -141,7 +158,9 @@ async function main() {
   // 0.6.2j: the join runs alone say what they checked; every other set of runs prints exactly the line it always did
   const what = PLAN.every(([r]) => RUNS[r].scenario === "join")
     ? "the belt-join scenario: a join drawn with real input, a looping join refused, a dusk fight with the join, the dead end left by REMOVE BELT blocking FIGHT, no console errors"
-    : "desk 10-day + phone 3+-day scripted runs, fresh-player FURNACE + WEAVER runs to the end, honest dusk decks, no console errors";
+    : PLAN.every(([r]) => ["foundry", "bastion"].includes(RUNS[r].hero)) // 0.8.0 H1 M5
+      ? "fresh-player FOUNDRY and BASTION runs to the end (desk mouse; phone and small landscape phone touch), honest dusk decks, no console errors"
+      : "desk 10-day + phone 3+-day scripted runs, fresh-player FURNACE + WEAVER runs to the end, honest dusk decks, no console errors";
   log(failed ? `\nRESULT: FAIL (${failed}) [runs: ${ran}]` : `\nRESULT: PASS [runs: ${ran}] (${what})`);
   if (LOG) await writeFile(LOG, lines.join("\n") + "\n");
   process.exit(failed ? 1 : 0);
