@@ -238,7 +238,7 @@ describe("the result card", () => {
 function foundryDecks(): Record<string, Build> {
   const start = heroStartBuild("foundry", 1);
   const over = clone(start);
-  over.items.push({ uid: 777, def: "overdrive", x: 1, y: 3, ...rotField(1) }); // speeds belt 1 only
+  over.items.push({ uid: 777, def: "overdrive", x: 1, y: 3, ...rotField("overdrive", 1) }); // speeds belt 1 only
   const delay = clone(start);
   delay.routes[1].cells = [K(3, 5), K(4, 5), K(5, 5), K(5, 4), K(5, 3), K(4, 3), K(3, 3), K(3, 2), K(3, 1), K(3, 0)]; // +4 tiles: one pour
   const off = clone(start);

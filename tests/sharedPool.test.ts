@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { choicesFor, makeEvent } from "../src/game/events";
-import { newRun, rollShop, type Run } from "../src/game/run";
+import { newRun, rollShop, type InvItem, type Run } from "../src/game/run";
+import type { ModPlacement, Placed } from "../src/sim/deck"; // 0.8.0 H1 M4
 import { UPGRADE } from "../src/game/eventDefs";
 import { ITEMS, RARITIES, buyableModules, itemsSoldBy, type HeroId, type MerchantId } from "../src/sim/content";
 import { HARNESS_HEROES, shopFactories, shopItems } from "../src/sim/harness/heroes";
@@ -82,6 +83,68 @@ describe("REQ-BFG-021: one hero-blind salvage catalogue", () => {
         const expected = roadGains(runs[0], id);
         expect(expected.flat().length).toBeGreaterThan(0);
         for (const r of runs) expect(roadGains(r, id), `${id} ${r.hero} seed=${seed} day=${day}`).toEqual(expected);
+      }
+    }
+  });
+});
+
+// 0.8.0 H1 M4 (REQ-BFG-021, acceptance 1; ref/BRIEF-v080-H1.md section 5.1): the tests above, extended to every day
+// 1-10 and to more owned-module states: none; the parts above; a 1-star and a 2-star copy of one part (the familiar
+// slot's 3-star chain), gear, a core and a factory; and those parts held on the deck rather than in cargo. Each with
+// three recent-merchant histories. The six heroes' starting decks differ (their signatures and starting turrets,
+// which the shop never counts), and every caravan, every wagon's stock and every road-event grant is the same.
+describe("REQ-BFG-021 (0.8.0 H1 M4): identical offers on every day, owned-module state and merchant history", () => {
+  const OWNED: { name: string; cargo: InvItem[]; deck?: { items: Placed[]; mods: ModPlacement[] } }[] = [
+    { name: "nothing", cargo: [] },
+    { name: "cargo", cargo: [{ uid: 200, def: "whetstone" }, { uid: 201, def: "scatter", stars: 2 }, { uid: 202, def: "press" }] },
+    {
+      name: "chain",
+      cargo: [{ uid: 210, def: "temper" }, { uid: 211, def: "temper", stars: 2 }, { uid: 212, def: "coil" }, { uid: 213, def: "calibrate" },
+        { uid: 214, def: "salvo", stars: 3 }, { uid: 215, def: "doublestamp" }],
+    },
+    {
+      name: "deck", cargo: [{ uid: 220, def: "grease" }],
+      deck: { items: [{ uid: 221, def: "longhaul", x: 9, y: 9 }, { uid: 222, def: "temper", x: 8, y: 9, stars: 2 }], mods: [{ uid: 223, def: "hopper", turret: 0 }] },
+    },
+  ];
+  const RECENT: MerchantId[][] = [[], ["tinker", "gunsmith"], ["arcane", "scrapper", "ironmonger"]];
+
+  /** A starting run of `hero` on `day` holding the owned state, its caravan rolled. */
+  function held(hero: HeroId, seed: number, day: number, owned: (typeof OWNED)[number], recent: MerchantId[]): Run {
+    const r = newRun(hero, seed, `pool-${seed}`);
+    r.day = day;
+    r.shop.rerolls = 0;
+    r.lastMerchants = [...recent];
+    r.inventory = owned.cargo.map((i) => ({ ...i }));
+    if (owned.deck) {
+      r.build.items.push(...owned.deck.items.map((p) => ({ ...p })));
+      r.build.mods.push(...owned.deck.mods.map((m) => ({ ...m })));
+    }
+    rollShop(r);
+    return r;
+  }
+
+  it("caravans and merchant stock: six heroes, days 1-10", () => {
+    let caravans = 0;
+    for (const seed of [5, 88, 4093]) for (let day = 1; day <= 10; day++) for (const owned of OWNED) for (const recent of RECENT) {
+      const runs = HARNESS_HEROES.map((hero) => held(hero, seed, day, owned, recent));
+      const expected = offer(runs[0]);
+      expect(expected.length).toBeGreaterThan(0);
+      for (const r of runs) {
+        expect(offer(r), `${r.hero} seed=${seed} day=${day} owned=${owned.name} recent=${recent}`).toEqual(expected);
+        for (const w of r.shop.wagons) for (const o of w.offers) expect(stock(w.merchant, day)).toContain(o.def);
+      }
+      caravans++;
+    }
+    expect(caravans).toBe(3 * 10 * OWNED.length * RECENT.length);
+  });
+
+  it("road-event part grants (wreck, trader, smuggler): six heroes, days 1-10", () => {
+    for (const seed of [9, 314]) for (let day = 1; day <= 10; day++) for (const owned of OWNED) {
+      const runs = HARNESS_HEROES.map((hero) => held(hero, seed, day, owned, []));
+      for (const id of ["wreck", "trader", "smuggler"] as const) {
+        const expected = roadGains(runs[0], id);
+        for (const r of runs) expect(roadGains(r, id), `${id} ${r.hero} seed=${seed} day=${day} owned=${owned.name}`).toEqual(expected);
       }
     }
   });
