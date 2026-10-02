@@ -13,6 +13,7 @@ import { chevronSpeed } from "../render/machinery"; // 0.6.2p (item 5): a fixed-
 import type { DeckFrame } from "../render/frame";
 import { damageFx, react } from "./arenaReact";
 import { makeViews } from "./arenaDraw";
+import { newWave3Fx, tickWave3Fx, type Wave3Fx } from "../render/wave3Moments"; // 0.8.0 I1 M4: A1's battle moments
 
 const SIDES: Side[] = [0, 1];
 
@@ -35,11 +36,16 @@ export interface SideFx {
   plateHold: number;
   plateLast: number;
   plateShine: number;
+  // 0.8.0 I1 M4 (display only): wave 3's event moments (render/wave3Moments.ts): pairs, ANVIL BREECH shots, BRACE FRAME's
+  // cuts, TWIN LATCH's releases, PLATE BREAKER's blows and ARMOR PRESS's presses
+  w3: Wave3Fx;
 }
 
 function sideFx(b: Battle, side: Side): SideFx {
   const s = b.sides[side];
-  const plate = s.race?.plating.plate ?? 0;
+  // 0.8.0 I1 M4: the side's plating pool (P1's E1: SideState.plate, which IS a race side's RaceSide.plating), so a hull
+  // plated by wave-3 parts shows its plating as BASTION's does; 0 on every hull without a plating source
+  const plate = s.plate.plate;
   return {
     model: cruiserModel(s.build),
     beltPhase: s.routes.map((r) => new Float32Array(r.cells.length)),
@@ -50,6 +56,7 @@ function sideFx(b: Battle, side: Side): SideFx {
     fuse: new Float32Array(turretSlots(s.build).length),
     clank: new Float32Array(turretSlots(s.build).length),
     plateShown: plate, plateHold: 0, plateLast: plate, plateShine: 0,
+    w3: newWave3Fx(turretSlots(s.build).length),
   };
 }
 
@@ -95,11 +102,11 @@ export class Arena {
   private readonly soakLeft: [number, number] = [0, 0];
   private readonly soakSeen: [number, number] = [0, 0];
 
-  /** After a step: the plating each side soaked in it (race.plating.absorbed's growth). */
+  /** After a step: the plating each side soaked in it (race.plating.absorbed's growth). 0.8.0 I1 M4: SideState.plate, the
+   *  same pool for a race side, and on every hull since P1's E1 (absorbed stays 0 without a plating source). */
   private stepSoak(): void {
     for (const side of SIDES) {
-      const pl = this.b.sides[side].race?.plating;
-      if (!pl) continue;
+      const pl = this.b.sides[side].plate;
       this.soakLeft[side] = pl.absorbed - this.soakSeen[side];
       this.soakSeen[side] = pl.absorbed;
     }
@@ -170,7 +177,7 @@ export class Arena {
         const ev = this.b.drainEvents();
         for (let i = 0; i < ev.length; i++) {
           this.tally(ev[i]);
-          react(this, ev[i]);
+          react(this, ev[i], i > 0 ? ev[i - 1] : null); // 0.8.0 I1 M4: the step's event before it (PLATE BREAKER's blow)
           out.push(ev[i]);
         }
       }
@@ -238,13 +245,14 @@ export class Arena {
       if (f.fuse[i] > 0) f.fuse[i] = Math.max(0, f.fuse[i] - rdt);
       if (f.clank[i] > 0) f.clank[i] = Math.max(0, f.clank[i] - rdt);
     }
-    const plate = s.race ? s.race.plating.plate : 0;
+    const plate = s.plate.plate; // 0.8.0 I1 M4: every hull's pool (E1); a race side's is its RaceSide.plating
     if (plate < f.plateLast - 1e-9) f.plateHold = PLATE_HOLD;
     f.plateLast = plate;
     f.plateShine = Math.max(0, f.plateShine - rdt);
     if (f.plateHold > 0) f.plateHold -= rdt;
     else if (f.plateShown > plate) f.plateShown = Math.max(plate, f.plateShown - rdt * Math.max(8, (f.plateShown - plate) * 3));
     if (f.plateShown < plate) f.plateShown = plate;
+    tickWave3Fx(f.w3, s, rdt); // 0.8.0 I1 M4: wave 3's moments play out; ARMOR PRESS's presses read off its timer
   }
 
   /** Resolve the rest of the battle instantly (SKIP). Only the end event is animated. */

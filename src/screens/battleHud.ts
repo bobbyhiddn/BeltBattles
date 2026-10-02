@@ -18,6 +18,7 @@ import { button, panel, type Rect } from "../ui/ui";
 import { hullBar } from "../ui/hud";
 import { CLANK_TIME, STRIP_H, drawPlatingStrip } from "../render/raceFx"; // 0.8.0 H1 M3: BASTION's plating strip
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
+import { holdsPlating } from "../render/wave3Moments"; // 0.8.0 I1 M4: wave 3's plating on any hull
 
 /** Playback speeds (REQ-BFG-014, spec §22): presentation only, the sim steps the same fixed ticks. */
 export const SPEEDS = [0.5, 1, 2, 4];
@@ -78,7 +79,9 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
   if (bw > 8 && plated(a, side)) {
     // 0.8.0 H1 M3: BASTION's plating strip on top of the hull bar, in the bar's 7 rows: plating takes hits before HP, so
     // the strip drains (white where just lost) while the bar below holds; the dark wind goes straight to the bar
-    drawPlatingStrip(g, bx, ty - 1, bw, s.race!.plating.plate, f.plateShown, PLATE_CAP, PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME);
+    // 0.8.0 I1 M4: the side's pool (P1's E1: SideState.plate, which IS BASTION's RaceSide.plating), so wave 3's plating
+    // shows on any hull that holds a source of it
+    drawPlatingStrip(g, bx, ty - 1, bw, s.plate.plate, f.plateShown, PLATE_CAP, PLATE_CAP / PLATE_PER_SLUG, f.plateShine / CLANK_TIME);
     hullBar(g, bx, ty - 1 + STRIP_H, bw, 7 - STRIP_H, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t);
   } else if (bw > 8) hullBar(g, bx, ty - 1, bw, 7, Math.max(0, s.hull.hp), f.hpShown, s.hull.max, side === 0 ? C.lime : C.red, f.barFlash, game.t);
   // status pips: fray / burn
@@ -90,10 +93,11 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
   }
 }
 
-/** 0.8.0 H1 M3: the side's plate shows a plating strip: a BASTION hull (the one hero whose bulwark slugs plate). */
+/** 0.8.0 H1 M3: the side's plate shows a plating strip: a BASTION hull (the one hero whose bulwark slugs plate). 0.8.0
+ *  I1 M4: or any hull that holds a wave-3 source of plating (P1's E1; wave3Moments.ts holdsPlating). */
 export function plated(a: Pick<Arena, "b">, side: Side): boolean {
   const s = a.b.sides[side];
-  return s.build.hero === "bastion" && !!s.race;
+  return (s.build.hero === "bastion" && !!s.race) || holdsPlating(s.build);
 }
 
 export interface BarState {

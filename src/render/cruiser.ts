@@ -23,7 +23,9 @@ import { coreFor, stokeHits } from "../sim/deck"; // 0.6.1b: the core socket; 0.
 import { starsOf } from "../sim/stars"; // 0.6.1b
 import { gemColor } from "./coreArt"; // 0.6.1b
 import { gearStats, turretAt } from "../sim/battle"; // 0.6.1p: the gear's window slots (EXT. CHAMBER, HOPPER); 0.6.2s: by slot
-import { wave3GearFace } from "./wave3Art"; // 0.8.0 A1: wave 3's gear on the gun
+import { anvilSparks, wave3GearFace, type Wave3RigState } from "./wave3Art"; // 0.8.0 A1: wave 3's gear on the gun
+import { ANVIL_TIME, gearMoment, steamPlated, type Wave3Fx } from "./wave3Moments"; // 0.8.0 I1 M4: A1's battle moments
+import { matchedRoutes } from "../sim/deck"; // 0.8.0 I1 M4: TWIN GAUGE's matched belt in the build view
 
 /** 0.6.1p: the hardpoint box colour per gear (catalogue.json art); anything else keeps 0.6.0's cyan. */
 const GEAR_BOX: Record<string, string> = { chamber: C.lime, hopper: C.brass3, mantlet: C.steel3, ram: C.red };
@@ -53,6 +55,9 @@ export interface RigModel {
   // 0.8.0 I1 (VERIFIED-A1 G2, R5): per arrow, it points into a factory this STOKER works (deck.ts stokeHits). Its nozzle
   // reads as working; its arrowhead stays belt-only (drawArrowTips draws under the factories). Set on a STOKER only.
   stoke?: boolean[];
+  // 0.8.0 I1 M4 (A1's battle moments, build view): a TWIN GAUGE on a matched belt (deck.ts matchedRoutes), and the other
+  // rigs on a PINCER's tile (every rig online there). Set on those two only, when there is something to show.
+  w3?: Wave3RigState;
 }
 
 export interface CruiserModel {
@@ -62,6 +67,7 @@ export interface CruiserModel {
   gateOnRoute: Set<number>; // rigs with at least one hit (the others are IDLE)
   rigs: Map<number, RigModel>; // 0.6.2 BELTSIDE: by rig uid
   sync: number[]; // 0.8.0 H1 M3: turret slots two CRUCIBLE belts reach in sync (syncedTurrets; [] without a CRUCIBLE)
+  stoked: Set<number>; // 0.8.0 I1 M4: the factories a STOKER works (deck.ts stokeHits): they flare in the build view
 }
 
 /**
@@ -107,6 +113,8 @@ export function cruiserModel(b: Build): CruiserModel {
   const stokes = stokeHits(b);
   for (const h of stokes) gateOnRoute.add(h.uid);
   const rigs = new Map<number, RigModel>();
+  // 0.8.0 I1 M4: which belts are matched, read only when the deck holds a TWIN GAUGE (as Battle.makeSide does)
+  const matched = b.items.some((p) => p.def === "twingauge") ? matchedRoutes(b) : null;
   for (const p of b.items) {
     if (ITEMS[p.def]?.kind !== "gate") continue;
     const dirs = arrowsOf(p);
@@ -114,9 +122,15 @@ export function cruiserModel(b: Build): CruiserModel {
     const rm: RigModel = { dirs, hit: dirs.map((d) => mine.some((h) => h.dir === d)) };
     const own = stokes.filter((h) => h.uid === p.uid);
     if (own.length) rm.stoke = dirs.map((d) => own.some((h) => h.dir === d));
+    // 0.8.0 I1 M4 (A1's moments in the build view): TWIN GAUGE on a matched belt; the other rigs on PINCER's tiles
+    if (p.def === "twingauge" && matched && mine.some((h) => matched[h.route])) rm.w3 = { matched: true };
+    if (p.def === "pincer") {
+      const crowd = Math.max(0, ...mine.map((h) => (hits[h.route]?.[h.tile] ?? []).filter((o) => o.uid !== p.uid).length));
+      if (crowd > 0) rm.w3 = { crowd: Math.min(3, crowd) };
+    }
     rigs.set(p.uid, rm);
   }
-  return { hero: b.hero, routes, connectedCols, gateOnRoute, rigs, sync: syncedTurrets(b) };
+  return { hero: b.hero, routes, connectedCols, gateOnRoute, rigs, sync: syncedTurrets(b), stoked: new Set(stokes.map((h) => h.factory)) };
 }
 
 export interface CruiserView {
@@ -133,6 +147,7 @@ export interface CruiserView {
   recoil?: Float32Array; // per turret px
   fuse?: Float32Array; // 0.8.0 H1 M3: per turret slot, seconds left on the weld flash (battle playback)
   clank?: Float32Array; // 0.8.0 H1 M3: per turret slot, seconds left on the CLANK (battle playback)
+  w3?: Wave3Fx; // 0.8.0 I1 M4: wave 3's event moments (battle playback; render/wave3Moments.ts)
   flash?: number; // hull hit flash 0..1
   highlightConnectors?: number[];
   // 0.6.2j (J11): the belt being drawn, with the join it will make or a join it was refused (and why)
@@ -322,8 +337,9 @@ export function drawTurrets(g: G, v: CruiserView): void {
       if (mods[m].turret !== i || ITEMS[mods[m].def]?.kind === "core") continue; // 0.6.1b: gear only (the core has its socket)
       const bu = -pu - 5 - 6 * gi++;
       trect(g, f, px, py, bu, -3, 5, 5, C.ink);
-      // 0.8.0 A1: a wave-3 gear piece shows its own 3x3 face (wave3Art.ts wave3GearFace); every other piece as before
-      const face = wave3GearFace(mods[m].def);
+      // 0.8.0 A1: a wave-3 gear piece shows its own 3x3 face (wave3Art.ts wave3GearFace); every other piece as before.
+      // 0.8.0 I1 M4: in battle with its moment: TWIN TRIGGER's lamp and SEAM WELDER's seam on a pair, SPALL CATCHER's charge
+      const face = wave3GearFace(mods[m].def, gearMoment(mods[m].def, i, ts, v.w3));
       if (face) face.forEach((col, k) => trect(g, f, px, py, bu + 1 + (k % 3), -2 + Math.floor(k / 3), 1, 1, col));
       else {
         trect(g, f, px, py, bu + 1, -2, 3, 3, GEAR_BOX[mods[m].def] ?? C.cyan);
@@ -336,7 +352,7 @@ export function drawTurrets(g: G, v: CruiserView): void {
     // from the gear box, in the bought core's gem colour or the faction glow (signature core); its pips beside it
     const core = coreFor(v.build, i);
     const su = look ? look.socket : td.kind === "heavy" ? 3 : 1, sv = pu - 8;
-    socketGem(g, f, px, py, su, sv, gemColor(core?.def, v.model.hero));
+    socketGem(g, f, px, py, su, sv, gemColor(core?.def, v.model.hero, steamPlated(ts))); // 0.8.0 I1 M4: STEAM BREECH plated
     starPips(g, f, px, py, su - 9, sv + 2, starsOf(core)); // left of the gem (the chamber pips sit to its right)
     if (ts && ts.jamFx > 0 && Math.floor(v.t * 8) % 2) trect(g, f, px, py, -6, 4, 12, 2, C.red);
     // 0.8.0 H1 M3: FOUNDRY's SYNC mark beside a gun two CRUCIBLE belts reach in sync, on the bow beside its barrel; the
@@ -355,6 +371,12 @@ export function drawTurrets(g: G, v: CruiserView): void {
     if (clank > 0) {
       const img = platingClank(flashFrame(clank, CLANK_TIME, CLANK_FRAMES));
       g.drawImage(img, px - (img.width >> 1), py - (img.height >> 1));
+    }
+    // 0.8.0 I1 M4 (A1's ANVIL BREECH moment): sparks off the face at the muzzle with each shot, 3 frames of 0.1 s
+    const anvil = v.w3 ? v.w3.anvilAge[i] : Infinity;
+    if (anvil < ANVIL_TIME) {
+      const img = anvilSparks(Math.floor(anvil / 0.1));
+      g.drawImage(img, Math.round(muzzleX(f, v.build, i) - img.width / 2), Math.round(muzzleY(f, v.build, i) - img.height / 2));
     }
   }
 }

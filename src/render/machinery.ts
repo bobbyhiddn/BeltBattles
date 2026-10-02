@@ -17,7 +17,8 @@ import {
 } from "./sprites";
 import { heatTier, payloadHalo, payloadSprite } from "./ammo";
 import { raceChuteMouth } from "./raceArt"; // 0.8.0 H1
-import { wave3ChuteMouth } from "./wave3Art"; // 0.8.0 A1
+import { stokeFlare, wave3ChuteMouth, wave3FactoryArt, wave3GateSprite } from "./wave3Art"; // 0.8.0 A1; I1 M4: the moments
+import { factoryMoment, rigMoment, stokedNow } from "./wave3Moments"; // 0.8.0 I1 M4: A1's battle moments, from P1's sim
 import type { CruiserView, RigModel } from "./cruiser";
 
 /** 0.6.1d2: two cosmetic, build-screen-only cues threaded through CruiserView without touching
@@ -328,12 +329,17 @@ function drawFactories(g: G, v: CruiserView): void {
       if (rm.factory === p.uid && rm.cells.length && rm.index !== v.hideRoute) drawChute(g, f, rm.cells[0], rm.d0, d.id);
     }
     if (v.ghost && v.ghost.factory === p.uid && v.ghost.cells.length) drawChute(g, f, v.ghost.cells[0], v.ghost.cells.length ? ghostD0(v, p.uid) : -1, d.id);
-    g.drawImage(factorySprite(d.id, fi, flash, fstars), x, y);
+    // 0.8.0 I1 M4 (A1's ARMOR PRESS moment): the glowing plate slides down its chute after each plating press
+    const fst = factoryMoment(d.id, fs, v.w3);
+    g.drawImage((fst.plateT !== undefined ? wave3FactoryArt(d.id, fi, flash, fstars, fst) : undefined) ?? factorySprite(d.id, fi, flash, fstars), x, y);
     if (flash && fs) {
       g.globalAlpha = Math.min(0.6, fs.flash * 3);
       g.drawImage(factoryFlashSil(d.id, fstars), x, y);
       g.globalAlpha = 1;
     }
+    // 0.8.0 I1 M4 (A1's STOKER moment): "their chimneys flare" over each factory a working STOKER points at (in battle,
+    // P1's FactoryState.stokers; in the build view, where every rig is online, each factory a STOKER works)
+    if (fs ? stokedNow(fs) : v.model.stoked.has(p.uid)) g.drawImage(stokeFlare(Math.floor(v.t * 10)), x + 17, y - 4);
     if (fs && fs.disrupted > 0) shock(g, x + 6, y + 6, v.t);
     if (fs && fs.stalled && Math.floor(v.t * 4) % 2) drawText(g, "!", x + 22, y - 2, C.yellow, { outline: C.ink });
     drawPips(g, x + 2, y + 21, 20, fstars, "left");
@@ -428,7 +434,11 @@ function drawRigs(g: G, v: CruiserView): void {
     const x = Math.round(footX(f, p.x, p.y)), y = Math.round(footY(f, p.x, p.y));
     const gs = gateStateOf(v, p.uid);
     const active = !!gs && gs.flash > 0;
-    g.drawImage(gateSprite(d.id, Math.floor(v.t * 8), active), x, y);
+    // 0.8.0 I1 M4 (A1's battle moments): a wave-3 rig in the state P1's sim gives it (wave3Moments.ts rigMoment); with
+    // none to show it draws exactly as gateSprite, as every other rig does
+    const st = rigMoment(d.id, p.uid, gs, v.sim, v.w3, v.model.rigs.get(p.uid)?.w3);
+    const sprite = Object.keys(st).length ? wave3GateSprite(d.id, Math.floor(v.t * 8), active, st) : null;
+    g.drawImage(sprite ?? gateSprite(d.id, Math.floor(v.t * 8), active), x, y);
     if (d.id === "keg" && gs?.online && !gs.consumed) {
       const full = gs.def.gate?.keg?.fuse ?? 12;
       g.strokeStyle = C.yellow;

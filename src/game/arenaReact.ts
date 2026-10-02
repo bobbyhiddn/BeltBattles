@@ -11,6 +11,7 @@ import { hullBox, hullX, hullY, sx, sy } from "../render/frame";
 import { muzzleX, muzzleY } from "../render/cruiser";
 import { CLANK_TIME, FUSE_TIME } from "../render/raceFx"; // 0.8.0 H1 M3: FOUNDRY's weld flash, BASTION's CLANK
 import type { Fx } from "../render/fx";
+import { RELEASE_TIME, SHRUG_TIME } from "../render/wave3Moments"; // 0.8.0 I1 M4: A1's battle moments
 import type { Arena } from "./arena";
 
 const HOT = [C.fire5, C.fire4, C.fire3, C.white] as const;
@@ -77,7 +78,12 @@ function machinePoint(a: Arena, side: Side, kind: TargetKind, ref: number, cell:
   return t ? [sx(a.drawn[side], t.x, t.y), sy(a.drawn[side], t.x, t.y)] : [hullCx(a, side), hullCy(a, side)];
 }
 
-export function react(a: Arena, e: SimEvent): void {
+/** 0.8.0 I1 M4: whether event `e` is the -1 plating a PLATE BREAKER's blow takes (Battle.spendPlate, pushed in the same
+ *  applyHit right before that blow's `process` event; a hit's plating soak (absorb) is a separate event of the impacts). */
+const spendOf = (e: SimEvent | null, side: Side): boolean => !!e && e.type === "plate" && !("turret" in e) && e.side === side && e.amount < 0;
+
+/** `prev`: the event before `e` in the same step (null for the step's first): PLATE BREAKER's blow reads it. */
+export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void {
   const fx = a.fx;
   const snd = a.quiet ? null : a.sound;
   const fast = a.speed > 2;
@@ -96,6 +102,8 @@ export function react(a: Arena, e: SimEvent): void {
     case "process": {
       const gs = a.b.sides[e.side].gates.find((q) => q.uid === e.gate);
       if (!gs) return;
+      // 0.8.0 I1 M4 (A1's PLATE BREAKER moment): did this blow take a plating (the -1 `plate` right before it), or none?
+      if (e.def === "platebreaker") a.sfx[e.side].w3.spent.set(e.gate, spendOf(prev, e.side));
       const fr = a.drawn[e.side];
       // 0.6.2 BELTSIDE (V3): at the arrow's tip, where the rig works the belt tile it hit
       const lx = (gs.x + 0.5 + DX[e.dir] * 0.6) * CELL, ly = (gs.y + 0.5 + DY[e.dir] * 0.6) * CELL;
@@ -151,8 +159,25 @@ export function react(a: Arena, e: SimEvent): void {
       fx.addTrauma(e.heavy ? 0.1 : 0.02);
       if (e.heavy) fx.kick(-dx, -dy);
       snd?.play(e.heavy ? "fire_heavy" : "fire_light");
+      // 0.8.0 I1 M4 (A1's ANVIL BREECH moment): sparks fly off the face with each shot (drawTurrets plays them)
+      if (e.core === "anvil") {
+        const w = a.sfx[e.side].w3.anvilAge;
+        if (e.turret >= 0 && e.turret < w.length) w[e.turret] = 0;
+      }
       return;
     }
+    // 0.8.0 I1 M4 (A1's battle moments, REPORT-A1 5.2): P1's wave-3 events set the display timers the art reads
+    case "pair": { // E2: TWIN TRIGGER's lamp and SEAM WELDER's seam light on this gun
+      const w = a.sfx[e.side].w3.pairAge;
+      if (e.turret >= 0 && e.turret < w.length) w[e.turret] = 0;
+      return;
+    }
+    case "brace": // BRACE FRAME shortened an enemy stall, freeze or slow: its bolts glow
+      a.sfx[e.side].w3.shrug.set(e.gate, SHRUG_TIME);
+      return;
+    case "release": // E4: TWIN LATCH lets a payload go: its fingers drop, the lamp turns green
+      a.sfx[e.side].w3.release.set(e.gate, RELEASE_TIME);
+      return;
     case "impact": {
       const fr = a.drawn[e.side];
       const x = sx(fr, e.x, e.y), y = sy(fr, e.x, e.y);
