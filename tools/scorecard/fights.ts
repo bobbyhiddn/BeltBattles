@@ -43,7 +43,8 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 
 interface StandInOut { hero: HeroId; cost: number; served: number; captains: string[]; vs: Record<string, { pts: number; n: number }>; t: number[]; pairs: { hero: string; m: number; med: number }[] }
 // 0.8.0 H1 M6: pts and n, the first hero's points over the pairing's battles (absent in a day file made before)
-interface PairOut { key: string; t: number[]; pairs: { a: number; b: number; med: number }[]; pts?: number; n?: number }
+// 0.8.0 B1 M0: w, the first member's points share over its battles with that member (for member-unit CIs; absent before)
+interface PairOut { key: string; t: number[]; pairs: { a: number; b: number; med: number; w?: number }[]; pts?: number; n?: number }
 interface DayFile { day: number; k: number; seeds: number; standinSeeds: number; label: string; heroes: string[]; seconds: number; battles: number; standins: StandInOut[]; pairs: PairOut[] }
 
 const dayPath = (out: string, day: number) => resolve(out, `sc-fights-d${day}.json`);
@@ -89,7 +90,7 @@ async function runDay(day: number, o: FightsOpts, detail: (f: Build[], j: Job[])
       const g = tagB[x - nA];
       const p = pairs.get(g.key) ?? { key: g.key, t: [], pairs: [], pts: 0, n: 0 };
       p.t.push(...bs.map((b) => r2(b.t)));
-      p.pairs.push({ a: g.a, b: g.b, med: r2(med) });
+      p.pairs.push({ a: g.a, b: g.b, med: r2(med), w: bs.reduce((q, b) => q + b.a, 0) / bs.length });
       p.pts = (p.pts ?? 0) + bs.reduce((q, b) => q + b.a, 0); // 0.8.0 H1 M6: the first hero's points
       p.n = (p.n ?? 0) + bs.length;
       pairs.set(g.key, p);
