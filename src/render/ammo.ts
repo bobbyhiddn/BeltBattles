@@ -3,6 +3,8 @@
 
 import { C } from "./palette";
 import { disc, flipX, flipY, fromRows, makeCanvas, outlined, rot90 } from "./pixel";
+// 0.8.0 H1: ALLOY BLANK, ALLOY SLUG and BULWARK SLUG (raceArt.ts); every other kind draws as before
+import { RACE_PELLET, RACE_TRAIL, isRaceAmmo, raceBeltSprite, raceHalo, raceShellSprite } from "./raceArt";
 
 type Cv = HTMLCanvasElement;
 const cache = new Map<string, Cv>();
@@ -56,6 +58,7 @@ const ROUND_TINT: Record<string, [string, string, string, string]> = {
 /** Belt item sprite (7x7). 0.6.1c kinds: "shot" (SHOT TOWER's small pellet, pewter since 0.6.1f), "slag" (SLAG POT: orange
  *  slag under a dark crust), "ember" and "spark" (HOT SWAP's tints of the plain slug). */
 export function ammoSprite(kind: string, tier: number): Cv {
+  if (isRaceAmmo(kind)) return raceBeltSprite(kind, Math.max(0, Math.min(4, tier))); // 0.8.0 H1
   return cached(`ammo7:${kind}:${tier}`, () => {
     if (kind === "thread") {
       return fromRows([".kkkkk.", "kbBBBbk", "kiwiwik", "kwiwiwk", "kiwiwik", "kbbbbdk", ".kkkkk."], {
@@ -101,7 +104,7 @@ export function ammoSprite(kind: string, tier: number): Cv {
  */
 export function payloadSprite(kind: string, tier: number): Cv {
   const t = Math.max(0, Math.min(4, tier));
-  if (kind !== "thread" && kind !== "plain") return ammoSprite(kind, t);
+  if (kind !== "thread" && kind !== "plain") return ammoSprite(kind, t); // 0.8.0 H1: the race kinds' tiers there too
   return cached(`pay7:${kind}:${t}`, () => {
     if (kind === "thread") {
       return fromRows([".kkkkk.", "kbBBBbk", "kiwiwik", "kwiwiwk", "kiwiwik", "kbbbbdk", ".kkkkk."], {
@@ -125,6 +128,7 @@ export function payloadHalo(kind: string, tier: number): Cv {
     }
     return cv;
   });
+  if (isRaceAmmo(kind)) return raceHalo(kind, tier); // 0.8.0 H1: in the race ammo's own colour
   if (kind !== "thread" && kind !== "plain") return heatHalo(tier);
   return cached(`phalo:${kind}:${tier >= 4 ? 4 : 3}`, () => {
     const [cv, g] = makeCanvas(11, 11);
@@ -164,6 +168,7 @@ function orient(src: Cv, dir: number): Cv {
 
 /** In-flight shell pointing along screen dir (0 N, 1 E, 2 S, 3 W). */
 export function shellSprite(kind: string, tier: number, dir: number): Cv {
+  if (isRaceAmmo(kind)) return raceShellSprite(kind, dir); // 0.8.0 H1
   return cached(`shell:${kind}:${tier}:${dir}`, () => {
     let base: Cv;
     if (kind === "thread") {
@@ -206,7 +211,7 @@ const PELLET_TINT = new Map<string, [string, string]>([
 export function pelletSprite(kind: string, tier: number, dir: number): Cv {
   return cached(`pellet:${kind}:${tier}:${dir}`, () => {
     if (kind === "thread") return orient(fromRows([".w.", "wiw", ".c."], { w: C.white, i: C.ice, c: C.cyan }), dir);
-    const tint = PELLET_TINT.get(kind); // 0.6.1c: shot, slag, ember, spark
+    const tint = PELLET_TINT.get(kind) ?? (isRaceAmmo(kind) ? RACE_PELLET[kind] : undefined); // 0.6.1c; 0.8.0 H1 the race kinds
     if (tint) return orient(fromRows([".o.", "ohb", ".b."], { o: C.ink, h: tint[0], b: tint[1] }), dir);
     const [o, h, b] = kind === "plain" ? [C.ink, C.steel3, C.steel2] : HEAT[Math.max(0, Math.min(4, tier))];
     return orient(fromRows([".o.", "ohb", ".b."], { o, h, b }), dir);
@@ -227,7 +232,7 @@ export function flameCone(dir: number): Cv {
 /** SALVO RACK: a volley round (7x8, brass-banded) -- the same shell silhouette, marked as a volley shell. */
 export function volleySprite(kind: string, tier: number, dir: number): Cv {
   return cached(`volley:${kind}:${tier}:${dir}`, () => {
-    const o = kind === "plain" || kind === "thread" ? C.ink : HEAT[Math.max(0, Math.min(4, tier))][0];
+    const o = kind === "plain" || kind === "thread" || isRaceAmmo(kind) ? C.ink : HEAT[Math.max(0, Math.min(4, tier))][0]; // 0.8.0 H1
     return orient(fromRows(["..o..", ".oho.", "ohhBo", "ohBBo", "oBBdo", "oBBdo", ".odo.", "..o.."], {
       o, h: C.brass4, B: C.brass3, d: C.brass1,
     }), dir);
@@ -260,6 +265,7 @@ export function trailColors(kind: string, tier: number): readonly string[] {
   if (kind === "frost") return TRAIL_FROST;
   if (kind === "drag") return TRAIL_DRAG;
   if (kind === "limpet") return TRAIL_LIMPET;
+  if (isRaceAmmo(kind)) return RACE_TRAIL[kind]; // 0.8.0 H1
   return tier >= 3 ? TRAIL_HOT : TRAIL_WARM;
 }
 

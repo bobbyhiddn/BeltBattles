@@ -16,6 +16,7 @@ import {
   gateSprite, rigNozzle, rigTip, speedTint, turntable, wrenchIcon, type ArrowState, type BeltTint,
 } from "./sprites";
 import { heatTier, payloadHalo, payloadSprite } from "./ammo";
+import { raceChuteMouth } from "./raceArt"; // 0.8.0 H1
 import type { CruiserView, RigModel } from "./cruiser";
 
 /** 0.6.1d2: two cosmetic, build-screen-only cues threaded through CruiserView without touching
@@ -302,7 +303,8 @@ function drawChute(g: G, f: DeckFrame, k0: number, d0: number, id: string): void
   else localRect(f, lx + 9, ly + 2, 5, 8, box);
   rect(g, box.x, box.y, box.w, box.h, C.ink);
   rect(g, box.x + 1, box.y + 1, box.w - 2, box.h - 2, C.steel1);
-  const mouth = id === "kiln" || id === "slagpot" ? C.fire2 : id === "loom" ? C.ice : C.steel3; // 0.6.1c: slag glows
+  // 0.6.1c: slag glows; 0.8.0 H1: the CRUCIBLE's molten yellow, the WARDWORKS' rune blue
+  const mouth = id === "kiln" || id === "slagpot" ? C.fire2 : id === "loom" ? C.ice : raceChuteMouth(id) ?? C.steel3;
   if (box.w > box.h) rect(g, box.x + 2, box.y + 2, box.w - 4, 1, mouth);
   else rect(g, box.x + 2, box.y + 2, 1, box.h - 4, mouth);
 }

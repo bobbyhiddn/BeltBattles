@@ -1,11 +1,14 @@
 // Faction dressing for hull sprites: orc war paint, rivets, bow teeth and exhausts; elven
 // brass filigree, crystal lamps, side fins and glow ports. Kept off the turret mounts.
+// 0.8.0 H1: human rivets, brass bands, hazard stripes and smokestacks; dwarven masonry, iron caps, rune plates,
+// buttresses and forge vents (raceArt.ts, from the race-art branch).
 
 import { HEROES, type HeroId } from "../sim/content";
 import { turretSlots } from "../sim/deck";
 import { C, type FactionPalette } from "./palette";
 import { BOW, HULL_A, HULL_L, SIDE } from "./frame";
 import type { HullPainter } from "./hull";
+import { isArtRace, raceHullTrim, raceSpanRadius, slotSpan } from "./raceArt"; // 0.8.0 H1
 
 const A = HULL_A, L = HULL_L;
 
@@ -22,8 +25,14 @@ function turretSpans(hero: HeroId): [number, number][] {
 const clear = (spans: [number, number][], x0: number, x1: number) => spans.every(([a, b]) => x1 < a || x0 > b);
 
 export function hullDeco(p: HullPainter, hero: HeroId, P: FactionPalette): void {
+  const faction = HEROES[hero].faction;
+  // 0.8.0 H1: the race art's human and dwarf trim, kept off every turret slot with its own clearances (raceArt.ts)
+  if (isArtRace(faction)) {
+    const spans = turretSlots({ hero }).map((s) => slotSpan(s.col0, s.width, raceSpanRadius(s.td?.kind)));
+    return raceHullTrim(p, faction, P, spans);
+  }
   const spans = turretSpans(hero);
-  if (HEROES[hero].faction === "orc") orc(p, P, spans);
+  if (faction === "orc") orc(p, P, spans);
   else elf(p, P, spans);
 }
 

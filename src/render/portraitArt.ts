@@ -32,13 +32,16 @@ export function asColor(name: string): ColorName {
   return name as ColorName;
 }
 
-export type Base = "orc" | "elf";
+// 0.8.0 H1 (REQ-BFG-011): "human" (FOUNDRY's HUMAN GUILDS) and "dwarf" (BASTION's DWARVEN HOLDS) join the bases.
+export type Base = "orc" | "elf" | "human" | "dwarf";
 /** Colour roles a captain supplies to its faction base. */
 export interface Look { eye: ColorName; garment: ColorName; trim: ColorName; hair: ColorName }
 
 const SKIN: Record<Base, Record<"s" | "d" | "h" | "b", ColorName>> = {
   orc: { s: "rust3", d: "rust2", h: "rust4", b: "rust1" }, // rust-iron warband skin
   elf: { s: "verd4", d: "verd3", h: "white", b: "verd2" }, // verdigris skywright skin
+  human: { s: "skin2", d: "skin1", h: "skin3", b: "wood0" }, // weathered guild skin, dark brows
+  dwarf: { s: "skin2", d: "skin1", h: "skin3", b: "cop1" }, // ruddy hold skin under bushy ginger brows
 };
 
 // Half rows for x = 1..11 (mirrored onto x = 22..12), rows y = 1..22; the outline adds the
@@ -57,6 +60,22 @@ const HALF: Record<Base, string[]> = {
     ".ds...rrsss", "..ds..rssss", "..dss.rbbbs", "...dssskees", "....ddsssss", "......sssdh",
     "......dsssd", ".......ssss", ".......dskk", "........dss", ".........dd", ".....gggddd",
     "..gggggGGdd", ".ggggggggGG", "gggggggggGG", "ggggggggggg",
+  ],
+  // 0.8.0 H1. HUMAN GUILDS: a square-jawed face with plain ears under a close cap of hair (r), eyes with a dark pupil
+  // toward the nose, a work shirt (g) with a leather apron bib down the middle (G). After raceart's FOUNDRY bust.
+  human: [
+    "...........", "...........", ".......rrrr", ".....rrrrrr", "....rrrrrrr", "...rrrrrrrr",
+    "...rrssssss", "...rsbbbsss", "..dssseksss", "..dssssssss", "...dsssshss", "...dssssssd",
+    "...dsssssss", "....dssssss", "....dssssss", ".....dsssss", "......ddddd", "....gggGdss",
+    "..ggggggGGG", ".gggggggGGG", "ggggggggGGG", "ggggggggGGG",
+  ],
+  // DWARVEN HOLDS: a broad face, deep-set glinting eyes (e) under one heavy brow, and a great beard (r) from the cheeks
+  // over the chest, between stone pauldrons (g) with lighter rims (G). After raceart's BASTION bust.
+  dwarf: [
+    "...........", "...........", ".......rrrr", ".....rrrrrr", "....rrrrrrr", "...rrrrrrrr",
+    "...rbbbbbbb", "..dssskesss", "..dssssssss", "..rsssssshs", "..rrssssssd", "..rrrssssrr",
+    "..rrrrrrrrr", "..rrrrrrrrr", "..rrrrrrrrr", "...rrrrrrrr", "...rrrrrrrr", "..ggrrrrrrr",
+    ".gggGrrrrrr", "ggggGGrrrrr", "ggggGGGrrrr", "gggggGGGrrr",
   ],
 };
 
@@ -203,5 +222,42 @@ export const FEATURES: Record<string, Feature> = {
     for (let x = 6; x <= 17; x++) put(p, x, 4, c[1]);
     dots(p, c[2], [[5, 4], [18, 4]]);
     dots(p, c[3], [[19, 5], [20, 6], [20, 7], [21, 8]]);
+  },
+  // 0.8.0 H1. FOUNDRY hero (raceart's bust): a leather cap with a darker brim (its hair is the cap, c[0]), brass goggles
+  // with ice lenses pushed up on it (c[3]), a dark handlebar moustache over a red mouth, and a brass apron buckle
+  foundry: (p, c) => {
+    for (let x = 4; x <= 19; x++) put(p, x, 6, "wood1");
+    dots(p, "wood3", [[9, 3], [10, 3], [7, 4], [6, 5]]);
+    for (const x0 of [6, 14]) {
+      fill(p, x0, 4, 4, 2, c[3]);
+      put(p, x0 + 1, 4, "ice");
+      put(p, x0 + 2, 4, "white");
+      put(p, x0 + 1, 5, "ice");
+    }
+    dots(p, c[3], [[10, 4], [13, 4]]); // the strap between the lenses
+    for (let x = 8; x <= 15; x++) put(p, x, 13, "wood0");
+    dots(p, "wood0", [[7, 14], [8, 14], [15, 14], [16, 14], [6, 13], [17, 13], [6, 12], [17, 12]]);
+    dots(p, "wood1", [[9, 13], [14, 13]]);
+    dots(p, "maroon", [[10, 15], [11, 15], [12, 15], [13, 15]]);
+    dots(p, "yellow", [[11, 20], [12, 20]]);
+  },
+  // 0.8.0 H1. BASTION hero (raceart's bust): an iron helm (steel ramp) with a rune-lit brow plate, a big nose, a copper
+  // moustache over the beard, two braids bound in iron rings, and rune-blue eyes (the base's eye colour)
+  bastion: (p, c) => {
+    const dome: [number, number, number][] = [[2, 9, 14], [3, 7, 16], [4, 6, 17], [5, 5, 18]];
+    for (const [y, x0, x1] of dome) for (let x = x0; x <= x1; x++) put(p, x, y, "steel2");
+    for (let x = 4; x <= 19; x++) put(p, x, 6, "steel1");
+    dots(p, "steel3", [[9, 2], [8, 3], [7, 4], [6, 5], [10, 2]]);
+    dots(p, "steel0", [[16, 4], [17, 5], [15, 3]]);
+    fill(p, 11, 2, 2, 4, "rune2");
+    dots(p, "rune4", [[11, 2]]);
+    dots(p, "rune3", [[10, 3], [13, 3]]);
+    fill(p, 11, 9, 2, 3, "skin1");
+    dots(p, "skin3", [[11, 9]]);
+    for (let x = 7; x <= 16; x++) put(p, x, 12, "cop3");
+    dots(p, "cop3", [[6, 13], [17, 13]]);
+    for (let y = 14; y <= 21; y++) { put(p, 10, y, "cop1"); put(p, 13, y, "cop1"); }
+    dots(p, "steel3", [[10, 19], [13, 19]]);
+    dots(p, "ink", [[10, 20], [13, 20]]);
   },
 };

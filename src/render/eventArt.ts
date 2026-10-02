@@ -3,6 +3,7 @@
 // from the upper left, a 1 px ink outline on every prop. Everything is cached after first draw.
 
 import { C, FACTION } from "./palette";
+import type { Faction } from "../sim/content";
 import { bevel, disc, fromRows, hline, makeCanvas, outlined, px, rect, vline } from "./pixel";
 
 type Cv = HTMLCanvasElement;
@@ -37,8 +38,9 @@ export function crateIcon(): Cv {
 
 // ------------------------------------------------------------------ props
 
-/** Small side-view cruiser on treads, bow east (~42x22). Wrecked: dark, broken barrel, no glow. */
-export function miniCruiser(faction: "orc" | "elf", wrecked = false): Cv {
+/** Small side-view cruiser on treads, bow east (~42x22). Wrecked: dark, broken barrel, no glow. 0.8.0 H1: any faction
+ *  (a human or dwarf hull in its race palette). */
+export function miniCruiser(faction: Faction, wrecked = false): Cv {
   return cached(`p:cruiser:${faction}:${wrecked ? 1 : 0}`, () => {
     const P = FACTION[faction];
     const [c, g] = makeCanvas(40, 20);

@@ -6,6 +6,7 @@ import { C, FACTION } from "./palette";
 import { bevel, disc, ellipse, makeCanvas, rect, ring, type G } from "./pixel";
 import type { Facing } from "./frame";
 import type { Faction, TurretKind } from "../sim/content"; // races:
+import { isArtRace, raceTurretArt } from "./raceArt"; // 0.8.0 H1: FOUNDRY's MEDIUM guns, BASTION's HEAVY
 
 type Cv = HTMLCanvasElement;
 export const TS = 48; // square canvas
@@ -54,7 +55,9 @@ export function turretArt(kind: TurretKind, faction: Faction, f: Facing): Turret
   const k = `${kind}:${faction}:${f}`;
   let a = cache.get(k);
   if (!a) {
-    a = HEAVY_ART(kind) ? heavy(faction, f) : light(faction, f); // races:
+    // 0.8.0 H1: a human or dwarf hull's MEDIUM gun, and a dwarf HEAVY, are the race art's (raceArt.ts); every other
+    // turret, an orc's and an elf's included, is drawn as before (in the race palette on a human or dwarf hull)
+    a = (isArtRace(faction) ? raceTurretArt(kind, faction, f) : undefined) ?? (HEAVY_ART(kind) ? heavy(faction, f) : light(faction, f)); // races:
     cache.set(k, a);
   }
   return a;

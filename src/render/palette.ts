@@ -90,6 +90,35 @@ export const C = {
   belt1: "#161E27",
   belt2: "#26313C",
   belt3: "#3B4855",
+  // 0.8.0 H1 (REQ-BFG-011): the human and dwarf ramps from the race art (raceart 0c094b2, render/races/palette.ts RC
+  // and palette2.ts RC2). Blued, riveted steel (the human hull)
+  bsteel0: "#151C26",
+  bsteel1: "#222D3B",
+  bsteel2: "#344457",
+  bsteel3: "#50657C",
+  bsteel4: "#7D93A8",
+  // granite (the dwarf hull)
+  stone0: "#1C1916",
+  stone1: "#2E2924",
+  stone2: "#473F37",
+  stone3: "#6B5F52",
+  stone4: "#968775",
+  // rune light (the dwarf glow): periwinkle, bluer and colder than the elves' ice
+  rune0: "#1A2150",
+  rune1: "#2E3F9E",
+  rune2: "#5A74E8",
+  rune3: "#9DB0FF",
+  rune4: "#DCE3FF",
+  // skin (the human and dwarf portraits)
+  skin0: "#4A2C1E",
+  skin1: "#7C4B32",
+  skin2: "#B37552",
+  skin3: "#E0A77E",
+  // BASTION's hull plating: cool dwarven iron with a rune tint, apart from every hull-bar colour
+  plate0: "#1B2130",
+  plate1: "#4A5670",
+  plate2: "#8795B4",
+  plate3: "#C6D0EA",
 };
 
 export type ColorName = keyof typeof C;
@@ -132,11 +161,22 @@ const BASE_FACTION: Record<"orc" | "elf", FactionPalette> = { // races: renamed 
   },
 };
 
-// races: PLACEHOLDER palettes for the new factions until the race-art pass lands real ones.
+// races: the new factions' palettes. 0.8.0 H1: HUMAN (FOUNDRY) and DWARF (BASTION) are the race art's (raceart 0c094b2,
+// render/races/palette.ts RACE_PAL); BEASTFOLK and UNALIGNED stay PLACEHOLDERS until METRONOME and SIPHON ship (0.9.0).
 export const FACTION: Record<Faction, FactionPalette> = {
   ...BASE_FACTION,
-  human: BASE_FACTION.elf,
-  dwarf: BASE_FACTION.orc,
+  human: {
+    hull0: C.bsteel0, hull1: C.bsteel1, hull2: C.bsteel2, hull3: C.bsteel3, hull4: C.bsteel4,
+    trim0: C.brass1, trim1: C.brass2, trim2: C.brass3,
+    deck0: "#191D24", deck1: "#222730", deck2: "#2D333D",
+    glow: C.yellow,
+  },
+  dwarf: {
+    hull0: C.stone0, hull1: C.stone1, hull2: C.stone2, hull3: C.stone3, hull4: C.stone4,
+    trim0: C.steel0, trim1: C.steel1, trim2: C.steel2,
+    deck0: "#1D1A18", deck1: "#282420", deck2: "#342F2A",
+    glow: C.rune3,
+  },
   beastfolk: BASE_FACTION.orc,
   unaligned: BASE_FACTION.elf,
 };

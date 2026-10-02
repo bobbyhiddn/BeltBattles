@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { C, type ColorName } from "../src/render/palette";
-import { PORTRAIT_KEYS, portraitPixels, type PortraitKey } from "../src/render/portraits";
+import { PORTRAIT_HEROES, PORTRAIT_KEYS, portraitPixels, type PortraitKey } from "../src/render/portraits";
 import { HEROES } from "../src/sim/content";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
@@ -18,7 +18,9 @@ describe("captain portraits (24x24 pixel data)", () => {
     for (const id of RIVAL_IDS) expect(PORTRAIT_KEYS).toContain(id);
     for (const h of PLAYABLE_HEROES) expect(PORTRAIT_KEYS).toContain(h);
     expect(new Set(PORTRAIT_KEYS).size).toBe(PORTRAIT_KEYS.length);
-    expect(PORTRAIT_KEYS.length).toBe(RIVAL_IDS.length + PLAYABLE_HEROES.length);
+    // 0.8.0 H1: the heroes with portrait art (FOUNDRY and BASTION joined FURNACE and WEAVER; METRONOME and SIPHON have none yet)
+    expect([...PORTRAIT_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
+    expect(PORTRAIT_KEYS.length).toBe(RIVAL_IDS.length + PORTRAIT_HEROES.length);
   });
 
   it("each portrait is 24x24 and uses only palette colour names or null", () => {
@@ -64,17 +66,28 @@ describe("captain portraits (24x24 pixel data)", () => {
       expect(corner, id).toBe(rank === "elite" ? "amber" : rank === "boss" ? "plum4" : null);
       expect([pix(px, W - 1, 0), pix(px, 0, H - 1), pix(px, W - 1, H - 1)], id).toEqual([corner, corner, corner]);
     }
-    for (const h of PLAYABLE_HEROES as readonly PortraitKey[]) expect(pix(portraitPixels(h).px, 0, 0), h).toBe(null);
+    for (const h of PORTRAIT_HEROES as readonly PortraitKey[]) expect(pix(portraitPixels(h).px, 0, 0), h).toBe(null);
   });
 
-  it("orcs and elves keep their faction bases (rust skin with tusks, verdigris skin with long ears)", () => {
+  it("orcs and elves keep their faction bases (rust skin with tusks, verdigris skin with long ears); 0.8.0 H1: humans and dwarves have theirs", () => {
     for (const [k, p] of all) {
       const faction = k in HEROES ? HEROES[k as keyof typeof HEROES].faction : RIVALS[k as keyof typeof RIVALS].faction;
+      const n = (c: ColorName) => p.px.filter((x) => x === c).length;
       if (faction === "orc") {
-        expect(p.px.filter((c) => c === "rust3").length, k).toBeGreaterThan(40);
+        expect(n("rust3"), k).toBeGreaterThan(40);
         expect(p.px, k).toContain("bone");
+      } else if (faction === "human") { // FOUNDRY: guild skin, plain ears on both sides, a leather cap, brass goggles
+        expect(n("skin2"), k).toBeGreaterThan(40);
+        expect([pix(p.px, 3, 9), pix(p.px, W - 4, 9)], `${k} ears`).toEqual(["skin1", "skin1"]);
+        expect(n("wood2"), k).toBeGreaterThan(15);
+        expect(n("brass2"), k).toBeGreaterThan(8);
+      } else if (faction === "dwarf") { // BASTION: a great ginger beard, an iron helm with a rune, stone pauldrons
+        expect(n("cop2"), k).toBeGreaterThan(60);
+        expect(n("steel2"), k).toBeGreaterThan(20);
+        expect(p.px, k).toContain("rune2");
+        expect(n("stone3"), k).toBeGreaterThan(10);
       } else {
-        expect(p.px.filter((c) => c === "verd4").length, k).toBeGreaterThan(25);
+        expect(n("verd4"), k).toBeGreaterThan(25);
         expect(pix(p.px, 2, 7) ?? pix(p.px, 3, 8), `${k} left ear`).not.toBe(null);
       }
     }

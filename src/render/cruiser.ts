@@ -16,6 +16,7 @@ import { disc, type G } from "./pixel";
 import { HULL_L, TURRET_LY, hullBox, sx, sy, turnX, turnY, type Box, type DeckFrame } from "./frame";
 import { HULL_M, TREAD_HX, TREAD_HY0, TREAD_LEN, TREAD_W, hullFlash, hullRim, hullShade, hullSprite, treadStrip } from "./hull";
 import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./turret";
+import { RACE_PIP, isArtRace, isRaceAmmo, raceTurretLook } from "./raceArt"; // 0.8.0 H1: FOUNDRY's and BASTION's art
 import { coreFor } from "../sim/deck"; // 0.6.1b: the core socket
 import { starsOf } from "../sim/stars"; // 0.6.1b
 import { gemColor } from "./coreArt"; // 0.6.1b
@@ -222,6 +223,7 @@ function starPips(g: G, f: DeckFrame, px: number, py: number, u: number, v: numb
  *  drawTurrets adds; SLAG's orange, HOT SWAP's ember red and spark blue; drawTurrets passes `preset ?? ammo`); every
  *  other kind as before. */
 function payloadColor(ammo: string): string {
+  if (isRaceAmmo(ammo)) return RACE_PIP[ammo]; // 0.8.0 H1: ALLOY BLANK copper, ALLOY SLUG brass, BULWARK SLUG rune blue
   switch (ammo) {
     case "shot": return C.steel3;
     case "slag": return C.fire2;
@@ -252,6 +254,9 @@ export function drawTurrets(g: G, v: CruiserView): void {
       continue;
     }
     const art = turretArt(td.kind, h.faction, f.facing);
+    // 0.8.0 H1: a human or dwarf hull's turrets glow, charge and hold their pips as the race art says (raceArt.ts);
+    // null for an orc or elf hull, which draws exactly as before
+    const look = isArtRace(h.faction) ? raceTurretLook(td.kind, h.faction) : null;
     const px = Math.round(turretPivotX(f, td.col0, td.width)), py = Math.round(turretPivotY(f, td.col0, td.width));
     const ts = v.sim ? turretAt(v.sim, i) : undefined; // 0.6.2s: by slot
     const wind = v.windup ? v.windup[i] : 0;
@@ -261,22 +266,22 @@ export function drawTurrets(g: G, v: CruiserView): void {
     // wind-up (anticipation): a charge ring fills around the mount while the breech /
     // crystal glow ramps up; at full charge the barrel pulls back a pixel, then FIRE
     if (wind > 0.05) {
-      const ramp = td.kind === "heavy" ? HEAT_RAMP : CRYSTAL_RAMP;
+      const ramp = look ? look.ramp : td.kind === "heavy" ? HEAT_RAMP : CRYSTAL_RAMP;
       const lvl = Math.min(4, Math.floor(wind * 5));
-      const gr = glowRect(td.kind);
+      const gr = look ? look.glow : glowRect(td.kind);
       trect(g, f, px, py, gr[0], gr[1], gr[2], gr[3], ramp[lvl]);
       if (lvl >= 3 && Math.floor(v.t * 16) % 2) trect(g, f, px, py, gr[0] + 1, gr[1], Math.max(1, gr[2] - 2), 1, C.white);
-      const R = td.kind === "heavy" ? 9.5 : 6.5;
-      const steps = td.kind === "heavy" ? 36 : 24;
+      const R = look ? look.chargeR : td.kind === "heavy" ? 9.5 : 6.5;
+      const steps = (look ? look.chargeR >= 8 : td.kind === "heavy") ? 36 : 24;
       const lit = Math.round(steps * Math.min(1, wind));
-      g.fillStyle = lvl >= 4 ? C.white : td.kind === "heavy" ? C.fire3 : C.ice;
+      g.fillStyle = lvl >= 4 ? C.white : look ? look.chargeCol : td.kind === "heavy" ? C.fire3 : C.ice;
       for (let k = 0; k < lit; k++) {
         const a = -Math.PI / 2 + (k / steps) * Math.PI * 2;
         g.fillRect(Math.round(px + Math.cos(a) * R - 0.5), Math.round(py + Math.sin(a) * R - 0.5), 1, 1);
       }
     }
     // chamber pips: loaded payloads beside the mount (0.6.1p: one per window slot, EXT. CHAMBER and HOPPER included)
-    const pu = td.kind === "heavy" ? 12 : 9;
+    const pu = look ? look.pip : td.kind === "heavy" ? 12 : 9;
     const win = ts ? ts.window : td.window + gearStats(v.build, i).window;
     for (let k = 0; k < win; k++) {
       const pv = -4 + k * 4;
@@ -309,7 +314,7 @@ export function drawTurrets(g: G, v: CruiserView): void {
     // 0.6.1b: the core socket (ARSENAL.md §8.4): a 6x6 hexagon gem at the rear of the mount, on the side away
     // from the gear box, in the bought core's gem colour or the faction glow (signature core); its pips beside it
     const core = coreFor(v.build, i);
-    const su = td.kind === "heavy" ? 3 : 1, sv = pu - 8;
+    const su = look ? look.socket : td.kind === "heavy" ? 3 : 1, sv = pu - 8;
     socketGem(g, f, px, py, su, sv, gemColor(core?.def, v.model.hero));
     starPips(g, f, px, py, su - 9, sv + 2, starsOf(core)); // left of the gem (the chamber pips sit to its right)
     if (ts && ts.jamFx > 0 && Math.floor(v.t * 8) % 2) trect(g, f, px, py, -6, 4, 12, 2, C.red);
@@ -322,13 +327,24 @@ function slotTd(who: HeroId | Pick<Build, "hero" | "turrets">, i: number): Turre
   return s?.td ?? { col0: s?.col0 ?? 4, width: s?.width ?? 2, connectors: [], kind: "light", fireInterval: 0, window: 0, flight: 0, empty: true };
 }
 
+/** 0.8.0 H1: the barrel offset and tip of the turret a hull mounts: the race art's on a human or dwarf hull (one barrel
+ *  on its MEDIUM and on the dwarf HEAVY), today's elsewhere (twin barrels on a heavy). */
+function barrelOf(who: HeroId | Pick<Build, "hero" | "turrets">, td: TurretDef, barrel: number): [number, number] {
+  const faction = HEROES[typeof who === "string" ? who : who.hero].faction;
+  const look = isArtRace(faction) ? raceTurretLook(td.kind, faction) : null;
+  const twin = look ? look.twin : td.kind === "heavy";
+  return [twin ? (barrel % 2 ? 3.5 : -3.5) : 0, look ? look.tip : TURRET_TIP[td.kind]];
+}
+
 /** Muzzle tip of the turret in slot i (barrel 0/1 for twin heavies), screen space. 0.6.2s: pass the build. */
 export function muzzleX(f: DeckFrame, who: HeroId | Pick<Build, "hero" | "turrets">, i: number, barrel = 0): number {
   const td = slotTd(who, i);
-  return turretPivotX(f, td.col0, td.width) + turnX(f, td.kind === "heavy" ? (barrel % 2 ? 3.5 : -3.5) : 0, -TURRET_TIP[td.kind]);
+  const [u, tip] = barrelOf(who, td, barrel);
+  return turretPivotX(f, td.col0, td.width) + turnX(f, u, -tip);
 }
 
 export function muzzleY(f: DeckFrame, who: HeroId | Pick<Build, "hero" | "turrets">, i: number, barrel = 0): number {
   const td = slotTd(who, i);
-  return turretPivotY(f, td.col0, td.width) + turnY(f, td.kind === "heavy" ? (barrel % 2 ? 3.5 : -3.5) : 0, -TURRET_TIP[td.kind]);
+  const [u, tip] = barrelOf(who, td, barrel);
+  return turretPivotY(f, td.col0, td.width) + turnY(f, u, -tip);
 }

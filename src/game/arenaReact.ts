@@ -17,6 +17,11 @@ const COLD = [C.white, C.ice, C.cyan] as const;
 const STEEL = [C.steel3, C.steel2, C.white] as const;
 const DEBRIS_ORC = [C.rust3, C.steel2, C.rust4, C.steel1] as const;
 const DEBRIS_ELF = [C.verd3, C.brass3, C.verd4, C.steel2] as const;
+// 0.8.0 H1: blued steel and brass off a FOUNDRY hull, granite and iron off a BASTION's (as many colours as the others)
+const DEBRIS_HUMAN = [C.bsteel3, C.brass3, C.bsteel4, C.steel2] as const;
+const DEBRIS_DWARF = [C.stone3, C.steel2, C.stone4, C.rune2] as const;
+const debrisOf = (hero: string): readonly string[] =>
+  hero === "furnace" ? DEBRIS_ORC : hero === "foundry" ? DEBRIS_HUMAN : hero === "bastion" ? DEBRIS_DWARF : DEBRIS_ELF;
 const KO_DEBRIS = [C.steel2, C.rust3, C.steel1, C.fire3, C.bone] as const;
 const SHOCK = [C.ice, C.white, C.cyan] as const;
 
@@ -140,7 +145,7 @@ export function react(a: Arena, e: SimEvent): void {
       fx.sparks(x, y, e.heavy ? 6 : 3, e.heavy ? HOT : COLD, 60);
       if (e.heavy) {
         const hero = a.b.sides[e.side].build.hero;
-        fx.debris(x, y, e.big ? 9 : 5, hero === "furnace" ? DEBRIS_ORC : DEBRIS_ELF);
+        fx.debris(x, y, e.big ? 9 : 5, debrisOf(hero));
         fx.smoke(x, y, e.big ? 4 : 2, true, 12);
       }
       if (e.x > -2 && e.x < 122 && e.y > -2 && e.y < 122) fx.scorch(x, y, e.big ? 6 : e.heavy ? 5 : 3);

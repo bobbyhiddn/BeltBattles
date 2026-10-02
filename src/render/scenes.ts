@@ -5,7 +5,8 @@
 
 import { cellNoise } from "../core/rng";
 import type { EventId } from "../game/eventDefs";
-import type { HeroId } from "../sim/content";
+import { HEROES, type Faction, type HeroId } from "../sim/content";
+import { isArtRace } from "./raceArt"; // 0.8.0 H1
 import { C } from "./palette";
 import { bayer, flipX, makeCanvas, px, rect, type G } from "./pixel";
 import { coinIcon, gateSprite, itemIcon } from "./sprites";
@@ -15,7 +16,7 @@ type Cv = HTMLCanvasElement;
 const layers = new Map<string, Cv>();
 let flippedFoe: Record<string, Cv> = {};
 
-function foeCruiser(f: "orc" | "elf"): Cv {
+function foeCruiser(f: Faction): Cv {
   return (flippedFoe[f] ??= flipX(miniCruiser(f)));
 }
 
@@ -80,7 +81,9 @@ function staticLayer(id: EventId, w: number, h: number, hero: HeroId, offer: str
   const [cv, g] = makeCanvas(w, h);
   sky(g, w, h, id === "storm");
   const ry = roadY(h);
-  const mine = hero === "furnace" ? "orc" : "elf", foe = hero === "furnace" ? "elf" : "orc";
+  // 0.8.0 H1: a FOUNDRY or BASTION player's own cruiser in its race's colours; the road's foe stays as before
+  const faction = HEROES[hero].faction;
+  const mine: Faction = isArtRace(faction) ? faction : hero === "furnace" ? "orc" : "elf", foe = hero === "furnace" ? "elf" : "orc";
   put(g, miniCruiser(mine), 6, ry - 15);
   const cx = Math.round(w * 0.62);
   switch (id) {

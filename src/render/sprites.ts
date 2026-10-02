@@ -7,6 +7,7 @@ import { C, FACTION } from "./palette";
 import { drawCoreIcon } from "./coreArt"; // 0.6.1b
 import { drawTurretIcon } from "./turretIcon"; // 0.6.2s (REQ-BFG-031)
 import { drawFactoryArt, drawFactoryIcon } from "./factoryArt"; // 0.6.1c: the wave-1 factories
+import { raceFactoryArt } from "./raceArt"; // 0.8.0 H1: CRUCIBLE and WARDWORKS
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
   px, rect, ring, rot90, silhouette, vline, type G,
@@ -190,7 +191,8 @@ export function factorySprite(id: string, frameIdx: number, flash: boolean, star
   return cached(`fac:${id}:${f}:${flash ? 1 : 0}${s > 1 ? `:${s}` : ""}`, () => {
     if (id === "kiln") return drawKiln(f, flash);
     if (id === "loom") return drawLoom(f, flash);
-    return drawFactoryArt(id, f, flash, s) ?? drawPress(f, flash); // 0.6.1c: the wave-1 factories (factoryArt.ts)
+    // 0.8.0 H1: FOUNDRY's CRUCIBLE and BASTION's WARDWORKS (raceArt.ts); 0.6.1c: the wave-1 factories (factoryArt.ts)
+    return raceFactoryArt(id, f, flash) ?? drawFactoryArt(id, f, flash, s) ?? drawPress(f, flash);
   });
 }
 

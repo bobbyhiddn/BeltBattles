@@ -1,22 +1,23 @@
-// Captain portraits (0.6.0): 24x24 faces for every rival and both player heroes, for the
+// Captain portraits (0.6.0): 24x24 faces for every rival and the player heroes, for the
 // road-stop warlord picker, the NEXT BATTLE panel, the summary and the hero card. portraitPixels() is
 // pure data; portraitImage() paints it once onto a cached canvas with the pixel.ts helpers.
-// Nothing calls portraitImage yet: the 0.6.0 integration wires it in.
+// 0.8.0 H1 (REQ-BFG-011): the rivals' portraits show on the road cards, the NEXT BATTLE card and the battle intro; the
+// heroes' show on hero select (src/screens/hero.ts). No battle name plate shows a portrait (the Prime's decision Q2).
 
 import { C, type ColorName } from "./palette";
 import { makeCanvas, px } from "./pixel";
 import { FEATURES, PH, PW, asColor, at, blank, paintBase, put, type Base, type Look, type Px } from "./portraitArt";
-import { HEROES } from "../sim/content";
-import { PLAYABLE_HEROES } from "../sim/heroBuilds";
+import { HEROES, type Faction } from "../sim/content";
 import { RIVALS, RIVAL_IDS, type RivalId } from "../sim/rivals";
 
-/** Heroes with a portrait: the playable ones (PLAYABLE_HEROES, src/sim/heroBuilds.ts). The race
- *  heroes are in HeroId but dormant; they get portraits when they become playable (0.8.0). */
-export type PortraitHero = "furnace" | "weaver";
+/** Heroes with a portrait. 0.8.0 H1: FOUNDRY and BASTION joined FURNACE and WEAVER (the art is here before the roster
+ *  grows; METRONOME and SIPHON get theirs with 0.9.0). */
+export type PortraitHero = "furnace" | "weaver" | "foundry" | "bastion";
 export type PortraitKey = RivalId | PortraitHero;
+export const PORTRAIT_HEROES: readonly PortraitHero[] = ["furnace", "weaver", "foundry", "bastion"];
 
-/** Every portrait, rivals in roster order and then the playable heroes. */
-export const PORTRAIT_KEYS: PortraitKey[] = [...RIVAL_IDS, ...(PLAYABLE_HEROES as readonly PortraitHero[])];
+/** Every portrait, rivals in roster order and then the heroes. */
+export const PORTRAIT_KEYS: PortraitKey[] = [...RIVAL_IDS, ...PORTRAIT_HEROES];
 
 export interface Portrait {
   w: 24;
@@ -32,6 +33,8 @@ interface Spec { palette: string[]; look: [eye: Ref, garment: Ref, trim: Ref, ha
 const HERO_PORTRAIT: Record<PortraitHero, string[]> = {
   furnace: ["rust1", "steel2", "fire3", "brass3"], // welding goggles pushed up on the brow
   weaver: ["verd2", "brass3", "ice", "bone"], // brass loom-shuttle hairpin trailing thread
+  foundry: ["wood2", "bsteel2", "white", "brass2"], // leather cap, blue work shirt, brass goggles, leather apron
+  bastion: ["cop2", "stone3", "rune3", "stone4"], // ginger beard, stone pauldrons, rune-blue eyes
 };
 
 /** Which palette entry each captain uses for its eyes, garment, collar trim and hair. */
@@ -51,11 +54,17 @@ const LOOK: Record<PortraitKey, Spec["look"]> = {
   matriarch: [1, 0, 2, 0],
   furnace: [2, 1, 3, 1],
   weaver: [2, 0, 1, 0],
+  foundry: [2, 1, 0, 0], // white eyes, blue shirt, leather apron and cap
+  bastion: [2, 1, 3, 0], // rune eyes, stone pauldrons with lighter rims, ginger beard
 };
 
 function isHero(key: PortraitKey): key is PortraitHero {
-  return (PLAYABLE_HEROES as readonly string[]).includes(key);
+  return (PORTRAIT_HEROES as readonly string[]).includes(key);
 }
+
+/** The base a faction's faces are drawn on. 0.8.0 H1: humans and dwarves have their own; BEASTFOLK and UNALIGNED (no
+ *  portrait yet) would fall back to the elf base, as every non-orc did before. */
+const BASE: Record<Faction, Base> = { orc: "orc", elf: "elf", human: "human", dwarf: "dwarf", beastfolk: "elf", unaligned: "elf" };
 
 function spec(key: PortraitKey): { base: Base; palette: ColorName[]; look: Look; frame: Frame } {
   const hero = isHero(key);
@@ -65,7 +74,7 @@ function spec(key: PortraitKey): { base: Base; palette: ColorName[]; look: Look;
   const [eye, garment, trim, hair] = LOOK[key].map(ref);
   const rank = hero ? "hero" : RIVALS[key].rank;
   const frame: Frame = rank === "elite" ? "elite" : rank === "boss" ? "boss" : undefined;
-  return { base: faction === "orc" ? "orc" : "elf", palette, look: { eye, garment, trim, hair }, frame };
+  return { base: BASE[faction], palette, look: { eye, garment, trim, hair }, frame };
 }
 
 /** 1 px ink outline around every opaque pixel (outlined() in pixel.ts, as data). */

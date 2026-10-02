@@ -117,8 +117,9 @@ describe("race heroes and signature factories remain dormant while timing gear i
     }
   });
 
-  it("portraits cover the rivals and the playable heroes only", () => {
-    expect(PORTRAIT_KEYS.filter((k) => k in RACE_HEROES)).toEqual([]);
-    expect(PORTRAIT_KEYS.filter((k) => !(k in RIVALS))).toEqual([...PLAYABLE_HEROES]);
+  it("portraits cover the rivals and the heroes with art: 0.8.0 H1 adds FOUNDRY and BASTION, never METRONOME or SIPHON yet", () => {
+    expect(PORTRAIT_KEYS.filter((k) => k in RACE_HEROES)).toEqual(["foundry", "bastion"]);
+    expect(PORTRAIT_KEYS.filter((k) => !(k in RIVALS))).toEqual(["furnace", "weaver", "foundry", "bastion"]);
+    for (const h of PLAYABLE_HEROES) expect(PORTRAIT_KEYS).toContain(h);
   });
 });

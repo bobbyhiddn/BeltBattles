@@ -8,6 +8,7 @@ import { C, FACTION, type FactionPalette } from "./palette";
 import { bevel, disc, makeCanvas, rect, ring, silhouette, type G } from "./pixel";
 import { BOW, HULL_A, HULL_L, SIDE, STERN, type Facing } from "./frame";
 import { hullDeco } from "./hullDeco";
+import { RACE_DECK_SALT, isArtRace, raceInside } from "./raceArt"; // 0.8.0 H1: the human and dwarf hulls
 
 export const HULL_M = 6; // canvas margin for spikes and fins
 const A = HULL_A, L = HULL_L, M = HULL_M;
@@ -69,7 +70,9 @@ export class HullPainter {
 function inside(hero: HeroId, hx: number, hy: number): boolean {
   if (hx < 0 || hx >= A || hy < 0 || hy >= L) return false;
   const sl = L - 1 - hy;
-  if (HEROES[hero].faction === "orc") {
+  const faction = HEROES[hero].faction;
+  if (isArtRace(faction)) return raceInside(faction, hx, hy); // 0.8.0 H1: human chamfers, dwarf stepped corners
+  if (faction === "orc") {
     const cut = 9;
     if (hy < cut && (hx < cut - hy || hx > A - 1 - (cut - hy))) return false;
     if (sl < 3 && (hx < 3 - sl || hx > A - 1 - (3 - sl))) return false;
@@ -125,7 +128,8 @@ export function hullSprite(hero: HeroId, facing: Facing): Cv {
 
 function drawDeck(p: HullPainter, hero: HeroId, P: FactionPalette): void {
   p.R(SIDE - 1, BOW - 1, GRID * 12 + 2, GRID * 12 + 2, C.ink);
-  const salt = hero === "furnace" ? 3 : 7;
+  const faction = HEROES[hero].faction;
+  const salt = isArtRace(faction) ? RACE_DECK_SALT[faction] : hero === "furnace" ? 3 : 7; // 0.8.0 H1: the race art's
   for (let j = 0; j < GRID; j++) {
     for (let i = 0; i < GRID; i++) {
       const [x, y] = p.map(SIDE + i * 12, BOW + j * 12, 12, 12);
