@@ -7,7 +7,7 @@ import { ITEMS, RARITY_ARROWS, SHAPE_ARROWS, buyableModules, itemsSoldBy, rigSha
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { newRun, rollShop, type Run } from "../src/game/run";
 import { Rng } from "../src/core/rng";
-import { chaserRun, offerable, runSeed, type ChaserStep } from "../tools/luckReport";
+import { chaserRun, offerable, ownedDefs, runSeed, type ChaserStep } from "../tools/luckReport";
 import {
   ADD_WAVE3, DRAW, FAMS_TODAY, FAMS_WAVE3, PROJ, TAGS_TODAY, WAVE3, catalogueCount, chaseOne, counted, familyTableV2,
   install, poolOf, quotas, tagsFor, todayWares, typicalOne, uninstall, wares, withCatalogue, withDraw,
@@ -186,6 +186,8 @@ describe("wave3: the new NPCs (M5, tools/wave3Npcs.ts; REQ-BFG-024, 011)", () =>
       expect(problems(bad).some((p) => p.includes("first offered"))).toBe(true);
       const rich = { ...NPCS[2], buys: [...NPCS[2].buys, { def: "shieldwall", at: 5 }, { def: "thunderer", at: 5 }] };
       expect(problems(rich).length).toBeGreaterThan(0);
+      // cap's D1 check: the stand-in budget (maxGoldByDay) bites on its own, not only through the luck caps
+      expect(problems(rich).some((p) => p.includes("budget")), problems(rich).join("; ")).toBe(true);
       // merges: 2 copies are one 2-star part worth both
       const d = npcDeck(NPCS[0], 4, "ordinary");
       expect(d.parts).toContainEqual({ def: "twingauge", stars: 2 });
@@ -212,16 +214,23 @@ describe("wave3: the CHASER and the par player under a variant", () => {
         const box: { run?: Run } = {};
         const ledger: ChaserStep[] = [];
         const gate = (def: string, day: number) => { const u = w.get(def); return u !== undefined && u <= day && offerable(def, day); };
-        withDraw(w, () => box.run?.day ?? 1, () => chaserRun(hero, members, seed, {
+        const mine = withDraw(w, () => box.run?.day ?? 1, () => chaserRun(hero, members, seed, {
           ledger, start: (run) => { box.run = run; }, offerable: gate,
           observe: (run, s) => {
             expect(run.day).toBe(s.day);
             if (s.act === "buy") expect(w.get(s.def!)).toBeLessThanOrEqual(s.day);
+            // cap's D1 check: a reroll needs a MISSING member that the draw lets the caravan offer today
+            if (s.act === "reroll") {
+              const own = ownedDefs(run);
+              expect(members.some((m) => !own.has(m) && gate(m, s.day)), `${hero} ${seed} reroll on day ${s.day}`).toBe(true);
+            }
           },
         }));
         // every reroll had a missing member the caravan could offer that day
         for (const s of ledger.filter((x) => x.act === "reroll")) expect(members.some((m) => gate(m, s.day))).toBe(true);
         const c = chaseOne(hero, members, seed, true);
+        // cap's D1 check: chaseOne under the draw is exactly this gated run (the same gate, never a looser one)
+        expect({ full: c.full, owned: c.owned, rerolls: c.rerolls }).toEqual({ full: mine.day !== null, owned: mine.owned, rerolls: mine.rerolls });
         expect(c.inWares).toBe(members.every((m) => w.has(m)));
         if (c.full) expect(c.inWares).toBe(true); // a full set needs every member among the run's wares
       }
