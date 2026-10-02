@@ -75,13 +75,18 @@ describe("E1: plating on every hull (SideState.plate, the Prime's Q4)", () => {
     expect(bt.sides.map((s) => s.plate)).toEqual([newPlateState(), newPlateState()]);
   });
 
-  it("BASTION's plating is the same pool: RaceSide.plating IS SideState.plate (H1's plating bar reads either), no plate event", () => {
+  it("BASTION's plating is the same pool: RaceSide.plating IS SideState.plate (H1's plating bar reads either), no E1 plate event (the bulwark slug's CLANK is H1's)", () => {
     const bt = new Battle(heroStartBuild("bastion", 1), barge(), SEED);
     expect(bt.sides[0].race!.plating).toBe(bt.sides[0].plate);
-    let plates = 0;
-    while (bt.t < 20) { bt.step(); plates += bt.drainEvents().filter((e) => e.type === "plate").length; }
+    // 0.8.0 I1 (oracle c38b1df9f2e9c338): H1 M3's display-only CLANK names its gun; P1's E1 event never does
+    let plates = 0, clanks = 0;
+    while (bt.t < 20) {
+      bt.step();
+      for (const e of bt.drainEvents()) if (e.type === "plate") { if ("turret" in e) clanks++; else plates++; }
+    }
     expect(bt.sides[0].plate.gained).toBeGreaterThan(0);
     expect(plates).toBe(0); // a race hero fires what it fired before
+    expect(clanks).toBeGreaterThan(0); // not an empty stream: the bulwark slugs CLANK as on dae2177
     // a FURNACE facing SIPHON gets a race side for Drag: it shares the pool too
     const vs = new Battle(heroStartBuild("furnace", 1), heroStartBuild("siphon", 101), SEED);
     expect(vs.sides[0].race!.plating).toBe(vs.sides[0].plate);

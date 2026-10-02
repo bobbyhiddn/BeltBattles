@@ -8,7 +8,11 @@
 // Two worlds: this branch (no ITEMS entry carries a wave-3 id: the art is reachable by id through the sprite entry
 // points) and I1's (P1's 15 defs installed in memory, as P1's dormant switch keeps them: the deck and gun entry points
 // draw them too).
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+// 0.8.0 I1 M1 (VERIFIED-A1 section G item 4): P1's real defs are merged, so both worlds are now the game's own: the first
+// test is flipped (every wave-3 id IS an ITEMS entry, equal field by field to A1's copy in tools/wave3Defs.ts), the "I1's
+// world" block reads the real defs (no install, no remove), and "existing" means every ITEMS entry that is not wave 3's,
+// whether or not the switch lists them. Every other assertion is as A1 wrote it.
+import { describe, expect, it, vi } from "vitest";
 import { C, type ColorName } from "../src/render/palette";
 import { factoryFlashSil, factorySprite, gateSil, gateSprite, itemIcon } from "../src/render/sprites";
 import {
@@ -23,11 +27,12 @@ import { FEATURES, PH, PW, blank, paintBase, type Base, type Look } from "../src
 import { cruiserModel, drawTurrets, turretPivotX, turretPivotY, type CruiserView } from "../src/render/cruiser";
 import { drawMachinery } from "../src/render/machinery";
 import { footX, footY, frameForHull, localRect, type Box, type DeckFrame } from "../src/render/frame";
-import { CELL, GRID, HEROES, ITEMS, type HeroId } from "../src/sim/content";
-import { DX, DY, cloneBuild, hitsOfRig, inGrid, key, kx, ky, occupancy, rigHits, rotField, turretSlots, type Build } from "../src/sim/deck";
+import { CELL, GRID, HEROES, ITEMS, WAVE3_IDS, isWave3, wave3Live, type HeroId } from "../src/sim/content";
+import { DX, DY, cloneBuild, hitsOfRig, inGrid, key, kx, ky, occupancy, rigHits, rotField, stokeHits, turretSlots, type Build } from "../src/sim/deck";
+import { stokeSpots } from "../src/sim/beltside"; // 0.8.0 I1: STOKER's place (oracle cb613c9cbd33ca88)
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
-import { P1_WAVE3_IDS, P1_WAVE3_ITEMS, installWave3Defs, removeWave3Defs } from "../tools/wave3Defs";
+import { P1_WAVE3_IDS, P1_WAVE3_ITEMS } from "../tools/wave3Defs"; // 0.8.0 I1: A1's copy, compared with the real defs
 
 // ------------------------------------------------------------------------------------------------- a software raster
 
@@ -156,21 +161,24 @@ function wellDrawn(c: RasterCanvas, w: number, h: number, min: number, what: str
   for (const col of colours(c)) expect(PALETTE.has(col), `${what}: ${col} is not a palette colour`).toBe(true);
 }
 
-const DEFS = Object.values(ITEMS);
+// 0.8.0 I1: the existing parts are every entry but wave 3's (with the switch on Object.values lists wave 3 too)
+const DEFS = Object.values(ITEMS).filter((d) => !isWave3(d.id));
 const EXISTING = (kind: string): string[] => DEFS.filter((d) => d.kind === kind).map((d) => d.id);
 
 // ======================================================================================================= this branch
 
-describe("wave 3's 15 modules: P1's ids, drawn at the game's entry points (no wave-3 def on this branch)", () => {
-  it("the ids are P1's, by kind (tools/wave3Defs.ts holds P1's entries verbatim); no ITEMS entry carries one here", () => {
+describe("wave 3's 15 modules: P1's ids, drawn at the game's entry points (P1's real defs, merged at I1)", () => {
+  it("the ids are P1's, by kind; every ITEMS entry of wave 3 is P1's def, equal to A1's copy (tools/wave3Defs.ts)", () => {
     expect([...WAVE3_ART_IDS]).toEqual([...P1_WAVE3_IDS]);
+    expect([...WAVE3_ART_IDS]).toEqual([...WAVE3_IDS]); // 0.8.0 I1: the real ids, in P1's order
     expect(WAVE3_ART_IDS).toHaveLength(15);
     for (const [ids, kind] of [[WAVE3_RIGS, "gate"], [WAVE3_FACTORIES, "factory"], [WAVE3_CORES, "core"], [WAVE3_GEAR, "mod"]] as const) {
-      for (const id of ids) expect(P1_WAVE3_ITEMS[id].kind, id).toBe(kind);
+      for (const id of ids) expect(ITEMS[id].kind, id).toBe(kind);
     }
-    expect(WAVE3_RIGS.map((id) => P1_WAVE3_ITEMS[id].shape)).toEqual(["I", "I", "I", "L", "II", "II", "T", "X"]);
+    expect(WAVE3_RIGS.map((id) => ITEMS[id].shape)).toEqual(["I", "I", "I", "L", "II", "II", "T", "X"]);
     for (const id of WAVE3_ART_IDS) {
-      expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true); // 0.8.0 I1: flipped (the real defs)
+      expect(ITEMS[id], id).toEqual(P1_WAVE3_ITEMS[id]);
       expect(isWave3Art(id), id).toBe(true);
     }
     for (const id of [...DEFS.map((d) => d.id), "zz-none", "constructor", "toString"]) expect(isWave3Art(id), id).toBe(false);
@@ -343,9 +351,17 @@ function withFactory(hero: HeroId, id: string, stars: number): { b: Build; uid: 
   return { b, uid };
 }
 
-/** `hero`'s start deck with rig `id` on the free cell beside a belt where its arrows work the most tiles. */
+/** `hero`'s start deck with rig `id` on the free cell beside a belt where its arrows work the most tiles.
+ *  0.8.0 I1 (oracle cb613c9cbd33ca88): a STOKER works factories, never belts (P1's E3: deck.ts rigHits skips it), so it
+ *  stands at its best beltside.ts stokeSpots spot, beside the hero's factory. */
 function withRig(hero: HeroId, id: string, stars: number): { b: Build; x: number; y: number } {
   const base = heroStartBuild(hero, 1);
+  if (ITEMS[id].gate?.stoke) {
+    const s = stokeSpots(base, id)[0];
+    const b = cloneBuild(base);
+    b.items.push({ uid: 990, def: id, x: s.x, y: s.y, ...(stars > 1 ? { stars } : {}), ...rotField(id, s.rot) });
+    return { b, x: s.x, y: s.y };
+  }
   const occ = occupancy(base);
   let best: { b: Build; x: number; y: number; n: number } | null = null;
   for (let k = 0; k < GRID * GRID; k++) {
@@ -369,13 +385,12 @@ const region = (c: RasterCanvas, x: number, y: number, w: number, h: number): st
   return out.join(",");
 };
 
-describe("with P1's 15 defs in memory (I1's world), the deck and gun entry points draw the wave-3 art", () => {
-  beforeAll(() => installWave3Defs());
-  afterAll(() => removeWave3Defs());
-
-  it("the defs are in ITEMS as P1's dormant switch keeps them (own, not enumerable), and gone again after", () => {
+describe("with P1's 15 defs in ITEMS (I1's world), the deck and gun entry points draw the wave-3 art", () => {
+  // 0.8.0 I1: the real defs are merged; the install and remove of A1's copies are gone (they would shadow, then delete,
+  // the real entries)
+  it("the defs are in ITEMS as P1's switch keeps them: own entries, listed exactly when wave 3 is live", () => {
     for (const id of P1_WAVE3_IDS) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
-    expect(Object.keys(ITEMS).some((id) => isWave3Art(id))).toBe(false);
+    expect(Object.keys(ITEMS).some((id) => isWave3Art(id))).toBe(wave3Live());
   });
 
   it("TWIN MOULD and ARMOR PRESS in a start deck's factory place: their sprite at the factory's cells, their chutes' glow", () => {
@@ -405,12 +420,13 @@ describe("with P1's 15 defs in memory (I1's world), the deck and gun entry point
     }
   });
 
-  it("each rig beside a belt: its sprite at its cell (clear of the nozzles), and 2 and 3 stars add the pips and the rim", () => {
+  it("each rig at work (beside a belt; STOKER beside a factory): its sprite at its cell (clear of the nozzles), and 2 and 3 stars add the pips and the rim", () => {
     for (const id of WAVE3_RIGS) {
       const cells: string[] = [];
       for (const stars of [1, 2, 3]) {
         const { b, x, y } = withRig("furnace", id, stars);
-        expect(hitsOfRig(b, 990, rigHits(b)).length, `${id} works a belt`).toBeGreaterThan(0);
+        if (ITEMS[id].gate?.stoke) expect(stokeHits(b).filter((h) => h.uid === 990).length, `${id} works a factory`).toBeGreaterThan(0);
+        else expect(hitsOfRig(b, 990, rigHits(b)).length, `${id} works a belt`).toBeGreaterThan(0);
         const c = deck(b);
         const sx = Math.round(footX(FRAME, x, y)), sy = Math.round(footY(FRAME, x, y));
         const spr = R(gateSprite(id, 0, false));
@@ -452,9 +468,8 @@ describe("with P1's 15 defs in memory (I1's world), the deck and gun entry point
   it("itemIcon draws wave3Art's icon even when ITEMS holds the def: it asks wave3Art before drawCoreIcon and drawFactoryIcon", async () => {
     vi.resetModules();
     const content = await import("../src/sim/content");
-    for (const id of P1_WAVE3_IDS) {
-      Object.defineProperty(content.ITEMS, id, { value: P1_WAVE3_ITEMS[id], enumerable: false, writable: true, configurable: true });
-    }
+    // 0.8.0 I1: the fresh module already holds P1's real defs (no copies installed)
+    for (const id of P1_WAVE3_IDS) expect(Object.prototype.hasOwnProperty.call(content.ITEMS, id), id).toBe(true);
     const sprites = await import("../src/render/sprites");
     const art = await import("../src/render/wave3Art");
     const coreArt = await import("../src/render/coreArt");

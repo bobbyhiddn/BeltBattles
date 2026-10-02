@@ -100,7 +100,12 @@ function fight(a: Build, b: Build, seed: number): unknown[] {
   const tally: Record<string, number> = {};
   while (!bt.over && bt.ticks < 60 * 200) {
     bt.step();
-    for (const e of bt.events) tally[e.type] = (tally[e.type] ?? 0) + 1;
+    for (const e of bt.events) {
+      // 0.8.0 I1: skip H1 M3's display-only CLANK (a bulwark slug's `plate` event names its gun), which v070-rc never fired;
+      // an E1 `plate` event (no gun) still counts. Oracle c38b1df9f2e9c338
+      if (e.type === "plate" && "turret" in e) continue;
+      tally[e.type] = (tally[e.type] ?? 0) + 1;
+    }
     bt.events.length = 0;
   }
   const race = (s: Battle["sides"][number]) => (s.race ? [sorted(s.race.plating), s.race.foundry.fusions, s.race.foundry.blanksLoaded] : null);

@@ -19,7 +19,9 @@ import { newRun } from "../src/game/run";
 
 /** ItemDef's fields (src/sim/content.ts). */
 const FIELDS: (keyof ItemDef)[] = ["id", "name", "kind", "rarity", "price", "size", "desc", "merchant", "shape", "gate", "factory", "mod", "core", "turret", "reason", "supply", "levels", "tags"];
-const TAGS: ModuleTag[] = ["BURN", "SHOCK", "POISON", "FRAY", "EDGE", "SPEED", "HAUL", "SPLIT", "BURST", "HARASS", "GUARD", "TIMING", "VOLUME"];
+// 0.8.0 I1 (oracle c38b1df9f2e9c338): family map v2's seven names (VERIFIED-D1 Q1), written out, so a new tag needs a
+// deliberate edit here; none names a race, faction or hero
+const TAGS: ModuleTag[] = ["FORGE", "HARASS", "SWARM", "BURST", "TEMPO", "TWIN", "PLATE"];
 
 /** The shop, merchant and draw code: file and the functions (or const arrows) in it. */
 const SOURCES: [string, string[]][] = [
@@ -74,7 +76,7 @@ function definition(src: string, name: string): string {
 }
 
 describe("REQ-BFG-021: no shop, merchant or draw code reads a race, faction or hero field of a module", () => {
-  it("a module has no race, faction or hero field: only ItemDef's own keys, and effect-word tags", () => {
+  it("a module has no race, faction or hero field: only ItemDef's own keys, and family tags (map v2)", () => {
     for (const d of Object.values(ITEMS)) {
       for (const k of Object.keys(d)) expect(FIELDS as string[], `${d.id}.${k}`).toContain(k);
       for (const t of d.tags ?? []) expect(TAGS, `${d.id} tag ${t}`).toContain(t);
