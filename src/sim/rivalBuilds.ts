@@ -388,8 +388,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
   // day 6), latched so their slugs land together. Synergy: the TWIN LATCH between them from day 3, the TWIN MOULD, and
   // TWIN GAUGES on the matched Kiln belt (day 1, 2 stars from day 3; a second gauge on day 6). The pairs pay a TWIN
-  // TRIGGER from day 5 and a COMPOUND BREECH from day 8; a whetstone, a temper, bellows, a pincer, quench and a long haul
-  // fill in.
+  // TRIGGER from day 5; a whetstone, a temper (2 stars on day 9), bellows, a pincer, a counterweight (day 7), a long haul
+  // (day 8), quench, grease and a second temper (day 9) fill in, and on day 10 a RAMPART takes gun 2, fed by a DOUBLE
+  // STAMP. (No COMPOUND BREECH: from day 8 it lifted his dusk deck over the stand-ins' 80% ceiling.)
   lockjaw: {
     hero: "furnace", crates: 0, synergy: ["twinlatch", "twinmould", "twingauge"],
     factories: [F("kiln", 2, 6, [2, 5, "RU4RU"])],
@@ -397,7 +398,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(1, "twingauge", 3, 0, 1), G(1, "whetstone", 2, 1, 1), X(2, F("twinmould", 6, 6, [7, 5, "L2U5"]), 1),
       G(3, "twinlatch", 4, 5), G2(3, "twingauge", 3, 0), G(4, "temper", 2, 2, 1), G(4, "bellows", 6, 0),
       M(5, "twintrigger", 0), G(5, "pincer", 5, 6), G2(6, "twinmould", 6, 6), G(6, "twingauge", 2, 3, 1),
-      M(8, "compound", 0), G(9, "quench", 4, 2), G(9, "longhaul", 4, 4),
+      G(7, "counterweight", 4, 3), G(8, "longhaul", 4, 4), G(9, "quench", 4, 2), G2(9, "temper", 2, 2),
+      G(9, "grease", 2, 4, 2), G(9, "temper", 6, 4, 3), T(10, "rampart", 1), X(10, F("doublestamp", 6, 1, [8, 1, "U"])),
     ],
   },
   // LEAF MAIL: a PLATE ROLLER on the loom's left belt plates her hull from day 1, and plated her guns fire faster.
