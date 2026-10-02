@@ -314,7 +314,7 @@ export const FEATURES: Record<string, Feature> = {
     dots(p, "fire2", [[10, 21], [14, 21]]);
   },
   // THANE KARSK: a grey-bearded thane behind a riveted tower shield (held across his left side, brass rivets, a steel
-  // boss), a plate-breaking hammer with a rusty head on his right shoulder
+  // boss), a plate-breaking hammer on his right shoulder: an iron sledge head with a rusted band, as PLATE BREAKER's
   karsk: (p, c) => {
     fill(p, 2, 13, 7, 10, c[0]);
     for (let y = 13; y <= 22; y++) put(p, 2, y, "steel2");
@@ -323,10 +323,10 @@ export const FEATURES: Record<string, Feature> = {
     dots(p, c[2], [[3, 14], [7, 14], [3, 18], [7, 18], [3, 21], [7, 21]]);
     dots(p, c[1], [[5, 17], [4, 16], [5, 16]]);
     for (let y = 15; y <= 22; y++) put(p, 19 + ((y - 15) >> 2), y, "wood2");
-    fill(p, 16, 12, 6, 3, c[3]);
-    dots(p, "rust4", [[16, 12], [17, 12], [18, 12]]);
-    dots(p, "rust1", [[21, 14], [20, 14], [21, 13]]);
-    put(p, 16, 13, "steel3");
+    for (let x = 16; x <= 21; x++) { put(p, x, 12, "steel3"); put(p, x, 13, "steel2"); put(p, x, 14, "steel1"); }
+    dots(p, c[3], [[18, 12], [19, 12], [18, 13], [19, 13], [18, 14], [19, 14]]);
+    dots(p, "rust1", [[19, 14]]);
+    dots(p, "white", [[16, 12]]);
   },
   // LOCKJAW: an orc whose iron jaw-brace (a bar over and under the mouth, straps up the cheeks) locks shut with a twin
   // latch (two brass catches), two hot slugs clenched in his teeth between the tusks
