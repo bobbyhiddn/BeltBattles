@@ -70,7 +70,11 @@ describe("race heroes and signature factories remain dormant while timing gear i
     }
   });
 
-  it("the road fork captains play a playable hero without race signature factories", () => {
+  // 0.8.0 N1 (oracle 94b9559fbb7da299 (2)): FOUNDRY's and BASTION's captains (BRASSWICK, MASTER VOSS, GRIMHOLD, THANE KARSK)
+  // fly their own hero's CRUCIBLE or WARDWORKS, so a deck may hold its own hero's signature factory and no other race
+  // factory; a prize is never a race factory, and ESCAPEMENT and LONGCASE stay out of every captain deck
+  const foreignRaceParts = (b: Build): string[] => raceParts(b).filter((d) => d !== HEROES[b.hero].factory);
+  it("the road fork captains play a playable hero without race signature factories (but their own hero's)", () => {
     for (let seed = 1; seed <= 200; seed++) {
       for (const day of DAYS) {
         for (const beaten of day >= 9 ? [null, 8] : [null]) {
@@ -78,13 +82,21 @@ describe("race heroes and signature factories remain dormant while timing gear i
           for (const id of [fork.warlords.easy, fork.warlords.medium, fork.warlords.hard]) {
             const deck = warlordDeck(id, day);
             expect(PLAYABLE.has(RIVALS[id].hero) && PLAYABLE.has(deck.hero), `${id} d${day}`).toBe(true);
-            expect(raceParts(deck), `${id} d${day}`).toEqual([]);
+            expect(foreignRaceParts(deck), `${id} d${day}`).toEqual([]);
             expect(hardParts(id, deck, day).filter((d) => RACE_ITEM.has(d)), `${id} d${day}`).toEqual([]);
           }
         }
       }
     }
-    for (const id of RIVAL_IDS) for (const day of rivalDays(id)) expect(raceParts(rivalBuild(id, day)), `${id} d${day}`).toEqual([]);
+    for (const id of RIVAL_IDS) for (const day of rivalDays(id)) {
+      const b = rivalBuild(id, day);
+      expect(foreignRaceParts(b), `${id} d${day}`).toEqual([]);
+      expect([...b.items, ...b.mods].map((p) => p.def).filter((d) => d === "escapement" || d === "longcase"), `${id} d${day}`).toEqual([]);
+    }
+    // the bite: another hero's signature in a captain deck still fails
+    const stray = rivalBuild("brasswick", 5);
+    stray.items.push({ uid: 777, def: "wardworks", x: 6, y: 8 });
+    expect(foreignRaceParts(stray)).toEqual(["wardworks"]);
   });
 
   it("road events never give a race signature factory: every event x 100 seeds x days 1-10", () => {
@@ -104,12 +116,13 @@ describe("race heroes and signature factories remain dormant while timing gear i
     expect(given).toBeGreaterThan(0); // salvage, swap and smuggler parts were drawn
   });
 
-  it("the dusk foe (seeded draw): stand-ins are FURNACE or WEAVER captains with no race part; pool ghosts are playable heroes with no race part but their own signature", () => {
+  // 0.8.0 N1 (oracle 94b9559fbb7da299 (3)): the four race warlords stand in at dusk too (VERIFIED-D1 Q9)
+  it("the dusk foe (seeded draw): stand-ins are playable-hero captains with no race part except their own signature; pool ghosts are playable heroes with no race part but their own signature", () => {
     for (let seed = 1; seed <= 500; seed++) {
       for (const day of DAYS) {
         const f = standInFoe(seed, day);
-        expect(["furnace", "weaver"].includes(f.hero) && f.build.hero === f.hero, `s${seed} d${day}`).toBe(true);
-        expect(raceParts(f.build), `s${seed} d${day}`).toEqual([]);
+        expect(PLAYABLE.has(f.hero) && f.build.hero === f.hero, `s${seed} d${day}`).toBe(true);
+        expect(raceParts(f.build).filter((d) => d !== HEROES[f.hero].factory), `s${seed} d${day}`).toEqual([]);
       }
     }
     // A pool of the game's own dusk snapshots (ghostOf), one earlier run per playable hero and day. 0.8.0 H1: a FOUNDRY or

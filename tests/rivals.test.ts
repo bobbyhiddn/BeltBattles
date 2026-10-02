@@ -23,15 +23,20 @@ function budget(day: number): number {
 
 describe("rival roster", () => {
   it("fills Easy, Medium and Hard from both factions; the Matriarch is Hard on days 8-10 only", () => {
-    expect(RIVAL_IDS.length).toBe(13);
+    // 0.8.0 N1 (BRIEF-wave3-N1 section 3, the expected roster changes): 19 captains; BRASSWICK joins Easy, GRIMHOLD Medium,
+    // MASTER VOSS and THANE KARSK Hard (4 / 5 / 7); LOCKJAW and THISTLEMAIL stand in only and hold no slot (difficultyOf null)
+    expect(RIVAL_IDS.length).toBe(19);
     // Part 4: SOOTJAW moved up to Medium and RATCHET down to Easy (the per-day ladder).
-    expect(warlordPool("easy")).toEqual(["nettle", "grubnose", "ratchet"]);
-    expect(warlordPool("medium")).toEqual(["sootjaw", "sparkfang", "lacewing", "emberlyn"]);
-    expect(warlordPool("hard")).toEqual(["mothqueen", "bulwark", "silkshade", "longtooth", "highspire"]);
-    for (const d of DIFFICULTIES) expect(new Set(warlordPool(d).map((id) => RIVALS[id].faction)).size).toBe(2);
+    expect(warlordPool("easy")).toEqual(["nettle", "grubnose", "ratchet", "brasswick"]);
+    expect(warlordPool("medium")).toEqual(["sootjaw", "sparkfang", "lacewing", "emberlyn", "grimhold"]);
+    expect(warlordPool("hard")).toEqual(["mothqueen", "bulwark", "silkshade", "longtooth", "highspire", "voss", "karsk"]);
+    // every pool keeps both of the old factions (orc and elf); N1: humans join Easy and Hard, dwarves Medium and Hard
+    for (const d of DIFFICULTIES) for (const f of ["orc", "elf"]) expect(warlordPool(d).map((id) => RIVALS[id].faction), `${d} ${f}`).toContain(f);
+    expect(DIFFICULTIES.map((d) => new Set(warlordPool(d).map((id) => RIVALS[id].faction)).size)).toEqual([3, 3, 4]);
+    expect(RIVAL_IDS.filter((id) => RIVALS[id].standInOnly)).toEqual(["lockjaw", "thistlemail"]);
     for (const id of RIVAL_IDS) {
       const r = RIVALS[id];
-      const want = r.rank !== "regular" || r.tier === 3 ? "hard" : r.tier === 1 ? "easy" : "medium";
+      const want = r.standInOnly ? null : r.rank !== "regular" || r.tier === 3 ? "hard" : r.tier === 1 ? "easy" : "medium";
       expect(difficultyOf(id), id).toBe(want);
       expect(rivalDays(id), id).toEqual(id === "matriarch" ? [8, 9, 10] : DAYS);
     }
@@ -168,7 +173,9 @@ describe("road-stop warlords and stand-in ghosts (200 seeds)", () => {
         }
       });
     }
-    expect(seen.size).toBe(RIVAL_IDS.length); // every captain is offered in some run
+    // every road captain is offered in some run; 0.8.0 N1: the two stand-in-only captains never are
+    expect(seen.size).toBe(RIVAL_IDS.filter((id) => !RIVALS[id].standInOnly).length);
+    for (const id of ["lockjaw", "thistlemail"] as RivalId[]) expect(seen.has(id), id).toBe(false);
     expect(warlordOffer(7, 0)).toEqual(warlordOffer(7, 1)); // days clamp to 1-10
     expect(warlordOffer(7, 99)).toEqual(warlordOffer(7, 10));
   });
@@ -209,8 +216,9 @@ describe("road-stop warlords and stand-in ghosts (200 seeds)", () => {
         seen.add(id);
       });
     }
-    expect(seen.size).toBe(RIVAL_IDS.length - 1); // all 12 stand in somewhere
-    expect(new Set([...seen].map((id) => RIVALS[id].faction)).size).toBe(2); // both factions: mirrors stay
+    expect(seen.size).toBe(RIVAL_IDS.length - 1); // all 12 stand in somewhere (0.8.0 N1: all 18)
+    // both factions: mirrors stay (0.8.0 N1: orc, elf, human and dwarf captains all stand in)
+    expect(new Set([...seen].map((id) => RIVALS[id].faction)).size).toBe(4);
   });
 
   it("the warlord and stand-in streams leave the shop and battle streams alone", () => {

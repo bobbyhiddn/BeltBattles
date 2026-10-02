@@ -9,6 +9,7 @@ import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInP
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, deckCost, maxGoldByDay, standInBuild, standInGhost } from "../src/sim/rivals";
 import { inStandInPool, standInFoe } from "../src/game/ghosts";
+import { STAND_IN_HEROES } from "../src/net/fallback";
 import { chooseFoe, startDusk } from "../src/game/day";
 import { migrateRun, newRun } from "../src/game/run";
 import { routeProblems } from "../src/game/routeCheck";
@@ -28,15 +29,22 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
     expect(STAND_IN_POOL_DAYS).toBe(RUN_DAYS);
   });
 
+  // 0.8.0 N1 (oracle 94b9559fbb7da299 (4a)): a stand-in fights its captain's named build (standInBuild), never a pool deck,
+  // and the pool (untouched) serves the async fallback, whose stand-in heroes are STAND_IN_HEROES. So the invariant is: every
+  // STAND_IN_HEROES hero and every FURNACE or WEAVER captain's hero is in the pool, and FOUNDRY and BASTION are the only
+  // stand-in heroes outside it (their four captains never use it); a fifth such hero turns this red.
   it("covers the hero of every captain that can stand in (every one but the Matriarch): no fallback in 0.6", () => {
-    const heroes = new Set<HeroId>();
+    const heroes = new Set<HeroId>(), outside = new Set<HeroId>();
     for (const id of RIVAL_IDS) {
       if (id === "matriarch") continue;
       heroes.add(RIVALS[id].hero);
+      if (!inStandInPool(RIVALS[id].hero)) { outside.add(RIVALS[id].hero); continue; }
       expect(STAND_IN_POOL_HEROES).toContain(RIVALS[id].hero);
-      expect(inStandInPool(RIVALS[id].hero)).toBe(true);
     }
-    expect([...heroes].sort()).toEqual(["furnace", "weaver"]);
+    for (const h of STAND_IN_HEROES) expect(STAND_IN_POOL_HEROES, h).toContain(h);
+    for (const h of ["furnace", "weaver"] as HeroId[]) expect(inStandInPool(h), h).toBe(true);
+    expect([...outside].sort()).toEqual(["bastion", "foundry"]);
+    expect([...heroes].sort()).toEqual(["bastion", "foundry", "furnace", "weaver"]);
   });
 
   it("prints the pool's recorded vsPar per hero and day (mean and minimum of standInPool(hero, day); no fights)", () => {
@@ -120,8 +128,10 @@ describe("standInFoe: the day's captain with its named build (200 seeds x days 1
     }
     expect(n).toBe(2000);
     // both heroes stand in on every day, and the seed spreads the stand-ins over each hero's six captains
-    expect(picked.size).toBe(2 * RUN_DAYS);
-    for (const s of picked.values()) expect(s.size).toBeGreaterThanOrEqual(3);
+    // 0.8.0 N1 (oracle 94b9559fbb7da299 (4b)): all four heroes stand in on every day; FURNACE and WEAVER have seven
+    // captains each (at least 3 distinct decks a day), FOUNDRY and BASTION two each (at least 2)
+    expect(picked.size).toBe(4 * RUN_DAYS);
+    for (const [k, s] of picked) expect(s.size, k).toBeGreaterThanOrEqual(k.startsWith("foundry@") || k.startsWith("bastion@") ? 2 : 3);
   });
 
   it("is deterministic, and returns copies: mutating a deck never changes the next call", () => {
@@ -136,6 +146,9 @@ describe("standInFoe: the day's captain with its named build (200 seeds x days 1
         a.build.mods.length = 0;
         a.build.hullBonus = 999;
         expect(J(standInFoe(seed, day))).toBe(before);
+        // 0.8.0 N1 (oracle 94b9559fbb7da299 (4c)): the pool's own pick, only for a hero the pool holds (a FOUNDRY or
+        // BASTION captain never uses it)
+        if (!STAND_IN_POOL_HEROES.includes(a.hero)) continue;
         const p = standInPick(a.hero, day, seed);
         const pj = J(p);
         p.routes.length = 0;

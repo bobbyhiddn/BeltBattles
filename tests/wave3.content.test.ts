@@ -17,7 +17,7 @@ import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { EVENTS, SMUGGLER_EFFECT, UPGRADE, salvagePool, smugglerParts, smugglerPool, swapPart } from "../src/game/eventDefs";
 import { newRun, rollShop } from "../src/game/run";
 import { hardParts, topParts, warlordDeck } from "../src/game/road";
-import { RIVAL_IDS, rivalBuild, rivalDays } from "../src/sim/rivals";
+import { RIVALS, RIVAL_IDS, rivalBuild, rivalDays, standInBuild } from "../src/sim/rivals";
 import { warlordBuild } from "../src/sim/ai";
 import { standInPool } from "../src/sim/standInPool";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
@@ -226,14 +226,26 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
   // (VERIFIED-D1 Q8), so its clause ("no stand-in deck holds a wave-3 part") gives way to two checks: the regrown pool
   // holds all 15 wave-3 modules, and with the switch off every pool deck holding one is refused, one "not in the game yet"
   // error per wave-3 part and no other error (the switch causes the refusal). The warlord clauses stay until N1.
-  it("no warlord prize or warlord deck holds a wave-3 part; the regrown stand-in pool holds all 15, and the switch off refuses each such deck for them alone", () => {
+  // 0.8.0 N1 (oracle 94b9559fbb7da299 (8)): the warlord clause stays for the 13 captains of BASE (decks and prizes). The six
+  // wave-3 captains are built on wave 3 (REQ-BFG-024): every deck they field, road and stand-in, on every day it appears,
+  // holds at least one of the 15 wave-3 modules tagged TWIN or PLATE (a tag alone is too loose: the v2 guards carry PLATE
+  // too); their prizes may be wave-3 parts and are not pinned.
+  const SIX = new Set(["brasswick", "voss", "grimhold", "karsk", "lockjaw", "thistlemail"]);
+  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds all 15, and the switch off refuses each such deck for them alone", () => {
     const parts = (b: Build) => [...b.items.map((p) => p.def), ...b.mods.map((m) => m.def), ...(b.turrets ?? []).map((t) => t.def)];
+    const family = (b: Build) => parts(b).filter((d) => isWave3(d) && (ITEMS[d].tags ?? []).some((t) => t === "TWIN" || t === "PLATE"));
     for (const id of RIVAL_IDS) for (const day of rivalDays(id)) {
+      if (SIX.has(id)) {
+        const decks = RIVALS[id].standInOnly ? [standInBuild(id, day)] : [warlordDeck(id, day), standInBuild(id, day)];
+        for (const b of decks) expect(family(b).length, `${id} day ${day}`).toBeGreaterThan(0);
+        continue;
+      }
       const deck = warlordDeck(id, day);
       expect(parts(deck).filter(isWave3), `${id} day ${day}`).toEqual([]);
       expect([...topParts(deck, 9), ...hardParts(id, deck, day, 4)].filter(isWave3), `${id} day ${day} prize`).toEqual([]);
       expect(parts(rivalBuild(id, day)).filter(isWave3)).toEqual([]);
     }
+    expect(RIVAL_IDS.filter((id) => SIX.has(id))).toEqual([...SIX]);
     const inPool = new Set<string>();
     let decks = 0;
     for (const hero of PLAYABLE_HEROES) for (let day = 1; day <= 10; day++) {

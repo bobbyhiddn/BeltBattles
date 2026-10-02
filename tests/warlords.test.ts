@@ -102,7 +102,8 @@ describe("warlords: rewards", () => {
         expect(defs(run)).toEqual([...inv0, parts[i]]);
       }
     }
-    expect(seen.size).toBe(5); // every Hard captain of days 1-7 was checked
+    // every Hard captain of days 1-7 was checked (0.8.0 N1, oracle 94b9559fbb7da299 (6): MASTER VOSS and THANE KARSK join)
+    expect(seen.size).toBe(7);
     // eslint-disable-next-line no-console
     if (short.length) console.log(`Hard decks with fewer than 2 giveable parts: ${[...new Set(short)].join(", ")}`);
   });

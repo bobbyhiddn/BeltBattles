@@ -256,7 +256,8 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
   const FIELDS = fieldsOf(), EXTRA = FIELDS.filter((h) => !HEROES.includes(h)); // 0.8.0 N1: --fields
   for (const day of days) {
     const t0 = performance.now();
-    const warlords = RIVAL_IDS.filter((id) => rivalDays(id).includes(day) && pick(id));
+    // 0.8.0 N1: a stand-in-only captain (difficultyOf null: LOCKJAW, THISTLEMAIL) is never a warlord, only a stand-in
+    const warlords = RIVAL_IDS.filter((id) => rivalDays(id).includes(day) && difficultyOf(id) !== null && pick(id));
     const standIns = RIVAL_IDS.filter((id) => id !== "matriarch" && pick(id));
     const pool = day === 1 && !only ? HEROES.flatMap((h) => standInPool(h, day).map((e, i) => ({ tag: `pool/${h}#${i}`, hero: h, build: e.build }))) : [];
     const decks = [

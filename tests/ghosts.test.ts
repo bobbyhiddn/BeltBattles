@@ -100,7 +100,9 @@ describe("pickGhost", () => {
     expect(f.build.hullBonus % 25).toBe(0); // whole paid plating (R1)
     expect(f.name).toBe(RIVALS[id].name);
     const heroes = new Set(Array.from({ length: 30 }, (_, i) => standInFoe(i, 1).hero));
-    expect(heroes.size).toBe(2); // seeded: both heroes show up, mirror matches included
+    // seeded: both heroes show up, mirror matches included (0.8.0 N1, oracle 94b9559fbb7da299 (5): FOUNDRY's and BASTION's
+    // captains stand in too, so all four)
+    expect(heroes.size).toBe(4);
   });
 
   it("a ghost's build is fought exactly as submitted", () => {

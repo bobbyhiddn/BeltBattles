@@ -11,9 +11,10 @@ import { discountGain, gmax, roadCap, roadCapHoard, roadOptions, warlordPays, ty
 //  1. gmax counts road parts as gold for the discount (roadCap - roadCapHoard);
 //  2. gmax's gold-only plan is not the plan the deck took (roadCapHoard - "free": the consistent plan with roadCap's
 //     Hard slot, the best captain every day and a free SABOTAGE);
-//  3. the Hard slot's rotation (rivals.ts slotOrder and warlordOffer: one shuffle of the five Hard captains on days 1-5,
-//     the next shuffle's head on days 6-7, never yesterday's captain; after the Matriarch is beaten any captain but
-//     yesterday's): roadCap takes the best captain on every day ("free" - "rot");
+//  3. the Hard slot's rotation (rivals.ts slotOrder and warlordOffer: one shuffle of the seven Hard captains on days 1-7
+//     (0.8.0 N1, oracle 94b9559fbb7da299 (9); before: one shuffle of the five on days 1-5 and the next shuffle's head on
+//     days 6-7, never yesterday's captain); after the Matriarch is beaten any captain but yesterday's): roadCap takes the
+//     best captain on every day ("free" - "rot");
 //  4. a free SABOTAGE: roadCap takes the better of each captain's decks with and without it ("rot" - "exact").
 // On 3fbd553 and 7bcde98, 3 and 4 cost nothing. On 40d2b2c (TUNE-C: Hard warlord decks at good luck) one captain alone pays
 // the day's best part on several days (HIGH SPIRE 6 on days 2-4, LONGTOOTH 10 on days 8-10), so the rotation costs gold;
@@ -203,7 +204,9 @@ function permutations<T>(xs: readonly T[]): T[][] {
 }
 
 /** Every Hard slot a seed can give days 1..7 (rivals.ts slotOrder): days 1-5 one shuffle of the five Hard captains,
- *  days 6-7 the head of the next shuffle, whose first captain is never day 5's: 120 x 16 = 1920 rotations. */
+ *  days 6-7 the head of the next shuffle, whose first captain is never day 5's: 120 x 16 = 1920 rotations. 0.8.0 N1: with
+ *  seven Hard captains days 1-7 are one shuffle of the seven, the first seven entries of each rotation here (every order
+ *  of the seven is one of them); the two entries after them fall past day 7 and are never read. */
 const ROTATIONS: RivalId[][] = permutations(HARD).flatMap((p) => HARD.filter((a) => a !== p[4]).flatMap((a) => HARD.filter((c) => c !== a).map((c) => [...p, a, c])));
 
 /**
@@ -342,13 +345,14 @@ describe("roadCap's slack per day (REPORT.md §2; v070-rel: re-derived on 40d2b2
 
 // Pinned per day (REPORT.md §2; output-v070-rel/REPORT.md §2 has the old and new values with their causes). A content change
 // that moves them is reviewed on purpose.
-/** roadCap - the best consistent plan (062m: 0 0 0 1 3 6 9 10 12 15). */
-const SLACK: number[] = [0, 0, 0, 2, 4, 6, 8, 10, 12, 14];
+/** roadCap - the best consistent plan (062m: 0 0 0 1 3 6 9 10 12 15). 0.8.0 N1 (oracle 94b9559fbb7da299 (9)): with
+ *  seven Hard captains the rotation costs less (BASE 9855129: 0 0 0 2 4 6 8 10 12 14); roadCap itself is unchanged. */
+const SLACK: number[] = [0, 0, 0, 1, 3, 5, 7, 9, 11, 14];
 /** of which: road parts counted as gold in gmax, roadCap - roadCapHoard (062m: 0 0 0 0 2 4 7 9 9 12). */
 const LIQUID: number[] = [0, 0, 0, 0, 2, 3, 4, 7, 8, 9];
 /** of which: gmax's separate gold plan, roadCapHoard - free (062m: 0 0 0 1 1 2 2 1 3 3). */
 const MISMATCH: number[] = [0, 0, 0, 1, 1, 2, 2, 1, 2, 3];
-/** of which: the Hard rotation, free - rot (062m: 0 on every day). */
-const ROTATION: number[] = [0, 0, 0, 1, 1, 1, 2, 2, 2, 2];
+/** of which: the Hard rotation, free - rot (062m: 0 on every day). 0.8.0 N1 (BASE 9855129: 0 0 0 1 1 1 2 2 2 2). */
+const ROTATION: number[] = [0, 0, 0, 0, 0, 0, 1, 1, 1, 2];
 /** Hard captains whose day-before deck (SABOTAGE) offers a pricier part than their own (062m: none). */
 const SABOTAGE_PRICIER: string[] = ["bulwark d9: 4 -> 5"];

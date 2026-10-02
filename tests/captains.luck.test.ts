@@ -6,7 +6,7 @@
 // merchant can first ride), and every deck but the Matriarch's against maxGoldByDay (R1).
 
 import { describe, expect, it } from "vitest";
-import { ITEMS, rarityWeights, type ItemDef } from "../src/sim/content";
+import { HEROES, ITEMS, rarityWeights, type ItemDef } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, difficultyOf, luckOf, maxGoldByDay, rivalBuild, rivalDays, rivalLoadout, standInBuild, type RivalId } from "../src/sim/rivals";
 import { LUCKS, PLANS, dayOwned, firstDay, type Luck, type Upgrade } from "../src/sim/rivalBuilds";
 import { LUCK_CAPS } from "../src/sim/harness/luckCapsData";
@@ -110,7 +110,9 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
     for (const id of RIVAL_IDS) {
       const plan = PLANS[id];
       plan.factories.forEach((f, i) => {
-        if (i === 0 && f.def === ({ furnace: "kiln", weaver: "loom" } as Record<string, string>)[plan.hero]) return;
+        // 0.8.0 N1 (oracle 94b9559fbb7da299 (1)): the plan's own hero's signature factory (KILN, LOOM, and now FOUNDRY's
+        // CRUCIBLE and BASTION's WARDWORKS) is never caravan stock; it was { furnace: "kiln", weaver: "loom" }
+        if (i === 0 && f.def === HEROES[plan.hero].factory) return;
         const at = f.at ?? 1; // 0.8.0 I1 M3: a base factory owned from day `at` (rivalBuilds.ts FactoryPlan.at)
         if (!SOLD.has(f.def)) bad.push(`${id}: day-${at} factory ${f.def} is not caravan stock`);
         else if (firstOfferDay(ITEMS[f.def]) > at) bad.push(`${id}: day-${at} factory ${f.def} is first offered on day ${firstOfferDay(ITEMS[f.def])}`);

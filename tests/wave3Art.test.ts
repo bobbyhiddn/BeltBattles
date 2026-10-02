@@ -510,13 +510,18 @@ function baseSkin(base: Base): Map<number, ColorName> {
 }
 
 describe("the six new NPC portraits (D1's ids, on their race's base)", () => {
-  it("are D1's NPCs, pending: their hero and palette as D1 planned, not on the roster or PORTRAIT_KEYS until N1 adds them", () => {
-    expect([...WAVE3_NPC_IDS]).toEqual(D1.map(([id]) => id));
+  // 0.8.0 N1 (BRIEF-wave3-N1 section 3, VERIFIED-A1 G item 1): the pending test flips. The six are rivals now, with D1's hero
+  // and A1's palette (WAVE3_NPC_PORTRAIT), on PORTRAIT_KEYS after the 13, and WAVE3_NPC_IDS is empty (nothing is pending)
+  it("are D1's NPCs, now captains: their hero and palette as D1 planned, on the roster and on PORTRAIT_KEYS, none pending", () => {
+    expect([...WAVE3_NPC_IDS]).toEqual([]);
     for (const [id, hero, palette] of D1) {
       expect(WAVE3_NPC_PORTRAIT[id as keyof typeof WAVE3_NPC_PORTRAIT], id).toEqual({ hero, palette });
-      expect(Object.prototype.hasOwnProperty.call(RIVALS, id), `${id} is already a rival: N1 takes it off WAVE3_NPC_IDS`).toBe(false);
-      expect(PORTRAIT_KEYS as string[], id).not.toContain(id);
+      expect(Object.prototype.hasOwnProperty.call(RIVALS, id), `${id} is a rival`).toBe(true);
+      const r = RIVALS[id as keyof typeof RIVALS];
+      expect([r.hero, r.portrait.palette], id).toEqual([hero, palette]);
+      expect(PORTRAIT_KEYS as string[], id).toContain(id);
     }
+    expect((PORTRAIT_KEYS as string[]).slice(13, 19)).toEqual(D1.map(([id]) => id));
     // every FEATURES key is a rival, a hero with a portrait, or a pending wave-3 NPC, and each of those has one
     const known = new Set<string>([...RIVAL_IDS, ...PORTRAIT_HEROES, ...WAVE3_NPC_IDS]);
     for (const k of Object.keys(FEATURES)) expect(known.has(k), `FEATURES.${k} is nobody's`).toBe(true);
@@ -587,6 +592,9 @@ describe("the six new NPC portraits (D1's ids, on their race's base)", () => {
       seen.set(s, k);
       expect(portraitPixels(k).px.map((c) => c ?? "-").join(","), k).toBe(s);
     }
-    expect(seen.size).toBe(PORTRAIT_KEYS.length + 6);
+    // 0.8.0 N1: the six are on PORTRAIT_KEYS now (13 + 6 captains and 4 heroes), so no pending face adds to the count
+    for (const [id] of D1) expect([...seen.values()], id).toContain(id);
+    expect(seen.size).toBe(PORTRAIT_KEYS.length);
+    expect(seen.size).toBe(13 + 6 + 4);
   });
 });

@@ -5,8 +5,9 @@
 
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
-import { RIVAL_IDS, deckCost, rivalBuild, standInBuild, type RivalId } from "../src/sim/rivals";
-import { PLANS } from "../src/sim/rivalBuilds";
+import type { Build } from "../src/sim/deck";
+import { RIVAL_IDS, deckCost, luckOf, rivalBuild, standInBuild, type RivalId } from "../src/sim/rivals";
+import { PLANS, dayOwned, type RivalPlan } from "../src/sim/rivalBuilds";
 import { firstOfferDay, planDefs, swapCandidates, swapLegal, synergySwap } from "../src/sim/harness/synergy";
 import { starsOf } from "../src/sim/stars";
 
@@ -18,12 +19,41 @@ const CASES: { id: RivalId; day: number; pve: boolean }[] = [
 ];
 const deckOf = (c: { id: RivalId; day: number; pve: boolean }) => (c.pve ? rivalBuild(c.id, c.day) : standInBuild(c.id, c.day));
 
+/** The defs the plan's ORDINARY-luck decks ever own: its base factories and every upgrade ordinary luck owns. */
+function ordinaryDefs(plan: RivalPlan): Set<string> {
+  const out = new Set(plan.factories.map((f) => f.def));
+  for (const u of plan.upgrades) {
+    if (dayOwned(u, "ordinary") === Infinity) continue;
+    for (const d of [u.gate?.[0], u.mod?.[0], u.fuseGate?.[0], u.fuseMod?.[0], u.factory?.def, u.turret?.[0]]) if (d) out.add(d);
+  }
+  return out;
+}
+const defsIn = (b: Build) => new Set([...b.items, ...b.mods].map((p) => p.def));
+
 describe("the synergy check's swaps (harness/synergy.ts)", () => {
-  it("every build holds all its synergy parts by day 9 (the Iron Matriarch: day 10)", () => {
+  // 0.8.0 N1 (oracle 94b9559fbb7da299 (10)): each synergy part is checked on the deck of the luck that buys it. A part the
+  // ordinary-luck plan buys is on the stand-in deck (standInBuild) by day 9; a part bought only at good luck (at most one
+  // per plan, and only for a captain whose road deck runs at good luck) is on the good-luck road deck by day 9 (THANE
+  // KARSK's SHIELD WALL: BASTION's ordinary epic+ cap of 2 holds his PLATE BREAKER and ARMOR PRESS). The 13 buy every
+  // synergy part at ordinary luck, so they read as before; the Matriarch keeps her road-deck reading (she never stands in).
+  it("every build holds all its synergy parts by day 9 (the Iron Matriarch: day 10), each on the deck of the luck that buys it", () => {
     for (const c of CASES.filter((x) => x.day !== 5)) {
-      const defs = new Set([...deckOf(c).items, ...deckOf(c).mods].map((p) => p.def));
-      for (const def of PLANS[c.id].synergy ?? []) expect(defs.has(def), `${c.id} d${c.day}: ${def}`).toBe(true);
+      const plan = PLANS[c.id], syn = plan.synergy ?? [];
+      if (c.pve) {
+        for (const def of syn) expect(defsIn(rivalBuild(c.id, c.day)).has(def), `${c.id} d${c.day}: ${def}`).toBe(true);
+        continue;
+      }
+      const goodOnly = syn.filter((def) => !ordinaryDefs(plan).has(def));
+      expect(goodOnly.length, `${c.id}: good-luck-only synergy parts ${goodOnly.join(", ")}`).toBeLessThanOrEqual(1);
+      if (goodOnly.length) expect(luckOf(c.id), `${c.id}: a good-luck-only synergy part needs a good-luck road deck`).toBe("good");
+      for (const def of syn) {
+        const deck = goodOnly.includes(def) ? rivalBuild(c.id, c.day) : deckOf(c);
+        expect(defsIn(deck).has(def), `${c.id} d${c.day}: ${def}${goodOnly.includes(def) ? " (good luck: the road deck)" : ""}`).toBe(true);
+      }
     }
+    // the 13 buy every synergy part at ordinary luck; of the six, only THANE KARSK has a good-luck-only one: SHIELD WALL
+    const goodOnlyOf = Object.fromEntries(RIVAL_IDS.filter((id) => id !== "matriarch").map((id) => [id, (PLANS[id].synergy ?? []).filter((d) => !ordinaryDefs(PLANS[id]).has(d))]).filter(([, g]) => g.length));
+    expect(goodOnlyOf).toEqual({ karsk: ["shieldwall"] });
   });
 
   it("candidates: same kind, never a synergy part or a race part, offerable by the day; off-plan and unused ones at the part's price", () => {

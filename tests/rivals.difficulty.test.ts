@@ -126,7 +126,9 @@ describe("warlord difficulty ladder, day by day (reference = the FURNACE par fie
     }
     // eslint-disable-next-line no-console
     console.log(lines.join("\n"));
-    expect(lines.length).toBe(2 + RUN_DAYS * 14 + (RUN_DAYS - MATRIARCH_DAY + 1));
+    // 0.8.0 N1 (oracle 94b9559fbb7da299 (7)): 16 road captains a day (the 12 and BRASSWICK, GRIMHOLD, MASTER VOSS, THANE
+    // KARSK; LOCKJAW and THISTLEMAIL never ride the road), so 18 lines a day (14 before): 2 + 10 x 18 + 3 = 185
+    expect(lines.length).toBe(2 + RUN_DAYS * 18 + (RUN_DAYS - MATRIARCH_DAY + 1));
   });
 
   it("the Iron Matriarch is measured on days 8-10 only", () => {

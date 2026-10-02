@@ -311,6 +311,75 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       ),
     ],
   },
+  // ---------------------------------------------------------------- 0.8.0 N1: the six wave-3 captains
+  // D1's day-by-day purchases (DESIGN-wave3 5.2), each part placed by capsearch where it fights best against the FURNACE
+  // par field (N1 M2); grown to their slots' bands in M3.
+  // Easy (tier 1), FOUNDRY. MATCHED POUR: the Crucible's two mirrored belts into gun 1, a TWIN GAUGE on one, a TWIN MOULD
+  // into gun 2's two intakes from day 3, TWIN TRIGGER on gun 1 from day 5.
+  brasswick: {
+    hero: "foundry", crates: 0, synergy: ["twingauge", "twinmould", "twintrigger"],
+    factories: [F("crucible", 2, 6, [2, 5, "U5"], [3, 5, "U5"])],
+    upgrades: [
+      G(1, "twingauge", 1, 0, 1), G(2, "whetstone", 4, 1, 3), X(3, F("twinmould", 6, 2, [6, 1, "U"], [7, 1, "U"])), G2(4, "twingauge", 1, 0),
+      M(5, "twintrigger", 0), G(6, "pincer", 5, 0, 1), G(6, "temper", 8, 1, 3), M(7, "seamwelder", 1), G2(8, "twinmould", 6, 2),
+      M2(9, "twintrigger", 0), G(10, "longhaul", 8, 0),
+    ],
+  },
+  // Hard (tier 3), FOUNDRY. LOCKSTEP: the Crucible's belts run up columns 1 and 4 so a TWIN LATCH at (3,2) works both, a
+  // TWIN TRIGGER on gun 1, a TWIN MOULD into gun 2 from day 5 and a COMPOUND BREECH from day 6.
+  voss: {
+    hero: "foundry", crates: 0, synergy: ["twinlatch", "twintrigger", "compound"],
+    factories: [F("crucible", 2, 6, [2, 5, "LU3RU2"], [4, 6, "U5LU"])],
+    upgrades: [
+      G(1, "twingauge", 1, 0, 1), G(1, "whetstone", 4, 0, 2), G(2, "twinlatch", 3, 2), M(3, "twintrigger", 0),
+      X(5, F("twinmould", 7, 2, [6, 2, "U2"], [8, 1, "LU"]), 1), G2(5, "twingauge", 1, 0), M(6, "compound", 0), M(7, "seamwelder", 1),
+      G(7, "pincer", 5, 2, 3), M2(8, "twintrigger", 0), G2(10, "twinmould", 7, 2),
+    ],
+  },
+  // Medium (tier 2), BASTION. ANVIL WALL: a PLATE ROLLER and a TOLLBOOTH on the bulwark belt, ANVIL BREECH in the socket
+  // from day 2, SPALL CATCHER from day 4, an ARMOR PRESS into connector 5 from day 5.
+  grimhold: {
+    hero: "bastion", crates: 0, synergy: ["plateroller", "anvil", "spallcatcher"],
+    factories: [F("wardworks", 4, 6, [4, 5, "U5"])],
+    upgrades: [
+      G(1, "plateroller", 3, 0, 1), G(1, "tollbooth", 3, 1, 1), M(2, "anvil", 0), G(3, "whetstone", 3, 2, 1), G(3, "braceframe", 5, 2, 2),
+      G2(4, "plateroller", 3, 0), M(4, "spallcatcher", 0), X(5, F("armorpress", 6, 6, [6, 5, "U4LU"])), M2(6, "anvil", 0),
+      G(7, "quench", 5, 3), G(7, "temper", 3, 3, 1), G(8, "heatjacket", 5, 5), M2(9, "spallcatcher", 0), G(10, "platebreaker", 5, 4),
+    ],
+  },
+  // Hard (tier 3), BASTION. SHIELD WALL: PLATE ROLLER and PINCER on the bulwark belt, a BRACE FRAME, STEAM BREECH in the
+  // socket, PLATE BREAKER from day 5, an ARMOR PRESS into connector 5 on day 9.
+  karsk: {
+    hero: "bastion", crates: 0, synergy: ["shieldwall", "platebreaker", "armorpress"],
+    factories: [F("wardworks", 4, 6, [4, 5, "U5"])],
+    upgrades: [
+      G(1, "plateroller", 3, 0, 1), G(1, "pincer", 3, 1, 1), G(2, "braceframe", 3, 2), M(3, "steambreech", 0), G(3, "temper", 5, 2, 3),
+      G2(4, "plateroller", 3, 0), M(5, "spallcatcher", 0), G(5, "platebreaker", 3, 4), G2(7, "braceframe", 3, 2), G(7, "quench", 3, 3),
+      ...good(G(8, "shieldwall", 5, 3)), X(9, F("armorpress", 6, 6, [6, 5, "U4LU"])),
+    ],
+  },
+  // Dusk stand-in only, FURNACE. TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into
+  // connector 5 (day 2), a TWIN LATCH between them from day 3 so their slugs land as pairs.
+  lockjaw: {
+    hero: "furnace", crates: 0, synergy: ["twinlatch", "twinmould", "twingauge"],
+    factories: [F("kiln", 2, 6, [2, 5, "RU4RU"])],
+    upgrades: [
+      G(1, "twingauge", 3, 0, 1), G(1, "whetstone", 2, 1, 1), X(2, F("twinmould", 6, 6, [7, 5, "L2U5"]), 1), G(3, "twinlatch", 4, 5),
+      G2(4, "twingauge", 3, 0), G(4, "temper", 2, 2, 1), M(5, "twintrigger", 0), M(6, "compound", 0), G(7, "pincer", 5, 6),
+      G(7, "quench", 4, 2), G2(8, "twinlatch", 4, 5), G(9, "longhaul", 4, 4), M2(9, "twintrigger", 0), G(10, "bellows", 6, 0),
+    ],
+  },
+  // Dusk stand-in only, WEAVER. LEAF MAIL: a PLATE ROLLER on a loom belt, STEAM BREECH on gun 1, SPALL CATCHER from day 4,
+  // ANVIL BREECH on gun 2 from day 5.
+  thistlemail: {
+    hero: "weaver", crates: 0, synergy: ["plateroller", "steambreech", "spallcatcher"],
+    factories: [F("loom", 4, 5, [4, 4, "U4"], [3, 5, "L2U5"], [6, 5, "R2U5"])],
+    upgrades: [
+      G(1, "plateroller", 0, 0, 1), M(1, "steambreech", 0), G(2, "tollbooth", 3, 0, 1), G(2, "whetstone", 5, 0, 3), G(3, "braceframe", 3, 4, 1),
+      G2(4, "plateroller", 0, 0), M(4, "spallcatcher", 0), M(5, "anvil", 1), M(6, "seamwelder", 1), G(6, "temper", 3, 1, 1),
+      M2(7, "steambreech", 0), G(7, "quench", 5, 1), G(8, "platebreaker", 2, 4, 2), M2(9, "spallcatcher", 0), G(10, "bellows", 2, 0),
+    ],
+  },
 };
 
 /**

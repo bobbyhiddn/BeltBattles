@@ -22,7 +22,10 @@ export type PortraitHero = "furnace" | "weaver" | "foundry" | "bastion";
  * this list, and spec() then reads RIVALS (tests/wave3Art.test.ts pins both rules).
  */
 export type Wave3NpcId = "brasswick" | "voss" | "grimhold" | "karsk" | "lockjaw" | "thistlemail";
-export const WAVE3_NPC_IDS: readonly Wave3NpcId[] = ["brasswick", "voss", "grimhold", "karsk", "lockjaw", "thistlemail"];
+/** 0.8.0 N1 (VERIFIED-A1 G item 1): all six are captains now (RIVALS, in roster order on PORTRAIT_KEYS), each with this
+ *  record's palette, so none is pending. The list stays, empty, for the rule above: a future pending NPC goes here until
+ *  it becomes a rival, and RIVALS wins. */
+export const WAVE3_NPC_IDS: readonly Wave3NpcId[] = [];
 export const WAVE3_NPC_PORTRAIT: Record<Wave3NpcId, { hero: HeroId; palette: string[] }> = {
   brasswick: { hero: "foundry", palette: ["brass2", "steel2", "bone", "lime"] },
   voss: { hero: "foundry", palette: ["brass3", "ink", "steel1", "amber"] },
@@ -35,7 +38,8 @@ export const WAVE3_NPC_PORTRAIT: Record<Wave3NpcId, { hero: HeroId; palette: str
 export type PortraitKey = RivalId | PortraitHero | Wave3NpcId;
 export const PORTRAIT_HEROES: readonly PortraitHero[] = ["furnace", "weaver", "foundry", "bastion"];
 
-/** Every portrait, rivals in roster order and then the heroes. (0.8.0 A1: the pending wave-3 NPCs are not here yet.) */
+/** Every portrait, rivals in roster order and then the heroes. (0.8.0 A1: the pending wave-3 NPCs are not here yet;
+ *  0.8.0 N1: the six are rivals now, so they are, after the 13: 19 captains and 4 heroes.) */
 export const PORTRAIT_KEYS: PortraitKey[] = [...RIVAL_IDS, ...PORTRAIT_HEROES];
 
 export interface Portrait {

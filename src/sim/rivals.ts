@@ -4,6 +4,11 @@
 // roster data, the daily warlord offer and the stand-in order; the decks live in rivalBuilds.ts.
 // The offer and the stand-ins draw from their own hashSeed(runSeed, "warlords", ...) and
 // hashSeed(runSeed, "standin") streams, so shop rolls and battle seeds never move.
+// 0.8.0 N1 (REQ-BFG-011, REQ-BFG-024; DESIGN-wave3 section 5, VERIFIED-D1 Q9 and Q12): six wave-3 captains join, so the
+// roster is 19. Four race warlords (BRASSWICK and MASTER VOSS on FOUNDRY's human hull, GRIMHOLD and THANE KARSK on
+// BASTION's dwarf hull) take both jobs; LOCKJAW (FURNACE) and THISTLEMAIL (WEAVER) are dusk stand-ins only
+// (RivalDef.standInOnly: never in a road pool). The road pools are 4 Easy, 5 Medium and 7 Hard, plus the Iron
+// Matriarch on days 8-10, and the stand-in order draws from the 18 captains other than her.
 
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type Faction, type HeroId } from "./content";
@@ -15,7 +20,9 @@ import { PLANS, planBuild, type Luck, type RivalLoadout } from "./rivalBuilds";
 export type RivalId =
   | "sootjaw" | "nettle" | "grubnose" | "mothqueen"
   | "sparkfang" | "lacewing" | "ratchet" | "emberlyn" | "bulwark"
-  | "silkshade" | "longtooth" | "highspire" | "matriarch";
+  | "silkshade" | "longtooth" | "highspire" | "matriarch"
+  // 0.8.0 N1: the six wave-3 captains (D1's ids; A1 drew their portraits)
+  | "brasswick" | "voss" | "grimhold" | "karsk" | "lockjaw" | "thistlemail";
 
 /** Regular, elite or boss. It drives the portrait frame: amber corners for elites, plum for the boss. */
 export type RivalRank = "regular" | "elite" | "boss";
@@ -46,13 +53,19 @@ export interface RivalDef {
   trick: string; // NEXT BATTLE panel title
   blurb: string; // NEXT BATTLE panel line
   portrait: Portrait;
+  /** 0.8.0 N1 (VERIFIED-D1 Q9): a dusk stand-in only, never a warlord: no road slot (difficultyOf is null), so no
+   *  warlordPool holds it and its decks are always assembled at ordinary luck (luckOf). Absent on every road captain. */
+  standInOnly?: true;
 }
 
 function rival(
   id: RivalId, name: string, hero: HeroId, tier: RivalTier, rank: RivalRank,
-  trick: string, blurb: string, palette: string[], feature: string,
+  trick: string, blurb: string, palette: string[], feature: string, opts: { standInOnly?: true } = {},
 ): RivalDef {
-  return { id, name, hero, faction: HEROES[hero].faction, tier, rank, trick, blurb, portrait: { palette, feature } };
+  return {
+    id, name, hero, faction: HEROES[hero].faction, tier, rank, trick, blurb, portrait: { palette, feature },
+    ...(opts.standInOnly ? { standInOnly: true as const } : {}),
+  };
 }
 
 export const RIVALS: Record<RivalId, RivalDef> = {
@@ -95,6 +108,31 @@ export const RIVALS: Record<RivalId, RivalDef> = {
   matriarch: rival("matriarch", "IRON MATRIARCH", "furnace", 3, "boss", "GRAND FOUNDRY",
     "KILN AND PRESS, EVERY RIG, HEAVY ARMOR.",
     ["rust1", "fire2", "brass4", "ink"], "crown of kiln chimneys venting fire"),
+  // 0.8.0 N1: the six wave-3 captains (DESIGN-wave3 5.1). Names and tricks are D1's; the blurbs are the brief's (37-41
+  // characters, the road stop's card and the phone's inspect panel fit them like today's); the palettes are A1's
+  // (render/portraits.ts WAVE3_NPC_PORTRAIT) and the features D1's portrait lines. Every one is a regular, so no rank
+  // frame: BRASSWICK tier 1 (Easy), GRIMHOLD tier 2 (Medium), MASTER VOSS and THANE KARSK tier 3 (Hard); LOCKJAW and
+  // THISTLEMAIL stand in at dusk only (their tier 2 is only the band their dusk decks are grown to).
+  brasswick: rival("brasswick", "BRASSWICK", "foundry", 1, "regular", "MATCHED POUR",
+    "MIRRORED BELTS, GAUGED. EVERY POUR FUSES.",
+    ["brass2", "steel2", "bone", "lime"], "a young guild gauger with a brass twin-dial gauge strapped over both eyes like goggles"),
+  voss: rival("voss", "MASTER VOSS", "foundry", 3, "regular", "LOCKSTEP",
+    "LATCHED IN STEP. EVERY PAIR HITS HARDER.",
+    ["brass3", "ink", "steel1", "amber"], "a stern guildmaster wearing a twin-chained pocket watch as a medal, its two lids snapping shut together"),
+  grimhold: rival("grimhold", "GRIMHOLD", "bastion", 2, "regular", "ANVIL WALL",
+    "THICK PLATE MAKES EVERY SHOT HIT HARDER.",
+    ["steel3", "rust2", "fire3", "bone"], "a broad dwarf in an anvil-shaped iron helm, his beard braided through hot rivets"),
+  karsk: rival("karsk", "THANE KARSK", "bastion", 3, "regular", "SHIELD WALL",
+    "A WALL OF PLATE. HE BREAKS IT ON YOU.",
+    ["steel1", "steel3", "brass1", "rust3"], "a grey-bearded thane behind a riveted tower shield, a plate-breaking hammer on one shoulder"),
+  lockjaw: rival("lockjaw", "LOCKJAW", "furnace", 2, "regular", "TWIN BITE",
+    "LATCHED BELTS. HIS SLUGS LAND IN PAIRS.",
+    ["rust2", "steel2", "brass2", "fire2"], "an orc whose iron jaw-brace locks shut with a twin latch, two slugs clenched in his teeth",
+    { standInOnly: true }),
+  thistlemail: rival("thistlemail", "THISTLEMAIL", "weaver", 2, "regular", "LEAF MAIL",
+    "THREADS PLATE HER. PLATED, HER GUNS SPIN.",
+    ["verd2", "steel2", "white", "verd4"], "an elf in a coat of overlapping silver leaves like scale mail, wearing a thistle crown of steel pins",
+    { standInOnly: true }),
 };
 
 export const RIVAL_IDS = Object.keys(RIVALS) as RivalId[];
@@ -109,9 +147,13 @@ const clampDay = (day: number): number => {
  * QUEEN, OLD BULWARK) and the IRON MATRIARCH are Hard; the Matriarch is met only on days 8-10.
  * Part 4 moved SOOTJAW up to Medium (its 13-tile cooker out-hits every Easy deck from day 1) and
  * RATCHET down to Easy, so the per-day ladder holds with 3 Easy, 4 Medium and 5 Hard captains.
+ * 0.8.0 N1: BRASSWICK (tier 1) is Easy, GRIMHOLD (tier 2) Medium, MASTER VOSS and THANE KARSK (tier 3) Hard, so 4 Easy,
+ * 5 Medium and 7 Hard. A stand-in-only captain (LOCKJAW, THISTLEMAIL) has no slot: null, so warlordPool never holds it,
+ * luckOf gives it ordinary luck and every slot reading (the ladder, the bench) leaves it out.
  */
-export function difficultyOf(id: RivalId): Difficulty {
+export function difficultyOf(id: RivalId): Difficulty | null {
   const d = RIVALS[id];
+  if (d.standInOnly) return null;
   if (d.rank !== "regular" || d.tier === 3) return "hard";
   return d.tier === 1 ? "easy" : "medium";
 }
@@ -122,7 +164,8 @@ export function rivalDays(id: RivalId): number[] {
   return Array.from({ length: RUN_DAYS - first + 1 }, (_, i) => first + i);
 }
 
-/** The captains that fill a slot on days 1-7, in roster order (the Matriarch is never in a pool). */
+/** The captains that fill a slot on days 1-7, in roster order (the Matriarch is never in a pool; 0.8.0 N1: nor is a
+ *  stand-in-only captain). Easy 4, Medium 5, Hard 7. */
 export function warlordPool(slot: Difficulty): RivalId[] {
   return RIVAL_IDS.filter((id) => id !== "matriarch" && difficultyOf(id) === slot);
 }
@@ -189,7 +232,7 @@ export function warlordOffer(runSeed: number, day: number, matriarchBeatenOn?: n
   for (let day2 = beaten + 1; day2 <= d; day2++) {
     const standIn: RivalId = standInGhost(runSeed, day2), yesterday: RivalId = hard;
     const order = new Rng(hashSeed(runSeed, "warlords", "hard", "after", day2)).shuffle(warlordPool("hard"));
-    // Always found: the Hard pool has 5 captains and at most 2 are excluded.
+    // Always found: the Hard pool has 7 captains (0.8.0 N1; 5 before) and at most 2 are excluded.
     hard = order.find((id) => id !== standIn && id !== yesterday)!;
   }
   return { ...offer, hard };
@@ -197,8 +240,9 @@ export function warlordOffer(runSeed: number, day: number, matriarchBeatenOn?: n
 
 /**
  * The run's stand-in dusk ghosts, one per day (index 0 = day 1). They are used whenever no player
- * build exists for that day. The order is a shuffle of the 12 captains other than the Matriarch,
- * from hashSeed(runSeed, "standin"). No captain stands in twice in a run, and none stands in on a
+ * build exists for that day. The order is a shuffle of the captains other than the Matriarch (0.8.0 N1: 18, the two
+ * stand-in-only captains among them; 12 before), from hashSeed(runSeed, "standin"). No captain stands in twice in a
+ * run, and none stands in on a
  * day it is offered as a warlord: it waits for the next free day. Either faction may stand in, so
  * mirror matches happen. The game fights a stand-in with standInBuild(id, day), never with
  * rivalBuild: an honest deck a player could own on that day (R1).
@@ -207,7 +251,7 @@ export function standInGhosts(runSeed: number): RivalId[] {
   const queue = new Rng(hashSeed(runSeed, "standin")).shuffle(RIVAL_IDS.filter((id) => id !== "matriarch"));
   return warlordOffers(runSeed).map((o) => {
     const offered = new Set<RivalId>([o.easy, o.medium, o.hard]);
-    // Always found: day d has 13 - d captains queued and at most 3 of them offered.
+    // Always found: day d has 19 - d captains queued (18 on day 1, one fewer each day) and at most 3 of them offered.
     const i = queue.findIndex((id) => !offered.has(id));
     return queue.splice(i, 1)[0];
   });
@@ -224,6 +268,7 @@ export function standInGhost(runSeed: number, day: number): RivalId {
 /**
  * 0.6.2 TUNE-C (REQ-BFG-033): the shop luck a captain's warlord deck is assembled at, from its warlord slot: Easy and
  * Medium ordinary, Hard good, the Iron Matriarch stars-aligned. Its stand-in deck is always ordinary (standInBuild).
+ * 0.8.0 N1: a stand-in-only captain has no warlord slot, so ordinary.
  */
 export function luckOf(id: RivalId): Luck {
   if (id === "matriarch") return "stars";
