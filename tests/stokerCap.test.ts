@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { FIGHT_T, RATING_CURVE, rateDeck, stokeKeep, type RateOut } from "../src/sim/deckRating";
-import { type Build } from "../src/sim/deck";
+import { stokeHits, type Build } from "../src/sim/deck";
 import { heroStartBuild, heroRefBuild } from "../src/sim/heroBuilds";
 import { newRun, type Run } from "../src/game/run";
 import { planPanel, rigPanel, stokeCapBlocks, visibleLines } from "../src/screens/build/inspector";
@@ -33,6 +33,26 @@ function lockjaw(): Build {
   };
 }
 const stoked = (base: () => Build, s: number, x = 6, y = 6): Build => withItem(base(), item(70, "stoker", x, y, 0, s));
+/**
+ * 0.8.0 T1 (I1 REPORT section 11, VERIFIED-I1 call 6): one stoked factory on two full guns. A FOUNDRY hull (two medium
+ * guns: connectors 2-3 and 6-7, a load every 0.8 s); a TWIN MOULD (uid 2, a slug onto each belt every 1.8 s) at (4,6) with
+ * a belt into each gun (connector 3, connector 6); a SLAG POT 1 star (a slug every 2.8 s) at (1,6) into connector 2 and a
+ * SLAG POT 2 stars (every 2.2 s) at (7,6) into connector 7, so gun 1 is fuller than gun 0; a STOKER 2 stars (+44%) at (4,8)
+ * stokes the mould alone. `belts`: both of the mould's belts, or only the one into gun 0 or gun 1.
+ */
+function twoGuns(belts: "both" | "gun0" | "gun1" = "both"): Build {
+  return {
+    hero: "foundry",
+    items: [item(2, "twinmould", 4, 6), item(3, "slagpot", 1, 6), item(4, "slagpot", 7, 6, 0, 2), item(70, "stoker", 4, 8, 1, 2)],
+    routes: [
+      { factory: 3, cells: [K(2, 5), K(2, 4), K(2, 3), K(2, 2), K(2, 1), K(2, 0)] },
+      ...(belts !== "gun1" ? [{ factory: 2, cells: [K(4, 5), K(3, 5), K(3, 4), K(3, 3), K(3, 2), K(3, 1), K(3, 0)] }] : []),
+      ...(belts !== "gun0" ? [{ factory: 2, cells: [K(5, 5), K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(6, 0)] }] : []),
+      { factory: 4, cells: [K(7, 5), K(7, 4), K(7, 3), K(7, 2), K(7, 1), K(7, 0)] },
+    ],
+    mods: [], beltCap: 40, hullBonus: 0,
+  };
+}
 const runOf = (b: Build): Run => { const r = newRun(b.hero, 5, "stoker-cap"); r.build = b; return r; };
 const capLines = (b: Build): string[] => (rigPanel(runOf(b), 70)?.body ?? []).filter((x) => x.role === "warn").map((x) => x.text);
 
@@ -71,6 +91,35 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
     // no STOKER, no line; a factory list without a capped one gives none
     expect(stokeKeep(furnaceStart()).size).toBe(0);
     expect(stokeCapBlocks(runOf(stoked(longKiln, 3)), [1])).toEqual([]);
+  });
+
+  it("a stoked factory feeding two guns keeps the strictest gun's cap, as the battle paces it (I1's mutant cap-keep-max)", () => {
+    // each gun alone caps the mould's stoke (gun 1, the fuller, harder); together the mould keeps the smaller share, as
+    // Battle.stokedPace paces a factory to its most constrained gun
+    const keep = (b: Build) => stokeKeep(b).get(2);
+    const [k0, k1, both] = [keep(twoGuns("gun0")), keep(twoGuns("gun1")), keep(twoGuns())];
+    expect(stokeHits(twoGuns()).map((h) => h.factory)).toEqual([2]);
+    expect(k0, "gun 0 alone").toBeLessThan(1);
+    expect(k1, "gun 1 alone").toBeLessThan(k0! - 0.2);
+    expect(k1, "gun 1 alone").toBeGreaterThan(0);
+    expect(both, "both guns: the strictest").toBe(Math.min(k0!, k1!));
+    // the battle stamps the mould at the stricter gun's pace: as with gun 1's belt alone, slower than with gun 0's alone,
+    // and at the pace the kept share gives (1.8 s / (1 + 0.44 x keep)) to the tick
+    const gap = (b: Build): number => {
+      const t: number[] = [];
+      const bt = new Battle({ ...b, hullBonus: 3000 }, { ...heroStartBuild("weaver", 101), hullBonus: 3000 }, 1);
+      while (bt.t < 40) {
+        bt.step();
+        for (const e of bt.drainEvents()) if (e.type === "produce" && e.side === 0 && e.factory === 2 && bt.t > 5) t.push(bt.t);
+      }
+      return (t[t.length - 1] - t[0]) / (t.length - 1);
+    };
+    const [g0, g1, gBoth] = [gap(twoGuns("gun0")), gap(twoGuns("gun1")), gap(twoGuns())];
+    expect(gBoth).toBeCloseTo(g1, 6);
+    expect(gBoth - g0, "slower than the looser gun allows").toBeGreaterThan(0.1);
+    expect(Math.abs(gBoth - 1.8 / (1 + 0.44 * both!)), "the estimate's pace").toBeLessThan(1 / 60);
+    // the panel names the kept share
+    expect(capLines(twoGuns())).toEqual([`THE TWIN MOULD'S GUN IS FULL, SO IT WORKS ONLY ${Math.round(44 * both!)}% FASTER.`]);
   });
 
   it("reading the cap never changes the rating (rateDeck's out is read only)", () => {
