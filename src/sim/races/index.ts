@@ -64,11 +64,13 @@ export function raceIntake(ctx: SimCtx, s: SideState, r: RouteState, tu: TurretS
   return true;
 }
 
-/** After a normal load into a chamber. */
-export function raceLoaded(ctx: SimCtx, s: SideState, r: RouteState, _tu: TurretState, p: Payload): void {
+/** After a normal load into a chamber. 0.8.0 H1 M3: plating that lands emits a `plate` event (the CLANK; display only,
+ *  no state reads it), which only a bulwark slug can cause. */
+export function raceLoaded(ctx: SimCtx, s: SideState, r: RouteState, tu: TurretState, p: Payload): void {
   if (!s.race) return;
   blankLoaded(ctx, s.race.foundry, r.index, p);
-  plateOnLoad(s.race.plating, p);
+  const plated = plateOnLoad(s.race.plating, p);
+  if (plated > 0) ctx.events.push({ type: "plate", side: s.side, turret: tu.index, amount: plated });
   echoOnLoad(s.race.echo, p);
 }
 

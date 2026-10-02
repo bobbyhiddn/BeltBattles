@@ -17,6 +17,8 @@ import { HULL_L, TURRET_LY, hullBox, sx, sy, turnX, turnY, type Box, type DeckFr
 import { HULL_M, TREAD_HX, TREAD_HY0, TREAD_LEN, TREAD_W, hullFlash, hullRim, hullShade, hullSprite, treadStrip } from "./hull";
 import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./turret";
 import { RACE_PIP, isArtRace, isRaceAmmo, raceTurretLook } from "./raceArt"; // 0.8.0 H1: FOUNDRY's and BASTION's art
+import { CLANK_FRAMES, CLANK_TIME, FUSE_FRAMES, FUSE_TIME, flashFrame, fuseFlash, platingClank, syncIcon } from "./raceFx"; // 0.8.0 H1 M3
+import { syncedTurrets } from "../sim/syncEstimate"; // 0.8.0 H1 M3: the deck's SYNC mark
 import { coreFor } from "../sim/deck"; // 0.6.1b: the core socket
 import { starsOf } from "../sim/stars"; // 0.6.1b
 import { gemColor } from "./coreArt"; // 0.6.1b
@@ -55,6 +57,7 @@ export interface CruiserModel {
   connectedCols: Set<number>;
   gateOnRoute: Set<number>; // rigs with at least one hit (the others are IDLE)
   rigs: Map<number, RigModel>; // 0.6.2 BELTSIDE: by rig uid
+  sync: number[]; // 0.8.0 H1 M3: turret slots two CRUCIBLE belts reach in sync (syncedTurrets; [] without a CRUCIBLE)
 }
 
 /**
@@ -102,7 +105,7 @@ export function cruiserModel(b: Build): CruiserModel {
     const mine = hitsOfRig(b, p.uid, hits);
     rigs.set(p.uid, { dirs, hit: dirs.map((d) => mine.some((h) => h.dir === d)) });
   }
-  return { hero: b.hero, routes, connectedCols, gateOnRoute, rigs };
+  return { hero: b.hero, routes, connectedCols, gateOnRoute, rigs, sync: syncedTurrets(b) };
 }
 
 export interface CruiserView {
@@ -117,6 +120,8 @@ export interface CruiserView {
   beltPhase?: Float32Array[]; // per route, per cell belt travel (battle playback)
   windup?: Float32Array; // per turret 0..1
   recoil?: Float32Array; // per turret px
+  fuse?: Float32Array; // 0.8.0 H1 M3: per turret slot, seconds left on the weld flash (battle playback)
+  clank?: Float32Array; // 0.8.0 H1 M3: per turret slot, seconds left on the CLANK (battle playback)
   flash?: number; // hull hit flash 0..1
   highlightConnectors?: number[];
   // 0.6.2j (J11): the belt being drawn, with the join it will make or a join it was refused (and why)
@@ -318,8 +323,28 @@ export function drawTurrets(g: G, v: CruiserView): void {
     socketGem(g, f, px, py, su, sv, gemColor(core?.def, v.model.hero));
     starPips(g, f, px, py, su - 9, sv + 2, starsOf(core)); // left of the gem (the chamber pips sit to its right)
     if (ts && ts.jamFx > 0 && Math.floor(v.t * 8) % 2) trect(g, f, px, py, -6, 4, 12, 2, C.red);
+    // 0.8.0 H1 M3: FOUNDRY's SYNC mark beside a gun two CRUCIBLE belts reach in sync, on the bow beside its barrel; the
+    // weld flash while two blanks fuse in its chamber; BASTION's CLANK as a bulwark slug plates the hull. A Furnace or
+    // Weaver deck has no sync and never gets a `fuse` or `plate` event, so it draws exactly as before.
+    if (v.model.sync.includes(i)) {
+      const ic = syncIcon(true, Math.floor(v.t * 2) % 2);
+      g.drawImage(ic, Math.round(px + turnX(f, SYNC_U, SYNC_V) - ic.width / 2), Math.round(py + turnY(f, SYNC_U, SYNC_V) - ic.height / 2));
+    }
+    const weld = v.fuse ? v.fuse[i] : 0;
+    if (weld > 0) {
+      const img = fuseFlash(flashFrame(weld, FUSE_TIME, FUSE_FRAMES));
+      g.drawImage(img, px - (img.width >> 1), py - (img.height >> 1));
+    }
+    const clank = v.clank ? v.clank[i] : 0;
+    if (clank > 0) {
+      const img = platingClank(flashFrame(clank, CLANK_TIME, CLANK_FRAMES));
+      g.drawImage(img, px - (img.width >> 1), py - (img.height >> 1));
+    }
   }
 }
+
+/** 0.8.0 H1 M3: the SYNC mark's centre, turret-local: on the bow, left of the barrel, clear of the gear boxes. */
+export const SYNC_U = -11, SYNC_V = -13;
 
 /** 0.6.2s (REQ-BFG-031 S9): the TurretDef in slot i of a build (or of a hull's starting layout, given a HeroId). */
 function slotTd(who: HeroId | Pick<Build, "hero" | "turrets">, i: number): TurretDef {

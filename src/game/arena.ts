@@ -26,10 +26,20 @@ export interface SideFx {
   barFlash: number;
   lastHp: number;
   smokeT: number;
+  // 0.8.0 H1 M3 (display only; the sim never reads them): per turret slot, seconds left on FOUNDRY's weld flash (the
+  // `fuse` event) and on BASTION's CLANK (the `plate` event); the plating strip's trailing chip (plating just lost, like
+  // hpShown), how long it holds, the plating last seen, and the newest segment's shine as plating lands
+  fuse: Float32Array;
+  clank: Float32Array;
+  plateShown: number;
+  plateHold: number;
+  plateLast: number;
+  plateShine: number;
 }
 
 function sideFx(b: Battle, side: Side): SideFx {
   const s = b.sides[side];
+  const plate = s.race?.plating.plate ?? 0;
   return {
     model: cruiserModel(s.build),
     beltPhase: s.routes.map((r) => new Float32Array(r.cells.length)),
@@ -37,8 +47,14 @@ function sideFx(b: Battle, side: Side): SideFx {
     windup: new Float32Array(turretSlots(s.build).length),
     recoil: new Float32Array(turretSlots(s.build).length),
     hpShown: s.hull.hp, chipHold: 0, barFlash: 0, lastHp: s.hull.hp, smokeT: 0,
+    fuse: new Float32Array(turretSlots(s.build).length),
+    clank: new Float32Array(turretSlots(s.build).length),
+    plateShown: plate, plateHold: 0, plateLast: plate, plateShine: 0,
   };
 }
+
+/** 0.8.0 H1 M3: how long the plating strip holds plating just lost (white) before it drains, like the hull bar's chip. */
+export const PLATE_HOLD = 0.4;
 
 export class Arena {
   b: Battle;
@@ -71,6 +87,29 @@ export class Arena {
   /** Count one drained event into the readout tallies (shocks). */
   private tally(e: SimEvent): void {
     if (e.type === "harass" && e.cause === "shock") this.shocks[e.side === 0 ? 1 : 0]++;
+  }
+
+  /** 0.8.0 H1 M3 (display only): per side, plating soaked in the step being played that no impact has shown yet. Within
+   *  a step, plating takes the step's hits before Burn and Poison (Battle: impacts, then hullEffects), so the step's
+   *  impacts take it in order (takeSoak). 0 for every hull without plating: Furnace and Weaver never have any. */
+  private readonly soakLeft: [number, number] = [0, 0];
+  private readonly soakSeen: [number, number] = [0, 0];
+
+  /** After a step: the plating each side soaked in it (race.plating.absorbed's growth). */
+  private stepSoak(): void {
+    for (const side of SIDES) {
+      const pl = this.b.sides[side].race?.plating;
+      if (!pl) continue;
+      this.soakLeft[side] = pl.absorbed - this.soakSeen[side];
+      this.soakSeen[side] = pl.absorbed;
+    }
+  }
+
+  /** 0.8.0 H1 M3 (display only): how much of a hit of `dmg` on `side` its plating took (react's impact popup). */
+  takeSoak(side: Side, dmg: number): number {
+    const t = Math.min(this.soakLeft[side], Math.max(0, dmg));
+    this.soakLeft[side] -= t;
+    return t;
   }
 
   /** 0.7.0a: `battle` (a replay: replayBattle(record), fresh and unstepped) is played instead of a new Battle. */
@@ -125,6 +164,7 @@ export class Arena {
       let n = 0;
       while (this.acc >= TICK && n < 600 && !this.b.over) {
         this.b.step();
+        this.stepSoak(); // 0.8.0 H1 M3: read only
         this.acc -= TICK;
         n++;
         const ev = this.b.drainEvents();
@@ -193,6 +233,18 @@ export class Arena {
     if (f.chipHold > 0) f.chipHold -= rdt;
     else if (f.hpShown > hp) f.hpShown = Math.max(hp, f.hpShown - rdt * Math.max(24, (f.hpShown - hp) * 3));
     if (f.hpShown < hp) f.hpShown = hp;
+    // 0.8.0 H1 M3: the weld flashes and CLANKs play out; the plating strip holds plating just lost, then drains it
+    for (let i = 0; i < f.fuse.length; i++) {
+      if (f.fuse[i] > 0) f.fuse[i] = Math.max(0, f.fuse[i] - rdt);
+      if (f.clank[i] > 0) f.clank[i] = Math.max(0, f.clank[i] - rdt);
+    }
+    const plate = s.race ? s.race.plating.plate : 0;
+    if (plate < f.plateLast - 1e-9) f.plateHold = PLATE_HOLD;
+    f.plateLast = plate;
+    f.plateShine = Math.max(0, f.plateShine - rdt);
+    if (f.plateHold > 0) f.plateHold -= rdt;
+    else if (f.plateShown > plate) f.plateShown = Math.max(plate, f.plateShown - rdt * Math.max(8, (f.plateShown - plate) * 3));
+    if (f.plateShown < plate) f.plateShown = plate;
   }
 
   /** Resolve the rest of the battle instantly (SKIP). Only the end event is animated. */
@@ -205,6 +257,8 @@ export class Arena {
         if (e.type === "end") out.push(e);
       }
     }
+    this.stepSoak(); // 0.8.0 H1 M3: nothing skipped is shown, so no soak is left over
+    this.soakLeft[0] = this.soakLeft[1] = 0;
     this.fx.clear();
     for (const e of out) react(this, e);
     return out;

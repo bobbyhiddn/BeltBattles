@@ -57,6 +57,9 @@ import { C, RARITY_COLOR } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth, type FontId } from "../../render/font";
 import { beltIcon, itemIcon } from "../../render/sprites";
+import { syncIcon } from "../../render/raceFx"; // 0.8.0 H1 M3: the SYNC mark
+import { syncOf } from "../../sim/syncEstimate";
+import { SYNC_WINDOW } from "../../sim/races/foundry";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
@@ -482,6 +485,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   });
   for (const j of joins) if (j.row >= w.timeline.length) rows.push(joinRow(j));
   const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
+  const sync = syncLine(b, index); // 0.8.0 H1 M3: FOUNDRY's SYNC line; null for every belt no CRUCIBLE feeds
   return {
     // 0.6.2j: a joining belt's sub names the belt it joins (0.6.2rel: two short sentences, no "·"); 0.6.2rel2: a main
     // belt's one sentence ends with its full stop too
@@ -504,11 +508,41 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
         role: "hits", colour: C.cyan, keep: true,
         text: joined.length === 1 ? `BELT ${joined[0] + 1} JOINS IT.` : `BELTS ${andList(joined.map((j) => j + 1))} JOIN IT.`,
       } as Block] : []),
+      ...(sync ? [{ role: "hits", text: sync.text, colour: SYNC_COLOUR[sync.state], keep: true } as Block] : []),
       { role: "hits", text: hitCount ? `${info.tiles} TILES, ${hitCount} HIT${hitCount === 1 ? "" : "S"}:` : `${info.tiles} TILES. NO RIG WORKS THIS BELT.`, keep: true },
     ],
     rows,
     foot: cells.map((c): Block => ({ role: "grid", text: "", cells: c, keep: true })),
     more: (n) => moreFor(rows.slice(rows.length - n)),
+  };
+}
+
+/** 0.8.0 H1 M3: a SYNC line's state: its blanks fuse with a partner belt's, reach the gun too far apart, or have no
+ *  partner belt at that gun. */
+export type SyncState = "sync" | "apart" | "alone";
+const SYNC_COLOUR: Record<SyncState, string> = { sync: C.yellow, apart: C.amber, alone: C.slate4 };
+
+/**
+ * 0.8.0 H1 M3 (REQ-BFG-011): the route inspector's SYNC line for a belt a CRUCIBLE feeds (syncOf, docs/RACES.md section
+ * 1): whether its blanks fuse at their turret with another CRUCIBLE belt's that enters through a different intake, in
+ * whole sentences with the real numbers (the arrival gap, SYNC_WINDOW). A delay line names the pours between the two
+ * blanks. Null for every belt no CRUCIBLE feeds or that reaches no turret. Exported for tests.
+ */
+export function syncLine(b: Build, index: number): { text: string; state: SyncState } | null {
+  const s = syncOf(b, index);
+  if (!s) return null;
+  const gun = `TURRET ${s.turret + 1}`;
+  if (!s.partners.length) return { text: `NO OTHER CRUCIBLE BELT REACHES ${gun}, SO ITS BLANKS FIRE UNFUSED.`, state: "alone" };
+  const p = s.partners.find((q) => q.sync) ?? s.partners.reduce((m, q) => (q.offset < m.offset ? q : m));
+  const when = n2(p.offset) === "0" ? "AT THE SAME MOMENT" : `${seconds(p.offset)} APART`;
+  if (p.sync) {
+    // a delay line: the longer belt's blank meets a later pour's blank from the shorter one
+    const pours = p.pours === 0 ? "" : `, ${p.pours === 1 ? "ONE POUR" : `${p.pours} POURS`} APART`;
+    return { text: `IN SYNC WITH BELT ${p.route + 1}${pours}: THEIR BLANKS REACH ${gun} ${when} AND FUSE.`, state: "sync" };
+  }
+  return {
+    text: `OUT OF SYNC WITH BELT ${p.route + 1}: THEIR BLANKS REACH ${gun} ${when}, MORE THAN ${seconds(SYNC_WINDOW)}, SO THEY FIRE UNFUSED.`,
+    state: "apart",
   };
 }
 
@@ -1076,7 +1110,10 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
     case "route": {
       const t = routePanel(run, show.index);
       if (!t) return null;
-      return { icon: beltIcon(), text: t, actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }] };
+      // 0.8.0 H1 M3: a CRUCIBLE belt with a partner at its gun shows the SYNC mark, lit when their blanks fuse
+      const sync = syncLine(b, show.index);
+      const icon = sync && sync.state !== "alone" ? syncIcon(sync.state === "sync", Math.floor(ctx.game.t * 2) % 2) : beltIcon();
+      return { icon, text: t, actions: [{ id: "rmroute", label: "REMOVE BELT", danger: true, onTap: () => deleteRoute(ctx, show.index) }] };
     }
     case "turret": {
       const td = turretSlots(b)[show.index]?.td; // 0.6.2s: the installed turret (an empty slot has none)

@@ -26,6 +26,7 @@ import { logMigration, migrateDeck, migrateInlineGates } from "../sim/beltside";
 import { starField, starsOf, valueOf } from "../sim/stars";
 import { ID_PATTERN, toId } from "./ghostSnapshot";
 import { fuseAll } from "./fuse";
+import { readoutOk } from "./raceReadout"; // 0.8.0 H1 M3
 import type { Run } from "./run";
 
 export const SAVE_KEY = "beltbattles.run.v7";
@@ -204,6 +205,11 @@ export function migrateRun(raw: unknown): Run | null {
   if (r.refund === null) delete r.refund;
   else if (r.refund !== undefined && !(typeof r.refund === "object" && typeof r.refund.day === "number" && typeof r.refund.lives === "number")) r.refund = { day: 3, lives: 0 };
   normalizeOnline(r);
+  // 0.8.0 H1 M3: a dusk's FOUNDRY/BASTION readout (DayResult.race) stays when well formed and is dropped otherwise, so
+  // no load trips over it. Save v7, no bump: a Furnace or Weaver result never has one.
+  for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
+    if (h && typeof h === "object" && h.race !== undefined && !readoutOk(h.race)) delete h.race;
+  }
   r.day = clampDay(r.day);
   r.lives = Math.max(0, Math.min(START_LIVES, Number(r.lives) || 0));
   if (typeof r.runId !== "string") r.runId = `s-${((Number(r.seed) || 0) >>> 0).toString(36)}`;

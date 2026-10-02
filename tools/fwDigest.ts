@@ -11,7 +11,8 @@
 //    trail colours;
 //  - the road-event cruisers (orc, elf, wrecked) and every road scene for a FURNACE and a WEAVER player;
 //  - every rival's portrait and FURNACE's and WEAVER's (pixel data);
-//  - live Furnace/Weaver battles through Arena + drawArena at fixed render times, portrait and landscape framing.
+//  - live Furnace/Weaver battles through Arena + drawArena at fixed render times, portrait and landscape framing;
+//  - 0.8.0 H1 M3: their battle plates (drawPlate) at those moments, both sides, with and without a source tag.
 
 import { makeCanvas, type G } from "../src/render/pixel";
 import { frameForHull, type Facing } from "../src/render/frame";
@@ -24,6 +25,8 @@ import { drawScene } from "../src/render/scenes";
 import { portraitPixels, type PortraitKey } from "../src/render/portraits";
 import { Arena } from "../src/game/arena";
 import { drawArena } from "../src/game/arenaDraw";
+import { drawPlate } from "../src/screens/battleHud"; // 0.8.0 H1 M3: the battle plates (v070-rc has the same entry point)
+import type { Game } from "../src/game/game";
 import { EVENT_IDS } from "../src/game/events";
 import { AMMO, ITEMS, type HeroId, type TurretKind } from "../src/sim/content";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
@@ -130,6 +133,12 @@ function run(): void {
       const [cv, g] = makeCanvas(W, H);
       drawArena(g as G, arena, W, H);
       put(`arena/${name}/${landscape ? "land" : "port"}/${at}`, cv);
+      // 0.8.0 H1 M3: the battle HUD's name plates (hull bar, chip, flash, status pips) at the same moments, both sides
+      const [pc, pg] = makeCanvas(140, 26);
+      const game = { t: arena.clock } as unknown as Game;
+      drawPlate(pg as G, game, arena, { x: 2, y: 2, w: 132, h: 10 }, 0, "FURNACE", String(Math.ceil(arena.b.sides[0].hull.hp)));
+      drawPlate(pg as G, game, arena, { x: 2, y: 14, w: 132, h: 9 }, 1, "WEAVER", String(Math.ceil(arena.b.sides[1].hull.hp)), "OFFLINE");
+      put(`plates/${name}/${landscape ? "land" : "port"}/${at}`, pc);
     }
   }
 }

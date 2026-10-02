@@ -106,6 +106,9 @@ which never fuse.
   every hit.
 - **The dark wind bypasses plating.** The battle clock can't be stalled. Shock disruption isn't
   blocked. Plating doesn't count toward hull % at the 120 s cap.
+- Every plating that lands emits a `plate` battle event `{ side, turret, amount }` right after
+  its `load` event (0.8.0 H1 M3, display only: the CLANK). Nothing reads it in the sim, and
+  Furnace and Weaver never emit one (only a bulwark slug plates).
 
 **Gates.**
 - Splitter: +20% damage and plating, and more chamber load, so jams come sooner.
@@ -253,9 +256,15 @@ battle sim runs Siphon in full now.
   more turret hits than one-gun Bastion (spec §15). Changing it alters Furnace and Weaver
   battles, so it waits for the balance pass.
 - **OPEN (0.8.0/0.9.0 integration, UI and caravan):**
-  - a FUSE visual for the `fuse` event (the sim emits it);
-  - a plating bar on the hull plate (`race.plating.plate`, cap 24);
-  - a SYNC marker in the route inspector (two routes into one gun within 0.25 s);
+  - DONE (0.8.0 H1 M3): a FUSE visual for the `fuse` event: a weld flash on the gun
+    (src/render/raceFx.ts fuseFlash; the fused slug shows as an ALLOY SLUG in the chamber and in
+    flight);
+  - DONE (0.8.0 H1 M3): a plating bar on the hull plate (`race.plating.plate`, cap 24): a strip
+    of 12 segments on BASTION's hull bar that drains white as hits take plating, a CLANK on the gun
+    for each `plate` event, and rune-blue hit numbers where plating took the hit;
+  - DONE (0.8.0 H1 M3): a SYNC marker in the route inspector (two routes into one gun within
+    0.25 s; src/sim/syncEstimate.ts, a delay line one or more pours apart included), also beside
+    that gun on the deck; the dusk result card adds FUSED SLUGS, PLATING GAINED and PLATING SPENT;
   - Drag and Echo overlays (dragged cells in `race.drag.until`; the echo memory in
     `race.echo.mem`, copied into each ECHO leech at load);
   - adaptable head art from `adaptableHead` (HAMMER, REPEATER, LANCE);

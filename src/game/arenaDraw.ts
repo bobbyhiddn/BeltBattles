@@ -147,6 +147,7 @@ export function makeViews(a: Arena): [CruiserView, CruiserView] {
   const mk = (s: Side): CruiserView => ({
     side: s, build: a.b.sides[s].build, model: a.sfx[s].model, frame: a.drawn[s], sim: a.b.sides[s],
     t: 0, tread: 0, beltPhase: a.sfx[s].beltPhase, windup: a.sfx[s].windup, recoil: a.sfx[s].recoil,
+    fuse: a.sfx[s].fuse, clank: a.sfx[s].clank, // 0.8.0 H1 M3: the weld flash and the CLANK
   });
   return [mk(0), mk(1)];
 }

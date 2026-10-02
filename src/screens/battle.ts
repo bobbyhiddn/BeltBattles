@@ -10,6 +10,7 @@ import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, type BattleLayout } from "../game/battleLayout";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, ghostOf, startDusk, storedFoe } from "../game/day";
+import { raceReadout } from "../game/raceReadout"; // 0.8.0 H1 M3: the card's FOUNDRY and BASTION rows
 import { loadPool, saveGhost } from "../game/ghosts";
 import { FINDING_GHOST, foeNote, online, onlineMode } from "../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2)
 import { battleRecordFor } from "../net/replay";
@@ -229,6 +230,9 @@ export class BattleScreen implements Screen {
     const mine = ghostOf(run); // the deck exactly as it fought tonight, with the record entering it
     this.result = finishDay(run, b.winner ?? -1, b.t, b.sides[0].stats, b.sides[1].stats);
     this.result.shocks = [this.arena.shocks[0], this.arena.shocks[1]]; // 0.6.2 RULE SHOCK ROW (the card's Shock row; saved in history)
+    // 0.8.0 H1 M3: FOUNDRY's and BASTION's rows, from the sim's race counters; nothing for a Furnace or Weaver fight
+    const race = raceReadout([b.sides[0], b.sides[1]]);
+    if (race) this.result.race = race;
     if (this.record) {
       // 0.7.0a (online): the battle record and both final hulls, kept per dusk in the run's history for the REPLAY
       this.result.record = this.record;

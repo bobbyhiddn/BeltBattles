@@ -9,6 +9,7 @@ import { DX, DY } from "../sim/deck";
 import { C } from "../render/palette";
 import { hullBox, hullX, hullY, sx, sy } from "../render/frame";
 import { muzzleX, muzzleY } from "../render/cruiser";
+import { CLANK_TIME, FUSE_TIME } from "../render/raceFx"; // 0.8.0 H1 M3: FOUNDRY's weld flash, BASTION's CLANK
 import type { Fx } from "../render/fx";
 import type { Arena } from "./arena";
 
@@ -24,6 +25,8 @@ const debrisOf = (hero: string): readonly string[] =>
   hero === "furnace" ? DEBRIS_ORC : hero === "foundry" ? DEBRIS_HUMAN : hero === "bastion" ? DEBRIS_DWARF : DEBRIS_ELF;
 const KO_DEBRIS = [C.steel2, C.rust3, C.steel1, C.fire3, C.bone] as const;
 const SHOCK = [C.ice, C.white, C.cyan] as const;
+// 0.8.0 H1 M3: a hit that BASTION's plating took throws plate chips, and its number shows in the plating strip's rune blue
+const PLATED = [C.rune3, C.plate3, C.rune4] as const;
 
 function hullCx(a: Arena, side: Side): number {
   const b = hullBox(a.drawn[side]);
@@ -117,6 +120,21 @@ export function react(a: Arena, e: SimEvent): void {
     case "load":
       if (e.side === 0) snd?.play("load");
       return;
+    case "fuse": {
+      // 0.8.0 H1 M3: FOUNDRY's two blanks weld into an alloy slug in this gun's chamber (drawTurrets plays the flash)
+      const f = a.sfx[e.side];
+      if (e.turret >= 0 && e.turret < f.fuse.length) f.fuse[e.turret] = FUSE_TIME;
+      if (e.side === 0) snd?.play("sizzle");
+      return;
+    }
+    case "plate": {
+      // 0.8.0 H1 M3: a bulwark slug plated BASTION's hull: the CLANK on the gun and the strip's newest segment shines
+      const f = a.sfx[e.side];
+      if (e.turret >= 0 && e.turret < f.clank.length) f.clank[e.turret] = CLANK_TIME;
+      f.plateShine = CLANK_TIME;
+      if (e.side === 0) snd?.play("place");
+      return;
+    }
     case "fire": {
       const fr = a.drawn[e.side];
       const hb = a.b.sides[e.side].build; // 0.6.2s: the build's turret slots
@@ -150,7 +168,11 @@ export function react(a: Arena, e: SimEvent): void {
       }
       if (e.x > -2 && e.x < 122 && e.y > -2 && e.y < 122) fx.scorch(x, y, e.big ? 6 : e.heavy ? 5 : 3);
       if (e.burn > 0) fx.embers(x, y, 4);
-      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, String(dmg), e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
+      // 0.8.0 H1 M3: BASTION's plating took (part of) this hit before the hull did: plate chips and a rune-blue number (0
+      // on every hull without plating, which draws exactly as before)
+      const soak = a.takeSoak(e.side, e.dmg);
+      if (soak > 0) fx.sparks(x, y, 5, PLATED, 55);
+      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, String(dmg), soak > 0 ? C.rune3 : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
       // shake scales with the damage dealt: the landing frame shows exactly 1 px for a light
       // bolt and 2+ px for a heavy shell or 6+ damage; big hits add their trauma on top
       hitShake(fx, dmg, e.heavy, -dx, -dy);

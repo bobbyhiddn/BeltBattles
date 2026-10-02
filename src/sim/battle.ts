@@ -295,6 +295,9 @@ export type SimEvent =
   | { type: "commission"; side: Side; gate: number }
   | { type: "load"; side: Side; turret: number }
   | { type: "fuse"; side: Side; turret: number; dmg: number } // races: two alloy blanks fused (FOUNDRY)
+  // 0.8.0 H1 M3 (display only: the CLANK): a bulwark slug that loaded plated the hull by `amount` (BASTION; races/index.ts
+  // raceLoaded, after the `load` event). Only a bulwark slug plates, so Furnace and Weaver never emit one.
+  | { type: "plate"; side: Side; turret: number; amount: number }
   | { type: "fire"; side: Side; turret: number; heavy: boolean; dmg: number; proj: number; core?: CoreRoutine } // 0.6.1b: core set by a bought core
   | { type: "impact"; side: Side; x: number; y: number; dmg: number; heavy: boolean; kind: TargetKind; shock: boolean; burn: number; big: boolean }
   | { type: "jam"; side: Side; turret: number }

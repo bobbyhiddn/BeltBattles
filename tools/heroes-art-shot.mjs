@@ -2,7 +2,8 @@
 // server and playwright-core in ONE process, so it works where background processes die with the shell.
 // Usage: PLAYWRIGHT_BROWSERS_PATH=<root>/ms-playwright node tools/heroes-art-shot.mjs <outDir> <name> <tag> [crop:x,y,w,h ...]
 // Writes <outDir>/<name>.png (1x) and <outDir>/<name>-3x.png; crops are cut from the 3x render (3x pixel units). It exits
-// non-zero on any page error or console error or warning.
+// non-zero on any page error or console error or warning. PAGE=heroes-fx.html renders M3's signature-visuals sheet
+// instead of the art sheet (the default, heroes-art.html).
 
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
@@ -29,7 +30,7 @@ try {
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, deviceScaleFactor: 1 });
     page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
     page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`); });
-    await page.goto(`http://127.0.0.1:${port}/tools/heroes-art.html?s=${s}&tag=${encodeURIComponent(tag)}`);
+    await page.goto(`http://127.0.0.1:${port}/tools/${process.env.PAGE || "heroes-art.html"}?s=${s}&tag=${encodeURIComponent(tag)}`);
     await page.waitForFunction(() => window.__sheetDone === true, null, { timeout: 120000 });
     const [w, h] = await page.evaluate(() => { const c = document.getElementById("sheet"); return [c.width, c.height]; });
     await page.setViewportSize({ width: w, height: h });

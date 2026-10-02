@@ -11,6 +11,7 @@ import {
 import { removeItem, rotOf, setRot, type Build } from "../sim/deck";
 import { heroStartBuild } from "../sim/heroBuilds";
 import type { BattleRecord, SideStats } from "../sim/battle";
+import type { RaceReadout } from "./raceReadout"; // 0.8.0 H1 M3
 import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
@@ -60,6 +61,9 @@ export interface DayResult {
   ghost: boolean; // a pool ghost (false: a stand-in)
   refund?: number; // 0.6.2 RULE EARLY-LOSS REFUND: lives given back at the dawn this dusk leads into (absent: none)
   shocks?: [number, number]; // 0.6.2 RULE SHOCK ROW: machines each side's Shock stalled (you, foe); absent before 0.6.2
+  // 0.8.0 H1 M3 (display only): FOUNDRY's and BASTION's rows (raceReadout: fused slugs, plating gained and spent, from the
+  // sim's race counters); absent when neither side is one of them, so a Furnace or Weaver result is saved as before
+  race?: RaceReadout;
   player: SideStats;
   enemy: SideStats;
   // 0.7.0a (online play only, src/game/online.ts; absent offline, so an offline save is 0.6.2's), save v7, no bump:
