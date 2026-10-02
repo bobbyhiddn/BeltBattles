@@ -16,7 +16,7 @@ import {
   arrowCell, cloneBuild, connectorClaims, hero, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
   type Build, type Dir, type Placed,
 } from "../deck";
-import { freeForRig, intakeCell, placeRigAt, spotForTile, type RigSpot, type WouldHit } from "../beltside";
+import { freeForRig, intakeCell, placeRigAt, spotForTile, stokeSpots, type RigSpot, type WouldHit } from "../beltside";
 import { buildCost } from "../../net/validate";
 import { FUSE_MAX } from "../stars";
 import { shopFactories, shopItems } from "./heroes";
@@ -261,6 +261,22 @@ export class Shopper {
     const s = this.rigSpot(def, ri, ti, accept, !!keep);
     if (!s) return null;
     if (keep) return placeRigAt(this.b, keep.uid, def, s, keep.stars);
+    if (this.stars) {
+      const g = gainInto(this, this.b, def, { x: s.x, y: s.y, rot: s.rot }, this.cargo);
+      return this.b.items.find((p) => p.uid === g.survivor) ?? null;
+    }
+    return placeRigAt(this.b, this.uid++, def, s);
+  }
+
+  /**
+   * 0.8.0 I1 M3 (the Prime's probe: the shopper never placed a STOKER): a STOKER works factories, never belts (P1's E3),
+   * so it stands beside a factory, as the par player puts it (player.ts): a random one of the free cells whose arrows
+   * work the most factories (beltside.ts stokeSpots). Through gainInto with stars on, as placeRig. Null with no such cell.
+   */
+  placeStoker(def: string): Placed | null {
+    const spots = stokeSpots(this.b, def);
+    if (!spots.length) return null;
+    const s = this.rng.pick(spots.filter((p) => p.stokes.length === spots[0].stokes.length));
     if (this.stars) {
       const g = gainInto(this, this.b, def, { x: s.x, y: s.y, rot: s.rot }, this.cargo);
       return this.b.items.find((p) => p.uid === g.survivor) ?? null;

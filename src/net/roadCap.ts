@@ -114,7 +114,12 @@ export interface RoadOption {
 const PICK_GRID = 64; // pick sweep for "picks" and "goods" events: (j + 0.5) / 64 reaches every entry of a pool up to 64
 
 function syntheticRun(): Run {
-  return newRun("furnace", 1, "roadcap-model"); // the road's pools are hero-blind (eventDefs.ts, one shared pool)
+  const run = newRun("furnace", 1, "roadcap-model"); // the road's pools are hero-blind (eventDefs.ts, one shared pool)
+  // 0.8.0 I1 M3: no per-run draw here. A run's road grants come from its own wares (eventDefs.ts), a subset of the whole
+  // pool, so the ceiling reads the whole pool and stays an upper bound over every run's draw. The upload check and
+  // RULES_VERSION don't move.
+  delete run.wares;
+  return run;
 }
 
 /** The value of the exact part a choice takes (the trader's good), at its stars. */

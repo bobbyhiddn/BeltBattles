@@ -100,6 +100,8 @@ function gate(s: Shopper): boolean {
   const tiles = s.rigTiles();
   if (!pool.length || !tiles.length) return false;
   const d = s.rng.weighted(pool, (g) => w[g.rarity] / s.gates.filter((x) => x.rarity === g.rarity).length);
+  // 0.8.0 I1 M3: a STOKER works factories, never belts: it stands beside a factory (Shopper.placeStoker)
+  if (d.gate?.stoke) return s.placeStoker(d.id) !== null;
   const ok = s.rigTilesFor(d, tiles); // 0.6.1c (P20 on rigs): factories on, no speed rig works a slag route's tile (off: `tiles` itself)
   if (!ok.length) return false;
   const [ri, ti] = s.rng.pick(ok);

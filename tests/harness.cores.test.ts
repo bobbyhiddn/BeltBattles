@@ -124,9 +124,12 @@ describe("harness cores (0.6.1b): legality", () => {
     // (output-beltside/final-062/tune/verify/pinpatch.test.ts), so the floor alone moves them.
     // 0.8.0 I1 M2 (REPORT-P1 section 13, "harness.cores hashes"): wave 3 goes live, so the random builds' shared pool
     // gains the 15 (harness/heroes.ts reads buyableModules()): 450651712 -> 2034124841 and 4190209584 -> 85738988. With
-    // the switch off both read their old values (the M1 gate).
-    expect(hash32(a.join("|"))).toBe(2034124841);
-    expect(hash32(b.join("|"))).toBe(85738988);
+    // the switch off both read their old values (the M1 gate). 0.8.0 I1 M3 (the brief's STOKER item): the shopper places
+    // a STOKER beside a factory (Shopper.placeStoker; before, the gate lever found no belt spot for it and failed):
+    // 2034124841 -> 1899419253 and 85738988 -> 910760556. With only levers.ts's STOKER line taken out (the per-run draw
+    // left in: these builds never roll a caravan), both read 2034124841 and 85738988 again (oracle 4fe13f3fd06dc385).
+    expect(hash32(a.join("|"))).toBe(1899419253);
+    expect(hash32(b.join("|"))).toBe(910760556);
   }, 60_000);
 });
 

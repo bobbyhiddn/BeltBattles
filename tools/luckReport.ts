@@ -41,6 +41,7 @@ import {
 } from "../src/sim/content";
 import { turretList } from "../src/sim/deck";
 import { buyOffer, newRun, reroll, type Run } from "../src/game/run";
+import { unlocked } from "../src/game/wares"; // 0.8.0 I1 M3: the per-run draw
 import { finishDay } from "../src/game/day";
 import type { SideStats } from "../src/sim/battle";
 import { FIGHT_T } from "../src/sim/deckRating";
@@ -224,7 +225,9 @@ export function chaserRun(hero: HeroId, members: readonly string[], seed: number
       if (beyond) break; // a missing member is on offer beyond the purse: no reroll, the gold waits
       const left = missing();
       if (!left.length) break;
-      const gate = opts.offerable ?? offerable;
+      // 0.8.0 I1 M3: under the per-run draw a member the run's wares don't hold (or hold for a later day) can't be
+      // offered today, so the CHASER rerolls only for one it can meet (it stays an upper bound, as D1's chaseOne had it)
+      const gate = opts.offerable ?? (run.wares ? (m: string, day: number) => offerable(m, day) && unlocked(run, m, day) : offerable);
       const findable = opts.literal ? left : left.filter((m) => gate(m, d));
       if (!findable.length) break;
       const cheapest = Math.min(...findable.map((m) => ITEMS[m].price));

@@ -7,6 +7,20 @@ import { buyOffer, migrateRun, newRun, rollShop, RUN_VERSION, shopBadge, type Ru
 import { mergePreview } from "../src/game/fuse";
 import { ITEMS, OFFERS, itemsSoldBy, type ItemDef, type MerchantId } from "../src/sim/content";
 
+/**
+ * 0.8.0 I1 M3 (oracle 47ddf8622ecd67d9): an old save, a run with no wares, which plays today's rule (run.ts stockOf):
+ * the game's newRun without its wares, the day-1 caravan rolled exactly as newRun rolled it before the per-run draw
+ * (rollShop's stream is the seed, the day and the rerolls). Only the tests marked "(old save)" use it: they pin today's
+ * rule over the whole catalogue, which a run in progress at the upgrade keeps; every other test plays the live draw.
+ */
+function oldSaveRun(hero: Parameters<typeof newRun>[0], seed: number, runId?: string): Run {
+  const run = newRun(hero, seed, runId);
+  delete run.wares;
+  run.shop = { wagons: [], rerolls: 0, discount: 0, free: 0 };
+  rollShop(run);
+  return run;
+}
+
 function atDay(seed: number, day: number, hero: "furnace" | "weaver" = "furnace"): Run {
   const run = newRun(hero, seed);
   run.day = day;
@@ -62,10 +76,10 @@ describe("shop: caravan shape", () => {
 });
 
 describe("shop: fresh-first regular slots", () => {
-  it("the one alchemist part the player doesn't own is always offered when alchemist is drawn (day 1: no familiar slot to interfere)", () => {
+  it("the one alchemist part the player doesn't own is always offered when alchemist is drawn (day 1: no familiar slot to interfere) (old save)", () => {
     let sawAlchemist = 0;
     for (let seed = 1; seed <= 250; seed++) {
-      const run = newRun("furnace", seed * 97);
+      const run = oldSaveRun("furnace", seed * 97); // 0.8.0 I1 M3 (oracle 47ddf8622ecd67d9): today's rule
       // alchemist's other parts, incl. 0.6.1b's drake core -- own all but temper so it's still the one unowned part
       run.inventory = itemsSoldBy("alchemist").filter((d) => d.id !== "temper")
         .map((d, i) => ({ uid: 900 + i, def: d.id }));
@@ -203,8 +217,9 @@ describe("shop: the MERGE badge (shopBadge, live from mergePreview)", () => {
 const ALL: MerchantId[] = ["ironmonger", "tinker", "alchemist", "gunsmith", "scrapper", "quartermaster", "arcane"];
 type Own = [string, number?][]; // [def, stars] copies in cargo
 
-function rolled(seed: number, day: number, own: Own = [], last?: MerchantId[]): Run {
-  const run = newRun(seed % 2 ? "weaver" : "furnace", seed * 7919 + day);
+/** 0.8.0 I1 M3 (oracle 47ddf8622ecd67d9): `old` rolls an old save's run (oldSaveRun: today's rule), for the "(old save)" tests. */
+function rolled(seed: number, day: number, own: Own = [], last?: MerchantId[], old = false): Run {
+  const run = (old ? oldSaveRun : newRun)(seed % 2 ? "weaver" : "furnace", seed * 7919 + day);
   run.day = day;
   run.inventory = own.map(([def, stars], i) => ({ uid: 900 + i, def, ...(stars && stars > 1 ? { stars } : {}) }));
   if (last) run.lastMerchants = last;
@@ -266,8 +281,8 @@ describe("shop: the merchant draw (§5.2 step 1)", () => {
     });
   });
 
-  it("the regular-trade bias counts 1★ copies only and stops at +3: those runs draw the very same merchants", () => {
-    const merchants = (seed: number, day: number, own: Own) => rolled(seed, day, own).shop.wagons.map((w) => w.merchant);
+  it("the regular-trade bias counts 1★ copies only and stops at +3: those runs draw the very same merchants (old save)", () => {
+    const merchants = (seed: number, day: number, own: Own) => rolled(seed, day, own, undefined, true).shop.wagons.map((w) => w.merchant);
     for (let seed = 1; seed <= 300; seed++) {
       for (const day of [2, 5, 9]) {
         expect(merchants(seed, day, [["calibrate", 2], ["chamber", 3]])).toEqual(merchants(seed, day, []));
@@ -289,11 +304,12 @@ describe("shop: the merchant draw (§5.2 step 1)", () => {
 describe("shop: the familiar slot's weights and chance (§5.2 step 3)", () => {
   // Only TINKER parts are owned, and the Tinker stocks 8 parts, so its <= 3 regular slots never fall back to an
   // owned one: an owned part in its wagon is the familiar slot.
+  // 0.8.0 I1 M3 (oracle 47ddf8622ecd67d9): both tests below are "(old save)": today's rule (rolled's `old`)
   const familiar = (own: Own, day: number, n: number) => {
     const shown: Record<string, number> = {};
     let tinker = 0;
     for (let seed = 1; seed <= n; seed++) {
-      const w = rolled(seed, day, own).shop.wagons.find((x) => x.merchant === "tinker");
+      const w = rolled(seed, day, own, undefined, true).shop.wagons.find((x) => x.merchant === "tinker");
       if (!w) continue;
       tinker++;
       for (const o of w.offers) if (own.some(([d]) => d === o.def)) shown[o.def] = (shown[o.def] ?? 0) + 1;
@@ -302,7 +318,7 @@ describe("shop: the familiar slot's weights and chance (§5.2 step 3)", () => {
   };
   const within = (hits: number, n: number, p: number) => expect(Math.abs(hits / n - p)).toBeLessThan(4 * Math.sqrt((p * (1 - p)) / n));
 
-  it("weights 0.5 (1★ only) : 4 (2★ only) : 12 (1★ and 2★) : 0 (3★ only)", () => {
+  it("weights 0.5 (1★ only) : 4 (2★ only) : 12 (1★ and 2★) : 0 (3★ only) (old save)", () => {
     const a = familiar([["grease"], ["brake", 2]], 9, 3000); // 0.5 vs 4
     within(a.shown.brake, a.shown.brake + a.shown.grease, 4 / 4.5);
     const b = familiar([["grease"], ["grease", 2], ["brake", 2]], 9, 3000); // 12 vs 4
@@ -313,7 +329,7 @@ describe("shop: the familiar slot's weights and chance (§5.2 step 3)", () => {
     for (const r of [a, b, c]) expect(r.tinker).toBeGreaterThan(1000);
   });
 
-  it("chance by day, 1-10: 0, then 35% (days 2-3), 50% (4-6), 60% (7-10) of caravans whose merchant rides", () => {
+  it("chance by day, 1-10: 0, then 35% (days 2-3), 50% (4-6), 60% (7-10) of caravans whose merchant rides (old save)", () => {
     const want = [0, 0.35, 0.35, 0.5, 0.5, 0.5, 0.6, 0.6, 0.6, 0.6];
     for (let day = 1; day <= 10; day++) {
       const r = familiar([["grease"]], day, 1500);
@@ -375,11 +391,11 @@ describe("shop: badges and the survivor (folded from review-061's repro files)",
 
   // 0.6.2m (REQ-BFG-033): the Alchemist no longer sells DRAKE NOZZLE (a core, now the Arcane Dealer's), so its unowned
   // rare here is VENOM DRIP, a rare rig: the same fresh-first case (common TEMPER unowned, WHETSTONE and COIL owned)
-  it("fresh-first: owning whetstone + coil, a one-slot alchemist wagon that skips TEMPER offers the unowned VENOM", () => {
+  it("fresh-first: owning whetstone + coil, a one-slot alchemist wagon that skips TEMPER offers the unowned VENOM (old save)", () => {
     withMerchantParts("alchemist", ["temper", "whetstone", "coil", "venom"], () => {
       let missing = 0, drake = 0; // drake: wagons offering only the unowned rare (VENOM since 0.6.2m)
       for (let seed = 1; seed <= 250; seed++) {
-        const run = newRun("furnace", seed * 97);
+        const run = oldSaveRun("furnace", seed * 97); // 0.8.0 I1 M3 (oracle 47ddf8622ecd67d9): today's rule
         run.inventory = [{ uid: 900, def: "whetstone" }, { uid: 901, def: "coil" }];
         run.day = 1;
         rollShop(run);
@@ -423,12 +439,12 @@ describe("shop: robustness (N5, N6)", () => {
       }));
   });
 
-  it("fewer stocked merchants than wagons: every slot goes to the ones drawn, and no roll throws", () => {
+  it("fewer stocked merchants than wagons: every slot goes to the ones drawn, and no roll throws (old save)", () => {
     withOnly(["tinker"], () => {
       for (let seed = 1; seed <= 300; seed++) {
         for (const day of [1, 3, 5, 9]) {
           let run: Run | undefined;
-          expect(() => { run = rolled(seed, day, [["grease"], ["brake", 2]]); }).not.toThrow();
+          expect(() => { run = rolled(seed, day, [["grease"], ["brake", 2]], undefined, true); }).not.toThrow(); // 0.8.0 I1: old save
           expect(run!.shop.wagons.map((w) => w.merchant)).toEqual(["tinker"]);
           const defs = run!.shop.wagons[0].offers.map((o) => o.def);
           expect(defs).toHaveLength(OFFERS);
@@ -438,7 +454,7 @@ describe("shop: robustness (N5, N6)", () => {
     });
     withOnly(["tinker", "alchemist"], () => {
       for (let seed = 1; seed <= 300; seed++) {
-        const run = rolled(seed, 5);
+        const run = rolled(seed, 5, [], undefined, true); // 0.8.0 I1: old save
         expect(run.shop.wagons.length).toBeLessThanOrEqual(2);
         expect(run.shop.wagons.flatMap((w) => w.offers)).toHaveLength(OFFERS);
       }

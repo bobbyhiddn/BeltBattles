@@ -9,6 +9,19 @@ import {
 } from "../src/game/eventDefs";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { migrateRun, newRun, rollShop, shopBadge, type Run } from "../src/game/run";
+
+/**
+ * 0.8.0 I1 M3 (oracle 47ddf8622ecd67d9): an old save, a run with no wares, whose road grants read the whole catalogue
+ * (today's rule; eventDefs.ts inWares): the game's newRun without its wares, the day-1 caravan rolled exactly as newRun
+ * rolled it before the per-run draw. Only the tests marked "(old save)" use it; every other test plays the live draw.
+ */
+function oldSaveRun(hero: Parameters<typeof newRun>[0], seed: number, runId?: string): Run {
+  const run = newRun(hero, seed, runId);
+  delete run.wares;
+  run.shop = { wagons: [], rerolls: 0, discount: 0, free: 0 };
+  rollShop(run);
+  return run;
+}
 import { ITEMS, RARITIES, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { fusible } from "../src/sim/stars";
@@ -26,9 +39,10 @@ const buyable = (): ItemDef[] =>
   Object.values(ITEMS).filter((d) => !!d.merchant && d.price > 0 && ["gate", "factory", "mod", "core"].includes(d.kind) && !DORMANT_ITEMS.has(d.id));
 const ids = (ds: ItemDef[]) => ds.map((d) => d.id);
 
-/** A Furnace run on the road on `day` with event `id`, 20 gold and the parts `held` in cargo. */
-function atEvent(id: EventId, seed: number, day: number, held: Held = []): Run {
-  const run = newRun("furnace", seed);
+/** A Furnace run on the road on `day` with event `id`, 20 gold and the parts `held` in cargo. 0.8.0 I1 M3 (oracle
+ *  47ddf8622ecd67d9): `old`, an old save's run (oldSaveRun: today's rule), for the "(old save)" tests. */
+function atEvent(id: EventId, seed: number, day: number, held: Held = [], old = false): Run {
+  const run = (old ? oldSaveRun : newRun)("furnace", seed);
   run.day = day;
   run.gold = 20;
   for (const h of held) {
@@ -58,14 +72,14 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
   // gate's effect does, not on the BURN and SHOCK tags v2 retired. The picks stay the same six rigs.
   const BURNS = (d: ItemDef) => !!(d.gate?.burn || d.gate?.burnPerRide || d.gate?.quench);
   const SHOCKS = (d: ItemDef) => !!(d.gate?.shock || d.gate?.staticTime || d.gate?.perStalled);
-  it("SMUGGLER's BURN and SHOCK pools are the gates whose effect burns or shocks (0.6.1: TEMPER, GALVANIC COIL); prices stay 2 and 3", () => {
+  it("SMUGGLER's BURN and SHOCK pools are the gates whose effect burns or shocks (0.6.1: TEMPER, GALVANIC COIL); prices stay 2 and 3 (old save)", () => {
     for (const [kind, test] of [["BURN", BURNS], ["SHOCK", SHOCKS]] as const) {
       expect(smugglerPool(kind)).toEqual(ids(buyable().filter((d) => d.kind === "gate" && test(d))));
     }
     expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "quench"]);
     expect(smugglerPool("SHOCK")).toEqual(["coil", "staticbrush", "lodestone"]);
     for (const seed of SEEDS.slice(0, 50)) for (const day of DAYS) {
-      const [burn, shock] = choicesFor(atEvent("smuggler", seed, day));
+      const [burn, shock] = choicesFor(atEvent("smuggler", seed, day, [], true)); // 0.8.0 I1 M3: old save
       expect([burn.label, burn.cost]).toEqual(["BURN", [{ k: "gold", n: 2 }]]);
       expect([shock.label, shock.cost]).toEqual(["SHOCK", [{ k: "gold", n: 3 }]]);
       expect(smugglerPool("BURN")).toContain(gainOf(burn));
@@ -73,7 +87,7 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     }
   });
 
-  it("a gate given a burn or shock effect later joins SMUGGLER's pools with no code change, every BURN/SHOCK pairing shows, never one gate twice", () => {
+  it("a gate given a burn or shock effect later joins SMUGGLER's pools with no code change, every BURN/SHOCK pairing shows, never one gate twice (old save)", () => {
     const whet = ITEMS.whetstone.gate, grease = ITEMS.grease.gate;
     try {
       ITEMS.whetstone.gate = { ...whet, burn: 1 };
@@ -82,7 +96,7 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
       expect(smugglerPool("SHOCK")).toContain("grease");
       const pairs = new Set<string>();
       for (const seed of SEEDS.slice(0, 200)) {
-        const [burn, shock] = choicesFor(atEvent("smuggler", seed, 5)).map(gainOf);
+        const [burn, shock] = choicesFor(atEvent("smuggler", seed, 5, [], true)).map(gainOf); // 0.8.0 I1 M3: old save
         expect(burn).not.toBe(shock);
         pairs.add(`${burn}+${shock}`);
       }
@@ -203,12 +217,12 @@ describe("TRADER SWAP draws from UPGRADE", () => {
 });
 
 describe("what the card shows is what the choice grants, across a save and reload", () => {
-  it("SALVAGE, SWAP and SMUGGLER: same part after a reload, granted on the pick, and the resolved card still names it", () => {
+  it("SALVAGE, SWAP and SMUGGLER: same part after a reload, granted on the pick, and the resolved card still names it (old save)", () => {
     const salvaged = new Set<string>();
     let redraws = 0;
     for (const seed of SEEDS.slice(0, 80)) {
       for (const [id, i, held] of [["wreck", 0, ["temper"]], ["trader", 1, ["whetstone"]], ["smuggler", 0, []]] as const) {
-        const run = atEvent(id, seed, 4, held);
+        const run = atEvent(id, seed, 4, held, true); // 0.8.0 I1 M3: old save
         const shown = gainOf(choicesFor(run)[i])!;
         const loaded = migrateRun(clone(run))!;
         expect(gainOf(choicesFor(loaded)[i])).toBe(shown);

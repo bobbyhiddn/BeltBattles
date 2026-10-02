@@ -17,6 +17,7 @@ import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
 import { fusible, starField, starsOf } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
+import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
@@ -138,6 +139,11 @@ export interface Run {
   // a new optional field, as 0.6.2j's joins and TUNE-M's refund were; a v8 key would be a new storage key offline (D3).
   seenGhosts?: string[]; // server ghost ids fought this run, sent as the match request's `seen` (no repeats in a run)
   uploaded?: number; // the last day whose dusk deck was submitted (once per dusk, also across a reload)
+  // 0.8.0 I1 M3 (REQ-BFG-022 part 2; DESIGN-wave3.md 4.2): the per-run draw (wares.ts drawWares, from the run seed alone,
+  // never the hero): each module the run's caravan and road can offer, with the day it unlocks. Save v7, no bump: a new
+  // optional field, as refund and the joins were. Absent (a save from before 0.8.0): today's rule, so a run in progress
+  // never changes.
+  wares?: Wares;
 }
 
 export const RUN_VERSION = 7; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once)
@@ -156,6 +162,7 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
     nextUid: 100, history: [], over: null,
     stage: "caravan", event: null, nextShop: { discount: 0, free: 0 }, events: [], dusk: null,
     road: null, warlord: null, warlords: [], matriarchBeatenOn: null, bounty: null, sabotage: null,
+    wares: drawWares(seed), // 0.8.0 I1 M3: the per-run draw (the run seed alone)
   };
   rollShop(run);
   return run;
@@ -203,18 +210,30 @@ function ownsDef(run: Run, def: string): boolean {
   return starLevelsOwned(run, def).size > 0;
 }
 
-/** What `m` can sell on `day`: its stock without legendaries before day 4 (the shop's day gate). */
-function dayPool(m: MerchantId, day: number): ItemDef[] {
-  return itemsSoldBy(m).filter((d) => d.rarity !== "legendary" || day >= 4);
+/**
+ * 0.8.0 I1 M3 (DESIGN-wave3.md 4.2): what `m` stocks for this run on `day`: with the per-run draw, only the run's wares
+ * unlocked by `day` (wares.ts unlocked; supplies are always on sale); a run without wares (a save from before 0.8.0)
+ * keeps today's rule, its whole stock.
+ */
+function stockOf(run: Run, m: MerchantId, day: number): ItemDef[] {
+  const stock = itemsSoldBy(m);
+  return run.wares ? stock.filter((d) => unlocked(run, d.id, day)) : stock;
+}
+
+/** What `m` can sell on `day`: its stock without legendaries before day 4 (the shop's day gate). 0.8.0 I1 M3: the run's
+ *  stock (stockOf: its unlocked wares under the per-run draw). */
+function dayPool(run: Run, m: MerchantId, day: number): ItemDef[] {
+  return stockOf(run, m, day).filter((d) => d.rarity !== "legendary" || day >= 4);
 }
 
 /** ARSENAL.md §5.2 step 1: base weight, +1 per owned 1★ fusible part the merchant sells (max +3),
  *  x0.5 if `m` rode in yesterday's final caravan. A merchant with no stock today never appears
  *  (0.6.1r N5: judged on the day's pool, so an all-legendary stock waits for day 4; the bias still
- *  counts every part it sells, so no weight changes for today's catalogue). */
+ *  counts every part it sells, so no weight changes for today's catalogue). 0.8.0 I1 M3: under the per-run draw "every
+ *  part it sells" is the run's stock (stockOf); without wares it is the whole catalogue stock, as before. */
 function merchantWeight(run: Run, m: MerchantId, day: number): number {
-  const stock = itemsSoldBy(m);
-  if (!dayPool(m, day).length) return 0;
+  const stock = stockOf(run, m, day);
+  if (!dayPool(run, m, day).length) return 0;
   const base = baseMerchantWeight(m, day);
   if (base <= 0) return 0;
   let bias = 0;
@@ -236,7 +255,7 @@ function pickMerchants(run: Run, rng: Rng, n: number): MerchantId[] {
   }
   if (!chosen.includes("tinker") && !chosen.includes("alchemist")) {
     // 0.6.1r N5: only a gate seller with something to sell today; never index -1 of an empty list
-    const seller = (["tinker", "alchemist"] as const).find((m) => dayPool(m, run.day).length);
+    const seller = (["tinker", "alchemist"] as const).find((m) => dayPool(run, m, run.day).length);
     if (seller && chosen.length) chosen[chosen.length - 1] = seller;
     else if (seller) chosen.push(seller);
   }
@@ -254,11 +273,12 @@ function familiarChance(day: number): number {
 interface FamiliarCandidate { merchant: MerchantId; def: string; weight: number }
 
 /** Owned fusible parts a merchant in this caravan sells, weighted 0.5 (only 1★ owned) / 4 (only 2★
- *  owned) / 12 (1★ and 2★ owned: the next copy chains to 3★) / dropped at 0 (only 3★ owned). */
+ *  owned) / 12 (1★ and 2★ owned: the next copy chains to 3★) / dropped at 0 (only 3★ owned). 0.8.0 I1 M3: what it sells
+ *  this run today (stockOf: its unlocked wares under the per-run draw). */
 function familiarCandidates(run: Run, merchants: MerchantId[]): FamiliarCandidate[] {
   const out: FamiliarCandidate[] = [];
   for (const m of merchants) {
-    for (const d of itemsSoldBy(m)) {
+    for (const d of stockOf(run, m, run.day)) {
       if (!fusible(d.id)) continue;
       if (d.rarity === "legendary" && run.day < 4) continue; // review-061 N1: the shop's legendary day gate
       const levels = starLevelsOwned(run, d.id);
@@ -288,7 +308,7 @@ export function rollShop(run: Run): void {
   // goes to the next wagon round (slot+1, slot+2, ...) that has one and draws there, fresh-first as
   // usual; if no wagon has one, the slot stays empty. rollRarity is still drawn once per slot, in slot
   // order, so a caravan whose wagons never repeated a def keeps its stream and its offers.
-  const hasFresh = (wg: Wagon) => dayPool(wg.merchant, run.day).some((d) => !wg.offers.some((o) => o.def === d.id));
+  const hasFresh = (wg: Wagon) => dayPool(run, wg.merchant, run.day).some((d) => !wg.offers.some((o) => o.def === d.id));
   for (let slot = 0; slot < OFFERS && wagons.length; slot++) {
     const rarity = rollRarity(rng, run.day);
     let w: Wagon | undefined;
@@ -298,7 +318,7 @@ export function rollShop(run: Run): void {
     }
     if (!w) continue;
     const wagon = w;
-    const pool = dayPool(wagon.merchant, run.day);
+    const pool = dayPool(run, wagon.merchant, run.day);
     const fresh = (d: ItemDef) => !wagon.offers.some((o) => o.def === d.id);
     let choices = pool.filter((d) => d.rarity === rarity && !ownsDef(run, d.id) && fresh(d));
     if (!choices.length) choices = pool.filter((d) => !ownsDef(run, d.id) && fresh(d));

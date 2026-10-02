@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { Battle, type Payload } from "../src/sim/battle";
 import { AMMO, BELT_SPEED, ITEMS, RULES_VERSION, TICK } from "../src/sim/content";
-import { hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
+import { hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, stokeHits, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { beltKind, hitLabel } from "../src/screens/build/inspector";
 import { validateBuild } from "../src/net/validate";
@@ -347,14 +347,19 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
 
 describe("P16: one harness (harness v2's buying and merging, H2's placement)", () => {
   it("stars-on harness builds put no machinery on a belt tile and no rig idle; some carry merged rigs", () => {
-    let rigs = 0, starred = 0;
+    let rigs = 0, starred = 0, stokers = 0;
     const check = (b: Build, at: string) => {
       const occ = occupancy(b), hits = rigHits(b);
+      // 0.8.0 I1 M3 (oracle 4fe13f3fd06dc385): R5's exception, the game's own IDLE rule: a stoking rig's factory hits
+      // (deck.ts stokeHits, never rigFactoryHits) count as work too; a STOKER works factories, never belts
+      const stokes = stokeHits(b);
       expect(b.routes.flatMap((r) => r.cells).filter((k) => occ[k].item >= 0), `${at}: machinery on a belt tile`).toEqual([]);
       for (const p of b.items.filter((q) => ITEMS[q.def].kind === "gate")) {
         rigs++;
         if (starsOf(p) > 1) starred++;
-        expect(hitsOfRig(b, p.uid, hits).length, `${at}: ${p.def} ${p.uid} idle`).toBeGreaterThan(0);
+        const stoked = stokes.filter((h) => h.uid === p.uid).length;
+        if (stoked) stokers++;
+        expect(hitsOfRig(b, p.uid, hits).length + stoked, `${at}: ${p.def} ${p.uid} idle`).toBeGreaterThan(0);
       }
     };
     for (const hero of HARNESS_HEROES) for (const day of [3, 7, 10]) for (let i = 0; i < 4; i++) {
@@ -363,6 +368,7 @@ describe("P16: one harness (harness v2's buying and merging, H2's placement)", (
     for (const hero of ["furnace", "weaver"] as const) for (const day of [4, 8]) check(fullPurseBuild(hero, day, hashSeed("p16-fp", hero, day), undefined, 60, "on").build, `full purse ${hero} d${day}`);
     expect(rigs).toBeGreaterThan(100);
     expect(starred).toBeGreaterThan(0);
+    expect(stokers).toBeGreaterThan(0); // 0.8.0 I1 M3 (oracle 4fe13f3fd06dc385): the shopper places STOKERs (placeStoker)
   });
 
   it("a merge keeps the surviving rig's cell and rotation (Shopper.placeRig, stars on, through the game's gainModule)", () => {

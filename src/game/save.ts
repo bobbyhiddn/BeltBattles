@@ -27,6 +27,7 @@ import { starField, starsOf, valueOf } from "../sim/stars";
 import { ID_PATTERN, toId } from "./ghostSnapshot";
 import { fuseAll } from "./fuse";
 import { readoutOk } from "./raceReadout"; // 0.8.0 H1 M3
+import { waresOk } from "./wares"; // 0.8.0 I1 M3
 import type { Run } from "./run";
 
 export const SAVE_KEY = "beltbattles.run.v7";
@@ -205,6 +206,9 @@ export function migrateRun(raw: unknown): Run | null {
   if (r.refund === null) delete r.refund;
   else if (r.refund !== undefined && !(typeof r.refund === "object" && typeof r.refund.day === "number" && typeof r.refund.lives === "number")) r.refund = { day: 3, lives: 0 };
   normalizeOnline(r);
+  // 0.8.0 I1 M3 (DESIGN-wave3.md 4.2): the per-run draw's wares stay when well formed and are dropped otherwise; a run
+  // without wares (every save from before 0.8.0) plays today's rule. Save v7, no bump.
+  if (r.wares !== undefined && !waresOk(r.wares)) delete r.wares;
   // 0.8.0 H1 M3: a dusk's FOUNDRY/BASTION readout (DayResult.race) stays when well formed and is dropped otherwise, so
   // no load trips over it. Save v7, no bump: a Furnace or Weaver result never has one.
   for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {

@@ -7,6 +7,16 @@ import { ITEMS, buyableModules, type GateEffect, type ItemDef, type Rarity } fro
 import { fusible, starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
+import { unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: road grants draw from the run's unlocked wares
+
+/**
+ * 0.8.0 I1 M3 (DESIGN-wave3.md 4.2, VERIFIED-D1 Q8): the road's part grants (SALVAGE, the SMUGGLER, the TRADER's SWAP)
+ * draw from the run's wares unlocked on its day, as its caravan does; a run without wares (a save from before 0.8.0, or
+ * roadCap.ts's model of every run) keeps the whole pool. A pool the draw leaves empty blocks its choice (partChoice:
+ * NONE ON OFFER), as an empty catalogue pool always did.
+ */
+type WareRun = { wares?: Wares; day: number };
+const inWares = (run: WareRun | undefined, ids: string[]): string[] => (run?.wares ? ids.filter((id) => unlocked(run, id, run.day)) : ids);
 
 export type EventId = "wreck" | "cache" | "trader" | "dice" | "dock" | "herald" | "sappers" | "scout" | "storm" | "smuggler";
 
@@ -128,7 +138,7 @@ const holds = (run: Run, def: string): boolean =>
  * with it), so the card shows what the choice grants, also after a reload.
  */
 export function salvagePart(run: Run, pick: number): string | undefined {
-  const pool = salvagePool();
+  const pool = inWares(run, salvagePool()); // 0.8.0 I1 M3: the run's unlocked wares
   const fresh = pool.filter((id) => !holds(run, id));
   const twins = pool.filter((id) => mergePreview(run, id) !== null);
   if (!fresh.length || !twins.length) return draw(fresh.length ? fresh : twins.length ? twins : pool, pick)[0];
@@ -137,17 +147,19 @@ export function salvagePart(run: Run, pick: number): string | undefined {
 }
 
 /** SMUGGLER's BURN part, then its SHOCK part from what is left of `pick` (never BURN's gate again while
- *  the shock pool has another). */
-export function smugglerParts(pick: number): [string | undefined, string | undefined] {
-  const [burn, rest] = draw(smugglerPool("BURN"), pick);
-  const shock = smugglerPool("SHOCK");
+ *  the shock pool has another). 0.8.0 I1 M3: with a run, each pool is the run's unlocked wares in it (still keyed by
+ *  effect, SMUGGLER_EFFECT); a kind the draw leaves empty is undefined, and its choice is blocked. */
+export function smugglerParts(pick: number, run?: WareRun): [string | undefined, string | undefined] {
+  const [burn, rest] = draw(inWares(run, smugglerPool("BURN")), pick);
+  const shock = inWares(run, smugglerPool("SHOCK"));
   const other = shock.filter((id) => id !== burn);
   return [burn, draw(other.length ? other : shock, rest)[0]];
 }
 
-/** TRADER SWAP's part for a good of `def`: from UPGRADE[SWAP_TIER[its rarity]], never `def` itself. */
-export function swapPart(def: string, pick: number): string | undefined {
-  return draw(UPGRADE[SWAP_TIER[ITEMS[def].rarity]].filter((id) => id !== def), pick)[0];
+/** TRADER SWAP's part for a good of `def`: from UPGRADE[SWAP_TIER[its rarity]], never `def` itself. 0.8.0 I1 M3: with a
+ *  run, from the run's unlocked wares in that tier. */
+export function swapPart(def: string, pick: number, run?: WareRun): string | undefined {
+  return draw(inWares(run, UPGRADE[SWAP_TIER[ITEMS[def].rarity]]).filter((id) => id !== def), pick)[0];
 }
 
 /** A choice that gains part `def`; blocked when its pool had none (a catalogue without such a part). */
@@ -212,7 +224,7 @@ export const EVENTS: Record<EventId, EventDef> = {
       const note = g.from === "cargo" ? undefined : g.from === "deck" ? "FROM YOUR DECK" : "FROM A TURRET";
       return [
         { label: "SELL", cost: [give], gain: [gold(valueOf(g.def, starsOf(g)))], note }, // 0.6.1a: full value
-        partChoice("SWAP", [give], swapPart(g.def, ev.pick), note), // 0.6.1c: UPGRADE from the catalogue
+        partChoice("SWAP", [give], swapPart(g.def, ev.pick, run), note), // 0.6.1c: UPGRADE from the catalogue; 0.8.0 I1: the run's wares
         moveOn(),
       ];
     },
@@ -271,8 +283,8 @@ export const EVENTS: Record<EventId, EventDef> = {
   smuggler: {
     id: "smuggler", title: "AMMO SMUGGLER", kind: "SMUGGLER",
     text: ["A SMUGGLER SELLS HOT RIGS FROM", "UNDER A TARP. NO QUESTIONS ASKED."], // beltside-062c: BELTSIDE's text (P10)
-    choices: (_run, ev) => {
-      const [burn, shock] = smugglerParts(ev.pick); // 0.6.1c: the catalogue's burn and shock gates
+    choices: (run, ev) => {
+      const [burn, shock] = smugglerParts(ev.pick, run); // 0.6.1c: the catalogue's burn and shock gates; 0.8.0 I1: the run's wares
       return [partChoice("BURN", [gold(2)], burn), partChoice("SHOCK", [gold(3)], shock), moveOn()];
     },
   },

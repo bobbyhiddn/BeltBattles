@@ -1,0 +1,119 @@
+// 0.8.0 I1 M3 (REQ-BFG-022 part 2; output-D1/DESIGN-wave3.md 4.1-4.2, VERIFIED-D1 Q8): THE PER-RUN DRAW.
+//
+// When a run starts (run.ts newRun), each merchant packs this run's wares: DRAW.active parts in all (62). Each merchant
+// carries its share of the catalogue (its stock x 62 / catalogue size), spread over its rarities the same way, and the
+// parts of each rarity are drawn by a seeded shuffle; leftover fractions go to a seeded lottery weighted by the fraction,
+// so no group is left out of every run. The stock unlocks on 5 steps: day 1 offers commons and rares from every merchant
+// but the ARCANE DEALER; epics from day 2; the ARCANE DEALER from day 3 (as run.ts always had it); legendaries from day 4
+// (as always); and two restocks on days 6 and 8, where DRAW.late (12) of the run's wares, stratified by kind and never
+// legendary or the ARCANE DEALER's (so those two steps stay whole), wait on the road, half arriving each day.
+//
+// Everything here reads the run seed and the catalogue alone, never the hero (REQ-BFG-021): two heroes with one seed
+// get the same wares. The code is D1's tools/wave3.ts draw (wares, quotas, unlockDay) moved into the game unchanged, so
+// DESIGN 4.3's measurements (62 wares, a day-1 pool of about 35, 5 steps) hold for the game's own runs.
+//
+// A run without wares (a save from before 0.8.0) plays today's rule: every buyable module, legendaries from day 4, the
+// ARCANE DEALER from day 3 (run.ts dayPool), so a run in progress never changes.
+
+import { hashSeed, Rng } from "../core/rng";
+import { ITEMS, RARITIES, buyableModules, type MerchantId } from "../sim/content";
+
+/** The draw's rule: `active` wares a run, `late` of them held back for two restocks; the unlock ladder. */
+export interface DrawRule {
+  active: number;
+  late: number;
+  lateDays: readonly [number, number];
+  epicDay: number;
+  arcaneDay: number;
+  legendaryDay: number;
+}
+export const DRAW: DrawRule = { active: 62, late: 12, lateDays: [6, 8], epicDay: 2, arcaneDay: 3, legendaryDay: 4 };
+
+/** A run's wares: each module the run's caravan and road can ever offer, with the day (1-10) it unlocks. */
+export type Wares = Record<string, number>;
+
+/** The draw's kinds (a rig is "gate" in ITEMS), in D1's order: the restocks are stratified by them. */
+const KINDS = ["rig", "factory", "core", "mod", "turret"] as const;
+const kindOf = (id: string): (typeof KINDS)[number] => (ITEMS[id].kind === "gate" ? "rig" : (ITEMS[id].kind as (typeof KINDS)[number]));
+
+/**
+ * Integer quotas summing to `total` in proportion to `sizes`: each group's floor, then the remaining seats by a seeded
+ * lottery weighted by the fractions (no group twice), so no group is left out on every run. `rng` reads the run seed.
+ */
+export function quotas(sizes: readonly number[], total: number, rng: Rng): number[] {
+  const sum = sizes.reduce((s, x) => s + x, 0);
+  if (total >= sum) return [...sizes];
+  const exact = sizes.map((s) => (s * total) / sum);
+  const q = exact.map(Math.floor);
+  let left = total - q.reduce((s, x) => s + x, 0);
+  const cand = exact.map((x, i) => ({ i, w: x - Math.floor(x) })).filter((c) => c.w > 1e-9);
+  while (left > 0 && cand.length) {
+    const pick = rng.weighted(cand, (c) => c.w);
+    q[pick.i]++;
+    cand.splice(cand.indexOf(pick), 1);
+    left--;
+  }
+  return q;
+}
+
+/** The day a ware unlocks: its rarity's (epic from epicDay, legendary from legendaryDay), the ARCANE DEALER's from
+ *  arcaneDay, and a late restock day when it waits for one. */
+export function unlockDay(id: string, late: number | undefined, rule: DrawRule = DRAW): number {
+  const d = ITEMS[id];
+  let u = d.rarity === "legendary" ? rule.legendaryDay : d.rarity === "epic" ? rule.epicDay : 1;
+  if (d.merchant === "arcane") u = Math.max(u, rule.arcaneDay);
+  if (late !== undefined) u = Math.max(u, late);
+  return u;
+}
+
+/**
+ * The run's wares, drawn from the run seed alone (in catalogue order). Each merchant carries its share of `active`, spread
+ * over its rarities, each rarity's parts drawn by a seeded shuffle; then `late` of the wares that are neither legendary
+ * nor the ARCANE DEALER's wait for the restocks, stratified by kind, alternating between the two restock days.
+ */
+export function drawWares(seed: number, rule: DrawRule = DRAW): Wares {
+  const all = buyableModules().map((d) => d.id);
+  const merchants = [...new Set(all.map((id) => ITEMS[id].merchant!))].sort();
+  const stockOf = (m: MerchantId) => all.filter((id) => ITEMS[id].merchant === m);
+  const qm = quotas(merchants.map((m) => stockOf(m).length), Math.min(rule.active, all.length), new Rng(hashSeed(seed, "wares-merchant")));
+  const picked = new Set<string>();
+  merchants.forEach((m, i) => {
+    const stock = stockOf(m);
+    const tiers = RARITIES.filter((r) => stock.some((id) => ITEMS[id].rarity === r));
+    const qr = quotas(tiers.map((r) => stock.filter((id) => ITEMS[id].rarity === r).length), qm[i], new Rng(hashSeed(seed, "wares-rarity", m)));
+    tiers.forEach((r, j) => {
+      const ids = new Rng(hashSeed(seed, "wares", m, r)).shuffle(stock.filter((id) => ITEMS[id].rarity === r));
+      for (const id of ids.slice(0, qr[j])) picked.add(id);
+    });
+  });
+  const eligible = all.filter((id) => picked.has(id) && ITEMS[id].rarity !== "legendary" && ITEMS[id].merchant !== "arcane");
+  const byKind = KINDS.map((k) => eligible.filter((id) => kindOf(id) === k));
+  const lq = quotas(byKind.map((l) => l.length), Math.min(rule.late, eligible.length), new Rng(hashSeed(seed, "late-quota")));
+  const late = new Map<string, number>();
+  byKind.forEach((ids, i) => {
+    const order = new Rng(hashSeed(seed, "late", KINDS[i])).shuffle([...ids]);
+    order.slice(0, lq[i]).forEach((id, j) => late.set(id, rule.lateDays[j % 2]));
+  });
+  const out: Wares = {};
+  for (const id of all) if (picked.has(id)) out[id] = unlockDay(id, late.get(id), rule);
+  return out;
+}
+
+/**
+ * Is module `id` among the run's unlocked wares on `day`? With no wares (a save from before 0.8.0) every module is, and
+ * run.ts dayPool applies today's legendary and ARCANE DEALER days itself. A supply is never a ware: always on sale.
+ */
+export function unlocked(run: { wares?: Wares }, id: string, day: number): boolean {
+  if (!run.wares) return true;
+  if (ITEMS[id]?.kind === "supply") return true;
+  const u = Object.prototype.hasOwnProperty.call(run.wares, id) ? run.wares[id] : undefined;
+  return u !== undefined && u <= day;
+}
+
+/** A save's wares, kept when well formed (module ids that are buyable, days 1-10) and dropped otherwise, so the run then
+ *  plays today's rule (save.ts migrateRun). */
+export function waresOk(w: unknown): w is Wares {
+  if (!w || typeof w !== "object" || Array.isArray(w)) return false;
+  const buyable = new Set(buyableModules().map((d) => d.id));
+  return Object.entries(w as Record<string, unknown>).every(([id, day]) => buyable.has(id) && Number.isInteger(day) && (day as number) >= 1 && (day as number) <= 10);
+}
