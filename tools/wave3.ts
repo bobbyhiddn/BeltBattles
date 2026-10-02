@@ -109,7 +109,7 @@ export const WAVE3: readonly Hypo[] = [
   { id: "twingauge", name: "TWIN GAUGE", kind: "gate", rarity: "common", price: 3, merchant: "tinker", shape: "I", tags: ["TWIN", "FORGE"],
     proxy: { gate: { flat: 1.5 }, levels: lv("gate", { flat: 3.3 }, { flat: 5.25 }) }, why: "+1 flat, +2 more on a matched belt: about +1.5" },
   { id: "pincer", name: "PINCER", kind: "gate", rarity: "common", price: 3, merchant: "alchemist", shape: "I", tags: ["FORGE"],
-    proxy: { gate: { flat: 1.5 }, levels: lv("gate", { flat: 3.3 }, { flat: 5.25 }) }, why: "+1 for each other arrow on its tile: about +1.5" },
+    proxy: { gate: { flat: 1.5 }, levels: lv("gate", { flat: 3.3 }, { flat: 5.25 }) }, why: "+1, and +2 for each other rig on its tile: about +1.5" },
   { id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, merchant: "ironmonger", shape: "L", tags: ["PLATE", "HARASS"],
     proxy: { gate: { toll: 2 }, levels: lv("gate", { toll: 4 }, { toll: 7 }) }, why: "a guard, rated as TOLLBOOTH's" },
   { id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, merchant: "tinker", shape: "II", tags: ["TWIN", "TEMPO"],
