@@ -82,7 +82,7 @@ function fieldsOf(): HeroId[] {
   for (const h of HEROES) if (!f.includes(h)) throw new Error(`--fields must include ${h} (the calibration field and "both")`);
   return f;
 }
-const norm =(b: Build): Build => decodeStandInCode(b.hero, standInCodeOf(b, "on"), "on");
+const norm = (b: Build): Build => decodeStandInCode(b.hero, standInCodeOf(b, "on"), "on");
 const G = STANDIN_DEFAULTS.gauntlet, SEED = STANDIN_DEFAULTS.seed, SEEDS = STANDIN_DEFAULTS.seeds;
 
 /** The stand-in generator's gauntlet of `day` (standins.ts genStandIns, seed 1, stars/cores/factories on). */
