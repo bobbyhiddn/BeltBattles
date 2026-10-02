@@ -310,8 +310,8 @@ export const FEATURES: Record<string, Feature> = {
       for (const x of [9, 14]) { put(p, x, y, y % 2 ? "rust1" : "rust3"); put(p, x + 1, y, y % 2 ? "rust3" : "rust1"); }
     }
     dots(p, c[2], [[9, 18], [15, 18], [10, 21], [14, 21]]);
-    dots(p, "fire4", [[9, 18], [15, 18]]);
-    dots(p, "fire2", [[10, 21], [14, 21]]);
+    dots(p, "fire4", [[10, 18], [14, 18]]);
+    dots(p, "fire2", [[9, 21], [15, 21]]);
   },
   // THANE KARSK: a grey-bearded thane behind a riveted tower shield (held across his left side, brass rivets, a steel
   // boss), a plate-breaking hammer on his right shoulder: an iron sledge head with a rusted band, as PLATE BREAKER's

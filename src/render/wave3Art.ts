@@ -49,6 +49,12 @@ function rows(g: G, x: number, y: number, r: string[], pal: Record<string, strin
 
 const IRON = { k: C.ink, W: C.white, S: C.steel3, s: C.steel2, d: C.steel1, D: C.steel0 };
 
+/** The ink halo of one pixel of a 2-px-thick bar (a 3x3 square round it), kept inside the 12x12 cell. */
+function halo(g: G, x: number, y: number): void {
+  const x0 = Math.max(0, x - 1), y0 = Math.max(0, y - 1), x1 = Math.min(12, x + 2), y1 = Math.min(12, y + 2);
+  rect(g, x0, y0, x1 - x0, y1 - y0, C.ink);
+}
+
 // =================================================================================================================== rigs
 
 /**
@@ -152,7 +158,7 @@ const pincer: RigPainter = (g, f, active, st) => {
     [[4, 5], [4, 4], [3, 3], [3, 2], [4, 1], [5, 1]],
   ];
   const jaws = [0, 1].map((side) => L[pose].map(([x, y]) => [side ? 11 - x : x, y] as [number, number]));
-  for (const pts of jaws) for (const [x, y] of pts) rect(g, x - 1, y - 1, 3, 3, C.ink);
+  for (const pts of jaws) for (const [x, y] of pts) halo(g, x, y);
   jaws.forEach((pts, side) => {
     pts.forEach(([x, y], i) => px(g, x, y, i >= 4 ? tip : i >= 2 ? glow : side ? C.steel1 : C.steel2));
   });
@@ -198,7 +204,7 @@ const twinLatch: RigPainter = (g, f, active, st) => {
   const down: [number, number][] = [[3, 7], [2, 8], [2, 9], [1, 10]];
   const left = release ? down : up;
   const fingers = [left, left.map(([x, y]) => [11 - x, y] as [number, number])];
-  for (const pts of fingers) for (const [x, y] of pts) rect(g, x - 1, y - 1, 3, 3, C.ink);
+  for (const pts of fingers) for (const [x, y] of pts) halo(g, x, y);
   fingers.forEach((pts, side) => pts.forEach(([x, y], i) => px(g, x, y, i === pts.length - 1 ? C.steel3 : side ? C.steel1 : C.steel2)));
   // the drum
   disc(g, 6, 6.5, 3.6, C.ink);
@@ -232,12 +238,12 @@ const stoker: RigPainter = (g, f, active) => {
   const ax = 5.5, ay = 7;
   const steps = 7;
   const at = (i: number): [number, number] => [Math.round(ax + ((ex - ax) * i) / steps), Math.round(ay + ((ey - ay) * i) / steps)];
-  for (let i = 0; i <= steps; i++) { const [x, y] = at(i); rect(g, x - 1, y - 1, 3, 3, C.ink); }
+  for (let i = 0; i <= steps; i++) { const [x, y] = at(i); halo(g, x, y); }
   for (let i = 1; i < steps; i++) { const [x, y] = at(i); px(g, x, y, i < 3 ? C.slate4 : C.slate3); } // the sooty arm, lit
   // the shovel blade at its end, carrying a glowing coal (or tipping it off in sparks on a hit)
   rect(g, ex - 1, ey, 3, 1, C.steel2);
   px(g, ex, ey, active ? C.white : f % 3 ? C.fire3 : C.fire4);
-  if (active) for (const [dx, dy] of [[-1, 1], [1, 1], [0, 2], [2, 0], [-2, 0]]) px(g, ex + dx, Math.min(11, ey + dy), dx === 0 ? C.fire5 : C.fire4);
+  if (active) for (const [dx, dy] of [[-1, 1], [1, 1], [0, 2], [2, 0], [-2, 0]]) px(g, Math.max(0, Math.min(11, ex + dx)), Math.min(11, ey + dy), dx === 0 ? C.fire5 : C.fire4);
   // the hinge pin, brass
   rect(g, 4, 6, 3, 3, C.ink); px(g, 5, 7, C.brass3); px(g, 5, 6, C.brass4);
 };
@@ -264,10 +270,10 @@ const plateBreaker: RigPainter = (g, f, active, st) => {
   rect(g, 4, 2, 4, hy - 1, C.ink);
   vline(g, 5, 2, hy - 2, C.wood3); vline(g, 6, 2, hy - 2, C.wood1);
   rows(g, hx, hy, [
-    "kkkkkkkkk.",
-    "kSSnnSSSsk",
-    "kdsssssdDk",
-    "kkkkkkkkk.",
+    "kkkkkkkk.",
+    "kSSnnSSsk",
+    "kdssssdDk",
+    "kkkkkkkk.",
   ], { ...IRON, n: C.brass3 });
   if (active) {
     const plate = st.spent !== false;
@@ -387,7 +393,7 @@ function drawTwinMould(f: number, flash: boolean, stars: number): Cv {
     rect(g, x + 1, 19, 2, 3, C.belt0);
   }
   // the cradle: a curved rocker under the block, on two feet
-  const tilt = flash ? 1 : (f >> 1) % 4 === 1 ? 1 : (f >> 1) % 4 === 3 ? -1 : 0;
+  const tilt = flash ? 0 : (f >> 1) % 4 === 1 ? 1 : (f >> 1) % 4 === 3 ? -1 : 0; // it rocks; it pours tipped forward
   for (let x = 4; x <= 19; x++) {
     const dy = Math.round(Math.pow((x - 11.5) / 8, 2) * 2);
     rect(g, x, 14 + dy, 1, 2, C.ink);
@@ -402,7 +408,7 @@ function drawTwinMould(f: number, flash: boolean, stars: number): Cv {
   hline(g, 3 + ox, 4 + oy, 18, C.steel3);
   hline(g, 3 + ox, 8 + oy, 18, C.steel0);
   if (stars >= 2) for (const y of [10, 12]) { hline(g, 3 + ox, y + oy, 18, C.brass2); px(g, 3 + ox, y + oy, C.brass4); }
-  for (const x of [0, 21]) { rect(g, x + ox, 6 + oy, 3, 3, C.ink); px(g, x + 1 + ox, 7 + oy, C.brass3); }
+  for (const x of [0, 21]) { rect(g, x, 6 + oy, 3, 3, C.ink); px(g, x + 1, 7 + oy, C.brass3); } // the cradle's pivots stay put
   // the cups, each over its spout, full of molten metal under a dark skin that cracks and glows (white-hot as it pours)
   for (let i = 0; i < xs.length; i++) {
     const x = xs[i] + ox, y = 4 + oy;
