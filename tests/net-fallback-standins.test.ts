@@ -12,9 +12,21 @@ import { POOL_LEGACY, pickEntry } from "./standInPool.helpers";
 // caravan-bound, each pick having spent at least 90% of the day's gold).
 
 describe("fallback stand-ins", () => {
-  it("every playable hero has stand-in decks (standInPick throws for a hero outside the pool)", () => {
-    expect(STAND_IN_HEROES).toEqual(PLAYABLE_HEROES);
-    for (const h of PLAYABLE_HEROES) expect(STAND_IN_POOL_HEROES, `${h} is playable but has no stand-in decks`).toContain(h);
+  it("every stand-in hero has stand-in decks (standInPick throws for a hero outside the pool)", () => {
+    // 0.8.0 H1: pinned to the pool's heroes, FURNACE and WEAVER, as PLAYABLE_HEROES grew to four (FOUNDRY, BASTION)
+    expect(STAND_IN_HEROES).toEqual(["furnace", "weaver"]);
+    expect(STAND_IN_HEROES).toEqual(STAND_IN_POOL_HEROES);
+    expect(PLAYABLE_HEROES.filter((h) => !STAND_IN_HEROES.includes(h))).toEqual(["foundry", "bastion"]);
+    for (const h of STAND_IN_HEROES) expect(STAND_IN_POOL_HEROES, `${h} stands in but has no stand-in decks`).toContain(h);
+  });
+
+  it("0.8.0 H1: FURNACE and WEAVER requesters keep their stand-in hero; FOUNDRY and BASTION get FURNACE or WEAVER by the seed, one hero-blind rule", () => {
+    for (let seed = 0; seed < 400; seed++) {
+      expect(rivalHero("furnace", seed)).toBe("weaver");
+      expect(rivalHero("weaver", seed)).toBe("furnace");
+      expect(rivalHero("foundry", seed), `seed ${seed}`).toBe(STAND_IN_HEROES[seed % 2]);
+      expect(rivalHero("bastion", seed), `seed ${seed}`).toBe(rivalHero("foundry", seed));
+    }
   });
 
   it("every fallback ghost for days 1-10 passes validateBuild, for every requesting hero", () => {

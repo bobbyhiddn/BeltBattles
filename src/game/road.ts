@@ -11,7 +11,7 @@
 // BOUNTY rides on the next Hard warlord. Dusk (day.ts) is unchanged: a ghost runs as submitted.
 
 import { hashSeed } from "../core/rng";
-import { ITEMS } from "../sim/content";
+import { HEROES, ITEMS } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { RIVALS, rivalBuild, rivalDays, warlordOffer, type Difficulty, type RivalId, type WarlordOffer } from "../sim/rivals";
 import { starsOf, valueOf } from "../sim/stars";
@@ -33,7 +33,10 @@ export function rewardGold(tier: Difficulty, day: number): number {
 export const MATRIARCH_GOLD = 5;
 /** SABOTAGE with no deck for the day before (the Matriarch on day 8): the warlord fights with -25 hull. */
 export const SABOTAGE_HULL = 25;
-const SIGNATURE = new Set(["kiln", "loom"]);
+// 0.8.0 H1 (REQ-BFG-011): every hero's signature factory (was only the KILN and the LOOM). A warlord's deck must never
+// pay out a signature as a reward part; once race captains fly (N1), their CRUCIBLE or WARDWORKS would have. Today's 13
+// captains are FURNACE and WEAVER decks, so nothing a run meets changes.
+const SIGNATURE = new Set(Object.values(HEROES).map((h) => h.factory));
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 

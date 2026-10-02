@@ -118,10 +118,14 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
 /**
  * A hero's signature factory has no ability text, so its flavour is its only description: its catalogue desc, except
  * CLOCKWORKS (METRONOME's), whose desc quotes a glued second (races/data.ts is pinned by tests/races.metronome.test.ts,
- * so the UI says it in T2's units).
+ * so the UI says it in T2's units). 0.8.0 H1 (REQ-BFG-032): FOUNDRY's CRUCIBLE and BASTION's WARDWORKS have ability text
+ * (src/ui/abilityText.ts), so, like a sold module's, their flavour keeps only a tip those sentences don't give, with no
+ * number (the 0.6.2t2 F1 rule).
  */
 const SIGNATURE_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
   clockworks: ["STAMPS PENDULUM SLUGS.", `THEY PEAK AFTER ${seconds(PENDULUM.peak)} OF RIDE: ${peakTiles(PENDULUM.peak)} TILES.`],
+  crucible: ["MIRROR ITS BELTS, TILE FOR TILE AND RIG FOR RIG, SO ITS BLANKS ARRIVE TOGETHER."],
+  wardworks: ["A FULL OR JAMMED CHAMBER STARVES THE PLATING."],
 };
 
 const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);

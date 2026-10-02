@@ -19,7 +19,8 @@ import { buildCost, maxHonestSpend, validateBuild, validateUpload } from "../src
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import type { GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
-import { furnaceDeck } from "./netHelpers";
+import { furnaceDeck, playerCheck } from "./netHelpers";
+import { heroesFor } from "../src/net/rulesGate";
 import { driveRuns, type Dusk } from "./uploadDriver";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
@@ -91,18 +92,21 @@ describe("062m recheck 1: turrets in the player budget", () => {
  *  turret and a joined belt, all six heroes. */
 const HONEST: Dusk[] = driveRuns(90, 7000).flatMap((r) => r.dusks)
   .filter((d) => (d.build.turrets ?? []).some((t) => !t.free) && d.build.routes.some((x) => x.join !== undefined));
+/** 0.8.0 H1: the honest decks this server's rules (bb-0.6.2) accept: FURNACE's and WEAVER's (rulesGate.ts RULES_HEROES). */
+const HONEST_HERE: Dusk[] = HONEST.filter((d) => heroesFor(RULES_VERSION).includes(d.hero));
 
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
 const core = (errors: string[]) => errors.filter((e) => !/^(supply|budget):/.test(e));
 const around = (k: number): number[] => [[0, -1], [1, 0], [0, 1], [-1, 0]]
   .map(([dx, dy]) => [kx(k) + dx, ky(k) + dy]).filter(([x, y]) => x >= 0 && y >= 0 && x < GRID && y < GRID).map(([x, y]) => key(x, y));
 
-/** The player mode reports exactly the strict mode's errors outside supply and budget, and `want` is among them. */
+/** The player mode reports exactly the strict mode's errors outside supply and budget, and `want` is among them.
+ *  0.8.0 H1: each deck through the upload check of rules that accept its hero (netHelpers.ts playerCheck). */
 function passesThrough(b: Build, day: number, want: RegExp, what: string): void {
-  const s = core(validateBuild(b, day).errors), p = core(validateUpload(b, day).errors);
+  const s = core(validateBuild(b, day).errors), p = core(playerCheck(b, day).errors);
   expect(p, what).toEqual(s);
   expect(s.some((e) => want.test(e)), `${what}: ${s.join(" | ")}`).toBe(true);
-  expect(validateUpload(b, day).ok, what).toBe(false);
+  expect(playerCheck(b, day).ok, what).toBe(false);
 }
 
 /** Each of validateBuild's 0.6.2s turret rejections, made from an honest deck. */
@@ -174,7 +178,7 @@ describe("062m recheck 2: the superset property with validateBuild's turret and 
     expect(HONEST.length).toBeGreaterThan(30);
     expect(new Set(HONEST.map((d) => d.hero)).size).toBeGreaterThanOrEqual(4);
     for (const d of HONEST) {
-      expect(validateUpload(d.build, d.day), `${d.hero} #${d.seed} d${d.day}`).toEqual({ ok: true, errors: [] });
+      expect(playerCheck(d.build, d.day), `${d.hero} #${d.seed} d${d.day}`).toEqual({ ok: true, errors: [] }); // 0.8.0 H1: rules by hero
       expect(core(validateBuild(d.build, d.day).errors), `${d.hero} #${d.seed} d${d.day}`).toEqual([]); // strict: supply/budget at most
     }
   });
@@ -288,7 +292,8 @@ const snapOf = (d: Dusk, over: Partial<GhostSnapshot> = {}): GhostSnapshot => ({
 describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and joins", () => {
   it("POST /v1/ghosts stores honest decks with turrets and joins, and refuses illegal ones with validateBuild's reasons", async () => {
     const me = await testIdentity(0); // v070a: uploads are signed (async-062); each snapshot under the key's playerId
-    const honest = HONEST.slice(0, 16);
+    expect(HONEST_HERE.length).toBeGreaterThanOrEqual(16);
+    const honest = HONEST_HERE.slice(0, 16);
     for (const d of honest) expect(await submitGhost(base, ownedBy(snapOf(d), me), me, 3000), `${d.hero} #${d.seed} d${d.day}`).toMatchObject({ ok: true });
     expect(app.store.size).toBe(honest.length);
     const d = honest[0];
@@ -316,7 +321,7 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
   });
 
   it("fetchGhost fights a served ghost with turrets and joins; it falls back on an illegal one and on other rules", async () => {
-    const d = HONEST[0];
+    const d = HONEST_HERE[0];
     const [what, bad] = turretCases(d.build)[0];
     // the stub server answers by the request's wins: 0 the honest ghost, 1 an illegal turret, 2 another rules version
     // (v070-rel: the older bb-0.6.1, now that RULES_VERSION is bb-0.6.2)

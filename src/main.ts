@@ -18,7 +18,7 @@ import { loadPool, standInFoe } from "./game/ghosts";
 import { deckCost, maxGoldByDay } from "./sim/rivals";
 import type { Build } from "./sim/deck";
 import { TitleScreen } from "./screens/title";
-import { HeroScreen } from "./screens/hero";
+import { HeroScreen, ORDER as HERO_ORDER } from "./screens/hero";
 import { BuildScreen } from "./screens/build/build";
 import { BattleScreen, DuskWaitScreen } from "./screens/battle";
 import { SummaryScreen } from "./screens/summary";
@@ -156,6 +156,16 @@ game.start();
   catalogue(): { id: string; name: string; kind: string; stars: number; merchant: string; price: number }[] {
     return [...buyableModules(), ...Object.values(ITEMS).filter((d) => d.kind === "supply" && d.price > 0)]
       .map((d) => ({ id: d.id, name: d.name, kind: d.kind, stars: fusible(d.id) ? FUSE_MAX : 1, merchant: d.merchant ?? "ironmonger", price: d.price }));
+  },
+  /** 0.8.0 H1 tooling: hero select's state, the hero on show and the roster (PLAYABLE_HEROES); null on any other screen. */
+  heroSelect(): { current: HeroId; order: readonly HeroId[] } | null {
+    const s = game.screen;
+    return s instanceof HeroScreen ? { current: s.current, order: HERO_ORDER } : null;
+  },
+  /** 0.8.0 H1 tooling: on hero select, show hero `id` (no slide-in); false elsewhere or for a hero not on offer. */
+  showHero(id: HeroId): boolean {
+    const s = game.screen;
+    return s instanceof HeroScreen ? s.showHero(id) : false;
   },
   /** Current screen name (for harness assertions). */
   screen(): string {

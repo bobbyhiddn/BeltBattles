@@ -55,6 +55,9 @@ import {
   JAM_THRESHOLD, SHAPE_ARROWS, WINDOW_TIME, rigShape, type HarassCause, type HeroId, type ItemDef,
 } from "../sim/content";
 import { PEAK_SHIFT, PENDULUM } from "../sim/races/data";
+import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUNDRY's CRUCIBLE
+import { FURNACE_LONG_BELT } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence
+import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: BASTION's WARDWORKS
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, pendingAt, perkAt } from "../sim/stars";
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
@@ -79,7 +82,30 @@ export const SIM = {
   scrapQueue: 3, // battle.ts produce: up to 3 triggered stamps wait
   lanceMax: 10, // battle.ts impact: a lance strikes at most 10 targets
   salvoWait: 2, // cores.ts salvo: fires once full, or after twice the load time
+  furnaceLongTiles: 8, // battle.ts makeTurret: a FURNACE turret fed by a belt journey of at least 8 tiles (E1)
 } as const;
+
+/**
+ * 0.8.0 H1 (REQ-BFG-011, REQ-BFG-032): each hero's trick in one plain sentence, for hero select, from the real values:
+ * the Kiln's cinder ride scaling and FURNACE's long-belt breech (battle.ts FURNACE_LONG_BELT), the Loom's belts and the
+ * thread slug's fray (FRAY_BONUS, FRAY_MAX), the Crucible's twin pour and fusion (SYNC_WINDOW, FUSE_MULT), and the bulwark
+ * slug's plating (PLATE_PER_SLUG, PLATE_CAP). METRONOME and SIPHON (not offered yet) read their catalogue blurb.
+ */
+export function heroTrick(hero: HeroId): string {
+  const h = HEROES[hero], fs = ITEMS[h.factory].factory!;
+  switch (hero) {
+    case "furnace":
+      return `ITS KILN'S CINDER SLUGS GAIN ${damage(AMMO.cinder.rideScale)} FOR EACH SECOND THEY RIDE, AND A GUN FED BY A BELT OF ${SIM.furnaceLongTiles} TILES OR MORE FIRES ${faster(1 / FURNACE_LONG_BELT)}.`;
+    case "weaver":
+      return `ITS LOOM FEEDS UP TO ${plural(fs.outputs, "BELT")} IN TURN, AND EACH THREAD SLUG THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`;
+    case "foundry":
+      return `ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN WITHIN ${seconds(SYNC_WINDOW)} FUSE INTO ONE SLUG WITH ${times(FUSE_MULT)} THEIR DAMAGE.`;
+    case "bastion":
+      return `ITS BULWARK SLUGS PLATE YOUR HULL AS THEY LOAD, ${n1(PLATE_PER_SLUG)} EACH UP TO ${PLATE_CAP} PLATING, AND PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES.`;
+    default:
+      return h.blurb.join(" ");
+  }
+}
 
 // ---------------------------------------------------------------------------------------------------------------- units
 
@@ -626,6 +652,30 @@ const ENTRIES: Record<string, Entry> = {
       return `${speedText(r.mul)} FOR ${seconds(r.seconds)}`;
     },
     card: (e) => `MAKES ENEMY BELTS ${speedText(round<{ mul: number }>(e).mul)}`,
+  },
+  // 0.8.0 H1 (REQ-BFG-032, REQ-BFG-011): the two playable race heroes' signature factories, never sold (no card, no
+  // stars). Each says what its ammo does too, from the race rules' own numbers (races/foundry.ts, races/bastion.ts).
+  crucible: {
+    // races/foundry.ts crucibleProduce (the twin pour), tryFuse/inSync (another intake, SYNC_WINDOW), fuse (FUSE_MULT)
+    text: (e) => [
+      `POURS AN ALLOY BLANK ONTO EACH OF ITS ${plural(f(e).outputs, "BELT")} ${every(f(e).interval)}, ALL AT THE SAME MOMENT.`,
+      `AN ALLOY BLANK DEALS ${damage(AMMO.blank.base)}.`,
+      `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)} OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH ${times(FUSE_MULT)} THEIR DAMAGE.`,
+      "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
+    ],
+    gist: (e) => `POURS ${f(e).outputs} ALLOY BLANKS ${every(f(e).interval)}`,
+  },
+  wardworks: {
+    // races/bastion.ts plateOnLoad (PLATE_PER_SLUG x the split multiplier, at load, PLATE_CAP) and absorb (impacts and
+    // Burn); battle.ts: the dark wind never meets the plating
+    text: (e) => [
+      `STAMPS A BULWARK SLUG ${every(f(e).interval)}.`,
+      `A BULWARK SLUG DEALS ${damage(AMMO.bulwark.base)}.`,
+      `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${n1(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
+      "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
+      "THE DARK WIND IGNORES PLATING.",
+    ],
+    gist: (e) => `STAMPS A BULWARK SLUG ${every(f(e).interval)}`,
   },
   mimic: {
     // Battle.factoryDef: the hero's ammo at the hero factory's interval x intervalMul; ★3 TWIN SIGNET: 2 outputs

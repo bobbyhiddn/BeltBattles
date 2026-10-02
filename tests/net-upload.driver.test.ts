@@ -3,6 +3,7 @@ import { RUN_DAYS } from "../src/sim/content";
 import { playerFits, roadCap } from "../src/net/roadCap";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { AUDIT_PATHS, DRIVER_HEROES, driveRuns, errorKind, type DriverRun } from "./uploadDriver";
+import { playerCheck } from "./netHelpers";
 
 // v070-validate M3: the M1 driver as a test. Every dusk deck of every seeded run is an honest deck (the driver
 // only plays legal actions through the real game functions), so the player mode must refuse none of them; the
@@ -42,7 +43,7 @@ function tally(runs: DriverRun[]): Tally {
         t.strict++;
         for (const k of new Set(s.errors.map(errorKind))) t.strictKinds.set(k, (t.strictKinds.get(k) ?? 0) + 1);
       }
-      const p = validateUpload(d.build, d.day);
+      const p = playerCheck(d.build, d.day); // 0.8.0 H1: the upload check of rules that accept the deck's hero
       if (!p.ok) t.player.push(`${r.hero} #${r.seed} d${d.day} (${d.road}): ${p.errors.join(" | ")}`);
       // how close the driver came to the ceiling (REPORT.md §2 slack): road value used beyond the shop's gold
       const c = buildCost(d.build);

@@ -21,7 +21,7 @@ import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
-import { rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules
+import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 
 export { maxHonestSpend, roadCap } from "./roadCap";
 
@@ -43,6 +43,9 @@ export type ValidationMode = "strict" | "player";
 export function validateUpload(build: Build, day: number, rules: string = RULES_VERSION): Validation {
   const why = rulesGateProblem(rules, build);
   if (why) return { ok: false, errors: [`rules: ${why}`] };
+  // 0.8.0 H1 (REQ-BFG-009): the deck's hero must be one its rules accept (rulesGate.ts RULES_HEROES)
+  const hero = heroGateProblem(rules, (build as { hero?: unknown } | null)?.hero);
+  if (hero) return { ok: false, errors: [`rules: ${hero}`] };
   return validateBuild(build, day, "player");
 }
 

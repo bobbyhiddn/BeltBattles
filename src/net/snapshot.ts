@@ -6,7 +6,7 @@
 
 import { GRID, HEROES, type HeroId } from "../sim/content";
 import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/deck";
-import { rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules
+import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -205,6 +205,10 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
   if (build.hero !== o.hero) throw new SnapshotError("snapshot.build.hero: must equal snapshot.hero");
   const gate = rulesGateProblem(rules, build); // 0.7.0 (v070-rel M2): before any exact RULES_VERSION check of a caller
   if (gate) throw new SnapshotError(`snapshot.rules: ${gate}`);
+  // 0.8.0 H1 (REQ-BFG-009): the hero must be one its rules accept (rulesGate.ts RULES_HEROES): under bb-0.6.2 only
+  // FURNACE and WEAVER, so no 0.7.0 client is ever served a FOUNDRY or BASTION ghost
+  const heroGate = heroGateProblem(rules, o.hero);
+  if (heroGate) throw new SnapshotError(`snapshot.hero: ${heroGate}`);
   return {
     v: ver, rules, hero: o.hero, day, wins, lives, build,
     runId: str(o.runId, "snapshot.runId", ID_PATTERN),

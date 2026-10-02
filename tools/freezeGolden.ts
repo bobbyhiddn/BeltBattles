@@ -13,13 +13,15 @@ import { resolve } from "node:path";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { simulate } from "../src/sim/battle";
 import type { Build } from "../src/sim/deck";
-import { heroStartBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
+import { heroStartBuild } from "../src/sim/heroBuilds";
 import { honestReference, RIVAL_IDS, rivalBuild } from "../src/sim/rivals";
 import { standInPick } from "../src/sim/standInPool";
 
 export const GOLDEN_SEED = 60600; // the fixed battle seed
 export const PICK_SEED = 20260924; // the fixed stand-in pick seed
 const DAYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+// 0.8.0 H1: the 0.6.0 roster the fixtures were frozen with (was PLAYABLE_HEROES, which grew to four heroes in 0.8.0)
+const PLAYABLE_HEROES: readonly HeroId[] = ["furnace", "weaver"];
 
 interface Entry {
   key: string; // e.g. "rival/emberlyn/3", "start/furnace", "par/weaver/7", "standin/furnace/2"

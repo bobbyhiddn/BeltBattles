@@ -19,7 +19,7 @@ import {
   warlordPays,
 } from "../src/net/roadCap";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
-import { furnaceDeck } from "./netHelpers";
+import { furnaceDeck, playerCheck } from "./netHelpers";
 
 // v070-validate M3: the player mode (validateUpload) and its road ceiling (src/net/roadCap.ts).
 
@@ -305,7 +305,7 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
           n++;
           if (!validateBuild(b, day).ok) continue;
           strict++;
-          expect(validateUpload(b, day), `${hero} d${day} #${i}`).toEqual({ ok: true, errors: [] });
+          expect(playerCheck(b, day), `${hero} d${day} #${i}`).toEqual({ ok: true, errors: [] }); // 0.8.0 H1: rules by hero
         }
       }
     }
@@ -335,7 +335,7 @@ describe("game bugs found on the way (REPORT.md §7)", () => {
       const run = newRun(hero, 5);
       const sig = run.build.items.find((p) => p.def === HEROES[hero].factory)!;
       expect(storePlaced(run, sig.uid)).toBe(false);
-      expect(validateUpload(run.build, 1)).toEqual({ ok: true, errors: [] });
+      expect(playerCheck(run.build, 1)).toEqual({ ok: true, errors: [] }); // 0.8.0 H1: under rules that accept the hero
     }
   });
 });

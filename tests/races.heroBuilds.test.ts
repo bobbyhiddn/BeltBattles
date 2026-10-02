@@ -17,9 +17,9 @@ const ALL = Object.keys(HEROES) as HeroId[];
 const DAYS = Array.from({ length: REF_DAYS }, (_, i) => i + 1);
 
 describe("heroBuilds: one entry point for all six heroes", () => {
-  it("covers six heroes; the game offers Furnace and Weaver today", () => {
+  it("covers six heroes; the game offers Furnace, Weaver, Foundry and Bastion (0.8.0 H1)", () => {
     expect(ALL.sort()).toEqual(["bastion", "foundry", "furnace", "metronome", "siphon", "weaver"]);
-    expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver"]);
+    expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
     expect(REF_DAYS).toBe(10);
   });
 

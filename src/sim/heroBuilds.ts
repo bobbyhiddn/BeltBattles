@@ -15,8 +15,11 @@ import { PLATE_STEP, REF_DAYS, raceRefBuild, raceStartBuild, rampPlates, refDay 
 
 export { PLATE_STEP, REF_DAYS, rampPlates };
 
-/** Heroes the game offers today. The 0.8.0/0.9.0 integration grows this list. */
-export const PLAYABLE_HEROES: readonly HeroId[] = ["furnace", "weaver"];
+/** Heroes the game offers today: hero select shows them in this order. 0.8.0 H1 (REQ-BFG-011): FOUNDRY (human) and
+ *  BASTION (dwarf) joined FURNACE and WEAVER; METRONOME and SIPHON follow in 0.9.0. What reads this list, and what was
+ *  pinned to the 0.7.0 roster instead (the stand-in heroes, the harness's par field, the golden freeze), is in
+ *  output-H1/REPORT.md section 1.1. */
+export const PLAYABLE_HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 
 /** The deck `hero` starts a run with. */
 export function heroStartBuild(hero: HeroId, uid0 = 1): Build {

@@ -10,7 +10,6 @@
 import { hashSeed } from "../../core/rng";
 import type { HeroId } from "../content";
 import type { Build } from "../deck";
-import { PLAYABLE_HEROES } from "../heroBuilds";
 import { heroRefBuild } from "./heroes";
 import { playerBuild, type PlayerOpts } from "./player";
 import type { Job, Runner } from "./tournament";
@@ -33,12 +32,18 @@ export function parField(hero: HeroId, day: number, k = PAR_K, player: PlayerOpt
 }
 
 /**
- * The par source a hero actually has. The par player plays a real run, so it plays the game's playable heroes
- * (PLAYABLE_HEROES: furnace, weaver); every other harness hero (the race heroes of the balance tournament) keeps the
- * legacy par deck, heroRefBuild.
+ * 0.8.0 H1 (REQ-BFG-026): the heroes whose par is the par player's field. Until 0.8.0 this was PLAYABLE_HEROES; it is
+ * pinned to FURNACE and WEAVER so that FOUNDRY and BASTION becoming playable doesn't silently move the race heroes'
+ * harness numbers (they keep heroRefBuild). The balance pass (B1) decides when a race hero's par becomes its field.
+ */
+export const PAR_FIELD_HEROES: readonly HeroId[] = ["furnace", "weaver"];
+
+/**
+ * The par source a hero actually has. The par player plays a real run, so it plays PAR_FIELD_HEROES (furnace, weaver);
+ * every other harness hero (the race heroes of the balance tournament) keeps the legacy par deck, heroRefBuild.
  */
 export const parSourceFor = (hero: HeroId, source: ParSource): ParSource =>
-  source === "field" && PLAYABLE_HEROES.includes(hero) ? "field" : "heroref";
+  source === "field" && PAR_FIELD_HEROES.includes(hero) ? "field" : "heroref";
 
 /**
  * THE par of (hero, day), as the decks a par-relative check measures against. "field" (default): the par field;

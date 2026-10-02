@@ -7,21 +7,23 @@ import { Rng } from "../core/rng";
 import { migrateDeck } from "../sim/beltside";
 import { HEROES, RULES_VERSION, START_LIVES, type HeroId } from "../sim/content";
 import { cloneBuild } from "../sim/deck";
-import { PLAYABLE_HEROES } from "../sim/heroBuilds";
 import { standInPick } from "../sim/standInPool";
 import { pickGhost, type MatchRequest } from "./matchmaking";
 import { checkSnapshot, MAX_DAY, MAX_LIVES, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
 
 /**
- * Heroes a stand-in (or sample-pool) ghost may play: the heroes the game offers
- * (PLAYABLE_HEROES). Each needs decks in the stand-in pool (STAND_IN_POOL_HEROES), because
- * standInPick throws for a hero outside it; tests/net-fallback-standins.test.ts fails if a
- * playable hero has none. Any hero may still REQUEST a stand-in; it fights one of these.
+ * Heroes a stand-in (or sample-pool) ghost may play. Each needs decks in the stand-in pool (STAND_IN_POOL_HEROES),
+ * because standInPick throws for a hero outside it (tests/net-fallback-standins.test.ts). Any hero may still REQUEST a
+ * stand-in; it fights one of these. 0.8.0 H1 (REQ-BFG-011, REQ-BFG-021): pinned to FURNACE and WEAVER, the heroes the
+ * pool and the seed ghosts were made for. Until 0.8.0 this was PLAYABLE_HEROES, which now holds FOUNDRY and BASTION too:
+ * a FURNACE requester's foes would have changed and standInPick would have thrown. The human and dwarf stand-ins come
+ * with the pool's regrow (N1 and the release step), not here.
  */
-export const STAND_IN_HEROES: readonly HeroId[] = PLAYABLE_HEROES;
+export const STAND_IN_HEROES: readonly HeroId[] = ["furnace", "weaver"];
 
-/** The hero a stand-in ghost plays: another faction's hero, chosen by seed. */
+/** The hero a stand-in ghost plays: another faction's hero, chosen by seed. A FOUNDRY or BASTION requester (neither
+ *  faction is among the stand-in heroes) gets FURNACE or WEAVER by the seed's parity: one hero-blind rule for both. */
 export function rivalHero(hero: HeroId, seed = 0): HeroId {
   const foes = STAND_IN_HEROES.filter((id) => HEROES[id].faction !== HEROES[hero].faction);
   return foes.length ? foes[(seed >>> 0) % foes.length] : hero;

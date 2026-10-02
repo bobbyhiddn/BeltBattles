@@ -8,11 +8,43 @@
 //    loader (fallback.ts loadGhostPool);
 //  - battle records (replay.ts checkRecord);
 //  - the player-upload deck check (validate.ts validateUpload, given the snapshot's rules).
+// 0.8.0 H1: the heroes too (RULES_HEROES below): the strict decoder and validateUpload ask heroGateProblem. Battle records
+// don't: a record is the client's own fight, replayed on that client only.
 // It is defence in depth. Today every one of those paths also demands rules === RULES_VERSION after it; a server that
 // accepts more than one rules version still keeps the 0.6.2 features out of the older ones.
 
+import type { HeroId } from "../sim/content";
+
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
+
+/**
+ * 0.8.0 H1 (REQ-BFG-009, REQ-BFG-011): the heroes each rules version accepts, as a table keyed by rules version. A
+ * snapshot or an upload under rules r may carry a hero of the last row whose `from` is at or before r. Rules that can't be
+ * read get the first row. bb-0.6.2 (0.6.2's and 0.7.0's rules) and everything before it accept FURNACE and WEAVER only:
+ * FOUNDRY and BASTION were never playable there, so a 0.7.0 client is never served one, whatever a client sends.
+ * HEROES_RULES (bb-0.8.0, the rules 0.8.0 ships with; PLAN-0.8.0 section 4) takes the four. METRONOME and SIPHON are
+ * in no row yet (0.9.0 adds them).
+ */
+export const HEROES_RULES = "bb-0.8.0";
+export const RULES_HEROES: readonly { from: string; heroes: readonly HeroId[] }[] = [
+  { from: "bb-0.0.0", heroes: ["furnace", "weaver"] },
+  { from: HEROES_RULES, heroes: ["furnace", "weaver", "foundry", "bastion"] },
+];
+
+/** The heroes a snapshot or upload under `rules` may carry (RULES_HEROES). */
+export function heroesFor(rules: unknown): readonly HeroId[] {
+  let row = RULES_HEROES[0];
+  for (const r of RULES_HEROES) if (rulesAtLeast(rules, r.from)) row = r;
+  return row.heroes;
+}
+
+/** Why `hero` can't travel under `rules`, or null. The reason names both. */
+export function heroGateProblem(rules: unknown, hero: unknown): string | null {
+  if (typeof hero === "string" && heroesFor(rules).includes(hero as HeroId)) return null;
+  const v = parseRules(rules) ? `rules ${String(rules)}` : `rules ${JSON.stringify(rules)}`;
+  return `${v} accept only ${heroesFor(rules).map((h) => h.toUpperCase()).join(", ")}, not ${String(hero).toUpperCase()}`;
+}
 
 /** `bb-MAJOR.MINOR.PATCH`: decimal numbers without a sign or a leading zero, nothing before or after. */
 const RULES_RE = /^bb-(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})$/;

@@ -4,6 +4,28 @@ import { startingBuild } from "../src/sim/ai";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { key, type Build } from "../src/sim/deck";
 import type { GhostSnapshot, PoolEntry } from "../src/net/snapshot";
+import { HEROES_RULES, heroesFor } from "../src/net/rulesGate";
+import { validateBuild, validateUpload, type Validation } from "../src/net/validate";
+
+/**
+ * 0.8.0 H1 (REQ-BFG-009): the first rules version whose upload check accepts `hero` (rulesGate.ts RULES_HEROES): this
+ * build's RULES_VERSION (bb-0.6.2) for FURNACE and WEAVER, HEROES_RULES (bb-0.8.0) for FOUNDRY and BASTION; null for
+ * METRONOME and SIPHON, which no rules version accepts yet.
+ */
+export function uploadRulesFor(hero: HeroId): string | null {
+  for (const r of [RULES_VERSION, HEROES_RULES]) if (heroesFor(r).includes(hero)) return r;
+  return null;
+}
+
+/**
+ * The player-mode check of a deck from any hero (the superset tests): validateUpload under the first rules version that
+ * accepts its hero (uploadRulesFor), so the rules gates still run; for a hero no rules version accepts yet, the player
+ * mode itself (validateBuild "player"), which is what validateUpload checked for every hero before 0.8.0 H1.
+ */
+export function playerCheck(b: Build, day: number): Validation {
+  const rules = uploadRulesFor(b.hero);
+  return rules ? validateUpload(b, day, rules) : validateBuild(b, day, "player");
+}
 
 export const K = key;
 

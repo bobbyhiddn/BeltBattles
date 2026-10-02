@@ -1,23 +1,32 @@
-// Hero select: a carousel of the two cruisers. The preview runs the real simulation on
+// Hero select: a carousel of the cruisers. The preview runs the real simulation on
 // the hero's starting build (against a silent dummy) so belts, slugs and turrets move.
+// 0.8.0 H1 (REQ-BFG-011, REQ-BFG-032): every playable hero (PLAYABLE_HEROES: FURNACE, WEAVER, FOUNDRY, BASTION), each with
+// its portrait beside its name and its trick in one plain sentence built from the real values (abilityText.ts heroTrick).
 
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { newRun, saveRun } from "../game/run";
-import { startingBuild } from "../sim/ai";
 import { AMMO, HEROES, ITEMS, type HeroId } from "../sim/content";
 import { turretSlots } from "../sim/deck"; // 0.6.2s (REQ-BFG-031)
+import { PLAYABLE_HEROES, heroStartBuild } from "../sim/heroBuilds";
 import { C, FACTION } from "../render/palette";
 import { frame, rect, type G } from "../render/pixel";
 import { drawText, wrap } from "../render/font";
 import { HULL_A, HULL_L, frameForHull, hullBox } from "../render/frame";
 import { ArenaBg } from "../render/arenaBg";
+import { portraitImage, type PortraitHero } from "../render/portraits";
+import { heroTrick } from "../ui/abilityText";
 import { button, panel, para } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { TitleScreen } from "./title";
 
-const ORDER: HeroId[] = ["furnace", "weaver"];
+/** The carousel's heroes, in roster order (tests and tooling read it). */
+export const ORDER: readonly HeroId[] = PLAYABLE_HEROES;
+/** The portrait's side (24x24 at 1x, framed in ink and the faction's trim). */
+const PORTRAIT = 24;
+/** Text column height beside the portrait: faction (8) + name (18) + playstyle (9). */
+const HEAD_H = 35;
 
 export class HeroScreen implements Screen {
   private i = 0;
@@ -34,10 +43,26 @@ export class HeroScreen implements Screen {
   private preview(): void {
     const id = ORDER[this.i];
     const foe: HeroId = id === "furnace" ? "weaver" : "furnace";
-    const dummy = { ...startingBuild(foe, 1), routes: [] };
-    this.arena = new Arena(startingBuild(id, 1), dummy, 77 + this.i, null);
+    // 0.8.0 H1: heroStartBuild, the run's own start deck for every hero (ai.ts startingBuild knows FURNACE and WEAVER only)
+    const dummy = { ...heroStartBuild(foe, 1), routes: [] };
+    this.arena = new Arena(heroStartBuild(id, 1), dummy, 77 + this.i, null);
     this.arena.quiet = true;
     this.arena.show = [true, false];
+  }
+
+  /** Tooling (bb.hero()): the hero on show and the roster. */
+  get current(): HeroId {
+    return ORDER[this.i];
+  }
+
+  /** Tooling: show hero `id` (no slide-in, no sound). */
+  showHero(id: HeroId): boolean {
+    const k = ORDER.indexOf(id);
+    if (k < 0) return false;
+    this.i = k;
+    this.slide = 0;
+    this.preview();
+    return true;
   }
 
   private shift(d: number): void {
@@ -47,7 +72,7 @@ export class HeroScreen implements Screen {
     this.preview();
   }
 
-  private choose(): void {
+  choose(): void {
     const id = ORDER[this.i];
     const run = newRun(id, (Math.random() * 0x7fffffff) | 0);
     this.game.run = run;
@@ -73,8 +98,10 @@ export class HeroScreen implements Screen {
     drawText(g, "CHOOSE YOUR CRUISER", W / 2, 6, C.bone, { align: "center", outline: C.ink });
 
     const infoW = portrait ? W - 16 : Math.min(240, W - Math.round(W * 0.56) - 10);
-    const blurbLines = h.blurb.reduce((n, ln) => n + wrap(ln, infoW).length, 0);
-    const infoH = 93 + 9 + blurbLines * 9; // 0.6.2s: + the SLOTS row
+    // 0.8.0 H1: the trick sentence (3x5 face, 7 px a line) replaces the catalogue blurb; the head is the portrait's height
+    const trick = heroTrick(id);
+    const trickLines = wrap(trick, infoW, "3").length;
+    const infoH = 93 + 9 + trickLines * 7; // 0.6.2s: + the SLOTS row (the head beside the portrait is HEAD_H, as before)
     const pw = Math.min(W - 16, HULL_A + 30);
     const ph = portrait ? Math.max(HULL_L + 14, Math.min(HULL_L + 100, H - 20 - 14 - infoH - 54 - 14)) : HULL_L + 30;
     const px0 = portrait ? Math.round(W / 2 - pw / 2) : Math.round(W * 0.3 - pw / 2);
@@ -101,13 +128,16 @@ export class HeroScreen implements Screen {
     const ix = portrait ? 8 : Math.round(W * 0.56);
     const iw = infoW;
     let iy = portrait ? py0 + ph + 14 : py0;
-    drawText(g, h.factionName, ix, iy, P.trim2, { font: "3" });
-    iy += 8;
-    drawText(g, h.name, ix, iy, C.white, { scale: 2 });
-    iy += 18;
-    drawText(g, `PLAYSTYLE: ${h.pattern}`, ix, iy, C.yellow, { font: "3" });
-    iy += 9;
-    iy += para(g, h.blurb, ix, iy, iw, C.bone, "5", 2) + 4;
+    // 0.8.0 H1: the hero's portrait, framed in ink and its faction's trim, with the faction, name and playstyle beside it
+    rect(g, ix, iy, PORTRAIT + 2, PORTRAIT + 2, C.ink);
+    frame(g, ix - 1, iy - 1, PORTRAIT + 4, PORTRAIT + 4, P.trim1);
+    g.drawImage(portraitImage(id as PortraitHero), ix + 1, iy + 1);
+    const tx = ix + PORTRAIT + 7;
+    drawText(g, h.factionName, tx, iy, P.trim2, { font: "3" });
+    drawText(g, h.name, tx, iy + 8, C.white, { scale: 2 });
+    drawText(g, `PLAYSTYLE: ${h.pattern}`, tx, iy + 26, C.yellow, { font: "3" });
+    iy += HEAD_H;
+    iy += para(g, [trick], ix, iy, iw, C.bone, "3", 2) + 4;
     const fac = ITEMS[h.factory];
     // 0.6.2s (REQ-BFG-031 S1, S10): the hull's TURRET SLOTS with no build: its starting turrets and the empty slot
     const slots = turretSlots({ hero: id });
