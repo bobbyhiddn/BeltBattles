@@ -51,20 +51,19 @@ export function fuse(a: Payload, b: Payload): void {
   a.copy = a.copy || b.copy;
 }
 
-/** Twin pour. Returns true when this factory is a Crucible (handled here). */
-export function crucibleProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: number): boolean {
+/**
+ * The twin pour: one payload from `make` onto every route of factory f with room at its entry, all on the same tick (a
+ * backed-up output misses the pour). One produce event a pour; nothing poured: the factory stalls. 0.8.0 P1: the
+ * Crucible's pour, shared with TWIN MOULD (any ammo; DESIGN-wave3.md 3.3 module 9). Returns the payloads poured.
+ */
+export function pourAll(ctx: SimCtx, s: SideState, f: FactoryState, dt: number, make: () => Payload): number {
   const spec = f.def.factory!;
-  if (spec.ammo !== "blank") return false;
   let poured = 0;
   for (const ri of f.routes) {
     const r = s.routes[ri];
     const back = r.ammo[r.ammo.length - 1];
     if (back && back.s < AMMO_SPACING) continue; // this output is backed up: it misses the pour
-    const p: Payload = {
-      id: ctx.newId(), ammo: "blank", ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
-      prior: 0, factory: f.uid, copy: false,
-    };
-    r.ammo.push({ p, s: 0, processed: -1, blocked: false });
+    r.ammo.push({ p: make(), s: 0, processed: -1, blocked: false });
     poured++;
   }
   if (poured > 0) {
@@ -79,6 +78,16 @@ export function crucibleProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: 
     f.timer = 0;
     s.stats.stalled += dt;
   }
+  return poured;
+}
+
+/** Twin pour. Returns true when this factory is a Crucible (handled here). */
+export function crucibleProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: number): boolean {
+  if (f.def.factory!.ammo !== "blank") return false;
+  pourAll(ctx, s, f, dt, (): Payload => ({
+    id: ctx.newId(), ammo: "blank", ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
+    prior: 0, factory: f.uid, copy: false,
+  }));
   return true;
 }
 

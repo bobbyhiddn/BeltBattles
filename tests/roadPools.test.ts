@@ -9,7 +9,7 @@ import {
 } from "../src/game/eventDefs";
 import { choicesFor, makeEvent, pickChoice } from "../src/game/events";
 import { migrateRun, newRun, rollShop, shopBadge, type Run } from "../src/game/run";
-import { ITEMS, RARITIES, buyableModules, type HeroId, type ItemDef, type ModuleTag } from "../src/sim/content";
+import { ITEMS, RARITIES, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { fusible } from "../src/sim/stars";
 import { hitsOfRig, key, startingTurrets, type ModPlacement, type Placed } from "../src/sim/deck";
@@ -54,9 +54,13 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     expect(salvagePool()).toContain("tollbooth");
   });
 
-  it("SMUGGLER's BURN and SHOCK pools are the gates tagged BURN and SHOCK (0.6.1: TEMPER, GALVANIC COIL); prices stay 2 and 3", () => {
-    for (const tag of ["BURN", "SHOCK"] as ModuleTag[]) {
-      expect(smugglerPool(tag)).toEqual(ids(buyable().filter((d) => d.kind === "gate" && !!d.tags?.includes(tag))));
+  // 0.8.0 P1 (family map v2, DESIGN-wave3.md 2.5; the brief's SMUGGLER keying exception): the pools are keyed on what a
+  // gate's effect does, not on the BURN and SHOCK tags v2 retired. The picks stay the same six rigs.
+  const BURNS = (d: ItemDef) => !!(d.gate?.burn || d.gate?.burnPerRide || d.gate?.quench);
+  const SHOCKS = (d: ItemDef) => !!(d.gate?.shock || d.gate?.staticTime || d.gate?.perStalled);
+  it("SMUGGLER's BURN and SHOCK pools are the gates whose effect burns or shocks (0.6.1: TEMPER, GALVANIC COIL); prices stay 2 and 3", () => {
+    for (const [kind, test] of [["BURN", BURNS], ["SHOCK", SHOCKS]] as const) {
+      expect(smugglerPool(kind)).toEqual(ids(buyable().filter((d) => d.kind === "gate" && test(d))));
     }
     expect(smugglerPool("BURN")).toEqual(["temper", "bellows", "quench"]);
     expect(smugglerPool("SHOCK")).toEqual(["coil", "staticbrush", "lodestone"]);
@@ -69,11 +73,11 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
     }
   });
 
-  it("a gate tagged BURN or SHOCK later joins SMUGGLER's pools with no code change, every BURN/SHOCK pairing shows, never one gate twice", () => {
-    const whet = ITEMS.whetstone.tags, grease = ITEMS.grease.tags;
+  it("a gate given a burn or shock effect later joins SMUGGLER's pools with no code change, every BURN/SHOCK pairing shows, never one gate twice", () => {
+    const whet = ITEMS.whetstone.gate, grease = ITEMS.grease.gate;
     try {
-      ITEMS.whetstone.tags = [...(whet ?? []), "BURN"];
-      ITEMS.grease.tags = [...(grease ?? []), "SHOCK"];
+      ITEMS.whetstone.gate = { ...whet, burn: 1 };
+      ITEMS.grease.gate = { ...grease, shock: true };
       expect(smugglerPool("BURN")).toContain("whetstone");
       expect(smugglerPool("SHOCK")).toContain("grease");
       const pairs = new Set<string>();
@@ -85,8 +89,8 @@ describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
       const wanted = smugglerPool("BURN").flatMap((b) => smugglerPool("SHOCK").filter((s) => s !== b).map((s) => `${b}+${s}`));
       expect([...pairs].sort()).toEqual(wanted.sort());
     } finally {
-      ITEMS.whetstone.tags = whet;
-      ITEMS.grease.tags = grease;
+      ITEMS.whetstone.gate = whet;
+      ITEMS.grease.gate = grease;
     }
   });
 

@@ -105,6 +105,15 @@ export interface GateEffect {
   fray?: number;
   frayCap?: number;
   perTile?: { each: number; max: number };
+  // 0.8.0 P1, wave 3 (output-D1/DESIGN-wave3.md 3.3; absent on every older rig, so they fight exactly as before):
+  plate?: number; // PLATE ROLLER, SHIELD WALL: plating onto your hull for each payload it hits (E1, Battle.addPlate)
+  plated?: { min: number; flat: number }; // SHIELD WALL: + flat on those payloads while your hull holds `min` plating or more
+  gauge?: { flat: number; matched: number }; // TWIN GAUGE: + flat, or + matched on a matched belt (E6)
+  pincer?: { flat: number; each: number; max: number }; // PINCER: + flat, + each for every other active rig on its tile (E5)
+  brace?: { mul: number; plated: number }; // BRACE FRAME: enemy stalls, freezes and chain slows on its tiles and itself x mul (x plated while plated)
+  latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
+  stoke?: number; // STOKER: each factory its arrows point at works this share faster (E3); its arrows do nothing to belts
+  breaker?: { flat: number; floor: number }; // PLATE BREAKER: 1 plating for + flat; with none, + floor
 }
 
 /**
@@ -137,6 +146,9 @@ export interface FactorySpec {
   round?: { kind: "sabot"; shrapnel?: boolean } | { kind: "frost"; seconds: number; spread: number } |
     { kind: "drag"; mul: number; seconds: number } | { kind: "limpet"; delay: number; blast: number; stall?: number };
   intervalMul?: number; // MIMIC: multiplied by the hero signature factory's interval
+  // 0.8.0 P1, wave 3 (absent on every older factory):
+  twin?: boolean; // TWIN MOULD: each cast pours one slug onto every belt with room on the same tick (Battle.pourAll)
+  plate?: { every: number; amount: number }; // ARMOR PRESS: `amount` plating onto your hull every `every` s (FactoryState.plateTimer)
 }
 
 /** 0.6.1c HOT SWAP: what one step of the cycle writes on the slug at stamp time (catalogue.json hotswap). */
@@ -165,11 +177,15 @@ export interface ModSpec {
   rerolls?: number;
   factoryWeight?: number;
   alwaysMachine?: boolean;
+  // 0.8.0 P1, wave 3 (absent on every older mod; TWIN TRIGGER's shorter load time is a negative windowTime above):
+  pairBonus?: number; // TWIN TRIGGER: paired loads (E2) deal this share more damage
+  spall?: { every: number; add: number; max: number }; // SPALL CATCHER: every `every` damage taken adds `add` to the next shot, up to `max`
+  seam?: { pair: number; lone: number }; // SEAM WELDER: plating for each pair this turret takes, and for each other load
 }
 
 /** 0.6.1b: how a turret fires (ARSENAL.md §2). "identity" is today's firing: every hero's signature core. */
 export type CoreRoutine = "identity" | "scatter" | "rotary" | "pressure" | "gatling" | "hullbreaker" | "drake" | "salvo" |
-  "mortar" | "grapnel" | "tesla" | "capacitor" | "compound" | "lance";
+  "mortar" | "grapnel" | "tesla" | "capacitor" | "compound" | "lance" | "anvil" | "steam"; // 0.8.0 P1: ANVIL, STEAM BREECH
 
 /**
  * 0.6.1b: a turret core's routine and numbers, written at heavy scale (ARSENAL.md §2.1 rule 4). The sim
@@ -207,10 +223,22 @@ export interface CoreSpec {
   mult?: number; // COMPOUND combined shell multiplier
   hold?: number; // COMPOUND maximum window seconds
   columns?: number; // LANCE struck deck columns
+  // 0.8.0 P1, wave 3 (absent on every older core):
+  anvilFlat?: number; // ANVIL BREECH: + this on each shot (absolute: x k)
+  perPlate?: number; // ANVIL BREECH: + this for each plating on your hull, at fire time (absolute: x k)
+  steamPlated?: number; // STEAM BREECH: x the fire interval while your hull holds plating
+  steamBare?: number; // STEAM BREECH: x the fire interval without plating
 }
 
-/** 0.6.1b: the shop tags (catalogue.json "tags"); a shop hint only, no tag-count bonus (ARSENAL-DECISIONS call 10). */
-export type ModuleTag = "BURN" | "SHOCK" | "POISON" | "FRAY" | "EDGE" | "SPEED" | "HAUL" | "SPLIT" | "BURST" | "HARASS" | "GUARD" | "TIMING" | "VOLUME";
+/**
+ * 0.6.1b: the shop tags (catalogue.json "tags"); a shop hint only, no tag-count bonus (ARSENAL-DECISIONS call 10).
+ * 0.8.0 P1 (REQ-BFG-023, family map v2; output-D1/DESIGN-wave3.md section 2, the Prime's Q1 in VERIFIED-D1.md): seven
+ * families of 14-25 members. FORGE folds BURN, EDGE and most of HAUL; HARASS folds SHOCK and GUARD; SWARM folds VOLUME,
+ * SPLIT, FRAY and POISON; TEMPO folds TIMING and SPEED; BURST stays; wave 3 adds TWIN (two belts into one gun) and PLATE
+ * (plating, repair and guards). Every buyable module carries 1-3 of them. Nothing in play reads a tag (the SMUGGLER
+ * picks by effect: eventDefs.ts smugglerPool).
+ */
+export type ModuleTag = "FORGE" | "HARASS" | "SWARM" | "BURST" | "TEMPO" | "TWIN" | "PLATE";
 
 /**
  * 0.6.1a: the 2-star or 3-star override of a fusible module (ARSENAL.md §4.3, catalogue.json star2/star3).
@@ -276,7 +304,7 @@ export interface ItemDef {
   reason?: string; // 0.6.2s: a turret's one-line reason to buy it (player text)
   supply?: { belt?: number; hull?: number };
   levels?: { 2?: ItemLevel; 3?: ItemLevel }; // 0.6.1a: star overrides (1 star = the spec above)
-  tags?: ModuleTag[]; // 0.6.1b: catalogue.json tags (set on the cores; a shop hint only)
+  tags?: ModuleTag[]; // 0.6.1b: the shop tags (a hint only); 0.8.0 P1: family map v2, 1-3 on every buyable module
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -294,7 +322,7 @@ export const ITEMS: Record<string, ItemDef> = {
   // --- generic factory ---
   press: {
     id: "press", name: "STAMP PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
-    desc: ["STAMPS PLAIN SLUGS", "EVERY 1.4S. NEEDS A", "FREE TURRET INTAKE."],
+    desc: ["STAMPS PLAIN SLUGS", "EVERY 1.4S. NEEDS A", "FREE TURRET INTAKE."], tags: ["SWARM"],
     factory: { ammo: "plain", interval: 1.4, outputs: 1 },
     levels: { // 0.6.1p: the dies (base damage 5 / 7.5, Payload.base) are applied
       2: { factory: { interval: 1.1, base: 5 }, perk: "HARDENED DIES" },
@@ -304,7 +332,7 @@ export const ITEMS: Record<string, ItemDef> = {
   // --- 0.6.1c: the six wave-1 factories (catalogue.json; ARSENAL.md §3.3 "Buyable factories"), values exactly ---
   doublestamp: {
     id: "doublestamp", name: "DOUBLE STAMP", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "ironmonger",
-    desc: ["STAMPS TWO PLAIN", "SLUGS PER 2.2S CYCLE.", "QUEUE PRESSURE."], tags: ["VOLUME", "SPLIT"],
+    desc: ["STAMPS TWO PLAIN", "SLUGS PER 2.2S CYCLE.", "QUEUE PRESSURE."], tags: ["SWARM"],
     factory: { ammo: "plain", interval: 2.2, outputs: 1, batch: 2 }, // base 3: the plain slug's
     levels: {
       2: { factory: { interval: 1.6, base: 5 } },
@@ -313,13 +341,13 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   shottower: {
     id: "shottower", name: "SHOT TOWER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "gunsmith",
-    desc: ["DROPS 3 BUCKSHOT", "(1 DMG) EVERY 1.5S.", "RIGS HIT EACH ONE."], tags: ["SPLIT", "FRAY", "VOLUME"], // beltside-062c: RIG (DESIGN §1)
+    desc: ["DROPS 3 BUCKSHOT", "(1 DMG) EVERY 1.5S.", "RIGS HIT EACH ONE."], tags: ["SWARM"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "shot", interval: 1.5, outputs: 1, batch: 3 }, // base 1: AMMO.shot
     levels: { 2: { factory: { interval: 1.35, base: 2 } }, 3: { factory: { interval: 1.3, base: 3 } } },
   },
   hotswap: {
     id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
-    desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["BURN", "SHOCK", "TIMING"],
+    desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["FORGE", "HARASS"],
     factory: { ammo: "plain", interval: 1.5, outputs: 1, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
     levels: { // the spark tracks GALVANIC COIL: 1.8 s and 2.8 s with SPARK JUMP (0.6.1p's shockTime and jump)
       2: { factory: { interval: 1.3, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 1.8, jump: 1 }] } },
@@ -328,13 +356,13 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   slagpot: {
     id: "slagpot", name: "SLAG POT", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "ironmonger",
-    desc: ["HEAVY SLAG SLUGS", "(7 DMG) THAT IGNORE", "BELT SPEED RIGS."], tags: ["BURST", "HAUL"], // beltside-062c: RIG (DESIGN §1)
+    desc: ["HEAVY SLAG SLUGS", "(7 DMG) THAT IGNORE", "BELT SPEED RIGS."], tags: ["FORGE", "BURST"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "slag", interval: 2.8, outputs: 1 }, // base 7: AMMO.slag (fixed 0.75x belt speed)
     levels: { 2: { factory: { interval: 2.2, base: 12 } }, 3: { factory: { interval: 1.75, base: 15 } } },
   },
   assembly: {
     id: "assembly", name: "ASSEMBLY LINE", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "ironmonger",
-    desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR RIGS", "COMMISSION 2X FAST."], tags: ["TIMING", "VOLUME"], // beltside-062c: RIG (DESIGN §1)
+    desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR RIGS", "COMMISSION 2X FAST."], tags: ["TEMPO", "SWARM"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "plain", interval: 1.8, outputs: 1, commission: 0.5 },
     levels: {
       2: { factory: { interval: 1.5, commission: 0.25 } },
@@ -343,7 +371,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   gantry: {
     id: "gantry", name: "GANTRY PRESS", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
-    desc: ["ONE PRESS, TWO", "OUTPUTS: FEEDS TWO", "INTAKES BY TURNS."], tags: ["VOLUME", "SPLIT"],
+    desc: ["ONE PRESS, TWO", "OUTPUTS: FEEDS TWO", "INTAKES BY TURNS."], tags: ["SWARM", "TWIN"],
     factory: { ammo: "plain", interval: 1.2, outputs: 2 }, // base 3: the plain slug's
     levels: {
       2: { factory: { interval: 0.7, outputs: 3 }, perk: "THIRD ARM" },
@@ -352,7 +380,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   scrapper: {
     id: "scrapper", name: "SCRAPPER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "scrapper",
-    desc: ["STAMPS SCRAP SLUGS", "WHEN HARASSMENT HITS", "FOE, OR EVERY 3S."], tags: ["HARASS", "VOLUME"],
+    desc: ["STAMPS SCRAP SLUGS", "WHEN HARASSMENT HITS", "FOE, OR EVERY 3S."], tags: ["HARASS", "SWARM"],
     factory: { ammo: "plain", interval: 3, outputs: 1, trigger: "harass", scrapFlat: 3 },
     levels: { 2: { factory: { interval: 2.5, scrapFlat: 6.5 } }, 3: { factory: { interval: 2, scrapFlat: 10.5, bigHaul: true }, perk: "BIG HAUL" } },
   },
@@ -371,20 +399,20 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   dragchain: {
     id: "dragchain", name: "DRAG CHAIN FOUNDRY", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "scrapper",
-    desc: ["CHAIN ROUNDS SLOW", "A BELT SEGMENT AND", "SNAG ITS PAYLOADS."], tags: ["HARASS", "SPEED"],
+    desc: ["CHAIN ROUNDS SLOW", "A BELT SEGMENT AND", "SNAG ITS PAYLOADS."], tags: ["HARASS", "TEMPO"],
     factory: { ammo: "drag", interval: 1.8, outputs: 1, round: { kind: "drag", mul: 0.6, seconds: 3 } },
     levels: { 2: { factory: { round: { kind: "drag", mul: 0.4, seconds: 4.4 } } },
       3: { factory: { round: { kind: "drag", mul: 0.3, seconds: 6 } } } },
   },
   mimic: {
     id: "mimic", name: "MIMIC FORGE", kind: "factory", rarity: "legendary", price: 11, size: 2, merchant: "arcane",
-    desc: ["STAMPS YOUR HERO'S", "SIGNATURE AMMO INTO", "A SECOND ROUTE."], tags: ["VOLUME", "HAUL"],
+    desc: ["STAMPS YOUR HERO'S", "SIGNATURE AMMO INTO", "A SECOND ROUTE."], tags: ["SWARM"],
     factory: { ammo: "plain", interval: 1, intervalMul: 1.4, outputs: 1 },
     levels: { 2: { factory: { intervalMul: 1 } }, 3: { factory: { intervalMul: 0.8, outputs: 2 }, perk: "TWIN SIGNET" } },
   },
   limpet: {
     id: "limpet", name: "LIMPET WORKS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "scrapper",
-    desc: ["STICKY CHARGES BLOW", "3 SECONDS LATER FOR", "HULL DAMAGE."], tags: ["BURST", "HARASS"], // 0.6.2t 0b.1: no stall at 1 star
+    desc: ["STICKY CHARGES BLOW", "3 SECONDS LATER FOR", "HULL DAMAGE."], tags: ["HARASS", "BURST"], // 0.6.2t 0b.1: no stall at 1 star
     factory: { ammo: "limpet", interval: 2.4, outputs: 1, round: { kind: "limpet", delay: 3, blast: 8 } },
     levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 18, stall: 1 } } },
       3: { factory: { round: { kind: "limpet", delay: 3, blast: 28, stall: 1.6 } } } },
@@ -392,25 +420,25 @@ export const ITEMS: Record<string, ItemDef> = {
   // --- processing gates ---
   temper: {
     id: "temper", name: "TEMPER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    desc: ["ADDS 1 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."], tags: ["BURN"],
+    desc: ["ADDS 1 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."], tags: ["FORGE"],
     gate: { burn: 1 },
     levels: { 2: { gate: { burn: 2 } }, 3: { gate: { burn: 4 } } },
   },
   whetstone: {
     id: "whetstone", name: "WHETSTONE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    desc: ["+2 FLAT DAMAGE.", "BEFORE A SPLITTER,", "BOTH COPIES GAIN IT."], tags: ["EDGE"],
+    desc: ["+2 FLAT DAMAGE.", "BEFORE A SPLITTER,", "BOTH COPIES GAIN IT."], tags: ["FORGE"],
     gate: { flat: 2 },
     levels: { 2: { gate: { flat: 4 } }, 3: { gate: { flat: 7 } } },
   },
   grease: {
     id: "grease", name: "GREASE WORKS", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
-    desc: ["BELT RUNS 1.6X FROM", "ITS HIT. LOCKED BELTS", "GAIN +1 DAMAGE."], tags: ["SPEED"],
+    desc: ["BELT RUNS 1.6X FROM", "ITS HIT. LOCKED BELTS", "GAIN +1 DAMAGE."], tags: ["TEMPO"],
     gate: { speed: 1.6, lockedFlat: 1 },
     levels: { 2: { gate: { speed: 2.3, lockedFlat: 2 } }, 3: { gate: { speed: 3.1, lockedFlat: 4 } } },
   },
   brake: {
     id: "brake", name: "BRAKE SHOE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker",
-    desc: ["HALF SPEED FROM HIT.", "LOCKED BELTS GAIN", "+2 DAMAGE INSTEAD."], tags: ["SPEED", "HAUL"],
+    desc: ["HALF SPEED FROM HIT.", "LOCKED BELTS GAIN", "+2 DAMAGE INSTEAD."], tags: ["FORGE", "TEMPO"],
     gate: { speed: 0.5, lockedFlat: 2 },
     levels: { // 0.6.1f: the slow stays at half speed (a deeper one starved the turret); the merge pays in friction heat
       2: { gate: { speed: 0.5, flat: 2, lockedFlat: 4 }, perk: "HOT SHOE" },
@@ -419,7 +447,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   longhaul: {
     id: "longhaul", name: "LONG HAUL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker", shape: "II",
-    desc: ["+1 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."], tags: ["HAUL", "EDGE"],
+    desc: ["+1 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."], tags: ["FORGE", "BURST"],
     gate: { perPriorGate: 1 },
     levels: { // 0.6.1p: priorCap applied (1 star counts every prior gate, as in 0.6.0)
       2: { gate: { perPriorGate: 2, priorCap: 6 } },
@@ -428,7 +456,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   coil: {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
-    desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."], tags: ["SHOCK", "HARASS"],
+    desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."], tags: ["HARASS"],
     gate: { shock: true }, // 1 star stalls DISRUPT_TIME (1.6 s, catalogue star1) exactly as in 0.6.0
     levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied
       2: { gate: { shockTime: 1.8, jump: 1 }, perk: "SPARK JUMP" },
@@ -437,7 +465,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   splitter: {
     id: "splitter", name: "SPLITTER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker", shape: "T",
-    desc: ["SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE."], tags: ["SPLIT"],
+    desc: ["SPLITS A PAYLOAD IN", "TWO COPIES AT 60%.", "MORE BELT PRESSURE."], tags: ["SWARM"],
     gate: { split: { copies: 2, mult: 0.6 } },
     levels: {
       2: { gate: { split: { copies: 2, mult: 0.72 } }, perk: "CLEAN CUT" },
@@ -447,7 +475,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   overdrive: {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker", shape: "X",
-    desc: ["4 ARROWS: 3X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +3 DAMAGE."], tags: ["SPEED"],
+    desc: ["4 ARROWS: 3X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +3 DAMAGE."], tags: ["TEMPO"],
     gate: { speed: 3, lockedFlat: 3 },
     levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; the guard flags wait for wave 2's enemy slow and freeze
       2: { gate: { speed: 4, lockedFlat: 6, guard: GUARD_SLOW }, perk: "REDLINE" },
@@ -456,18 +484,18 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   tollbooth: {
     id: "tollbooth", name: "TOLLBOOTH", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "ironmonger",
-    desc: ["GUARDS ITS BELT", "FROM THE FIRST 2", "HARASSMENT HITS."], tags: ["GUARD"],
+    desc: ["GUARDS ITS BELT", "FROM THE FIRST 2", "HARASSMENT HITS."], tags: ["HARASS", "PLATE"],
     gate: { toll: 2 }, levels: { 2: { gate: { toll: 4 } }, 3: { gate: { toll: 7, tollFactory: true }, perk: "FACTORY GUARD" } },
   },
   sifter: {
     id: "sifter", name: "SIFTER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    desc: ["REMOVES CHILL, SNAG", "OR SAP FROM PASSING", "PAYLOADS IN ORDER."], tags: ["GUARD", "EDGE"],
+    desc: ["REMOVES CHILL, SNAG", "OR SAP FROM PASSING", "PAYLOADS IN ORDER."], tags: ["HARASS", "FORGE", "PLATE"],
     gate: { sift: 1 }, levels: { 2: { gate: { sift: "all", siftFlat: 1 }, perk: "POLISH" },
       3: { gate: { sift: "all", siftFlat: 2, siftClean: 1 }, perk: "FINE MESH" } },
   },
   surge: {
     id: "surge", name: "SURGE VALVE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",
-    desc: ["PULSES 3X SPEED FOR", "1S EVERY 3S, +1 DMG", "PER PULSE RIDDEN.", "LOCKED BELTS +3 DMG."], tags: ["SPEED", "BURST", "TIMING"],
+    desc: ["PULSES 3X SPEED FOR", "1S EVERY 3S, +1 DMG", "PER PULSE RIDDEN.", "LOCKED BELTS +3 DMG."], tags: ["TEMPO", "BURST", "FORGE"],
     // 0.6.2 (REQ-BFG-021): a tempo-locked belt ignores the pulse and its per-pulse flat, so, like every other speed rig,
     // SURGE pays locked belts damage instead: a rare's 3/6/10 (between BRAKE SHOE's 2/4/7 and OVERDRIVE's 3/6/11)
     // 0.6.2 FB-B (oracle 16085a6430e4cc6a): the per-pulse flat is 1/2/3 (was 0/1/2). At ★1 the pulse cut ride time on
@@ -478,45 +506,45 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   sorting: {
     id: "sorting", name: "SORTING ARM", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "tinker",
-    desc: ["COPIES EVERY 3RD", "PAYLOAD AT FULL", "STRENGTH."], tags: ["SPLIT", "TIMING"],
+    desc: ["COPIES EVERY 3RD", "PAYLOAD AT FULL", "STRENGTH."], tags: ["SWARM"],
     gate: { sort: { every: 3, copies: 2 } }, levels: { 2: { gate: { sort: { every: 2, copies: 2 } }, perk: "QUICK SORT" },
       3: { gate: { sort: { every: 2, copies: 3 } }, perk: "TRIPLE SORT" } },
   },
   riveter: {
     id: "riveter", name: "RIVETER", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger",
-    desc: ["EACH PASSING SLUG", "REPAIRS YOUR HULL", "BY 0.6."], tags: ["GUARD"],
+    desc: ["EACH PASSING SLUG", "REPAIRS YOUR HULL", "BY 0.6."], tags: ["SWARM", "PLATE"],
     gate: { repair: 0.6 }, levels: { 2: { gate: { repair: 1.3 } }, 3: { gate: { repair: 2.1 } } },
   },
   heatjacket: {
     id: "heatjacket", name: "HEAT JACKET", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
-    desc: ["ADDS +0.4 DAMAGE", "PER SECOND RIDDEN", "AFTER THIS RIG."], tags: ["HAUL", "TIMING"],
+    desc: ["ADDS +0.4 DAMAGE", "PER SECOND RIDDEN", "AFTER THIS RIG."], tags: ["FORGE"],
     gate: { heat: 0.4 }, levels: { 2: { gate: { heat: 0.9 } }, 3: { gate: { heat: 1.4 } } },
   },
   venom: {
     id: "venom", name: "VENOM DRIP", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
-    desc: ["ADDS 2 POISON.", "POOL TICKS AND", "REFRESHES ON HIT."], tags: ["POISON"],
+    desc: ["ADDS 2 POISON.", "POOL TICKS AND", "REFRESHES ON HIT."], tags: ["SWARM", "FORGE"],
     gate: { poison: 2 }, levels: { 2: { gate: { poison: 4 } }, 3: { gate: { poison: 7 } } },
   },
   overclocker: {
     id: "overclocker", name: "OVERCLOCKER", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker",
-    desc: ["DOUBLES THE NEXT", "BOOSTABLE RIG ONCE,", "THEN COOLS FOR 4S."], tags: ["TIMING", "BURST"],
+    desc: ["DOUBLES THE NEXT", "BOOSTABLE RIG ONCE,", "THEN COOLS FOR 4S."], tags: ["FORGE", "BURST", "TEMPO"],
     gate: { overclockCooldown: 4 }, levels: { 2: { gate: { overclockCooldown: 1.8 } }, 3: { gate: { overclockCooldown: 1.15 } } },
   },
   keg: {
     id: "keg", name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
-    desc: ["BLOWS AT 12S:", "PAYLOADS ON ITS BELT", "GAIN +6 AND BURN."], tags: ["BURST", "TIMING"],
+    desc: ["BLOWS AT 12S:", "PAYLOADS ON ITS BELT", "GAIN +6 AND BURN."], tags: ["FORGE", "BURST", "TEMPO"],
     gate: { keg: { fuse: 12, flat: 6, burn: 1 } }, levels: { 2: { gate: { keg: { fuse: 10, flat: 13, burn: 2 } } },
       3: { gate: { keg: { fuse: 8, flat: 21, burn: 3, wide: true } }, perk: "WIDE BLAST" } },
   },
   bellows: {
     id: "bellows", name: "BELLOWS", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
-    desc: ["ADDS BURN FROM", "RIDE TIME SO FAR,", "UP TO 4 STACKS."], tags: ["BURN", "HAUL"],
+    desc: ["ADDS BURN FROM", "RIDE TIME SO FAR,", "UP TO 4 STACKS."], tags: ["FORGE"],
     gate: { burnPerRide: { seconds: 2.5, max: 4 } }, levels: { 2: { gate: { burnPerRide: { seconds: 1.15, max: 9 } } },
       3: { gate: { burnPerRide: { seconds: 0.7, max: 14 } } } },
   },
   quench: {
     id: "quench", name: "QUENCH TANK", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
-    desc: ["+1 DAMAGE TO EVERY", "PAYLOAD. TURNS UP TO", "4 BURN INTO +3 EACH."], tags: ["BURN", "EDGE"],
+    desc: ["+1 DAMAGE TO EVERY", "PAYLOAD. TURNS UP TO", "4 BURN INTO +3 EACH."], tags: ["FORGE"],
     // 0.6.2 FB-B (oracle 16085a6430e4cc6a): a Burn stack deals 1 dmg/s for BURN_TIME (3 s), so each stack QUENCH spends
     // pays at least that (+3/+5/+7), and it spends only the 4/5/6 it pays for (more stays Burn). Every payload it hits
     // also hardens +1/+2/+3 (EDGE), below WHETSTONE's 2/4/7, so a QUENCH with no Burn to spend isn't dead but stays a
@@ -526,12 +554,12 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   staticbrush: {
     id: "staticbrush", name: "STATIC BRUSH", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
-    desc: ["BARE-HULL HITS", "STALL A RANDOM", "ENEMY TURRET."], tags: ["SHOCK", "HARASS"],
+    desc: ["BARE-HULL HITS", "STALL A RANDOM", "ENEMY TURRET."], tags: ["HARASS"],
     gate: { staticTime: 0.6 }, levels: { 2: { gate: { staticTime: 1.3 } }, 3: { gate: { staticTime: 2.1 } } },
   },
   lodestone: {
     id: "lodestone", name: "LODESTONE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "arcane",
-    desc: ["+1 DAMAGE ALWAYS,", "+1 PER ENEMY", "MACHINE STALLED."], tags: ["SHOCK", "EDGE"],
+    desc: ["+1 DAMAGE ALWAYS,", "+1 PER ENEMY", "MACHINE STALLED."], tags: ["HARASS", "FORGE"],
     // 0.6.2 TUNE-M T2 (the Prime's decision, as QUENCH TANK's oracle 16085a6430e4cc6a): a floor, +1/+2/+3 flat on every
     // payload it hits (below WHETSTONE's 2/4/7), with the per-stalled bonus on top. Was the per-stalled bonus alone, so
     // a deck with no stall source got nothing from it at any star (NO EFFECT on FB-A and RB; CAND-A ablation FURNACE
@@ -541,20 +569,20 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   barbed: {
     id: "barbed", name: "BARBED SPOOL", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "quartermaster",
-    desc: ["HITS ADD 1 FRAY.", "LATER HITS DEAL", "+0.2 PER STACK."], tags: ["FRAY"],
+    desc: ["HITS ADD 1 FRAY.", "LATER HITS DEAL", "+0.2 PER STACK."], tags: ["SWARM", "FORGE"],
     gate: { fray: 1 }, levels: { 2: { gate: { fray: 2, frayCap: 3 }, perk: "RAZOR WIRE" },
       3: { gate: { fray: 3, frayCap: 6 }, perk: "RAZOR WIRE" } },
   },
   counterweight: {
     id: "counterweight", name: "COUNTERWEIGHT", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
-    desc: ["+0.5 DAMAGE PER", "BELT TILE ALREADY", "RIDDEN, MAX +6."], tags: ["HAUL", "EDGE"],
+    desc: ["+0.5 DAMAGE PER", "BELT TILE ALREADY", "RIDDEN, MAX +6."], tags: ["FORGE"],
     gate: { perTile: { each: 0.5, max: 6 } }, levels: { 2: { gate: { perTile: { each: 1.1, max: 13 } } },
       3: { gate: { perTile: { each: 1.75, max: 21 } } } },
   },
   // --- turret equipment ---
   chamber: {
     id: "chamber", name: "EXT. CHAMBER", kind: "mod", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
-    desc: ["TURRET FIRES TWO", "PAYLOADS PER SHOT.", "DROP ON A TURRET."],
+    desc: ["TURRET FIRES TWO", "PAYLOADS PER SHOT.", "DROP ON A TURRET."], tags: ["BURST", "TWIN"],
     mod: { perShot: 2 },
     levels: { // 0.6.1p: WIDE BREECH's window +1 applied (TurretState.window)
       2: { mod: { perShot: 2, window: 1 }, perk: "WIDE BREECH" },
@@ -563,13 +591,13 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   calibrate: {
     id: "calibrate", name: "CALIBRATION", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
-    desc: ["TURRET FIRES 25%", "FASTER.", "DROP ON A TURRET."],
+    desc: ["TURRET FIRES 25%", "FASTER.", "DROP ON A TURRET."], tags: ["TEMPO"],
     mod: { fireMul: 0.75 },
     levels: { 2: { mod: { fireMul: 0.58 } }, 3: { mod: { fireMul: 0.46 } } },
   },
   flak: {
     id: "flak", name: "FLAK SCREEN", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
-    desc: ["INTERCEPTS 25% OF", "INCOMING HARASSMENT", "ROUNDS SIDE-WIDE."], tags: ["GUARD"],
+    desc: ["INTERCEPTS 25% OF", "INCOMING HARASSMENT", "ROUNDS SIDE-WIDE."], tags: ["HARASS", "PLATE"],
     mod: { intercept: 0.25 }, levels: { 2: { mod: { intercept: 0.55 } }, 3: { mod: { intercept: 0.85 } } },
   },
   spotter: {
@@ -583,7 +611,7 @@ export const ITEMS: Record<string, ItemDef> = {
   // On a GATLING SPOOL turret its seconds do nothing (gatlingReady never reads windowTime); its slots still count.
   hopper: {
     id: "hopper", name: "HOPPER", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "quartermaster",
-    desc: ["CHAMBER HOLDS 1 MORE", "LOAD; WINDOWS STAY", "OPEN 0.5S LONGER."], tags: ["BURST", "TIMING"],
+    desc: ["CHAMBER HOLDS 1 MORE", "LOAD; WINDOWS STAY", "OPEN 0.5S LONGER."], tags: ["BURST", "TEMPO"],
     mod: { window: 1, windowTime: 0.5 },
     // 0.6.2 FB-B (oracle 16085a6430e4cc6a): every star keeps ★1's window (+1 slot, +0.5 s). ★2/★3 add a store: while the
     // gun fires it takes 1/2 loads off the belt, and they drop into the next window. On a sparse belt nothing waits, so
@@ -597,7 +625,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   mantlet: {
     id: "mantlet", name: "MANTLET", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "ironmonger",
-    desc: ["ARMORED TURRET:", "SHOCK AND CHAIN SLOWS", "CAN'T STALL IT."], tags: ["GUARD"],
+    desc: ["ARMORED TURRET:", "SHOCK AND CHAIN SLOWS", "CAN'T STALL IT."], tags: ["HARASS", "PLATE"],
     mod: { immune: ["shock", "static", "arc", "drag"] },
     levels: {
       // 0.6.2 FB-B (oracle 16085a6430e4cc6a): FULL PLATE also shields the belt tile feeding its turret (intakeGuard 1),
@@ -609,21 +637,21 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   ram: {
     id: "ram", name: "FINISHER RAM", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "tinker",
-    desc: ["THE LAST PAYLOAD OUT", "OF EACH WINDOW HITS", "40% HARDER."], tags: ["BURST", "TIMING"],
+    desc: ["THE LAST PAYLOAD OUT", "OF EACH WINDOW HITS", "40% HARDER."], tags: ["BURST"],
     mod: { finisher: 0.4 }, // never on a GATLING SPOOL turret: it holds no window (battle.ts chambers)
     levels: { 2: { mod: { finisher: 0.88 } }, 3: { mod: { finisher: 1.4 } } },
   },
   // --- turret cores (0.6.1b, ARSENAL.md §2.3, catalogue.json): one socket per turret; numbers at heavy scale ---
   scatter: {
     id: "scatter", name: "SCATTER CHOKE", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
-    desc: ["SHOTS BURST INTO 3", "PELLETS AT 40%, EACH", "AIMED ANEW."], tags: ["SPLIT", "FRAY"],
+    desc: ["SHOTS BURST INTO 3", "PELLETS AT 40%, EACH", "AIMED ANEW."], tags: ["SWARM"],
     core: { routine: "scatter", pellets: 3, share: 0.4 },
     levels: { 2: { core: { pellets: 3, share: 0.48 } }, 3: { core: { pellets: 4, share: 0.42 } } },
   },
   rotary: {
     // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
     id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "gunsmith",
-    desc: ["FIRES THE OLDEST", "LOAD FIRST. WINDOWS", "CLOSE IN 0.8S."], tags: ["TIMING"],
+    desc: ["FIRES THE OLDEST", "LOAD FIRST. WINDOWS", "CLOSE IN 0.8S."], tags: ["TEMPO"],
     core: { routine: "rotary", order: "FIFO", windowTime: 0.8 },
     levels: {
       2: { core: { intervalMul: 0.85 }, perk: "GREASED RACE" },
@@ -633,14 +661,14 @@ export const ITEMS: Record<string, ItemDef> = {
   pressure: {
     // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
     id: "pressure", name: "PRESSURE BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
-    desc: ["+1.2 DAMAGE PER", "PAYLOAD QUEUED AT", "IT. NEVER JAMS."], tags: ["BURST", "VOLUME"],
+    desc: ["+1.2 DAMAGE PER", "PAYLOAD QUEUED AT", "IT. NEVER JAMS."], tags: ["SWARM", "BURST"],
     core: { routine: "pressure", perQueued: 1.2, maxCount: 5, noJam: true },
     levels: { 2: { core: { perQueued: 2.6 } }, 3: { core: { perQueued: 4.2 } } },
   },
   gatling: {
     id: "gatling", name: "GATLING SPOOL", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "gunsmith",
     // no loading window: a Prime-approved deviation from catalogue row 4 (oracle 5624d721a73a6282; cores.ts gatlingReady)
-    desc: ["NEVER WAITS: FIRES", "EACH LOAD AT ONCE.", "EACH QUICK SHOT 6%", "FASTER, TO 0.6X."], tags: ["TIMING", "VOLUME"],
+    desc: ["NEVER WAITS: FIRES", "EACH LOAD AT ONCE.", "EACH QUICK SHOT 6%", "FASTER, TO 0.6X."], tags: ["TEMPO", "SWARM"],
     core: { routine: "gatling", start: 1.2, step: 0.06, floor: 0.6, gap: 2.5 },
     levels: { 2: { core: { step: 0.09, floor: 0.4 } }, 3: { core: { step: 0.12, floor: 0.29 } } },
   },
@@ -653,7 +681,7 @@ export const ITEMS: Record<string, ItemDef> = {
   drake: {
     // 0.6.2m (REQ-BFG-033): sold by the ARCANE DEALER (was the ALCHEMIST; see MERCHANTS)
     id: "drake", name: "DRAKE NOZZLE", kind: "core", rarity: "rare", price: 5, size: 1, merchant: "arcane",
-    desc: ["TURNS FLAT DAMAGE", "INTO BURN. ITS FIRES", "BURN 4S, NOT 3."], tags: ["BURN"],
+    desc: ["TURNS FLAT DAMAGE", "INTO BURN. ITS FIRES", "BURN 4S, NOT 3."], tags: ["FORGE"],
     core: { routine: "drake", flatPerBurn: 2, addBurn: 1, burnTime: 4, flightMul: 0.7 },
     levels: {
       2: { core: { flatPerBurn: 1.5, addBurn: 2, burnTime: 5 } },
@@ -681,25 +709,25 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   tesla: {
     id: "tesla", name: "TESLA ARC", kind: "core", rarity: "epic", price: 8, size: 1, merchant: "arcane",
-    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS 0.8S STALL."], tags: ["SHOCK", "HARASS"],
+    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS 0.8S STALL."], tags: ["HARASS"],
     core: { routine: "tesla", arcs: 1, stall: 0.8, share: 0.25 },
     levels: { 2: { core: { arcs: 2, stall: 0.9 } }, 3: { core: { arcs: 3, stall: 0.93, share: 0.3 } } },
   },
   capacitor: {
     id: "capacitor", name: "CAPACITOR BANK", kind: "core", rarity: "epic", price: 7, size: 1, merchant: "arcane",
-    desc: ["IDLE TIME CHARGES", "NEXT SHOT: +2 PER", "SECOND, UP TO 5S."], tags: ["BURST", "TIMING"],
+    desc: ["IDLE TIME CHARGES", "NEXT SHOT: +2 PER", "SECOND, UP TO 5S."], tags: ["BURST", "TEMPO"],
     core: { routine: "capacitor", perSecond: 2, maxSeconds: 5 },
     levels: { 2: { core: { perSecond: 4.4 } }, 3: { core: { perSecond: 7 } } },
   },
   compound: {
     id: "compound", name: "COMPOUND BREECH", kind: "core", rarity: "epic", price: 7, size: 1, merchant: "gunsmith",
-    desc: ["PACKS TWO LOADS", "INTO ONE SHELL AT", "115% TOTAL DAMAGE."], tags: ["BURST"],
+    desc: ["PACKS TWO LOADS", "INTO ONE SHELL AT", "115% TOTAL DAMAGE."], tags: ["BURST", "TWIN"],
     core: { routine: "compound", mult: 1.15, hold: 3 },
     levels: { 2: { core: { mult: 1.33 } }, 3: { core: { mult: 1.52 } } },
   },
   lance: {
     id: "lance", name: "LODESTAR LANCE", kind: "core", rarity: "legendary", price: 10, size: 1, merchant: "arcane",
-    desc: ["HITS THE HULL AND", "EVERY MACHINE IN", "ONE DECK COLUMN."], tags: ["SHOCK", "HARASS", "BURST"],
+    desc: ["HITS THE HULL AND", "EVERY MACHINE IN", "ONE DECK COLUMN."], tags: ["HARASS", "BURST"],
     core: { routine: "lance", columns: 1, share: 0.2 },
     levels: { 2: { core: { columns: 2, share: 0.22 } }, 3: { core: { columns: 3, share: 0.23 } } },
   },
@@ -713,42 +741,42 @@ export const ITEMS: Record<string, ItemDef> = {
   // turrets are never road parts in 0.6.2 (eventDefs.ts roadPart), and FAMILY_WEIGHT draws them at half weight.
   scrapcannon: {
     id: "scrapcannon", name: "SCRAP CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
-    desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 3 LOADS."],
+    desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 3 LOADS."], tags: ["BURST", "TWIN"],
     reason: "A heavy gun that takes a belt on both columns.",
     turret: { class: "heavy", fireInterval: 1.0, window: 3, flight: 0.6, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.9 } }, 3: { turret: { fireInterval: 0.8 } } },
   },
   rampart: {
     id: "rampart", name: "RAMPART CANNON", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
-    desc: ["HEAVY TURRET.", "FIRES EVERY 0.75S.", "HOLDS 3 LOADS."],
+    desc: ["HEAVY TURRET.", "FIRES EVERY 0.75S.", "HOLDS 3 LOADS."], tags: ["BURST", "TEMPO", "TWIN"],
     reason: "A quicker heavy gun with a slower shell.",
     turret: { class: "heavy", fireInterval: 0.75, window: 3, flight: 0.65, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.675 } }, 3: { turret: { fireInterval: 0.6 } } },
   },
   dartgun: {
     id: "dartgun", name: "DART GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
-    desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."],
+    desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."], tags: ["SWARM"],
     reason: "A fast light gun on one inner column.",
     turret: { class: "light", fireInterval: 0.55, window: 2, flight: 0.34, intake: "inner" },
     levels: { 2: { turret: { fireInterval: 0.495 } }, 3: { turret: { fireInterval: 0.44 } } },
   },
   spikegun: {
     id: "spikegun", name: "SPIKE GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
-    desc: ["LIGHT TURRET.", "FIRES EVERY 0.6S.", "HOLDS 2 LOADS."],
+    desc: ["LIGHT TURRET.", "FIRES EVERY 0.6S.", "HOLDS 2 LOADS."], tags: ["SWARM"],
     reason: "A light gun on one inner column.",
     turret: { class: "light", fireInterval: 0.6, window: 2, flight: 0.34, intake: "inner" },
     levels: { 2: { turret: { fireInterval: 0.54 } }, 3: { turret: { fireInterval: 0.48 } } },
   },
   carronade: {
     id: "carronade", name: "CARRONADE", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
-    desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 2 LOADS."],
+    desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 2 LOADS."], tags: ["SWARM", "TWIN"],
     reason: "A medium gun that takes a belt on both columns.",
     turret: { class: "medium", fireInterval: 0.8, window: 2, flight: 0.45, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
   },
   swivel: {
     id: "swivel", name: "SWIVEL GUN", kind: "turret", rarity: "common", price: TURRET_PRICE.common, size: 2, merchant: "gunsmith",
-    desc: ["ADAPTABLE TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."],
+    desc: ["ADAPTABLE TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."], tags: ["TEMPO", "TWIN"],
     reason: "An adaptable gun on both columns.",
     turret: { class: "adaptable", fireInterval: 0.7, window: 3, flight: 0.55, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.63 } }, 3: { turret: { fireInterval: 0.56 } } },
@@ -758,49 +786,49 @@ export const ITEMS: Record<string, ItemDef> = {
   // mechanics). Same star values as the commons: ★2 fire interval x0.9, ★3 x0.8, window unchanged.
   twinneedle: {
     id: "twinneedle", name: "TWIN NEEDLE", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2, merchant: "gunsmith",
-    desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."],
+    desc: ["LIGHT TURRET.", "FIRES EVERY 0.55S.", "HOLDS 2 LOADS."], tags: ["SWARM", "TWIN"],
     reason: "A light gun that takes belts on both columns.",
     turret: { class: "light", fireInterval: 0.55, window: 2, flight: 0.34, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.495 } }, 3: { turret: { fireInterval: 0.44 } } },
   },
   hailgun: {
     id: "hailgun", name: "HAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
-    desc: ["LIGHT TURRET.", "FIRES EVERY 0.45S.", "HOLDS 3 LOADS."],
+    desc: ["LIGHT TURRET.", "FIRES EVERY 0.45S.", "HOLDS 3 LOADS."], tags: ["SWARM", "TEMPO"],
     reason: "The fastest gun: it fires every 0.45 s and holds 3 loads.",
     turret: { class: "light", fireInterval: 0.45, window: 3, flight: 0.3, intake: "inner" },
     levels: { 2: { turret: { fireInterval: 0.405 } }, 3: { turret: { fireInterval: 0.36 } } },
   },
   deckgun: {
     id: "deckgun", name: "DECK GUN", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2, merchant: "gunsmith",
-    desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 3 LOADS."],
+    desc: ["MEDIUM TURRET.", "FIRES EVERY 0.8S.", "HOLDS 3 LOADS."], tags: ["BURST", "TWIN"],
     reason: "A medium gun that holds 3 loads, so fewer loads wait.",
     turret: { class: "medium", fireInterval: 0.8, window: 3, flight: 0.45, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
   },
   railgun: {
     id: "railgun", name: "RAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
-    desc: ["MEDIUM TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."],
+    desc: ["MEDIUM TURRET.", "FIRES EVERY 0.7S.", "HOLDS 3 LOADS."], tags: ["TEMPO", "TWIN"],
     reason: "Fires every 0.7 s, and its shots land in 0.3 s.",
     turret: { class: "medium", fireInterval: 0.7, window: 3, flight: 0.3, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.63 } }, 3: { turret: { fireInterval: 0.56 } } },
   },
   bombard: {
     id: "bombard", name: "BOMBARD", kind: "turret", rarity: "rare", price: TURRET_PRICE.rare, size: 2, merchant: "gunsmith",
-    desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 4 LOADS."],
+    desc: ["HEAVY TURRET.", "FIRES EVERY 1S.", "HOLDS 4 LOADS."], tags: ["BURST", "TWIN"],
     reason: "A heavy gun that holds 4 loads.",
     turret: { class: "heavy", fireInterval: 1.0, window: 4, flight: 0.6, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.9 } }, 3: { turret: { fireInterval: 0.8 } } },
   },
   siegegun: {
     id: "siegegun", name: "SIEGE GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
-    desc: ["HEAVY TURRET.", "FIRES EVERY 0.85S.", "HOLDS 4 LOADS."],
+    desc: ["HEAVY TURRET.", "FIRES EVERY 0.85S.", "HOLDS 4 LOADS."], tags: ["BURST", "TWIN"],
     reason: "A heavy gun that fires every 0.85 s and holds 4 loads.",
     turret: { class: "heavy", fireInterval: 0.85, window: 4, flight: 0.55, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.765 } }, 3: { turret: { fireInterval: 0.68 } } },
   },
   thunderer: {
     id: "thunderer", name: "THUNDERER", kind: "turret", rarity: "legendary", price: TURRET_PRICE.legendary, size: 2, merchant: "arcane",
-    desc: ["HEAVY TURRET.", "FIRES EVERY 0.8S.", "HOLDS 4 LOADS."],
+    desc: ["HEAVY TURRET.", "FIRES EVERY 0.8S.", "HOLDS 4 LOADS."], tags: ["BURST", "TWIN"],
     reason: "A heavy gun that fires every 0.8 s, with 4 gear slots.",
     turret: { class: "heavy", fireInterval: 0.8, window: 4, flight: 0.5, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
@@ -818,6 +846,157 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   ...RACE_ITEMS, // race signature factories are unsold; timing gear joins the shared merchant pool
 };
+
+// ---------------------------------------------------------------------------------------------------- wave 3 (0.8.0)
+
+/**
+ * 0.8.0 P1 (REQ-BFG-022, REQ-BFG-021): THE SWITCH. Wave 3's 15 modules are ITEMS entries (ITEMS[id] resolves, so the
+ * sim, the stars, the text and the tests read them at any time), but while this is false they are hidden from every
+ * listing of the catalogue: Object.keys/values(ITEMS), so buyableModules(), itemsSoldBy() (the caravan), the road-event
+ * pools, the stand-in tools and the par player never see one, and validate.ts refuses a deck that holds one. I1 turns
+ * wave 3 on with this one line. Tests and tools turn it on for one call with withWave3.
+ */
+export const WAVE3_LIVE = false;
+
+/**
+ * 0.8.0 P1: wave 3 (output-D1/DESIGN-wave3.md 3.1 and 3.3; the Prime's decisions in output-D1/verify-cap/VERIFIED-D1.md):
+ * 8 rigs, 2 factories, 2 cores and 3 mods, with D1's kind, rarity, price, merchant, rig shape and v2 tags, and the
+ * design's first-pass numbers at 1-3 stars (each star about 2.2x and 3.5x of the 1-star effect). The engine pieces they
+ * need (E1 plating on every hull, E2 pairs, E3 stokers, E4 holds, E5 crossfire, E6 matched belts) are in battle.ts and
+ * deck.ts, each guarded on its part, so a deck without a wave-3 part fights bit for bit as before.
+ */
+export const WAVE3_ITEMS: Record<string, ItemDef> = {
+  plateroller: {
+    id: "plateroller", name: "PLATE ROLLER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "ironmonger", shape: "I",
+    desc: ["ROLLS PLATING ONTO", "YOUR HULL FOR EACH", "PAYLOAD IT HITS."], tags: ["PLATE", "SWARM"],
+    gate: { plate: 0.5 },
+    levels: { 2: { gate: { plate: 1.1 } }, 3: { gate: { plate: 1.7 } } },
+  },
+  twingauge: {
+    id: "twingauge", name: "TWIN GAUGE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker", shape: "I",
+    desc: ["ADDS DAMAGE, MORE", "ON A BELT MATCHED", "TO ITS TWIN."], tags: ["TWIN", "FORGE"],
+    gate: { gauge: { flat: 1, matched: 3 } },
+    levels: { 2: { gate: { gauge: { flat: 2.2, matched: 6.6 } } }, 3: { gate: { gauge: { flat: 3.5, matched: 10.5 } } } },
+  },
+  pincer: {
+    id: "pincer", name: "PINCER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist", shape: "I",
+    desc: ["ADDS DAMAGE, MORE", "FOR EACH RIG ON", "ITS TILE."], tags: ["FORGE"],
+    gate: { pincer: { flat: 1, each: 2, max: 3 } },
+    levels: { 2: { gate: { pincer: { flat: 2.2, each: 4.4, max: 3 } } }, 3: { gate: { pincer: { flat: 3.5, each: 7, max: 3 } } } },
+  },
+  braceframe: {
+    id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
+    desc: ["ENEMY STALLS ON ITS", "TILES END SOONER,", "SOONER STILL PLATED."], tags: ["PLATE", "HARASS"],
+    gate: { brace: { mul: 0.5, plated: 0.25 } },
+    levels: { 2: { gate: { brace: { mul: 0.3, plated: 0.15 } } }, 3: { gate: { brace: { mul: 0.15, plated: 0.05 } } } },
+  },
+  twinlatch: {
+    id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker", shape: "II",
+    desc: ["HOLDS A PAYLOAD FOR", "ITS OTHER BELT, THEN", "LETS BOTH GO."], tags: ["TWIN", "TEMPO"],
+    gate: { latch: { hold: 1, flat: 1 } },
+    levels: { 2: { gate: { latch: { hold: 1, flat: 2.2 } } }, 3: { gate: { latch: { hold: 1, flat: 3.5 } } } },
+  },
+  stoker: {
+    id: "stoker", name: "STOKER", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "scrapper", shape: "II",
+    desc: ["FACTORIES ITS ARROWS", "POINT AT WORK", "FASTER."], tags: ["TEMPO", "SWARM"],
+    gate: { stoke: 0.2 },
+    levels: { 2: { gate: { stoke: 0.44 } }, 3: { gate: { stoke: 0.7 } } },
+  },
+  platebreaker: {
+    id: "platebreaker", name: "PLATE BREAKER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "scrapper", shape: "T",
+    desc: ["TURNS YOUR HULL'S", "PLATING INTO", "PAYLOAD DAMAGE."], tags: ["PLATE", "FORGE"],
+    gate: { breaker: { flat: 4, floor: 1 } },
+    levels: { 2: { gate: { breaker: { flat: 8.8, floor: 2.2 } } }, 3: { gate: { breaker: { flat: 14, floor: 3.5 } } } },
+  },
+  shieldwall: {
+    id: "shieldwall", name: "SHIELD WALL", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "ironmonger", shape: "X",
+    desc: ["PLATES YOUR HULL,", "AND HITS HARDER", "WHILE WELL PLATED."], tags: ["PLATE", "FORGE"],
+    gate: { plate: 1, plated: { min: 12, flat: 3 } },
+    levels: { 2: { gate: { plate: 2.2, plated: { min: 12, flat: 6.6 } } }, 3: { gate: { plate: 3.5, plated: { min: 12, flat: 10.5 } } } },
+  },
+  twinmould: {
+    id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
+    desc: ["CASTS A PLAIN SLUG", "ONTO EACH OF ITS", "BELTS AT ONCE."], tags: ["TWIN", "SWARM"],
+    factory: { ammo: "plain", interval: 1.8, outputs: 2, twin: true }, // base 3: the plain slug's
+    levels: { 2: { factory: { interval: 1.6, base: 5 } }, 3: { factory: { interval: 1.4, base: 6, outputs: 3 }, perk: "THIRD SPRUE" } },
+  },
+  armorpress: {
+    id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
+    desc: ["PRESSES PLATING ONTO", "YOUR HULL AND STAMPS", "PLAIN SLUGS."], tags: ["PLATE", "SWARM"],
+    factory: { ammo: "plain", interval: 1.6, outputs: 1, plate: { every: 4, amount: 2 } }, // base 3: the plain slug's
+    levels: { 2: { factory: { interval: 1.4, plate: { every: 4, amount: 4.4 } } }, 3: { factory: { interval: 1.2, plate: { every: 4, amount: 7 } } } },
+  },
+  anvil: {
+    id: "anvil", name: "ANVIL BREECH", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "ironmonger",
+    desc: ["SHOTS HIT HARDER", "THE MORE PLATING", "YOUR HULL HOLDS."], tags: ["PLATE", "BURST"],
+    core: { routine: "anvil", anvilFlat: 1, perPlate: 0.2 },
+    levels: { 2: { core: { anvilFlat: 2.2, perPlate: 0.4 } }, 3: { core: { anvilFlat: 3.5, perPlate: 0.7 } } },
+  },
+  steambreech: {
+    id: "steambreech", name: "STEAM BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
+    desc: ["THE TURRET FIRES", "FASTER WHILE YOUR", "HULL IS PLATED."], tags: ["PLATE", "TEMPO"],
+    core: { routine: "steam", steamPlated: 1 / 1.2, steamBare: 1 / 1.05 },
+    levels: { 2: { core: { steamPlated: 1 / 1.44, steamBare: 1 / 1.1 } }, 3: { core: { steamPlated: 1 / 1.7, steamBare: 1 / 1.15 } } },
+  },
+  twintrigger: {
+    id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
+    desc: ["PAIRED LOADS HIT", "HARDER; A SHORTER", "LOAD TIME."], tags: ["TWIN", "TEMPO"],
+    mod: { pairBonus: 0.25, windowTime: -0.25 },
+    levels: { 2: { mod: { pairBonus: 0.55, windowTime: -0.4 } }, 3: { mod: { pairBonus: 0.88, windowTime: -0.55 } } },
+  },
+  spallcatcher: {
+    id: "spallcatcher", name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
+    desc: ["HITS YOUR SHIP TAKES", "CHARGE THIS TURRET'S", "NEXT SHOT."], tags: ["PLATE", "BURST"],
+    mod: { spall: { every: 4, add: 1, max: 8 } },
+    levels: { 2: { mod: { spall: { every: 4, add: 2.2, max: 17.6 } } }, 3: { mod: { spall: { every: 4, add: 3.5, max: 28 } } } },
+  },
+  seamwelder: {
+    id: "seamwelder", name: "SEAM WELDER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "arcane",
+    desc: ["PAIRS THIS TURRET", "TAKES PLATE YOUR", "HULL."], tags: ["TWIN", "PLATE"],
+    mod: { seam: { pair: 1, lone: 0.2 } },
+    levels: { 2: { mod: { seam: { pair: 2.2, lone: 0.4 } } }, 3: { mod: { seam: { pair: 3.5, lone: 0.7 } } } },
+  },
+};
+
+/** 0.8.0 P1: wave 3's ids, in DESIGN 3.1's order. */
+export const WAVE3_IDS: readonly string[] = Object.keys(WAVE3_ITEMS);
+
+let wave3On = false;
+
+/** 0.8.0 P1: is `id` a wave-3 module (whatever the switch)? */
+export function isWave3(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(WAVE3_ITEMS, id);
+}
+
+/** 0.8.0 P1: is wave 3 in the game now (WAVE3_LIVE, or a withWave3 call)? */
+export function wave3Live(): boolean {
+  return wave3On;
+}
+
+/**
+ * 0.8.0 P1: put wave 3 in the game (on) or keep it dormant (off). Each entry stays an own property of ITEMS either way;
+ * only its enumerability follows the switch, so a listing of the catalogue sees wave 3 exactly when it is on, and its
+ * place in ITEMS order (after every older entry) never moves.
+ */
+export function setWave3(on: boolean): void {
+  for (const id of WAVE3_IDS) {
+    Object.defineProperty(ITEMS, id, { value: WAVE3_ITEMS[id], enumerable: on, writable: true, configurable: true });
+  }
+  wave3On = on;
+}
+
+/** 0.8.0 P1: run `fn` with wave 3 on (or off), then put the switch back as it was, even if `fn` throws. */
+export function withWave3<T>(fn: () => T, on = true): T {
+  const was = wave3On;
+  setWave3(on);
+  try {
+    return fn();
+  } finally {
+    setWave3(was);
+  }
+}
+
+setWave3(WAVE3_LIVE);
 
 export interface AmmoDef {
   name: string;

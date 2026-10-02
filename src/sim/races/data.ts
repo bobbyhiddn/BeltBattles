@@ -38,13 +38,13 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
   // Timing gear joins the same merchant pool as every other module. Priced like CALIBRATION.
   escapement: {
     id: "escapement", name: "ESCAPEMENT", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
-    desc: ["FIRES 10% FASTER.", "PENDULUM PEAK 1.2S", "EARLIER: 7 TILES."], tags: ["TIMING"],
+    desc: ["FIRES 10% FASTER.", "PENDULUM PEAK 1.2S", "EARLIER: 7 TILES."], tags: ["TEMPO"],
     mod: { fireMul: 0.9 },
     levels: { 2: { mod: { fireMul: 0.86 }, perk: "QUICK TICK" }, 3: { mod: { fireMul: 0.82 }, perk: "FAST TICK" } },
   },
   longcase: {
     id: "longcase", name: "LONGCASE", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
-    desc: ["OTHER SLUGS: +1.5", "DMG AFTER 2S RIDE.", "PENDULUM PEAK +1.2S."], tags: ["TIMING", "HAUL"],
+    desc: ["OTHER SLUGS: +1.5", "DMG AFTER 2S RIDE.", "PENDULUM PEAK +1.2S."], tags: ["FORGE", "TEMPO"],
     mod: { longRideFlat: 1.5, longRideMin: 2 },
     levels: { 2: { mod: { longRideFlat: 2.5 }, perk: "DEEP WIND" }, 3: { mod: { longRideFlat: 4 }, perk: "FULL WIND" } },
   },

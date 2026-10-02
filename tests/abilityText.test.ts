@@ -15,6 +15,12 @@ import {
   SIM, abilityText, cardText, gist, hasAbilityText, mergeProgressText, mergesWithText, nextStarHeadline, nextStarText,
 } from "../src/ui/abilityText";
 import { MODULES, STARS, SUPPLIES, banned, fasterNum, kOf, numbers, pct, r1, r2, rateNum, starsOf } from "./textRules";
+// 0.8.0 P1: wave 3's rows (the block at the end)
+import { WAVE3_IDS, buyableModules, withWave3 } from "../src/sim/content";
+import { PLATE_CAP } from "../src/sim/races/bastion";
+import { SYNC_WINDOW } from "../src/sim/races/foundry";
+import { LOAD_FLOOR } from "../src/sim/battle";
+import { S, clashShortText, gatlingClashText } from "../src/ui/abilityText";
 
 // 0.6.2t (REQ-BFG-032): the ability text of every buyable module (23 rigs, 13 factories, 13 cores, 9 mods) at 1, 2
 // and 3 stars, and of each supply: its numbers are that star's real values, it opens with one plain sentence, it uses
@@ -371,5 +377,212 @@ describe("0.6.2t T4: numbers and keywords in their battle colours, the same ever
     // the flavour keeps its numbers in its own dim colour; its keywords keep their battle colours
     expect(colourize("ADDS 2 BURN.", C.steel2, C.steel2).map((sp) => sp.c)).toContain(KEYWORD_COLOUR.burn);
     expect(colourize("ADDS 2 BURN.", C.steel2, C.steel2).find((sp) => sp.t.includes("2"))?.c).toBe(C.steel2);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------- wave 3 (0.8.0 P1)
+// REQ-BFG-032: wave 3's 15 modules are dormant behind content.ts WAVE3_LIVE, so MODULES above doesn't list them and every
+// table above is unchanged. Their audit rows are here, written out from the catalogue as NUMBERS is, and the same rules
+// run on them with wave 3 turned on (withWave3): T1, T2, T4 (whole sentences, the perk, the wrap), T5 (next star, MERGES
+// WITH, the card) and the tooltip. When wave 3 goes live, I1 moves these rows into NUMBERS and the counts above grow by 15.
+
+/** The numbers each wave-3 module's text quotes at a star, every sentence in reading order (as NUMBERS above). */
+const WAVE3_NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = {
+  plateroller: (e) => [g(e).plate!, PLATE_CAP], // + the plating sentence: UP TO 24 PLATING
+  twingauge: (e) => [g(e).gauge!.flat, g(e).gauge!.matched],
+  pincer: (e) => [g(e).pincer!.flat, g(e).pincer!.each, g(e).pincer!.max],
+  braceframe: (e) => [pct(1 - g(e).brace!.mul), pct(1 - g(e).brace!.plated)],
+  twinlatch: (e) => [1, g(e).latch!.hold, g(e).latch!.flat, 2], // BRINGS ONE TOO; ... INTO TWO GUNS
+  stoker: (e) => [pct(g(e).stoke!)],
+  platebreaker: (e) => [1, g(e).breaker!.flat, g(e).breaker!.floor], // TAKES 1 PLATING
+  shieldwall: (e) => [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP],
+  // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS TWO BELTS ... ON MATCHED BELTS INTO ONE TURRET
+  twinmould: (e) => [f(e).outputs, base(e), 1, f(e).outputs, f(e).interval, 1],
+  armorpress: (e) => [f(e).plate!.amount, f(e).plate!.every, base(e), f(e).interval, PLATE_CAP],
+  anvil: (e, k) => [r1(scaleCore(e.core!, k).anvilFlat!), r1(scaleCore(e.core!, k).perPlate!), PLATE_CAP], // x k
+  steambreech: (e, k) => [rateNum(scaleCore(e.core!, k).steamPlated!), rateNum(scaleCore(e.core!, k).steamBare!)], // rates: no k
+  twintrigger: (e) => [pct(m(e).pairBonus!), 2, 1, SYNC_WINDOW, -m(e).windowTime!, LOAD_FLOOR], // A PAIR IS TWO LOADS ... ONE TURRET
+  spallcatcher: (e) => [m(e).spall!.every, m(e).spall!.add, m(e).spall!.max, 2], // ... COUNTS TWICE
+  seamwelder: (e) => [m(e).seam!.pair, m(e).seam!.lone, 2, 1, SYNC_WINDOW, PLATE_CAP],
+};
+/** Wave 3's modules (ITEMS resolves them whatever the switch) and their (module, star, class factor) cases. */
+const W3 = WAVE3_IDS.map((id) => ITEMS[id]);
+const W3_CASES = W3.flatMap((d) => STARS.flatMap((s) => kOf(d).map((k) => ({ d, s, k, id: `${d.id} ★${s} k${k}` }))));
+
+describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard)", () => {
+  it("the 15 are dormant, fusible and buyable once wave 3 is on; each has ability text and an audit row", () => {
+    expect(W3.map((d) => d.kind).sort().join()).toBe("core,core,factory,factory,gate,gate,gate,gate,gate,gate,gate,gate,mod,mod,mod");
+    expect(MODULES.filter((d) => WAVE3_IDS.includes(d.id))).toEqual([]); // the switch is off on this branch
+    withWave3(() => expect(buyableModules().filter((d) => WAVE3_IDS.includes(d.id)).map((d) => d.id)).toEqual([...WAVE3_IDS]));
+    for (const d of W3) expect([hasAbilityText(d.id), fusible(d.id)], d.id).toEqual([true, true]);
+    expect(Object.keys(WAVE3_NUMBERS).sort()).toEqual([...WAVE3_IDS].sort());
+    expect(W3_CASES).toHaveLength((15 + 2) * 3); // the two cores twice (k 1 and 0.55)
+  });
+
+  it("the four glossary sentences, word for word (DESIGN-wave3.md 3.2), with the sim's numbers", () => {
+    expect([S.plating, S.pair, S.matched, S.worksFaster]).toEqual([
+      "PLATING TAKES DAMAGE, BURN AND POISON BEFORE YOUR HULL, UP TO 24 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.",
+      "A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN 0.25 SECONDS; A FOUNDRY FUSION IS A PAIR.",
+      "A MATCHED BELT HAS AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.",
+      "A FACTORY THAT WORKS FASTER STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO.",
+    ]);
+    expect([PLATE_CAP, SYNC_WINDOW]).toEqual([24, 0.25]);
+    // each word is explained where a module's text uses it: PLATING by its plating sources and readers, PAIR by its pair
+    // readers, MATCHED by TWIN GAUGE, WORKS FASTER by STOKER
+    const uses = (sentence: string) => W3.filter((d) => abilityText(d.id, 1).sentences.includes(sentence)).map((d) => d.id).sort();
+    expect(uses(S.plating)).toEqual(["anvil", "armorpress", "plateroller", "seamwelder", "shieldwall"]);
+    expect(uses(S.pair)).toEqual(["seamwelder", "twintrigger"]);
+    expect(uses(S.matched)).toEqual(["twingauge"]);
+    expect(uses(S.worksFaster)).toEqual(["stoker"]);
+  });
+
+  it("the numbers every sentence quotes are that star's values (effectAt; a core's x k)", () => {
+    withWave3(() => {
+      for (const { d, s, k, id } of W3_CASES) {
+        expect(numbers(abilityText(d.id, s, { k }).sentences.join(" ")), id).toEqual(WAVE3_NUMBERS[d.id](effectAt(d.id, s), k, s));
+      }
+    });
+  });
+
+  it("DESIGN 3.3's text, written out (with the Prime's two lines: STOKER's cap, TWIN LATCH's timed release)", () => {
+    const at = (def: string, s = 1, k = 1) => abilityText(def, s, { k }).sentences;
+    expect(at("plateroller", 3)[0]).toBe("ROLLS 1.7 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.");
+    expect(at("twingauge", 2)[0]).toBe("ADDS 2.2 DAMAGE TO EACH PAYLOAD IT HITS, OR 6.6 DAMAGE ON A MATCHED BELT.");
+    expect(at("pincer")).toEqual([
+      "ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, AND 2 MORE FOR EACH OTHER RIG HITTING THAT TILE, UP TO 3 OTHERS.",
+      "STALLED, FROZEN AND WRECKED RIGS DON'T COUNT.",
+    ]);
+    expect(at("braceframe", 3)).toEqual([
+      "ENEMY STALLS, FREEZES AND CHAIN SLOWS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST 85% SHORTER.",
+      "WHILE YOUR HULL HOLDS PLATING THEY LAST 95% SHORTER.",
+    ]);
+    // T6: DESIGN's "AT THE TILE IT HITS" moves to the second sentence, so the opening fits the phone band whole
+    expect(at("twinlatch")).toEqual([
+      "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
+      "IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 1 SECOND, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.",
+      "EACH PAYLOAD IT LETS GO GAINS 1 DAMAGE.",
+      "ON BELTS INTO TWO GUNS, IT LETS BOTH GO AT ONCE.",
+    ]);
+    expect(nextStarText("twinlatch", 1)).toBe("NEXT STAR: ADDS 2.2 DAMAGE.");
+    expect(nextStarText("spallcatcher", 1)).toBe("NEXT STAR: 2.2 DAMAGE FOR EVERY 4, UP TO 17.6.");
+    expect(at("stoker").slice(0, 2)).toEqual(["EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.", "IT NEVER MAKES A FACTORY OUTRUN ITS GUN."]);
+    expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 1 PLATING FROM YOUR HULL AND GAINS 14 DAMAGE.", "WITH NO PLATING TO TAKE, IT ADDS 3.5 DAMAGE."]);
+    expect(at("shieldwall")[1]).toBe("WHILE YOUR HULL HOLDS 12 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 3 DAMAGE.");
+    expect(at("twinmould")[0]).toBe("CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS TWO BELTS, EVERY 1.8 SECONDS.");
+    expect(abilityText("twinmould", 3)).toEqual({
+      sentences: ["CASTS THREE SLUGS (6 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS THREE BELTS, EVERY 1.4 SECONDS.", "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR."],
+      perk: { name: "THIRD SPRUE", stars: 3, after: 0 },
+    });
+    expect(at("armorpress")[0]).toBe("PRESSES 2 PLATING ONTO YOUR HULL EVERY 4 SECONDS, AND STAMPS A PLAIN SLUG (3 DAMAGE) EVERY 1.6 SECONDS.");
+    expect(at("anvil")[0]).toBe("EACH SHOT DEALS 1 MORE DAMAGE, AND 0.2 MORE FOR EACH PLATING ON YOUR HULL.");
+    expect(at("anvil", 3, 0.55)[0]).toBe("EACH SHOT DEALS 1.9 MORE DAMAGE, AND 0.4 MORE FOR EACH PLATING ON YOUR HULL."); // x k, as every core
+    expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 44% FASTER WHILE YOUR HULL HOLDS PLATING, AND 10% FASTER WITHOUT IT."]);
+    expect(at("twintrigger", 3)[2]).toBe("ITS LOAD TIME IS 0.55 SECONDS SHORTER, BUT NEVER UNDER 0.3 SECONDS.");
+    expect(at("spallcatcher", 2)[0]).toBe("EVERY 4 DAMAGE YOUR SHIP TAKES ADDS 2.2 DAMAGE TO THIS TURRET'S NEXT SHOT, UP TO 17.6 DAMAGE.");
+    expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 1 PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS 0.2.");
+    // the next-star lines DESIGN 3.3 gives
+    expect([1, 2].map((s) => nextStarText("plateroller", s))).toEqual(["NEXT STAR: ROLLS 1.1 PLATING FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 1.7 PLATING FOR EACH PAYLOAD."]);
+    expect(nextStarText("twingauge", 2)).toBe("NEXT STAR: ADDS 3.5 DAMAGE, OR 10.5 ON A MATCHED BELT.");
+    expect(nextStarText("braceframe", 1)).toBe("NEXT STAR: 70% SHORTER, 85% WHILE PLATED.");
+    expect(nextStarText("stoker", 1)).toBe("NEXT STAR: ITS FACTORIES WORK 44% FASTER.");
+    expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 8.8 DAMAGE FOR 1 PLATING, 2.2 WITHOUT.");
+    expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 2.2 PLATING A PAYLOAD, 6.6 DAMAGE AT 12 PLATING.");
+    expect(nextStarText("twinmould", 1)).toBe("NEXT STAR: 5 DAMAGE EACH, EVERY 1.6 SECONDS.");
+    expect(nextStarText("armorpress", 1)).toBe("NEXT STAR: 4.4 PLATING EVERY 4 SECONDS, A SLUG EVERY 1.4 SECONDS.");
+    expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 44% FASTER PLATED, 10% WITHOUT.");
+    expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 55% MORE, LOAD TIME 0.4 SECONDS SHORTER.");
+    expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 2.2 PLATING A PAIR, 0.4 FOR ANY OTHER LOAD.");
+  });
+
+  it("T1: each opens with one plain sentence; T4: every entry a whole sentence, the perk this star's", () => {
+    for (const { d, s, k, id } of W3_CASES) {
+      const at = abilityText(d.id, s, { k }), first = at.sentences[0];
+      expect(first, id).toMatch(/^[A-Z][A-Z0-9 ,:;'%()★.+-]*\.$/);
+      expect(first.split(" ").length, id).toBeGreaterThanOrEqual(3);
+      expect(first.slice(0, -1), id).not.toMatch(/\.\s/);
+      for (const t of at.sentences) expect(t, id).toMatch(/^[A-Z0-9][^\n·]*\.$/);
+      if (at.perk) {
+        expect([at.perk.name, at.perk.stars], id).toEqual([perkAt(d.id, s), s]);
+        expect(at.perk.after, id).toBeLessThan(at.sentences.length);
+      } else expect(s === 1 || !perkAt(d.id, s), id).toBe(true);
+    }
+  });
+
+  it("T2: no banned shorthand in any sentence, clause, next star, headline, MERGES WITH or card line", () => {
+    withWave3(() => {
+      for (const { d, s, k, id } of W3_CASES) {
+        const texts = [
+          ...abilityText(d.id, s, { k }).sentences, gist(d.id, s, { k }), nextStarText(d.id, s, { k }) ?? "",
+          nextStarHeadline(d.id, s, { k }) ?? "", s > 1 ? mergesWithText(d.id, s, { k }) : "", s === 1 ? cardText(d.id, { k }) : "",
+        ];
+        for (const t of texts) expect(banned(t), `${id}: ${t}`).toEqual([]);
+      }
+    });
+  });
+
+  it("T4: wrapped by the one helper, every line fits the desk column and the phone band; a number keeps its unit", () => {
+    for (const { d, s, k, id } of W3_CASES) {
+      const at = abilityText(d.id, s, { k });
+      at.sentences.forEach((t, i) => {
+        const spans: Span[] = [...colourize(t, C.bone), ...(at.perk?.after === i ? [{ t: " ", c: C.bone }, { t: `★${s} ${at.perk.name}`, c: C.brass3, whole: true }] : [])];
+        for (const [w, font] of WIDTHS) {
+          const lines = wrapRich(spans, w, font).map(lineText);
+          lines.forEach((ln, j) => {
+            expect(textWidth(ln, font), `${id} at ${w} (${font}): ${ln}`).toBeLessThanOrEqual(w);
+            const next = lines[j + 1]?.split(" ")[0];
+            if (next !== undefined && /(^|\s)\(?[+-]?\d+(\.\d+)?%?$/.test(ln)) expect(FUNCTION_WORDS.has(next), `${id}: "${ln}" / "${next}"`).toBe(true);
+          });
+        }
+      });
+    }
+  });
+
+  it("T5: NEXT STAR at ★1 and ★2 is the next star's clause, its numbers that star's; none at ★3", () => {
+    for (const { d, s, k, id } of W3_CASES) {
+      const next = nextStarText(d.id, s, { k });
+      if (s >= 3) expect(next, id).toBeNull();
+      else {
+        expect(next, id).toBe(`NEXT STAR: ${gist(d.id, s + 1, { k })}.`);
+        expect(numbers(next!).every((n) => numbers(abilityText(d.id, s + 1, { k }).sentences.join(" ")).includes(n) || n === s + 1), id).toBe(true);
+      }
+    }
+    expect(withWave3(() => mergesWithText("twinmould", 3))).toBe("MERGES WITH YOUR TWIN MOULD INTO ★3: 3 SLUGS OF 6 DAMAGE, EVERY 1.4 SECONDS.");
+  });
+
+  it("each offer's one-line effect: a whole sentence, its numbers from the 1-star text, two lines on the wide card", () => {
+    const cards = Object.fromEntries(W3.map((d) => [d.id, cardText(d.id)]));
+    expect(cards).toEqual({
+      plateroller: "PLATES YOUR HULL AS SLUGS PASS.", twingauge: "MORE DAMAGE ON A MATCHED BELT.", pincer: "MORE DAMAGE WITH RIGS ON ITS TILE.",
+      braceframe: "SHORTER STALLS ON ITS TILES.", twinlatch: "LETS TWO BELTS GO TOGETHER.", stoker: "MAKES FACTORIES WORK FASTER.",
+      platebreaker: "TURNS PLATING INTO DAMAGE.", shieldwall: "PLATES YOUR HULL, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.",
+      armorpress: "PLATES YOUR HULL EVERY 4 SECONDS.", anvil: "MORE DAMAGE THE MORE PLATING.", steambreech: "FIRES FASTER WHILE PLATED.",
+      twintrigger: "PAIRS HIT 25% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS PLATE YOUR HULL.",
+    });
+    for (const d of W3) for (const k of kOf(d)) {
+      const card = cardText(d.id, { k }), id = `${d.id} k${k}: ${card}`;
+      expect(card, id).toMatch(/^[A-Z0-9][^\n·]*\.$/);
+      expect(banned(card), id).toEqual([]);
+      const pool = numbers(abilityText(d.id, 1, { k }).sentences.join(" "));
+      for (const n of numbers(card)) expect(pool, id).toContain(n);
+      for (let W = 430; W <= 480; W++) {
+        const w = wideCardW(W, 5), ls = cardEffectLines(card, w);
+        expect(ls.length, `${id} at card ${w}`).toBeLessThanOrEqual(CARD_EFFECT_LINES);
+        for (const l of ls) expect(lineWidth(l, "3"), `${id} at card ${w}: ${lineText(l)}`).toBeLessThanOrEqual(cardEffectWidth(w));
+      }
+      // the hover tooltip shows the opening sentence, wrapped by the same helper
+      const first = abilityText(d.id, 1, { k }).sentences[0], tl = tooltipLines(first);
+      expect(tl.map(lineText).join(" "), id).toBe(first);
+      for (const l of tl) expect(lineWidth(l, "3"), id).toBeLessThanOrEqual(TOOLTIP_TEXT_W);
+    }
+  });
+
+  it("TWIN TRIGGER on a GATLING SPOOL or a COMPOUND BREECH: its shorter load time does nothing there, its pair bonus still works", () => {
+    expect(gatlingClashText("twintrigger", 2, "gatling")).toBe("GATLING SPOOL: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS STILL HIT HARDER.");
+    expect(gatlingClashText("twintrigger", 1, "compound")).toBe("COMPOUND BREECH: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS STILL HIT HARDER.");
+    expect([gatlingClashText("twintrigger", 1, "rotary"), clashShortText("twintrigger", "rotary")]).toEqual([null, null]);
+    expect(clashShortText("twintrigger")).toBe("TWIN TRIGGER: ITS SHORTER LOAD TIME DOES NOTHING HERE.");
+    // and the older gear's lines are as they were
+    expect(gatlingClashText("hopper", 1)).toBe("GATLING SPOOL: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE.");
+    for (const d of W3.filter((x) => x.id !== "twintrigger")) expect([gatlingClashText(d.id, 3), clashShortText(d.id)], d.id).toEqual([null, null]);
   });
 });

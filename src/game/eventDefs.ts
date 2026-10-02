@@ -3,7 +3,7 @@
 // events.ts applies exactly that and nothing else. Tuned so an event is worth about +2 to +4
 // gold on average and none of them wins a run by itself.
 
-import { ITEMS, buyableModules, type ItemDef, type ModuleTag, type Rarity } from "../sim/content";
+import { ITEMS, buyableModules, type GateEffect, type ItemDef, type Rarity } from "../sim/content";
 import { fusible, starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
@@ -72,8 +72,23 @@ const roadParts = (test: (d: ItemDef) => boolean): string[] => buyableModules().
 /** SALVAGE's pool: the common gates (0.6.1: TEMPER, WHETSTONE, GREASE WORKS and BRAKE SHOE). */
 export const salvagePool = (): string[] => roadParts((d) => d.kind === "gate" && d.rarity === "common");
 
-/** SMUGGLER's BURN or SHOCK pool: the gates whose catalogue tags hold `tag` (0.6.1: TEMPER; GALVANIC COIL). */
-export const smugglerPool = (tag: ModuleTag): string[] => roadParts((d) => d.kind === "gate" && !!d.tags?.includes(tag));
+/** SMUGGLER's two pools: BURN (2 g) and SHOCK (3 g), the event's two choices. */
+export type SmugglerKind = "BURN" | "SHOCK";
+
+/**
+ * 0.8.0 P1 (family map v2, DESIGN-wave3.md 2.5): what puts a gate in each SMUGGLER pool, read off its 1-star effect. BURN:
+ * an effect that works with burn (`burn`, `burnPerRide` or `quench`); SHOCK: one that shocks or pays for stalls (`shock`,
+ * `staticTime` or `perStalled`). v2 retired the BURN and SHOCK tags the pools were keyed on; this picks the same six rigs
+ * as v070-rc (TEMPER, BELLOWS, QUENCH TANK; GALVANIC COIL, STATIC BRUSH, LODESTONE), and no wave-3 rig joins either pool.
+ */
+export const SMUGGLER_EFFECT: Readonly<Record<SmugglerKind, (e: GateEffect) => boolean>> = {
+  BURN: (e) => !!(e.burn || e.burnPerRide || e.quench),
+  SHOCK: (e) => !!(e.shock || e.staticTime || e.perStalled),
+};
+
+/** SMUGGLER's BURN or SHOCK pool: the gates whose effect SMUGGLER_EFFECT[kind] accepts (0.6.1: TEMPER; GALVANIC COIL). */
+export const smugglerPool = (kind: SmugglerKind): string[] =>
+  roadParts((d) => d.kind === "gate" && !!d.gate && SMUGGLER_EFFECT[kind](d.gate));
 
 const ofRarity = (r: Rarity): string[] => roadParts((d) => d.rarity === r);
 

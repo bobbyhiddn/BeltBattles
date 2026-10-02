@@ -24,6 +24,7 @@ import {
   routesOf, turretSellValue, turretSlots, walkRoute, type Build, type RigHit, type RouteWalk, type TimelineHit,
 } from "../../sim/deck";
 import { joinersOf, type WalkJoin } from "../../sim/deck"; // 0.6.2j: belt joins
+import { stokeHits } from "../../sim/deck"; // 0.8.0 P1 (E3): a STOKER's hits are the factories its arrows work
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 
 /**
@@ -212,9 +213,11 @@ const flavourBlocks = (def: string, stars: number, k: number): Block[] => {
 const hintBlock = (text: string): Block => ({ role: "hint", text, rank: 6 });
 
 /** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo. */
-function placeHint(kind: string, drag: boolean): string {
+function placeHint(kind: string, drag: boolean, def?: string): string {
   if (kind === "turret") return turretHint(drag); // 0.6.2s (S5): a turret goes into a TURRET SLOT
   const how = kind === "mod" || kind === "core" ? "TAP A TURRET TO FIT IT"
+    // 0.8.0 P1 (E3): a STOKER's arrows work factories, never belts
+    : kind === "gate" && def && ITEMS[def]?.gate?.stoke ? "TAP A CELL BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT"
     : kind === "gate" ? "TAP A CELL BESIDE A BELT: ITS ARROWS WORK THE BELT TILES THEY POINT AT"
     : "TAP THE DECK TO PLACE IT";
   return drag ? `${how}, OR DRAG IT THERE.` : `${how}.`;
@@ -241,6 +244,8 @@ export const IDLE_WARNING = "IDLE: NO ARROW REACHES A BELT. TURN IT OR MOVE IT B
 export const IDLE_SHORT = "IDLE: NO ARROW REACHES A BELT.";
 /** 0.6.2t: the IDLE warning where it moves up into a narrow header (the desk column's). */
 export const IDLE_HEAD = "IDLE: NO ARROW ON A BELT.";
+/** 0.8.0 P1 (E3): a STOKER's IDLE warning (it works factories, never belts), in the same three forms. */
+export const STOKER_IDLE = { warning: "IDLE: NO ARROW REACHES A FACTORY. TURN IT OR MOVE IT BESIDE ONE.", short: "IDLE: NO ARROW REACHES A FACTORY.", head: "IDLE: NO ARROW ON A FACTORY." };
 
 /** 0.6.2t (0b.4): which belt a walk is on: locked (METRONOME, speed-locked), slag (a SLAG POT's fixed speed) or free. */
 export function beltKind(w: RouteWalk): BeltKind {
@@ -311,11 +316,16 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
   const stars = starsOf(p);
   const hits = hitsOfRig(run.build, p.uid);
   const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
+  // 0.8.0 P1 (E3): a STOKER works factories, not belts: its factory hits take off the IDLE mark and lead its panel
+  const stokes = d.gate?.stoke ? stokeHits(run.build).filter((h) => h.uid === p.uid) : [];
+  if (stokes.length) return stokerPanel(run, p.uid, stokes.map((h) => h.factory), arrows);
   const idle = hits.length === 0;
   const on = new Set(hits.map((h) => h.dir)).size;
   const hl = hitLines(hits);
-  const lead: Block[] = idle ? [{ role: "warn", text: IDLE_WARNING, keep: true }] : hl.full.map((t): Block => ({ role: "hits", text: t, keep: true }));
-  const leadTight: Block[] = idle ? [{ role: "warn", text: IDLE_SHORT, keep: true }]
+  // 0.8.0 P1 (E3): a STOKER beside no factory warns about factories (its arrows never work belts, so it has no belt hits)
+  const warn = d.gate?.stoke ? STOKER_IDLE : { warning: IDLE_WARNING, short: IDLE_SHORT, head: IDLE_HEAD };
+  const lead: Block[] = idle ? [{ role: "warn", text: warn.warning, keep: true }] : hl.full.map((t): Block => ({ role: "hits", text: t, keep: true }));
+  const leadTight: Block[] = idle ? [{ role: "warn", text: warn.short, keep: true }]
     : hits.length > 1 ? [{ role: "hits", text: hl.compact, keep: true }] : lead;
   const rest = [
     ...abilityBlocks(d.id, stars, textOpts(run)),
@@ -325,7 +335,7 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
   ];
   // T6 (phone): the hits (or the IDLE warning) move up into the header's sub line, where they fit there (planBody skips
   // a head that doesn't): the compact list, then its short form with tile labels ("→ BELT 1 T4, BELT 2 T4 AND T6")
-  const heads: Pick<Variant, "sub" | "subColor">[] = idle ? [IDLE_SHORT, IDLE_HEAD].map((sub) => ({ sub, subColor: C.amber }))
+  const heads: Pick<Variant, "sub" | "subColor">[] = idle ? [warn.short, warn.head].map((sub) => ({ sub, subColor: C.amber }))
     : [...new Set([`RIG ${hl.compact}`, `RIG ${hl.short}`])].map((sub) => ({ sub }));
   const forms = (body: Block[], tight: boolean): Variant[] => [...heads.map((h) => ({ body, ...h, tight })), { body: [...leadTight, ...body], tight }];
   return {
@@ -343,6 +353,39 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
     ],
     labels: [...(x ? [] : ["ROTATE"]), "TO CARGO"],
     idle, x,
+  };
+}
+
+/**
+ * 0.8.0 P1 (E3, DESIGN-beltside section 8's production rigs): a placed STOKER that points at factories: the factories it
+ * works lead (it is never IDLE beside one), then the rig panel's ability text, progress, flavour and hint.
+ */
+function stokerPanel(run: Run, uid: number, factories: number[], arrows: number): RigPanel {
+  const p = itemByUid(run.build, uid)!;
+  const d = defOf(p), stars = starsOf(p);
+  const names = factories.map((f) => `THE ${ITEMS[itemByUid(run.build, f)!.def].name}`);
+  const lead: Block[] = names.map((n): Block => ({ role: "hits", text: `→ STOKES ${n}`, keep: true }));
+  const compact = `→ STOKES ${andList(names)}`;
+  const rest = [
+    ...abilityBlocks(d.id, stars, textOpts(run)),
+    ...progressBlocks(run, d.id, stars),
+    ...flavourBlocks(d.id, stars, 1),
+    hintBlock("TAP TO TURN (OR R). DRAG TO MOVE."),
+  ];
+  const tight: Block[] = [{ role: "hits", text: compact, keep: true }];
+  return {
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    sub: `RIG · ${factories.length}/${arrows} ARROWS ON FACTORIES`, subShort: `RIG · ${factories.length}/${arrows} ON`,
+    body: [...lead, ...rest],
+    variants: [
+      { body: [...tight, ...rest] },
+      { body: rest, sub: `RIG ${compact}` },
+      { body: [...tight, ...rest], tight: true },
+      { body: [...tight, ...noNextPerk(rest)], tight: true },
+      { body: [...tight, ...headlineNext(rest)], tight: true },
+    ],
+    labels: ["ROTATE", "TO CARGO"],
+    idle: false, x: false,
   };
 }
 
@@ -368,7 +411,7 @@ export function offerPanel(run: Run, wagon: number, slot: number): PanelText | n
     ...abilityBlocks(d.id, 1, opts),
     ...(mLine ? [mLine] : []),
     ...flavourBlocks(d.id, 1, opts.k ?? 1),
-    hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true)),
+    hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id)),
   ];
   return {
     title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
@@ -392,7 +435,7 @@ export function cargoPanel(run: Run, uid: number): PanelText | null {
     ...progressBlocks(run, d.id, stars),
     ...(turret && it.free ? [{ role: "ability", text: freeNote(sellable), rank: 3 } as Block] : []),
     ...flavourBlocks(d.id, stars, opts.k ?? 1),
-    hintBlock(placeHint(d.kind, false)),
+    hintBlock(placeHint(d.kind, false, d.id)),
   ];
   return {
     title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,

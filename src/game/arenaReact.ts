@@ -128,7 +128,10 @@ export function react(a: Arena, e: SimEvent): void {
       return;
     }
     case "plate": {
-      // 0.8.0 H1 M3: a bulwark slug plated BASTION's hull: the CLANK on the gun and the strip's newest segment shines
+      // 0.8.0 H1 M3: a bulwark slug plated BASTION's hull: the CLANK on the gun and the strip's newest segment shines.
+      // 0.8.0 I1 (the merge of H1 and P1): P1's E1 event shares the type (a wave-3 part's plating, + or -, the pool after,
+      // no gun); only the bulwark slug's event names a gun, and only it CLANKs here
+      if (!("turret" in e)) return;
       const f = a.sfx[e.side];
       if (e.turret >= 0 && e.turret < f.clank.length) f.clank[e.turret] = CLANK_TIME;
       f.plateShine = CLANK_TIME;
