@@ -3,6 +3,8 @@
 // - The switch (content.ts WAVE3_LIVE, off on this branch): every wave-3 entry resolves in ITEMS, but no listing of the
 //   catalogue sees it while the switch is off: buyableModules(), itemsSoldBy() (the caravan), the road-event pools, the
 //   warlord prizes and the stand-in pool. withWave3 turns it on for one call and puts it back, even on a throw.
+//   0.8.0 I1 M2 (REPORT-P1 section 13): the switch is ON. P1's switch-off assertions are flipped into switch-on ones; each
+//   still checks both states, the off state now through withWave3(fn, false).
 // - The entries are D1's (tools/wave3.ts WAVE3_DESIGN: kind, rarity, price, merchant, shape, v2 tags).
 // - Family map v2: every buyable module carries 1-3 of the seven families, exactly D1's map (tools/wave3.ts tagsFor).
 // - The SMUGGLER picks the same six rigs as v070-rc, by effect, and no wave-3 rig joins either pool.
@@ -39,9 +41,10 @@ function rollerDeck(): Build {
 }
 
 describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
-  it("is off on this branch: the 15 entries resolve in ITEMS but no listing of the catalogue sees them", () => {
-    expect(WAVE3_LIVE).toBe(false);
-    expect(wave3Live()).toBe(false);
+  // 0.8.0 I1 M2: flipped (the switch is on): every listing sees the 15, after every older entry; off for one call, none
+  it("is on (0.8.0 I1): the 15 entries resolve in ITEMS and every listing of the catalogue sees them, after every older entry", () => {
+    expect(WAVE3_LIVE).toBe(true);
+    expect(wave3Live()).toBe(true);
     expect(WAVE3_IDS).toHaveLength(15);
     for (const id of WAVE3_IDS) {
       expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
@@ -51,37 +54,45 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
       expect(isWave3(id)).toBe(true);
       expect(DORMANT_ITEMS.has(id)).toBe(false); // the switch is enumerability, not DORMANT_ITEMS (PLAN-P1.md)
     }
-    expect(Object.keys(ITEMS).filter(isWave3)).toEqual([]);
-    expect(Object.values(ITEMS).filter((d) => isWave3(d.id))).toEqual([]);
-    expect(JSON.stringify(ITEMS)).not.toMatch(/plateroller|seamwelder/);
-    expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
-    for (const m of MERCHANT_IDS) expect(ids(itemsSoldBy(m)).filter(isWave3), m).toEqual([]);
-    expect(buyableModules()).toHaveLength(71);
-  });
-
-  it("withWave3 puts all 15 in the catalogue for one call, after every older entry, and puts the switch back (also on a throw)", () => {
-    const before = Object.keys(ITEMS);
+    expect(Object.keys(ITEMS).filter(isWave3)).toEqual([...WAVE3_IDS]);
+    expect(Object.keys(ITEMS).slice(-15)).toEqual([...WAVE3_IDS]); // after every older entry
+    expect(Object.values(ITEMS).filter((d) => isWave3(d.id)).map((d) => d.id)).toEqual([...WAVE3_IDS]);
+    expect(JSON.stringify(ITEMS)).toMatch(/plateroller/);
+    expect(JSON.stringify(ITEMS)).toMatch(/seamwelder/);
+    expect(ids(buyableModules()).filter(isWave3)).toEqual([...WAVE3_IDS]);
+    for (const m of MERCHANT_IDS) expect(ids(itemsSoldBy(m)).filter(isWave3), m).toEqual(WAVE3_IDS.filter((id) => ITEMS[id].merchant === m));
+    expect(buyableModules()).toHaveLength(86);
     withWave3(() => {
-      expect(wave3Live()).toBe(true);
-      expect(Object.keys(ITEMS)).toEqual([...before, ...WAVE3_IDS]); // ITEMS order: the older entries first, unchanged
-      expect(buyableModules()).toHaveLength(86);
-      expect(ids(buyableModules()).filter(isWave3)).toEqual([...WAVE3_IDS]);
-      for (const id of WAVE3_IDS) expect(ids(itemsSoldBy(ITEMS[id].merchant!)), id).toContain(id);
-      withWave3(() => expect(buyableModules()).toHaveLength(71), false); // nested: off for one call, back on after
-      expect(buyableModules()).toHaveLength(86);
-    });
-    expect(wave3Live()).toBe(false);
-    expect(Object.keys(ITEMS)).toEqual(before);
-    expect(() => withWave3(() => { throw new Error("boom"); })).toThrow("boom");
-    expect(wave3Live()).toBe(false);
-    expect(buyableModules()).toHaveLength(71);
+      expect(Object.keys(ITEMS).filter(isWave3)).toEqual([]);
+      expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
+      expect(buyableModules()).toHaveLength(71);
+    }, false);
   });
 
-  it("the upload check refuses a wave-3 part while the switch is off, and takes it when it is on", () => {
-    const off = validateBuild(rollerDeck(), 1);
+  it("withWave3(fn, false) takes all 15 out of the catalogue for one call, the older entries in order, and puts the switch back (also on a throw)", () => {
+    const all = Object.keys(ITEMS), before = all.filter((id) => !isWave3(id));
+    expect(all).toEqual([...before, ...WAVE3_IDS]); // ITEMS order: the older entries first, unchanged
+    withWave3(() => {
+      expect(wave3Live()).toBe(false);
+      expect(Object.keys(ITEMS)).toEqual(before);
+      expect(buyableModules()).toHaveLength(71);
+      expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
+      for (const id of WAVE3_IDS) expect(ids(itemsSoldBy(ITEMS[id].merchant!)), id).not.toContain(id);
+      withWave3(() => expect(buyableModules()).toHaveLength(86)); // nested: on for one call, back off after
+      expect(buyableModules()).toHaveLength(71);
+    }, false);
+    expect(wave3Live()).toBe(true);
+    expect(Object.keys(ITEMS)).toEqual(all);
+    expect(() => withWave3(() => { throw new Error("boom"); }, false)).toThrow("boom");
+    expect(wave3Live()).toBe(true);
+    expect(buyableModules()).toHaveLength(86);
+  });
+
+  it("the upload check takes a wave-3 part with the switch on, and refuses it while the switch is off", () => {
+    expect(validateBuild(rollerDeck(), 1)).toEqual({ ok: true, errors: [] });
+    const off = withWave3(() => validateBuild(rollerDeck(), 1), false);
     expect(off.ok).toBe(false);
     expect(off.errors).toEqual(["item: uid 2 PLATE ROLLER is not in the game yet"]);
-    expect(withWave3(() => validateBuild(rollerDeck(), 1))).toEqual({ ok: true, errors: [] });
   });
 });
 
@@ -106,7 +117,7 @@ describe("the 15 entries are D1's (DESIGN-wave3.md 3.1)", () => {
 
   it("the merchants' stock after wave 3: IRONMONGER +5, TINKER +3, ALCHEMIST +1, GUNSMITH +2, SCRAPPER +2, QUARTERMASTER +1, ARCANE DEALER +1", () => {
     const count = () => Object.fromEntries(MERCHANT_IDS.map((m) => [m, itemsSoldBy(m).filter((d) => d.kind !== "supply").length]));
-    const off = count(), on = withWave3(count);
+    const off = withWave3(count, false), on = count(); // 0.8.0 I1 M2: flipped (the switch is on)
     expect(Object.fromEntries(MERCHANT_IDS.map((m) => [m, on[m] - off[m]])))
       .toEqual({ ironmonger: 5, tinker: 3, alchemist: 1, gunsmith: 2, scrapper: 2, quartermaster: 1, arcane: 1 });
     expect(on).toEqual({ ironmonger: 13, tinker: 13, alchemist: 9, gunsmith: 27, scrapper: 8, quartermaster: 7, arcane: 9 });
@@ -131,14 +142,14 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
   });
 
   it("with wave 3: 7 families of 14-25 members across 4-5 kinds (D1 3.5), read by the luck tool from content.ts", () => {
-    const t = withWave3(() => familyTable());
+    const t = familyTable(); // 0.8.0 I1 M2: flipped (the switch is on)
     expect(t.families.map((f) => f.tag).sort()).toEqual([...FAMS].sort());
     expect(t.generalists).toEqual([]);
     const size = Object.fromEntries(t.families.map((f) => [f.tag, f.members.length]));
     expect(size).toEqual({ FORGE: 23, HARASS: 19, SWARM: 24, BURST: 25, TEMPO: 23, TWIN: 18, PLATE: 14 });
     for (const f of t.families) expect(f.kinds.length, f.tag).toBeGreaterThanOrEqual(4);
     // with the switch off the same tags read 7 families too (TWIN and PLATE on the older modules: 13 and 5)
-    const off = familyTable();
+    const off = withWave3(() => familyTable(), false);
     expect(Object.fromEntries(off.families.map((f) => [f.tag, f.members.length])))
       .toEqual({ FORGE: 19, HARASS: 18, SWARM: 20, BURST: 23, TEMPO: 19, TWIN: 13, PLATE: 5 });
   });
@@ -169,18 +180,21 @@ describe("the SMUGGLER picks by effect (DESIGN-wave3.md 2.5)", () => {
 });
 
 describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 section 0)", () => {
+  // 0.8.0 I1 M2: flipped (the switch is on): the switch-off half runs under withWave3(fn, false)
   it("no caravan offers a wave-3 part (200 runs, days 1-10, 3 rolls a day); with the switch on, they are offered", () => {
     let seen = 0, onSeen = 0;
-    for (let s = 1; s <= 200; s++) for (const hero of ["furnace", "weaver"] as const) {
-      const run = newRun(hero, s, "wave3-off");
-      for (let day = 1; day <= 10; day++) for (let r = 0; r < 3; r++) {
-        run.day = day;
-        run.shop = { wagons: [], rerolls: r, discount: 0, free: 0 };
-        rollShop(run);
-        for (const w of run.shop.wagons) for (const o of w.offers) if (isWave3(o.def)) seen++;
-      }
-    }
     withWave3(() => {
+      for (let s = 1; s <= 200; s++) for (const hero of ["furnace", "weaver"] as const) {
+        const run = newRun(hero, s, "wave3-off");
+        for (let day = 1; day <= 10; day++) for (let r = 0; r < 3; r++) {
+          run.day = day;
+          run.shop = { wagons: [], rerolls: r, discount: 0, free: 0 };
+          rollShop(run);
+          for (const w of run.shop.wagons) for (const o of w.offers) if (isWave3(o.def)) seen++;
+        }
+      }
+    }, false);
+    {
       for (let s = 1; s <= 50; s++) {
         const run = newRun("furnace", s, "wave3-on");
         for (let day = 1; day <= 10; day++) {
@@ -190,21 +204,22 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
           for (const w of run.shop.wagons) for (const o of w.offers) if (isWave3(o.def)) onSeen++;
         }
       }
-    });
+    }
     expect(seen).toBe(0);
     expect(onSeen).toBeGreaterThan(0);
   });
 
+  // 0.8.0 I1 M2: flipped (the switch is on): the switch-off half runs under withWave3(fn, false)
   it("the road-event pools (SALVAGE, SMUGGLER, TRADER) hold no wave-3 part; with the switch on, SALVAGE and SWAP take them", () => {
     const pools = () => [salvagePool(), smugglerPool("BURN"), smugglerPool("SHOCK"), ...(["common", "rare", "epic", "legendary"] as const).map((r) => UPGRADE[r])].flat();
-    expect(pools().filter(isWave3)).toEqual([]);
-    const swaps = new Set<string>();
-    for (const def of ["temper", "coil", "splitter", "overdrive"]) for (let i = 0; i < 200; i++) swaps.add(swapPart(def, (i + 0.5) / 200)!);
-    expect([...swaps].filter(isWave3)).toEqual([]);
     withWave3(() => {
-      expect(salvagePool().filter(isWave3)).toEqual(["plateroller", "twingauge", "pincer"]);
-      expect(UPGRADE.rare.filter(isWave3).length).toBeGreaterThan(0);
-    });
+      expect(pools().filter(isWave3)).toEqual([]);
+      const swaps = new Set<string>();
+      for (const def of ["temper", "coil", "splitter", "overdrive"]) for (let i = 0; i < 200; i++) swaps.add(swapPart(def, (i + 0.5) / 200)!);
+      expect([...swaps].filter(isWave3)).toEqual([]);
+    }, false);
+    expect(salvagePool().filter(isWave3)).toEqual(["plateroller", "twingauge", "pincer"]);
+    expect(UPGRADE.rare.filter(isWave3).length).toBeGreaterThan(0);
   });
 
   it("no warlord prize, warlord deck or stand-in deck holds a wave-3 part", () => {

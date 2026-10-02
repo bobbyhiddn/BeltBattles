@@ -9,7 +9,7 @@ import {
   STOKER_IDLE, cargoPanel, gatlingClash, itemPanel, offerPanel, planPanel, rigPanel, routePanel, turretPanel, visibleLines,
   type Block, type Laid, type PanelText, type PLine,
 } from "../src/screens/build/inspector";
-import { KEPT_FLAVOUR, WAVE3_FLAVOUR, flavourText } from "../src/screens/build/flavour";
+import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour"; // 0.8.0 I1 M2: WAVE3_FLAVOUR's rows are in KEPT_FLAVOUR
 import { hitText } from "../src/ui/abilityText";
 import { STARS, banned, numbers } from "./textRules";
 
@@ -173,10 +173,10 @@ describe("0.8.0 P1: wave 3's panels fit the phone band and the desk column (T6),
     }
   });
 
-  it("no flavour: each of the 15 keeps none (its rules are all in the ability text), in its own table while the switch is off", () => {
-    expect(Object.keys(WAVE3_FLAVOUR)).toEqual([...WAVE3_IDS]);
+  // 0.8.0 I1 M2 (REPORT-P1 section 13): the switch is on, so WAVE3_FLAVOUR's rows are KEPT_FLAVOUR's (the same [] each)
+  it("no flavour: each of the 15 keeps none (its rules are all in the ability text), in KEPT_FLAVOUR now the switch is on", () => {
     for (const id of WAVE3_IDS) {
-      expect([WAVE3_FLAVOUR[id], Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id)], id).toEqual([[], false]);
+      expect([KEPT_FLAVOUR[id], Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id)], id).toEqual([[], true]);
       for (const s of STARS) expect(flavourText(id, s), id).toBe("");
     }
   });
@@ -255,12 +255,14 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
 });
 
 describe("0.8.0 P1: the switch keeps wave 3's text out of the game while it is off", () => {
-  it("nothing lists a wave-3 module with the switch off; its text is there for the moment it turns on", () => {
-    for (const d of W3) expect([fusible(d.id), Object.keys(ITEMS).includes(d.id)], d.id).toEqual([true, false]);
-    withWave3(() => { for (const d of W3) expect(Object.keys(ITEMS).includes(d.id), d.id).toBe(true); });
-    // a wave-3 rig placed on a deck reads its text either way (the panels are pure; nothing can place one while off)
+  // 0.8.0 I1 M2: flipped (the switch is on): every listing has the 15; with the switch off for one call, none. PINCER's
+  // text names no cap (VERIFIED-P1 H5: "UP TO 3 OTHERS" never binds)
+  it("every listing has the wave-3 modules with the switch on, none with it off; their text is there either way", () => {
+    for (const d of W3) expect([fusible(d.id), Object.keys(ITEMS).includes(d.id)], d.id).toEqual([true, true]);
+    withWave3(() => { for (const d of W3) expect(Object.keys(ITEMS).includes(d.id), d.id).toBe(false); }, false);
+    // a wave-3 rig placed on a deck reads its text either way (the panels are pure)
     const t = rigPanel(rigRun("pincer", 1, 3, 3, rotFacing("pincer", 1), 0), 10)!;
-    expect(t.body.find((b) => b.role === "ability")!.text).toBe("ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, AND 2 MORE FOR EACH OTHER RIG HITTING THAT TILE, UP TO 3 OTHERS.");
+    expect(t.body.find((b) => b.role === "ability")!.text).toBe("ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, AND 2 MORE FOR EACH OTHER RIG HITTING THAT TILE.");
     const placed: Placed = { uid: 10, def: "pincer", x: 3, y: 3 };
     expect(placed.def in ITEMS).toBe(true);
   });

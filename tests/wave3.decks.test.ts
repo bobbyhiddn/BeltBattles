@@ -42,7 +42,8 @@ interface Row { dmg: number; own: number; wins: number }
 const furnaceStart = () => heroStartBuild("furnace", 1);
 const weaverStart = () => heroStartBuild("weaver", 101);
 const furnaceFoe = () => heroStartBuild("furnace", 101);
-const plateGain = (_bt: Battle, ev: SimEvent[]) => ev.reduce((s, e) => s + (e.type === "plate" && e.side === 0 && e.amount > 0 ? e.amount : 0), 0);
+// 0.8.0 I1 (oracle c38b1df9f2e9c338): the wave-3 plating only; H1's bulwark-slug CLANK names its gun and is skipped
+const plateGain = (_bt: Battle, ev: SimEvent[]) => ev.reduce((s, e) => s + (e.type === "plate" && !("turret" in e) && e.side === 0 && e.amount > 0 ? e.amount : 0), 0);
 
 export const CASES: Case[] = [
   { id: "plateroller", deck: "FURNACE ref day 6 + roller", foe: "WEAVER ref day 6", at: (s) => rig(heroRefBuild("furnace", 6), "plateroller", s), vs: () => heroRefBuild("weaver", 6), own: plateGain },

@@ -244,8 +244,9 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
     }
     expect(KNOWN_PHONE_CUTS.size).toBe(0);
     expect(counts.cut).toBe(0);
-    // the case counts (the REPORT quotes them): 396 rig cases as 0.6.2p's, then every other buyable module and supply
-    expect([counts.rig, counts.cases]).toEqual([396, PANELS.length]);
+    // the case counts (the REPORT quotes them): 396 rig cases as 0.6.2p's, then every other buyable module and supply;
+    // 0.8.0 I1 M2: 534 with wave 3's 8 rigs (was 396)
+    expect([counts.rig, counts.cases]).toEqual([534, PANELS.length]);
     expect(counts.flavourWhole + counts.flavourAbsent).toBe(counts.cases);
     console.log(`T6 phone fit: ${JSON.stringify(counts)}`);
   });
@@ -720,7 +721,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // the counts the REPORT quotes: polish-in 0 of 1076, 881b38f 295, the 0.6.2t2 tip 60 (idle and many-hit ★1-★2 rigs,
     // SURGE ★2); 0.6.2rel2 on the 0.6.2 candidate (turret slots, joins, FB-B): 141 of 1622, the 60's kind plus installed
     // turrets whose socket rows, stat rows and kept clashes fill the column under their buttons, and MANTLET ★2 in cargo
-    expect([withHint, missing.length]).toEqual([1622, 141]);
+    // 0.8.0 I1 M2: with wave 3's panels, 181 of 1934 (was 141 of 1622); 179 once PINCER's sentence drops "UP TO 3 OTHERS"
+    // (VERIFIED-P1 H5: "offer pincer held[1]" and "rig pincer ★2 1hit spare1" then fit their hint)
+    expect([withHint, missing.length]).toEqual([1934, 179]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -737,20 +740,24 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     let hints = 0;
     for (const { t } of PANELS) if (hintShown(t, PHONE)) hints++;
     console.log(`F4 phone hints: ${hints} of ${PANELS.length} panels`);
-    expect(hints).toBe(115); // 111 at 881b38f; 0.6.2rel2 on the 0.6.2 candidate's panels (the REPORT gives b94077d's)
+    // 111 at 881b38f; 0.6.2rel2 on the 0.6.2 candidate's panels (the REPORT gives b94077d's); 0.8.0 I1 M2: 130 with wave
+    // 3's panels (was 115)
+    expect(hints).toBe(130);
   });
 });
 
 // 0.6.2t2 (REQ-BFG-032 F2): a stat row never shows a bare number; each number says what it is, in the glossary's words.
 describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
   /** The numbers in a row's value that no unit or noun follows ("CHAMBER 3 LOADS, 1.5 SEC" at 881b38f: the 1.5). */
+  // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3's units join, as tests/wave3.text.test.ts has them: PLATING, a RIG count
+  // (PINCER's CROSSFIRE WITH 2 RIGS) and SHORTER (BRACE FRAME's 85% SHORTER)
   const bare = (text: string): string[] => {
     const ws = text.replace(/[,():]/g, " ").split(/\s+/).filter(Boolean);
     return ws.flatMap((w, i) => {
       if (!/^[+-]?\d+(\.\d+)?%?$/.test(w)) return [];
       const next = ws[i + 1] ?? "";
-      if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER)$/.test(next) ? [] : [w];
-      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES)$/.test(next) ? [] : [w];
+      if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER|SHORTER)$/.test(next) ? [] : [w];
+      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|RIGS?)$/.test(next) ? [] : [w];
     });
   };
   /** 0.6.2rel2: turret `def` (★ts) in a FURNACE's slot 1 with `core` (★cs) and `gear` in its hardpoints, in order. */
@@ -807,7 +814,7 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       const base = makeTurret(fitted(def, 1, core, s).build, 0, turretSlots(run.build)[0].td!);
       expect(tu.windowTime - base.windowTime, id).toBeCloseTo(hs ? effectAt("hopper", hs).mod!.windowTime! : 0, 9);
     }
-    expect(n).toBe(2 * 14 * 3 * 4);
+    expect(n).toBe(2 * 16 * 3 * 4); // 0.8.0 I1 M2: 15 cores and the signature (was 2 * 14 * 3 * 4)
   });
 
   it("every core and gear at every star, on heavy and light guns with 1 hardpoint and with the most: no bare number in a stat row", () => {
@@ -829,7 +836,7 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       n++;
     }
     expect(GUNS.map(([d, s]) => gearSlotsOf(d, s))).toEqual([1, 1, 6, 5]);
-    expect(n).toBe(4 * 14 * 10 * 3);
+    expect(n).toBe(4 * 16 * 13 * 3); // 0.8.0 I1 M2: 15 cores and the signature, 12 gear and none (was 4 * 14 * 10 * 3)
   });
 
   it("every rig's belt timeline row at every star (free, slag, METRONOME and joined belts) and the header strip: no bare number", () => {

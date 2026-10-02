@@ -3,7 +3,7 @@ import {
   IDLE_HEAD, IDLE_SHORT, IDLE_WARNING, mergeLine, nextLine, offerPanel, planPanel, portraitButtons, rigPanel, visibleLines,
   type PLine,
 } from "../src/screens/build/inspector";
-import { key as K, rotField, startingTurrets } from "../src/sim/deck"; // beltside-062c: P11; 0.6.2s: startingTurrets
+import { key as K, rotField, startingTurrets, type Placed } from "../src/sim/deck"; // beltside-062c: P11; 0.6.2s: startingTurrets; 0.8.0 I1: Placed
 import { rotFacing } from "../src/sim/beltside"; // beltside-062c: P11
 import { textWidth } from "../src/render/font";
 import { C } from "../src/render/palette";
@@ -81,7 +81,9 @@ describe("N2 / T5: merge progress, 1 MORE COPY TO MERGE and 2 MORE COPIES TO MER
       }
     }
     const fus = Object.keys(ITEMS).filter(fusible);
-    expect(fus).toHaveLength(71); // 23 rigs, 13 factories, 13 cores and 9 mods at 65a36b7; + 13 turrets (0.6.2s)
+    // 23 rigs, 13 factories, 13 cores and 9 mods at 65a36b7; + 13 turrets (0.6.2s); 0.8.0 I1 M2 (REPORT-P1 section 13):
+    // + wave 3's 15 (was 71)
+    expect(fus).toHaveLength(86);
     expect(lines).toBe(2 * (fus.length - own.size));
   });
 
@@ -188,13 +190,14 @@ describe("P11: a rig's panel order, and the phone band", () => {
   const SHORT = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
   const SIDE = [K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(5, 1), K(5, 0)];
   /** A Furnace with the Kiln's belt up column 4 and a STAMP PRESS belt up column 6; rig `def` (uid 10, ★stars) at (x, y)
-   *  with `rot`, and `spare` ★1 copies of it in cargo. */
-  function rigRun(def: string, stars: number, x: number, y: number, rot: number, spare: number): Run {
+   *  with `rot`, and `spare` ★1 copies of it in cargo. 0.8.0 I1 (oracle 8f9b367675fb8998): `extra` items (factories with
+   *  no belt, for a STOKER's two-factory case). */
+  function rigRun(def: string, stars: number, x: number, y: number, rot: number, spare: number, extra: Placed[] = []): Run {
     const run = newRun("furnace", 5, "p11");
     run.inventory = Array.from({ length: spare }, (_, i) => ({ uid: 800 + i, def }));
     run.build = {
       hero: "furnace", mods: [], beltCap: 30, hullBonus: 0,
-      items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 7, def: "press", x: 6, y: 6 }, { uid: 10, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) }],
+      items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 7, def: "press", x: 6, y: 6 }, ...extra, { uid: 10, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) }],
       routes: [{ factory: 1, cells: [...SHORT] }, { factory: 7, cells: [...SIDE] }],
     };
     return run;
@@ -249,9 +252,15 @@ describe("P11: a rig's panel order, and the phone band", () => {
   });
 
   /** The layouts a rig's shape allows on this deck: 1 hit beside the Kiln's belt, 2 hits (II, L, T, X), 3 hits in the
-   *  press belt's bend (T, X), IDLE in the far corner. */
-  function layouts(def: string): [string, number, number, number, number][] {
+   *  press belt's bend (T, X), IDLE in the far corner. 0.8.0 I1 (oracle 8f9b367675fb8998): a STOKER's hits are factories:
+   *  1 beside the Kiln (its first stokeSpots spot), 2 between two added foundries (the longest factory names, DRAG CHAIN
+   *  FOUNDRY and FROSTBITE FOUNDRY, no belts), IDLE in the far corner. */
+  function layouts(def: string): [string, number, number, number, number, Placed[]?][] {
     const shape = rigShape(def)!;
+    if (ITEMS[def].gate?.stoke) {
+      const foundries: Placed[] = [{ uid: 2, def: "dragchain", x: 0, y: 8 }, { uid: 3, def: "frostbite", x: 3, y: 8 }];
+      return [["1hit", 3, 6, 0, 1], ["2hit", 2, 8, 0, 2, foundries], ["idle", 0, 9, 0, 0]];
+    }
     return [
       ["1hit", 3, 3, rotFacing(def, 1), 1],
       ...(shape === "L" ? [["2hit", 5, 2, 3, 2]] : shape === "I" ? [] : [["2hit", 5, 3, 0, 2]]),
@@ -266,13 +275,13 @@ describe("P11: a rig's panel order, and the phone band", () => {
 
   it("phone: every buyable rig's hits (or IDLE), ability text, perk, next star and merge progress show whole", () => {
     const rigs = buyableModules().filter((d) => d.kind === "gate").map((d) => d.id);
-    expect(rigs).toHaveLength(23);
+    expect(rigs).toHaveLength(31); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23)
     const band = buildLayout(167, 361, true, 5).info;
     let cases = 0, nextCases = 0;
     for (const def of rigs) {
-      for (const s of [1, 2, 3]) for (const [lay, x, y, rot, want] of layouts(def)) for (const spare of [0, 1]) {
+      for (const s of [1, 2, 3]) for (const [lay, x, y, rot, want, extra] of layouts(def)) for (const spare of [0, 1]) {
         const id = `${def} ★${s} ${lay} spare${spare}`;
-        const rp = rigPanel(rigRun(def, s, x, y, rot, spare), 10)!;
+        const rp = rigPanel(rigRun(def, s, x, y, rot, spare, extra), 10)!;
         expect(rp.idle ? 0 : rp.body.filter((b) => b.role === "hits").length, `${id}: hits`).toBe(want);
         const plan = planPanel(rp, band);
         const drawn = new Set(visibleLines(plan).map((v) => v.line));
@@ -284,7 +293,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
       }
     }
     expect(KNOWN_PHONE_CUTS.size).toBe(0);
-    expect([cases, nextCases]).toEqual([396, 264]);
+    expect([cases, nextCases]).toEqual([534, 356]); // 0.8.0 I1 M2: + wave 3's 8 rigs (was [396, 264])
   });
 
   it("the desktop column keeps the full text in the 5x7 face: the laptop's column (1366x768: text 109 px)", () => {

@@ -15,9 +15,13 @@
 //    sharedPool.effects.test.ts scenarios with the same proof that the part acted.
 // Metrics: damage dealt, shots, the payload sum, the first shot, Burn dealt, the foe's hull, Fray and stalled
 // machines, stall time, slugs made, jams, fusions (FOUNDRY), plating gained and spent (BASTION), and own hull lost.
+// 0.8.0 I1 M2 (REQ-BFG-021; the brief's M2 list, VERIFIED-H1 F): wave 3 joins the audit. Plating is every hull's now (P1's
+// E1: SideState.plate, the same object BASTION's race side holds), so the plating metrics read it for every hero; a
+// STOKER (it works factories, never belts) stands at each beltside.ts stokeSpots spot; BRACE FRAME fights a harassing foe
+// and SPALL CATCHER an armed one, each with the proof that it acted (tests/wave3.inert.test.ts's scenarios).
 
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
-import { spotForTile } from "../src/sim/beltside";
+import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
 import { HEROES, ITEMS, type HeroId, type ItemDef } from "../src/sim/content";
 import {
   arrowCell, cloneBuild, commitRoute, deadEndsAt, footprint, installTurret, key, kx, ky, occupancy, rigHits, routeInfo,
@@ -40,6 +44,7 @@ const UID = 9901;
 /** Where the audited module went. */
 export type Place =
   | { k: "rig"; route: number; tile: number }
+  | { k: "stoke"; x: number; y: number; factories: number } // 0.8.0 I1: a STOKER beside the factories it works
   | { k: "intake"; col: number; tiles: number }
   | { k: "join"; route: number; tile: number; tiles: number }
   | { k: "swap"; replaced: string }
@@ -52,6 +57,15 @@ export type Place =
  *  (the editor's spot for that tile). */
 function rigCandidates(before: Build, id: string): { after: Build; place: Place }[] {
   const out: { after: Build; place: Place }[] = [];
+  // 0.8.0 I1: a STOKER's arrows work factories, never belts (P1's E3): each free cell beside a factory, most factories first
+  if (ITEMS[id]?.gate?.stoke) {
+    for (const s of stokeSpots(before, id)) {
+      const b = cloneBuild(before);
+      b.items.push({ uid: UID, def: id, x: s.x, y: s.y, rot: s.rot });
+      out.push({ after: b, place: { k: "stoke", x: s.x, y: s.y, factories: s.stokes.length } });
+    }
+    return out;
+  }
   for (let ri = 0; ri < before.routes.length; ri++) {
     if (!routeInfo(before, ri).connected) continue;
     for (let ti = 0; ti < before.routes[ri].cells.length; ti++) {
@@ -284,6 +298,9 @@ export type Metrics = {
   fusions: number; platingGained: number; platingSpent: number; ownDisrupt: number; hullLost: number;
   // the part's own acts (evidence, never compared as an outcome)
   tolls: number; flaks: number; repairs: number; rips: number; sifted: number; machineShots: number;
+  // 0.8.0 I1: BRACE FRAME's seconds off enemy stalls (brace events), SPALL CATCHER's largest charge, and the plating wave-3
+  // parts added (P1's E1 `plate` events, which name no gun; BASTION's own slugs fire H1's CLANK, which does)
+  braced: number; spall: number; plated: number;
 };
 
 const marks = (p: Payload): number => Object.values(p.debuffs ?? {}).filter(Boolean).length;
@@ -291,7 +308,7 @@ const marks = (p: Payload): number => Object.values(p.debuffs ?? {}).filter(Bool
 /** One fight's metrics, read off the tick simulation (as sharedPool.effects.test.ts's run, with the race counters). */
 export function fight(b: Build, foe: Build, seed: number, seconds: number): Metrics {
   const battle = new Battle(cloneBuild(b), cloneBuild(foe), seed);
-  let enemyDisrupt = 0, tolls = 0, flaks = 0, repairs = 0, rips = 0, sifted = 0, machineShots = 0;
+  let enemyDisrupt = 0, tolls = 0, flaks = 0, repairs = 0, rips = 0, sifted = 0, machineShots = 0, braced = 0, spall = 0, plated = 0;
   const sim = battle as unknown as { applyHit: (s: { side: number }, a: BeltAmmo, h: { g: { def: ItemDef } }) => BeltAmmo[] };
   const applyHit = sim.applyHit.bind(battle);
   sim.applyHit = (s, a, h) => {
@@ -309,7 +326,10 @@ export function fight(b: Build, foe: Build, seed: number, seconds: number): Metr
       if (e.type === "flak" && e.side === 0) flaks++;
       if (e.type === "repair" && e.side === 0) repairs++;
       if (e.type === "rip" && e.side === 1) rips++;
+      if (e.type === "brace" && e.side === 0) braced += e.saved; // 0.8.0 I1
+      if (e.type === "plate" && e.side === 0 && !("turret" in e) && e.amount > 0) plated += e.amount; // 0.8.0 I1: E1 only
     }
+    for (const tu of battle.sides[0].turrets) spall = Math.max(spall, tu.spallCharge ?? 0); // 0.8.0 I1
     for (const pr of battle.projectiles) {
       if (pr.from !== 0 || aimed.has(pr.id)) continue;
       aimed.add(pr.id);
@@ -322,9 +342,10 @@ export function fight(b: Build, foe: Build, seed: number, seconds: number): Metr
     shots: own.stats.shots, payloadSum: own.stats.payloadSum, damage: own.stats.damage, firstShot: own.stats.firstShot,
     burnDealt: own.stats.burnDealt, enemyHull: enemy.hull.hp, enemyFray: enemy.hull.fray, enemyDisrupt,
     stalled: own.stats.stalled, produced: own.stats.produced, jams: own.stats.jams,
-    fusions: own.race?.foundry.fusions ?? 0, platingGained: own.race?.plating.gained ?? 0, platingSpent: own.race?.plating.absorbed ?? 0,
+    // 0.8.0 I1: every hull's plating (P1's E1, SideState.plate; a race side's RaceSide.plating is the same object)
+    fusions: own.race?.foundry.fusions ?? 0, platingGained: own.plate.gained, platingSpent: own.plate.absorbed,
     ownDisrupt: own.stats.disrupted, hullLost: own.hull.max - own.hull.hp,
-    tolls, flaks, repairs, rips, sifted, machineShots,
+    tolls, flaks, repairs, rips, sifted, machineShots, braced, spall, plated,
   };
 }
 
@@ -371,10 +392,34 @@ function markFoe(hero: HeroId): Build {
   return b;
 }
 
+/**
+ * 0.8.0 I1: the harassing foe for BRACE FRAME (tests/wave3.inert.test.ts's, legal on day 10 with 100 extra hull, 115 g):
+ * a WEAVER whose guns always aim at a machine (SPOTTER ★3 on each) firing shocked thread (a GALVANIC COIL on each belt,
+ * at 3, 2 and 1 stars), so its shots stall the machines they hit.
+ */
+export function harasser(): Build {
+  const b = heroStartBuild("weaver", 500);
+  b.hullBonus = 100;
+  for (let i = 0; i < 3; i++) {
+    const s = bestSpot(b, "coil", (ri) => ri === i);
+    if (!s) throw new Error("harasser: no spot for a coil");
+    b.items.push({ uid: 810 + i, def: "coil", x: s.x, y: s.y, rot: s.rot, ...(i < 2 ? { stars: 3 - i } : {}) });
+  }
+  for (const slot of [0, 1, 2]) b.mods.push({ uid: 820 + slot, def: "spotter", turret: slot, stars: 3 });
+  return b;
+}
+
 export type Scenario = { foe?: (hero: HeroId) => Build; seconds?: number; seeds?: number[]; metrics?: (keyof Metrics)[]; proof?: keyof Metrics; more?: keyof Metrics };
 const BOTH = [...OFFENSE, ...DEFENSE];
 /** sharedPool.effects.test.ts's scenarios: the parts an unarmed foe can't show. */
 export const SCENARIOS: Record<string, Scenario> = {
+  // 0.8.0 I1 (wave 3; tests/wave3.inert.test.ts's scenarios): BRACE FRAME against a harassing foe (the seconds it saves),
+  // SPALL CATCHER against an armed one (the charge it stores), and the plating rig and gear against an armed foe that
+  // spends plating (against an unarmed one BASTION's hull sits at the cap, 24, so more plating changes nothing there)
+  braceframe: { foe: harasser, seconds: LONG, seeds: SEEDS, metrics: BOTH, proof: "braced" },
+  spallcatcher: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: BOTH, proof: "spall" },
+  plateroller: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: BOTH, proof: "plated" },
+  seamwelder: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: BOTH, proof: "plated" },
   mantlet: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: DEFENSE },
   tollbooth: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: BOTH, proof: "tolls" },
   flak: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: BOTH, proof: "flaks" },

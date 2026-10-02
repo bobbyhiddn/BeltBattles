@@ -42,6 +42,8 @@ function tally(b: Build, foe: Build, turret: number, secs = SECS, plate = 0): Ta
     for (const tu of bt.sides[0].turrets) t.spallMax = Math.max(t.spallMax, tu.spallCharge ?? 0);
     for (const e of bt.drainEvents()) {
       if (!("side" in e) || e.side !== 0) continue;
+      // 0.8.0 I1 (oracle c38b1df9f2e9c338): H1's bulwark-slug CLANK names its gun and is not a wave-3 source; skip it
+      if (e.type === "plate" && "turret" in e) continue;
       if (e.type === "plate") { if (e.amount > 0) t.plate += e.amount; else t.spent -= e.amount; }
       else if (e.type === "brace") t.braced += e.saved;
       else if (e.type === "hold") t.holds++;

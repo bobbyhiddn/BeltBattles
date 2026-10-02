@@ -17,8 +17,10 @@ import { NPCS, npcDeck, problems } from "../tools/wave3Npcs";
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
 
 describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
-  it("counts ITEMS without supplies and hero signatures: 71 at v070-rc, 58 without turrets, equal to buyableModules()", () => {
-    const c = catalogueCount();
+  // 0.8.0 I1 M2 (REPORT-P1 section 13, "D1's 71-module counts"): wave 3 is live, so v070-rc's catalogue is the `today`
+  // variant (wave 3 off for one call); the live catalogue counts 86
+  it("counts ITEMS without supplies and hero signatures: 71 at v070-rc, 58 without turrets, equal to buyableModules(); 86 live", () => {
+    const c = withCatalogue("today", () => catalogueCount());
     expect(c.total).toBe(71);
     expect(c.modules).toBe(58);
     expect(c.turrets).toBe(13);
@@ -26,6 +28,9 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     expect(c.sameAsBuyable).toBe(true);
     expect(c.supplies.sort()).toEqual(["beltcrate", "plating"]);
     expect(c.signatures.sort()).toEqual(["clockworks", "crucible", "kiln", "loom", "sump", "wardworks"]);
+    const live = catalogueCount();
+    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([86, 73, 13, true]);
+    expect(live.byKind).toEqual({ rig: 31, factory: 15, core: 15, mod: 12, turret: 13 });
   });
 
   it("install adds the hypothetical modules and uninstall restores ITEMS exactly", () => {
@@ -45,7 +50,7 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
 
 describe("wave3: family map v2", () => {
   it("today: every buyable module carries 1-3 tags, and each of the 5 families has 12+ members across 2+ kinds", () => {
-    const t = familyTableV2("today");
+    const t = withCatalogue("today", () => familyTableV2("today")); // 0.8.0 I1 M2: v070-rc's catalogue, wave 3 off
     expect(t.buyable.length).toBe(71);
     expect(t.untagged).toEqual([]);
     expect(t.unknown).toEqual([]);
@@ -160,7 +165,7 @@ describe("wave3: the per-run draw (REQ-BFG-022 part 2)", () => {
   });
 
   it("today's rule as a ware map: all 71, the ARCANE DEALER from day 3, legendaries from day 4 (two steps)", () => {
-    const p = poolOf(todayWares());
+    const p = withCatalogue("today", () => poolOf(todayWares())); // 0.8.0 I1 M2: v070-rc's catalogue, wave 3 off
     expect(p).toEqual({ active: 71, day1: 62, steps: [3, 4] });
   });
 });

@@ -122,8 +122,11 @@ describe("harness cores (0.6.1b): legality", () => {
     // the 90 random builds and some full purses buy differently: 1781625131 -> 450651712 and 3672937531 -> 4190209584.
     // With LODESTONE's old values patched back into ITEMS at runtime, both hashes read their old values again
     // (output-beltside/final-062/tune/verify/pinpatch.test.ts), so the floor alone moves them.
-    expect(hash32(a.join("|"))).toBe(450651712);
-    expect(hash32(b.join("|"))).toBe(4190209584);
+    // 0.8.0 I1 M2 (REPORT-P1 section 13, "harness.cores hashes"): wave 3 goes live, so the random builds' shared pool
+    // gains the 15 (harness/heroes.ts reads buyableModules()): 450651712 -> 2034124841 and 4190209584 -> 85738988. With
+    // the switch off both read their old values (the M1 gate).
+    expect(hash32(a.join("|"))).toBe(2034124841);
+    expect(hash32(b.join("|"))).toBe(85738988);
   }, 60_000);
 });
 

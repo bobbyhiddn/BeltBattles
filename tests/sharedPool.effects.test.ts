@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
-import { spotForTile } from "../src/sim/beltside";
+import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
 import { HEROES, ITEMS, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
 import {
   cloneBuild, deadEndsAt, installTurret, key, rigHits, routeInfo, setTurretList, turretList, turretSlots, type Build,
@@ -145,8 +145,17 @@ function decks(hero: HeroId, d: ItemDef): [Build, Build] {
     before.mods.push({ uid: 904, def: "salvo", turret: routeInfo(before, 0).turret });
   }
   if (d.kind === "mod" && ["escapement", "longcase"].includes(d.id) && hero === "metronome") metroPeakRoute(before, d.id);
+  // 0.8.0 I1 M2 (the brief's M2 list; tests/wave3.inert.test.ts's busy gun): STEAM BREECH is a fire-rate core, audited
+  // beside CALIBRATION on a gun a SHOT TOWER keeps busy (every hero: a starting gun waits for its loads, oracle
+  // f77882b58164404e)
+  if (d.id === "steambreech") before = boughtFactory(hero, "shottower");
   const after = cloneBuild(before);
-  if (d.kind === "gate") {
+  if (d.kind === "gate" && d.gate?.stoke) {
+    // 0.8.0 I1 M2: a STOKER works factories, never belts (P1's E3): it stands at its best stokeSpots spot
+    const s = stokeSpots(after, d.id)[0];
+    if (!s) throw new Error(`${hero}: no stoke spot for ${d.id}`);
+    after.items.push({ uid, def: d.id, x: s.x, y: s.y, rot: s.rot });
+  } else if (d.kind === "gate") {
     if (tiles) rigAt(after, d.id, uid, tiles);
     else rig(after, d.id, uid);
   } else after.mods.push({ uid: 902, def: d.id, turret: routeInfo(before, 0).turret });
@@ -159,6 +168,9 @@ type Metrics = {
   ownDisrupt: number; ownHull: number;
   // the audited part's own action in this battle (evidence, never compared as an outcome)
   tolls: number; flaks: number; repairs: number; rips: number; sifted: number; machineShots: number;
+  // 0.8.0 I1: BRACE FRAME's seconds off enemy stalls (brace events), SPALL CATCHER's largest charge, and the plating wave-3
+  // parts added (P1's E1 `plate` events, which name no gun; BASTION's own slugs fire H1's CLANK, which does)
+  braced: number; spall: number; plated: number;
 };
 
 const marks = (p: Payload): number => Object.values(p.debuffs ?? {}).filter(Boolean).length;
@@ -166,7 +178,7 @@ const marks = (p: Payload): number => Object.values(p.debuffs ?? {}).filter(Bool
 /** Read only outcomes of the actual tick simulation, including applied Shock, and count the part's own acts. */
 function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
   const battle = new Battle(b, foe, seed);
-  let enemyDisrupt = 0, tolls = 0, flaks = 0, repairs = 0, rips = 0, sifted = 0, machineShots = 0;
+  let enemyDisrupt = 0, tolls = 0, flaks = 0, repairs = 0, rips = 0, sifted = 0, machineShots = 0, braced = 0, spall = 0, plated = 0;
   // SIFTER leaves no event: count the payloads a rig of ours hits that lose a CHILL, SNAG or SAP mark on that hit
   const sim = battle as unknown as { applyHit: (s: { side: number }, a: BeltAmmo, h: { g: { def: ItemDef } }) => BeltAmmo[] };
   const applyHit = sim.applyHit.bind(battle);
@@ -185,7 +197,10 @@ function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
       if (e.type === "flak" && e.side === 0) flaks++;
       if (e.type === "repair" && e.side === 0) repairs++;
       if (e.type === "rip" && e.side === 1) rips++;
+      if (e.type === "brace" && e.side === 0) braced += e.saved; // 0.8.0 I1
+      if (e.type === "plate" && e.side === 0 && !("turret" in e) && e.amount > 0) plated += e.amount; // 0.8.0 I1: E1 only
     }
+    for (const tu of battle.sides[0].turrets) spall = Math.max(spall, tu.spallCharge ?? 0); // 0.8.0 I1
     for (const pr of battle.projectiles) {
       if (pr.from !== 0 || aimed.has(pr.id)) continue;
       aimed.add(pr.id);
@@ -199,7 +214,7 @@ function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
     firstShot: own.stats.firstShot, burnDealt: own.stats.burnDealt,
     enemyHull: enemy.hull.hp, enemyFray: enemy.hull.fray, enemyDisrupt,
     ownDisrupt: own.stats.disrupted, ownHull: own.hull.hp,
-    tolls, flaks, repairs, rips, sifted, machineShots,
+    tolls, flaks, repairs, rips, sifted, machineShots, braced, spall, plated,
   };
 }
 
@@ -226,6 +241,23 @@ function markFoe(hero: HeroId): Build {
 }
 
 /**
+ * 0.8.0 I1 M2: the harassing foe for BRACE FRAME (tests/wave3.inert.test.ts's, legal on day 10 with 100 extra hull, 115 g):
+ * a WEAVER whose guns always aim at a machine (SPOTTER ★3 on each) firing shocked thread (a GALVANIC COIL on each belt,
+ * at 3, 2 and 1 stars), so its shots stall the machines they hit.
+ */
+function harasser(): Build {
+  const b = heroStartBuild("weaver", 500);
+  b.hullBonus = 100;
+  for (let i = 0; i < 3; i++) {
+    const s = bestSpot(b, "coil", (ri) => ri === i);
+    if (!s) throw new Error("harasser: no spot for a coil");
+    b.items.push({ uid: 810 + i, def: "coil", x: s.x, y: s.y, rot: s.rot, ...(i < 2 ? { stars: 3 - i } : {}) });
+  }
+  for (const slot of [0, 1, 2]) b.mods.push({ uid: 820 + slot, def: "spotter", turret: slot, stars: 3 });
+  return b;
+}
+
+/**
  * How a part is audited when an unarmed foe can't show its effect. An armed foe also aims at the new rig, so the two
  * fights part ways even where the part does nothing: `proof` must count the part's own act in the bought fight.
  * `more` must rise summed over every seed, for a part whose act is a shift in odds (SPOTTER's rerolls).
@@ -244,6 +276,14 @@ const SCENARIOS: Record<string, Scenario> = {
   sifter: { foe: markFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "sifted" },
   spotter: { seeds: SEEDS, metrics: ["enemyDisrupt"], more: "enemyDisrupt" },
   railgun: { seconds: LONG, seeds: SEEDS },
+  // 0.8.0 I1 M2 (the brief's M2 list; tests/wave3.inert.test.ts's scenarios): BRACE FRAME against a harassing foe (the
+  // seconds it saves); the plating parts against an armed foe, judged on the defence numbers (the E1 plating they add);
+  // SPALL CATCHER against an armed foe (the charge it stores)
+  braceframe: { foe: harasser, seconds: LONG, seeds: SEEDS, metrics: both, proof: "braced" },
+  plateroller: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
+  seamwelder: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
+  shieldwall: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
+  spallcatcher: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "spall" },
 };
 
 /**

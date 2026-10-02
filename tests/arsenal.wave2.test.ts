@@ -57,7 +57,9 @@ describe("wave-2 stock and live star data", () => {
     expect(WAVE).toHaveLength(20);
     const counts = ["gate", "factory", "core", "mod"].map((kind) =>
       Object.values(ITEMS).filter((d) => d.kind === kind && d.merchant).length);
-    expect(counts).toEqual([23, 13, 13, 9]); // REQ-BFG-021: ESCAPEMENT and LONGCASE are sold to every hero (7 -> 9 mods)
+    // REQ-BFG-021: ESCAPEMENT and LONGCASE are sold to every hero (7 -> 9 mods); 0.8.0 I1 M2 (REPORT-P1 section 13): + wave
+    // 3's 8 rigs, 2 factories, 2 cores and 3 mods (was 23, 13, 13, 9)
+    expect(counts).toEqual([31, 15, 15, 12]);
     for (const id of WAVE) {
       const d = ITEMS[id];
       expect([d.merchant, d.rarity, d.price], id).toEqual(WAVE_STOCK[id]);

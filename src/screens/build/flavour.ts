@@ -15,7 +15,7 @@
 // 0.6.2rel2 (on the 0.6.2 candidate): the 13 buyable turrets (REQ-BFG-031) have rows too, and FB-B's QUENCH TANK, SURGE
 // VALVE, HOPPER and MANTLET keep nothing, like the rest of their families: their rules are all in the ability text.
 
-import { ITEMS, WAVE3_IDS } from "../../sim/content";
+import { ITEMS } from "../../sim/content";
 import { PENDULUM } from "../../sim/races/data";
 import { peakTiles, seconds } from "../../ui/abilityText";
 
@@ -113,14 +113,24 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
   // --- supplies ---
   beltcrate: ["LONGER ROUTES COOK HOTTER PAYLOADS."], // character; "+4 BELT CAPACITY" is the ability text
   plating: [],
+  // --- wave 3 (0.8.0 P1's WAVE3_FLAVOUR, moved here by I1 M2 when the switch went on): none kept, as FB-B's four keep
+  // none; their rules are all in the ability text (src/ui/abilityText.ts)
+  plateroller: [],
+  twingauge: [],
+  pincer: [],
+  braceframe: [],
+  twinlatch: [],
+  stoker: [],
+  platebreaker: [],
+  shieldwall: [],
+  twinmould: [],
+  armorpress: [],
+  anvil: [],
+  steambreech: [],
+  twintrigger: [],
+  spallcatcher: [],
+  seamwelder: [],
 };
-
-/**
- * 0.8.0 P1: wave 3's kept flavour: none for each of the 15, as FB-B's four keep none; their rules are all in the ability
- * text (src/ui/abilityText.ts). Its own table while the switch is off, because tests/flavour.test.ts pins KEPT_FLAVOUR's
- * rows to what the catalogue sells; when wave 3 goes live (content.ts WAVE3_LIVE) I1 moves these rows into KEPT_FLAVOUR.
- */
-export const WAVE3_FLAVOUR: Readonly<Record<string, readonly string[]>> = Object.fromEntries(WAVE3_IDS.map((id) => [id, []]));
 
 /**
  * A hero's signature factory has no ability text, so its flavour is its only description: its catalogue desc, except
@@ -145,7 +155,6 @@ const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.c
 export function flavour(def: string, stars = 1, k = 1): string[] {
   if (!own(ITEMS, def)) return [];
   if (own(KEPT_FLAVOUR, def)) return [...KEPT_FLAVOUR[def]];
-  if (own(WAVE3_FLAVOUR, def)) return [...WAVE3_FLAVOUR[def]]; // 0.8.0 P1
   if (own(SIGNATURE_FLAVOUR, def)) return [...SIGNATURE_FLAVOUR[def]];
   return [ITEMS[def].desc.join(" ")];
 }

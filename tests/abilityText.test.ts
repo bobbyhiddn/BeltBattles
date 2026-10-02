@@ -22,7 +22,7 @@ import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { LOAD_FLOOR } from "../src/sim/battle";
 import { S, clashShortText, gatlingClashText } from "../src/ui/abilityText";
 
-// 0.6.2t (REQ-BFG-032): the ability text of every buyable module (23 rigs, 13 factories, 13 cores, 9 mods) at 1, 2
+// 0.6.2t (REQ-BFG-032): the ability text of every buyable module (0.8.0: 31 rigs, 15 factories, 15 cores, 12 mods) at 1, 2
 // and 3 stars, and of each supply: its numbers are that star's real values, it opens with one plain sentence, it uses
 // none of T2's shorthand, every entry is a whole sentence, it wraps to the desk column and the phone band, and the next
 // star, merge progress, MERGES WITH and shop one-liners read as sentences. The panels, the phone fit (T6, 0b.5), the
@@ -165,6 +165,23 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   ram: (e) => [pct(m(e).finisher!)],
   escapement: (e) => [rateNum(m(e).fireMul!), 1.2, 7], // PEAK_SHIFT -1.2 s: 7 tiles (10 by default)
   longcase: (e) => [m(e).longRideMin!, m(e).longRideFlat!, 1.2, 13], // PEAK_SHIFT +1.2 s: 13 tiles
+  // wave 3 (0.8.0 P1's WAVE3_NUMBERS, moved here by I1 M2 when the switch went on; REPORT-P1 section 13)
+  plateroller: (e) => [g(e).plate!, PLATE_CAP], // + the plating sentence: UP TO 24 PLATING
+  twingauge: (e) => [g(e).gauge!.flat, g(e).gauge!.matched],
+  pincer: (e) => [g(e).pincer!.flat, g(e).pincer!.each], // 0.8.0 I1 (VERIFIED-P1 H5): no "UP TO 3 OTHERS" (it never binds)
+  braceframe: (e) => [pct(1 - g(e).brace!.mul), pct(1 - g(e).brace!.plated)],
+  twinlatch: (e) => [1, g(e).latch!.hold, g(e).latch!.flat, 2], // BRINGS ONE TOO; ... INTO TWO GUNS
+  stoker: (e) => [pct(g(e).stoke!)],
+  platebreaker: (e) => [1, g(e).breaker!.flat, g(e).breaker!.floor], // TAKES 1 PLATING
+  shieldwall: (e) => [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP],
+  // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS TWO BELTS ... ON MATCHED BELTS INTO ONE TURRET
+  twinmould: (e) => [f(e).outputs, base(e), 1, f(e).outputs, f(e).interval, 1],
+  armorpress: (e) => [f(e).plate!.amount, f(e).plate!.every, base(e), f(e).interval, PLATE_CAP],
+  anvil: (e, k) => [r1(scaleCore(e.core!, k).anvilFlat!), r1(scaleCore(e.core!, k).perPlate!), PLATE_CAP], // x k
+  steambreech: (e, k) => [rateNum(scaleCore(e.core!, k).steamPlated!), rateNum(scaleCore(e.core!, k).steamBare!)], // rates: no k
+  twintrigger: (e) => [pct(m(e).pairBonus!), 2, 1, SYNC_WINDOW, -m(e).windowTime!, LOAD_FLOOR], // A PAIR IS TWO LOADS ... ONE TURRET
+  spallcatcher: (e) => [m(e).spall!.every, m(e).spall!.add, m(e).spall!.max, 2], // ... COUNTS TWICE
+  seamwelder: (e) => [m(e).seam!.pair, m(e).seam!.lone, 2, 1, SYNC_WINDOW, PLATE_CAP],
   // supplies
   beltcrate: (e) => [e.supply!.belt!],
   plating: (e) => [e.supply!.hull!],
@@ -187,12 +204,13 @@ const WIDTHS: [number, "5" | "3"][] = [[102, "5"], [109, "5"], [116, "5"], [102,
 const FUNCTION_WORDS = new Set(["A", "AN", "THE", "OF", "AT", "TO", "IN", "ON", "FOR", "AND", "OR", "WITH", "INTO", "FROM", "BY"]);
 
 describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
-  it("23 rigs, 13 factories, 13 cores, 9 mods, 13 turrets and 2 supplies; each has ability text and an audit row", () => {
+  // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3 is live: +8 rigs, +2 factories, +2 cores, +3 mods (was 23, 13, 13, 9; 71)
+  it("31 rigs, 15 factories, 15 cores, 12 mods, 13 turrets and 2 supplies; each has ability text and an audit row", () => {
     const by = (kind: string) => MODULES.filter((d) => d.kind === kind).length;
-    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([23, 13, 13, 9, 13, 2]);
+    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([31, 15, 15, 12, 13, 2]);
     for (const d of ALL) expect(hasAbilityText(d.id), d.id).toBe(true);
     expect(Object.keys(NUMBERS).sort()).toEqual(ALL.map((d) => d.id).sort());
-    expect(CASES).toHaveLength((71 + 13) * 3 + 2); // 71 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
+    expect(CASES).toHaveLength((86 + 15) * 3 + 2); // 86 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
   });
 
   it("the numbers every sentence quotes are that star's values (effectAt; a core's x k)", () => {
@@ -385,37 +403,21 @@ describe("0.6.2t T4: numbers and keywords in their battle colours, the same ever
 // table above is unchanged. Their audit rows are here, written out from the catalogue as NUMBERS is, and the same rules
 // run on them with wave 3 turned on (withWave3): T1, T2, T4 (whole sentences, the perk, the wrap), T5 (next star, MERGES
 // WITH, the card) and the tooltip. When wave 3 goes live, I1 moves these rows into NUMBERS and the counts above grow by 15.
+// 0.8.0 I1 M2: wave 3 is live. WAVE3_NUMBERS's rows are in NUMBERS now (MODULES lists the 15, so every table and rule
+// above runs on them too); this block keeps its own checks, reading NUMBERS.
 
-/** The numbers each wave-3 module's text quotes at a star, every sentence in reading order (as NUMBERS above). */
-const WAVE3_NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = {
-  plateroller: (e) => [g(e).plate!, PLATE_CAP], // + the plating sentence: UP TO 24 PLATING
-  twingauge: (e) => [g(e).gauge!.flat, g(e).gauge!.matched],
-  pincer: (e) => [g(e).pincer!.flat, g(e).pincer!.each, g(e).pincer!.max],
-  braceframe: (e) => [pct(1 - g(e).brace!.mul), pct(1 - g(e).brace!.plated)],
-  twinlatch: (e) => [1, g(e).latch!.hold, g(e).latch!.flat, 2], // BRINGS ONE TOO; ... INTO TWO GUNS
-  stoker: (e) => [pct(g(e).stoke!)],
-  platebreaker: (e) => [1, g(e).breaker!.flat, g(e).breaker!.floor], // TAKES 1 PLATING
-  shieldwall: (e) => [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP],
-  // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS TWO BELTS ... ON MATCHED BELTS INTO ONE TURRET
-  twinmould: (e) => [f(e).outputs, base(e), 1, f(e).outputs, f(e).interval, 1],
-  armorpress: (e) => [f(e).plate!.amount, f(e).plate!.every, base(e), f(e).interval, PLATE_CAP],
-  anvil: (e, k) => [r1(scaleCore(e.core!, k).anvilFlat!), r1(scaleCore(e.core!, k).perPlate!), PLATE_CAP], // x k
-  steambreech: (e, k) => [rateNum(scaleCore(e.core!, k).steamPlated!), rateNum(scaleCore(e.core!, k).steamBare!)], // rates: no k
-  twintrigger: (e) => [pct(m(e).pairBonus!), 2, 1, SYNC_WINDOW, -m(e).windowTime!, LOAD_FLOOR], // A PAIR IS TWO LOADS ... ONE TURRET
-  spallcatcher: (e) => [m(e).spall!.every, m(e).spall!.add, m(e).spall!.max, 2], // ... COUNTS TWICE
-  seamwelder: (e) => [m(e).seam!.pair, m(e).seam!.lone, 2, 1, SYNC_WINDOW, PLATE_CAP],
-};
 /** Wave 3's modules (ITEMS resolves them whatever the switch) and their (module, star, class factor) cases. */
 const W3 = WAVE3_IDS.map((id) => ITEMS[id]);
 const W3_CASES = W3.flatMap((d) => STARS.flatMap((s) => kOf(d).map((k) => ({ d, s, k, id: `${d.id} ★${s} k${k}` }))));
 
 describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard)", () => {
-  it("the 15 are dormant, fusible and buyable once wave 3 is on; each has ability text and an audit row", () => {
+  // 0.8.0 I1 M2: flipped (the switch is on): MODULES lists the 15; with the switch off for one call, nothing does
+  it("the 15 are live, fusible and buyable (none with the switch off); each has ability text and an audit row", () => {
     expect(W3.map((d) => d.kind).sort().join()).toBe("core,core,factory,factory,gate,gate,gate,gate,gate,gate,gate,gate,mod,mod,mod");
-    expect(MODULES.filter((d) => WAVE3_IDS.includes(d.id))).toEqual([]); // the switch is off on this branch
-    withWave3(() => expect(buyableModules().filter((d) => WAVE3_IDS.includes(d.id)).map((d) => d.id)).toEqual([...WAVE3_IDS]));
+    expect(MODULES.filter((d) => WAVE3_IDS.includes(d.id)).map((d) => d.id)).toEqual([...WAVE3_IDS]); // the switch is on
+    withWave3(() => expect(buyableModules().filter((d) => WAVE3_IDS.includes(d.id))).toEqual([]), false);
     for (const d of W3) expect([hasAbilityText(d.id), fusible(d.id)], d.id).toEqual([true, true]);
-    expect(Object.keys(WAVE3_NUMBERS).sort()).toEqual([...WAVE3_IDS].sort());
+    expect(Object.keys(NUMBERS).filter((id) => WAVE3_IDS.includes(id)).sort()).toEqual([...WAVE3_IDS].sort());
     expect(W3_CASES).toHaveLength((15 + 2) * 3); // the two cores twice (k 1 and 0.55)
   });
 
@@ -437,19 +439,17 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
   });
 
   it("the numbers every sentence quotes are that star's values (effectAt; a core's x k)", () => {
-    withWave3(() => {
-      for (const { d, s, k, id } of W3_CASES) {
-        expect(numbers(abilityText(d.id, s, { k }).sentences.join(" ")), id).toEqual(WAVE3_NUMBERS[d.id](effectAt(d.id, s), k, s));
-      }
-    });
+    for (const { d, s, k, id } of W3_CASES) { // 0.8.0 I1 M2: NUMBERS holds the rows; the switch is on
+      expect(numbers(abilityText(d.id, s, { k }).sentences.join(" ")), id).toEqual(NUMBERS[d.id](effectAt(d.id, s), k, s));
+    }
   });
 
   it("DESIGN 3.3's text, written out (with the Prime's two lines: STOKER's cap, TWIN LATCH's timed release)", () => {
     const at = (def: string, s = 1, k = 1) => abilityText(def, s, { k }).sentences;
     expect(at("plateroller", 3)[0]).toBe("ROLLS 1.7 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.");
     expect(at("twingauge", 2)[0]).toBe("ADDS 2.2 DAMAGE TO EACH PAYLOAD IT HITS, OR 6.6 DAMAGE ON A MATCHED BELT.");
-    expect(at("pincer")).toEqual([
-      "ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, AND 2 MORE FOR EACH OTHER RIG HITTING THAT TILE, UP TO 3 OTHERS.",
+    expect(at("pincer")).toEqual([ // 0.8.0 I1 (VERIFIED-P1 H5): no "UP TO 3 OTHERS" (it never binds; the code keeps the cap)
+      "ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, AND 2 MORE FOR EACH OTHER RIG HITTING THAT TILE.",
       "STALLED, FROZEN AND WRECKED RIGS DON'T COUNT.",
     ]);
     expect(at("braceframe", 3)).toEqual([

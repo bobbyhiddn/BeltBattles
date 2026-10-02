@@ -8,10 +8,13 @@ import type { HeroId } from "../src/sim/content";
 /** Why a module does nothing on a deck. */
 export type Reason =
   | "starved" | "oneIntake" | "twinIntake" | "needsShock" | "needsPriorHits" | "echoBelt" | "needsLaterRig" | "needsRide"
-  | "shortRide" | "mergeNoGain";
+  | "shortRide" | "mergeNoGain"
+  // 0.8.0 I1 M2 (wave 3 joins the audit; oracle 0cf9f46b9ce87750)
+  | "gunFull" | "laterGun";
 
 export const REASONS: Record<Reason, string> = {
-  starved: "The gun it would work on is starved: its belt brings a load less often than the gun can fire. Firing faster (CALIBRATION, ESCAPEMENT, a turret's next star), a wider chamber (EXT. CHAMBER, HOPPER) or another turret on the same belts (turrets differ only in fire rate, chamber size and flight time) changes no shot.",
+  // 0.8.0 I1 (oracle 0cf9f46b9ce87750): STEAM BREECH, a fire-rate core, is the same physics as CALIBRATION
+  starved: "The gun it would work on is starved: its belt brings a load less often than the gun can fire. Firing faster (CALIBRATION, ESCAPEMENT, STEAM BREECH, a turret's next star), a wider chamber (EXT. CHAMBER, HOPPER) or another turret on the same belts (turrets differ only in fire rate, chamber size and flight time) changes no shot.",
   oneIntake: "No slot for a one-intake gun: every fed gun on this deck takes two belts (FOUNDRY's twin-pour gun; a STAMP PRESS in the second intake from day 5 or 6), and a DART, SPIKE or HAIL GUN takes one, so a belt would end short of an intake.",
   twinIntake: "TWIN NEEDLE fires like a DART GUN; its reason to buy is a second intake, and no second belt reaches the gun it would replace.",
   needsShock: "SPOTTER turns bare-hull shots toward machinery, which only matters when a hit can stall a machine: there is no GALVANIC COIL or other shock on this deck, so an aimed hit does what a hull hit does.",
@@ -21,32 +24,42 @@ export const REASONS: Record<Reason, string> = {
   needsRide: "BELLOWS adds a Burn stack for each 2.5 seconds the payload has ridden, and no spot on this deck's belts comes that late in the ride.",
   shortRide: "LONGCASE adds damage to slugs that rode at least 2 seconds, and from day 2 BASTION's GREASE WORKS gets its bulwark slugs to the gun sooner.",
   mergeNoGain: "The copy merges into WEAVER's GREASE WORKS (2 stars: 2.3 times as fast); its threads reach that gun 0.3 seconds sooner, but the LOOM's pace sets how many shots it fires, and another gun fires first.",
+  // 0.8.0 I1 M2 (oracle 0cf9f46b9ce87750): BASTION days 5-10, every stoke spot: the WARDWORKS and the STAMP PRESS both
+  // feed gun 0, which takes every load it can (17 and 13 stamps in 18 s with and without it on days 5 and 8; 15 and 12
+  // on day 10), and the gun cap (oracle a0e94bc69949561f) binds
+  gunFull: "STOKER's factories already feed their gun as fast as it takes loads, and a stoke never makes a factory outrun its gun, so it adds no stamp.",
+  // 0.8.0 I1 M2 (oracle 0cf9f46b9ce87750): SIPHON days 4-10, gun 1 (a one-belt SPIKE GUN; gun 0's only gear slot holds
+  // CALIBRATION): load time 1.5 -> 1.25 s, each of its 6 shots 0.27 s sooner, as many shots, and gun 0 fires first
+  laterGun: "TWIN TRIGGER's shorter load time makes each shot of this gun come sooner, but another gun fires the side's first shot and this one fires as many shots in the fight; no second belt reaches it, so it never pairs.",
 };
 
 /** The inert pairs: hero, module, its days (ascending), as the audit finds them on the reference decks. */
+// 0.8.0 I1 M2 (wave 3 joins the audit; oracle 0cf9f46b9ce87750): STEAM BREECH starved on FOUNDRY 1-8, WEAVER and SIPHON
+// 1-10; STOKER gunFull on BASTION 5-10; TWIN TRIGGER laterGun on SIPHON 4-10. Every other pin is H1's, unchanged.
 export const INERT: Record<HeroId, Record<string, number[]>> = {
-  foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8], spikegun: [1, 2, 3, 4, 5, 6, 7, 8], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8], bellows: [2, 3] },
-  bastion: { bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7], longcase: [2, 3, 4], overclocker: [5, 6, 7, 8, 9, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10] },
+  foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8], spikegun: [1, 2, 3, 4, 5, 6, 7, 8], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8], bellows: [2, 3], steambreech: [1, 2, 3, 4, 5, 6, 7, 8] },
+  bastion: { bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7], longcase: [2, 3, 4], overclocker: [5, 6, 7, 8, 9, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10] },
   furnace: { longhaul: [1], overclocker: [1], bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5], dartgun: [6, 7, 8, 9, 10], spikegun: [6, 7, 8, 9, 10], hailgun: [6, 7, 8, 9, 10] },
-  weaver: { longhaul: [1], overclocker: [1, 2], chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2, 3], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2], swivel: [1, 2], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2], railgun: [1, 2], siegegun: [1, 2], thunderer: [1, 2], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], grease: [2, 3, 4, 5, 6] },
+  weaver: { longhaul: [1], overclocker: [1, 2], chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2, 3], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2], swivel: [1, 2], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2], railgun: [1, 2], siegegun: [1, 2], thunderer: [1, 2], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], grease: [2, 3, 4, 5, 6], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
   metronome: { spotter: [1, 2, 3], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10] },
-  siphon: { chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2], scrapcannon: [1], rampart: [1], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1], swivel: [1], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1], deckgun: [1], railgun: [1], bombard: [1], siegegun: [1], thunderer: [1], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], longhaul: [5, 6, 7] },
+  siphon: { chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2], scrapcannon: [1], rampart: [1], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1], swivel: [1], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1], deckgun: [1], railgun: [1], bombard: [1], siegegun: [1], thunderer: [1], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], longhaul: [5, 6, 7], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twintrigger: [4, 5, 6, 7, 8, 9, 10] },
 };
 
 /** The reason for each inert pair: by module, or by module and day range ([first, last, reason]) where it changes. */
 type Why = Reason | [number, number, Reason][];
-const STARVED_GUNS = ["chamber", "calibrate", "escapement", "carronade", "deckgun", "swivel", "railgun", "siegegun", "thunderer", "bombard", "scrapcannon", "rampart"];
+// 0.8.0 I1 (oracle 0cf9f46b9ce87750): + STEAM BREECH, a fire-rate core
+const STARVED_GUNS = ["chamber", "calibrate", "escapement", "carronade", "deckgun", "swivel", "railgun", "siegegun", "thunderer", "bombard", "scrapcannon", "rampart", "steambreech"];
 const byDefault = (id: string): Reason | undefined =>
   STARVED_GUNS.includes(id) ? "starved" : id === "spotter" ? "needsShock" : id === "twinneedle" ? "twinIntake" : id === "overclocker" ? "needsLaterRig"
     : id === "bellows" ? "needsRide" : undefined;
 
 export const WHY: Partial<Record<HeroId, Record<string, Why>>> = {
   foundry: { dartgun: [[1, 6, "oneIntake"], [7, 8, "starved"]], spikegun: [[1, 6, "oneIntake"], [7, 8, "starved"]], hailgun: "oneIntake", twinneedle: "starved" },
-  bastion: { longcase: "shortRide", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake" },
+  bastion: { longcase: "shortRide", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake", stoker: "gunFull" }, // 0.8.0 I1: STOKER
   furnace: { longhaul: "needsPriorHits", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake" },
   weaver: { longhaul: "needsPriorHits", dartgun: "starved", spikegun: "starved", grease: "mergeNoGain" },
   metronome: { dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake" },
-  siphon: { dartgun: "starved", spikegun: "starved", hailgun: "starved", longhaul: "echoBelt" },
+  siphon: { dartgun: "starved", spikegun: "starved", hailgun: "starved", longhaul: "echoBelt", twintrigger: "laterGun" }, // 0.8.0 I1: TWIN TRIGGER
 };
 
 /** The reason an inert pair has (undefined: none recorded, which the test treats as a failure). */

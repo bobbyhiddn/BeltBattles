@@ -464,7 +464,8 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => [
       `DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR ${seconds(g(e).overclockCooldown!)}.`,
       "THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT THAT CAN BE DOUBLED.",
-      "SPEED RIGS, TOLLBOOTHS, SIFTERS, RIVETERS, POWDER KEGS AND OVERCLOCKERS CAN'T.",
+      // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3's STOKER and BRACE FRAME act on no payload (overclock.ts boostable)
+      "SPEED RIGS, TOLLBOOTHS, SIFTERS, RIVETERS, POWDER KEGS, STOKERS, BRACE FRAMES AND OVERCLOCKERS CAN'T.",
     ],
     gist: (e) => `RECHARGES IN ${seconds(g(e).overclockCooldown!)}`,
     card: () => "DOUBLES THE NEXT RIG'S HIT",
@@ -990,11 +991,13 @@ const ENTRIES: Record<string, Entry> = {
   },
   pincer: {
     // Battle.applyHit (E5): + flat, and + each for every other working rig hitting the tile (online, not stalled, frozen
-    // or wrecked), up to max
+    // or wrecked), up to max. 0.8.0 I1 (VERIFIED-P1 H5): the text names no cap: a belt tile has 4 sides and at least two
+    // are belt, factory or turret, so at most 2 other rigs can ever hit a PINCER's tile and max (3) never binds; the code
+    // keeps it
     text: (e) => {
       const p = g(e).pincer!;
       return [
-        `ADDS ${damage(p.flat)} TO EACH PAYLOAD IT HITS, AND ${n1(p.each)} MORE FOR EACH OTHER RIG HITTING THAT TILE, UP TO ${plural(p.max, "OTHER")}.`,
+        `ADDS ${damage(p.flat)} TO EACH PAYLOAD IT HITS, AND ${n1(p.each)} MORE FOR EACH OTHER RIG HITTING THAT TILE.`,
         "STALLED, FROZEN AND WRECKED RIGS DON'T COUNT.",
       ];
     },

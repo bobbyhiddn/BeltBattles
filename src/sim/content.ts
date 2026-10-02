@@ -856,7 +856,7 @@ export const ITEMS: Record<string, ItemDef> = {
  * pools, the stand-in tools and the par player never see one, and validate.ts refuses a deck that holds one. I1 turns
  * wave 3 on with this one line. Tests and tools turn it on for one call with withWave3.
  */
-export const WAVE3_LIVE = false;
+export const WAVE3_LIVE = true;
 
 /**
  * 0.8.0 P1: wave 3 (output-D1/DESIGN-wave3.md 3.1 and 3.3; the Prime's decisions in output-D1/verify-cap/VERIFIED-D1.md):
