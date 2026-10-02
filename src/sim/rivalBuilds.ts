@@ -312,72 +312,106 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     ],
   },
   // ---------------------------------------------------------------- 0.8.0 N1: the six wave-3 captains
-  // D1's day-by-day purchases (DESIGN-wave3 5.2), each part placed by capsearch where it fights best against the FURNACE
-  // par field (N1 M2); grown to their slots' bands in M3.
-  // Easy (tier 1), FOUNDRY. MATCHED POUR: the Crucible's two mirrored belts into gun 1, a TWIN GAUGE on one, a TWIN MOULD
-  // into gun 2's two intakes from day 3, TWIN TRIGGER on gun 1 from day 5.
+  // 0.8.0 N1 (REQ-BFG-024, REQ-BFG-011, REQ-BFG-033; DESIGN-wave3 section 5, VERIFIED-D1 Q9-Q12): the six wave-3 captains.
+  // D1's day-by-day purchases were placed (N1 M2), then each plan was regrown day by day by capsearch (output-N1/tools)
+  // against the FURNACE par field (K 12) inside its own hero's luck caps (luckCapsData.ts: FOUNDRY and BASTION from N1
+  // M1), the per-run draw's unlock days, R1 and the upload ceiling (a Hard captain's prize never beats today's best Hard
+  // prize of the day, so src/net/roadCap.ts doesn't move: oracle 94b9559fbb7da299 (9)). Each keeps D1's synergy parts in
+  // D1's order as its core; fills reach the slot's band (BRASSWICK's road deck about 30%, GRIMHOLD's about 50%, VOSS's and
+  // KARSK's good-luck road decks 55-80%, LOCKJAW's and THISTLEMAIL's dusk decks about 55%) and the ladder
+  // (tests/rivals.difficulty.test.ts). Every one fields a wave-3 TWIN or PLATE module from day 1 (oracle (8)).
+  // ---------------------------------------------------------------- Easy (tier 1), FOUNDRY
+  // MATCHED POUR: the Crucible's two mirrored belts into gun 1, so every pour fuses. Synergy: a TWIN GAUGE on a matched
+  // belt from day 3 (3 damage a blank, not 1), a TWIN TRIGGER on gun 1 from day 4 (each fused alloy is a pair: 25% more,
+  // 2 stars from day 7) and a TWIN MOULD from day 5 pouring two plain slugs into gun 2's two intakes (2 stars from day 9).
+  // Nothing else: a STEAM BREECH on gun 1 from day 1 (a guild gauge on a steam jacket; the only part of an Easy deck that
+  // keeps it under every Hard captain on day 1). The synergy is the deck, so swapping it costs the most (N1 M4).
   brasswick: {
     hero: "foundry", crates: 0, synergy: ["twingauge", "twinmould", "twintrigger"],
     factories: [F("crucible", 2, 6, [2, 5, "U5"], [3, 5, "U5"])],
     upgrades: [
-      G(1, "twingauge", 1, 0, 1), G(2, "whetstone", 4, 1, 3), X(3, F("twinmould", 6, 2, [6, 1, "U"], [7, 1, "U"])), G2(4, "twingauge", 1, 0),
-      M(5, "twintrigger", 0), G(6, "pincer", 5, 0, 1), G(6, "temper", 8, 1, 3), M(7, "seamwelder", 1), G2(8, "twinmould", 6, 2),
-      M2(9, "twintrigger", 0), G(10, "longhaul", 8, 0),
+      M(1, "steambreech", 0), G(3, "twingauge", 4, 0, 3), M(4, "twintrigger", 0),
+      X(5, F("twinmould", 6, 2, [6, 1, "U"], [7, 1, "U"])), M2(7, "twintrigger", 0), G2(9, "twinmould", 6, 2),
     ],
   },
-  // Hard (tier 3), FOUNDRY. LOCKSTEP: the Crucible's belts run up columns 1 and 4 so a TWIN LATCH at (3,2) works both, a
-  // TWIN TRIGGER on gun 1, a TWIN MOULD into gun 2 from day 5 and a COMPOUND BREECH from day 6.
+  // ---------------------------------------------------------------- Hard (tier 3), FOUNDRY
+  // LOCKSTEP: the Crucible's belts run up columns 1 and 4 into gun 1, so a TWIN LATCH at (3,2) works both and lets each
+  // pair of blanks go together. Synergy: the TWIN LATCH (day 2, 2 stars from day 9), a TWIN TRIGGER on gun 1 from day 1
+  // (each fused alloy a pair: 2 stars from day 4, 55% more) and a COMPOUND BREECH from day 5 packing two alloys into one
+  // shell (2 stars from day 7); a PLATE ROLLER and a counterweight fill in. Gun 2 stays dark: every gold buys gun 1's
+  // lockstep. Good luck (the road deck) adds a temper on day 2, a tollbooth on day 5, a pincer on day 6 and venom on day 9.
   voss: {
     hero: "foundry", crates: 0, synergy: ["twinlatch", "twintrigger", "compound"],
     factories: [F("crucible", 2, 6, [2, 5, "LU3RU2"], [4, 6, "U5LU"])],
     upgrades: [
-      G(1, "twingauge", 1, 0, 1), G(1, "whetstone", 4, 0, 2), G(2, "twinlatch", 3, 2), M(3, "twintrigger", 0),
-      X(5, F("twinmould", 7, 2, [6, 2, "U2"], [8, 1, "LU"]), 1), G2(5, "twingauge", 1, 0), M(6, "compound", 0), M(7, "seamwelder", 1),
-      G(7, "pincer", 5, 2, 3), M2(8, "twintrigger", 0), G2(10, "twinmould", 7, 2),
+      G(1, "plateroller", 1, 0, 1), M(1, "twintrigger", 0), G(2, "twinlatch", 3, 2), ...good(G(2, "temper", 1, 1, 1)),
+      G(3, "counterweight", 4, 0), M2(4, "twintrigger", 0), M(5, "compound", 0), ...good(G(5, "tollbooth", 5, 1, 3)),
+      ...good(G(6, "pincer", 0, 2, 1)), M2(7, "compound", 0), G2(9, "twinlatch", 3, 2), ...good(G(9, "venom", 3, 5)),
     ],
   },
-  // Medium (tier 2), BASTION. ANVIL WALL: a PLATE ROLLER and a TOLLBOOTH on the bulwark belt, ANVIL BREECH in the socket
-  // from day 2, SPALL CATCHER from day 4, an ARMOR PRESS into connector 5 from day 5.
+  // ---------------------------------------------------------------- Medium (tier 2), BASTION
+  // ANVIL WALL: the Wardworks' bulwark belt plates the hull as it fires, and plating makes every shot hit harder. Synergy:
+  // PLATE ROLLERS on the bulwark belt (day 1, 2 stars from day 3; a second roller on day 3), an ANVIL BREECH in the heavy
+  // gun's socket from day 2 (2 stars from day 5: 2.2 and 0.4 more for each plating) and a SPALL CATCHER from day 4. A
+  // tollbooth, a temper (2 stars on day 10), a whetstone and a quench tank (2 stars on day 9) fill in, and an ARMOR
+  // PRESS feeds connector 5 from day 7, more plating. (Its synergy check misses: a same-price MORTAR or GATLING outdamages
+  // the ANVIL BREECH on BASTION's heavy gun at any plating it reaches; B1's PLATE item, oracle 043ce6256cb5ccf9.)
   grimhold: {
     hero: "bastion", crates: 0, synergy: ["plateroller", "anvil", "spallcatcher"],
     factories: [F("wardworks", 4, 6, [4, 5, "U5"])],
     upgrades: [
-      G(1, "plateroller", 3, 0, 1), G(1, "tollbooth", 3, 1, 1), M(2, "anvil", 0), G(3, "whetstone", 3, 2, 1), G(3, "braceframe", 5, 2, 2),
-      G2(4, "plateroller", 3, 0), M(4, "spallcatcher", 0), X(5, F("armorpress", 6, 6, [6, 5, "U4LU"])), M2(6, "anvil", 0),
-      G(7, "quench", 5, 3), G(7, "temper", 3, 3, 1), G(8, "heatjacket", 5, 5), M2(9, "spallcatcher", 0), G(10, "platebreaker", 5, 4),
+      G(1, "plateroller", 3, 0, 1), G(1, "tollbooth", 3, 1, 1), M(2, "anvil", 0), G(2, "temper", 3, 2, 1),
+      G2(3, "plateroller", 3, 0), G(3, "plateroller", 5, 2, 3), G(3, "whetstone", 3, 3, 1), M(4, "spallcatcher", 0),
+      M2(5, "anvil", 0), G(6, "quench", 5, 3), X(7, F("armorpress", 6, 6, [6, 5, "U4LU"])), G2(9, "quench", 5, 3),
+      G2(10, "temper", 3, 2),
     ],
   },
-  // Hard (tier 3), BASTION. SHIELD WALL: PLATE ROLLER and PINCER on the bulwark belt, a BRACE FRAME, STEAM BREECH in the
-  // socket, PLATE BREAKER from day 5, an ARMOR PRESS into connector 5 on day 9.
+  // SHIELD WALL: a wall of plate on the bulwark belt, broken into damage. Synergy: a PLATE BREAKER on the bulwark belt
+  // from day 5 (each payload takes a plating for 4 more damage) and an ARMOR PRESS into connector 5 from day 8 (plating
+  // every 4 seconds); at good luck a SHIELD WALL from day 8 (oracle 94b9559fbb7da299 (10): his one good-luck-only
+  // synergy part; BASTION's ordinary epic+ cap of 2 holds the other two). A PLATE ROLLER and a BRACE FRAME (days 1-2), a
+  // STEAM BREECH and a SPALL CATCHER (day 3) work the plating; a twin gauge, tempers, a brush, grease, a coil and venom
+  // fill in. Good luck: the temper's second star on day 2, a plate on day 6, a pincer on day 7. (Synergy check: a content
+  // miss for B1, oracle 043ce6256cb5ccf9: a same-price SORTING arm beats the PLATE BREAKER.)
   karsk: {
     hero: "bastion", crates: 0, synergy: ["shieldwall", "platebreaker", "armorpress"],
     factories: [F("wardworks", 4, 6, [4, 5, "U5"])],
     upgrades: [
-      G(1, "plateroller", 3, 0, 1), G(1, "pincer", 3, 1, 1), G(2, "braceframe", 3, 2), M(3, "steambreech", 0), G(3, "temper", 5, 2, 3),
-      G2(4, "plateroller", 3, 0), M(5, "spallcatcher", 0), G(5, "platebreaker", 3, 4), G2(7, "braceframe", 3, 2), G(7, "quench", 3, 3),
-      ...good(G(8, "shieldwall", 5, 3)), X(9, F("armorpress", 6, 6, [6, 5, "U4LU"])),
+      G(1, "plateroller", 3, 0, 1), G(1, "twingauge", 3, 3, 1), G(2, "braceframe", 3, 1), G(2, "temper", 5, 3, 3),
+      M(3, "steambreech", 0), M(3, "spallcatcher", 0), G(4, "staticbrush", 3, 4), G(4, "grease", 3, 5, 1),
+      G(5, "platebreaker", 3, 2), G(5, "coil", 5, 2, 2), soon(2, G2(6, "temper", 5, 3)), ...good(P(6)),
+      ...good(G(7, "pincer", 5, 4, 3)), X(8, F("armorpress", 6, 6, [6, 5, "U4LU"])), ...good(G(8, "shieldwall", 6, 0)),
+      G(9, "venom", 5, 5),
     ],
   },
-  // Dusk stand-in only, FURNACE. TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into
-  // connector 5 (day 2), a TWIN LATCH between them from day 3 so their slugs land as pairs.
+  // ---------------------------------------------------------------- dusk stand-ins only (standInOnly), FURNACE and WEAVER
+  // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
+  // day 6), latched so their slugs land together. Synergy: the TWIN LATCH between them from day 3, the TWIN MOULD, and
+  // TWIN GAUGES on the matched Kiln belt (day 1, 2 stars from day 3; a second gauge on day 6). The pairs pay a TWIN
+  // TRIGGER from day 5 and a COMPOUND BREECH from day 8; a whetstone, a temper, bellows, a pincer, quench and a long haul
+  // fill in.
   lockjaw: {
     hero: "furnace", crates: 0, synergy: ["twinlatch", "twinmould", "twingauge"],
     factories: [F("kiln", 2, 6, [2, 5, "RU4RU"])],
     upgrades: [
-      G(1, "twingauge", 3, 0, 1), G(1, "whetstone", 2, 1, 1), X(2, F("twinmould", 6, 6, [7, 5, "L2U5"]), 1), G(3, "twinlatch", 4, 5),
-      G2(4, "twingauge", 3, 0), G(4, "temper", 2, 2, 1), M(5, "twintrigger", 0), M(6, "compound", 0), G(7, "pincer", 5, 6),
-      G(7, "quench", 4, 2), G2(8, "twinlatch", 4, 5), G(9, "longhaul", 4, 4), M2(9, "twintrigger", 0), G(10, "bellows", 6, 0),
+      G(1, "twingauge", 3, 0, 1), G(1, "whetstone", 2, 1, 1), X(2, F("twinmould", 6, 6, [7, 5, "L2U5"]), 1),
+      G(3, "twinlatch", 4, 5), G2(3, "twingauge", 3, 0), G(4, "temper", 2, 2, 1), G(4, "bellows", 6, 0),
+      M(5, "twintrigger", 0), G(5, "pincer", 5, 6), G2(6, "twinmould", 6, 6), G(6, "twingauge", 2, 3, 1),
+      M(8, "compound", 0), G(9, "quench", 4, 2), G(9, "longhaul", 4, 4),
     ],
   },
-  // Dusk stand-in only, WEAVER. LEAF MAIL: a PLATE ROLLER on a loom belt, STEAM BREECH on gun 1, SPALL CATCHER from day 4,
-  // ANVIL BREECH on gun 2 from day 5.
+  // LEAF MAIL: a PLATE ROLLER on the loom's left belt plates her hull from day 1, and plated her guns fire faster.
+  // Synergy: the PLATE ROLLER, a STEAM BREECH on gun 1 (day 1) and a SPALL CATCHER on gun 1 from day 4 (damage she takes
+  // charges the next shot, soaked plating twice). A mortar on gun 3 (day 3, 2 stars from day 5), flak, venom, a temper,
+  // a pincer, bellows and a splitter hold her near the dusk band. (Synergy check: a content miss for B1, oracle
+  // 043ce6256cb5ccf9: WEAVER's light guns wait for loads, so the STEAM BREECH's faster fire adds almost nothing.)
   thistlemail: {
     hero: "weaver", crates: 0, synergy: ["plateroller", "steambreech", "spallcatcher"],
     factories: [F("loom", 4, 5, [4, 4, "U4"], [3, 5, "L2U5"], [6, 5, "R2U5"])],
     upgrades: [
-      G(1, "plateroller", 0, 0, 1), M(1, "steambreech", 0), G(2, "tollbooth", 3, 0, 1), G(2, "whetstone", 5, 0, 3), G(3, "braceframe", 3, 4, 1),
-      G2(4, "plateroller", 0, 0), M(4, "spallcatcher", 0), M(5, "anvil", 1), M(6, "seamwelder", 1), G(6, "temper", 3, 1, 1),
-      M2(7, "steambreech", 0), G(7, "quench", 5, 1), G(8, "platebreaker", 2, 4, 2), M2(9, "spallcatcher", 0), G(10, "bellows", 2, 0),
+      G(1, "plateroller", 0, 0, 1), M(1, "steambreech", 0), G(2, "venom", 3, 2), G(2, "temper", 3, 0, 1),
+      M(3, "flak", 1), M(3, "mortar", 2), M(4, "spallcatcher", 0), M2(5, "mortar", 2), G(6, "pincer", 5, 2, 3),
+      G(7, "bellows", 7, 0), G(9, "splitter", 3, 3),
     ],
   },
 };
