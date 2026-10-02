@@ -158,6 +158,9 @@ export interface ChaserOpts {
   end?: (run: Run) => void; // called with the run at the end of day 10 (tests)
   literal?: boolean; // the brief's reroll rule read literally: reroll for missing members the caravan can't offer today
   cap?: number; // what-if only: at most this many rerolls a day (a daily reroll cap); absent: none, as in the game
+  // D1 (tools/wave3.ts, the per-run draw), both optional and absent everywhere else, so every run above is unchanged:
+  start?: (run: Run) => void; // called once with the fresh run right after newRun (a draw reads the live run's day)
+  offerable?: (def: string, day: number) => boolean; // the reroll gate instead of `offerable` (a draw narrows it)
 }
 
 /**
@@ -167,6 +170,7 @@ export interface ChaserOpts {
  */
 export function chaserRun(hero: HeroId, members: readonly string[], seed: number, opts: ChaserOpts = {}): ChaserOut {
   const run = newRun(hero, runSeed(hero, seed), `luck-${hero}-${seed}`);
+  opts.start?.(run);
   const seen = members.map(() => 0), shown = members.map(() => 0), ever = members.map(() => 0);
   let rerolls = 0, memberGold = 0, done: number | null = null;
   const missing = (): string[] => {
@@ -218,7 +222,8 @@ export function chaserRun(hero: HeroId, members: readonly string[], seed: number
       if (beyond) break; // a missing member is on offer beyond the purse: no reroll, the gold waits
       const left = missing();
       if (!left.length) break;
-      const findable = opts.literal ? left : left.filter((m) => offerable(m, d));
+      const gate = opts.offerable ?? offerable;
+      const findable = opts.literal ? left : left.filter((m) => gate(m, d));
       if (!findable.length) break;
       const cheapest = Math.min(...findable.map((m) => ITEMS[m].price));
       if (run.gold < REROLL_COST + cheapest) break;
