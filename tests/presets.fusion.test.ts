@@ -55,7 +55,8 @@ describe("live preset purchases obey automatic merging", () => {
   it("each ★2 purchase pays for its acquired copy and keeps the placed survivor", () => {
     for (const id of RIVAL_IDS) for (const day of DAYS) {
       const plan = PLANS[id];
-      let paid = plan.factories.reduce((n, f) => n + ITEMS[f.def].price, 0) + plan.crates * ITEMS.beltcrate.price;
+      // 0.8.0 I1 M3 (oracle 983d875df9706e1c): a base factory is paid for from the day it is owned (rivalBuilds.ts FactoryPlan.at)
+      let paid = plan.factories.filter((f) => (f.at ?? 1) <= day).reduce((n, f) => n + ITEMS[f.def].price, 0) + plan.crates * ITEMS.beltcrate.price;
       // 0.6.2 TUNE-C: the upgrades the warlord deck's luck owns by that day (rivals.ts luckOf; rivalBuilds.ts dayOwned)
       const turretDef = new Map<number, string>();
       for (const u of plan.upgrades.filter((u) => dayOwned(u, luckOf(id)) <= day)) {

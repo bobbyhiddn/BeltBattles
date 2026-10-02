@@ -13,18 +13,23 @@ import { LUCK_CAPS } from "../src/sim/harness/luckCapsData";
 import { LUCK_HEROES, luckMeasures, overCaps, parRunFingerprint, type LuckMeasures } from "../src/sim/harness/luck";
 import { buildCost } from "../src/net/validate";
 import { legalityProblems, SOLD } from "./rivals.legality";
+import { unlockDay } from "../src/game/wares"; // 0.8.0 I1 M3: the per-run draw's unlock ladder
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const STAND_INS = RIVAL_IDS.filter((id) => id !== "matriarch");
 const capsOf = (id: RivalId, day: number, tier: "ordinary" | "good"): LuckMeasures => LUCK_CAPS.caps[RIVALS[id].hero]![day - 1][tier];
 
 /** The first day the caravan can offer `d` (src/game/run.ts rollShop): its rarity must have weight that day
- *  (content.ts rarityWeights: legendaries from day 4; dayPool holds them back until then too), and its merchant must be
- *  able to ride (run.ts baseMerchantWeight: the ARCANE DEALER from day 3, every other merchant from day 1). */
+ *  (content.ts rarityWeights: legendaries from day 4; dayPool holds them back until then too), its merchant must be
+ *  able to ride (run.ts baseMerchantWeight: the ARCANE DEALER from day 3, every other merchant from day 1), and (0.8.0
+ *  I1 M3, oracle 983d875df9706e1c) the per-run draw must have unlocked it (wares.ts unlockDay: epics from day 2). */
 function firstOfferDay(d: ItemDef): number {
   for (let day = 1; day <= RUN_DAYS; day++) {
     if (!(rarityWeights(day)[d.rarity] > 0)) continue;
     if (d.merchant === "arcane" && day <= 2) continue;
+    // 0.8.0 I1 M3 (the per-run draw, DESIGN-wave3.md 4.1; VERIFIED-D1 Q8): no run offers a ware before its unlock day
+    // (wares.ts unlockDay: epics from day 2, the ARCANE DEALER from day 3, legendaries from day 4)
+    if (d.kind !== "supply" && day < unlockDay(d.id, undefined)) continue;
     return day;
   }
   return Infinity;
@@ -106,8 +111,9 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
       const plan = PLANS[id];
       plan.factories.forEach((f, i) => {
         if (i === 0 && f.def === ({ furnace: "kiln", weaver: "loom" } as Record<string, string>)[plan.hero]) return;
-        if (!SOLD.has(f.def)) bad.push(`${id}: day-1 factory ${f.def} is not caravan stock`);
-        else if (firstOfferDay(ITEMS[f.def]) > 1) bad.push(`${id}: day-1 factory ${f.def} is first offered on day ${firstOfferDay(ITEMS[f.def])}`);
+        const at = f.at ?? 1; // 0.8.0 I1 M3: a base factory owned from day `at` (rivalBuilds.ts FactoryPlan.at)
+        if (!SOLD.has(f.def)) bad.push(`${id}: day-${at} factory ${f.def} is not caravan stock`);
+        else if (firstOfferDay(ITEMS[f.def]) > at) bad.push(`${id}: day-${at} factory ${f.def} is first offered on day ${firstOfferDay(ITEMS[f.def])}`);
       });
       for (const u of plan.upgrades) {
         const d = firstDay(u); // the earliest day any luck owns it (better luck may bring it sooner)
