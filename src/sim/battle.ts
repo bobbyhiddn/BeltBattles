@@ -15,7 +15,10 @@ import {
   routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier, type RigHit,
 } from "./deck";
 import { journeyTiles, type JoinLink } from "./deck"; // 0.6.2j: belt joins
-import { makeRaceSide, raceAbsorb, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
+import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (stokers) and E6 (matched belts)
+import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
+import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
+import { inSync } from "./races/foundry"; // 0.8.0 P1 (E2): one pair rule, Foundry's sync rule, for any ammo
 import { effectAt, starsOf } from "./stars";
 import { boostable, overclocked } from "./overclock";
 import { debuffedDamage, segmentBounds, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
@@ -58,6 +61,9 @@ export interface Payload {
   // rides to get that tile's place on the payload's own journey (its own belt's tiles, then the main belt's from the
   // join tile on). Absent on every payload that never joined (0). Copies inherit it.
   journeyOffset?: number;
+  // 0.8.0 P1 (E2): set on a chamber load that pairs (two loads that reach one turret through different intakes within
+  // SYNC_WINDOW, or a FOUNDRY fusion), only in a turret that holds a pair reader (TWIN TRIGGER, SEAM WELDER)
+  paired?: boolean;
 }
 
 export interface BeltAmmo {
@@ -66,6 +72,7 @@ export interface BeltAmmo {
   processed: number; // last tile index whose centre (and hits) was passed
   blocked: boolean;
   via?: number; // 0.6.2j, render: the joining belt it entered this route from (drawn crossing until the join tile's centre)
+  hold?: { g: GateState; arrow: number }; // 0.8.0 P1 (E4): held at a TWIN LATCH arrow's tile centre (absent: free)
 }
 
 /** 0.6.2 BELTSIDE: one arrow of a rig landing on a belt tile (deck.ts RigHit, bound to the rig's state). */
@@ -75,6 +82,7 @@ export interface TileHit {
   tier: HitTier; // R7 tier
   route: number;
   tile: number;
+  matched?: boolean; // 0.8.0 P1 (E6): a TWIN GAUGE hit on a matched belt (deck.ts matchedRoutes; set only on gauge hits)
 }
 
 /** A rig (kind "gate"): machinery on its own cell whose arrows act on the belt tiles they point at. */
@@ -102,6 +110,15 @@ export interface GateState {
   // 0.6.1c ASSEMBLY LINE ★3 HOT START: overclocked (overclock.ts) until this battle time (s). beltside-062c (DESIGN
   // §12 P7): the whole rig, every arrow on any belt, once one of its arrows hits a ★3 Assembly Line's belt
   hotUntil?: number;
+  // 0.8.0 P1, wave 3 (set only on the wave-3 rig that needs it):
+  factoryHits?: number[]; // E3 STOKER: the factories its arrows point at (one uid per arrow); they count for its online test
+  latch?: LatchState; // E4 TWIN LATCH, when both its arrows hit belts: the payload each arrow holds and since when
+}
+
+/** 0.8.0 P1 (E4): a TWIN LATCH whose two arrows hit belts. Arrow i is the latch's hits[i]. */
+export interface LatchState {
+  held: (BeltAmmo | null)[]; // the payload each arrow holds at its tile's centre
+  since: number[]; // battle time each was held
 }
 
 export interface RouteState {
@@ -127,6 +144,8 @@ export interface RouteState {
   // 0.6.2j: set only on a joining belt (legal join). Its payloads go to the main belt at the join tile (Battle.joins),
   // never into a turret: `connected` is false and `turret` -1 here; `join.feeds` is its chain's turret.
   join?: RouteJoin;
+  // 0.8.0 P1 (E4): per tile, the TWIN LATCH arrows that can hold a payload there (set only on a route a holding latch hits)
+  holds?: TileHit[][];
 }
 
 /** 0.6.2j (J1-J6): a joining belt's link into its main belt, read once in makeSide. */
@@ -161,6 +180,10 @@ export interface FactoryState {
   // 0.6.2 TUNE-M, RULE JOIN PACE: the pace its timers run at (produce: the stamping timer and a trigger's cooldown):
   // JOIN_PACE when one of its belts joins another belt, else 1 (exactly as before: dt x 1 is dt)
   pace: number;
+  // 0.8.0 P1 (E3): the STOKER arrows pointing at it and the share each adds (set only on a stoked factory); its timers run
+  // at pace x (1 + the stokes of the active ones). `stoked`: the extra seconds of work they gave it (a counter, not stats)
+  stokers?: { g: GateState; stoke: number }[];
+  stoked?: number;
 }
 
 export interface TurretState {
@@ -203,6 +226,13 @@ export interface TurretState {
   salvage: number;
   longRideFlat: number; // LONGCASE: damage on other ammo after its belt-ride threshold
   longRideMin: number;
+  // 0.8.0 P1, wave 3 (from its gear and core; absent without them, so the turret fires exactly as before):
+  pairing?: boolean; // E2: it holds a pair reader (TWIN TRIGGER, SEAM WELDER), so its loads are marked as pairs
+  pairBonus?: number; // TWIN TRIGGER: a paired load deals this share more damage
+  seam?: { pair: number; lone: number }; // SEAM WELDER: plating for each pairing load, and for each other load
+  spall?: { every: number; add: number; max: number }; // SPALL CATCHER
+  spallCharge?: number; // SPALL CATCHER: damage waiting for its next shot
+  plated?: boolean; // STEAM BREECH: your hull holds plating this tick (Battle.chambers)
 }
 
 export interface HullState {
@@ -261,6 +291,14 @@ export interface SideState {
   stats: SideStats;
   race?: RaceSide; // races: race mechanics state; undefined for Furnace and Weaver
   joiners?: RouteState[]; // 0.6.2j (J5): the joining belts, lowest last-cell key first; absent without joins
+  // 0.8.0 P1 (E1, the Prime's Q4): every side's plating pool, made in makeSide. It stays at 0 without a plating source
+  // (absorb then hands back the damage unchanged). A race side's RaceSide.plating IS this object (BASTION's plateOnLoad
+  // writes it; H1's plating bar reads either).
+  plate: PlateState;
+  // 0.8.0 P1, wave 3 (set only when the side holds the part that needs it):
+  pairs?: WeakMap<Payload, { at: number; route: number }>; // E2: when and through which route each chamber load entered
+  latches?: GateState[]; // E4: its TWIN LATCHes whose two arrows hit belts
+  spall?: TurretState[]; // SPALL CATCHER: its turrets carrying one
 }
 
 export interface Projectile {
@@ -309,6 +347,11 @@ export type SimEvent =
   | { type: "burn"; side: Side; dmg: number }
   | { type: "poison"; side: Side; dmg: number }
   | { type: "keg"; side: Side; gate: number }
+  // 0.8.0 P1, wave 3: fired only by wave-3 parts (a race hero fires what it fired before)
+  | { type: "plate"; side: Side; amount: number; plate: number } // E1: plating added (+) or spent (-); `plate`: the pool after
+  | { type: "pair"; side: Side; turret: number } // E2: two loads paired in a pair-reading turret (a FOUNDRY fusion too)
+  | { type: "hold" | "release"; side: Side; gate: number; route: number } // E4: a TWIN LATCH holds or lets go a payload
+  | { type: "brace"; side: Side; gate: number; saved: number } // BRACE FRAME: seconds it took off an enemy stall, freeze or slow
   | { type: "wind"; dmg: number }
   | { type: "windwarn" }
   | { type: "end"; winner: Side | -1 };
@@ -401,6 +444,8 @@ export class Battle {
     const hits = rigHits(b);
     const asm = assemblyLines(b, claims, occ, hits); // 0.6.1c ASSEMBLY LINE (empty without one: commissioning as before)
     const links: { link: JoinLink; feeds: number }[] = []; // 0.6.2j: the joining belts' legal joins, by route index
+    // 0.8.0 P1 (E6): which belts are matched, read only when the side holds a TWIN GAUGE (static: lengths never change)
+    const matched = gates.some((g) => g.def.gate?.gauge) ? matchedRoutes(b, claims, occ) : undefined;
     const routes: RouteState[] = b.routes.map((r, i) => {
       const info = routeInfo(b, i, claims, occ, hits);
       if (info.join) links[i] = { link: info.join, feeds: info.turret };
@@ -419,6 +464,7 @@ export class Battle {
           g.commissionAt = Math.min(g.commissionAt, at);
         }
         const th: TileHit = { g, dir: h.dir, tier: h.tier, route: i, tile: h.tile };
+        if (matched && g.def.gate?.gauge) th.matched = matched[i]; // 0.8.0 P1 (E6)
         g.hits.push(th);
         if (g.route < 0) {
           g.route = i;
@@ -437,6 +483,13 @@ export class Battle {
       };
     });
     const joiners = joinStates(routes, links); // 0.6.2j (J1-J6): none without joins
+    // 0.8.0 P1 (E4): a TWIN LATCH whose two arrows both hit belts holds payloads; its tiles are marked on their routes.
+    // One arrow on a belt never holds (it only adds damage).
+    const latches = gates.filter((g) => g.def.gate?.latch && g.hits.length === 2);
+    for (const g of latches) {
+      g.latch = { held: [null, null], since: [0, 0] };
+      for (const h of g.hits) (routes[h.route].holds ??= routes[h.route].cells.map(() => []))[h.tile].push(h);
+    }
     // Each Overclocker follows its belt to the first later payload-changing rig. 0.6.2j (J14 (a)): on a joining belt,
     // along the payload's journey (journeyHits): past the join when its own belt has none left, unless the Overclocker
     // also works that main belt (its own payloads would carry it there too)
@@ -463,6 +516,18 @@ export class Battle {
         // 0.6.2 TUNE-M, RULE JOIN PACE: one of its belts joins another (a legal join: joinStates set RouteState.join)
         pace: routes.some((r) => r.factory === p.uid && r.join) ? JOIN_PACE : 1,
       }));
+    // 0.8.0 P1 (E3, the Prime's guard): a STOKER's arrows that point into a factory. Only a stoking rig counts such hits:
+    // they bring it online (at COMMISSION_BASE, x a running ASSEMBLY LINE's factor) and stoke that factory's timers.
+    if (gates.some((g) => g.def.gate?.stoke)) {
+      for (const sh of stokeHits(b)) {
+        const g = gateByUid.get(sh.uid), f = factories.find((x) => x.uid === sh.factory);
+        if (!g || !f) continue;
+        (g.factoryHits ??= []).push(f.uid);
+        (f.stokers ??= []).push({ g, stoke: g.def.gate!.stoke! });
+        f.stoked = 0;
+        g.commissionAt = Math.min(g.commissionAt, asm.own.size ? COMMISSION_BASE * asm.factor : COMMISSION_BASE);
+      }
+    }
     // 0.6.1b: gear and core. 0.6.2s (REQ-BFG-031 S9): one turret per OCCUPIED slot (deck.ts installedTurrets), in
     // slot order, its index the slot index; an empty slot fights with nothing and is no target. With the starting
     // layout that is exactly the hero's turrets 0..n-1, so every older deck fights as before.
@@ -498,12 +563,19 @@ export class Battle {
     turrets.forEach((tu) => {
       targets.push({ kind: "turret", ref: tu.index, cell: -1, x: (tu.def.col0 + tu.def.width / 2) * CELL, y: -9, weight: 2 });
     });
+    const plate = newPlateState(); // 0.8.0 P1 (E1): every hull's plating pool, shared with a race side's RaceSide.plating
+    const spall = turrets.filter((tu) => tu.spall);
     return {
       side, build: b, hero: h, hull, factories, gates, routes, turrets, targets,
       flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, wreckAccepted: 0,
       limpets: [], stats: emptyStats(),
-      race: makeRaceSide(b), // races:
+      race: makeRaceSide(b, plate), // races:
       ...(joiners.length ? { joiners } : {}), // 0.6.2j
+      plate,
+      // 0.8.0 P1, wave 3: E2's pair record only with a pair reader on board; E4's latches; SPALL CATCHER's turrets
+      ...(turrets.some((tu) => tu.pairing) ? { pairs: new WeakMap<Payload, { at: number; route: number }>() } : {}),
+      ...(latches.length ? { latches } : {}),
+      ...(spall.length ? { spall } : {}),
     };
   }
 
@@ -548,7 +620,8 @@ export class Battle {
         if (!g.online && Number.isFinite(g.commissionAt)) g.commissionAt += dt;
       }
       if (stopped) s.stats.disrupted += dt;
-      if (!g.online && !g.wrecked && !g.consumed && g.frozen <= 0 && g.hits.length > 0 && this.t >= g.commissionAt) {
+      // 0.8.0 P1 (E3): a STOKER's factory hits count as hits here (g.factoryHits is set on a stoking rig only)
+      if (!g.online && !g.wrecked && !g.consumed && g.frozen <= 0 && (g.hits.length > 0 || !!g.factoryHits) && this.t >= g.commissionAt) {
         g.online = true;
         this.events.push({ type: "commission", side: s.side, gate: g.uid });
       }
@@ -560,6 +633,7 @@ export class Battle {
         }
       }
     }
+    if (s.latches) for (const g of s.latches) this.latchTick(s, g); // 0.8.0 P1 (E4): releases, before this tick's transport
     for (const r of s.routes) {
       for (let i = 0; i < r.cellDisrupt.length; i++) {
         const stopped = r.cellDisrupt[i] > 0 || r.cellFrozen[i] > 0;
@@ -651,8 +725,10 @@ export class Battle {
         f.seenWreck = s.wreckAccepted;
       }
       if (!f.routes.length || f.disrupted > 0 || f.frozen > 0) continue;
+      // 0.8.0 P1 (E3): a stoked factory's timers run at pace x (1 + its active stokes); every other factory at f.pace
+      const pace = f.stokers ? this.stokedPace(f, dt) : f.pace;
       // 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory's timers run at f.pace (1 for every other factory: dt as before)
-      if (f.triggerCooldown > 0) f.triggerCooldown = Math.max(0, f.triggerCooldown - dt * f.pace);
+      if (f.triggerCooldown > 0) f.triggerCooldown = Math.max(0, f.triggerCooldown - dt * pace);
       if (f.triggerQueue > 0 && f.triggerCooldown <= 0 && this.stamp(s, f)) {
         f.triggerQueue--;
         f.triggerCooldown = 0.6;
@@ -660,7 +736,7 @@ export class Battle {
       // 0.6.1c DOUBLE STAMP / SHOT TOWER: the batch's waiting slugs leave the mouth as AMMO_SPACING frees, round-robin
       // like any stamp. A factory without a batch never has one waiting (pending stays 0).
       if (f.pending > 0 && this.stamp(s, f)) f.pending--;
-      f.timer -= dt * f.pace; // RULE JOIN PACE: a joined factory's cycle takes 1 / pace as long
+      f.timer -= dt * pace; // RULE JOIN PACE: a joined factory's cycle takes 1 / pace as long (0.8.0 P1: and a stoked one's)
       if (f.timer > 0) continue;
       if (s.race && raceProduce(this, s, f, dt)) continue; // races: Crucible twin pour
       if (f.pending === 0 && this.stamp(s, f)) {
@@ -758,7 +834,10 @@ export class Battle {
       let pressure = 0;
       for (let i = 0; i < r.ammo.length; i++) {
         const a = r.ammo[i];
-        const limit = i === 0 ? r.L : r.ammo[i - 1].s - AMMO_SPACING;
+        let limit = i === 0 ? r.L : r.ammo[i - 1].s - AMMO_SPACING;
+        // 0.8.0 P1 (E4): a held payload stays put; one reaching a free, working TWIN LATCH arrow stops at that tile's
+        // centre, so the seconds it waits there are never ride (RACES.md section 0). Only routes a holding latch hits.
+        if (r.holds) limit = this.holdLimit(r, a, limit);
         const ci = Math.min(n - 1, Math.floor(a.s / CELL));
         // 0.6.1c SLAG: a fixed belt speed that speed gates, the speed lock and slows never change (a stalled tile still stops it)
         const fixed = AMMO[a.p.ammo]?.fixedSpeed;
@@ -801,6 +880,7 @@ export class Battle {
           // applyTile's trailing placement, each behind the one before it
           const list = r.gateAt[a.processed];
           if (list.length) this.applyTile(s, a, list, inserts);
+          if (r.holds?.[a.processed].length) this.tryHold(s, r, a); // 0.8.0 P1 (E4): the hold is the tile's last step
         }
         a.s = ns;
       }
@@ -842,6 +922,142 @@ export class Battle {
       a.via = r.index;
       m.ammo.splice(k, 0, a);
     }
+  }
+
+  // ------------------------------------------------------------------------------------- 0.8.0 P1: wave 3's engine
+
+  /** E5 (crossfire, DESIGN-beltside section 8): the other rigs hitting hit h's tile that are working (online, not
+   *  stalled, frozen or wrecked). One arrow of a rig reaches a tile at most once, so hits are rigs. */
+  private crossfire(s: SideState, h: TileHit): number {
+    let n = 0;
+    for (const o of s.routes[h.route].gateAt[h.tile]) {
+      const g = o.g;
+      if (g !== h.g && g.online && !g.wrecked && g.disrupted <= 0 && g.frozen <= 0) n++;
+    }
+    return n;
+  }
+
+  /** E4: is TWIN LATCH `g` working (online, not stalled, frozen or wrecked)? A latch that isn't holds nothing. */
+  private latchWorks(g: GateState): boolean {
+    return g.online && !g.wrecked && g.disrupted <= 0 && g.frozen <= 0;
+  }
+
+  /** E4: payload `a`'s transport limit on a route a holding latch hits: where it is, while held; else the centre of the
+   *  first tile ahead with a working latch arrow that holds nothing, when that comes before `limit`. */
+  private holdLimit(r: RouteState, a: BeltAmmo, limit: number): number {
+    if (a.hold) return Math.min(limit, a.s);
+    for (let t = a.processed + 1; t < r.cells.length; t++) {
+      for (const h of r.holds![t]) {
+        if (!h.g.latch!.held[h.g.hits.indexOf(h)] && this.latchWorks(h.g)) return Math.min(limit, t * CELL + CELL / 2);
+      }
+    }
+    return limit;
+  }
+
+  /** E4: payload `a` has just crossed the centre of tile a.processed (its hits applied): the first working latch arrow
+   *  there that holds nothing holds it, until updateMachinery lets it go (latchTick). */
+  private tryHold(s: SideState, r: RouteState, a: BeltAmmo): void {
+    if (a.hold) return;
+    for (const h of r.holds![a.processed]) {
+      const g = h.g, l = g.latch!, arrow = g.hits.indexOf(h);
+      if (l.held[arrow] || !this.latchWorks(g)) continue;
+      l.held[arrow] = a;
+      l.since[arrow] = this.t;
+      a.hold = { g, arrow };
+      this.events.push({ type: "hold", side: s.side, gate: g.uid, route: r.index });
+      return;
+    }
+  }
+
+  /** E4, each tick before transport: a latch lets both payloads go together on the tick each arrow holds one, one alone
+   *  after `hold` seconds, and everything it holds when it is stalled, frozen or wrecked. */
+  private latchTick(s: SideState, g: GateState): void {
+    const l = g.latch!, works = this.latchWorks(g), both = !!l.held[0] && !!l.held[1];
+    const hold = g.def.gate!.latch!.hold;
+    for (let i = 0; i < l.held.length; i++) {
+      if (l.held[i] && (!works || both || this.t - l.since[i] >= hold - 1e-9)) this.release(s, g, i);
+    }
+  }
+
+  /** E4: latch `g`'s arrow `i` lets its payload go. */
+  private release(s: SideState, g: GateState, i: number): void {
+    const a = g.latch!.held[i];
+    if (!a) return;
+    delete a.hold;
+    g.latch!.held[i] = null;
+    this.events.push({ type: "release", side: s.side, gate: g.uid, route: g.hits[i].route });
+  }
+
+  /** E3: a stoked factory's pace: f.pace x (1 + the stokes of its working STOKERs); counts the extra work in f.stoked. */
+  private stokedPace(f: FactoryState, dt: number): number {
+    let k = 0;
+    for (const st of f.stokers!) if (st.g.online && !st.g.wrecked && st.g.disrupted <= 0 && st.g.frozen <= 0) k += st.stoke;
+    if (k > 0) f.stoked = (f.stoked ?? 0) + dt * f.pace * k;
+    return k > 0 ? f.pace * (1 + k) : f.pace;
+  }
+
+  /** E1: `n` plating onto side s's hull from a wave-3 part, up to PLATE_CAP (the same 24 BASTION's slugs fill); a
+   *  `plate` event when any lands. Returns the plating added. */
+  addPlate(s: SideState, n: number): number {
+    const st = s.plate, add = Math.min(n, PLATE_CAP - st.plate);
+    if (!(add > 0)) return 0;
+    st.plate += add;
+    st.gained += add;
+    if (st.plate > st.peak) st.peak = st.plate;
+    this.events.push({ type: "plate", side: s.side, amount: add, plate: st.plate });
+    return add;
+  }
+
+  /** E1: a wave-3 part spends `n` plating off side s's hull (PLATE BREAKER), at most what it holds; a `plate` event. */
+  spendPlate(s: SideState, n: number): number {
+    const st = s.plate, take = Math.min(n, st.plate);
+    if (!(take > 0)) return 0;
+    st.plate -= take;
+    this.events.push({ type: "plate", side: s.side, amount: -take, plate: st.plate });
+    return take;
+  }
+
+  /**
+   * E2, after a normal load into a pair-reading turret (chambers, dropStore): the load pairs with the turret's last
+   * unpaired load from another route still in the chamber when they entered no more than SYNC_WINDOW apart (FOUNDRY's
+   * sync rule, races/foundry.ts inSync, for any ammo); both are marked and a `pair` event fires. Marks only, no RNG.
+   * Then SEAM WELDER plates the hull: `pair` for a load that paired, `lone` for any other. Returns whether it paired.
+   */
+  private loaded(s: SideState, tu: TurretState, route: number, p: Payload): boolean {
+    const seen = s.pairs!;
+    let paired = false;
+    for (let i = tu.stack.length - 1; i >= 0; i--) {
+      const q = tu.stack[i];
+      if (q === p || q.paired) continue;
+      const m = seen.get(q);
+      if (!m || !inSync(this.t - m.at, m.route === route)) continue;
+      q.paired = true;
+      p.paired = true;
+      paired = true;
+      this.events.push({ type: "pair", side: s.side, turret: tu.index });
+      break;
+    }
+    seen.set(p, { at: this.t, route });
+    if (tu.seam) this.addPlate(s, paired ? tu.seam.pair : tu.seam.lone);
+    return paired;
+  }
+
+  /** SPALL CATCHER: damage that lands on side s charges each of its turrets carrying one: add x (the hull's part + twice
+   *  what plating soaked) / every, up to max. The dark wind never comes through here (hullEffects' wind line). */
+  private spallCharge(s: SideState, hull: number, plate: number): void {
+    const taken = hull + 2 * plate;
+    if (!(taken > 0)) return;
+    for (const tu of s.spall!) {
+      const sp = tu.spall!;
+      tu.spallCharge = Math.min(sp.max, (tu.spallCharge ?? 0) + (sp.add * taken) / sp.every);
+    }
+  }
+
+  /** E2: a FOUNDRY fusion in a pair-reading turret is a pair: the alloy slug is marked, and SEAM WELDER plates `pair`. */
+  private fusionPair(s: SideState, tu: TurretState, alloy: Payload): void {
+    alloy.paired = true;
+    this.events.push({ type: "pair", side: s.side, turret: tu.index });
+    if (tu.seam) this.addPlate(s, tu.seam.pair);
   }
 
   /**
@@ -893,6 +1109,10 @@ export class Battle {
     const copies: BeltAmmo[] = [];
     if (e.flat) p.flat += e.flat;
     if (s.race?.speedLock && e.lockedFlat) p.flat += e.lockedFlat;
+    // 0.8.0 P1, wave 3 (R7 tier 1, additive; each field exists only on its wave-3 rig):
+    if (e.gauge) p.flat += h.matched ? e.gauge.matched : e.gauge.flat; // E6 TWIN GAUGE: more on a matched belt
+    if (e.pincer) p.flat += e.pincer.flat + e.pincer.each * Math.min(e.pincer.max, this.crossfire(s, h)); // E5 PINCER
+    if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
     // 0.6.1p: LONG HAUL ★2/★3 counts at most priorCap prior gates (1 star has no cap)
     if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
     if (e.burn) p.burn += e.burn;
@@ -965,8 +1185,10 @@ export class Battle {
       if (front.s < r.L - 1e-6) continue;
       const tu = turretAt(s, r.turret); // 0.6.2s: by slot
       if (!tu || tu.disrupted > 0 || tu.frozen > 0) continue;
-      if (s.race && raceIntake(this, s, r, tu, front.p)) { // races: alloy fusion (no slot used)
+      const alloy = s.race ? raceIntake(this, s, r, tu, front.p) : null; // races: alloy fusion (no slot used)
+      if (alloy) {
         r.ammo.shift();
+        if (tu.pairing) this.fusionPair(s, tu, alloy); // 0.8.0 P1 (E2): a FOUNDRY fusion is a pair
         continue;
       }
       if (tu.phase === "load" && tu.stack.length < tu.window) { // 0.6.1b: was tu.def.window (the same number)
@@ -974,6 +1196,7 @@ export class Battle {
         r.ammo.shift();
         this.events.push({ type: "load", side: s.side, turret: tu.index });
         if (s.race) raceLoaded(this, s, r, tu, front.p); // races: blank sync stamp, bulwark plating
+        if (tu.pairing) this.loaded(s, tu, r.index, front.p); // 0.8.0 P1 (E2, SEAM WELDER)
       } else if (tu.phase === "fire" && tu.store.length < tu.storeMax) { // 0.6.2 FB-B: a HOPPER ★2/★3 store takes it
         tu.store.push({ p: front.p, route: r.index });
         r.ammo.shift();
@@ -1058,13 +1281,18 @@ export class Battle {
     tu.store = [];
     for (const it of held) {
       const r = s.routes[it.route];
-      if (s.race && raceIntake(this, s, r, tu, it.p)) continue; // races: alloy fusion (no slot used)
+      const alloy = s.race ? raceIntake(this, s, r, tu, it.p) : null; // races: alloy fusion (no slot used)
+      if (alloy) {
+        if (tu.pairing) this.fusionPair(s, tu, alloy); // 0.8.0 P1 (E2)
+        continue;
+      }
       if (tu.stack.length >= tu.window) {
         tu.store.push(it);
         continue;
       }
       tu.stack.push(it.p);
       if (s.race) raceLoaded(this, s, r, tu, it.p); // races: blank sync stamp, bulwark plating
+      if (tu.pairing) this.loaded(s, tu, it.route, it.p); // 0.8.0 P1 (E2): as if it reached its intake now
     }
   }
 
@@ -1243,7 +1471,10 @@ export class Battle {
     // 0.6.1b: a SCATTER pellet's Fray bonus x its share, so Fray isn't multiplied (absent on identity shots)
     const bonus = pr.share !== undefined ? def.hull.fray * FRAY_BONUS * pr.share : def.hull.fray * FRAY_BONUS;
     const total = pr.dmg + bonus + (pr.payload.harass?.kind === "sabot" && hit.kind === "hull" ? 6 : 0);
-    def.hull.hp -= def.race ? raceAbsorb(def, total) : total; // races: bulwark plating soaks first
+    // races: bulwark plating soaks first. 0.8.0 P1 (E1): every hull's plating (0 without a source: the damage unchanged)
+    const hullPart = absorb(def.plate, total);
+    def.hull.hp -= hullPart;
+    if (def.spall) this.spallCharge(def, hullPart, total - hullPart); // SPALL CATCHER
     def.hull.flash = 0.12;
     atk.stats.damage += total;
     if (!pr.noFray && (ammo.fray > 0 || pr.payload.fray)) {
@@ -1480,6 +1711,7 @@ export class Battle {
     for (const c of picked) {
       const r = s.routes[c.route];
       r.ammo.splice(r.ammo.indexOf(c.ammo), 1);
+      if (c.ammo.hold) c.ammo.hold.g.latch!.held[c.ammo.hold.arrow] = null; // 0.8.0 P1 (E4): a ripped payload frees its latch
       this.events.push({ type: "rip", side: s.side, kind: "belt", ref: c.route, cell: Math.floor(c.ammo.s / CELL), payload: c.ammo.p.id });
     }
     return picked.length;
@@ -1532,7 +1764,9 @@ export class Battle {
         const charge = s.limpets[i];
         if (this.t + 1e-9 < charge.at) continue;
         s.limpets.splice(i, 1);
-        s.hull.hp -= s.race ? raceAbsorb(s, charge.blast) : charge.blast;
+        const blast = absorb(s.plate, charge.blast); // 0.8.0 P1 (E1): plating soaks limpet blasts on every hull
+        s.hull.hp -= blast;
+        if (s.spall) this.spallCharge(s, blast, charge.blast - blast); // SPALL CATCHER
         s.hull.flash = 0.12;
         foe.stats.damage += charge.blast;
         if (charge.stall > 0) this.disrupt(s, charge.target, charge.stall, "limpet");
@@ -1546,7 +1780,9 @@ export class Battle {
       }
       s.hull.burns = s.hull.burns.filter((b) => b.t > 0);
       if (burn > 0) {
-        s.hull.hp -= s.race ? raceAbsorb(s, burn) : burn; // races: plating soaks Burn (not the wind)
+        const burnt = absorb(s.plate, burn); // races: plating soaks Burn (not the wind); 0.8.0 P1 (E1): on every hull
+        s.hull.hp -= burnt;
+        if (s.spall) this.spallCharge(s, burnt, burn - burnt); // SPALL CATCHER
         foe.stats.burnDealt += burn;
         foe.stats.damage += burn;
         s.hull.burnShown += burn;
@@ -1559,7 +1795,9 @@ export class Battle {
       if (s.hull.poison.t > 0) {
         const damage = s.hull.poison.stacks * 0.4 * Math.min(dt, s.hull.poison.t);
         s.hull.poison.t = Math.max(0, s.hull.poison.t - dt);
-        s.hull.hp -= s.race ? raceAbsorb(s, damage) : damage;
+        const poisoned = absorb(s.plate, damage); // 0.8.0 P1 (E1): plating soaks poison ticks on every hull
+        s.hull.hp -= poisoned;
+        if (s.spall) this.spallCharge(s, poisoned, damage - poisoned); // SPALL CATCHER
         foe.stats.damage += damage;
         if (damage > 0) this.events.push({ type: "poison", side: s.side, dmg: damage });
         if (s.hull.poison.t === 0) s.hull.poison.stacks = 0;
@@ -1725,14 +1963,24 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     jamCd: 0, disrupted: 0, frozen: 0, perShot: g.perShot, interval: c.intervalMul ? interval * c.intervalMul : interval, recoil: 0, jamFx: 0,
     // 0.6.1p: EXT. CHAMBER ★2/★3 and HOPPER add window slots; HOPPER adds seconds to the core's window time (a
     // GATLING never reads windowTime, cores.ts gatlingReady, so there HOPPER's seconds do nothing; its slots count)
-    waiting: 0, core, window: def.window + g.window, windowTime: g.windowTime ? windowTime + g.windowTime : windowTime,
+    // 0.8.0 P1: TWIN TRIGGER's load time is shorter (a negative windowTime), never below LOAD_FLOOR; HOPPER's longer one
+    // is always above it, so every older turret's load time is unchanged
+    waiting: 0, core, window: def.window + g.window, windowTime: g.windowTime ? Math.max(LOAD_FLOOR, windowTime + g.windowTime) : windowTime,
     spin: c.start ?? 1, lastShot: -1,
     store: [], storeMax: g.store, // 0.6.2 FB-B: HOPPER ★2/★3
     noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher, intercept: g.intercept,
     rerolls: g.rerolls, factoryWeight: g.factoryWeight, alwaysMachine: g.alwaysMachine, charge: 0, salvage: 0,
     longRideFlat: g.longRideFlat, longRideMin: g.longRideMin,
+    // 0.8.0 P1, wave 3's gear (absent without it): E2's pair reader, TWIN TRIGGER, SEAM WELDER, SPALL CATCHER
+    ...(g.pairBonus || g.seam ? { pairing: true } : {}),
+    ...(g.pairBonus ? { pairBonus: g.pairBonus } : {}),
+    ...(g.seam ? { seam: g.seam } : {}),
+    ...(g.spall ? { spall: g.spall, spallCharge: 0 } : {}),
   };
 }
+
+/** 0.8.0 P1: the shortest load time gear can give a turret (TWIN TRIGGER, DESIGN-wave3.md 3.3 module 13). */
+export const LOAD_FLOOR = 0.3;
 
 /** 0.6.1p: turret i's gear at its stars, folded (makeTurret; the inspector and the cruiser art read it too). */
 export interface GearStats {
@@ -1751,11 +1999,15 @@ export interface GearStats {
   alwaysMachine: boolean;
   longRideFlat: number;
   longRideMin: number;
+  // 0.8.0 P1, wave 3's gear (pairBonus 0 and the rest absent without it):
+  pairBonus: number; // TWIN TRIGGER
+  seam?: { pair: number; lone: number }; // SEAM WELDER
+  spall?: { every: number; add: number; max: number }; // SPALL CATCHER
 }
 
 export function gearStats(b: Build, i: number): GearStats {
   const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, store: 0, noJam: false, immune: [], intakeGuard: 0,
-    finisher: 0, intercept: 0, rerolls: 0, factoryWeight: 1, alwaysMachine: false, longRideFlat: 0, longRideMin: 0 };
+    finisher: 0, intercept: 0, rerolls: 0, factoryWeight: 1, alwaysMachine: false, longRideFlat: 0, longRideMin: 0, pairBonus: 0 };
   for (const m of b.mods.filter((m) => m.turret === i)) {
     const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
     if (md?.perShot) out.perShot = Math.max(out.perShot, md.perShot);
@@ -1775,6 +2027,9 @@ export function gearStats(b: Build, i: number): GearStats {
       out.longRideFlat = Math.max(out.longRideFlat, md.longRideFlat);
       out.longRideMin = md.longRideMin ?? 0;
     }
+    if (md?.pairBonus) out.pairBonus = Math.max(out.pairBonus, md.pairBonus); // 0.8.0 P1: TWIN TRIGGER
+    if (md?.seam) out.seam = md.seam; // SEAM WELDER (a turret holds one copy of a def)
+    if (md?.spall) out.spall = md.spall; // SPALL CATCHER
   }
   return out;
 }

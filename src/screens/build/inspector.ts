@@ -24,6 +24,7 @@ import {
   routesOf, turretSellValue, turretSlots, walkRoute, type Build, type RigHit, type RouteWalk, type TimelineHit,
 } from "../../sim/deck";
 import { joinersOf, type WalkJoin } from "../../sim/deck"; // 0.6.2j: belt joins
+import { stokeHits } from "../../sim/deck"; // 0.8.0 P1 (E3): a STOKER's hits are the factories its arrows work
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 
 /**
@@ -308,6 +309,9 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
   const stars = starsOf(p);
   const hits = hitsOfRig(run.build, p.uid);
   const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
+  // 0.8.0 P1 (E3): a STOKER works factories, not belts: its factory hits take off the IDLE mark and lead its panel
+  const stokes = d.gate?.stoke ? stokeHits(run.build).filter((h) => h.uid === p.uid) : [];
+  if (stokes.length) return stokerPanel(run, p.uid, stokes.map((h) => h.factory), arrows);
   const idle = hits.length === 0;
   const on = new Set(hits.map((h) => h.dir)).size;
   const hl = hitLines(hits);
@@ -340,6 +344,39 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
     ],
     labels: [...(x ? [] : ["ROTATE"]), "TO CARGO"],
     idle, x,
+  };
+}
+
+/**
+ * 0.8.0 P1 (E3, DESIGN-beltside section 8's production rigs): a placed STOKER that points at factories: the factories it
+ * works lead (it is never IDLE beside one), then the rig panel's ability text, progress, flavour and hint.
+ */
+function stokerPanel(run: Run, uid: number, factories: number[], arrows: number): RigPanel {
+  const p = itemByUid(run.build, uid)!;
+  const d = defOf(p), stars = starsOf(p);
+  const names = factories.map((f) => `THE ${ITEMS[itemByUid(run.build, f)!.def].name}`);
+  const lead: Block[] = names.map((n): Block => ({ role: "hits", text: `→ STOKES ${n}`, keep: true }));
+  const compact = `→ STOKES ${andList(names)}`;
+  const rest = [
+    ...abilityBlocks(d.id, stars, textOpts(run)),
+    ...progressBlocks(run, d.id, stars),
+    ...flavourBlocks(d.id, stars, 1),
+    hintBlock("TAP TO TURN (OR R). DRAG TO MOVE."),
+  ];
+  const tight: Block[] = [{ role: "hits", text: compact, keep: true }];
+  return {
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    sub: `RIG · ${factories.length}/${arrows} ARROWS ON FACTORIES`, subShort: `RIG · ${factories.length}/${arrows} ON`,
+    body: [...lead, ...rest],
+    variants: [
+      { body: [...tight, ...rest] },
+      { body: rest, sub: `RIG ${compact}` },
+      { body: [...tight, ...rest], tight: true },
+      { body: [...tight, ...noNextPerk(rest)], tight: true },
+      { body: [...tight, ...headlineNext(rest)], tight: true },
+    ],
+    labels: ["ROTATE", "TO CARGO"],
+    idle: false, x: false,
   };
 }
 

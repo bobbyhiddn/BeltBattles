@@ -4,7 +4,7 @@
 
 import { GRID, ITEMS } from "../../sim/content";
 import { canFitGear, canPlaceItem, defOf, hero, isRig, kx, ky, rigArrows, turretSlots, type Build } from "../../sim/deck";
-import { beltIndex, bestSpot, hitsIfPlaced } from "../../sim/beltside";
+import { beltIndex, bestSpot, hitsIfPlaced, stokeSpots, stokesIfPlaced } from "../../sim/beltside";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { bevel, frame, rect, type G } from "../../render/pixel";
 import { drawText } from "../../render/font";
@@ -24,7 +24,8 @@ type Cell = { x: number; y: number; rot?: number };
 export function suggestCell(b: Build, defId: string): Cell | null {
   const def = ITEMS[defId];
   if (def.kind === "gate") {
-    const s = bestSpot(b, defId);
+    // 0.8.0 P1 (E3): a STOKER works factories, so it is suggested beside the most of them
+    const s = def.gate?.stoke ? stokeSpots(b, defId)[0] ?? null : bestSpot(b, defId);
     if (s) return { x: s.x, y: s.y, rot: s.rot };
     for (let k = 0; k < GRID * GRID; k++) if (canPlaceItem(b, defId, kx(k), ky(k)).ok) return { x: kx(k), y: ky(k), rot: 0 };
     return null;
@@ -47,7 +48,9 @@ function ghostSprite(defId: string, t: number): HTMLCanvasElement {
  */
 export function drawRigPreview(g: G, L: BuildLayout, b: Build, defId: string, cell: Cell, rot: number, t: number): number {
   const f = L.frame;
-  const hits = hitsIfPlaced(b, defId, cell.x, cell.y, rot, beltIndex(b));
+  // 0.8.0 P1 (E3): a STOKER's arrows work the factories they point at (its belt arrows do nothing)
+  const hits: { dir: number; cell: number }[] = ITEMS[defId]?.gate?.stoke
+    ? stokesIfPlaced(b, defId, cell.x, cell.y, rot) : hitsIfPlaced(b, defId, cell.x, cell.y, rot, beltIndex(b));
   const pulse = Math.floor(t * 6) % 2 === 1;
   for (const h of hits) {
     const tx = Math.round(footX(f, kx(h.cell), ky(h.cell))), ty = Math.round(footY(f, kx(h.cell), ky(h.cell)));
@@ -106,7 +109,9 @@ function liftedArrows(L: BuildLayout, b: Build, c: Carry, cell: Cell | null): Li
   const rot = cell?.rot ?? c.rot ?? 0;
   const dirs = rigArrows(c.def, rot);
   const chk = cell ? canPlaceItem(b, c.def, cell.x, cell.y, c.src.from === "deck" ? c.uid : -1) : null;
-  const hits = cell && chk?.ok ? hitsIfPlaced(b, c.def, cell.x, cell.y, rot, beltIndex(b)) : [];
+  const stoker = !!ITEMS[c.def]?.gate?.stoke; // 0.8.0 P1 (E3): its hits are the factories its arrows work
+  const hits: { dir: number }[] = !cell || !chk?.ok ? []
+    : stoker ? stokesIfPlaced(b, c.def, cell.x, cell.y, rot) : hitsIfPlaced(b, c.def, cell.x, cell.y, rot, beltIndex(b));
   const states = dirs.map((d): ArrowState => (hits.some((h) => h.dir === d) ? 1 : 0));
   const sd = dirs.map((d) => sdir(L.frame, d));
   if (!cell) return { dirs: sd, states, label: "", color: C.slate4 };

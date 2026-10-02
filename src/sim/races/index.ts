@@ -23,6 +23,8 @@ export { isRaceHero, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceHeroId } from 
 export interface RaceSide {
   hero: Build["hero"];
   foundry: FoundryState;
+  // 0.8.0 P1 (E1): the side's plating pool, the same object as SideState.plate (every hull has one now). BASTION's
+  // plateOnLoad writes it; H1's plating bar reads it here (or SideState.plate, for any plated hull).
   plating: PlateState;
   speedLock: boolean; // METRONOME: every belt at 1x, immune to Drag
   shift: number[]; // METRONOME: pendulum sweet-spot shift per turret (ESCAPEMENT / LONGCASE)
@@ -30,23 +32,24 @@ export interface RaceSide {
   echo: EchoState; // SIPHON: echo memory
 }
 
-function newRaceSide(b: Build): RaceSide {
+/** 0.8.0 P1 (E1): `plating` is the side's own pool (SideState.plate), so the race side and the side share one object. */
+function newRaceSide(b: Build, plating: PlateState = newPlateState()): RaceSide {
   return {
-    hero: b.hero, foundry: newFoundryState(), plating: newPlateState(), speedLock: speedLocked(b.hero),
+    hero: b.hero, foundry: newFoundryState(), plating, speedLock: speedLocked(b.hero),
     shift: turretSlots(b).map((s) => pendulumShift(b, s.slot)), // 0.6.2s: per slot (an empty one has no mods: 0)
     drag: newDragState(b.routes), echo: newEchoState(),
   };
 }
 
-export function makeRaceSide(b: Build): RaceSide | undefined {
-  return isRaceHero(b.hero) ? newRaceSide(b) : undefined;
+export function makeRaceSide(b: Build, plating?: PlateState): RaceSide | undefined {
+  return isRaceHero(b.hero) ? newRaceSide(b, plating) : undefined;
 }
 
 /** Once both sides exist: a Furnace or Weaver side facing a SIPHON gets state for its Drag. */
 export function raceLink(sides: readonly SideState[]): void {
   for (const s of sides) {
     const foe = sides[s.side === 0 ? 1 : 0];
-    if (!s.race && foe.build.hero === "siphon") s.race = newRaceSide(s.build);
+    if (!s.race && foe.build.hero === "siphon") s.race = newRaceSide(s.build, s.plate);
   }
 }
 
@@ -55,13 +58,14 @@ export function raceProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: numb
   return crucibleProduce(ctx, s, f, dt) || sumpProduce(ctx, s, f, dt);
 }
 
-/** Intake hook, before the normal load. True when the payload was consumed (fused). */
-export function raceIntake(ctx: SimCtx, s: SideState, r: RouteState, tu: TurretState, p: Payload): boolean {
+/** Intake hook, before the normal load. The alloy slug (truthy) when the payload was consumed (fused), else null.
+ *  0.8.0 P1 (E2): the caller marks the alloy as a pair (a FOUNDRY fusion is a pair) in a pair-reading turret. */
+export function raceIntake(ctx: SimCtx, s: SideState, r: RouteState, tu: TurretState, p: Payload): Payload | null {
   const alloy = s.race ? tryFuse(ctx, s.race.foundry, r.index, tu, p) : null;
-  if (!alloy) return false;
+  if (!alloy) return null;
   ctx.events.push({ type: "load", side: s.side, turret: tu.index });
   ctx.events.push({ type: "fuse", side: s.side, turret: tu.index, dmg: alloyDamage(alloy) });
-  return true;
+  return alloy;
 }
 
 /** After a normal load into a chamber. */
@@ -72,9 +76,10 @@ export function raceLoaded(ctx: SimCtx, s: SideState, r: RouteState, _tu: Turret
   echoOnLoad(s.race.echo, p);
 }
 
-/** Damage that reaches this side's hull after plating. */
+/** Damage that reaches this side's hull after plating. 0.8.0 P1 (E1): every side's pool (SideState.plate; 0 plating
+ *  hands back the damage unchanged), which a race side shares as RaceSide.plating. */
 export function raceAbsorb(s: SideState, dmg: number): number {
-  return s.race ? absorb(s.race.plating, dmg) : dmg;
+  return absorb(s.plate, dmg);
 }
 
 /** Drag factor for a payload in cell `ci`: DRAG_MULT while dragged (that movement isn't ride), else 1. */

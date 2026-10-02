@@ -177,10 +177,11 @@ export function beltIndex(b: Build, only?: (ri: number) => boolean): Map<number,
   return m;
 }
 
-/** The hits a rig of `def` at rotation `rot` would make standing on (x, y) (R5), against `belts`. */
+/** The hits a rig of `def` at rotation `rot` would make standing on (x, y) (R5), against `belts`. 0.8.0 P1 (E3): none
+ *  for a stoking rig (STOKER), whose arrows do nothing to belts: stokesIfPlaced reads its factory hits. */
 export function hitsIfPlaced(b: Build, def: string, x: number, y: number, rot: number, belts = beltIndex(b)): WouldHit[] {
   const out: WouldHit[] = [];
-  if (!inGrid(x, y) || belts.has(key(x, y))) return out;
+  if (!inGrid(x, y) || belts.has(key(x, y)) || ITEMS[def]?.gate?.stoke) return out;
   for (const dir of rigArrows(def, rot)) {
     const k = arrowCell(x, y, dir);
     const w = k >= 0 ? belts.get(k) : undefined;
@@ -276,6 +277,66 @@ export function bestSpot(b: Build, def: string, only?: (ri: number) => boolean):
     });
   });
   return best;
+}
+
+// ---------------------------------------------------------------- 0.8.0 P1 (E3): rigs that work factories
+
+/** E3: one arrow of a stoking rig that would point into a factory's footprint (deck.ts stokeHits, before placing). */
+export interface WouldStoke {
+  dir: Dir;
+  cell: number; // the footprint cell it points at
+  factory: number; // the factory's uid
+}
+
+/** E3: the factory hits a STOKER of `def` at rotation `rot` would make standing on (x, y); [] for any other rig (R5:
+ *  its arrows at machinery stay idle). */
+export function stokesIfPlaced(b: Build, def: string, x: number, y: number, rot: number): WouldStoke[] {
+  const out: WouldStoke[] = [];
+  if (!ITEMS[def]?.gate?.stoke || !inGrid(x, y)) return out;
+  for (const dir of rigArrows(def, rot)) {
+    const k = arrowCell(x, y, dir);
+    if (k < 0) continue;
+    const f = b.items.find((p) => ITEMS[p.def]?.kind === "factory" && footprint(ITEMS[p.def], p.x, p.y).includes(k));
+    if (f) out.push({ dir, cell: k, factory: f.uid });
+  }
+  return out;
+}
+
+/** E3: a place for a stoking rig: its cell, rotation and the factories its arrows would work. */
+export interface StokeSpot {
+  x: number;
+  y: number;
+  rot: number;
+  stokes: WouldStoke[];
+}
+
+/**
+ * E3 (DESIGN-wave3.md 3.3 module 6: "a candidate cell beside a factory"): the free cells beside factories (no machinery,
+ * no belt, not a turret intake), each at the rotation whose arrows work the most factories (ties: the lowest rotation),
+ * most factories first, then deck order (factories in deck order, the cells around each in D3 direction order). [] for a
+ * rig that doesn't stoke.
+ */
+export function stokeSpots(b: Build, def: string, occ = occupancy(b)): StokeSpot[] {
+  if (!ITEMS[def]?.gate?.stoke) return [];
+  const out: StokeSpot[] = [];
+  const seen = new Set<number>();
+  for (const f of b.items) {
+    const d = ITEMS[f.def];
+    if (d?.kind !== "factory") continue;
+    const fp = new Set(footprint(d, f.x, f.y));
+    for (const k of fp) for (const dir of [0, 1, 2, 3] as Dir[]) {
+      const c = arrowCell(kx(k), ky(k), dir);
+      if (c < 0 || fp.has(c) || seen.has(c) || !freeForRig(b, c, occ) || intakeCell(b, c)) continue;
+      seen.add(c);
+      let best: StokeSpot | null = null;
+      for (const rot of rotations(def)) {
+        const stokes = stokesIfPlaced(b, def, kx(c), ky(c), rot);
+        if (!best || stokes.length > best.stokes.length) best = { x: kx(c), y: ky(c), rot, stokes };
+      }
+      if (best && best.stokes.length) out.push(best);
+    }
+  }
+  return out.sort((a, c) => c.stokes.length - a.stokes.length); // stable: deck order within a count
 }
 
 /** Place a rig at a spot (the caller checked it is free): the item with its rot field. */

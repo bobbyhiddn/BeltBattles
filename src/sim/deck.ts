@@ -299,6 +299,7 @@ export function rigHits(b: Build): RigHit[][][] {
   for (const p of b.items) {
     const d = ITEMS[p.def];
     if (!d || d.kind !== "gate" || where.has(key(p.x, p.y))) continue;
+    if (d.gate?.stoke) continue; // 0.8.0 P1 (E3): a STOKER's arrows do nothing to belts; they work factories (stokeHits)
     const tier = hitTier(effectAt(p.def, starsOf(p)).gate);
     for (const dir of arrowsOf(p)) {
       const k = arrowCell(p.x, p.y, dir);
@@ -317,6 +318,56 @@ export function hitsOfRig(b: Build, uid: number, hits = rigHits(b)): RigHit[] {
   const out: RigHit[] = [];
   for (const r of hits) for (const t of r) for (const h of t) if (h.uid === uid) out.push(h);
   return out;
+}
+
+/** 0.8.0 P1 (E3, DESIGN-beltside section 8's production rigs): one arrow of a rig pointing into a factory's footprint. */
+export interface FactoryHit {
+  uid: number; // the rig
+  def: string;
+  dir: Dir; // the arrow's absolute deck-local direction
+  factory: number; // the factory's uid
+  cell: number; // the footprint cell the arrow points at
+}
+
+/** E3: every rig arrow whose cell lies in a factory's footprint, in deck order (rigs, then their arrows in shape order).
+ *  R5 keeps such an arrow idle for every rig but a stoking one (stokeHits). */
+export function rigFactoryHits(b: Build): FactoryHit[] {
+  const at = new Map<number, number>(); // footprint cell -> factory uid
+  for (const p of b.items) {
+    const d = ITEMS[p.def];
+    if (d?.kind === "factory") for (const k of footprint(d, p.x, p.y)) at.set(k, p.uid);
+  }
+  const out: FactoryHit[] = [];
+  if (!at.size) return out;
+  for (const p of b.items) {
+    if (ITEMS[p.def]?.kind !== "gate") continue;
+    for (const dir of arrowsOf(p)) {
+      const k = arrowCell(p.x, p.y, dir);
+      const f = k >= 0 ? at.get(k) : undefined;
+      if (f !== undefined) out.push({ uid: p.uid, def: p.def, dir, factory: f, cell: k });
+    }
+  }
+  return out;
+}
+
+/** E3 (the Prime's guard, VERIFIED-D1 Q6): the factory hits that count, those of a rig whose effect stokes (STOKER). Only
+ *  these bring a rig online without a belt hit, and only these take off its IDLE mark. [] on a deck without a stoker. */
+export function stokeHits(b: Build): FactoryHit[] {
+  if (!b.items.some((p) => ITEMS[p.def]?.gate?.stoke)) return [];
+  return rigFactoryHits(b).filter((h) => ITEMS[h.def]?.gate?.stoke);
+}
+
+/**
+ * 0.8.0 P1 (E6, TWIN GAUGE): route i is MATCHED when another connected route into the same turret has the same journey
+ * length in tiles (journeyTiles: a joined belt counts its whole journey). Route lengths never change in a battle, so this
+ * is static (Battle.makeSide reads it once). One entry per route.
+ */
+export function matchedRoutes(b: Build, claims = connectorClaims(b), occ = occupancy(b)): boolean[] {
+  const feed = b.routes.map((_, i) => {
+    const info = routeInfo(b, i, claims, occ);
+    return info.connected && info.turret >= 0 ? { turret: info.turret, tiles: journeyTiles(b, i, occ) } : null;
+  });
+  return feed.map((f, i) => !!f && feed.some((o, j) => j !== i && !!o && o.turret === f.turret && o.tiles === f.tiles));
 }
 
 export interface RouteInfo {
@@ -468,6 +519,9 @@ export interface TimelineHit {
   split?: { copies: number; mult: number };
   speed?: number; // a speed hit's state
   won?: boolean; // its speed holds the tile (R7 item 4); false: a bigger change on the same tile beat it
+  // 0.8.0 P1, wave 3 (set only on a wave-3 rig's hit; its flat above holds the damage it adds):
+  matched?: boolean; // E6 TWIN GAUGE: its belt is matched (matchedRoutes)
+  others?: number; // E5 PINCER: the other rigs hitting its tile that it counts (at most its max)
 }
 
 /** One belt tile with hits, in the walk's order; `speed` is the belt's speed state from this tile on. */
@@ -541,6 +595,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   // belt's pulse again when the same valve (a two-belt spot: an arrow on this belt and one on the main belt before the
   // join tile) already paid on an earlier leg. A walk with no join is unchanged.
   const pulsed = new Set<number>();
+  // 0.8.0 P1 (E6): which belts are matched, read only when a TWIN GAUGE hits one of the walk's tiles
+  let matched: boolean[] | undefined;
   const n = path.length;
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];
@@ -615,6 +671,22 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
         th.shock = true;
       }
       if (e.siftClean) { flat += e.siftClean; th.flat = (th.flat ?? 0) + e.siftClean; }
+      // 0.8.0 P1, wave 3 (as Battle.applyHit; every rig online in the walk):
+      if (e.gauge) { // E6: matched when another connected belt into the same turret has as many tiles
+        matched ??= matchedRoutes(b);
+        const m = !!matched[ri], amount = m ? e.gauge.matched : e.gauge.flat;
+        flat += amount;
+        th.flat = (th.flat ?? 0) + amount;
+        th.matched = m;
+      }
+      if (e.pincer) { // E5: every other rig's hit on this tile, up to its max
+        const others = Math.min(e.pincer.max, (hits[ri]?.[tile] ?? []).filter((o) => o.uid !== h.uid).length);
+        const amount = e.pincer.flat + e.pincer.each * others;
+        flat += amount;
+        th.flat = (th.flat ?? 0) + amount;
+        th.others = others;
+      }
+      if (e.latch) { flat += e.latch.flat; th.flat = (th.flat ?? 0) + e.latch.flat; } // TWIN LATCH (its hold is E4: no ride)
       if (e.heat) heat += e.heat;
       if (e.sort) copies *= 1 + (e.sort.copies - 1) / e.sort.every;
       if (e.pulse) {
