@@ -7,6 +7,10 @@
 //   the dusk fights a run meets. (b) The par field against itself, per hero pair (FURNACE-FURNACE, FURNACE-WEAVER,
 //   WEAVER-WEAVER), every pair of distinct members.
 // - A pairing's median is the median of its 2 x seeds battles; fight-length-floor flags pairings under the target.
+// - 0.8.0 H1 M6 (REQ-BFG-026): (b)'s battles also count the first hero's points (a win 1, a draw 1/2), so each hero
+//   pairing has a win rate: winrate-pairing-band (every pairing of two different heroes, per day) and
+//   winrate-hero-average (each hero's mean over its pairings with the other heroes, per day). The heroes are
+//   PLAYABLE_HEROES; with FOUNDRY and BASTION playable their par fields meet FURNACE's and WEAVER's.
 // Each day is written to <out>/sc-fights-d<day>.json as soon as it is done; the rows are rebuilt from every day file
 // present, so --days can split the run across shell calls.
 
@@ -38,7 +42,8 @@ export function parseDetail(detail: string): { t: number; a: number }[] {
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
 interface StandInOut { hero: HeroId; cost: number; served: number; captains: string[]; vs: Record<string, { pts: number; n: number }>; t: number[]; pairs: { hero: string; m: number; med: number }[] }
-interface PairOut { key: string; t: number[]; pairs: { a: number; b: number; med: number }[] }
+// 0.8.0 H1 M6: pts and n, the first hero's points over the pairing's battles (absent in a day file made before)
+interface PairOut { key: string; t: number[]; pairs: { a: number; b: number; med: number }[]; pts?: number; n?: number }
 interface DayFile { day: number; k: number; seeds: number; standinSeeds: number; label: string; heroes: string[]; seconds: number; battles: number; standins: StandInOut[]; pairs: PairOut[] }
 
 const dayPath = (out: string, day: number) => resolve(out, `sc-fights-d${day}.json`);
@@ -82,9 +87,11 @@ async function runDay(day: number, o: FightsOpts, detail: (f: Build[], j: Job[])
       si.pairs.push({ hero: h, m: g.m, med: r2(med) });
     } else {
       const g = tagB[x - nA];
-      const p = pairs.get(g.key) ?? { key: g.key, t: [], pairs: [] };
+      const p = pairs.get(g.key) ?? { key: g.key, t: [], pairs: [], pts: 0, n: 0 };
       p.t.push(...bs.map((b) => r2(b.t)));
       p.pairs.push({ a: g.a, b: g.b, med: r2(med) });
+      p.pts = (p.pts ?? 0) + bs.reduce((q, b) => q + b.a, 0); // 0.8.0 H1 M6: the first hero's points
+      p.n = (p.n ?? 0) + bs.length;
       pairs.set(g.key, p);
     }
   });
@@ -155,6 +162,23 @@ export function assemble(targets: Target[], out: string): { rows: Row[]; section
     ...(missing.length ? [`Days not yet run: ${missing.join(", ")}.`] : []),
     ...(setups.length > 1 ? [`WARNING: the day files were made with different settings (${setups.join(" | ")}); re-run every day with one setting.`] : []),
   ];
+  // 0.8.0 H1 M6 (REQ-BFG-026): each pairing of two different heroes' win rate (the first hero's), and each hero's mean
+  // over its pairings, per day; the F/W columns read only its pairings with FURNACE and WEAVER
+  const wins: { day: number; h1: string; h2: string; rate: number; n: number }[] = [];
+  for (const f of files) for (const p of f.pairs) {
+    const [h1, h2] = p.key.split("-");
+    if (h1 !== h2 && p.n) wins.push({ day: f.day, h1, h2, rate: (p.pts ?? 0) / p.n, n: p.n });
+  }
+  const rateOf = (day: number, h: string, vs: string): number | undefined => {
+    const w = wins.find((x) => x.day === day && ((x.h1 === h && x.h2 === vs) || (x.h1 === vs && x.h2 === h)));
+    return w ? (w.h1 === h ? w.rate : 1 - w.rate) : undefined;
+  };
+  const avgs: { day: number; hero: string; all: number; fw: number }[] = [];
+  for (const f of files) for (const h of f.heroes) {
+    const others = f.heroes.filter((x) => x !== h).map((x) => rateOf(f.day, h, x)).filter((x): x is number => x !== undefined);
+    const fw = ["furnace", "weaver"].filter((x) => x !== h).map((x) => rateOf(f.day, h, x)).filter((x): x is number => x !== undefined);
+    if (others.length) avgs.push({ day: f.day, hero: h, all: mean(others), fw: fw.length ? mean(fw) : NaN });
+  }
   const lenT = targets.find((t) => t.id === "fight-length-median");
   const lenC = lenT ? cmpOf(lenT) : null;
   const outside = lenC && lenC.kind === "band" ? kinds.filter((k) => k.median < lenC.lo || k.median > lenC.hi) : [];
@@ -175,6 +199,16 @@ export function assemble(targets: Target[], out: string): { rows: Row[]; section
   rows.push(row(targets, "filler-vs-par", rangeOf(filler.map((x) => x.w)), "(stand-in win rate vs par, per day; CHECK ONLY)",
     [`Per day (served-weighted): ${filler.map((x) => `d${x.day} ${fmt(x.w)}`).join(", ")}.`, `Unweighted mean over the day's decks: ${filler.map((x) => `d${x.day} ${fmt(x.u)}`).join(", ")}.`,
       "The official value comes from parBench --rivals.", ...miss], filler));
+  if (wins.length) {
+    // 0.8.0 H1 M6: the cross-hero table's two rows, from (b)'s par-vs-par battles
+    const out = wins.filter((w) => w.rate < 0.35 || w.rate > 0.65);
+    rows.push(row(targets, "winrate-pairing-band", rangeOf(wins.map((w) => w.rate)), "(first hero's win rate, per day and pairing of two heroes' par fields)",
+      [out.length ? `Outside 35-65%: ${out.map((w) => `d${w.day} ${w.h1} vs ${w.h2} ${fmt(w.rate)}`).join(", ")}.` : "Every pairing inside 35-65%.",
+        f0 ? `K ${f0.k} par decks per hero, ${f0.seeds} seeds x both sides per pair of members.` : "", ...miss].filter(Boolean), wins));
+    const outA = avgs.filter((a) => a.all < 0.45 || a.all > 0.55);
+    rows.push(row(targets, "winrate-hero-average", rangeOf(avgs.map((a) => a.all)), "(each hero's mean win rate over its pairings, per day)",
+      [outA.length ? `Outside 45-55%: ${outA.map((a) => `d${a.day} ${a.hero} ${fmt(a.all)}`).join(", ")}.` : "Every hero's average inside 45-55%.", ...miss], avgs));
+  }
   const sections: Section[] = [{
     title: "Fight length per day and matchup (game seconds at 1x)",
     lines: [
@@ -186,5 +220,17 @@ export function assemble(targets: Target[], out: string): { rows: Row[]; section
         filler.map((x) => [x.day, fmt(x.w), ...Object.values(x.per).map((v) => fmt(v)), fmt(x.u), files.find((f) => f.day === x.day)?.standins.length ?? "-", fmt(files.find((f) => f.day === x.day)?.seconds ?? NaN, 0)])),
     ],
   }];
+  if (wins.length) {
+    sections.push({
+      title: "Win rates per hero pairing (par field vs par field) and each hero's average",
+      lines: [
+        "Each pairing: every member of the first hero's par field against every member of the second's, seeds x both sides; the first hero's win rate (draws half). Band 35-65%.", "",
+        ...mdTable(["day", "pairing", "first hero's win rate", "battles", "in 35-65%"], wins.map((w) => [w.day, `${w.h1} vs ${w.h2}`, fmt(w.rate), w.n, w.rate >= 0.35 && w.rate <= 0.65 ? "yes" : "NO"])),
+        "",
+        ...mdTable(["day", "hero", "average vs the other heroes", "average vs FURNACE and WEAVER", "in 45-55% (all)"],
+          avgs.map((a) => [a.day, a.hero, fmt(a.all), Number.isNaN(a.fw) ? "-" : fmt(a.fw), a.all >= 0.45 && a.all <= 0.55 ? "yes" : "NO"])),
+      ],
+    });
+  }
   return { rows, sections, meta: { days: files.map((f) => f.day), missing, k: f0?.k, seeds: f0?.seeds, standinSeeds: f0?.standinSeeds, dayLabels: [...new Set(files.map((f) => f.label))], daySeconds: files.map((f) => ({ day: f.day, seconds: f.seconds, battles: f.battles })) } };
 }
