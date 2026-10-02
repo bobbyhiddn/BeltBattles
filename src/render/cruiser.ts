@@ -23,6 +23,7 @@ import { coreFor } from "../sim/deck"; // 0.6.1b: the core socket
 import { starsOf } from "../sim/stars"; // 0.6.1b
 import { gemColor } from "./coreArt"; // 0.6.1b
 import { gearStats, turretAt } from "../sim/battle"; // 0.6.1p: the gear's window slots (EXT. CHAMBER, HOPPER); 0.6.2s: by slot
+import { wave3GearFace } from "./wave3Art"; // 0.8.0 A1: wave 3's gear on the gun
 
 /** 0.6.1p: the hardpoint box colour per gear (catalogue.json art); anything else keeps 0.6.0's cyan. */
 const GEAR_BOX: Record<string, string> = { chamber: C.lime, hopper: C.brass3, mantlet: C.steel3, ram: C.red };
@@ -311,9 +312,14 @@ export function drawTurrets(g: G, v: CruiserView): void {
       if (mods[m].turret !== i || ITEMS[mods[m].def]?.kind === "core") continue; // 0.6.1b: gear only (the core has its socket)
       const bu = -pu - 5 - 6 * gi++;
       trect(g, f, px, py, bu, -3, 5, 5, C.ink);
-      trect(g, f, px, py, bu + 1, -2, 3, 3, GEAR_BOX[mods[m].def] ?? C.cyan);
-      if (mods[m].def === "mantlet") trect(g, f, px, py, bu + 2, -1, 1, 1, C.white); // MANTLET: one white rivet
-      else trect(g, f, px, py, bu + 2, -2, 1, 3, C.white);
+      // 0.8.0 A1: a wave-3 gear piece shows its own 3x3 face (wave3Art.ts wave3GearFace); every other piece as before
+      const face = wave3GearFace(mods[m].def);
+      if (face) face.forEach((col, k) => trect(g, f, px, py, bu + 1 + (k % 3), -2 + Math.floor(k / 3), 1, 1, col));
+      else {
+        trect(g, f, px, py, bu + 1, -2, 3, 3, GEAR_BOX[mods[m].def] ?? C.cyan);
+        if (mods[m].def === "mantlet") trect(g, f, px, py, bu + 2, -1, 1, 1, C.white); // MANTLET: one white rivet
+        else trect(g, f, px, py, bu + 2, -2, 1, 3, C.white);
+      }
       starPips(g, f, px, py, bu, 3, starsOf(mods[m])); // 0.6.1b: 2 or 3 pips beside the hardpoint box
     }
     // 0.6.1b: the core socket (ARSENAL.md §8.4): a 6x6 hexagon gem at the rear of the mount, on the side away
