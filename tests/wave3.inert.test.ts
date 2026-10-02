@@ -31,9 +31,10 @@ interface Tally {
   dealt: number; // damage dealt to the foe's hull and plating
 }
 
-function tally(b: Build, foe: Build, turret: number, secs = SECS): Tally {
+function tally(b: Build, foe: Build, turret: number, secs = SECS, plate = 0): Tally {
   const t: Tally = { plate: 0, spent: 0, braced: 0, holds: 0, pairs: 0, process: 0, produce: new Map(), fires: [], spallMax: 0, window: 0, dealt: 0 };
   const bt = new Battle(b, foe, SEED);
+  if (plate) bt.addPlate(bt.sides[0], plate); // `plate` plating on the hull from the start (an unarmed foe never takes it)
   t.window = bt.sides[0].turrets.find((tu) => tu.index === turret)?.windowTime ?? 0;
   const hull0 = bt.sides[1].hull.hp;
   while (bt.t < secs && !bt.over) {
@@ -238,6 +239,21 @@ describe("wave 3, no dead offers: each module does something for each of the six
   });
 });
 
+/**
+ * The Prime's call (oracle f77882b58164404e): STEAM BREECH's smallest deck is the busy-gun deck, the standard REQ-BFG-021
+ * uses for CALIBRATION, EXT. CHAMBER and ESCAPEMENT. On a starting deck a fire-rate part meets a "starved" gun, H1's reason
+ * key (tests/deadOffers.inert.ts in H1's workspace): "The gun it would work on is starved: its belt brings a load less
+ * often than the gun can fire. Firing faster, a wider chamber or another turret on the same belts changes no shot."
+ */
+const STARVED = "starved";
+/** How a part changes the starting deck's shots against the same deck without it: none at all (starved), the same
+ *  shots sooner, or more shots. */
+function shotChange(w: Tally, o: Tally): string {
+  if (w.fires.length > o.fires.length) return "more shots";
+  const same = w.fires.length === o.fires.length && w.fires.every((f, i) => Math.abs(f.t - o.fires[i].t) < 1e-9);
+  return same ? STARVED : "sooner";
+}
+
 describe("fire-rate parts on a starting deck: STEAM BREECH as CALIBRATION (the existing fire-rate gear)", () => {
   it("each hero's starting gun waits for loads, so neither adds a shot there; on a busy gun both do (the record)", () => {
     const rows: string[] = [];
@@ -246,14 +262,21 @@ describe("fire-rate parts on a starting deck: STEAM BREECH as CALIBRATION (the e
       const none = tally(b, barge(), t), steam = tally(withMod(b, UID, "steambreech", t), barge(), t), cal = tally(withMod(b, UID, "calibrate", t), barge(), t);
       const tb = towerFed(hero), tt = gun(tb);
       const tNone = tally(tb, barge(), tt), tSteam = tally(withMod(tb, UID, "steambreech", tt), barge(), tt), tCal = tally(withMod(tb, UID, "calibrate", tt), barge(), tt);
-      rows.push(`| ${hero} | ${none.fires.length} / ${steam.fires.length} / ${cal.fires.length} | ${none.dealt.toFixed(0)} / ${steam.dealt.toFixed(0)} / ${cal.dealt.toFixed(0)} | ${tNone.fires.length} / ${tSteam.fires.length} / ${tCal.fires.length} | ${tNone.dealt.toFixed(0)} / ${tSteam.dealt.toFixed(0)} / ${tCal.dealt.toFixed(0)} |`);
-      // on the starting deck the gun is never the bottleneck: STEAM BREECH adds no shot (nor does CALIBRATION)
+      // the card sells the plated rate: the same busy deck with 24 plating on the hull from the start
+      const tPlated = tally(withMod(tb, UID, "steambreech", tt), barge(), tt, SECS, 24), tPlatedNone = tally(tb, barge(), tt, SECS, 24);
+      const why = [shotChange(steam, none), shotChange(cal, none)];
+      rows.push(`| ${hero} | ${none.fires.length} / ${steam.fires.length} / ${cal.fires.length} | ${why.join(" / ")} | ${tNone.fires.length} / ${tSteam.fires.length} / ${tCal.fires.length} | ${tPlatedNone.fires.length} / ${tPlated.fires.length} | ${tNone.dealt.toFixed(0)} / ${tSteam.dealt.toFixed(0)} / ${tCal.dealt.toFixed(0)} |`);
+      // on the starting deck the gun is never the bottleneck: STEAM BREECH adds no shot (nor does CALIBRATION); on
+      // WEAVER, FOUNDRY and SIPHON the battle is the same shot for shot (starved)
       expect([steam.fires.length, cal.fires.length], hero).toEqual([none.fires.length, none.fires.length]);
-      // on the busy gun both add shots
+      if (hero === "weaver" || hero === "foundry" || hero === "siphon") expect(why, hero).toEqual([STARVED, STARVED]);
+      // on the busy gun both add shots, and plated STEAM BREECH more than bare
       expect(tSteam.fires.length > tNone.fires.length && tCal.fires.length > tNone.fires.length, hero).toBe(true);
+      expect(tPlated.fires.length, hero).toBeGreaterThan(tSteam.fires.length);
     }
     if (process.env.BB_TABLES) {
-      console.log(["| hero | start deck: shots none / STEAM / CALIBRATION | dealt | busy gun: shots | dealt |", "|---|---|---|---|---|", ...rows].join("\n"));
+      console.log(["| hero | start deck: shots none / STEAM ★1 / CALIBRATION ★1 | why (STEAM / CALIBRATION) | busy gun: shots none / STEAM bare / CALIBRATION | busy gun, 24 plating: none / STEAM plated | busy gun: dealt |",
+        "|---|---|---|---|---|---|", ...rows].join("\n"));
     }
   });
 });
