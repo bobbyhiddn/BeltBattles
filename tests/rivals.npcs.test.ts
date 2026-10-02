@@ -101,6 +101,29 @@ describe("the road and the stand-ins over 2,000 run seeds (0.8.0 N1)", () => {
       }
     }
   });
+
+  it("Q12: every road captain averages at least one offer a run; each Hard captain is offered exactly once on days 1-7, so MASTER VOSS stays Hard", () => {
+    // VERIFIED-D1 Q12: if a Hard captain averaged under 1.0 offers a run, MASTER VOSS would move to Medium (tier 2). The
+    // Hard pool of 7 is one shuffle on days 1-7, so the rule cannot fire; beating the Matriarch on day 8 or 9 only adds
+    // Hard offers (output-N1/m4/q12.md: 1.27-1.30 and 1.14-1.15 a run).
+    const road = RIVAL_IDS.filter((id) => id !== "matriarch" && difficultyOf(id) !== null);
+    const mean = (offers: (seed: number) => RivalId[]) => {
+      const n = new Map<RivalId, number>();
+      for (const seed of SEEDS) for (const id of offers(seed)) n.set(id, (n.get(id) ?? 0) + 1);
+      return (id: RivalId) => (n.get(id) ?? 0) / SEEDS.length;
+    };
+    for (const seed of SEEDS) {
+      const days17 = warlordOffers(seed).slice(0, MATRIARCH_DAY - 1).map((o) => o.hard);
+      expect([...days17].sort(), `seed ${seed}`).toEqual([...warlordPool("hard")].sort());
+    }
+    const unbeaten = mean((seed) => warlordOffers(seed).flatMap((o) => Object.values(o)));
+    for (const id of road) expect(unbeaten(id), id).toBeGreaterThanOrEqual(difficultyOf(id) === "hard" ? 1 : 2);
+    for (const id of warlordPool("hard")) expect(unbeaten(id), id).toBe(1);
+    for (const beaten of [8, 9]) {
+      const after = mean((seed) => DAYS.map((day) => warlordOffer(seed, day, beaten).hard));
+      for (const id of warlordPool("hard")) expect(after(id), `${id}, the Matriarch beaten on day ${beaten}`).toBeGreaterThan(1);
+    }
+  });
 });
 
 describe("the Hard prizes stay inside today's economy (0.8.0 N1, oracle 94b9559fbb7da299 (9))", () => {

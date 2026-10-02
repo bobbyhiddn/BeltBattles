@@ -322,15 +322,15 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   // (tests/rivals.difficulty.test.ts). Every one fields a wave-3 TWIN or PLATE module from day 1 (oracle (8)).
   // ---------------------------------------------------------------- Easy (tier 1), FOUNDRY
   // MATCHED POUR: the Crucible's two mirrored belts into gun 1, so every pour fuses. Synergy: a TWIN GAUGE on a matched
-  // belt from day 3 (3 damage a blank, not 1), a TWIN TRIGGER on gun 1 from day 4 (each fused alloy is a pair: 25% more,
-  // 2 stars from day 7) and a TWIN MOULD from day 5 pouring two plain slugs into gun 2's two intakes (2 stars from day 9).
-  // Nothing else: a STEAM BREECH on gun 1 from day 1 (a guild gauge on a steam jacket; the only part of an Easy deck that
-  // keeps it under every Hard captain on day 1). The synergy is the deck, so swapping it costs the most (N1 M4).
+  // belt from day 2 (3 damage a blank, not 1), a TWIN TRIGGER on gun 1 from day 3 (each fused alloy is a pair: 25% more,
+  // 2 stars from day 7) and a TWIN MOULD from day 5 pouring two plain slugs into gun 2's two intakes (2 stars from day 9;
+  // on day 4 it would lift him over HIGHSPIRE, the ladder). Nothing else: a STEAM BREECH on gun 1 from day 1 (his wave-3
+  // part, weak enough to keep an Easy deck under every Hard captain on day 1). The synergy is the deck, so it pays most.
   brasswick: {
     hero: "foundry", crates: 0, synergy: ["twingauge", "twinmould", "twintrigger"],
     factories: [F("crucible", 2, 6, [2, 5, "U5"], [3, 5, "U5"])],
     upgrades: [
-      M(1, "steambreech", 0), G(3, "twingauge", 4, 0, 3), M(4, "twintrigger", 0),
+      M(1, "steambreech", 0), G(2, "twingauge", 4, 0, 3), M(3, "twintrigger", 0),
       X(5, F("twinmould", 6, 2, [6, 1, "U"], [7, 1, "U"])), M2(7, "twintrigger", 0), G2(9, "twinmould", 6, 2),
     ],
   },
