@@ -104,6 +104,18 @@ describe("E2: pairs (Foundry's sync rule for any ammo, the Prime's Q5)", () => {
     expect(pairs(withMod(twoPress(true), 50, "seamwelder"))).toBeGreaterThan(0);
   });
 
+  it("one belt never pairs, even where its loads come closer than 0.25 s (a SHOT TOWER's buckshot, 7 px apart)", () => {
+    // press A (uid 2) becomes a SHOT TOWER, press B's belt goes: 3 buckshot a stamp leave the mouth as the belt makes room,
+    // AMMO_SPACING (7 px) apart, 0.23 s at normal speed, so a gun that takes them as they come sees loads inside the window
+    const b = twoPress();
+    b.routes.pop();
+    b.items = b.items.map((p) => (p.uid === 2 ? { ...p, def: "shottower" } : p));
+    const ev = events(withMod(withMod(b, 50, "seamwelder"), 51, "calibrate", 0, 3), 20);
+    const loads = ev.filter((x) => x.e.type === "load" && x.e.side === 0).map((x) => x.t);
+    expect(loads.slice(1).filter((t, i) => t - loads[i] < SYNC_WINDOW).length).toBeGreaterThan(5); // the window would bite
+    expect(typeCount(ev, "pair", 0)).toBe(0); // but they come through one intake
+  });
+
   it("marks only in a pair-reading turret (TWIN TRIGGER or SEAM WELDER): without one, no record and no pair event", () => {
     const bt = new Battle(twoPress(), barge(), SEED);
     expect(bt.sides[0].pairs).toBeUndefined();
