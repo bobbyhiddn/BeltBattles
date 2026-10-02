@@ -7,16 +7,35 @@
 import { C, type ColorName } from "./palette";
 import { makeCanvas, px } from "./pixel";
 import { FEATURES, PH, PW, asColor, at, blank, paintBase, put, type Base, type Look, type Px } from "./portraitArt";
-import { HEROES, type Faction } from "../sim/content";
+import { HEROES, type Faction, type HeroId } from "../sim/content";
 import { RIVALS, RIVAL_IDS, type RivalId } from "../sim/rivals";
 
 /** Heroes with a portrait. 0.8.0 H1: FOUNDRY and BASTION joined FURNACE and WEAVER (the art is here before the roster
  *  grows; METRONOME and SIPHON get theirs with 0.9.0). */
 export type PortraitHero = "furnace" | "weaver" | "foundry" | "bastion";
-export type PortraitKey = RivalId | PortraitHero;
+
+/**
+ * 0.8.0 A1 (REQ-BFG-024, REQ-BFG-011): the six wave-3 NPCs, PENDING captains (D1's ids and plans: output-D1
+ * tools/wave3Npcs.ts; DESIGN-wave3 section 5). Their portraits are drawn now, before N1 adds them to the rival roster:
+ * each draws on its D1 hero's race base in its D1 palette. They stay out of PORTRAIT_KEYS (every entry there is a rival
+ * or a hero, and the screens and tests walk it); N1 turns each into a RIVALS entry with this palette and takes it off
+ * this list, and spec() then reads RIVALS (tests/wave3Art.test.ts pins both rules).
+ */
+export type Wave3NpcId = "brasswick" | "voss" | "grimhold" | "karsk" | "lockjaw" | "thistlemail";
+export const WAVE3_NPC_IDS: readonly Wave3NpcId[] = ["brasswick", "voss", "grimhold", "karsk", "lockjaw", "thistlemail"];
+export const WAVE3_NPC_PORTRAIT: Record<Wave3NpcId, { hero: HeroId; palette: string[] }> = {
+  brasswick: { hero: "foundry", palette: ["brass2", "steel2", "bone", "lime"] },
+  voss: { hero: "foundry", palette: ["brass3", "ink", "steel1", "amber"] },
+  grimhold: { hero: "bastion", palette: ["steel3", "rust2", "fire3", "bone"] },
+  karsk: { hero: "bastion", palette: ["steel1", "steel3", "brass1", "rust3"] },
+  lockjaw: { hero: "furnace", palette: ["rust2", "steel2", "brass2", "fire2"] },
+  thistlemail: { hero: "weaver", palette: ["verd2", "steel2", "white", "verd4"] },
+};
+
+export type PortraitKey = RivalId | PortraitHero | Wave3NpcId;
 export const PORTRAIT_HEROES: readonly PortraitHero[] = ["furnace", "weaver", "foundry", "bastion"];
 
-/** Every portrait, rivals in roster order and then the heroes. */
+/** Every portrait, rivals in roster order and then the heroes. (0.8.0 A1: the pending wave-3 NPCs are not here yet.) */
 export const PORTRAIT_KEYS: PortraitKey[] = [...RIVAL_IDS, ...PORTRAIT_HEROES];
 
 export interface Portrait {
@@ -56,10 +75,22 @@ const LOOK: Record<PortraitKey, Spec["look"]> = {
   weaver: [2, 0, 1, 0],
   foundry: [2, 1, 0, 0], // white eyes, blue shirt, leather apron and cap
   bastion: [2, 1, 3, 0], // rune eyes, stone pauldrons with lighter rims, ginger beard
+  // 0.8.0 A1: the pending wave-3 NPCs
+  brasswick: [3, 1, "wood1", "wood3"], // lime eyes behind the dials, a steel-grey work shirt, a leather bib, light brown hair
+  voss: ["steel3", 2, 1, "steel2"], // cold grey eyes, a charcoal coat with black lapels, grey hair
+  grimhold: [3, 0, "steel1", 1], // pale eyes, iron pauldrons with dark rims, a rust-red beard
+  karsk: ["bone", 0, 2, 1], // pale eyes, dark iron pauldrons with brass rims, a grey beard
+  lockjaw: [3, 0, 1, 0], // fire eyes, a rust jerkin with a steel collar
+  thistlemail: ["ice", 1, 2, 0], // ice eyes, the silver-leaf coat (steel and white), verdigris hair
 };
 
 function isHero(key: PortraitKey): key is PortraitHero {
   return (PORTRAIT_HEROES as readonly string[]).includes(key);
+}
+
+/** 0.8.0 A1: a pending wave-3 NPC (on WAVE3_NPC_IDS and not yet a rival: once N1 adds it to RIVALS, RIVALS wins). */
+function isPendingNpc(key: PortraitKey): key is Wave3NpcId {
+  return (WAVE3_NPC_IDS as readonly string[]).includes(key) && !Object.prototype.hasOwnProperty.call(RIVALS, key);
 }
 
 /** The base a faction's faces are drawn on. 0.8.0 H1: humans and dwarves have their own; BEASTFOLK and UNALIGNED (no
@@ -68,11 +99,12 @@ const BASE: Record<Faction, Base> = { orc: "orc", elf: "elf", human: "human", dw
 
 function spec(key: PortraitKey): { base: Base; palette: ColorName[]; look: Look; frame: Frame } {
   const hero = isHero(key);
-  const faction = hero ? HEROES[key].faction : RIVALS[key].faction;
-  const palette = (hero ? HERO_PORTRAIT[key] : RIVALS[key].portrait.palette).map(asColor);
+  const pending = isPendingNpc(key); // 0.8.0 A1: a wave-3 NPC N1 has not made a captain yet (its D1 hero and palette)
+  const faction = hero ? HEROES[key].faction : pending ? HEROES[WAVE3_NPC_PORTRAIT[key].hero].faction : RIVALS[key as RivalId].faction;
+  const palette = (hero ? HERO_PORTRAIT[key] : pending ? WAVE3_NPC_PORTRAIT[key].palette : RIVALS[key as RivalId].portrait.palette).map(asColor);
   const ref = (r: Ref): ColorName => (typeof r === "number" ? palette[r] : r);
   const [eye, garment, trim, hair] = LOOK[key].map(ref);
-  const rank = hero ? "hero" : RIVALS[key].rank;
+  const rank = hero ? "hero" : pending ? "regular" : RIVALS[key as RivalId].rank;
   const frame: Frame = rank === "elite" ? "elite" : rank === "boss" ? "boss" : undefined;
   return { base: BASE[faction], palette, look: { eye, garment, trim, hair }, frame };
 }
