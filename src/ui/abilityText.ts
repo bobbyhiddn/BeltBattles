@@ -46,6 +46,13 @@
 //   FIRE RATE   "THE TURRET FIRES 33% FASTER": the rate, from the fire interval (x0.75 fires 1 / 0.75 = 33% faster).
 //   HARASSMENT  any stall, freeze, slow, wreck or rip that lands on an enemy machine.
 //   MARKS       CHILL (from a frozen belt tile: 25% less damage) and SNAG (from a chain slow: 20% slower ride).
+// 0.8.0 P1 (wave 3, DESIGN-wave3.md 3.2's glossary; each a shared sentence in S below):
+//   PLATING     plating takes damage, burn and poison before your hull, up to 24 (PLATE_CAP); the dark wind goes straight
+//               through it (S.plating). "2 PLATING", "0.5 PLATING": at most one decimal, the word PLATING as its unit.
+//   PAIR        two loads that reach one turret through different intakes within 0.25 seconds (SYNC_WINDOW); a FOUNDRY
+//               fusion is a pair (S.pair).
+//   MATCHED     a belt with as many tiles as another belt into the same turret (S.matched).
+//   WORKS FASTER a factory that works faster stamps and pours sooner, and its other timers run faster too (S.worksFaster).
 // UNITS (T2): seconds as "2.75 SECONDS" or "1 SECOND" (at most two decimals); percentages whole, with "%"; damage with
 // at most one decimal and the word DAMAGE. Never a bare multiplier (X2, 1.5X), a slash rate (/HIT, /S), a glued second
 // (4S), an ordinal (3RD) or a "·". Labelled stat rows (the belt timeline, the turret rows) may keep short labels and SEC.
@@ -55,6 +62,9 @@ import {
   JAM_THRESHOLD, SHAPE_ARROWS, WINDOW_TIME, rigShape, type HarassCause, type HeroId, type ItemDef,
 } from "../sim/content";
 import { PEAK_SHIFT, PENDULUM } from "../sim/races/data";
+import { PLATE_CAP } from "../sim/races/bastion";
+import { SYNC_WINDOW } from "../sim/races/foundry";
+import { LOAD_FLOOR } from "../sim/battle";
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, pendingAt, perkAt } from "../sim/stars";
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
@@ -194,7 +204,18 @@ export const S = {
   gatling: "IT DOES NOTHING ON A GATLING SPOOL, WHICH NEVER WAITS FOR A FULL CHAMBER.",
   stamps: (what: string, secs: number) => `IT STAMPS ${what} ${every(secs)}.`,
   machines: "A SHOT AT A MACHINE STILL DAMAGES THE ENEMY HULL.",
+  // 0.8.0 P1, wave 3's four glossary sentences (DESIGN-wave3.md 3.2): E1's pool on every hull (races/bastion.ts absorb
+  // and PLATE_CAP; hullEffects' wind line skips it), E2's pair (races/foundry.ts inSync), E6's matched belt (deck.ts
+  // matchedRoutes) and E3's stoked factory (Battle.produce: its stamp timer, trigger cooldown and plating timer)
+  plating: `PLATING TAKES DAMAGE, BURN AND POISON BEFORE YOUR HULL, UP TO ${PLATE_CAP} PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.`,
+  pair: `A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)}; A FOUNDRY FUSION IS A PAIR.`,
+  matched: "A MATCHED BELT HAS AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.",
+  worksFaster: "A FACTORY THAT WORKS FASTER STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO.",
 };
+
+/** 0.8.0 P1: a small count as a word ("TWO PLAIN SLUGS"), as DESIGN-wave3.md 3.3 writes TWIN MOULD's. */
+const COUNT = ["NO", "ONE", "TWO", "THREE", "FOUR", "FIVE"];
+const countWord = (n: number): string => COUNT[n] ?? String(n);
 
 /** 0.6.2 FB-B: the stalls a MANTLET's turret ignores, in the words the shop uses for their sources (drag: DRAG CHAIN
  *  FOUNDRY, rip: GRAPNEL GUN); the spec's own list, in its order. */
@@ -240,6 +261,9 @@ export function gatlingClashText(def: string, stars: number, routine = "gatling"
   if (!core) return null;
   if (def === "hopper") return `${core}: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${effectAt(def, stars).mod?.store ? ", BUT ITS STORE STILL WORKS" : ""}.`;
   if (def === "ram" && routine === "gatling") return "GATLING SPOOL: NO FULL CHAMBER, SO THE FINISHER RAM DOES NOTHING.";
+  // 0.8.0 P1 (DESIGN-wave3.md 3.3 module 13): TWIN TRIGGER's shorter load time, as HOPPER's longer one; its pair bonus
+  // still works there (Battle.fire and fireCore read the pair mark, a COMPOUND shell's packed load too)
+  if (def === "twintrigger") return `${core}: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS STILL HIT HARDER.`;
   return null;
 }
 
@@ -253,6 +277,7 @@ export function clashShortText(def: string, routine = "gatling"): string | null 
   if (routine !== "gatling" && routine !== "compound") return null;
   if (def === "hopper") return "HOPPER: ITS LONGER LOAD TIME DOES NOTHING HERE.";
   if (def === "ram" && routine === "gatling") return "FINISHER RAM: DOES NOTHING HERE.";
+  if (def === "twintrigger") return "TWIN TRIGGER: ITS SHORTER LOAD TIME DOES NOTHING HERE."; // 0.8.0 P1
   return null;
 }
 
@@ -898,6 +923,171 @@ const ENTRIES: Record<string, Entry> = {
     gist: (e) => moreDamage(m(e).longRideFlat!),
     card: (e) => `LONG RIDES: ${moreDamage(m(e).longRideFlat!)}`,
   },
+  // ------------------------------------------------------------------------------------ wave 3 (0.8.0 P1, REQ-BFG-032)
+  // DESIGN-wave3.md 3.3's text at every star in the 0.6.2 standard, its numbers read from the spec at that star; the four
+  // glossary words are S.plating, S.pair, S.matched and S.worksFaster. Two lines follow the Prime's design calls (oracle
+  // a0e94bc69949561f): STOKER never makes a factory outrun its gun, and TWIN LATCH times its release. The text exists
+  // whatever the switch (content.ts WAVE3_LIVE); nothing shows it while wave 3 is dormant.
+  plateroller: {
+    // Battle.applyHit (tier 1): addPlate(s, plate) for each payload it hits (E1)
+    text: (e) => [`ROLLS ${n1(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`, S.plating],
+    gist: (e) => `ROLLS ${n1(g(e).plate!)} PLATING FOR EACH PAYLOAD`,
+    card: () => "PLATES YOUR HULL AS SLUGS PASS",
+  },
+  twingauge: {
+    // Battle.applyHit: + flat, or + matched on a matched belt (E6: deck.ts matchedRoutes, read once in Battle.makeSide)
+    text: (e) => [`ADDS ${damage(g(e).gauge!.flat)} TO EACH PAYLOAD IT HITS, OR ${damage(g(e).gauge!.matched)} ON A MATCHED BELT.`, S.matched],
+    gist: (e) => `ADDS ${damage(g(e).gauge!.flat)}, OR ${n1(g(e).gauge!.matched)} ON A MATCHED BELT`,
+    card: () => "MORE DAMAGE ON A MATCHED BELT",
+  },
+  pincer: {
+    // Battle.applyHit (E5): + flat, and + each for every other working rig hitting the tile (online, not stalled, frozen
+    // or wrecked), up to max
+    text: (e) => {
+      const p = g(e).pincer!;
+      return [
+        `ADDS ${damage(p.flat)} TO EACH PAYLOAD IT HITS, AND ${n1(p.each)} MORE FOR EACH OTHER RIG HITTING THAT TILE, UP TO ${plural(p.max, "OTHER")}.`,
+        "STALLED, FROZEN AND WRECKED RIGS DON'T COUNT.",
+      ];
+    },
+    gist: (e) => `ADDS ${damage(g(e).pincer!.flat)}, AND ${n1(g(e).pincer!.each)} MORE FOR EACH OTHER RIG ON ITS TILE`,
+    card: () => "MORE DAMAGE WITH RIGS ON ITS TILE",
+  },
+  braceframe: {
+    // Battle.braceCut: an enemy stall, freeze or chain slow on a tile it hits, or on the brace itself, lasts x mul while
+    // it works, x plated while the hull holds plating (E1)
+    text: (e) => [
+      `ENEMY STALLS, FREEZES AND CHAIN SLOWS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST ${percent(1 - g(e).brace!.mul)} SHORTER.`,
+      `WHILE YOUR HULL HOLDS PLATING THEY LAST ${percent(1 - g(e).brace!.plated)} SHORTER.`,
+    ],
+    gist: (e) => `${percent(1 - g(e).brace!.mul)} SHORTER, ${percent(1 - g(e).brace!.plated)} WHILE PLATED`,
+    card: () => "SHORTER STALLS ON ITS TILES",
+  },
+  twinlatch: {
+    // E4 (Battle.latchTick): it holds only while both arrows hit belts, each payload at most `hold` seconds. Into one
+    // turret the longer remaining trip goes first and the other after the difference, so both arrive together (oracle
+    // a0e94bc69949561f); into two turrets both go at once. Battle.applyHit adds flat to every payload it hits
+    text: (e) => [
+      // T6: DESIGN 3.3's "AT THE TILE IT HITS" moves to the second sentence, so the opening fits the phone band whole
+      "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
+      `IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST ${seconds(g(e).latch!.hold)}, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.`,
+      `EACH PAYLOAD IT LETS GO GAINS ${damage(g(e).latch!.flat)}.`,
+      "ON BELTS INTO TWO GUNS, IT LETS BOTH GO AT ONCE.",
+    ],
+    // T6: DESIGN 3.3's "EACH PAYLOAD IT LETS GO GAINS 2.2 DAMAGE" takes two phone lines; WHETSTONE's clause takes one
+    gist: (e) => `ADDS ${damage(g(e).latch!.flat)}`,
+    card: () => "LETS TWO BELTS GO TOGETHER",
+  },
+  stoker: {
+    // E3: its arrows work factories (deck.ts stokeHits), never belts. Battle.stokedPace: the factory's timers x (1 + its
+    // stokes), the stamping capped so it never outruns the turret its belt feeds (oracle a0e94bc69949561f)
+    text: (e) => [
+      `EACH FACTORY ITS ARROWS POINT AT WORKS ${percent(g(e).stoke!)} FASTER.`,
+      "IT NEVER MAKES A FACTORY OUTRUN ITS GUN.",
+      S.worksFaster,
+      "ITS ARROWS DO NOTHING TO BELTS.",
+    ],
+    gist: (e) => `ITS FACTORIES WORK ${percent(g(e).stoke!)} FASTER`,
+    // DESIGN 3.3's "FACTORIES IT POINTS AT WORK FASTER" takes three lines on the wide card (two at most)
+    card: () => "MAKES FACTORIES WORK FASTER",
+  },
+  platebreaker: {
+    // Battle.applyHit (tier 1): with 1 plating or more on the hull it takes 1 (a plate event) and adds flat, else floor
+    text: (e) => [
+      `EACH PAYLOAD IT HITS TAKES 1 PLATING FROM YOUR HULL AND GAINS ${damage(g(e).breaker!.flat)}.`,
+      `WITH NO PLATING TO TAKE, IT ADDS ${damage(g(e).breaker!.floor)}.`,
+    ],
+    gist: (e) => `${damage(g(e).breaker!.flat)} FOR 1 PLATING, ${n1(g(e).breaker!.floor)} WITHOUT`,
+    card: () => "TURNS PLATING INTO DAMAGE", // DESIGN 3.3's "TURNS YOUR PLATING INTO DAMAGE" takes three card lines
+  },
+  shieldwall: {
+    // Battle.applyHit: addPlate(plate) first, then + plated.flat while the hull holds plated.min plating or more
+    text: (e) => [
+      `ROLLS ${n1(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`,
+      `WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS ${damage(g(e).plated!.flat)}.`,
+      S.plating,
+    ],
+    gist: (e) => `${n1(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`,
+    card: () => "PLATES YOUR HULL, HITS HARDER", // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
+  },
+  twinmould: {
+    // Battle.produce (twin): one slug onto every belt with room, on the same tick (races/foundry.ts pourAll); ★3 THIRD
+    // SPRUE: a third belt
+    text: (e) => {
+      const fs = f(e), n = countWord(fs.outputs);
+      return [
+        `CASTS ${n} ${fs.base !== undefined ? "SLUGS" : "PLAIN SLUGS"} (${damage(slugBase(e))} EACH) AT ONCE, ONE ONTO EACH OF ITS ${n} BELTS, ${every(fs.interval)}.`,
+        "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR.",
+      ];
+    },
+    gist: (e) => (f(e).outputs > 2
+      ? `${f(e).outputs} SLUGS OF ${damage(slugBase(e))}, ${every(f(e).interval)}`
+      : `${damage(slugBase(e))} EACH, ${every(f(e).interval)}`),
+    card: (e) => `CASTS ${countWord(f(e).outputs)} SLUGS AT ONCE`,
+  },
+  armorpress: {
+    // Battle.pressPlate: plate.amount every plate.every seconds while it feeds a turret and isn't stalled or frozen (at
+    // its timers' pace, a STOKER's full stoke included); its slugs stamp as STAMP PRESS's do
+    text: (e) => {
+      const fs = f(e);
+      return [
+        `PRESSES ${n1(fs.plate!.amount)} PLATING ONTO YOUR HULL ${every(fs.plate!.every)}, AND STAMPS ${fs.base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(fs.interval)}.`,
+        "IT NEEDS A BELT TO A TURRET TO WORK.",
+        S.plating,
+      ];
+    },
+    gist: (e) => `${n1(f(e).plate!.amount)} PLATING ${every(f(e).plate!.every)}, A SLUG ${every(f(e).interval)}`,
+    card: (e) => `PLATES YOUR HULL ${every(f(e).plate!.every)}`,
+  },
+  anvil: {
+    // Battle.fireCore (anvil): + anvilFlat + perPlate x the hull's plating at fire time, both x k (cores.ts CORE_ABSOLUTE)
+    text: (e, x) => [`EACH SHOT DEALS ${moreDamage(c(e, x).anvilFlat!)}, AND ${n1(c(e, x).perPlate!)} MORE FOR EACH PLATING ON YOUR HULL.`, S.plating],
+    gist: (e, x) => `${moreDamage(c(e, x).anvilFlat!)}, AND ${n1(c(e, x).perPlate!)} MORE FOR EACH PLATING`,
+    card: () => "MORE DAMAGE THE MORE PLATING",
+  },
+  steambreech: {
+    // cores.ts ROUTINES.steam: the cadence x steamPlated while the hull holds plating, else x steamBare (rates: no k)
+    text: (e, x) => [`THE TURRET FIRES ${rateText(c(e, x).steamPlated!)} WHILE YOUR HULL HOLDS PLATING, AND ${rateText(c(e, x).steamBare!)} WITHOUT IT.`],
+    gist: (e, x) => `${rateText(c(e, x).steamPlated!)} PLATED, ${percent(1 / c(e, x).steamBare! - 1)} WITHOUT`,
+    card: () => "FIRES FASTER WHILE PLATED",
+  },
+  twintrigger: {
+    // Battle.fire / fireCore: a paired load (E2; a COMPOUND shell packing one) x (1 + pairBonus), before FINISHER RAM.
+    // makeTurret: the load time + windowTime (negative), never under LOAD_FLOOR; a GATLING SPOOL or a COMPOUND BREECH never
+    // reads it (gatlingClashText)
+    text: (e) => [
+      `PAIRED LOADS IN THIS TURRET DEAL ${percent(m(e).pairBonus!)} MORE DAMAGE.`,
+      S.pair,
+      `ITS LOAD TIME IS ${seconds(-m(e).windowTime!)} SHORTER, BUT NEVER UNDER ${seconds(LOAD_FLOOR)}.`,
+      "ON A GATLING SPOOL OR A COMPOUND BREECH THE SHORTER LOAD TIME DOES NOTHING.",
+    ],
+    gist: (e) => `PAIRS DEAL ${percent(m(e).pairBonus!)} MORE, LOAD TIME ${seconds(-m(e).windowTime!)} SHORTER`,
+    card: (e) => `PAIRS HIT ${percent(m(e).pairBonus!)} HARDER`,
+  },
+  spallcatcher: {
+    // Battle.spallCharge: add x (the hull's part + twice plating's part) / every, up to max, from impacts, limpet blasts,
+    // burn and poison (never the dark wind); Battle.fire / fireCore add it to this turret's next shot
+    text: (e) => {
+      const sp = m(e).spall!;
+      return [
+        `EVERY ${damage(sp.every)} YOUR SHIP TAKES ADDS ${damage(sp.add)} TO THIS TURRET'S NEXT SHOT, UP TO ${damage(sp.max)}.`,
+        "DAMAGE YOUR PLATING SOAKS COUNTS TWICE; THE DARK WIND DOESN'T COUNT.",
+      ];
+    },
+    gist: (e) => `${damage(m(e).spall!.add)} FOR EVERY ${m(e).spall!.every}, UP TO ${n1(m(e).spall!.max)}`, // DESIGN 3.3's words
+    card: () => "HITS YOU TAKE CHARGE ITS SHOT", // DESIGN 3.3's "... ITS NEXT SHOT" takes three card lines
+  },
+  seamwelder: {
+    // Battle.loaded (E2): the load that makes a pair rolls seam.pair, any other load seam.lone (addPlate); a FOUNDRY fusion
+    // is a pair (Battle.fusionPair)
+    text: (e) => [
+      `EACH PAIR THIS TURRET TAKES ROLLS ${n1(m(e).seam!.pair)} PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS ${n1(m(e).seam!.lone)}.`,
+      S.pair,
+      S.plating,
+    ],
+    gist: (e) => `${n1(m(e).seam!.pair)} PLATING A PAIR, ${n1(m(e).seam!.lone)} FOR ANY OTHER LOAD`,
+    card: () => "PAIRS PLATE YOUR HULL",
+  },
   // ------------------------------------------------------------------------------------------------------ supplies
   beltcrate: {
     text: (e) => [`LETS YOU LAY ${e.supply!.belt} MORE BELT TILES FOR THE REST OF THE RUN.`],
@@ -1050,6 +1240,13 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.fray) return `${name} +${e.fray} FRAY`;
   // 0.6.2 FB-B: its flat, plus perBurn for each Burn stack it spent (deck.ts walkRoute's quenched)
   if (e.quench) return `${name} +${damage(h.flat ?? 0)}${h.quenched ? ` (${h.quenched} BURN SPENT)` : ""}`;
+  // 0.8.0 P1, wave 3's rigs, from the walk's values (deck.ts walkRoute: its flat is the damage it counts there)
+  if (e.gauge) return `${name} +${damage(h.flat ?? 0)}${h.matched ? " ON A MATCHED BELT" : ""}`;
+  if (e.pincer) return `${name} +${damage(h.flat ?? 0)}${h.others ? `, CROSSFIRE WITH ${plural(h.others, "RIG")}` : ""}`;
+  if (e.latch) return `${name} +${damage(h.flat ?? 0)}, HOLDS UP TO ${n2(e.latch.hold)} SEC`;
+  if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 1 PLATING, ELSE +${damage(e.breaker.floor)}`;
+  if (e.brace) return `${name} ENEMY STALLS ${percent(1 - e.brace.mul)} SHORTER (${percent(1 - e.brace.plated)} SHORTER PLATED)`;
+  if (e.plate) return `${name} +${n1(e.plate)} PLATING${e.plated ? `, +${damage(e.plated.flat)} AT ${e.plated.min} PLATING` : ""}`;
   const parts = [
     ...(h.flat ? [`+${damage(h.flat)}`] : []),
     ...(h.burn ? [`+${h.burn} BURN`] : []),
