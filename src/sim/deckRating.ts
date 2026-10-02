@@ -121,6 +121,21 @@ function pairShare(b: Build, fs: readonly Feed[]): number {
   return 0;
 }
 
+/** 0.8.0 I1 M4 (VERIFIED-P1 H4): what rateDeck can hand back besides its rating (the inspector's capped-stoke line). */
+export interface RateOut {
+  /** Factory uid -> the share of its stoke the STOKER cap lets through (below 1 only where a gun it feeds can't take the
+   *  full stoke; the least over its guns). Absent: not capped. */
+  stokeKeep: Map<number, number>;
+}
+
+/** 0.8.0 I1 M4 (VERIFIED-P1 H4): each STOKER-worked factory whose stoke the static estimate caps by its gun (rateDeck's
+ *  STOKER cap, as Battle.stokedPace), with the share of the stoke it keeps. Read only; the rating is unchanged. */
+export function stokeKeep(b: Build): Map<number, number> {
+  const out: RateOut = { stokeKeep: new Map() };
+  rateDeck(b, RATING_CURVE, FIGHT_T, out);
+  return out.stokeKeep;
+}
+
 export interface DeckRating {
   offense: number; // damage-equivalent per second that lands in a FIGHT_T fight
   defense: number; // hull, plus what RIVETERs repair in half a fight
@@ -150,7 +165,7 @@ export interface DeckRating {
  * 0.6.2 TUNE-M, RULE JOIN PACE: a factory one of whose belts joins another belt makes its loads at JOIN_PACE of its rate
  * (deck.ts factoryPace), on every belt it feeds; a deck without joins rates exactly as before (x 1).
  */
-export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, fight = FIGHT_T): DeckRating {
+export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, fight = FIGHT_T, out?: RateOut): DeckRating {
   const h = HEROES[b.hero];
   const hits = rigHits(b), claims = connectorClaims(b), occ = occupancy(b);
   const outs = new Map<number, number>(), pace = new Map<number, number>();
@@ -236,6 +251,8 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       if (total > room && extra > 0) {
         const keep = Math.max(0, extra - (total - room)) / extra;
         for (const f of stokedFs) f.arrival = f.base! + (f.arrival - f.base!) * keep;
+        // 0.8.0 I1 M4 (VERIFIED-P1 H4): the inspector reads the cap off this estimate (read only: nothing above changes)
+        if (out) for (const f of stokedFs) out.stokeKeep.set(f.factory!, Math.min(out.stokeKeep.get(f.factory!) ?? 1, keep));
       }
     }
     const arrival = fs.reduce((s, f) => s + f.arrival, 0);

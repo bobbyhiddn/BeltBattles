@@ -18,6 +18,8 @@ import { shopBadge, type DuskFoe, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import { FINDING_GHOST } from "../../game/session"; // 0.7.0a: the NEXT BATTLE card online
 import { HEROES, ITEMS, MERCHANTS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
+import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
+import { drawFamilyMark, familiesOf, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import {
   arrowsOf, beltUsed, canSellTurret, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo,
@@ -25,6 +27,8 @@ import {
 } from "../../sim/deck";
 import { joinersOf, type WalkJoin } from "../../sim/deck"; // 0.6.2j: belt joins
 import { stokeHits } from "../../sim/deck"; // 0.8.0 P1 (E3): a STOKER's hits are the factories its arrows work
+import { stokeKeep } from "../../sim/deckRating"; // 0.8.0 I1 M4 (VERIFIED-P1 H4): a stoke capped by its gun
+import { effectAt } from "../../sim/stars"; // 0.8.0 I1 M4: a STOKER's stoke at its stars
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 
 /**
@@ -71,7 +75,7 @@ import {
   abilityText, cardText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergeProgressText, mergesWithText, n2,
   newPerk, nextStarHeadline, nextStarText, percent, plural, seconds, shieldText, slagPulseExtra, type BeltKind, type TextOpts,
 } from "../../ui/abilityText";
-import { colourize, drawRich, lineText, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
+import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
 import { describe } from "./shop";
 import {
@@ -366,7 +370,11 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number)
   const names = factories.map((f) => `THE ${ITEMS[itemByUid(run.build, f)!.def].name}`);
   const lead: Block[] = names.map((n): Block => ({ role: "hits", text: `→ STOKES ${n}`, keep: true }));
   const compact = `→ STOKES ${andList(names)}`;
+  // 0.8.0 I1 M4 (VERIFIED-P1 H4): a factory whose gun can't take its full stoke, by the static estimate deckRating uses
+  // (rateDeck's cap, as Battle.stokedPace plays it): how much faster it works there, from every STOKER on it
+  const capped = stokeCapBlocks(run, factories);
   const rest = [
+    ...capped,
     ...abilityBlocks(d.id, stars, textOpts(run)),
     ...progressBlocks(run, d.id, stars),
     ...flavourBlocks(d.id, stars, 1),
@@ -387,6 +395,29 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number)
     labels: ["ROTATE", "TO CARGO"],
     idle: false, x: false,
   };
+}
+
+/** 0.8.0 I1 M4 (VERIFIED-P1 H4): one amber line for each factory in `factories` whose gun can't take its full stoke
+ *  (deckRating.ts stokeKeep): "THE KILN'S GUN IS FULL, SO IT WORKS ONLY 8% FASTER." (or "... SO IT WORKS NO FASTER."),
+ *  its stoke from every STOKER on it times the share the cap lets through. Optional, and the first optional block to
+ *  stay (rank 1: before the ability's later sentences and, on the desk, the hint), so a full panel keeps its kept
+ *  blocks and its 5x7 face and drops this line whole; none where every gun has room. Exported for the tests. */
+export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] {
+  const keep = stokeKeep(run.build);
+  if (!keep.size) return [];
+  const hits = stokeHits(run.build);
+  return [...new Set(factories)].flatMap((f): Block[] => {
+    const k = keep.get(f);
+    if (k === undefined || k > 1 - 1e-9) return [];
+    let stoke = 0;
+    for (const h of hits) if (h.factory === f) {
+      const g = itemByUid(run.build, h.uid);
+      if (g) stoke += effectAt(g.def, starsOf(g)).gate?.stoke ?? 0;
+    }
+    const eff = stoke * k, name = `THE ${ITEMS[itemByUid(run.build, f)!.def].name}'S`;
+    const text = Math.round(eff * 100) < 1 ? `${name} GUN IS FULL, SO IT WORKS NO FASTER.` : `${name} GUN IS FULL, SO IT WORKS ONLY ${percent(eff)} FASTER.`;
+    return [{ role: "warn", text, rank: 1 }];
+  });
 }
 
 /** T5: the MERGES WITH block of an offer that merges on purchase (the perk that star brings after it). */
@@ -1043,10 +1074,15 @@ export interface PanelPlan {
   maxY: number;
   /** A header-only strip (no body line fits): the header text drawn in place of the sub line, on 1-2 lines. */
   headerOnly: { lines: string[]; colour: string } | null;
+  /** 0.8.0 I1 M4: the module's families in the header: named under the sub line ("sub"), or right-aligned on the row of
+   *  the sub line's second line ("sub2") or of the title ("title"), named or (where the names don't fit) as their marks;
+   *  null when none is given or the header has no room. */
+  famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean } | null;
 }
 
-/** Lay out a panel in `area` (the landscape column when area.h >= 70, else the portrait band). */
-export function planPanel(sp: PanelText, area: Rect): PanelPlan {
+/** Lay out a panel in `area` (the landscape column when area.h >= 70, else the portrait band). 0.8.0 I1 M4: `families`,
+ *  the shown module's families (selFamilies), go in its header; the body plans as without them. */
+export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = []): PanelPlan {
   const column = area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const wrapW = area.w - 10;
@@ -1070,13 +1106,35 @@ export function planPanel(sp: PanelText, area: Rect): PanelPlan {
   // extra, as 0.6.1r sized it); the band's text ends 4 px above its bottom edge. A variant's sub line must fit the header
   const body = planBody(sp.body, sp.variants, wrapW, column ? area.h - 27 - shift - extra : area.h - 27 - shift,
     (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column);
+  // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families sit in the header and never in the body (planned above,
+  // exactly as without them), named where they fit, else as their marks (ui/families.ts, the card's own), in the first
+  // place free with a clear pixel all round: the band under a one-line sub line (y+19..y+23, when the body starts at
+  // y+25: no button row under the sub line, not a tight body, not the header-only strip); the row of the column's second
+  // sub line, right of it; the title row, right of the title, where no button sits (the column's buttons are under its
+  // text, the phone's dropped under the sub line). Marks only: under a one-line sub line also above a tight body (rows
+  // y+20..y+22; the body starts at y+24)
+  const tags = [...families];
+  const strip = !column && area.y + 25 + shift + 5 > area.y + area.h - 4 && !!sp.headerOnly;
+  const namesW = textWidth(tags.join(", "), "3"), marksW = tags.length * 4 - 1;
+  const titleFree = column || !labels.length || !!port?.shift;
+  const beside = (text: string, font: FontId, free: boolean) => (w: number) => free && 23 + textWidth(text, font) + 6 + w <= area.w - 4;
+  const bySub2 = beside(subs[1] ?? "", "3", column && subs.length === 2), byTitle = beside(sp.title, "5", titleFree);
+  const underSub = subs.length === 1 && !shift;
+  const famHead: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
+    : underSub && !body.tight && namesW <= area.w - 27 ? { at: "sub", tags, names: true }
+    : bySub2(namesW) ? { at: "sub2", tags, names: true }
+    : byTitle(namesW) ? { at: "title", tags, names: true }
+    : underSub && marksW <= area.w - 27 ? { at: "sub", tags, names: false }
+    : bySub2(marksW) ? { at: "sub2", tags, names: false }
+    : byTitle(marksW) ? { at: "title", tags, names: false }
+    : null;
   const r = column ? { ...area, h: Math.min(area.h, 27 + shift + body.height + extra) } : area;
   const y = r.y + 25 + shift - (body.tight ? 1 : 0);
   const maxY = column && labels.length ? r.y + r.h - 5 - labels.length * 19 : r.y + r.h - 4;
   // no body line fits (the header-only 360x640 strip): its header text instead of the sub line, on up to two lines
   const headerOnly = !column && r.y + 25 + shift + 5 > maxY && sp.headerOnly
     ? { lines: headerLines(sp.headerOnly.texts, subMax, r.w - 27), colour: sp.headerOnly.colour } : null;
-  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, body, y, maxY, headerOnly };
+  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, body, y, maxY, headerOnly, famHead };
 }
 
 /** A header-only strip's text: the first of `texts` that fits one line of `first` px, else the fullest that fits two
@@ -1194,14 +1252,36 @@ function drawLine(g: G, l: PLine, x: number, y: number): void {
   drawRich(g, l.spans, x + (l.indent ?? 0), y, l.font);
 }
 
-export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe, note: string | null = null): void {
-  if (area.h < 14) return;
+/** 0.8.0 I1 M4 (REQ-BFG-023 part 2): the families of the module a selection shows (an offer, a part in cargo, a placed
+ *  rig or factory, an installed turret); [] for anything else (a belt, an empty slot) and for a part with no family (a
+ *  generalist, a supply, a hero's signature). */
+export function selFamilies(run: Run, show: Sel): ModuleTag[] {
+  switch (show.kind) {
+    case "offer": return familiesOf(run.shop.wagons[show.wagon]?.offers[show.slot]?.def ?? "");
+    case "cargo": return familiesOf(run.inventory.find((i) => i.uid === show.uid)?.def ?? "");
+    case "item": return familiesOf(itemByUid(run.build, show.uid)?.def ?? "");
+    case "turret": return familiesOf(turretSlots(run.build)[show.index]?.turret?.def ?? "");
+    default: return [];
+  }
+}
+
+/** 0.8.0 I1 M4: what drawDetails shows for `sel` (or the hovered offer) in `area`: its spec, its text with the action
+ *  labels, and the panel's plan with the shown module's families in its header (selFamilies); null for the idle panel.
+ *  Exported for the tests. */
+export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect): { show: Sel; sp: Spec; t: PanelText; plan: PanelPlan } | null {
   const show: Sel = hover ? { kind: "offer", wagon: hover.wagon, slot: hover.slot } : sel;
   const sp = spec(ctx, show, !!hover);
-  const column = area.h >= 70;
-  if (!sp) return drawIdle(g, ctx.run, area, column, foe, note);
+  if (!sp) return null;
   const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
-  const plan = planPanel(t, area);
+  return { show, sp, t, plan: planPanel(t, area, selFamilies(ctx.run, show)) }; // 0.8.0 I1 M4: the families in its header
+}
+
+export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe, note: string | null = null): void {
+  if (area.h < 14) return;
+  const column = area.h >= 70;
+  const d = detailsPlan(ctx, sel, hover, area);
+  if (!d) return drawIdle(g, ctx.run, area, column, foe, note);
+  const { sp, t, plan } = d;
   const r = plan.r;
   panel(g, r, "dark");
   ctx.game.ui.add({ id: "details", r, block: true });
@@ -1238,10 +1318,29 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   } else {
     fitHead(g, t.subShort && textWidth(t.sub, "3") > plan.subMax ? t.subShort : t.sub, r.x + 23, r.y + 13, plan.subMax, subColor, false);
   }
+  drawFamHead(g, plan); // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families in its header
   for (const v of visibleLines(plan)) {
     if (v.line === "rule") rect(g, r.x + 5, v.y + 1, r.w - 10, 1, C.slate1);
     else drawLine(g, v.line, r.x + 5, v.y);
   }
+}
+
+/** 0.8.0 I1 M4 (REQ-BFG-023 part 2): draw plan.famHead, the shown module's families in the panel's header: each name in
+ *  its family's colour (the commas slate4) under the sub line at (x+23, y+19), or right-aligned 4 px in from the panel's
+ *  right edge on the sub line's second row (y+19) or the title row (y+5); where the names don't fit, their 3x3 marks
+ *  (the card's own, 4 px apart): under the sub line at (x+23, y+20), or right-aligned on those rows (y+20 or y+6).
+ *  Nothing without a famHead. Exported for the tests. */
+export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead">): void {
+  const fh = plan.famHead, r = plan.r;
+  if (!fh) return;
+  if (fh.names) {
+    const spans = familySpans(fh.tags.join(", "), C.slate4);
+    if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19, "3");
+    else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + (fh.at === "sub2" ? 19 : 5), "3");
+    return;
+  }
+  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + (fh.at === "title" ? 6 : 20);
+  fh.tags.forEach((tag, i) => drawFamilyMark(g, tag, x0 + i * 4, y0));
 }
 
 /** The body lines drawDetails draws and their y: every line whose glyphs end by the panel's last y (a line past it is a

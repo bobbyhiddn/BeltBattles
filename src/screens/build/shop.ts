@@ -10,6 +10,7 @@ import { drawText, textWidth, wrap } from "../../render/font";
 import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
+import { drawFamilyMarks, familiesText, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
 import { CARD_W } from "./layout";
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
@@ -76,6 +77,9 @@ export interface CardState {
 
 /** 0.6.2t (T5): the wide card's effect text: 2 lines of the 3x5 face, 2 px in from each edge (as the name's w - 4). */
 export const CARD_EFFECT_LINES = 2;
+/** 0.8.0 I1 M4: where a card's family marks start (3x3 each, 4 px apart), from the card's top-left. */
+export const CARD_MARK_X = 3;
+export const CARD_MARK_Y = 32;
 export const cardEffectWidth = (w: number): number => w - 4;
 
 /** 0.6.2t: the effect's wrapped lines on a card `w` px wide (colourized: numbers white, keywords in their colours). */
@@ -164,6 +168,10 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
       ny += 6;
     }
   }
+  // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the family marks, a row at the bottom left of either face (narrow: left of the
+  // centred price, under the name; wide: under the effect's second line, over the badge and the price); the panel and
+  // the hover tooltip name them (ui/families.ts)
+  drawFamilyMarks(g, def.id, x + CARD_MARK_X, y + CARD_MARK_Y, s.sold);
   if (s.sold) {
     drawText(g, "SOLD", x + r.w / 2, y + r.h - 11, C.maroon, { font: "3", align: "center" });
   } else {
@@ -195,8 +203,10 @@ export function tooltipLines(text: string): RichLine[] {
  *  glossary (abilityText.ts, at 1 star and the hero's class factor), wrapped by the one helper, as its panel reads it. */
 export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text = ""): void {
   const lines = tooltipLines(text);
-  const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(describe(def), "3")) + 10;
-  const h = 22 + lines.length * 7;
+  // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line)
+  const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 : 0;
+  const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(describe(def), "3"), famLine ? lineWidth(famLine, "3") : 0) + 10;
+  const h = 22 + fh + lines.length * 7;
   const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));
   const y = r.y + r.h + 4;
   rect(g, x + 2, y + 2, w, h, C.ink);
@@ -205,7 +215,8 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text = ""): 
   rect(g, x + 1, y + 1, w - 2, 1, RARITY_COLOR[def.rarity]);
   drawText(g, def.name, x + 5, y + 4, RARITY_COLOR[def.rarity], { outline: C.ink });
   drawText(g, describe(def), x + 5, y + 13, C.slate4, { font: "3" });
-  lines.forEach((l, i) => drawRich(g, l, x + 5, y + 21 + i * 7, "3"));
+  if (famLine) drawRich(g, famLine, x + 5, y + 21, "3");
+  lines.forEach((l, i) => drawRich(g, l, x + 5, y + 21 + fh + i * 7, "3"));
 }
 
 export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pressed: boolean, free = false): void {
