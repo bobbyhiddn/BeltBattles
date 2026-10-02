@@ -93,8 +93,10 @@ export interface LuckCapsTable {
   caps: Partial<Record<HeroId, DayCaps[]>>;
 }
 
-/** The heroes the par player plays (the caps' heroes). */
-export const LUCK_HEROES: readonly HeroId[] = ["furnace", "weaver"];
+/** The heroes the par player plays (the caps' heroes). 0.8.0 N1 (VERIFIED-D1 Q11): FOUNDRY and BASTION joined FURNACE and
+ *  WEAVER, so each captain is checked against its own hero's caps (D1 used the lower of FURNACE's and WEAVER's). Each
+ *  hero's caps are its own par runs', so adding a hero leaves the others' rows unchanged. */
+export const LUCK_HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 
 /** The staleness sentinel: a hash of the par player's seed-`seed` run of `hero` (its ten dusk decks and buys), hex. A
  *  par-player change (policy, prices, the caravan, the rules) moves it; tests/captains.luck.test.ts recomputes it. */
