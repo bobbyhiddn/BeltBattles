@@ -66,7 +66,8 @@ describe("BASTION reference builds", () => {
       prev = buildCost(w);
     }
     expect(buildCost(raceRefBuild("bastion", 1))).toBe(6);
-    expect(buildCost(raceRefBuild("bastion", 10))).toBe(61); // 46 g of parts + 3 plates (nearest-plate ramp)
+    // 0.8.0 B1 M1 (oracle 60ce2081b6171361): the press belt has its own rigs from day 6 (refBuilds.ts STEPS)
+    expect(buildCost(raceRefBuild("bastion", 10))).toBe(64); // 49 g of parts + 3 plates (nearest-plate ramp)
     expectLegal(start(), 1);
   });
 

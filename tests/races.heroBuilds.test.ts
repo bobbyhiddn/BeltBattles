@@ -131,17 +131,19 @@ describe("race reference builds under live merging", () => {
   });
 
   it("copies merge at purchase time and the first placed rig keeps its cell, turn and hit", () => {
+    // 0.8.0 B1 M1 (oracle 60ce2081b6171361): the reference decks keep their mirrored rigs (another part on the second
+    // belt), so a copy merges only where STEPS buys it as a written ★2: FOUNDRY's and SIPHON's day-10 WHETSTONE
     const milestones = [
-      ["foundry", 1, "whetstone", [2]], ["foundry", 3, "temper", [2]],
-      ["foundry", 5, "longhaul", [2]], ["foundry", 8, "whetstone", [1, 2]],
-      ["foundry", 10, "calibrate", [2]],
-      ["bastion", 6, "whetstone", [2]], ["bastion", 7, "temper", [2]],
-      ["bastion", 9, "grease", [2]], ["bastion", 10, "longhaul", [2]],
-      ["metronome", 6, "whetstone", [2]], ["metronome", 7, "temper", [2]],
-      ["metronome", 9, "longhaul", [2]], ["metronome", 10, "whetstone", [1, 2]],
-      ["siphon", 1, "whetstone", [2]], ["siphon", 6, "temper", [2]],
-      ["siphon", 7, "calibrate", [2]], ["siphon", 8, "longhaul", [2]],
-      ["siphon", 9, "whetstone", [1, 2]], ["siphon", 10, "whetstone", [3]],
+      ["foundry", 1, "whetstone", [1]], ["foundry", 1, "counterweight", [1]], ["foundry", 2, "temper", [1]],
+      ["foundry", 5, "quench", [1]], ["foundry", 9, "whetstone", [1]], ["foundry", 10, "whetstone", [2]],
+      ["foundry", 10, "calibrate", []],
+      ["bastion", 6, "whetstone", [1]], ["bastion", 6, "counterweight", [1]], ["bastion", 7, "venom", [1]],
+      ["bastion", 9, "grease", [1]], ["bastion", 10, "longhaul", [1]],
+      ["metronome", 6, "whetstone", [1]], ["metronome", 7, "temper", [1]],
+      ["metronome", 9, "longhaul", [1]], ["metronome", 10, "whetstone", [1]],
+      ["siphon", 1, "whetstone", [1]], ["siphon", 1, "counterweight", [1]], ["siphon", 6, "temper", [1]],
+      ["siphon", 7, "calibrate", []], ["siphon", 8, "longhaul", [1]],
+      ["siphon", 9, "whetstone", [1]], ["siphon", 10, "whetstone", [2]],
     ] as const;
     for (const [hero, day, def, want] of milestones) {
       const b = heroRefBuild(hero, day);

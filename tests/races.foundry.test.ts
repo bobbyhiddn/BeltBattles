@@ -112,8 +112,9 @@ describe("FOUNDRY reference builds", () => {
       expect(buildCost(w)).toBeGreaterThan(prev);
       prev = buildCost(w);
     }
-    expect(buildCost(raceRefBuild("foundry", 1))).toBe(6);
-    expect(buildCost(raceRefBuild("foundry", 10))).toBe(61); // 46 g of parts + 3 plates (nearest-plate ramp)
+    // 0.8.0 B1 M1 (oracle 60ce2081b6171361): the mirrored rigs are other parts on the second belt (refBuilds.ts STEPS)
+    expect(buildCost(raceRefBuild("foundry", 1))).toBe(7);
+    expect(buildCost(raceRefBuild("foundry", 10))).toBe(62); // 47 g of parts + 3 plates (nearest-plate ramp)
     expectLegal(start(), 1);
   });
 

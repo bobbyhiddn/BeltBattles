@@ -78,18 +78,26 @@ type Buy = { gates?: Rig[]; press?: number[]; mod?: [string, number] };
 // 0.6.2 BELTSIDE (M4): every rig stands beside the belt tile its 0.6.1 gate stood on and works exactly that
 // tile ("-> (x,y)"), turned so no other arrow lands on a belt; where that tile has no free side, the nearest
 // tile of the same belt that has one (noted).
+// 0.8.0 B1 M1 (output-H1 REPORT section 6 finding, section 11 item 4): two 1-star copies merge (0.6.1a), so a "mirrored"
+// rig bought twice became one ★2 on the first belt and left the other belt bare (FOUNDRY's second blank belt on every
+// day, SIPHON's ECHO belt, BASTION's and METRONOME's press belt). Each mirror is now a different part of the same role
+// and price class on its own belt (WHETSTONE <-> COUNTERWEIGHT, TEMPER <-> VENOM DRIP, LONG HAUL <-> QUENCH TANK), so
+// every purchase works where its comment says; a repeat copy is bought only as a written ★2 upgrade. A CALIBRATION on a
+// gun that waits for its loads (FOUNDRY's guns, SIPHON's: H1's "starved", VERIFIED-I1 call 2) fires no faster, so those
+// purchases are rigs that work the belts instead. tests/races.refdecks.test.ts pins the rule.
 const STEPS: Record<RaceHeroId, Buy[]> = {
-  foundry: [ // mirror the processing on both fusing routes; a Stamp Press lights gun 2
-    { gates: [["whetstone", 1, 3, 1], ["whetstone", 4, 3, 3]] }, // d1  6 g: fused 1.5 x (5 + 5) = 15; -> (2,3), (3,3)
-    { gates: [["temper", 1, 4, 1]] }, // d2  9 g -> (2,4)
-    { gates: [["temper", 4, 4, 3]] }, // d3 12 g -> (3,4)
-    { gates: [["longhaul", 1, 2]] }, // d4 17 g -> (2,2)
-    { gates: [["longhaul", 4, 2, 2]] }, // d5 27 g -> (3,2)
-    { mod: ["calibrate", 0] }, // d6 32 g
+  foundry: [ // mirror the processing on both fusing routes (A = (2,y), B = (3,y)); a Stamp Press lights gun 2
+    // (B's blank fuses into A's, which keeps B's flat damage, Burn and Shock but not its Poison or Fray: those go on A)
+    { gates: [["whetstone", 1, 3, 1], ["counterweight", 4, 1]] }, // d1  7 g: A +2 -> (2,3); B +2 (4 tiles ridden) -> (3,1)
+    { gates: [["temper", 4, 4, 3]] }, // d2 10 g: B 1 Burn -> (3,4)
+    { gates: [["venom", 1, 4]] }, // d3 14 g: A 2 Poison -> (2,4)
+    { gates: [["longhaul", 1, 2]] }, // d4 19 g: A +1 a prior hit -> (2,2)
+    { gates: [["quench", 4, 2]] }, // d5 28 g: B +1, and its Burn into +3 -> (3,2)
+    { gates: [["barbed", 1, 5]] }, // d6 32 g: A Fray -> (2,5) (no CALIBRATION: gun 1 waits for its fused loads)
     { press: colUp(6) }, // d7 45 g: gun 2 fires plain slugs
-    { gates: [["whetstone", 5, 3, 1]] }, // d8 48 g -> (6,3)
-    { gates: [["temper", 5, 4, 1]] }, // d9 51 g -> (6,4)
-    { mod: ["calibrate", 1] }, // d10 61 g
+    { gates: [["heatjacket", 5, 5]] }, // d8 50 g: the press belt -> (6,5)
+    { gates: [["keg", 5, 4]] }, // d9 54 g: the press belt -> (6,4)
+    { gates: [["whetstone", 1, 1, 1]] }, // d10 62 g: a second WHETSTONE, ★2 on A at (1,3)
   ],
   bastion: [ // harden the bulwark line, then a Stamp Press into the heavy gun's second connector
     { gates: [["whetstone", 3, 3, 1], ["temper", 3, 4, 1]] }, // d1  6 g -> (4,3), (4,4)
@@ -97,11 +105,11 @@ const STEPS: Record<RaceHeroId, Buy[]> = {
     { gates: [["longhaul", 3, 2]] }, // d3 14 g -> (4,2)
     { mod: ["calibrate", 0] }, // d4 19 g
     { press: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }, // d5 32 g (13/14 belt)
-    { gates: [["whetstone", 6, 3, 3]] }, // d6 35 g -> (5,3)
-    { gates: [["temper", 6, 4, 3]] }, // d7 43 g -> (5,4)
-    { gates: [["coil", 3, 1, 1]] }, // d8 48 g -> (4,1)
-    { gates: [["grease", 7, 5, 3]] }, // d9 51 g -> (6,5): the press belt's first tile ((5,5) has no free side)
-    { gates: [["longhaul", 6, 2, 2]] }, // d10 61 g -> (5,2)
+    { gates: [["counterweight", 6, 2]] }, // d6 36 g: the press belt +2 (4 tiles ridden) -> (5,2)
+    { gates: [["venom", 6, 4]] }, // d7 45 g: the press belt 2 Poison -> (5,4)
+    { gates: [["coil", 3, 1, 1]] }, // d8 50 g -> (4,1)
+    { gates: [["quench", 7, 5]] }, // d9 54 g: the press belt's first tile ((5,5) has no free side) -> (6,5)
+    { gates: [["heatjacket", 6, 3]] }, // d10 64 g: the press belt -> (5,3)
   ],
   metronome: [ // 10-tile beat route; speed rigs preserve tempo and add locked-belt damage
     { gates: [["whetstone", 1, 4, 1], ["temper", 1, 3, 1]] }, // d1  6 g: 10 + 2 dmg, 2 Burn -> (2,4), (2,3)
@@ -109,23 +117,23 @@ const STEPS: Record<RaceHeroId, Buy[]> = {
     { mod: ["calibrate", 0] }, // d3 16 g
     { gates: [["coil", 3, 1]] }, // d4 21 g -> (4,1)
     { press: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }, // d5 34 g (17/20 belt)
-    { gates: [["whetstone", 6, 3, 3]] }, // d6 37 g -> (5,3), from the right: (4,3) is the day-10 whetstone's way in
-    { gates: [["temper", 4, 4, 1]] }, // d7 45 g -> (5,4)
-    { gates: [["splitter", 3, 3, 1]] }, // d8 52 g: copies keep the parent's ride time -> (3,2)
-    { gates: [["longhaul", 6, 2, 2]] }, // d9 57 g -> (5,2)
-    { gates: [["whetstone", 4, 3]] }, // d10 65 g -> (4,2), after the splitter
+    { gates: [["counterweight", 6, 3]] }, // d6 38 g: the press belt +1.5 -> (5,3), from the right
+    { gates: [["venom", 4, 4]] }, // d7 47 g: the press belt -> (5,4)
+    { gates: [["splitter", 3, 3, 1]] }, // d8 54 g: copies keep the parent's ride time -> (3,2)
+    { gates: [["quench", 6, 2]] }, // d9 58 g: the press belt -> (5,2)
+    { gates: [["heatjacket", 4, 3, 1]] }, // d10 68 g -> (4,2), after the splitter
   ],
   siphon: [ // process both leech lines; ECHO borrows the enemy's processing for free
-    { gates: [["whetstone", 1, 3, 1], ["whetstone", 6, 3, 1]] }, // d1  6 g -> (2,3), (7,3)
-    { gates: [["temper", 1, 4, 1]] }, // d2  9 g -> (2,4)
-    { gates: [["coil", 1, 2, 1]] }, // d3 14 g: a non-hull DRAG hit disrupts and drags -> (2,2)
-    { mod: ["calibrate", 0] }, // d4 19 g
+    { gates: [["whetstone", 1, 3, 1], ["counterweight", 6, 3]] }, // d1  7 g -> (2,3); ECHO +2 -> (7,3)
+    { gates: [["temper", 1, 4, 1]] }, // d2 10 g -> (2,4)
+    { gates: [["coil", 1, 2, 1]] }, // d3 15 g: a non-hull DRAG hit disrupts and drags -> (2,2)
+    { gates: [["venom", 6, 4]] }, // d4 19 g: ECHO -> (7,4) (no CALIBRATION: both guns wait for their loads)
     { gates: [["longhaul", 6, 2]] }, // d5 29 g -> (7,2)
-    { gates: [["temper", 6, 4, 1]] }, // d6 32 g -> (7,4)
-    { mod: ["calibrate", 1] }, // d7 42 g
-    { gates: [["longhaul", 1, 1]] }, // d8 47 g -> (2,1)
-    { gates: [["whetstone", 2, 6]] }, // d9 50 g -> (2,5)
-    { gates: [["whetstone", 7, 6]] }, // d10 58 g -> (7,5)
+    { gates: [["quench", 1, 1]] }, // d6 33 g: DRAG -> (2,1)
+    { gates: [["heatjacket", 8, 5]] }, // d7 43 g: ECHO -> (7,5) (no CALIBRATION)
+    { gates: [["barbed", 1, 5]] }, // d8 47 g: DRAG -> (2,5)
+    { gates: [["keg", 8, 4]] }, // d9 51 g: ECHO -> (7,4)
+    { gates: [["whetstone", 2, 6]] }, // d10 59 g: a second WHETSTONE, ★2 on DRAG at (1,3)
   ],
 };
 

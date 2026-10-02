@@ -42,6 +42,8 @@
 //   included: a player dragging a rig sees where its arrows land before dropping it (the game's drop auto-aims).
 // - CAND-A resume (the skill-ladder fix): the player reads its day's rating (rateOn: deckRating.ts fightTime, the par
 //   field's fight length on that day, 24 s on day 1 to 9.5 s on day 10), not a 25 s fight on every day.
+// - 0.8.0 B1 M1 (FOUNDRY's sync, syncKeeper): no change the player makes loses a gun its CRUCIBLE belts reach in sync;
+//   a synced pair grows together. A deck without a synced gun (every other hero's) plays exactly as before.
 
 import { Rng, hashSeed } from "../../core/rng";
 import { GRID, HEROES, ITEMS, JOIN_LIMIT, REROLL_COST, type HeroId } from "../content";
@@ -63,6 +65,7 @@ import {
 } from "../../game/run";
 import { MAX_TILES, Shopper } from "./shopper";
 import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } from "./path";
+import { syncOf, syncedTurrets } from "../syncEstimate"; // 0.8.0 B1 M1: FOUNDRY's sync guard (syncKeeper)
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
 
@@ -262,21 +265,57 @@ const relOf = (after: Build, base: number, day: number): number => {
 /** A new Shopper on `b` for belt edits only: an unlimited purse (moveRoute's check), stars, cores and factories on. */
 const editor = (b: Build, day: number, rng: Rng): Shopper => new Shopper(b, Number.MAX_SAFE_INTEGER, day, rng, "on", FUSE_MAX, "on", "on");
 
+// ---------------------------------------------------------------- FOUNDRY's sync (0.8.0 B1 M1)
+
+/**
+ * 0.8.0 B1 M1 (output-H1 REPORT section 11 item 5; N1's m1/sync-probe: the par FOUNDRY kept a synced gun in 92% of runs
+ * on day 1 and 40-44% on days 9-10): the par player keeps a FOUNDRY's belts in sync. The CRUCIBLE pours a blank onto
+ * each of its belts on one tick, and two blanks that reach one gun through different intakes within SYNC_WINDOW fuse
+ * (races/foundry.ts). The rating counts each blank on its own belt, so it can't see a fusion lost; a player sees the
+ * route inspector's SYNC mark (syncEstimate.ts syncedTurrets, the same estimate). So no change the player makes may lose
+ * a synced gun: a speed rig (or a BRAKE) goes where it works both belts alike or onto another belt, never onto one belt
+ * of a synced pair; a belt crate lengthens both belts of a pair alike (growBelt's pair growth); a redraw (a join, a feed
+ * for a new gun, a moved factory) and a merge leave every synced gun in sync. Returns the judge of a changed deck, or
+ * undefined when `b` has no synced gun: every deck without a CRUCIBLE (FURNACE, WEAVER, BASTION, ...), whose player is
+ * thereby untouched, byte for byte.
+ */
+export function syncKeeper(b: Build): ((after: Build) => boolean) | undefined {
+  const was = syncedTurrets(b);
+  if (!was.length) return undefined;
+  return (after) => {
+    const now = syncedTurrets(after);
+    return was.every((t) => now.includes(t));
+  };
+}
+
+/** 0.8.0 B1 M1: the synced pairs of CRUCIBLE belts (route indices, i < j), for growBelt's pair growth. */
+function syncPairs(b: Build): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < b.routes.length; i++) {
+    for (const p of syncOf(b, i)?.partners ?? []) if (p.sync && p.route > i) out.push([i, p.route]);
+  }
+  return out;
+}
+
 /** The rig spots worth trying for `def`: the harness's H2 spot (Shopper.rigSpot) for every belt tile of a connected
  *  route with a free side (Shopper.rigTiles; a speed rig skips slag routes, rigTilesFor), each spot once. With `rng`
  *  (place "tile"), exactly as the harness's gate lever places a rig: one of those tiles at random, its H2 spot.
  *  CAND-A: with `rng` and `top`, a multi-arrow rig also tries `top` of the spots where most of its arrows land (at
  *  least two: on two tiles of a belt or on two belts), at random among them. */
-function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = "h2", top = 0): RigSpot[] {
+function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = "h2", top = 0, ok?: (sp: RigSpot) => boolean): RigSpot[] {
   // 0.8.0 P1 (E3): a STOKER works factories, not belts: the free cells beside factories (beltside.ts stokeSpots), the
   // most factories first; "tile" picks one of them at random, as it picks a belt tile for any other rig
   if (ITEMS[def]?.gate?.stoke) {
-    const all = stokeSpots(s.b, def).map((sp): RigSpot => ({ x: sp.x, y: sp.y, rot: sp.rot, hits: [] }));
+    let all = stokeSpots(s.b, def).map((sp): RigSpot => ({ x: sp.x, y: sp.y, rot: sp.rot, hits: [] }));
+    if (ok) all = all.filter(ok); // 0.8.0 B1 M1: FOUNDRY's sync guard (syncKeeper); absent for every other deck
     return rng ? (all.length ? [rng.pick(all)] : []) : all;
   }
   const out: RigSpot[] = [];
   const seen = new Set<string>();
-  const tiles = s.rigTilesFor(ITEMS[def], s.rigTiles(), false);
+  let tiles = s.rigTilesFor(ITEMS[def], s.rigTiles(), false);
+  // 0.8.0 B1 M1: with FOUNDRY's sync guard, only the tiles whose spot keeps every synced gun in sync (a speed rig never
+  // lands on one belt of a synced pair); without it (every deck without a synced gun) the tiles as before
+  if (ok) tiles = tiles.filter(([ri, ti]) => { const sp = s.rigSpot(def, ri, ti); return !!sp && ok(sp); });
   if (rng && aim === "first") {
     // a random free side of a random belt tile, the rig's first arrow turned to that tile (other arrows land where
     // they land); a speed rig that would hit a slag belt is not put there (P20)
@@ -292,6 +331,7 @@ function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = 
     const hits = hitsIfPlaced(b, def, kx(k), ky(k), rot, beltIndex(b, s.connected()));
     const slag = s.slagRoutesFor(ITEMS[def]);
     if (slag && hits.some((h) => slag[h.route])) return out;
+    if (ok && !ok({ x: kx(k), y: ky(k), rot, hits })) return out; // 0.8.0 B1 M1: the sync guard
     out.push({ x: kx(k), y: ky(k), rot, hits });
     return out;
   }
@@ -304,7 +344,7 @@ function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = 
     out.push(sp);
   }
   if (rng && top > 0 && rigArrows(def).length > 1) {
-    const all = rigSpots(s, def);
+    const all = rigSpots(s, def, undefined, "h2", 0, ok);
     const most = Math.max(0, ...all.map((sp) => sp.hits.length));
     if (most >= 2) {
       for (const sp of rng.shuffle(all.filter((x) => x.hits.length === most)).slice(0, top)) {
@@ -323,7 +363,7 @@ function rigSpots(s: Shopper, def: string, rng?: Rng, aim: PolicyKnobs["aim"] = 
  * the offer (half its value back) and drops the new rig on that cell, turned for the most hits on connected belts
  * (the game's drop auto-aims; a speed rig never hits a slag belt, P20). Of those swaps, the best-rated; null: none.
  */
-function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, base: number, day: number): Omit<Cand, "wagon" | "slot" | "price"> | null {
+function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, base: number, day: number, keep?: (after: Build) => boolean): Omit<Cand, "wagon" | "slot" | "price"> | null {
   const slag = s.slagRoutesFor(ITEMS[def]);
   const belts = beltIndex(b, s.connected());
   let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
@@ -339,6 +379,7 @@ function rigSwap(b: Build, s: Shopper, def: string, price: number, uid: number, 
     }
     if (!spot) continue;
     placeRigAt(trial, uid, def, spot);
+    if (keep && !keep(trial)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const r = relOf(trial, base, day);
     if (!best || r > best.rel) best = { def, kind: "rig", merge: false, at: { x: spot.x, y: spot.y, rot: spot.rot }, swap: p.uid, rel: r };
   }
@@ -487,7 +528,7 @@ function joinLine(b: Build, dist: Int32Array, prev: Int32Array, m: number, tile:
  * connected belt at a tile up to its rig row, from the free spot whose line there is shortest (ties: row order); the
  * best-rated plan. The editor's commitRoute writes each belt. null when none fits.
  */
-function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKnobs, base: number, day: number): { x: number; y: number; routes: Line[]; rel: number } | null {
+function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKnobs, base: number, day: number, keep?: (after: Build) => boolean): { x: number; y: number; routes: Line[]; rel: number } | null {
   const place = (x: number, y: number, routes: Line[]): Build => {
     const after = cloneBuild(b);
     after.items.push({ uid, def, x, y });
@@ -504,7 +545,9 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
   for (const only of groups) {
     const own = factoryPlan(b, def, rng, pol.line, only);
     if (!own) continue;
-    const rel = relOf(place(own.x, own.y, own.routes), base, day);
+    const after = place(own.x, own.y, own.routes);
+    if (keep && !keep(after)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
+    const rel = relOf(after, base, day);
     if (!best || rel > best.rel) best = { ...own, rel };
   }
   if (!pol.join) return best;
@@ -530,6 +573,7 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
     if (!n) continue;
     const after = place(n.x, n.y, [n.line]);
     if (newJoinProblem(after, after.routes.length - 1) !== null) continue;
+    if (keep && !keep(after)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const rel = relOf(after, base, day);
     if (!best || rel > best.rel) best = { x: n.x, y: n.y, routes: [n.line], rel };
   }
@@ -541,12 +585,12 @@ function factoryCand(b: Build, def: string, uid: number, rng: Rng, pol: PolicyKn
  * joined, its shortest line into each target tile of another belt (within its own tiles plus the free belt), its
  * riders (rigs that work only it) lifted and put back beside the new belt (Shopper.reseat). The best-rated, or null.
  */
-function rejoin(b: Build, day: number, rng: Rng, base: number): { build: Build; rel: number } | null {
+function rejoin(b: Build, day: number, rng: Rng, base: number, keep?: (after: Build) => boolean): { build: Build; rel: number } | null {
   const claims = connectorClaims(b);
   let best: { build: Build; rel: number } | null = null;
   b.routes.forEach((r, ri) => {
     if (r.join !== undefined || joinersOf(b, ri).length || !routeInfo(b, ri, claims).connected) return;
-    best = joinRedraw(b, ri, day, rng, base, best);
+    best = joinRedraw(b, ri, day, rng, base, best, keep);
   });
   return best;
 }
@@ -554,7 +598,7 @@ function rejoin(b: Build, day: number, rng: Rng, base: number): { build: Build; 
 /** Belt ri redrawn into each join target (another connected belt's tile up to its rig row) at its shortest line from
  *  its factory (within its own tiles plus the free belt), its riders lifted and put back beside it: the best-rated
  *  of those and `best` (rejoin's scan; parBench's refeedRoute). */
-function joinRedraw(b: Build, ri: number, day: number, rng: Rng, base: number, best: { build: Build; rel: number } | null): { build: Build; rel: number } | null {
+function joinRedraw(b: Build, ri: number, day: number, rng: Rng, base: number, best: { build: Build; rel: number } | null, keep?: (after: Build) => boolean): { build: Build; rel: number } | null {
   const r = b.routes[ri], f = itemByUid(b, r.factory);
   if (!f) return best;
   const lifted = cloneBuild(b), s = editor(lifted, day, rng);
@@ -569,6 +613,7 @@ function joinRedraw(b: Build, ri: number, day: number, rng: Rng, base: number, b
     trial.routes[ri] = { factory: r.factory, cells: l.cells, join: l.join };
     if (newJoinProblem(trial, ri) !== null) continue; // TUNE-M: never a join past RULE JOIN LIMIT, here or later
     if (editor(trial, day, rng).reseat(riders.map((p) => ({ ...p })), ri) < riders.length) continue;
+    if (keep && !keep(trial)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const rel = relOf(trial, base, day);
     if (!best || rel > best.rel) best = { build: trial, rel };
   }
@@ -707,12 +752,13 @@ function settle(sim: Run, back: number[]): { refit: Refit[]; sell: number[]; sol
  * {} when the copy merges into an installed twin (a merge) or no plan exists.
  */
 type TurretBest = { plan: TurretPlan; rel: number };
-function turretCand(run: Run, def: string, pol: PolicyKnobs, rng: Rng, base: number): { extra?: TurretBest; replace?: TurretBest } {
+function turretCand(run: Run, def: string, pol: PolicyKnobs, rng: Rng, base: number, keep?: (after: Build) => boolean): { extra?: TurretBest; replace?: TurretBest } {
   const sim0 = simRun(run);
   const g = gainModule(sim0, def);
   const best: { extra?: TurretBest; replace?: TurretBest } = {};
   if (g.where !== "cargo") return best;
   const consider = (sim: Run, back: number[], p: Pick<TurretPlan, "slot" | "moved" | "into" | "replaced">) => {
+    if (keep && !keep(sim.build)) return; // 0.8.0 B1 M1: FOUNDRY's sync guard (a redrawn or swapped gun's belts)
     const s = settle(sim, back);
     const rel = relOf(sim.build, base, run.day);
     const cur = best[p.into];
@@ -755,7 +801,7 @@ function turretCand(run: Run, def: string, pol: PolicyKnobs, rng: Rng, base: num
  * (factoryPlan into that turret's intakes on the deck with it installed). The plan installs the turret unfed; the
  * factory is judged on its own next, its line into the new turret among its choices (factoryCand). null: no such line.
  */
-function pairCand(run: Run, def: string, fdef: string, pol: PolicyKnobs, rng: Rng, base: number): { plan: TurretPlan; rel: number } | null {
+function pairCand(run: Run, def: string, fdef: string, pol: PolicyKnobs, rng: Rng, base: number, keep?: (after: Build) => boolean): { plan: TurretPlan; rel: number } | null {
   const sim0 = simRun(run);
   const g = gainModule(sim0, def);
   if (g.where !== "cargo") return null;
@@ -769,6 +815,7 @@ function pairCand(run: Run, def: string, fdef: string, pol: PolicyKnobs, rng: Rn
     const after = cloneBuild(sim.build), uid = sim.nextUid;
     after.items.push({ uid, def: fdef, x: fp.x, y: fp.y });
     for (const l of fp.routes) commitRoute(after, uid, l.cells, -1);
+    if (keep && (!keep(after) || !keep(sim.build))) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
     const rel = relOf(after, base, run.day);
     if (!best || rel > best.rel) best = { plan: { copy: g.survivor, slot: v.slot, into: "extra", refit: [], sell: [], sold: false, build: sim.build }, rel };
   }
@@ -776,7 +823,7 @@ function pairCand(run: Run, def: string, fdef: string, pol: PolicyKnobs, rng: Rn
 }
 
 /** CAND-A: a cargo turret (one a swap displaced) back into an empty slot with a belt to feed it, when that rates best. */
-function reinstallCand(run: Run, rng: Rng, base: number): { uid: number; slot: number; build: Build; rel: number } | null {
+function reinstallCand(run: Run, rng: Rng, base: number, keep?: (after: Build) => boolean): { uid: number; slot: number; build: Build; rel: number } | null {
   const empty = turretSlots(run.build).filter((v) => !v.turret).map((v) => v.slot);
   let best: { uid: number; slot: number; build: Build; rel: number } | null = null;
   if (!empty.length) return best;
@@ -786,6 +833,7 @@ function reinstallCand(run: Run, rng: Rng, base: number): { uid: number; slot: n
       const sim = simRun(run);
       if (!installFromCargo(sim, it.uid, e).ok) continue;
       for (const fed of feedPlans(sim.build, e, run.day, rng)) {
+        if (keep && !keep(fed)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
         const rel = relOf(fed, base, run.day);
         if (!best || rel > best.rel) best = { uid: it.uid, slot: e, build: fed, rel };
       }
@@ -803,7 +851,7 @@ const same = (a: Build, b: Build): boolean => JSON.stringify(a) === JSON.stringi
  * lifted and put back beside the new belt; the harness's own route edit), and of those the best-rated deck. null
  * when nothing can grow or no growth rates above `base`. CAND-A: a belt that joins or is joined isn't redrawn here.
  */
-function growBelt(b: Build, day: number, rng: Rng, base: number): { build: Build; tiles: number; rel: number } | null {
+function growBelt(b: Build, day: number, rng: Rng, base: number, keep = syncKeeper(b)): { build: Build; tiles: number; rel: number } | null {
   // while a factory line still fits into a free intake, the player keeps the belt it needs
   const reach = factoryReach(b);
   const free = beltFree(b) - (reach <= beltFree(b) ? reach : 0);
@@ -818,11 +866,31 @@ function growBelt(b: Build, day: number, rng: Rng, base: number): { build: Build
       const trial = cloneBuild(b);
       const s = editor(trial, day, rng);
       if (!s.moveRoute(ri, tiles, col)) continue;
+      if (keep && !keep(trial)) break; // 0.8.0 B1 M1: FOUNDRY's sync guard (one belt of a synced pair never grows alone)
       const rel = relOf(trial, base, day);
       if (!best || rel > best.rel) best = { build: trial, tiles: tiles - r.cells.length, rel };
       break;
     }
   });
+  // 0.8.0 B1 M1: a synced pair of CRUCIBLE belts grows together, both to one new length (the free belt split between
+  // them), so its blanks still meet; the longest such growth that keeps the gun in sync
+  if (keep) {
+    for (const [i, j] of syncPairs(b)) {
+      const ri = b.routes[i], rj = b.routes[j];
+      if (ri.join !== undefined || rj.join !== undefined || joinersOf(b, i).length || joinersOf(b, j).length) continue;
+      const len = Math.max(ri.cells.length, rj.cells.length);
+      const ci = ri.cells[ri.cells.length - 1] % 10, cj = rj.cells[rj.cells.length - 1] % 10;
+      for (let tiles = Math.min(MAX_TILES, len + Math.floor((free - Math.abs(ri.cells.length - rj.cells.length)) / 2)); tiles > len; tiles--) {
+        const trial = cloneBuild(b);
+        const s = editor(trial, day, rng);
+        if (!s.moveRoute(i, tiles, ci) || !s.moveRoute(j, tiles, cj) || !keep(trial)) continue;
+        const rel = relOf(trial, base, day);
+        const grew = tiles - ri.cells.length + tiles - rj.cells.length;
+        if (!best || rel > best.rel) best = { build: trial, tiles: grew, rel };
+        break;
+      }
+    }
+  }
   return best;
 }
 
@@ -844,6 +912,13 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
   const planned = new Map<string, Omit<Cand, "wagon" | "slot" | "price">[]>();
   const fed = fedTurrets(b);
   const banned = forbidden(pol); // TUNE-M (T1): empty for both policies
+  // 0.8.0 B1 M1: FOUNDRY's sync guard (undefined for every deck without a synced gun: every candidate as before)
+  const keep = syncKeeper(b);
+  const keepSpot = keep && ((def: string) => (sp: RigSpot) => {
+    const after = cloneBuild(b);
+    placeRigAt(after, run.nextUid, def, sp);
+    return keep(after);
+  });
   // CAND-A: the factories on offer, for a turret judged with the factory that would feed it (pairCand)
   const factories = run.shop.wagons.flatMap((w) => w.offers.filter((o) => !o.sold && ITEMS[o.def].kind === "factory").map((o) => ({ def: o.def, price: o.price })));
   run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {
@@ -867,17 +942,19 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
       const pv = mergePreview(run, o.def);
       if (pv && pv.toStars > maxStars) c = null; // over the cap (stand-in candidates stop at 2 stars)
       else if (pv && pv.where !== "cargo") {
-        c = { def: o.def, kind: kindOf(o.def), merge: true, rel: relOf(afterGain(run, o.def, { x: 0, y: 0 }), base, day) };
+        const after = afterGain(run, o.def, { x: 0, y: 0 });
+        // 0.8.0 B1 M1: a merge that would lose a synced gun is no candidate (FOUNDRY's sync guard)
+        c = keep && !keep(after) ? null : { def: o.def, kind: kindOf(o.def), merge: true, rel: relOf(after, base, day) };
       } else if (d.kind === "gate") {
         let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
-        for (const sp of rigSpots(s, o.def, pol.place === "tile" ? rng : undefined, pol.aim, pol.aimTop)) {
+        for (const sp of rigSpots(s, o.def, pol.place === "tile" ? rng : undefined, pol.aim, pol.aimTop, keepSpot ? keepSpot(o.def) : undefined)) {
           const after = cloneBuild(b);
           placeRigAt(after, run.nextUid, o.def, sp);
           const r = relOf(after, base, day);
           if (!best || r > best.rel) best = { def: o.def, kind: "rig", merge: false, at: { x: sp.x, y: sp.y, rot: sp.rot }, rel: r };
         }
         // no free cell beside a belt: an upgrade sells a cheaper placed rig and puts the new one on its cell
-        if (!best && pol.upgrade && !s.hasRigTile()) best = rigSwap(b, s, o.def, o.price, run.nextUid, base, day);
+        if (!best && pol.upgrade && !s.hasRigTile()) best = rigSwap(b, s, o.def, o.price, run.nextUid, base, day, keep);
         c = best;
       } else if (d.kind === "mod" || d.kind === "core") {
         // 0.6.2s (S4): gear into a free GEAR SLOT of an installed turret (never two copies of one def on a turret), a
@@ -911,15 +988,15 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
         }
         c = best;
       } else if (d.kind === "factory") {
-        const fp = factoryCand(b, o.def, run.nextUid, rng, pol, base, day);
+        const fp = factoryCand(b, o.def, run.nextUid, rng, pol, base, day, keep);
         if (fp) c = { def: o.def, kind: "factory", merge: false, at: { x: fp.x, y: fp.y }, routes: fp.routes, rel: fp.rel };
       } else if (d.kind === "turret" && pol.turret) {
-        const tp = turretCand(run, o.def, pol, rng, base);
+        const tp = turretCand(run, o.def, pol, rng, base, keep);
         let extra = tp.extra;
         if (pol.extra) {
           for (const f of factories) {
             if (o.price + f.price > run.gold) continue;
-            const pc = pairCand(run, o.def, f.def, pol, rng, base);
+            const pc = pairCand(run, o.def, f.def, pol, rng, base, keep);
             if (pc && !banned.has(f.def) && (!extra || pc.rel > extra.rel)) extra = pc; // TUNE-M: never with a forbidden factory
           }
         }
@@ -1112,7 +1189,7 @@ export const floorGold = (day: number, floor: number): number => Math.ceil(floor
 function dawnEdits(run: Run, pol: PolicyKnobs, rng: Rng): void {
   const need = pol.grow ? pol.minRel : pol.upgradeGain;
   if (pol.extra && pol.turret) {
-    const r = reinstallCand(run, rng, rateOn(run.build, run.day));
+    const r = reinstallCand(run, rng, rateOn(run.build, run.day), syncKeeper(run.build)); // 0.8.0 B1 M1: the sync guard
     if (r && r.rel > need) {
       if (!installFromCargo(run, r.uid, r.slot).ok) throw new Error(`par player: reinstall ${r.uid} -> slot ${r.slot} failed`);
       run.build.items = cloneBuild(r.build).items;
@@ -1121,7 +1198,7 @@ function dawnEdits(run: Run, pol: PolicyKnobs, rng: Rng): void {
     }
   }
   if (pol.join) {
-    const j = rejoin(run.build, run.day, rng, rateOn(run.build, run.day));
+    const j = rejoin(run.build, run.day, rng, rateOn(run.build, run.day), syncKeeper(run.build)); // 0.8.0 B1 M1: the sync guard
     if (j && j.rel > need) {
       run.build.items = j.build.items;
       run.build.routes = j.build.routes;

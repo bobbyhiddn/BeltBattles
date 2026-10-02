@@ -45,7 +45,10 @@ const rigsOf = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind === "gate")
 const machinery = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind !== "gate").map((p) => JSON.stringify(p)).sort();
 // E2 intentionally rewrites live captain plans and Weaver par purchases. The inline fixtures remain the
 // historical BELTSIDE port oracle; the live replacements have their own legality and hit checks.
-const rewritten = (key: string) => key.startsWith("rival/") || /^(ai\/warlord|hero\/ref)\/weaver\/(7|8|9|10)$/.test(key);
+// 0.8.0 B1 M1 (oracle 60ce2081b6171361): the race reference decks keep their mirrored rigs (another part on the second
+// belt; tests/b1.harness.test.ts guards them): FOUNDRY and SIPHON from day 1, BASTION and METRONOME from day 6.
+const rewritten = (key: string) => key.startsWith("rival/") || /^(ai\/warlord|hero\/ref)\/weaver\/(7|8|9|10)$/.test(key)
+  || /^(hero|race)\/ref\/(foundry|siphon)\/([1-9]|10)$/.test(key) || /^(hero|race)\/ref\/(bastion|metronome)\/(6|7|8|9|10)$/.test(key);
 
 describe("BELTSIDE M4: native rig placement in every preset deck", () => {
   it("covers every frozen preset deck", () => {
