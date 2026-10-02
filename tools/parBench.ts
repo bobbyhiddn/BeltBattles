@@ -10,7 +10,8 @@
 //               of that data module instead (a dry candidate), with the same seeds
 //   --rivals    [--seeds 4] [--tq-seeds 20] the captains against the par field and honestReference (brief 4b-4d); TUNE-C:
 //               per field (FURNACE, WEAVER, both), the par field's top quartile / decile vs Hard, the stand-ins' fight
-//               lengths; [--ids a,b] [--no-honest] [--no-tq] [--tq-pop] (the full-purse population's top quartile)
+//               lengths; [--ids a,b] [--no-honest] [--no-tq] [--tq-pop] (the full-purse population's top quartile);
+//               0.8.0 N1: [--fields furnace,weaver,foundry,bastion] adds par fields beside FURNACE and WEAVER
 //   --ladder    [--seeds 4] the skill ladder: par vs the random-pick field, calm and sharp vs the par field (brief 0c)
 //   --mix       no battles: the spend mix of the par field and the full-purse population, and supply offer rates
 //   --desk      [--seeds 10] the desk run's seeded pool ghosts (scripts/singlefile.mjs) against the par field (step 5)
@@ -35,7 +36,8 @@
 // 0.6.2 TUNE-C (ref/BRIEF-final-062-captains.md section 3 item 5):
 //   --synergy   [--seeds 4] [--variants 3] [--ids a,b] the synergy check: each captain's named build on days 5 and 9
 //               (the Iron Matriarch on day 10; --days picks others) against copies with its synergy parts swapped for
-//               off-plan parts of the same cost in the same slots (src/sim/harness/synergy.ts), paired per par member
+//               off-plan parts of the same cost in the same slots (src/sim/harness/synergy.ts), paired per par member;
+//               0.8.0 N1: [--fields ...] as for --rivals
 // Battles fan out to worker threads; results are keyed by job, so they never depend on --workers.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -71,7 +73,16 @@ import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { flag, num, serveJobs, workerRunner } from "./workers";
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
-const norm = (b: Build): Build => decodeStandInCode(b.hero, standInCodeOf(b, "on"), "on");
+/** 0.8.0 N1 (REQ-BFG-024, REQ-BFG-011): the par fields --rivals and --synergy measure against, `--fields a,b,...`
+ *  (default FURNACE and WEAVER). FURNACE stays the calibration field and "both" stays FURNACE + WEAVER; FOUNDRY and
+ *  BASTION (`--fields furnace,weaver,foundry,bastion`) are reported beside them. A field's battle seeds are keyed by its
+ *  hero, so adding a field never moves another field's numbers. */
+function fieldsOf(): HeroId[] {
+  const f = (flag("fields")?.split(",").filter(Boolean) as HeroId[] | undefined) ?? HEROES;
+  for (const h of HEROES) if (!f.includes(h)) throw new Error(`--fields must include ${h} (the calibration field and "both")`);
+  return f;
+}
+const norm =(b: Build): Build => decodeStandInCode(b.hero, standInCodeOf(b, "on"), "on");
 const G = STANDIN_DEFAULTS.gauntlet, SEED = STANDIN_DEFAULTS.seed, SEEDS = STANDIN_DEFAULTS.seeds;
 
 /** The stand-in generator's gauntlet of `day` (standins.ts genStandIns, seed 1, stars/cores/factories on). */
@@ -242,6 +253,7 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
   const only = flag("ids")?.split(",") as RivalId[] | undefined;
   const pick = (id: RivalId) => !only || only.includes(id);
   const honestOn = !process.argv.includes("--no-honest"), tqOn = !process.argv.includes("--no-tq"), tqPop = process.argv.includes("--tq-pop");
+  const FIELDS = fieldsOf(), EXTRA = FIELDS.filter((h) => !HEROES.includes(h)); // 0.8.0 N1: --fields
   for (const day of days) {
     const t0 = performance.now();
     const warlords = RIVAL_IDS.filter((id) => rivalDays(id).includes(day) && pick(id));
@@ -264,9 +276,9 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
     }
     const rows = decks.map((d, i) => ({
       tag: d.tag, hero: d.hero, cost: deckCost(d.build).total,
-      vs: Object.fromEntries(HEROES.map((h) => [h, { rate: res[i][h].rate, members: res[i][h].members }])) as Record<HeroId, { rate: number; members: number[] }>,
+      vs: Object.fromEntries(FIELDS.map((h) => [h, { rate: res[i][h].rate, members: res[i][h].members }])) as Record<HeroId, { rate: number; members: number[] }>,
       vsHonest: vsHonest[i],
-      times: Object.fromEntries(HEROES.map((h) => [h, times[i][h].map((t) => Math.round(10 * t) / 10)])) as Record<HeroId, number[]>,
+      times: Object.fromEntries(FIELDS.map((h) => [h, times[i][h].map((t) => Math.round(10 * t) / 10)])) as Record<HeroId, number[]>,
     }));
     const hard = warlords.filter((id) => difficultyOf(id) === "hard");
     // TUNE-C: the par field's top quartile (P75 and up) vs each Hard captain, and its top decile (P90 and up) vs the Matriarch
@@ -324,7 +336,8 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
       const per = (h: HeroId) => memberCI(Array.from({ length: k }, (_, m) => mean(rs.map((r) => r.vs[h].members[m]))));
       const both = memberCI(HEROES.flatMap((h) => Array.from({ length: k }, (_, m) => mean(rs.map((r) => r.vs[h].members[m])))));
       const hon = honestOn ? ` | vs honestReference (other) ${pc(mean(rs.map((r) => r.vsHonest![other(r.hero)])))}` : "";
-      console.log(`rivals ${tag} d${day} ${label.padEnd(16)} (${rs.length}) vs FURNACE ${ciOf(per("furnace"))} | WEAVER ${ciOf(per("weaver"))} | both ${ciOf(both)}${hon}`);
+      const extra = EXTRA.map((h) => ` | ${h.toUpperCase()} ${ciOf(per(h))}`).join("");
+      console.log(`rivals ${tag} d${day} ${label.padEnd(16)} (${rs.length}) vs FURNACE ${ciOf(per("furnace"))} | WEAVER ${ciOf(per("weaver"))} | both ${ciOf(both)}${extra}${hon}`);
     };
     slotLine("easy", warlords.filter((id) => difficultyOf(id) === "easy"), "warlord");
     slotLine("medium", warlords.filter((id) => difficultyOf(id) === "medium"), "warlord");
@@ -334,18 +347,19 @@ async function rivalsMode(days: number[], run: Runner, detail: DetailRunner, out
     for (const r of rows.filter((x) => !x.tag.startsWith("pool/"))) {
       const both = memberCI(HEROES.flatMap((h) => r.vs[h].members));
       const hon = r.vsHonest ? ` | honest: furnace ${pc(r.vsHonest.furnace)} weaver ${pc(r.vsHonest.weaver)}` : "";
-      console.log(`    ${r.tag.padEnd(20)} ${String(r.cost).padStart(3)}g vs FURNACE ${pc(r.vs.furnace.rate)} WEAVER ${pc(r.vs.weaver.rate)} (both ${ciOf(both)})${hon}`);
+      const extra = EXTRA.map((h) => ` ${h.toUpperCase()} ${pc(r.vs[h].rate)}`).join("");
+      console.log(`    ${r.tag.padEnd(20)} ${String(r.cost).padStart(3)}g vs FURNACE ${pc(r.vs.furnace.rate)} WEAVER ${pc(r.vs.weaver.rate)} (both ${ciOf(both)})${extra}${hon}`);
     }
     // the stand-ins' fight lengths against par: median [P25-P75] per field
     const lens = (h?: HeroId) => rows.filter((r) => r.tag.startsWith("standin/")).flatMap((r) => (h ? r.times[h] : HEROES.flatMap((x) => r.times[x])));
     const q3 = (xs: number[]) => (xs.length ? `${quantile(xs, 0.5).toFixed(1)} s [${quantile(xs, 0.25).toFixed(1)}-${quantile(xs, 0.75).toFixed(1)}]` : "-");
-    if (standIns.length) console.log(`length ${tag} d${day} par vs the named stand-ins: FURNACE ${q3(lens("furnace"))} | WEAVER ${q3(lens("weaver"))} | both ${q3(lens())}`);
+    if (standIns.length) console.log(`length ${tag} d${day} par vs the named stand-ins: FURNACE ${q3(lens("furnace"))} | WEAVER ${q3(lens("weaver"))} | both ${q3(lens())}${EXTRA.map((h) => ` | ${h.toUpperCase()} ${q3(lens(h))}`).join("")}`);
     if (day === 1) {
       // 4c: the par field's day-1 decks against the day-1 dusk opponents; loss = the opponents' win rate, per par member
       for (const [label, pre] of [["named stand-ins", "standin/"], ["pool v2.1 picks", "pool/"]] as const) {
         const opp = rows.filter((r) => r.tag.startsWith(pre));
         if (!opp.length) continue;
-        for (const h of HEROES) console.log(`first ${tag} d1 par ${h} loses to ${label} (${opp.length}): ${ciOf(memberCI(Array.from({ length: k }, (_, m) => mean(opp.map((r) => r.vs[h].members[m])))))}`);
+        for (const h of FIELDS) console.log(`first ${tag} d1 par ${h} loses to ${label} (${opp.length}): ${ciOf(memberCI(Array.from({ length: k }, (_, m) => mean(opp.map((r) => r.vs[h].members[m])))))}`);
       }
     }
     writeFileSync(resolve(out, `rivals-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, tqSeeds, rows, tqPar, tq }, null, 1));
@@ -365,7 +379,7 @@ function quantile(xs: readonly number[], q: number): number {
  * captain reads the same with --ids as in the full table), through the detail runner. res[d][hero]: vsPar's shape;
  * times[d][hero]: every battle's length (s).
  */
-async function vsParDetail(decks: { tag: string; build: Build }[], day: number, detail: DetailRunner, k: number, seeds: number, opts: PlayerOpts): Promise<{ res: Record<HeroId, VsPar>[]; times: Record<HeroId, number[]>[] }> {
+async function vsParDetail(decks: { tag: string; build: Build }[], day: number, detail: DetailRunner, k: number, seeds: number, opts: PlayerOpts, HEROES: HeroId[] = fieldsOf()): Promise<{ res: Record<HeroId, VsPar>[]; times: Record<HeroId, number[]>[] }> {
   const refs = HEROES.map((h) => parField(h, day, k, opts));
   const field = [...decks.map((d) => d.build), ...refs.flat()];
   const at: number[] = [];
@@ -1283,7 +1297,8 @@ async function synergyMode(days: number[], run: Runner, out: string, opts: Playe
       const vs = Array.from({ length: variants }, (_, v) => synergySwap(id, PLANS[id], build, day, v, pve));
       return { id, kind: pve ? "warlord" : "standin", build, vs };
     });
-    const refs = HEROES.map((h) => parField(h, day, k, opts));
+    const FIELDS = fieldsOf(), EXTRA = FIELDS.filter((h) => !HEROES.includes(h)); // 0.8.0 N1: --fields
+    const refs = FIELDS.map((h) => parField(h, day, k, opts));
     const decks = groups.flatMap((g) => [g.build, ...g.vs.map((x) => x.build)]);
     const field = [...decks, ...refs.flat()];
     const at: number[] = [];
@@ -1293,27 +1308,31 @@ async function synergyMode(days: number[], run: Runner, out: string, opts: Playe
     let d = 0;
     for (const g of groups) {
       for (let j = 0; j <= variants; j++, d++) {
-        HEROES.forEach((h, hi) => refs[hi].forEach((_, m) => jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed("par-synergy", day, g.id, h, m, s)) })));
+        FIELDS.forEach((h, hi) => refs[hi].forEach((_, m) => jobs.push({ a: d, b: at[hi] + m, seeds: Array.from({ length: seeds }, (_, s) => hashSeed("par-synergy", day, g.id, h, m, s)) })));
       }
     }
     const pts = await run(field, jobs);
     let x = 0;
     const rows = groups.map((g) => {
       // rates[j][hero][m]: deck j (0 = the build, 1.. the swapped variants) against member m
-      const rates = Array.from({ length: variants + 1 }, () => Object.fromEntries(HEROES.map((h, hi) => [h, refs[hi].map(() => pts[x++] / (2 * seeds))])) as Record<HeroId, number[]>);
-      const change = (h: HeroId) => refs[HEROES.indexOf(h)].map((_, m) => mean(rates.slice(1).map((r) => r[h][m])) - rates[0][h][m]);
-      const ch = { furnace: ci(change("furnace")), weaver: ci(change("weaver")), both: ci([...change("furnace"), ...change("weaver")]) };
+      const rates = Array.from({ length: variants + 1 }, () => Object.fromEntries(FIELDS.map((h, hi) => [h, refs[hi].map(() => pts[x++] / (2 * seeds))])) as Record<HeroId, number[]>);
+      const change = (h: HeroId) => refs[FIELDS.indexOf(h)].map((_, m) => mean(rates.slice(1).map((r) => r[h][m])) - rates[0][h][m]);
+      const ch: Record<string, { mean: number; lo: number; hi: number }> & { furnace: { mean: number; lo: number; hi: number }; weaver: { mean: number; lo: number; hi: number }; both: { mean: number; lo: number; hi: number } } = {
+        furnace: ci(change("furnace")), weaver: ci(change("weaver")), both: ci([...change("furnace"), ...change("weaver")]),
+        ...Object.fromEntries(EXTRA.map((h) => [h, ci(change(h))])),
+      };
       const swaps: Swap[][] = g.vs.map((v) => v.swaps);
       return {
         id: g.id, kind: g.kind, cost: deckCost(g.build).total, synergy: PLANS[g.id].synergy ?? [],
-        rate: Object.fromEntries(HEROES.map((h) => [h, mean(rates[0][h])])), members: rates[0],
-        variants: g.vs.map((v, j) => ({ swaps: v.swaps, kept: v.kept, cost: deckCost(v.build).total, rate: Object.fromEntries(HEROES.map((h) => [h, mean(rates[j + 1][h])])), members: rates[j + 1] })),
+        rate: Object.fromEntries(FIELDS.map((h) => [h, mean(rates[0][h])])), members: rates[0],
+        variants: g.vs.map((v, j) => ({ swaps: v.swaps, kept: v.kept, cost: deckCost(v.build).total, rate: Object.fromEntries(FIELDS.map((h) => [h, mean(rates[j + 1][h])])), members: rates[j + 1] })),
         change: ch, pays: ch.furnace.hi < 0, parts: swaps[0]?.length ?? 0,
       };
     });
     for (const r of rows) {
       const sw = r.variants.map((v) => v.swaps.map((s) => `${s.from}->${s.to}${s.stars > 1 ? `*${s.stars}` : ""}${s.dGold ? `(${s.dGold > 0 ? "+" : ""}${s.dGold}g)` : ""}${s.tier === "off-plan" ? "" : `[${s.tier}]`}`).join(",") + (v.kept.length ? ` kept ${v.kept.join(",")}` : "")).join(" | ");
-      console.log(`synergy ${tag} d${day} ${r.id.padEnd(10)} ${r.kind} ${String(r.cost).padStart(3)}g: build F ${pc(r.rate.furnace)} W ${pc(r.rate.weaver)}; swapped F ${pc(mean(r.variants.map((v) => v.rate.furnace)))} W ${pc(mean(r.variants.map((v) => v.rate.weaver)))}; change F ${fmtCh(r.change.furnace)} W ${fmtCh(r.change.weaver)} both ${fmtCh(r.change.both)} -> ${r.pays ? "PAYS" : "does not pay"} | ${sw}`);
+      const extra = EXTRA.map((h) => ` ${h.toUpperCase()} ${pc(r.rate[h])} -> ${pc(mean(r.variants.map((v) => v.rate[h])))} ${fmtCh(r.change[h])}`).join(";");
+      console.log(`synergy ${tag} d${day} ${r.id.padEnd(10)} ${r.kind} ${String(r.cost).padStart(3)}g: build F ${pc(r.rate.furnace)} W ${pc(r.rate.weaver)}; swapped F ${pc(mean(r.variants.map((v) => v.rate.furnace)))} W ${pc(mean(r.variants.map((v) => v.rate.weaver)))}; change F ${fmtCh(r.change.furnace)} W ${fmtCh(r.change.weaver)} both ${fmtCh(r.change.both)}${extra ? `;${extra}` : ""} -> ${r.pays ? "PAYS" : "does not pay"} | ${sw}`);
     }
     writeFileSync(resolve(out, `synergy-${tag}-d${day}.json`), JSON.stringify({ day, k, seeds, variants, rows }, null, 1));
     console.log(`synergy ${tag} d${day}: ${rows.length} builds, ${rows.filter((r) => r.pays).length} pay (${((performance.now() - t0) / 1000).toFixed(0)} s)`);
