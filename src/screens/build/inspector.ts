@@ -1155,8 +1155,12 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   const strip = !column && area.y + 25 + shift + 5 > area.y + area.h - 4 && !!sp.headerOnly;
   const namesW = textWidth(tags.join(", "), "3"), marksW = tags.length * 4 - 1;
   const titleFree = column || !labels.length || !!port?.shift;
-  const beside = (text: string, font: FontId, free: boolean) => (w: number) => free && 23 + textWidth(text, font) + 6 + w <= area.w - 4;
+  const beside = (text: string, font: FontId, free: boolean, gap = 6) => (w: number) => free && 23 + textWidth(text, font) + gap + w <= area.w - 4;
   const bySub2 = beside(subs[1] ?? "", "3", column && subs.length === 2), byTitle = beside(sp.title, "5", titleFree);
+  // 0.8.0 B1 M4 (VERIFIED-I1 call 7): the last resort, the marks right of the title with only its outline and one clear
+  // pixel between (I1's rule: a clear pixel all round). DRAG CHAIN FOUNDRY at 3 stars on the phone (its 125 px title, the
+  // buttons under the sub line) had no place at all
+  const byTitleTight = beside(sp.title, "5", titleFree, 2);
   const underSub = subs.length === 1 && !shift;
   const famHead: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
     : underSub && !body.tight && namesW <= area.w - 27 ? { at: "sub", tags, names: true }
@@ -1164,7 +1168,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
     : byTitle(namesW) ? { at: "title", tags, names: true }
     : underSub && marksW <= area.w - 27 ? { at: "sub", tags, names: false }
     : bySub2(marksW) ? { at: "sub2", tags, names: false }
-    : byTitle(marksW) ? { at: "title", tags, names: false }
+    : byTitle(marksW) || byTitleTight(marksW) ? { at: "title", tags, names: false }
     : null;
   const r = column ? { ...area, h: Math.min(area.h, 27 + shift + body.height + extra) } : area;
   const y = r.y + 25 + shift - (body.tight ? 1 : 0);

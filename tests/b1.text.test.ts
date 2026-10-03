@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { G, fresh, installRaster } from "./raster.helpers";
 import { C } from "../src/render/palette";
-import { withWave3 } from "../src/sim/content";
+import { ITEMS, buyableModules, withWave3 } from "../src/sim/content";
 import { newRun, type DuskFoe, type Run } from "../src/game/run";
 import { key as K, stokeHits, type Build, type Placed } from "../src/sim/deck";
 import { stokeKeep } from "../src/sim/deckRating";
@@ -20,11 +20,16 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { validateBuild } from "../src/net/validate";
 import { buildLayout } from "../src/screens/build/layout";
 import {
-  ROLE, drawDetails, planPanel, rigPanel, stokeCapBlocks, stokerAbility, visibleLines, type Block, type PanelText, type PLine,
+  ROLE, cargoPanel, drawDetails, drawFamHead, itemPanel, offerPanel, planPanel, rigPanel, selFamilies, stokeCapBlocks, stokerAbility,
+  visibleLines, type Block, type PanelText, type PLine,
 } from "../src/screens/build/inspector";
 import type { Ctx } from "../src/screens/build/actions";
+import { CARD_EFFECT_Y, CARD_MARK_X, CARD_MARK_Y, drawCard, type CardState } from "../src/screens/build/shop";
+import { WIDE_CARD_H, WIDE_CARD_MAX_W, type Sel } from "../src/screens/build/layout";
+import { textWidth } from "../src/render/font";
+import { FAMILY, familiesOf } from "../src/ui/families";
 import { UI } from "../src/ui/ui";
-import { abilityText } from "../src/ui/abilityText";
+import { abilityText, cardText } from "../src/ui/abilityText";
 import { banned } from "./textRules";
 import { SEED, barge, item, run as fight, withItem, withMod } from "./wave3.helpers";
 
@@ -377,5 +382,109 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
       .toEqual(["THE TWIN MOULD'S GUN IS FULL, SO IT WORKS NO FASTER."]);
     // ARMOR PRESS's own sentences state no pace for a stoke to contradict (the STOKER's line says it where it applies)
     for (const s of [1, 2, 3]) expect(abilityText("armorpress", s).sentences.join(" "), `★${s}`).not.toMatch(/STOKE|PACE|FASTER/);
+  });
+});
+
+// ------------------------------------------------------------------------------------- tag polish (VERIFIED-I1 call 7)
+
+describe("the desk's wide card: a clear row between the effect's second line and the family marks (VERIFIED-I1 call 7)", () => {
+  it("every module, sold or with a merge badge: the row over the marks is the bare face, the effect's lines end above it, the icon keeps its clear row", () => {
+    const base: CardState = { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0, badge: null };
+    const OX = 3, OY = 4, W = WIDE_CARD_MAX_W, H = WIDE_CARD_H;
+    let cards = 0;
+    for (const d of buyableModules()) for (const s of [{}, { sold: true }, { badge: { kind: "merge", toStars: 2 } as CardState["badge"] }]) {
+      const c = fresh(OX + W + 4, OY + H + 4);
+      drawCard(G(c), { x: OX, y: OY, w: W, h: H }, ITEMS[d.id], d.price, d.merchant!, { ...base, effect: cardText(d.id), ...s }, 0);
+      const face = "sold" in s ? C.night : C.slate0, what = `${d.id} ${JSON.stringify(s)}`;
+      const row = (y: number) => Array.from({ length: W - 4 }, (_, i) => c.at(OX + 2 + i, OY + y));
+      // the clear rows: under the icon and the name (over the effect), and between the effect and the marks
+      expect(row(CARD_EFFECT_Y - 1).filter((p) => p !== face), `${what}: the row over the effect`).toEqual([]);
+      expect(row(CARD_MARK_Y - 1).filter((p) => p !== face), `${what}: the row over the marks`).toEqual([]);
+      // the effect's two lines are drawn on their rows (5 rows each, a row apart), and the marks on theirs
+      const ink = (y0: number, n: number) => Array.from({ length: n }, (_, j) => row(y0 + j)).flat().filter((p) => p !== face).length;
+      expect(ink(CARD_EFFECT_Y, 5), what).toBeGreaterThan(0);
+      if (cardText(d.id).length > 20) expect(ink(CARD_EFFECT_Y + 6, 5), what).toBeGreaterThan(0);
+      expect(CARD_EFFECT_Y + 6 + 5, "the effect's second line ends two rows over the marks").toBe(CARD_MARK_Y - 1);
+      const marks = Array.from({ length: 3 }, (_, v) => Array.from({ length: 4 * familiesOf(d.id).length - 1 }, (_, i) => c.at(OX + CARD_MARK_X + i, OY + CARD_MARK_Y + v))).flat();
+      expect(marks.filter((p) => p !== face).length, what).toBeGreaterThan(0);
+      cards++;
+    }
+    expect(cards).toBe(buyableModules().length * 3);
+  });
+});
+
+describe("DRAG CHAIN FOUNDRY at 3 stars on the phone shows its families (VERIFIED-I1 call 7)", () => {
+  const PHONE = BANDS[0][1];
+  const dragchain = (): { id: string; run: Run; sel: Sel; t: PanelText }[] => {
+    const out: { id: string; run: Run; sel: Sel; t: PanelText }[] = [];
+    for (const spare of [0, 1]) {
+      const run = newRun("furnace", 5, "fam");
+      run.inventory = [{ uid: 900, def: "dragchain", stars: 3 }, ...Array.from({ length: spare }, (_, i) => ({ uid: 800 + i, def: "dragchain" }))];
+      out.push({ id: `cargo spare${spare}`, run, sel: { kind: "cargo", uid: 900 }, t: cargoPanel(run, 900)! });
+    }
+    const run = newRun("furnace", 5, "fam");
+    run.build.items.push({ uid: 901, def: "dragchain", x: 6, y: 6, stars: 3 });
+    run.build.routes.push({ factory: 901, cells: [56, 55, 45, 35, 25, 15, 5] });
+    out.push({ id: "placed", run, sel: { kind: "item", uid: 901 }, t: itemPanel(run, 901)! });
+    return out;
+  };
+
+  it("its marks sit right of its title, one clear pixel past the title's outline, drawn where planned (I1: no place at all)", () => {
+    const ctxOf = (run: Run): Ctx => ({ game: { ui: new UI(), t: 0 }, run } as unknown as Ctx);
+    for (const c of dragchain()) {
+      const fam = selFamilies(c.run, c.sel), p = planPanel(c.t, PHONE, fam), r = p.r, w = fam.length * 4 - 1;
+      expect(fam, c.id).toEqual(familiesOf("dragchain"));
+      expect(p.famHead, c.id).toEqual({ at: "title", tags: fam, names: false });
+      // I1's rule (6 px beside the title) had no room; the buttons dropped under the sub line take the band below it
+      expect(23 + textWidth(c.t.title) + 6 + w > PHONE.w - 4, c.id).toBe(true);
+      expect(p.shift, c.id).toBe(12);
+      // the marks' clear ring: right of the title's box (its outline), inside the panel, above the sub line
+      const x0 = r.x + r.w - 4 - w;
+      expect(x0 - 1, c.id).toBeGreaterThanOrEqual(r.x + 22 + textWidth(c.t.title) + 2);
+      expect([r.y + 6 - 1 >= r.y + 4, r.y + 6 + 3 + 1 <= r.y + 13], c.id).toEqual([true, true]);
+      // drawn where planned: drawDetails puts the marks' pixels exactly as drawFamHead alone does
+      const W = PHONE.x + PHONE.w + 4, H = PHONE.y + PHONE.h + 4, alone = fresh(W, H), full = fresh(W, H);
+      drawFamHead(G(alone), p);
+      drawDetails(G(full), ctxOf(c.run), c.sel, null, PHONE, {} as DuskFoe);
+      let n = 0;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const px = alone.at(i, j);
+        if (px === null) continue;
+        n++;
+        expect(full.at(i, j), `${c.id} (${i},${j})`).toBe(px);
+      }
+      expect(n, c.id).toBeGreaterThan(fam.length * 3);
+      // and the column between the title and the marks is the panel's own: no title outline, no mark
+      const notHere = [C.ink, c.t.color, ...fam.map((f) => FAMILY[f].colour)];
+      for (let j = r.y + 3; j <= r.y + 11; j++) expect(notHere.includes(full.at(x0 - 1, j) as string), `${c.id} (${x0 - 1},${j})`).toBe(false);
+    }
+  });
+
+  it("every module's cargo, placed and offer panel now names or marks its families on the phone, the desk and the laptop", () => {
+    let panels = 0;
+    for (const d of buyableModules()) {
+      if (!familiesOf(d.id).length) continue;
+      const cases: { run: Run; sel: Sel; t: PanelText }[] = [];
+      for (const s of [1, 2, 3]) {
+        const run = newRun("furnace", 5, "fam");
+        run.inventory = [{ uid: 900, def: d.id, ...(s > 1 ? { stars: s } : {}) }];
+        cases.push({ run, sel: { kind: "cargo", uid: 900 }, t: cargoPanel(run, 900)! });
+        if (d.kind === "factory") {
+          const r2 = newRun("furnace", 5, "fam");
+          r2.build.items.push({ uid: 901, def: d.id, x: 6, y: 6, ...(s > 1 ? { stars: s } : {}) });
+          r2.build.routes.push({ factory: 901, cells: [56, 55, 45, 35, 25, 15, 5] });
+          cases.push({ run: r2, sel: { kind: "item", uid: 901 }, t: itemPanel(r2, 901)! });
+        }
+      }
+      const run = newRun("furnace", 5, "fam");
+      run.gold = 99;
+      run.shop.wagons = [{ merchant: d.merchant!, offers: [{ def: d.id, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
+      cases.push({ run, sel: { kind: "offer", wagon: 0, slot: 0 }, t: offerPanel(run, 0, 0)! });
+      for (const c of cases) for (const [band, area] of BANDS) {
+        expect(planPanel(c.t, area, selFamilies(c.run, c.sel)).famHead, `${d.id} ${c.t.title} ${c.sel.kind} on the ${band}`).not.toBeNull();
+        panels++;
+      }
+    }
+    expect(panels).toBeGreaterThan(700);
   });
 });

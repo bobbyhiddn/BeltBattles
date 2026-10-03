@@ -80,6 +80,9 @@ export const CARD_EFFECT_LINES = 2;
 /** 0.8.0 I1 M4: where a card's family marks start (3x3 each, 4 px apart), from the card's top-left. */
 export const CARD_MARK_X = 3;
 export const CARD_MARK_Y = 32;
+/** 0.8.0 B1 M4 (VERIFIED-I1 call 7): the wide face's first effect line, from the card's top (was 21): its second line
+ *  ends two rows above CARD_MARK_Y, so a clear row lies between the effect and the marks. */
+export const CARD_EFFECT_Y = 20;
 export const cardEffectWidth = (w: number): number => w - 4;
 
 /** 0.6.2t: the effect's wrapped lines on a card `w` px wide (colourized: numbers white, keywords in their colours). */
@@ -149,12 +152,14 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   if (wide) {
     // 0.6.2t (T5) the wide face: the icon at the left with the name beside it, then the one-line effect in 2 lines
     // of the 3x5 face (numbers white, keywords in their battle colours); the merge badge at the bottom left and the
-    // price at the bottom right (a badge over the icon would cover the name here)
+    // price at the bottom right (a badge over the icon would cover the name here). 0.8.0 B1 M4 (VERIFIED-I1 call 7): the
+    // effect starts at CARD_EFFECT_Y, a row higher than before, so a clear row lies between its second line and the
+    // family marks (and one still between the icon and its first line)
     const nameLines = cardName(def, r.w - 26);
     g.drawImage(icon, x + 4, y + 7);
     nameLines.forEach((ln, i) => drawText(g, ln, x + 18, y + (nameLines.length > 1 ? 7 : 10) + i * 6, s.sold ? C.slate2 : C.bone, { font: "3" }));
     cardEffectLines(s.effect!, r.w, s.sold ? C.slate2 : C.bone).slice(0, CARD_EFFECT_LINES).forEach((ln, i) =>
-      drawRich(g, s.sold ? ln.map((sp) => ({ ...sp, c: C.slate2 })) : ln, x + 2, y + 21 + i * 6, "3"));
+      drawRich(g, s.sold ? ln.map((sp) => ({ ...sp, c: C.slate2 })) : ln, x + 2, y + CARD_EFFECT_Y + i * 6, "3"));
     if (s.badge && !s.sold) drawBadge(g, x + 3, y + r.h - 11, r.w - 30, s.badge, t);
   } else {
     const lines = cardName(def, r.w - 4);
@@ -169,8 +174,8 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
     }
   }
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the family marks, a row at the bottom left of either face (narrow: left of the
-  // centred price, under the name; wide: under the effect's second line, over the badge and the price); the panel and
-  // the hover tooltip name them (ui/families.ts)
+  // centred price, under the name; wide: under the effect's second line, a clear row between (0.8.0 B1 M4), over the
+  // badge and the price); the panel and the hover tooltip name them (ui/families.ts)
   drawFamilyMarks(g, def.id, x + CARD_MARK_X, y + CARD_MARK_Y, s.sold);
   if (s.sold) {
     drawText(g, "SOLD", x + r.w / 2, y + r.h - 11, C.maroon, { font: "3", align: "center" });
