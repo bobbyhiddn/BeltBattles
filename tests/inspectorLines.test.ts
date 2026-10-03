@@ -10,7 +10,7 @@ import { C } from "../src/render/palette";
 import { newRun, type Run } from "../src/game/run";
 import { resolveCore } from "../src/sim/cores";
 import { ITEMS, buyableModules, rigShape, type ItemDef } from "../src/sim/content";
-import { fusible, isSignatureFactory, outputsAt, pendingAt } from "../src/sim/stars";
+import { fusible, outputsAt, pendingAt } from "../src/sim/stars";
 import { buildLayout } from "../src/screens/build/layout";
 import { abilityText, gist, livePerk, newPerk, nextStarHeadline, nextStarText } from "../src/ui/abilityText";
 
@@ -70,9 +70,7 @@ describe("N2 / T5: merge progress, 1 MORE COPY TO MERGE and 2 MORE COPIES TO MER
     // 0.6.2s (S6/S7): FURNACE's free starting SCRAP CANNON counts toward a merge, so its own count is checked below
     const own = new Set(startingTurrets("furnace").map((t) => t.def));
     for (const d of Object.values(ITEMS)) {
-      // bb-0.8.3 (REQ-BFG-042 D2): a hero's signature factory merges now, and the run's own starting copy counts toward its
-      // merge as the starting turret does: tests/belts.text.test.ts reads their lines
-      if (own.has(d.id) || isSignatureFactory(d.id)) continue;
+      if (own.has(d.id)) continue;
       for (const s of [1, 2]) {
         const line = nextLine(holding(d.id, [s]), d.id, s);
         if (!line) continue;

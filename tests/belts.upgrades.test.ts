@@ -18,7 +18,15 @@ import {
   buyUpgrade, loadRun, newRun, nextUpgrade, reroll, rollShop, saveRun, sellInventory, upgradeShown, type Run,
 } from "../src/game/run";
 import { removeTurret } from "../src/sim/deck";
+import { playerRun } from "../src/sim/harness/player";
+import { decodeStarredRaw, encodeStarred } from "../src/sim/standInPool";
+import * as harnessCode from "../src/sim/harness/standinCode";
+import { RIVAL_IDS, rivalLoadout, standInBuild } from "../src/sim/rivals";
+import { CAPTAIN_LEVELS } from "../src/sim/rivalBuilds";
 import { barge, SEED } from "./arsenal.bench";
+
+/** A captain's stand-in deck's cost (the honest deck rivals.ts standInBuild serves): buildCost of it. */
+const standInCost = (id: (typeof RIVAL_IDS)[number], day: number): number => buildCost(standInBuild(id, day)).total;
 import { K, tally } from "./belts.helpers";
 
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
@@ -211,6 +219,51 @@ describe("D10: value, the upload budget and the strict decoder", () => {
     // key order on the way in doesn't matter; on the way out it is canonical
     expect(encodeSnapshot(snap({ ...run.build, upgrades: { factory: 3, turret: 2 } }))).toBe(text);
     expect(() => checkBuildShape(up, "build", 1)).toThrow(/not allowed in a v1 snapshot/);
+  });
+});
+
+describe("D7': the bots buy the upgrades; the stand-in code and the captains carry them", () => {
+  it("the par player buys level 2 of some track in most runs, through buyUpgrade, and its dusk decks carry the levels", () => {
+    for (const hero of HEROES4) {
+      let runs = 0;
+      for (let seed = 1; seed <= 6; seed++) {
+        const days = playerRun(hero, 10, seed);
+        const ups = days.flatMap((d) => d.buys.filter((b) => b.def.startsWith("upgrade:")));
+        if (ups.length) runs++;
+        for (const u of ups) expect([UPGRADE_PRICE[u.stars], u.merged], `${hero} ${seed}`).toEqual([u.price, false]);
+        // the levels bought are on the dusk deck of that day and after, and its value counts their gold
+        const last = days[days.length - 1].build;
+        expect(upgradeLevel(last, "factory") + upgradeLevel(last, "turret") - 2, `${hero} ${seed}`).toBe(ups.length);
+        expect(buildCost(last).upgrades ?? 0).toBe(ups.reduce((s, u) => s + u.price, 0));
+      }
+      expect(runs, hero).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it("the stand-in code carries the levels (a head word \"u<turret><factory>\"); a deck without them encodes as before", () => {
+    const b = newRun("weaver", 2).build;
+    const code = encodeStarred(b);
+    expect(code).not.toMatch(/ u\d\d\//);
+    const up: Build = { ...b, upgrades: { factory: 3 } };
+    const c2 = encodeStarred(up);
+    expect(c2.split("/")[0]).toBe(`${b.beltCap} ${b.hullBonus} u13`);
+    expect(decodeStarredRaw("weaver", c2).upgrades).toEqual({ factory: 3 });
+    expect(harnessCode.decodeStarred("weaver", harnessCode.encodeStarred(up)).upgrades).toEqual({ factory: 3 });
+    expect(() => decodeStarredRaw("weaver", c2.replace("u13", "u15"))).toThrow(/bad upgrade word/);
+  });
+
+  it("the captains buy their hero's par-player levels on its median days, within the day's gold (the uniform rule)", () => {
+    for (const id of RIVAL_IDS) for (let day = 1; day <= 10; day++) {
+      const l = rivalLoadout(id, day), hero = l.build.hero;
+      const days = CAPTAIN_LEVELS[hero];
+      for (const track of UPGRADE_TRACKS) {
+        const lv = upgradeLevel(l.build, track), plan = days[track] ?? [];
+        expect(lv - 1, `${id} d${day} ${track}`).toBeLessThanOrEqual(plan.filter((d) => d <= day).length);
+      }
+      if (id !== "matriarch") expect(standInCost(id, day), `${id} d${day}`).toBeLessThanOrEqual(maxGoldByDay(day));
+    }
+    // most captains of a hero with a FACTORY level day hold that level by day 10
+    expect(RIVAL_IDS.filter((id) => upgradeLevel(rivalLoadout(id, 10).build, "factory") >= 2).length).toBeGreaterThan(RIVAL_IDS.length / 2);
   });
 });
 
