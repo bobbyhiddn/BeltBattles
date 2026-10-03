@@ -250,9 +250,12 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
     });
   }
 
-  it("on every build-screen width a portrait phone can have (160-206 px) with a short band: every panel whole; exactly PORT_BAND from 165 px", () => {
+  it("on the build-screen widths a portrait phone can have with a short band (160-298 px; every one to 170, then every 3rd): every panel whole; exactly PORT_BAND from 165 px", () => {
+    // the rect test's view grid (320-430 x 480-960 CSS px, DPR 2 and 3) gives a short band at every width from 160 to 298
+    // (below 299 the shop is always two rows); a wider build screen wraps no line more and seats its buttons no worse
+    const widths = [...Array.from({ length: 11 }, (_, i) => 160 + i), ...Array.from({ length: 43 }, (_, i) => 172 + 3 * i), 298];
     const counts: string[] = [];
-    for (let W = 160; W <= 206; W++) {
+    for (const W of widths) {
       const v = { W, H: 300, scale: 7, dpr: 3, portrait: true }, L = buildLayout(W, 300, true, 5);
       expect(L.info.h).toBeLessThan(PORT_BAND);
       let taller = 0, most = 0;
@@ -270,7 +273,7 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
     expect(counts).toEqual([
       "W 160: 18 taller, up to 75", "W 161: 16 taller, up to 75", "W 162: 15 taller, up to 75", "W 163: 12 taller, up to 75", "W 164: 6 taller, up to 75",
     ]);
-  });
+  }, 120_000); // about 47,000 panels planned: 13 s alone on a loaded host, more under the full suite's 8 workers
 
   it("the measured panels of the reproduction: the TEMPER, the BOMBARD and the GANTRY PRESS card now show their text at 390x700 (0350e5f: nothing)", () => {
     const { v, L } = view(390, 700, 3);
