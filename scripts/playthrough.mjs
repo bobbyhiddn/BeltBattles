@@ -1,4 +1,4 @@
-// Scripted 10-day run with real input (mouse on desk, touch taps on phones). UI targets are found
+// Scripted 10-day run with real input (mouse on desk, touch taps and drags on phones). UI targets are found
 // through window.bb.regions(); deck cells through the build screen's dragPlan(). 0.6.0: each day is
 // DAWN (buy + place with real drags/taps) -> the ROAD (an event picked with a real tap, REFIT once)
 // -> DUSK vs the ghost from a pre-seeded local pool (or a stand-in). The run reloads the page once
@@ -32,11 +32,28 @@ async function press(page, touch, p) {
   await sleep(120);
 }
 
+/** shoptap (BeltBattles 0.8.0 phone controls, D2): a touch drag with real touch events (CDP Input.dispatchTouchEvent):
+ *  press at `a`, move to `b` in `steps` moves, hold, release. A touch tap only reads (it never buys or places), so on a
+ *  phone a part goes where it goes by a drag, as a player's finger takes it there. */
+export async function touchDrag(page, a, b, steps = 12) {
+  const cdp = await page.context().newCDPSession(page);
+  const tp = (p) => [{ x: p.x, y: p.y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(a) });
+  for (let i = 1; i <= steps; i++) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: tp({ x: a.x + ((b.x - a.x) * i) / steps, y: a.y + ((b.y - a.y) * i) / steps }) });
+  }
+  await sleep(150);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+  await sleep(120);
+}
+
 export async function tapRegion(page, touch, id) {
   await press(page, touch, await regionCenter(page, id));
 }
 
-/** Drag (mouse) or tap-select + tap-place (touch) the build screen's planned part onto its belt tile.
+/** Drag the build screen's planned part onto its belt tile: the mouse, or (shoptap) a finger: until 0.8.0 a phone run
+ *  tapped the card then the tile (tap-to-place), which a touch tap no longer does (it reads), so it drags as the mouse does.
  *  0.6.0c: `reserve` gold must be left after a shop buy (today's STAKE / SPY), else nothing is bought. */
 export async function placePlanned(page, touch, reserve = 0) {
   const plan = await page.evaluate(() => {
@@ -55,8 +72,7 @@ export async function placePlanned(page, touch, reserve = 0) {
   };
   const n0 = await page.evaluate(count);
   if (touch) {
-    await press(page, true, plan.a);
-    await press(page, true, plan.b);
+    await touchDrag(page, plan.a, plan.b);
   } else {
     await page.mouse.move(plan.a.x, plan.a.y);
     await page.mouse.down();
@@ -219,8 +235,7 @@ async function restoreDeck(page, touch, log, at, parts) {
     }, p.uid);
     if (!from) throw new Error(`restore: ${partName(p)} is not in a visible cargo slot`);
     if (touch) {
-      await press(page, true, from);
-      await press(page, true, p.at);
+      await touchDrag(page, from, p.at); // shoptap: a touch tap no longer places; a finger drags it back
     } else {
       await page.mouse.move(from.x, from.y);
       await page.mouse.down();
@@ -230,11 +245,17 @@ async function restoreDeck(page, touch, log, at, parts) {
     }
     await page.waitForFunction((u) => window.bb.game.run.build.items.some((q) => q.uid === u), p.uid, { timeout: 5000 });
     // beltside-062: the drop aimed the rig itself (Decision 18); tap it until it has the recorded rot again (an X rig
-    // and a factory are always 0, so they take no tap). Each tap turns a placed rig a quarter turn clockwise.
+    // and a factory are always 0, so they take no tap). Each tap turns a placed rig a quarter turn clockwise. shoptap
+    // (D2): a finger's tap turns only the rig already selected, so on touch the first tap selects it and the loop's taps
+    // (no Escape between them) turn it
     let turns = 0;
+    if (touch) {
+      await clearSel(page);
+      if ((await rotNow(page, p.uid)) !== p.rot) await press(page, true, p.at);
+    }
     for (let rot = await rotNow(page, p.uid); rot !== p.rot; rot = await rotNow(page, p.uid)) {
       if (++turns > 3) throw new Error(`restore: ${partName(p)} did not turn back to rot ${p.rot} (stuck at ${rot})`);
-      await clearSel(page);
+      if (!touch) await clearSel(page);
       await press(page, touch, p.at);
       await page.waitForFunction(([u, r]) => (window.bb.game.run.build.items.find((q) => q.uid === u)?.rot || 0) !== r, [p.uid, rot], { timeout: 5000 });
     }
@@ -310,7 +331,7 @@ export async function scriptedRun(page, touch, log, opts) {
       state.placed++;
     }
     const spent = spend ? await page.evaluate((g) => ({ gold: window.bb.game.run.gold, deck: window.bb.deckCost(window.bb.game.run.build), spent: g - window.bb.game.run.gold }), gold0) : null;
-    if (parts.length || reserve || backing) log(`[${at()}] ${touch ? "tap-buy + tap-place" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}${backing ? " (backing the bounty: buying all it can)" : ""}${spent ? ` [FB-C spend: ${rerolls} reroll(s), gold ${gold0} -> ${spent.gold} (spent ${spent.spent}), deck ${spent.deck}]` : ""}`);
+    if (parts.length || reserve || backing) log(`[${at()}] ${touch ? "touch drag" : "drag"}: ${parts.join(", ") || "nothing"}${reserve ? ` (keeping ${reserve} gold for ${today}'s ${want[0]})` : ""}${backing ? " (backing the bounty: buying all it can)" : ""}${spent ? ` [FB-C spend: ${rerolls} reroll(s), gold ${gold0} -> ${spent.gold} (spent ${spent.spent}), deck ${spent.deck}]` : ""}`);
     if (day === opts.weakenDay) state.stored = await weakenDeck(page, touch, log, at, state.startUids);
     await tapRegion(page, touch, "fight");
     await roadStop(page, touch, log, at, state, (opts.roads || "")[day - 1] || "v", day === opts.reloadWarlordDay);

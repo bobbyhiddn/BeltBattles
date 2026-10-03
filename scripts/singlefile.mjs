@@ -1,7 +1,8 @@
 // V4: inline the Vite build (JS + CSS) into one HTML file, then prove it loads from
 // file:// in headless chromium and completes a scripted run with real input:
 // buy -> place -> FIGHT -> battle end -> round summary -> ... -> run summary.
-// Desk uses the mouse (drag and drop); phone uses touch taps (tap-to-select, tap-to-place).
+// Desk uses the mouse (drag and drop); phone uses touch taps and touch drags (shoptap: a touch tap reads, so parts are
+// dragged into place as on the desk; playthrough.mjs touchDrag).
 // Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/singlefile.mjs <out.html> [log.txt] [--dist <build dir>]
 // 0.6.2j: BB_RUNS=join-desk,join-phone runs the belt-join scenario (scripts/joinrun.mjs) instead of the scripted runs;
 // BB_SHOTS_DIR=<dir> saves its shots there.

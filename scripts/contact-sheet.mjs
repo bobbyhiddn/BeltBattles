@@ -12,6 +12,7 @@ import { chromium } from "playwright-core";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { VIEWS } from "./shots-list.mjs";
+import { touchDrag } from "./playthrough.mjs"; // shoptap: a touch tap no longer places (it reads); a finger drags
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const DIST = process.env.BB_DIST ? resolve(process.env.BB_DIST) : join(ROOT, "dist");
@@ -89,9 +90,7 @@ async function placeRig(page, touch, def, stars) {
   });
   if (!plan) throw new Error(`contact sheet: no cell to place ${def}`);
   if (touch) {
-    await page.touchscreen.tap(plan.a.x, plan.a.y);
-    await sleep(80);
-    await page.touchscreen.tap(plan.b.x, plan.b.y);
+    await touchDrag(page, plan.a, plan.b, 8);
   } else {
     await page.mouse.move(plan.a.x, plan.a.y);
     await page.mouse.down();
