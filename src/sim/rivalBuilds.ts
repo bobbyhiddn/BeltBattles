@@ -172,13 +172,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "weaver", crates: 0, synergy: ["splitter", "barbed"],
     factories: [F("loom", 4, 4, [4, 3, "U3"], [3, 5, "L1D1L1U6"], [6, 5, "R1D1R1U6"])],
     upgrades: [
-      // FINAL-MEASURE: the long haul comes on day 4 at ordinary luck (the stand-in; WEAVER d3's ordinary value cap is 25
-      // g on the merged par field), still day 3 at good luck (the warlord)
-      G(1, "barbed", 3, 0), G(1, "temper", 3, 1, 1), M(2, "scatter", 1), P(2), P(3), soon(3, G(4, "longhaul", 5, 0)),
-      // FINAL-MEASURE (the Prime's ladder fix, oracle e2d655e0): good luck brings the riveter on day 6 and the venom on
-      // day 7 (one day sooner; the warlord), so the Hard slot beats par on days 6 and 7 (rivals.difficulty)
-      M(4, "flak", 0), G(5, "splitter", 2, 4, 2), G(6, "staticbrush", 0, 1), soon(6, G(7, "riveter", 5, 1)), soon(7, G(8, "venom", 0, 0)),
-      G(9, "counterweight", 2, 0), ...good(G2(10, "temper", 3, 1)),
+      // 0.8.0 B1 M3 (capsearch; output-B1/m3/O13-NOTES.md): the stand-in's long haul back to day 3, the static brush,
+      // riveter and venom later at ordinary luck (soon() keeps the warlord's days): stand-in at most 76 on days 6-10, and
+      // day 8 above the Iron Matriarch's margin (B1_EXCEPTIONS emptied)
+      G(1, "barbed", 3, 0), G(1, "temper", 3, 1, 1), M(2, "scatter", 1), P(2), P(3), G(3, "longhaul", 5, 0),
+      M(4, "flak", 0), G(5, "splitter", 2, 4, 2), soon(6, G(7, "staticbrush", 0, 1)), soon(6, G(8, "riveter", 5, 1)),
+      G(9, "venom", 0, 0), ...good(G(9, "counterweight", 2, 0)), ...good(G2(10, "temper", 3, 1)),
     ],
   },
   // ---------------------------------------------------------------- Medium (tier 2)
@@ -217,7 +216,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "weaver", crates: 0, synergy: ["splitter", "whetstone"],
     factories: [F("loom", 4, 4, [4, 3, "U3"], [3, 4, "L2U4"], [6, 4, "R2U4"])],
     upgrades: [
-      G(1, "whetstone", 3, 0, 1), M(1, "scatter", 1), G(2, "temper", 3, 1, 1), G(3, "venom", 3, 2), G(4, "keg", 7, 0),
+      // 0.8.0 B1 M3: the keg before the venom (day 3, the venom day 4): her day-3 deck read 83, over the stand-ins' 80
+      G(1, "whetstone", 3, 0, 1), M(1, "scatter", 1), G(2, "temper", 3, 1, 1), G(3, "keg", 7, 0), G(4, "venom", 3, 2),
       G(5, "longhaul", 5, 2), G(6, "splitter", 5, 1), G2(8, "splitter", 5, 1), G(8, "grease", 3, 3, 2),
       G(8, "brake", 0, 0, 1), G(9, "splitter", 2, 3, 2),
     ],
@@ -242,11 +242,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "furnace", crates: 0, synergy: ["brake", "heatjacket"],
     factories: [F("kiln", 4, 6, [4, 5, "L2U3R2U2"])],
     upgrades: [
-      G(1, "brake", 4, 4, 2), G(1, "quench", 3, 1), G(2, "temper", 2, 1, 2), M(2, "scatter", 0), P(3), G(3, "venom", 3, 0),
-      // FINAL-MEASURE: the long haul comes on day 6 at ordinary luck (the stand-in; FURNACE d5's ordinary value cap is 47
-      // g on the merged par field), still day 5 at good luck (the warlord)
-      ...good(soon(2, G2(3, "brake", 4, 4))), P(4), G(4, "heatjacket", 3, 4, 1), P(5), soon(5, G(6, "longhaul", 5, 1)), M(6, "flak", 0),
-      G(7, "counterweight", 1, 2), G(8, "grease", 1, 4, 1), M2(9, "scatter", 0), G(9, "staticbrush", 5, 2),
+      // 0.8.0 B1 M3: the quench, venom and day-4 brake star later at ordinary luck (soon() keeps the warlord's days), so
+      // the stand-in reads at most 80 (day 1 was 82, day 3 84); the warlord deck is unchanged
+      G(1, "brake", 4, 4, 2), soon(1, G(2, "quench", 3, 1)), G(2, "temper", 2, 1, 2), M(2, "scatter", 0), P(3),
+      soon(3, G(4, "venom", 3, 0)), ...good(soon(2, G2(4, "brake", 4, 4))), P(4), G(4, "heatjacket", 3, 4, 1), P(5),
+      soon(5, G(6, "longhaul", 5, 1)), M(6, "flak", 0), G(7, "counterweight", 1, 2), soon(8, G(9, "grease", 1, 4, 1)),
+      M2(9, "scatter", 0), ...good(G(9, "staticbrush", 5, 2)),
     ],
   },
   // ---------------------------------------------------------------- Hard (tier 3)
@@ -257,12 +258,13 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "weaver", crates: 0, synergy: ["coil", "lodestone"],
     factories: [F("loom", 2, 4, [2, 3, "L1U3"], [4, 4, "U4"], [3, 6, "R5U6"])],
     upgrades: [
-      G(1, "coil", 3, 0), G(1, "temper", 5, 0, 3), M(2, "scatter", 1), G(2, "whetstone", 3, 1, 1), G(3, "staticbrush", 3, 3),
-      ...good(G(3, "longhaul", 5, 1)), G2(4, "coil", 3, 0), G(4, "counterweight", 7, 0), G(5, "coil", 0, 0),
-      G(5, "bellows", 7, 1), G(6, "lodestone", 4, 5, 1), G2(6, "staticbrush", 3, 3), G(6, "grease", 4, 7), M(7, "drake", 2),
-      // FINAL-MEASURE: the drake's second star comes on day 9 at ordinary luck (the stand-in; WEAVER d8's ordinary ★2 cap is
-      // 2 on the merged par field), still day 8 at good luck (the warlord)
-      G(8, "venom", 3, 2), soon(8, M2(9, "drake", 2)), M(9, "flak", 0),
+      // 0.8.0 B1 M3: the whetstone, counterweight, second coil, bellows and drake later at ordinary luck (soon() keeps the
+      // warlord's days): stand-in at most 69 on days 2-10 (was 79-93), and days 8-9 above the Iron Matriarch's margin
+      G(1, "coil", 3, 0), G(1, "temper", 5, 0, 3), M(2, "scatter", 1), soon(2, G(3, "whetstone", 3, 1, 1)),
+      G(3, "staticbrush", 3, 3), ...good(G(3, "longhaul", 5, 1)), G2(4, "coil", 3, 0),
+      soon(4, G(6, "counterweight", 7, 0)), soon(5, G(6, "coil", 0, 0)), soon(5, G(6, "bellows", 7, 1)),
+      G(6, "lodestone", 4, 5, 1), ...good(G(6, "grease", 4, 7)), M(7, "drake", 2), G2(9, "staticbrush", 3, 3),
+      ...good(G(10, "venom", 3, 2)), ...good(M2(10, "drake", 2)), ...good(M(10, "flak", 0)),
     ],
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
@@ -273,11 +275,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "furnace", crates: 0, synergy: ["longhaul", "whetstone"],
     factories: [F("kiln", 6, 7, [6, 6, "U1L4U2R2U3"])],
     upgrades: [
-      G(1, "whetstone", 2, 2, 2), G(2, "venom", 3, 4, 1), G(3, "counterweight", 4, 4, 1), ...good(G(3, "riveter", 3, 1)),
-      // FINAL-MEASURE (the Prime's ladder fix, oracle e2d655e0): good luck brings the whetstone's second star on day 6
-      // (one day sooner; the warlord), so the Hard slot beats par on day 6 (rivals.difficulty)
-      M(4, "hullbreaker", 0), G(5, "longhaul", 5, 3), G(6, "temper", 1, 4, 1), soon(6, G2(7, "whetstone", 2, 2)),
-      ...good(M(7, "mantlet", 0)), G(8, "overdrive", 7, 6), T(9, "railgun", 0),
+      // 0.8.0 B1 M3: the whetstone, venom, counterweight and riveter a day later at ordinary luck (soon() keeps the
+      // warlord's days): his day-2 stand-in read 96, over the stand-ins' 80; the warlord deck is unchanged
+      soon(1, G(2, "whetstone", 2, 2, 2)), soon(2, G(3, "venom", 3, 4, 1)), soon(3, G(4, "counterweight", 4, 4, 1)),
+      ...good(soon(3, G(4, "riveter", 3, 1))), M(4, "hullbreaker", 0), G(5, "longhaul", 5, 3), G(6, "temper", 1, 4, 1),
+      G2(6, "whetstone", 2, 2), M(7, "mantlet", 0), G(8, "overdrive", 7, 6), T(9, "railgun", 0),
     ],
   },
   // TRIPLE THREAT: synergy: burn left (a TEMPER on the left belt from day 1, 2 stars from day 6), a LONG HAUL on the
@@ -288,10 +290,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "weaver", crates: 0, synergy: ["temper", "splitter", "longhaul"],
     factories: [F("loom", 4, 6, [4, 5, "U5"], [3, 6, "L2U6"], [6, 6, "R2U6"])],
     upgrades: [
-      G(1, "temper", 0, 2, 1), G(1, "whetstone", 3, 0, 1), M(2, "mortar", 0), G(2, "grease", 2, 5, 2), G(3, "venom", 0, 0),
-      ...good(G(3, "barbed", 2, 0)), G(4, "longhaul", 7, 3), G(4, "tollbooth", 9, 3, 3), G2(4, "longhaul", 7, 3),
-      G(5, "splitter", 3, 4), G2(6, "temper", 0, 2), G(6, "sifter", 7, 4, 1), ...good(G(7, "overclocker", 6, 5, 1)),
-      G(8, "temper", 5, 0, 3), G(9, "sorting", 7, 5, 1), G(10, "quench", 9, 4), ...good(G2(10, "whetstone", 3, 0)),
+      // 0.8.0 B1 M3: the stand-in takes some good-luck parts sooner (its daily mean), the warlord deck is unchanged
+      G(1, "temper", 0, 2, 1), G(1, "whetstone", 3, 0, 1), M(2, "mortar", 0), G(2, "grease", 2, 5, 2),
+      G(3, "venom", 0, 0), soon(3, G(4, "barbed", 2, 0)), G(4, "longhaul", 7, 3), G(4, "tollbooth", 9, 3, 3),
+      G2(4, "longhaul", 7, 3), G(5, "splitter", 3, 4), G2(6, "temper", 0, 2), G(6, "sifter", 7, 4, 1),
+      G(7, "overclocker", 6, 5, 1), G(8, "temper", 5, 0, 3), G(9, "sorting", 7, 5, 1), ...good(G(10, "quench", 9, 4)),
+      ...good(G2(10, "whetstone", 3, 0)),
     ],
   },
   // ---------------------------------------------------------------- Hard, days 8-10 only
@@ -330,8 +334,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "foundry", crates: 0, synergy: ["twingauge", "twinmould", "twintrigger"],
     factories: [F("crucible", 2, 6, [2, 5, "U5"], [3, 5, "U5"])],
     upgrades: [
-      M(1, "steambreech", 0), G(2, "twingauge", 4, 0, 3), M(3, "twintrigger", 0),
-      X(5, F("twinmould", 6, 2, [6, 1, "U"], [7, 1, "U"])), M2(7, "twintrigger", 0), G2(9, "twinmould", 6, 2),
+      M(1, "steambreech", 0), G(2, "twingauge", 4, 0, 3), G(2, "temper", 1, 0, 1), M(3, "twintrigger", 0),
+      G(3, "plateroller", 4, 2, 3), G(4, "venom", 4, 1), X(5, F("twinmould", 6, 2, [6, 1, "U"], [7, 1, "U"])),
+      M2(7, "twintrigger", 0), G2(9, "twinmould", 6, 2),
     ],
   },
   // ---------------------------------------------------------------- Hard (tier 3), FOUNDRY
@@ -344,9 +349,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "foundry", crates: 0, synergy: ["twinlatch", "twintrigger", "compound"],
     factories: [F("crucible", 2, 6, [2, 5, "LU3RU2"], [4, 6, "U5LU"])],
     upgrades: [
-      G(1, "plateroller", 1, 0, 1), M(1, "twintrigger", 0), G(2, "twinlatch", 3, 2), ...good(G(2, "temper", 1, 1, 1)),
-      G(3, "counterweight", 4, 0), M2(4, "twintrigger", 0), M(5, "compound", 0), ...good(G(5, "tollbooth", 5, 1, 3)),
-      ...good(G(6, "pincer", 0, 2, 1)), M2(7, "compound", 0), G2(9, "twinlatch", 3, 2), ...good(G(9, "venom", 3, 5)),
+      G(1, "twingauge", 1, 0, 1), soon(1, M(2, "twintrigger", 0)), G(2, "twinlatch", 3, 2),
+      ...good(G(2, "temper", 1, 1, 1)), G(3, "counterweight", 4, 0), M2(4, "twintrigger", 0), M(5, "compound", 0),
+      M2(7, "compound", 0), ...good(M(8, "flak", 1)), G2(9, "twinlatch", 3, 2), ...good(G(10, "whetstone", 5, 2, 3)),
     ],
   },
   // ---------------------------------------------------------------- Medium (tier 2), BASTION
@@ -360,10 +365,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "bastion", crates: 0, synergy: ["plateroller", "anvil", "spallcatcher"],
     factories: [F("wardworks", 4, 6, [4, 5, "U5"])],
     upgrades: [
-      G(1, "plateroller", 3, 0, 1), G(1, "tollbooth", 3, 1, 1), M(2, "anvil", 0), G(2, "temper", 3, 2, 1),
-      G2(3, "plateroller", 3, 0), G(3, "plateroller", 5, 2, 3), G(3, "whetstone", 3, 3, 1), M(4, "spallcatcher", 0),
-      M2(5, "anvil", 0), G(6, "quench", 5, 3), X(7, F("armorpress", 6, 6, [6, 5, "U4LU"])), G2(9, "quench", 5, 3),
-      G2(10, "temper", 3, 2),
+      G(1, "plateroller", 3, 0, 1), G(1, "tollbooth", 3, 1, 1), M(2, "anvil", 0), G(2, "whetstone", 5, 1, 3),
+      M(3, "spallcatcher", 0), G(4, "twingauge", 3, 4, 1), G(5, "sorting", 3, 2), G(6, "grease", 3, 3, 1),
+      G(7, "pincer", 5, 2, 3), G2(9, "whetstone", 5, 1), G(10, "whetstone", 5, 4, 3),
     ],
   },
   // SHIELD WALL: a wall of plate on the bulwark belt, broken into damage. Synergy: a PLATE BREAKER on the bulwark belt

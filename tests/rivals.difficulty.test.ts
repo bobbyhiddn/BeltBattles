@@ -35,11 +35,10 @@ const GAP = 0.05;
  *  day 8 MOTH QUEEN -0.423 (13%) and SILKSHADE -0.537 (13%), day 9 SILKSHADE -0.534 (13%). By win rate she is the hardest
  *  on all three days. B1 owns the fix (VERIFIED-P1 section I). Each entry carries its measured gap (her margin minus
  *  its) and a ceiling; the open-item test after the check pins them, and both go when B1 restores the order. */
-const B1_EXCEPTIONS: readonly { id: RivalId; day: number; gap: number; ceiling: number }[] = [
-  { id: "mothqueen", day: 8, gap: 0.014, ceiling: GAP },
-  { id: "silkshade", day: 8, gap: 0.128, ceiling: 0.15 },
-  { id: "silkshade", day: 9, gap: 0.007, ceiling: GAP },
-];
+// 0.8.0 B1 M3 (approved by ref/BRIEF-v080-B1.md section 4): emptied. B1 regrew MOTH QUEEN day 8 and SILKSHADE days 8-9
+// (their stand-ins, output-B1/m3/O13-NOTES.md), so every captain sits above the Matriarch on days 8-10 again; the
+// open-item test that pinned the three is deleted, as its title asked.
+const B1_EXCEPTIONS: readonly { id: RivalId; day: number; gap: number; ceiling: number }[] = [];
 const REFS = new Map<number, Build[]>();
 const refsOf = (day: number): Build[] => {
   if (!REFS.has(day)) REFS.set(day, parField("furnace", day, REF_K));
@@ -180,17 +179,6 @@ describe("warlord difficulty ladder, day by day (reference = the FURNACE par fie
       }
     }
     expect(violations).toEqual([]);
-  });
-
-  it("B1 open items: on day 8 MOTH QUEEN and SILKSHADE, and on day 9 SILKSHADE, sit below the Matriarch's margin; delete this test and the skips when B1 restores the order", () => {
-    const problems: string[] = [];
-    for (const { id, day, ceiling } of B1_EXCEPTIONS) {
-      const q = score(id, day), m = score("matriarch", day);
-      const line = `day ${day}: ${id} ${fmt(q)} vs matriarch ${fmt(m)}`;
-      if (q.margin > m.margin) problems.push(`${line}: the order came back`);
-      if (m.margin - q.margin >= ceiling) problems.push(`${line}: the gap ${(m.margin - q.margin).toFixed(3)} reached its ceiling ${ceiling}`);
-    }
-    expect(problems).toEqual([]);
   });
 
   it("every day: the stand-in pool's mean margin is between -0.25 and +0.25", () => {
