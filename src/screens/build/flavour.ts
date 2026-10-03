@@ -16,8 +16,6 @@
 // VALVE, HOPPER and MANTLET keep nothing, like the rest of their families: their rules are all in the ability text.
 
 import { ITEMS } from "../../sim/content";
-import { PENDULUM } from "../../sim/races/data";
-import { peakTiles, seconds } from "../../ui/abilityText";
 
 /**
  * The kept flavour of every buyable module and supply, by id: whole sentences (T2's rules, no numbers), the same at every
@@ -139,8 +137,14 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
  * (src/ui/abilityText.ts), so, like a sold module's, their flavour keeps only a tip those sentences don't give, with no
  * number (the 0.6.2t2 F1 rule).
  */
+// bb-0.8.3 (REQ-BFG-042 M4): every signature factory has ability text now (it levels up and its caravan sells copies), so
+// each keeps only a tip with no number: CLOCKWORKS's peak moved into its ability text; the KILN's tip is FURNACE's breech,
+// the LOOM's its lead, the SUMP's its two marks (its catalogue desc).
 const SIGNATURE_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
-  clockworks: ["STAMPS PENDULUM SLUGS.", `THEY PEAK AFTER ${seconds(PENDULUM.peak)} OF RIDE: ${peakTiles(PENDULUM.peak)} TILES.`],
+  kiln: ["LONG BELTS HEAT ITS SLUGS, AND A LONG BELT SPEEDS UP THE GUN IT FEEDS."],
+  loom: ["IT FEEDS ONE BELT MORE THAN MOST FACTORIES."],
+  clockworks: [],
+  sump: ["ITS SLUGS DRAG FOR THE LEFT GUN AND ECHO FOR THE RIGHT GUN."],
   crucible: ["MIRROR ITS BELTS, TILE FOR TILE AND RIG FOR RIG, SO ITS BLANKS ARRIVE TOGETHER."],
   wardworks: ["A FULL OR JAMMED CHAMBER STARVES THE PLATING."],
 };

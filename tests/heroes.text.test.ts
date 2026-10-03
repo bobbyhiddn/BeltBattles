@@ -36,13 +36,13 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
   it("the WARDWORKS: its stamp, the bulwark slug, the plating, the cap, what plating soaks and the dark wind", () => {
     const t = abilityText("wardworks").sentences;
     expect(t).toEqual([
-      "STAMPS A BULWARK SLUG EVERY 1.1 SECONDS.",
+      "STAMPS A BULWARK SLUG EVERY 1.1 SECONDS, ONTO UP TO 2 BELTS IN TURN.", // bb-0.8.3 (REQ-BFG-042 M4): its belts
       "A BULWARK SLUG DEALS 5 DAMAGE.",
       "EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY 2, UP TO 24 PLATING; A SPLITTER COPY PLATES BY ITS SHARE.",
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
     ]);
-    expect(numbers(t.join(" "))).toEqual([ITEMS.wardworks.factory!.interval, AMMO.bulwark.base, 1, PLATE_PER_SLUG, PLATE_CAP]);
+    expect(numbers(t.join(" "))).toEqual([ITEMS.wardworks.factory!.interval, outputsAt("wardworks", 1), AMMO.bulwark.base, 1, PLATE_PER_SLUG, PLATE_CAP]);
   });
 
   it("T2: no banned shorthand; whole sentences; every sentence wraps inside every panel width", () => {
@@ -53,7 +53,8 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
         for (const [w, font] of WIDTHS) for (const line of wrapText(s, w, font)) expect(textWidth(line, font), `${def} ${w}/${font}: ${line}`).toBeLessThanOrEqual(w);
       }
       expect(gist(def)).not.toBe("");
-      expect(nextStarText(def, 1)).toBeNull(); // a signature never merges
+      // bb-0.8.3 (REQ-BFG-042 D2): a signature factory merges now (0.8.0: null, "a signature never merges"): its next star
+      expect(nextStarText(def, 1)).toBe(`NEXT STAR: ${gist(def, 2)}, ${outputsAt(def, 2)} BELTS.`);
     }
   });
 
@@ -79,10 +80,14 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
     }
   });
 
-  it("FURNACE's KILN and WEAVER's LOOM keep their catalogue desc and no ability text (their screens unchanged)", () => {
+  // bb-0.8.3 (REQ-BFG-042 D2, M4): 0.8.0's "FURNACE's KILN and WEAVER's LOOM keep their catalogue desc and no ability
+  // text": they level up by merging and their caravan sells copies, so they read their numbers at every star as the
+  // CRUCIBLE and the WARDWORKS do, with one tip with no number for flavour (tests/belts.text.test.ts reads the numbers)
+  it("FURNACE's KILN and WEAVER's LOOM have ability text at every star now, and a tip for flavour", () => {
     for (const def of ["kiln", "loom"]) {
-      expect(hasAbilityText(def), def).toBe(false);
-      expect(flavour(def), def).toEqual([ITEMS[def].desc.join(" ")]);
+      expect(hasAbilityText(def), def).toBe(true);
+      expect(flavour(def), def).toHaveLength(1);
+      expect(flavour(def)[0], def).not.toMatch(/\d/);
     }
   });
 });

@@ -94,12 +94,17 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
 });
 
 describe("0.6.2t2: a module without ability text keeps its only description", () => {
-  it("a hero's signature factory shows its catalogue desc, joined into one string; CLOCKWORKS its own, in T2's units", () => {
+  // bb-0.8.3 (REQ-BFG-042 M4): 0.8.0's "a hero's signature factory shows its catalogue desc, joined into one string;
+  // CLOCKWORKS its own, in T2's units": every signature factory has ability text now (it levels up), so like a sold
+  // module's its flavour keeps only a tip with no number, or nothing (CLOCKWORKS: its peak is in its ability text)
+  it("every hero's signature factory has ability text; its flavour is a tip with no number, or nothing", () => {
     const sigs = Object.values(ITEMS).filter((d) => d.kind === "factory" && !hasAbilityText(d.id));
-    expect(sigs.map((d) => d.id)).toEqual(expect.arrayContaining(["kiln", "loom", "clockworks"]));
-    for (const d of sigs.filter((x) => x.id !== "clockworks")) expect(flavour(d.id, 1), d.id).toEqual([d.desc.join(" ")]);
-    expect(flavour("clockworks")[0]).toBe("STAMPS PENDULUM SLUGS.");
-    expect(flavour("clockworks")[1]).toMatch(/^THEY PEAK AFTER \d+(\.\d+)? SECONDS OF RIDE: \d+ TILES\.$/);
+    expect(sigs.map((d) => d.id)).toEqual([]);
+    for (const def of ["kiln", "loom", "crucible", "wardworks", "clockworks", "sump"]) {
+      expect(hasAbilityText(def), def).toBe(true);
+      for (const t of flavour(def)) expect(t, def).not.toMatch(/\d/);
+    }
+    expect(flavour("clockworks")).toEqual([]);
     expect(flavour("no-such-module")).toEqual([]);
   });
 });

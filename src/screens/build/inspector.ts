@@ -69,7 +69,7 @@ import { SYNC_WINDOW } from "../../sim/races/foundry";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
-import { fusible, isSignatureFactory, outputsAt, starsOf, starText } from "../../sim/stars";
+import { fusible, isSignatureFactory, merges, outputsAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
@@ -468,6 +468,9 @@ export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] 
   });
 }
 
+/** bb-0.8.3 (D9): "FURNACE'S OWN" for a signature factory's caravan card. */
+const ownerOf = (def: string): string => `${Object.values(HEROES).find((h) => h.factory === def)?.name ?? "A HERO"}'S OWN`;
+
 /** T5: the MERGES WITH block of an offer that merges on purchase (the perk that star brings after it). */
 function mergeBlock(run: Run, def: string): Block | null {
   const preview = mergePreview(run, def);
@@ -494,7 +497,9 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
   ];
   return {
-    title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
+    // bb-0.8.3 (REQ-BFG-042 D9): the hero's own factory's card says whose it is, not the wagon it rides in
+    title: d.name, color: RARITY_COLOR[d.rarity],
+    sub: `${describe(d)} · ${isSignatureFactory(d.id) ? ownerOf(d.id) : MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
     subShort: describe(d), // T6: the merchant's name gives way first, so the button can share the title's row
     headerOnly: one ? { texts: [one], colour: C.bone } : undefined,
     body,
@@ -550,7 +555,7 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   const body: Block[] = [
     ...joinPaceBlocks(run.build, p.uid), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joined factory leads with its pace
     ...(hasAbilityText(d.id) ? abilityBlocks(d.id, stars, textOpts(run)) : []),
-    ...(fusible(d.id) ? progressBlocks(run, d.id, stars) : []),
+    ...(merges(d.id) ? progressBlocks(run, d.id, stars) : []), // bb-0.8.3 (D2): a signature factory's next star too
     ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock("DRAG OUT OF IT TO LAY BELT."),

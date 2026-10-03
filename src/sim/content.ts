@@ -329,7 +329,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   loom: {
     id: "loom", name: "LOOM", kind: "factory", rarity: "epic", price: 0, size: 2,
-    desc: ["WEAVES THREAD SLUGS", "INTO UP TO 3 ROUTES.", "HITS STACK FRAY."],
+    desc: ["WEAVES THREAD SLUGS", "THAT FRAY THE HULL", "ONTO MANY BELTS."], // bb-0.8.3 (M4): was "INTO UP TO 3 ROUTES. HITS STACK FRAY."
     factory: { ammo: "thread", interval: 0.72, lead: 1 }, // base 3: the thread slug's; WEAVER's belt specialist: one more slot
     levels: { 2: { factory: { interval: 0.57, base: 5 } }, 3: { factory: { interval: 0.48, base: 7 } } },
   },
@@ -385,7 +385,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   gantry: {
     id: "gantry", name: "GANTRY PRESS", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
-    desc: ["ONE PRESS, TWO", "OUTPUTS: FEEDS TWO", "INTAKES BY TURNS."], tags: ["SWARM", "TWIN"],
+    desc: ["A FAST PRESS THAT", "FEEDS ONE BELT MORE", "THAN MOST, IN TURN."], tags: ["SWARM", "TWIN"], // bb-0.8.3 (M4): was "ONE PRESS, TWO OUTPUTS: FEEDS TWO INTAKES BY TURNS."
     // base 3: the plain slug's. bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS keeps a lead of one belt over every bought
     // factory at every star (3 / 4 / 5); ★2 is FOURTH ARM (4 belts, interval 0.7 as THIRD ARM's), ★3 HEAVY GANTRY (5)
     factory: { ammo: "plain", interval: 1.2, lead: 1 },
@@ -422,7 +422,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   mimic: {
     id: "mimic", name: "MIMIC FORGE", kind: "factory", rarity: "legendary", price: 11, size: 2, merchant: "arcane",
-    desc: ["STAMPS YOUR HERO'S", "SIGNATURE AMMO INTO", "A SECOND ROUTE."], tags: ["SWARM"],
+    desc: ["STAMPS YOUR HERO'S", "SIGNATURE AMMO FROM", "A SECOND FACTORY."], tags: ["SWARM"], // bb-0.8.3 (M4): was "INTO A SECOND ROUTE."
     // bb-0.8.3 (REQ-BFG-042 D3): belt slots by stars as every bought factory's; ★3 TWIN SIGNET keeps intervalMul 0.8, and
     // where it makes FOUNDRY's blanks it pours 2 (Battle.factoryDef keeps `pour` only for a blank-ammo hero); below ★3, and
     // on every other hero, it feeds its belts one slug at a time, in turn
@@ -935,7 +935,7 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   },
   twinmould: {
     id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
-    desc: ["CASTS A PLAIN SLUG", "ONTO EACH OF ITS", "BELTS AT ONCE."], tags: ["TWIN", "SWARM"],
+    desc: ["CASTS PLAIN SLUGS", "SEVERAL AT A TIME,", "ONE BELT EACH."], tags: ["TWIN", "SWARM"], // bb-0.8.3 (M4): was "CASTS A PLAIN SLUG ONTO EACH OF ITS BELTS AT ONCE."
     // base 3: the plain slug's. bb-0.8.3 (REQ-BFG-042 D3): belt slots by stars as every bought factory's; its lead is the
     // pour, 2 slugs a cast at ★1-2 and 3 at ★3 (THIRD SPRUE: the third slug of each pour), whatever its belts
     factory: { ammo: "plain", interval: 1.8, twin: true, pour: 2 },

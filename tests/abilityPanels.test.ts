@@ -745,9 +745,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     for (const { t } of PANELS) if (hintShown(t, PHONE)) hints++;
     console.log(`F4 phone hints: ${hints} of ${PANELS.length} panels`);
     // 111 at 881b38f; 0.6.2rel2 on the 0.6.2 candidate's panels (the REPORT gives b94077d's); 0.8.0 I1 M2: 130 with wave
-    // 3's panels (was 115); bb-0.8.3 (REQ-BFG-042): 134, the texts the belt slots changed (MIMIC FORGE ★3's opening lost
-    // "AND FEEDS 2 BELTS": its phone band now shows the hint on 4 more panels)
-    expect(hints).toBe(134);
+    // 3's panels (was 115)
+    expect(hints).toBe(130);
   });
 });
 

@@ -60,7 +60,7 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   },
   twinmould: {
     id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
-    desc: ["CASTS A PLAIN SLUG", "ONTO EACH OF ITS", "BELTS AT ONCE."], tags: ["TWIN", "SWARM"],
+    desc: ["CASTS PLAIN SLUGS", "SEVERAL AT A TIME,", "ONE BELT EACH."], tags: ["TWIN", "SWARM"], // bb-0.8.3 (M4), as content.ts
     // bb-0.8.3 (REQ-BFG-042): belt slots by stars (no outputs), its pour 2 / 2 / 3 (P1 wrote outputs 2 / 2 / 3)
     factory: { ammo: "plain", interval: 1.8, twin: true, pour: 2 }, // base 3: the plain slug's
     levels: { 2: { factory: { interval: 1.6, base: 5 } }, 3: { factory: { interval: 1.4, base: 6, pour: 3 }, perk: "THIRD SPRUE" } },

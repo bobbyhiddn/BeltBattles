@@ -10,7 +10,7 @@ import { C } from "../src/render/palette";
 import { newRun, type Run } from "../src/game/run";
 import { resolveCore } from "../src/sim/cores";
 import { ITEMS, buyableModules, rigShape, type ItemDef } from "../src/sim/content";
-import { fusible, pendingAt } from "../src/sim/stars";
+import { fusible, isSignatureFactory, outputsAt, pendingAt } from "../src/sim/stars";
 import { buildLayout } from "../src/screens/build/layout";
 import { abilityText, gist, livePerk, newPerk, nextStarHeadline, nextStarText } from "../src/ui/abilityText";
 
@@ -70,7 +70,9 @@ describe("N2 / T5: merge progress, 1 MORE COPY TO MERGE and 2 MORE COPIES TO MER
     // 0.6.2s (S6/S7): FURNACE's free starting SCRAP CANNON counts toward a merge, so its own count is checked below
     const own = new Set(startingTurrets("furnace").map((t) => t.def));
     for (const d of Object.values(ITEMS)) {
-      if (own.has(d.id)) continue;
+      // bb-0.8.3 (REQ-BFG-042 D2): a hero's signature factory merges now, and the run's own starting copy counts toward its
+      // merge as the starting turret does: tests/belts.text.test.ts reads their lines
+      if (own.has(d.id) || isSignatureFactory(d.id)) continue;
       for (const s of [1, 2]) {
         const line = nextLine(holding(d.id, [s]), d.id, s);
         if (!line) continue;
@@ -166,7 +168,9 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
     hotswap: ["2 BURN, SHOCK STALLS A MACHINE FOR 1.6 SECONDS", "4 BURN, SHOCK STALLS 2 MACHINES FOR 1.8 SECONDS", "7 BURN, SHOCK STALLS 2 MACHINES FOR 2.8 SECONDS"],
     slagpot: ["7 DAMAGE SLAG EVERY 2.8 SECONDS", "12 DAMAGE SLAG EVERY 2.2 SECONDS", "15 DAMAGE SLAG EVERY 1.75 SECONDS"],
     assembly: ["RIGS ONLINE IN HALF THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME", "ALL RIGS ONLINE AT ONCE"],
-    gantry: ["FEEDS 3 BELTS", "FEEDS 4 BELTS", "6 DAMAGE SLUGS"], // bb-0.8.3 (REQ-BFG-042 D3): 3 / 4 / 5 belts (were 2 / 3 / 3)
+    // bb-0.8.3 (REQ-BFG-042 D3, M4): its belts (3 / 4 / 5, were 2 / 3 / 3) close the next-star line, so the clause is
+    // FOURTH ARM's stamp (0.8.0: "FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS")
+    gantry: ["A PLAIN SLUG EVERY 1.2 SECONDS", "A PLAIN SLUG EVERY 0.7 SECONDS", "6 DAMAGE SLUGS"],
   };
   // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS ★2 is FOURTH ARM (was THIRD ARM)
   const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", "HOT START"], gantry: ["FOURTH ARM", "HEAVY GANTRY"] };
@@ -176,9 +180,10 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
     for (const [def, h] of Object.entries(HEAD)) {
       expect([1, 2, 3].map((s) => gist(def, s)), def).toEqual(h);
       const [p2, p3] = PERK[def];
-      expect(nextLine(holding(def, [1]), def, 1), def).toBe(`NEXT STAR: ${h[1]}.${p2 ? ` ★2 ${p2}` : ""} 1 MORE COPY TO MERGE.`);
-      expect(nextLine(holding(def, [2]), def, 2), def).toBe(`NEXT STAR: ${h[2]}.${p3 && p3 !== p2 ? ` ★3 ${p3}` : ""} 2 MORE COPIES TO MERGE.`);
-      expect(mergeLine(holding(def, [1]), def), def).toBe(`MERGES WITH YOUR ${ITEMS[def].name} INTO ★2: ${h[1]}.${p2 ? ` ★2 ${p2}` : ""}`);
+      // bb-0.8.3 (REQ-BFG-042 M4): each line closes with the factory's belt slots at that star
+      expect(nextLine(holding(def, [1]), def, 1), def).toBe(`NEXT STAR: ${h[1]}, ${outputsAt(def, 2)} BELTS.${p2 ? ` ★2 ${p2}` : ""} 1 MORE COPY TO MERGE.`);
+      expect(nextLine(holding(def, [2]), def, 2), def).toBe(`NEXT STAR: ${h[2]}, ${outputsAt(def, 3)} BELTS.${p3 && p3 !== p2 ? ` ★3 ${p3}` : ""} 2 MORE COPIES TO MERGE.`);
+      expect(mergeLine(holding(def, [1]), def), def).toBe(`MERGES WITH YOUR ${ITEMS[def].name} INTO ★2: ${h[1]}, ${outputsAt(def, 2)} BELTS.${p2 ? ` ★2 ${p2}` : ""}`);
     }
     expect(nextLine(holding("temper", [1]), "temper", 1)).toBe("NEXT STAR: ADDS 2 BURN. 1 MORE COPY TO MERGE."); // rigs alike
   });

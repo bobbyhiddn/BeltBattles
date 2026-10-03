@@ -67,7 +67,7 @@ import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUN
 import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence; P1: TWIN TRIGGER's floor
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: BASTION's WARDWORKS; P1: the plating cap
 import { scaleCore } from "../sim/cores";
-import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
+import { effectAt, FUSE_MAX, fusible, merges, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
 import * as stars from "../sim/stars"; // 0.8.0 B1 M2: OVERDRIVE's text reads the star's named perk
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 
@@ -610,7 +610,9 @@ const ENTRIES: Record<string, Entry> = {
     text: (e, x) => [
       `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN, STAMPING ${f(e).base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(f(e).interval)}.`,
     ],
-    gist: (e, x) => (f(e).base !== undefined ? `${damage(slugBase(e))} SLUGS` : `FEEDS ${outputsAt(e.id, x.stars)} BELTS`),
+    // bb-0.8.3 (REQ-BFG-042 M4): the next-star and MERGES WITH lines lead with a factory's belts at that star (nextStarText),
+    // so the gist says the rest: FOURTH ARM's faster stamp, HEAVY GANTRY's slugs
+    gist: (e) => (f(e).base !== undefined ? `${damage(slugBase(e))} SLUGS` : `A PLAIN SLUG ${every(f(e).interval)}`),
     card: (e, x) => `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN`,
   },
   scrapper: {
@@ -700,19 +702,60 @@ const ENTRIES: Record<string, Entry> = {
         "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
       ];
     },
-    gist: (e) => `POURS ${f(e).pour} ALLOY BLANKS ${every(f(e).interval)}`,
+    gist: (e) => `POURS ${f(e).pour} ALLOY BLANKS (${damage(slugBase(e))} EACH) ${every(f(e).interval)}`, // bb-0.8.3: its base
+    card: (e) => ownCard(e.id), // bb-0.8.3 (D9): the card in its own hero's caravan
+  },
+  // bb-0.8.3 (REQ-BFG-042 D2, M4): FURNACE's, WEAVER's, METRONOME's and SIPHON's own factories level up by merging, and
+  // their own caravan sells copies, so their panels and cards read their numbers at every star, as a sold module's do
+  // (they read only their catalogue desc before). Battle.stamp deals one slug a cycle onto their belts in turn.
+  kiln: {
+    // payloadDamage: the slug's base (its level's from ★2) + AMMO.cinder.rideScale a second of ride
+    text: (e, x) => [
+      `STAMPS A CINDER SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
+      `A CINDER SLUG DEALS ${damage(slugBase(e))}, AND ${moreDamage(AMMO.cinder.rideScale)} FOR EACH SECOND IT RIDES.`,
+    ],
+    gist: (e) => `${damage(slugBase(e))} CINDER SLUGS ${every(f(e).interval)}`,
+    card: (e) => ownCard(e.id),
+  },
+  loom: {
+    // races-free: AMMO.thread (FRAY_BONUS a fray stack on every later hit, up to FRAY_MAX), the slug's base
+    text: (e, x) => [
+      `WEAVES A THREAD SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
+      `A THREAD SLUG DEALS ${damage(slugBase(e))}, AND EACH ONE THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`,
+    ],
+    gist: (e) => `${damage(slugBase(e))} THREAD SLUGS ${every(f(e).interval)}`,
+    card: (e) => ownCard(e.id),
+  },
+  clockworks: {
+    // races/data.ts pendulumCurve: PENDULUM.floor, rising to floor + swing at PENDULUM.peak seconds of ride, then falling
+    text: (e, x) => [
+      `STAMPS A PENDULUM SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
+      `A PENDULUM SLUG DEALS ${damage(PENDULUM.floor)}, RISING TO ${damage(PENDULUM.floor + PENDULUM.swing)} AFTER ${seconds(PENDULUM.peak)} OF RIDE (${peakTiles(PENDULUM.peak)} TILES), THEN FALLING AGAIN.`,
+    ],
+    gist: (e) => `PENDULUM SLUGS ${every(f(e).interval)}`,
+    card: (e) => ownCard(e.id),
+  },
+  sump: {
+    // races/siphon.ts sumpProduce (in turn, each slug marked for the gun its belt feeds: DRAG or ECHO)
+    text: (e, x) => [
+      `STAMPS A LEECH SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
+      `A LEECH SLUG DEALS ${damage(slugBase(e))}.`,
+    ],
+    gist: (e) => `${damage(slugBase(e))} LEECH SLUGS ${every(f(e).interval)}`,
+    card: (e) => ownCard(e.id),
   },
   wardworks: {
     // races/bastion.ts plateOnLoad (PLATE_PER_SLUG x the split multiplier, at load, PLATE_CAP) and absorb (impacts and
     // Burn); battle.ts: the dark wind never meets the plating
-    text: (e) => [
-      `STAMPS A BULWARK SLUG ${every(f(e).interval)}.`,
+    text: (e, x) => [
+      `STAMPS A BULWARK SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`, // bb-0.8.3 (M4)
       `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3 (REQ-BFG-042 D2): its level's base from ★2
       `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${n1(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
     ],
-    gist: (e) => `STAMPS A BULWARK SLUG ${every(f(e).interval)}`,
+    gist: (e) => `${damage(slugBase(e))} BULWARK SLUGS ${every(f(e).interval)}`, // bb-0.8.3 (M4): with its base from ★2
+    card: (e) => ownCard(e.id), // bb-0.8.3 (D9): the card in its own hero's caravan
   },
   mimic: {
     // Battle.factoryDef: the hero's ammo at the hero factory's interval x intervalMul; bb-0.8.3 (REQ-BFG-042 D3): its belt
@@ -1245,15 +1288,31 @@ export function newPerk(def: string, to: number): string | undefined {
 
 /** T5: "NEXT STAR: ADDS 7 BURN." for a fusible module below the top star, else null (newPerk names the perk it brings). */
 export function nextStarText(def: string, stars: number, o: TextOpts = {}): string | null {
-  if (!fusible(def) || stars >= FUSE_MAX || !hasAbilityText(def)) return null;
-  return `NEXT STAR: ${gist(def, stars + 1, o)}.`;
+  if (!merges(def) || stars >= FUSE_MAX || !hasAbilityText(def)) return null; // bb-0.8.3 (D2): signature factories too
+  return `NEXT STAR: ${starGist(def, stars + 1, o)}.`;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 M4): a star's effect for the next-star and MERGES WITH lines: its gist, and a factory's belt
+ * slots at that star last ("5 DAMAGE SLUGS EVERY 1.1 SECONDS, 3 BELTS": stars.ts outputsAt, one more each star). Last,
+ * so the phone band's short form (nextStarHeadline, the first clause) stays the line it was.
+ */
+function starGist(def: string, stars: number, o: TextOpts = {}): string {
+  const eff = gist(def, stars, o), belts = ITEMS[def]?.kind === "factory" ? plural(outputsAt(def, stars), "BELT") : "";
+  return belts ? (eff ? `${eff}, ${belts}` : belts) : eff;
+}
+
+/** bb-0.8.3 (REQ-BFG-042 D9): a signature factory's card in its own hero's caravan: "FURNACE'S OWN FACTORY". */
+function ownCard(def: string): string {
+  const hero = Object.values(HEROES).find((h) => h.factory === def);
+  return hero ? `${hero.name}'S OWN FACTORY` : "A HERO'S OWN FACTORY";
 }
 
 /** T6: the next-star line's headline for a short band: the first clause of that star's effect ("NEXT STAR: 5 TIMES AS
  *  FAST." for "5 TIMES AS FAST, 2 DAMAGE A PULSE"); null when the full line is already one clause. */
 export function nextStarHeadline(def: string, stars: number, o: TextOpts = {}): string | null {
   if (!nextStarText(def, stars, o)) return null;
-  const all = gist(def, stars + 1, o), head = all.split(", ")[0];
+  const all = starGist(def, stars + 1, o), head = all.split(", ")[0]; // bb-0.8.3 (M4): the belts close the full line
   return head !== all ? `NEXT STAR: ${head}.` : null;
 }
 
@@ -1264,7 +1323,7 @@ export function mergeProgressText(copies: number): string {
 
 /** T5: an offer that merges on purchase: "MERGES WITH YOUR TEMPER INTO ★2: ADDS 4 BURN." (newPerk follows it). */
 export function mergesWithText(def: string, to: number, o: TextOpts = {}): string {
-  const eff = gist(def, to, o);
+  const eff = starGist(def, to, o); // bb-0.8.3 (M4): a factory's belts at that star lead
   return `MERGES WITH YOUR ${ITEMS[def].name} INTO ★${to}${eff ? `: ${eff}` : ""}.`;
 }
 

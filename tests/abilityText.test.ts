@@ -324,18 +324,22 @@ describe("0.6.2t T5: next star, merge progress and MERGES WITH, as sentences", (
       const next = nextStarText(d.id, s, { k });
       if (!fusible(d.id) || s >= 3) expect(next, id).toBeNull();
       else {
-        expect(next, id).toBe(`NEXT STAR: ${gist(d.id, s + 1, { k })}.`);
-        expect(numbers(next!).every((n) => numbers(abilityText(d.id, s + 1, { k }).sentences.join(" ")).includes(n) || n === s + 1), id).toBe(true);
+        // bb-0.8.3 (REQ-BFG-042 M4): a factory's next-star line closes with its belt slots at that star
+        const belts = d.kind === "factory" ? `, ${outputsAt(d.id, s + 1)} BELTS` : "";
+        expect(next, id).toBe(`NEXT STAR: ${gist(d.id, s + 1, { k })}${belts}.`);
+        expect(numbers(next!).every((n) => numbers(abilityText(d.id, s + 1, { k }).sentences.join(" ")).includes(n) || n === s + 1 || (!!belts && n === outputsAt(d.id, s + 1))), id).toBe(true);
       }
     }
-    expect(nextStarText("gantry", 1)).toBe("NEXT STAR: FEEDS 4 BELTS."); // bb-0.8.3: FOURTH ARM (0.8.0: THIRD ARM, 3)
+    // bb-0.8.3: FOURTH ARM (0.8.0: "NEXT STAR: FEEDS 3 BELTS.", THIRD ARM): 0.7 seconds, and 4 belts
+    expect(nextStarText("gantry", 1)).toBe("NEXT STAR: A PLAIN SLUG EVERY 0.7 SECONDS, 4 BELTS.");
     expect(nextStarText("temper", 1)).toBe("NEXT STAR: ADDS 2 BURN.");
   });
 
   it("merge progress and MERGES WITH read as whole sentences", () => {
     expect([mergeProgressText(1), mergeProgressText(2)]).toEqual(["1 MORE COPY TO MERGE.", "2 MORE COPIES TO MERGE."]);
     expect(mergesWithText("temper", 2)).toBe("MERGES WITH YOUR TEMPER INTO ★2: ADDS 2 BURN.");
-    expect(mergesWithText("mimic", 3)).toBe("MERGES WITH YOUR MIMIC FORGE INTO ★3: 25% FASTER."); // bb-0.8.3: no FEEDS 2 BELTS
+    // bb-0.8.3: no "FEEDS 2 BELTS" (0.8.0: "25% FASTER, FEEDS 2 BELTS."); the line closes with its 4 belts at ★3
+    expect(mergesWithText("mimic", 3)).toBe("MERGES WITH YOUR MIMIC FORGE INTO ★3: 25% FASTER, 4 BELTS.");
   });
 
   it("no source file still writes the polish's NEEDS n MORE or the old copy count", () => {
@@ -493,8 +497,8 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(nextStarText("stoker", 1)).toBe("NEXT STAR: ITS FACTORIES WORK 44% FASTER.");
     expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 8.8 DAMAGE FOR 1 PLATING, 2.2 WITHOUT.");
     expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 2.2 PLATING A PAYLOAD, 6.6 DAMAGE AT 12 PLATING.");
-    expect(nextStarText("twinmould", 1)).toBe("NEXT STAR: 5 DAMAGE EACH, EVERY 1.6 SECONDS.");
-    expect(nextStarText("armorpress", 1)).toBe("NEXT STAR: 6.6 PLATING EVERY 3 SECONDS, A SLUG EVERY 1.4 SECONDS."); // 0.8.0 B1 M2
+    expect(nextStarText("twinmould", 1)).toBe("NEXT STAR: 5 DAMAGE EACH, EVERY 1.6 SECONDS, 3 BELTS."); // bb-0.8.3 (M4)
+    expect(nextStarText("armorpress", 1)).toBe("NEXT STAR: 6.6 PLATING EVERY 3 SECONDS, A SLUG EVERY 1.4 SECONDS, 3 BELTS."); // 0.8.0 B1 M2; bb-0.8.3 (M4)
     expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 70% FASTER PLATED, 20% WITHOUT."); // 0.8.0 B1 M2
     expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 55% MORE, LOAD TIME 0.4 SECONDS SHORTER.");
     expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 2.2 PLATING A PAIR, 0.4 FOR ANY OTHER LOAD.");
@@ -548,11 +552,13 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
       const next = nextStarText(d.id, s, { k });
       if (s >= 3) expect(next, id).toBeNull();
       else {
-        expect(next, id).toBe(`NEXT STAR: ${gist(d.id, s + 1, { k })}.`);
-        expect(numbers(next!).every((n) => numbers(abilityText(d.id, s + 1, { k }).sentences.join(" ")).includes(n) || n === s + 1), id).toBe(true);
+        // bb-0.8.3 (REQ-BFG-042 M4): a factory's next-star line closes with its belt slots at that star
+        const belts = d.kind === "factory" ? `, ${outputsAt(d.id, s + 1)} BELTS` : "";
+        expect(next, id).toBe(`NEXT STAR: ${gist(d.id, s + 1, { k })}${belts}.`);
+        expect(numbers(next!).every((n) => numbers(abilityText(d.id, s + 1, { k }).sentences.join(" ")).includes(n) || n === s + 1 || (!!belts && n === outputsAt(d.id, s + 1))), id).toBe(true);
       }
     }
-    expect(withWave3(() => mergesWithText("twinmould", 3))).toBe("MERGES WITH YOUR TWIN MOULD INTO ★3: 3 SLUGS OF 6 DAMAGE, EVERY 1.4 SECONDS.");
+    expect(withWave3(() => mergesWithText("twinmould", 3))).toBe("MERGES WITH YOUR TWIN MOULD INTO ★3: 3 SLUGS OF 6 DAMAGE, EVERY 1.4 SECONDS, 4 BELTS."); // bb-0.8.3 (M4)
   });
 
   it("each offer's one-line effect: a whole sentence, its numbers from the 1-star text, two lines on the wide card", () => {
