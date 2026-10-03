@@ -47,12 +47,15 @@ export function banner(g: G, W: number, y: number, text: string, color: string, 
   if (sub) drawText(g, sub, W / 2, y + th + 6, C.bone, { font: "3", align: "center" });
 }
 
-/** Options card with Reduced Motion and sound toggles plus caller-supplied actions. */
-export function optionsCard(game: Game, g: G, title: string, actions: { id: string; label: string; primary?: boolean; danger?: boolean; onTap: () => void }[], onClose: () => void): Rect {
+/** Options card with Reduced Motion and sound toggles plus caller-supplied actions. intro (REQ-BFG-038): `k` (the title's
+ *  buttons' size factor; 1, the default, everywhere else) makes the buttons k times as big, so on the title of a portrait
+ *  phone, a scale below the menu scale, they keep the CSS size they had; at k = 1 the card is exactly as before. */
+export function optionsCard(game: Game, g: G, title: string, actions: { id: string; label: string; primary?: boolean; danger?: boolean; onTap: () => void }[], onClose: () => void, k = 1): Rect {
   const { W, H, ui } = game;
-  const bw = Math.min(W - 24, 150);
+  const u = (n: number) => Math.ceil(n * k - 1e-9);
+  const bw = Math.min(W - 24, u(150)), bh = u(19), step = bh + 3;
   const rows = 2 + actions.length;
-  const h = 18 + rows * 22 + 4;
+  const h = 18 + rows * step + 4;
   const w = bw + 20;
   const x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - h / 2);
   g.globalAlpha = 0.6;
@@ -66,15 +69,15 @@ export function optionsCard(game: Game, g: G, title: string, actions: { id: stri
   let by = y + 18;
   const bx = x + 10;
   for (const a of actions) {
-    button(ui, g, a.id, { x: bx, y: by, w: bw, h: 19 }, a.label, { primary: a.primary, danger: a.danger, onTap: a.onTap });
-    by += 22;
+    button(ui, g, a.id, { x: bx, y: by, w: bw, h: bh }, a.label, { primary: a.primary, danger: a.danger, onTap: a.onTap });
+    by += step;
   }
-  button(ui, g, "opt-rm", { x: bx, y: by, w: bw, h: 19 }, `REDUCED MOTION: ${settings.reducedMotion ? "ON" : "OFF"}`, {
+  button(ui, g, "opt-rm", { x: bx, y: by, w: bw, h: bh }, `REDUCED MOTION: ${settings.reducedMotion ? "ON" : "OFF"}`, {
     font: "3", active: settings.reducedMotion, onTap: () => setReducedMotion(!settings.reducedMotion),
   });
-  by += 22;
+  by += step;
   const m = game.audio.mode;
-  button(ui, g, "opt-snd", { x: bx, y: by, w: bw, h: 19 }, `SOUND: ${m === 0 ? "MUSIC + SFX" : m === 1 ? "SFX ONLY" : "OFF"}`, {
+  button(ui, g, "opt-snd", { x: bx, y: by, w: bw, h: bh }, `SOUND: ${m === 0 ? "MUSIC + SFX" : m === 1 ? "SFX ONLY" : "OFF"}`, {
     font: "3", active: m === 0, onTap: () => game.cycleSound(),
   });
   return card;

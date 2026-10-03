@@ -1,10 +1,11 @@
 // Title: a live AI-vs-AI battle rolls behind the logo (attract mode) in the same framing
 // as the real fight, with New Run, Continue, a how-to-play card and the options menu.
+// intro (REQ-BFG-038): the title frames itself (titleLayout.ts): its own integer scale, so the two cruisers keep an
+// open floor of 17-20% of the firing axis between them on a portrait phone too, clear of the logo and the panel.
 
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
-import { arenaIn } from "../game/battleLayout";
 import { loadRun } from "../game/run";
 import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUND in the rules card
 import { startingBuild, warlordBuild } from "../sim/ai";
@@ -12,12 +13,13 @@ import { HEROES, RUN_DAYS, type HeroId } from "../sim/content";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE and RULE JOIN LIMIT in the rules card
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
-import { drawText, textWidth, wrap } from "../render/font";
+import { drawText, textWidth } from "../render/font";
 import { titleArt } from "../render/sprites";
-import { HULL_L } from "../render/frame";
 import { ArenaBg } from "../render/arenaBg";
+import { defaultScale } from "../core/io";
 import { button, panel, para } from "../ui/ui";
 import { optionsCard } from "../ui/hud";
+import { helpCard, titleLayout, titleScale, type TitleLayout } from "./titleLayout";
 import { HeroScreen } from "./hero";
 import { BuildScreen } from "./build/build";
 import { EventScreen } from "./event/event";
@@ -45,9 +47,20 @@ export class TitleScreen implements Screen {
   private save = loadRun();
   private layoutKey = "";
   private hulls: { x: number; y: number; w: number; h: number }[] = [];
+  /** intro: the frame (titleLayout) and the buttons' size factor, the menu scale over this screen's (pickScale). */
+  private L!: TitleLayout;
+  private k = 1;
 
   constructor(private game: Game) {
     this.newArena();
+  }
+
+  /** intro (REQ-BFG-038): the title's own scale (titleLayout.ts titleScale): the menu scale on the desk and in landscape;
+   *  on a portrait phone one step down, so the cruisers keep open floor between them clear of the logo and the panel. */
+  pickScale(pw: number, ph: number, portrait: boolean): number {
+    const s = titleScale(pw, ph, portrait, typeof window === "undefined" ? 1 : window.devicePixelRatio || 1);
+    this.k = defaultScale(pw, ph, portrait) / s;
+    return s;
   }
 
   private newArena(): void {
@@ -68,16 +81,28 @@ export class TitleScreen implements Screen {
 
   private place(): void {
     const { W, H, portrait } = this.game;
-    const k = `${W}x${H}${portrait}`;
-    if (k === this.layoutKey) return;
-    this.layoutKey = k;
-    const top = portrait ? 60 : Math.round(H * 0.08) + 40;
-    const panelH = this.save ? 90 : 62;
-    // open floor between the bows like the real battle (0.5.0): ~20% of the firing axis, with 6 px spare in the box
-    const box = { x: 0, y: top, w: W, h: Math.max(160, H - top - panelH - 14) };
-    const a = arenaIn(box, portrait, Math.min(Math.round((portrait ? H : W) * 0.2), (portrait ? box.h : box.w) - 2 * HULL_L - 12));
-    this.arena.setFrames(a.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
-    this.hulls = a.hulls;
+    // intro: the saved run and the buttons' size factor are in the key too (CONTINUE makes the panel taller)
+    const key = `${W}x${H}${portrait}${!!this.save}${this.k}`;
+    if (key === this.layoutKey) return;
+    this.layoutKey = key;
+    // open floor between the bows like the real battle (0.5.0): 20% of the firing axis, at least the battle's 17%
+    // (titleLayout.ts; before the intro job the portrait floor was whatever the logo and the panel left over)
+    this.L = titleLayout(W, H, portrait, !!this.save, this.k);
+    this.arena.setFrames(this.L.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
+    this.hulls = this.L.hulls;
+  }
+
+  /** intro tooling (read only; scripts/introcheck.mjs): the title's frame as drawn, in logical px: its scale and the
+   *  buttons' size factor, the open floor between the hull boxes, the logo band, the command panel, the sound button,
+   *  the version line and the hull boxes; `logoWhole`, the logo is drawn whole. */
+  layoutInfo(): { scale: number; k: number; gap: number; fits: boolean; logo: TitleLayout["logo"]; panel: TitleLayout["panel"]; sound: TitleLayout["sound"]; version: TitleLayout["version"]; hulls: TitleLayout["hulls"]; logoWhole: boolean } {
+    this.place();
+    const L = this.L;
+    const art = titleArt("BELTBATTLES", (gg, s, x, yy, c) => drawText(gg, s, x, yy, c), (s) => textWidth(s));
+    return {
+      scale: this.game.view.scale, k: L.k, gap: L.gap, fits: L.fits, logo: L.logo, panel: L.panel, sound: L.sound, version: L.version,
+      hulls: L.hulls, logoWhole: art.width + 6 <= L.W || textWidth("BELTBATTLES") * 2 <= L.W,
+    };
   }
 
   update(dt: number): void {
@@ -99,7 +124,8 @@ export class TitleScreen implements Screen {
 
     // logo band (a dark strip keeps it legible when the attract battle runs underneath)
     const art = titleArt("BELTBATTLES", (gg, s, x, yy, c) => drawText(gg, s, x, yy, c), (s) => textWidth(s));
-    const ly = portrait ? 22 : Math.max(8, Math.round(H * 0.08));
+    const L = this.L;
+    const ly = L.ly; // intro: titleLayout's (0350e5f's on the desk and in landscape; under the sound button in portrait)
     g.globalAlpha = 0.7;
     rect(g, 0, ly - 6, W, 44, C.ink);
     g.globalAlpha = 1;
@@ -109,45 +135,37 @@ export class TitleScreen implements Screen {
     else drawText(g, "BELTBATTLES", W / 2, ly + 4, C.fire3, { align: "center", scale: 2, outline: C.ink });
     drawText(g, "BUILD BELTS · COOK AMMO · BREAK HULLS", W / 2, ly + 30, C.bone, { font: "3", align: "center", outline: C.ink });
 
-    // command panel
+    // command panel (intro: titleLayout's rects, 0350e5f's wherever the title keeps the menu scale; where it steps the
+    // scale down the buttons are k times as big, so each keeps at least the CSS size it had)
     const save = this.save;
-    const bw = Math.min(W - 24, 132), bh = 22;
-    const ph = 10 + bh + 6 + (save ? bh + 12 : 0) + (bh - 4) + 8;
-    const px = Math.round(W / 2 - (bw + 16) / 2), py = portrait ? H - ph - 10 : H - ph - Math.max(8, Math.round(H * 0.05));
-    panel(g, { x: px, y: py, w: bw + 16, h: ph }, "dark");
-    let by = py + 8;
-    const bx = px + 8;
-    button(ui, g, "new", { x: bx, y: by, w: bw, h: bh }, "NEW RUN", { primary: true, onTap: () => game.go(new HeroScreen(game)) });
-    by += bh + 6;
-    if (save) {
-      button(ui, g, "cont", { x: bx, y: by, w: bw, h: bh + 6 }, "CONTINUE", {
+    const b = L.buttons;
+    panel(g, L.panel, "dark");
+    button(ui, g, "new", b.new, "NEW RUN", { primary: true, onTap: () => game.go(new HeroScreen(game)) });
+    if (save && b.cont) {
+      button(ui, g, "cont", b.cont, "CONTINUE", {
         sub: `DAY ${save.day}/${RUN_DAYS} · ${HEROES[save.hero].name} · ${save.wins}-${save.losses}`,
         onTap: () => this.continueRun(),
       });
-      by += bh + 12;
     }
-    const hw = Math.floor((bw - 4) / 2);
-    button(ui, g, "help", { x: bx, y: by, w: hw, h: bh - 4 }, this.help ? "CLOSE" : "HOW TO PLAY", {
+    button(ui, g, "help", b.help, this.help ? "CLOSE" : "HOW TO PLAY", {
       font: "3", active: this.help, onTap: () => { this.help = !this.help; },
     });
-    button(ui, g, "options", { x: bx + hw + 4, y: by, w: bw - hw - 4, h: bh - 4 }, "OPTIONS", { font: "3", onTap: () => { this.menu = true; } });
-    game.soundButton(g, { x: W - 30, y: 4, w: 26, h: 13 });
+    button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => { this.menu = true; } });
+    game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
     if (this.help) this.drawHelp(g);
-    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; });
+    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k);
   }
 
   private drawHelp(g: G): void {
     const { W, H } = this.game;
-    const w = Math.min(W - 16, 300);
-    const x = Math.round((W - w) / 2);
-    const rows = HELP.reduce((n, ln) => n + wrap(ln, w - 16, "3").length, 0);
-    const h = 20 + rows * 7 + HELP.length * 3 + 5;
-    const y = Math.round(Math.max(20, H / 2 - h / 2));
+    // intro: titleLayout.ts helpCard: 0350e5f's card at k = 1 (desk, landscape); where the title steps its scale down
+    // (k > 1) the card keeps its CSS width and its text takes the 5x7 face, about as tall in CSS px as the 3x5 face was
+    const { x, y, w, h, font } = helpCard(W, H, this.k, HELP);
     panel(g, { x, y, w, h }, "raised");
     drawText(g, "HOW TO PLAY", W / 2, y + 6, C.yellow, { align: "center" });
     let yy = y + 20;
-    for (const ln of HELP) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, "3", 2) + 3;
+    for (const ln of HELP) yy += para(g, [ln], x + 8, yy, w - 16, C.bone, font, 2) + 3;
     this.game.ui.add({ id: "helpcard", r: { x, y, w, h }, onTap: () => { this.help = false; } });
   }
 
