@@ -19,11 +19,22 @@
 //         It writes <name>-mouse.json (what it saw, timings aside), so a run on 69fe689's build can be compared with it.
 //  319    the run summary offline with a 20-row history (each day a warlord and a dusk) on the phones and the desk: the card
 //         on the screen, NEW RUN and TITLE at least 44 CSS px tall on a phone (the desktop's as before).
+// shoptap2 (the operator's iPhone: "tapping an item doesn't open its description"): a phone's browser never gives the page
+//         its whole screen, and the portrait panel band shrank with it (40 px on Safari's 390x664, 8 px on 390x700), so a
+//         tap selected and showed no description, or no panel. The touch section now runs on what an iPhone's browser
+//         gives the page, at DPR 3: Chromium (isMobile, hasTouch) on 390x844, 390x660 and 844x390, and WebKit with
+//         Playwright's iPhone descriptors (Safari's user agent, DPR 3, isMobile, hasTouch) on the same three and on the
+//         descriptors' own viewports (iPhone 13 390x664, iPhone 15 Pro Max 430x739). Every tap that reads (a shop card,
+//         each carrier part, a cargo part, a belt) asserts the panel is drawn, titled for what was tapped, shows its
+//         description (at least one body line, its kept text whole) and lies fully inside the visible viewport
+//         (visualViewport, innerWidth x innerHeight). WebKit's touch input: Playwright's own WebKit protocol,
+//         Input.dispatchTouchEvent (touchStart / touchMove / touchEnd, integer CSS px) on the page proxy session that
+//         page.touchscreen.tap uses (Playwright's API has a tap but no touch move for WebKit).
 // Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319] [--tag after]
-//        [--name touchcheck]
+//        [--name touchcheck] [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
 
-import { chromium } from "playwright-core";
+import { chromium, devices, webkit } from "playwright-core";
 import { createServer } from "node:http";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
@@ -43,12 +54,26 @@ const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png" };
 
+/** shoptap2: Playwright's iPhone descriptors (Safari's user agent, DPR 3, isMobile, hasTouch; viewport: Safari's visible
+ *  area), without their default browser. */
+const IPHONE = (({ defaultBrowserType, ...d }) => d)(devices["iPhone 13"]);
+const IPHONE_MAX = (({ defaultBrowserType, ...d }) => d)(devices["iPhone 15 Pro Max"]);
 const VIEW = {
-  phone: VIEWS.phone, // 390x844 @3, the operator's iPhone
+  phone: VIEWS.phone, // 390x844 @3: the operator's iPhone's screen (no browser gives a page all of it)
+  "phone-660": { viewport: { width: 390, height: 660 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }, // shoptap2: Safari's share of it
   "phone-land": { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  // shoptap2: WebKit with the iPhone descriptors, on the three views and on the descriptors' own (Safari's visible area)
+  "wk-phone": { ...IPHONE, viewport: { width: 390, height: 844 } },
+  "wk-phone-660": { ...IPHONE, viewport: { width: 390, height: 660 } },
+  "wk-phone-land": { ...IPHONE, viewport: { width: 844, height: 390 } },
+  "wk-iphone13": IPHONE, // 390x664
+  "wk-iphone15pm": IPHONE_MAX, // 430x739
   small: VIEWS.small, // 360x640 @2
   desk: VIEWS.desk, // 1920x1080 @1, the mouse
 };
+/** shoptap2: the browser a view runs in. */
+const ENGINE = (vname) => (vname.startsWith("wk-") ? "webkit" : "chromium");
+const TOUCH_VIEWS = opt("views", "phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm").split(",").map((s) => s.trim());
 /** Each tap three times: its finger drifts 3, 5 and 8 CSS px (at 0, 90 and 225 degrees) before it lifts. */
 const DRIFTS = [[3, 0], [5, 90], [8, 225]];
 const TAP_CSS = 44;
@@ -81,7 +106,36 @@ function pageServer() {
   return new Promise((ok) => srv.listen(0, "127.0.0.1", () => ok({ srv, origin: `http://127.0.0.1:${srv.address().port}` })));
 }
 
-async function openPage(browser, origin, vname) {
+/**
+ * shoptap2: the touch input for a page, one interface for both engines: send("Input.dispatchTouchEvent", { type,
+ * touchPoints }) and `page`. Chromium: its CDP session. WebKit: Playwright's own WebKit protocol, the same command on the
+ * page proxy session page.touchscreen.tap sends Input.dispatchTapEvent on (reached through the in-process Playwright's
+ * toImpl); its points are integer CSS px, and its touchEnd names the point that lifts.
+ */
+async function touchSession(ctx, page, engine) {
+  if (engine === "chromium") {
+    const cdp = await ctx.newCDPSession(page);
+    cdp.page = page;
+    return cdp;
+  }
+  const impl = page._connection?.toImpl?.(page);
+  const sess = impl?.delegate?.rawTouchscreen?._pageProxySession;
+  if (!sess) throw new Error("WebKit: Playwright's page proxy session is not reachable (playwright-core internals changed)");
+  let last = { x: 0, y: 0, id: 1 };
+  return {
+    page,
+    send(method, p) {
+      if (method !== "Input.dispatchTouchEvent") throw new Error(`WebKit touch session: ${method} is not a touch event`);
+      const pts = (p.touchPoints ?? []).map((t) => ({ x: Math.round(t.x), y: Math.round(t.y), id: t.id ?? 1 }));
+      if (pts.length) last = pts[0];
+      return sess.send("Input.dispatchTouchEvent", { type: p.type, touchPoints: p.type === "touchEnd" || p.type === "touchCancel" ? [last] : pts });
+    },
+  };
+}
+
+async function openPage(browsers, origin, vname) {
+  const engine = ENGINE(vname), browser = browsers[engine];
+  if (!browser) throw new Error(`${vname}: ${engine} is not running`);
   const ctx = await browser.newContext(VIEW[vname]);
   const page = await ctx.newPage();
   // each touch press's length as the page saw it: pointerdown to pointerup, timed in the page (performance.now)
@@ -98,8 +152,7 @@ async function openPage(browser, origin, vname) {
   page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`); });
   await page.goto(`${origin}/index.html`);
   await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
-  const cdp = await ctx.newCDPSession(page);
-  cdp.page = page;
+  const cdp = VIEW[vname].hasTouch ? await touchSession(ctx, page, engine) : null;
   return { ctx, page, cdp, errors };
 }
 
@@ -174,11 +227,26 @@ const snap = (page) => page.evaluate(() => {
 });
 const look = (page) => page.evaluate(() => {
   const g = window.bb.game, s = g.screen;
+  // shoptap2: the details panel as drawn last frame (its UI region, CSS px) and the visible viewport it must lie in
+  const box = window.bb.regions().filter((q) => q.id === "details").pop() ?? null;
+  const vv = window.visualViewport;
+  const vis = { x: vv ? vv.offsetLeft : 0, y: vv ? vv.offsetTop : 0, w: vv ? vv.width : innerWidth, h: vv ? vv.height : innerHeight };
+  const x0 = Math.max(0, vis.x), y0 = Math.max(0, vis.y), x1 = Math.min(innerWidth, vis.x + vis.w), y1 = Math.min(innerHeight, vis.y + vis.h);
+  const inside = !!box && box.x >= x0 - 0.01 && box.y >= y0 - 0.01 && box.x + box.w <= x1 + 0.01 && box.y + box.h <= y1 + 0.01;
   return {
     sel: s.sel, carry: s.ed.carry ? s.ed.carry.def : null, draw: s.ed.draw ? { ...s.ed.draw, cells: [...s.ed.draw.cells] } : null,
     toasts: g.toastLog.length, panel: typeof window.bb.panel === "function" ? window.bb.panel() : null, gold: g.run.gold,
+    box, inside, vis: { x: x0, y: y0, w: Math.round(x1 - x0), h: Math.round(y1 - y0) },
   };
 });
+/** shoptap2: a UI region (CSS px) lies fully inside the visible viewport `look` measured. */
+const inView = (r, l) => !!r && r.x >= l.vis.x - 0.01 && r.y >= l.vis.y - 0.01 && r.x + r.w <= l.vis.x + l.vis.w + 0.51 && r.y + r.h <= l.vis.y + l.vis.h + 0.51;
+/** shoptap2: the panel a tap opened shows its description: drawn, titled `title`, at least one body line, its kept text
+ *  whole, fully inside the visible viewport. */
+const shown = (l, title) => !!l.panel && (title === undefined || l.panel.title === title) && l.panel.lines.length > 0 && l.panel.whole && !!l.box && l.inside;
+const pdesc = (l) => (!l.panel ? "no panel" : `"${l.panel.title}", ${l.panel.lines.length} body lines${l.panel.whole ? "" : " (its kept text cut)"}, ${l.box
+  ? `drawn ${l.box.w.toFixed(0)}x${l.box.h.toFixed(0)} at (${l.box.x.toFixed(0)}, ${l.box.y.toFixed(0)}) ${l.inside ? "inside" : "NOT inside"} the visible ${l.vis.w}x${l.vis.h}`
+  : "NOT DRAWN"}`);
 const toastsSince = (page, n) => page.evaluate((i) => window.bb.game.toastLog.slice(i), n);
 const rotOf = (page, uid) => page.evaluate((u) => window.bb.game.run.build.items.find((p) => p.uid === u)?.rot ?? 0, uid);
 const kview = (page) => page.evaluate(() => { const v = window.bb.game.view; return { k: v.scale / v.dpr, W: v.W, H: v.H, scale: v.scale, dpr: v.dpr }; });
@@ -225,54 +293,70 @@ const cells = (page, list) => Promise.all(list.map(([x, y]) => cell(page, x, y))
 const dist = (pts) => pts.slice(1).reduce((s, p, i) => s + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0);
 
 // ------------------------------------------------------------------------------------------------------------ A1 touch
-async function touchSection(browser, origin, vname) {
+async function touchSection(browsers, origin, vname) {
   log("");
-  log(`## touch ${vname} (${VIEW[vname].viewport.width}x${VIEW[vname].viewport.height} @${VIEW[vname].deviceScaleFactor}): real touch events, taps drifting 3, 5 and 8 CSS px`);
-  const { ctx, page, cdp, errors } = await openPage(browser, origin, vname);
+  const engine = ENGINE(vname);
+  log(`## touch ${vname} (${engine} ${browsers[engine]?.version() ?? "not running"}, ${VIEW[vname].viewport.width}x${VIEW[vname].viewport.height} @${VIEW[vname].deviceScaleFactor}, isMobile, hasTouch): real touch events, taps drifting 3, 5 and 8 CSS px`);
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
   const V = `touch ${vname}`;
   await openDeck(page, FURNACE);
   const kv = await kview(page);
-  log(`[${at()}] build screen ${kv.W}x${kv.H} at x${kv.scale} (dpr ${kv.dpr}): ${kv.k.toFixed(3)} CSS px per logical px; a deck cell is ${(12 * kv.k).toFixed(1)} CSS px; the touch slop 10 CSS px = ${(10 / kv.k).toFixed(2)} logical px (the mouse's 4 logical px = ${(4 * kv.k).toFixed(1)} CSS px)`);
+  const env = await page.evaluate(() => ({ ua: navigator.userAgent, inner: `${innerWidth}x${innerHeight}`, vv: visualViewport ? `${visualViewport.width}x${visualViewport.height}` : "none", dpr: devicePixelRatio, band: window.bb.game.screen.L.portrait ? window.bb.game.screen.L.info.h : null }));
+  log(`[${at()}] ${env.ua.slice(0, 80)}; innerWidth x innerHeight ${env.inner}, visualViewport ${env.vv}, devicePixelRatio ${env.dpr}`);
+  log(`[${at()}] build screen ${kv.W}x${kv.H} at x${kv.scale} (dpr ${kv.dpr}): ${kv.k.toFixed(3)} CSS px per logical px; a deck cell is ${(12 * kv.k).toFixed(1)} CSS px; the touch slop 10 CSS px = ${(10 / kv.k).toFixed(2)} logical px (the mouse's 4 logical px = ${(4 * kv.k).toFixed(1)} CSS px); ${env.band === null ? "the landscape column" : `the portrait panel band ${env.band} px = ${(env.band * kv.k).toFixed(0)} CSS px`}`);
 
-  // 034: shop cards, affordable and not
+  // 034: shop cards, affordable and not. shoptap2: the panel is drawn, shows the card's description and lies inside the
+  // visible viewport (0350e5f on a phone browser's viewport: a header with no description, or nothing)
   for (const [i, label, def] of [[0, "affordable", "GREASE WORKS"], [1, "unaffordable", "GANTRY PRESS"]]) {
     for (const [d, deg] of DRIFTS) {
       await page.keyboard.press("Escape");
       const s0 = await snap(page), l0 = await look(page);
       await tap(cdp, await card(page, i), d, deg);
       const l = await look(page), s1 = await snap(page), news = await toastsSince(page, l0.toasts);
-      const ok = l.sel.kind === "offer" && l.sel.slot === i && !l.carry && s1 === s0 && !news.some((t) => /MORE GOLD/.test(t)) && (!l.panel || l.panel.title === def);
-      check(ok, `${V}: the ${label} shop card (${def}) tapped with a ${d} CSS px drift opens its description (${l.panel ? `panel "${l.panel.title}", ${l.panel.lines.length} lines, buttons ${JSON.stringify(l.panel.labels)}` : JSON.stringify(l.sel)}); gold ${l.gold}, the shop and the build unchanged; nothing lifted${news.length ? `; toasts ${JSON.stringify(news)}` : ""}`);
+      const ok = l.sel.kind === "offer" && l.sel.slot === i && !l.carry && s1 === s0 && !news.some((t) => /MORE GOLD/.test(t)) && shown(l, def);
+      check(ok, `${V}: the ${label} shop card (${def}) tapped with a ${d} CSS px drift opens its description (${l.panel ? `panel ${pdesc(l)}, buttons ${JSON.stringify(l.panel.labels)}` : `${JSON.stringify(l.sel)}, no panel`}); gold ${l.gold}, the shop and the build unchanged; nothing lifted${news.length ? `; toasts ${JSON.stringify(news)}` : ""}`);
     }
     await shot(page, `${TAG}-${vname}-shop-${label}.png`);
     const buy = await region(page, "buy");
     if (buy) check(buy.h >= TAP_CSS, `${V}: the ${label} card's ${i === 0 ? "BUY" : "BUY (disabled)"} button is a ${buy.w.toFixed(1)}x${buy.h.toFixed(1)} CSS px target (at least 44 tall)`);
   }
 
-  // 035: each carrier part, three drifts each; a tap alone changes nothing
+  // 035: each carrier part, three drifts each; a tap alone changes nothing. shoptap2: its panel shows its description,
+  // inside the visible viewport
   const parts = [
-    ["the signature KILN", () => cell(page, 4, 7), { kind: "item", uid: 1 }],
-    ["a STAMP PRESS (factory)", () => cell(page, 6, 7), { kind: "item", uid: 2 }],
-    ["an OVERDRIVE (X rig)", () => cell(page, 5, 3), { kind: "item", uid: 4 }],
-    ["a BOMBARD (turret) with a core and gear", () => turret(page, 1), { kind: "turret", index: 1 }],
+    ["the signature KILN", () => cell(page, 4, 7), { kind: "item", uid: 1 }, "KILN", "kiln"],
+    ["a STAMP PRESS (factory)", () => cell(page, 6, 7), { kind: "item", uid: 2 }, "STAMP PRESS", "factory"],
+    ["an OVERDRIVE (X rig)", () => cell(page, 5, 3), { kind: "item", uid: 4 }, "OVERDRIVE", "xrig"],
+    ["a BOMBARD (turret) with a core and gear", () => turret(page, 1), { kind: "turret", index: 1 }, "BOMBARD", null],
   ];
-  for (const [what, where, want] of parts) {
+  for (const [what, where, want, title, name] of parts) {
     for (const [d, deg] of DRIFTS) {
       await page.keyboard.press("Escape");
       const s0 = await snap(page);
       await tap(cdp, await where(), d, deg);
       const l = await look(page), s1 = await snap(page);
-      check(same(l.sel, want) && s1 === s0 && !l.carry && !l.draw, `${V}: ${what} tapped with a ${d} CSS px drift opens its panel (${l.panel ? `"${l.panel.title}" · ${l.panel.sub}; buttons ${JSON.stringify(l.panel.labels)}` : JSON.stringify(l.sel)}); gold, the build and cargo unchanged`);
+      check(same(l.sel, want) && s1 === s0 && !l.carry && !l.draw && shown(l, title), `${V}: ${what} tapped with a ${d} CSS px drift opens its panel (${l.panel ? `${pdesc(l)} · ${l.panel.sub}; buttons ${JSON.stringify(l.panel.labels)}` : `${JSON.stringify(l.sel)}, no panel`}); gold, the build and cargo unchanged`);
     }
+    if (name && name !== "kiln") await shot(page, `${TAG}-${vname}-${name}-panel.png`);
   }
+  // shoptap2: a cargo part read by a tap: its panel with its description and SELL, nothing changed
+  for (const [d, deg] of DRIFTS) {
+    await page.keyboard.press("Escape");
+    const s0 = await snap(page);
+    await tap(cdp, await slot(page, 0), d, deg);
+    const l = await look(page), s1 = await snap(page);
+    check(same(l.sel, { kind: "cargo", uid: 60 }) && s1 === s0 && !l.carry && shown(l, "GALVANIC COIL") && l.panel.labels.some((t) => /^SELL \+\d+G$/.test(t)),
+      `${V}: the GALVANIC COIL in cargo tapped with a ${d} CSS px drift opens its panel (${l.panel ? `${pdesc(l)}; buttons ${JSON.stringify(l.panel.labels)}` : `${JSON.stringify(l.sel)}, no panel`}); nothing changed`);
+  }
+  await shot(page, `${TAG}-${vname}-cargo-panel.png`);
   // the signature KILN's panel says it stays aboard, no SELL
   await page.keyboard.press("Escape");
   await tap(cdp, await cell(page, 4, 7), 5, 90);
   const kiln = await look(page);
   const kilnText = kiln.panel ? kiln.panel.lines.join(" ") : "";
-  check(kiln.panel && kiln.panel.labels.length === 0 && kilnText.includes("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD."), `${V}: the KILN's panel offers no SELL and says why: ${kiln.panel ? JSON.stringify(kiln.panel.lines.filter((t) => /ABOARD|SOLD|SIGNATURE/.test(t))) : "no panel"}`);
+  check(kiln.panel && kiln.panel.labels.length === 0 && kilnText.includes("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.") && shown(kiln, "KILN"), `${V}: the KILN's panel offers no SELL and says why: ${kiln.panel ? `${JSON.stringify(kiln.panel.lines.filter((t) => /ABOARD|SOLD|SIGNATURE/.test(t)))}; ${pdesc(kiln)}` : "no panel"}`);
   await shot(page, `${TAG}-${vname}-kiln-panel.png`);
-  // the rig: its first tap selects without turning; a tap on the selected rig turns it
+  // the rig: its first tap selects without turning (its panel shows); a tap on the selected rig turns it
   for (const [d, deg] of DRIFTS) {
     await page.keyboard.press("Escape");
     const r0 = await rotOf(page, 3), s0 = await snap(page);
@@ -280,7 +364,7 @@ async function touchSection(browser, origin, vname) {
     const l = await look(page), r1 = await rotOf(page, 3), s1 = await snap(page);
     await tap(cdp, await cell(page, 3, 3), d, deg + 180);
     const r2 = await rotOf(page, 3);
-    check(same(l.sel, { kind: "item", uid: 3 }) && r1 === r0 && s1 === s0 && r2 === (r0 + 1) % 4, `${V}: the TEMPER (rig), ${d} CSS px drift: the first tap selects it and doesn't turn it (rot ${r0} -> ${r1}), a tap on the selected rig turns it a quarter (rot ${r2})`);
+    check(same(l.sel, { kind: "item", uid: 3 }) && r1 === r0 && s1 === s0 && r2 === (r0 + 1) % 4 && shown(l, "TEMPER"), `${V}: the TEMPER (rig), ${d} CSS px drift: the first tap selects it and doesn't turn it (rot ${r0} -> ${r1}; panel ${pdesc(l)}), a tap on the selected rig turns it a quarter (rot ${r2})`);
   }
   await shot(page, `${TAG}-${vname}-rig-panel.png`);
   for (const id of ["rotate", "store", "sellpart"]) {
@@ -297,25 +381,51 @@ async function touchSection(browser, origin, vname) {
   {
     await page.keyboard.press("Escape");
     const seen = [];
+    let all = true;
     for (let i = 0; i < 4; i++) {
       await tap(cdp, await turret(page, 1), DRIFTS[i % 3][0], DRIFTS[i % 3][1]);
       const l = await look(page);
-      seen.push(`${l.sel.kind}${l.sel.uid ? ` ${l.sel.uid}` : ""}${l.panel ? ` "${l.panel.title}" ${JSON.stringify(l.panel.labels)}` : ""}`);
+      all = all && shown(l) && (i > 0 && i < 3 ? l.panel.labels.some((t) => /^SELL \+\d+G$/.test(t)) : true);
+      seen.push(`${l.sel.kind}${l.sel.uid ? ` ${l.sel.uid}` : ""}${l.panel ? ` ${pdesc(l)} ${JSON.stringify(l.panel.labels)}` : " no panel"}`);
       if (i === 0) await shot(page, `${TAG}-${vname}-turret-panel.png`);
+      if (i === 1) await shot(page, `${TAG}-${vname}-core-panel.png`);
       if (i === 2) await shot(page, `${TAG}-${vname}-gear-panel.png`);
     }
-    check(seen[0].startsWith("turret") && seen[1].startsWith("fitted 950") && seen[2].startsWith("fitted 951") && seen[3].startsWith("turret"),
-      `${V}: the turret, then a tap again: its core, its gear, back to the turret: ${seen.join(" | ")}`);
+    check(seen[0].startsWith("turret") && seen[1].startsWith("fitted 950") && seen[2].startsWith("fitted 951") && seen[3].startsWith("turret") && all,
+      `${V}: the turret, then a tap again: its core, its gear (each with SELL), back to the turret, each panel with its description inside the visible viewport: ${seen.join(" | ")}`);
   }
 
-  // 034 + 035: with a shop card selected, a tap on a part reads it and buys nothing
-  for (const [what, where, want] of [["the TEMPER", () => cell(page, 3, 3), { kind: "item", uid: 3 }], ["the STAMP PRESS", () => cell(page, 6, 7), { kind: "item", uid: 2 }], ["the BOMBARD", () => turret(page, 1), { kind: "turret", index: 1 }], ["an empty cell", () => cell(page, 8, 8), { kind: "none" }]]) {
+  // 034 + 035: with a shop card selected, a tap on a part reads it and buys nothing (shoptap2: and its panel shows)
+  for (const [what, where, want, title] of [["the TEMPER", () => cell(page, 3, 3), { kind: "item", uid: 3 }, "TEMPER"], ["the STAMP PRESS", () => cell(page, 6, 7), { kind: "item", uid: 2 }, "STAMP PRESS"], ["the BOMBARD", () => turret(page, 1), { kind: "turret", index: 1 }, "BOMBARD"], ["an empty cell", () => cell(page, 8, 8), { kind: "none" }, null]]) {
     await page.keyboard.press("Escape");
     await tap(cdp, await card(page, 0), 3, 0);
     const s0 = await snap(page), r0 = await rotOf(page, 3);
     await tap(cdp, await where(), 5, 90);
     const l = await look(page), s1 = await snap(page);
-    check(same(l.sel, want) && s1 === s0 && (await rotOf(page, 3)) === r0, `${V}: with the GREASE WORKS card selected, a tap on ${what} ${want.kind === "none" ? "dismisses it" : "reads it"} (${JSON.stringify(l.sel)}) and buys or places nothing (gold ${l.gold})`);
+    check(same(l.sel, want) && s1 === s0 && (await rotOf(page, 3)) === r0 && (title === null || shown(l, title)), `${V}: with the GREASE WORKS card selected, a tap on ${what} ${want.kind === "none" ? "dismisses it" : `reads it (${pdesc(l)})`} (${JSON.stringify(l.sel)}) and buys or places nothing (gold ${l.gold})`);
+  }
+
+  // shoptap2: where a finger's panel grows past the band it covers part of the bow (a shop card's) or the shop (a part's):
+  // a press there goes through to what is under it; a press on the band part of the panel changes nothing, as ever
+  {
+    await page.keyboard.press("Escape");
+    await tap(cdp, await card(page, 0), 3, 0);
+    const l0 = await look(page), t = await turret(page, 1);
+    const band = await page.evaluate(() => { const a = window.bb.game.screen.L.info, p = window.bb.toClient(a.x, a.y), q = window.bb.toClient(a.x + a.w, a.y + a.h); return { x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y }; });
+    const under = (p, r) => !!r && p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    if (under(t, l0.box) && !under(t, band)) {
+      const s0 = await snap(page);
+      await tap(cdp, t, 5, 90);
+      const l = await look(page);
+      check(same(l.sel, { kind: "turret", index: 1 }) && shown(l, "BOMBARD") && (await snap(page)) === s0,
+        `${V}: the GREASE WORKS panel grown over the bow covers the BOMBARD; a tap there goes through and reads it (${pdesc(l)}); nothing changed`);
+      if (band.h >= 6) {
+        await tap(cdp, await card(page, 0), 3, 0);
+        await tap(cdp, { x: band.x + band.w / 2, y: band.y + band.h / 2 }, 3, 0);
+        const lb = await look(page);
+        check(same(lb.sel, { kind: "offer", wagon: 0, slot: 0 }) && shown(lb, "GREASE WORKS"), `${V}: a tap on the panel over the band changes nothing (${JSON.stringify(lb.sel)})`);
+      }
+    } else log(`[${at()}] ${V}: the shop card's panel doesn't cover the BOMBARD here (the ${env.band === null ? "landscape column" : "band"}, ${band.h.toFixed(0)} CSS px tall, holds it): no press goes through`);
   }
 
   // 035: SELL from each panel (a fresh deck each)
@@ -337,8 +447,8 @@ async function touchSection(browser, origin, vname) {
     const label = l.panel ? l.panel.labels.find((t) => /^SELL/.test(t)) : null;
     await tap(cdp, centre(r), 3, 0);
     const b = JSON.parse(await snap(page)).build, g1 = (await look(page)).gold;
-    check(gone(b) && g1 > g0 && (price === null || g1 - g0 === price) && r.h >= TAP_CSS,
-      `${V}: SELL on ${what}'s panel (${label ?? id}, a ${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px target) sells it: gold ${g0} -> ${g1}`);
+    check(gone(b) && g1 > g0 && (price === null || g1 - g0 === price) && r.h >= TAP_CSS && shown(l) && inView(r, l),
+      `${V}: SELL on ${what}'s panel (${label ?? id}, a ${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px target ${inView(r, l) ? "inside" : "NOT inside"} the visible viewport; the panel ${pdesc(l)}) sells it: gold ${g0} -> ${g1}`);
   }
 
   // 036: the belt X
@@ -350,8 +460,8 @@ async function touchSection(browser, origin, vname) {
     const l = await look(page), x = await region(page, "beltx"), det = await region(page, "details"), s1 = await snap(page);
     const vp = VIEW[vname].viewport;
     const clear = x && det ? !(x.x < det.x + det.w && det.x < x.x + x.w && x.y < det.y + det.h && det.y < x.y + x.h) : !!x;
-    check(same(l.sel, { kind: "route", index: 0 }) && x && x.w >= TAP_CSS && x.h >= TAP_CSS && x.x >= 0 && x.y >= 0 && x.x + x.w <= vp.width && x.y + x.h <= vp.height && clear && s1 === s0,
-      `${V}: a tap on the KILN's belt (${d} CSS px drift) selects it and puts up its X: ${x ? `${x.w.toFixed(1)}x${x.h.toFixed(1)} CSS px at (${x.x.toFixed(0)}, ${x.y.toFixed(0)})` : "none"}, on screen, clear of the panel; the belt uncut`);
+    check(same(l.sel, { kind: "route", index: 0 }) && x && x.w >= TAP_CSS && x.h >= TAP_CSS && x.x >= 0 && x.y >= 0 && x.x + x.w <= vp.width && x.y + x.h <= vp.height && clear && s1 === s0 && shown(l, "BELT ROUTE"),
+      `${V}: a tap on the KILN's belt (${d} CSS px drift) selects it and puts up its X: ${x ? `${x.w.toFixed(1)}x${x.h.toFixed(1)} CSS px at (${x.x.toFixed(0)}, ${x.y.toFixed(0)})` : "none"}, on screen, clear of the panel (${pdesc(l)}); the belt uncut`);
     if (d === 3) await shot(page, `${TAG}-${vname}-belt-x.png`);
   }
   {
@@ -452,10 +562,10 @@ async function touchSection(browser, origin, vname) {
 }
 
 // ------------------------------------------------------------------------------------------------------------ A2 mouse
-async function mouseSection(browser, origin) {
+async function mouseSection(browsers, origin) {
   log("");
   log("## mouse desk (1920x1080 @1): the mouse as 69fe689");
-  const { ctx, page, errors } = await openPage(browser, origin, "desk");
+  const { ctx, page, errors } = await openPage(browsers, origin, "desk");
   // what the mouse did, raw (the selection, gold, the build's parts and belts, what lifted): <name>-mouse.json, the same
   // on 69fe689's build but for "notice" (the one change for the mouse)
   const seen = async (what, extra = {}) => {
@@ -542,11 +652,11 @@ async function mouseSection(browser, origin) {
 }
 
 // ------------------------------------------------------------------------------------------------------------- 319
-async function summarySection(browser, origin) {
+async function summarySection(browsers, origin) {
   log("");
   log("## 319: the run summary offline, 20 rows (a warlord and a dusk each day): the card on the screen, NEW RUN and TITLE");
   for (const vname of ["phone", "phone-land", "small", "desk"]) {
-    const { ctx, page, errors } = await openPage(browser, origin, vname);
+    const { ctx, page, errors } = await openPage(browsers, origin, vname);
     await page.evaluate(() => window.bb.openEnd({ hero: "furnace", seed: 12345, results: "WWWWWWWWWW", roads: "EEEEEEEEEE" }));
     await settle(page, "summary");
     await sleep(300);
@@ -569,15 +679,32 @@ async function summarySection(browser, origin) {
 }
 
 async function main() {
-  const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
+  const browsers = { chromium: await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] }) };
+  const views = ONLY.includes("touch") ? TOUCH_VIEWS : [];
+  for (const v of views) if (!VIEW[v]?.hasTouch) throw new Error(`--views: ${v} is not a touch view (${Object.keys(VIEW).join(", ")})`);
+  // shoptap2: WebKit (Playwright's build of it, with the iPhone descriptors) for the wk- views
+  if (views.some((v) => ENGINE(v) === "webkit")) {
+    try {
+      browsers.webkit = await webkit.launch();
+    } catch (e) {
+      check(false, `WebKit launches for the iPhone views: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+  }
   const site = await pageServer();
-  log(`# touchcheck ${ONLY.join(", ")}: ${DIST} served at ${site.origin}; Chromium ${browser.version()}; ${new Date().toISOString()}`);
+  log(`# touchcheck ${ONLY.join(", ")}: ${DIST} served at ${site.origin}; Chromium ${browsers.chromium.version()}${browsers.webkit ? `, WebKit ${browsers.webkit.version()}` : ""}; touch views ${views.join(", ") || "none"}; ${new Date().toISOString()}`);
   try {
-    if (ONLY.includes("touch")) for (const v of ["phone", "phone-land"]) await touchSection(browser, site.origin, v);
-    if (ONLY.includes("mouse")) await mouseSection(browser, site.origin);
-    if (ONLY.includes("319")) await summarySection(browser, site.origin);
+    for (const v of views) {
+      if (!browsers[ENGINE(v)]) continue; // its browser didn't launch (a FAIL above)
+      try {
+        await touchSection(browsers, site.origin, v);
+      } catch (e) {
+        check(false, `touch ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+      }
+    }
+    if (ONLY.includes("mouse")) await mouseSection(browsers, site.origin);
+    if (ONLY.includes("319")) await summarySection(browsers, site.origin);
   } finally {
-    await browser.close();
+    for (const b of Object.values(browsers)) await b.close();
     site.srv.close();
   }
   if (tapMs.length) {
