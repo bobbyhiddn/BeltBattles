@@ -2,8 +2,9 @@
 // listens on this machine. Run from the repo root after `node deploy/stage.mjs <game.html>`:
 //   npm run smoke -- [--static deploy/public] [--out ../output/logs/smoke.txt]
 // It starts the fake S3, shows two startup refusals, runs `seed` twice (fresh, then a no-op), starts
-// the server with fly.toml's settings (tigris store, uploads closed, Fly proxy IP, 0.0.0.0, the staged
-// page) except path-style addressing against the fake, times the first health answer, then curls
+// the server (tigris store on the fake, uploads closed, Fly proxy IP, 0.0.0.0, the staged page) and
+// prints its env against fly.toml's [env], naming every key that differs with both values (0.8.0 H2,
+// envReport: true whatever fly.toml says, never a credential), times the first health answer, then curls
 // health, /, HEAD /, a match and a closed POST. Then (0.7.0 prep, REQ-BFG-016) it starts a second
 // server with uploads open and curls a ghost signed with a fresh device key (201, then 200 when
 // repeated), the same ghost unsigned (401) and one signed over other bytes (401). The ghost is a
@@ -126,6 +127,71 @@ async function startServer(bundle: string, env: Record<string, string | undefine
 // One request log line: time, method, path, status and duration. Nothing else: no client IP.
 const REQUEST_LINE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z (GET|HEAD|POST|OPTIONS) \/\S* \d{3} \d+ms$/;
 
+/** The env the smoke's server runs with in section 3: the built bundle on the fake S3, uploads closed. */
+export function smokeEnv(o: { port: number; staticDir: string; endpoint: string }): Record<string, string | undefined> {
+  return {
+    PATH: process.env.PATH,
+    BB_GHOST_STORE: "tigris",
+    BB_GHOST_UPLOADS: "closed",
+    BB_GHOST_TRUST_PROXY: "fly",
+    BB_GHOST_HOST: "0.0.0.0",
+    BB_GHOST_PORT: String(o.port),
+    BB_GHOST_STATIC: o.staticDir,
+    BB_GHOST_ORIGINS: `http://127.0.0.1:${o.port}`,
+    BB_GHOST_S3_ADDRESSING: "path", // the fake is path-style only; production uses the virtual-hosted default
+    AWS_ENDPOINT_URL_S3: o.endpoint,
+    AWS_REGION: "auto",
+    BUCKET_NAME: "bb-smoke",
+    AWS_ACCESS_KEY_ID: "AKIDSMOKELOCALFAKE",
+    AWS_SECRET_ACCESS_KEY: "smoke-fake-secret-not-real",
+  };
+}
+
+/** 0.8.0 H2: fly.toml's [env] table as written: its `KEY = "value"` lines up to the next table (comments ignored), as
+ *  tests/server-config.test.ts reads it. */
+export function flyTomlEnv(toml: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  let inEnv = false;
+  for (const line of toml.split(/\r?\n/)) {
+    const t = line.trim();
+    if (t.startsWith("[")) {
+      inEnv = t === "[env]";
+      continue;
+    }
+    const m = inEnv ? /^([A-Za-z0-9_]+)\s*=\s*"([^"]*)"/.exec(t) : null;
+    if (m) env[m[1]] = m[2];
+  }
+  return env;
+}
+
+/** Keys whose values are never printed, from the smoke's env or from fly.toml: credentials. */
+const CREDENTIAL = /SECRET|ACCESS_KEY|TOKEN|PASSWORD|CREDENTIAL/i;
+const shown = (key: string, value: string): string => (CREDENTIAL.test(key) ? "(set, not printed)" : value);
+
+/**
+ * 0.8.0 H2 (backlog 325): the transcript's env section, true whatever fly.toml says. It used to be the fixed line "env (as
+ * fly.toml, except addressing and port)", which was already untrue (BB_GHOST_STATIC, BB_GHOST_ORIGINS, the cache TTL and
+ * the fake S3's settings differ too) and stops being true about uploads once a deploy opens them in fly.toml, as 0.7.0's
+ * uploads step did. Now every key is set against fly.toml's [env]: as fly.toml, different (both values named), unset by
+ * the smoke (the server's default applies), or not in fly.toml (the Tigris settings are Fly app secrets there). The first
+ * line names every key that differs. A credential's value is never printed, from either side.
+ */
+export function envReport(env: Record<string, string | undefined>, fly: Record<string, string>): string[] {
+  const keys = [...Object.keys(env).filter((k) => k !== "PATH" && env[k] !== undefined), ...Object.keys(fly).filter((k) => env[k] === undefined)];
+  const differ = keys.filter((k) => k in fly && env[k] !== fly[k]);
+  const same = keys.filter((k) => k in fly && env[k] === fly[k]);
+  const extra = keys.filter((k) => !(k in fly));
+  const lines = [`env against fly.toml's [env] (read now): ${same.length} as fly.toml; ${differ.length} differ${differ.length ? ` (${differ.join(", ")})` : ""}; ${extra.length} not in fly.toml:`];
+  for (const k of keys) {
+    const v = env[k];
+    if (!(k in fly)) lines.push(`  ${k}=${shown(k, v!)}   not in fly.toml's [env]`);
+    else if (v === undefined) lines.push(`  ${k} unset (the server's default)   DIFFERS: fly.toml has ${shown(k, fly[k])}`);
+    else if (v !== fly[k]) lines.push(`  ${k}=${shown(k, v)}   DIFFERS: fly.toml has ${shown(k, fly[k])}`);
+    else lines.push(`  ${k}=${shown(k, v)}   as fly.toml`);
+  }
+  return lines;
+}
+
 async function main(): Promise<void> {
   const bundle = resolve("server/dist/ghost-server.mjs");
   const staticDir = resolve(flag("static") ?? "deploy/public");
@@ -145,25 +211,9 @@ async function main(): Promise<void> {
   const fake = new FakeS3({ accessKeyId: "AKIDSMOKELOCALFAKE", secretAccessKey: "smoke-fake-secret-not-real", buckets: ["bb-smoke"] });
   const endpoint = await fake.listen(0);
   const port = await freePort();
-  const env: Record<string, string | undefined> = {
-    PATH: process.env.PATH,
-    BB_GHOST_STORE: "tigris",
-    BB_GHOST_UPLOADS: "closed",
-    BB_GHOST_TRUST_PROXY: "fly",
-    BB_GHOST_HOST: "0.0.0.0",
-    BB_GHOST_PORT: String(port),
-    BB_GHOST_STATIC: staticDir,
-    BB_GHOST_ORIGINS: `http://127.0.0.1:${port}`,
-    BB_GHOST_S3_ADDRESSING: "path", // the fake is path-style only; production uses the virtual-hosted default
-    AWS_ENDPOINT_URL_S3: endpoint,
-    AWS_REGION: "auto",
-    BUCKET_NAME: "bb-smoke",
-    AWS_ACCESS_KEY_ID: "AKIDSMOKELOCALFAKE",
-    AWS_SECRET_ACCESS_KEY: "smoke-fake-secret-not-real",
-  };
+  const env = smokeEnv({ port, staticDir, endpoint });
   say(`fake S3 (path-style, verifies SigV4 and payload hashes): ${endpoint}, bucket bb-smoke`);
-  say("env (as fly.toml, except addressing and port):");
-  for (const [k, v] of Object.entries(env)) if (k !== "PATH") say(`  ${k}=${k.startsWith("AWS_ACCESS") || k.startsWith("AWS_SECRET") ? "(set: fake local value, not printed)" : v}`);
+  for (const l of envReport(env, flyTomlEnv(readFileSync("fly.toml", "utf8")))) say(l); // 0.8.0 H2: true whatever fly.toml says
   say();
 
   say("## 1. The start refuses a bad configuration");
@@ -416,7 +466,10 @@ async function main(): Promise<void> {
   if (failures) process.exitCode = 1;
 }
 
-main().catch((e: unknown) => {
-  console.error(e instanceof Error ? e.stack ?? e.message : String(e));
-  process.exitCode = 1;
-});
+// 0.8.0 H2: the smoke runs only as the CLI; under vitest, tests/h2.smoke.test.ts imports smokeEnv, flyTomlEnv and envReport
+if (!process.env.VITEST) {
+  main().catch((e: unknown) => {
+    console.error(e instanceof Error ? e.stack ?? e.message : String(e));
+    process.exitCode = 1;
+  });
+}
