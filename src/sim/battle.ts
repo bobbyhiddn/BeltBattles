@@ -19,7 +19,7 @@ import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (sto
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
 import { inSync, pourAll } from "./races/foundry"; // 0.8.0 P1: E2's pair rule (Foundry's sync rule); TWIN MOULD's pour
-import { effectAt, starsOf } from "./stars";
+import { effectAt, gradeOf, starsOf } from "./stars";
 import { boostable, overclocked } from "./overclock";
 import { debuffedDamage, segmentBounds, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
@@ -533,7 +533,8 @@ export class Battle {
     const factories: FactoryState[] = b.items
       .filter((p) => defOf(p).kind === "factory")
       .map((p) => ({
-        uid: p.uid, def: this.factoryDef(effectAt(p.def, starsOf(p)), h), x: p.x, y: p.y,
+        // bb-0.8.3 (REQ-BFG-043 D10): at its grade (the hero factory: its FACTORY level; stars.ts gradeOf)
+        uid: p.uid, def: this.factoryDef(effectAt(p.def, gradeOf(b, p)), h), x: p.x, y: p.y,
         routes: routes.filter((r) => r.factory === p.uid).map((r) => r.index),
         timer: 0.35, rr: 0, disrupted: 0, frozen: 0, flash: 0, stalled: false, produced: 0,
         pending: 0, cycleIdx: 0, seenHarass: 0, seenWreck: 0, triggerQueue: 0, triggerCooldown: 0,
@@ -2077,7 +2078,7 @@ export function assemblyLines(
   const own = new Map<number, number>();
   b.routes.forEach((r, i) => {
     const f = b.items.find((p) => p.uid === r.factory);
-    const fs = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, starsOf(f)).factory : undefined;
+    const fs = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, gradeOf(b, f)).factory : undefined;
     if (fs?.commission === undefined || !routeInfo(b, i, claims, occ, hits).connected) return;
     factor = Math.min(factor, fs.commission);
     own.set(i, fs.hotStart ?? 0);

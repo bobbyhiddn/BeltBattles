@@ -57,8 +57,8 @@ import { hero as deckHero, routesOf, turretForColumn } from "../deck"; // bb-0.8
 import { beltIndex, freeForRig, hitsIfPlaced, intakeCell, placeRigAt, rotFacing, rotations, type RigSpot } from "../beltside";
 import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place beside factories
 import type { SideStats } from "../battle";
-import { copyValue, FUSE_MAX, fusible, isSignatureFactory, starsOf, valueOf } from "../stars";
-import { beltPolicy, botSlots, reachCols, sigBuys } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7, D9): the bots' belts and buys
+import { FUSE_MAX, fusible, starsOf, valueOf } from "../stars";
+import { beltPolicy, botSlots, reachCols } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7): the bots' belts
 import { buildCost, maxGoldByDay } from "../../net/validate";
 import { finishDay } from "../../game/day";
 import { gainModule, mergePreview, type GainAt } from "../../game/fuse";
@@ -748,8 +748,7 @@ function refitTo(run: Run, f: Refit): boolean {
 }
 
 /** The value of a cargo copy (a turret's counts a free starting copy as 0). */
-// bb-0.8.3 (REQ-BFG-042 D9): a signature copy waiting in cargo was bought: copyValue
-const cargoValue = (it: { def: string; stars?: number; free?: boolean }): number => (isTurretDef(it.def) ? turretValue(it) : copyValue(it.def, starsOf(it)));
+const cargoValue = (it: { def: string; stars?: number; free?: boolean }): number => (isTurretDef(it.def) ? turretValue(it) : valueOf(it.def, starsOf(it)));
 
 /** What a plan does with the parts its swap handed back (`back`, cargo uids): gear and cores onto a turret with room
  *  (the first installed turret that takes it, fed ones first), else sold; a displaced turret sold when it is worth
@@ -956,9 +955,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
     return keep(after);
   });
   // CAND-A: the factories on offer, for a turret judged with the factory that would feed it (pairCand)
-  // bb-0.8.3 (REQ-BFG-042 D9): the hero's signature card counts only where the bots buy it (belts.ts sigBuys)
-  const sigOk = (def: string): boolean => !isSignatureFactory(def) || sigBuys(b.hero);
-  const factories = run.shop.wagons.flatMap((w) => w.offers.filter((o) => !o.sold && ITEMS[o.def].kind === "factory" && sigOk(o.def)).map((o) => ({ def: o.def, price: o.price })));
+  const factories = run.shop.wagons.flatMap((w) => w.offers.filter((o) => !o.sold && ITEMS[o.def].kind === "factory").map((o) => ({ def: o.def, price: o.price })));
   run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {
     if (o.sold || o.price > run.gold) return;
     const d = ITEMS[o.def];
@@ -976,7 +973,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
         const g = growBelt(after, run.day, rng, base);
         if (g && g.rel > c.rel) c = { ...c, rel: g.rel, grown: { build: g.build, tiles: g.tiles } };
       }
-    } else if (fusible(o.def) || (isSignatureFactory(o.def) && sigOk(o.def))) { // bb-0.8.3 (D9): its own copy, when it buys
+    } else if (fusible(o.def)) {
       const pv = mergePreview(run, o.def);
       if (pv && pv.toStars > maxStars) c = null; // over the cap (stand-in candidates stop at 2 stars)
       else if (pv && pv.where !== "cargo") {

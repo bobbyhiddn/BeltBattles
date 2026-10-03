@@ -12,7 +12,7 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type Faction, type HeroId } from "./content";
-import { partsValue } from "./stars";
+import { starsOf, upgradeGold, valueOf } from "./stars";
 import { turretsCost, type Build } from "./deck";
 import { warlordBuild, warlordHull } from "./ai";
 import { PLANS, planBuild, type Luck, type RivalLoadout } from "./rivalBuilds";
@@ -323,6 +323,7 @@ export interface DeckCost {
   crates: number; // belt crates implied by beltCap above the hero's base (count)
   plates: number; // armor plating implied by hullBonus (count)
   turrets?: number; // gold: installed turrets (deck.ts turretsCost); present only when the layout differs from the start
+  upgrades?: number; // bb-0.8.3 (REQ-BFG-043 D10): the upgrade gold paid (stars.ts upgradeGold); present only with levels
   total: number; // gold
 }
 
@@ -337,16 +338,18 @@ const priceOf = (id: string): number =>
  */
 export function deckCost(b: Build): DeckCost {
   // 0.6.1a: items and mods sum valueOf(def, stars) = price x 2^(stars - 1) (a merged module costs exactly its copies)
-  // bb-0.8.3 (REQ-BFG-042 D9): the hero's own signature counts its bought copies only (stars.ts partsValue)
-  const items = partsValue(b.items, b.hero);
-  const mods = partsValue(b.mods);
+  const items = b.items.reduce((s, p) => s + valueOf(p.def, starsOf(p)), 0);
+  const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
   const crates = Math.max(0, Math.ceil((b.beltCap - HEROES[b.hero].belt) / CRATE_BELT));
   const plates = Math.max(0, Math.ceil(b.hullBonus / PLATE_HULL));
   const total = items + mods + crates * ITEMS.beltcrate.price + plates * ITEMS.plating.price;
+  // bb-0.8.3 (REQ-BFG-043 D10): the upgrade gold paid, as the validator's buildCost counts it (stars.ts upgradeGold)
+  const up = b.upgrades ? { upgrades: upgradeGold(b) } : {};
+  const paid = up.upgrades ?? 0;
   // 0.6.2 TUNE-C: the installed turrets' value, as the validator's buildCost counts it since 0.6.2s (S7)
-  if (!b.turrets) return { items, mods, crates, plates, total };
+  if (!b.turrets) return { items, mods, crates, plates, ...up, total: total + paid };
   const turrets = turretsCost(b);
-  return { items, mods, crates, plates, turrets, total: total + turrets };
+  return { items, mods, crates, plates, turrets, ...up, total: total + turrets + paid };
 }
 
 /**

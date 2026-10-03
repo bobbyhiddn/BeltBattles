@@ -1,28 +1,32 @@
-// bb-0.8.3 (REQ-BFG-042, REQ-BFG-032; job BELTS M4): the text the new slots and the signature copies change, every
-// number tied to the sim.
-//  - The signature factories read their numbers at every star (they level up by merging): the cycle, the slots
-//    ("ONTO UP TO N BELTS IN TURN": stars.ts outputsAt), the slug's base (its level's), the KILN's ride scaling, the
-//    LOOM's fray, the pendulum's curve; their next star and merge progress; their caravan card says whose they are.
-//  - Every factory's next-star and MERGES WITH lines close with its belt slots at that star ("..., 3 BELTS.").
+// bb-0.8.3 (REQ-BFG-044, REQ-BFG-043, REQ-BFG-032; job BELTS M4, D11): the text the new slots and the hero's two gold
+// upgrades change, every number tied to the sim.
+//  - The signature factories read their numbers at their FACTORY level (they never merge): the cycle, the slots ("ONTO UP
+//    TO N BELTS IN TURN": stars.ts outputsAt), the slug's base, the KILN's ride scaling, the LOOM's fray, the pendulum's
+//    curve. They have no next star, no merge progress and no caravan card (D9 is void): their panel says the level, the
+//    next level in one line and the UPGRADE button with its price.
+//  - A starting turret's panel says its TURRET SPEED level and next level in one line, and leads with its UPGRADE button.
+//  - Every bought factory's next-star and MERGES WITH lines close with its belt slots at that star ("..., 3 BELTS.").
 import { describe, expect, it } from "vitest";
-import { AMMO, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId } from "../src/sim/content";
+import { AMMO, FRAY_BONUS, FRAY_MAX, ITEMS, TURRET_SPEED, UPGRADE_PRICE, type HeroId } from "../src/sim/content";
 import { PENDULUM } from "../src/sim/races/data";
-import { effectAt, outputsAt, SIGNATURE_FACTORIES, signatureOf } from "../src/sim/stars";
+import { effectAt, outputsAt, SIGNATURE_FACTORIES } from "../src/sim/stars";
 import { Battle } from "../src/sim/battle";
-import { abilityText, cardText, gist, mergeProgressText, mergesWithText, nextStarText } from "../src/ui/abilityText";
+import { abilityText, cardText, gist, mergesWithText, nextStarText } from "../src/ui/abilityText";
+import { factoryNext, levelLine, turretNext, turretSpeedRow, upgradeLabel } from "../src/ui/upgradeText";
 import { flavour } from "../src/screens/build/flavour";
-import { cargoPanel, itemPanel, offerPanel } from "../src/screens/build/inspector";
-import { gainModule } from "../src/game/fuse";
-import { newRun, rollShop, type Run } from "../src/game/run";
+import { itemPanel, turretPanel } from "../src/screens/build/inspector";
+import { buyUpgrade, newRun } from "../src/game/run";
+import { fullNotice } from "../src/screens/build/edit";
 import { barge, SEED } from "./arsenal.bench";
 
 const numbers = (s: string): number[] => (s.match(/\d+(\.\d+)?/g) ?? []).map(Number);
 const OWNER: Record<string, HeroId> = { kiln: "furnace", loom: "weaver", crucible: "foundry", wardworks: "bastion", clockworks: "metronome", sump: "siphon" };
 const base = (def: string, s: number): number => effectAt(def, s).factory!.base ?? AMMO[effectAt(def, s).factory!.ammo].base;
+const LEVELS = [1, 2, 3, 4];
 
-describe("M4: the signature factories' text at every star, each number the sim's", () => {
-  it("the KILN, LOOM, CLOCKWORKS and SUMP: cycle, slots and slug at ★1-3; the KILN's ride scaling, the LOOM's fray, the pendulum", () => {
-    for (const s of [1, 2, 3]) {
+describe("M4: the signature factories' text at every FACTORY level, each number the sim's", () => {
+  it("the KILN, LOOM, CLOCKWORKS and SUMP: cycle, slots and slug at levels 1-4; the KILN's ride scaling, the LOOM's fray, the pendulum", () => {
+    for (const s of LEVELS) {
       const k = abilityText("kiln", s).sentences, iv = (d: string) => effectAt(d, s).factory!.interval;
       expect(k).toEqual([
         `STAMPS A CINDER SLUG EVERY ${iv("kiln")} SECONDS, ONTO UP TO ${outputsAt("kiln", s)} BELTS IN TURN.`,
@@ -37,59 +41,87 @@ describe("M4: the signature factories' text at every star, each number the sim's
       expect(numbers(p.join(" "))).toEqual([iv("sump"), outputsAt("sump", s), base("sump", s)]);
     }
     expect(abilityText("kiln", 2).sentences[0]).toBe("STAMPS A CINDER SLUG EVERY 0.98 SECONDS, ONTO UP TO 3 BELTS IN TURN.");
-    expect(abilityText("loom", 3).sentences[0]).toBe("WEAVES A THREAD SLUG EVERY 0.48 SECONDS, ONTO UP TO 5 BELTS IN TURN.");
+    expect(abilityText("loom", 4).sentences[0]).toBe("WEAVES A THREAD SLUG EVERY 0.41 SECONDS, ONTO UP TO 6 BELTS IN TURN.");
   });
 
-  it("the numbers are the battle's: a ★2 KILN's slug base and cycle, and the slots validate and the editor read", () => {
-    for (const def of ["kiln", "loom", "wardworks"]) for (const s of [1, 2, 3]) {
+  it("the numbers are the battle's: the hero factory's slug base and cycle at each FACTORY level", () => {
+    for (const def of ["kiln", "loom", "wardworks", "crucible"]) for (const s of LEVELS) {
       const hero = OWNER[def];
-      const b = { hero, items: [{ uid: 7, def, x: 4, y: 6, ...(s > 1 ? { stars: s } : {}) }], routes: [], mods: [], beltCap: 40, hullBonus: 0 };
+      const b = { hero, items: [{ uid: 7, def, x: 4, y: 6 }], routes: [], mods: [], beltCap: 40, hullBonus: 0, ...(s > 1 ? { upgrades: { factory: s } } : {}) };
       const f = new Battle(b, barge(), SEED).sides[0].factories.find((x) => x.uid === 7)!;
-      expect([f.def.factory!.interval, f.def.factory!.base ?? AMMO[f.def.factory!.ammo].base], `${def} ★${s}`).toEqual([effectAt(def, s).factory!.interval, base(def, s)]);
+      expect([f.def.factory!.interval, f.def.factory!.base ?? AMMO[f.def.factory!.ammo].base], `${def} L${s}`).toEqual([effectAt(def, s).factory!.interval, base(def, s)]);
     }
   });
 
-  it("next star and merge progress: a signature factory's lines at ★1-2, and its MERGES WITH line", () => {
+  it("no next star, no merge progress, no caravan card for a signature factory; its panel says the level and the next one", () => {
     for (const def of SIGNATURE_FACTORIES) {
-      for (const s of [1, 2]) {
-        expect(nextStarText(def, s), `${def} ★${s}`).toBe(`NEXT STAR: ${gist(def, s + 1)}, ${outputsAt(def, s + 1)} BELTS.`);
-        for (const n of numbers(nextStarText(def, s)!)) {
-          expect(numbers(abilityText(def, s + 1).sentences.join(" ")).includes(n) || n === outputsAt(def, s + 1), `${def} ★${s}: ${n}`).toBe(true);
-        }
+      for (const s of [1, 2, 3]) expect(nextStarText(def, s), `${def} ${s}`).toBeNull();
+      expect(cardText(def), def).not.toMatch(/OWN|COPY|COPIES|MERGE/);
+      // the next level in one line, its numbers the sim's: the belts at the next level and its cycle
+      for (const l of [1, 2, 3]) {
+        const next = factoryNext(def, l)!;
+        expect(next, `${def} L${l}`).toBe(`NEXT: ${outputsAt(def, l + 1)} BELTS, A SLUG EVERY ${effectAt(def, l + 1).factory!.interval} SEC`);
+        expect(numbers(next)).toEqual([outputsAt(def, l + 1), effectAt(def, l + 1).factory!.interval]);
       }
-      expect(nextStarText(def, 3)).toBeNull();
-      expect(mergesWithText(def, 2)).toBe(`MERGES WITH YOUR ${ITEMS[def].name} INTO ★2: ${gist(def, 2)}, ${outputsAt(def, 2)} BELTS.`);
+      expect(factoryNext(def, 4)).toBeNull();
     }
-    // the levels grow the cycle and the belts, never the damage (oracle 6c20deea1363d0bb): the next star says those two only
-    expect(nextStarText("kiln", 1)).toBe("NEXT STAR: CINDER SLUGS EVERY 0.98 SECONDS, 3 BELTS.");
-    expect(nextStarText("crucible", 2)).toBe("NEXT STAR: POURS 2 ALLOY BLANKS EVERY 1.06 SECONDS, 4 BELTS.");
-    for (const def of SIGNATURE_FACTORIES) for (const s of [1, 2]) expect(nextStarText(def, s), `${def} ★${s}`).not.toMatch(/DAMAGE/);
-    // the panels: FURNACE's ★1 KILN shows its next star and 1 MORE COPY TO MERGE; at ★2, 2 MORE COPIES; a waiting copy too
+    expect(factoryNext("kiln", 1)).toBe("NEXT: 3 BELTS, A SLUG EVERY 0.98 SEC");
+    expect([1, 2, 3, 4].map(upgradeLabel)).toEqual(["UPGRADE 10G", "UPGRADE 20G", "UPGRADE 30G", null]);
+    expect([1, 2, 3].map((l) => numbers(upgradeLabel(l)!)[0])).toEqual([UPGRADE_PRICE[2], UPGRADE_PRICE[3], UPGRADE_PRICE[4]]);
+    // FURNACE's KILN panel at levels 1-4: the level line, the next line (none at 4), the button (none at 4), no copy text
     const run = newRun("furnace", 5, "text");
+    run.gold = 100;
     const kiln = run.build.items.find((p) => p.def === "kiln")!;
-    const lines = (r: Run, uid: number) => itemPanel(r, uid)!.body.map((b) => b.text);
-    expect(lines(run, kiln.uid)).toEqual(expect.arrayContaining([nextStarText("kiln", 1), mergeProgressText(1)]));
-    gainModule(run, "kiln");
-    expect(lines(run, kiln.uid)).toEqual(expect.arrayContaining([nextStarText("kiln", 2), mergeProgressText(2)]));
-    const wait = gainModule(run, "kiln");
-    expect(cargoPanel(run, wait.uid)!.body.map((b) => b.text)).toEqual(expect.arrayContaining([nextStarText("kiln", 1)]));
+    for (const l of LEVELS) {
+      const p = itemPanel(run, kiln.uid)!, text = p.body.map((b) => b.text);
+      expect(text, `L${l}`).toContain(levelLine("factory", l));
+      if (l < 4) expect(text, `L${l}`).toContain(factoryNext("kiln", l));
+      expect(p.labels, `L${l}`).toEqual(l < 4 ? [upgradeLabel(l)] : []);
+      expect(p.title).toBe("KILN");
+      expect(text.join(" "), `L${l}`).not.toMatch(/COPY|COPIES|TO MERGE|NEXT STAR|MERGES WITH|OWN/);
+      expect(p.sub).toBe(`FACTORY · BELTS 1/${outputsAt("kiln", l)}`);
+      if (l < 4) buyUpgrade(run, "factory");
+    }
+    expect(levelLine("factory", 2)).toBe("FACTORY LEVEL 2/4");
   });
 
-  it("the caravan card says whose it is: FURNACE'S OWN FACTORY on the card line, and FURNACE'S OWN in its panel's sub line", () => {
-    for (const def of SIGNATURE_FACTORIES) expect(cardText(def), def).toBe(`${HEROES[OWNER[def]].name}'S OWN FACTORY.`);
-    for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
-      for (let seed = 1; seed < 200; seed++) {
-        const run = newRun(hero, seed, "card");
-        run.day = 5;
-        rollShop(run);
-        const at = run.shop.wagons.flatMap((w, wi) => w.offers.map((o, si) => ({ o, wi, si }))).find((x) => x.o.def === signatureOf(hero));
-        if (!at) continue;
-        const p = offerPanel(run, at.wi, at.si)!;
-        expect(p.sub, hero).toBe(`EPIC FACTORY · ${HEROES[hero].name}'S OWN`);
-        expect(p.title).toBe(ITEMS[signatureOf(hero)].name);
-        expect(p.labels[0], hero).toBe(`BUY+MERGE ${at.o.price}G`); // the MERGE badge's label: it merges with the starting copy
-        break;
+  it("a starting turret's panel: TURRET SPEED level and next level in one line, its numbers the battle's; the UPGRADE button first", () => {
+    const run = newRun("furnace", 5, "speed");
+    run.gold = 100;
+    for (const l of LEVELS) {
+      const t = turretPanel(run, 0)!;
+      const fires = new Battle(run.build, barge(), SEED).sides[0].turrets[0].interval;
+      const line = `SPEED ${turretSpeedRow(fires, l)}.`;
+      expect(t.body.map((b) => b.text), `L${l}`).toContain(line);
+      if (l < 4) {
+        expect(turretNext(fires, l)).toBe(`NEXT: FIRES EVERY ${+(fires * TURRET_SPEED[l + 1] / TURRET_SPEED[l]).toFixed(2)} SEC`);
+        expect(t.labels[0], `L${l}`).toBe(upgradeLabel(l));
+        buyUpgrade(run, "turret");
+        // the next line's number is the next level's battle interval
+        const after = new Battle(run.build, barge(), SEED).sides[0].turrets[0].interval;
+        expect(numbers(turretNext(fires, l)!)[0]).toBe(+after.toFixed(2));
+      } else {
+        expect(line).toBe("SPEED LEVEL 4/4.");
+        expect(t.labels[0]).not.toMatch(/UPGRADE/);
       }
+    }
+    // a bought turret has no speed line and no UPGRADE button
+    const b = newRun("weaver", 5, "bought");
+    expect(turretPanel(b, 0)!.labels[0]).toBe("UPGRADE 10G"); // WEAVER's starting DART GUN
+  });
+
+  it("the full-slots notice points at the upgrade for a hero factory, at the next star for a bought one", () => {
+    expect(fullNotice("KILN", 2, 1, true)).toBe("KILN'S 2 BELTS ARE IN USE · UPGRADE FOR A 3RD");
+    expect(fullNotice("LOOM", 5, 3, true)).toBe("LOOM'S 5 BELTS ARE IN USE · UPGRADE FOR A 6TH");
+    expect(fullNotice("LOOM", 6, 4, true)).toBe("LOOM'S 6 BELTS ARE IN USE · DRAG A BELT TO REROUTE");
+    expect(fullNotice("STAMP PRESS", 2, 1, false)).toBe("STAMP PRESS'S 2 BELTS ARE IN USE · ★2 OPENS A 3RD");
+    expect(fullNotice("STAMP PRESS", 4, 3, false)).toBe("STAMP PRESS'S 4 BELTS ARE IN USE · DRAG A BELT TO REROUTE");
+  });
+
+  it("a bought factory's next star and MERGES WITH lines close with its belts at that star", () => {
+    for (const def of ["press", "gantry", "twinmould"]) for (const s of [1, 2]) {
+      expect(nextStarText(def, s), `${def} ★${s}`).toBe(`NEXT STAR: ${gist(def, s + 1)}, ${outputsAt(def, s + 1)} BELTS.`);
+      expect(mergesWithText(def, s + 1)).toBe(`MERGES WITH YOUR ${ITEMS[def].name} INTO ★${s + 1}: ${gist(def, s + 1)}, ${outputsAt(def, s + 1)} BELTS.`);
     }
   });
 
@@ -103,7 +135,6 @@ describe("M4: the signature factories' text at every star, each number the sim's
       "STAMPS YOUR HERO'S SIGNATURE AMMO FROM A SECOND FACTORY.",
       "CASTS PLAIN SLUGS SEVERAL AT A TIME, ONE BELT EACH.",
     ]);
-    // GANTRY PRESS's lead and TWIN MOULD's pour, as the words say
     for (const s of [1, 2, 3]) expect(outputsAt("gantry", s)).toBe(outputsAt("press", s) + 1);
     expect([1, 2, 3].map((s) => effectAt("twinmould", s).factory!.pour)).toEqual([2, 2, 3]);
   });

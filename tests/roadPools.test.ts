@@ -27,7 +27,6 @@ import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { fusible } from "../src/sim/stars";
 import { hitsOfRig, key, startingTurrets, type ModPlacement, type Placed } from "../src/sim/deck";
 import { routeProblems } from "../src/game/routeCheck"; // 0.6.2 BELTSIDE merge (0.6.1c)
-import { ownSignatureCard, sharedDef, sharedWagons } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D9): REQ-BFG-021 narrowed
 
 const SEEDS = Array.from({ length: 300 }, (_, i) => 1 + i * 7919);
 const DAYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -297,9 +296,7 @@ describe("one shared pool: FURNACE and WEAVER get the very same offers and choic
         return { hero: run.build.hero, wagons: run.shop.wagons, badges: badges(run, run.shop.wagons.flatMap((w) => w.offers.map((o) => o.def))) };
       });
       expect([a.hero, b.hero]).toEqual(HEROES2);
-      // bb-0.8.3 (REQ-BFG-042 D9, REQ-BFG-021 narrowed): every shared offer the same; the hero's own signature card, the
-      // one card that differs by hero, is SIGNATURE_CARD on both sides (it stands in the same slot for both)
-      expect(sharedWagons(b.wagons), `s${seed} d${day} r${rerolls} ${k}`).toEqual(sharedWagons(a.wagons));
+      expect(b.wagons, `s${seed} d${day} r${rerolls} ${k}`).toEqual(a.wagons);
       // 0.6.2s step 5 (REQ-BFG-031): the caravan offers turrets, and a hull's free starting turrets are the one part
       // the two runs don't hold alike: an offer of one merges into it (MERGE ★2) for the hero whose hull has it. The
       // offers are the same; every other badge is too.

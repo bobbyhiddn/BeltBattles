@@ -145,17 +145,12 @@ describe("the validator (src/net/validate.ts)", () => {
     expect(v.errors.some((e) => e.startsWith("budget:"))).toBe(true);
     expect(validateBuild(deck(3), 2)).toEqual({ ok: true, errors: [] });
   });
-  // bb-0.8.3 (REQ-BFG-042 D2): a signature factory levels up by merging like any factory, so a ★2 KILN is legal (0.8.0:
-  // "KILN can't have 2 stars (signatures and supplies never merge)"); a supply still takes none above 1
-  it("stars must be 1..3; supplies take none above 1 (signature factories merge: bb-0.8.3); unknown ids are still rejected", () => {
+  it("stars must be 1..3; signature factories and supplies take none above 1; unknown ids are still rejected", () => {
     expect(validateBuild(deck(1), 1).ok).toBe(true);
     expect(validateBuild(deck(4), 5).errors[0]).toMatch(/^shape: .*stars/);
     const sig = deck();
     sig.items[0].stars = 2; // the KILN
-    expect(validateBuild(sig, 5).errors.filter((e) => /stars/.test(e))).toEqual([]);
-    const sup = deck();
-    sup.items.push({ uid: 950, def: "beltcrate", x: 0, y: 0, stars: 2 });
-    expect(validateBuild(sup, 5).errors).toContain("item: uid 950 BELT CRATE can't have 2 stars (supplies never merge)");
+    expect(validateBuild(sig, 5).errors).toContain("item: uid 1 KILN can't have 2 stars (signatures and supplies never merge)");
     const unk = deck();
     unk.items.push({ uid: 51, def: "nothing", x: 0, y: 0 });
     expect(validateBuild(unk, 5).errors).toContain('item: uid 51 is unknown item "nothing"');
@@ -174,7 +169,6 @@ describe("the validator (src/net/validate.ts)", () => {
     const c = deck();
     c.items.push({ uid: 54, def: "temper", x: 3, y: 2, rot: 1 }, { uid: 55, def: "temper", x: 3, y: 1, rot: 1 });
     expect(unfusedPairs(c)).toEqual(["UNFUSED PAIR: TEMPER ★1 x3"]);
-    // bb-0.8.3 (REQ-BFG-042 D2): two ★1 LOOMs are an unmerged pair now (0.8.0: signatures never counted, [])
-    expect(unfusedPairs({ ...startingBuild("weaver", 1), items: [...startingBuild("weaver", 1).items, { uid: 9, def: "loom", x: 0, y: 7 }] })).toEqual(["UNFUSED PAIR: LOOM ★1 x2"]);
+    expect(unfusedPairs({ ...startingBuild("weaver", 1), items: [...startingBuild("weaver", 1).items, { uid: 9, def: "loom", x: 0, y: 7 }] })).toEqual([]);
   });
 });

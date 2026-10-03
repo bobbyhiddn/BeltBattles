@@ -67,7 +67,7 @@ import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUN
 import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence; P1: TWIN TRIGGER's floor
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: BASTION's WARDWORKS; P1: the plating cap
 import { scaleCore } from "../sim/cores";
-import { effectAt, FUSE_MAX, fusible, merges, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
+import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
 import * as stars from "../sim/stars"; // 0.8.0 B1 M2: OVERDRIVE's text reads the star's named perk
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 
@@ -689,36 +689,33 @@ const ENTRIES: Record<string, Entry> = {
   // stars). Each says what its ammo does too, from the race rules' own numbers (races/foundry.ts, races/bastion.ts).
   crucible: {
     // races/foundry.ts crucibleProduce (the twin pour), tryFuse/inSync (another intake, SYNC_WINDOW), fuse (FUSE_MULT)
-    // bb-0.8.3 (REQ-BFG-042 D2, D4): its belt slots at its stars (2 / 3 / 4) and its pour of 2: at ★1 its slots are its pour
-    // (0.8.0's sentence); from ★2 each pour takes 2 of its belts in turn (rule R). The blank's base is its level's
+    // bb-0.8.3 (REQ-BFG-044 D10, D4): its belt slots at its FACTORY level (2 / 3 / 4 / 5) and its pour of 2: at level 1 its
+    // slots are its pour (0.8.0's sentence); from level 2 each pour takes 2 of its belts in turn (rule R)
     text: (e, x) => {
       const n = outputsAt(e.id, x.stars), pour = f(e).pour ?? 2;
       return [
         n <= pour
           ? `POURS AN ALLOY BLANK ONTO EACH OF ITS ${plural(n, "BELT")} ${every(f(e).interval)}, ALL AT THE SAME MOMENT.`
           : `POURS AN ALLOY BLANK ONTO ${pour} OF ITS ${n} BELTS ${every(f(e).interval)}, ALL AT THE SAME MOMENT, TAKING ITS BELTS IN TURN.`,
-        `AN ALLOY BLANK DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every star (its levels grow its cycle only)
+        `AN ALLOY BLANK DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every level (its levels grow its cycle only)
         `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)} OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH ${times2(FUSE_MULT)} THEIR DAMAGE.`,
         "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
       ];
     },
-    // bb-0.8.3 (oracle 6c20deea1363d0bb): a signature level grows the cycle only, so the next-star and MERGES WITH lines
-    // say the cycle and the belts and repeat no damage (the blank's damage is the same at every star; the text says it)
+    // bb-0.8.3 (oracle 6c20deea1363d0bb): a level grows the cycle only (the blank's damage is the same at every level)
     gist: (e) => `POURS ${f(e).pour} ALLOY BLANKS ${every(f(e).interval)}`,
-    card: (e) => ownCard(e.id), // bb-0.8.3 (D9): the card in its own hero's caravan
   },
-  // bb-0.8.3 (REQ-BFG-042 D2, M4): FURNACE's, WEAVER's, METRONOME's and SIPHON's own factories level up by merging, and
-  // their own caravan sells copies, so their panels and cards read their numbers at every star, as a sold module's do
-  // (they read only their catalogue desc before). Battle.stamp deals one slug a cycle onto their belts in turn.
+  // bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10, M4): FURNACE's, WEAVER's, METRONOME's and SIPHON's own factories level up
+  // through the hero's FACTORY upgrade, so their panels read their numbers at their level, as a sold module's do at its
+  // stars (they read only their catalogue desc before). Battle.stamp deals one slug a cycle onto their belts in turn.
   kiln: {
-    // payloadDamage: the slug's base (the same at every star: oracle 6c20deea1363d0bb) + AMMO.cinder.rideScale a second of
-    // ride. The gist (next star, MERGES WITH) says the cycle only: a level changes nothing else
+    // payloadDamage: the slug's base (the same at every level: oracle 6c20deea1363d0bb) + AMMO.cinder.rideScale a second
+    // of ride. A level changes its cycle and its belts, nothing else
     text: (e, x) => [
       `STAMPS A CINDER SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
       `A CINDER SLUG DEALS ${damage(slugBase(e))}, AND ${moreDamage(AMMO.cinder.rideScale)} FOR EACH SECOND IT RIDES.`,
     ],
     gist: (e) => `CINDER SLUGS ${every(f(e).interval)}`,
-    card: (e) => ownCard(e.id),
   },
   loom: {
     // races-free: AMMO.thread (FRAY_BONUS a fray stack on every later hit, up to FRAY_MAX), the slug's base
@@ -727,7 +724,6 @@ const ENTRIES: Record<string, Entry> = {
       `A THREAD SLUG DEALS ${damage(slugBase(e))}, AND EACH ONE THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`,
     ],
     gist: (e) => `THREAD SLUGS ${every(f(e).interval)}`, // the cycle only, as the KILN's
-    card: (e) => ownCard(e.id),
   },
   clockworks: {
     // races/data.ts pendulumCurve: PENDULUM.floor, rising to floor + swing at PENDULUM.peak seconds of ride, then falling
@@ -736,7 +732,6 @@ const ENTRIES: Record<string, Entry> = {
       `A PENDULUM SLUG DEALS ${damage(PENDULUM.floor)}, RISING TO ${damage(PENDULUM.floor + PENDULUM.swing)} AFTER ${seconds(PENDULUM.peak)} OF RIDE (${peakTiles(PENDULUM.peak)} TILES), THEN FALLING AGAIN.`,
     ],
     gist: (e) => `PENDULUM SLUGS ${every(f(e).interval)}`,
-    card: (e) => ownCard(e.id),
   },
   sump: {
     // races/siphon.ts sumpProduce (in turn, each slug marked for the gun its belt feeds: DRAG or ECHO)
@@ -745,20 +740,18 @@ const ENTRIES: Record<string, Entry> = {
       `A LEECH SLUG DEALS ${damage(slugBase(e))}.`,
     ],
     gist: (e) => `LEECH SLUGS ${every(f(e).interval)}`, // the cycle only, as the KILN's
-    card: (e) => ownCard(e.id),
   },
   wardworks: {
     // races/bastion.ts plateOnLoad (PLATE_PER_SLUG x the split multiplier, at load, PLATE_CAP) and absorb (impacts and
     // Burn); battle.ts: the dark wind never meets the plating
     text: (e, x) => [
       `STAMPS A BULWARK SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`, // bb-0.8.3 (M4)
-      `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every star (oracle 6c20deea1363d0bb)
+      `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every level (oracle 6c20deea1363d0bb)
       `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${n1(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
     ],
     gist: (e) => `BULWARK SLUGS ${every(f(e).interval)}`, // bb-0.8.3 (M4): the cycle only, as the KILN's
-    card: (e) => ownCard(e.id), // bb-0.8.3 (D9): the card in its own hero's caravan
   },
   mimic: {
     // Battle.factoryDef: the hero's ammo at the hero factory's interval x intervalMul; bb-0.8.3 (REQ-BFG-042 D3): its belt
@@ -1291,7 +1284,8 @@ export function newPerk(def: string, to: number): string | undefined {
 
 /** T5: "NEXT STAR: ADDS 7 BURN." for a fusible module below the top star, else null (newPerk names the perk it brings). */
 export function nextStarText(def: string, stars: number, o: TextOpts = {}): string | null {
-  if (!merges(def) || stars >= FUSE_MAX || !hasAbilityText(def)) return null; // bb-0.8.3 (D2): signature factories too
+  // bb-0.8.3 (REQ-BFG-043 D10): a hero's signature factory has no stars (its panel says its level and next level instead)
+  if (!fusible(def) || stars >= FUSE_MAX || !hasAbilityText(def)) return null;
   return `NEXT STAR: ${starGist(def, stars + 1, o)}.`;
 }
 
@@ -1303,12 +1297,6 @@ export function nextStarText(def: string, stars: number, o: TextOpts = {}): stri
 function starGist(def: string, stars: number, o: TextOpts = {}): string {
   const eff = gist(def, stars, o), belts = ITEMS[def]?.kind === "factory" ? plural(outputsAt(def, stars), "BELT") : "";
   return belts ? (eff ? `${eff}, ${belts}` : belts) : eff;
-}
-
-/** bb-0.8.3 (REQ-BFG-042 D9): a signature factory's card in its own hero's caravan: "FURNACE'S OWN FACTORY". */
-function ownCard(def: string): string {
-  const hero = Object.values(HEROES).find((h) => h.factory === def);
-  return hero ? `${hero.name}'S OWN FACTORY` : "A HERO'S OWN FACTORY";
 }
 
 /** T6: the next-star line's headline for a short band: the first clause of that star's effect ("NEXT STAR: 5 TIMES AS

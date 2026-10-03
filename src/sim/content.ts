@@ -309,31 +309,33 @@ export interface ItemDef {
   turret?: TurretSpec; // 0.6.2s: a turret's numbers (kind "turret")
   reason?: string; // 0.6.2s: a turret's one-line reason to buy it (player text)
   supply?: { belt?: number; hull?: number };
-  levels?: { 2?: ItemLevel; 3?: ItemLevel }; // 0.6.1a: star overrides (1 star = the spec above)
+  // 0.6.1a: star overrides (1 star = the spec above). bb-0.8.3 (REQ-BFG-043 D10): a hero's signature factory's are its
+  // FACTORY upgrade levels 2-4 instead (it has no stars; stars.ts gradeOf)
+  levels?: { 2?: ItemLevel; 3?: ItemLevel; 4?: ItemLevel };
   tags?: ModuleTag[]; // 0.6.1b: the shop tags (a hint only); 0.8.0 P1: family map v2, 1-3 on every buyable module
 }
 
 export const ITEMS: Record<string, ItemDef> = {
-  // --- signature factories (no merchant sells them) ---
-  // bb-0.8.3 (REQ-BFG-042 D2, as amended by the Prime's oracle 6c20deea1363d0bb after M2): a signature factory levels up
-  // by merging like any factory, with 2 / 3 / 4 belt slots (the LOOM 3 / 4 / 5: `lead` 1). Its ★2 and ★3 grow ONLY its
-  // cycle, on the house's curve's interval steps (the median per-star change of the bought factories' levels: x 11/14
-  // at ★2, then x 11/13 at ★3, from the unrounded ★2, to 0.01 s; tests/belts.slots.test.ts derives them); its base stays
-  // its ★1 value, because its own rules multiply base (the fuse, the ride scaling, the leech): with the base grown too, a
-  // ★2 CRUCIBLE was 2.2x its fused damage a second and FOUNDRY left the band (output-belts/REPORT.md, M2). No perk name.
-  // Its own rules keep their kind (cinder ride scaling, the KILN BREECH, the LOOM's thread, the CRUCIBLE's pour of 2 and
-  // the fuse, the bulwark plating, the pendulum's curve, the leech).
+  // --- signature factories (no merchant sells them, no shop offers them) ---
+  // bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10): a hero's signature factory never merges and has no stars. It goes from level
+  // 1 to level 4 through the hero's FACTORY upgrade (UPGRADE_PRICE gold, bought in the caravan outside the shop roll;
+  // build.upgrades.factory), with 2 / 3 / 4 / 5 belt slots (the LOOM 3 / 4 / 5 / 6: `lead` 1). Its levels grow ONLY its
+  // cycle (the Prime's oracle 6c20deea1363d0bb, D2), on the house's curve's interval steps: x 11/14 at level 2, then x 11/13
+  // at level 3 and again at level 4, each from the unrounded level before, to 0.01 s (tests/belts.upgrades.test.ts derives
+  // them); its base stays its level-1 value, because its own rules multiply base (the fuse, the ride scaling, the leech).
+  // No perk name. Its own rules keep their kind (cinder ride scaling, the KILN BREECH, the LOOM's thread, the CRUCIBLE's
+  // pour of 2 and the fuse, the bulwark plating, the pendulum's curve, the leech).
   kiln: {
     id: "kiln", name: "KILN", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["STAMPS CINDER SLUGS.", "SLUGS HEAT UP WHILE", "THEY RIDE THE BELT."],
     factory: { ammo: "cinder", interval: 1.25 }, // base 4: the cinder slug's
-    levels: { 2: { factory: { interval: 0.98 } }, 3: { factory: { interval: 0.83 } } },
+    levels: { 2: { factory: { interval: 0.98 } }, 3: { factory: { interval: 0.83 } }, 4: { factory: { interval: 0.7 } } },
   },
   loom: {
     id: "loom", name: "LOOM", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["WEAVES THREAD SLUGS", "THAT FRAY THE HULL", "ONTO MANY BELTS."], // bb-0.8.3 (M4): was "INTO UP TO 3 ROUTES. HITS STACK FRAY."
     factory: { ammo: "thread", interval: 0.72, lead: 1 }, // base 3: the thread slug's; WEAVER's belt specialist: one more slot
-    levels: { 2: { factory: { interval: 0.57 } }, 3: { factory: { interval: 0.48 } } },
+    levels: { 2: { factory: { interval: 0.57 } }, 3: { factory: { interval: 0.48 } }, 4: { factory: { interval: 0.41 } } },
   },
   // --- generic factory ---
   press: {
@@ -1185,18 +1187,27 @@ export const START_LIVES = 5; // tunable by the balance pass
 export const START_GOLD = 8;
 export const REROLL_COST = 2;
 export const OFFERS = 5;
+
 /**
- * bb-0.8.3 (REQ-BFG-042 D9): a hero's own signature factory in its own caravan (run.ts rollShop, on its own stream after
- * the shared roll): from `day` on, on `chance` of the rolls (a reroll is a roll), a copy at `price[def]` (the caravan's
- * discount applies). Start (the brief's): the dearest bought factory's price (MIMIC FORGE 11), day 3, 1 roll in 3. The
- * ItemDef keeps price 0: the starting copy was free and is worth nothing (stars.ts partsValue counts bought copies at
- * this price), and no shared pool or price-ranked list sees a signature factory. validate.ts refuses a bought copy
- * before `day`.
+ * bb-0.8.3 (REQ-BFG-043, the operator's design of 2026-10-03): every hero's two gold upgrade tracks, for every run. Both
+ * start at level 1 and go up to UPGRADE_MAX. They are bought in the caravan (build) phase, OUTSIDE the shop roll (run.ts
+ * buyUpgrade): a purchase takes no offer slot, draws on no stream and changes nothing the shop shows.
+ *  - "turret", TURRET SPEED: the hero's starting turrets (the installed turrets holding the free starting copy, merged or
+ *    not: BuildTurret.free) fire faster (TURRET_SPEED, deck.ts turretSlots);
+ *  - "factory", FACTORY: the hero's signature factory gains a belt slot and a faster cycle (its ItemDef.levels 2-4, read
+ *    at stars.ts gradeOf; slots stars.ts BELT_SLOTS).
+ * The levels live on the build (Build.upgrades), so they travel in the ghost snapshot and the save. No refund: selling,
+ * stowing or merging never returns upgrade gold.
  */
-export const SIGNATURE_OFFER: { readonly day: number; readonly chance: number; readonly price: Readonly<Record<string, number>> } = {
-  day: 3, chance: 1 / 3,
-  price: { kiln: 11, loom: 11, crucible: 11, wardworks: 11, clockworks: 11, sump: 11 },
-};
+export type UpgradeTrack = "turret" | "factory";
+export const UPGRADE_TRACKS: readonly UpgradeTrack[] = ["turret", "factory"];
+/** A build's upgrade levels, each 2..UPGRADE_MAX when bought; absent = level 1 (never written as 1). */
+export interface Upgrades { turret?: number; factory?: number }
+export const UPGRADE_MAX = 4;
+/** The gold that buys level n of a track (index n): 10, 20, 30. THE OPERATOR SET THESE PRICES: never tune them. */
+export const UPGRADE_PRICE: readonly number[] = [0, 0, 10, 20, 30];
+/** TURRET SPEED: a starting turret's fire interval x this at level n (index n): x0.85 a level, level 4 about x0.61. */
+export const TURRET_SPEED: readonly number[] = [1, 1, 0.85, 0.72, 0.61];
 
 /** Gold after a dusk fight, indexed by day (0.5.0's round curve). */
 export function incomeFor(day: number, won: boolean): number {

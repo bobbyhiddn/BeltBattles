@@ -68,8 +68,11 @@ import { syncOf } from "../../sim/syncEstimate";
 import { SYNC_WINDOW } from "../../sim/races/foundry";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
-import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
-import { fusible, isSignatureFactory, merges, outputsAt, starsOf, starText } from "../../sim/stars";
+import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, upgrade, type Ctx } from "./actions";
+import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "../../sim/stars";
+import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/upgradeText"; // bb-0.8.3 (REQ-BFG-043 D11)
+import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
+import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
 import { gainModule, mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
@@ -376,11 +379,8 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
 export const TOUCH_TURN = "TAP IT AGAIN TO TURN IT. DRAG TO MOVE.";
 /** shoptap (D2, REQ-BFG-035): what a placed part's SELL says: its cargo sell price (sellValue at its stars). */
 export const sellLabel = (def: string, stars: number): string => `SELL +${sellPrice(def, stars)}G`;
-/** shoptap (D2): the signature factory's panel on touch says why it offers no SELL. bb-0.8.3 (REQ-BFG-042 D9, M4): every
- *  copy of it stays aboard (the caravan sells copies; none sells or stows), on one line, so the starting factory's panel,
- *  with its next star and merge progress, still fits shoptap2's 69 px band (was "THE SIGNATURE FACTORY STAYS ABOARD. IT
- *  CAN'T BE SOLD.", actions.ts store's words, two lines). */
-export const SIGNATURE_ABOARD = "IT STAYS ABOARD: NO COPY CAN BE SOLD.";
+/** shoptap (D2): the signature factory's panel on touch says why it offers no SELL (actions.ts store's own words). */
+export const SIGNATURE_ABOARD = "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.";
 
 /**
  * 0.8.0 P1 (E3, DESIGN-beltside section 8's production rigs): a placed STOKER that points at factories: the factories it
@@ -471,9 +471,6 @@ export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] 
   });
 }
 
-/** bb-0.8.3 (D9): "FURNACE'S OWN" for a signature factory's caravan card. */
-const ownerOf = (def: string): string => `${Object.values(HEROES).find((h) => h.factory === def)?.name ?? "A HERO"}'S OWN`;
-
 /** T5: the MERGES WITH block of an offer that merges on purchase (the perk that star brings after it). */
 function mergeBlock(run: Run, def: string): Block | null {
   const preview = mergePreview(run, def);
@@ -500,9 +497,7 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
   ];
   return {
-    // bb-0.8.3 (REQ-BFG-042 D9): the hero's own factory's card says whose it is, not the wagon it rides in
-    title: d.name, color: RARITY_COLOR[d.rarity],
-    sub: `${describe(d)} · ${isSignatureFactory(d.id) ? ownerOf(d.id) : MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
+    title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
     subShort: describe(d), // T6: the merchant's name gives way first, so the button can share the title's row
     headerOnly: one ? { texts: [one], colour: C.bone } : undefined,
     body,
@@ -517,14 +512,12 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
   const it = run.inventory.find((i) => i.uid === uid);
   if (!it) return null;
   const d = ITEMS[it.def], stars = starsOf(it), opts = textOpts(run);
-  // 0.6.2s (S6): a turret sells for turretSellValue, and a hull's free starting copy can't be sold at 1 star. bb-0.8.3
-  // (REQ-BFG-042 D2): a copy of the hero's signature factory waiting in cargo never sells either (run.ts sellInventory)
-  const turret = d.kind === "turret", sig = isSignatureFactory(d.id), sellable = !sig && (!turret || canSellTurret(it));
+  // 0.6.2s (S6): a turret sells for turretSellValue, and a hull's free starting copy can't be sold at 1 star
+  const turret = d.kind === "turret", sellable = !turret || canSellTurret(it);
   const body: Block[] = [
     ...abilityBlocks(d.id, stars, opts),
     ...progressBlocks(run, d.id, stars),
     ...(turret && it.free ? [{ role: "ability", text: freeNote(sellable), rank: 3 } as Block] : []),
-    ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, opts.k ?? 1),
     hintBlock(placeHint(d.kind, false, d.id, touch)),
   ];
@@ -552,24 +545,41 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   const d = defOf(p);
   if (d.kind === "gate") return rigPanel(run, uid, touch);
   const stars = starsOf(p);
-  // bb-0.8.3 (REQ-BFG-042 D2): a hero's signature factory levels up by merging (its stars and merge progress show), and
-  // still never goes to cargo or sells, every copy at every star (run.ts storePlaced)
-  const sig = isSignatureFactory(d.id);
+  const sig = !fusible(d.id);
+  // bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10, D11): the hero's own factory reads at its FACTORY level (stars.ts gradeOf: its
+  // ability text, its belts) and shows that level, its next level in one line and the UPGRADE button with its price
+  const grade = gradeOf(run.build, p), level = sig ? upgradeLevel(run.build, "factory") : 0;
   const body: Block[] = [
     ...joinPaceBlocks(run.build, p.uid), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joined factory leads with its pace
-    ...(hasAbilityText(d.id) ? abilityBlocks(d.id, stars, textOpts(run)) : []),
-    ...(merges(d.id) ? progressBlocks(run, d.id, stars) : []), // bb-0.8.3 (D2): a signature factory's next star too
+    ...(hasAbilityText(d.id) ? abilityBlocks(d.id, grade, textOpts(run)) : []),
+    ...(sig ? upgradeBlocks("factory", level, factoryNext(d.id, level)) : progressBlocks(run, d.id, stars)),
     ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock("DRAG OUT OF IT TO LAY BELT."),
   ];
+  const up = sig ? upgradeLabel(level) : null;
   return {
     title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
-    sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${outputsAt(d.id, stars) || 1}`,
+    sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${outputsAt(d.id, grade) || 1}`,
     body,
     variants: tightForms(body),
-    labels: sig ? [] : ["TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
+    labels: sig ? (up ? [up] : []) : ["TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
   };
+}
+
+/** bb-0.8.3 (REQ-BFG-043 D11): a track's level line ("FACTORY LEVEL 2/4") and its next level in one line, both kept. */
+function upgradeBlocks(track: UpgradeTrack, level: number, next: string | null): Block[] {
+  return [{ role: "next", text: levelLine(track, level), keep: true }, ...(next ? [{ role: "next", text: next, keep: true } as Block] : [])];
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-043 D11): the UPGRADE button of a track, with the next level's price; dimmed, still showing it, when
+ * the gold is short; none at the top level or while the track's control doesn't show (run.ts upgradeShown).
+ */
+function upgradeAction(ctx: Ctx, track: UpgradeTrack): Action[] {
+  const n = nextUpgrade(ctx.run, track), label = upgradeLabel(n.level);
+  if (!label || n.price === undefined || !upgradeShown(ctx.run, track)) return [];
+  return [{ id: `upgrade-${track}`, label, primary: true, disabled: ctx.run.gold < n.price, onTap: () => { upgrade(ctx, track); } }];
 }
 
 /**
@@ -809,6 +819,12 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     ...slotNotes(b, index).map((text): Block => ({ role: "ability", text, rank: 4 })),
     hintBlock(touch ? touchSlotHint(b, index) : SLOT_HINT), // shoptap: on touch, a tap again reads its core and gear
   ];
+  // bb-0.8.3 (REQ-BFG-043 D11): a starting turret (it holds the free copy) shows its TURRET SPEED level and next level in
+  // one short sentence ("SPEED LEVEL 1/4, NEXT EVERY 0.85 SEC."), the last optional block (rank 7, after the hint): where
+  // a panel is short of room it gives way before anything the panel showed before (the board's level marker and the
+  // UPGRADE button with its price still show)
+  const startTurret = !!turretSlots(b)[index]?.turret?.free, tl = upgradeLevel(b, "turret");
+  if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `SPEED ${turretSpeedRow(every, tl)}.`, rank: 7 });
   const body: Block[] = [
     ...warn(false),
     ...socketLines(b, index, coreName).flatMap((s, i) =>
@@ -847,7 +863,7 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     title: slotTitle(b, index), color: slotColor(b, index), sub: slotSub(b, index),
     body,
     variants: [{ body, tight: true }, ...forms.flatMap((f) => [{ body: f }, { body: f, tight: true }])],
-    labels: [...(tc.bought ? ["REMOVE CORE"] : []), ...(gm ? ["REMOVE GEAR"] : []), ...slotLabels(b, index)],
+    labels: [...(startTurret && upgradeLabel(tl) ? [upgradeLabel(tl)!] : []), ...(tc.bought ? ["REMOVE CORE"] : []), ...(gm ? ["REMOVE GEAR"] : []), ...slotLabels(b, index)],
   };
 }
 
@@ -1345,6 +1361,8 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const t = p ? itemPanel(run, p.uid, touch) : null;
       if (!p || !t) return null;
       const d = defOf(p);
+      // bb-0.8.3 (REQ-BFG-043 D11): the hero's own factory: its UPGRADE button only (it never goes to cargo or sells)
+      if (!fusible(d.id)) return { icon: itemIcon(d.id), text: t, actions: upgradeAction(ctx, "factory") };
       // shoptap (D2, REQ-BFG-035): on touch a placed part's panel sells it too (a button, never a tap on the part)
       const sellIt: Action[] = touch && t.labels.length ? [{ id: "sellpart", label: t.labels[t.labels.length - 1], onTap: () => sellPlaced(ctx, p.uid) }] : [];
       const actions: Action[] = d.kind === "gate"
@@ -1386,8 +1404,10 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       const actions: Action[] = [];
       if (tc.bought) actions.push({ id: "unfitcore", label: "REMOVE CORE", onTap: () => unfitCore(ctx, show.index) });
       if (gm) actions.push({ id: "unfit", label: "REMOVE GEAR", onTap: () => unfitMod(ctx, show.index) });
-      // 0.6.2s (S10): the installed turret's icon; TO CARGO and SELL after the socket buttons
-      return { icon: slotIcon(b, show.index), text: t, actions: [...actions, ...slotActions(ctx, show.index)] };
+      // 0.6.2s (S10): the installed turret's icon; TO CARGO and SELL after the socket buttons. bb-0.8.3 (REQ-BFG-043 D11):
+      // a starting turret (it holds the free copy) leads with its TURRET SPEED UPGRADE button
+      const up = turretSlots(b)[show.index]?.turret?.free ? upgradeAction(ctx, "turret") : [];
+      return { icon: slotIcon(b, show.index), text: t, actions: [...up, ...actions, ...slotActions(ctx, show.index)] };
     }
     default:
       return null;

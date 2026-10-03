@@ -20,7 +20,7 @@ import { RACE_PIP, isArtRace, isRaceAmmo, raceTurretLook } from "./raceArt"; // 
 import { CLANK_FRAMES, CLANK_TIME, FUSE_FRAMES, FUSE_TIME, flashFrame, fuseFlash, platingClank, syncIcon } from "./raceFx"; // 0.8.0 H1 M3
 import { syncedTurrets } from "../sim/syncEstimate"; // 0.8.0 H1 M3: the deck's SYNC mark
 import { coreFor, stokeHits } from "../sim/deck"; // 0.6.1b: the core socket; 0.8.0 I1: a STOKER's factory hits
-import { starsOf } from "../sim/stars"; // 0.6.1b
+import { gradeOf, starsOf } from "../sim/stars"; // 0.6.1b; bb-0.8.3: a factory's grade
 import { gemColor } from "./coreArt"; // 0.6.1b
 import { gearStats, turretAt } from "../sim/battle"; // 0.6.1p: the gear's window slots (EXT. CHAMBER, HOPPER); 0.6.2s: by slot
 import { anvilSparks, wave3GearFace, type Wave3RigState } from "./wave3Art"; // 0.8.0 A1: wave 3's gear on the gun
@@ -77,7 +77,7 @@ export interface CruiserModel {
  */
 export function fixedSpeedOf(b: Build, uid: number): number | undefined {
   const f = itemByUid(b, uid);
-  const spec = f ? effectAt(f.def, starsOf(f)).factory : undefined;
+  const spec = f ? effectAt(f.def, gradeOf(b, f)).factory : undefined;
   if (!f || !spec) return undefined;
   return AMMO[f.def === "mimic" ? HEROES[b.hero].ammo : spec.ammo]?.fixedSpeed;
 }

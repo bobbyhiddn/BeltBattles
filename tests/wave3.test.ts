@@ -13,7 +13,6 @@ import {
   install, poolOf, quotas, tagsFor, todayWares, typicalOne, uninstall, wares, withCatalogue, withDraw,
 } from "../tools/wave3";
 import { NPCS, npcDeck, problems } from "../tools/wave3Npcs";
-import { ownSignatureCard, sharedDef, sharedWagons } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D9): REQ-BFG-021 narrowed
 
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
 
@@ -150,8 +149,8 @@ describe("wave3: the per-run draw (REQ-BFG-022 part 2)", () => {
               run.shop = { wagons: [], rerolls: r, discount: 0, free: 0 };
               rollShop(run);
               for (const wg of run.shop.wagons) for (const o of wg.offers) {
-                shown.push(`${day}:${sharedDef(o.def)}`); // bb-0.8.3 (D9, REQ-BFG-021 narrowed): the hero's own card
-                if (ITEMS[o.def].kind === "supply" || ownSignatureCard(hero, o.def)) continue; // and it is no ware
+                shown.push(`${day}:${o.def}`);
+                if (ITEMS[o.def].kind === "supply") continue;
                 expect(w.get(o.def), `${o.def} on day ${day}`).toBeLessThanOrEqual(day);
               }
             }

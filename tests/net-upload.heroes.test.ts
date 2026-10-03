@@ -119,8 +119,7 @@ describe("the upload check (validateUpload, the player mode)", () => {
     const cases: [string, (b: Build, hero: HeroId) => void, RegExp][] = [
       ["plating far past the ceiling", (b) => { b.hullBonus += 25 * 200; }, /^(supply|budget): /],
       ["another hero's signature factory", (b, hero) => { b.items.push({ uid: 777, def: hero === "foundry" ? "wardworks" : "crucible", x: 7, y: 8 }); }, /is another hero's signature factory/],
-      // bb-0.8.3 (REQ-BFG-042 D2, D9): a second ★1 copy is an unmerged pair (0.8.0: "exactly one ... (found 2)")
-      ["a second signature factory", (b, hero) => { b.items.push({ uid: 777, def: HEROES[hero].factory, x: 7, y: 8 }); }, /^item: UNFUSED PAIR: .* ★1 x2$/],
+      ["a second signature factory", (b, hero) => { b.items.push({ uid: 777, def: HEROES[hero].factory, x: 7, y: 8 }); }, /^item: the deck must carry exactly one .* \(found 2\)$/],
       ["no signature factory", (b, hero) => { const s = b.items.find((p) => p.def === HEROES[hero].factory)!; b.items = b.items.filter((p) => p !== s); b.routes = b.routes.filter((r) => r.factory !== s.uid); }, /\(found 0\)$/],
       // bb-0.8.3 (REQ-BFG-042 D2): "stars on the signature" (a ★2 signature factory) is gone from this list: the hero's own
       // factory levels up by merging now, so its stars are honest (tests/belts.offer.test.ts reads the copies' new rules)

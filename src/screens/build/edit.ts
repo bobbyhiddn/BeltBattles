@@ -25,8 +25,8 @@ import {
 } from "../../sim/deck";
 import { canJoin, joinOf } from "../../sim/deck"; // 0.6.2j: belt joins
 import { JOIN_PACE_PCT } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
-import { ITEMS } from "../../sim/content";
-import { FUSE_MAX, merges, outputsAt, starsOf } from "../../sim/stars";
+import { ITEMS, UPGRADE_MAX } from "../../sim/content";
+import { FUSE_MAX, gradeOf, isSignatureFactory, outputsAt } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
@@ -53,21 +53,24 @@ export const direct = (kind: PointerKind | undefined): boolean => kind === "touc
 const ordinal = (n: number): string => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "TH" : ["TH", "ST", "ND", "RD"][n % 10] ?? "TH"}`;
 
 /**
- * bb-0.8.3 (REQ-BFG-042 D6): what a drag out of a factory whose belt slots are all in use says, as it draws nothing: its
- * belts are in use, and a bought factory below ★3 says its next star opens one more ("STAMP PRESS'S 2 BELTS ARE IN USE ·
- * ★2 OPENS A 3RD"); a hero's signature factory (it can't merge) or one at ★3 says to drag a belt to reroute it.
- * `merges`: the factory levels up by merging (stars.ts merges: every factory, the signature ones included).
+ * bb-0.8.3 (REQ-BFG-044 D6, REQ-BFG-043 D11): what a drag out of a factory whose belt slots are all in use says, as it
+ * draws nothing: its belts are in use, and what opens one more. A bought factory below ★3: its next star ("STAMP PRESS'S
+ * 2 BELTS ARE IN USE · ★2 OPENS A 3RD"); the hero's own factory below level 4: its FACTORY upgrade ("KILN'S 2 BELTS ARE
+ * IN USE · UPGRADE FOR A 3RD"); one at the top says to drag a belt to reroute it. `grade`: its stars, or the hero
+ * factory's FACTORY level (stars.ts gradeOf); `signature`: it is a hero's signature factory (it levels by upgrade).
  */
-export function fullNotice(name: string, belts: number, stars: number, merges: boolean): string {
+export function fullNotice(name: string, belts: number, grade: number, signature: boolean): string {
   const head = `${name}'S ${belts} BELTS ARE IN USE`;
-  return merges && stars < FUSE_MAX ? `${head} · ★${stars + 1} OPENS A ${ordinal(belts + 1)}` : `${head} · DRAG A BELT TO REROUTE`;
+  if (signature) return grade < UPGRADE_MAX ? `${head} · UPGRADE FOR A ${ordinal(belts + 1)}` : `${head} · DRAG A BELT TO REROUTE`;
+  return grade < FUSE_MAX ? `${head} · ★${grade + 1} OPENS A ${ordinal(belts + 1)}` : `${head} · DRAG A BELT TO REROUTE`;
 }
 
-/** shoptap (D4 a): how many more belts factory `uid` can start (its outputs at its stars, = routeCheck.ts, validate.ts). */
+/** shoptap (D4 a): how many more belts factory `uid` can start (its outputs at its stars, = routeCheck.ts, validate.ts;
+ *  bb-0.8.3: the hero factory's at its FACTORY level, stars.ts gradeOf). */
 export function freeOutputs(b: Build, uid: number): number {
   const f = itemByUid(b, uid);
   if (!f || defOf(f).kind !== "factory") return 0;
-  return (outputsAt(f.def, starsOf(f)) || 1) - routesOf(b, uid).length;
+  return (outputsAt(f.def, gradeOf(b, f)) || 1) - routesOf(b, uid).length;
 }
 
 /** shoptap (REQ-BFG-035): the fitted pieces of turret slot t that a touch tap on the selected turret steps through: its
@@ -439,11 +442,11 @@ export class Editor {
     const f = itemByUid(b, uid);
     if (!f) return;
     const d = defOf(f);
-    const outs = outputsAt(f.def, starsOf(f)) || 1; // 0.6.1a: outputs at its stars (= routeCheck.ts, validate.ts)
+    const outs = outputsAt(f.def, gradeOf(b, f)) || 1; // 0.6.1a: outputs at its stars (= routeCheck.ts, validate.ts)
     const mine = routesOf(b, uid);
-    // bb-0.8.3 (REQ-BFG-042 D6): every slot in use: nothing is drawn, as 0.8.0's full GANTRY PRESS (no factory has one
-    // slot now, so none moves its belt); the warning says so, and what merging opens
-    if (mine.length >= outs) return this.warn(fullNotice(d.name, mine.length, starsOf(f), merges(f.def)));
+    // bb-0.8.3 (REQ-BFG-044 D6): every slot in use: nothing is drawn, as 0.8.0's full GANTRY PRESS (no factory has one
+    // slot now, so none moves its belt); the warning says so, and what opens one more (a star, or the hero's upgrade)
+    if (mine.length >= outs) return this.warn(fullNotice(d.name, mine.length, gradeOf(b, f), isSignatureFactory(f.def)));
     const touch = direct(kind) ? { kind, ...(start !== undefined ? { start } : {}) } : {};
     this.draw = { factory: uid, cells: [], replacing: -1, ...touch };
     this.h.select({ kind: "item", uid });

@@ -12,7 +12,7 @@
 // apart), measured on the pour's cycle (deck.ts cycleEvery; 0.8.0's loadEvery, which equals it at 2 belts).
 
 import { cycleEvery, itemByUid, routeInfo, walkRoute, type Build } from "./deck";
-import { effectAt, starsOf } from "./stars";
+import { effectAt, gradeOf } from "./stars";
 import { SYNC_WINDOW } from "./races/foundry";
 
 const EPS = 1e-6;
@@ -50,7 +50,7 @@ interface Arrival {
 function arrival(b: Build, i: number): Arrival | null {
   const r = b.routes[i];
   const f = r ? itemByUid(b, r.factory) : undefined;
-  if (!r || !f || f.def === "mimic" || effectAt(f.def, starsOf(f)).factory?.ammo !== "blank") return null;
+  if (!r || !f || f.def === "mimic" || effectAt(f.def, gradeOf(b, f)).factory?.ammo !== "blank") return null;
   const info = routeInfo(b, i);
   if (!info.connected || info.turret < 0) return null;
   const w = walkRoute(b, i);

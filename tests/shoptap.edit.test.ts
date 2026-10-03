@@ -374,9 +374,9 @@ describe("D4: drags out of a factory", () => {
       const { h, log } = host(run);
       const ed = new Editor(h);
       drag(ed, [at(4, 7), at(5, 7), at(5, 6)], kind, false); // within the KILN's 2x2
-      // the KILN merges like any factory (bb-0.8.3 D2): its next star opens a third belt
+      // the hero's KILN levels by its FACTORY upgrade (bb-0.8.3 REQ-BFG-043 D11): the notice points at it for a third belt
       expect(log).toContain(`error:${fullNotice("KILN", 2, 1, true)}`);
-      expect(fullNotice("KILN", 2, 1, true)).toBe("KILN'S 2 BELTS ARE IN USE · ★2 OPENS A 3RD");
+      expect(fullNotice("KILN", 2, 1, true)).toBe("KILN'S 2 BELTS ARE IN USE · UPGRADE FOR A 3RD");
       expect(ed.draw).toBeNull();
       ed.up(...at(5, 6));
       expect(J(run.build), kind).toEqual(before);
@@ -403,8 +403,8 @@ describe("D4: drags out of a factory", () => {
     expect(run.build.routes).toEqual([{ factory: 1, cells: SHORT }, { factory: 1, cells: [K(6, 7), K(6, 6), K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(6, 0)] }]);
   });
 
-  // bb-0.8.3 (REQ-BFG-042 D6): the LOOM has three outputs at ★1, as before; the warning tells the truth in fullNotice's
-  // words, and the LOOM merges now, so its next star opens a fourth (0.8.0: "ALL 3 LOOM OUTPUTS USED - DRAG A BELT TO REROUTE")
+  // bb-0.8.3 (REQ-BFG-044 D6): the LOOM has three outputs at level 1, as before; the warning tells the truth in fullNotice's
+  // words, and points at WEAVER's FACTORY upgrade for a fourth (0.8.0: "ALL 3 LOOM OUTPUTS USED - DRAG A BELT TO REROUTE")
   it("(c) a factory with every output used keeps today's warning, mouse and touch", () => {
     for (const kind of ["touch", "mouse"] as PointerKind[]) {
       const run = weaver();
@@ -413,7 +413,7 @@ describe("D4: drags out of a factory", () => {
       const ed = new Editor(h);
       drag(ed, [at(4, 7), at(5, 7), at(5, 6)], kind, false);
       expect(ed.draw).toBeNull();
-      expect(log).toContain("error:LOOM'S 3 BELTS ARE IN USE · ★2 OPENS A 4TH");
+      expect(log).toContain("error:LOOM'S 3 BELTS ARE IN USE · UPGRADE FOR A 4TH");
     }
   });
 

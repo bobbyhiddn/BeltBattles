@@ -6,11 +6,9 @@ import { UPGRADE } from "../src/game/eventDefs";
 import { ITEMS, RARITIES, buyableModules, itemsSoldBy, type HeroId, type MerchantId } from "../src/sim/content";
 import { HARNESS_HEROES, shopFactories, shopItems } from "../src/sim/harness/heroes";
 import { DORMANT_ITEMS } from "../src/sim/races/data";
-import { ownSignatureCard, sharedDef, sharedWagons } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D9): REQ-BFG-021 narrowed
 
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id).sort();
-// bb-0.8.3 (REQ-BFG-042 D9, REQ-BFG-021 narrowed): the shared offers; a hero's own signature card is SIGNATURE_CARD
-const offer = (r: Run) => r.shop.wagons.map((w) => [w.merchant, w.offers.map((o) => [sharedDef(o.def), o.price])]);
+const offer = (r: Run) => r.shop.wagons.map((w) => [w.merchant, w.offers.map((o) => [o.def, o.price])]);
 const stock = (merchant: MerchantId, day: number) => itemsSoldBy(merchant)
   .filter((d) => d.rarity !== "legendary" || day >= 4).map((d) => d.id);
 const roadGains = (r: Run, id: "wreck" | "trader" | "smuggler") => {
@@ -72,7 +70,7 @@ describe("REQ-BFG-021: one hero-blind salvage catalogue", () => {
         expect(offer(r), `${r.hero} seed=${seed} day=${day} reroll=${rerolls}`).toEqual(expected);
         for (const w of r.shop.wagons) {
           expect(w.offers.length).toBeGreaterThan(0);
-          for (const o of w.offers) if (!ownSignatureCard(r.hero, o.def)) expect(stock(w.merchant, day)).toContain(o.def);
+          for (const o of w.offers) expect(stock(w.merchant, day)).toContain(o.def);
         }
       }
     }
@@ -134,7 +132,7 @@ describe("REQ-BFG-021 (0.8.0 H1 M4): identical offers on every day, owned-module
       expect(expected.length).toBeGreaterThan(0);
       for (const r of runs) {
         expect(offer(r), `${r.hero} seed=${seed} day=${day} owned=${owned.name} recent=${recent}`).toEqual(expected);
-        for (const w of r.shop.wagons) for (const o of w.offers) if (!ownSignatureCard(r.hero, o.def)) expect(stock(w.merchant, day)).toContain(o.def);
+        for (const w of r.shop.wagons) for (const o of w.offers) expect(stock(w.merchant, day)).toContain(o.def);
       }
       caravans++;
     }

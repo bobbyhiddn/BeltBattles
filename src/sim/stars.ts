@@ -3,22 +3,24 @@
 // (src/game/fuse.ts). A copy's `stars` field is optional everywhere (absent = 1 star), so old
 // saves, ghosts and fixtures need no rewrite; code never writes `stars: 1`.
 
-import { HEROES, ITEMS, SIGNATURE_OFFER, type HeroId, type ItemDef } from "./content";
+import {
+  HEROES, ITEMS, UPGRADE_MAX, UPGRADE_PRICE, UPGRADE_TRACKS, type HeroId, type ItemDef, type Upgrades, type UpgradeTrack,
+} from "./content";
 
 /** The highest star level: 1+1 make 2, 2+2 make 3, and 3 never fuses further. */
 export const FUSE_MAX = 3;
 
 /**
- * bb-0.8.3 (REQ-BFG-042 D2): every hero's signature factory (KILN, LOOM, CRUCIBLE, WARDWORKS, CLOCKWORKS, SUMP). Each
- * levels up by merging like any factory: the hero's starting copy is ★1, and a copy from the hero's own caravan merges
- * with it. None is sold by a merchant, and none ever sells or stows (run.ts storePlaced).
+ * bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10): every hero's signature factory (KILN, LOOM, CRUCIBLE, WARDWORKS, CLOCKWORKS,
+ * SUMP). None merges or has stars, no merchant sells one and no shop offers one; none ever sells or stows (run.ts
+ * storePlaced). It levels 1-4 through its hero's FACTORY upgrade (Build.upgrades.factory; gradeOf).
  */
 export const SIGNATURE_FACTORIES: ReadonlySet<string> = new Set(Object.values(HEROES).map((h) => h.factory));
 
-/** bb-0.8.3 (D2): is `def` a hero's signature factory (any hero's)? */
+/** bb-0.8.3 (D10): is `def` a hero's signature factory (any hero's)? */
 export const isSignatureFactory = (def: string): boolean => SIGNATURE_FACTORIES.has(def);
 
-/** bb-0.8.3 (D9): `hero`'s own signature factory def. */
+/** bb-0.8.3 (D10): `hero`'s own signature factory def. */
 export const signatureOf = (hero: HeroId): string => HEROES[hero].factory;
 
 /** A copy's star level: absent (or anything below 1) is 1, above FUSE_MAX is FUSE_MAX. */
@@ -29,26 +31,59 @@ export function starsOf(x: { stars?: number } | undefined): number {
 }
 
 /**
+ * bb-0.8.3 (REQ-BFG-043 D10): an upgrade level: absent (or anything below 1) is 1, above UPGRADE_MAX is UPGRADE_MAX. The
+ * strict decoder and validate.ts refuse anything outside 1..UPGRADE_MAX before a level is ever read here.
+ */
+export function levelOf(n: number | undefined): number {
+  if (typeof n !== "number" || !Number.isFinite(n) || n < 1) return 1;
+  return Math.min(UPGRADE_MAX, Math.floor(n));
+}
+
+/** bb-0.8.3 (D10): a build's level on `track` (absent = 1). */
+export function upgradeLevel(b: { upgrades?: Upgrades } | undefined, track: UpgradeTrack): number {
+  return levelOf(b?.upgrades?.[track]);
+}
+
+/** bb-0.8.3 (D10): the gold paid to reach `level` on one track: 0 / 10 / 30 / 60 at levels 1 / 2 / 3 / 4. */
+export function trackGold(level: number): number {
+  let g = 0;
+  for (let n = 2; n <= levelOf(level); n++) g += UPGRADE_PRICE[n];
+  return g;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-043 D10): the upgrade gold a build's levels paid, both tracks: 0 / 10 / 30 / 60 each. THE one rule for
+ * every sum of a deck's or a run's value or spend (validate.ts buildCost, so the upload budget and roadCap's player mode;
+ * rivals.ts deckCost; rivalBuilds; the harness through buildCost; the rating's value terms; the road and the save).
+ */
+export function upgradeGold(b: { upgrades?: Upgrades } | undefined): number {
+  return UPGRADE_TRACKS.reduce((s, t) => s + trackGold(upgradeLevel(b, t)), 0);
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10): the grade a factory's spec and belt slots are read at: the hero's signature
+ * factory's FACTORY level (1-4, the build's), any other copy's stars (1-3). Every reader of a placed factory's numbers
+ * (the battle, the forecast and rating, the editor, the inspector, routeCheck, validate, the harness) goes through it.
+ */
+export function gradeOf(b: { upgrades?: Upgrades } | undefined, p: { def: string; stars?: number }): number {
+  return SIGNATURE_FACTORIES.has(p.def) ? upgradeLevel(b, "factory") : starsOf(p);
+}
+
+/** bb-0.8.3 (D10): `grade` bounded for `def`: 1..UPGRADE_MAX for a signature factory, 1..FUSE_MAX (stars) otherwise. */
+function gradeFor(def: string, grade: number): number {
+  return SIGNATURE_FACTORIES.has(def) ? levelOf(grade) : starsOf({ stars: grade });
+}
+
+/**
  * True for every buyable gate, factory, mod and turret core (0.6.1b): they merge. Never for supplies
  * (consumed on purchase) or a hero signature (KILN, LOOM, the race factories: price 0, never in cargo;
- * signature cores are not ITEMS at all). bb-0.8.3 (REQ-BFG-042 D2, D9): a signature factory merges too, but it is no
- * shared part (no merchant, price 0: no wagon, road event or familiar draws it, and its caravan price is
- * SIGNATURE_OFFER's): `merges` is the merge rule, and this stays the shared parts that merge.
+ * signature cores are not ITEMS at all).
  */
 export function fusible(def: string): boolean {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!d) return false;
   // 0.6.2s (REQ-BFG-031 S6): turrets merge like every buyable module
   return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod" || d.kind === "core" || d.kind === "turret") && d.price > 0;
-}
-
-/**
- * bb-0.8.3 (REQ-BFG-042 D2): does `def` level up by merging? Every fusible part, and every hero's signature factory,
- * which merges like any factory (the hero's starting copy is ★1; a copy from the hero's own caravan merges with it).
- * The merge machinery (game/fuse.ts) and the upload check's merge rules (net/validate.ts) read this.
- */
-export function merges(def: string): boolean {
-  return fusible(def) || SIGNATURE_FACTORIES.has(def);
 }
 
 const cache = new Map<string, ItemDef>();
@@ -58,19 +93,20 @@ const cache = new Map<string, ItemDef>();
  * 1-star gate/factory/mod spec. At 1 star, or for an item without levels, it is ITEMS[def] itself,
  * so 1-star decks fight exactly as in 0.6.0. Values in levels[n].pending are NOT applied (0.6.1p applied every
  * 0.6.1a pending perk, so no live module stores any: pendingAt is {} for each).
+ * bb-0.8.3 (D10): for a hero's signature factory `stars` is its FACTORY level, 1..UPGRADE_MAX (gradeOf): levels[2..4].
  * Throws for an unknown def, like deck.ts:defOf.
  */
 export function effectAt(def: string, stars: number): ItemDef {
   const base = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!base) throw new Error(`unknown item ${def}`);
-  const s = starsOf({ stars });
+  const s = gradeFor(def, stars);
   if (s <= 1 || !base.levels) return base;
   const k = `${def}*${s}`;
   const hit = cache.get(k);
   if (hit) return hit;
   const out: ItemDef = { ...base };
   for (let n = 2; n <= s; n++) {
-    const lv = base.levels[n as 2 | 3];
+    const lv = base.levels[n as 2 | 3 | 4];
     if (!lv) continue;
     if (lv.gate) out.gate = { ...out.gate, ...lv.gate };
     if (lv.factory) out.factory = { ...out.factory!, ...lv.factory };
@@ -104,57 +140,29 @@ export function valueOf(def: string, stars = 1): number {
 }
 
 /**
- * bb-0.8.3 (REQ-BFG-042 D9): what a deck's or a run's copies (items, mods or cargo) are worth, summed: each copy's
- * valueOf, except that `hero`'s own signature factory counts its bought copies only. Its starting copy was free, so the
- * hero's factory is worth its price x (its copies, each counted as 2^(stars-1), minus 1): a FURNACE that bought three
- * KILN copies (a ★3) holds 3 prices, not 4. Another hero's signature counts in full (validate.ts refuses it anyway).
- * The one rule for every sum of value: validate.ts buildCost (the upload budget, roadCap's player mode through it),
- * rivals.ts deckCost, rivalBuilds.ts, and the harness through buildCost.
+ * bb-0.8.3 (REQ-BFG-044 D1, D10): a factory's belt slots by its grade (the index): 2 at ★1, 3 at ★2 and 4 at ★3 for a
+ * bought factory (its stars); 2 / 3 / 4 / 5 at levels 1-4 for a hero's signature factory (its FACTORY level).
  */
-export function partsValue(parts: Iterable<{ def: string; stars?: number }>, hero?: HeroId): number {
-  const own = hero ? HEROES[hero]?.factory : undefined;
-  let v = 0, held = false;
-  for (const p of parts) {
-    v += copyValue(p.def, starsOf(p));
-    if (p.def === own) held = true;
-  }
-  return held ? v - copyValue(own!, 1) : v;
-}
+export const BELT_SLOTS: readonly number[] = [0, 2, 3, 4, 5];
 
 /**
- * bb-0.8.3 (REQ-BFG-042 D9): the gold a copy at `stars` is worth: valueOf, and for a signature factory (ItemDef price 0)
- * the copies its caravan sells, SIGNATURE_OFFER.price x 2^(stars-1). For one copy held alone (a ★1 waiting in cargo);
- * a deck or a run sums partsValue, which takes the free starting copy off.
- */
-export function copyValue(def: string, stars = 1): number {
-  const sig = SIGNATURE_FACTORIES.has(def) ? SIGNATURE_OFFER.price[def] : undefined;
-  return sig !== undefined ? sig * 2 ** (starsOf({ stars }) - 1) : valueOf(def, stars);
-}
-
-/**
- * bb-0.8.3 (REQ-BFG-042 D1): a factory's belt slots by its star level (the index): 2 at ★1, and one more each time it
- * levels up by merging, 3 at ★2 and 4 at ★3.
- */
-export const BELT_SLOTS: readonly number[] = [0, 2, 3, 4];
-
-/**
- * The belts (routes) a factory can feed at `stars`, 0 for anything that is not a factory. bb-0.8.3 (REQ-BFG-042 D1-D3):
- * the one rule, for every factory, bought or a hero's signature: BELT_SLOTS[stars] plus its lead (FactorySpec.lead: the
- * LOOM and GANTRY PRESS 1, so 3 / 4 / 5). validate.ts, routeCheck.ts, the editor, the inspector and the harness all read
- * this. Throws for an unknown def, like effectAt.
+ * The belts (routes) a factory can feed at `stars` (bb-0.8.3: its grade, gradeOf), 0 for anything that is not a factory.
+ * bb-0.8.3 (REQ-BFG-044 D1-D3, D10): the one rule, for every factory, bought or a hero's signature: BELT_SLOTS[grade] plus
+ * its lead (FactorySpec.lead: the LOOM and GANTRY PRESS 1, so the LOOM 3 / 4 / 5 / 6 and GANTRY PRESS 3 / 4 / 5).
+ * validate.ts, routeCheck.ts, the editor, the inspector and the harness all read this. Throws for an unknown def.
  */
 export function outputsAt(def: string, stars: number): number {
   const spec = effectAt(def, stars).factory;
   if (!spec) return 0;
-  return BELT_SLOTS[starsOf({ stars })] + (spec.lead ?? 0);
+  return BELT_SLOTS[gradeFor(def, stars)] + (spec.lead ?? 0);
 }
 
 /**
- * bb-0.8.3 (REQ-BFG-042 D4): a factory's pour size at `stars`, on a hero whose signature ammo is `heroAmmo`: one cast puts
- * a slug onto at most this many of its belts with room, on one tick, taking them in turn when it feeds more (races/
- * foundry.ts pourAll, rule R). 0: it feeds its belts one slug a cycle, in turn (Battle.stamp). TWIN MOULD 2 / 2 / 3; the
- * CRUCIBLE 2; a MIMIC FORGE only from ★3 (TWIN SIGNET: 2) and only where it makes the blanks (FOUNDRY: Battle.factoryDef
- * gives it the hero's ammo). Throws for an unknown def, like effectAt.
+ * bb-0.8.3 (REQ-BFG-042 D4): a factory's pour size at `stars` (its grade), on a hero whose signature ammo is `heroAmmo`:
+ * one cast puts a slug onto at most this many of its belts with room, on one tick, taking them in turn when it feeds more
+ * (races/foundry.ts pourAll, rule R). 0: it feeds its belts one slug a cycle, in turn (Battle.stamp). TWIN MOULD 2 / 2 /
+ * 3; the CRUCIBLE 2; a MIMIC FORGE only from ★3 (TWIN SIGNET: 2) and only where it makes the blanks (FOUNDRY:
+ * Battle.factoryDef gives it the hero's ammo). Throws for an unknown def, like effectAt.
  */
 export function pourAt(def: string, stars: number, heroAmmo?: string): number {
   const pour = effectAt(def, stars).factory?.pour ?? 0;

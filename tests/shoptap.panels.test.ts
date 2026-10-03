@@ -102,13 +102,12 @@ describe("D2 / REQ-BFG-035: SELL on every carrier part's panel (touch); the mous
       const run = newRun(hero, 5, "sig");
       const f = run.build.items.find((p) => ITEMS[p.def].kind === "factory")!;
       const touch = itemPanel(run, f.uid, true)!, mouse = itemPanel(run, f.uid)!;
-      expect([touch.labels, mouse.labels], hero).toEqual([[], []]);
+      // bb-0.8.3 (REQ-BFG-043 D11): its one button is the FACTORY upgrade's, with the next level's price (0.8.0: none)
+      expect([touch.labels, mouse.labels], hero).toEqual([["UPGRADE 10G"], ["UPGRADE 10G"]]);
       expect(touch.body.find((b) => b.text === SIGNATURE_ABOARD), hero).toMatchObject({ role: "note", keep: true });
       expect(mouse.body.some((b) => b.text === SIGNATURE_ABOARD), hero).toBe(false);
     }
-    // bb-0.8.3 (REQ-BFG-042 D9, M4): every copy stays aboard, on one line (was "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T
-    // BE SOLD."): the starting factory's panel, with its next star and merge progress, still fits shoptap2's 69 px band
-    expect(SIGNATURE_ABOARD).toBe("IT STAYS ABOARD: NO COPY CAN BE SOLD.");
+    expect(SIGNATURE_ABOARD).toBe("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.");
   });
 
   it("an installed turret offers SELL (a 1-star starting turret can't be sold, and says so); on touch its hint names the tap for its core and gear", () => {

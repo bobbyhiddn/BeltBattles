@@ -12,7 +12,7 @@ import {
 import { platedDeck, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's plating and stokers
 import { FURNACE_LONG_BELT, SHARED_HEADROOM, gearStats } from "./battle";
 import { resolveCore } from "./cores";
-import { effectAt, starsOf, valueOf } from "./stars";
+import { effectAt, gradeOf, starsOf, valueOf } from "./stars";
 
 /** Seconds in a typical dusk fight (the desk run's fights last 17-29 s): damage is weighed by how much of it lands. */
 export const FIGHT_T = 25;
@@ -210,7 +210,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const info = routeInfo(b, ri, claims, occ, hits);
     if (!info.connected || info.turret < 0) return;
     const f = itemByUid(b, r.factory);
-    const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, starsOf(f)).factory : undefined;
+    const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, gradeOf(b, f)).factory : undefined; // bb-0.8.3: grade
     if (!f || !spec) return;
     const interval = f.def === "mimic" ? (ITEMS[h.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
     const walk = walkRoute(b, ri, hits), est = walk.estimate;

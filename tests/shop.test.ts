@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { buyOffer, migrateRun, newRun, rollShop, RUN_VERSION, shopBadge, type Run } from "../src/game/run";
 import { mergePreview } from "../src/game/fuse";
 import { ITEMS, OFFERS, itemsSoldBy, type ItemDef, type MerchantId } from "../src/sim/content";
-import { ownSignatureCard, sharedDef, sharedWagons } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D9): REQ-BFG-021 narrowed
 
 /**
  * 0.8.0 I1 M3 (oracle 47ddf8622ecd67d9): an old save, a run with no wares, which plays today's rule (run.ts stockOf):
@@ -67,7 +66,7 @@ describe("shop: caravan shape", () => {
         const defs = qm.offers.map((o) => o.def);
         expect(defs.length).toBeLessThanOrEqual(3);
         expect(new Set(defs).size).toBe(defs.length);
-        for (const d of defs) if (!ownSignatureCard(run.hero, d)) { expect(qmStock).toContain(d); seen.add(d); } // bb-0.8.3 D9
+        for (const d of defs) { expect(qmStock).toContain(d); seen.add(d); }
       }
     }
     expect(quartermaster).toBeGreaterThan(0);
@@ -432,8 +431,7 @@ describe("shop: robustness (N5, N6)", () => {
           expect(() => { run = rolled(seed, day, [["grease"]]); }).not.toThrow();
           const w = run!.shop.wagons.find((x) => x.merchant === "arcane");
           if (day < 4) expect(w).toBeUndefined(); // weight 1 on day 3, but an empty day pool
-          // bb-0.8.3 (D9): the hero's own signature card may take this wagon's empty slot; every shared offer is its stock
-          if (w) { arcane++; expect(w.offers.every((o) => o.def === "__arcleg" || ownSignatureCard(run!.hero, o.def))).toBe(true); }
+          if (w) { arcane++; expect(w.offers.every((o) => o.def === "__arcleg")).toBe(true); }
           expect(run!.shop.wagons.flatMap((x) => x.offers)).toHaveLength(OFFERS);
         }
       }

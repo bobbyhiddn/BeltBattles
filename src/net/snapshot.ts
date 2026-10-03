@@ -4,7 +4,7 @@
 // whitespace, arrays in build order (item and route order matter to the sim). Decoding
 // is strict: unknown fields, wrong types, out-of-range values and oversize input throw.
 
-import { GRID, HEROES, type HeroId } from "../sim/content";
+import { GRID, HEROES, UPGRADE_MAX, UPGRADE_TRACKS, type HeroId, type Upgrades } from "../sim/content";
 import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/deck";
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 
@@ -110,6 +110,24 @@ function turrets(o: Obj, path: string, version: number): { turrets?: BuildTurret
   };
 }
 
+/**
+ * bb-0.8.3 (REQ-BFG-043 D10): the optional `upgrades` of a build: v2 only, a strict object { turret?, factory? }, each an
+ * integer 1..UPGRADE_MAX (absent = level 1); kept as given, in the canonical key order turret, factory, after every other
+ * build key, so a build without it encodes byte for byte as before (no SNAPSHOT_VERSION bump: the rules bump to bb-0.8.3
+ * keeps older servers and pools apart). Level 5 or more is refused here; what the levels cost is validate.ts's budget.
+ */
+function upgrades(o: Obj, path: string, version: number): { upgrades?: Upgrades } {
+  if (!has(o, "upgrades") || o.upgrades === undefined) return {}; // an in-memory `upgrades: undefined` is absent
+  if (version < 2) throw new SnapshotError(`${path}.upgrades: not allowed in a v${version} snapshot`);
+  const u = obj(o.upgrades, `${path}.upgrades`, [], UPGRADE_TRACKS);
+  return {
+    upgrades: {
+      ...(has(u, "turret") ? { turret: int(u.turret, `${path}.upgrades.turret`, 1, UPGRADE_MAX) } : {}),
+      ...(has(u, "factory") ? { factory: int(u.factory, `${path}.upgrades.factory`, 1, UPGRADE_MAX) } : {}),
+    },
+  };
+}
+
 /** 0.6.2j (J12): the optional `join` of a route: v2 only, a cell key 0..GRID*GRID-1; kept as given. */
 function join(o: Obj, path: string, version: number): { join?: number } {
   if (!has(o, "join")) return {};
@@ -147,7 +165,7 @@ export function isHeroId(v: unknown): v is HeroId {
  * (see turrets()); the copy has the key only when the input has it, last.
  */
 export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_VERSION): Build {
-  const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"], ["turrets"]);
+  const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"], ["turrets", "upgrades"]);
   if (!isHeroId(o.hero)) throw new SnapshotError(`${path}.hero: unknown hero`);
   const items = arr(o.items, `${path}.items`, MAX_ITEMS).map((it, i): Placed => {
     const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars", "rot"]);
@@ -188,6 +206,7 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     // (warlordHull is negative on days 1-3) still decode; validateBuild rejects them.
     hullBonus: int(o.hullBonus, `${path}.hullBonus`, -1000, 10000),
     ...turrets(o, path, version),
+    ...upgrades(o, path, version), // bb-0.8.3 (REQ-BFG-043 D10)
   };
 }
 

@@ -4,9 +4,9 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import {
-  FAMILY_WEIGHT, HEROES, ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, SIGNATURE_OFFER, START_GOLD, START_LIVES,
+  FAMILY_WEIGHT, HEROES, ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES, UPGRADE_MAX, UPGRADE_PRICE,
   itemsSoldBy, rarityWeights, rigShape, sellValue,
-  type HeroId, type ItemDef, type MerchantId, type Rarity,
+  type HeroId, type ItemDef, type MerchantId, type Rarity, type UpgradeTrack,
 } from "../sim/content";
 import { removeItem, rotOf, setRot, type Build } from "../sim/deck";
 import { heroStartBuild } from "../sim/heroBuilds";
@@ -15,7 +15,7 @@ import type { RaceReadout } from "./raceReadout"; // 0.8.0 H1 M3
 import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
-import { FUSE_MAX, fusible, isSignatureFactory, signatureOf, starField, starsOf } from "../sim/stars";
+import { fusible, starField, starsOf, upgradeLevel } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
@@ -328,7 +328,6 @@ export function rollShop(run: Run): void {
     const d = rng.weighted(choices, (c) => FAMILY_WEIGHT[c.kind]);
     wagon.offers.push({ def: d.id, price: priceOf(d), sold: false });
   }
-  let familiar: { wagon: number; slot: number } | null = null; // bb-0.8.3 (D9): the card a signature offer never replaces
   if (rng.chance(familiarChance(run.day))) {
     const candidates = familiarCandidates(run, merchants);
     if (candidates.length) {
@@ -338,41 +337,9 @@ export function rollShop(run: Run): void {
       const same = w.offers.findIndex((o) => o.def === pick.def);
       if (same >= 0) slotIdx = same; // review-061 F3: never two offers of one def in a wagon
       w.offers[slotIdx] = { def: pick.def, price: priceOf(ITEMS[pick.def]), sold: false };
-      familiar = { wagon: wagons.indexOf(w), slot: slotIdx };
     }
   }
-  signatureOffer(run, wagons, familiar, priceOf); // bb-0.8.3 (REQ-BFG-042 D9): after the shared roll, on its own stream
   run.shop.wagons = wagons.filter((w) => w.offers.length > 0); // 0.6.1r N5: an empty wagon doesn't ride
-}
-
-/**
- * bb-0.8.3 (REQ-BFG-042 D9): the hero's own signature factory in its own caravan, and in no other. The shared roll
- * (rollShop above: the wagons, the five shared slots and the familiar) stays hero-blind and is drawn exactly as before;
- * this is decided afterwards on its own stream, hashSeed(seed, "signature", day, rerolls), so runs and ghosts stay
- * deterministic. From SIGNATURE_OFFER.day, on SIGNATURE_OFFER.chance of the rolls (a reroll is a roll); never while the
- * run holds its factory at ★3 only (that copy could never merge: no dead offers). The card takes an empty slot when
- * the caravan has one (in its last wagon), else it replaces one shared card that isn't the familiar, chosen on its own
- * stream. The caravan's discount applies to it as to any offer. Its def has no merchant, so no shared pool sees it.
- */
-function signatureOffer(run: Run, wagons: Wagon[], familiar: { wagon: number; slot: number } | null, priceOf: (d: { price: number }) => number): void {
-  const def = signatureOf(run.build.hero);
-  if (run.day < SIGNATURE_OFFER.day || !ITEMS[def]) return;
-  const held = starLevelsOwned(run, def);
-  if (held.size > 0 && [...held].every((s) => s >= FUSE_MAX)) return;
-  const rng = new Rng(hashSeed(run.seed, "signature", run.day, run.shop.rerolls));
-  if (!rng.chance(SIGNATURE_OFFER.chance)) return;
-  const offer: Offer = { def, price: priceOf({ price: SIGNATURE_OFFER.price[def] ?? 0 }), sold: false };
-  const riding = wagons.filter((w) => w.offers.length > 0);
-  if (!riding.length) return;
-  if (riding.reduce((n, w) => n + w.offers.length, 0) < OFFERS) {
-    riding[riding.length - 1].offers.push(offer);
-    return;
-  }
-  const cards: [number, number][] = [];
-  wagons.forEach((w, wi) => w.offers.forEach((_, si) => { if (!(familiar && familiar.wagon === wi && familiar.slot === si)) cards.push([wi, si]); }));
-  if (!cards.length) return;
-  const [wi, si] = cards[rng.int(cards.length)];
-  wagons[wi].offers[si] = offer;
 }
 
 export type ShopBadge = { kind: "merge"; toStars: number } | { kind: "wait" } | { kind: "max" };
@@ -424,6 +391,39 @@ export interface BuyResult {
   gain?: Gain; // 0.6.1a: where the bought module ended up, and the merges it caused
 }
 
+/** bb-0.8.3 (REQ-BFG-043 D10): a track's level now, and the next level with its price (absent at UPGRADE_MAX). */
+export function nextUpgrade(run: Pick<Run, "build">, track: UpgradeTrack): { level: number; next?: number; price?: number } {
+  const level = upgradeLevel(run.build, track);
+  return level >= UPGRADE_MAX ? { level } : { level, next: level + 1, price: UPGRADE_PRICE[level + 1] };
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-043 D10, D11): does the track's control show? FACTORY always (the hero's signature factory never
+ * leaves the deck); TURRET SPEED while a starting turret is aboard (an installed turret holding the free starting copy,
+ * merged or not): with none left nothing would fire faster.
+ */
+export function upgradeShown(run: Pick<Run, "build">, track: UpgradeTrack): boolean {
+  return track === "factory" || turretSlots(run.build).some((s) => !!s.turret?.free);
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-043 D10): buy the next level of one of the hero's two upgrade tracks for UPGRADE_PRICE gold (10, 20,
+ * then 30: the operator's prices), any time in the caravan, OUTSIDE the shop roll: it takes no offer slot, draws on no
+ * random stream and changes nothing the shop shows, so runs and ghosts stay deterministic. Refused at UPGRADE_MAX, with
+ * too little gold, and for TURRET SPEED with no starting turret aboard. No refund, ever: the level stays with the run.
+ */
+export function buyUpgrade(run: Run, track: UpgradeTrack): { ok: boolean; reason?: string; level: number; price?: number } {
+  const n = nextUpgrade(run, track);
+  if (n.next === undefined || n.price === undefined) return { ok: false, reason: "MAX LEVEL", level: n.level };
+  if (!upgradeShown(run, track)) return { ok: false, reason: "NO STARTING TURRET ABOARD", level: n.level };
+  if (run.gold < n.price) return { ok: false, reason: `NEED ${n.price - run.gold} MORE GOLD`, level: n.level };
+  run.gold -= n.price;
+  const now = { ...run.build.upgrades, [track]: n.next };
+  // the canonical key order (turret, then factory), as the strict decoder writes it
+  run.build.upgrades = { ...(now.turret ? { turret: now.turret } : {}), ...(now.factory ? { factory: now.factory } : {}) };
+  return { ok: true, level: n.next, price: n.price };
+}
+
 /**
  * Purchase exactly the offered item; a sold slot can never charge twice (spec §17). 0.6.1a: the
  * module enters through gainModule (1 star, then merged). `at` is a drag's drop target (a deck cell
@@ -467,8 +467,7 @@ export function storePlaced(run: Run, uid: number): boolean {
   const p = run.build.items.find((q) => q.uid === uid);
   if (!p) return false;
   const d = ITEMS[p.def];
-  // every hero's signature factory stays aboard (bb-0.8.3, REQ-BFG-042 D2: every copy, at every star)
-  if (isSignatureFactory(d.id)) return false;
+  if (Object.values(HEROES).some((h) => h.factory === d.id)) return false; // every hero's signature factory stays aboard
   removeItem(run.build, uid);
   run.inventory.push({ uid, def: p.def, ...starField(starsOf(p)) }); // 0.6.1a: moving never fuses; stars ride along
   return true;
@@ -522,7 +521,6 @@ export function fitCore(run: Run, uid: number, turret: number): boolean {
 export function sellInventory(run: Run, uid: number): number {
   const held = run.inventory.find((i) => i.uid === uid);
   if (held && isTurretDef(held.def) && !canSellTurret(held)) return 0;
-  if (held && isSignatureFactory(held.def)) return 0; // bb-0.8.3 (REQ-BFG-042 D2): no copy of a signature factory sells
   const it = takeFromInventory(run, uid);
   if (!it) return 0;
   const v = isTurretDef(it.def) ? turretSellValue(it) : sellValue(it.def, starsOf(it));

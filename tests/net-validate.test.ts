@@ -122,11 +122,9 @@ describe("deck validation: rejections", () => {
   it("rejects a foreign signature factory and a second signature factory", () => {
     const loom = furnaceDeck({ items: [...furnaceDeck().items, { uid: 2, def: "loom", x: 0, y: 8 }] });
     expect(errorsOf(loom)).toMatch(/item: uid 2 LOOM is another hero's signature factory/);
-    // bb-0.8.3 (REQ-BFG-042 D2, D9): the KILN merges and its caravan sells copies, so a second ★1 KILN is an unmerged pair
-    // (0.8.0: "exactly one KILN (found 2)"); a deck with none must carry its KILN (0.8.0: "exactly one KILN (found 0)")
     const twoKilns = furnaceDeck({ items: [...furnaceDeck().items, { uid: 2, def: "kiln", x: 0, y: 8 }] });
-    expect(errorsOf(twoKilns)).toMatch(/UNFUSED PAIR: KILN ★1 x2/);
-    expect(errorsOf(furnaceDeck({ items: [], routes: [] }))).toMatch(/must carry its KILN \(found 0\)/);
+    expect(errorsOf(twoKilns)).toMatch(/exactly one KILN \(found 2\)/);
+    expect(errorsOf(furnaceDeck({ items: [], routes: [] }))).toMatch(/exactly one KILN \(found 0\)/);
   });
 
   it("rejects unknown items and duplicate uids", () => {

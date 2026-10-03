@@ -12,14 +12,16 @@
 // Sales refund at most half the price and rerolls only spend, so no sequence of shop
 // actions can put more purchase value on the deck than the gold ever received.
 
-import { GRID, HEROES, ITEMS, RULES_VERSION, SIGNATURE_OFFER, START_GOLD, incomeFor, isWave3, wave3Live, type ItemDef } from "../sim/content";
+import {
+  GRID, HEROES, ITEMS, RULES_VERSION, START_GOLD, UPGRADE_MAX, UPGRADE_TRACKS, incomeFor, isWave3, wave3Live, type ItemDef,
+} from "../sim/content";
 import {
   canPlaceItem, connectorClaims, dirBetween, adjacentToFactory, footprint, hullSlots, occupancy,
   routeInfo, routeWellFormed, turretSlots, turretsCost, type Build,
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
-import { FUSE_MAX, fusible, merges, outputsAt, partsValue, starsOf } from "../sim/stars";
+import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 
@@ -73,22 +75,27 @@ export interface BuildCost {
   // 0.6.2s TURRET SLOTS (S7): the installed turrets' value (deck.ts turretsCost: price x (2^(stars-1) - 1 for the free
   // starting copy)). Present only when the build carries `turrets`, so a starting-layout build's breakdown is unchanged.
   turrets?: number;
+  // bb-0.8.3 (REQ-BFG-043 D10): the gold the build's upgrade levels paid (stars.ts upgradeGold: 0 / 10 / 30 / 60 a
+  // track). Present only when the build carries `upgrades`, so a build without them breaks down exactly as before.
+  upgrades?: number;
   total: number; // gold
 }
 
 export function buildCost(b: Build): BuildCost {
   const h = HEROES[b.hero];
   const crate = ITEMS.beltcrate, plate = ITEMS.plating;
-  // 0.6.1a: value = price x 2^(stars - 1) (stars.ts valueOf; unknown ids 0), so a merged module costs exactly its copies.
-  // bb-0.8.3 (REQ-BFG-042 D9): the hero's own signature factory counts its bought copies only (stars.ts partsValue)
-  const items = partsValue(b.items, b.hero);
-  const mods = partsValue(b.mods);
+  // 0.6.1a: value = price x 2^(stars - 1) (stars.ts valueOf; unknown ids 0), so a merged module costs exactly its copies
+  const items = b.items.reduce((s, p) => s + valueOf(p.def, starsOf(p)), 0);
+  const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
   const crates = Math.max(0, Math.ceil((b.beltCap - h.belt) / crate.supply!.belt!));
   const plates = Math.max(0, Math.ceil(b.hullBonus / plate.supply!.hull!));
   const total = items + mods + crates * crate.price + plates * plate.price;
-  if (!b.turrets) return { items, mods, crates, plates, total };
+  // bb-0.8.3 (REQ-BFG-043 D10): the upgrade gold paid counts like any purchase (the upload budget reads total)
+  const up = b.upgrades ? { upgrades: upgradeGold(b) } : {};
+  const paid = up.upgrades ?? 0;
+  if (!b.turrets) return { items, mods, crates, plates, ...up, total: total + paid };
   const turrets = turretsCost(b);
-  return { items, mods, crates, plates, turrets, total: total + turrets };
+  return { items, mods, crates, plates, turrets, ...up, total: total + turrets + paid };
 }
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
@@ -103,7 +110,7 @@ const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
 export const FUSE_LIVE = true;
 
 /** One message per def and star level (below FUSE_MAX) held more than once, e.g. "UNFUSED PAIR: TEMPER ★1 x2".
- *  Supplies and unknown ids never merge and never count (bb-0.8.3, REQ-BFG-042 D2: a signature factory's copies do). 0.6.2s TURRET SLOTS (S6, S7): the
+ *  Supplies, signature factories and unknown ids are not fusible and never count. 0.6.2s TURRET SLOTS (S6, S7): the
  *  installed turrets count too, after the items and mods, except that two FREE copies never merge with each other
  *  (WEAVER starts with three free DART GUNs): per def and star level below FUSE_MAX, with N bought and F free copies,
  *  it is a pair iff N >= 1 and N + F >= 2 (reported as x(N + F)). The starting layout (a build without `turrets`)
@@ -112,7 +119,7 @@ export function unfusedPairs(build: Build): string[] {
   const n = new Map<string, number>();
   for (const p of [...build.items, ...build.mods]) {
     const s = starsOf(p);
-    if (!merges(p.def) || s >= FUSE_MAX) continue; // bb-0.8.3 (REQ-BFG-042 D2): a signature factory's copies too
+    if (!fusible(p.def) || s >= FUSE_MAX) continue;
     n.set(`${p.def}*${s}`, (n.get(`${p.def}*${s}`) ?? 0) + 1);
   }
   const out: string[] = [];
@@ -196,13 +203,18 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   }
   if (errors.length) return { ok: false, errors };
 
-  // 0.6.1a stars: an integer 1..FUSE_MAX (absent = 1; checkBuildShape already bounds it); supplies never merge, so
-  // theirs must be absent or 1 (bb-0.8.3: signature factories merge)
+  // 0.6.1a stars: an integer 1..FUSE_MAX (absent = 1; checkBuildShape already bounds it); signature
+  // factories and supplies never merge, so theirs must be absent or 1
   for (const p of [...b.items, ...b.mods]) {
     if (p.stars === undefined) continue;
     if (!Number.isInteger(p.stars) || p.stars < 1 || p.stars > FUSE_MAX) errors.push(`item: uid ${p.uid} has stars ${p.stars}; expected 1..${FUSE_MAX}`);
-    // bb-0.8.3 (REQ-BFG-042 D2): a signature factory merges like any factory, so it may carry stars; supplies never do
-    else if (p.stars > 1 && !merges(p.def)) errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have ${p.stars} stars (supplies never merge)`);
+    else if (p.stars > 1 && !fusible(p.def)) errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have ${p.stars} stars (signatures and supplies never merge)`);
+  }
+  // bb-0.8.3 (REQ-BFG-043 D10): the upgrade levels, each an integer 1..UPGRADE_MAX (absent = 1; checkBuildShape already
+  // bounds them). What they cost is in buildCost, so the budget below refuses a level the day's gold can't pay for.
+  for (const t of UPGRADE_TRACKS) {
+    const n = b.upgrades?.[t];
+    if (n !== undefined && (!Number.isInteger(n) || n < 1 || n > UPGRADE_MAX)) errors.push(`upgrade: ${t} level ${n}; expected 1..${UPGRADE_MAX}`);
   }
   // 0.6.2s TURRET SLOTS: a turret's stars are 1..FUSE_MAX too (checkBuildShape already bounds them). S7: a free copy
   // (the hull's starting copy, maybe merged) only of the hero's own starting defs, at most as many of a def as it starts with.
@@ -229,28 +241,18 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     else if (ITEMS[p.def].kind !== "gate") errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have a rot (only rigs turn)`);
   }
 
-  // purchasability and the signature factory. bb-0.8.3 (REQ-BFG-042 D9): the hero's own factory levels up by merging the
-  // copies its own caravan offers (from SIGNATURE_OFFER.day), so the deck carries it once, at ★1-3, or as a ★2 with a
-  // ★1 waiting beside it (a ★2 and a new copy don't merge); another hero's signature is refused as before
-  const own: number[] = [];
+  // purchasability and the signature factory
+  let own = 0;
   for (const p of b.items) {
     const d = ITEMS[p.def];
     if (SIGNATURES.has(d.id)) {
-      if (d.id === h.factory) own.push(starsOf(p));
+      if (d.id === h.factory) own++;
       else errors.push(`item: uid ${p.uid} ${d.name} is another hero's signature factory`);
     } else if (!d.merchant) {
       errors.push(`item: uid ${p.uid} ${d.name} is not sold by any merchant`);
     }
   }
-  const sig = ITEMS[h.factory].name, mine = [...own].sort((x, y) => x - y);
-  if (!mine.length) errors.push(`item: the deck must carry its ${sig} (found 0)`);
-  // two ★1 or two ★2 are an unmerged pair (unfusedPairs says so); any other pair but a ★2 and a ★1, or a third copy, can't be bought
-  else if (mine.length > 2 || (mine.length === 2 && mine.join() !== "1,2" && !(mine[0] === mine[1] && mine[0] < FUSE_MAX))) {
-    errors.push(`item: the deck carries ${mine.length} ${sig} copies (★${mine.join(", ★")}); at most a ★2 with a ★1 waiting beside it`);
-  }
-  if (mine.length && mine.reduce((n, s) => n + 2 ** (s - 1), 0) > 1 && day < SIGNATURE_OFFER.day) {
-    errors.push(`item: ${sig} ★${mine.join(", ★")} on day ${day}: the caravan offers ${sig} copies from day ${SIGNATURE_OFFER.day}`);
-  }
+  if (own !== 1) errors.push(`item: the deck must carry exactly one ${ITEMS[h.factory].name} (found ${own})`);
 
   // placement: deck equipment only, on the deck, no overlaps (canPlaceItem = the editor's rule). 0.6.2
   // BELTSIDE (D2, R1): canPlaceItem now refuses a rig on a belt tile too (BELT IN THE WAY), and routeProblem
@@ -298,7 +300,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   });
   for (const [uid, n] of perFactory) {
     const f = b.items.find((p) => p.uid === uid);
-    const outs = f ? outputsAt(f.def, starsOf(f)) || 1 : 1; // 0.6.1a: outputs at its stars
+    // 0.6.1a: outputs at its stars. bb-0.8.3 (REQ-BFG-044 D10): the hero factory's at its FACTORY level (stars.ts gradeOf)
+    const outs = f ? outputsAt(f.def, gradeOf(b, f)) || 1 : 1;
     if (f && n > outs) errors.push(`route: ${ITEMS[f.def].name} uid ${uid} feeds ${n} routes but has ${outs} output(s)`);
   }
   if (belt > b.beltCap) errors.push(`route: ${belt} belt tiles exceed beltCap ${b.beltCap}`);

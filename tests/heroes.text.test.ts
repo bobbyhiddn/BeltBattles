@@ -53,8 +53,7 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
         for (const [w, font] of WIDTHS) for (const line of wrapText(s, w, font)) expect(textWidth(line, font), `${def} ${w}/${font}: ${line}`).toBeLessThanOrEqual(w);
       }
       expect(gist(def)).not.toBe("");
-      // bb-0.8.3 (REQ-BFG-042 D2): a signature factory merges now (0.8.0: null, "a signature never merges"): its next star
-      expect(nextStarText(def, 1)).toBe(`NEXT STAR: ${gist(def, 2)}, ${outputsAt(def, 2)} BELTS.`);
+      expect(nextStarText(def, 1)).toBeNull(); // a signature never merges (bb-0.8.3 D10: it levels by its hero's upgrade)
     }
   });
 
@@ -75,7 +74,7 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
       const text = p.body.map((b) => b.text);
       for (const s of abilityText(def).sentences) expect(text, `${def}: ${s}`).toContain(s);
       expect(text.join(" ")).toContain(flavour(def)[0]);
-      expect(p.labels).toEqual([]);
+      expect(p.labels).toEqual(["UPGRADE 10G"]); // bb-0.8.3 (REQ-BFG-043 D11): its FACTORY upgrade's button (0.8.0: [])
       expect(p.title).toBe(ITEMS[def].name);
     }
   });

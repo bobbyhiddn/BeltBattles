@@ -15,7 +15,6 @@ import { migrateRun, newRun, rollShop, type Run } from "../src/game/run";
 import { EVENTS, SALVAGE_OWNED, UPGRADE, salvagePart, salvagePool, smugglerParts, smugglerPool, swapPart, type EventState } from "../src/game/eventDefs";
 import { choicesFor, makeEvent } from "../src/game/events";
 import { Rng } from "../src/core/rng";
-import { ownSignatureCard, sharedDef, sharedWagons } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D9): REQ-BFG-021 narrowed
 
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
 const SEEDS = Array.from({ length: 300 }, (_, i) => 1 + i * 7919);
@@ -118,8 +117,8 @@ describe("the per-run draw in play: the caravan and the road (DESIGN-wave3.md 4.
         const out: string[] = [];
         for (let day = 1; day <= RUN_DAYS; day++) for (let r = 0; r < 4; r++) {
           for (const def of caravan(run, day, r)) {
-            out.push(`${day}:${sharedDef(def)}`); // bb-0.8.3 (D9, REQ-BFG-021 narrowed): the hero's own card differs by hero
-            if (ITEMS[def].kind === "supply" || ownSignatureCard(h, def)) continue; // and it is no ware
+            out.push(`${day}:${def}`);
+            if (ITEMS[def].kind === "supply") continue;
             expect(run.wares![def], `seed ${s} day ${day}: ${def}`).toBeLessThanOrEqual(day);
           }
         }
@@ -133,8 +132,7 @@ describe("the per-run draw in play: the caravan and the road (DESIGN-wave3.md 4.
     const run = newRun("furnace", 4242, "w");
     for (let day = 1; day <= RUN_DAYS; day++) {
       const offered = new Set<string>();
-      // bb-0.8.3 (D9): the hero's own signature card is no ware
-      for (let r = 0; r < 300; r++) for (const def of caravan(run, day, r)) if (ITEMS[def].kind !== "supply" && !ownSignatureCard("furnace", def)) offered.add(def);
+      for (let r = 0; r < 300; r++) for (const def of caravan(run, day, r)) if (ITEMS[def].kind !== "supply") offered.add(def);
       const open = Object.keys(run.wares!).filter((id) => run.wares![id] <= day);
       expect([...offered].filter((id) => !open.includes(id)), `day ${day}`).toEqual([]);
       expect(offered.size, `day ${day}`).toBe(open.length);

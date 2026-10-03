@@ -3,10 +3,10 @@
 
 import type { Game } from "../../game/game";
 import {
-  buyOffer, rotateRig, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
+  buyOffer, buyUpgrade, rotateRig, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
 } from "../../game/run";
-import { CELL, GRID, ITEMS, sellValue } from "../../sim/content";
-import { isSignatureFactory, starField, starsOf } from "../../sim/stars";
+import { CELL, GRID, ITEMS, sellValue, type UpgradeTrack } from "../../sim/content";
+import { starField, starsOf } from "../../sim/stars";
 import { mergePreview, type Gain, type GainAt } from "../../game/fuse";
 import { canPlaceItem, isRig, key, moveItem, occupancy, placeItem, removeRoute, rotField, setRot } from "../../sim/deck";
 import { bestRot } from "../../sim/beltside"; // 0.6.2 BELTSIDE: the preview's auto-aim
@@ -113,6 +113,25 @@ export function buy(ctx: Ctx, wagon: number, slot: number, at?: GainAt): { ok: b
   return { ok: true, item: res.item, gain: res.gain };
 }
 
+/**
+ * bb-0.8.3 (REQ-BFG-043 D11): the panel's UPGRADE button: the next level of the hero's TURRET SPEED or FACTORY for its
+ * price (run.ts buyUpgrade: outside the shop roll, no refund). The gold pops off the purse like any buy, and the panel
+ * stays on what was upgraded (its level and its next line change at once).
+ */
+export function upgrade(ctx: Ctx, track: UpgradeTrack): boolean {
+  const res = buyUpgrade(ctx.run, track);
+  if (!res.ok) {
+    ctx.invalid(res.reason ?? "CAN'T UPGRADE");
+    return false;
+  }
+  const cp = ctx.coinPos();
+  ctx.ufx.popup(cp.x, cp.y + 10, `-${res.price}`, C.yellow);
+  ctx.game.audio.play("coin");
+  ctx.game.toast(`${track === "factory" ? "FACTORY" : "TURRET SPEED"} LEVEL ${res.level}`, C.lime);
+  ctx.touched();
+  return true;
+}
+
 /** Select where a bought module ended up (after a merge it may be a placed twin). */
 export function selectGain(ctx: Ctx, g: Gain): void {
   if (g.where === "cargo") ctx.select({ kind: "cargo", uid: g.survivor });
@@ -125,8 +144,6 @@ export function selectGain(ctx: Ctx, g: Gain): void {
 
 export function sell(ctx: Ctx, uid: number): void {
   if (!ctx.run.inventory.some((i) => i.uid === uid)) return;
-  // bb-0.8.3 (REQ-BFG-042 D2): a copy of the hero's signature factory waiting in cargo never sells (run.ts sellInventory)
-  if (ctx.run.inventory.some((i) => i.uid === uid && isSignatureFactory(i.def))) return ctx.invalid("THE SIGNATURE FACTORY STAYS ABOARD");
   const v = sellInventory(ctx.run, uid);
   const cp = ctx.coinPos();
   ctx.ufx.popup(cp.x, cp.y + 10, `+${v}`, C.lime);

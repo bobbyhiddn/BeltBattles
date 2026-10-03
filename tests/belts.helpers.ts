@@ -22,18 +22,20 @@ export const WIDE_TURRETS: Record<"furnace" | "weaver" | "foundry" | "bastion", 
 };
 
 /**
- * `hero`'s wide deck (WIDE_TURRETS) with factory `def` (uid 7, at `stars`) at (4,6) and `n` belts out of it, each the
- * shortest path into the next free intake (harness path.ts; ties: the lower column; a seeded walk among the shortest
+ * `hero`'s wide deck (WIDE_TURRETS) with factory `def` (uid 7, at grade `stars`) at (4,6) and `n` belts out of it, each
+ * the shortest path into the next free intake (harness path.ts; ties: the lower column; a seeded walk among the shortest
  * paths). A belt past the free intakes is a 1-tile stub beside the factory. The hero's signature factory (unless `def` is
  * a signature factory) is parked at (0,8) without belts. beltCap: the hero's belt + 14 crates; hullBonus `hull` (0: an
- * honest deck). METRONOME and SIPHON keep their starting layout.
+ * honest deck). METRONOME and SIPHON keep their starting layout. bb-0.8.3 (REQ-BFG-043 D10): a signature `def`'s grade is
+ * the build's FACTORY level (build.upgrades.factory), never stars.
  */
 export function wideDeck(hero: HeroId, def: string, stars: number, n: number, hull = 0): Build {
-  const sig = isSignatureFactory(def); // bb-0.8.3 (D2): the deck's own signature is `def` itself
+  const sig = isSignatureFactory(def); // the deck's own signature is `def` itself
   const wide = WIDE_TURRETS[hero as keyof typeof WIDE_TURRETS]; // METRONOME, SIPHON: their starting layout
   const b: Build = {
-    hero, items: [...(sig ? [] : [{ uid: 1, def: signatureOf(hero), x: 0, y: 8 }]), { uid: 7, def, x: 4, y: 6, ...starField(stars) }],
+    hero, items: [...(sig ? [] : [{ uid: 1, def: signatureOf(hero), x: 0, y: 8 }]), { uid: 7, def, x: 4, y: 6, ...(sig ? {} : starField(stars)) }],
     routes: [], mods: [], beltCap: HEROES[hero].belt + 56, hullBonus: hull, ...(wide ? { turrets: wide.map((t) => ({ ...t })) } : {}),
+    ...(sig && stars > 1 ? { upgrades: { factory: stars } } : {}),
   };
   const rng = new Rng(1234 + n);
   for (let i = 0; i < n; i++) {

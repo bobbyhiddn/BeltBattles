@@ -197,17 +197,13 @@ describe("every source goes through gainModule", () => {
     expect(copies(run, "temper").map((c) => c.stars).sort()).toEqual([1, 2]);
     expect(unfusedInRun(run)).toEqual([]);
   });
-  // bb-0.8.3 (REQ-BFG-042 D2): a hero's signature factory merges like any factory now (0.8.0: "supplies and signatures
-  // never fuse", fuseAll [] with two more KILNs): the starting KILN and two copies make a ★2 and a ★1; supplies never fuse
-  it("supplies never fuse; signature factories do (bb-0.8.3); moving never fuses", () => {
+  it("supplies and signatures never fuse; moving never fuses", () => {
     const run = fresh();
     stock(run, ["beltcrate", "beltcrate"]);
     buyOffer(run, 0, 0); buyOffer(run, 0, 1);
     expect(run.inventory).toEqual([]);
     put(run, "kiln"); put(run, "kiln"); put(run, "plating"); put(run, "plating");
-    expect(fuseAll(run).map((s) => `${s.def} ★${s.stars} ${s.where}`)).toEqual(["kiln ★2 deck"]);
-    expect(copies(run, "kiln").map((c) => c.stars).sort()).toEqual([1, 2]);
-    expect(copies(run, "plating").map((c) => c.stars)).toEqual([1, 1]);
+    expect(fuseAll(run)).toEqual([]);
     const r2 = fresh();
     const two = put(r2, "temper", 2, { x: 4, y: 3 });
     expect(storePlaced(r2, two)).toBe(true);
