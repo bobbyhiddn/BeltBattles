@@ -13,6 +13,7 @@
 import type { Run } from "../../game/run";
 import { ITEMS } from "../../sim/content";
 import { canSellTurret, deadEndsAt, gearOn, hullSlots, kx, turretSellValue, turretSlots, type Build } from "../../sim/deck";
+import { coreFor } from "../../sim/deck"; // shoptap: touchSlotHint
 import { starsOf, starText } from "../../sim/stars";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { itemIcon } from "../../render/sprites";
@@ -39,9 +40,11 @@ export function turretFacts(def: string, stars: number): string[] {
   return [...abilityText(def, stars).sentences, ...(next ? [next] : [])];
 }
 
-/** The hint under a turret card: how to install it (0.6.2s S5; the offer can be dragged to cargo too). */
-export const turretHint = (offer: boolean): string =>
-  (offer ? "DRAG IT ONTO A TURRET SLOT TO INSTALL IT, OR ONTO CARGO." : "DRAG IT ONTO A TURRET SLOT, OR TAP A SLOT, TO INSTALL IT.");
+/** The hint under a turret card: how to install it (0.6.2s S5; the offer can be dragged to cargo too). shoptap (D2):
+ *  `touch`: a touch tap never installs, so a cargo turret's hint names the drag alone. */
+export const turretHint = (offer: boolean, touch = false): string =>
+  (offer ? "DRAG IT ONTO A TURRET SLOT TO INSTALL IT, OR ONTO CARGO."
+    : touch ? "DRAG IT ONTO A TURRET SLOT TO INSTALL IT." : "DRAG IT ONTO A TURRET SLOT, OR TAP A SLOT, TO INSTALL IT.");
 
 /** A free starting copy's note (S6): at 1 star it can't be sold; merged, it holds the starting copy. */
 export const freeNote = (canSell: boolean): string =>
@@ -59,7 +62,7 @@ export function turretSpec(ctx: Ctx, show: Sel, hovering: boolean): TurretPanelS
   if (show.kind === "cargo") {
     const it = run.inventory.find((i) => i.uid === show.uid);
     if (!it || !isTurret(it.def)) return undefined;
-    const text = cargoPanel(run, it.uid);
+    const text = cargoPanel(run, it.uid, !!ctx.touch); // shoptap (D2): the touch hint
     if (!text) return null;
     const can = canSellTurret(it);
     return {
@@ -78,7 +81,7 @@ export function turretSpec(ctx: Ctx, show: Sel, hovering: boolean): TurretPanelS
 
 function offerSpec(ctx: Ctx, run: Run, wagon: number, slot: number, hovering: boolean): TurretPanelSpec | null {
   const o = run.shop.wagons[wagon].offers[slot];
-  const text = offerPanel(run, wagon, slot);
+  const text = offerPanel(run, wagon, slot, !!ctx.touch); // shoptap (D2): the touch hint
   if (!text) return null;
   const can = !o.sold && run.gold >= o.price;
   return {
@@ -201,6 +204,15 @@ export function slotNotes(b: Build, t: number): string[] {
 
 /** The move hint under an installed turret (S5). */
 export const SLOT_HINT = "HOLD IT, OR DRAG IT WITH NO GEAR ON, TO MOVE OR SWAP IT.";
+
+/** shoptap (REQ-BFG-035): the hint under an installed turret on touch: a tap on the selected turret reads its core and
+ *  gear, one at a time (edit.ts fittedPieces), then SLOT_HINT. A turret with neither: SLOT_HINT alone. */
+export function touchSlotHint(b: Build, t: number): string {
+  const s = turretSlots(b)[t];
+  const core = !!coreFor(b, t), gear = !!s && gearOn(b, t).slice(0, s.gearSlots).length > 0;
+  const what = core && gear ? "ITS CORE AND GEAR" : core ? "ITS CORE" : gear ? "ITS GEAR" : "";
+  return what ? `TAP IT AGAIN TO READ ${what}. ${SLOT_HINT}` : SLOT_HINT;
+}
 
 /** An installed turret's sub line: its class and slot, "HEAVY TURRET IN SLOT 2". */
 export function slotSub(b: Build, t: number): string {

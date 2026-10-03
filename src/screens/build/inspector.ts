@@ -83,6 +83,10 @@ import {
   deadEndLines, freeNote, SLOT_HINT, slotActions, slotColor, slotIcon, slotLabels, slotNotes, slotSub, slotTitle, socketLines, turretHint,
   turretSpec, type SocketRow,
 } from "./turretPanel"; // 0.6.2s; 0.6.2rel: its panels are PanelText too
+import { touchSlotHint } from "./turretPanel"; // shoptap (REQ-BFG-035)
+import { sellFitted, sellPlaced, storeFitted } from "./actions"; // shoptap (D2, REQ-BFG-035): SELL on the carrier's panels
+import { tapRect } from "../../ui/ui"; // shoptap (D5): a finger's tap target around a drawn button
+import { tapPx } from "../../ui/tap"; // shoptap (D5)
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -217,9 +221,16 @@ const flavourBlocks = (def: string, stars: number, k: number): Block[] => {
 /** The action hint. */
 const hintBlock = (text: string): Block => ({ role: "hint", text, rank: 6 });
 
-/** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo. */
-function placeHint(kind: string, drag: boolean, def?: string): string {
-  if (kind === "turret") return turretHint(drag); // 0.6.2s (S5): a turret goes into a TURRET SLOT
+/** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo.
+ *  shoptap (D2): `touch`: a touch tap never places (it reads), so on a phone a part is dragged where it goes. */
+function placeHint(kind: string, drag: boolean, def?: string, touch = false): string {
+  if (kind === "turret") return turretHint(drag, touch); // 0.6.2s (S5): a turret goes into a TURRET SLOT
+  if (touch) {
+    return kind === "mod" || kind === "core" ? "DRAG IT ONTO A TURRET TO FIT IT."
+      : kind === "gate" && def && ITEMS[def]?.gate?.stoke ? "DRAG IT BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT."
+      : kind === "gate" ? "DRAG IT BESIDE A BELT: ITS ARROWS WORK THE BELT TILES THEY POINT AT."
+      : "DRAG IT ONTO THE DECK TO PLACE IT.";
+  }
   const how = kind === "mod" || kind === "core" ? "TAP A TURRET TO FIT IT"
     // 0.8.0 P1 (E3): a STOKER's arrows work factories, never belts
     : kind === "gate" && def && ITEMS[def]?.gate?.stoke ? "TAP A CELL BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT"
@@ -313,7 +324,7 @@ export interface RigPanel extends PanelText {
  * the phone band the compact variants put the hits on one line (or IDLE's short warning), then drop the next star's
  * perk name. Exported for tests; null unless `uid` is a placed rig.
  */
-export function rigPanel(run: Run, uid: number): RigPanel | null {
+export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null {
   const p = itemByUid(run.build, uid);
   if (!p) return null;
   const d = defOf(p);
@@ -323,7 +334,7 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
   const arrows = arrowsOf(p).length, x = rigShape(d) === "X";
   // 0.8.0 P1 (E3): a STOKER works factories, not belts: its factory hits take off the IDLE mark and lead its panel
   const stokes = d.gate?.stoke ? stokeHits(run.build).filter((h) => h.uid === p.uid) : [];
-  if (stokes.length) return stokerPanel(run, p.uid, stokes.map((h) => h.factory), arrows);
+  if (stokes.length) return stokerPanel(run, p.uid, stokes.map((h) => h.factory), arrows, touch);
   const idle = hits.length === 0;
   const on = new Set(hits.map((h) => h.dir)).size;
   const hl = hitLines(hits);
@@ -336,7 +347,7 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
     ...abilityBlocks(d.id, stars, textOpts(run)),
     ...progressBlocks(run, d.id, stars),
     ...flavourBlocks(d.id, stars, 1),
-    hintBlock(x ? "FACES EVERY SIDE. DRAG TO MOVE." : "TAP TO TURN (OR R). DRAG TO MOVE."),
+    hintBlock(x ? "FACES EVERY SIDE. DRAG TO MOVE." : touch ? TOUCH_TURN : "TAP TO TURN (OR R). DRAG TO MOVE."),
   ];
   // T6 (phone): the hits (or the IDLE warning) move up into the header's sub line, where they fit there (planBody skips
   // a head that doesn't): the compact list, then its short form with tile labels ("→ BELT 1 T4, BELT 2 T4 AND T6")
@@ -356,16 +367,23 @@ export function rigPanel(run: Run, uid: number): RigPanel | null {
       ...forms(noNextPerk(rest), true),
       ...forms(headlineNext(rest), true),
     ],
-    labels: [...(x ? [] : ["ROTATE"]), "TO CARGO"],
+    labels: [...(x ? [] : ["ROTATE"]), "TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])], // shoptap (D2): SELL
     idle, x,
   };
 }
+
+/** shoptap (D2): a placed rig's turn hint on touch (a first tap selects it; a tap on it while selected turns it). */
+export const TOUCH_TURN = "TAP IT AGAIN TO TURN IT. DRAG TO MOVE.";
+/** shoptap (D2, REQ-BFG-035): what a placed part's SELL says: its cargo sell price (sellValue at its stars). */
+export const sellLabel = (def: string, stars: number): string => `SELL +${sellPrice(def, stars)}G`;
+/** shoptap (D2): the signature factory's panel on touch says why it offers no SELL (actions.ts store's own words). */
+export const SIGNATURE_ABOARD = "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.";
 
 /**
  * 0.8.0 P1 (E3, DESIGN-beltside section 8's production rigs): a placed STOKER that points at factories: the factories it
  * works lead (it is never IDLE beside one), then the rig panel's ability text, progress, flavour and hint.
  */
-function stokerPanel(run: Run, uid: number, factories: number[], arrows: number): RigPanel {
+function stokerPanel(run: Run, uid: number, factories: number[], arrows: number, touch = false): RigPanel {
   const p = itemByUid(run.build, uid)!;
   const d = defOf(p), stars = starsOf(p);
   const names = factories.map((f) => `THE ${ITEMS[itemByUid(run.build, f)!.def].name}`);
@@ -375,7 +393,7 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number)
     ...stokerAbility(run, d.id, stars, factories),
     ...progressBlocks(run, d.id, stars),
     ...flavourBlocks(d.id, stars, 1),
-    hintBlock("TAP TO TURN (OR R). DRAG TO MOVE."),
+    hintBlock(touch ? TOUCH_TURN : "TAP TO TURN (OR R). DRAG TO MOVE."), // shoptap (D2)
   ];
   const tight: Block[] = [{ role: "hits", text: compact, keep: true }];
   return {
@@ -389,7 +407,7 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number)
       { body: [...tight, ...noNextPerk(rest)], tight: true },
       { body: [...tight, ...headlineNext(rest)], tight: true },
     ],
-    labels: ["ROTATE", "TO CARGO"],
+    labels: ["ROTATE", "TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])], // shoptap (D2): SELL on touch
     idle: false, x: false,
   };
 }
@@ -459,8 +477,9 @@ function mergeBlock(run: Run, def: string): Block | null {
 }
 
 /** A shop offer's panel, the phone's tap preview (T5): the module's 1-star ability text, the MERGES WITH line when it
- *  merges on purchase, the hint and the flavour; on the header-only 360x640 strip, its one-line effect. */
-export function offerPanel(run: Run, wagon: number, slot: number): PanelText | null {
+ *  merges on purchase, the hint and the flavour; on the header-only 360x640 strip, its one-line effect. shoptap (D2):
+ *  `touch`, the drag hint (a touch tap never places). */
+export function offerPanel(run: Run, wagon: number, slot: number, touch = false): PanelText | null {
   const o = run.shop.wagons[wagon]?.offers[slot];
   if (!o) return null;
   const d = ITEMS[o.def];
@@ -472,7 +491,7 @@ export function offerPanel(run: Run, wagon: number, slot: number): PanelText | n
     ...abilityBlocks(d.id, 1, opts),
     ...(mLine ? [mLine] : []),
     ...flavourBlocks(d.id, 1, opts.k ?? 1),
-    hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id)),
+    hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
   ];
   return {
     title: d.name, color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · ${MERCHANTS[run.shop.wagons[wagon].merchant].name}`,
@@ -484,8 +503,9 @@ export function offerPanel(run: Run, wagon: number, slot: number): PanelText | n
   };
 }
 
-/** A module in cargo: its ability text at its stars (a core's numbers at the hero's k), next star, merge progress. */
-export function cargoPanel(run: Run, uid: number): PanelText | null {
+/** A module in cargo: its ability text at its stars (a core's numbers at the hero's k), next star, merge progress.
+ *  shoptap (D2): `touch`, the drag hint (a touch tap never places). */
+export function cargoPanel(run: Run, uid: number, touch = false): PanelText | null {
   const it = run.inventory.find((i) => i.uid === uid);
   if (!it) return null;
   const d = ITEMS[it.def], stars = starsOf(it), opts = textOpts(run);
@@ -496,7 +516,7 @@ export function cargoPanel(run: Run, uid: number): PanelText | null {
     ...progressBlocks(run, d.id, stars),
     ...(turret && it.free ? [{ role: "ability", text: freeNote(sellable), rank: 3 } as Block] : []),
     ...flavourBlocks(d.id, stars, opts.k ?? 1),
-    hintBlock(placeHint(d.kind, false, d.id)),
+    hintBlock(placeHint(d.kind, false, d.id, touch)),
   ];
   return {
     title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: `${describe(d)} · IN CARGO`,
@@ -513,18 +533,21 @@ const KIND_WORD: Record<string, string> = {
 };
 
 /** A placed deck item: a rig (rigPanel), or a factory with its outputs at its stars (GANTRY PRESS ★2 THIRD ARM feeds 3)
- *  and its text; a hero's signature factory has no stars, no next star and no TO CARGO. */
-export function itemPanel(run: Run, uid: number): PanelText | null {
+ *  and its text; a hero's signature factory has no stars, no next star and no TO CARGO. shoptap (D2, REQ-BFG-035):
+ *  `touch`: SELL after TO CARGO (a placed part sells at its cargo price), and the signature factory's panel says it stays
+ *  aboard (it offers no SELL). */
+export function itemPanel(run: Run, uid: number, touch = false): PanelText | null {
   const p = itemByUid(run.build, uid);
   if (!p) return null;
   const d = defOf(p);
-  if (d.kind === "gate") return rigPanel(run, uid);
+  if (d.kind === "gate") return rigPanel(run, uid, touch);
   const stars = starsOf(p);
   const sig = !fusible(d.id);
   const body: Block[] = [
     ...joinPaceBlocks(run.build, p.uid), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joined factory leads with its pace
     ...(hasAbilityText(d.id) ? abilityBlocks(d.id, stars, textOpts(run)) : []),
     ...(sig ? [] : progressBlocks(run, d.id, stars)),
+    ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock("DRAG OUT OF IT TO LAY BELT."),
   ];
@@ -533,7 +556,35 @@ export function itemPanel(run: Run, uid: number): PanelText | null {
     sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${outputsAt(d.id, stars) || 1}`,
     body,
     variants: tightForms(body),
-    labels: sig ? [] : ["TO CARGO"],
+    labels: sig ? [] : ["TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
+  };
+}
+
+/**
+ * shoptap (REQ-BFG-035): a turret's bought core or one of its gear pieces (a "fitted" selection, picked by a touch tap
+ * on the selected turret): its name and stars, what it is and which turret it sits on, its ability text at its stars (a
+ * core's numbers at that turret's class factor, as the turret panel reads them), next star and merge progress, the
+ * flavour and how to step on; TO CARGO (REMOVE CORE's or REMOVE GEAR's path, for this piece) and SELL (its cargo price).
+ * Null unless `uid` is fitted to an installed turret.
+ */
+export function fittedPanel(run: Run, uid: number): PanelText | null {
+  const b = run.build, m = b.mods.find((q) => q.uid === uid);
+  const td = m ? turretSlots(b)[m.turret]?.td : undefined;
+  if (!m || !td) return null;
+  const d = ITEMS[m.def], stars = starsOf(m), core = d.kind === "core";
+  const k = core ? classFactor(td) : 1;
+  const body: Block[] = [
+    ...abilityBlocks(d.id, stars, { k, hero: b.hero as HeroId }),
+    ...progressBlocks(run, d.id, stars),
+    ...flavourBlocks(d.id, stars, k),
+    hintBlock("TAP THE TURRET AGAIN FOR ITS NEXT PART."),
+  ];
+  return {
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    sub: `${core ? "CORE" : "GEAR"} ON TURRET ${m.turret + 1}`,
+    body,
+    variants: tightForms(body),
+    labels: ["TO CARGO", sellLabel(d.id, stars)],
   };
 }
 
@@ -698,7 +749,7 @@ export const shieldLine = (n: number): string => shieldText(n);
  * forms, fullest first: each socket's short effect (the glossary's gist) in its row; then the dead ends on one line each;
  * then every gear slot on one row. The dead ends and the socket rows always show. Null unless a turret is installed.
  */
-export function turretPanel(run: Run, index: number): PanelText | null {
+export function turretPanel(run: Run, index: number, touch = false): PanelText | null {
   const b = run.build;
   const td = turretSlots(b)[index]?.td; // 0.6.2s: the installed turret (an empty slot: turretPanel.ts emptySlotPanel)
   if (!td) return null;
@@ -744,7 +795,7 @@ export function turretPanel(run: Run, index: number): PanelText | null {
     ...gatlingClash(b, index, tc.routine).map((text): Block => ({ role: "warn", text, rank: 1, deskKeep: true })), // CAND-A: every gear slot
     ...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 1, deskKeep: true } as Block] : []), // FB-B MANTLET
     ...slotNotes(b, index).map((text): Block => ({ role: "ability", text, rank: 4 })),
-    hintBlock(SLOT_HINT),
+    hintBlock(touch ? touchSlotHint(b, index) : SLOT_HINT), // shoptap: on touch, a tap again reads its core and gear
   ];
   const body: Block[] = [
     ...warn(false),
@@ -1118,11 +1169,18 @@ export interface PanelPlan {
   famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean } | null;
 }
 
+/** shoptap (D5): the landscape column's stacked button height: 16 px, and on touch a finger's target (`tap`, TAP_CSS CSS
+ *  px in logical px) where that is taller. Exported for the tests. */
+export const columnButtonH = (tap = 0): number => Math.max(16, tap);
+
 /** Lay out a panel in `area` (the landscape column when area.h >= 70, else the portrait band). 0.8.0 I1 M4: `families`,
- *  the shown module's families (selFamilies), go in its header; the body plans as without them. */
-export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = []): PanelPlan {
+ *  the shown module's families (selFamilies), go in its header; the body plans as without them. shoptap (D5): `o.tap`,
+ *  a touch press's target height in logical px: the column's buttons are that tall (columnButtonH; the portrait band's
+ *  keep their size, and drawDetails grows their tap targets instead, so the band keeps its text). */
+export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [], o: { tap?: number } = {}): PanelPlan {
   const column = area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
+  const pitch = columnButtonH(o.tap) + 3; // a stacked button and the gap above it (0.6.1r: 16 + 3)
   const wrapW = area.w - 10;
   let port = !column && labels.length ? portraitButtons(sp.title, sp.sub, labels, area) : null;
   if (port?.shift && sp.subShort) {
@@ -1137,7 +1195,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
     ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
     : [sp.sub];
   const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 : 0);
-  const extra = labels.length ? labels.length * 19 + 3 : 4;
+  const extra = labels.length ? labels.length * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
   const subMax = headRight - (area.x + 23);
   // the body starts at y + 25 + shift (a tight variant's 1 px higher). The column grows to its text (27 + shift + body +
@@ -1172,7 +1230,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
     : null;
   const r = column ? { ...area, h: Math.min(area.h, 27 + shift + body.height + extra) } : area;
   const y = r.y + 25 + shift - (body.tight ? 1 : 0);
-  const maxY = column && labels.length ? r.y + r.h - 5 - labels.length * 19 : r.y + r.h - 4;
+  const maxY = column && labels.length ? r.y + r.h - 5 - labels.length * pitch : r.y + r.h - 4;
   // no body line fits (the header-only 360x640 strip): its header text instead of the sub line, on up to two lines
   const headerOnly = !column && r.y + 25 + shift + 5 > maxY && sp.headerOnly
     ? { lines: headerLines(sp.headerOnly.texts, subMax, r.w - 27), colour: sp.headerOnly.colour } : null;
@@ -1201,6 +1259,9 @@ interface Action {
   danger?: boolean;
   disabled?: boolean;
   onTap: () => void;
+  /** shoptap (D2): a button a touch panel can do without (TO CARGO: a drag onto the cargo tray does the same): on the
+   *  phone band it gives way where keeping it would cut the panel's kept text (detailsPlan). */
+  optional?: boolean;
 }
 
 interface Spec {
@@ -1212,11 +1273,12 @@ interface Spec {
 function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
   const { run } = ctx;
   const b = run.build;
+  const touch = !!ctx.touch; // shoptap (D2): the last press was a finger or a pen
   const tp = turretSpec(ctx, show, hovering); // 0.6.2s (REQ-BFG-031 S10): turret cards and empty turret slots
   if (tp !== undefined) return tp;
   switch (show.kind) {
     case "offer": {
-      const t = offerPanel(run, show.wagon, show.slot);
+      const t = offerPanel(run, show.wagon, show.slot, touch);
       const o = run.shop.wagons[show.wagon]?.offers[show.slot];
       if (!t || !o) return null;
       const can = !o.sold && run.gold >= o.price;
@@ -1232,23 +1294,39 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
       };
     }
     case "cargo": {
-      const t = cargoPanel(run, show.uid);
+      const t = cargoPanel(run, show.uid, touch);
       const it = run.inventory.find((i) => i.uid === show.uid);
       if (!t || !it) return null;
       return { icon: itemIcon(it.def), text: t, actions: [{ id: "sell", label: t.labels[0], onTap: () => sell(ctx, it.uid) }] };
     }
     case "item": {
       const p = itemByUid(b, show.uid);
-      const t = p ? itemPanel(run, p.uid) : null;
+      const t = p ? itemPanel(run, p.uid, touch) : null;
       if (!p || !t) return null;
       const d = defOf(p);
+      // shoptap (D2, REQ-BFG-035): on touch a placed part's panel sells it too (a button, never a tap on the part)
+      const sellIt: Action[] = touch && t.labels.length ? [{ id: "sellpart", label: t.labels[t.labels.length - 1], onTap: () => sellPlaced(ctx, p.uid) }] : [];
       const actions: Action[] = d.kind === "gate"
         ? [
           ...((t as RigPanel).x ? [] : [{ id: "rotate", label: "ROTATE", onTap: () => rotate(ctx, p.uid) }]),
-          { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) },
+          { id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) },
+          ...sellIt,
         ]
-        : t.labels.length ? [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid) }] : [];
+        : t.labels.length ? [{ id: "store", label: "TO CARGO", onTap: () => store(ctx, p.uid), ...(touch ? { optional: true } : {}) }, ...sellIt] : [];
       return { icon: itemIcon(d.id), text: t, actions };
+    }
+    case "fitted": {
+      // shoptap (REQ-BFG-035): a turret's core or gear piece, picked by a touch tap on the selected turret
+      const t = fittedPanel(run, show.uid);
+      const m = b.mods.find((q) => q.uid === show.uid);
+      if (!t || !m) return null;
+      return {
+        icon: itemIcon(m.def), text: t,
+        actions: [
+          { id: "storefitted", label: t.labels[0], onTap: () => storeFitted(ctx, m.uid), optional: true },
+          { id: "sellfitted", label: t.labels[1], onTap: () => sellFitted(ctx, m.uid) },
+        ],
+      };
     }
     case "route": {
       const t = routePanel(run, show.index);
@@ -1260,7 +1338,7 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
     }
     case "turret": {
       const td = turretSlots(b)[show.index]?.td; // 0.6.2s: the installed turret (an empty slot has none)
-      const t = turretPanel(run, show.index);
+      const t = turretPanel(run, show.index, touch);
       if (!td || !t) return null;
       const gm = gearFor(b, show.index); // 0.6.1b: gear only; the core has its own socket (coreFor via resolveCore)
       const tc = resolveCore(b, show.index, td);
@@ -1303,6 +1381,7 @@ export function selFamilies(run: Run, show: Sel): ModuleTag[] {
     case "cargo": return familiesOf(run.inventory.find((i) => i.uid === show.uid)?.def ?? "");
     case "item": return familiesOf(itemByUid(run.build, show.uid)?.def ?? "");
     case "turret": return familiesOf(turretSlots(run.build)[show.index]?.turret?.def ?? "");
+    case "fitted": return familiesOf(run.build.mods.find((m) => m.uid === show.uid)?.def ?? ""); // shoptap
     default: return [];
   }
 }
@@ -1315,7 +1394,29 @@ export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: nu
   const sp = spec(ctx, show, !!hover);
   if (!sp) return null;
   const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
-  return { show, sp, t, plan: planPanel(t, area, selFamilies(ctx.run, show)) }; // 0.8.0 I1 M4: the families in its header
+  // 0.8.0 I1 M4: the families in its header; shoptap (D5): on touch, a finger's button height
+  const fams = selFamilies(ctx.run, show), tap = touchTap(ctx);
+  const plan = planPanel(t, area, fams, { tap });
+  // shoptap (D2): on the phone band a touch panel's optional button (TO CARGO) gives way where keeping it would cut the
+  // panel's kept text (the extra button pushes the row under the sub line); its kept text always shows whole
+  if (tap && !plan.column && !keptWhole(plan) && sp.actions.some((a) => a.optional)) {
+    const lean: Spec = { ...sp, actions: sp.actions.filter((a) => !a.optional) };
+    const lt: PanelText = { ...sp.text, labels: lean.actions.map((a) => a.label) };
+    const lp = planPanel(lt, area, fams, { tap });
+    if (keptWhole(lp)) return { show, sp: lean, t: lt, plan: lp };
+  }
+  return { show, sp, t, plan };
+}
+
+/** shoptap (D2): a plan's kept blocks fit and every one of their lines is drawn (T6's phone guarantee). */
+export function keptWhole(plan: PanelPlan): boolean {
+  const drawn = new Set(visibleLines(plan).map((v) => v.line));
+  return plan.body.fits && plan.body.shown.filter((l) => l.b.keep).every((l) => l.lines.every((ln) => drawn.has(ln)));
+}
+
+/** shoptap (D5): on touch, a TAP_CSS target's height in the build screen's logical px; 0 for a mouse. */
+function touchTap(ctx: Ctx): number {
+  return ctx.touch ? tapPx(ctx.game.view) : 0;
 }
 
 export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe, note: string | null = null): void {
@@ -1331,17 +1432,24 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   rect(g, r.x + 5, r.y + 5, 14, 14, C.slate0);
   if (sp.icon) g.drawImage(sp.icon, r.x + 12 - Math.floor(sp.icon.width / 2), r.y + 12 - Math.floor(sp.icon.height / 2));
   const acts = sp.actions;
+  const tap = touchTap(ctx); // shoptap (D5): on touch, every button is a finger's target (TAP_CSS CSS px tall)
   if (acts.length && plan.column) {
-    // landscape column: one full-width button per action, stacked bottom-up under the text
+    // landscape column: one full-width button per action, stacked bottom-up under the text (shoptap: on touch, each
+    // drawn as tall as its target)
+    const bh = columnButtonH(tap);
     let by = r.y + r.h - 5;
     for (let i = acts.length - 1; i >= 0; i--) {
-      by -= 16;
+      by -= bh;
       const a = acts[i];
-      button(ctx.game.ui, g, a.id, { x: r.x + 5, y: by, w: r.w - 10, h: 16 }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
+      button(ctx.game.ui, g, a.id, { x: r.x + 5, y: by, w: r.w - 10, h: bh }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
       by -= 3;
     }
   } else if (plan.rects) {
-    acts.forEach((a, i) => button(ctx.game.ui, g, a.id, plan.rects![i], a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap }));
+    // shoptap (D5): the portrait band's buttons keep their size (the band keeps its text); on touch each one's target
+    // grows to TAP_CSS CSS px tall inside the panel (side by side, the targets never meet)
+    acts.forEach((a, i) => button(ctx.game.ui, g, a.id, plan.rects![i], a.label, {
+      font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap, ...(tap ? { hit: tapRect(plan.rects![i], tap, r) } : {}),
+    }));
   }
   fitHead(g, t.title, r.x + 23, r.y + 4, plan.subMax, t.color, true);
   const subColor = t.subColor ?? C.slate4;
