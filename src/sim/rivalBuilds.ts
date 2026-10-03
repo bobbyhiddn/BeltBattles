@@ -216,9 +216,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     hero: "weaver", crates: 0, synergy: ["splitter", "whetstone"],
     factories: [F("loom", 4, 4, [4, 3, "U3"], [3, 4, "L2U4"], [6, 4, "R2U4"])],
     upgrades: [
-      // 0.8.0 B1 M3: the keg before the venom (day 3, the venom day 4): her day-3 deck read 83, over the stand-ins' 80
+      // 0.8.0 B1 M3: the keg before the venom (day 3, the venom day 4) and the first splitter on day 7, not 6: her day-3
+      // and day-6 decks read 83 and 81 vs the FURNACE field (K 24), over the stand-ins' 80
       G(1, "whetstone", 3, 0, 1), M(1, "scatter", 1), G(2, "temper", 3, 1, 1), G(3, "keg", 7, 0), G(4, "venom", 3, 2),
-      G(5, "longhaul", 5, 2), G(6, "splitter", 5, 1), G2(8, "splitter", 5, 1), G(8, "grease", 3, 3, 2),
+      G(5, "longhaul", 5, 2), G(7, "splitter", 5, 1), G2(8, "splitter", 5, 1), G(8, "grease", 3, 3, 2),
       G(8, "brake", 0, 0, 1), G(9, "splitter", 2, 3, 2),
     ],
   },
