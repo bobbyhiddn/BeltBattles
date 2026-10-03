@@ -1,23 +1,25 @@
-# Runbook: BeltBattles on Fly + Tigris (0.8.3: a part's whole description on a phone tap, on 0.8.0's server with uploads open)
+# Runbook: BeltBattles on Fly + Tigris (0.8.4: a roomier build screen on phones, on 0.8.0's server with uploads open)
 
 One small Fly machine serves the game page and the ghost API from one HTTPS origin; the ghosts
 live in a Tigris bucket. Everything below is non-interactive, with every flag spelled out, and
 grouped so each numbered call is one shell call (one approval). Run every call with the repo root as
 the working directory:
 
-    /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r083/BeltBattles-r083   (branch release-083)
+    /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r084/BeltBattles-r084   (branch release-084)
 
 0.8.0 and its uploads step ran from the clone beltbattles-u080/BeltBattles-u080 (branch uploads-080), and 0.8.1 from
 beltbattles-v081/BeltBattles-v081 (branch release-081). Sections 9 and 10 are kept as they ran there: their calls name
 those clones and tips, and they must never run again. Section 11 is 0.8.2's call as written in the clone
-beltbattles-r082/BeltBattles-r082 (branch release-082, tip 7669e36); it names that clone, and it must never run once
-section 12's call has run. Sections 3 and 5 now name 0.8.3's page, and section 12 is 0.8.3's call, from this clone.
+beltbattles-r082/BeltBattles-r082 (branch release-082, tip 7669e36), and section 12 is 0.8.3's call as written in the
+clone beltbattles-r083/BeltBattles-r083 (branch release-083, tip d909701). Each names its own clone. Neither may run
+once section 13's call has run, and section 11's may not run once section 12's has. Sections 3 and 5 now name
+0.8.4's page, and section 13 is 0.8.4's call, from this clone.
 
 Names used below: app `beltbattles` (URL https://beltbattles.fly.dev), org `personal`, bucket
-`beltbattles-ghosts`, rules `bb-0.8.0`, game 0.8.3. The page is 0.8.3's: 0.8.0 (the release candidate c3c84e5) with the
-phone controls (section 10), the title screen on phones (section 11) and a part's whole description on a phone tap
-(section 12). The server is uploads-080's, unchanged: H2's cef0379 (v080-h2), which adds the record check to POST
-/v1/ghosts, with uploads open (section 9).
+`beltbattles-ghosts`, rules `bb-0.8.0`, game 0.8.4. The page is 0.8.4's: 0.8.0 (the release candidate c3c84e5) with the
+phone controls (section 10), the title screen on phones (section 11), a part's whole description on a phone tap
+(section 12) and a roomier build screen on phones (section 13). The server is uploads-080's, unchanged: H2's cef0379
+(v080-h2), which adds the record check to POST /v1/ghosts, with uploads open (section 9).
 
 **Branches and commits.** The live 0.8.0 deploy (release v3, 2026-10-03, uploads closed) ran calls 3-5 from branch
 deploy-080, 69fe689 (H2's cef0379 plus the deploy commit), in the staged clone beltbattles-v080/BeltBattles-v080. This
@@ -44,16 +46,24 @@ Branch release-083, in this clone (a standalone copy of release-082), is release
   verified release-tap bundle (5b71395, ae79068, 73cb2ec, f7db355, made on 86cada1);
 - 462c29a: the 0.8.3 label (VERSION, package.json, package-lock.json) and docs/CHANGELOG.md;
 - the release record: GAME_BUILD.txt records the 0.8.3 online page, sections 3 and 5 name it, and section 12 is its call.
+  When release-084 was cut, d909701 had not gone live: its L4 (esc_d461cc44-a4e) was still pending, as was 0.8.2's.
+
+Branch release-084, in this clone (a standalone copy of release-083), is release-083 plus 0.8.4 (section 13):
+- 81ec126, 9aebd41, 9123140: a roomier build screen on phones (REQ-BFG-040), cherry-picked from 30b1d668's verified
+  release-zoom bundle (4d74345, 910ede2, af9ad62, made on release-tap f7db355);
+- 5f75f55: the 0.8.4 label (VERSION, package.json, package-lock.json) and docs/CHANGELOG.md;
+- the release record: GAME_BUILD.txt records the 0.8.4 online page, sections 3 and 5 name it, and section 13 is its call.
 
 **The page.** The image serves the ONLINE single-file page: `npm run build:online`
 (VITE_GHOST_SERVER=same-origin, into dist-online/), then `node scripts/singlefile.mjs <out.html> --dist dist-online`.
-It plays against the server that serves it, with no `?server=`. deploy/GAME_BUILD.txt records 0.8.3's:
-/home/cap/deliveries/beltbattles/BeltBattles-0.8.3-462c29aa102e-online.html, 590,294 bytes, sha256 as GAME_BUILD.txt
-records (it begins `de5e96fb357a2e34`), built at 462c29a. Shore serves the offline page of the same commit (590,283
-bytes); it plays offline unless opened with `?server=`. Section 12's call stages the byte-identical copy in
+It plays against the server that serves it, with no `?server=`. deploy/GAME_BUILD.txt records 0.8.4's:
+/home/cap/deliveries/beltbattles/BeltBattles-0.8.4-5f75f5532043-online.html, 591,654 bytes, sha256 as GAME_BUILD.txt
+records (it begins `bc576ea38e39ff9d`), built at 5f75f55. Shore serves the offline page of the same commit (591,643
+bytes); it plays offline unless opened with `?server=`. Section 13's call stages the byte-identical copy in
 ../ref/pages/ beside this clone (stage.mjs checks the size and the SHA-256 against GAME_BUILD.txt, not the path).
-Before 0.8.3, GAME_BUILD.txt recorded 0.8.2's page, BeltBattles-0.8.2-a9a9090ca36b-online.html (589,217 bytes, sha256
-`3b6867b0b432be80…`), and before that 0.8.1's, BeltBattles-0.8.1-1d47d41ef7e4-online.html (587,335 bytes, sha256
+Before 0.8.4, GAME_BUILD.txt recorded 0.8.3's page, BeltBattles-0.8.3-462c29aa102e-online.html (590,294 bytes, sha256
+`de5e96fb357a2e34…`); before that 0.8.2's, BeltBattles-0.8.2-a9a9090ca36b-online.html (589,217 bytes, sha256
+`3b6867b0b432be80…`); and before that 0.8.1's, BeltBattles-0.8.1-1d47d41ef7e4-online.html (587,335 bytes, sha256
 `49ad55a7e1d4f014…`), which release v5 serves.
 Before 0.8.1, GAME_BUILD.txt recorded 0.8.0's page, BeltBattles-0.8.0-c3c84e59f24a-online.html (578,419 bytes, sha256
 `38f93480697c6082…`), which releases v3 and v4 serve. The Prime rebuilt that page byte for byte at c3c84e5 and at
@@ -70,7 +80,9 @@ with uploads closed. The uploads step (section 9) opens them, on the operator's 
 16:04Z (release v4, LIVE-U080). 0.8.1, the phone controls, changes the page and nothing else (section 10). It went
 live on 2026-10-03 at about 17:21Z (release v5, LIVE-081). 0.8.2, the title screen on phones, also changes the page
 and nothing else (section 11). 0.8.3, a part's whole description on a phone tap, is built on 0.8.2, so it carries
-0.8.2's change too; it also changes the page and nothing else (section 12).
+0.8.2's change too; it also changes the page and nothing else (section 12). 0.8.4, a roomier build screen on phones,
+is built on 0.8.3, so it carries 0.8.3's and 0.8.2's changes too; it also changes the page and nothing else
+(section 13).
 
 **Fallback names** (only for a rebuild from nothing). If `beltbattles` is taken (call 2 prints "Name has already
 been taken"), use `beltbattles-game`: replace `beltbattles` with `beltbattles-game` in every `-a` flag and every
@@ -110,15 +122,15 @@ fly apps create beltbattles --org personal && set -o pipefail && fly storage cre
 ## 3. Build and stage (local only: no network)
 
 ```sh
-node deploy/stage.mjs /home/cap/deliveries/beltbattles/BeltBattles-0.8.3-462c29aa102e-online.html
+node deploy/stage.mjs /home/cap/deliveries/beltbattles/BeltBattles-0.8.4-5f75f5532043-online.html
 ```
 
 Runs `npm run build:server` (type-check + vite bundle into server/dist/: ghost-server.mjs, ghost-admin.mjs,
 gen-ghost-pool.mjs, from uploads-080 on also ghost-probe.mjs, and their shared chunks), copies the page to the
 gitignored deploy/public/index.html and refuses unless its SHA-256 and size equal deploy/GAME_BUILD.txt. Expect the
 last line:
-`stage: ../../../../../../deliveries/beltbattles/BeltBattles-0.8.3-462c29aa102e-online.html -> deploy/public/index.html (590294 bytes, sha256 matches GAME_BUILD.txt); server/dist built`.
-Section 12 stages the same bytes from ../ref/pages/, so its line names `../ref/pages/BeltBattles-0.8.3-462c29aa102e-online.html`.
+`stage: ../../../../../../deliveries/beltbattles/BeltBattles-0.8.4-5f75f5532043-online.html -> deploy/public/index.html (591654 bytes, sha256 matches GAME_BUILD.txt); server/dist built`.
+Section 13 stages the same bytes from ../ref/pages/, so its line names `../ref/pages/BeltBattles-0.8.4-5f75f5532043-online.html`.
 To ship a different build later: `node deploy/stage.mjs <file> --record`, then commit GAME_BUILD.txt.
 
 ## 4. Deploy: one machine
@@ -150,7 +162,7 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
 ## 5. Live checks (one call)
 
 ```sh
-curl -sS https://beltbattles.fly.dev/v1/health; echo; curl -sS -o /dev/null -w 'http -> %{http_code} %{redirect_url}\n' http://beltbattles.fly.dev/; curl -sS -D - -o /dev/null https://beltbattles.fly.dev/ | grep -i -E '^(HTTP|content-type|content-length|cache-control|x-content-type-options|referrer-policy)'; curl -fsS https://beltbattles.fly.dev/ | cmp - deploy/public/index.html && echo 'live page = the staged 0.8.3 online page (cmp)'; curl -sS -o /dev/null -w '%{url_effective} -> %{http_code}\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.8.0&day=[1-10]&wins=0&lives=5&player=runbook-check&seen=&runs=0'; curl -sS 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.8.0&day=3&wins=1&lives=5&player=runbook-check&seen=&runs=0' | head -c 300; echo; curl -sS -w ' -> %{http_code}\n' -X POST -H 'content-type: application/json' --data '{}' https://beltbattles.fly.dev/v1/ghosts; fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.8.0'
+curl -sS https://beltbattles.fly.dev/v1/health; echo; curl -sS -o /dev/null -w 'http -> %{http_code} %{redirect_url}\n' http://beltbattles.fly.dev/; curl -sS -D - -o /dev/null https://beltbattles.fly.dev/ | grep -i -E '^(HTTP|content-type|content-length|cache-control|x-content-type-options|referrer-policy)'; curl -fsS https://beltbattles.fly.dev/ | cmp - deploy/public/index.html && echo 'live page = the staged 0.8.4 online page (cmp)'; curl -sS -o /dev/null -w '%{url_effective} -> %{http_code}\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.8.0&day=[1-10]&wins=0&lives=5&player=runbook-check&seen=&runs=0'; curl -sS 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.8.0&day=3&wins=1&lives=5&player=runbook-check&seen=&runs=0' | head -c 300; echo; curl -sS -w ' -> %{http_code}\n' -X POST -H 'content-type: application/json' --data '{}' https://beltbattles.fly.dev/v1/ghosts; fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.8.0'
 ```
 
 Expect, in order:
@@ -158,9 +170,9 @@ Expect, in order:
    `"uploads":"open"` once the uploads step (section 9) is live. `ghosts` counts what the lazy bucket cache has read
    so far; 0 right after a start is normal.
 2. `http -> 301 https://beltbattles.fly.dev/` (force_https).
-3. `HTTP/2 200`, `content-type: text/html; charset=utf-8`, `content-length: 590294` (0.8.2's page: 589217; 0.8.1's: 587335; 0.8.0's: 578419),
+3. `HTTP/2 200`, `content-type: text/html; charset=utf-8`, `content-length: 591654` (0.8.3's page: 590294; 0.8.2's: 589217; 0.8.1's: 587335; 0.8.0's: 578419),
    `cache-control: no-cache`, `x-content-type-options: nosniff`, `referrer-policy: no-referrer`.
-4. `live page = the staged 0.8.3 online page (cmp)` (no line at all means a mismatch).
+4. `live page = the staged 0.8.4 online page (cmp)` (no line at all means a mismatch).
 5. Ten lines `…day=N… -> 200`, days 1-10: a new player (`runs=0`, D2: seed ghosts only) with 0 wins and
    5 lives gets a ghost with no better record (D1: fewer wins, or as many and no more lives; here a 0-win ghost).
    Every day has 12 seed ghosts, 4 of them on the day's floor record.
@@ -596,6 +608,11 @@ image) takes the page back to 0.8.0's; closing uploads is still section 9's roll
 
 ## 12. 0.8.3: a part's whole description on a phone tap (a new page; its own L4)
 
+**Not run from this clone.** When 0.8.4 was cut, this call's L4 (esc_d461cc44-a4e) was still pending. The section is
+kept as written in the clone beltbattles-r083/BeltBattles-r083 on release-083's tip d909701, and its call names that
+clone and tip. 0.8.4 (section 13) is built on d909701 and ships this change too. If this call ran there first,
+LIVE-083 records it. Never run it once section 13's call has run.
+
 0.8.3 ships the tap fix on the live server: REQ-BFG-034 and REQ-BFG-035, after the operator's "tapping an item doesn't
 open its description so I don't know what I'm buying on mobile. And tapping items on the board doesn't open it
 either." and, on 0.8.1, "still not seeing the full description of the item on tap". A phone's browser never gives the
@@ -683,6 +700,100 @@ Then health must say `"uploads":"open"`, and the live page must be the old one: 
 9's rollback.
 
 **If a step fails:** output-r083/CMD-083-EXPECT.md says, step by step, whether to roll back or to fix these docs.
+
+## 13. 0.8.4: a roomier build screen on phones (a new page; its own L4)
+
+0.8.4 ships the phone zoom-out on the live server: REQ-BFG-040, after the operator's "still not seeing the full
+description of the item on tap. We can zoom out our ui quite a bit on mobile. It's too crammed" (on 0.8.1). On a phone
+held upright (its short side under 500 CSS px) the build screen now draws its art smaller, never more than 1.75 CSS px
+per art pixel (x5 instead of x7 on a 402x690 page at DPR 3), so the band for a part's description grows from about 3 px
+to 122 px and most panels fit there whole; the rest still grow over the shop with their whole text, as in 0.8.3.
+Desktops, tablets, landscape phones and every other screen are unchanged. 0.8.4 is built on 0.8.3 (section 12), so it
+also ships the tap fix and the title-screen fix. The operator's word, 2026-10-03 at about 16:2xZ: "Nah, just launch to
+fly when ready."
+
+**What ships.** Branch release-084 at its tip, in this clone: release-083 (d909701: release-082 7669e36, the four tap
+commits, 0.8.3's label and its release record), the three zoom commits (81ec126, 9aebd41, 9123140, cherry-picked from 30b1d668's
+verified release-zoom: 4d74345, 910ede2, af9ad62, made on release-tap f7db355), the 0.8.4 label (5f75f55) and the release record
+(GAME_BUILD.txt and this section). Only the page changes:
+- The page is the 0.8.4 online page that GAME_BUILD.txt records (591,654 bytes, sha256 `bc576ea38e39ff9d…`). It is the zoom
+  page 30b1d668 verified at af9ad62 (sha256 `abdff164fd423917…`) byte for byte, except one run of bytes: the label
+  `0.8.1` -> `0.8.4` (kit/pagediff.mjs).
+- The server is v5's: since 36fb391 no line changed under server/, src/sim or src/net, and fly.toml, the Dockerfile
+  and .dockerignore are unchanged (uploads-080's), so uploads stay open. The call's stage step builds server/dist from
+  the tip.
+- RULES_VERSION stays bb-0.8.0 and the sim fingerprint stays 06bd515c6244ba0c, so live ghosts and uploads stay valid.
+  The release command re-seeds the same pool (`0 written, 120 unchanged, 0 removed`) and touches no upload.
+
+No probe runs: the server is the one the uploads step probed (LIVE-U080), and every upload in the store is a player's.
+
+**Sections 11 and 12.** 0.8.2's call (in beltbattles-r082, tip 7669e36) and 0.8.3's call (in beltbattles-r083, tip
+d909701) were both still waiting for their L4s when this section was written. Whether or not either ran first, this
+call ships the page above. Once this call has run, never run section 11's or section 12's.
+
+**Working directory:** this clone, branch release-084 (see the header). The call refuses unless HEAD is the tip named
+in output-r084/CMD-084.txt (beside this clone) and the tree is clean.
+
+**The call.** output-r084/CMD-084.txt is exactly this, with `<TIP>` filled in (a commit can't name its own hash):
+
+```sh
+set -o pipefail; cd /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r084/BeltBattles-r084 || exit 1; [ "$(git rev-parse --short=7 HEAD)" = <TIP> ] || { echo "refused: HEAD is $(git rev-parse --short=7 HEAD), not <TIP>"; exit 1; }; [ -z "$(git status --porcelain)" ] || { echo "refused: the tree is not clean"; exit 1; }; node deploy/stage.mjs /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r084/ref/pages/BeltBattles-0.8.4-5f75f5532043-online.html 2>&1 | tail -1 && fly releases -a beltbattles --image > ../output-r084/releases-before.txt 2>&1 && fly deploy --ha=false --remote-only 2>&1 | tee ../output-r084/run-deploy.txt | tail -30 && fly status -a beltbattles && sleep 5 && curl -fsS --retry 3 --retry-delay 2 https://beltbattles.fly.dev/v1/health | grep '"uploads":"open"' && curl -fsS https://beltbattles.fly.dev/ | cmp - deploy/public/index.html && echo 'live page = the staged 0.8.4 online page (cmp)' && curl -sS -o /dev/null -w '%{url_effective} -> %{http_code}\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.8.0&day=[1-10]&wins=0&lives=5&player=runbook-check&seen=&runs=0' > ../output-r084/days.txt && cat ../output-r084/days.txt && [ "$(grep -c -- '-> 200$' ../output-r084/days.txt)" = 10 ] && curl -fsS 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.8.0&day=3&wins=1&lives=5&player=runbook-check&seen=&runs=0' | grep -o '"snapshot":{"v":2,"rules":"bb-0.8.0","hero":"[a-z]*","day":3,"wins":[01],"lives":[0-9]' && echo 'day 3 match (new player, 1W 5 lives) -> 200, rules bb-0.8.0' && curl -sS -w ' -> %{http_code}\n' -X POST -H 'content-type: application/json' --data '{}' https://beltbattles.fly.dev/v1/ghosts | grep -- '-> 401$' && fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.8.0' && fly releases -a beltbattles --image > ../output-r084/releases-after.txt 2>&1 && head -4 ../output-r084/releases-after.txt
+```
+
+In order, it:
+1. sets `pipefail` and enters this clone;
+2. refuses unless HEAD is `<TIP>` and the tree is clean;
+3. stages the 0.8.4 online page from ../ref/pages/ (call 3), which also builds server/dist from the tip;
+4. saves the release list with image refs to ../output-r084/releases-before.txt: what was live (v5, or the release of
+   section 11's or section 12's call if one ran first);
+5. deploys (call 4), keeping the whole log in ../output-r084/run-deploy.txt and showing its last 30 lines;
+6. runs `fly status`;
+7. reads health, which must say uploads are open, or the call stops. It is the first request after the update, so it
+   also starts a machine the update left stopped; `--retry 3` covers that start;
+8. compares the live page with the staged one;
+9. asks for a match on each of days 1-10, as a new player with 0 wins and 5 lives: all ten must answer 200
+   (../output-r084/days.txt);
+10. asks for one match, day 3 with 1 win and 5 lives, as a new player: 200 with rules bb-0.8.0;
+11. sends an unsigned POST, which must get 401 (uploads open; a signature is required);
+12. lists the store on the machine (read only);
+13. saves the release list again, to ../output-r084/releases-after.txt, and shows its first lines.
+
+Every step after the guards is chained with `&&`, so the first failure stops the call.
+
+**Expect, step by step** (the call's own text with Fly stubbed on 127.0.0.1: output-r084/RUN-cmd-sim-084.log):
+- Steps 1-2: no output.
+- Step 3: `stage: ../ref/pages/BeltBattles-0.8.4-5f75f5532043-online.html -> deploy/public/index.html (591654 bytes, sha256 matches GAME_BUILD.txt); server/dist built`.
+- Step 4: no output. Its file lists the live release first: v5 (0.8.1, uploads open), or 0.8.2's or 0.8.3's if section
+  11's or section 12's call ran.
+- Step 5: as in 0.8.1 (LIVE-081): `release_command … completed successfully` (in `fly logs`, the seed reads
+  `0 written, 120 unchanged, 0 removed`); the one machine updated; DNS verified; the app's URL.
+- Step 6: exactly one `app` machine on the new version. It is `started` with its check `passing`, or `stopped` until
+  the next request.
+- Step 7: `{"ok":true,"rules":"bb-0.8.0","store":"tigris","ghosts":…,"uploads":"open","uptimeS":…}`.
+- Step 8: `live page = the staged 0.8.4 online page (cmp)`.
+- Step 9: ten lines `…day=N… -> 200`, days 1-10.
+- Step 10: `"snapshot":{"v":2,"rules":"bb-0.8.0","hero":"…","day":3,"wins":…,"lives":…`, then
+  `day 3 match (new player, 1W 5 lives) -> 200, rules bb-0.8.0`.
+- Step 11: `{"error":"unsigned upload: the x-bb-key and x-bb-sig headers are required"} -> 401`.
+- Step 12: the list: the header, ten day rows, then `all 120 N P` (padded columns), for N uploads by P players since
+  uploads opened.
+- Step 13: the newest release first, on a new image; the release that was live before it below.
+
+**Rollback** (its own L4, after telling the operator). Back to the release that was live before this call, the newest
+in ../output-r084/releases-before.txt: v5 (0.8.1's page), or 0.8.2's or 0.8.3's release if section 11's or section
+12's call ran first. The server and uploads are the same either way. Deploy that image from this clone. A deploy by
+image takes its env from this directory's fly.toml, and this fly.toml is uploads-080's byte for byte, so the old image
+runs as it did:
+
+```sh
+fly deploy --ha=false --remote-only --image <the IMAGE REF of the newest release in ../output-r084/releases-before.txt>
+```
+
+Then health must say `"uploads":"open"`, and the live page must be the old one: 0.8.1's (587,335 bytes), 0.8.2's
+(589,217 bytes) or 0.8.3's (590,294 bytes). Section 10's rollback (v4's image) takes the page back to 0.8.0's; closing
+uploads is still section 9's rollback.
+
+**If a step fails:** output-r084/CMD-084-EXPECT.md says, step by step, whether to roll back or to fix these docs.
 
 ## Troubleshooting
 
