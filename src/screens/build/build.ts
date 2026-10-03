@@ -31,6 +31,7 @@ import { buildLayout, buildScale, Caravan, type BuildLayout, type Sel } from "./
 import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
 import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shoptap (D1)
 import { beltXSide, placeBeltX } from "./beltx"; // shoptap (D3)
+import { detailsPlan, keptWhole, visibleLines, type PLine } from "./inspector"; // shoptap tooling: panelInfo
 import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
@@ -119,6 +120,18 @@ export class BuildScreen implements Screen, EditHost {
     if (!x) return null;
     const turrets = turretSlots(this.run.build).map((_, i) => this.turretRect(i));
     return placeBeltX(this.L, this.run.build, x, beltXSide(this.cssPerPx()), turrets);
+  }
+
+  /** shoptap tooling (window.bb.panel, read only): the details panel as drawDetails plans it now: its title, sub line,
+   *  button labels and the body lines it draws, and whether its kept text shows whole; null with no panel. */
+  panelInfo(): { title: string; sub: string; labels: string[]; lines: string[]; whole: boolean } | null {
+    const d = detailsPlan(this, this.sel, this.hover, this.L.info);
+    if (!d) return null;
+    const text = (l: PLine): string => (l.cells ? l.cells.map((c) => `${c.label} ${c.spans.map((s) => s.t).join("")}`).join("  ")
+      : `${l.label ? `${l.label} ` : ""}${l.spans.map((s) => s.t).join("")}`);
+    const lines = visibleLines(d.plan).flatMap((v) => (v.line === "rule" ? [] : [text(v.line)]));
+    const sub = d.plan.headerOnly ? d.plan.headerOnly.lines.join(" ") : d.plan.body.sub ?? d.plan.subs.join(" ");
+    return { title: d.t.title, sub, labels: d.t.labels, lines, whole: keptWhole(d.plan) };
   }
 
   get toastY(): number {

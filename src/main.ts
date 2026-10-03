@@ -196,6 +196,12 @@ game.start();
     game.run.over = game.run.over ?? "lost";
     game.go(new SummaryScreen(game));
   },
+  /** shoptap tooling (read only; scripts/touchcheck.mjs): the build screen's details panel as drawn (title, sub line,
+   *  button labels, body lines, kept text whole), or null (another screen, or no panel). */
+  panel() {
+    const s = game.screen;
+    return s instanceof BuildScreen ? s.panelInfo() : null;
+  },
   /** Logical -> CSS pixel factor and the UI regions of the last frame. */
   regions(): { id: string; x: number; y: number; w: number; h: number }[] {
     const k = game.view.scale / game.view.dpr;
