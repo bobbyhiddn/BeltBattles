@@ -31,7 +31,9 @@ const CARGO_H = 22;
 export const BARREL = 15;
 /** Portrait NEXT BATTLE panel height, and the band holding it under the hero/details strip. */
 export const FOE_H = 24;
-const PORT_BAND = 43 + 2 + FOE_H;
+/** The portrait band's full height (69): the hero card over the NEXT BATTLE panel, or the details panel. shoptap2: a
+ *  finger's panel is never shorter (panelRect). */
+export const PORT_BAND = 43 + 2 + FOE_H;
 
 export interface BuildLayout {
   W: number;
@@ -141,6 +143,52 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     info,
     foe: band >= FOE_H ? { x: info.x, y: info.y + band - FOE_H, w: info.w, h: FOE_H } : null,
   };
+}
+
+/**
+ * shoptap2 (REQ-BFG-034, REQ-BFG-035): the details panel's rect after a finger's tap on a portrait phone. The band between
+ * the shop and the bow gets what is left of the screen's height once the shop, the bow, the hull and the cargo tray have
+ * theirs (buildLayout: min(PORT_BAND, spare)): its full 69 px on a 390x844 screen, but a phone's browser never gives a page
+ * all of its screen. Safari's toolbars leave 390x664 on a 390x844 iPhone (a 40 px band) and 430x739 on a 430x932 one
+ * (24 px); iOS 26's Compact tab bar leaves an iPhone 16 Pro 402x718 (15 px), so a 390x844 iPhone about 390x700 (8 px: no
+ * panel at all). There a panel showed its header and no description, or nothing. So where the band is shorter than `h`
+ * (PORT_BAND, the band a 390x844 screen gives, unless panelArea asks for more) the panel is `h` tall, over its neighbour,
+ * away from what it describes. `grow` "down": a shop card's, over the bow (the card stays in sight, to drag); "up":
+ * anything else's, over the shop (the deck stays in sight, to tap the next part). It stays under the top bar and above
+ * the cargo tray (where that leaves less than `h`, as tall as it can be). The band itself where it is that tall, and the
+ * landscape column, as they are. Pure (tests).
+ */
+export function panelRect(L: BuildLayout, grow: "up" | "down", h: number = PORT_BAND): Rect {
+  const a = L.info;
+  if (!L.portrait || a.h >= h) return a;
+  const top = L.bar.y + L.bar.h + 1, bottom = L.cargo.y - 2;
+  const ph = Math.min(h, bottom - top);
+  const y = Math.max(top, Math.min(bottom - ph, grow === "down" ? a.y : a.y + a.h - ph));
+  return { x: a.x, y, w: a.w, h: ph };
+}
+
+/** shoptap2: how much a finger's panel grows at a time where its kept text doesn't fit (a 3x5 body line's pitch). */
+export const PANEL_STEP = 6;
+
+/**
+ * shoptap2: the rect the details panel is drawn in this frame (BuildScreen.panelArea): the layout's band or column, or,
+ * after a finger's press (`o.touch`) on a portrait phone, for a selection that has a panel, the band grown (panelRect: a
+ * shop card's down, anything else's up) to PORT_BAND, and then PANEL_STEP at a time while its kept text doesn't show
+ * whole. `fit(r)` plans the panel in `r`: null, no panel (the band, idle as before); true, its kept text shows whole.
+ * Only on the narrowest build screens (160-164 px: a 375-wide iPhone at x7) does a panel need more than PORT_BAND; a
+ * band already 69 px tall stays as it is wherever the panel fits it (every panel on 390x844). Never for a mouse (its
+ * panels are 0.8.0's), nor while a mouse hovers a card (`o.hover`), nor during a drag or a belt draw (`o.busy`: the band,
+ * so the deck stays in sight to drop on), nor in the landscape column. Pure (tests).
+ */
+export function panelArea(L: BuildLayout, sel: Sel, o: { touch: boolean; hover: boolean; busy: boolean }, fit: (r: Rect) => boolean | null): Rect {
+  if (!L.portrait || !o.touch || o.hover || o.busy || sel.kind === "none") return L.info;
+  const grow = sel.kind === "offer" ? "down" : "up";
+  const most = L.cargo.y - 2 - (L.bar.y + L.bar.h + 1);
+  for (let h = Math.max(PORT_BAND, L.info.h); ; h += PANEL_STEP) {
+    const r = panelRect(L, grow, h), f = fit(r);
+    if (f === null) return L.info;
+    if (f || r.h >= most) return r;
+  }
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));

@@ -29,16 +29,17 @@ const hits = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w &
  * step out from the tile's centre (above, right, left, below, then the diagonals), then a second ring further out. A
  * candidate must lie on screen (under the top bar) and clear of every panel and control of the layout; of those, the one
  * with the lowest cost wins (a turret 100, another part 10, another belt's tile 1; this belt's own tiles 0), ties in that
- * order. Null only when none fits (never on the phone views). `turrets`: the TURRET SLOTS' hit boxes. Pure (tests).
+ * order. Null only when none fits (never on the phone views). `turrets`: the TURRET SLOTS' hit boxes. shoptap2:
+ * `keepOut`, more rects to keep clear of (the details panel where it is drawn bigger than the band). Pure (tests).
  */
-export function placeBeltX(L: BuildLayout, b: Build, x: BeltX, side: number, turrets: readonly Rect[]): Rect | null {
+export function placeBeltX(L: BuildLayout, b: Build, x: BeltX, side: number, turrets: readonly Rect[], keepOut: readonly Rect[] = []): Rect | null {
   const f = L.frame;
   const tx = Math.round(footX(f, kx(x.cell), ky(x.cell))), ty = Math.round(footY(f, kx(x.cell), ky(x.cell)));
   const tile: Rect = { x: tx, y: ty, w: 12, h: 12 };
   const cx = tx + 6, cy = ty + 6;
   const d1 = 6 + Math.ceil(side / 2) + 1, d2 = d1 + Math.ceil(side / 2);
   const dirs: [number, number][] = [[0, -1], [1, 0], [-1, 0], [0, 1], [1, -1], [-1, -1], [1, 1], [-1, 1]];
-  const keep: Rect[] = [L.bar, L.info, L.cargo, L.fight, L.reroll, ...L.cards, ...(L.foe ? [L.foe] : [])];
+  const keep: Rect[] = [L.bar, L.info, L.cargo, L.fight, L.reroll, ...L.cards, ...(L.foe ? [L.foe] : []), ...keepOut];
   const items = b.items.map((p) => {
     const s = defOf(p).size;
     return { x: Math.round(footX(f, p.x, p.y, s)), y: Math.round(footY(f, p.x, p.y, s)), w: s * 12, h: s * 12 };

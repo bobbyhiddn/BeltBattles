@@ -27,11 +27,11 @@ import { drawMachinery } from "../../render/machinery";
 import { ArenaBg } from "../../render/arenaBg";
 import { inside, type Rect } from "../../ui/ui";
 import { Editor, direct, type BeltX, type EditHost } from "./edit";
-import { buildLayout, buildScale, Caravan, type BuildLayout, type Sel } from "./layout";
+import { buildLayout, buildScale, Caravan, panelArea as panelAreaOf, type BuildLayout, type Sel } from "./layout";
 import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
 import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shoptap (D1)
 import { beltXSide, placeBeltX } from "./beltx"; // shoptap (D3)
-import { detailsPlan, keptWhole, visibleLines, type PLine } from "./inspector"; // shoptap tooling: panelInfo
+import { detailsPlan, keptWhole, visibleLines, type PLine } from "./inspector"; // shoptap tooling: panelInfo; shoptap2: panelArea
 import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
@@ -115,17 +115,34 @@ export class BuildScreen implements Screen, EditHost {
     return cssScale(this.game.view);
   }
 
-  /** shoptap (D3): where the belt X `x` goes this frame (beltx.ts placeBeltX), or null. Tooling reads it too. */
+  /** shoptap (D3): where the belt X `x` goes this frame (beltx.ts placeBeltX), or null. Tooling reads it too.
+   *  shoptap2: clear of the details panel as drawn (panelArea), not only of the band. */
   beltXRect(x: BeltX | null = this.ed.beltX()): Rect | null {
     if (!x) return null;
     const turrets = turretSlots(this.run.build).map((_, i) => this.turretRect(i));
-    return placeBeltX(this.L, this.run.build, x, beltXSide(this.cssPerPx()), turrets);
+    return placeBeltX(this.L, this.run.build, x, beltXSide(this.cssPerPx()), turrets, [this.panelArea()]);
+  }
+
+  /**
+   * shoptap2 (REQ-BFG-034, REQ-BFG-035): where the details panel is drawn this frame. The layout's band (portrait) or
+   * column (landscape), except after a finger's press on a portrait phone whose band is too short for the panel's kept
+   * text (a phone's browser leaves the page less than its screen: Safari's 390x664 on a 390x844 iPhone gives a 40 px band,
+   * 390x700 gives 8): then the panel gets PORT_BAND, more where its kept text needs it, grown over the bow for a shop card
+   * and over the shop for anything else (layout.ts panelArea, panelRect). Not for a mouse (its panels are 0.8.0's), not
+   * while a mouse hovers a card, and not during a drag or a belt draw (the band, so the deck stays in sight to drop on).
+   */
+  panelArea(): Rect {
+    return panelAreaOf(this.L, this.sel, { touch: this.touch, hover: !!this.hover, busy: !!(this.ed.carry || this.ed.draw) }, (r) => {
+      const d = detailsPlan(this, this.sel, null, r);
+      return d ? keptWhole(d.plan) : null;
+    });
   }
 
   /** shoptap tooling (window.bb.panel, read only): the details panel as drawDetails plans it now: its title, sub line,
-   *  button labels and the body lines it draws, and whether its kept text shows whole; null with no panel. */
+   *  button labels and the body lines it draws, and whether its kept text shows whole; null with no panel. shoptap2: in
+   *  the rect it is drawn in (panelArea). */
   panelInfo(): { title: string; sub: string; labels: string[]; lines: string[]; whole: boolean } | null {
-    const d = detailsPlan(this, this.sel, this.hover, this.L.info);
+    const d = detailsPlan(this, this.sel, this.hover, this.panelArea());
     if (!d) return null;
     const text = (l: PLine): string => (l.cells ? l.cells.map((c) => `${c.label} ${c.spans.map((s) => s.t).join("")}`).join("  ")
       : `${l.label ? `${l.label} ` : ""}${l.spans.map((s) => s.t).join("")}`);

@@ -1197,9 +1197,11 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
 /** Lay out a panel in `area` (the landscape column when area.h >= 70, else the portrait band). 0.8.0 I1 M4: `families`,
  *  the shown module's families (selFamilies), go in its header; the body plans as without them. shoptap (D5): `o.tap`,
  *  a touch press's target height in logical px: the column's buttons are that tall (columnButtonH; the portrait band's
- *  keep their size, and drawDetails grows their tap targets instead, so the band keeps its text). */
-export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [], o: { tap?: number } = {}): PanelPlan {
-  const column = area.h >= 70; // landscape column: size to content, the buttons under the text
+ *  keep their size, and drawDetails grows their tap targets instead, so the band keeps its text). shoptap2: `o.band`,
+ *  a portrait screen's panel: the band's layout however tall it is (a finger's panel grown past the band, layout.ts
+ *  panelArea, keeps its buttons in its header row, not under its text). */
+export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [], o: { tap?: number; band?: boolean } = {}): PanelPlan {
+  const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
   const btnRows = columnRows(labels.length, o.tap); // shoptap (D5): on touch two buttons a row (columnButtons)
@@ -1416,15 +1418,16 @@ export function detailsPlan(ctx: Ctx, sel: Sel, hover: { wagon: number; slot: nu
   const sp = spec(ctx, show, !!hover);
   if (!sp) return null;
   const t: PanelText = { ...sp.text, labels: sp.actions.map((a) => a.label) };
-  // 0.8.0 I1 M4: the families in its header; shoptap (D5): on touch, a finger's button height
-  const fams = selFamilies(ctx.run, show), tap = touchTap(ctx);
-  const plan = planPanel(t, area, fams, { tap });
+  // 0.8.0 I1 M4: the families in its header; shoptap (D5): on touch, a finger's button height; shoptap2: a portrait
+  // screen's panel keeps the band's layout however tall a finger's panel grows (layout.ts panelArea)
+  const fams = selFamilies(ctx.run, show), tap = touchTap(ctx), band = !!ctx.L?.portrait;
+  const plan = planPanel(t, area, fams, { tap, band });
   // shoptap (D2): on the phone band a touch panel's optional button (TO CARGO) gives way where keeping it would cut the
   // panel's kept text (the extra button pushes the row under the sub line); its kept text always shows whole
   if (tap && !plan.column && !keptWhole(plan) && sp.actions.some((a) => a.optional)) {
     const lean: Spec = { ...sp, actions: sp.actions.filter((a) => !a.optional) };
     const lt: PanelText = { ...sp.text, labels: lean.actions.map((a) => a.label) };
-    const lp = planPanel(lt, area, fams, { tap });
+    const lp = planPanel(lt, area, fams, { tap, band });
     if (keptWhole(lp)) return { show, sp: lean, t: lt, plan: lp };
   }
   return { show, sp, t, plan };
