@@ -132,7 +132,13 @@ export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabo
 export interface FactorySpec {
   ammo: AmmoKind;
   interval: number; // seconds per stamp
-  outputs: number; // routes it can feed
+  // bb-0.8.3 (REQ-BFG-042 D1-D3): belt slots are no spec number. Every factory's grow with its stars (stars.ts outputsAt:
+  // BELT_SLOTS, 2 at ★1, 3 at ★2, 4 at ★3, plus `lead`); 0.8.0's `outputs` (the routes it could feed) is gone.
+  lead?: number; // bb-0.8.3 (D2, D3): belt slots a factory has over BELT_SLOTS at every star (the LOOM, GANTRY PRESS: 1)
+  // bb-0.8.3 (D4): a pour: one cast puts a slug onto at most this many of its belts with room, all on one tick, taking
+  // them in turn when it feeds more (races/foundry.ts pourAll, rule R). Absent: one slug a cycle, onto its belts in turn
+  // (Battle.stamp). TWIN MOULD 2 (★3 THIRD SPRUE 3), the CRUCIBLE 2, a ★3 MIMIC FORGE 2 where it makes FOUNDRY's blanks
+  pour?: number;
   base?: number; // 0.6.1p: STAMP PRESS dies: base damage of its slugs (Payload.base), instead of AMMO[ammo].base
   // 0.6.1c: the wave-1 factories (catalogue.json simHook). Absent on KILN, LOOM, STAMP PRESS and every race factory,
   // so those stamp exactly as before.
@@ -147,7 +153,7 @@ export interface FactorySpec {
     { kind: "drag"; mul: number; seconds: number } | { kind: "limpet"; delay: number; blast: number; stall?: number };
   intervalMul?: number; // MIMIC: multiplied by the hero signature factory's interval
   // 0.8.0 P1, wave 3 (absent on every older factory):
-  twin?: boolean; // TWIN MOULD: each cast pours one slug onto every belt with room on the same tick (Battle.pourAll)
+  twin?: boolean; // TWIN MOULD: each cast pours one slug onto up to `pour` belts with room on the same tick (pourAll)
   plate?: { every: number; amount: number }; // ARMOR PRESS: `amount` plating onto your hull every `every` s (FactoryState.plateTimer)
 }
 
@@ -308,22 +314,30 @@ export interface ItemDef {
 }
 
 export const ITEMS: Record<string, ItemDef> = {
-  // --- signature factories (not sold) ---
+  // --- signature factories (no merchant sells them) ---
+  // bb-0.8.3 (REQ-BFG-042 D2): a signature factory levels up by merging like any factory, with 2 / 3 / 4 belt slots (the
+  // LOOM 3 / 4 / 5: `lead` 1). Its ★2 and ★3 are on the house's curve: the median per-star change of the bought
+  // factories' levels (each level that changes the number), x 11/14 interval and x 5/3 base at ★2, then x 11/13 interval
+  // and x 17/12 base at ★3, from the unrounded ★2; interval to 0.01 s, base to 0.5 (tests/belts.slots.test.ts derives
+  // them). No perk name: no level adds anything new. Its own rules keep their kind (cinder ride scaling, the KILN BREECH,
+  // the LOOM's thread, the CRUCIBLE's pour of 2 and the fuse, the bulwark plating, the pendulum's curve, the leech).
   kiln: {
     id: "kiln", name: "KILN", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["STAMPS CINDER SLUGS.", "SLUGS HEAT UP WHILE", "THEY RIDE THE BELT."],
-    factory: { ammo: "cinder", interval: 1.25, outputs: 1 },
+    factory: { ammo: "cinder", interval: 1.25 }, // base 4: the cinder slug's
+    levels: { 2: { factory: { interval: 0.98, base: 6.5 } }, 3: { factory: { interval: 0.83, base: 9.5 } } },
   },
   loom: {
     id: "loom", name: "LOOM", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["WEAVES THREAD SLUGS", "INTO UP TO 3 ROUTES.", "HITS STACK FRAY."],
-    factory: { ammo: "thread", interval: 0.72, outputs: 3 },
+    factory: { ammo: "thread", interval: 0.72, lead: 1 }, // base 3: the thread slug's; WEAVER's belt specialist: one more slot
+    levels: { 2: { factory: { interval: 0.57, base: 5 } }, 3: { factory: { interval: 0.48, base: 7 } } },
   },
   // --- generic factory ---
   press: {
     id: "press", name: "STAMP PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
     desc: ["STAMPS PLAIN SLUGS", "EVERY 1.4S. NEEDS A", "FREE TURRET INTAKE."], tags: ["SWARM"],
-    factory: { ammo: "plain", interval: 1.4, outputs: 1 },
+    factory: { ammo: "plain", interval: 1.4 },
     levels: { // 0.6.1p: the dies (base damage 5 / 7.5, Payload.base) are applied
       2: { factory: { interval: 1.1, base: 5 }, perk: "HARDENED DIES" },
       3: { factory: { interval: 1, base: 7.5 }, perk: "MASTER DIES" },
@@ -333,7 +347,7 @@ export const ITEMS: Record<string, ItemDef> = {
   doublestamp: {
     id: "doublestamp", name: "DOUBLE STAMP", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "ironmonger",
     desc: ["STAMPS TWO PLAIN", "SLUGS PER 2.2S CYCLE.", "QUEUE PRESSURE."], tags: ["SWARM"],
-    factory: { ammo: "plain", interval: 2.2, outputs: 1, batch: 2 }, // base 3: the plain slug's
+    factory: { ammo: "plain", interval: 2.2, batch: 2 }, // base 3: the plain slug's
     levels: {
       2: { factory: { interval: 1.6, base: 5 } },
       3: { factory: { batch: 3 }, perk: "TRIPLE DIES" },
@@ -342,13 +356,13 @@ export const ITEMS: Record<string, ItemDef> = {
   shottower: {
     id: "shottower", name: "SHOT TOWER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "gunsmith",
     desc: ["DROPS 3 BUCKSHOT", "(1 DMG) EVERY 1.5S.", "RIGS HIT EACH ONE."], tags: ["SWARM"], // beltside-062c: RIG (DESIGN §1)
-    factory: { ammo: "shot", interval: 1.5, outputs: 1, batch: 3 }, // base 1: AMMO.shot
+    factory: { ammo: "shot", interval: 1.5, batch: 3 }, // base 1: AMMO.shot
     levels: { 2: { factory: { interval: 1.35, base: 2 } }, 3: { factory: { interval: 1.3, base: 3 } } },
   },
   hotswap: {
     id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
     desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["FORGE", "HARASS"],
-    factory: { ammo: "plain", interval: 1.5, outputs: 1, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
+    factory: { ammo: "plain", interval: 1.5, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
     levels: { // the spark tracks GALVANIC COIL: 1.8 s and 2.8 s with SPARK JUMP (0.6.1p's shockTime and jump)
       2: { factory: { interval: 1.3, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 1.8, jump: 1 }] } },
       3: { factory: { interval: 1.1, cycle: [{ tint: "ember", burn: 7 }, { tint: "spark", shock: true, shockTime: 2.8, jump: 1 }] } },
@@ -357,13 +371,13 @@ export const ITEMS: Record<string, ItemDef> = {
   slagpot: {
     id: "slagpot", name: "SLAG POT", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "ironmonger",
     desc: ["HEAVY SLAG SLUGS", "(7 DMG) THAT IGNORE", "BELT SPEED RIGS."], tags: ["FORGE", "BURST"], // beltside-062c: RIG (DESIGN §1)
-    factory: { ammo: "slag", interval: 2.8, outputs: 1 }, // base 7: AMMO.slag (fixed 0.75x belt speed)
+    factory: { ammo: "slag", interval: 2.8 }, // base 7: AMMO.slag (fixed 0.75x belt speed)
     levels: { 2: { factory: { interval: 2.2, base: 12 } }, 3: { factory: { interval: 1.75, base: 15 } } },
   },
   assembly: {
     id: "assembly", name: "ASSEMBLY LINE", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "ironmonger",
     desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR RIGS", "COMMISSION 2X FAST."], tags: ["TEMPO", "SWARM"], // beltside-062c: RIG (DESIGN §1)
-    factory: { ammo: "plain", interval: 1.8, outputs: 1, commission: 0.5 },
+    factory: { ammo: "plain", interval: 1.8, commission: 0.5 },
     levels: {
       2: { factory: { interval: 1.8, commission: 0.25, base: 4.5 } },
       3: { factory: { interval: 1.8, commission: 0, hotStart: 4, base: 6 }, perk: "HOT START" },
@@ -372,48 +386,53 @@ export const ITEMS: Record<string, ItemDef> = {
   gantry: {
     id: "gantry", name: "GANTRY PRESS", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
     desc: ["ONE PRESS, TWO", "OUTPUTS: FEEDS TWO", "INTAKES BY TURNS."], tags: ["SWARM", "TWIN"],
-    factory: { ammo: "plain", interval: 1.2, outputs: 2 }, // base 3: the plain slug's
+    // base 3: the plain slug's. bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS keeps a lead of one belt over every bought
+    // factory at every star (3 / 4 / 5); ★2 is FOURTH ARM (4 belts, interval 0.7 as THIRD ARM's), ★3 HEAVY GANTRY (5)
+    factory: { ammo: "plain", interval: 1.2, lead: 1 },
     levels: {
-      2: { factory: { interval: 0.7, outputs: 3 }, perk: "THIRD ARM" },
+      2: { factory: { interval: 0.7 }, perk: "FOURTH ARM" },
       3: { factory: { base: 6 }, perk: "HEAVY GANTRY" },
     },
   },
   scrapper: {
     id: "scrapper", name: "SCRAPPER", kind: "factory", rarity: "rare", price: 6, size: 2, merchant: "scrapper",
     desc: ["STAMPS SCRAP SLUGS", "WHEN HARASSMENT HITS", "FOE, OR EVERY 3S."], tags: ["HARASS", "SWARM"],
-    factory: { ammo: "plain", interval: 3, outputs: 1, trigger: "harass", scrapFlat: 3 },
+    factory: { ammo: "plain", interval: 3, trigger: "harass", scrapFlat: 3 },
     levels: { 2: { factory: { interval: 2.5, scrapFlat: 6.5 } }, 3: { factory: { interval: 2, scrapFlat: 10.5, bigHaul: true }, perk: "BIG HAUL" } },
   },
   sabot: {
     id: "sabot", name: "SABOT FOUNDRY", kind: "factory", rarity: "epic", price: 9, size: 2, merchant: "quartermaster",
     desc: ["TELEGRAPHED ROUNDS", "WRECK RIGS OR STALL", "OTHER MACHINERY."], tags: ["HARASS", "BURST"],
-    factory: { ammo: "sabot", interval: 6, outputs: 1, round: { kind: "sabot" } },
+    factory: { ammo: "sabot", interval: 6, round: { kind: "sabot" } },
     levels: { 2: { factory: { interval: 2.8 } }, 3: { factory: { interval: 1.9, round: { kind: "sabot", shrapnel: true } }, perk: "SHRAPNEL" } },
   },
   frostbite: {
     id: "frostbite", name: "FROSTBITE FOUNDRY", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "arcane",
     desc: ["FROST ROUNDS FREEZE", "MACHINES AND PAUSE", "THEIR TIMERS."], tags: ["HARASS"],
-    factory: { ammo: "frost", interval: 2.8, outputs: 1, round: { kind: "frost", seconds: 2.5, spread: 0 } },
+    factory: { ammo: "frost", interval: 2.8, round: { kind: "frost", seconds: 2.5, spread: 0 } },
     levels: { 2: { factory: { round: { kind: "frost", seconds: 2.75, spread: 1 } }, perk: "HOARFROST" },
       3: { factory: { round: { kind: "frost", seconds: 3, spread: 2 } }, perk: "HOARFROST" } },
   },
   dragchain: {
     id: "dragchain", name: "DRAG CHAIN FOUNDRY", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "scrapper",
     desc: ["CHAIN ROUNDS SLOW", "A BELT SEGMENT AND", "SNAG ITS PAYLOADS."], tags: ["HARASS", "TEMPO"],
-    factory: { ammo: "drag", interval: 1.8, outputs: 1, round: { kind: "drag", mul: 0.6, seconds: 3 } },
+    factory: { ammo: "drag", interval: 1.8, round: { kind: "drag", mul: 0.6, seconds: 3 } },
     levels: { 2: { factory: { round: { kind: "drag", mul: 0.4, seconds: 4.4 } } },
       3: { factory: { round: { kind: "drag", mul: 0.3, seconds: 6 } } } },
   },
   mimic: {
     id: "mimic", name: "MIMIC FORGE", kind: "factory", rarity: "legendary", price: 11, size: 2, merchant: "arcane",
     desc: ["STAMPS YOUR HERO'S", "SIGNATURE AMMO INTO", "A SECOND ROUTE."], tags: ["SWARM"],
-    factory: { ammo: "plain", interval: 1, intervalMul: 1.4, outputs: 1 },
-    levels: { 2: { factory: { intervalMul: 1 } }, 3: { factory: { intervalMul: 0.8, outputs: 2 }, perk: "TWIN SIGNET" } },
+    // bb-0.8.3 (REQ-BFG-042 D3): belt slots by stars as every bought factory's; ★3 TWIN SIGNET keeps intervalMul 0.8, and
+    // where it makes FOUNDRY's blanks it pours 2 (Battle.factoryDef keeps `pour` only for a blank-ammo hero); below ★3, and
+    // on every other hero, it feeds its belts one slug at a time, in turn
+    factory: { ammo: "plain", interval: 1, intervalMul: 1.4 },
+    levels: { 2: { factory: { intervalMul: 1 } }, 3: { factory: { intervalMul: 0.8, pour: 2 }, perk: "TWIN SIGNET" } },
   },
   limpet: {
     id: "limpet", name: "LIMPET WORKS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "scrapper",
     desc: ["STICKY CHARGES BLOW", "3 SECONDS LATER FOR", "HULL DAMAGE."], tags: ["HARASS", "BURST"], // 0.6.2t 0b.1: no stall at 1 star
-    factory: { ammo: "limpet", interval: 2.4, outputs: 1, round: { kind: "limpet", delay: 3, blast: 8 } },
+    factory: { ammo: "limpet", interval: 2.4, round: { kind: "limpet", delay: 3, blast: 8 } },
     levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 18, stall: 1 } } },
       3: { factory: { round: { kind: "limpet", delay: 3, blast: 28, stall: 1.6 } } } },
   },
@@ -917,13 +936,15 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   twinmould: {
     id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
     desc: ["CASTS A PLAIN SLUG", "ONTO EACH OF ITS", "BELTS AT ONCE."], tags: ["TWIN", "SWARM"],
-    factory: { ammo: "plain", interval: 1.8, outputs: 2, twin: true }, // base 3: the plain slug's
-    levels: { 2: { factory: { interval: 1.6, base: 5 } }, 3: { factory: { interval: 1.4, base: 6, outputs: 3 }, perk: "THIRD SPRUE" } },
+    // base 3: the plain slug's. bb-0.8.3 (REQ-BFG-042 D3): belt slots by stars as every bought factory's; its lead is the
+    // pour, 2 slugs a cast at ★1-2 and 3 at ★3 (THIRD SPRUE: the third slug of each pour), whatever its belts
+    factory: { ammo: "plain", interval: 1.8, twin: true, pour: 2 },
+    levels: { 2: { factory: { interval: 1.6, base: 5 } }, 3: { factory: { interval: 1.4, base: 6, pour: 3 }, perk: "THIRD SPRUE" } },
   },
   armorpress: {
     id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
     desc: ["PRESSES PLATING ONTO", "YOUR HULL AND STAMPS", "PLAIN SLUGS."], tags: ["PLATE", "SWARM"],
-    factory: { ammo: "plain", interval: 1.6, outputs: 1, plate: { every: 3, amount: 3 } }, // base 3: the plain slug's
+    factory: { ammo: "plain", interval: 1.6, plate: { every: 3, amount: 3 } }, // base 3: the plain slug's
     levels: { 2: { factory: { interval: 1.4, plate: { every: 3, amount: 6.6 } } }, 3: { factory: { interval: 1.2, plate: { every: 3, amount: 10.5 } } } },
   },
   anvil: {

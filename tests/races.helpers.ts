@@ -6,7 +6,7 @@ import {
 } from "../src/sim/content";
 import { canPlaceItem, footprint, key as K, routeInfo, type Build } from "../src/sim/deck";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
-import { starsOf, valueOf } from "../src/sim/stars";
+import { outputsAt, starsOf, valueOf } from "../src/sim/stars";
 
 /** Most gold a player can have received before the dusk fight of `day` (mirrors ref/async/validate.ts). */
 export function maxGoldByDay(day: number): number {
@@ -76,7 +76,7 @@ export function expectLegal(b: Build, day: number): void {
   });
   for (const [uid, n] of perFactory) {
     const f = b.items.find((p) => p.uid === uid)!;
-    expect(n, `${tag}: outputs of ${f.def}`).toBeLessThanOrEqual(ITEMS[f.def].factory!.outputs);
+    expect(n, `${tag}: outputs of ${f.def}`).toBeLessThanOrEqual(outputsAt(f.def, starsOf(f))); // bb-0.8.3: slots by stars
   }
   expect(belt, `${tag}: belt`).toBeLessThanOrEqual(b.beltCap);
   const mounted = new Set<number>();

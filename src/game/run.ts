@@ -15,7 +15,7 @@ import type { RaceReadout } from "./raceReadout"; // 0.8.0 H1 M3
 import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
-import { fusible, starField, starsOf } from "../sim/stars";
+import { fusible, isSignatureFactory, starField, starsOf } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
@@ -434,7 +434,8 @@ export function storePlaced(run: Run, uid: number): boolean {
   const p = run.build.items.find((q) => q.uid === uid);
   if (!p) return false;
   const d = ITEMS[p.def];
-  if (Object.values(HEROES).some((h) => h.factory === d.id)) return false; // every hero's signature factory stays aboard
+  // every hero's signature factory stays aboard (bb-0.8.3, REQ-BFG-042 D2: every copy, at every star)
+  if (isSignatureFactory(d.id)) return false;
   removeItem(run.build, uid);
   run.inventory.push({ uid, def: p.def, ...starField(starsOf(p)) }); // 0.6.1a: moving never fuses; stars ride along
   return true;
@@ -488,6 +489,7 @@ export function fitCore(run: Run, uid: number, turret: number): boolean {
 export function sellInventory(run: Run, uid: number): number {
   const held = run.inventory.find((i) => i.uid === uid);
   if (held && isTurretDef(held.def) && !canSellTurret(held)) return 0;
+  if (held && isSignatureFactory(held.def)) return 0; // bb-0.8.3 (REQ-BFG-042 D2): no copy of a signature factory sells
   const it = takeFromInventory(run, uid);
   if (!it) return 0;
   const v = isTurretDef(it.def) ? turretSellValue(it) : sellValue(it.def, starsOf(it));

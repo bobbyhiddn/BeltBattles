@@ -325,11 +325,12 @@ describe("P9: GANTRY PRESS with rigs on its belts", () => {
     const v = validateBuild(back.build, 10);
     expect(v.errors).toEqual([]);
     expect(v.ok).toBe(true);
-    // at 1 star the third belt is illegal, rigs or not (0.6.1c: outputs 2 / 3 / 3)
+    // at 1 star the third belt is legal too, rigs or not (bb-0.8.3, REQ-BFG-042 D3: GANTRY PRESS 3 / 4 / 5; 0.6.1c's
+    // outputs were 2 / 3 / 3, and the third belt was illegal at 1 star)
     const one = J(b);
     delete one.items.find((p) => p.uid === 7)!.stars;
-    expect(routeProblems(one).map((p) => p.route)).toEqual([2]);
-    expect(validateBuild(one, 10).ok).toBe(false);
+    expect(routeProblems(one).map((p) => p.route)).toEqual([]);
+    expect(validateBuild(one, 10).ok).toBe(true);
   });
 });
 

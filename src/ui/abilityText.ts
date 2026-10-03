@@ -67,7 +67,7 @@ import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUN
 import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence; P1: TWIN TRIGGER's floor
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: BASTION's WARDWORKS; P1: the plating cap
 import { scaleCore } from "../sim/cores";
-import { effectAt, FUSE_MAX, fusible, pendingAt, perkAt } from "../sim/stars";
+import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
 import * as stars from "../sim/stars"; // 0.8.0 B1 M2: OVERDRIVE's text reads the star's named perk
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 
@@ -106,8 +106,9 @@ export function heroTrick(hero: HeroId): string {
     case "furnace":
       return `ITS KILN'S CINDER SLUGS GAIN ${damage(AMMO.cinder.rideScale)} FOR EACH SECOND THEY RIDE, AND A GUN FED BY A BELT OF ${SIM.furnaceLongTiles} TILES OR MORE FIRES ${faster(1 / FURNACE_LONG_BELT)}.`;
     case "weaver":
-      return `ITS LOOM FEEDS UP TO ${plural(fs.outputs, "BELT")} IN TURN, AND EACH THREAD SLUG THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`;
+      return `ITS LOOM FEEDS UP TO ${plural(outputsAt(h.factory, 1), "BELT")} IN TURN, AND EACH THREAD SLUG THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`;
     case "foundry":
+      // bb-0.8.3 (REQ-BFG-042 D2, D4): the starting CRUCIBLE (★1) has 2 belt slots, its pour: both its belts at once
       return `ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN WITHIN ${seconds(SYNC_WINDOW)} FUSE INTO ONE SLUG WITH ${times2(FUSE_MULT)} THEIR DAMAGE.`;
     case "bastion":
       return `ITS BULWARK SLUGS PLATE YOUR HULL AS THEY LOAD, ${n1(PLATE_PER_SLUG)} EACH UP TO ${PLATE_CAP} PLATING, AND PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES.`;
@@ -606,11 +607,11 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "RIGS ONLINE IN HALF THE TIME",
   },
   gantry: {
-    text: (e) => [
-      `FEEDS ${f(e).outputs} BELTS IN TURN, STAMPING ${f(e).base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(f(e).interval)}.`,
+    text: (e, x) => [
+      `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN, STAMPING ${f(e).base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(f(e).interval)}.`,
     ],
-    gist: (e) => (f(e).base !== undefined ? `${damage(slugBase(e))} SLUGS` : `FEEDS ${f(e).outputs} BELTS`),
-    card: (e) => `FEEDS ${f(e).outputs} BELTS IN TURN`,
+    gist: (e, x) => (f(e).base !== undefined ? `${damage(slugBase(e))} SLUGS` : `FEEDS ${outputsAt(e.id, x.stars)} BELTS`),
+    card: (e, x) => `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN`,
   },
   scrapper: {
     // Battle.produce: the timer stamps every interval whatever happens, and each harassment the side lands queues one
@@ -686,20 +687,27 @@ const ENTRIES: Record<string, Entry> = {
   // stars). Each says what its ammo does too, from the race rules' own numbers (races/foundry.ts, races/bastion.ts).
   crucible: {
     // races/foundry.ts crucibleProduce (the twin pour), tryFuse/inSync (another intake, SYNC_WINDOW), fuse (FUSE_MULT)
-    text: (e) => [
-      `POURS AN ALLOY BLANK ONTO EACH OF ITS ${plural(f(e).outputs, "BELT")} ${every(f(e).interval)}, ALL AT THE SAME MOMENT.`,
-      `AN ALLOY BLANK DEALS ${damage(AMMO.blank.base)}.`,
-      `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)} OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH ${times2(FUSE_MULT)} THEIR DAMAGE.`,
-      "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
-    ],
-    gist: (e) => `POURS ${f(e).outputs} ALLOY BLANKS ${every(f(e).interval)}`,
+    // bb-0.8.3 (REQ-BFG-042 D2, D4): its belt slots at its stars (2 / 3 / 4) and its pour of 2: at ★1 its slots are its pour
+    // (0.8.0's sentence); from ★2 each pour takes 2 of its belts in turn (rule R). The blank's base is its level's
+    text: (e, x) => {
+      const n = outputsAt(e.id, x.stars), pour = f(e).pour ?? 2;
+      return [
+        n <= pour
+          ? `POURS AN ALLOY BLANK ONTO EACH OF ITS ${plural(n, "BELT")} ${every(f(e).interval)}, ALL AT THE SAME MOMENT.`
+          : `POURS AN ALLOY BLANK ONTO ${pour} OF ITS ${n} BELTS ${every(f(e).interval)}, ALL AT THE SAME MOMENT, TAKING ITS BELTS IN TURN.`,
+        `AN ALLOY BLANK DEALS ${damage(slugBase(e))}.`,
+        `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)} OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH ${times2(FUSE_MULT)} THEIR DAMAGE.`,
+        "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
+      ];
+    },
+    gist: (e) => `POURS ${f(e).pour} ALLOY BLANKS ${every(f(e).interval)}`,
   },
   wardworks: {
     // races/bastion.ts plateOnLoad (PLATE_PER_SLUG x the split multiplier, at load, PLATE_CAP) and absorb (impacts and
     // Burn); battle.ts: the dark wind never meets the plating
     text: (e) => [
       `STAMPS A BULWARK SLUG ${every(f(e).interval)}.`,
-      `A BULWARK SLUG DEALS ${damage(AMMO.bulwark.base)}.`,
+      `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3 (REQ-BFG-042 D2): its level's base from ★2
       `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${n1(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
@@ -707,22 +715,25 @@ const ENTRIES: Record<string, Entry> = {
     gist: (e) => `STAMPS A BULWARK SLUG ${every(f(e).interval)}`,
   },
   mimic: {
-    // Battle.factoryDef: the hero's ammo at the hero factory's interval x intervalMul; ★3 TWIN SIGNET: 2 outputs
+    // Battle.factoryDef: the hero's ammo at the hero factory's interval x intervalMul; bb-0.8.3 (REQ-BFG-042 D3): its belt
+    // slots grow with its stars as every bought factory's; ★3 TWIN SIGNET pours 2 where it makes FOUNDRY's blanks (pourAt)
     text: (e, x) => {
       const fs = f(e), mul = fs.intervalMul ?? 1;
       const hero = x.hero ? HEROES[x.hero] : undefined, sig = hero ? ITEMS[hero.factory]?.factory : undefined;
       const ammo = hero ? AMMO[hero.ammo].name.replace(/:.*$/, "") : "";
+      const pour = hero ? pourAt(e.id, x.stars, hero.ammo) : 0;
       return [
-        `STAMPS YOUR HERO'S SIGNATURE AMMO ${mimicRate(e)} ITS OWN FACTORY${fs.outputs > 1 ? ` AND FEEDS ${fs.outputs} BELTS` : ""}.`,
-        ...(hero && sig ? [`FOR ${hero.name}, THAT IS ${an(ammo)} ${every(sig.interval * mul)}.`] : []),
+        `STAMPS YOUR HERO'S SIGNATURE AMMO ${mimicRate(e)} ITS OWN FACTORY.`,
+        ...(hero && sig ? [`FOR ${hero.name}, THAT IS ${an(ammo)} ${every(sig.interval * mul)}${pour ? `, POURED ONTO ${pour} BELTS AT ONCE` : ""}.`] : []),
       ];
     },
     // 0.6.2t2 (F3): the hero's example belongs to the rate it spells out, so it sits before ★3 TWIN SIGNET and the perk
     // ends the text (after it, "FOR FURNACE, ..." read on from the name); without a hero there is no example
     perkAt: (_e, x) => (x.hero ? 1 : 0),
-    gist: (e) => {
-      const mul = f(e).intervalMul ?? 1, belts2 = f(e).outputs > 1 ? `, FEEDS ${f(e).outputs} BELTS` : "";
-      return Math.abs(mul - 1) < 1e-9 ? `AS OFTEN AS YOUR HERO'S FACTORY${belts2}` : `${rateText(mul)}${belts2}`;
+    gist: (e, x) => {
+      const mul = f(e).intervalMul ?? 1, pour = x.hero ? pourAt(e.id, x.stars, HEROES[x.hero].ammo) : 0;
+      const more = pour ? `, POURS ${pour} AT ONCE` : "";
+      return Math.abs(mul - 1) < 1e-9 ? `AS OFTEN AS YOUR HERO'S FACTORY${more}` : `${rateText(mul)}${more}`;
     },
     card: () => "STAMPS YOUR HERO'S AMMO",
   },
@@ -1067,19 +1078,20 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "PLATES YOUR HULL, HITS HARDER", // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
   },
   twinmould: {
-    // Battle.produce (twin): one slug onto every belt with room, on the same tick (races/foundry.ts pourAll); ★3 THIRD
-    // SPRUE: a third belt
+    // Battle.produce (twin): one slug onto each of `pour` belts with room, on the same tick (races/foundry.ts pourAll);
+    // bb-0.8.3 (REQ-BFG-042 D3): ★3 THIRD SPRUE is the third slug of each pour; with more belts it takes them in turn
     text: (e) => {
-      const fs = f(e), n = countWord(fs.outputs);
+      const fs = f(e), n = countWord(fs.pour ?? 0);
       return [
-        `CASTS ${n} ${fs.base !== undefined ? "SLUGS" : "PLAIN SLUGS"} (${damage(slugBase(e))} EACH) AT ONCE, ONE ONTO EACH OF ITS ${n} BELTS, ${every(fs.interval)}.`,
+        `CASTS ${n} ${fs.base !== undefined ? "SLUGS" : "PLAIN SLUGS"} (${damage(slugBase(e))} EACH) AT ONCE, ONE ONTO EACH OF ${n} BELTS, ${every(fs.interval)}.`,
+        `WITH MORE BELTS, EACH CAST TAKES THE NEXT ${n} IN TURN.`,
         "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR.",
       ];
     },
-    gist: (e) => (f(e).outputs > 2
-      ? `${f(e).outputs} SLUGS OF ${damage(slugBase(e))}, ${every(f(e).interval)}`
+    gist: (e) => ((f(e).pour ?? 0) > 2
+      ? `${f(e).pour} SLUGS OF ${damage(slugBase(e))}, ${every(f(e).interval)}`
       : `${damage(slugBase(e))} EACH, ${every(f(e).interval)}`),
-    card: (e) => `CASTS ${countWord(f(e).outputs)} SLUGS AT ONCE`,
+    card: (e) => `CASTS ${countWord(f(e).pour ?? 0)} SLUGS AT ONCE`,
   },
   armorpress: {
     // Battle.pressPlate: plate.amount every plate.every seconds while it feeds a turret and isn't stalled or frozen (at

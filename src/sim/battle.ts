@@ -7,7 +7,7 @@ import {
   AMMO, AMMO_SPACING, BATTLE_CAP, BELT_SPEED, BURN_TIME, CELL, COMMISSION_BASE, COMMISSION_STEP,
   DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, JOIN_PACE, RULES_VERSION,
   TICK, WIND_START, WIND_WARN, WINDOW_TIME,
-  type AmmoKind, type CoreRoutine, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
+  type AmmoKind, type CoreRoutine, type FactorySpec, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
 import { drakeConvert, pressureBonus, resolveCore, ROUTINES, type TurretCore } from "./cores"; // 0.6.1b
 import {
@@ -64,6 +64,9 @@ export interface Payload {
   // 0.8.0 P1 (E2): set on a chamber load that pairs (two loads that reach one turret through different intakes within
   // SYNC_WINDOW, or a FOUNDRY fusion), only in a turret that holds a pair reader (TWIN TRIGGER, SEAM WELDER)
   paired?: boolean;
+  // bb-0.8.3 (REQ-BFG-042 D3): an alloy blank stamped alone, one a cycle in turn (Battle.stamp: a MIMIC FORGE below ★3 on
+  // FOUNDRY, which doesn't pour): it never fuses with another blank of its own factory (races/foundry.ts tryFuse)
+  lone?: boolean;
 }
 
 export interface BeltAmmo {
@@ -557,11 +560,9 @@ export class Battle {
       // each factory feeding them sends there: a twin pour one a belt (a CRUCIBLE's blanks into one gun fuse into one
       // load), any other stamp one belt in turn; a batch its slugs
       const reach = (r: RouteState): number => (r.connected ? r.turret : r.join?.feeds ?? -1);
-      const perStampOf = (f: FactoryState, turret: number): number => {
-        const spec = f.def.factory!, into = routes.filter((r) => r.factory === f.uid && reach(r) === turret).length;
-        const loads = spec.ammo === "blank" ? Math.min(1, into) : spec.twin ? into : into / Math.max(1, f.routes.length);
-        return loads * (spec.batch ?? 1);
-      };
+      // bb-0.8.3 (REQ-BFG-042 D4): loadsPerStamp, the pour size included
+      const perStampOf = (f: FactoryState, turret: number): number =>
+        loadsPerStamp(f.def.factory!, f.routes.length, routes.filter((r) => r.factory === f.uid && reach(r) === turret).length);
       for (const f of factories) {
         if (!f.stokers) continue;
         const turrets = [...new Set(routes.filter((r) => r.factory === f.uid && reach(r) >= 0).map(reach))];
@@ -627,7 +628,10 @@ export class Battle {
   private factoryDef(def: ItemDef, hero: HeroDef): ItemDef {
     const spec = def.factory;
     if (def.id !== "mimic" || !spec) return def;
-    return { ...def, factory: { ...spec, ammo: hero.ammo,
+    // bb-0.8.3 (REQ-BFG-042 D3): a ★3 MIMIC (TWIN SIGNET) pours only where it makes the hero's blanks (FOUNDRY; stars.ts
+    // pourAt); on every other hero it stamps one slug a cycle, in turn
+    const { pour, ...rest } = spec;
+    return { ...def, factory: { ...rest, ammo: hero.ammo, ...(pour && hero.ammo === "blank" ? { pour } : {}),
       interval: (ITEMS[hero.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) } };
   }
 
@@ -786,9 +790,11 @@ export class Battle {
       if (f.pending > 0 && this.stamp(s, f)) f.pending--;
       f.timer -= dt * pace; // RULE JOIN PACE: a joined factory's cycle takes 1 / pace as long (0.8.0 P1: and a stoked one's)
       if (f.timer > 0) continue;
-      if (s.race && raceProduce(this, s, f, dt)) continue; // races: Crucible twin pour
-      if (spec.twin) { // 0.8.0 P1: TWIN MOULD casts one slug onto every belt with room, on the same tick (the twin pour)
-        pourAll(this, s, f, dt, () => this.mouldSlug(f));
+      if (s.race && raceProduce(this, s, f, dt)) continue; // races: the CRUCIBLE's pour (a ★3 MIMIC's on FOUNDRY); SUMP
+      // 0.8.0 P1: TWIN MOULD casts one slug onto each belt with room, on the same tick (the twin pour). bb-0.8.3 (REQ-BFG-042
+      // D4): onto at most its pour size (2, ★3 3), taking its belts in turn when it feeds more (rule R)
+      if (spec.twin) {
+        pourAll(this, s, f, dt, () => this.mouldSlug(f), spec.pour);
         continue;
       }
       if (f.pending === 0 && this.stamp(s, f)) {
@@ -819,6 +825,7 @@ export class Battle {
           prior: 0, factory: f.uid, copy: false,
         };
         if (spec.base !== undefined) p.base = spec.base; // 0.6.1p: STAMP PRESS dies (absent at 1 star)
+        if (spec.ammo === "blank") p.lone = true; // bb-0.8.3 (D3): a blank stamped alone never fuses with its own factory's
         if (spec.scrapFlat !== undefined) p.flat += spec.scrapFlat;
         if (spec.round) p.harass = { ...spec.round };
         if (spec.cycle?.length) { // 0.6.1c HOT SWAP: EMBER (+ Burn), then SPARK (+ Shock), in turn
@@ -2131,6 +2138,20 @@ function journeyHits(routes: RouteState[], r: RouteState): TileHit[] {
     cur = m;
   }
   return out;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D4): the loads one cast (or stamp) of a factory with `belts` belts sends into a turret that `into`
+ * of them reach: the STOKER cap's forecast (Battle.makeSide's perStamp). A stamp feeds its belts one at a time, in turn
+ * (into / belts); a pour of `pour` slugs (FactorySpec.pour; the battle's own spec, so a MIMIC FORGE pours only where
+ * factoryDef keeps it) onto no more belts than that puts one onto each, and onto more takes `pour` of them in turn (rule
+ * R): pour / belts of a cast each. A pour of blanks into one gun fuses its pair into one load (at most one load a cast). A
+ * batch sends its slugs. 0.8.0's model is this at 0.8.0's belt counts.
+ */
+export function loadsPerStamp(spec: FactorySpec, belts: number, into: number): number {
+  const n = Math.max(1, belts), share = spec.pour ? Math.min(1, spec.pour / n) : 1 / n;
+  const loads = spec.ammo === "blank" && spec.pour ? Math.min(1, into * share) : into * share;
+  return loads * (spec.batch ?? 1);
 }
 
 export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {

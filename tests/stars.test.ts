@@ -48,7 +48,8 @@ describe("stars.ts", () => {
     expect(effectAt("temper", 2).gate).toEqual({ burn: 2 });
     expect(effectAt("temper", 3).gate).toEqual({ burn: 4 });
     // 0.6.1p: the pending perks are applied, so the dies and WIDE BREECH merge in; 0.6.1f: PERFECT CUT replaced THREE-WAY
-    expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, outputs: 1, base: 7.5 });
+    // bb-0.8.3 (REQ-BFG-042 D1): a bought factory states no outputs; its belt slots grow with its stars (outputsAt)
+    expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, base: 7.5 });
     expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3, window: 1 });
     expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 2, mult: 0.85 } });
     expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.5, flat: 2, lockedFlat: 4 }, { speed: 0.5, flat: 5, lockedFlat: 7 }]);
@@ -68,7 +69,7 @@ describe("stars.ts", () => {
     for (const id of LIVE) for (const s of [1, 2, 3]) expect(sellValue(id, s)).toBe(Math.max(1, Math.floor(valueOf(id, s) / 2)));
     expect(sellValue(ITEMS.temper)).toBe(1);
     expect(at3((s) => sellValue("temper", s))).toEqual([1, 3, 6]);
-    expect([outputsAt("loom", 1), outputsAt("press", 3), outputsAt("temper", 2)]).toEqual([3, 1, 0]);
+    expect([outputsAt("loom", 1), outputsAt("press", 3), outputsAt("temper", 2)]).toEqual([3, 4, 0]); // bb-0.8.3: a ★3 factory 4
   });
 });
 

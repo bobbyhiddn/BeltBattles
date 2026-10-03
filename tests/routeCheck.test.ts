@@ -125,13 +125,20 @@ describe("routeCheck: broken decks", () => {
     expect(whys(c)).toEqual([`route 0 revisits cell ${key(4, 5)} (no loops)`]);
   });
 
+  // bb-0.8.3 (REQ-BFG-042 D1-D2): a ★1 KILN has 2 belt slots (was 1), so its 3rd belt is the one too many: a BOMBARD in
+  // the extra slot (columns 8 and 9) gives the belts more intakes
   it("a factory feeding more belts than its outputs", () => {
     const b: Build = {
       hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }],
-      routes: [{ factory: 1, cells: up(4, 5) }, { factory: 1, cells: up(5, 5) }], mods: [], beltCap: 14, hullBonus: 0,
+      routes: [
+        { factory: 1, cells: up(4, 5) }, { factory: 1, cells: up(5, 5) },
+        { factory: 1, cells: [key(6, 6), key(7, 6), ...up(8, 6)] },
+      ],
+      turrets: [{ slot: 0, def: "scrapcannon", uid: 90, free: true }, { slot: 1, def: "bombard", uid: 91 }],
+      mods: [], beltCap: 40, hullBonus: 0,
     };
-    expect(whys(b)).toEqual(["KILN uid 1 feeds 2 routes but has 1 output(s)"]);
-    expect(brokenRoutes(b)).toEqual([1]);
+    expect(whys(b)).toEqual(["KILN uid 1 feeds 3 routes but has 2 output(s)"]);
+    expect(brokenRoutes(b)).toEqual([2]);
     expect(fightBlock(b)).toBe(BROKEN);
   });
 

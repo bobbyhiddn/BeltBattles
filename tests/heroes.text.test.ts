@@ -10,7 +10,7 @@ import { itemPanel } from "../src/screens/build/inspector";
 import { wrapText } from "../src/ui/richText";
 import { textWidth } from "../src/render/font";
 import { AMMO, ITEMS, MERCHANTS, buyableModules, itemsSoldBy, type MerchantId } from "../src/sim/content";
-import { fusible } from "../src/sim/stars";
+import { fusible, outputsAt } from "../src/sim/stars";
 import { FUSE_MULT, SYNC_WINDOW } from "../src/sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { newRun } from "../src/game/run";
@@ -29,7 +29,8 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
     ]);
     const f = ITEMS.crucible.factory!;
     // "TWO BLANKS ... ONE TURRET": a pair, at one gun (the sync rule's own words)
-    expect(numbers(t.join(" "))).toEqual([f.outputs, f.interval, AMMO.blank.base, 2, 1, SYNC_WINDOW, FUSE_MULT]);
+    // bb-0.8.3 (REQ-BFG-042 D2): FactorySpec.outputs is gone; the belt slots at ★1 are outputsAt's (2, as before)
+    expect(numbers(t.join(" "))).toEqual([outputsAt("crucible", 1), f.interval, AMMO.blank.base, 2, 1, SYNC_WINDOW, FUSE_MULT]);
   });
 
   it("the WARDWORKS: its stamp, the bulwark slug, the plating, the cap, what plating soaks and the dark wind", () => {

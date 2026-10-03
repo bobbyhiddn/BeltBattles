@@ -5,9 +5,10 @@
 //      turns only on a tap while it is already selected; tap-to-place is the mouse's alone; a tap on the selected turret
 //      steps through its core and gear.
 //   D3 a touch tap on a belt puts up its X (Editor.beltX), which any other press takes down; a mouse click never does.
-//   D4 a touch drag from a factory's own first belt tile draws a NEW belt while the factory has a free output; a drag out
-//      of a one-output factory with a belt says it moves that belt (mouse and touch), and one that lays no tile changes
-//      nothing; back on the factory, a touch draw starts over.
+//   D4 a touch drag from a factory's own first belt tile draws a NEW belt while the factory has a free output; back on the
+//      factory, a touch draw starts over. bb-0.8.3 (REQ-BFG-042 D6): no factory has one output now (the KILN has 2), so a
+//      drag out of a factory with a free slot draws a new belt, and one out of a factory whose slots are all in use draws
+//      nothing and says so (fullNotice), mouse and touch (0.8.0's "HAS 1 OUTPUT · THIS MOVES ITS BELT" is gone).
 // The battle rules are untouched: outputs come from outputsAt (routeCheck.ts, validate.ts read the same), and every belt
 // committed here is a belt the build screen could always commit (commitRoute).
 import { describe, expect, it } from "vitest";
@@ -17,7 +18,7 @@ import { outputsAt } from "../src/sim/stars";
 import { frame as deckFrame } from "../src/render/frame";
 import { computeView } from "../src/core/io";
 import {
-  Editor, MOUSE_SLOP, TOUCH_SLOP_CSS, direct, dragSlop, fittedPieces, freeOutputs, movesNotice, type EditHost,
+  Editor, MOUSE_SLOP, TOUCH_SLOP_CSS, direct, dragSlop, fittedPieces, freeOutputs, fullNotice, type EditHost,
 } from "../src/screens/build/edit";
 import { buildScale, type Sel } from "../src/screens/build/layout";
 import type { PointerKind } from "../src/core/io";
@@ -35,8 +36,8 @@ const PHONE_K = buildK(390, 844, 3); // 5 / 3 (zoom; 7 / 3 before)
 const LAND_K = buildK(844, 390, 3); // 4 / 3
 const SMALL_K = buildK(360, 640, 2); // 3 / 2 (zoom; 2 before)
 
-/** FURNACE: the KILN (one output) at (4,6) with its belt up column 4; `items` more parts; a shop with a TEMPER for 3 gold
- *  (affordable) and a STAMP PRESS for 8 (not, with 5 gold). */
+/** FURNACE: the KILN (bb-0.8.3: two outputs at ★1) at (4,6) with its belt up column 4; `items` more parts; a shop with a
+ *  TEMPER for 3 gold (affordable) and a STAMP PRESS for 8 (not, with 5 gold). */
 function furnace(items: Placed[] = []): Run {
   const run = newRun("furnace", 5, "shoptap");
   run.build = { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, ...items], routes: [{ factory: 1, cells: [...SHORT] }], mods: [], beltCap: 40, hullBonus: 0 };
@@ -46,7 +47,10 @@ function furnace(items: Placed[] = []): Run {
   return run;
 }
 
-/** WEAVER: the LOOM (three outputs) at (4,6) with one belt up column 4. */
+/** The KILN's one more belt (bb-0.8.3: its two slots at ★1 then all in use): up column 5. */
+const KILN_MORE = [[K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)]];
+
+/** WEAVER: the LOOM (three outputs at ★1, as before) at (4,6) with one belt up column 4. */
 function weaver(): Run {
   const run = newRun("weaver", 5, "shoptap");
   run.build = { hero: "weaver", items: [{ uid: 1, def: "loom", x: 4, y: 6 }], routes: [{ factory: 1, cells: [...SHORT] }], mods: [], beltCap: 40, hullBonus: 0 };
@@ -318,10 +322,11 @@ describe("D3: the belt X (touch only)", () => {
 });
 
 describe("D4: drags out of a factory", () => {
-  it("the outputs: the KILN 1, the LOOM 3, GANTRY PRESS 2 (3 at ★2), TWIN MOULD 2 (3 at ★3) (outputsAt, as validate.ts)", () => {
+  // bb-0.8.3 (REQ-BFG-042): the KILN 2 (was 1), the LOOM 3 (3), GANTRY PRESS 3 / 4 at ★2 (2 / 3), TWIN MOULD 2 / 4 at ★3 (2 / 3)
+  it("the outputs: the KILN 2, the LOOM 3, GANTRY PRESS 3 (4 at ★2), TWIN MOULD 2 (4 at ★3) (outputsAt, as validate.ts)", () => {
     expect([outputsAt("kiln", 1), outputsAt("loom", 1), outputsAt("gantry", 1), outputsAt("gantry", 2), outputsAt("twinmould", 1), outputsAt("twinmould", 3)])
-      .toEqual([1, 3, 2, 3, 2, 3]);
-    expect([freeOutputs(furnace().build, 1), freeOutputs(weaver().build, 1)]).toEqual([0, 2]);
+      .toEqual([2, 3, 3, 4, 2, 4]);
+    expect([freeOutputs(furnace().build, 1), freeOutputs(weaver().build, 1)]).toEqual([1, 2]);
   });
 
   it("(a) touch: a drag from the LOOM's own first belt tile draws a second belt and keeps the first", () => {
@@ -350,30 +355,35 @@ describe("D4: drags out of a factory", () => {
     const ed2 = new Editor(l.h);
     drag(ed2, [at(4, 4), at(3, 4)], "touch", false);
     expect(ed2.draw).toMatchObject({ replacing: 0, cells: [K(4, 5), K(4, 4), K(3, 4)] });
-    const full = furnace(); // the KILN: one output, used
+    const full = furnace(); // the KILN: bb-0.8.3, its two outputs at ★1 all used
+    full.build.routes.push(...KILN_MORE.map((cells) => ({ factory: 1, cells: [...cells] })));
     const f = host(full);
     const ed3 = new Editor(f.h);
     drag(ed3, [at(4, 5), at(3, 5)], "touch", false);
     expect(ed3.draw).toMatchObject({ replacing: 0, cells: [K(4, 5), K(3, 5)] });
   });
 
-  it("(b) a drag out of a one-output factory with a belt says it moves that belt, mouse and touch; released with no tile, nothing changes", () => {
+  // bb-0.8.3 (REQ-BFG-042 D6): 0.8.0's "(b) a drag out of a one-output factory with a belt says it moves that belt": no
+  // factory has one output now, so the drag that moved a belt is a drag out of a full factory, which draws nothing and
+  // says so (the GANTRY PRESS's 0.8.0 path, for every factory); released, nothing changes; a tap shows no notice
+  it("(b) a drag out of a factory whose belt slots are all in use draws nothing and says so, mouse and touch; released, nothing changes", () => {
     for (const kind of ["touch", "mouse"] as PointerKind[]) {
       const run = furnace();
+      run.build.routes.push(...KILN_MORE.map((cells) => ({ factory: 1, cells: [...cells] })));
       const before = J(run.build);
       const { h, log } = host(run);
       const ed = new Editor(h);
       drag(ed, [at(4, 7), at(5, 7), at(5, 6)], kind, false); // within the KILN's 2x2
-      expect(log).toContain(`toast:${movesNotice("KILN")}`);
-      expect(movesNotice("KILN")).toBe("KILN HAS 1 OUTPUT · THIS MOVES ITS BELT");
-      expect(ed.draw).toMatchObject({ factory: 1, replacing: 0, cells: [] });
-      expect(ed.draw!.moves).toBe(kind === "touch" ? true : undefined); // touch keeps the old belt in sight
+      // the KILN merges like any factory (bb-0.8.3 D2): its next star opens a third belt
+      expect(log).toContain(`error:${fullNotice("KILN", 2, 1, true)}`);
+      expect(fullNotice("KILN", 2, 1, true)).toBe("KILN'S 2 BELTS ARE IN USE · ★2 OPENS A 3RD");
+      expect(ed.draw).toBeNull();
       ed.up(...at(5, 6));
       expect(J(run.build), kind).toEqual(before);
       // a tap is a tap: no draw, no notice
       const l0 = log.length;
       tap(ed, at(4, 7), kind, kind === "touch" ? 8 : 0);
-      expect([J(run.build), log.slice(l0).some((s) => s.startsWith("toast:"))]).toEqual([before, false]);
+      expect([J(run.build), log.slice(l0).some((s) => s.startsWith("toast:") || s.startsWith("error:"))]).toEqual([before, false]);
     }
   });
 
@@ -388,11 +398,13 @@ describe("D4: drags out of a factory", () => {
     expect(ed.draw!.cells).toEqual([]);
     ed.up(...at(5, 7));
     expect(J(run.build)).toEqual(before);
-    // out again: a new belt replaces the old one only when it commits
+    // out again: bb-0.8.3, a second belt (the KILN has two outputs), the first kept; 0.8.0's one-output KILN replaced it
     drag(ed, [at(5, 7), at(6, 7), at(6, 6), at(6, 5), at(6, 4), at(6, 3), at(6, 2), at(6, 1), at(6, 0)], "touch");
-    expect(run.build.routes).toEqual([{ factory: 1, cells: [K(6, 7), K(6, 6), K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(6, 0)] }]);
+    expect(run.build.routes).toEqual([{ factory: 1, cells: SHORT }, { factory: 1, cells: [K(6, 7), K(6, 6), K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(6, 0)] }]);
   });
 
+  // bb-0.8.3 (REQ-BFG-042 D6): the LOOM has three outputs at ★1, as before; the warning tells the truth in fullNotice's
+  // words, and the LOOM merges now, so its next star opens a fourth (0.8.0: "ALL 3 LOOM OUTPUTS USED - DRAG A BELT TO REROUTE")
   it("(c) a factory with every output used keeps today's warning, mouse and touch", () => {
     for (const kind of ["touch", "mouse"] as PointerKind[]) {
       const run = weaver();
@@ -401,7 +413,7 @@ describe("D4: drags out of a factory", () => {
       const ed = new Editor(h);
       drag(ed, [at(4, 7), at(5, 7), at(5, 6)], kind, false);
       expect(ed.draw).toBeNull();
-      expect(log).toContain("error:ALL 3 LOOM OUTPUTS USED - DRAG A BELT TO REROUTE");
+      expect(log).toContain("error:LOOM'S 3 BELTS ARE IN USE · ★2 OPENS A 4TH");
     }
   });
 

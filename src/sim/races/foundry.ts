@@ -32,10 +32,11 @@ export function inSync(gap: number, sameRoute: boolean): boolean {
   return !sameRoute && gap >= -EPS && gap <= SYNC_WINDOW + EPS;
 }
 
-/** One blank's own damage at fusion time (base 3 x split mult + its flat bonuses). */
+/** One blank's own damage at fusion time (base 3 x split mult + its flat bonuses). bb-0.8.3 (REQ-BFG-042 D2): a ★2-3
+ *  CRUCIBLE's blank carries its level's base (Payload.base), as a bought factory's slug does. */
 export function blankDamage(p: Payload): number {
   const a = RACE_AMMO.blank;
-  return payloadDamage(a.base, a.rideScale, p.ride, p.mult, p.flat);
+  return payloadDamage(p.base ?? a.base, a.rideScale, p.ride, p.mult, p.flat);
 }
 
 /** Merge blank `b` into blank `a` (in place): `a` becomes an alloy slug. */
@@ -55,16 +56,33 @@ export function fuse(a: Payload, b: Payload): void {
  * The twin pour: one payload from `make` onto every route of factory f with room at its entry, all on the same tick (a
  * backed-up output misses the pour). One produce event a pour; nothing poured: the factory stalls. 0.8.0 P1: the
  * Crucible's pour, shared with TWIN MOULD (any ammo; DESIGN-wave3.md 3.3 module 9). Returns the payloads poured.
+ * bb-0.8.3 (REQ-BFG-042 D4, rule R): `size`, the pour size (FactorySpec.pour). A factory with no more belts than that pours
+ * exactly as before; with more, each cast puts one payload onto each of `size` belts with room, taking its belts in turn
+ * from f.rr (a belt without room is skipped, as Battle.stamp skips it), so a belt adds reach, never more payloads a cast.
  */
-export function pourAll(ctx: SimCtx, s: SideState, f: FactoryState, dt: number, make: () => Payload): number {
+export function pourAll(ctx: SimCtx, s: SideState, f: FactoryState, dt: number, make: () => Payload, size = Infinity): number {
   const spec = f.def.factory!;
+  const n = f.routes.length;
   let poured = 0;
-  for (const ri of f.routes) {
-    const r = s.routes[ri];
-    const back = r.ammo[r.ammo.length - 1];
-    if (back && back.s < AMMO_SPACING) continue; // this output is backed up: it misses the pour
-    r.ammo.push({ p: make(), s: 0, processed: -1, blocked: false });
-    poured++;
+  if (n <= size) {
+    for (const ri of f.routes) {
+      const r = s.routes[ri];
+      const back = r.ammo[r.ammo.length - 1];
+      if (back && back.s < AMMO_SPACING) continue; // this output is backed up: it misses the pour
+      r.ammo.push({ p: make(), s: 0, processed: -1, blocked: false });
+      poured++;
+    }
+  } else {
+    let last = -1;
+    for (let k = 0; k < n && poured < size; k++) {
+      const at = (f.rr + k) % n, r = s.routes[f.routes[at]];
+      const back = r.ammo[r.ammo.length - 1];
+      if (back && back.s < AMMO_SPACING) continue; // backed up: the next belt in turn takes its slug
+      r.ammo.push({ p: make(), s: 0, processed: -1, blocked: false });
+      poured++;
+      last = at;
+    }
+    if (last >= 0) f.rr = (last + 1) % n;
   }
   if (poured > 0) {
     f.timer = spec.interval;
@@ -81,13 +99,20 @@ export function pourAll(ctx: SimCtx, s: SideState, f: FactoryState, dt: number, 
   return poured;
 }
 
-/** Twin pour. Returns true when this factory is a Crucible (handled here). */
+/**
+ * Twin pour. Returns true when this factory pours alloy blanks (handled here). bb-0.8.3 (REQ-BFG-042 D3): the factories
+ * that pour blanks, by name: the CRUCIBLE always, and a MIMIC FORGE from ★3 (TWIN SIGNET), which Battle.factoryDef gives
+ * FOUNDRY's blank and its pour of 2. A blank factory without a pour (a MIMIC below ★3) stamps its blanks one at a time, in
+ * turn (Battle.stamp), and they never fuse with each other (tryFuse).
+ */
 export function crucibleProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: number): boolean {
-  if (f.def.factory!.ammo !== "blank") return false;
+  const spec = f.def.factory!;
+  if (spec.ammo !== "blank" || !spec.pour || (f.def.id !== "crucible" && f.def.id !== "mimic")) return false;
   pourAll(ctx, s, f, dt, (): Payload => ({
     id: ctx.newId(), ammo: "blank", ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
     prior: 0, factory: f.uid, copy: false,
-  }));
+    ...(spec.base !== undefined ? { base: spec.base } : {}), // bb-0.8.3 (REQ-BFG-042 D2): a ★2-3 CRUCIBLE's level
+  }), spec.pour);
   return true;
 }
 
@@ -104,6 +129,7 @@ export function tryFuse(ctx: SimCtx, st: FoundryState, route: number, tu: Turret
   for (let i = tu.stack.length - 1; i >= 0; i--) {
     const q = tu.stack[i];
     if (q.ammo !== "blank") continue;
+    if (p.lone && q.factory === p.factory) continue; // bb-0.8.3 (D3): a blank stamped alone never fuses with its own factory's
     const m = st.sync.get(q);
     if (!m || !inSync(ctx.t - m.at, m.route === route)) continue;
     fuse(q, p);

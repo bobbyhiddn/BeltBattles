@@ -7,7 +7,7 @@
 
 import { ITEMS } from "../sim/content";
 import { coreFor, removeItem, removeTurret, rotField, routesOf, setTurretList, turretList } from "../sim/deck";
-import { FUSE_MAX, fusible, starField, starsOf } from "../sim/stars";
+import { FUSE_MAX, merges, starField, starsOf } from "../sim/stars";
 import type { InvItem, Run } from "./run";
 
 // 0.6.2s (REQ-BFG-031 S6, S7): turrets merge like every buyable module. An installed turret is a copy "slot"
@@ -114,7 +114,7 @@ function chain(run: Run, uid: number, arrivingFirst: boolean): FuseStep[] {
   const steps: FuseStep[] = [];
   let cur = find(run, uid);
   let first = true;
-  while (cur && fusible(cur.def) && cur.stars < FUSE_MAX) {
+  while (cur && merges(cur.def) && cur.stars < FUSE_MAX) { // bb-0.8.3 (REQ-BFG-042 D2): signature factories merge too
     const c = cur;
     const twin = copiesOf(run, c.def).filter((t) => t.uid !== c.uid && t.stars === c.stars && mergeable(c, t)).sort((x, y) => x.uid - y.uid)[0];
     if (!twin) break;
@@ -150,7 +150,7 @@ export function fuseFrom(run: Run, uid: number): FuseStep[] {
 export function fuseAll(run: Run): FuseStep[] {
   const steps: FuseStep[] = [];
   for (;;) {
-    const all = copiesOf(run).filter((c) => fusible(c.def) && c.stars < FUSE_MAX).sort((x, y) => x.stars - y.stars || x.uid - y.uid);
+    const all = copiesOf(run).filter((c) => merges(c.def) && c.stars < FUSE_MAX).sort((x, y) => x.stars - y.stars || x.uid - y.uid);
     const c = all.find((x) => all.some((y) => y !== x && y.def === x.def && y.stars === x.stars && mergeable(x, y)));
     if (!c) return steps;
     steps.push(...chain(run, c.uid, false));
@@ -187,7 +187,7 @@ export function gainModule(run: Run, def: string, at?: GainAt): Gain {
 /** What gaining one more copy of `def` into cargo would do, without changing the run (badge,
  *  inspect and pick cards): the final star level, the survivor and where it sits; null: no merge. */
 export function mergePreview(run: Run, def: string): { toStars: number; survivorUid: number; where: FuseWhere } | null {
-  if (!fusible(def)) return null;
+  if (!merges(def)) return null;
   const sim = { ...run, build: JSON.parse(JSON.stringify(run.build)), inventory: run.inventory.map((i) => ({ ...i })), fuseFx: [] } as Run;
   const g = gainModule(sim, def);
   return g.steps.length ? { toStars: g.stars, survivorUid: g.survivor, where: g.where } : null;
@@ -199,7 +199,7 @@ export function unfusedInRun(run: Run): string[] {
   // (two free starting copies never merge). With no free copies this is the 0.6.1a rule (k > 1).
   const n = new Map<string, { n: number; f: number }>();
   for (const c of copiesOf(run)) {
-    if (!fusible(c.def) || c.stars >= FUSE_MAX) continue;
+    if (!merges(c.def) || c.stars >= FUSE_MAX) continue;
     const e = n.get(`${c.def}*${c.stars}`) ?? { n: 0, f: 0 };
     if (c.free) e.f++;
     else e.n++;

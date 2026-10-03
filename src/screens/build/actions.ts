@@ -6,7 +6,7 @@ import {
   buyOffer, rotateRig, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
 } from "../../game/run";
 import { CELL, GRID, ITEMS, sellValue } from "../../sim/content";
-import { starField, starsOf } from "../../sim/stars";
+import { isSignatureFactory, starField, starsOf } from "../../sim/stars";
 import { mergePreview, type Gain, type GainAt } from "../../game/fuse";
 import { canPlaceItem, isRig, key, moveItem, occupancy, placeItem, removeRoute, rotField, setRot } from "../../sim/deck";
 import { bestRot } from "../../sim/beltside"; // 0.6.2 BELTSIDE: the preview's auto-aim
@@ -125,6 +125,8 @@ export function selectGain(ctx: Ctx, g: Gain): void {
 
 export function sell(ctx: Ctx, uid: number): void {
   if (!ctx.run.inventory.some((i) => i.uid === uid)) return;
+  // bb-0.8.3 (REQ-BFG-042 D2): a copy of the hero's signature factory waiting in cargo never sells (run.ts sellInventory)
+  if (ctx.run.inventory.some((i) => i.uid === uid && isSignatureFactory(i.def))) return ctx.invalid("THE SIGNATURE FACTORY STAYS ABOARD");
   const v = sellInventory(ctx.run, uid);
   const cp = ctx.coinPos();
   ctx.ufx.popup(cp.x, cp.y + 10, `+${v}`, C.lime);

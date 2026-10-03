@@ -9,7 +9,7 @@ import { C } from "../src/render/palette";
 import { KEYWORD_COLOUR, NUMBER_COLOUR, colourize, lineText, lineWidth, wrapRich, type Span } from "../src/ui/richText";
 import { CARD_EFFECT_LINES, cardEffectLines, cardEffectWidth, TOOLTIP_TEXT_W, tooltipLines } from "../src/screens/build/shop";
 import { wideCardW } from "../src/screens/build/layout";
-import { effectAt, fusible, perkAt } from "../src/sim/stars";
+import { effectAt, fusible, outputsAt, perkAt } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
 import {
   SIM, abilityText, cardText, gist, hasAbilityText, mergeProgressText, mergesWithText, nextStarHeadline, nextStarText,
@@ -108,7 +108,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   },
   slagpot: (e) => [base(e), f(e).interval, pct(AMMO.slag.fixedSpeed!)],
   assembly: (e) => [...(f(e).hotStart ? [2, f(e).hotStart] : []), base(e), f(e).interval, COMMISSION_BASE, COMMISSION_STEP],
-  gantry: (e) => [f(e).outputs, base(e), f(e).interval],
+  gantry: (e, _k, s) => [outputsAt("gantry", s), base(e), f(e).interval], // bb-0.8.3: its slots by stars (outputsAt)
   scrapper: (e) => [f(e).scrapFlat!, 1, f(e).interval, 1, SIM.scrapQueue, ...(f(e).bigHaul ? [2, 1] : [])], // BIG HAUL: 2 SLUGS, NOT 1
   sabot: (e) => [1, f(e).interval, ...(round<{ shrapnel?: boolean }>(e).shrapnel ? [SIM.shrapnel] : []), SIM.sabotBelt, SIM.sabotFactory, SIM.sabotTurret, SIM.sabotHull],
   frostbite: (e) => {
@@ -119,7 +119,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
     const r = round<{ mul: number; seconds: number }>(e);
     return [speedNum(r.mul), r.seconds, pct(1 - SIM.snag), 1, f(e).interval, 2, SIM.chainFactory, SIM.chainTurret];
   },
-  mimic: (e) => [...((f(e).intervalMul ?? 1) === 1 ? [] : [speedNum(1 / f(e).intervalMul!)]), ...(f(e).outputs > 1 ? [f(e).outputs] : [])],
+  mimic: (e) => [...((f(e).intervalMul ?? 1) === 1 ? [] : [speedNum(1 / f(e).intervalMul!)])], // bb-0.8.3: no FEEDS 2 BELTS at ★3
   limpet: (e) => {
     const r = round<{ delay: number; blast: number; stall?: number }>(e);
     return [r.blast, r.delay, ...(r.stall ? [r.stall] : []), 1, f(e).interval];
@@ -174,8 +174,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   stoker: (e) => [pct(g(e).stoke!)],
   platebreaker: (e) => [1, g(e).breaker!.flat, g(e).breaker!.floor], // TAKES 1 PLATING
   shieldwall: (e) => [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP],
-  // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS TWO BELTS ... ON MATCHED BELTS INTO ONE TURRET
-  twinmould: (e) => [f(e).outputs, base(e), 1, f(e).outputs, f(e).interval, 1],
+  // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS ... THE NEXT TWO IN TURN ... INTO ONE TURRET
+  // (bb-0.8.3, REQ-BFG-042 D3: the pour size, FactorySpec.pour, where 0.8.0 quoted its outputs)
+  twinmould: (e) => [f(e).pour!, base(e), 1, f(e).pour!, f(e).interval, f(e).pour!, 1],
   armorpress: (e) => [f(e).plate!.amount, f(e).plate!.every, base(e), f(e).interval, PLATE_CAP],
   anvil: (e, k) => [r1(scaleCore(e.core!, k).anvilFlat!), r1(scaleCore(e.core!, k).perPlate!), PLATE_CAP], // x k
   steambreech: (e, k) => [rateNum(scaleCore(e.core!, k).steamPlated!), rateNum(scaleCore(e.core!, k).steamBare!)], // rates: no k
@@ -232,8 +233,8 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     const at = (def: string, s: number) => abilityText(def, s);
     expect(at("longhaul", 2).sentences[0]).toBe("ADDS 2 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
     expect(at("overclocker", 1).sentences[0]).toBe("DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR 4 SECONDS.");
-    expect(at("mimic", 3)).toEqual({
-      sentences: ["STAMPS YOUR HERO'S SIGNATURE AMMO 25% FASTER THAN ITS OWN FACTORY AND FEEDS 2 BELTS."],
+    expect(at("mimic", 3)).toEqual({ // bb-0.8.3 (REQ-BFG-042 D3): its belts follow its stars; no "AND FEEDS 2 BELTS"
+      sentences: ["STAMPS YOUR HERO'S SIGNATURE AMMO 25% FASTER THAN ITS OWN FACTORY."],
       perk: { name: "TWIN SIGNET", stars: 3, after: 0 },
     });
     expect(at("scrapper", 3).sentences.slice(0, 3)).toEqual([
@@ -327,14 +328,14 @@ describe("0.6.2t T5: next star, merge progress and MERGES WITH, as sentences", (
         expect(numbers(next!).every((n) => numbers(abilityText(d.id, s + 1, { k }).sentences.join(" ")).includes(n) || n === s + 1), id).toBe(true);
       }
     }
-    expect(nextStarText("gantry", 1)).toBe("NEXT STAR: FEEDS 3 BELTS.");
+    expect(nextStarText("gantry", 1)).toBe("NEXT STAR: FEEDS 4 BELTS."); // bb-0.8.3: FOURTH ARM (0.8.0: THIRD ARM, 3)
     expect(nextStarText("temper", 1)).toBe("NEXT STAR: ADDS 2 BURN.");
   });
 
   it("merge progress and MERGES WITH read as whole sentences", () => {
     expect([mergeProgressText(1), mergeProgressText(2)]).toEqual(["1 MORE COPY TO MERGE.", "2 MORE COPIES TO MERGE."]);
     expect(mergesWithText("temper", 2)).toBe("MERGES WITH YOUR TEMPER INTO ★2: ADDS 2 BURN.");
-    expect(mergesWithText("mimic", 3)).toBe("MERGES WITH YOUR MIMIC FORGE INTO ★3: 25% FASTER, FEEDS 2 BELTS.");
+    expect(mergesWithText("mimic", 3)).toBe("MERGES WITH YOUR MIMIC FORGE INTO ★3: 25% FASTER."); // bb-0.8.3: no FEEDS 2 BELTS
   });
 
   it("no source file still writes the polish's NEEDS n MORE or the old copy count", () => {
@@ -468,9 +469,14 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(at("stoker").slice(0, 2)).toEqual(["EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.", "IT NEVER MAKES A FACTORY OUTRUN ITS GUN."]);
     expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 1 PLATING FROM YOUR HULL AND GAINS 14 DAMAGE.", "WITH NO PLATING TO TAKE, IT ADDS 3.5 DAMAGE."]);
     expect(at("shieldwall")[1]).toBe("WHILE YOUR HULL HOLDS 12 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 3 DAMAGE.");
-    expect(at("twinmould")[0]).toBe("CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS TWO BELTS, EVERY 1.8 SECONDS.");
+    // bb-0.8.3 (REQ-BFG-042 D3): the pour, not its belts: TWO (★3 THIRD SPRUE: THREE) at once, the next ones in turn
+    expect(at("twinmould")[0]).toBe("CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS, EVERY 1.8 SECONDS.");
     expect(abilityText("twinmould", 3)).toEqual({
-      sentences: ["CASTS THREE SLUGS (6 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS THREE BELTS, EVERY 1.4 SECONDS.", "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR."],
+      sentences: [
+        "CASTS THREE SLUGS (6 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF THREE BELTS, EVERY 1.4 SECONDS.",
+        "WITH MORE BELTS, EACH CAST TAKES THE NEXT THREE IN TURN.",
+        "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR.",
+      ],
       perk: { name: "THIRD SPRUE", stars: 3, after: 0 },
     });
     expect(at("armorpress")[0]).toBe("PRESSES 3 PLATING ONTO YOUR HULL EVERY 3 SECONDS, AND STAMPS A PLAIN SLUG (3 DAMAGE) EVERY 1.6 SECONDS."); // 0.8.0 B1 M2: 2 every 4 s -> 3 every 3 s

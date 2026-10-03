@@ -19,7 +19,7 @@ import {
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
-import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../sim/stars";
+import { FUSE_MAX, fusible, merges, outputsAt, starsOf, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 
@@ -102,7 +102,7 @@ const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
 export const FUSE_LIVE = true;
 
 /** One message per def and star level (below FUSE_MAX) held more than once, e.g. "UNFUSED PAIR: TEMPER ★1 x2".
- *  Supplies, signature factories and unknown ids are not fusible and never count. 0.6.2s TURRET SLOTS (S6, S7): the
+ *  Supplies and unknown ids never merge and never count (bb-0.8.3, REQ-BFG-042 D2: a signature factory's copies do). 0.6.2s TURRET SLOTS (S6, S7): the
  *  installed turrets count too, after the items and mods, except that two FREE copies never merge with each other
  *  (WEAVER starts with three free DART GUNs): per def and star level below FUSE_MAX, with N bought and F free copies,
  *  it is a pair iff N >= 1 and N + F >= 2 (reported as x(N + F)). The starting layout (a build without `turrets`)
@@ -111,7 +111,7 @@ export function unfusedPairs(build: Build): string[] {
   const n = new Map<string, number>();
   for (const p of [...build.items, ...build.mods]) {
     const s = starsOf(p);
-    if (!fusible(p.def) || s >= FUSE_MAX) continue;
+    if (!merges(p.def) || s >= FUSE_MAX) continue; // bb-0.8.3 (REQ-BFG-042 D2): a signature factory's copies too
     n.set(`${p.def}*${s}`, (n.get(`${p.def}*${s}`) ?? 0) + 1);
   }
   const out: string[] = [];
@@ -195,12 +195,13 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   }
   if (errors.length) return { ok: false, errors };
 
-  // 0.6.1a stars: an integer 1..FUSE_MAX (absent = 1; checkBuildShape already bounds it); signature
-  // factories and supplies never merge, so theirs must be absent or 1
+  // 0.6.1a stars: an integer 1..FUSE_MAX (absent = 1; checkBuildShape already bounds it); supplies never merge, so
+  // theirs must be absent or 1 (bb-0.8.3: signature factories merge)
   for (const p of [...b.items, ...b.mods]) {
     if (p.stars === undefined) continue;
     if (!Number.isInteger(p.stars) || p.stars < 1 || p.stars > FUSE_MAX) errors.push(`item: uid ${p.uid} has stars ${p.stars}; expected 1..${FUSE_MAX}`);
-    else if (p.stars > 1 && !fusible(p.def)) errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have ${p.stars} stars (signatures and supplies never merge)`);
+    // bb-0.8.3 (REQ-BFG-042 D2): a signature factory merges like any factory, so it may carry stars; supplies never do
+    else if (p.stars > 1 && !merges(p.def)) errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have ${p.stars} stars (supplies never merge)`);
   }
   // 0.6.2s TURRET SLOTS: a turret's stars are 1..FUSE_MAX too (checkBuildShape already bounds them). S7: a free copy
   // (the hull's starting copy, maybe merged) only of the hero's own starting defs, at most as many of a def as it starts with.

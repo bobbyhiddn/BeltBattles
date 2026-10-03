@@ -166,9 +166,10 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
     hotswap: ["2 BURN, SHOCK STALLS A MACHINE FOR 1.6 SECONDS", "4 BURN, SHOCK STALLS 2 MACHINES FOR 1.8 SECONDS", "7 BURN, SHOCK STALLS 2 MACHINES FOR 2.8 SECONDS"],
     slagpot: ["7 DAMAGE SLAG EVERY 2.8 SECONDS", "12 DAMAGE SLAG EVERY 2.2 SECONDS", "15 DAMAGE SLAG EVERY 1.75 SECONDS"],
     assembly: ["RIGS ONLINE IN HALF THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME", "ALL RIGS ONLINE AT ONCE"],
-    gantry: ["FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS"],
+    gantry: ["FEEDS 3 BELTS", "FEEDS 4 BELTS", "6 DAMAGE SLUGS"], // bb-0.8.3 (REQ-BFG-042 D3): 3 / 4 / 5 belts (were 2 / 3 / 3)
   };
-  const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", "HOT START"], gantry: ["THIRD ARM", "HEAVY GANTRY"] };
+  // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS ★2 is FOURTH ARM (was THIRD ARM)
+  const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", "HOT START"], gantry: ["FOURTH ARM", "HEAVY GANTRY"] };
 
   it("gist, the next-star sentence and MERGES WITH (STAMP PRESS keeps its stamp rate and slug damage)", () => {
     expect(gist("press", 2)).toBe("5 DAMAGE SLUGS EVERY 1.1 SECONDS");

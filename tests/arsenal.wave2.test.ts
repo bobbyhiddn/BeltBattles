@@ -199,7 +199,7 @@ describe("wave-2 factories and cores", () => {
       if (id === "scrapper") expect(slug!.flat).toBe([3, 6.5, 10.5][stars - 1]);
       if (id === "mimic") {
         expect(f.def.factory!.interval).toBeCloseTo(1.25 * [1.4, 1, 0.8][stars - 1]);
-        expect(outputsAt("mimic", stars)).toBe(stars === 3 ? 2 : 1);
+        expect(outputsAt("mimic", stars)).toBe(stars + 1); // bb-0.8.3 (REQ-BFG-042 D1, D3): 2 / 3 / 4 (was 1 / 1 / 2)
       }
     }
     for (const stars of [1, 2, 3]) {

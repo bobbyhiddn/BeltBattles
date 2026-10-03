@@ -502,11 +502,13 @@ describe("0.6.1c: the six factories' special rules", () => {
     expect(overclocked({ shock: true, shockTime: 1.8, jump: 1 })).toEqual({ shock: true, shockTime: 1.8, jump: 1 });
   });
 
-  it("GANTRY PRESS: outputs 2 / 3 (THIRD ARM) / 3; its third route is illegal at 1 star, legal at 2-3; every route fed in turn", () => {
-    expect([1, 2, 3].map((s) => outputsAt("gantry", s))).toEqual([2, 3, 3]);
+  // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS's lead of one belt over every bought factory: 3 / 4 (FOURTH ARM) / 5, so its
+  // three routes on the WEAVER are legal at every star (tests/belts.slots.test.ts refuses the belt past its slots)
+  it("GANTRY PRESS: outputs 3 / 4 (FOURTH ARM) / 5; its three routes are legal at every star; every route fed in turn", () => {
+    expect([1, 2, 3].map((s) => outputsAt("gantry", s))).toEqual([3, 4, 5]);
     for (const s of [1, 2, 3]) {
       const b = gantryWeaver(s, 3);
-      expect(routeProblems(b).map((p) => p.route), `${s}`).toEqual(s === 1 ? [2] : []);
+      expect(routeProblems(b).map((p) => p.route), `${s}`).toEqual([]);
       const st = stamps(b);
       expect(Math.min(...st.perRoute), `${s}`).toBeGreaterThan(5);
       expect(Math.max(...st.perRoute) - Math.min(...st.perRoute)).toBeLessThanOrEqual(1);
@@ -514,7 +516,7 @@ describe("0.6.1c: the six factories' special rules", () => {
     }
   });
 
-  it("merging: a placed factory with belts survives a bought copy and keeps its routes; the ★2 Gantry's third route is then legal", () => {
+  it("merging: a placed factory with belts survives a bought copy and keeps its routes; the ★2 Gantry keeps its three routes, one slot free", () => {
     for (const def of ["doublestamp", "shottower", "hotswap", "slagpot", "assembly", "gantry"]) {
       const r = newRun("furnace", 7, "fuse-061c");
       r.build = def === "gantry" ? gantryBench(1, [], 0) : factoryBench(def, 1, { hullBonus: 0 });
@@ -528,9 +530,10 @@ describe("0.6.1c: the six factories' special rules", () => {
     }
     const w = newRun("weaver", 7, "fuse-061c-gantry");
     w.build = gantryWeaver(1, 3);
-    expect(routeProblems(w.build).map((p) => p.route)).toEqual([2]); // 1 star: two outputs
+    expect(routeProblems(w.build).map((p) => p.route)).toEqual([]); // bb-0.8.3: 1 star, three outputs (was two)
     gainModule(w, "gantry");
     expect(starsOf(w.build.items.find((p) => p.def === "gantry"))).toBe(2);
-    expect(routeProblems(w.build)).toEqual([]); // THIRD ARM
+    expect(routeProblems(w.build)).toEqual([]); // FOURTH ARM: four outputs, three used
+    expect(outputsAt("gantry", 2) - w.build.routes.filter((r) => r.factory === 7).length).toBe(1);
   });
 });

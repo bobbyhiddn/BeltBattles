@@ -148,8 +148,9 @@ function pressFurnace(def: string, stars: number): Build {
   return b;
 }
 
-/** TWIN MOULD (uid 7) on a WEAVER at (4,6), the Loom parked: a belt into each of its outputs (columns 4 and 1 at 1-2
- *  stars; and 8 at 3, THIRD SPRUE), each into its own light gun. */
+/** TWIN MOULD (uid 7) on a WEAVER at (4,6), the Loom parked: a belt into each of its outputs, up to the three light guns
+ *  (columns 4 and 1 at 1 star; and 8 at 2-3 stars). bb-0.8.3 (REQ-BFG-042): its slots are 2 / 3 / 4 (were 2 / 2 / 3), so
+ *  ★2 feeds 3 belts with its pour of 2 (rule R: each cast takes the next 2 in turn) and ★3 3 belts with its pour of 3. */
 function mouldDeck(stars: number): Build {
   const cols = [
     [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)],
@@ -319,7 +320,9 @@ describe("wave 3's named rules", () => {
   });
 
   it("TWIN MOULD: one plain slug onto each belt on the same tick; 3 / 5 / 6 damage every 1.8 / 1.6 / 1.4 s; ★3 THIRD SPRUE casts 3", () => {
-    expect([1, 2, 3].map((s) => outputsAt("twinmould", s))).toEqual([2, 2, 3]);
+    // bb-0.8.3 (REQ-BFG-042 D1, D3): slots 2 / 3 / 4 (were 2 / 2 / 3); the pour 2 / 2 / 3 casts as many as 0.8.0's outputs
+    expect([1, 2, 3].map((s) => outputsAt("twinmould", s))).toEqual([2, 3, 4]);
+    expect([1, 2, 3].map((s) => effectAt("twinmould", s).factory!.pour)).toEqual([2, 2, 3]);
     expect(perkAt("twinmould", 3)).toBe("THIRD SPRUE");
     for (const [s, base, every, n] of [[1, 3, 1.8, 2], [2, 5, 1.6, 2], [3, 6, 1.4, 3]] as const) {
       expect(mouldDps(s)).toBeCloseTo((n * base) / every, 0);

@@ -3,10 +3,23 @@
 // (src/game/fuse.ts). A copy's `stars` field is optional everywhere (absent = 1 star), so old
 // saves, ghosts and fixtures need no rewrite; code never writes `stars: 1`.
 
-import { ITEMS, type ItemDef } from "./content";
+import { HEROES, ITEMS, type HeroId, type ItemDef } from "./content";
 
 /** The highest star level: 1+1 make 2, 2+2 make 3, and 3 never fuses further. */
 export const FUSE_MAX = 3;
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D2): every hero's signature factory (KILN, LOOM, CRUCIBLE, WARDWORKS, CLOCKWORKS, SUMP). Each
+ * levels up by merging like any factory: the hero's starting copy is ★1, and a copy from the hero's own caravan merges
+ * with it. None is sold by a merchant, and none ever sells or stows (run.ts storePlaced).
+ */
+export const SIGNATURE_FACTORIES: ReadonlySet<string> = new Set(Object.values(HEROES).map((h) => h.factory));
+
+/** bb-0.8.3 (D2): is `def` a hero's signature factory (any hero's)? */
+export const isSignatureFactory = (def: string): boolean => SIGNATURE_FACTORIES.has(def);
+
+/** bb-0.8.3 (D9): `hero`'s own signature factory def. */
+export const signatureOf = (hero: HeroId): string => HEROES[hero].factory;
 
 /** A copy's star level: absent (or anything below 1) is 1, above FUSE_MAX is FUSE_MAX. */
 export function starsOf(x: { stars?: number } | undefined): number {
@@ -17,14 +30,25 @@ export function starsOf(x: { stars?: number } | undefined): number {
 
 /**
  * True for every buyable gate, factory, mod and turret core (0.6.1b): they merge. Never for supplies
- * (consumed on purchase) or a hero signature (KILN, LOOM, the race factories: price 0, never in cargo;
- * signature cores are not ITEMS at all).
+ * (consumed on purchase) or a hero signature (KILN, LOOM, the race factories: no merchant sells them; signature cores
+ * are not ITEMS at all). bb-0.8.3 (REQ-BFG-042 D2, D9): a signature factory merges too, but while no merchant sells it
+ * it is no shared part (no wagon, road event or familiar draws it): `merges` is the merge rule, and this stays the
+ * shared parts that merge. As before, there is no race-identity filter: a signature factory a merchant sold would join.
  */
 export function fusible(def: string): boolean {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
-  if (!d) return false;
+  if (!d || (SIGNATURE_FACTORIES.has(def) && !d.merchant)) return false;
   // 0.6.2s (REQ-BFG-031 S6): turrets merge like every buyable module
   return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod" || d.kind === "core" || d.kind === "turret") && d.price > 0;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D2): does `def` level up by merging? Every fusible part, and every hero's signature factory,
+ * which merges like any factory (the hero's starting copy is ★1; a copy from the hero's own caravan merges with it).
+ * The merge machinery (game/fuse.ts) and the upload check's merge rules (net/validate.ts) read this.
+ */
+export function merges(def: string): boolean {
+  return fusible(def) || SIGNATURE_FACTORIES.has(def);
 }
 
 const cache = new Map<string, ItemDef>();
@@ -79,9 +103,34 @@ export function valueOf(def: string, stars = 1): number {
   return d ? d.price * 2 ** (stars - 1) : 0;
 }
 
-/** Routes a factory can feed at `stars` (0 for anything that is not a factory). */
+/**
+ * bb-0.8.3 (REQ-BFG-042 D1): a factory's belt slots by its star level (the index): 2 at ★1, and one more each time it
+ * levels up by merging, 3 at ★2 and 4 at ★3.
+ */
+export const BELT_SLOTS: readonly number[] = [0, 2, 3, 4];
+
+/**
+ * The belts (routes) a factory can feed at `stars`, 0 for anything that is not a factory. bb-0.8.3 (REQ-BFG-042 D1-D3):
+ * the one rule, for every factory, bought or a hero's signature: BELT_SLOTS[stars] plus its lead (FactorySpec.lead: the
+ * LOOM and GANTRY PRESS 1, so 3 / 4 / 5). validate.ts, routeCheck.ts, the editor, the inspector and the harness all read
+ * this. Throws for an unknown def, like effectAt.
+ */
 export function outputsAt(def: string, stars: number): number {
-  return effectAt(def, stars).factory?.outputs ?? 0;
+  const spec = effectAt(def, stars).factory;
+  if (!spec) return 0;
+  return BELT_SLOTS[starsOf({ stars })] + (spec.lead ?? 0);
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D4): a factory's pour size at `stars`, on a hero whose signature ammo is `heroAmmo`: one cast puts
+ * a slug onto at most this many of its belts with room, on one tick, taking them in turn when it feeds more (races/
+ * foundry.ts pourAll, rule R). 0: it feeds its belts one slug a cycle, in turn (Battle.stamp). TWIN MOULD 2 / 2 / 3; the
+ * CRUCIBLE 2; a MIMIC FORGE only from ★3 (TWIN SIGNET: 2) and only where it makes the blanks (FOUNDRY: Battle.factoryDef
+ * gives it the hero's ammo). Throws for an unknown def, like effectAt.
+ */
+export function pourAt(def: string, stars: number, heroAmmo?: string): number {
+  const pour = effectAt(def, stars).factory?.pour ?? 0;
+  return def === "mimic" && heroAmmo !== "blank" ? 0 : pour;
 }
 
 /** The optional star field for a copy: {} at 1 star (never written as 1), else { stars }. */

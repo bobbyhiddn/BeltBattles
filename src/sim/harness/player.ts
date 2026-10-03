@@ -53,10 +53,12 @@ import {
   rigArrows, rigHits, routeInfo, turretSlots, turretValue,
   type Build, type Dir, type ModPlacement,
 } from "../deck";
+import { hero as deckHero, routesOf, turretForColumn } from "../deck"; // bb-0.8.3 (D7): the bots' belts
 import { beltIndex, freeForRig, hitsIfPlaced, intakeCell, placeRigAt, rotFacing, rotations, type RigSpot } from "../beltside";
 import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place beside factories
 import type { SideStats } from "../battle";
-import { FUSE_MAX, fusible, outputsAt, starsOf, valueOf } from "../stars";
+import { FUSE_MAX, fusible, starsOf, valueOf } from "../stars";
+import { beltPolicy, botSlots, reachCols } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7): the bots' belts
 import { buildCost, maxGoldByDay } from "../../net/validate";
 import { finishDay } from "../../game/day";
 import { gainModule, mergePreview, type GainAt } from "../../game/fuse";
@@ -452,9 +454,11 @@ function factoryPlan(b: Build, def: string, rng: Rng, line: PolicyKnobs["line"] 
   trial.items.push({ uid: -1, def, x: best.x, y: best.y });
   const routes: Line[] = [];
   let spare = beltFree(b);
-  const outputs = outputsAt(def, 1);
+  // bb-0.8.3 (REQ-BFG-042 D7): up to the bots' slots (belts.ts); under "reach" each further line into another turret
+  const policy = beltPolicy(b.hero), outputs = botSlots(def, 1, b.hero, policy), h = deckHero(b), fed = new Set<number>();
   for (const col of [best.col, ...cols.filter((c) => c !== best!.col)]) {
     if (routes.length >= outputs) break;
+    if (policy === "reach" && fed.has(turretForColumn(h, col))) continue;
     const bl = blockedCells(trial), starts = startCells(best.x, best.y, d.size, bl);
     const len = shortestTiles(bl, starts, col);
     if (len > spare) continue;
@@ -466,8 +470,39 @@ function factoryPlan(b: Build, def: string, rng: Rng, line: PolicyKnobs["line"] 
     routes.push({ cells });
     trial.routes.push({ factory: -1, cells });
     spare -= cells.length;
+    fed.add(turretForColumn(h, col));
   }
   return routes.length ? { x: best.x, y: best.y, routes } : null;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D7): one more belt for a factory that has a free slot for the bots (belts.ts botSlots; nothing
+ * under "today"), the game's free draw out of the factory: its shortest line into each free intake ("come": any installed
+ * turret's; "reach": a turret it doesn't feed yet) within the free belt, for the hero's signature factory and every
+ * bought one alike. The best-rated deck, or null.
+ */
+function moreBelt(b: Build, day: number, rng: Rng, base: number, keep?: (after: Build) => boolean): { build: Build; rel: number } | null {
+  const policy = beltPolicy(b.hero);
+  const spare = beltFree(b);
+  if (policy === "today" || spare <= 0) return null;
+  let best: { build: Build; rel: number } | null = null;
+  for (const p of b.items) {
+    if (ITEMS[p.def]?.kind !== "factory" || routesOf(b, p.uid).length >= botSlots(p.def, starsOf(p), b.hero, policy)) continue;
+    const cols = policy === "reach" ? reachCols(b, p.uid) : freeConnectors(b);
+    const bl = blockedCells(b), starts = startCells(p.x, p.y, ITEMS[p.def].size, bl);
+    for (const col of cols) {
+      const len = shortestTiles(bl, starts, col);
+      if (!Number.isFinite(len) || len > spare) continue;
+      const cells = randomPath(bl, starts, col, len, rng);
+      if (!cells) continue;
+      const trial = cloneBuild(b);
+      commitRoute(trial, p.uid, cells, -1);
+      if (keep && !keep(trial)) continue; // 0.8.0 B1 M1: FOUNDRY's sync guard
+      const rel = relOf(trial, base, day);
+      if (!best || rel > best.rel) best = { build: trial, rel };
+    }
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------- joins (0.6.2j, REQ-BFG-027)
@@ -1203,6 +1238,14 @@ function dawnEdits(run: Run, pol: PolicyKnobs, rng: Rng): void {
       run.build.items = j.build.items;
       run.build.routes = j.build.routes;
     }
+  }
+  // bb-0.8.3 (REQ-BFG-042 D7): a factory with a free slot gets another belt when that rates better (up to 3 a dawn; none
+  // under "today", whose decks stay 0.8.1's)
+  for (let n = 0; n < 3; n++) {
+    const mb = moreBelt(run.build, run.day, rng, rateOn(run.build, run.day), syncKeeper(run.build));
+    if (!mb || mb.rel <= need) break;
+    run.build.items = mb.build.items;
+    run.build.routes = mb.build.routes;
   }
 }
 

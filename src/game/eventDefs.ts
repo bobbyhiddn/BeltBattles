@@ -4,7 +4,7 @@
 // gold on average and none of them wins a run by itself.
 
 import { ITEMS, buyableModules, type GateEffect, type ItemDef, type Rarity } from "../sim/content";
-import { fusible, starField, starsOf, valueOf } from "../sim/stars";
+import { fusible, isSignatureFactory, starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
 import { unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: road grants draw from the run's unlocked wares
@@ -208,7 +208,8 @@ export function tradeGood(run: Run): Good | null {
   const rank = { cargo: 0, deck: 1, mod: 2 };
   const all: Good[] = [
     // 0.6.2s (REQ-BFG-031): a turret in cargo is never a trade good (a free starting copy is worth 0 and can't be sold)
-    ...run.inventory.filter((i) => ITEMS[i.def]?.kind !== "turret")
+    // bb-0.8.3 (REQ-BFG-042 D2): nor is a copy of the hero's signature factory waiting in cargo (no copy ever leaves)
+    ...run.inventory.filter((i) => ITEMS[i.def]?.kind !== "turret" && !isSignatureFactory(i.def))
       .map((i) => ({ uid: i.uid, def: i.def, from: "cargo" as const, ...starField(starsOf(i)) })),
     ...run.build.items.filter((p) => ITEMS[p.def].kind === "gate").map((p) => ({ uid: p.uid, def: p.def, from: "deck" as const, ...starField(starsOf(p)) })),
     ...run.build.mods.map((m) => ({ uid: m.uid, def: m.def, from: "mod" as const, ...starField(starsOf(m)) })),

@@ -360,8 +360,9 @@ export class BuildScreen implements Screen, EditHost {
     v.t = this.t;
     v.ghost = ghost;
     v.highlightConnectors = guide ? this.ed.freeConnectors() : undefined;
-    // shoptap (D4 b): a touch draw that moves a one-output factory's belt leaves the old belt in sight until it commits
-    v.hideRoute = ghost && this.ed.draw && !this.ed.draw.moves ? this.ed.draw.replacing : -1;
+    // a reroute hides the belt it redraws (bb-0.8.3: no factory draw moves a belt any more, so 0.8.0's touch exception, a
+    // one-output factory's moved belt left in sight, is gone with it)
+    v.hideRoute = ghost && this.ed.draw ? this.ed.draw.replacing : -1;
     v.hideItem = this.ed.carry?.src.from === "deck" ? this.ed.carry.uid : -1;
     v.survivorUid = this.survivorUid();
     const fd = this.fuseAnimDeck();

@@ -4,7 +4,7 @@
 // (tests/harness.mods.test.ts: no src/sim/harness file reads star values itself) keeps every harness file off that
 // path. Nothing in the game imports it; the balance harness's par player (src/sim/harness/player.ts) does.
 
-import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME, type HeroId } from "./content";
+import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME, type FactorySpec, type HeroId } from "./content";
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
   walkRoute, type Build, type RigHit,
@@ -134,6 +134,18 @@ function pairShare(b: Build, fs: readonly Feed[]): number {
   return 0;
 }
 
+/**
+ * bb-0.8.3 (REQ-BFG-042 D4): the rating's share of a factory's casts that send a payload down each of its `belts` belts. A
+ * TWIN MOULD (FactorySpec.twin) pours onto each of up to `pour` belts at once, and onto more takes `pour` of them in turn
+ * (rule R): pour / belts each. Any other factory: 1 / belts, a stamp feeding its belts in turn. The CRUCIBLE keeps 0.8.0's
+ * rating: one load a cycle over its belts, as a pour of its 2 blanks into one gun fuses into one load (rule R keeps that
+ * at 3 belts: 2 blanks a cycle). A MIMIC FORGE is rated by its own spec (plain ammo, no twin): its belts in turn.
+ */
+export function beltShare(spec: FactorySpec, belts: number): number {
+  const n = Math.max(1, belts);
+  return spec.twin ? Math.min(1, (spec.pour ?? n) / n) : 1 / n;
+}
+
 /** 0.8.0 I1 M4 (VERIFIED-P1 H4): what rateDeck can hand back besides its rating (the inspector's capped-stoke line). */
 export interface RateOut {
   /** Factory uid -> the share of its stoke the STOKER cap lets through (below 1 only where a gun it feeds can't take the
@@ -209,8 +221,9 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const dmg = low ? low.dmg + breakerShare * (est.dmg - low.dmg) : est.dmg;
     const x = hitExtras(b, hits, ri, fight, est.time);
     // 0.8.0 P1: a TWIN MOULD casts onto each of its belts at once (each belt a slug a cast, as a CRUCIBLE pours); a stoked
-    // factory works x (1 + stoke); an ARMOR PRESS with a belt to a turret plates every `every` s (counted once)
-    const shared = spec.twin ? 1 : outs.get(r.factory) ?? 1;
+    // factory works x (1 + stoke); an ARMOR PRESS with a belt to a turret plates every `every` s (counted once).
+    // bb-0.8.3 (REQ-BFG-042 D4): beltShare, the pour size included
+    const shared = 1 / beltShare(spec, outs.get(r.factory) ?? 1);
     const stoked = stoke.size ? 1 + (stoke.get(r.factory) ?? 0) : 1;
     if (spec.plate && b.routes.findIndex((q, qi) => q.factory === r.factory && routeInfo(b, qi, claims, occ, hits).connected) === ri) {
       plating += (spec.plate.amount * stoked * (pace.get(r.factory) ?? 1)) / spec.plate.every;

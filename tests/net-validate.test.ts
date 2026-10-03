@@ -95,8 +95,16 @@ describe("deck validation: rejections", () => {
     expect(errorsOf(w)).toMatch(/routes 0 and 1 cross at cell 44/);
     const long = furnaceDeck({ routes: [{ factory: 1, cells: [K(3, 7), K(2, 7), K(1, 7), K(1, 6), K(1, 5), K(1, 4), K(1, 3), K(1, 2), K(2, 2), K(3, 2), K(3, 1), K(4, 1), K(4, 0), ] }], beltCap: 10 });
     expect(errorsOf(long)).toMatch(/route: 13 belt tiles exceed beltCap 10/);
-    const twoFromKiln = furnaceDeck({ routes: [{ factory: 1, cells: STRAIGHT }, { factory: 1, cells: [K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }] });
-    expect(errorsOf(twoFromKiln)).toMatch(/KILN uid 1 feeds 2 routes but has 1 output/);
+    // bb-0.8.3 (REQ-BFG-042 D1-D2): a ★1 KILN has 2 belt slots (was 1), so the 3rd belt is the one too many (a BOMBARD in
+    // the extra slot gives the belts more intakes)
+    const threeFromKiln = furnaceDeck({
+      routes: [
+        { factory: 1, cells: STRAIGHT }, { factory: 1, cells: [K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] },
+        { factory: 1, cells: [K(6, 6), K(7, 6), K(8, 6), K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)] },
+      ],
+      turrets: [{ slot: 0, def: "scrapcannon", uid: 90, free: true }, { slot: 1, def: "bombard", uid: 91 }], beltCap: 40,
+    });
+    expect(errorsOf(threeFromKiln)).toMatch(/KILN uid 1 feeds 3 routes but has 2 output/);
   });
 
   it("rejects over-budget decks", () => {

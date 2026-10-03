@@ -69,7 +69,7 @@ import { SYNC_WINDOW } from "../../sim/races/foundry";
 import { button, panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, type Ctx } from "./actions";
-import { fusible, outputsAt, starsOf, starText } from "../../sim/stars";
+import { fusible, isSignatureFactory, outputsAt, starsOf, starText } from "../../sim/stars";
 import { gainModule, mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
@@ -509,12 +509,14 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
   const it = run.inventory.find((i) => i.uid === uid);
   if (!it) return null;
   const d = ITEMS[it.def], stars = starsOf(it), opts = textOpts(run);
-  // 0.6.2s (S6): a turret sells for turretSellValue, and a hull's free starting copy can't be sold at 1 star
-  const turret = d.kind === "turret", sellable = !turret || canSellTurret(it);
+  // 0.6.2s (S6): a turret sells for turretSellValue, and a hull's free starting copy can't be sold at 1 star. bb-0.8.3
+  // (REQ-BFG-042 D2): a copy of the hero's signature factory waiting in cargo never sells either (run.ts sellInventory)
+  const turret = d.kind === "turret", sig = isSignatureFactory(d.id), sellable = !sig && (!turret || canSellTurret(it));
   const body: Block[] = [
     ...abilityBlocks(d.id, stars, opts),
     ...progressBlocks(run, d.id, stars),
     ...(turret && it.free ? [{ role: "ability", text: freeNote(sellable), rank: 3 } as Block] : []),
+    ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, opts.k ?? 1),
     hintBlock(placeHint(d.kind, false, d.id, touch)),
   ];
@@ -542,11 +544,13 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   const d = defOf(p);
   if (d.kind === "gate") return rigPanel(run, uid, touch);
   const stars = starsOf(p);
-  const sig = !fusible(d.id);
+  // bb-0.8.3 (REQ-BFG-042 D2): a hero's signature factory levels up by merging (its stars and merge progress show), and
+  // still never goes to cargo or sells, every copy at every star (run.ts storePlaced)
+  const sig = isSignatureFactory(d.id);
   const body: Block[] = [
     ...joinPaceBlocks(run.build, p.uid), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joined factory leads with its pace
     ...(hasAbilityText(d.id) ? abilityBlocks(d.id, stars, textOpts(run)) : []),
-    ...(sig ? [] : progressBlocks(run, d.id, stars)),
+    ...(fusible(d.id) ? progressBlocks(run, d.id, stars) : []),
     ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock("DRAG OUT OF IT TO LAY BELT."),

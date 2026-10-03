@@ -12,9 +12,10 @@
 //       core and gear (each a "fitted" selection with its own panel: TO CARGO, SELL);
 //   D3  a tap on a belt selects it and puts up its X (beltX(); the screen draws it; any other press takes it down);
 //   D4a a drag that starts on a factory's own first belt tile is the factory's while it has a free output: a new belt;
-//   D4b back on its factory, a draw starts over (released there, nothing changes), and a one-output factory's moved belt
-//       stays in sight until the new one commits (the screen reads Draw.moves).
-// Mouse and touch alike (D4b): a drag out of a one-output factory with a belt says it moves that belt (movesNotice).
+//   D4b back on its factory, a draw starts over (released there, nothing changes).
+// bb-0.8.3 (REQ-BFG-042 D6): every factory has 2 or more belt slots (stars.ts outputsAt), so no drag moves a belt any more:
+// a drag out of a factory whose slots are all in use draws nothing and says so (fullNotice), mouse and touch alike, as a
+// full GANTRY PRESS's drag did in 0.8.0. 0.8.0's one-output notice ("HAS 1 OUTPUT · THIS MOVES ITS BELT") is gone.
 
 import type { PointerKind } from "../../core/io";
 import { GRID, rigShape } from "../../sim/content";
@@ -25,7 +26,7 @@ import {
 import { canJoin, joinOf } from "../../sim/deck"; // 0.6.2j: belt joins
 import { JOIN_PACE_PCT } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { ITEMS } from "../../sim/content";
-import { outputsAt, starsOf } from "../../sim/stars";
+import { FUSE_MAX, merges, outputsAt, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
@@ -48,8 +49,19 @@ export function dragSlop(kind: PointerKind, cssPerPx: number): number {
 /** shoptap (D2): a touch or pen pointer: its taps read. */
 export const direct = (kind: PointerKind | undefined): boolean => kind === "touch" || kind === "pen";
 
-/** shoptap (D4 b): the notice a drag out of a one-output factory that already has a belt shows as it starts. */
-export const movesNotice = (name: string): string => `${name} HAS 1 OUTPUT · THIS MOVES ITS BELT`;
+/** "3RD", "4TH" (belt slots run 2-5). */
+const ordinal = (n: number): string => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "TH" : ["TH", "ST", "ND", "RD"][n % 10] ?? "TH"}`;
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D6): what a drag out of a factory whose belt slots are all in use says, as it draws nothing: its
+ * belts are in use, and a bought factory below ★3 says its next star opens one more ("STAMP PRESS'S 2 BELTS ARE IN USE ·
+ * ★2 OPENS A 3RD"); a hero's signature factory (it can't merge) or one at ★3 says to drag a belt to reroute it.
+ * `merges`: the factory levels up by merging (stars.ts merges: every factory, the signature ones included).
+ */
+export function fullNotice(name: string, belts: number, stars: number, merges: boolean): string {
+  const head = `${name}'S ${belts} BELTS ARE IN USE`;
+  return merges && stars < FUSE_MAX ? `${head} · ★${stars + 1} OPENS A ${ordinal(belts + 1)}` : `${head} · DRAG A BELT TO REROUTE`;
+}
 
 /** shoptap (D4 a): how many more belts factory `uid` can start (its outputs at its stars, = routeCheck.ts, validate.ts). */
 export function freeOutputs(b: Build, uid: number): number {
@@ -96,9 +108,6 @@ export interface Draw {
   refused?: { cell: number; reason: string };
   /** shoptap (D4 b): a touch or pen draw (absent: a mouse draw, exactly as before): back on its factory it starts over. */
   kind?: PointerKind;
-  /** shoptap (D4 b): a touch draw out of a one-output factory that moves its belt (`replacing`): the old belt stays in
-   *  sight until the new one commits. */
-  moves?: boolean;
   /** shoptap (D4 a): the factory's own first belt tile a touch draw started on: it counts as the factory (the press was
    *  ambiguous between them), so the new belt never steps into or joins its old one there. */
   start?: number;
@@ -432,16 +441,11 @@ export class Editor {
     const d = defOf(f);
     const outs = outputsAt(f.def, starsOf(f)) || 1; // 0.6.1a: outputs at its stars (= routeCheck.ts, validate.ts)
     const mine = routesOf(b, uid);
-    let replacing = -1;
-    if (mine.length >= outs) {
-      if (outs === 1) replacing = mine[0];
-      else return this.warn(`ALL ${outs} ${d.name} OUTPUTS USED - DRAG A BELT TO REROUTE`);
-    }
-    // shoptap (D4 b; the battle rules give this factory one output, so a new belt takes the old one's place): say so as
-    // the drag starts, mouse and touch alike. The old belt stays exactly as it is unless a new one commits
-    if (replacing >= 0) this.h.game.toast(movesNotice(d.name), C.yellow);
-    const touch = direct(kind) ? { kind, ...(replacing >= 0 ? { moves: true } : {}), ...(start !== undefined ? { start } : {}) } : {};
-    this.draw = { factory: uid, cells: [], replacing, ...touch };
+    // bb-0.8.3 (REQ-BFG-042 D6): every slot in use: nothing is drawn, as 0.8.0's full GANTRY PRESS (no factory has one
+    // slot now, so none moves its belt); the warning says so, and what merging opens
+    if (mine.length >= outs) return this.warn(fullNotice(d.name, mine.length, starsOf(f), merges(f.def)));
+    const touch = direct(kind) ? { kind, ...(start !== undefined ? { start } : {}) } : {};
+    this.draw = { factory: uid, cells: [], replacing: -1, ...touch };
     this.h.select({ kind: "item", uid });
   }
 

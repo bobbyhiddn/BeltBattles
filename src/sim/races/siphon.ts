@@ -37,6 +37,7 @@ export function sumpProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: numb
       id: ctx.newId(), ammo: leechFor(r), ride: 0, mult: 1, flat: 0, burn: 0, shock: false,
       prior: 0, factory: f.uid, copy: false,
     };
+    if (spec.base !== undefined) p.base = spec.base; // bb-0.8.3 (REQ-BFG-042 D2): a ★2-3 SUMP's level, as Battle.stamp
     r.ammo.push({ p, s: 0, processed: -1, blocked: false });
     f.rr = (f.rr + k + 1) % n;
     f.timer = spec.interval;

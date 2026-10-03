@@ -5,10 +5,13 @@
 // difference of their stamp-to-chamber times apart (walkRoute's estimate: nothing backed up, every rig online). The
 // sync rule (inSync) fuses two blanks that load within SYNC_WINDOW of each other through different intakes. A delay
 // line counts too: a belt longer by a whole pour meets the next pour's blank, so the gap is measured to the nearest
-// whole number of pours (loadEvery: the pour, at the factory's JOIN PACE). A belt that joins another loads through
+// whole number of pours (cycleEvery: the pour, at the factory's JOIN PACE). A belt that joins another loads through
 // the intake at the end of its chain, as the sim loads it, so it never fuses with a blank on that belt.
+// bb-0.8.3 (REQ-BFG-042 D4): a CRUCIBLE with 3 belts pours onto 2 of them a cast, in turn (rule R), so each pair of its
+// belts shares one pour in three; the estimate is the same per pair (two blanks of one pour, or a whole number of pours
+// apart), measured on the pour's cycle (deck.ts cycleEvery; 0.8.0's loadEvery, which equals it at 2 belts).
 
-import { itemByUid, loadEvery, routeInfo, walkRoute, type Build } from "./deck";
+import { cycleEvery, itemByUid, routeInfo, walkRoute, type Build } from "./deck";
 import { effectAt, starsOf } from "./stars";
 import { SYNC_WINDOW } from "./races/foundry";
 
@@ -59,7 +62,7 @@ function arrival(b: Build, i: number): Arrival | null {
 export function syncOf(b: Build, index: number): SyncInfo | null {
   const me = arrival(b, index);
   if (!me) return null;
-  const pour = loadEvery(b, index);
+  const pour = cycleEvery(b, index);
   const partners: SyncPartner[] = [];
   for (let j = 0; j < b.routes.length; j++) {
     if (j === index) continue;

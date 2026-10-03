@@ -24,6 +24,7 @@ import { generateSamplePool } from "../tools/samplePool";
 import { FUSE_MULT, SYNC_WINDOW } from "../src/sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { validateBuild } from "../src/net/validate";
+import { outputsAt } from "../src/sim/stars"; // bb-0.8.3 (REQ-BFG-042): belt slots by stars
 import { readFileSync } from "node:fs";
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -66,14 +67,16 @@ describe("each hero's trick in one plain sentence (REQ-BFG-032)", () => {
   it("quotes the sim's own numbers", () => {
     const num = (s: string) => (s.match(/\d+(\.\d+)?/g) ?? []).map(Number);
     expect(num(T.furnace)).toEqual([AMMO.cinder.rideScale, SIM.furnaceLongTiles, Math.round((1 / FURNACE_LONG_BELT - 1) * 100)]);
-    expect(num(T.weaver)).toEqual([ITEMS.loom.factory!.outputs, FRAY_BONUS, FRAY_MAX]);
+    // bb-0.8.3 (REQ-BFG-042 D2): FactorySpec.outputs is gone; the LOOM's belt slots at ★1 are outputsAt's (3, as before)
+    expect(num(T.weaver)).toEqual([outputsAt("loom", 1), FRAY_BONUS, FRAY_MAX]);
     expect(num(T.foundry)).toEqual([SYNC_WINDOW, FUSE_MULT]);
     expect(num(T.bastion)).toEqual([PLATE_PER_SLUG, PLATE_CAP]);
     expect(T.foundry).toBe("ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN WITHIN 0.25 SECONDS FUSE INTO ONE SLUG WITH 1.15 TIMES THEIR DAMAGE.");
     expect(T.bastion).toBe("ITS BULWARK SLUGS PLATE YOUR HULL AS THEY LOAD, 2 EACH UP TO 24 PLATING, AND PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES.");
     // the FURNACE breech's 8 tiles are battle.ts's own threshold (makeTurret: `< 8` means no long belt)
     expect(readFileSync(new URL("../src/sim/battle.ts", import.meta.url), "utf8")).toMatch(/journeyTiles\(b, ri\)\) < 8\) return false;/);
-    expect(ITEMS.crucible.factory!.outputs).toBe(2); // "BOTH ITS BELTS"
+    // "BOTH ITS BELTS": the starting CRUCIBLE's 2 belt slots (bb-0.8.3: outputsAt at ★1), each taking a blank of its pour of 2
+    expect([outputsAt("crucible", 1), ITEMS.crucible.factory!.pour]).toEqual([2, 2]);
   });
 });
 

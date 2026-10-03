@@ -354,8 +354,9 @@ describe("0.6.2t T4: the panels' layout", () => {
     const run = newRun("furnace", 5, "f3");
     run.inventory = [{ uid: 900, def: "mimic", stars: 3 }];
     const text = visibleLines(planPanel(cargoPanel(run, 900)!, DESK)).flatMap((v) => (v.line === "rule" ? ["--"] : [lineText(v.line.spans)]));
-    expect(text.slice(0, 10)).toEqual([
-      "STAMPS YOUR HERO'S", "SIGNATURE AMMO", "25% FASTER THAN ITS", "OWN FACTORY AND", "FEEDS 2 BELTS.",
+    // bb-0.8.3 (REQ-BFG-042 D3): ★3's opening no longer ends "AND FEEDS 2 BELTS" (its belts follow its stars)
+    expect(text.slice(0, 9)).toEqual([
+      "STAMPS YOUR HERO'S", "SIGNATURE AMMO", "25% FASTER THAN ITS", "OWN FACTORY.",
       "FOR FURNACE, THAT IS", "A CINDER SLUG EVERY", "1 SECOND.", "★3 TWIN SIGNET", "--", // the rule: no text reads on
     ]);
   });
@@ -676,7 +677,8 @@ describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel"
     ];
     for (const [def, s, f] of old) expect(faults(f, at(def, s)).length, `${def} ★${s}: ${f}`).toBeGreaterThan(0);
     expect(faults("THE BELT RUNS 60% FASTER FROM ITS HIT.", at("grease"))).toEqual(["quotes 60"]);
-    expect(faults("STAMPS YOUR HERO'S SIGNATURE AMMO INTO TWO MORE ROUTES.", at("mimic", 3))[0]).toBe("quotes 2");
+    // bb-0.8.3 (REQ-BFG-042 D3): ★3 no longer says FEEDS 2 BELTS, so the old line is caught as a restated opening
+    expect(faults("STAMPS YOUR HERO'S SIGNATURE AMMO INTO TWO MORE ROUTES.", at("mimic", 3))[0]).toBe(`repeats "${at("mimic", 3)[0]}"`);
     // the kept lines pass against their own ability text at every star
     for (const [def, kept] of Object.entries(KEPT_FLAVOUR)) for (const f of kept) for (const s of starsOf(ITEMS[def])) {
       expect(faults(f, at(def, s)), `${def} ★${s}: ${f}`).toEqual([]);
@@ -743,8 +745,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     for (const { t } of PANELS) if (hintShown(t, PHONE)) hints++;
     console.log(`F4 phone hints: ${hints} of ${PANELS.length} panels`);
     // 111 at 881b38f; 0.6.2rel2 on the 0.6.2 candidate's panels (the REPORT gives b94077d's); 0.8.0 I1 M2: 130 with wave
-    // 3's panels (was 115)
-    expect(hints).toBe(130);
+    // 3's panels (was 115); bb-0.8.3 (REQ-BFG-042): 134, the texts the belt slots changed (MIMIC FORGE ★3's opening lost
+    // "AND FEEDS 2 BELTS": its phone band now shows the hint on 4 more panels)
+    expect(hints).toBe(134);
   });
 });
 

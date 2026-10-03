@@ -30,7 +30,8 @@ import {
   routeInfo, routesOf, setRot, type Build, type Placed, type RigHit,
 } from "../deck";
 import { beltIndex, hitsIfPlaced, rotations, type WouldHit } from "../beltside";
-import { outputsAt, starsOf } from "../stars";
+import { starsOf } from "../stars";
+import { beltPolicy, botSlots, reachCols } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7): the bots' belts
 import { fusibleCopies, gainInto, previewMerge } from "./merge";
 import { blockedCells, freeConnectors, shortestTiles, startCells } from "./path";
 import { MAX_ROUTE_EDITS, PLATE, PLATE_HULL, PRESS, isFlatGate, isSpeedGate, isSplitter, type Accept, type Shopper } from "./shopper";
@@ -473,14 +474,32 @@ const fixedSpeedDef = (def: string): boolean => AMMO[ITEMS[def].factory?.ammo ??
  * merge raises its outputs (2 stars: a third output) the same lever tries to add the new route (`merged`: counted in
  * Shopper.thirdArm). A route that would take deck + cargo over the day's gold is not drawn. Every other factory
  * has one output at every star and already feeds it, so this draws nothing for them (no RNG either).
+ * bb-0.8.3 (REQ-BFG-042 D7): up to the bots' slots (belts.ts botSlots: the factory's slots, or 0.8.1's outputs under
+ * "today", which draws exactly as before); under "reach" each further belt only into a turret it doesn't feed yet.
  */
 function moreRoutes(s: Shopper, uid: number, merged: boolean): void {
   const b = s.b;
+  const policy = beltPolicy(b.hero); // bb-0.8.3 (REQ-BFG-042 D7): up to the bots' slots (belts.ts)
   for (;;) {
     const f = b.items.find((p) => p.uid === uid);
-    if (!f || routesOf(b, uid).length >= outputsAt(f.def, starsOf(f))) return;
+    if (!f || routesOf(b, uid).length >= botSlots(f.def, starsOf(f), b.hero, policy)) return;
     const bl = blockedCells(b), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
     let cells: number[] | null = null;
+    if (policy === "reach") {
+      // (c): the next belt only into an installed turret this factory doesn't feed yet, at its shortest (or 2 tiles longer)
+      for (const c of reachCols(b, uid)) {
+        const lo = shortestTiles(bl, starts, c);
+        if (lo !== Infinity) cells = s.drawRoute(-1, starts, bl, s.left(), lo, c) ?? s.drawRoute(-1, starts, bl, s.left(), lo + 2, c);
+        if (cells) break;
+      }
+      if (!cells) return;
+      const snap = cloneBuild(b);
+      s.buyBelt(-1, cells.length);
+      b.routes.push({ factory: uid, cells });
+      if (s.left() < 0) { s.restore(snap); return; }
+      if (merged) s.thirdArm++;
+      continue;
+    }
     for (let t = 0; t < 3 && !cells; t++) cells = s.drawRoute(-1, starts, bl, s.left());
     // random lengths wander (and the first belt walls off the next connector): then the shortest belt around the
     // other belts into each free connector in turn (or 2 tiles longer, the next length of the same parity)

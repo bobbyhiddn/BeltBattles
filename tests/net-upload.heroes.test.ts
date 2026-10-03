@@ -121,7 +121,8 @@ describe("the upload check (validateUpload, the player mode)", () => {
       ["another hero's signature factory", (b, hero) => { b.items.push({ uid: 777, def: hero === "foundry" ? "wardworks" : "crucible", x: 7, y: 8 }); }, /is another hero's signature factory/],
       ["a second signature factory", (b, hero) => { b.items.push({ uid: 777, def: HEROES[hero].factory, x: 7, y: 8 }); }, /^item: the deck must carry exactly one .* \(found 2\)$/],
       ["no signature factory", (b, hero) => { const s = b.items.find((p) => p.def === HEROES[hero].factory)!; b.items = b.items.filter((p) => p !== s); b.routes = b.routes.filter((r) => r.factory !== s.uid); }, /\(found 0\)$/],
-      ["stars on the signature", (b, hero) => { b.items.find((p) => p.def === HEROES[hero].factory)!.stars = 2; }, /can't have 2 stars \(signatures and supplies never merge\)/],
+      // bb-0.8.3 (REQ-BFG-042 D2): "stars on the signature" (a ★2 signature factory) is gone from this list: the hero's own
+      // factory levels up by merging now, so its stars are honest (tests/belts.offer.test.ts reads the copies' new rules)
       ["a METRONOME signature", (b) => { b.items.push({ uid: 777, def: "clockworks", x: 7, y: 8 }); }, /CLOCKWORKS is another hero's signature factory/],
       ["an unknown item", (b) => { b.items.push({ uid: 777, def: "zz_nothing", x: 7, y: 8 }); }, /unknown item "zz_nothing"/],
       ["a turret in a slot the hull lacks", (b) => { setTurretList(b, [{ slot: 7, def: "carronade", uid: 778 }]); }, /^turret: uid 778 is in slot 7; /],

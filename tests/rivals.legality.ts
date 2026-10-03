@@ -12,6 +12,7 @@ import {
 } from "../src/sim/deck";
 import { HEROES, ITEMS, MERCHANTS, itemsSoldBy, type MerchantId } from "../src/sim/content";
 import { unfusedPairs } from "../src/net/validate";
+import { outputsAt, starsOf } from "../src/sim/stars"; // bb-0.8.3 (REQ-BFG-042): belt slots by stars
 
 /** Every def the caravan sells (merchant stock: the 58 modules, 13 turrets and the two supplies). */
 export const SOLD = new Set(Object.keys(MERCHANTS).flatMap((m) => itemsSoldBy(m as MerchantId).map((d) => d.id)));
@@ -58,7 +59,7 @@ export function legalityProblems(b: Build): string[] {
   });
   for (const f of facs) {
     const n = routesOf(nb, f.uid).length;
-    if (n < 1 || n > ITEMS[f.def].factory!.outputs) bad.push(`${f.def} feeds ${n} belts`);
+    if (n < 1 || n > outputsAt(f.def, starsOf(f))) bad.push(`${f.def} feeds ${n} belts`); // bb-0.8.3: slots by stars
   }
   // 0.6.2 BELTSIDE: a rig stands beside the belt (canPlaceItem refuses a belt tile) and, in a preset deck,
   // must work one: an IDLE rig (no arrow reaches a belt) is a wasted purchase

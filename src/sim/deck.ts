@@ -8,7 +8,7 @@ import {
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake,
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
-import { effectAt, starsOf } from "./stars";
+import { effectAt, pourAt, starsOf } from "./stars";
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -1416,6 +1416,9 @@ export function factoryPace(b: Build, uid: number, occ = occupancy(b)): number {
  * stamps onto it while nothing backs up. The factory's cycle (MIMIC FORGE: the hero factory's x its intervalMul) over its
  * batch, shared by turns among its belts (a CRUCIBLE pours onto each at once), at its pace (factoryPace). Infinity for a
  * belt with no factory. A trigger factory (SCRAPPER) reads its idle cycle.
+ * bb-0.8.3 (REQ-BFG-042 D4): a pour (stars.ts pourAt: TWIN MOULD, the CRUCIBLE, a ★3 MIMIC on FOUNDRY) loads each of its
+ * belts every cycle while it feeds no more belts than its pour size, and pour / belts of the cycles past that (rule R);
+ * any other factory feeds its belts in turn. (0.8.0 read a TWIN MOULD's belts as fed in turn: twice its cycle.)
  */
 export function loadEvery(b: Build, index: number, occ = occupancy(b)): number {
   const r = b.routes[index];
@@ -1423,8 +1426,24 @@ export function loadEvery(b: Build, index: number, occ = occupancy(b)): number {
   const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, starsOf(f)).factory : undefined;
   if (!r || !f || !spec) return Infinity;
   const interval = f.def === "mimic" ? (ITEMS[HEROES[b.hero].factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
-  const shared = spec.ammo === "blank" ? 1 : b.routes.filter((q) => q.factory === r.factory).length;
+  const belts = b.routes.filter((q) => q.factory === r.factory).length, pour = pourAt(f.def, starsOf(f), HEROES[b.hero].ammo);
+  const shared = pour ? Math.max(1, belts / pour) : belts;
   return (interval * shared) / ((spec.batch ?? 1) * factoryPace(b, r.factory, occ));
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D4): seconds between the casts of the factory feeding belt `index` (its cycle at its pace, MIMIC
+ * FORGE's at the hero factory's x its intervalMul), whatever share of them reach this belt; Infinity for a belt with no
+ * factory. A CRUCIBLE belt's blank meets another belt's from the same pour, or a whole number of pours later
+ * (syncEstimate.ts); 0.8.0 read that off loadEvery, which equals it while the CRUCIBLE feeds no more than its pour size.
+ */
+export function cycleEvery(b: Build, index: number, occ = occupancy(b)): number {
+  const r = b.routes[index];
+  const f = r ? itemByUid(b, r.factory) : undefined;
+  const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, starsOf(f)).factory : undefined;
+  if (!r || !f || !spec) return Infinity;
+  const interval = f.def === "mimic" ? (ITEMS[HEROES[b.hero].factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
+  return interval / factoryPace(b, r.factory, occ);
 }
 
 /** 0.6.2 TUNE-M, RULE JOIN PACE: the player's words for a joined factory's pace ("JOINED: THIS FACTORY RUNS AT 60%
