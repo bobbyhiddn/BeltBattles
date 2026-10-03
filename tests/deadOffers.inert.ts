@@ -36,8 +36,12 @@ export const REASONS: Record<Reason, string> = {
 // 1-10; STOKER gunFull on BASTION 5-10; TWIN TRIGGER laterGun on SIPHON 4-10. Every other pin is H1's, unchanged.
 // 0.8.0 B1 M1 (oracle 60ce2081b6171361): FOUNDRY, BASTION and SIPHON re-pinned from the audit's rows after the reference
 // decks kept their mirrored rigs (src/sim/races/refBuilds.ts); FURNACE, WEAVER and METRONOME unchanged.
+// 0.8.0 B1 M2 (oracle 77741ac681b29a49): FOUNDRY re-pinned from the audit's rows after FUSE_MULT 1.3 -> 1.15, with the
+// quiet foe kept at 240 hull (QUIET_FOE_HULL): calibrate, dartgun, spikegun, escapement and steambreech inert on days 7-8
+// (the kill moved a shot later, so a swap of the starved gun no longer moves it), railgun day 1 (no kill on the 32 s clock),
+// and no longer inert: escapement and steambreech day 10, bellows day 9 (the foe now dies inside the clock).
 export const INERT: Record<HeroId, Record<string, number[]>> = {
-  foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6], spikegun: [1, 2, 3, 4, 5, 6], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], escapement: [1, 2, 3, 4, 5, 6, 10], steambreech: [1, 2, 3, 4, 5, 6, 10], bellows: [6, 7, 8, 9, 10] },
+  foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6, 7, 8], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8], spikegun: [1, 2, 3, 4, 5, 6, 7, 8], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], railgun: [1], escapement: [1, 2, 3, 4, 5, 6, 7, 8], steambreech: [1, 2, 3, 4, 5, 6, 7, 8], bellows: [6, 7, 8, 10] },
   bastion: { bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7], longcase: [2, 3, 4], overclocker: [5, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10] },
   furnace: { longhaul: [1], overclocker: [1], bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5], dartgun: [6, 7, 8, 9, 10], spikegun: [6, 7, 8, 9, 10], hailgun: [6, 7, 8, 9, 10] },
   weaver: { longhaul: [1], overclocker: [1, 2], chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2, 3], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2], swivel: [1, 2], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2], railgun: [1, 2], siegegun: [1, 2], thunderer: [1, 2], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], grease: [2, 3, 4, 5, 6], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
@@ -54,8 +58,10 @@ const byDefault = (id: string): Reason | undefined =>
     : id === "bellows" ? "needsRide" : undefined;
 
 export const WHY: Partial<Record<HeroId, Record<string, Why>>> = {
-  // 0.8.0 B1 M1 (oracle 60ce2081b6171361): the reference deck's DART and SPIKE GUN days 7-8 work now, so oneIntake alone
-  foundry: { dartgun: [[1, 6, "oneIntake"]], spikegun: [[1, 6, "oneIntake"]], hailgun: "oneIntake", twinneedle: "starved" },
+  // 0.8.0 B1 M2 (oracle 77741ac681b29a49): days 7-8 starved again, as before B1. M1's "work now" (oracle 60ce2081b6171361)
+  // was FUSE_MULT 1.3's kill edge: the deck killed the quiet foe on the clock's last shot (0.0 hull left on day 7), so a
+  // swap moved the kill, not a shot of its own
+  foundry: { dartgun: [[1, 6, "oneIntake"], [7, 8, "starved"]], spikegun: [[1, 6, "oneIntake"], [7, 8, "starved"]], hailgun: "oneIntake", twinneedle: "starved" },
   bastion: { longcase: "shortRide", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake", stoker: "gunFull" }, // 0.8.0 I1: STOKER
   furnace: { longhaul: "needsPriorHits", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake" },
   weaver: { longhaul: "needsPriorHits", dartgun: "starved", spikegun: "starved", grease: "mergeNoGain" },
