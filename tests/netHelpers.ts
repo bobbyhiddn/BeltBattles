@@ -9,7 +9,7 @@ import { validateBuild, validateUpload, type Validation } from "../src/net/valid
 
 /**
  * 0.8.0 H1 (REQ-BFG-009): the first rules version whose upload check accepts `hero` (rulesGate.ts RULES_HEROES): this
- * build's RULES_VERSION (bb-0.6.2) for FURNACE and WEAVER, HEROES_RULES (bb-0.8.0) for FOUNDRY and BASTION; null for
+ * build's RULES_VERSION (bb-0.8.0 since the 0.8.0 RC, which is HEROES_RULES) for all four playable heroes; null for
  * METRONOME and SIPHON, which no rules version accepts yet.
  */
 export function uploadRulesFor(hero: HeroId): string | null {

@@ -416,8 +416,8 @@ describe("P17: offline ghosts carry stars and rotation (v2 snapshots)", () => {
 // ---------------------------------------------------------------- P18: RULES_VERSION
 
 describe("P18: RULES_VERSION", () => {
-  it("is BELTSIDE's own bump, bb-0.6.2 (the 0.6.2 release), and the stand-in pool was scored under it", () => {
-    expect(RULES_VERSION).toBe("bb-0.6.2");
+  it("is bb-0.8.0, the 0.8.0 release step's bump (BELTSIDE's own was bb-0.6.2), and the stand-in pool was scored under it", () => {
+    expect(RULES_VERSION).toBe("bb-0.8.0");
     expect(STAND_IN_DATA.rules).toBe(RULES_VERSION);
   });
 });
