@@ -68,12 +68,17 @@ const VIEW = {
   "wk-phone-land": { ...IPHONE, viewport: { width: 844, height: 390 } },
   "wk-iphone13": IPHONE, // 390x664
   "wk-iphone15pm": IPHONE_MAX, // 430x739
+  // zoom (REQ-BFG-040): the operator's page area in Edge for iOS on his iPhone (his screenshot: 1206x2622 at DPR 3)
+  "wk-op-690": { ...IPHONE, viewport: { width: 402, height: 690 } },
   small: VIEWS.small, // 360x640 @2
   desk: VIEWS.desk, // 1920x1080 @1, the mouse
 };
 /** shoptap2: the browser a view runs in. */
 const ENGINE = (vname) => (vname.startsWith("wk-") ? "webkit" : "chromium");
-const TOUCH_VIEWS = opt("views", "phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm").split(",").map((s) => s.trim());
+const TOUCH_VIEWS = opt("views", "phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm,wk-op-690").split(",").map((s) => s.trim());
+/** zoom (REQ-BFG-040, A1): the portrait phone views where every panel a tap opens must sit inside the band (not grown over
+ *  the bow or the shop) with its full description (D3). */
+const FIT_VIEWS = new Set(["wk-op-690", "wk-phone", "wk-phone-660", "wk-iphone13", "wk-iphone15pm", "phone", "phone-660"]);
 /** Each tap three times: its finger drifts 3, 5 and 8 CSS px (at 0, 90 and 225 degrees) before it lifts. */
 const DRIFTS = [[3, 0], [5, 90], [8, 225]];
 const TAP_CSS = 44;
@@ -233,12 +238,25 @@ const look = (page) => page.evaluate(() => {
   const vis = { x: vv ? vv.offsetLeft : 0, y: vv ? vv.offsetTop : 0, w: vv ? vv.width : innerWidth, h: vv ? vv.height : innerHeight };
   const x0 = Math.max(0, vis.x), y0 = Math.max(0, vis.y), x1 = Math.min(innerWidth, vis.x + vis.w), y1 = Math.min(innerHeight, vis.y + vis.h);
   const inside = !!box && box.x >= x0 - 0.01 && box.y >= y0 - 0.01 && box.x + box.w <= x1 + 0.01 && box.y + box.h <= y1 + 0.01;
+  // zoom (REQ-BFG-040): the portrait band (CSS px) and whether the panel as drawn lies in it (not grown past it)
+  const a = s.L.info, p = window.bb.toClient(a.x, a.y), q = window.bb.toClient(a.x + a.w, a.y + a.h);
+  const band = s.L.portrait ? { x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y } : null;
+  const inBand = !!box && !!band && box.x >= band.x - 0.51 && box.y >= band.y - 0.51 && box.x + box.w <= band.x + band.w + 0.51 && box.y + box.h <= band.y + band.h + 0.51;
   return {
     sel: s.sel, carry: s.ed.carry ? s.ed.carry.def : null, draw: s.ed.draw ? { ...s.ed.draw, cells: [...s.ed.draw.cells] } : null,
     toasts: g.toastLog.length, panel: typeof window.bb.panel === "function" ? window.bb.panel() : null, gold: g.run.gold,
-    box, inside, vis: { x: x0, y: y0, w: Math.round(x1 - x0), h: Math.round(y1 - y0) },
+    box, inside, vis: { x: x0, y: y0, w: Math.round(x1 - x0), h: Math.round(y1 - y0) }, band, inBand,
   };
 });
+/** zoom (REQ-BFG-040, A1): on a portrait phone view (FIT_VIEWS) the panel a tap opened sits inside the band, drawn no
+ *  bigger than it (not grown over the bow or the shop), fully inside the visible viewport, with its full description
+ *  (panelInfo's `full`: its kept text whole, the full body's text, every rule sentence, no phone cut; its flavour and hint
+ *  may give way, and its form is reported). */
+const fitted = (l) => !!l.panel && l.inBand && l.inside && l.panel.full === true;
+const fdesc = (l) => (!l.panel ? "no panel" : `${l.box ? `${l.box.w.toFixed(0)}x${l.box.h.toFixed(0)} CSS px at y ${l.box.y.toFixed(0)}` : "not drawn"} ${l.inBand ? "inside" : "NOT inside"} the band${l.band ? ` (${l.band.h.toFixed(0)} CSS px at y ${l.band.y.toFixed(0)})` : ""}; ${l.panel.full === true ? "its full description" : l.panel.full === false ? "NOT its full description" : "full description unknown"}${l.panel.fullest ? ", every block (variant 0)" : l.panel.full ? ` (variant ${l.panel.variant}${l.panel.dropped.length ? `, ${l.panel.dropped.join("/")} gave way` : ""})` : ""}`);
+function fitCheck(vname, V, what, l) {
+  if (FIT_VIEWS.has(vname)) check(fitted(l), `${V}: A1 ${what}: its panel ${fdesc(l)}`);
+}
 /** shoptap2: a UI region (CSS px) lies fully inside the visible viewport `look` measured. */
 const inView = (r, l) => !!r && r.x >= l.vis.x - 0.01 && r.y >= l.vis.y - 0.01 && r.x + r.w <= l.vis.x + l.vis.w + 0.51 && r.y + r.h <= l.vis.y + l.vis.h + 0.51;
 /** shoptap2: the panel a tap opened shows its description: drawn, titled `title`, at least one body line, its kept text
@@ -315,6 +333,7 @@ async function touchSection(browsers, origin, vname) {
       const l = await look(page), s1 = await snap(page), news = await toastsSince(page, l0.toasts);
       const ok = l.sel.kind === "offer" && l.sel.slot === i && !l.carry && s1 === s0 && !news.some((t) => /MORE GOLD/.test(t)) && shown(l, def);
       check(ok, `${V}: the ${label} shop card (${def}) tapped with a ${d} CSS px drift opens its description (${l.panel ? `panel ${pdesc(l)}, buttons ${JSON.stringify(l.panel.labels)}` : `${JSON.stringify(l.sel)}, no panel`}); gold ${l.gold}, the shop and the build unchanged; nothing lifted${news.length ? `; toasts ${JSON.stringify(news)}` : ""}`);
+      fitCheck(vname, V, `the ${label} shop card (${def}), ${d} CSS px drift`, l);
     }
     await shot(page, `${TAG}-${vname}-shop-${label}.png`);
     const buy = await region(page, "buy");
@@ -336,6 +355,7 @@ async function touchSection(browsers, origin, vname) {
       await tap(cdp, await where(), d, deg);
       const l = await look(page), s1 = await snap(page);
       check(same(l.sel, want) && s1 === s0 && !l.carry && !l.draw && shown(l, title), `${V}: ${what} tapped with a ${d} CSS px drift opens its panel (${l.panel ? `${pdesc(l)} · ${l.panel.sub}; buttons ${JSON.stringify(l.panel.labels)}` : `${JSON.stringify(l.sel)}, no panel`}); gold, the build and cargo unchanged`);
+      fitCheck(vname, V, `${what}, ${d} CSS px drift`, l);
     }
     if (name && name !== "kiln") await shot(page, `${TAG}-${vname}-${name}-panel.png`);
   }
@@ -347,6 +367,7 @@ async function touchSection(browsers, origin, vname) {
     const l = await look(page), s1 = await snap(page);
     check(same(l.sel, { kind: "cargo", uid: 60 }) && s1 === s0 && !l.carry && shown(l, "GALVANIC COIL") && l.panel.labels.some((t) => /^SELL \+\d+G$/.test(t)),
       `${V}: the GALVANIC COIL in cargo tapped with a ${d} CSS px drift opens its panel (${l.panel ? `${pdesc(l)}; buttons ${JSON.stringify(l.panel.labels)}` : `${JSON.stringify(l.sel)}, no panel`}); nothing changed`);
+    fitCheck(vname, V, `the GALVANIC COIL in cargo, ${d} CSS px drift`, l);
   }
   await shot(page, `${TAG}-${vname}-cargo-panel.png`);
   // the signature KILN's panel says it stays aboard, no SELL
@@ -355,6 +376,7 @@ async function touchSection(browsers, origin, vname) {
   const kiln = await look(page);
   const kilnText = kiln.panel ? kiln.panel.lines.join(" ") : "";
   check(kiln.panel && kiln.panel.labels.length === 0 && kilnText.includes("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.") && shown(kiln, "KILN"), `${V}: the KILN's panel offers no SELL and says why: ${kiln.panel ? `${JSON.stringify(kiln.panel.lines.filter((t) => /ABOARD|SOLD|SIGNATURE/.test(t)))}; ${pdesc(kiln)}` : "no panel"}`);
+  fitCheck(vname, V, "the KILN", kiln);
   await shot(page, `${TAG}-${vname}-kiln-panel.png`);
   // the rig: its first tap selects without turning (its panel shows); a tap on the selected rig turns it
   for (const [d, deg] of DRIFTS) {
@@ -365,6 +387,7 @@ async function touchSection(browsers, origin, vname) {
     await tap(cdp, await cell(page, 3, 3), d, deg + 180);
     const r2 = await rotOf(page, 3);
     check(same(l.sel, { kind: "item", uid: 3 }) && r1 === r0 && s1 === s0 && r2 === (r0 + 1) % 4 && shown(l, "TEMPER"), `${V}: the TEMPER (rig), ${d} CSS px drift: the first tap selects it and doesn't turn it (rot ${r0} -> ${r1}; panel ${pdesc(l)}), a tap on the selected rig turns it a quarter (rot ${r2})`);
+    fitCheck(vname, V, `the TEMPER (rig), ${d} CSS px drift`, l);
   }
   await shot(page, `${TAG}-${vname}-rig-panel.png`);
   for (const id of ["rotate", "store", "sellpart"]) {
@@ -386,6 +409,7 @@ async function touchSection(browsers, origin, vname) {
       await tap(cdp, await turret(page, 1), DRIFTS[i % 3][0], DRIFTS[i % 3][1]);
       const l = await look(page);
       all = all && shown(l) && (i > 0 && i < 3 ? l.panel.labels.some((t) => /^SELL \+\d+G$/.test(t)) : true);
+      fitCheck(vname, V, ["the BOMBARD (turret) with a core and gear", "its core (PRESSURE BREECH)", "its gear (HOPPER)", "the BOMBARD again"][i], l);
       seen.push(`${l.sel.kind}${l.sel.uid ? ` ${l.sel.uid}` : ""}${l.panel ? ` ${pdesc(l)} ${JSON.stringify(l.panel.labels)}` : " no panel"}`);
       if (i === 0) await shot(page, `${TAG}-${vname}-turret-panel.png`);
       if (i === 1) await shot(page, `${TAG}-${vname}-core-panel.png`);
@@ -403,6 +427,7 @@ async function touchSection(browsers, origin, vname) {
     await tap(cdp, await where(), 5, 90);
     const l = await look(page), s1 = await snap(page);
     check(same(l.sel, want) && s1 === s0 && (await rotOf(page, 3)) === r0 && (title === null || shown(l, title)), `${V}: with the GREASE WORKS card selected, a tap on ${what} ${want.kind === "none" ? "dismisses it" : `reads it (${pdesc(l)})`} (${JSON.stringify(l.sel)}) and buys or places nothing (gold ${l.gold})`);
+    if (title !== null) fitCheck(vname, V, `${what} read with the GREASE WORKS card selected`, l);
   }
 
   // shoptap2: where a finger's panel grows past the band it covers part of the bow (a shop card's) or the shop (a part's):
