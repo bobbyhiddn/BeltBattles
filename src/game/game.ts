@@ -3,7 +3,7 @@
 // screen), toasts, and frame timing for the tooling hooks.
 
 import { Audio, type Sfx } from "../audio/audio";
-import { applyView, bindInput, computeView, type InputSink, type View } from "../core/io";
+import { applyView, bindInput, computeView, type InputSink, type PointerKind, type View } from "../core/io";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
@@ -21,7 +21,10 @@ export interface Screen {
   enter?(): void;
   update(dt: number): void;
   draw(g: G): void;
-  down?(x: number, y: number): void;
+  /** shoptap (D1): `kind`, the pointer that pressed (a mouse when absent). */
+  down?(x: number, y: number, kind?: PointerKind): void;
+  /** shoptap (D3): every press the screen sees, before it is routed: `region`, the UI region it hit (null: none). */
+  pressed?(x: number, y: number, region: string | null, kind: PointerKind): void;
   move?(x: number, y: number, down: boolean): void;
   up?(x: number, y: number): void;
   cancel?(): void;
@@ -219,21 +222,25 @@ export class Game implements InputSink {
 
   // ------------------------------------------------------------ input routing
 
-  pointerDown(x: number, y: number): void {
+  /** shoptap (D1): `kind`, the pointer that pressed (io.ts passes pointerdown's pointerType; tooling calls without it
+   *  press with a mouse, as before). */
+  pointerDown(x: number, y: number, _button = 0, kind: PointerKind = "mouse"): void {
     this.audio.unlock();
     const ui = this.ui;
     ui.pointer.x = x;
     ui.pointer.y = y;
     ui.pointer.down = true;
+    ui.pointer.kind = kind;
     ui.pressed = null;
     if (this.wipeDir !== 0) return;
     const r = ui.hit(x, y);
+    this.screen.pressed?.(x, y, r ? r.id : null, kind); // shoptap (D3): the build screen's belt X hears every press
     if (r) {
       if (r.onDown) r.onDown(x, y);
       else ui.pressed = r.id;
       return;
     }
-    this.screen.down?.(x, y);
+    this.screen.down?.(x, y, kind);
   }
 
   pointerMove(x: number, y: number, down: boolean): void {

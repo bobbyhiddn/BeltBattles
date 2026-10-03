@@ -35,15 +35,30 @@ export function applyView(canvas: HTMLCanvasElement, v: View): void {
   canvas.style.height = `${(v.H * v.scale) / v.dpr}px`;
 }
 
+/** shoptap (D1): what pressed: a mouse, a finger or a pen (PointerEvent.pointerType; anything else counts as a mouse). */
+export type PointerKind = "mouse" | "touch" | "pen";
+
+/** The PointerEvent's pointerType as a PointerKind: "touch" and "pen" as they are, everything else (mouse, "") a mouse. */
+export function pointerKind(type: string | undefined): PointerKind {
+  return type === "touch" || type === "pen" ? type : "mouse";
+}
+
+/** shoptap: CSS px per logical px (the view's device-pixel scale over the device pixel ratio). */
+export function cssPerPx(v: Pick<View, "scale" | "dpr">): number {
+  return v.scale / v.dpr;
+}
+
 export interface InputSink {
-  pointerDown(x: number, y: number, button: number): void;
+  /** shoptap (D1): `kind`, the pointer that pressed (pointerdown's pointerType); absent, a mouse. */
+  pointerDown(x: number, y: number, button: number, kind?: PointerKind): void;
   pointerMove(x: number, y: number, down: boolean): void;
   pointerUp(x: number, y: number): void;
   pointerCancel(): void;
   key(k: string): void;
 }
 
-/** Single-pointer input (mouse, pen or first touch), mapped to logical pixels. */
+/** Single-pointer input (mouse, pen or first touch), mapped to logical pixels. shoptap (D1): a press passes its
+ *  pointer type on (the build screen's touch rules read it; it is never guessed from the screen size). */
 export function bindInput(canvas: HTMLCanvasElement, getView: () => View, sink: InputSink): void {
   let active: number | null = null;
   const toLogical = (e: PointerEvent) => {
@@ -60,7 +75,7 @@ export function bindInput(canvas: HTMLCanvasElement, getView: () => View, sink: 
     try { canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     canvas.focus({ preventScroll: true });
     const p = toLogical(e);
-    sink.pointerDown(p.x, p.y, e.button);
+    sink.pointerDown(p.x, p.y, e.button, pointerKind(e.pointerType));
     e.preventDefault();
   });
   canvas.addEventListener("pointermove", (e) => {

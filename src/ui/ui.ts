@@ -6,6 +6,7 @@ import { bevel, frame, rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap, type FontId } from "../render/font";
 import { itemIcon } from "../render/sprites";
 import { ITEMS } from "../sim/content";
+import type { PointerKind } from "../core/io"; // shoptap (D1)
 
 export interface Rect {
   x: number;
@@ -29,7 +30,8 @@ export class UI {
   private building: Region[] = [];
   pressed: string | null = null;
   hover: string | null = null;
-  pointer = { x: -1, y: -1, down: false };
+  /** shoptap (D1): `kind`, the pointer of the last press (a mouse until something else presses). */
+  pointer: { x: number; y: number; down: boolean; kind: PointerKind } = { x: -1, y: -1, down: false, kind: "mouse" };
 
   begin(): void {
     this.building = [];
@@ -119,10 +121,12 @@ export interface ButtonOpts {
   onBlocked?: () => void; // a press while disabled (e.g. toast why)
   sub?: string; // small second line
   subColor?: string;
+  /** shoptap (D5): the tap target, where it is bigger than the drawn button (a phone's 44 CSS px); absent, the button. */
+  hit?: Rect;
 }
 
 export function button(ui: UI, g: G, id: string, r: Rect, label: string, o: ButtonOpts = {}): void {
-  const pressed = ui.pressed === id && ui.pointer.down && inside(r, ui.pointer.x, ui.pointer.y);
+  const pressed = ui.pressed === id && ui.pointer.down && inside(o.hit ?? r, ui.pointer.x, ui.pointer.y);
   const hover = ui.hover === id;
   let fill: string = C.slate2, hi: string = C.slate4, hi2: string = C.slate3, lo: string = C.slate0, text: string = C.white;
   if (o.primary) { fill = C.amber; hi = C.fire4; hi2 = C.fire3; lo = C.fire1; text = C.ink; }
@@ -152,7 +156,22 @@ export function button(ui: UI, g: G, id: string, r: Rect, label: string, o: Butt
     const blinkOff = o.blink && Math.floor(performance.now() / 300) % 2 === 0;
     if (!blinkOff) drawText(g, label, r.x + r.w / 2, r.y + Math.floor((r.h - 1 - fh) / 2) + dy, text, { font, align: "center" });
   }
-  ui.add({ id, r, onTap: o.disabled ? o.onBlocked : o.onTap, block: true });
+  ui.add({ id, r: o.hit ?? r, onTap: o.disabled ? o.onBlocked : o.onTap, block: true });
+}
+
+/** shoptap (D5): a tap target at least `minH` px tall around the drawn rect `r` (and `minW` wide), grown evenly
+ *  about its centre and kept inside `within`; `r` itself where it is already that big. Pure (tests). */
+export function tapRect(r: Rect, minH: number, within: Rect, minW = 0): Rect {
+  const grow = (a: number, len: number, min: number, lo: number, hi: number): [number, number] => {
+    const n = Math.max(len, Math.min(min, hi - lo));
+    if (n <= len) return [a, len];
+    let s = Math.round(a - (n - len) / 2);
+    s = Math.max(lo, Math.min(hi - n, s));
+    return [s, n];
+  };
+  const [y, h] = grow(r.y, r.h, minH, within.y, within.y + within.h);
+  const [x, w] = grow(r.x, r.w, minW, within.x, within.x + within.w);
+  return { x, y, w, h };
 }
 
 /** A disabled button that says why in red: under its label when both fit, else in its place
