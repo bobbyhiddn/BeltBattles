@@ -49,11 +49,12 @@ describe("server config", () => {
     expect(configError([], { BB_GHOST_UPLOADS: "shut" })).toMatch(/BB_GHOST_UPLOADS must be one of open, closed/);
   });
 
-  it("the production configuration (fly.toml's [env] and the Tigris secrets) has uploads closed, with or without that line", () => {
+  // 0.8.0 U2 M1: the uploads step opens uploads in fly.toml; the code default stays closed (the test above)
+  it("the production configuration (fly.toml's [env] and the Tigris secrets) has uploads open; a deploy that lost that line is closed", () => {
     const fly = flyEnv();
-    expect(fly.BB_GHOST_UPLOADS).toBe("closed");
+    expect(fly.BB_GHOST_UPLOADS).toBe("open");
     expect(readConfig([], { ...TIGRIS, ...fly })).toMatchObject({
-      uploads: "closed", trustProxy: "fly", host: "0.0.0.0", port: 8080, staticDir: "/app/public", store: { kind: "tigris" },
+      uploads: "open", trustProxy: "fly", host: "0.0.0.0", port: 8080, staticDir: "/app/public", store: { kind: "tigris" },
     });
     const { BB_GHOST_UPLOADS: _uploads, ...withoutLine } = fly; // a deploy that lost the line
     expect(readConfig([], { ...TIGRIS, ...withoutLine }).uploads).toBe("closed");

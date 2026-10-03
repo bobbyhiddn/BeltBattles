@@ -13,8 +13,9 @@ import { snap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { startFake, storeBackends, tigrisFor } from "./netStores";
 
-// The switches production runs with (fly.toml): uploads closed, the client IP from Fly's proxy,
-// and the game page served from the same origin.
+// The switches production runs with (fly.toml): the client IP from Fly's proxy, and the game page served from the same
+// origin. Uploads here are closed (one test contrasts an open server): the code's default and the rollback's switch.
+// fly.toml opens them from the 0.8.0 uploads step (U2) on, as tests/server-config.test.ts pins.
 
 const POOL = generateSamplePool();
 

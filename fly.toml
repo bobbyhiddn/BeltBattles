@@ -18,7 +18,7 @@ primary_region = "iad"
 
 [env]
   BB_GHOST_STORE = "tigris"
-  BB_GHOST_UPLOADS = "closed"           # until 0.7.0 signed writes and the budget ceiling
+  BB_GHOST_UPLOADS = "open"             # 0.8.0: signed uploads, the budget check, the hero gate and the record check
   BB_GHOST_TRUST_PROXY = "fly"          # rate limit keyed on Fly-Client-IP, in memory only (never logged)
   BB_GHOST_HOST = "0.0.0.0"
   BB_GHOST_PORT = "8080"
