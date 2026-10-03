@@ -1,0 +1,355 @@
+// zoom (BeltBattles phone build screen zoom-out; REQ-BFG-040): on the operator's iPhone (Edge for iOS, about 402x690 CSS px
+// at DPR 3) the build screen picked x7: a 172x295 logical screen, 2.33 CSS px an art pixel, the hull 91% of the width and
+// a 3 px details band, so a tapped item showed no description ("We can zoom out our ui quite a bit on mobile. It's too
+// crammed"). Now, on a phone (ui/tap.ts's: the short side under 500 CSS px) the build screen never draws an art pixel
+// bigger than 1.75 CSS px (layout.ts buildScale: x5 at DPR 3, x4 at 2.625, x3 at 2), and in portrait its layout (`phone`)
+// balances the shop's rows and gives the details band the room that frees, up to what its tallest panel needs
+// (phoneBand); a finger's panel sits in the band wherever its full description fits there (fullText), and only where it
+// doesn't does shoptap2's fallback grow it. Every other view (desktops, laptops, tablets, landscape) is exactly as before.
+import { describe, expect, it } from "vitest";
+import { installRaster } from "./raster.helpers";
+import { newRun, type Run } from "../src/game/run";
+import { buyableModules } from "../src/sim/content";
+import { key as K, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
+import { fusible } from "../src/sim/stars";
+import { computeView, type View } from "../src/core/io";
+import { UI, type Rect } from "../src/ui/ui";
+import { PHONE_CSS, isPhone } from "../src/ui/tap";
+import { HULL_A, HULL_L, frameForHull, hullBox } from "../src/render/frame";
+import {
+  BARREL, CARD_H, CARD_W, FOE_H, PORT_BAND, PHONE_ART_CSS, WIDE_CARD_H, buildLayout, buildScale, heroCardRect, panelArea, phoneBand,
+  phoneScreen, wideCardW, type BuildLayout, type Sel,
+} from "../src/screens/build/layout";
+import { detailsPlan, fullText, fullest, keptWhole, visibleLines } from "../src/screens/build/inspector";
+import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
+import type { Ctx } from "../src/screens/build/actions";
+
+installRaster();
+
+const within = (a: Rect, b: Rect) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+const hit = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+// ------------------------------------------------------------------------------------------- BASE (f7db355), verbatim
+// layout.ts's buildScale and buildLayout as they were before the zoom, to compare every non-phone view with
+const GAP = 3, BAR_H = 14, CARGO_H = 22;
+const LAND_MIN_W = 430, LAND_MIN_H = BAR_H + 6 + WIDE_CARD_H + 4 + HULL_A + 3 + CARGO_H + 2;
+const PORT_MIN_W = HULL_A + 4, PORT_FIXED = BAR_H + 3 + 2 * CARD_H + GAP + 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
+function baseScale(pw: number, ph: number, portrait: boolean): number {
+  for (let s = 12; s > 1; s--) {
+    const W = Math.floor(pw / s), H = Math.floor(ph / s);
+    if (!portrait && W >= LAND_MIN_W && H >= LAND_MIN_H) return s;
+    if (portrait && W >= PORT_MIN_W && H >= PORT_FIXED) return s;
+  }
+  return 1;
+}
+function cardRow(n: number, x0: number, y: number, perRow: number, step: number): Rect[] {
+  const out: Rect[] = [];
+  for (let i = 0; i < n; i++) out.push({ x: x0 + (i % perRow) * step, y: y + Math.floor(i / perRow) * (CARD_H + GAP), w: CARD_W, h: CARD_H });
+  return out;
+}
+function baseLayout(W: number, H: number, portrait: boolean, offers: number): BuildLayout {
+  const bar: Rect = { x: 0, y: 0, w: W, h: BAR_H };
+  const slots = offers + 1;
+  if (!portrait) {
+    const tags = true;
+    const cy = BAR_H + 3 + 6;
+    const cardW = wideCardW(W, offers);
+    const rowW = offers * cardW + CARD_W + offers * GAP + 8;
+    const x0 = Math.round(W / 2 - rowW / 2);
+    const cards: Rect[] = [];
+    for (let i = 0; i < offers; i++) cards.push({ x: x0 + i * (cardW + GAP), y: cy, w: cardW, h: WIDE_CARD_H });
+    const reroll: Rect = { x: x0 + offers * (cardW + GAP) + 8, y: cy, w: CARD_W, h: WIDE_CARD_H };
+    const colL = Math.min(136, Math.round(W * 0.28));
+    const colR = Math.min(150, Math.round(W * 0.3));
+    const top = cy + WIDE_CARD_H + 5;
+    const avail = H - top - CARGO_H - 4;
+    const hy = top + Math.max(0, Math.floor((avail - HULL_A) / 2));
+    const cx0 = 6 + colL, cx1 = W - 6 - colR;
+    const hx = Math.round((cx0 + cx1) / 2 - HULL_L / 2);
+    const frame = frameForHull(1, hx, hy);
+    const hull = hullBox(frame);
+    const cw = Math.min(cx1 - cx0 - 8, 200);
+    const cargo: Rect = { x: Math.round((cx0 + cx1) / 2 - cw / 2), y: hull.y + HULL_A + 3, w: cw, h: CARGO_H };
+    const rx = cx1 + 4, rw = colR - 4;
+    return {
+      W, H, portrait, bar, cards, reroll, perRow: slots, tags, frame, hull,
+      pad: { x: hull.x - 5, y: hull.y - 5, w: hull.w + 10, h: hull.h + 10 },
+      cargo,
+      fight: { x: rx, y: Math.round(hull.y + HULL_A / 2 - 16), w: rw, h: 32 },
+      info: { x: 6, y: top, w: colL - 8, h: cargo.y + CARGO_H - top },
+      foe: { x: rx, y: top, w: rw, h: 40 },
+    };
+  }
+  const perRow = Math.max(1, Math.floor((W - 8 + GAP) / (CARD_W + GAP)));
+  const rows = Math.ceil(slots / perRow);
+  const tags = rows === 1;
+  const cy = BAR_H + 3 + (tags ? 6 : 0);
+  const used = Math.min(perRow, slots);
+  const rowW = used * CARD_W + (used - 1) * GAP;
+  const cards = cardRow(slots, Math.round(W / 2 - rowW / 2), cy, perRow, CARD_W + GAP);
+  const reroll = cards.pop()!;
+  const shopBottom = cy + rows * CARD_H + (rows - 1) * GAP;
+  const fixedBelow = 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
+  const spare = Math.max(0, H - shopBottom - fixedBelow);
+  const band = Math.min(PORT_BAND, spare);
+  const info: Rect = { x: 3, y: shopBottom + 2, w: W - 6, h: band };
+  const hy = info.y + band + 2 + BARREL + Math.floor((spare - band) / 2);
+  const frame = frameForHull(0, Math.round(W / 2 - HULL_A / 2), hy);
+  const hull = hullBox(frame);
+  const fw = Math.min(64, Math.round(W * 0.36));
+  const ry = hull.y + HULL_L + 4;
+  return {
+    W, H, portrait, bar, cards, reroll, perRow, tags, frame, hull,
+    pad: { x: hull.x - 3, y: hull.y - 4, w: hull.w + 6, h: hull.h + 8 },
+    cargo: { x: 3, y: ry, w: W - fw - 9, h: CARGO_H },
+    fight: { x: W - fw - 3, y: ry - 1, w: fw, h: CARGO_H + 2 },
+    info,
+    foe: band >= FOE_H ? { x: info.x, y: info.y + band - FOE_H, w: info.w, h: FOE_H } : null,
+  };
+}
+
+/** The build screen as the game frames it (BuildScreen.pickScale and layout): its view and its layout with `offers`. */
+function screen(w: number, h: number, dpr: number, offers = 5) {
+  const v = computeView(w, h, dpr, buildScale);
+  const phone = v.portrait && phoneScreen(Math.floor(w * dpr), Math.floor(h * dpr), dpr);
+  return { v, L: buildLayout(v.W, v.H, v.portrait, offers, phone), k: v.scale / v.dpr, phone };
+}
+
+describe("zoom D1: the build screen's scale on a phone is capped at 1.75 CSS px an art pixel", () => {
+  it("phoneScreen is ui/tap.ts's phone (the short side under PHONE_CSS CSS px), exactly, for whole CSS px sizes", () => {
+    for (const dpr of [1, 1.25, 1.5, 2, 2.25, 2.625, 3, 3.5, 4]) for (const s of [320, 430, 499, 500, 501, 768]) {
+      expect(phoneScreen(Math.floor(s * dpr), Math.floor(900 * dpr), dpr), `${s} @${dpr}`).toBe(s < PHONE_CSS);
+      expect(phoneScreen(Math.floor(900 * dpr), Math.floor(s * dpr), dpr), `landscape ${s} @${dpr}`).toBe(s < PHONE_CSS);
+    }
+  });
+
+  it("over phone sizes 320-430 x 548-932 at DPR 2, 2.625 and 3: never more than 1.75 CSS px an art pixel; x3, x4 and x5 where they fit", () => {
+    let n = 0;
+    const picks = new Map<number, Set<number>>();
+    for (const dpr of [2, 2.625, 3]) for (let w = 320; w <= 430; w++) for (let h = 548; h <= 932; h += 4) {
+      const { v, k } = screen(w, h, dpr);
+      expect(k, `${w}x${h} @${dpr}`).toBeLessThanOrEqual(PHONE_ART_CSS);
+      expect(v.scale, `${w}x${h} @${dpr}`).toBe(Math.min(Math.floor(PHONE_ART_CSS * dpr), baseScale(Math.floor(w * dpr), Math.floor(h * dpr), v.portrait)));
+      if (!picks.has(dpr)) picks.set(dpr, new Set());
+      picks.get(dpr)!.add(v.scale);
+      n++;
+    }
+    expect(n).toBeGreaterThan(30000);
+    // the cap: floor(1.75 x dpr); the integer device-pixel rule stays (W x scale <= the device px)
+    expect([...picks].map(([d, s]) => `${d}: ${[...s].sort().join(",")}`)).toEqual(["2: 3", "2.625: 4", "3: 5"]);
+  });
+
+  it("the views of the brief: 234x396 at 390x660, 234x398 at 390x664, 241x414 at 402x690, 234x506 at 390x844, 258x443 at 430x739; the operator's x7 before", () => {
+    const row = (w: number, h: number) => {
+      const { v, L, k } = screen(w, h, 3);
+      return `${w}x${h}: ${v.W}x${v.H} x${v.scale} (${k.toFixed(2)} CSS px), band ${L.info.h}`;
+    };
+    expect([[390, 660], [390, 664], [402, 690], [390, 844], [430, 739]].map(([w, h]) => row(w, h))).toEqual([
+      "390x660: 234x396 x5 (1.67 CSS px), band 104",
+      "390x664: 234x398 x5 (1.67 CSS px), band 106",
+      "402x690: 241x414 x5 (1.67 CSS px), band 122",
+      "390x844: 234x506 x5 (1.67 CSS px), band 162",
+      "430x739: 258x443 x5 (1.67 CSS px), band 151",
+    ]);
+    // before: x7 at 402x690 @3, a 172x295 screen and a 3 px band (the operator's screenshot)
+    const before = computeView(402, 690, 3, (pw, ph, p) => baseScale(pw, ph, p));
+    expect([before.W, before.H, before.scale, baseLayout(before.W, before.H, true, 5).info.h]).toEqual([172, 295, 7, 3]);
+  });
+
+  it("D5: landscape phones are under the cap already and keep their scale and layout (844x390 @3: x4; 667x375 and 640x360 @2: x2)", () => {
+    for (const [w, h, dpr] of [[844, 390, 3], [667, 375, 2], [640, 360, 2], [932, 430, 3], [740, 360, 4]]) {
+      const { v, L } = screen(w, h, dpr);
+      const base = computeView(w, h, dpr, (pw, ph, p) => baseScale(pw, ph, p));
+      expect(v, `${w}x${h} @${dpr}`).toEqual(base);
+      expect(L, `${w}x${h} @${dpr}`).toEqual(baseLayout(base.W, base.H, base.portrait, 5));
+    }
+    expect(computeView(844, 390, 3, buildScale).scale).toBe(4);
+  });
+});
+
+describe("zoom: every view that isn't a phone is exactly as before", () => {
+  it("short side >= 500 CSS px, DPR 1-2 (desktops, laptops, tablets, both ways up): buildScale and the build layout identical to BASE", () => {
+    let n = 0;
+    for (const dpr of [1, 1.25, 1.5, 1.75, 2]) for (let w = 500; w <= 2600; w += 23) for (let h = 500; h <= 1700; h += 19) {
+      const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr);
+      expect(phoneScreen(pw, ph, dpr), `${w}x${h} @${dpr}`).toBe(false);
+      const v = computeView(w, h, dpr, buildScale), base = computeView(w, h, dpr, (a, b, p) => baseScale(a, b, p));
+      expect(v, `${w}x${h} @${dpr}`).toEqual(base);
+      for (const offers of [5, 3, 0]) {
+        const L = buildLayout(v.W, v.H, v.portrait, offers, false);
+        expect(L, `${w}x${h} @${dpr} offers ${offers}`).toEqual(baseLayout(v.W, v.H, v.portrait, offers));
+        expect("phone" in L).toBe(false);
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(25000);
+  });
+
+  it("buildScale without a dpr (a screen framed by device px alone) is BASE's on every view", () => {
+    for (let pw = 300; pw <= 3000; pw += 37) for (let ph = 300; ph <= 3000; ph += 41) for (const p of [true, false]) {
+      expect(buildScale(pw, ph, p)).toBe(baseScale(pw, ph, p));
+    }
+  });
+});
+
+describe("zoom D2: a portrait phone's build screen", () => {
+  const VIEWS: [number, number, number][] = [[390, 660, 3], [390, 664, 3], [402, 690, 3], [390, 844, 3], [430, 739, 3], [393, 659, 3], [402, 718, 3],
+    [390, 700, 3], [360, 640, 2], [375, 667, 2], [414, 896, 2], [412, 915, 2.625], [320, 568, 2], [360, 780, 3], [428, 926, 3]];
+
+  it("the shop: balanced rows of 46x42 faces, centred (3 + 3 for five offers and the reroll); perRow = ceil(slots / rows) for every slot count", () => {
+    for (const [w, h, dpr] of VIEWS) {
+      for (let offers = 0; offers <= 5; offers++) {
+        const { L, phone } = screen(w, h, dpr, offers), tag = `${w}x${h} @${dpr} offers ${offers}`;
+        expect(phone, tag).toBe(true);
+        const slots = [...L.cards, L.reroll], fit = Math.floor((L.W - 8 + 3) / (CARD_W + 3)), rows = Math.ceil(slots.length / fit);
+        expect(L.perRow, tag).toBe(Math.ceil(slots.length / rows));
+        const ys = [...new Set(slots.map((r) => r.y))];
+        expect(ys.length, tag).toBe(rows);
+        const perRowCounts = ys.map((y) => slots.filter((r) => r.y === y).length);
+        expect(Math.max(...perRowCounts) - Math.min(...perRowCounts), `${tag}: balanced`).toBeLessThanOrEqual(1);
+        for (const r of slots) expect([r.w, r.h], tag).toEqual([CARD_W, CARD_H]);
+        const first = slots.filter((r) => r.y === ys[0]), x0 = Math.min(...first.map((r) => r.x)), x1 = Math.max(...first.map((r) => r.x + r.w));
+        expect(Math.abs(x0 - (L.W - x1)), `${tag}: centred`).toBeLessThanOrEqual(1);
+        if (offers === 5 && rows === 2) expect(perRowCounts, tag).toEqual([3, 3]);
+      }
+    }
+  });
+
+  it("the band takes the room the zoom frees, up to phoneBand(W), and no more; the hull centred in what is left; nothing overlaps", () => {
+    for (const [w, h, dpr] of VIEWS) {
+      const { L } = screen(w, h, dpr), tag = `${w}x${h} @${dpr}`;
+      const shopBottom = Math.max(...[...L.cards, L.reroll].map((r) => r.y + r.h));
+      const spare = L.H - shopBottom - (2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3);
+      expect(L.info.y, tag).toBe(shopBottom + 2);
+      expect(L.info.h, tag).toBe(Math.min(phoneBand(L.W), spare));
+      const above = L.hull.y - BARREL - 2 - (L.info.y + L.info.h), below = L.H - (L.cargo.y + CARGO_H + 3);
+      expect(Math.abs(above - below), `${tag}: the hull centred in what is left`).toBeLessThanOrEqual(1);
+      for (const r of [...L.cards, L.reroll]) expect(hit(r, L.info), tag).toBe(false);
+      expect(L.info.y + L.info.h + 2 + BARREL, `${tag}: the bow's barrels clear of the band`).toBeLessThanOrEqual(L.hull.y);
+    }
+  });
+
+  it("idle: the hero card (43 px) over NEXT BATTLE shows whole in the band (shoptap2 found both cut on Safari's views)", () => {
+    for (const [w, h, dpr] of VIEWS) {
+      const { L } = screen(w, h, dpr), tag = `${w}x${h} @${dpr}`;
+      if (L.info.h < PORT_BAND) continue; // the fallback's short band (none of these views)
+      const hero = heroCardRect(L.info, L.foe!);
+      expect(within(L.foe!, L.info) && within(hero, L.info), tag).toBe(true);
+      expect([hero.h, L.foe!.h, L.foe!.y - (hero.y + hero.h)], tag).toEqual([PORT_BAND - FOE_H - 2, FOE_H, 2]);
+      expect(Math.abs(hero.y - L.info.y - (L.info.y + L.info.h - L.foe!.y - L.foe!.h)), `${tag}: in the band's middle`).toBeLessThanOrEqual(1);
+    }
+    // where the band is PORT_BAND or less the cards sit as before (the band's top, NEXT BATTLE at its foot)
+    const base = baseLayout(167, 361, true, 5);
+    expect(heroCardRect(base.info, base.foe!)).toEqual({ x: base.info.x, y: base.info.y, w: base.info.w, h: base.foe!.y - 2 - base.info.y });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------- every touch panel
+const SHORTB = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
+const rig = (uid: number, def: string, x: number, y: number, rot = 0, stars = 1): Placed => ({ uid, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) });
+const OFFER: Sel = { kind: "offer", wagon: 0, slot: 0 };
+const TOUCH = { touch: true, hover: false, busy: false };
+
+function furnace(items: Placed[] = []): Run {
+  const run = newRun("furnace", 5, "shoptap2-panels");
+  run.build = { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, ...items], routes: [{ factory: 1, cells: [...SHORTB] }], mods: [], beltCap: 40, hullBonus: 0 };
+  run.inventory = [];
+  run.gold = 2;
+  return run;
+}
+
+/** Every panel a finger can open (shoptap2's set): each buyable module as a shop card and in cargo (every star), each rig
+ *  at three places and each factory placed (every star), each core and gear fitted (every star, on two heroes' guns), each
+ *  turret installed (every star, with a core and gear), the heroes' starting parts and belts, the KILN's belt. */
+function panels(): { id: string; run: Run; sel: Sel; part: "offer" | "cargo" | "carrier" }[] {
+  const out: ReturnType<typeof panels> = [];
+  for (const d of buyableModules()) {
+    const stars = fusible(d.id) ? [1, 2, 3] : [1];
+    const o = furnace();
+    o.shop.wagons = [{ merchant: d.merchant ?? "ironmonger", offers: [{ def: d.id, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
+    out.push({ id: `offer ${d.id}`, run: o, sel: OFFER, part: "offer" });
+    for (const s of stars) {
+      const c = furnace();
+      c.inventory = [{ uid: 900, def: d.id, ...(s > 1 ? { stars: s } : {}) }];
+      out.push({ id: `cargo ${d.id} ★${s}`, run: c, sel: { kind: "cargo", uid: 900 }, part: "cargo" });
+      if (d.kind === "gate") {
+        for (const [x, y, rot] of [[3, 3, 1], [0, 9, 0], [5, 3, 0]] as const) out.push({ id: `${d.id} ★${s} @${x},${y}`, run: furnace([rig(10, d.id, x, y, rot, s)]), sel: { kind: "item", uid: 10 }, part: "carrier" });
+      } else if (d.kind === "factory") {
+        out.push({ id: `${d.id} ★${s}`, run: furnace([{ uid: 10, def: d.id, x: 0, y: 6, ...(s > 1 ? { stars: s } : {}) }]), sel: { kind: "item", uid: 10 }, part: "carrier" });
+      } else if (d.kind === "mod" || d.kind === "core") {
+        for (const hero of ["furnace", "weaver"] as const) {
+          const run = newRun(hero, 5, "shoptap2-fit");
+          run.build.mods = [{ uid: 950, def: d.id, turret: 0, ...(s > 1 ? { stars: s } : {}) }];
+          out.push({ id: `${d.id} ★${s} fitted on ${hero}`, run, sel: { kind: "fitted", uid: 950 }, part: "carrier" });
+        }
+      } else if (d.kind === "turret") {
+        const run = furnace();
+        setTurretList(run.build, [{ slot: 0, def: "scrapcannon", uid: 90 }, { slot: 1, def: d.id, uid: 700, ...(s > 1 ? { stars: s } : {}) }]);
+        run.build.mods = [{ uid: 950, def: "pressure", turret: 1 }, { uid: 951, def: "hopper", turret: 1 }];
+        out.push({ id: `turret ${d.id} ★${s} with a core and gear`, run, sel: { kind: "turret", index: 1 }, part: "carrier" });
+      }
+    }
+  }
+  for (const hero of PLAYABLE_HEROES) {
+    const run = newRun(hero, 5, "shoptap2-start");
+    for (const p of run.build.items) out.push({ id: `${hero}'s starting ${p.def}`, run, sel: { kind: "item", uid: p.uid }, part: "carrier" });
+    if (turretSlots(run.build)[0]?.turret) out.push({ id: `${hero}'s starting turret`, run, sel: { kind: "turret", index: 0 }, part: "carrier" });
+    run.build.routes.forEach((_, i) => out.push({ id: `${hero}'s belt ${i + 1}`, run, sel: { kind: "route", index: i }, part: "carrier" }));
+  }
+  out.push({ id: "the KILN's belt", run: furnace(), sel: { kind: "route", index: 0 }, part: "carrier" });
+  return out;
+}
+
+/** The panel a finger opens for `c` on a phone's build screen: where BuildScreen.panelArea draws it (the band wherever its
+ *  full description fits there, fullText; else shoptap2's fallback grows it) and its plan there. */
+function opened(v: View, L: BuildLayout, c: ReturnType<typeof panels>[number]) {
+  const ctx = { game: { ui: new UI(), t: 0, view: v }, run: c.run, touch: true, L } as unknown as Ctx;
+  const memo = new Map<string, ReturnType<typeof detailsPlan>>();
+  const plan = (r: Rect) => {
+    const key = `${r.x},${r.y},${r.w},${r.h}`;
+    if (!memo.has(key)) memo.set(key, detailsPlan(ctx, c.sel, null, r));
+    return memo.get(key)!;
+  };
+  const area = panelArea(L, c.sel, TOUCH, (r) => { const d = plan(r); return d ? fullText(d.plan) : null; });
+  return { area, d: plan(area)! };
+}
+
+describe("zoom D3: on the phone views every touch panel shows its full description; in the band wherever the band holds it", () => {
+  const all = panels();
+  // what each view gives (the band; panels in the band in their fullest form, i.e. variant 0 with every block; in the band
+  // with their full description, the flavour or hint given way or the same text at the tight pitch; grown, the fallback)
+  const EXPECT: Record<string, { band: number; fullest: number; inBand: number; grown: string[] }> = {};
+  for (const [w, h] of [[390, 660], [390, 664], [402, 690], [430, 739], [390, 844]] as const) {
+    it(`${w}x${h} @3: every panel's full description (every kept block, every rule sentence, no compact form, no phone cut) shows, inside the band unless the band can't hold it`, () => {
+      const { v, L } = screen(w, h, 3);
+      expect(L.phone, `${w}x${h}`).toBe(true);
+      let fullestN = 0, inBand = 0;
+      const grown: string[] = [], flavour: string[] = [];
+      for (const c of all) {
+        const { area, d } = opened(v, L, c), tag = `${w}x${h}: ${c.id}`, p = d.plan;
+        expect(p.r, tag).toEqual(area);
+        expect(fullText(p), `${tag}: its full description`).toBe(true);
+        expect(keptWhole(p), tag).toBe(true);
+        expect(visibleLines(p).filter((q) => q.line !== "rule").length, `${tag}: a description`).toBeGreaterThanOrEqual(1);
+        for (const b of p.rects ?? []) expect(within(b, p.r), `${tag}: button inside`).toBe(true);
+        expect(within(area, { x: 0, y: L.bar.y + L.bar.h + 1, w: v.W, h: L.cargo.y - 2 - (L.bar.y + L.bar.h + 1) }), `${tag}: on the screen, above the cargo`).toBe(true);
+        if (area === L.info) {
+          inBand++;
+          if (fullest(p)) fullestN++;
+          else if (p.body.dropped.some((b) => b.role === "flavour")) flavour.push(c.id);
+        } else grown.push(c.id);
+        if (c.part === "offer") expect(area, `${tag}: a shop card's panel sits in the band`).toBe(L.info);
+      }
+      EXPECT[`${w}x${h}`] = { band: L.info.h, fullest: fullestN, inBand, grown };
+      expect(all.length).toBe(885);
+      // the band at 390x844 holds every panel in its fullest form; at 430x739 every one in the band; the shortest views'
+      // band can't hold the longest turret panels (a THUNDERER ★3's full text needs 144 px): they take the fallback
+      // (grown at 390x660 and 390x664: 30 installed turrets with a core and gear and 8 ★2 rigs and factories, 38 of 885; at
+      // 402x690: 13 turrets, mostly ★2 and ★3; none at 430x739 and 390x844; every shop card's panel in the band everywhere)
+      const want: Record<string, [number, number, number]> = {
+        "390x660": [104, 788, 847], "390x664": [106, 800, 847], "402x690": [122, 846, 872], "430x739": [151, 880, 885], "390x844": [162, 885, 885],
+      };
+      expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
+    }, 120_000);
+  }
+});
