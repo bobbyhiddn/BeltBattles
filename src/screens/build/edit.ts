@@ -1,7 +1,22 @@
 // Deck editing gestures. Drag: buy/place/move/store, lay conveyor out of a factory, grab a
 // belt to reroute it, hold a factory to lift it. Tap: select; with a card or cargo item
 // selected, a tap on the deck places it there (touch parity with drag and drop).
+//
+// shoptap (BeltBattles 0.8.0 phone controls; REQ-BFG-034, -035, -036, -037): a press knows its pointer (core/io.ts passes
+// pointerdown's pointerType). A mouse press is exactly as before: a 4 px drag threshold, a click selects, a click on a rig
+// turns it, click-to-place. A touch or pen press:
+//   D1  stays a tap until it has moved TOUCH_SLOP_CSS (10) CSS px, converted through the view (dragSlop);
+//   D2  taps read (read()): it selects what it lands on and opens its panel, and never buys, sells, moves, places, merges,
+//       cuts or reroutes. A rig turns only on a tap while it is already selected; with a card or cargo part selected, a
+//       tap on the deck reads what it lands on (an empty cell dismisses). A tap on the selected turret steps through its
+//       core and gear (each a "fitted" selection with its own panel: TO CARGO, SELL);
+//   D3  a tap on a belt selects it and puts up its X (beltX(); the screen draws it; any other press takes it down);
+//   D4a a drag that starts on a factory's own first belt tile is the factory's while it has a free output: a new belt;
+//   D4b back on its factory, a draw starts over (released there, nothing changes), and a one-output factory's moved belt
+//       stays in sight until the new one commits (the screen reads Draw.moves).
+// Mouse and touch alike (D4b): a drag out of a one-output factory with a belt says it moves that belt (movesNotice).
 
+import type { PointerKind } from "../../core/io";
 import { GRID, rigShape } from "../../sim/content";
 import {
   adjacentToFactory, canExtend, commitRoute, connectorFree, defOf, hero, inGrid, isFreeConnectorEnd, isRig,
@@ -17,12 +32,47 @@ import { inside } from "../../ui/ui";
 import { drop, dropCell, rigRotAt, rotate, type Carry, type Ctx, type Src } from "./actions";
 import type { Sel } from "./layout";
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
-import { turretSlots } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
+import { gearOn, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031); shoptap: gearOn, Build
+
+/** The mouse's drag threshold in logical px (unchanged since 0.5). */
+export const MOUSE_SLOP = 4;
+/** shoptap (D1): a touch or pen press stays a tap until it has moved this many CSS px (a finger's tap drifts 3-8). */
+export const TOUCH_SLOP_CSS = 10;
+
+/** shoptap (D1): how far a press must move, in logical px, to become a drag: MOUSE_SLOP for a mouse; TOUCH_SLOP_CSS
+ *  CSS px for touch and pen, through `cssPerPx` (the view's CSS px per logical px, view.scale / view.dpr). */
+export function dragSlop(kind: PointerKind, cssPerPx: number): number {
+  return kind === "mouse" ? MOUSE_SLOP : TOUCH_SLOP_CSS / Math.max(1e-6, cssPerPx);
+}
+
+/** shoptap (D2): a touch or pen pointer: its taps read. */
+export const direct = (kind: PointerKind | undefined): boolean => kind === "touch" || kind === "pen";
+
+/** shoptap (D4 b): the notice a drag out of a one-output factory that already has a belt shows as it starts. */
+export const movesNotice = (name: string): string => `${name} HAS 1 OUTPUT · THIS MOVES ITS BELT`;
+
+/** shoptap (D4 a): how many more belts factory `uid` can start (its outputs at its stars, = routeCheck.ts, validate.ts). */
+export function freeOutputs(b: Build, uid: number): number {
+  const f = itemByUid(b, uid);
+  if (!f || defOf(f).kind !== "factory") return 0;
+  return (outputsAt(f.def, starsOf(f)) || 1) - routesOf(b, uid).length;
+}
+
+/** shoptap (REQ-BFG-035): the fitted pieces of turret slot t that a touch tap on the selected turret steps through: its
+ *  bought core, then its gear in hardpoint order (its GEAR SLOTS); none for an empty slot. */
+export function fittedPieces(b: Build, t: number): number[] {
+  const s = turretSlots(b)[t];
+  if (!s?.turret) return [];
+  const core = coreFor(b, t);
+  return [...(core ? [core.uid] : []), ...gearOn(b, t).slice(0, s.gearSlots).map((m) => m.uid)];
+}
 
 export interface EditHost extends Ctx {
   sel: Sel;
   offerAt(x: number, y: number): { wagon: number; slot: number } | null;
   cargoAt(x: number, y: number): number | null;
+  /** shoptap (D1): CSS px per logical px (the touch slop's unit); absent, 1. */
+  cssPerPx?(): number;
 }
 
 interface Press {
@@ -30,6 +80,9 @@ interface Press {
   x0: number;
   y0: number;
   t: number;
+  /** shoptap (D1): the pointer that pressed, and how far (logical px) it must move to become a drag. */
+  kind: PointerKind;
+  slop: number;
 }
 
 export interface Draw {
@@ -41,6 +94,14 @@ export interface Draw {
   join?: number;
   // 0.6.2j (J3, J11): the belt tile the drag last tried to join and was refused, and why (the preview marks it)
   refused?: { cell: number; reason: string };
+  /** shoptap (D4 b): a touch or pen draw (absent: a mouse draw, exactly as before): back on its factory it starts over. */
+  kind?: PointerKind;
+  /** shoptap (D4 b): a touch draw out of a one-output factory that moves its belt (`replacing`): the old belt stays in
+   *  sight until the new one commits. */
+  moves?: boolean;
+  /** shoptap (D4 a): the factory's own first belt tile a touch draw started on: it counts as the factory (the press was
+   *  ambiguous between them), so the new belt never steps into or joins its old one there. */
+  start?: number;
 }
 
 /** 0.6.2j: the belt being drawn, as the deck renderer previews it (CruiserView.ghost). */
@@ -52,6 +113,13 @@ export interface GhostBelt {
   refused?: { cell: number; reason: string }; // J11: a join the drag was refused, and why
 }
 
+/** shoptap (D3): the X a touch tap put up on a belt: the belt (route index), the tile tapped and the belt's cells then. */
+export interface BeltX {
+  index: number;
+  cell: number;
+  cells: string;
+}
+
 export class Editor {
   press: Press | null = null;
   carry: Carry | null = null;
@@ -61,11 +129,27 @@ export class Editor {
   carryT = 0; // time since pick-up (lift animation)
   private lastWarn = "";
   private warnT = 0;
+  /** shoptap (D3): the belt X a touch tap put up (beltX() says whether it still stands). */
+  private x: BeltX | null = null;
 
   constructor(private h: EditHost) {}
 
   get busy(): boolean {
     return !!(this.press || this.carry || this.draw);
+  }
+
+  /** shoptap (D3): the belt X, while it stands: put up by a touch tap on a belt; gone with any other press (down(), or
+   *  the screen's dropX() for a press on a UI region), once that belt is no longer selected, or once it changes. */
+  beltX(): BeltX | null {
+    const x = this.x, s = this.h.sel;
+    if (!x || this.busy || s.kind !== "route" || s.index !== x.index) return null;
+    const r = this.h.run.build.routes[x.index];
+    return r && r.cells.join(",") === x.cells && r.cells.includes(x.cell) ? x : null;
+  }
+
+  /** shoptap (D3): take the belt X down (a press anywhere but on it). */
+  dropX(): void {
+    this.x = null;
   }
 
   update(dt: number): void {
@@ -121,7 +205,9 @@ export class Editor {
     return { from: "cell", k };
   }
 
-  down(x: number, y: number): void {
+  /** A press at (x, y). shoptap: `kind`, the pointer (a mouse when absent: tooling and the tests press as before). */
+  down(x: number, y: number, kind: PointerKind = "mouse"): void {
+    this.x = null; // shoptap (D3): any press here takes the belt X down (a press on the X is a UI region's, never ours)
     this.px = x;
     this.py = y;
     const src = this.pick(x, y);
@@ -129,16 +215,16 @@ export class Editor {
       this.h.select({ kind: "none" });
       return;
     }
-    this.press = src ? { src, x0: x, y0: y, t: 0 } : null;
+    this.press = src ? { src, x0: x, y0: y, t: 0, kind, slop: dragSlop(kind, this.h.cssPerPx?.() ?? 1) } : null;
   }
 
   move(x: number, y: number): void {
     this.px = x;
     this.py = y;
     const p = this.press;
-    if (p && Math.hypot(x - p.x0, y - p.y0) >= 4) {
+    if (p && Math.hypot(x - p.x0, y - p.y0) >= p.slop) { // shoptap (D1): the mouse's 4 px; touch and pen 10 CSS px
       this.press = null;
-      this.begin(p.src);
+      this.begin(p.src, p.kind);
     }
     if (this.draw) this.extendTo(x, y);
     this.aim();
@@ -166,7 +252,7 @@ export class Editor {
 
   up(x: number, y: number): void {
     if (this.press) {
-      this.tap(this.press.src, x, y);
+      this.tap(this.press.src, x, y, this.press.kind);
       this.press = null;
     } else if (this.carry) {
       const c = this.carry;
@@ -199,7 +285,8 @@ export class Editor {
     return null;
   }
 
-  private tap(src: Src, x: number, y: number): void {
+  private tap(src: Src, x: number, y: number, kind: PointerKind = "mouse"): void {
+    if (direct(kind)) return this.read(src); // shoptap (D2): a touch or pen tap reads
     const h = this.h;
     const s = h.select.bind(h);
     const onDeck = src.from === "cell" || src.from === "route" || src.from === "deck" || src.from === "factory" || src.from === "turret";
@@ -238,7 +325,49 @@ export class Editor {
     }
   }
 
-  private begin(src: Src): void {
+  /**
+   * shoptap (D2): a touch or pen tap reads: it selects what it lands on, and that opens its panel. It never buys, sells,
+   * moves, places, merges, cuts or reroutes, whatever is selected (tap-to-place is the mouse's). A shop card (affordable
+   * or not) and a cargo part select, and a second tap closes them, as a click does; a factory or other deck item
+   * selects; a rig selects (its hits show) and only a tap on the rig already selected turns it (B2's quarter turn); a belt
+   * selects and puts up its X (D3); a turret selects, and a tap on the selected turret steps through its fitted pieces
+   * (core, then gear) and back to the turret; an empty cell dismisses.
+   */
+  private read(src: Src): void {
+    const h = this.h, cur = h.sel, b = h.run.build;
+    const s = (q: Sel) => h.select(q);
+    switch (src.from) {
+      case "offer":
+        if (cur.kind === "offer" && cur.wagon === src.wagon && cur.slot === src.slot) return s({ kind: "none" });
+        return s({ kind: "offer", wagon: src.wagon, slot: src.slot });
+      case "cargo":
+        if (cur.kind === "cargo" && cur.uid === src.uid) return s({ kind: "none" });
+        return s({ kind: "cargo", uid: src.uid });
+      case "deck": {
+        const p = itemByUid(b, src.uid);
+        if (p && isRig(p.def) && cur.kind === "item" && cur.uid === p.uid) rotate(h, p.uid);
+        return s({ kind: "item", uid: src.uid });
+      }
+      case "factory": return s({ kind: "item", uid: src.uid });
+      case "route": {
+        s({ kind: "route", index: src.index });
+        const r = b.routes[src.index], cell = r?.cells[src.cell];
+        if (r && cell !== undefined) this.x = { index: src.index, cell, cells: r.cells.join(",") };
+        return;
+      }
+      case "turret": {
+        const pieces = fittedPieces(b, src.index);
+        const mine = cur.kind === "fitted" ? pieces.indexOf(cur.uid) : -1;
+        const at = mine >= 0 ? mine : cur.kind === "turret" && cur.index === src.index ? -1 : -2;
+        if (at === -2) return s({ kind: "turret", index: src.index });
+        const next = pieces[at + 1];
+        return s(next !== undefined ? { kind: "fitted", uid: next } : { kind: "turret", index: src.index });
+      }
+      default: return s({ kind: "none" });
+    }
+  }
+
+  private begin(src: Src, kind: PointerKind = "mouse"): void {
     const { run, game } = this.h;
     const b = run.build;
     switch (src.from) {
@@ -268,21 +397,25 @@ export class Editor {
       }
       case "route": {
         const r = b.routes[src.index];
+        // shoptap (D4 a): a finger aimed at a factory lands on the factory's own first belt tile as often as on the
+        // factory (a deck cell is 16-28 CSS px on a phone, a fingertip wider): a touch drag from that tile draws a new
+        // belt out of the factory while it has a free output. Else (no free output, a later tile, a mouse) it reroutes
+        if (r && direct(kind) && src.cell === 0 && freeOutputs(b, r.factory) > 0) return this.startFrom(r.factory, kind, r.cells[0]);
         if (r) {
           const cells = r.cells.slice(0, Math.max(1, src.cell + 1));
           // 0.6.2j (J3): a joining belt grabbed at its end keeps its join until the drag moves back off it
           const keep = cells.length === r.cells.length && r.join !== undefined && joinOf(b, src.index) ? { join: r.join } : {};
-          this.draw = { factory: r.factory, cells, replacing: src.index, ...keep };
+          this.draw = { factory: r.factory, cells, replacing: src.index, ...keep, ...(direct(kind) ? { kind } : {}) };
         }
         game.audio.play("belt");
         return;
       }
       case "factory":
-        return this.startFrom(src.uid);
+        return this.startFrom(src.uid, kind);
       case "cell": {
         if (src.k < 0) return;
         const f = b.items.find((p) => defOf(p).kind === "factory" && adjacentToFactory(b, p.uid, src.k) >= 0);
-        if (f) this.startFrom(f.uid);
+        if (f) this.startFrom(f.uid, kind);
         return;
       }
       default:
@@ -290,7 +423,9 @@ export class Editor {
     }
   }
 
-  private startFrom(uid: number): void {
+  /** A draw out of factory `uid`. shoptap: `kind`, the pointer; `start`, the factory's own first belt tile a touch drag
+   *  started on (D4 a). */
+  private startFrom(uid: number, kind: PointerKind = "mouse", start?: number): void {
     const b = this.h.run.build;
     const f = itemByUid(b, uid);
     if (!f) return;
@@ -302,7 +437,11 @@ export class Editor {
       if (outs === 1) replacing = mine[0];
       else return this.warn(`ALL ${outs} ${d.name} OUTPUTS USED - DRAG A BELT TO REROUTE`);
     }
-    this.draw = { factory: uid, cells: [], replacing };
+    // shoptap (D4 b; the battle rules give this factory one output, so a new belt takes the old one's place): say so as
+    // the drag starts, mouse and touch alike. The old belt stays exactly as it is unless a new one commits
+    if (replacing >= 0) this.h.game.toast(movesNotice(d.name), C.yellow);
+    const touch = direct(kind) ? { kind, ...(replacing >= 0 ? { moves: true } : {}), ...(start !== undefined ? { start } : {}) } : {};
+    this.draw = { factory: uid, cells: [], replacing, ...touch };
     this.h.select({ kind: "item", uid });
   }
 
@@ -321,6 +460,18 @@ export class Editor {
     if (!inGrid(c.cx, c.cy)) return;
     const k = key(c.cx, c.cy);
     const cells = d.cells;
+    // shoptap (D4 b): touch: back on the factory it draws from (or the first belt tile it started on, D4 a), the draw
+    // starts over (released there, it lays nothing and the old belt stays as it was; out again, a new belt starts beside
+    // the factory)
+    if (direct(d.kind) && (occupancy(b)[k].item === d.factory || k === d.start)) {
+      if (cells.length) {
+        cells.length = 0;
+        delete d.join;
+        delete d.refused;
+        game.audio.play("belt");
+      }
+      return;
+    }
     if (d.refused && d.refused.cell !== k) delete d.refused; // 0.6.2j: the refused tile's mark follows the pointer off it
     if (cells.length && cells[cells.length - 1] === k) return;
     const back = cells.indexOf(k);

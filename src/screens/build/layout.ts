@@ -11,7 +11,10 @@ export type Sel =
   | { kind: "cargo"; uid: number }
   | { kind: "item"; uid: number }
   | { kind: "route"; index: number }
-  | { kind: "turret"; index: number };
+  | { kind: "turret"; index: number }
+  // shoptap (REQ-BFG-035): a turret's bought core or one of its gear pieces (Build.mods, by uid), with its own panel
+  // (inspector.ts fittedPanel: its text, TO CARGO and SELL). Only a touch tap on the selected turret picks one.
+  | { kind: "fitted"; uid: number };
 
 export const CARD_W = 46;
 export const CARD_H = 42;

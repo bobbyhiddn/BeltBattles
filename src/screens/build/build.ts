@@ -26,9 +26,11 @@ import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type C
 import { drawMachinery } from "../../render/machinery";
 import { ArenaBg } from "../../render/arenaBg";
 import { inside, type Rect } from "../../ui/ui";
-import { Editor, type EditHost } from "./edit";
+import { Editor, direct, type BeltX, type EditHost } from "./edit";
 import { buildLayout, buildScale, Caravan, type BuildLayout, type Sel } from "./layout";
-import { deleteRoute, rotate, sell, store } from "./actions";
+import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
+import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shoptap (D1)
+import { beltXSide, placeBeltX } from "./beltx"; // shoptap (D3)
 import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
@@ -100,6 +102,23 @@ export class BuildScreen implements Screen, EditHost {
 
   pickScale(pw: number, ph: number, portrait: boolean): number {
     return buildScale(pw, ph, portrait);
+  }
+
+  /** shoptap (D2): the last press was a finger or a pen (Ctx.touch: the panels' touch forms, a finger's targets). */
+  get touch(): boolean {
+    return direct(this.game.ui.pointer.kind);
+  }
+
+  /** shoptap (D1): CSS px per logical px, the touch slop's unit (EditHost.cssPerPx). */
+  cssPerPx(): number {
+    return cssScale(this.game.view);
+  }
+
+  /** shoptap (D3): where the belt X `x` goes this frame (beltx.ts placeBeltX), or null. Tooling reads it too. */
+  beltXRect(x: BeltX | null = this.ed.beltX()): Rect | null {
+    if (!x) return null;
+    const turrets = turretSlots(this.run.build).map((_, i) => this.turretRect(i));
+    return placeBeltX(this.L, this.run.build, x, beltXSide(this.cssPerPx()), turrets);
   }
 
   get toastY(): number {
@@ -285,7 +304,8 @@ export class BuildScreen implements Screen, EditHost {
     v.t = this.t;
     v.ghost = ghost;
     v.highlightConnectors = guide ? this.ed.freeConnectors() : undefined;
-    v.hideRoute = ghost && this.ed.draw ? this.ed.draw.replacing : -1;
+    // shoptap (D4 b): a touch draw that moves a one-output factory's belt leaves the old belt in sight until it commits
+    v.hideRoute = ghost && this.ed.draw && !this.ed.draw.moves ? this.ed.draw.replacing : -1;
     v.hideItem = this.ed.carry?.src.from === "deck" ? this.ed.carry.uid : -1;
     v.survivorUid = this.survivorUid();
     const fd = this.fuseAnimDeck();
@@ -353,6 +373,13 @@ export class BuildScreen implements Screen, EditHost {
     } else if (s.kind === "turret") {
       const r = this.turretRect(s.index);
       frame(g, r.x, r.y, r.w, r.h, col);
+    } else if (s.kind === "fitted") {
+      // shoptap (REQ-BFG-035): a fitted core or gear piece: its turret is framed
+      const m = b.mods.find((q) => q.uid === s.uid);
+      if (m && turretSlots(b)[m.turret]) {
+        const r = this.turretRect(m.turret);
+        frame(g, r.x, r.y, r.w, r.h, col);
+      }
     }
   }
 
@@ -519,9 +546,15 @@ export class BuildScreen implements Screen, EditHost {
     if (this.run.fuseAnim?.length) this.run.fuseAnim = [];
   }
 
-  down(x: number, y: number): void {
+  /** shoptap (D1): `kind`, the pointer that pressed (the editor's touch rules read it). */
+  down(x: number, y: number, kind: PointerKind = "mouse"): void {
     this.skipFuseAnim(); // 0.6.1d2: a tap anywhere skips the merge animation to its end
-    this.ed.down(x, y);
+    this.ed.down(x, y, kind);
+  }
+
+  /** shoptap (D3): every press: one anywhere but on the belt X takes the X down (a press on a UI region included). */
+  pressed(_x: number, _y: number, region: string | null): void {
+    if (region !== "beltx") this.ed.dropX();
   }
 
   move(x: number, y: number): void {
@@ -557,6 +590,7 @@ export class BuildScreen implements Screen, EditHost {
       if (s.kind === "cargo") sell(this, s.uid);
       else if (s.kind === "item") store(this, s.uid);
       else if (s.kind === "route") deleteRoute(this, s.index);
+      else if (s.kind === "fitted") storeFitted(this, s.uid); // shoptap: a fitted piece goes to cargo (its TO CARGO)
     }
   }
 }

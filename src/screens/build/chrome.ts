@@ -19,6 +19,8 @@ import { drawCard, drawReroll, drawTag, drawTooltip } from "./shop";
 import { drawDetails, drawFoe, hasDetails, textOpts } from "./inspector";
 import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): the card's one-line effect, the tooltip's
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
+import { drawBeltX } from "./beltx"; // shoptap (D3)
+import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
 
 /** Status bar: DAWN · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
  *  the hero card below the shop), belt use when there is room, then MENU and SND. */
@@ -186,6 +188,9 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe, s.note());
   }
   drawTopBar(g, s);
+  // shoptap (D3, REQ-BFG-036): the belt X a touch tap put up; a tap on it removes the whole belt (REMOVE BELT's path)
+  const bx = s.ed.beltX(), br = bx ? s.beltXRect(bx) : null;
+  if (bx && br) drawBeltX(g, ui, L, bx, br, () => deleteRoute(s, bx.index));
   // drag feedback (the placement suggestion is drawn above, before the details panel)
   if (c) drawCarry(g, L, s.run.build, c, s.ed.px, s.ed.py, s.ed.carryT, (x, y) => s.turretAt(x, y));
   if (cue) drawFightCue(g, L.fight, L.portrait, s.t);

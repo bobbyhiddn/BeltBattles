@@ -40,6 +40,9 @@ export interface Ctx {
   touched(): void; // the build changed: rebuild render caches
   placed(x: number, y: number): void; // successful placement at screen point (thunk + cues)
   invalid(msg: string): void; // refused action: red shake + error
+  /** shoptap (D2): the last press was a finger or a pen: the panels offer SELL on the carrier's parts and say how to drag,
+   *  and their buttons are a finger's targets. Absent or false: a mouse, the panels as before. */
+  readonly touch?: boolean;
 }
 
 export type Src =
@@ -134,6 +137,34 @@ export function store(ctx: Ctx, uid: number): void {
   ctx.game.audio.play("pickup");
   ctx.select({ kind: "cargo", uid });
   ctx.touched();
+}
+
+/** shoptap (D2, REQ-BFG-035): SELL on a placed part's panel (touch): it leaves the deck as TO CARGO takes it (a
+ *  factory's belts go with it) and sells from cargo at its cargo price (sellValue at its stars). Nothing else changes; the
+ *  signature factory stays aboard. */
+export function sellPlaced(ctx: Ctx, uid: number): void {
+  if (!storePlaced(ctx.run, uid)) return ctx.invalid("THE SIGNATURE FACTORY STAYS ABOARD");
+  ctx.touched();
+  sell(ctx, uid);
+}
+
+/** shoptap (REQ-BFG-035): TO CARGO on a fitted core's or gear piece's panel: that piece goes to cargo (REMOVE CORE's and
+ *  REMOVE GEAR's path, for this piece), selected there. */
+export function storeFitted(ctx: Ctx, uid: number): void {
+  if (!storeMod(ctx.run, uid)) return;
+  ctx.game.audio.play("pickup");
+  ctx.select({ kind: "cargo", uid });
+  ctx.touched();
+}
+
+/** shoptap (REQ-BFG-035): SELL on a fitted core's or gear piece's panel: to cargo, then sold at its cargo price; its
+ *  turret is selected again. */
+export function sellFitted(ctx: Ctx, uid: number): void {
+  const m = ctx.run.build.mods.find((q) => q.uid === uid);
+  if (!m || !storeMod(ctx.run, uid)) return;
+  ctx.touched();
+  sell(ctx, uid);
+  ctx.select({ kind: "turret", index: m.turret });
 }
 
 /** REMOVE GEAR: the turret's gear goes to cargo (0.6.1b: its gear, never its core). */
