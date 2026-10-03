@@ -27,6 +27,7 @@
 import { GRID, HEROES, ITEMS, type HeroId } from "../content";
 import { rotOf, setTurretList, startingTurrets, type Build, type BuildTurret, type ModPlacement, type Placed, type RouteDef } from "../deck";
 import { starsOf } from "../stars";
+import { upgradeWord, upgradesOf } from "../standInPool"; // bb-0.8.3 (REQ-BFG-043 D10): the levels' head word
 
 const cellCode = (x: number, y: number): string => `${y}${x}`;
 const suffix = (p: { stars?: number }): string => (starsOf(p) > 1 ? `*${starsOf(p)}` : "");
@@ -70,7 +71,8 @@ export function encodeStarred(b: Build): string {
     return `${m.def}${m.turret}${suffix(m)}`;
   });
   const turrets = turretSection(b);
-  return `${b.beltCap} ${b.hullBonus}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`;
+  // bb-0.8.3 (REQ-BFG-043 D10): the levels as the head's third word (standInPool.ts upgradeWord, shared with the loader)
+  return `${b.beltCap} ${b.hullBonus}${upgradeWord(b)}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`;
 }
 
 /** Decode a star-aware (or v1) stand-in build code into a fresh Build for `hero`. */
@@ -78,7 +80,7 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   const parts = code.split("/");
   if (parts.length > 5) throw new Error(`stand-in code: more than five sections in "${code}"`);
   const [head, itemPart, routePart, modPart, turretPart] = parts;
-  const [beltCap, hullBonus] = head.split(" ").map(Number);
+  const [bc, hb, up] = head.split(" "), beltCap = Number(bc), hullBonus = Number(hb); // bb-0.8.3: `up`, the levels
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
   const items: Placed[] = words(itemPart).map((w, i) => {
@@ -101,7 +103,7 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   });
   if (!HEROES[hero]) throw new Error(`stand-in code: unknown hero "${hero}"`);
   const b: Build = { hero, items, routes, mods, beltCap, hullBonus };
-  if (turretPart === undefined) return b;
+  if (turretPart === undefined) return Object.assign(b, upgradesOf(up)); // bb-0.8.3 (D10): the levels, the last key
   // the turret section: free copies take their def's starting uids (TURRET_UID0 + slot) in slot order, the rest follow
   // the mods
   const own = new Map<string, number[]>();
@@ -114,5 +116,5 @@ export function decodeStarred(hero: HeroId, code: string): Build {
     return { slot: Number(m[2]), def: m[1], uid, ...star(m[3]), ...(m[4] ? { free: true } : {}) };
   });
   setTurretList(b, list);
-  return b;
+  return Object.assign(b, upgradesOf(up));
 }

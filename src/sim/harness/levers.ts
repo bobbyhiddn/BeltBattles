@@ -30,7 +30,7 @@ import {
   routeInfo, routesOf, setRot, type Build, type Placed, type RigHit,
 } from "../deck";
 import { beltIndex, hitsIfPlaced, rotations, type WouldHit } from "../beltside";
-import { starsOf } from "../stars";
+import { gradeOf, starsOf } from "../stars";
 import { beltPolicy, botSlots, reachCols } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7): the bots' belts
 import { fusibleCopies, gainInto, previewMerge } from "./merge";
 import { blockedCells, freeConnectors, shortestTiles, startCells } from "./path";
@@ -482,7 +482,7 @@ function moreRoutes(s: Shopper, uid: number, merged: boolean): void {
   const policy = beltPolicy(b.hero); // bb-0.8.3 (REQ-BFG-042 D7): up to the bots' slots (belts.ts)
   for (;;) {
     const f = b.items.find((p) => p.uid === uid);
-    if (!f || routesOf(b, uid).length >= botSlots(f.def, starsOf(f), b.hero, policy)) return;
+    if (!f || routesOf(b, uid).length >= botSlots(f.def, gradeOf(b, f), b.hero, policy)) return; // bb-0.8.3: its grade
     const bl = blockedCells(b), starts = startCells(f.x, f.y, ITEMS[f.def].size, bl);
     let cells: number[] | null = null;
     if (policy === "reach") {

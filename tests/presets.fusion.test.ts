@@ -6,7 +6,7 @@ import { heroRefBuild } from "../src/sim/heroBuilds";
 import { buildCost, unfusedPairs, validateBuild } from "../src/net/validate";
 import { RIVAL_IDS, deckCost, honestReference, luckOf, maxGoldByDay, rivalBuild, rivalLoadout, standInBuild } from "../src/sim/rivals";
 import { PLANS, dayOwned } from "../src/sim/rivalBuilds";
-import { starsOf } from "../src/sim/stars";
+import { starsOf, upgradeGold } from "../src/sim/stars";
 import { legalityProblems } from "./rivals.legality";
 
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -73,6 +73,9 @@ describe("live preset purchases obey automatic merging", () => {
         paid += (u.crates ?? 0) * ITEMS.beltcrate.price + (u.plating ?? 0) * ITEMS.plating.price;
       }
       const l = rivalLoadout(id, day);
+      // bb-0.8.3 (REQ-BFG-043 D10, D7'): the value counts the gold upgrades too (rivalBuilds.ts captainLevels, the uniform
+      // rule), as every sum of value does (stars.ts upgradeGold)
+      paid += upgradeGold(l.build);
       expect(l.value, `${id} day ${day} purchases`).toBe(paid);
       if (id !== "matriarch") expect(l.value, `${id} day ${day} budget`).toBeLessThanOrEqual(maxGoldByDay(day));
     }

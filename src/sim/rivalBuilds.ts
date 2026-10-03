@@ -22,7 +22,9 @@
 // T() installs a bought turret in a slot (the extra slot, or replacing a starting turret) through deck.ts
 // installTurret, the game's own operation, and T2() buys a matching copy for another star. Captain plans never join belts.
 
-import { HEROES, ITEMS, type HeroId } from "./content";
+import {
+  HEROES, ITEMS, START_GOLD, UPGRADE_PRICE, incomeFor, type HeroId, type Upgrades, type UpgradeTrack,
+} from "./content";
 import { installTurret, key, rotField, setTurretList, turretList, turretsCost, type Build, type ModPlacement, type Placed } from "./deck";
 import { warlordHull } from "./ai";
 import { migrateDeck } from "./beltside";
@@ -508,8 +510,54 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   // 0.6.2 BELTSIDE: a load boundary (D3). The plans place rigs natively (M4), so the migration is a no-op
   // here, kept as the safety net for a plan that writes a rig on a belt tile. The value counts the deck after it.
   const build: Build = migrateDeck(b, "preset:rival");
-  // bb-0.8.3 (REQ-BFG-043 D10): plus the upgrade gold its levels paid (stars.ts upgradeGold), as buildCost counts it
-  const value = [...build.items, ...build.mods].reduce((n, p) => n + valueOf(p.def, starsOf(p)), 0) + turretsCost(build)
-    + crates * ITEMS.beltcrate.price + plating * ITEMS.plating.price + upgradeGold(build);
+  const parts = [...build.items, ...build.mods].reduce((n, p) => n + valueOf(p.def, starsOf(p)), 0) + turretsCost(build)
+    + crates * ITEMS.beltcrate.price + plating * ITEMS.plating.price;
+  // bb-0.8.3 (REQ-BFG-043 D7', the uniform rule): the gold upgrades its hero's par player buys (captainLevels), where the
+  // day's gold allows; the value counts their gold (stars.ts upgradeGold), as buildCost does
+  // the stand-in (rivals.ts standInBuild) pays for the ramp hull in whole plates: the levels must fit beside those too
+  const ramp = Math.max(0, Math.round(warlordHull(day) / ITEMS.plating.supply!.hull!)) * ITEMS.plating.price;
+  const up = captainLevels(plan.hero, day, maxGold(day) - parts - ramp);
+  if (up) build.upgrades = up;
+  const value = parts + upgradeGold(build);
   return { build, crates, plating, value };
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-043 D7'): the captains' and the wave-3 NPCs' gold upgrades, one uniform rule (rev 4 allows it in
+ * place of per-captain plans): each buys the levels its hero's par player buys in most runs, on the par player's median
+ * day (output-belts/measure/r4/upbuys-k24.md, seeds 1-24: level 2 of FACTORY for every hero, level 2 of TURRET SPEED for
+ * FURNACE, FOUNDRY and BASTION; WEAVER's par player buys its TURRET SPEED in 11 runs of 24, not most), where the day's
+ * gold allows: a level is skipped while the plan's value and the levels' gold would pass maxGoldByDay(day) (`room`).
+ * Day of each level, by hero and track (index 0 = level 2).
+ */
+export const CAPTAIN_LEVELS: Readonly<Record<HeroId, Partial<Record<UpgradeTrack, readonly number[]>>>> = {
+  furnace: { factory: [7], turret: [8] },
+  weaver: { factory: [6] },
+  foundry: { factory: [6], turret: [7] },
+  bastion: { factory: [7], turret: [7] },
+  metronome: {}, siphon: {},
+};
+
+/** bb-0.8.3 (D7'): a captain's levels on `day` within `room` gold (FACTORY first, then TURRET SPEED); undefined: none. */
+export function captainLevels(hero: HeroId, day: number, room: number): Upgrades | undefined {
+  const out: Upgrades = {};
+  let left = room;
+  for (const track of ["factory", "turret"] as const) {
+    const days = CAPTAIN_LEVELS[hero]?.[track] ?? [];
+    let level = 1;
+    for (const d of days) {
+      if (d > day || UPGRADE_PRICE[level + 1] > left) break;
+      left -= UPGRADE_PRICE[level + 1];
+      level++;
+    }
+    if (level > 1) out[track] = level;
+  }
+  return out.turret || out.factory ? { ...(out.turret ? { turret: out.turret } : {}), ...(out.factory ? { factory: out.factory } : {}) } : undefined;
+}
+
+/** The most gold a run can have received before day `day`'s dusk (= net/validate.ts maxGoldByDay; sim-side, no net import). */
+function maxGold(day: number): number {
+  let g = START_GOLD;
+  for (let d = 1; d < day; d++) g += incomeFor(d, true);
+  return g;
 }

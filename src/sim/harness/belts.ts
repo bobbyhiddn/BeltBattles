@@ -38,6 +38,23 @@ export const BELT_POLICY: Readonly<Record<HeroId, BeltPolicy>> = {
 /** The policy of `hero`'s bots. */
 export const beltPolicy = (hero: HeroId): BeltPolicy => BELT_POLICY[hero] ?? "today";
 
+/**
+ * bb-0.8.3 (REQ-BFG-043 D7'): how `hero`'s par player buys its two gold upgrades (TURRET SPEED, FACTORY; run.ts
+ * buyUpgrade). One rule for every hero:
+ *   "value"  the next level of either track is a candidate like any offer, judged by the player's own value logic (the
+ *            rating's gain for the gold, player.ts pickOffer): bought when it rates better than the best shop buy, or
+ *            than keeping the gold;
+ *   "never"  no upgrade (M2''s comparison);
+ *   "greedy" the next level, cheaper track first (a tie: FACTORY), whenever affordable, before any shop card (M2').
+ */
+export type UpgradePolicy = "value" | "never" | "greedy";
+export const UPGRADE_POLICY: Readonly<Record<HeroId, UpgradePolicy>> = {
+  furnace: "value", weaver: "value", foundry: "value", bastion: "value", metronome: "value", siphon: "value",
+};
+
+/** The upgrade policy of `hero`'s bots. */
+export const upgradePolicy = (hero: HeroId): UpgradePolicy => UPGRADE_POLICY[hero] ?? "value";
+
 /** 0.8.1's count for a factory at `stars` (1 for every factory TODAY_OUTPUTS doesn't list). */
 export function todayOutputs(def: string, stars: number): number {
   const s = Math.max(1, Math.min(3, Math.floor(stars || 1)));

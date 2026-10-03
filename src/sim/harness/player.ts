@@ -57,14 +57,16 @@ import { hero as deckHero, routesOf, turretForColumn } from "../deck"; // bb-0.8
 import { beltIndex, freeForRig, hitsIfPlaced, intakeCell, placeRigAt, rotFacing, rotations, type RigSpot } from "../beltside";
 import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place beside factories
 import type { SideStats } from "../battle";
-import { FUSE_MAX, fusible, starsOf, valueOf } from "../stars";
-import { beltPolicy, botSlots, reachCols } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7): the bots' belts
+import { FUSE_MAX, fusible, gradeOf, starsOf, valueOf } from "../stars";
+import { beltPolicy, botSlots, reachCols, upgradePolicy } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7, REQ-BFG-043 D7')
 import { buildCost, maxGoldByDay } from "../../net/validate";
 import { finishDay } from "../../game/day";
 import { gainModule, mergePreview, type GainAt } from "../../game/fuse";
 import {
-  buyOffer, fitCore, installFromCargo, newRun, reroll, sellInventory, storeMod, storePlaced, takeFromInventory, type Run,
+  buyOffer, buyUpgrade, fitCore, installFromCargo, newRun, nextUpgrade, reroll, sellInventory, storeMod, storePlaced,
+  takeFromInventory, upgradeShown, type Run,
 } from "../../game/run";
+import { UPGRADE_TRACKS, type UpgradeTrack } from "../content"; // bb-0.8.3 (REQ-BFG-043 D7')
 import { MAX_TILES, Shopper } from "./shopper";
 import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } from "./path";
 import { syncOf, syncedTurrets } from "../syncEstimate"; // 0.8.0 B1 M1: FOUNDRY's sync guard (syncKeeper)
@@ -186,7 +188,7 @@ export interface PlayerDay {
   buys: PlayerBuy[]; // today's purchases, in order
 }
 
-type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret";
+type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade";
 
 /** A new factory's belt: its cells, and the belt tile it joins (absent: it ends on a free intake). */
 interface Line { cells: number[]; join?: number }
@@ -217,6 +219,7 @@ interface Cand {
   grown?: { build: Build; tiles: number }; // a belt crate: the deck after it lengthens a belt (items and routes)
   swap?: number; // an upgrade: the uid of the fitted gear or core it replaces (stored, then sold)
   turret?: TurretPlan; // CAND-A: a turret offer's plan
+  track?: UpgradeTrack; // bb-0.8.3 (D7'): the hero's gold upgrade's next level (no wagon: wagon -1, slot the track's index)
   rel: number; // (rateDeck(after) - rateDeck(now)) / rateDeck(now)
   banned?: boolean; // TUNE-M: its def is in pol.forbid (judged as usual, never taken)
 }
@@ -487,7 +490,8 @@ function moreBelt(b: Build, day: number, rng: Rng, base: number, keep?: (after: 
   if (policy === "today" || spare <= 0) return null;
   let best: { build: Build; rel: number } | null = null;
   for (const p of b.items) {
-    if (ITEMS[p.def]?.kind !== "factory" || routesOf(b, p.uid).length >= botSlots(p.def, starsOf(p), b.hero, policy)) continue;
+    // bb-0.8.3 (REQ-BFG-044 D7'): at its grade (the hero factory's FACTORY level opens slots like a star does)
+    if (ITEMS[p.def]?.kind !== "factory" || routesOf(b, p.uid).length >= botSlots(p.def, gradeOf(b, p), b.hero, policy)) continue;
     const cols = policy === "reach" ? reachCols(b, p.uid) : freeConnectors(b);
     const bl = blockedCells(b), starts = startCells(p.x, p.y, ITEMS[p.def].size, bl);
     for (const col of cols) {
@@ -1044,7 +1048,66 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
     planned.set(o.def, cs);
     push(cs);
   }));
+  out.push(...upgradeCands(run, base, banned));
   return out;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-043 D7'): the hero's two gold upgrades as candidates under the "value" policy (belts.ts
+ * UPGRADE_POLICY): the next level of each track the purse affords and the game shows (run.ts upgradeShown), judged as any
+ * offer is, by the rating's gain (relOf) for its gold. The FACTORY level's new belt slot is judged with the best belt
+ * the bot would lay into it (moreSlotRel), so the level is worth its slot and its faster cycle. Outside the shop: no
+ * wagon (-1), no random stream (moreSlotRel reads a fixed walk), nothing the shop shows. pol.forbid may name
+ * "upgrade:turret" / "upgrade:factory" (judged, never taken).
+ */
+function upgradeCands(run: Run, base: number, banned: ReadonlySet<string>): Cand[] {
+  if (upgradePolicy(run.build.hero) !== "value") return [];
+  const out: Cand[] = [];
+  UPGRADE_TRACKS.forEach((track, i) => {
+    const n = nextUpgrade(run, track);
+    if (n.next === undefined || n.price === undefined || n.price > run.gold || !upgradeShown(run, track)) return;
+    const after = cloneBuild(run.build);
+    after.upgrades = { ...after.upgrades, [track]: n.next };
+    const rel = Math.max(relOf(after, base, run.day), track === "factory" ? moreSlotRel(after, run.day, base) : -Infinity);
+    out.push({ wagon: -1, slot: i, def: `upgrade:${track}`, price: n.price, kind: "upgrade", merge: false, rel, track, ...(banned.has(`upgrade:${track}`) ? { banned: true } : {}) });
+  });
+  return out;
+}
+
+/** bb-0.8.3 (D7'): the rating gain of `after` with the best belt the bots would lay into its free slots (moreBelt on a
+ *  fixed seed, so judging never draws on the player's own stream); -Infinity when none fits. */
+function moreSlotRel(after: Build, day: number, base: number): number {
+  const mb = moreBelt(after, day, new Rng(hashSeed(day, "upgrade-belt")), base, syncKeeper(after));
+  return mb ? mb.rel : -Infinity;
+}
+
+/**
+ * bb-0.8.3 (D7'), the "greedy" policy (M2''s comparison): the next level of the cheaper track (a tie: FACTORY) whenever
+ * the purse affords it, before any shop card, until neither does.
+ */
+function greedyUpgrades(run: Run, rolls: number, buys: PlayerBuy[]): void {
+  for (let guard = 0; guard < 6; guard++) {
+    const next = UPGRADE_TRACKS.map((track) => ({ track, n: nextUpgrade(run, track) }))
+      .filter((x) => x.n.price !== undefined && x.n.price <= run.gold && upgradeShown(run, x.track))
+      .sort((a, b) => a.n.price! - b.n.price! || (a.track === "factory" ? -1 : 1));
+    if (!next.length) return;
+    const t = next[0];
+    buyUpgradeCand(run, { wagon: -1, slot: UPGRADE_TRACKS.indexOf(t.track), def: `upgrade:${t.track}`, price: t.n.price!, kind: "upgrade", merge: false, rel: 0, track: t.track }, "best", rolls, buys);
+  }
+}
+
+/** bb-0.8.3 (D7'): buy upgrade candidate `c` (run.ts buyUpgrade), then lay the bots' best belt into a FACTORY level's
+ *  new slot when that rates better (as the dawn's moreBelt would). */
+function buyUpgradeCand(run: Run, c: Cand, why: PlayerBuy["why"], rolls: number, buys: PlayerBuy[]): void {
+  const r = buyUpgrade(run, c.track!);
+  if (!r.ok) throw new Error(`par player: buyUpgrade ${c.track} failed: ${r.reason}`);
+  buys.push({ day: run.day, roll: rolls, def: c.def, price: c.price, stars: r.level, merged: false, why });
+  if (c.track !== "factory") return;
+  const mb = moreBelt(run.build, run.day, new Rng(hashSeed(run.day, "upgrade-belt")), rateOn(run.build, run.day), syncKeeper(run.build));
+  if (mb && mb.rel > 0) {
+    run.build.items = mb.build.items;
+    run.build.routes = mb.build.routes;
+  }
 }
 
 /** The most gold a set of distinct offers (one per def) costing at most `cap` can spend. */
@@ -1145,6 +1208,7 @@ function buyTurret(run: Run, c: Cand): number {
  *  out by gainModule) and is sold (sellInventory: half its value back), a turret replays its plan (buyTurret).
  *  Returns the gold the sale lost (value minus refund). */
 function buy(run: Run, c: Cand, why: PlayerBuy["why"], rolls: number, buys: PlayerBuy[], trace?: PlayerOpts["trace"]): number {
+  if (c.track) { buyUpgradeCand(run, c, why, rolls, buys); return 0; } // bb-0.8.3 (D7'): no offer, no trace, no refund
   trace?.(run, c.wagon, c.slot);
   if (c.turret) {
     const lost = buyTurret(run, c);
@@ -1260,6 +1324,7 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
   const buys: PlayerBuy[] = [];
   let rolls = 0, roomy = false;
   dawnEdits(run, pol, rng);
+  if (upgradePolicy(run.build.hero) === "greedy") greedyUpgrades(run, rolls, buys); // bb-0.8.3 (D7'): M2''s comparison
   for (let guard = 0; guard < 80; guard++) {
     if (pol.grow && beltFree(run.build) > 0) {
       // free belt capacity: the player lengthens the belt that rates best with it (a free redraw in the game)

@@ -52,8 +52,10 @@
 // the pick's run spent: deck value + rerolls + sale losses); standInPool returns it as StandInEntry.spent, and the
 // cost for a pool whose tuples have five elements (the full-purse pools up to v2.1).
 
-import { GRID, HEROES, ITEMS, type HeroId } from "./content";
+import { GRID, HEROES, ITEMS, type HeroId, type Upgrades } from "./content";
 import { TURRET_UID0, rotOf, setTurretList, startingTurrets, type Build, type BuildTurret, type ModPlacement, type Placed, type RouteDef } from "./deck";
+/** bb-0.8.3 (D10): a level 1..4 (absent or below 1: 1), as stars.ts levelOf (the loader imports only ./content and ./deck). */
+const levelOf = (n: number | undefined): number => (typeof n === "number" && Number.isFinite(n) && n >= 1 ? Math.min(4, Math.floor(n)) : 1);
 import { logMigration, migrateInlineGates } from "./beltside";
 import { STAND_IN_DATA, type StandInDay } from "./standInPoolData";
 
@@ -232,7 +234,26 @@ export function encodeStarred(b: Build): string {
     return `${m.def}${m.turret}${suffix(m)}`;
   });
   const turrets = turretWords(b);
-  return `${b.beltCap} ${b.hullBonus}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`;
+  return `${b.beltCap} ${b.hullBonus}${upgradeWord(b)}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-043 D10): a deck's gold upgrade levels as a third word of the code's head, "u<turret><factory>"
+ * (e.g. "14 0 u12": TURRET SPEED level 1, FACTORY level 2); "" without levels, so a deck without them encodes byte for
+ * byte as before and every older code decodes as before. The harness codec (harness/standinCode.ts) shares these.
+ */
+export function upgradeWord(b: Pick<Build, "upgrades">): string {
+  const t = levelOf(b.upgrades?.turret), f = levelOf(b.upgrades?.factory);
+  return t > 1 || f > 1 ? ` u${t}${f}` : "";
+}
+
+/** bb-0.8.3 (D10): the levels a code's third head word writes ({} for none), in the canonical key order. */
+export function upgradesOf(word: string | undefined): { upgrades?: Upgrades } {
+  if (word === undefined) return {};
+  const m = /^u([1-4])([1-4])$/.exec(word);
+  if (!m) throw new Error(`stand-in code: bad upgrade word "${word}"`);
+  const t = Number(m[1]), f = Number(m[2]);
+  return t > 1 || f > 1 ? { upgrades: { ...(t > 1 ? { turret: t } : {}), ...(f > 1 ? { factory: f } : {}) } } : {};
 }
 
 /**
@@ -255,7 +276,7 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
   const parts = code.split("/");
   if (parts.length > 5) throw new Error(`stand-in code: more than five sections in "${code}"`);
   const [head, itemPart, routePart, modPart, turretPart] = parts;
-  const [beltCap, hullBonus] = head.split(" ").map(Number);
+  const [bc, hb, up] = head.split(" "), beltCap = Number(bc), hullBonus = Number(hb); // bb-0.8.3: `up`, the levels
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
   const items: Placed[] = words(itemPart).map((w, i) => {
@@ -279,7 +300,7 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
   if (!HEROES[hero]) throw new Error(`stand-in code: unknown hero "${hero}"`);
   const b: Build = { hero, items, routes, mods, beltCap, hullBonus };
   if (turretPart !== undefined) setTurretList(b, decodeTurrets(hero, turretPart, items.length + mods.length));
-  return b;
+  return Object.assign(b, upgradesOf(up)); // bb-0.8.3 (D10): the levels, the build's last key
 }
 
 /** Clamp a day into 1..10. */
