@@ -7,6 +7,7 @@
 // deck without it. STEAM BREECH's numbers are rates, which no class factor scales: its text is the same on every hero.
 // And TWIN LATCH's damage, which tests/wave3.modules.test.ts reads in battle only as rising star to star: the number its
 // text says each payload it lets go gains is the battle's, at every star.
+// And ARMOR PRESS's plain slug: the damage its text names is every slug it stamps in the battle, at every star.
 import { describe, expect, it } from "vitest";
 import { Battle, type SimEvent } from "../src/sim/battle";
 import type { HeroId } from "../src/sim/content";
@@ -15,7 +16,7 @@ import { heroStartBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { abilityText } from "../src/ui/abilityText";
 import { newRun } from "../src/game/run";
 import { textOpts } from "../src/screens/build/inspector";
-import { item, latchDeck, pastTile, withItem } from "./wave3.helpers";
+import { furnaceBench, item, K, latchDeck, pastTile, withItem } from "./wave3.helpers";
 
 const SEED = 12345;
 const barge = (): Build => ({ hero: "weaver", items: [{ uid: 1, def: "loom", x: 4, y: 5 }], routes: [], mods: [], beltCap: 24, hullBonus: 5000 });
@@ -93,6 +94,28 @@ describe("a turret core's numbers on every playable hero's own gun (the text she
       const flats = pastTile(withItem(latchDeck(), item(40, "twinlatch", 4, 3, 0, s)), 0, 2).map((x) => x.flat);
       expect(flats.length, `★${s}: payloads past the latch`).toBeGreaterThan(3);
       for (const f of flats) expect(f, `★${s}`).toBeCloseTo(Number(m![1]), 9);
+    }
+  });
+
+  it("ARMOR PRESS: the plain slug's damage its text names, at 1, 2 and 3 stars, is every stamped slug's in the battle", () => {
+    // wave3.modules reads the press's plating and its stamping pace in battle; here the slug's damage, as TWIN MOULD's
+    // test reads its casts (Payload.base; a plain slug without one is 3)
+    for (const s of [1, 2, 3]) {
+      const said = abilityText("armorpress", s).sentences[0];
+      const m = /STAMPS A PLAIN SLUG \(([\d.]+) DAMAGE\)/.exec(said);
+      expect(m, `★${s}: ${said}`).not.toBeNull();
+      const b = furnaceBench();
+      b.items.push({ uid: 907, def: "armorpress", x: 6, y: 6, ...(s > 1 ? { stars: s } : {}) });
+      b.routes.push({ factory: 907, cells: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] });
+      const bases = new Set<number>(), seen = new Set<number>();
+      const bt = new Battle(b, barge(), SEED);
+      while (bt.t < 12 && !bt.over) {
+        bt.step();
+        bt.drainEvents();
+        for (const a of bt.sides[0].routes[1].ammo) if (!seen.has(a.p.id)) { seen.add(a.p.id); bases.add(a.p.base ?? 3); }
+      }
+      expect(seen.size, `★${s}: slugs stamped`).toBeGreaterThan(3);
+      expect([...bases], `★${s}`).toEqual([Number(m![1])]);
     }
   });
 
