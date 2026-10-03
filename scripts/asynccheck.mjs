@@ -12,7 +12,9 @@
 //  M1. phone polish, on an iPhone portrait (390x844), an iPhone landscape (844x390), a small landscape phone (640x360) and
 //      desktop 1920x1080: where the enemy plate's source line is drawn (BattleScreen.sourceLine: the free row above the
 //      plate, else inside the plate's strip; never on the hull), and the summary's REPLAY target (regions(): at least 44
-//      CSS px tall and wide on a phone, 0.7.0a's cell on the desktop), tapped.
+//      CSS px tall and wide on a phone, 0.7.0a's cell on the desktop), tapped. shoptap (backlog 319): the summary's NEW
+//      RUN and TITLE, the replay's BACK while it plays and its result card's BACK: at least 44 CSS px on a phone (R1
+//      measured 35, 24 and 30 on the iPhone), 0.8.0's sizes on the desktop.
 //  D.  the single-file pages served at / by the built ghost server itself (BB_GHOST_STATIC, a temp directory), with no
 //      ?server=: the online page (npm run build:online, VITE_GHOST_SERVER=same-origin) with uploads open (a dusk ghost
 //      from the same origin, ONLINE GHOST on the card and the plate, the signed upload 201, requests only to that
@@ -532,21 +534,43 @@ async function main() {
       await page.screenshot({ path: join(OUT, sum) });
       shots.push(sum);
       const reg = await page.evaluate(() => {
-        const v = window.bb.game.view, k = v.scale / v.dpr;
-        return { r: window.bb.regions().find((q) => /^replay\d+$/.test(q.id)), k, W: v.W, H: v.H, scale: v.scale };
+        const v = window.bb.game.view, k = v.scale / v.dpr, find = (id) => window.bb.regions().find((q) => q.id === id) ?? null;
+        return { r: window.bb.regions().find((q) => /^replay\d+$/.test(q.id)), k, W: v.W, H: v.H, scale: v.scale, again: find("again"), title: find("title") };
       });
       const r = reg.r;
       const size = `${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px (summary ${reg.W}x${reg.H} at x${reg.scale})`;
       if (touch) check(r.h >= 44 && r.w >= 44, `M1 ${name} ${vp}: the summary's REPLAY target ${r.id} is at least 44x44 CSS px: ${size}`);
       else check(Math.abs(r.h - 8 * reg.k) < 0.01, `M1 ${name} ${vp}: the summary's REPLAY is 0.7.0a's cell in the round-history row (one 8 px row): ${size}`);
+      // shoptap (backlog 319): NEW RUN and TITLE, at least 44 CSS px tall on a phone (R1 measured 35 on the iPhone); 0.8.0's 21 px on the desk
+      const nt = `NEW RUN ${reg.again.w.toFixed(1)}x${reg.again.h.toFixed(1)}, TITLE ${reg.title.w.toFixed(1)}x${reg.title.h.toFixed(1)} CSS px`;
+      if (touch) check(reg.again.h >= 44 && reg.title.h >= 44, `M1 ${name} ${vp}: the summary's NEW RUN and TITLE are at least 44 CSS px tall: ${nt}`);
+      else check(Math.abs(reg.again.h - 21 * reg.k) < 0.01 && Math.abs(reg.title.h - 21 * reg.k) < 0.01, `M1 ${name} ${vp}: the summary's NEW RUN and TITLE are 0.8.0's 21 px: ${nt}`);
       await tapRegion(page, touch, r.id);
       await settle(page, "replay");
       await sleep(600);
       const rep = `${TAG}-m1-${name}-replay.png`;
       await page.screenshot({ path: join(OUT, rep) });
       shots.push(rep);
+      // shoptap (backlog 319): the replay's BACK while it plays (R1 measured 0.7.0a's at 24 CSS px tall on the iPhone)
+      const backAt = (id) => page.evaluate((i) => {
+        const v = window.bb.game.view;
+        return { b: window.bb.regions().find((q) => q.id === i) ?? null, k: v.scale / v.dpr };
+      }, id);
+      const lv = await backAt("replayleave");
+      const lvs = lv.b ? `${lv.b.w.toFixed(1)}x${lv.b.h.toFixed(1)} CSS px at (${lv.b.x.toFixed(0)}, ${lv.b.y.toFixed(0)})` : "missing";
+      if (touch) check(lv.b && lv.b.h >= 44 && lv.b.w >= 44, `M1 ${name} ${vp}: the replay's BACK while it plays is at least 44x44 CSS px: ${lvs}`);
+      else check(lv.b && Math.abs(lv.b.h - 12 * lv.k) < 0.01 && Math.abs(lv.b.w - 36 * lv.k) < 0.01, `M1 ${name} ${vp}: the replay's BACK while it plays is 0.8.0's 36x12 px: ${lvs}`);
       await tapRegion(page, touch, "skip"); // BACK shows once the replay has ended
       await page.waitForFunction(() => window.bb.game.screen.over, null, { timeout: 90000 });
+      await page.waitForFunction(() => window.bb.regions().some((q) => q.id === "replayback"), null, { timeout: 5000 });
+      const rb = await backAt("replayback");
+      const rbs = `${rb.b.w.toFixed(1)}x${rb.b.h.toFixed(1)} CSS px`;
+      // shoptap (backlog 319): the result card's BACK (R1: 30 CSS px on the iPhone)
+      if (touch) check(rb.b.h >= 44, `M1 ${name} ${vp}: the replay's result card BACK is at least 44 CSS px tall: ${rbs}`);
+      else check(Math.abs(rb.b.h - 15 * rb.k) < 0.01, `M1 ${name} ${vp}: the replay's result card BACK is 0.8.0's 15 px: ${rbs}`);
+      const end = `${TAG}-m1-${name}-replay-end.png`;
+      await page.screenshot({ path: join(OUT, end) });
+      shots.push(end);
       await tapRegion(page, touch, "replayback");
       await settle(page, "summary");
       check(errors.length === 0, `M1 ${name} ${vp}: tapping REPLAY plays the dusk and BACK returns to the summary, 0 console errors (${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""})`);
