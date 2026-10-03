@@ -60,8 +60,10 @@ describe("M4: the signature factories' text at every star, each number the sim's
       expect(nextStarText(def, 3)).toBeNull();
       expect(mergesWithText(def, 2)).toBe(`MERGES WITH YOUR ${ITEMS[def].name} INTO ★2: ${gist(def, 2)}, ${outputsAt(def, 2)} BELTS.`);
     }
-    // the levels grow the cycle and the belts, never the damage (oracle 6c20deea1363d0bb)
-    expect(nextStarText("kiln", 1)).toBe("NEXT STAR: 4 DAMAGE CINDER SLUGS EVERY 0.98 SECONDS, 3 BELTS.");
+    // the levels grow the cycle and the belts, never the damage (oracle 6c20deea1363d0bb): the next star says those two only
+    expect(nextStarText("kiln", 1)).toBe("NEXT STAR: CINDER SLUGS EVERY 0.98 SECONDS, 3 BELTS.");
+    expect(nextStarText("crucible", 2)).toBe("NEXT STAR: POURS 2 ALLOY BLANKS EVERY 1.06 SECONDS, 4 BELTS.");
+    for (const def of SIGNATURE_FACTORIES) for (const s of [1, 2]) expect(nextStarText(def, s), `${def} ★${s}`).not.toMatch(/DAMAGE/);
     // the panels: FURNACE's ★1 KILN shows its next star and 1 MORE COPY TO MERGE; at ★2, 2 MORE COPIES; a waiting copy too
     const run = newRun("furnace", 5, "text");
     const kiln = run.build.items.find((p) => p.def === "kiln")!;

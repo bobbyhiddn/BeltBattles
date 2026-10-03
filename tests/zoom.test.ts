@@ -346,8 +346,11 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
       // band can't hold the longest turret panels (a THUNDERER ★3's full text needs 144 px): they take the fallback
       // (grown at 390x660 and 390x664: 30 installed turrets with a core and gear and 8 ★2 rigs and factories, 38 of 885; at
       // 402x690: 13 turrets, mostly ★2 and ★3; none at 430x739 and 390x844; every shop card's panel in the band everywhere)
+      // bb-0.8.3 (REQ-BFG-042 M4, job BELTS): BASTION's starting WARDWORKS reads its next star and merge progress now, so at
+      // 390x660 and 390x664 its flavour gives way in the band (it was in its fullest form): fullest 788 -> 787, 800 -> 799;
+      // in the band and grown unchanged at every view (no panel moved to the fallback)
       const want: Record<string, [number, number, number]> = {
-        "390x660": [104, 788, 847], "390x664": [106, 800, 847], "402x690": [122, 846, 872], "430x739": [151, 880, 885], "390x844": [162, 885, 885],
+        "390x660": [104, 787, 847], "390x664": [106, 799, 847], "402x690": [122, 846, 872], "430x739": [151, 880, 885], "390x844": [162, 885, 885],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

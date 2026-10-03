@@ -221,7 +221,7 @@ describe("D1, D2, D6: a merged copy keeps its belts and offers its new slot at o
       expect(itemPanel(run, sig.uid, true)!.labels, def).toEqual([]);
       expect(itemPanel(run, sig.uid, true)!.title, def).toBe(`${ITEMS[def].name} ★★`);
       expect(cargoPanel(run, wait.uid, true)!.labels, def).toEqual([]);
-      expect(cargoPanel(run, wait.uid, true)!.body.some((b) => b.text === "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD."), def).toBe(true);
+      expect(cargoPanel(run, wait.uid, true)!.body.some((b) => b.text === "IT STAYS ABOARD: NO COPY CAN BE SOLD."), def).toBe(true);
     }
   });
 

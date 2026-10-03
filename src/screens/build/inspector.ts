@@ -376,8 +376,11 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
 export const TOUCH_TURN = "TAP IT AGAIN TO TURN IT. DRAG TO MOVE.";
 /** shoptap (D2, REQ-BFG-035): what a placed part's SELL says: its cargo sell price (sellValue at its stars). */
 export const sellLabel = (def: string, stars: number): string => `SELL +${sellPrice(def, stars)}G`;
-/** shoptap (D2): the signature factory's panel on touch says why it offers no SELL (actions.ts store's own words). */
-export const SIGNATURE_ABOARD = "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.";
+/** shoptap (D2): the signature factory's panel on touch says why it offers no SELL. bb-0.8.3 (REQ-BFG-042 D9, M4): every
+ *  copy of it stays aboard (the caravan sells copies; none sells or stows), on one line, so the starting factory's panel,
+ *  with its next star and merge progress, still fits shoptap2's 69 px band (was "THE SIGNATURE FACTORY STAYS ABOARD. IT
+ *  CAN'T BE SOLD.", actions.ts store's words, two lines). */
+export const SIGNATURE_ABOARD = "IT STAYS ABOARD: NO COPY CAN BE SOLD.";
 
 /**
  * 0.8.0 P1 (E3, DESIGN-beltside section 8's production rigs): a placed STOKER that points at factories: the factories it

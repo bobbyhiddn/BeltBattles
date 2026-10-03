@@ -384,12 +384,13 @@ async function touchSection(browsers, origin, vname) {
     fitCheck(vname, V, `the GALVANIC COIL in cargo, ${d} CSS px drift`, l);
   }
   await shot(page, `${TAG}-${vname}-cargo-panel.png`);
-  // the signature KILN's panel says it stays aboard, no SELL
+  // the signature KILN's panel says it stays aboard, no SELL (bb-0.8.3, REQ-BFG-042 D9: every copy; the note on one line,
+  // was "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.")
   await page.keyboard.press("Escape");
   await tap(cdp, await cell(page, 4, 7), 5, 90);
   const kiln = await look(page);
   const kilnText = kiln.panel ? kiln.panel.lines.join(" ") : "";
-  check(kiln.panel && kiln.panel.labels.length === 0 && kilnText.includes("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.") && shown(kiln, "KILN"), `${V}: the KILN's panel offers no SELL and says why: ${kiln.panel ? `${JSON.stringify(kiln.panel.lines.filter((t) => /ABOARD|SOLD|SIGNATURE/.test(t)))}; ${pdesc(kiln)}` : "no panel"}`);
+  check(kiln.panel && kiln.panel.labels.length === 0 && kilnText.includes("IT STAYS ABOARD: NO COPY CAN BE SOLD.") && shown(kiln, "KILN"), `${V}: the KILN's panel offers no SELL and says why: ${kiln.panel ? `${JSON.stringify(kiln.panel.lines.filter((t) => /ABOARD|SOLD|SIGNATURE/.test(t)))}; ${pdesc(kiln)}` : "no panel"}`);
   fitCheck(vname, V, "the KILN", kiln);
   await shot(page, `${TAG}-${vname}-kiln-panel.png`);
   // the rig: its first tap selects without turning (its panel shows); a tap on the selected rig turns it

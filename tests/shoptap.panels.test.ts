@@ -106,7 +106,9 @@ describe("D2 / REQ-BFG-035: SELL on every carrier part's panel (touch); the mous
       expect(touch.body.find((b) => b.text === SIGNATURE_ABOARD), hero).toMatchObject({ role: "note", keep: true });
       expect(mouse.body.some((b) => b.text === SIGNATURE_ABOARD), hero).toBe(false);
     }
-    expect(SIGNATURE_ABOARD).toBe("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.");
+    // bb-0.8.3 (REQ-BFG-042 D9, M4): every copy stays aboard, on one line (was "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T
+    // BE SOLD."): the starting factory's panel, with its next star and merge progress, still fits shoptap2's 69 px band
+    expect(SIGNATURE_ABOARD).toBe("IT STAYS ABOARD: NO COPY CAN BE SOLD.");
   });
 
   it("an installed turret offers SELL (a 1-star starting turret can't be sold, and says so); on touch its hint names the tap for its core and gear", () => {

@@ -702,19 +702,22 @@ const ENTRIES: Record<string, Entry> = {
         "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
       ];
     },
-    gist: (e) => `POURS ${f(e).pour} ALLOY BLANKS (${damage(slugBase(e))} EACH) ${every(f(e).interval)}`, // bb-0.8.3: its base
+    // bb-0.8.3 (oracle 6c20deea1363d0bb): a signature level grows the cycle only, so the next-star and MERGES WITH lines
+    // say the cycle and the belts and repeat no damage (the blank's damage is the same at every star; the text says it)
+    gist: (e) => `POURS ${f(e).pour} ALLOY BLANKS ${every(f(e).interval)}`,
     card: (e) => ownCard(e.id), // bb-0.8.3 (D9): the card in its own hero's caravan
   },
   // bb-0.8.3 (REQ-BFG-042 D2, M4): FURNACE's, WEAVER's, METRONOME's and SIPHON's own factories level up by merging, and
   // their own caravan sells copies, so their panels and cards read their numbers at every star, as a sold module's do
   // (they read only their catalogue desc before). Battle.stamp deals one slug a cycle onto their belts in turn.
   kiln: {
-    // payloadDamage: the slug's base (its level's from ★2) + AMMO.cinder.rideScale a second of ride
+    // payloadDamage: the slug's base (the same at every star: oracle 6c20deea1363d0bb) + AMMO.cinder.rideScale a second of
+    // ride. The gist (next star, MERGES WITH) says the cycle only: a level changes nothing else
     text: (e, x) => [
       `STAMPS A CINDER SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
       `A CINDER SLUG DEALS ${damage(slugBase(e))}, AND ${moreDamage(AMMO.cinder.rideScale)} FOR EACH SECOND IT RIDES.`,
     ],
-    gist: (e) => `${damage(slugBase(e))} CINDER SLUGS ${every(f(e).interval)}`,
+    gist: (e) => `CINDER SLUGS ${every(f(e).interval)}`,
     card: (e) => ownCard(e.id),
   },
   loom: {
@@ -723,7 +726,7 @@ const ENTRIES: Record<string, Entry> = {
       `WEAVES A THREAD SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
       `A THREAD SLUG DEALS ${damage(slugBase(e))}, AND EACH ONE THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`,
     ],
-    gist: (e) => `${damage(slugBase(e))} THREAD SLUGS ${every(f(e).interval)}`,
+    gist: (e) => `THREAD SLUGS ${every(f(e).interval)}`, // the cycle only, as the KILN's
     card: (e) => ownCard(e.id),
   },
   clockworks: {
@@ -741,7 +744,7 @@ const ENTRIES: Record<string, Entry> = {
       `STAMPS A LEECH SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
       `A LEECH SLUG DEALS ${damage(slugBase(e))}.`,
     ],
-    gist: (e) => `${damage(slugBase(e))} LEECH SLUGS ${every(f(e).interval)}`,
+    gist: (e) => `LEECH SLUGS ${every(f(e).interval)}`, // the cycle only, as the KILN's
     card: (e) => ownCard(e.id),
   },
   wardworks: {
@@ -749,12 +752,12 @@ const ENTRIES: Record<string, Entry> = {
     // Burn); battle.ts: the dark wind never meets the plating
     text: (e, x) => [
       `STAMPS A BULWARK SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`, // bb-0.8.3 (M4)
-      `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3 (REQ-BFG-042 D2): its level's base from ★2
+      `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every star (oracle 6c20deea1363d0bb)
       `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${n1(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
     ],
-    gist: (e) => `${damage(slugBase(e))} BULWARK SLUGS ${every(f(e).interval)}`, // bb-0.8.3 (M4): with its base from ★2
+    gist: (e) => `BULWARK SLUGS ${every(f(e).interval)}`, // bb-0.8.3 (M4): the cycle only, as the KILN's
     card: (e) => ownCard(e.id), // bb-0.8.3 (D9): the card in its own hero's caravan
   },
   mimic: {
