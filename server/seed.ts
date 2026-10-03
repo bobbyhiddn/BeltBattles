@@ -1,5 +1,6 @@
-// `node ghost-server.mjs seed`: write the bundled sample pool (tools/samplePool.ts, drawn from
-// the stand-in pool) into the configured store as the stand-in pool of the current RULES_VERSION.
+// `node ghost-server.mjs seed`: write the bundled sample pool (tools/samplePool.ts: FURNACE and WEAVER drawn
+// from the stand-in pool, FOUNDRY and BASTION from the par player's field, 0.8.0 RC) into the configured store as
+// the stand-in pool of the current RULES_VERSION.
 // It runs as the Fly release_command on every deploy, so it is idempotent and fails loudly:
 //   - every entry is checked first (strict decode, current rules, validateUpload in the player mode,
 //     a record a run can reach, no duplicates); one failure fails the run before anything is written;

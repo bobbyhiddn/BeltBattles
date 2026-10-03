@@ -1,5 +1,6 @@
-// Deterministic sample ghost pool, the server's seed pool (`seed`, `npm run gen:ghosts`), drawn from the bundled
-// full-purse stand-in pool (src/sim/standInPool.ts). Heroes come from STAND_IN_HEROES (PLAYABLE_HEROES).
+// Deterministic sample ghost pool, the server's seed pool (`seed`, `npm run gen:ghosts`). The stand-in heroes' ghosts
+// (STAND_IN_HEROES: FURNACE and WEAVER) are drawn from the bundled stand-in pool (src/sim/standInPool.ts); since 0.8.0 the
+// other playable heroes' ghosts come from the par player (raceGhosts, below).
 //  - sampleGhosts(): 2 heroes x 2 variants x 10 days = 40 snapshots. Variant 0 is the day's par, variant 1 a seeded
 //    pick that is never the same deck as the par. Records (wins, lives) are drawn exactly as before the switch to the
 //    stand-in pool: variant 1's rng first replays the retired shopper's draws, so only the decks changed. Since the
@@ -11,14 +12,25 @@
 //    or variant 1's) with the day's floor record, no wins and the fewest lives a run can have (records.ts
 //    floorRecord). Under the record rule (D1) the floor ghosts are eligible for every reachable request, so every
 //    reachable state at every dusk has at least 2 eligible seed ghosts (uncoveredStates; tests/seed.records.test.ts).
-//  - generateSamplePool() = both, 60 snapshots. It fails loudly (throws) if a ghost fails validateBuild (the shop's
-//    strict rules) or validateUpload (the player mode, as POST /v1/ghosts checks an upload), if a label is not
-//    reachable, or if a reachable state has fewer than 2 eligible ghosts.
+//  - raceGhosts(), 0.8.0 RC (REQ-BFG-016, REQ-BFG-011): the playable heroes with no stand-in decks, FOUNDRY and BASTION
+//    (RACE_SEED_HEROES), get as many seed ghosts per hero and day as a stand-in hero: two sample ghosts (variants 0 and
+//    1, records drawn as a stand-in hero's variant 0 draws them) and one floor ghost (variant 2, floorRecord). Each deck
+//    is the par player's dusk deck of that day (src/sim/harness/player.ts playerBuild, the typical policy: a real run
+//    through the game's caravan, buying only what it offers at the offer price) from one of the par field's runs (par.ts
+//    parSeeds: seeds 1-12, the field B1 measured FOUNDRY and BASTION against), picked by (hero, variant, day) and stepped
+//    to the next field seed while it is the same deck as an earlier variant's that day. They come after the 60 stand-in
+//    hero ghosts, so those keep their records, createdAt and order.
+//  - generateSamplePool() = all three, 120 snapshots (60 FURNACE and WEAVER, 60 FOUNDRY and BASTION). It fails loudly
+//    (throws) if a ghost fails validateBuild (the shop's strict rules) or validateUpload (the player mode, as POST
+//    /v1/ghosts checks an upload), if a label is not reachable, or if a reachable state has fewer than 2 eligible ghosts.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
 import { startingBuild } from "../src/sim/ai";
 import { installedTurrets, occupancy, type Build } from "../src/sim/deck";
+import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
+import { PAR_K, parSeeds } from "../src/sim/harness/par";
+import { playerBuild } from "../src/sim/harness/player";
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
@@ -136,6 +148,61 @@ export function floorGhosts(first = STAND_IN_HEROES.length * SAMPLE_VARIANTS * M
   return out;
 }
 
+/** 0.8.0 RC: the playable heroes with no stand-in decks (FOUNDRY and BASTION), whose seed ghosts come from the par
+ *  player's field (raceGhosts). Every playable hero is in the seed pool: a stand-in hero through the stand-in pool, any
+ *  other through this list. */
+export const RACE_SEED_HEROES: readonly HeroId[] = PLAYABLE_HEROES.filter((h) => !STAND_IN_HEROES.includes(h));
+/** Seed ghosts per race hero and day: as many as a stand-in hero's (SAMPLE_VARIANTS sample ghosts and one floor ghost). */
+export const RACE_VARIANTS = SAMPLE_VARIANTS + 1;
+
+/** A race seed deck and the par-field run it comes from. */
+export interface RaceDeck { build: Build; seed: number }
+
+/**
+ * 0.8.0 RC: the race seed deck of (hero, day, variant v): the par player's dusk deck of `day` (playerBuild, the typical
+ * policy) from the par field's run picked by hashSeed("race-seed-pool", hero, v, day) among parSeeds(PAR_K), stepped to
+ * the next field seed while it is the same deck (encodeStarred) as a lower variant's deck that day. Throws if the field
+ * holds fewer distinct decks than the variants need.
+ */
+export function raceDeck(hero: HeroId, day: number, v: number): RaceDeck {
+  const seeds = parSeeds(PAR_K);
+  const taken = new Set<string>();
+  for (let u = 0; u < v; u++) taken.add(encodeStarred(raceDeck(hero, day, u).build));
+  let i = hashSeed("race-seed-pool", hero, v, day) % seeds.length;
+  for (let step = 0; step < seeds.length; step++, i = (i + 1) % seeds.length) {
+    const build = playerBuild(hero, day, seeds[i]);
+    if (!taken.has(encodeStarred(build))) return { build, seed: seeds[i] };
+  }
+  throw new Error(`race seed deck ${hero} day ${day} variant ${v}: the par field holds fewer than ${v + 1} distinct decks`);
+}
+
+/** 0.8.0 RC: the race seed ghosts, RACE_VARIANTS per RACE_SEED_HEROES hero and day: variants 0 and 1 carry a drawn record
+ *  (the draws of a stand-in hero's variant 0), variant FLOOR_VARIANT the day's floor record. `first`: the createdAt index
+ *  of the first one, after the stand-in heroes' sample and floor ghosts. `deckOf`: the deck source (raceDeck; tests pass
+ *  their own to show that every deck goes through seedGhost's checks). */
+export function raceGhosts(
+  first = STAND_IN_HEROES.length * (SAMPLE_VARIANTS + 1) * MAX_DAY, deckOf: (hero: HeroId, day: number, v: number) => RaceDeck = raceDeck,
+): GhostSnapshot[] {
+  const out: GhostSnapshot[] = [];
+  for (const hero of RACE_SEED_HEROES) {
+    for (let v = 0; v < RACE_VARIANTS; v++) {
+      for (let day = 1; day <= MAX_DAY; day++) {
+        const { build } = deckOf(hero, day, v);
+        let rec: DuskRecord;
+        if (v === FLOOR_VARIANT) rec = floorRecord(day);
+        else {
+          const rng = new Rng(sampleSeed(hero, v, day));
+          const wins = rng.int(day);
+          const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
+          rec = reachableLabel(day, wins, START_LIVES - losses);
+        }
+        out.push(seedGhost(hero, day, v, build, rec, EPOCH + (first + out.length) * 1000));
+      }
+    }
+  }
+  return out;
+}
+
 export interface CoverageGap {
   day: number;
   wins: number;
@@ -157,9 +224,10 @@ export function uncoveredStates(pool: readonly GhostSnapshot[], min = MIN_ELIGIB
   return out;
 }
 
-/** The seed pool: the 40 sample ghosts, then the 20 floor ghosts. Throws if a reachable state is not covered. */
+/** The seed pool: the 40 sample ghosts, the 20 floor ghosts (FURNACE and WEAVER), then the 60 race ghosts (FOUNDRY and
+ *  BASTION, 0.8.0 RC). Throws if a reachable state is not covered. */
 export function generateSamplePool(): GhostSnapshot[] {
-  const pool = [...sampleGhosts(), ...floorGhosts()];
+  const pool = [...sampleGhosts(), ...floorGhosts(), ...raceGhosts()];
   const gaps = uncoveredStates(pool);
   if (gaps.length) {
     throw new Error(`the seed pool leaves ${gaps.length} reachable states with fewer than ${MIN_ELIGIBLE} eligible ghosts: `

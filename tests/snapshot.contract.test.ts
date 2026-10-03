@@ -57,8 +57,8 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     expect(START_LIVES).toBeLessThanOrEqual(net.MAX_LIVES); // a full-lives record fits both
   });
 
-  it("both accept every sample-pool snapshot (both heroes, days 1-10, lives 1..START_LIVES)", () => {
-    expect(POOL).toHaveLength(60); // 0.7.0a D5: the 40 sample ghosts and the 20 floor ghosts
+  it("both accept every sample-pool snapshot (the four heroes, days 1-10, lives 1..START_LIVES)", () => {
+    expect(POOL).toHaveLength(120); // 0.7.0a D5: the 40 sample ghosts and the 20 floor ghosts; 0.8.0 RC: and the 60 race ghosts (was 60)
     for (const s of POOL) {
       expect(local.isSnapshot(s), `local ${s.hero} d${s.day}`).toBe(true);
       expect(netOk(s), `net ${s.hero} d${s.day}`).toBe(true);

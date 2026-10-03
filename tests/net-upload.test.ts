@@ -284,7 +284,7 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
   it("the bundled ghost pool (tools/samplePool.ts): the strict loader takes every snapshot and the player mode accepts each", () => {
     const load = loadGhostPool(samplePoolJson());
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(60); // 0.7.0a D5: 40 sample ghosts and 20 floor ghosts
+    expect(load.entries).toHaveLength(120); // 0.7.0a D5: 40 sample ghosts and 20 floor ghosts; 0.8.0 RC: 60 race ghosts (was 60)
     let turrets = 0, joined = 0;
     for (const { snapshot: s } of load.entries) {
       expect(s.rules).toBe(RULES_VERSION);
@@ -423,4 +423,6 @@ const POOL_CARRIES = { turrets: 35, bought: 29, joined: 76, joins: 121, both: 27
 // ghosts carry 9 turret lists and 26 joined belts and the floor ghosts 9 and 12 (were 14 and 28, 10 and 13: [24, 41])
 // 0.8.0 B1 M2 (oracle efb5c4ff84fe4c6d): the stand-in pool regenerated after the hero numbers: the sample ghosts carry 8
 // and 29, the floor ghosts 7 and 12 (were 9 and 26, 9 and 12: [18, 38])
-const GHOST_POOL_CARRIES = [15, 41];
+// 0.8.0 RC (oracle 96e0ebe434a93f2b): the seed pool takes FOUNDRY and BASTION's 60 race ghosts (the par player's decks),
+// which carry 11 turret lists and 34 joined belts; FURNACE and WEAVER's 60 still carry 15 and 41 (was [15, 41])
+const GHOST_POOL_CARRIES = [26, 75];

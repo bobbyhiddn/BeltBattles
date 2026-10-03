@@ -12,7 +12,8 @@ import { generateSamplePool } from "../tools/samplePool";
 import type { FakeS3 } from "../tools/fakeS3";
 import { startFake, tigrisFor } from "./netStores";
 
-// the bundle: 60 ghosts, days 1-10 (0.7.0a D5: 40 sample ghosts and 20 floor ghosts, tools/samplePool.ts)
+// the bundle: 120 ghosts, days 1-10 (0.7.0a D5: 40 sample ghosts and 20 floor ghosts, tools/samplePool.ts; 0.8.0 RC: and
+// FOUNDRY and BASTION's 60, oracle 96e0ebe434a93f2b)
 const POOL = generateSamplePool();
 const N = POOL.length;
 const BUNDLE = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
@@ -27,8 +28,8 @@ const TURRET_DECKS = BUNDLE.filter((e) => e.snapshot.build.turrets !== undefined
 const JOIN_DECKS = BUNDLE.filter((e) => e.snapshot.build.routes.some((r) => r.join !== undefined));
 
 describe("the bundled pool the seed writes", () => {
-  it("is 60 v2 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
-    expect(N).toBe(60); // 0.7.0a D5: 2 heroes x (2 sample variants + 1 floor ghost) x 10 days
+  it("is 120 v2 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
+    expect(N).toBe(120); // 0.7.0a D5 and 0.8.0 RC: 4 heroes x (2 sample variants + 1 floor ghost) x 10 days (was 60)
     for (const s of POOL) expect([s.v, s.rules]).toEqual([SNAPSHOT_VERSION, RULES_VERSION]);
     expect(TURRET_DECKS.length).toBeGreaterThan(0);
     expect(JOIN_DECKS.length).toBeGreaterThan(0);

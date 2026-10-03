@@ -1,9 +1,10 @@
 // 0.7.0a D5 (REQ-BFG-016): the seed ghosts.
-//  - Every bb-0.6.2 seed ghost passes validateUpload in the player (honest) mode; the seed fails loudly if one doesn't.
+//  - Every seed ghost (bb-0.6.2 in 0.7.0, bb-0.8.0 since the 0.8.0 RC) passes validateUpload in the player (honest) mode; the seed fails loudly if one doesn't.
 //  - Every record label (wins, lives) is one a run can carry into that dusk under 0.6.2's run rules (src/net/records.ts,
 //    checked here against the run code itself: newRun, startDusk, finishDay and the DOCK's PATCH UP).
-//  - For every day 1-10 and every reachable (wins, lives) at that dusk, at least 2 seed ghosts are eligible under the
-//    record rule (D1). The seed pool keeps its turret and join decks.
+//  - For every day 1-10 and every reachable (wins, lives) at that dusk, at least 4 seed ghosts are eligible under the
+//    record rule (D1): the generator's floor is 2 (MIN_ELIGIBLE), and since the 0.8.0 RC the race heroes' floor ghosts
+//    make it 4 (oracle 96e0ebe434a93f2b; it was 2). The seed pool keeps its turret and join decks.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
@@ -19,13 +20,14 @@ import { ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { encodeStarred } from "../src/sim/standInPool";
 import { checkPool, SeedError, seedStore } from "../server/seed";
 import type { GhostServer } from "../server/app";
-import { floorGhosts, generateSamplePool, MIN_ELIGIBLE, reachableLabel, sampleGhosts, uncoveredStates } from "../tools/samplePool";
+import { floorGhosts, generateSamplePool, MIN_ELIGIBLE, raceGhosts, reachableLabel, sampleGhosts, uncoveredStates } from "../tools/samplePool";
 import { lifeAudit } from "../tools/scorecard/survival";
 import { storeBackends } from "./netStores";
 
 const POOL = generateSamplePool();
 const SAMPLE = sampleGhosts();
 const FLOOR = floorGhosts();
+const RACE = raceGhosts(); // 0.8.0 RC: FOUNDRY and BASTION's 60 (tests/rc.seedpool.test.ts)
 const NOSTATS = {} as SideStats; // finishDay only stores the dusk's stats
 
 /** Every (wins, lives) the run code carries into each dusk 1..maxDay over every win / loss / draw history; on `dockDay`
@@ -101,15 +103,16 @@ describe("D5: the records a run can carry into a dusk (src/net/records.ts) are t
 });
 
 describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
-  it("is the 40 sample ghosts and 20 floor ghosts, each passing validateUpload in the player mode (and the shop's strict rules)", () => {
-    expect(POOL).toEqual([...SAMPLE, ...FLOOR]);
+  // 0.8.0 RC (oracle 96e0ebe434a93f2b): FOUNDRY and BASTION's 60 race ghosts follow (the pool was [...SAMPLE, ...FLOOR], 60)
+  it("is the 40 sample ghosts, the 20 floor ghosts and the 60 race ghosts, each passing validateUpload in the player mode (and the shop's strict rules)", () => {
+    expect(POOL).toEqual([...SAMPLE, ...FLOOR, ...RACE]);
     expect([SAMPLE.length, FLOOR.length]).toEqual([40, 20]);
     for (const s of POOL) {
       expect(s.rules).toBe(RULES_VERSION);
       expect(validateUpload(s.build, s.day, s.rules), `${s.playerId} d${s.day}`).toEqual({ ok: true, errors: [] });
       expect(validateBuild(s.build, s.day).ok).toBe(true);
     }
-    expect(checkPool(POOL)).toHaveLength(60);
+    expect(checkPool(POOL)).toHaveLength(120); // 0.8.0 RC: was 60
   });
 
   it("every label is reachable; the three drawn labels the refund rules out keep their wins at the nearest reachable lives", () => {
@@ -122,7 +125,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     for (const f of FLOOR) expect({ wins: f.wins, lives: f.lives }).toEqual(floorRecord(f.day));
   });
 
-  it("covers every reachable state of every dusk 1-10 with at least 2 eligible seed ghosts under the record rule (D1)", () => {
+  it("covers every reachable state of every dusk 1-10 with at least 4 eligible seed ghosts under the record rule (D1; the generator's floor is 2)", () => {
     expect(MIN_ELIGIBLE).toBe(2);
     const entries = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
     let states = 0, least = Infinity;
@@ -136,7 +139,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
       }
     }
     expect(states).toBe(178);
-    expect(least).toBe(2);
+    expect(least).toBe(4); // 0.8.0 RC: the race floor ghosts are eligible everywhere too (was 2)
     expect(uncoveredStates(POOL)).toEqual([]);
     // without the floor ghosts the sample ghosts leave states uncovered (why the floor ghosts exist)
     expect(uncoveredStates(SAMPLE).length).toBeGreaterThan(0);
@@ -172,7 +175,7 @@ describe.each(storeBackends())("D5 end to end on the $name store: a new player g
     await backend.setup();
     app = backend.server({ rateLimit: { windowMs: 60_000, max: 100_000 }, log: () => {}, matchSalt: () => 0 });
     base = `http://127.0.0.1:${await app.listen(0)}`;
-    expect((await seedStore(app.store)).entries).toBe(60);
+    expect((await seedStore(app.store)).entries).toBe(120); // 0.8.0 RC: was 60
   });
   afterAll(async () => {
     await app.close();

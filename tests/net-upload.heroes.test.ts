@@ -227,10 +227,10 @@ describe("the server and the client, both ways", () => {
     error.mockRestore();
   });
 
-  it("the seed check refuses a FOUNDRY ghost under bb-0.6.2; the real seed pool (FURNACE and WEAVER, 60 ghosts) passes as before", () => {
+  it("the seed check refuses a FOUNDRY ghost under bb-0.6.2; the real seed pool (the four playable heroes, 120 ghosts since the RC) passes", () => {
     const pool = generateSamplePool();
-    expect(checkPool(pool)).toHaveLength(60);
-    expect(new Set(pool.map((p) => p.hero))).toEqual(new Set(["furnace", "weaver"]));
+    expect(checkPool(pool)).toHaveLength(120); // 0.8.0 RC: FOUNDRY and BASTION joined FURNACE and WEAVER's 60 (oracle 96e0ebe434a93f2b)
+    expect(new Set(pool.map((p) => p.hero))).toEqual(new Set(["furnace", "weaver", "foundry", "bastion"]));
     const bad = { ...pool[0], rules: OLD_RULES, hero: "foundry", build: heroRefBuild("foundry", pool[0].day) };
     expect(() => checkPool([...pool, bad])).toThrow(/snapshot\.hero: rules bb-0\.6\.2 accept only FURNACE, WEAVER, not FOUNDRY/);
   });

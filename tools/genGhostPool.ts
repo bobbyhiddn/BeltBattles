@@ -1,5 +1,6 @@
-// Write the sample ghost pool, the server's seed pool (60 validated snapshots, days 1-10, both heroes: 40 sample ghosts
-// and 20 floor ghosts, 0.7.0a D5). It fails loudly if a ghost fails validateUpload (the player mode) or the shop's strict
+// Write the sample ghost pool, the server's seed pool (120 validated snapshots, days 1-10, the four playable heroes:
+// FURNACE and WEAVER's 40 sample ghosts and 20 floor ghosts, 0.7.0a D5, from the stand-in pool; FOUNDRY and BASTION's 60,
+// 0.8.0 RC, from the par player's field). It fails loudly if a ghost fails validateUpload (the player mode) or the shop's strict
 // rules, if a record label is not reachable, or if a reachable state has fewer than 2 eligible ghosts (tools/samplePool.ts).
 //   npm run gen:ghosts -- --out ../output/ghost-pool.sample.json [--one first-ghost.json]
 // --one also writes the first snapshot on its own (handy for curl smoke tests).

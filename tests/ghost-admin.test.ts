@@ -21,7 +21,7 @@ import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 // records and a later list agrees; the seed pool and other rules versions are untouched; bad uploads planted straight into
 // the store (bypassing POST) are found by revalidate; and the match route stops serving a deleted ghost.
 
-const POOL = generateSamplePool(); // the seed pool: 60 ghosts of RULES_VERSION
+const POOL = generateSamplePool(); // the seed pool: 120 ghosts of RULES_VERSION (0.8.0 RC: the four heroes; was 60)
 const OLD = "bb-0.6.1";
 const plain = POOL.filter((s) => !s.build.turrets && !s.build.routes.some((r) => r.join !== undefined)); // valid under bb-0.6.1 too
 const own = (s: GhostSnapshot, playerId: string, runId = `run-${playerId}`): GhostSnapshot => ({ ...s, playerId, runId });
@@ -185,7 +185,7 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
       const ups = HONEST.filter((s) => s.day === day);
       expect(t[String(day)], `day ${day}`).toEqual([POOL.filter((s) => s.day === day).length, ups.length, new Set(ups.map((s) => s.playerId)).size]);
     }
-    expect(t.all).toEqual([60, 3, 2]);
+    expect(t.all).toEqual([120, 3, 2]); // 0.8.0 RC (oracle 96e0ebe434a93f2b): the four-hero seed pool (was 60)
     expect(h.state()).toEqual(before);
     // another rules version is listed on its own
     expect(table((await admin(h, "list", "--rules", OLD)).out).all).toEqual([1, 1, 1]);
@@ -223,7 +223,7 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
     for (const s of strays) expect(h.state()[s]).toBe("hello");
     const again = await admin(h, "revalidate", "--rules", RULES_VERSION);
     expect(again.planned).toEqual([]);
-    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([60, 3, 2]); // a later list agrees
+    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([120, 3, 2]); // a later list agrees (0.8.0 RC: was 60)
   });
 
   it("wipe-uploads deletes every upload of that rules version, never the seed pool without --pool, nothing of another version", async () => {
@@ -232,9 +232,9 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
     const r = await admin(h, "wipe-uploads", "--rules", RULES_VERSION, "--apply");
     expect(r.code).toBe(0);
     expect(r.planned).toHaveLength(HONEST.length + (h.name === "tigris" ? 5 : 4));
-    expect(r.out.join("\n")).toMatch(/the seed pool \(60\) stays: --pool would delete it too/);
+    expect(r.out.join("\n")).toMatch(/the seed pool \(120\) stays: --pool would delete it too/); // 0.8.0 RC: was (60)
     expect(h.state()).toEqual(h.without(before, r.planned));
-    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([60, 0, 0]); // a later list agrees
+    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([120, 0, 0]); // a later list agrees (0.8.0 RC: was 60)
     expect(table((await admin(h, "list", "--rules", OLD)).out).all).toEqual([1, 1, 1]); // another rules version: untouched
     const store = h.store(); // the seed pool still matches, every day
     for (let day = 1; day <= 10; day++) expect((await store.bucket(RULES_VERSION, day, "pool")).length).toBe(POOL.filter((s) => s.day === day).length);
@@ -244,12 +244,12 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
     const before = h.state();
     const r = await admin(h, "wipe-uploads", "--pool", "--rules", RULES_VERSION, "--apply");
     expect(r.code).toBe(0);
-    expect(r.planned).toHaveLength(60 + HONEST.length);
+    expect(r.planned).toHaveLength(120 + HONEST.length); // 0.8.0 RC: was 60
     expect(h.state()).toEqual(h.without(before, r.planned));
     expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([0, 0, 0]);
     expect(table((await admin(h, "list", "--rules", OLD)).out).all).toEqual([1, 1, 1]);
-    expect(await seedStore(h.store())).toMatchObject({ written: 60, removed: 0 });
-    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([60, 0, 0]);
+    expect(await seedStore(h.store())).toMatchObject({ written: 120, removed: 0 });
+    expect(table((await admin(h, "list", "--rules", RULES_VERSION)).out).all).toEqual([120, 0, 0]); // 0.8.0 RC: was 60
   });
 
   it("remove-player deletes every upload by that player and nothing else; a seed ghost's player id touches no pool ghost", async () => {

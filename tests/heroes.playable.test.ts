@@ -225,9 +225,9 @@ describe("growing the roster moves no harness number (par.ts) and no foe pool (f
     for (const day of [1, 5, 10]) for (const h of ["foundry", "bastion"] as const) expect(parRefs(h, day), `${h} d${day}`).toEqual([heroRefBuild(h, day)]);
   });
 
-  it("the stand-in heroes and the seed ghosts' heroes stay FURNACE and WEAVER", () => {
+  it("the stand-in heroes stay FURNACE and WEAVER; the seed ghosts' heroes are the four playable heroes (0.8.0 RC)", () => {
     expect([...STAND_IN_HEROES]).toEqual(["furnace", "weaver"]);
-    expect(new Set(generateSamplePool().map((g) => g.hero))).toEqual(new Set(["furnace", "weaver"]));
+    expect(new Set(generateSamplePool().map((g) => g.hero))).toEqual(new Set(["furnace", "weaver", "foundry", "bastion"])); // 0.8.0 RC (oracle 96e0ebe434a93f2b): was FURNACE and WEAVER
   });
 });
 
