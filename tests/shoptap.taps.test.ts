@@ -158,11 +158,12 @@ describe("REQ-BFG-036: the belt X on every phone view", () => {
 });
 
 describe("D4: a deck cell on the phones (a fingertip, about 40 CSS px, is wider)", () => {
-  it("390x844: 28 CSS px; 844x390: 16 CSS px; 360x640: 24 CSS px (12 logical px at the build screen's scale)", () => {
+  it("390x844: 20 CSS px; 844x390: 16 CSS px; 360x640: 18 CSS px (12 logical px at the build screen's scale)", () => {
     const cell = (w: number, h: number, dpr: number) => {
       const v = computeView(w, h, dpr, buildScale);
       return CELL * (v.scale / v.dpr);
     };
-    expect([cell(390, 844, 3), cell(844, 390, 3), cell(360, 640, 2)]).toEqual([28, 16, 24]);
+    // zoom (REQ-BFG-040, D4): the phone's build screen zoomed out (x5 at DPR 3, x3 at DPR 2): 28 and 24 CSS px before
+    expect([cell(390, 844, 3), cell(844, 390, 3), cell(360, 640, 2)]).toEqual([20, 16, 18]);
   });
 });

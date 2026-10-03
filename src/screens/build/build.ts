@@ -25,13 +25,14 @@ import { itemIcon } from "../../render/sprites";
 import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type CruiserModel, type CruiserView } from "../../render/cruiser";
 import { drawMachinery } from "../../render/machinery";
 import { ArenaBg } from "../../render/arenaBg";
-import { inside, type Rect } from "../../ui/ui";
+import { inside, tapRect, type Rect } from "../../ui/ui";
+import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { Editor, direct, type BeltX, type EditHost } from "./edit";
-import { buildLayout, buildScale, Caravan, panelArea as panelAreaOf, type BuildLayout, type Sel } from "./layout";
+import { buildLayout, buildScale, Caravan, panelArea as panelAreaOf, phoneScreen, type BuildLayout, type Sel } from "./layout";
 import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
 import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shoptap (D1)
 import { beltXSide, placeBeltX } from "./beltx"; // shoptap (D3)
-import { detailsPlan, keptWhole, visibleLines, type PLine } from "./inspector"; // shoptap tooling: panelInfo; shoptap2: panelArea
+import { detailsPlan, fullest, fullText, keptWhole, visibleLines, type PLine } from "./inspector"; // shoptap tooling: panelInfo; shoptap2: panelArea; zoom: fullText
 import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
@@ -101,8 +102,13 @@ export class BuildScreen implements Screen, EditHost {
     this.view = { side: 0, build: this.run.build, model: this.model, frame: this.L.frame, t: 0, tread: 0 };
   }
 
-  pickScale(pw: number, ph: number, portrait: boolean): number {
-    return buildScale(pw, ph, portrait);
+  /** zoom (REQ-BFG-040): a portrait phone's layout (layout.ts phoneScreen, told by the view pickScale last framed). */
+  private phone = false;
+
+  pickScale(pw: number, ph: number, portrait: boolean, dpr?: number): number {
+    // zoom (D1): on a phone an art pixel is at most 1.75 CSS px (buildScale); D2: in portrait the phone's layout
+    this.phone = portrait && dpr !== undefined && phoneScreen(pw, ph, dpr);
+    return buildScale(pw, ph, portrait, dpr);
   }
 
   /** shoptap (D2): the last press was a finger or a pen (Ctx.touch: the panels' touch forms, a finger's targets). */
@@ -132,23 +138,33 @@ export class BuildScreen implements Screen, EditHost {
    * while a mouse hovers a card, and not during a drag or a belt draw (the band, so the deck stays in sight to drop on).
    */
   panelArea(): Rect {
+    // zoom (REQ-BFG-040, D3): on a phone's layout the panel sits in the band wherever its full description fits there
+    // (fullText); only where it doesn't does shoptap2's fallback grow it. Elsewhere, as before: its kept text (keptWhole)
+    const fits = this.L.phone ? fullText : keptWhole;
     return panelAreaOf(this.L, this.sel, { touch: this.touch, hover: !!this.hover, busy: !!(this.ed.carry || this.ed.draw) }, (r) => {
       const d = detailsPlan(this, this.sel, null, r);
-      return d ? keptWhole(d.plan) : null;
+      return d ? fits(d.plan) : null;
     });
   }
 
   /** shoptap tooling (window.bb.panel, read only): the details panel as drawDetails plans it now: its title, sub line,
    *  button labels and the body lines it draws, and whether its kept text shows whole; null with no panel. shoptap2: in
    *  the rect it is drawn in (panelArea). */
-  panelInfo(): { title: string; sub: string; labels: string[]; lines: string[]; whole: boolean } | null {
-    const d = detailsPlan(this, this.sel, this.hover, this.panelArea());
+  panelInfo(): { title: string; sub: string; labels: string[]; lines: string[]; whole: boolean; full: boolean; fullest: boolean;
+    variant: number; dropped: string[]; inBand: boolean; band: Rect; area: Rect } | null {
+    const area = this.panelArea();
+    const d = detailsPlan(this, this.sel, this.hover, area);
     if (!d) return null;
     const text = (l: PLine): string => (l.cells ? l.cells.map((c) => `${c.label} ${c.spans.map((s) => s.t).join("")}`).join("  ")
       : `${l.label ? `${l.label} ` : ""}${l.spans.map((s) => s.t).join("")}`);
     const lines = visibleLines(d.plan).flatMap((v) => (v.line === "rule" ? [] : [text(v.line)]));
     const sub = d.plan.headerOnly ? d.plan.headerOnly.lines.join(" ") : d.plan.body.sub ?? d.plan.subs.join(" ");
-    return { title: d.t.title, sub, labels: d.t.labels, lines, whole: keptWhole(d.plan) };
+    // zoom (REQ-BFG-040): its full description (fullText), its fullest form (every block, variant 0), the variant and the
+    // blocks that gave way, and whether it sits in the band (not grown over the bow or the shop)
+    return {
+      title: d.t.title, sub, labels: d.t.labels, lines, whole: keptWhole(d.plan), full: fullText(d.plan), fullest: fullest(d.plan),
+      variant: d.plan.body.variant, dropped: d.plan.body.dropped.map((b) => b.role), inBand: area === this.L.info, band: { ...this.L.info }, area: { ...area },
+    };
   }
 
   get toastY(): number {
@@ -156,7 +172,7 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   private layout(): BuildLayout {
-    return buildLayout(this.game.W, this.game.H, this.game.portrait, this.refit ? OFFERS : this.offers().length);
+    return buildLayout(this.game.W, this.game.H, this.game.portrait, this.refit ? OFFERS : this.offers().length, this.phone && this.game.portrait);
   }
 
   /** Title of the road event this refit follows (banner text). */
@@ -242,8 +258,18 @@ export class BuildScreen implements Screen, EditHost {
 
   cargoAt(x: number, y: number): number | null {
     const n = Math.min(this.cargoSlots(), this.run.inventory.length);
-    for (let i = 0; i < n; i++) if (inside(this.slotRect(i), x, y)) return this.run.inventory[i].uid;
+    for (let i = 0; i < n; i++) if (inside(this.cargoHit(i), x, y)) return this.run.inventory[i].uid;
     return null;
+  }
+
+  /** zoom (REQ-BFG-040, D4): cargo slot i's target: on a phone's layout a finger's (TAP_CSS CSS px tall, tapPx), grown
+   *  about the slot from 1 px under the hull to the screen's foot (its neighbours keep theirs: side by side they never
+   *  meet); elsewhere the slot, as before. */
+  cargoHit(i: number): Rect {
+    const r = this.slotRect(i);
+    if (!this.L.phone) return r;
+    const top = this.L.hull.y + this.L.hull.h + 1;
+    return tapRect(r, tapPx(this.game.view), { x: r.x, y: top, w: r.w, h: this.game.H - top });
   }
 
   /** 0.6.2s (REQ-BFG-031 S9, S10): TURRET SLOT i's hit box (deck.ts turretSlots); an empty slot's mount is a heavy's size. */

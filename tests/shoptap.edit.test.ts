@@ -31,9 +31,9 @@ function buildK(w: number, h: number, dpr: number): number {
   const v = computeView(w, h, dpr, buildScale);
   return v.scale / v.dpr;
 }
-const PHONE_K = buildK(390, 844, 3); // 7 / 3
+const PHONE_K = buildK(390, 844, 3); // 5 / 3 (zoom; 7 / 3 before)
 const LAND_K = buildK(844, 390, 3); // 4 / 3
-const SMALL_K = buildK(360, 640, 2); // 2
+const SMALL_K = buildK(360, 640, 2); // 3 / 2 (zoom; 2 before)
 
 /** FURNACE: the KILN (one output) at (4,6) with its belt up column 4; `items` more parts; a shop with a TEMPER for 3 gold
  *  (affordable) and a STAMP PRESS for 8 (not, with 5 gold). */
@@ -101,7 +101,9 @@ const state = (run: Run) => J({ build: run.build, inventory: run.inventory, gold
 describe("D1: the touch slop (10 CSS px through the view); the mouse keeps 4 px", () => {
   it("dragSlop: the mouse 4 logical px exactly; touch and pen 10 CSS px at the build screen's scale on each phone view", () => {
     expect([MOUSE_SLOP, TOUCH_SLOP_CSS]).toEqual([4, 10]);
-    expect([PHONE_K, LAND_K, SMALL_K]).toEqual([7 / 3, 4 / 3, 2]); // scale 7, 4 and 4 over dpr 3, 3 and 2
+    // zoom (REQ-BFG-040): the build screen's scale on the phones is capped at 1.75 CSS px an art pixel: 5, 4 and 3 over
+    // dpr 3, 3 and 2 (it was 7, 4 and 4 before the zoom)
+    expect([PHONE_K, LAND_K, SMALL_K]).toEqual([5 / 3, 4 / 3, 3 / 2]);
     for (const k of [PHONE_K, LAND_K, SMALL_K, 1, 3]) {
       expect(dragSlop("mouse", k)).toBe(4);
       expect(dragSlop("touch", k)).toBeCloseTo(10 / k, 12);
@@ -109,7 +111,7 @@ describe("D1: the touch slop (10 CSS px through the view); the mouse keeps 4 px"
       expect(dragSlop("touch", k) * k).toBeCloseTo(10, 12); // in CSS px
     }
     // 0.8.0's 4 logical px were 9.3 CSS px on the portrait iPhone, 5.3 on its side and 8 on a 360x640 phone
-    expect([4 * PHONE_K, 4 * LAND_K, 4 * SMALL_K].map((v) => +v.toFixed(2))).toEqual([9.33, 5.33, 8]);
+    expect([4 * 7 / 3, 4 * LAND_K, 4 * 2].map((v) => +v.toFixed(2))).toEqual([9.33, 5.33, 8]);
     expect([direct("touch"), direct("pen"), direct("mouse"), direct(undefined)]).toEqual([true, true, false, false]);
   });
 

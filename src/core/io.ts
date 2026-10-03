@@ -10,8 +10,9 @@ export interface View {
   dpr: number;
 }
 
-/** Picks the integer device-pixel scale for a screen (each screen may frame itself). */
-export type ScalePick = (pw: number, ph: number, portrait: boolean) => number;
+/** Picks the integer device-pixel scale for a screen (each screen may frame itself). zoom (REQ-BFG-040): `dpr`, the
+ *  device pixel ratio (computeView passes it; a screen that frames itself by device px alone ignores it). */
+export type ScalePick = (pw: number, ph: number, portrait: boolean, dpr?: number) => number;
 
 /** Default: menus and title get a comfortable logical area per orientation. */
 export function defaultScale(pw: number, ph: number, portrait: boolean): number {
@@ -24,7 +25,7 @@ export function computeView(cssW: number, cssH: number, dpr: number, pick?: Scal
   const pw = Math.max(1, Math.floor(cssW * dpr));
   const ph = Math.max(1, Math.floor(cssH * dpr));
   const portrait = ph > pw * 1.05;
-  const scale = Math.max(1, Math.floor(pick ? pick(pw, ph, portrait) : defaultScale(pw, ph, portrait)));
+  const scale = Math.max(1, Math.floor(pick ? pick(pw, ph, portrait, dpr) : defaultScale(pw, ph, portrait)));
   return { W: Math.floor(pw / scale), H: Math.floor(ph / scale), scale, portrait, dpr };
 }
 

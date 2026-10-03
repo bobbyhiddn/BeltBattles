@@ -957,6 +957,9 @@ export interface BodyPlan {
   fits: boolean;
   /** Which text was used: 0 the full body, n the n-th compact variant. */
   variant: number;
+  /** zoom (REQ-BFG-040): the text is the full body's: variant 0, or a variant that only sets it at the tight pitch (the
+   *  same blocks, no sub line of its own: tightForms' first, a turret's first). */
+  fullBody: boolean;
   /** The variant's tight 3x5 pitch (its body starts 1 px higher). */
   tight: boolean;
   /** The variant's header sub line, in place of the panel's (a rig's hits or IDLE warning), and its colour. */
@@ -1041,8 +1044,10 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
       if (!small) big = true;
       lines.push(...l.lines);
     }
+    const src = variant > 0 ? variants?.[variant - 1] : undefined;
     return {
       font, shown: chosen, lines, height: heightOf(chosen), fits, variant, tight: !!v?.tight,
+      fullBody: variant === 0 || (!!src && src.body === body && !src.sub),
       ...(v?.sub ? { sub: v.sub, subColor: v.subColor } : {}),
       dropped: from.filter((l) => !chosen.includes(l)).map((l) => l.b),
     };
@@ -1439,6 +1444,19 @@ export function keptWhole(plan: PanelPlan): boolean {
   return plan.body.fits && plan.body.shown.filter((l) => l.b.keep).every((l) => l.lines.every((ln) => drawn.has(ln)));
 }
 
+/** zoom (REQ-BFG-040, D3): a plan shows its panel's full description: its kept text whole (keptWhole), the full body's
+ *  text (variant 0, or the same blocks at the tight pitch), every rule sentence (no ability sentence given way) and no
+ *  header-only strip. Its flavour and its hint may give way. */
+export function fullText(plan: PanelPlan): boolean {
+  return keptWhole(plan) && !plan.headerOnly && plan.body.fullBody && !plan.body.dropped.some((b) => b.role === "ability");
+}
+
+/** zoom: the plan in its fullest form: variant 0, every block of it shown (fullText, and neither the flavour nor the
+ *  hint given way). Tooling and tests. */
+export function fullest(plan: PanelPlan): boolean {
+  return fullText(plan) && plan.body.variant === 0 && plan.body.dropped.length === 0;
+}
+
 /** shoptap (D5): on touch, a TAP_CSS target's height in the build screen's logical px; 0 for a mouse. */
 function touchTap(ctx: Ctx): number {
   return ctx.touch ? tapPx(ctx.game.view) : 0;
@@ -1460,7 +1478,9 @@ export function overhang(r: Rect, band: Rect): Rect[] {
 export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe, note: string | null = null,
   through?: { band: Rect; press: (x: number, y: number) => void }): void {
   if (area.h < 14) return;
-  const column = area.h >= 70;
+  // zoom (REQ-BFG-040): a portrait band is never the landscape column, however tall a phone's band is (before the zoom
+  // a portrait area was always under 70 px)
+  const column = !ctx.L?.portrait && area.h >= 70;
   const d = detailsPlan(ctx, sel, hover, area);
   if (!d) return drawIdle(g, ctx.run, area, column, foe, note);
   const { sp, t, plan } = d;

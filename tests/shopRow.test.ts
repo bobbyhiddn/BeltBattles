@@ -26,12 +26,14 @@ type Box = { x: number; y: number; w: number; h: number };
 const overlap = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 describe("0.6.2p item 4: every shop row fits its screen, parked", () => {
-  it("the phone and small viewports: the numbers the shots use (W 167 and 180; 3 cards a row)", () => {
+  it("the phone and small viewports: the numbers the shots use (W 234 and 240; 3 cards a row)", () => {
+    // zoom (REQ-BFG-040): the phone's build screen zoomed out to 1.75 CSS px an art pixel at most (x5 at DPR 3, x3 at
+    // DPR 2; before: 167x361 x7 and 180x320 x4, the same 3 cards a row at x 12, 61, 110), its rows balanced 3 + 3, centred
     const phone = computeView(390, 844, 3, buildScale), small = computeView(360, 640, 2, buildScale);
-    expect([phone.W, phone.H, phone.scale, small.W, small.H, small.scale]).toEqual([167, 361, 7, 180, 320, 4]);
-    const L = buildLayout(phone.W, phone.H, true, OFFERS);
-    expect([L.perRow, L.cards.map((r) => r.x), L.reroll.x]).toEqual([3, [12, 61, 110, 12, 61], 110]);
-    expect(L.reroll.x + L.reroll.w).toBe(156); // 11 px inside the right edge, 12 inside the left
+    expect([phone.W, phone.H, phone.scale, small.W, small.H, small.scale]).toEqual([234, 506, 5, 240, 426, 3]);
+    const L = buildLayout(phone.W, phone.H, true, OFFERS, true);
+    expect([L.perRow, L.cards.map((r) => r.x), L.reroll.x]).toEqual([3, [45, 94, 143, 45, 94], 143]);
+    expect(L.reroll.x + L.reroll.w).toBe(189); // 45 px inside the right edge, 45 inside the left
   });
 
   it("every card and the reroll lie inside the screen and never overlap, for 0 to 5 offers, portrait and landscape", () => {

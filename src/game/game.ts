@@ -17,7 +17,7 @@ export interface Screen {
   /** 0.6.1a: true on the build screen, which shows the save-migration notice (save.ts MIGRATE_TOAST). */
   mergeNotice?: boolean;
   /** Integer device-pixel scale for this screen; default framing when absent. */
-  pickScale?(pw: number, ph: number, portrait: boolean): number;
+  pickScale?(pw: number, ph: number, portrait: boolean, dpr?: number): number;
   enter?(): void;
   update(dt: number): void;
   draw(g: G): void;
@@ -310,10 +310,11 @@ export class Game implements InputSink {
     this.toast(m === 0 ? "SOUND: MUSIC + SFX" : m === 1 ? "SOUND: SFX ONLY" : "SOUND: OFF");
   }
 
-  soundButton(g: G, r: Rect): void {
+  /** zoom (REQ-BFG-040, D4): `hit`, the tap target where it is bigger than the button (a phone's build screen). */
+  soundButton(g: G, r: Rect, hit?: Rect): void {
     const m = this.audio.mode;
     button(this.ui, g, "sound", r, m === 0 ? "SND" : m === 1 ? "SFX" : "OFF", {
-      font: "3", active: m === 0, onTap: () => this.cycleSound(),
+      font: "3", active: m === 0, onTap: () => this.cycleSound(), ...(hit ? { hit } : {}),
     });
   }
 }

@@ -10,7 +10,9 @@ import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
 import { beltIcon, coinIcon } from "../../render/sprites";
-import { button, inside, itemSlot, panel } from "../../ui/ui";
+import { button, inside, itemSlot, panel, tapRect } from "../../ui/ui";
+import { tapPx } from "../../ui/tap"; // zoom (D4)
+import { heroCardRect } from "./layout"; // zoom (D2)
 import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
@@ -54,8 +56,13 @@ function drawTopBar(g: G, s: BuildScreen): void {
     g.drawImage(beltIcon(), x, 6);
     drawText(g, bt, x + 9, 5, used >= cap ? C.amber : C.bone, { font: "3" });
   }
-  s.game.soundButton(g, { x: sndX, y: 1, w: sndW, h: 12 });
-  button(ui, g, "menu", { x: menuX, y: 1, w: menuW, h: 12 }, "MENU", { font: "3", onTap: () => { s.menu = true; } });
+  // zoom (REQ-BFG-040, D4): on a phone's layout SND and MENU take the bar and the gap above the shop as their targets
+  // (down to 1 px above the first card row: lower, they would take a card's or a grown panel's presses)
+  const tap = s.L.phone ? tapPx(s.game.view) : 0;
+  const room = { x: 0, y: 0, w: W, h: Math.min(...s.L.cards.map((c) => c.y), s.L.reroll.y) - 1 };
+  const sndR = { x: sndX, y: 1, w: sndW, h: 12 }, menuR = { x: menuX, y: 1, w: menuW, h: 12 };
+  s.game.soundButton(g, sndR, tap ? tapRect(sndR, tap, room) : undefined);
+  button(ui, g, "menu", menuR, "MENU", { font: "3", onTap: () => { s.menu = true; }, ...(tap ? { hit: tapRect(menuR, tap, room) } : {}) });
 }
 
 function drawShop(g: G, s: BuildScreen): void {
@@ -143,11 +150,14 @@ function drawCargo(g: G, s: BuildScreen): void {
  *  FIGHT! when it fits, else as the label; a press toasts it (BuildScreen.fight). */
 function drawFight(g: G, s: BuildScreen, cue: boolean): void {
   const ui = s.game.ui, r = s.L.fight, why = s.block;
+  // zoom (REQ-BFG-040, D4): on a phone's layout FIGHT is a finger's target (TAP_CSS CSS px tall) at the smaller scale
+  const foot = s.L.hull.y + s.L.hull.h + 1;
+  const hit = s.L.phone ? { hit: tapRect(r, tapPx(s.game.view), { x: 0, y: foot, w: s.game.W, h: s.game.H - foot }) } : {};
   if (!why) {
-    button(ui, g, "fight", r, "FIGHT!", { primary: true, blink: s.armed > 0, active: cue && Math.floor(s.t * 3) % 2 === 1, onTap: () => s.fight() });
+    button(ui, g, "fight", r, "FIGHT!", { primary: true, blink: s.armed > 0, active: cue && Math.floor(s.t * 3) % 2 === 1, onTap: () => s.fight(), ...hit });
     return;
   }
-  button(ui, g, "fight", r, "", { disabled: true, onBlocked: () => s.fight() });
+  button(ui, g, "fight", r, "", { disabled: true, onBlocked: () => s.fight(), ...hit });
   const both = r.h >= 28 && textWidth(why, "3") <= r.w - 6;
   const lines = both ? [why] : wrap(why, r.w - 6, "3");
   const h = (both ? 11 : 0) + lines.length * 7 - 2;
@@ -187,9 +197,9 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     const through = area !== L.info ? { band: L.info, press: (x: number, y: number) => s.down(x, y, s.game.ui.pointer.kind) } : undefined;
     drawDetails(g, s, s.sel, s.hover, area, s.foe, s.note(), through);
   } else {
-    // idle portrait band: hero card over the NEXT BATTLE panel
+    // idle portrait band: hero card over the NEXT BATTLE panel (zoom: on a phone's taller band, the pair in its middle)
     drawFoe(g, s.foe, L.foe, s.note());
-    const top = { x: L.info.x, y: L.info.y, w: L.info.w, h: L.foe.y - 2 - L.info.y };
+    const top = heroCardRect(L.info, L.foe);
     if (top.h >= 30) drawDetails(g, s, s.sel, s.hover, top, s.foe, s.note());
   }
   drawTopBar(g, s);

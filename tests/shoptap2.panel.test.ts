@@ -35,7 +35,9 @@ const within = (a: R, b: R) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.
 
 /** The build screen on a phone view: its own scale (buildScale), its layout with five offers, CSS px per logical px. */
 function view(w: number, h: number, dpr: number) {
-  const v = computeView(w, h, dpr, buildScale);
+  // zoom (REQ-BFG-040): the build screen's scale before the phone cap (buildScale without the dpr) and its layout, the
+  // short bands this fallback was made for (a phone now zooms out and its band holds its panels: tests/zoom.test.ts)
+  const v = computeView(w, h, dpr, (pw, ph, portrait) => buildScale(pw, ph, portrait));
   return { v, L: buildLayout(v.W, v.H, v.portrait, 5), k: v.scale / v.dpr };
 }
 const TOUCH = { touch: true, hover: false, busy: false };

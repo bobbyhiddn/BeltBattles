@@ -4,6 +4,7 @@
 
 import type { Rect } from "../../ui/ui";
 import { HULL_A, HULL_L, frameForHull, hullBox, type DeckFrame } from "../../render/frame";
+import { PHONE_CSS } from "../../ui/tap"; // zoom (REQ-BFG-040)
 
 export type Sel =
   | { kind: "none" }
@@ -51,6 +52,9 @@ export interface BuildLayout {
   fight: Rect;
   info: Rect; // inspector (landscape column) or the whole info band (portrait)
   foe: Rect | null; // next-battle card: beside FIGHT (landscape), bottom of the info band (portrait)
+  /** zoom (REQ-BFG-040): a portrait phone's layout (buildLayout's `phone`): the shop's rows balanced, the band as tall as
+   *  the tallest panel needs (phoneBand). Absent on every other layout, which is exactly as before. */
+  phone?: true;
 }
 
 const LAND_MIN_W = 430;
@@ -65,8 +69,24 @@ export function wideCardW(W: number, offers: number): number {
 const PORT_MIN_W = HULL_A + 4;
 const PORT_FIXED = BAR_H + 3 + 2 * CARD_H + GAP + 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
 
-export function buildScale(pw: number, ph: number, portrait: boolean): number {
-  for (let s = 12; s > 1; s--) {
+/** zoom (REQ-BFG-040): the biggest art pixel a phone's build screen draws, in CSS px. At 402x690 @3 the build screen
+ *  picked x7 (2.33 CSS px an art pixel: the hull 91% of the width, a 3 px details band); the title and the battle draw
+ *  at x5 on that phone. */
+export const PHONE_ART_CSS = 1.75;
+
+/** zoom: a phone, as ui/tap.ts tells one (the view's short side under PHONE_CSS CSS px), from its device px `pw` x `ph`
+ *  (computeView: floor(CSS px x dpr)). Exact for whole CSS px sizes: 499 is a phone at any dpr >= 1, 500 never is. */
+export function phoneScreen(pw: number, ph: number, dpr: number): boolean {
+  return Math.min(pw, ph) + 1 <= PHONE_CSS * dpr;
+}
+
+/** The build screen's integer device-pixel scale: the largest whose logical screen holds the layout's fixed parts.
+ *  zoom (REQ-BFG-040, D1): on a phone (`dpr` given: phoneScreen) never above floor(PHONE_ART_CSS x dpr), an art pixel
+ *  at most 1.75 CSS px (x5 at DPR 3, x4 at 2.625, x3 at 2); the cap only lowers the pick. Without `dpr`, or not a
+ *  phone, exactly as before. */
+export function buildScale(pw: number, ph: number, portrait: boolean, dpr?: number): number {
+  const top = dpr !== undefined && phoneScreen(pw, ph, dpr) ? Math.min(12, Math.max(1, Math.floor(PHONE_ART_CSS * dpr))) : 12;
+  for (let s = top; s > 1; s--) {
     const W = Math.floor(pw / s), H = Math.floor(ph / s);
     if (!portrait && W >= LAND_MIN_W && H >= LAND_MIN_H) return s;
     if (portrait && W >= PORT_MIN_W && H >= PORT_FIXED) return s;
@@ -80,7 +100,23 @@ function cardRow(n: number, x0: number, y: number, perRow: number, step: number)
   return out;
 }
 
-export function buildLayout(W: number, H: number, portrait: boolean, offers: number): BuildLayout {
+/**
+ * zoom (REQ-BFG-040, D2): the details band a portrait phone's build screen gives its panels at width `W`: what the
+ * tallest touch panel needs to show every block (every kept block, every rule sentence, the hint and the flavour) in
+ * the band's layout at that width, and no more. Measured over every panel a finger can open (885 kinds: each buyable
+ * module as a card, in cargo and placed or fitted at every star, every turret installed with a core and gear, the
+ * heroes' starting parts and belts) at every width 186-340 px (tests/zoom.test.ts pins it): a THUNDERER ★3 with a core
+ * and gear is the tallest everywhere; a panel's fullest form without its flavour and hint needs at most 144.
+ */
+export function phoneBand(W: number): number {
+  return W < 194 ? 169 : W < 278 ? 162 : W < 281 ? 155 : W < 316 ? 148 : W < 320 ? 141 : 136;
+}
+
+/** The build screen's layout. zoom (REQ-BFG-040, D2): `phone`, a portrait phone's (phoneScreen): the shop's slots in
+ *  balanced rows (five offers and the reroll 3 + 3, not 4 + 2: perRow = ceil(slots / rows)); the details band takes the
+ *  room the zoom frees, up to phoneBand(W), the hull centred in what is left as before; the idle hero card and NEXT
+ *  BATTLE (PORT_BAND tall together) centred in a taller band. Landscape, and `phone` false, exactly as before. */
+export function buildLayout(W: number, H: number, portrait: boolean, offers: number, phone = false): BuildLayout {
   const bar: Rect = { x: 0, y: 0, w: W, h: BAR_H };
   const slots = offers + 1; // + reroll
   if (!portrait) {
@@ -115,7 +151,8 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
       foe: { x: rx, y: top, w: rw, h: 40 },
     };
   }
-  const perRow = Math.max(1, Math.floor((W - 8 + GAP) / (CARD_W + GAP)));
+  const fit = Math.max(1, Math.floor((W - 8 + GAP) / (CARD_W + GAP)));
+  const perRow = phone ? Math.ceil(slots / Math.ceil(slots / fit)) : fit; // zoom (D2): a phone's rows balanced
   const rows = Math.ceil(slots / perRow);
   const tags = rows === 1;
   const cy = BAR_H + 3 + (tags ? 6 : 0);
@@ -128,8 +165,11 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
   // the NEXT BATTLE panel; a selection or hover shows the details panel across all of it.
   const fixedBelow = 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
   const spare = Math.max(0, H - shopBottom - fixedBelow);
-  const band = Math.min(PORT_BAND, spare);
+  // zoom (D2): a phone's band takes the room the zoom frees, up to what its tallest panel needs (phoneBand)
+  const band = Math.min(phone ? phoneBand(W) : PORT_BAND, spare);
   const info: Rect = { x: 3, y: shopBottom + 2, w: W - 6, h: band };
+  // zoom: idle, the hero card over NEXT BATTLE (PORT_BAND tall together) sits in the middle of a taller band
+  const idle = Math.max(0, Math.floor((band - PORT_BAND) / 2));
   const hy = info.y + band + 2 + BARREL + Math.floor((spare - band) / 2);
   const frame = frameForHull(0, Math.round(W / 2 - HULL_A / 2), hy);
   const hull = hullBox(frame);
@@ -141,8 +181,16 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     cargo: { x: 3, y: ry, w: W - fw - 9, h: CARGO_H },
     fight: { x: W - fw - 3, y: ry - 1, w: fw, h: CARGO_H + 2 },
     info,
-    foe: band >= FOE_H ? { x: info.x, y: info.y + band - FOE_H, w: info.w, h: FOE_H } : null,
+    foe: band >= FOE_H ? { x: info.x, y: info.y + idle + Math.min(band, PORT_BAND) - FOE_H, w: info.w, h: FOE_H } : null,
+    ...(phone ? { phone: true as const } : {}),
   };
+}
+
+/** zoom: the idle hero card's rect over the NEXT BATTLE card `foe` in band `info` (chrome.ts): the band above the card
+ *  (as before, where the band is PORT_BAND or less), at most the PORT_BAND band's 43 px, right above the card. */
+export function heroCardRect(info: Rect, foe: Rect): Rect {
+  const y = Math.max(info.y, foe.y - 2 - (PORT_BAND - 2 - FOE_H));
+  return { x: info.x, y, w: info.w, h: foe.y - 2 - y };
 }
 
 /**

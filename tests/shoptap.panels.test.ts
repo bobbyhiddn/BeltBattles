@@ -36,7 +36,9 @@ function furnace(items: Placed[] = []): Run {
 
 /** The build screen's view and its panel area on a phone (its own scale), and the portrait band / landscape column. */
 function screen(w: number, h: number, dpr: number) {
-  const v = computeView(w, h, dpr, buildScale);
+  // zoom (REQ-BFG-040): the build screen's scale before the phone cap (buildScale without the dpr), so these views keep
+  // the band, column and strip they pin (a phone now zooms out: tests/zoom.test.ts)
+  const v = computeView(w, h, dpr, (pw, ph, portrait) => buildScale(pw, ph, portrait));
   return { v, area: buildLayout(v.W, v.H, v.portrait, 5).info, k: v.scale / v.dpr };
 }
 const PHONE = screen(390, 844, 3); // 167 x 361 at x7: the 161 x 69 band
