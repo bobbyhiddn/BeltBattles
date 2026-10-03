@@ -6,6 +6,8 @@
 // 0.8.2 (the title screen on phones, REQ-BFG-038) is UI-only too: the label moves to 0.8.2 and the rules stay bb-0.8.0.
 // 0.8.3 (a part's whole description on a phone tap, REQ-BFG-034/035) is UI-only too, built on 0.8.2: the label moves to
 // 0.8.3 and the rules stay bb-0.8.0.
+// 0.8.4 (a roomier build screen on phones, REQ-BFG-040) is UI-only too, built on 0.8.3: the label moves to 0.8.4 and
+// the rules stay bb-0.8.0.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -13,10 +15,10 @@ import { RULES_VERSION } from "../src/sim/content";
 
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
-describe("the 0.8.3 label", () => {
-  it("is 0.8.3 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules stay bb-0.8.0", () => {
+describe("the 0.8.4 label", () => {
+  it("is 0.8.4 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules stay bb-0.8.0", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
-    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.8.3", "0.8.3", "0.8.3", "0.8.3"]);
-    expect(RULES_VERSION).toBe("bb-0.8.0"); // 0.8.3 changes no battle rule, so it keeps 0.8.0's rules version
+    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.8.4", "0.8.4", "0.8.4", "0.8.4"]);
+    expect(RULES_VERSION).toBe("bb-0.8.0"); // 0.8.4 changes no battle rule, so it keeps 0.8.0's rules version
   });
 });

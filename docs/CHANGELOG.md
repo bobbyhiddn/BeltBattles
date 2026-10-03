@@ -3,6 +3,15 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.8.4: a roomier build screen on phones
+
+No battle rule changes: the rules stay bb-0.8.0, so 0.8.0's ghosts and uploads keep playing. 0.8.4 also carries 0.8.3's
+tap fix and 0.8.2's title-screen fix.
+- **Zoomed out on phones:** on a phone held upright, the build screen is drawn smaller, so a part's description gets
+  its own room between the shop and your carrier. Tap a shop card or a part and its whole description usually fits
+  there; the few longest still grow over the shop, as in 0.8.3. Desktops, tablets and phones held sideways look as
+  before.
+
 ## 0.8.3: a part's whole description on a phone tap
 
 No battle rule changes: the rules stay bb-0.8.0, so 0.8.0's ghosts and uploads keep playing. 0.8.3 also carries 0.8.2's
