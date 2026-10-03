@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
 import { HULL_A, HULL_L } from "../src/render/frame";
-import { PHONE_CSS, TAP_CSS, summaryLayout, type SummaryView } from "../src/screens/summary";
+import { PHONE_CSS, TAP_CSS, summaryButtonH, summaryLayout, type SummaryView } from "../src/screens/summary";
 
 // 0.7.0 (R1 M1; REQ-BFG-016): the summary's REPLAY on a phone is a tap target at least TAP_CSS (44) CSS px tall (and
 // wide): one button per stored dusk in a strip under the round history, since 8 px rows can't hold a 44 px target each
@@ -46,9 +46,12 @@ describe("the summary's REPLAY tap target (0.7.0 R1 M1)", () => {
     }
   });
 
-  it("without stored dusks (offline) every screen keeps 0.7.0a's layout, and on a desktop stored dusks change nothing", () => {
+  // shoptap (D5, backlog 319): a phone's summary changed (NEW RUN and TITLE at least 44 CSS px, the card on screen
+  // offline too; tests/shoptap.taps.test.ts), so 0.7.0a's layout, exactly, is now the desktop's and the tablet's (it was
+  // every screen's without stored dusks)
+  it("without stored dusks (offline) a desktop keeps 0.7.0a's layout, and on a desktop stored dusks change nothing", () => {
     let n = 0;
-    for (const [, w, h, dpr] of [...PHONES, ...DESKS]) {
+    for (const [, w, h, dpr] of DESKS) {
       for (let fights = 0; fights <= 20; fights++) {
         const v = view(w, h, dpr);
         expect(summaryLayout(v, fights, 0)).toEqual({ ...layout070a(v, fights), strip: null });
@@ -67,6 +70,17 @@ describe("the summary's REPLAY tap target (0.7.0 R1 M1)", () => {
     expect(n).toBeGreaterThan(400);
   });
 
+  it("shoptap (D5): offline, a phone's summary is 0.7.0a's but for the card's height (NEW RUN / TITLE taller), its row pitch and, where it ran off the screen, its y", () => {
+    for (const [name, w, h, dpr] of PHONES) {
+      for (let fights = 0; fights <= 20; fights++) {
+        const v = view(w, h, dpr), L = summaryLayout(v, fights, 0), old = layout070a(v, fights);
+        expect([L.card.x, L.card.w, L.strip], `${name} ${fights}`).toEqual([old.card.x, old.card.w, null]);
+        expect(L.card.h - (64 + Math.max(1, fights) * L.rowH + 50), `${name} ${fights}`).toBe(summaryButtonH(v) - 21);
+        expect(L.card.y + L.card.h, `${name} ${fights}: on screen`).toBeLessThanOrEqual(v.H - 4);
+      }
+    }
+  });
+
   it("on every phone, each stored dusk's REPLAY is a button at least 44 CSS px tall and wide, clear of the rows and the card's buttons", () => {
     for (const [name, w, h, dpr] of PHONES) {
       const v = view(w, h, dpr);
@@ -83,7 +97,9 @@ describe("the summary's REPLAY tap target (0.7.0 R1 M1)", () => {
           expect(y, tag).toBeGreaterThanOrEqual(0);
           expect(y + ch, tag).toBeLessThanOrEqual(v.H);
           const livesLine = y + 58 + Math.max(1, fights) * L.rowH + 8;
-          const buttons = { x: x + 10, y: y + ch - 27, w: cw - 20, h: 21 };
+          // shoptap (D5): NEW RUN / TITLE are summaryButtonH tall on a phone (21 px before), 6 px above the card's bottom
+          const bh = summaryButtonH(v);
+          const buttons = { x: x + 10, y: y + ch - bh - 6, w: cw - 20, h: bh };
           for (const [i, b] of strip.entries()) {
             expect(b.h * k, tag).toBeGreaterThanOrEqual(TAP_CSS);
             expect(b.w * k, tag).toBeGreaterThanOrEqual(TAP_CSS);

@@ -19,6 +19,7 @@ import { button, panel } from "../ui/ui";
 import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
 import type { BattleRecord } from "../sim/battle";
 import { openReplay } from "../game/replays";
+import { PHONE_CSS, TAP_CSS, isPhone, tapPx } from "../ui/tap"; // shoptap (D5): R1's rule, shared
 import { HeroScreen } from "./hero";
 import { ReplayScreen } from "./replay";
 import { TitleScreen } from "./title";
@@ -35,11 +36,9 @@ const STOP_W = Math.max(...[...Object.values(STOP_LABEL), ...Object.values(TIER_
 const STOP_GAP = 8; // clear space between STOP and OPPONENT
 const REPLAY_W = textWidth("REPLAY", "3") + 6; // 0.7.0a M4: the REPLAY column (online runs' dusks)
 
-/** 0.7.0 (R1 M1): the smallest tap target on a phone, in CSS px (Apple's 44 pt). */
-export const TAP_CSS = 44;
-/** 0.7.0 (R1 M1): a phone's viewport is under this many CSS px on its short side (portrait phones are 320-430 px wide,
- *  landscape ones as tall); desktops, laptops and tablets are not. */
-export const PHONE_CSS = 500;
+// 0.7.0 (R1 M1): TAP_CSS (44 CSS px) and PHONE_CSS (500 CSS px); shoptap: they live in ui/tap.ts, shared with the build
+// and replay screens, and are re-exported here as before
+export { PHONE_CSS, TAP_CSS };
 const STRIP_GAP = 2; // between the REPLAY strip's buttons
 
 /** What the summary's layout reads of the view (Game.view). */
@@ -64,16 +63,25 @@ export interface SummaryLayout {
   strip: { x: number; y: number; w: number; h: number }[] | null;
 }
 
+/** shoptap (D5, backlog 319): NEW RUN's and TITLE's height in logical px: 0.6.0's 21, and on a phone at least TAP_CSS
+ *  CSS px (R1 measured them at 35 CSS px on the iPhone). The desktop keeps 21. */
+export function summaryButtonH(v: SummaryView): number {
+  return isPhone(v) ? Math.max(21, tapPx(v)) : 21;
+}
+
 /**
  * The run summary's layout (0.6.0; 0.7.0 R1 M1 adds `strip`). `fights` is the round history's row count, `replays` the
- * stored dusks. Without a strip it is 0.7.0a's layout, exactly (and 0.6.2's, which has no replays).
+ * stored dusks. On a desktop (and a tablet) it is 0.7.0a's layout, exactly (and 0.6.2's, which has no replays).
+ * shoptap (D5, backlog 319): on a phone NEW RUN and TITLE are summaryButtonH tall (the card grows by the difference), and
+ * a card too tall for the screen slides up over the cruiser, offline too (R1's slide was for the REPLAY strip only: a
+ * 360x640 phone's 20-row card ran 8 px off the screen offline).
  */
 export function summaryLayout(v: SummaryView, fights: number, replays: number): SummaryLayout {
   const { W, H, portrait } = v;
   const rows = Math.max(1, fights);
   const w = Math.min(W - 12, 252);
   const k = v.scale / v.dpr; // CSS px per logical px
-  const phone = Math.min(W, H) * k < PHONE_CSS;
+  const phone = isPhone(v);
   // the strip: rows of buttons TAP_CSS CSS px tall and at least as wide, spread evenly over the card's inner width
   let grid: { cols: number; bw: number; bh: number; S: number } | null = null;
   if (phone && replays > 0) {
@@ -82,12 +90,14 @@ export function summaryLayout(v: SummaryView, fights: number, replays: number): 
     const lines = Math.ceil(replays / most), cols = Math.ceil(replays / lines);
     grid = { cols, bw: Math.floor((inner - (cols - 1) * STRIP_GAP) / cols), bh, S: lines * bh + (lines - 1) * STRIP_GAP };
   }
-  const extra = grid ? grid.S - 8 : 0; // the strip sits between the lives line and NEW RUN / TITLE
+  // the strip sits between the lives line and NEW RUN / TITLE; shoptap (D5): a phone's taller NEW RUN / TITLE (0 elsewhere)
+  const extra = (grid ? grid.S - 8 : 0) + summaryButtonH(v) - 21;
   const rowH = Math.max(6, Math.min(ROW, Math.floor((H - 8 - 110 - extra) / rows)));
   const h = 64 + rows * rowH + 12 + 38 + extra;
   const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.64 - w / 2);
   let y = portrait ? Math.max(HULL_L + 20, H - h - 8) : Math.max(4, Math.round(H / 2 - h / 2));
-  if (grid && portrait && y + h > H - 4) y = Math.max(4, H - h - 8); // a long phone history slides over the cruiser
+  // a long phone history slides over the cruiser (R1: with the REPLAY strip; shoptap D5: on any phone, offline too)
+  if (phone && portrait && y + h > H - 4) y = Math.max(4, H - h - 8);
   const hx = Math.round(portrait ? W / 2 - HULL_A / 2 : Math.min(W * 0.26, x - 12 - HULL_A / 2) - HULL_A / 2);
   const hy = Math.round(portrait ? Math.max(6, (y - HULL_L) / 2) : H / 2 - HULL_L / 2);
   let strip: SummaryLayout["strip"] = null;
@@ -223,11 +233,12 @@ export class SummaryScreen implements Screen {
     }
     this.drawDays(g, x + 8, y + 48, w - 16, rowH, !strip);
     if (strip) this.drawStrip(g, strip);
-    const by = y + h - 27;
-    button(ui, g, "again", { x: x + 10, y: by, w: w / 2 - 14, h: 21 }, "NEW RUN", {
+    const bh = summaryButtonH(this.game.view); // shoptap (D5): 21 px, and on a phone at least 44 CSS px
+    const by = y + h - bh - 6;
+    button(ui, g, "again", { x: x + 10, y: by, w: w / 2 - 14, h: bh }, "NEW RUN", {
       primary: true, onTap: () => { this.game.run = null; this.game.go(new HeroScreen(this.game)); },
     });
-    button(ui, g, "title", { x: x + w / 2 + 4, y: by, w: w / 2 - 14, h: 21 }, "TITLE", {
+    button(ui, g, "title", { x: x + w / 2 + 4, y: by, w: w / 2 - 14, h: bh }, "TITLE", {
       onTap: () => { this.game.run = null; this.game.go(new TitleScreen(this.game)); },
     });
   }
