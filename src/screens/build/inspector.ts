@@ -430,15 +430,22 @@ function factoryStoke(b: Build, f: number): number {
  *  (deckRating.ts stokeKeep): "THE KILN'S GUN IS FULL, SO IT WORKS ONLY 8% FASTER." (or "... SO IT WORKS NO FASTER."),
  *  its stoke from every STOKER on it times the share the cap lets through; none where every gun has room. I1 made it
  *  optional (rank 1); 0.8.0 B1 M4: the first takes the place of the STOKER's opening sentence, kept (stokerAbility), and
- *  the others stay optional. Exported for the tests. */
+ *  the others stay optional. 0.8.0 B1 M4 (G1's F2): the cap holds back only the stamping; a factory's plating timer (ARMOR
+ *  PRESS) runs with the full stoke (Battle.produce: its pace x (1 + stoke), oracle a0e94bc69949561f), so its line says so:
+ *  "THE ARMOR PRESS'S GUN IS FULL, SO ONLY ITS PLATING WORKS 44% FASTER." (or "... SO IT STAMPS ONLY 40% FASTER, BUT
+ *  PLATES 44% FASTER."). Exported for the tests. */
 export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] {
   const keep = stokeKeep(run.build);
   if (!keep.size) return [];
   return [...new Set(factories)].flatMap((f): Block[] => {
     const k = keep.get(f);
     if (k === undefined || k > 1 - 1e-9) return [];
-    const eff = factoryStoke(run.build, f) * k, name = `THE ${ITEMS[itemByUid(run.build, f)!.def].name}'S`;
-    const text = Math.round(eff * 100) < 1 ? `${name} GUN IS FULL, SO IT WORKS NO FASTER.` : `${name} GUN IS FULL, SO IT WORKS ONLY ${percent(eff)} FASTER.`;
+    const p = itemByUid(run.build, f)!, stoke = factoryStoke(run.build, f);
+    const eff = stoke * k, name = `THE ${ITEMS[p.def].name}'S`, none = Math.round(eff * 100) < 1;
+    const text = effectAt(p.def, starsOf(p)).factory?.plate
+      ? none ? `${name} GUN IS FULL, SO ONLY ITS PLATING WORKS ${percent(stoke)} FASTER.`
+      : `${name} GUN IS FULL, SO IT STAMPS ONLY ${percent(eff)} FASTER, BUT PLATES ${percent(stoke)} FASTER.`
+      : none ? `${name} GUN IS FULL, SO IT WORKS NO FASTER.` : `${name} GUN IS FULL, SO IT WORKS ONLY ${percent(eff)} FASTER.`;
     return [{ role: "warn", text, rank: 1 }];
   });
 }
