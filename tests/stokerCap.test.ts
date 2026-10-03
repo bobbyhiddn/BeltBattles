@@ -54,7 +54,10 @@ function twoGuns(belts: "both" | "gun0" | "gun1" = "both"): Build {
   };
 }
 const runOf = (b: Build): Run => { const r = newRun(b.hero, 5, "stoker-cap"); r.build = b; return r; };
-const capLines = (b: Build): string[] => (rigPanel(runOf(b), 70)?.body ?? []).filter((x) => x.role === "warn").map((x) => x.text);
+/** 0.8.0 B1 M4 (oracle aa0494523ab57b7c): a capped line, found by its text. It takes the place of the opening sentence
+ *  (the same kept ability block, drawn in the warning's amber: tests/b1.text.test.ts), so its role no longer marks it. */
+const isCapLine = (x: { text: string }): boolean => /^THE .+'S GUN IS FULL, SO /.test(x.text);
+const capLines = (b: Build): string[] => (rigPanel(runOf(b), 70)?.body ?? []).filter(isCapLine).map((x) => x.text);
 
 describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
   it("FURNACE's 6-tile Kiln: 1 star fits under the gun (no line); 2 and 3 stars are held to it: ONLY 25% FASTER", () => {
@@ -139,7 +142,7 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
       const run = runOf(b);
       run.inventory = Array.from({ length: spare }, (_, i) => ({ uid: 800 + i, def: "stoker" }));
       const t = rigPanel(run, 70)!;
-      const line = t.body.find((x) => x.role === "warn");
+      const line = t.body.find(isCapLine);
       if (!line) continue;
       tally.cases++;
       expect(banned(line.text), line.text).toEqual([]);
@@ -157,8 +160,9 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
     }
     if (process.env.BB_TABLES) console.log(JSON.stringify(tally));
     expect(tally.cases).toBe(16); // 6-tile ★2-3 and the shared gun on either factory at ★1-3, each with 0 and 1 spare
-    // the desk column shows it in 15 of the 16 (the shared gun's TWIN MOULD at ★2 with a spare copy has no room left);
-    // the phone band never has room after the rig panel's kept blocks (I1 REPORT: the line stays optional there)
+    // I1: the desk column showed it in 15 of the 16 and the phone band in none (the line was optional). 0.8.0 B1 M4 (VERIFIED-I1
+    // call 5, oracle aa0494523ab57b7c): it takes the place of the opening sentence, kept, so both show it in all 16
+    // (tests/b1.text.test.ts pins that)
     expect(tally.desk).toBeGreaterThanOrEqual(15);
     void barge;
   });

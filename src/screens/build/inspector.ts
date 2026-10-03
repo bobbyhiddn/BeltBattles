@@ -371,12 +371,8 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number)
   const names = factories.map((f) => `THE ${ITEMS[itemByUid(run.build, f)!.def].name}`);
   const lead: Block[] = names.map((n): Block => ({ role: "hits", text: `→ STOKES ${n}`, keep: true }));
   const compact = `→ STOKES ${andList(names)}`;
-  // 0.8.0 I1 M4 (VERIFIED-P1 H4): a factory whose gun can't take its full stoke, by the static estimate deckRating uses
-  // (rateDeck's cap, as Battle.stokedPace plays it): how much faster it works there, from every STOKER on it
-  const capped = stokeCapBlocks(run, factories);
   const rest = [
-    ...capped,
-    ...abilityBlocks(d.id, stars, textOpts(run)),
+    ...stokerAbility(run, d.id, stars, factories),
     ...progressBlocks(run, d.id, stars),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock("TAP TO TURN (OR R). DRAG TO MOVE."),
@@ -398,24 +394,50 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number)
   };
 }
 
+/**
+ * 0.8.0 B1 M4 (REQ-BFG-032; VERIFIED-I1's call 5, I1 REPORT open item 5): a placed STOKER's ability text. Where every
+ * factory it works has room at its gun, the glossary's as before. Where one's gun can't take its full stoke (by the
+ * static estimate deckRating uses: rateDeck's cap, as Battle.stokedPace plays it; stokeCapBlocks), its capped line takes
+ * the place of the opening sentence ("EACH FACTORY ITS ARROWS POINT AT WORKS 44% FASTER.", a promise that gun can't
+ * keep): the same kept opening block (T6), its text the capped line's, in the warning's amber, on the phone band and in
+ * the desk column alike. The panel holds the same blocks as before with one sentence in the other's place, so no panel
+ * grows, and no band promises a speed-up the gun can't take. A second capped factory's line (I1's, optional), and the
+ * speed of a factory it works at the full stoke ("THE STAMP PRESS WORKS 44% FASTER.", optional), follow it (rank 1, as
+ * I1's capped line was). Exported for the tests.
+ */
+export function stokerAbility(run: Run, def: string, stars: number, factories: readonly number[]): Block[] {
+  const ability = abilityBlocks(def, stars, textOpts(run));
+  const capped = stokeCapBlocks(run, factories);
+  if (!capped.length) return ability;
+  const keep = stokeKeep(run.build);
+  const full = [...new Set(factories)].filter((f) => (keep.get(f) ?? 1) >= 1 - 1e-9)
+    .map((f): Block => ({ role: "ability", text: `THE ${ITEMS[itemByUid(run.build, f)!.def].name} WORKS ${percent(factoryStoke(run.build, f))} FASTER.`, rank: 1 }));
+  const [first, ...more] = capped;
+  return [{ ...ability[0], text: first.text, colour: ROLE.warn.colour }, ...more, ...full, ...ability.slice(1)];
+}
+
+/** 0.8.0 B1 M4: the stoke on factory `f` from every STOKER whose arrows work it (deck.ts stokeHits), at their stars. */
+function factoryStoke(b: Build, f: number): number {
+  let stoke = 0;
+  for (const h of stokeHits(b)) if (h.factory === f) {
+    const g = itemByUid(b, h.uid);
+    if (g) stoke += effectAt(g.def, starsOf(g)).gate?.stoke ?? 0;
+  }
+  return stoke;
+}
+
 /** 0.8.0 I1 M4 (VERIFIED-P1 H4): one amber line for each factory in `factories` whose gun can't take its full stoke
  *  (deckRating.ts stokeKeep): "THE KILN'S GUN IS FULL, SO IT WORKS ONLY 8% FASTER." (or "... SO IT WORKS NO FASTER."),
- *  its stoke from every STOKER on it times the share the cap lets through. Optional, and the first optional block to
- *  stay (rank 1: before the ability's later sentences and, on the desk, the hint), so a full panel keeps its kept
- *  blocks and its 5x7 face and drops this line whole; none where every gun has room. Exported for the tests. */
+ *  its stoke from every STOKER on it times the share the cap lets through; none where every gun has room. I1 made it
+ *  optional (rank 1); 0.8.0 B1 M4: the first takes the place of the STOKER's opening sentence, kept (stokerAbility), and
+ *  the others stay optional. Exported for the tests. */
 export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] {
   const keep = stokeKeep(run.build);
   if (!keep.size) return [];
-  const hits = stokeHits(run.build);
   return [...new Set(factories)].flatMap((f): Block[] => {
     const k = keep.get(f);
     if (k === undefined || k > 1 - 1e-9) return [];
-    let stoke = 0;
-    for (const h of hits) if (h.factory === f) {
-      const g = itemByUid(run.build, h.uid);
-      if (g) stoke += effectAt(g.def, starsOf(g)).gate?.stoke ?? 0;
-    }
-    const eff = stoke * k, name = `THE ${ITEMS[itemByUid(run.build, f)!.def].name}'S`;
+    const eff = factoryStoke(run.build, f) * k, name = `THE ${ITEMS[itemByUid(run.build, f)!.def].name}'S`;
     const text = Math.round(eff * 100) < 1 ? `${name} GUN IS FULL, SO IT WORKS NO FASTER.` : `${name} GUN IS FULL, SO IT WORKS ONLY ${percent(eff)} FASTER.`;
     return [{ role: "warn", text, rank: 1 }];
   });
