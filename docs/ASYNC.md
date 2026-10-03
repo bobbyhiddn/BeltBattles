@@ -6,7 +6,9 @@ day of their own run. This covers the format, validation, matchmaking, replay, o
 fallback and a small build server. 0.7.0a wires it into the game behind a server URL setting
 ("0.7.0a: what the game does online", at the end); with no URL, the default, the game plays
 offline exactly as 0.6.2. 0.7.0 ships it: the Fly page plays online, the store has its admin tool
-("Operations"), and "0.7.0 for players" says what changes for a player.
+("Operations"), and "0.7.0 for players" says what changes for a player. 0.8.0 changes battles, so its rules
+are **bb-0.8.0**: a fresh ghost pool, seeded with all four playable heroes ("0.8.0: rules bb-0.8.0 and the
+four-hero seed pool").
 
 ## Architecture
 
@@ -27,7 +29,7 @@ offline exactly as 0.6.2. 0.7.0 ships it: the Fly page plays online, the store h
 | `src/net/snapshot.ts` | `GhostSnapshot`, canonical encode/decode, strict checks, 16 KB cap, content ids |
 | `src/net/validate.ts` | `validateBuild(build, day, mode = "strict")`, `validateUpload` (the player mode), `maxGoldByDay`, `buildCost` |
 | `src/net/roadCap.ts` | the player mode's road ceiling: `roadCap`, `maxHonestSpend`, the reachable hull and belt, the D4 model |
-| `src/net/rulesGate.ts` | `parseRules`, `rulesAtLeast` and the gate that keeps turret slots and belt joins out of rules before bb-0.6.2 |
+| `src/net/rulesGate.ts` | `parseRules`, `rulesAtLeast` and the gate that keeps turret slots and belt joins out of rules before bb-0.6.2; 0.8.0: `RULES_HEROES`, the heroes each rules version carries (FURNACE and WEAVER up to bb-0.6.2, the four playable heroes from bb-0.8.0) |
 | `src/net/matchmaking.ts` | pure `pickGhost(pool, req, rng)`, `eligible` (with the record rule, D1), `isNewPlayer` and `NEW_PLAYER_RUNS` (D2), `matchSeed` |
 | `src/net/records.ts` | 0.7.0a: the records (wins, lives) a run can carry into each dusk under 0.6.2's run rules (`reachableRecords`, `isReachable`, `floorRecord`) |
 | `src/net/replay.ts` | `battleRecordFor`, `replay`, `replayBattle`, rules-version refusal |
@@ -37,7 +39,7 @@ offline exactly as 0.6.2. 0.7.0 ships it: the Fly page plays online, the store h
 | `src/game/online.ts`, `session.ts` | 0.7.0a: the game's online session (the server URL setting, the identity, the dawn fetch, the dusk upload, the finished-runs count); `session.ts` holds it for the screens and game logic |
 | `src/game/replays.ts`, `src/screens/replay.ts` | 0.7.0a: REPLAY of a stored dusk record from the run summary, read-only |
 | `server/` | `app.ts` (routes), `store.ts` (the async `GhostStore` interface and the JSON-lines store), `tigrisStore.ts` (Tigris store), `s3.ts` + `sigv4.ts` (S3 client and signer, no SDK), `seed.ts` (the `seed` command), `config.ts` (flags and env), `main.ts` (CLI), `node.d.ts` (Node types) |
-| `tools/` | `samplePool.ts` (the seed pool: 60 checked ghosts, see "Seeding"), `genGhostPool.ts` (writes the JSON), `fakeS3.ts` (in-process S3 for tests), `smoke.ts` (local smoke run) |
+| `tools/` | `samplePool.ts` (the seed pool: 120 checked ghosts of the four playable heroes since 0.8.0, see "Seeding"), `genGhostPool.ts` (writes the JSON), `fakeS3.ts` (in-process S3 for tests), `smoke.ts` (local smoke run) |
 | `deploy/`, `fly.toml`, `Dockerfile` | the Fly deploy kit: see "Running on Fly + Tigris" and `deploy/RUNBOOK.md` |
 
 Scripts: `npm run build:server` (type-checks with `tsconfig.server.json`, then bundles with
@@ -49,7 +51,7 @@ vite into `server/dist/`), `npm run server -- --port 7790 --data ./ghost-data`,
 
 `{ v: 2, rules, hero, day, wins, lives, build, runId, playerId, createdAt }` (`SNAPSHOT_VERSION` = 2)
 
-- `rules` is `RULES_VERSION` at the fight (bb-0.6.2). `day` is 1-10. `wins` (0..day−1) and `lives` (1..9) are
+- `rules` is `RULES_VERSION` at the fight (bb-0.8.0 since 0.8.0; bb-0.6.2 in 0.6.2 and 0.7.0). `day` is 1-10. `wins` (0..day−1) and `lives` (1..9) are
   the record the player carried **into** that dusk fight. `build` is the deck exactly as it fought.
 - v2 is v1 plus what a 0.6.2 deck can hold, each optional and written only when present: `stars` (1..3) on an
   item or mod (merged copies), `rot` (0..3) on an item (a rig's rotation), `build.turrets` (at most 8 entries
@@ -128,7 +130,7 @@ The strict check refuses such honest decks.
 - **budget** (player):
 
 ```
-maxHonestSpend(day) = maxGold(day) + roadCap(day)       // bb-0.6.2: roadCap 5, 17, 29, 43, 59, 74, 90, 110, 127, 149
+maxHonestSpend(day) = maxGold(day) + roadCap(day)       // bb-0.6.2 and bb-0.8.0: roadCap 5, 17, 29, 43, 59, 74, 90, 110, 127, 149
 cost(build)         = parts + price(plating) × plates + price(beltcrate) × crates
 parts               = buildCost's own terms but the supplies: items, turret mods and the installed turrets
 valid ⇔ for some reachable mix: cost(build) ≤ maxGold(day) + roadCapFor(day, mix)
@@ -156,7 +158,7 @@ captain a slot can hold, content.ts prices and merchants):
 
 Against the best plan one run can follow (its own road gold funds its discount, every part stays on the deck, the
 captains one seed shows, no free SABOTAGE), the slack is 0, 0, 0, 2, 4, 6, 8, 10, 12 and 14 gold on days 1-10 on
-bb-0.6.2. Of that, up to 2 gold a day is the Hard rotation (`tests/net-upload.slack.test.ts` pins every part).
+bb-0.6.2, and the same on bb-0.8.0 (the pins pass unchanged). Of that, up to 2 gold a day is the Hard rotation (`tests/net-upload.slack.test.ts` pins every part).
 
 A deck whose hull or belt came partly from the road is checked against the plans that took those events with
 those choices (`roadCapFor(day, mix)`), so the hull and belt are costed at their cheapest honest mix: the
@@ -221,8 +223,14 @@ accepting path, before the path's exact `RULES_VERSION` check:
 It is defence in depth for a server that will accept more than one rules version. Today every path also demands
 `RULES_VERSION` exactly.
 
+The heroes go by rules version too (0.8.0 H1, `RULES_HEROES` in `src/net/rulesGate.ts`): FURNACE and WEAVER under
+bb-0.6.2 and every earlier or unreadable version, and the four playable heroes (FURNACE, WEAVER, FOUNDRY, BASTION) from
+bb-0.8.0 on. The strict decoder and `validateUpload` ask it, so a FOUNDRY or BASTION ghost can never travel under 0.7.0's
+rules, whatever a client sends. Since the 0.8.0 RC, `RULES_VERSION` is bb-0.8.0 (`HEROES_RULES`).
+
 Ghosts only match their own rules version. What a rules bump (any change to content.ts
-numbers or sim behaviour) does to the pool:
+numbers or sim behaviour) does to the pool (0.8.0's bump to bb-0.8.0 is one: see "0.8.0: rules bb-0.8.0 and the
+four-hero seed pool"):
 - The server only accepts uploads under its own `RULES_VERSION`, so deploy it together with the game.
 - Old ghosts stay in `ghosts.jsonl` and in memory, bucketed by rules. Old clients can still
   match each other; new clients start with an empty pool for the new version.
@@ -453,7 +461,7 @@ runs on a throwaway machine with the app's env and secrets, and a nonzero exit a
 - Then it makes the pool for the current `RULES_VERSION` exactly the bundle: missing or differing
   records are written, and pool records not in the bundle are deleted.
 - Pool records of other rules versions and every player upload are left alone.
-- It prints `written`, `unchanged` and `removed`. An unchanged bundle prints 0 / 60 / 0.
+- It prints `written`, `unchanged` and `removed`. An unchanged bundle prints 0 / 120 / 0 (0.7.0's: 0 / 60 / 0).
 
 **The seed rule (0.7.0a, decision D5).** The bb-0.6.2 seed pool (`tools/samplePool.ts generateSamplePool`,
 what `seed` and `npm run gen:ghosts` write) is 60 ghosts drawn from the stand-in pool: per hero and day, the
@@ -465,7 +473,23 @@ A floor ghost carries the weakest record a run can bring to that dusk (no wins a
 1 1 1 1 1 over days 1-10), so under the record rule it is eligible for every reachable request: for every day
 1-10 and every reachable (wins, lives) at that dusk, at least 2 seed ghosts are eligible
 (tests/seed.records.test.ts; the generator throws otherwise). The pool keeps its turret and join decks (24
-and 41 of 60).
+and 41 of 60 in 0.7.0).
+
+**The four-hero seed pool (0.8.0 RC).** The bb-0.8.0 seed pool is 120 ghosts: every playable hero on every day 1-10,
+with 0.7.0's 3 ghosts per hero and day (two sample ghosts with drawn records and one floor ghost).
+- FURNACE and WEAVER's 60 come first and are 0.7.0's rule unchanged: the stand-in pool's par deck, a seeded pick and a
+  third deck. They are byte for byte 7c7feb9's pool but the rules string.
+- FOUNDRY and BASTION's 60 (`tools/samplePool.ts raceGhosts`) are the par player's dusk decks of that day
+  (`src/sim/harness/player.ts playerBuild`, the typical policy). That is a real run through the game's caravan, buying
+  only what it offers at the offer price. Each comes from one of the par field's runs (seeds 1-12), picked by hero,
+  variant and day, and the three decks of a hero and day are distinct.
+- The stand-in pool and the offline stand-ins stay FURNACE and WEAVER's (`STAND_IN_HEROES`), so offline play is
+  unchanged.
+- Every ghost passes the strict decoder, `validateUpload` in the player mode, the reachable-record check and the rules
+  gate, and `seed` re-checks them all before writing.
+- With the race floor ghosts, every reachable state at every dusk has at least 4 eligible seed ghosts. The pool carries
+  26 turret decks and 75 join decks of 120.
+- Matching is hero-blind, so any player meets ghosts of all four heroes (tests/rc.seedpool.test.ts).
 - On the JSON-lines store the pool lives in `pool.jsonl`, replaced atomically; `ghosts.jsonl` stays
   append-only.
 
@@ -508,11 +532,12 @@ so the Fly image carries it as `/app/dist/ghost-admin.mjs`. It reads the store e
 commands.
 
 ```
-npm run ghosts:admin -- list                     --rules bb-0.6.2
-npm run ghosts:admin -- revalidate               --rules bb-0.6.2 [--apply]
-npm run ghosts:admin -- wipe-uploads             --rules bb-0.6.2 [--apply] [--pool]
-npm run ghosts:admin -- remove-player <playerId> --rules bb-0.6.2 [--apply]
-node /app/dist/ghost-admin.mjs list --rules bb-0.6.2          # the same tool in the image
+npm run ghosts:admin -- list                     --rules bb-0.8.0
+npm run ghosts:admin -- revalidate               --rules bb-0.8.0 [--apply]
+npm run ghosts:admin -- wipe-uploads             --rules bb-0.8.0 [--apply] [--pool]
+npm run ghosts:admin -- remove-player <playerId> --rules bb-0.8.0 [--apply]
+node /app/dist/ghost-admin.mjs list --rules bb-0.8.0          # the same tool in the image
+node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's pool and uploads: a dry run
 ```
 
 | Command | What it does |
@@ -540,6 +565,33 @@ node /app/dist/ghost-admin.mjs list --rules bb-0.6.2          # the same tool in
   - the seed pool and other rules versions stay;
   - bad uploads planted straight into the store, past POST, are found;
   - the match route stops serving a deleted ghost: a fresh server at once, a running one after its cache TTL.
+
+## 0.8.0: rules bb-0.8.0 and the four-hero seed pool
+
+0.8.0 changes battles: FOUNDRY and BASTION become playable, fifteen wave-3 parts join the one shared pool, and the
+balance pass for four heroes moved numbers. So the rules string moves once, at the release step: `RULES_VERSION` is
+**bb-0.8.0** (src/sim/content.ts, the release candidate's only src/sim change). docs/CHANGELOG.md has the player's view.
+
+- **A fresh pool.** Ghosts match only their own rules version. 0.8.0 players start with the bb-0.8.0 seed pool: 120
+  ghosts, all four heroes, 3 per hero and day ("Seeding"). Real uploads join it once uploads open.
+- **0.7.0's uploads are turned away, quietly.** The server validates bb-0.8.0 only.
+  - A bb-0.6.2 upload from a 0.7.0 page gets 422 ("rules bb-0.6.2 not accepted"), or 403 while uploads are closed.
+  - A FOUNDRY or BASTION snapshot under bb-0.6.2 already gets 400 at the decoder's hero gate.
+  - A cached 0.7.0 page keeps playing. It asks for bb-0.6.2 ghosts and meets 0.7.0's seed pool if the store still holds
+    it, else 0.6.2's stand-in. Its runs play on.
+  - tests/rc.rules.test.ts checks all this on both stores, and the browser check runs the real 0.7.0 page against a
+    0.8.0 server.
+- **What else hashes or records the rules string:**
+  - ghost ids (content hashes) and the match seed: every seed ghost has a new id;
+  - the stand-in pool's data module: its rules tag moved and its decks did not (`npm run standins` writes the same
+    decks, and `--check` reads IDENTICAL);
+  - battle records: 0.7.0's stored dusks say REPLAY UNAVAILABLE (OTHER RULES).
+  - No battle reads the string: the sim fingerprint is unchanged.
+- **Offline is unchanged.** With no server URL there is no request and no identity. Every hero meets the same dusk
+  stand-ins, from FURNACE and WEAVER's stand-in pool.
+- **The deploy (the Prime's step).** The release command seeds bb-0.8.0's 120 ghosts and touches nothing of bb-0.6.2.
+  0.7.0's pool stays unless the operator wipes it with the admin tool (`wipe-uploads --rules bb-0.6.2 --pool`, a dry run
+  first).
 
 ## 0.7.0 for players
 

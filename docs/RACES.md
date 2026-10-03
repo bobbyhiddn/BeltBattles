@@ -1,6 +1,7 @@
 # BeltBattles races: FOUNDRY, BASTION, METRONOME, SIPHON
 
-Build spec for the four new heroes (spec §6, §7, §11-§15, §25; roadmap §4). Numbers are
+Build spec for the four new heroes (spec §6, §7, §11-§15, §25; roadmap §4). **0.8.0 ships FOUNDRY and BASTION**
+(§9 has their final numbers); METRONOME and SIPHON stay dormant until 0.9.0. Numbers are
 first-pass balance values. All four heroes run in the battle sim (`src/sim/races/`), and these
 are their shipped values. The Prime's rulings on part 1's open items are in §6. **OPEN** marks
 what is still undecided. The layout contract (factory 2x2, turret kind and col0, width 2) is
@@ -376,3 +377,36 @@ cells in the harness are identical to v1.
   35% would make the race beat FURNACE by far more than 65%. FOUNDRY's day-1 elites (97% vs
   WEAVER) against its weak day-5 elites need a curve no single number gives. Details:
   output/tune/REPORT-tune.md.
+
+## 9. 0.8.0: FOUNDRY and BASTION ship
+
+0.8.0 makes FOUNDRY and BASTION playable: `PLAYABLE_HEROES` is FURNACE, WEAVER, FOUNDRY and BASTION. METRONOME and
+SIPHON stay dormant until 0.9.0. docs/CHANGELOG.md has the player's view. This section records what changed against
+sections 1-8.
+
+- **Hero select** offers the four. Each has its hull, guns, signature factory and ammo (sections 1-2), A1's art and
+  portrait, and plain-sentence signature text. In battle a weld flash marks each FUSE, BASTION's hull plate shows its
+  plating bar, and the route inspector marks routes that arrive in SYNC (section 5, DONE items).
+- **The numbers after the balance pass for four heroes (B1).** These supersede tuning v1 (section 8) where they differ:
+
+| hero | number | tuning v1 | 0.8.0 |
+|---|---|---|---|
+| FOUNDRY | hull | 250 | 225 |
+| FOUNDRY | FUSE_MULT (alloy = x (dA + dB)) | 1.3 | 1.15 |
+| BASTION | hull | 240 | 215 |
+
+  The rest of sections 1-2 and 8 stands: blank base 3.5, WARDWORKS 1.1 s, bulwark base 5, the heavy gun 0.75 s, plating 2
+  a slug with cap 24, SYNC_WINDOW. The band (35-65% against FURNACE and WEAVER on honest fields): BASTION's hero average is
+  in band on all ten days. FOUNDRY's day 3-4 peak and FURNACE's late column are named 0.8.x items
+  (output-B1/SCORECARD-0.8.0.md).
+- **One shared pool.** Wave 3's fifteen parts are in the one shared salvage pool for every hero, with no faction pools.
+  Two of their families lean on these heroes: TWIN (paired, synchronised arrivals: FOUNDRY) and PLATE (plating, repair,
+  endurance: BASTION). Any hero can build into either. Every part does something for every playable hero: no inert
+  pair (tests/deadOffers.*).
+- **Their captains.** BRASSWICK and MASTER VOSS fly FOUNDRY's human hull, and GRIMHOLD and THANE KARSK fly BASTION's
+  dwarf hull. They are road warlords and dusk stand-ins (src/sim/rivals.ts).
+- **Online (rules bb-0.8.0).** The rules table lets FOUNDRY and BASTION travel from bb-0.8.0 on, and 0.8.0 ships with
+  bb-0.8.0, so their dusk decks upload and their ghosts are served. The seed pool holds three of each per day, decks of
+  the par player's real runs (docs/ASYNC.md "Seeding"). Under 0.7.0's bb-0.6.2 neither can travel.
+- **Offline.** A FOUNDRY or BASTION player meets the same hero-blind dusk foes as anyone: the stand-in pool is FURNACE
+  and WEAVER's.
