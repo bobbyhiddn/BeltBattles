@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { validateBuild, validateUpload, maxHonestSpend } from "../src/net/validate";
+import { floorRecord } from "../src/net/records";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { driveRun } from "./uploadDriver";
 import { snap } from "./netHelpers";
@@ -42,7 +43,8 @@ function honestRefusedByStrict(n: number): GhostSnapshot[] {
     const r = driveRun(seed, seed % 2 ? "furnace" : "weaver");
     for (const d of r.dusks) {
       if (out.length >= n || validateBuild(d.build, d.day).ok) continue;
-      out.push({ v: 2, rules: RULES_VERSION, hero: r.hero, day: d.day, wins: 0, lives: 3, build: d.build, runId: `drv-${seed}`, playerId: `p${seed}`, createdAt: 1_790_000_000_000 });
+      // 0.8.0 H2 (a): 3 lives, or the fewest a run carries into that dusk where 3 is out of reach (day 1: 5, day 2: 4)
+      out.push({ v: 2, rules: RULES_VERSION, hero: r.hero, day: d.day, wins: 0, lives: Math.max(3, floorRecord(d.day).lives), build: d.build, runId: `drv-${seed}`, playerId: `p${seed}`, createdAt: 1_790_000_000_000 });
     }
   }
   return out;
@@ -60,7 +62,7 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     }
     expect(app.store.size).toBe(12);
     // a day-1 deck with the dock's +20 hull: strict refuses it (off the plating grid), the server stores it
-    const dock = snap({ build: { ...snap().build, hullBonus: 20 } });
+    const dock = snap({ lives: 5, build: { ...snap().build, hullBonus: 20 } }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
     expect(validateBuild(dock.build, 1).ok).toBe(false);
     expect(await submitGhost(base, ownedBy(dock, me), me, 3000)).toMatchObject({ ok: true });
     // over the player ceiling: refused on budget (day 1 allows maxHonestSpend(1) = 13 on 40d2b2c, was 15; 4 plates cost 20)

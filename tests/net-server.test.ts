@@ -215,7 +215,7 @@ afterAll(async () => {
 
   it("stores a signed upload: 201, then 200 with the same id when repeated", async () => {
     const before = stored();
-    const mine = snap({ playerId: ME.playerId, createdAt: 1_790_000_000_004 });
+    const mine = snap({ playerId: ME.playerId, createdAt: 1_790_000_000_004, lives: 5 }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
     const body = encodeSnapshot(mine);
     const first = await upload(body, await signedHeaders(ME, body));
     expect(first).toEqual({ status: 201, body: { id: ghostId(mine) } });

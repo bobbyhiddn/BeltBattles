@@ -13,7 +13,8 @@ import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { eligible, isNewPlayer, NEW_PLAYER_RUNS, noBetterRecord, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { fetchGhost, matchUrl, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { fallbackGhost } from "../src/net/fallback";
-import { ghostId, MAX_LIVES, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
+import { decodeSnapshot, encodeSnapshot, ghostId, MAX_LIVES, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
+import { isReachable } from "../src/net/records";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
@@ -157,6 +158,17 @@ describe.each(storeBackends())("the match route (D1, D2), $name store", (backend
       for (let l = 1; l <= 5; l++) {
         const who = players[(w + l) % 2];
         const s = ownedBy({ ...BASE_DECK, wins: w, lives: l, runId: `up-${w}-${l}` }, who);
+        if (!isReachable(DAY, w, l)) {
+          // 0.8.0 H2 (P1, oracle 9c95e37aab0a70fb): POST /v1/ghosts now refuses (422) these 11 records: no run carries
+          // them into dusk 3. A store can still hold such a ghost: one uploaded before that check (until ghosts:admin
+          // revalidate clears it) or one an admin planted. The match route must still work with them there, so they go
+          // in exactly as a POST stores them: the snapshot decoded from the bytes submitGhost sends, then store.add.
+          const { id, created } = await app.store.add(decodeSnapshot(encodeSnapshot(s)));
+          expect(created, `${w}W ${l}L`).toBe(true);
+          expect(id, `${w}W ${l}L`).toBe(ghostId(s));
+          uploads.push({ id, snapshot: s });
+          continue;
+        }
         const r = await submitGhost(base, s, who, 3000);
         expect(r.ok, `${w}W ${l}L`).toBe(true);
         if (r.ok) uploads.push({ id: r.id, snapshot: s });

@@ -31,7 +31,7 @@ four-hero seed pool").
 | `src/net/roadCap.ts` | the player mode's road ceiling: `roadCap`, `maxHonestSpend`, the reachable hull and belt, the D4 model |
 | `src/net/rulesGate.ts` | `parseRules`, `rulesAtLeast` and the gate that keeps turret slots and belt joins out of rules before bb-0.6.2; 0.8.0: `RULES_HEROES`, the heroes each rules version carries (FURNACE and WEAVER up to bb-0.6.2, the four playable heroes from bb-0.8.0) |
 | `src/net/matchmaking.ts` | pure `pickGhost(pool, req, rng)`, `eligible` (with the record rule, D1), `isNewPlayer` and `NEW_PLAYER_RUNS` (D2), `matchSeed` |
-| `src/net/records.ts` | 0.7.0a: the records (wins, lives) a run can carry into each dusk under 0.6.2's run rules (`reachableRecords`, `isReachable`, `floorRecord`) |
+| `src/net/records.ts` | 0.7.0a: the records (wins, lives) a run can carry into each dusk under 0.6.2's run rules, unchanged under bb-0.8.0 (`reachableRecords`, `isReachable`, `floorRecord`). The seed, `ghosts:admin revalidate` and, since 0.8.0 H2, `POST /v1/ghosts` refuse a record `isReachable` refuses |
 | `src/net/replay.ts` | `battleRecordFor`, `replay`, `replayBattle`, rules-version refusal |
 | `src/net/fallback.ts` | `offlineGhost`, `loadGhostPool`, `fallbackGhost` |
 | `src/net/ghostClient.ts` | `fetchGhost` and `submitGhost` (signed): fetch + AbortController, never throw |
@@ -265,6 +265,8 @@ rival captain with its named build), labelled OFFLINE STAND-IN (`src/game/day.ts
 
 - Fights are simulated **on the client**. The server never runs a battle and never receives
   results, so a cheater can only lie about their own record, which only changes whom they are matched with.
+  Since 0.8.0 H2 the lie must at least be a record a run can reach (`POST /v1/ghosts` refuses any other with 422), so a
+  deck can't claim, say, one life on day 1 to be matched against more players.
 - The server **re-validates every deck** (shape, legality, and the player mode's budget) and every rule
   lives in the shared TypeScript. The client also validates each ghost before simulating it (the player
   mode), so a hostile server cannot crash the sim with a malformed deck.
@@ -314,10 +316,19 @@ runs unchanged in the browser and in Node, through WebCrypto only (`globalThis.c
 2. `x-bb-key` or `x-bb-sig` missing or malformed: 401, and the body is not read.
 3. The body is read within the 16 KB limit (413 over it), then the signature is checked over the
    exact bytes received: 401 if it does not match.
-4. The snapshot is decoded, strictly: 400 on an error.
+4. The snapshot is decoded, strictly: 400 on an error. The decoder bounds the record: day 1..10, wins 0..day-1 and
+   lives 1..9, so a record outside those keeps its 400.
 5. `snapshot.playerId` is not the key's playerId: 403.
-6. The rules version and `validateBuild` (422), then the store: 201, or 200 if the ghost is already
-   stored.
+6. The rules version: anything but this build's `RULES_VERSION` exactly gets 422 (`rules bb-0.6.2 not accepted: this
+   server validates bb-0.8.0`).
+7. The deck, in the player mode (`validateUpload`): 422 `deck failed validation`, with its errors.
+8. The record (0.8.0 H2, backlog 325): a (wins, lives) no run can carry into that day's dusk (`src/net/records.ts
+   isReachable`, the check the seed and `ghosts:admin revalidate` apply) gets 422, named with the day in revalidate's
+   words, for example `{"error":"record: 0W 1 lives is no record a run carries into dusk 1"}`. Before H2 an honest,
+   signed, budget-checked deck could carry a fake low record, such as one life on day 1, and so be eligible for more
+   matches (D1 serves only ghosts with no better record). See "0.8.0 H2: the record check" for the two old saves whose
+   uploads it refuses on purpose.
+9. Then the store: 201, or 200 if the ghost is already stored. Nothing refused above is stored.
 
 The stored record keeps its format (`{"id","at","snapshot"}`): neither the key nor the signature is
 stored. A stored ghost's playerId is its key's hash, so the ghost names its owner without holding
@@ -468,7 +479,8 @@ what `seed` and `npm run gen:ghosts` write) is 60 ghosts drawn from the stand-in
 40 sample ghosts' par deck and seeded pick, and one floor ghost (a third deck). Every seed ghost passes
 `validateUpload` in the player (honest) mode, and the shop's strict `validateBuild` too; the generator and the
 seed fail loudly if one doesn't. Every record label is reachable under 0.6.2's run rules (`src/net/records.ts`:
-5 lives, a loss costs 1, the early-loss refund at dawn 3, the DOCK's PATCH UP; checked against the run code).
+5 lives, a loss costs 1, the early-loss refund at dawn 3, the DOCK's PATCH UP; checked against the run code; unchanged
+under bb-0.8.0).
 A floor ghost carries the weakest record a run can bring to that dusk (no wins and the fewest lives: 5 4 4 3 2
 1 1 1 1 1 over days 1-10), so under the record rule it is eligible for every reachable request: for every day
 1-10 and every reachable (wins, lives) at that dusk, at least 2 seed ghosts are eligible
@@ -543,7 +555,7 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
 | Command | What it does |
 |---|---|
 | `list` | Per day: the seed-pool ghosts, the uploads and the distinct players who uploaded them, then the totals. Read only |
-| `revalidate` | Every stored upload goes through the checks `POST /v1/ghosts` runs: the strict decoder (with the rules gate), the exact rules and `validateUpload` in the player mode. It also gets the reachable-record check the seed applies (`src/net/records.ts`) and a check of its own id (and Tigris key). Each failure is listed with every reason; `--apply` deletes exactly those. Only this build's `RULES_VERSION`; for an older version use `wipe-uploads`. The signature can't be checked again: the server keeps neither the key nor the signature |
+| `revalidate` | Every stored upload goes through the checks `POST /v1/ghosts` runs: the strict decoder (with the rules gate), the exact rules, `validateUpload` in the player mode and the reachable-record check (`src/net/records.ts`; POST has applied it since 0.8.0 H2, so revalidate finds records stored before that). It also checks its own id (and Tigris key). Each failure is listed with every reason; `--apply` deletes exactly those. Only this build's `RULES_VERSION`; for an older version use `wipe-uploads`. The signature can't be checked again: the server keeps neither the key nor the signature |
 | `wipe-uploads` | Every upload of that rules version. The seed pool goes only with `--pool`, and the next deploy's `seed` writes it back |
 | `remove-player <id>` | Every upload by that player. A seed-pool ghost is never touched |
 
@@ -592,6 +604,32 @@ balance pass for four heroes moved numbers. So the rules string moves once, at t
 - **The deploy (the Prime's step).** The release command seeds bb-0.8.0's 120 ghosts and touches nothing of bb-0.6.2.
   0.7.0's pool stays unless the operator wipes it with the admin tool (`wipe-uploads --rules bb-0.6.2 --pool`, a dry run
   first).
+
+## 0.8.0 H2: the record check
+
+`POST /v1/ghosts` refuses with 422 an upload whose record (wins, lives) no run can carry into that day's dusk
+(`src/net/records.ts isReachable`; step 8 of the checks in "Identity and signed uploads"). It runs after the rules
+check and `validateUpload` and before the store, so nothing is stored, and a foreign-rules upload still meets the rules
+422 first (what a 0.7.0 page meets).
+- **The run rules are unchanged under bb-0.8.0.** Lives move only by the dusk loss, the early-loss refund at dawn 3 and
+  the DOCK's PATCH UP (once a run: ten events in one bag for ten days). No event choice costs lives and warlords never move
+  them. So a run started on a 0.6.2, 0.7.0 or 0.8.0 page only uploads records the check takes:
+  tests/h2.playthrough.test.ts plays 1,600 real runs of the four heroes through the run code and meets all 178 reachable
+  records.
+- **Two old saves can carry a record it refuses, and refusing their uploads is intended.** The client is silent on a 422
+  (`src/game/online.ts` keeps the result and logs nothing), so the run plays on; widening the model instead would let a
+  low record make a ghost eligible for more matches, for every player.
+  - A run migrated from a version-4 (0.5.0) save: `save.ts v4to5` adds 2 lives, for example day 3 with 0 wins and 3 lives.
+  - A run saved by a page older than 0.6.2 TUNE-M (ab0ee25, which added the early-loss refund; save v7 has had no bump
+    since 0.6.1a and a v6 save migrates in place) that passed dawn 3 after an early loss without its refund: day 3 0W 3L
+    and 1W 4L, day 4 0W 2L and 1W 3L, day 5 0W 1L and 1W 2L, day 6 1W 1L; from day 7 its records are reachable again. In
+    practice this is an unfinished run saved by the 0.6.0 page on beltbattles.fly.dev, the only origin that uploads.
+- **Records stored before the check** (bb-0.8.0 has none: it ships with the check) stay until
+  `ghosts:admin revalidate --rules bb-0.8.0 --apply` deletes them; the match route keeps working with them there
+  (tests/net-matchmaking.d1d2.test.ts plants such records past POST).
+- Tested on both stores (tests/h2.records.test.ts): 7 unreachable records the decoder takes get 422 and leave the store
+  unchanged (health's count, the store's listing, its records, every Tigris object); every reachable record of every day
+  gets 201; the order of the checks; a resend still gets 200; all 120 seed ghosts posted as one player's dusks get 201.
 
 ## 0.7.0 for players
 

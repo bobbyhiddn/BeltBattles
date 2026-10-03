@@ -18,6 +18,7 @@ import { MODELLED_EVENTS, MODELLED_PICKS, playerFits, roadOptions } from "../src
 import { buildCost, maxHonestSpend, validateBuild, validateUpload } from "../src/net/validate";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import type { GhostSnapshot } from "../src/net/snapshot";
+import { floorRecord } from "../src/net/records";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { furnaceDeck, playerCheck } from "./netHelpers";
 import { heroesFor } from "../src/net/rulesGate";
@@ -294,7 +295,8 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     const me = await testIdentity(0); // v070a: uploads are signed (async-062); each snapshot under the key's playerId
     expect(HONEST_HERE.length).toBeGreaterThanOrEqual(16);
     const honest = HONEST_HERE.slice(0, 16);
-    for (const d of honest) expect(await submitGhost(base, ownedBy(snapOf(d), me), me, 3000), `${d.hero} #${d.seed} d${d.day}`).toMatchObject({ ok: true });
+    // 0.8.0 H2 (a): 3 lives, or the fewest a run carries into that dusk where 3 is out of reach (days 2 and 3: 4)
+    for (const d of honest) expect(await submitGhost(base, ownedBy(snapOf(d, { lives: Math.max(3, floorRecord(d.day).lives) }), me), me, 3000), `${d.hero} #${d.seed} d${d.day}`).toMatchObject({ ok: true });
     expect(app.store.size).toBe(honest.length);
     const d = honest[0];
     const post = async (s: GhostSnapshot) => {

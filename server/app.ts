@@ -15,6 +15,10 @@
 //                                   403 { error } snapshot.playerId is not the signing key's playerId
 //                                   422 { error } foreign rules, or the deck fails validateUpload (the
 //                                       player mode), with its errors
+//                                   422 { error } 0.8.0 H2: a record (wins, lives) no run can carry into
+//                                       that day's dusk (src/net/records.ts isReachable), named with
+//                                       the day: "record: 0W 1 lives is no record a run carries into
+//                                       dusk 1". Nothing is stored
 //   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2&runs=n -> 200 { id, snapshot } | 404
 //                                   0.7.0a: never a ghost with a better record than wins/lives (D1,
 //                                   matchmaking.ts eligible); while runs < NEW_PLAYER_RUNS (absent = 0)
@@ -29,6 +33,7 @@ import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
 import { isNewPlayer, matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, SnapshotError } from "../src/net/snapshot";
+import { isReachable } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
@@ -287,13 +292,20 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         if (snap.playerId !== signer.playerId) {
           throw new HttpError(403, "snapshot.playerId is not the player id of the signing key (x-bb-key)");
         }
-        // 6. unchanged: rules, the deck, then the store. The stored record is the same as before;
+        // 6. rules, the deck, the record (0.8.0 H2), then the store. The stored record is the same as before;
         //    neither the key nor the signature is kept.
         if (snap.rules !== RULES_VERSION) {
           throw new HttpError(422, `rules ${snap.rules} not accepted: this server validates ${RULES_VERSION}`);
         }
         const v = validateUpload(snap.build, snap.day); // 0.7.0: a player's deck, the player mode (road gold, parts, hull)
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
+        // 0.8.0 H2 (backlog 325): the (wins, lives) record must be one a run can carry into this day's dusk, as the seed
+        // and ghosts:admin revalidate already check (same words as revalidate's). Otherwise an honest deck could carry a
+        // fake low record and be matched more often (D1 serves only ghosts with no better record). The decoder bounds day
+        // 1..10, wins 0..day-1 and lives 1..9, so this stays cheap; a record it refuses keeps its 400.
+        if (!isReachable(snap.day, snap.wins, snap.lives)) {
+          throw new HttpError(422, `record: ${snap.wins}W ${snap.lives} lives is no record a run carries into dusk ${snap.day}`);
+        }
         const { id, created } = await store.add(snap); // 201 only once the write is durable
         return send(res, created ? 201 : 200, { id });
       }

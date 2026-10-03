@@ -106,7 +106,7 @@ describe("submitGhost signs exactly what it sends", () => {
 describe("a signed upload is stored in the record format it always had: no key, no signature", () => {
   async function uploadOnce(app: GhostServer): Promise<{ id: string; key: string; sig: string }> {
     const base = `http://127.0.0.1:${await app.listen(0)}`;
-    const mine = ownedBy(snap(), ME);
+    const mine = ownedBy(snap({ lives: 5 }), ME); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
     const body = encodeSnapshot(mine);
     const headers = await signedHeaders(ME, body);
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers, body });
@@ -120,7 +120,7 @@ describe("a signed upload is stored in the record format it always had: no key, 
     const rec = JSON.parse(text) as Record<string, unknown>;
     expect(Object.keys(rec)).toEqual(["id", "at", "snapshot"]);
     expect(rec.id).toBe(id);
-    expect(rec.snapshot).toEqual(ownedBy(snap(), ME));
+    expect(rec.snapshot).toEqual(ownedBy(snap({ lives: 5 }), ME)); // 0.8.0 H2: the posted fixture, echoed (oracle 9c95e37aab0a70fb)
     expect(text).not.toContain(key);
     expect(text).not.toContain(sig);
     expect(text).not.toContain(key.slice(0, 20)); // not even part of the key

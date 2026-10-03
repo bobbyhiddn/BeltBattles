@@ -1,6 +1,7 @@
-// 0.7.0a D5 (REQ-BFG-016): the records a player can carry into a dusk under 0.6.2's run rules, so a seed ghost's
-// label (wins, lives) is one a real run reaches, and the seed pool can be checked to cover every such state under
-// the record rule (D1, matchmaking.ts). The rules, as ref/S1-REPORT-sc026.md section 1 reads them off the run code:
+// 0.7.0a D5 (REQ-BFG-016): the records a player can carry into a dusk under 0.6.2's run rules, which bb-0.8.0 keeps
+// unchanged (0.8.0 H2's life audit), so a seed ghost's label (wins, lives) is one a real run reaches, and the seed pool
+// can be checked to cover every such state under the record rule (D1, matchmaking.ts). The rules, as
+// ref/S1-REPORT-sc026.md section 1 reads them off the run code:
 //  - START_LIVES (5) at the start; a dusk loss costs one life and 0 lives ends the run; a win or a draw costs none;
 //  - the early-loss refund (day.ts): REFUND_LIVES back at the dawn of REFUND_DAY after a loss on an earlier day,
 //    once a run, never above START_LIVES;
@@ -8,6 +9,14 @@
 //    a run (the first event bag holds each event once), so at most once; on day 1 it is blocked (5 lives);
 //  - warlords never move lives.
 // Pure and small; tests/seed.records.test.ts checks it against the run code (startDusk/finishDay, the DOCK).
+// 0.8.0 H2 (REQ-BFG-009, backlog 325): POST /v1/ghosts refuses (422) an upload whose record isReachable refuses, as the
+// seed and ghosts:admin revalidate already do; tests/h2.playthrough.test.ts checks real runs only carry records it takes.
+// Two old saves can carry a record it refuses, and refusing their uploads is intended (the client is silent on a 422 and
+// the run plays on; widening the model would let a low record make a ghost eligible for more matches):
+//  - a run migrated from a version-4 (0.5.0) save: save.ts v4to5 adds 2 lives, e.g. day 3 with 0 wins and 3 lives;
+//  - a run saved by a page older than 0.6.2 TUNE-M (ab0ee25, before the early-loss refund; save v7 since 0.6.1a, v6
+//    migrates in place) that passed dawn 3 after an early loss without the refund: d3 0W 3L and 1W 4L, d4 0W 2L and
+//    1W 3L, d5 0W 1L and 1W 2L, d6 1W 1L (the Prime's decision, oracle 9c95e37aab0a70fb).
 
 import { START_LIVES } from "../sim/content";
 import { REFUND_DAY, REFUND_LIVES } from "../game/day";
