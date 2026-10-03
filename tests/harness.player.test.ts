@@ -21,6 +21,8 @@ import {
 import { rateOn, type PlayerDay, type PlayerOpts } from "../src/sim/harness/player";
 import { walkRoute } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
+import { SIGNATURE_OFFER } from "../src/sim/content"; // bb-0.8.3 (REQ-BFG-042 D9)
+import { isSignatureFactory } from "../src/sim/stars"; // bb-0.8.3 (REQ-BFG-042 D9)
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -35,7 +37,9 @@ describe("par player (playerBuild): a real run through the caravan", () => {
             expect(o, `${hero} s${seed} d${run.day}: a bought slot exists`).toBeDefined();
             expect(o!.sold, `${hero} s${seed} d${run.day}: ${o!.def} unsold when bought`).toBe(false);
             expect(o!.price, `${hero} s${seed}: ${o!.def} affordable`).toBeLessThanOrEqual(run.gold);
-            expect(o!.price).toBe(Math.max(1, ITEMS[o!.def].price - (run.shop.discount || 0)));
+            // bb-0.8.3 (REQ-BFG-042 D9): the hero's own signature card costs SIGNATURE_OFFER's price (its ItemDef keeps 0)
+            const list = isSignatureFactory(o!.def) ? SIGNATURE_OFFER.price[o!.def] : ITEMS[o!.def].price;
+            expect(o!.price).toBe(Math.max(1, list - (run.shop.discount || 0)));
             bought++;
           },
           onReroll: (run) => {

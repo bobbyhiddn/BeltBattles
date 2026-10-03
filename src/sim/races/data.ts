@@ -18,16 +18,16 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
   crucible: {
     id: "crucible", name: "CRUCIBLE", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["POURS TWIN ALLOY", "BLANKS. TWO THAT MEET", "AT ONE GUN FUSE."],
-    // bb-0.8.3 (REQ-BFG-042 D2, D4): levels by merging (2 / 3 / 4 belt slots, content.ts's signature note: the house's
-    // curve); a pour of 2 at every star (the fuse needs a pair): with more belts each cast takes 2 of them in turn
+    // bb-0.8.3 (REQ-BFG-042 D2, D4): levels by merging (2 / 3 / 4 belt slots, content.ts's signature note: the cycle on the
+    // house's curve, the base its ★1 one); a pour of 2 at every star (the fuse needs a pair): with more belts each cast takes 2 of them in turn
     factory: { ammo: "blank", interval: 1.6, pour: 2 }, // base 3.5: the blank's
-    levels: { 2: { factory: { interval: 1.26, base: 6 } }, 3: { factory: { interval: 1.06, base: 8.5 } } },
+    levels: { 2: { factory: { interval: 1.26 } }, 3: { factory: { interval: 1.06 } } },
   },
   wardworks: {
     id: "wardworks", name: "WARDWORKS", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["STAMPS BULWARK SLUGS.", "EACH ONE PLATES THE", "HULL AS IT ARRIVES."],
-    factory: { ammo: "bulwark", interval: 1.1 }, // base 5: the bulwark slug's; bb-0.8.3 (D2): levels on the house's curve
-    levels: { 2: { factory: { interval: 0.86, base: 8.5 } }, 3: { factory: { interval: 0.73, base: 12 } } },
+    factory: { ammo: "bulwark", interval: 1.1 }, // base 5: the bulwark slug's; bb-0.8.3 (D2): its cycle on the house's curve
+    levels: { 2: { factory: { interval: 0.86 } }, 3: { factory: { interval: 0.73 } } },
   },
   clockworks: {
     id: "clockworks", name: "CLOCKWORKS", kind: "factory", rarity: "epic", price: 0, size: 2,
@@ -39,8 +39,8 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
   sump: {
     id: "sump", name: "SUMP", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["LEECH SLUGS: DRAG FOR", "THE LEFT GUN, ECHO", "FOR THE RIGHT GUN."],
-    factory: { ammo: "leechDrag", interval: 1.1 }, // base 5: the leech slug's; bb-0.8.3 (D2): levels on the house's curve
-    levels: { 2: { factory: { interval: 0.86, base: 8.5 } }, 3: { factory: { interval: 0.73, base: 12 } } },
+    factory: { ammo: "leechDrag", interval: 1.1 }, // base 5: the leech slug's; bb-0.8.3 (D2): its cycle on the house's curve
+    levels: { 2: { factory: { interval: 0.86 } }, 3: { factory: { interval: 0.73 } } },
   },
   // Timing gear joins the same merchant pool as every other module. Priced like CALIBRATION.
   escapement: {

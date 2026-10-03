@@ -81,9 +81,11 @@ describe("D1-D3: belt slots by level, the one rule (stars.ts outputsAt)", () => 
     for (const s of [1, 2, 3]) expect(outputsAt("loom", s)).toBe(Math.max(...FACTORIES.filter((d) => d.id !== "gantry").map((d) => outputsAt(d.id, s))));
   });
 
-  it("the signature levels are on the house's curve: the median per-star change of the bought factories' levels", () => {
+  // bb-0.8.3 (D2 as amended by the Prime's oracle 6c20deea1363d0bb): a signature factory's levels grow its cycle only, on
+  // the house curve's interval steps; its base stays its ★1 value (its own rules multiply base)
+  it("the signature levels follow the house curve's interval steps, base unchanged", () => {
     // the curve, read off content.ts: x 11/14 cycle and x 5/3 base at ★2, x 11/13 and x 17/12 at ★3 (each level that
-    // changes the number counts once; a level that leaves it alone, as FROSTBITE's cycle, doesn't)
+    // changes the number counts once; a level that leaves it alone, as FROSTBITE's cycle, doesn't); signatures take the cycle's
     const [c2, c3] = curve(cycleAt), [b2, b3] = curve(baseAt);
     expect([c2, c3, b2, b3].map((x) => x.toFixed(6))).toEqual([11 / 14, 11 / 13, 5 / 3, 17 / 12].map((x) => x.toFixed(6)));
     const r2 = (x: number): number => Math.round(x * 100) / 100, half = (x: number): number => Math.round(x * 2) / 2;
@@ -93,9 +95,9 @@ describe("D1-D3: belt slots by level, the one rule (stars.ts outputsAt)", () => 
       expect(one.base, `${id} ★1 base: its ammo's`).toBeUndefined();
       // the cycle: from the unrounded ★2, to 0.01 s
       expect([2, 3].map((s) => effectAt(id, s).factory!.interval), id).toEqual([r2(i1 * c2), r2(i1 * c2 * c3)]);
-      // the base, to 0.5; the pendulum's curve replaces a slug's base, so CLOCKWORKS levels its cycle alone
-      const want = AMMO[one.ammo].rideCurve ? [undefined, undefined] : [half(base1 * b2), half(base1 * b2 * b3)];
-      expect([2, 3].map((s) => effectAt(id, s).factory!.base), id).toEqual(want);
+      // the base: unchanged at every star (the ammo's own)
+      expect([2, 3].map((s) => effectAt(id, s).factory!.base), id).toEqual([undefined, undefined]);
+      void half;
       // nothing else moves with the level: ammo, pour, lead
       for (const s of [2, 3]) {
         const { interval: _i, base: _b, ...rest } = effectAt(id, s).factory!;

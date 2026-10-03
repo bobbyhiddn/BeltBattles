@@ -315,23 +315,25 @@ export interface ItemDef {
 
 export const ITEMS: Record<string, ItemDef> = {
   // --- signature factories (no merchant sells them) ---
-  // bb-0.8.3 (REQ-BFG-042 D2): a signature factory levels up by merging like any factory, with 2 / 3 / 4 belt slots (the
-  // LOOM 3 / 4 / 5: `lead` 1). Its ★2 and ★3 are on the house's curve: the median per-star change of the bought
-  // factories' levels (each level that changes the number), x 11/14 interval and x 5/3 base at ★2, then x 11/13 interval
-  // and x 17/12 base at ★3, from the unrounded ★2; interval to 0.01 s, base to 0.5 (tests/belts.slots.test.ts derives
-  // them). No perk name: no level adds anything new. Its own rules keep their kind (cinder ride scaling, the KILN BREECH,
-  // the LOOM's thread, the CRUCIBLE's pour of 2 and the fuse, the bulwark plating, the pendulum's curve, the leech).
+  // bb-0.8.3 (REQ-BFG-042 D2, as amended by the Prime's oracle 6c20deea1363d0bb after M2): a signature factory levels up
+  // by merging like any factory, with 2 / 3 / 4 belt slots (the LOOM 3 / 4 / 5: `lead` 1). Its ★2 and ★3 grow ONLY its
+  // cycle, on the house's curve's interval steps (the median per-star change of the bought factories' levels: x 11/14
+  // at ★2, then x 11/13 at ★3, from the unrounded ★2, to 0.01 s; tests/belts.slots.test.ts derives them); its base stays
+  // its ★1 value, because its own rules multiply base (the fuse, the ride scaling, the leech): with the base grown too, a
+  // ★2 CRUCIBLE was 2.2x its fused damage a second and FOUNDRY left the band (output-belts/REPORT.md, M2). No perk name.
+  // Its own rules keep their kind (cinder ride scaling, the KILN BREECH, the LOOM's thread, the CRUCIBLE's pour of 2 and
+  // the fuse, the bulwark plating, the pendulum's curve, the leech).
   kiln: {
     id: "kiln", name: "KILN", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["STAMPS CINDER SLUGS.", "SLUGS HEAT UP WHILE", "THEY RIDE THE BELT."],
     factory: { ammo: "cinder", interval: 1.25 }, // base 4: the cinder slug's
-    levels: { 2: { factory: { interval: 0.98, base: 6.5 } }, 3: { factory: { interval: 0.83, base: 9.5 } } },
+    levels: { 2: { factory: { interval: 0.98 } }, 3: { factory: { interval: 0.83 } } },
   },
   loom: {
     id: "loom", name: "LOOM", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["WEAVES THREAD SLUGS", "THAT FRAY THE HULL", "ONTO MANY BELTS."], // bb-0.8.3 (M4): was "INTO UP TO 3 ROUTES. HITS STACK FRAY."
     factory: { ammo: "thread", interval: 0.72, lead: 1 }, // base 3: the thread slug's; WEAVER's belt specialist: one more slot
-    levels: { 2: { factory: { interval: 0.57, base: 5 } }, 3: { factory: { interval: 0.48, base: 7 } } },
+    levels: { 2: { factory: { interval: 0.57 } }, 3: { factory: { interval: 0.48 } } },
   },
   // --- generic factory ---
   press: {

@@ -74,9 +74,9 @@ describe("D5: the KILN BREECH and cinder ride scaling with more KILN belts", () 
     const [long1, short1, long2, short2] = [est(A, 0), est(A, 1), est(C, 0), est(C, 2)];
     expect(long1.dmg - short1.dmg).toBeCloseTo(AMMO.cinder.rideScale * (long1.ride - short1.ride), 6);
     expect(long1.dmg).toBeGreaterThan(short1.dmg);
-    // ★2's base (6.5, from 4) adds the same to every slug on the same belt
-    expect(long2.dmg - long1.dmg).toBeCloseTo(effectAt("kiln", 2).factory!.base! - AMMO.cinder.base, 6);
-    expect(short2.dmg - short1.dmg).toBeCloseTo(effectAt("kiln", 2).factory!.base! - AMMO.cinder.base, 6);
+    // ★2 grows the KILN's cycle only (oracle 6c20deea1363d0bb): every slug on the same belt arrives as heavy as at ★1
+    expect(effectAt("kiln", 2).factory!.base).toBeUndefined();
+    expect([long2.dmg, short2.dmg]).toEqual([long1.dmg, short1.dmg]);
     console.log(`D5 ride: ★1 2 belts: ${ta.perRoute.join("/")} slugs (long/short), ${long1.dmg.toFixed(2)} vs ${short1.dmg.toFixed(2)} damage on arrival; ★2 3 belts: ${tc.perRoute.join("/")} slugs (long/short/short), ${long2.dmg.toFixed(2)} vs ${short2.dmg.toFixed(2)}`);
   });
 });

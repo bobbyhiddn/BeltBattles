@@ -697,7 +697,7 @@ const ENTRIES: Record<string, Entry> = {
         n <= pour
           ? `POURS AN ALLOY BLANK ONTO EACH OF ITS ${plural(n, "BELT")} ${every(f(e).interval)}, ALL AT THE SAME MOMENT.`
           : `POURS AN ALLOY BLANK ONTO ${pour} OF ITS ${n} BELTS ${every(f(e).interval)}, ALL AT THE SAME MOMENT, TAKING ITS BELTS IN TURN.`,
-        `AN ALLOY BLANK DEALS ${damage(slugBase(e))}.`,
+        `AN ALLOY BLANK DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every star (its levels grow its cycle only)
         `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)} OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH ${times2(FUSE_MULT)} THEIR DAMAGE.`,
         "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
       ];

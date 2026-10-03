@@ -38,10 +38,12 @@ export const BELT_POLICY: Readonly<Record<HeroId, BeltPolicy>> = {
 /**
  * bb-0.8.3 (REQ-BFG-042 D7, D9): does `hero`'s par player buy its own signature factory's copy when its caravan offers
  * one (judged by its value logic, as any part that merges: a copy that merges, or a copy placed with its belts beside
- * a ★2)? M2 measures it on against off; until then off, and the bots ignore the card (player.ts candidates).
+ * a ★2)? On for every hero (M2 and the Prime's oracle 6c20deea1363d0bb: with the cycle-only signature levels, copies at
+ * 11 gold from day 3 on 1 roll in 3, buying keeps FOUNDRY at its no-buying level and the four heroes' bots reach ★2 by a
+ * median day 5, BASTION day 7). Off, the bots ignore the card (player.ts candidates).
  */
 export const SIG_BUY: Readonly<Record<HeroId, boolean>> = {
-  furnace: false, weaver: false, foundry: false, bastion: false, metronome: false, siphon: false,
+  furnace: true, weaver: true, foundry: true, bastion: true, metronome: true, siphon: true,
 };
 
 /** Does `hero`'s par player buy its own signature copy (SIG_BUY)? */
