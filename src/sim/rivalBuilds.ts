@@ -329,8 +329,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   // MATCHED POUR: the Crucible's two mirrored belts into gun 1, so every pour fuses. Synergy: a TWIN GAUGE on a matched
   // belt from day 2 (3 damage a blank, not 1), a TWIN TRIGGER on gun 1 from day 3 (each fused alloy is a pair: 25% more,
   // 2 stars from day 7) and a TWIN MOULD from day 5 pouring two plain slugs into gun 2's two intakes (2 stars from day 9;
-  // on day 4 it would lift him over HIGHSPIRE, the ladder). Nothing else: a STEAM BREECH on gun 1 from day 1 (his wave-3
-  // part, weak enough to keep an Easy deck under every Hard captain on day 1). The synergy is the deck, so it pays most.
+  // on day 4 it would lift him over HIGHSPIRE, the ladder). A STEAM BREECH on gun 1 from day 1 (his wave-3 part, weak
+  // enough to keep an Easy deck under every Hard captain on day 1); 0.8.0 B1 M3 added a temper (day 2), a plate roller
+  // (day 3) and venom (day 4), which lift his road deck toward the Easy band (about 30%, at most 40; output-B1/m3/
+  // N6-NOTES.md).
   brasswick: {
     hero: "foundry", crates: 0, synergy: ["twingauge", "twinmould", "twintrigger"],
     factories: [F("crucible", 2, 6, [2, 5, "U5"], [3, 5, "U5"])],
@@ -342,10 +344,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   },
   // ---------------------------------------------------------------- Hard (tier 3), FOUNDRY
   // LOCKSTEP: the Crucible's belts run up columns 1 and 4 into gun 1, so a TWIN LATCH at (3,2) works both and lets each
-  // pair of blanks go together. Synergy: the TWIN LATCH (day 2, 2 stars from day 9), a TWIN TRIGGER on gun 1 from day 1
-  // (each fused alloy a pair: 2 stars from day 4, 55% more) and a COMPOUND BREECH from day 5 packing two alloys into one
-  // shell (2 stars from day 7); a PLATE ROLLER and a counterweight fill in. Gun 2 stays dark: every gold buys gun 1's
-  // lockstep. Good luck (the road deck) adds a temper on day 2, a tollbooth on day 5, a pincer on day 6 and venom on day 9.
+  // pair of blanks go together. Synergy: the TWIN LATCH (day 2, 2 stars from day 9), a TWIN TRIGGER on gun 1 from day 2
+  // (day 1 at good luck; each fused alloy a pair: 2 stars from day 4, 55% more) and a COMPOUND BREECH from day 5 packing
+  // two alloys into one shell (2 stars from day 7); a TWIN GAUGE (day 1) and a counterweight (day 3) fill in. Gun 2 stays
+  // dark: every gold buys gun 1's lockstep. Good luck (the road deck) adds a temper on day 2, flak on day 8 and a
+  // whetstone on day 10. (0.8.0 B1 M3: regrown with capsearch after the FOUNDRY nerf, so he is a Hard captain again;
+  // output-B1/m3/N6-NOTES.md.)
   voss: {
     hero: "foundry", crates: 0, synergy: ["twinlatch", "twintrigger", "compound"],
     factories: [F("crucible", 2, 6, [2, 5, "LU3RU2"], [4, 6, "U5LU"])],
@@ -357,11 +361,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   },
   // ---------------------------------------------------------------- Medium (tier 2), BASTION
   // ANVIL WALL: the Wardworks' bulwark belt plates the hull as it fires, and plating makes every shot hit harder. Synergy:
-  // PLATE ROLLERS on the bulwark belt (day 1, 2 stars from day 3; a second roller on day 3), an ANVIL BREECH in the heavy
-  // gun's socket from day 2 (2 stars from day 5: 2.2 and 0.4 more for each plating) and a SPALL CATCHER from day 4. A
-  // tollbooth, a temper (2 stars on day 10), a whetstone and a quench tank (2 stars on day 9) fill in, and an ARMOR
-  // PRESS feeds connector 5 from day 7, more plating. (Its synergy check misses: a same-price MORTAR or GATLING outdamages
-  // the ANVIL BREECH on BASTION's heavy gun at any plating it reaches; B1's PLATE item, oracle 043ce6256cb5ccf9.)
+  // a PLATE ROLLER on the bulwark belt (day 1), an ANVIL BREECH in the heavy gun's socket from day 2 (2.5 more damage, and
+  // 1 more for each plating) and a SPALL CATCHER from day 3. A tollbooth (day 1), a whetstone (day 2, 2 stars on day 9), a
+  // twin gauge, a sorting arm, grease, a pincer and a second whetstone (day 10) fill in. 0.8.0 B1 M3 regrew him from day 2
+  // on B1's PLATE payoffs with capsearch (output-B1/m3/N6-NOTES.md; oracle 043ce6256cb5ccf9): no ARMOR PRESS, which lifted
+  // him 40-60 points over his Medium band. His synergy check now pays on days 5 and 9.
   grimhold: {
     hero: "bastion", crates: 0, synergy: ["plateroller", "anvil", "spallcatcher"],
     factories: [F("wardworks", 4, 6, [4, 5, "U5"])],
