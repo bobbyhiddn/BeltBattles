@@ -414,9 +414,13 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // bought turret, with a joined belt, the joins, and with both a turret list and a joined belt.
 // 0.8.0 I1 M3 (oracle 64485b535a06683c): the stand-in pool regrown through the per-run draw with wave 3 live (was
 // { turrets: 46, bought: 32, joined: 82, joins: 129, both: 31 })
-const POOL_CARRIES = { turrets: 38, bought: 32, joined: 73, joins: 116, both: 26 };
+// 0.8.0 B1 M2 (oracle efb5c4ff84fe4c6d): the stand-in pool regenerated after the hero numbers (was
+// { turrets: 38, bought: 32, joined: 73, joins: 116, both: 26 })
+const POOL_CARRIES = { turrets: 35, bought: 29, joined: 76, joins: 121, both: 27 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
 // ghosts carry 9 turret lists and 26 joined belts and the floor ghosts 9 and 12 (were 14 and 28, 10 and 13: [24, 41])
-const GHOST_POOL_CARRIES = [18, 38];
+// 0.8.0 B1 M2 (oracle efb5c4ff84fe4c6d): the stand-in pool regenerated after the hero numbers: the sample ghosts carry 8
+// and 29, the floor ghosts 7 and 12 (were 9 and 26, 9 and 12: [18, 38])
+const GHOST_POOL_CARRIES = [15, 41];

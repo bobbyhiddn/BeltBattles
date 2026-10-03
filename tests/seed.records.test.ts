@@ -143,10 +143,11 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   });
 
   // 0.8.0 I1 M3 (oracle 64485b535a06683c): the regrown stand-in pool moves these on purpose (were 14 and 28, 10 and 13)
-  it("keeps its turret and join decks: the sample ghosts' 9 and 26, plus the floor ghosts' 9 and 12 (each a deck of its own)", () => {
+  // 0.8.0 B1 M2 (oracle efb5c4ff84fe4c6d): the stand-in pool regenerated after the hero numbers (were 9 and 26, 9 and 12)
+  it("keeps its turret and join decks: the sample ghosts' 8 and 29, plus the floor ghosts' 7 and 12 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
-    expect(carry(SAMPLE)).toEqual([9, 26]);
-    expect(carry(FLOOR)).toEqual([9, 12]);
+    expect(carry(SAMPLE)).toEqual([8, 29]);
+    expect(carry(FLOOR)).toEqual([7, 12]);
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);
