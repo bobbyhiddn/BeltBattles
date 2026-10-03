@@ -1,0 +1,151 @@
+{
+ "source": "0.8.0 B1 M2 (oracle fda49d0c97fac446): the plating a plated deck's hull holds when its guns fire, measured on the rating-fix tree (deckRating.ts per-hero MEAN_PLATE) with the M1 numbers",
+ "command": "PB_JSON=<this file> bash output-B1/kit/b1-probe.sh tree platemean <log>  (probe output-B1/kit/probes/platemean.test.ts; PB_HEROES bastion,furnace,weaver,foundry; PB_DAYS 3,5,7,9; PB_K 12; PB_SEEDS 2)",
+ "setup": {
+  "foe": "furnace par field",
+  "k": 12,
+  "seeds": 2,
+  "sides": 2,
+  "days": [
+   3,
+   5,
+   7,
+   9
+  ],
+  "seed": "hashSeed(\"b1-platemean\", hero, day, member, foe, s)",
+  "unit": "the side's plating at each of its own fire events; decks that plate (platedDeck) only"
+ },
+ "heroes": {
+  "bastion": {
+   "shots": 53584,
+   "mean": 1.524,
+   "share": 0.406,
+   "days": {
+    "3": {
+     "decks": 12,
+     "shots": 15296,
+     "mean": 1.431,
+     "share": 0.396
+    },
+    "5": {
+     "decks": 12,
+     "shots": 13518,
+     "mean": 1.855,
+     "share": 0.41
+    },
+    "7": {
+     "decks": 12,
+     "shots": 12580,
+     "mean": 1.448,
+     "share": 0.381
+    },
+    "9": {
+     "decks": 12,
+     "shots": 12190,
+     "mean": 1.353,
+     "share": 0.438
+    }
+   }
+  },
+  "furnace": {
+   "shots": 12558,
+   "mean": 0.47,
+   "share": 0.367,
+   "days": {
+    "3": {
+     "decks": 2,
+     "shots": 1865,
+     "mean": 0.361,
+     "share": 0.392
+    },
+    "5": {
+     "decks": 3,
+     "shots": 2152,
+     "mean": 0.315,
+     "share": 0.343
+    },
+    "7": {
+     "decks": 5,
+     "shots": 3474,
+     "mean": 0.764,
+     "share": 0.419
+    },
+    "9": {
+     "decks": 7,
+     "shots": 5067,
+     "mean": 0.375,
+     "share": 0.332
+    }
+   }
+  },
+  "weaver": {
+   "shots": 14668,
+   "mean": 0.203,
+   "share": 0.338,
+   "days": {
+    "3": {
+     "decks": 2,
+     "shots": 3281,
+     "mean": 0.186,
+     "share": 0.3
+    },
+    "5": {
+     "decks": 2,
+     "shots": 2632,
+     "mean": 0.289,
+     "share": 0.399
+    },
+    "7": {
+     "decks": 3,
+     "shots": 3420,
+     "mean": 0.181,
+     "share": 0.383
+    },
+    "9": {
+     "decks": 5,
+     "shots": 5335,
+     "mean": 0.185,
+     "share": 0.302
+    }
+   }
+  },
+  "foundry": {
+   "shots": 8117,
+   "mean": 0.704,
+   "share": 0.322,
+   "days": {
+    "3": {
+     "decks": 0,
+     "shots": 0,
+     "mean": 0,
+     "share": 0
+    },
+    "5": {
+     "decks": 1,
+     "shots": 1232,
+     "mean": 0.433,
+     "share": 0.309
+    },
+    "7": {
+     "decks": 3,
+     "shots": 3595,
+     "mean": 0.638,
+     "share": 0.281
+    },
+    "9": {
+     "decks": 3,
+     "shots": 3290,
+     "mean": 0.878,
+     "share": 0.372
+    }
+   }
+  }
+ },
+ "breaker": {
+  "source": "output-N1/m4/breaker.md (THANE KARSK's decks vs the FURNACE par field, K 24, days 5-10)",
+  "blowsTakingPlating": [
+   0.39,
+   0.51
+  ]
+ }
+}

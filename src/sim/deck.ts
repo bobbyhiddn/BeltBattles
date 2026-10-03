@@ -582,7 +582,11 @@ export interface RouteWalk {
  * slag keeps `fixed`) and ends at the chain's turret. Tile-counting rules (COUNTERWEIGHT) count the journey's tiles.
  * A belt that joins nothing walks exactly as before, and a main belt's own walk doesn't change when belts join it.
  */
-export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk {
+/** 0.8.0 B1 M2 (G1's F1): `unplated` walks the belt as a deck that never plates its hull would (every PLATE BREAKER at its
+ *  floor), for the build screen's second DMG number. */
+export interface WalkOpts { unplated?: boolean }
+
+export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpts = {}): RouteWalk {
   const info = routeInfo(b, index, undefined, undefined, hits);
   const r = b.routes[index];
   const f = itemByUid(b, r.factory);
@@ -617,7 +621,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b)): RouteWalk
   // 0.8.0 P1 (E6): which belts are matched, read only when a TWIN GAUGE hits one of the walk's tiles; whether the deck
   // plates its hull, read only when a PLATE BREAKER does
   let matched: boolean[] | undefined;
-  let plates: boolean | undefined;
+  let plates: boolean | undefined = o.unplated ? false : undefined; // 0.8.0 B1 M2: WalkOpts.unplated
   const n = path.length;
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];

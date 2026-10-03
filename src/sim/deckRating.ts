@@ -4,7 +4,7 @@
 // (tests/harness.mods.test.ts: no src/sim/harness file reads star values itself) keeps every harness file off that
 // path. Nothing in the game imports it; the balance harness's par player (src/sim/harness/player.ts) does.
 
-import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME } from "./content";
+import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME, type HeroId } from "./content";
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
   walkRoute, type Build, type RigHit,
@@ -107,8 +107,21 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
   return { eq, repair };
 }
 
-/** 0.8.0 P1: the plating a plated deck's hull holds on average in a fight (ANVIL BREECH, STEAM BREECH): half the cap. */
-export const MEAN_PLATE = 12;
+/** 0.8.0 P1: the plating a plated deck's hull holds on average in a fight (ANVIL BREECH): P1 set half the cap (12) for
+ *  every deck. 0.8.0 B1 M2 (oracle fda49d0c97fac446) measured it by hero (output-B1/kit/probes/platemean.test.ts: each
+ *  hero's par decks that plate, against the FURNACE par field, days 3-9, shot-weighted; tests/fixtures/b1-platemean.json):
+ *  every hit spends plating, so a BASTION's hull holds about 1.4 when its guns fire, a plating FURNACE, WEAVER or FOUNDRY
+ *  deck far less. MEAN_PLATE_OTHER: the heroes with no par field (METRONOME, SIPHON), FURNACE's. */
+export const MEAN_PLATE: Readonly<Partial<Record<HeroId, number>>> = { bastion: 1.5, furnace: 0.5, weaver: 0.2, foundry: 0.6 };
+export const MEAN_PLATE_OTHER = 0.5;
+/** The plating a plated deck of `hero` holds on average when its guns fire (MEAN_PLATE). */
+export const meanPlate = (hero: HeroId): number => MEAN_PLATE[hero] ?? MEAN_PLATE_OTHER;
+/** 0.8.0 B1 M2 (measured as MEAN_PLATE): the share of a plated deck's shots fired while its hull holds plating, STEAM
+ *  BREECH's plated cadence (BASTION 37-47%; other plating decks 30-39%). */
+export const PLATED_SHARE = 0.4;
+/** 0.8.0 B1 M2 (N1's m4/breaker.md: 39-51% of THANE KARSK's PLATE BREAKER blows took a plating): the share of PLATE
+ *  BREAKER's blows on a plated deck that pay its big number; the rest pay its floor (G1's F1). */
+export const BREAKER_SHARE = 0.45;
 
 /** 0.8.0 P1 (E2, TWIN TRIGGER): the share of a turret's loads that pair: 1 with two feeds of one rate whose first loads
  *  land within the sync window (equal belts from factories that stamp together), or a FOUNDRY's blanks (fusions are
@@ -165,7 +178,8 @@ export interface DeckRating {
  * 0.6.2 TUNE-M, RULE JOIN PACE: a factory one of whose belts joins another belt makes its loads at JOIN_PACE of its rate
  * (deck.ts factoryPace), on every belt it feeds; a deck without joins rates exactly as before (x 1).
  */
-export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, fight = FIGHT_T, out?: RateOut): DeckRating {
+// 0.8.0 B1 M2: `breakerShare` (BREAKER_SHARE by default) lets a test read the rating's PLATE BREAKER term at other shares
+export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, fight = FIGHT_T, out?: RateOut, breakerShare = BREAKER_SHARE): DeckRating {
   const h = HEROES[b.hero];
   const hits = rigHits(b), claims = connectorClaims(b), occ = occupancy(b);
   const outs = new Map<number, number>(), pace = new Map<number, number>();
@@ -187,7 +201,12 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, starsOf(f)).factory : undefined;
     if (!f || !spec) return;
     const interval = f.def === "mimic" ? (ITEMS[h.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
-    const est = walkRoute(b, ri, hits).estimate;
+    const walk = walkRoute(b, ri, hits), est = walk.estimate;
+    // 0.8.0 B1 M2 (G1's F1): on a deck that plates its hull the walk counts PLATE BREAKER's big number, which battles pay
+    // only on BREAKER_SHARE of its blows: the rating reads floor + BREAKER_SHARE x (big - floor)
+    const low = walk.timeline.some((row) => row.hits.some((th) => th.breaker)) && platedDeck(b)
+      ? walkRoute(b, ri, hits, { unplated: true }).estimate : undefined;
+    const dmg = low ? low.dmg + breakerShare * (est.dmg - low.dmg) : est.dmg;
     const x = hitExtras(b, hits, ri, fight, est.time);
     // 0.8.0 P1: a TWIN MOULD casts onto each of its belts at once (each belt a slug a cast, as a CRUCIBLE pours); a stoked
     // factory works x (1 + stoke); an ARMOR PRESS with a belt to a turret plates every `every` s (counted once)
@@ -197,7 +216,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       plating += (spec.plate.amount * stoked * (pace.get(r.factory) ?? 1)) / spec.plate.every;
     }
     const arrival = (est.copies * (spec.batch ?? 1) * (pace.get(r.factory) ?? 1) * stoked) / (Math.max(0.1, interval) * shared);
-    const eq = est.dmg + (spec.scrapFlat ?? 0) + BURN_TIME * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0);
+    const eq = dmg + (spec.scrapFlat ?? 0) + BURN_TIME * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0);
     const list = feeds.get(info.turret) ?? [];
     list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride, ...(stoked > 1 ? { factory: r.factory, base: arrival / stoked } : stoke.size ? { factory: r.factory } : {}) });
     feeds.set(info.turret, list);
@@ -239,8 +258,12 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     // battle.ts makeTurret: E1's long belt scales whatever turret it feeds, at that turret's stars
     let interval = td.fireInterval * (b.hero === "furnace" && (longest.get(t) ?? 0) >= 8 ? FURNACE_LONG_BELT : 1) * g.fireMul;
     if (core.spec.intervalMul) interval *= core.spec.intervalMul;
-    // 0.8.0 P1: STEAM BREECH fires at its plated rate on a deck that plates its hull, else at its bare one (cores.ts)
-    if (core.routine === "steam") interval *= (platedDeck(b) ? core.spec.steamPlated : core.spec.steamBare) ?? 1;
+    // 0.8.0 P1: STEAM BREECH fires at its plated rate on a deck that plates its hull, else at its bare one (cores.ts). 0.8.0
+    // B1 M2: a plated deck fires at the plated rate only on PLATED_SHARE of its shots (its hull holds plating), else bare
+    if (core.routine === "steam") {
+      const plated = core.spec.steamPlated ?? 1, bare = core.spec.steamBare ?? 1;
+      interval *= platedDeck(b) ? PLATED_SHARE * plated + (1 - PLATED_SHARE) * bare : bare;
+    }
     const cap = g.perShot / interval;
     // 0.8.0 P1 (STOKER's cap, as Battle.stokedPace): a stoke never feeds a turret past its pace (SHARED_HEADROOM of it
     // kept free when several factories share it); the stoked feeds give their extra back, never below unstoked
@@ -275,7 +298,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     let eq = fs.reduce((s, f, i) => s + flows[i] * f.eq * left(f), 0) / inflow;
     if (g.longRideFlat) eq += g.longRideFlat * fs.reduce((s, f, i) => s + (f.ride >= g.longRideMin ? flows[i] * left(f) : 0), 0) / inflow;
     // 0.8.0 P1: ANVIL BREECH's flat on each shot, and its per-plating damage at MEAN_PLATE on a deck that plates its hull
-    if (core.routine === "anvil") eq += (core.spec.anvilFlat ?? 0) + (core.spec.perPlate ?? 0) * (platedDeck(b) ? MEAN_PLATE : 0);
+    if (core.routine === "anvil") eq += (core.spec.anvilFlat ?? 0) + (core.spec.perPlate ?? 0) * (platedDeck(b) ? meanPlate(b.hero) : 0);
     let mult = 1 + (g.finisher ? g.finisher / (td.window + g.window) : 0);
     // 0.8.0 P1: ANVIL and STEAM BREECH are computed above, so they take no NOMINAL credit; TWIN TRIGGER pays its pair
     // bonus on the turret's share of paired loads (pairShare; its shorter load time is in `start`)

@@ -5,9 +5,12 @@
 // 2. The race reference decks keep their mirrored rigs (src/sim/races/refBuilds.ts STEPS): two 1-star copies merge
 //    (0.6.1a), so each mirror is another part on its own belt; every rig works a belt; no CALIBRATION on a gun that
 //    waits for its loads (FOUNDRY's, SIPHON's: VERIFIED-I1 call 2).
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { BREAKER_SHARE, FIGHT_T, MEAN_PLATE, MEAN_PLATE_OTHER, PLATED_SHARE, RATING_CURVE, meanPlate, rateDeck } from "../src/sim/deckRating";
 import { ITEMS } from "../src/sim/content";
-import { cloneBuild, itemByUid, key as K, rigHits, type Build } from "../src/sim/deck";
+import { cloneBuild, itemByUid, key as K, platedDeck, rigHits, walkRoute, type Build } from "../src/sim/deck";
 import { playerRun, PLAYER_DAYS, syncKeeper } from "../src/sim/harness/player";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { raceRefBuild } from "../src/sim/races/refBuilds";
@@ -68,6 +71,53 @@ describe("B1 M1: the par player keeps FOUNDRY's belts in sync", () => {
       })));
     }
     expect(speed).toBeGreaterThan(0);
+  });
+});
+
+describe("B1 M2: the par player's rating reads plating as battles hold it (deckRating.ts; oracle fda49d0c97fac446)", () => {
+  // the measurement the constants come from: each hero's plating par decks against the FURNACE par field, days 3-9,
+  // the hull's plating at each of the side's own shots (output-B1/kit/probes/platemean.test.ts); THANE KARSK's PLATE
+  // BREAKER blows that took a plating (N1)
+  const M = JSON.parse(readFileSync(fileURLToPath(new URL("./fixtures/b1-platemean.json", import.meta.url)), "utf8")) as {
+    heroes: Record<string, { shots: number; mean: number; share: number }>; breaker: { blowsTakingPlating: [number, number] };
+  };
+
+  it("MEAN_PLATE is each hero's own measured plating at a shot (within 0.3); P1's half-the-cap 12 is gone", () => {
+    for (const h of ["bastion", "furnace", "weaver", "foundry"] as const) {
+      expect(M.heroes[h].shots, h).toBeGreaterThan(1000);
+      expect(Math.abs(meanPlate(h) - M.heroes[h].mean), `${h}: ${meanPlate(h)} vs measured ${M.heroes[h].mean}`).toBeLessThanOrEqual(0.3);
+      expect(MEAN_PLATE[h], h).toBe(meanPlate(h));
+    }
+    expect(meanPlate("metronome")).toBe(MEAN_PLATE_OTHER);
+    expect(MEAN_PLATE_OTHER).toBe(meanPlate("furnace"));
+  });
+
+  it("PLATED_SHARE is every hero's measured share of shots fired while plated (within 0.1); BREAKER_SHARE is N1's 39-51%", () => {
+    for (const h of ["bastion", "furnace", "weaver", "foundry"] as const) {
+      expect(Math.abs(PLATED_SHARE - M.heroes[h].share), `${h}: measured ${M.heroes[h].share}`).toBeLessThanOrEqual(0.1);
+    }
+    const [lo, hi] = M.breaker.blowsTakingPlating;
+    expect(BREAKER_SHARE).toBeGreaterThanOrEqual(lo);
+    expect(BREAKER_SHARE).toBeLessThanOrEqual(hi);
+  });
+
+  it("the rating prices a PLATE BREAKER on a plated deck between its floor and its big number, at BREAKER_SHARE", () => {
+    // BASTION's start deck (it plates) with a PLATE BREAKER beside its bulwark belt, against the same deck whose breaker
+    // walk is forced to the floor and to the big number by a deck that never plates (FURNACE's), as the walk's two passes
+    const withBreaker = (b: Build): Build => {
+      const d = cloneBuild(b);
+      d.items.push({ uid: 9101, def: "platebreaker", x: 3, y: 2 });
+      return d;
+    };
+    const bas = withBreaker(heroStartBuild("bastion", 1));
+    expect(platedDeck(bas)).toBe(true);
+    const lo = walkRoute(bas, 0, undefined, { unplated: true }).estimate.dmg, hi = walkRoute(bas, 0).estimate.dmg;
+    expect(hi - lo).toBeCloseTo(3, 9); // +4 against +1 at 1 star
+    // the rated damage per payload on that belt: rateDeck's offense with the breaker, against offense with the walk's
+    // big number counted in full (BREAKER_SHARE 1) and with its floor (0): the share it reads is BREAKER_SHARE
+    const off = (share: number) => rateDeck(bas, RATING_CURVE, FIGHT_T, undefined, share).offense;
+    const r = (off(BREAKER_SHARE) - off(0)) / (off(1) - off(0));
+    expect(r).toBeCloseTo(BREAKER_SHARE, 6);
   });
 });
 
