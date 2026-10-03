@@ -6,6 +6,9 @@ import { ITEMS } from "../src/sim/content";
 import { key as K, walkRoute, type Build } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
 import { abilityText, gist, nextStarText } from "../src/ui/abilityText";
+import { HEROES } from "../src/sim/content";
+import { heroStartBuild } from "../src/sim/heroBuilds";
+import { FUSE_MULT } from "../src/sim/races/foundry";
 
 const SEED = 4242;
 /** A FURNACE deck: the Kiln at (4,6) on a straight 6-tile belt up column 4 into the heavy gun, hull lifted. */
@@ -65,5 +68,26 @@ describe("B1 M2: ASSEMBLY LINE ★2/★3 pour heavier slugs at the 1-star pace (
     expect(slugs.length).toBeGreaterThan(0);
     for (const p of slugs) expect(p.base).toBe(6);
     expect(ITEMS.assembly.levels![3]!.perk).toBe("HOT START");
+  });
+});
+
+describe("B1 M2: FOUNDRY and BASTION into band (the four-hero cross table, output-B1/m2/r24-bh215.md; oracle 2e5a00525c876f07)", () => {
+  it("FOUNDRY fuses two blanks into 1.15 times their damage and starts with 225 hull; BASTION starts with 215", () => {
+    expect(FUSE_MULT).toBe(1.15);
+    expect([HEROES.foundry.hull, HEROES.bastion.hull]).toEqual([225, 215]);
+    // in a battle: each side's hull is its hero's (plus the deck's hull bonus)
+    const f = heroStartBuild("foundry", 1), b = heroStartBuild("bastion", 1);
+    const bt = new Battle(f, b, SEED);
+    expect([bt.sides[0].hull.max, bt.sides[1].hull.max]).toEqual([225 + f.hullBonus, 215 + b.hullBonus]);
+    // and FOUNDRY's start deck fuses its twin pour: each shot is a fused alloy slug of 1.15 x (3.5 + 3.5) = 8.05, or a
+    // lone blank of 3.5
+    const dmg: number[] = [];
+    for (let i = 0; i < 60 * 20 && !bt.over; i++) {
+      bt.step();
+      for (const e of bt.drainEvents()) if (e.type === "fire" && e.side === 0) dmg.push(e.dmg);
+    }
+    expect(bt.sides[0].race!.foundry.fusions).toBeGreaterThan(2);
+    expect(dmg.filter((d) => Math.abs(d - 8.05) < 1e-9).length).toBeGreaterThan(2);
+    for (const d of dmg) expect([8.05, 3.5].some((x) => Math.abs(d - x) < 1e-9), `shot ${d}`).toBe(true);
   });
 });
