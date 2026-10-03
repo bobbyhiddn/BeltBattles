@@ -19,7 +19,7 @@ import { computeView } from "../src/core/io";
 import { UI } from "../src/ui/ui";
 import { TAP_CSS } from "../src/ui/tap";
 import { PANEL_STEP, PORT_BAND, buildLayout, buildScale, panelArea, panelRect, type BuildLayout, type Sel } from "../src/screens/build/layout";
-import { detailsPlan, keptWhole, visibleLines } from "../src/screens/build/inspector";
+import { detailsPlan, keptWhole, overhang, visibleLines } from "../src/screens/build/inspector";
 import { beltXSide, placeBeltX } from "../src/screens/build/beltx";
 import { SHOWCASE } from "../src/tooling";
 import { heroStartBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
@@ -112,6 +112,24 @@ describe("shoptap2: the panel's rect on every portrait phone view", () => {
     panelArea(land, OFFER, TOUCH, () => { asked++; return true; });
     panelArea(s, OFFER, { ...TOUCH, busy: true }, () => { asked++; return true; });
     expect(asked, "the panel is never planned twice for the mouse, landscape or a drag").toBe(0);
+  });
+
+  it("the grown panel's overhang (what a press goes through to): the parts above and below the band, nothing on a band-sized panel", () => {
+    for (const [w, h] of [[390, 664], [390, 700], [430, 739], [390, 844]] as const) {
+      const { L } = view(w, h, 3), b = L.info;
+      for (const grow of ["up", "down"] as const) {
+        const r = panelRect(L, grow), o = overhang(r, b), tag = `${w}x${h} ${grow}`;
+        expect(o.reduce((s, q) => s + q.h, 0) + Math.min(b.h, r.h), tag).toBe(r.h); // the overhang and the band make the panel
+        for (const q of o) {
+          expect(within(q, r), tag).toBe(true);
+          expect(hit(q, b), `${tag}: never over the band`).toBe(false);
+        }
+        if (b.h >= PORT_BAND) expect(o, tag).toEqual([]);
+        else expect(o, tag).toEqual(grow === "down" ? [{ x: r.x, y: b.y + b.h, w: r.w, h: r.h - b.h }] : [{ x: r.x, y: r.y, w: r.w, h: r.h - b.h }]);
+      }
+    }
+    // a panel clamped under the top bar can overhang on both sides of a band
+    expect(overhang({ x: 3, y: 15, w: 161, h: 75 }, { x: 3, y: 40, w: 161, h: 10 })).toEqual([{ x: 3, y: 15, w: 161, h: 25 }, { x: 3, y: 50, w: 161, h: 40 }]);
   });
 
   it("a panel whose kept text doesn't fit PORT_BAND grows PANEL_STEP at a time until it does, at most to the room there is", () => {

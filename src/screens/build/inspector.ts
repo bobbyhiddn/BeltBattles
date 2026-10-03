@@ -1444,7 +1444,21 @@ function touchTap(ctx: Ctx): number {
   return ctx.touch ? tapPx(ctx.game.view) : 0;
 }
 
-export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe, note: string | null = null): void {
+/** shoptap2: the parts of a panel `r` grown past `band` (above it and below it). Pure (tests). */
+export function overhang(r: Rect, band: Rect): Rect[] {
+  const top = Math.min(r.y + r.h, band.y) - r.y, bot = r.y + r.h - Math.max(r.y, band.y + band.h);
+  return [
+    ...(top > 0 ? [{ x: r.x, y: r.y, w: r.w, h: top }] : []),
+    ...(bot > 0 ? [{ x: r.x, y: r.y + r.h - bot, w: r.w, h: bot }] : []),
+  ];
+}
+
+/** Draw the details panel for `sel` (or the hovered offer) in `area`, else the idle panel. shoptap2: `through`, a finger's
+ *  panel grown past the band (layout.ts panelArea): over the band it takes a press as the band always did; over what it
+ *  covers (the bow, the shop) a press goes on to the build screen (`through.press`), as if the panel weren't there, so a
+ *  tap there reads what is under it and a drag lifts it; its buttons, registered after, still take theirs. */
+export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe, note: string | null = null,
+  through?: { band: Rect; press: (x: number, y: number) => void }): void {
   if (area.h < 14) return;
   const column = area.h >= 70;
   const d = detailsPlan(ctx, sel, hover, area);
@@ -1453,6 +1467,7 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   const r = plan.r;
   panel(g, r, "dark");
   ctx.game.ui.add({ id: "details", r, block: true });
+  if (through) for (const q of overhang(r, through.band)) ctx.game.ui.add({ id: "details-over", r: q, onDown: through.press });
   rect(g, r.x + 4, r.y + 4, 16, 16, C.ink);
   rect(g, r.x + 5, r.y + 5, 14, 14, C.slate0);
   if (sp.icon) g.drawImage(sp.icon, r.x + 12 - Math.floor(sp.icon.width / 2), r.y + 12 - Math.floor(sp.icon.height / 2));

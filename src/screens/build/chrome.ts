@@ -181,8 +181,11 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     drawDetails(g, s, s.sel, s.hover, L.info, s.foe, s.note());
   } else if (hasDetails(s, s.sel, s.hover) || !L.foe) {
     // a selection or hover uses the whole band. shoptap2 (REQ-BFG-034, -035): after a finger's tap, where the band is
-    // shorter than a panel needs (a phone browser's toolbars take part of the screen), the panel grows (BuildScreen.panelArea)
-    drawDetails(g, s, s.sel, s.hover, s.panelArea(), s.foe, s.note());
+    // shorter than a panel needs (a phone browser's toolbars take part of the screen), the panel grows (BuildScreen.panelArea);
+    // a press on what it covers goes on to the screen beneath (a tap reads the part or card under it, a drag lifts it)
+    const area = s.panelArea();
+    const through = area !== L.info ? { band: L.info, press: (x: number, y: number) => s.down(x, y, s.game.ui.pointer.kind) } : undefined;
+    drawDetails(g, s, s.sel, s.hover, area, s.foe, s.note(), through);
   } else {
     // idle portrait band: hero card over the NEXT BATTLE panel
     drawFoe(g, s.foe, L.foe, s.note());
