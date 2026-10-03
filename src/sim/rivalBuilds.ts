@@ -372,14 +372,18 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     ],
   },
   // SHIELD WALL: a wall of plate on the bulwark belt, broken into damage. Synergy: a PLATE BREAKER on the bulwark belt
-  // from day 5 (each payload takes a plating for 4 more damage) and an ARMOR PRESS into connector 5 from day 8 (plating
-  // every 4 seconds); at good luck a SHIELD WALL from day 8 (oracle 94b9559fbb7da299 (10): his one good-luck-only
-  // synergy part; BASTION's ordinary epic+ cap of 2 holds the other two). A PLATE ROLLER and a BRACE FRAME (days 1-2), a
-  // STEAM BREECH and a SPALL CATCHER (day 3) work the plating; a twin gauge, tempers, a brush, grease, a coil and venom
-  // fill in. Good luck: the temper's second star on day 2, a plate on day 6, a pincer on day 7. (Synergy check: a content
-  // miss for B1, oracle 043ce6256cb5ccf9: a same-price SORTING arm beats the PLATE BREAKER.)
+  // from day 5 (each payload takes a plating for 4 more damage) and an ARMOR PRESS into connector 5 from day 8 (3 plating
+  // every 3 seconds); at good luck a SHIELD WALL from day 8 (oracle 94b9559fbb7da299 (10): his one good-luck-only
+  // synergy part; BASTION's ordinary epic+ cap of 2 holds the other two); and the PLATE ROLLER (day 1) and SPALL CATCHER
+  // (day 3) that build the plating. A BRACE FRAME (day 2) and a STEAM BREECH (day 3) work the plating; a twin gauge,
+  // tempers, a brush, grease, a coil and venom fill in. Good luck: the temper's second star on day 2, a plate on day 6, a
+  // pincer on day 7. The synergy list is D1's three in D1's order, then the PLATE ROLLER and SPALL CATCHER (0.8.0 B1,
+  // oracles ae44c7db19da0dc0 and cf201b9918116576): D1 built his list from his good-luck road deck, but the synergy check
+  // runs on his ordinary-luck stand-in. There BASTION's epic cap of 1 on days 5-7 and the roadCap guard allow only the
+  // PLATE BREAKER by day 5, and the deck builds its plating with these two parts, as GRIMHOLD's and THISTLEMAIL's lists
+  // name them.
   karsk: {
-    hero: "bastion", crates: 0, synergy: ["shieldwall", "platebreaker", "armorpress"],
+    hero: "bastion", crates: 0, synergy: ["shieldwall", "platebreaker", "armorpress", "plateroller", "spallcatcher"],
     factories: [F("wardworks", 4, 6, [4, 5, "U5"])],
     upgrades: [
       G(1, "plateroller", 3, 0, 1), G(1, "twingauge", 3, 3, 1), G(2, "braceframe", 3, 1), G(2, "temper", 5, 3, 3),
