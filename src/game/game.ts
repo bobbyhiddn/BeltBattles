@@ -6,7 +6,7 @@ import { Audio, type Sfx } from "../audio/audio";
 import { applyView, bindInput, computeView, type InputSink, type PointerKind, type View } from "../core/io";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
-import { drawText, textWidth } from "../render/font";
+import { drawText, textWidth, wrap } from "../render/font";
 import { button, panel, UI, type Rect } from "../ui/ui";
 import type { Run } from "./run";
 import { nextFuseToast } from "./save";
@@ -38,6 +38,13 @@ interface Toast {
 }
 
 const PERF_N = 600;
+
+/** shoptap: how a toast fits a screen `W` logical px wide: the 5x7 face on one line wherever its text fits the toast's
+ *  box (as every toast was drawn before), else the 3x5 face on one line, else on two (wrapped). Pure (tests). */
+export function toastFit(text: string, W: number): { font: "5" | "3"; lines: string[] } {
+  if (textWidth(text) <= W - 4) return { font: "5", lines: [text] };
+  return { font: "3", lines: textWidth(text, "3") > W - 8 ? wrap(text, W - 8, "3").slice(0, 2) : [text] };
+}
 
 export class Game implements InputSink {
   readonly canvas: HTMLCanvasElement;
@@ -196,11 +203,23 @@ export class Game implements InputSink {
   private drawToast(g: G): void {
     const m = this.toastMsg;
     if (!m) return;
-    const w = Math.min(this.W - 4, textWidth(m.text) + 14);
-    const x = Math.round(this.W / 2 - w / 2);
     const y = Math.round(this.screen.toastY ?? this.H / 2 - 8);
     const lift = Math.max(0, Math.round((m.t - 1.45) * 40));
     if (m.t < 0.25 && Math.floor(m.t * 20) % 2) return;
+    // shoptap: a toast wider than the screen in the 5x7 face (a long one on a portrait phone was cut at both ends) takes
+    // the 3x5 face, on two lines where one won't hold it, growing upward from the one-line toast's bottom. Every toast
+    // that fits is drawn exactly as before
+    const fit = toastFit(m.text, this.W);
+    if (fit.font === "3") {
+      const lines = fit.lines;
+      const w = Math.min(this.W - 4, Math.max(...lines.map((l) => textWidth(l, "3"))) + 14), h = 6 + lines.length * 7;
+      const top = y + 13 - h + lift;
+      panel(g, { x: Math.round(this.W / 2 - w / 2), y: top, w, h }, "glass");
+      lines.forEach((ln, i) => drawText(g, ln, this.W / 2, top + 4 + i * 7, m.color, { font: "3", align: "center" }));
+      return;
+    }
+    const w = Math.min(this.W - 4, textWidth(m.text) + 14);
+    const x = Math.round(this.W / 2 - w / 2);
     panel(g, { x, y: y + lift, w, h: 13 }, "glass");
     drawText(g, m.text, this.W / 2, y + 3 + lift, m.color, { align: "center" });
   }
