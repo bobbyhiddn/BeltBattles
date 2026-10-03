@@ -1183,6 +1183,18 @@ export const START_LIVES = 5; // tunable by the balance pass
 export const START_GOLD = 8;
 export const REROLL_COST = 2;
 export const OFFERS = 5;
+/**
+ * bb-0.8.3 (REQ-BFG-042 D9): a hero's own signature factory in its own caravan (run.ts rollShop, on its own stream after
+ * the shared roll): from `day` on, on `chance` of the rolls (a reroll is a roll), a copy at `price[def]` (the caravan's
+ * discount applies). Start (the brief's): the dearest bought factory's price (MIMIC FORGE 11), day 3, 1 roll in 3. The
+ * ItemDef keeps price 0: the starting copy was free and is worth nothing (stars.ts partsValue counts bought copies at
+ * this price), and no shared pool or price-ranked list sees a signature factory. validate.ts refuses a bought copy
+ * before `day`.
+ */
+export const SIGNATURE_OFFER: { readonly day: number; readonly chance: number; readonly price: Readonly<Record<string, number>> } = {
+  day: 3, chance: 1 / 3,
+  price: { kiln: 11, loom: 11, crucible: 11, wardworks: 11, clockworks: 11, sump: 11 },
+};
 
 /** Gold after a dusk fight, indexed by day (0.5.0's round curve). */
 export function incomeFor(day: number, won: boolean): number {

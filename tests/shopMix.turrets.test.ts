@@ -10,6 +10,7 @@ import { ITEMS, RUN_DAYS, type HeroId } from "../src/sim/content";
 import { turretList } from "../src/sim/deck";
 import { gainModule } from "../src/game/fuse";
 import { installFromCargo, newRun, rollShop, storeTurret, type Run } from "../src/game/run";
+import { ownSignatureCard, sharedDef, sharedWagons } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D9): REQ-BFG-021 narrowed
 
 const N = 4000; // seeded caravans per day
 const FAMILIES = ["rig", "factory", "core", "mod", "supply", "turret"] as const;
@@ -37,7 +38,8 @@ function roll(hero: HeroId, seeds: number, visit: (day: number, run: Run) => voi
 /** Every caravan of `seeds` seeds x days 1-10, as text (merchant, def, price per offer). */
 function caravans(hero: HeroId, seeds: number, setup?: (run: Run) => void): string[] {
   const out: string[] = [];
-  roll(hero, seeds, (day, run) => out.push(`${day} ${JSON.stringify(run.shop.wagons)}`), setup);
+  // bb-0.8.3 (REQ-BFG-042 D9, REQ-BFG-021 narrowed): the hero's own signature card is SIGNATURE_CARD
+  roll(hero, seeds, (day, run) => out.push(`${day} ${JSON.stringify(sharedWagons(run.shop.wagons))}`), setup);
   return out;
 }
 

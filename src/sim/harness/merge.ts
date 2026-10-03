@@ -21,7 +21,7 @@ import { fuseAll, gainModule, mergePreview, unfusedInRun, type FuseStep, type Fu
 import type { InvItem, Run } from "../../game/run";
 
 export type { InvItem };
-import { FUSE_MAX, fusible, starsOf, valueOf } from "../stars";
+import { copyValue, FUSE_MAX, fusible, starsOf, valueOf } from "../stars";
 
 /** A Run whose only live fields are `build`, `inventory`, `nextUid` and `fuseFx`. */
 function wrap(b: Build, nextUid: number, inventory: InvItem[] = []): Run {
@@ -79,7 +79,7 @@ export function fusibleCopies(b: Build): FusibleCopy[] {
 
 /** 0.6.1b: the gold held in cargo (what was paid for it: valueOf at its stars). It doesn't fight. */
 export function cargoValue(cargo: readonly InvItem[]): number {
-  return cargo.reduce((s, i) => s + valueOf(i.def, starsOf(i)), 0);
+  return cargo.reduce((s, i) => s + copyValue(i.def, starsOf(i)), 0); // bb-0.8.3 (D9): a waiting signature copy was bought
 }
 
 /** 0.6.1b: the run-level fuse invariant (fuse.ts unfusedInRun) over the deck AND its cargo. */

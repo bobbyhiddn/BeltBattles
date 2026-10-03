@@ -4,7 +4,7 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import {
-  FAMILY_WEIGHT, HEROES, ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES,
+  FAMILY_WEIGHT, HEROES, ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, SIGNATURE_OFFER, START_GOLD, START_LIVES,
   itemsSoldBy, rarityWeights, rigShape, sellValue,
   type HeroId, type ItemDef, type MerchantId, type Rarity,
 } from "../sim/content";
@@ -15,7 +15,7 @@ import type { RaceReadout } from "./raceReadout"; // 0.8.0 H1 M3
 import type { EventId, EventState } from "./eventDefs";
 import type { RivalId } from "../sim/rivals";
 import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordResult } from "./roadTypes";
-import { fusible, isSignatureFactory, starField, starsOf } from "../sim/stars";
+import { FUSE_MAX, fusible, isSignatureFactory, signatureOf, starField, starsOf } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
@@ -328,6 +328,7 @@ export function rollShop(run: Run): void {
     const d = rng.weighted(choices, (c) => FAMILY_WEIGHT[c.kind]);
     wagon.offers.push({ def: d.id, price: priceOf(d), sold: false });
   }
+  let familiar: { wagon: number; slot: number } | null = null; // bb-0.8.3 (D9): the card a signature offer never replaces
   if (rng.chance(familiarChance(run.day))) {
     const candidates = familiarCandidates(run, merchants);
     if (candidates.length) {
@@ -337,9 +338,41 @@ export function rollShop(run: Run): void {
       const same = w.offers.findIndex((o) => o.def === pick.def);
       if (same >= 0) slotIdx = same; // review-061 F3: never two offers of one def in a wagon
       w.offers[slotIdx] = { def: pick.def, price: priceOf(ITEMS[pick.def]), sold: false };
+      familiar = { wagon: wagons.indexOf(w), slot: slotIdx };
     }
   }
+  signatureOffer(run, wagons, familiar, priceOf); // bb-0.8.3 (REQ-BFG-042 D9): after the shared roll, on its own stream
   run.shop.wagons = wagons.filter((w) => w.offers.length > 0); // 0.6.1r N5: an empty wagon doesn't ride
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D9): the hero's own signature factory in its own caravan, and in no other. The shared roll
+ * (rollShop above: the wagons, the five shared slots and the familiar) stays hero-blind and is drawn exactly as before;
+ * this is decided afterwards on its own stream, hashSeed(seed, "signature", day, rerolls), so runs and ghosts stay
+ * deterministic. From SIGNATURE_OFFER.day, on SIGNATURE_OFFER.chance of the rolls (a reroll is a roll); never while the
+ * run holds its factory at ★3 only (that copy could never merge: no dead offers). The card takes an empty slot when
+ * the caravan has one (in its last wagon), else it replaces one shared card that isn't the familiar, chosen on its own
+ * stream. The caravan's discount applies to it as to any offer. Its def has no merchant, so no shared pool sees it.
+ */
+function signatureOffer(run: Run, wagons: Wagon[], familiar: { wagon: number; slot: number } | null, priceOf: (d: { price: number }) => number): void {
+  const def = signatureOf(run.build.hero);
+  if (run.day < SIGNATURE_OFFER.day || !ITEMS[def]) return;
+  const held = starLevelsOwned(run, def);
+  if (held.size > 0 && [...held].every((s) => s >= FUSE_MAX)) return;
+  const rng = new Rng(hashSeed(run.seed, "signature", run.day, run.shop.rerolls));
+  if (!rng.chance(SIGNATURE_OFFER.chance)) return;
+  const offer: Offer = { def, price: priceOf({ price: SIGNATURE_OFFER.price[def] ?? 0 }), sold: false };
+  const riding = wagons.filter((w) => w.offers.length > 0);
+  if (!riding.length) return;
+  if (riding.reduce((n, w) => n + w.offers.length, 0) < OFFERS) {
+    riding[riding.length - 1].offers.push(offer);
+    return;
+  }
+  const cards: [number, number][] = [];
+  wagons.forEach((w, wi) => w.offers.forEach((_, si) => { if (!(familiar && familiar.wagon === wi && familiar.slot === si)) cards.push([wi, si]); }));
+  if (!cards.length) return;
+  const [wi, si] = cards[rng.int(cards.length)];
+  wagons[wi].offers[si] = offer;
 }
 
 export type ShopBadge = { kind: "merge"; toStars: number } | { kind: "wait" } | { kind: "max" };

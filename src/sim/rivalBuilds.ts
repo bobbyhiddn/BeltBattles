@@ -26,7 +26,7 @@ import { HEROES, ITEMS, type HeroId } from "./content";
 import { installTurret, key, rotField, setTurretList, turretList, turretsCost, type Build, type ModPlacement, type Placed } from "./deck";
 import { warlordHull } from "./ai";
 import { migrateDeck } from "./beltside";
-import { FUSE_MAX, starsOf, valueOf } from "./stars";
+import { FUSE_MAX, partsValue, starsOf } from "./stars";
 import type { RivalId } from "./rivals";
 
 /** Belt cells from (x, y) following moves such as "L3U2" (U = toward the turrets, row 0). */
@@ -508,7 +508,8 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   // 0.6.2 BELTSIDE: a load boundary (D3). The plans place rigs natively (M4), so the migration is a no-op
   // here, kept as the safety net for a plan that writes a rig on a belt tile. The value counts the deck after it.
   const build: Build = migrateDeck(b, "preset:rival");
-  const value = [...build.items, ...build.mods].reduce((n, p) => n + valueOf(p.def, starsOf(p)), 0) + turretsCost(build)
+  // bb-0.8.3 (REQ-BFG-042 D9): the hero's own signature counts its bought copies only (stars.ts partsValue)
+  const value = partsValue(build.items, build.hero) + partsValue(build.mods) + turretsCost(build)
     + crates * ITEMS.beltcrate.price + plating * ITEMS.plating.price;
   return { build, crates, plating, value };
 }

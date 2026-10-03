@@ -17,6 +17,7 @@ import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { RACE_AMMO, RACE_HEROES, RACE_ITEMS } from "../src/sim/races/data";
 import { RIVALS, RIVAL_IDS, rivalBuild, rivalDays } from "../src/sim/rivals";
 import { STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
+import { ownSignatureCard } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D9)
 
 const RACE_ITEM = new Set(Object.keys(RACE_ITEMS).filter((id) => RACE_ITEMS[id].kind === "factory"));
 const RACE_AMMO_KIND = new Set<string>(Object.keys(RACE_AMMO));
@@ -51,7 +52,8 @@ describe("race heroes and signature factories remain dormant while timing gear i
     }
   });
 
-  it("the caravan shop never offers a race signature factory: 200 seeds x days 1-10", () => {
+  // bb-0.8.3 (REQ-BFG-042 D9): 0.8.0's "never offers a race signature factory": a hero's own is offered in its own caravan
+  it("the caravan shop never offers another hero's race signature factory (its own from day 3): 200 seeds x days 1-10", () => {
     for (const hero of PLAYABLE_HEROES) {
       for (let seed = 1; seed <= 200; seed++) {
         for (const day of DAYS) {
@@ -63,7 +65,9 @@ describe("race heroes and signature factories remain dormant while timing gear i
             if (r) expect(reroll(run)).toBe(true);
             const offers = run.shop.wagons.flatMap((w) => w.offers.map((o) => o.def));
             expect(offers).toHaveLength(OFFERS);
-            expect(offers.filter((d) => RACE_ITEM.has(d)), `${hero} s${seed} d${day} r${r}`).toEqual([]);
+            // bb-0.8.3 (REQ-BFG-042 D9): a hero's own signature factory is offered in its own caravan (FOUNDRY's CRUCIBLE);
+            // no other race item, and never another hero's signature factory
+            expect(offers.filter((d) => RACE_ITEM.has(d) && !ownSignatureCard(hero, d)), `${hero} s${seed} d${day} r${r}`).toEqual([]);
           }
         }
       }

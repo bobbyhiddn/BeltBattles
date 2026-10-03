@@ -12,14 +12,14 @@
 // Sales refund at most half the price and rerolls only spend, so no sequence of shop
 // actions can put more purchase value on the deck than the gold ever received.
 
-import { GRID, HEROES, ITEMS, RULES_VERSION, START_GOLD, incomeFor, isWave3, wave3Live, type ItemDef } from "../sim/content";
+import { GRID, HEROES, ITEMS, RULES_VERSION, SIGNATURE_OFFER, START_GOLD, incomeFor, isWave3, wave3Live, type ItemDef } from "../sim/content";
 import {
   canPlaceItem, connectorClaims, dirBetween, adjacentToFactory, footprint, hullSlots, occupancy,
   routeInfo, routeWellFormed, turretSlots, turretsCost, type Build,
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
-import { FUSE_MAX, fusible, merges, outputsAt, starsOf, valueOf } from "../sim/stars";
+import { FUSE_MAX, fusible, merges, outputsAt, partsValue, starsOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
 
@@ -79,9 +79,10 @@ export interface BuildCost {
 export function buildCost(b: Build): BuildCost {
   const h = HEROES[b.hero];
   const crate = ITEMS.beltcrate, plate = ITEMS.plating;
-  // 0.6.1a: value = price x 2^(stars - 1) (stars.ts valueOf; unknown ids 0), so a merged module costs exactly its copies
-  const items = b.items.reduce((s, p) => s + valueOf(p.def, starsOf(p)), 0);
-  const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
+  // 0.6.1a: value = price x 2^(stars - 1) (stars.ts valueOf; unknown ids 0), so a merged module costs exactly its copies.
+  // bb-0.8.3 (REQ-BFG-042 D9): the hero's own signature factory counts its bought copies only (stars.ts partsValue)
+  const items = partsValue(b.items, b.hero);
+  const mods = partsValue(b.mods);
   const crates = Math.max(0, Math.ceil((b.beltCap - h.belt) / crate.supply!.belt!));
   const plates = Math.max(0, Math.ceil(b.hullBonus / plate.supply!.hull!));
   const total = items + mods + crates * crate.price + plates * plate.price;
@@ -228,18 +229,28 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     else if (ITEMS[p.def].kind !== "gate") errors.push(`item: uid ${p.uid} ${ITEMS[p.def].name} can't have a rot (only rigs turn)`);
   }
 
-  // purchasability and the signature factory
-  let own = 0;
+  // purchasability and the signature factory. bb-0.8.3 (REQ-BFG-042 D9): the hero's own factory levels up by merging the
+  // copies its own caravan offers (from SIGNATURE_OFFER.day), so the deck carries it once, at ★1-3, or as a ★2 with a
+  // ★1 waiting beside it (a ★2 and a new copy don't merge); another hero's signature is refused as before
+  const own: number[] = [];
   for (const p of b.items) {
     const d = ITEMS[p.def];
     if (SIGNATURES.has(d.id)) {
-      if (d.id === h.factory) own++;
+      if (d.id === h.factory) own.push(starsOf(p));
       else errors.push(`item: uid ${p.uid} ${d.name} is another hero's signature factory`);
     } else if (!d.merchant) {
       errors.push(`item: uid ${p.uid} ${d.name} is not sold by any merchant`);
     }
   }
-  if (own !== 1) errors.push(`item: the deck must carry exactly one ${ITEMS[h.factory].name} (found ${own})`);
+  const sig = ITEMS[h.factory].name, mine = [...own].sort((x, y) => x - y);
+  if (!mine.length) errors.push(`item: the deck must carry its ${sig} (found 0)`);
+  // two ★1 or two ★2 are an unmerged pair (unfusedPairs says so); any other pair but a ★2 and a ★1, or a third copy, can't be bought
+  else if (mine.length > 2 || (mine.length === 2 && mine.join() !== "1,2" && !(mine[0] === mine[1] && mine[0] < FUSE_MAX))) {
+    errors.push(`item: the deck carries ${mine.length} ${sig} copies (★${mine.join(", ★")}); at most a ★2 with a ★1 waiting beside it`);
+  }
+  if (mine.length && mine.reduce((n, s) => n + 2 ** (s - 1), 0) > 1 && day < SIGNATURE_OFFER.day) {
+    errors.push(`item: ${sig} ★${mine.join(", ★")} on day ${day}: the caravan offers ${sig} copies from day ${SIGNATURE_OFFER.day}`);
+  }
 
   // placement: deck equipment only, on the deck, no overlaps (canPlaceItem = the editor's rule). 0.6.2
   // BELTSIDE (D2, R1): canPlaceItem now refuses a rig on a belt tile too (BELT IN THE WAY), and routeProblem

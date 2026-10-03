@@ -28,6 +28,18 @@ export const BELT_POLICY: Readonly<Record<HeroId, BeltPolicy>> = {
   furnace: "today", weaver: "today", foundry: "today", bastion: "today", metronome: "today", siphon: "today",
 };
 
+/**
+ * bb-0.8.3 (REQ-BFG-042 D7, D9): does `hero`'s par player buy its own signature factory's copy when its caravan offers
+ * one (judged by its value logic, as any part that merges: a copy that merges, or a copy placed with its belts beside
+ * a ★2)? M2 measures it on against off; until then off, and the bots ignore the card (player.ts candidates).
+ */
+export const SIG_BUY: Readonly<Record<HeroId, boolean>> = {
+  furnace: false, weaver: false, foundry: false, bastion: false, metronome: false, siphon: false,
+};
+
+/** Does `hero`'s par player buy its own signature copy (SIG_BUY)? */
+export const sigBuys = (hero: HeroId): boolean => SIG_BUY[hero] ?? false;
+
 /** The policy of `hero`'s bots. */
 export const beltPolicy = (hero: HeroId): BeltPolicy => BELT_POLICY[hero] ?? "today";
 

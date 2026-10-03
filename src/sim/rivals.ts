@@ -12,7 +12,7 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type Faction, type HeroId } from "./content";
-import { starsOf, valueOf } from "./stars";
+import { partsValue } from "./stars";
 import { turretsCost, type Build } from "./deck";
 import { warlordBuild, warlordHull } from "./ai";
 import { PLANS, planBuild, type Luck, type RivalLoadout } from "./rivalBuilds";
@@ -337,8 +337,9 @@ const priceOf = (id: string): number =>
  */
 export function deckCost(b: Build): DeckCost {
   // 0.6.1a: items and mods sum valueOf(def, stars) = price x 2^(stars - 1) (a merged module costs exactly its copies)
-  const items = b.items.reduce((s, p) => s + valueOf(p.def, starsOf(p)), 0);
-  const mods = b.mods.reduce((s, m) => s + valueOf(m.def, starsOf(m)), 0);
+  // bb-0.8.3 (REQ-BFG-042 D9): the hero's own signature counts its bought copies only (stars.ts partsValue)
+  const items = partsValue(b.items, b.hero);
+  const mods = partsValue(b.mods);
   const crates = Math.max(0, Math.ceil((b.beltCap - HEROES[b.hero].belt) / CRATE_BELT));
   const plates = Math.max(0, Math.ceil(b.hullBonus / PLATE_HULL));
   const total = items + mods + crates * ITEMS.beltcrate.price + plates * ITEMS.plating.price;

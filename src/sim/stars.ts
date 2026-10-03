@@ -3,7 +3,7 @@
 // (src/game/fuse.ts). A copy's `stars` field is optional everywhere (absent = 1 star), so old
 // saves, ghosts and fixtures need no rewrite; code never writes `stars: 1`.
 
-import { HEROES, ITEMS, type HeroId, type ItemDef } from "./content";
+import { HEROES, ITEMS, SIGNATURE_OFFER, type HeroId, type ItemDef } from "./content";
 
 /** The highest star level: 1+1 make 2, 2+2 make 3, and 3 never fuses further. */
 export const FUSE_MAX = 3;
@@ -30,14 +30,14 @@ export function starsOf(x: { stars?: number } | undefined): number {
 
 /**
  * True for every buyable gate, factory, mod and turret core (0.6.1b): they merge. Never for supplies
- * (consumed on purchase) or a hero signature (KILN, LOOM, the race factories: no merchant sells them; signature cores
- * are not ITEMS at all). bb-0.8.3 (REQ-BFG-042 D2, D9): a signature factory merges too, but while no merchant sells it
- * it is no shared part (no wagon, road event or familiar draws it): `merges` is the merge rule, and this stays the
- * shared parts that merge. As before, there is no race-identity filter: a signature factory a merchant sold would join.
+ * (consumed on purchase) or a hero signature (KILN, LOOM, the race factories: price 0, never in cargo;
+ * signature cores are not ITEMS at all). bb-0.8.3 (REQ-BFG-042 D2, D9): a signature factory merges too, but it is no
+ * shared part (no merchant, price 0: no wagon, road event or familiar draws it, and its caravan price is
+ * SIGNATURE_OFFER's): `merges` is the merge rule, and this stays the shared parts that merge.
  */
 export function fusible(def: string): boolean {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
-  if (!d || (SIGNATURE_FACTORIES.has(def) && !d.merchant)) return false;
+  if (!d) return false;
   // 0.6.2s (REQ-BFG-031 S6): turrets merge like every buyable module
   return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod" || d.kind === "core" || d.kind === "turret") && d.price > 0;
 }
@@ -101,6 +101,34 @@ export function perkAt(def: string, stars: number): string | undefined {
 export function valueOf(def: string, stars = 1): number {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   return d ? d.price * 2 ** (stars - 1) : 0;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D9): what a deck's or a run's copies (items, mods or cargo) are worth, summed: each copy's
+ * valueOf, except that `hero`'s own signature factory counts its bought copies only. Its starting copy was free, so the
+ * hero's factory is worth its price x (its copies, each counted as 2^(stars-1), minus 1): a FURNACE that bought three
+ * KILN copies (a ★3) holds 3 prices, not 4. Another hero's signature counts in full (validate.ts refuses it anyway).
+ * The one rule for every sum of value: validate.ts buildCost (the upload budget, roadCap's player mode through it),
+ * rivals.ts deckCost, rivalBuilds.ts, and the harness through buildCost.
+ */
+export function partsValue(parts: Iterable<{ def: string; stars?: number }>, hero?: HeroId): number {
+  const own = hero ? HEROES[hero]?.factory : undefined;
+  let v = 0, held = false;
+  for (const p of parts) {
+    v += copyValue(p.def, starsOf(p));
+    if (p.def === own) held = true;
+  }
+  return held ? v - copyValue(own!, 1) : v;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D9): the gold a copy at `stars` is worth: valueOf, and for a signature factory (ItemDef price 0)
+ * the copies its caravan sells, SIGNATURE_OFFER.price x 2^(stars-1). For one copy held alone (a ★1 waiting in cargo);
+ * a deck or a run sums partsValue, which takes the free starting copy off.
+ */
+export function copyValue(def: string, stars = 1): number {
+  const sig = SIGNATURE_FACTORIES.has(def) ? SIGNATURE_OFFER.price[def] : undefined;
+  return sig !== undefined ? sig * 2 ** (starsOf({ stars }) - 1) : valueOf(def, stars);
 }
 
 /**
