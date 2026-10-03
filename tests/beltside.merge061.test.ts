@@ -72,8 +72,9 @@ describe("P1: stars resolve first; shape is kept at every star (R10)", () => {
     }
   });
 
-  it("the R7 tier comes from the star-resolved effect: OVERDRIVE ★3 (AFTERBURNER's +3 flat) is tier 1, ★1/★2 tier 4", () => {
-    expect([1, 2, 3].map((s) => hitTier(effectAt("overdrive", s).gate))).toEqual([4, 4, 1]);
+  // 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE (★2) carries +1 flat, so it is tier 1 like AFTERBURNER
+  it("the R7 tier comes from the star-resolved effect: OVERDRIVE ★2 (REDLINE's +1) and ★3 (AFTERBURNER's +3 flat) are tier 1, ★1 tier 4", () => {
+    expect([1, 2, 3].map((s) => hitTier(effectAt("overdrive", s).gate))).toEqual([4, 1, 1]);
     // on a deck: an X OVERDRIVE and a BRAKE on one tile (the straight bench's tile 2, (4,3)). At ★3 the OVERDRIVE
     // applies at tier 1 (its flat before anything else on the tile) and its speed still resolves by speedWinner:
     // 5x beats the BRAKE's 0.5x (|ln 5| > |ln 0.5|), in the walk and in the battle
@@ -82,7 +83,7 @@ describe("P1: stars resolve first; shape is kept at every star (R10)", () => {
       b.items.push({ uid: 10, def: "overdrive", x: 3, y: 3, ...st(s) }, rigAt(11, "brake", 5, 3, 3));
       return b;
     };
-    for (const [s, tier, flat, speed] of [[1, 4, 0, 3], [3, 1, 3, 5]] as const) {
+    for (const [s, tier, flat, speed] of [[1, 4, 0, 3], [2, 1, 1, 4], [3, 1, 3, 5]] as const) {
       const b = deck(s);
       const tile = rigHits(b)[0][2];
       expect(tile.map((h) => [h.uid, h.tier]), `★${s}`).toEqual(tier === 1 ? [[10, 1], [11, 4]] : [[10, 4], [11, 4]]);
@@ -276,7 +277,21 @@ describe("P5: OVERDRIVE ★2/★3 guard flags from every hit tile downstream, on
     expect(r.speedAt.slice(2)).toEqual([4, 4, 4, 4]); // |ln 4| > |ln 0.5|: the OVERDRIVE holds the tile
     expect(r.guard).toEqual([0, 0, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW]);
     const hits = walkRoute(b, 0).timeline[0].hits;
-    expect(hits.map((h) => [h.uid, h.tier, h.flat ?? 0, h.speed, h.won])).toEqual([[11, 1, 5, 0.5, false], [10, 4, 0, 4, true]]);
+    // 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE's +1 makes it tier 1, so it comes first; speeds and flags as before
+    expect(hits.map((h) => [h.uid, h.tier, h.flat ?? 0, h.speed, h.won])).toEqual([[10, 1, 1, 4, true], [11, 1, 5, 0.5, false]]);
+  });
+
+  // 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): the case P13 was written for, kept at ★1 (a tier-4 OVERDRIVE with no flat)
+  it("P13 at ★1: a BRAKE ★3 (RED-HOT SHOE, 0.5x) loses that tile to the OVERDRIVE ★1 (3x); no flag, the +5 flat applies", () => {
+    const b = bench();
+    b.items.push({ uid: 10, def: "overdrive", x: 3, y: 3 }, rigAt(11, "brake", 5, 3, 3, 3));
+    const bt = new Battle(b, barge(), SEED);
+    for (let i = 0; i < 60 * 5; i++) bt.step();
+    const r = bt.sides[0].routes[0];
+    expect(r.speedAt.slice(2)).toEqual([3, 3, 3, 3]); // |ln 3| > |ln 0.5|: the OVERDRIVE holds the tile
+    expect(r.guard).toEqual([0, 0, 0, 0, 0, 0]);
+    const hits = walkRoute(b, 0).timeline[0].hits;
+    expect(hits.map((h) => [h.uid, h.tier, h.flat ?? 0, h.speed, h.won])).toEqual([[11, 1, 5, 0.5, false], [10, 4, 0, 3, true]]);
   });
 });
 

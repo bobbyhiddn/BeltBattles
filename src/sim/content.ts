@@ -365,8 +365,8 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["SLOW PLAIN SLUGS, AND", "ALL YOUR RIGS", "COMMISSION 2X FAST."], tags: ["TEMPO", "SWARM"], // beltside-062c: RIG (DESIGN §1)
     factory: { ammo: "plain", interval: 1.8, outputs: 1, commission: 0.5 },
     levels: {
-      2: { factory: { interval: 1.5, commission: 0.25 } },
-      3: { factory: { interval: 1.3, commission: 0, hotStart: 4 }, perk: "HOT START" },
+      2: { factory: { interval: 1.8, commission: 0.25, base: 4.5 } },
+      3: { factory: { interval: 1.8, commission: 0, hotStart: 4, base: 6 }, perk: "HOT START" },
     },
   },
   gantry: {
@@ -478,7 +478,7 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["4 ARROWS: 3X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +3 DAMAGE."], tags: ["TEMPO"],
     gate: { speed: 3, lockedFlat: 3 },
     levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; the guard flags wait for wave 2's enemy slow and freeze
-      2: { gate: { speed: 4, lockedFlat: 6, guard: GUARD_SLOW }, perk: "REDLINE" },
+      2: { gate: { speed: 4, flat: 1, lockedFlat: 5, guard: GUARD_SLOW }, perk: "REDLINE" },
       3: { gate: { speed: 5, flat: 3, lockedFlat: 11, guard: GUARD_SLOW | GUARD_FREEZE }, perk: "AFTERBURNER" },
     },
   },
@@ -923,20 +923,20 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
   armorpress: {
     id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
     desc: ["PRESSES PLATING ONTO", "YOUR HULL AND STAMPS", "PLAIN SLUGS."], tags: ["PLATE", "SWARM"],
-    factory: { ammo: "plain", interval: 1.6, outputs: 1, plate: { every: 4, amount: 2 } }, // base 3: the plain slug's
-    levels: { 2: { factory: { interval: 1.4, plate: { every: 4, amount: 4.4 } } }, 3: { factory: { interval: 1.2, plate: { every: 4, amount: 7 } } } },
+    factory: { ammo: "plain", interval: 1.6, outputs: 1, plate: { every: 3, amount: 3 } }, // base 3: the plain slug's
+    levels: { 2: { factory: { interval: 1.4, plate: { every: 3, amount: 6.6 } } }, 3: { factory: { interval: 1.2, plate: { every: 3, amount: 10.5 } } } },
   },
   anvil: {
     id: "anvil", name: "ANVIL BREECH", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "ironmonger",
     desc: ["SHOTS HIT HARDER", "THE MORE PLATING", "YOUR HULL HOLDS."], tags: ["PLATE", "BURST"],
-    core: { routine: "anvil", anvilFlat: 1, perPlate: 0.2 },
-    levels: { 2: { core: { anvilFlat: 2.2, perPlate: 0.4 } }, 3: { core: { anvilFlat: 3.5, perPlate: 0.7 } } },
+    core: { routine: "anvil", anvilFlat: 2.5, perPlate: 1 },
+    levels: { 2: { core: { anvilFlat: 5.5, perPlate: 2.2 } }, 3: { core: { anvilFlat: 8.75, perPlate: 3.5 } } },
   },
   steambreech: {
     id: "steambreech", name: "STEAM BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
     desc: ["THE TURRET FIRES", "FASTER WHILE YOUR", "HULL IS PLATED."], tags: ["PLATE", "TEMPO"],
-    core: { routine: "steam", steamPlated: 1 / 1.2, steamBare: 1 / 1.05 },
-    levels: { 2: { core: { steamPlated: 1 / 1.44, steamBare: 1 / 1.1 } }, 3: { core: { steamPlated: 1 / 1.7, steamBare: 1 / 1.15 } } },
+    core: { routine: "steam", steamPlated: 1 / 1.35, steamBare: 1 / 1.1 },
+    levels: { 2: { core: { steamPlated: 1 / 1.7, steamBare: 1 / 1.2 } }, 3: { core: { steamPlated: 1 / 2.1, steamBare: 1 / 1.3 } } },
   },
   twintrigger: {
     id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",

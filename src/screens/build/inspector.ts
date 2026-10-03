@@ -27,6 +27,7 @@ import {
 } from "../../sim/deck";
 import { joinersOf, type WalkJoin } from "../../sim/deck"; // 0.6.2j: belt joins
 import { stokeHits } from "../../sim/deck"; // 0.8.0 P1 (E3): a STOKER's hits are the factories its arrows work
+import { platedDeck } from "../../sim/deck"; // 0.8.0 B1 M2 (F1): PLATE BREAKER's two DMG numbers
 import { stokeKeep } from "../../sim/deckRating"; // 0.8.0 I1 M4 (VERIFIED-P1 H4): a stoke capped by its gun
 import { effectAt } from "../../sim/stars"; // 0.8.0 I1 M4: a STOKER's stoke at its stars
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
@@ -540,7 +541,15 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const belt = beltKind(w);
   const est = w.estimate;
   // 0b.4: the walk counts SURGE VALVE's pulse damage on a SLAG belt, where the sim never pays it
-  const dmg = Math.max(1, est.dmg - slagPulseExtra(w.timeline, belt)).toFixed(1);
+  const big = Math.max(1, est.dmg - slagPulseExtra(w.timeline, belt)).toFixed(1);
+  // 0.8.0 B1 M2 (G1's F1, ref/BRIEF-v080-B1.md 3.4): a PLATE BREAKER pays its big number only on a blow that finds a whole
+  // plating on the hull, and its floor on every other (in real fights about half the blows: N1's m4/breaker.md 39-51%;
+  // B1's m2/platemean: a plated hull holds no plating at 53-63% of its shots). On a deck that plates its hull the walk
+  // counts the big number, so DMG shows both: the floor's total, then the big number's ("DMG 9.1-12.1")
+  const breakers = w.timeline.some((row) => row.hits.some((h) => h.breaker));
+  const low = breakers && platedDeck(b) ? walkRoute(b, index, undefined, { unplated: true }) : null;
+  const floorDmg = low ? Math.max(1, low.estimate.dmg - slagPulseExtra(low.timeline, belt)).toFixed(1) : big;
+  const dmg = floorDmg !== big ? `${floorDmg}-${big}` : big;
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
   const spd = belt === "locked" ? "100% (LOCKED)" : belt === "slag" ? `${percent(w.speedEnd)} (SLAG)` : percent(w.speedEnd);
   const time = `${est.time.toFixed(1)} SEC`;

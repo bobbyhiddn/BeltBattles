@@ -177,14 +177,15 @@ describe("0.6.1p: the six pending perks, each applied", () => {
     expect(hs[0] > hs[1] && hs[1] > hs[2]).toBe(true);
   });
 
-  it("OVERDRIVE: AFTERBURNER +3 flat at 3 stars; REDLINE/AFTERBURNER guard flags set downstream, with no effect in wave 1", () => {
+  // 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE (★2) adds +1 flat (flat 0 / 1 / 3), so its faster belt is no loss
+  it("OVERDRIVE: REDLINE +1 and AFTERBURNER +3 flat at 2 and 3 stars; REDLINE/AFTERBURNER guard flags set downstream, with no effect in wave 1", () => {
     const flatAt = (s: number) => {
       const bt = run(bench([["overdrive", 4, 4, s]]), 6);
       const past = bt.sides[0].routes[0].ammo.filter((a) => a.processed >= 1);
       expect(past.length).toBeGreaterThan(0);
       return past[0].p.flat;
     };
-    expect([1, 2, 3].map(flatAt)).toEqual([0, 0, 3]);
+    expect([1, 2, 3].map(flatAt)).toEqual([0, 1, 3]);
     const guard = (s: number) => new Battle(bench([["overdrive", 4, 4, s]]), barge(), SEED).sides[0].routes[0].guard;
     expect(guard(1)).toEqual([0, 0, 0, 0, 0, 0]);
     expect(guard(2)).toEqual([0, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW]);

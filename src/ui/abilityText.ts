@@ -68,6 +68,7 @@ import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion"; // 0.8.0 H1: BASTION's WARDWORKS; P1: the plating cap
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, pendingAt, perkAt } from "../sim/stars";
+import * as stars from "../sim/stars"; // 0.8.0 B1 M2: OVERDRIVE's text reads the star's named perk
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 
 /**
@@ -383,9 +384,11 @@ const ENTRIES: Record<string, Entry> = {
         S.locked(gt.lockedFlat!, !!gt.flat),
       ];
     },
-    // ★2 REDLINE names the chain guard (the second sentence); ★3 AFTERBURNER its added damage (the opening)
-    perkAt: (e) => (g(e).flat ? 0 : g(e).guard ? 1 : 0),
-    gist: (e) => `${speedText(g(e).speed!)}${g(e).flat ? `, ADDS ${damage(g(e).flat!)}` : g(e).guard ? ", SAFE FROM CHAINS" : ""}`,
+    // ★2 REDLINE names the chain guard (the second sentence); ★3 AFTERBURNER its added damage (the opening). 0.8.0 B1 M2
+    // (oracle 1cd5224fab866da2 (A)): REDLINE now adds +1 too, so the highlight and the gist follow the star's named perk
+    // (stars.ts perkAt), not its flat
+    perkAt: (e, x) => (stars.perkAt("overdrive", x.stars) === "REDLINE" ? 1 : 0),
+    gist: (e, x) => `${speedText(g(e).speed!)}${stars.perkAt("overdrive", x.stars) === "REDLINE" ? ", SAFE FROM CHAINS" : g(e).flat ? `, ADDS ${damage(g(e).flat!)}` : ""}`,
     card: (e) => `MAKES BELTS ${speedText(g(e).speed!)}`,
   },
   tollbooth: {

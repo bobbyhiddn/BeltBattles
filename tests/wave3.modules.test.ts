@@ -341,11 +341,12 @@ describe("wave 3's named rules", () => {
     }
   });
 
-  it("ARMOR PRESS: 2 / 4.4 / 7 plating every 4 s; its plain slugs every 1.6 / 1.4 / 1.2 s; no belt to a turret: no plating", () => {
-    for (const [s, amount, every] of [[1, 2, 1.6], [2, 4.4, 1.4], [3, 7, 1.2]] as const) {
-      const ps = plates(pressFurnace("armorpress", s), 13);
-      expect(ps.map((p) => p.amount)).toEqual([amount, amount, amount]);
-      expect(ps.map((p) => +p.t.toFixed(4))).toEqual([4, 8, 12]);
+  // 0.8.0 B1 M2 (brief 3.3): ARMOR PRESS 2 / 4.4 / 7 plating every 4 s -> 3 / 6.6 / 10.5 every 3 s (its stamping unchanged)
+  it("ARMOR PRESS: 3 / 6.6 / 10.5 plating every 3 s; its plain slugs every 1.6 / 1.4 / 1.2 s; no belt to a turret: no plating", () => {
+    for (const [s, amount, every] of [[1, 3, 1.6], [2, 6.6, 1.4], [3, 10.5, 1.2]] as const) {
+      const ps = plates(pressFurnace("armorpress", s), 7); // two pressings under the 24 cap at every star
+      expect(ps.map((p) => p.amount)).toEqual([amount, amount]);
+      expect(ps.map((p) => +p.t.toFixed(4))).toEqual([3, 6]);
       expect(effectAt("armorpress", s).factory!.interval).toBe(every);
       const t: number[] = [];
       run(pressFurnace("armorpress", s), 10, barge(), SEED, (ev, bt) => { for (const e of ev) if (e.type === "produce" && e.factory === 7) t.push(bt.t); });
@@ -358,15 +359,18 @@ describe("wave 3's named rules", () => {
     }
   });
 
-  it("ANVIL BREECH: +1 / 2.2 / 3.5 a shot and 0.2 / 0.4 / 0.7 for each plating (x the class factor)", () => {
-    for (const [s, flat, per] of [[1, 1, 0.2], [2, 2.2, 0.4], [3, 3.5, 0.7]] as const) {
+  // 0.8.0 B1 M2 (brief 3.3): ANVIL BREECH +1 / 2.2 / 3.5 and 0.2 / 0.4 / 0.7 a plating -> +2.5 / 5.5 / 8.75 and 1 / 2.2 / 3.5
+  it("ANVIL BREECH: +2.5 / 5.5 / 8.75 a shot and 1 / 2.2 / 3.5 for each plating (x the class factor)", () => {
+    for (const [s, flat, per] of [[1, 2.5, 1], [2, 5.5, 2.2], [3, 8.75, 3.5]] as const) {
       expect(anvilGain(s, 0)).toBeCloseTo(flat, 6);
       expect(anvilGain(s, 24)).toBeCloseTo(flat + 24 * per, 6);
     }
   });
 
-  it("STEAM BREECH: 20 / 44 / 70% faster while plated, 5 / 10 / 15% faster without", () => {
-    for (const [s, plated, bare] of [[1, 1.2, 1.05], [2, 1.44, 1.1], [3, 1.7, 1.15]] as const) {
+  // 0.8.0 B1 M2 (brief 3.2, VERIFIED-P1 H1: its weak bare rate): 20 / 44 / 70% plated, 5 / 10 / 15% bare -> 35 / 70 / 110%
+  // plated, 10 / 20 / 30% bare
+  it("STEAM BREECH: 35 / 70 / 110% faster while plated, 10 / 20 / 30% faster without", () => {
+    for (const [s, plated, bare] of [[1, 1.35, 1.1], [2, 1.7, 1.2], [3, 2.1, 1.3]] as const) {
       expect(steamRate(s, true)).toBeCloseTo(plated, 6);
       expect(steamRate(s, false)).toBeCloseTo(bare, 6);
     }

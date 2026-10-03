@@ -116,12 +116,10 @@ type Step = "1->2" | "2->3";
 // 0.8.0 T1 (the Prime's call, oracle 7871a5e0c3396b2a): two real falls the saturated rows hid (5W and 0W at every star),
 // in all four TUNE-M states. B1 retunes ASSEMBLY LINE 2/3 stars and OVERDRIVE 2 stars and empties this list before the
 // 0.8.0 RC (plan DoD 3); its exit bar is in output-T1/REPORT.md ("For B1").
-export const KNOWN_FALLS: { id: string; steps: Step[]; cause: string; oracle: string }[] = [
-  { id: "assembly", steps: ["1->2"], oracle: "7871a5e0c3396b2a",
-    cause: "faster stamping jams the shared heavy gun (jams a fight 1.2 / 3.2 / 4.9, shots 26.1 / 25.0 / 23.5); 200 seeds: 1->2 -4.8±0.7%, 1->3 -7.1±0.6%" },
-  { id: "overdrive", steps: ["1->2"], oracle: "7871a5e0c3396b2a",
-    cause: "REDLINE's faster belt cuts the Kiln slugs' ride heat (the same 16.9 shots, -3.5% a shot); 200 seeds: 1->2 -2.5±0.6%, on the line" },
-];
+// 0.8.0 B1 M2 (brief 3.5, approved there): empty again. ASSEMBLY LINE 2/3 stars stamp at the 1-star pace and pour heavier
+// slugs (base 4.5 / 6), and OVERDRIVE 2 stars (REDLINE) adds +1 damage: on 200 seeds assembly 1->2 +5.8%, 1->3 +14.7%,
+// overdrive 1->2 +13.6% (output-B1/REPORT.md, the KNOWN_FALLS exit table).
+export const KNOWN_FALLS: { id: string; steps: Step[]; cause: string; oracle: string }[] = [];
 const known = (id: string, step: Step) => KNOWN_FALLS.some((k) => k.id === id && k.steps.includes(step));
 
 export type DeckRow = StarRow;
@@ -152,12 +150,8 @@ describe("deck-level check: 1 -> 2 -> 3 stars never loses more than 3% of the da
     for (const c of REPORT_ONLY) console.log(`REPORT-ONLY ${line(c, deckRows(c))}`);
   });
 
-  // 0.8.0 T1 (oracle 7871a5e0c3396b2a): was "KNOWN_FALLS stays empty" (0.6.1f). B1 empties the list before the 0.8.0 RC
-  // and sets this test back to toEqual([]).
-  it("KNOWN_FALLS holds exactly assembly 1->2 and overdrive 1->2 (oracle 7871a5e0c3396b2a); B1 empties it before the 0.8.0 RC", () => {
-    expect(KNOWN_FALLS.map((k) => ({ id: k.id, steps: k.steps, oracle: k.oracle }))).toEqual([
-      { id: "assembly", steps: ["1->2"], oracle: "7871a5e0c3396b2a" },
-      { id: "overdrive", steps: ["1->2"], oracle: "7871a5e0c3396b2a" },
-    ]);
+  // 0.8.0 B1 M2 (brief 3.5, approved there): back to the 0.6.1f pin after T1's two entries (oracle 7871a5e0c3396b2a)
+  it("KNOWN_FALLS stays empty: every merge step is an upgrade (0.6.1f)", () => {
+    expect(KNOWN_FALLS).toEqual([]);
   });
 });

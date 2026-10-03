@@ -201,7 +201,8 @@ describe("E3: rig arrows at factories (STOKER)", () => {
       return { plates, stamps };
     };
     const plain = kilnAnd("armorpress"), off = log(plain);
-    expect(off.plates.map((t) => +t.toFixed(3))).toEqual([4, 8, 12, 16, 20]);
+    // 0.8.0 B1 M2 (brief 3.3): ARMOR PRESS plates every 3 s (was 4)
+    expect(off.plates.map((t) => +t.toFixed(3))).toEqual([3, 6, 9, 12, 15, 18, 21]);
     expect(off.stamps.length).toBeGreaterThan(10);
     for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.7]] as const) {
       const b = withItem(plain, item(30, "stoker", 8, 6, 0, s)); // its west arrow points into the press at (7,6)
@@ -209,8 +210,8 @@ describe("E3: rig arrows at factories (STOKER)", () => {
       expect(stokeHits(b).map((h) => [h.uid, h.factory])).toEqual([[30, 7]]);
       const on = log(b);
       expect(on.stamps, `★${s}: the press stamps as it did unstoked`).toEqual(off.stamps);
-      expect(Math.abs(on.plates[0] - (1.2 + (4 - 1.2) / (1 + k))), `★${s} first plating at ${on.plates[0]}`).toBeLessThan(1.5 / 60);
-      on.plates.slice(1).forEach((t, i) => expect(Math.abs(t - on.plates[i] - 4 / (1 + k)), `★${s} plating ${i + 1}`).toBeLessThan(1.5 / 60));
+      expect(Math.abs(on.plates[0] - (1.2 + (3 - 1.2) / (1 + k))), `★${s} first plating at ${on.plates[0]}`).toBeLessThan(1.5 / 60);
+      on.plates.slice(1).forEach((t, i) => expect(Math.abs(t - on.plates[i] - 3 / (1 + k)), `★${s} plating ${i + 1}`).toBeLessThan(1.5 / 60));
       expect(on.plates.length).toBeGreaterThan(off.plates.length);
       note(`E3-press | STOKER ★${s}: plating at ${on.plates.map((t) => t.toFixed(3)).join(", ")} s (unstoked ${off.plates.map((t) => t.toFixed(0)).join(", ")}); ${on.stamps.length} stamps, the same ticks as unstoked`);
     }
@@ -366,7 +367,10 @@ describe("PLATE BREAKER", () => {
     }
   });
 
-  it("C-walk-breaker: the belt walk counts PLATE BREAKER's floor on a deck that never plates its hull, and its big number on one that does", () => {
+  // 0.8.0 B1 M2 (G1's F1, ref/BRIEF-v080-B1.md 3.4, approved there): the walk still counts the big number on a deck that
+  // plates its hull, but the battle pays it only on a blow that finds a whole plating, so the build screen's DMG now shows
+  // both numbers there: the floor's total, then the big number's ("DMG lo-hi"); a deck that never plates shows the floor
+  it("C-walk-breaker: the belt walk counts PLATE BREAKER's floor on a deck that never plates its hull, and its big number on one that does; DMG shows both on a plated deck", () => {
     const hit = (b: Build): TimelineHit => walkRoute(b, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 31)!;
     const plain = walkRoute(furnace(), 0).estimate.dmg;
     for (const [s, big, floor] of NUMS) {
@@ -391,6 +395,12 @@ describe("PLATE BREAKER", () => {
         legal(b, `${what} ★${s}`);
         expect(platedDeck(b), what).toBe(true);
         expect(hit(b).flat, `${what} ★${s}`).toBe(big);
+        // F1 (B1): the belt panel's DMG: the walk with every breaker at its floor, then the walk as counted
+        const lo = walkRoute(b, 0, undefined, { unplated: true }).estimate.dmg, hi = walkRoute(b, 0).estimate.dmg;
+        expect(hi - lo, `${what} ★${s}`).toBeCloseTo(big - floor, 9);
+        const rp = newRun(b.hero, 5, "b1-walk");
+        rp.build = b;
+        expect(beltPanel(rp, 0)!.headerOnly!.texts[2].split(",")[0], `${what} ★${s}`).toBe(`DMG ${lo.toFixed(1)}-${hi.toFixed(1)}`);
       }
       note(`walk-breaker | ★${s}: bare FURNACE walk +${hit(bare).flat}, DMG ${(plain + floor).toFixed(2)} (the belt panel: ${beltPanel(rn, 0)!.headerOnly!.texts[2].split(",")[0]}); with any plating source +${big}`);
     }

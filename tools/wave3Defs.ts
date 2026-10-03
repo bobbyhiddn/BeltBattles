@@ -67,20 +67,20 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   armorpress: {
     id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
     desc: ["PRESSES PLATING ONTO", "YOUR HULL AND STAMPS", "PLAIN SLUGS."], tags: ["PLATE", "SWARM"],
-    factory: { ammo: "plain", interval: 1.6, outputs: 1, plate: { every: 4, amount: 2 } }, // base 3: the plain slug's
-    levels: { 2: { factory: { interval: 1.4, plate: { every: 4, amount: 4.4 } } }, 3: { factory: { interval: 1.2, plate: { every: 4, amount: 7 } } } },
+    factory: { ammo: "plain", interval: 1.6, outputs: 1, plate: { every: 3, amount: 3 } }, // base 3: the plain slug's
+    levels: { 2: { factory: { interval: 1.4, plate: { every: 3, amount: 6.6 } } }, 3: { factory: { interval: 1.2, plate: { every: 3, amount: 10.5 } } } },
   },
   anvil: {
     id: "anvil", name: "ANVIL BREECH", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "ironmonger",
     desc: ["SHOTS HIT HARDER", "THE MORE PLATING", "YOUR HULL HOLDS."], tags: ["PLATE", "BURST"],
-    core: { routine: "anvil", anvilFlat: 1, perPlate: 0.2 },
-    levels: { 2: { core: { anvilFlat: 2.2, perPlate: 0.4 } }, 3: { core: { anvilFlat: 3.5, perPlate: 0.7 } } },
+    core: { routine: "anvil", anvilFlat: 2.5, perPlate: 1 },
+    levels: { 2: { core: { anvilFlat: 5.5, perPlate: 2.2 } }, 3: { core: { anvilFlat: 8.75, perPlate: 3.5 } } },
   },
   steambreech: {
     id: "steambreech", name: "STEAM BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
     desc: ["THE TURRET FIRES", "FASTER WHILE YOUR", "HULL IS PLATED."], tags: ["PLATE", "TEMPO"],
-    core: { routine: "steam", steamPlated: 1 / 1.2, steamBare: 1 / 1.05 },
-    levels: { 2: { core: { steamPlated: 1 / 1.44, steamBare: 1 / 1.1 } }, 3: { core: { steamPlated: 1 / 1.7, steamBare: 1 / 1.15 } } },
+    core: { routine: "steam", steamPlated: 1 / 1.35, steamBare: 1 / 1.1 },
+    levels: { 2: { core: { steamPlated: 1 / 1.7, steamBare: 1 / 1.2 } }, 3: { core: { steamPlated: 1 / 2.1, steamBare: 1 / 1.3 } } },
   },
   twintrigger: {
     id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",

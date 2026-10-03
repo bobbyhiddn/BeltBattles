@@ -723,7 +723,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // turrets whose socket rows, stat rows and kept clashes fill the column under their buttons, and MANTLET ★2 in cargo
     // 0.8.0 I1 M2: with wave 3's panels, 181 of 1934 (was 141 of 1622); 179 once PINCER's sentence drops "UP TO 3 OTHERS"
     // (VERIFIED-P1 H5: "offer pincer held[1]" and "rig pincer ★2 1hit spare1" then fit their hint)
-    expect([withHint, missing.length]).toEqual([1934, 179]);
+    // 0.8.0 B1 M2: 182: "turret steambreech ★1" (STEAM BREECH's retuned rates make its line longer: 35% / 10%) and
+    // "rig overdrive ★2 3hit spare0", "rig overdrive ★2 idle spare1" (REDLINE's +1 adds a clause; oracle 1cd5224fab866da2)
+    expect([withHint, missing.length]).toEqual([1934, 182]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 

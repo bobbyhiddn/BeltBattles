@@ -473,10 +473,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
       sentences: ["CASTS THREE SLUGS (6 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF ITS THREE BELTS, EVERY 1.4 SECONDS.", "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR."],
       perk: { name: "THIRD SPRUE", stars: 3, after: 0 },
     });
-    expect(at("armorpress")[0]).toBe("PRESSES 2 PLATING ONTO YOUR HULL EVERY 4 SECONDS, AND STAMPS A PLAIN SLUG (3 DAMAGE) EVERY 1.6 SECONDS.");
-    expect(at("anvil")[0]).toBe("EACH SHOT DEALS 1 MORE DAMAGE, AND 0.2 MORE FOR EACH PLATING ON YOUR HULL.");
-    expect(at("anvil", 3, 0.55)[0]).toBe("EACH SHOT DEALS 1.9 MORE DAMAGE, AND 0.4 MORE FOR EACH PLATING ON YOUR HULL."); // x k, as every core
-    expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 44% FASTER WHILE YOUR HULL HOLDS PLATING, AND 10% FASTER WITHOUT IT."]);
+    expect(at("armorpress")[0]).toBe("PRESSES 3 PLATING ONTO YOUR HULL EVERY 3 SECONDS, AND STAMPS A PLAIN SLUG (3 DAMAGE) EVERY 1.6 SECONDS."); // 0.8.0 B1 M2: 2 every 4 s -> 3 every 3 s
+    expect(at("anvil")[0]).toBe("EACH SHOT DEALS 2.5 MORE DAMAGE, AND 1 MORE FOR EACH PLATING ON YOUR HULL."); // 0.8.0 B1 M2: was 1 and 0.2
+    expect(at("anvil", 3, 0.55)[0]).toBe("EACH SHOT DEALS 4.8 MORE DAMAGE, AND 1.9 MORE FOR EACH PLATING ON YOUR HULL."); // x k, as every core (0.8.0 B1 M2: was 1.9 and 0.4)
+    expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 70% FASTER WHILE YOUR HULL HOLDS PLATING, AND 20% FASTER WITHOUT IT."]); // 0.8.0 B1 M2: was 44% and 10%
     expect(at("twintrigger", 3)[2]).toBe("ITS LOAD TIME IS 0.55 SECONDS SHORTER, BUT NEVER UNDER 0.3 SECONDS.");
     expect(at("spallcatcher", 2)[0]).toBe("EVERY 4 DAMAGE YOUR SHIP TAKES ADDS 2.2 DAMAGE TO THIS TURRET'S NEXT SHOT, UP TO 17.6 DAMAGE.");
     expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 1 PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS 0.2.");
@@ -488,8 +488,8 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 8.8 DAMAGE FOR 1 PLATING, 2.2 WITHOUT.");
     expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 2.2 PLATING A PAYLOAD, 6.6 DAMAGE AT 12 PLATING.");
     expect(nextStarText("twinmould", 1)).toBe("NEXT STAR: 5 DAMAGE EACH, EVERY 1.6 SECONDS.");
-    expect(nextStarText("armorpress", 1)).toBe("NEXT STAR: 4.4 PLATING EVERY 4 SECONDS, A SLUG EVERY 1.4 SECONDS.");
-    expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 44% FASTER PLATED, 10% WITHOUT.");
+    expect(nextStarText("armorpress", 1)).toBe("NEXT STAR: 6.6 PLATING EVERY 3 SECONDS, A SLUG EVERY 1.4 SECONDS."); // 0.8.0 B1 M2
+    expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 70% FASTER PLATED, 20% WITHOUT."); // 0.8.0 B1 M2
     expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 55% MORE, LOAD TIME 0.4 SECONDS SHORTER.");
     expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 2.2 PLATING A PAIR, 0.4 FOR ANY OTHER LOAD.");
   });
@@ -555,7 +555,7 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
       plateroller: "PLATES YOUR HULL AS SLUGS PASS.", twingauge: "MORE DAMAGE ON A MATCHED BELT.", pincer: "MORE DAMAGE WITH RIGS ON ITS TILE.",
       braceframe: "SHORTER STALLS ON ITS TILES.", twinlatch: "LETS TWO BELTS GO TOGETHER.", stoker: "MAKES FACTORIES WORK FASTER.",
       platebreaker: "TURNS PLATING INTO DAMAGE.", shieldwall: "PLATES YOUR HULL, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.",
-      armorpress: "PLATES YOUR HULL EVERY 4 SECONDS.", anvil: "MORE DAMAGE THE MORE PLATING.", steambreech: "FIRES FASTER WHILE PLATED.",
+      armorpress: "PLATES YOUR HULL EVERY 3 SECONDS.", anvil: "MORE DAMAGE THE MORE PLATING.", steambreech: "FIRES FASTER WHILE PLATED.",
       twintrigger: "PAIRS HIT 25% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS PLATE YOUR HULL.",
     });
     for (const d of W3) for (const k of kOf(d)) {

@@ -130,7 +130,8 @@ function slag(speed: string | null, stars = 1, pot = "slagpot"): Build {
 const SPEEDS: [string, number][] = [1, 2, 3].flatMap((s) => [["brake", s], ["grease", s], ["overdrive", s]] as [string, number][]);
 /** The flat part of a speed rig's effect, from the catalogue: OVERDRIVE ★3 AFTERBURNER +3; beltside-062-on-061 (DESIGN §13
  *  P13): 0.6.1f's BRAKE ★2 HOT SHOE +2 and ★3 RED-HOT SHOE +5, mixed effects like AFTERBURNER. The rest have none. */
-const FLAT: Record<string, number> = { "overdrive 3": 3, "brake 2": 2, "brake 3": 5 };
+// 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE (OVERDRIVE ★2) adds +1, which slag keeps as it keeps AFTERBURNER's +3
+const FLAT: Record<string, number> = { "overdrive 2": 1, "overdrive 3": 3, "brake 2": 2, "brake 3": 5 };
 const flatOf = (def: string, s: number): number => FLAT[`${def} ${s}`] ?? 0;
 
 describe("P8: SLAG rides at its fixed 0.75x", () => {
