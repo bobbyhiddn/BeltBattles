@@ -317,7 +317,10 @@ runs unchanged in the browser and in Node, through WebCrypto only (`globalThis.c
 3. The body is read within the 16 KB limit (413 over it), then the signature is checked over the
    exact bytes received: 401 if it does not match.
 4. The snapshot is decoded, strictly: 400 on an error. The decoder bounds the record: day 1..10, wins 0..day-1 and
-   lives 1..9, so a record outside those keeps its 400.
+   lives 1..9, so a record outside those keeps its 400. It also carries the rules gates (`src/net/rulesGate.ts`):
+   turret slots and belt joins need bb-0.6.2 or later, and the hero must be one its rules take. bb-0.8.0 takes FURNACE,
+   WEAVER, FOUNDRY and BASTION, so a METRONOME or SIPHON upload gets 400
+   `snapshot.hero: rules bb-0.8.0 accept only FURNACE, WEAVER, FOUNDRY, BASTION, not METRONOME` (0.9.0 adds them).
 5. `snapshot.playerId` is not the key's playerId: 403.
 6. The rules version: anything but this build's `RULES_VERSION` exactly gets 422 (`rules bb-0.6.2 not accepted: this
    server validates bb-0.8.0`).
@@ -457,7 +460,7 @@ ghosts/<rules>/d<DD>/player/<id>.json   player uploads: written only by POST /v1
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `BUCKET_NAME` | app secrets from `fly storage create` | none (`AWS_REGION`: `auto`) | Tigris credentials, `https://fly.storage.tigris.dev`, `auto`, the bucket; with `tigris`, a missing one stops the start, and the message names the variable, never a value. `AWS_REGION` is the exception: Fly's documented output sets only the other four, so it defaults to `auto` |
 | `BB_GHOST_S3_ADDRESSING` | (default) | `virtual` | `virtual` (`https://<bucket>.<host>/<key>`, what Tigris documents) or `path` |
 | `BB_GHOST_CACHE_TTL_S` | `600` | `60` | seconds a loaded bucket is served before it is listed again (each re-list is a Tigris Class A request) |
-| `BB_GHOST_UPLOADS` | `closed` | `closed` | `closed`: POST /v1/ghosts answers 403 without reading the body. Only an explicit `open` takes uploads, so a start that lost the setting stays closed |
+| `BB_GHOST_UPLOADS` | `open` from the uploads step (deploy/RUNBOOK.md section 9); `closed` before it and in its rollback | `closed` | `closed`: POST /v1/ghosts answers 403 without reading the body. Only an explicit `open` takes uploads, so a start that lost the setting stays closed |
 | `BB_GHOST_TRUST_PROXY` | `fly` | `none` | `fly`: client IP = `Fly-Client-IP` (Fly's proxy sets or overwrites it), else the socket; `X-Forwarded-For` is never trusted, because its first hop is whatever the client sent; `none` ignores both headers |
 | `BB_GHOST_STATIC` | `/app/public` | none | serve `<dir>/index.html` at `/` and `/index.html` (read once at start; missing = exit 2) |
 | `BB_GHOST_HOST`, `BB_GHOST_PORT` | `0.0.0.0`, `8080` | `127.0.0.1`, `7790` | listen address |
@@ -505,13 +508,17 @@ with 0.7.0's 3 ghosts per hero and day (two sample ghosts with drawn records and
 - On the JSON-lines store the pool lives in `pool.jsonl`, replaced atomically; `ghosts.jsonl` stays
   append-only.
 
-**Why uploads are closed.**
+**Uploads: closed by default, open in production from the uploads step.**
 - The server takes only signed uploads (see "Identity and signed uploads"), so nobody can post under
-  another player's id, and checks every deck in the player mode (`validateUpload`, the road's honest
-  ceiling). 0.7.0a's game signs and uploads its dusk deck when a server URL is set.
-- Production still runs with `BB_GHOST_UPLOADS=closed`: opening uploads is the operator's call, a separate
-  deploy step after signed uploads and the honest budget check both pass on the live server. Until then a
-  0.7.0a upload gets 403 (silently), players fight the seeded pool, and the game's fallback covers the rest.
+  another player's id. It checks every deck in the player mode (`validateUpload`, the road's honest
+  ceiling), refuses a hero its rules don't take (the hero gate) and a record no run can reach (H2). 0.7.0a's game
+  signs and uploads its dusk deck when a server URL is set.
+- 0.8.0 went live on 2026-10-03 with `BB_GHOST_UPLOADS=closed`. An upload got 403 (silently), players fought the seed
+  pool, and the game's fallback covered the rest.
+- Opening uploads is the operator's call, its own deploy: the uploads step, deploy/RUNBOOK.md section 9. It ships
+  branch uploads-080, whose fly.toml sets `BB_GHOST_UPLOADS = "open"`. From that step on, production takes uploads, and
+  its live checks run the probe (see "Operations"). The code default stays `closed`, so a start that loses the setting
+  refuses uploads. The rollback runs closed: deploy-080 with `-e BB_GHOST_UPLOADS=closed`.
 - A secure origin is needed for the device key (`crypto.subtle`); that is why the page is served from the
   API's HTTPS origin.
 
@@ -577,6 +584,29 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
   - the seed pool and other rules versions stay;
   - bad uploads planted straight into the store, past POST, are found;
   - the match route stops serving a deleted ghost: a fresh server at once, a running one after its cache TTL.
+
+**The uploads step's probe (0.8.0 U2).** `server/ghostProbe.ts`, built beside the admin tool into
+`server/dist/ghost-probe.mjs`, checks a live server from outside, as a player's page would:
+`node server/dist/ghost-probe.mjs <base-url> <id-file>`. It is a port of 0.7.0 U1's probe.
+- It makes a fresh device identity with the game's own `loadIdentity` (a non-extractable key, in memory). Each POST
+  sends the canonical bytes `submitGhost` sends, signed with `identity.sign`.
+- It posts nine uploads and expects these answers:
+  - a signed, honest FURNACE start deck (day 1, 0 wins, 5 lives): 201 and its ghost id;
+  - the same bytes unsigned: 401;
+  - that deck over day 1's budget: 422 with validateUpload's budget error;
+  - that honest deck on a record no run carries (day 1, 1 life): 422 with H2's record error;
+  - WEAVER's, FOUNDRY's and BASTION's honest day-3 reference decks (1 win, 5 lives): 201 each;
+  - METRONOME's and SIPHON's: 400 from the strict decode's hero gate, naming bb-0.8.0 and the hero.
+- Exactly four decks are stored, FURNACE's, WEAVER's, FOUNDRY's and BASTION's, each its own record under the probe's
+  player. The probe writes that player's id to `<id-file>` before the first POST, so
+  `remove-player <id> --rules bb-0.8.0 --apply` can always clean up after it. It refuses an id file that already holds
+  an id.
+- It prints one line per check (name, expected, got), then the player id, then the number of decks the server stored.
+  It exits 0 only if every check matched, 1 if a check failed or got no answer, and 2 for a usage error (nothing sent).
+  Against a closed server every POST gets 403 and it exits 1. It runs only in a build whose rules are bb-0.8.0, and it
+  prints no key material.
+- tests/ghost-probe.test.ts runs it against the in-process server on both stores, open and closed, plus bad arguments
+  and a dead port.
 
 ## 0.8.0: rules bb-0.8.0 and the four-hero seed pool
 
@@ -656,7 +686,8 @@ at dusk, and what you can do after.
 ## 0.7.0a: what the game does online
 
 0.7.0a wires the async groundwork into the game (`src/game/online.ts`, `session.ts`, `day.ts`, the screens),
-as the Prime's decisions D1-D6 set it. Uploads stay closed in production.
+as the Prime's decisions D1-D6 set it. Uploads stay closed in production until the uploads step (deploy/RUNBOOK.md
+section 9).
 
 1. **The server URL setting (D3).** None by default, and then the game is offline exactly as 0.6.2: the same
    dusk foes on the same seeds (`startDusk(run, loadPool())`: the local pool, else `standInFoe`), no identity,
@@ -715,7 +746,8 @@ as the Prime's decisions D1-D6 set it. Uploads stay closed in production.
    published 0.6.2 (rel-062-final 40d2b2c, v070-validate-rel): RULES_VERSION is bb-0.6.2, so the server and
    `fetchGhost` accept only bb-0.6.2 ghosts, and the ceiling was re-pinned for TUNE-C's warlord decks. The join
    limit (2) is validateBuild's own, in both modes. The rules gate (`rulesGate.ts`, see Replay and rules
-   versions) keeps turrets and joins out of older rules on every accepting path. Uploads stay closed in production.
+   versions) keeps turrets and joins out of older rules on every accepting path. Uploads stay closed in production
+   until the uploads step (deploy/RUNBOOK.md section 9).
    0.7.0a gates the game's own upload on the same `validateUpload`, and the seed pool too (D5). Left, as
    v070-validate-rel's REPORT section 9 says: the ceiling's avoidable slack (0 0 0 2 4 6 8 10 12 14 gold over
    days 1-10, a safe upper bound), and the gate as defence in depth.

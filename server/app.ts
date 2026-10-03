@@ -54,7 +54,8 @@ export interface ServerOptions {
   matchSalt?: () => number | string;
   /**
    * "closed": POST /v1/ghosts answers 403 without reading the body (seeding still works).
-   * Production runs closed until the game signs its uploads and the player budget ceiling lands (0.7.0).
+   * Production ran closed until the uploads step (0.8.0 U2: fly.toml BB_GHOST_UPLOADS = "open"); config.ts's default
+   * stays closed.
    */
   uploads?: "open" | "closed";
   /**
