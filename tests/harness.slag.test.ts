@@ -19,6 +19,7 @@ import { cargoValue, unfusedWithCargo, type InvItem } from "../src/sim/harness/m
 import { freeConnectors } from "../src/sim/harness/path";
 import { PLATE, Shopper } from "../src/sim/harness/shopper";
 import { withLegacyStock } from "./catalogueLegacy";
+import { withBeltPolicy } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D7)
 
 /** The slag rule read from the game's data alone (not the harness's fixedSpeedCells/isSpeedGate): no rig hit with a speed
  *  at its stars on a route whose factory's ammo, at the factory's stars, has AMMO.fixedSpeed. */
@@ -120,7 +121,9 @@ describe("harness factories (0.6.1c): the slag rule at the drop lever and at top
     expect(slagProblems(r.build)).toEqual([]);
   }));
 
-  it("topUp's 3 g gate never lands on a slag route: with only SLAG POT cells free, a speed gate it draws is not bought (N1)", () => {
+  // bb-0.8.3 (REQ-BFG-042 D7): read at 0.8.1's belt counts (the bots' policy "today": the SLAG POT's one belt is the only
+  // belt, this test's premise); under the chosen policy (a) the press lever lays up to the new slots
+  it("topUp's 3 g gate never lands on a slag route: with only SLAG POT cells free, a speed gate it draws is not bought (N1)", () => withBeltPolicy("today", () => {
     const day = 10;
     let skipped = 0, placed = 0;
     for (let seed = 1; seed <= 16; seed++) {
@@ -149,5 +152,5 @@ describe("harness factories (0.6.1c): the slag rule at the drop lever and at top
     // both branches ran: a 3 g gate that isn't a speed gate went onto the slag line, and a drawn speed gate was not bought
     expect(placed).toBeGreaterThan(0);
     expect(skipped).toBeGreaterThan(0);
-  });
+  }));
 });

@@ -20,6 +20,7 @@ import { Shopper, fixedSpeedCells, isSpeedGate } from "../src/sim/harness/shoppe
 import { STANDIN_DEFAULTS, STANDIN_MAX_STARS, dataModuleText, maxStarsOf, standInCandidate, standInCommand, writtenProblems, type HeroDay, type StandInOpts } from "../src/sim/harness/standins";
 import { encodeStarred } from "../src/sim/harness/standinCode";
 import { withLegacyStock } from "./catalogueLegacy";
+import { withBeltPolicy } from "./belts.shared"; // bb-0.8.3 (REQ-BFG-042 D7)
 
 const hash32 = (s: string): number => {
   let h = 0x811c9dc5;
@@ -232,7 +233,9 @@ describe("harness factories (0.6.1c): the factory paths", () => {
     expect(mergeableDefs(s1)).toEqual(["doublestamp"]);
   });
 
-  it("GANTRY PRESS: a route into every free connector it can reach, never more than its outputs; after THIRD ARM it gains a route when a connector is free", () => {
+  // bb-0.8.3 (REQ-BFG-042 D7): read at 0.8.1's belt counts (the bots' policy "today": GANTRY PRESS 2 / 3 / 3), where this
+  // lever's THIRD ARM step is what the test pins; under the chosen policy (a) the bots lay up to the new slots (3 / 4 / 5)
+  it("GANTRY PRESS: a route into every free connector it can reach, never more than its outputs; after THIRD ARM it gains a route when a connector is free", () => withBeltPolicy("today", () => {
     // FOUNDRY has two connectors free beside its Crucible twins: a 1-star GANTRY takes both (2 = its outputs) when
     // its first route leaves the second connector reachable (random belts can wall it off: then it feeds one)
     let both = 0;
@@ -275,7 +278,7 @@ describe("harness factories (0.6.1c): the factory paths", () => {
     console.log(`THIRD ARM: ${tried} 1-star GANTRY decks on two routes with one connector free; ${reachable} reachable, ${gained} gained the third route`);
     expect(tried).toBeGreaterThan(3);
     expect(gained).toBeGreaterThan(0);
-  });
+  }));
 
   it("no speed-rig hit on a slag route: the gate and merge levers steer speed rigs off it; rigTilesFor skips slag tiles", () => {
     const { s, uid } = placed("foundry", "slagpot");

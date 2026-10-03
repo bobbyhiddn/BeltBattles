@@ -23,9 +23,16 @@ export const TODAY_OUTPUTS: Readonly<Record<string, readonly [number, number, nu
   gantry: [2, 3, 3], twinmould: [2, 2, 3], mimic: [1, 1, 2],
 };
 
-/** bb-0.8.3 D7: each hero's bots' policy (M2 measures the three; until then every hero's bots keep 0.8.1's counts). */
+/**
+ * bb-0.8.3 D7: each hero's bots' policy, chosen by M2's measurements (output-belts/measure/d7-*: the four-hero cross
+ * table K 24 and the 19 captains' ladder K 12 under each policy): (a) "come" for every hero. Against M0 it keeps the
+ * cross table nearest the band (FOUNDRY outside 35-65 on 7 of 20 F/W cells: M0 10, (b) 14, (c) 10; BASTION 1 of 20:
+ * M0 3) and the captains' FOUNDRY column near M0's ((b) and (c) let FOUNDRY run away late and BASTION sink); (c) also
+ * leaves 16 of 192 FOUNDRY dusk decks with a one-belt CRUCIBLE (no fuse pair). METRONOME and SIPHON follow (no balance
+ * work: their heroes aren't playable).
+ */
 export const BELT_POLICY: Readonly<Record<HeroId, BeltPolicy>> = {
-  furnace: "today", weaver: "today", foundry: "today", bastion: "today", metronome: "today", siphon: "today",
+  furnace: "come", weaver: "come", foundry: "come", bastion: "come", metronome: "come", siphon: "come",
 };
 
 /**

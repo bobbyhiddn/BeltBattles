@@ -6,6 +6,7 @@
 import { expect } from "vitest";
 import type { HeroId } from "../src/sim/content";
 import { isSignatureFactory, signatureOf } from "../src/sim/stars";
+import { BELT_POLICY, type BeltPolicy } from "../src/sim/harness/belts";
 
 export const SIGNATURE_CARD = "<the hero's own signature factory>";
 
@@ -23,4 +24,14 @@ export function ownSignatureCard(hero: HeroId, def: string): boolean {
   if (!isSignatureFactory(def)) return false;
   expect(def, `${hero}'s caravan offers a signature factory: only its own`).toBe(signatureOf(hero));
   return true;
+}
+
+/**
+ * bb-0.8.3 (REQ-BFG-042 D7): run `fn` with every hero's bots on belt policy `policy` (harness/belts.ts BELT_POLICY), then
+ * put the chosen policies back. A harness test written for 0.8.1's belt counts reads its lever there under "today".
+ */
+export function withBeltPolicy<T>(policy: BeltPolicy, fn: () => T): T {
+  const table = BELT_POLICY as Record<HeroId, BeltPolicy>, saved = { ...table };
+  for (const h of Object.keys(table) as HeroId[]) table[h] = policy;
+  try { return fn(); } finally { Object.assign(table, saved); }
 }
