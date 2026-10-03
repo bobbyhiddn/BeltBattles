@@ -198,8 +198,12 @@ describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets throu
     expect(fedSeen, "a gun in the extra slot fires: a belt feeds it by dusk").toBeGreaterThan(0);
   }, 300_000);
 
+  // 0.8.0 B1 (oracle 2e5a00525c876f07): since B1's M2 part numbers (209622b) no FURNACE or WEAVER run of seeds 1-12
+  // replaces a turret, so this test alone samples seeds 1-48 (FURNACE replaces in 5 of them); the checks are unchanged
   it("one run replaces a turret: the slot holds the bought def, the old one left the deck (cargo or sold) and the gold adds up", () => {
-    const hits = allDays().filter((x) => x.d.buys.some((b) => b.into === "replace"));
+    const seeds = Array.from({ length: 48 }, (_, i) => i + 1);
+    const hits = HEROES.flatMap((hero) => seeds.flatMap((seed) => playerRun(hero, PLAYER_DAYS, seed).map((d) => ({ hero, seed, d }))))
+      .filter((x) => x.d.buys.some((b) => b.into === "replace"));
     expect(hits.length, "some par run replaces a turret").toBeGreaterThan(0);
     for (const { hero, seed, d } of hits) {
       const buy = d.buys.find((x) => x.into === "replace")!;
@@ -207,7 +211,7 @@ describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets throu
       expect(validateBuild(d.build, d.day).errors).toEqual([]);
       expect(d.value + d.rerollGold + d.gold + d.soldLoss).toBe(maxGoldByDay(d.day));
     }
-  });
+  }, 300_000); // 0.8.0 B1: 96 par runs, about 15 s alone
 
   it("gear goes into every gear slot a turret has: some par deck carries two or more gear pieces on one turret", () => {
     const hit = allDays().find((x) => installedTurrets(x.d.build).some((v) => gearOn(x.d.build, v.slot).length >= 2));

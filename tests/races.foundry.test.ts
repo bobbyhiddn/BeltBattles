@@ -23,7 +23,7 @@ describe("FOUNDRY sync rule", () => {
     expect(inSync(0, true)).toBe(false); // same route/connector never fuses
   });
 
-  it("mirrored routes into one gun fuse every pour: alloy slugs of 1.3 x (3.5 + 3.5)", () => {
+  it("mirrored routes into one gun fuse every pour: alloy slugs of 1.15 x (3.5 + 3.5)", () => {
     const b = new Battle(start(), dummyFoe(), 7);
     const fired = shots(b, 20);
     expect(b.sides[0].race!.foundry.fusions).toBeGreaterThanOrEqual(8);
@@ -34,12 +34,12 @@ describe("FOUNDRY sync rule", () => {
     }
   });
 
-  it("a flat bonus on one blank carries into the fusion: 1.3 x (5.5 + 3.5) = 11.7", () => {
+  it("a flat bonus on one blank carries into the fusion: 1.15 x (5.5 + 3.5) = 10.35", () => {
     const b0 = start();
     b0.items.push({ uid: 2, def: "whetstone", x: 1, y: 3, rot: 1 }); // 0.6.2 BELTSIDE: west of (2,3) on route 0, facing it
     const fired = shots(new Battle(b0, dummyFoe(), 7), 20).filter((s) => s.ammo === "alloy");
     expect(fired.length).toBeGreaterThan(3);
-    expect(fired[fired.length - 1].dmg).toBeCloseTo(11.7, 9);
+    expect(fired[fired.length - 1].dmg).toBeCloseTo(10.35, 9);
   });
 
   it("a route 2 tiles longer (0.8 s late) never fuses, and every unmatched blank still fires", () => {

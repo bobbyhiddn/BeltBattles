@@ -268,7 +268,7 @@ describe("BASTION on today's rules", () => {
 });
 
 describe("the race ammo's numbers are tuning v1's", () => {
-  it("ALLOY BLANK 3.5, BULWARK SLUG 5, FUSE_MULT 1.3, 2 plating a slug, cap 24", () => {
-    expect([AMMO.blank.base, AMMO.bulwark.base, FUSE_MULT, PLATE_PER_SLUG, PLATE_CAP]).toEqual([3.5, 5, 1.3, 2, 24]);
+  it("ALLOY BLANK 3.5, BULWARK SLUG 5, FUSE_MULT 1.15, 2 plating a slug, cap 24", () => {
+    expect([AMMO.blank.base, AMMO.bulwark.base, FUSE_MULT, PLATE_PER_SLUG, PLATE_CAP]).toEqual([3.5, 5, 1.15, 2, 24]);
   });
 });

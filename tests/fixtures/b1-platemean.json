@@ -1,5 +1,5 @@
 {
- "source": "0.8.0 B1 M2 (oracle fda49d0c97fac446): the plating a plated deck's hull holds when its guns fire, measured on the rating-fix tree (deckRating.ts per-hero MEAN_PLATE) with the M1 numbers",
+ "source": "0.8.0 B1 M2 (oracle fda49d0c97fac446): the plating a plated deck's hull holds when its guns fire, re-measured after M2's last number change (the part numbers, FUSE_MULT 1.15, FOUNDRY hull 225, BASTION hull 215) on the work tree; the rating-fix tree's first reading was bastion 1.524 / 0.406, furnace 0.47 / 0.367, weaver 0.203 / 0.338, foundry 0.704 / 0.322",
  "command": "PB_JSON=<this file> bash output-B1/kit/b1-probe.sh tree platemean <log>  (probe output-B1/kit/probes/platemean.test.ts; PB_HEROES bastion,furnace,weaver,foundry; PB_DAYS 3,5,7,9; PB_K 12; PB_SEEDS 2)",
  "setup": {
   "foe": "furnace par field",
@@ -17,102 +17,102 @@
  },
  "heroes": {
   "bastion": {
-   "shots": 53584,
-   "mean": 1.524,
-   "share": 0.406,
+   "shots": 50731,
+   "mean": 1.552,
+   "share": 0.409,
    "days": {
     "3": {
      "decks": 12,
-     "shots": 15296,
-     "mean": 1.431,
-     "share": 0.396
+     "shots": 14712,
+     "mean": 1.438,
+     "share": 0.402
     },
     "5": {
      "decks": 12,
-     "shots": 13518,
-     "mean": 1.855,
-     "share": 0.41
+     "shots": 12847,
+     "mean": 1.848,
+     "share": 0.403
     },
     "7": {
      "decks": 12,
-     "shots": 12580,
-     "mean": 1.448,
-     "share": 0.381
+     "shots": 11697,
+     "mean": 1.418,
+     "share": 0.376
     },
     "9": {
      "decks": 12,
-     "shots": 12190,
-     "mean": 1.353,
-     "share": 0.438
+     "shots": 11475,
+     "mean": 1.506,
+     "share": 0.457
     }
    }
   },
   "furnace": {
-   "shots": 12558,
-   "mean": 0.47,
-   "share": 0.367,
+   "shots": 13197,
+   "mean": 0.456,
+   "share": 0.356,
    "days": {
     "3": {
      "decks": 2,
-     "shots": 1865,
-     "mean": 0.361,
-     "share": 0.392
+     "shots": 1861,
+     "mean": 0.352,
+     "share": 0.389
     },
     "5": {
      "decks": 3,
-     "shots": 2152,
-     "mean": 0.315,
-     "share": 0.343
+     "shots": 2144,
+     "mean": 0.311,
+     "share": 0.329
     },
     "7": {
      "decks": 5,
-     "shots": 3474,
-     "mean": 0.764,
-     "share": 0.419
+     "shots": 3444,
+     "mean": 0.731,
+     "share": 0.4
     },
     "9": {
-     "decks": 7,
-     "shots": 5067,
-     "mean": 0.375,
-     "share": 0.332
+     "decks": 8,
+     "shots": 5748,
+     "mean": 0.379,
+     "share": 0.33
     }
    }
   },
   "weaver": {
-   "shots": 14668,
-   "mean": 0.203,
-   "share": 0.338,
+   "shots": 14552,
+   "mean": 0.197,
+   "share": 0.329,
    "days": {
     "3": {
      "decks": 2,
-     "shots": 3281,
-     "mean": 0.186,
-     "share": 0.3
+     "shots": 3276,
+     "mean": 0.184,
+     "share": 0.296
     },
     "5": {
      "decks": 2,
-     "shots": 2632,
-     "mean": 0.289,
-     "share": 0.399
+     "shots": 2607,
+     "mean": 0.284,
+     "share": 0.391
     },
     "7": {
      "decks": 3,
-     "shots": 3420,
-     "mean": 0.181,
-     "share": 0.383
+     "shots": 3388,
+     "mean": 0.173,
+     "share": 0.37
     },
     "9": {
      "decks": 5,
-     "shots": 5335,
-     "mean": 0.185,
-     "share": 0.302
+     "shots": 5281,
+     "mean": 0.177,
+     "share": 0.293
     }
    }
   },
   "foundry": {
-   "shots": 8117,
-   "mean": 0.704,
-   "share": 0.322,
+   "shots": 6059,
+   "mean": 0.787,
+   "share": 0.363,
    "days": {
     "3": {
      "decks": 0,
@@ -122,21 +122,21 @@
     },
     "5": {
      "decks": 1,
-     "shots": 1232,
-     "mean": 0.433,
-     "share": 0.309
+     "shots": 1215,
+     "mean": 0.41,
+     "share": 0.3
     },
     "7": {
-     "decks": 3,
-     "shots": 3595,
-     "mean": 0.638,
-     "share": 0.281
+     "decks": 2,
+     "shots": 2562,
+     "mean": 0.675,
+     "share": 0.311
     },
     "9": {
-     "decks": 3,
-     "shots": 3290,
-     "mean": 0.878,
-     "share": 0.372
+     "decks": 2,
+     "shots": 2282,
+     "mean": 1.114,
+     "share": 0.454
     }
    }
   }

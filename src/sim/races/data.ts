@@ -65,7 +65,7 @@ export const RACE_AMMO: Record<RaceAmmoKind, AmmoDef> = {
 export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   foundry: {
     id: "foundry", name: "FOUNDRY", faction: "human", factionName: "HUMAN GUILDS",
-    hull: 250, factory: "crucible", ammo: "blank", belt: 18,
+    hull: 225, factory: "crucible", ammo: "blank", belt: 18,
     turrets: [
       { col0: 2, width: 2, connectors: [2, 3], kind: "medium", fireInterval: 0.8, window: 2, flight: 0.45 },
       { col0: 6, width: 2, connectors: [6, 7], kind: "medium", fireInterval: 0.8, window: 2, flight: 0.45 },
@@ -75,7 +75,7 @@ export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   },
   bastion: {
     id: "bastion", name: "BASTION", faction: "dwarf", factionName: "DWARVEN HOLDS",
-    hull: 240, factory: "wardworks", ammo: "bulwark", belt: 14,
+    hull: 215, factory: "wardworks", ammo: "bulwark", belt: 14,
     turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", fireInterval: 0.75, window: 3, flight: 0.65 }],
     blurb: ["BULWARK SLUGS PLATE", "THE HULL AS THEY", "REACH THE CHAMBER."],
     pattern: "PLATE AND ENDURE",

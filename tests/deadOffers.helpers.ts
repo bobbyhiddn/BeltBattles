@@ -356,10 +356,14 @@ export const OFFENSE: (keyof Metrics)[] = [
 export const DEFENSE: (keyof Metrics)[] = ["ownDisrupt", "hullLost", "platingSpent"];
 export const changedKeys = (a: Metrics, b: Metrics, keys: (keyof Metrics)[]): (keyof Metrics)[] => keys.filter((k) => Math.abs(a[k] - b[k]) > 1e-7);
 
+/** 0.8.0 B1 (oracle 2e5a00525c876f07): the quiet foe is the audit's ruler, so it keeps 240 hull whatever BASTION's hull is. */
+export const QUIET_FOE_HULL = 240;
+
 /** An unarmed legal foe: offensive comparisons on one clock. */
 export function quietFoe(): Build {
   const b = heroStartBuild("bastion", 500);
   b.routes = [];
+  b.hullBonus += QUIET_FOE_HULL - HEROES.bastion.hull;
   return b;
 }
 

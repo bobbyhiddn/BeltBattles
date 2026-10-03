@@ -108,7 +108,7 @@ export function heroTrick(hero: HeroId): string {
     case "weaver":
       return `ITS LOOM FEEDS UP TO ${plural(fs.outputs, "BELT")} IN TURN, AND EACH THREAD SLUG THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`;
     case "foundry":
-      return `ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN WITHIN ${seconds(SYNC_WINDOW)} FUSE INTO ONE SLUG WITH ${times(FUSE_MULT)} THEIR DAMAGE.`;
+      return `ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN WITHIN ${seconds(SYNC_WINDOW)} FUSE INTO ONE SLUG WITH ${times2(FUSE_MULT)} THEIR DAMAGE.`;
     case "bastion":
       return `ITS BULWARK SLUGS PLATE YOUR HULL AS THEY LOAD, ${n1(PLATE_PER_SLUG)} EACH UP TO ${PLATE_CAP} PLATING, AND PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES.`;
     default:
@@ -134,6 +134,8 @@ export const percent = (x: number): string => `${Math.round(x * 100)}%`;
 export const plural = (n: number, one: string, many = `${one}S`): string => `${n} ${n === 1 ? one : many}`;
 /** "TWICE", "3 TIMES", "2.2 TIMES". */
 export const times = (r: number): string => (n1(r) === "2" ? "TWICE" : `${n1(r)} TIMES`);
+/** times() with two decimals, for a multiplier the sim keeps at two places: "1.15 TIMES" (0.8.0 B1: FUSE_MULT 1.15). */
+export const times2 = (r: number): string => (n2(r) === "2" ? "TWICE" : `${n2(r)} TIMES`);
 /** A rate or speed multiplier above 1: "33% FASTER" below 2, then "TWICE AS FAST", "2.3 TIMES AS FAST". */
 export function faster(r: number): string {
   if (r >= 2 - 1e-9) return `${times(r)} AS FAST`;
@@ -687,7 +689,7 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => [
       `POURS AN ALLOY BLANK ONTO EACH OF ITS ${plural(f(e).outputs, "BELT")} ${every(f(e).interval)}, ALL AT THE SAME MOMENT.`,
       `AN ALLOY BLANK DEALS ${damage(AMMO.blank.base)}.`,
-      `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)} OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH ${times(FUSE_MULT)} THEIR DAMAGE.`,
+      `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)} OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH ${times2(FUSE_MULT)} THEIR DAMAGE.`,
       "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
     ],
     gist: (e) => `POURS ${f(e).outputs} ALLOY BLANKS ${every(f(e).interval)}`,
