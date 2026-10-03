@@ -3,6 +3,12 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.8.2: the title screen on phones
+
+No battle rule changes: the rules stay bb-0.8.0, so 0.8.0's ghosts and uploads keep playing.
+- **Title screen:** the demo battle's two carriers keep clear water between them on phones held upright. On small
+  phones NEW RUN no longer sits on a carrier, and no title button is smaller than before.
+
 ## 0.8.1: phone controls
 
 Touch controls that work on a phone. No battle rule changes: the rules stay bb-0.8.0, so 0.8.0's ghosts and uploads
