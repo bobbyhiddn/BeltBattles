@@ -3,6 +3,15 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.8.3: a part's whole description on a phone tap
+
+No battle rule changes: the rules stay bb-0.8.0, so 0.8.0's ghosts and uploads keep playing. 0.8.3 also carries 0.8.2's
+title-screen fix.
+- **Tap to read, on a real phone:** tapping a shop card or a part on your carrier now shows its whole description on a
+  phone held upright. A phone's browser never gives the game the whole screen, so the panel used to get only a sliver
+  of room: a header and buttons, often no text. Now, after a tap, the panel grows over its neighbour until its text
+  fits, and a press on what it covers still reaches the part underneath. A mouse, drags and landscape work as before.
+
 ## 0.8.2: the title screen on phones
 
 No battle rule changes: the rules stay bb-0.8.0, so 0.8.0's ghosts and uploads keep playing.
