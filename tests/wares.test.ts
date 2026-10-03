@@ -3,7 +3,9 @@
 // offer only the wares unlocked by the day; a save without wares plays today's rule. Ported from D1's tests/wave3.test.ts
 // (which tests the draw as D1's tool modelled it) onto the game's own runs: the wares are hero-blind and deterministic;
 // the active pool and day 1 are in band; 5 steps; every module is reachable; the real caravan and the road grants offer
-// only unlocked wares, for six heroes alike. BB_TABLES=1 prints the SMUGGLER's empty-kind table (REPORT.md).
+// only unlocked wares, for six heroes alike. BB_TABLES=1 prints the SMUGGLER's empty-kind table (REPORT.md): the share of
+// runs whose kind has no unlocked ware, which the SMUGGLER now offers contraband (0.8.0 B1 M4, oracle aa0494523ab57b7c;
+// tests/b1.smuggler.test.ts prints the blocked rate).
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { hashSeed } from "../src/core/rng";
@@ -145,7 +147,15 @@ describe("the per-run draw in play: the caravan and the road (DESIGN-wave3.md 4.
       for (let j = 0; j < 16; j++) {
         const pick = (j + 0.5) / 16;
         expect(open(salvagePart(run, pick)), `salvage seed ${s} day ${day}`).toBe(true);
-        for (const p of smugglerParts(pick, run)) expect(open(p), `smuggler seed ${s} day ${day}: ${p}`).toBe(true);
+        // 0.8.0 B1 M4 (REQ-BFG-033, oracle aa0494523ab57b7c): a SMUGGLER part is one of the run's wares in its effect's
+        // pool, unlocked whenever that effect has an unlocked ware on the day (else contraband: drawn, ahead of its day)
+        smugglerParts(pick, run).forEach((p, i) => {
+          if (p === undefined) return;
+          const pool = smugglerPool(i === 0 ? "BURN" : "SHOCK");
+          expect(pool, `smuggler seed ${s} day ${day}: ${p}`).toContain(p);
+          expect(Object.prototype.hasOwnProperty.call(run.wares!, p), `smuggler seed ${s} day ${day}: ${p} is one of the run's wares`).toBe(true);
+          expect(open(p) || !pool.some((id) => unlocked(run, id, day)), `smuggler seed ${s} day ${day}: ${p}`).toBe(true);
+        });
         for (const good of ["temper", "coil", "splitter", "overdrive", "lance"]) expect(open(swapPart(good, pick, run)), `swap ${good}`).toBe(true);
       }
       // the event's own choices grant what these pick
@@ -163,7 +173,7 @@ describe("the per-run draw in play: the caravan and the road (DESIGN-wave3.md 4.
     expect(SALVAGE_OWNED).toBe(0.35);
   });
 
-  it("the SMUGGLER under the draw: how often each kind has no unlocked ware (2,000 runs), and then its choice is blocked", () => {
+  it("the SMUGGLER under the draw: how often each kind has no unlocked ware (2,000 runs): those runs are offered contraband; a run that drew none is blocked", () => {
     const burn = smugglerPool("BURN"), shock = smugglerPool("SHOCK");
     const rows: string[] = [];
     const emptyAt: Record<string, number[]> = { BURN: [], SHOCK: [] };
@@ -184,7 +194,8 @@ describe("the per-run draw in play: the caravan and the road (DESIGN-wave3.md 4.
     if (process.env.BB_TABLES) console.log(["| day | BURN empty | SHOCK empty | both empty |", "|---|---|---|---|", ...rows].join("\n"));
     // the rate falls as wares unlock and never rises
     for (const k of ["BURN", "SHOCK"]) for (let d = 1; d < RUN_DAYS; d++) expect(emptyAt[k][d], `${k} day ${d + 1}`).toBeLessThanOrEqual(emptyAt[k][d - 1]);
-    // an empty kind: the event's choice for it is blocked and grants nothing; the other still works
+    // a kind the run drew none of (every BURN ware taken out): the event's choice for it is blocked and grants nothing; the
+    // other still works (0.8.0 B1 M4: a kind with drawn wares but none unlocked offers contraband, tests/b1.smuggler.test.ts)
     const run = newRun("furnace", 1, "w");
     run.day = 1;
     run.wares = Object.fromEntries(Object.entries(run.wares!).filter(([id]) => !burn.includes(id)));
@@ -245,7 +256,19 @@ describe("a save without wares plays today's rule (DESIGN-wave3.md 4.2: a run in
         cards.push(gainOf(choicesFor(loaded)[i]));
       }
       expect(cards, `seed ${s} day ${day}`).toEqual(before.cards);
-      for (const c of cards) if (c) expect(unlocked(run, c, day), `${c} on day ${day}`).toBe(true);
+      // 0.8.0 B1 M4 (REQ-BFG-033, oracle aa0494523ab57b7c): the wreck and trader cards unlocked; the two SMUGGLER cards by
+      // its rule: one of the run's wares in its effect's pool, unlocked whenever that effect has an unlocked ware that day
+      cards.forEach((c, i) => {
+        if (!c) return;
+        if (i < 2) {
+          expect(unlocked(run, c, day), `${c} on day ${day}`).toBe(true);
+          return;
+        }
+        const pool = smugglerPool(i === 2 ? "BURN" : "SHOCK");
+        expect(pool, `${c} on day ${day}`).toContain(c);
+        expect(Object.prototype.hasOwnProperty.call(run.wares!, c), `${c} is one of the run's wares`).toBe(true);
+        expect(unlocked(run, c, day) || !pool.some((id) => unlocked(run, id, day)), `${c} on day ${day}`).toBe(true);
+      });
     }
     // malformed wares are dropped on load, and that run then plays today's rule (the old save's caravan)
     const run = newRun("weaver", 31337, "w");

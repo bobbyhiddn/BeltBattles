@@ -13,7 +13,8 @@ import { unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: road grants draw
  * 0.8.0 I1 M3 (DESIGN-wave3.md 4.2, VERIFIED-D1 Q8): the road's part grants (SALVAGE, the SMUGGLER, the TRADER's SWAP)
  * draw from the run's wares unlocked on its day, as its caravan does; a run without wares (a save from before 0.8.0, or
  * roadCap.ts's model of every run) keeps the whole pool. A pool the draw leaves empty blocks its choice (partChoice:
- * NONE ON OFFER), as an empty catalogue pool always did.
+ * NONE ON OFFER), as an empty catalogue pool always did. 0.8.0 B1 M4 (REQ-BFG-033): the SMUGGLER's one exception,
+ * smugglerStock: an effect with no unlocked ware offers the run's own drawn wares of it that aren't unlocked yet.
  */
 type WareRun = { wares?: Wares; day: number };
 const inWares = (run: WareRun | undefined, ids: string[]): string[] => (run?.wares ? ids.filter((id) => unlocked(run, id, run.day)) : ids);
@@ -146,14 +147,38 @@ export function salvagePart(run: Run, pick: number): string | undefined {
   return pick < p ? draw(twins, pick / p)[0] : draw(fresh, (pick - p) / (1 - p))[0];
 }
 
+/**
+ * 0.8.0 B1 M4 (REQ-BFG-033; VERIFIED-I1's call 4, I1 REPORT open item 4): what the SMUGGLER offers of one effect, in
+ * catalogue order. With a run: the run's wares in the effect's pool unlocked on its day (inWares), as before; when none of
+ * them is unlocked yet, the run's own drawn wares in that pool, every one ahead of its day (contraband). It is empty, and
+ * the choice blocked (NONE ON OFFER), only when the run drew none of that effect. The run's wares stay the only source:
+ * never a module the run did not draw. A run without wares (an old save, roadCap.ts's model) keeps the whole pool.
+ */
+export function smugglerStock(kind: SmugglerKind, run?: WareRun): string[] {
+  const pool = smugglerPool(kind);
+  const open = inWares(run, pool);
+  const wares = run?.wares;
+  if (open.length || !wares) return open;
+  return pool.filter((id) => Object.prototype.hasOwnProperty.call(wares, id));
+}
+
+/** Draw from `pool` with `u`, never `not` while the pool has another (draw's leftover with it). */
+const drawApart = (pool: string[], not: string | undefined, u: number): [string | undefined, number] => {
+  const other = pool.filter((id) => id !== not);
+  return draw(other.length ? other : pool, u);
+};
+
 /** SMUGGLER's BURN part, then its SHOCK part from what is left of `pick` (never BURN's gate again while
  *  the shock pool has another). 0.8.0 I1 M3: with a run, each pool is the run's unlocked wares in it (still keyed by
- *  effect, SMUGGLER_EFFECT); a kind the draw leaves empty is undefined, and its choice is blocked. */
+ *  effect, SMUGGLER_EFFECT). 0.8.0 B1 M4 (REQ-BFG-033): a kind with no unlocked ware offers the run's drawn wares of it
+ *  ahead of their day (smugglerStock), drawn from what is left of `pick` after the unlocked draws, so a kind with an
+ *  unlocked ware offers exactly the part it did before; a kind the run drew none of is undefined, and its choice is
+ *  blocked. */
 export function smugglerParts(pick: number, run?: WareRun): [string | undefined, string | undefined] {
-  const [burn, rest] = draw(inWares(run, smugglerPool("BURN")), pick);
-  const shock = inWares(run, smugglerPool("SHOCK"));
-  const other = shock.filter((id) => id !== burn);
-  return [burn, draw(other.length ? other : shock, rest)[0]];
+  const [burnOpen, rest] = draw(inWares(run, smugglerPool("BURN")), pick);
+  const [shockOpen, left] = drawApart(inWares(run, smugglerPool("SHOCK")), burnOpen, rest);
+  const [burn, last] = burnOpen ? [burnOpen, left] : drawApart(smugglerStock("BURN", run), shockOpen, left);
+  return [burn, shockOpen ?? drawApart(smugglerStock("SHOCK", run), burn, last)[0]];
 }
 
 /** TRADER SWAP's part for a good of `def`: from UPGRADE[SWAP_TIER[its rarity]], never `def` itself. 0.8.0 I1 M3: with a
