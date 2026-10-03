@@ -1173,6 +1173,27 @@ export interface PanelPlan {
  *  px in logical px) where that is taller. Exported for the tests. */
 export const columnButtonH = (tap = 0): number => Math.max(16, tap);
 
+/**
+ * The landscape column's buttons for `n` actions at the foot of panel `r`, in action order, bottom-up as 0.6.1r stacked
+ * them: one full-width 16 px button a row, 3 px apart (the mouse, exactly as before). shoptap (D5): on touch (`tap` > 0)
+ * each is a finger's target (columnButtonH) and they go two to a row (a lone last one full width), so the taller
+ * buttons cost the column's text half the rows (a turret's four: two rows, not four). Pure (tests).
+ */
+export function columnButtons(n: number, r: Rect, tap = 0): Rect[] {
+  const bh = columnButtonH(tap), per = tap > 0 ? 2 : 1, rows = Math.ceil(n / per), gap = 3;
+  const out: Rect[] = [];
+  const top = r.y + r.h - 5 - rows * bh - (rows - 1) * gap;
+  for (let i = 0; i < n; i++) {
+    const row = Math.floor(i / per), inRow = Math.min(per, n - row * per), col = i % per;
+    const w = Math.floor((r.w - 10 - gap * (inRow - 1)) / inRow);
+    out.push({ x: r.x + 5 + col * (w + gap) + (inRow > 1 && col === inRow - 1 ? r.w - 10 - inRow * w - gap * (inRow - 1) : 0), y: top + row * (bh + gap), w, h: bh });
+  }
+  return out;
+}
+
+/** The rows the column's buttons take (columnButtons). */
+const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 1));
+
 /** Lay out a panel in `area` (the landscape column when area.h >= 70, else the portrait band). 0.8.0 I1 M4: `families`,
  *  the shown module's families (selFamilies), go in its header; the body plans as without them. shoptap (D5): `o.tap`,
  *  a touch press's target height in logical px: the column's buttons are that tall (columnButtonH; the portrait band's
@@ -1180,7 +1201,8 @@ export const columnButtonH = (tap = 0): number => Math.max(16, tap);
 export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [], o: { tap?: number } = {}): PanelPlan {
   const column = area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
-  const pitch = columnButtonH(o.tap) + 3; // a stacked button and the gap above it (0.6.1r: 16 + 3)
+  const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
+  const btnRows = columnRows(labels.length, o.tap); // shoptap (D5): on touch two buttons a row (columnButtons)
   const wrapW = area.w - 10;
   let port = !column && labels.length ? portraitButtons(sp.title, sp.sub, labels, area) : null;
   if (port?.shift && sp.subShort) {
@@ -1195,7 +1217,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
     ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
     : [sp.sub];
   const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 : 0);
-  const extra = labels.length ? labels.length * pitch + 3 : 4;
+  const extra = labels.length ? btnRows * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
   const subMax = headRight - (area.x + 23);
   // the body starts at y + 25 + shift (a tight variant's 1 px higher). The column grows to its text (27 + shift + body +
@@ -1230,7 +1252,7 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
     : null;
   const r = column ? { ...area, h: Math.min(area.h, 27 + shift + body.height + extra) } : area;
   const y = r.y + 25 + shift - (body.tight ? 1 : 0);
-  const maxY = column && labels.length ? r.y + r.h - 5 - labels.length * pitch : r.y + r.h - 4;
+  const maxY = column && labels.length ? r.y + r.h - 5 - btnRows * pitch : r.y + r.h - 4;
   // no body line fits (the header-only 360x640 strip): its header text instead of the sub line, on up to two lines
   const headerOnly = !column && r.y + 25 + shift + 5 > maxY && sp.headerOnly
     ? { lines: headerLines(sp.headerOnly.texts, subMax, r.w - 27), colour: sp.headerOnly.colour } : null;
@@ -1435,15 +1457,11 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   const tap = touchTap(ctx); // shoptap (D5): on touch, every button is a finger's target (TAP_CSS CSS px tall)
   if (acts.length && plan.column) {
     // landscape column: one full-width button per action, stacked bottom-up under the text (shoptap: on touch, each
-    // drawn as tall as its target)
-    const bh = columnButtonH(tap);
-    let by = r.y + r.h - 5;
-    for (let i = acts.length - 1; i >= 0; i--) {
-      by -= bh;
+    // drawn as tall as its target, two to a row; columnButtons)
+    columnButtons(acts.length, r, tap).forEach((q, i) => {
       const a = acts[i];
-      button(ctx.game.ui, g, a.id, { x: r.x + 5, y: by, w: r.w - 10, h: bh }, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
-      by -= 3;
-    }
+      button(ctx.game.ui, g, a.id, q, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
+    });
   } else if (plan.rects) {
     // shoptap (D5): the portrait band's buttons keep their size (the band keeps its text); on touch each one's target
     // grows to TAP_CSS CSS px tall inside the panel (side by side, the targets never meet)

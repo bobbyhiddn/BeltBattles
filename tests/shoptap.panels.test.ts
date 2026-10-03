@@ -14,8 +14,8 @@ import { UI } from "../src/ui/ui";
 import { TAP_CSS } from "../src/ui/tap";
 import { buildLayout, buildScale, type Sel } from "../src/screens/build/layout";
 import {
-  SIGNATURE_ABOARD, TOUCH_TURN, cargoPanel, columnButtonH, detailsPlan, drawDetails, fittedPanel, itemPanel, keptWhole, offerPanel,
-  rigPanel, sellLabel, turretPanel,
+  SIGNATURE_ABOARD, TOUCH_TURN, cargoPanel, columnButtonH, columnButtons, detailsPlan, drawDetails, fittedPanel, itemPanel, keptWhole,
+  offerPanel, rigPanel, sellLabel, turretPanel,
 } from "../src/screens/build/inspector";
 import { touchSlotHint, SLOT_HINT } from "../src/screens/build/turretPanel";
 import { sellFitted, sellPlaced, storeFitted, type Ctx } from "../src/screens/build/actions";
@@ -225,6 +225,25 @@ describe("D5: every button a finger presses is at least 44 CSS px tall (touch); 
       }
     }
     expect(n).toBeGreaterThan(40);
+  });
+
+  it("the landscape column: the mouse's buttons stacked as 0.6.1r stacked them; on touch two to a row, each 44 CSS px tall", () => {
+    const r = { x: 6, y: 74, w: 128, h: 150 };
+    for (let n = 1; n <= 4; n++) {
+      // 0.8.0's drawDetails: bottom-up, 16 px each, 3 px apart, full width
+      const old = Array.from({ length: n }, (_, i) => ({ x: r.x + 5, y: r.y + r.h - 5 - (n - i) * 16 - (n - 1 - i) * 3, w: r.w - 10, h: 16 }));
+      expect(columnButtons(n, r), `${n} buttons`).toEqual(old);
+      const t = columnButtons(n, r, 33);
+      expect(new Set(t.map((q) => q.y)).size, `${n} buttons on touch`).toBe(Math.ceil(n / 2));
+      for (const [i, q] of t.entries()) {
+        expect(q.h).toBe(33);
+        expect(q.x).toBeGreaterThanOrEqual(r.x + 5);
+        expect(q.x + q.w).toBeLessThanOrEqual(r.x + r.w - 5);
+        expect(q.y + q.h).toBeLessThanOrEqual(r.y + r.h - 5);
+        for (const o of t.slice(i + 1)) expect(hit(q, o)).toBe(false);
+      }
+      expect(t.at(-1)!.y + t.at(-1)!.h).toBe(r.y + r.h - 5);
+    }
   });
 
   it("REMOVE BELT on the 360x640 strip too", () => {

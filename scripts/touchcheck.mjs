@@ -84,12 +84,22 @@ function pageServer() {
 async function openPage(browser, origin, vname) {
   const ctx = await browser.newContext(VIEW[vname]);
   const page = await ctx.newPage();
+  // each touch press's length as the page saw it: pointerdown to pointerup, timed in the page (performance.now)
+  await page.addInitScript(() => {
+    window.__taps = [];
+    addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") window.__tapStart = performance.now(); }, true);
+    addEventListener("pointerup", (e) => {
+      if (e.pointerType !== "mouse" && window.__tapStart != null) window.__taps.push({ ms: performance.now() - window.__tapStart, type: e.pointerType });
+      window.__tapStart = null;
+    }, true);
+  });
   const errors = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`); });
   await page.goto(`${origin}/index.html`);
   await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
   const cdp = await ctx.newCDPSession(page);
+  cdp.page = page;
   return { ctx, page, cdp, errors };
 }
 
@@ -183,17 +193,19 @@ async function shot(page, name) {
 // ---------------------------------------------------------------------------------------------------- real touch input
 const tp = (p) => ({ x: p.x, y: p.y, id: 1, radiusX: 4, radiusY: 4, force: 1 });
 
-/** A finger's tap at `p`: down, a drift of `css` CSS px at `deg` degrees in two moves, up; under 200 ms. */
+/** A finger's tap at `p`: right after a frame, down and a drift of `css` CSS px at `deg` degrees in two moves (sent back
+ *  to back: queued in order on one CDP session), held about 30 ms (the game's frames run meanwhile), then up; its length
+ *  is what the page timed, pointerdown to pointerup. */
 async function tap(cdp, p, css = 0, deg = 0) {
   const a = (deg * Math.PI) / 180, q = { x: p.x + css * Math.cos(a), y: p.y + css * Math.sin(a) };
-  const t = Date.now();
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [tp(p)] });
-  if (css) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [tp({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })] });
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [tp(q)] });
-  }
+  const n0 = await cdp.page.evaluate(() => new Promise((ok) => requestAnimationFrame(() => ok(window.__taps.length))));
+  const ev = [{ type: "touchStart", touchPoints: [tp(p)] }];
+  if (css) ev.push({ type: "touchMove", touchPoints: [tp({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })] }, { type: "touchMove", touchPoints: [tp(q)] });
+  await Promise.all(ev.map((e) => cdp.send("Input.dispatchTouchEvent", e)));
+  await sleep(30);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  tapMs.push(Date.now() - t);
+  const seen = await cdp.page.evaluate((n) => window.__taps.slice(n), n0);
+  tapMs.push(seen.length === 1 && seen[0].type === "touch" ? seen[0].ms : Infinity); // one touch press a tap, timed
   await sleep(150);
 }
 
@@ -569,8 +581,8 @@ async function main() {
     site.srv.close();
   }
   if (tapMs.length) {
-    const max = Math.max(...tapMs);
-    check(max < 200, `every touch tap took under 200 ms from touchstart to touchend (${tapMs.length} taps, the longest ${max} ms)`);
+    const max = Math.max(...tapMs), mean = tapMs.reduce((s, v) => s + v, 0) / tapMs.length;
+    check(max < 200, `every touch tap was one touch press under 200 ms, pointerdown to pointerup as the page timed it (${tapMs.length} taps; the longest ${max.toFixed(1)} ms, mean ${mean.toFixed(1)} ms)`);
   }
   const failed = checks.filter((c) => !c.ok);
   log("");
