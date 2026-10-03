@@ -17,6 +17,12 @@ const ROOT = new URL("..", import.meta.url).pathname;
 const DIST = process.env.BB_DIST ? resolve(process.env.BB_DIST) : join(ROOT, "dist");
 const OUT = resolve(process.argv[2] ?? join(ROOT, "contact-sheet"));
 const FAMILY = process.argv[3] ?? "";
+// 0.8.0 RC (REQ-BFG-032, the text sheet): BB_IDS=<id,id,...> keeps only those modules; BB_HERO=<hero> builds every scene
+// on that hero's run (default FURNACE; a turret core's numbers scale with the hero's gun); BB_PREFIX=<text> starts every
+// sheet's file name.
+const IDS = process.env.BB_IDS ? new Set(process.env.BB_IDS.split(",").map((s) => s.trim()).filter(Boolean)) : null;
+const HERO = process.env.BB_HERO || "furnace";
+const PREFIX = process.env.BB_PREFIX || "";
 const ORIGIN = "http://bb.test";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 const PLATFORMS = { desk: VIEWS.desk, phone: VIEWS.phone };
@@ -44,21 +50,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ------------------------------------------------------------------------------------------------ in-page scenes
 
-/** In page: a fresh FURNACE run in the build screen (seed 12345), stepped until the caravan parks; `setup(g, run)`. */
+/** In page: a fresh run of HERO (FURNACE by default) in the build screen (seed 12345), stepped until the caravan parks;
+ *  `setup(g, run)`. */
 async function fresh(page, setup, arg) {
-  await page.evaluate(({ setup, arg }) => {
+  await page.evaluate(({ setup, arg, hero }) => {
     const g = window.bb.game;
     g.run = null;
     window.bb.clearPool();
     window.bb.setReducedMotion(false);
-    window.bb.open("build", "furnace", 12345);
+    window.bb.open("build", hero, 12345);
     for (let i = 0; i < 20; i++) g.step(1 / 60);
     for (let i = 0; i < 120 && !g.screen.caravan.ready; i++) g.step(1 / 60);
     new Function("g", "run", "arg", setup)(g, g.run, arg);
     g.screen.touched();
     for (let i = 0; i < 12; i++) g.step(1 / 60);
     g.render();
-  }, { setup, arg });
+  }, { setup, arg, hero: HERO });
 }
 
 /** In page: step until parked, render, and check the caravan parked (0b.3); returns the UI regions of the frame. */
@@ -280,7 +287,7 @@ async function main() {
     const catalogue = await page.evaluate(() => window.bb.catalogue());
     for (const [kind, slug, title] of FAMILIES) {
       if (FAMILY && !slug.includes(FAMILY)) continue;
-      const modules = catalogue.filter((m) => m.kind === kind);
+      const modules = catalogue.filter((m) => m.kind === kind && (!IDS || IDS.has(m.id)));
       if (!modules.length) continue;
       let fam = families.find((f) => f.slug === slug);
       if (!fam) families.push((fam = { slug, title, modules, sheets: [] }));
@@ -289,8 +296,8 @@ async function main() {
       parkedAll += parked;
       for (let i = 0; i < modules.length; i += PER_SHEET) {
         const rows = modules.slice(i, i + PER_SHEET), k = i / PER_SHEET + 1, pages = Math.ceil(modules.length / PER_SHEET);
-        const url = await sheet(page, `${title}: ${view.toUpperCase()} (${k}/${pages})`, rows, SCALE);
-        const file = `${slug}-${view}-${k}.png`;
+        const url = await sheet(page, `${title}: ${view.toUpperCase()}${HERO !== "furnace" ? ` (${HERO.toUpperCase()})` : ""} (${k}/${pages})`, rows, SCALE);
+        const file = `${PREFIX}${slug}-${view}-${k}.png`;
         await writeFile(join(OUT, file), Buffer.from(url.split(",")[1], "base64"));
         fam.sheets.push({ file, view, n: k, ids: rows.map((m) => m.id) });
         files++;
