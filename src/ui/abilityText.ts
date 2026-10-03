@@ -1083,7 +1083,11 @@ const ENTRIES: Record<string, Entry> = {
   },
   armorpress: {
     // Battle.pressPlate: plate.amount every plate.every seconds while it feeds a turret and isn't stalled or frozen (at
-    // its timers' pace, a STOKER's full stoke included); its slugs stamp as STAMP PRESS's do
+    // its timers' pace, a STOKER's full stoke included); its slugs stamp as STAMP PRESS's do. 0.8.0 B1 M4 (G1's F2): STOKER's
+    // cap (oracle a0e94bc69949561f) holds back only the stamping, so a stoke speeds the plating in full even while a full
+    // gun holds the stamping (G1: plating 20 / 44 / 70% faster at 1-3 stars, stamping 1.0x). These sentences state no pace;
+    // the STOKER's capped line says it where it applies (inspector.ts stokeCapBlocks: "... SO ONLY ITS PLATING WORKS 44%
+    // FASTER."), and STOKER's own text ("ITS OTHER TIMERS RUN FASTER TOO") already fits
     text: (e) => {
       const fs = f(e);
       return [
