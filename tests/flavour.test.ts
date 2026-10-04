@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ITEMS, buyableModules } from "../src/sim/content";
+import { ITEMS, buyableModules, classFactor } from "../src/sim/content"; // U2c (U2b's faces): classFactor
 import { effectAt } from "../src/sim/stars";
+import { startingTurrets } from "../src/sim/deck"; // U2c (U2b's faces): the WEAVER's class factor
+import { faceLines } from "../src/ui/faces"; // U2c (U2b's faces)
 import { newRun } from "../src/game/run";
 import { KEPT_FLAVOUR, flavour, flavourText } from "../src/screens/build/flavour";
 import { cargoPanel, itemPanel, rigPanel, type PanelText } from "../src/screens/build/inspector";
@@ -139,7 +141,11 @@ describe("0.6.2t: the panels show the kept flavour, set apart and dimmer; a modu
     w.inventory.push({ uid: 21, def: "pressure", stars: 2 }, { uid: 22, def: "hopper", stars: 3 });
     const cp = cargoPanel(w, 21)!;
     expect(flav(cp)).toEqual([]);
-    expect(cp.body[0].text).toBe("SHOTS DEAL 1.4 MORE DAMAGE FOR EACH PAYLOAD WAITING, UP TO 5 PAYLOADS.");
+    // U2c (U2b's faces): the panel opens with the core's face rule at the WEAVER's class factor (its first starting
+    // turret's, content.ts classFactor): "SHOT: +1.4 {DMG} FOR EACH LOAD WAITING." (faceLines); was the glossary's
+    // sentence "SHOTS DEAL 1.4 MORE DAMAGE FOR EACH PAYLOAD WAITING, UP TO 5 PAYLOADS."
+    const k = classFactor(effectAt(startingTurrets("weaver")[0].def, 1).turret!);
+    expect(cp.body[0].text).toBe(faceLines("pressure", 2, { k })!.rules[0].text);
     expect(flav(cargoPanel(w, 22)!)).toEqual([]);
   });
 });
