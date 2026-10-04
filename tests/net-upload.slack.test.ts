@@ -347,12 +347,16 @@ describe("roadCap's slack per day (REPORT.md §2; v070-rel: re-derived on 40d2b2
 // that moves them is reviewed on purpose.
 /** roadCap - the best consistent plan (062m: 0 0 0 1 3 6 9 10 12 15). 0.8.0 N1 (oracle 94b9559fbb7da299 (9)): with
  *  seven Hard captains the rotation costs less (BASE 9855129: 0 0 0 2 4 6 8 10 12 14); roadCap itself is unchanged. */
-const SLACK: number[] = [0, 0, 0, 1, 3, 5, 7, 9, 11, 14];
+// bb-0.8.6 (PACKS, REQ-BFG-051 P1-P2): the BELT PACK and ARMOR PACK left the rolled stock and no discount reaches them, so
+// roadCap's discount term (discountGain) and the plans it ranks moved (roadCap 5 17 28 43 57 71 87 106 122 146, was
+// 5 17 29 43 59 74 90 110 127 149); was SLACK 0 0 0 1 3 5 7 9 11 14, LIQUID 0 0 0 0 2 3 4 7 8 9, MISMATCH 0 0 0 1 1 2 2 1 2 3,
+// ROTATION 0 0 0 0 0 0 1 1 1 2.
+const SLACK: number[] = [0, 0, 0, 3, 3, 4, 6, 8, 9, 15];
 /** of which: road parts counted as gold in gmax, roadCap - roadCapHoard (062m: 0 0 0 0 2 4 7 9 9 12). */
-const LIQUID: number[] = [0, 0, 0, 0, 2, 3, 4, 7, 8, 9];
+const LIQUID: number[] = [0, 0, 0, 2, 1, 3, 3, 6, 6, 11];
 /** of which: gmax's separate gold plan, roadCapHoard - free (062m: 0 0 0 1 1 2 2 1 3 3). */
-const MISMATCH: number[] = [0, 0, 0, 1, 1, 2, 2, 1, 2, 3];
+const MISMATCH: number[] = [0, 0, 0, 1, 2, 0, 3, 1, 2, 2];
 /** of which: the Hard rotation, free - rot (062m: 0 on every day). 0.8.0 N1 (BASE 9855129: 0 0 0 1 1 1 2 2 2 2). */
-const ROTATION: number[] = [0, 0, 0, 0, 0, 0, 1, 1, 1, 2];
+const ROTATION: number[] = [0, 0, 0, 0, 0, 1, 0, 1, 1, 2];
 /** Hard captains whose day-before deck (SABOTAGE) offers a pricier part than their own (062m: none). */
 const SABOTAGE_PRICIER: string[] = ["bulwark d9: 4 -> 5"];

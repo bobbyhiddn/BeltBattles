@@ -129,20 +129,23 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     // v070-rel (rel-062-final 40d2b2c): TUNE-C builds the Hard warlord decks at good luck and the Matriarch's at stars-aligned
     // luck, so the Hard pick pays 5-7 on days 1-7 (was 7-8) and 10 from day 8, the Matriarch's part 10 (was 8); the
     // offer mix, the events and the shop gold are unchanged (output-v070-rel/REPORT.md §2). 062m: 7 18 30 46 62 80 99 116 133 155.
+    // bb-0.8.6 (PACKS, REQ-BFG-051 P1-P2): the packs left the rolled stock and no discount reaches them, so the discount
+    // term saves less (was 5 17 29 43 59 74 90 110 127 149 and maxHonestSpend 13 34 56 81 109 137 167 201 232 268)
     const table = Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1));
-    expect(table).toEqual([5, 17, 29, 43, 59, 74, 90, 110, 127, 149]);
-    expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 34, 56, 81, 109, 137, 167, 201, 232, 268]);
+    expect(table).toEqual([5, 17, 28, 43, 57, 71, 87, 106, 122, 146]);
+    expect(Array.from({ length: RUN_DAYS }, (_, i) => maxHonestSpend(i + 1))).toEqual([13, 34, 55, 81, 107, 134, 164, 197, 227, 265]);
     for (let d = 2; d <= RUN_DAYS; d++) expect(roadCap(d)).toBeGreaterThanOrEqual(roadCap(d - 1));
   });
 
   it("the discount: rolls of at most OFFERS distinct defs, rerolls at REROLL_COST; exact on small purses", () => {
     expect([OFFERS, REROLL_COST]).toEqual([5, 2]);
-    // cheapest roll at -1: a belt crate for 1 and four 3 g rigs for 2 each = 5 saved for 9 gold
+    // bb-0.8.6 (PACKS P1-P2): no pack is rolled or discounted, so the cheapest roll at -1 is 3 g rigs for 2 each (was: a
+    // belt crate for 1 and four rigs: 1 / 5 / 6 / 8 below): 4 saved for 8 gold
     expect(discountGain(1, 0)).toBe(0);
-    expect(discountGain(1, 1)).toBe(1);
-    expect(discountGain(1, 9)).toBe(5);
-    expect(discountGain(1, 17)).toBe(6); // a reroll (2) and 3 more (1 + 2 + 2) of the new roll: 5 + 3 - 2
-    expect(discountGain(1, 20)).toBe(8); // two full rolls: 10 - 2
+    expect(discountGain(1, 1)).toBe(0);
+    expect(discountGain(1, 9)).toBe(4);
+    expect(discountGain(1, 17)).toBe(5); // four (8 g), a reroll (2) and three more (6 g): 4 + 3 - 2
+    expect(discountGain(1, 20)).toBe(7); // a full roll (10 g), a reroll (2), four more (8 g): 5 + 4 - 2
     for (let g = 1; g < 120; g++) expect(discountGain(1, g)).toBeGreaterThanOrEqual(discountGain(1, g - 1));
     // the discount counts only at a caravan before the deck's dusk: a scout on the deck's own day is worth nothing
     for (let d = 2; d <= RUN_DAYS; d++) {
@@ -158,7 +161,8 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
       if (d >= 2) expect(gmax(d, true)).toBeLessThanOrEqual(gmax(d));
     }
     // v070-rel: gmax's liquid road plan holds less (the Hard pick pays less on days 1-7). 062m: 0 0 0 0 2 4 7 9 9 12
-    expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 0, 2, 3, 4, 7, 8, 9]);
+    // bb-0.8.6 (PACKS P1-P2): the discount reaches no pack (was 0 0 0 0 2 3 4 7 8 9)
+    expect(Array.from({ length: RUN_DAYS }, (_, i) => roadCap(i + 1) - roadCapHoard(i + 1))).toEqual([0, 0, 0, 2, 1, 3, 3, 6, 6, 11]);
   });
 });
 
