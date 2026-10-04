@@ -240,6 +240,16 @@ describe("D7': the bots buy the upgrades; the stand-in code and the captains car
     }
   });
 
+  it("an honest run with upgrades passes the upload check on every day (validateUpload, the player mode and its budget)", () => {
+    let withLevels = 0;
+    for (const hero of HEROES4) for (let seed = 1; seed <= 4; seed++) for (const d of playerRun(hero, 10, seed)) {
+      const v = validateUpload(d.build, d.day);
+      expect(v.errors, `${hero} seed ${seed} day ${d.day}`).toEqual([]);
+      if (d.build.upgrades) withLevels++;
+    }
+    expect(withLevels).toBeGreaterThan(30); // most late decks carry a level
+  });
+
   it("the stand-in code carries the levels (a head word \"u<turret><factory>\"); a deck without them encodes as before", () => {
     const b = newRun("weaver", 2).build;
     const code = encodeStarred(b);
