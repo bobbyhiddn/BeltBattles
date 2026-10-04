@@ -40,7 +40,11 @@
 //         (visualViewport, innerWidth x innerHeight). WebKit's touch input: Playwright's own WebKit protocol,
 //         Input.dispatchTouchEvent (touchStart / touchMove / touchEnd, integer CSS px) on the page proxy session that
 //         page.touchscreen.tap uses (Playwright's API has a tap but no touch move for WebKit).
-// Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319] [--tag after]
+// PACKS M2 (REQ-BFG-063) names: the name screen on a fresh device (phone 390x844 in Chromium; the 402x690 and iPhone 13 views
+//         in WebKit; the desk): the title's first tap opens it and it can't be skipped (Escape, taps beside it, an empty
+//         OK); its input's keyboard attributes, upper case as typed; OK at least 44 x 44 CSS px and tappable, Enter
+//         submits; the refusals on the screen; a reload keeps the name; the options card's NAME entry (title, build MENU).
+// Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names] [--tag after]
 //        [--name touchcheck] [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
 
@@ -59,7 +63,7 @@ const opt = (name, fallback) => {
 };
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
-const ONLY = opt("only", "touch,mouse,319").split(",").map((s) => s.trim());
+const ONLY = opt("only", "touch,mouse,319,names").split(",").map((s) => s.trim()); // PACKS M2: + names
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png" };
@@ -877,12 +881,146 @@ async function summarySection(browsers, origin) {
   }
 }
 
+// ----------------------------------------------------------------------------------------------- PACKS M2: names
+/** PACKS M2 (REQ-BFG-063): the name screen on a fresh device (offline, no server URL): the title's first tap opens it and
+ *  nothing gets past it but a name; its <input> (phone keyboard attributes, upper case as typed) and OK (44 x 44 CSS px at
+ *  least, tappable; Enter submits too); the refusals on the screen; the name kept over a reload; the options card's NAME
+ *  entry (on the title and in a run) opens the same screen, CANCEL keeps the old name, OK changes it. */
+async function namesSection(browsers, origin) {
+  log("");
+  log("## PACKS M2 (REQ-BFG-063): required player names: the name screen, its input and OK, the options card's NAME entry");
+  for (const vname of ["phone", "wk-op-690", "wk-iphone13", "desk"]) {
+    if (!browsers[ENGINE(vname)]) continue;
+    const { ctx, page, errors } = await openPage(browsers, origin, vname);
+    const touch = !!VIEW[vname].hasTouch, vp = page.viewportSize();
+    const center = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+    const press = async (p) => {
+      if (touch) await page.touchscreen.tap(p.x, p.y);
+      else await page.mouse.click(p.x, p.y);
+      await sleep(250);
+    };
+    const tapEl = async (sel) => {
+      if (touch) await page.tap(sel);
+      else await page.click(sel);
+      await sleep(250);
+    };
+    const state = () => page.evaluate(() => ({
+      entry: window.bb.nameEntry(), screen: window.bb.screen(), name: window.bb.playerName(), stored: localStorage.getItem("beltbattles.name.v1"),
+      dom: !!document.getElementById("bb-name"), cancel: !!document.getElementById("bb-name-cancel"),
+    }));
+    const enter = async (text, how) => {
+      await page.fill("#bb-name-input", "");
+      await tapEl("#bb-name-input");
+      await page.keyboard.type(text);
+      if (how === "enter") await page.keyboard.press("Enter");
+      else await tapEl("#bb-name-ok");
+      await sleep(250);
+    };
+    try {
+      await settle(page, "title");
+      let s = await state();
+      check(s.name === null && s.stored === null && s.entry === null && !s.dom, `names ${vname}: a fresh device has no name stored, and the title shows no name screen before a tap`);
+      await press(center(await region(page, "new")));
+      s = await state();
+      check(s.entry?.required === true && s.screen === "title" && s.dom && !s.cancel, `names ${vname}: the title's first tap (NEW RUN) opens the name screen, required (no CANCEL), before hero select (screen ${s.screen})`);
+      const attrs = await page.evaluate(() => {
+        const i = document.getElementById("bb-name-input");
+        return { tag: i.tagName, type: i.type, cap: i.getAttribute("autocapitalize"), ac: i.getAttribute("autocomplete"), sp: i.getAttribute("spellcheck"), ekh: i.getAttribute("enterkeyhint") };
+      });
+      check(attrs.tag === "INPUT" && attrs.type === "text" && attrs.cap === "characters" && attrs.ac === "off" && attrs.sp === "false" && attrs.ekh === "done",
+        `names ${vname}: a real <input type=text>, autocapitalize=characters, autocomplete=off, spellcheck=false, enterkeyhint=done (${JSON.stringify(attrs)})`);
+      const ok = await page.locator("#bb-name-ok").boundingBox(), inp = await page.locator("#bb-name-input").boundingBox();
+      const onScreen = (b) => !!b && b.x >= 0 && b.y >= 0 && b.x + b.width <= vp.width + 0.5 && b.y + b.height <= vp.height + 0.5;
+      check(onScreen(ok) && onScreen(inp) && ok.width >= TAP_CSS && ok.height >= TAP_CSS && inp.height >= TAP_CSS,
+        `names ${vname}: OK ${ok?.width.toFixed(1)}x${ok?.height.toFixed(1)} CSS px and the input ${inp?.width.toFixed(1)}x${inp?.height.toFixed(1)}, at least 44 CSS px, on the screen (${vp.width}x${vp.height})`);
+      await page.screenshot({ path: join(OUT, `${TAG}-names-${vname}-screen.png`) });
+      shots.push(`${TAG}-names-${vname}-screen.png`);
+      // it can't be skipped: Escape, a tap beside the panel and on NEW RUN under it, an empty OK
+      await page.keyboard.press("Escape");
+      await press({ x: vp.width / 2, y: vp.height - 30 });
+      await press(center(await region(page, "new")));
+      await tapEl("#bb-name-ok");
+      s = await state();
+      check(s.entry?.problem === "missing" && s.entry.refusal === "TYPE A NAME" && s.screen === "title" && s.name === null && s.dom,
+        `names ${vname}: it can't be skipped: Escape, taps beside it and an empty OK leave it up, refusing with "${s.entry?.refusal}"; still the title, no name stored`);
+      // upper case as typed; the reserved name and a too long one are refused on the screen
+      await page.fill("#bb-name-input", "");
+      await tapEl("#bb-name-input");
+      await page.keyboard.type("wanderer");
+      const typed = await page.inputValue("#bb-name-input");
+      await tapEl("#bb-name-ok");
+      s = await state();
+      check(typed === "WANDERER" && s.entry?.problem === "not allowed" && s.entry.refusal === "PICK ANOTHER NAME" && s.name === null,
+        `names ${vname}: letters show upper case as typed ("wanderer" shows ${typed}); OK refuses it with "${s.entry?.refusal}" on the screen`);
+      await page.screenshot({ path: join(OUT, `${TAG}-names-${vname}-refused.png`) });
+      shots.push(`${TAG}-names-${vname}-refused.png`);
+      await enter("abcdefghijk", "ok");
+      s = await state();
+      check(s.entry?.refusal === "NAME TOO LONG" && s.name === null, `names ${vname}: 11 characters: "${s.entry?.refusal}"`);
+      // a good name: Enter on the desk and the 402x690 phone, OK elsewhere; NEW RUN then goes on
+      const how = vname === "desk" || vname === "wk-op-690" ? "enter" : "ok";
+      await enter("  anna  b ", how);
+      await settle(page, "hero");
+      s = await state();
+      check(s.name === "ANNA B" && s.stored === "ANNA B" && s.entry === null && !s.dom,
+        `names ${vname}: ${how === "enter" ? "Enter" : "a tap on OK"} stores "${s.name}" (trimmed, one space, upper case); the screen goes and NEW RUN goes on to hero select`);
+      // a reload keeps it: NEW RUN goes straight to hero select
+      await page.reload();
+      await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
+      await settle(page, "title");
+      await press(center(await region(page, "new")));
+      await settle(page, "hero");
+      s = await state();
+      check(s.name === "ANNA B" && s.entry === null, `names ${vname}: after a reload the name is kept and NEW RUN goes straight to hero select`);
+      // the options card's NAME entry, on the title: CANCEL keeps the old name; OK changes it
+      await page.reload();
+      await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
+      await settle(page, "title");
+      await press(center(await region(page, "options")));
+      const opt = await region(page, "opt-name");
+      check(!!opt, `names ${vname}: the options card has a NAME entry (${opt ? `${opt.w.toFixed(1)}x${opt.h.toFixed(1)} CSS px` : "missing"})`);
+      if (opt) {
+        await press(center(opt));
+        s = await state();
+        const prefill = await page.inputValue("#bb-name-input");
+        check(s.entry?.required === false && s.cancel && prefill === "ANNA B", `names ${vname}: NAME opens the same screen with the name in it ("${prefill}") and a CANCEL`);
+        await page.fill("#bb-name-input", "zed");
+        await tapEl("#bb-name-cancel");
+        s = await state();
+        check(s.name === "ANNA B" && s.entry === null && !s.dom, `names ${vname}: CANCEL keeps the old name (${s.name})`);
+        await press(center(await region(page, "opt-name")));
+        await enter("bob-7", how);
+        s = await state();
+        check(s.name === "BOB-7" && s.stored === "BOB-7" && s.entry === null && s.screen === "title", `names ${vname}: NAME, then "bob-7" and ${how === "enter" ? "Enter" : "OK"}: the name is now ${s.name}`);
+      }
+      // in a run: the build screen's MENU card has it too, and the run stays as it was
+      await page.evaluate(() => window.bb.openDawn({ hero: "furnace", day: 2, gold: 10, seed: 12345 }));
+      await settle(page, "build");
+      const before = await page.evaluate(() => JSON.stringify(window.bb.game.run.build));
+      await press(center(await region(page, "menu")));
+      const opt2 = await region(page, "opt-name");
+      if (opt2) await press(center(opt2));
+      s = await state();
+      const pre2 = s.dom ? await page.inputValue("#bb-name-input") : null;
+      if (s.dom) await tapEl("#bb-name-cancel");
+      const after = await state();
+      const same = before === (await page.evaluate(() => JSON.stringify(window.bb.game.run.build)));
+      check(!!opt2 && s.entry?.required === false && pre2 === "BOB-7" && after.entry === null && after.screen === "build" && after.name === "BOB-7" && same,
+        `names ${vname}: in a run, the build screen's MENU card has NAME: the same screen ("${pre2}"); CANCEL leaves the build screen and the run as they were`);
+    } catch (e) {
+      check(false, `names ${vname}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    check(errors.length === 0, `names ${vname}: 0 console errors (${errors.length}${errors.length ? `: ${errors[0]}` : ""})`);
+    await ctx.close();
+  }
+}
+
 async function main() {
   const browsers = { chromium: await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] }) };
   const views = ONLY.includes("touch") ? TOUCH_VIEWS : [];
   for (const v of views) if (!VIEW[v]?.hasTouch) throw new Error(`--views: ${v} is not a touch view (${Object.keys(VIEW).join(", ")})`);
-  // shoptap2: WebKit (Playwright's build of it, with the iPhone descriptors) for the wk- views
-  if (views.some((v) => ENGINE(v) === "webkit")) {
+  // shoptap2: WebKit (Playwright's build of it, with the iPhone descriptors) for the wk- views (PACKS M2: and the names section's)
+  if (views.some((v) => ENGINE(v) === "webkit") || ONLY.includes("names")) {
     try {
       browsers.webkit = await webkit.launch();
     } catch (e) {
@@ -902,6 +1040,7 @@ async function main() {
     }
     if (ONLY.includes("mouse")) await mouseSection(browsers, site.origin);
     if (ONLY.includes("319")) await summarySection(browsers, site.origin);
+    if (ONLY.includes("names")) await namesSection(browsers, site.origin); // PACKS M2 (REQ-BFG-063)
   } finally {
     for (const b of Object.values(browsers)) await b.close();
     site.srv.close();

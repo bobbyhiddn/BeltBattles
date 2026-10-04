@@ -48,8 +48,21 @@ export async function touchDrag(page, a, b, steps = 12) {
   await sleep(120);
 }
 
+/** PACKS M2 (REQ-BFG-063): a fresh device meets the name screen at the title's first tap (NEW RUN, CONTINUE...). Type a
+ *  name into its input and tap OK, as a player does; the tapped button then goes on. False when the screen is not up. */
+export async function passName(page, touch, name = "TESTER") {
+  if (!(await page.evaluate(() => !!window.bb.nameEntry?.()))) return false;
+  await page.fill("#bb-name-input", name);
+  if (touch) await page.tap("#bb-name-ok");
+  else await page.click("#bb-name-ok");
+  await page.waitForFunction(() => !window.bb.nameEntry(), null, { timeout: 5000 });
+  await sleep(120);
+  return true;
+}
+
 export async function tapRegion(page, touch, id) {
   await press(page, touch, await regionCenter(page, id));
+  await passName(page, touch); // PACKS M2: no name stored yet: the name screen first
 }
 
 /** Drag the build screen's planned part onto its belt tile: the mouse, or (shoptap) a finger: until 0.8.0 a phone run
