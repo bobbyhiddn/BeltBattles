@@ -18,7 +18,7 @@ import { ArenaBg } from "../render/arenaBg";
 import { button, panel } from "../ui/ui";
 import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
 import type { BattleRecord } from "../sim/battle";
-import { openReplay } from "../game/replays";
+import { openReplay, replayAt } from "../game/replays";
 import { PHONE_CSS, TAP_CSS, isPhone, tapPx } from "../ui/tap"; // shoptap (D5): R1's rule, shared
 import { HeroScreen } from "./hero";
 import { ReplayScreen } from "./replay";
@@ -140,7 +140,9 @@ export class SummaryScreen implements Screen {
     };
     this.run.history.forEach((d, i) => {
       if (!d.record) return;
-      const o = openReplay(d.record); // checked once here (rules, shapes); a fresh Battle is made when REPLAY is tapped
+      // checked once here (rules, shapes; RUNES-087F: WARLORD'S DUE's wins against the run's record); a fresh Battle is
+      // made when REPLAY is tapped
+      const o = openReplay(d.record, replayAt(this.run.history, i));
       this.replays.set(i, { record: d.record, why: o.ok ? null : o.why });
     });
   }
@@ -161,7 +163,7 @@ export class SummaryScreen implements Screen {
   replay(i: number): void {
     const r = this.replays.get(i);
     if (!r) return;
-    const o = openReplay(r.record);
+    const o = openReplay(r.record, replayAt(this.run.history, i));
     if (!o.ok) return this.game.toast(o.why, C.amber);
     const d = this.run.history[i];
     this.game.go(new ReplayScreen(this.game, this, o.battle, { day: d.day, foe: d.foe }));
