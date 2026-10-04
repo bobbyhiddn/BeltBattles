@@ -28,6 +28,7 @@ import { livePerk, type TextOpts } from "./abilityText";
 import {
   AMMO, BURN_TIME, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId, type ItemDef, type PayloadPreset,
 } from "../sim/content";
+import { GUARD_FREEZE, SHAPE_ARROWS, rigShape } from "../sim/content"; // U2b: the rigs' belts and OVERDRIVE's guards
 import { FUSE_MULT } from "../sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { scaleCore } from "../sim/cores";
@@ -40,6 +41,8 @@ import { gearSlotsOf } from "../sim/deck";
  */
 export const FACE_SIM = {
   burnTick: 1, // battle.ts hullEffects: each Burn stack deals the enemy hull 1 damage a second (abilityText S.burn)
+  // U2b: battle.ts applyHit: a PLATE BREAKER takes 1 plating from your hull for its flat (s.plate.plate >= 1, spendPlate 1)
+  breakerPlate: 1,
   // U2b F6: battle.ts impact: a ★3 GRAPNEL GUN's next shot gains 1 damage x its class factor k for each payload it rips
   salvagePerRip: 1,
 } as const;
@@ -151,6 +154,15 @@ const rules = (rs: FaceRule[], nums: [string, string][] = [], reminders: string[
 const shot = (text: string): FaceRule => ({ text: `SHOT: ${text}`, label: "SHOT:" });
 /** HOT SWAP's step of the cycle by its tint. */
 const cyc = (e: ItemDef, tint: PayloadPreset["tint"]): PayloadPreset => f(e).cycle!.find((p) => p.tint === tint)!;
+/** U2b: a rig's rule, its trigger HIT: in brass (cap's review call 5: rigs keep HIT:, as the board's "1 HIT"). */
+const hit = (text: string): FaceRule => ({ text: `HIT: ${text}`, label: "HIT:" });
+const gt = (e: ItemDef) => e.gate!;
+const md = (e: ItemDef) => e.mod!;
+/** U2b: one arrow works one belt ("ITS BELT RUNS"), more work more ("ITS BELTS RUN"): SHAPE_ARROWS, as abilityText's
+ *  belts() reads it. */
+const oneBelt = (e: ItemDef): boolean => (SHAPE_ARROWS[rigShape(e) ?? "I"]?.length ?? 1) <= 1;
+const itsBelts = (e: ItemDef): string => (oneBelt(e) ? "ITS BELT" : "ITS BELTS");
+const runs = (e: ItemDef): string => (oneBelt(e) ? "ITS BELT RUNS" : "ITS BELTS RUN");
 
 const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // --------------------------------------------------------------------------------------------------- factories
@@ -247,6 +259,98 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([shot(`+${flat} {DMG}, +${per} MORE FOR EACH {*PLATE}.`)], [["flat", `+${flat} {DMG}`], ["per", `+${per} EACH`]],
       [REMINDER.PLATE()]);
   },
+  // ------------------------------------------------------------------- U2b: the TEXT rigs (HIT: in brass; no stat row)
+  // TOLLBOOTH (a STUN-fold face) and SHIELD WALL (N1 3.3's crit piece) keep today's text, as every RULES rig does.
+  temper: (e) => {
+    const n = fmtCount(gt(e).burn!); // Battle.applyHit: + burn stacks on each payload it hits
+    return rules([hit(`+${n} {*BURN}.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
+  },
+  whetstone: (e) => {
+    const d = fmtDmg(gt(e).flat!);
+    return rules([hit(`+${d} {DMG}.`)], [["flat", `+${d} {DMG}`]]);
+  },
+  grease: (e) => {
+    // speedText's rule: a belt speed x1.6 is 60% faster (N1 2.3: "X% FASTER" is the speed up X%); METRONOME's locked
+    // belts (lockedFlat) are not playable (hero.ts ORDER), so R1 dropped that line
+    const up = fmtPct(gt(e).speed! - 1);
+    return rules([{ text: `${runs(e)} ${up} FASTER.` }], [["speed", `${up} FASTER`]]);
+  },
+  brake: (e) => {
+    const sp = fmtPct(gt(e).speed!); // x0.5 at every star (0.6.1f); ★2 HOT SHOE / ★3 RED-HOT SHOE add flat (a clause)
+    return rules([{ text: `${runs(e)} AT ${sp} SPEED.` }], [["speed", `${sp} SPEED`]]);
+  },
+  longhaul: (e) => {
+    // Battle.applyHit: flat += perPriorGate x the rig hits before it on the payload (at most priorCap from ★2: a clause)
+    const d = fmtDmg(gt(e).perPriorGate!);
+    return rules([hit(`+${d} {DMG} FOR EACH RIG BEFORE IT.`)], [["per", `+${d} {DMG} EACH`]]);
+  },
+  coil: (e) => {
+    // Battle.impact: a shocked payload stalls the part it hits for DISRUPT_TIME, or the star's shockTime (STUN today)
+    const t = gt(e).shockTime ?? DISRUPT_TIME, stun = fmtSec(t);
+    return rules([hit(`{*STUN} ${stun}.`)], [["stun", `{*STUN} ${stun}`]], [REMINDER.STUN(t)]);
+  },
+  splitter: (e) => {
+    const sp = gt(e).split!, n = fmtCount(sp.copies), share = fmtPct(sp.mult);
+    return rules([hit(`SPLITS IT INTO ${n} AT ${share} {DMG}.`)], [["copies", `${n} COPIES`], ["mult", `${share} {DMG}`]]);
+  },
+  overdrive: (e) => {
+    // ★2 REDLINE adds +1 and ★3 AFTERBURNER +3 to each payload (flat, a second rule); their guards are a clause
+    const n = fmtCount(gt(e).speed!), flat = gt(e).flat;
+    const d = flat ? fmtDmg(flat) : "";
+    return rules([{ text: `${runs(e)} ${n} TIMES AS FAST.` }, ...(flat ? [hit(`+${d} {DMG}.`)] : [])],
+      [["speed", `${n} TIMES`], ...(flat ? [["flat", `+${d} {DMG}`] as [string, string]] : [])]);
+  },
+  surge: (e) => {
+    // Battle: every period its belts pulse (speed x pulse.speed for pulse.on s; the belt shows it) and each payload the
+    // pulse speeds up gains pulse.flat
+    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} ${itsBelts(e)} ${oneBelt(e) ? "SURGES" : "SURGE"}, +${d} {DMG}.`, label }],
+      [["every", `${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
+  },
+  sorting: (e) => {
+    // Battle.applyHit: every `every`th payload it hits becomes `copies` payloads at full strength
+    // (no ordinal: T2 bans "3RD"; ONE is definitional, as U2a's "TWO LOADS FUSE")
+    const so = gt(e).sort!, every = fmtCount(so.every), n = fmtCount(so.copies);
+    return rules([hit(`OF EVERY ${every} {SLUG}, ONE BECOMES ${n}.`)], [["every", `OF EVERY ${every}`], ["copies", `BECOMES ${n}`]]);
+  },
+  riveter: (e) => {
+    const d = fmtDmg(gt(e).repair!); // never past your full hull (the sim; the hull bar shows it)
+    return rules([hit(`+${d} {HULL}.`)], [["repair", `+${d} {HULL}`]]);
+  },
+  heatjacket: (e) => {
+    const h = gt(e).heat!, d = fmtDmg(h); // + heat damage a second ridden after it (as KILN's cinder: HEAT)
+    return rules([hit(`{*HEAT} ${d}.`)], [["heat", `{*HEAT} ${d}`]], [REMINDER.HEAT(h)]);
+  },
+  staticbrush: (e) => {
+    // Battle.impact: a static payload that hits bare hull stalls a random enemy turret for staticTime (STUN today)
+    const t = gt(e).staticTime!, stun = fmtSec(t);
+    return rules([{ text: `ITS SLUGS HIT HULL: {*STUN} ${stun} ON A RANDOM ENEMY GUN.` }], [["stun", `{*STUN} ${stun}`]], [REMINDER.STUN(t)]);
+  },
+  barbed: (e) => {
+    const n = fmtCount(gt(e).fray!); // ★2/★3 RAZOR WIRE raises the hull's FRAY cap (frayCap): a clause
+    return rules([hit(`+${n} {*FRAY}.`)], [["fray", `+${n} {*FRAY}`]], [REMINDER.FRAY()]);
+  },
+  overclocker: (e) => {
+    // Battle.makeSide / applyHit: it doubles the first later rig on its belt that can be doubled (overclock.ts boostable),
+    // then recharges for overclockCooldown; the rigs it skips are an interim caveat (call 7)
+    const t = fmtSec(gt(e).overclockCooldown!);
+    return rules([{ text: `DOUBLES THE NEXT RIG'S HIT, THEN RESTS ${t}{SEC}.` }], [["rest", `RESTS ${t}{SEC}`]]);
+  },
+  plateroller: (e) => {
+    const d = fmtDmg(gt(e).plate!);
+    return rules([hit(`+${d} {*PLATE}.`)], [["plate", `+${d} {*PLATE}`]], [REMINDER.PLATE()]);
+  },
+  stoker: (e) => {
+    // Battle.stokedPace: the factories its arrows point at work stoke faster (capped by their gun: a caveat, call 7)
+    const up = fmtPct(gt(e).stoke!);
+    return rules([{ text: `ITS FACTORIES WORK ${up} FASTER.` }], [["stoke", `${up} FASTER`]]);
+  },
+  platebreaker: (e) => {
+    const b = gt(e).breaker!, spend = fmtDmg(FACE_SIM.breakerPlate), flat = fmtDmg(b.flat), floor = fmtDmg(b.floor);
+    return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`), { text: `ELSE: +${floor} {DMG}.` }],
+      [["flat", `+${flat} {DMG}`], ["floor", `ELSE +${floor}`]], [REMINDER.PLATE()]);
+  },
 };
 
 // ------------------------------------------------------------------------------- U2b: the interim lines (F5, F6)
@@ -324,6 +428,40 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
     if (x.stars < FUSE_MAX) return null;
     const d = fmtDmg(FACE_SIM.salvagePerRip * x.k);
     return { text: `NEXT SHOT +${d} {DMG} FOR EACH SLUG IT RIPS.`, nums: [] }; // (NEXT★ names SALVAGE LINE; one line)
+  },
+  // the TEXT rigs' own STAR-batch perks
+  brake: (e) => {
+    const flat = gt(e).flat; // ★2 HOT SHOE / ★3 RED-HOT SHOE: friction heat (0.6.1f)
+    if (!flat) return null;
+    const d = fmtDmg(flat);
+    return { text: `+${d} {DMG} ON EACH HIT.`, nums: [["flat", `+${d} {DMG}`]] };
+  },
+  longhaul: (e) => {
+    const cap = gt(e).priorCap; // Battle.applyHit: at most priorCap rig hits count (from ★2)
+    if (cap === undefined) return null;
+    const n = fmtCount(cap);
+    return { text: `MAX ${n} RIGS.`, nums: [["cap", `MAX ${n} RIGS`]] };
+  },
+  coil: (e) => {
+    const j = gt(e).jump; // Battle.sparkJump: the shock also stalls the `jump` nearest other parts
+    if (!j) return null;
+    const n = fmtCount(1 + j);
+    return { text: `{*STUN} HITS ${n} PARTS.`, nums: [["jump", `${n} PARTS`]] };
+  },
+  overdrive: (e) => {
+    // Battle.acceptHarassment / routeGuardActive: GUARD_SLOW keeps enemy chains from slowing its belts from its tiles on,
+    // GUARD_FREEZE keeps frost from freezing them (today's harassments; STUN keeps today's meaning, N1 INPUTS 5)
+    const guard = gt(e).guard ?? 0;
+    if (!guard) return null;
+    const frost = (guard & GUARD_FREEZE) !== 0;
+    // (no NEXT★ number: the line names the perk, and the clause says it at that star)
+    return { text: `ENEMY CHAINS${frost ? " AND FROST" : ""} CAN'T SLOW${frost ? " OR FREEZE" : ""} ${itsBelts(e)}.`, nums: [] };
+  },
+  barbed: (e) => {
+    const cap = gt(e).frayCap; // Battle.impact: the hull's FRAY cap is FRAY_MAX + frayCap
+    if (!cap) return null;
+    const n = fmtCount(FRAY_MAX + cap);
+    return { text: `MAX ${n} {FRAY}.`, nums: [["cap", `MAX ${n} {FRAY}`]] };
   },
 };
 
