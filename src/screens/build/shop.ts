@@ -89,9 +89,24 @@ export function cardPriceX(x: number, w: number, price: number, wide: boolean, c
   return wide ? x + w - 5 - tw : chip ? x + w - 4 - tw : Math.round(x + w / 2 - tw / 2);
 }
 
-/** U2c: the badge's drawn width on a card `w` px wide (drawBadge's), for the wide face's chip. */
+/** U2c: the badge's drawn width on a card `w` px wide (drawBadge's), for the wide face's chip. U2f: "wait" is the owned
+ *  marker's square. */
 const badgeW = (badge: ShopBadge, maxW: number): number =>
-  Math.min(maxW, textWidth(badge.kind === "merge" ? `MERGE ★${badge.toStars}` : badge.kind === "wait" ? "+1 ★2" : "MAX", "3") + 4);
+  badge.kind === "wait" ? Math.min(maxW, OWNED_MARK_W) : Math.min(maxW, textWidth(badge.kind === "merge" ? `MERGE ★${badge.toStars}` : "MAX", "3") + 4);
+
+/** U2f (REQ-BFG-070, REQ-BFG-046; the operator: "The items don't need to say 1 more to merge."): the owned marker's width
+ *  and height, the ⓘ glyph's 5x7 ink square (keywords.ts). */
+export const OWNED_MARK_W = 5;
+export const OWNED_MARK_H = 7;
+
+/** U2f: the owned marker, the "wait" badge's face (a copy you own that won't merge yet; was the grey `+1 ★2`, a copy
+ *  count): wordless, no digit, no ★, no word. Two overlapped squares drawn with rects in dim slates, the copy in front
+ *  over the corner of the one behind, on the ⓘ glyph's 5x7 ink square, in the badge's corner (x, y). Pure drawing (tests). */
+export function drawOwnedMarker(g: G, x: number, y: number): void {
+  rect(g, x, y, OWNED_MARK_W, OWNED_MARK_H, C.ink);
+  rect(g, x + 1, y + 2, 2, 2, C.slate3); // the copy behind
+  rect(g, x + 2, y + 3, 2, 2, C.slate4); // the copy in front
+}
 
 /** 0.6.2t (T5): the wide card's effect text: 2 lines of the 3x5 face, 2 px in from each edge (as the name's w - 4). */
 export const CARD_EFFECT_LINES = 2;
@@ -114,6 +129,8 @@ export function cardEffectLines(effect: string, w: number, colour: string = C.bo
  *  so it never clips inside the 46-wide card (deviation from the design's literal pixel size).
  *  0.6.1d2: exported so warlord-pick cards (warlordHud.ts) and event-choice cards (event/cards.ts)
  *  can draw the identical badge.
+ *  U2f (REQ-BFG-070, REQ-BFG-046): "wait" draws the wordless owned marker (drawOwnedMarker), no copy count; MERGE ★n and
+ *  MAX are unchanged.
  */
 export function drawBadge(g: G, x: number, y: number, maxW: number, badge: ShopBadge, t: number): void {
   let bg: string, fg: string, label: string;
@@ -122,7 +139,7 @@ export function drawBadge(g: G, x: number, y: number, maxW: number, badge: ShopB
     if (badge.toStars >= 3) { bg = Math.floor(t * 4) % 2 ? C.yellow : C.amber; fg = C.ink; }
     else { bg = C.amber; fg = C.ink; }
   } else if (badge.kind === "wait") {
-    label = "+1 ★2"; bg = C.slate2; fg = C.slate4;
+    return drawOwnedMarker(g, x, y);
   } else {
     label = "MAX"; bg = C.slate2; fg = C.bone;
   }

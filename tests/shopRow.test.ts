@@ -3,6 +3,7 @@ import { ITEMS, MERCHANTS, OFFERS, buyableModules } from "../src/sim/content";
 import { computeView } from "../src/core/io";
 import { buildLayout, buildScale, CARD_W, Caravan } from "../src/screens/build/layout";
 import { cardName, describe as kindLine } from "../src/screens/build/shop";
+import { OWNED_MARK_W } from "../src/screens/build/shop"; // U2f: the owned marker
 import { portraitButtons } from "../src/screens/build/inspector";
 import { textWidth } from "../src/render/font";
 
@@ -79,7 +80,10 @@ describe("0.6.2p item 4: a card's contents fit the card", () => {
   });
 
   it("every merge badge fits its card (shop.ts drawBadge: text + 4 px within CARD_W - 8)", () => {
-    for (const label of ["MERGE ★2", "MERGE ★3", "+1 ★2", "MAX"]) expect(textWidth(label, "3") + 4, label).toBeLessThanOrEqual(CARD_W - 8);
+    // U2f (REQ-BFG-070, REQ-BFG-046): "wait" is the wordless owned marker (was the label "+1 ★2"): its 5x7 square fits too
+    // (tests/ownedMarker.test.ts pins what it draws)
+    for (const label of ["MERGE ★2", "MERGE ★3", "MAX"]) expect(textWidth(label, "3") + 4, label).toBeLessThanOrEqual(CARD_W - 8);
+    expect(OWNED_MARK_W, "the owned marker").toBeLessThanOrEqual(CARD_W - 8);
   });
 
   it("BUY, BUY+MERGE and BUY+USE labels fit their button beside every title on the phone band, and the small strip's", () => {
