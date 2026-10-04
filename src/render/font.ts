@@ -1,34 +1,50 @@
 // Bitmap fonts: a 5x7 main face and a 3x5 micro face. Glyphs are cached per colour.
 //
-// R1 mock (REQ-BFG-046; branch r1-mock only, never shipped; display only): ICON GLYPHS. Each icon is one private-use code
-// point (U+E000.., one UTF-16 unit, so textWidth, wrap, wrapRich and every wrap rule count it as one glyph) with a bitmap
-// in both faces: 5 px wide in the 5x7 face (+1 advance: 6 px, as a letter) and 3 px wide in the 3x5 face (+1: 4 px).
-// - Write one into any string: `+1 ${ICON.BURN}`, or the {NAME} markup through icons("+1 {BURN}") (same string).
-// - Colour: drawText draws an icon in its own colour (ICON_COLOUR: BURN fire3, SHOCK cyan, POISON lime, PLATE plate3)
-//   wherever the string is drawn (panel bodies, cards, hero select, titles, buttons); an icon with no entry there (DMG,
-//   SEC) takes the colour of its text, as a letter does. TextOpts.mono draws every icon in the text's colour. A drop
-//   shadow stays the shadow's colour; an outline stays the outline's.
-// - The bitmaps are placeholders (R1 brief): DMG burst, SEC clock (3x5: an hourglass), BURN flame, SHOCK bolt, PLATE
-//   shield, POISON drop (3x5: a flask).
+// U1 (REQ-BFG-046, MEMO R1 C2): THE ICON SET, the stat language the piece faces are written in. 16 icons: 14 private-use
+// code points, U+E000 DMG .. U+E00D PAIR (ICON; one UTF-16 unit each, so textWidth, wrap, wrapRich and every wrap rule
+// count one as one glyph), plus HULL and STAR, today's ♥ and ★ (unchanged). Each has a bitmap in both faces: 5 px wide in
+// the 5x7 face (+1 advance: 6 px, as a letter) and 3 px wide in the 3x5 face (+1: 4 px). The bitmaps keep a pixel
+// distance from every digit, letter, punctuation glyph and other icon (output-u1/REPORT.md section 4; tests/icons.test.ts).
+// - Write one into any string: `+1 ${ICON.BURN}`, or the markup through icons(): "{BURN}" is the icon alone (stat rows,
+//   shop chips, the board), "{*BURN}" a keyword in panel style, the icon then its word (icons(s, "alone"): the icon alone).
+//   SEC is a unit after its number: "1.25{SEC}" (U1's cold read). src/ui/icons.ts statRow builds a stat row.
+// - Colour: drawText draws an icon in its own colour (ICON_COLOUR) wherever the string is drawn (panel bodies, cards, hero
+//   select, titles, buttons); an icon with no entry (DMG, SEC, SLUG, BELT, GEAR, UP; ♥ and ★ as today) takes the colour of
+//   its text, as a letter does. TextOpts.mono draws every icon in the text's colour. A drop shadow stays the shadow's
+//   colour; an outline stays the outline's. Text without an icon draws exactly as before.
 
 import { C } from "./palette";
 import { makeCanvas, type G } from "./pixel";
 
 type GlyphMap = Record<string, string>;
 
-/** R1 mock: the first icon code point (U+E000, private use) and the nth icon's one-unit string. */
+/** U1: the first icon code point (U+E000, private use) and the nth icon's one-unit string. */
 export const ICON_BASE = 0xe000;
 const pua = (n: number): string => String.fromCharCode(ICON_BASE + n);
-/** R1 mock: the icon glyphs, each one private-use code point (DMG U+E000 .. POISON U+E005), one UTF-16 unit. */
+/** U1 (MEMO C2): the 16 icons. DMG U+E000 .. PAIR U+E00D are private-use code points, one UTF-16 unit each; HULL and STAR
+ *  are today's ♥ and ★, so "{HULL}" and "{STAR}" work in the markup. */
 export const ICON = {
-  DMG: pua(0),
-  SEC: pua(1),
-  BURN: pua(2),
-  SHOCK: pua(3),
-  PLATE: pua(4),
-  POISON: pua(5),
+  DMG: pua(0), // damage
+  SEC: pua(1), // seconds: a unit after its number, "1.25" then SEC (a small s)
+  RATE: pua(2), // faster: folds WORKS FASTER, FIRE RATE and SPEED
+  SLUG: pua(3), // a slug, or a turret's loads
+  BELT: pua(4), // a belt tile
+  GEAR: pua(5), // a gear slot
+  GOLD: pua(6), // gold
+  UP: pua(7), // a level
+  BURN: pua(8), // keyword
+  STUN: pua(9), // keyword
+  HEAT: pua(10), // keyword (FURNACE)
+  FRAY: pua(11), // keyword (WEAVER)
+  PLATE: pua(12), // keyword (BASTION)
+  PAIR: pua(13), // keyword (FOUNDRY)
+  HULL: "♥",
+  STAR: "★",
 } as const;
 export type IconName = keyof typeof ICON;
+/** U1 (MEMO C1): the 6 keywords. "{*NAME}" draws one as its icon then its word, both in the keyword's colour. */
+export const KEYWORDS = ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR"] as const;
+export type KeywordName = (typeof KEYWORDS)[number];
 
 // 5x7: rows joined with "|"
 const F5: GlyphMap = {
@@ -102,13 +118,21 @@ const F5: GlyphMap = {
   "▶": "#....|##...|###..|####.|###..|##...|#....",
   "❚": "##.##|##.##|##.##|##.##|##.##|##.##|##.##",
   " ": "...|...|...|...|...|...|...",
-  // R1 mock (REQ-BFG-046): the icon glyphs, 5 wide (placeholder bitmaps from the R1 brief)
-  [ICON.DMG]: ".....|#.#.#|.###.|#####|.###.|#.#.#|.....",
-  [ICON.SEC]: ".###.|#.#.#|#.#.#|#.###|#...#|#...#|.###.",
-  [ICON.BURN]: "..#..|..##.|.###.|.####|#####|##.##|.###.",
-  [ICON.SHOCK]: "...##|..##.|.##..|#####|..##.|.##..|##...",
-  [ICON.PLATE]: "#####|##.##|#...#|#...#|.#.#.|.#.#.|..#..",
-  [ICON.POISON]: "..#..|..#..|.###.|.###.|##.##|#####|.###.",
+  // U1 (REQ-BFG-046): the icons, 5 wide (MEMO C2's bitmaps; SEC, GOLD and HEAT redrawn, REPORT section 2)
+  [ICON.DMG]: "..#..|#.#.#|.###.|#####|.###.|#.#.#|..#..", // a burst
+  [ICON.SEC]: ".....|.....|.####|#....|.###.|....#|####.", // a small s on the baseline
+  [ICON.RATE]: ".....|#.#..|.#.#.|..#.#|.#.#.|#.#..|.....", // a double chevron
+  [ICON.SLUG]: ".....|.###.|#####|#####|#####|.###.|.....", // a slug
+  [ICON.BELT]: "#####|.....|#.#.#|.#.#.|#.#.#|.....|#####", // a belt tile between its rails
+  [ICON.GEAR]: ".#.#.|#####|##.##|#...#|##.##|#####|.#.#.", // a cog with a hole
+  [ICON.GOLD]: ".###.|###.#|##.##|#####|#####|#####|.###.", // a coin with its glint (a ring reads as a 0)
+  [ICON.UP]: ".....|..#..|.###.|#####|.....|#####|.....", // an arrow over a bar
+  [ICON.BURN]: "..#..|..##.|.###.|.####|#####|##.##|.###.", // a flame
+  [ICON.STUN]: "...##|..##.|.##..|#####|..##.|.##..|##...", // a bolt
+  [ICON.HEAT]: "..#..|.##..|..#..|.##..|.###.|#####|.###.", // a thermometer: a stem with 2 ticks, a bulb
+  [ICON.FRAY]: "#...#|.#.#.|..#..|.....|#...#|.#.#.|..#..", // a shred mark
+  [ICON.PLATE]: "#####|##.##|#...#|#...#|.#.#.|.#.#.|..#..", // a riveted shield
+  [ICON.PAIR]: ".....|.....|##.##|#####|##.##|.....|.....", // a linked pair
 };
 
 // 3x5
@@ -178,39 +202,88 @@ const F3: GlyphMap = {
   // 0.6.1d (ARSENAL.md §8.2): the MERGE badge and star pips need a ★ that fits a 3x5 cell.
   "★": "#.#|.#.|###|.#.|#.#",
   " ": "..|..|..|..|..",
-  // R1 mock (REQ-BFG-046): the icon glyphs' 3x5 twins, 3 wide (each unlike every other 3x5 glyph, ★ included)
-  [ICON.DMG]: "#.#|###|.#.|###|#.#",
-  [ICON.SEC]: "###|#.#|.#.|#.#|###",
-  [ICON.BURN]: ".#.|.##|###|###|.#.",
-  [ICON.SHOCK]: "..#|.#.|###|.#.|#..",
-  [ICON.PLATE]: "###|#.#|#.#|#.#|.#.",
-  [ICON.POISON]: ".#.|.#.|###|#.#|###",
+  // U1 (REQ-BFG-046): the icons' 3x5 twins, 3 wide (each the same object as its 5x7, apart from every other 3x5 glyph)
+  [ICON.DMG]: "..#|###|.#.|###|#..", // a burst (a spinning one: the 3x5 star ★ is the plain burst)
+  [ICON.SEC]: "...|.##|#..|..#|##.", // a small s on the baseline
+  [ICON.RATE]: "##.|.##|..#|.##|##.", // a double chevron
+  [ICON.SLUG]: "...|###|###|###|...", // a slug
+  [ICON.BELT]: "###|...|#.#|...|###", // a belt tile between its rails
+  [ICON.GEAR]: "#.#|###|#.#|###|...", // a cog with a hole, 2 teeth
+  [ICON.GOLD]: ".#.|###|##.|###|.#.", // a coin with its shine
+  [ICON.UP]: ".#.|###|...|...|###", // an arrow over a bar
+  [ICON.BURN]: "..#|.##|###|#.#|.#.", // a flame
+  [ICON.STUN]: "..#|.#.|###|.#.|#..", // a bolt
+  [ICON.HEAT]: ".#.|##.|.#.|###|.#.", // a thermometer: a stem with a tick, a bulb
+  [ICON.FRAY]: "#.#|.#.|...|#.#|.#.", // a shred mark
+  [ICON.PLATE]: "###|###|#.#|.#.|.#.", // a shield
+  [ICON.PAIR]: "...|#.#|###|#.#|...", // a linked pair
 };
 
-/** R1 mock: an icon's own colour, where it has one (BURN, SHOCK and POISON are richText.ts KEYWORD_COLOUR's, PLATE is
- *  BASTION's plating); an icon without an entry (DMG, SEC) takes its text's colour. drawText applies it (TextOpts.mono:
- *  not). */
+/** U1: an icon's own colour, where it has one. RATE is KEYWORD_COLOUR's FASTER (richText.ts), GOLD the shop's price colour
+ *  (shop.ts), BURN KEYWORD_COLOUR's burn, STUN SHOCK's cyan, HEAT amber, FRAY violet (plum4: the game gives FRAY and the
+ *  LOOM's thread no violet; its hull pip is ice, STUN's neighbour), PLATE BASTION's plating, PAIR the TWIN family's blue
+ *  (ui/families.ts). An icon without an entry takes its text's colour. drawText applies it (TextOpts.mono: not). */
 export const ICON_COLOUR: Readonly<Record<string, string>> = {
+  [ICON.RATE]: C.yellow,
+  [ICON.GOLD]: C.yellow,
   [ICON.BURN]: C.fire3,
-  [ICON.SHOCK]: C.cyan,
-  [ICON.POISON]: C.lime,
+  [ICON.STUN]: C.cyan,
+  [ICON.HEAT]: C.amber,
+  [ICON.FRAY]: C.plum4,
   [ICON.PLATE]: C.plate3,
+  [ICON.PAIR]: C.blue,
 };
 
-const ICON_CHARS: ReadonlySet<string> = new Set(Object.values(ICON));
+/** The private-use icons (HULL ♥ and STAR ★ are ordinary text: "★2" stays a star mark, as today). */
+const ICON_CHARS: ReadonlySet<string> = new Set(Object.values(ICON).filter((ch) => ch.charCodeAt(0) >= ICON_BASE));
+const KEYWORD_SET: ReadonlySet<string> = new Set(KEYWORDS);
 
-/** R1 mock: whether `ch` (one UTF-16 unit) is an icon glyph. */
+/** U1: whether `ch` (one UTF-16 unit) is a private-use icon glyph (DMG .. PAIR). */
 export const isIcon = (ch: string): boolean => ICON_CHARS.has(ch);
 
-/** R1 mock: `s` without its icon glyphs (richText.ts colourize: "4" and the DMG icon is still a number). */
+/** U1: `s` without its icon glyphs (richText.ts colourize: "4" and the DMG icon is still a number). */
 export const stripIcons = (s: string): string => {
   for (let i = 0; i < s.length; i++) if (ICON_CHARS.has(s[i])) return [...s].filter((ch) => !ICON_CHARS.has(ch)).join("");
   return s;
 };
 
-/** R1 mock: the {NAME} markup to icon glyphs: icons("+1 {BURN}") === `+1 ${ICON.BURN}`. An unknown name stays as written. */
-export function icons(s: string): string {
-  return s.replace(/\{([A-Z]+)\}/g, (m: string, name: string) => (Object.prototype.hasOwnProperty.call(ICON, name) ? ICON[name as IconName] : m));
+/** U1: how icons() writes a keyword token "{*NAME}": "word", the panel style (the icon, then its word); "alone", the icon
+ *  alone (shop chips, the board). */
+export type IconMode = "word" | "alone";
+
+/**
+ * U1: the markup to glyphs. "{NAME}" is the icon alone: icons("+1 {BURN}") === `+1 ${ICON.BURN}`. "{*NAME}" (one of the 6
+ * KEYWORDS) is the keyword: its icon then its word, icons("HIT: 2 {*STUN}") === `HIT: 2 ${ICON.STUN}STUN`; in "alone"
+ * mode, the icon alone. An unknown name, or "{*NAME}" on an icon that is no keyword, stays as written. No player text
+ * holds a brace (neither face has a brace glyph).
+ */
+export function icons(s: string, mode: IconMode = "word"): string {
+  return s.replace(/\{(\*?)([A-Z]+)\}/g, (m: string, kw: string, name: string) => {
+    if (!Object.prototype.hasOwnProperty.call(ICON, name)) return m;
+    const ch = ICON[name as IconName];
+    if (!kw) return ch;
+    if (!KEYWORD_SET.has(name)) return m;
+    return mode === "alone" ? ch : ch + name;
+  });
+}
+
+/** U1: the colour of a keyword in panel style (`word` is a keyword's icon glued to its word, as icons() writes "{*NAME}"),
+ *  else undefined. richText.ts colourize colours the word with it; a bare word ("PAIRS", "HEAT JACKET") is untouched. */
+export function keywordColour(word: string): string | undefined {
+  if (word.length < 2) return undefined;
+  const name = word.slice(1);
+  return KEYWORD_SET.has(name) && word[0] === ICON[name as KeywordName] ? ICON_COLOUR[word[0]] : undefined;
+}
+
+/** U1 (tests, tools): a glyph's bitmap rows in a face ("#" ink, "." blank), or undefined where the face has none. */
+export function glyphRows(ch: string, font: FontId = "5"): string[] | undefined {
+  const src = FACES[font].map[ch];
+  return src === undefined ? undefined : src.split("|");
+}
+
+/** U1 (tests, tools): every character a face has a glyph for (the space included). */
+export function faceChars(font: FontId = "5"): string[] {
+  return Object.keys(FACES[font].map);
 }
 
 export type FontId = "5" | "3";
@@ -301,11 +374,11 @@ export interface TextOpts {
   shadow?: string | null; // 1px drop shadow colour
   outline?: string | null; // 1px outline colour (8-way)
   scale?: number; // integer
-  /** R1 mock: draw icon glyphs in the text's colour too (default: each icon in its own colour, ICON_COLOUR). */
+  /** U1: draw icon glyphs in the text's colour too (default: each icon in its own colour, ICON_COLOUR). */
   mono?: boolean;
 }
 
-/** One pass of a string. R1 mock: `tint`, each icon glyph in its own colour (ICON_COLOUR) where it has one. */
+/** One pass of a string. U1: `tint`, each icon glyph in its own colour (ICON_COLOUR) where it has one. */
 function pass(g: G, s: string, font: FontId, color: string, outline: string, ox: number, oy: number, scale: number, tint = false): void {
   const adv = FACES[font].adv;
   const pad = outline ? scale : 0;
@@ -332,7 +405,7 @@ export function drawText(g: G, s: string, x: number, y: number, color: string, o
   else if (opts.align === "right") ox = Math.round(x - w);
   const oy = Math.round(y);
   if (opts.shadow) pass(g, s, font, opts.shadow, "", ox + scale, oy + scale, scale);
-  pass(g, s, font, color, opts.outline ?? "", ox, oy, scale, !opts.mono); // R1 mock: icons in their own colours
+  pass(g, s, font, color, opts.outline ?? "", ox, oy, scale, !opts.mono); // U1: icons in their own colours
   return w;
 }
 
