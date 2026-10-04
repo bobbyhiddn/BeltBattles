@@ -330,3 +330,23 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
     expect(fray(withRunes(b, "double_knot")) - fray(b)).toBe(1);
   });
 });
+
+describe("RUNES-1 M2: a reload keeps the held runes and the pending pick (save.ts migrateRun)", () => {
+  it("held runes and today's pending pick survive a save and a load; a malformed rune field is dropped", async () => {
+    const { migrateRun } = await import("../src/game/save");
+    const run = newRun("foundry", 2468);
+    const o = pendingRune(run)!;
+    takeRune(run, o.ids[1]);
+    const stats = { shots: 0, damage: 0, firstShot: -1, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
+    finishDay(run, 0, 10, stats, stats);
+    const back = migrateRun(JSON.parse(JSON.stringify(run)))!;
+    expect(back.build.runes).toEqual([{ id: o.ids[1] }]);
+    expect(back.runeDay).toBe(2);
+    expect(pendingRune(back)).toEqual(pendingRune(run));
+    const bad = JSON.parse(JSON.stringify(run));
+    bad.runeDay = "2";
+    bad.build.runes = [{ name: "x" }];
+    const fixed = migrateRun(bad)!;
+    expect([fixed.runeDay, fixed.build.runes]).toEqual([undefined, undefined]);
+  });
+});

@@ -209,6 +209,10 @@ export function migrateRun(raw: unknown): Run | null {
   // 0.8.0 I1 M3 (DESIGN-wave3.md 4.2): the per-run draw's wares stay when well formed and are dropped otherwise; a run
   // without wares (every save from before 0.8.0) plays today's rule. Save v7, no bump.
   if (r.wares !== undefined && !waresOk(r.wares)) delete r.wares;
+  // RUNES-1 (REQ-BFG-058): a pending pick is a day number and the held runes a list of { id } (run.ts takeRune); anything
+  // else is dropped, so no load trips over it (a run from before runes has neither and never gets a pick). Save v7, no bump.
+  if (r.runeDay !== undefined && !(typeof r.runeDay === "number" && Number.isInteger(r.runeDay))) delete r.runeDay;
+  if (r.build.runes !== undefined && !(Array.isArray(r.build.runes) && r.build.runes.every((q: unknown) => !!q && typeof (q as Raw).id === "string"))) delete r.build.runes;
   // 0.8.0 H1 M3: a dusk's FOUNDRY/BASTION readout (DayResult.race) stays when well formed and is dropped otherwise, so
   // no load trips over it. Save v7, no bump: a Furnace or Weaver result never has one.
   for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
