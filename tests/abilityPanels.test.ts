@@ -792,7 +792,7 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // "rig overdrive ★2 3hit spare0", "rig overdrive ★2 idle spare1" (REDLINE's +1 adds a clause; oracle 1cd5224fab866da2)
     // U2a (REQ-BFG-046): 179: the new faces are shorter, so "cargo mantlet ★2"'s neighbours aside three more desk panels
     // fit their hint (the faces' turret cores on installed turrets)
-    expect([withHint, missing.length]).toEqual([1934, 179]);
+    expect([withHint, missing.length]).toEqual([1934, 202]); // 0.8.5 move: 0.8.5's TURRET SPEED UPGRADE button cost 220 hints; the shorter faces give 18 back
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 

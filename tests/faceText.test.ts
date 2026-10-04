@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { newRun, type Run } from "../src/game/run";
 import { AMMO, HEROES, ITEMS, type HeroId } from "../src/sim/content";
-import { effectAt, fusible, FUSE_MAX } from "../src/sim/stars";
+import { effectAt, fusible, FUSE_MAX, outputsAt } from "../src/sim/stars";
 import { gearSlotsOf } from "../src/sim/deck";
 import { ICON, KEYWORDS, stripIcons, textWidth } from "../src/render/font";
 import { STAT_ROW_MAX } from "../src/ui/icons";
@@ -89,7 +89,7 @@ describe("U2a the faces: every number from sim data through one formatter", () =
       const fs = effectAt(def, s).factory!, row = factoryStats(def, s);
       expect(row[0], def).toEqual(["SEC", fmtSpeed(fs.interval)]); // the speed pair: SEC until NUMBERS (N1 2.6)
       expect(row[1], def).toEqual(["DMG", fmtDmg(fs.base ?? AMMO[fs.ammo].base)]);
-      if (row[2]) expect(row[2], def).toEqual(["BELT", fmtCount(fs.outputs)]);
+      if (row[2]) expect(row[2], def).toEqual(["BELT", fmtCount(outputsAt(def, s))]);
     }
     for (const h of PLAYABLE_HEROES) {
       const sig = ITEMS[HEROES[h].factory].factory!;

@@ -31,7 +31,7 @@ import {
 import { FUSE_MULT } from "../sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { scaleCore } from "../sim/cores";
-import { effectAt, FUSE_MAX, fusible } from "../sim/stars";
+import { effectAt, FUSE_MAX, fusible, outputsAt } from "../sim/stars";
 import { gearSlotsOf } from "../sim/deck";
 
 /**
@@ -69,7 +69,7 @@ interface X {
 export const speedPair = (interval: number): Stat => ["SEC", fmtSpeed(interval)];
 
 /** A factory shows its belts when it is a hero's (BELTS levels add belts) or when any star feeds more than one. */
-const showsBelts = (def: string): boolean => !fusible(def) || [1, 2, 3].some((n) => (effectAt(def, n).factory?.outputs ?? 1) > 1);
+const showsBelts = (def: string): boolean => !fusible(def) || [1, 2, 3].some((n) => outputsAt(def, n) > 1);
 
 /** A factory's stat pairs at `stars` (MIMIC FORGE's for `hero`): its stamp's cadence, its slug's damage and, where it
  *  shows them, its belts. The slug damage is its dies' (FactorySpec.base), else its ammo's (Battle.stamp). */
@@ -79,11 +79,11 @@ export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
   if (def === "mimic") {
     // Battle.factoryDef: the hero's ammo at its own factory's interval x intervalMul; no hero, no cadence to show
     const h = hero ? HEROES[hero] : undefined, sig = h ? ITEMS[h.factory]?.factory : undefined;
-    if (!h || !sig) return [["BELT", fmtCount(fs.outputs)]];
+    if (!h || !sig) return [["BELT", fmtCount(outputsAt(def, stars))]];
     interval = sig.interval * (fs.intervalMul ?? 1);
     dmg = AMMO[h.ammo].base;
   }
-  return [speedPair(interval), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(fs.outputs)] as Stat] : [])];
+  return [speedPair(interval), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
 }
 
 /** A turret's stat pairs at `stars`: how often it fires, the loads its chamber holds, its gear slots (deck.ts). */
