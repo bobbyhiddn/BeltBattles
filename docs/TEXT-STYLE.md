@@ -5,6 +5,7 @@
 rules the decisions U2e took from the operator's words (REQ-BFG-070, sharpening REQ-BFG-046). The same text is committed as `docs/TEXT-STYLE.md`,
 the one source for later jobs; where T1's guide differs, this file wins (section 12). Display only: no rule changes (bb-0.8.7). Strings are in
 font.ts `icons()` markup: `{NAME}` is an icon alone (`{DMG}4`, `1.4{SEC}`), `{*NAME}` a keyword in panel style, its icon then its word (`{*BURN}`).
+U2f (0.8.9) adds three rules: the ⓘ view's size (5.8), the owned marker (9.5) and no copy count on a badge (10.3).
 
 ## Sources (W = `/home/cap/.hermit/primes/.workspaces/cap/beltbattles-runes1`; its `ref*` folders are read-only copies)
 - **The operator, verbatim (2026-10-04):** "The items don't need to say 1 more to merge." / "Let's follow the batomon pattern by having an info
@@ -19,6 +20,7 @@ font.ts `icons()` markup: `{NAME}` is an icon alone (`{DMG}4`, `1.4{SEC}`), `{*N
   plain weapons as stat blocks; Q3 a second tooltip layer).
 - **U2a-U2d:** `W/ref-u2e/u2c/REPORT.md`, `W/ref-u2e/u2d/REPORT.md`, `W/ref-u2e/BRIEF-U2c.md`, `W/ref-u2e/BRIEF-U2d.md` (the formatter
   registry, the glossary, tap to explain, the chip rule, the notices, U2b's F3, F5 and F6, `NEXT_LINE_W = GLOSSARY_WRAP_W = 225`).
+- **U2f:** `W/BRIEF-U2f.md` (cap's answers to U2e's questions 2 and 3: the owned marker, the taller ⓘ view; the shortened lines).
 - **U2e:** `W/BRIEF-U2e.md` steps 2-6. **Code, for exact names:** `src/ui/faces.ts`, `statFormat.ts`, `icons.ts`, `chips.ts`, `glossary.ts`,
   `richText.ts`; `src/render/font.ts` (`ICON`, `KEYWORDS`, `ICON_COLOUR`); `src/screens/build/keywords.ts`.
 
@@ -116,6 +118,17 @@ font.ts `icons()` markup: `{NAME}` is an icon alone (`{DMG}4`, `1.4{SEC}`), `{*N
 7. **Evidence.** Batomon's inspect sheet shows "full stats, ability and evolution chain" on demand (`ref-sustain/r1/research/batomon-tft.md` Q3);
    its ladders keep the sentence and change one number a level, "Shield: 450/900/1350" (Q6); it made tap targets bigger on mobile (Q7).
    Backpack Battles moves extra detail to a second tooltip layer (`ref-sustain/r1/research/bazaar-bpb.md` Q3).
+8. **Size (U2f).** While its entries fit the body on one page, the view covers the body (5.2). When they don't, it grows into the room past
+   the panel (keywords.ts `infoFree`, `infoView`):
+   - on the phone, upward into the room above the panel, over the shop (from the shop's top, under the top bar and the rune row): that box is
+     read first, then the body;
+   - on the desk, down the free column below the panel, one box from the body down, over the panel's buttons while it is open.
+   - It never covers the panel's title row, its star badge or the ⓘ button (U2e's box, rect, hit rect and region `kw:?`), nor the phone's
+     header buttons. Nothing moves or changes size while it is closed. A box outside the panel has its own ink edge; a later page that fits
+     the body shows there. A tap on any of its boxes turns the page; any other press closes it.
+   - The aim: most panels on 1 page; on the op view none over 2 (3 with a rune held), on the desk none over 3. Measured on the text sheet's
+     panels: op 305 on 1 page (U2e's view: 118 / 160 / 27 on 1 / 2 / 3); a rune held, at most 2; the 1920x1080 desk 291 / 14 (U2e's:
+     70 / 96 / 88 / 26 / 15 / 10). tests/keywords.tap.test.ts pins them and the geometry on every phone view.
 
 TEMPER ★1's ⓘ view on the op view, its own words only (the `+1` drawn in yellow):
 ```text
@@ -187,6 +200,10 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
    (GREASE WORKS: no chip). Never a waiting timer (a rest, a delay, a period): OVERCLOCKER's rest is no chip; only a cadence is a `{SEC}` chip.
 4. A faceless piece, a pack, or a face with no number that has an icon keeps today's card and its one line of effect. On the op view's
    narrow card the chip takes the family marks' place; the desk's wide card keeps the marks, the chip left of the price.
+5. **The owned marker (U2f).** A shop, warlord-pick or event card for a piece you own that won't merge yet (`drawBadge` "wait") shows a
+   wordless marker in the badge's corner: two overlapped squares, the copy behind slate3 and the one in front slate4, on a 5x7 ink square
+   (shop.ts `drawOwnedMarker`). No digit, no ★, no word (it was `+1 ★2`, a copy count). `MERGE ★n` (buying merges now), `MAX` and the
+   `BUY+MERGE` button stay. Why a marker at all: TFT marks the shop units you already own, and a merge game needs that cue.
 
 ## 10. No copy counts
 1. No text counts copies: not the face, not the ⓘ view, not a tooltip. `1 MORE COPY TO MERGE.` and `2 MORE COPIES TO MERGE.` are gone, with
@@ -194,6 +211,9 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
    `1 MORE COPY TO ★2.` goes too.
 2. A merge says what it gives (`NEXT ★2: +2 {BURN}` in the ⓘ view, the `MERGE ★2` badge), never how many copies it takes. The glossary's
    COPIES (SPLITTER's and SORTING ARM's slugs) is a mechanic, not a copy count.
+3. **Not on a badge either (U2f).** No card, badge or button counts copies anywhere, the shop's badges included: not `+1 ★2`, not `n MORE`,
+   not `2/3`. A card says only that you own one (the owned marker, 9.5) or what buying gives (`MERGE ★2`, `BUY+MERGE`).
+   tests/ownedMarker.test.ts pins the marker's own pixels and that no source line draws a `+1 ★` count.
 
 ## 11. Widths and fit (T1 2.6, still valid)
 1. The op view is 402x690 CSS px at DPR 3. Its info band is 235 px wide at x5, with 225 px of text: 37 capitals of 5x7 (221 px) or 56 of
