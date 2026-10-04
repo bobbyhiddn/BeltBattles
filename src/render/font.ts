@@ -119,7 +119,9 @@ const F5: GlyphMap = {
   "❚": "##.##|##.##|##.##|##.##|##.##|##.##|##.##",
   " ": "...|...|...|...|...|...|...",
   // U1 (REQ-BFG-046): the icons, 5 wide (MEMO C2's bitmaps; SEC, GOLD and HEAT redrawn, REPORT section 2)
-  [ICON.DMG]: "..#..|#.#.#|.###.|#####|.###.|#.#.#|..#..", // a burst
+  // U2b F1 (REQ-BFG-046): a sword, its thick blade up to the right over a crossguard (U1's burst read as an asterisk
+  // beside a number, and CRIT-1's U+E00E will be the burst-like mark; output-u2b SHEET-u2b-0-dmg.png)
+  [ICON.DMG]: "...##|..###|.###.|#.#..|.#...|#.#..|.....", // a sword
   [ICON.SEC]: ".....|.....|.####|#....|.###.|....#|####.", // a small s on the baseline
   [ICON.RATE]: ".....|#.#..|.#.#.|..#.#|.#.#.|#.#..|.....", // a double chevron
   [ICON.SLUG]: ".....|.###.|#####|#####|#####|.###.|.....", // a slug
@@ -203,7 +205,7 @@ const F3: GlyphMap = {
   "★": "#.#|.#.|###|.#.|#.#",
   " ": "..|..|..|..|..",
   // U1 (REQ-BFG-046): the icons' 3x5 twins, 3 wide (each the same object as its 5x7, apart from every other 3x5 glyph)
-  [ICON.DMG]: "..#|###|.#.|###|#..", // a burst (a spinning one: the 3x5 star ★ is the plain burst)
+  [ICON.DMG]: "..#|..#|.#.|###|#..", // U2b F1: a sword, a blade up to the right over a crossguard (6 px from STUN)
   [ICON.SEC]: "...|.##|#..|..#|##.", // a small s on the baseline
   [ICON.RATE]: "##.|.##|..#|.##|##.", // a double chevron
   [ICON.SLUG]: "...|###|###|###|...", // a slug

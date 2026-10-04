@@ -112,7 +112,8 @@ export function textOpts(run: Run): TextOpts {
 
 /** A block's role sets its colour and face (T4). */
 export type Role = "hits" | "warn" | "ability" | "next" | "merges" | "merge" | "row" | "grid" | "note" | "flavour" | "hint"
-  | "reminder"; // U2a (REQ-BFG-046, R1 C4): a keyword's dim 3x5 reminder, right under its rule line (no divider before it)
+  | "reminder" // U2a (REQ-BFG-046, R1 C4): a keyword's dim 3x5 reminder, right under its rule line (no divider before it)
+  | "caveat"; // U2b F5: an interim caveat (faces.ts INTERIM_CAVEATS): kept, 3x5, the reminder's colour, no divider
 
 /** One block of a panel's body: whole sentences, a stat row or a grid row of stat pairs. */
 export interface Block {
@@ -166,9 +167,11 @@ export const ROLE: Record<Role, { colour: string; small: boolean }> = {
   flavour: { colour: C.steel2, small: true },
   hint: { colour: C.slate3, small: true },
   reminder: { colour: C.slate4, small: true }, // U2a: a grey a step brighter than the hint's
+  caveat: { colour: C.slate4, small: true }, // U2b F5: the reminder's colour
 };
-/** U2a: a small block that takes the rule (the divider) before it: the flavour and the hint, never a reminder. */
-const ruledRole = (role: Role): boolean => ROLE[role].small && role !== "reminder";
+/** U2a: a small block that takes the rule (the divider) before it: the flavour and the hint, never a reminder (U2b: nor
+ *  a caveat). */
+const ruledRole = (role: Role): boolean => ROLE[role].small && role !== "reminder" && role !== "caveat";
 /** A stat label's colour. */
 const LABEL = C.slate4;
 
@@ -951,14 +954,22 @@ function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = fal
   }
   let spans: Span[];
   if (b.brass) spans = ruleSpans(b.text, b.brass, base); // U2a: a trigger or NEXT★ label in brass, the rest rich text
-  else if (b.role === "reminder") spans = colourize(b.text, base, base); // U2a: dim, numbers too; its keyword keeps its colour
+  else if (b.role === "reminder" || b.role === "caveat") spans = colourize(b.text, base, base); // U2a: dim, numbers too; its keyword keeps its colour (U2b: a caveat too)
   else if (b.role === "next" && b.text.startsWith("NEXT STAR:")) {
     spans = [{ t: "NEXT STAR:", c: PERK_COLOUR, whole: true }, { t: " ", c: base }, ...colourize(b.text.slice(10).trim(), base)];
   } else if (b.role === "flavour") spans = colourize(b.text, base, base); // its numbers stay dim; its keywords keep their colours
   else if (b.role === "hint" || b.role === "note") spans = [{ t: b.text, c: base }];
   else spans = colourize(b.text, base);
   if (b.perk) spans.push({ t: " ", c: base }, { t: b.perk, c: PERK_COLOUR, whole: true });
-  return wrapRich(spans, width, font).map((s) => ({ spans: s, font, block: b, pitch }));
+  return wrapRich(spans, width, font).map((s) => ({ spans: b.perk ? ownPerk(s, b.perk, base) : s, font, block: b, pitch }));
+}
+
+/** U2b: a perk's name keeps its own span. wrapRich colours the space between two words as the block's first span, so after
+ *  a brass trigger label the space before the perk is brass and merges into it (" ★2 CLEAN CUT"); it goes back to the
+ *  base colour (a space has no ink, so the line draws the same). */
+function ownPerk(line: Span[], perk: string, base: string): Span[] {
+  return line.flatMap((s): Span[] => (s.c === PERK_COLOUR && s.t !== perk && s.t.endsWith(perk) && !s.t.slice(0, -perk.length).trim()
+    ? [{ t: s.t.slice(0, -perk.length), c: base }, { t: perk, c: PERK_COLOUR }] : [s]));
 }
 
 /** Lay out blocks: a panel's stat labels share one value column (each group its own), its grid rows two label columns. */

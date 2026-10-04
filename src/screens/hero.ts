@@ -157,7 +157,7 @@ export class HeroScreen implements Screen {
     const turrets = `${guns.length} ${guns[0].td!.kind.toUpperCase()} TURRET${guns.length > 1 ? "S" : ""}`;
     const empty = slots.length - guns.length;
     const stats: [string, string][] = [["HULL", String(h.hull)], ["BELT", `${h.belt} TILES`], ["GUNS", turrets],
-      ["SLOTS", `${slots.length} TURRET SLOTS, ${empty} EMPTY`], ["FACTORY", `${fac.name} · ${AMMO[h.ammo].name}`]];
+      ["SLOTS", `${slots.length} TURRET SLOTS, ${empty} EMPTY`], ["FACTORY", `${fac.name}, ${AMMO[h.ammo].name}`]]; // U2b F7: no middle dot
     panel(g, { x: ix, y: iy, w: iw, h: stats.length * 9 + 8 }, "inset");
     stats.forEach(([k, v], n) => {
       drawText(g, k, ix + 5, iy + 5 + n * 9, C.slate4, { font: "3" });

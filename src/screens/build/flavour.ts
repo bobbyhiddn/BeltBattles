@@ -16,6 +16,7 @@
 // VALVE, HOPPER and MANTLET keep nothing, like the rest of their families: their rules are all in the ability text.
 
 import { ITEMS } from "../../sim/content";
+import { hasFace } from "../../ui/faces"; // U2b F2
 
 /**
  * The kept flavour of every buyable module and supply, by id: whole sentences (T2's rules, no numbers), the same at every
@@ -160,6 +161,7 @@ export function flavour(def: string, stars = 1, k = 1): string[] {
   if (!own(ITEMS, def)) return [];
   if (own(KEPT_FLAVOUR, def)) return [...KEPT_FLAVOUR[def]];
   if (own(SIGNATURE_FLAVOUR, def)) return [...SIGNATURE_FLAVOUR[def]];
+  if (hasFace(def)) return []; // U2b F2 (REQ-BFG-046): a panel that draws a face never draws the desc (KILN's, LOOM's)
   return [ITEMS[def].desc.join(" ")];
 }
 

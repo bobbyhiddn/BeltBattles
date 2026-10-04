@@ -32,6 +32,7 @@ import { FUSE_MULT } from "../sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, outputsAt } from "../sim/stars";
+import { perkAt } from "../sim/stars"; // U2b F6: HOT SWAP's spark carries GALVANIC COIL's SPARK JUMP (content.ts hotswap)
 import { gearSlotsOf } from "../sim/deck";
 
 /**
@@ -39,6 +40,8 @@ import { gearSlotsOf } from "../sim/deck";
  */
 export const FACE_SIM = {
   burnTick: 1, // battle.ts hullEffects: each Burn stack deals the enemy hull 1 damage a second (abilityText S.burn)
+  // U2b F6: battle.ts impact: a ★3 GRAPNEL GUN's next shot gains 1 damage x its class factor k for each payload it rips
+  salvagePerRip: 1,
 } as const;
 
 /** One rule line: markup ({NAME}, {*NAME}); `label`, its brass trigger label, a part of `text` ("SHOT:"). */
@@ -54,6 +57,11 @@ export interface Face {
   rules: FaceRule[];
   reminders: string[];
   nums: [string, string][];
+  /** U2b F6: the star's interim perk clause (INTERIM_CLAUSES), its label "★2 SPARK JUMP:" in brass; kept, outside the
+   *  budget. */
+  clause?: FaceRule;
+  /** U2b F5: the interim caveats (INTERIM_CAVEATS): kept, 3x5, in the reminder's colour, outside the budget. */
+  caveats?: string[];
 }
 
 interface X {
@@ -92,6 +100,25 @@ export function turretStats(def: string, stars = 1): Stat[] {
   return [speedPair(t.fireInterval), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars))]];
 }
 
+/** U2b: a rig's stat pairs (R1 C4: "Rigs and gear: none"): a rig's numbers are its rule's. This is the rig kind's one
+ *  place for them, as factoryStats and turretStats are their kinds' (a later chip or cadence pair goes here). */
+export function rigStats(def: string, stars = 1): Stat[] {
+  if (!effectAt(def, stars).gate) throw new Error(`rigStats: ${def} is not a rig`);
+  return [];
+}
+
+/** U2b: a piece of turret gear's stat pairs (C4: none; its rule describes the turret it sits on). */
+export function gearStats(def: string, stars = 1): Stat[] {
+  if (!effectAt(def, stars).mod) throw new Error(`gearStats: ${def} is not turret gear`);
+  return [];
+}
+
+/** U2b: a supply's stat pairs (none: its one rule is its number for the run). */
+export function supplyStats(def: string): Stat[] {
+  if (!ITEMS[def]?.supply) throw new Error(`supplyStats: ${def} is not a supply`);
+  return [];
+}
+
 /** A turret core's stat pairs (R1 C4: a core is its share, "{DMG}40% EACH"): SCATTER CHOKE's pellet share; every other
  *  core's numbers are its rule's. `k`: the turret's class factor (cores.ts scaleCore; a share isn't scaled). */
 export function coreStats(def: string, stars = 1, k = 1): Stat[] {
@@ -107,8 +134,9 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   BURN: () => `EACH {*BURN}: ${fmtDmg(FACE_SIM.burnTick)} HULL DAMAGE A SEC FOR ${fmtSec(BURN_TIME)}{SEC}.`,
   STUN: (t = DISRUPT_TIME) => `{*STUN}: THE ENEMY PART IT HITS STOPS FOR ${fmtSec(t)}{SEC}.`,
   HEAT: (h = AMMO.cinder.rideScale) => `{*HEAT}: +${fmtDmg(h)} DAMAGE FOR EACH SEC IT RIDES.`,
-  FRAY: () => `EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE, UP TO ${fmtCount(FRAY_MAX)}.`,
-  PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. HOLDS UP TO ${fmtDmg(PLATE_CAP)}.`,
+  // U2b F3: a cap in a reminder names its unit, one form for every capped reminder ("MAX 15 {FRAY}.", not "UP TO 15")
+  FRAY: () => `EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
+  PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`,
   PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET AT ONCE.",
 };
 
@@ -221,6 +249,84 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
 };
 
+// ------------------------------------------------------------------------------- U2b: the interim lines (F5, F6)
+
+/** One interim caveat (U2b F5): a rule a face dropped that stays visible until U4 draws it. */
+export interface InterimCaveat {
+  id: string;
+  /** What replaces it, so U4 removes the row when that ships. */
+  until: string;
+  applies: (e: ItemDef) => boolean;
+  text: (e: ItemDef) => string;
+}
+
+/**
+ * U2b F5: THE ONE TABLE of interim caveats. Each is a kept 3x5 line in the reminder's colour (inspector role
+ * "caveat"), outside the budget; U4 deletes a row when its board cue ships. Data-driven where the sim is: a turret takes
+ * a belt on its inner column only when its TurretSpec says intake "inner" (abilityText TURRET). Cap's review call 7's
+ * three caveats are STOKER's cap, SPALL CATCHER's double count (with its cap) and OVERCLOCKER's exclusions.
+ */
+export const INTERIM_CAVEATS: readonly InterimCaveat[] = [
+  { id: "inner", until: "the board cues job: the turret's intake marks", applies: (e) => e.turret?.intake === "inner", text: () => "INNER COLUMN ONLY." },
+  // Battle.stokedPace: the stamping is capped so it never outruns the gun its belt feeds (deckRating stokeKeep)
+  { id: "stoker", until: "the board cues job: the factory's real interval with a MAX badge", applies: (e) => !!e.gate?.stoke, text: () => "A FACTORY NEVER OUTRUNS ITS GUN." },
+  // Battle.spallCharge: taken = hull + 2 x plating's part; the charge is capped at spall.max
+  {
+    id: "spallcatcher", until: "the board cues job: the turret's charge gauge", applies: (e) => !!e.mod?.spall,
+    text: (e) => `{*PLATE} SOAKS COUNT TWICE. MAX ${fmtDmg(e.mod!.spall!.max)} {DMG}.`,
+  },
+  // overclock.ts boostable: no speed rig (speed, pulse), TOLLBOOTH, SIFTER, RIVETER, POWDER KEG, OVERCLOCKER, nor a rig
+  // that acts on no payload (STOKER, BRACE FRAME); U2c's tap text can list them
+  { id: "overclocker", until: "the board cues job: the link to the rig it will double", applies: (e) => !!e.gate?.overclockCooldown, text: () => "IT SKIPS RIGS IT CAN'T DOUBLE." },
+];
+
+/** One interim perk clause (U2b F6): its text, its numbers keyed for NEXT★, any keyword reminder, and a perk name where
+ *  the star's data names none of its own. */
+interface Clause {
+  text: string;
+  nums: [string, string][];
+  reminders?: string[];
+  perk?: string;
+}
+
+/**
+ * U2b F6: a face never says less than the sim when it ships. Until R4 (the STAR batch) turns these perks into numbers,
+ * the star that has one shows a short clause after its perk name ("★2 SPARK JUMP: {STUN} HITS 2 PARTS."), written from
+ * the sim, every number through a formatter. Cap's 4 (HOT SWAP, LIMPET WORKS, ROTARY BREECH, GRAPNEL GUN), then the
+ * TEXT rigs' and gear's own STAR-batch perks (R1 redesign.json "-> STAR batch"). R4 deletes this table.
+ */
+const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
+  hotswap: (e) => {
+    // Battle.impact: a spark slug with jump also stalls the `jump` nearest other parts (sparkJump); content.ts: the
+    // spark tracks GALVANIC COIL, whose ★2 perk names it SPARK JUMP
+    const j = cyc(e, "spark").jump;
+    if (!j) return null;
+    const n = fmtCount(1 + j);
+    return { text: `{*STUN} HITS ${n} PARTS.`, nums: [["jump", `${n} PARTS`]], perk: perkAt("coil", FUSE_MAX) };
+  },
+  limpet: (e) => {
+    // Battle.hullEffects: a charge with a stall stalls the part it stuck to when it blasts (disrupt "limpet")
+    const t = (f(e).round as { stall?: number }).stall;
+    if (!t) return null;
+    const stun = fmtSec(t);
+    // (a keyword never takes a suffix: "{*STUN}S" would draw its word in the base colour, REQ-BFG-032 rule 3)
+    return { text: `ITS BLAST GIVES THE PART {*STUN} ${stun}.`, nums: [["stall", `{*STUN} ${stun}`]], reminders: [REMINDER.STUN(t)] };
+  },
+  rotary: (e, x) => {
+    // cores.ts ROUTINES.rotary: ★2 GREASED RACE / ★3 CLEAN FEED: the interval x intervalMul (rateText), ★3 noJam
+    const cs = c(e, x);
+    if (!cs.intervalMul) return null;
+    const up = fmtPct(1 / cs.intervalMul - 1);
+    return { text: `FIRES ${up} FASTER${cs.noJam ? ", NEVER JAMS" : ""}.`, nums: [["rate", `${up} FASTER`]] }; // (NEVER JAMS is the clause's: NEXT★ stays one line)
+  },
+  grapnel: (e, x) => {
+    // battle.ts impact: the salvage needs a ★3 core (gun.core.stars >= 3, FUSE_MAX); it pays on the next shot
+    if (x.stars < FUSE_MAX) return null;
+    const d = fmtDmg(FACE_SIM.salvagePerRip * x.k);
+    return { text: `NEXT SHOT +${d} {DMG} FOR EACH SLUG IT RIPS.`, nums: [] }; // (NEXT★ names SALVAGE LINE; one line)
+  },
+};
+
 /** The turrets: a stat row only (R1 C3: a turret carries no rules text). */
 const TURRET_FACE = (): Rules => rules([]);
 
@@ -240,16 +346,30 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
   if (!hasFace(def)) return null;
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero };
   const body = e.kind === "turret" ? TURRET_FACE() : FACES[def](e, x);
-  const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero) : coreStats(def, stars, x.k);
-  return { stats, ...body };
+  const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
+    : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
+    : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions
+  // U2b F6: the star's interim perk clause, after its perk name; its numbers join the face's (NEXT★ diffs them)
+  const cl = INTERIM_CLAUSES[def]?.(e, x) ?? null;
+  const perk = cl ? cl.perk ?? livePerk(def, stars) : undefined;
+  const label = `★${stars}${perk ? ` ${perk}` : ""}:`;
+  // U2b F5: the interim caveats (one table)
+  const caveats = INTERIM_CAVEATS.filter((cv) => cv.applies(e)).map((cv) => cv.text(e));
+  return {
+    stats, ...body,
+    ...(cl ? { nums: [...body.nums, ...cl.nums], reminders: [...body.reminders, ...(cl.reminders ?? [])], clause: { text: `${label} ${cl.text}`, label } } : {}),
+    ...(caveats.length ? { caveats } : {}),
+  };
 }
 
 /** A face's lines in glyphs: the stat row (null when it has none), the rule lines (each with its label) and the
- *  reminders. */
+ *  reminders; U2b: the interim perk clause (F6) and caveats (F5), where it has them. */
 export interface FaceLines {
   stats: string | null;
   rules: FaceRule[];
   reminders: string[];
+  clause?: FaceRule;
+  caveats?: string[];
 }
 
 export function faceLines(def: string, stars = 1, o: TextOpts = {}): FaceLines | null {
@@ -259,6 +379,8 @@ export function faceLines(def: string, stars = 1, o: TextOpts = {}): FaceLines |
     stats: fc.stats.length ? statRow(fc.stats) : null,
     rules: fc.rules.map((r) => ({ text: icons(r.text), ...(r.label ? { label: icons(r.label) } : {}) })),
     reminders: fc.reminders.map((r) => icons(r)),
+    ...(fc.clause ? { clause: { text: icons(fc.clause.text), label: icons(fc.clause.label!) } } : {}),
+    ...(fc.caveats ? { caveats: fc.caveats.map((t) => icons(t)) } : {}),
   };
 }
 
