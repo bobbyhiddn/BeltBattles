@@ -416,7 +416,9 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // { turrets: 46, bought: 32, joined: 82, joins: 129, both: 31 })
 // 0.8.0 B1 M2 (oracle efb5c4ff84fe4c6d): the stand-in pool regenerated after the hero numbers (was
 // { turrets: 38, bought: 32, joined: 73, joins: 116, both: 26 })
-const POOL_CARRIES = { turrets: 35, bought: 29, joined: 76, joins: 121, both: 27 };
+// BELTS run 5 (REQ-BFG-043/044): the bb-0.8.3 pool, regenerated with the gold upgrades (44ee031), carries 30 turret
+// lists (18 with a bought turret), 76 joined belts (124 joins), 20 both (was 35 (29), 76 (121), 27)
+const POOL_CARRIES = { turrets: 30, bought: 18, joined: 76, joins: 124, both: 20 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
@@ -425,4 +427,6 @@ const POOL_CARRIES = { turrets: 35, bought: 29, joined: 76, joins: 121, both: 27
 // and 29, the floor ghosts 7 and 12 (were 9 and 26, 9 and 12: [18, 38])
 // 0.8.0 RC (oracle 96e0ebe434a93f2b): the seed pool takes FOUNDRY and BASTION's 60 race ghosts (the par player's decks),
 // which carry 11 turret lists and 34 joined belts; FURNACE and WEAVER's 60 still carry 15 and 41 (was [15, 41])
-const GHOST_POOL_CARRIES = [26, 75];
+// BELTS run 5 (REQ-BFG-043/044): the seed pool regenerated from the bb-0.8.3 stand-in pool and the upgrade-buying par
+// player: 26 carry a turret list, 68 a joined belt (was [26, 75])
+const GHOST_POOL_CARRIES = [26, 68];

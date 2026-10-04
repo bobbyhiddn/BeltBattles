@@ -234,6 +234,8 @@ describe("M1: absent fields encode exactly as before, and older codes decode exa
     // pre-step-5 encoder wrote every code. A caravan-bound pool (the step-5 regen: its header prints --source) may carry
     // both: its codes must still decode alike in both codecs and re-encode byte for byte, a fifth section exactly when
     // the deck carries Build.turrets, and every code without turrets or joins as the frozen encoder writes it.
+    // bb-0.8.3 (REQ-BFG-043 D7'; the pool regenerated in BELTS run 5): a pick that bought gold upgrades carries the
+    // levels' head word " u<t><f>", which the frozen encoder predates: such a code is the frozen encoder's but that word.
     const legacy = !readFileSync(new URL("../src/sim/standInPoolData.ts", import.meta.url), "utf8").split("\n")[1].includes("--source");
     let n = 0, turreted = 0, joined = 0;
     for (const hero of loader.STAND_IN_POOL_HEROES) {
@@ -248,7 +250,7 @@ describe("M1: absent fields encode exactly as before, and older codes decode exa
           const fifth = code.split("/").length === 5, join = raw.routes.some((r) => r.join !== undefined);
           expect(code.split("/").length === 4 || fifth, code).toBe(true);
           expect(raw.turrets !== undefined, code).toBe(fifth);
-          if (!fifth && !join) expect(legacyEncode(raw)).toBe(code);
+          if (!fifth && !join) expect(legacyEncode(raw)).toBe(raw.upgrades ? code.replace(/^(\S+ \S+) u[1-4][1-4]\//, "$1/") : code);
           if (fifth) turreted++;
           if (join) joined++;
           n++;

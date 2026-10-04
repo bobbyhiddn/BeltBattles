@@ -10,7 +10,9 @@
 //  - A dusk served by the in-process server meets a FOUNDRY ghost and a BASTION ghost, labelled ONLINE GHOST (the NEXT
 //    BATTLE card and the enemy plate both read session.ts foeNote); a FOUNDRY or BASTION player meets ghosts of all four.
 // BELTS (REQ-BFG-043, REQ-BFG-044): the pool is generated under this build's rules, bb-0.8.3 since BELTS (the titles
-// below say so), with the same composition; `ghosts:admin list --rules bb-0.8.3` shows it.
+// below say so), with the same composition; `ghosts:admin list --rules bb-0.8.3` shows it. BELTS run 5 regenerated the
+// stand-in pool (the bots buy the gold upgrades), so FURNACE and WEAVER's 60 are no longer 7c7feb9's: both parts are
+// pinned by their own digests, and 59 of the 120 ghosts carry upgrade levels (W/output-belts/ghosts/).
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -47,10 +49,14 @@ const STANDIN_PART = POOL.slice(0, 60);
 const RACE_PART = POOL.slice(60);
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
-/** 7c7feb9's seed pool (0.7.0's composition, rules bb-0.6.2), as `npm run gen:ghosts` writes it there. */
-const POOL_7C7FEB9_SHA256 = "110f813c53e27cac4d3481da8a8f8064a17bfecd719db04c02a503c69d043aa7";
-/** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it. */
-const RACE_PART_SHA256 = "9daab76d5d5ca76f37eadde4a6c1ed4f22de074563ab4fd6374216eb1a1d95a5";
+/** FURNACE and WEAVER's 60 as a pool file: the sample and floor ghosts of the stand-in pool. Until BELTS they were
+ *  7c7feb9's seed pool but the rules string (its sha256 110f813c..., with the rules normalised to bb-0.6.2); BELTS run 5
+ *  regenerated the stand-in pool they are drawn from (44ee031, the gold upgrades), so they are pinned by their own
+ *  digest now (W/output-belts/ghosts). A change to the stand-in pool or to this generator moves it. */
+const STANDIN_PART_SHA256 = "941ca820f17ab713cdb3c6af4e833f14854adb928f4418ab6decce175eee2b0d";
+/** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it.
+ *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). */
+const RACE_PART_SHA256 = "5f736fce2463e1d97da132b626bb8e9be13bea6dd8385ef1982eaef205d4028c";
 
 describe("the bb-0.8.3 seed pool (tools/samplePool.ts)", () => {
   it("holds every playable hero on every day 1-10, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 120 in all", () => {
@@ -67,11 +73,10 @@ describe("the bb-0.8.3 seed pool (tools/samplePool.ts)", () => {
     expect(new Set(POOL.map(ghostId)).size).toBe(120);
   });
 
-  it("FURNACE and WEAVER's 60 come first and are 7c7feb9's pool byte for byte but the rules string", () => {
+  it("FURNACE and WEAVER's 60 come first: the sample and floor ghosts of the bb-0.8.3 stand-in pool, pinned by their digest", () => {
     expect(STANDIN_PART).toEqual([...sampleGhosts(), ...floorGhosts()]);
     expect(STANDIN_PART.every((s) => s.hero === "furnace" || s.hero === "weaver")).toBe(true);
-    const asOld = samplePoolJson(STANDIN_PART.map((s) => ({ ...s, rules: "bb-0.6.2" })));
-    expect(sha(asOld)).toBe(POOL_7C7FEB9_SHA256);
+    expect(sha(samplePoolJson(STANDIN_PART))).toBe(STANDIN_PART_SHA256);
   });
 
   it("each FOUNDRY and BASTION ghost is the par player's dusk deck of its day from a par-field run; three distinct decks per hero and day", () => {
