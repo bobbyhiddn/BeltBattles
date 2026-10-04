@@ -169,6 +169,56 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [], [REMINDER.PAIR()]);
   },
   wardworks: () => rules([{ text: `ITS SLUGS LOAD: +${fmtDmg(PLATE_PER_SLUG)} {*PLATE}.`, label: "LOAD:" }], [], [REMINDER.PLATE()]),
+  // ------------------------------------------------------------------------------------- turret cores (numbers x k)
+  scatter: (e, x) => {
+    const n = fmtCount(c(e, x).pellets!); // its share is its stat pair (coreStats)
+    return rules([shot(`BURSTS INTO ${n} PELLETS.`)], [["pellets", `${n} PELLETS`]]);
+  },
+  rotary: () => rules([{ text: "FIRES PART-FULL CHAMBERS SOONER." }]),
+  pressure: (e, x) => {
+    const per = fmtDmg(c(e, x).perQueued!);
+    return rules([shot(`+${per} {DMG} FOR EACH LOAD WAITING.`)], [["per", `+${per} {DMG}`]]);
+  },
+  gatling: (e, x) => {
+    // rateText's rule: the spin's floor x0.6 of the interval fires 1 / 0.6 = 67% faster (N1 2.3: X% FASTER is the rate)
+    const up = fmtPct(1 / c(e, x).floor! - 1);
+    return rules([{ text: `SPINS UP TO ${up} FASTER AS IT FIRES.` }], [["spin", `${up} FASTER`]]);
+  },
+  hullbreaker: (e, x) => {
+    const more = fmtPct(c(e, x).hullMul! - 1);
+    return rules([{ text: `SHOTS ALWAYS HIT THE HULL, +${more} {DMG}.` }], [["more", `+${more} {DMG}`]]);
+  },
+  salvo: (e, x) => {
+    const flat = fmtDmg(c(e, x).volleyFlat!);
+    return rules([shot(`EMPTIES THE CHAMBER AT ONCE, +${flat} {DMG} EACH.`)], [["flat", `+${flat} {DMG}`]]);
+  },
+  mortar: (e, x) => {
+    const n = c(e, x).splash!, more = fmtCount(n), share = fmtPct(c(e, x).share!);
+    return rules([shot(`ALSO HITS ${more} MORE TARGET${s(n)} FOR ${share} {DMG}.`)], [["splash", `${more} MORE`], ["share", `${share} {DMG}`]]);
+  },
+  grapnel: (e, x) => {
+    const n = c(e, x).rip!, rip = fmtCount(n);
+    return rules([shot(`RIPS ${rip} SLUG${s(n)} OFF AN ENEMY BELT.`)], [["rip", `RIPS ${rip}`]]);
+  },
+  tesla: (e, x) => {
+    const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);
+    return rules([shot(`ALSO ARCS TO ${arcs} ENEMY PART${s(n)}: {*STUN} ${stun}.`)],
+      [["arcs", `${arcs} PART${s(n)}`], ["stun", `{*STUN} ${stun}`]], [REMINDER.STUN(t)]);
+  },
+  compound: (e, x) => {
+    const more = fmtPct(c(e, x).mult! - 1);
+    return rules([shot(`TWO LOADS FUSE INTO ONE SHELL, +${more} {DMG}.`)], [["mult", `+${more} {DMG}`]]);
+  },
+  lance: (e, x) => {
+    const n = c(e, x).columns!, cols = fmtCount(n), share = fmtPct(c(e, x).share!);
+    return rules([shot(`ALSO HITS EVERY ENEMY PART IN ${cols} COLUMN${s(n)}, ${share} {DMG}.`)],
+      [["columns", `${cols} COLUMN${s(n)}`], ["share", `${share} {DMG}`]]);
+  },
+  anvil: (e, x) => {
+    const flat = fmtDmg(c(e, x).anvilFlat!), per = fmtDmg(c(e, x).perPlate!);
+    return rules([shot(`+${flat} {DMG}, +${per} MORE FOR EACH {*PLATE}.`)], [["flat", `+${flat} {DMG}`], ["per", `+${per} EACH`]],
+      [REMINDER.PLATE()]);
+  },
 };
 
 /** The turrets: a stat row only (R1 C3: a turret carries no rules text). */
