@@ -15,6 +15,8 @@ import { columnButtons, detailsPlan, drawDetails, fullText, visibleLines, type P
 import {
   definitionBox, definitionLines, keywordState, keywordTargets, keywordsPressed, panelPiece, panelWords, questionRect, viewPages,
 } from "../src/screens/build/keywords";
+import { infoItems, infoLevels, infoPages, questionBox } from "../src/screens/build/keywords"; // U2e step 5: the ⓘ view
+import { lineWidth } from "../src/ui/richText"; // U2e step 5
 import { glossaryEntry } from "../src/ui/glossary";
 import { faceAt } from "../src/ui/faces";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
@@ -106,7 +108,7 @@ function opened(v: View, L: BuildLayout, c: { run: Run; sel: Sel }, touch = true
 }
 
 function check(tag: string, run: Run, d: { show: Sel; t: { body: import("../src/screens/build/inspector").Block[] } }, plan: PanelPlan, buttons: Rect[], tap: number,
-  counts: { panels: number; targets: number; words: number; tapped: Set<string> }) {
+  counts: { panels: number; targets: number; words: number; tapped: Set<string>; levels?: number }) {
   const piece = panelPiece(run, d.show);
   const words = panelWords(d.t.body, piece);
   const q = questionRect(plan.r, plan.y, tap, buttons);
@@ -126,13 +128,23 @@ function check(tag: string, run: Run, d: { show: Sel; t: { body: import("../src/
     if (!buttons.some((b) => overlaps(b, t.glyph))) expect(t.r.h, `${tag}: ${t.word} grown to its line's pitch`).toBeGreaterThanOrEqual(t.glyph.h);
     counts.tapped.add(t.word);
   }
+  // U2e step 5 (REQ-BFG-070): the ⓘ button (U2c's `?`, the same rect) is on every panel that names a word or has LEVELS
+  const levels = infoLevels(run, d.show);
+  if (words.length || levels.length) {
+    // every word is reachable: the ⓘ button is there, inside the panel, clear of the buttons; its view lists every LEVELS
+    // line, then every word (U2c: viewPages listed every word; the ⓘ view's pages hold the same words after the LEVELS)
+    expect(q, `${tag}: ⓘ`).not.toBeNull();
+    expect(within(q!, plan.r), `${tag}: ⓘ inside`).toBe(true);
+    for (const b of buttons) expect(overlaps(q!, b), `${tag}: ⓘ clear of a button`).toBe(false);
+    const items = infoItems(levels, words, plan.r.w - 10);
+    const pages = infoPages(items, plan.maxY + 2 - (plan.y - 1));
+    expect(pages.flat().map((it) => it.level ?? it.word), `${tag}: the ⓘ view lists its LEVELS, then every word`).toEqual([...levels, ...words]);
+    expect(pages.flat().filter((it) => it.word).map((it) => it.word), `${tag}: the KEYWORDS`).toEqual(viewPages(words, plan.r.w - 10, plan.maxY + 2 - (plan.y - 1)).flat());
+    // every line of the view fits its width (the op view's and every other phone's)
+    for (const it of items) for (const ln of it.lines) expect(lineWidth(ln, "5"), `${tag}: an ⓘ line fits`).toBeLessThanOrEqual(plan.r.w - 10);
+    counts.levels = (counts.levels ?? 0) + levels.length;
+  }
   if (words.length) {
-    // every word is reachable: the `?` button is there, inside the panel, clear of the buttons; its view lists every word
-    expect(q, `${tag}: ?`).not.toBeNull();
-    expect(within(q!, plan.r), `${tag}: ? inside`).toBe(true);
-    for (const b of buttons) expect(overlaps(q!, b), `${tag}: ? clear of a button`).toBe(false);
-    const pages = viewPages(words, plan.r.w - 10, plan.maxY + 2 - (plan.y - 1));
-    expect(pages.flat(), `${tag}: the KEYWORDS view lists every word`).toEqual(words);
     // each word's definition shows whole: its box holds every line, on the screen
     for (const w of words) {
       const n = definitionLines(w.text, plan.r.w - 10).length, box = definitionBox(plan.r, plan.maxY + 2, n);
@@ -256,19 +268,51 @@ describe("U2c tap to explain: the tap, the close rules, `?`, the desk hover and 
     expect(burn.r.h).toBeGreaterThanOrEqual(9); // the desk column's 5x7 line pitch
   });
 
-  it("a face keyword's definition fills in the tapped piece's own number (TESLA ARC's STUN at its class factor), a NEXT★ icon alone is a target", () => {
+  it("a face keyword's definition fills in the tapped piece's own number (TESLA ARC's STUN at its class factor), a stat row's icon alone is a target", () => {
     const { v, L } = screen(402, 690, 3);
     const run = furnace();
-    run.inventory = [{ uid: 900, def: "tesla" }, { uid: 901, def: "temper" }];
+    // U2e step 4: no NEXT★ on the face; the icon alone is a stat row's: HOT SWAP's second stat row ({BURN}2 {STUN}1.6)
+    run.inventory = [{ uid: 900, def: "tesla" }, { uid: 901, def: "hotswap" }];
     const t = opened(v, L, { run, sel: { kind: "cargo", uid: 900 } });
     const words = panelWords(t.d.t.body, panelPiece(run, t.d.show));
     const stun = words.find((w) => w.word === "STUN")!, piece = panelPiece(run, t.d.show)!;
     const own = faceAt("tesla", 1, piece.o)!.reminders.find((r) => r.includes("{*STUN}"))!;
     expect(stun.text).toBe(`${own} ${glossaryEntry("STUN")!.extra}`);
     expect(own).toContain(`${fmtSec(scaleCore(ITEMS.tesla.core!, piece.o.k!).stall!)}{SEC}`);
-    const temper = opened(v, L, { run, sel: { kind: "cargo", uid: 901 } });
-    const next = keywordTargets(visibleLines(temper.plan), temper.plan, panelPiece(run, temper.d.show), temper.buttons)
+    const hot = opened(v, L, { run, sel: { kind: "cargo", uid: 901 } });
+    const alone = keywordTargets(visibleLines(hot.plan), hot.plan, panelPiece(run, hot.d.show), hot.buttons)
       .filter((k) => k.word === "BURN" && k.glyph.w <= 5);
-    expect(next.length, "the NEXT★ line's BURN icon alone").toBeGreaterThanOrEqual(1);
+    expect(alone.length, "the stat row's BURN icon alone").toBeGreaterThanOrEqual(1);
+  });
+
+  it("U2e step 5: the ⓘ button keeps `?`'s place and hit rect; on a turret with no keyword it opens the LEVELS; a tap pages the view and closes it", () => {
+    const { v, L } = screen(402, 690, 3);
+    // a ★2 TEMPER in cargo: words (BURN, HIT) and LEVELS
+    const run = furnace();
+    run.inventory = [{ uid: 900, def: "temper", stars: 2 }];
+    const c = { run, sel: { kind: "cargo", uid: 900 } as Sel };
+    const o = opened(v, L, c);
+    const ui = draw(o.ctx, c, o.plan.r);
+    const info = ui.regions.find((r) => r.id === "kw:?")!;
+    // the same rect U2c's `?` had: the icon box, grown on touch as the buttons' targets, clear of them
+    expect(info.r).toEqual(questionRect(o.plan.r, o.plan.y, o.tap, o.buttons));
+    expect(within(questionBox(o.plan.r), info.r)).toBe(true);
+    info.onTap!();
+    const ui2 = draw(o.ctx, c, o.plan.r);
+    expect(ui2.regions.some((r) => r.id === "kw:view")).toBe(true);
+    // its LEVELS: TEMPER's BURN ladder with ★2 current, then its NEXT★; then its KEYWORDS
+    const ls = infoLevels(run, c.sel);
+    expect(ls.map((l) => l.kind)).toEqual(["ladder", "next"]);
+    // an installed turret (no core): its own LEVELS (SCRAP CANNON's cadence, loads and gear slots), not a core's
+    const tr = furnace();
+    const t = { run: tr, sel: { kind: "turret", index: 0 } as Sel };
+    const ot = opened(v, L, t);
+    expect(infoLevels(tr, t.sel).filter((l) => l.kind === "ladder").length).toBeGreaterThan(0);
+    const ui3 = draw(ot.ctx, t, ot.plan.r);
+    ui3.regions.find((r) => r.id === "kw:?")!.onTap!();
+    expect(keywordState(ot.ctx)!.page).toBe(0);
+    // a tap on the view turns the page; past the last it closes
+    for (let i = 0; i < 5 && keywordState(ot.ctx)!.page !== null; i++) draw(ot.ctx, t, ot.plan.r).regions.find((r) => r.id === "kw:view")!.onTap!();
+    expect(keywordState(ot.ctx)!.page).toBeNull();
   });
 });

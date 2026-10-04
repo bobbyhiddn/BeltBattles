@@ -32,6 +32,7 @@ import { stokeKeep } from "../../sim/deckRating"; // 0.8.0 I1 M4 (VERIFIED-P1 H4
 import { effectAt } from "../../sim/stars"; // 0.8.0 I1 M4: a STOKER's stoke at its stars
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
+import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
  * 0.6.2 TUNE-M, RULE JOIN PACE: the lines a joined factory's panels lead with (its own panel, and each of its belts'):
@@ -217,15 +218,9 @@ const tightForms = (body: Block[]): Variant[] => [
  *  don't need to say 1 more to merge."): no merge progress, no copy count (copiesToNextStar and mergeProgressText are
  *  gone). */
 function progressBlocks(run: Run, def: string, stars: number): Block[] {
-  // U2a (REQ-BFG-046, C7): a face's NEXT★ line, computed from the two stars' data
-  const faceNext = hasFace(def) ? faceNextBlock(def, stars, textOpts(run)) : null;
-  if (faceNext) return [faceNext];
-  const next = nextStarText(def, stars, textOpts(run));
-  if (!next) return [];
-  const perk = newPerk(def, stars + 1), head = nextStarHeadline(def, stars, textOpts(run));
-  return [
-    { role: "next", text: next, keep: true, ...(perk ? { perk: `★${stars + 1} ${perk}` } : {}), ...(head ? { alt: head } : {}) },
-  ];
+  // U2a (REQ-BFG-046, C7): a face's NEXT★ line, computed from the two stars' data; else the NEXT STAR sentence. U2e step
+  // 5: one source with the ⓘ view's LEVELS (levels.ts nextBlocks); no panel body draws it (step 4)
+  return nextBlocks(def, stars, textOpts(run));
 }
 
 /** The flavour (T7), whole or not at all (0b.5); no block when nothing is kept (0.6.2t2 F1: the hint follows the text). */
