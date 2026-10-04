@@ -39,10 +39,10 @@ export const LUCK_CAPS: LuckCapsTable = {
       { ordinary: { value: 26, star2: 0, star3: 0, rare: 2, epic: 0, turrets: 0 }, good: { value: 27, star2: 1, star3: 0, rare: 3, epic: 1, turrets: 0 } }, // day 3
       { ordinary: { value: 37, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 38, star2: 2, star3: 0, rare: 4, epic: 1, turrets: 0 } }, // day 4
       { ordinary: { value: 49, star2: 1, star3: 0, rare: 3, epic: 0, turrets: 0 }, good: { value: 50, star2: 3, star3: 0, rare: 5, epic: 2, turrets: 0 } }, // day 5
-      { ordinary: { value: 62, star2: 2, star3: 0, rare: 4, epic: 0, turrets: 0 }, good: { value: 63, star2: 3, star3: 0, rare: 6, epic: 2, turrets: 0 } }, // day 6
-      { ordinary: { value: 75, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 77, star2: 3, star3: 1, rare: 7, epic: 2, turrets: 0 } }, // day 7
+      { ordinary: { value: 62, star2: 1, star3: 0, rare: 4, epic: 0, turrets: 0 }, good: { value: 63, star2: 3, star3: 0, rare: 6, epic: 2, turrets: 0 } }, // day 6
+      { ordinary: { value: 76, star2: 2, star3: 0, rare: 5, epic: 1, turrets: 0 }, good: { value: 77, star2: 3, star3: 1, rare: 7, epic: 2, turrets: 0 } }, // day 7
       { ordinary: { value: 90, star2: 2, star3: 0, rare: 6, epic: 1, turrets: 0 }, good: { value: 91, star2: 4, star3: 1, rare: 8, epic: 2, turrets: 0 } }, // day 8
-      { ordinary: { value: 104, star2: 2, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 105, star2: 4, star3: 1, rare: 8, epic: 3, turrets: 0 } }, // day 9
+      { ordinary: { value: 104, star2: 2, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 105, star2: 4, star3: 1, rare: 9, epic: 3, turrets: 0 } }, // day 9
       { ordinary: { value: 118, star2: 3, star3: 0, rare: 7, epic: 1, turrets: 0 }, good: { value: 119, star2: 4, star3: 1, rare: 9, epic: 3, turrets: 0 } }, // day 10
     ],
     bastion: [
