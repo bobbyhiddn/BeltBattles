@@ -1,6 +1,6 @@
 {
  "about": "RUNES-1 M4 (REQ-BFG-058): battles on the base, written by the generator R/output-runes1/parity-gen.test.ts.txt; tests/runes.parity.test.ts replays them from these decks and expects the same rows",
- "base": "72eec7d7ffb31388fe21f758ebd00831597608ab",
+ "base": "c57de367d2e3cbb1d63686fa94ffe91bbcf6223b",
  "rules": "bb-0.8.6",
  "salt": "runes-parity",
  "standInRun": 1027755959,

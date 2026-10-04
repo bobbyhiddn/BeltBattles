@@ -1,7 +1,7 @@
-// RUNES-1 M4 (REQ-BFG-058, decision 10): rune-less builds battle exactly as on the base 72eec7d (bb-0.8.6), so the launch
+// RUNES-1 M4 (REQ-BFG-058, decision 10): rune-less builds battle exactly as on the base c57de36 (bb-0.8.6), so the launch
 // can carry the bb-0.8.6 pools forward (content.ts POOL_RULES_CARRIED; RUNES-2 regenerates them, with runes).
 // tests/fixtures/runes.parity.base.json was written ON THE BASE by a generator that is never committed (its text is kept
-// as R/output-runes1/parity-gen.test.ts.txt; it runs in a throwaway worktree of 72eec7d). It holds 130 decks: the seed
+// as R/output-runes1/parity-gen.test.ts.txt; it runs in a throwaway worktree of c57de36). It holds 130 decks: the seed
 // pool's 120 ghosts (tools/samplePool.ts generateSamplePool, 12 a day: FURNACE, WEAVER, FOUNDRY and BASTION, variants
 // 0-2) and each day's dusk stand-in (the rival captain standInGhost picks for the run seed `standInRun`, with its
 // standInBuild deck); and 360 battles: on each day, each seed ghost against the next one of that day in pool order
@@ -74,8 +74,8 @@ function asBase(got: ReturnType<typeof fight>, want: Row): Row {
 }
 
 describe("RUNES-1 parity: the base's fixture and its decks", () => {
-  it("was written on the base 72eec7d under bb-0.8.6, the rules bb-0.8.7 carries the pools from (POOL_RULES)", () => {
-    expect(F.base).toMatch(/^72eec7d[0-9a-f]{33}$/);
+  it("was written on the base c57de36 under bb-0.8.6, the rules bb-0.8.7 carries the pools from (POOL_RULES)", () => {
+    expect(F.base).toMatch(/^c57de36[0-9a-f]{33}$/);
     expect(F.rules).toBe("bb-0.8.6");
     expect(RULES_VERSION).toBe("bb-0.8.7");
     expect(POOL_RULES_CARRIED[RULES_VERSION]).toBe(F.rules);
@@ -102,7 +102,7 @@ describe("RUNES-1 parity: the base's fixture and its decks", () => {
 });
 
 describe("RUNES-1 parity: the battles", () => {
-  it("rune-less builds battle exactly as on the base 72eec7d (bb-0.8.6): the same winner, ticks, time, hulls, plating and stats in all 360 battles", () => {
+  it("rune-less builds battle exactly as on the base c57de36 (bb-0.8.6): the same winner, ticks, time, hulls, plating and stats in all 360 battles", () => {
     const t0 = performance.now();
     const off: string[] = [];
     for (const want of F.battles) {
@@ -113,7 +113,7 @@ describe("RUNES-1 parity: the battles", () => {
         off.push(`${want.kind} ${want.a} vs ${want.b} (seed ${want.seed}): winner ${got.winner} (base ${want.winner}), ticks ${got.ticks} (base ${want.ticks}), hull ${JSON.stringify(got.hull)} (base ${JSON.stringify(want.hull)})`);
       }
     }
-    console.log(`runes parity: ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${off.length} differ from the base 72eec7d`);
+    console.log(`runes parity: ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${off.length} differ from the base c57de36`);
     expect(off.slice(0, 12), `${off.length} of ${F.battles.length} battles differ from the base`).toEqual([]);
   }, 120_000);
 });
