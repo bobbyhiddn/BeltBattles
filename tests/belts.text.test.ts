@@ -101,11 +101,11 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
     for (const l of LEVELS) {
       const t = turretPanel(run, 0)!;
       const fires = new Battle(run.build, barge(), SEED).sides[0].turrets[0].interval;
-      const line = `TURRET SPEED: ${turretSpeedRow(fires, l)}`; // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was `SPEED ${turretSpeedRow(fires, l)}.`
+      const line = `SPEED: ${turretSpeedRow(fires, l)}`; // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was `SPEED ${turretSpeedRow(fires, l)}.`
       expect(t.body.map((b) => b.text), `L${l}`).toContain(line);
       if (l < 4) {
         expect(turretNext(fires, l)).toBe("UPGRADE: FIRES FASTER."); // T47: no seconds
-        expect(line).toBe(`TURRET SPEED: LEVEL ${l}/4. UPGRADE: FIRES FASTER.`);
+        expect(line).toBe(`SPEED: LEVEL ${l}/4. UPGRADE: FASTER.`);
         expect(t.labels[0], `L${l}`).toBe(upgradeLabel(l));
         buyUpgrade(run, "turret");
         // FASTER is the battle's: the next level's interval is this one scaled by TURRET_SPEED, and shorter
@@ -113,7 +113,7 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
         expect(+after.toFixed(2)).toBe(+((fires * TURRET_SPEED[l + 1]) / TURRET_SPEED[l]).toFixed(2));
         expect(after).toBeLessThan(fires);
       } else {
-        expect(line).toBe("TURRET SPEED: LEVEL 4/4.");
+        expect(line).toBe("SPEED: LEVEL 4/4.");
         expect(t.labels[0]).not.toMatch(/UPGRADE/);
       }
     }

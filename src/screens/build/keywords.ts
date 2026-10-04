@@ -387,7 +387,9 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   }
   // the desk: a hovered word's definition in the shop's tooltip style, and the help cursor
   const p = ui.pointer;
-  const hov = !tap && p.kind === "mouse" && !p.down ? targets.find((t) => inside(t.r, p.x, p.y) && !(box && overlaps(t.glyph, box))) : undefined;
+  // (not the word whose definition is open: a click leaves the mouse on it, and the box already says it)
+  const hov = !tap && p.kind === "mouse" && !p.down
+    ? targets.find((t) => inside(t.r, p.x, p.y) && !(box && overlaps(t.glyph, box)) && (glossaryEntry(t.word)?.word ?? t.word) !== s.word) : undefined;
   s.hover = hov ? hov.word : null;
   setCursor(canvas, !!hov);
   if (hov) drawHoverTip(g, hov, r);

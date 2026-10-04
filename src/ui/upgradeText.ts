@@ -42,11 +42,10 @@ export function turretNext(_every: number, level: number): string | null {
   return levelOf(level) >= UPGRADE_MAX ? null : "UPGRADE: FIRES FASTER.";
 }
 
-/** A starting turret's speed on its panel, after its "TURRET SPEED:" label: "LEVEL 1/4. UPGRADE: FIRES FASTER." ("LEVEL
- *  4/4." at the top). T47: no seconds. U2c step 5: the notice form (was "LEVEL 1/4, NEXT: FASTER"). */
+/** A starting turret's speed on its panel, after its "SPEED:" label: "LEVEL 1/4. UPGRADE: FASTER." ("LEVEL 4/4." at the
+ *  top). T47: no seconds. U2c step 5: the notice form (was "LEVEL 1/4, NEXT: FASTER"), two lines of the desk column. */
 export function turretSpeedRow(every: number, level: number): string {
-  const next = turretNext(every, level);
-  return `LEVEL ${levelOf(level)}/${UPGRADE_MAX}.${next ? ` ${next}` : ""}`;
+  return `LEVEL ${levelOf(level)}/${UPGRADE_MAX}.${turretNext(every, level) ? " UPGRADE: FASTER." : ""}`;
 }
 
 /** The board's level marker on the hero factory and the starting turrets: the level as a numeral ("2"); "" at level 1. */

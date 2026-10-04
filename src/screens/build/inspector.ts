@@ -72,7 +72,6 @@ import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, upgrade, type Ctx } from "./actions";
 import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "../../sim/stars";
 import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/upgradeText"; // bb-0.8.3 (REQ-BFG-043 D11)
-import { TRACK_NAME } from "../../ui/upgradeText"; // U2c step 5
 import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
 import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
 import { gainModule, mergePreview } from "../../game/fuse";
@@ -857,8 +856,9 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   // a panel is short of room it gives way before anything the panel showed before (the board's level marker and the
   // UPGRADE button with its price still show)
   const startTurret = !!turretSlots(b)[index]?.turret?.free, tl = upgradeLevel(b, "turret");
-  // U2c step 5: in the notice form, "TURRET SPEED: LEVEL 1/4. UPGRADE: FIRES FASTER." (was "SPEED LEVEL 1/4, NEXT: FASTER.")
-  if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `${TRACK_NAME.turret}: ${turretSpeedRow(every, tl)}`, rank: 7 });
+  // U2c step 5: in the notice form, "SPEED: LEVEL 1/4. UPGRADE: FASTER." (was "SPEED LEVEL 1/4, NEXT: FASTER."): what the
+  // UPGRADE button beside it does; two lines of the desk column, as before
+  if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `SPEED: ${turretSpeedRow(every, tl)}`, rank: 7 });
   const body: Block[] = [
     ...warn(false),
     ...stats, // U2c step 4: the stat row first, then the CORE and GEAR rows as now
