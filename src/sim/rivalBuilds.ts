@@ -94,12 +94,19 @@ export interface RivalPlan {
   // (content.ts sustainLive), taken after `upgrades` (their uids follow it, so every other part keeps its uid). Off, planBuild
   // never reads them: every captain deck, and every test that walks `upgrades`, is exactly as before
   sustain?: Upgrade[];
+  // 0.8.9 (CATCHUP-089 fallback 2; cap's ruling Q1 e2ca295ce9dcd60a): PvE plates by day (day -> plates), armor the road
+  // warlord carries free on that day, like the hull ramp (+250 hull each on the N1 scale, the ARMOR PACK's), on the days a Hard captain
+  // was still under 0.55 against the par fields after its packs and its gold ran short of the par field's pack count:
+  // the count less its paid plates. In the road deck's hull only (good luck and better), never in its value, and never
+  // in the stand-in deck (rivals.ts standInBuild builds its hull from the paid plating alone).
+  pve?: Readonly<Partial<Record<number, number>>>;
 }
 
 export interface RivalLoadout {
   build: Build;
   crates: number;
-  plating: number;
+  plating: number; // paid plating (the ARMOR PACKs the plan bought)
+  pvePlates: number; // 0.8.9 (CATCHUP-089 fallback 2): free PvE plates in the hull, not paid (0 at ordinary luck)
   value: number; // gold a player would pay for the same deck, gear and supplies
 }
 
@@ -219,6 +226,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       M(4, "flak", 0), soon(5, G(6, "splitter", 2, 4, 2)), P(6), G(7, "staticbrush", 0, 1), soon(6, G(8, "riveter", 5, 1)),
       P(8, 2), ...good(G(9, "counterweight", 2, 0)), soon(9, G(10, "venom", 0, 0)), ...good(G2(10, "temper", 3, 1)), P(10, 2),
     ],
+    // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 46% on day 7 with 3 of the 4 packs: one PvE plate that day
+    pve: { 7: 1 },
   },
   // ---------------------------------------------------------------- Medium (tier 2)
   // SLOW COOKER: the kiln at the back, one 13-tile serpentine so every slug cooks on the way. Synergy: the ride-time
@@ -341,6 +350,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       P(8), soon(5, G2(9, "staticbrush", 3, 3)), P(9, 2),
       ...good(G(10, "venom", 3, 2)), ...good(M2(10, "drake", 2)), ...good(M(10, "flak", 0)), P(10, 2),
     ],
+    // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 53/51/50% on days 6-8 with 1/2/3 of the 3/4/5 packs: two PvE
+    // plates on each of those days
+    pve: { 6: 2, 7: 2, 8: 2 },
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
   // (venom, a counterweight, a hullbreaker core) that a LONG HAUL cashes in from day 5 (+2 damage per hit already
@@ -386,6 +398,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(7, G(8, "overclocker", 6, 5, 1)), G(8, "temper", 5, 0, 3), P(8), ...good(G(9, "sorting", 7, 5, 1)), P(9, 2),
       ...good(G(10, "quench", 9, 4)), ...good(G2(10, "whetstone", 3, 0)),
     ],
+    // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 40/30/29/30% on days 4-7 with 0/0/0/1 of the 1/2/3/4 packs: PvE
+    // plates up to the count on those days
+    pve: { 4: 1, 5: 2, 6: 3, 7: 3 },
   },
   // ---------------------------------------------------------------- Hard, days 8-10 only
   // GRAND FOUNDRY (the stars-aligned deck; she arrives on day 8): the kiln and a STAMP PRESS, heavy armor (three
@@ -534,6 +549,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // second gear slot) and the WARD BELL goes there (11 gold: day 5 is 47 of 50). No synergy part moves; the BOTS-X report
     // lists what this does to his ordinary luck caps (measured with the switch off; FLIP-X regenerates them)
     sustain: [T2(5, 0), M(5, "wardbell", 0)],
+    // 0.8.9 (CATCHUP-089 fallback 2): his road deck read 51% on day 5 with none of the 2 packs (R1 holds them off) and 37%
+    // on day 7 with 3 of the 4: PvE plates up to the count on those days
+    pve: { 5: 2, 7: 1 },
   },
   // ---------------------------------------------------------------- dusk stand-ins only (standInOnly), FURNACE and WEAVER
   // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
@@ -616,6 +634,8 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   };
   plan.factories.forEach((f, i) => { if ((f.at ?? 1) <= day) addFactory(f, U + 1 + i); }); // 0.8.0 I1: FactoryPlan.at
   let crates = plan.crates, plating = 0, fu = U + 1 + plan.factories.length;
+  // 0.8.9 (CATCHUP-089 fallback 2): the day's PvE plates, on a road deck at good luck or better only
+  const pvePlates = luck === "ordinary" ? 0 : plan.pve?.[day] ?? 0;
   // BOTS-X (SUS-C): with the sustain switch on, the plan's sustain upgrades after its own (off: `upgrades` itself)
   const ups = sustainLive() && plan.sustain?.length ? [...plan.upgrades, ...plan.sustain] : plan.upgrades;
   for (const [i, u] of ups.entries()) {
@@ -653,7 +673,8 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
     plating += u.plating ?? 0;
   }
   b.beltCap = HEROES[plan.hero].belt + crates * ITEMS.beltcrate.supply!.belt!;
-  b.hullBonus = warlordHull(day) + plating * ITEMS.plating.supply!.hull!;
+  // 0.8.9 (CATCHUP-089 fallback 2): the PvE plates add hull like plating, and nothing to the value below
+  b.hullBonus = warlordHull(day) + (plating + pvePlates) * ITEMS.plating.supply!.hull!;
   // 0.6.2 BELTSIDE: a load boundary (D3). The plans place rigs natively (M4), so the migration is a no-op
   // here, kept as the safety net for a plan that writes a rig on a belt tile. The value counts the deck after it.
   const build: Build = migrateDeck(b, "preset:rival");
@@ -666,7 +687,7 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   const up = captainLevels(plan.hero, day, maxGold(day) - parts - ramp);
   if (up) build.upgrades = up;
   const value = parts + upgradeGold(build);
-  return { build, crates, plating, value };
+  return { build, crates, plating, pvePlates, value };
 }
 
 /**

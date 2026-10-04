@@ -75,7 +75,10 @@ describe("stand-in decks are honest (R1, R2)", () => {
         // Easy or Medium captain; a Hard warlord adds what good luck brings (and brings sooner)
         expect({ ...b, hullBonus: 0 }, why).toEqual({ ...l.build, hullBonus: 0 });
         if (luckOf(id) === "ordinary") expect({ ...b, hullBonus: 0 }, why).toEqual({ ...w, hullBonus: 0 });
-        expect(w.hullBonus, why).toBe(warlordHull(day) + PLATE * lw.plating); // NUM-1: 250 x (was 25 x)
+        // 0.8.9 (CATCHUP-089 fallback 2): the road deck may carry free PvE plates (good luck only, so a Hard captain's);
+        // the stand-in's ordinary plan never owns one, and its hull above is the paid plating alone
+        expect(l.pvePlates, why).toBe(0);
+        expect(w.hullBonus, why).toBe(warlordHull(day) + PLATE * (lw.plating + lw.pvePlates)); // NUM-1: 250 x (was 25 x)
       }
     });
   }

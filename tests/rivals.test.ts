@@ -75,7 +75,8 @@ describe("rival builds are legal production builds", () => {
         expect(legalityProblems(b), `${id} day ${day}`).toEqual([]);
         expect(b.beltCap).toBe(HEROES[b.hero].belt + 4 * l.crates);
         // NUM-1 (REQ-BFG-047): a plate's hull from the data, 250 (was the literal 25)
-        expect(b.hullBonus).toBe(warlordHull(day) + ITEMS.plating.supply!.hull! * l.plating);
+        // 0.8.9 (CATCHUP-089 fallback 2): a Hard road deck may carry free PvE plates beside its paid plating
+        expect(b.hullBonus).toBe(warlordHull(day) + ITEMS.plating.supply!.hull! * (l.plating + l.pvePlates));
         if (rivalDays(id).includes(day)) expect(l.value, `${id} day ${day} value`).toBeLessThanOrEqual(budget(day));
       }
     });
