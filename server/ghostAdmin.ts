@@ -26,6 +26,7 @@ import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { isReachable } from "../src/net/records";
+import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { parseRules, rulesGateProblem } from "../src/net/rulesGate";
 import { decodeSnapshot, ghostId, ID_PATTERN, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
@@ -247,6 +248,10 @@ export function uploadProblems(r: StoredRecord, rules: string): string[] {
   const v = validateUpload(s.build, s.day, s.rules);
   if (!v.ok) out.push(`validateUpload: ${v.errors.join("; ")}`);
   if (!isReachable(s.day, s.wins, s.lives)) out.push(`record: ${s.wins}W ${s.lives} lives is no record a run carries into dusk ${s.day}`);
+  // PACKS M2 (REQ-BFG-063): POST /v1/ghosts takes an upload under RULES_VERSION only with its player's name (a bad name
+  // is already the strict decode's refusal above); uploads stored under older rules never carried one
+  const named = s.rules === RULES_VERSION ? nameProblem(s.name) : null;
+  if (named) out.push(`name: ${named}`);
   return out;
 }
 

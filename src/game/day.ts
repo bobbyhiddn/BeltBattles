@@ -6,7 +6,8 @@
 import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES, incomeFor } from "../sim/content";
 import type { Side, SideStats } from "../sim/battle";
 import { pickGhost, standInFoe, type GhostSnapshot } from "./ghosts";
-import { playerId, SNAPSHOT_VERSION } from "./ghostSnapshot";
+import { currentName, playerId, SNAPSHOT_VERSION } from "./ghostSnapshot";
+import { displayName, nameProblem, WANDERER } from "../net/names"; // PACKS M2 (REQ-BFG-063)
 import { rollShop, type DayResult, type DuskFoe, type Run } from "./run";
 import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (type only)
 
@@ -18,6 +19,9 @@ export function ghostName(g: Pick<GhostSnapshot, "hero" | "wins" | "lives">): st
   return `GHOST · ${HEROES[g.hero].name} · ${g.wins}W ${g.lives}♥`;
 }
 
+/** PACKS M2 (REQ-BFG-063): a ghost's player name for its stored record, when it has one (pool entries have none). */
+const named = (g: Pick<GhostSnapshot, "name">): { name?: string } => (g.name !== undefined ? { name: g.name } : {});
+
 /** Choose today's dusk opponent from the pool, or else the day's stand-in captain with its named
  *  build (ghosts.ts standInFoe: standInBuild since 0.6.2 TUNE-C; the stand-in pool's standInPick
  *  from 0.6.0d). Pure: the caller stores it in run.dusk, so the deck never re-rolls. */
@@ -26,7 +30,7 @@ export function chooseFoe(run: Run, pool: readonly GhostSnapshot[]): DuskFoe {
   if (g) {
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g) },
     };
   }
   const s = standInFoe(run.seed, run.day);
@@ -52,7 +56,7 @@ export function onlineFoe(run: Run, fetched: FetchedGhost | null): DuskFoe {
     const g = fetched.snapshot;
     return {
       day: run.day, kind: "ghost", name: ghostName(g), hero: g.hero, build: clone(g.build),
-      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt },
+      record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g) },
       source: "online", ghostId: fetched.id,
     };
   }
@@ -81,12 +85,31 @@ export function startDusk(run: Run, pool: readonly GhostSnapshot[], online?: { g
 }
 
 /** The player's own snapshot as it fights today's dusk (wins and lives going INTO the fight).
- *  0.6.1a: v2, whose build carries each copy's stars (absent = 1). */
-export function ghostOf(run: Run, createdAt = Date.now(), player = playerId()): GhostSnapshot {
+ *  0.6.1a: v2, whose build carries each copy's stars (absent = 1). PACKS M2 (REQ-BFG-063): `name`, the device's stored
+ *  player name (ghostSnapshot.ts currentName), goes in last when there is one (no name: the snapshot is as before). */
+export function ghostOf(run: Run, createdAt = Date.now(), player = playerId(), name: string | null = currentName()): GhostSnapshot {
   return {
     v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero: run.hero, day: run.day, wins: run.wins, lives: Math.max(1, run.lives),
     build: clone(run.build), runId: run.runId, playerId: player, createdAt: Math.max(0, Math.floor(createdAt)),
+    ...(name ? { name } : {}),
   };
+}
+
+/** PACKS M2 (REQ-BFG-063): a ghost's record on the dusk intro, as the summary screen shows a run's (record(): W-L): the
+ *  wins it carried into that dusk, then the dusks before it that it did not win (day - 1 - wins: a snapshot keeps no
+ *  loss or draw count, and its lives can't give one, since the early-loss refund and PATCH UP give lives back). */
+export function ghostRecord(day: number, wins: number): string {
+  return `${wins}-${Math.max(0, day - 1 - wins)}`;
+}
+
+/** PACKS M2 (REQ-BFG-063): who the dusk intro says the foe is (after "VS "). A player's ghost: NAME#TAG · W-L (the tag
+ *  from its playerId, names.ts); a ghost without a usable name (seed pool, legacy uploads): WANDERER · W-L; a stand-in
+ *  captain: its captain name, as before. */
+export function foeTitle(foe: Pick<DuskFoe, "kind" | "name" | "day" | "record">): string {
+  const r = foe.record;
+  if (foe.kind !== "ghost" || !r) return foe.name;
+  const who = r.name !== undefined && nameProblem(r.name) === null ? displayName(r.name, r.playerId) : WANDERER;
+  return `${who} · ${ghostRecord(foe.day, r.wins)}`;
 }
 
 /** Score line: the dusk record, W-L. */

@@ -6,6 +6,7 @@
 import { GRID, HEROES, UPGRADE_MAX, UPGRADE_TRACKS, type HeroId } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { migrateDeck } from "../sim/beltside";
+import { NAME_KEY, nameProblem } from "../net/names"; // PACKS M2 (REQ-BFG-063): the one set of name rules
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
@@ -45,9 +46,12 @@ export interface GhostSnapshot {
   runId: string;
   playerId: string; // anonymous random id, never an account name or e-mail
   createdAt: number; // ms since epoch, client clock (informational only)
+  name?: string; // PACKS M2 (REQ-BFG-063): the player's name, as src/net/snapshot.ts takes it (names.ts); absent on pool entries
 }
 
 export const SNAPSHOT_KEYS = ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"] as const;
+/** PACKS M2 (REQ-BFG-063): the optional key after SNAPSHOT_KEYS, written only when present. */
+export const NAME_FIELD = "name";
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,7 +132,10 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   const q = v as Raw | null;
   if (!q || typeof q !== "object" || Array.isArray(q)) return false;
   const keys = Object.keys(q);
-  if (keys.length !== SNAPSHOT_KEYS.length || !SNAPSHOT_KEYS.every((k) => keys.includes(k))) return false;
+  // PACKS M2 (REQ-BFG-063): `name` may follow, absent or a name names.ts accepts (an in-memory `name: undefined` is
+  // absent), exactly as src/net/snapshot.ts checkSnapshot takes it, so this side refuses what the server refuses
+  if (!SNAPSHOT_KEYS.every((k) => keys.includes(k)) || keys.some((k) => k !== NAME_FIELD && !(SNAPSHOT_KEYS as readonly string[]).includes(k))) return false;
+  if (q.name !== undefined && nameProblem(q.name) !== null) return false;
   return (q.v === 1 || q.v === 2) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
     && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build, q.v) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
@@ -191,6 +198,40 @@ function storage(s?: Store): Store | null {
   } catch {
     return null;
   }
+}
+
+/** PACKS M2 (REQ-BFG-063): this device's player name, beside the player id (localStorage NAME_KEY,
+ *  beltbattles.name.v1, plain text in names.ts's canonical form), or null: none stored, storage unavailable, or a stored
+ *  value names.ts refuses (the name screen then asks again). Offline, on plain http and from file:// alike. */
+export function playerName(s?: Store): string | null {
+  try {
+    const cur = storage(s)?.getItem(NAME_KEY) ?? null;
+    return cur !== null && nameProblem(cur) === null ? cur : null;
+  } catch {
+    return null;
+  }
+}
+
+/** PACKS M2: store this device's player name (the name screen, after nameProblem accepted it). False when storage
+ *  refused it (the name then lasts this page load: sessionName). */
+export function setPlayerName(name: string, s?: Store): boolean {
+  if (nameProblem(name) !== null) return false;
+  if (!s) sessionName = name;
+  try {
+    const st = storage(s);
+    if (!st) return false;
+    st.setItem(NAME_KEY, name);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let sessionName: string | null = null;
+
+/** PACKS M2: the name uploads and the local pool carry: the stored one, else (storage refused it) this page load's. */
+export function currentName(s?: Store): string | null {
+  return playerName(s) ?? (s ? null : sessionName);
 }
 
 /** This device's player id: read from beltbattles.player.v1, made (and stored) on first use. */

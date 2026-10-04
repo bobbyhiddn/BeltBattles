@@ -136,6 +136,8 @@ const F3: GlyphMap = {
   ">": "#..|.#.|..#|.#.|#..",
   "&": ".#.|#.#|.#.|#.#|.##",
   "·": ".|.|#|.|.",
+  // PACKS M2 (REQ-BFG-063): the name tag on the dusk intro (ANNA#3F) is drawn in this face
+  "#": "#.#|###|#.#|###|#.#",
   "→": "...|..#|###|..#|...",
   "♥": "#.#|###|###|.#.|...",
   // 0.6.1d (ARSENAL.md §8.2): the MERGE badge and star pips need a ★ that fits a 3x5 cell.

@@ -7,6 +7,7 @@ import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText } from "../render/font";
 import { button, panel, type Rect } from "./ui";
+import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the options card's NAME entry
 
 /**
  * Hull bar: ink frame, 1px ticks. `shown` trails `hp` (chip damage drains after a hold);
@@ -54,7 +55,7 @@ export function optionsCard(game: Game, g: G, title: string, actions: { id: stri
   const { W, H, ui } = game;
   const u = (n: number) => Math.ceil(n * k - 1e-9);
   const bw = Math.min(W - 24, u(150)), bh = u(19), step = bh + 3;
-  const rows = 2 + actions.length;
+  const rows = 3 + actions.length; // PACKS M2 (REQ-BFG-063): + the NAME entry
   const h = 18 + rows * step + 4;
   const w = bw + 20;
   const x = Math.round(W / 2 - w / 2), y = Math.round(H / 2 - h / 2);
@@ -79,6 +80,12 @@ export function optionsCard(game: Game, g: G, title: string, actions: { id: stri
   const m = game.audio.mode;
   button(ui, g, "opt-snd", { x: bx, y: by, w: bw, h: bh }, `SOUND: ${m === 0 ? "MUSIC + SFX" : m === 1 ? "SFX ONLY" : "OFF"}`, {
     font: "3", active: m === 0, onTap: () => game.cycleSound(),
+  });
+  by += step;
+  // PACKS M2 (REQ-BFG-063): the player name, changed on the name screen (CANCEL keeps it; later uploads carry the new one)
+  const name = currentName();
+  button(ui, g, "opt-name", { x: bx, y: by, w: bw, h: bh }, name ? `NAME: ${name}` : "NAME", {
+    font: "3", onTap: () => game.openName({ required: false }),
   });
   return card;
 }
