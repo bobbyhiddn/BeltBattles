@@ -105,8 +105,11 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     // each rune reminder: number-free, its word first, and it says what its row says (a phrase both hold)
     const same: Record<string, string> = {
       PLATE: "BEFORE YOUR HULL", PAIR: "TWO LOADS REACH ONE TURRET AT ONCE", HEAT: "FOR EACH SEC IT RIDES", FRAY: "LATER HIT",
-      RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "CINDER SLUG'S OWN", STALL: "STOPS FOR A WHILE",
+      // U2d F4: RIDE's row reworded (cap), its reminder its first sentence; was "CINDER SLUG'S OWN"
+      RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE", STALL: "STOPS FOR A WHILE",
     };
+    // U2d F4 (cap, seen in crop-keywords-rune-op): RIDE's row in cap's words, whole (2 lines of 5x7 at 225 px: the fit test below)
+    expect(glossaryEntry("RIDE")!.def).toBe("RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.");
     expect(Object.keys(RUNE_REMINDER).sort()).toEqual(Object.keys(same).sort());
     for (const [k, phrase] of Object.entries(same)) {
       const rem = RUNE_REMINDER[k];
@@ -183,7 +186,8 @@ describe("U2c U2b's ledger: every NEEDED: U2c row now has a home", () => {
   it("PRESSURE's cap, COMPOUND's lone-load hold, SORTING ARM's count across belts, PAIR's window and lone blank, SURGE's pulse", () => {
     const k = 1;
     // PRESSURE BREECH: the cap of 5 waiting loads (its tap note; the turret panel's CHAMBER row: tests/turretPanel.u2c)
-    expect(stripIcons(icons(glossaryText("SHOT", { def: "pressure", stars: 1, o: { k } })!))).toContain(`AT MOST ${fmtCount(scaleCore(ITEMS.pressure.core!, k).maxCount!)} LOADS WAITING`);
+    // U2d F5: the note reads forwards, as the turret panel's (was "AT MOST 5 LOADS WAITING COUNT, AND IT NEVER JAMS.")
+    expect(stripIcons(icons(glossaryText("SHOT", { def: "pressure", stars: 1, o: { k } })!))).toBe(`SHOT: IT COUNTS UP TO ${fmtCount(scaleCore(ITEMS.pressure.core!, k).maxCount!)} WAITING LOADS, AND IT NEVER JAMS.`);
     // COMPOUND BREECH: the lone load's hold
     expect(stripIcons(icons(glossaryText("SHOT", { def: "compound", stars: 1, o: { k } })!))).toContain(`A LONE LOAD FIRES ALONE AFTER ${fmtSec(ITEMS.compound.core!.hold!)}`);
     // SORTING ARM: one count across every belt its arrows reach

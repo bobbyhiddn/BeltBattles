@@ -835,7 +835,7 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const note = [
     ...(noJam ? ["NEVER JAMS."] : []),
     ...(tu.storeMax ? [`STORES +${fmtCount(tu.storeMax)} {SLUG} WHILE IT FIRES.`] : []),
-    ...(capped ? [`MAX ${fmtCount(capped)} {SLUG} WAITING COUNT.`] : []),
+    ...(capped ? [`COUNTS UP TO ${fmtCount(capped)} WAITING {SLUG}.`] : []), // U2d F5: was MAX 5 {SLUG} WAITING COUNT.
   ].join(" ");
   const stats: Block[] = [
     { role: "ability", text: statRow([speedPair(every), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true },

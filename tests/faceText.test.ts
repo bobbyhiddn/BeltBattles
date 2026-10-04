@@ -27,6 +27,10 @@ import { tapPx } from "../src/ui/tap"; // U2b
 import { buildLayout } from "../src/screens/build/layout";
 import { cargoPanel, fittedPanel, itemPanel, keptWhole, offerPanel, planPanel, type PanelText } from "../src/screens/build/inspector";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
+import { icons } from "../src/render/font"; // U2d F1
+import { livePerk } from "../src/ui/abilityText"; // U2d F1
+import { NEXT_LINE_W, type FaceLines } from "../src/ui/faces"; // U2d F1
+import { GLOSSARY_WRAP_W } from "../src/ui/glossary"; // U2d F1
 
 // U2a (REQ-BFG-046, REQ-BFG-047): the face kit (src/ui/statFormat.ts, src/ui/faces.ts, src/screens/build/faceBlocks.ts).
 // The faces are pinned through the formatter registry (value to string, N1 6.4), never through literal strings: at
@@ -326,6 +330,56 @@ describe("U2c group 0: cap's fixes 1-5 on the 0.8.7 rune build", () => {
     expect(flavour("kiln")).toEqual(["A LONG BELT SPEEDS UP THE GUN IT FEEDS."]);
     expect(flavour("loom")).toEqual(["IT FEEDS ONE BELT MORE THAN MOST FACTORIES."]);
     expect(effectAt("loom", 1).factory!.lead, "LOOM's lead belt").toBe(1);
+  });
+});
+
+describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number the next star changes; a perk's name gives way first", () => {
+  it("SURGE VALVE keys its period: NEXT ★2: EVERY 2.5{SEC}, 4 TIMES, +2 {DMG}, each number through its formatter", () => {
+    for (let s = 1; s < FUSE_MAX; s++) {
+      const p = effectAt("surge", s + 1).gate!.pulse!;
+      expect(effectAt("surge", s + 1).gate!.pulse!.period, `★${s + 1}: its period changes with its stars`).not.toBe(effectAt("surge", s).gate!.pulse!.period);
+      const nx = faceNext("surge", s)!;
+      expect(nx.text, `★${s}`).toBe(icons(`NEXT ★${s + 1}: EVERY ${fmtSec(p.period)}{SEC}, ${fmtCount(p.speed)} TIMES, +${fmtDmg(p.flat)} {DMG}`));
+      // its perk's name (OVERPRESSURE, HAMMER VALVE) would take the line past the band: the numbers say what the star brings
+      expect(nx.perk, `★${s}`).toBeUndefined();
+      expect(textWidth(`${nx.text} ★${s + 1} ${livePerk("surge", s + 1)}`, "5"), `★${s}`).toBeGreaterThan(NEXT_LINE_W);
+    }
+    expect(NEXT_LINE_W).toBe(GLOSSARY_WRAP_W); // the op view's band in 5x7 (T1 2.6), the definitions' width
+  });
+
+  it("no number that changes with the stars sits only in a label or unkeyed: each one is in NEXT★ (rules, clause, caveats, reminders)", () => {
+    const missing: string[] = [];
+    for (const def of FACE_IDS.filter(fusible)) for (const o of contexts(def)) for (let s = 1; s < FUSE_MAX; s++) {
+      const a = faceLines(def, s, o)!, b = faceLines(def, s + 1, o)!;
+      const lines = (f: FaceLines) => [...f.rules.map((r) => r.text), f.clause?.text ?? "", ...(f.caveats ?? []), ...f.reminders];
+      const la = lines(a), next = numbersIn(faceDiff(def, s, s + 1, o) ?? "");
+      lines(b).forEach((line, i) => numbersIn(line).forEach((n, j) => {
+        if (numbersIn(la[i] ?? "")[j] !== n && !next.includes(n)) missing.push(`${def} ${JSON.stringify(o)} ★${s + 1}: ${n} in ${stripIcons(line)}`);
+      }));
+    }
+    expect(missing).toEqual([]);
+    // the ones F1 keyed: ARMOR PRESS's period (one at every star today), SPALL CATCHER's MAX, SALVAGE LINE's damage, SPOTTER's weight
+    expect(stripIcons(faceNext("spallcatcher", 1)!.text)).toContain(`MAX ${fmtDmg(effectAt("spallcatcher", 2).mod!.spall!.max)} `);
+    expect(stripIcons(faceNext("spotter", 1)!.text)).toContain(`FACTORIES ${fmtCount(effectAt("spotter", 2).mod!.factoryWeight!)} TIMES`);
+    expect(stripIcons(faceNext("grapnel", 2, { k: 1 })!.text)).toContain(" EACH");
+    expect(faceAt("armorpress", 1)!.nums.find(([key]) => key === "every")![1]).toBe(`EVERY ${fmtSec(effectAt("armorpress", 1).factory!.plate!.every)}{SEC}`);
+  });
+
+  it("a perk's name gives way only where the line would pass the band; a line with no changed number keeps it (the name is all it says)", () => {
+    const gaveWay: string[] = [];
+    for (const def of FACE_IDS.filter(fusible)) for (const o of contexts(def)) for (let s = 1; s < FUSE_MAX; s++) {
+      const p = livePerk(def, s + 1), nx = faceNext(def, s, o)!;
+      if (!p || p === livePerk(def, s)) { expect(nx.perk, `${def} ★${s}`).toBeUndefined(); continue; }
+      const whole = `${nx.text} ★${s + 1} ${p}`;
+      if (nx.perk) expect(nx.text === nx.label || textWidth(whole, "5") <= NEXT_LINE_W, `${def} ★${s}`).toBe(true);
+      else {
+        expect(nx.text, `${def} ★${s}: only a line with numbers lets the name go`).not.toBe(nx.label);
+        expect(textWidth(whole, "5"), `${def} ★${s}`).toBeGreaterThan(NEXT_LINE_W);
+        gaveWay.push(`${def}${Object.keys(o).length ? ` ${JSON.stringify(o)}` : ""} ★${s}: ${stripIcons(nx.text)} (★${s + 1} ${p})`);
+      }
+    }
+    console.log(`U2d F1: the perk's name gave way on ${gaveWay.length} NEXT★ lines:\n${gaveWay.join("\n")}`);
+    expect(gaveWay.length).toBeGreaterThan(0);
   });
 });
 

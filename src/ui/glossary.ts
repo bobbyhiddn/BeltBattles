@@ -80,7 +80,8 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "PLATE", aliases: ["PLATES", "PLATED", "PLATING"], colour: kwColour("PLATE"), kw: "PLATE", extra: plateExtra, def: withExtra(REMINDER.PLATE(), plateExtra), scope: "text" },
     { word: "PAIR", aliases: ["PAIRS", "PAIRED"], colour: kwColour("PAIR"), kw: "PAIR", extra: pairExtra, def: withExtra(REMINDER.PAIR(), pairExtra), scope: "text" },
     // --------------------------------------------------------------------- the rune keywords that have no row above
-    { word: "RIDE", aliases: [], colour: C.wood4, def: "RIDE: A CINDER SLUG'S OWN {*HEAT}, FOR EACH SEC IT RIDES. A HEAT JACKET'S IS APART.", scope: "rune" },
+    // U2d F4: was "RIDE: A CINDER SLUG'S OWN {*HEAT}, FOR EACH SEC IT RIDES. A HEAT JACKET'S IS APART." (cap: unclear)
+    { word: "RIDE", aliases: [], colour: C.wood4, def: "RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.", scope: "rune" },
     {
       word: "RATE", aliases: ["FIRE RATE", "FIRES", "WORKS FASTER", "WORK FASTER"], colour: ICON_COLOUR[ICON.RATE],
       def: "RATE: HOW OFTEN A GUN FIRES OR A FACTORY WORKS. FASTER IS MORE OF IT.", scope: "text",
@@ -133,7 +134,7 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   FRAY: "FRAY: EACH ONE ADDS DAMAGE TO EVERY LATER HIT.",
   RATE: "RATE: HOW OFTEN A GUN FIRES OR A FACTORY WORKS.",
   BURN: "BURN: EACH ONE DEALS HULL DAMAGE EVERY SEC FOR A WHILE.",
-  RIDE: "RIDE: A CINDER SLUG'S OWN HEAT FOR EACH SEC IT RIDES.",
+  RIDE: "RIDE: THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE.", // U2d F4: its row's first sentence (was A CINDER SLUG'S OWN HEAT FOR EACH SEC IT RIDES.)
   STALL: "STALL: A STALLED PART STOPS FOR A WHILE.",
 };
 
@@ -190,7 +191,8 @@ const core = (e: ItemDef, x: { k: number }) => scaleCore(e.core!, x.k);
 
 export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // cores.ts pressure: + perQueued for each queued load, at most maxCount of them; it never jams (noJam)
-  pressure: { word: "SHOT", text: (e, x) => `SHOT: AT MOST ${fmtCount(core(e, x).maxCount!)} LOADS WAITING COUNT, AND IT NEVER JAMS.` },
+  // U2d F5: as the turret panel's note (was "SHOT: AT MOST 5 LOADS WAITING COUNT, AND IT NEVER JAMS.")
+  pressure: { word: "SHOT", text: (e, x) => `SHOT: IT COUNTS UP TO ${fmtCount(core(e, x).maxCount!)} WAITING LOADS, AND IT NEVER JAMS.` },
   // cores.ts compound: a lone load fires on its own after `hold` s; a shell carries both loads' burn and shock
   compound: { word: "SHOT", text: (e, x) => `SHOT: A LONE LOAD FIRES ALONE AFTER ${fmtSec(core(e, x).hold!)}{SEC}. A SHELL KEEPS BOTH LOADS' {*BURN} AND {*STUN}.` },
   // battle.ts applyHit: one count for every payload its arrows hit, on every belt they reach; the copies at full strength

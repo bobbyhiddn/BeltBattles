@@ -877,7 +877,8 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     expect(face(null, 1, [["hopper", 1]])).toEqual([row(1, 4), undefined]);
     expect(face(null, 1, [["hopper", 2]])).toEqual([row(1, 4), icons(`STORES +${fmtCount(1)} {SLUG} WHILE IT FIRES.`)]);
     // PRESSURE BREECH never jams and counts at most 5 loads waiting (U2b's ledger: its cap in the turret's stat rows)
-    expect(face("pressure", 2)).toEqual([row(1, 3), icons(`NEVER JAMS. MAX ${fmtCount(ITEMS.pressure.core!.maxCount!)} {SLUG} WAITING COUNT.`)]);
+    // U2d F5: the note reads forwards (was `NEVER JAMS. MAX 5 {SLUG} WAITING COUNT.`)
+    expect(face("pressure", 2)).toEqual([row(1, 3), icons(`NEVER JAMS. COUNTS UP TO ${fmtCount(ITEMS.pressure.core!.maxCount!)} WAITING {SLUG}.`)]);
     expect(face("salvo", 1)).toEqual([row(1.6, 3), undefined]); // its volley reload, as the FIRES row read it
     expect(face("compound", 1, [["hopper", 3]])).toEqual([row(1, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
     expect(face("gatling", 1, [["hopper", 1]])).toEqual([row(1, 4), undefined]);
@@ -931,7 +932,8 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       // its {SLUG}); the stat row is the battle's turret's (makeTurret), the load time a hidden timer (N1 6.6)
       const run = fitted(def, ts, core, s, fill), f = turretFace(run), want = expectedFace(run);
       expect([f.stats, f.note], id).toEqual([want.stats, want.note]);
-      if (f.note) expect(stripIcons(f.note).replace(/ +/g, " "), id).toMatch(/^(NEVER JAMS\.)? ?(STORES \+\d+ WHILE IT FIRES\.)? ?(MAX \d+ WAITING COUNT\.)?$/);
+      // U2d F5: PRESSURE's part is COUNTS UP TO n WAITING {SLUG}. (was MAX n WAITING COUNT.)
+      if (f.note) expect(stripIcons(f.note).replace(/ +/g, " "), id).toMatch(/^(NEVER JAMS\.)? ?(STORES \+\d+ WHILE IT FIRES\.)? ?(COUNTS UP TO \d+ WAITING ?\.)?$/);
       expect(rows(t)["LOAD TIME"], id).toBeUndefined();
       n++;
     }
@@ -1109,7 +1111,7 @@ function expectedFace(run: Run, i = 0): { stats: string; note?: string } {
   const note = [
     ...(tu.noJam || (tc.bought && tc.spec.noJam) ? ["NEVER JAMS."] : []),
     ...(tu.storeMax ? [`STORES +${fmtCount(tu.storeMax)} {SLUG} WHILE IT FIRES.`] : []),
-    ...(tc.bought && tc.routine === "pressure" ? [`MAX ${fmtCount(tc.spec.maxCount!)} {SLUG} WAITING COUNT.`] : []),
+    ...(tc.bought && tc.routine === "pressure" ? [`COUNTS UP TO ${fmtCount(tc.spec.maxCount!)} WAITING {SLUG}.`] : []), // U2d F5 (was MAX n {SLUG} WAITING COUNT.)
   ].join(" ");
   return { stats: statRow([speedPair(every), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(sl.gearSlots)]]), note: note ? icons(note) : undefined };
 }

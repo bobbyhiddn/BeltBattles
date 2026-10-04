@@ -11,6 +11,10 @@ import { shopChip, shopChipGlyphs } from "../src/ui/chips";
 import { CARD_CHIP_Y, CARD_MARK_X, cardPriceX, drawCard } from "../src/screens/build/shop";
 import { CARD_H, CARD_W } from "../src/screens/build/layout";
 import { C } from "../src/render/palette";
+import { RATE_KEYS } from "../src/ui/chips"; // U2d F2
+import { faceAt } from "../src/ui/faces"; // U2d F2
+import { fmtDmg } from "../src/ui/statFormat"; // U2d F2
+import { PLAYABLE_HEROES } from "../src/sim/heroBuilds"; // U2d F2
 
 // U2c (REQ-BFG-046, REQ-BFG-047; R1 MEMO C4, U3): the shop card's stat chip (src/ui/chips.ts): one icon alone and one value
 // from the face's own data (each number printed by a formatter), picked in the brief's order; a piece without a face keeps
@@ -48,6 +52,37 @@ describe("U2c the shop chip: the pick and its numbers", () => {
       n++;
     }
     expect(n).toBeGreaterThan(30);
+  });
+});
+
+describe("U2d F2 (cap's answer to U2c question 3): the chip rule, a chip's icon is the mechanic its number measures", () => {
+  it("GREASE WORKS (its belts' speed) and OVERCLOCKER (its rest) keep today's card, with no chip", () => {
+    expect(faceAt("grease", 1)!.nums.map(([key]) => key)).toEqual(["speed"]); // its FASTER is a belt's speed: not RATE
+    expect(shopChip("grease")).toBeNull();
+    expect(faceAt("overclocker", 1)!.nums[0][1]).toMatch(/\{SEC\}$/); // RESTS n{SEC}: a waiting timer
+    expect(shopChip("overclocker")).toBeNull();
+  });
+
+  it("FASTER is {RATE} only for a gun firing or a factory working (RATE_KEYS); a {SEC} chip is only a cadence, never a waiting timer", () => {
+    expect(Object.keys(RATE_KEYS).sort()).toEqual(["rate", "spin", "stoke"]);
+    const rate: string[] = [];
+    // every context that changes a ★1 face: a core's class factor (faceText's k list), MIMIC FORGE's hero
+    for (const def of BUYABLE) for (const [hero, kk] of PLAYABLE_HEROES.flatMap((h) => [1, 0.8, 0.75, 0.55, 0.4].map((x) => [h, x] as const))) {
+      const o = { k: kk, hero }, chip = shopChip(def, o), f = faceAt(def, 1, o);
+      if (!chip || !f) continue;
+      if (chip.startsWith("{RATE}")) {
+        // the number's own key says it measures how often a gun fires or a factory works
+        const at = f.nums.find(([, v]) => /FASTER/.test(v) && v.includes(chip.replace(/^\{RATE\}\+/, "")));
+        expect(at && at[0] in RATE_KEYS, `${def}: ${chip}`).toBe(true);
+        if (!rate.includes(def)) rate.push(def);
+      }
+      // a chip in seconds is a stat pair's: a gun's or a factory's cadence (the first pair, SEC), never a rule's timer
+      if (chip.endsWith("{SEC}")) expect([f.stats[0]?.[0], chip], def).toEqual(["SEC", `${f.stats[0]?.[1]}{SEC}`]);
+    }
+    expect(rate.sort()).toEqual(["calibrate", "escapement", "gatling", "stoker"]);
+    // the speed rigs' FASTER, TIMES and SPEED are their belts': SURGE's chip is its damage, the others keep today's card
+    expect(shopChip("surge")).toBe(`{DMG}+${fmtDmg(effectAt("surge", 1).gate!.pulse!.flat)}`);
+    for (const def of ["grease", "brake", "overdrive"]) expect(shopChip(def), def).toBeNull();
   });
 });
 

@@ -20,7 +20,7 @@
 // entry here, so every panel draws them exactly as today.
 // THE INTERIM (N1 2.6): the faces are held for stage A's NUMBERS release; until then the formatters print today's values.
 
-import { icons, type KeywordName } from "../render/font";
+import { icons, textWidth, type KeywordName } from "../render/font";
 import { colourize, PERK_COLOUR, type Span } from "./richText";
 import { statRow, type Stat } from "./icons";
 import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat";
@@ -194,7 +194,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   armorpress: (e) => {
     const p = f(e).plate!, every = fmtSec(p.every), amount = fmtDmg(p.amount);
     const label = `EVERY ${every}{SEC}:`;
-    return rules([{ text: `${label} +${amount} {*PLATE}.`, label }], [["every", label], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
+    // U2d F1: the period's NEXT★ form is SURGE's, without the label's colon (its period is one at every star today)
+    return rules([{ text: `${label} +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   kiln: (e) => {
@@ -307,10 +308,11 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // "n TIMES AS FAST") and its length; NEXT★ shows the next speed; the tap text (glossary SURGE) explains the pulse
     const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat), n = fmtCount(p.speed), on = fmtSec(p.on);
     const label = `EVERY ${every}{SEC}:`;
-    // (NEXT★ names the speed and the damage: with the period too, ★2's line and its perk name OVERPRESSURE take 233 px of
-    // the band's 225; each star's rule line says its period)
+    // U2d F1 (cap's U2c question 1): its period changes with its stars (content.ts surge), so it is keyed too and NEXT★
+    // shows it ("NEXT ★2: EVERY 2.5{SEC}, 4 TIMES, +2 {DMG}"); where the line and the star's perk name would pass the band,
+    // the name gives way (faceNext)
     return rules([{ text: `${label} ${itsBelts(e)} ${oneBelt(e) ? "SURGES" : "SURGE"} ${n} TIMES AS FAST FOR ${on}{SEC}, +${d} {DMG}.`, label }],
-      [["speed", `${n} TIMES`], ["flat", `+${d} {DMG}`]]);
+      [["every", `EVERY ${every}{SEC}`], ["speed", `${n} TIMES`], ["flat", `+${d} {DMG}`]]);
   },
   sorting: (e) => {
     // Battle.applyHit: every `every`th payload it hits becomes `copies` payloads at full strength
@@ -379,7 +381,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // Battle.spallCharge: + add for every `every` damage your ship takes, on this turret's next shot (its cap and
     // plating's double count are an interim caveat, call 7)
     const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
-    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
+    // U2d F1: its cap (the interim caveat's MAX, INTERIM_CAVEATS spallcatcher) changes with its stars: keyed, so NEXT★ shows it
+    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`], ["max", `MAX ${fmtDmg(sp.max)} {DMG}`]]);
   },
   // ------------------------------------------------------------------------------------------ U2b: the supplies
   // U2c group 0 fix 2: {BELT} means belts, a count (a factory's {BELT}3); belt capacity is tiles, in words (hero select's
@@ -462,7 +465,8 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
     // battle.ts impact: the salvage needs a ★3 core (gun.core.stars >= 3, FUSE_MAX); it pays on the next shot
     if (x.stars < FUSE_MAX) return null;
     const d = fmtDmg(FACE_SIM.salvagePerRip * x.k);
-    return { text: `NEXT SHOT +${d} {DMG} FOR EACH SLUG IT RIPS.`, nums: [] }; // (NEXT★ names SALVAGE LINE; one line)
+    // U2d F1: its number is keyed, so NEXT★ shows it ("RIPS 3, +1 {DMG} EACH"); the perk name gives way past the band
+    return { text: `NEXT SHOT +${d} {DMG} FOR EACH SLUG IT RIPS.`, nums: [["salvage", `+${d} {DMG} EACH`]] };
   },
   // the TEXT rigs' own STAR-batch perks
   brake: (e) => {
@@ -512,7 +516,9 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
     const n = fmtCount(m.factoryWeight);
     return {
       text: `${m.alwaysMachine ? "ALWAYS AIMS AT A PART, AND " : ""}PICKS FACTORIES ${n} TIMES AS OFTEN.`,
-      nums: [], // (NEXT★ names FACTORY SPOT and EAGLE EYE; their numbers would take it past one line)
+      // U2d F1: its number changes with its stars (FACTORY SPOT, EAGLE EYE): keyed, so NEXT★ shows it; the perk name gives
+      // way where the line would pass the band (meaning before names)
+      nums: [["weight", `FACTORIES ${n} TIMES`]],
     };
   },
 };
@@ -584,15 +590,22 @@ export function faceDiff(def: string, from: number, to: number, o: TextOpts = {}
   return [...(stats.length ? [statRow(stats)] : []), ...nums].join(", ");
 }
 
+/** U2d F1: the width (art px) a NEXT★ line keeps to: one line of 5x7 on the op view's band (T1 2.6; GLOSSARY_WRAP_W). */
+export const NEXT_LINE_W = 225;
+
 /** NEXT★ (C7): "NEXT ★2:" (the brass label) and the next star's changed numbers; `perk`, the perk that star brings (the
  *  sim applies it), for a line whose numbers say nothing of it. Null at the top star, for a piece that never fuses (a
- *  hero's factory) or without a face. */
+ *  hero's factory) or without a face. U2d F1 (cap's U2c question 1): meaning before names: where the perk's name ("★2
+ *  OVERPRESSURE", drawn after the numbers) would take the line past NEXT_LINE_W, the name gives way and the numbers say
+ *  what the star brings; a line with no changed number keeps it (the name is all it says). */
 export function faceNext(def: string, stars: number, o: TextOpts = {}): { label: string; text: string; perk?: string } | null {
   if (!hasFace(def) || !fusible(def) || stars >= FUSE_MAX) return null;
   const label = `NEXT ★${stars + 1}:`, diff = faceDiff(def, stars, stars + 1, o) ?? "";
   const p = livePerk(def, stars + 1);
-  const perk = p && p !== livePerk(def, stars) ? p : undefined;
-  return { label, text: diff ? `${label} ${diff}` : label, ...(perk ? { perk } : {}) };
+  const text = diff ? `${label} ${diff}` : label;
+  const fits = (name: string): boolean => !diff || textWidth(`${text} ★${stars + 1} ${name}`) <= NEXT_LINE_W;
+  const perk = p && p !== livePerk(def, stars) && fits(p) ? p : undefined;
+  return { label, text, ...(perk ? { perk } : {}) };
 }
 
 /** C7's merge line for an offer that merges on purchase: "MERGES INTO ★2: +4 [BURN]" (the numbers ★1 doesn't have). */
