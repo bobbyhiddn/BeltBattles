@@ -365,7 +365,7 @@ describe("save.ts: 0.6.1r's migrateRun (the schema) runs first, then BELTSIDE's 
     raw.lastMerchants = "tinker"; // not an array: 0.6.1r N6 reads it as none
     const gold = run.gold;
     const r = migrateRun(raw) as Run;
-    expect(r.version).toBe(7);
+    expect(r.version).toBe(8); // NUM-1: save v8 (save.ts v7to8)
     expect(r.lastMerchants).toEqual([]);
     // the schema ran first: the TEMPERs merged (cargo 3), so the stranded WHETSTONE (boxed in by belt, COIL and BRAKE)
     // went to cargo. The other order would have refunded it (cargo still at the cap) and then merged the TEMPERs.

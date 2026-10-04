@@ -34,16 +34,18 @@ const g = globalThis as { localStorage?: Storage };
 afterEach(() => { delete g.localStorage; });
 
 describe("save v7", () => {
-  it("RUN_VERSION 7, SAVE_KEY beltbattles.run.v7; v6 is still read", () => {
-    expect([RUN_VERSION, SAVE_KEY, SAVE_KEY_V6]).toEqual([7, "beltbattles.run.v7", "beltbattles.run.v6"]);
-    expect(newRun("furnace", 1).version).toBe(7);
+  // NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): RUN_VERSION 8 (save.ts v7to8 converts a pre-NUM-1 save's hull once);
+  // the storage key stays beltbattles.run.v7 (D3: no new key)
+  it("RUN_VERSION 8 (NUM-1; was 7), SAVE_KEY beltbattles.run.v7; v6 is still read", () => {
+    expect([RUN_VERSION, SAVE_KEY, SAVE_KEY_V6]).toEqual([8, "beltbattles.run.v7", "beltbattles.run.v6"]);
+    expect(newRun("furnace", 1).version).toBe(8);
   });
   it("v6 -> v7: a duplicate pair fuses once (placed beats cargo) and the next screen toasts YOUR SPARE PARTS MERGED", () => {
     const run = newRun("furnace", 11, "mig");
     run.build.items.push({ uid: 200, def: "whetstone", x: 3, y: 3, rot: 1 }); // 0.6.2 BELTSIDE: a rig beside the belt
     run.inventory.push({ uid: 201, def: "temper" }, { uid: 202, def: "temper" }, { uid: 203, def: "whetstone" }, { uid: 204, def: "coil" });
     const m = migrateRun(clone(v6(run)))!;
-    expect(m.version).toBe(7);
+    expect(m.version).toBe(8); // NUM-1: v6 -> v7 -> v8
     expect(m.inventory).toEqual([{ uid: 201, def: "temper", stars: 2 }, { uid: 204, def: "coil" }]);
     expect(m.build.items.find((p) => p.uid === 200)).toEqual({ uid: 200, def: "whetstone", x: 3, y: 3, rot: 1, stars: 2 });
     expect(m.fuseFx).toEqual([MIGRATE_TOAST]);
@@ -78,7 +80,7 @@ describe("save v7", () => {
     old.inventory.push({ uid: 500, def: "brake" }, { uid: 501, def: "brake" });
     g.localStorage.setItem(SAVE_KEY_V6, JSON.stringify(v6(old)));
     const loaded = loadRun()!;
-    expect([loaded.version, loaded.inventory, loaded.fuseFx]).toEqual([7, [{ uid: 500, def: "brake", stars: 2 }], [MIGRATE_TOAST]]);
+    expect([loaded.version, loaded.inventory, loaded.fuseFx]).toEqual([8, [{ uid: 500, def: "brake", stars: 2 }], [MIGRATE_TOAST]]); // NUM-1: v8
     saveRun(loaded);
     expect(g.localStorage.getItem(SAVE_KEY_V6)).toBeNull();
     expect(JSON.parse(g.localStorage.getItem(SAVE_KEY)!).inventory).toEqual([{ uid: 500, def: "brake", stars: 2 }]);

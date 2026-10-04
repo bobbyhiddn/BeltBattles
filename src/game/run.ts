@@ -152,7 +152,7 @@ export interface Run {
   runeDay?: number;
 }
 
-export const RUN_VERSION = 7; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once)
+export const RUN_VERSION = 8; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once); NUM-1: hull x10 (save.ts v7to8, once)
 
 let runCounter = 0;
 /** A fresh run id: the seed plus the clock and a session counter (unique across quick restarts). */

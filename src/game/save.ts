@@ -141,6 +141,25 @@ function v6to7(r: Raw): void {
   r.fuseFx = steps.length ? [...fx, MIGRATE_TOAST] : fx;
 }
 
+/**
+ * NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): a save written before NUM-1 holds hull in pre-NUM-1 units. On load,
+ * once, x10 the hullBonus of every Build it stores: the player's, tonight's foe's, today's warlord's and each day's battle
+ * record's. A save written by NUM-1 is version 8 (RUN_VERSION) and never converts again. The storage key stays (a new key
+ * would be a new storage key offline, which D3 rules out: see Run.seenGhosts).
+ */
+function v7to8(r: Raw): void {
+  r.version = 8;
+  const x10 = (b: Raw | null | undefined): void => {
+    if (b && typeof b === "object" && typeof b.hullBonus === "number") b.hullBonus *= 10;
+  };
+  x10(r.build);
+  x10(r.dusk?.build);
+  x10(r.warlord?.build);
+  for (const h of Array.isArray(r.history) ? (r.history as Raw[]) : []) {
+    for (const b of Array.isArray(h?.record?.builds) ? (h.record.builds as Raw[]) : []) x10(b);
+  }
+}
+
 /** 0.6.1a, cosmetic: take the next queued merge toast for the screen on show (game.ts). MERGED
  *  toasts show on any settled screen; the migration notice waits for the next build screen. */
 export function nextFuseToast(run: Run, onBuildScreen: boolean): string | undefined {
@@ -173,7 +192,7 @@ export function normalizeOnline(r: Raw): void {
   }
 }
 
-/** Bring a parsed save up to v7, or null if it isn't a usable run. Pure (tests call it directly). */
+/** Bring a parsed save up to v8 (NUM-1; was v7), or null if it isn't a usable run. Pure (tests call it directly). */
 export function migrateRun(raw: unknown): Run | null {
   const r = raw as Raw | null;
   if (!r || typeof r !== "object" || !r.build || !r.shop || !Array.isArray(r.inventory)) return null;
@@ -181,7 +200,8 @@ export function migrateRun(raw: unknown): Run | null {
   if (r.version === 4) v4to5(r);
   if (r.version === 5) v5to6(r);
   if (r.version === 6) v6to7(r);
-  if (r.version !== 7) return null;
+  if (r.version === 7) v7to8(r); // NUM-1: hull x10, once
+  if (r.version !== 8) return null;
   r.shop.discount = r.shop.discount ?? 0;
   r.shop.free = r.shop.free ?? 0;
   r.stage = r.stage ?? "caravan";

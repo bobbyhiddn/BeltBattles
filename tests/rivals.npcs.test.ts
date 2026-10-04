@@ -232,17 +232,21 @@ describe("saves written before N1 still load and play (tests/fixtures/n1-oldsave
       const run = migrateRun(JSON.parse(s.json))!;
       expect(run, tag).not.toBe(null);
       expect([run.hero, run.seed, run.day, run.stage, run.gold, run.lives], tag).toEqual([raw.hero, raw.seed, raw.day, raw.stage, raw.gold, raw.lives]);
-      expect(run.build, tag).toEqual(raw.build);
+      // NUM-1 (cap's oracle bcc36c430b4f3a01): the raw fixture goes through the game's own load path (save.ts v7to8), which
+      // converts a pre-NUM-1 save once: every stored Build's hullBonus x10; nothing else moves
+      const x10 = <B extends { hullBonus: number }>(b: B): B => ({ ...b, hullBonus: b.hullBonus * 10 });
+      expect(run.version, tag).toBe(8);
+      expect(run.build, tag).toEqual(x10(raw.build));
       if (s.label === "warlord") {
         // today's fight was stored when it was picked: the same captain and the same deck, whatever today's pools say
         expect(todaysWarlord(run)?.id, tag).toBe(s.warlord);
-        expect(todaysWarlord(run)?.build, tag).toEqual(raw.warlord!.build);
+        expect(todaysWarlord(run)?.build, tag).toEqual(x10(raw.warlord!.build)); // NUM-1: converted once on load
       }
       if (s.label === "dusk") {
         // tonight's foe was stored when the dusk started: the same stand-in and deck
         const foe = startDusk(run, []);
         expect([foe.kind, foe.rival], tag).toEqual(["standin", s.dusk]);
-        expect(foe.build, tag).toEqual(raw.dusk!.build);
+        expect(foe.build, tag).toEqual(x10(raw.dusk!.build)); // NUM-1: converted once on load
       }
       if (s.label === "fork") {
         // nothing of today's road was stored, so the fork is the new roster's (it may differ from what BASE showed)
