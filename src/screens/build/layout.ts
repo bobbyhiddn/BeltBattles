@@ -160,9 +160,12 @@ function cardRow(n: number, x0: number, y: number, perRow: number, step: number)
  * module as a card, in cargo and placed or fitted at every star, every turret installed with a core and gear, the
  * heroes' starting parts and belts) at every width 186-340 px (tests/zoom.test.ts pins it): a THUNDERER ★3 with a core
  * and gear is the tallest everywhere; a panel's fullest form without its flavour and hint needs at most 144.
+ * U2d (REQ-BFG-046; re-measured with the new faces, the stat-row turret panel and the notices): the tallest is still the
+ * THUNDERER ★3 with a core and gear (a RAIL GUN ★3 at 316-319), 7 to 14 px shorter: 155 / 148 / 141 / 134 / 129 (was
+ * 169 / 162 / 155 / 148 / 141 / 136; the step at 278 is gone); without its flavour and hint a panel needs at most 130.
  */
 export function phoneBand(W: number): number {
-  return W < 194 ? 169 : W < 278 ? 162 : W < 281 ? 155 : W < 316 ? 148 : W < 320 ? 141 : 136;
+  return W < 194 ? 155 : W < 281 ? 148 : W < 316 ? 141 : W < 320 ? 134 : 129;
 }
 
 /** The build screen's layout. zoom (REQ-BFG-040, D2): `phone`, a portrait phone's (phoneScreen): the shop's slots in

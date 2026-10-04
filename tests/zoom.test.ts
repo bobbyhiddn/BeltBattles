@@ -227,8 +227,9 @@ describe("zoom D1: the build screen's scale on a phone is capped at 1.75 CSS px 
       "390x660: 234x396 x5 (1.67 CSS px), band 104",
       "390x664: 234x398 x5 (1.67 CSS px), band 106",
       "402x690: 241x414 x5 (1.67 CSS px), band 122",
-      "390x844: 234x506 x5 (1.67 CSS px), band 162",
-      "430x739: 258x443 x5 (1.67 CSS px), band 151",
+      // U2d (phoneBand re-measured with the new faces, 162 -> 148 at W 194-280): 390x844 band 162 -> 148, 430x739 151 -> 148
+      "390x844: 234x506 x5 (1.67 CSS px), band 148",
+      "430x739: 258x443 x5 (1.67 CSS px), band 148",
     ]);
     // before: x7 at 402x690 @3, a 172x295 screen and a 3 px band (the operator's screenshot)
     const before = computeView(402, 690, 3, (pw, ph, p) => baseScale(pw, ph, p));
@@ -383,6 +384,33 @@ function panels(): { id: string; run: Run; sel: Sel; part: "offer" | "cargo" | "
   return out;
 }
 
+describe("U2d: phoneBand(W) is what the tallest touch panel needs at W, and no more (re-measured with the new faces)", () => {
+  it("at each step of the table and either side of it, the tallest fullest form of the 885 panels needs exactly phoneBand(W)", () => {
+    const all = panels();
+    // the band's layout at art width W (x5 at DPR 3: a finger's 27 px target), its height grown until the plan is fullest()
+    const need = (W: number): [number, string] => {
+      const L = buildLayout(W, 700, true, 5, true, 27), v = { W, H: 700, scale: 5, dpr: 3, portrait: true };
+      let max = 0, who = "";
+      for (const c of all) {
+        const ctx = { game: { ui: new UI(), t: 0, view: v }, run: c.run, touch: true, L } as unknown as Ctx;
+        const at = (h: number) => { const d = detailsPlan(ctx, c.sel, null, { ...L.info, h }); return !!d && fullest(d.plan); };
+        if (at(max)) continue; // it fits where the tallest so far does
+        expect(at(400), `W ${W}: ${c.id} in 400 px`).toBe(true);
+        let lo = max, hi = 400;
+        while (hi - lo > 1) { const m = (lo + hi) >> 1; if (at(m)) hi = m; else lo = m; }
+        max = hi;
+        who = c.id;
+      }
+      return [max, who];
+    };
+    const widths = [186, 193, 194, 241, 280, 281, 315, 316, 319, 320, 340], tallest: string[] = [];
+    const got = widths.map((W) => { const [n, who] = need(W); tallest.push(`${W}: ${n} ${who}`); return [W, n]; });
+    console.log(`U2d phoneBand: ${tallest.join(" | ")}`);
+    expect(got).toEqual(widths.map((W) => [W, phoneBand(W)]));
+    expect(widths.map(phoneBand)).toEqual([155, 155, 148, 148, 148, 141, 141, 134, 134, 129, 129]); // was 169, 169, 162, 162, 155, 148, 148, 141, 141, 136, 136
+  }, 120_000);
+});
+
 /** The panel a finger opens for `c` on a phone's build screen: where BuildScreen.panelArea draws it (the band wherever its
  *  full description fits there, fullText; else shoptap2's fallback grows it) and its plan there. */
 function opened(v: View, L: BuildLayout, c: ReturnType<typeof panels>[number]) {
@@ -438,7 +466,9 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // U2c step 4 (REQ-BFG-046): the installed turret's stat row is one line (its FIRES, CHAMBER and LOAD TIME rows were
         // three): more turret panels in the band, and in their fullest form: 390x660 [805, 860] to [805, 864], 390x664 [811, 860]
         // to [811, 864], 402x690 [852, 878] to [861, 881], 430x739 [884, 885] to [885, 885]
-        "390x660": [104, 805, 864], "390x664": [106, 811, 864], "402x690": [122, 861, 881], "430x739": [151, 885, 885], "390x844": [162, 885, 885],
+        // U2d: phoneBand re-measured with the new faces (148 at W 194-280): 430x739's band 151 -> 148 and 390x844's 162 ->
+        // 148, each still holding all 885 panels in their fullest form; the three shorter views are unchanged
+        "390x660": [104, 805, 864], "390x664": [106, 811, 864], "402x690": [122, 861, 881], "430x739": [148, 885, 885], "390x844": [148, 885, 885],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);
