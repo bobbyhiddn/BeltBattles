@@ -7,6 +7,9 @@
 // 0.8.0 RC (REQ-BFG-009; oracle 96e0ebe434a93f2b): the release step bumped RULES_VERSION to HEROES_RULES. Where a test
 // here means 0.7.0's rules it now says so (OLD_RULES, bb-0.6.2), with the same expectations; the server and the client
 // run bb-0.8.0, so FOUNDRY and BASTION travel there.
+// BELTS (REQ-BFG-043, REQ-BFG-044): RULES_VERSION moves on to bb-0.8.3, after HEROES_RULES, which stays bb-0.8.0 (the
+// first rules that carry the four). The server and the client run bb-0.8.3: where a POST here meant this server's rules
+// by HEROES_RULES it says RULES_VERSION now, and under HEROES_RULES itself the exact rules check refuses it (422).
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -42,15 +45,15 @@ function snap(hero: HeroId, day: number, rules: string, build: Build = heroRefBu
 
 describe("the table: heroes by rules version", () => {
   it("bb-0.6.2 and every earlier or unreadable version: FURNACE and WEAVER; HEROES_RULES (bb-0.8.0) and later: the four", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.0"); // 0.8.0 RC: the release step bumped it (it was bb-0.6.2)
-    expect(HEROES_RULES).toBe("bb-0.8.0");
+    expect(RULES_VERSION).toBe("bb-0.8.3"); // BELTS bumped it (0.8.0 RC: bb-0.6.2 -> bb-0.8.0, HEROES_RULES itself)
+    expect(HEROES_RULES).toBe("bb-0.8.0"); // the first rules that carry the four: BELTS's bb-0.8.3 needs no new row
     expect(RULES_HEROES.map((r) => [r.from, [...r.heroes]])).toEqual([
       ["bb-0.0.0", ["furnace", "weaver"]], ["bb-0.8.0", ["furnace", "weaver", "foundry", "bastion"]],
     ]);
     for (const r of ["bb-0.4.0", "bb-0.6.1", "bb-0.6.2", "bb-0.7.0", "bb-0.7.1", "bb-0.7.99", "garbled", "", "BB-0.8.0", "bb-0.8", 7, null]) {
       expect([...heroesFor(r)], JSON.stringify(r)).toEqual(["furnace", "weaver"]);
     }
-    for (const r of ["bb-0.8.0", "bb-0.8.1", "bb-0.9.0", "bb-1.0.0"]) expect([...heroesFor(r)], r).toEqual(["furnace", "weaver", "foundry", "bastion"]);
+    for (const r of ["bb-0.8.0", "bb-0.8.1", "bb-0.8.3", "bb-0.9.0", "bb-1.0.0"]) expect([...heroesFor(r)], r).toEqual(["furnace", "weaver", "foundry", "bastion"]);
   });
 
   it("names the rules and the hero; METRONOME and SIPHON are in no row yet", () => {
@@ -96,7 +99,8 @@ describe("the upload check (validateUpload, the player mode)", () => {
         expect(validateUpload(b, day, HEROES_RULES), `${hero} ${name} d${day}`).toEqual({ ok: true, errors: [] });
         expect(validateBuild(b, day).ok, `${hero} ${name} d${day} (strict)`).toBe(true);
         expect(validateUpload(b, day, OLD_RULES), `${hero} ${name} d${day}`).toEqual({ ok: false, errors: [`rules: ${why(OLD_RULES, hero)}`] });
-        // 0.8.0 RC: the default rules are this build's, bb-0.8.0 = HEROES_RULES (before the bump: refused like bb-0.6.2)
+        // 0.8.0 RC: the default rules are this build's, bb-0.8.0 = HEROES_RULES (before the bump: refused like bb-0.6.2);
+        // since BELTS bb-0.8.3, after HEROES_RULES, so the same answer
         expect(validateUpload(b, day), `${hero} ${name} d${day} (default rules)`).toEqual({ ok: true, errors: [] });
       }
     }
@@ -157,15 +161,19 @@ describe("the server and the client, both ways", () => {
     return { status: r.status, body: (await r.json()) as { id?: string; error?: string } };
   };
 
-  it("POST /v1/ghosts (uploads open, this server's rules bb-0.8.0): FOUNDRY and BASTION under bb-0.6.2 are refused at the decoder, and stored under bb-0.8.0; FURNACE under bb-0.6.2 meets the exact rules check (422) and is stored under bb-0.8.0", async () => {
+  it("POST /v1/ghosts (uploads open, this server's rules bb-0.8.3): FOUNDRY and BASTION under bb-0.6.2 are refused at the decoder, and stored under bb-0.8.3 (under bb-0.8.0, HEROES_RULES, the exact rules check refuses them: 422); FURNACE under bb-0.6.2 meets the exact rules check (422) and is stored under bb-0.8.3", async () => {
     for (const hero of NEW) for (const day of [1, 6, 10]) {
       const r = await post(snap(hero, day, OLD_RULES));
       expect(r.status, `${hero} d${day}`).toBe(400);
       expect(r.body.error).toBe(`snapshot.hero: ${why(OLD_RULES, hero)}`);
-      // 0.8.0 RC: HEROES_RULES is this server's rules now, so they are stored (before the bump: 422, the exact rules check)
-      const now = await post(snap(hero, day, HEROES_RULES));
-      expect(now.status, `${hero} d${day} ${HEROES_RULES}`).toBe(201);
-      expect(now.body.id).toBe(ghostId(ownedBy(snap(hero, day, HEROES_RULES), me)));
+      // 0.8.0 RC: HEROES_RULES was this server's rules, so they were stored under it (before the RC's bump: 422). BELTS:
+      // this server's rules are RULES_VERSION (bb-0.8.3), so they are stored there, and HEROES_RULES meets the exact check
+      const was = await post(snap(hero, day, HEROES_RULES));
+      expect(was.status, `${hero} d${day} ${HEROES_RULES}`).toBe(422);
+      expect(was.body.error).toBe(`rules ${HEROES_RULES} not accepted: this server validates ${RULES_VERSION}`);
+      const now = await post(snap(hero, day, RULES_VERSION));
+      expect(now.status, `${hero} d${day} ${RULES_VERSION}`).toBe(201);
+      expect(now.body.id).toBe(ghostId(ownedBy(snap(hero, day, RULES_VERSION), me)));
     }
     expect(app.store.size).toBe(6);
     const old = await post(snap("furnace", 3, OLD_RULES)); // a 0.7.0 client's upload: decodes, then the exact rules check
@@ -177,7 +185,7 @@ describe("the server and the client, both ways", () => {
     expect(app.store.size).toBe(7);
   });
 
-  it("fetchGhost: a served FOUNDRY ghost under bb-0.6.2 falls back (the client's decoder refuses it); a FURNACE one is fought, and since the RC a bb-0.8.0 FOUNDRY one too", async () => {
+  it("fetchGhost: a served FOUNDRY ghost under bb-0.6.2 falls back (the client's decoder refuses it); a FURNACE one is fought, and since the RC a FOUNDRY one under this build's rules too (bb-0.8.0 then, bb-0.8.3 since BELTS)", async () => {
     const srv = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
       const u = q.url ?? "";
@@ -201,7 +209,7 @@ describe("the server and the client, both ways", () => {
     }
   });
 
-  it("the game's own upload (Online.submitDusk): under this build's rules (bb-0.8.0 since the RC) a FOUNDRY, a BASTION and a FURNACE dusk are each sent, with no console line", async () => {
+  it("the game's own upload (Online.submitDusk): under this build's rules (bb-0.8.0 since the RC, bb-0.8.3 since BELTS) a FOUNDRY, a BASTION and a FURNACE dusk are each sent, with no console line", async () => {
     const sent: unknown[] = [];
     const deps: OnlineDeps = {
       fetchGhost: (async () => { throw new Error("no fetch here"); }) as unknown as typeof fetchGhost,
@@ -235,7 +243,7 @@ describe("the server and the client, both ways", () => {
     expect(() => checkPool([...pool, bad])).toThrow(/snapshot\.hero: rules bb-0\.6\.2 accept only FURNACE, WEAVER, not FOUNDRY/);
   });
 
-  it("the player's own ghosts keep every hero: ghostOf a FOUNDRY run is a snapshot of this build's rules (bb-0.8.0 since the RC), which the strict decoder now accepts", () => {
+  it("the player's own ghosts keep every hero: ghostOf a FOUNDRY run is a snapshot of this build's rules (bb-0.8.0 since the RC, bb-0.8.3 since BELTS), which the strict decoder now accepts", () => {
     const g = ghostOf(newRun("foundry", 3), 0, "p1");
     expect([g.hero, g.rules]).toEqual(["foundry", RULES_VERSION]);
     expect(checkSnapshot(g).hero).toBe("foundry"); // 0.8.0 RC: before the bump (bb-0.6.2) the decoder refused it

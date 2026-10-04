@@ -13,8 +13,8 @@ const EXTRA: Record<HeroId, number> = { furnace: 8, bastion: 0, metronome: 8, we
 const STARTERS = ["scrapcannon", "rampart", "dartgun", "spikegun", "carronade", "swivel"];
 
 describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
-  it("runs under RULES_VERSION bb-0.8.0 (turret slots came with bb-0.6.2, the 0.6.2 release's bump)", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.0");
+  it("runs under RULES_VERSION bb-0.8.3 (turret slots came with bb-0.6.2, the 0.6.2 release's bump)", () => {
+    expect(RULES_VERSION).toBe("bb-0.8.3");
   });
 
   it("S1: every hull has its starting slots at today's spans plus exactly one empty extra slot at the brief's col0", () => {

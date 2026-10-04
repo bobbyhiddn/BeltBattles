@@ -8,7 +8,8 @@ fallback and a small build server. 0.7.0a wires it into the game behind a server
 offline exactly as 0.6.2. 0.7.0 ships it: the Fly page plays online, the store has its admin tool
 ("Operations"), and "0.7.0 for players" says what changes for a player. 0.8.0 changes battles, so its rules
 are **bb-0.8.0**: a fresh ghost pool, seeded with all four playable heroes ("0.8.0: rules bb-0.8.0 and the
-four-hero seed pool").
+four-hero seed pool"). BELTS changes battles again (belt slots by level, the hero's two gold upgrades), so its rules are
+**bb-0.8.3** ("BELTS: rules bb-0.8.3").
 
 ## Architecture
 
@@ -31,7 +32,7 @@ four-hero seed pool").
 | `src/net/roadCap.ts` | the player mode's road ceiling: `roadCap`, `maxHonestSpend`, the reachable hull and belt, the D4 model |
 | `src/net/rulesGate.ts` | `parseRules`, `rulesAtLeast` and the gate that keeps turret slots and belt joins out of rules before bb-0.6.2; 0.8.0: `RULES_HEROES`, the heroes each rules version carries (FURNACE and WEAVER up to bb-0.6.2, the four playable heroes from bb-0.8.0) |
 | `src/net/matchmaking.ts` | pure `pickGhost(pool, req, rng)`, `eligible` (with the record rule, D1), `isNewPlayer` and `NEW_PLAYER_RUNS` (D2), `matchSeed` |
-| `src/net/records.ts` | 0.7.0a: the records (wins, lives) a run can carry into each dusk under 0.6.2's run rules, unchanged under bb-0.8.0 (`reachableRecords`, `isReachable`, `floorRecord`). The seed, `ghosts:admin revalidate` and, since 0.8.0 H2, `POST /v1/ghosts` refuse a record `isReachable` refuses |
+| `src/net/records.ts` | 0.7.0a: the records (wins, lives) a run can carry into each dusk under 0.6.2's run rules, unchanged under bb-0.8.0 and bb-0.8.3 (`reachableRecords`, `isReachable`, `floorRecord`). The seed, `ghosts:admin revalidate` and, since 0.8.0 H2, `POST /v1/ghosts` refuse a record `isReachable` refuses |
 | `src/net/replay.ts` | `battleRecordFor`, `replay`, `replayBattle`, rules-version refusal |
 | `src/net/fallback.ts` | `offlineGhost`, `loadGhostPool`, `fallbackGhost` |
 | `src/net/ghostClient.ts` | `fetchGhost` and `submitGhost` (signed): fetch + AbortController, never throw |
@@ -51,13 +52,17 @@ vite into `server/dist/`), `npm run server -- --port 7790 --data ./ghost-data`,
 
 `{ v: 2, rules, hero, day, wins, lives, build, runId, playerId, createdAt }` (`SNAPSHOT_VERSION` = 2)
 
-- `rules` is `RULES_VERSION` at the fight (bb-0.8.0 since 0.8.0; bb-0.6.2 in 0.6.2 and 0.7.0). `day` is 1-10. `wins` (0..day−1) and `lives` (1..9) are
+- `rules` is `RULES_VERSION` at the fight (bb-0.8.3 since BELTS; bb-0.8.0 in 0.8.0 to 0.8.4; bb-0.6.2 in 0.6.2 and 0.7.0). `day` is 1-10. `wins` (0..day−1) and `lives` (1..9) are
   the record the player carried **into** that dusk fight. `build` is the deck exactly as it fought.
 - v2 is v1 plus what a 0.6.2 deck can hold, each optional and written only when present: `stars` (1..3) on an
   item or mod (merged copies), `rot` (0..3) on an item (a rig's rotation), `build.turrets` (at most 8 entries
   `{ slot, def, uid, stars?, free? }`: the hull's turret slots) and `join` on a route (a joining belt's join
   tile). A v1 snapshot still decodes (as 1-star copies, `migrateV1` moves its gates beside the belts); v1 may
   hold none of the four. Turrets and joins need bb-0.6.2 rules or later (the rules gate, below).
+- bb-0.8.3 (BELTS): a v2 build may also carry `upgrades` `{ turret?, factory? }`, the hero's two gold upgrade levels, each
+  1..4 (absent = 1), written only when a level was bought, last among the build's keys. A build without it encodes byte
+  for byte as before, so `SNAPSHOT_VERSION` stays 2: the rules string keeps the pools apart. A level outside 1..4 (5,
+  0, 2.5) or an unknown track is a decode error (400).
 - The game writes v2: `ghostOf(run, createdAt, playerId)` in `src/game/day.ts` (0.7.0a uploads it under the
   device key's playerId, see "0.7.0a: what the game does online"); `src/game/ghostSnapshot.ts` mirrors the
   contract for the local pool, and tests/snapshot.contract.test.ts holds the two together.
@@ -130,9 +135,10 @@ The strict check refuses such honest decks.
 - **budget** (player):
 
 ```
-maxHonestSpend(day) = maxGold(day) + roadCap(day)       // bb-0.6.2 and bb-0.8.0: roadCap 5, 17, 29, 43, 59, 74, 90, 110, 127, 149
+maxHonestSpend(day) = maxGold(day) + roadCap(day)       // bb-0.6.2, bb-0.8.0 and bb-0.8.3: roadCap 5, 17, 29, 43, 59, 74, 90, 110, 127, 149
 cost(build)         = parts + price(plating) × plates + price(beltcrate) × crates
 parts               = buildCost's own terms but the supplies: items, turret mods and the installed turrets
+                      (bb-0.8.3: and the upgrade gold paid, 0 / 10 / 30 / 60 a track)
 valid ⇔ for some reachable mix: cost(build) ≤ maxGold(day) + roadCapFor(day, mix)
 ```
 The player mode prices the parts with the strict mode's own `buildCost`, so a new cost term (0.6.2s: the installed
@@ -158,7 +164,7 @@ captain a slot can hold, content.ts prices and merchants):
 
 Against the best plan one run can follow (its own road gold funds its discount, every part stays on the deck, the
 captains one seed shows, no free SABOTAGE), the slack is 0, 0, 0, 2, 4, 6, 8, 10, 12 and 14 gold on days 1-10 on
-bb-0.6.2, and the same on bb-0.8.0 (the pins pass unchanged). Of that, up to 2 gold a day is the Hard rotation (`tests/net-upload.slack.test.ts` pins every part).
+bb-0.6.2, and the same on bb-0.8.0 and bb-0.8.3 (the pins pass unchanged). Of that, up to 2 gold a day is the Hard rotation (`tests/net-upload.slack.test.ts` pins every part).
 
 A deck whose hull or belt came partly from the road is checked against the plans that took those events with
 those choices (`roadCapFor(day, mix)`), so the hull and belt are costed at their cheapest honest mix: the
@@ -226,11 +232,12 @@ It is defence in depth for a server that will accept more than one rules version
 The heroes go by rules version too (0.8.0 H1, `RULES_HEROES` in `src/net/rulesGate.ts`): FURNACE and WEAVER under
 bb-0.6.2 and every earlier or unreadable version, and the four playable heroes (FURNACE, WEAVER, FOUNDRY, BASTION) from
 bb-0.8.0 on. The strict decoder and `validateUpload` ask it, so a FOUNDRY or BASTION ghost can never travel under 0.7.0's
-rules, whatever a client sends. Since the 0.8.0 RC, `RULES_VERSION` is bb-0.8.0 (`HEROES_RULES`).
+rules, whatever a client sends. From the 0.8.0 RC `RULES_VERSION` was bb-0.8.0 (`HEROES_RULES`); since BELTS it is
+bb-0.8.3, a later version that takes the same four (the table needs no new row).
 
 Ghosts only match their own rules version. What a rules bump (any change to content.ts
 numbers or sim behaviour) does to the pool (0.8.0's bump to bb-0.8.0 is one: see "0.8.0: rules bb-0.8.0 and the
-four-hero seed pool"):
+four-hero seed pool"; BELTS's to bb-0.8.3 another: see "BELTS: rules bb-0.8.3"):
 - The server only accepts uploads under its own `RULES_VERSION`, so deploy it together with the game.
 - Old ghosts stay in `ghosts.jsonl` and in memory, bucketed by rules. Old clients can still
   match each other; new clients start with an empty pool for the new version.
@@ -318,12 +325,12 @@ runs unchanged in the browser and in Node, through WebCrypto only (`globalThis.c
    exact bytes received: 401 if it does not match.
 4. The snapshot is decoded, strictly: 400 on an error. The decoder bounds the record: day 1..10, wins 0..day-1 and
    lives 1..9, so a record outside those keeps its 400. It also carries the rules gates (`src/net/rulesGate.ts`):
-   turret slots and belt joins need bb-0.6.2 or later, and the hero must be one its rules take. bb-0.8.0 takes FURNACE,
-   WEAVER, FOUNDRY and BASTION, so a METRONOME or SIPHON upload gets 400
-   `snapshot.hero: rules bb-0.8.0 accept only FURNACE, WEAVER, FOUNDRY, BASTION, not METRONOME` (0.9.0 adds them).
+   turret slots and belt joins need bb-0.6.2 or later, and the hero must be one its rules take. bb-0.8.3 (like bb-0.8.0)
+   takes FURNACE, WEAVER, FOUNDRY and BASTION, so a METRONOME or SIPHON upload gets 400
+   `snapshot.hero: rules bb-0.8.3 accept only FURNACE, WEAVER, FOUNDRY, BASTION, not METRONOME` (0.9.0 adds them).
 5. `snapshot.playerId` is not the key's playerId: 403.
-6. The rules version: anything but this build's `RULES_VERSION` exactly gets 422 (`rules bb-0.6.2 not accepted: this
-   server validates bb-0.8.0`).
+6. The rules version: anything but this build's `RULES_VERSION` exactly gets 422 (`rules bb-0.8.0 not accepted: this
+   server validates bb-0.8.3`).
 7. The deck, in the player mode (`validateUpload`): 422 `deck failed validation`, with its errors.
 8. The record (0.8.0 H2, backlog 325): a (wins, lives) no run can carry into that day's dusk (`src/net/records.ts
    isReachable`, the check the seed and `ghosts:admin revalidate` apply) gets 422, named with the day in revalidate's
@@ -483,7 +490,7 @@ what `seed` and `npm run gen:ghosts` write) is 60 ghosts drawn from the stand-in
 `validateUpload` in the player (honest) mode, and the shop's strict `validateBuild` too; the generator and the
 seed fail loudly if one doesn't. Every record label is reachable under 0.6.2's run rules (`src/net/records.ts`:
 5 lives, a loss costs 1, the early-loss refund at dawn 3, the DOCK's PATCH UP; checked against the run code; unchanged
-under bb-0.8.0).
+under bb-0.8.0 and bb-0.8.3).
 A floor ghost carries the weakest record a run can bring to that dusk (no wins and the fewest lives: 5 4 4 3 2
 1 1 1 1 1 over days 1-10), so under the record rule it is eligible for every reachable request: for every day
 1-10 and every reachable (wins, lives) at that dusk, at least 2 seed ghosts are eligible
@@ -551,11 +558,12 @@ so the Fly image carries it as `/app/dist/ghost-admin.mjs`. It reads the store e
 commands.
 
 ```
-npm run ghosts:admin -- list                     --rules bb-0.8.0
-npm run ghosts:admin -- revalidate               --rules bb-0.8.0 [--apply]
-npm run ghosts:admin -- wipe-uploads             --rules bb-0.8.0 [--apply] [--pool]
-npm run ghosts:admin -- remove-player <playerId> --rules bb-0.8.0 [--apply]
-node /app/dist/ghost-admin.mjs list --rules bb-0.8.0          # the same tool in the image
+npm run ghosts:admin -- list                     --rules bb-0.8.3
+npm run ghosts:admin -- revalidate               --rules bb-0.8.3 [--apply]
+npm run ghosts:admin -- wipe-uploads             --rules bb-0.8.3 [--apply] [--pool]
+npm run ghosts:admin -- remove-player <playerId> --rules bb-0.8.3 [--apply]
+node /app/dist/ghost-admin.mjs list --rules bb-0.8.3          # the same tool in the image
+node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.8.0 --pool   # 0.8.0-0.8.4's pool and uploads: a dry run
 node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's pool and uploads: a dry run
 ```
 
@@ -596,15 +604,15 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
   - that deck over day 1's budget: 422 with validateUpload's budget error;
   - that honest deck on a record no run carries (day 1, 1 life): 422 with H2's record error;
   - WEAVER's, FOUNDRY's and BASTION's honest day-3 reference decks (1 win, 5 lives): 201 each;
-  - METRONOME's and SIPHON's: 400 from the strict decode's hero gate, naming bb-0.8.0 and the hero.
+  - METRONOME's and SIPHON's: 400 from the strict decode's hero gate, naming bb-0.8.3 and the hero.
 - Exactly four decks are stored, FURNACE's, WEAVER's, FOUNDRY's and BASTION's, each its own record under the probe's
   player. The probe writes that player's id to `<id-file>` before the first POST, so
-  `remove-player <id> --rules bb-0.8.0 --apply` can always clean up after it. It refuses an id file that already holds
+  `remove-player <id> --rules bb-0.8.3 --apply` can always clean up after it. It refuses an id file that already holds
   an id.
 - It prints one line per check (name, expected, got), then the player id, then the number of decks the server stored.
   It exits 0 only if every check matched, 1 if a check failed or got no answer, and 2 for a usage error (nothing sent).
-  Against a closed server every POST gets 403 and it exits 1. It runs only in a build whose rules are bb-0.8.0, and it
-  prints no key material.
+  Against a closed server every POST gets 403 and it exits 1. It runs only in a build whose rules are bb-0.8.3 (0.8.0 to
+  0.8.4's probe: bb-0.8.0), and it prints no key material.
 - tests/ghost-probe.test.ts runs it against the in-process server on both stores, open and closed, plus bad arguments
   and a dead port.
 
@@ -641,7 +649,7 @@ balance pass for four heroes moved numbers. So the rules string moves once, at t
 (`src/net/records.ts isReachable`; step 8 of the checks in "Identity and signed uploads"). It runs after the rules
 check and `validateUpload` and before the store, so nothing is stored, and a foreign-rules upload still meets the rules
 422 first (what a 0.7.0 page meets).
-- **The run rules are unchanged under bb-0.8.0.** Lives move only by the dusk loss, the early-loss refund at dawn 3 and
+- **The run rules are unchanged under bb-0.8.0** (and under BELTS's bb-0.8.3). Lives move only by the dusk loss, the early-loss refund at dawn 3 and
   the DOCK's PATCH UP (once a run: ten events in one bag for ten days). No event choice costs lives and warlords never move
   them. So a run started on a 0.6.2, 0.7.0 or 0.8.0 page only uploads records the check takes:
   tests/h2.playthrough.test.ts plays 1,600 real runs of the four heroes through the run code and meets all 178 reachable
@@ -654,12 +662,42 @@ check and `validateUpload` and before the store, so nothing is stored, and a for
     since 0.6.1a and a v6 save migrates in place) that passed dawn 3 after an early loss without its refund: day 3 0W 3L
     and 1W 4L, day 4 0W 2L and 1W 3L, day 5 0W 1L and 1W 2L, day 6 1W 1L; from day 7 its records are reachable again. In
     practice this is an unfinished run saved by the 0.6.0 page on beltbattles.fly.dev, the only origin that uploads.
-- **Records stored before the check** (bb-0.8.0 has none: it ships with the check) stay until
-  `ghosts:admin revalidate --rules bb-0.8.0 --apply` deletes them; the match route keeps working with them there
-  (tests/net-matchmaking.d1d2.test.ts plants such records past POST).
+- **Records stored before the check** (bb-0.8.0 has none: it ships with the check; nor has bb-0.8.3) stay until
+  `ghosts:admin revalidate --rules bb-0.8.3 --apply` (this build's rules: revalidate takes no other) deletes them; the
+  match route keeps working with them there (tests/net-matchmaking.d1d2.test.ts plants such records past POST).
 - Tested on both stores (tests/h2.records.test.ts): 7 unreachable records the decoder takes get 422 and leave the store
   unchanged (health's count, the store's listing, its records, every Tigris object); every reachable record of every day
   gets 201; the order of the checks; a resend still gets 200; all 120 seed ghosts posted as one player's dusks get 201.
+
+## BELTS: rules bb-0.8.3
+
+BELTS (REQ-BFG-043, REQ-BFG-044) changes which decks are legal, so the rules string moves again: `RULES_VERSION` is
+**bb-0.8.3** (src/sim/content.ts). What changes for a deck that travels:
+- **Belt slots by level.** A bought factory feeds 2 / 3 / 4 belts at ★1 / ★2 / ★3 (GANTRY PRESS 3 / 4 / 5). The hero's
+  signature factory never merges and has no stars: it feeds 2 belts at FACTORY level 1 and one more a level (2 / 3 / 4 /
+  5; the LOOM 3 / 4 / 5 / 6). `validateBuild` reads a factory's slots at its stars and the hero factory's at the build's
+  FACTORY level (`stars.ts gradeOf`), so one belt more is refused: `route: KILN uid 1 feeds 4 routes but has 3 output(s)`.
+- **The hero's two gold upgrades** (TURRET SPEED and FACTORY, levels 1-4 for 10, 20 and 30 gold, bought in the caravan
+  outside the shop roll) travel as `build.upgrades` ("Snapshot format"). The strict decoder takes levels 1-4 only (level
+  5 is a 400). The upgrade gold paid is a `buildCost` term, so both modes' budgets count it: a level the day's gold can't
+  pay for is a 422 `budget:` error (level 4 of either track on day 1: 60 gold against 8, a player's 13). A signature
+  factory with stars is refused (`can't have 2 stars`).
+- **A fresh pool.** Ghosts match only their own rules version: a BELTS page asks for bb-0.8.3 ghosts and meets the
+  bb-0.8.3 seed pool (`npm run gen:ghosts`, the same composition, "Seeding"), then its stand-in.
+- **0.8.0 to 0.8.4's uploads are turned away, quietly.** The server validates bb-0.8.3 only. bb-0.8.0 takes the same
+  four heroes (`HEROES_RULES` stays bb-0.8.0, the first rules that carried them), so a bb-0.8.0 upload passes the
+  decoder and gets 422 (`rules bb-0.8.0 not accepted: this server validates bb-0.8.3`), or 403 while uploads are closed.
+  A cached 0.8.4 page keeps playing: it asks for bb-0.8.0 ghosts and meets 0.8.0's pool while the store holds it (the
+  seed replaces only its own rules' pool; `wipe-uploads --rules bb-0.8.0 --pool` removes it, a dry run first), else its
+  stand-in; its client logs nothing on the 422 and the run plays on.
+- **Unchanged:** the hero table, the run's life rules (`src/net/records.ts`), the road ceiling (`roadCap`, the same per
+  day), `SNAPSHOT_VERSION` (2) and offline play (no request, no identity).
+- Tested on both stores in tests/belts.rules.test.ts: the gate (bb-0.8.3 in; bb-0.8.0 and bb-0.8.3's near misses out,
+  nothing stored); a bb-0.8.0 session (stand-in at dawn, a quiet 422 at dusk, the run on to day 2, no console line); the
+  upload decks with the levels (a FURNACE at FACTORY level 2 with the KILN on 3 belts 201, on 4 refused; a WEAVER with
+  the LOOM at level 1 on 3 belts 201, on 4 refused; level 4 on day 1 refused by the budget; level 5 by the decoder; a
+  WEAVER deck holding a KILN; a 2-star KILN; an honest run's levels through the game's own client 201); and offline
+  play with the levels makes no request.
 
 ## 0.7.0 for players
 

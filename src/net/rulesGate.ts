@@ -24,7 +24,8 @@ export const TURRETS_JOINS_RULES = "bb-0.6.2";
  * read get the first row. bb-0.6.2 (0.6.2's and 0.7.0's rules) and everything before it accept FURNACE and WEAVER only:
  * FOUNDRY and BASTION were never playable there, so a 0.7.0 client is never served one, whatever a client sends.
  * HEROES_RULES (bb-0.8.0, the rules 0.8.0 ships with; PLAN-0.8.0 section 4) takes the four. METRONOME and SIPHON are
- * in no row yet (0.9.0 adds them).
+ * in no row yet (0.9.0 adds them). BELTS's bb-0.8.3 (REQ-BFG-043, REQ-BFG-044) comes after HEROES_RULES and needs no row
+ * of its own: it takes the same four. HEROES_RULES stays bb-0.8.0, the version that first carried them.
  */
 export const HEROES_RULES = "bb-0.8.0";
 export const RULES_HEROES: readonly { from: string; heroes: readonly HeroId[] }[] = [

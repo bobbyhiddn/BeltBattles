@@ -9,6 +9,8 @@
 //    --rules bb-0.8.0` shows 12 a day; nothing under bb-0.6.2.
 //  - A dusk served by the in-process server meets a FOUNDRY ghost and a BASTION ghost, labelled ONLINE GHOST (the NEXT
 //    BATTLE card and the enemy plate both read session.ts foeNote); a FOUNDRY or BASTION player meets ghosts of all four.
+// BELTS (REQ-BFG-043, REQ-BFG-044): the pool is generated under this build's rules, bb-0.8.3 since BELTS (the titles
+// below say so), with the same composition; `ghosts:admin list --rules bb-0.8.3` shows it.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -50,7 +52,7 @@ const POOL_7C7FEB9_SHA256 = "110f813c53e27cac4d3481da8a8f8064a17bfecd719db04c02a
 /** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it. */
 const RACE_PART_SHA256 = "9daab76d5d5ca76f37eadde4a6c1ed4f22de074563ab4fd6374216eb1a1d95a5";
 
-describe("the bb-0.8.0 seed pool (tools/samplePool.ts)", () => {
+describe("the bb-0.8.3 seed pool (tools/samplePool.ts)", () => {
   it("holds every playable hero on every day 1-10, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 120 in all", () => {
     expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
     expect([...STAND_IN_HEROES]).toEqual(["furnace", "weaver"]);
@@ -118,7 +120,7 @@ describe("the bb-0.8.0 seed pool (tools/samplePool.ts)", () => {
 /** One store as the admin tool and the seed see it. */
 interface Store { name: string; store(): ReturnType<typeof tigrisFor> | JsonlStore; env(): Record<string, string>; argv(): string[] }
 
-describe("the seed pool on both stores: ghosts:admin list --rules bb-0.8.0", () => {
+describe("the seed pool on both stores: ghosts:admin list --rules bb-0.8.3", () => {
   let fake: FakeS3;
   const dirs: string[] = [];
   beforeAll(async () => {
@@ -151,7 +153,7 @@ describe("the seed pool on both stores: ghosts:admin list --rules bb-0.8.0", () 
     return t;
   };
 
-  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.8.0, none under bb-0.6.2", async () => {
+  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.8.3, none under bb-0.6.2", async () => {
     for (const h of stores()) {
       expect(await seedStore(h.store()), h.name).toMatchObject({ rules: RULES_VERSION, entries: 120, written: 120, removed: 0 });
       for (const [rules, perDay, all] of [[RULES_VERSION, 12, 120], ["bb-0.6.2", 0, 0]] as const) {

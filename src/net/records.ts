@@ -1,6 +1,7 @@
-// 0.7.0a D5 (REQ-BFG-016): the records a player can carry into a dusk under 0.6.2's run rules, which bb-0.8.0 keeps
-// unchanged (0.8.0 H2's life audit), so a seed ghost's label (wins, lives) is one a real run reaches, and the seed pool
-// can be checked to cover every such state under the record rule (D1, matchmaking.ts). The rules, as
+// 0.7.0a D5 (REQ-BFG-016): the records a player can carry into a dusk under 0.6.2's run rules, which bb-0.8.0 and bb-0.8.3
+// keep unchanged (0.8.0 H2's life audit; BELTS moves no life rule), so a seed ghost's label (wins, lives) is one a real
+// run reaches, and the seed pool can be checked to cover every such state under the record rule (D1, matchmaking.ts).
+// The rules, as
 // ref/S1-REPORT-sc026.md section 1 reads them off the run code:
 //  - START_LIVES (5) at the start; a dusk loss costs one life and 0 lives ends the run; a win or a draw costs none;
 //  - the early-loss refund (day.ts): REFUND_LIVES back at the dawn of REFUND_DAY after a loss on an earlier day,

@@ -13,8 +13,8 @@
 //    the record 422;
 //  - a resend of a stored ghost still gets 200; a ghost planted past POST with an unreachable record (stored before
 //    this check) gets the record 422 on a resend, and the store keeps its one copy;
-//  - all 120 bb-0.8.0 seed ghosts (generateSamplePool(), the RC's pool), posted as one player's signed dusks, get 201
-//    (ported from the Prime's RC check, output-RC/verify-cap/zz-caprc.test.ts).
+//  - all 120 seed ghosts of this build's rules (generateSamplePool(): the RC's bb-0.8.0 pool, bb-0.8.3 since BELTS),
+//    posted as one player's signed dusks, get 201 (ported from the Prime's RC check, output-RC/verify-cap/zz-caprc.test.ts).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION } from "../src/sim/content";
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
@@ -28,7 +28,7 @@ import { generateSamplePool } from "../tools/samplePool";
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
-const POOL = generateSamplePool(); // the RC's bb-0.8.0 seed pool: 120 ghosts, four heroes x days 1-10 x 3
+const POOL = generateSamplePool(); // the seed pool (bb-0.8.3 since BELTS; the RC's was bb-0.8.0): 120 ghosts, four heroes x days 1-10 x 3
 /** An honest deck of `day`: the FURNACE seed ghost of that day without turrets or joins where there is one. */
 const deckOf = (day: number): GhostSnapshot => {
   const ofDay = POOL.filter((s) => s.day === day && s.hero === "furnace");
@@ -189,7 +189,7 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     expect(await state()).toEqual(held);
   });
 
-  it("all 120 bb-0.8.0 seed ghosts (generateSamplePool(), the RC's pool), posted as one player's signed dusks, are taken (201) and stored", async () => {
+  it("all 120 bb-0.8.3 seed ghosts (generateSamplePool(), the RC's pool's composition), posted as one player's signed dusks, are taken (201) and stored", async () => {
     expect(POOL).toHaveLength(120);
     const before = await state();
     const statuses: Record<number, number> = {};

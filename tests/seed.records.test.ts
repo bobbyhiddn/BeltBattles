@@ -1,5 +1,6 @@
 // 0.7.0a D5 (REQ-BFG-016): the seed ghosts.
-//  - Every seed ghost (bb-0.6.2 in 0.7.0, bb-0.8.0 since the 0.8.0 RC) passes validateUpload in the player (honest) mode; the seed fails loudly if one doesn't.
+//  - Every seed ghost (bb-0.6.2 in 0.7.0, bb-0.8.0 from the 0.8.0 RC, bb-0.8.3 since BELTS) passes validateUpload in the
+//    player (honest) mode; the seed fails loudly if one doesn't.
 //  - Every record label (wins, lives) is one a run can carry into that dusk under 0.6.2's run rules (src/net/records.ts,
 //    checked here against the run code itself: newRun, startDusk, finishDay and the DOCK's PATCH UP).
 //  - For every day 1-10 and every reachable (wins, lives) at that dusk, at least 4 seed ghosts are eligible under the

@@ -1,7 +1,9 @@
 // 0.8.0 H2 M1b (REQ-BFG-009, REQ-BFG-016; the Prime's 0.8.x-11, VERIFIED-RC F1): near-miss rules strings are refused
-// and never stored. The server's rules check is string equality with RULES_VERSION (bb-0.8.0); a check loosened to
-// compare only "bb-0.8" (the Prime's mutant CM2) let bb-0.8.1 in while every test stayed green. On both stores
-// (tests/netStores.ts), uploads open in-process, each near miss goes up signed, on three decks, with a reachable record:
+// and never stored. The server's rules check is string equality with RULES_VERSION (bb-0.8.0 when H2 wrote this; BELTS's
+// bb-0.8.3 now: the near misses below still miss it, with the same answers, and tests/belts.rules.test.ts adds bb-0.8.3's
+// own, bb-0.8.0 first); a check loosened to compare only "bb-0.8" (the Prime's mutant CM2) let bb-0.8.1 in while every
+// test stayed green. On both stores (tests/netStores.ts), uploads open in-process, each near miss goes up signed, on
+// three decks, with a reachable record:
 //  - a FURNACE deck with no turret and no join (the decoder's rules gate has nothing to refuse, and FURNACE travels under
 //    any rules), so every near miss the decoder's pattern takes meets the server's exact check: 422;
 //  - a FURNACE deck with turrets and a join: rules the gate can't read as bb-MAJOR.MINOR.PATCH get 400 at the decoder;
@@ -40,13 +42,14 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
   if (!PATTERN_OK(rules)) return { status: 400, error: /^snapshot\.rules: / };
   const readable = parseRules(rules) !== null;
   if (deck === "turretsJoin" && !readable) return { status: 400, error: /^snapshot\.rules: rules ".*" is not a bb-MAJOR\.MINOR\.PATCH version: turret slots/ };
+  // the hero gate's threshold: FOUNDRY travels from bb-0.8.0 on (rulesGate.ts HEROES_RULES), under BELTS's rules too
   if (deck === "foundry" && !rulesAtLeast(rules, "bb-0.8.0")) return { status: 400, error: /^snapshot\.hero: rules .* accept only FURNACE, WEAVER, not FOUNDRY$/ };
-  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.8\\.0$`) };
+  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.8\\.3$`) };
 }
 
 describe("H2 M1b: the near-miss rules strings (pure)", () => {
-  it("are all different from RULES_VERSION, and the three decks are honest bb-0.8.0 seed decks with a reachable record", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.0");
+  it("are all different from RULES_VERSION, and the three decks are honest bb-0.8.3 seed decks with a reachable record", () => {
+    expect(RULES_VERSION).toBe("bb-0.8.3");
     for (const r of NEAR) expect(r).not.toBe(RULES_VERSION);
     expect(new Set(NEAR).size).toBe(NEAR.length);
     for (const s of Object.values(DECKS)) expect([s.rules, isReachable(s.day, s.wins, s.lives)]).toEqual([RULES_VERSION, true]);

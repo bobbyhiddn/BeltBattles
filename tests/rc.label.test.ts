@@ -8,6 +8,8 @@
 // 0.8.3 and the rules stay bb-0.8.0.
 // 0.8.4 (a roomier build screen on phones, REQ-BFG-040) is UI-only too, built on 0.8.3: the label moves to 0.8.4 and
 // the rules stay bb-0.8.0.
+// BELTS (REQ-BFG-043, REQ-BFG-044), built on 0.8.4, changes battles (belt slots by level, the hero's two gold upgrades),
+// so the rules move to bb-0.8.3. The label stays 0.8.4 on this branch: the launch step sets the next one.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -16,9 +18,9 @@ import { RULES_VERSION } from "../src/sim/content";
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
 describe("the 0.8.4 label", () => {
-  it("is 0.8.4 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules stay bb-0.8.0", () => {
+  it("is 0.8.4 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are BELTS's bb-0.8.3", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
     expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.8.4", "0.8.4", "0.8.4", "0.8.4"]);
-    expect(RULES_VERSION).toBe("bb-0.8.0"); // 0.8.4 changes no battle rule, so it keeps 0.8.0's rules version
+    expect(RULES_VERSION).toBe("bb-0.8.3"); // 0.8.4 kept 0.8.0's bb-0.8.0; BELTS changes battles, so it bumps the rules
   });
 });
