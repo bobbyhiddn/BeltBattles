@@ -181,8 +181,10 @@ export const SHOTS = [
   ]),
   ...["desk", "phone"].flatMap((v) => [
     ["event-sappers-day10", v, "title", 0, EVENT("sappers", { day: 10, gold: 9 })],
-    // a pressed FIGHT on a dead-end belt: the toast and the flashing belt
-    ["build-deadend-press", v, "build", 1.2, "bb.game.run.build.routes[0].cells.pop(); bb.game.screen.fight(); bb.game.step(1 / 60); bb.game.render()"],
+    // a pressed FIGHT on a dead-end belt: the toast and the flashing belt. RUNES-087F (REQ-BFG-058): day 1's rune pick
+    // is pending and FIGHT refuses that first (run.ts fightRefusal), so the run holds the dawn's first offered rune
+    // (bb.holdRunes, the pick taken as runeshots.mjs openRun takes it) and FIGHT meets the dead end again
+    ["build-deadend-press", v, "build", 1.2, "bb.holdRunes([bb.game.screen.runePicker.offer(bb.game.screen).ids[0]]); delete bb.game.run.runeDay; bb.game.run.build.routes[0].cells.pop(); bb.game.screen.fight(); bb.game.step(1 / 60); bb.game.render()"],
   ]),
   // 0.6.0c: the end screen with every road event's STOP label (a 10-day run of events: one bag of
   // all 10), and FIGHT blocked by a dead-end belt (the starting belt cut one tile short)
