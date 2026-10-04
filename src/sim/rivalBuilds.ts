@@ -132,9 +132,10 @@ void T2;
 // par field buys ARMOR PACKs (0.8.6), so the captains buy them too: P() is an ARMOR PACK (5 g, +25 hull), bought up to
 // the par field's mean count for the captain's hero and day (par players 1-24, rounded), with only the gold the plan
 // leaves over: capsearch's packs mode added, day by day, the most packs that keep every deck within maxGoldByDay and its
-// luck caps, the roadCap guard, and each deck's gold upgrades (captainLevels). Each P() sits at the end of its day, so
-// earlier parts keep their uids. Where a good-luck warlord deck has no gold left, its captain's packs wait (the Hard
-// captains), so the stand-in deck waits with it.
+// luck caps, the roadCap guard, and the stand-in deck's gold upgrades (captainLevels). Each P() sits at the end of its
+// day, so earlier parts keep their uids. A Hard captain's packs are owned by its good-luck road deck too: where that deck
+// can't afford them, its gold upgrades (FACTORY / TURRET SPEED level 2) come on the first later day its gold allows
+// (captainLevels' own rule), or not at all when no day up to 10 holds them (cap's ruling Q1 e2ca295ce9dcd60a, (B)).
 export const PLANS: Record<RivalId, RivalPlan> = {
   // ---------------------------------------------------------------- Easy (tier 1)
   // SHORT STITCH: the loom parked right under the guns on three short stitches. Synergy: a WHETSTONE on the centre
@@ -213,8 +214,8 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // ordinary rare caps 0 on day 1 and 6 on day 9), soon() keeping the warlord's days 1 and 9; the static brush on day 7
       // at good luck too (was 6: the good rare cap is 5 on day 6)
       G(1, "temper", 3, 1, 1), soon(1, G(2, "barbed", 3, 0)), M(2, "scatter", 1), P(2), P(3), G(3, "longhaul", 5, 0),
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs on her two plates, 3/3/5/5/7 in all on days 6-10 (the WEAVER par field's
-      // 3/4/5/5/7; her day-7 good-luck deck has no gold beside its gold upgrade)
+      // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs on her two plates, 3/3/5/5/7 in all on
+      // days 6-10 (the WEAVER par field's 3/4/5/5/7; a day-7 pack: her road deck's FACTORY level 2 would leave again)
       M(4, "flak", 0), soon(5, G(6, "splitter", 2, 4, 2)), P(6), G(7, "staticbrush", 0, 1), soon(6, G(8, "riveter", 5, 1)),
       P(8, 2), ...good(G(9, "counterweight", 2, 0)), soon(9, G(10, "venom", 0, 0)), ...good(G2(10, "temper", 3, 1)), P(10, 2),
     ],
@@ -304,10 +305,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // bb-0.8.6 (job PACKS M4): at ordinary luck the flak on day 7 (was 6) and the counterweight on day 9 (was 7):
       // FURNACE's ordinary rare caps are 4, 5 and 5 on days 6-8; soon() keeps the warlord's days. The ladder (the Hard mean
       // below 0 on day 7): the good-luck grease on day 7 (was 8)
-      soon(5, G(6, "longhaul", 5, 1)), soon(6, M(7, "flak", 0)), soon(7, G(9, "counterweight", 1, 2)), soon(7, G(9, "grease", 1, 4, 1)),
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs on his three plates, 4 and 6 in all on days 9 and 10 (the FURNACE par field's 6
-      // and 7; his good-luck deck has no gold beside its gold upgrades on days 7-8)
-      M2(9, "scatter", 0), ...good(G(9, "staticbrush", 5, 2)), P(9), P(10, 2),
+      // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs on his three plates, 4/5/6/7 in all on
+      // days 7-10 (the FURNACE par field's count), as his stand-in's gold allows; his good-luck road deck pays for them
+      // with its TURRET SPEED level 2 (day 8 before; no later day's gold holds it)
+      soon(5, G(6, "longhaul", 5, 1)), soon(6, M(7, "flak", 0)), P(7), P(8), soon(7, G(9, "counterweight", 1, 2)),
+      soon(7, G(9, "grease", 1, 4, 1)), M2(9, "scatter", 0), ...good(G(9, "staticbrush", 5, 2)), P(9), P(10),
     ],
   },
   // ---------------------------------------------------------------- Hard (tier 3)
@@ -330,13 +332,14 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(1, "temper", 5, 0, 3), soon(1, G(2, "coil", 3, 0)), M(2, "scatter", 1), soon(2, G(3, "whetstone", 3, 1, 1)),
       // bb-0.8.3 (job BELTS run 4): the bellows on day 7 at ordinary luck (was 6; the stand-in's day-6 rare cap is 5);
       // soon() keeps the warlord's day 5
-      G(3, "staticbrush", 3, 3), G2(4, "coil", 3, 0),
+      G(3, "staticbrush", 3, 3), P(3), G2(4, "coil", 3, 0),
       soon(5, G(6, "coil", 0, 0)), G(6, "lodestone", 4, 5, 1),
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs 2/3/3 on days 8-10 (the WEAVER par field's 5/5/7; her good-luck deck has no gold
-      // beside its gold upgrade before day 8, nor more on day 10)
-      ...good(G(6, "grease", 4, 7)), soon(5, G(7, "bellows", 7, 1)), soon(7, M(8, "drake", 2)), ...good(G(8, "longhaul", 5, 1)),
-      P(8, 2), soon(5, G2(9, "staticbrush", 3, 3)), P(9),
-      ...good(G(10, "venom", 3, 2)), ...good(M2(10, "drake", 2)), ...good(M(10, "flak", 0)),
+      // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 1/1/1/1/2/3/5/7 on days 3-10 (the WEAVER par
+      // field's 1/1/2/3/4/5/5/7), as her stand-in's gold allows (days 5-6: the luck caps' value); her good-luck road deck
+      // pays for them with its FACTORY level 2 (day 7 before; no later day's gold holds it)
+      ...good(G(6, "grease", 4, 7)), soon(5, G(7, "bellows", 7, 1)), P(7), soon(7, M(8, "drake", 2)), ...good(G(8, "longhaul", 5, 1)),
+      P(8), soon(5, G2(9, "staticbrush", 3, 3)), P(9, 2),
+      ...good(G(10, "venom", 3, 2)), ...good(M2(10, "drake", 2)), ...good(M(10, "flak", 0)), P(10, 2),
     ],
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
@@ -353,8 +356,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       ...good(soon(3, G(4, "riveter", 3, 1))), M(4, "hullbreaker", 0), G(5, "longhaul", 5, 3), P(5), G(6, "temper", 1, 4, 1),
       // bb-0.8.3 (job BELTS run 4): the RAILGUN at good luck only (the warlord's day 9 kept): the regenerated caps give the
       // stand-in no bought turret on any day and one epic+ on day 9 (its OVERDRIVE)
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/3/3/3/3/5 on days 3-10 (the FURNACE par field's 1/1/2/3/4/5/6/7: his day-8
-      // OVERDRIVE and the good-luck deck's gold upgrades leave no gold for more until day 10)
+      // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 1/1/2/3/3/3/3/5 on days 3-10 (the FURNACE
+      // par field's 1/1/2/3/4/5/6/7; days 7-8: the luck caps' value; days 9-10: his road deck's TURRET SPEED level 2 would
+      // leave again)
       G2(6, "whetstone", 2, 2), P(6), M(7, "mantlet", 0), G(8, "overdrive", 7, 6), ...good(T(9, "railgun", 0)), P(10, 2),
     ],
   },
@@ -375,10 +379,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // ordinary luck (was 7; soon() keeps the warlord's day 7) and the sorting arm at good luck only (still day 9)
       // FLIP-X2 (REVIEW-NUM3 answer 2; oracle 77e35129477cb4ca): SIFTER dormant, its sifter removed (value -3 g from day 6)
       G(3, "venom", 0, 0), G(4, "longhaul", 7, 3), G(4, "tollbooth", 9, 3, 3), G2(4, "longhaul", 7, 3),
-      soon(5, G(6, "splitter", 3, 4)), G2(6, "temper", 0, 2), soon(6, G(7, "barbed", 2, 0)),
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs 2/4/4 on days 8-10 (the WEAVER par field's 5/5/7; her gold upgrade leaves no gold
-      // for one before day 8 in either deck, nor more on day 10)
-      soon(7, G(8, "overclocker", 6, 5, 1)), G(8, "temper", 5, 0, 3), P(8, 2), ...good(G(9, "sorting", 7, 5, 1)), P(9, 2),
+      soon(5, G(6, "splitter", 3, 4)), G2(6, "temper", 0, 2), soon(6, G(7, "barbed", 2, 0)), P(7),
+      // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 1/2/4/4 on days 7-10 (the WEAVER par field's
+      // 4/5/5/7), as her stand-in's gold allows beside its gold upgrade; her good-luck road deck takes its FACTORY level 2
+      // on day 8 (was 7) to pay for them
+      soon(7, G(8, "overclocker", 6, 5, 1)), G(8, "temper", 5, 0, 3), P(8), ...good(G(9, "sorting", 7, 5, 1)), P(9, 2),
       ...good(G(10, "quench", 9, 4)), ...good(G2(10, "whetstone", 3, 0)),
     ],
   },
@@ -455,11 +460,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // bb-0.8.6 (job PACKS M4): at ordinary luck the COMPOUND BREECH on day 7 (was 5; FOUNDRY's ordinary epic cap is 0
       // until day 7) and the latch's second star on day 10 (was 9; its 2-star cap is 2 on day 9); soon() keeps the warlord's
       // days 5 and 9. The ladder (the Hard mean below 0 on day 7): the good-luck flak on day 7 (was 8)
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs 3/4/6 on days 8-10 (the FOUNDRY par field's 5/6/7; his good-luck deck has no
-      // gold beside its gold upgrades before day 8)
-      G(3, "counterweight", 4, 0), soon(2, G(4, "twinlatch", 3, 2)), M2(4, "twintrigger", 0), soon(5, M(7, "compound", 0)),
-      M2(7, "compound", 0), ...good(M(7, "flak", 1)), P(8, 3), P(9), soon(9, G2(10, "twinlatch", 3, 2)),
-      ...good(G(10, "whetstone", 5, 2, 3)), P(10, 2),
+      // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 1/1/1/1/1/4/6/7 on days 3-10 (the FOUNDRY
+      // par field's 1/1/2/2/3/5/6/7), as his stand-in's gold allows (days 5-7: the luck caps' value); his good-luck road
+      // deck pays for them with its TURRET SPEED level 2 (day 7 before; no later day's gold holds it)
+      G(3, "counterweight", 4, 0), P(3), soon(2, G(4, "twinlatch", 3, 2)), M2(4, "twintrigger", 0), soon(5, M(7, "compound", 0)),
+      M2(7, "compound", 0), ...good(M(7, "flak", 1)), P(8, 3), P(9, 2), soon(9, G2(10, "twinlatch", 3, 2)),
+      ...good(G(10, "whetstone", 5, 2, 3)), P(10),
     ],
   },
   // ---------------------------------------------------------------- Medium (tier 2), BASTION
@@ -514,9 +520,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       M(3, "steambreech", 0), M(3, "spallcatcher", 0), G(4, "staticbrush", 3, 4), G(4, "grease", 3, 5, 1),
       // bb-0.8.6 (job PACKS M4): at ordinary luck the coil on day 6 (was 5) and the PLATE BREAKER on day 8 (was 6): the
       // packs' BASTION caps (ordinary rare+ 3 on day 5, epic+ 0 until day 8); soon() keeps the warlord's day 5
-      soon(5, G(6, "coil", 5, 2, 2)), ...good(P(6)), ...good(G(7, "pincer", 5, 4, 3)), soon(5, G(8, "platebreaker", 3, 2)),
-      // 0.8.9 (CATCHUP-089): two ARMOR PACKs on day 10 (the BASTION par field's count is 7; his good-luck deck has no gold
-      // beside its gold upgrades before day 10, and the stand-in waits with it)
+      // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 2/2/2/2/4 on days 6-10 (the BASTION par
+      // field's 3/4/5/6/7), as his stand-in's gold allows (days 3-5: R1 and the luck caps' value; days 7-9: the value cap
+      // and his road deck's FACTORY level); his good-luck road deck takes its FACTORY level 2 on day 8 (was 7) and pays
+      // with its TURRET SPEED level 2 (day 8 before; no later day's gold holds it)
+      soon(5, G(6, "coil", 5, 2, 2)), ...good(P(6)), P(6, 2), ...good(G(7, "pincer", 5, 4, 3)), soon(5, G(8, "platebreaker", 3, 2)),
       soon(2, G2(8, "temper", 5, 3)), ...good(G2(8, "pincer", 5, 4)), ...good(G(9, "shieldwall", 5, 0)),
       G(9, "venom", 5, 5), P(10, 2),
     ],
