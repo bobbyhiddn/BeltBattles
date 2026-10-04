@@ -14,6 +14,13 @@ export function prep({ screen, secs }) {
   window.bb.clearPool();
   window.bb.setReducedMotion(false);
   window.bb.open(screen, "furnace", 12345);
+  // RUNES-087F (REQ-BFG-058): a fresh run owes day 1's rune pick, so the build screen opens under the dawn RUNE PICKER.
+  // A shot here shows the screen itself: the run holds the dawn's first offered rune, the pick taken as runeshots.mjs
+  // openRun takes it (bb.holdRunes, then runeDay cleared). runeshots.mjs shoots the picker. game.go only queues the new
+  // screen (game.pending; step swaps it in), so this reads the queued screen and checks it holds this run. A build
+  // without runes has no runePicker, so this is a no-op there (shots-det.mjs can still render an older build)
+  const s = g.pending || g.screen, o = g.run && s && s.run === g.run && s.runePicker && s.runePicker.offer(s);
+  if (o) { window.bb.holdRunes([o.ids[0]]); delete g.run.runeDay; }
   const frames = Math.round((0.6 + secs) * 60);
   for (let i = 0; i < frames; i++) g.step(1 / 60);
   g.render();
@@ -59,6 +66,9 @@ export const EVENT = (id, o = {}, pick = -1, after = 0, refit = false) => `(() =
 // that pool (optionally SKIP to its result card); a played-out run's end screen.
 const J = JSON.stringify;
 const STEP = (n) => `for (let i = 0; i < ${n}; i++) bb.game.step(1 / 60);`;
+// RUNES-087F (REQ-BFG-058): prep's dawn-rune step for a shot script that opens a fresh build screen itself
+// (bb.open("build", ...)): the run holds day 1's first offered rune, so the shot shows the build screen, not the picker
+const TAKE_DAWN = `{ const g = bb.game, s = g.pending || g.screen, o = g.run && s && s.run === g.run && s.runePicker && s.runePicker.offer(s); if (o) { bb.holdRunes([o.ids[0]]); delete g.run.runeDay; } }`;
 export const DAWN = (o, ghosts = []) => `(() => { bb.openDawn(${J(o)}, ${J(ghosts)}); ${STEP(90)} bb.game.render(); })()`;
 export const DUSK = (o, ghosts = [], frames = 60, toResult = false) => `(() => {
   const g = bb.game;
@@ -181,10 +191,10 @@ export const SHOTS = [
   ]),
   ...["desk", "phone"].flatMap((v) => [
     ["event-sappers-day10", v, "title", 0, EVENT("sappers", { day: 10, gold: 9 })],
-    // a pressed FIGHT on a dead-end belt: the toast and the flashing belt. RUNES-087F (REQ-BFG-058): day 1's rune pick
-    // is pending and FIGHT refuses that first (run.ts fightRefusal), so the run holds the dawn's first offered rune
-    // (bb.holdRunes, the pick taken as runeshots.mjs openRun takes it) and FIGHT meets the dead end again
-    ["build-deadend-press", v, "build", 1.2, "bb.holdRunes([bb.game.screen.runePicker.offer(bb.game.screen).ids[0]]); delete bb.game.run.runeDay; bb.game.run.build.routes[0].cells.pop(); bb.game.screen.fight(); bb.game.step(1 / 60); bb.game.render()"],
+    // a pressed FIGHT on a dead-end belt: the toast and the flashing belt. RUNES-087F (REQ-BFG-058): FIGHT refuses a
+    // pending rune pick first (run.ts fightRefusal); prep has the run hold the dawn's first offered rune, so FIGHT meets
+    // the dead end
+    ["build-deadend-press", v, "build", 1.2, "bb.game.run.build.routes[0].cells.pop(); bb.game.screen.fight(); bb.game.step(1 / 60); bb.game.render()"],
   ]),
   // 0.6.0c: the end screen with every road event's STOP label (a 10-day run of events: one bag of
   // all 10), and FIGHT blocked by a dead-end belt (the starting belt cut one tile short)
@@ -389,6 +399,7 @@ function polishDeck(def, stars, x, y, rot) {
     const g = bb.game;
     g.run = null;
     bb.open("build", "furnace", 12345);
+    ${TAKE_DAWN}
     ${STEP(20)}
     ${parked()}
     const K = (x, y) => y * 10 + x, b = g.run.build; // the screen's view holds this build object: edit it in place
@@ -410,6 +421,7 @@ function polishCargo(def, stars, hero) {
     const g = bb.game;
     g.run = null;
     bb.open("build", ${J(hero)}, 12345);
+    ${TAKE_DAWN}
     ${STEP(20)}
     ${parked()}
     g.run.inventory.push({ uid: 9401, def: ${J(def)}${stars > 1 ? `, stars: ${stars}` : ""} });
@@ -615,6 +627,7 @@ function ASM_GANTRY() {
     const g = bb.game;
     g.run = null;
     bb.open("build", "weaver", 12345);
+    ${TAKE_DAWN}
     ${STEP(20)}
     const K = (x, y) => y * 10 + x;
     g.run.build.items = [
