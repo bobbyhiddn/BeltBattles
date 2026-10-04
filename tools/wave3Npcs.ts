@@ -90,16 +90,19 @@ export const NPCS: readonly NpcPlan[] = [
     trick: "SHIELD WALL", blurb: "A WALL OF PLATE ON EVERY BELT. HE BREAKS HIS OWN ARMOR INTO YOUR HULL.",
     portrait: "a grey-bearded thane behind a riveted tower shield, a plate-breaking hammer on one shoulder",
     palette: ["steel1", "steel3", "brass1", "rust3"], families: ["PLATE", "FORGE"],
-    synergy: ["shieldwall", "platebreaker", "armorpress"], prize: "+3 gold and a pick of BRACE FRAME or SPALL CATCHER (the Hard rule)",
+    synergy: ["shieldwall", "platebreaker"], prize: "+3 gold and a pick of BRACE FRAME or SPALL CATCHER (the Hard rule)",
     buys: [
       // bb-0.8.3 (job BELTS run 4): the PLATE BREAKER at good luck on day 6 (was 5), its ordinary day, and the ARMOR PRESS
       // at ordinary luck on day 10 (was 9; good luck's day 8 kept): the regenerated caps give one epic+ to good luck on
       // day 5 and to ordinary luck on day 9
       // bb-0.8.6 (job PACKS M4): the PLATE BREAKER on day 7 (was 6; no ordinary epic before day 7, one good-luck epic+ on
-      // day 6) and the ARMOR PRESS at good luck only, on day 9 (was ordinary 10, good 8; good epic+ cap 2 on days 7-8)
+      // day 6)
+      // bb-0.8.6 (job PACKS run 2; oracle 47d683ef9b959301 (1)): no ARMOR PRESS (was good luck only, day 9): the ordinary
+      // cap never holds it, and at good luck it can't fit on days 9-10 beside the SHIELD WALL and the PLATE BREAKER (GOOD
+      // epic+ cap 2), so it left his plan and his synergy list
       B("plateroller", 1), B("pincer", 1), B("braceframe", 2), B("steambreech", 3), B("temper", 3), B("shieldwall", null, 4),
       B("plateroller", 4), B("spallcatcher", 5), B("platebreaker", 7), B("braceframe", 7), B("quench", 7),
-      B("armorpress", null, 9), B("platebreaker", null, 9), B("shieldwall", null, 10),
+      B("platebreaker", null, 9), B("shieldwall", null, 10),
     ],
   },
   {

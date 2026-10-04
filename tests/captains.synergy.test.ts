@@ -72,13 +72,15 @@ describe("the synergy check's swaps (harness/synergy.ts)", () => {
         expect(defsIn(deck).has(def), `${c.id} d${c.day}: ${def}${goodOnly.includes(def) ? " (good luck: the road deck)" : ""}`).toBe(true);
       }
     }
-    // the 13 buy every synergy part at ordinary luck; of the six, only THANE KARSK has good-luck-only ones: SHIELD WALL and,
-    // since bb-0.8.3's caps (BASTION's ordinary cap allows one epic on day 9), ARMOR PRESS. The day-9 ordinary cap forbids
-    // both (each, added to his day-9 stand-in deck, goes over it), so neither counts (oracle 512f23ac589b2482 (1)); should
-    // a later cap let either fit, this reading moves and the test turns red (ARMOR PRESS then goes back to ordinary luck)
+    // the 13 buy every synergy part at ordinary luck; of the six, only THANE KARSK has a good-luck-only one: SHIELD WALL
+    // (0.8.0's pin, oracle 94b9559fbb7da299 (10)). The day-9 ordinary cap forbids it (added to his day-9 stand-in deck, it
+    // goes over it), so it doesn't count (oracle 512f23ac589b2482 (1)); should a later cap let it fit, this reading moves
+    // and the test turns red. bb-0.8.6 (job PACKS run 2; oracle 47d683ef9b959301 (1)): ARMOR PRESS (good-luck-only since
+    // bb-0.8.3's caps) left his plan under bb-0.8.6's caps: BASTION's GOOD epic+ cap of 2 on days 9-10 can't hold it beside
+    // the SHIELD WALL and the PLATE BREAKER, and the ordinary cap never holds it
     const goodOnlyOf = Object.fromEntries(RIVAL_IDS.filter((id) => id !== "matriarch").map((id) => [id, (PLANS[id].synergy ?? []).filter((d) => !ordinaryDefs(PLANS[id]).has(d))]).filter(([, g]) => g.length));
-    expect(goodOnlyOf).toEqual({ karsk: ["shieldwall", "armorpress"] });
-    expect(["shieldwall", "armorpress"].map((d) => ordinaryCouldHold("karsk", d))).toEqual([false, false]);
+    expect(goodOnlyOf).toEqual({ karsk: ["shieldwall"] });
+    expect(["shieldwall"].map((d) => ordinaryCouldHold("karsk", d))).toEqual([false]);
   });
 
   it("candidates: same kind, never a synergy part or a race part, offerable by the day; off-plan and unused ones at the part's price", () => {

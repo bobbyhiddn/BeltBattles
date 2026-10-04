@@ -83,9 +83,11 @@ describe("live preset purchases obey automatic merging", () => {
     const coil = rivalBuild("silkshade", 5).items.filter((p) => p.def === "coil");
     expect(coil.map(starsOf)).toEqual([2, 1]);
     expect(coil.every((p) => hitsOfRig(rivalBuild("silkshade", 5), p.uid).length > 0)).toBe(true);
-    // splitters are epics, so LACEWING's pair (a ★2 from day 8 and a ★1) is complete on day 9 at ordinary luck
+    // splitters are epics: under bb-0.8.6, WEAVER's ordinary epic+ cap is 1 on every day, so LACEWING's Medium deck holds
+    // one splitter, the ★2 from day 8. Her day-9 ★1 left the plan under the packs' caps (oracles 47d683ef9b959301 (3) and
+    // 34c22fae54b0aaf2)
     const splitters = rivalBuild("lacewing", 9).items.filter((p) => p.def === "splitter");
-    expect(splitters.map(starsOf)).toEqual([2, 1]);
+    expect(splitters.map(starsOf)).toEqual([2]);
     expect(splitters.every((p) => hitsOfRig(rivalBuild("lacewing", 9), p.uid).length > 0)).toBe(true);
     expect(rivalBuild("emberlyn", 8).mods).toContainEqual(expect.objectContaining({ def: "drake", turret: 1 }));
   });

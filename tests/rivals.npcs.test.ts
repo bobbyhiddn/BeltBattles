@@ -68,8 +68,9 @@ describe("the six wave-3 captains join the roster (0.8.0 N1)", () => {
     expect(Object.fromEntries(SIX.map((id) => [id, PLANS[id].synergy]))).toEqual({
       brasswick: ["twingauge", "twinmould", "twintrigger"], voss: ["twinlatch", "twintrigger", "compound"],
       grimhold: ["plateroller", "anvil", "spallcatcher"],
-      // D1's three first, in D1's order, then his stand-in's PLATE ROLLER and SPALL CATCHER (oracles ae44c7db19da0dc0, cf201b9918116576)
-      karsk: ["shieldwall", "platebreaker", "armorpress", "plateroller", "spallcatcher"],
+      // D1's three first, in D1's order, then his stand-in's PLATE ROLLER and SPALL CATCHER (oracles ae44c7db19da0dc0, cf201b9918116576);
+      // bb-0.8.6 (job PACKS run 2; oracle 47d683ef9b959301 (1)): D1's ARMOR PRESS left his plan under bb-0.8.6's caps
+      karsk: ["shieldwall", "platebreaker", "plateroller", "spallcatcher"],
       lockjaw: ["twinlatch", "twinmould", "twingauge"], thistlemail: ["plateroller", "steambreech", "spallcatcher"],
     });
   });

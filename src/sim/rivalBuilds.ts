@@ -432,18 +432,21 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     ],
   },
   // SHIELD WALL: a wall of plate on the bulwark belt, broken into damage. Synergy: a PLATE BREAKER on the bulwark belt
-  // from day 5 (each payload takes a plating for 4 more damage) and an ARMOR PRESS into connector 5 from day 8 (3 plating
-  // every 3 seconds); at good luck a SHIELD WALL from day 8 (oracle 94b9559fbb7da299 (10): his one good-luck-only
-  // synergy part; BASTION's ordinary epic+ cap of 2 holds the other two); and the PLATE ROLLER (day 1) and SPALL CATCHER
+  // from day 5 (each payload takes a plating for 4 more damage); at good luck a SHIELD WALL on the bulwark belt from day 9
+  // (oracle 94b9559fbb7da299 (10): his one good-luck-only synergy part); and the PLATE ROLLER (day 1) and SPALL CATCHER
   // (day 3) that build the plating. A BRACE FRAME (day 2) and a STEAM BREECH (day 3) work the plating; a twin gauge,
   // tempers, a brush, grease, a coil and venom fill in. Good luck: the temper's second star on day 2, a plate on day 6, a
-  // pincer on day 7. The synergy list is D1's three in D1's order, then the PLATE ROLLER and SPALL CATCHER (0.8.0 B1,
-  // oracles ae44c7db19da0dc0 and cf201b9918116576): D1 built his list from his good-luck road deck, but the synergy check
-  // runs on his ordinary-luck stand-in. There BASTION's epic cap of 1 on days 5-7 and the roadCap guard allow only the
-  // PLATE BREAKER by day 5, and the deck builds its plating with these two parts, as GRIMHOLD's and THISTLEMAIL's lists
-  // name them.
+  // pincer on day 7 (2 stars on day 8). The synergy list is D1's three in D1's order (less the ARMOR PRESS, below), then
+  // the PLATE ROLLER and SPALL CATCHER (0.8.0 B1, oracles ae44c7db19da0dc0 and cf201b9918116576): D1 built his list from
+  // his good-luck road deck, but the synergy check runs on his ordinary-luck stand-in. There BASTION's epic cap of 1 on
+  // days 5-7 and the roadCap guard allow only the PLATE BREAKER by day 5, and the deck builds its plating with these two
+  // parts, as GRIMHOLD's and THISTLEMAIL's lists name them. bb-0.8.6 (job PACKS run 2; oracle 47d683ef9b959301 (1)): no
+  // ARMOR PRESS (was good luck, day 8, into connector 5): his day 9-10 road deck held three epic+ parts, all synergy parts
+  // (PLATE BREAKER, ARMOR PRESS, SHIELD WALL), and BASTION's GOOD epic+ cap is 2 on days 9-10, while the ordinary cap
+  // never holds it; no day can hold it, so it left his plan. The SHIELD WALL moved one cell west, (6,0) -> (5,0): it
+  // worked the press's belt, and there it works the bulwark belt (capsearch check: idle at (6,0) without the press).
   karsk: {
-    hero: "bastion", crates: 0, synergy: ["shieldwall", "platebreaker", "armorpress", "plateroller", "spallcatcher"],
+    hero: "bastion", crates: 0, synergy: ["shieldwall", "platebreaker", "plateroller", "spallcatcher"],
     factories: [F("wardworks", 4, 6, [4, 5, "U5"])],
     upgrades: [
       // bb-0.8.3 (job BELTS run 4): the regenerated BASTION caps give the stand-in no epic on day 5 and one epic+ on days
@@ -452,12 +455,16 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // soon() keeping the warlord's days 5 and 2; the ARMOR PRESS at good luck only (still day 8), and the SHIELD WALL
       // that works its belt on day 9 (was 8). tests/captains.synergy.test.ts pins SHIELD WALL as his only good-luck
       // synergy part: an open item for the lead (BASTION's ordinary epic+ cap of 1 can't hold both epics by day 9)
+      // bb-0.8.6 (job PACKS run 2; oracle 47d683ef9b959301 (1)): the ARMOR PRESS left his plan (see above); the SHIELD
+      // WALL on the bulwark belt at (5,0) (was (6,0), on the press's belt). The ladder (a Hard captain below the easiest
+      // Easy one: day 8 +0.209 vs GRUBNOSE +0.152, day 9 +0.253 vs +0.251 without the press): the fill rule's least change
+      // (capsearch kfill), the pincer's second star at good luck on day 8 (day 8 +0.101, day 9 +0.161, day 10 +0.193)
       G(1, "plateroller", 3, 0, 1), G(1, "twingauge", 3, 3, 1), G(2, "braceframe", 3, 1), G(2, "temper", 5, 3, 3),
       M(3, "steambreech", 0), M(3, "spallcatcher", 0), G(4, "staticbrush", 3, 4), G(4, "grease", 3, 5, 1),
       // bb-0.8.6 (job PACKS M4): at ordinary luck the coil on day 6 (was 5) and the PLATE BREAKER on day 8 (was 6): the
       // packs' BASTION caps (ordinary rare+ 3 on day 5, epic+ 0 until day 8); soon() keeps the warlord's day 5
       soon(5, G(6, "coil", 5, 2, 2)), ...good(P(6)), ...good(G(7, "pincer", 5, 4, 3)), soon(5, G(8, "platebreaker", 3, 2)),
-      ...good(X(8, F("armorpress", 6, 6, [6, 5, "U4LU"]))), soon(2, G2(8, "temper", 5, 3)), ...good(G(9, "shieldwall", 6, 0)),
+      soon(2, G2(8, "temper", 5, 3)), ...good(G2(8, "pincer", 5, 4)), ...good(G(9, "shieldwall", 5, 0)),
       G(9, "venom", 5, 5),
     ],
   },
