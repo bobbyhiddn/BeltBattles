@@ -278,7 +278,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   tesla: (e, x) => {
     const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);
-    return rules([shot(`ALSO ARCS TO ${arcs} ENEMY PART${s(n)}: {*STUN} ${stun}.`)],
+    // U2f step 3 (REQ-BFG-046): one line of the op band at every star (was "ENEMY PART", 231-237 px at ★2/★3; MORTAR's
+    // "ALSO HITS 1 MORE TARGET" names no ENEMY either)
+    return rules([shot(`ALSO ARCS TO ${arcs} PART${s(n)}: {*STUN} ${stun}.`)],
       [["arcs", `${arcs} PART${s(n)}`], ["stun", `{*STUN} ${stun}`]], [REMINDER.STUN(t)]);
   },
   compound: (e, x) => {
@@ -287,7 +289,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   lance: (e, x) => {
     const n = c(e, x).columns!, cols = fmtCount(n), share = fmtPct(c(e, x).share!);
-    return rules([shot(`ALSO HITS EVERY ENEMY PART IN ${cols} COLUMN${s(n)}, ${share} {DMG}.`)],
+    // U2f step 3 (REQ-BFG-046): one line of the op band (was "EVERY ENEMY PART IN 1 COLUMN", 280-286 px)
+    return rules([shot(`ALSO HITS ${cols} WHOLE COLUMN${s(n)}, ${share} {DMG}.`)],
       [["columns", `${cols} COLUMN${s(n)}`], ["share", `${share} {DMG}`]]);
   },
   anvil: (e, x) => {
@@ -366,7 +369,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   staticbrush: (e) => {
     // Battle.impact: a static payload that hits bare hull stalls a random enemy turret for staticTime (STUN today)
     const t = gt(e).staticTime!, stun = fmtSec(t);
-    return rules([{ text: `ITS SLUGS HIT HULL: {*STUN} ${stun} ON A RANDOM ENEMY GUN.` }], [["stun", `{*STUN} ${stun}`]], [REMINDER.STUN(t)]);
+    // U2f step 3 (REQ-BFG-046): one line of the op band (was "ITS SLUGS ... ON A RANDOM ENEMY GUN.", 279 px): the slugs
+    // as their icon (SORTING ARM's "OF EVERY 3 {SLUG}"), and STUN, which only ever stops an enemy part, names no ENEMY
+    return rules([{ text: `ITS {SLUG} HIT HULL: {*STUN} ${stun} ON A RANDOM GUN.` }], [["stun", `{*STUN} ${stun}`]], [REMINDER.STUN(t)]);
   },
   barbed: (e) => {
     const n = fmtCount(gt(e).fray!); // ★2/★3 RAZOR WIRE raises the hull's FRAY cap (frayCap): a clause
@@ -376,7 +381,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // Battle.makeSide / applyHit: it doubles the first later rig on its belt that can be doubled (overclock.ts boostable),
     // then recharges for overclockCooldown; the rigs it skips are an interim caveat (call 7)
     const t = fmtSec(gt(e).overclockCooldown!);
-    return rules([{ text: `DOUBLES THE NEXT RIG'S HIT, THEN RESTS ${t}{SEC}.` }], [["rest", `RESTS ${t}{SEC}`]]);
+    // U2f step 3 (REQ-BFG-046): one line of the op band (was ", THEN RESTS", 226-240 px; the comma keeps the order)
+    return rules([{ text: `DOUBLES THE NEXT RIG'S HIT, RESTS ${t}{SEC}.` }], [["rest", `RESTS ${t}{SEC}`]]);
   },
   plateroller: (e) => {
     const d = fmtDmg(gt(e).plate!);

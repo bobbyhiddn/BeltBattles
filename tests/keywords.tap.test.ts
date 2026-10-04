@@ -389,11 +389,14 @@ describe("U2f: the taller ⓘ view", () => {
   /** Each rune's keywords (runeWords for a run holding it alone), for the "a rune held" measure. */
   const runeSets = RUNE_LIST.map((r) => runeWords({ build: { runes: [{ id: r.id, day: 1 }] } } as unknown as Run)).filter((ws) => ws.length);
 
-  it("U2e's page distributions, re-measured (the body alone): op 118 / 160 / 27, desk 70 / 96 / 88 / 26 / 15 / 10", () => {
+  it("U2e's view (the body alone), re-measured: op 118 / 160 / 27, desk 70 / 96 / 84 / 26 / 19 / 10", () => {
+    // on u2e's text (U2f step 2, b8b4262) this measure gave U2e's own numbers exactly: op 118 / 160 / 27, desk
+    // 70 / 96 / 88 / 26 / 15 / 10. Step 3's shorter lines make 4 desk column panels shorter (it sizes to its text), so
+    // U2e's body-only view would page them more; the op band's panels keep their height
     const o = sheet.map((c) => infoOf(op, c)).filter((x) => !!x), k = sheet.map((c) => infoOf(desk, c)).filter((x) => !!x);
     expect(sheet.length).toBe(310);
     expect(histogram(o.map((x) => x!.u2e))).toEqual([118, 160, 27]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([70, 96, 88, 26, 15, 10]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([70, 96, 84, 26, 19, 10]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {

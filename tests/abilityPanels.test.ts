@@ -840,7 +840,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // the factory's level and UPGRADE lines, STAYS ABOARD, the STOKER's capped line) a few px longer on some phone panels
     // U2e step 1 (REQ-BFG-070): 581, measured: merge progress is gone, so 90 more phone panels have room for the hint.
     // U2e steps 2-4: 810, measured: no NEXT★ or reminder on the face either
-    expect(hints).toBe(810);
+    // U2f step 3: 813, measured: LODESTAR LANCE's, STATIC BRUSH's, TESLA ARC's and OVERCLOCKER's lines now fit one line
+    expect(hints).toBe(813);
   });
 });
 
