@@ -38,7 +38,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
 import { inlineBuild } from "./inline.mjs";
-import { placePlanned, settle, sleep, tapRegion } from "./playthrough.mjs";
+import { placePlanned, settle, sleep, takeDawnRune, tapRegion } from "./playthrough.mjs";
 import { roadStop } from "./roadstop.mjs";
 import { VIEWS } from "./shots-list.mjs";
 
@@ -183,6 +183,9 @@ async function dayOne(page, shots, tag) {
   await tapRegion(page, false, "go");
   await settle(page, "build");
   await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
+  // 0.8.7 staging: day 1's RUNE PICKER takes every press until the dawn rune is taken (RUNES-1), so take it before
+  // placing a part, as playthrough.mjs's scripted runs and tapRegion do
+  await takeDawnRune(page, false);
   return async () => {
     const def = await placePlanned(page, false);
     log(`[${at()}] ${tag}: day 1 dawn: placed ${def ?? "nothing"}`);
