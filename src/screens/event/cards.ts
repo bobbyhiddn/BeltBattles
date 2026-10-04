@@ -13,7 +13,8 @@ import { rerollIcon, shieldIcon, skullIcon, tagIcon } from "../../render/eventAr
 import { drawBadge } from "../build/shop";
 import type { Rect } from "../../ui/ui";
 
-const SHORT: Record<string, string> = { calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PLATE", grease: "GREASE", coil: "GALV. COIL" };
+// bb-0.8.6 (REQ-BFG-051 P1): plating's short name is the pack's, ARMOR PACK (was ARMOR PLATE), so every surface says it
+const SHORT: Record<string, string> = { calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PACK", grease: "GREASE", coil: "GALV. COIL" };
 
 export function deltaIcon(d: Delta): HTMLCanvasElement {
   switch (d.k) {

@@ -49,7 +49,7 @@ function drawMerchantGlyph(g: G, x: number, y: number, merchant: MerchantId): vo
 }
 
 const SHORT: Record<string, string> = {
-  calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PLATE",
+  calibrate: "CALIBRATE", chamber: "EXT. CHAMBER", plating: "ARMOR PACK", // bb-0.8.6 (REQ-BFG-051 P1): was ARMOR PLATE
   // 0.6.2p (item 4): a one-word name wider than the card's name width (CARD_W - 4 = 42 px in the 3x5 face: 11+
   // letters) spilled past the card's edges, as wrap() breaks only at spaces; it breaks with a hyphen instead
   counterweight: "COUNTER- WEIGHT", overclocker: "OVER- CLOCKER", hullbreaker: "HULL- BREAKER",

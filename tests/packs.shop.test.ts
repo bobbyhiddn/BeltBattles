@@ -14,6 +14,8 @@ import { heroStartBuild } from "../src/sim/heroBuilds";
 import { playerRun, type PlayerDay } from "../src/sim/harness/player";
 import { PACK_POLICY, type PackPolicy } from "../src/sim/harness/belts";
 import { RULES_VERSION } from "../src/sim/content";
+import { itemName } from "../src/screens/event/cards";
+import { cardName } from "../src/screens/build/shop";
 
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const J = (x: unknown): string => JSON.stringify(x);
@@ -44,6 +46,14 @@ describe("P1-P2: the two fixed packs", () => {
     expect([ITEMS.plating.name, ITEMS.plating.price, ITEMS.plating.supply]).toEqual(["ARMOR PACK", 5, { hull: 25 }]);
     expect([packPrice("belt"), packPrice("armor")]).toEqual([2, 5]);
     expect([ITEMS.beltcrate.kind, ITEMS.plating.kind, ITEMS.beltcrate.merchant, ITEMS.plating.merchant]).toEqual(["supply", "supply", "ironmonger", "ironmonger"]);
+  });
+
+  it("every surface says BELT PACK and ARMOR PACK: the items, a card's title and an event card's name", () => {
+    for (const [def, name] of [["beltcrate", "BELT PACK"], ["plating", "ARMOR PACK"]] as const) {
+      expect(ITEMS[def].name, def).toBe(name);
+      expect(itemName(def), def).toBe(name);
+      expect(cardName(ITEMS[def], 200).join(" "), def).toBe(name);
+    }
   });
 
   it("each buy applies at once (+4 beltCap or +25 hullBonus) for its price, again and again, with no cap", () => {
