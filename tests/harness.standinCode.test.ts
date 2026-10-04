@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import type { Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
-import { RULES_VERSION } from "../src/sim/content";
+import { POOL_RULES } from "../src/sim/content";
 import {
   decodeStandIn, decodeStandInRaw, decodeStarred as loadStarred, decodeStarredRaw, encodeStandIn, standInPool, STAND_IN_POOL_HEROES,
 } from "../src/sim/standInPool";
@@ -87,7 +87,7 @@ describe("star-aware stand-in code (F2)", () => {
 
   it("the shipped pool v2 (0.6.1 flip): the game's loader reads every stored code as the harness codec does, and each deck is legal, at most 2 stars, within the day's gold and round-trips byte for byte", () => {
     let n = 0, starred = 0;
-    expect(STAND_IN_DATA.rules).toBe(RULES_VERSION);
+    expect(STAND_IN_DATA.rules).toBe(POOL_RULES); // RUNES-1: RULES_VERSION, or the rules it carries the pool from (content.ts)
     for (const hero of STAND_IN_POOL_HEROES) {
       for (let day = 1; day <= 10; day++) {
         const codes = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);

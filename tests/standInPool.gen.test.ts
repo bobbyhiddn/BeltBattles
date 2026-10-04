@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { hashSeed } from "../src/core/rng";
 import { simulate } from "../src/sim/battle";
-import { RULES_VERSION, type HeroId } from "../src/sim/content";
+import { POOL_RULES, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { POOL_NATIVE, poolLoss, poolRaw } from "./beltside.helpers";
@@ -105,9 +105,9 @@ async function caravanPars(): Promise<void> {
 }
 
 describe("stand-in pool", () => {
-  it("covers FURNACE and WEAVER with 6 entries per day, days 1-10, under the current RULES_VERSION", () => {
+  it("covers FURNACE and WEAVER with 6 entries per day, days 1-10, under this build's pool rules (content.ts POOL_RULES: RULES_VERSION, or the rules it carries the pool from)", () => {
     expect(STAND_IN_POOL_HEROES).toEqual(["furnace", "weaver"]);
-    expect(STAND_IN_POOL_RULES).toBe(RULES_VERSION);
+    expect(STAND_IN_POOL_RULES).toBe(POOL_RULES);
     expect(STAND_IN_DATA.band).toEqual([40, 60]);
     expect(STAND_IN_DATA.parFloor).toBe(0.5);
     for (const hero of STAND_IN_POOL_HEROES) for (const day of DAYS) expect(standInPool(hero, day), `${hero} d${day}`).toHaveLength(6);

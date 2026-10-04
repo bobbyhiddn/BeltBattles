@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
 import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPick, standInPool } from "../src/sim/standInPool";
-import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
+import { POOL_RULES, RUN_DAYS, type HeroId } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, deckCost, maxGoldByDay, standInBuild, standInGhost } from "../src/sim/rivals";
 import { inStandInPool, standInFoe } from "../src/game/ghosts";
 import { STAND_IN_HEROES } from "../src/net/fallback";
@@ -23,9 +23,9 @@ const PLATE = 25; // ARMOR PLATING's hull (standin.honest.test.ts pins it)
 const J = (v: unknown): string => JSON.stringify(v);
 
 describe("the stand-in pool v1.1 (the reference field and the async fallback)", () => {
-  it("was generated under this RULES_VERSION (a stale pool fails here)", () => {
-    expect(STAND_IN_POOL_RULES).toBe(RULES_VERSION);
-    expect(STAND_IN_DATA.rules).toBe(RULES_VERSION);
+  it("was generated under this build's pool rules: RULES_VERSION, or since RUNES-1 the rules it carries the pool from (content.ts POOL_RULES; a stale pool fails here)", () => {
+    expect(STAND_IN_POOL_RULES).toBe(POOL_RULES);
+    expect(STAND_IN_DATA.rules).toBe(POOL_RULES);
     expect(STAND_IN_POOL_DAYS).toBe(RUN_DAYS);
   });
 

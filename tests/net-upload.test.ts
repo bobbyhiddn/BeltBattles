@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
-import { HEROES, ITEMS, OFFERS, REROLL_COST, RULES_VERSION, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type Rarity } from "../src/sim/content";
+import { HEROES, ITEMS, OFFERS, POOL_RULES, REROLL_COST, RULES_VERSION, RUN_DAYS, buyableModules, type HeroId, type ItemDef, type Rarity } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { MATRIARCH_DAY, maxGoldByDay as rivalsGold, warlordPool, DIFFICULTIES } from "../src/sim/rivals";
 import { STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool";
@@ -281,7 +281,7 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
     }
     expect(n).toBe(120);
     console.log(`v070-rel: the ${STAND_IN_POOL_RULES} stand-in pool: ${n} decks; ${carry.turrets} carry a turret list (${carry.bought} with a bought turret), ${carry.joined} a joined belt (${carry.joins} joins), ${carry.both} both`);
-    expect(STAND_IN_POOL_RULES).toBe(RULES_VERSION);
+    expect(STAND_IN_POOL_RULES).toBe(POOL_RULES); // RUNES-1: bb-0.8.7 carries bb-0.8.6's pool (content.ts POOL_RULES_CARRIED)
     expect(carry).toEqual(POOL_CARRIES);
   });
 

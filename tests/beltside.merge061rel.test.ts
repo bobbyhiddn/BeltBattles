@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { Battle, type Payload } from "../src/sim/battle";
-import { AMMO, BELT_SPEED, ITEMS, RULES_VERSION, TICK } from "../src/sim/content";
+import { AMMO, BELT_SPEED, ITEMS, POOL_RULES, RULES_VERSION, TICK } from "../src/sim/content";
 import { hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, stokeHits, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { beltKind, hitLabel } from "../src/screens/build/inspector";
@@ -416,8 +416,8 @@ describe("P17: offline ghosts carry stars and rotation (v2 snapshots)", () => {
 // ---------------------------------------------------------------- P18: RULES_VERSION
 
 describe("P18: RULES_VERSION", () => {
-  it("is bb-0.8.3, BELTS's bump (the 0.8.0 release step's was bb-0.8.0, BELTSIDE's own bb-0.6.2), and the stand-in pool was scored under it", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.6");
-    expect(STAND_IN_DATA.rules).toBe(RULES_VERSION);
+  it("is bb-0.8.3, BELTS's bump (the 0.8.0 release step's was bb-0.8.0, BELTSIDE's own bb-0.6.2), and the stand-in pool was scored under it (since RUNES-1's bb-0.8.7: under POOL_RULES, the rules it carries the pool from)", () => {
+    expect(RULES_VERSION).toBe("bb-0.8.7");
+    expect(STAND_IN_DATA.rules).toBe(POOL_RULES); // RUNES-1: bb-0.8.7 carries bb-0.8.6's pool (content.ts POOL_RULES_CARRIED)
   });
 });

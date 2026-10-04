@@ -13,7 +13,19 @@ import { DORMANT_ITEMS, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, t
 // bb-0.8.3 (job BELTS, REQ-BFG-043, REQ-BFG-044): belt slots grow with a factory's level (bought factories by stars, 2 / 3
 // / 4; the hero's factory by its FACTORY upgrade, 2 / 3 / 4 / 5, the LOOM one more), and every hero's two gold upgrades
 // (TURRET SPEED, FACTORY; Build.upgrades). Ghosts and records made under bb-0.8.0 don't mix with these.
-export const RULES_VERSION = "bb-0.8.6";
+// bb-0.8.6 (job PACKS, REQ-BFG-051): the caravan's two fixed packs (BELT PACK, ARMOR PACK). bb-0.8.7 (job RUNES-1,
+// REQ-BFG-058): runes, one pick at every dawn. Ghosts and records made under bb-0.8.6 don't mix with these.
+export const RULES_VERSION = "bb-0.8.7";
+/**
+ * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
+ * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player
+ * (tools/samplePool.ts; they travel under RULES_VERSION). bb-0.8.7 carries bb-0.8.6's: bots hold no runes until RUNES-2
+ * regenerates the pools, and a rune-less build battles exactly as under bb-0.8.6 (tests/runes.parity.test.ts). A release
+ * with no entry here runs on pools generated under its own rules.
+ */
+export const POOL_RULES_CARRIED: Readonly<Record<string, string>> = { "bb-0.8.7": "bb-0.8.6" };
+/** The rules this build's bot pools were generated under: RULES_VERSION's entry in POOL_RULES_CARRIED, else RULES_VERSION. */
+export const POOL_RULES: string = POOL_RULES_CARRIED[RULES_VERSION] ?? RULES_VERSION;
 
 export const CELL = 12; // world pixels per deck cell
 export const GRID = 10; // 10x10 construction envelope

@@ -45,8 +45,8 @@ function snap(hero: HeroId, day: number, rules: string, build: Build = heroRefBu
 
 describe("the table: heroes by rules version", () => {
   it("bb-0.6.2 and every earlier or unreadable version: FURNACE and WEAVER; HEROES_RULES (bb-0.8.0) and later: the four", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.6"); // PACKS bumped it (BELTS: bb-0.8.3) (0.8.0 RC: bb-0.6.2 -> bb-0.8.0, HEROES_RULES itself)
-    expect(HEROES_RULES).toBe("bb-0.8.0"); // the first rules that carry the four: BELTS's bb-0.8.3 and PACKS's bb-0.8.6 need no new row
+    expect(RULES_VERSION).toBe("bb-0.8.7"); // RUNES-1 bumped it (PACKS: bb-0.8.6, BELTS: bb-0.8.3) (0.8.0 RC: bb-0.6.2 -> bb-0.8.0, HEROES_RULES itself)
+    expect(HEROES_RULES).toBe("bb-0.8.0"); // the first rules that carry the four: BELTS's bb-0.8.3, PACKS's bb-0.8.6 and RUNES-1's bb-0.8.7 need no new row
     expect(RULES_HEROES.map((r) => [r.from, [...r.heroes]])).toEqual([
       ["bb-0.0.0", ["furnace", "weaver"]], ["bb-0.8.0", ["furnace", "weaver", "foundry", "bastion"]],
     ]);
@@ -161,13 +161,13 @@ describe("the server and the client, both ways", () => {
     return { status: r.status, body: (await r.json()) as { id?: string; error?: string } };
   };
 
-  it("POST /v1/ghosts (uploads open, this server's rules bb-0.8.6): FOUNDRY and BASTION under bb-0.6.2 are refused at the decoder, and stored under bb-0.8.6 (under bb-0.8.0, HEROES_RULES, the exact rules check refuses them: 422); FURNACE under bb-0.6.2 meets the exact rules check (422) and is stored under bb-0.8.6", async () => {
+  it("POST /v1/ghosts (uploads open, this server's rules bb-0.8.7): FOUNDRY and BASTION under bb-0.6.2 are refused at the decoder, and stored under bb-0.8.7 (under bb-0.8.0, HEROES_RULES, the exact rules check refuses them: 422); FURNACE under bb-0.6.2 meets the exact rules check (422) and is stored under bb-0.8.6", async () => {
     for (const hero of NEW) for (const day of [1, 6, 10]) {
       const r = await post(snap(hero, day, OLD_RULES));
       expect(r.status, `${hero} d${day}`).toBe(400);
       expect(r.body.error).toBe(`snapshot.hero: ${why(OLD_RULES, hero)}`);
       // 0.8.0 RC: HEROES_RULES was this server's rules, so they were stored under it (before the RC's bump: 422). BELTS:
-      // this server's rules are RULES_VERSION (bb-0.8.6), so they are stored there, and HEROES_RULES meets the exact check
+      // this server's rules are RULES_VERSION (bb-0.8.7), so they are stored there, and HEROES_RULES meets the exact check
       const was = await post(snap(hero, day, HEROES_RULES));
       expect(was.status, `${hero} d${day} ${HEROES_RULES}`).toBe(422);
       expect(was.body.error).toBe(`rules ${HEROES_RULES} not accepted: this server validates ${RULES_VERSION}`);

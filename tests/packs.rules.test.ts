@@ -1,9 +1,10 @@
 // bb-0.8.6 (job PACKS, REQ-BFG-051 P3 and P8): the rules release and the packs' validation on both stores (JSON lines, and
 // Tigris through tools/fakeS3.ts), uploads open in-process, the store seeded as a deploy seeds it (modelled on
 // tests/belts.rules.test.ts):
-//  - the gate: RULES_VERSION is bb-0.8.6 (the label stays 0.8.5); /v1/health names it; an honest deck under bb-0.8.3 (the
-//    rules 0.8.5 ships) is refused (422) and nothing is stored under it; every near miss of bb-0.8.6 is refused (422 at
-//    the exact rules check, 400 where the decoder's pattern refuses it);
+//  - the gate: RULES_VERSION is bb-0.8.7 since RUNES-1 (bb-0.8.6 before; the label is 0.8.6); /v1/health names it;
+//    an honest deck under bb-0.8.3 (the rules 0.8.5 ships) is refused (422) and nothing is stored under it; every near
+//    miss of bb-0.8.6 (and since RUNES-1 bb-0.8.6 itself) is refused (422 at the exact rules check, 400 where the
+//    decoder's pattern refuses it);
 //  - the packs (P3): an honest run that buys packs on every visit uploads on every day (the par player under the value,
 //    ARMOR-greedy and BELT-greedy policies: 201 for each day's dusk deck); one ARMOR PACK more than the day's gold allows
 //    is refused with the budget message; a hull or a belt that no road mix plus whole packs can make stays refused.
@@ -25,10 +26,11 @@ import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 const OLD_RULES = "bb-0.8.3"; // 0.8.5's rules (BELTS)
 const T0 = 1_790_000_000_000;
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
-/** bb-0.8.6's near misses: the rules it replaces first, then its neighbours and garbled forms. */
-const NEAR = [OLD_RULES, "bb-0.8.5", "bb-0.8.7", "bb-0.8.6x", "BB-0.8.6", " bb-0.8.6", "bb-0.8.6 ", "bb-0.8.06", "bb-0.8.60", "bb-0.8.6.0", "bb-0.8", "bb_0.8.6"];
+/** bb-0.8.6's near misses: the rules it replaces first, then its neighbours and garbled forms. RUNES-1 (bb-0.8.7, the
+ *  server's rules now): bb-0.8.6 itself in bb-0.8.7's place. */
+const NEAR = [OLD_RULES, "bb-0.8.5", "bb-0.8.6", "bb-0.8.6x", "BB-0.8.6", " bb-0.8.6", "bb-0.8.6 ", "bb-0.8.06", "bb-0.8.60", "bb-0.8.6.0", "bb-0.8", "bb_0.8.6"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.8.6`;
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.8.7`;
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. */
 function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, runId = `packs-${hero}-${day}`): GhostSnapshot {
@@ -50,14 +52,14 @@ function packed(hero: HeroId, armors: number, belts = 0): Build {
   return b;
 }
 
-describe("rules bb-0.8.6: the version", () => {
-  it("RULES_VERSION is bb-0.8.6 (PACKS); the label is 0.8.6 since the Prime staged it (the 0.8.6 label commit)", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.6");
+describe("rules bb-0.8.7: the version", () => {
+  it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.8.6 until the Prime stages 0.8.7", () => {
+    expect(RULES_VERSION).toBe("bb-0.8.7");
     expect(VERSION).toBe("0.8.6");
   });
 });
 
-describe.each(storeBackends())("rules bb-0.8.6 and the packs on the $name store (uploads open in-process)", (backend) => {
+describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store (uploads open in-process)", (backend) => {
   let app: GhostServer, base: string, me: Identity;
   let k = 0;
   beforeAll(async () => {
@@ -79,8 +81,8 @@ describe.each(storeBackends())("rules bb-0.8.6 and the packs on the $name store 
   };
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
-  it("/v1/health names bb-0.8.6; an honest deck under bb-0.8.3 (0.8.5's rules) and every near miss of bb-0.8.6 is refused, and nothing is stored", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.8.6");
+  it("/v1/health names bb-0.8.7; an honest deck under bb-0.8.3 (0.8.5's rules) and every near miss of bb-0.8.6 (bb-0.8.6 itself too) is refused, and nothing is stored", async () => {
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.8.7");
     const before = backend.storedRecords();
     const seen: Record<string, number> = {};
     for (const rules of NEAR) {
@@ -90,7 +92,7 @@ describe.each(storeBackends())("rules bb-0.8.6 and the packs on the $name store 
       else expect(r.body.error, JSON.stringify(rules)).toMatch(/^snapshot\.rules: /);
     }
     expect(seen).toEqual(Object.fromEntries(NEAR.map((r) => [JSON.stringify(r), PATTERN_OK(r) ? 422 : 400])));
-    // the same honest decks of the four heroes under bb-0.8.3: refused; under bb-0.8.6: stored
+    // the same honest decks of the four heroes under bb-0.8.3: refused; under bb-0.8.7: stored
     for (const hero of HEROES4) {
       const old = await post(fresh(dusk(hero, 3, heroStartBuild(hero), OLD_RULES)));
       expect([old.status, old.body.error], hero).toEqual([422, refused(OLD_RULES)]);
