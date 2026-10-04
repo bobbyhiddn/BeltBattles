@@ -42,7 +42,7 @@ async function openRun(page, day, runes, pick) {
   await page.evaluate(([d, list, p]) => {
     window.bb.openDawn({ hero: "furnace", day: d, gold: 12, seed: 12345 });
     const r = window.bb.game.run;
-    r.build.runes = list.map((id) => ({ id }));
+    window.bb.holdRunes(list); // as taken: a HULL or BELT rune's amount on the build (run.ts takeRune)
     if (p) r.runeDay = d;
     else delete r.runeDay;
   }, [day, runes, pick]);

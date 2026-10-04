@@ -27,6 +27,7 @@ import type { Arena } from "./game/arena";
 import { onlineSession, resolveServerUrl, startOnline } from "./game/online";
 import { ReplayScreen } from "./screens/replay";
 import { currentName } from "./game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063) tooling
+import { runeGrants } from "./sim/runes"; // RUNES-1 (REQ-BFG-058) tooling
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -88,6 +89,19 @@ game.start();
   maxGoldByDay: (day: number) => maxGoldByDay(day),
   setupRun(o: RunSpec = {}): void {
     game.run = setupRun(o);
+  },
+  /** RUNES-1 tooling (shots): the run holds `ids` in pick order as if each was taken at its dawn (run.ts takeRune: a
+   *  HULL or BELT rune's amount on build.hullBonus / build.beltCap); replaces what it held before. */
+  holdRunes(ids: string[]): void {
+    const run = game.run;
+    if (!run) return;
+    const was = runeGrants(run.build.runes, run.day);
+    run.build.hullBonus -= was.hull;
+    run.build.beltCap -= was.belt;
+    run.build.runes = ids.map((id) => ({ id }));
+    const now = runeGrants(run.build.runes, run.day);
+    run.build.hullBonus += now.hull;
+    run.build.beltCap += now.belt;
   },
   openDawn(o: RunSpec = {}, ghosts: GhostSpec[] = []): void {
     clearPool();
