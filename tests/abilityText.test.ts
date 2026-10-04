@@ -330,8 +330,9 @@ describe("0.6.2t T5: next star, merge progress and MERGES WITH, as sentences", (
         expect(numbers(next!).every((n) => numbers(abilityText(d.id, s + 1, { k }).sentences.join(" ")).includes(n) || n === s + 1 || (!!belts && n === outputsAt(d.id, s + 1))), id).toBe(true);
       }
     }
-    // bb-0.8.3: FOURTH ARM (0.8.0: "NEXT STAR: FEEDS 3 BELTS.", THIRD ARM): 0.7 seconds, and 4 belts
-    expect(nextStarText("gantry", 1)).toBe("NEXT STAR: A PLAIN SLUG EVERY 0.7 SECONDS, 4 BELTS.");
+    // bb-0.8.3: FOURTH ARM (0.8.0: "NEXT STAR: FEEDS 3 BELTS.", THIRD ARM): a faster stamp, and 4 belts. T47
+    // (REQ-BFG-047): FASTER, no seconds
+    expect(nextStarText("gantry", 1)).toBe("NEXT STAR: FASTER PLAIN SLUGS, 4 BELTS.");
     expect(nextStarText("temper", 1)).toBe("NEXT STAR: ADDS 2 BURN.");
   });
 

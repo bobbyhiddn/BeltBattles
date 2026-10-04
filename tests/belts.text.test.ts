@@ -6,6 +6,9 @@
 //    next level in one line and the UPGRADE button with its price.
 //  - A starting turret's panel says its TURRET SPEED level and next level in one line, and leads with its UPGRADE button.
 //  - Every bought factory's next-star and MERGES WITH lines close with its belt slots at that star ("..., 3 BELTS.").
+//  - T47 (REQ-BFG-047, whole numbers only): none of these lines shows a decimal. The cycles, the turret's speed-up, the
+//    ride scaling, the fray and the pendulum's peak are said in words (FASTER, MORE); the belts, damage, gold and level
+//    stay numbers, each still the sim's. tests/t47.decimals.test.ts checks every T47 text.
 import { describe, expect, it } from "vitest";
 import { AMMO, FRAY_BONUS, FRAY_MAX, ITEMS, TURRET_SPEED, UPGRADE_PRICE, type HeroId } from "../src/sim/content";
 import { PENDULUM } from "../src/sim/races/data";
@@ -25,23 +28,27 @@ const base = (def: string, s: number): number => effectAt(def, s).factory!.base 
 const LEVELS = [1, 2, 3, 4];
 
 describe("M4: the signature factories' text at every FACTORY level, each number the sim's", () => {
-  it("the KILN, LOOM, CLOCKWORKS and SUMP: cycle, slots and slug at levels 1-4; the KILN's ride scaling, the LOOM's fray, the pendulum", () => {
+  it("the KILN, LOOM, CLOCKWORKS and SUMP: slots and slug at levels 1-4, no decimal (T47); the KILN's ride scaling, the LOOM's fray and the pendulum in words", () => {
     for (const s of LEVELS) {
-      const k = abilityText("kiln", s).sentences, iv = (d: string) => effectAt(d, s).factory!.interval;
+      const k = abilityText("kiln", s).sentences;
       expect(k).toEqual([
-        `STAMPS A CINDER SLUG EVERY ${iv("kiln")} SECONDS, ONTO UP TO ${outputsAt("kiln", s)} BELTS IN TURN.`,
-        `A CINDER SLUG DEALS ${base("kiln", s)} DAMAGE, AND ${AMMO.cinder.rideScale} MORE DAMAGE FOR EACH SECOND IT RIDES.`,
+        `STAMPS CINDER SLUGS ONTO UP TO ${outputsAt("kiln", s)} BELTS IN TURN.`,
+        `A CINDER SLUG DEALS ${base("kiln", s)} DAMAGE, AND MORE THE LONGER IT RIDES.`,
       ]);
-      expect(numbers(k.join(" "))).toEqual([iv("kiln"), outputsAt("kiln", s), base("kiln", s), AMMO.cinder.rideScale]);
+      expect(numbers(k.join(" "))).toEqual([outputsAt("kiln", s), base("kiln", s)]);
       const l = abilityText("loom", s).sentences;
-      expect(numbers(l.join(" "))).toEqual([iv("loom"), outputsAt("loom", s), base("loom", s), FRAY_BONUS, FRAY_MAX]);
+      expect(numbers(l.join(" "))).toEqual([outputsAt("loom", s), base("loom", s), FRAY_MAX]);
       const c = abilityText("clockworks", s).sentences;
-      expect(numbers(c.join(" "))).toEqual([iv("clockworks"), outputsAt("clockworks", s), PENDULUM.floor, PENDULUM.floor + PENDULUM.swing, PENDULUM.peak, 10]);
+      expect(numbers(c.join(" "))).toEqual([outputsAt("clockworks", s), PENDULUM.floor, PENDULUM.floor + PENDULUM.swing]);
       const p = abilityText("sump", s).sentences;
-      expect(numbers(p.join(" "))).toEqual([iv("sump"), outputsAt("sump", s), base("sump", s)]);
+      expect(numbers(p.join(" "))).toEqual([outputsAt("sump", s), base("sump", s)]);
+      for (const t of [k, l, c, p]) expect(t.join(" "), `L${s}`).not.toMatch(/\d\.\d/);
     }
-    expect(abilityText("kiln", 2).sentences[0]).toBe("STAMPS A CINDER SLUG EVERY 0.98 SECONDS, ONTO UP TO 3 BELTS IN TURN.");
-    expect(abilityText("loom", 4).sentences[0]).toBe("WEAVES A THREAD SLUG EVERY 0.41 SECONDS, ONTO UP TO 6 BELTS IN TURN.");
+    // the words stand for real effects: a cinder slug gains damage as it rides, and every fray adds damage
+    expect(AMMO.cinder.rideScale).toBeGreaterThan(0);
+    expect(FRAY_BONUS).toBeGreaterThan(0);
+    expect(abilityText("kiln", 2).sentences[0]).toBe("STAMPS CINDER SLUGS ONTO UP TO 3 BELTS IN TURN.");
+    expect(abilityText("loom", 4).sentences[0]).toBe("WEAVES THREAD SLUGS ONTO UP TO 6 BELTS IN TURN.");
   });
 
   it("the numbers are the battle's: the hero factory's slug base and cycle at each FACTORY level", () => {
@@ -57,15 +64,17 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
     for (const def of SIGNATURE_FACTORIES) {
       for (const s of [1, 2, 3]) expect(nextStarText(def, s), `${def} ${s}`).toBeNull();
       expect(cardText(def), def).not.toMatch(/OWN|COPY|COPIES|MERGE/);
-      // the next level in one line, its numbers the sim's: the belts at the next level and its cycle
+      // the next level in one line (T47: no decimal): the belts at the next level, the sim's, and FASTER, which the
+      // next level's shorter cycle makes true
       for (const l of [1, 2, 3]) {
         const next = factoryNext(def, l)!;
-        expect(next, `${def} L${l}`).toBe(`NEXT: ${outputsAt(def, l + 1)} BELTS, A SLUG EVERY ${effectAt(def, l + 1).factory!.interval} SEC`);
-        expect(numbers(next)).toEqual([outputsAt(def, l + 1), effectAt(def, l + 1).factory!.interval]);
+        expect(next, `${def} L${l}`).toBe(`NEXT: ${outputsAt(def, l + 1)} BELTS, FASTER`);
+        expect(numbers(next)).toEqual([outputsAt(def, l + 1)]);
+        expect(effectAt(def, l + 1).factory!.interval, `${def} L${l}`).toBeLessThan(effectAt(def, l).factory!.interval);
       }
       expect(factoryNext(def, 4)).toBeNull();
     }
-    expect(factoryNext("kiln", 1)).toBe("NEXT: 3 BELTS, A SLUG EVERY 0.98 SEC");
+    expect(factoryNext("kiln", 1)).toBe("NEXT: 3 BELTS, FASTER");
     expect([1, 2, 3, 4].map(upgradeLabel)).toEqual(["UPGRADE 10G", "UPGRADE 20G", "UPGRADE 30G", null]);
     expect([1, 2, 3].map((l) => numbers(upgradeLabel(l)!)[0])).toEqual([UPGRADE_PRICE[2], UPGRADE_PRICE[3], UPGRADE_PRICE[4]]);
     // FURNACE's KILN panel at levels 1-4: the level line, the next line (none at 4), the button (none at 4), no copy text
@@ -94,12 +103,14 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
       const line = `SPEED ${turretSpeedRow(fires, l)}.`;
       expect(t.body.map((b) => b.text), `L${l}`).toContain(line);
       if (l < 4) {
-        expect(turretNext(fires, l)).toBe(`NEXT: FIRES EVERY ${+(fires * TURRET_SPEED[l + 1] / TURRET_SPEED[l]).toFixed(2)} SEC`);
+        expect(turretNext(fires, l)).toBe("NEXT: FIRES FASTER"); // T47: no seconds
+        expect(line).toBe(`SPEED LEVEL ${l}/4, NEXT: FASTER.`);
         expect(t.labels[0], `L${l}`).toBe(upgradeLabel(l));
         buyUpgrade(run, "turret");
-        // the next line's number is the next level's battle interval
+        // FASTER is the battle's: the next level's interval is this one scaled by TURRET_SPEED, and shorter
         const after = new Battle(run.build, barge(), SEED).sides[0].turrets[0].interval;
-        expect(numbers(turretNext(fires, l)!)[0]).toBe(+after.toFixed(2));
+        expect(+after.toFixed(2)).toBe(+((fires * TURRET_SPEED[l + 1]) / TURRET_SPEED[l]).toFixed(2));
+        expect(after).toBeLessThan(fires);
       } else {
         expect(line).toBe("SPEED LEVEL 4/4.");
         expect(t.labels[0]).not.toMatch(/UPGRADE/);

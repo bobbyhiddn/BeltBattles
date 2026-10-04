@@ -22,27 +22,29 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
   it("the CRUCIBLE: its pour, the blank, the window and the fusion, each number the sim's", () => {
     const t = abilityText("crucible").sentences;
     expect(t).toEqual([
-      "POURS AN ALLOY BLANK ONTO EACH OF ITS 2 BELTS EVERY 1.6 SECONDS, ALL AT THE SAME MOMENT.",
+      // T47 (REQ-BFG-047): no seconds; its cycle moves with its FACTORY level (the blank, the window and the fusion keep
+      // 0.8.4's numbers until the numbers release)
+      "POURS AN ALLOY BLANK ONTO EACH OF ITS 2 BELTS AT THE SAME MOMENT.",
       "AN ALLOY BLANK DEALS 3.5 DAMAGE.",
       "TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN 0.25 SECONDS OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH 1.15 TIMES THEIR DAMAGE.",
       "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
     ]);
-    const f = ITEMS.crucible.factory!;
     // "TWO BLANKS ... ONE TURRET": a pair, at one gun (the sync rule's own words)
     // bb-0.8.3 (REQ-BFG-042 D2): FactorySpec.outputs is gone; the belt slots at ★1 are outputsAt's (2, as before)
-    expect(numbers(t.join(" "))).toEqual([outputsAt("crucible", 1), f.interval, AMMO.blank.base, 2, 1, SYNC_WINDOW, FUSE_MULT]);
+    expect(numbers(t.join(" "))).toEqual([outputsAt("crucible", 1), AMMO.blank.base, 2, 1, SYNC_WINDOW, FUSE_MULT]);
   });
 
   it("the WARDWORKS: its stamp, the bulwark slug, the plating, the cap, what plating soaks and the dark wind", () => {
     const t = abilityText("wardworks").sentences;
     expect(t).toEqual([
-      "STAMPS A BULWARK SLUG EVERY 1.1 SECONDS, ONTO UP TO 2 BELTS IN TURN.", // bb-0.8.3 (REQ-BFG-042 M4): its belts
+      // bb-0.8.3 (REQ-BFG-042 M4): its belts; T47 (REQ-BFG-047): no seconds, as its cycle moves with its FACTORY level
+      "STAMPS BULWARK SLUGS ONTO UP TO 2 BELTS IN TURN.",
       "A BULWARK SLUG DEALS 5 DAMAGE.",
       "EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY 2, UP TO 24 PLATING; A SPLITTER COPY PLATES BY ITS SHARE.",
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
     ]);
-    expect(numbers(t.join(" "))).toEqual([ITEMS.wardworks.factory!.interval, outputsAt("wardworks", 1), AMMO.bulwark.base, 1, PLATE_PER_SLUG, PLATE_CAP]);
+    expect(numbers(t.join(" "))).toEqual([outputsAt("wardworks", 1), AMMO.bulwark.base, 1, PLATE_PER_SLUG, PLATE_CAP]);
   });
 
   it("T2: no banned shorthand; whole sentences; every sentence wraps inside every panel width", () => {

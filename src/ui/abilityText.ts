@@ -611,8 +611,14 @@ const ENTRIES: Record<string, Entry> = {
       `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN, STAMPING ${f(e).base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(f(e).interval)}.`,
     ],
     // bb-0.8.3 (REQ-BFG-042 M4): the next-star and MERGES WITH lines lead with a factory's belts at that star (nextStarText),
-    // so the gist says the rest: FOURTH ARM's faster stamp, HEAVY GANTRY's slugs
-    gist: (e) => (f(e).base !== undefined ? `${damage(slugBase(e))} SLUGS` : `A PLAIN SLUG ${every(f(e).interval)}`),
+    // so the gist says the rest: FOURTH ARM's faster stamp, HEAVY GANTRY's slugs. T47 (REQ-BFG-047): no seconds, so ★1
+    // says its belts (0.8.4's gist) and FOURTH ARM says FASTER
+    gist: (e, x) =>
+      f(e).base !== undefined
+        ? `${damage(slugBase(e))} SLUGS`
+        : f(e).interval < f(effectAt(e.id, 1)).interval
+          ? "FASTER PLAIN SLUGS"
+          : `FEEDS ${outputsAt(e.id, x.stars)} BELTS`,
     card: (e, x) => `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN`,
   },
   scrapper: {
@@ -695,15 +701,15 @@ const ENTRIES: Record<string, Entry> = {
       const n = outputsAt(e.id, x.stars), pour = f(e).pour ?? 2;
       return [
         n <= pour
-          ? `POURS AN ALLOY BLANK ONTO EACH OF ITS ${plural(n, "BELT")} ${every(f(e).interval)}, ALL AT THE SAME MOMENT.`
-          : `POURS AN ALLOY BLANK ONTO ${pour} OF ITS ${n} BELTS ${every(f(e).interval)}, ALL AT THE SAME MOMENT, TAKING ITS BELTS IN TURN.`,
+          ? `POURS AN ALLOY BLANK ONTO EACH OF ITS ${plural(n, "BELT")} AT THE SAME MOMENT.`
+          : `POURS AN ALLOY BLANK ONTO ${pour} OF ITS ${n} BELTS AT THE SAME MOMENT, TAKING ITS BELTS IN TURN.`,
         `AN ALLOY BLANK DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every level (its levels grow its cycle only)
         `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)} OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH ${times2(FUSE_MULT)} THEIR DAMAGE.`,
         "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
       ];
     },
     // bb-0.8.3 (oracle 6c20deea1363d0bb): a level grows the cycle only (the blank's damage is the same at every level)
-    gist: (e) => `POURS ${f(e).pour} ALLOY BLANKS ${every(f(e).interval)}`,
+    gist: (e) => `POURS ${f(e).pour} ALLOY BLANKS`, // T47 (REQ-BFG-047): no seconds
   },
   // bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10, M4): FURNACE's, WEAVER's, METRONOME's and SIPHON's own factories level up
   // through the hero's FACTORY upgrade, so their panels read their numbers at their level, as a sold module's do at its
@@ -712,46 +718,46 @@ const ENTRIES: Record<string, Entry> = {
     // payloadDamage: the slug's base (the same at every level: oracle 6c20deea1363d0bb) + AMMO.cinder.rideScale a second
     // of ride. A level changes its cycle and its belts, nothing else
     text: (e, x) => [
-      `STAMPS A CINDER SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
-      `A CINDER SLUG DEALS ${damage(slugBase(e))}, AND ${moreDamage(AMMO.cinder.rideScale)} FOR EACH SECOND IT RIDES.`,
+      `STAMPS CINDER SLUGS ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
+      `A CINDER SLUG DEALS ${damage(slugBase(e))}, AND MORE THE LONGER IT RIDES.`, // T47 (REQ-BFG-047): no decimal
     ],
-    gist: (e) => `CINDER SLUGS ${every(f(e).interval)}`,
+    gist: () => "CINDER SLUGS", // T47 (REQ-BFG-047): no seconds
   },
   loom: {
     // races-free: AMMO.thread (FRAY_BONUS a fray stack on every later hit, up to FRAY_MAX), the slug's base
     text: (e, x) => [
-      `WEAVES A THREAD SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
-      `A THREAD SLUG DEALS ${damage(slugBase(e))}, AND EACH ONE THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`,
+      `WEAVES THREAD SLUGS ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
+      `A THREAD SLUG DEALS ${damage(slugBase(e))}, AND EACH ONE THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS MORE DAMAGE, UP TO ${FRAY_MAX} FRAY.`, // T47 (REQ-BFG-047): no decimal
     ],
-    gist: (e) => `THREAD SLUGS ${every(f(e).interval)}`, // the cycle only, as the KILN's
+    gist: () => "THREAD SLUGS", // T47 (REQ-BFG-047): no seconds
   },
   clockworks: {
     // races/data.ts pendulumCurve: PENDULUM.floor, rising to floor + swing at PENDULUM.peak seconds of ride, then falling
     text: (e, x) => [
-      `STAMPS A PENDULUM SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
-      `A PENDULUM SLUG DEALS ${damage(PENDULUM.floor)}, RISING TO ${damage(PENDULUM.floor + PENDULUM.swing)} AFTER ${seconds(PENDULUM.peak)} OF RIDE (${peakTiles(PENDULUM.peak)} TILES), THEN FALLING AGAIN.`,
+      `STAMPS PENDULUM SLUGS ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
+      `A PENDULUM SLUG DEALS ${damage(PENDULUM.floor)}, RISING TO ${damage(PENDULUM.floor + PENDULUM.swing)} PARTWAY THROUGH ITS RIDE, THEN FALLING AGAIN.`, // T47 (REQ-BFG-047)
     ],
-    gist: (e) => `PENDULUM SLUGS ${every(f(e).interval)}`,
+    gist: () => "PENDULUM SLUGS", // T47 (REQ-BFG-047): no seconds
   },
   sump: {
     // races/siphon.ts sumpProduce (in turn, each slug marked for the gun its belt feeds: DRAG or ECHO)
     text: (e, x) => [
-      `STAMPS A LEECH SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
+      `STAMPS LEECH SLUGS ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`,
       `A LEECH SLUG DEALS ${damage(slugBase(e))}.`,
     ],
-    gist: (e) => `LEECH SLUGS ${every(f(e).interval)}`, // the cycle only, as the KILN's
+    gist: () => "LEECH SLUGS", // T47 (REQ-BFG-047): no seconds
   },
   wardworks: {
     // races/bastion.ts plateOnLoad (PLATE_PER_SLUG x the split multiplier, at load, PLATE_CAP) and absorb (impacts and
     // Burn); battle.ts: the dark wind never meets the plating
     text: (e, x) => [
-      `STAMPS A BULWARK SLUG ${every(f(e).interval)}, ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`, // bb-0.8.3 (M4)
+      `STAMPS BULWARK SLUGS ONTO UP TO ${plural(outputsAt(e.id, x.stars), "BELT")} IN TURN.`, // bb-0.8.3 (M4)
       `A BULWARK SLUG DEALS ${damage(slugBase(e))}.`, // bb-0.8.3: the same at every level (oracle 6c20deea1363d0bb)
       `EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY ${n1(PLATE_PER_SLUG)}, UP TO ${PLATE_CAP} PLATING; A SPLITTER COPY PLATES BY ITS SHARE.`,
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
     ],
-    gist: (e) => `BULWARK SLUGS ${every(f(e).interval)}`, // bb-0.8.3 (M4): the cycle only, as the KILN's
+    gist: () => "BULWARK SLUGS", // bb-0.8.3 (M4); T47 (REQ-BFG-047): no seconds
   },
   mimic: {
     // Battle.factoryDef: the hero's ammo at the hero factory's interval x intervalMul; bb-0.8.3 (REQ-BFG-042 D3): its belt

@@ -167,8 +167,9 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
     slagpot: ["7 DAMAGE SLAG EVERY 2.8 SECONDS", "12 DAMAGE SLAG EVERY 2.2 SECONDS", "15 DAMAGE SLAG EVERY 1.75 SECONDS"],
     assembly: ["RIGS ONLINE IN HALF THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME", "ALL RIGS ONLINE AT ONCE"],
     // bb-0.8.3 (REQ-BFG-042 D3, M4): its belts (3 / 4 / 5, were 2 / 3 / 3) close the next-star line, so the clause is
-    // FOURTH ARM's stamp (0.8.0: "FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS")
-    gantry: ["A PLAIN SLUG EVERY 1.2 SECONDS", "A PLAIN SLUG EVERY 0.7 SECONDS", "6 DAMAGE SLUGS"],
+    // FOURTH ARM's stamp (0.8.0: "FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS"). T47 (REQ-BFG-047): no seconds, so
+    // ★1 says its belts (as 0.8.4 did) and FOURTH ARM says FASTER
+    gantry: ["FEEDS 3 BELTS", "FASTER PLAIN SLUGS", "6 DAMAGE SLUGS"],
   };
   // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS ★2 is FOURTH ARM (was THIRD ARM)
   const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", "HOT START"], gantry: ["FOURTH ARM", "HEAVY GANTRY"] };
