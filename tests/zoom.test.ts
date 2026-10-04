@@ -435,7 +435,10 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
       const want: Record<string, [number, number, number]> = {
         // U2a (REQ-BFG-046): the new faces are shorter: more panels in the band, and in their fullest form
         // U2b (REQ-BFG-046): the rig, gear and supply faces too: 390x660 [789, 856] to [805, 860], 390x664 [801, 856] to [811, 860]
-        "390x660": [104, 805, 860], "390x664": [106, 811, 860], "402x690": [122, 852, 878], "430x739": [151, 884, 885], "390x844": [162, 885, 885],
+        // U2c step 4 (REQ-BFG-046): the installed turret's stat row is one line (its FIRES, CHAMBER and LOAD TIME rows were
+        // three): more turret panels in the band, and in their fullest form: 390x660 [805, 860] to [805, 864], 390x664 [811, 860]
+        // to [811, 864], 402x690 [852, 878] to [861, 881], 430x739 [884, 885] to [885, 885]
+        "390x660": [104, 805, 864], "390x664": [106, 811, 864], "402x690": [122, 861, 881], "430x739": [151, 885, 885], "390x844": [162, 885, 885],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

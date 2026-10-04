@@ -20,6 +20,12 @@ import { abilityText, cardText, clashShortText, gatlingClashText, gist, mergePro
 import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
 import { faceLines } from "../src/ui/faces"; // U2a
+import { speedPair } from "../src/ui/faces"; // U2c step 4: the installed turret's stat row
+import { statRow } from "../src/ui/icons"; // U2c step 4
+import { fmtCount, fmtSec } from "../src/ui/statFormat"; // U2c step 4
+import { icons, stripIcons } from "../src/render/font"; // U2c step 4
+import { resolveCore } from "../src/sim/cores"; // U2c step 4
+import { glossaryText } from "../src/ui/glossary"; // U2c step 4: COMPOUND BREECH's hold, its tap text
 import { MODULES, STARS, SUPPLIES, banned, numbers, repeats, sentencesOf, starsOf } from "./textRules";
 
 // 0.6.2t (REQ-BFG-032): the panels. T6's phone fit for every buyable module at every star (rigs, factories, cores,
@@ -445,9 +451,10 @@ describe("0.6.2t T4: the panels' layout", () => {
     run.build.mods.push({ uid: 5, def: "scatter", turret: 0, stars: 2 } as Run["build"]["mods"][number]);
     const laid = lay(turretPanel(run, 0)!.body, 116, "5").filter((l) => l.b.role === "row");
     const indents = (labels: string[]) => new Set(laid.filter((l) => labels.includes(l.b.label!)).flatMap((l) => l.lines.map((x) => x.indent)));
-    expect(laid.map((l) => l.b.label)).toEqual(["CORE", "GEAR", "FIRES", "CHAMBER", "LOAD TIME"]);
-    // 0.6.2t2 (F2): the stat rows after the widest of their labels (LOAD TIME), the part names after CORE and GEAR
-    expect([...indents(["FIRES", "CHAMBER", "LOAD TIME"])]).toEqual([textWidth("LOAD TIME", "5") + 5]);
+    // U2c step 4 (REQ-BFG-046): the turret's numbers are its stat row (no labels: FIRES, CHAMBER and LOAD TIME went), so the
+    // labelled rows are the CORE and GEAR rows, their names after CORE (was: the stat rows after LOAD TIME, the names apart)
+    expect(laid.map((l) => l.b.label)).toEqual(["CORE", "GEAR"]);
+    expect(turretPanel(run, 0)!.body[0].text).toBe(turretFace(run).stats);
     expect([...indents(["CORE", "GEAR"])]).toEqual([textWidth("CORE", "5") + 5]);
     const sr = slagRun(1);
     const grid = lay(routePanel(sr, sr.build.routes.length - 1)!.body, 116, "5").filter((l) => l.b.role === "grid").flatMap((l) => l.lines);
@@ -800,7 +807,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // U2b (REQ-BFG-046): the rig and gear faces are shorter again, so more desk panels (rigs, mostly) fit their hint
     // (179 to 126 on release-084). 0.8.6 move: 0.8.5's TURRET SPEED UPGRADE button and the faces: 202 to 153, measured
     // U2c group 0 fix 1: 154, SURGE VALVE's rule says its pulse (its speed and length), a line longer on the desk column
-    expect([withHint, missing.length]).toEqual([1934, 154]);
+    // U2c step 4: 138, the installed turrets' stat row (one line, was three rows) leaves 16 more desk panels room for the hint
+    expect([withHint, missing.length]).toEqual([1934, 138]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -851,43 +859,53 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
    *  with the most (HAIL GUN ★3: 5; no light gun reaches 6). */
   const GUNS: [string, number][] = [["scrapcannon", 1], ["dartgun", 1], ["thunderer", 3], ["hailgun", 3]];
 
-  it("the turret's rows, written out: CHAMBER counts loads (and a HOPPER's store), LOAD TIME names the seconds", () => {
-    const stat = (core: string | null, cs: number, gear: [string, number][] = []) => {
-      const r = rows(turretPanel(fitted("scrapcannon", 1, core, cs, gear), 0)!);
-      return [r.FIRES, r.CHAMBER, r["LOAD TIME"]];
+  it("the turret's stat row, written out: how often it fires, its loads (a HOPPER's store in the note), its gear slots; no LOAD TIME", () => {
+    // U2c step 4 (REQ-BFG-046; N1 6.6): FIRES, CHAMBER and LOAD TIME became the stat row ({SEC} cadence, {SLUG} loads, {GEAR}
+    // slots) and one short note (NEVER JAMS, a HOPPER's store, PRESSURE's cap); the load time is a hidden timer. The same
+    // numbers as the rows read, through the formatters (was ["EVERY 1 SEC", "3 LOADS", "1.5 SEC"] and so on)
+    const face = (core: string | null, cs: number, gear: [string, number][] = []) => {
+      const f = turretFace(fitted("scrapcannon", 1, core, cs, gear));
+      return [f.stats, f.note];
     };
-    expect(stat(null, 1)).toEqual(["EVERY 1 SEC", "3 LOADS", "1.5 SEC"]); // the KILN BREECH: WINDOW_TIME
-    expect(stat("rotary", 1)).toEqual(["EVERY 1 SEC", "3 LOADS", "0.8 SEC"]); // CUTS THE LOAD TIME TO 0.8 SECONDS
-    // 0.6.2 FB-B: every HOPPER star adds 1 slot and 0.5 SECONDS; ★2 and ★3 store 1 and 2 loads while firing; ★3 never jams
-    expect(stat("rotary", 1, [["hopper", 3]])).toEqual(["EVERY 1 SEC", "4 LOADS, STORES 2 LOADS WHILE FIRING, NEVER JAMS", "1.3 SEC"]);
-    expect(stat(null, 1, [["hopper", 1]])).toEqual(["EVERY 1 SEC", "4 LOADS", "2 SEC"]);
-    expect(stat(null, 1, [["hopper", 2]])).toEqual(["EVERY 1 SEC", "4 LOADS, STORES 1 LOAD WHILE FIRING", "2 SEC"]);
-    expect(stat("pressure", 2)).toEqual(["EVERY 1 SEC", "3 LOADS, NEVER JAMS", "1.5 SEC"]);
-    expect(stat("salvo", 1)).toEqual(["EVERY 1.6 SEC", "3 LOADS", "1.5 SEC"]); // its text: OR TWICE ITS LOAD TIME
-    // COMPOUND BREECH: its own hold; HOPPER's seconds don't move it (0.6.2rel2)
-    expect(stat("compound", 1, [["hopper", 3]])).toEqual(["EVERY 1 SEC", "4 LOADS, STORES 2 LOADS WHILE FIRING, NEVER JAMS", "3 SEC"]);
-    expect(stat("gatling", 1, [["hopper", 1]])).toEqual(["EVERY 1 SEC", "4 LOADS", undefined]); // it never waits
-    expect(stat(null, 1, [["chamber", 2]])).toEqual(["EVERY 1 SEC, 2 LOADS EACH SHOT", "4 LOADS", "1.5 SEC"]);
+    const row = (every: number, loads: number) => statRow([speedPair(every), ["SLUG", fmtCount(loads)], ["GEAR", fmtCount(1)]]);
+    expect(face(null, 1)).toEqual([row(1, 3), undefined]); // the KILN BREECH
+    expect(face("rotary", 1)).toEqual([row(1, 3), undefined]);
+    // 0.6.2 FB-B: every HOPPER star adds 1 slot; ★2 and ★3 store 1 and 2 loads while firing; ★3 never jams
+    expect(face("rotary", 1, [["hopper", 3]])).toEqual([row(1, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
+    expect(face(null, 1, [["hopper", 1]])).toEqual([row(1, 4), undefined]);
+    expect(face(null, 1, [["hopper", 2]])).toEqual([row(1, 4), icons(`STORES +${fmtCount(1)} {SLUG} WHILE IT FIRES.`)]);
+    // PRESSURE BREECH never jams and counts at most 5 loads waiting (U2b's ledger: its cap in the turret's stat rows)
+    expect(face("pressure", 2)).toEqual([row(1, 3), icons(`NEVER JAMS. MAX ${fmtCount(ITEMS.pressure.core!.maxCount!)} {SLUG} WAITING COUNT.`)]);
+    expect(face("salvo", 1)).toEqual([row(1.6, 3), undefined]); // its volley reload, as the FIRES row read it
+    expect(face("compound", 1, [["hopper", 3]])).toEqual([row(1, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
+    expect(face("gatling", 1, [["hopper", 1]])).toEqual([row(1, 4), undefined]);
+    expect(face(null, 1, [["chamber", 2]])).toEqual([row(1, 4), undefined]); // 2 LOADS EACH SHOT: EXT. CHAMBER's own rule, under its GEAR row
+    expect(stripIcons(faceLines("chamber", 2)!.rules[0].text)).toBe(`EACH SHOT FIRES ${fmtCount(effectAt("chamber", 2).mod!.perShot!)} .`);
   });
 
-  it("0.6.2rel2: LOAD TIME is what the battle waits, every core at every star, no HOPPER and HOPPER ★1-★3, heavy and light", () => {
+  it("0.6.2rel2: the load time is what the battle waits (U2c: a hidden timer, on no turret panel), every core at every star, no HOPPER and HOPPER ★1-★3, heavy and light", () => {
     // makeTurret builds the slot's turret as the battle does; each core's ready (cores.ts ROUTINES) is the wait
     const load = {} as TurretState["stack"][number];
     let n = 0;
     for (const def of ["scrapcannon", "dartgun"]) for (const core of CORES) for (const s of STARS) for (const hs of [0, 1, 2, 3]) {
       const run = fitted(def, 1, core, s, hs ? [["hopper", hs]] : []);
       const tu = makeTurret(run.build, 0, turretSlots(run.build)[0].td!);
-      const shown = rows(turretPanel(run, 0)!)["LOAD TIME"];
+      // U2c step 4 (N1 6.6): the turret panel shows no load time in any form (was its LOAD TIME row, checked equal to the
+      // wait below); the stat row is the battle's turret (turretFace)
+      const t = turretPanel(run, 0)!;
+      // (a gear piece's own text may name it: HOPPER's "LONGER LOAD TIME", the clash on a GATLING or COMPOUND)
+      expect([t.body, ...(t.variants ?? []).map((v) => v.body)].flat().some((x) => x.label === "LOAD TIME" || /^ITS LOAD TIME IS/.test(x.text)), def).toBe(false);
+      expect(t.body.find((b) => b.role !== "warn")!.text).toBe(turretFace(run).stats);
+      const shown: string | undefined = undefined;
       const ready = (t: number) => ROUTINES[tu.core.routine].ready({ ...tu, stack: [load], loadTimer: t, fireCd: 0 });
       const id = `${def} ${core ?? "signature"} ★${s}, HOPPER ★${hs}`;
       n++;
-      if (tu.core.routine === "gatling") { // a lone load fires as soon as the barrel allows: no timer, so no LOAD TIME row
+      if (tu.core.routine === "gatling") { // a lone load fires as soon as the barrel allows: no timer
         expect([shown, ready(0)], id).toEqual([undefined, true]);
         continue;
       }
       const lt = tu.core.routine === "compound" ? tu.core.spec.hold ?? 3 : tu.windowTime; // COMPOUND: its hold, never windowTime
-      expect(shown, id).toBe(`${n2(lt)} SEC`);
-      expect(Math.abs(Number(n2(lt)) - lt), id).toBeLessThan(1e-9); // the row shows the wait exactly
+      expect(Math.abs(Number(n2(lt)) - lt), id).toBeLessThan(1e-9); // the glossary's LOAD TIME and COMPOUND's tap text say it exactly
       const wait = tu.core.routine === "salvo" ? 2 * lt : lt; // SALVO RACK waits twice its load time, as its text says
       expect([ready(wait - 0.01), ready(wait)], id).toEqual([false, true]);
       // HOPPER adds 0.5 SECONDS for every star it has, except on a COMPOUND BREECH
@@ -907,12 +925,12 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       const id = `${def} ★${ts} ${core} ★${s} + ${fill.map(([g]) => g).join(",")} ★${s}`;
       for (const b of statRows(t)) expect(bare(b.text), `${id}: ${b.label} ${b.text}`).toEqual([]);
       for (const [label, v] of Object.entries(rows(t))) expect(bare(v), `${id}: ${label} ${v}`).toEqual([]);
-      const r = rows(t);
-      expect(r.CHAMBER, id).toMatch(/^\d+ LOADS(, STORES \d+ LOADS? WHILE FIRING)?(, NEVER JAMS)?$/);
-      const routine = core ? ITEMS[core].core!.routine : "identity";
-      if (routine === "gatling") expect(r["LOAD TIME"], id).toBeUndefined();
-      else expect(r["LOAD TIME"], id).toMatch(/^\d+(\.\d+)? SEC$/);
-      if (routine === "compound") expect(r["LOAD TIME"], id).toBe(`${effectAt(core!, s).core!.hold} SEC`);
+      // U2c step 4: the CHAMBER and LOAD TIME rows became the stat row (each number an icon's) and its note (each number before
+      // its {SLUG}); the stat row is the battle's turret's (makeTurret), the load time a hidden timer (N1 6.6)
+      const run = fitted(def, ts, core, s, fill), f = turretFace(run), want = expectedFace(run);
+      expect([f.stats, f.note], id).toEqual([want.stats, want.note]);
+      if (f.note) expect(stripIcons(f.note).replace(/ +/g, " "), id).toMatch(/^(NEVER JAMS\.)? ?(STORES \+\d+ WHILE IT FIRES\.)? ?(MAX \d+ WAITING COUNT\.)?$/);
+      expect(rows(t)["LOAD TIME"], id).toBeUndefined();
       n++;
     }
     expect(GUNS.map(([d, s]) => gearSlotsOf(d, s))).toEqual([1, 1, 6, 5]);
@@ -1011,7 +1029,11 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
     }
     console.log(`nit 1 desk rungs: ${[...rungs].sort().map(([r, ids]) => `rung ${r}: ${ids.length}${r >= 4 ? ` [${ids.join(", ")}]` : ""}`).join("; ")}; b94077d dropped and now kept: ${rescued.join(", ")}`);
     expect(rungs.get(6) ?? []).toEqual([]);
-    expect(rescued).toContain("turret mantlet ★2"); // the rehearsal REPORT's 8c item 6: SCRAP CANNON with MANTLET ★2
+    // the rehearsal REPORT's 8c item 6: SCRAP CANNON with MANTLET ★2 shows its shield on the desk. U2c step 4: its stat row
+    // (one line, was three rows) leaves b94077d's plan room for the shield too, so it no longer needs rescuing (was
+    // expect(rescued).toContain("turret mantlet ★2")); the shield shows whole either way
+    const mantlet = PANELS.find((p) => p.id === "turret mantlet ★2")!.t;
+    expect([shown(mantlet, DESK).includes(shieldLine(1)), shown(optional(mantlet), DESK).includes(shieldLine(1))]).toEqual([true, true]);
     // the six-gear THUNDERER of text-turret-six-desk.png shows both short lines, whole in the 5x7 face
     const shot = installed("thunderer-shot"), shotPlan = planPanel(shot, DESK);
     expect([shotPlan.body.fits, shotPlan.body.font]).toEqual([true, "5"]);
@@ -1027,8 +1049,12 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
     expect(gearRow([])).toBe("3 EMPTY SLOTS");
     expect(gearRow([["hopper", 2], ["ram", 1]])).toBe("HOPPER ★★, FINISHER RAM AND 1 EMPTY SLOT");
     expect(gearRow([["hopper", 1], ["ram", 1], ["mantlet", 1]])).toBe("HOPPER, FINISHER RAM AND MANTLET");
-    const phone = planPanel(turretPanel(turretRun("siegegun", 1, []), 0)!, PHONE).body.shown.map((l) => l.b);
-    expect(phone.find((b) => b.label === "GEAR")?.text).toBe("3 EMPTY SLOTS");
+    // U2c step 4: the panel's one-row gear list (its last forms) counts them; with the stat row one line (was three rows) the
+    // phone band holds the fuller form, one GEAR row a slot, each EMPTY (was: the phone took the one-row list)
+    const tp = turretPanel(turretRun("siegegun", 1, []), 0)!;
+    expect(tp.variants!.flatMap((v) => v.body).find((b) => b.label === "GEAR" && /EMPTY SLOT/.test(b.text))?.text).toBe("3 EMPTY SLOTS");
+    const phone = planPanel(tp, PHONE).body.shown.map((l) => l.b);
+    expect(phone.filter((b) => /^GEAR/.test(b.label ?? "")).map((b) => b.text)).toEqual(["EMPTY", "EMPTY", "EMPTY"]);
   });
 
   it("nit 5: every belt's sub is whole sentences: a main belt's ends with a full stop, as a joining belt's does", () => {
@@ -1057,7 +1083,9 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
       expect(gatlingClash(run.build, 0, "compound"), id).toEqual([
         `COMPOUND BREECH: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${hs > 1 ? ", BUT ITS STORE STILL WORKS" : ""}.`,
       ]);
-      expect(rows(turretPanel(run, 0)!)["LOAD TIME"], id).toBe(`${n2(hold)} SEC`);
+      // U2c step 4 (N1 6.6): no LOAD TIME row (was `${n2(hold)} SEC`); COMPOUND's tap text says its hold (U2b's ledger)
+      expect(rows(turretPanel(run, 0)!)["LOAD TIME"], id).toBeUndefined();
+      expect(glossaryText("SHOT", { def: "compound", stars: cs, o: { k: 1 } }), id).toContain(`AFTER ${fmtSec(hold)}{SEC}`);
     }
     expect(gatlingClash(turretRun("bombard", 1, [["ram", 2]], ["compound", 1]).build, 0, "compound")).toEqual([]);
     expect(gatlingClash(turretRun("bombard", 1, [["hopper", 1]], ["rotary", 1]).build, 0, "rotary")).toEqual([]);
@@ -1065,6 +1093,24 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
     for (const s of STARS) expect(abilityText("hopper", s).sentences.at(-1)).toBe("ON A GATLING SPOOL OR A COMPOUND BREECH THE LONGER LOAD TIME DOES NOTHING.");
   });
 });
+
+/** U2c step 4: an installed turret's stat row and its note, as its panel draws them (the first blocks after any dead end). */
+function turretFace(run: Run, i = 0): { stats: string; note?: string } {
+  const own = turretPanel(run, i)!.body.filter((b) => b.role !== "warn");
+  return { stats: own[0].text, note: own[1]?.role === "note" ? own[1].text : undefined };
+}
+/** U2c step 4: what that stat row and note say, from the turret the battle builds (makeTurret, resolveCore) through the
+ *  formatters: its interval x SALVO's reload, its window, its slot's gear slots; NEVER JAMS, a HOPPER's store, PRESSURE's cap. */
+function expectedFace(run: Run, i = 0): { stats: string; note?: string } {
+  const sl = turretSlots(run.build)[i], td = sl.td!, tu = makeTurret(run.build, i, td), tc = resolveCore(run.build, i, td);
+  const every = tu.interval * (tc.bought ? tc.spec.reloadMul ?? 1 : 1);
+  const note = [
+    ...(tu.noJam || (tc.bought && tc.spec.noJam) ? ["NEVER JAMS."] : []),
+    ...(tu.storeMax ? [`STORES +${fmtCount(tu.storeMax)} {SLUG} WHILE IT FIRES.`] : []),
+    ...(tc.bought && tc.routine === "pressure" ? [`MAX ${fmtCount(tc.spec.maxCount!)} {SLUG} WAITING COUNT.`] : []),
+  ].join(" ");
+  return { stats: statRow([speedPair(every), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(sl.gearSlots)]]), note: note ? icons(note) : undefined };
+}
 
 /** A panel's labelled rows by label (the full form). */
 function rows(t: PanelText): Record<string, string> {

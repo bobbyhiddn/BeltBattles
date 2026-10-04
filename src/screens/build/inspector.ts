@@ -93,6 +93,10 @@ import { tapRect } from "../../ui/ui"; // shoptap (D5): a finger's tap target ar
 import { tapPx } from "../../ui/tap"; // shoptap (D5)
 import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
 import { faceGist, heroPlaystyle, ruleSpans } from "../../ui/faces"; // U2a
+import { speedPair } from "../../ui/faces"; // U2c step 4: the installed turret's stat row
+import { statRow } from "../../ui/icons"; // U2c step 4
+import { fmtCount } from "../../ui/statFormat"; // U2c step 4
+import { icons } from "../../render/font"; // U2c step 4
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -816,21 +820,22 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   // label moves only those)
   const rowOf = (s: SocketRow): Block => ({ role: "row", label: s.label, text: s.text, keep: true, group: "part" });
   const noJam = tu.noJam || (tc.bought && tc.spec.noJam);
-  // 0.6.2t2 (F2): each number in a row names what it is, in the glossary's words. The LOAD TIME is the wait after the
-  // first load that fires a chamber that isn't full (cores.ts ready), read from the turret state the battle builds
-  // (makeTurret): its window time (the core's, else WINDOW_TIME, plus every HOPPER's seconds), which SALVO RACK doubles
-  // (its text says so); COMPOUND BREECH fires a lone load after its own hold instead; a GATLING SPOOL never waits, so it
-  // has no load time
-  const loadTime = tu.core.routine === "gatling" ? null : tu.core.routine === "compound" ? tu.core.spec.hold ?? 3 : tu.windowTime;
-  // the turret's own numbers: kept in the full and gist forms (the gear-list form says them in an optional sentence)
+  // U2c step 4 (REQ-BFG-046, REQ-BFG-047): the turret's STAT ROW, as its face reads it (faces.ts turretStats: how often it
+  // fires, the loads its chamber holds, its gear slots), at its effective values: the interval makeTurret builds (every
+  // gear piece, the core, the long-belt cadence and the TURRET SPEED level) x SALVO's volley reload, as the FIRES row read
+  // it; the window as the CHAMBER row read it; the slot's gear slots. The LOAD TIME row goes (a hidden timer, N1 6.6).
+  // What the CHAMBER row said beside its loads stays as one short kept note: NEVER JAMS, a HOPPER's store, and PRESSURE
+  // BREECH's cap on the loads waiting it counts (U2b's ledger: "in the turret panel's stat rows").
+  const gearSlots = turretSlots(b)[index]?.gearSlots ?? 0;
+  const capped = tc.bought && tc.routine === "pressure" ? tc.spec.maxCount : undefined;
+  const note = [
+    ...(noJam ? ["NEVER JAMS."] : []),
+    ...(tu.storeMax ? [`STORES +${fmtCount(tu.storeMax)} {SLUG} WHILE IT FIRES.`] : []),
+    ...(capped ? [`MAX ${fmtCount(capped)} {SLUG} WAITING COUNT.`] : []),
+  ].join(" ");
   const stats: Block[] = [
-    { role: "row", label: "FIRES", text: `EVERY ${n2(every)} SEC${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}`, keep: true },
-    {
-      // 0.6.2rel2: a HOPPER ★2/★3's store names what it counts (F2: no bare number), as its gist does
-      role: "row", label: "CHAMBER", keep: true,
-      text: `${tu.window} LOADS${tu.storeMax ? `, STORES ${plural(tu.storeMax, "LOAD")} WHILE FIRING` : ""}${noJam ? ", NEVER JAMS" : ""}`,
-    },
-    ...(loadTime === null ? [] : [{ role: "row", label: "LOAD TIME", text: `${n2(loadTime)} SEC`, keep: true } as Block]),
+    { role: "ability", text: statRow([speedPair(every), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true },
+    ...(note ? [{ role: "note", text: icons(note), keep: true } as Block] : []),
   ];
   // a clash (a piece of gear that does nothing here) and the shield. 0.6.2rel2 (the rehearsal's nit 1): the desk column
   // keeps both (deskKeep), so where they don't fit beside every gear piece's sentence the panel takes the gear's compact
@@ -850,25 +855,17 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `SPEED ${turretSpeedRow(every, tl)}.`, rank: 7 });
   const body: Block[] = [
     ...warn(false),
+    ...stats, // U2c step 4: the stat row first, then the CORE and GEAR rows as now
     ...socketLines(b, index, coreName).flatMap((s, i) =>
       [rowOf(s), ...(i === 0 ? (tc.bought ? first(tc.def, tc.stars, tc.k) : []) : s.def ? first(s.def, s.stars ?? 1, 1) : [])]),
-    ...stats, ...rest,
+    ...rest,
   ];
   const gists = socketLines(b, index, coreGist ? `${coreName}: ${coreGist}.` : coreName, (d, s) => gist(d, s, o(1))).map(rowOf);
   const list = socketLines(b, index, coreName, undefined, true).map(rowOf);
-  // the last form lists the gear on one row and says the stats in a sentence (the stat rows' long labels would narrow
-  // its value column)
-  // 0.6.2rel2: then, where there is room after it (a chain: never alone), the stat rows' load time (their LOAD TIME row)
-  // and a chamber that never jams
-  const more = [...(loadTime === null ? [] : [`ITS LOAD TIME IS ${seconds(loadTime)}.`]), ...(noJam ? ["IT NEVER JAMS."] : [])];
-  const statsText: Block[] = [
-    {
-      role: "ability", rank: 2, chain: "stats",
-      text: `IT FIRES ${everyText(every)}${tu.perShot > 1 ? `, ${tu.perShot} LOADS EACH SHOT` : ""}, AND ITS CHAMBER HOLDS ${plural(tu.window, "LOAD")}${tu.storeMax ? `, ${tu.storeMax} MORE WHILE IT FIRES` : ""}.`,
-    },
-    ...(more.length ? [{ role: "ability", rank: 2, chain: "stats", text: more.join(" ") } as Block] : []),
-  ];
-  const forms = [[...warn(false), ...gists, ...stats, ...rest], [...warn(true), ...gists, ...stats, ...rest], [...warn(true), ...list, ...statsText, ...rest]];
+  // U2c step 4: the last form lists the gear on one row; there the stat row and its note give way where room is short
+  // (rank 2, a chain), as the stat sentences it replaces did, so the shortest band never cuts a kept row
+  const statsLast: Block[] = stats.map((x) => ({ ...x, keep: undefined, rank: 2, chain: "stats" }));
+  const forms = [[...warn(false), ...stats, ...gists, ...rest], [...warn(true), ...stats, ...gists, ...rest], [...warn(true), ...statsLast, ...list, ...rest]];
   // 0.6.2rel2 (the release owner's answer d957272806131146): the desk's last rungs, for a turret whose one-row gear list
   // leaves no room for the whole clash sentences: that list with each clash's short line; then the gear as a count of
   // its pieces with the short lines (the names give way before the warning); the shield in each only if it fits. Last,
@@ -878,8 +875,8 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     const short = gatlingClash(b, index, tc.routine, true).map((text): Block => ({ role: "warn", text, rank: 1, deskKeep: true }));
     const after = [...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 1 } as Block] : []), ...rest.filter((x) => !x.deskKeep)];
     const pieces = gearOn(b, index).slice(0, turretSlots(b)[index]?.gearSlots ?? 0).length;
-    forms.push([...warn(true), ...list, ...statsText, ...short, ...after]);
-    if (short.length) forms.push([...warn(true), list[0], rowOf({ label: "GEAR", text: plural(pieces, "PIECE") }), ...statsText, ...short, ...after]);
+    forms.push([...warn(true), ...statsLast, ...list, ...short, ...after]);
+    if (short.length) forms.push([...warn(true), ...statsLast, list[0], rowOf({ label: "GEAR", text: plural(pieces, "PIECE") }), ...short, ...after]);
     forms.push(optional(forms[2]));
   }
   return {
