@@ -161,9 +161,13 @@ describe("0.8.0 P1: wave 3's panels fit the phone band and the desk column (T6),
   });
 
   it("T2 in every panel's player text (the labelled stat rows aside); the 360x640 strip shows an offer's card line", () => {
+    // U2b F3 (cap's U2a INPUTS): a cap names its unit ("MAX 24 {PLATE}."), so T2's ban on a bare "MAX 6" passes a MAX whose
+    // number is followed by its unit (an icon or a word); every other ban stands (as tests/abilityPanels.test.ts)
+    const capNamesUnit = (s: string): boolean => [...s.matchAll(/\b(?:MAX|CAP)\s*\+?\d+(?:\.\d+)?( +\S+)?/g)]
+      .every((m) => !!m[1] && /^ +(?:[-]|[A-Z]{2,})/.test(m[1]));
     for (const { id, t } of PANELS) for (const b of t.body) {
       if (b.role === "row" || b.role === "grid" || b.role === "hits" || b.role === "note") continue;
-      expect(banned(b.text), `${id}: ${b.text}`).toEqual([]);
+      expect(banned(b.text).filter((why) => why !== "MAX/CAP before a number" || !capNamesUnit(b.text)), `${id}: ${b.text}`).toEqual([]);
     }
     // bb-0.8.6 (PACKS run 2, the lead's ruling R2, Q5's rule (oracle 35e8ebc1eda74818)): 180 x 353, 0.8.5's 174 x 28 strip
     // (its 180 x 320 plus the pack row's 33 px; 180 x 320 itself is now a 174 x 0 band). Since the 0.8.4 zoom a real

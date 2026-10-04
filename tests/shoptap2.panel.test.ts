@@ -269,7 +269,8 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
       expect(sell).toBeGreaterThan(300);
       // only the narrowest build screen (160 px) has panels that need more than PORT_BAND
       // U2a (REQ-BFG-046): 10 (was 18): the new faces are shorter
-      expect(taller, `${name}: panels taller than PORT_BAND`).toBe(v.W < 165 ? 10 : 0);
+      // U2b (REQ-BFG-046): 4: the rig and gear faces are shorter too
+      expect(taller, `${name}: panels taller than PORT_BAND`).toBe(v.W < 165 ? 4 : 0);
       expect(k * PORT_BAND, `${name}: the panel is at least a 69 px band in CSS px`).toBeGreaterThan(130);
     });
   }
@@ -291,12 +292,15 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
       }
       if (taller) counts.push(`W ${W}: ${taller} taller, up to ${most}`);
       else expect(most, `W ${W}`).toBe(PORT_BAND);
+      if (W === 160) console.log(`U2b W 160, taller than PORT_BAND: ${all.filter((c) => opened(v as ReturnType<typeof view>["v"], L, c).area.h > PORT_BAND).map((c) => `${c.id} ${opened(v as ReturnType<typeof view>["v"], L, c).area.h}`).join(" | ")}`);
     }
     // W 160-164: a 375-wide iPhone at x7 (375 x 3 / 7 = 160): a few panels need one line more (STATIC BRUSH, LIMPET ★2,
     // SABOT ★3, OVERDRIVE ★2, GATLING ★2 and GRAPNEL ★3 gear); 165 and up, every panel fits PORT_BAND
     // U2a (REQ-BFG-046): fewer, with the new faces (was 18 / 16 / 15 / 12 / 6 at 160-164); 164 and up, every panel fits
+    // U2b (REQ-BFG-046): 4 / 2 / 2 (SABOT ★3, a RULES piece, and LIMPET ★2, whose F6 clause is one kept line, in cargo and
+    // placed; the console names them), and 163 and up every panel fits
     expect(counts).toEqual([
-      "W 160: 10 taller, up to 75", "W 161: 8 taller, up to 75", "W 162: 7 taller, up to 75", "W 163: 6 taller, up to 75",
+      "W 160: 4 taller, up to 75", "W 161: 2 taller, up to 75", "W 162: 2 taller, up to 75",
     ]);
   }, 120_000); // about 47,000 panels planned: 13 s alone on a loaded host, more under the full suite's 8 workers
 

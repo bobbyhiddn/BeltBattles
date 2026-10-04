@@ -43,6 +43,15 @@ const rows = (ch: string, font: FontId): string[] => {
   return r;
 };
 
+describe("U2b F1: the DMG glyph is a sword (U1's burst read as an asterisk beside a number; CRIT-1's U+E00E is the burst)", () => {
+  it("DMG keeps U+E000 and draws white (no ICON_COLOUR entry): a thick blade up to the right over a crossguard, 5x7 and 3x5", () => {
+    expect(ICON.DMG.charCodeAt(0)).toBe(0xe000);
+    expect(ICON_COLOUR[ICON.DMG]).toBeUndefined();
+    expect(glyphRows(ICON.DMG, "5")).toEqual(["...##", "..###", ".###.", "#.#..", ".#...", "#.#..", "....."]);
+    expect(glyphRows(ICON.DMG, "3")).toEqual(["..#", "..#", ".#.", "###", "#.."]);
+  });
+});
+
 describe("U1 icons: the set", () => {
   it("16 icons: DMG .. PAIR at U+E000 .. U+E00D in the brief's order, one UTF-16 unit each, then HULL ♥ and STAR ★", () => {
     expect(NAMES).toEqual(["DMG", "SEC", "RATE", "SLUG", "BELT", "GEAR", "GOLD", "UP", "BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "HULL", "STAR"]);

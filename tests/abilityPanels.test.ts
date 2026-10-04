@@ -659,10 +659,15 @@ describe("0b.1-0b.3: the other carry-overs", () => {
   });
 
   it("T2 holds in every panel's player text (the labelled stat rows aside)", () => {
+    // U2b F3 (cap's U2a INPUTS): a cap names its unit, one form everywhere ("MAX 15 {FRAY}.", "MAX 6 RIGS."), so T2's ban
+    // on a bare "MAX 6" passes a MAX whose number is followed by its unit (an icon or a word); every other ban stands
+    const capNamesUnit = (s: string): boolean => [...s.matchAll(/\b(?:MAX|CAP)\s*\+?\d+(?:\.\d+)?( +\S+)?/g)]
+      .every((m) => !!m[1] && /^ +(?:[-]|[A-Z]{2,})/.test(m[1]));
     for (const { id, t } of PANELS) for (const b of t.body) {
       if (b.role === "row" || b.role === "grid" || b.role === "hits" || b.role === "note") continue;
-      expect(banned(b.text), `${id}: ${b.text}`).toEqual([]);
+      expect(banned(b.text).filter((why) => why !== "MAX/CAP before a number" || !capNamesUnit(b.text)), `${id}: ${b.text}`).toEqual([]);
     }
+    expect(capNamesUnit("MAX 6.") || capNamesUnit("UP TO MAX 6")).toBe(false); // the check's own test
     expect(C.bone).toBe(ROLE.ability.colour);
   });
 });
@@ -792,7 +797,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // "rig overdrive ★2 3hit spare0", "rig overdrive ★2 idle spare1" (REDLINE's +1 adds a clause; oracle 1cd5224fab866da2)
     // U2a (REQ-BFG-046): 179: the new faces are shorter, so "cargo mantlet ★2"'s neighbours aside three more desk panels
     // fit their hint (the faces' turret cores on installed turrets)
-    expect([withHint, missing.length]).toEqual([1934, 202]); // 0.8.5 move: 0.8.5's TURRET SPEED UPGRADE button cost 220 hints; the shorter faces give 18 back
+    // U2b (REQ-BFG-046): the rig and gear faces are shorter again, so more desk panels (rigs, mostly) fit their hint
+    // (179 to 126 on release-084). 0.8.6 move: 0.8.5's TURRET SPEED UPGRADE button and the faces: 202 to 153, measured
+    expect([withHint, missing.length]).toEqual([1934, 153]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -812,7 +819,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // 111 at 881b38f; 0.6.2rel2 on the 0.6.2 candidate's panels (the REPORT gives b94077d's); 0.8.0 I1 M2: 130 with wave
     // 3's panels (was 115)
     // U2a (REQ-BFG-046): 422: the new faces (a stat row and one rule) leave room for the hint on many more phone panels
-    expect(hints).toBe(422);
+    // U2b (REQ-BFG-046): 497 with the rig, gear and supply faces (and the reminders giving way one at a time, F4)
+    expect(hints).toBe(497);
   });
 });
 

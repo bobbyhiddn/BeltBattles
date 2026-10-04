@@ -301,9 +301,13 @@ describe("D5: every button a finger presses is at least 44 CSS px tall (touch); 
       }
     }
     // U2a (REQ-BFG-046): GRAPNEL GUN, LIMPET WORKS and TESLA ARC draw their new faces, short enough to keep TO CARGO
+    // U2b F6: a placed ★2 HOT SWAP and LIMPET WORKS keep their star's interim perk clause (a face never says less than the
+    // sim), one kept line more, so on this band TO CARGO gives way there again (their text stays whole); SPOTTER's new
+    // face is short enough to keep it
     expect([...gaveWay].sort()).toEqual([
+      "hotswap ★2", "limpet ★2",
       "mantlet ★2 on furnace", "mantlet ★2 on weaver",
-      "overdrive ★2 @0,9", "overdrive ★2 @3,3", "overdrive ★2 @5,3", "spotter ★2 on furnace", "spotter ★2 on weaver",
+      "overdrive ★2 @0,9", "overdrive ★2 @3,3", "overdrive ★2 @5,3",
     ]);
     expect(cases).toBeGreaterThan(300);
     // and the mouse's panels never lose a button

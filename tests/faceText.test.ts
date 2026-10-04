@@ -4,13 +4,26 @@ import { newRun, type Run } from "../src/game/run";
 import { AMMO, HEROES, ITEMS, type HeroId } from "../src/sim/content";
 import { effectAt, fusible, FUSE_MAX, outputsAt } from "../src/sim/stars";
 import { gearSlotsOf } from "../src/sim/deck";
-import { ICON, KEYWORDS, stripIcons, textWidth } from "../src/render/font";
+import { ICON, ICON_COLOUR, KEYWORDS, stripIcons, textWidth } from "../src/render/font";
 import { STAT_ROW_MAX } from "../src/ui/icons";
 import { cardText, n1, n2, percent } from "../src/ui/abilityText";
 import { captureFormats, fmtCount, fmtDmg, fmtGold, fmtPct, fmtSec, fmtSpeed, FORMATTERS } from "../src/ui/statFormat";
 import {
   FACE_IDS, faceAt, faceDiff, faceLines, faceMerge, faceNext, factoryStats, hasFace, heroFace, heroPlaystyle, turretStats,
 } from "../src/ui/faces";
+import { INTERIM_CAVEATS, REMINDER, gearStats, rigStats, supplyStats } from "../src/ui/faces"; // U2b
+import { REMINDER_RANK, REMINDER_STEP, faceBlocks } from "../src/screens/build/faceBlocks"; // U2b F4-F6
+import { FRAY_BONUS, FRAY_MAX } from "../src/sim/content"; // U2b F3
+import { PLATE_CAP } from "../src/sim/races/bastion"; // U2b F3
+import { ROLE } from "../src/screens/build/inspector"; // U2b F5
+import { flavour } from "../src/screens/build/flavour"; // U2b F2
+import { CAPTAIN_FORMS, captainSpans } from "../src/ui/captainText"; // U2b: the captains
+import { RIVALS, RIVAL_IDS } from "../src/sim/rivals"; // U2b
+import { key as K, rotField } from "../src/sim/deck"; // U2b: a placed rig
+import { rotFacing } from "../src/sim/beltside"; // U2b
+import { computeView } from "../src/core/io"; // U2b: the op view as the game plans it
+import { buildScale } from "../src/screens/build/layout"; // U2b
+import { tapPx } from "../src/ui/tap"; // U2b
 import { buildLayout } from "../src/screens/build/layout";
 import { cargoPanel, fittedPanel, itemPanel, keptWhole, offerPanel, planPanel, type PanelText } from "../src/screens/build/inspector";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
@@ -53,10 +66,15 @@ describe("U2a the formatters: one per unit; the interim prints today's value wit
 });
 
 describe("U2a the faces: every number from sim data through one formatter", () => {
-  it("scope: 39 pieces (14 factories, 12 cores, 13 turrets) and 3 heroes; the STUN-fold, crit and RULES pieces keep today's text", () => {
+  it("scope: 64 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies) and 3 heroes; the STUN-fold, crit and RULES pieces keep today's text", () => {
     const kinds = FACE_IDS.map((d) => ITEMS[d].kind);
-    expect([kinds.filter((k) => k === "factory").length, kinds.filter((k) => k === "core").length, kinds.filter((k) => k === "turret").length]).toEqual([14, 12, 13]);
+    const n = (k: string) => kinds.filter((x) => x === k).length;
+    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([14, 12, 13, 18, 5, 2]);
     for (const keep of ["scrapper", "capacitor", "assembly", "sabot", "frostbite", "dragchain", "drake", "steambreech"]) expect(hasFace(keep), keep).toBe(false);
+    // U2b: TOLLBOOTH and FLAK SCREEN (STUN-fold faces), SHIELD WALL, LONGCASE and FINISHER RAM (N1 3.3's crit pieces) and
+    // the 11 RULES rigs and 4 RULES gear keep today's text
+    for (const keep of ["tollbooth", "flak", "shieldwall", "longcase", "ram", "sifter", "venom", "keg", "bellows", "quench", "lodestone",
+      "counterweight", "twingauge", "pincer", "braceframe", "twinlatch", "hopper", "mantlet", "twintrigger", "seamwelder"]) expect(hasFace(keep), keep).toBe(false);
     expect(PLAYABLE_HEROES.filter((h) => heroFace(h))).toEqual(["weaver", "foundry", "bastion"]);
     expect(heroFace("furnace")).toBeNull();
   });
@@ -67,7 +85,8 @@ describe("U2a the faces: every number from sim data through one formatter", () =
       const { value: fl, records } = captureFormats(() => faceLines(def, s, o));
       for (const r of records) expect(FORMATTERS[r.unit](r.value), `${def} ★${s}`).toBe(r.printed);
       const printed = records.map((r) => r.printed);
-      for (const line of [fl!.stats ?? "", ...fl!.rules.map((r) => r.text), ...fl!.reminders]) {
+      // U2b: the interim perk clause (F6) and caveats (F5) too
+      for (const line of [fl!.stats ?? "", ...fl!.rules.map((r) => r.text), ...fl!.reminders, fl!.clause?.text ?? "", ...(fl!.caveats ?? [])]) {
         for (const n of numbersIn(line)) {
           expect(printed, `${def} ★${s} ${JSON.stringify(o)}: ${n} in ${stripIcons(line)}`).toContain(n);
           printed.splice(printed.indexOf(n), 1);
@@ -100,10 +119,18 @@ describe("U2a the faces: every number from sim data through one formatter", () =
       expect(turretStats(def, s), def).toEqual([["SEC", fmtSpeed(t.fireInterval)], ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, s))]]);
     }
     for (const def of FACE_IDS) for (const s of starsOf(def)) expect(faceAt(def, s, { hero: "furnace" })!.stats.length).toBeLessThanOrEqual(STAT_ROW_MAX);
+    // U2b: a rig, a piece of gear and a supply carry no stat pair (R1 C4); their numbers are their rule's
+    for (const def of FACE_IDS) for (const s of starsOf(def)) {
+      const kind = ITEMS[def].kind;
+      if (kind === "gate") expect(faceAt(def, s)!.stats, def).toEqual(rigStats(def, s));
+      if (kind === "mod") expect(faceAt(def, s)!.stats, def).toEqual(gearStats(def, s));
+      if (kind === "supply") expect(faceAt(def, s)!.stats, def).toEqual(supplyStats(def));
+      if (kind === "gate" || kind === "mod" || kind === "supply") expect(faceAt(def, s)!.stats, def).toEqual([]);
+    }
   });
 
   it("no face template holds a digit: every number is a formatter's (src/ui/faces.ts and faceBlocks.ts string literals)", () => {
-    for (const file of ["src/ui/faces.ts", "src/screens/build/faceBlocks.ts"]) {
+    for (const file of ["src/ui/faces.ts", "src/screens/build/faceBlocks.ts", "src/ui/captainText.ts"]) { // U2b: + captainText
       const bad = stringLiterals(readFileSync(file, "utf8")).filter((t) => /\d/.test(t));
       expect(bad, file).toEqual([]);
     }
@@ -143,7 +170,9 @@ describe("U2a the faces keep REQ-BFG-032's four rules", () => {
   const all = (): string[] => [
     ...FACE_IDS.flatMap((def) => contexts(def).flatMap((o) => starsOf(def).flatMap((s) => {
       const fl = faceLines(def, s, o)!, nx = faceNext(def, s, o);
-      return [fl.stats ?? "", ...fl.rules.map((r) => r.text), ...fl.reminders, ...(nx ? [nx.text] : []), ...(s > 1 ? [faceMerge(def, s, o)!] : [])];
+      // U2b: the clause after its label (a perk's name, drawn in the perk colour as every perk name: AFTERBURNER is no BURN)
+      return [fl.stats ?? "", ...fl.rules.map((r) => r.text), ...fl.reminders, fl.clause ? fl.clause.text.slice(fl.clause.label!.length + 1) : "",
+        ...(fl.caveats ?? []), ...(nx ? [nx.text] : []), ...(s > 1 ? [faceMerge(def, s, o)!] : [])];
     }))),
     ...PLAYABLE_HEROES.flatMap((h) => { const f = heroFace(h); return f ? [...f.rules.map((r) => r.text), ...f.reminders] : []; }),
   ].filter(Boolean);
@@ -165,7 +194,24 @@ describe("U2a the faces keep REQ-BFG-032's four rules", () => {
   });
 
   it("every shop offer of a piece with a face still shows its one-line effect", () => {
-    for (const def of FACE_IDS.filter(fusible)) expect(cardText(def).length, def).toBeGreaterThan(0);
+    for (const def of FACE_IDS.filter((d) => fusible(d) || ITEMS[d].kind === "supply")) expect(cardText(def).length, def).toBeGreaterThan(0); // U2b: + supplies
+  });
+
+  it("U2b the captains: no middle dot or hand-wrapping in a trick or blurb; a keyword they name draws in its icon's colour, one source", () => {
+    let coloured = 0;
+    for (const id of RIVAL_IDS) for (const line of [RIVALS[id].trick, RIVALS[id].blurb, `${RIVALS[id].name}, ${RIVALS[id].trick}`]) {
+      expect(line.includes("·"), line).toBe(false);
+      expect(/\n|  |^ | $/.test(line), JSON.stringify(line)).toBe(false);
+      for (const sp of captainSpans(line, "#000000")) {
+        const k = KEYWORDS.find((kw) => CAPTAIN_FORMS[kw].includes(sp.t));
+        if (k) { expect(sp.c, `${id}: ${sp.t}`).toBe(ICON_COLOUR[ICON[k]]); coloured++; }
+      }
+    }
+    // the keyword forms the lines name (FRAY STORM, THICK PLATE, EVERY PAIR, BURNS, ...) draw coloured; ARMOR PLATES (the
+    // supply) stays plain
+    expect(coloured).toBeGreaterThan(10);
+    expect(captainSpans("THREE ARMOR PLATES, A BRAKED COOKER.", "#000000").every((s) => s.c === "#000000")).toBe(true);
+    expect(readFileSync("src/screens/fork/fork.ts", "utf8")).not.toMatch(/name\} · \$\{RIVALS/);
   });
 
   it("hero select: WEAVER's face is LOOM SLUGS HAVE FRAY 1 (review call 5); PLAYSTYLE in three words (C6)", () => {
@@ -175,16 +221,110 @@ describe("U2a the faces keep REQ-BFG-032's four rules", () => {
   });
 });
 
+describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is pinned in tests/icons.test.ts)", () => {
+  it("F2: a panel that draws a face never draws the piece's desc (KILN, LOOM); a kept tip stays (CRUCIBLE, WARDWORKS)", () => {
+    for (const def of FACE_IDS) {
+      const desc = ITEMS[def].desc.join(" ");
+      if (desc) expect(flavour(def).join(" "), def).not.toBe(desc);
+    }
+    expect([flavour("kiln"), flavour("loom")]).toEqual([[], []]);
+    expect([flavour("crucible").length, flavour("wardworks").length]).toEqual([1, 1]);
+    for (const hero of ["furnace", "weaver"] as HeroId[]) {
+      const run = newRun(hero, 5, "u2b");
+      const uid = run.build.items.find((i) => i.def === HEROES[hero].factory)!.uid;
+      expect(itemPanel(run, uid, true)!.body.some((b) => b.role === "flavour"), hero).toBe(false);
+    }
+  });
+
+  it("F3: a cap in a reminder names its unit, one form for every capped reminder (MAX n, then the unit's icon)", () => {
+    expect(REMINDER.FRAY()).toBe(`EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`);
+    expect(REMINDER.PLATE()).toBe(`{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`);
+    for (const def of FACE_IDS) for (const s of starsOf(def)) for (const r of faceLines(def, s)!.reminders) expect(r.includes("UP TO"), r).toBe(false);
+  });
+
+  it("F4: each keyword's reminder is its own optional block, in rule order: HOT SWAP's BURN at rank 3, its STUN at 3.1", () => {
+    for (const s of STARS) {
+      const rem = faceBlocks("hotswap", s, {})!.filter((b) => b.role === "reminder");
+      expect(rem.map((b) => [b.rank, b.keep ?? false]), `★${s}`).toEqual([[REMINDER_RANK, false], [REMINDER_RANK + REMINDER_STEP, false]]);
+      expect([rem[0].text.includes(ICON.BURN), rem[1].text.includes(ICON.STUN)]).toEqual([true, true]);
+    }
+  });
+
+  it("F5: one table of interim caveats, kept, 3x5, the reminder's colour: INNER COLUMN ONLY on every inner-intake turret (data), and call 7's three", () => {
+    const inner = FACE_IDS.filter((d) => ITEMS[d].turret?.intake === "inner");
+    expect([...inner].sort()).toEqual(["dartgun", "hailgun", "spikegun"]);
+    for (const def of FACE_IDS) for (const s of starsOf(def)) {
+      const cv = faceBlocks(def, s, { k: 1, hero: "furnace" })!.filter((b) => b.role === "caveat");
+      expect(cv.length, `${def} ★${s}`).toBe(INTERIM_CAVEATS.filter((c) => c.applies(effectAt(def, s))).length);
+      expect(cv.every((b) => b.keep), def).toBe(true);
+    }
+    for (const def of inner) expect(stripIcons(faceLines(def, 1)!.caveats!.join(" ")), def).toBe("INNER COLUMN ONLY.");
+    for (const def of ["stoker", "spallcatcher", "overclocker"]) expect(faceLines(def, 1)!.caveats!.length, def).toBe(1);
+    expect(ROLE.caveat).toEqual(ROLE.reminder);
+  });
+
+  it("F6: a face never says less than the sim: the 4 STAR-batch gaps carry a clause at the star that has it, after its perk name, kept", () => {
+    const at: Record<string, number[]> = { hotswap: [2, 3], limpet: [2, 3], rotary: [2, 3], grapnel: [3] };
+    for (const [def, stars] of Object.entries(at)) for (const s of STARS) {
+      const fl = faceLines(def, s, { k: 1 })!;
+      expect(!!fl.clause, `${def} ★${s}`).toBe(stars.includes(s));
+      if (!fl.clause) continue;
+      expect(fl.clause.label!.startsWith(`★${s}`) && fl.clause.text.startsWith(`${fl.clause.label} `), def).toBe(true);
+      const b = faceBlocks(def, s, { k: 1 })!.find((x) => x.text === fl.clause!.text)!;
+      expect([b.keep, b.brass, b.role], def).toEqual([true, fl.clause.label, "ability"]);
+    }
+    // written from the sim: ROTARY's rate (N1 2.3: X% FASTER is the rate up X%) and CLEAN FEED's never-jam; the spark's jump
+    const rate = (s: number) => fmtPct(1 / effectAt("rotary", s).core!.intervalMul! - 1);
+    expect(faceLines("rotary", 2, { k: 1 })!.clause!.text).toBe(`★2 GREASED RACE: FIRES ${rate(2)} FASTER.`);
+    expect(faceLines("rotary", 3, { k: 1 })!.clause!.text).toBe(`★3 CLEAN FEED: FIRES ${rate(3)} FASTER, NEVER JAMS.`);
+    const jump = effectAt("hotswap", 2).factory!.cycle!.find((p) => p.tint === "spark")!.jump!;
+    expect(stripIcons(faceLines("hotswap", 2)!.clause!.text)).toBe(`★2 SPARK JUMP: STUN HITS ${fmtCount(1 + jump)} PARTS.`);
+  });
+
+  it("F7: hero select's stats box joins the factory and its slug with a comma, never a middle dot", () => {
+    const src = readFileSync("src/screens/hero.ts", "utf8");
+    expect(src.includes("·")).toBe(false);
+    expect(src).toContain("`${fac.name}, ${AMMO[h.ammo].name}`");
+  });
+});
+
 /** The 390x844 phone's info band (tests/abilityPanels.test.ts's PHONE, 161 x 69) and the op view's phone band (402x690
  *  at x5: 241 x 414 art px, the zoomed band 235 x 122, 10 lines of 5x7; T1 REPORT 2.6). */
 const PHONE = buildLayout(167, 361, true, 5).info;
 const OP = buildLayout(241, 414, true, 5, true).info;
+/** U2b: the op view's touch target (402x690 CSS px, DPR 3): the game plans its band with { tap, band } (detailsPlan), so the
+ *  buttons sit in the band's header row, not stacked under the text as a landscape column's (U2a planned it without them,
+ *  which a rig's three touch buttons squeezed to a 35 px body). */
+const OP_TAP = tapPx(computeView(402, 690, 3, buildScale));
 
-/** Every panel a face shows on: cargo (each hero for a core), placed (a factory), offer (none held, one held), fitted. */
+/** U2b: a Furnace with the Kiln's belt up column 4 and a STAMP PRESS belt up column 6 (tests/abilityPanels.test.ts rigRun);
+ *  rig `def` (uid 10, ★stars) at (x, y) turned `rot`. */
+const SHORT = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
+const SIDE = [K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(5, 1), K(5, 0)];
+function rigRun(def: string, stars: number, x: number, y: number, rot: number): Run {
+  const run = newRun("furnace", 5, "u2b");
+  run.inventory = [];
+  run.build = {
+    hero: "furnace", mods: [], beltCap: 30, hullBonus: 0,
+    items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 7, def: "press", x: 6, y: 6 }, { uid: 10, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) }],
+    routes: [{ factory: 1, cells: [...SHORT] }, { factory: 7, cells: [...SIDE] }],
+  };
+  return run;
+}
+
+/** Every panel a face shows on: cargo (each hero for a core), placed (a factory; U2b: a rig on a belt, IDLE, and a STOKER
+ *  at a factory), offer (none held, one held; U2b: a supply), fitted (a core; U2b: a piece of gear). */
 function facePanels(): { id: string; t: PanelText }[] {
   const out: { id: string; t: PanelText }[] = [];
   for (const def of FACE_IDS) {
     const d = ITEMS[def];
+    if (d.kind === "supply") { // U2b: a supply is used as it is bought: its offer is its one panel
+      const run = newRun("furnace", 5, "u2b");
+      run.gold = 99;
+      run.shop.wagons = [{ merchant: d.merchant!, offers: [{ def, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
+      out.push({ id: `offer ${def}`, t: offerPanel(run, 0, 0, true)! });
+      continue;
+    }
     if (!fusible(def)) {
       const hero = (Object.keys(HEROES) as HeroId[]).find((h) => HEROES[h].factory === def)!;
       const run = newRun(hero, 5, "u2a");
@@ -204,10 +344,15 @@ function facePanels(): { id: string; t: PanelText }[] {
         run.build.routes.push({ factory: 901, cells: [56, 55, 45, 35, 25, 15, 5] });
         out.push({ id: `placed ${def} ★${s}`, t: itemPanel(run, 901, true)! });
       }
-      if (d.kind === "core") {
+      if (d.kind === "core" || d.kind === "mod") { // U2b: + a piece of gear
         const run = newRun("furnace", 5, "u2a");
         run.build.mods.push({ uid: 902, def, turret: 0, ...(s > 1 ? { stars: s } : {}) } as Run["build"]["mods"][number]);
         out.push({ id: `fitted ${def} ★${s}`, t: fittedPanel(run, 902)! });
+      }
+      if (d.kind === "gate") { // U2b: the placed rig panel: on a belt (one hit), IDLE, and a STOKER beside the KILN
+        out.push({ id: `placed ${def} ★${s} 1hit`, t: itemPanel(rigRun(def, s, 3, 3, rotFacing(def, 1)), 10, true)! });
+        out.push({ id: `placed ${def} ★${s} idle`, t: itemPanel(rigRun(def, s, 0, 9, 0), 10, true)! });
+        if (d.gate?.stoke) out.push({ id: `placed ${def} ★${s} at the kiln`, t: itemPanel(rigRun(def, s, 3, 6, rotFacing(def, 1)), 10, true)! });
       }
     }
     for (const held of [[], [1]]) {
@@ -225,23 +370,39 @@ describe("U2a fit: every panel in scope shows its face whole on the phone band a
   const PANELS = facePanels();
   it("the stat row, the rules, NEXT★ and merge progress are kept whole (T6); the 5x7 face, or the report lists it", () => {
     const counts = { panels: 0, phone5x7: 0, phoneTight: 0, op5x7: 0, opTight: 0, reminderGaveWayPhone: 0, reminderGaveWayOp: 0 };
-    const tightPhone: string[] = [], gaveWayOp: string[] = [];
+    const tightPhone: string[] = [], gaveWayOp: string[] = [], gaveWayPhone: string[] = [], toCargoGaveWay: string[] = [], opTight: string[] = [];
     for (const { id, t } of PANELS) {
       counts.panels++;
       for (const [band, area] of [["phone", PHONE], ["op", OP]] as const) {
-        const plan = planPanel(t, area);
+        // U2b: the op view as the game plans it (its band, its touch target); the legacy band as U2a planned it
+        const o = band === "op" ? { tap: OP_TAP, band: true } : {};
+        let plan = planPanel(t, area, [], o);
+        // U2b: where a second button would cut the kept text, TO CARGO gives way, as the game does (detailsPlan;
+        // tests/shoptap.panels.test.ts pins where): on the legacy band, a placed ★2 HOT SWAP or LIMPET WORKS with its clause
+        if (!(plan.body.fits && keptWhole(plan)) && t.labels.includes("TO CARGO")) {
+          plan = planPanel({ ...t, labels: t.labels.filter((l) => l !== "TO CARGO") }, area, [], o);
+          toCargoGaveWay.push(`${band} ${id}`);
+        }
         expect(plan.body.fits && keptWhole(plan), `${band} ${id} (variant ${plan.body.variant})`).toBe(true);
         const big = plan.body.font === "5" && !plan.body.tight;
         if (band === "phone") { if (big) counts.phone5x7++; else { counts.phoneTight++; tightPhone.push(id); } }
-        else if (big) counts.op5x7++; else counts.opTight++;
+        else if (big) counts.op5x7++; else { counts.opTight++; opTight.push(id); }
         if (plan.body.dropped.some((b) => b.role === "reminder")) {
           counts[band === "phone" ? "reminderGaveWayPhone" : "reminderGaveWayOp"]++;
-          if (band === "op") gaveWayOp.push(id);
+          // U2b F4: each reminder gives way on its own; the log names the keyword kept and the one that gave way
+          const kw = (b: { text: string }) => KEYWORDS.find((k) => b.text.includes(ICON[k])) ?? "?";
+          const rem = t.body.filter((b) => b.role === "reminder"), gone = plan.body.dropped.filter((b) => b.role === "reminder");
+          (band === "op" ? gaveWayOp : gaveWayPhone).push(`${id} [kept ${rem.filter((b) => !gone.includes(b)).map(kw).join("+") || "none"}; gave way ${gone.map(kw).join("+")}]`);
         }
+        // U2b: an interim caveat (F5) and clause (F6) are kept: never dropped
+        expect(plan.body.dropped.some((b) => b.role === "caveat" || (b.brass ?? "").startsWith("★")), `${band} ${id}`).toBe(false);
       }
     }
     console.log(`U2a fit: ${JSON.stringify(counts)}`);
     console.log(`U2a phone tight: ${tightPhone.length}; the reminder gave way on the op band: ${gaveWayOp.join(" | ")}`);
+    console.log(`U2b legacy band, TO CARGO gave way: ${toCargoGaveWay.join(" | ")}`);
+    console.log(`U2b op band, not 5x7: ${opTight.join(" | ")}`);
+    console.log(`U2b F4, the legacy band, reminders by keyword: ${gaveWayPhone.join(" | ")}`);
     expect([OP.w, OP.h]).toEqual([235, 122]);
     expect(counts.op5x7).toBe(counts.panels); // the op view (402x690) draws every face in 5x7, no compact form
   });

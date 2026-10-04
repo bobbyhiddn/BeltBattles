@@ -87,11 +87,15 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
   // bb-0.8.3 (REQ-BFG-042 D2, M4): 0.8.0's "FURNACE's KILN and WEAVER's LOOM keep their catalogue desc and no ability
   // text": they level up by merging and their caravan sells copies, so they read their numbers at every star as the
   // CRUCIBLE and the WARDWORKS do, with one tip with no number for flavour (tests/belts.text.test.ts reads the numbers)
-  it("FURNACE's KILN and WEAVER's LOOM have ability text at every star now, and a tip for flavour", () => {
+  // U2b F2 (REQ-BFG-046), moved onto 0.8.6: their panels draw the face and never the catalogue desc; 0.8.5's tip stays
+  it("FURNACE's KILN and WEAVER's LOOM have ability text at every star, a face, and a tip for flavour", () => {
     for (const def of ["kiln", "loom"]) {
       expect(hasAbilityText(def), def).toBe(true);
+      // U2b F2 (REQ-BFG-046): a panel that draws a face never draws the desc, which restates the rule in old words
+      expect(faceLines(def), def).not.toBeNull();
       expect(flavour(def), def).toHaveLength(1);
       expect(flavour(def)[0], def).not.toMatch(/\d/);
+      expect(flavour(def)[0], def).not.toBe(ITEMS[def].desc.join(" "));
     }
   });
 });

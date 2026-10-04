@@ -31,6 +31,7 @@ import { FAMILY, familiesOf } from "../src/ui/families";
 import { UI } from "../src/ui/ui";
 import { abilityText, cardText } from "../src/ui/abilityText";
 import { banned } from "./textRules";
+import { faceLines } from "../src/ui/faces"; // U2b (REQ-BFG-046): STOKER's face
 import { SEED, barge, item, run as fight, withItem, withMod } from "./wave3.helpers";
 
 installRaster();
@@ -43,6 +44,8 @@ const BANDS = [
 ] as const;
 const STOKER = 70;
 const OPENING = /^EACH FACTORY ITS ARROWS POINT AT WORKS \d+% FASTER\.$/;
+/** U2b (REQ-BFG-046): STOKER's face opens with its rule, the N% line in the face's words (faceLines, the registry's numbers). */
+const FACE_OPENING = /^ITS FACTORIES WORK \d+% FASTER\.$/;
 const CAPPED = /^THE .+'S GUN IS FULL, SO /;
 
 // ------------------------------------------------------------------------------------------------------------- decks
@@ -154,10 +157,12 @@ describe("STOKER's capped line takes the opening sentence's place (0.8.0 B1 M4, 
       expect(open.text, what).toMatch(CAPPED);
       expect(banned(open.text), what).toEqual([]);
       // the glossary's opening sentence is in no block of the panel, nor of any compact form
-      for (const bs of [t.body, ...(t.variants ?? []).map((v) => v.body)]) expect(bs.filter((b) => OPENING.test(b.text)), what).toEqual([]);
-      // the ability's later sentences follow, as the glossary has them
+      // U2b: nor the face's N% line
+      for (const bs of [t.body, ...(t.variants ?? []).map((v) => v.body)]) expect(bs.filter((b) => OPENING.test(b.text) || FACE_OPENING.test(b.text)), what).toEqual([]);
+      // U2b (REQ-BFG-046): the face's later rule lines follow (none: one rule), then its interim caveat (F5, call 7), kept
       expect(t.body.filter((b) => b.role === "ability" && !b.colour && !/ WORKS \d+% FASTER\.$/.test(b.text)).map((b) => b.text), what)
-        .toEqual(abilityText("stoker", c.stars).sentences.slice(1));
+        .toEqual(faceLines("stoker", c.stars)!.rules.slice(1).map((r) => r.text));
+      expect(t.body.filter((b) => b.role === "caveat").map((b) => [b.text, b.keep]), what).toEqual(faceLines("stoker", c.stars)!.caveats!.map((x) => [x, true]));
     }
   });
 
@@ -237,14 +242,15 @@ describe("STOKER's capped line takes the opening sentence's place (0.8.0 B1 M4, 
       const run = runOf(c, spare), t = rigPanel(run, STOKER)!, what = `${c.id} spare${spare}`;
       expect(stokeCapBlocks(run, factoriesOf(c.b)), what).toEqual([]);
       const ability = t.body.filter((b) => b.role === "ability");
-      expect(ability.map((b) => b.text), what).toEqual(abilityText("stoker", c.stars).sentences);
+      // U2b (REQ-BFG-046): the face's rule lines (faceLines), its N% line first
+      expect(ability.map((b) => b.text), what).toEqual(faceLines("stoker", c.stars)!.rules.map((r) => r.text));
       expect([ability[0].keep, ability[0].colour], what).toEqual([true, undefined]);
-      expect(ability[0].text, what).toMatch(OPENING);
+      expect(ability[0].text, what).toMatch(FACE_OPENING);
       expect(t.body.filter((b) => CAPPED.test(b.text) || b.role === "warn"), what).toEqual([]);
       for (const [band, area] of BANDS) {
         const p = planPanel(t, area);
         expect(p.body.fits, `${what} on the ${band}`).toBe(true);
-        expect(p.body.shown.some((l) => OPENING.test(l.b.text)), `${what} on the ${band}`).toBe(true);
+        expect(p.body.shown.some((l) => FACE_OPENING.test(l.b.text)), `${what} on the ${band}`).toBe(true); // U2b: the face's
       }
     }
   });
@@ -354,7 +360,7 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
     // glossary's: the press works 20 / 44% faster, its plating with it
     for (const s of [1, 2]) {
       expect(capLine(lonePress(s)), `★${s}`).toBe("");
-      expect(rigPanel(pressRun(lonePress(s)), STOKER)!.body.find((b) => b.role === "ability")!.text).toBe(abilityText("stoker", s).sentences[0]);
+      expect(rigPanel(pressRun(lonePress(s)), STOKER)!.body.find((b) => b.role === "ability")!.text).toBe(faceLines("stoker", s)!.rules[0].text); // U2b: the face's
     }
   });
 
