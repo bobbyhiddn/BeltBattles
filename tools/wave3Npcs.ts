@@ -61,9 +61,12 @@ export const NPCS: readonly NpcPlan[] = [
     palette: ["brass3", "ink", "steel1", "amber"], families: ["TWIN", "BURST"],
     synergy: ["twinlatch", "twintrigger", "compound"], prize: "+3 gold and a pick of TWIN LATCH or TWIN TRIGGER (the Hard rule)",
     buys: [
+      // bb-0.8.6 (job PACKS M4, the packs' regenerated caps): the COMPOUND BREECH at ordinary luck on day 7 (was 6; no
+      // ordinary epic before day 7), the SEAM WELDER at good luck on day 6 (was 5; good rare+ cap 4 on day 5) and the
+      // RAILGUN on day 9 (was 8; no good-luck turret before day 9)
       B("twingauge", 1), B("whetstone", 1), B("twinlatch", 2), B("twintrigger", 3), B("twinmould", 4, 3), B("twingauge", 5),
-      B("compound", 6, 4), B("seamwelder", 7, 5), B("twintrigger", 8, 6), B("pincer", 7), B("twinlatch", null, 7),
-      B("railgun", null, 8), B("twinmould", 10, 9), B("quench", null, 10),
+      B("compound", 7, 4), B("seamwelder", 7, 6), B("twintrigger", 8, 6), B("pincer", 7), B("twinlatch", null, 7),
+      B("railgun", null, 9), B("twinmould", 10, 9), B("quench", null, 10),
     ],
   },
   {
@@ -76,8 +79,10 @@ export const NPCS: readonly NpcPlan[] = [
       B("plateroller", 1), B("tollbooth", 1), B("anvil", 2), B("whetstone", 3), B("braceframe", 3), B("plateroller", 4),
       // bb-0.8.3 (job BELTS run 4): the ARMOR PRESS on day 6 (was 5): the caps regenerated with the par player buying its
       // gold upgrades give no ordinary epic on day 5
-      B("spallcatcher", 4), B("armorpress", 6), B("anvil", 6), B("quench", 7), B("temper", 7), B("heatjacket", 8),
-      B("spallcatcher", 9), B("platebreaker", 10),
+      // bb-0.8.6 (job PACKS M4): the ARMOR PRESS on day 7 (was 6; no ordinary epic before day 7), the heat jacket on day 9
+      // (was 8; rare+ cap 5 on day 8) and no PLATE BREAKER (was day 10: one ordinary epic+ on every day)
+      B("spallcatcher", 4), B("armorpress", 7), B("anvil", 6), B("quench", 7), B("temper", 7), B("heatjacket", 9),
+      B("spallcatcher", 9),
     ],
   },
   {
@@ -90,9 +95,11 @@ export const NPCS: readonly NpcPlan[] = [
       // bb-0.8.3 (job BELTS run 4): the PLATE BREAKER at good luck on day 6 (was 5), its ordinary day, and the ARMOR PRESS
       // at ordinary luck on day 10 (was 9; good luck's day 8 kept): the regenerated caps give one epic+ to good luck on
       // day 5 and to ordinary luck on day 9
+      // bb-0.8.6 (job PACKS M4): the PLATE BREAKER on day 7 (was 6; no ordinary epic before day 7, one good-luck epic+ on
+      // day 6) and the ARMOR PRESS at good luck only, on day 9 (was ordinary 10, good 8; good epic+ cap 2 on days 7-8)
       B("plateroller", 1), B("pincer", 1), B("braceframe", 2), B("steambreech", 3), B("temper", 3), B("shieldwall", null, 4),
-      B("plateroller", 4), B("spallcatcher", 5), B("platebreaker", 6), B("braceframe", 7), B("quench", 7),
-      B("armorpress", 10, 8), B("platebreaker", null, 9), B("shieldwall", null, 10),
+      B("plateroller", 4), B("spallcatcher", 5), B("platebreaker", 7), B("braceframe", 7), B("quench", 7),
+      B("armorpress", null, 9), B("platebreaker", null, 9), B("shieldwall", null, 10),
     ],
   },
   {
@@ -102,8 +109,9 @@ export const NPCS: readonly NpcPlan[] = [
     palette: ["rust2", "steel2", "brass2", "fire2"], families: ["TWIN", "FORGE"],
     synergy: ["twinlatch", "twinmould", "twingauge"], prize: "none (a dusk stand-in)",
     buys: [
+      // bb-0.8.6 (job PACKS M4): the COMPOUND BREECH on day 7 (was 6; no ordinary epic before day 7)
       B("twingauge", 1), B("whetstone", 1), B("twinmould", 2), B("twinlatch", 3), B("twingauge", 4), B("temper", 4),
-      B("twintrigger", 5), B("compound", 6), B("pincer", 7), B("quench", 7), B("twinlatch", 8), B("longhaul", 9),
+      B("twintrigger", 5), B("compound", 7), B("pincer", 7), B("quench", 7), B("twinlatch", 8), B("longhaul", 9),
       B("twintrigger", 9), B("bellows", 10),
     ],
   },
@@ -115,8 +123,9 @@ export const NPCS: readonly NpcPlan[] = [
     synergy: ["plateroller", "steambreech", "spallcatcher"], prize: "none (a dusk stand-in)",
     buys: [
       B("plateroller", 1), B("steambreech", 1), B("tollbooth", 2), B("whetstone", 2), B("braceframe", 3), B("plateroller", 4),
+      // bb-0.8.6 (job PACKS M4): the PLATE BREAKER on day 9 (was 8; ordinary rare+ cap 5 on day 8)
       B("spallcatcher", 4), B("anvil", 5), B("seamwelder", 6), B("temper", 6), B("steambreech", 7), B("quench", 7),
-      B("platebreaker", 8), B("spallcatcher", 9), B("bellows", 10),
+      B("platebreaker", 9), B("spallcatcher", 9), B("bellows", 10),
     ],
   },
 ];
