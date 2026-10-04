@@ -48,10 +48,12 @@ function impacts(b0: Build, b1: Build, side: 0 | 1, count: number, setup?: (bt: 
 
 
 describe("RUNES-2a: the catalogue block", () => {
-  it("36 new runes (40 built, 4 left out on the bench): 11 common, 10 rare, 10 epic, 5 legendary, each on a kind of its own", () => {
+  // RUNES-087F (cap's Q2 guard): EMBER SHOT is a generic epic (turrets), MANY HANDS a generic common (turrets)
+  it("36 new runes (40 built, 4 left out on the bench): 11 common, 9 rare, 11 epic, 5 legendary, each on a kind of its own", () => {
     const block = RUNE_LIST.slice(21);
     expect(block.length).toBe(36);
-    expect(["common", "rare", "epic", "legendary"].map((t) => block.filter((d) => d.tier === t).length)).toEqual([11, 10, 10, 5]);
+    expect(["common", "rare", "epic", "legendary"].map((t) => block.filter((d) => d.tier === t).length)).toEqual([11, 9, 11, 5]);
+    expect([RUNES.ember_shot.tier, RUNES.ember_shot.theme, RUNES.many_hands.theme]).toEqual(["epic", "turrets", "turrets"]);
     expect(new Set(block.map((d) => d.kind)).size).toBe(36);
     for (const gone of ["hot_iron", "wind_veil", "loose_molds", "saints_oil"]) expect(RUNES[gone], gone).toBeUndefined();
   });

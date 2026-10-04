@@ -151,7 +151,9 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // M5 bench left out 4 that do almost nothing on par decks (HOT IRON, WIND VEIL, LOOSE MOLDS, SAINT'S OIL: the report)
   // ---- common
   r("ash_kindle", "ASH KINDLE", "common", "furnace", "startBurn", 4, "BATTLE START: THE FOE HAS {N} {BURN}."),
-  r("many_hands", "MANY HANDS", "common", "weaver", "perTurretRate", 12, "YOUR TURRETS: +{N} {RATE} PER TURRET."), // M5: 3% +1.4, 12% +3.6
+  // M5: 3% +1.4, 12% +3.6. RUNES-087F (cap's Q2): judged on its own hero it was under its band (WEAVER +1.3; the other
+  // three +4.4): like THREAD STORM it helps every hero but WEAVER, so it is a generic rune (turrets), judged on all heroes
+  r("many_hands", "MANY HANDS", "common", "turrets", "perTurretRate", 12, "YOUR TURRETS: +{N} {RATE} PER TURRET."),
   r("seam_rivets", "SEAM RIVETS", "common", "foundry", "pairPlate", 1, "EACH {*PAIR}: +{N} {*PLATE}."), // M5: 2 FOUNDRY +6.6, 1 +3.4
   r("last_wall", "LAST WALL", "common", "bastion", "halfPlate", 8, "AT HALF {HULL}: +{N} {*PLATE}."),
   r("final_nail", "FINAL NAIL", "common", "turrets", "finisherDmg", 1, "EACH VOLLEY'S LAST SHOT: +{N} {DMG}."), // M5: +3 +12.4, +1 +4.7
@@ -161,9 +163,7 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("bulkheads", "BULKHEADS", "common", "armor", "perTurretHull", 5, "+{N} {HULL} PER TURRET YOU HAVE."),
   r("scrap_halo", "SCRAP HALO", "common", "stars", "mergedHull", 6, "+{N} {HULL} PER MERGED PIECE."), // M5: 3 +2.0, 6 +3.5
   r("spoils_sack", "SPOILS SACK", "common", "gold", "victorGold", 2, "AFTER A WIN: +{N} {GOLD} AT DAWN."),
-  // ---- rare
-  // M5: "YOUR HEAT LOADS: +1 BURN A HIT" measured +0.3 (par decks carry almost no HEAT loads): the volley's opener burns
-  r("ember_shot", "EMBER SHOT", "rare", "furnace", "volleyBurn", 1, "EACH VOLLEY'S FIRST SHOT: +{N} {*BURN}."),
+  // ---- rare (RUNES-087F: EMBER SHOT moved to the epics, below)
   r("slow_embers", "SLOW EMBERS", "rare", "furnace", "burnTime", 75, "YOUR {BURN} LASTS +{N} LONGER."), // M5: 50% FURNACE +5.6, 75% +7.4
   r("snare_knot", "SNARE KNOT", "rare", "weaver", "fullFrayDmg", 2, "ON FULL {*FRAY}: YOUR HITS +{N} {DMG}."),
   // M5: as a common, +1 measured WEAVER +7.7 (a rare's worth; 1 is the least flat amount)
@@ -195,6 +195,11 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // R1b #25: reads the wins the side carried into the fight (the snapshot's `wins`, which the server checks; the run's
   // own), passed to the battle and kept in its record, so ghosts and replays stay exact (battle.ts Battle, replay.ts)
   r("warlords_due", "WARLORD'S DUE", "epic", "turrets", "winDmgPct", 8, "+{N} {DMG} PER WIN."), // M5: 5% +8.0, 8% +12.1
+  // M5: "YOUR HEAT LOADS: +1 BURN A HIT" measured +0.3 (par decks carry almost no HEAT loads): the volley's opener burns.
+  // RUNES-087F (cap's Q2 guard): a FURNACE rare measured FURNACE +6.7 but the other three heroes +14.6 (WEAVER +16.8,
+  // FOUNDRY +17.6, BASTION +9.3), over the rare band's top: a generic rune (turrets: a turret's volley, as FIRST BLOOD),
+  // judged on all heroes, +12.6 (10.2-15.1): the epic band. 1 BURN is the least amount
+  r("ember_shot", "EMBER SHOT", "epic", "turrets", "volleyBurn", 1, "EACH VOLLEY'S FIRST SHOT: +{N} {*BURN}."),
   // ---- legendary (R1b 1.3: a legendary redefines the run)
   // RUNES-087F (cap's Q1): firing twice is a rule that defines the run, so MOLTEN VOWS is FOUNDRY's legendary (R1b's
   // legendary clause covers its FOUNDRY +32.0), text and amount unchanged

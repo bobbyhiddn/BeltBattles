@@ -20,9 +20,10 @@ const fill = (d: RuneDef) => d.text.replace("{N}", d.amount.unit === "pct" ? `${
 
 describe("RUNES-1 M1: the catalogue", () => {
   // RUNES-2a: RUNES-1's 21 plus 36 (at least 8 epics and 4 legendaries, so epic and legendary dawns show their own tier)
-  it("57 runes: 21 common, 21 rare, 10 epic, 5 legendary; ids unique and snapshot-safe, names 14 characters at most", () => {
+  // RUNES-087F (cap's Q2 guard): EMBER SHOT a generic epic, so 20 rares and 11 epics
+  it("57 runes: 21 common, 20 rare, 11 epic, 5 legendary; ids unique and snapshot-safe, names 14 characters at most", () => {
     expect(RUNE_LIST.length).toBe(57);
-    expect(RARITIES.map((t) => RUNE_LIST.filter((d) => d.tier === t).length)).toEqual([21, 21, 10, 5]);
+    expect(RARITIES.map((t) => RUNE_LIST.filter((d) => d.tier === t).length)).toEqual([21, 20, 11, 5]);
     expect(new Set(RUNE_LIST.map((d) => d.id)).size).toBe(RUNE_LIST.length);
     expect(new Set(RUNE_LIST.map((d) => d.name)).size).toBe(RUNE_LIST.length);
     for (const d of RUNE_LIST) {

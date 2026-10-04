@@ -140,17 +140,19 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
 describe("RUNES-1 M3: runeOffer pinned (a catalogue edit can't move offers silently)", () => {
   it("literal (seed, day, hero) -> ids triples, with nothing held", () => {
     // RUNES-2a (decision 4): re-pinned for the 57-rune catalogue (all six moved: the commons and rares grew, and the two
-    // epic dawns now show EPIC, not RARE); plus a 3-card epic dawn and a 2-card legendary dawn
+    // epic dawns now show EPIC, not RARE); plus a 3-card epic dawn and a 2-card legendary dawn.
+    // RUNES-087F: item 1 (cap's Q1): TWIN SUNS took MOLTEN VOWS' epic place and MOLTEN VOWS TWIN SUNS' legendary one (same
+    // theme, same weight), so the last two dawns show each other's FOUNDRY rune. Item 2 (the Q2 guard): EMBER SHOT a
+    // generic epic and MANY HANDS a generic common (turrets weigh 2 for every hero) move three dawns: 4242 d3 (was
+    // tar_barrel, oiled_cogs, ash_cloak), 123456789 d10 (was warlords_due, scrap_saint) and 12 d4 (was warlords_due first)
     const pins: [number, number, HeroId, string[], string][] = [
       [1, 1, "furnace", ["tar_barrel", "sharp_scrap", "coin_purse"], "common"],
-      [4242, 3, "weaver", ["tar_barrel", "oiled_cogs", "ash_cloak"], "common"],
+      [4242, 3, "weaver", ["iron_skin", "oiled_cogs", "scrap_biter"], "common"],
       [77, 5, "foundry", ["ash_cloak", "coin_purse"], "common"],
-      [123456789, 10, "bastion", ["warlords_due", "scrap_saint"], "epic"],
+      [123456789, 10, "bastion", ["ember_shot", "scrap_saint"], "epic"],
       [4294967295, 7, "furnace", ["pyre_heart", "last_stand"], "epic"],
       [2026, 2, "bastion", ["ash_kindle", "ash_cloak", "gun_oil"], "common"],
-      // RUNES-087F (cap's Q1): TWIN SUNS took MOLTEN VOWS' epic place and MOLTEN VOWS TWIN SUNS' legendary one (same
-      // theme, same weight), so these two dawns show each other's FOUNDRY rune; nothing else moved
-      [12, 4, "foundry", ["warlords_due", "twin_suns", "scrap_saint"], "epic"],
+      [12, 4, "foundry", ["ember_shot", "twin_suns", "scrap_saint"], "epic"],
       [23, 6, "foundry", ["bulwark_oath", "molten_vows"], "legendary"],
     ];
     for (const [seed, day, hero, ids, tier] of pins) {
