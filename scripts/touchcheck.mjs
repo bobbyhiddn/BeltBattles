@@ -259,6 +259,12 @@ const card = (page, i) => page.evaluate((n) => { const r = window.bb.game.screen
 const turret = (page, i) => page.evaluate((n) => { const r = window.bb.game.screen.turretRect(n); return window.bb.toClient(r.x + r.w / 2, r.y + r.h / 2); }, i);
 const slot = (page, i) => page.evaluate((n) => { const r = window.bb.game.screen.slotRect(n); return window.bb.toClient(r.x + r.w / 2, r.y + r.h / 2); }, i);
 const region = (page, id) => page.evaluate((i) => window.bb.regions().filter((q) => q.id === i).pop() ?? null, id);
+/** PACKS: a UI region once the screen has drawn it (after a page load or a reload the title lays its buttons out a frame
+ *  later; reading at once could find none under load: touch-5bffd7d's names phone section). */
+const regionDrawn = async (page, id) => {
+  await page.waitForFunction((i) => window.bb.regions().some((q) => q.id === i), id, { timeout: 10000 }).catch(() => {});
+  return region(page, id);
+};
 const centre = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 
 /** The run as it stands: gold, the build, cargo and the shop (serialized). */
@@ -962,7 +968,7 @@ async function namesSection(browsers, origin) {
       await settle(page, "title");
       let s = await state();
       check(s.name === null && s.stored === null && s.entry === null && !s.dom, `names ${vname}: a fresh device has no name stored, and the title shows no name screen before a tap`);
-      await press(center(await region(page, "new")));
+      await press(center(await regionDrawn(page, "new")));
       s = await state();
       check(s.entry?.required === true && s.screen === "title" && s.dom && !s.cancel, `names ${vname}: the title's first tap (NEW RUN) opens the name screen, required (no CANCEL), before hero select (screen ${s.screen})`);
       const attrs = await page.evaluate(() => {
@@ -980,7 +986,7 @@ async function namesSection(browsers, origin) {
       // it can't be skipped: Escape, a tap beside the panel and on NEW RUN under it, an empty OK
       await page.keyboard.press("Escape");
       await press({ x: vp.width / 2, y: vp.height - 30 });
-      await press(center(await region(page, "new")));
+      await press(center(await regionDrawn(page, "new")));
       await tapEl("#bb-name-ok");
       s = await state();
       check(s.entry?.problem === "missing" && s.entry.refusal === "TYPE A NAME" && s.screen === "title" && s.name === null && s.dom,
@@ -1010,7 +1016,7 @@ async function namesSection(browsers, origin) {
       await page.reload();
       await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
       await settle(page, "title");
-      await press(center(await region(page, "new")));
+      await press(center(await regionDrawn(page, "new")));
       await settle(page, "hero");
       s = await state();
       check(s.name === "ANNA B" && s.entry === null, `names ${vname}: after a reload the name is kept and NEW RUN goes straight to hero select`);
