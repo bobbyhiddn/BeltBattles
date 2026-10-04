@@ -12,6 +12,7 @@ import { ECHO_CAP } from "../src/sim/races/siphon";
 import { RUNE_LIST } from "../src/sim/runes";
 import { SABOTAGE_HULL } from "../src/game/road";
 import { HULL_FLOOR } from "../src/net/roadCap";
+import { EQ, MEAN_PLATE, MEAN_PLATE_OTHER, ROUND_EQ } from "../src/sim/deckRating";
 
 interface Row { file: string; id: string; rule: "x10" | "same"; base: number; now: number; rounded?: boolean }
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/num1-base-values.json", import.meta.url), "utf8")) as
@@ -22,7 +23,8 @@ const byId = new Map(rows.map((r) => [r.id, r]));
 
 const TABLES: Record<string, unknown> = {
   FRAY_BONUS, ITEMS, WAVE3_ITEMS, AMMO, HEROES, RACE_ITEMS, RACE_AMMO, RACE_HEROES, PENDULUM, PLATE_PER_SLUG, PLATE_CAP, ECHO_CAP,
-  RUNE_LIST: Object.fromEntries(RUNE_LIST.map((d) => [d.id, d])), SABOTAGE_HULL, HULL_FLOOR,
+  RUNE_LIST: Object.fromEntries(RUNE_LIST.map((d) => [d.id, d])), SABOTAGE_HULL, HULL_FLOOR, EQ, ROUND_EQ, MEAN_PLATE,
+  MEAN_PLATE_OTHER,
 };
 
 /** A value the module doesn't export, read from its source: ghostSnapshot.ts's hullBonus bounds, the road events' hull deltas
@@ -43,7 +45,7 @@ function fromSource(row: Row): number | undefined {
 /** The live value at a fixture id ("ITEMS.press.levels.3.factory.base"). */
 function live(id: string): unknown {
   const row = byId.get(id);
-  if (row && (id.startsWith("EVENTS.") || id.startsWith("HULL_BONUS_"))) return fromSource(row);
+  if (row && (id.startsWith("EVENTS.") || id.startsWith("HULL_BONUS_") || id === "PLATE")) return fromSource(row);
   const [table, ...path] = id.split(".");
   let v: unknown = TABLES[table];
   for (const k of path) v = v === undefined || v === null ? undefined : (v as Record<string, unknown>)[k];

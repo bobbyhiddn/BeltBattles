@@ -6243,6 +6243,132 @@
    "rule": "x10",
    "base": 100,
    "now": 1000
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "EQ.poison",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "EQ.fray",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "EQ.shock",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "EQ.static",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "EQ.perStalled",
+   "rule": "same",
+   "base": 1.5,
+   "now": 1.5
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "EQ.overclock",
+   "rule": "x10",
+   "base": 8,
+   "now": 80
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "EQ.toll",
+   "rule": "x10",
+   "base": 0.5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "EQ.sift",
+   "rule": "x10",
+   "base": 0.5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "ROUND_EQ.sabot",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "ROUND_EQ.frost",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "ROUND_EQ.drag",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "ROUND_EQ.limpet",
+   "rule": "x10",
+   "base": 8,
+   "now": 80
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "MEAN_PLATE.bastion",
+   "rule": "x10",
+   "base": 1.5,
+   "now": 15
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "MEAN_PLATE.furnace",
+   "rule": "x10",
+   "base": 0.5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "MEAN_PLATE.weaver",
+   "rule": "x10",
+   "base": 0.2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "MEAN_PLATE.foundry",
+   "rule": "x10",
+   "base": 0.6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/deckRating.ts",
+   "id": "MEAN_PLATE_OTHER",
+   "rule": "x10",
+   "base": 0.5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/harness/synergy.ts",
+   "id": "PLATE",
+   "rule": "x10",
+   "base": 25,
+   "now": 250
   }
  ]
 }

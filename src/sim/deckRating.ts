@@ -33,9 +33,9 @@ export const fightTime = (day: number): number => FIGHT_BY_DAY[Math.max(1, Math.
  * shocked payload stalls a machine for 1.6 s, a static stall per second, LODESTONE's +1 per stalled machine, an
  * OVERCLOCKER doubling a rig every few seconds, TOLLBOOTH and SIFTER guards.
  */
-export const EQ = { poison: 3, fray: 3, shock: 3, static: 4, perStalled: 1.5, overclock: 8, toll: 0.5, sift: 0.5 } as const;
+export const EQ = { poison: 30, fray: 30, shock: 30, static: 40, perStalled: 1.5, overclock: 80, toll: 5, sift: 5 } as const;
 /** A harassment round's damage-equivalent per payload (content.ts FactorySpec.round), from its card. */
-export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 6, frost: 4, drag: 3, limpet: 8 };
+export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40, drag: 30, limpet: 80 };
 /** Gear and cores whose effect the rating doesn't compute (MANTLET, FLAK, SPOTTER, every bought core): the turret's
  *  damage x (1 + NOMINAL x the part's value in gold), the typical player's "pricier is better". TUNE-M: not HOPPER, whose
  *  window and window time the turret model reads (rateDeck `start`). */
@@ -112,8 +112,8 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
  *  hero's par decks that plate, against the FURNACE par field, days 3-9, shot-weighted; tests/fixtures/b1-platemean.json):
  *  every hit spends plating, so a BASTION's hull holds about 1.4 when its guns fire, a plating FURNACE, WEAVER or FOUNDRY
  *  deck far less. MEAN_PLATE_OTHER: the heroes with no par field (METRONOME, SIPHON), FURNACE's. */
-export const MEAN_PLATE: Readonly<Partial<Record<HeroId, number>>> = { bastion: 1.5, furnace: 0.5, weaver: 0.2, foundry: 0.6 };
-export const MEAN_PLATE_OTHER = 0.5;
+export const MEAN_PLATE: Readonly<Partial<Record<HeroId, number>>> = { bastion: 15, furnace: 5, weaver: 2, foundry: 6 };
+export const MEAN_PLATE_OTHER = 5;
 /** The plating a plated deck of `hero` holds on average when its guns fire (MEAN_PLATE). */
 export const meanPlate = (hero: HeroId): number => MEAN_PLATE[hero] ?? MEAN_PLATE_OTHER;
 /** 0.8.0 B1 M2 (measured as MEAN_PLATE): the share of a plated deck's shots fired while its hull holds plating, STEAM

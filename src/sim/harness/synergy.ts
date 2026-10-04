@@ -16,7 +16,7 @@ import { starsOf, valueOf } from "../stars";
 const RACE = new Set(["escapement", "longcase"]);
 /** The part kinds a synergy part is swapped within: a rig for a rig, gear for gear, a core for a core, a factory for a factory. */
 const KINDS = new Set(["gate", "mod", "core", "factory"]);
-const PLATE = 25;
+const PLATE = 250;
 
 /** Every def a plan buys at any luck on any day: its factories, rigs, gear, cores and turrets. */
 export function planDefs(plan: RivalPlan): Set<string> {

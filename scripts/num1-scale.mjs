@@ -93,6 +93,15 @@ const TABLES = [
   { file: "src/game/ghostSnapshot.ts", name: "HULL_BONUS_MIN", kind: "const", rule: X },
   { file: "src/game/ghostSnapshot.ts", name: "HULL_BONUS_MAX", kind: "const", rule: X },
   { file: "src/net/roadCap.ts", name: "HULL_FLOOR", kind: "const", rule: X },
+  // the par player's rating (deckRating.ts): damage-equivalents in damage units, so its choices (relative ratings) stay
+  // the same at x10. EQ.perStalled multiplies a scaled damage (perStalled.each): a ratio. MEAN_PLATE: plating held.
+  { file: "src/sim/deckRating.ts", name: "EQ", kind: "fields",
+    rules: { poison: X, fray: X, shock: X, static: X, perStalled: S, overclock: X, toll: X, sift: X } },
+  { file: "src/sim/deckRating.ts", name: "ROUND_EQ", kind: "fields", rules: { sabot: X, frost: X, drag: X, limpet: X } },
+  { file: "src/sim/deckRating.ts", name: "MEAN_PLATE", kind: "fields", rules: { bastion: X, furnace: X, weaver: X, foundry: X } },
+  { file: "src/sim/deckRating.ts", name: "MEAN_PLATE_OTHER", kind: "const", rule: X },
+  // the captains' synergy swaps (harness/synergy.ts): one ARMOR PACK's hull, written as a number
+  { file: "src/sim/harness/synergy.ts", name: "PLATE", kind: "const", rule: X },
 ];
 const RUNE_X = new Set(["dmg", "hull", "plate"]);
 
