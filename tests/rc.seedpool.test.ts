@@ -54,6 +54,10 @@ const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 /** RUNES-1: a part as the pool it carries forward (the rules string normalised to POOL_RULES), for its digest. */
 const carried = (part: GhostSnapshot[]): GhostSnapshot[] => part.map((s) => ({ ...s, rules: POOL_RULES }));
 const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
+/** NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): a part with each ghost's hullBonus back in pre-NUM-1 units (/ 10,
+ *  this test's own inline conversion, not the pool's), so both digests still pin the carried decks byte for byte: the
+ *  stand-in pool is read x10 (standInPool.ts BUNDLED_POOL_HULL_SCALE) and the par player buys x10 ARMOR PACKs. */
+const preNum1 = (part: GhostSnapshot[]): GhostSnapshot[] => part.map((s) => ({ ...s, build: { ...s.build, hullBonus: s.build.hullBonus / 10 } }));
 /** FURNACE and WEAVER's 60 as a pool file: the sample and floor ghosts of the stand-in pool. Until BELTS they were
  *  7c7feb9's seed pool but the rules string (its sha256 110f813c..., with the rules normalised to bb-0.6.2); BELTS run 5
  *  regenerated the stand-in pool they are drawn from (44ee031, the gold upgrades), so they are pinned by their own
@@ -83,12 +87,12 @@ describe("the bb-0.8.7 seed pool (tools/samplePool.ts; bb-0.8.6's decks and reco
     expect(STANDIN_PART).toEqual([...sampleGhosts(), ...floorGhosts()]);
     expect(STANDIN_PART.every((s) => s.hero === "furnace" || s.hero === "weaver")).toBe(true);
     expect(POOL_RULES).toBe("bb-0.8.6");
-    expect(sha(samplePoolJson(carried(STANDIN_PART)))).toBe(STANDIN_PART_SHA256);
+    expect(sha(samplePoolJson(carried(preNum1(STANDIN_PART))))).toBe(STANDIN_PART_SHA256);
   });
 
   it("each FOUNDRY and BASTION ghost is the par player's dusk deck of its day from a par-field run; three distinct decks per hero and day", () => {
     expect(RACE_PART).toEqual(raceGhosts());
-    expect(sha(samplePoolJson(carried(RACE_PART)))).toBe(RACE_PART_SHA256);
+    expect(sha(samplePoolJson(carried(preNum1(RACE_PART))))).toBe(RACE_PART_SHA256);
     const field = parSeeds(PAR_K);
     for (const hero of RACE_SEED_HEROES) for (let day = 1; day <= 10; day++) {
       const here = RACE_PART.filter((s) => s.hero === hero && s.day === day);

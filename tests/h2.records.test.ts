@@ -163,7 +163,7 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     const old = await post({ ...bad, rules: "bb-0.6.2" });
     expect(old).toEqual({ status: 422, body: { error: `rules bb-0.6.2 not accepted: this server validates ${RULES_VERSION}` } });
     // deck: over the player ceiling with an unreachable record: the deck's 422 and its errors
-    const rich = await post({ ...bad, build: { ...bad.build, hullBonus: bad.build.hullBonus + 500 } });
+    const rich = await post({ ...bad, build: { ...bad.build, hullBonus: bad.build.hullBonus + 5000 } }); // NUM-1: hull x10 (was + 500)
     expect([rich.status, rich.body.error]).toEqual([422, "deck failed validation"]);
     expect(rich.body.errors!.join()).toMatch(/budget/);
     // and only then the record

@@ -36,9 +36,12 @@ function live(key: string): Build {
 /** The frozen 0.6.1 race references still held unfused pairs. Compare their 0.6.2 builds
  *  with those same purchases after the game's fusion rule, keeping the surviving rig's old hit. */
 function expectedDeck(r: Rec): Build {
+  // NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): the frozen decks are in pre-NUM-1 units; this test reads them in
+  // this build's units (its own inline x10 of hullBonus, the one damage-family field a Build holds), the file unchanged
+  const deck = { ...r.deck, hullBonus: r.deck.hullBonus * 10 };
   return /^(race|hero)\/ref\/(foundry|bastion|metronome|siphon)\//.test(r.key)
-    ? fuseDeck(r.deck).build
-    : r.deck;
+    ? fuseDeck(deck).build
+    : deck;
 }
 
 const rigsOf = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind === "gate");

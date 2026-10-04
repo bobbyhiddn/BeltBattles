@@ -263,7 +263,7 @@ describe("the online session (src/game/online.ts), with fakes", () => {
     // a deck the player mode refuses is not uploaded (a console.debug line says why)
     const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
     const rich = newRun("weaver", 32);
-    rich.build.hullBonus = 500;
+    rich.build.hullBonus = 5000; // NUM-1: hull x10 (was 500: 20 ARMOR PACKs, over day 1's budget)
     expect(validateUpload(rich.build, 1).ok).toBe(false);
     s.submitDusk(rich);
     expect(f.calls.submit).toHaveLength(1);

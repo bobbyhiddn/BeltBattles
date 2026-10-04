@@ -117,7 +117,7 @@ afterAll(async () => {
     const bad = await post(JSON.stringify(loom));
     expect(bad.status).toBe(422);
     expect(bad.body.errors.join()).toMatch(/signature factory/);
-    const rich = await post(JSON.stringify({ ...s, build: { ...s.build, hullBonus: 500 } }));
+    const rich = await post(JSON.stringify({ ...s, build: { ...s.build, hullBonus: 5000 } })); // NUM-1: hull x10 (was 500: 20 ARMOR PACKs)
     expect(rich.status).toBe(422);
     expect(rich.body.errors.join()).toMatch(/budget/);
     expect((await post(encodeSnapshot({ ...s, rules: "bb-0.3.0" }))).status).toBe(422);

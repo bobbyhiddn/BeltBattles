@@ -12,6 +12,12 @@
 //  - the decks: this build's seed pool and stand-ins are the fixture's, deck for deck, and none of them holds runes;
 //  - the battles: each one replayed here (new Battle(a, b, seed), stepped until over) gives the base's row.
 // Re-run after any change to the sim: npx vitest run --maxWorkers=4 tests/runes.parity.test.ts
+// NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): the fixture stays as written, in pre-NUM-1 units. This test converts
+// its decks when it reads them (hullBonus x10, its own inline x10, not the pool's BUNDLED_POOL_HULL_SCALE, so the deck-for-
+// deck check still tests the pool conversion). x10 and the integer damage pipeline change every battle a little, so the
+// exact-row check is replaced by the property that justifies carrying the pool, the NUMBERS chain's parity target: the
+// 360 battles, replayed on this build with the converted decks, flip at most 2% of the winners of the bb-0.8.6 rows (at
+// most 7 of 360). R6 re-records this fixture exactly, with the regenerated pool, and restores the exact check.
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it } from "vitest";
@@ -46,6 +52,8 @@ interface Fixture {
 }
 
 const F = JSON.parse(readFileSync(new URL("./fixtures/runes.parity.base.json", import.meta.url), "utf8")) as Fixture;
+/** NUM-1: a fixture deck in this build's units (hullBonus, the one damage-family field a Build holds, x10). */
+const num1 = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus * 10 });
 const MAX_TICKS = 200_000; // far past BATTLE_CAP; a battle that has not ended by then is a failure
 
 /** The generator's fight, verbatim: one battle stepped to its end. */
@@ -90,30 +98,35 @@ describe("RUNES-1 parity: the base's fixture and its decks", () => {
     expect(pool).toHaveLength(120);
     for (const s of pool) {
       const k = `${s.hero}-v${s.playerId.slice(-1)}-d${s.day}`;
-      expect(s.build, k).toEqual(F.decks[k]);
+      expect(s.build, k).toEqual(num1(F.decks[k])); // NUM-1: the fixture's deck in this build's units
       expect((s as { runes?: unknown }).runes, k).toBeUndefined();
     }
     for (let day = 1; day <= 10; day++) {
       const id = standInGhost(F.standInRun, day);
-      expect(standInBuild(id, day), `${id} d${day}`).toEqual(F.decks[`standin-${id}-d${day}`]);
+      expect(standInBuild(id, day), `${id} d${day}`).toEqual(num1(F.decks[`standin-${id}-d${day}`]));
     }
     for (const [k, b] of Object.entries(F.decks)) expect("runes" in b, k).toBe(false);
   }, 120_000);
 });
 
 describe("RUNES-1 parity: the battles", () => {
-  it("rune-less builds battle exactly as on the base c57de36 (bb-0.8.6): the same winner, ticks, time, hulls, plating and stats in all 360 battles", () => {
+  // NUM-1 (cap's oracle bcc36c430b4f3a01): was "rune-less builds battle exactly as on the base c57de36 (bb-0.8.6): the same
+  // winner, ticks, time, hulls, plating and stats in all 360 battles"; R6 re-records the fixture and restores it (`exact`
+  // below counts the rows that still match in full, for the log)
+  it("rune-less builds, their decks converted to NUM-1 units, keep the base c57de36's winner (bb-0.8.6) in at least 98% of the 360 battles (at most 7 flip)", () => {
     const t0 = performance.now();
-    const off: string[] = [];
+    const flipped: string[] = [];
+    let exact = 0;
     for (const want of F.battles) {
       const a = F.decks[want.a], b = F.decks[want.b];
       expect("runes" in a || "runes" in b, `${want.a} vs ${want.b}`).toBe(false);
-      const got = asBase(fight(a, b, want.seed), want);
-      if (!isDeepStrictEqual(got, want)) {
-        off.push(`${want.kind} ${want.a} vs ${want.b} (seed ${want.seed}): winner ${got.winner} (base ${want.winner}), ticks ${got.ticks} (base ${want.ticks}), hull ${JSON.stringify(got.hull)} (base ${JSON.stringify(want.hull)})`);
+      const got = asBase(fight(num1(a), num1(b), want.seed), want);
+      if (isDeepStrictEqual(got, want)) exact++;
+      if (got.winner !== want.winner) {
+        flipped.push(`${want.kind} ${want.a} vs ${want.b} (seed ${want.seed}): winner ${got.winner} (base ${want.winner}), ticks ${got.ticks} (base ${want.ticks}), hull ${JSON.stringify(got.hull)} (base ${JSON.stringify(want.hull)})`);
       }
     }
-    console.log(`runes parity: ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${off.length} differ from the base c57de36`);
-    expect(off.slice(0, 12), `${off.length} of ${F.battles.length} battles differ from the base`).toEqual([]);
+    console.log(`runes parity (NUM-1): ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${flipped.length} winners flipped against the base c57de36, ${exact} rows exactly as the base\n${flipped.join("\n")}`);
+    expect(flipped.length, `${flipped.length} of ${F.battles.length} winners flipped (at most 7: 2%)`).toBeLessThanOrEqual(7);
   }, 120_000);
 });
