@@ -29,6 +29,10 @@ import { encodeSnapshot, ghostId, SNAPSHOT_VERSION } from "../src/net/snapshot";
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
 // 0.7.0a: the game's side of the server (section 6, and the closed upload in section 3)
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
+// PACKS run 2 (REQ-BFG-063; oracle d44affbde25e285e, setup only): every upload below carries the tests' one player name,
+// as the tests' uploads do (bb-0.8.6 refuses a nameless upload with 422 "name: missing"); each check's expectation and
+// each refusal's reason are unchanged
+import { TEST_NAME } from "../tests/netIdentity";
 import { noBetterRecord } from "../src/net/matchmaking";
 import { battleRecordFor, replay } from "../src/net/replay";
 import { simulate } from "../src/sim/battle";
@@ -295,13 +299,13 @@ async function main(): Promise<void> {
   check(fake.requests.length === beforeSecond, "a second match within the cache TTL makes no storage call");
 
   const ghost = join(tmp, "ghost.json");
-  writeFileSync(ghost, encodeSnapshot({ ...generateSamplePool()[0], playerId: "smoke-player" }));
+  writeFileSync(ghost, encodeSnapshot({ ...generateSamplePool()[0], playerId: "smoke-player", name: TEST_NAME }));
   const p = await shell(`curl -sS -i -X POST -H 'content-type: application/json' --data-binary @ghost.json ${base}/v1/ghosts`, "curl",
     ["-sS", "-i", "-X", "POST", "-H", "content-type: application/json", "--data-binary", `@${ghost}`, `${base}/v1/ghosts`]);
   check(/HTTP\/1\.1 403/.test(p.out) && p.out.includes('{"error":"uploads are not open yet"}'), "POST /v1/ghosts: 403, uploads are not open yet");
   // 0.7.0a: the game's own upload (submitGhost, signed by a fresh device key) meets the same 403 while closed
   const closedDevice = await loadIdentity(memoryKeyStore());
-  const closedSub = closedDevice ? await submitGhost(base, { ...generateSamplePool()[1], runId: "smoke-closed", playerId: closedDevice.playerId }, closedDevice, 4000) : null;
+  const closedSub = closedDevice ? await submitGhost(base, { ...generateSamplePool()[1], runId: "smoke-closed", playerId: closedDevice.playerId, name: TEST_NAME }, closedDevice, 4000) : null;
   say(`  the game's submitGhost while closed: ${JSON.stringify(closedSub)}`);
   check(!!closedSub && !closedSub.ok && closedSub.status === 403, "0.7.0a: the game's signed upload (submitGhost) while closed: 403");
   check(fake.keys("bb-smoke").every((k) => !k.includes("/player/")), "no player object was written");
@@ -340,7 +344,7 @@ async function main(): Promise<void> {
     // 0.6.2's v2 snapshot: the first pool deck with turrets and a join, so the signature covers both
     const v2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined));
     if (!v2) throw new Error("the sample pool has no deck with turrets and a join");
-    const mine = { ...v2, runId: "smoke-run", playerId: device.playerId };
+    const mine = { ...v2, runId: "smoke-run", playerId: device.playerId, name: TEST_NAME };
     const bytes = new TextEncoder().encode(encodeSnapshot(mine));
     say(`ghost.json: ${mine.hero} day ${mine.day}, snapshot v${mine.v}, ${bytes.length} bytes, ${mine.build.turrets?.length ?? 0} turret(s), `
       + `${mine.build.routes.filter((r) => r.join !== undefined).length} joining belt(s)`);
@@ -410,7 +414,7 @@ async function main(): Promise<void> {
     say(`  no eligible ghost: ${none.source} (${none.error}) -> ${fallback.kind} ${fallback.name}`);
     check(none.source === "fallback" && /no ghost/.test(none.error ?? "") && fallback.kind === "standin" && fallback.name === standInFoe(run.seed, day).name,
       "no eligible ghost: 404, and the game fights 0.6.2's own stand-in (standInFoe)");
-    const up2 = await submitGhost(base2, { ...generateSamplePool()[1], runId: "smoke-run-2", playerId: player2.playerId }, player2, 4000);
+    const up2 = await submitGhost(base2, { ...generateSamplePool()[1], runId: "smoke-run-2", playerId: player2.playerId, name: TEST_NAME }, player2, 4000);
     say(`  the game's submitGhost while open: ${JSON.stringify(up2)}`);
     check(up2.ok && players().length === 2, "the game's signed upload (submitGhost) while open: 201, stored");
 
@@ -439,7 +443,7 @@ async function main(): Promise<void> {
   check(a2.code === 2 && /--rules <bb-x\.y\.z> is required/.test(a2.out) && fake.requests.length === markA, "no --rules: exit 2, nothing read");
   // a deck 20 plates over day 1's budget, written straight into the bucket (past POST and its validateUpload)
   const p0 = generateSamplePool().find((s) => s.day === 1)!;
-  const cheat = { ...p0, playerId: "smoke-cheater", runId: "smoke-cheat", build: { ...p0.build, hullBonus: p0.build.hullBonus + 500 } };
+  const cheat = { ...p0, playerId: "smoke-cheater", runId: "smoke-cheat", name: TEST_NAME, build: { ...p0.build, hullBonus: p0.build.hullBonus + 500 } };
   const cheatKey = objectKey("player", RULES_VERSION, 1, ghostId(cheat));
   fake.putObject("bb-smoke", cheatKey, encodeRecord(ghostId(cheat), 1, cheat));
   const keys0 = keys(), deletes0 = fake.count("DELETE");
