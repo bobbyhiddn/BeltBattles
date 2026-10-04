@@ -351,6 +351,32 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`), { text: `ELSE: +${floor} {DMG}.` }],
       [["flat", `+${flat} {DMG}`], ["floor", `ELSE +${floor}`]], [REMINDER.PLATE()]);
   },
+  // ------------------------------------------------- U2b: the TEXT turret gear (it describes the turret it sits on)
+  // FLAK SCREEN (a STUN-fold face), LONGCASE and FINISHER RAM (N1 3.3's crit pieces) keep today's text, as every RULES
+  // gear does.
+  chamber: (e) => {
+    const n = fmtCount(md(e).perShot!); // ★2 WIDE BREECH / ★3 TRIPLE BREECH: + window (a clause)
+    return rules([{ text: `EACH SHOT FIRES ${n} {SLUG}.` }], [["shot", `FIRES ${n} {SLUG}`]]);
+  },
+  calibrate: (e) => {
+    const up = fmtPct(1 / md(e).fireMul! - 1); // rateText's rule: an interval x0.75 fires 33% faster (N1 2.3)
+    return rules([{ text: `FIRES ${up} FASTER.` }], [["rate", `${up} FASTER`]]);
+  },
+  spotter: (e) => {
+    // Battle.pickTarget: a pick of bare hull is rerolled up to `rerolls` times; ★2/★3 weigh factories (a clause)
+    const r = md(e).rerolls ?? 1, n = fmtCount(r);
+    return rules([{ text: `SHOTS AT BARE HULL GET ${n} MORE AIM${s(r)}.` }], [["rerolls", `${n} MORE AIM${s(r)}`]]);
+  },
+  escapement: (e) => {
+    const up = fmtPct(1 / md(e).fireMul! - 1); // METRONOME's pendulum line: not playable (R1 dropped it)
+    return rules([{ text: `FIRES ${up} FASTER.` }], [["rate", `${up} FASTER`]]);
+  },
+  spallcatcher: (e) => {
+    // Battle.spallCharge: + add for every `every` damage your ship takes, on this turret's next shot (its cap and
+    // plating's double count are an interim caveat, call 7)
+    const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
+    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
+  },
 };
 
 // ------------------------------------------------------------------------------- U2b: the interim lines (F5, F6)
@@ -462,6 +488,23 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
     if (!cap) return null;
     const n = fmtCount(FRAY_MAX + cap);
     return { text: `MAX ${n} {FRAY}.`, nums: [["cap", `MAX ${n} {FRAY}`]] };
+  },
+  // the TEXT gear's own STAR-batch perks
+  chamber: (e) => {
+    const w = md(e).window; // TurretState.window: the chamber holds `window` more loads (★2 WIDE BREECH)
+    if (!w) return null;
+    const n = fmtCount(w);
+    return { text: `HOLDS +${n} {SLUG}.`, nums: [["window", `HOLDS +${n} {SLUG}`]] };
+  },
+  spotter: (e) => {
+    // Battle.pickTarget: factories weigh factoryWeight x; ★3 EAGLE EYE (alwaysMachine) never picks bare hull
+    const m = md(e);
+    if (!m.factoryWeight) return null;
+    const n = fmtCount(m.factoryWeight);
+    return {
+      text: `${m.alwaysMachine ? "ALWAYS AIMS AT A PART, AND " : ""}PICKS FACTORIES ${n} TIMES AS OFTEN.`,
+      nums: [], // (NEXT★ names FACTORY SPOT and EAGLE EYE; their numbers would take it past one line)
+    };
   },
 };
 
