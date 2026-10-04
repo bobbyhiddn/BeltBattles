@@ -513,18 +513,19 @@ export interface BotRune {
  * run seed (run.seed, the one a snapshot carries). Null, the build untouched, when off, when the build missed a dawn
  * (runes.length !== day - 1: one rune a dawn from day 1, as runeDawn owes a pick) or when the offer is empty.
  */
-export function botTakeRune(build: Build, seed: number, day: number, hero: HeroId = build.hero, on: boolean = BOT_RUNES): BotRune | null {
+export function botTakeRune(build: Build, seed: number, day: number, hero: HeroId = build.hero, on: boolean = BOT_RUNES, won = false): BotRune | null {
   if (!on) return null;
   const ids = (build.runes ?? []).map((q) => q.id);
   if (ids.length !== day - 1) return null;
   const id = botRunePick(runeOffer(seed, day, hero, ids), hero, build);
   if (id === null) return null;
-  const before = runeGrants(build.runes, day);
+  const d = RUNES[id];
   build.runes = [...(build.runes ?? []), { id }];
-  const after = runeGrants(build.runes, day);
-  build.hullBonus += after.hull - before.hull;
-  build.beltCap += after.belt - before.belt;
-  return { id, gold: after.gold - before.gold };
+  if (d.kind === "hull") build.hullBonus += d.amount.n;
+  else if (d.kind === "belt") build.beltCap += d.amount.n;
+  // cap_gamma (RUNES-2a): the pick's own gold exactly as run.ts takeRune pays it (pickGold: RUNE TITHE per rune held,
+  // SPOILS SACK only after a won dusk, `won`), not runeGrants' budget bound
+  return { id, gold: pickGold(d, build.runes.length, won) };
 }
 
 /**

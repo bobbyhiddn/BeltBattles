@@ -72,6 +72,7 @@ import { UPGRADE_TRACKS, type UpgradeTrack } from "../content"; // bb-0.8.3 (REQ
 import { MAX_TILES, Shopper } from "./shopper";
 import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } from "./path";
 import { syncOf, syncedTurrets } from "../syncEstimate"; // 0.8.0 B1 M1: FOUNDRY's sync guard (syncKeeper)
+import { BOT_RUNES, botTakeRune, runeGrants } from "../runes"; // RUNES-2a (REQ-BFG-058): the bots' dawn rune, behind BOT_RUNES
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
 
@@ -127,6 +128,9 @@ export interface PlayerOpts {
   trace?: (run: Run, wagon: number, slot: number) => void; // called just before each buyOffer (tests)
   onReroll?: (run: Run) => void; // called just before each reroll (tests)
   onDecide?: (run: Run, cands: readonly PlayerOffer[], pick: string | null) => void; // each shopping step (diagnostics)
+  // RUNES-2a (REQ-BFG-058): the player takes a rune at every dawn, before the shop (runes.ts botTakeRune on the run's own
+  // seed). Absent: runes.ts BOT_RUNES, THE switch (off in this rules version, so every run plays exactly as before).
+  botRunes?: boolean;
 }
 
 /** An offer as the player judged it (diagnostics): its def, price, kind and the rating change it would make; a turret's
@@ -182,7 +186,7 @@ export interface PlayerDay {
   day: number;
   build: Build; // the deck at dusk (a fresh copy)
   value: number; // buildCost(build).total
-  budget: number; // maxGoldByDay(day)
+  budget: number; // maxGoldByDay(day) (RUNES-2a: + the gold its dawn-gold runes paid by this dusk, runeGrants; 0 without runes)
   gold: number; // unspent gold carried into the next dawn
   rerolls: number; // rerolls taken today
   rerollGold: number; // gold spent on rerolls, days 1..day
@@ -1456,6 +1460,18 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
   return { buys, rolls };
 }
 
+/**
+ * RUNES-2a (REQ-BFG-058, R1b-2 1.6): the dawn's rune, before the shop: runes.ts botTakeRune on the run's own seed (the
+ * offer the game shows this run), with run.ts takeRune's effects (the rune's HULL or BELT on the deck, its dawn gold in
+ * the purse, no pick pending). finishDay's runeDawn pays the held dawn-gold runes at every later dawn.
+ */
+function dawnRune(run: Run): void {
+  const got = botTakeRune(run.build, run.seed, run.day, run.hero, true, run.history[run.history.length - 1]?.outcome === "win");
+  if (!got) return;
+  run.gold += got.gold;
+  delete run.runeDay;
+}
+
 const CACHE = new Map<string, PlayerDay[]>();
 export const PLAYER_DAYS = 10;
 
@@ -1467,7 +1483,8 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   const policy = opts.policy ?? "typical", maxStars = opts.maxStars ?? FUSE_MAX;
   const pol = knobsOf(policy, opts.tune);
   const traced = !!(opts.trace || opts.onReroll || opts.onDecide);
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}`;
+  const runes = opts.botRunes ?? BOT_RUNES; // RUNES-2a: THE switch (off: the cache key and the run exactly as before)
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -1475,11 +1492,13 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
     const persona = personaOf(hero, seed, pol);
     const spent = { reroll: 0, sold: 0 };
     full = [];
+    if (runes) dawnRune(run); // RUNES-2a: day 1's rune first (the game's picker comes before anything at dawn)
     if (persona.beltTiles > 0) drawKilnBelt(run, rng, persona.beltTiles);
     for (let day = 1; day <= PLAYER_DAYS; day++) {
       if (day > 1) nextDawn(run);
+      if (runes && day > 1) dawnRune(run);
       const { buys, rolls } = shopDay(run, pol, maxStars, rng, spent, opts);
-      full.push({ day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: maxGoldByDay(day), gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys });
+      full.push({ day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: maxGoldByDay(day) + runeGrants(run.build.runes, day).gold, gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys });
       if (traced && day >= days) break;
     }
     if (!traced) CACHE.set(key, full);

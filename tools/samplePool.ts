@@ -162,15 +162,16 @@ export interface RaceDeck { build: Build; seed: number }
  * 0.8.0 RC: the race seed deck of (hero, day, variant v): the par player's dusk deck of `day` (playerBuild, the typical
  * policy) from the par field's run picked by hashSeed("race-seed-pool", hero, v, day) among parSeeds(PAR_K), stepped to
  * the next field seed while it is the same deck (encodeStarred) as a lower variant's deck that day. Throws if the field
- * holds fewer distinct decks than the variants need.
+ * holds fewer distinct decks than the variants need. RUNES-2a: `botRunes` (absent: runes.ts BOT_RUNES, off) has the par
+ * player take a rune at each dawn (player.ts PlayerOpts.botRunes).
  */
-export function raceDeck(hero: HeroId, day: number, v: number): RaceDeck {
+export function raceDeck(hero: HeroId, day: number, v: number, botRunes?: boolean): RaceDeck {
   const seeds = parSeeds(PAR_K);
   const taken = new Set<string>();
-  for (let u = 0; u < v; u++) taken.add(encodeStarred(raceDeck(hero, day, u).build));
+  for (let u = 0; u < v; u++) taken.add(encodeStarred(raceDeck(hero, day, u, botRunes).build));
   let i = hashSeed("race-seed-pool", hero, v, day) % seeds.length;
   for (let step = 0; step < seeds.length; step++, i = (i + 1) % seeds.length) {
-    const build = playerBuild(hero, day, seeds[i]);
+    const build = playerBuild(hero, day, seeds[i], botRunes !== undefined ? { botRunes } : {});
     if (!taken.has(encodeStarred(build))) return { build, seed: seeds[i] };
   }
   throw new Error(`race seed deck ${hero} day ${day} variant ${v}: the par field holds fewer than ${v + 1} distinct decks`);
@@ -225,9 +226,11 @@ export function uncoveredStates(pool: readonly GhostSnapshot[], min = MIN_ELIGIB
 }
 
 /** The seed pool: the 40 sample ghosts, the 20 floor ghosts (FURNACE and WEAVER), then the 60 race ghosts (FOUNDRY and
- *  BASTION, 0.8.0 RC). Throws if a reachable state is not covered. */
-export function generateSamplePool(): GhostSnapshot[] {
-  const pool = [...sampleGhosts(), ...floorGhosts(), ...raceGhosts()];
+ *  BASTION, 0.8.0 RC). Throws if a reachable state is not covered. RUNES-2a: o.botRunes (absent: runes.ts BOT_RUNES,
+ *  off) reaches the race decks' par player (raceDeck); the stand-in heroes' decks come from the bundled stand-in pool. */
+export function generateSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
+  const races = o.botRunes === undefined ? raceGhosts() : raceGhosts(undefined, (h, d, v) => raceDeck(h, d, v, o.botRunes));
+  const pool = [...sampleGhosts(), ...floorGhosts(), ...races];
   const gaps = uncoveredStates(pool);
   if (gaps.length) {
     throw new Error(`the seed pool leaves ${gaps.length} reachable states with fewer than ${MIN_ELIGIBLE} eligible ghosts: `

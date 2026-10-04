@@ -16,7 +16,11 @@ function flag(name: string): string | undefined {
 }
 
 const out = resolve(flag("out") ?? "server/dist/ghost-pool.sample.json");
-const pool = generateSamplePool();
+// RUNES-2a (REQ-BFG-058): --bot-runes on|off, the race decks' par player takes a rune at each dawn; absent: runes.ts
+// BOT_RUNES (off), so the pool is generated exactly as before
+const botRunes = flag("bot-runes");
+if (botRunes !== undefined && botRunes !== "on" && botRunes !== "off") throw new Error(`--bot-runes must be "on" or "off", got ${botRunes}`);
+const pool = generateSamplePool(botRunes === undefined ? {} : { botRunes: botRunes === "on" });
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, samplePoolJson(pool));
 console.log(`wrote ${pool.length} ghost snapshots (${new Set(pool.map((s) => s.day)).size} days, heroes ${[...new Set(pool.map((s) => s.hero))].join("+")}) to ${out}`);

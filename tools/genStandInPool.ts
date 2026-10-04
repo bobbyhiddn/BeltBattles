@@ -93,11 +93,15 @@ async function main(): Promise<void> {
   if (parBand && (parBand.length !== 2 || parBand.some((x) => !Number.isFinite(x) || x < 0 || x > 1) || parBand[0] >= parBand[1])) {
     throw new Error("--par-band must be lo,hi win-rate fractions with lo < hi, e.g. 0.5,0.6");
   }
+  // RUNES-2a (REQ-BFG-058): --bot-runes on|off, the par player's dawn runes; absent: runes.ts BOT_RUNES (off)
+  const botRunesFlag = flag("bot-runes");
+  if (botRunesFlag !== undefined && botRunesFlag !== "on" && botRunesFlag !== "off") throw new Error(`--bot-runes must be "on" or "off", got ${botRunesFlag}`);
   const o: StandInOpts = {
     ...STANDIN_DEFAULTS,
     par: parFlag,
     source: sourceFlag,
     ...(parBand ? { parBand: [parBand[0], parBand[1]] as [number, number] } : {}),
+    ...(botRunesFlag !== undefined ? { botRunes: botRunesFlag === "on" } : {}),
     seed: num("seed", STANDIN_DEFAULTS.seed),
     pop: num("pop", STANDIN_DEFAULTS.pop),
     per: num("per", STANDIN_DEFAULTS.per),

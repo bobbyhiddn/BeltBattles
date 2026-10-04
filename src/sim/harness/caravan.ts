@@ -25,6 +25,7 @@ import { buildCost, maxGoldByDay } from "../../net/validate";
 import { FUSE_MAX, starsOf } from "../stars";
 import { spendFloor } from "./gen";
 import { PLAYER_DAYS, playerRun, type PlayerOpts } from "./player";
+import { runeGrants } from "../runes"; // RUNES-2a (REQ-BFG-058): a bot's dawn-gold runes in its gold
 
 /** Where the stand-in population comes from: "caravan" (par-player runs; the CLI default since step 5) or "fullpurse"
  *  (standInCandidate / fullPurseBuild, the pools up to v2.1; the library default when the option is absent). */
@@ -73,24 +74,28 @@ export interface CaravanMeta {
 
 export interface CaravanDeck { build: Build; value: number; floorMet: boolean; meta: CaravanMeta }
 
-/** The day-`day` dusk deck of the (hero, policy, seed) run (a fresh copy), with its gold. */
-export function caravanDeck(hero: HeroId, day: number, seed: number, policy: CaravanPolicy, maxStars: number): CaravanDeck {
-  const d = playerRun(hero, PLAYER_DAYS, seed, { ...CARAVAN_POLICY[policy], maxStars })[day - 1];
+/** The day-`day` dusk deck of the (hero, policy, seed) run (a fresh copy), with its gold. RUNES-2a: `botRunes` (absent:
+ *  runes.ts BOT_RUNES, off) has the player take a rune at each dawn; its dawn-gold runes' gold joins the day's gold. */
+export function caravanDeck(hero: HeroId, day: number, seed: number, policy: CaravanPolicy, maxStars: number, botRunes?: boolean): CaravanDeck {
+  const d = playerRun(hero, PLAYER_DAYS, seed, { ...CARAVAN_POLICY[policy], maxStars, ...(botRunes !== undefined ? { botRunes } : {}) })[day - 1];
   if (!d) throw new Error(`caravan deck: no day ${day} in a ${PLAYER_DAYS}-day run`);
-  const value = buildCost(d.build).total;
-  if (value !== d.value) throw new Error(`caravan deck ${hero} d${day} ${policy} ${seed}: the run's value ${d.value} != buildCost ${value}`);
-  const spent = maxGoldByDay(day) - d.gold;
+  if (buildCost(d.build).total !== d.value) throw new Error(`caravan deck ${hero} d${day} ${policy} ${seed}: the run's value ${d.value} != buildCost ${buildCost(d.build).total}`);
+  // RUNES-2a: as validate.ts reads a deck with runes: the bought deck's value (the HULL and BELT runes' own taken out of
+  // hullBonus / beltCap) and the day's gold plus the dawn-gold runes' gold. Without runes both are exactly as before.
+  const grant = runeGrants(d.build.runes, day);
+  const value = grant.hull || grant.belt ? buildCost({ ...d.build, hullBonus: d.build.hullBonus - grant.hull, beltCap: d.build.beltCap - grant.belt }).total : d.value;
+  const spent = maxGoldByDay(day) + grant.gold - d.gold;
   const meta: CaravanMeta = { policy, seed, spent, rerollGold: d.rerollGold, soldLoss: d.soldLoss, unspent: d.gold, cargoGold: spent - value - d.rerollGold - d.soldLoss };
   return { build: d.build, value, floorMet: spent >= spendFloor(day), meta };
 }
 
 /** Population candidate idx of (hero, day) under generator seed `seed`: its policy's run, capped at `maxStars`. */
-export const caravanCandidate = (hero: HeroId, day: number, seed: number, idx: number, maxStars: number): CaravanDeck =>
-  caravanDeck(hero, day, caravanSeedOf(seed, idx), caravanPolicyOf(idx), maxStars);
+export const caravanCandidate = (hero: HeroId, day: number, seed: number, idx: number, maxStars: number, botRunes?: boolean): CaravanDeck =>
+  caravanDeck(hero, day, caravanSeedOf(seed, idx), caravanPolicyOf(idx), maxStars, botRunes);
 
 /** Gauntlet member i of (hero, day) under generator seed `seed`: a typical player's run, uncapped (as the par field). */
-export const caravanGauntlet = (hero: HeroId, day: number, seed: number, i: number): Build =>
-  caravanDeck(hero, day, caravanGauntletSeedOf(seed, i), "typical", FUSE_MAX).build;
+export const caravanGauntlet = (hero: HeroId, day: number, seed: number, i: number, botRunes?: boolean): Build =>
+  caravanDeck(hero, day, caravanGauntletSeedOf(seed, i), "typical", FUSE_MAX, botRunes).build;
 
 /** Report counts of one deck (step 5 dry runs): merged copies by stars (items, modules and installed turrets), whether it
  *  carries Build.turrets, its starting turrets merged above 1 star (free copies in their own slot), its turrets beyond
