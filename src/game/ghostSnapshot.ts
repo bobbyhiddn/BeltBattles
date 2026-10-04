@@ -25,6 +25,10 @@ const MAX_TURRETS = 8; // 0.6.2s: = src/net/snapshot.ts MAX_TURRETS
 const MAX_SLOT = 15; // 0.6.2s: = src/net/snapshot.ts MAX_SLOT
 const DEF_PATTERN = /^[a-z0-9_]{1,32}$/; // = src/net/snapshot.ts DEF_PATTERN
 const MAX_UID = 2 ** 31 - 1; // = src/net/snapshot.ts MAX_UID
+// bb-0.8.6 (REQ-BFG-051 P3): the build's beltCap and hullBonus, integers in src/net/snapshot.ts checkBuildShape's bounds
+// (the packs make big belts and hulls ordinary, so this side takes exactly what the strict decoder takes)
+const MAX_BELT_CAP = 1000; // = checkBuildShape's beltCap 0..1000
+const HULL_BONUS_MIN = -1000, HULL_BONUS_MAX = 10000; // = its hullBonus -1000..10000
 const TURRET_KEYS = ["slot", "def", "uid", "stars", "free"];
 /** runId, playerId: anonymous, no personal data (same pattern as the async contract). */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -113,7 +117,7 @@ function upgradesOk(q: object, v: number): boolean {
 function buildOk(b: unknown, v = SNAPSHOT_VERSION): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
-    && Array.isArray(q.mods) && typeof q.beltCap === "number" && typeof q.hullBonus === "number"
+    && Array.isArray(q.mods) && inRange(q.beltCap, 0, MAX_BELT_CAP) && inRange(q.hullBonus, HULL_BONUS_MIN, HULL_BONUS_MAX)
     && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v) && joinOk(q.routes, v)
     && upgradesOk(q, v);
 }

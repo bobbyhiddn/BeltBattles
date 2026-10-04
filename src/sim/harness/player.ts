@@ -59,12 +59,14 @@ import { stokeSpots } from "../beltside"; // 0.8.0 P1 (E3): STOKER's place besid
 import type { SideStats } from "../battle";
 import { FUSE_MAX, fusible, gradeOf, starsOf, valueOf } from "../stars";
 import { beltPolicy, botSlots, reachCols, upgradePolicy } from "./belts"; // bb-0.8.3 (REQ-BFG-042 D7, REQ-BFG-043 D7')
+import { packPolicy } from "./belts"; // bb-0.8.6 (REQ-BFG-051 P6): the fixed packs
+import { PACK_IDS, PACK_ITEM, type PackId } from "../content"; // bb-0.8.6 (REQ-BFG-051)
 import { buildCost, maxGoldByDay } from "../../net/validate";
 import { finishDay } from "../../game/day";
 import { gainModule, mergePreview, type GainAt } from "../../game/fuse";
 import {
-  buyOffer, buyUpgrade, fitCore, installFromCargo, newRun, nextUpgrade, reroll, sellInventory, storeMod, storePlaced,
-  takeFromInventory, upgradeShown, type Run,
+  buyOffer, buyPack, buyUpgrade, fitCore, installFromCargo, newRun, nextUpgrade, packPrice, reroll, sellInventory, storeMod,
+  storePlaced, takeFromInventory, upgradeShown, type Run,
 } from "../../game/run";
 import { UPGRADE_TRACKS, type UpgradeTrack } from "../content"; // bb-0.8.3 (REQ-BFG-043 D7')
 import { MAX_TILES, Shopper } from "./shopper";
@@ -167,7 +169,7 @@ export interface PlayerBuy {
   price: number;
   stars: number; // the copy's stars after any merge
   merged: boolean;
-  why: "merge" | "best" | "whim" | "impulse" | "fill" | "crate";
+  why: "merge" | "best" | "whim" | "impulse" | "fill" | "crate" | "greedy"; // bb-0.8.6: "greedy", M3's pack policies
   grew?: number; // a belt crate: the tiles the belt it lengthened grew by (absent: none)
   replaced?: string; // an upgrade: the def of the fitted gear or core it replaced (sold); a turret: the one it displaced
   slot?: number; // CAND-A: a turret: the slot it went into
@@ -220,6 +222,7 @@ interface Cand {
   swap?: number; // an upgrade: the uid of the fitted gear or core it replaces (stored, then sold)
   turret?: TurretPlan; // CAND-A: a turret offer's plan
   track?: UpgradeTrack; // bb-0.8.3 (D7'): the hero's gold upgrade's next level (no wagon: wagon -1, slot the track's index)
+  pack?: PackId; // bb-0.8.6 (REQ-BFG-051 P6): a fixed pack (no wagon: wagon -2, slot the pack's index in PACK_IDS)
   rel: number; // (rateDeck(after) - rateDeck(now)) / rateDeck(now)
   banned?: boolean; // TUNE-M: its def is in pol.forbid (judged as usual, never taken)
 }
@@ -1049,7 +1052,58 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
     push(cs);
   }));
   out.push(...upgradeCands(run, base, banned));
+  out.push(...packCands(run, base, banned)); // bb-0.8.6 (REQ-BFG-051 P6)
   return out;
+}
+
+/**
+ * bb-0.8.6 (REQ-BFG-051 P6): the caravan's two fixed packs as candidates (belts.ts packPolicy, every policy but "never"):
+ * each pack the purse affords, judged as any offer is, by the rating's gain (relOf) for its gold: an ARMOR PACK with its
+ * +25 hull; a BELT PACK with its +4 belt, and with the belt it lengthens best when that rates better (growBelt, the crate
+ * rule, on a fixed seed: judging draws on no stream, so the policies' streams stay paired). Outside the shop: no wagon
+ * (-2), nothing the shop shows; repeatable, so the next dawn step judges them again. pol.forbid may name "pack:belt" /
+ * "pack:armor" (judged, never taken).
+ */
+function packCands(run: Run, base: number, banned: ReadonlySet<string>): Cand[] {
+  if (packPolicy(run.build.hero) === "never") return [];
+  const out: Cand[] = [];
+  PACK_IDS.forEach((id, i) => {
+    const price = packPrice(id), d = ITEMS[PACK_ITEM[id]];
+    if (price > run.gold) return;
+    const after = cloneBuild(run.build);
+    if (d.supply?.hull) after.hullBonus += d.supply.hull;
+    if (d.supply?.belt) after.beltCap += d.supply.belt;
+    let c: Cand = { wagon: -2, slot: i, def: d.id, price, kind: id === "armor" ? "plating" : "crate", merge: false, rel: relOf(after, base, run.day), pack: id };
+    if (d.supply?.belt) {
+      const g = growBelt(after, run.day, new Rng(hashSeed(run.day, "pack-belt")), base);
+      if (g && g.rel > c.rel) c = { ...c, rel: g.rel, grown: { build: g.build, tiles: g.tiles } };
+    }
+    if (banned.has(`pack:${id}`)) c.banned = true;
+    out.push(c);
+  });
+  return out;
+}
+
+/** bb-0.8.6 (REQ-BFG-051 P6): buy pack candidate `c` (run.ts buyPack), then lay the belt it was judged with (a BELT PACK's
+ *  grown belt: the game's free redraw). */
+function buyPackCand(run: Run, c: Cand, why: PlayerBuy["why"], rolls: number, buys: PlayerBuy[]): void {
+  const r = buyPack(run, c.pack!);
+  if (!r.ok) throw new Error(`par player: buyPack ${c.pack} failed: ${r.reason}`);
+  if (c.grown) {
+    run.build.items = cloneBuild(c.grown.build).items;
+    run.build.routes = cloneBuild(c.grown.build).routes;
+  }
+  buys.push({ day: run.day, roll: rolls, def: c.def, price: c.price, stars: 1, merged: false, why, ...(c.grown ? { grew: c.grown.tiles } : {}) });
+}
+
+/** bb-0.8.6 (REQ-BFG-051 P6, M3): ARMOR-greedy / BELT-greedy's end of the day: every coin left goes to that pack (a BELT
+ *  PACK laid into the belt it lengthens best, when that helps). */
+function greedyPacks(run: Run, id: PackId, rolls: number, buys: PlayerBuy[]): void {
+  for (let guard = 0; guard < 200 && run.gold >= packPrice(id); guard++) {
+    const c = packCands(run, rateOn(run.build, run.day), new Set()).find((x) => x.pack === id);
+    if (!c) return;
+    buyPackCand(run, c, "greedy", rolls, buys);
+  }
 }
 
 /**
@@ -1209,6 +1263,7 @@ function buyTurret(run: Run, c: Cand): number {
  *  Returns the gold the sale lost (value minus refund). */
 function buy(run: Run, c: Cand, why: PlayerBuy["why"], rolls: number, buys: PlayerBuy[], trace?: PlayerOpts["trace"]): number {
   if (c.track) { buyUpgradeCand(run, c, why, rolls, buys); return 0; } // bb-0.8.3 (D7'): no offer, no trace, no refund
+  if (c.pack) { buyPackCand(run, c, why, rolls, buys); return 0; } // bb-0.8.6 (REQ-BFG-051 P6): a fixed pack, no offer
   trace?.(run, c.wagon, c.slot);
   if (c.turret) {
     const lost = buyTurret(run, c);
@@ -1383,12 +1438,17 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
     }
     break;
   }
-  for (let guard = 0; guard < 20 && run.gold > pol.reserve; guard++) {
-    const cands = candidates(run, maxStars, rng, { ...pol, place: "best" }).filter((c) => c.kind === "crate" && !c.banned);
-    const crate = cands.sort((a, b) => b.rel - a.rel || a.wagon - b.wagon || a.slot - b.slot)[0];
-    if (!crate) break;
-    buy(run, crate, "crate", rolls, buys, opts.trace);
+  // bb-0.8.6 (REQ-BFG-051 P6): the gold above the reserve went into the belt crates the caravan's roll offered (each
+  // offer once). Those crates are the fixed BELT PACK now, bought again and again, so the leftover goes into a pack only
+  // when one helps (rel > minRel: better than keeping the gold), the better gain for its gold first.
+  const pp = packPolicy(run.build.hero);
+  for (let guard = 0; pp !== "never" && guard < 20 && run.gold > pol.reserve; guard++) {
+    const cands = packCands(run, rateOn(run.build, run.day), forbidden(pol)).filter((c) => !c.banned && c.rel > pol.minRel);
+    const pack = cands.sort((a, b) => b.rel / b.price - a.rel / a.price || a.price - b.price)[0];
+    if (!pack) break;
+    buyPackCand(run, pack, "crate", rolls, buys);
   }
+  if (pp === "armor" || pp === "belt") greedyPacks(run, pp, rolls, buys); // M3: ARMOR-greedy / BELT-greedy
   return { buys, rolls };
 }
 

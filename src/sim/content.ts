@@ -859,14 +859,15 @@ export const ITEMS: Record<string, ItemDef> = {
     turret: { class: "heavy", fireInterval: 0.8, window: 4, flight: 0.5, intake: "both" },
     levels: { 2: { turret: { fireInterval: 0.72 } }, 3: { turret: { fireInterval: 0.64 } } },
   },
-  // --- supplies (consumed on purchase) ---
+  // --- supplies (consumed on purchase). bb-0.8.6 (REQ-BFG-051, PACKS): the caravan's two fixed packs (PACKS below), out
+  // of the rolled stock (itemsSoldBy); the ids stay (ghosts, validators and bots read them), the names are the packs' ---
   beltcrate: {
-    id: "beltcrate", name: "BELT CRATE", kind: "supply", rarity: "common", price: 2, size: 1, merchant: "ironmonger",
+    id: "beltcrate", name: "BELT PACK", kind: "supply", rarity: "common", price: 2, size: 1, merchant: "ironmonger",
     desc: ["+4 BELT CAPACITY.", "LONGER ROUTES COOK", "HOTTER PAYLOADS."],
     supply: { belt: 4 },
   },
   plating: {
-    id: "plating", name: "ARMOR PLATING", kind: "supply", rarity: "rare", price: 5, size: 1, merchant: "ironmonger",
+    id: "plating", name: "ARMOR PACK", kind: "supply", rarity: "rare", price: 5, size: 1, merchant: "ironmonger",
     desc: ["+25 MAX HULL", "FOR THE REST", "OF THE RUN."],
     supply: { hull: 25 },
   },
@@ -1174,9 +1175,23 @@ export const MERCHANTS: Record<MerchantId, MerchantDef> = {
   arcane: { id: "arcane", name: "ARCANE DEALER" },
 };
 
+/** What `m` stocks for the shop's roll (run.ts rollShop). bb-0.8.6 (REQ-BFG-051, PACKS P1): no supply: BELT PACK and ARMOR
+ *  PACK (ITEMS.beltcrate, ITEMS.plating) are the caravan's two fixed offers outside the roll (PACKS below), so a rolled
+ *  crate or plating beside them would be a dead offer (REQ-BFG-021). Their ITEMS entries and merchant stay. */
 export function itemsSoldBy(m: MerchantId): ItemDef[] {
-  return Object.values(ITEMS).filter((d) => d.merchant === m && !DORMANT_ITEMS.has(d.id));
+  return Object.values(ITEMS).filter((d) => d.merchant === m && d.kind !== "supply" && !DORMANT_ITEMS.has(d.id));
 }
+
+/**
+ * bb-0.8.6 (REQ-BFG-051, job PACKS P1-P2): the caravan's two FIXED offers, on every visit beside the rolled ones: BELT
+ * PACK (ITEMS.beltcrate: 2 gold, +4 belt capacity) and ARMOR PACK (ITEMS.plating: 5 gold, +25 max hull). Outside the roll,
+ * like the upgrades: no offer slot, no draw from the shop's stream, and a reroll doesn't touch them. Bought again and
+ * again while the gold lasts, no cap; the scout discount and free rerolls never apply (run.ts buyPack, packPrice). The
+ * price and the amount are the ITEMS entry's (one source: validate.ts and roadCap.ts cost crates and plating with them).
+ */
+export type PackId = "belt" | "armor";
+export const PACK_IDS: readonly PackId[] = ["belt", "armor"];
+export const PACK_ITEM: Readonly<Record<PackId, "beltcrate" | "plating">> = { belt: "beltcrate", armor: "plating" };
 
 /** The shared, hero-blind salvage catalogue; supplies and dormant prototypes are not buyable modules. */
 export function buyableModules(): ItemDef[] {

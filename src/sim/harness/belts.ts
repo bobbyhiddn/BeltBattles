@@ -55,6 +55,27 @@ export const UPGRADE_POLICY: Readonly<Record<HeroId, UpgradePolicy>> = {
 /** The upgrade policy of `hero`'s bots. */
 export const upgradePolicy = (hero: HeroId): UpgradePolicy => UPGRADE_POLICY[hero] ?? "value";
 
+/**
+ * bb-0.8.6 (REQ-BFG-051, PACKS P6): how `hero`'s par player buys the caravan's two fixed packs (run.ts buyPack: BELT PACK
+ * 2 gold +4 belt, ARMOR PACK 5 gold +25 hull, again and again). One rule for every hero, as D7' for the upgrades:
+ *   "value"  each pack the purse affords is a candidate like any offer, judged by the player's own value logic (the
+ *            rating's gain for the gold, player.ts pickOffer; a BELT PACK with the belt it lengthens): bought when it
+ *            rates better than the best shop buy, or than keeping the gold; while the deck is short of its floor the fill
+ *            takes packs as the supplies it always took first; the day's leftover gold above the reserve goes into a pack
+ *            only when one helps;
+ *   "never"  no pack at all (M3's comparison);
+ *   "armor"  ARMOR-greedy (M3): the value bot's day, then every coin left goes to ARMOR PACKs;
+ *   "belt"   BELT-greedy (M3): the value bot's day, then every coin left goes to BELT PACKs (each laid into the belt it
+ *            lengthens best, when one helps).
+ */
+export type PackPolicy = "value" | "never" | "armor" | "belt";
+export const PACK_POLICY: Readonly<Record<HeroId, PackPolicy>> = {
+  furnace: "value", weaver: "value", foundry: "value", bastion: "value", metronome: "value", siphon: "value",
+};
+
+/** The pack policy of `hero`'s bots. */
+export const packPolicy = (hero: HeroId): PackPolicy => PACK_POLICY[hero] ?? "value";
+
 /** 0.8.1's count for a factory at `stars` (1 for every factory TODAY_OUTPUTS doesn't list). */
 export function todayOutputs(def: string, stars: number): number {
   const s = Math.max(1, Math.min(3, Math.floor(stars || 1)));

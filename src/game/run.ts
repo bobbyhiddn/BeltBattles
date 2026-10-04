@@ -4,9 +4,9 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import {
-  FAMILY_WEIGHT, HEROES, ITEMS, MERCHANTS, OFFERS, RARITIES, REROLL_COST, START_GOLD, START_LIVES, UPGRADE_MAX, UPGRADE_PRICE,
-  itemsSoldBy, rarityWeights, rigShape, sellValue,
-  type HeroId, type ItemDef, type MerchantId, type Rarity, type UpgradeTrack,
+  FAMILY_WEIGHT, HEROES, ITEMS, MERCHANTS, OFFERS, PACK_ITEM, RARITIES, REROLL_COST, START_GOLD, START_LIVES, UPGRADE_MAX,
+  UPGRADE_PRICE, itemsSoldBy, rarityWeights, rigShape, sellValue,
+  type HeroId, type ItemDef, type MerchantId, type PackId, type Rarity, type UpgradeTrack,
 } from "../sim/content";
 import { removeItem, rotOf, setRot, type Build } from "../sim/deck";
 import { heroStartBuild } from "../sim/heroBuilds";
@@ -422,6 +422,36 @@ export function buyUpgrade(run: Run, track: UpgradeTrack): { ok: boolean; reason
   // the canonical key order (turret, then factory), as the strict decoder writes it
   run.build.upgrades = { ...(now.turret ? { turret: now.turret } : {}), ...(now.factory ? { factory: now.factory } : {}) };
   return { ok: true, level: n.next, price: n.price };
+}
+
+/** bb-0.8.6 (REQ-BFG-051, PACKS P2): a pack's price: its ITEMS entry's (BELT PACK 2, ARMOR PACK 5), flat on every visit
+ *  and day: the scout's discount (shop.discount) and free rerolls (shop.free) never apply to a pack. */
+export function packPrice(id: PackId): number {
+  return ITEMS[PACK_ITEM[id]].price;
+}
+
+/** bb-0.8.6 (REQ-BFG-051, PACKS P5): why a pack can't be bought now, as the slot's tap says it ("A BELT PACK COSTS 2G",
+ *  "AN ARMOR PACK COSTS 5G"), or undefined when the gold covers it. */
+export function packShort(run: Pick<Run, "gold">, id: PackId): string | undefined {
+  const d = ITEMS[PACK_ITEM[id]];
+  return run.gold < d.price ? `${id === "armor" ? "AN" : "A"} ${d.name} COSTS ${d.price}G` : undefined;
+}
+
+/**
+ * bb-0.8.6 (REQ-BFG-051, PACKS P1-P2): buy one BELT PACK (+4 to build.beltCap) or ARMOR PACK (+25 to build.hullBonus) at
+ * its flat price (packPrice). One of the caravan's two FIXED offers: outside the roll, like buyUpgrade, it takes no offer
+ * slot, draws on no random stream and changes nothing the shop shows, so a seed's rolled offers and stream are the same
+ * with and without pack buys. Again and again while the gold lasts (no cap, no discount); refused only for gold. The
+ * amount lands at once on the build (the save keeps it as it keeps the build and the gold).
+ */
+export function buyPack(run: Run, id: PackId): { ok: boolean; reason?: string; price: number } {
+  const d = ITEMS[PACK_ITEM[id]], price = packPrice(id);
+  const short = packShort(run, id);
+  if (short) return { ok: false, reason: short, price };
+  run.gold -= price;
+  if (d.supply?.belt) run.build.beltCap += d.supply.belt;
+  if (d.supply?.hull) run.build.hullBonus += d.supply.hull;
+  return { ok: true, price };
 }
 
 /**
