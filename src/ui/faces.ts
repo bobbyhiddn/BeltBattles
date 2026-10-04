@@ -227,6 +227,7 @@ const TURRET_FACE = (): Rules => rules([]);
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [
   ...Object.keys(FACES),
+  ...Object.values(ITEMS).filter((d) => d.kind === "turret").map((d) => d.id),
 ];
 
 /** True for a piece that draws its new face (every other piece keeps today's text). */
