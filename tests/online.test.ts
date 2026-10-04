@@ -408,7 +408,7 @@ describe("save v7: online play's fields are optional; every older save still loa
     for (const [name, save] of [["v3", v3], ["v4", v4], ["v5", v5], ["v6", v6]] as const) {
       const m = migrateRun(JSON.parse(JSON.stringify(save)));
       expect(m, name).not.toBeNull();
-      expect(m!.version, name).toBe(7);
+      expect(m!.version, name).toBe(8); // NUM-1: save v8 (save.ts v7to8; was 7)
       for (const k of ["seenGhosts", "uploaded"]) expect(m, `${name} ${k}`).not.toHaveProperty(k);
       expect(m!.history.every((h) => h.record === undefined && h.hulls === undefined), name).toBe(true);
     }

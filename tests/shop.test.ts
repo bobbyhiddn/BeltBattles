@@ -468,7 +468,7 @@ describe("shop: robustness (N5, N6)", () => {
       expect(m.lastMerchants).toEqual([]);
       expect(() => rollShop(m)).not.toThrow();
     }
-    expect(RUN_VERSION).toBe(7);
+    expect(RUN_VERSION).toBe(8); // NUM-1: save v8 (save.ts v7to8; was 7); this test's own field still needs no bump
     const kept = migrateRun(JSON.parse(JSON.stringify({ ...newRun("furnace", 77), lastMerchants: ["tinker"] })))!;
     expect(kept.lastMerchants).toEqual(["tinker"]);
     const absent = migrateRun(JSON.parse(JSON.stringify(newRun("furnace", 77))))!;
