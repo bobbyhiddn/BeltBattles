@@ -125,6 +125,37 @@ const shot = (text: string): FaceRule => ({ text: `SHOT: ${text}`, label: "SHOT:
 const cyc = (e: ItemDef, tint: PayloadPreset["tint"]): PayloadPreset => f(e).cycle!.find((p) => p.tint === tint)!;
 
 const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  // --------------------------------------------------------------------------------------------------- factories
+  press: () => rules([]),
+  doublestamp: (e) => {
+    const n = fmtCount(f(e).batch!);
+    return rules([{ text: `STAMPS ${n} SLUGS AT A TIME.` }], [["batch", `{SLUG}${n}`]]);
+  },
+  shottower: (e) => {
+    const n = fmtCount(f(e).batch!);
+    return rules([{ text: `DROPS ${n} SLUGS; RIGS HIT EACH ONE.` }], [["batch", `{SLUG}${n}`]]);
+  },
+  hotswap: (e) => {
+    // Battle.stamp: EMBER slugs carry its burn, SPARK slugs a shock (DISRUPT_TIME, or the star's shockTime)
+    const t = cyc(e, "spark").shockTime ?? DISRUPT_TIME, burn = fmtCount(cyc(e, "ember").burn ?? 0), stun = fmtSec(t);
+    return rules([{ text: `ITS SLUGS ALTERNATE: +${burn} {*BURN}, THEN {*STUN} ${stun}.` }],
+      [["burn", `+${burn} {*BURN}`], ["stun", `{*STUN} ${stun}`]], [REMINDER.BURN(), REMINDER.STUN(t)]);
+  },
+  slagpot: () => rules([{ text: "ITS SLUGS IGNORE BELT SPEED." }]),
+  gantry: () => rules([]),
+  mimic: () => rules([{ text: "STAMPS YOUR HERO'S SLUGS." }]),
+  limpet: (e) => {
+    const r = f(e).round as { delay: number; blast: number };
+    const blast = fmtDmg(r.blast), delay = fmtSec(r.delay);
+    return rules([{ text: `ITS CHARGES BLAST THE HULL: ${blast} {DMG}, ${delay}{SEC} LATER.` }],
+      [["blast", `${blast} {DMG}`], ["delay", `${delay}{SEC}`]]);
+  },
+  twinmould: () => rules([{ text: "CASTS A SLUG ONTO EACH BELT AT ONCE." }]),
+  armorpress: (e) => {
+    const p = f(e).plate!, every = fmtSec(p.every), amount = fmtDmg(p.amount);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} +${amount} {*PLATE}.`, label }], [["every", label], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
+  },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   kiln: (e) => {
     const h = AMMO[f(e).ammo].rideScale;
