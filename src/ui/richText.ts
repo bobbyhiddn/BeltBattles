@@ -11,8 +11,11 @@
 // - colourize(s, base): numbers in white (emphasised), BURN, SHOCK, FREEZE, POISON and speed (FASTER, SLOWER) in their
 //   battle colours (abilityText.ts KEYWORD), everything else in `base`.
 // - drawRich(g, line, x, y, font): draws one wrapped line (the 5x7 or 3x5 pixel face, as drawText).
+// - R1 mock (REQ-BFG-046, r1-mock only): icon glyphs (render/font.ts ICON) are one glyph each to the wrap, and drawText
+//   draws each in its own colour (font.ts ICON_COLOUR); colourize ignores them when it tests a word, so a number glued to
+//   an icon ("4" and the DMG icon) is still a number (white) and a keyword glued to one keeps its colour.
 
-import { drawText, textWidth, type FontId } from "../render/font";
+import { drawText, stripIcons, textWidth, type FontId } from "../render/font";
 import type { G } from "../render/pixel";
 import { C } from "../render/palette";
 
@@ -94,8 +97,9 @@ export function colourize(text: string, base: string, num: string = NUMBER_COLOU
   words.forEach((w, i) => {
     if (i > 0) push(" ", base);
     const [lead, core, tail] = split(w);
-    const kc = colour[i] ?? WORD_KEYWORDS[core.toUpperCase()];
-    const c = kc ?? (NUMBER.test(core) ? num : STAR.test(core) ? PERK_COLOUR : base);
+    const bare = stripIcons(core); // R1 mock: icon glyphs aside (the same as core in any text without one)
+    const kc = colour[i] ?? WORD_KEYWORDS[bare.toUpperCase()];
+    const c = kc ?? (NUMBER.test(bare) ? num : STAR.test(bare) ? PERK_COLOUR : base);
     push(lead, base);
     push(core, c);
     push(tail, base);
