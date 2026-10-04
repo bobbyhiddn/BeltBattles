@@ -92,9 +92,9 @@ describe("GhostSnapshot v2", () => {
     run.build.mods.push({ uid: 601, def: "calibrate", turret: 0, stars: 2 });
     return run;
   };
-  it("ghostOf writes v2 with the stars; the v2 round trip is exact on both sides", () => {
+  it("ghostOf writes the stars (RUNES-1: as v3, with the run seed); the round trip is exact on both sides", () => {
     const s = ghostOf(starredRun(), 5, "p-me");
-    expect([SNAPSHOT_VERSION, s.v]).toEqual([2, 2]);
+    expect([SNAPSHOT_VERSION, s.v]).toEqual([2, 3]); // RUNES-1 (snapshot v3): the player's own snapshot carries its seed
     expect(isSnapshot(s)).toBe(true);
     expect(checkSnapshot(s)).toEqual(s);
     expect(decodeSnapshot(encodeSnapshot(s))).toEqual(s);
@@ -105,7 +105,8 @@ describe("GhostSnapshot v2", () => {
     run.build.items.push({ uid: 700, def: "temper", x: 3, y: 3, rot: 1 }); // today's deck: the rig west of (4,3)
     const legacy = clone(run);
     legacy.build.items[1] = { uid: 700, def: "temper", x: 4, y: 3 }; // the same deck as 0.6.1 wrote it: on the belt
-    const s = { ...ghostOf(legacy, 5, "p-me"), v: 1 as const };
+    const { seed: _seed, ...g1 } = ghostOf(legacy, 5, "p-me"); // RUNES-1: a v1 copy carries no v3 field (the seed)
+    const s = { ...g1, v: 1 as const };
     expect(isSnapshot(s)).toBe(true);
     const back = checkSnapshot(s);
     expect(back.v).toBe(1);

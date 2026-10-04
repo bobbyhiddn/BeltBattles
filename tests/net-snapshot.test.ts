@@ -63,7 +63,7 @@ describe("ghost snapshot format", () => {
       ["unknown route field", (o) => { o.build.routes[0].speed = 3; }],
       ["missing field", (o) => { delete o.playerId; }],
       ["missing build field", (o) => { delete o.build.mods; }],
-      ["wrong format version", (o) => { o.v = 3; }], // 0.6.1a: v 2 is current (stars), v 1 still decodes
+      ["wrong format version", (o) => { o.v = 4; }], // RUNES-1: v 3 is current (snapshot v3), v 1 and v 2 still decode
       ["day as a string", (o) => { o.day = "3"; }],
       ["day 0", (o) => { o.day = 0; o.wins = 0; }],
       ["day 11", (o) => { o.day = 11; }],

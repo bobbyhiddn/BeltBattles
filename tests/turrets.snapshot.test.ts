@@ -193,7 +193,7 @@ describe("turret slots in the save and in ghosts", () => {
     expect(net.checkSnapshot(g)).toEqual(g);
     expect(g.build.turrets).toEqual(TURRETS);
     expect(net.decodeSnapshot(net.encodeSnapshot(g))).toEqual(g);
-    const plain = ghostOf(newRun("furnace", 9, "plain-ghost"), 5, "p-plain");
+    const { seed: _seed, ...plain } = ghostOf(newRun("furnace", 9, "plain-ghost"), 5, "p-plain"); // RUNES-1: the v3 seed aside
     expect(net.encodeSnapshot(plain)).toBe(legacyText(plain));
   });
 });

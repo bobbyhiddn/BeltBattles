@@ -23,7 +23,7 @@ import {
 } from "../src/game/online";
 import { FINDING_GHOST, foeNote, online, onlineMode, SOURCE_OFFLINE, SOURCE_ONLINE } from "../src/game/session";
 import { fetchGhost, submitGhost, type FetchedGhost, type SubmitResult } from "../src/net/ghostClient";
-import { ghostId, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import type { Identity } from "../src/net/identity";
 import { createGhostServer, type GhostServer } from "../server/app";
@@ -258,7 +258,7 @@ describe("the online session (src/game/online.ts), with fakes", () => {
     const [url, snap, ident, ms] = f.calls.submit[0] as [string, GhostSnapshot, Identity, number];
     expect([url, ident, ms]).toEqual(["https://ghosts.example", me, UPLOAD_TIMEOUT_MS]);
     expect(snap).toEqual(ghostOf(run, 1_790_000_000_000, me.playerId));
-    expect([snap.v, snap.rules, snap.playerId]).toEqual([SNAPSHOT_VERSION, RULES_VERSION, me.playerId]);
+    expect([snap.v, snap.rules, snap.playerId]).toEqual([SNAPSHOT_V3, RULES_VERSION, me.playerId]); // RUNES-1: v3 (the seed)
     expect(run.uploaded).toBe(1);
     // a deck the player mode refuses is not uploaded (a console.debug line says why)
     const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
