@@ -26,7 +26,7 @@ const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 describe("race heroes and signature factories remain dormant while timing gear is shared", () => {
   it("rules are BELTS's (bb-0.8.3) and the roster is 0.8.0's (FOUNDRY and BASTION joined; METRONOME and SIPHON dormant), while every race entry sits in HEROES, ITEMS and AMMO", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.3"); // bb-0.8.0 until BELTS (belt slots by level, the gold upgrades); the roster didn't move
+    expect(RULES_VERSION).toBe("bb-0.8.6"); // bb-0.8.0 until BELTS (belt slots by level, the gold upgrades); the roster didn't move
     expect(PLAYABLE_HEROES).toEqual(["furnace", "weaver", "foundry", "bastion"]);
     expect(Object.keys(RACE_HEROES).filter((h) => !PLAYABLE.has(h))).toEqual(["metronome", "siphon"]);
     for (const h of Object.keys(RACE_HEROES)) expect(HEROES).toHaveProperty(h);

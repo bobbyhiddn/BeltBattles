@@ -9,8 +9,8 @@
 //    --rules bb-0.8.0` shows 12 a day; nothing under bb-0.6.2.
 //  - A dusk served by the in-process server meets a FOUNDRY ghost and a BASTION ghost, labelled ONLINE GHOST (the NEXT
 //    BATTLE card and the enemy plate both read session.ts foeNote); a FOUNDRY or BASTION player meets ghosts of all four.
-// BELTS (REQ-BFG-043, REQ-BFG-044): the pool is generated under this build's rules, bb-0.8.3 since BELTS (the titles
-// below say so), with the same composition; `ghosts:admin list --rules bb-0.8.3` shows it. BELTS run 5 regenerated the
+// BELTS (REQ-BFG-043, REQ-BFG-044): the pool is generated under this build's rules, bb-0.8.6 since PACKS (bb-0.8.3 since BELTS) (the titles
+// below say so), with the same composition; `ghosts:admin list --rules bb-0.8.6` shows it. BELTS run 5 regenerated the
 // stand-in pool (the bots buy the gold upgrades), so FURNACE and WEAVER's 60 are no longer 7c7feb9's: both parts are
 // pinned by their own digests, and 59 of the 120 ghosts carry upgrade levels (W/output-belts/ghosts/).
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -58,7 +58,7 @@ const STANDIN_PART_SHA256 = "941ca820f17ab713cdb3c6af4e833f14854adb928f4418ab6de
  *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). */
 const RACE_PART_SHA256 = "5f736fce2463e1d97da132b626bb8e9be13bea6dd8385ef1982eaef205d4028c";
 
-describe("the bb-0.8.3 seed pool (tools/samplePool.ts)", () => {
+describe("the bb-0.8.6 seed pool (tools/samplePool.ts)", () => {
   it("holds every playable hero on every day 1-10, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 120 in all", () => {
     expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
     expect([...STAND_IN_HEROES]).toEqual(["furnace", "weaver"]);
@@ -73,7 +73,7 @@ describe("the bb-0.8.3 seed pool (tools/samplePool.ts)", () => {
     expect(new Set(POOL.map(ghostId)).size).toBe(120);
   });
 
-  it("FURNACE and WEAVER's 60 come first: the sample and floor ghosts of the bb-0.8.3 stand-in pool, pinned by their digest", () => {
+  it("FURNACE and WEAVER's 60 come first: the sample and floor ghosts of the bb-0.8.6 stand-in pool, pinned by their digest", () => {
     expect(STANDIN_PART).toEqual([...sampleGhosts(), ...floorGhosts()]);
     expect(STANDIN_PART.every((s) => s.hero === "furnace" || s.hero === "weaver")).toBe(true);
     expect(sha(samplePoolJson(STANDIN_PART))).toBe(STANDIN_PART_SHA256);
@@ -125,7 +125,7 @@ describe("the bb-0.8.3 seed pool (tools/samplePool.ts)", () => {
 /** One store as the admin tool and the seed see it. */
 interface Store { name: string; store(): ReturnType<typeof tigrisFor> | JsonlStore; env(): Record<string, string>; argv(): string[] }
 
-describe("the seed pool on both stores: ghosts:admin list --rules bb-0.8.3", () => {
+describe("the seed pool on both stores: ghosts:admin list --rules bb-0.8.6", () => {
   let fake: FakeS3;
   const dirs: string[] = [];
   beforeAll(async () => {
@@ -158,7 +158,7 @@ describe("the seed pool on both stores: ghosts:admin list --rules bb-0.8.3", () 
     return t;
   };
 
-  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.8.3, none under bb-0.6.2", async () => {
+  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.8.6, none under bb-0.6.2", async () => {
     for (const h of stores()) {
       expect(await seedStore(h.store()), h.name).toMatchObject({ rules: RULES_VERSION, entries: 120, written: 120, removed: 0 });
       for (const [rules, perDay, all] of [[RULES_VERSION, 12, 120], ["bb-0.6.2", 0, 0]] as const) {

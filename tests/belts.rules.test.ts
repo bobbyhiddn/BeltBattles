@@ -3,13 +3,13 @@
 // starts a fresh ghost pool, and the server's exact rules check turns 0.8.0-0.8.4's bb-0.8.0 uploads away. Modelled on
 // tests/rc.rules.test.ts (the 0.8.0 RC's bump), on both stores (JSON lines, and Tigris through tools/fakeS3.ts), uploads
 // open in-process, the store seeded as a deploy seeds it:
-//  - the gate: /v1/health names bb-0.8.3 and the match route serves bb-0.8.3 seed ghosts, none under bb-0.8.0; the same
-//    honest deck of each playable hero is stored under bb-0.8.3 (201) and refused under bb-0.8.0 (422), as is a deck with
+//  - the gate: /v1/health names bb-0.8.6 and the match route serves bb-0.8.6 seed ghosts, none under bb-0.8.0; the same
+//    honest deck of each playable hero is stored under bb-0.8.6 (201) and refused under bb-0.8.0 (422), as is a deck with
 //    the gold upgrades, and nothing is stored under bb-0.8.0; bb-0.8.3's near misses are refused too (a check loosened to
 //    "bb-0.8" would take bb-0.8.0, the live pool's rules);
 //  - a bb-0.8.0 session (what a 0.8.4 page sends): its fetch falls back to the stand-in (404), its upload is refused
 //    quietly (422), the run plays on to day 2, and nothing reaches the console; where the store still holds a bb-0.8.0
-//    pool, such a page is served one of those, never a bb-0.8.3 ghost, and its upload is still refused;
+//    pool, such a page is served one of those, never a bb-0.8.6 ghost, and its upload is still refused;
 //  - uploads with the gold upgrades, honest decks (every belt connected, whole crates, within maxGoldByDay) on a record a
 //    run carries into that dusk: FURNACE at FACTORY level 2 with the KILN on 3 belts gets 201 and on 4 belts is refused
 //    (at level 1 so are 3 belts; at level 3, 4 belts get 201); WEAVER with the LOOM at level 1 on 3 belts gets 201 and on
@@ -50,7 +50,7 @@ const DAYS = [1, 5, 9];
 /** bb-0.8.3's near misses: the rules it replaces first, then its neighbours and garbled forms. */
 const NEAR = [OLD_RULES, "bb-0.8.2", "bb-0.8.4", "bb-0.8.3x", "BB-0.8.3", " bb-0.8.3", "bb-0.8.3 ", "bb-0.8.03", "bb-0.8.30", "bb-0.8.3.0", "bb-0.8", "bb_0.8.3"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.8.3`;
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.8.6`;
 const slotError = (name: string, routes: number, outs: number) => `route: ${name} uid 1 feeds ${routes} routes but has ${outs} output(s)`;
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. */
@@ -131,9 +131,9 @@ function playDusk(run: Run): void {
   finishDay(run, b.winner ?? -1, b.t, NOSTATS, NOSTATS);
 }
 
-describe("rules bb-0.8.3: the version and its decks", () => {
-  it("RULES_VERSION is bb-0.8.3, after bb-0.8.0 (HEROES_RULES): the same four heroes travel, and the hero table needs no row", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.3");
+describe("rules bb-0.8.6: the version and its decks", () => {
+  it("RULES_VERSION is bb-0.8.6, after bb-0.8.0 (HEROES_RULES): the same four heroes travel, and the hero table needs no row", () => {
+    expect(RULES_VERSION).toBe("bb-0.8.6");
     expect(HEROES_RULES).toBe(OLD_RULES);
     expect(RULES_VERSION).not.toBe(OLD_RULES);
     expect(rulesAtLeast(RULES_VERSION, OLD_RULES)).toBe(true);
@@ -172,7 +172,7 @@ describe("rules bb-0.8.3: the version and its decks", () => {
   });
 });
 
-describe.each(storeBackends())("rules bb-0.8.3 on the $name store (uploads open in-process)", (backend) => {
+describe.each(storeBackends())("rules bb-0.8.6 on the $name store (uploads open in-process)", (backend) => {
   let app: GhostServer, base: string, me: Identity;
   let k = 0;
   beforeAll(async () => {
@@ -193,7 +193,7 @@ describe.each(storeBackends())("rules bb-0.8.3 on the $name store (uploads open 
     return { status: r.status, body: (await r.json()) as { id?: string; error?: string; errors?: string[] } };
   };
   const ask = (rules: string, day = 3) => fetch(`${base}/v1/ghosts/match?rules=${encodeURIComponent(rules)}&day=${day}&wins=1&lives=5&player=belts-new&seen=&runs=0`);
-  /** A 201: the id is the canonical snapshot's, and the store holds it under bb-0.8.3. */
+  /** A 201: the id is the canonical snapshot's, and the store holds it under bb-0.8.6. */
   const stored = async (s: GhostSnapshot, what: string) => {
     const r = await post(s);
     expect(r.status, `${what}: ${JSON.stringify(r.body)}`).toBe(201);
@@ -209,11 +209,11 @@ describe.each(storeBackends())("rules bb-0.8.3 on the $name store (uploads open 
   };
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
-  it("/v1/health names bb-0.8.3; the match route serves bb-0.8.3 seed ghosts, and has none under bb-0.8.0 (a fresh pool)", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.8.3");
+  it("/v1/health names bb-0.8.6; the match route serves bb-0.8.6 seed ghosts, and has none under bb-0.8.0 (a fresh pool)", async () => {
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.8.6");
     const now = await ask(RULES_VERSION);
     expect(now.status).toBe(200);
-    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.8.3");
+    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.8.6");
     for (const day of [1, 3, 10]) {
       const old = await ask(OLD_RULES, day);
       expect(old.status, `day ${day}`).toBe(404);
@@ -221,7 +221,7 @@ describe.each(storeBackends())("rules bb-0.8.3 on the $name store (uploads open 
     }
   });
 
-  it("the gate takes bb-0.8.3 and refuses bb-0.8.0: the same honest deck of each playable hero is stored (201) under one and refused (422) under the other, and nothing is stored under bb-0.8.0", async () => {
+  it("the gate takes bb-0.8.6 and refuses bb-0.8.0: the same honest deck of each playable hero is stored (201) under one and refused (422) under the other, and nothing is stored under bb-0.8.0", async () => {
     const before = backend.storedRecords();
     let n = 0;
     for (const hero of PLAYABLE_HEROES) for (const day of DAYS) {
@@ -371,7 +371,7 @@ describe.each(storeBackends())("rules bb-0.8.3 on the $name store (uploads open 
     }
   });
 
-  it("where the store still holds a bb-0.8.0 pool, a 0.8.4 page is served one of those (never a bb-0.8.3 ghost), and its upload is still refused", async () => {
+  it("where the store still holds a bb-0.8.0 pool, a 0.8.4 page is served one of those (never a bb-0.8.6 ghost), and its upload is still refused", async () => {
     const pool080 = [...sampleGhosts(), ...floorGhosts()].map((s) => ({ ...s, rules: OLD_RULES }));
     await app.store.replacePool(OLD_RULES, pool080.map((s) => ({ id: ghostId(s), snapshot: s })));
     try {
@@ -383,7 +383,7 @@ describe.each(storeBackends())("rules bb-0.8.3 on the $name store (uploads open 
         expect(body.snapshot.rules).toBe(OLD_RULES);
         expect(ids.has(body.id)).toBe(true);
       }
-      const now = await ask(RULES_VERSION, 3); // this build still meets bb-0.8.3 ghosts only
+      const now = await ask(RULES_VERSION, 3); // this build still meets bb-0.8.6 ghosts only
       expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe(RULES_VERSION);
       const run = newRun("weaver", 8081);
       const up = await submitGhost(base, { ...ghostOf(run, T0, me.playerId), rules: OLD_RULES }, me, 3000);

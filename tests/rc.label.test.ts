@@ -18,9 +18,9 @@ import { RULES_VERSION } from "../src/sim/content";
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
 describe("the 0.8.5 label", () => {
-  it("is 0.8.5 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are BELTS's bb-0.8.3", () => {
+  it("is 0.8.5 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are PACKS's bb-0.8.6 (the label stays 0.8.5 until the Prime stages it)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
     expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.8.5", "0.8.5", "0.8.5", "0.8.5"]);
-    expect(RULES_VERSION).toBe("bb-0.8.3"); // 0.8.4 kept 0.8.0's bb-0.8.0; BELTS changes battles, so it bumps the rules
+    expect(RULES_VERSION).toBe("bb-0.8.6"); // 0.8.4 kept 0.8.0's bb-0.8.0; BELTS changes battles, so it bumps the rules
   });
 });

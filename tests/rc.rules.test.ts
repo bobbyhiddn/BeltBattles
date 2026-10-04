@@ -11,8 +11,8 @@
 //    holds 0.7.0's bb-0.6.2 seed pool (the seed replaces only its own rules' pool), the match route serves a 0.7.0 client
 //    one of those, never a bb-0.8.0 ghost, and its upload is still refused. (The browser check runs the real 0.7.0 page.)
 //  - Offline (no server URL) a run of each of the four heroes through day 3 makes no request and opens no IndexedDB.
-// BELTS (REQ-BFG-043, REQ-BFG-044): this build's rules are bb-0.8.3. Where a check here meant this build's rules it reads
-// RULES_VERSION or pins bb-0.8.3; HEROES_RULES stays bb-0.8.0 (the first rules that carry the four heroes), which
+// BELTS (REQ-BFG-043, REQ-BFG-044): this build's rules are bb-0.8.3 (and since PACKS, bb-0.8.6). Where a check here meant this build's rules it reads
+// RULES_VERSION or pins bb-0.8.6; HEROES_RULES stays bb-0.8.0 (the first rules that carry the four heroes), which
 // RULES_VERSION is at or after. tests/belts.rules.test.ts turns bb-0.8.0's uploads and sessions away the same way.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
@@ -74,9 +74,9 @@ function as070(identity: Identity, sent: GhostSnapshot[] = []): OnlineDeps {
   };
 }
 
-describe("rules bb-0.8.3: the version", () => {
-  it("RULES_VERSION is bb-0.8.3 (BELTS), at or after bb-0.8.0, the first rules that carry the four playable heroes (HEROES_RULES); bb-0.6.2 carries FURNACE and WEAVER", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.3");
+describe("rules bb-0.8.6: the version", () => {
+  it("RULES_VERSION is bb-0.8.6 (PACKS), at or after bb-0.8.0, the first rules that carry the four playable heroes (HEROES_RULES); bb-0.6.2 carries FURNACE and WEAVER", () => {
+    expect(RULES_VERSION).toBe("bb-0.8.6");
     // the RC's bump made RULES_VERSION HEROES_RULES itself; BELTS's comes after it, and the table needs no new row
     expect(HEROES_RULES).toBe("bb-0.8.0");
     expect(rulesAtLeast(RULES_VERSION, HEROES_RULES)).toBe(true);
@@ -105,17 +105,17 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
   };
   const ask = (rules: string, day = 3) => fetch(`${base}/v1/ghosts/match?rules=${rules}&day=${day}&wins=1&lives=5&player=rc-new&seen=&runs=0`);
 
-  it("/v1/health names bb-0.8.3, and the match route serves bb-0.8.3 seed ghosts and no bb-0.6.2 ghost", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.8.3");
+  it("/v1/health names bb-0.8.6, and the match route serves bb-0.8.6 seed ghosts and no bb-0.6.2 ghost", async () => {
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.8.6");
     const now = await ask(RULES_VERSION);
     expect(now.status).toBe(200);
-    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.8.3");
+    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.8.6");
     const old = await ask(OLD_RULES);
     expect(old.status).toBe(404);
     await old.text();
   });
 
-  it("takes a bb-0.8.3 upload of each playable hero (201, stored) and refuses every bb-0.6.2 one, storing nothing: 422 for FURNACE and WEAVER, 400 for FOUNDRY and BASTION", async () => {
+  it("takes a bb-0.8.6 upload of each playable hero (201, stored) and refuses every bb-0.6.2 one, storing nothing: 422 for FURNACE and WEAVER, 400 for FOUNDRY and BASTION", async () => {
     const before = backend.storedRecords();
     let stored = 0;
     for (const hero of PLAYABLE_HEROES) for (const day of DAYS) {
@@ -129,7 +129,7 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
       const old = await post(snapOf(hero, day, OLD_RULES, deck));
       if (hero === "furnace" || hero === "weaver") {
         expect(old.status, `${hero} d${day} ${OLD_RULES}`).toBe(422);
-        expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates bb-0.8.3`);
+        expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates bb-0.8.6`);
       } else {
         expect(old.status, `${hero} d${day} ${OLD_RULES}`).toBe(400);
         expect(old.body.error).toBe(`snapshot.hero: rules ${OLD_RULES} accept only FURNACE, WEAVER, not ${hero.toUpperCase()}`);
@@ -181,7 +181,7 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
     }
   });
 
-  it("where the store still holds 0.7.0's bb-0.6.2 seed pool, a 0.7.0 client is served one of those (never a bb-0.8.3 ghost), and its upload is still refused", async () => {
+  it("where the store still holds 0.7.0's bb-0.6.2 seed pool, a 0.7.0 client is served one of those (never a bb-0.8.6 ghost), and its upload is still refused", async () => {
     // FURNACE and WEAVER's seed ghosts as a bb-0.6.2 pool (0.7.0's seed made its pool the same way, from its own decks)
     const pool070 = [...sampleGhosts(), ...floorGhosts()].map((s) => ({ ...s, rules: OLD_RULES }));
     await app.store.replacePool(OLD_RULES, pool070.map((s) => ({ id: ghostId(s), snapshot: s })));
@@ -194,7 +194,7 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
         expect(body.snapshot.rules).toBe(OLD_RULES);
         expect(ids.has(body.id)).toBe(true);
       }
-      const now = await ask(RULES_VERSION, 3); // a client of this build still meets bb-0.8.3 ghosts only
+      const now = await ask(RULES_VERSION, 3); // a client of this build still meets bb-0.8.6 ghosts only
       expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe(RULES_VERSION);
       const run = newRun("weaver", 7071);
       const up = await submitGhost(base, { ...ghostOf(run, 1_790_000_000_000, me.playerId), rules: OLD_RULES }, me, 3000);

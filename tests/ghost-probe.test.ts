@@ -5,7 +5,7 @@
 // its id file before its first POST. Uploads closed: every POST gets 403, exit 1, nothing is stored, and the id file is
 // still written first. A bad command line exits 2 and sends nothing; a dead port fails every check with "no answer",
 // exit 1. The plan's decks: each row from an honest deck, the bytes the encoder's. Network-free (127.0.0.1 only).
-// BELTS (REQ-BFG-043, REQ-BFG-044): the probe's rules are bb-0.8.3 (PROBE_RULES), the same four heroes and nine checks.
+// BELTS (REQ-BFG-043, REQ-BFG-044): the probe's rules are bb-0.8.3 (PROBE_RULES), and since PACKS bb-0.8.6, the same four heroes and nine checks.
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -22,7 +22,7 @@ import { startFake, tigrisFor } from "./netStores";
 
 const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON"];
 const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400"];
-const ACCEPTS = "rules bb-0.8.3 accept only FURNACE, WEAVER, FOUNDRY, BASTION";
+const ACCEPTS = "rules bb-0.8.6 accept only FURNACE, WEAVER, FOUNDRY, BASTION";
 const KINDS = ["jsonl", "tigris"] as const;
 
 interface Held {
@@ -96,7 +96,7 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     expect(id).toMatch(/^[A-Za-z0-9_-]{43}\n$/); // a device key's player id, one line
     const player = id.trim();
     // the output: a header, one line per check (name, expected, got), the player id, then the summary with the stored count
-    expect(lines[0]).toBe(`probe: POST ${base}/v1/ghosts as a fresh device (rules bb-0.8.3); only the FURNACE, WEAVER, FOUNDRY and BASTION decks may be stored`);
+    expect(lines[0]).toBe(`probe: POST ${base}/v1/ghosts as a fresh device (rules bb-0.8.6); only the FURNACE, WEAVER, FOUNDRY and BASTION decks may be stored`);
     const checks = checkLines(lines);
     expect(checks.map((l) => l.split(/\s+/)[1])).toEqual(NAMES);
     for (const l of checks) expect(l).toMatch(/^PASS {2}\S+ +expected: \d{3} .+ \| got: \d{3} .+$/);
@@ -120,11 +120,11 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     expect(printed).toHaveLength(4);
     expect(recs.map((r) => r.id).sort()).toEqual([...printed].sort());
     expect(recs.map((r) => `${r.snapshot.hero} d${r.snapshot.day} ${r.snapshot.wins}W ${r.snapshot.lives}L ${r.snapshot.rules}`).sort())
-      .toEqual(["bastion d3 1W 5L bb-0.8.3", "foundry d3 1W 5L bb-0.8.3", "furnace d1 0W 5L bb-0.8.3", "weaver d3 1W 5L bb-0.8.3"]);
+      .toEqual(["bastion d3 1W 5L bb-0.8.6", "foundry d3 1W 5L bb-0.8.6", "furnace d1 0W 5L bb-0.8.6", "weaver d3 1W 5L bb-0.8.6"]);
     for (const r of recs) {
       expect(r.snapshot.playerId).toBe(player);
       expect(ghostId(decodeSnapshot(JSON.stringify(r.snapshot)))).toBe(r.id);
-      if (kind === "tigris") expect(r.key).toBe(`ghosts/bb-0.8.3/d${String(r.snapshot.day).padStart(2, "0")}/player/${r.id}.json`);
+      if (kind === "tigris") expect(r.key).toBe(`ghosts/bb-0.8.6/d${String(r.snapshot.day).padStart(2, "0")}/player/${r.id}.json`);
     }
     // no secret and no key material in the output: nothing longer than a player id that looks like base64url
     expect(lines.join("\n")).not.toMatch(/[A-Za-z0-9_-]{60,}/);
@@ -186,7 +186,7 @@ describe("the uploads step's probe: refusals and its decks", () => {
     expect(plan.map((p) => p.signed)).toEqual([true, false, true, true, true, true, true, true, true]);
     for (const p of plan) {
       const s = p.snapshot;
-      expect(s).toMatchObject({ v: 2, rules: "bb-0.8.3", playerId: "probe-plan-player", createdAt: 1_790_000_000_000 });
+      expect(s).toMatchObject({ v: 2, rules: "bb-0.8.6", playerId: "probe-plan-player", createdAt: 1_790_000_000_000 });
       expect(validateBuild(s.build, s.day, "player").ok, p.name).toBe(p.name !== "dishonest-signed");
       expect(isReachable(s.day, s.wins, s.lives), p.name).toBe(p.name !== "unreachable-signed");
       expect(canonicalText(s)).toBe(p.text); // the hand-built text is the encoder's form (checked against it just below)
@@ -197,7 +197,7 @@ describe("the uploads step's probe: refusals and its decks", () => {
     expect(validateUpload(plan[2].snapshot.build, 1).errors[0]).toMatch(/^budget: /);
     expect(plan[3].snapshot.build).toEqual(plan[0].snapshot.build);
     expect(validateUpload(plan[3].snapshot.build, 1).ok).toBe(true);
-    // the heroes bb-0.8.3 takes: the bytes are exactly the game's encoder's (submitGhost's); each deck its own ghost id
+    // the heroes bb-0.8.6 takes: the bytes are exactly the game's encoder's (submitGhost's); each deck its own ghost id
     for (const p of plan.filter((q) => q.name !== "hero-METRONOME" && q.name !== "hero-SIPHON")) expect(p.text).toBe(encodeSnapshot(p.snapshot));
     expect(new Set(plan.slice(4, 7).map((p) => ghostId(p.snapshot))).size).toBe(3);
     // METRONOME and SIPHON: the encoder refuses them itself, and the strict decoder refuses their bytes for the hero only

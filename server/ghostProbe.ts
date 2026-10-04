@@ -20,7 +20,7 @@
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
 // It prints one line per check (PASS or FAIL, name, expected, got), then the player id, then a summary with the number of
 // decks the server stored for this player. Exit 0 only if every check matched; 1 if a check failed or got no answer; 2
-// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.8.3. There is no secret
+// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.8.6. There is no secret
 // to print: the key is non-extractable, and neither the public key nor a signature is printed. No network but the base
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
@@ -30,11 +30,11 @@ import { checkBuildShape, encodeSnapshot, ghostId, SNAPSHOT_VERSION, type GhostS
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 
-/** The rules this probe's expectations are written for: BELTS's (bb-0.8.3; 0.8.0's bb-0.8.0 before, the same heroes). */
-export const PROBE_RULES = "bb-0.8.3";
-/** The heroes bb-0.8.3 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
+/** The rules this probe's expectations are written for: PACKS's (bb-0.8.6; BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
+export const PROBE_RULES = "bb-0.8.6";
+/** The heroes bb-0.8.6 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
 export const PROBE_ACCEPTED = "FURNACE, WEAVER, FOUNDRY, BASTION";
-/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.8.3 refuses (400), in posting order. */
+/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.8.6 refuses (400), in posting order. */
 export const STORED_HEROES: readonly HeroId[] = ["weaver", "foundry", "bastion"];
 export const REFUSED_HEROES: readonly HeroId[] = ["metronome", "siphon"];
 /** The hero rows' dusk: day 3 at 1 win and 5 lives, a record a run carries into dusk 3. */
@@ -50,7 +50,7 @@ export const UNSIGNED_ERROR = `unsigned upload: the ${KEY_HEADER} and ${SIG_HEAD
 /** H2's answer to a record no run can carry into that dusk (server/app.ts, POST step 6). */
 export const recordError = (d: { day: number; wins: number; lives: number }): string =>
   `record: ${d.wins}W ${d.lives} lives is no record a run carries into dusk ${d.day}`;
-/** The strict decode's answer to a hero bb-0.8.3 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
+/** The strict decode's answer to a hero bb-0.8.6 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
 export const heroError = (hero: HeroId): string => `snapshot.hero: rules ${PROBE_RULES} accept only ${PROBE_ACCEPTED}, not ${hero.toUpperCase()}`;
 
 export interface ProbeAnswer {
@@ -150,13 +150,13 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   const far = dusk(playerId, "furnace", UNREACHABLE_DUSK, honest.build, `${run}-unreachable`, now);
   const farError = recordError(UNREACHABLE_DUSK);
   plan.push({ name: "unreachable-signed", snapshot: far, text: encodeSnapshot(far), signed: true, expected: `422 ${farError}`, pass: (a) => a.status === 422 && a.error === farError });
-  // 5-7. the other heroes bb-0.8.3 takes: their honest day-3 reference decks, each stored as its own record
+  // 5-7. the other heroes bb-0.8.6 takes: their honest day-3 reference decks, each stored as its own record
   for (const hero of STORED_HEROES) {
     const s = dusk(playerId, hero, HERO_DUSK, heroRefBuild(hero, HERO_DUSK.day), `${run}-${hero}`, now);
     const hid = ghostId(s);
     plan.push({ name: `hero-${hero.toUpperCase()}`, snapshot: s, text: encodeSnapshot(s), signed: true, expected: `201 {"id":"${hid}"}`, pass: (a) => a.status === 201 && a.id === hid });
   }
-  // 8-9. the heroes bb-0.8.3 refuses: the same honest reference decks, as the canonical text built by hand
+  // 8-9. the heroes bb-0.8.6 refuses: the same honest reference decks, as the canonical text built by hand
   for (const hero of REFUSED_HEROES) {
     const s = dusk(playerId, hero, HERO_DUSK, heroRefBuild(hero, HERO_DUSK.day), `${run}-${hero}`, now);
     const want = heroError(hero);
