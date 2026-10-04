@@ -812,8 +812,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // U2c group 0 fix 1: 154, SURGE VALVE's rule says its pulse (its speed and length), a line longer on the desk column
     // U2c step 4: 138, the installed turrets' stat row (one line, was three rows) leaves 16 more desk panels room for the hint
     // U2e step 1 (REQ-BFG-070): 100, measured: merge progress is gone (a kept line on every fusible piece's panel), so 38
-    // more desk panels have room for the hint
-    expect([withHint, missing.length]).toEqual([1934, 100]);
+    // more desk panels have room for the hint. U2e steps 2-4: 63, measured: no NEXT★ or reminder on the face either; the 63
+    // are installed turrets (their socket and stat rows fill the column under their buttons) and four turrets with a core
+    expect([withHint, missing.length]).toEqual([1934, 63]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -837,8 +838,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // U2c group 0 fix 1: 494, SURGE VALVE's rule says its pulse (its speed and length), so 3 of its phone panels lose the hint
     // U2c step 5: 491, the notices in the notice form ("LABEL: TEXT.": the starting turret's TURRET SPEED line and free note,
     // the factory's level and UPGRADE lines, STAYS ABOARD, the STOKER's capped line) a few px longer on some phone panels
-    // U2e step 1 (REQ-BFG-070): 581, measured: merge progress is gone, so 90 more phone panels have room for the hint
-    expect(hints).toBe(581);
+    // U2e step 1 (REQ-BFG-070): 581, measured: merge progress is gone, so 90 more phone panels have room for the hint.
+    // U2e steps 2-4: 810, measured: no NEXT★ or reminder on the face either
+    expect(hints).toBe(810);
   });
 });
 

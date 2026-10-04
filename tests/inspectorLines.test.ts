@@ -257,16 +257,17 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // U2c (U2b's faces): its face's one rule line (faceLines) then its perk, and NEXT★ (faceNext) then the next perk; were
     // "SPLITS EACH PAYLOAD INTO 2 COPIES AT 72% DAMAGE. ★2 CLEAN CUT", "EACH COPY KEEPS ALL OF THE BURN, POISON AND
     // SHOCK.", "NEXT STAR: 2 COPIES AT 85% DAMAGE. ★3 PERFECT CUT"; hits, merge progress, flavour and hint as before
+    // U2e step 4 (REQ-BFG-070): no NEXT★ on the face (the ⓘ view's LEVELS show it: nextLine below), no merge progress
     expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
       "→ BELT 1, TILE 3", `${faceLines("splitter", 2)!.rules[0].text} ★2 CLEAN CUT`,
-      `${faceNext("splitter", 2)!.text} ★3 PERFECT CUT`, "ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT.", TURN, // U2e step 1: no merge progress
+      "ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT.", TURN,
     ]);
+    expect(nextLine(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1), "splitter", 2)).toBe(`${faceNext("splitter", 2)!.text} ★3 PERFECT CUT`);
     // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, no perk at ★1; 0.6.2t2 (F1): no flavour kept
     // U2c (U2b's faces): its face's rule line (faceLines) and NEXT★ (faceNext); were "ADDS 1 DAMAGE FOR EACH EARLIER RIG
     // HIT.", "EVERY RIG HIT ON THE PAYLOAD COUNTS, SPEED RIGS TOO.", "NEXT STAR: 2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS."
     expect(text(rigRun("longhaul", 1, 5, 3, 0, 0))).toEqual([
-      "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", faceLines("longhaul", 1)!.rules[0].text,
-      faceNext("longhaul", 1)!.text, TURN, // U2e step 1: no merge progress
+      "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", faceLines("longhaul", 1)!.rules[0].text, TURN, // U2e: no NEXT★, no merge progress
     ]);
     // an IDLE ★2 TEMPER: the amber warning leads
     const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
@@ -274,10 +275,9 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // U2c (U2b's faces): its face's rule line (faceLines), BURN's reminder (REMINDER.BURN) and NEXT★ (faceNext); were
     // "ADDS 2 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS.", "NEXT STAR:
     // ADDS 4 BURN."
-    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([
-      IDLE_WARNING, faceLines("temper", 2)!.rules[0].text, icons(REMINDER.BURN()), faceNext("temper", 2)!.text,
-      TURN, // U2e step 1: no merge progress
-    ]);
+    // U2e step 4 (REQ-BFG-070): no reminder and no NEXT★ on the face (a tap and the ⓘ view show them), no merge progress
+    expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([IDLE_WARNING, faceLines("temper", 2)!.rules[0].text, TURN]);
+    expect(faceLines("temper", 2)!.reminders).toEqual([icons(REMINDER.BURN())]);
     expect([idle.sub, idle.subColor, idle.idle, idle.labels]).toEqual(["RIG · IDLE", C.amber, true, ["ROTATE", "TO CARGO"]]);
     // a ★3 X OVERDRIVE at (5,3): no next star past ★3, no ROTATE for an X
     // U2c (U2b's faces): its face's two rule lines, then its ★3 clause, whose brass label names the perk (faceLines); were
@@ -301,7 +301,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     expect(rp.variants![0].body[0].text).toBe("→ BELT 1 TILE 4, BELT 2 TILES 4 AND 6");
     expect([...new Set(rp.variants!.map((v) => v.sub).filter(Boolean))]).toEqual(["RIG → BELT 1 TILE 4, BELT 2 TILES 4 AND 6", "RIG → BELT 1 T4, BELT 2 T4 AND T6"]);
     // every compact form keeps the opening sentence (CLEAN CUT names it), the next star and merge progress
-    for (const v of rp.variants!) expect(v.body.filter((b) => b.keep && b.role !== "hits").map((b) => b.role), `${v.sub}`).toEqual(["ability", "next"]); // U2e step 1: no "merge" block
+    for (const v of rp.variants!) expect(v.body.filter((b) => b.keep && b.role !== "hits").map((b) => b.role), `${v.sub}`).toEqual(["ability"]); // U2e steps 1 and 4: no "merge" block, no "next" (the ⓘ view's)
     // an IDLE ★2 GALVANIC COIL: the warning moves up into the header, in amber (the short form where the header is narrow)
     const coil = rigPanel(rigRun("coil", 2, 0, 9, 0, 1), 10)!;
     expect([...new Set(coil.variants!.map((v) => v.sub).filter(Boolean))]).toEqual([IDLE_SHORT, IDLE_HEAD]);
@@ -353,7 +353,9 @@ describe("P11: a rig's panel order, and the phone band", () => {
       }
     }
     expect(KNOWN_PHONE_CUTS.size).toBe(0);
-    expect([cases, nextCases]).toEqual([534, 356]); // 0.8.0 I1 M2: + wave 3's 8 rigs (was [396, 264])
+    // 0.8.0 I1 M2: + wave 3's 8 rigs (was [396, 264]); U2e step 4 (REQ-BFG-070): no rig panel draws a next-star line (the ⓘ
+    // view's LEVELS hold it), so none of the 534 has one (was 356, the ★1 and ★2 cases)
+    expect([cases, nextCases]).toEqual([534, 0]);
   });
 
   it("the desktop column keeps the full text in the 5x7 face: the laptop's column (1366x768: text 109 px)", () => {
@@ -362,10 +364,12 @@ describe("P11: a rig's panel order, and the phone band", () => {
     const plan = planPanel(rigPanel(rigRun("coil", 2, 5, 2, 3, 0), 10)!, laptop);
     expect([plan.body.fits, plan.body.font]).toEqual([true, "5"]);
     const drawn = visibleLines(plan).map((v) => v.line).filter((l): l is PLine => l !== "rule").map((l) => l.spans.map((sp) => sp.t).join(""));
-    // U2c (U2b's faces): the next star drawn in full is the face's NEXT★ line (faceNext: "NEXT ★3: {STUN} 2.8"), was
-    // "NEXT STAR: STALLS 2 MACHINES FOR 2.8 SECONDS."; the merge progress after it pins where the line ends, as the
-    // sentence's full stop did (no longer number can pass)
-    expect(drawn.join(" ")).toContain(`${faceNext("coil", 2)!.text}`);
+    // U2c (U2b's faces): the next star drawn in full was the face's NEXT★ line (faceNext: "NEXT ★3: {STUN} 2.8"). U2e step 4
+    // (REQ-BFG-070): the face draws no NEXT★; the full text in 5x7 is its rule line and its ★2 clause, each whole
+    const fl = faceLines("coil", 2)!;
+    expect(drawn.join(" ")).toContain(fl.rules[0].text);
+    expect(drawn.join(" ")).toContain(fl.clause!.text);
+    expect(drawn.join(" ")).not.toContain("NEXT ★");
   });
 });
 
@@ -431,18 +435,22 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     expect(nextLine(holding("coil", [2]), "coil", 2)).toBe(`NEXT ★3: ${ICON.STUN} ${fmtSec(effectAt("coil", 3).gate!.shockTime!)}`); // SPARK JUMP already
   });
 
-  it("phone: the offer's opening sentence and its MERGES WITH line show whole on the band (the tap preview)", () => {
+  it("phone: the offer's opening sentence shows whole on the band (the tap preview); U2e: no MERGES line, BUY+MERGE says it", () => {
     const band = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
     for (const def of ["brake", "splitter", "doublestamp", "gantry", "assembly"]) {
       for (const owned of [[1], [2, 1]]) {
-        const plan = planPanel(offerPanel(offering(def, owned), 0, 0)!, band);
+        const run = offering(def, owned), t = offerPanel(run, 0, 0)!;
+        const plan = planPanel(t, band);
         const drawn = new Set(visibleLines(plan).map((v) => v.line));
         expect(plan.body.fits, `${def} ${owned}`).toBe(true);
-        for (const role of ["ability", "merges"] as const) {
-          const ls = plan.body.shown.filter((l) => l.b.role === role && l.b.keep);
-          expect(ls.length, `${def} ${owned}: ${role}`).toBeGreaterThan(0);
-          expect(ls.every((l) => l.lines.every((ln) => drawn.has(ln))), `${def} ${owned}: ${role}`).toBe(true);
-        }
+        const ls = plan.body.shown.filter((l) => l.b.role === "ability" && l.b.keep);
+        expect(ls.length, `${def} ${owned}: ability`).toBeGreaterThan(0);
+        expect(ls.every((l) => l.lines.every((ln) => drawn.has(ln))), `${def} ${owned}: ability`).toBe(true);
+        // U2e step 4 (REQ-BFG-070): the MERGES WITH / MERGES INTO line is gone from the face (it showed whole here); the
+        // button says the purchase merges, the card's MERGE badge names the star, and the ⓘ view's NEXT★ what it gives
+        expect(t.body.some((b) => b.role === "merges"), `${def} ${owned}: no MERGES line`).toBe(false);
+        expect(t.labels[0], `${def} ${owned}`).toMatch(/^BUY\+MERGE \d+G$/);
+        expect(mergeLine(run, def), `${def} ${owned}`).toMatch(/^MERGES (INTO|WITH)/); // the merge is still there to say
       }
     }
   });

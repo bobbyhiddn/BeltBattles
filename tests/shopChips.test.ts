@@ -15,6 +15,7 @@ import { RATE_KEYS } from "../src/ui/chips"; // U2d F2
 import { faceAt } from "../src/ui/faces"; // U2d F2
 import { fmtDmg } from "../src/ui/statFormat"; // U2d F2
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds"; // U2d F2
+import { AMMO } from "../src/sim/content"; // U2e step 2
 
 // U2c (REQ-BFG-046, REQ-BFG-047; R1 MEMO C4, U3): the shop card's stat chip (src/ui/chips.ts): one icon alone and one value
 // from the face's own data (each number printed by a formatter), picked in the brief's order; a piece without a face keeps
@@ -27,9 +28,13 @@ const k = 1; // the FURNACE's class factor (the heroes' cores scale; tests pass 
 const BUYABLE = buyableModules().map((d) => d.id);
 
 describe("U2c the shop chip: the pick and its numbers", () => {
-  it("the brief's examples: HOT SWAP {BURN}+2, TESLA ARC {STUN}0.8 (at k), DART GUN 0.55{SEC}, SCATTER CHOKE {DMG}40%", () => {
+  it("the brief's examples: HOT SWAP {BURN}2, TESLA ARC {STUN}0.8 (at k), DART GUN 0.55{SEC}, SCATTER CHOKE {DMG}40%", () => {
     const swap = effectAt("hotswap", 1).factory!.cycle!.find((p) => p.tint === "ember")!.burn!;
-    expect(shopChip("hotswap")).toBe(`{BURN}+${fmtCount(swap)}`);
+    // U2e step 2 (REQ-BFG-070): HOT SWAP's slugs carry their BURN, a stat of its second row ({BURN}2), so its chip is that
+    // stat (was {BURN}+2, its rule's number)
+    expect(shopChip("hotswap")).toBe(`{BURN}${fmtCount(swap)}`);
+    // MIMIC FORGE stamps the hero's slugs: on FURNACE they carry the CINDER SLUG's HEAT (its second row), the chip
+    expect(shopChip("mimic", { k, hero: "furnace" })).toBe(`{HEAT}${fmtDmg(AMMO.cinder.rideScale)}`);
     expect(shopChip("tesla", { k: 0.55 })).toBe(`{STUN}${fmtSec(scaleCore(ITEMS.tesla.core!, 0.55).stall!)}`);
     expect(shopChip("dartgun")).toBe(`${fmtSpeed(effectAt("dartgun", 1).turret!.fireInterval)}{SEC}`);
     expect(shopChip("scatter", { k })).toBe(`{DMG}${fmtPct(scaleCore(ITEMS.scatter.core!, k).share!)}`);

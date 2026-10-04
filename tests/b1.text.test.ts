@@ -235,7 +235,10 @@ describe("STOKER's capped line takes the opening sentence's place (0.8.0 B1 M4, 
     // I1's 16 layouts and the panel deck's 12: the line now shows on every band in all of them (I1: the desk 15 of its 16,
     // the phone none)
     expect(tally).toEqual({ phone: 28, desk: 28, laptop: 28, cases: 28 });
-    expect(before.phone).toBe(0);
+    // U2e step 4 (REQ-BFG-070): 18, measured (was 0). The reference I1 panel is rebuilt from today's (i1Panel), and today's
+    // no longer carries NEXT★ and merge progress, so I1's optional capped line now has room on the phone in 18 of its 28
+    // layouts. The check that matters is unchanged and above: the capped line shows on every band in all 28
+    expect(before.phone).toBe(18);
   });
 
   it("uncapped: the text is the glossary's, unchanged: the N% sentence opens, kept, in the ability text's colour; no capped line", () => {

@@ -304,11 +304,10 @@ describe("D5: every button a finger presses is at least 44 CSS px tall (touch); 
     // U2b F6: a placed ★2 HOT SWAP and LIMPET WORKS keep their star's interim perk clause (a face never says less than the
     // sim), one kept line more, so on this band TO CARGO gives way there again (their text stays whole); SPOTTER's new
     // face is short enough to keep it
-    expect([...gaveWay].sort()).toEqual([
-      "hotswap ★2", "limpet ★2",
-      "mantlet ★2 on furnace", "mantlet ★2 on weaver",
-      "overdrive ★2 @0,9", "overdrive ★2 @3,3", "overdrive ★2 @5,3",
-    ]);
+    // U2e steps 1 and 4 (REQ-BFG-070): measured, none (were HOT SWAP ★2, LIMPET WORKS ★2, MANTLET ★2 on both heroes and
+    // OVERDRIVE ★2 in three places): with no merge progress, NEXT★ or reminder on the face, every one of these panels keeps
+    // TO CARGO beside SELL with its kept text whole (keptWhole above still checks every case)
+    expect([...gaveWay].sort()).toEqual([]);
     expect(cases).toBeGreaterThan(300);
     // and the mouse's panels never lose a button
     const m = detailsPlan({ game: { ui: new UI(), t: 0, view: PHONE.v }, run: furnace([rig(10, "overdrive", 3, 3, 0, 2)]) } as unknown as Ctx, { kind: "item", uid: 10 }, null, PHONE.area)!;

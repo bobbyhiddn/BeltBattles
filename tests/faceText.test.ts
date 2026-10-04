@@ -251,11 +251,18 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
     for (const def of FACE_IDS) for (const s of starsOf(def)) for (const r of faceLines(def, s)!.reminders) expect(r.includes("UP TO"), r).toBe(false);
   });
 
-  it("F4: each keyword's reminder is its own optional block, in rule order: HOT SWAP's BURN at rank 3, its STUN at 3.1", () => {
+  it("F4 (U2e step 4): no face draws a reminder; each keyword's reminder stays in the face's data, in rule order (the tap's text)", () => {
+    // U2b F4 made each reminder its own optional block (HOT SWAP's BURN at REMINDER_RANK, its STUN a REMINDER_STEP later).
+    // U2e step 4 (REQ-BFG-070): the always-on face drops the dim reminders; a word tap, the desk hover and the ⓘ view's
+    // KEYWORDS show them (glossary.ts reads them from faceAt), so the reminders keep their order there
+    expect([REMINDER_RANK, REMINDER_STEP]).toEqual([3, 0.1]);
     for (const s of STARS) {
-      const rem = faceBlocks("hotswap", s, {})!.filter((b) => b.role === "reminder");
-      expect(rem.map((b) => [b.rank, b.keep ?? false]), `★${s}`).toEqual([[REMINDER_RANK, false], [REMINDER_RANK + REMINDER_STEP, false]]);
-      expect([rem[0].text.includes(ICON.BURN), rem[1].text.includes(ICON.STUN)]).toEqual([true, true]);
+      expect(faceBlocks("hotswap", s, {})!.filter((b) => b.role === "reminder"), `★${s}`).toEqual([]);
+      const rem = faceLines("hotswap", s)!.reminders;
+      expect([rem[0].includes(ICON.BURN), rem[1].includes(ICON.STUN)]).toEqual([true, true]);
+    }
+    for (const def of FACE_IDS) for (const s of starsOf(def)) {
+      expect(faceBlocks(def, s, { k: 1, hero: "furnace" })!.some((b) => b.role === "reminder"), `${def} ★${s}`).toBe(false);
     }
   });
 

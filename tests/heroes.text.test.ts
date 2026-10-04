@@ -75,9 +75,11 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
       const sig = run.build.items.find((p) => p.def === def)!;
       const p = itemPanel(run, sig.uid)!;
       const text = p.body.map((b) => b.text);
-      // U2a (REQ-BFG-046): the face (src/ui/faces.ts) in place of the sentences: its stat row, rule lines and reminder
+      // U2a (REQ-BFG-046): the face (src/ui/faces.ts) in place of the sentences: its stat row, rule lines and reminder.
+      // U2e step 4 (REQ-BFG-070): no reminder on the face (a tap, the hover and the ⓘ view's KEYWORDS show it)
       const fl = faceLines(def)!;
-      for (const s of [fl.stats!, ...fl.rules.map((r) => r.text), fl.reminders.join(" ")]) expect(text, `${def}: ${s}`).toContain(s);
+      for (const s of [fl.stats!, ...fl.rules.map((r) => r.text)]) expect(text, `${def}: ${s}`).toContain(s);
+      for (const r of fl.reminders) expect(text, `${def}: no reminder`).not.toContain(r);
       expect(text.join(" ")).toContain(flavour(def)[0]);
       expect(p.labels).toEqual(["UPGRADE 10G"]); // bb-0.8.3 (REQ-BFG-043 D11): its FACTORY upgrade's button (0.8.0: [])
       expect(p.title).toBe(ITEMS[def].name);

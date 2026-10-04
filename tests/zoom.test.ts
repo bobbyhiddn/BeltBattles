@@ -468,7 +468,11 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // to [811, 864], 402x690 [852, 878] to [861, 881], 430x739 [884, 885] to [885, 885]
         // U2d: phoneBand re-measured with the new faces (148 at W 194-280): 430x739's band 151 -> 148 and 390x844's 162 ->
         // 148, each still holding all 885 panels in their fullest form; the three shorter views are unchanged
-        "390x660": [104, 805, 864], "390x664": [106, 811, 864], "402x690": [122, 861, 881], "430x739": [148, 885, 885], "390x844": [148, 885, 885],
+        // U2e (REQ-BFG-070), measured: no merge progress, NEXT★ or reminder on the face, so more panels fit the band in
+        // their fullest form: 390x660 [805, 864] to [838, 868], 390x664 [811, 864] to [846, 868]; the op view (402x690) and
+        // the two tallest views are unchanged (the panels still left out there are installed turrets, whose panels U2e
+        // leaves as they were); phoneBand is unchanged (its test above measures it at 11 widths)
+        "390x660": [104, 838, 868], "390x664": [106, 846, 868], "402x690": [122, 861, 881], "430x739": [148, 885, 885], "390x844": [148, 885, 885],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);
