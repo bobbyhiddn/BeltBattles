@@ -1,11 +1,11 @@
 // 0.6.1b M2: the turret core routines (ARSENAL.md §2 and §10 item 1; brief 0.6.1b "Tests"). Every core at
 // 1-3 stars on a heavy turret (FURNACE), a medium one (a stand-in TurretDef, fireInterval 0.75) and a light
 // one (WEAVER). A bench side keeps its factory but has no belts, so only the loads a test puts in the
-// chamber fire; the foe is a passive barge (no belts, +2000 hull). Plain slugs deal 3.
+// chamber fire; the foe is a passive barge (no belts, +2000 hull). Plain slugs deal 3 (NUM-1: 30, AMMO.plain.base).
 import { describe, expect, it } from "vitest";
 import { Battle, makeTurret, type Payload, type Projectile, type TurretState } from "../src/sim/battle";
 import { startingBuild } from "../src/sim/ai";
-import { HEROES, ITEMS, SIGNATURE_CORES, WINDOW_TIME, classFactor, type HeroId, type TurretDef } from "../src/sim/content";
+import { AMMO, HEROES, ITEMS, SIGNATURE_CORES, WINDOW_TIME, classFactor, type HeroId, type TurretDef } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { CORE_ABSOLUTE, ROUTINES, pressureBonus, resolveCore } from "../src/sim/cores";
 import { effectAt } from "../src/sim/stars";
@@ -52,6 +52,12 @@ function run(bt: Battle, until: number, n = Infinity): Shot[] {
   return out;
 }
 const round = (v: number) => Math.round(v * 1e9) / 1e9;
+// NUM-1 (REQ-BFG-047): the integer pipeline. A plain (and a thread) slug deals AMMO base 30 (x10 of 3); a % rounds half up
+// once (src/sim/pct.ts's rule); the class factor is a whole % (kp = round(100 k)) and each scaled core number is
+// round(v x kp / 100), at install (cores.ts scaleCore).
+const PLAIN = AMMO.plain.base; // 30
+const half = (x: number) => Math.floor(x + 0.5 + 1e-9);
+const scaled = (v: number, k: number) => half((v * half(100 * k)) / 100);
 
 describe("the core resolver and the class factor", () => {
   it("classFactor = clamp(fireInterval / 1 s, 0.4, 1.2): heavy 1, medium 0.75, light 0.55", () => {
@@ -92,13 +98,15 @@ describe("the core resolver and the class factor", () => {
       const got = resolveCore(b, c.t, c.td ?? HEROES[c.hero].turrets[c.t]);
       expect(got).toMatchObject({ def: id, bought: true, routine: id, stars: s, k: c.k });
       for (const [key, v] of Object.entries(raw)) {
+        // NUM-1: each absolute number x the whole class % kp, rounded half up once at install (addBurn: at least 1)
         const want = !(CORE_ABSOLUTE as readonly string[]).includes(key) ? v
-          : key === "addBurn" ? Math.max(1, Math.floor((v as number) * c.k + 0.5)) : (v as number) * c.k;
+          : key === "addBurn" ? Math.max(1, scaled(v as number, c.k)) : scaled(v as number, c.k);
         expect(got.spec[key as keyof typeof raw], `${c.name} ${id} ${s} ${key}`).toBe(want);
       }
     }
     const pq = (td: TurretDef) => resolveCore({ hero: "furnace", items: [], routes: [], mods: [{ uid: 1, def: "pressure", turret: 0 }], beltCap: 0, hullBonus: 0 }, 0, td).spec.perQueued!;
-    expect([pq(HEROES.furnace.turrets[0]), pq(MEDIUM), pq(HEROES.weaver.turrets[0])].map(round)).toEqual([1.2, 0.9, 0.66]);
+    // NUM-1: x10 (was 1.2 / 0.9 / 0.66); 12 x 55% = 6.6 rounds half up to 7 at install
+    expect([pq(HEROES.furnace.turrets[0]), pq(MEDIUM), pq(HEROES.weaver.turrets[0])]).toEqual([12, 9, 7]);
   });
 });
 
@@ -129,12 +137,14 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         const shots = run(bt, 2);
         expect(shots.length).toBe(lv.pellets);
         expect(new Set(shots.map((x) => x.t)).size).toBe(1);
+        const pellet = half(AMMO.thread.base * lv.share!); // NUM-1: 30 x share, rounded half up once: 12 / 14 / 13 (was 3 x share)
         shots.forEach(({ pr }, j) => {
           expect(pr).toMatchObject({ core: "scatter", share: lv.share, burn: Math.ceil(5 / lv.pellets!), noFray: j > 0 });
-          expect(pr.dmg).toBeCloseTo(3 * lv.share!, 12);
+          expect(pr.dmg).toBe(pellet);
           expect(pr.payload.shock).toBe(true);
         });
-        expect(round(shots.reduce((n, x) => n + x.pr.dmg, 0) / 3)).toBe(round(lv.pellets! * lv.share!)); // 1.2 / 1.44 / 1.68
+        // NUM-1: the pellets' total is pellets x the rounded pellet, 36 / 42 / 52 (was pellets x share x 3: 3.6 / 4.32 / 5.04)
+        expect(shots.reduce((n, x) => n + x.pr.dmg, 0)).toBe(lv.pellets! * pellet);
         run(bt, 4);
         expect(bt.sides[1].hull.fray).toBe(1); // the thread slug's Fray once, not once per pellet
       }
@@ -167,8 +177,10 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         chamber(tu, loads(n), "fire");
         const shots = run(bt, 5);
         expect(shots.length).toBe(n);
-        shots.forEach(({ pr }, i) => expect(pr.dmg).toBeCloseTo(3 + lv.perQueued! * c.k * (n - i), 9));
-        expect(round(pressureBonus(tu.core.spec, 9))).toBe(round(lv.perQueued! * c.k * 5)); // maxCount 5
+        const pq = scaled(lv.perQueued!, c.k); // NUM-1: perQueued x kp, whole at install (heavy 12 / 26 / 42, light 7 / 14 / 23)
+        expect(tu.core.spec.perQueued).toBe(pq);
+        shots.forEach(({ pr }, i) => expect(pr.dmg).toBe(PLAIN + pq * (n - i)));
+        expect(pressureBonus(tu.core.spec, 9)).toBe(pq * 5); // maxCount 5
       }
     });
 
@@ -213,7 +225,7 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         expect(shots.length).toBe(8);
         for (const { pr } of shots) {
           expect(pr.target.kind).toBe("hull");
-          expect(pr.dmg).toBeCloseTo(3 * lv.hullMul!, 12);
+          expect(pr.dmg).toBe(half(PLAIN * lv.hullMul!)); // NUM-1: 30 x hullMul rounded half up once, 39 / 50 / 62 (was 3 x hullMul)
         }
       }
       const { bt, tu } = bench(c, null); // the identity shot does hit machines
@@ -231,11 +243,11 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         const { bt, tu } = bench(c, "drake", s);
         const add = Math.max(1, Math.floor(lv.addBurn! * c.k + 0.5));
         expect(tu.core.spec.addBurn).toBe(add);
-        chamber(tu, [load({ flat: 4, burn: 1 })], "fire");
+        chamber(tu, [load({ flat: 40, burn: 1 })], "fire"); // NUM-1: a flat of 40 (x10 of 4), as flatPerBurn 20 / 15 / 10
         const [{ pr }] = run(bt, 1, 1);
-        const stacks = Math.floor(4 / lv.flatPerBurn!);
+        const stacks = Math.floor(40 / lv.flatPerBurn!); // 2 / 2 / 4, as before
         expect(pr.burn).toBe(1 + stacks + add);
-        expect(pr.dmg).toBeCloseTo(3 + 4 - stacks * lv.flatPerBurn!, 12);
+        expect(pr.dmg).toBe(PLAIN + 40 - stacks * lv.flatPerBurn!); // NUM-1: 30 / 40 / 30 (was 3 / 4 / 3)
         expect(pr.burnTime).toBe(lv.burnTime);
         expect(pr.flight).toBeLessThanOrEqual(tu.def.flight * 0.7 + 0.22 + 1e-9);
         while (bt.projectiles.length) bt.step();
@@ -253,7 +265,8 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         bt.step(); // the window is full: one volley, this tick
         const vol = bt.projectiles.filter((p) => p.from === 0);
         expect(vol.map((p) => p.payload.id)).toEqual([...ps].reverse().map((p) => p.id)); // all of it, LIFO
-        vol.forEach((p) => expect(p.dmg).toBeCloseTo(3 + lv.volleyFlat! * c.k, 12));
+        // NUM-1: volleyFlat x kp, whole at install (heavy +20 / 44 / 70, medium +15 / 33 / 53, light +11 / 24 / 39)
+        vol.forEach((p) => expect(p.dmg).toBe(PLAIN + scaled(lv.volleyFlat!, c.k)));
         expect(tu.fireCd).toBeCloseTo(tu.interval * lv.reloadMul!, 12);
         const b2 = bench(c, "salvo", s); // one load: the window stays open twice the window time
         chamber(b2.tu, [load()], "load");

@@ -316,7 +316,7 @@ describe("J10, J14 (a), J15: the walk through a join", () => {
     expect(a.timeline.map((r) => r.hits)).toEqual(c.timeline.map((r) => r.hits));
     // COUNTERWEIGHT counts the journey's tiles: (4,3) is the payload's 6th tile (index 5), not M's tile 2
     const cw = a.timeline.flatMap((r) => r.hits).find((h) => h.uid === 16)!;
-    expect(cw.flat).toBe(5 * 0.5);
+    expect(cw.flat).toBe(5 * effectAt("counterweight", 1).gate!.perTile!.each); // NUM-1: x10, from the data (was 5 * 0.5)
   });
 
   it("J4 by design: past the join the payload rides the main belt's speed state, set by rigs before the join tile", () => {

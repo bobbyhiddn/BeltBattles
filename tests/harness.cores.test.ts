@@ -128,8 +128,11 @@ describe("harness cores (0.6.1b): legality", () => {
     // a STOKER beside a factory (Shopper.placeStoker; before, the gate lever found no belt spot for it and failed):
     // 2034124841 -> 1899419253 and 85738988 -> 910760556. With only levers.ts's STOKER line taken out (the per-run draw
     // left in: these builds never roll a caravan), both read 2034124841 and 85738988 again (oracle 4fe13f3fd06dc385).
-    expect(hash32(a.join("|"))).toBe(1899419253);
-    expect(hash32(b.join("|"))).toBe(910760556);
+    // NUM-1 (REQ-BFG-047): ARMOR PACK's hull x10 (supply.hull 25 -> 250), so every build's hullBonus is x10 (0..250 ->
+    // 0..2500): 1899419253 -> 779366749 and 910760556 -> 2993301734. With each build's hullBonus read back / 10, both
+    // hashes read 1899419253 and 910760556 again (measured on num1), so no purchase or placement moved.
+    expect(hash32(a.join("|"))).toBe(779366749);
+    expect(hash32(b.join("|"))).toBe(2993301734);
   }, 60_000);
 });
 

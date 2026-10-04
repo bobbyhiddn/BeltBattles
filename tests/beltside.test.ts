@@ -10,6 +10,7 @@ import {
   rotOf, routeInfo, routeWellFormed, setRot, speedWinner, type Build, type Placed,
 } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
+import { pct, roundHalfUp } from "../src/sim/pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline's one rounding
 
 // Deck-local directions: 0 forward (toward the enemy, -y), 1 = +x, 2 back (+y), 3 = -x.
 const RIGS = Object.values(ITEMS).filter((d) => d.kind === "gate");
@@ -130,10 +131,10 @@ describe("R5, R8: hits", () => {
     const info = routeInfo(b, 0);
     expect([info.gates, info.gateCells]).toEqual([[2, 3], [2, 2]]);
     const e = estimateRoute(b, 0), plain = estimateRoute(furnace(), 0);
-    expect(e.dmg - plain.dmg).toBeCloseTo(2);
+    expect(e.dmg - plain.dmg).toBe(effectAt("whetstone", 1).gate!.flat); // NUM-1: x10 (was 2), whole
     expect(e.burn).toBe(effectAt("temper", 1).gate!.burn);
     const p = payloadPast(b, 2);
-    expect([p.flat, p.burn, p.prior]).toEqual([2, effectAt("temper", 1).gate!.burn, 2]);
+    expect([p.flat, p.burn, p.prior]).toEqual([effectAt("whetstone", 1).gate!.flat, effectAt("temper", 1).gate!.burn, 2]); // NUM-1: flat x10 (was 2)
     const { ev } = run(b, 6);
     const proc = ev.filter((x): x is Extract<SimEvent, { type: "process" }> => x.type === "process");
     expect(new Set(proc.map((x) => `${x.gate}:${x.dir}:${x.route}:${x.tile}`))).toEqual(new Set(["2:1:0:2", "3:3:0:2"]));
@@ -154,9 +155,10 @@ describe("R5, R8: hits", () => {
     expect(mine.map((x) => [x.route, x.tile, x.dir])).toEqual([[0, 2, 1], [1, 4, 3]]);
     expect(routeInfo(b, 0).gates).toEqual([2, 3]);
     expect(routeInfo(b, 1).gates).toEqual([3]);
-    // route 0: WHETSTONE (+2) then LONG HAUL (its ★1 value x 1 prior); route 1: LONG HAUL with no prior hit
-    expect(estimateRoute(b, 0).dmg - estimateRoute({ ...b, items: [b.items[0]] }, 0).dmg).toBeCloseTo(2 + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
-    expect(estimateRoute(b, 1).dmg).toBeCloseTo(estimateRoute({ ...b, items: [b.items[0]] }, 1).dmg);
+    // route 0: WHETSTONE (+20) then LONG HAUL (its ★1 value x 1 prior); route 1: LONG HAUL with no prior hit
+    // NUM-1: whole numbers, so exact (was toBeCloseTo(2 + ...): the WHETSTONE's flat x10)
+    expect(estimateRoute(b, 0).dmg - estimateRoute({ ...b, items: [b.items[0]] }, 0).dmg).toBe(effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
+    expect(estimateRoute(b, 1).dmg).toBe(estimateRoute({ ...b, items: [b.items[0]] }, 1).dmg);
     const { ev } = run(b, 8);
     const routes = new Set(ev.filter((x) => x.type === "process" && x.gate === 3).map((x) => (x as { route: number }).route));
     expect(routes).toEqual(new Set([0, 1]));
@@ -175,7 +177,8 @@ describe("R5, R8: hits", () => {
     expect(lh.map((x) => [x.tile, x.dir])).toEqual([[8, 3]]); // its east arrow points at empty deck
     const e = estimateRoute(b, 0);
     const ammo = AMMO.cinder;
-    expect(e.dmg).toBeCloseTo(ammo.base + ammo.rideScale * e.ride + effectAt("longhaul", 1).gate!.perPriorGate! * 3); // LONG HAUL: 3 prior hits
+    // LONG HAUL: 3 prior hits. NUM-1: the slug's damage rounds half up once, so exact (was toBeCloseTo of the unrounded sum)
+    expect(e.dmg).toBe(roundHalfUp(ammo.base + ammo.rideScale * e.ride + effectAt("longhaul", 1).gate!.perPriorGate! * 3));
     const p = payloadPast(b, 8);
     expect([p.prior, p.flat]).toEqual([4, effectAt("longhaul", 1).gate!.perPriorGate! * 3]);
   });
@@ -187,8 +190,9 @@ describe("R7: several hits on one tile", () => {
     const b = furnace([rig(2, "longhaul", 3, 3), rig(3, "whetstone", 5, 3, 3)]);
     expect(rigHits(b)[0][2].map((x) => [x.uid, x.tier])).toEqual([[3, 1], [2, 2]]);
     const plain = estimateRoute(furnace(), 0);
-    expect(estimateRoute(b, 0).dmg - plain.dmg).toBeCloseTo(2 + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
-    expect(payloadPast(b, 2).flat).toBe(2 + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
+    // NUM-1: the WHETSTONE's flat x10 (was 2); whole numbers, so the estimate's difference is exact (was toBeCloseTo)
+    expect(estimateRoute(b, 0).dmg - plain.dmg).toBe(effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
+    expect(payloadPast(b, 2).flat).toBe(effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 1).gate!.perPriorGate! * 1);
   });
 
   it("a SPLITTER scales the flat bonus gained earlier on its own tile", () => {
@@ -197,11 +201,14 @@ describe("R7: several hits on one tile", () => {
     expect(rigHits(b)[0][2].map((x) => [x.uid, x.tier])).toEqual([[3, 1], [2, 3]]);
     const e = estimateRoute(b, 0);
     expect(e.copies).toBe(2);
-    expect(e.dmg).toBeCloseTo((AMMO.cinder.base + AMMO.cinder.rideScale * e.ride) * 0.6 + 2 * 0.6);
+    // NUM-1: the WHETSTONE's flat x10 (was 2 * 0.6); the slug's damage rounds half up once, so exact (was toBeCloseTo)
+    const whet = effectAt("whetstone", 1).gate!.flat!;
+    expect(e.dmg).toBe(roundHalfUp((AMMO.cinder.base + AMMO.cinder.rideScale * e.ride) * 0.6 + whet * 0.6));
     const { fresh } = run(b, 8);
     const pair = fresh(0, 2);
     expect(pair.length).toBeGreaterThanOrEqual(2);
-    for (const a of pair) expect(a.p.flat).toBeCloseTo(1.2);
+    // NUM-1: the flat so far x the split's 60%, rounded half up once (pct): 12 (was toBeCloseTo(1.2))
+    for (const a of pair) expect(a.p.flat).toBe(pct(whet, 60));
   });
 
   it("speed clash: the bigger change on a log scale wins, a tie goes to the faster", () => {

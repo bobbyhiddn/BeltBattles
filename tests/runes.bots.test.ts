@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { hashSeed } from "../src/core/rng";
-import type { HeroId } from "../src/sim/content";
+import { ITEMS, type HeroId } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { playerRun } from "../src/sim/harness/player";
@@ -25,6 +25,8 @@ const at = (def: string, uid: number, stars?: number) => ({ uid, def, x: uid, y:
 const first = (...ids: string[]): string => RUNE_LIST.find((d) => ids.includes(d.id))!.id; // catalogue order
 /** The par player's run seed (player.ts startRun): the seed its shop and its rune offers draw on. */
 const runSeed = (hero: HeroId, seed: number): number => hashSeed("par-player-run", hero, seed);
+/** One ARMOR PACK's hull (the "armor" theme counts the bought hull in packs). NUM-1: 250, x10 of 25. */
+const PACK = ITEMS.plating.supply!.hull!;
 
 describe("RUNES-2a botRunePick: style, then the board's themes, then catalogue order", () => {
   it("takes the hero's own style first, whatever the board holds", () => {
@@ -36,13 +38,13 @@ describe("RUNES-2a botRunePick: style, then the board's themes, then catalogue o
   });
 
   it("else the theme with the most pieces on the board", () => {
-    // weaver's starting layout: 3 DART GUNS (turrets 3); hull 50 = 2 ARMOR PACKs (armor 2); no factory
-    const b = board("weaver", { hullBonus: 50 });
+    // weaver's starting layout: 3 DART GUNS (turrets 3); hull 500 = 2 ARMOR PACKs (armor 2); no factory
+    const b = board("weaver", { hullBonus: 2 * PACK }); // NUM-1: 2 packs of 250 (was a bare 50)
     expect(boardThemeCount("turrets", b)).toBe(3);
     expect(boardThemeCount("armor", b)).toBe(2);
     expect(boardThemeCount("factories", b)).toBe(0);
     expect(botRunePick(["iron_skin", "oiled_cogs", "sharp_scrap"], "weaver", b)).toBe("sharp_scrap");
-    const f = board("weaver", { hullBonus: 50, items: [at("press", 1), at("doublestamp", 2), at("shottower", 3), at("hotswap", 4)] });
+    const f = board("weaver", { hullBonus: 2 * PACK, items: [at("press", 1), at("doublestamp", 2), at("shottower", 3), at("hotswap", 4)] });
     expect(boardThemeCount("factories", f)).toBe(4);
     expect(botRunePick(["iron_skin", "oiled_cogs", "sharp_scrap"], "weaver", f)).toBe("oiled_cogs");
   });
@@ -60,7 +62,7 @@ describe("RUNES-2a botRunePick: style, then the board's themes, then catalogue o
   });
 
   it("ties and empty boards go by catalogue order, never by the offer's card order", () => {
-    const b = board("metronome", { items: [at("heatjacket", 2)], routes: [{ factory: 9, cells: [1, 2] }], hullBonus: 50 }); // belts 2, armor 2
+    const b = board("metronome", { items: [at("heatjacket", 2)], routes: [{ factory: 9, cells: [1, 2] }], hullBonus: 2 * PACK }); // belts 2, armor 2 (NUM-1: hull 500, was 50)
     for (const offer of [["tar_barrel", "iron_skin"], ["iron_skin", "tar_barrel"]]) {
       expect(botRunePick(offer, "metronome", b)).toBe(first("tar_barrel", "iron_skin"));
     }

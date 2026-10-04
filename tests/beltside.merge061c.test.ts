@@ -102,11 +102,12 @@ describe("P7: ASSEMBLY LINE and rigs", () => {
       const hot = (t: number) => s === 3 && t < 4 - 1e-6;
       for (const [route, t, whet, haul] of rows) {
         if (s === 3 && Math.abs(t - 4) < 1e-6) continue; // the tick that ends HOT START
-        // LONG HAUL ★1: its +1 per prior hit (1: the WHETSTONE), overclocked +2, on the Kiln's belt as on the Assembly's
+        // LONG HAUL ★1: its +10 per prior hit (1: the WHETSTONE), overclocked +20, on the Kiln's belt as on the Assembly's
         expect(haul, `★${s} route ${route} at ${t.toFixed(3)}`).toBe((hot(t) ? 2 : 1) * effectAt("longhaul", 1).gate!.perPriorGate!);
-        // the Kiln-only WHETSTONE is never hot; the Assembly's own is, while HOT START lasts (it hit earlier than t)
-        if (route === 0) expect(whet, `★${s} Kiln WHETSTONE`).toBe(2);
-        else if (hot(t)) expect(whet, `★${s} Assembly WHETSTONE`).toBe(4);
+        // the Kiln-only WHETSTONE is never hot; the Assembly's own is, while HOT START lasts (it hit earlier than t).
+        // NUM-1: the WHETSTONE ★1 flat from the catalogue, x10: 20 (was 2), overclocked 40 (was 4)
+        if (route === 0) expect(whet, `★${s} Kiln WHETSTONE`).toBe(effectAt("whetstone", 1).gate!.flat!);
+        else if (hot(t)) expect(whet, `★${s} Assembly WHETSTONE`).toBe(2 * effectAt("whetstone", 1).gate!.flat!);
       }
       for (const route of [0, 1]) {
         expect(rows.filter((r) => r[0] === route && hot(r[1])).length > 0, `★${s} route ${route}: hot hits`).toBe(s === 3);
@@ -128,10 +129,11 @@ function slag(speed: string | null, stars = 1, pot = "slagpot"): Build {
   return b;
 }
 const SPEEDS: [string, number][] = [1, 2, 3].flatMap((s) => [["brake", s], ["grease", s], ["overdrive", s]] as [string, number][]);
-/** The flat part of a speed rig's effect, from the catalogue: OVERDRIVE ★3 AFTERBURNER +3; beltside-062-on-061 (DESIGN §13
- *  P13): 0.6.1f's BRAKE ★2 HOT SHOE +2 and ★3 RED-HOT SHOE +5, mixed effects like AFTERBURNER. The rest have none. */
-// 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE (OVERDRIVE ★2) adds +1, which slag keeps as it keeps AFTERBURNER's +3
-const FLAT: Record<string, number> = { "overdrive 2": 1, "overdrive 3": 3, "brake 2": 2, "brake 3": 5 };
+/** The flat part of a speed rig's effect, from the catalogue: OVERDRIVE ★3 AFTERBURNER +30; beltside-062-on-061 (DESIGN §13
+ *  P13): 0.6.1f's BRAKE ★2 HOT SHOE +20 and ★3 RED-HOT SHOE +50, mixed effects like AFTERBURNER. The rest have none. */
+// 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE (OVERDRIVE ★2) adds +10, which slag keeps as it keeps AFTERBURNER's +30
+// NUM-1 (REQ-BFG-047): the damage family x10 (was 1, 3, 2, 5)
+const FLAT: Record<string, number> = { "overdrive 2": 10, "overdrive 3": 30, "brake 2": 20, "brake 3": 50 };
 const flatOf = (def: string, s: number): number => FLAT[`${def} ${s}`] ?? 0;
 
 describe("P8: SLAG rides at its fixed 0.75x", () => {
@@ -181,7 +183,7 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
       expect(o.processed, `${def} ★${s}: the rig still processes slag`).toBeGreaterThan(0);
       expect(o.burn, `${def} ★${s}: the TEMPER's Burn`).toEqual([effectAt("temper", 1).gate!.burn]);
       // beltside-062-on-061 (P13): BRAKE ★2/★3's flat applies to slag too (P8: only the speed part does nothing)
-      expect(o.flat, `${def} ★${s}: a flat part applies (AFTERBURNER +3, HOT SHOE +2, RED-HOT SHOE +5)`).toEqual([flatOf(def, s)]);
+      expect(o.flat, `${def} ★${s}: a flat part applies (AFTERBURNER +30, HOT SHOE +20, RED-HOT SHOE +50)`).toEqual([flatOf(def, s)]);
       const g = def === "overdrive" ? [0, GUARD_SLOW, GUARD_SLOW | GUARD_FREEZE][s - 1] : 0; // REDLINE / AFTERBURNER flags
       expect(o.guard, `${def} ★${s}: guard flags from tile 3 on`).toEqual([0, 0, 0, g, g, g, g]);
     }
@@ -205,7 +207,7 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
       expect(beltKind(w)).toBe("slag");
       expect(hitLabel(h, beltKind(w))).toBe(flat ? `${ITEMS[def].name} +${flat} DAMAGE, NO SPEED CHANGE ON SLAG` : `${ITEMS[def].name}: NO EFFECT ON SLAG`);
       expect(w.estimate.burn).toBe(effectAt("temper", 1).gate!.burn);
-      expect(w.estimate.dmg).toBeCloseTo(none.estimate.dmg + flat, 9);
+      expect(w.estimate.dmg).toBe(none.estimate.dmg + flat); // NUM-1: whole numbers, so exact (was toBeCloseTo(.., 9))
     }
     // the control (0.6.1c's own): a STAMP PRESS slug on the same belt does feel the rigs, and its speed hit wins its tile
     const press = (def: string | null) => walkRoute(slag(def, 1, "press"), 0);

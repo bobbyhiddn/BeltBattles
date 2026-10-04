@@ -13,6 +13,7 @@ import { finishDay } from "../src/game/day";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { Battle, type Projectile } from "../src/sim/battle";
 import { cloneBuild, type Build } from "../src/sim/deck";
+import { PLATE_CAP } from "../src/sim/races/bastion";
 
 const PLAYABLE: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const DEF_PATTERN = /^[a-z0-9_]{1,32}$/; // = src/net/snapshot.ts DEF_PATTERN
@@ -194,7 +195,8 @@ describe("RUNES-1 M1: runeProblem (the check both sides run) and the grants", ()
   });
 
   it("grants: HULL and BELT as taken; dawn gold from the dawn it is taken through the day's dusk", () => {
-    expect(runeGrants([{ id: "iron_skin" }, { id: "tar_barrel" }, { id: "spare_hull" }], 3)).toEqual({ hull: 45, belt: 8, gold: 0 });
+    // NUM-1: HULL x10, IRON SKIN 150 + SPARE HULL 300 (was 45); BELT unchanged
+    expect(runeGrants([{ id: "iron_skin" }, { id: "tar_barrel" }, { id: "spare_hull" }], 3)).toEqual({ hull: RUNES.iron_skin.amount.n + RUNES.spare_hull.amount.n, belt: 8, gold: 0 });
     expect(runeGrants([{ id: "coin_purse" }], 3).gold).toBe(3); // days 1, 2, 3
     expect(runeGrants([{ id: "iron_skin" }, { id: "fat_purse" }], 3).gold).toBe(4); // days 2, 3
     expect(dawnGold([{ id: "coin_purse" }, { id: "fat_purse" }, { id: "war_edge" }])).toBe(3);
@@ -280,23 +282,23 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
     expect(run({ ...cloneBuild(b), runes: [] })).toEqual(run(b));
   });
 
-  it("WAR EDGE: +1 DMG on every shot; SHARP SCRAP: +5 DMG on each turret's first shot only", () => {
+  it("WAR EDGE: +10 DMG on every shot; SHARP SCRAP: +50 DMG on each turret's first shot only", () => {
     const b = heroStartBuild("furnace");
     const base = shots(b, 4), edge = shots(withRunes(b, "war_edge"), 4), sharp = shots(withRunes(b, "sharp_scrap"), 4);
-    base.forEach((p, i) => expect(edge[i].dmg - p.dmg).toBeCloseTo(1, 9));
+    base.forEach((p, i) => expect(edge[i].dmg - p.dmg).toBe(RUNES.war_edge.amount.n)); // NUM-1: whole DMG, 10 (was 1)
     const firsts = new Set<number>();
     base.forEach((p, i) => {
       const first = !firsts.has(p.turret);
       firsts.add(p.turret);
-      expect(sharp[i].dmg - p.dmg).toBeCloseTo(first ? 5 : 0, 9);
+      expect(sharp[i].dmg - p.dmg).toBe(first ? RUNES.sharp_scrap.amount.n : 0); // NUM-1: whole DMG, 50 (was 5)
     });
   });
 
-  it("TWIN NAILS: +2 DMG on a PAIR shot (FOUNDRY's fused loads), nothing on a lone one", () => {
+  it("TWIN NAILS: +20 DMG on a PAIR shot (FOUNDRY's fused loads), nothing on a lone one", () => {
     const b = heroStartBuild("foundry");
     const base = shots(b, 8), nails = shots(withRunes(b, "twin_nails"), 8);
     expect(nails.every((p) => p.payload.paired)).toBe(true); // the rune's side reads pairs (a FOUNDRY fusion is one)
-    base.forEach((p, i) => expect(nails[i].dmg - p.dmg).toBeCloseTo(2, 9));
+    base.forEach((p, i) => expect(nails[i].dmg - p.dmg).toBe(RUNES.twin_nails.amount.n)); // NUM-1: whole DMG, 20 (was 2)
     // WEAVER's darts come in one at a time: no pair, nothing added
     const w = heroStartBuild("weaver"), lone = shots(w, 6), wn = shots(withRunes(w, "twin_nails"), 6);
     lone.forEach((p, i) => expect([wn[i].payload.paired ?? false, wn[i].dmg - p.dmg]).toEqual([false, 0]));
@@ -315,12 +317,12 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
   it("RIVET HOARD / GRAVE PLATES: PLATE at the start (PLATE_CAP holds); LOOSE THREAD / TANGLE WIRE: FRAY on the foe's hull", () => {
     const b = heroStartBuild("bastion");
     const bt = new Battle(withRunes(b, "rivet_hoard", "grave_plates", "loose_thread"), withRunes(foe, "tangle_wire"), 1);
-    expect(bt.sides[0].plate.plate).toBe(18);
+    expect(bt.sides[0].plate.plate).toBe(RUNES.rivet_hoard.amount.n + RUNES.grave_plates.amount.n); // NUM-1: 60 + 120 (was 18), under PLATE_CAP
     expect(bt.sides[1].plate.plate).toBe(0);
     expect(bt.sides[1].hull.fray).toBe(3);
     expect(bt.sides[0].hull.fray).toBe(6); // the ghost's runes act on its side too
     const capped = new Battle(withRunes(b, "rivet_hoard", "grave_plates", ...[]), foe, 1);
-    expect(capped.sides[0].plate.plate).toBeLessThanOrEqual(24);
+    expect(capped.sides[0].plate.plate).toBeLessThanOrEqual(PLATE_CAP); // NUM-1: 240 (was a bare 24)
   });
 
   it("HEAT SINK: a slug that carries HEAT (a HEAT JACKET's) gains 50% more of it on the ride", () => {

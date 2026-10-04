@@ -72,7 +72,8 @@ describe("each hero's trick in one plain sentence (REQ-BFG-032)", () => {
     expect(num(T.foundry)).toEqual([SYNC_WINDOW, FUSE_MULT]);
     expect(num(T.bastion)).toEqual([PLATE_PER_SLUG, PLATE_CAP]);
     expect(T.foundry).toBe("ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN WITHIN 0.25 SECONDS FUSE INTO ONE SLUG WITH 1.15 TIMES THEIR DAMAGE.");
-    expect(T.bastion).toBe("ITS BULWARK SLUGS PLATE YOUR HULL AS THEY LOAD, 2 EACH UP TO 24 PLATING, AND PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES.");
+    // NUM-1 (REQ-BFG-047): PLATE_PER_SLUG and PLATE_CAP x10 (were 2 and 24)
+    expect(T.bastion).toBe("ITS BULWARK SLUGS PLATE YOUR HULL AS THEY LOAD, 20 EACH UP TO 240 PLATING, AND PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES.");
     // the FURNACE breech's 8 tiles are battle.ts's own threshold (makeTurret: `< 8` means no long belt)
     expect(readFileSync(new URL("../src/sim/battle.ts", import.meta.url), "utf8")).toMatch(/journeyTiles\(b, ri\)\) < 8\) return false;/);
     // "BOTH ITS BELTS": the starting CRUCIBLE's 2 belt slots (bb-0.8.3: outputsAt at ★1), each taking a blank of its pour of 2

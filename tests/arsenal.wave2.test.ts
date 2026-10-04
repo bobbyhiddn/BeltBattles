@@ -101,26 +101,27 @@ describe("wave-2 stock and live star data", () => {
     expect(read("sifter", (s) => effectAt("sifter", s).gate?.sift)).toEqual([1, "all", "all"]);
     expect(read("surge", (s) => effectAt("surge", s).gate?.pulse?.speed)).toEqual([3, 4, 5]);
     expect(read("sorting", (s) => effectAt("sorting", s).gate?.sort)).toEqual([{ every: 3, copies: 2 }, { every: 2, copies: 2 }, { every: 2, copies: 3 }]);
-    expect(read("riveter", (s) => effectAt("riveter", s).gate?.repair)).toEqual([0.6, 1.3, 2.1]);
-    expect(read("heatjacket", (s) => effectAt("heatjacket", s).gate?.heat)).toEqual([0.4, 0.9, 1.4]);
-    expect(read("scrapper", (s) => effectAt("scrapper", s).factory?.scrapFlat)).toEqual([3, 6.5, 10.5]);
+    expect(read("riveter", (s) => effectAt("riveter", s).gate?.repair)).toEqual([6, 13, 21]); // NUM-1: x10 (was [0.6, 1.3, 2.1])
+    expect(read("heatjacket", (s) => effectAt("heatjacket", s).gate?.heat)).toEqual([4, 9, 14]); // NUM-1: x10 (was [0.4, 0.9, 1.4])
+    expect(read("scrapper", (s) => effectAt("scrapper", s).factory?.scrapFlat)).toEqual([30, 65, 105]); // NUM-1: x10 (was [3, 6.5, 10.5])
     expect(read("sabot", (s) => effectAt("sabot", s).factory?.interval)).toEqual([6, 2.8, 1.9]);
     expect(read("frostbite", (s) => effectAt("frostbite", s).factory?.round)).toEqual([
       { kind: "frost", seconds: 2.5, spread: 0 }, { kind: "frost", seconds: 2.75, spread: 1 }, { kind: "frost", seconds: 3, spread: 2 }]);
     expect(read("dragchain", (s) => effectAt("dragchain", s).factory?.round)).toEqual([
       { kind: "drag", mul: 0.6, seconds: 3 }, { kind: "drag", mul: 0.4, seconds: 4.4 }, { kind: "drag", mul: 0.3, seconds: 6 }]);
     expect(read("mimic", (s) => effectAt("mimic", s).factory?.intervalMul)).toEqual([1.4, 1, 0.8]);
-    expect(read("limpet", (s) => effectAt("limpet", s).factory?.round?.kind === "limpet" ? effectAt("limpet", s).factory!.round!.blast : 0)).toEqual([8, 18, 28]);
+    expect(read("limpet", (s) => effectAt("limpet", s).factory?.round?.kind === "limpet" ? effectAt("limpet", s).factory!.round!.blast : 0)).toEqual([80, 180, 280]); // NUM-1: x10 (was [8, 18, 28])
     expect(read("mortar", (s) => effectAt("mortar", s).core?.splash)).toEqual([1, 2, 3]);
     expect(read("grapnel", (s) => effectAt("grapnel", s).core?.rip)).toEqual([1, 2, 3]);
     expect(read("tesla", (s) => effectAt("tesla", s).core?.arcs)).toEqual([1, 2, 3]);
-    expect(read("capacitor", (s) => effectAt("capacitor", s).core?.perSecond)).toEqual([2, 4.4, 7]);
+    expect(read("capacitor", (s) => effectAt("capacitor", s).core?.perSecond)).toEqual([20, 44, 70]); // NUM-1: x10 (was [2, 4.4, 7])
     expect(read("compound", (s) => effectAt("compound", s).core?.mult)).toEqual([1.15, 1.33, 1.52]);
     expect(read("lance", (s) => effectAt("lance", s).core?.columns)).toEqual([1, 2, 3]);
     expect(read("flak", (s) => effectAt("flak", s).mod?.intercept)).toEqual([0.25, 0.55, 0.85]);
     expect(read("spotter", (s) => effectAt("spotter", s).mod?.factoryWeight)).toEqual([undefined, 2, 3]);
     const light: Build = { ...barge(), mods: [{ uid: 99, def: "capacitor", turret: 0, stars: 3 }] };
-    expect(resolveCore(light, 0).spec.perSecond).toBeCloseTo(7 * 0.55);
+    // NUM-1: scaleCore's whole % (k 0.55 -> 55%): pct(70, 55) = 38.5, rounded half up once at install (was toBeCloseTo(7 * 0.55))
+    expect(resolveCore(light, 0).spec.perSecond).toBe(39);
     expect(resolveCore(light, 0).spec.maxSeconds).toBe(5);
   });
 });
@@ -144,9 +145,10 @@ describe("wave-2 rigs through BELTSIDE arrows", () => {
       const payload = p(); payload.debuffs = { chill: true, snag: true, sap: true };
       const { a } = rig("sifter", stars, payload);
       expect(a.p.debuffs).toEqual(stars === 1 ? { snag: true, sap: true } : {});
-      expect(a.p.flat).toBe([0, 3, 6][stars - 1]);
+      expect(a.p.flat).toBe([0, 30, 60][stars - 1]); // NUM-1: x10 (was [0, 3, 6]): 3 marks x siftFlat 10 / 20
     }
-    expect(rig("sifter", 3).a.p.flat).toBe(1);
+    expect(rig("sifter", 3).a.p.flat).toBe(ITEMS.sifter.levels![3]!.gate!.siftClean); // NUM-1: siftClean is flat damage, x10 (was 1)
+    expect(ITEMS.sifter.levels![3]!.gate!.siftClean).toBe(10);
   });
   it("SURGE pulses route speed and every star pays for a ridden pulse (0.6.2 FB-B: +1/+2/+3, was 0/1/2)", () => {
     for (const stars of [1, 2, 3]) {
@@ -155,7 +157,7 @@ describe("wave-2 rigs through BELTSIDE arrows", () => {
       expect(bt.sides[0].routes[0].speedAt[3]).toBe(speed);
       until(bt, 1.3);
       expect(bt.sides[0].routes[0].speedAt[3]).toBe(1);
-      expect(a.p.flat).toBe(stars); // one pulse ridden
+      expect(a.p.flat).toBe(10 * stars); // one pulse ridden (NUM-1: x10, was stars)
     }
   });
   it("SORTING ARM copies every Nth full-strength slug", () => {
@@ -173,12 +175,13 @@ describe("wave-2 rigs through BELTSIDE arrows", () => {
     for (const stars of [1, 2, 3]) {
       const healed = new Battle(bench([["riveter", 4, 3, stars]]), barge(), 9);
       healed.sides[0].gates[0].online = true;
-      healed.sides[0].hull.hp -= 10;
+      healed.sides[0].hull.hp -= 100; // NUM-1: the hull damage x10 (was 10)
       const r = healed.sides[0].routes[0];
       (healed as any).applyHit(healed.sides[0], { p: p(), s: 30, processed: 2, blocked: false }, r.gateAt[2][0]);
-      expect(healed.sides[0].hull.max - healed.sides[0].hull.hp).toBeCloseTo(10 - [0.6, 1.3, 2.1][stars - 1]);
+      // NUM-1: whole hull and repair now: exact (was toBeCloseTo(10 - [0.6, 1.3, 2.1][stars - 1]))
+      expect(healed.sides[0].hull.max - healed.sides[0].hull.hp).toBe(100 - [6, 13, 21][stars - 1]);
       const hot = rig("heatjacket", stars);
-      expect(hot.a.p.heat).toBe([0.4, 0.9, 1.4][stars - 1]);
+      expect(hot.a.p.heat).toBe([4, 9, 14][stars - 1]); // NUM-1: x10 (was [0.4, 0.9, 1.4])
       until(hot.bt, 0.4);
       expect(hot.a.p.heatBonus).toBeGreaterThan(0);
       expect(estimateRoute(bench([["heatjacket", 4, 3, stars]]), 0).dmg).toBeGreaterThan(estimateRoute(bench(), 0).dmg);
@@ -196,7 +199,7 @@ describe("wave-2 factories and cores", () => {
       expect(slug, `${id} ${stars}`).toBeDefined();
       expect(slug!.ammo).toBe(id === "mimic" ? "cinder" : id === "scrapper" ? "plain" : id === "dragchain" ? "drag" : id === "frostbite" ? "frost" : id);
       if (["sabot", "frostbite", "dragchain", "limpet"].includes(id)) expect(slug!.harass?.kind).toBe(slug!.ammo === "frost" ? "frost" : slug!.ammo === "drag" ? "drag" : slug!.ammo);
-      if (id === "scrapper") expect(slug!.flat).toBe([3, 6.5, 10.5][stars - 1]);
+      if (id === "scrapper") expect(slug!.flat).toBe([30, 65, 105][stars - 1]); // NUM-1: x10 (was [3, 6.5, 10.5])
       if (id === "mimic") {
         expect(f.def.factory!.interval).toBeCloseTo(1.25 * [1.4, 1, 0.8][stars - 1]);
         expect(outputsAt("mimic", stars)).toBe(stars + 1); // bb-0.8.3 (REQ-BFG-042 D1, D3): 2 / 3 / 4 (was 1 / 1 / 2)
@@ -264,7 +267,7 @@ describe("wave-2 factories and cores", () => {
       until(bt, 2.95);
       expect(foe.hull.hp).toBe(hp);
       until(bt, 3.05);
-      expect(hp - foe.hull.hp).toBe([8, 18, 28][stars - 1]);
+      expect(hp - foe.hull.hp).toBe([80, 180, 280][stars - 1]); // NUM-1: x10 (was [8, 18, 28])
       expect(foe.factories[0].disrupted).toBeGreaterThanOrEqual([0, 0.9, 1.5][stars - 1]);
       expect(foe.factories[0].disrupted).toBeLessThanOrEqual([0, 1, 1.6][stars - 1]);
     }
@@ -305,12 +308,14 @@ describe("wave-2 factories and cores", () => {
       until(cap, 2);
       const ct = cap.sides[0].turrets[0]; expect(ct.charge).toBeCloseTo(2);
       ct.stack.push(p()); ct.phase = "fire"; cap.step();
-      expect(cap.projectiles[0].dmg).toBeCloseTo(3 + 2 * [2, 4.4, 7][stars - 1]);
+      // NUM-1: x10 and whole (perSecond x idle rounded once at the shot), so exact (was toBeCloseTo(3 + 2 * [2, 4.4, 7][stars - 1]))
+      expect(cap.projectiles[0].dmg).toBe(30 + 2 * [20, 44, 70][stars - 1]);
       const comp = new Battle(bench([], [["compound", stars]]), barge(), 8);
       comp.sides[0].factories[0].timer = 1000;
       const ctu = comp.sides[0].turrets[0]; ctu.stack.push(p(1), p(2)); comp.step();
       expect(comp.projectiles).toHaveLength(1);
-      expect(comp.projectiles[0].dmg).toBeCloseTo(6 * [1.15, 1.33, 1.52][stars - 1]);
+      // NUM-1: (30 + 30) x 115 / 133 / 152 %, rounded half up once: 69, 79.8 -> 80, 91.2 -> 91 (was toBeCloseTo(6 * mult))
+      expect(comp.projectiles[0].dmg).toBe([69, 80, 91][stars - 1]);
       const lance = fitted("lance", stars, bench());
       const lp = lance.projectiles[0]; expect(lp.lance?.columns).toBe(stars);
       until(lance, lp.flight + 0.05);
@@ -327,7 +332,7 @@ describe("wave-2 factories and cores", () => {
       const shot = bt.projectiles[0], hit = target(foe, "belt", 0, 2);
       (bt as any).impact({ ...shot, target: hit, tx: hit.x, ty: hit.y });
       expect(route.ammo.map((a) => a.p.id)).toEqual([1, 2, 3, 4].slice(stars));
-      expect(bt.sides[0].turrets[0].salvage).toBe(stars === 3 ? 3 : 0);
+      expect(bt.sides[0].turrets[0].salvage).toBe(stars === 3 ? 30 : 0); // NUM-1: pct(10 x 3 ripped, 100% at k 1) (was 3)
     }
   });
   it("COMPOUND keeps both loads' Burn and Poison in its one shell", () => {

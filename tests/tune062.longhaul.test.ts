@@ -13,15 +13,17 @@ import { wrap } from "../src/render/font";
 import { bench, est, run } from "./arsenal.bench";
 
 const STARS = [1, 2, 3];
-const PER_HIT = [1, 2, 3.5], WAS = [2, 4, 7];
+// NUM-1 (REQ-BFG-047): the damage family x10: +10 / +20 / +35 per earlier hit, half of the old +20 / +40 / +70 (was
+// PER_HIT 1/2/3.5, WAS 2/4/7); the ratios (the band) and the cap of 6 hits (a count) are unchanged
+const PER_HIT = [10, 20, 35], WAS = [20, 40, 70];
 
 /** The bench with a ★1 WHETSTONE on tile 1 (one earlier hit) and a LONG HAUL at `stars` on tile 3. */
 const haul = (stars: number): Build => bench([["whetstone", 4, 4, 1], ["longhaul", 4, 2, stars]]);
 
 describe("TUNE LONGHAUL: +1 / +2 / +3.5 damage per earlier hit (was +2 / +4 / +7)", () => {
   it("the rule at 1/2/3 stars; price, rarity, shape and the ★2/★3 cap of 6 hits unchanged; the band kept", () => {
-    expect(STARS.map((s) => effectAt("longhaul", s).gate)).toEqual([
-      { perPriorGate: 1 }, { perPriorGate: 2, priorCap: 6 }, { perPriorGate: 3.5, priorCap: 6 },
+    expect(STARS.map((s) => effectAt("longhaul", s).gate)).toEqual([ // NUM-1: x10 (was 1 / 2 / 3.5)
+      { perPriorGate: 10 }, { perPriorGate: 20, priorCap: 6 }, { perPriorGate: 35, priorCap: 6 },
     ]);
     expect([ITEMS.longhaul.price, ITEMS.longhaul.rarity, rigShape("longhaul")]).toEqual([5, "rare", "II"]);
     // band-keeping (REQ-BFG-019): every star halved, so ★2/★1 and ★3/★1 stay 2.0 and 3.5
@@ -32,11 +34,11 @@ describe("TUNE LONGHAUL: +1 / +2 / +3.5 damage per earlier hit (was +2 / +4 / +7
     const base = est(bench([["whetstone", 4, 4, 1]])).dmg;
     for (const [i, s] of STARS.entries()) {
       expect(PER_HIT[i], `★${s}`).toBe(WAS[i] / 2);
-      expect(est(haul(s)).dmg - base, `★${s} estimate`).toBeCloseTo(PER_HIT[i], 9);
-      // every payload past the LONG HAUL's tile carries the WHETSTONE's +2 and one earlier hit's worth
+      expect(est(haul(s)).dmg - base, `★${s} estimate`).toBe(PER_HIT[i]); // NUM-1: whole (the walk rounds once, half up), so exact (was toBeCloseTo(.., 9))
+      // every payload past the LONG HAUL's tile carries the ★1 WHETSTONE's +20 (NUM-1: x10, was +2) and one earlier hit's worth
       const past = run(haul(s), 8).sides[0].routes[0].ammo.filter((a) => a.processed >= 2);
       expect(past.length, `★${s}`).toBeGreaterThan(0);
-      expect([...new Set(past.map((a) => a.p.flat))], `★${s} battle`).toEqual([2 + PER_HIT[i]]);
+      expect([...new Set(past.map((a) => a.p.flat))], `★${s} battle`).toEqual([effectAt("whetstone", 1).gate!.flat! + PER_HIT[i]]);
     }
   });
 
@@ -56,13 +58,14 @@ describe("TUNE LONGHAUL: +1 / +2 / +3.5 damage per earlier hit (was +2 / +4 / +7
   it("player text: the description, each star's ability text, gist and next star, and the belt timeline state the new numbers", () => {
     expect(ITEMS.longhaul.desc).toEqual(["+1 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."]);
     // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand (and the star flavour's ★3 re-flow: the glossary wraps whole words)
+    // NUM-1: the damage numbers x10 (was 1 / 2 / 3.5); the 6 hits are a count, unchanged
     expect(STARS.map((s) => abilityText("longhaul", s).sentences[0])).toEqual([
-      "ADDS 1 DAMAGE FOR EACH EARLIER RIG HIT.", "ADDS 2 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.", "ADDS 3.5 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.",
+      "ADDS 10 DAMAGE FOR EACH EARLIER RIG HIT.", "ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.", "ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.",
     ]);
-    expect(STARS.map((s) => gist("longhaul", s))).toEqual(["1 DAMAGE FOR EACH EARLIER HIT", "2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS", "3.5 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS"]);
-    expect([nextStarText("longhaul", 1), nextStarText("longhaul", 2)]).toEqual(["NEXT STAR: 2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS.", "NEXT STAR: 3.5 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS."]);
+    expect(STARS.map((s) => gist("longhaul", s))).toEqual(["10 DAMAGE FOR EACH EARLIER HIT", "20 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS", "35 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS"]);
+    expect([nextStarText("longhaul", 1), nextStarText("longhaul", 2)]).toEqual(["NEXT STAR: 20 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS.", "NEXT STAR: 35 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS."]);
     for (const s of STARS) expect(wrap(gist("longhaul", s), 151, "3").length, `★${s} on a phone`).toBeLessThanOrEqual(2);
     const hit = (s: number) => walkRoute(haul(s), 0).timeline.flatMap((row) => row.hits).find((h) => h.def === "longhaul")!;
-    expect(STARS.map((s) => hitText(hit(s), "free"))).toEqual(["LONG HAUL +1 DAMAGE (1 HIT BEFORE)", "LONG HAUL +2 DAMAGE (1 HIT BEFORE)", "LONG HAUL +3.5 DAMAGE (1 HIT BEFORE)"]);
+    expect(STARS.map((s) => hitText(hit(s), "free"))).toEqual(["LONG HAUL +10 DAMAGE (1 HIT BEFORE)", "LONG HAUL +20 DAMAGE (1 HIT BEFORE)", "LONG HAUL +35 DAMAGE (1 HIT BEFORE)"]);
   });
 });

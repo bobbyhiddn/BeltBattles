@@ -53,15 +53,18 @@ describe("FOUNDRY's and BASTION's hero-select tricks state the sim's own numbers
 
 describe("the plating strip draws what it is given", () => {
   it("one rune-blue segment per bulwark slug's plating, a part-full one lighter, dark plate for the rest", () => {
+    // NUM-1: the plating amounts are six slugs' (was the literal 12), six and a half (was 13) and eight (was 16), in
+    // PLATE_PER_SLUG units, so they follow the x10 plating (PLATE_PER_SLUG 2 -> 20, PLATE_CAP 24 -> 240)
+    const six = 6 * PLATE_PER_SLUG;
     const full = recorder();
-    drawPlatingStrip(full.g, 0, 0, 120, 12, 12, PLATE_CAP, SEGMENTS, 0);
+    drawPlatingStrip(full.g, 0, 0, 120, six, six, PLATE_CAP, SEGMENTS, 0);
     expect(count(full.fills, C.plate0)).toBe(SEGMENTS);
-    expect(count(full.fills, C.rune2)).toBe(12 / PLATE_PER_SLUG);
+    expect(count(full.fills, C.rune2)).toBe(six / PLATE_PER_SLUG);
     expect(count(full.fills, C.rune1)).toBe(0);
     expect(full.fills.every((f) => f.y >= 0 && f.y + f.h <= STRIP_H)).toBe(true);
 
     const part = recorder();
-    drawPlatingStrip(part.g, 0, 0, 120, 13, 13, PLATE_CAP, SEGMENTS, 0);
+    drawPlatingStrip(part.g, 0, 0, 120, 6.5 * PLATE_PER_SLUG, 6.5 * PLATE_PER_SLUG, PLATE_CAP, SEGMENTS, 0);
     expect(count(part.fills, C.rune2)).toBe(6);
     expect(count(part.fills, C.rune1)).toBe(1);
     expect(count(part.fills, C.rune3)).toBe(7);
@@ -73,13 +76,14 @@ describe("the plating strip draws what it is given", () => {
   });
 
   it("plating just lost shows white; a CLANK lights the newest segment", () => {
+    // NUM-1: plating 6 and 8 slugs' worth in PLATE_PER_SLUG units (were the literals 12 and 16, at 2 a slug)
     const chip = recorder();
-    drawPlatingStrip(chip.g, 0, 0, 120, 12, 16, PLATE_CAP, SEGMENTS, 0);
+    drawPlatingStrip(chip.g, 0, 0, 120, 6 * PLATE_PER_SLUG, 8 * PLATE_PER_SLUG, PLATE_CAP, SEGMENTS, 0);
     expect(count(chip.fills, C.white)).toBe(2);
     expect(count(chip.fills, C.rune2)).toBe(6);
 
     const clank = recorder();
-    drawPlatingStrip(clank.g, 0, 0, 120, 12, 12, PLATE_CAP, SEGMENTS, 1);
+    drawPlatingStrip(clank.g, 0, 0, 120, 6 * PLATE_PER_SLUG, 6 * PLATE_PER_SLUG, PLATE_CAP, SEGMENTS, 1);
     const shine = clank.fills.filter((f) => f.c === C.white);
     expect(shine.length).toBe(1);
     expect(shine[0].x).toBe(Math.floor((5 * 120) / SEGMENTS)); // segment 6 of 12 (index 5) holds the newest plating

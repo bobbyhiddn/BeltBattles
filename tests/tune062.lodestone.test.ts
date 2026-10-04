@@ -15,7 +15,8 @@ import { wrap } from "../src/render/font";
 import { barge, bench, est, run } from "./arsenal.bench";
 
 const STARS = [1, 2, 3];
-const FLOOR = [1, 2, 3], EACH = [1, 2.2, 3.5], MAX = [6, 13, 21], WHET = [2, 4, 7];
+// NUM-1 (REQ-BFG-047): the damage family x10 (was FLOOR 1/2/3, EACH 1/2.2/3.5, MAX 6/13/21, WHET 2/4/7); every one whole
+const FLOOR = [10, 20, 30], EACH = [10, 22, 35], MAX = [60, 130, 210], WHET = [20, 40, 70];
 
 const payload = (flat = 0): Payload => ({ id: 91, ammo: "plain", ride: 0, mult: 1, flat, burn: 0, shock: false, prior: 0, factory: 1, copy: false });
 
@@ -52,7 +53,7 @@ describe("TUNE-M T2: LODESTONE's floor", () => {
     for (const [i, s] of STARS.entries()) {
       expect(lodestoned(s, 0).flat, `★${s}`).toBe(FLOOR[i]);
       const l = est(bench([["lodestone", 4, 3, s]])).dmg - bare, w = est(bench([["whetstone", 4, 3, s]])).dmg - bare;
-      expect(l, `★${s} estimate`).toBeCloseTo(FLOOR[i], 9);
+      expect(l, `★${s} estimate`).toBe(FLOOR[i]); // NUM-1: whole (the walk rounds once, half up), so exact (was toBeCloseTo(.., 9))
       expect(l, `★${s}: LODESTONE < WHETSTONE`).toBeLessThan(w);
       expect(FLOOR[i]).toBeLessThan(WHET[i]);
       // the bench has no stall source: every payload past the rig carries exactly the floor
@@ -66,10 +67,11 @@ describe("TUNE-M T2: LODESTONE's floor", () => {
 
   it("with stalled machines it adds the floor plus the per-stalled bonus, up to its max", () => {
     for (const [i, s] of STARS.entries()) {
-      expect(lodestoned(s, 1).flat, `★${s}, 1 stalled`).toBeCloseTo(FLOOR[i] + EACH[i], 9);
-      for (const n of [2, 3, 4]) expect(lodestoned(s, n).flat, `★${s}, ${n} stalled`).toBeCloseTo(FLOOR[i] + Math.min(MAX[i], n * EACH[i]), 9);
-      // on top of what the payload already carries
-      expect(lodestoned(s, 1, payload(5)).flat).toBeCloseTo(5 + FLOOR[i] + EACH[i], 9);
+      // NUM-1: every amount is whole now, so each is exact (was toBeCloseTo(.., 9))
+      expect(lodestoned(s, 1).flat, `★${s}, 1 stalled`).toBe(FLOOR[i] + EACH[i]);
+      for (const n of [2, 3, 4]) expect(lodestoned(s, n).flat, `★${s}, ${n} stalled`).toBe(FLOOR[i] + Math.min(MAX[i], n * EACH[i]));
+      // on top of what the payload already carries (NUM-1: x10, was 5)
+      expect(lodestoned(s, 1, payload(50)).flat).toBe(50 + FLOOR[i] + EACH[i]);
     }
   });
 
@@ -94,18 +96,19 @@ describe("TUNE-M T2: LODESTONE's floor", () => {
   it("player text: the description, each star's ability text and gist, the shop card and the belt's timeline state the floor", () => {
     expect(ITEMS.lodestone.desc).toEqual(["+1 DAMAGE ALWAYS,", "+1 PER ENEMY", "MACHINE STALLED."]);
     // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand; the floor leads the opening sentence
+    // NUM-1: the numbers x10 (was 1, 1, 6 / 2, 2.2, 13 / 3, 3.5, 21)
     expect(STARS.map((s) => abilityText("lodestone", s).sentences[0])).toEqual([
-      "ADDS 1 DAMAGE, AND 1 FOR EACH ENEMY MACHINE STALLED, UP TO 6 DAMAGE.",
-      "ADDS 2 DAMAGE, AND 2.2 FOR EACH ENEMY MACHINE STALLED, UP TO 13 DAMAGE.",
-      "ADDS 3 DAMAGE, AND 3.5 FOR EACH ENEMY MACHINE STALLED, UP TO 21 DAMAGE.",
+      "ADDS 10 DAMAGE, AND 10 FOR EACH ENEMY MACHINE STALLED, UP TO 60 DAMAGE.",
+      "ADDS 20 DAMAGE, AND 22 FOR EACH ENEMY MACHINE STALLED, UP TO 130 DAMAGE.",
+      "ADDS 30 DAMAGE, AND 35 FOR EACH ENEMY MACHINE STALLED, UP TO 210 DAMAGE.",
     ]);
     expect(STARS.map((s) => gist("lodestone", s))).toEqual([
-      "ADDS 1 DAMAGE, AND 1 FOR EACH STALLED MACHINE", "ADDS 2 DAMAGE, AND 2.2 FOR EACH STALLED MACHINE", "ADDS 3 DAMAGE, AND 3.5 FOR EACH STALLED MACHINE",
+      "ADDS 10 DAMAGE, AND 10 FOR EACH STALLED MACHINE", "ADDS 20 DAMAGE, AND 22 FOR EACH STALLED MACHINE", "ADDS 30 DAMAGE, AND 35 FOR EACH STALLED MACHINE",
     ]);
-    expect([nextStarText("lodestone", 1), cardText("lodestone")]).toEqual(["NEXT STAR: ADDS 2 DAMAGE, AND 2.2 FOR EACH STALLED MACHINE.", "1 DAMAGE, MORE FOR EACH STALL."]);
+    expect([nextStarText("lodestone", 1), cardText("lodestone")]).toEqual(["NEXT STAR: ADDS 20 DAMAGE, AND 22 FOR EACH STALLED MACHINE.", "10 DAMAGE, MORE FOR EACH STALL."]);
     for (const s of STARS) expect(wrap(gist("lodestone", s), 151, "3").length, `★${s} on a phone`).toBeLessThanOrEqual(2);
     const hit = walkRoute(bench([["lodestone", 4, 3, 2]]), 0).timeline.flatMap((row) => row.hits).find((h) => h.def === "lodestone")!;
-    expect(hit.flat).toBe(2);
-    expect(hitText(hit, "free")).toBe("LODESTONE +2 DAMAGE, +2.2 DAMAGE FOR EACH STALLED MACHINE, UP TO 13 DAMAGE");
+    expect(hit.flat).toBe(FLOOR[1]); // NUM-1: the ★2 floor, 20 (was 2)
+    expect(hitText(hit, "free")).toBe("LODESTONE +20 DAMAGE, +22 DAMAGE FOR EACH STALLED MACHINE, UP TO 130 DAMAGE"); // NUM-1: x10 (was +2, +2.2, 13)
   });
 });

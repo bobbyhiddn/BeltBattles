@@ -4,7 +4,7 @@
 // the row recentred (the cards keep wideCardW, never under CARD_TEXT_MIN_W; on the narrowest rows the gap before REROLL,
 // then REROLL down to REROLL_MIN_W, then the column give way). Landscape phones: the two side by side beside REROLL.
 // Portrait: a column in the margin right of the grid (no card moves), else a pack row under REROLL's row. Each slot shows
-// the pack's icon, its amount and its price ("+4 BELT" / "2G", "+25 HULL" / "5G"), inside its frame.
+// the pack's icon, its amount and its price ("+4 BELT" / "2G", "+250 HULL" / "5G" since NUM-1's x10 hull), inside its frame.
 import { describe, expect, it } from "vitest";
 import { PACK_IDS } from "../src/sim/content";
 import {
@@ -233,8 +233,9 @@ describe("P5 (oracle b24d14b979bbded9): buildScale holds the pack row; nothing g
 });
 
 describe("P5: what a slot shows", () => {
-  it("the amount and the price: +4 BELT and 2G, +25 HULL and 5G (whole numbers, no decimal)", () => {
-    expect(PACK_IDS.map((id) => [packAmount(id), packPriceText(id)])).toEqual([["+4 BELT", "2G"], ["+25 HULL", "5G"]]);
+  it("the amount and the price: +4 BELT and 2G, +250 HULL and 5G (whole numbers, no decimal)", () => {
+    // NUM-1 (REQ-BFG-047): ARMOR PACK's hull is x10 (+250 HULL; was +25 HULL); BELT and the prices are unchanged
+    expect(PACK_IDS.map((id) => [packAmount(id), packPriceText(id)])).toEqual([["+4 BELT", "2G"], ["+250 HULL", "5G"]]);
     for (const id of PACK_IDS) expect(`${packAmount(id)} ${packPriceText(id)}`).not.toMatch(/\d\.\d/);
   });
 });

@@ -152,7 +152,7 @@ describe("U2c the glossary: numbers, digits and fit", () => {
     }
     expect(checked).toBeGreaterThan(100);
     // the constants the rows quote, as T2a's sentences quoted them
-    expect([WINDOW_TIME, COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, SYNC_WINDOW, SIM.poisonTick, SIM.poisonMax, SIM.poisonTime]).toEqual([1.5, 1.2, 0.6, 4, 0.25, 0.4, 24, 6]);
+    expect([WINDOW_TIME, COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, SYNC_WINDOW, SIM.poisonTick, SIM.poisonMax, SIM.poisonTime]).toEqual([1.5, 1.2, 0.6, 4, 0.25, 4, 24, 6]); // NUM-1: poison 4 a stack each second (was 0.4)
   });
 
   it("no digit in glossary.ts's strings: every number is a formatter's", () => {

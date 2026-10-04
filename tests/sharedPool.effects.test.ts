@@ -241,13 +241,13 @@ function markFoe(hero: HeroId): Build {
 }
 
 /**
- * 0.8.0 I1 M2: the harassing foe for BRACE FRAME (tests/wave3.inert.test.ts's, legal on day 10 with 100 extra hull, 115 g):
+ * 0.8.0 I1 M2: the harassing foe for BRACE FRAME (tests/wave3.inert.test.ts's, legal on day 10 with 1000 extra hull (NUM-1: x10, was 100), 115 g):
  * a WEAVER whose guns always aim at a machine (SPOTTER ★3 on each) firing shocked thread (a GALVANIC COIL on each belt,
  * at 3, 2 and 1 stars), so its shots stall the machines they hit.
  */
 function harasser(): Build {
   const b = heroStartBuild("weaver", 500);
-  b.hullBonus = 100;
+  b.hullBonus = 10 * 100; // NUM-1: hull x10 (was 100: four ARMOR PACKs, now 250 hull each)
   for (let i = 0; i < 3; i++) {
     const s = bestSpot(b, "coil", (ri) => ri === i);
     if (!s) throw new Error("harasser: no spot for a coil");

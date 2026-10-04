@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { key as K, routeInfo, type Build } from "../src/sim/deck";
+import { ITEMS } from "../src/sim/content";
+import { roundHalfUp } from "../src/sim/pct";
 import { FUSE_MULT, SYNC_WINDOW, inSync } from "../src/sim/races/foundry";
+import { RACE_AMMO } from "../src/sim/races/data";
 import { raceRefBuild, raceStartBuild } from "../src/sim/races/refBuilds";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import { buildCost, dummyFoe, expectLegal, expectSaneBattles, shots } from "./races.helpers";
 
 const start = () => raceStartBuild("foundry", 1);
+// NUM-1 (REQ-BFG-047): the blank is 35 (x10, was 3.5) and the fuse's 115% rounds half up once:
+// an alloy of two blanks is roundHalfUp(1.15 x (35 + 35)) = roundHalfUp(80.5) = 81 (was 1.15 x 7 = 8.05)
+const BLANK = RACE_AMMO.blank.base;
+const ALLOY = roundHalfUp(FUSE_MULT * (BLANK + BLANK));
 const withRouteB = (cells: number[]): Build => {
   const b = start();
   b.routes[1] = { factory: 1, cells };
@@ -23,23 +30,26 @@ describe("FOUNDRY sync rule", () => {
     expect(inSync(0, true)).toBe(false); // same route/connector never fuses
   });
 
-  it("mirrored routes into one gun fuse every pour: alloy slugs of 1.15 x (3.5 + 3.5)", () => {
+  it("mirrored routes into one gun fuse every pour: alloy slugs of 1.15 x (35 + 35) = 80.5, half up 81", () => {
     const b = new Battle(start(), dummyFoe(), 7);
     const fired = shots(b, 20);
     expect(b.sides[0].race!.foundry.fusions).toBeGreaterThanOrEqual(8);
     expect(fired.length).toBeGreaterThanOrEqual(8);
+    expect(ALLOY).toBe(81); // NUM-1: x10 and whole (was 1.15 x 7 = 8.05)
     for (const s of fired) {
       expect(s.ammo).toBe("alloy");
-      expect(s.dmg).toBeCloseTo(FUSE_MULT * 7, 9);
+      expect(s.dmg).toBe(ALLOY); // NUM-1: whole now, so exact (was toBeCloseTo(FUSE_MULT * 7, 9))
     }
   });
 
-  it("a flat bonus on one blank carries into the fusion: 1.15 x (5.5 + 3.5) = 10.35", () => {
+  it("a flat bonus on one blank carries into the fusion: 1.15 x (55 + 35) = 103.5, half up 104", () => {
     const b0 = start();
     b0.items.push({ uid: 2, def: "whetstone", x: 1, y: 3, rot: 1 }); // 0.6.2 BELTSIDE: west of (2,3) on route 0, facing it
     const fired = shots(new Battle(b0, dummyFoe(), 7), 20).filter((s) => s.ammo === "alloy");
     expect(fired.length).toBeGreaterThan(3);
-    expect(fired[fired.length - 1].dmg).toBeCloseTo(10.35, 9);
+    const want = roundHalfUp(FUSE_MULT * (BLANK + ITEMS.whetstone.gate!.flat! + BLANK)); // NUM-1: blank 35, WHETSTONE +20
+    expect(want).toBe(104); // NUM-1: x10, rounded half up once (was 10.35)
+    expect(fired[fired.length - 1].dmg).toBe(want); // NUM-1: whole now, so exact (was toBeCloseTo(10.35, 9))
   });
 
   it("a route 2 tiles longer (0.8 s late) never fuses, and every unmatched blank still fires", () => {
@@ -51,7 +61,8 @@ describe("FOUNDRY sync rule", () => {
     expect(fired.length).toBeGreaterThanOrEqual(20);
     for (const s of fired) {
       expect(s.ammo).toBe("blank");
-      expect(s.dmg).toBe(3.5);
+      expect(s.dmg).toBe(35); // NUM-1: x10 (was 3.5), RACE_AMMO.blank.base
+      expect(s.dmg).toBe(BLANK);
     }
   });
 
@@ -84,7 +95,7 @@ describe("FOUNDRY fuse event (ruling 10)", () => {
     }
     expect(fuses.length).toBe(b.sides[0].race!.foundry.fusions);
     expect(fuses.length).toBeGreaterThanOrEqual(8);
-    for (const f of fuses) expect(f).toEqual({ turret: 0, dmg: FUSE_MULT * 7 });
+    for (const f of fuses) expect(f).toEqual({ turret: 0, dmg: ALLOY }); // NUM-1: 81 (was FUSE_MULT * 7 = 8.05)
   });
 
   it("Furnace and Weaver battles never emit one", () => {

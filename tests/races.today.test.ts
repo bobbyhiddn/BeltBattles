@@ -2,9 +2,10 @@
 // on 0.4.1-0.5.x. Since then rigs stand beside the belt (BELTSIDE), belts may join, turrets carry bought cores and gear
 // in gear slots, every hull has an extra turret slot (REQ-BFG-031) and copies merge into stars. These tests show the race
 // mechanics still hold with each of those (docs/RACES.md sections 1-2, tuning v1):
-//  - FOUNDRY: the twin pour (both routes on one tick), the 0.25 s sync window, fusion at 1.3 x (blank A + blank B);
-//  - BASTION: 2 plating per bulwark slug at load (x its split multiplier), the cap of 24, plating soaks impacts and Burn
-//    before hull, and the dark wind goes straight to hull.
+//  - FOUNDRY: the twin pour (both routes on one tick), the 0.25 s sync window, fusion at FUSE_MULT 1.15 x (blank A + blank B),
+//    rounded half up once (NUM-1);
+//  - BASTION: 20 plating per bulwark slug at load (x its split multiplier), the cap of 240 (NUM-1: x10, was 2 and 24),
+//    plating soaks impacts and Burn before hull, and the dark wind goes straight to hull.
 // Belt joins with both heroes and the HOPPER store are already pinned in tests/joins.sim.test.ts (J7) and
 // tests/fb062.hopper.test.ts; they are not repeated here.
 import { describe, expect, it } from "vitest";
@@ -12,6 +13,7 @@ import { Battle, simulate } from "../src/sim/battle";
 import { AMMO, WIND_START, type HeroId } from "../src/sim/content";
 import { installTurret, key as K, routeInfo, rotField, setTurretList, turretSlots, type Build, type Placed } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
+import { roundHalfUp } from "../src/sim/pct";
 import { FUSE_MULT, SYNC_WINDOW } from "../src/sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { RACE_AMMO } from "../src/sim/races/data";
@@ -21,8 +23,9 @@ import { dummyFoe, shots } from "./races.helpers";
 const rig = (uid: number, def: string, x: number, y: number, rot = 0, stars = 1): Placed =>
   ({ uid, def, x, y, ...rotField(def, rot), ...(stars > 1 ? { stars } : {}) });
 const start = (hero: HeroId): Build => heroStartBuild(hero, 1);
-const BLANK = RACE_AMMO.blank.base; // 3.5 (tuning v1)
-const SYNCED = FUSE_MULT * (BLANK + BLANK); // 9.1
+const BLANK = RACE_AMMO.blank.base; // 35 (NUM-1: x10, was tuning v1's 3.5)
+// NUM-1 (REQ-BFG-047): the fuse's 115% rounds half up once: 1.15 x (35 + 35) = 80.5 -> 81 (was 1.15 x 7 = 8.05)
+const SYNCED = roundHalfUp(FUSE_MULT * (BLANK + BLANK)); // 81
 const flatOf = (def: string, stars: number): number => effectAt(def, stars).gate!.flat ?? 0;
 
 /** Step a battle for `secs` (or to its end); return side 0's fuse events and loads by tick. */
@@ -60,21 +63,25 @@ describe("FOUNDRY on today's rules", () => {
     expect(pours).toBeGreaterThanOrEqual(6);
   });
 
-  it("BELTSIDE rigs: mirrored WHETSTONEs beside both routes fuse every pour into 1.3 x (5.5 + 5.5)", () => {
+  it("BELTSIDE rigs: mirrored WHETSTONEs beside both routes fuse every pour into 1.15 x (55 + 55) = 126.5, half up 127", () => {
     const b = start("foundry");
     b.items.push(rig(2, "whetstone", 1, 3, 1), rig(3, "whetstone", 4, 3, 3)); // west of (2,3) facing it; east of (3,3) facing it
     const fired = shots(new Battle(b, dummyFoe(), 7), 25).filter((s) => s.ammo === "alloy");
     expect(fired.length).toBeGreaterThan(8);
     const w = flatOf("whetstone", 1);
-    expect(fired[fired.length - 1].dmg).toBeCloseTo(FUSE_MULT * (2 * (BLANK + w)), 9);
+    const want = roundHalfUp(FUSE_MULT * (2 * (BLANK + w))); // NUM-1: blank 35, WHETSTONE +20, the 115% rounded half up once
+    expect(want).toBe(127); // NUM-1: x10 (was 1.15 x 11 = 12.65)
+    expect(fired[fired.length - 1].dmg).toBe(want); // NUM-1: whole now, so exact (was toBeCloseTo(FUSE_MULT * (2 * (BLANK + w)), 9))
   });
 
-  it("merging: a WHETSTONE ★2 on one route fuses as 1.3 x (blank + its ★2 flat + blank)", () => {
+  it("merging: a WHETSTONE ★2 on one route fuses as 1.15 x (blank + its ★2 flat + blank) = 1.15 x 110, half up 127", () => {
     const b = start("foundry");
     b.items.push(rig(2, "whetstone", 1, 3, 1, 2));
     const fired = shots(new Battle(b, dummyFoe(), 7), 25).filter((s) => s.ammo === "alloy");
     expect(fired.length).toBeGreaterThan(8);
-    expect(fired[fired.length - 1].dmg).toBeCloseTo(FUSE_MULT * (BLANK + flatOf("whetstone", 2) + BLANK), 9);
+    const want = roundHalfUp(FUSE_MULT * (BLANK + flatOf("whetstone", 2) + BLANK)); // NUM-1: 35 + 40 + 35, rounded half up once
+    expect(want).toBe(127); // NUM-1: x10 (was 1.15 x 11 = 12.65)
+    expect(fired[fired.length - 1].dmg).toBe(want); // NUM-1: whole now, so exact (was toBeCloseTo(..., 9))
   });
 
   it("speed rigs: GREASE on one route desyncs it (no fusion); mirrored GREASE on the same tile keeps sync", () => {
@@ -85,7 +92,7 @@ describe("FOUNDRY on today's rules", () => {
     both.items.push(rig(2, "grease", 1, 4, 1), rig(3, "grease", 4, 4, 3));
     const t = trace(new Battle(both, dummyFoe(), 7), 30);
     expect(t.fuses.length).toBeGreaterThan(8);
-    for (const f of t.fuses) expect(f.dmg).toBeCloseTo(SYNCED, 9);
+    for (const f of t.fuses) expect(f.dmg).toBe(SYNCED); // NUM-1: whole now (81), so exact (was toBeCloseTo(SYNCED, 9))
   });
 
   it("the sync window: a route 2 tiles longer (0.8 s late) never fuses; a delay line one pour long (4 tiles, 1.6 s) fuses", () => {
@@ -103,10 +110,10 @@ describe("FOUNDRY on today's rules", () => {
     expect(delay.routes[1].cells.length - delay.routes[0].cells.length).toBe(4);
     const d = trace(new Battle(delay, dummyFoe(), 7), 30);
     expect(d.fuses.length).toBeGreaterThan(8);
-    for (const f of d.fuses) expect(f.dmg).toBeCloseTo(SYNCED, 9);
+    for (const f of d.fuses) expect(f.dmg).toBe(SYNCED); // NUM-1: whole now (81), so exact (was toBeCloseTo(SYNCED, 9))
   });
 
-  it("turret gear: CALIBRATION on the fusing gun keeps every pour fusing (9.1 a slug)", () => {
+  it("turret gear: CALIBRATION on the fusing gun keeps every pour fusing (81 a slug)", () => {
     const b = start("foundry");
     b.mods.push({ uid: 20, def: "calibrate", turret: 0 });
     const t = trace(new Battle(b, dummyFoe(), 7), 25);
@@ -114,7 +121,7 @@ describe("FOUNDRY on today's rules", () => {
     for (const f of t.fuses) expect(f).toMatchObject({ turret: 0, dmg: SYNCED });
   });
 
-  it("turret cores: a bought ROTARY BREECH on the fusing gun still fuses, and fires alloy slugs at 9.1", () => {
+  it("turret cores: a bought ROTARY BREECH on the fusing gun still fuses, and fires alloy slugs at 81", () => {
     const b = start("foundry");
     b.mods.push({ uid: 21, def: "rotary", turret: 0 });
     const bt = new Battle(b, dummyFoe(), 7);
@@ -122,7 +129,7 @@ describe("FOUNDRY on today's rules", () => {
     const fired = shots(bt, 25);
     expect(bt.sides[0].race!.foundry.fusions).toBeGreaterThan(8);
     expect(fired.filter((s) => s.ammo === "alloy").length).toBeGreaterThan(8);
-    for (const s of fired.filter((x) => x.ammo === "alloy")) expect(s.dmg).toBeCloseTo(SYNCED, 9);
+    for (const s of fired.filter((x) => x.ammo === "alloy")) expect(s.dmg).toBe(SYNCED); // NUM-1: whole (81), exact (was toBeCloseTo(SYNCED, 9))
   });
 
   it("merged starting gun: a CARRONADE ★2 (the free copy merged with a bought one) still fuses", () => {
@@ -171,7 +178,7 @@ describe("BASTION on today's rules", () => {
     return { bt, ps, max };
   };
 
-  it("BELTSIDE rigs (WHETSTONE, TEMPER) on the bulwark line: plating still climbs to exactly 24 and never passes it", () => {
+  it("BELTSIDE rigs (WHETSTONE, TEMPER) on the bulwark line: plating still climbs to exactly 240 and never passes it", () => {
     const b = start("bastion");
     b.items.push(rig(2, "whetstone", 3, 3, 1), rig(3, "temper", 3, 4, 1));
     const { ps, max } = plated(b, 40);
@@ -179,7 +186,7 @@ describe("BASTION on today's rules", () => {
     expect(ps.gained).toBe(PLATE_CAP);
   });
 
-  it("a SPLITTER on the bulwark line: each 60% copy plates 2 x 0.6 = 1.2", () => {
+  it("a SPLITTER on the bulwark line: each 60% copy plates 20 x 0.6 = 12", () => {
     const b = start("bastion");
     b.items.push(rig(2, "splitter", 3, 3, 1));
     const bt = new Battle(b, dummyFoe(), 3);
@@ -195,7 +202,7 @@ describe("BASTION on today's rules", () => {
     expect(steps.some((d) => Math.abs(d - PLATE_PER_SLUG * effectAt("splitter", 1).gate!.split!.mult) < 1e-9)).toBe(true);
   });
 
-  it("turret gear and a bought core on the heavy gun, the gun merged to ★2, a gun in the extra slot: plating still reaches 24 and every gun fires", () => {
+  it("turret gear and a bought core on the heavy gun, the gun merged to ★2, a gun in the extra slot: plating still reaches 240 and every gun fires", () => {
     const b = start("bastion");
     setTurretList(b, [{ slot: 0, def: "rampart", uid: 90, stars: 2, free: true }]);
     b.mods.push({ uid: 20, def: "calibrate", turret: 0 }, { uid: 21, def: "rotary", turret: 0 });
@@ -268,7 +275,8 @@ describe("BASTION on today's rules", () => {
 });
 
 describe("the race ammo's numbers are tuning v1's", () => {
-  it("ALLOY BLANK 3.5, BULWARK SLUG 5, FUSE_MULT 1.15, 2 plating a slug, cap 24", () => {
-    expect([AMMO.blank.base, AMMO.bulwark.base, FUSE_MULT, PLATE_PER_SLUG, PLATE_CAP]).toEqual([3.5, 5, 1.15, 2, 24]);
+  it("ALLOY BLANK 35, BULWARK SLUG 50, FUSE_MULT 1.15, 20 plating a slug, cap 240 (NUM-1: damage family x10)", () => {
+    // NUM-1 (REQ-BFG-047): x10 (was 3.5, 5, 2, 24; tests/fixtures/num1-base-values.json); FUSE_MULT is a ratio, unchanged
+    expect([AMMO.blank.base, AMMO.bulwark.base, FUSE_MULT, PLATE_PER_SLUG, PLATE_CAP]).toEqual([35, 50, 1.15, 20, 240]);
   });
 });

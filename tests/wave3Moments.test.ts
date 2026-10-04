@@ -255,13 +255,14 @@ describe("A1's battle moments on the rigs, fed from P1's sim state (REPORT-A1 5.
 
   it("SHIELD WALL: its boss glows once the hull holds 12 plating (E1's pool), not before", () => {
     const b = withItem(furnaceBench(), item(30, "shieldwall", 3, 3, 0));
+    const MIN = ITEMS.shieldwall.gate!.plated!.min; // NUM-1: the wall's threshold, 120 plating (x10 of 12)
     let before: Wave3RigState | null = null;
     const a = play(b, barge(), (x) => {
       const pl = x.b.sides[0].plate.plate;
-      if (pl > 0 && pl < 12 && !hot(x, 30)) before = momentOf(x, 30);
-      return pl >= 12 && !hot(x, 30);
+      if (pl > 0 && pl < MIN && !hot(x, 30)) before = momentOf(x, 30);
+      return pl >= MIN && !hot(x, 30);
     }, 60);
-    expect(a.b.sides[0].plate.plate).toBeGreaterThanOrEqual(12);
+    expect(a.b.sides[0].plate.plate).toBeGreaterThanOrEqual(MIN);
     expect(before).toEqual({});
     expect(momentOf(a, 30)).toEqual({ plated: true });
     drawsState(a, 30, { plated: true }, "wall at 12 plating");

@@ -174,7 +174,7 @@ describe("J10: the inspector's readouts through a join", () => {
     // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): the joined STAMP PRESS's pace leads, cyan (★1: 1.4 s unjoined, 1.4 / JOIN_PACE joined)
     expect(txt(bp.head)).toEqual([JOIN_PACE_LINE, `A LOAD EVERY ${+(1.4 / JOIN_PACE).toFixed(2)} SECONDS ON THIS BELT, NOT 1.4 SECONDS.`, "4 TILES, 2 HITS:"]);
     expect(bp.head[0]).toMatchObject({ colour: C.cyan, keep: true });
-    expect(txt(bp.rows)).toEqual(["T2: TEMPER +1 BURN", "JOINS BELT 1 AT TILE 2.", "T2: WHETSTONE +2 DAMAGE"]);
+    expect(txt(bp.rows)).toEqual(["T2: TEMPER +1 BURN", "JOINS BELT 1 AT TILE 2.", "T2: WHETSTONE +20 DAMAGE"]); // NUM-1: x10 (was +2 DAMAGE)
     expect(bp.rows[1]).toMatchObject({ colour: C.cyan, join: true, trim: true });
     expect(txt(bp.foot)[0]).toMatch(/^DMG [\d.]+, BURN 1$/);
     expect(bp.headerOnly?.texts[0]).toMatch(/BURN 1/);

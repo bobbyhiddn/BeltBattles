@@ -3,6 +3,7 @@ import { Battle, simulate, type Payload } from "../src/sim/battle";
 import { startingBuild } from "../src/sim/ai";
 import { PLATE_CAP, PLATE_PER_SLUG, absorb, newPlateState, plateFor, plateOnLoad } from "../src/sim/races/bastion";
 import { raceRefBuild, raceStartBuild } from "../src/sim/races/refBuilds";
+import { roundHalfUp } from "../src/sim/pct";
 import { buildCost, dummyFoe, expectLegal, expectSaneBattles } from "./races.helpers";
 
 const start = () => raceStartBuild("bastion", 1);
@@ -11,9 +12,9 @@ const slug = (ammo: Payload["ammo"], mult = 1): Payload => ({
 });
 
 describe("BASTION plating rule", () => {
-  it("a bulwark slug plates 2 x its split multiplier; other ammo plates nothing", () => {
+  it("a bulwark slug plates 20 x its split multiplier; other ammo plates nothing", () => {
     expect(plateFor(slug("bulwark"))).toBe(PLATE_PER_SLUG);
-    expect(plateFor(slug("bulwark", 0.6))).toBeCloseTo(PLATE_PER_SLUG * 0.6, 12);
+    expect(plateFor(slug("bulwark", 0.6))).toBe(roundHalfUp(PLATE_PER_SLUG * 0.6)); // NUM-1: whole: 20 x 0.6 = 12 (was 2 x 0.6 = 1.2)
     expect(plateFor(slug("plain"))).toBe(0);
   });
 
@@ -21,11 +22,12 @@ describe("BASTION plating rule", () => {
     const st = newPlateState();
     for (let i = 0; i < 40; i++) plateOnLoad(st, slug("bulwark"));
     expect(st.plate).toBe(PLATE_CAP);
-    expect(absorb(st, 5)).toBe(0);
-    expect(st.plate).toBe(PLATE_CAP - 5);
-    expect(absorb(st, 100)).toBe(100 - (PLATE_CAP - 5));
+    // NUM-1: the hits x10 (were 5, 100, 3) with the plating (PLATE_CAP 24 -> 240), so the big hit still breaks through
+    expect(absorb(st, 50)).toBe(0);
+    expect(st.plate).toBe(PLATE_CAP - 50);
+    expect(absorb(st, 1000)).toBe(1000 - (PLATE_CAP - 50));
     expect(st.plate).toBe(0);
-    expect(absorb(st, 3)).toBe(3);
+    expect(absorb(st, 30)).toBe(30);
   });
 
   it("plating applies when a slug reaches the chamber, climbs to the cap and never passes it", () => {
@@ -51,7 +53,8 @@ describe("BASTION plating rule", () => {
       const bt = simulate(start(), startingBuild("furnace", 50), seed);
       const me = bt.sides[0], foe = bt.sides[1];
       expect(me.race!.plating.absorbed).toBeGreaterThan(0);
-      expect(me.hull.max - me.hull.hp).toBeCloseTo(foe.stats.damage - me.race!.plating.absorbed + me.stats.windTaken, 6);
+      // NUM-1: every amount here is whole, so the balance is exact
+      expect(me.hull.max - me.hull.hp).toBe(foe.stats.damage - me.race!.plating.absorbed + me.stats.windTaken);
     }
   });
 });

@@ -49,10 +49,11 @@ describe("stars.ts", () => {
     expect(effectAt("temper", 3).gate).toEqual({ burn: 4 });
     // 0.6.1p: the pending perks are applied, so the dies and WIDE BREECH merge in; 0.6.1f: PERFECT CUT replaced THREE-WAY
     // bb-0.8.3 (REQ-BFG-042 D1): a bought factory states no outputs; its belt slots grow with its stars (outputsAt)
-    expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, base: 7.5 });
+    expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, base: 10 * 7.5 }); // NUM-1: x10 (was 7.5)
     expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3, window: 1 });
     expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 2, mult: 0.85 } });
-    expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.5, flat: 2, lockedFlat: 4 }, { speed: 0.5, flat: 5, lockedFlat: 7 }]);
+    // NUM-1: flat and lockedFlat x10 (was 2 / 4 and 5 / 7); the speed is unchanged
+    expect([2, 3].map((s) => effectAt("brake", s).gate)).toEqual([{ speed: 0.5, flat: 10 * 2, lockedFlat: 10 * 4 }, { speed: 0.5, flat: 10 * 5, lockedFlat: 10 * 7 }]);
     expect(ITEMS.temper.gate).toEqual({ burn: 1 }); // the 1-star spec is untouched
     expect(() => effectAt("nope", 2)).toThrow();
   });
@@ -80,8 +81,9 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
   });
   it("WHETSTONE flat +2/+4/+7 (estimate) and damage in 30 s", () => {
     const d = at3((s) => est(bench([["whetstone", 4, 3, s]])).dmg);
-    expect(d[1] - d[0]).toBeCloseTo(2);
-    expect(d[2] - d[0]).toBeCloseTo(5);
+    // NUM-1: x10, and the estimate is whole (payloadDamage rounds half up once), so the gaps are exact (was toBeCloseTo 2 / 5)
+    expect(d[1] - d[0]).toBe(10 * 2);
+    expect(d[2] - d[0]).toBe(10 * 5);
     expect(up(at3((s) => run(bench([["whetstone", 4, 3, s]])).sides[0].stats.damage))).toBe(true);
   });
   it("GREASE speed 1.6/2.3/3.1: downstream belt speed and a shorter trip", () => {
@@ -95,8 +97,9 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
     expect([t[1], t[2]]).toEqual([t[0], t[0]]);
     expect(t[0]).toBeGreaterThan(est(bench([])).time); // still a slow
     const d = at3((s) => est(bench([["brake", 4, 4, s]])).dmg);
-    expect(d[1] - d[0]).toBeCloseTo(2);
-    expect(d[2] - d[0]).toBeCloseTo(5);
+    // NUM-1: x10, and the estimate is whole (payloadDamage rounds half up once), so the gaps are exact (was toBeCloseTo 2 / 5)
+    expect(d[1] - d[0]).toBe(10 * 2);
+    expect(d[2] - d[0]).toBe(10 * 5);
     expect(up(at3((s) => run(bench([["brake", 4, 4, s]])).sides[0].stats.damage))).toBe(true);
   });
   it("OVERDRIVE speed 3/4/5 (AFTERBURNER's +3 flat: arsenal.modules.test.ts)", () => {

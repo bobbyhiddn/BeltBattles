@@ -116,6 +116,10 @@ describe("P12: SPLITTER after the retune (PERFECT CUT): one split, one extra cop
   });
 
   it("a belt wrapped around a T SPLITTER makes 8 payloads at every star (2 x 2 x 2), in the battle and in the walk", () => {
+    // NUM-1 (REQ-BFG-047): the WHETSTONE's 20 (was 2) after the three splits, each taking its whole % of the flat so far,
+    // rounded half up once (Battle.applyHit's pct): 20 -> 12 -> 7 -> 4 at 60%, 20 -> 14 -> 10 -> 7 at 72%, 20 -> 17 -> 14
+    // -> 12 at 85% (was the fraction 2 x MULT[s] ** 3)
+    const FLAT: Record<number, number> = { 1: 4, 2: 7, 3: 12 };
     for (const s of [1, 2, 3]) {
       const b = wrap(s);
       expect(hitsOfRig(b, 10).map((h) => h.tile)).toEqual([3, 5, 7]);
@@ -128,7 +132,7 @@ describe("P12: SPLITTER after the retune (PERFECT CUT): one split, one extra cop
       expect(new Set(fam.map((p) => p.id)).size).toBe(8);
       for (const p of fam) {
         expect(p.mult, `★${s} mult`).toBeCloseTo(MULT[s] ** 3, 12);
-        expect(p.flat, `★${s} flat`).toBeCloseTo(2 * MULT[s] ** 3, 12); // the WHETSTONE's 2, scaled by each split
+        expect(p.flat, `★${s} flat`).toBe(FLAT[s]); // the WHETSTONE's 20, scaled by each split (NUM-1: whole; was toBeCloseTo)
       }
     }
   });
@@ -136,7 +140,7 @@ describe("P12: SPLITTER after the retune (PERFECT CUT): one split, one extra cop
 
 // ---------------------------------------------------------------- P13: BRAKE SHOE ★2/★3 is a mixed effect
 
-const HEAT: Record<number, number> = { 1: 0, 2: 2, 3: 5 }; // BRAKE ★1 / ★2 HOT SHOE / ★3 RED-HOT SHOE flat
+const HEAT: Record<number, number> = { 1: 0, 2: 20, 3: 50 }; // BRAKE ★1 / ★2 HOT SHOE / ★3 RED-HOT SHOE flat (NUM-1: x10, was 0 / 2 / 5)
 
 describe("P13: BRAKE SHOE ★2/★3 (HOT SHOE, RED-HOT SHOE): the flat at tier 1, the half speed through speedWinner", () => {
   it("★2 and ★3 add +2 and +5 flat at tier 1 (a SPLITTER on the same tile scales it) and run the belt at 0.5x; the label names the flat", () => {
@@ -263,7 +267,9 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
           const m = migrateInlineGates(mig); // what the loader does, before renumbering
           const loaded = decodeStarred(hero, t[3]);
           decks++;
-          expect(validateBuild(loaded, day).errors, `${hero} d${day} #${i}`).toEqual([]);
+          // NUM-1 (cap's oracle bcc36c430b4f3a01): the bundled pool's codes are in pre-NUM-1 units; the deck validated in
+          // this build's units, with this test's own inline x10 of hullBonus (standInPool.ts scales on read; this decode doesn't)
+          expect(validateBuild({ ...loaded, hullBonus: loaded.hullBonus * 10 }, day).errors, `${hero} d${day} #${i}`).toEqual([]);
           const belt = new Set(loaded.routes.flatMap((r) => r.cells)), occ = occupancy(loaded);
           expect([...belt].filter((k) => occ[k].item >= 0), `${hero} d${day} #${i}: machinery on a belt tile`).toEqual([]);
           expect(encodeStarred(loaded), `${hero} d${day} #${i}`).toBe(encodeStarred(mig)); // the loader = raw + D3 (+ renumber)

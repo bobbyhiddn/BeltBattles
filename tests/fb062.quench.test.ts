@@ -3,10 +3,12 @@
 // spends only the stacks it pays for, and stacks past the cap stay Burn. Was: all Burn at +2/+4/+6 per stack, capped
 // at +12/+26/+42 damage, so a ★1 QUENCH turned a ★1 TEMPER's 2 Burn (6 damage over 3 s) into +4 (Furnace's audit
 // cell: total damage 130 -> 118).
+// NUM-1 (REQ-BFG-047): the damage family x10, so the floor is now 10/20/30 and the pay 30/50/70 a stack (stack counts
+// unchanged), and a Burn stack deals BURN_DPS (10) once a second for BURN_TIME (the test titles keep FB-B's units).
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { spotForTile } from "../src/sim/beltside";
-import { BURN_TIME, ITEMS, TICK, type HeroId } from "../src/sim/content";
+import { BURN_DPS, BURN_TIME, ITEMS, TICK, type HeroId } from "../src/sim/content";
 import { cloneBuild, rigHits, walkRoute, type Build } from "../src/sim/deck";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -17,10 +19,11 @@ import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2rel: the glos
 import { wrapText } from "../src/ui/richText";
 import { barge, bench, est, run } from "./arsenal.bench";
 
+// NUM-1: flat and perBurn x10 (were 1/2/3 and 3/5/7); stacks unchanged
 const RULE: Record<number, { flat: number; perBurn: number; stacks: number }> = {
-  1: { flat: 1, perBurn: 3, stacks: 4 },
-  2: { flat: 2, perBurn: 5, stacks: 5 },
-  3: { flat: 3, perBurn: 7, stacks: 6 },
+  1: { flat: 10, perBurn: 30, stacks: 4 },
+  2: { flat: 20, perBurn: 50, stacks: 5 },
+  3: { flat: 30, perBurn: 70, stacks: 6 },
 };
 const STARS = [1, 2, 3];
 const BURNS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
@@ -69,16 +72,18 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
   });
 
   it("(b) each Burn stack QUENCH spends is worth at least that Burn's own damage, at every star (measured in the battle)", () => {
-    const own = (dealt(payload(4)) - dealt(payload(0))) / 4; // a Burn stack's own damage: 1 dmg/s for BURN_TIME
-    expect(own).toBeCloseTo(BURN_TIME, 6);
+    // a Burn stack's own damage: NUM-1, BURN_DPS (10) once a second for BURN_TIME, whole (was 1 dmg/s: BURN_TIME)
+    const own = (dealt(payload(4)) - dealt(payload(0))) / 4;
+    expect(own).toBe(BURN_DPS * BURN_TIME);
     for (const s of STARS) for (const k of BURNS.filter((x) => x > 0)) {
       const q = quenched(s, payload(k));
       const spent = k - q.burn;
       // the quenched payload less its floor, against the same payload with only the Burn QUENCH left on it
+      // (NUM-1: every amount here is whole, so the comparisons are exact; were within 1e-6)
       const perStack = (dealt(q) - RULE[s].flat - dealt(payload(q.burn))) / spent;
-      expect(perStack, `★${s}, ${k} Burn`).toBeGreaterThanOrEqual(own - 1e-6);
+      expect(perStack, `★${s}, ${k} Burn`).toBeGreaterThanOrEqual(own);
       // so QUENCH never costs damage: even without its floor it deals at least what the unspent Burn would have
-      expect(dealt(q) - RULE[s].flat, `★${s}, ${k} Burn`).toBeGreaterThanOrEqual(dealt(payload(k)) - 1e-6);
+      expect(dealt(q) - RULE[s].flat, `★${s}, ${k} Burn`).toBeGreaterThanOrEqual(dealt(payload(k)));
     }
   });
 
@@ -95,7 +100,7 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
     const bare = est(bench()).dmg;
     for (const s of STARS) {
       const q = est(bench([["quench", 4, 3, s]])).dmg - bare, w = est(bench([["whetstone", 4, 3, s]])).dmg - bare;
-      expect(q, `★${s} estimate`).toBeCloseTo(RULE[s].flat, 9);
+      expect(q, `★${s} estimate`).toBe(RULE[s].flat); // NUM-1: the walk's damage is whole, so exact (was toBeCloseTo(.., 9))
       expect(q, `★${s}: QUENCH < WHETSTONE`).toBeLessThan(w);
       // every payload past the rig in the battle carries exactly the floor (the Kiln's slugs have no Burn)
       const flats = (id: string) => [...new Set(run(bench([[id, 4, 3, s]]), 8).sides[0].routes[0].ammo.filter((a) => a.processed >= 2).map((a) => a.p.flat))];
@@ -123,11 +128,11 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
     }
     // with no Burn upstream the timeline shows the floor alone
     const bare = walkRoute(bench([["quench", 4, 3, 2]]), 0).timeline[0].hits[0];
-    expect(hitLabel(bare, "free")).toBe("QUENCH TANK +2 DAMAGE");
+    expect(hitLabel(bare, "free")).toBe("QUENCH TANK +20 DAMAGE"); // NUM-1: x10 (was +2)
   });
 
   it("an overclocked QUENCH doubles its floor and its per-stack pay, over the same stacks", () => {
-    expect(overclocked({ quench: RULE[1] })).toEqual({ quench: { flat: 2, perBurn: 6, stacks: 4 } });
+    expect(overclocked({ quench: RULE[1] })).toEqual({ quench: { flat: 20, perBurn: 60, stacks: 4 } }); // NUM-1: x10 (was 2/6)
   });
 
   it("player text: the description and every star line state the floor and the conversion in plain words", () => {
@@ -138,7 +143,7 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
     expect(STARS.map((s) => abilityText("quench", s).sentences[0])).toEqual(STARS.map((s) =>
       `ADDS ${RULE[s].flat} DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO ${RULE[s].stacks} OF ITS BURN INTO ${RULE[s].perBurn} MORE DAMAGE EACH.`));
     expect(abilityText("quench", 1).sentences.slice(1, 2)).toEqual(["ANY MORE BURN STAYS ON THE PAYLOAD."]);
-    expect(gist("quench", 3)).toBe("ADDS 3 DAMAGE, THEN 7 MORE DAMAGE FOR EACH BURN, UP TO 6 BURN");
+    expect(gist("quench", 3)).toBe("ADDS 30 DAMAGE, THEN 70 MORE DAMAGE FOR EACH BURN, UP TO 6 BURN"); // NUM-1: x10 (was 3, 7)
     // the opening sentence, wrapped by the one helper, stays within three lines of the phone band
     for (const s of STARS) expect(wrapText(abilityText("quench", s).sentences[0], 151, "3").length, `★${s} on a phone`).toBeLessThanOrEqual(3);
   });

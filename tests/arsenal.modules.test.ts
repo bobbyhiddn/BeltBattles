@@ -8,7 +8,8 @@ import { Battle } from "../src/sim/battle";
 import { DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, WINDOW_TIME, type HarassCause } from "../src/sim/content";
 import { arrowCell, arrowsOf, hitsOfRig, key, kx, ky, rigHits, rotField, type Build } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
-import { barge, bench, busy, coilStall, est, finishers, pressDps, pressOnly, run, SEED, turretStall } from "./arsenal.bench";
+import { barge, bench, busy, coilStall, est, finishers, pressDps, pressOnly, rawDamage, run, SEED, turretStall } from "./arsenal.bench";
+import { pct } from "../src/sim/pct"; // NUM-1 (REQ-BFG-047): the sim's one % rule (FINISHER RAM below)
 import { batchGaps, factoryBench, factoryLight, factoryOut, gantryBench, gantryWeaver, stamps } from "./arsenal.bench"; // 0.6.1c
 import type { Payload } from "../src/sim/battle";
 import { AMMO_SPACING, BELT_SPEED } from "../src/sim/content";
@@ -125,14 +126,16 @@ describe("0.6.1p: the six pending perks, each applied", () => {
       if (haul) expect(hitsOfRig(b, 40, hits).map((h) => h.tile)).toEqual([8]);
       return b;
     };
+    // NUM-1 (REQ-BFG-047): the damage is whole (payloadDamage rounds once), so the estimates and the flat are exact (toBe)
     const d = [1, 2, 3].map((s) => est(snake(s)).dmg - est(snake(s, false)).dmg);
-    expect(d[0]).toBeCloseTo(effectAt("longhaul", 1).gate!.perPriorGate! * 8);
-    expect(d[1]).toBeCloseTo(effectAt("longhaul", 2).gate!.perPriorGate! * 6); // not ★2 x 8
-    expect(d[2]).toBeCloseTo(effectAt("longhaul", 3).gate!.perPriorGate! * 6);
+    expect(d[0]).toBe(effectAt("longhaul", 1).gate!.perPriorGate! * 8);
+    expect(d[1]).toBe(effectAt("longhaul", 2).gate!.perPriorGate! * 6); // not ★2 x 8
+    expect(d[2]).toBe(effectAt("longhaul", 3).gate!.perPriorGate! * 6);
     const bt = run(snake(2), 14);
     const past = bt.sides[0].routes[0].ammo.filter((a) => a.processed >= 8);
     expect(past.length).toBeGreaterThan(0);
-    for (const a of past) expect(a.p.flat).toBeCloseTo(8 * 2 + effectAt("longhaul", 2).gate!.perPriorGate! * 6);
+    // NUM-1: 8 WHETSTONES at ★1's flat (x10: was the literal 8 * 2)
+    for (const a of past) expect(a.p.flat).toBe(8 * effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 2).gate!.perPriorGate! * 6);
   });
 
   it("GALVANIC COIL: 1 star stalls exactly DISRUPT_TIME as in 0.6.0; 1.8 s and 2.8 s; SPARK JUMP stalls a second machine", () => {
@@ -185,7 +188,7 @@ describe("0.6.1p: the six pending perks, each applied", () => {
       expect(past.length).toBeGreaterThan(0);
       return past[0].p.flat;
     };
-    expect([1, 2, 3].map(flatAt)).toEqual([0, 1, 3]);
+    expect([1, 2, 3].map(flatAt)).toEqual([0, 1, 3].map((v) => 10 * v)); // NUM-1: x10 (was 0 / 1 / 3)
     const guard = (s: number) => new Battle(bench([["overdrive", 4, 4, s]]), barge(), SEED).sides[0].routes[0].guard;
     expect(guard(1)).toEqual([0, 0, 0, 0, 0, 0]);
     expect(guard(2)).toEqual([0, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW]);
@@ -200,12 +203,13 @@ describe("0.6.1p: the six pending perks, each applied", () => {
   });
 
   it("STAMP PRESS: HARDENED DIES 5 and MASTER DIES 7.5 through Payload.base (estimate and every fired slug)", () => {
-    expect([1, 2, 3].map((s) => pressDps(s).base)).toEqual([[3], [5], [7.5]]);
-    expect([1, 2, 3].map((s) => est(pressOnly(s)).dmg)).toEqual([3, 5, 7.5]);
+    const dies = [3, 5, 7.5].map((v) => 10 * v); // NUM-1: x10 (was 3 / 5 / 7.5)
+    expect([1, 2, 3].map((s) => pressDps(s).base)).toEqual(dies.map((v) => [v]));
+    expect([1, 2, 3].map((s) => est(pressOnly(s)).dmg)).toEqual(dies);
     for (const s of [1, 2, 3]) {
       const dmg = new Set<number>();
       run(pressOnly(s), 20, barge(), SEED, (ev) => { for (const e of ev) if (e.type === "fire" && e.side === 0) dmg.add(e.dmg); });
-      expect([...dmg]).toEqual([[3], [5], [7.5]][s - 1]);
+      expect([...dmg]).toEqual([dies[s - 1]]);
     }
   });
 
@@ -235,8 +239,9 @@ describe("0.6.1f: BRAKE SHOE merges into heat, not a deeper slow (HOT SHOE, RED-
       expect(past.length, `${s}`).toBeGreaterThan(0);
       return [...new Set(past.map((a) => a.p.flat))];
     };
-    expect([1, 2, 3].map(flats)).toEqual([[0], [2], [5]]);
-    expect([1, 2, 3].map((s) => est(bench([["brake", 4, 4, s]])).dmg - est(bench([["brake", 4, 4, 1]])).dmg).map((d) => +d.toFixed(9))).toEqual([0, 2, 5]);
+    const heat = [0, 2, 5].map((v) => 10 * v); // NUM-1: x10 (was 0 / 2 / 5)
+    expect([1, 2, 3].map(flats)).toEqual(heat.map((v) => [v]));
+    expect([1, 2, 3].map((s) => est(bench([["brake", 4, 4, s]])).dmg - est(bench([["brake", 4, 4, 1]])).dmg).map((d) => +d.toFixed(9))).toEqual(heat);
   });
 });
 
@@ -313,13 +318,31 @@ describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
     expect(withIt).toBe(0); // wave 1's only stall is shock
   });
 
+  /** NUM-1 (REQ-BFG-047): each finisher's [raw, dmg] on turret 0, in the order finishers() reads them (raw: rawDamage). */
+  const finisherShots = (b: Build): [number, number][] => {
+    const seen = new Set<number>(), out: [number, number][] = [];
+    run(b, 30, barge(), SEED, (_ev, bt) => {
+      for (const pr of bt.projectiles) {
+        if (pr.from !== 0 || pr.turret !== 0 || seen.has(pr.id)) continue;
+        seen.add(pr.id);
+        if (pr.finisher) out.push([rawDamage(pr.payload), pr.dmg]);
+      }
+    });
+    return out;
+  };
+
   it("FINISHER RAM: the payload that empties each window hits +40%/+88%/+140% harder; exactly one per emptied window", () => {
     for (const [s, bonus] of [[1, 0.4], [2, 0.88], [3, 1.4]] as const) {
       const f = finishers(busy([["ram", s]]));
       expect(f.fins).toBeGreaterThan(5);
       expect(f.fins).toBe(f.windows);
       expect(f.wrong).toBe(0);
-      for (const b of f.bonus) expect(b).toBeCloseTo(bonus, 9);
+      // NUM-1: the bonus is a % on whole damage, rounded half up once (pct), so dmg / raw - 1 is no longer exactly
+      // `bonus` (was: each f.bonus toBeCloseTo(bonus, 9)). Each finisher (the same ones, in order) now hits exactly
+      // raw x (1 + bonus) rounded half up.
+      const shots = finisherShots(busy([["ram", s]]));
+      expect(shots.map(([raw, dmg]) => dmg / raw - 1)).toEqual(f.bonus);
+      for (const [raw, dmg] of shots) expect(dmg, `${s}: raw ${raw}`).toBe(pct(raw, 100 * (1 + bonus)));
     }
     expect(finishers(busy([["ram", 1]])).damage).toBeGreaterThan(finishers(busy()).damage);
   });
@@ -350,12 +373,12 @@ describe("0.6.1c: the six factories' special rules", () => {
       const cycles = o.produced - gaps.length;
       expect(gaps.length, `${s} gaps`).toBeGreaterThanOrEqual((batch - 1) * (cycles - 1));
       for (const g of gaps) expect(Math.abs(g - SPACING_S), `${s} gap ${g}`).toBeLessThan(1.5 / 60);
-      expect(o.bases).toEqual([s === 1 ? 3 : 5]);
+      expect(o.bases).toEqual([10 * (s === 1 ? 3 : 5)]); // NUM-1: x10 (was 3 / 5)
     }
   });
 
   it("SHOT TOWER: 3 shots per cycle at 1 / 2 / 3 damage, and a per-payload gate (TEMPER) hits each shot", () => {
-    expect([1, 2, 3].map((s) => factoryOut("shottower", s).bases)).toEqual([[1], [2], [3]]);
+    expect([1, 2, 3].map((s) => factoryOut("shottower", s).bases)).toEqual([1, 2, 3].map((v) => [10 * v])); // NUM-1: x10 (was 1 / 2 / 3)
     for (const s of [1, 2, 3]) {
       const o = factoryOut("shottower", s);
       expect(o.produced - batchGaps(o, effectAt("shottower", s).factory!.interval).length, `${s}: cycles`).toBe(Math.ceil(o.produced / 3));
@@ -435,7 +458,7 @@ describe("0.6.1c: the six factories' special rules", () => {
     expect(press([["grease", 5, 4, 1]])).toBeLessThan(press([])); // a plain slug on the same belt does feel them
     expect(press([["brake", 5, 4, 1]])).toBeGreaterThan(press([]));
     expect(none.est).toBeCloseTo(press([]) / 0.75, 9);
-    expect([1, 2, 3].map((s) => factoryOut("slagpot", s).bases)).toEqual([[7], [12], [15]]);
+    expect([1, 2, 3].map((s) => factoryOut("slagpot", s).bases)).toEqual([7, 12, 15].map((v) => [10 * v])); // NUM-1: x10 (was 7 / 12 / 15)
   });
 
   const GATES: [string, number, number, number][] = [["whetstone", 4, 4, 1], ["whetstone", 4, 2, 1], ["whetstone", 5, 3, 1]];
@@ -488,7 +511,7 @@ describe("0.6.1c: the six factories' special rules", () => {
         for (const a of bt.sides[0].routes[0].ammo) if (a.processed >= 3 && !done.has(a.p.id)) { done.add(a.p.id); flats.push([bt.t, a.p.flat]); }
       });
       expect(flats.length).toBeGreaterThan(3);
-      for (const [t, f] of flats) expect(f, `${s} at ${t}`).toBe(s === 3 && t < 4 ? 4 : 2);
+      for (const [t, f] of flats) expect(f, `${s} at ${t}`).toBe(10 * (s === 3 && t < 4 ? 4 : 2)); // NUM-1: x10 (was 4 / 2)
       if (s === 3) expect(flats.filter(([t]) => t < 4).length).toBeGreaterThan(0);
     }
   });
@@ -512,7 +535,7 @@ describe("0.6.1c: the six factories' special rules", () => {
       const st = stamps(b);
       expect(Math.min(...st.perRoute), `${s}`).toBeGreaterThan(5);
       expect(Math.max(...st.perRoute) - Math.min(...st.perRoute)).toBeLessThanOrEqual(1);
-      expect(st.bases).toEqual([s === 3 ? 6 : 3]);
+      expect(st.bases).toEqual([10 * (s === 3 ? 6 : 3)]); // NUM-1: x10 (was 6 / 3)
     }
   });
 

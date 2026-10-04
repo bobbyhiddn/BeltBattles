@@ -248,15 +248,16 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
 
   it("the rows, written out: the walk's damage, and what the rig does that the walk can't count", () => {
     const h = (def: string, stars: number, more: object = {}) => hitText({ uid: 1, def, dir: 1, stars, tier: 1, ...more } as Parameters<typeof hitText>[0], "free");
-    expect(h("plateroller", 2, { plate: 1.1 })).toBe("PLATE ROLLER +1.1 PLATING");
-    expect(h("shieldwall", 1, { plate: 1, plated: { min: 12, flat: 3 } })).toBe("SHIELD WALL +1 PLATING, +3 DAMAGE AT 12 PLATING");
-    expect([h("twingauge", 1, { flat: 3, matched: true }), h("twingauge", 1, { flat: 1, matched: false })])
-      .toEqual(["TWIN GAUGE +3 DAMAGE ON A MATCHED BELT", "TWIN GAUGE +1 DAMAGE"]);
-    expect([h("pincer", 1, { flat: 1, others: 0 }), h("pincer", 1, { flat: 5, others: 2 }), h("pincer", 1, { flat: 3, others: 1 })])
-      .toEqual(["PINCER +1 DAMAGE", "PINCER +5 DAMAGE, CROSSFIRE WITH 2 RIGS", "PINCER +3 DAMAGE, CROSSFIRE WITH 1 RIG"]);
+    // NUM-1: x10 (the walk's hit values and the rows were 1.1 / 1, 12, 3 / 3, 1 / 1, 5, 3 / 2.2 / 4, 1)
+    expect(h("plateroller", 2, { plate: 11 })).toBe("PLATE ROLLER +11 PLATING");
+    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("SHIELD WALL +10 PLATING, +30 DAMAGE AT 120 PLATING");
+    expect([h("twingauge", 1, { flat: 30, matched: true }), h("twingauge", 1, { flat: 10, matched: false })])
+      .toEqual(["TWIN GAUGE +30 DAMAGE ON A MATCHED BELT", "TWIN GAUGE +10 DAMAGE"]);
+    expect([h("pincer", 1, { flat: 10, others: 0 }), h("pincer", 1, { flat: 50, others: 2 }), h("pincer", 1, { flat: 30, others: 1 })])
+      .toEqual(["PINCER +10 DAMAGE", "PINCER +50 DAMAGE, CROSSFIRE WITH 2 RIGS", "PINCER +30 DAMAGE, CROSSFIRE WITH 1 RIG"]);
     expect(h("braceframe", 3)).toBe("BRACE FRAME ENEMY STALLS 85% SHORTER (95% SHORTER PLATED)");
-    expect(h("twinlatch", 2, { flat: 2.2, hold: 1 })).toBe("TWIN LATCH +2.2 DAMAGE, HOLDS UP TO 1 SEC");
-    expect(h("platebreaker", 1, { flat: 4 })).toBe("PLATE BREAKER +4 DAMAGE FOR 1 PLATING, ELSE +1 DAMAGE");
+    expect(h("twinlatch", 2, { flat: 22, hold: 1 })).toBe("TWIN LATCH +22 DAMAGE, HOLDS UP TO 1 SEC");
+    expect(h("platebreaker", 1, { flat: 40 })).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING, ELSE +10 DAMAGE"); // NUM-1: battle.ts spends 10 plating (was 1)
     // each row's numbers are the spec's at that star
     for (const s of STARS) expect(numbers(h("braceframe", s)).length).toBe(2);
   });
@@ -270,7 +271,8 @@ describe("0.8.0 P1: the switch keeps wave 3's text out of the game while it is o
     withWave3(() => { for (const d of W3) expect(Object.keys(ITEMS).includes(d.id), d.id).toBe(false); }, false);
     // a wave-3 rig placed on a deck reads its text either way (the panels are pure)
     const t = rigPanel(rigRun("pincer", 1, 3, 3, rotFacing("pincer", 1), 0), 10)!;
-    expect(t.body.find((b) => b.role === "ability")!.text).toBe("ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, AND 2 MORE FOR EACH OTHER RIG HITTING THAT TILE.");
+    // NUM-1: x10 (was ADDS 1 ... AND 2 MORE)
+    expect(t.body.find((b) => b.role === "ability")!.text).toBe("ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE.");
     const placed: Placed = { uid: 10, def: "pincer", x: 3, y: 3 };
     expect(placed.def in ITEMS).toBe(true);
   });

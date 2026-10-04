@@ -73,7 +73,7 @@ describe("harassment rounds and projectile gate", () => {
     expect(bt.projectiles[0].target.kind).toBe("hull");
     const hp = bt.sides[1].hull.hp;
     advance(bt, bt.projectiles[0].flight + TICK);
-    expect(bt.sides[1].hull.hp).toBe(hp - 9); // plain synthetic slug 3 + Sabot hull bonus 6
+    expect(bt.sides[1].hull.hp).toBe(hp - 90); // plain synthetic slug 30 + Sabot hull bonus 60 (NUM-1: x10, was 9 = 3 + 6)
   });
 
   it("Flak intercepts once at mid-flight before damage or machinery effects", () => {
@@ -233,7 +233,8 @@ describe("machine and route effects", () => {
 
 describe("carried debuffs and guard order", () => {
   it("CHILL and SAP change shot damage, SNAG changes travel speed, and SIFTER removes in order", () => {
-    expect(debuffedDamage(20, { chill: true, sap: true })).toBe(13);
+    // NUM-1: the damage x10 (was debuffedDamage(20, ...) = 13): CHILL 75% of 200 = 150, then SAP -20
+    expect(debuffedDamage(200, { chill: true, sap: true })).toBe(130);
     const p = payload();
     p.debuffs = { chill: true, snag: true, sap: true };
     expect(siftDebuffs(p.debuffs, 1)).toBe(1);
@@ -251,10 +252,10 @@ describe("carried debuffs and guard order", () => {
     const chilled = fireOne();
     const withMarks = new Battle(barge(), barge(), 8);
     const tu = withMarks.sides[0].turrets[0], marked = payload();
-    marked.base = 20; marked.debuffs = { chill: true, sap: true };
+    marked.base = 200; marked.debuffs = { chill: true, sap: true }; // NUM-1: the slug base x10 (was 20)
     tu.stack.push(marked); tu.phase = "fire"; withMarks.step();
-    expect(withMarks.projectiles[0].dmg).toBe(13);
-    expect(chilled.projectiles[0].dmg).toBe(3);
+    expect(withMarks.projectiles[0].dmg).toBe(130); // NUM-1: x10 (was 13)
+    expect(chilled.projectiles[0].dmg).toBe(30); // NUM-1: x10 (was 3)
   });
 
   it("a future SIFTER rig uses the same removal hook at its arrow hit", () => {

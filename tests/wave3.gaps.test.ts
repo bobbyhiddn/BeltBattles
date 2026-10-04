@@ -14,6 +14,7 @@ import { rotFacing } from "../src/sim/beltside";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { boostable, overclocked } from "../src/sim/overclock";
 import { PLATE_CAP } from "../src/sim/races/bastion";
+import { pct } from "../src/sim/pct"; // NUM-1 (REQ-BFG-047): the sim's one % rule (n x p%, rounded half up once)
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { effectAt } from "../src/sim/stars";
 import { validateBuild } from "../src/net/validate";
@@ -304,7 +305,9 @@ describe("E6: matched belts (TWIN GAUGE)", () => {
     const w = { ...heroStartBuild("weaver", 1), hullBonus: 5000 };
     expect(w.routes.map((_, i) => [journeyTiles(w, i), routeInfo(w, i).turret])).toEqual([[5, 1], [8, 0], [8, 2]]);
     expect(matchedRoutes(w)).toEqual([false, false, false]);
-    for (const [s, flat] of [[1, 1], [2, 2.2], [3, 3.5]] as const) {
+    // NUM-1 (REQ-BFG-047): TWIN GAUGE's plain number read from the data, x10 (were the literals 1 / 2.2 / 3.5; now 10 / 22 / 35)
+    for (const s of [1, 2, 3] as const) {
+      const flat = effectAt("twingauge", s).gate!.gauge!.flat;
       const b = withItem(w, item(60, "twingauge", 0, 3, 1, s)); // at (0,3), facing east onto belt 1's tile 4, (1,3)
       legal(b, `TWIN GAUGE ★${s}`);
       const th = walkRoute(b, 1).timeline.flatMap((r) => r.hits).find((h) => h.uid === 60)!;
@@ -326,10 +329,16 @@ describe("E6: matched belts (TWIN GAUGE)", () => {
 // ------------------------------------------------------------------------------------------------------------ PLATE BREAKER
 
 describe("PLATE BREAKER", () => {
-  const NUMS = [[1, 4, 1], [2, 8.8, 2.2], [3, 14, 3.5]] as const; // stars, the number for 1 plating, the floor
+  // stars, the number for a whole plating (10: NUM-1, x10 of 1), the floor. NUM-1 (REQ-BFG-047): read from the data, x10
+  // (were the literals [1, 4, 1], [2, 8.8, 2.2], [3, 14, 3.5]; now 40 / 10, 88 / 22, 140 / 35)
+  const NUMS = ([1, 2, 3] as const).map((s) => {
+    const { flat, floor } = effectAt("platebreaker", s).gate!.breaker!;
+    return [s, flat, floor] as const;
+  });
   /** FURNACE with PLATE BREAKER (uid 31, shape T) at (3,2): its east arrow on the Kiln belt's tile 3, (4,2). */
   const breaker = (s: number) => withItem(furnace(), item(31, "platebreaker", 3, 2, 0, s));
-  /** ... and a PLATE ROLLER (uid 30) at (3,4) facing east onto tile 1, (4,4): 0.5 plating for each slug, before the breaker. */
+  /** ... and a PLATE ROLLER (uid 30) at (3,4) facing east onto tile 1, (4,4): 5 plating for each slug (NUM-1: x10 of 0.5),
+   *  before the breaker. */
   const rolled = (s: number) => withItem(breaker(s), rig(30, "plateroller", 3, 4, 1));
 
   it("C-breaker-edge: PLATE BREAKER takes plating only when the hull holds at least 1: with 0 < plating < 1 it adds its floor and takes nothing", () => {
@@ -357,13 +366,16 @@ describe("PLATE BREAKER", () => {
           if (hit) hits.push({ t: bt.t, before, took, gain: a.p.flat }); // the roller adds no damage: the flat is the breaker's
         }
       });
-      const half = hits.filter((h) => h.before > 0 && h.before < 1), whole = hits.filter((h) => h.before >= 1);
+      // NUM-1 (REQ-BFG-047): PLATE BREAKER takes 10 plating (x10 of 1) and the PLATE ROLLER rolls 5 (x10 of 0.5), so half a
+      // plating is 0 < plating < 10 and a whole one 10 or more (were 0 < plating < 1 and 1: [0.5, 0, floor], [1, big])
+      const roll = effectAt("plateroller", 1).gate!.plate!;
+      const half = hits.filter((h) => h.before > 0 && h.before < 10), whole = hits.filter((h) => h.before >= 10);
       expect(half.length, `★${s}: hits with half a plating on the hull`).toBeGreaterThanOrEqual(4);
       expect(whole.length, `★${s}: hits with 1 plating`).toBeGreaterThanOrEqual(4);
-      for (const h of half) expect([h.before, h.took, h.gain], `★${s} t ${h.t.toFixed(3)}`).toEqual([0.5, 0, floor]);
-      for (const h of whole) expect([h.took, h.gain], `★${s} t ${h.t.toFixed(3)}`).toEqual([1, big]);
+      for (const h of half) expect([h.before, h.took, h.gain], `★${s} t ${h.t.toFixed(3)}`).toEqual([roll, 0, floor]);
+      for (const h of whole) expect([h.took, h.gain], `★${s} t ${h.t.toFixed(3)}`).toEqual([10, big]);
       expect(hits.length).toBe(half.length + whole.length);
-      note(`breaker-edge | ★${s}: ${hits.length} hits in 20 s: ${half.length} at 0.5 plating (took 0, +${floor}), ${whole.length} at 1 (took 1, +${big}); payloads ${hits.slice(0, 6).map((h) => h.gain).join(", ")} ...`);
+      note(`breaker-edge | ★${s}: ${hits.length} hits in 20 s: ${half.length} at ${roll} plating (took 0, +${floor}), ${whole.length} at 10 (took 10, +${big}); payloads ${hits.slice(0, 6).map((h) => h.gain).join(", ")} ...`);
     }
   });
 
@@ -378,7 +390,7 @@ describe("PLATE BREAKER", () => {
       legal(bare, `★${s}`);
       expect(platedDeck(bare)).toBe(false);
       expect([hit(bare).flat, hit(bare).breaker], `★${s}`).toEqual([floor, { flat: big, floor }]);
-      expect(walkRoute(bare, 0).estimate.dmg, `★${s}`).toBeCloseTo(plain + floor, 9);
+      expect(walkRoute(bare, 0).estimate.dmg, `★${s}`).toBe(plain + floor); // NUM-1: whole (was toBeCloseTo(plain + floor, 9))
       // the build screen's belt readout reads the walk: DMG with the floor
       const rn = newRun("furnace", 5, "g1-walk");
       rn.build = bare;
@@ -397,7 +409,7 @@ describe("PLATE BREAKER", () => {
         expect(hit(b).flat, `${what} ★${s}`).toBe(big);
         // F1 (B1): the belt panel's DMG: the walk with every breaker at its floor, then the walk as counted
         const lo = walkRoute(b, 0, undefined, { unplated: true }).estimate.dmg, hi = walkRoute(b, 0).estimate.dmg;
-        expect(hi - lo, `${what} ★${s}`).toBeCloseTo(big - floor, 9);
+        expect(hi - lo, `${what} ★${s}`).toBe(big - floor); // NUM-1: whole (was toBeCloseTo(big - floor, 9))
         const rp = newRun(b.hero, 5, "b1-walk");
         rp.build = b;
         expect(beltPanel(rp, 0)!.headerOnly!.texts[2].split(",")[0], `${what} ★${s}`).toBe(`DMG ${lo.toFixed(1)}-${hi.toFixed(1)}`);
@@ -426,7 +438,9 @@ describe("TWIN TRIGGER", () => {
       expect(under.length, `★${s}: shells packing a paired load under an unpaired one`).toBeGreaterThanOrEqual(5);
       w.forEach((x, i) => {
         const paired = !!x.p.paired || !!x.p.compound?.paired;
-        expect(x.dmg, `★${s} shell ${i} (paired ${!!x.p.paired}, packs a paired load ${!!x.p.compound?.paired})`).toBeCloseTo(o[i].dmg * (paired ? 1 + bonus : 1), 9);
+        // NUM-1 (REQ-BFG-047): TWIN TRIGGER's % rounds half up once (pct), so a shell is whole (was toBeCloseTo(o[i].dmg x
+        // (paired ? 1 + bonus : 1), 9))
+        expect(x.dmg, `★${s} shell ${i} (paired ${!!x.p.paired}, packs a paired load ${!!x.p.compound?.paired})`).toBe(paired ? pct(o[i].dmg, 100 * (1 + bonus)) : o[i].dmg);
       });
       const mains = w.filter((x) => x.p.paired).length, none = w.length - mains - under.length;
       note(`trigger-compound | ★${s}: ${w.length} shells in 40 s: ${mains} with a paired main load, ${under.length} packing a paired load under an unpaired one (e.g. ${o[w.indexOf(under[0])].dmg.toFixed(3)} -> ${under[0].dmg.toFixed(3)}), ${none} with none: x${1 + bonus} on the ${mains + under.length}`);
@@ -440,7 +454,8 @@ describe("SPALL CATCHER", () => {
   it("C-spall-burn: burn that lands on the hull charges SPALL CATCHER, and burn the plating soaks counts twice", () => {
     // a FURNACE whose Kiln belt carries a TEMPER ★3 (4 Burn on each slug) shoots at our FURNACE, which has SPALL CATCHER on its
     // heavy gun and a PLATE ROLLER ★3 plating its hull. Each tick, before the dark wind: the charge is what it was (0 after a
-    // shot) plus add x (the hull's loss + twice what the plating soaked) / 4, up to its max, burn ticks included.
+    // shot) plus add x (the hull's loss + twice what the plating soaked) / 40 (NUM-1: was / 4), up to its max, burn ticks
+    // included.
     const foe = withItem({ ...heroStartBuild("furnace", 101), hullBonus: 5000 }, rig(150, "temper", 3, 3, 1, 3));
     legal(foe, "the foe");
     for (const s of [1, 2, 3]) {
@@ -465,8 +480,12 @@ describe("SPALL CATCHER", () => {
         soakedSoFar = side.plate.absorbed;
         charge = tu.spallCharge!;
       }
-      expect(burnTicks, `★${s}: ticks when only burn landed`).toBeGreaterThan(300);
-      expect(soakedBurnTicks, `★${s}: ... and the plating soaked some`).toBeGreaterThan(30);
+      // NUM-1 (REQ-BFG-047): a Burn now lands once a second (3 whole ticks a stack's 3 s), not on every tick, so this battle
+      // has 42 burn-only ticks (16 Burn hits x 3, less the 6 due after 24 s), 8 of them soaked, where the base had 1,121 and
+      // 172. The floors keep their share of that evidence (were > 300 of 1,121 and > 30 of 172: 300 x 42 / 1121 = 11.2,
+      // 30 x 8 / 172 = 1.4)
+      expect(burnTicks, `★${s}: ticks when only burn landed`).toBeGreaterThan(11);
+      expect(soakedBurnTicks, `★${s}: ... and the plating soaked some`).toBeGreaterThan(1);
       note(`spall-burn | ★${s}: ${Math.round(bt.t * 60)} ticks checked; burn alone landed on ${burnTicks}, the plating soaking some on ${soakedBurnTicks}`);
     }
   });
@@ -484,17 +503,18 @@ describe("OVERCLOCKER on wave 3's rigs (overclock.ts)", () => {
       expect(boostable(e), `★${s}`).toBe(true);
       expect(overclocked(e).gauge, `★${s}`).toEqual({ flat: 2 * e.gauge!.flat, matched: 2 * e.gauge!.matched });
     }
-    // in a battle, its next boostable rig: on FOUNDRY's matched belt the gauge adds 3, or 6 when boosted; on FURNACE's
-    // unmatched belt 1, or 2
+    // in a battle, its next boostable rig: on FOUNDRY's matched belt the gauge adds 30, or 60 when boosted; on FURNACE's
+    // unmatched belt 10, or 20. NUM-1 (REQ-BFG-047): TWIN GAUGE ★1's numbers read from the data, x10 (were the literals 3, 1)
+    const g1 = effectAt("twingauge", 1).gate!.gauge!;
     const foundry = withItem(withItem({ ...heroStartBuild("foundry", 1), hullBonus: 5000 }, item(59, "overclocker", 1, 5, 0)), rig(60, "twingauge", 1, 3, 1));
     const furnaceG = withItem(oc(furnace()), rig(60, "twingauge", 3, 3, 1));
-    for (const [what, b, booster, plain] of [["foundry", foundry, 59, 3], ["furnace", furnaceG, 29, 1]] as const) {
+    for (const [what, b, booster, plain] of [["foundry", foundry, 59, g1.matched], ["furnace", furnaceG, 29, g1.flat]] as const) {
       legal(b, what);
       expect(new Battle(b, barge(), SEED).sides[0].gates.find((g) => g.uid === 60)!.boostedBy.map((x) => x.booster.uid), what).toEqual([booster]);
       const flats = crossings(b, 0, 2, 20, 1.8); // the gauge, the second rig on its belt, is online from 1.8 s
       expect(new Set(flats), what).toEqual(new Set([plain, 2 * plain]));
       expect(flats.filter((f) => f === 2 * plain).length, what).toBeGreaterThanOrEqual(3);
-      note(`oc-gauge | ${what} (${plain === 3 ? "matched" : "unmatched"}): payloads past TWIN GAUGE ${flats.join(", ")}`);
+      note(`oc-gauge | ${what} (${plain === g1.matched ? "matched" : "unmatched"}): payloads past TWIN GAUGE ${flats.join(", ")}`);
     }
   });
 
@@ -506,7 +526,9 @@ describe("OVERCLOCKER on wave 3's rigs (overclock.ts)", () => {
     }
     // in a battle: the plating rig on the Kiln belt's tile 2 is the OVERCLOCKER's next boostable rig, and each boost rolls
     // twice the plating (the hull stays under the cap in 20 s)
-    for (const [id, plate] of [["plateroller", 0.5], ["shieldwall", 1]] as const) {
+    // NUM-1 (REQ-BFG-047): each rig's ★1 plating read from the data, x10 (were the literals 0.5 and 1; now 5, 10)
+    for (const id of ["plateroller", "shieldwall"] as const) {
+      const plate = effectAt(id, 1).gate!.plate!;
       const b = withItem(oc(furnace()), rig(30, id, 3, 3, 1)); // at (3,3), facing east onto (4,3)
       legal(b, id);
       expect(new Battle(b, barge(), SEED).sides[0].gates.find((g) => g.uid === 30)!.boostedBy.map((x) => x.booster.uid), id).toEqual([29]);

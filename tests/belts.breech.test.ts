@@ -13,6 +13,7 @@ import { rateDeck } from "../src/sim/deckRating";
 import { routeProblems } from "../src/game/routeCheck";
 import { validateBuild } from "../src/net/validate";
 import { effectAt, outputsAt } from "../src/sim/stars";
+import { roundHalfUp } from "../src/sim/pct";
 import { barge, SEED } from "./arsenal.bench";
 import { K, tally } from "./belts.helpers";
 
@@ -75,7 +76,11 @@ describe("D5: the KILN BREECH and cinder ride scaling with more KILN belts", () 
     // the build screen's estimate (walkRoute): base + rideScale x ride; the long ride is worth more on every slug
     const est = (b: Build, ri: number) => walkRoute(b, ri).estimate;
     const [long1, short1, long2, short2] = [est(A, 0), est(A, 1), est(C, 0), est(C, 2)];
-    expect(long1.dmg - short1.dmg).toBeCloseTo(AMMO.cinder.rideScale * (long1.ride - short1.ride), 6);
+    // NUM-1 (N1 2.1): each estimate is whole, base + rideScale x ride rounded half up once (deck.ts payloadDamage), so
+    // the gap is the rounded long ride's less the rounded short's (was toBeCloseTo(rideScale x (long ride - short ride), 6))
+    const cinder = (ride: number): number => roundHalfUp(AMMO.cinder.base + AMMO.cinder.rideScale * ride);
+    expect([long1.dmg, short1.dmg]).toEqual([cinder(long1.ride), cinder(short1.ride)]);
+    expect(long1.dmg - short1.dmg).toBe(cinder(long1.ride) - cinder(short1.ride));
     expect(long1.dmg).toBeGreaterThan(short1.dmg);
     // level 2 grows the KILN's cycle only (oracle 6c20deea1363d0bb): every slug on the same belt arrives as heavy as at level 1
     expect(effectAt("kiln", 2).factory!.base).toBeUndefined();

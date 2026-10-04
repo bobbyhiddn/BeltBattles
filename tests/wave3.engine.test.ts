@@ -9,6 +9,7 @@ import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { estimateRoute, matchedRoutes, rigFactoryHits, rigHits, stokeHits, walkRoute, type Build } from "../src/sim/deck";
 import { stokeSpots, stokesIfPlaced, hitsIfPlaced } from "../src/sim/beltside";
 import { heroStartBuild } from "../src/sim/heroBuilds";
+import { effectAt } from "../src/sim/stars"; // NUM-1 (REQ-BFG-047): the rigs' numbers read from the data (x10)
 import { K, SEED, barge, events, furnaceBench, item, latchDeck, pastTile, run, twoPress, withItem, withMod } from "./wave3.helpers";
 
 const plain = (id: number): Payload => ({ id, ammo: "plain", ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: 0, copy: false });
@@ -26,45 +27,49 @@ describe("E1: plating on every hull (SideState.plate, the Prime's Q4)", () => {
     const s = bt.sides[0];
     expect(s.plate).toEqual(newPlateState());
     expect(bt.sides[1].plate).toEqual(newPlateState());
-    expect(bt.addPlate(s, 10)).toBe(10);
-    expect(bt.addPlate(s, 20)).toBe(PLATE_CAP - 10);
-    expect(bt.addPlate(s, 5)).toBe(0);
-    expect(s.plate).toEqual({ plate: 24, gained: 24, absorbed: 0, peak: 24 });
-    expect(bt.events.filter((e) => e.type === "plate").map((e) => (e as { amount: number }).amount)).toEqual([10, 14]);
-    expect(bt.spendPlate(s, 1)).toBe(1);
-    expect(s.plate.plate).toBe(23);
-    expect(bt.events.at(-1)).toEqual({ type: "plate", side: 0, amount: -1, plate: 23 });
+    // NUM-1 (REQ-BFG-047): plating x10 (PLATE_CAP 24 -> 240), so every amount here x10 (was 10, 20, 5; 24; [10, 14]; 1, 23)
+    expect(bt.addPlate(s, 100)).toBe(100);
+    expect(bt.addPlate(s, 200)).toBe(PLATE_CAP - 100);
+    expect(bt.addPlate(s, 50)).toBe(0);
+    expect(s.plate).toEqual({ plate: 240, gained: 240, absorbed: 0, peak: 240 });
+    expect(bt.events.filter((e) => e.type === "plate").map((e) => (e as { amount: number }).amount)).toEqual([100, 140]);
+    expect(bt.spendPlate(s, 10)).toBe(10);
+    expect(s.plate.plate).toBe(230);
+    expect(bt.events.at(-1)).toEqual({ type: "plate", side: 0, amount: -10, plate: 230 });
   });
 
   it("plating soaks impact damage with the Fray bonus point for point before the hull", () => {
     const bt = new Battle(furnaceBench(), barge(), SEED);
     const s = bt.sides[0], hp = s.hull.hp;
-    bt.addPlate(s, 10);
-    s.hull.fray = 5; // + 5 x 0.2 = 1 on every hit
-    impact(bt, shot(1, 6)); // 7 with the bonus: all soaked
-    expect([s.hull.hp, s.plate.plate, s.plate.absorbed]).toEqual([hp, 3, 7]);
-    impact(bt, shot(1, 6)); // 7: 3 soaked, 4 through
-    expect([s.hull.hp, s.plate.plate, s.plate.absorbed]).toEqual([hp - 4, 0, 10]);
-    expect(bt.sides[1].stats.damage).toBe(14); // the attacker dealt the whole of both hits
+    // NUM-1 (REQ-BFG-047): plating, damage and FRAY_BONUS x10 (was plating 10, shots of 6, + 5 x 0.2 = 1: [hp, 3, 7],
+    // [hp - 4, 0, 10], 14)
+    bt.addPlate(s, 100);
+    s.hull.fray = 5; // + 5 x 2 = 10 on every hit
+    impact(bt, shot(1, 60)); // 70 with the bonus: all soaked
+    expect([s.hull.hp, s.plate.plate, s.plate.absorbed]).toEqual([hp, 30, 70]);
+    impact(bt, shot(1, 60)); // 70: 30 soaked, 40 through
+    expect([s.hull.hp, s.plate.plate, s.plate.absorbed]).toEqual([hp - 40, 0, 100]);
+    expect(bt.sides[1].stats.damage).toBe(140); // the attacker dealt the whole of both hits
   });
 
   it("plating soaks burn, poison and limpet ticks; the dark wind goes straight through it", () => {
     const bt = new Battle(furnaceBench(), barge(), SEED);
     const s = bt.sides[0], hp = s.hull.hp;
-    bt.addPlate(s, 20);
-    s.hull.burns.push({ dps: 2, t: 1 });
-    s.hull.poison = { stacks: 5, t: 1 }; // 2 a second
-    s.limpets.push({ at: bt.t + 0.5, target: { kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 }, from: 1, blast: 5, stall: 0 });
+    // NUM-1 (REQ-BFG-047): plating, Burn, poison and the blast x10, in whole ticks (was plating 20; 2 + 2 + 5 soaked)
+    bt.addPlate(s, 200);
+    s.hull.burns.push({ dps: 2, t: 1 }); // 2 stacks: 2 x BURN_DPS (10) = 20, dealt at 1 s
+    s.hull.poison = { stacks: 5, t: 1 }; // 20 a second (4 a stack), dealt at 1 s
+    s.limpets.push({ at: bt.t + 0.5, target: { kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 }, from: 1, blast: 50, stall: 0 });
     for (let i = 0; i < 70; i++) bt.step();
-    expect(s.hull.hp).toBeCloseTo(hp, 9);
-    expect(s.plate.plate).toBeCloseTo(20 - 2 - 2 - 5, 6);
+    expect(s.hull.hp).toBe(hp); // NUM-1: whole (was toBeCloseTo(hp, 9))
+    expect(s.plate.plate).toBe(200 - 20 - 20 - 50); // NUM-1: whole (was toBeCloseTo(20 - 2 - 2 - 5, 6))
     // the wind: past WIND_START it hits the hull, and plating doesn't move
     bt.t = 26;
     const plate = s.plate.plate, before = s.hull.hp;
     for (let i = 0; i < 60; i++) bt.step();
     expect(s.plate.plate).toBe(plate);
-    expect(before - s.hull.hp).toBeCloseTo(s.stats.windTaken, 9);
-    expect(s.stats.windTaken).toBeGreaterThan(0.9);
+    expect(before - s.hull.hp).toBe(s.stats.windTaken); // NUM-1: whole (was toBeCloseTo(..., 9))
+    expect(s.stats.windTaken).toBeGreaterThan(9); // NUM-1: x10 (was 0.9): the wind's 10 a second at 26 s, one whole tick
   });
 
   it("with no plating source a side keeps 0: absorb hands back the damage unchanged, and no plate event fires", () => {
@@ -282,8 +287,9 @@ describe("E4: holds (TWIN LATCH, the Prime's Q7)", () => {
     const one = withItem(latchDeck(), item(40, "twinlatch", 2, 3)); // west arrow at (1,3): empty deck
     expect(new Battle(one, barge(), SEED).sides[0].latches).toBeUndefined();
     expect(holdEv(one)).toEqual([]);
-    expect(walkRoute(one, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 40)?.flat).toBe(1);
-    expect(pastTile(one, 0, 2).map((x) => x.flat)).toEqual(expect.arrayContaining([1]));
+    const latchFlat = effectAt("twinlatch", 1).gate!.latch!.flat; // NUM-1: read from the data, 10 (x10; was the literal 1)
+    expect(walkRoute(one, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 40)?.flat).toBe(latchFlat);
+    expect(pastTile(one, 0, 2).map((x) => x.flat)).toEqual(expect.arrayContaining([latchFlat]));
     const b = withItem(latchDeck(), LATCH());
     const stallAt: number[] = [], released: number[] = [];
     run(b, 6, barge(), SEED, quietB((ev, bt) => {
@@ -367,7 +373,11 @@ describe("E5: crossfire (PINCER)", () => {
   const whet = () => item(31, "whetstone", 5, 3, 3);
 
   it("adds its flat alone, and each for every other rig on its tile, up to 3 others: the walk and the battle agree", () => {
-    for (const [s, flat, each] of [[1, 1, 2], [2, 2.2, 4.4], [3, 3.5, 7]] as const) {
+    // NUM-1 (REQ-BFG-047): PINCER's numbers read from the data, x10 (were the literals 1/2, 2.2/4.4, 3.5/7; now 10/20, 22/44,
+    // 35/70), and the WHETSTONE's + 2 is its ★1 flat, now 20
+    const whetFlat = effectAt("whetstone", 1).gate!.flat!;
+    for (const s of [1, 2, 3] as const) {
+      const { flat, each } = effectAt("pincer", s).gate!.pincer!;
       const alone = withItem(furnaceBench(), pincer(s)), both = withItem(alone, whet());
       const th = (b: Build) => walkRoute(b, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 30)!;
       expect([th(alone).flat, th(alone).others]).toEqual([flat, 0]);
@@ -376,7 +386,7 @@ describe("E5: crossfire (PINCER)", () => {
       const flats: number[] = [];
       run(both, 8, barge(), SEED, (ev, bt) => { for (const e of ev) if (e.type === "load" && e.side === 0 && bt.t > 4) flats.push(bt.sides[0].turrets[0].stack.at(-1)!.flat); });
       expect(flats.length).toBeGreaterThan(1);
-      for (const f of flats) expect(f).toBeCloseTo(flat + each + 2, 9);
+      for (const f of flats) expect(f).toBe(flat + each + whetFlat); // NUM-1: whole (was toBeCloseTo(flat + each + 2, 9))
     }
   });
 
@@ -389,7 +399,8 @@ describe("E5: crossfire (PINCER)", () => {
         if (how === "wrecked") w.wrecked = true; else w[how] = 1;
         for (const e of ev) if (e.type === "load" && e.side === 0 && bt.t > 4) flats.push(bt.sides[0].turrets[0].stack.at(-1)!.flat);
       });
-      for (const f of flats) expect(f, how).toBe(1); // the pincer alone, and the whetstone adds nothing
+      // the pincer alone, and the whetstone adds nothing (NUM-1: PINCER ★1's flat from the data, 10; was the literal 1)
+      for (const f of flats) expect(f, how).toBe(effectAt("pincer", 1).gate!.pincer!.flat);
     }
   });
 });
@@ -398,8 +409,9 @@ describe("E6: matched belts (TWIN GAUGE)", () => {
   it("FOUNDRY's two mirrored belts into gun 1 are matched: +3 there, +1 on an unmatched belt; walk = battle", () => {
     const f = withItem(heroStartBuild("foundry", 1), item(60, "twingauge", 1, 3, 1)); // west of column 2, facing east
     expect(matchedRoutes(f)).toEqual([true, true]);
+    const gauge = effectAt("twingauge", 1).gate!.gauge!; // NUM-1: read from the data, x10 (were the literals 3 and 1; now 30, 10)
     const th = walkRoute(f, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 60)!;
-    expect([th.flat, th.matched]).toEqual([3, true]);
+    expect([th.flat, th.matched]).toEqual([gauge.matched, true]);
     const bt = new Battle(f, barge(), SEED);
     expect(bt.sides[0].gates.find((g) => g.uid === 60)!.hits.map((h) => h.matched)).toEqual([true]);
     // FURNACE's 6-tile kiln belt with a 7-tile press belt into the same gun: not matched; 7 and 7: matched
@@ -408,19 +420,22 @@ describe("E6: matched belts (TWIN GAUGE)", () => {
     busy.routes.push({ factory: 7, cells: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] });
     expect(matchedRoutes(busy)).toEqual([false, false]);
     const g1 = withItem(busy, item(60, "twingauge", 3, 3, 1));
-    expect(walkRoute(g1, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 60)!.flat).toBe(1);
+    expect(walkRoute(g1, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 60)!.flat).toBe(gauge.flat);
     expect(matchedRoutes(twoPress())).toEqual([true, true]);
     expect(matchedRoutes(twoPress(true))).toEqual([false, false]);
   });
 
   it("the battle pays the matched number: each slug past the gauge carries 3 / 6.6 / 10.5 on a matched belt", () => {
-    for (const [s, m] of [[1, 3], [2, 6.6], [3, 10.5]] as const) {
+    // NUM-1 (REQ-BFG-047): TWIN GAUGE's numbers read from the data, x10 (were the literals 3 / 6.6 / 10.5 matched and
+    // 1 / 2.2 / 3.5 unmatched; now 30 / 66 / 105 and 10 / 22 / 35)
+    for (const s of [1, 2, 3] as const) {
+      const { flat, matched: m } = effectAt("twingauge", s).gate!.gauge!;
       const g = withItem(twoPress(), item(60, "twingauge", 3, 3, 1, s)); // west of (4,3), belt A's tile 3, facing east
       const flats = pastTile(g, 0, 3).map((x) => x.flat);
       expect(flats.length, `★${s}`).toBeGreaterThan(1);
       for (const f of flats) expect(f, `★${s}`).toBe(m);
       const off = withItem(twoPress(true), item(60, "twingauge", 3, 3, 1, s)); // belt B one tile longer: unmatched
-      for (const f of pastTile(off, 0, 3).map((x) => x.flat)) expect(f, `★${s} unmatched`).toBe([1, 2.2, 3.5][s - 1]);
+      for (const f of pastTile(off, 0, 3).map((x) => x.flat)) expect(f, `★${s} unmatched`).toBe(flat);
     }
   });
 });

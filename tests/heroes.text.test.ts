@@ -26,7 +26,7 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
       // T47 (REQ-BFG-047): no seconds; its cycle moves with its FACTORY level (the blank, the window and the fusion keep
       // 0.8.4's numbers until the numbers release)
       "POURS AN ALLOY BLANK ONTO EACH OF ITS 2 BELTS AT THE SAME MOMENT.",
-      "AN ALLOY BLANK DEALS 3.5 DAMAGE.",
+      "AN ALLOY BLANK DEALS 35 DAMAGE.", // NUM-1 (REQ-BFG-047), the numbers release: AMMO.blank.base x10 (was 3.5)
       "TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN 0.25 SECONDS OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH 1.15 TIMES THEIR DAMAGE.",
       "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
     ]);
@@ -40,8 +40,9 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
     expect(t).toEqual([
       // bb-0.8.3 (REQ-BFG-042 M4): its belts; T47 (REQ-BFG-047): no seconds, as its cycle moves with its FACTORY level
       "STAMPS BULWARK SLUGS ONTO UP TO 2 BELTS IN TURN.",
-      "A BULWARK SLUG DEALS 5 DAMAGE.",
-      "EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY 2, UP TO 24 PLATING; A SPLITTER COPY PLATES BY ITS SHARE.",
+      // NUM-1 (REQ-BFG-047): AMMO.bulwark.base, PLATE_PER_SLUG and PLATE_CAP x10 (were 5, 2 and 24)
+      "A BULWARK SLUG DEALS 50 DAMAGE.",
+      "EACH ONE THAT LOADS INTO A TURRET PLATES YOUR HULL BY 20, UP TO 240 PLATING; A SPLITTER COPY PLATES BY ITS SHARE.",
       "PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES, AND IT LASTS UNTIL THE BATTLE ENDS.",
       "THE DARK WIND IGNORES PLATING.",
     ]);

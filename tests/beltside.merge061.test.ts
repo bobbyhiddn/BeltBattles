@@ -83,7 +83,8 @@ describe("P1: stars resolve first; shape is kept at every star (R10)", () => {
       b.items.push({ uid: 10, def: "overdrive", x: 3, y: 3, ...st(s) }, rigAt(11, "brake", 5, 3, 3));
       return b;
     };
-    for (const [s, tier, flat, speed] of [[1, 4, 0, 3], [2, 1, 1, 4], [3, 1, 3, 5]] as const) {
+    // NUM-1 (REQ-BFG-047): the flats x10, REDLINE +10 and AFTERBURNER +30 (were +1 and +3)
+    for (const [s, tier, flat, speed] of [[1, 4, 0, 3], [2, 1, 10, 4], [3, 1, 30, 5]] as const) {
       const b = deck(s);
       const tile = rigHits(b)[0][2];
       expect(tile.map((h) => [h.uid, h.tier]), `★${s}`).toEqual(tier === 1 ? [[10, 1], [11, 4]] : [[10, 4], [11, 4]]);
@@ -120,15 +121,19 @@ describe("P2: SPLITTER, each hit one split; a split makes one extra copy at ever
   it("the wrap: three hits on one belt; up to 8 payloads at every star (P12), and the battle makes exactly that many", () => {
     expect(hitsOfRig(wrap(1), 10).map((h) => h.tile)).toEqual([3, 5, 7]);
     expect(hitsOfRig(wrap(1, false), 10).map((h) => h.tile)).toEqual([5]);
-    for (const [s, copies, mult] of [[1, 8, 0.6], [2, 8, 0.72], [3, 8, 0.85]] as const) {
+    // NUM-1 (REQ-BFG-047): `flat` is the WHETSTONE's 20 (was 2) after the three splits, each taking its whole % of the flat
+    // so far, rounded half up once (Battle.applyHit's pct): 20 -> 12 -> 7 -> 4 at 60%, 20 -> 14 -> 10 -> 7 at 72%, 20 -> 17
+    // -> 14 -> 12 at 85% (was the fraction 2 x mult^3)
+    for (const [s, copies, mult, flat] of [[1, 8, 0.6, 4], [2, 8, 0.72, 7], [3, 8, 0.85, 12]] as const) {
       const e = estimateRoute(wrap(s), 0);
       expect(e.copies, `★${s}`).toBe(copies);
       const fam = family(wrap(s), 7);
       expect(fam, `★${s} battle`).toHaveLength(copies);
-      // estimateRoute and applyHit agree on the split's mult and on the flat it scaled (WHETSTONE's 2 before 3 splits)
+      // estimateRoute and applyHit agree on the split's mult, and the flat it scaled (WHETSTONE's 20 before 3 splits) is
+      // whole (NUM-1: was toBeCloseTo(2 * mult ** 3, 12))
       for (const p of fam) {
         expect(p.mult, `★${s} mult`).toBeCloseTo(mult ** 3, 12);
-        expect(p.flat, `★${s} flat`).toBeCloseTo(2 * mult ** 3, 12);
+        expect(p.flat, `★${s} flat`).toBe(flat);
         expect(p.prior, `★${s} prior`).toBe(4); // the WHETSTONE and three SPLITTER hits
       }
       expect(new Set(fam.map((p) => p.id)).size).toBe(copies);
@@ -175,13 +180,15 @@ describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says UP TO 6 H
     expect([two.prior, two.flat, two.capped]).toEqual([6, 6 * perHit(2), 6]);
     expect([three.prior, three.flat, three.capped]).toEqual([6, 6 * perHit(3), 6]);
     // 0.6.2t (REQ-BFG-032): the glossary's words; the stat row keeps its + and adds the unit, the cap reads UP TO
-    expect(hitLabel(one, "free")).toBe("LONG HAUL +8 DAMAGE (8 HITS BEFORE)");
-    expect(hitLabel(two, "free")).toBe("LONG HAUL +12 DAMAGE (UP TO 6 HITS)");
-    expect(gist("longhaul", 1)).toBe("1 DAMAGE FOR EACH EARLIER HIT");
-    expect(gist("longhaul", 2)).toBe("2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS");
-    expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 3.5 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
-    // the battle agrees: every payload past tile 8 carries 8 x 2 (the WHETSTONES) + LONG HAUL ★2 x 6
-    for (const p of family(snake(2), 8)) expect(p.flat).toBeCloseTo(8 * 2 + perHit(2) * 6, 9);
+    // NUM-1 (REQ-BFG-047): the numbers x10 (were +8, +12, 1, 2 and 3.5)
+    expect(hitLabel(one, "free")).toBe("LONG HAUL +80 DAMAGE (8 HITS BEFORE)");
+    expect(hitLabel(two, "free")).toBe("LONG HAUL +120 DAMAGE (UP TO 6 HITS)");
+    expect(gist("longhaul", 1)).toBe("10 DAMAGE FOR EACH EARLIER HIT");
+    expect(gist("longhaul", 2)).toBe("20 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS");
+    expect(abilityText("longhaul", 3).sentences[0]).toBe("ADDS 35 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
+    // the battle agrees: every payload past tile 8 carries 8 x 20 (the WHETSTONES; NUM-1: was 8 x 2) + LONG HAUL ★2 x 6,
+    // whole (NUM-1: was toBeCloseTo(..., 9))
+    for (const p of family(snake(2), 8)) expect(p.flat).toBe(8 * 20 + perHit(2) * 6);
   });
 
   it("a hit counts even from the same tile's tier 1 (R7), and each arrow of one rig counts once (R8)", () => {
@@ -191,7 +198,8 @@ describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says UP TO 6 H
     const h = walkRoute(same, 0).timeline[0].hits;
     expect(h.map((x) => [x.uid, x.tier])).toEqual([[10, 1], [11, 2]]);
     expect([h[1].prior, h[1].flat]).toEqual([1, perHit(1)]);
-    expect(estimateRoute(same, 0).dmg - estimateRoute(bench(), 0).dmg).toBeCloseTo(2 + perHit(1) * 1, 9);
+    // NUM-1 (REQ-BFG-047): the WHETSTONE's 20 (was 2); both estimates are whole, so the difference is exact (was toBeCloseTo(..., 9))
+    expect(estimateRoute(same, 0).dmg - estimateRoute(bench(), 0).dmg).toBe(20 + perHit(1) * 1);
     // an L COIL on a corner lands both arrows on one belt: two prior hits for a later LONG HAUL. The belt turns at
     // (3,4); the COIL at (4,3), rot 2 (back and -x), works (4,4) (tile 1) and (3,3) (tile 3) from inside the bend
     const corner = bench();
@@ -278,7 +286,8 @@ describe("P5: OVERDRIVE ★2/★3 guard flags from every hit tile downstream, on
     expect(r.guard).toEqual([0, 0, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW, GUARD_SLOW]);
     const hits = walkRoute(b, 0).timeline[0].hits;
     // 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): REDLINE's +1 makes it tier 1, so it comes first; speeds and flags as before
-    expect(hits.map((h) => [h.uid, h.tier, h.flat ?? 0, h.speed, h.won])).toEqual([[10, 1, 1, 4, true], [11, 1, 5, 0.5, false]]);
+    // NUM-1 (REQ-BFG-047): the flats x10, REDLINE +10 and RED-HOT SHOE +50 (were +1 and +5)
+    expect(hits.map((h) => [h.uid, h.tier, h.flat ?? 0, h.speed, h.won])).toEqual([[10, 1, 10, 4, true], [11, 1, 50, 0.5, false]]);
   });
 
   // 0.8.0 B1 M2 (oracle 1cd5224fab866da2 (A)): the case P13 was written for, kept at ★1 (a tier-4 OVERDRIVE with no flat)
@@ -291,7 +300,8 @@ describe("P5: OVERDRIVE ★2/★3 guard flags from every hit tile downstream, on
     expect(r.speedAt.slice(2)).toEqual([3, 3, 3, 3]); // |ln 3| > |ln 0.5|: the OVERDRIVE holds the tile
     expect(r.guard).toEqual([0, 0, 0, 0, 0, 0]);
     const hits = walkRoute(b, 0).timeline[0].hits;
-    expect(hits.map((h) => [h.uid, h.tier, h.flat ?? 0, h.speed, h.won])).toEqual([[11, 1, 5, 0.5, false], [10, 4, 0, 3, true]]);
+    // NUM-1 (REQ-BFG-047): RED-HOT SHOE's flat x10, +50 (was +5)
+    expect(hits.map((h) => [h.uid, h.tier, h.flat ?? 0, h.speed, h.won])).toEqual([[11, 1, 50, 0.5, false], [10, 4, 0, 3, true]]);
   });
 });
 

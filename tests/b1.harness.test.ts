@@ -82,10 +82,13 @@ describe("B1 M2: the par player's rating reads plating as battles hold it (deckR
     heroes: Record<string, { shots: number; mean: number; share: number }>; breaker: { blowsTakingPlating: [number, number] };
   };
 
-  it("MEAN_PLATE is each hero's own measured plating at a shot (within 0.3); P1's half-the-cap 12 is gone", () => {
+  // NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): the fixture's means are in pre-NUM-1 plating units, the file
+  // unchanged: this test reads them x10 (its own inline conversion) and scales the tolerance with them (0.3 -> 3)
+  it("MEAN_PLATE is each hero's own measured plating at a shot (within 3, NUM-1 units; was 0.3); P1's half-the-cap 120 is gone", () => {
     for (const h of ["bastion", "furnace", "weaver", "foundry"] as const) {
       expect(M.heroes[h].shots, h).toBeGreaterThan(1000);
-      expect(Math.abs(meanPlate(h) - M.heroes[h].mean), `${h}: ${meanPlate(h)} vs measured ${M.heroes[h].mean}`).toBeLessThanOrEqual(0.3);
+      const measured = M.heroes[h].mean * 10;
+      expect(Math.abs(meanPlate(h) - measured), `${h}: ${meanPlate(h)} vs measured ${measured}`).toBeLessThanOrEqual(3);
       expect(MEAN_PLATE[h], h).toBe(meanPlate(h));
     }
     expect(meanPlate("metronome")).toBe(MEAN_PLATE_OTHER);
@@ -112,7 +115,7 @@ describe("B1 M2: the par player's rating reads plating as battles hold it (deckR
     const bas = withBreaker(heroStartBuild("bastion", 1));
     expect(platedDeck(bas)).toBe(true);
     const lo = walkRoute(bas, 0, undefined, { unplated: true }).estimate.dmg, hi = walkRoute(bas, 0).estimate.dmg;
-    expect(hi - lo).toBeCloseTo(3, 9); // +4 against +1 at 1 star
+    expect(hi - lo).toBe(30); // +40 against +10 at 1 star (NUM-1: x10, was toBeCloseTo(3, 9): +4 against +1; whole now, so exact)
     // the rated damage per payload on that belt: rateDeck's offense with the breaker, against offense with the walk's
     // big number counted in full (BREAKER_SHARE 1) and with its floor (0): the share it reads is BREAKER_SHARE
     const off = (share: number) => rateDeck(bas, RATING_CURVE, FIGHT_T, undefined, share).offense;

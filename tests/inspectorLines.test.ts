@@ -118,18 +118,22 @@ describe("U2e step 1 (was N2 / T5): no panel draws merge progress", () => {
 
 describe("N4: a turret core's lines show that star's numbers at the hero's class factor", () => {
   it("PRESSURE BREECH on FURNACE (heavy, k 1): ★1 -> ★2 and ★2 -> ★3", () => {
-    // U2c (U2b's faces): NEXT★ and MERGES INTO show that star's damage per load waiting, "+2.6 {DMG}" (its perQueued, at
+    // U2c (U2b's faces): NEXT★ and MERGES INTO show that star's damage per load waiting, "+26 {DMG}" (NUM-1: x10, was
+    // "+2.6 {DMG}"; its perQueued, at
     // k 1, through fmtDmg, the face's formatter); were "NEXT STAR: 2.6 MORE DAMAGE FOR EACH PAYLOAD WAITING." and
     // "MERGES WITH YOUR PRESSURE BREECH INTO ★2: 2.6 MORE DAMAGE FOR EACH PAYLOAD WAITING."
     const per = (s: number): string => `+${fmtDmg(effectAt("pressure", s).core!.perQueued!)} ${ICON.DMG}`;
     expect(nextLine(holding("pressure", [1]), "pressure", 1)).toBe(`NEXT ★2: ${per(2)}`);
     expect(mergeLine(holding("pressure", [1]), "pressure")).toBe(`MERGES INTO ★2: ${per(2)}.`);
-    expect(abilityText("pressure", 2).sentences[0]).toBe("SHOTS DEAL 2.6 MORE DAMAGE FOR EACH PAYLOAD WAITING, UP TO 5 PAYLOADS.");
+    // NUM-1 (REQ-BFG-047): x10, the ★2 perQueued through fmtDmg ("26"; was the literal "2.6")
+    expect(abilityText("pressure", 2).sentences[0]).toBe(`SHOTS DEAL ${fmtDmg(effectAt("pressure", 2).core!.perQueued!)} MORE DAMAGE FOR EACH PAYLOAD WAITING, UP TO 5 PAYLOADS.`);
     expect(nextLine(holding("pressure", [2]), "pressure", 2)).toBe(`NEXT ★3: ${per(3)}`);
     expect(mergeLine(holding("pressure", [2, 1]), "pressure")).toBe(`MERGES INTO ★3: ${per(3)}.`);
   });
 
   it("on WEAVER (light, k 0.55) the absolute numbers scale like the fitted core's: 2.6 x 0.55 = 1.43, 4.2 x 0.55 = 2.31", () => {
+    // NUM-1 (REQ-BFG-047): x10 and whole at install (cores.ts scaleCore, kp 55): 26 x 0.55 = 14.3 -> 14, 42 x 0.55 = 23.1
+    // -> 23, so NEXT★ shows "+14 {DMG}" / "+23 {DMG}" (the title's 1.43 / 2.31 are the pre-NUM-1 numbers)
     // U2c (U2b's faces): NEXT★ shows "+1.4 {DMG}" / "+2.3 {DMG}": the fitted core's k-scaled perQueued at that star
     // (resolveCore, as below) through fmtDmg, the face's formatter; were "NEXT STAR: 1.4 MORE DAMAGE FOR EACH PAYLOAD
     // WAITING." and "NEXT STAR: 2.3 MORE DAMAGE FOR EACH PAYLOAD WAITING."
@@ -143,7 +147,9 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
     // the turret panel's source for the same core once fitted: resolveCore's k-scaled spec
     const run = newRun("weaver", 4242);
     run.build.mods.push({ uid: 950, def: "pressure", turret: 0, stars: 2 });
-    expect(resolveCore(run.build, 0).spec.perQueued).toBeCloseTo(1.43, 6);
+    // NUM-1 (REQ-BFG-047): ★2 perQueued x10 (26) and whole at install (cores.ts scaleCore: kp = round(100 x 0.55) = 55,
+    // roundHalfUp(26 x 55 / 100) = roundHalfUp(14.3) = 14); was toBeCloseTo(1.43, 6)
+    expect(resolveCore(run.build, 0).spec.perQueued).toBe(14);
   });
 
   it("ROTARY BREECH: its stars make the turret fire faster, then never jam (the perk named after that sentence)", () => {
@@ -190,22 +196,25 @@ describe("F7 (the Prime's call): portrait action buttons (portraitButtons, pure 
 // 0.6.1c: the six factories' headlines, written out by hand from catalogue.json (star1-star3, perk); 0.6.2t: the
 // glossary's clauses (gist) in words and units (were "2 X 3 DMG EVERY 2.2S" and the like)
 describe("0.6.1c: each factory's clause at each star, its perks named, and the phone band", () => {
+  // NUM-1 (REQ-BFG-047): the slug damage x10 (catalogue: AMMO plain 30 / shot 10 / slag 70, factory bases 50, 20, 30,
+  // 120, 150, 60); was 3 / 5 / 5, 1 / 2 / 3, 7 / 12 / 15 and GANTRY ★3's 6. Burn stacks, counts and times unchanged
   const HEAD: Record<string, [string, string, string]> = {
-    doublestamp: ["2 SLUGS OF 3 DAMAGE EVERY 2.2 SECONDS", "2 SLUGS OF 5 DAMAGE EVERY 1.6 SECONDS", "3 SLUGS OF 5 DAMAGE EVERY 1.6 SECONDS"],
-    shottower: ["1 DAMAGE BUCKSHOT EVERY 1.5 SECONDS", "2 DAMAGE BUCKSHOT EVERY 1.35 SECONDS", "3 DAMAGE BUCKSHOT EVERY 1.3 SECONDS"],
+    doublestamp: ["2 SLUGS OF 30 DAMAGE EVERY 2.2 SECONDS", "2 SLUGS OF 50 DAMAGE EVERY 1.6 SECONDS", "3 SLUGS OF 50 DAMAGE EVERY 1.6 SECONDS"],
+    shottower: ["10 DAMAGE BUCKSHOT EVERY 1.5 SECONDS", "20 DAMAGE BUCKSHOT EVERY 1.35 SECONDS", "30 DAMAGE BUCKSHOT EVERY 1.3 SECONDS"],
     hotswap: ["2 BURN, SHOCK STALLS A MACHINE FOR 1.6 SECONDS", "4 BURN, SHOCK STALLS 2 MACHINES FOR 1.8 SECONDS", "7 BURN, SHOCK STALLS 2 MACHINES FOR 2.8 SECONDS"],
-    slagpot: ["7 DAMAGE SLAG EVERY 2.8 SECONDS", "12 DAMAGE SLAG EVERY 2.2 SECONDS", "15 DAMAGE SLAG EVERY 1.75 SECONDS"],
+    slagpot: ["70 DAMAGE SLAG EVERY 2.8 SECONDS", "120 DAMAGE SLAG EVERY 2.2 SECONDS", "150 DAMAGE SLAG EVERY 1.75 SECONDS"],
     assembly: ["RIGS ONLINE IN HALF THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME", "ALL RIGS ONLINE AT ONCE"],
     // bb-0.8.3 (REQ-BFG-042 D3, M4): its belts (3 / 4 / 5, were 2 / 3 / 3) close the next-star line, so the clause is
     // FOURTH ARM's stamp (0.8.0: "FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS"). T47 (REQ-BFG-047): no seconds, so
     // ★1 says its belts (as 0.8.4 did) and FOURTH ARM says FASTER
-    gantry: ["FEEDS 3 BELTS", "FASTER PLAIN SLUGS", "6 DAMAGE SLUGS"],
+    gantry: ["FEEDS 3 BELTS", "FASTER PLAIN SLUGS", "60 DAMAGE SLUGS"], // NUM-1: x10 (was 6)
   };
   // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS ★2 is FOURTH ARM (was THIRD ARM)
   const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", "HOT START"], gantry: ["FOURTH ARM", "HEAVY GANTRY"] };
 
   it("gist, the next-star sentence and MERGES WITH (STAMP PRESS keeps its stamp rate and slug damage)", () => {
-    expect(gist("press", 2)).toBe("5 DAMAGE SLUGS EVERY 1.1 SECONDS");
+    // NUM-1 (REQ-BFG-047): x10, STAMP PRESS ★2's factory base through fmtDmg ("50"; was the literal "5")
+    expect(gist("press", 2)).toBe(`${fmtDmg(effectAt("press", 2).factory!.base!)} DAMAGE SLUGS EVERY 1.1 SECONDS`);
     for (const [def, h] of Object.entries(HEAD)) {
       expect([1, 2, 3].map((s) => gist(def, s)), def).toEqual(h);
       const [p2, p3] = PERK[def];
@@ -378,7 +387,8 @@ describe("shared timing gear inspection", () => {
     expect([1, 2, 3].map((s) => abilityText("escapement", s).sentences)).toEqual([11, 16, 22].map((p) => [
       `THE TURRET FIRES ${p}% FASTER.`, "ON METRONOME, PENDULUM SLUGS FROM THIS TURRET PEAK 1.2 SECONDS EARLIER, AFTER 7 TILES.",
     ]));
-    expect([1, 2, 3].map((s) => abilityText("longcase", s).sentences)).toEqual([1.5, 2.5, 4].map((d) => [
+    // NUM-1 (REQ-BFG-047): x10, each star's longRideFlat through fmtDmg (15, 25, 40; was the literals 1.5, 2.5, 4)
+    expect([1, 2, 3].map((s) => abilityText("longcase", s).sentences)).toEqual([1, 2, 3].map((s) => fmtDmg(effectAt("longcase", s).mod!.longRideFlat!)).map((d) => [
       `SHOTS FROM PAYLOADS THAT RODE 2 SECONDS OR MORE DEAL ${d} MORE DAMAGE.`,
       "PENDULUM SLUGS DON'T GET IT; ON METRONOME THEY PEAK 1.2 SECONDS LATER ON THIS TURRET, AFTER 13 TILES.",
     ]));
@@ -396,12 +406,15 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
   };
 
   it("BRAKE SHOE: HALF SPEED at every star, and 2 / 5 DAMAGE from the heat", () => {
+    // NUM-1 (REQ-BFG-047): the heat's damage x10, each star's flat through fmtDmg (20, 50; was the literals 2, 5)
+    const flat = (s: number): string => fmtDmg(effectAt("brake", s).gate!.flat!);
     expect([1, 2, 3].map((s) => abilityText("brake", s).sentences[0])).toEqual([
-      "SLOWS THE BELT PAST IT TO HALF SPEED.", "SLOWS THE BELT PAST IT TO HALF SPEED AND ADDS 2 DAMAGE TO EACH PAYLOAD.",
-      "SLOWS THE BELT PAST IT TO HALF SPEED AND ADDS 5 DAMAGE TO EACH PAYLOAD.",
+      "SLOWS THE BELT PAST IT TO HALF SPEED.", `SLOWS THE BELT PAST IT TO HALF SPEED AND ADDS ${flat(2)} DAMAGE TO EACH PAYLOAD.`,
+      `SLOWS THE BELT PAST IT TO HALF SPEED AND ADDS ${flat(3)} DAMAGE TO EACH PAYLOAD.`,
     ]);
     expect([abilityText("brake", 2).perk, abilityText("brake", 3).perk]).toEqual([{ name: "HOT SHOE", stars: 2, after: 0 }, { name: "RED-HOT SHOE", stars: 3, after: 0 }]);
-    // U2c (U2b's faces): NEXT★ and MERGES INTO show the damage the heat adds at that star, "+2 {DMG}" / "+5 {DMG}" (the
+    // U2c (U2b's faces): NEXT★ and MERGES INTO show the damage the heat adds at that star, "+20 {DMG}" / "+50 {DMG}"
+    // (NUM-1: x10, were "+2 {DMG}" / "+5 {DMG}"; the
     // star's flat through fmtDmg), its perk named after it; were "NEXT STAR: ADDS 2 DAMAGE. ★2 HOT SHOE ..." and
     // "MERGES WITH YOUR BRAKE SHOE INTO ★2: ADDS 2 DAMAGE. ★2 HOT SHOE"
     const heat = (s: number): string => `+${fmtDmg(effectAt("brake", s).gate!.flat!)} ${ICON.DMG}`;
@@ -425,9 +438,10 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
 
   it("the other speed rigs read their speed in words; a rig's next-star line names the perk that star brings, once", () => {
     expect([1, 2, 3].map((s) => gist("grease", s))).toEqual(["60% FASTER", "2.3 TIMES AS FAST", "3.1 TIMES AS FAST"]);
-    expect(gist("overdrive", 3)).toBe("5 TIMES AS FAST, ADDS 3 DAMAGE");
+    // NUM-1 (REQ-BFG-047): x10, OVERDRIVE ★3's flat through fmtDmg ("30"; was the literal "3")
+    expect(gist("overdrive", 3)).toBe(`5 TIMES AS FAST, ADDS ${fmtDmg(effectAt("overdrive", 3).gate!.flat!)} DAMAGE`);
     // U2c (U2b's faces): NEXT★ shows the next star's changed numbers, each the ★3 value through its formatter: OVERDRIVE's
-    // "5 TIMES" (fmtCount) and "+3 {DMG}" (fmtDmg), then AFTERBURNER once; GALVANIC COIL's "{STUN} 2.8" (fmtSec; its 2 parts
+    // "5 TIMES" (fmtCount) and "+30 {DMG}" (fmtDmg; NUM-1: x10, was "+3 {DMG}"), then AFTERBURNER once; GALVANIC COIL's "{STUN} 2.8" (fmtSec; its 2 parts
     // are ★2's too, so the diff leaves them out), no perk. Were "NEXT STAR: 5 TIMES AS FAST, ADDS 3 DAMAGE. ★3 AFTERBURNER
     // ..." and "NEXT STAR: STALLS 2 MACHINES FOR 2.8 SECONDS. ..."
     const od3 = effectAt("overdrive", 3).gate!;

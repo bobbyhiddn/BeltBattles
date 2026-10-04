@@ -10,19 +10,21 @@
 // And ARMOR PRESS's plain slug: the damage its text names is every slug it stamps in the battle, at every star.
 import { describe, expect, it } from "vitest";
 import { Battle, type SimEvent } from "../src/sim/battle";
-import type { HeroId } from "../src/sim/content";
+import { AMMO, type HeroId } from "../src/sim/content"; // NUM-1: AMMO (the plain slug's base)
 import type { Build } from "../src/sim/deck";
 import { heroStartBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { abilityText } from "../src/ui/abilityText";
+import { pct } from "../src/sim/pct"; // NUM-1 (REQ-BFG-047): the one % rule (n x p%, rounded half up once)
 import { newRun } from "../src/game/run";
 import { textOpts } from "../src/screens/build/inspector";
 import { furnaceBench, item, K, latchDeck, pastTile, withItem } from "./wave3.helpers";
 
 const SEED = 12345;
-const barge = (): Build => ({ hero: "weaver", items: [{ uid: 1, def: "loom", x: 4, y: 5 }], routes: [], mods: [], beltCap: 24, hullBonus: 5000 });
+// NUM-1 (REQ-BFG-047): the stand-in hulls' bonus x10 with the hull (was 5000 on both), so the barge outlasts the 30 s bench
+const barge = (): Build => ({ hero: "weaver", items: [{ uid: 1, def: "loom", x: 4, y: 5 }], routes: [], mods: [], beltCap: 24, hullBonus: 50000 });
 const bench = (hero: HeroId, anvil = 0): Build => {
   const b = heroStartBuild(hero);
-  return { ...b, hullBonus: b.hullBonus + 5000, mods: anvil ? [...b.mods, { uid: 950, def: "anvil", turret: 0, ...(anvil > 1 ? { stars: anvil } : {}) }] : [...b.mods] };
+  return { ...b, hullBonus: b.hullBonus + 50000, mods: anvil ? [...b.mods, { uid: 950, def: "anvil", turret: 0, ...(anvil > 1 ? { stars: anvil } : {}) }] : [...b.mods] };
 };
 
 /** Every shot of side 0's first gun over 30 s: its damage and the plating the hull held as it fired (the pool at the
@@ -44,20 +46,25 @@ function shots(b: Build, plate: number): { dmg: number; plate: number }[] {
   return out;
 }
 
-/** ANVIL BREECH's gain a shot on `hero`'s first gun as flat + per x plating: least squares over the shots at the hull's
- *  own plating and at 24 more, each against the same shot without the core. */
-function anvilFit(hero: HeroId, stars: number): { flat: number; per: number; worst: number; n: number } {
+/** ANVIL BREECH's gain a shot on `hero`'s first gun as flat + per x plating, over the shots at the hull's own plating and
+ *  at 240 more, each against the same shot without the core. NUM-1 (REQ-BFG-047, N1 2.1): the gain is whole, flat +
+ *  roundHalfUp(plating x per) with per a whole % of the plating (cores.ts scaleCore, Battle.fireCore's pct), so a
+ *  least-squares line no longer explains every shot exactly (BASTION's own plating, ★3: per 2.63). It was that line with
+ *  its worst residual; it is now every (flat, per) with per a whole % (0 to 10 per plating) under which one flat explains
+ *  every shot exactly. */
+function anvilFit(hero: HeroId, stars: number): { fits: { flat: number; per: number }[]; n: number } {
   const pts: { x: number; y: number }[] = [];
-  for (const plate of [0, 24]) {
+  for (const plate of [0, 240]) { // NUM-1 (REQ-BFG-047): plating x10 (was 24, the old PLATE_CAP; now 240)
     const base = shots(bench(hero), plate), withA = shots(bench(hero, stars), plate);
     expect(withA.map((s) => s.plate), `${hero} ★${stars}: the core changes no shot's timing or plating`).toEqual(base.map((s) => s.plate));
     withA.forEach((s, i) => pts.push({ x: s.plate, y: s.dmg - base[i].dmg }));
   }
-  const n = pts.length, mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n;
-  const sxx = pts.reduce((a, p) => a + (p.x - mx) ** 2, 0), sxy = pts.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0);
-  const per = sxy / sxx, flat = my - per * mx;
-  const worst = Math.max(...pts.map((p) => Math.abs(p.y - (flat + per * p.x))));
-  return { flat, per, worst, n };
+  const fits: { flat: number; per: number }[] = [];
+  for (let p = 0; p <= 1000; p++) {
+    const flats = new Set(pts.map((q) => q.y - pct(q.x, p)));
+    if (flats.size === 1) fits.push({ flat: [...flats][0], per: p / 100 });
+  }
+  return { fits, n: pts.length };
 }
 
 /** The two numbers of ANVIL BREECH's sentence as `hero`'s panel shows them (textOpts of a fresh run: its class factor). */
@@ -75,10 +82,14 @@ describe("a turret core's numbers on every playable hero's own gun (the text she
       const [flat, per] = anvilText(hero, stars);
       const fit = anvilFit(hero, stars);
       expect(fit.n, `${hero} ★${stars}: shots`).toBeGreaterThanOrEqual(8);
-      expect(fit.worst, `${hero} ★${stars}: flat + per x plating explains every shot`).toBeLessThan(1e-6);
-      // the panel rounds to one decimal place (0.75 shows 0.8): within half a step of the battle's number
-      expect(Math.abs(fit.flat - flat), `${hero} ★${stars} flat: text ${flat}, battle ${fit.flat}`).toBeLessThanOrEqual(0.05 + 1e-9);
-      expect(Math.abs(fit.per - per), `${hero} ★${stars} per plating: text ${per}, battle ${fit.per}`).toBeLessThanOrEqual(0.05 + 1e-9);
+      // NUM-1 (REQ-BFG-047): exact as before (was: the line's worst residual < 1e-6), with the battle's whole-damage rounding
+      expect(fit.fits.length, `${hero} ★${stars}: flat + roundHalfUp(per x plating) explains every shot`).toBeGreaterThan(0);
+      for (const f of fit.fits) {
+        // NUM-1: the flat is whole on the panel and in the battle: the same number (was within 0.05)
+        expect(f.flat, `${hero} ★${stars} flat: text ${flat}, battle ${f.flat}`).toBe(flat);
+        // the panel rounds per to one decimal place (0.75 shows 0.8): within half a step of the battle's number
+        expect(Math.abs(f.per - per), `${hero} ★${stars} per plating: text ${per}, battle ${f.per}`).toBeLessThanOrEqual(0.05 + 1e-9);
+      }
       seen.add(`${flat}/${per}`);
     }
     expect(seen.size).toBeGreaterThanOrEqual(9); // the class factor moves the numbers: not one text for every hero
@@ -99,7 +110,8 @@ describe("a turret core's numbers on every playable hero's own gun (the text she
 
   it("ARMOR PRESS: the plain slug's damage its text names, at 1, 2 and 3 stars, is every stamped slug's in the battle", () => {
     // wave3.modules reads the press's plating and its stamping pace in battle; here the slug's damage, as TWIN MOULD's
-    // test reads its casts (Payload.base; a plain slug without one is 3)
+    // test reads its casts (Payload.base; a plain slug without one is AMMO.plain.base). NUM-1 (REQ-BFG-047): that fallback
+    // was the literal 3 (the plain slug's old base); it is the catalogue's AMMO.plain.base now (x10: 30)
     for (const s of [1, 2, 3]) {
       const said = abilityText("armorpress", s).sentences[0];
       const m = /STAMPS A PLAIN SLUG \(([\d.]+) DAMAGE\)/.exec(said);
@@ -112,7 +124,7 @@ describe("a turret core's numbers on every playable hero's own gun (the text she
       while (bt.t < 12 && !bt.over) {
         bt.step();
         bt.drainEvents();
-        for (const a of bt.sides[0].routes[1].ammo) if (!seen.has(a.p.id)) { seen.add(a.p.id); bases.add(a.p.base ?? 3); }
+        for (const a of bt.sides[0].routes[1].ammo) if (!seen.has(a.p.id)) { seen.add(a.p.id); bases.add(a.p.base ?? AMMO.plain.base); }
       }
       expect(seen.size, `★${s}: slugs stamped`).toBeGreaterThan(3);
       expect([...bases], `★${s}`).toEqual([Number(m![1])]);

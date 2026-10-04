@@ -38,10 +38,10 @@ describe("heroBuilds: one entry point for all six heroes", () => {
 
   it("the plating ramp rounds the warlord curve to the NEAREST plate, never negative (Step A)", () => {
     expect(PLATE_STEP).toBe(ITEMS.plating.supply!.hull!);
-    expect(PLATE_STEP).toBe(25);
+    expect(PLATE_STEP).toBe(250); // NUM-1: x10 (was 25), ARMOR PLATING's hull
     expect(DAYS.map(rampPlates)).toEqual([0, 0, 0, 0, 1, 1, 2, 2, 2, 3]);
     for (const d of DAYS) expect(rampPlates(d)).toBe(Math.max(0, Math.round(warlordHull(d) / PLATE_STEP)));
-    expect(DAYS.map(refHull)).toEqual([0, 0, 0, 0, 25, 25, 50, 50, 50, 75]);
+    expect(DAYS.map(refHull)).toEqual([0, 0, 0, 0, 250, 250, 500, 500, 500, 750]); // NUM-1: x10 (was 0 ... 25, 25, 50, 50, 50, 75)
   });
 
   it("Furnace and Weaver delegate to ai.ts: warlordBuild with hullBonus = step x rampPlates(day)", () => {
@@ -56,9 +56,9 @@ describe("heroBuilds: one entry point for all six heroes", () => {
         expect(Object.keys(b).sort()).toEqual(Object.keys(w).sort());
       }
     }
-    expect(heroRefBuild("furnace", 1).hullBonus).toBe(0); // warlord -27
-    expect(heroRefBuild("furnace", 5).hullBonus).toBe(25); // warlord 17
-    expect(heroRefBuild("weaver", 10).hullBonus).toBe(75); // warlord 72
+    expect(heroRefBuild("furnace", 1).hullBonus).toBe(0); // warlord -270 (NUM-1: x10, was -27)
+    expect(heroRefBuild("furnace", 5).hullBonus).toBe(250); // warlord 170 (NUM-1: x10, was 25 / warlord 17)
+    expect(heroRefBuild("weaver", 10).hullBonus).toBe(750); // warlord 720 (NUM-1: x10, was 75 / warlord 72)
   });
 
   it("the race heroes ride the same ramp: hullBonus = step x rampPlates(day)", () => {
@@ -86,7 +86,7 @@ describe("heroBuilds: honest budget (ruling 3)", () => {
       for (const d of DAYS) {
         const b = heroRefBuild(h, d);
         expectLegal(b, d);
-        expect(b.hullBonus % 25).toBe(0);
+        expect(b.hullBonus % 250).toBe(0); // NUM-1: whole plates of 250 (x10, was % 25)
         expect(b.hullBonus).toBeGreaterThanOrEqual(0);
         expect(buildCost(b)).toBeLessThanOrEqual(maxGoldByDay(d));
         n++;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { newRun, type Run } from "../src/game/run";
-import { HEROES, ITEMS, buyableModules, rigShape, type HeroId } from "../src/sim/content";
+import { AMMO, HEROES, ITEMS, buyableModules, rigShape, type HeroId } from "../src/sim/content";
 import { gearSlotsOf, key as K, rotField, setTurretList, turretSlots, walkRoute, type Placed } from "../src/sim/deck";
 import { emptySlotPanel } from "../src/screens/build/turretPanel";
 import { rotFacing } from "../src/sim/beltside";
@@ -22,7 +22,7 @@ import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
 import { faceLines } from "../src/ui/faces"; // U2a
 import { speedPair } from "../src/ui/faces"; // U2c step 4: the installed turret's stat row
 import { statRow } from "../src/ui/icons"; // U2c step 4
-import { fmtCount, fmtSec } from "../src/ui/statFormat"; // U2c step 4
+import { fmtCount, fmtDmg, fmtSec } from "../src/ui/statFormat"; // U2c step 4; NUM-1: fmtDmg
 import { icons, stripIcons } from "../src/render/font"; // U2c step 4
 import { resolveCore } from "../src/sim/cores"; // U2c step 4
 import { glossaryText } from "../src/ui/glossary"; // U2c step 4: COMPOUND BREECH's hold, its tap text
@@ -500,8 +500,9 @@ describe("0b.4: a SLAG belt's readout says what the sim does there; METRONOME's 
       expect(text, `★${s}`).toContain("GREASE WORKS: NO EFFECT ON SLAG");
       const flat = effectAt("brake", s).gate!.flat ?? 0;
       expect(text, `★${s}`).toContain(flat ? `BRAKE SHOE +${flat} DAMAGE, NO SPEED CHANGE ON SLAG` : "BRAKE SHOE: NO EFFECT ON SLAG");
-      // the gun end: slag's 7 plus the shoe's heat, never a locked bonus; the belt at slag's own 75%
-      expect(text, `★${s}`).toContain(`DMG ${(7 + flat).toFixed(1)}, BURN 0`);
+      // the gun end: slag's base plus the shoe's heat, never a locked bonus; the belt at slag's own 75%
+      // NUM-1: slag's base from the data (AMMO.slag.base, 70; was the literal 7)
+      expect(text, `★${s}`).toContain(`DMG ${(AMMO.slag.base + flat).toFixed(1)}, BURN 0`);
       expect(all, `★${s}`).toContain("SPD 75% (SLAG)");
     }
   });
@@ -511,7 +512,7 @@ describe("0b.4: a SLAG belt's readout says what the sim does there; METRONOME's 
       const run = slagRun(s, "surge"), i = run.build.routes.length - 1;
       const text = readout(run, i), flat = effectAt("brake", s).gate!.flat ?? 0;
       expect(text, `★${s}`).toContain("SURGE VALVE: NO EFFECT ON SLAG");
-      expect(text, `★${s}`).toContain(`DMG ${(7 + flat).toFixed(1)}, BURN 0`);
+      expect(text, `★${s}`).toContain(`DMG ${(AMMO.slag.base + flat).toFixed(1)}, BURN 0`); // NUM-1: AMMO.slag.base (70; was 7)
     }
     // the sim's own rule (battle.ts transport): no pulse on fixed-speed ammo or a speed-locked side
     expect(readFileSync(new URL("../src/sim/battle.ts", import.meta.url), "utf8")).toContain("const surge = fixed === undefined && !s.race?.speedLock ? this.pulseAt(r, a.s) : undefined;");
@@ -814,6 +815,10 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // U2e step 1 (REQ-BFG-070): 100, measured: merge progress is gone (a kept line on every fusible piece's panel), so 38
     // more desk panels have room for the hint. U2e steps 2-4: 63, measured: no NEXT★ or reminder on the face either; the 63
     // are installed turrets (their socket and stat rows fill the column under their buttons) and four turrets with a core
+    // NUM-1 (REQ-BFG-047): 142 on u2d-gate's faces (was 138), the x10 numbers gain a digit, so 4 more desk panels' kept
+    // blocks left no room for the hint (the hint gives way whole, nothing overflows: the next check keeps every missing one
+    // of the allowed kinds). NUM-2's rebase onto the card head u2f: 63, measured with both (U2e's shorter faces leave the
+    // x10 digit room, so no desk panel loses its hint to it)
     expect([withHint, missing.length]).toEqual([1934, 63]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
@@ -841,6 +846,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // U2e step 1 (REQ-BFG-070): 581, measured: merge progress is gone, so 90 more phone panels have room for the hint.
     // U2e steps 2-4: 810, measured: no NEXT★ or reminder on the face either
     // U2f step 3: 813, measured: LODESTAR LANCE's, STATIC BRUSH's, TESLA ARC's and OVERCLOCKER's lines now fit one line
+    // NUM-1 (REQ-BFG-047): 490 on u2d-gate's faces (was 491), the x10 numbers gain a digit, so one more phone panel's band
+    // had no room left for the hint. NUM-2's rebase onto the card head u2f: 813, measured with both (no phone panel loses
+    // its hint to the x10 digit on U2e's faces)
     expect(hints).toBe(813);
   });
 });
@@ -984,7 +992,10 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     // the two rows 881b38f left bare: SPLITTER's share and LODESTONE's cap
     const row = (def: string, s: number) => routePanel(rigRun(def, s, 3, 3, rotFacing(def, 1), 0), 0)!.body.find((b) => b.role === "row")!.text;
     expect(row("splitter", 1)).toBe("SPLITTER 2 COPIES AT 60% DAMAGE");
-    expect(row("lodestone", 2)).toBe("LODESTONE +2 DAMAGE, +2.2 DAMAGE FOR EACH STALLED MACHINE, UP TO 13 DAMAGE");
+    // NUM-1: LODESTONE ★2's numbers from the data through the formatter (x10: +20, +22, UP TO 130; were +2, +2.2, 13)
+    const ls = effectAt("lodestone", 2).gate!;
+    expect([ls.flat, ls.perStalled!.each, ls.perStalled!.max]).toEqual([20, 22, 130]);
+    expect(row("lodestone", 2)).toBe(`LODESTONE +${fmtDmg(ls.flat!)} DAMAGE, +${fmtDmg(ls.perStalled!.each)} DAMAGE FOR EACH STALLED MACHINE, UP TO ${fmtDmg(ls.perStalled!.max)} DAMAGE`);
   });
 });
 

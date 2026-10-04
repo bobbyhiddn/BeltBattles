@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Battle, type Payload, type SideState, type Target } from "../src/sim/battle";
-import type { AmmoKind } from "../src/sim/content";
+import { AMMO, type AmmoKind } from "../src/sim/content";
 import { key as K, routeInfo, type Build } from "../src/sim/deck";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { raceBeltSpeed } from "../src/sim/races";
@@ -8,6 +8,7 @@ import {
   DRAG_MULT, DRAG_TIME, ECHO_CAP, addedFlat, applyDrag, dragSpans, echoOf, echoOnLoad, isDragged, newEchoState, segments,
 } from "../src/sim/races/siphon";
 import { effectAt } from "../src/sim/stars";
+import { roundHalfUp } from "../src/sim/pct";
 import { dummyFoe, expectSaneBattles } from "./races.helpers";
 
 const siphon = () => heroStartBuild("siphon", 1);
@@ -122,8 +123,9 @@ describe("SIPHON Drag", () => {
     expect(checked).toBeGreaterThan(100);
   });
 
-  it("never cooks Furnace cinder slugs hotter: every shot <= the undragged 7.12, some cooler", () => {
-    const hottest = 4 + 1.2 * (0.4 * 6 + 0.2);
+  it("never cooks Furnace cinder slugs hotter: every shot <= the undragged 71, some cooler", () => {
+    // NUM-1: x10 (was 4 + 1.2 x 2.6 = 7.12); a shot is whole, rounded half up once: 40 + 12 x 2.6 = 71.2 -> 71
+    const hottest = roundHalfUp(AMMO.cinder.base + AMMO.cinder.rideScale * (0.4 * 6 + 0.2));
     let cooler = 0, n = 0, hits = 0;
     for (let seed = 1; seed <= 10; seed++) {
       const b = new Battle(heroStartBuild("furnace", 1), siphon(), seed * 31);
@@ -132,8 +134,8 @@ describe("SIPHON Drag", () => {
         for (const pr of bt.projectiles) {
           if (pr.from !== 0 || seen.has(pr.id)) continue;
           seen.add(pr.id);
-          expect(pr.dmg).toBeLessThanOrEqual(hottest + 1e-9);
-          if (pr.dmg < hottest - 1e-6) cooler++;
+          expect(pr.dmg).toBeLessThanOrEqual(hottest); // NUM-1: whole numbers, so no float margins
+          if (pr.dmg < hottest) cooler++;
           n++;
         }
       });
@@ -152,12 +154,16 @@ describe("SIPHON Drag", () => {
 });
 
 describe("SIPHON Echo", () => {
-  it("remembers the added effects of a payload, capped: flat +3, Burn 2, Shock, Fray 1", () => {
-    expect(echoOf(pl("thread", { flat: 10, burn: 7, shock: true }), false)).toEqual({ flat: 3, burn: 2, shock: true, fray: 1 });
-    expect(echoOf(pl("cinder", { flat: 2, burn: 2, ride: 5 }), false)).toEqual({ flat: 2, burn: 2, shock: false, fray: 0 });
+  it("remembers the added effects of a payload, capped: flat +30, Burn 2, Shock, Fray 1", () => {
+    // NUM-1: flat x10 (the cap 3 -> 30; the payloads' flats 10 -> 100, 2 -> 20); Burn counts stacks (unchanged)
+    expect(echoOf(pl("thread", { flat: 100, burn: 7, shock: true }), false)).toEqual({ flat: 30, burn: 2, shock: true, fray: 1 });
+    expect(echoOf(pl("cinder", { flat: 20, burn: 2, ride: 5 }), false)).toEqual({ flat: 20, burn: 2, shock: false, fray: 0 });
     expect(echoOf(pl("plain"), true).fray).toBe(ECHO_CAP.fray); // an echoed Fray echoes again
-    expect(addedFlat(pl("alloy", { flat: 1.15 * 7 }))).toBe(0); // a plain fusion (FUSE_MULT 1.15) is base damage, not processing
-    expect(addedFlat(pl("alloy", { flat: 12.65 }))).toBeCloseTo(4.6, 9); // 1.15 x (2 + 2) from two Whetstones
+    // a plain fusion (FUSE_MULT 1.15) is base damage, not processing. NUM-1: 115% of two 35 blanks, rounded half up
+    // once: 80.5 -> 81 (was 1.15 x 7)
+    expect(addedFlat(pl("alloy", { flat: 81 }))).toBe(0);
+    // two Whetstones (+20 each, was +2): 115% of (55 + 55) = 126.5 -> 127, less the plain 81 = 46 (was 12.65 -> 1.15 x (2 + 2) = 4.6)
+    expect(addedFlat(pl("alloy", { flat: 127 }))).toBe(46);
   });
 
   it("an ECHO leech copies the memory at load (flat x its split mult); the memory is not consumed", () => {
@@ -165,16 +171,16 @@ describe("SIPHON Echo", () => {
     const plain = pl("leechEcho");
     echoOnLoad(st, plain);
     expect(plain).toEqual(pl("leechEcho")); // empty memory: a plain leech
-    st.mem = { flat: 6, burn: 4, shock: true, fray: 1 };
-    const a = pl("leechEcho", { mult: 0.6, flat: 1.2 });
+    st.mem = { flat: 60, burn: 4, shock: true, fray: 1 }; // NUM-1: flat x10 (was 6); Burn counts stacks
+    const a = pl("leechEcho", { mult: 0.6, flat: 12 }); // NUM-1: x10 (was 1.2)
     const c = pl("leechEcho");
     const d = pl("leechDrag");
     echoOnLoad(st, a);
     echoOnLoad(st, c);
     echoOnLoad(st, d);
-    expect(a.flat).toBeCloseTo(1.2 + 6 * 0.6, 12);
+    expect(a.flat).toBe(12 + roundHalfUp(60 * 0.6)); // NUM-1: 12 + 36 = 48, the share rounded half up once (was 1.2 + 6 x 0.6 = 4.8)
     expect([a.burn, a.shock, st.fray.has(a)]).toEqual([4, true, true]);
-    expect([c.flat, c.burn, c.shock]).toEqual([6, 4, true]);
+    expect([c.flat, c.burn, c.shock]).toEqual([60, 4, true]); // NUM-1: x10 (was 6)
     expect(d).toEqual(pl("leechDrag"));
     expect(st.charged).toBe(2);
   });
@@ -185,7 +191,7 @@ describe("SIPHON Echo", () => {
     run(b, 20, (bt) => {
       for (const pr of bt.projectiles) {
         if (pr.from !== 0) continue;
-        expect([pr.dmg, pr.payload.burn, pr.payload.shock]).toEqual([5, 0, false]);
+        expect([pr.dmg, pr.payload.burn, pr.payload.shock]).toEqual([50, 0, false]); // NUM-1: a leech's base x10 (was 5)
         n++;
       }
     });

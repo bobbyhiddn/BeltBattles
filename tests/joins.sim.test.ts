@@ -9,7 +9,7 @@ import { cloneBuild, joinOf, journeyTiles, key as K, rotField, type Build, type 
 import { effectAt } from "../src/sim/stars";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { DRAG_MULT, dragSpans } from "../src/sim/races/siphon";
-import { PLATE_PER_SLUG } from "../src/sim/races/bastion";
+import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { cruiserModel } from "../src/render/cruiser";
 
 const rig = (uid: number, def: string, x: number, y: number, rot = 0): Placed => ({ uid, def, x, y, ...rotField(def, rot) });
@@ -79,8 +79,9 @@ describe("J4: hits, speeds and what a payload carries through the join", () => {
     const kiln = late.filter((l) => l.factory === 1), press = late.filter((l) => l.factory === 2);
     expect(kiln.length).toBeGreaterThan(5);
     expect(press.length).toBeGreaterThan(5);
-    for (const l of kiln) expect([l.prior, l.flat, l.burn]).toEqual([3, 6, 0]);
-    for (const l of press) expect([l.prior, l.flat, l.burn]).toEqual([3, 4, effectAt("temper", 1).gate!.burn]);
+    const whet = effectAt("whetstone", 1).gate!.flat!; // NUM-1: x10 (was 2): the WHETSTONE's flat from the data
+    for (const l of kiln) expect([l.prior, l.flat, l.burn]).toEqual([3, 3 * whet, 0]); // NUM-1: was [3, 6, 0]
+    for (const l of press) expect([l.prior, l.flat, l.burn]).toEqual([3, 2 * whet, effectAt("temper", 1).gate!.burn]); // NUM-1: was [3, 4, ...]
   });
 
   it("SPLITTER copies trail their original through the join, in order", () => {
@@ -218,7 +219,7 @@ describe("J7: race hooks see a joined payload as on the main belt", () => {
     for (const d of steps) expect(d).toBeCloseTo(0.5, 9);
     const press = loads.filter((l) => l.factory === 2 && l.tick > 60 * 5);
     expect(press.length).toBeGreaterThan(3);
-    for (const l of press) expect(l.flat).toBe(1); // GREASE's lockedFlat
+    for (const l of press) expect(l.flat).toBe(effectAt("grease", 1).gate!.lockedFlat!); // GREASE's lockedFlat (NUM-1: x10, was 1)
   });
 
   it("SIPHON Drag on the main belt's stretch drags joined payloads too (and that movement isn't ride)", () => {
@@ -274,7 +275,7 @@ describe("J7: race hooks see a joined payload as on the main belt", () => {
     const bulwark = loads.filter((l) => l.ammo === "bulwark").length;
     expect(bulwark).toBeGreaterThan(2);
     // nothing strikes this hull, so every plate stays: each joined slug added PLATE_PER_SLUG (up to the cap)
-    expect(bt.sides[0].race!.plating.gained).toBe(Math.min(24, bulwark * PLATE_PER_SLUG));
+    expect(bt.sides[0].race!.plating.gained).toBe(Math.min(PLATE_CAP, bulwark * PLATE_PER_SLUG)); // NUM-1: the cap from the data (was 24)
   });
 
   it("MANTLET ★3: the skirt guards the main belt's last intake tiles, and no joiner's tiles", () => {
@@ -370,7 +371,8 @@ describe("J14 (a): the payload's own journey", () => {
     expect(a.slice(3, 9).map(pick)).toEqual(c.slice(3, 9).map(pick));
     const l = a[5];
     expect(l.prior).toBe(6); // TEMPER, HEAT JACKET, then the join tile's WHETSTONE, COUNTERWEIGHT, WHETSTONE, LONG HAUL
-    expect(l.flat).toBeCloseTo(2 + 2.5 + 2 + effectAt("longhaul", 1).gate!.perPriorGate! * 5, 9); // COUNTERWEIGHT: 5 tiles ridden; LONG HAUL: 5 earlier hits
+    // NUM-1: x10 and whole, so exact (was toBeCloseTo(2 + 2.5 + 2 + LONG HAUL x 5, 9)): 2 WHETSTONEs, COUNTERWEIGHT: 5 tiles ridden; LONG HAUL: 5 earlier hits
+    expect(l.flat).toBe(2 * effectAt("whetstone", 1).gate!.flat! + 5 * effectAt("counterweight", 1).gate!.perTile!.each + effectAt("longhaul", 1).gate!.perPriorGate! * 5);
     expect(l.burn).toBe(effectAt("temper", 1).gate!.burn);
     expect(l.heat).toBeGreaterThan(0);
   });
@@ -391,10 +393,11 @@ describe("J14 (a): the payload's own journey", () => {
     const { loads } = run(b, 60 * 40);
     const late = loads.filter((l) => l.tick > 60 * 4);
     const press = late.filter((l) => l.factory === 2), kiln = late.filter((l) => l.factory === 1);
-    expect(press.filter((l) => l.flat === 4).length).toBeGreaterThan(3); // doubled past the join, then it cools
-    expect(press.every((l) => l.flat === 2 || l.flat === 4)).toBe(true);
+    const whet = effectAt("whetstone", 1).gate!.flat!; // NUM-1: x10 (was 2, doubled 4): the WHETSTONE's flat from the data
+    expect(press.filter((l) => l.flat === 2 * whet).length).toBeGreaterThan(3); // doubled past the join, then it cools
+    expect(press.every((l) => l.flat === whet || l.flat === 2 * whet)).toBe(true);
     expect(kiln.length).toBeGreaterThan(10);
-    expect(kiln.every((l) => l.flat === 2)).toBe(true); // the main belt's own payloads never passed it
+    expect(kiln.every((l) => l.flat === whet)).toBe(true); // the main belt's own payloads never passed it
   });
 
   it("J15: a slag joiner's timing equals the same slug's on the continuous belt (no speed rigs)", () => {

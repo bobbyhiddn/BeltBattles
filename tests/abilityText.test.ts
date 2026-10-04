@@ -18,6 +18,7 @@ import * as glossaryModule from "../src/ui/abilityText"; // U2e step 1: no copy 
 import { MODULES, STARS, SUPPLIES, banned, fasterNum, kOf, numbers, pct, r1, r2, rateNum, starsOf } from "./textRules";
 // 0.8.0 P1: wave 3's rows (the block at the end)
 import { WAVE3_IDS, buyableModules, withWave3 } from "../src/sim/content";
+import { BURN_DPS } from "../src/sim/content"; // NUM-1: a Burn stack's damage a second
 import { PLATE_CAP } from "../src/sim/races/bastion";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { LOAD_FLOOR } from "../src/sim/battle";
@@ -36,7 +37,10 @@ describe("the glossary's engine numbers (SIM) are the sim's", () => {
     const battle = SRC("src/sim/battle.ts"), harass = SRC("src/sim/harassment.ts"), cores = SRC("src/sim/cores.ts");
     expect(battle).toContain(`Math.min(${SIM.poisonMax}, def.hull.poison.stacks + pr.payload.poison)`);
     expect(battle).toContain(`def.hull.poison.t = ${SIM.poisonTime};`);
-    expect(battle).toContain(`s.hull.poison.stacks * ${SIM.poisonTick} *`);
+    // NUM-1 (REQ-BFG-047): poison ticks once a second, and the part-second left when it runs out rounds half up once
+    // (re-quoted: was `s.hull.poison.stacks * ${SIM.poisonTick} *`, x dt every tick)
+    expect(battle).toContain(`damage = po.stacks * ${SIM.poisonTick};`);
+    expect(battle).toContain(`damage = roundHalfUp(po.stacks * ${SIM.poisonTick} * po.acc);`);
     expect(battle).toContain(`this.disrupt(s, t, ${SIM.sabotBelt}, "sabot")`);
     expect(battle).toContain(`t.kind === "factory" ? ${SIM.sabotFactory} : ${SIM.sabotTurret}, "sabot"`);
     expect(battle).toContain(`"sabot" && hit.kind === "hull" ? ${SIM.sabotHull} : 0`);
@@ -44,12 +48,13 @@ describe("the glossary's engine numbers (SIM) are the sim's", () => {
     expect(battle).toContain(`.timer += ${SIM.chainFactory};`);
     expect(battle).toContain(`.fireCd += ${SIM.chainTurret};`);
     expect(battle).toContain(`if (a.p.debuffs?.snag && fixed === undefined) v *= ${SIM.snag};`);
-    expect(harass).toContain(`damage * ${SIM.chill}`);
+    // NUM-1 (REQ-BFG-047): CHILL's x0.75 is a whole % that rounds half up once (re-quoted: was `damage * ${SIM.chill}`)
+    expect(harass).toContain(`debuffs.chill ? pct(damage, ${SIM.chill * 100}) : damage`);
     expect(battle).toContain(`Math.min(${SIM.scrapQueue}, f.triggerQueue + gained)`);
     expect(battle).toContain(`if (count >= ${SIM.lanceMax}) break;`);
     expect(cores).toContain(`tu.loadTimer >= ${SIM.salvoWait} * tu.windowTime`);
     // and the constants the sim exports, as the texts quote them
-    expect([BURN_TIME, WINDOW_TIME, COMMISSION_BASE, COMMISSION_STEP, FRAY_BONUS, FRAY_MAX, AMMO.slag.fixedSpeed]).toEqual([3, 1.5, 1.2, 0.6, 0.2, 15, 0.75]);
+    expect([BURN_TIME, WINDOW_TIME, COMMISSION_BASE, COMMISSION_STEP, FRAY_BONUS, FRAY_MAX, AMMO.slag.fixedSpeed]).toEqual([3, 1.5, 1.2, 0.6, 2, 15, 0.75]); // NUM-1: FRAY_BONUS x10 (was 0.2)
   });
 });
 
@@ -60,7 +65,7 @@ const base = (e: ItemDef) => f(e).base ?? AMMO[f(e).ammo].base;
 /** A rate or speed below 1 as the texts quote it: "40% SLOWER", "17% SLOWER" (40, 17); at or above 1 as fasterNum. */
 const speedNum = (r: number): number => (r >= 1 ? fasterNum(r) : Math.round((1 - r) * 100));
 const round = <T>(e: ItemDef) => f(e).round as unknown as T;
-const BURN = [1, BURN_TIME]; // EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS.
+const BURN = [BURN_DPS, BURN_TIME]; // EACH BURN DEALS THE ENEMY HULL 10 DAMAGE A SECOND FOR 3 SECONDS. (NUM-1: was 1)
 
 /**
  * The audit: the numbers a module's ability text quotes at a star, every sentence in reading order (digits, and ONE to
@@ -173,7 +178,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   braceframe: (e) => [pct(1 - g(e).brace!.mul), pct(1 - g(e).brace!.plated)],
   twinlatch: (e) => [1, g(e).latch!.hold, g(e).latch!.flat, 2], // BRINGS ONE TOO; ... INTO TWO GUNS
   stoker: (e) => [pct(g(e).stoke!)],
-  platebreaker: (e) => [1, g(e).breaker!.flat, g(e).breaker!.floor], // TAKES 1 PLATING
+  platebreaker: (e) => [10, g(e).breaker!.flat, g(e).breaker!.floor], // TAKES 10 PLATING (NUM-1: battle.ts spends 10; was 1)
   shieldwall: (e) => [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP],
   // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS ... THE NEXT TWO IN TURN ... INTO ONE TURRET
   // (bb-0.8.3, REQ-BFG-042 D3: the pour size, FactorySpec.pour, where 0.8.0 quoted its outputs)
@@ -232,26 +237,27 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
 
   it("the brief's cases, written out", () => {
     const at = (def: string, s: number) => abilityText(def, s);
-    expect(at("longhaul", 2).sentences[0]).toBe("ADDS 2 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.");
+    expect(at("longhaul", 2).sentences[0]).toBe("ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS."); // NUM-1: x10 (was 2)
     expect(at("overclocker", 1).sentences[0]).toBe("DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR 4 SECONDS.");
     expect(at("mimic", 3)).toEqual({ // bb-0.8.3 (REQ-BFG-042 D3): its belts follow its stars; no "AND FEEDS 2 BELTS"
       sentences: ["STAMPS YOUR HERO'S SIGNATURE AMMO 25% FASTER THAN ITS OWN FACTORY."],
       perk: { name: "TWIN SIGNET", stars: 3, after: 0 },
     });
     expect(at("scrapper", 3).sentences.slice(0, 3)).toEqual([
-      "STAMPS SCRAP SLUGS THAT DEAL 10.5 MORE DAMAGE THAN PLAIN ONES.",
+      "STAMPS SCRAP SLUGS THAT DEAL 105 MORE DAMAGE THAN PLAIN ONES.", // NUM-1: x10 (was 10.5)
       "IT STAMPS ONE EVERY 2 SECONDS, AND ONE MORE EACH TIME YOUR HARASSMENT LANDS, UP TO 3 WAITING.",
       "A RIG YOUR SABOTS WRECK EARNS 2 SCRAP SLUGS, NOT 1.",
     ]);
     expect(at("scrapper", 3).perk).toEqual({ name: "BIG HAUL", stars: 3, after: 2 });
     expect(at("frostbite", 2).sentences[0]).toBe("STAMPS ROUNDS THAT FREEZE 2 MACHINES FOR 2.75 SECONDS.");
-    expect(at("temper", 1).sentences).toEqual(["ADDS 1 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR 3 SECONDS."]);
+    expect(at("temper", 1).sentences).toEqual(["ADDS 1 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 10 DAMAGE A SECOND FOR 3 SECONDS."]); // NUM-1: BURN_DPS 10 (was 1)
   });
 
   it("0.6.2rel: FB-B's four modules and the turrets, written out", () => {
     const at = (def: string, s: number) => abilityText(def, s);
-    expect(at("quench", 1).sentences[0]).toBe("ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 3 MORE DAMAGE EACH.");
-    expect(at("surge", 1).sentences[0]).toBe("PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 1 DAMAGE.");
+    // NUM-1: x10 (was 1 and 3; 4 Burn is a count)
+    expect(at("quench", 1).sentences[0]).toBe("ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH.");
+    expect(at("surge", 1).sentences[0]).toBe("PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE."); // NUM-1: x10 (was 1)
     expect(at("hopper", 2).sentences[1]).toBe("WHILE THE TURRET FIRES, IT STORES 1 LOAD FROM THE BELT FOR ITS NEXT CHAMBER.");
     expect(at("mantlet", 2).sentences).toEqual([
       "THE TURRET IGNORES SHOCK, STATIC, ARC, CHAIN, FROST AND SABOT STALLS.", "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
@@ -431,12 +437,12 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
 
   it("the four glossary sentences, word for word (DESIGN-wave3.md 3.2), with the sim's numbers", () => {
     expect([S.plating, S.pair, S.matched, S.worksFaster]).toEqual([
-      "PLATING TAKES DAMAGE, BURN AND POISON BEFORE YOUR HULL, UP TO 24 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.",
+      "PLATING TAKES DAMAGE, BURN AND POISON BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.", // NUM-1: x10 (was 24)
       "A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN 0.25 SECONDS; A FOUNDRY FUSION IS A PAIR.",
       "A MATCHED BELT HAS AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.",
       "A FACTORY THAT WORKS FASTER STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO.",
     ]);
-    expect([PLATE_CAP, SYNC_WINDOW]).toEqual([24, 0.25]);
+    expect([PLATE_CAP, SYNC_WINDOW]).toEqual([240, 0.25]); // NUM-1: PLATE_CAP x10 (was 24)
     // each word is explained where a module's text uses it: PLATING by its plating sources and readers, PAIR by its pair
     // readers, MATCHED by TWIN GAUGE, WORKS FASTER by STOKER
     const uses = (sentence: string) => W3.filter((d) => abilityText(d.id, 1).sentences.includes(sentence)).map((d) => d.id).sort();
@@ -454,10 +460,12 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
 
   it("DESIGN 3.3's text, written out (with the Prime's two lines: STOKER's cap, TWIN LATCH's timed release)", () => {
     const at = (def: string, s = 1, k = 1) => abilityText(def, s, { k }).sentences;
-    expect(at("plateroller", 3)[0]).toBe("ROLLS 1.7 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.");
-    expect(at("twingauge", 2)[0]).toBe("ADDS 2.2 DAMAGE TO EACH PAYLOAD IT HITS, OR 6.6 DAMAGE ON A MATCHED BELT.");
+    // NUM-1 (REQ-BFG-047): every damage and plating number below is x10 (fixtures/num1-base-values.json); %, times,
+    // counts and ANVIL's perPlate (damage per plating, a ratio) as they were
+    expect(at("plateroller", 3)[0]).toBe("ROLLS 17 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS."); // was 1.7
+    expect(at("twingauge", 2)[0]).toBe("ADDS 22 DAMAGE TO EACH PAYLOAD IT HITS, OR 66 DAMAGE ON A MATCHED BELT."); // was 2.2, 6.6
     expect(at("pincer")).toEqual([ // 0.8.0 I1 (VERIFIED-P1 H5): no "UP TO 3 OTHERS" (it never binds; the code keeps the cap)
-      "ADDS 1 DAMAGE TO EACH PAYLOAD IT HITS, AND 2 MORE FOR EACH OTHER RIG HITTING THAT TILE.",
+      "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE.", // was 1, 2
       "STALLED, FROZEN AND WRECKED RIGS DON'T COUNT.",
     ]);
     expect(at("braceframe", 3)).toEqual([
@@ -468,43 +476,48 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(at("twinlatch")).toEqual([
       "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
       "IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 1 SECOND, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.",
-      "EACH PAYLOAD IT LETS GO GAINS 1 DAMAGE.",
+      "EACH PAYLOAD IT LETS GO GAINS 10 DAMAGE.", // was 1
       "ON BELTS INTO TWO GUNS, IT LETS BOTH GO AT ONCE.",
     ]);
-    expect(nextStarText("twinlatch", 1)).toBe("NEXT STAR: ADDS 2.2 DAMAGE.");
-    expect(nextStarText("spallcatcher", 1)).toBe("NEXT STAR: 2.2 DAMAGE FOR EVERY 4, UP TO 17.6.");
+    expect(nextStarText("twinlatch", 1)).toBe("NEXT STAR: ADDS 22 DAMAGE."); // was 2.2
+    expect(nextStarText("spallcatcher", 1)).toBe("NEXT STAR: 22 DAMAGE FOR EVERY 40, UP TO 176."); // was 2.2, 4, 17.6
     expect(at("stoker").slice(0, 2)).toEqual(["EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.", "IT NEVER MAKES A FACTORY OUTRUN ITS GUN."]);
-    expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 1 PLATING FROM YOUR HULL AND GAINS 14 DAMAGE.", "WITH NO PLATING TO TAKE, IT ADDS 3.5 DAMAGE."]);
-    expect(at("shieldwall")[1]).toBe("WHILE YOUR HULL HOLDS 12 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 3 DAMAGE.");
+    // NUM-1: was 1 PLATING, 14, 3.5. The battle spends 10 plating (battle.ts: `if (s.plate.plate >= 10) { // NUM-1: 10
+    // plating (x10 of 1)`), so the text's "TAKES 1 PLATING" (abilityText.ts platebreaker) disagrees: a text bug, left red
+    expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 140 DAMAGE.", "WITH NO PLATING TO TAKE, IT ADDS 35 DAMAGE."]);
+    expect(at("shieldwall")[1]).toBe("WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE."); // was 12, 3
     // bb-0.8.3 (REQ-BFG-042 D3): the pour, not its belts: TWO (★3 THIRD SPRUE: THREE) at once, the next ones in turn
-    expect(at("twinmould")[0]).toBe("CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS, EVERY 1.8 SECONDS.");
+    expect(at("twinmould")[0]).toBe("CASTS TWO PLAIN SLUGS (30 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS, EVERY 1.8 SECONDS."); // was 3
     expect(abilityText("twinmould", 3)).toEqual({
       sentences: [
-        "CASTS THREE SLUGS (6 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF THREE BELTS, EVERY 1.4 SECONDS.",
+        "CASTS THREE SLUGS (60 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF THREE BELTS, EVERY 1.4 SECONDS.", // was 6
         "WITH MORE BELTS, EACH CAST TAKES THE NEXT THREE IN TURN.",
         "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR.",
       ],
       perk: { name: "THIRD SPRUE", stars: 3, after: 0 },
     });
-    expect(at("armorpress")[0]).toBe("PRESSES 3 PLATING ONTO YOUR HULL EVERY 3 SECONDS, AND STAMPS A PLAIN SLUG (3 DAMAGE) EVERY 1.6 SECONDS."); // 0.8.0 B1 M2: 2 every 4 s -> 3 every 3 s
-    expect(at("anvil")[0]).toBe("EACH SHOT DEALS 2.5 MORE DAMAGE, AND 1 MORE FOR EACH PLATING ON YOUR HULL."); // 0.8.0 B1 M2: was 1 and 0.2
-    expect(at("anvil", 3, 0.55)[0]).toBe("EACH SHOT DEALS 4.8 MORE DAMAGE, AND 1.9 MORE FOR EACH PLATING ON YOUR HULL."); // x k, as every core (0.8.0 B1 M2: was 1.9 and 0.4)
+    expect(at("armorpress")[0]).toBe("PRESSES 30 PLATING ONTO YOUR HULL EVERY 3 SECONDS, AND STAMPS A PLAIN SLUG (30 DAMAGE) EVERY 1.6 SECONDS."); // 0.8.0 B1 M2: 2 every 4 s -> 3 every 3 s; NUM-1: was 3, 3
+    expect(at("anvil")[0]).toBe("EACH SHOT DEALS 25 MORE DAMAGE, AND 1 MORE FOR EACH PLATING ON YOUR HULL."); // 0.8.0 B1 M2: was 1 and 0.2; NUM-1: was 2.5 (perPlate a ratio: 1)
+    // x k, as every core (0.8.0 B1 M2: was 1.9 and 0.4); NUM-1: was 4.8. ★3 anvilFlat 88 x 55% = 48.4, rounded half up at
+    // install (scaleCore) to 48; perPlate 3.5 x 55% = 1.925 -> 1.93 (a whole % of a ratio), printed 1.9 as before
+    expect(at("anvil", 3, 0.55)[0]).toBe("EACH SHOT DEALS 48 MORE DAMAGE, AND 1.9 MORE FOR EACH PLATING ON YOUR HULL.");
     expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 70% FASTER WHILE YOUR HULL HOLDS PLATING, AND 20% FASTER WITHOUT IT."]); // 0.8.0 B1 M2: was 44% and 10%
     expect(at("twintrigger", 3)[2]).toBe("ITS LOAD TIME IS 0.55 SECONDS SHORTER, BUT NEVER UNDER 0.3 SECONDS.");
-    expect(at("spallcatcher", 2)[0]).toBe("EVERY 4 DAMAGE YOUR SHIP TAKES ADDS 2.2 DAMAGE TO THIS TURRET'S NEXT SHOT, UP TO 17.6 DAMAGE.");
-    expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 1 PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS 0.2.");
+    expect(at("spallcatcher", 2)[0]).toBe("EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 22 DAMAGE TO THIS TURRET'S NEXT SHOT, UP TO 176 DAMAGE."); // NUM-1: was 4, 2.2, 17.6
+    expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS 2."); // NUM-1: was 1, 0.2
     // the next-star lines DESIGN 3.3 gives
-    expect([1, 2].map((s) => nextStarText("plateroller", s))).toEqual(["NEXT STAR: ROLLS 1.1 PLATING FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 1.7 PLATING FOR EACH PAYLOAD."]);
-    expect(nextStarText("twingauge", 2)).toBe("NEXT STAR: ADDS 3.5 DAMAGE, OR 10.5 ON A MATCHED BELT.");
+    expect([1, 2].map((s) => nextStarText("plateroller", s))).toEqual(["NEXT STAR: ROLLS 11 PLATING FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 17 PLATING FOR EACH PAYLOAD."]); // NUM-1: was 1.1, 1.7
+    expect(nextStarText("twingauge", 2)).toBe("NEXT STAR: ADDS 35 DAMAGE, OR 105 ON A MATCHED BELT."); // NUM-1: was 3.5, 10.5
     expect(nextStarText("braceframe", 1)).toBe("NEXT STAR: 70% SHORTER, 85% WHILE PLATED.");
     expect(nextStarText("stoker", 1)).toBe("NEXT STAR: ITS FACTORIES WORK 44% FASTER.");
-    expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 8.8 DAMAGE FOR 1 PLATING, 2.2 WITHOUT.");
-    expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 2.2 PLATING A PAYLOAD, 6.6 DAMAGE AT 12 PLATING.");
-    expect(nextStarText("twinmould", 1)).toBe("NEXT STAR: 5 DAMAGE EACH, EVERY 1.6 SECONDS, 3 BELTS."); // bb-0.8.3 (M4)
-    expect(nextStarText("armorpress", 1)).toBe("NEXT STAR: 6.6 PLATING EVERY 3 SECONDS, A SLUG EVERY 1.4 SECONDS, 3 BELTS."); // 0.8.0 B1 M2; bb-0.8.3 (M4)
+    // NUM-1: was 8.8, 1 PLATING, 2.2; the battle spends 10 plating, the text still says 1 (a text bug, as above)
+    expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 88 DAMAGE FOR 10 PLATING, 22 WITHOUT.");
+    expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 22 PLATING A PAYLOAD, 66 DAMAGE AT 120 PLATING."); // NUM-1: was 2.2, 6.6, 12
+    expect(nextStarText("twinmould", 1)).toBe("NEXT STAR: 50 DAMAGE EACH, EVERY 1.6 SECONDS, 3 BELTS."); // bb-0.8.3 (M4); NUM-1: was 5
+    expect(nextStarText("armorpress", 1)).toBe("NEXT STAR: 66 PLATING EVERY 3 SECONDS, A SLUG EVERY 1.4 SECONDS, 3 BELTS."); // 0.8.0 B1 M2; bb-0.8.3 (M4); NUM-1: was 6.6
     expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 70% FASTER PLATED, 20% WITHOUT."); // 0.8.0 B1 M2
     expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 55% MORE, LOAD TIME 0.4 SECONDS SHORTER.");
-    expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 2.2 PLATING A PAIR, 0.4 FOR ANY OTHER LOAD.");
+    expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 22 PLATING A PAIR, 4 FOR ANY OTHER LOAD."); // NUM-1: was 2.2, 0.4
   });
 
   it("T1: each opens with one plain sentence; T4: every entry a whole sentence, the perk this star's", () => {
@@ -561,7 +574,7 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
         expect(numbers(next!).every((n) => numbers(abilityText(d.id, s + 1, { k }).sentences.join(" ")).includes(n) || n === s + 1 || (!!belts && n === outputsAt(d.id, s + 1))), id).toBe(true);
       }
     }
-    expect(withWave3(() => mergesWithText("twinmould", 3))).toBe("MERGES WITH YOUR TWIN MOULD INTO ★3: 3 SLUGS OF 6 DAMAGE, EVERY 1.4 SECONDS, 4 BELTS."); // bb-0.8.3 (M4)
+    expect(withWave3(() => mergesWithText("twinmould", 3))).toBe("MERGES WITH YOUR TWIN MOULD INTO ★3: 3 SLUGS OF 60 DAMAGE, EVERY 1.4 SECONDS, 4 BELTS."); // bb-0.8.3 (M4); NUM-1: x10 (was 6)
   });
 
   it("each offer's one-line effect: a whole sentence, its numbers from the 1-star text, two lines on the wide card", () => {

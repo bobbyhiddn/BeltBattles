@@ -4,8 +4,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { Battle, simulate, type Projectile, type SimEvent } from "../src/sim/battle";
-import { AMMO, BURN_TIME, FRAY_BONUS } from "../src/sim/content";
-import { cloneBuild, turretList, type Build } from "../src/sim/deck";
+import { AMMO, BURN_DPS, BURN_TIME, FRAY_BONUS } from "../src/sim/content";
+import { cloneBuild, payloadDamage, turretList, type Build } from "../src/sim/deck";
+import { pct } from "../src/sim/pct";
+import { PLATE_CAP } from "../src/sim/races/bastion";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNE_LIST, RUNES, dawnGold, mergedPieces, pickGold, runeGrants, runeMods, runeOffer } from "../src/sim/runes";
 import { newRun, pendingRune, takeRune } from "../src/game/run";
@@ -100,7 +102,8 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     b.items[0].stars = 2;
     expect(mergedPieces(b)).toBe(2);
     const base = fires(b, FOE, 4), saint = fires(W(b, "scrap_saint"), FOE, 4);
-    base.forEach((p, i) => expect(saint[i].dmg / p.dmg).toBeCloseTo(1 + (2 * n("scrap_saint")) / 100, 9));
+    // NUM-1: whole damage; the runes' % sum applies once, rounded half up (pct, as battle.ts fire applies runeMul)
+    base.forEach((p, i) => expect(saint[i].dmg).toBe(pct(p.dmg, 100 + 2 * n("scrap_saint"))));
     expect(fires(W(heroStartBuild("furnace"), "scrap_saint"), FOE, 2).map((p) => p.dmg)).toEqual(fires(heroStartBuild("furnace"), FOE, 2).map((p) => p.dmg));
   });
 
@@ -119,7 +122,7 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     const b = heroStartBuild("furnace");
     const setup = (bt: Battle) => { bt.sides[1].hull.fray = 10; };
     const base = fires(b, FOE, 1, { setup }), web = fires(W(b, "widows_web"), FOE, 1, { setup });
-    expect(web[0].dmg / base[0].dmg).toBeCloseTo(1 + (10 * n("widows_web")) / 100, 9);
+    expect(web[0].dmg).toBe(pct(base[0].dmg, 100 + 10 * n("widows_web"))); // NUM-1: the % sum once, rounded half up
   });
 
   it("THREAD STORM: a hit that adds no FRAY (FURNACE's slugs) adds 1; a FRAY hit adds as before", () => {
@@ -129,11 +132,12 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     expect(fray(W(heroStartBuild("weaver"), "thread_storm"))).toBe(fray(heroStartBuild("weaver")));
   });
 
-  it("PYRE HEART: your BURN on their hull deals 50% more (ASH KINDLE's 4 BURN: 4 a second, 6 with it)", () => {
+  it("PYRE HEART: your BURN on their hull deals 50% more (ASH KINDLE's 4 BURN: 40 a second, 60 with it)", () => {
     const loss = (b: Build) => { const bt = new Battle(b, FOE, 9); const hp = bt.sides[1].hull.hp; for (let i = 0; i < 60; i++) bt.step(); return hp - bt.sides[1].hull.hp; };
     const b = heroStartBuild("furnace");
-    expect(loss(W(b, "ash_kindle"))).toBeCloseTo(n("ash_kindle"), 6); // no shot lands in the first second
-    expect(loss(W(b, "ash_kindle", "pyre_heart"))).toBeCloseTo(n("ash_kindle") * (1 + n("pyre_heart") / 100), 6);
+    // NUM-1: a BURN stack ticks once a second, BURN_DPS (10) each; the rune's % rounds half up once (pct)
+    expect(loss(W(b, "ash_kindle"))).toBe(n("ash_kindle") * BURN_DPS); // no shot lands in the first second
+    expect(loss(W(b, "ash_kindle", "pyre_heart"))).toBe(pct(n("ash_kindle") * BURN_DPS, 100 + n("pyre_heart")));
   });
 
   it("LAST STAND: below half HULL your turrets and factories work 50% faster; above half as before", () => {
@@ -188,16 +192,16 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     expect(tithe).toEqual([0, 2, 4, 7, 11, 16]);
   });
 
-  it("FORGE WARD: each stamp gives 1 PLATE (PLATE_CAP holds)", () => {
+  it("FORGE WARD: each stamp gives 10 PLATE (PLATE_CAP holds)", () => {
     const bt = new Battle(W(heroStartBuild("weaver"), "forge_ward"), FOE, 6);
     while (!bt.over && bt.sides[0].stats.produced < 5) bt.step();
-    expect(bt.sides[0].plate.gained).toBe(Math.min(24, 5 * n("forge_ward")));
+    expect(bt.sides[0].plate.gained).toBe(Math.min(PLATE_CAP, 5 * n("forge_ward"))); // NUM-1: the cap 240 (was a bare 24)
   });
 
   it("WARLORD'S DUE: +5% DMG per win the side carried in; the record keeps the wins and replays exactly", () => {
     const b = heroStartBuild("furnace");
     const base = fires(b, FOE, 3), due = fires(W(b, "warlords_due"), FOE, 3, { wins: [4, 0] });
-    base.forEach((p, i) => expect(due[i].dmg / p.dmg).toBeCloseTo(1 + (4 * n("warlords_due")) / 100, 9));
+    base.forEach((p, i) => expect(due[i].dmg).toBe(pct(p.dmg, 100 + 4 * n("warlords_due")))); // NUM-1: the % sum once, rounded half up
     expect(fires(W(b, "warlords_due"), FOE, 3).map((p) => p.dmg)).toEqual(base.map((p) => p.dmg)); // no wins: as before
     const bt = new Battle(W(b, "warlords_due"), FOE, 7, [4, 2]);
     expect(bt.record.wins).toEqual([4, 2]);
@@ -216,16 +220,16 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     const b = heroStartBuild("foundry");
     const base = fires(b, FOE, 4), suns = fires(W(b, "twin_suns"), FOE, 4);
     expect(suns.every((p) => p.paired)).toBe(true);
-    base.forEach((p, i) => expect(suns[i].dmg / p.dmg).toBeCloseTo(1 + n("twin_suns") / 100, 9));
+    base.forEach((p, i) => expect(suns[i].dmg).toBe(pct(p.dmg, 100 + n("twin_suns")))); // NUM-1: the % once, rounded half up
     const w = heroStartBuild("weaver");
     expect(fires(W(w, "twin_suns"), FOE, 4).map((p) => p.dmg)).toEqual(fires(w, FOE, 4).map((p) => p.dmg));
   });
 
-  it("BULWARK OATH: every PLATE gain x2 (RIVET HOARD's 6 start as 12; BASTION's bulwark slugs plate twice), PLATE_CAP holds", () => {
+  it("BULWARK OATH: every PLATE gain x2 (RIVET HOARD's 60 start as 120; BASTION's bulwark slugs plate twice), PLATE_CAP holds", () => {
     const start = (x: Build) => new Battle(x, FOE, 1).sides[0].plate.plate;
     const f = heroStartBuild("furnace");
     expect(start(W(f, "rivet_hoard", "bulwark_oath"))).toBe(n("rivet_hoard") * n("bulwark_oath"));
-    expect(start(W(f, "rivet_hoard", "grave_plates", "bulwark_oath"))).toBe(24); // the cap
+    expect(start(W(f, "rivet_hoard", "grave_plates", "bulwark_oath"))).toBe(PLATE_CAP); // the cap (NUM-1: 240, was a bare 24)
     // BASTION: the plating its bulwark slugs add by the first 3 loads, doubled (both well under the cap)
     const gained = (x: Build) => {
       const bt = new Battle(x, FOE, 4);
@@ -235,7 +239,7 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     };
     const b = heroStartBuild("bastion");
     expect(gained(b)).toBeGreaterThan(0);
-    expect(gained(W(b, "bulwark_oath"))).toBeCloseTo(Math.min(24, gained(b) * n("bulwark_oath")), 9);
+    expect(gained(W(b, "bulwark_oath"))).toBe(Math.min(PLATE_CAP, gained(b) * n("bulwark_oath"))); // NUM-1: whole plating; the cap 240 (was 24)
   });
 
   it("LOOM OF WOE: your FRAY bonus x2 (10 FRAY: +2 a hit becomes +4)", () => {
@@ -266,7 +270,11 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     const base = fires(b, FOE, 3), road = fires(W(b, "long_road"), FOE, 3);
     base.forEach((p, i) => {
       const a = AMMO[p.ammo as keyof typeof AMMO];
-      expect(road[i].dmg - p.dmg).toBeCloseTo(a.rideScale * p.ride * p.mult * (n("long_road") - 1), 9);
+      // NUM-1: a slug's damage is whole, rounded half up once when fired (deck.ts payloadDamage), so the rune's extra
+      // rideScale x ride x mult x (n - 1) lands inside that one rounding: the shot is the slug's damage with its ride x n
+      const dmg = (ride: number) => payloadDamage(p.payload.base ?? a.base, a.rideScale, ride, p.mult, p.payload.flat + (p.payload.heatBonus ?? 0));
+      expect(p.dmg).toBe(dmg(p.ride));
+      expect(road[i].dmg).toBe(dmg(p.ride * n("long_road")));
     });
     expect(base.some((p) => p.ride > 0)).toBe(true);
   });
@@ -395,7 +403,7 @@ describe("RUNES-2a M3: the commons and rares", () => {
   it("TOLL ROAD: +5% DMG per rig the load passed", () => {
     const b = heroRefBuild("furnace", 6);
     const base = fires(b, FOE, 6), road = fires(W(b, "toll_road"), FOE, 6);
-    base.forEach((p, i) => expect(road[i].dmg / p.dmg).toBeCloseTo(1 + (n("toll_road") * p.prior) / 100, 9));
+    base.forEach((p, i) => expect(road[i].dmg).toBe(pct(p.dmg, 100 + n("toll_road") * p.prior))); // NUM-1: the % sum once, rounded half up
     expect(base.some((p) => p.prior > 0)).toBe(true);
   });
 

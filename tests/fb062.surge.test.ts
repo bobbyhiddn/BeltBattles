@@ -3,6 +3,8 @@
 // ride-scaled ammo and, when the turret was the bottleneck, added no shots, so ★1 could lower damage (Furnace's audit
 // cell: 78.3 -> 71.5). +1 clears that cell, so the "no ride cut while the intake is saturated" fallback isn't needed.
 // Metronome's lockedFlat 3/6/10 was reviewed against the star bench and stays (MODS-REPORT.md).
+// NUM-1 (REQ-BFG-047): the damage family x10, so the per-pulse flat is now 10/20/30 and the locked-belt flat 30/60/100
+// (the test titles keep FB-B's units).
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { spotForTile } from "../src/sim/beltside";
@@ -15,7 +17,7 @@ import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2rel: the glos
 import { barge, bench } from "./arsenal.bench";
 
 const STARS = [1, 2, 3];
-const FLAT = [1, 2, 3];
+const FLAT = [10, 20, 30]; // NUM-1: x10 (was 1/2/3)
 
 const payload = (): Payload => ({ id: 900, ammo: "plain", ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: 1, copy: false });
 function until(bt: Battle, seconds: number): void {
@@ -34,10 +36,11 @@ function valve(stars: number): { bt: Battle; a: BeltAmmo } {
 
 describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
   it("the rule: per-pulse flat 1/2/3 (was 0/1/2); speed, timing and the locked-belt flat unchanged", () => {
+    // NUM-1: the per-pulse flat x10 (was 1/2/3), the locked-belt flat x10 (was 3/6/10); speed and timing unchanged
     expect(STARS.map((s) => effectAt("surge", s).gate?.pulse)).toEqual([
-      { speed: 3, on: 1, period: 3, flat: 1 }, { speed: 4, on: 1, period: 2.5, flat: 2 }, { speed: 5, on: 1, period: 2, flat: 3 },
+      { speed: 3, on: 1, period: 3, flat: 10 }, { speed: 4, on: 1, period: 2.5, flat: 20 }, { speed: 5, on: 1, period: 2, flat: 30 },
     ]);
-    expect(STARS.map((s) => effectAt("surge", s).gate?.lockedFlat)).toEqual([3, 6, 10]);
+    expect(STARS.map((s) => effectAt("surge", s).gate?.lockedFlat)).toEqual([30, 60, 100]);
   });
 
   it("a payload riding one pulse past the valve gains exactly +1/+2/+3, and rides it at 3x/4x/5x", () => {
@@ -90,12 +93,13 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
     expect(d.desc.join(" ")).toBe("PULSES 3X SPEED FOR 1S EVERY 3S, +1 DMG PER PULSE RIDDEN. LOCKED BELTS +3 DMG.");
     expect(d.desc.every((l) => l.length <= 20)).toBe(true);
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's opening sentence (abilityText) and clause (gist)
+    // NUM-1: the per-pulse damage x10 (was 1/2/3 DAMAGE)
     expect(STARS.map((s) => abilityText("surge", s).sentences[0])).toEqual([
-      "PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 1 DAMAGE.",
-      "PULSES ITS BELTS 4 TIMES AS FAST FOR 1 SECOND EVERY 2.5 SECONDS, EACH PULSE ADDING 2 DAMAGE.",
-      "PULSES ITS BELTS 5 TIMES AS FAST FOR 1 SECOND EVERY 2 SECONDS, EACH PULSE ADDING 3 DAMAGE.",
+      "PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE.",
+      "PULSES ITS BELTS 4 TIMES AS FAST FOR 1 SECOND EVERY 2.5 SECONDS, EACH PULSE ADDING 20 DAMAGE.",
+      "PULSES ITS BELTS 5 TIMES AS FAST FOR 1 SECOND EVERY 2 SECONDS, EACH PULSE ADDING 30 DAMAGE.",
     ]);
-    expect(STARS.map((s) => gist("surge", s))).toEqual(["3 TIMES AS FAST, 1 DAMAGE A PULSE", "4 TIMES AS FAST, 2 DAMAGE A PULSE", "5 TIMES AS FAST, 3 DAMAGE A PULSE"]);
+    expect(STARS.map((s) => gist("surge", s))).toEqual(["3 TIMES AS FAST, 10 DAMAGE A PULSE", "4 TIMES AS FAST, 20 DAMAGE A PULSE", "5 TIMES AS FAST, 30 DAMAGE A PULSE"]);
     expect(abilityText("surge", 2).perk).toEqual({ name: "OVERPRESSURE", stars: 2, after: 0 });
   });
 });
@@ -140,7 +144,8 @@ function cell(hero: HeroId): number[] {
 describe("FB-B SURGE VALVE: the shared-pool audit cells", () => {
   it("Furnace (ride-scaled cinder, turret-bound): ★1 no longer lowers total damage (was 78.3 -> 71.5)", () => {
     const [none, one] = cell("furnace");
-    expect(none).toBeCloseTo(78.32, 2);
+    // NUM-1: whole, 11 shots of roundHalfUp(40 + 12 x 2.6 s ridden) = 11 x 71 (was 78.32 = 11 x 7.12)
+    expect(none).toBe(781);
     expect(one).toBeGreaterThan(none);
   });
   for (const hero of HARNESS_HEROES) {

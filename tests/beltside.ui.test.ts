@@ -134,7 +134,8 @@ describe("V4: the belt timeline (walkRoute)", () => {
     expect(w.estimate).toEqual(estimateRoute(b, 0));
     expect(w.timeline.map((r) => r.tile)).toEqual([2, 4]);
     const [t2, t4] = w.timeline;
-    expect(t2.hits.map((x) => [x.def, x.flat, x.prior])).toEqual([["whetstone", 2, undefined], ["longhaul", effectAt("longhaul", 1).gate!.perPriorGate! * 1, 1]]);
+    // NUM-1: the WHETSTONE's flat x10 (was 2), from the data
+    expect(t2.hits.map((x) => [x.def, x.flat, x.prior])).toEqual([["whetstone", effectAt("whetstone", 1).gate!.flat, undefined], ["longhaul", effectAt("longhaul", 1).gate!.perPriorGate! * 1, 1]]);
     expect(t4.hits.map((x) => [x.def, x.speed, x.won])).toEqual([["grease", 1.6, false], ["brake", 0.5, true]]);
     expect([t2.speed, t4.speed, w.speedEnd, w.locked]).toEqual([1, 0.5, 0.5, false]);
     expect(J(walkRoute(b, 0))).toEqual(J(w)); // deterministic

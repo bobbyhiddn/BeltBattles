@@ -17,7 +17,10 @@ const busy = (): Build => ({
   items: [{ uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 }, { uid: 3, def: "splitter", x: 3, y: 4, rot: 1 }, { uid: 4, def: "splitter", x: 6, y: 3 }],
   routes: [{ factory: 1, cells: SHORT }, { factory: 2, cells: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] }],
 });
-const barge = (): Build => ({ ...startingBuild("furnace", 500), routes: [], hullBonus: 2000 });
+// NUM-1 (REQ-BFG-047): the barge's extra hull x10 with every hull (was 2000). At 2000 a 2000-hull FURNACE barge (4000 in
+// all) died inside 30 s to PRESSURE ★2 and ★3, so the bench stopped measuring their damage (4050 and 4028, not ~4195 and
+// ~6227, x10 of the base's 419.5 and 622.7)
+const barge = (): Build => ({ ...startingBuild("furnace", 500), routes: [], hullBonus: 20000 });
 const fit = (b: Build, def: string, turrets: number[], stars = 1): Build => {
   turrets.forEach((t, j) => b.mods.push({ uid: 900 + j, def, turret: t, ...(stars > 1 ? { stars } : {}) }));
   return b;

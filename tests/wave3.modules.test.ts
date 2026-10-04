@@ -6,8 +6,9 @@
 // the spec alone. BB_TABLES=1 prints the table (REPORT.md). The deck-level merge check is tests/wave3.decks.test.ts.
 import { describe, expect, it } from "vitest";
 import { Battle, LOAD_FLOOR, type Payload, type Projectile, type SimEvent } from "../src/sim/battle";
-import { WINDOW_TIME } from "../src/sim/content";
+import { AMMO, ITEMS, WINDOW_TIME } from "../src/sim/content";
 import { ROUTINES } from "../src/sim/cores";
+import { pct } from "../src/sim/pct";
 import { overclocked, boostable } from "../src/sim/overclock";
 import { effectAt, outputsAt, perkAt } from "../src/sim/stars";
 import { walkRoute, type Build } from "../src/sim/deck";
@@ -40,6 +41,8 @@ function checkRow(r: Row): number[] | number[][] {
 }
 
 const BAND: [number, number] = [2.2, 3.5];
+/** NUM-1 (REQ-BFG-047): the plain slug's damage, 30 (was 3). */
+const PLAIN = AMMO.plain.base;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const hull = (): { kind: "hull"; ref: number; cell: number; x: number; y: number; weight: number } => ({ kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 });
 const belt = (route: number, cell: number) => ({ kind: "belt" as const, ref: route, cell, x: 0, y: 0, weight: 1 });
@@ -81,7 +84,8 @@ export const ROWS: Row[] = [
   { id: "twingauge", headline: "Damage on a matched belt (FOUNDRY's mirrored belts)", band: BAND,
     at: (s) => walkRoute(withItem(heroStartBuild("foundry", 1), item(60, "twingauge", 1, 3, 1, s)), 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 60)!.flat! },
   { id: "pincer", headline: "Damage with one other rig on its tile (battle)", band: BAND,
-    at: (s) => mean(pastTile(withItem(withItem(furnaceBench(), item(30, "pincer", 3, 3, 1, s)), item(31, "whetstone", 5, 3, 3)), 0, 3).map((x) => x.flat)) - 2 },
+    // less the WHETSTONE's own flat (NUM-1: 20, was 2)
+    at: (s) => mean(pastTile(withItem(withItem(furnaceBench(), item(30, "pincer", 3, 3, 1, s)), item(31, "whetstone", 5, 3, 3)), 0, 3).map((x) => x.flat)) - ITEMS.whetstone.gate!.flat! },
   { id: "braceframe", headline: "Share of an enemy stall it takes off its tile (bare; plated)",
     at: (s) => braceCut(s) },
   { id: "twinlatch", headline: "Damage on each payload it lets go", band: BAND,
@@ -167,7 +171,7 @@ function mouldDeck(stars: number): Build {
 function mouldDps(stars: number): number {
   const bt = run(mouldDeck(stars), 30);
   const f = bt.sides[0].factories.find((x) => x.uid === 7)!;
-  return (f.produced * (effectAt("twinmould", stars).factory!.base ?? 3)) / 30;
+  return (f.produced * (effectAt("twinmould", stars).factory!.base ?? PLAIN)) / 30;
 }
 
 /** Each payload's flat once past tile `tile` of route 0, with `plate` plating put on the hull on the first tick. */
@@ -207,7 +211,7 @@ function steamRate(stars: number, plated: boolean): number {
 }
 
 /** TWIN TRIGGER on FURNACE's heavy gun fed by two equal press belts (CALIBRATION ★3: nothing waits): the share more
- *  damage its paired shots deal than the plain slug's 3. */
+ *  damage its paired shots deal than the plain slug's PLAIN (NUM-1: 30, was 3). */
 function pairedShare(stars: number): number {
   const b = withMod(withMod(twoPress(), 50, "twintrigger", 0, stars), 51, "calibrate", 0, 3);
   const dmg: number[] = [];
@@ -218,7 +222,7 @@ function pairedShare(stars: number): number {
     }
   });
   expect(dmg.length).toBeGreaterThan(3);
-  return mean(dmg) / 3 - 1;
+  return mean(dmg) / PLAIN - 1;
 }
 
 /** SPALL CATCHER on FURNACE's heavy gun: the charge `taken` damage on the hull leaves (with `plate` plating first). */
@@ -240,10 +244,10 @@ describe("wave 3 at 1, 2 and 3 stars: each module's headline number rises (REQ-B
 
 describe("wave 3's named rules", () => {
   it("PLATE ROLLER: 0.5 / 1.1 / 1.7 plating for each payload it hits, never past 24", () => {
-    for (const [s, want] of [[1, 0.5], [2, 1.1], [3, 1.7]] as const) {
-      const ps = plates(onTile3("plateroller", s), 100); // a Kiln slug every 1.25 s: 24 plating within 61 s even at 1 star
+    for (const [s, want] of [[1, 5], [2, 11], [3, 17]] as const) { // NUM-1: x10 (was 0.5 / 1.1 / 1.7)
+      const ps = plates(onTile3("plateroller", s), 100); // a Kiln slug every 1.25 s: 240 plating within 61 s even at 1 star
       expect(ps[0].amount).toBe(want);
-      expect(ps.reduce((a, p) => a + p.amount, 0)).toBeCloseTo(24, 9); // it filled the 24 cap, and no more
+      expect(ps.reduce((a, p) => a + p.amount, 0)).toBe(240); // it filled the 240 cap, and no more (NUM-1: whole, x10 of 24)
       expect(ps.at(-1)!.amount).toBeLessThanOrEqual(want); // the last roll only topped it up
     }
   });
@@ -271,7 +275,7 @@ describe("wave 3's named rules", () => {
     for (const s of [1, 2, 3]) expect(effectAt("twinlatch", s).gate!.latch!.hold).toBe(1);
     const e = effectAt("twinlatch", 2).gate!;
     expect(boostable(e)).toBe(true);
-    expect(overclocked(e).latch).toEqual({ hold: 1, flat: 4.4 });
+    expect(overclocked(e).latch).toEqual({ hold: 1, flat: 44 }); // NUM-1: x10 (was 4.4)
   });
 
   it("STOKER: 20% / 44% / 70% faster; OVERCLOCKER can't boost it or BRACE FRAME (they act on no payload)", () => {
@@ -282,20 +286,22 @@ describe("wave 3's named rules", () => {
   });
 
   it("PLATE BREAKER: 1 plating for 4 / 8.8 / 14 at every star; with no plating to take, 1 / 2.2 / 3.5", () => {
-    for (const [s, big, floor] of [[1, 4, 1], [2, 8.8, 2.2], [3, 14, 3.5]] as const) {
+    // NUM-1: x10 (was 4 / 8.8 / 14 and 1 / 2.2 / 3.5)
+    for (const [s, big, floor] of [[1, 40, 10], [2, 88, 22], [3, 140, 35]] as const) {
       // a bare FURNACE: the floor on every payload, no plate event
       const bare = pastTile(onTile3("platebreaker", s), 0, 3).map((x) => x.flat);
       expect(new Set(bare)).toEqual(new Set([floor]));
-      // 10 plating: each payload takes 1 (a -1 plate event) and gains the big number until the plating is gone
+      // 100 plating: each payload takes 10 (a -10 plate event) and gains the big number until the plating is gone
+      // (NUM-1: plating x10, was 10 plating and 1 a payload)
       const spent: number[] = [];
       const flats: number[] = [];
       const seen = new Set<number>();
       run(onTile3("platebreaker", s), 30, barge(), SEED, (ev, bt) => {
-        if (bt.ticks === 1) bt.addPlate(bt.sides[0], 10);
+        if (bt.ticks === 1) bt.addPlate(bt.sides[0], 100);
         for (const e of ev) if (e.type === "plate" && e.side === 0 && e.amount < 0) spent.push(e.amount);
         for (const a of bt.sides[0].routes[0].ammo) if (a.processed >= 3 && !seen.has(a.p.id)) { seen.add(a.p.id); flats.push(a.p.flat); }
       });
-      expect(spent).toEqual(Array(10).fill(-1));
+      expect(spent).toEqual(Array(10).fill(-10));
       const hit = flats.filter((f) => f > 0); // payloads that passed before it came online carry nothing
       expect(hit.slice(0, 10)).toEqual(Array(10).fill(big));
       expect(hit.length).toBeGreaterThan(12);
@@ -304,14 +310,15 @@ describe("wave 3's named rules", () => {
   });
 
   it("SHIELD WALL: 1 / 2.2 / 3.5 plating a payload, and 3 / 6.6 / 10.5 damage on it while the hull holds 12 plating", () => {
-    for (const [s, plate, dmg] of [[1, 1, 3], [2, 2.2, 6.6], [3, 3.5, 10.5]] as const) {
+    // NUM-1: x10 (was 1 / 2.2 / 3.5 and 3 / 6.6 / 10.5)
+    for (const [s, plate, dmg] of [[1, 10, 30], [2, 22, 66], [3, 35, 105]] as const) {
       expect(plates(onTile3("shieldwall", s), 6)[0].amount).toBe(plate);
       const below = pastTile(onTile3("shieldwall", s), 0, 3, 4, 1).map((x) => x.flat); // 0 plating at first: no bonus
       expect(below[0]).toBe(0);
       const flats: number[] = [];
       const seen = new Set<number>();
       run(onTile3("shieldwall", s), 10, barge(), SEED, (_ev, bt) => {
-        if (bt.ticks === 1) bt.addPlate(bt.sides[0], 12);
+        if (bt.ticks === 1) bt.addPlate(bt.sides[0], 120); // NUM-1: its threshold, 120 plating (x10 of 12)
         for (const a of bt.sides[0].routes[0].ammo) if (a.processed >= 3 && !seen.has(a.p.id)) { seen.add(a.p.id); flats.push(a.p.flat); }
       });
       expect(flats.length).toBeGreaterThan(3);
@@ -324,8 +331,9 @@ describe("wave 3's named rules", () => {
     expect([1, 2, 3].map((s) => outputsAt("twinmould", s))).toEqual([2, 3, 4]);
     expect([1, 2, 3].map((s) => effectAt("twinmould", s).factory!.pour)).toEqual([2, 2, 3]);
     expect(perkAt("twinmould", 3)).toBe("THIRD SPRUE");
-    for (const [s, base, every, n] of [[1, 3, 1.8, 2], [2, 5, 1.6, 2], [3, 6, 1.4, 3]] as const) {
-      expect(mouldDps(s)).toBeCloseTo((n * base) / every, 0);
+    for (const [s, base, every, n] of [[1, 30, 1.8, 2], [2, 50, 1.6, 2], [3, 60, 1.4, 3]] as const) { // NUM-1: base x10 (was 3 / 5 / 6)
+      // NUM-1: the dps is x10 (same slug count), so the same +-0.5 a second of the old units is +-5 now (digits -1)
+      expect(mouldDps(s)).toBeCloseTo((n * base) / every, -1);
       expect(effectAt("twinmould", s).factory!.interval).toBe(every);
       // every cast lands on every belt on one tick, plain slugs of its base
       const perTick = new Map<number, number>(), seen = new Set<number>(), bases = new Set<number>();
@@ -334,7 +342,7 @@ describe("wave 3's named rules", () => {
           if (seen.has(a.p.id)) continue;
           seen.add(a.p.id);
           perTick.set(bt.ticks, (perTick.get(bt.ticks) ?? 0) + 1);
-          bases.add(a.p.base ?? 3);
+          bases.add(a.p.base ?? PLAIN);
           expect(a.p.ammo).toBe("plain");
         }
       });
@@ -346,8 +354,8 @@ describe("wave 3's named rules", () => {
 
   // 0.8.0 B1 M2 (brief 3.3): ARMOR PRESS 2 / 4.4 / 7 plating every 4 s -> 3 / 6.6 / 10.5 every 3 s (its stamping unchanged)
   it("ARMOR PRESS: 3 / 6.6 / 10.5 plating every 3 s; its plain slugs every 1.6 / 1.4 / 1.2 s; no belt to a turret: no plating", () => {
-    for (const [s, amount, every] of [[1, 3, 1.6], [2, 6.6, 1.4], [3, 10.5, 1.2]] as const) {
-      const ps = plates(pressFurnace("armorpress", s), 7); // two pressings under the 24 cap at every star
+    for (const [s, amount, every] of [[1, 30, 1.6], [2, 66, 1.4], [3, 105, 1.2]] as const) { // NUM-1: x10 (was 3 / 6.6 / 10.5)
+      const ps = plates(pressFurnace("armorpress", s), 7); // two pressings under the 240 cap at every star
       expect(ps.map((p) => p.amount)).toEqual([amount, amount]);
       expect(ps.map((p) => +p.t.toFixed(4))).toEqual([3, 6]);
       expect(effectAt("armorpress", s).factory!.interval).toBe(every);
@@ -364,9 +372,11 @@ describe("wave 3's named rules", () => {
 
   // 0.8.0 B1 M2 (brief 3.3): ANVIL BREECH +1 / 2.2 / 3.5 and 0.2 / 0.4 / 0.7 a plating -> +2.5 / 5.5 / 8.75 and 1 / 2.2 / 3.5
   it("ANVIL BREECH: +2.5 / 5.5 / 8.75 a shot and 1 / 2.2 / 3.5 for each plating (x the class factor)", () => {
-    for (const [s, flat, per] of [[1, 2.5, 1], [2, 5.5, 2.2], [3, 8.75, 3.5]] as const) {
-      expect(anvilGain(s, 0)).toBeCloseTo(flat, 6);
-      expect(anvilGain(s, 24)).toBeCloseTo(flat + 24 * per, 6);
+    // NUM-1: the flat x10 (was 2.5 / 5.5 / 8.75; ★3's 87.5 rounds half up to 88); the per-plating ratio is unchanged
+    // (damage and plating both x10); the gain is whole, so exact
+    for (const [s, flat, per] of [[1, 25, 1], [2, 55, 2.2], [3, 88, 3.5]] as const) {
+      expect(anvilGain(s, 0)).toBe(flat);
+      expect(anvilGain(s, 240)).toBe(flat + 240 * per); // NUM-1: 240 plating, the cap (x10 of 24)
     }
   });
 
@@ -383,7 +393,8 @@ describe("wave 3's named rules", () => {
 
   it("TWIN TRIGGER: paired loads deal 25 / 55 / 88% more; its load time is 0.25 / 0.4 / 0.55 s shorter, never below 0.3 s", () => {
     for (const [s, bonus, cut] of [[1, 0.25, 0.25], [2, 0.55, 0.4], [3, 0.88, 0.55]] as const) {
-      expect(pairedShare(s)).toBeCloseTo(bonus, 6);
+      // NUM-1: the % rounds half up once on the 30 slug (pct): a paired load deals 38 / 47 / 56, not 37.5 / 46.5 / 56.4
+      expect(pairedShare(s)).toBeCloseTo(pct(PLAIN, 100 * (1 + bonus)) / PLAIN - 1, 6);
       const tu = new Battle(withMod(furnaceBench(), 50, "twintrigger", 0, s), barge(), SEED).sides[0].turrets[0];
       expect(tu.windowTime).toBeCloseTo(WINDOW_TIME - cut, 9);
       // on a ROTARY BREECH (0.8 s) the floor holds: 0.8 - 0.55 = 0.25 -> 0.3
@@ -395,23 +406,25 @@ describe("wave 3's named rules", () => {
     one.routes.pop();
     const dmg: number[] = [];
     run(withMod(one, 50, "twintrigger", 0, 3), 10, barge(), SEED, (ev) => { for (const e of ev) if (e.type === "fire" && e.side === 0) dmg.push(e.dmg); });
-    expect(new Set(dmg)).toEqual(new Set([3]));
+    expect(new Set(dmg)).toEqual(new Set([PLAIN])); // NUM-1: the plain slug's 30 (was 3)
   });
 
   it("SPALL CATCHER: 1 / 2.2 / 3.5 damage for every 4 taken, up to 8 / 17.6 / 28; plating soaked counts twice; the next shot spends it", () => {
-    for (const [s, add, max] of [[1, 1, 8], [2, 2.2, 17.6], [3, 3.5, 28]] as const) {
-      expect(spall(s, 8, 0)).toBeCloseTo(add * 2, 9);
-      expect(spall(s, 8, 8)).toBeCloseTo(add * 4, 9); // all 8 soaked: twice
-      expect(spall(s, 400, 0)).toBe(max);
+    // NUM-1: x10 (was 1 / 2.2 / 3.5 for every 4, up to 8 / 17.6 / 28); the damage taken x10 too (80, was 8; 4000, was
+    // 400), so each charge is whole and exact
+    for (const [s, add, max] of [[1, 10, 80], [2, 22, 176], [3, 35, 280]] as const) {
+      expect(spall(s, 80, 0)).toBe(add * 2);
+      expect(spall(s, 80, 80)).toBe(add * 4); // all 80 soaked: twice
+      expect(spall(s, 4000, 0)).toBe(max);
       // the next shot carries it, and the charge is gone
       const bt = new Battle(withMod(furnaceBench(), 50, "spallcatcher", 0, s), barge(), SEED);
-      priv(bt).impact(shot(1, 8));
+      priv(bt).impact(shot(1, 80));
       const fired: number[] = [];
       while (!fired.length && bt.t < 10) { bt.step(); for (const e of bt.drainEvents()) if (e.type === "fire" && e.side === 0) fired.push(e.dmg); }
       const plainShot = new Battle(furnaceBench(), barge(), SEED);
       const base: number[] = [];
       while (!base.length && plainShot.t < 10) { plainShot.step(); for (const e of plainShot.drainEvents()) if (e.type === "fire" && e.side === 0) base.push(e.dmg); }
-      expect(fired[0] - base[0]).toBeCloseTo(add * 2, 9);
+      expect(fired[0] - base[0]).toBe(add * 2);
       expect(bt.sides[0].turrets[0].spallCharge).toBe(0);
     }
     // the dark wind doesn't count
@@ -423,7 +436,7 @@ describe("wave 3's named rules", () => {
   });
 
   it("SEAM WELDER: each pair rolls 1 / 2.2 / 3.5 plating and every other load 0.2 / 0.4 / 0.7; a FOUNDRY fusion is a pair", () => {
-    for (const [s, pair, lone] of [[1, 1, 0.2], [2, 2.2, 0.4], [3, 3.5, 0.7]] as const) {
+    for (const [s, pair, lone] of [[1, 10, 2], [2, 22, 4], [3, 35, 7]] as const) { // NUM-1: x10 (was 1 / 2.2 / 3.5 and 0.2 / 0.4 / 0.7)
       const ps = plates(seamDeck(s), 10).map((p) => p.amount);
       expect(new Set(ps)).toEqual(new Set([lone, pair]));
       const f = plates(withMod(heroStartBuild("foundry", 1), 50, "seamwelder", 0, s), 10).map((p) => p.amount);
