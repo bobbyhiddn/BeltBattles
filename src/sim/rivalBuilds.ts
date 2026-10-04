@@ -287,15 +287,17 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // 0.8.0 B1 M3: the whetstone, counterweight, second coil, bellows and drake later at ordinary luck (soon() keeps the
       // warlord's days): stand-in at most 69 on days 2-10 (was 79-93), and days 8-9 above the Iron Matriarch's margin
       // bb-0.8.6 (job PACKS M4): the packs' caps (WEAVER rare+: ordinary 0 on day 1 and 4 on day 6, good 4-7 on days
-      // 5-8 and 9 on day 10): at ordinary luck the coil on day 2 (was 1; soon() keeps the warlord's day 1), a tollbooth
-      // for the second coil and a sifter for the bellows (commons for two rares, on their days), and (the ladder: the Hard
-      // mean below 0 on days 5-8) the static brush's second star on day 5 at good luck (ordinary: day 9)
+      // 5-8 and 9 on day 10): at ordinary luck the coil on day 2 (was 1) and the drake core on day 8 (was 7), soon()
+      // keeping the warlord's days 1 and 7; a sifter (common) for the counterweight; the good-luck long haul on day 8 (was
+      // 3); both coils kept (tests/presets.fusion); and (the ladder: the Hard mean below 0 on days 5-8) the static brush's
+      // second star on day 5 at good luck (ordinary: day 9)
       G(1, "temper", 5, 0, 3), soon(1, G(2, "coil", 3, 0)), M(2, "scatter", 1), soon(2, G(3, "whetstone", 3, 1, 1)),
       // bb-0.8.3 (job BELTS run 4): the bellows on day 7 at ordinary luck (was 6; the stand-in's day-6 rare cap is 5);
       // soon() keeps the warlord's day 5
-      G(3, "staticbrush", 3, 3), ...good(G(3, "longhaul", 5, 1)), G2(4, "coil", 3, 0),
-      soon(4, G(6, "counterweight", 7, 0)), soon(5, G(6, "tollbooth", 0, 0, 1)), G(6, "lodestone", 4, 5, 1),
-      ...good(G(6, "grease", 4, 7)), soon(5, G(7, "sifter", 7, 1, 1)), M(7, "drake", 2), soon(5, G2(9, "staticbrush", 3, 3)),
+      G(3, "staticbrush", 3, 3), G2(4, "coil", 3, 0),
+      soon(4, G(6, "sifter", 7, 0, 1)), soon(5, G(6, "coil", 0, 0)), G(6, "lodestone", 4, 5, 1),
+      ...good(G(6, "grease", 4, 7)), soon(5, G(7, "bellows", 7, 1)), soon(7, M(8, "drake", 2)), ...good(G(8, "longhaul", 5, 1)),
+      soon(5, G2(9, "staticbrush", 3, 3)),
       ...good(G(10, "venom", 3, 2)), ...good(M2(10, "drake", 2)), ...good(M(10, "flak", 0)),
     ],
   },
