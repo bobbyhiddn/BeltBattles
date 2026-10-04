@@ -73,7 +73,25 @@ export interface CardState {
   badge?: ShopBadge | null; // 0.6.1d: live from run.ts:shopBadge (mergePreview), never stored on the offer
   /** 0.6.2t (T5): the offer's one-line effect (abilityText.ts cardText), shown on a wide (landscape) card. */
   effect?: string;
+  /** U2c (R1 MEMO C4): the stat chip (src/ui/chips.ts, in glyphs): on the narrow face in the family marks' place (they
+   *  don't fit beside it and the price: the panel's header names the families), the price in the right corner; on the wide
+   *  face left of the price, where it fits beside the badge (the marks stay). Absent: today's card. */
+  chip?: string;
 }
+
+/** U2c: the narrow face's chip row (3x5, its glyphs on the price's last five rows: y + 32 .. 36 on a 42 px card). */
+export const CARD_CHIP_Y = 32;
+
+/** U2c: where a card draws its price (the coin's x, the number 7 px right of it): the wide face and a narrow face with a
+ *  chip at the right, 4 px in (5 on the wide face); else centred. Pure (tests). */
+export function cardPriceX(x: number, w: number, price: number, wide: boolean, chip: boolean): number {
+  const tw = textWidth(String(price)) + 7;
+  return wide ? x + w - 5 - tw : chip ? x + w - 4 - tw : Math.round(x + w / 2 - tw / 2);
+}
+
+/** U2c: the badge's drawn width on a card `w` px wide (drawBadge's), for the wide face's chip. */
+const badgeW = (badge: ShopBadge, maxW: number): number =>
+  Math.min(maxW, textWidth(badge.kind === "merge" ? `MERGE ★${badge.toStars}` : badge.kind === "wait" ? "+1 ★2" : "MAX", "3") + 4);
 
 /** 0.6.2t (T5): the wide card's effect text: 2 lines of the 3x5 face, 2 px in from each edge (as the name's w - 4). */
 export const CARD_EFFECT_LINES = 2;
@@ -176,13 +194,20 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the family marks, a row at the bottom left of either face (narrow: left of the
   // centred price, under the name; wide: under the effect's second line, a clear row between (0.8.0 B1 M4), over the
   // badge and the price); the panel and the hover tooltip name them (ui/families.ts)
-  drawFamilyMarks(g, def.id, x + CARD_MARK_X, y + CARD_MARK_Y, s.sold);
+  // U2c (C4): on the narrow face a chip takes the marks' place (the price moves to the right corner)
+  const chip = s.chip && !s.sold ? s.chip : null;
+  if (chip && !wide) drawText(g, chip, x + CARD_MARK_X, y + CARD_CHIP_Y, C.white, { font: "3" });
+  else drawFamilyMarks(g, def.id, x + CARD_MARK_X, y + CARD_MARK_Y, s.sold);
+  if (chip && wide) {
+    // U2c: the wide face's chip, left of the price on its row, where it clears the badge (else the effect line says it)
+    const cx = cardPriceX(x, r.w, price, true, true) - 3 - textWidth(chip, "3");
+    if (cx >= x + 3 + (s.badge ? badgeW(s.badge, r.w - 30) + 2 : 0)) drawText(g, chip, cx, y + r.h - 10, C.white, { font: "3" });
+  }
   if (s.sold) {
     drawText(g, "SOLD", x + r.w / 2, y + r.h - 11, C.maroon, { font: "3", align: "center" });
   } else {
     const txt = String(price);
-    const tw = textWidth(txt) + 7;
-    const px = wide ? x + r.w - 5 - tw : Math.round(x + r.w / 2 - tw / 2); // 0.6.2t: the wide face's price sits right
+    const px = cardPriceX(x, r.w, price, wide, !!chip); // 0.6.2t: the wide face's price sits right; U2c: a chip's too
     g.drawImage(coinIcon(), px, y + r.h - 11);
     drawText(g, txt, px + 7, y + r.h - 12, s.affordable ? C.yellow : C.red, { outline: C.ink });
   }
