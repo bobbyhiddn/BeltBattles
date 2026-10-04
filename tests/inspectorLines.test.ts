@@ -281,7 +281,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
   it("phone: every buyable rig's hits (or IDLE), ability text, perk, next star and merge progress show whole", () => {
     const rigs = buyableModules().filter((d) => d.kind === "gate").map((d) => d.id);
     expect(rigs).toHaveLength(31); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23)
-    const band = buildLayout(167, 361, true, 5).info;
+    const band = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
     let cases = 0, nextCases = 0;
     for (const def of rigs) {
       for (const s of [1, 2, 3]) for (const [lay, x, y, rot, want, extra] of layouts(def)) for (const spare of [0, 1]) {
@@ -361,7 +361,7 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
   });
 
   it("phone: the offer's opening sentence and its MERGES WITH line show whole on the band (the tap preview)", () => {
-    const band = buildLayout(167, 361, true, 5).info;
+    const band = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
     for (const def of ["brake", "splitter", "doublestamp", "gantry", "assembly"]) {
       for (const owned of [[1], [2, 1]]) {
         const plan = planPanel(offerPanel(offering(def, owned), 0, 0)!, band);

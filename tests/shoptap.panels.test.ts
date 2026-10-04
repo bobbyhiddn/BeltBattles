@@ -34,16 +34,22 @@ function furnace(items: Placed[] = []): Run {
   return run;
 }
 
-/** The build screen's view and its panel area on a phone (its own scale), and the portrait band / landscape column. */
-function screen(w: number, h: number, dpr: number) {
+/** The build screen's view and its panel area on a phone (its own scale), and the portrait band / landscape column.
+ *  `dh`: art px added to the view's height (PACKS Q5: the pack row's 33 px, so the band stays 0.8.5's); `scale`: the
+ *  view's scale where buildScale no longer picks 0.8.5's. */
+function screen(w: number, h: number, dpr: number, dh = 0, scale?: number) {
   // zoom (REQ-BFG-040): the build screen's scale before the phone cap (buildScale without the dpr), so these views keep
   // the band, column and strip they pin (a phone now zooms out: tests/zoom.test.ts)
-  const v = computeView(w, h, dpr, (pw, ph, portrait) => buildScale(pw, ph, portrait));
+  const v0 = computeView(w, h, dpr, (pw, ph, portrait) => scale ?? buildScale(pw, ph, portrait));
+  const v = { ...v0, H: v0.H + dh };
   return { v, area: buildLayout(v.W, v.H, v.portrait, 5).info, k: v.scale / v.dpr };
 }
-const PHONE = screen(390, 844, 3); // 167 x 361 at x7: the 161 x 69 band
+// PACKS Q5 (oracle 35e8ebc1eda74818): 0.8.5's views plus the pack row's 33 px, so the bands stay 0.8.5's
+const PHONE = screen(390, 844, 3, 33); // 167 x 361 at x7, + 33: 167 x 394, the 161 x 69 band
 const LAND = screen(844, 390, 3); // 633 x 292 at x4: the left column
-const SMALL = screen(360, 640, 2); // 180 x 320 at x4: the header-only strip
+// 180 x 320 at x4 (0.8.5's scale; bb-0.8.6's buildScale draws this screen at x3, 240 x 426, a full band), + 33: 180 x 353,
+// the header-only strip (174 x 28)
+const SMALL = screen(360, 640, 2, 33, 4);
 
 /** A Ctx for the panels: `touch`, and the view the tap targets are measured in; the actions record what they did. */
 function ctxOf(run: Run, touch: boolean, v = PHONE.v) {

@@ -199,10 +199,14 @@ describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets throu
   }, 300_000);
 
   // 0.8.0 B1 (oracle 2e5a00525c876f07): since B1's M2 part numbers (209622b) no FURNACE or WEAVER run of seeds 1-12
-  // replaces a turret, so this test alone samples seeds 1-48 (FURNACE replaces in 5 of them); the checks are unchanged
+  // replaces a turret, so this test alone samples seeds 1-48 (FURNACE replaces in 5 of them); the checks are unchanged.
+  // bb-0.8.6 (PACKS Q5, oracle 35e8ebc1eda74818): the packs absorb the gold a replace needs (no par run of the sample
+  // replaces one), so the sample plays a policy that buys no pack: the par player judges both packs and never takes one
+  // (PolicyKnobs.forbid, the TUNE-M switch: player.ts packCands marks them banned)
   it("one run replaces a turret: the slot holds the bought def, the old one left the deck (cargo or sold) and the gold adds up", () => {
     const seeds = Array.from({ length: 48 }, (_, i) => i + 1);
-    const hits = HEROES.flatMap((hero) => seeds.flatMap((seed) => playerRun(hero, PLAYER_DAYS, seed).map((d) => ({ hero, seed, d }))))
+    const noPacks = { tune: { forbid: "pack:belt+pack:armor" } };
+    const hits = HEROES.flatMap((hero) => seeds.flatMap((seed) => playerRun(hero, PLAYER_DAYS, seed, noPacks).map((d) => ({ hero, seed, d }))))
       .filter((x) => x.d.buys.some((b) => b.into === "replace"));
     expect(hits.length, "some par run replaces a turret").toBeGreaterThan(0);
     for (const { hero, seed, d } of hits) {

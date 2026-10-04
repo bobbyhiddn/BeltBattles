@@ -26,8 +26,12 @@ import { MODULES, STARS, SUPPLIES, banned, numbers, repeats, sentencesOf, starsO
 // (0b.5); T4's layout (perk after its effect, aligned stat rows, flavour and hint dimmer); the carry-overs 0b.1 (LIMPET
 // WORKS at 1 star), 0b.2 (no stub last line), 0b.3 (captures wait for the caravan) and 0b.4 (SLAG vs METRONOME).
 
-/** The 390x844 phone's info band (layout.ts; tests/shopRow.test.ts pins the phone's 167 x 361 view). */
-const PHONE = buildLayout(167, 361, true, 5).info;
+/** The narrowest full portrait band, 161 x 69 (PORT_BAND tall), which is also the smallest panel a finger opens at that
+ *  width (layout.ts panelArea grows a touch panel to at least PORT_BAND). bb-0.8.6 (PACKS Q5, oracle 35e8ebc1eda74818):
+ *  0.8.5's 167 x 361 view plus the 33 px the pack row (BELT PACK, ARMOR PACK) takes under REROLL's row; 167 x 361 itself
+ *  now gives a 161 x 36 band (the cost test below). The name keeps 0.6.2t's: since the zoom (REQ-BFG-040) the 390x844
+ *  phone draws at 234 x 506 with phone=true (tests/zoom.test.ts), not at this view. */
+const PHONE = buildLayout(167, 394, true, 5).info;
 /** The 1920x1080 desk's details column (480 x 270 at scale 4). */
 const DESK = buildLayout(480, 270, false, 5).info;
 
@@ -209,9 +213,63 @@ function fit(t: PanelText, area: typeof PHONE) {
 }
 describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole or absent (0b.5)", () => {
   it("the bands: the 390x844 phone's 161 x 69, the 360x640 strip's header only, the desk's column", () => {
+    // the narrowest full portrait band (PHONE: 167 x 394, the smallest panel a finger opens at that width), with the pack
+    // row: both slots under REROLL's row (PACKS Q5)
     expect([PHONE.w, PHONE.h]).toEqual([161, 69]);
-    expect(buildLayout(180, 320, true, 5).info.h).toBeLessThan(30); // the small viewport: a header-only strip
+    const L = buildLayout(167, 394, true, 5);
+    expect(L.packs[0].y, "BELT PACK under REROLL's row").toBeGreaterThan(L.reroll.y + L.reroll.h);
+    expect(L.packs[1].y, "ARMOR PACK beside it").toBe(L.packs[0].y);
+    // the small viewport: a header-only strip (0.8.5's 174 x 28: 180 x 320 plus the pack row's 33 px; PACKS Q5)
+    expect(buildLayout(180, 353, true, 5).info.h).toBeLessThan(30);
     expect([DESK.w, DESK.h > 150]).toEqual([126, true]);
+  });
+
+  // PACKS Q5 (oracle 35e8ebc1eda74818): the pack row's cost. 0.8.5's 167 x 361 view gives the 161 x 36 band now (the row
+  // takes 33 px under REROLL's row). Every panel of the sweep, planned there, draws only inside the band and never over
+  // the hull, at drawDetails' places: the panel, its icon box (x+4, y+4, 16 x 16), the title (y+3..y+12 with its
+  // outline), the sub line(s) or header-only lines (from y+13, 6 px apart), the families (y+5 or y+6 by the title, else
+  // y+19 / y+20), the buttons and every drawn body line (at x+5, as wide as its text)
+  it("PACKS Q5: at 167 x 361 (the 161 x 36 band) every panel draws only inside the band, never over the hull", () => {
+    const L = buildLayout(167, 361, true, 5), band = L.info, bottom = band.y + band.h, right = band.x + band.w;
+    expect([band.w, band.h]).toEqual([161, 36]);
+    expect(L.packs[0].y).toBeGreaterThan(L.reroll.y + L.reroll.h);
+    expect(bottom).toBeLessThanOrEqual(L.pad.y);
+    expect(L.pad.y).toBeLessThanOrEqual(L.hull.y);
+    const spansW = (spans: { t: string }[], font: PLine["font"]) => textWidth(spans.map((s) => s.t).join(""), font);
+    const lineW = (l: PLine) => l.cells
+      ? Math.max(...l.cells.map((c) => Math.max(c.at + textWidth(c.label, l.font), c.vx + spansW(c.spans, l.font))))
+      : Math.max(l.label ? textWidth(l.label, l.font) : 0, (l.indent ?? 0) + spansW(l.spans, l.font));
+    // the record (logged, not pinned): how many fit, keep their kept text whole, show the header only, or draw a block in
+    // part (some of its lines, not all)
+    const tally = { cases: 0, fits: 0, keptWhole: 0, headerOnly: 0, partBlock: 0, buttons: 0, lines: 0 };
+    for (const { id, t } of PANELS) {
+      const plan = planPanel(t, band), r = plan.r, out: string[] = [];
+      const inside = (what: string, x0: number, y0: number, x1: number, y1: number) => {
+        if (x0 < band.x || y0 < band.y || x1 > right || y1 > bottom) out.push(`${what} [${x0},${y0}..${x1},${y1}] outside the band`);
+        if (y1 > L.pad.y || y1 > L.hull.y) out.push(`${what} over the hull`);
+      };
+      tally.cases++;
+      inside("panel", r.x, r.y, r.x + r.w, r.y + r.h);
+      inside("icon", r.x + 4, r.y + 4, r.x + 20, r.y + 20);
+      inside("title", r.x + 22, r.y + 3, r.x + 23 + plan.subMax + 1, r.y + 12);
+      const heads = plan.headerOnly ? plan.headerOnly.lines.length : plan.body.sub ? 1 : plan.subs.length;
+      inside("header", r.x + 23, r.y + 13, r.x + r.w - 4, r.y + 13 + (heads - 1) * 6 + 5);
+      if (plan.famHead) inside("families", r.x + 23, r.y + 5, r.x + r.w - 4, r.y + (plan.famHead.at === "title" ? 6 : 19) + 5);
+      for (const q of plan.rects ?? []) { inside("button", q.x, q.y, q.x + q.w, q.y + q.h); tally.buttons++; }
+      for (const v of visibleLines(plan)) {
+        tally.lines++;
+        if (v.line === "rule") inside("rule", r.x + 5, v.y + 1, r.x + r.w - 5, v.y + 2);
+        else inside(`line "${lineText(v.line.spans)}"`, r.x + 5, v.y, r.x + 5 + lineW(v.line), v.y + (v.line.font === "5" ? 7 : 5));
+      }
+      expect(out, id).toEqual([]);
+      if (plan.body.fits) tally.fits++;
+      if (fit(t, band).keptWhole) tally.keptWhole++;
+      if (plan.headerOnly) tally.headerOnly++;
+      const drawn = new Set(visibleLines(plan).map((v) => v.line));
+      if (plan.body.shown.some((l) => { const n = l.lines.filter((x) => drawn.has(x)).length; return n > 0 && n < l.lines.length; })) tally.partBlock++;
+    }
+    expect(tally.cases).toBe(PANELS.length);
+    console.log(`PACKS Q5 161 x 36 band: ${JSON.stringify(tally)}`);
   });
 
   it("phone: the opening sentence, the hits (or IDLE), the perk, the next star and merge progress show whole", () => {

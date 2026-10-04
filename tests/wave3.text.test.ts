@@ -21,7 +21,7 @@ import { STARS, banned, numbers } from "./textRules";
 // these panels into tests/abilityPanels.test.ts (its PANELS and counts) and moves WAVE3_FLAVOUR's rows into KEPT_FLAVOUR.
 
 /** The 390x844 phone's info band and the 1920x1080 desk's details column (as tests/abilityPanels.test.ts). */
-const PHONE = buildLayout(167, 361, true, 5).info;
+const PHONE = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
 const DESK = buildLayout(480, 270, false, 5).info;
 
 const SHORT = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];

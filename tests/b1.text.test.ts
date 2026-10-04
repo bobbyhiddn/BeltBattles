@@ -37,7 +37,7 @@ installRaster();
 
 /** The 390x844 phone's band, the 1920x1080 desk's column, the 1366x768 laptop's column (tests/abilityPanels.test.ts). */
 const BANDS = [
-  ["phone", buildLayout(167, 361, true, 5).info],
+  ["phone", buildLayout(167, 394, true, 5).info], // PACKS Q5: 0.8.5's 167 x 361 plus the pack row: the 161 x 69 band
   ["desk", buildLayout(480, 270, false, 5).info],
   ["laptop", buildLayout(455, 256, false, 5).info],
 ] as const;

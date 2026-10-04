@@ -12,7 +12,7 @@ import { buildLayout } from "../src/screens/build/layout";
 import { K, barge, item, withItem, withMod } from "./wave3.helpers";
 import { banned } from "./textRules";
 
-const PHONE = buildLayout(167, 361, true, 5).info;
+const PHONE = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
 const DESK = buildLayout(480, 270, false, 5).info;
 
 const furnaceStart = (): Build => heroStartBuild("furnace", 1);

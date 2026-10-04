@@ -33,7 +33,7 @@ const PALETTE = new Set<string>(Object.values(C));
 const V2: ModuleTag[] = ["FORGE", "HARASS", "SWARM", "BURST", "TEMPO", "TWIN", "PLATE"];
 
 /** The phone band (390x844), the desk column (1920x1080), the laptop column (1366x768): tests/abilityPanels.test.ts's. */
-const PHONE = buildLayout(167, 361, true, 5).info;
+const PHONE = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
 const DESK = buildLayout(480, 270, false, 5).info;
 const LAPTOP = buildLayout(455, 256, false, 5).info;
 
