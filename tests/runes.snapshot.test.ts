@@ -139,13 +139,17 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
 
 describe("RUNES-1 M3: runeOffer pinned (a catalogue edit can't move offers silently)", () => {
   it("literal (seed, day, hero) -> ids triples, with nothing held", () => {
+    // RUNES-2a (decision 4): re-pinned for the 61-rune catalogue (all six moved: the commons and rares grew, and the two
+    // epic dawns now show EPIC, not RARE); plus a 3-card epic dawn and a 2-card legendary dawn
     const pins: [number, number, HeroId, string[], string][] = [
-      [1, 1, "furnace", ["iron_skin", "coin_purse", "tar_barrel"], "common"],
-      [4242, 3, "weaver", ["iron_skin", "sharp_scrap", "loose_thread"], "common"],
-      [77, 5, "foundry", ["twin_nails", "iron_skin"], "common"],
-      [123456789, 10, "bastion", ["double_knot", "fat_purse"], "rare"],
-      [4294967295, 7, "furnace", ["hair_trigger", "stoked_fires"], "rare"],
-      [2026, 2, "bastion", ["gun_oil", "twin_nails", "tar_barrel"], "common"],
+      [1, 1, "furnace", ["coin_purse", "sharp_scrap", "tar_barrel"], "common"],
+      [4242, 3, "weaver", ["tar_barrel", "rivet_hoard", "ash_cloak"], "common"],
+      [77, 5, "foundry", ["ash_cloak", "coin_purse"], "common"],
+      [123456789, 10, "bastion", ["warlords_due", "scab_iron"], "epic"],
+      [4294967295, 7, "furnace", ["pyre_heart", "last_stand"], "epic"],
+      [2026, 2, "bastion", ["barbed_silk", "ash_cloak", "gun_oil"], "common"],
+      [12, 4, "foundry", ["warlords_due", "molten_vows", "scrap_saint"], "epic"],
+      [23, 6, "foundry", ["bulwark_oath", "twin_suns"], "legendary"],
     ];
     for (const [seed, day, hero, ids, tier] of pins) {
       const o = runeOffer(seed, day, hero, []);

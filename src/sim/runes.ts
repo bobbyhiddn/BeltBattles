@@ -25,10 +25,11 @@ export interface RuneAmount {
   n: number;
 }
 
-/** R1b-2 1.3's themes: the four hero styles, then the generic ones. */
-export type RuneTheme = "furnace" | "weaver" | "foundry" | "bastion" | "belts" | "factories" | "turrets" | "gold" | "armor";
+/** R1b-2 1.3's themes: the four hero styles, then the generic ones. RUNES-2a adds R1b's "stars and merging" (stars): a
+ *  generic theme, since every board merges. */
+export type RuneTheme = "furnace" | "weaver" | "foundry" | "bastion" | "belts" | "factories" | "turrets" | "gold" | "armor" | "stars";
 export const STYLE_THEMES: readonly RuneTheme[] = ["furnace", "weaver", "foundry", "bastion"];
-export const GENERIC_THEMES: readonly RuneTheme[] = ["belts", "factories", "turrets", "gold", "armor"];
+export const GENERIC_THEMES: readonly RuneTheme[] = ["belts", "factories", "turrets", "gold", "armor", "stars"];
 /** A playable hero's own style theme (the NPC races have none: every style weighs 1 for them). */
 export const HERO_STYLE: Partial<Record<HeroId, RuneTheme>> = { furnace: "furnace", weaver: "weaver", foundry: "foundry", bastion: "bastion" };
 
@@ -42,19 +43,61 @@ export const HERO_STYLE: Partial<Record<HeroId, RuneTheme>> = { furnace: "furnac
  * - turretRate, factoryRate: a whole % faster (the interval / (1 + pct/100); a factory's pace x (1 + pct/100)).
  * - startPlate: PLATE on your hull at the battle's start (PLATE_CAP holds). heatPct: HEAT your slugs gain, +pct%.
  * - startFray: FRAY on the FOE's hull at the battle's start. frayHit: +count FRAY on each of your hits that adds FRAY.
+ * RUNES-2a (each a new idea on a new hook; battle.ts reads them through runeMods, run.ts the gold ones):
+ * - allRate: turrets AND factories a whole % faster (HAIR TRIGGER's new form, Q6).
+ * - the run: runeTithe: at every dawn from the one it is taken, n gold per rune held; victorGold: n gold at a dawn that
+ *   follows a won dusk (both through dawnGold; validate.ts's budget reads runeGrants).
+ * - the battle's start: startBurn: n BURN stacks on the foe's hull; perTurretHull, mergedHull: n HULL per turret / per
+ *   merged piece (a ★2 or ★3 rig, factory, gear, core or turret) on your hull's max and hp.
+ * - a shot of yours: pairTwice: a PAIR shot fires n times at its one target (no new draw); pairMul: a PAIR shot's DMG x n;
+ *   mergedPct: +n% DMG per merged piece; frayShotPct: +n% DMG per FRAY on the foe's hull; plateDmgPct: +n% DMG per PLATE
+ *   you hold; platedDmg: +n DMG while you hold PLATE; heatDmg: +n DMG on a load carrying HEAT; frayHitDmg: +n DMG on a
+ *   load that adds FRAY; priorDmg: +n DMG per rig the load passed; finisherDmg: +n DMG on the shot that empties a
+ *   volley (the turret's window); volleyFirst: the first shot of each volley x n DMG; rideMul: a load's ride bonus x n;
+ *   winDmgPct: +n% DMG per win (WARLORD'S DUE, from the battle's wins).
+ * - a hit of yours: machineDmg: +n DMG when it lands on a machine; fullFrayDmg: +n DMG on a hull at its FRAY cap;
+ *   otherFray: a hit that adds no FRAY adds n; frayMul: your FRAY bonus x n; heatBurn: a HEAT load adds n BURN;
+ *   pairBurn: a PAIR shot adds n BURN; burnTime: your BURN lasts n% longer; burnPct: your BURN on their hull deals n% more.
+ * - your hull: hitCut: each hit on you deals n less (never below 0); blockHits: the foe's first n hits deal none;
+ *   plateOnHit: n PLATE each time you are hit; halfPlate: n PLATE once, when your hull first drops below half; burnCut:
+ *   BURN on your hull deals n% less; windCut: the dark wind deals n less a second to you.
+ * - your machines: lastStand: below half hull your turrets fire n% faster; perTurretRate: your turrets n% faster per
+ *   turret you have; mergedRate: your merged turrets n% faster; pairWindow: your PAIR window n% longer; stampPlate: n
+ *   PLATE each time a factory stamps; pairPlate: n PLATE each time you PAIR; stallCut: a STALL on your machines lasts n%
+ *   less; rigSoon: your rigs come online n% sooner.
  */
 export type RuneKind =
   | "hull" | "belt" | "dawnGold" | "shotDmg" | "firstShotDmg" | "pairDmg" | "turretRate" | "factoryRate"
   | "startPlate" | "heatPct" | "startFray" | "frayHit"
-  // RUNES-2a: HAIR TRIGGER's new form (turrets and factories)
-  | "allRate";
+  // RUNES-2a: HAIR TRIGGER's new form (turrets and factories), then the 40 new runes' kinds
+  | "allRate"
+  | "runeTithe" | "victorGold"
+  | "startBurn" | "perTurretHull" | "mergedHull"
+  | "pairTwice" | "pairMul" | "mergedPct" | "frayShotPct" | "plateDmgPct" | "platedDmg" | "heatDmg" | "frayHitDmg"
+  | "priorDmg" | "finisherDmg" | "volleyFirst" | "rideMul" | "winDmgPct"
+  | "machineDmg" | "fullFrayDmg" | "otherFray" | "frayMul" | "heatBurn" | "pairBurn" | "burnTime" | "burnPct"
+  | "hitCut" | "blockHits" | "plateOnHit" | "halfPlate" | "burnCut" | "windCut"
+  | "lastStand" | "perTurretRate" | "mergedRate" | "pairWindow" | "stampPlate" | "pairPlate" | "stallCut" | "rigSoon";
 
 /** The unit each kind's amount carries (a test pins every rune to it). */
 export const KIND_UNIT: Record<RuneKind, RuneUnit> = {
   hull: "hull", belt: "belt", dawnGold: "gold", shotDmg: "dmg", firstShotDmg: "dmg", pairDmg: "dmg", turretRate: "pct",
   factoryRate: "pct", startPlate: "plate", heatPct: "pct", startFray: "count", frayHit: "count",
   allRate: "pct",
+  runeTithe: "gold", victorGold: "gold",
+  startBurn: "count", perTurretHull: "hull", mergedHull: "hull",
+  pairTwice: "count", pairMul: "count", mergedPct: "pct", frayShotPct: "pct", plateDmgPct: "pct", platedDmg: "dmg",
+  heatDmg: "dmg", frayHitDmg: "dmg", priorDmg: "dmg", finisherDmg: "dmg", volleyFirst: "count", rideMul: "count",
+  winDmgPct: "pct",
+  machineDmg: "dmg", fullFrayDmg: "dmg", otherFray: "count", frayMul: "count", heatBurn: "count", pairBurn: "count",
+  burnTime: "pct", burnPct: "pct",
+  hitCut: "dmg", blockHits: "count", plateOnHit: "plate", halfPlate: "plate", burnCut: "pct", windCut: "dmg",
+  lastStand: "pct", perTurretRate: "pct", mergedRate: "pct", pairWindow: "pct", stampPlate: "plate", pairPlate: "plate",
+  stallCut: "pct", rigSoon: "pct",
 };
+
+/** The kinds the run applies (run.ts takeRune, runeDawn), not the battle. */
+export const RUN_KINDS: readonly RuneKind[] = ["hull", "belt", "dawnGold", "runeTithe", "victorGold"];
 
 export interface RuneDef {
   id: string; // DEF_PATTERN-safe (the snapshot carries it)
@@ -101,6 +144,55 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 50, "YOUR {*HEAT}: +{N}."),
   r("double_knot", "DOUBLE KNOT", "rare", "weaver", "frayHit", 1, "YOUR {*FRAY} HITS: +{N} {*FRAY}."),
   r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 6, "BATTLE START: THE FOE HAS {N} {*FRAY}."),
+  // ---- RUNES-2a (REQ-BFG-058): 40 more, each a new idea on a new hook (no same-stat twin of a shipped rune), in today's
+  // units. R1b's theme x tier grid: the epics and legendaries first (so epic and legendary dawns show their own tier),
+  // then each hero style toward 3 common, 3 rare, 2 epic and 1 legendary, then the generic themes.
+  // ---- common
+  r("ash_kindle", "ASH KINDLE", "common", "furnace", "startBurn", 4, "BATTLE START: THE FOE HAS {N} {BURN}."),
+  r("hot_iron", "HOT IRON", "common", "furnace", "heatDmg", 1, "YOUR {*HEAT} LOADS: +{N} {DMG}."),
+  r("barbed_silk", "BARBED SILK", "common", "weaver", "frayHitDmg", 1, "YOUR {*FRAY} HITS: +{N} {DMG}."),
+  r("many_hands", "MANY HANDS", "common", "weaver", "perTurretRate", 3, "YOUR TURRETS: +{N} {RATE} PER TURRET."),
+  r("seam_rivets", "SEAM RIVETS", "common", "foundry", "pairPlate", 2, "EACH {*PAIR}: +{N} {*PLATE}."),
+  r("hot_seam", "HOT SEAM", "common", "foundry", "pairBurn", 2, "YOUR {*PAIR} SHOTS: +{N} {BURN}."),
+  r("last_wall", "LAST WALL", "common", "bastion", "halfPlate", 8, "AT HALF {HULL}: +{N} {*PLATE}."),
+  r("final_nail", "FINAL NAIL", "common", "turrets", "finisherDmg", 3, "EACH VOLLEY'S LAST SHOT: +{N} {DMG}."),
+  r("scrap_biter", "SCRAP BITER", "common", "turrets", "machineDmg", 1, "YOUR HITS ON MACHINES: +{N} {DMG}."),
+  r("quick_latch", "QUICK LATCH", "common", "belts", "rigSoon", 50, "YOUR {BELT} RIGS: ONLINE {N} SOONER."),
+  r("ash_cloak", "ASH CLOAK", "common", "armor", "burnCut", 50, "{BURN} ON YOUR {HULL}: -{N}."),
+  r("wind_veil", "WIND VEIL", "common", "armor", "windCut", 1, "THE DARK WIND: -{N} {DMG} A SECOND."),
+  r("bulkheads", "BULKHEADS", "common", "armor", "perTurretHull", 5, "+{N} {HULL} PER TURRET YOU HAVE."),
+  r("scrap_halo", "SCRAP HALO", "common", "stars", "mergedHull", 3, "+{N} {HULL} PER MERGED PIECE."),
+  r("spoils_sack", "SPOILS SACK", "common", "gold", "victorGold", 2, "AFTER A WIN: +{N} {GOLD} AT DAWN."),
+  // ---- rare
+  r("ember_shot", "EMBER SHOT", "rare", "furnace", "heatBurn", 1, "YOUR {*HEAT} LOADS: +{N} {BURN} A HIT."),
+  r("slow_embers", "SLOW EMBERS", "rare", "furnace", "burnTime", 50, "YOUR {BURN} LASTS +{N} LONGER."),
+  r("snare_knot", "SNARE KNOT", "rare", "weaver", "fullFrayDmg", 2, "ON FULL {*FRAY}: YOUR HITS +{N} {DMG}."),
+  r("loose_molds", "LOOSE MOLDS", "rare", "foundry", "pairWindow", 100, "YOUR {*PAIR} WINDOW: +{N}."),
+  r("iron_temper", "IRON TEMPER", "rare", "bastion", "platedDmg", 1, "WHILE {*PLATE} HOLDS: SHOTS +{N} {DMG}."),
+  r("toll_road", "TOLL ROAD", "rare", "belts", "priorDmg", 1, "+{N} {DMG} PER RIG A LOAD PASSES."),
+  r("ward_stone", "WARD STONE", "rare", "armor", "blockHits", 3, "THE FOE'S FIRST {N} HITS: NO {DMG}."),
+  r("saints_oil", "SAINT'S OIL", "rare", "stars", "mergedRate", 15, "YOUR MERGED TURRETS: +{N} {RATE}."),
+  r("steady_iron", "STEADY IRON", "rare", "factories", "stallCut", 50, "{*STALL}S ON YOUR MACHINES: -{N}."),
+  // ---- epic (R1b 1.3: an epic changes a rule or scales)
+  r("molten_vows", "MOLTEN VOWS", "epic", "foundry", "pairTwice", 2, "YOUR {*PAIR} SHOTS FIRE {N} TIMES."),
+  r("scrap_saint", "SCRAP SAINT", "epic", "stars", "mergedPct", 5, "+{N} {DMG} PER MERGED PIECE."),
+  r("scab_iron", "SCAB IRON", "epic", "bastion", "plateOnHit", 1, "EACH HIT YOU TAKE: +{N} {*PLATE}."),
+  r("widows_web", "WIDOW'S WEB", "epic", "weaver", "frayShotPct", 2, "+{N} {DMG} PER {*FRAY} ON THE FOE."),
+  r("thread_storm", "THREAD STORM", "epic", "weaver", "otherFray", 1, "HITS WITHOUT {*FRAY} ADD {N} {*FRAY}."),
+  r("pyre_heart", "PYRE HEART", "epic", "furnace", "burnPct", 50, "YOUR {BURN}: +{N} {DMG}."),
+  r("last_stand", "LAST STAND", "epic", "turrets", "lastStand", 50, "BELOW HALF {HULL}: TURRETS +{N} {RATE}."),
+  r("iron_hide", "IRON HIDE", "epic", "armor", "hitCut", 1, "HITS ON YOU: -{N} {DMG}."),
+  r("rune_tithe", "RUNE TITHE", "epic", "gold", "runeTithe", 1, "AT DAWN: +{N} {GOLD} PER RUNE HELD."),
+  r("forge_ward", "FORGE WARD", "epic", "factories", "stampPlate", 1, "EACH STAMP: +{N} {*PLATE}."),
+  // R1b #25: reads the wins the side carried into the fight (the snapshot's `wins`, which the server checks; the run's
+  // own), passed to the battle and kept in its record, so ghosts and replays stay exact (battle.ts Battle, replay.ts)
+  r("warlords_due", "WARLORD'S DUE", "epic", "turrets", "winDmgPct", 5, "+{N} {DMG} PER WIN."),
+  // ---- legendary (R1b 1.3: a legendary redefines the run)
+  r("twin_suns", "TWIN SUNS", "legendary", "foundry", "pairMul", 2, "YOUR {*PAIR} SHOTS: x{N} {DMG}."),
+  r("bulwark_oath", "BULWARK OATH", "legendary", "bastion", "plateDmgPct", 2, "+{N} {DMG} PER {*PLATE} YOU HOLD."),
+  r("loom_of_woe", "LOOM OF WOE", "legendary", "weaver", "frayMul", 2, "YOUR {*FRAY} BONUS: x{N}."),
+  r("first_blood", "FIRST BLOOD", "legendary", "turrets", "volleyFirst", 2, "EACH VOLLEY'S FIRST SHOT: x{N} {DMG}."),
+  r("long_road", "THE LONG ROAD", "legendary", "furnace", "rideMul", 2, "YOUR {*RIDE} BONUS: x{N}."),
 ];
 
 export const RUNES: Readonly<Record<string, RuneDef>> = Object.fromEntries(RUNE_LIST.map((d) => [d.id, d]));
@@ -237,47 +329,70 @@ export interface RuneGrants {
 }
 
 /** What `runes` (in pick order: rune i taken at the dawn of day i + 1) have put on the build and into the purse by the
- *  dusk of `day`. A dawn-gold rune pays at the dawn it is taken and at every later dawn: (day - i) times. */
+ *  dusk of `day`. A dawn-gold rune pays at the dawn it is taken and at every later dawn: (day - i) times. RUNES-2a:
+ *  RUNE TITHE pays at its own dawn for the runes held then (i + 1, itself included) and at each later dawn j for the
+ *  runes held before that dawn's pick (j - 1, at most the list's length): exact for a run that took every pick. SPOILS
+ *  SACK pays at a dawn after a won dusk (never day 1's): the budget counts every such dawn from its pick (an upper bound;
+ *  the server sees no day-by-day results). */
 export function runeGrants(runes: readonly RuneHeld[] | undefined, day: number): RuneGrants {
   const g: RuneGrants = { hull: 0, belt: 0, gold: 0 };
+  const count = runes?.length ?? 0;
   (runes ?? []).forEach((q, i) => {
     const d = q && isRune(q.id) ? RUNES[q.id] : undefined;
     if (!d) return;
     if (d.kind === "hull") g.hull += d.amount.n;
     else if (d.kind === "belt") g.belt += d.amount.n;
     else if (d.kind === "dawnGold") g.gold += d.amount.n * Math.max(0, day - i);
+    else if (d.kind === "runeTithe" && day >= i + 1) {
+      g.gold += d.amount.n * (i + 1);
+      for (let j = i + 2; j <= day; j++) g.gold += d.amount.n * Math.min(j - 1, count);
+    } else if (d.kind === "victorGold") g.gold += d.amount.n * Math.max(0, day - Math.max(1, i));
   });
   return g;
 }
 
-/** The gold the held dawn-gold runes pay at one dawn. */
-export const dawnGold = (runes: readonly RuneHeld[] | undefined): number =>
-  held(runes).reduce((s, d) => s + (d.kind === "dawnGold" ? d.amount.n : 0), 0);
+/** The gold the held runes pay at one dawn (before that dawn's pick): each dawn-gold rune its amount; RUNES-2a: RUNE
+ *  TITHE its amount per rune held; SPOILS SACK its amount when the dusk before this dawn was won (`won`). */
+export const dawnGold = (runes: readonly RuneHeld[] | undefined, won = false): number =>
+  held(runes).reduce((s, d) => s + (d.kind === "dawnGold" ? d.amount.n
+    : d.kind === "runeTithe" ? d.amount.n * (runes?.length ?? 0)
+    : d.kind === "victorGold" && won ? d.amount.n : 0), 0);
 
-/** What one side's runes do in a battle (src/sim/battle.ts). Absent for a build without runes, so a rune-less battle
- *  runs exactly as before (tests/runes.parity.test.ts). */
-export interface RuneMods {
-  shotDmg: number;
-  firstShotDmg: number;
-  pairDmg: number;
-  turretRate: number; // pct
-  factoryRate: number; // pct
-  startPlate: number;
-  heatPct: number;
-  startFray: number; // on the foe's hull
-  frayHit: number;
-  allRate: number; // pct, RUNES-2a: turrets and factories (HAIR TRIGGER)
+/** The gold a rune pays at once when it is taken at a dawn (run.ts takeRune: the pick is part of the dawn): a dawn-gold
+ *  rune its amount; RUNE TITHE its amount per rune held with it; SPOILS SACK its amount after a won dusk. */
+export function pickGold(d: RuneDef, heldWith: number, won: boolean): number {
+  if (d.kind === "dawnGold") return d.amount.n;
+  if (d.kind === "runeTithe") return d.amount.n * heldWith;
+  if (d.kind === "victorGold") return won ? d.amount.n : 0;
+  return 0;
 }
+
+/** The kinds a battle reads (every kind but the run's). */
+export type BattleKind = Exclude<RuneKind, "hull" | "belt" | "dawnGold" | "runeTithe" | "victorGold">;
+
+/** What one side's runes do in a battle (src/sim/battle.ts): the sum of each battle kind's amounts (a run holds a rune
+ *  once, so a "x n" kind is n). Absent for a build without runes, so a rune-less battle runs exactly as before
+ *  (tests/runes.parity.test.ts). Units: KIND_UNIT (pct a whole %, dmg/hull/plate today's units, count a count). */
+export type RuneMods = Record<BattleKind, number>;
+
+const BATTLE_KINDS = (Object.keys(KIND_UNIT) as RuneKind[]).filter((k): k is BattleKind => !RUN_KINDS.includes(k));
 
 export function runeMods(runes: readonly RuneHeld[] | undefined): RuneMods | undefined {
   const list = held(runes);
   if (!list.length) return undefined;
-  const m: RuneMods = { shotDmg: 0, firstShotDmg: 0, pairDmg: 0, turretRate: 0, factoryRate: 0, startPlate: 0, heatPct: 0, startFray: 0, frayHit: 0, allRate: 0 };
+  const m = Object.fromEntries(BATTLE_KINDS.map((k) => [k, 0])) as RuneMods;
   for (const d of list) {
-    if (d.kind === "hull" || d.kind === "belt" || d.kind === "dawnGold") continue; // the run's, not the battle's
-    m[d.kind] += d.amount.n;
+    if (RUN_KINDS.includes(d.kind)) continue; // the run's, not the battle's
+    m[d.kind as BattleKind] += d.amount.n;
   }
   return m;
+}
+
+/** RUNES-2a: the merged pieces of a build (SCRAP SAINT, SCRAP HALO): its rigs, factories, gear, cores and turrets at ★2
+ *  or ★3, each once (a signature factory's FACTORY level is not a merge). */
+export function mergedPieces(b: Pick<Build, "items" | "mods" | "turrets">): number {
+  const merged = (p: { stars?: number }) => (p.stars ?? 1) >= 2;
+  return b.items.filter(merged).length + b.mods.filter(merged).length + (b.turrets ?? []).filter(merged).length;
 }
 
 // ---- RUNES-2a (REQ-BFG-058, R1b-2 1.6): the bots' rune picker --------------------------------------------------------

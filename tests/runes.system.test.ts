@@ -19,16 +19,22 @@ const DEF_PATTERN = /^[a-z0-9_]{1,32}$/; // = src/net/snapshot.ts DEF_PATTERN
 const fill = (d: RuneDef) => d.text.replace("{N}", d.amount.unit === "pct" ? `${d.amount.n}%` : String(d.amount.n));
 
 describe("RUNES-1 M1: the catalogue", () => {
-  it("about 30 runes: at least 20, commons and rares only, ids unique and snapshot-safe, names 14 characters at most", () => {
-    expect(RUNE_LIST.length).toBeGreaterThanOrEqual(20);
+  // RUNES-2a: RUNES-1's 21 plus 40 (at least 8 epics and 4 legendaries, so epic and legendary dawns show their own tier)
+  it("61 runes: 25 common, 20 rare, 11 epic, 5 legendary; ids unique and snapshot-safe, names 14 characters at most", () => {
+    expect(RUNE_LIST.length).toBe(61);
+    expect(RARITIES.map((t) => RUNE_LIST.filter((d) => d.tier === t).length)).toEqual([25, 20, 11, 5]);
     expect(new Set(RUNE_LIST.map((d) => d.id)).size).toBe(RUNE_LIST.length);
     expect(new Set(RUNE_LIST.map((d) => d.name)).size).toBe(RUNE_LIST.length);
     for (const d of RUNE_LIST) {
       expect(DEF_PATTERN.test(d.id), d.id).toBe(true);
       expect(d.name.length, d.name).toBeLessThanOrEqual(14);
-      expect(["common", "rare"], d.id).toContain(d.tier);
+      expect(RARITIES, d.id).toContain(d.tier);
       expect(RUNES[d.id]).toBe(d);
     }
+    // RUNES-2a: no two runes share a kind at one tier, and every kind RUNES-2a added is one rune's (a new hook each)
+    const shipped = RUNE_LIST.slice(0, 21).map((d) => d.kind);
+    for (const d of RUNE_LIST.slice(21)) expect(shipped, `${d.id} reuses a shipped kind`).not.toContain(d.kind);
+    expect(new Set(RUNE_LIST.slice(21).map((d) => d.kind)).size).toBe(40);
   });
 
   it("no rune shares a name with a shop piece or a hero", () => {
@@ -117,28 +123,35 @@ describe("RUNES-1 M1: the odds and the offer", () => {
     expect(n).toBe(4 * 60 * 10);
   });
 
-  it("the tier fallback: a dawn that draws epic or legendary (no such runes yet) shows rare, the next lower tier with enough", () => {
-    let fell = 0;
+  // RUNES-2a (decision 4): with epics and legendaries in the catalogue, RUNES-1's "every epic or legendary dawn shows RARE"
+  // becomes: every dawn shows the tier it drew while that tier holds enough runes (1,600 dawns: 489 epic, 110 legendary)
+  it("the tier fallback: with nothing held, every dawn shows the tier it drew, epic and legendary dawns too", () => {
+    const shown: Record<string, number> = {};
     for (let seed = 1; seed <= 400; seed++) for (const day of [3, 5, 8, 10]) {
       const o = runeOffer(seed, day, "bastion", []);
-      if (o.drawn === "epic" || o.drawn === "legendary") {
-        expect(o.tier).toBe("rare");
-        fell++;
-      } else expect(o.tier).toBe(o.drawn);
+      expect(o.tier, `${seed} d${day}`).toBe(o.drawn);
+      shown[o.tier] = (shown[o.tier] ?? 0) + 1;
     }
-    expect(fell).toBeGreaterThan(100);
+    expect(shown).toEqual({ common: 396, rare: 605, epic: 489, legendary: 110 });
   });
 
   it("with a tier too thin for the offer, the next lower tier with enough runes, then a higher one", () => {
-    const rares = RUNE_LIST.filter((d) => d.tier === "rare").map((d) => d.id);
-    const commons = RUNE_LIST.filter((d) => d.tier === "common").map((d) => d.id);
-    for (let seed = 1; seed <= 50; seed++) {
-      // every rare but one held: a rare dawn falls to common
-      const o = runeOffer(seed, 10, "weaver", rares.slice(1));
-      expect(o.tier).toBe("common");
+    const ids = (t: string) => RUNE_LIST.filter((d) => d.tier === t).map((d) => d.id);
+    let rare = 0, epic = 0, legend = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      // every rare but one held: a rare dawn falls to common (the next lower tier); the other tiers stand
+      const o = runeOffer(seed, 9, "weaver", ids("rare").slice(1));
+      if (o.drawn === "rare") { expect(o.tier).toBe("common"); rare++; } else expect(o.tier).toBe(o.drawn);
+      // every epic but two held on day 4 (3 cards): an epic dawn falls to rare
+      const e = runeOffer(seed, 4, "foundry", ids("epic").slice(2));
+      if (e.drawn === "epic") { expect(e.tier).toBe("rare"); epic++; }
+      // every legendary but one held on day 8 (2 cards): a legendary dawn falls to epic
+      const l = runeOffer(seed, 8, "bastion", ids("legendary").slice(1));
+      if (l.drawn === "legendary") { expect([l.tier, l.ids.length]).toEqual(["epic", 2]); legend++; }
       // every common but one held on day 1 (all common odds): no lower tier, so the next higher one, rare
-      expect(runeOffer(seed, 1, "weaver", commons.slice(1)).tier).toBe("rare");
+      expect(runeOffer(seed, 1, "weaver", ids("common").slice(1)).tier).toBe("rare");
     }
+    expect([rare, epic, legend].every((n) => n > 5)).toBe(true);
   });
 
   it("the weighted draw: a hero's own style comes up more often than another hero's style", () => {

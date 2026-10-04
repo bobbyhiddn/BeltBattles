@@ -87,15 +87,18 @@ export class BattleScreen implements Screen {
     saveRun(run);
     this.foeName = this.foe.name;
     this.seed = w ? warlordSeed(run) : battleSeed(run);
+    // RUNES-2a (REQ-BFG-058): the wins each side carries in, for WARLORD'S DUE: the run's own, a ghost's from its snapshot
+    // (DuskFoe.record), 0 for a stand-in or a warlord; the record keeps them only when a side holds it (replay.ts)
+    const wins: [number, number] = [run.wins, w ? 0 : this.foe.record?.wins ?? 0];
     // 0.7.0a: the dusk's battle record (both decks as they fight, the seed) for the summary's REPLAY; online only
-    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed) : null;
+    this.record = !w && onlineMode() ? battleRecordFor(run.build, this.foe.build, this.seed, wins) : null;
     this.note = w ? null : foeNote(run, this.foe);
     this.wact = {
       take: [0, 1].map((i) => () => this.take(i)),
       refit: () => this.refitNow(),
       fight: () => this.toDusk(),
     };
-    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio);
+    this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins);
     this.arena.off = [60, 260];
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,

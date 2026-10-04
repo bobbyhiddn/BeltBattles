@@ -119,9 +119,10 @@ export class Arena {
     return t;
   }
 
-  /** 0.7.0a: `battle` (a replay: replayBattle(record), fresh and unstepped) is played instead of a new Battle. */
-  constructor(player: Build, enemy: Build, seed: number, sound: Audio | null, battle?: Battle) {
-    this.b = battle ?? new Battle(player, enemy, seed);
+  /** 0.7.0a: `battle` (a replay: replayBattle(record), fresh and unstepped) is played instead of a new Battle. RUNES-2a:
+   *  `wins`, each side's wins carried into the fight (WARLORD'S DUE; sim/battle.ts Battle). */
+  constructor(player: Build, enemy: Build, seed: number, sound: Audio | null, battle?: Battle, wins?: readonly [number, number]) {
+    this.b = battle ?? new Battle(player, enemy, seed, wins);
     this.sound = sound;
     this.sfx = [sideFx(this.b, 0), sideFx(this.b, 1)];
     this.views = makeViews(this);

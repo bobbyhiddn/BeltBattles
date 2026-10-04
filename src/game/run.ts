@@ -19,7 +19,7 @@ import { fusible, starField, starsOf, upgradeLevel } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
-import { dawnGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
+import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
   type TurretOpResult,
@@ -198,10 +198,13 @@ export function takeRune(run: Run, id: string): { ok: boolean; reason?: string }
   run.build.runes = [...(run.build.runes ?? []), { id }];
   if (d.kind === "hull") run.build.hullBonus += d.amount.n;
   else if (d.kind === "belt") run.build.beltCap += d.amount.n;
-  else if (d.kind === "dawnGold") run.gold += d.amount.n;
+  else run.gold += pickGold(d, run.build.runes.length, lastWon(run)); // RUNES-2a: dawn gold, RUNE TITHE, SPOILS SACK
   delete run.runeDay;
   return { ok: true };
 }
+
+/** RUNES-2a (SPOILS SACK): the dusk before this dawn was a win (never on day 1). */
+const lastWon = (run: Pick<Run, "history">): boolean => run.history[run.history.length - 1]?.outcome === "win";
 
 /** RUNES-2a (REQ-BFG-058; RUNES-1 gap 6): what a refused fight says while today's rune pick is pending. */
 export const RUNE_FIRST = "TAKE TODAY'S RUNE FIRST";
@@ -219,7 +222,7 @@ export function fightRefusal(run: Pick<Run, "seed" | "day" | "hero" | "build" | 
 /** At a new dawn (day.ts finishDay): the held dawn-gold runes pay, then a run that took a rune at every dawn so far owes
  *  today's pick. A run from before runes (fewer runes than dawns) never owes one. */
 export function runeDawn(run: Run): void {
-  run.gold += dawnGold(run.build.runes);
+  run.gold += dawnGold(run.build.runes, lastWon(run)); // RUNES-2a: RUNE TITHE per rune held, SPOILS SACK after a win
   if ((run.build.runes?.length ?? 0) === run.day - 1) run.runeDay = run.day;
   else delete run.runeDay;
 }
