@@ -108,11 +108,74 @@ function baseLayout(W: number, H: number, portrait: boolean, offers: number): Bu
   };
 }
 
-/** The build screen as the game frames it (BuildScreen.pickScale and layout): its view and its layout with `offers`. */
+// ------------------------------------------------------- PACKS (bb-0.8.6; oracle 43f2c3d185b37c07), verbatim, applied to BASE
+// bb-0.8.6 (REQ-BFG-051 P5): the shop row with the two fixed pack slots. Landscape: the row recentred with a desk's
+// stacked column right of REROLL, or a landscape phone's two side by side (`tap`, its finger target in art px); on the
+// narrowest rows the 8 px gap, then REROLL (to 32), then the desk's column (to 32) give way; the cards never narrow below
+// 69; a landscape phone's slots that still don't fit go to the right column (under NEXT BATTLE, else under FIGHT).
+// Portrait: the slots beside a short last row, else the column in the margin right of the widest row, else a pack row
+// under REROLL's row, which everything below the shop moves down for (the band gives up its height). Everything else is
+// BASE's exactly (CHANGED-ASSERTIONS.md, oracle 43f2c3d185b37c07 (5)).
+const PACK_W = 34, PACK_MIN_W = 30, PACK_LAND_MIN_W = 32, REROLL_MIN_W = 32, CARD_TEXT_MIN_W = 69;
+function packed(B: BuildLayout, offers: number, phone: boolean, tap: number): BuildLayout {
+  const { W, H } = B;
+  const two = (x: number, y: number, w: number, h: number, dx: number, dy: number): Rect[] => [{ x, y, w, h }, { x: x + dx, y: y + dy, w, h }];
+  if (!B.portrait) {
+    const side = tap > 0, cy = BAR_H + 3 + 6;
+    const rowOf = (cardW: number) => {
+      let gap = 8, rr = CARD_W, pw = side ? Math.max(tap, PACK_MIN_W) : PACK_W;
+      const row = () => offers * cardW + offers * GAP + gap + rr + (side ? 2 : 1) * (GAP + pw);
+      if (row() > W - 3) gap = 0;
+      if (row() > W - 3) rr = Math.max(REROLL_MIN_W, rr - (row() - (W - 3)));
+      if (!side && row() > W - 3) pw = Math.max(PACK_LAND_MIN_W, pw - (row() - (W - 3)));
+      return { gap, rr, pw, row: row(), fits: row() <= W - 3 };
+    };
+    let cardW = wideCardW(W, offers), r = rowOf(cardW);
+    while (!r.fits && cardW > CARD_TEXT_MIN_W) r = rowOf(--cardW);
+    if (side && !r.fits) {
+      const s = Math.max(tap, PACK_MIN_W), f = B.fight, o = B.foe!, x1 = f.x + f.w;
+      const y = o.y + o.h + 3 + s + 3 <= f.y ? o.y + o.h + 3 : Math.min(H - 1 - s, f.y + f.h + 3);
+      return { ...B, packs: two(x1 - 2 * s - GAP, y, s, s, s + GAP, 0) };
+    }
+    const x0 = Math.round(W / 2 - r.row / 2);
+    const cards = Array.from({ length: offers }, (_, i) => ({ x: x0 + i * (cardW + GAP), y: cy, w: cardW, h: WIDE_CARD_H }));
+    const reroll = { x: x0 + offers * (cardW + GAP) + r.gap, y: cy, w: r.rr, h: WIDE_CARD_H }, px = reroll.x + reroll.w + GAP;
+    const half = Math.floor((WIDE_CARD_H - 2) / 2);
+    const packs = side ? two(px, cy, r.pw, WIDE_CARD_H, r.pw + GAP, 0) : two(px, cy, r.pw, half, 0, half + 2);
+    return { ...B, cards, reroll, packs };
+  }
+  const need = phone ? Math.max(tap, PACK_MIN_W) : PACK_MIN_W, rr = B.reroll, rEnd = rr.x + rr.w;
+  const right = Math.max(...[...B.cards, rr].map((c) => c.x + c.w));
+  const colW = Math.min(PACK_W, W - 1 - (right + GAP)), besideW = Math.min(PACK_W, Math.floor((W - 1 - rEnd) / 2) - GAP);
+  const above = [...new Set([...B.cards, rr].map((c) => c.y))].sort((a, b) => a - b).filter((y) => y < rr.y).pop();
+  if (rEnd < right && besideW >= need) return { ...B, packs: two(rEnd + GAP, rr.y, besideW, CARD_H, besideW + GAP, 0) };
+  if (colW >= need) {
+    const half = Math.floor((rr.h - 2) / 2);
+    return { ...B, packs: above === undefined ? two(right + GAP, rr.y, colW, half, 0, half + 2) : [{ x: right + GAP, y: above, w: colW, h: CARD_H }, { x: right + GAP, y: rr.y, w: colW, h: CARD_H }] };
+  }
+  // the pack row: BASE's layout below the shop rebuilt on a shop that ends packH + GAP lower
+  const packH = Math.max(tap, PACK_MIN_W), pw = Math.max(need, PACK_W), rowX = Math.max(1, rEnd - 2 * pw - GAP);
+  const shopBottom = rr.y + rr.h + packH + GAP;
+  const fixedBelow = 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3, spare = Math.max(0, H - shopBottom - fixedBelow);
+  const band = Math.min(phone ? phoneBand(W) : PORT_BAND, spare), info: Rect = { x: 3, y: shopBottom + 2, w: W - 6, h: band };
+  const idle = Math.max(0, Math.floor((band - PORT_BAND) / 2));
+  const frame = frameForHull(0, Math.round(W / 2 - HULL_A / 2), info.y + band + 2 + BARREL + Math.floor((spare - band) / 2)), hull = hullBox(frame);
+  const fw = Math.min(64, Math.round(W * 0.36)), ry = hull.y + HULL_L + 4;
+  return {
+    ...B, frame, hull, info, pad: { x: hull.x - 3, y: hull.y - 4, w: hull.w + 6, h: hull.h + 8 },
+    cargo: { x: 3, y: ry, w: W - fw - 9, h: CARGO_H }, fight: { x: W - fw - 3, y: ry - 1, w: fw, h: CARGO_H + 2 },
+    foe: band >= FOE_H ? { x: info.x, y: info.y + idle + Math.min(band, PORT_BAND) - FOE_H, w: info.w, h: FOE_H } : null,
+    packs: two(rowX, rr.y + rr.h + GAP, pw, packH, pw + GAP, 0),
+  };
+}
+
+/** The build screen as the game frames it (BuildScreen.pickScale and layout): its view and its layout with `offers`.
+ *  bb-0.8.6 (PACKS P5): on any phone, portrait or landscape, the pack slots' finger target in art px (`tap`). */
 function screen(w: number, h: number, dpr: number, offers = 5) {
   const v = computeView(w, h, dpr, buildScale);
-  const phone = v.portrait && phoneScreen(Math.floor(w * dpr), Math.floor(h * dpr), dpr);
-  return { v, L: buildLayout(v.W, v.H, v.portrait, offers, phone), k: v.scale / v.dpr, phone };
+  const isPh = phoneScreen(Math.floor(w * dpr), Math.floor(h * dpr), dpr);
+  const phone = v.portrait && isPh, tap = isPh ? Math.ceil(44 / (v.scale / v.dpr)) : 0;
+  return { v, L: buildLayout(v.W, v.H, v.portrait, offers, phone, tap), k: v.scale / v.dpr, phone, tap };
 }
 
 describe("zoom D1: the build screen's scale on a phone is capped at 1.75 CSS px an art pixel", () => {
@@ -158,10 +221,11 @@ describe("zoom D1: the build screen's scale on a phone is capped at 1.75 CSS px 
 
   it("D5: landscape phones are under the cap already and keep their scale and layout (844x390 @3: x4; 667x375 and 640x360 @2: x2)", () => {
     for (const [w, h, dpr] of [[844, 390, 3], [667, 375, 2], [640, 360, 2], [932, 430, 3], [740, 360, 4]]) {
-      const { v, L } = screen(w, h, dpr);
+      const { v, L, tap } = screen(w, h, dpr);
       const base = computeView(w, h, dpr, (pw, ph, p) => baseScale(pw, ph, p));
       expect(v, `${w}x${h} @${dpr}`).toEqual(base);
-      expect(L, `${w}x${h} @${dpr}`).toEqual(baseLayout(base.W, base.H, base.portrait, 5));
+      // bb-0.8.6 (PACKS P5; oracle 43f2c3d185b37c07 (5)): BASE with the packs (a landscape phone's two side by side)
+      expect(L, `${w}x${h} @${dpr}`).toEqual(packed(baseLayout(base.W, base.H, base.portrait, 5), 5, false, tap));
     }
     expect(computeView(844, 390, 3, buildScale).scale).toBe(4);
   });
@@ -177,7 +241,8 @@ describe("zoom: every view that isn't a phone is exactly as before", () => {
       expect(v, `${w}x${h} @${dpr}`).toEqual(base);
       for (const offers of [5, 3, 0]) {
         const L = buildLayout(v.W, v.H, v.portrait, offers, false);
-        expect(L, `${w}x${h} @${dpr} offers ${offers}`).toEqual(baseLayout(v.W, v.H, v.portrait, offers));
+        // bb-0.8.6 (PACKS P5; oracle 43f2c3d185b37c07 (5)): BASE with the packs (the shop row; a pack row where needed)
+        expect(L, `${w}x${h} @${dpr} offers ${offers}`).toEqual(packed(baseLayout(v.W, v.H, v.portrait, offers), offers, false, 0));
         expect("phone" in L).toBe(false);
       }
       n++;

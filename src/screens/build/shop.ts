@@ -2,7 +2,7 @@
 // stripe). Affordable cards pulse amber until something is bought (STUDY rule 13); the
 // selected card lifts with a drop shadow. REROLL uses the same card frame.
 
-import { ITEMS, MERCHANTS, REROLL_COST, type ItemDef, type MerchantId } from "../../sim/content";
+import { ITEMS, MERCHANTS, PACK_ITEM, REROLL_COST, type ItemDef, type MerchantId, type PackId } from "../../sim/content";
 import type { ShopBadge } from "../../game/run";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
@@ -232,6 +232,51 @@ export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pres
   else {
     g.drawImage(coinIcon(), Math.round(r.x + r.w / 2 - 7), y + 22);
     drawText(g, String(REROLL_COST), r.x + r.w / 2 + 1, y + 21, enabled ? C.yellow : C.slate2, { outline: C.ink });
+  }
+  if (hover && enabled) frame(g, r.x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
+}
+
+/** bb-0.8.6 (REQ-BFG-051, PACKS P5): a pack's amount as its slot shows it: "+4 BELT", "+25 HULL" (the ITEMS entry's). */
+export function packAmount(id: PackId): string {
+  const s = ITEMS[PACK_ITEM[id]].supply!;
+  return s.belt ? `+${s.belt} BELT` : `+${s.hull} HULL`;
+}
+
+/** bb-0.8.6 (PACKS P5): a slot this tall or taller shows the tall face (icon, two short amount lines, price inside REROLL's
+ *  frame: the price ends 38 px down); a shorter one (20 px or more) the short face. */
+export const PACK_TALL_H = 40;
+
+/** bb-0.8.6 (PACKS P5): a pack's price as its slot shows it: "2G", "5G". */
+export const packPriceText = (id: PackId): string => `${ITEMS[PACK_ITEM[id]].price}G`;
+
+/**
+ * bb-0.8.6 (REQ-BFG-051, PACKS P5): a fixed pack slot in REROLL's frame: the pack's icon, its amount and its price. Short
+ * of gold it is dimmed and still shows its price. A slot a card tall (a phone's) stacks the icon, the amount in two short
+ * lines and the price; a short one (landscape: half REROLL's height) puts the price beside the icon, the amount under.
+ */
+export function drawPack(g: G, r: Rect, id: PackId, enabled: boolean, hover: boolean, pressed: boolean): void {
+  const d = ITEMS[PACK_ITEM[id]];
+  const y = r.y + (pressed ? 1 : 0), cx = r.x + r.w / 2;
+  const amount = packAmount(id), price = packPriceText(id);
+  const tc = enabled ? C.white : C.slate2, pc = enabled ? C.yellow : C.slate2;
+  if (r.h >= PACK_TALL_H) {
+    // REROLL's frame (its stripes leave y + 5 to y + h - 4 inside)
+    cardFrame(g, r.x, y, r.w, r.h, enabled ? C.amber : C.slate1, enabled ? C.amber : C.slate1, !enabled);
+    const [n, word] = amount.split(" ");
+    g.drawImage(itemIcon(d.id), Math.round(cx - 6), y + 6);
+    drawText(g, n, cx, y + 19, tc, { font: "3", align: "center" });
+    drawText(g, word, cx, y + 25, tc, { font: "3", align: "center" });
+    drawText(g, price, cx, y + 31, pc, { outline: C.ink, align: "center" });
+  } else {
+    // a short slot (20 px or more: half REROLL's height, a pack row): a plain frame with a 1 px accent, the icon and the
+    // price over the amount, centred in the height
+    const top = y + Math.max(0, Math.floor((r.h - 20) / 2));
+    rect(g, r.x, y, r.w, r.h, C.ink);
+    rect(g, r.x + 1, y + 1, r.w - 2, r.h - 2, enabled ? C.slate0 : C.night);
+    rect(g, r.x + 1, y + 1, r.w - 2, 1, enabled ? C.amber : C.slate1);
+    g.drawImage(itemIcon(d.id), r.x + 2, top + 2);
+    drawText(g, price, r.x + 16, top + 4, pc, { outline: C.ink });
+    drawText(g, amount, cx, top + 14, tc, { font: "3", align: "center" });
   }
   if (hover && enabled) frame(g, r.x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
 }

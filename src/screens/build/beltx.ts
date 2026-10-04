@@ -14,7 +14,7 @@ import { C } from "../../render/palette";
 import { frame, type G } from "../../render/pixel";
 import { button, type Rect } from "../../ui/ui";
 import { TAP_CSS } from "../../ui/tap";
-import type { BuildLayout } from "./layout";
+import { packRects, type BuildLayout } from "./layout";
 import type { BeltX } from "./edit";
 
 /** The X's side in logical px: a TAP_CSS CSS px target (`cssPerPx`: the view's CSS px per logical px), at least 14. */
@@ -39,7 +39,8 @@ export function placeBeltX(L: BuildLayout, b: Build, x: BeltX, side: number, tur
   const cx = tx + 6, cy = ty + 6;
   const d1 = 6 + Math.ceil(side / 2) + 1, d2 = d1 + Math.ceil(side / 2);
   const dirs: [number, number][] = [[0, -1], [1, 0], [-1, 0], [0, 1], [1, -1], [-1, -1], [1, 1], [-1, 1]];
-  const keep: Rect[] = [L.bar, L.info, L.cargo, L.fight, L.reroll, ...L.cards, ...(L.foe ? [L.foe] : []), ...keepOut];
+  // bb-0.8.6 (REQ-BFG-051 P5): and clear of the two fixed pack slots
+  const keep: Rect[] = [L.bar, L.info, L.cargo, L.fight, L.reroll, ...L.cards, ...packRects(L), ...(L.foe ? [L.foe] : []), ...keepOut];
   const items = b.items.map((p) => {
     const s = defOf(p).size;
     return { x: Math.round(footX(f, p.x, p.y, s)), y: Math.round(footY(f, p.x, p.y, s)), w: s * 12, h: s * 12 };

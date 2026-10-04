@@ -84,19 +84,24 @@ describe("shoptap2: the panel's rect on every portrait phone view", () => {
       const { v, L } = view(w, h, dpr), d = panelRect(L, "down"), u = panelRect(L, "up");
       return `${w}x${h}: ${v.W}x${v.H} x${v.scale}, band ${L.info.h} at y ${L.info.y}; down y ${d.y}-${d.y + d.h}; up y ${u.y}-${u.y + u.h}`;
     };
+    // bb-0.8.6 (REQ-BFG-051 P5; oracles 43f2c3d185b37c07 (4), b24d14b979bbded9): these pre-cap layouts (167-195 px wide)
+    // can't hold a pack slot in the grid's margin, so the two packs take a 30 px row under REROLL's (+33: the band starts
+    // at y 139, not 106, and is 33 px shorter, down to 0); was: band 69 / 40 / 38 / 8 / 15 / 29 / 24 at y 106
     expect([[390, 844, 3], [390, 664, 3], [390, 660, 3], [390, 700, 3], [402, 718, 3], [390, 750, 3], [430, 739, 3]].map(([w, h, d]) => row(w, h, d))).toEqual([
-      "390x844: 167x361 x7, band 69 at y 106; down y 106-175; up y 106-175", // the band, as every earlier check saw it
-      "390x664: 195x332 x6, band 40 at y 106; down y 106-175; up y 77-146",
-      "390x660: 195x330 x6, band 38 at y 106; down y 106-175; up y 75-144",
-      "390x700: 167x300 x7, band 8 at y 106; down y 106-175; up y 45-114",
-      "402x718: 172x307 x7, band 15 at y 106; down y 106-175; up y 52-121",
-      "390x750: 167x321 x7, band 29 at y 106; down y 106-175; up y 66-135",
-      "430x739: 184x316 x7, band 24 at y 106; down y 106-175; up y 61-130",
+      "390x844: 167x361 x7, band 36 at y 139; down y 139-208; up y 106-175",
+      "390x664: 195x332 x6, band 7 at y 139; down y 139-208; up y 77-146",
+      "390x660: 195x330 x6, band 5 at y 139; down y 139-208; up y 75-144",
+      "390x700: 167x300 x7, band 0 at y 139; down y 139-208; up y 70-139",
+      "402x718: 172x307 x7, band 0 at y 139; down y 139-208; up y 70-139",
+      "390x750: 167x321 x7, band 0 at y 139; down y 139-208; up y 70-139",
+      "430x739: 184x316 x7, band 0 at y 139; down y 139-208; up y 70-139",
     ]);
   });
 
   it("the decision: a finger's selection that has a panel; never the mouse, a hover, a drag, no selection, landscape or a full band", () => {
-    const s = view(390, 664, 3).L, full = view(390, 844, 3).L, land = view(844, 390, 3).L;
+    // bb-0.8.6 (PACKS P5): 390x844's pre-cap band is 36 px now (the pack row); 390x1000's is the full 69 (was 390x844)
+    const s = view(390, 664, 3).L, full = view(390, 1000, 3).L, land = view(844, 390, 3).L;
+    expect(full.info.h).toBe(69);
     const fits = () => true;
     expect(panelArea(s, OFFER, TOUCH, fits)).toEqual(panelRect(s, "down"));
     for (const sel of [{ kind: "item", uid: 1 }, { kind: "turret", index: 0 }, { kind: "fitted", uid: 950 }, { kind: "route", index: 0 }, { kind: "cargo", uid: 9 }] as Sel[]) {
@@ -289,8 +294,9 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
       const d = detailsPlan({ game: { ui: new UI(), t: 0, view: v }, run, touch: true, L } as unknown as Ctx, sel, null, area)!;
       return { title: d.t.title, labels: d.t.labels, lines: visibleLines(d.plan).filter((q) => q.line !== "rule").length, whole: keptWhole(d.plan) };
     };
-    // 0350e5f drew these in the 8 px band (L.info), which drawDetails leaves empty (under 14 px)
-    expect(L.info.h).toBe(8);
+    // 0350e5f drew these in the 8 px band (L.info), which drawDetails leaves empty (under 14 px). bb-0.8.6 (PACKS P5): the
+    // pack row takes 33 px of this pre-cap layout's band, so it is 0 px now (was 8); the grown panel is unchanged
+    expect(L.info.h).toBe(0);
     for (const [run, sel] of [[temper, { kind: "item", uid: 3 }], [bombard, { kind: "turret", index: 1 }], [gantry, OFFER]] as [Run, Sel][]) {
       const before = look(run, sel, L.info), after = look(run, sel, panelArea(L, sel, TOUCH, () => true));
       expect([before.lines, before.whole], `${after.title} in the band`).toEqual([0, false]);

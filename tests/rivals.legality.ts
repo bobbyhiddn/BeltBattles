@@ -10,12 +10,14 @@ import {
   canExtend, canFitGear, canPlaceItem, commitRoute, connectorClaims, hitsOfRig, hullSlots, isTurretDef, placeItem,
   routeInfo, routesOf, coreFor, beltUsed, turretList, turretSlots, type Build,
 } from "../src/sim/deck";
-import { HEROES, ITEMS, MERCHANTS, itemsSoldBy, type MerchantId } from "../src/sim/content";
+import { HEROES, ITEMS, MERCHANTS, PACK_IDS, PACK_ITEM, itemsSoldBy, type MerchantId } from "../src/sim/content";
 import { unfusedPairs } from "../src/net/validate";
 import { outputsAt, starsOf } from "../src/sim/stars"; // bb-0.8.3 (REQ-BFG-042): belt slots by stars
 
 /** Every def the caravan sells (merchant stock: the 58 modules, 13 turrets and the two supplies). */
-export const SOLD = new Set(Object.keys(MERCHANTS).flatMap((m) => itemsSoldBy(m as MerchantId).map((d) => d.id)));
+// bb-0.8.6 (REQ-BFG-051 P1, P3): what the caravan sells: the merchants' rolled stock and the two fixed packs (BELT PACK =
+// beltcrate, ARMOR PACK = plating), which left the roll but are on sale at every visit
+export const SOLD = new Set([...Object.keys(MERCHANTS).flatMap((m) => itemsSoldBy(m as MerchantId).map((d) => d.id)), ...PACK_IDS.map((id) => PACK_ITEM[id])]);
 /** The signature factories (a deck holds its own hero's, never sold). */
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
 

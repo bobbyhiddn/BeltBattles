@@ -400,6 +400,45 @@ async function upgradeTouch(page, cdp, V, { what, where, track, title, key }) {
   return { s0, s1 };
 }
 
+/**
+ * bb-0.8.6 (REQ-BFG-051, PACKS P5): the two fixed pack slots beside REROLL. Each is a UI region (pack-belt, pack-armor)
+ * fully inside the visible viewport, clear of every shop card, REROLL and the other slot; on a touch view at least 44x44
+ * CSS px. A tap (a click on desk) buys one: the gold drops by its price (2, 5), the belt capacity or the hull bonus rises
+ * by its amount (4, 25) and the shop, cargo and the rest of the build stay as they were. With 1 gold the slot buys nothing
+ * and says why ("A BELT PACK COSTS 2G", "AN ARMOR PACK COSTS 5G"). The run is put back after, so later checks see their deck.
+ */
+async function packChecks(page, cdp, V, how) {
+  const PACKS = [["belt", 2, "beltCap", 4, "A BELT PACK COSTS 2G"], ["armor", 5, "hullBonus", 25, "AN ARMOR PACK COSTS 5G"]];
+  await page.keyboard.press("Escape").catch(() => {});
+  const press = async (p) => { if (how === "touch") await tap(cdp, p, 3, 0); else { await page.mouse.click(p.x, p.y); await sleep(150); } };
+  const regions = await Promise.all(PACKS.map(([id]) => region(page, `pack-${id}`)));
+  const others = await page.evaluate(() => {
+    const L = window.bb.game.screen.L, c = (r) => { const p = window.bb.toClient(r.x, r.y), q = window.bb.toClient(r.x + r.w, r.y + r.h); return { x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y }; };
+    return [...L.cards, L.reroll].map(c);
+  });
+  const hitR = (a, b) => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.h - 0.01 && b.y < a.y + a.h - 0.01;
+  for (let i = 0; i < PACKS.length; i++) {
+    const [id, price, key, amount, short] = PACKS[i], r = regions[i], NAME = `${id.toUpperCase()} PACK`;
+    const l0 = await look(page), s0 = JSON.parse(await snap(page));
+    const clear = !!r && others.every((o) => !hitR(r, o)) && regions.every((q, j) => j === i || !q || !hitR(r, q));
+    const big = !!r && (how !== "touch" || (r.w >= TAP_CSS && r.h >= TAP_CSS));
+    check(!!r && big && inView(r, l0) && clear, `${V}: the ${NAME} slot is ${r ? `a ${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px target${how === "touch" ? " (at least 44x44)" : ""} ${inView(r, l0) ? "inside" : "NOT inside"} the visible viewport, ${clear ? "clear of" : "OVERLAPPING"} the shop cards, REROLL and the other slot` : "MISSING"}`);
+    if (!r) continue;
+    await press(centre(r));
+    const s1 = JSON.parse(await snap(page));
+    const { [key]: v0, ...b0 } = s0.build, { [key]: v1, ...b1 } = s1.build;
+    check(s1.gold === s0.gold - price && v1 === v0 + amount && same(b1, b0) && same(s1.offers, s0.offers) && same(s1.inventory, s0.inventory),
+      `${V}: a ${how === "touch" ? "tap" : "click"} on the ${NAME} buys one: gold ${s0.gold} -> ${s1.gold}, ${key} ${v0} -> ${v1}; the shop, cargo and the rest of the build unchanged`);
+    await page.evaluate(() => { window.bb.game.run.gold = 1; });
+    const t0 = (await look(page)).toasts, s2 = await snap(page);
+    await press(centre(r));
+    const news = await toastsSince(page, t0), s3 = await snap(page);
+    check(s3 === s2 && news.includes(short), `${V}: with 1 gold a ${how === "touch" ? "tap" : "click"} on the dimmed ${NAME} buys nothing and says "${short}" (toasts ${JSON.stringify(news)})`);
+    await page.evaluate(([g, k, v]) => { const run = window.bb.game.run; run.gold = g; run.build[k] = v; }, [s0.gold, key, v0]);
+  }
+  await page.evaluate(() => { const g = window.bb.game; g.step(1 / 60); g.render(); });
+}
+
 // ------------------------------------------------------------------------------------------------------------ A1 touch
 async function touchSection(browsers, origin, vname) {
   log("");
@@ -429,6 +468,8 @@ async function touchSection(browsers, origin, vname) {
     const buy = await region(page, "buy");
     if (buy) check(buy.h >= TAP_CSS, `${V}: the ${label} card's ${i === 0 ? "BUY" : "BUY (disabled)"} button is a ${buy.w.toFixed(1)}x${buy.h.toFixed(1)} CSS px target (at least 44 tall)`);
   }
+
+  await packChecks(page, cdp, V, "touch");
 
   // 035: each carrier part, three drifts each; a tap alone changes nothing. shoptap2: its panel shows its description,
   // inside the visible viewport
@@ -741,6 +782,7 @@ async function mouseSection(browsers, origin) {
   };
   const click = async (p) => { await page.mouse.click(p.x, p.y); await sleep(150); };
   await openDeck(page, FURNACE);
+  await packChecks(page, null, "mouse", "mouse"); // bb-0.8.6 (REQ-BFG-051 P5): the pack slots by click
   const { k } = await kview(page);
   // a click selects (a card: no lift)
   await page.mouse.move(5, 5);

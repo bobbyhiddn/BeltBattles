@@ -3,6 +3,8 @@
 
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
+import { buyPack } from "../../game/run"; // bb-0.8.6 (REQ-BFG-051 P5)
+import type { PackId } from "../../sim/content";
 import { duskFoe, refundNotice, storedFoe } from "../../game/day";
 import { loadPool } from "../../game/ghosts";
 import { foeNote, onlineMode } from "../../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2)
@@ -28,6 +30,7 @@ import { drawLevelMark, levelMarks, type LevelMark } from "../../render/levelMar
 import { ArenaBg } from "../../render/arenaBg";
 import { inside, tapRect, type Rect } from "../../ui/ui";
 import { tapPx } from "../../ui/tap"; // zoom (D4)
+import { TAP_CSS } from "../../ui/tap"; // bb-0.8.6 (REQ-BFG-051 P5): the pack slots' finger target
 import { Editor, direct, type BeltX, type EditHost } from "./edit";
 import { buildLayout, buildScale, Caravan, panelArea as panelAreaOf, phoneScreen, type BuildLayout, type Sel } from "./layout";
 import { deleteRoute, rotate, sell, store, storeFitted } from "./actions";
@@ -109,8 +112,15 @@ export class BuildScreen implements Screen, EditHost {
   pickScale(pw: number, ph: number, portrait: boolean, dpr?: number): number {
     // zoom (D1): on a phone an art pixel is at most 1.75 CSS px (buildScale); D2: in portrait the phone's layout
     this.phone = portrait && dpr !== undefined && phoneScreen(pw, ph, dpr);
-    return buildScale(pw, ph, portrait, dpr);
+    const scale = buildScale(pw, ph, portrait, dpr);
+    // bb-0.8.6 (REQ-BFG-051 P5; oracle 43f2c3d185b37c07): on any phone, portrait or landscape, the pack slots are finger
+    // targets: TAP_CSS CSS px in art px at this scale (ui/tap.ts tapPx)
+    this.packTap = dpr !== undefined && phoneScreen(pw, ph, dpr) ? Math.ceil(TAP_CSS / (scale / dpr)) : 0;
+    return scale;
   }
+
+  /** bb-0.8.6 (PACKS P5): a phone's finger target in art px (0 on a desk), for the pack slots (buildLayout's `tap`). */
+  private packTap = 0;
 
   /** shoptap (D2): the last press was a finger or a pen (Ctx.touch: the panels' touch forms, a finger's targets). */
   get touch(): boolean {
@@ -179,7 +189,7 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   private layout(): BuildLayout {
-    return buildLayout(this.game.W, this.game.H, this.game.portrait, this.refit ? OFFERS : this.offers().length, this.phone && this.game.portrait);
+    return buildLayout(this.game.W, this.game.H, this.game.portrait, this.refit ? OFFERS : this.offers().length, this.phone && this.game.portrait, this.packTap);
   }
 
   /** Title of the road event this refit follows (banner text). */
@@ -306,6 +316,18 @@ export class BuildScreen implements Screen, EditHost {
       this.caravan.arrive(this.offers().length);
       this.game.audio.play("horn");
     });
+    saveRun(this.run);
+  }
+
+  /** bb-0.8.6 (REQ-BFG-051, PACKS P5): one BELT PACK or ARMOR PACK from its fixed slot. Short of gold, the tap says why, as
+   *  REROLL's does ("A BELT PACK COSTS 2G"); a buy shows REROLL's gold popup, lands on the belt and hull readouts at once
+   *  (they read the build every frame) and is saved, so a reload keeps it. Not after a road event (no caravan). */
+  doPack(id: PackId): void {
+    if (this.refit || this.ed.busy) return;
+    const r = buyPack(this.run, id);
+    if (!r.ok) return this.invalid(r.reason ?? "");
+    this.ufx.popup(this.coinX, 12, `-${r.price}`, C.yellow);
+    this.game.audio.play("coin");
     saveRun(this.run);
   }
 

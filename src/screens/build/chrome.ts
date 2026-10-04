@@ -1,9 +1,10 @@
 // Build-screen chrome: status bar, shop card row, cargo tray, FIGHT with its cue, the
 // next-battle card, the details panel, drag feedback and the pause/options menu.
 
-import { saveRun, shopBadge } from "../../game/run";
+import { packPrice, saveRun, shopBadge } from "../../game/run";
 import { record } from "../../game/day";
-import { ITEMS, REROLL_COST, RUN_DAYS } from "../../sim/content";
+import { ITEMS, PACK_IDS, PACK_ITEM, REROLL_COST, RUN_DAYS } from "../../sim/content";
+import { packRects } from "./layout"; // bb-0.8.6 (REQ-BFG-051 P5): the two fixed pack slots
 import { beltUsed } from "../../sim/deck";
 import { starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
@@ -17,7 +18,7 @@ import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
 import { drawHearts } from "../battleHud";
 import type { BuildScreen } from "./build";
-import { drawCard, drawReroll, drawTag, drawTooltip } from "./shop";
+import { drawCard, drawPack, drawReroll, drawTag, drawTooltip } from "./shop";
 import { drawDetails, drawFoe, hasDetails, textOpts } from "./inspector";
 import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): the card's one-line effect, the tooltip's
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
@@ -98,6 +99,12 @@ function drawShop(g: G, s: BuildScreen): void {
   const ok = (free || run.gold >= REROLL_COST) && s.caravan.ready;
   drawReroll(g, rr, ok, s.game.ui.hover === "reroll", s.game.ui.pressed === "reroll", free);
   s.game.ui.add({ id: "reroll", r: rr, onTap: () => s.doReroll(), block: true });
+  // bb-0.8.6 (REQ-BFG-051, PACKS P5): the two fixed packs beside REROLL; they stay put while the caravan rolls in and out
+  packRects(L).forEach((r, i) => {
+    const id = PACK_IDS[i];
+    drawPack(g, r, id, run.gold >= packPrice(id), s.game.ui.hover === `pack-${id}`, s.game.ui.pressed === `pack-${id}`);
+    s.game.ui.add({ id: `pack-${id}`, r, onTap: () => s.doPack(id), block: true });
+  });
 }
 
 /** Refit after a road event: the caravan's row becomes one bolted notice (no cards, no reroll). */
@@ -215,6 +222,12 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     const o = s.run.shop.wagons[s.hover.wagon]?.offers[s.hover.slot];
     // 0.6.2t (T5): the offer's opening sentence, as its panel and card read it
     if (idx >= 0 && o && L.cards[idx]) drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, abilityText(o.def, 1, textOpts(s.run)).sentences[0] ?? "");
+  }
+  // bb-0.8.6 (REQ-BFG-051, PACKS P5): a mouse over a pack slot: its name and one-line text, as an offer's tooltip reads
+  const ph = s.refit || c ? -1 : PACK_IDS.findIndex((id) => ui.hover === `pack-${id}`);
+  if (ph >= 0) {
+    const def = PACK_ITEM[PACK_IDS[ph]];
+    drawTooltip(g, packRects(L)[ph], ITEMS[def], L.W, abilityText(def, 1, textOpts(s.run)).sentences[0] ?? "");
   }
   if (s.menu) {
     optionsCard(s.game, g, "PAUSED", [

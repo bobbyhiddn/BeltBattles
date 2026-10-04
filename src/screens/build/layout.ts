@@ -55,6 +55,8 @@ export interface BuildLayout {
   /** zoom (REQ-BFG-040): a portrait phone's layout (buildLayout's `phone`): the shop's rows balanced, the band as tall as
    *  the tallest panel needs (phoneBand). Absent on every other layout, which is exactly as before. */
   phone?: true;
+  /** bb-0.8.6 (REQ-BFG-051, PACKS P5): the two fixed pack slots, BELT PACK then ARMOR PACK (packRects). */
+  packs: Rect[];
 }
 
 const LAND_MIN_W = 430;
@@ -65,6 +67,44 @@ const LAND_MIN_H = BAR_H + 6 + WIDE_CARD_H + 4 + HULL_A + 3 + CARGO_H + 2;
 export function wideCardW(W: number, offers: number): number {
   const room = Math.floor((W - 12 - CARD_W - offers * GAP - 8) / Math.max(1, offers));
   return Math.max(CARD_W, Math.min(WIDE_CARD_MAX_W, room));
+}
+
+/** bb-0.8.6 (REQ-BFG-051, PACKS P5; oracle 43f2c3d185b37c07): the two fixed pack slots (BELT PACK, ARMOR PACK) sit beside
+ *  REROLL, at most PACK_W wide. On a phone (ui/tap.ts isPhone: portrait or landscape) each is a finger's target, at least
+ *  tapPx(view) art px both ways and never under PACK_MIN_W (30 art px: 45 CSS px at a phone's smallest art pixel, 1.5 CSS
+ *  px). On a desk's landscape row (a mouse) the two are stacked in a column, each half REROLL's height, at least
+ *  PACK_LAND_MIN_W wide (the one-line "+25 HULL", 30 px in the 3x5 face, inside the frame). */
+export const PACK_W = 34;
+export const PACK_MIN_W = 30;
+export const PACK_LAND_MIN_W = 32;
+/** bb-0.8.6 (PACKS P5): REROLL's narrowest, on the narrowest landscape rows (its label, 23 px, and price still show). */
+export const REROLL_MIN_W = 32;
+/** bb-0.8.6 (PACKS P5): the narrowest landscape card: wideCardW at the narrowest landscape screen (430), where every card's
+ *  one-line effect fits (tests/abilityText.test.ts checks 430-480); the pack slots never push a card below it. */
+export const CARD_TEXT_MIN_W = 69;
+
+/** bb-0.8.6 (PACKS P5): a landscape shop row with room for the packs right of REROLL. A desk (`tap` 0): the stacked
+ *  column, PACK_W wide. A landscape phone (`tap` > 0, tapPx(view)): the two side by side, each max(tap, PACK_MIN_W) wide.
+ *  As before (the 8 px gap, REROLL CARD_W wide) where W holds it; on the narrowest rows the gap before REROLL goes first,
+ *  then REROLL narrows (to REROLL_MIN_W), then the desk's column (to PACK_LAND_MIN_W). The cards never narrow below
+ *  CARD_TEXT_MIN_W (buildLayout). `fits` false: even then the packs don't fit (a landscape phone's go elsewhere,
+ *  packRects). Exported for the tests. */
+export function landscapeRow(W: number, offers: number, cardW: number, tap = 0): { gap: number; rerollW: number; packW: number; rowW: number; side: boolean; fits: boolean } {
+  const side = tap > 0;
+  let gap = 8, rerollW = CARD_W, packW = side ? Math.max(tap, PACK_MIN_W) : PACK_W;
+  const row = () => offers * cardW + offers * GAP + gap + rerollW + (side ? 2 : 1) * (GAP + packW);
+  const room = W - 3;
+  if (row() > room) gap = 0;
+  if (row() > room) rerollW = Math.max(REROLL_MIN_W, rerollW - (row() - room));
+  if (!side && row() > room) packW = Math.max(PACK_LAND_MIN_W, packW - (row() - room));
+  return { gap, rerollW, packW, rowW: row(), side, fits: row() <= room };
+}
+
+/** bb-0.8.6 (PACKS P5): a portrait shop's pack column in the margin right of its widest row: the slot width it holds
+ *  (at most PACK_W), and whether that is enough (`need`: a phone's max(tapPx, PACK_MIN_W); elsewhere PACK_MIN_W). */
+function portraitColumn(W: number, right: number, need: number): { x: number; w: number; ok: boolean } {
+  const x = right + GAP, w = Math.min(PACK_W, W - 1 - x);
+  return { x, w, ok: w >= need };
 }
 const PORT_MIN_W = HULL_A + 4;
 const PORT_FIXED = BAR_H + 3 + 2 * CARD_H + GAP + 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
@@ -116,7 +156,7 @@ export function phoneBand(W: number): number {
  *  balanced rows (five offers and the reroll 3 + 3, not 4 + 2: perRow = ceil(slots / rows)); the details band takes the
  *  room the zoom frees, up to phoneBand(W), the hull centred in what is left as before; the idle hero card and NEXT
  *  BATTLE (PORT_BAND tall together) centred in a taller band. Landscape, and `phone` false, exactly as before. */
-export function buildLayout(W: number, H: number, portrait: boolean, offers: number, phone = false): BuildLayout {
+export function buildLayout(W: number, H: number, portrait: boolean, offers: number, phone = false, tap = 0): BuildLayout {
   const bar: Rect = { x: 0, y: 0, w: W, h: BAR_H };
   const slots = offers + 1; // + reroll
   if (!portrait) {
@@ -124,12 +164,21 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     const cy = BAR_H + 3 + 6;
     // 0.6.2t (T5): the offer cards are wide enough for their one-line effect (drawCard's wide face); the reroll keeps
     // CARD_W; the row is as tall as the wide cards
-    const cardW = wideCardW(W, offers);
-    const rowW = offers * cardW + CARD_W + offers * GAP + 8;
-    const x0 = Math.round(W / 2 - rowW / 2);
+    // bb-0.8.6 (REQ-BFG-051, PACKS P5): the row is centred with the packs beside REROLL (landscapeRow; `tap`, a landscape
+    // phone's finger target: the two side by side); where even the narrowed row can't hold them, the cards keep 430's
+    // width (CARD_TEXT_MIN_W); a landscape phone's packs that still don't fit go elsewhere (landPacksAway)
+    let cardW = wideCardW(W, offers);
+    let lr = landscapeRow(W, offers, cardW, tap);
+    while (!lr.fits && cardW > CARD_TEXT_MIN_W) lr = landscapeRow(W, offers, --cardW, tap);
+    const away = lr.side && !lr.fits;
+    if (away) {
+      cardW = wideCardW(W, offers);
+      lr = { ...lr, gap: 8, rerollW: CARD_W, rowW: offers * cardW + offers * GAP + 8 + CARD_W };
+    }
+    const x0 = Math.round(W / 2 - lr.rowW / 2);
     const cards: Rect[] = [];
     for (let i = 0; i < offers; i++) cards.push({ x: x0 + i * (cardW + GAP), y: cy, w: cardW, h: WIDE_CARD_H });
-    const reroll: Rect = { x: x0 + offers * (cardW + GAP) + 8, y: cy, w: CARD_W, h: WIDE_CARD_H };
+    const reroll: Rect = { x: x0 + offers * (cardW + GAP) + lr.gap, y: cy, w: lr.rerollW, h: WIDE_CARD_H };
     const colL = Math.min(136, Math.round(W * 0.28));
     const colR = Math.min(150, Math.round(W * 0.3));
     const top = cy + WIDE_CARD_H + 5;
@@ -142,13 +191,22 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     const cw = Math.min(cx1 - cx0 - 8, 200);
     const cargo: Rect = { x: Math.round((cx0 + cx1) / 2 - cw / 2), y: hull.y + HULL_A + 3, w: cw, h: CARGO_H };
     const rx = cx1 + 4, rw = colR - 4;
+    const fight: Rect = { x: rx, y: Math.round(hull.y + HULL_A / 2 - 16), w: rw, h: 32 }, foe: Rect = { x: rx, y: top, w: rw, h: 40 };
+    // bb-0.8.6 (PACKS P5): the packs: a desk's stacked column right of REROLL; a landscape phone's two side by side
+    const px = reroll.x + reroll.w + GAP;
+    const packs: Rect[] = !lr.side
+      ? stacked(px, reroll.y, lr.packW, reroll.h)
+      : !away
+        ? [{ x: px, y: reroll.y, w: lr.packW, h: reroll.h }, { x: px + lr.packW + GAP, y: reroll.y, w: lr.packW, h: reroll.h }]
+        : landPacksAway(W, H, foe, fight, Math.max(tap, PACK_MIN_W));
     return {
       W, H, portrait, bar, cards, reroll, perRow: slots, tags, frame, hull,
       pad: { x: hull.x - 5, y: hull.y - 5, w: hull.w + 10, h: hull.h + 10 },
       cargo,
-      fight: { x: rx, y: Math.round(hull.y + HULL_A / 2 - 16), w: rw, h: 32 },
+      fight,
       info: { x: 6, y: top, w: colL - 8, h: cargo.y + CARGO_H - top },
-      foe: { x: rx, y: top, w: rw, h: 40 },
+      foe,
+      packs,
     };
   }
   const fit = Math.max(1, Math.floor((W - 8 + GAP) / (CARD_W + GAP)));
@@ -160,7 +218,27 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
   const rowW = used * CARD_W + (used - 1) * GAP;
   const cards = cardRow(slots, Math.round(W / 2 - rowW / 2), cy, perRow, CARD_W + GAP);
   const reroll = cards.pop()!;
-  const shopBottom = cy + rows * CARD_H + (rows - 1) * GAP;
+  // bb-0.8.6 (REQ-BFG-051, PACKS P5): the packs in the margin right of the widest row (no card moves): BELT PACK beside
+  // the row above REROLL's, ARMOR PACK beside REROLL, each a card tall (one row: stacked beside REROLL). Where the margin
+  // can't hold a slot (`need`: a phone's finger target), a pack row under REROLL's row instead, the two side by side
+  // ending at REROLL's right edge; the band below gives up its height.
+  // A non-phone screen whose last row is short (REROLL ends before the widest row) has room right of REROLL in its own
+  // row: the two side by side there.
+  const need = phone ? Math.max(tap, PACK_MIN_W) : PACK_MIN_W;
+  const right = Math.max(...[...cards, reroll].map((r) => r.x + r.w)), rEnd = reroll.x + reroll.w;
+  const col = portraitColumn(W, right, need);
+  const besideW = Math.min(PACK_W, Math.floor((W - 1 - rEnd) / 2) - GAP);
+  const beside = rEnd < right && besideW >= need;
+  const packH = Math.max(tap, PACK_MIN_W), packW = Math.max(need, PACK_W);
+  const packRow = beside || col.ok ? 0 : packH + GAP;
+  const shopBottom = cy + rows * CARD_H + (rows - 1) * GAP + packRow;
+  const above = [...new Set([...cards, reroll].map((r) => r.y))].sort((a, b) => a - b).filter((y) => y < reroll.y).pop();
+  const rowX = Math.max(1, rEnd - 2 * packW - GAP), rowY = reroll.y + reroll.h + GAP;
+  const packs: Rect[] = beside
+    ? [{ x: rEnd + GAP, y: reroll.y, w: besideW, h: CARD_H }, { x: rEnd + 2 * GAP + besideW, y: reroll.y, w: besideW, h: CARD_H }]
+    : col.ok
+      ? above === undefined ? stacked(col.x, reroll.y, col.w, reroll.h) : [{ x: col.x, y: above, w: col.w, h: CARD_H }, { x: col.x, y: reroll.y, w: col.w, h: CARD_H }]
+      : [{ x: rowX, y: rowY, w: packW, h: packH }, { x: rowX + packW + GAP, y: rowY, w: packW, h: packH }];
   // Band between the shop and the bow turrets' barrel tips: idle it holds the hero card over
   // the NEXT BATTLE panel; a selection or hover shows the details panel across all of it.
   const fixedBelow = 2 + BARREL + 2 + HULL_L + 4 + CARGO_H + 3;
@@ -183,7 +261,34 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     info,
     foe: band >= FOE_H ? { x: info.x, y: info.y + idle + Math.min(band, PORT_BAND) - FOE_H, w: info.w, h: FOE_H } : null,
     ...(phone ? { phone: true as const } : {}),
+    packs,
   };
+}
+
+/** bb-0.8.6 (PACKS P5): two slots stacked in a column at (x, y), each half of `h` (a 2 px gap between). */
+function stacked(x: number, y: number, w: number, h: number): Rect[] {
+  const s = Math.floor((h - 2) / 2);
+  return [{ x, y, w, h: s }, { x, y: y + s + 2, w, h: s }];
+}
+
+/** bb-0.8.6 (PACKS P5; oracle 43f2c3d185b37c07 (3)): a landscape phone whose row can't hold two finger-sized slots beside
+ *  REROLL: the nearest free space that holds them, side by side at the right column's right edge: between NEXT BATTLE and
+ *  FIGHT where that holds a slot, else under FIGHT. */
+function landPacksAway(W: number, H: number, foe: Rect, fight: Rect, s: number): Rect[] {
+  const x1 = fight.x + fight.w, y = foe.y + foe.h + 3 + s + 3 <= fight.y ? foe.y + foe.h + 3 : Math.min(H - 1 - s, fight.y + fight.h + 3);
+  return [{ x: x1 - 2 * s - GAP, y, w: s, h: s }, { x: x1 - s, y, w: s, h: s }];
+}
+
+/**
+ * bb-0.8.6 (REQ-BFG-051, PACKS P5): the two fixed pack slots' rects, BELT PACK then ARMOR PACK, beside REROLL. They don't
+ * ride with the caravan (no offer slot, nothing a reroll touches). Landscape: a column right of REROLL (buildLayout's row
+ * leaves room for it), the two stacked, each half REROLL's height. Portrait: a column right of the card grid, in the
+ * margin the centred rows leave (no card moves): with two or more rows BELT PACK beside the row above REROLL's and ARMOR
+ * PACK beside REROLL, each a card tall; a single row stacks them beside REROLL. On a phone the margin is 34-57 px (320-430
+ * CSS px wide), so each slot is PACK_MIN_W-PACK_W wide and 42 tall: at least 45 by 63 CSS px. Pure (tests).
+ */
+export function packRects(L: BuildLayout): Rect[] {
+  return L.packs;
 }
 
 /** zoom: the idle hero card's rect over the NEXT BATTLE card `foe` in band `info` (chrome.ts): the band above the card
