@@ -49,7 +49,8 @@ export const HERO_STYLE: Partial<Record<HeroId, RuneTheme>> = { furnace: "furnac
  *   follows a won dusk (both through dawnGold; validate.ts's budget reads runeGrants).
  * - the battle's start: startBurn: n BURN stacks on the foe's hull; perTurretHull, mergedHull: n HULL per turret / per
  *   merged piece (a ★2 or ★3 rig, factory, gear, core or turret) on your hull's max and hp.
- * - a shot of yours: pairTwice: a PAIR shot fires n times at its one target (no new draw); pairMul: a PAIR shot's DMG x n;
+ * - a shot of yours: pairTwice: a PAIR shot fires n times at its one target (no new draw); pairPct: a PAIR shot +n% DMG
+ *   (RUNES-087F: TWIN SUNS' epic form, in the same % sum as the other % runes; it replaced RUNES-2a's pairMul, x n);
  *   mergedPct: +n% DMG per merged piece; frayShotPct: +n% DMG per FRAY on the foe's hull; platedDmg: +n DMG while you
  *   hold PLATE; frayHitDmg: +n DMG on a load that adds FRAY; priorPct: +n% DMG
  *   per rig the load passed; finisherDmg: +n DMG on the shot that empties a volley (the turret's window); volleyFirst:
@@ -73,7 +74,7 @@ export type RuneKind =
   | "allRate"
   | "runeTithe" | "victorGold"
   | "startBurn" | "perTurretHull" | "mergedHull"
-  | "pairTwice" | "pairMul" | "mergedPct" | "frayShotPct" | "plateMul" | "platedDmg" | "frayHitDmg"
+  | "pairTwice" | "pairPct" | "mergedPct" | "frayShotPct" | "plateMul" | "platedDmg" | "frayHitDmg"
   | "priorPct" | "finisherDmg" | "volleyFirst" | "rideMul" | "winDmgPct"
   | "machineDmg" | "fullFrayDmg" | "otherFray" | "frayMul" | "volleyBurn" | "pairBurn" | "burnTime" | "burnPct"
   | "hitCut" | "blockHits" | "plateOnHit" | "halfPlate" | "burnCut"
@@ -86,7 +87,7 @@ export const KIND_UNIT: Record<RuneKind, RuneUnit> = {
   allRate: "pct",
   runeTithe: "gold", victorGold: "gold",
   startBurn: "count", perTurretHull: "hull", mergedHull: "hull",
-  pairTwice: "count", pairMul: "count", mergedPct: "pct", frayShotPct: "pct", plateMul: "count", platedDmg: "dmg",
+  pairTwice: "count", pairPct: "pct", mergedPct: "pct", frayShotPct: "pct", plateMul: "count", platedDmg: "dmg",
   frayHitDmg: "dmg", priorPct: "pct", finisherDmg: "dmg", volleyFirst: "pct", rideMul: "count",
   winDmgPct: "pct",
   machineDmg: "dmg", fullFrayDmg: "dmg", otherFray: "count", frayMul: "count", volleyBurn: "count", pairBurn: "count",
@@ -177,7 +178,10 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // M5: an epic at -1 measured +8.8 and -2 +17.3: no whole amount lands in the epic band, +8.8 is a rare's
   r("iron_hide", "IRON HIDE", "rare", "armor", "hitCut", 1, "HITS ON YOU: -{N} {DMG}."),
   // ---- epic (R1b 1.3: an epic changes a rule or scales)
-  r("molten_vows", "MOLTEN VOWS", "epic", "foundry", "pairTwice", 2, "YOUR {*PAIR} SHOTS FIRE {N} TIMES."),
+  // RUNES-087F (cap's Q1): RUNES-2a's legendary "x2 DMG" measured FOUNDRY +28.4 (every FOUNDRY load pairs; x2 is the
+  // least multiplier), so TWIN SUNS is FOUNDRY's epic as a whole % on a PAIR shot, benched into the epic band on FOUNDRY.
+  // It takes MOLTEN VOWS' place in the catalogue order, and MOLTEN VOWS takes its place among the legendaries
+  r("twin_suns", "TWIN SUNS", "epic", "foundry", "pairPct", 33, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FOUNDRY: 30% +12.0, 33% +12.9, 40% +15.2, 50% +17.9
   r("scrap_saint", "SCRAP SAINT", "epic", "stars", "mergedPct", 11, "+{N} {DMG} PER MERGED PIECE."), // M5: 5% +6.1, 11% +11.7
   r("scab_iron", "SCAB IRON", "epic", "bastion", "plateOnHit", 1, "EACH HIT YOU TAKE: +{N} {*PLATE}."),
   r("widows_web", "WIDOW'S WEB", "epic", "weaver", "frayShotPct", 2, "+{N} {DMG} PER {*FRAY} ON THE FOE."),
@@ -192,7 +196,9 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // own), passed to the battle and kept in its record, so ghosts and replays stay exact (battle.ts Battle, replay.ts)
   r("warlords_due", "WARLORD'S DUE", "epic", "turrets", "winDmgPct", 8, "+{N} {DMG} PER WIN."), // M5: 5% +8.0, 8% +12.1
   // ---- legendary (R1b 1.3: a legendary redefines the run)
-  r("twin_suns", "TWIN SUNS", "legendary", "foundry", "pairMul", 2, "YOUR {*PAIR} SHOTS: x{N} {DMG}."),
+  // RUNES-087F (cap's Q1): firing twice is a rule that defines the run, so MOLTEN VOWS is FOUNDRY's legendary (R1b's
+  // legendary clause covers its FOUNDRY +32.0), text and amount unchanged
+  r("molten_vows", "MOLTEN VOWS", "legendary", "foundry", "pairTwice", 2, "YOUR {*PAIR} SHOTS FIRE {N} TIMES."),
   // M5: "+2% DMG PER PLATE YOU HOLD" measured +0.5 (BASTION +1.8): plate held is low when the guns fire. Every PLATE gain
   // multiplied instead (PLATE_CAP holds; BASTION's bulwark slugs, the wave-3 parts and the PLATE runes alike): x2 BASTION
   // +12.1, x3 +21.2

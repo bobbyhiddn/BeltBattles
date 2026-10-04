@@ -473,15 +473,14 @@ export class Battle {
   /**
    * The share side s's runes multiply a shot by (after the flat runes, before the debuffs): SCRAP SAINT +n% per merged
    * piece; WIDOW'S WEB +n% per FRAY on the foe's hull; WARLORD'S DUE +n% per win; TOLL ROAD +n% per rig the load passed;
-   * FIRST BLOOD +n% on a volley's first shot (`first`); TWIN SUNS x n on a PAIR shot. 1 for every other shot.
+   * FIRST BLOOD +n% on a volley's first shot (`first`); TWIN SUNS +n% on a PAIR shot (RUNES-087F; RUNES-2a's x n). 1 for
+   * every other shot.
    */
   private runeMul(s: SideState, paired: boolean, p: Payload, first: boolean): number {
     const m = s.rune!, foe = this.sides[s.side === 0 ? 1 : 0];
     const pct = m.mergedPct * (s.merged ?? 0) + m.frayShotPct * foe.hull.fray + m.winDmgPct * (s.wins ?? 0) + m.priorPct * p.prior
-      + (first ? m.volleyFirst : 0);
-    let k = pct ? 1 + pct / 100 : 1;
-    if (paired && m.pairMul) k *= m.pairMul;
-    return k;
+      + (first ? m.volleyFirst : 0) + (paired ? m.pairPct : 0);
+    return pct ? 1 + pct / 100 : 1;
   }
 
   /** FIRST BLOOD, EMBER SHOT: is this turret's shot the first of its volley? (Consumes the mark chambers set.) */
@@ -737,7 +736,7 @@ export class Battle {
     // TWIN NAILS / MOLTEN BOND read PAIRs (abilityText.ts: two loads into one turret through different intakes within
     // SYNC_WINDOW; a FOUNDRY fusion is a pair), so the side's turrets read pairs as E2's pair readers do (marks only).
     // RUNES-2a: every PAIR rune does (MOLTEN VOWS, TWIN SUNS, HOT SEAM, SEAM RIVETS)
-    if (rune && (rune.pairDmg || rune.pairTwice || rune.pairMul || rune.pairBurn || rune.pairPlate)) for (const tu of turrets) tu.pairing = true;
+    if (rune && (rune.pairDmg || rune.pairTwice || rune.pairPct || rune.pairBurn || rune.pairPlate)) for (const tu of turrets) tu.pairing = true;
     return {
       side, build: b, hero: h, hull, factories, gates, routes, turrets, targets,
       flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, wreckAccepted: 0,

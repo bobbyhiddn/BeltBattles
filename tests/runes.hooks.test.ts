@@ -73,7 +73,9 @@ describe("RUNES-2a: the catalogue block", () => {
 });
 
 describe("RUNES-2a M2: the epics and legendaries", () => {
-  it("MOLTEN VOWS: a PAIR shot fires twice at its one target (same aim, no new draw), 0.08 s apart", () => {
+  // RUNES-087F (cap's Q1): MOLTEN VOWS is FOUNDRY's legendary (firing twice defines the run), its text and amount as before
+  it("MOLTEN VOWS (legendary): a PAIR shot fires twice at its one target (same aim, no new draw), 0.08 s apart", () => {
+    expect([RUNES.molten_vows.tier, RUNES.molten_vows.amount.n, RUNES.molten_vows.text]).toEqual(["legendary", 2, "YOUR {*PAIR} SHOTS FIRE {N} TIMES."]);
     const b = heroStartBuild("foundry");
     const base = fires(b, FOE, 4), vows = fires(W(b, "molten_vows"), FOE, 8);
     expect(vows.every((p) => p.paired)).toBe(true);
@@ -206,10 +208,13 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     expect(() => replay({ ...rec, wins: [4, 99] } as never)).toThrow(/wins/);
   });
 
-  it("TWIN SUNS: a PAIR shot deals x2 DMG; a lone one as before", () => {
+  // RUNES-087F (cap's Q1): TWIN SUNS is FOUNDRY's epic, "+N% DMG" on a PAIR shot (RUNES-2a's legendary was x2)
+  it("TWIN SUNS (epic): a PAIR shot deals +33% DMG; a lone one as before", () => {
+    expect([RUNES.twin_suns.tier, RUNES.twin_suns.amount]).toEqual(["epic", { unit: "pct", n: 33 }]);
     const b = heroStartBuild("foundry");
     const base = fires(b, FOE, 4), suns = fires(W(b, "twin_suns"), FOE, 4);
-    base.forEach((p, i) => expect(suns[i].dmg / p.dmg).toBeCloseTo(n("twin_suns"), 9));
+    expect(suns.every((p) => p.paired)).toBe(true);
+    base.forEach((p, i) => expect(suns[i].dmg / p.dmg).toBeCloseTo(1 + n("twin_suns") / 100, 9));
     const w = heroStartBuild("weaver");
     expect(fires(W(w, "twin_suns"), FOE, 4).map((p) => p.dmg)).toEqual(fires(w, FOE, 4).map((p) => p.dmg));
   });

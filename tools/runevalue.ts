@@ -106,7 +106,7 @@ const N1_X10: readonly RuneUnit[] = ["dmg", "hull", "plate"];
 /** The run's gold kinds: the bench can't see them (their gold never reaches a battle). */
 const GOLD_KINDS: readonly RuneKind[] = ["dawnGold", "runeTithe", "victorGold"];
 /** The kinds whose amount is a multiplier ("x n", "fires n times"): their gain scales with n - 1. */
-const MUL_KINDS: readonly RuneKind[] = ["pairTwice", "pairMul", "volleyFirst", "rideMul", "frayMul"];
+const MUL_KINDS: readonly RuneKind[] = ["pairTwice", "volleyFirst", "rideMul", "frayMul"];
 
 /** One benched variant: a rune at its catalogue amount, or at `n` (id@n). */
 interface Variant { key: string; index: number; id: string; n: number; override: boolean }

@@ -148,8 +148,10 @@ describe("RUNES-1 M3: runeOffer pinned (a catalogue edit can't move offers silen
       [123456789, 10, "bastion", ["warlords_due", "scrap_saint"], "epic"],
       [4294967295, 7, "furnace", ["pyre_heart", "last_stand"], "epic"],
       [2026, 2, "bastion", ["ash_kindle", "ash_cloak", "gun_oil"], "common"],
-      [12, 4, "foundry", ["warlords_due", "molten_vows", "scrap_saint"], "epic"],
-      [23, 6, "foundry", ["bulwark_oath", "twin_suns"], "legendary"],
+      // RUNES-087F (cap's Q1): TWIN SUNS took MOLTEN VOWS' epic place and MOLTEN VOWS TWIN SUNS' legendary one (same
+      // theme, same weight), so these two dawns show each other's FOUNDRY rune; nothing else moved
+      [12, 4, "foundry", ["warlords_due", "twin_suns", "scrap_saint"], "epic"],
+      [23, 6, "foundry", ["bulwark_oath", "molten_vows"], "legendary"],
     ];
     for (const [seed, day, hero, ids, tier] of pins) {
       const o = runeOffer(seed, day, hero, []);
