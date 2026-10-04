@@ -6,7 +6,9 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
-import { RIVAL_IDS, deckCost, luckOf, rivalBuild, standInBuild, type RivalId } from "../src/sim/rivals";
+import { RIVALS, RIVAL_IDS, deckCost, luckOf, rivalBuild, standInBuild, type RivalId } from "../src/sim/rivals";
+import { LUCK_CAPS } from "../src/sim/harness/luckCapsData"; // bb-0.8.3 (oracle 512f23ac589b2482 (1)): captains.luck's cap reader
+import { luckMeasures, overCaps } from "../src/sim/harness/luck";
 import { PLANS, dayOwned, type RivalPlan } from "../src/sim/rivalBuilds";
 import { firstOfferDay, planDefs, swapCandidates, swapLegal, synergySwap } from "../src/sim/harness/synergy";
 import { starsOf } from "../src/sim/stars";
@@ -30,6 +32,20 @@ function ordinaryDefs(plan: RivalPlan): Set<string> {
 }
 const defsIn = (b: Build) => new Set([...b.items, ...b.mods].map((p) => p.def));
 
+/**
+ * bb-0.8.3 (oracle 512f23ac589b2482 (1)): could captain `id`'s ordinary-luck cap hold synergy part `def`? Add it to the
+ * day-9 stand-in deck (a rig or factory as an item, gear or a core as a mod) and read the deck against the day's ordinary
+ * cap with captains.luck's own reader (LUCK_CAPS, luckMeasures, overCaps).
+ */
+function ordinaryCouldHold(id: RivalId, def: string): boolean {
+  const b = standInBuild(id, 9), kind = ITEMS[def].kind;
+  const extended: Build = kind === "mod" || kind === "core"
+    ? { ...b, mods: [...b.mods, { uid: 99999, def, turret: 0 }] }
+    : { ...b, items: [...b.items, { uid: 99999, def, x: 0, y: 0 }] };
+  if (kind === "turret") throw new Error(`ordinaryCouldHold: ${def} is a turret (no synergy part is one)`);
+  return overCaps(luckMeasures(extended), LUCK_CAPS.caps[RIVALS[id].hero]![8].ordinary).length === 0;
+}
+
 describe("the synergy check's swaps (harness/synergy.ts)", () => {
   // 0.8.0 N1 (oracle 94b9559fbb7da299 (10)): each synergy part is checked on the deck of the luck that buys it. A part the
   // ordinary-luck plan buys is on the stand-in deck (standInBuild) by day 9; a part bought only at good luck (at most one
@@ -44,16 +60,25 @@ describe("the synergy check's swaps (harness/synergy.ts)", () => {
         continue;
       }
       const goodOnly = syn.filter((def) => !ordinaryDefs(plan).has(def));
-      expect(goodOnly.length, `${c.id}: good-luck-only synergy parts ${goodOnly.join(", ")}`).toBeLessThanOrEqual(1);
+      // bb-0.8.3 (oracle 512f23ac589b2482 (1), amending 94b9559fbb7da299 (10), a general rule): a good-luck-only synergy
+      // part counts against the one-per-plan limit only if the ordinary-luck cap could hold it: added to the day-9
+      // stand-in deck, that deck stays within the day's ordinary cap (captains.luck's own cap reader, LUCK_CAPS)
+      const counted = goodOnly.filter((def) => ordinaryCouldHold(c.id, def));
+      expect(counted.length, `${c.id}: good-luck-only synergy parts the ordinary cap could hold: ${counted.join(", ")}`).toBeLessThanOrEqual(1);
       if (goodOnly.length) expect(luckOf(c.id), `${c.id}: a good-luck-only synergy part needs a good-luck road deck`).toBe("good");
+      if (syn.length) expect(syn.length - goodOnly.length, `${c.id}: the stand-in deck holds at least one synergy part`).toBeGreaterThanOrEqual(1);
       for (const def of syn) {
         const deck = goodOnly.includes(def) ? rivalBuild(c.id, c.day) : deckOf(c);
         expect(defsIn(deck).has(def), `${c.id} d${c.day}: ${def}${goodOnly.includes(def) ? " (good luck: the road deck)" : ""}`).toBe(true);
       }
     }
-    // the 13 buy every synergy part at ordinary luck; of the six, only THANE KARSK has a good-luck-only one: SHIELD WALL
+    // the 13 buy every synergy part at ordinary luck; of the six, only THANE KARSK has good-luck-only ones: SHIELD WALL and,
+    // since bb-0.8.3's caps (BASTION's ordinary cap allows one epic on day 9), ARMOR PRESS. The day-9 ordinary cap forbids
+    // both (each, added to his day-9 stand-in deck, goes over it), so neither counts (oracle 512f23ac589b2482 (1)); should
+    // a later cap let either fit, this reading moves and the test turns red (ARMOR PRESS then goes back to ordinary luck)
     const goodOnlyOf = Object.fromEntries(RIVAL_IDS.filter((id) => id !== "matriarch").map((id) => [id, (PLANS[id].synergy ?? []).filter((d) => !ordinaryDefs(PLANS[id]).has(d))]).filter(([, g]) => g.length));
-    expect(goodOnlyOf).toEqual({ karsk: ["shieldwall"] });
+    expect(goodOnlyOf).toEqual({ karsk: ["shieldwall", "armorpress"] });
+    expect(["shieldwall", "armorpress"].map((d) => ordinaryCouldHold("karsk", d))).toEqual([false, false]);
   });
 
   it("candidates: same kind, never a synergy part or a race part, offerable by the day; off-plan and unused ones at the part's price", () => {
