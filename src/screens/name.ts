@@ -18,7 +18,7 @@ import { currentName, setPlayerName } from "../game/ghostSnapshot";
 export const NAME_ROW_CSS = 48;
 /** The OK button's width in CSS px (and CANCEL's). */
 export const NAME_OK_CSS = 64;
-export const NAME_CANCEL_CSS = 96;
+export const NAME_CANCEL_CSS = 84;
 /** The input's maxLength: room to type past NAME_MAX, so a long name is refused with its reason, never cut. */
 export const NAME_INPUT_MAX = 24;
 
