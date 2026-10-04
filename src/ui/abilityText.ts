@@ -61,6 +61,7 @@ import {
   JAM_THRESHOLD, SHAPE_ARROWS, WINDOW_TIME, rigShape, type HarassCause, type HeroId, type ItemDef,
 } from "../sim/content";
 import { PEAK_SHIFT, PENDULUM } from "../sim/races/data";
+import { BURN_DPS } from "../sim/content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
 // 0.8.0 I1 (the merge of H1 and P1): each name imported once; H1's signature text and P1's wave-3 entries both read them
 import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUNDRY's CRUCIBLE; P1: the pair window
 import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence; P1: TWIN TRIGGER's floor
@@ -77,11 +78,11 @@ import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 export const SIM = {
   poisonMax: 24, // battle.ts impact: stacks = Math.min(24, stacks + poison)
   poisonTime: 6, // battle.ts impact: poison.t = 6
-  poisonTick: 0.4, // battle.ts hullEffects: stacks * 0.4 damage a second
+  poisonTick: 4, // battle.ts hullEffects: stacks * 4 damage a second (NUM-1: x10 of 0.4, once a second)
   sabotBelt: 5, // battle.ts roundImpact: a sabot stalls a belt tile 5 s
   sabotFactory: 4, // ... a factory 4 s
   sabotTurret: 3, // ... a turret 3 s
-  sabotHull: 6, // battle.ts impact: + 6 on bare hull
+  sabotHull: 60, // battle.ts impact: + 60 on bare hull (NUM-1: x10 of 6)
   shrapnel: 2, // battle.ts roundImpact: SHRAPNEL stalls the tiles either side 2 s
   chainFactory: 0.8, // battle.ts slowSegment: a factory's timer + 0.8 s
   chainTurret: 0.5, // ... a turret's fire cooldown + 0.5 s
@@ -210,7 +211,7 @@ const round = <T>(e: ItemDef) => f(e).round as unknown as T;
 
 /** The shared sentences: the same effect reads the same everywhere (T5). */
 export const S = {
-  burn: `EACH BURN DEALS THE ENEMY HULL 1 DAMAGE A SECOND FOR ${seconds(BURN_TIME)}.`,
+  burn: `EACH BURN DEALS THE ENEMY HULL ${BURN_DPS} DAMAGE A SECOND FOR ${seconds(BURN_TIME)}.`, // NUM-1: the sim's BURN_DPS (was a literal 1)
   /** What a shock does: "STALLS A MACHINE FOR 1.6 SECONDS" (n machines with a jump). */
   stalls: (t: number, n: number) => `STALLS ${n === 1 ? "A MACHINE" : `${n} MACHINES`} FOR ${seconds(t)}`,
   /** How a jump spreads a shock (or a freeze) after the machine the shot hits. */
@@ -1105,10 +1106,10 @@ const ENTRIES: Record<string, Entry> = {
   platebreaker: {
     // Battle.applyHit (tier 1): with 1 plating or more on the hull it takes 1 (a plate event) and adds flat, else floor
     text: (e) => [
-      `EACH PAYLOAD IT HITS TAKES 1 PLATING FROM YOUR HULL AND GAINS ${damage(g(e).breaker!.flat)}.`,
+      `EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS ${damage(g(e).breaker!.flat)}.`, // NUM-1: battle.ts spends 10
       `WITH NO PLATING TO TAKE, IT ADDS ${damage(g(e).breaker!.floor)}.`,
     ],
-    gist: (e) => `${damage(g(e).breaker!.flat)} FOR 1 PLATING, ${n1(g(e).breaker!.floor)} WITHOUT`,
+    gist: (e) => `${damage(g(e).breaker!.flat)} FOR 10 PLATING, ${n1(g(e).breaker!.floor)} WITHOUT`, // NUM-1: 10 plating
     card: () => "TURNS PLATING INTO DAMAGE", // DESIGN 3.3's "TURNS YOUR PLATING INTO DAMAGE" takes three card lines
   },
   shieldwall: {
@@ -1366,7 +1367,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.gauge) return `${name} +${damage(h.flat ?? 0)}${h.matched ? " ON A MATCHED BELT" : ""}`;
   if (e.pincer) return `${name} +${damage(h.flat ?? 0)}${h.others ? `, CROSSFIRE WITH ${plural(h.others, "RIG")}` : ""}`;
   if (e.latch) return `${name} +${damage(h.flat ?? 0)}, HOLDS UP TO ${n2(e.latch.hold)} SEC`;
-  if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 1 PLATING, ELSE +${damage(e.breaker.floor)}`;
+  if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING, ELSE +${damage(e.breaker.floor)}`; // NUM-1: 10 plating
   if (e.brace) return `${name} ENEMY STALLS ${percent(1 - e.brace.mul)} SHORTER (${percent(1 - e.brace.plated)} SHORTER PLATED)`;
   if (e.plate) return `${name} +${n1(e.plate)} PLATING${e.plated ? `, +${damage(e.plated.flat)} AT ${e.plated.min} PLATING` : ""}`;
   const parts = [

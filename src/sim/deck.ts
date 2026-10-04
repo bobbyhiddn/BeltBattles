@@ -9,7 +9,7 @@ import {
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
-import { roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
+import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -752,7 +752,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       if (e.split) {
         copies *= e.split.copies;
         mult *= e.split.mult;
-        flat *= e.split.mult;
+        flat = pct(flat, 100 * e.split.mult); // NUM-1: as Battle.applyHit, the flat so far x the split's %, rounded half up once
         th.split = { ...e.split };
       }
       if (e.speed) {
