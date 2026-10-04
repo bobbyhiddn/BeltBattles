@@ -125,6 +125,19 @@ const shot = (text: string): FaceRule => ({ text: `SHOT: ${text}`, label: "SHOT:
 const cyc = (e: ItemDef, tint: PayloadPreset["tint"]): PayloadPreset => f(e).cycle!.find((p) => p.tint === tint)!;
 
 const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  // the heroes' signature factories (never sold: no stars, no NEXT★)
+  kiln: (e) => {
+    const h = AMMO[f(e).ammo].rideScale;
+    return rules([{ text: `ITS SLUGS HAVE {*HEAT} ${fmtDmg(h)}.` }], [], [REMINDER.HEAT(h)]);
+  },
+  loom: (e) => rules([{ text: `ITS SLUGS HAVE {*FRAY} ${fmtCount(AMMO[f(e).ammo].fray)}.` }], [], [REMINDER.FRAY()]),
+  crucible: () => {
+    // races/foundry.ts: crucibleProduce pours onto every belt at once; two blanks in sync fuse at FUSE_MULT
+    const label = "{*PAIR}:";
+    return rules([{ text: "POURS ONTO ALL ITS BELTS AT ONCE." }, { text: `${label} BLANKS FUSE, +${fmtPct(FUSE_MULT - 1)} {DMG}.`, label }],
+      [], [REMINDER.PAIR()]);
+  },
+  wardworks: () => rules([{ text: `ITS SLUGS LOAD: +${fmtDmg(PLATE_PER_SLUG)} {*PLATE}.`, label: "LOAD:" }], [], [REMINDER.PLATE()]),
 };
 
 /** The turrets: a stat row only (R1 C3: a turret carries no rules text). */
@@ -220,6 +233,16 @@ export function ruleSpans(text: string, label: string | undefined, base: string)
 /** C6: each TEXT hero's ability at hero select as its face (its signature factory's rule, said of the factory's slugs;
  *  cap's review call 5: WEAVER's is LOOM SLUGS HAVE FRAY 1). FURNACE's is a RULES change: it keeps heroTrick. */
 const HERO_FACES: Partial<Record<HeroId, () => Rules>> = {
+  weaver: () => {
+    const h = HEROES.weaver;
+    return rules([{ text: `${ITEMS[h.factory].name} SLUGS HAVE {*FRAY} ${fmtCount(AMMO[h.ammo].fray)}.` }], [], [REMINDER.FRAY()]);
+  },
+  foundry: () => {
+    const label = "{*PAIR}:";
+    return rules([{ text: `${label} ${ITEMS[HEROES.foundry.factory].name} BLANKS FUSE, +${fmtPct(FUSE_MULT - 1)} {DMG}.`, label }], [], [REMINDER.PAIR()]);
+  },
+  bastion: () => rules([{ text: `${ITEMS[HEROES.bastion.factory].name} SLUGS LOAD: +${fmtDmg(PLATE_PER_SLUG)} {*PLATE}.`, label: "LOAD:" }],
+    [], [REMINDER.PLATE()]),
 };
 
 /** A hero's ability face for hero select, in glyphs (null: the hero keeps heroTrick's sentence). */
@@ -234,5 +257,5 @@ export function heroFace(hero: HeroId): { rules: FaceRule[]; reminders: string[]
 }
 
 /** C6's identity in three words (PLAYSTYLE), for the TEXT heroes whose words change; every other hero keeps its own. */
-const PLAYSTYLE: Partial<Record<HeroId, string>> = {};
+const PLAYSTYLE: Partial<Record<HeroId, string>> = { weaver: "THREADS FRAY HULLS", foundry: "PAIRS FUSE STRONGER" };
 export const heroPlaystyle = (hero: HeroId): string => PLAYSTYLE[hero] ?? HEROES[hero].pattern;
