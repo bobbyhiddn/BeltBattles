@@ -521,7 +521,7 @@ export function resetRoadCapMemo(): void {
  * price + crates x crate price must be <= maxGoldByDay(day) + roadCapFor(day, mix). Returns the errors (empty: the
  * deck passes).
  */
-export function playerSupplyBudget(b: Build, day: number, cost: BuildCost): string[] {
+export function playerSupplyBudget(b: Build, day: number, cost: BuildCost, runeGold = 0): string[] {
   let f: PlayerFits;
   try {
     f = playerFits(b, day, cost);
@@ -529,7 +529,9 @@ export function playerSupplyBudget(b: Build, day: number, cost: BuildCost): stri
     return [`budget: the player ceiling is unavailable: ${e instanceof Error ? e.message : String(e)}`];
   }
   const best = f.fits[0];
-  if (best && best.cost <= best.allow) return [];
+  // RUNES-1 (REQ-BFG-058): `runeGold`, the gold the deck's dawn-gold runes paid by `day` (runes.ts runeGrants), joins
+  // every fit's allowance (a constant, so the best fit is the same one)
+  if (best && best.cost <= best.allow + runeGold) return [];
   const h = HEROES[b.hero];
   const errors: string[] = [];
   if (!f.hullOk) {
@@ -544,7 +546,8 @@ export function playerSupplyBudget(b: Build, day: number, cost: BuildCost): stri
   if (!errors.length && best) {
     const road = best.mix.labels.length ? `, road ${best.mix.labels.join(" + ")}` : "";
     const turrets = cost.turrets ? `, turrets ${cost.turrets}` : ""; // as the strict message names them (0.6.2s)
-    errors.push(`budget: build costs ${best.cost} gold (items ${cost.items}, mods ${cost.mods}, ${best.crates} crates, ${best.plates} plating${turrets}${road}) but a player's day ${day} allows at most ${best.allow} (maxGoldByDay ${shopGold(day)} + roadCap ${best.cap})`);
+    const rg = runeGold ? ` + rune gold ${runeGold}` : ""; // RUNES-1: only when runes paid any
+    errors.push(`budget: build costs ${best.cost} gold (items ${cost.items}, mods ${cost.mods}, ${best.crates} crates, ${best.plates} plating${turrets}${road}) but a player's day ${day} allows at most ${best.allow + runeGold} (maxGoldByDay ${shopGold(day)} + roadCap ${best.cap}${rg})`);
   }
   return errors;
 }

@@ -24,6 +24,13 @@ import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starsOf, upgradeGold, valueOf } from "../sim/stars";
 import { playerSupplyBudget } from "./roadCap"; // 0.7.0: the player mode's supply and budget blocks
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
+import { runeGrants, runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with the client's check
+
+/** RUNES-1: what a deck's check knows beside the deck: its snapshot's run `seed` (absent on a served ghost, FIX-6, and
+ *  on stand-ins and pool decks), so the rune offer rule runs only when the uploader's seed is known. */
+export interface ValidateContext {
+  seed?: number;
+}
 
 export { maxHonestSpend, roadCap } from "./roadCap";
 
@@ -42,13 +49,13 @@ export type ValidationMode = "strict" | "player";
  * that predate bb-0.6.2, or that can't be read, is refused with one "rules:" error naming both (rulesGate.ts). Joins
  * past JOIN_LIMIT are validateBuild's own (deck.ts joinProblem: "2 JOINS PER DECK"), in both modes.
  */
-export function validateUpload(build: Build, day: number, rules: string = RULES_VERSION): Validation {
+export function validateUpload(build: Build, day: number, rules: string = RULES_VERSION, ctx: ValidateContext = {}): Validation {
   const why = rulesGateProblem(rules, build);
   if (why) return { ok: false, errors: [`rules: ${why}`] };
   // 0.8.0 H1 (REQ-BFG-009): the deck's hero must be one its rules accept (rulesGate.ts RULES_HEROES)
   const hero = heroGateProblem(rules, (build as { hero?: unknown } | null)?.hero);
   if (hero) return { ok: false, errors: [`rules: ${hero}`] };
-  return validateBuild(build, day, "player");
+  return validateBuild(build, day, "player", ctx);
 }
 
 export interface Validation {
@@ -166,7 +173,7 @@ function routeProblem(b: Build, i: number, occ: ReturnType<typeof occupancy>): s
   return routeWellFormed(b, r) ? null : "is not well formed";
 }
 
-export function validateBuild(build: Build, day: number, mode: ValidationMode = "strict"): Validation {
+export function validateBuild(build: Build, day: number, mode: ValidationMode = "strict", ctx: ValidateContext = {}): Validation {
   let b: Build;
   try {
     b = checkBuildShape(build);
@@ -174,6 +181,14 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     return { ok: false, errors: [`shape: ${e instanceof SnapshotError ? e.message : String(e)}`] };
   }
   if (!Number.isInteger(day) || day < 1 || day > MAX_DAY) return { ok: false, errors: [`shape: day ${day} is not in 1..${MAX_DAY}`] };
+  // RUNES-1 (REQ-BFG-058): the runes, by runes.ts runeProblem (the client's snapshot check runs the same rule): at most
+  // one a dawn, catalogue ids, no repeats and, with the uploader's seed, each in its dawn's re-derived offer
+  const rp = runeProblem(b.runes, day, b.hero, ctx.seed);
+  if (rp) return { ok: false, errors: [`rune: ${rp}`] };
+  // what the runes gave: HULL and BELT runes sit in hullBonus / beltCap (run.ts takeRune), so the supply and budget
+  // blocks below read the bought hull and belt (`bought`); dawn-gold runes add their gold to the day's budget
+  const grant = runeGrants(b.runes, day);
+  const bought: Build = grant.hull || grant.belt ? { ...b, hullBonus: b.hullBonus - grant.hull, beltCap: b.beltCap - grant.belt } : b;
   const errors: string[] = [];
   const h = HEROES[b.hero];
 
@@ -335,21 +350,22 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
 
   // 0.7.0 player mode: the road's reachable hull and belt, and maxHonestSpend, replace the two blocks below
   if (mode === "player") {
-    errors.push(...playerSupplyBudget(b, day, buildCost(b)));
+    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), grant.gold)); // RUNES-1: the bought hull and belt, + rune gold
     return { ok: errors.length === 0, errors };
   }
 
   // supplies: only whole belt crates and whole plating are purchasable
   const crate = ITEMS.beltcrate.supply!.belt!, plate = ITEMS.plating.supply!.hull!;
-  if (b.beltCap < h.belt || (b.beltCap - h.belt) % crate !== 0) {
-    errors.push(`supply: beltCap ${b.beltCap} is not ${h.belt} + a whole number of +${crate} belt crates`);
+  // RUNES-1: the bought belt and hull (`bought`: the runes' own taken out)
+  if (bought.beltCap < h.belt || (bought.beltCap - h.belt) % crate !== 0) {
+    errors.push(`supply: beltCap ${bought.beltCap} is not ${h.belt} + a whole number of +${crate} belt crates`);
   }
-  if (b.hullBonus < 0 || b.hullBonus % plate !== 0) {
-    errors.push(`supply: hullBonus ${b.hullBonus} is not a whole number of +${plate} plating`);
+  if (bought.hullBonus < 0 || bought.hullBonus % plate !== 0) {
+    errors.push(`supply: hullBonus ${bought.hullBonus} is not a whole number of +${plate} plating`);
   }
 
-  // gold budget
-  const cost = buildCost(b), max = maxGoldByDay(day);
+  // gold budget (RUNES-1: the bought deck's cost; the dawn-gold runes' gold joins the day's most)
+  const cost = buildCost(bought), max = maxGoldByDay(day) + grant.gold;
   if (cost.total > max) {
     const turrets = cost.turrets ? `, turrets ${cost.turrets}` : ""; // 0.6.2s: only when the turrets cost anything
     errors.push(`budget: build costs ${cost.total} gold (items ${cost.items}, mods ${cost.mods}, ${cost.crates} crates, ${cost.plates} plating${turrets}) but day ${day} allows at most ${max}`);

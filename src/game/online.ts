@@ -218,7 +218,7 @@ export class Online implements Session {
     if (!this.identity || run.uploaded === run.day) return;
     run.uploaded = run.day;
     const snap = ghostOf(run, this.deps.now(), this.identity.playerId);
-    const v = validateUpload(snap.build, snap.day, snap.rules);
+    const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed }); // RUNES-1: the server's own rune check
     if (!v.ok) {
       console.debug(`[beltbattles] tonight's deck is not uploaded: ${v.errors[0] ?? "refused"}`);
       this.lastUpload = { ok: false, error: v.errors[0] ?? "refused", refused: true };

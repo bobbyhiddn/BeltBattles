@@ -44,6 +44,14 @@ import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
+
+/** RUNES-1 (REQ-BFG-058, FIX-6): a stored ghost as the match answer serves it: without its run `seed` (R1e wants it
+ *  private; the store keeps it). Every other field as stored. The client's checks then skip the rune offer rule. */
+export function servedSnapshot(s: GhostSnapshot): GhostSnapshot {
+  if (s.seed === undefined) return s;
+  const { seed: _private, ...pub } = s;
+  return pub;
+}
 export const MAX_BODY_BYTES = MAX_SNAPSHOT_BYTES;
 const MAX_SEEN = 64;
 const MAX_RUNS = 9999; // 0.7.0a D2: the runs a match request may state (intParam reads at most 4 digits)
@@ -314,7 +322,9 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // are seeded, never uploaded, carry none). The decoder has already refused a bad one; here only its absence
         const named = nameProblem(snap.name);
         if (named) throw new HttpError(422, `name: ${named}`);
-        const v = validateUpload(snap.build, snap.day); // 0.7.0: a player's deck, the player mode (road gold, parts, hull)
+        // 0.7.0: a player's deck, the player mode (road gold, parts, hull). RUNES-1 (REQ-BFG-058): with the snapshot's run
+        // seed, so validateBuild re-derives every dawn's rune offer (runes.ts runeProblem); the seed is stored, never served
+        const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed });
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
         // 0.8.0 H2 (backlog 325): the (wins, lives) record must be one a run can carry into this day's dusk, as the seed
         // and ghosts:admin revalidate already check (same words as revalidate's). Otherwise an honest deck could carry a
@@ -333,7 +343,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         const ghosts = await store.bucket(m.rules, m.day, isNewPlayer(m) ? "pool" : "all");
         const hit = pickGhost(ghosts, m, new Rng(matchSeed(m, salt())));
         if (!hit) throw new HttpError(404, "no ghost for this rules version, day and record yet");
-        return send(res, 200, { id: hit.id, snapshot: hit.snapshot });
+        return send(res, 200, { id: hit.id, snapshot: servedSnapshot(hit.snapshot) }); // RUNES-1 (FIX-6): no seed
       }
       case "/":
       case "/index.html":
