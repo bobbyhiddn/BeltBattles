@@ -337,7 +337,7 @@ describe("shop: the familiar slot's weights and chance (§5.2 step 3)", () => {
       if (day === 1) expect(r.shown.grease ?? 0).toBe(0);
       else within(r.shown.grease ?? 0, r.tinker, want[day - 1]);
     }
-  });
+  }, 120_000); // RESTAGE-088: ten days of sampled shops get their own limit, as net-upload.slack's DP tests do (30 s ran out under host load)
 });
 
 describe("shop: badges and the survivor (folded from review-061's repro files)", () => {
