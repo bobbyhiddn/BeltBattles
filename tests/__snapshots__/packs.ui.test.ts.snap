@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`P5 (oracle b24d14b979bbded9): buildScale holds the pack row; nothing goes off screen; NEXT BATTLE stays > the oracle's views, before (0.8.5) and after: the scale, where the slots go, the band 1`] = `
+[
+  "500x900 @1: x3 -> x2, W 250, beside, band 69",
+  "1080x1800 @1: x6 -> x5, W 216, beside, band 68",
+  "800x1280 @2: x8 -> x7, W 228, beside, band 69",
+  "800x1180 @2: x8 -> x7, W 228, beside, band 45",
+  "600x1000 @1: x3 -> x2, W 300, row, band 69",
+  "320x548 @3: x5 -> x4, W 240, column, band 119",
+  "320x548 @2.625: x4 -> x4, W 210, row, band 34",
+]
+`;

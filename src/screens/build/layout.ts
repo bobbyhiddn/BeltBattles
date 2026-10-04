@@ -5,6 +5,8 @@
 import type { Rect } from "../../ui/ui";
 import { HULL_A, HULL_L, frameForHull, hullBox, type DeckFrame } from "../../render/frame";
 import { PHONE_CSS } from "../../ui/tap"; // zoom (REQ-BFG-040)
+import { TAP_CSS } from "../../ui/tap"; // bb-0.8.6 (REQ-BFG-051 P5): the pack slots' finger target
+import { OFFERS } from "../../sim/content"; // bb-0.8.6 (PACKS P5): buildScale's pack-row guard reads a full caravan
 
 export type Sel =
   | { kind: "none" }
@@ -125,13 +127,24 @@ export function phoneScreen(pw: number, ph: number, dpr: number): boolean {
  *  at most 1.75 CSS px (x5 at DPR 3, x4 at 2.625, x3 at 2); the cap only lowers the pick. Without `dpr`, or not a
  *  phone, exactly as before. */
 export function buildScale(pw: number, ph: number, portrait: boolean, dpr?: number): number {
-  const top = dpr !== undefined && phoneScreen(pw, ph, dpr) ? Math.min(12, Math.max(1, Math.floor(PHONE_ART_CSS * dpr))) : 12;
+  const phone = dpr !== undefined && phoneScreen(pw, ph, dpr);
+  const top = phone ? Math.min(12, Math.max(1, Math.floor(PHONE_ART_CSS * dpr!))) : 12;
   for (let s = top; s > 1; s--) {
     const W = Math.floor(pw / s), H = Math.floor(ph / s);
     if (!portrait && W >= LAND_MIN_W && H >= LAND_MIN_H) return s;
-    if (portrait && W >= PORT_MIN_W && H >= PORT_FIXED) return s;
+    if (portrait && W >= PORT_MIN_W && H >= PORT_FIXED && packRowHolds(W, H, phone, phone ? Math.ceil(TAP_CSS / (s / dpr!)) : 0)) return s;
   }
   return 1;
+}
+
+/** bb-0.8.6 (REQ-BFG-051 P5; oracle b24d14b979bbded9 (2)): a portrait screen holds the pack slots at this size: they sit
+ *  beside REROLL or in the grid's margin, or, where they need their own row under REROLL's, the screen still leaves the
+ *  band at least FOE_H (NEXT BATTLE) below it, so nothing (FIGHT, the cargo tray) goes off screen. Read with buildLayout's
+ *  own inputs at that size (OFFERS offers, so the scale never changes between visits; `phone`, `tap`). */
+function packRowHolds(W: number, H: number, phone: boolean, tap: number): boolean {
+  const L = buildLayout(W, H, true, OFFERS, phone, tap);
+  const row = L.packs[0].y > L.reroll.y + L.reroll.h;
+  return !row || L.info.h >= FOE_H;
 }
 
 function cardRow(n: number, x0: number, y: number, perRow: number, step: number): Rect[] {
@@ -226,13 +239,14 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
   // row: the two side by side there.
   const need = phone ? Math.max(tap, PACK_MIN_W) : PACK_MIN_W;
   const right = Math.max(...[...cards, reroll].map((r) => r.x + r.w)), rEnd = reroll.x + reroll.w;
-  const col = portraitColumn(W, right, need);
+  const above = [...new Set([...cards, reroll].map((r) => r.y))].sort((a, b) => a - b).filter((y) => y < reroll.y).pop();
+  // one row: the two stacked beside REROLL, each half its height, in the short face (at least PACK_LAND_MIN_W wide)
+  const col = portraitColumn(W, right, above === undefined ? Math.max(need, PACK_LAND_MIN_W) : need);
   const besideW = Math.min(PACK_W, Math.floor((W - 1 - rEnd) / 2) - GAP);
   const beside = rEnd < right && besideW >= need;
   const packH = Math.max(tap, PACK_MIN_W), packW = Math.max(need, PACK_W);
   const packRow = beside || col.ok ? 0 : packH + GAP;
   const shopBottom = cy + rows * CARD_H + (rows - 1) * GAP + packRow;
-  const above = [...new Set([...cards, reroll].map((r) => r.y))].sort((a, b) => a - b).filter((y) => y < reroll.y).pop();
   const rowX = Math.max(1, rEnd - 2 * packW - GAP), rowY = reroll.y + reroll.h + GAP;
   const packs: Rect[] = beside
     ? [{ x: rEnd + GAP, y: reroll.y, w: besideW, h: CARD_H }, { x: rEnd + 2 * GAP + besideW, y: reroll.y, w: besideW, h: CARD_H }]

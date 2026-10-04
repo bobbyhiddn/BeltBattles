@@ -33,11 +33,27 @@ type R = { x: number; y: number; w: number; h: number };
 const hit = (a: R, b: R) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 const within = (a: R, b: R) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
 
+/** bb-0.8.6 (PACKS P5; oracle b24d14b979bbded9 (5)): 0.8.5's buildScale without the dpr, verbatim (the scale before the
+ *  phone cap and before the pack-row guard). The guard now draws these views one step smaller wherever this scale can't
+ *  hold the pack row and NEXT BATTLE (390x700 @3: x7 -> x6, 167x300 -> 195x350; output-packs/CHANGED-ASSERTIONS.md), so
+ *  some of these legacy short bands no view produces any more; this file keeps measuring shoptap2's short-band fallback
+ *  on them. */
+function legacyScale(pw: number, ph: number, portrait: boolean): number {
+  void buildScale; // the game's scale; see above
+  for (let s = 12; s > 1; s--) {
+    const W = Math.floor(pw / s), H = Math.floor(ph / s);
+    if (!portrait && W >= 430 && H >= 14 + 6 + 46 + 4 + 156 + 3 + 22 + 2) return s;
+    if (portrait && W >= 156 + 4 && H >= 14 + 3 + 2 * 42 + 3 + 2 + 15 + 2 + 140 + 4 + 22 + 3) return s;
+  }
+  return 1;
+}
+
 /** The build screen on a phone view: its own scale (buildScale), its layout with five offers, CSS px per logical px. */
 function view(w: number, h: number, dpr: number) {
   // zoom (REQ-BFG-040): the build screen's scale before the phone cap (buildScale without the dpr) and its layout, the
-  // short bands this fallback was made for (a phone now zooms out and its band holds its panels: tests/zoom.test.ts)
-  const v = computeView(w, h, dpr, (pw, ph, portrait) => buildScale(pw, ph, portrait));
+  // short bands this fallback was made for (a phone now zooms out and its band holds its panels: tests/zoom.test.ts).
+  // bb-0.8.6: that scale is legacyScale (0.8.5's), which the pack-row guard no longer picks for these views
+  const v = computeView(w, h, dpr, (pw, ph, portrait) => legacyScale(pw, ph, portrait));
   return { v, L: buildLayout(v.W, v.H, v.portrait, 5), k: v.scale / v.dpr };
 }
 const TOUCH = { touch: true, hover: false, busy: false };

@@ -112,7 +112,8 @@ describe("P5 (b): on every phone each slot is a finger's target, at least TAP_CS
     }
     // the operator's phones keep the column (390, 402, 430 at DPR 3); only the narrowest phones take the row
     expect([view(390, 844, 3), view(402, 690, 3), view(430, 739, 3)].map((v) => packRects(v.L)[0].y)).toEqual([17, 17, 17]);
-    expect(packRects(view(320, 568, 3).L)[0].y).toBe(view(320, 568, 3).L.reroll.y + 45);
+    // oracle b24d14b979bbded9: 320x568 @3 can't hold the pack row and NEXT BATTLE at x5, so it draws at x4 (the column)
+    expect([view(320, 568, 3).L.W, packRects(view(320, 568, 3).L)[0].y]).toEqual([240, 17]);
     const want = [...Array.from({ length: 4 }, (_, i) => `${320 + i} @2.625`), ...Array.from({ length: 34 }, (_, i) => `${320 + i} @3`)];
     expect(rowAt).toEqual(want); // 320-323 CSS px at DPR 2.625, 320-353 at DPR 3: the margin is under a 30 px slot
   });
@@ -147,6 +148,87 @@ describe("P5: the desk's row", () => {
     const { L } = view(390, 844, 3);
     expect([L.perRow, L.cards.map((r) => r.x), L.reroll.x, L.reroll.w]).toEqual([3, [45, 94, 143, 45, 94], 143, 46]);
     expect(packRects(L).map((r) => [r.x, r.y, r.w, r.h])).toEqual([[192, 17, 34, 42], [192, 62, 34, 42]]);
+  });
+});
+
+// ------------------------------------------- oracle b24d14b979bbded9: buildScale holds the pack row on portrait screens
+// 0.8.5's portrait scale and its NEXT BATTLE rule (layout.ts at 52c0b43, verbatim in substance): the scale, and whether
+// the band held NEXT BATTLE (FOE_H 24) at it.
+const HULL_A_ = 156, HULL_L_ = 140; // render/frame.ts (the hull box's sides; tests/zoom.test.ts reads the same)
+const PORT_FIXED_ = 14 + 3 + 2 * 42 + 3 + 2 + 15 + 2 + HULL_L_ + 4 + 22 + 3;
+function scale085(pw: number, ph: number, portrait: boolean, dpr?: number): number {
+  const top = dpr !== undefined && phoneScreen(pw, ph, dpr) ? Math.min(12, Math.max(1, Math.floor(1.75 * dpr))) : 12;
+  for (let s = top; s > 1; s--) {
+    const W = Math.floor(pw / s), H = Math.floor(ph / s);
+    if (!portrait && W >= 430 && H >= 14 + 6 + 46 + 4 + HULL_A_ + 3 + 22 + 2) return s;
+    if (portrait && W >= HULL_A_ + 4 && H >= PORT_FIXED_) return s;
+  }
+  return 1;
+}
+function foe085(cw: number, ch: number, dpr: number): boolean {
+  const pw = Math.floor(cw * dpr), ph = Math.floor(ch * dpr), phone = phoneScreen(pw, ph, dpr), s = scale085(pw, ph, true, dpr);
+  const W = Math.floor(pw / s), H = Math.floor(ph / s), fit = Math.max(1, Math.floor((W - 5) / 49));
+  const perRow = phone ? Math.ceil(6 / Math.ceil(6 / fit)) : fit, rows = Math.ceil(6 / perRow);
+  const shopBottom = 14 + 3 + (rows === 1 ? 6 : 0) + rows * 42 + (rows - 1) * 3;
+  const spare = Math.max(0, H - shopBottom - (2 + 15 + 2 + HULL_L_ + 4 + 22 + 3));
+  return Math.min(phone ? (W < 194 ? 169 : W < 278 ? 162 : W < 281 ? 155 : W < 316 ? 148 : W < 320 ? 141 : 136) : 69, spare) >= 24;
+}
+/** The pack row needed at this layout and the band under FOE_H: the scale guard's failure. */
+const rowFails = (L: BuildLayout) => L.packs[0].y > L.reroll.y + L.reroll.h && L.info.h < 24;
+
+/** Every portrait view of the oracle's sweep: the zoom phone sweep, 440-547 tall phones, non-phone portrait windows. */
+function portraitViews(): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (const dpr of [2, 2.625, 3]) for (let w = 320; w <= 430; w++) for (let h = 440; h <= 932; h += 12) out.push([w, h, dpr]);
+  for (const dpr of [1, 1.25, 1.5, 2]) for (let w = 500; w <= 1400; w += 9) for (let h = w + 37; h <= 2400; h += 53) out.push([w, h, dpr]);
+  return out;
+}
+
+describe("P5 (oracle b24d14b979bbded9): buildScale holds the pack row; nothing goes off screen; NEXT BATTLE stays", () => {
+  it("(a) every portrait view: cargo and FIGHT on screen, no two controls overlap, NEXT BATTLE wherever 0.8.5 had it", () => {
+    let n = 0;
+    for (const [w, h, dpr] of portraitViews()) {
+      const { L } = view(w, h, dpr), tag = `${w}x${h} @${dpr}`;
+      for (const r of [L.cargo, L.fight]) expect(onScreen(r, L.W, L.H), `${tag} ${JSON.stringify(r)} in ${L.W}x${L.H}`).toBe(true);
+      const ctl: [string, Rect][] = [["bar", L.bar], ["reroll", L.reroll], ["band", L.info], ["pad", L.pad], ["cargo", L.cargo], ["fight", L.fight],
+        ...L.cards.map((c, i): [string, Rect] => [`card ${i}`, c]), ...L.packs.map((c, i): [string, Rect] => [`pack ${i}`, c])];
+      for (let i = 0; i < ctl.length; i++) for (let j = i + 1; j < ctl.length; j++) {
+        // 0.8.5's own: FIGHT sits 1 px into the hull pad by design (layout.ts: FIGHT at the cargo row's y - 1)
+        if (ctl[i][0] === "pad" && ctl[j][0] === "fight") continue;
+        if (ctl[i][1].h > 0 && ctl[j][1].h > 0) expect(hit(ctl[i][1], ctl[j][1]), `${tag}: ${ctl[i][0]} vs ${ctl[j][0]}`).toBe(false);
+      }
+      if (foe085(w, h, dpr)) expect(L.foe, `${tag}: NEXT BATTLE`).not.toBeNull();
+      n++;
+    }
+    expect(n).toBeGreaterThan(20000);
+  });
+
+  it("(b) every landscape scale is 0.8.5's; a portrait scale moves only where 0.8.5's fails the pack-row rule, to the largest that passes", () => {
+    for (const dpr of [1, 1.5, 2, 2.625, 3]) for (let w = 480; w <= 2600; w += 37) for (let h = 300; h < w; h += 41) {
+      const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr);
+      expect(buildScale(pw, ph, false, dpr), `${w}x${h} @${dpr}`).toBe(scale085(pw, ph, false, dpr));
+    }
+    let moved = 0;
+    for (const [w, h, dpr] of portraitViews()) {
+      const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr), phone = phoneScreen(pw, ph, dpr);
+      const now = buildScale(pw, ph, true, dpr), was = scale085(pw, ph, true, dpr), tag = `${w}x${h} @${dpr}`;
+      const at = (s: number) => buildLayout(Math.floor(pw / s), Math.floor(ph / s), true, 5, phone, phone ? Math.ceil(TAP_CSS / (s / dpr)) : 0);
+      expect(now, tag).toBeLessThanOrEqual(was);
+      if (now === was) continue;
+      moved++;
+      for (let s = now + 1; s <= was; s++) expect(rowFails(at(s)), `${tag} x${s} fails`).toBe(true);
+      if (now > 1) expect(rowFails(at(now)), `${tag} x${now} passes`).toBe(false);
+    }
+    expect(moved).toBeGreaterThan(0);
+  });
+
+  it("the oracle's views, before (0.8.5) and after: the scale, where the slots go, the band", () => {
+    const row = (w: number, h: number, dpr: number) => {
+      const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr), { L } = view(w, h, dpr);
+      const where = L.packs[0].y > L.reroll.y + L.reroll.h ? "row" : L.packs[0].y === L.reroll.y ? "beside" : "column";
+      return `${w}x${h} @${dpr}: x${scale085(pw, ph, true, dpr)} -> x${buildScale(pw, ph, true, dpr)}, W ${L.W}, ${where}, band ${L.info.h}`;
+    };
+    expect([[500, 900, 1], [1080, 1800, 1], [800, 1280, 2], [800, 1180, 2], [600, 1000, 1], [320, 548, 3], [320, 548, 2.625]].map(([w, h, d]) => row(w, h, d))).toMatchSnapshot();
   });
 });
 

@@ -149,7 +149,7 @@ function packed(B: BuildLayout, offers: number, phone: boolean, tap: number): Bu
   const colW = Math.min(PACK_W, W - 1 - (right + GAP)), besideW = Math.min(PACK_W, Math.floor((W - 1 - rEnd) / 2) - GAP);
   const above = [...new Set([...B.cards, rr].map((c) => c.y))].sort((a, b) => a - b).filter((y) => y < rr.y).pop();
   if (rEnd < right && besideW >= need) return { ...B, packs: two(rEnd + GAP, rr.y, besideW, CARD_H, besideW + GAP, 0) };
-  if (colW >= need) {
+  if (colW >= (above === undefined ? Math.max(need, PACK_LAND_MIN_W) : need)) {
     const half = Math.floor((rr.h - 2) / 2);
     return { ...B, packs: above === undefined ? two(right + GAP, rr.y, colW, half, 0, half + 2) : [{ x: right + GAP, y: above, w: colW, h: CARD_H }, { x: right + GAP, y: rr.y, w: colW, h: CARD_H }] };
   }
@@ -167,6 +167,19 @@ function packed(B: BuildLayout, offers: number, phone: boolean, tap: number): Bu
     foe: band >= FOE_H ? { x: info.x, y: info.y + idle + Math.min(band, PORT_BAND) - FOE_H, w: info.w, h: FOE_H } : null,
     packs: two(rowX, rr.y + rr.h + GAP, pw, packH, pw + GAP, 0),
   };
+}
+
+/** bb-0.8.6 (PACKS P5; oracle b24d14b979bbded9 (2)): a portrait scale steps down from `s0` (BASE's, or the phone cap) to
+ *  the largest whose layout holds the pack slots: beside REROLL, in the margin, or in a pack row that leaves the band at
+ *  least FOE_H. Landscape: `s0` exactly. */
+function guarded(pw: number, ph: number, portrait: boolean, s0: number, dpr?: number): number {
+  if (!portrait) return s0;
+  const phone = dpr !== undefined && phoneScreen(pw, ph, dpr);
+  for (let s = s0; s > 1; s--) {
+    const L = buildLayout(Math.floor(pw / s), Math.floor(ph / s), true, 5, phone, phone ? Math.ceil(44 / (s / dpr!)) : 0);
+    if (!(L.packs[0].y > L.reroll.y + L.reroll.h && L.info.h < FOE_H)) return s;
+  }
+  return 1;
 }
 
 /** The build screen as the game frames it (BuildScreen.pickScale and layout): its view and its layout with `offers`.
@@ -192,14 +205,17 @@ describe("zoom D1: the build screen's scale on a phone is capped at 1.75 CSS px 
     for (const dpr of [2, 2.625, 3]) for (let w = 320; w <= 430; w++) for (let h = 548; h <= 932; h += 4) {
       const { v, k } = screen(w, h, dpr);
       expect(k, `${w}x${h} @${dpr}`).toBeLessThanOrEqual(PHONE_ART_CSS);
-      expect(v.scale, `${w}x${h} @${dpr}`).toBe(Math.min(Math.floor(PHONE_ART_CSS * dpr), baseScale(Math.floor(w * dpr), Math.floor(h * dpr), v.portrait)));
+      // bb-0.8.6 (oracle b24d14b979bbded9): one step smaller where the cap's scale can't hold the pack row and NEXT BATTLE
+      const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr);
+      expect(v.scale, `${w}x${h} @${dpr}`).toBe(guarded(pw, ph, v.portrait, Math.min(Math.floor(PHONE_ART_CSS * dpr), baseScale(pw, ph, v.portrait)), dpr));
       if (!picks.has(dpr)) picks.set(dpr, new Set());
       picks.get(dpr)!.add(v.scale);
       n++;
     }
     expect(n).toBeGreaterThan(30000);
     // the cap: floor(1.75 x dpr); the integer device-pixel rule stays (W x scale <= the device px)
-    expect([...picks].map(([d, s]) => `${d}: ${[...s].sort().join(",")}`)).toEqual(["2: 3", "2.625: 4", "3: 5"]);
+    // bb-0.8.6 (oracle b24d14b979bbded9): the narrowest, shortest DPR-3 phones (320-353 x 548-580) draw at x4 (was x5 only)
+    expect([...picks].map(([d, s]) => `${d}: ${[...s].sort().join(",")}`)).toEqual(["2: 3", "2.625: 4", "3: 4,5"]);
   });
 
   it("the views of the brief: 234x396 at 390x660, 234x398 at 390x664, 241x414 at 402x690, 234x506 at 390x844, 258x443 at 430x739; the operator's x7 before", () => {
@@ -237,7 +253,9 @@ describe("zoom: every view that isn't a phone is exactly as before", () => {
     for (const dpr of [1, 1.25, 1.5, 1.75, 2]) for (let w = 500; w <= 2600; w += 23) for (let h = 500; h <= 1700; h += 19) {
       const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr);
       expect(phoneScreen(pw, ph, dpr), `${w}x${h} @${dpr}`).toBe(false);
-      const v = computeView(w, h, dpr, buildScale), base = computeView(w, h, dpr, (a, b, p) => baseScale(a, b, p));
+      // bb-0.8.6 (oracle b24d14b979bbded9 (2)): BASE's scale, or on a portrait window that can't hold the pack row and
+      // NEXT BATTLE at it, the largest smaller one that can (landscape: BASE's exactly)
+      const v = computeView(w, h, dpr, buildScale), base = computeView(w, h, dpr, (a, b, p) => guarded(a, b, p, baseScale(a, b, p)));
       expect(v, `${w}x${h} @${dpr}`).toEqual(base);
       for (const offers of [5, 3, 0]) {
         const L = buildLayout(v.W, v.H, v.portrait, offers, false);
@@ -252,7 +270,7 @@ describe("zoom: every view that isn't a phone is exactly as before", () => {
 
   it("buildScale without a dpr (a screen framed by device px alone) is BASE's on every view", () => {
     for (let pw = 300; pw <= 3000; pw += 37) for (let ph = 300; ph <= 3000; ph += 41) for (const p of [true, false]) {
-      expect(buildScale(pw, ph, p)).toBe(baseScale(pw, ph, p));
+      expect(buildScale(pw, ph, p)).toBe(guarded(pw, ph, p, baseScale(pw, ph, p))); // bb-0.8.6: the pack-row guard (b24d14b979bbded9)
     }
   });
 });
