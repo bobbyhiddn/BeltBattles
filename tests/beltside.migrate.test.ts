@@ -291,13 +291,15 @@ describe("D1: rot round trips", () => {
     const run = newRun("furnace", 9, "me");
     run.build.items.push({ uid: 150, def: "splitter", x: 3, y: 3, rot: 1 }, { uid: 151, def: "coil", x: 5, y: 3, rot: 2, stars: 2 });
     const g = ghostOf(run, 1_790_000_000_000, "p-me");
-    expect(g.v).toBe(2);
+    expect(g.v).toBe(3); // RUNES-1 (snapshot v3): ghostOf carries the run seed; rot rides from v2 on
     expect(isSnapshot(g)).toBe(true);
     const back = decodeSnapshot(encodeSnapshot(g));
     expect(back.build.items.map((p) => p.rot)).toEqual([undefined, 1, 2]);
     expect(back).toEqual(g);
-    expect(isSnapshot({ ...g, v: 1 })).toBe(false);
-    expect(() => checkSnapshot({ ...g, v: 1 })).toThrow(/rot: not allowed in a v1 snapshot/);
+    const { seed: _seed, ...g2 } = g; // RUNES-1: without the v3 seed, so rot is what v1 refuses
+    expect(isSnapshot({ ...g2, v: 1 })).toBe(false);
+    expect(isSnapshot({ ...g2, v: 2 })).toBe(true);
+    expect(() => checkSnapshot({ ...g2, v: 1 })).toThrow(/rot: not allowed in a v1 snapshot/);
     expect(() => checkSnapshot(J({ ...g, build: { ...g.build, mods: [{ uid: 9, def: "chamber", turret: 0, rot: 1 }] } }))).toThrow(SnapshotError);
   });
 

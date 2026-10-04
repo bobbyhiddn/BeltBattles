@@ -220,7 +220,8 @@ describe("storage: beside the player id, it survives a reload", () => {
     const run = newRun("furnace", 7);
     const none = fresh.ghostOf(run, 5, "p-me", null);
     expect("name" in none).toBe(false);
-    expect(Object.keys(fresh.ghostOf(run, 5, "p-me", "ANNA")).at(-1)).toBe("name");
+    // RUNES-1 (snapshot v3): the name is the last v2 field; the run seed (a v3 field) follows it
+    expect(Object.keys(fresh.ghostOf(run, 5, "p-me", "ANNA")).slice(-2)).toEqual(["name", "seed"]);
     expect(ghostOf(run, 5, "p-me", "ANNA").name).toBe("ANNA");
   });
 });
