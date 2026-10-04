@@ -1,0 +1,243 @@
+// RUNES-1 (REQ-BFG-058, M2): the RUNE BAR on the build screen, and the rune card the picker and the bar's read-out share.
+// - The bar is a row right under the HUD (the top bar), there only while the run holds a rune: one chip per held rune in
+//   pick order (runes[i] was taken at the dawn of day i + 1), framed in its tier's colour (palette.ts RARITY_COLOR). A chip
+//   is at least TAP_CSS (44) CSS px a side (runeChip: tapPx of the view, never under RUNE_CHIP_MIN art px) and shows the
+//   rune's initials over its keyword word in the keyword's colour (no rune icons on this base). One row always: where the
+//   screen can't hold every chip, the last place is a "+k" chip that opens the full list.
+// - The build screen keeps its layout and lays out in the screen's height less the bar's row, then moves down by the row
+//   (shiftLayout): the top bar stays, the shop moves down, the details band gives up the row (the hull stays on a portrait
+//   phone); with no rune held nothing changes (row 0).
+// - A tap on a chip opens its read-out under the bar (name, "RARE RUNE · TAKEN DAY 4", the effect line, the reminder)
+//   until that chip or the read-out is tapped again, or anything else is pressed.
+
+import type { G } from "../render/pixel";
+import { frame, rect } from "../render/pixel";
+import { C } from "../render/palette";
+import { drawText, textWidth } from "../render/font";
+import { panel, type Rect } from "./ui";
+import { tapPx, TAP_CSS } from "./tap";
+import type { View } from "../core/io";
+import { drawRich, wrapRich } from "./richText";
+import { RUNES, isRune, type RuneDef, type RuneHeld } from "../sim/runes";
+import {
+  RUNE_KEYWORD_COLOUR, KEYWORD_WORD, runeInitials, runeKeyword, runeReminderSpans, runeSpans, runeTaken, tierColour,
+} from "./runeText";
+import { buildLayout, FOE_H, phoneScreen, type BuildLayout } from "../screens/build/layout";
+import { OFFERS } from "../sim/content";
+import type { BuildScreen } from "../screens/build/build";
+
+/** The smallest chip, art px (its initials over its keyword word, "PLATE" the widest, 19 px in the 3x5 face). */
+export const RUNE_CHIP_MIN = 22;
+/** The bar's label column ("RUNES" over the count). */
+const LABEL_W = 26;
+const PITCH_GAP = 3;
+
+/** A chip's side in art px for a view: a finger's TAP_CSS CSS px (tapPx), at least RUNE_CHIP_MIN. */
+export const runeChip = (v: Pick<View, "scale" | "dpr">): number => Math.max(RUNE_CHIP_MIN, tapPx(v));
+/** The bar's row height for `n` held runes (0: no bar). */
+export const runeRowH = (v: Pick<View, "scale" | "dpr">, n: number): number => (n > 0 ? runeChip(v) + 6 : 0);
+
+export interface RuneBarLayout {
+  bar: Rect;
+  chip: number;
+  /** One per rune shown as a chip, in pick order (runes 0 .. shown - 1). */
+  chips: Rect[];
+  shown: number;
+  /** The "+k" chip (k = n - shown) that opens the full list, or null when every rune has its chip. */
+  more: Rect | null;
+}
+
+/** The bar for `n` runes on a screen `W` wide, its row's top at `top`, chips `chip` art px. Pure (tests). */
+export function runeBarLayout(W: number, top: number, n: number, chip: number): RuneBarLayout {
+  const bar = { x: 0, y: top, w: W, h: chip + 6 };
+  const pitch = chip + PITCH_GAP, x0 = LABEL_W + 2;
+  const fit = Math.max(1, Math.floor((W - 3 - x0 + PITCH_GAP) / pitch));
+  const shown = n <= fit ? n : fit - 1;
+  const at = (i: number): Rect => ({ x: x0 + i * pitch, y: top + 3, w: chip, h: chip });
+  return { bar, chip, chips: Array.from({ length: shown }, (_, i) => at(i)), shown, more: n > shown ? at(shown) : null };
+}
+
+/** The build layout moved down by `dy` (the bar's row), the top bar where it was, H the whole screen's. Pure. */
+export function shiftLayout(L: BuildLayout, dy: number, H: number): BuildLayout {
+  if (!dy) return L;
+  const m = (r: Rect): Rect => ({ ...r, y: r.y + dy });
+  return {
+    ...L, H, cards: L.cards.map(m), reroll: m(L.reroll), frame: { ...L.frame, dy: L.frame.dy + dy }, hull: m(L.hull), pad: m(L.pad),
+    cargo: m(L.cargo), fight: m(L.fight), info: m(L.info), foe: L.foe ? m(L.foe) : null, packs: L.packs.map(m),
+  };
+}
+
+/** pickScale's guard: at `scale`, the build screen with its rune row still fits the screen (its cargo tray and FIGHT on
+ *  it; a portrait band that holds NEXT BATTLE). Always true with no rune held. */
+export function runeRowFits(s: Pick<BuildScreen, "run" | "refit" | "offers">, pw: number, ph: number, portrait: boolean, scale: number, dpr?: number): boolean {
+  const n = s.run.build.runes?.length ?? 0;
+  if (!n) return true;
+  const W = Math.floor(pw / scale), H = Math.floor(ph / scale), row = runeRowH({ scale, dpr: dpr ?? 1 }, n);
+  const phone = dpr !== undefined && phoneScreen(pw, ph, dpr);
+  const L = buildLayout(W, H - row, portrait, s.refit ? OFFERS : s.offers().length, phone && portrait, phone ? Math.ceil(TAP_CSS / (scale / dpr!)) : 0);
+  const foot = Math.max(L.cargo.y + L.cargo.h, L.fight.y + L.fight.h);
+  return foot <= H - row + 2 && (!portrait || L.info.h >= FOE_H);
+}
+
+const defsOf = (runes: readonly RuneHeld[] | undefined): RuneDef[] =>
+  (runes ?? []).map((q) => (q && isRune(q.id) ? RUNES[q.id] : null)).filter((d): d is RuneDef => !!d);
+
+// ---- drawing -----------------------------------------------------------------------------------------------------------
+
+/** A rune chip: the item slot's frame (ui.ts itemSlot), its bottom edge in the tier's colour; the initials over the
+ *  keyword word in its colour (a chip under 20 px: the initials alone). `sel`: a 1 px yellow ring. */
+export function drawRuneChip(g: G, r: Rect, def: RuneDef, sel = false): void {
+  rect(g, r.x, r.y, r.w, r.h, C.ink);
+  rect(g, r.x + 1, r.y + 1, r.w - 2, r.h - 2, C.slate0);
+  rect(g, r.x + 1, r.y + r.h - 3, r.w - 2, 2, tierColour(def.tier));
+  const k = runeKeyword(def), ini = runeInitials(def);
+  const cx = r.x + r.w / 2;
+  if (k && r.h >= 20) {
+    const top = r.y + Math.floor((r.h - 3 - 13) / 2);
+    drawText(g, ini, cx, top, C.bone, { align: "center" });
+    drawText(g, KEYWORD_WORD[k], cx, top + 8, RUNE_KEYWORD_COLOUR[k], { font: "3", align: "center" });
+  } else drawText(g, ini, cx, r.y + Math.floor((r.h - 3 - 7) / 2), C.bone, { align: "center" });
+  if (sel) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, C.yellow);
+}
+
+/** The "+k" chip: the count of runes the row can't show; a tap opens the full list. */
+function drawMoreChip(g: G, r: Rect, k: number, sel: boolean): void {
+  rect(g, r.x, r.y, r.w, r.h, C.ink);
+  rect(g, r.x + 1, r.y + 1, r.w - 2, r.h - 2, C.slate1);
+  const top = r.y + Math.floor((r.h - 13) / 2);
+  drawText(g, `+${k}`, r.x + r.w / 2, top, C.yellow, { align: "center" });
+  drawText(g, "ALL", r.x + r.w / 2, top + 8, C.slate4, { font: "3", align: "center" });
+  if (sel) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, C.yellow);
+}
+
+export interface RuneCardOpts {
+  /** The line under the name: the tag ("RARE · ARMOR") or the read-out's ("RARE RUNE · TAKEN DAY 4"). */
+  sub: string;
+  /** A yellow ring: the opened picker card. */
+  open?: boolean;
+  reminder?: boolean;
+  /** A yellow bar under the text ("TAP AGAIN TO TAKE IT"). */
+  hint?: string;
+}
+
+const CARD_TEXT_Y = 31;
+/** A card's text width: its width less the 5 px insets. */
+export const runeCardTextW = (w: number): number => w - 10;
+
+/** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
+ *  bar 13, 4 at the foot). Pure (tests). */
+export function runeCardH(def: RuneDef, w: number, o: Omit<RuneCardOpts, "sub">): number {
+  let h = CARD_TEXT_Y + wrapRich(runeSpans(def), runeCardTextW(w), "5").length * 9;
+  if (o.reminder) h += 1 + wrapRich(runeReminderSpans(def), runeCardTextW(w), "3").length * 7;
+  if (o.hint) h += 13;
+  return h + 4;
+}
+
+/** A rune card (the picker's, the bar's read-out): the dark panel with its tier's colour on top and bottom, the chip, the
+ *  name in the tier's colour, the sub line, the effect (wrapped by richText where the card is narrow), the reminder. */
+export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void {
+  const edge = tierColour(def.tier);
+  panel(g, r, "dark");
+  rect(g, r.x + 1, r.y + 1, r.w - 2, 2, edge);
+  rect(g, r.x + 1, r.y + r.h - 3, r.w - 2, 2, edge);
+  if (o.open) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, C.yellow);
+  drawRuneChip(g, { x: r.x + 5, y: r.y + 6, w: 22, h: 22 }, def);
+  drawText(g, def.name, r.x + 31, r.y + 7, edge, { outline: C.ink });
+  drawText(g, o.sub, r.x + 31, r.y + 18, C.slate4, { font: "3" });
+  const tw = runeCardTextW(r.w);
+  let y = r.y + CARD_TEXT_Y;
+  for (const l of wrapRich(runeSpans(def), tw, "5")) {
+    drawRich(g, l, r.x + 5, y, "5");
+    y += 9;
+  }
+  if (o.reminder) {
+    y += 1;
+    for (const l of wrapRich(runeReminderSpans(def), tw, "3")) {
+      drawRich(g, l, r.x + 5, y, "3");
+      y += 7;
+    }
+  }
+  if (o.hint) {
+    const hw = textWidth(o.hint) + 8, hb = { x: Math.round(r.x + r.w / 2 - hw / 2), y: y + 1, w: hw, h: 11 };
+    rect(g, hb.x, hb.y, hb.w, hb.h, C.yellow);
+    drawText(g, o.hint, hb.x + 4, hb.y + 2, C.ink);
+  }
+}
+
+/** The read-outs' width on a screen `W` wide. */
+export const readoutW = (W: number): number => Math.min(W - 8, 300);
+
+/** The full list ("+k"): a row per rune (its name and day, then its effect line). Its height. Pure (tests). */
+export const runeListH = (n: number): number => 16 + n * 19 + 2;
+
+// ---- the bar on the build screen ---------------------------------------------------------------------------------------
+
+/** The bar's state on one build screen: the chip whose read-out is open (-1 none), or the full list. */
+export class RuneBar {
+  open = -1;
+  list = false;
+
+  /** The bar as the build screen lays it out now (its row right under the top bar), or null with no rune held. */
+  layout(s: BuildScreen): RuneBarLayout | null {
+    const n = s.run.build.runes?.length ?? 0;
+    if (!n) return null;
+    return runeBarLayout(s.game.W, s.L.bar.y + s.L.bar.h, n, runeChip(s.game.view));
+  }
+
+  /** Under the chrome (a grown details panel, the options card and a drag draw over it): the strip and its chips. */
+  drawUnder(g: G, s: BuildScreen): void {
+    const B = this.layout(s);
+    if (!B) {
+      this.open = -1;
+      this.list = false;
+      return;
+    }
+    const defs = defsOf(s.run.build.runes);
+    panel(g, B.bar, "inset");
+    drawText(g, "RUNES", 4, B.bar.y + 4, C.slate4, { font: "3" });
+    drawText(g, String(defs.length), 4, B.bar.y + 11, C.bone);
+    B.chips.forEach((r, i) => drawRuneChip(g, r, defs[i], this.open === i));
+    if (B.more) drawMoreChip(g, B.more, defs.length - B.shown, this.list);
+  }
+
+  /** Over the chrome: the chips' tap targets (they win over the top bar's grown SND and MENU targets) and the open
+   *  read-out. Not while the options card is up or a details panel grown over the bar covers it. */
+  drawOver(g: G, s: BuildScreen): void {
+    const B = this.layout(s);
+    if (!B || s.menu) return;
+    const area = s.panelArea();
+    if (area !== s.L.info && area.y < B.bar.y + B.bar.h) return;
+    const ui = s.game.ui;
+    const defs = defsOf(s.run.build.runes);
+    ui.add({ id: "runebar", r: B.bar, block: true });
+    B.chips.forEach((r, i) => ui.add({ id: `rune-${i}`, r, onTap: () => { this.list = false; this.open = this.open === i ? -1 : i; } }));
+    if (B.more) ui.add({ id: "rune-more", r: B.more, onTap: () => { this.open = -1; this.list = !this.list; } });
+    const W = s.game.W, w = readoutW(W), x = Math.round(W / 2 - w / 2), y = B.bar.y + B.bar.h + 2;
+    if (this.open >= 0 && defs[this.open]) {
+      const def = defs[this.open];
+      const r = { x, y, w, h: runeCardH(def, w, { reminder: true }) };
+      drawRuneCard(g, r, def, { sub: runeTaken(def, this.open + 1), reminder: true });
+      ui.add({ id: "rune-readout", r, onTap: () => { this.open = -1; } });
+    } else if (this.list) {
+      const r = { x, y, w, h: runeListH(defs.length) };
+      panel(g, r, "dark");
+      drawText(g, `YOUR RUNES ${defs.length}`, r.x + 5, r.y + 5, C.slate4, { font: "3" });
+      defs.forEach((d, i) => {
+        const ry = r.y + 16 + i * 19;
+        drawText(g, d.name, r.x + 5, ry, tierColour(d.tier));
+        drawText(g, `DAY ${i + 1}`, r.x + r.w - 5, ry + 1, C.slate4, { font: "3", align: "right" });
+        const line = wrapRich(runeSpans(d), runeCardTextW(r.w), "5")[0] ?? [];
+        drawRich(g, line, r.x + 5, ry + 9, "5");
+      });
+      ui.add({ id: "rune-readout", r, onTap: () => { this.list = false; } });
+    }
+  }
+
+  /** Every press (BuildScreen.pressed): one on anything but the bar and its read-out closes the read-out. */
+  pressed(region: string | null): void {
+    if (region === null || !region.startsWith("rune")) {
+      this.open = -1;
+      this.list = false;
+    }
+  }
+}

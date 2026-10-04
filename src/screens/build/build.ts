@@ -41,6 +41,8 @@ import { drawBuildChrome } from "./chrome";
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
 import { EventScreen } from "../event/event";
+import { RuneBar, runeRowFits, runeRowH, shiftLayout } from "../../ui/runeBar"; // RUNES-1 (REQ-BFG-058): the rune bar
+import { RunePicker } from "../runePicker"; // RUNES-1: the dawn rune picker
 
 /** 0.6.1d2 (ARSENAL.md §8.3): 0.5s per merge step normally; reduced motion collapses lift/arc/ring/
  *  sparkle to just the flash, so its "impact" beat comes almost immediately. */
@@ -112,7 +114,10 @@ export class BuildScreen implements Screen, EditHost {
   pickScale(pw: number, ph: number, portrait: boolean, dpr?: number): number {
     // zoom (D1): on a phone an art pixel is at most 1.75 CSS px (buildScale); D2: in portrait the phone's layout
     this.phone = portrait && dpr !== undefined && phoneScreen(pw, ph, dpr);
-    const scale = buildScale(pw, ph, portrait, dpr);
+    let scale = buildScale(pw, ph, portrait, dpr);
+    // RUNES-1 (REQ-BFG-058): with a rune held its bar's row comes off the layout's height (layout()); a scale that would
+    // put the cargo tray or FIGHT off the screen steps down (no rune held: always as before)
+    while (scale > 1 && !runeRowFits(this, pw, ph, portrait, scale, dpr)) scale--;
     // bb-0.8.6 (REQ-BFG-051 P5; oracle 43f2c3d185b37c07): on any phone, portrait or landscape, the pack slots are finger
     // targets: TAP_CSS CSS px in art px at this scale (ui/tap.ts tapPx)
     this.packTap = dpr !== undefined && phoneScreen(pw, ph, dpr) ? Math.ceil(TAP_CSS / (scale / dpr)) : 0;
@@ -189,8 +194,15 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   private layout(): BuildLayout {
-    return buildLayout(this.game.W, this.game.H, this.game.portrait, this.refit ? OFFERS : this.offers().length, this.phone && this.game.portrait, this.packTap);
+    // RUNES-1 (REQ-BFG-058): the rune bar's row under the top bar (0 with no rune held: exactly as before)
+    const row = runeRowH(this.game.view, this.run.build.runes?.length ?? 0);
+    return shiftLayout(buildLayout(this.game.W, this.game.H - row, this.game.portrait, this.refit ? OFFERS : this.offers().length, this.phone && this.game.portrait, this.packTap), row, this.game.H);
   }
+
+  /** RUNES-1 (REQ-BFG-058): the rune bar (under the top bar, with a rune held) and the dawn rune picker (a modal over the
+   *  screen while today's pick is pending: it takes every press and key). */
+  readonly runeBar = new RuneBar();
+  readonly runePicker = new RunePicker();
 
   /** Title of the road event this refit follows (banner text). */
   refitFrom(): string {
@@ -410,10 +422,13 @@ export class BuildScreen implements Screen, EditHost {
     this.drawFuseAnim(g);
     if (bump) g.translate(0, -bump);
     this.wfx.draw(g, 0, 0);
+    this.runeBar.drawUnder(g, this); // RUNES-1: the rune bar (a grown panel, the options card and a drag draw over it)
     drawBuildChrome(g, this);
     this.wfx.drawPops(g, 0, 0);
     this.ufx.draw(g, 0, 0);
     this.ufx.drawPops(g, 0, 0);
+    if (!this.runePicker.up(this)) this.runeBar.drawOver(g, this); // RUNES-1: the chips' targets and the open read-out
+    this.runePicker.draw(g, this); // RUNES-1: the dawn rune picker over everything (its regions take every press)
   }
 
   /** Belts that block FIGHT: a pulsing red tint and outline on every cell (brighter after a press). */
@@ -637,16 +652,20 @@ export class BuildScreen implements Screen, EditHost {
 
   /** shoptap (D1): `kind`, the pointer that pressed (the editor's touch rules read it). */
   down(x: number, y: number, kind: PointerKind = "mouse"): void {
+    if (this.runePicker.up(this)) return; // RUNES-1: nothing under the rune picker moves
     this.skipFuseAnim(); // 0.6.1d2: a tap anywhere skips the merge animation to its end
     this.ed.down(x, y, kind);
   }
 
   /** shoptap (D3): every press: one anywhere but on the belt X takes the X down (a press on a UI region included). */
   pressed(_x: number, _y: number, region: string | null): void {
+    if (this.runePicker.up(this)) return; // RUNES-1: the rune picker takes every press
     if (region !== "beltx") this.ed.dropX();
+    this.runeBar.pressed(region); // RUNES-1: a press off the rune bar closes its read-out
   }
 
   move(x: number, y: number): void {
+    if (this.runePicker.up(this)) return; // RUNES-1: no hover or drag under the rune picker
     this.ed.move(x, y);
     this.hover = this.game.ui.pointer.down ? null : this.offerAt(x, y);
   }
@@ -660,6 +679,7 @@ export class BuildScreen implements Screen, EditHost {
   }
 
   key(k: string): void {
+    if (this.runePicker.up(this)) return; // RUNES-1: the rune picker can't be skipped (no FIGHT, reroll or Escape under it)
     if (k === "Escape") {
       if (this.menu) this.menu = false;
       else if (this.ed.busy) this.ed.cancel();
