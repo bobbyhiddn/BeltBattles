@@ -14,8 +14,10 @@
 //   on every damaging side-0 projectile) and R1b's relicvalue.ts set the plating pool and hullBonus by hand.
 // - The variants are 7 shipped runes in today's units (decision 1: N1's DMG, HULL and PLATE divided by 10): R1b 1.5's
 //   RIVET HOARD, WAR EDGE and SPARE HULL, its inferred IRON SKIN and SHARP SCRAP (now "each turret's first shot +5 DMG";
-//   R1b's "+5 DMG on every shot" would be +0.5 today, not whole), the unmeasured rare STOKED FIRES, and GUN OIL as an
-//   extra. R1b-2's IRON MOSS (GROW) and HOARD FANG gear rows and its hoard-vs-spend section are dropped (no GROW and no
+//   R1b's "+5 DMG on every shot" would be +0.5 today, not whole), the unmeasured rare STOKED FIRES, and as extras GUN OIL,
+//   HAIR TRIGGER and OILED COGS (the RATE runes, re-amounted after the first run: STOKED FIRES +25% -> +15%, GUN OIL
+//   +10% -> +15%, HAIR TRIGGER +20% -> +25% -> +50%, OILED COGS +10% -> +5%; the earlier runs are kept as
+//   R/output-runes1/runevalue-first.md and runevalue-second.md). R1b-2's IRON MOSS (GROW) and HOARD FANG gear rows and its hoard-vs-spend section are dropped (no GROW and no
 //   gear in RUNES-1).
 // - The report sets each rune beside R1b-2's number in today's units and R1b-2's tier target (1.5).
 // METHOD KEPT (R1b-2's): members are each hero's par decks (src/sim/harness/par parField), seeds 1..K, days 3-10; the
@@ -41,8 +43,8 @@ const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const DAYS = [3, 4, 5, 6, 7, 8, 9, 10];
 const DAYS_R1B = [4, 5, 6, 7, 8, 9, 10]; // R1b's relicvalue.ts span (RIVET HOARD, SPARE HULL)
 
-/** The benched runes, in R1b 1.5's order, then the extra. */
-const IDS = ["rivet_hoard", "war_edge", "spare_hull", "iron_skin", "sharp_scrap", "stoked_fires", "gun_oil"];
+/** The benched runes, in R1b 1.5's order, then the extras (the other RATE runes). */
+const IDS = ["rivet_hoard", "war_edge", "spare_hull", "iron_skin", "sharp_scrap", "stoked_fires", "gun_oil", "hair_trigger", "oiled_cogs"];
 
 /** R1b-2's number for each rune, in today's units (R1b REPORT.md 1.4 and 1.5; relicvalue.md; runevalue.md). */
 const R1B: Record<string, { value: number | null; text: string }> = {
@@ -53,6 +55,8 @@ const R1B: Record<string, { value: number | null; text: string }> = {
   sharp_scrap: { value: 4.5, text: "about +4.5 (R1b inferred, half of WAR EDGE, for its OLD form: +5 N1 = +0.5 today on every shot)" },
   stoked_fires: { value: null, text: "none (not measured)" },
   gun_oil: { value: null, text: "none (not measured)" },
+  hair_trigger: { value: null, text: "none (not measured)" },
+  oiled_cogs: { value: null, text: "none (not measured)" },
 };
 /** R1b-2 1.5: what a pick should be worth, in points. */
 const TARGET: Record<Rarity, [number, number]> = { common: [3, 5], rare: [6, 10], epic: [10, 16], legendary: [16, 25] };

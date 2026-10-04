@@ -78,8 +78,8 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("tar_barrel", "TAR BARREL", "common", "belts", "belt", 8, "+{N} {BELT}."),
   r("coin_purse", "COIN PURSE", "common", "gold", "dawnGold", 1, "AT DAWN: +{N} {GOLD}."),
   r("sharp_scrap", "SHARP SCRAP", "common", "turrets", "firstShotDmg", 5, "EACH TURRET'S FIRST SHOT: +{N} {DMG}."),
-  r("gun_oil", "GUN OIL", "common", "turrets", "turretRate", 10, "YOUR TURRETS: +{N} {RATE}."),
-  r("oiled_cogs", "OILED COGS", "common", "factories", "factoryRate", 10, "YOUR FACTORIES: +{N} {RATE}."),
+  r("gun_oil", "GUN OIL", "common", "turrets", "turretRate", 15, "YOUR TURRETS: +{N} {RATE}."), // M5 bench: +10% measured +2.9
+  r("oiled_cogs", "OILED COGS", "common", "factories", "factoryRate", 5, "YOUR FACTORIES: +{N} {RATE}."), // M5: +10% measured +7.2 (rare)
   r("rivet_hoard", "RIVET HOARD", "common", "bastion", "startPlate", 6, "START EACH BATTLE WITH {N} {*PLATE}."),
   r("twin_nails", "TWIN NAILS", "common", "foundry", "pairDmg", 2, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
   r("coal_chute", "COAL CHUTE", "common", "furnace", "heatPct", 25, "YOUR {*HEAT}: +{N}."),
@@ -89,8 +89,8 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("pitch_wagon", "PITCH WAGON", "rare", "belts", "belt", 16, "+{N} {BELT}."),
   r("fat_purse", "FAT PURSE", "rare", "gold", "dawnGold", 2, "AT DAWN: +{N} {GOLD}."),
   r("war_edge", "WAR EDGE", "rare", "turrets", "shotDmg", 1, "YOUR SHOTS: +{N} {DMG}."),
-  r("hair_trigger", "HAIR TRIGGER", "rare", "turrets", "turretRate", 20, "YOUR TURRETS: +{N} {RATE}."),
-  r("stoked_fires", "STOKED FIRES", "rare", "factories", "factoryRate", 25, "YOUR FACTORIES: +{N} {RATE}."),
+  r("hair_trigger", "HAIR TRIGGER", "rare", "turrets", "turretRate", 50, "YOUR TURRETS: +{N} {RATE}."), // M5: +25% measured +4.5 (supply-bound)
+  r("stoked_fires", "STOKED FIRES", "rare", "factories", "factoryRate", 15, "YOUR FACTORIES: +{N} {RATE}."), // M5: R1b's +25% measured +13.2 (epic)
   r("grave_plates", "GRAVE PLATES", "rare", "bastion", "startPlate", 12, "START EACH BATTLE WITH {N} {*PLATE}."),
   r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 4, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
   r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 50, "YOUR {*HEAT}: +{N}."),

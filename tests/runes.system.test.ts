@@ -288,10 +288,11 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
   it("GUN OIL / HAIR TRIGGER: turrets fire a whole % faster; OILED COGS / STOKED FIRES: factories run faster", () => {
     const b = heroStartBuild("weaver");
     const s0 = new Battle(b, foe, 1).sides[0];
+    const pct = (...ids: string[]) => ids.reduce((s, id) => s + RUNES[id].amount.n, 0) / 100;
     const oil = new Battle(withRunes(b, "gun_oil", "hair_trigger"), foe, 1).sides[0];
-    s0.turrets.forEach((tu, i) => expect(oil.turrets[i].interval).toBeCloseTo(tu.interval / 1.3, 12));
+    s0.turrets.forEach((tu, i) => expect(oil.turrets[i].interval).toBeCloseTo(tu.interval / (1 + pct("gun_oil", "hair_trigger")), 12));
     const cogs = new Battle(withRunes(b, "oiled_cogs", "stoked_fires"), foe, 1).sides[0];
-    s0.factories.forEach((f, i) => expect(cogs.factories[i].pace).toBeCloseTo(f.pace * 1.35, 12));
+    s0.factories.forEach((f, i) => expect(cogs.factories[i].pace).toBeCloseTo(f.pace * (1 + pct("oiled_cogs", "stoked_fires")), 12));
   });
 
   it("RIVET HOARD / GRAVE PLATES: PLATE at the start (PLATE_CAP holds); LOOSE THREAD / TANGLE WIRE: FRAY on the foe's hull", () => {
