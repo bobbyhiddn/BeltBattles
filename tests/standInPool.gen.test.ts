@@ -59,12 +59,16 @@ const PAR_SPREAD: readonly (readonly [HeroId, number])[] = [["furnace", 2], ["we
  * hero, day, r, k); each hero's rate over its members, vsPar = the lowest. A sample at most ROBUST_BAND above parFloor
  * (robustBorderline) was re-played once by robustReplay, run here as it is, on seeds that name the candidate's
  * population index. The data module doesn't store that index: it is the caravan candidate below the day's population
- * size whose code is the par's and whose re-play gives the stored value (NaN: none does).
+ * size whose code is the par's and whose re-play gives the stored value (NaN: none does). NUM-1 (cap's oracle
+ * 03f2cc3c1884e806): the par's code in this build's units, and the closest re-play to the stored value (PAR_TOLERANCE).
  */
 async function parVsPar(hero: HeroId, day: number): Promise<{ vsPar: number; sample: number; idx?: number }> {
   const o = genOpts(), { refs, refHero } = standInRefs(o, day);
   const [parIndex, entries, , popSize] = dayData(hero, day);
-  const code = entries[parIndex][3], stored = entries[parIndex][4], build = standInPar(hero, day);
+  // NUM-1 (cap's oracle 03f2cc3c1884e806): the stored code is pre-NUM-1; like with like, the stored par deck is brought
+  // into this build's units (hull x10, the test's own inline x10 as below) before it is matched against the candidates
+  const raw = poolRaw(hero, day, parIndex), code = encodeStarred({ ...raw, hullBonus: raw.hullBonus * 10 });
+  const stored = entries[parIndex][4], build = standInPar(hero, day);
   const pts = refs.map((ref, r) => playJob([build, ref], { a: 0, b: 1, seeds: Array.from({ length: o.refSeeds }, (_, k) => hashSeed("standin-ref", o.seed, hero, day, r, k)) }));
   const vsRef: Partial<Record<HeroId, number>> = {};
   o.heroes.forEach((h, hi) => {
@@ -74,14 +78,26 @@ async function parVsPar(hero: HeroId, day: number): Promise<{ vsPar: number; sam
   });
   const sample = Math.min(...o.heroes.map((h) => vsRef[h]!));
   if (!robustBorderline({ vsPar: sample } as Cand, o)) return { vsPar: sample, sample };
+  // NUM-1 (oracle 03f2cc3c1884e806): every candidate whose code is the par's is re-played; the closest re-play to the
+  // stored value is the par's (the caller holds it to PAR_TOLERANCE); NaN: no candidate's code is the par's
+  let best: { vsPar: number; sample: number; idx?: number } = { vsPar: NaN, sample };
   for (let idx = 0; idx < popSize; idx++) {
     if (caravanCand(idx, caravanCandidate(hero, day, o.seed, idx, STANDIN_MAX_STARS)).code !== code) continue;
     const c = { idx, build, vsRef: { ...vsRef }, vsPar: sample } as Cand;
     await robustReplay(o, hero, day, [c], refs, localRunner, refHero);
-    if (r4(c.vsPar) === stored) return { vsPar: c.vsPar, sample, idx };
+    if (Number.isNaN(best.vsPar) || Math.abs(c.vsPar - stored) < Math.abs(best.vsPar - stored)) best = { vsPar: c.vsPar, sample, idx };
   }
-  return { vsPar: NaN, sample };
+  return best;
 }
+
+/**
+ * NUM-1 (REQ-BFG-047, cap's oracle 03f2cc3c1884e806): the stored vsPar values were measured on bb-0.8.6 in pre-NUM-1
+ * units; this build's integer damage pipeline flips about 1% of close battles, so a par re-simulated here passes when
+ * |re-simulated - stored| <= PAR_TOLERANCE (the brief's 2% target, applied per par; the robust re-play's candidate match
+ * uses the same 0.02, the closest re-play taken). The tolerance holds until R6 regenerates the pool, and then R6
+ * restores the exact toBe(stored). Don't widen it: a par that misses stays red.
+ */
+const PAR_TOLERANCE = 0.02;
 
 /** Step 5 M5: test 2 for a caravan pool: the spread's pars re-simulated exactly, and every par at least parFloor and
  *  inside the header's --par-band, unless its hero/day is listed short. */
@@ -90,8 +106,10 @@ async function caravanPars(): Promise<void> {
   const lines: string[] = [];
   for (const [hero, day] of PAR_SPREAD) {
     const t0 = performance.now(), stored = standInPool(hero, day)[standInParIndex(hero, day)].vsPar, r = await parVsPar(hero, day);
-    lines.push(`${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)} (10-seed sample ${r4(r.sample)}${r.idx === undefined ? "" : `, robust re-play of candidate #${r.idx}`}; ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
-    expect(r4(r.vsPar), `${hero} d${day}: its stored vsPar, re-simulated against the par field`).toBe(stored);
+    const diff = r4(r4(r.vsPar) - stored); // NUM-1 (oracle 03f2cc3c1884e806): stored, re-simulated and their difference, per par
+    lines.push(`${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff} (10-seed sample ${r4(r.sample)}${r.idx === undefined ? "" : `, robust re-play of candidate #${r.idx}`}; ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
+    console.log(`stand-in par ${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff}`);
+    expect(Math.abs(diff), `${hero} d${day}: its stored vsPar ${stored}, re-simulated against the par field ${r4(r.vsPar)}: within ${PAR_TOLERANCE}`).toBeLessThanOrEqual(PAR_TOLERANCE);
   }
   for (const hero of STAND_IN_POOL_HEROES) {
     for (const day of DAYS) {
@@ -229,6 +247,9 @@ describe("stand-in pool", () => {
   // Step 5 M5 (decision D4): pool v2.1 (the legacy header: full purse against heroRefBuild) is checked exactly as before.
   // A caravan pool's par is measured against the par field: caravanPars re-simulates a fixed spread of hero-days exactly
   // as the generator did (robust re-play included) and holds every par to parFloor and the header's --par-band.
+  // NUM-1 (REQ-BFG-047, cap's oracle 03f2cc3c1884e806): the stored vsPar values were measured on bb-0.8.6 in pre-NUM-1
+  // units, so each spread par holds to |re-simulated - stored| <= PAR_TOLERANCE (0.02) and prints stored, re-simulated
+  // and their difference. The tolerance holds until R6 regenerates the pool, and then R6 restores the exact toBe(stored).
   it("each par, re-simulated against its pool's par (pool v2.1: heroRefBuild of both factions; a caravan pool: the par field, a fixed spread of 4 hero-days), 10 seeds x both sides, wins at least 50%: its stored vsPar (strict once the pool is native)", async () => {
     if (!POOL_LEGACY) return caravanPars();
     const drift: string[] = [];

@@ -371,7 +371,28 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
   const TYPE_V21 = "export type StandInTuple = readonly [cost: number, pct: number, score: number, build: string, vsPar: number];";
 
   it("a caravan pool (fake runner) writes each pick's gold spent as a sixth element, the guard checks it, and the loader returns it", async () => {
-    const res = await genStandIns(tiny, fakeRun);
+    // NUM-1 (REQ-BFG-047, cap's oracle 03f2cc3c1884e806): test-only, an over-spend pick is forced in. fakeRun hashes the
+    // deck codes, and NUM-1's codes (hull x10) re-rolled it so that no pick over-spent. So first the over-spend candidates
+    // (caravan spent > cost) of every hero/day's population (base and growth), keyed by deck code (a code that some
+    // candidate also holds without over-spending is left out); then a second fake runner under which those decks win
+    // every battle and every other deck loses every one. Only they then clear vsPar >= parFloor: a window picks only
+    // them, and the "best" relaxation ranks them first, so a hero/day with one that meets the spend floor picks one by
+    // construction, and "above > 0" checks a property, not a hash roll. fakeRun is unchanged for the other tests.
+    const overCodes = new Set<string>(), plainCodes = new Set<string>(), baseMet: string[] = [];
+    for (const hero of tiny.heroes) {
+      for (let day = 1; day <= 10; day++) {
+        for (let idx = 0; idx < Math.max(tiny.pop, ...tiny.grow); idx++) {
+          const c = caravanCand(idx, caravanCandidate(hero, day, tiny.seed, idx, STANDIN_MAX_STARS, tiny.botRunes)), code = encodeStarred(c.build);
+          (c.caravan!.spent > c.cost ? overCodes : plainCodes).add(code);
+          if (idx < tiny.pop && c.floorMet && c.caravan!.spent > c.cost) baseMet.push(code);
+        }
+      }
+    }
+    for (const code of plainCodes) overCodes.delete(code);
+    const overMet = baseMet.filter((code) => overCodes.has(code)).length;
+    expect(overMet, "an over-spend candidate that meets the spend floor, in some hero/day's base population").toBeGreaterThan(0);
+    const overRun: Runner = async (field, jobs) => jobs.map((j) => (overCodes.has(encodeStarred(field[j.a])) ? 2 * j.seeds.length : 0));
+    const res = await genStandIns(tiny, overRun);
     const text = dataModuleText(tiny, res.days);
     expect(writtenProblems(tiny, res.days, text)).toEqual([]);
     const written = writtenPicks(text);
