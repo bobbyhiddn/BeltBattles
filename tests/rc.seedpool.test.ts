@@ -52,11 +52,12 @@ const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
 /** FURNACE and WEAVER's 60 as a pool file: the sample and floor ghosts of the stand-in pool. Until BELTS they were
  *  7c7feb9's seed pool but the rules string (its sha256 110f813c..., with the rules normalised to bb-0.6.2); BELTS run 5
  *  regenerated the stand-in pool they are drawn from (44ee031, the gold upgrades), so they are pinned by their own
- *  digest now (W/output-belts/ghosts). A change to the stand-in pool or to this generator moves it. */
-const STANDIN_PART_SHA256 = "941ca820f17ab713cdb3c6af4e833f14854adb928f4418ab6decce175eee2b0d";
+ *  digest now (W/output-belts/ghosts). A change to the stand-in pool or to this generator moves it. PACKS (bb-0.8.6): the
+ *  stand-in pool regenerated with the packs (23bb3d2). */
+const STANDIN_PART_SHA256 = "2bd3adfdb718c545aa3d26bd512d0a4ff94c0cce2b608a2f5ab1cac20d067d8b";
 /** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it.
- *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). */
-const RACE_PART_SHA256 = "5f736fce2463e1d97da132b626bb8e9be13bea6dd8385ef1982eaef205d4028c";
+ *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). PACKS (bb-0.8.6): it buys BELT and ARMOR PACKs. */
+const RACE_PART_SHA256 = "94e26280fbbc950a7a95b1ab9cf849e36ae38ba4171a1208c107b3bd6c07faf0";
 
 describe("the bb-0.8.6 seed pool (tools/samplePool.ts)", () => {
   it("holds every playable hero on every day 1-10, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 120 in all", () => {

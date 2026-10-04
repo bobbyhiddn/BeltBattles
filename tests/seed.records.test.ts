@@ -150,10 +150,11 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // 0.8.0 B1 M2 (oracle efb5c4ff84fe4c6d): the stand-in pool regenerated after the hero numbers (were 9 and 26, 9 and 12)
   // BELTS run 5 (REQ-BFG-043/044): the stand-in pool regenerated under bb-0.8.3 with the gold upgrades (44ee031)
   // (were 8 and 29, 7 and 12)
-  it("keeps its turret and join decks: the sample ghosts' 11 and 24, plus the floor ghosts' 4 and 16 (each a deck of its own)", () => {
+  // bb-0.8.6 (PACKS M4): the stand-in pool regenerated with the packs (23bb3d2) (were 11 and 24, 4 and 16)
+  it("keeps its turret and join decks: the sample ghosts' 9 and 24, plus the floor ghosts' 4 and 10 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
-    expect(carry(SAMPLE)).toEqual([11, 24]);
-    expect(carry(FLOOR)).toEqual([4, 16]);
+    expect(carry(SAMPLE)).toEqual([9, 24]);
+    expect(carry(FLOOR)).toEqual([4, 10]);
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);
