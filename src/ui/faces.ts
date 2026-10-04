@@ -6,10 +6,13 @@
 //                   (statRow); the speed pair comes from speedPair, the one place NUMBERS turns SEC into RATE
 //   the RULE line   a trigger label in brass where the rule has one (HIT:, SHOT:, LOAD:, {*PAIR}:, EVERY 3{SEC}:), then
 //                   the effect; a keyword in panel style ({*BURN}: its icon then its word, in its colour)
-//   the REMINDER    dim, 3x5: each keyword's reminder text (C1) with the piece's own number filled in (never "n": the font
-//                   has no lower case, N1 6.7)
+//   the REMINDER    each keyword's reminder text (C1) with the piece's own number filled in (never "n": the font has no
+//                   lower case, N1 6.7); U2e step 4 (REQ-BFG-070): no longer drawn on the face: a word tap, the desk's
+//                   hover tooltip and the ⓘ view's KEYWORDS show it (glossary.ts)
 //   NEXT★           one line, computed: the next star's numbers that differ from this star's (faceNext diffs the two
-//                   stars' data; nothing here is hand-written per star)
+//                   stars' data; nothing here is hand-written per star); U2e step 5: the ⓘ view's LEVELS show it, after
+//                   a ladder per number that changes with the stars (screens/build/levels.ts), never the face
+//   U2e step 2: the second STATS row (stats2, carryStats): what a factory's own payloads carry, icon + number
 // Every number comes from sim data (content.ts, races/*.ts, the star levels, the hero and the turret class factor k)
 // through one formatter of src/ui/statFormat.ts. No template here holds a digit (tests/faceText.test.ts reads this
 // file's string literals and fails on one).

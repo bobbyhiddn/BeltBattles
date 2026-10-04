@@ -1,8 +1,9 @@
 // U2a (REQ-BFG-046): a piece's new face (src/ui/faces.ts) as the inspector's blocks. Every panel that draws a piece's
 // ability text (offer, cargo, placed, fitted; the turret panel's core row) draws its face instead when it has one: the
-// stat row, the rule line(s) with their brass trigger labels, the dim reminder, then NEXT★ and merge progress (today's
-// form). The stat row, the rule lines, NEXT★ and merge progress are kept (T6's phone guarantee); the reminder is
-// optional (R1 C4) and gives way first on a short band.
+// stat row(s) and the rule line(s) with their brass trigger labels, kept (T6's phone guarantee).
+// U2e step 4 (REQ-BFG-070; the operator: "It'll keep the cards cleaner to not show it all the time"): the always-on face
+// drops NEXT★, MERGES INTO, merge progress and the dim reminders. NEXT★ is the ⓘ view's (faceNextBlock, levels.ts); a
+// keyword's reminder shows on a word tap, in the desk's hover tooltip and in the ⓘ view's KEYWORDS (glossary.ts).
 
 import type { Block } from "./inspector";
 import { faceLines, faceMerge, faceNext, hasFace } from "../../ui/faces";
@@ -18,8 +19,8 @@ export const REMINDER_STEP = 0.1;
 
 /** The face's blocks at `stars`, or null for a piece that keeps today's text. A star's perk name follows the last rule
  *  line (or the stat row, on a face without one), as today's perk follows the sentence it names. U2b: then the star's
- *  interim perk clause (F6, kept; it names its perk itself), the interim caveats (F5, kept, 3x5) and the reminders (F4,
- *  one optional block each). */
+ *  interim perk clause (F6, kept; it names its perk itself) and the interim caveats (F5, kept, 3x5). U2e step 4: no
+ *  reminders (they were F4's optional blocks). */
 export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | null {
   const fl = faceLines(def, stars, o);
   if (!fl) return null;
@@ -35,9 +36,8 @@ export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | n
   if (fl.clause) out.push({ role: "ability", text: fl.clause.text, keep: true, brass: fl.clause.label });
   // U2b F5: the interim caveats, kept, in 3x5 and the reminder's colour (the "caveat" role)
   for (const text of fl.caveats ?? []) out.push({ role: "caveat", text, keep: true });
-  // C4: the reminder is optional: it shows where there is room, before the hint and the flavour, and gives way first;
-  // U2b F4: one block per keyword, in rule order, so each gives way on its own
-  fl.reminders.forEach((text, i) => out.push({ role: "reminder", text, rank: REMINDER_RANK + i * REMINDER_STEP }));
+  // U2e step 4 (REQ-BFG-070): no dim reminder on the face (C4's optional block, U2b F4's one a keyword): a word tap, the
+  // desk's hover tooltip and the ⓘ view's KEYWORDS show it (REMINDER_RANK and REMINDER_STEP stay for the "reminder" role)
   return out;
 }
 

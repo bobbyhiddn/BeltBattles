@@ -360,7 +360,6 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
     : hits.length > 1 ? [{ role: "hits", text: hl.compact, keep: true }] : lead;
   const rest = [
     ...abilityBlocks(d.id, stars, textOpts(run)),
-    ...progressBlocks(run, d.id, stars),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock(x ? "FACES EVERY SIDE. DRAG TO MOVE." : touch ? TOUCH_TURN : "TAP TO TURN (OR R). DRAG TO MOVE."),
   ];
@@ -408,7 +407,6 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number,
   const compact = `→ STOKES ${andList(names)}`;
   const rest = [
     ...stokerAbility(run, d.id, stars, factories),
-    ...progressBlocks(run, d.id, stars),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock(touch ? TOUCH_TURN : "TAP TO TURN (OR R). DRAG TO MOVE."), // shoptap (D2)
   ];
@@ -506,11 +504,11 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
   const d = ITEMS[o.def];
   const merging = !o.sold && shopBadge(run, o.def)?.kind === "merge";
   const opts = textOpts(run);
-  const mLine = merging ? mergeBlock(run, o.def) : null;
   const one = cardText(d.id, opts);
+  // U2e step 4 (REQ-BFG-070): no MERGES INTO line on the face: the card's MERGE ★2 badge and BUY+MERGE say it merges, and
+  // the ⓘ view's NEXT★ line what the merge gives (mergeBlock and mergeLine stay for tools; no panel draws them)
   const body: Block[] = [
     ...abilityBlocks(d.id, 1, opts),
-    ...(mLine ? [mLine] : []),
     ...flavourBlocks(d.id, 1, opts.k ?? 1),
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
   ];
@@ -534,7 +532,6 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
   const turret = d.kind === "turret", sellable = !turret || canSellTurret(it);
   const body: Block[] = [
     ...abilityBlocks(d.id, stars, opts),
-    ...progressBlocks(run, d.id, stars),
     ...(turret && it.free ? [{ role: "ability", text: freeNote(sellable), rank: 3 } as Block] : []),
     ...flavourBlocks(d.id, stars, opts.k ?? 1),
     hintBlock(placeHint(d.kind, false, d.id, touch)),
@@ -570,7 +567,7 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   const body: Block[] = [
     ...joinPaceBlocks(run.build, p.uid), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joined factory leads with its pace
     ...(hasAbilityText(d.id) || hasFace(d.id) ? abilityBlocks(d.id, grade, textOpts(run)) : []), // U2a: KILN and LOOM's faces too; 0.8.5: at the factory's grade
-    ...(sig ? upgradeBlocks("factory", level, factoryNext(d.id, level)) : progressBlocks(run, d.id, stars)),
+    ...(sig ? upgradeBlocks("factory", level, factoryNext(d.id, level)) : []), // U2e step 4: NEXT★ is the ⓘ view's
     ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock("DRAG OUT OF IT TO LAY BELT."),
@@ -615,7 +612,6 @@ export function fittedPanel(run: Run, uid: number): PanelText | null {
   const k = core ? classFactor(td) : 1;
   const body: Block[] = [
     ...abilityBlocks(d.id, stars, { k, hero: b.hero as HeroId }),
-    ...progressBlocks(run, d.id, stars),
     ...flavourBlocks(d.id, stars, k),
     hintBlock("TAP THE TURRET AGAIN FOR ITS NEXT PART."),
   ];
