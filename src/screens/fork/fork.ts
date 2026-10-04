@@ -21,6 +21,8 @@ import { drawEventCard, drawWarlordCard, rewardText, type ForkCardView } from ".
 import { EventScreen } from "../event/event";
 import { BattleScreen } from "../battle";
 import { TitleScreen } from "../title";
+import { drawRich, wrapRich, type Span } from "../../ui/richText"; // U2b: a captain's lines in rich text
+import { captainSpans } from "../../ui/captainText"; // U2b: the keyword colours
 
 const PICKS: RoadPick[] = ["event", "easy", "medium", "hard"];
 const IDS = ["fork0", "fork1", "fork2", "fork3"];
@@ -168,14 +170,17 @@ export class ForkScreen implements Screen {
       lines = ["NO FIGHT. TAKE ITS CHOICES, THEN DUSK."];
     } else {
       const tier = PICKS[i] as Difficulty, id = this.fork.warlords[tier], inf = this.info(tier);
-      title = `${RIVALS[id].name} · ${RIVALS[id].trick}`;
+      title = `${RIVALS[id].name}, ${RIVALS[id].trick}`; // U2b (REQ-BFG-032 rule 1, U2a-INPUTS 2): no middle dot
       const notes = inf.notes.map((n) => (n === "SABOTAGED" ? "! SABOTAGED: YESTERDAY'S DECK" : `! ${n} ON A WIN`));
       lines = [RIVALS[id].blurb, rewardText(inf.reward), "A LOSS COSTS NO LIFE", ...notes];
     }
-    drawText(g, title, r.x + 5, r.y + 5, C.yellow, { font: "3" });
+    drawRich(g, captainSpans(title, C.yellow), r.x + 5, r.y + 5, "3"); // U2b: a keyword in its colour (REQ-BFG-032 rule 3)
     let y = r.y + 14;
-    for (const ln of lines.flatMap((l) => wrap(l, r.w - 74, "3")).slice(0, 7)) {
-      drawText(g, ln, r.x + 5, y, ln.startsWith("!") ? C.amber : C.bone, { font: "3" });
+    // U2b: a captain's blurb (the first line) in rich text, its keywords in their colours; the rest as before
+    const rows = lines.flatMap((l, n) => (i > 0 && n === 0 ? wrapRich(captainSpans(l, C.bone), r.w - 74, "3")
+      : wrap(l, r.w - 74, "3").map((ln): Span[] => [{ t: ln, c: ln.startsWith("!") ? C.amber : C.bone }])));
+    for (const ln of rows.slice(0, 7)) {
+      drawRich(g, ln, r.x + 5, y, "3");
       y += 7;
     }
     button(ui, g, "forkgo", { x: r.x + r.w - 62, y: r.y + r.h - 24, w: 58, h: 20 }, i === 0 ? "TAKE IT" : "FIGHT", {

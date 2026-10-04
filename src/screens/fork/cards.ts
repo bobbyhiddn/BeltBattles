@@ -15,6 +15,8 @@ import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, rankTag, tag } from ".
 import { RIVALS, type Difficulty, type RivalId } from "../../sim/rivals";
 import type { HeroId } from "../../sim/content";
 import { itemName } from "../event/cards";
+import { drawRich, wrapRich } from "../../ui/richText"; // U2b: a captain's trick and blurb in rich text
+import { captainSpans } from "../../ui/captainText"; // U2b: the keyword colours
 
 export interface ForkCardView {
   hover: boolean;
@@ -71,7 +73,7 @@ export function drawWarlordCard(g: G, r: Rect, id: RivalId, tier: Difficulty, rw
     let tx = x + drawText(g, d.name, x, y1, nameColor(id), { outline: C.ink }) + 4;
     tx += tag(g, TIER_LABEL[tier], tx, y1, TIER_COLOR[tier]) + 2;
     if (rk) tag(g, rk.text, tx, y1, rk.color, rk.text === "BOSS" ? C.white : C.ink);
-    const t2 = x + drawText(g, d.trick, x, y2, C.yellow, { font: "3" }) + 6;
+    const t2 = x + drawRich(g, captainSpans(d.trick, C.yellow), x, y2, "3") + 6; // U2b: a keyword in its colour
     const short = rw.legendary ? `+${rw.gold}G +LEGEND.` : rw.parts.length ? `+${rw.gold}G +PART` : `+${rw.gold}G`;
     const sw = drawText(g, short, t2, y2, C.lime, { font: "3" });
     // a pending SABOTAGE / BOUNTY: an amber "!" (spelled out in the inspect panel)
@@ -93,10 +95,10 @@ export function drawWarlordCard(g: G, r: Rect, id: RivalId, tier: Difficulty, rw
     ny += 10;
   }
   y += 30;
-  drawText(g, d.trick, r.x + 5, y, C.yellow, { font: "3" });
+  drawRich(g, captainSpans(d.trick, C.yellow), r.x + 5, y, "3"); // U2b (REQ-BFG-032 rule 3): keywords in their colours
   y += 9;
-  for (const ln of wrap(d.blurb, r.w - 10, "3").slice(0, 4)) {
-    drawText(g, ln, r.x + 5, y, C.bone, { font: "3" });
+  for (const ln of wrapRich(captainSpans(d.blurb, C.bone), r.w - 10, "3").slice(0, 4)) {
+    drawRich(g, ln, r.x + 5, y, "3");
     y += 7;
   }
   for (const n of v.notes) {

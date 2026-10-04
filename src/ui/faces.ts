@@ -377,6 +377,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
     return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
   },
+  // ------------------------------------------------------------------------------------------ U2b: the supplies
+  // R1's face: {BELT} is C2's belt tile ("BELT TILES" in words scores 2 cross-refs, a common's red flag)
+  beltcrate: (e) => rules([{ text: `+${fmtCount(e.supply!.belt!)} {BELT} FOR THE RUN.` }]),
+  plating: (e) => rules([{ text: `+${fmtDmg(e.supply!.hull!)} {HULL} FOR THE RUN.` }]),
 };
 
 // ------------------------------------------------------------------------------- U2b: the interim lines (F5, F6)
