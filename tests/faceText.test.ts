@@ -4,7 +4,7 @@ import { newRun, type Run } from "../src/game/run";
 import { AMMO, HEROES, ITEMS, type HeroId } from "../src/sim/content";
 import { effectAt, fusible, FUSE_MAX } from "../src/sim/stars";
 import { gearSlotsOf } from "../src/sim/deck";
-import { ICON, KEYWORDS, stripIcons } from "../src/render/font";
+import { ICON, KEYWORDS, stripIcons, textWidth } from "../src/render/font";
 import { STAT_ROW_MAX } from "../src/ui/icons";
 import { cardText, n1, n2, percent } from "../src/ui/abilityText";
 import { captureFormats, fmtCount, fmtDmg, fmtGold, fmtPct, fmtSec, fmtSpeed, FORMATTERS } from "../src/ui/statFormat";
@@ -125,6 +125,18 @@ describe("U2a the faces: every number from sim data through one formatter", () =
     expect(faceNext("press", FUSE_MAX)).toBeNull();
     expect(faceNext("kiln", 1)).toBeNull(); // a hero's factory never fuses
   });
+
+  it("NEXT★ is one line on the op view's band (225 px of 5x7, T1 2.6), its perk name included", () => {
+    let lines = 0, widest = 0;
+    for (const def of FACE_IDS.filter(fusible)) for (const o of contexts(def)) for (let s = 1; s < FUSE_MAX; s++) {
+      const nx = faceNext(def, s, o)!;
+      const text = nx.text === nx.label ? `${nx.label} ${nx.perk ?? ""}`.trim() : `${nx.text}${nx.perk ? ` ★${s + 1} ${nx.perk}` : ""}`;
+      widest = Math.max(widest, textWidth(text, "5"));
+      expect(textWidth(text, "5"), `${def} ★${s}: ${stripIcons(text)}`).toBeLessThanOrEqual(225);
+      lines++;
+    }
+    console.log(`U2a NEXT★: ${lines} lines, the widest ${widest} px of 225`);
+  });
 });
 
 describe("U2a the faces keep REQ-BFG-032's four rules", () => {
@@ -213,7 +225,7 @@ describe("U2a fit: every panel in scope shows its face whole on the phone band a
   const PANELS = facePanels();
   it("the stat row, the rules, NEXT★ and merge progress are kept whole (T6); the 5x7 face, or the report lists it", () => {
     const counts = { panels: 0, phone5x7: 0, phoneTight: 0, op5x7: 0, opTight: 0, reminderGaveWayPhone: 0, reminderGaveWayOp: 0 };
-    const tightPhone: string[] = [];
+    const tightPhone: string[] = [], gaveWayOp: string[] = [];
     for (const { id, t } of PANELS) {
       counts.panels++;
       for (const [band, area] of [["phone", PHONE], ["op", OP]] as const) {
@@ -222,11 +234,14 @@ describe("U2a fit: every panel in scope shows its face whole on the phone band a
         const big = plan.body.font === "5" && !plan.body.tight;
         if (band === "phone") { if (big) counts.phone5x7++; else { counts.phoneTight++; tightPhone.push(id); } }
         else if (big) counts.op5x7++; else counts.opTight++;
-        if (plan.body.dropped.some((b) => b.role === "reminder")) counts[band === "phone" ? "reminderGaveWayPhone" : "reminderGaveWayOp"]++;
+        if (plan.body.dropped.some((b) => b.role === "reminder")) {
+          counts[band === "phone" ? "reminderGaveWayPhone" : "reminderGaveWayOp"]++;
+          if (band === "op") gaveWayOp.push(id);
+        }
       }
     }
     console.log(`U2a fit: ${JSON.stringify(counts)}`);
-    console.log(`U2a phone tight: ${tightPhone.length}`);
+    console.log(`U2a phone tight: ${tightPhone.length}; the reminder gave way on the op band: ${gaveWayOp.join(" | ")}`);
     expect([OP.w, OP.h]).toEqual([235, 122]);
     expect(counts.op5x7).toBe(counts.panels); // the op view (402x690) draws every face in 5x7, no compact form
   });
