@@ -10,15 +10,22 @@
 //         - a tap on a belt puts up its X, at least 44 x 44 CSS px, on screen and clear of the panel; a tap on the X removes
 //           the whole belt; a tap elsewhere takes it down (and selects what it lands on); a jittered tap never cuts (036);
 //         - a drag from a multi-output factory with a free output (and from its first belt tile) adds a belt and keeps the
-//           first; a factory with every output used warns (037). bb-0.8.3 (REQ-BFG-042 D6): no factory has one output, so
-//           the KILN (2 belt slots at ★1) draws a second belt; full, it says so ("KILN'S 2 BELTS ARE IN USE · ★2 OPENS A
-//           3RD"), draws nothing, and ended back on it leaves the build identical; a KILN copy bought from the caravan
-//           merges it to ★2, and a drag draws its third belt at once;
+//           first; a factory with every output used warns (037). bb-0.8.3 (REQ-BFG-044 D6): no factory has one output, so
+//           the KILN (2 belt slots at level 1) draws a second belt; full, it says so ("KILN'S 2 BELTS ARE IN USE · UPGRADE
+//           FOR A 3RD"), draws nothing, and ended back on it leaves the build identical;
+//         - bb-0.8.3 (REQ-BFG-043 D10, D11; was a KILN copy bought from the caravan, merging it to ★2): the hero's gold
+//           upgrades by touch. A tap on the KILN, then on its UPGRADE 10G: the gold drops by 10, the build's FACTORY level
+//           is 2 (nothing else in the build, cargo or the shop changes), the board marks the KILN with a 2 (read back off
+//           the canvas), and a drag draws its third belt at once; the same on the full LOOM (3 slots at level 1), whose
+//           fourth belt then drags out; a tap on the starting SCRAP CANNON (the free copy), then on its UPGRADE 10G: TURRET
+//           SPEED level 2 for 10 gold, marked on the gun. With too little gold the KILN's UPGRADE 10G shows dim, and a tap
+//           on it changes nothing;
 //         - real drags of 40 px or more still work: a shop card bought and placed, a part moved, a belt drawn and rerouted;
-//         - every button pressed is at least 44 CSS px tall (SELL, ROTATE, TO CARGO, REMOVE BELT, BUY, the X).
+//         - every button pressed is at least 44 CSS px tall (SELL, ROTATE, TO CARGO, REMOVE BELT, BUY, the X, UPGRADE).
 //  mouse  (A2) the desk 1920x1080: a click selects, click-to-place buys and places, a click turns a rig, the drag
-//         threshold is 4 logical px, a belt click puts up no X; bb-0.8.3: a drag out of the ★1 KILN draws a second belt,
-//         the full KILN's notice, a bought KILN copy merging it to ★2 and its third belt.
+//         threshold is 4 logical px, a belt click puts up no X; bb-0.8.3: a drag out of the level-1 KILN draws a second
+//         belt, the full KILN's notice, a click on the KILN and on its UPGRADE 10G buying FACTORY level 2, and its third
+//         belt.
 //         It writes <name>-mouse.json (what it saw, timings aside), so a run on 69fe689's build can be compared with it.
 //  319    the run summary offline with a 20-row history (each day a warlord and a dusk) on the phones and the desk: the card
 //         on the screen, NEW RUN and TITLE at least 44 CSS px tall on a phone (the desktop's as before).
@@ -183,22 +190,30 @@ const FURNACE = {
   inventory: [{ uid: 60, def: "coil" }],
   offers: [["grease", 3], ["gantry", 7]],
 };
-/** bb-0.8.3 (REQ-BFG-042 D6): FURNACE at a day-3 dawn with 9 gold: the KILN alone with its belt up column 4, the BOMBARD in
- *  TURRET SLOT 2 (columns 8 and 9), the shop's first card a KILN copy for 3 gold (the caravan's own offer is M1b's; here
- *  the card is set as the other checks set theirs). KILN_SECOND: up column 5; KILN_THIRD: round into column 8. */
+/** bb-0.8.3 (REQ-BFG-044 D6, REQ-BFG-043 D10): FURNACE at a day-3 dawn with 25 gold (two 10-gold upgrades and 5 over;
+ *  day 3's most is 27): the KILN alone with its belt up column 4, the starting SCRAP CANNON (the free copy) in TURRET
+ *  SLOT 1 and the BOMBARD in TURRET SLOT 2 (columns 8 and 9), no upgrade bought, the shop as rolled (D9 is void: no
+ *  caravan sells a KILN; was 9 gold and a KILN copy for 3). KILN_SECOND: up column 5; KILN_THIRD: round into column 8. */
 const KILN_DECK = {
-  hero: "furnace", day: 3, gold: 9, beltCap: 40, items: [{ uid: 1, def: "kiln", x: 4, y: 6 }],
+  hero: "furnace", day: 3, gold: 25, beltCap: 40, items: [{ uid: 1, def: "kiln", x: 4, y: 6 }],
   routes: [{ factory: 1, cells: KILN_BELT }], turrets: [{ slot: 0, def: "scrapcannon", uid: 90, free: true }, { slot: 1, def: "bombard", uid: 700 }],
-  mods: [], inventory: [], offers: [["kiln", 3]],
+  mods: [], inventory: [], offers: [],
 };
 const KILN_SECOND = [K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)];
 const KILN_THIRD = [K(6, 6), K(7, 6), K(8, 6), K(8, 5), K(8, 4), K(8, 3), K(8, 2), K(8, 1), K(8, 0)];
-const FULL_KILN = "KILN'S 2 BELTS ARE IN USE · ★2 OPENS A 3RD";
-/** WEAVER at a day-3 dawn: the LOOM (three outputs) with one belt up column 4. */
+/** bb-0.8.3 (REQ-BFG-043 D11): edit.ts fullNotice for the hero's own factory below level 4 (was "· ★2 OPENS A 3RD"). */
+const FULL_KILN = "KILN'S 2 BELTS ARE IN USE · UPGRADE FOR A 3RD";
+/** WEAVER at a day-3 dawn: the LOOM (three outputs) with one belt up column 4. bb-0.8.3: 15 gold (was 5), for its
+ *  FACTORY upgrade. LOOM_FOURTH: its fourth belt after the upgrade, out of its foot at (5, 7) to (7, 8). */
 const WEAVER = {
-  hero: "weaver", day: 3, gold: 5, beltCap: 40, items: [{ uid: 1, def: "loom", x: 4, y: 6 }],
+  hero: "weaver", day: 3, gold: 15, beltCap: 40, items: [{ uid: 1, def: "loom", x: 4, y: 6 }],
   routes: [{ factory: 1, cells: KILN_BELT }], mods: [], inventory: [], offers: [],
 };
+const LOOM_FOURTH = [K(6, 7), K(7, 7), K(7, 8)];
+/** bb-0.8.3 (REQ-BFG-043 D11): the board's level numerals in the 3x5 face (render/font.ts F3), row by row, and the two
+ *  colours of a level mark (render/levelMark.ts: palette.ts C.yellow on C.ink). */
+const GLYPH3 = { 2: "###|..#|###|#..|###", 3: "###|..#|###|..#|###", 4: "#.#|#.#|###|..#|..#" };
+const YELLOW = [246, 207, 72], INK = [5, 11, 18];
 
 /** Open the build screen on `deck` (bb.openDawn, then the deck set on the run in place and the screen told). */
 async function openDeck(page, deck) {
@@ -212,6 +227,9 @@ async function openDeck(page, deck) {
     b.routes = JSON.parse(JSON.stringify(d.routes));
     b.mods = JSON.parse(JSON.stringify(d.mods));
     if (d.turrets) b.turrets = JSON.parse(JSON.stringify(d.turrets));
+    // bb-0.8.3 (REQ-BFG-043 D10): the deck's upgrade levels (none: level 1 on both tracks, as a new run)
+    if (d.upgrades) b.upgrades = { ...d.upgrades };
+    else delete b.upgrades;
     b.beltCap = d.beltCap;
     r.inventory = JSON.parse(JSON.stringify(d.inventory));
     r.gold = d.gold;
@@ -244,7 +262,12 @@ const snap = (page) => page.evaluate(() => {
   const r = window.bb.game.run;
   return JSON.stringify({ gold: r.gold, build: r.build, inventory: r.inventory, offers: r.shop.wagons.map((w) => w.offers.map((o) => [o.def, o.price, !!o.sold])) });
 });
-const look = (page) => page.evaluate(() => {
+/** bb-0.8.3 (run 4, U2): look waits for the game's next frame first (two animation frames), so the panel and the UI
+ *  regions it reads are the ones the game's own loop drew after the last input: on a loaded machine the 150 ms a tap waits
+ *  could pass without a frame, and the panel read as not drawn. What it checks is unchanged. */
+const nextFrame = (page) => page.evaluate(() => new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(() => ok(true)))));
+const look = async (page) => (await nextFrame(page), lookNow(page));
+const lookNow = (page) => page.evaluate(() => {
   const g = window.bb.game, s = g.screen;
   // shoptap2: the details panel as drawn last frame (its UI region, CSS px) and the visible viewport it must lie in
   const box = window.bb.regions().filter((q) => q.id === "details").pop() ?? null;
@@ -283,6 +306,31 @@ const toastsSince = (page, n) => page.evaluate((i) => window.bb.game.toastLog.sl
 const rotOf = (page, uid) => page.evaluate((u) => window.bb.game.run.build.items.find((p) => p.uid === u)?.rot ?? 0, uid);
 const kview = (page) => page.evaluate(() => { const v = window.bb.game.view; return { k: v.scale / v.dpr, W: v.W, H: v.H, scale: v.scale, dpr: v.dpr }; });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+/** bb-0.8.3 (REQ-BFG-043 D11): the board's level marks of `track` as drawn now: BuildScreen.levelMarks() (logical px,
+ *  render/levelMark.ts), each read back off the canvas (logical px, one canvas px each) right after a fresh frame: `px`,
+ *  how many of its 3x5 numeral's 15 pixels show its level's glyph, yellow on ink (15: the numeral drawn whole). The game's
+ *  canvas is copied into a scratch canvas made for reading (willReadFrequently), so the game's own canvas is never read
+ *  back by getImageData (Chromium warns on the console about repeated readbacks, and the console must stay clean). */
+const marksOf = (page, track) => page.evaluate(([tr, glyphs, yellow, ink]) => {
+  const g = window.bb.game, s = g.screen;
+  g.step(1 / 60);
+  g.render();
+  const marks = (typeof s.levelMarks === "function" ? s.levelMarks() : []).filter((m) => m.track === tr);
+  if (!marks.length) return [];
+  const scratch = document.createElement("canvas");
+  scratch.width = g.canvas.width;
+  scratch.height = g.canvas.height;
+  const cx = scratch.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(g.canvas, 0, 0);
+  const near = (d, k, c) => Math.abs(d[k] - c[0]) <= 3 && Math.abs(d[k + 1] - c[1]) <= 3 && Math.abs(d[k + 2] - c[2]) <= 3;
+  return marks.map((m) => {
+    const rows = (glyphs[m.text] ?? "").split("|"), d = cx.getImageData(m.x + 1, m.y + 1, 3, 5).data;
+    let px = 0;
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (rows[j] && near(d, 4 * (j * 3 + i), rows[j][i] === "#" ? yellow : ink)) px++;
+    return { ...m, px };
+  });
+}, [track, GLYPH3, YELLOW, INK]);
+const mdesc = (ms) => (ms.length ? ms.map((m) => `"${m.text}" (level ${m.level}) at (${m.x}, ${m.y}) ${m.w}x${m.h} px, its numeral ${m.px}/15 px as drawn`).join("; ") : "none");
 
 async function shot(page, name) {
   await page.evaluate(() => { const g = window.bb.game; g.step(1 / 60); g.render(); });
@@ -306,6 +354,7 @@ async function tap(cdp, p, css = 0, deg = 0) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   const seen = await cdp.page.evaluate((n) => window.__taps.slice(n), n0);
   tapMs.push(seen.length === 1 && seen[0].type === "touch" ? seen[0].ms : Infinity); // one touch press a tap, timed
+  if (!(tapMs[tapMs.length - 1] < 150)) log(`[${at()}] a slow tap: ${JSON.stringify(seen)} at (${p.x.toFixed(0)}, ${p.y.toFixed(0)}), after "${(checks[checks.length - 1]?.what ?? "").slice(0, 140)}"`);
   await sleep(150);
 }
 
@@ -323,6 +372,33 @@ async function drag(cdp, pts, release = true) {
 const up = async (cdp) => { await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); await sleep(150); };
 const cells = (page, list) => Promise.all(list.map(([x, y]) => cell(page, x, y)));
 const dist = (pts) => pts.slice(1).reduce((s, p, i) => s + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0);
+
+/**
+ * bb-0.8.3 (REQ-BFG-043 D10, D11): buy level 2 of `track` by touch on `what`, at level 1 with at least 10 gold. A tap on
+ * the part (`where`) opens its panel (titled `title`, its description in the visible viewport) led by UPGRADE 10G, a 44
+ * CSS px target in the visible viewport, and the board marks nothing yet; a tap on the button: the gold drops by 10, the
+ * build's level on `track` is 2 and nothing else in the build, cargo or the shop changes, the panel stays on the part
+ * and offers the next level (UPGRADE 20G; a FACTORY panel says "LEVEL 2/4"), and the board marks it with a 2 (`key`:
+ * the mark's uid or slot), drawn whole. Returns the run before and after.
+ */
+async function upgradeTouch(page, cdp, V, { what, where, track, title, key }) {
+  await page.keyboard.press("Escape");
+  await tap(cdp, await where(), 5, 90);
+  const l0 = await look(page), r = await region(page, `upgrade-${track}`), s0 = JSON.parse(await snap(page)), m0 = await marksOf(page, track);
+  const lead = l0.panel?.labels?.[0] ?? null;
+  check(!!r && shown(l0, title) && lead === "UPGRADE 10G" && r.h >= TAP_CSS && inView(r, l0) && m0.length === 0,
+    `${V}: a tap on ${what} opens its panel (${pdesc(l0)}; buttons ${JSON.stringify(l0.panel?.labels ?? null)}), its UPGRADE 10G ${r ? `a ${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px target ${inView(r, l0) ? "inside" : "NOT inside"} the visible viewport` : "MISSING"}; level 1: no mark on the board (${mdesc(m0)})`);
+  if (!r) return { s0, s1: s0 };
+  await tap(cdp, centre(r), 3, 0);
+  const l1 = await look(page), s1 = JSON.parse(await snap(page)), m1 = await marksOf(page, track);
+  const { upgrades: u0, ...b0 } = s0.build, { upgrades: u1, ...b1 } = s1.build;
+  const text = l1.panel ? l1.panel.lines.join(" ") : "";
+  const marked = m1.length === 1 && m1[0].level === 2 && m1[0].text === "2" && m1[0].px === 15 && m1[0][track === "factory" ? "uid" : "slot"] === key;
+  check(s1.gold === s0.gold - 10 && !u0?.[track] && u1?.[track] === 2 && same(b1, b0) && same(s1.inventory, s0.inventory) && same(s1.offers, s0.offers)
+    && l1.panel?.labels?.[0] === "UPGRADE 20G" && (track !== "factory" || /LEVEL 2\/4/.test(text)) && shown(l1, title) && marked,
+    `${V}: its UPGRADE 10G buys ${track === "factory" ? "FACTORY" : "TURRET SPEED"} level 2: gold ${s0.gold} -> ${s1.gold}, upgrades ${JSON.stringify(u0 ?? {})} -> ${JSON.stringify(u1 ?? {})}, the rest of the build, cargo and the shop unchanged; the panel now offers ${JSON.stringify(l1.panel?.labels?.[0] ?? null)}${track === "factory" ? ` and says ${JSON.stringify(text.match(/[A-Z ]*LEVEL \d\/\d/)?.[0] ?? null)}` : ""}; the board's mark: ${mdesc(m1)}`);
+  return { s0, s1 };
+}
 
 // ------------------------------------------------------------------------------------------------------------ A1 touch
 async function touchSection(browsers, origin, vname) {
@@ -384,15 +460,25 @@ async function touchSection(browsers, origin, vname) {
     fitCheck(vname, V, `the GALVANIC COIL in cargo, ${d} CSS px drift`, l);
   }
   await shot(page, `${TAG}-${vname}-cargo-panel.png`);
-  // the signature KILN's panel says it stays aboard, no SELL (bb-0.8.3, REQ-BFG-042 D9: every copy; the note on one line,
-  // was "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.")
+  // the signature KILN's panel says it stays aboard, no SELL. bb-0.8.3 (REQ-BFG-043 D11): its one button is its FACTORY
+  // UPGRADE 10G (it had none); with 5 gold it is dim, still showing its price, and a tap on it changes nothing. The note
+  // is 0.8.0's again ("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD."; run 3's was "IT STAYS ABOARD: NO COPY CAN
+  // BE SOLD."), so the check reads "STAYS ABOARD"
   await page.keyboard.press("Escape");
   await tap(cdp, await cell(page, 4, 7), 5, 90);
   const kiln = await look(page);
   const kilnText = kiln.panel ? kiln.panel.lines.join(" ") : "";
-  check(kiln.panel && kiln.panel.labels.length === 0 && kilnText.includes("IT STAYS ABOARD: NO COPY CAN BE SOLD.") && shown(kiln, "KILN"), `${V}: the KILN's panel offers no SELL and says why: ${kiln.panel ? `${JSON.stringify(kiln.panel.lines.filter((t) => /ABOARD|SOLD|SIGNATURE/.test(t)))}; ${pdesc(kiln)}` : "no panel"}`);
+  check(kiln.panel && same(kiln.panel.labels, ["UPGRADE 10G"]) && /STAYS ABOARD/.test(kilnText) && shown(kiln, "KILN"), `${V}: the KILN's panel offers no SELL and says why: ${kiln.panel ? `${JSON.stringify(kiln.panel.lines.filter((t) => /ABOARD|SOLD|SIGNATURE/.test(t)))}; buttons ${JSON.stringify(kiln.panel.labels)}; ${pdesc(kiln)}` : "no panel"}`);
   fitCheck(vname, V, "the KILN", kiln);
   await shot(page, `${TAG}-${vname}-kiln-panel.png`);
+  {
+    const r = await region(page, "upgrade-factory"), s0 = await snap(page);
+    const dim = await page.evaluate(() => { const q = window.bb.game.ui.regions.filter((x) => x.id === "upgrade-factory").pop(); return !!q && typeof q.onTap !== "function"; });
+    if (r) await tap(cdp, centre(r), 3, 0);
+    const l = await look(page), s1 = await snap(page);
+    check(r && dim && r.h >= TAP_CSS && inView(r, kiln) && s1 === s0 && same(l.sel, { kind: "item", uid: 1 }) && (await marksOf(page, "factory")).length === 0,
+      `${V}: with 5 gold the KILN's UPGRADE 10G is dim (${dim ? "disabled" : "NOT disabled"}; ${r ? `a ${r.w.toFixed(1)}x${r.h.toFixed(1)} CSS px target` : "missing"}); a tap on it changes nothing (gold ${JSON.parse(s1).gold}, upgrades ${JSON.stringify(JSON.parse(s1).build.upgrades ?? {})})`);
+  }
   // the rig: its first tap selects without turning (its panel shows); a tap on the selected rig turns it
   for (const [d, deg] of DRIFTS) {
     await page.keyboard.press("Escape");
@@ -533,9 +619,10 @@ async function touchSection(browsers, origin, vname) {
     check(rm && rm.h >= TAP_CSS, `${V}: the belt panel's REMOVE BELT is a ${rm ? `${rm.w.toFixed(1)}x${rm.h.toFixed(1)}` : "missing"} CSS px target`);
   }
 
-  // 037: factory drags. bb-0.8.3 (REQ-BFG-042 D6): the ★1 KILN (2 belt slots) draws a second belt and keeps the first;
-  // full, it says so and draws nothing, and a drag ended back on it changes nothing; a KILN copy bought from the caravan
-  // merges it to ★2, its belts kept, and a drag draws its third belt at once
+  // 037: factory drags. bb-0.8.3 (REQ-BFG-044 D6): the level-1 KILN (2 belt slots) draws a second belt and keeps the
+  // first; full, it says so and draws nothing, and a drag ended back on it changes nothing. REQ-BFG-043 D10, D11 (was: a
+  // KILN copy bought from the caravan merged it to ★2): its FACTORY UPGRADE buys level 2 for 10 gold, its belts kept, the
+  // board marks it, and a drag draws its third belt at once; then the starting SCRAP CANNON's TURRET SPEED UPGRADE
   {
     await openDeck(page, KILN_DECK);
     const s0 = JSON.parse(await snap(page));
@@ -544,7 +631,7 @@ async function touchSection(browsers, origin, vname) {
     const b1 = JSON.parse(await snap(page)).build;
     await shot(page, `${TAG}-${vname}-kiln-second-belt.png`);
     check(b1.routes.length === 2 && same(b1.routes[0], s0.build.routes[0]) && b1.routes[1].factory === 1 && same(b1.routes[1].cells, KILN_SECOND) && dist(p1) >= 40,
-      `${V}: a ${dist(p1).toFixed(0)} CSS px drag out of the ★1 KILN (2 belt slots, 1 used) draws a second belt into column 5 (${JSON.stringify(b1.routes[1]?.cells)}) and keeps the first`);
+      `${V}: a ${dist(p1).toFixed(0)} CSS px drag out of the level-1 KILN (2 belt slots, 1 used) draws a second belt into column 5 (${JSON.stringify(b1.routes[1]?.cells)}) and keeps the first`);
     const s1 = await snap(page), n0 = (await look(page)).toasts;
     const pts = await cells(page, [[4, 7], [3, 7], [2, 7], [2, 6], [2, 5]]);
     await drag(cdp, pts, false);
@@ -553,7 +640,7 @@ async function touchSection(browsers, origin, vname) {
     const news = await toastsSince(page, n0);
     await shot(page, `${TAG}-${vname}-kiln-notice.png`);
     check(news.includes(FULL_KILN) && !mid.draw && mid.hide === -1,
-      `${V}: a drag out of the full ★1 KILN (2 of 2 belts) says "${FULL_KILN}" and draws nothing (draw ${JSON.stringify(mid.draw)}; hidden route ${mid.hide})`);
+      `${V}: a drag out of the full level-1 KILN (2 of 2 belts) says "${FULL_KILN}" and draws nothing (draw ${JSON.stringify(mid.draw)}; hidden route ${mid.hide})`);
     const back = await cells(page, [[2, 5], [2, 6], [2, 7], [3, 7], [4, 7]]);
     for (let i = 1; i < back.length; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [tp(back[i])] });
     await sleep(80);
@@ -561,19 +648,21 @@ async function touchSection(browsers, origin, vname) {
     check((await snap(page)) === s1, `${V}: that drag ended back on the KILN: the serialized build is identical`);
     await tap(cdp, await cell(page, 4, 7), 8, 45);
     check((await snap(page)) === s1, `${V}: a tap on the KILN changes nothing`);
-    await page.keyboard.press("Escape");
-    await tap(cdp, await card(page, 0), 3, 0);
-    const buy = await region(page, "buy");
-    if (buy) await tap(cdp, centre(buy), 3, 0);
-    const r2 = JSON.parse(await snap(page)), b2 = r2.build, kiln = b2.items.find((p) => p.uid === 1);
-    check(kiln && kiln.stars === 2 && b2.items.filter((p) => p.def === "kiln").length === 1 && same(b2.routes, b1.routes) && r2.gold === 6,
-      `${V}: BUY on the KILN card (3 gold) merges the KILN to ★2 in place (stars ${kiln?.stars}; gold ${r2.gold}), its two belts kept`);
+    // bb-0.8.3 (REQ-BFG-043 D10, D11): the KILN's FACTORY UPGRADE (25 gold -> 15), its two belts kept, then its third belt
+    const { s1: r2 } = await upgradeTouch(page, cdp, V, { what: "the KILN", where: () => cell(page, 4, 7), track: "factory", title: "KILN", key: 1 });
+    const b2 = r2.build;
+    await shot(page, `${TAG}-${vname}-kiln-upgraded.png`);
+    check(same(b2.routes, b1.routes) && b2.items.filter((p) => p.def === "kiln").length === 1 && !b2.items.find((p) => p.uid === 1)?.stars,
+      `${V}: the KILN at FACTORY level 2 keeps its two belts and stays one KILN, with no stars`);
     const p3 = await cells(page, [[5, 6], [6, 6], [7, 6], [8, 6], [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0]]);
     await drag(cdp, p3);
     const b3 = JSON.parse(await snap(page)).build;
     await shot(page, `${TAG}-${vname}-kiln-third-belt.png`);
     check(b3.routes.length === 3 && same(b3.routes.slice(0, 2), b2.routes) && b3.routes[2].factory === 1 && same(b3.routes[2].cells, KILN_THIRD),
-      `${V}: a drag out of the ★2 KILN (3 belt slots, 2 used) draws its third belt into column 8 at once: ${JSON.stringify(b3.routes[2]?.cells)}`);
+      `${V}: a drag out of the level-2 KILN (3 belt slots, 2 used) draws its third belt into column 8 at once: ${JSON.stringify(b3.routes[2]?.cells)}`);
+    // the starting SCRAP CANNON (TURRET SLOT 1, the free copy): its TURRET SPEED UPGRADE (15 gold -> 5)
+    await upgradeTouch(page, cdp, V, { what: "the starting SCRAP CANNON (TURRET SLOT 1, the free copy)", where: () => turret(page, 0), track: "turret", title: "SCRAP CANNON", key: 0 });
+    await shot(page, `${TAG}-${vname}-turret-upgraded.png`);
   }
   {
     await openDeck(page, WEAVER);
@@ -590,12 +679,21 @@ async function touchSection(browsers, origin, vname) {
     check(b2.routes.length === 3 && same(b2.routes.slice(0, 2), b1.routes) && b2.routes[2].factory === 1 && !b2.routes[2].cells.includes(K(4, 5)),
       `${V}: a drag that starts on the LOOM's own first belt tile (ambiguous with the LOOM) draws a third belt and keeps both: ${JSON.stringify(b2.routes[2]?.cells)}`);
     const n0 = (await look(page)).toasts;
-    await drag(cdp, await cells(page, [[5, 7], [6, 7], [7, 7], [7, 8]]));
+    const p4 = await cells(page, [[5, 7], [6, 7], [7, 7], [7, 8]]);
+    await drag(cdp, p4);
     const news = await toastsSince(page, n0), b3 = JSON.parse(await snap(page)).build;
-    // bb-0.8.3 (REQ-BFG-042 D6): the warning tells the truth in fullNotice's words, and the LOOM merges now (0.8.0: "ALL 3
-    // LOOM OUTPUTS USED - DRAG A BELT TO REROUTE")
-    const FULL_LOOM = "LOOM'S 3 BELTS ARE IN USE · ★2 OPENS A 4TH";
+    // the warning tells the truth in fullNotice's words (0.8.0: "ALL 3 LOOM OUTPUTS USED - DRAG A BELT TO REROUTE"; bb-0.8.3
+    // REQ-BFG-043 D11: the hero's own factory points at its FACTORY upgrade, was "· ★2 OPENS A 4TH")
+    const FULL_LOOM = "LOOM'S 3 BELTS ARE IN USE · UPGRADE FOR A 4TH";
     check(news.includes(FULL_LOOM) && same(b3, b2), `${V}: with every output used, a drag out of the LOOM warns ("${FULL_LOOM}") and changes nothing`);
+    // bb-0.8.3 (REQ-BFG-043 D10, D11; REQ-BFG-044): the LOOM's FACTORY UPGRADE (15 gold -> 5) opens a fourth slot (3/4/5/6),
+    // and the same drag now draws its fourth belt
+    const { s1: r4 } = await upgradeTouch(page, cdp, V, { what: "the full LOOM", where: () => cell(page, 4, 7), track: "factory", title: "LOOM", key: 1 });
+    await drag(cdp, p4);
+    const b4 = JSON.parse(await snap(page)).build;
+    await shot(page, `${TAG}-${vname}-loom-fourth-belt.png`);
+    check(b4.routes.length === 4 && same(b4.routes.slice(0, 3), r4.build.routes) && b4.routes[3].factory === 1 && same(b4.routes[3].cells, LOOM_FOURTH) && dist(p4) >= 40,
+      `${V}: a ${dist(p4).toFixed(0)} CSS px drag out of the level-2 LOOM (4 belt slots, 3 used) draws its fourth belt: ${JSON.stringify(b4.routes[3]?.cells)}`);
   }
 
   // real drags of 40 px or more still work on touch
@@ -694,8 +792,8 @@ async function mouseSection(browsers, origin) {
   await click(await cell(page, 4, 2));
   v = await seen("a click on the KILN's belt", { x: !!(await region(page, "beltx")) });
   check(same(v.sel, { kind: "route", index: 0 }) && !(await region(page, "beltx")), `mouse: a click on a belt selects it (${JSON.stringify(v.sel)}) and puts up no X`);
-  // a mouse drag that lays a belt. bb-0.8.3 (REQ-BFG-042 D6): the ★1 KILN has 2 belt slots, so the drag draws a second
-  // belt and keeps the first (69fe689's one-output KILN moved its belt and showed the notice)
+  // a mouse drag that lays a belt. bb-0.8.3 (REQ-BFG-044 D6): the level-1 KILN has 2 belt slots, so the drag draws a
+  // second belt and keeps the first (69fe689's one-output KILN moved its belt and showed the notice)
   {
     const pts = await cells(page, [[4, 7], [3, 7], [2, 7], [2, 6]]);
     await page.mouse.move(pts[0].x, pts[0].y);
@@ -710,9 +808,10 @@ async function mouseSection(browsers, origin) {
     v = await seen("a mouse drag out of the KILN through (3,7) (2,7) (2,6), released", { mid });
     const kilnBelts = v.routes.filter((r) => r.factory === 1), said = await toastsSince(page, n0);
     check(mid.hide === -1 && kilnBelts.length === 2 && same(kilnBelts[0].cells, KILN_BELT) && same(kilnBelts[1].cells, [K(3, 7), K(2, 7), K(2, 6)]) && !said.some((t) => /BELTS ARE IN USE|OUTPUT/.test(t)),
-      `mouse: a drag out of the ★1 KILN (2 belt slots, 1 used) draws a second belt and keeps the first, no notice (hidden route ${mid.hide}; KILN belts ${kilnBelts.length}; toasts ${JSON.stringify(said)})`);
+      `mouse: a drag out of the level-1 KILN (2 belt slots, 1 used) draws a second belt and keeps the first, no notice (hidden route ${mid.hide}; KILN belts ${kilnBelts.length}; toasts ${JSON.stringify(said)})`);
   }
-  // bb-0.8.3 (REQ-BFG-042 D6): the full KILN's notice, a KILN copy bought from the caravan merging it to ★2, its third belt
+  // bb-0.8.3 (REQ-BFG-044 D6, REQ-BFG-043 D10, D11): the full KILN's notice; a click on the KILN, then on its UPGRADE 10G,
+  // buys FACTORY level 2 (was: a KILN copy bought from the caravan merged it to ★2); its third belt
   {
     await openDeck(page, KILN_DECK);
     const mdrag = async (list) => {
@@ -732,18 +831,20 @@ async function mouseSection(browsers, origin) {
     const news = await toastsSince(page, n0);
     await shot(page, `${TAG}-desk-kiln-notice.png`);
     mouseSeen.push({ what: "notice", notice: news.includes(FULL_KILN) });
-    check(news.includes(FULL_KILN) && (await snap(page)) === s1, `mouse: a drag out of the full ★1 KILN says "${FULL_KILN}" and changes nothing`);
+    check(news.includes(FULL_KILN) && (await snap(page)) === s1, `mouse: a drag out of the full level-1 KILN says "${FULL_KILN}" and changes nothing`);
     await page.keyboard.press("Escape");
-    await click(await card(page, 0));
-    await click(await cell(page, 1, 8));
-    const r2 = JSON.parse(await snap(page)), kiln = r2.build.items.find((p) => p.uid === 1);
-    check(kiln && kiln.stars === 2 && r2.build.items.filter((p) => p.def === "kiln").length === 1 && same(r2.build.routes, b1.routes) && r2.gold === 6,
-      `mouse: the KILN card clicked, then a deck cell: bought and merged into the KILN, ★2 in place (stars ${kiln?.stars}; gold ${r2.gold}), its belts kept`);
+    await click(await cell(page, 4, 7));
+    const up = await region(page, "upgrade-factory"), r1 = JSON.parse(s1);
+    if (up) await click(centre(up));
+    const r2 = JSON.parse(await snap(page)), kiln = r2.build.items.find((p) => p.uid === 1), m2 = await marksOf(page, "factory");
+    mouseSeen.push({ what: "a click on the KILN, then on its UPGRADE", gold: r2.gold, upgrades: r2.build.upgrades ?? null, marks: m2.map((m) => `${m.text}:${m.px}`) });
+    check(up && r2.gold === r1.gold - 10 && r2.build.upgrades?.factory === 2 && kiln && !kiln.stars && same(r2.build.routes, b1.routes) && m2.length === 1 && m2[0].px === 15,
+      `mouse: a click on the KILN, then on its ${up ? "UPGRADE 10G" : "MISSING UPGRADE button"}: FACTORY level 2 (upgrades ${JSON.stringify(r2.build.upgrades ?? {})}; gold ${r1.gold} -> ${r2.gold}), its belts kept, the board's mark ${mdesc(m2)}`);
     await page.keyboard.press("Escape");
     await mdrag([[5, 6], [6, 6], [7, 6], [8, 6], [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0]]);
     const b3 = JSON.parse(await snap(page)).build;
     await shot(page, `${TAG}-desk-kiln-third-belt.png`);
-    check(b3.routes.length === 3 && same(b3.routes[2].cells, KILN_THIRD), `mouse: a drag out of the ★2 KILN draws its third belt into column 8 at once: ${JSON.stringify(b3.routes[2]?.cells)}`);
+    check(b3.routes.length === 3 && same(b3.routes[2].cells, KILN_THIRD), `mouse: a drag out of the level-2 KILN draws its third belt into column 8 at once: ${JSON.stringify(b3.routes[2]?.cells)}`);
   }
   check(errors.length === 0, `mouse: 0 console errors (${errors.length})`);
   await ctx.close();

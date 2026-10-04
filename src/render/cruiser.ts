@@ -16,7 +16,8 @@ import { disc, type G } from "./pixel";
 import { HULL_L, TURRET_LY, hullBox, sx, sy, turnX, turnY, type Box, type DeckFrame } from "./frame";
 import { HULL_M, TREAD_HX, TREAD_HY0, TREAD_LEN, TREAD_W, hullFlash, hullRim, hullShade, hullSprite, treadStrip } from "./hull";
 import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./turret";
-import { RACE_PIP, isArtRace, isRaceAmmo, raceTurretLook } from "./raceArt"; // 0.8.0 H1: FOUNDRY's and BASTION's art
+import { RACE_PIP, isArtRace, isRaceAmmo, pipColumn, raceTurretLook } from "./raceArt"; // 0.8.0 H1: FOUNDRY's and BASTION's art
+import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): TURRET SPEED on the starting turrets
 import { CLANK_FRAMES, CLANK_TIME, FUSE_FRAMES, FUSE_TIME, flashFrame, fuseFlash, platingClank, syncIcon } from "./raceFx"; // 0.8.0 H1 M3
 import { syncedTurrets } from "../sim/syncEstimate"; // 0.8.0 H1 M3: the deck's SYNC mark
 import { coreFor, stokeHits } from "../sim/deck"; // 0.6.1b: the core socket; 0.8.0 I1: a STOKER's factory hits
@@ -312,7 +313,7 @@ export function drawTurrets(g: G, v: CruiserView): void {
       }
     }
     // chamber pips: loaded payloads beside the mount (0.6.1p: one per window slot, EXT. CHAMBER and HOPPER included)
-    const pu = look ? look.pip : td.kind === "heavy" ? 12 : 9;
+    const pu = pipColumn(td.kind, h.faction); // the race look's column, else 12 on a heavy, 9 otherwise (as before)
     const win = ts ? ts.window : td.window + gearStats(v.build, i).window;
     for (let k = 0; k < win; k++) {
       const pv = -4 + k * 4;
@@ -379,6 +380,9 @@ export function drawTurrets(g: G, v: CruiserView): void {
       g.drawImage(img, Math.round(muzzleX(f, v.build, i) - img.width / 2), Math.round(muzzleY(f, v.build, i) - img.height / 2));
     }
   }
+  // bb-0.8.3 (REQ-BFG-043 D11): the TURRET SPEED level (2-4) on each starting turret, capping its chamber pips, drawn
+  // after every gun so a neighbour's art never covers it (levelMark.ts; nothing at level 1)
+  drawLevelMarks(g, v.build, f, "turret");
 }
 
 /** 0.8.0 H1 M3: the SYNC mark's centre, turret-local: on the bow, left of the barrel, clear of the gear boxes. */

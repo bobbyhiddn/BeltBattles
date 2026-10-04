@@ -347,6 +347,13 @@ export function raceTurretLook(kind: TurretKind, race: ArtRace): RaceTurretLook 
   return { glow: [-2, -2, 4, 4], ramp, chargeR: 6.5, chargeCol, tip: 15, twin: false, pip: 9, socket: 1 };
 }
 
+/** bb-0.8.3 (REQ-BFG-043 D11): the chamber pips' column (turret-local u) of a `kind` gun on a `faction` hull: the race
+ *  art's on a human or dwarf hull, today's elsewhere (12 on a heavy, else 9). cruiser.ts drawTurrets draws the pips there;
+ *  levelMark.ts caps the column with the TURRET SPEED level. */
+export function pipColumn(kind: TurretKind, faction: Faction): number {
+  return isArtRace(faction) ? raceTurretLook(kind, faction).pip : kind === "heavy" ? 12 : 9;
+}
+
 // ----------------------------------------------------------------------------------------------------------------- hull
 
 const A = HULL_A, L = HULL_L;

@@ -19,6 +19,7 @@ import { heatTier, payloadHalo, payloadSprite } from "./ammo";
 import { raceChuteMouth } from "./raceArt"; // 0.8.0 H1
 import { stokeFlare, wave3ChuteMouth, wave3FactoryArt, wave3GateSprite } from "./wave3Art"; // 0.8.0 A1; I1 M4: the moments
 import { factoryMoment, rigMoment, stokedNow } from "./wave3Moments"; // 0.8.0 I1 M4: A1's battle moments, from P1's sim
+import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the hero factory's FACTORY level
 import type { CruiserView, RigModel } from "./cruiser";
 
 /** 0.6.1d2: two cosmetic, build-screen-only cues threaded through CruiserView without touching
@@ -346,6 +347,9 @@ function drawFactories(g: G, v: CruiserView): void {
     if (fstars >= 3) frameRect(g, x, y, 24, 24, C.brass3);
     if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, 26, 26, v.t);
   }
+  // bb-0.8.3 (REQ-BFG-043 D11): the FACTORY level (2-4) on the hero's signature factory, in its sprite's bottom-left
+  // corner, where a bought factory's star pips go (levelMark.ts; nothing at level 1)
+  drawLevelMarks(g, v.build, f, "factory", v.hideItem ?? -1);
 }
 
 /**

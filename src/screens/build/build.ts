@@ -24,6 +24,7 @@ import { footX, footY } from "../../render/frame";
 import { itemIcon } from "../../render/sprites";
 import { cruiserModel, drawHull, drawTurrets, turretPivotX, turretPivotY, type CruiserModel, type CruiserView } from "../../render/cruiser";
 import { drawMachinery } from "../../render/machinery";
+import { drawLevelMark, levelMarks, type LevelMark } from "../../render/levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks
 import { ArenaBg } from "../../render/arenaBg";
 import { inside, tapRect, type Rect } from "../../ui/ui";
 import { tapPx } from "../../ui/tap"; // zoom (D4)
@@ -165,6 +166,12 @@ export class BuildScreen implements Screen, EditHost {
       title: d.t.title, sub, labels: d.t.labels, lines, whole: keptWhole(d.plan), full: fullText(d.plan), fullest: fullest(d.plan),
       variant: d.plan.body.variant, dropped: d.plan.body.dropped.map((b) => b.role), inBand: area === this.L.info, band: { ...this.L.info }, area: { ...area },
     };
+  }
+
+  /** bb-0.8.3 tooling (read only; scripts/touchcheck.mjs): the level marks the board draws now (render/levelMark.ts): the
+   *  FACTORY level on the hero factory and TURRET SPEED on each starting turret, from level 2 up; logical px. */
+  levelMarks(): LevelMark[] {
+    return [...levelMarks(this.run.build, this.L.frame, this.view.hideItem ?? -1)];
   }
 
   get toastY(): number {
@@ -375,6 +382,9 @@ export class BuildScreen implements Screen, EditHost {
     this.drawBroken(g);
     drawTurrets(g, v);
     this.drawSelection(g);
+    // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks (drawn with the deck) once more over the selection, so a selected
+    // gun's frame never cuts its plate (nothing at level 1)
+    for (const m of levelMarks(this.run.build, L.frame, v.hideItem ?? -1)) drawLevelMark(g, m);
     this.drawFuseAnim(g);
     if (bump) g.translate(0, -bump);
     this.wfx.draw(g, 0, 0);
