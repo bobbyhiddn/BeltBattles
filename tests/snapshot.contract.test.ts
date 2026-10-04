@@ -101,7 +101,8 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
       const rot = s.build.items.some((p) => p.rot !== undefined);
       // step 5: a caravan-bound pool deck (the 0.6.2 regen) may carry Build.turrets or a route join, which only v2 holds
       // (0.6.2j: v1 refuses both)
-      const v2only = s.build.turrets !== undefined || s.build.routes.some((r) => r.join !== undefined);
+      // bb-0.8.3 (REQ-BFG-043 D10; the seed pool regenerated in BELTS run 5): or the gold upgrades' levels (v2 only)
+      const v2only = s.build.turrets !== undefined || s.build.routes.some((r) => r.join !== undefined) || s.build.upgrades !== undefined;
       const v1 = !rot && !starry(s) && !v2only;
       expect([local.isSnapshot({ ...s, v: 1 }), netOk({ ...s, v: 1 })], `v1 ${s.hero} d${s.day}`).toEqual([v1, v1]);
       if (starry(s)) expect(local.isSnapshot({ ...s, v: 1 }) || netOk({ ...s, v: 1 }), `v1 ${s.hero} d${s.day} starred`).toBe(false);
@@ -119,6 +120,7 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     for (const p of plain.build.items) { delete p.stars; delete p.rot; }
     for (const m of plain.build.mods) delete m.stars;
     delete plain.build.turrets;
+    delete plain.build.upgrades; // bb-0.8.3: the levels are v2-only too
     for (const r of plain.build.routes) delete r.join;
     expect([local.isSnapshot({ ...plain, v: 1 }), netOk({ ...plain, v: 1 })]).toEqual([true, true]);
     expect(bad).toEqual([]);

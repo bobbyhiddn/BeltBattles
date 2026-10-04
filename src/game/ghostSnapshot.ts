@@ -3,7 +3,7 @@
 // A ghost is a player's deck exactly as it fought dusk on day N, with the record carried INTO that
 // fight. The local pool stores exactly this shape; 0.6.0a pool entries migrate on load.
 
-import { GRID, HEROES, type HeroId } from "../sim/content";
+import { GRID, HEROES, UPGRADE_MAX, UPGRADE_TRACKS, type HeroId } from "../sim/content";
 import type { Build } from "../sim/deck";
 import { migrateDeck } from "../sim/beltside";
 
@@ -99,11 +99,23 @@ function joinOk(routes: unknown[], v: number): boolean {
   });
 }
 
+/** bb-0.8.3 (REQ-BFG-043 D10): the build's `upgrades`: absent, or (v2 only) a strict object { turret?, factory? }, each
+ *  an integer 1..UPGRADE_MAX, exactly as src/net/snapshot.ts checkBuildShape takes it (BELTS run 5: this side had not
+ *  learned the field, so it took a v1 copy holding levels, and level 5, that the strict decoder refuses). */
+function upgradesOk(q: object, v: number): boolean {
+  if (!("upgrades" in q)) return true;
+  const u = (q as { upgrades?: unknown }).upgrades;
+  if (u === undefined) return true; // an in-memory `upgrades: undefined` is absent (JSON drops it)
+  if (v < 2 || !u || typeof u !== "object" || Array.isArray(u)) return false;
+  return Object.keys(u).every((k) => (UPGRADE_TRACKS as readonly string[]).includes(k) && inRange((u as Raw)[k], 1, UPGRADE_MAX));
+}
+
 function buildOk(b: unknown, v = SNAPSHOT_VERSION): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
     && Array.isArray(q.mods) && typeof q.beltCap === "number" && typeof q.hullBonus === "number"
-    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v) && joinOk(q.routes, v);
+    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v) && joinOk(q.routes, v)
+    && upgradesOk(q, v);
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */
