@@ -1007,6 +1007,19 @@ async function namesSection(browsers, origin) {
       const same = before === (await page.evaluate(() => JSON.stringify(window.bb.game.run.build)));
       check(!!opt2 && s.entry?.required === false && pre2 === "BOB-7" && after.entry === null && after.screen === "build" && after.name === "BOB-7" && same,
         `names ${vname}: in a run, the build screen's MENU card has NAME: the same screen ("${pre2}"); CANCEL leaves the build screen and the run as they were`);
+      // a player updating from 0.8.5: a saved run (the build screen saved it) and no name: CONTINUE meets the name screen first
+      await page.evaluate(() => localStorage.removeItem("beltbattles.name.v1"));
+      await page.reload();
+      await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
+      await settle(page, "title");
+      const cont = await region(page, "cont");
+      if (cont) await press(center(cont));
+      const met = await state();
+      if (met.dom) await enter("cap 7", how);
+      await settle(page, "build");
+      s = await state();
+      check(!!cont && met.entry?.required === true && met.screen === "title" && s.name === "CAP 7" && s.screen === "build" && s.entry === null,
+        `names ${vname}: updating from 0.8.5 (a saved run, no name): CONTINUE opens the name screen first (required), then the saved run (${s.screen}, ${s.name})`);
     } catch (e) {
       check(false, `names ${vname}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
     }
