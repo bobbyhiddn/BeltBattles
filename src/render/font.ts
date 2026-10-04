@@ -136,8 +136,10 @@ const F3: GlyphMap = {
   ">": "#..|.#.|..#|.#.|#..",
   "&": ".#.|#.#|.#.|#.#|.##",
   "·": ".|.|#|.|.",
-  // PACKS M2 (REQ-BFG-063): the name tag on the dusk intro (ANNA#3F) is drawn in this face
-  "#": "#.#|###|#.#|###|#.#",
+  // PACKS M2 (REQ-BFG-063): the name tag on the dusk intro (ANNA#3F) is drawn in this face. PACKS run 2 (the lead's
+  // ruling R1): a classic five-column hash (was three columns, "#.#|###|#.#|###|#.#", which read like an "H" at 100%:
+  // "MIRA#2C" as "MIRAH2C"); the face holds other widths already ("·" one column, " " two)
+  "#": ".#.#.|#####|.#.#.|#####|.#.#.",
   "→": "...|..#|###|..#|...",
   "♥": "#.#|###|###|.#.|...",
   // 0.6.1d (ARSENAL.md §8.2): the MERGE badge and star pips need a ★ that fits a 3x5 cell.

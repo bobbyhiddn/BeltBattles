@@ -65,7 +65,8 @@ describe("the intro line", () => {
     }
     expect(widest).toMatch(/^VS W{10}#[0-9A-F]{2} · \d-\d$/);
     const w = textWidth(widest, "3");
-    expect(w).toBe(82);
+    // PACKS run 2 (the lead's ruling R1): 84 (was 82): the 3x5 face's "#" is a five-column hash (was three columns)
+    expect(w).toBe(84);
     expect(textWidth(`VS ${WANDERER} · 9-0`, "3")).toBeLessThan(w);
     for (const [what, cw, ch, dpr] of VIEWS) {
       const v = computeView(cw, ch, dpr, battleScale);
