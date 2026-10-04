@@ -338,8 +338,12 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
     console.log(`desk fit: ${JSON.stringify(counts)}`);
   });
 
+  // bb-0.8.6 (PACKS run 2, the lead's ruling R2, Q5's rule (oracle 35e8ebc1eda74818)): 0.8.5's 174 x 28 strip is now the
+  // 180 x 353 view (0.8.5's 180 x 320 plus the pack row's 33 px), so the fixture is 180 x 353 and tests that strip again;
+  // 180 x 320 itself gives a 174 x 0 band. The name keeps 0.6.2t's: since the 0.8.4 zoom a real 360x640 phone draws with
+  // phone=true; this fixture is a narrow non-phone portrait window
   it("the 360x640 strip: an offer's header shows its one-line effect, on up to two lines", () => {
-    const strip = buildLayout(180, 320, true, 5).info;
+    const strip = buildLayout(180, 353, true, 5).info;
     for (const { id, t } of PANELS.filter((p) => p.kind === "offer")) {
       const plan = planPanel(t, strip);
       expect(plan.headerOnly, id).not.toBeNull();

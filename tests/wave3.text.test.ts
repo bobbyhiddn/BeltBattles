@@ -165,7 +165,10 @@ describe("0.8.0 P1: wave 3's panels fit the phone band and the desk column (T6),
       if (b.role === "row" || b.role === "grid" || b.role === "hits" || b.role === "note") continue;
       expect(banned(b.text), `${id}: ${b.text}`).toEqual([]);
     }
-    const strip = buildLayout(180, 320, true, 5).info;
+    // bb-0.8.6 (PACKS run 2, the lead's ruling R2, Q5's rule (oracle 35e8ebc1eda74818)): 180 x 353, 0.8.5's 174 x 28 strip
+    // (its 180 x 320 plus the pack row's 33 px; 180 x 320 itself is now a 174 x 0 band). Since the 0.8.4 zoom a real
+    // 360x640 phone draws with phone=true; this fixture is a narrow non-phone portrait window
+    const strip = buildLayout(180, 353, true, 5).info;
     for (const { id, t } of PANELS.filter((p) => p.kind === "offer")) {
       const plan = planPanel(t, strip);
       expect(plan.headerOnly!.lines.join(" "), id).toBe(t.headerOnly!.texts[0]);

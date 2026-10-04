@@ -199,7 +199,9 @@ describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets throu
   }, 300_000);
 
   // 0.8.0 B1 (oracle 2e5a00525c876f07): since B1's M2 part numbers (209622b) no FURNACE or WEAVER run of seeds 1-12
-  // replaces a turret, so this test alone samples seeds 1-48 (FURNACE replaces in 5 of them); the checks are unchanged.
+  // replaces a turret, so this test alone samples seeds 1-48 (at 0.8.0 FURNACE replaced in 5 of them; of the 96 par runs,
+  // seeds 1-48 x FURNACE and WEAVER, 2 replace one at 0.8.5, 0 with the packs, 6 with the packs forbidden: PACKS Q5,
+  // measured in run 1); the checks are unchanged.
   // bb-0.8.6 (PACKS Q5, oracle 35e8ebc1eda74818): the packs absorb the gold a replace needs (no par run of the sample
   // replaces one), so the sample plays a policy that buys no pack: the par player judges both packs and never takes one
   // (PolicyKnobs.forbid, the TUNE-M switch: player.ts packCands marks them banned)
