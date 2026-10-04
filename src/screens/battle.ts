@@ -9,7 +9,7 @@ import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, type BattleLayout } from "../game/battleLayout";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
-import { finishDay, ghostOf, startDusk, storedFoe } from "../game/day";
+import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
 import { raceReadout } from "../game/raceReadout"; // 0.8.0 H1 M3: the card's FOUNDRY and BASTION rows
 import { loadPool, saveGhost } from "../game/ghosts";
 import { FINDING_GHOST, foeNote, online, onlineMode } from "../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2)
@@ -329,7 +329,8 @@ export class BattleScreen implements Screen {
       const k = Math.min(1, this.pt / 0.35);
       const w = this.warlord;
       const head = w ? `ROAD · DAY ${this.foe.day}/${RUN_DAYS}` : `DUSK · DAY ${this.foe.day}/${RUN_DAYS}`;
-      const sub = w ? `VS ${this.foeName} · ${TIER_LABEL[w.tier]} WARLORD` : `VS ${this.foeName}`;
+      // PACKS M2 (REQ-BFG-063): a ghost is NAME#TAG · W-L, or WANDERER · W-L without a name (day.ts foeTitle); a warlord keeps its tier line
+      const sub = w ? `VS ${this.foeName} · ${TIER_LABEL[w.tier]} WARLORD` : `VS ${foeTitle(this.foe)}`;
       banner(g, W, cy - 16, head, w ? C.amber : C.yellow, sub, k);
       if (this.foe.rival && k >= 1) this.drawCaptain(g, cy + 22);
       if (this.pt > INTRO && this.count <= 3) drawText(g, String(this.count), W / 2, cy - 50, C.white, { align: "center", scale: 4, outline: C.ink });

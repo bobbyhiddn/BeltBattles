@@ -7,6 +7,7 @@
 import { GRID, HEROES, UPGRADE_MAX, UPGRADE_TRACKS, type HeroId, type Upgrades } from "../sim/content";
 import type { Build, BuildTurret, ModPlacement, Placed, RouteDef } from "../sim/deck";
 import { heroGateProblem, rulesGateProblem } from "./rulesGate"; // 0.7.0 (v070-rel M2): turrets and joins need bb-0.6.2 rules; 0.8.0 H1: heroes by rules
+import { nameProblem, type NameProblem } from "./names"; // PACKS M2 (REQ-BFG-063): the one set of name rules
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..MAX_STARS; absent = 1) on any
 // build.items[i] and build.mods[i]. v1 snapshots still decode (as 1 star); in v1 `stars` is absent.
@@ -48,6 +49,9 @@ export interface GhostSnapshot {
   runId: string;
   playerId: string; // anonymous random id, never an account name or e-mail
   createdAt: number; // ms since epoch, client clock (informational only)
+  /** PACKS M2 (REQ-BFG-063): the player's name (names.ts), optional and last: absent on pool entries and older uploads;
+   *  POST /v1/ghosts requires it under RULES_VERSION. Never the tag (readers derive it from playerId). */
+  name?: string;
 }
 
 /** A snapshot with its pool id (content hash for stored ghosts, "offline-..." for stand-ins). */
@@ -60,6 +64,15 @@ export class SnapshotError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "SnapshotError";
+  }
+}
+
+/** PACKS M2 (REQ-BFG-063): a present `name` that names.ts nameProblem refuses. Its message, "name: <reason>", is POST
+ *  /v1/ghosts's 422 error (server/app.ts); everywhere else it is a SnapshotError like any other. */
+export class NameError extends SnapshotError {
+  constructor(readonly problem: NameProblem) {
+    super(`name: ${problem}`);
+    this.name = "NameError";
   }
 }
 
@@ -210,9 +223,24 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
   };
 }
 
+/**
+ * PACKS M2 (REQ-BFG-063): the optional `name`, as BELTS added the build's `upgrades`: absent (pool entries, older uploads),
+ * or a name names.ts accepts, in its canonical form only; kept as given, written last, so a snapshot without it encodes
+ * byte for byte as before (no SNAPSHOT_VERSION bump). A non-string is a shape error (400 on the server); any other name
+ * nameProblem refuses throws a NameError ("name: too long", ...), the server's 422. Whether an upload must carry one is
+ * the server's rule (server/app.ts: every upload under RULES_VERSION), not the decoder's.
+ */
+function nameField(o: Obj): { name?: string } {
+  if (!has(o, "name") || o.name === undefined) return {}; // an in-memory `name: undefined` is absent (JSON drops it)
+  if (typeof o.name !== "string") throw new SnapshotError("snapshot.name: expected a string");
+  const problem = nameProblem(o.name);
+  if (problem) throw new NameError(problem);
+  return { name: o.name };
+}
+
 /** Full strict check of a decoded value. Returns a canonical copy. */
 export function checkSnapshot(v: unknown): GhostSnapshot {
-  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"]);
+  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name"]);
   if (o.v !== 1 && o.v !== 2) throw new SnapshotError(`snapshot.v: expected 1 or ${SNAPSHOT_VERSION}`);
   const ver: 1 | 2 = o.v;
   const rules = str(o.rules, "snapshot.rules", RULES_PATTERN);
@@ -233,6 +261,7 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
     runId: str(o.runId, "snapshot.runId", ID_PATTERN),
     playerId: str(o.playerId, "snapshot.playerId", ID_PATTERN),
     createdAt: int(o.createdAt, "snapshot.createdAt", 0, Number.MAX_SAFE_INTEGER),
+    ...nameField(o), // PACKS M2 (REQ-BFG-063): last, only when present
   };
 }
 

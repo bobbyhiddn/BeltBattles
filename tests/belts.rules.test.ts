@@ -33,7 +33,7 @@ import { fetchGhost, submitGhost } from "../src/net/ghostClient";
 import { battleSeed, buyUpgrade, newRun, saveRun, SAVE_KEY, type Run } from "../src/game/run";
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe } from "../src/game/day";
 import { GHOST_KEY, loadPool, saveGhost, standInFoe } from "../src/game/ghosts";
-import { PLAYER_KEY } from "../src/game/ghostSnapshot";
+import { PLAYER_KEY, setPlayerName } from "../src/game/ghostSnapshot";
 import { Online, resolveServerUrl, type OnlineDeps } from "../src/game/online";
 import { foeNote, online, onlineMode } from "../src/game/session";
 import type { Identity } from "../src/net/identity";
@@ -41,7 +41,7 @@ import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
 import { floorGhosts, sampleGhosts } from "../tools/samplePool";
 import { storeBackends } from "./netStores";
-import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { ownedBy, signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
 
 const OLD_RULES = "bb-0.8.0"; // 0.8.0 to 0.8.4's rules (HEROES_RULES): the live pool's
 const NOSTATS = {} as SideStats;
@@ -180,6 +180,7 @@ describe.each(storeBackends())("rules bb-0.8.6 on the $name store (uploads open 
     app = backend.server({ uploads: "open", log: () => {}, matchSalt: () => 0, rateLimit: { windowMs: 60_000, max: 10_000 } });
     base = `http://127.0.0.1:${await app.listen(0)}`;
     me = await testIdentity(1);
+    setPlayerName(TEST_NAME); // PACKS M2 (REQ-BFG-063): the device has a player name, so the game's own client uploads it
     await seedStore(app.store);
   }, 120_000); // the seed builds the race ghosts (the par player's runs): seconds, more under load
   afterAll(async () => {

@@ -12,9 +12,13 @@
 //                                       is not read), or the signature does not match the exact bytes
 //                                   400 { error } not a valid snapshot (the strict decode, which carries
 //                                       the rules gate: turret slots and belt joins need bb-0.6.2+)
+//                                   422 { error } PACKS M2: a name the strict decode refuses, one reason:
+//                                       "name: too short", "name: too long", "name: bad characters",
+//                                       "name: not allowed" (src/net/names.ts)
 //                                   403 { error } snapshot.playerId is not the signing key's playerId
-//                                   422 { error } foreign rules, or the deck fails validateUpload (the
-//                                       player mode), with its errors
+//                                   422 { error } foreign rules; PACKS M2: "name: missing" (every upload
+//                                       under RULES_VERSION carries its player's name); or the deck fails
+//                                       validateUpload (the player mode), with its errors
 //                                   422 { error } 0.8.0 H2: a record (wins, lives) no run can carry into
 //                                       that day's dusk (src/net/records.ts isReachable), named with
 //                                       the day: "record: 0W 1 lives is no record a run carries into
@@ -32,7 +36,8 @@ import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
 import { isNewPlayer, matchSeed, pickGhost, type MatchRequest } from "../src/net/matchmaking";
-import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, SnapshotError } from "../src/net/snapshot";
+import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, type GhostSnapshot } from "../src/net/snapshot";
+import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { isReachable } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
 import { sha256Hex } from "./sigv4";
@@ -287,8 +292,15 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         const body = await readBody(req, MAX_BODY_BYTES);
         const signer = await verifyUpload(body, key, sig);
         if (!signer.ok) throw new HttpError(401, signer.error);
-        // 4. strict decode, unchanged (400)
-        const snap = decodeSnapshot(utf8(body));
+        // 4. strict decode (400). PACKS M2 (REQ-BFG-063): a name the decoder refuses (names.ts nameProblem) is a 422 with
+        //    its one reason, "name: too long" etc.; a name that is not a string stays a 400
+        let snap: GhostSnapshot;
+        try {
+          snap = decodeSnapshot(utf8(body));
+        } catch (e) {
+          if (e instanceof NameError) throw new HttpError(422, e.message);
+          throw e;
+        }
         // 5. a key uploads only under its own playerId: nobody can post as another player
         if (snap.playerId !== signer.playerId) {
           throw new HttpError(403, "snapshot.playerId is not the player id of the signing key (x-bb-key)");
@@ -298,6 +310,10 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         if (snap.rules !== RULES_VERSION) {
           throw new HttpError(422, `rules ${snap.rules} not accepted: this server validates ${RULES_VERSION}`);
         }
+        // PACKS M2 (REQ-BFG-063): every upload under this build's rules carries its player's name (pool entries, which
+        // are seeded, never uploaded, carry none). The decoder has already refused a bad one; here only its absence
+        const named = nameProblem(snap.name);
+        if (named) throw new HttpError(422, `name: ${named}`);
         const v = validateUpload(snap.build, snap.day); // 0.7.0: a player's deck, the player mode (road gold, parts, hull)
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
         // 0.8.0 H2 (backlog 325): the (wins, lives) record must be one a run can carry into this day's dusk, as the seed

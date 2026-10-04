@@ -11,7 +11,7 @@ import { encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot
 import { createGhostServer, type GhostServer } from "../server/app";
 import { sampleGhosts } from "../tools/samplePool";
 import { snap } from "./netHelpers";
-import { identitiesFor, ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { identitiesFor, ownedBy, signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
 import { storeBackends } from "./netStores";
 
 const SHORE = "http://127.0.0.1:7778";
@@ -112,7 +112,7 @@ afterAll(async () => {
   });
 
   it("rejects a bad deck, foreign rules, malformed JSON, oversize bodies and bad queries", async () => {
-    const s = snap({ playerId: ME.playerId }); // post() signs with ME: past the signature, these are the old refusals
+    const s = snap({ playerId: ME.playerId, name: TEST_NAME }); // post() signs with ME: past the signature, these are the old refusals (PACKS M2: with a player name)
     const loom = { ...s, build: { ...s.build, items: [...s.build.items, { uid: 2, def: "loom", x: 0, y: 8 }] } };
     const bad = await post(JSON.stringify(loom));
     expect(bad.status).toBe(422);
@@ -215,7 +215,7 @@ afterAll(async () => {
 
   it("stores a signed upload: 201, then 200 with the same id when repeated", async () => {
     const before = stored();
-    const mine = snap({ playerId: ME.playerId, createdAt: 1_790_000_000_004, lives: 5 }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
+    const mine = snap({ playerId: ME.playerId, createdAt: 1_790_000_000_004, lives: 5, name: TEST_NAME }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives (PACKS M2: with a player name)
     const body = encodeSnapshot(mine);
     const first = await upload(body, await signedHeaders(ME, body));
     expect(first).toEqual({ status: 201, body: { id: ghostId(mine) } });

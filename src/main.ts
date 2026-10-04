@@ -26,6 +26,7 @@ import { EventScreen } from "./screens/event/event";
 import type { Arena } from "./game/arena";
 import { onlineSession, resolveServerUrl, startOnline } from "./game/online";
 import { ReplayScreen } from "./screens/replay";
+import { currentName } from "./game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063) tooling
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -201,6 +202,11 @@ game.start();
   panel() {
     const s = game.screen;
     return s instanceof BuildScreen ? s.panelInfo() : null;
+  },
+  /** PACKS M2 (REQ-BFG-063) tooling (read only): the stored player name, and the name screen as drawn (null: not up). */
+  playerName: () => currentName(),
+  nameEntry() {
+    return game.nameEntry ? game.nameEntry.info() : null;
   },
   /** Logical -> CSS pixel factor and the UI regions of the last frame. */
   regions(): { id: string; x: number; y: number; w: number; h: number }[] {

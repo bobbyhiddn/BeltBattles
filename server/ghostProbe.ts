@@ -122,12 +122,17 @@ export function canonicalText(s: GhostSnapshot): string {
   return JSON.stringify({
     v: s.v, rules: s.rules, hero: s.hero, day: s.day, wins: s.wins, lives: s.lives,
     build: checkBuildShape(s.build, "snapshot.build", s.v), runId: s.runId, playerId: s.playerId, createdAt: s.createdAt,
+    ...(s.name !== undefined ? { name: s.name } : {}), // PACKS M2: the player's name, last
   });
 }
 
+/** PACKS M2 (REQ-BFG-063): the probe's player name: every upload under bb-0.8.6 carries one (POST /v1/ghosts refuses
+ *  one without it, 422 "name: missing"). */
+export const PROBE_NAME = "PROBE";
+
 /** The snapshot `playerId` uploads at the dusk of `d.day` with `build`, under this build's rules. */
 function dusk(playerId: string, hero: HeroId, d: { day: number; wins: number; lives: number }, build: GhostSnapshot["build"], runId: string, now: number): GhostSnapshot {
-  return { v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day: d.day, wins: d.wins, lives: d.lives, build, runId, playerId, createdAt: now };
+  return { v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day: d.day, wins: d.wins, lives: d.lives, build, runId, playerId, createdAt: now, name: PROBE_NAME };
 }
 
 /** The nine POSTs, in order, for `playerId` at time `now`. Pure: no key, no network. */

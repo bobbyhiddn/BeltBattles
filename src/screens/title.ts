@@ -26,6 +26,7 @@ import { EventScreen } from "./event/event";
 import { ForkScreen } from "./fork/fork";
 import { BattleScreen } from "./battle";
 import { VERSION } from "../version";
+import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
 
 export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE)
   "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.",
@@ -140,17 +141,19 @@ export class TitleScreen implements Screen {
     const save = this.save;
     const b = L.buttons;
     panel(g, L.panel, "dark");
-    button(ui, g, "new", b.new, "NEW RUN", { primary: true, onTap: () => game.go(new HeroScreen(game)) });
+    // PACKS M2 (REQ-BFG-063): with no player name stored, every title button (but the sound one) opens the name screen
+    // first and does its own thing once a name is in (gate)
+    button(ui, g, "new", b.new, "NEW RUN", { primary: true, onTap: () => this.gate(() => game.go(new HeroScreen(game))) });
     if (save && b.cont) {
       button(ui, g, "cont", b.cont, "CONTINUE", {
         sub: `DAY ${save.day}/${RUN_DAYS} · ${HEROES[save.hero].name} · ${save.wins}-${save.losses}`,
-        onTap: () => this.continueRun(),
+        onTap: () => this.gate(() => this.continueRun()),
       });
     }
     button(ui, g, "help", b.help, this.help ? "CLOSE" : "HOW TO PLAY", {
-      font: "3", active: this.help, onTap: () => { this.help = !this.help; },
+      font: "3", active: this.help, onTap: () => this.gate(() => { this.help = !this.help; }),
     });
-    button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => { this.menu = true; } });
+    button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => this.gate(() => { this.menu = true; }) });
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
     if (this.help) this.drawHelp(g);
@@ -181,13 +184,25 @@ export class TitleScreen implements Screen {
       : warlord ? new BattleScreen(this.game, "warlord") : new BuildScreen(this.game));
   }
 
+  /** PACKS M2 (REQ-BFG-063): a player name is required. With one stored (or given this page load), `then` runs now;
+   *  else the name screen opens first (required: no way past it but a name) and `then` runs once it is stored. */
+  gate(then: () => void): void {
+    if (currentName()) then();
+    else this.game.openName({ required: true, done: () => then() });
+  }
+
+  /** PACKS M2: the title's first tap off the buttons opens the name screen too, while no name is stored. */
+  down(): void {
+    this.gate(() => {});
+  }
+
   key(k: string): void {
     if (k === "Escape") {
       this.help = false;
       this.menu = false;
     } else if (this.menu) return;
-    else if (k === "Enter" || k === " ") this.game.go(new HeroScreen(this.game));
-    else if (k === "c" || k === "C") this.continueRun();
-    else if (k === "h" || k === "H" || k === "?") this.help = !this.help;
+    else if (k === "Enter" || k === " ") this.gate(() => this.game.go(new HeroScreen(this.game)));
+    else if (k === "c" || k === "C") this.gate(() => this.continueRun());
+    else if (k === "h" || k === "H" || k === "?") this.gate(() => { this.help = !this.help; });
   }
 }

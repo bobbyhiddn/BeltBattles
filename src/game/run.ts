@@ -91,7 +91,7 @@ export interface DuskFoe {
   hero: HeroId;
   build: Build; // fought exactly as stored
   rival?: RivalId; // a stand-in's captain (portrait, STAND-IN tag)
-  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number }; // a pool ghost's stamp
+  record?: { wins: number; lives: number; runId: string; playerId: string; createdAt: number; name?: string }; // a pool ghost's stamp (PACKS M2: its player name, when it has one)
   // 0.7.0a (online play only; absent offline), save v7, no bump: where tonight's foe came from, shown in small text on
   // the NEXT BATTLE card and under the enemy plate: "online" a ghost from the ghost server, "offline" 0.6.2's stand-in
   // after the fetch fell back (an error, a timeout, a 404 or an unusable answer)

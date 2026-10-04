@@ -11,6 +11,7 @@ import { button, panel, UI, type Rect } from "../ui/ui";
 import type { Run } from "./run";
 import { nextFuseToast } from "./save";
 import { online } from "./session";
+import { NameEntry, type NameEntryOpts } from "../screens/name"; // PACKS M2 (REQ-BFG-063)
 
 export interface Screen {
   toastY?: number;
@@ -188,6 +189,22 @@ export class Game implements InputSink {
     }
   }
 
+  // ------------------------------------------------------------ PACKS M2 (REQ-BFG-063): the name screen
+
+  /** The name screen (src/screens/name.ts), drawn over the current screen while it is up; null when it is not. */
+  nameEntry: NameEntry | null = null;
+
+  /** Open the name screen (once: a second call while it is up does nothing). */
+  openName(opts: NameEntryOpts): void {
+    if (this.nameEntry) return;
+    this.nameEntry = new NameEntry(this, opts);
+  }
+
+  closeName(): void {
+    this.nameEntry?.dispose();
+    this.nameEntry = null;
+  }
+
   render(): void {
     const g = this.g;
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -195,6 +212,7 @@ export class Game implements InputSink {
     g.globalAlpha = 1;
     this.ui.begin();
     this.screen.draw(g);
+    this.nameEntry?.draw(g); // PACKS M2: over the screen, under the toast and the wipe; its regions take every tap
     this.drawToast(g);
     this.drawWipe(g);
     this.ui.end();
@@ -253,7 +271,7 @@ export class Game implements InputSink {
     ui.pressed = null;
     if (this.wipeDir !== 0) return;
     const r = ui.hit(x, y);
-    this.screen.pressed?.(x, y, r ? r.id : null, kind); // shoptap (D3): the build screen's belt X hears every press
+    if (!this.nameEntry) this.screen.pressed?.(x, y, r ? r.id : null, kind); // shoptap (D3): the build screen's belt X hears every press (PACKS M2: not while the name screen is up)
     if (r) {
       if (r.onDown) r.onDown(x, y);
       else ui.pressed = r.id;
@@ -268,7 +286,7 @@ export class Game implements InputSink {
     ui.pointer.y = y;
     const r = ui.hit(x, y);
     ui.hover = r ? r.id : null;
-    if (ui.pressed || this.wipeDir !== 0) return;
+    if (ui.pressed || this.wipeDir !== 0 || this.nameEntry) return; // PACKS M2: nothing under the name screen moves
     this.screen.move?.(x, y, down);
   }
 
@@ -296,6 +314,10 @@ export class Game implements InputSink {
 
   key(k: string): void {
     this.audio.unlock();
+    if (this.nameEntry) {
+      this.nameEntry.key(k); // PACKS M2: the name screen has the keys while it is up
+      return;
+    }
     if (k === "m" || k === "M") {
       this.cycleSound();
       return;

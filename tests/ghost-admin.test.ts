@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { TEST_NAME } from "./netIdentity"; // PACKS M2 (REQ-BFG-063)
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,7 +25,7 @@ import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 const POOL = generateSamplePool(); // the seed pool: 120 ghosts of RULES_VERSION (0.8.0 RC: the four heroes; was 60)
 const OLD = "bb-0.6.1";
 const plain = POOL.filter((s) => !s.build.turrets && !s.build.routes.some((r) => r.join !== undefined)); // valid under bb-0.6.1 too
-const own = (s: GhostSnapshot, playerId: string, runId = `run-${playerId}`): GhostSnapshot => ({ ...s, playerId, runId });
+const own = (s: GhostSnapshot, playerId: string, runId = `run-${playerId}`): GhostSnapshot => ({ ...s, playerId, runId, name: TEST_NAME }); // PACKS M2: uploads carry a name
 // honest uploads (as POST stores them): 3 by 2 players
 const HONEST = [own(POOL[0], "honest-1"), own(POOL.find((s) => s.day === 4)!, "honest-1"), own(POOL.find((s) => s.day === 7)!, "honest-2")];
 // another rules version's pool ghost and upload
