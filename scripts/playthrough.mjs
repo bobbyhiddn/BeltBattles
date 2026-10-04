@@ -61,8 +61,24 @@ export async function passName(page, touch, name = "TESTER") {
 }
 
 export async function tapRegion(page, touch, id) {
+  if (!id.startsWith("runepick")) await takeDawnRune(page, touch); // RUNES-1: the dawn RUNE PICKER takes every tap first
   await press(page, touch, await regionCenter(page, id));
   await passName(page, touch); // PACKS M2: no name stored yet: the name screen first
+}
+
+/** RUNES-1 (REQ-BFG-058): while the dawn RUNE PICKER is up (a pick pending on the build screen at the caravan), take the
+ *  first card: one tap opens it, a second takes it (src/screens/runePicker.ts regions runepick-<i>). False when no pick
+ *  is pending. A run started before runes, or a run set up past day 1 by tooling, has none. */
+export async function takeDawnRune(page, touch) {
+  const up = await page.evaluate(() => {
+    const g = window.bb.game, r = g.run;
+    return !!r && !r.over && r.runeDay === r.day && r.stage === "caravan" && window.bb.screen() === "build" && !g.transitioning;
+  });
+  if (!up) return false;
+  for (let k = 0; k < 2; k++) await press(page, touch, await regionCenter(page, "runepick-0"));
+  await page.waitForFunction(() => window.bb.game.run.runeDay === undefined, null, { timeout: 5000 });
+  await sleep(120);
+  return true;
 }
 
 /** Drag the build screen's planned part onto its belt tile: the mouse, or (shoptap) a finger: until 0.8.0 a phone run
@@ -314,6 +330,7 @@ export async function scriptedRun(page, touch, log, opts) {
   for (let day = 1; day <= 10; day++) {
     await settle(page, "build");
     await page.waitForFunction(() => window.bb.game.screen.caravan.ready, null, { timeout: 10000 });
+    if (await takeDawnRune(page, touch)) state.runes = (state.runes ?? 0) + 1; // RUNES-1: the dawn pick, before the shop
     const dawn = await page.evaluate(() => {
       const run = window.bb.game.run, s = window.bb.game.screen;
       return { day: run.day, gold: run.gold, lives: run.lives, wl: `${run.wins}-${run.losses}`, foe: s.foe.name, kind: s.foe.kind, seed: run.seed };
