@@ -216,7 +216,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   limpet: (e) => {
     const r = f(e).round as { delay: number; blast: number };
     const blast = fmtDmg(r.blast), delay = fmtSec(r.delay);
-    return rules([{ text: `ITS CHARGES BLAST THE HULL: ${blast} {DMG}, ${delay}{SEC} LATER.` }],
+    // U2e step 3 (one short line): "ITS " goes, so ★2's and ★3's line fits one line of the op band (was 230 px of 225);
+    // its two numbers stay (a rules-redesign candidate: U2e REPORT section 5)
+    return rules([{ text: `CHARGES BLAST THE HULL: ${blast} {DMG}, ${delay}{SEC} LATER.` }],
       [["blast", `${blast} {DMG}`], ["delay", `${delay}{SEC}`]]);
   },
   twinmould: () => rules([{ text: "CASTS A SLUG ONTO EACH BELT AT ONCE." }]),
