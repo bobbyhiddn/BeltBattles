@@ -222,17 +222,21 @@ describe("U2a the faces keep REQ-BFG-032's four rules", () => {
 });
 
 describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is pinned in tests/icons.test.ts)", () => {
-  it("F2: a panel that draws a face never draws the piece's desc (KILN, LOOM); a kept tip stays (CRUCIBLE, WARDWORKS)", () => {
+  it("F2: a panel that draws a face never draws the piece's desc; a kept tip stays (on 0.8.6 all four hero factories)", () => {
     for (const def of FACE_IDS) {
       const desc = ITEMS[def].desc.join(" ");
       if (desc) expect(flavour(def).join(" "), def).not.toBe(desc);
     }
-    expect([flavour("kiln"), flavour("loom")]).toEqual([[], []]);
+    // 0.8.6 move: since bb-0.8.3 (REQ-BFG-042 D2) KILN and LOOM keep one tip with no number, like CRUCIBLE and WARDWORKS
+    for (const def of ["kiln", "loom"]) {
+      expect(flavour(def), def).toHaveLength(1);
+      expect(flavour(def)[0], def).not.toMatch(/\d/);
+    }
     expect([flavour("crucible").length, flavour("wardworks").length]).toEqual([1, 1]);
     for (const hero of ["furnace", "weaver"] as HeroId[]) {
       const run = newRun(hero, 5, "u2b");
       const uid = run.build.items.find((i) => i.def === HEROES[hero].factory)!.uid;
-      expect(itemPanel(run, uid, true)!.body.some((b) => b.role === "flavour"), hero).toBe(false);
+      expect(itemPanel(run, uid, true)!.body.some((b) => b.role === "flavour"), hero).toBe(true); // 0.8.6 move: the tip
     }
   });
 
