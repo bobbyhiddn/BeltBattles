@@ -16,7 +16,7 @@ import { simulate, type SideStats } from "../src/sim/battle";
 import { battleSeed, migrateRun, newRun, saveRun, SAVE_KEY, type Run } from "../src/game/run";
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe, storeOnlineFoe, ghostName } from "../src/game/day";
 import { GHOST_KEY, loadPool, saveGhost, standInFoe } from "../src/game/ghosts";
-import { PLAYER_KEY } from "../src/game/ghostSnapshot";
+import { PLAYER_KEY, setPlayerName } from "../src/game/ghostSnapshot";
 import {
   BUILD_SERVER, FETCH_TIMEOUT_MS, normalizeServerUrl, Online, resolveServerUrl, RUNS_KEY, SERVER_KEY, startOnline, stopOnline,
   UPLOAD_TIMEOUT_MS, type OnlineDeps,
@@ -29,7 +29,7 @@ import type { Identity } from "../src/net/identity";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
 import { generateSamplePool } from "../tools/samplePool";
-import { testIdentity } from "./netIdentity";
+import { testIdentity, TEST_NAME } from "./netIdentity";
 
 const NOSTATS = {} as SideStats;
 const SEED_POOL = generateSamplePool();
@@ -307,6 +307,7 @@ describe("online end to end (the in-process server, signed uploads open, the see
     base = `http://127.0.0.1:${await app.listen(0)}`;
     await seedStore(app.store);
     device = await testIdentity(3);
+    setPlayerName(TEST_NAME); // PACKS M2 (REQ-BFG-063): the device has a player name, so its uploads carry it
   });
 
   afterAll(async () => {

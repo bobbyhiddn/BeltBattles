@@ -27,7 +27,10 @@ import { validateUpload } from "../src/net/validate";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { storeBackends } from "./netStores";
-import { signedHeaders, testIdentity } from "./netIdentity";
+import { signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
+import { setPlayerName } from "../src/game/ghostSnapshot";
+
+setPlayerName(TEST_NAME); // PACKS M2 (REQ-BFG-063): the device has a player name, so ghostOf carries it as the game uploads it
 
 // 400 runs a hero meet every reachable record by run 117 of each hero (output-H2/logs/m1-playcurve.json); ~7 s in all
 const RUNS_PER_HERO = 400;

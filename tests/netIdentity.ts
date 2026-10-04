@@ -50,9 +50,14 @@ export async function identitiesFor(snapshots: readonly GhostSnapshot[]): Promis
   return out;
 }
 
-/** `snapshot` as `identity` uploads it: the playerId is the key's. */
+/** PACKS M2 (REQ-BFG-063): the player name a test upload carries when its snapshot has none (POST /v1/ghosts requires
+ *  one on every upload under RULES_VERSION). */
+export const TEST_NAME = "TESTER";
+
+/** `snapshot` as `identity` uploads it: the playerId is the key's; PACKS M2: and a player name (TEST_NAME when the
+ *  snapshot has none). */
 export function ownedBy(snapshot: GhostSnapshot, identity: Identity): GhostSnapshot {
-  return { ...snapshot, playerId: identity.playerId };
+  return { ...snapshot, playerId: identity.playerId, ...(snapshot.name === undefined ? { name: TEST_NAME } : {}) };
 }
 
 /** Headers for POST /v1/ghosts with `body` signed by `identity`: content-type, x-bb-key, x-bb-sig. */
