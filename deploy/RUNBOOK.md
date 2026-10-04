@@ -82,7 +82,9 @@ branches above are in their own clones), is release-085 plus 0.8.6 (section 15):
   captains refit under the new luck caps;
 - cb75851: the 0.8.6 label (VERSION, package.json, package-lock.json) and docs/CHANGELOG.md;
 - the release record: GAME_BUILD.txt records the 0.8.6 online page, sections 3 to 8 name it and the rules bb-0.8.6,
-  and section 15 is its call.
+  and section 15 is its call;
+- then a test-only commit: tests/packs.rules' label pin reads 0.8.6, and touchcheck waits for OPTIONS to be drawn
+  after a reload. The page and the server are the release record's; section 15's `<TIP>` is this last commit.
 
 **The page.** The image serves the ONLINE single-file page: `npm run build:online`
 (VITE_GHOST_SERVER=same-origin, into dist-online/), then `node scripts/singlefile.mjs <out.html> --dist dist-online`.
@@ -954,7 +956,8 @@ first run. Every bb-0.8.6 upload carries it, and a foe's intro reads `VS NAME#TA
 player id; a nameless foe shows WANDERER).
 
 **What ships.** Branch release-086 at its tip, in this clone: release-085's 52c0b43 (live as v7), PACKS runs 1-2 (to
-3ebeaa6), the 0.8.6 label (cb75851) and the release record (GAME_BUILD.txt and this section).
+3ebeaa6), the 0.8.6 label (cb75851), the release record (GAME_BUILD.txt and this section) and a test-only commit (tests/packs.rules'
+label pin; touchcheck's OPTIONS wait), which is `<TIP>`.
 - The page is the 0.8.6 online page that GAME_BUILD.txt records (607,541 bytes, sha256 `77aaa7ca0ed842c4…`), built at
   cb75851.
 - The rules move to bb-0.8.6 (RULES_VERSION), with PACKS' pinned sim fingerprint (ref/h2/fp-final-d4c6728.json beside

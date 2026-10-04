@@ -51,9 +51,9 @@ function packed(hero: HeroId, armors: number, belts = 0): Build {
 }
 
 describe("rules bb-0.8.6: the version", () => {
-  it("RULES_VERSION is bb-0.8.6 (PACKS); the label stays 0.8.5 until the Prime stages it", () => {
+  it("RULES_VERSION is bb-0.8.6 (PACKS); the label is 0.8.6 since the Prime staged it (the 0.8.6 label commit)", () => {
     expect(RULES_VERSION).toBe("bb-0.8.6");
-    expect(VERSION).toBe("0.8.5");
+    expect(VERSION).toBe("0.8.6");
   });
 });
 

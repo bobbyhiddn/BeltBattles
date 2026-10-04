@@ -1024,7 +1024,9 @@ async function namesSection(browsers, origin) {
       await page.reload();
       await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
       await settle(page, "title");
-      await press(center(await region(page, "options")));
+      // 0.8.6 staging: wait for OPTIONS to be drawn after the reload, as the NEW RUN press above does (a713df1); a
+      // slow WebKit start left the region null here ("Cannot read properties of null (reading 'x')")
+      await press(center(await regionDrawn(page, "options")));
       const opt = await region(page, "opt-name");
       check(!!opt, `names ${vname}: the options card has a NAME entry (${opt ? `${opt.w.toFixed(1)}x${opt.h.toFixed(1)} CSS px` : "missing"})`);
       if (opt) {
