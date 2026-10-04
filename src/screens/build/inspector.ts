@@ -90,6 +90,8 @@ import { touchSlotHint } from "./turretPanel"; // shoptap (REQ-BFG-035)
 import { sellFitted, sellPlaced, storeFitted } from "./actions"; // shoptap (D2, REQ-BFG-035): SELL on the carrier's panels
 import { tapRect } from "../../ui/ui"; // shoptap (D5): a finger's tap target around a drawn button
 import { tapPx } from "../../ui/tap"; // shoptap (D5)
+import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
+import { faceGist, heroPlaystyle, ruleSpans } from "../../ui/faces"; // U2a
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
@@ -109,7 +111,8 @@ export function textOpts(run: Run): TextOpts {
 // -------------------------------------------------------------------------------------------------------- the blocks
 
 /** A block's role sets its colour and face (T4). */
-export type Role = "hits" | "warn" | "ability" | "next" | "merges" | "merge" | "row" | "grid" | "note" | "flavour" | "hint";
+export type Role = "hits" | "warn" | "ability" | "next" | "merges" | "merge" | "row" | "grid" | "note" | "flavour" | "hint"
+  | "reminder"; // U2a (REQ-BFG-046, R1 C4): a keyword's dim 3x5 reminder, right under its rule line (no divider before it)
 
 /** One block of a panel's body: whole sentences, a stat row or a grid row of stat pairs. */
 export interface Block {
@@ -143,6 +146,9 @@ export interface Block {
   join?: boolean;
   /** The text's base colour (else the role's). */
   colour?: string;
+  /** U2a (REQ-BFG-046, R1 C4): a part of the text drawn in brass, a rule's trigger label ("SHOT:", "EVERY 3s:") or the
+   *  NEXT★ label; a keyword in it keeps its colour. */
+  brass?: string;
 }
 
 /** Each role's base colour and whether it always takes the small (3x5) face: the flavour dimmer than the ability text,
@@ -159,13 +165,18 @@ export const ROLE: Record<Role, { colour: string; small: boolean }> = {
   note: { colour: C.slate4, small: false },
   flavour: { colour: C.steel2, small: true },
   hint: { colour: C.slate3, small: true },
+  reminder: { colour: C.slate4, small: true }, // U2a: a grey a step brighter than the hint's
 };
+/** U2a: a small block that takes the rule (the divider) before it: the flavour and the hint, never a reminder. */
+const ruledRole = (role: Role): boolean => ROLE[role].small && role !== "reminder";
 /** A stat label's colour. */
 const LABEL = C.slate4;
 
 /** The ability text as blocks: the opening sentence and the perk's sentence keep; the others give way first, from the
  *  last (a chain: a later sentence never shows without the ones before it). */
 function abilityBlocks(def: string, stars: number, o: TextOpts): Block[] {
+  const face = faceBlocks(def, stars, o); // U2a (REQ-BFG-046): a piece with a new face draws it
+  if (face) return face;
   const at = abilityText(def, stars, o);
   return at.sentences.map((text, i): Block => ({
     role: "ability", text, keep: i === 0 || i === at.perk?.after, rank: 2, chain: "ability",
@@ -207,6 +218,9 @@ function copiesToNextStar(run: Run, def: string, atLeast: number): number {
 /** T5: the next-star line (and the perk that star brings) and merge progress; [] at the top star or when not fusible.
  *  The next-star block carries its headline (`alt`, T6) for the last compact variant. */
 function progressBlocks(run: Run, def: string, stars: number): Block[] {
+  // U2a (REQ-BFG-046, C7): a face's NEXT★ line, computed from the two stars' data; merge progress as today
+  const faceNext = hasFace(def) ? faceNextBlock(def, stars, textOpts(run)) : null;
+  if (faceNext) return [faceNext, { role: "merge", text: mergeProgressText(copiesToNextStar(run, def, stars)), keep: true }];
   const next = nextStarText(def, stars, textOpts(run));
   if (!next) return [];
   const perk = newPerk(def, stars + 1), head = nextStarHeadline(def, stars, textOpts(run));
@@ -476,6 +490,8 @@ function mergeBlock(run: Run, def: string): Block | null {
   const preview = mergePreview(run, def);
   if (!preview) return null;
   const to = preview.toStars, perk = newPerk(def, to);
+  const face = faceMergeBlock(def, to, textOpts(run), perk); // U2a (C7): "MERGES INTO ★2: +4 [BURN]."
+  if (face) return face;
   return { role: "merges", text: mergesWithText(def, to, textOpts(run)), keep: true, ...(perk ? { perk: `★${to} ${perk}` } : {}) };
 }
 
@@ -551,7 +567,7 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   const grade = gradeOf(run.build, p), level = sig ? upgradeLevel(run.build, "factory") : 0;
   const body: Block[] = [
     ...joinPaceBlocks(run.build, p.uid), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joined factory leads with its pace
-    ...(hasAbilityText(d.id) ? abilityBlocks(d.id, grade, textOpts(run)) : []),
+    ...(hasAbilityText(d.id) || hasFace(d.id) ? abilityBlocks(d.id, grade, textOpts(run)) : []), // U2a: KILN and LOOM's faces too; 0.8.5: at the factory's grade
     ...(sig ? upgradeBlocks("factory", level, factoryNext(d.id, level)) : progressBlocks(run, d.id, stars)),
     ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, 1),
@@ -783,11 +799,14 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const o = (k: number): TextOpts => ({ k, hero: b.hero as HeroId });
   // a socket's opening sentence (T5: as its own panel reads it); the compact forms use its gist in the row instead
   const first = (def: string, stars: number, k: number): Block[] => {
+    // U2a (REQ-BFG-046): a core with a new face shows its rule line(s) under its row, as its own panel reads them
+    const face = faceBlocks(def, stars, o(k));
+    if (face) return face.filter((x) => x.role === "ability"); // its reminder stays on the core's own panel
     const at = abilityText(def, stars, o(k));
     const perk = at.perk && at.perk.after === 0 ? { perk: `★${at.perk.stars} ${at.perk.name}` } : {};
     return at.sentences.length ? [{ role: "ability", text: at.sentences[0], keep: true, ...perk }] : [];
   };
-  const coreGist = tc.bought ? gist(tc.def, tc.stars, o(tc.k)) : "";
+  const coreGist = tc.bought ? faceGist(tc.def, tc.stars, o(tc.k)) ?? gist(tc.def, tc.stars, o(tc.k)) : ""; // U2a: a face's rule
   const warn = (short: boolean) => deadEndLines(b, index, short).map((text): Block => ({ role: "warn", text, keep: true }));
   // the CORE and GEAR socket rows name the parts; they align apart from the stat rows (0.6.2t2 F2: LOAD TIME's wider
   // label moves only those)
@@ -931,7 +950,9 @@ function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = fal
       .map((spans, i) => ({ spans, font, block: b, indent, pitch, ...(i === 0 && b.label ? { label: b.label } : {}) }));
   }
   let spans: Span[];
-  if (b.role === "next" && b.text.startsWith("NEXT STAR:")) {
+  if (b.brass) spans = ruleSpans(b.text, b.brass, base); // U2a: a trigger or NEXT★ label in brass, the rest rich text
+  else if (b.role === "reminder") spans = colourize(b.text, base, base); // U2a: dim, numbers too; its keyword keeps its colour
+  else if (b.role === "next" && b.text.startsWith("NEXT STAR:")) {
     spans = [{ t: "NEXT STAR:", c: PERK_COLOUR, whole: true }, { t: " ", c: base }, ...colourize(b.text.slice(10).trim(), base)];
   } else if (b.role === "flavour") spans = colourize(b.text, base, base); // its numbers stay dim; its keywords keep their colours
   else if (b.role === "hint" || b.role === "note") spans = [{ t: b.text, c: base }];
@@ -964,7 +985,7 @@ export function lay(bs: readonly Block[], width: number, main: FontId, tight = f
 export function heightOf(ls: readonly Laid[]): number {
   let h = 0, big = false, ruled = false;
   for (const l of ls) {
-    const small = ROLE[l.b.role].small;
+    const small = ruledRole(l.b.role); // U2a: a reminder is drawn small but takes no rule
     if (small && big && !ruled) {
       h += DIVIDER;
       ruled = true;
@@ -1064,7 +1085,7 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
     const lines: (PLine | "rule")[] = [];
     let big = false, ruled = false;
     for (const l of chosen) {
-      const small = ROLE[l.b.role].small;
+      const small = ruledRole(l.b.role); // U2a: a reminder is drawn small but takes no rule
       if (small && big && !ruled) {
         lines.push("rule");
         ruled = true;
@@ -1627,7 +1648,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
     panel(g, r, "dark");
     drawText(g, h.name, r.x + 5, r.y + 5, C.white, { outline: C.ink });
     drawText(g, h.factionName, r.x + r.w - 5, r.y + 6, C.slate4, { font: "3", align: "right" });
-    drawText(g, `PLAYSTYLE: ${h.pattern}`, r.x + 5, r.y + 16, C.yellow, { font: "3" });
+    drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, r.y + 16, C.yellow, { font: "3" });
     let y = r.y + 27;
     for (const [k, v, c] of big) {
       drawText(g, k, r.x + 5, y, C.slate4);
@@ -1648,7 +1669,7 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
   drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });
   drawText(g, h.factionName, r.x + r.w - 5, y + 1, C.slate4, { font: "3", align: "right" });
   y += 11;
-  drawText(g, `PLAYSTYLE: ${h.pattern}`, r.x + 5, y, C.yellow, { font: "3" });
+  drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, y, C.yellow, { font: "3" });
   y += 9;
   for (const [k, v, c] of rows) {
     if (y + 7 > r.y + r.h - 2) break;
@@ -1669,7 +1690,7 @@ function drawHeroStrip(g: G, run: Run, r: Rect): void {
   drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });
   drawText(g, h.factionName, r.x + r.w - 5, y + 1, C.slate4, { font: "3", align: "right" });
   y += 11;
-  drawText(g, `PLAYSTYLE: ${h.pattern}`, r.x + 5, y, C.yellow, { font: "3" });
+  drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, y, C.yellow, { font: "3" });
   y += 9;
   const stats: [string, string, string][] = [
     ["HULL", String(h.hull + b.hullBonus), C.white],

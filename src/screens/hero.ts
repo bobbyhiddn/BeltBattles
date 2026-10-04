@@ -17,6 +17,8 @@ import { HULL_A, HULL_L, frameForHull, hullBox } from "../render/frame";
 import { ArenaBg } from "../render/arenaBg";
 import { portraitImage, type PortraitHero } from "../render/portraits";
 import { heroTrick } from "../ui/abilityText";
+import { heroFace, heroPlaystyle, ruleSpans } from "../ui/faces"; // U2a (REQ-BFG-046): a TEXT hero's face
+import { colourize, drawRich, wrapRich } from "../ui/richText"; // U2a: the face wraps with the number rule (font.ts wrap has none)
 import { button, panel, para } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { TitleScreen } from "./title";
@@ -100,8 +102,13 @@ export class HeroScreen implements Screen {
     const infoW = portrait ? W - 16 : Math.min(240, W - Math.round(W * 0.56) - 10);
     // 0.8.0 H1: the trick sentence (3x5 face, 7 px a line) replaces the catalogue blurb; the head is the portrait's height
     const trick = heroTrick(id);
-    const trickLines = wrap(trick, infoW, "3").length;
-    const infoH = 93 + 9 + trickLines * 7; // 0.6.2s: + the SLOTS row (the head beside the portrait is HEAD_H, as before)
+    // U2a (REQ-BFG-046, R1 C6): a TEXT hero's ability is its face: the rule in 5x7 (9 px a line, its trigger label in
+    // brass) and the keyword's dim 3x5 reminder (7 px a line); FURNACE (a RULES change) keeps the trick sentence
+    const face = heroFace(id);
+    const faceRule = face ? face.rules.flatMap((r) => wrapRich(ruleSpans(r.text, r.label, C.bone), infoW, "5")) : [];
+    const faceRem = face ? face.reminders.flatMap((r) => wrapRich(colourize(r, C.slate4, C.slate4), infoW, "3")) : [];
+    const trickLines = face ? 0 : wrap(trick, infoW, "3").length;
+    const infoH = 93 + 9 + trickLines * 7 + faceRule.length * 9 + faceRem.length * 7; // 0.6.2s: + the SLOTS row (the head beside the portrait is HEAD_H, as before)
     const pw = Math.min(W - 16, HULL_A + 30);
     const ph = portrait ? Math.max(HULL_L + 14, Math.min(HULL_L + 100, H - 20 - 14 - infoH - 54 - 14)) : HULL_L + 30;
     const px0 = portrait ? Math.round(W / 2 - pw / 2) : Math.round(W * 0.3 - pw / 2);
@@ -135,9 +142,14 @@ export class HeroScreen implements Screen {
     const tx = ix + PORTRAIT + 7;
     drawText(g, h.factionName, tx, iy, P.trim2, { font: "3" });
     drawText(g, h.name, tx, iy + 8, C.white, { scale: 2 });
-    drawText(g, `PLAYSTYLE: ${h.pattern}`, tx, iy + 26, C.yellow, { font: "3" });
+    drawText(g, `PLAYSTYLE: ${heroPlaystyle(id)}`, tx, iy + 26, C.yellow, { font: "3" });
     iy += HEAD_H;
-    iy += para(g, [trick], ix, iy, iw, C.bone, "3", 2) + 4;
+    if (face) {
+      // U2a: the face's rule lines, then its reminder
+      for (const ln of faceRule) iy += (drawRich(g, ln, ix, iy, "5"), 9);
+      for (const ln of faceRem) iy += (drawRich(g, ln, ix, iy, "3"), 7);
+      iy += 4;
+    } else iy += para(g, [trick], ix, iy, iw, C.bone, "3", 2) + 4;
     const fac = ITEMS[h.factory];
     // 0.6.2s (REQ-BFG-031 S1, S10): the hull's TURRET SLOTS with no build: its starting turrets and the empty slot
     const slots = turretSlots({ hero: id });
