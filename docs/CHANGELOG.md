@@ -3,6 +3,19 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.8.6: belt and armor packs, and your name on your ghosts
+
+New battle rules: bb-0.8.6. You'll fight the new rules' ghosts: a fresh pool of 120 at first, then other players'
+0.8.6 runs as they come in. Ghosts and uploads from 0.8.5 stay with that version.
+- **Two packs in every shop:** a BELT PACK (2 gold, +4 belt) and an ARMOR PACK (5 gold, +25 hull) sit beside REROLL on
+  every visit. They never roll away, and you can buy them again and again. They replace the belt crates and hull
+  plates the shop used to roll.
+- **Your name:** you pick a name before your first run (2 to 10 letters, digits, spaces or hyphens). Your ghosts carry
+  it, so a player who meets one sees "VS NAME#2C · 7-2" before the fight. The tag after the # comes from your device,
+  so two players with the same name still look different. Change it under OPTIONS, on the title screen or in the build
+  screen's MENU.
+- **The warlords are easier with packs:** a typical player now beats them more often. A later update toughens them up.
+
 ## 0.8.5: gold upgrades and more belts
 
 New battle rules: bb-0.8.3. You'll fight the new rules' ghosts: a fresh pool of 120 at first, then other players'

@@ -10,6 +10,8 @@
 // the rules stay bb-0.8.0.
 // 0.8.5 is BELTS (REQ-BFG-043, REQ-BFG-044), built on 0.8.4: it changes battles (belt slots by level, the hero's two
 // gold upgrades), so the rules move to bb-0.8.3, and the label moves to 0.8.5.
+// 0.8.6 is PACKS (REQ-BFG-051, REQ-BFG-063), built on 0.8.5: it changes battles (the belt and armor packs) and the
+// uploads (a required player name), so the rules move to bb-0.8.6, and the label moves to 0.8.6.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -17,10 +19,10 @@ import { RULES_VERSION } from "../src/sim/content";
 
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
-describe("the 0.8.5 label", () => {
-  it("is 0.8.5 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are PACKS's bb-0.8.6 (the label stays 0.8.5 until the Prime stages it)", () => {
+describe("the 0.8.6 label", () => {
+  it("is 0.8.6 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are PACKS's bb-0.8.6", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
-    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.8.5", "0.8.5", "0.8.5", "0.8.5"]);
-    expect(RULES_VERSION).toBe("bb-0.8.6"); // 0.8.4 kept 0.8.0's bb-0.8.0; BELTS changes battles, so it bumps the rules
+    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.8.6", "0.8.6", "0.8.6", "0.8.6"]);
+    expect(RULES_VERSION).toBe("bb-0.8.6"); // 0.8.5 played BELTS's bb-0.8.3; PACKS changes battles, so it bumps the rules
   });
 });
