@@ -203,6 +203,19 @@ export function takeRune(run: Run, id: string): { ok: boolean; reason?: string }
   return { ok: true };
 }
 
+/** RUNES-2a (REQ-BFG-058; RUNES-1 gap 6): what a refused fight says while today's rune pick is pending. */
+export const RUNE_FIRST = "TAKE TODAY'S RUNE FIRST";
+
+/**
+ * RUNES-2a (RUNES-1 gap 6): why the run can't leave for a fight now, or null. A fight is refused while today's rune pick
+ * is pending (pendingRune: the pick is free and can't be skipped), so a deck never fights a dusk with fewer runes than
+ * its dawns. The build screen's FIGHT asks it first (screens/build/build.ts fight, so tooling that calls screen.fight()
+ * meets it too); tooling that skips the picker takes the rune first (takeRune, or bb.holdRunes in a browser run).
+ */
+export function fightRefusal(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over">): string | null {
+  return pendingRune(run) ? RUNE_FIRST : null;
+}
+
 /** At a new dawn (day.ts finishDay): the held dawn-gold runes pay, then a run that took a rune at every dawn so far owes
  *  today's pick. A run from before runes (fewer runes than dawns) never owes one. */
 export function runeDawn(run: Run): void {

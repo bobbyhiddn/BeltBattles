@@ -45,12 +45,15 @@ export const HERO_STYLE: Partial<Record<HeroId, RuneTheme>> = { furnace: "furnac
  */
 export type RuneKind =
   | "hull" | "belt" | "dawnGold" | "shotDmg" | "firstShotDmg" | "pairDmg" | "turretRate" | "factoryRate"
-  | "startPlate" | "heatPct" | "startFray" | "frayHit";
+  | "startPlate" | "heatPct" | "startFray" | "frayHit"
+  // RUNES-2a: HAIR TRIGGER's new form (turrets and factories)
+  | "allRate";
 
 /** The unit each kind's amount carries (a test pins every rune to it). */
 export const KIND_UNIT: Record<RuneKind, RuneUnit> = {
   hull: "hull", belt: "belt", dawnGold: "gold", shotDmg: "dmg", firstShotDmg: "dmg", pairDmg: "dmg", turretRate: "pct",
   factoryRate: "pct", startPlate: "plate", heatPct: "pct", startFray: "count", frayHit: "count",
+  allRate: "pct",
 };
 
 export interface RuneDef {
@@ -89,7 +92,9 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("pitch_wagon", "PITCH WAGON", "rare", "belts", "belt", 16, "+{N} {BELT}."),
   r("fat_purse", "FAT PURSE", "rare", "gold", "dawnGold", 2, "AT DAWN: +{N} {GOLD}."),
   r("war_edge", "WAR EDGE", "rare", "turrets", "shotDmg", 1, "YOUR SHOTS: +{N} {DMG}."),
-  r("hair_trigger", "HAIR TRIGGER", "rare", "turrets", "turretRate", 50, "YOUR TURRETS: +{N} {RATE}."), // M5: +25% measured +4.5 (supply-bound)
+  // RUNES-2a (Q6, cap's call): turrets AND factories, so the turrets get the loads to fire faster (RUNES-1's +50% turret
+  // RATE measured +5.6, under the rare band: supply-bound); N benched into the rare band (+6 to +10)
+  r("hair_trigger", "HAIR TRIGGER", "rare", "turrets", "allRate", 8, "YOUR TURRETS AND FACTORIES: +{N} {RATE}."),
   r("stoked_fires", "STOKED FIRES", "rare", "factories", "factoryRate", 15, "YOUR FACTORIES: +{N} {RATE}."), // M5: R1b's +25% measured +13.2 (epic)
   r("grave_plates", "GRAVE PLATES", "rare", "bastion", "startPlate", 12, "START EACH BATTLE WITH {N} {*PLATE}."),
   r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 4, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
@@ -261,15 +266,163 @@ export interface RuneMods {
   heatPct: number;
   startFray: number; // on the foe's hull
   frayHit: number;
+  allRate: number; // pct, RUNES-2a: turrets and factories (HAIR TRIGGER)
 }
 
 export function runeMods(runes: readonly RuneHeld[] | undefined): RuneMods | undefined {
   const list = held(runes);
   if (!list.length) return undefined;
-  const m: RuneMods = { shotDmg: 0, firstShotDmg: 0, pairDmg: 0, turretRate: 0, factoryRate: 0, startPlate: 0, heatPct: 0, startFray: 0, frayHit: 0 };
+  const m: RuneMods = { shotDmg: 0, firstShotDmg: 0, pairDmg: 0, turretRate: 0, factoryRate: 0, startPlate: 0, heatPct: 0, startFray: 0, frayHit: 0, allRate: 0 };
   for (const d of list) {
     if (d.kind === "hull" || d.kind === "belt" || d.kind === "dawnGold") continue; // the run's, not the battle's
     m[d.kind] += d.amount.n;
   }
   return m;
+}
+
+// ---- RUNES-2a (REQ-BFG-058, R1b-2 1.6): the bots' rune picker --------------------------------------------------------
+// The bots (the par player, and through it the caravan stand-ins and the seed pool's race ghosts; the captains' pinned
+// lists, tools/genCaptainRunes.ts) take a rune at every dawn as a player does: the offer is runeOffer on the run's own
+// seed, so a bot only ever holds offered runes and passes runeProblem with that seed by construction. The pick reads the
+// bot's board, never an RNG. Behind ONE switch, BOT_RUNES, off in this rules version: every pinned pool, stand-in and
+// golden stays byte-identical; RUNES-2b turns it on and regenerates. This section's imports sit here, not at the head, so
+// it and the catalogue above are edited apart (ES imports hoist; deck.ts never imports this file).
+
+import { AMMO, ITEMS, type ItemLevel } from "./content";
+import { turretList, type Build } from "./deck";
+
+/** THE switch for the bots' runes (RUNES-2a decision 5). Every bot call site reads `opts.botRunes ?? BOT_RUNES`, so a
+ *  test turns it on without editing it. Off: no bot takes a rune, and nothing a bot plays moves. */
+export const BOT_RUNES: boolean = false;
+
+type Spec = Pick<ItemLevel, "gate" | "factory" | "mod" | "core">;
+
+/** A piece's specs at its stars: its 1-star spec, then its ★2 and ★3 levels (a keyword a star adds counts too). A
+ *  signature factory has no stars (its levels are its FACTORY upgrade's), so it reads its 1-star spec. */
+function specsAt(def: string, stars: number | undefined): Spec[] {
+  const d = ITEMS[def];
+  if (!d) return [];
+  const s = stars ?? 1, l2 = d.levels?.[2], l3 = d.levels?.[3], out: Spec[] = [d];
+  if (s >= 2 && l2) out.push(l2);
+  if (s >= 3 && l3) out.push(l3);
+  return out;
+}
+
+const ammoOf = (s: Spec) => (s.factory?.ammo ? AMMO[s.factory.ammo] : undefined);
+
+/** Which specs read each hero style's keyword (the style runes' HEAT, FRAY, PAIR and PLATE). */
+const STYLE_READS: Readonly<Record<"furnace" | "weaver" | "foundry" | "bastion", (s: Spec) => boolean>> = {
+  // HEAT: a rig that heats what it hits (HEAT JACKET), or a factory whose slugs heat up as they ride (the KILN's cinder)
+  furnace: (s) => !!s.gate?.heat || (ammoOf(s)?.rideScale ?? 0) > 0,
+  // FRAY: a rig that adds FRAY, or a factory whose slugs fray (the LOOM's thread)
+  weaver: (s) => !!s.gate?.fray || (ammoOf(s)?.fray ?? 0) > 0,
+  // PAIR: a pour (the CRUCIBLE, TWIN MOULD), a matched or latched belt (TWIN GAUGE, TWIN LATCH), pair gear (TWIN TRIGGER, SEAM WELDER)
+  foundry: (s) => !!(s.factory?.pour || s.factory?.twin || s.gate?.gauge || s.gate?.latch || s.mod?.pairBonus || s.mod?.seam),
+  // PLATE: what makes or reads PLATING (PLATE ROLLER, SHIELD WALL, PLATE BREAKER, BRACE FRAME, ARMOR PRESS, SEAM WELDER,
+  // ANVIL and STEAM BREECH), or the WARDWORKS' bulwark slug (it plates the hull as it loads)
+  bastion: (s) => !!(s.gate?.plate || s.gate?.plated || s.gate?.breaker || s.gate?.brace || s.factory?.plate || s.mod?.seam
+    || s.core?.perPlate || s.core?.steamPlated) || s.factory?.ammo === "bulwark",
+};
+
+/** The hull one ARMOR PACK adds (the smallest hull supply): "armor" counts the bought hull in packs. */
+const HULL_PACK = Math.min(...Object.values(ITEMS).map((d) => ((d.supply?.hull ?? 0) > 0 ? d.supply!.hull! : Infinity)));
+
+/**
+ * How many pieces on `board` a rune theme matches (the bots' picker, step 2). Exactly:
+ * - "factories": each factory on the deck (the signature factory included);
+ * - "turrets": each installed turret (turretList: the starting copies included) and each gear and core on one;
+ * - "belts": each rig and each belt (Build.routes);
+ * - "armor": the bought hull in ARMOR PACKs: floor((hullBonus - the held runes' HULL) / HULL_PACK);
+ * - "furnace", "weaver", "foundry", "bastion": each piece (rig, factory, gear, core, turret) whose spec at its stars reads
+ *   the style's keyword (STYLE_READS: HEAT, FRAY, PAIR, PLATE). A piece may count for several themes (the KILN: factories
+ *   and furnace);
+ * - "stars" (should the catalogue grow that theme): each ★2 or ★3 piece;
+ * - "gold", and any theme this switch doesn't know: 0.
+ * Held runes never count (FIX-10's rule): only what is on the board.
+ */
+export function boardThemeCount(theme: RuneTheme, board: Build): number {
+  const kind = (p: { def: string }) => ITEMS[p.def]?.kind;
+  const pieces = (): { def: string; stars?: number }[] => [...board.items, ...board.mods, ...turretList(board)];
+  switch (theme as string) {
+    case "factories": return board.items.filter((p) => kind(p) === "factory").length;
+    case "turrets": return turretList(board).length + board.mods.length;
+    case "belts": return board.items.filter((p) => kind(p) === "gate").length + board.routes.length;
+    case "armor": return Number.isFinite(HULL_PACK) ? Math.max(0, Math.floor((board.hullBonus - runeGrants(board.runes, 0).hull) / HULL_PACK)) : 0;
+    case "furnace": case "weaver": case "foundry": case "bastion": {
+      const reads = STYLE_READS[theme as keyof typeof STYLE_READS];
+      return pieces().filter((p) => specsAt(p.def, p.stars).some(reads)).length;
+    }
+    case "stars": return pieces().filter((p) => (p.stars ?? 1) >= 2).length;
+    default: return 0;
+  }
+}
+
+/**
+ * The bots' pick from a dawn's offer (R1b-2 1.6): the first of
+ * 1. an offered rune of the hero's style (HERO_STYLE; the NPC races have none);
+ * 2. else the offered rune whose theme matches the most pieces on `board` (boardThemeCount);
+ * 3. else (no offered theme matches a piece) catalogue order.
+ * Every tie goes by catalogue order (RUNE_LIST), so the pick never depends on the offer's card order. No RNG. Null for an
+ * empty offer. Works for any catalogue: a theme boardThemeCount doesn't know counts 0.
+ */
+export function botRunePick(offer: RuneOffer | readonly string[], hero: HeroId, board: Build): string | null {
+  const ids: readonly string[] = "ids" in offer ? offer.ids : offer;
+  const cards = RUNE_LIST.filter((d) => ids.includes(d.id));
+  if (!cards.length) return null;
+  const own = HERO_STYLE[hero];
+  const mine = cards.find((d) => d.theme === own);
+  if (mine) return mine.id;
+  let best = cards[0], most = boardThemeCount(best.theme, board);
+  for (const d of cards.slice(1)) {
+    const n = boardThemeCount(d.theme, board);
+    if (n > most) {
+      best = d;
+      most = n;
+    }
+  }
+  return best.id;
+}
+
+/** A bot's dawn pick: the rune it took and the gold that rune pays at this dawn (the bot's purse). */
+export interface BotRune {
+  id: string;
+  gold: number;
+}
+
+/**
+ * A bot's rune at the dawn of `day` (only when `on`, default BOT_RUNES): botRunePick(runeOffer(seed, day, hero, held),
+ * hero, build), applied as src/game/run.ts takeRune applies a player's pick: { id } joins build.runes (pick order), a HULL
+ * rune adds to build.hullBonus and a BELT rune to build.beltCap at once (through runeGrants, the budget's own reading),
+ * and a dawn-gold rune's gold for this dawn comes back in `gold` for the caller's purse. Held dawn-gold runes pay at every
+ * later dawn as a run's do (day.ts finishDay's runeDawn, or dawnGold(build.runes) for a bot without a Run). `seed` is the
+ * run seed (run.seed, the one a snapshot carries). Null, the build untouched, when off, when the build missed a dawn
+ * (runes.length !== day - 1: one rune a dawn from day 1, as runeDawn owes a pick) or when the offer is empty.
+ */
+export function botTakeRune(build: Build, seed: number, day: number, hero: HeroId = build.hero, on: boolean = BOT_RUNES): BotRune | null {
+  if (!on) return null;
+  const ids = (build.runes ?? []).map((q) => q.id);
+  if (ids.length !== day - 1) return null;
+  const id = botRunePick(runeOffer(seed, day, hero, ids), hero, build);
+  if (id === null) return null;
+  const before = runeGrants(build.runes, day);
+  build.runes = [...(build.runes ?? []), { id }];
+  const after = runeGrants(build.runes, day);
+  build.hullBonus += after.hull - before.hull;
+  build.beltCap += after.belt - before.belt;
+  return { id, gold: after.gold - before.gold };
+}
+
+/**
+ * The bots' picks at the dawns of days 1..days on a board by day, with no purse (R1b-2 1.6's captains: a named build by
+ * day; tools/genCaptainRunes.ts). Day d reads boardOf(d) and runeOffer(seed, d, hero, the picks before it), so the list
+ * passes runeProblem(list, days, hero, seed) by construction. It stops at an empty offer.
+ */
+export function botRuneList(seed: number, hero: HeroId, boardOf: (day: number) => Build, days: number): string[] {
+  const picks: string[] = [];
+  for (let day = 1; day <= days; day++) {
+    const id = botRunePick(runeOffer(seed, day, hero, picks), hero, boardOf(day));
+    if (id === null) break;
+    picks.push(id);
+  }
+  return picks;
 }

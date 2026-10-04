@@ -1,6 +1,6 @@
 // Tooling helpers behind window.bb (shots, metrics, scripted runs). The game never calls these.
 
-import { newRun, rollShop, type Run } from "./game/run";
+import { newRun, pendingRune, rollShop, takeRune, type Run } from "./game/run";
 import { finishDay, startDusk } from "./game/day";
 import { GHOST_KEY, loadPool, saveGhost, type GhostSnapshot } from "./game/ghosts";
 import { beginRoad, choicesFor, pickChoice } from "./game/events";
@@ -191,6 +191,10 @@ export function playOut(o: RunSpec & { results: string; roads?: string }): Run {
   let i = 0;
   for (const ch of o.results) {
     if (run.over) break;
+    // RUNES-2a (REQ-BFG-058, RUNES-1 gap 6): this skips the picker, so it takes the dawn rune first (the first card), as
+    // a fight is refused while a pick is pending (run.ts fightRefusal)
+    const offer = pendingRune(run);
+    if (offer) takeRune(run, offer.ids[0]);
     const r = o.roads?.[i++] ?? "V";
     const tier = ({ e: "easy", m: "medium", h: "hard" } as const)[r.toLowerCase() as "e" | "m" | "h"];
     if (tier) {

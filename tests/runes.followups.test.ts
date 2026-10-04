@@ -1,0 +1,119 @@
+// RUNES-2a (REQ-BFG-058) M1: RUNES-1's follow-ups. Q4: the rules gate's "runes need bb-0.8.7" row, asked by the strict
+// decoder and (new) by the client's isSnapshot, so both checks stay equal and no verdict changes today. Gap 6: run.ts
+// refuses a fight while a rune pick is pending (fightRefusal; the build screen's FIGHT asks it). Q6: HAIR TRIGGER's new
+// form, YOUR TURRETS AND FACTORIES: +N% RATE.
+import { describe, expect, it } from "vitest";
+import { RULES_ROWS, RUNES_RULES, TURRETS_JOINS_RULES, rulesGateProblem, runeFeatures } from "../src/net/rulesGate";
+import { checkSnapshot } from "../src/net/snapshot";
+import { isSnapshot } from "../src/game/ghostSnapshot";
+import { ghostOf, finishDay } from "../src/game/day";
+import { RUNE_FIRST, fightRefusal, newRun, pendingRune, takeRune, type Run } from "../src/game/run";
+import { RULES_VERSION } from "../src/sim/content";
+import { RUNES } from "../src/sim/runes";
+import { Battle } from "../src/sim/battle";
+import { cloneBuild, type Build } from "../src/sim/deck";
+import { heroStartBuild } from "../src/sim/heroBuilds";
+
+const stats = { shots: 0, damage: 0, firstShot: -1, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
+
+/** A run that took its day-1 rune, at day 2's dawn with day 2's rune taken too: its dusk snapshot holds 2 runes. */
+function twoRunes(hero: Run["hero"] = "foundry", seed = 4242): Run {
+  const run = newRun(hero, seed);
+  takeRune(run, pendingRune(run)!.ids[0]);
+  finishDay(run, 0, 10, stats, stats);
+  takeRune(run, pendingRune(run)!.ids[1]);
+  return run;
+}
+const refused = (s: unknown): string | null => { try { checkSnapshot(s); return null; } catch (e) { return (e as Error).message; } };
+
+describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
+  it("runes need bb-0.8.7 (RUNES_RULES), the second row after turrets and joins (bb-0.6.2), and this build's rules are it", () => {
+    expect(RUNES_RULES).toBe("bb-0.8.7");
+    expect(RULES_VERSION).toBe(RUNES_RULES);
+    expect(RULES_ROWS.map((r) => r.from)).toEqual([TURRETS_JOINS_RULES, RUNES_RULES]);
+    const b: Build = { ...heroStartBuild("weaver"), runes: [{ id: "iron_skin" }] };
+    expect(runeFeatures(b)).toEqual(["runes (build.runes)"]);
+    for (const none of [heroStartBuild("weaver"), { ...heroStartBuild("weaver"), runes: [] }, null, 7, "x", { runes: "x" }]) expect(runeFeatures(none)).toEqual([]);
+    expect(rulesGateProblem("bb-0.8.7", b)).toBeNull();
+    expect(rulesGateProblem("bb-0.9.0", b)).toBeNull();
+    expect(rulesGateProblem("bb-0.8.6", b)).toBe("rules bb-0.8.6 predate bb-0.8.7: runes (build.runes) need bb-0.8.7 or later");
+    expect(rulesGateProblem("bb-x", b)).toBe(`rules "bb-x" is not a bb-MAJOR.MINOR.PATCH version: runes (build.runes) need bb-0.8.7 or later`);
+    // a build without runes: the runes row never refuses (under any rules); the bb-0.6.2 row keeps its own words, first
+    expect(rulesGateProblem("bb-0.1.0", heroStartBuild("weaver"))).toBeNull();
+    const old = { ...b, turrets: [{ slot: 0, def: "dartgun", uid: 1 }] };
+    expect(rulesGateProblem("bb-0.6.1", old)).toBe("rules bb-0.6.1 predate bb-0.6.2: turret slots (build.turrets) need bb-0.6.2 or later");
+  });
+
+  it("the client's isSnapshot asks the gate as the strict decoder does: both refuse runes under bb-0.8.6, both take bb-0.8.7", () => {
+    const g = ghostOf(twoRunes(), 1000, "p1", null);
+    expect(g.build.runes!.length).toBe(2);
+    expect(isSnapshot(g)).toBe(true);
+    expect(refused(g)).toBeNull();
+    const old = { ...g, rules: "bb-0.8.6" };
+    expect(isSnapshot(old)).toBe(false);
+    expect(refused(old)).toMatch(/snapshot\.rules: rules bb-0\.8\.6 predate bb-0\.8\.7: runes \(build\.runes\) need bb-0\.8\.7/);
+    const garbled = { ...g, rules: "bb-8" };
+    expect([isSnapshot(garbled), refused(garbled) !== null]).toEqual([false, true]);
+    // the same snapshot without runes passes the gate under the old rules on both sides (no verdict changes today)
+    const bare = { ...old, v: 2 as const, build: { ...cloneBuild(g.build), runes: undefined } };
+    delete (bare as { seed?: number }).seed;
+    expect([isSnapshot(bare), refused(bare)]).toEqual([true, null]);
+    // the hero row too: a FOUNDRY ghost under bb-0.7.0 (FURNACE and WEAVER only) is refused by both
+    const hero = { ...bare, rules: "bb-0.7.0" };
+    expect([isSnapshot(hero), refused(hero) !== null]).toEqual([false, true]);
+  });
+});
+
+describe("RUNES-2a M1 (gap 6): run.ts refuses a fight while a rune pick is pending", () => {
+  it("a new run can't fight until its day-1 rune is taken; each dawn asks again; no pick owed, no refusal", () => {
+    const run = newRun("weaver", 99);
+    expect(pendingRune(run)).not.toBeNull();
+    expect(fightRefusal(run)).toBe(RUNE_FIRST);
+    expect(RUNE_FIRST).toBe("TAKE TODAY'S RUNE FIRST");
+    takeRune(run, pendingRune(run)!.ids[2]);
+    expect(fightRefusal(run)).toBeNull();
+    finishDay(run, 1, 10, stats, stats);
+    expect(run.day).toBe(2);
+    expect(fightRefusal(run)).toBe(RUNE_FIRST);
+    takeRune(run, pendingRune(run)!.ids[0]);
+    expect(fightRefusal(run)).toBeNull();
+    // a save from before runes owes no pick, so it is never refused; nor is a run that is over
+    const old = newRun("furnace", 5);
+    delete old.runeDay;
+    expect(fightRefusal(old)).toBeNull();
+    const done = newRun("furnace", 6);
+    done.over = "lost";
+    expect(fightRefusal(done)).toBeNull();
+  });
+
+  it("the build screen's FIGHT asks it first, and the summary tooling takes the dawn rune before each dusk", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../src/screens/build/build.ts", import.meta.url), "utf8");
+    const fight = src.slice(src.indexOf("  fight(): void {"));
+    expect(fight.slice(0, fight.indexOf("fightBlock("))).toContain("fightRefusal(this.run)");
+    const { playOut } = await import("../src/tooling");
+    const run = playOut({ hero: "bastion", seed: 777, results: "WLWDW" });
+    expect(run.build.runes!.length).toBe(5);
+  });
+});
+
+describe("RUNES-2a M1 (Q6): HAIR TRIGGER, YOUR TURRETS AND FACTORIES: +N% RATE (rare)", () => {
+  it("a rare whose whole N speeds every turret and every factory", () => {
+    const d = RUNES.hair_trigger;
+    expect([d.tier, d.theme, d.kind, d.amount.unit, d.text]).toEqual(["rare", "turrets", "allRate", "pct", "YOUR TURRETS AND FACTORIES: +{N} {RATE}."]);
+    expect(Number.isInteger(d.amount.n) && d.amount.n >= 1).toBe(true);
+    const foe = heroStartBuild("weaver");
+    for (const hero of ["furnace", "weaver", "foundry", "bastion"] as const) {
+      const b = heroStartBuild(hero);
+      const s0 = new Battle(b, foe, 1).sides[0];
+      const s1 = new Battle({ ...cloneBuild(b), runes: [{ id: "hair_trigger" }] }, foe, 1).sides[0];
+      const k = 1 + d.amount.n / 100;
+      s0.turrets.forEach((tu, i) => expect(s1.turrets[i].interval).toBeCloseTo(tu.interval / k, 12));
+      s0.factories.forEach((f, i) => expect(s1.factories[i].pace).toBeCloseTo(f.pace * k, 12));
+      // with GUN OIL and STOKED FIRES the percentages add
+      const s2 = new Battle({ ...cloneBuild(b), runes: [{ id: "hair_trigger" }, { id: "gun_oil" }, { id: "stoked_fires" }] }, foe, 1).sides[0];
+      s0.turrets.forEach((tu, i) => expect(s2.turrets[i].interval).toBeCloseTo(tu.interval / (1 + (d.amount.n + RUNES.gun_oil.amount.n) / 100), 12));
+      s0.factories.forEach((f, i) => expect(s2.factories[i].pace).toBeCloseTo(f.pace * (1 + (d.amount.n + RUNES.stoked_fires.amount.n) / 100), 12));
+    }
+  });
+});

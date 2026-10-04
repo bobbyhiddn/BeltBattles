@@ -8,6 +8,7 @@ import type { Build } from "../sim/deck";
 import { migrateDeck } from "../sim/beltside";
 import { NAME_KEY, nameProblem } from "../net/names"; // PACKS M2 (REQ-BFG-063): the one set of name rules
 import { runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with validate.ts
+import { heroGateProblem, rulesGateProblem } from "../net/rulesGate"; // RUNES-2a (RUNES-1 Q4): the strict decoder's gate
 // RUNES-1 (snapshot v3): the format's constants come from the strict decoder, so the two checks can't drift apart
 import { MAX_RUNES, MAX_SEED, SNAPSHOT_V3, V3_LIVE, V3_PIECE_FIELD, V3_RUNE_COUNTER, V3_SNAPSHOT_FIELDS } from "../net/snapshot";
 
@@ -187,6 +188,9 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
     && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build, q.v) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
     && ID_PATTERN.test(q.playerId) && inRange(q.createdAt, 0, Number.MAX_SAFE_INTEGER)
+    // RUNES-2a (RUNES-1 Q4): the rules gate, as src/net/snapshot.ts checkSnapshot asks it (its rows: turrets and joins
+    // need bb-0.6.2, runes bb-0.8.7; and the heroes each rules version takes), so both checks stay equal
+    && rulesGateProblem(q.rules, q.build) === null && heroGateProblem(q.rules, q.hero) === null
     && runeProblem(q.build.runes, q.day, q.hero, q.seed) === null; // RUNES-1: the server's rune rule (validate.ts validateBuild)
 }
 

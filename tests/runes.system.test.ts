@@ -185,7 +185,10 @@ describe("RUNES-1 M1: runeProblem (the check both sides run) and the grants", ()
     expect(runeGrants([{ id: "iron_skin" }, { id: "fat_purse" }], 3).gold).toBe(4); // days 2, 3
     expect(dawnGold([{ id: "coin_purse" }, { id: "fat_purse" }, { id: "war_edge" }])).toBe(3);
     expect(runeMods(undefined)).toBeUndefined();
-    expect(runeMods([{ id: "iron_skin" }])).toEqual({ shotDmg: 0, firstShotDmg: 0, pairDmg: 0, turretRate: 0, factoryRate: 0, startPlate: 0, heatPct: 0, startFray: 0, frayHit: 0 });
+    // RUNES-2a: every battle field of a run-only rune is 0 (the field list grows with the catalogue)
+    const mods = runeMods([{ id: "iron_skin" }])!;
+    expect(Object.keys(mods)).toEqual(expect.arrayContaining(["shotDmg", "firstShotDmg", "pairDmg", "turretRate", "factoryRate", "startPlate", "heatPct", "startFray", "frayHit"]));
+    expect(Object.values(mods).every((v) => v === 0)).toBe(true);
   });
 });
 

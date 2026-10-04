@@ -4,6 +4,7 @@
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
 import { buyPack } from "../../game/run"; // bb-0.8.6 (REQ-BFG-051 P5)
+import { fightRefusal } from "../../game/run"; // RUNES-2a (REQ-BFG-058): no fight while a rune pick is pending
 import type { PackId } from "../../sim/content";
 import { duskFoe, refundNotice, storedFoe } from "../../game/day";
 import { loadPool } from "../../game/ghosts";
@@ -345,6 +346,9 @@ export class BuildScreen implements Screen, EditHost {
 
   fight(): void {
     if (this.ed.busy) return;
+    // RUNES-2a (REQ-BFG-058, RUNES-1 gap 6): no fight while today's rune pick is pending (run.ts fightRefusal)
+    const rune = fightRefusal(this.run);
+    if (rune) return this.invalid(rune);
     // a belt the ghost validator would refuse (dead end, crossing, ...) blocks the fight outright
     const why = fightBlock(this.run.build);
     if (why) {

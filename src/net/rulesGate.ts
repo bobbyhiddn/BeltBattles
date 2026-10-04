@@ -12,6 +12,8 @@
 // don't: a record is the client's own fight, replayed on that client only.
 // It is defence in depth. Today every one of those paths also demands rules === RULES_VERSION after it; a server that
 // accepts more than one rules version still keeps the 0.6.2 features out of the older ones.
+// RUNES-2a (REQ-BFG-058; RUNES-1 Q4): a second row, runes need bb-0.8.7 (RUNES_RULES), and the client's snapshot check
+// (src/game/ghostSnapshot.ts isSnapshot) asks this gate too, the rules row and the hero row, so both checks stay equal.
 
 import type { HeroId } from "../sim/content";
 
@@ -82,12 +84,32 @@ export function rulesFeatures(build: unknown): string[] {
   return out;
 }
 
-/** Why a build can't travel under `rules`, or null. It is refused when it carries turret slots or belt joins and its
- *  rules are not a readable version at or after TURRETS_JOINS_RULES. The reason names the rules version and the
- *  features. */
+/** RUNES-2a (REQ-BFG-058; RUNES-1 Q4, cap's call): the first rules version with runes (Build.runes, snapshot v3). */
+export const RUNES_RULES = "bb-0.8.7";
+
+/** The bb-0.8.7 feature a build carries: a non-empty rune list. Reads a raw (undecoded) build safely, like rulesFeatures. */
+export function runeFeatures(build: unknown): string[] {
+  if (typeof build !== "object" || build === null) return [];
+  const runes = (build as { runes?: unknown }).runes;
+  return Array.isArray(runes) && runes.length > 0 ? ["runes (build.runes)"] : [];
+}
+
+/** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the
+ *  runes row (defence in depth: every accepting path also demands rules === RULES_VERSION, so no verdict changes today). */
+export const RULES_ROWS: readonly { from: string; features: (build: unknown) => string[] }[] = [
+  { from: TURRETS_JOINS_RULES, features: rulesFeatures },
+  { from: RUNES_RULES, features: runeFeatures },
+];
+
+/** Why a build can't travel under `rules`, or null. It is refused when it carries a row's features (turret slots or belt
+ *  joins: TURRETS_JOINS_RULES; runes: RUNES_RULES) and its rules are not a readable version at or after that row's. The
+ *  reason names the rules version and the features (the first row that refuses). */
 export function rulesGateProblem(rules: unknown, build: unknown): string | null {
-  const features = rulesFeatures(build);
-  if (!features.length || rulesAtLeast(rules, TURRETS_JOINS_RULES)) return null;
-  const what = `${features.join(" and ")} need ${TURRETS_JOINS_RULES} or later`;
-  return parseRules(rules) ? `rules ${String(rules)} predate ${TURRETS_JOINS_RULES}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+  for (const row of RULES_ROWS) {
+    const features = row.features(build);
+    if (!features.length || rulesAtLeast(rules, row.from)) continue;
+    const what = `${features.join(" and ")} need ${row.from} or later`;
+    return parseRules(rules) ? `rules ${String(rules)} predate ${row.from}: ${what}` : `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${what}`;
+  }
+  return null;
 }

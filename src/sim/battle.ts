@@ -626,8 +626,9 @@ export class Battle {
     // RUNES-1 (REQ-BFG-058): GUN OIL / HAIR TRIGGER fire a whole % faster (the interval / (1 + pct/100)); OILED COGS /
     // STOKED FIRES run the factories' timers a whole % faster (their pace x (1 + pct/100))
     const rune = runeMods(b.runes);
-    if (rune?.turretRate) for (const tu of turrets) tu.interval /= 1 + rune.turretRate / 100;
-    if (rune?.factoryRate) for (const f of factories) f.pace *= 1 + rune.factoryRate / 100;
+    // RUNES-2a: HAIR TRIGGER's new form (allRate) speeds both, adding to the turret and factory RATE runes
+    if (rune && rune.turretRate + rune.allRate) for (const tu of turrets) tu.interval /= 1 + (rune.turretRate + rune.allRate) / 100;
+    if (rune && rune.factoryRate + rune.allRate) for (const f of factories) f.pace *= 1 + (rune.factoryRate + rune.allRate) / 100;
     // TWIN NAILS / MOLTEN BOND read PAIRs (abilityText.ts: two loads into one turret through different intakes within
     // SYNC_WINDOW; a FOUNDRY fusion is a pair), so the side's turrets read pairs as E2's pair readers do (marks only)
     if (rune?.pairDmg) for (const tu of turrets) tu.pairing = true;
