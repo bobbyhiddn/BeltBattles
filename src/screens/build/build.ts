@@ -39,6 +39,7 @@ import { cssPerPx as cssScale, type PointerKind } from "../../core/io"; // shopt
 import { beltXSide, placeBeltX } from "./beltx"; // shoptap (D3)
 import { detailsPlan, fullest, fullText, keptWhole, visibleLines, type PLine } from "./inspector"; // shoptap tooling: panelInfo; shoptap2: panelArea; zoom: fullText
 import { drawBuildChrome } from "./chrome";
+import { keywordsPressed } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { suggestCell } from "./cues";
 import { BattleScreen, duskScreen } from "../battle";
 import { EventScreen } from "../event/event";
@@ -666,6 +667,7 @@ export class BuildScreen implements Screen, EditHost {
     if (this.runePicker.up(this)) return; // RUNES-1: the rune picker takes every press
     if (region !== "beltx") this.ed.dropX();
     this.runeBar.pressed(region); // RUNES-1: a press off the rune bar closes its read-out
+    keywordsPressed(this, region); // U2c (REQ-BFG-045): a press off a word, `?` or the KEYWORDS view closes them
   }
 
   move(x: number, y: number): void {

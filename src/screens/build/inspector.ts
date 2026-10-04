@@ -31,6 +31,7 @@ import { platedDeck } from "../../sim/deck"; // 0.8.0 B1 M2 (F1): PLATE BREAKER'
 import { stokeKeep } from "../../sim/deckRating"; // 0.8.0 I1 M4 (VERIFIED-P1 H4): a stoke capped by its gun
 import { effectAt } from "../../sim/stars"; // 0.8.0 I1 M4: a STOKER's stoke at its stars
 import { JOIN_PACE_LINE, JOIN_PACE_PCT, factoryPace, loadEvery } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
+import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 
 /**
  * 0.6.2 TUNE-M, RULE JOIN PACE: the lines a joined factory's panels lead with (its own panel, and each of its belts'):
@@ -1541,6 +1542,7 @@ export function overhang(r: Rect, band: Rect): Rect[] {
  *  tap there reads what is under it and a drag lifts it; its buttons, registered after, still take theirs. */
 export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; slot: number } | null, area: Rect, foe: DuskFoe, note: string | null = null,
   through?: { band: Rect; press: (x: number, y: number) => void }): void {
+  keywordCursorOff(ctx.game?.canvas); // U2c: the desk's help cursor goes until a word is hovered again
   if (area.h < 14) return;
   // zoom (REQ-BFG-040): a portrait band is never the landscape column, however tall a phone's band is (before the zoom
   // a portrait area was always under 70 px)
@@ -1557,12 +1559,14 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   if (sp.icon) g.drawImage(sp.icon, r.x + 12 - Math.floor(sp.icon.width / 2), r.y + 12 - Math.floor(sp.icon.height / 2));
   const acts = sp.actions;
   const tap = touchTap(ctx); // shoptap (D5): on touch, every button is a finger's target (TAP_CSS CSS px tall)
+  const hits: Rect[] = []; // U2c: the buttons' hit rects (the keyword targets and `?` keep clear of them)
   if (acts.length && plan.column) {
     // landscape column: one full-width button per action, stacked bottom-up under the text (shoptap: on touch, each
     // drawn as tall as its target, two to a row; columnButtons)
     columnButtons(acts.length, r, tap).forEach((q, i) => {
       const a = acts[i];
       button(ctx.game.ui, g, a.id, q, a.label, { font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap });
+      hits.push(q);
     });
   } else if (plan.rects) {
     // shoptap (D5): the portrait band's buttons keep their size (the band keeps its text); on touch each one's target
@@ -1570,6 +1574,7 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     acts.forEach((a, i) => button(ctx.game.ui, g, a.id, plan.rects![i], a.label, {
       font: "3", primary: a.primary, danger: a.danger, disabled: a.disabled, onTap: a.onTap, ...(tap ? { hit: tapRect(plan.rects![i], tap, r) } : {}),
     }));
+    acts.forEach((_, i) => hits.push(tap ? tapRect(plan.rects![i], tap, r) : plan.rects![i]));
   }
   fitHead(g, t.title, r.x + 23, r.y + 4, plan.subMax, t.color, true);
   const subColor = t.subColor ?? C.slate4;
@@ -1589,10 +1594,14 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     fitHead(g, t.subShort && textWidth(t.sub, "3") > plan.subMax ? t.subShort : t.sub, r.x + 23, r.y + 13, plan.subMax, subColor, false);
   }
   drawFamHead(g, plan); // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families in its header
-  for (const v of visibleLines(plan)) {
+  const shown = visibleLines(plan);
+  for (const v of shown) {
     if (v.line === "rule") rect(g, r.x + 5, v.y + 1, r.w - 10, 1, C.slate1);
     else drawLine(g, v.line, r.x + 5, v.y);
   }
+  // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
+  // shown definition or the KEYWORDS view, the desk's hover tooltip
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, d, shown, hits, tap, ctx.game?.canvas);
 }
 
 /** 0.8.0 I1 M4 (REQ-BFG-023 part 2): draw plan.famHead, the shown module's families in the panel's header: each name in
