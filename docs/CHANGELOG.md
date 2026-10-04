@@ -3,6 +3,18 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.8.5: gold upgrades and more belts
+
+New battle rules: bb-0.8.3. You'll fight the new rules' ghosts: a fresh pool of 120 at first, then other players'
+0.8.5 runs as they come in. Ghosts and uploads from 0.8.0 to 0.8.4 stay with those versions.
+- **Gold upgrades, always on offer:** two upgrades sit on the build screen outside the shop, so they never roll away.
+  TURRET SPEED makes your starting turrets fire faster. FACTORY gives your hero's own factory one more belt and a
+  faster cycle. Each goes from level 1 to 4, for 10, 20 and 30 gold. Tap the turret or the factory, then UPGRADE.
+- **More belts per factory:** a bought factory feeds 2 belts at one star, 3 at two stars and 4 at three (the GANTRY
+  PRESS one more). Your hero's factory feeds 2 belts at level 1 and one more with each upgrade (the LOOM 3 to 6).
+- **Your hero's factory never shows up in the shop.** You upgrade it instead.
+- **No decimals in the new texts:** the upgrade lines and your hero's factory say FASTER instead of a number of seconds.
+
 ## 0.8.4: a roomier build screen on phones
 
 No battle rule changes: the rules stay bb-0.8.0, so 0.8.0's ghosts and uploads keep playing. 0.8.4 also carries 0.8.3's
