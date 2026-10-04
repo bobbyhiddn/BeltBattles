@@ -74,7 +74,9 @@ export const NPCS: readonly NpcPlan[] = [
     synergy: ["plateroller", "anvil", "spallcatcher"], prize: "+4 gold (the Medium rule)",
     buys: [
       B("plateroller", 1), B("tollbooth", 1), B("anvil", 2), B("whetstone", 3), B("braceframe", 3), B("plateroller", 4),
-      B("spallcatcher", 4), B("armorpress", 5), B("anvil", 6), B("quench", 7), B("temper", 7), B("heatjacket", 8),
+      // bb-0.8.3 (job BELTS run 4): the ARMOR PRESS on day 6 (was 5): the caps regenerated with the par player buying its
+      // gold upgrades give no ordinary epic on day 5
+      B("spallcatcher", 4), B("armorpress", 6), B("anvil", 6), B("quench", 7), B("temper", 7), B("heatjacket", 8),
       B("spallcatcher", 9), B("platebreaker", 10),
     ],
   },
@@ -85,9 +87,12 @@ export const NPCS: readonly NpcPlan[] = [
     palette: ["steel1", "steel3", "brass1", "rust3"], families: ["PLATE", "FORGE"],
     synergy: ["shieldwall", "platebreaker", "armorpress"], prize: "+3 gold and a pick of BRACE FRAME or SPALL CATCHER (the Hard rule)",
     buys: [
+      // bb-0.8.3 (job BELTS run 4): the PLATE BREAKER at good luck on day 6 (was 5), its ordinary day, and the ARMOR PRESS
+      // at ordinary luck on day 10 (was 9; good luck's day 8 kept): the regenerated caps give one epic+ to good luck on
+      // day 5 and to ordinary luck on day 9
       B("plateroller", 1), B("pincer", 1), B("braceframe", 2), B("steambreech", 3), B("temper", 3), B("shieldwall", null, 4),
-      B("plateroller", 4), B("spallcatcher", 5), B("platebreaker", 6, 5), B("braceframe", 7), B("quench", 7),
-      B("armorpress", 9, 8), B("platebreaker", null, 9), B("shieldwall", null, 10),
+      B("plateroller", 4), B("spallcatcher", 5), B("platebreaker", 6), B("braceframe", 7), B("quench", 7),
+      B("armorpress", 10, 8), B("platebreaker", null, 9), B("shieldwall", null, 10),
     ],
   },
   {
