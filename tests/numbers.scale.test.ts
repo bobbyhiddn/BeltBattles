@@ -13,6 +13,7 @@ import { RUNE_LIST } from "../src/sim/runes";
 import { SABOTAGE_HULL } from "../src/game/road";
 import { HULL_FLOOR } from "../src/net/roadCap";
 import { EQ, MEAN_PLATE, MEAN_PLATE_OTHER, ROUND_EQ } from "../src/sim/deckRating";
+import { P1_WAVE3_ITEMS } from "../tools/wave3Defs";
 
 interface Row { file: string; id: string; rule: "x10" | "same"; base: number; now: number; rounded?: boolean }
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/num1-base-values.json", import.meta.url), "utf8")) as
@@ -24,7 +25,7 @@ const byId = new Map(rows.map((r) => [r.id, r]));
 const TABLES: Record<string, unknown> = {
   FRAY_BONUS, ITEMS, WAVE3_ITEMS, AMMO, HEROES, RACE_ITEMS, RACE_AMMO, RACE_HEROES, PENDULUM, PLATE_PER_SLUG, PLATE_CAP, ECHO_CAP,
   RUNE_LIST: Object.fromEntries(RUNE_LIST.map((d) => [d.id, d])), SABOTAGE_HULL, HULL_FLOOR, EQ, ROUND_EQ, MEAN_PLATE,
-  MEAN_PLATE_OTHER,
+  MEAN_PLATE_OTHER, P1_WAVE3_ITEMS,
 };
 
 /** A value the module doesn't export, read from its source: ghostSnapshot.ts's hullBonus bounds, the road events' hull deltas
@@ -75,10 +76,11 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     }
   });
 
-  it("only N1's two values round: COUNTERWEIGHT ★3 1.75 -> 18 and ANVIL ★3 8.75 -> 88", () => {
+  it("only N1's two values round: COUNTERWEIGHT ★3 1.75 -> 18 and ANVIL ★3 8.75 -> 88 (and the dev pages' copy of ANVIL)", () => {
     expect(rows.filter((r) => r.rounded).map((r) => [r.id, r.base, r.now])).toEqual([
       ["ITEMS.counterweight.levels.3.gate.perTile.each", 1.75, 18],
       ["WAVE3_ITEMS.anvil.levels.3.core.anvilFlat", 8.75, 88],
+      ["P1_WAVE3_ITEMS.anvil.levels.3.core.anvilFlat", 8.75, 88],
     ]);
   });
 
@@ -92,6 +94,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     const ids: string[] = [];
     for (const [id, d] of Object.entries(ITEMS)) if (!race.has(id) && !w3.has(id)) numericLeaves(`ITEMS.${id}`, d, ids);
     for (const [id, d] of Object.entries(WAVE3_ITEMS)) numericLeaves(`WAVE3_ITEMS.${id}`, d, ids);
+    for (const [id, d] of Object.entries(P1_WAVE3_ITEMS)) numericLeaves(`P1_WAVE3_ITEMS.${id}`, d, ids);
     for (const [id, d] of Object.entries(RACE_ITEMS)) numericLeaves(`RACE_ITEMS.${id}`, d, ids);
     for (const [k, d] of Object.entries(AMMO)) if (!(k in RACE_AMMO)) numericLeaves(`AMMO.${k}`, d, ids);
     for (const [k, d] of Object.entries(RACE_AMMO)) numericLeaves(`RACE_AMMO.${k}`, d, ids);

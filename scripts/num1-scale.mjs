@@ -26,6 +26,7 @@ const CHECK = process.argv.includes("--check");
 export const ROUNDED = {
   "ITEMS.counterweight.levels.3.gate.perTile.each": 18, // 1.75 -> 17.5 -> 18 (+2.9%)
   "WAVE3_ITEMS.anvil.levels.3.core.anvilFlat": 88, // 8.75 -> 87.5 -> 88 (+0.6%)
+  "P1_WAVE3_ITEMS.anvil.levels.3.core.anvilFlat": 88, // tools/wave3Defs.ts: the dev pages' copy of the same value
 };
 
 // Field rules for a piece's spec (an ItemDef's gate / factory / mod / core / turret / supply, at ★1 or in levels.N),
@@ -39,7 +40,10 @@ const SPEC = {
   "gate.plated.flat": X, "gate.gauge.flat": X, "gate.gauge.matched": X, "gate.pincer.flat": X, "gate.pincer.each": X,
   "gate.latch.flat": X, "gate.breaker.flat": X, "gate.breaker.floor": X,
   "gate.burn": S, "gate.speed": S, "gate.split.copies": S, "gate.split.mult": S, "gate.priorCap": S, "gate.shockTime": S,
-  "gate.jump": S, "gate.guard": S, "gate.toll": S, "gate.sift": S, "gate.siftClean": S, "gate.pulse.speed": S,
+  // SIFTER's siftClean is flat damage when it removes nothing (Battle.applyHit, deck.ts walkRoute add it to flat): N1's
+  // scheme.ts listed it as a count, the one correction to N1's table
+  "gate.siftClean": X,
+  "gate.jump": S, "gate.guard": S, "gate.toll": S, "gate.sift": S, "gate.pulse.speed": S,
   "gate.pulse.on": S, "gate.pulse.period": S, "gate.sort.every": S, "gate.sort.copies": S, "gate.poison": S,
   "gate.overclockCooldown": S, "gate.keg.fuse": S, "gate.keg.burn": S, "gate.burnPerRide.seconds": S,
   "gate.burnPerRide.max": S, "gate.quench.stacks": S, "gate.staticTime": S, "gate.fray": S, "gate.frayCap": S,
@@ -102,6 +106,8 @@ const TABLES = [
   { file: "src/sim/deckRating.ts", name: "MEAN_PLATE_OTHER", kind: "const", rule: X },
   // the captains' synergy swaps (harness/synergy.ts): one ARMOR PACK's hull, written as a number
   { file: "src/sim/harness/synergy.ts", name: "PLATE", kind: "const", rule: X },
+  // the dev pages' copy of the wave-3 pieces (tests/wave3Art.test.ts checks it equals WAVE3_ITEMS)
+  { file: "tools/wave3Defs.ts", name: "P1_WAVE3_ITEMS", kind: "items" },
 ];
 const RUNE_X = new Set(["dmg", "hull", "plate"]);
 

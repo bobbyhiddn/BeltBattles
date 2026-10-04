@@ -13,20 +13,20 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   plateroller: {
     id: "plateroller", name: "PLATE ROLLER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "ironmonger", shape: "I",
     desc: ["ROLLS PLATING ONTO", "YOUR HULL FOR EACH", "PAYLOAD IT HITS."], tags: ["PLATE", "SWARM"],
-    gate: { plate: 0.5 },
-    levels: { 2: { gate: { plate: 1.1 } }, 3: { gate: { plate: 1.7 } } },
+    gate: { plate: 5 },
+    levels: { 2: { gate: { plate: 11 } }, 3: { gate: { plate: 17 } } },
   },
   twingauge: {
     id: "twingauge", name: "TWIN GAUGE", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "tinker", shape: "I",
     desc: ["ADDS DAMAGE, MORE", "ON A BELT MATCHED", "TO ITS TWIN."], tags: ["TWIN", "FORGE"],
-    gate: { gauge: { flat: 1, matched: 3 } },
-    levels: { 2: { gate: { gauge: { flat: 2.2, matched: 6.6 } } }, 3: { gate: { gauge: { flat: 3.5, matched: 10.5 } } } },
+    gate: { gauge: { flat: 10, matched: 30 } },
+    levels: { 2: { gate: { gauge: { flat: 22, matched: 66 } } }, 3: { gate: { gauge: { flat: 35, matched: 105 } } } },
   },
   pincer: {
     id: "pincer", name: "PINCER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist", shape: "I",
     desc: ["ADDS DAMAGE, MORE", "FOR EACH RIG ON", "ITS TILE."], tags: ["FORGE"],
-    gate: { pincer: { flat: 1, each: 2, max: 3 } },
-    levels: { 2: { gate: { pincer: { flat: 2.2, each: 4.4, max: 3 } } }, 3: { gate: { pincer: { flat: 3.5, each: 7, max: 3 } } } },
+    gate: { pincer: { flat: 10, each: 20, max: 3 } },
+    levels: { 2: { gate: { pincer: { flat: 22, each: 44, max: 3 } } }, 3: { gate: { pincer: { flat: 35, each: 70, max: 3 } } } },
   },
   braceframe: {
     id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
@@ -37,8 +37,8 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   twinlatch: {
     id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker", shape: "II",
     desc: ["HOLDS A PAYLOAD FOR", "ITS OTHER BELT, THEN", "LETS BOTH GO."], tags: ["TWIN", "TEMPO"],
-    gate: { latch: { hold: 1, flat: 1 } },
-    levels: { 2: { gate: { latch: { hold: 1, flat: 2.2 } } }, 3: { gate: { latch: { hold: 1, flat: 3.5 } } } },
+    gate: { latch: { hold: 1, flat: 10 } },
+    levels: { 2: { gate: { latch: { hold: 1, flat: 22 } } }, 3: { gate: { latch: { hold: 1, flat: 35 } } } },
   },
   stoker: {
     id: "stoker", name: "STOKER", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "scrapper", shape: "II",
@@ -49,34 +49,34 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   platebreaker: {
     id: "platebreaker", name: "PLATE BREAKER", kind: "gate", rarity: "epic", price: 7, size: 1, merchant: "scrapper", shape: "T",
     desc: ["TURNS YOUR HULL'S", "PLATING INTO", "PAYLOAD DAMAGE."], tags: ["PLATE", "FORGE"],
-    gate: { breaker: { flat: 4, floor: 1 } },
-    levels: { 2: { gate: { breaker: { flat: 8.8, floor: 2.2 } } }, 3: { gate: { breaker: { flat: 14, floor: 3.5 } } } },
+    gate: { breaker: { flat: 40, floor: 10 } },
+    levels: { 2: { gate: { breaker: { flat: 88, floor: 22 } } }, 3: { gate: { breaker: { flat: 140, floor: 35 } } } },
   },
   shieldwall: {
     id: "shieldwall", name: "SHIELD WALL", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "ironmonger", shape: "X",
     desc: ["PLATES YOUR HULL,", "AND HITS HARDER", "WHILE WELL PLATED."], tags: ["PLATE", "FORGE"],
-    gate: { plate: 1, plated: { min: 12, flat: 3 } },
-    levels: { 2: { gate: { plate: 2.2, plated: { min: 12, flat: 6.6 } } }, 3: { gate: { plate: 3.5, plated: { min: 12, flat: 10.5 } } } },
+    gate: { plate: 10, plated: { min: 120, flat: 30 } },
+    levels: { 2: { gate: { plate: 22, plated: { min: 120, flat: 66 } } }, 3: { gate: { plate: 35, plated: { min: 120, flat: 105 } } } },
   },
   twinmould: {
     id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
     desc: ["CASTS PLAIN SLUGS", "SEVERAL AT A TIME,", "ONE BELT EACH."], tags: ["TWIN", "SWARM"], // bb-0.8.3 (M4), as content.ts
     // bb-0.8.3 (REQ-BFG-042): belt slots by stars (no outputs), its pour 2 / 2 / 3 (P1 wrote outputs 2 / 2 / 3)
     factory: { ammo: "plain", interval: 1.8, twin: true, pour: 2 }, // base 3: the plain slug's
-    levels: { 2: { factory: { interval: 1.6, base: 5 } }, 3: { factory: { interval: 1.4, base: 6, pour: 3 }, perk: "THIRD SPRUE" } },
+    levels: { 2: { factory: { interval: 1.6, base: 50 } }, 3: { factory: { interval: 1.4, base: 60, pour: 3 }, perk: "THIRD SPRUE" } },
   },
   armorpress: {
     id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
     desc: ["PRESSES PLATING ONTO", "YOUR HULL AND STAMPS", "PLAIN SLUGS."], tags: ["PLATE", "SWARM"],
     // bb-0.8.3 (REQ-BFG-042): belt slots by stars (P1 wrote outputs 1)
-    factory: { ammo: "plain", interval: 1.6, plate: { every: 3, amount: 3 } }, // base 3: the plain slug's
-    levels: { 2: { factory: { interval: 1.4, plate: { every: 3, amount: 6.6 } } }, 3: { factory: { interval: 1.2, plate: { every: 3, amount: 10.5 } } } },
+    factory: { ammo: "plain", interval: 1.6, plate: { every: 3, amount: 30 } }, // base 3: the plain slug's
+    levels: { 2: { factory: { interval: 1.4, plate: { every: 3, amount: 66 } } }, 3: { factory: { interval: 1.2, plate: { every: 3, amount: 105 } } } },
   },
   anvil: {
     id: "anvil", name: "ANVIL BREECH", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "ironmonger",
     desc: ["SHOTS HIT HARDER", "THE MORE PLATING", "YOUR HULL HOLDS."], tags: ["PLATE", "BURST"],
-    core: { routine: "anvil", anvilFlat: 2.5, perPlate: 1 },
-    levels: { 2: { core: { anvilFlat: 5.5, perPlate: 2.2 } }, 3: { core: { anvilFlat: 8.75, perPlate: 3.5 } } },
+    core: { routine: "anvil", anvilFlat: 25, perPlate: 1 },
+    levels: { 2: { core: { anvilFlat: 55, perPlate: 2.2 } }, 3: { core: { anvilFlat: 88, perPlate: 3.5 } } },
   },
   steambreech: {
     id: "steambreech", name: "STEAM BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
@@ -93,14 +93,14 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   spallcatcher: {
     id: "spallcatcher", name: "SPALL CATCHER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
     desc: ["HITS YOUR SHIP TAKES", "CHARGE THIS TURRET'S", "NEXT SHOT."], tags: ["PLATE", "BURST"],
-    mod: { spall: { every: 4, add: 1, max: 8 } },
-    levels: { 2: { mod: { spall: { every: 4, add: 2.2, max: 17.6 } } }, 3: { mod: { spall: { every: 4, add: 3.5, max: 28 } } } },
+    mod: { spall: { every: 40, add: 10, max: 80 } },
+    levels: { 2: { mod: { spall: { every: 40, add: 22, max: 176 } } }, 3: { mod: { spall: { every: 40, add: 35, max: 280 } } } },
   },
   seamwelder: {
     id: "seamwelder", name: "SEAM WELDER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "arcane",
     desc: ["PAIRS THIS TURRET", "TAKES PLATE YOUR", "HULL."], tags: ["TWIN", "PLATE"],
-    mod: { seam: { pair: 1, lone: 0.2 } },
-    levels: { 2: { mod: { seam: { pair: 2.2, lone: 0.4 } } }, 3: { mod: { seam: { pair: 3.5, lone: 0.7 } } } },
+    mod: { seam: { pair: 10, lone: 2 } },
+    levels: { 2: { mod: { seam: { pair: 22, lone: 4 } } }, 3: { mod: { seam: { pair: 35, lone: 7 } } } },
   },
 };
 

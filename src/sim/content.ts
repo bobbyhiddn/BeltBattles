@@ -532,7 +532,7 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "sifter", name: "SIFTER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
     desc: ["REMOVES CHILL, SNAG", "OR SAP FROM PASSING", "PAYLOADS IN ORDER."], tags: ["HARASS", "FORGE", "PLATE"],
     gate: { sift: 1 }, levels: { 2: { gate: { sift: "all", siftFlat: 10 }, perk: "POLISH" },
-      3: { gate: { sift: "all", siftFlat: 20, siftClean: 1 }, perk: "FINE MESH" } },
+      3: { gate: { sift: "all", siftFlat: 20, siftClean: 10 }, perk: "FINE MESH" } },
   },
   surge: {
     id: "surge", name: "SURGE VALVE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "tinker",

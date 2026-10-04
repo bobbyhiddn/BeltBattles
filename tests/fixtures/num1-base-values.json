@@ -5,7 +5,8 @@
  },
  "rounded": {
   "ITEMS.counterweight.levels.3.gate.perTile.each": 18,
-  "WAVE3_ITEMS.anvil.levels.3.core.anvilFlat": 88
+  "WAVE3_ITEMS.anvil.levels.3.core.anvilFlat": 88,
+  "P1_WAVE3_ITEMS.anvil.levels.3.core.anvilFlat": 88
  },
  "rules": {
   "spec": {
@@ -39,11 +40,11 @@
    "gate.split.mult": "same",
    "gate.priorCap": "same",
    "gate.shockTime": "same",
+   "gate.siftClean": "x10",
    "gate.jump": "same",
    "gate.guard": "same",
    "gate.toll": "same",
    "gate.sift": "same",
-   "gate.siftClean": "same",
    "gate.pulse.speed": "same",
    "gate.pulse.on": "same",
    "gate.pulse.period": "same",
@@ -1492,9 +1493,9 @@
   {
    "file": "src/sim/content.ts",
    "id": "ITEMS.sifter.levels.3.gate.siftClean",
-   "rule": "same",
+   "rule": "x10",
    "base": 1,
-   "now": 1
+   "now": 10
   },
   {
    "file": "src/sim/content.ts",
@@ -6369,6 +6370,854 @@
    "rule": "x10",
    "base": 25,
    "now": 250
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.plateroller.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.plateroller.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.plateroller.gate.plate",
+   "rule": "x10",
+   "base": 0.5,
+   "now": 5
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.plateroller.levels.2.gate.plate",
+   "rule": "x10",
+   "base": 1.1,
+   "now": 11
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.plateroller.levels.3.gate.plate",
+   "rule": "x10",
+   "base": 1.7,
+   "now": 17
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twingauge.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twingauge.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twingauge.gate.gauge.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twingauge.gate.gauge.matched",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twingauge.levels.2.gate.gauge.flat",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twingauge.levels.2.gate.gauge.matched",
+   "rule": "x10",
+   "base": 6.6,
+   "now": 66
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twingauge.levels.3.gate.gauge.flat",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twingauge.levels.3.gate.gauge.matched",
+   "rule": "x10",
+   "base": 10.5,
+   "now": 105
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.gate.pincer.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.gate.pincer.each",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.gate.pincer.max",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.levels.2.gate.pincer.flat",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.levels.2.gate.pincer.each",
+   "rule": "x10",
+   "base": 4.4,
+   "now": 44
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.levels.2.gate.pincer.max",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.levels.3.gate.pincer.flat",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.levels.3.gate.pincer.each",
+   "rule": "x10",
+   "base": 7,
+   "now": 70
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.pincer.levels.3.gate.pincer.max",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.braceframe.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.braceframe.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.braceframe.gate.brace.mul",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.braceframe.gate.brace.plated",
+   "rule": "same",
+   "base": 0.25,
+   "now": 0.25
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.braceframe.levels.2.gate.brace.mul",
+   "rule": "same",
+   "base": 0.3,
+   "now": 0.3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.braceframe.levels.2.gate.brace.plated",
+   "rule": "same",
+   "base": 0.15,
+   "now": 0.15
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.braceframe.levels.3.gate.brace.mul",
+   "rule": "same",
+   "base": 0.15,
+   "now": 0.15
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.braceframe.levels.3.gate.brace.plated",
+   "rule": "same",
+   "base": 0.05,
+   "now": 0.05
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinlatch.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinlatch.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinlatch.gate.latch.hold",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinlatch.gate.latch.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinlatch.levels.2.gate.latch.hold",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinlatch.levels.2.gate.latch.flat",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinlatch.levels.3.gate.latch.hold",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinlatch.levels.3.gate.latch.flat",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.stoker.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.stoker.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.stoker.gate.stoke",
+   "rule": "same",
+   "base": 0.2,
+   "now": 0.2
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.stoker.levels.2.gate.stoke",
+   "rule": "same",
+   "base": 0.44,
+   "now": 0.44
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.stoker.levels.3.gate.stoke",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.platebreaker.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.platebreaker.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.platebreaker.gate.breaker.flat",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.platebreaker.gate.breaker.floor",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.platebreaker.levels.2.gate.breaker.flat",
+   "rule": "x10",
+   "base": 8.8,
+   "now": 88
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.platebreaker.levels.2.gate.breaker.floor",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.platebreaker.levels.3.gate.breaker.flat",
+   "rule": "x10",
+   "base": 14,
+   "now": 140
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.platebreaker.levels.3.gate.breaker.floor",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.price",
+   "rule": "same",
+   "base": 10,
+   "now": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.gate.plate",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.gate.plated.min",
+   "rule": "x10",
+   "base": 12,
+   "now": 120
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.gate.plated.flat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.levels.2.gate.plate",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.levels.2.gate.plated.min",
+   "rule": "x10",
+   "base": 12,
+   "now": 120
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.levels.2.gate.plated.flat",
+   "rule": "x10",
+   "base": 6.6,
+   "now": 66
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.levels.3.gate.plate",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.levels.3.gate.plated.min",
+   "rule": "x10",
+   "base": 12,
+   "now": 120
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.shieldwall.levels.3.gate.plated.flat",
+   "rule": "x10",
+   "base": 10.5,
+   "now": 105
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.factory.interval",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.factory.pour",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.levels.2.factory.base",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.4,
+   "now": 1.4
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.levels.3.factory.base",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twinmould.levels.3.factory.pour",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.price",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.factory.interval",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.factory.plate.every",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.factory.plate.amount",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.4,
+   "now": 1.4
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.levels.2.factory.plate.every",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.levels.2.factory.plate.amount",
+   "rule": "x10",
+   "base": 6.6,
+   "now": 66
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.2,
+   "now": 1.2
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.levels.3.factory.plate.every",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.armorpress.levels.3.factory.plate.amount",
+   "rule": "x10",
+   "base": 10.5,
+   "now": 105
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.anvil.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.anvil.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.anvil.core.anvilFlat",
+   "rule": "x10",
+   "base": 2.5,
+   "now": 25
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.anvil.core.perPlate",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.anvil.levels.2.core.anvilFlat",
+   "rule": "x10",
+   "base": 5.5,
+   "now": 55
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.anvil.levels.2.core.perPlate",
+   "rule": "same",
+   "base": 2.2,
+   "now": 2.2
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.anvil.levels.3.core.anvilFlat",
+   "rule": "x10",
+   "base": 8.75,
+   "now": 88,
+   "rounded": true
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.anvil.levels.3.core.perPlate",
+   "rule": "same",
+   "base": 3.5,
+   "now": 3.5
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.steambreech.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.steambreech.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twintrigger.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twintrigger.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twintrigger.mod.pairBonus",
+   "rule": "same",
+   "base": 0.25,
+   "now": 0.25
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twintrigger.mod.windowTime",
+   "rule": "same",
+   "base": -0.25,
+   "now": -0.25
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twintrigger.levels.2.mod.pairBonus",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twintrigger.levels.2.mod.windowTime",
+   "rule": "same",
+   "base": -0.4,
+   "now": -0.4
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twintrigger.levels.3.mod.pairBonus",
+   "rule": "same",
+   "base": 0.88,
+   "now": 0.88
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.twintrigger.levels.3.mod.windowTime",
+   "rule": "same",
+   "base": -0.55,
+   "now": -0.55
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.mod.spall.every",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.mod.spall.add",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.mod.spall.max",
+   "rule": "x10",
+   "base": 8,
+   "now": 80
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.levels.2.mod.spall.every",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.levels.2.mod.spall.add",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.levels.2.mod.spall.max",
+   "rule": "x10",
+   "base": 17.6,
+   "now": 176
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.levels.3.mod.spall.every",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.levels.3.mod.spall.add",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.spallcatcher.levels.3.mod.spall.max",
+   "rule": "x10",
+   "base": 28,
+   "now": 280
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.seamwelder.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.seamwelder.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.seamwelder.mod.seam.pair",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.seamwelder.mod.seam.lone",
+   "rule": "x10",
+   "base": 0.2,
+   "now": 2
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.seamwelder.levels.2.mod.seam.pair",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.seamwelder.levels.2.mod.seam.lone",
+   "rule": "x10",
+   "base": 0.4,
+   "now": 4
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.seamwelder.levels.3.mod.seam.pair",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "id": "P1_WAVE3_ITEMS.seamwelder.levels.3.mod.seam.lone",
+   "rule": "x10",
+   "base": 0.7,
+   "now": 7
   }
  ]
 }
