@@ -48,6 +48,9 @@ export function banner(g: G, W: number, y: number, text: string, color: string, 
   if (sub) drawText(g, sub, W / 2, y + th + 6, C.bone, { font: "3", align: "center" });
 }
 
+/** PACKS M2 (REQ-BFG-063): the options card's NAME entry: "NAME: ANNA", or "NAME" with none stored. */
+export const nameEntryLabel = (name: string | null): string => (name ? `NAME: ${name}` : "NAME");
+
 /** Options card with Reduced Motion and sound toggles plus caller-supplied actions. intro (REQ-BFG-038): `k` (the title's
  *  buttons' size factor; 1, the default, everywhere else) makes the buttons k times as big, so on the title of a portrait
  *  phone, a scale below the menu scale, they keep the CSS size they had; at k = 1 the card is exactly as before. */
@@ -83,8 +86,7 @@ export function optionsCard(game: Game, g: G, title: string, actions: { id: stri
   });
   by += step;
   // PACKS M2 (REQ-BFG-063): the player name, changed on the name screen (CANCEL keeps it; later uploads carry the new one)
-  const name = currentName();
-  button(ui, g, "opt-name", { x: bx, y: by, w: bw, h: bh }, name ? `NAME: ${name}` : "NAME", {
+  button(ui, g, "opt-name", { x: bx, y: by, w: bw, h: bh }, nameEntryLabel(currentName()), {
     font: "3", onTap: () => game.openName({ required: false }),
   });
   return card;

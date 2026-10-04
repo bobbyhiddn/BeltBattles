@@ -14,6 +14,7 @@ import type { DuskFoe } from "../src/game/run";
 import { standInFoe } from "../src/game/ghosts";
 import { NAME_HINT, NAME_MAX, NAME_REFUSAL, NAME_TITLE, WANDERER, nameTag } from "../src/net/names";
 import { NAME_CANCEL_CSS, NAME_OK_CSS, NAME_ROW_CSS, nameLayout } from "../src/screens/name";
+import { nameEntryLabel } from "../src/ui/hud";
 import { reachableRecords } from "../src/net/records";
 import { MAX_DAY } from "../src/net/snapshot";
 
@@ -74,6 +75,15 @@ describe("the intro line", () => {
     const phone = computeView(402, 690, 3, battleScale);
     expect(`${phone.W}x${phone.H}`).toMatch(/^\d+x\d+$/);
     expect(phone.W - w).toBeGreaterThanOrEqual(8);
+  });
+
+  it("the options card's NAME entry: NAME: ANNA (NAME with none); the widest fits the card's narrowest button", () => {
+    expect(nameEntryLabel("ANNA")).toBe("NAME: ANNA");
+    expect(nameEntryLabel(null)).toBe("NAME");
+    // hud.ts optionsCard: buttons min(W - 24, 150) px wide, the label in the 3x5 face; the narrowest screen of the views
+    let narrowest = Infinity;
+    for (const [, cw, ch, dpr] of VIEWS) for (const pick of [battleScale, buildScale, defaultScale]) narrowest = Math.min(narrowest, computeView(cw, ch, dpr, pick).W);
+    expect(textWidth(nameEntryLabel("W".repeat(NAME_MAX)), "3") + 8).toBeLessThanOrEqual(Math.min(narrowest - 24, 150));
   });
 
   it("the name screen: the panel and its texts fit every screen's view; the row is at least 44 CSS px tall, OK and CANCEL at least 44 wide", () => {

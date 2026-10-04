@@ -18,6 +18,7 @@ import { newRun, type Run } from "../src/game/run";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
+import { uploadProblems, type StoredRecord } from "../server/ghostAdmin";
 import { floorGhosts, generateSamplePool, sampleGhosts } from "../tools/samplePool";
 import { storeBackends } from "./netStores";
 import { signedHeaders, testIdentity } from "./netIdentity";
@@ -199,6 +200,21 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
       expect(stand.kind).toBe("standin");
       expect(foeTitle(stand)).toBe(standInFoe(5, 2).name);
     });
+  });
+});
+
+describe("ghosts:admin revalidate: an upload under this build's rules needs its name, as POST does", () => {
+  it("a nameless upload lists name: missing; a named one passes; a refused name is the strict decode's; older rules ask none", () => {
+    const s: GhostSnapshot = { ...sampleGhosts()[0], playerId: "p-admin", runId: "r-admin" };
+    const rec = (snap: GhostSnapshot): StoredRecord => ({
+      ref: "ghosts.jsonl:1", kind: "upload", day: snap.day, id: null, playerId: snap.playerId, keyed: false,
+      text: JSON.stringify({ id: snap.name === "anna" ? "gnotanid0000001" : ghostId(snap), at: 5, snapshot: snap }), // a refused name has no id
+    });
+    expect(uploadProblems(rec(s), RULES_VERSION)).toEqual(["name: missing"]);
+    expect(uploadProblems(rec({ ...s, name: "ANNA" }), RULES_VERSION)).toEqual([]);
+    expect(uploadProblems(rec({ ...s, name: "anna" }), RULES_VERSION)).toEqual(["strict decode: name: bad characters"]);
+    const old = { ...s, rules: "bb-0.6.1" };
+    expect(uploadProblems(rec(old), "bb-0.6.1").some((p) => p.startsWith("name:"))).toBe(false);
   });
 });
 
