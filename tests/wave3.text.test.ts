@@ -145,8 +145,9 @@ describe("0.8.0 P1: wave 3's panels fit the phone band and the desk column (T6),
       expect(shown.some((b) => b.role === "ability" || b.role === "row"), `${id}: opening`).toBe(true);
       if (t.body.some((b) => b.role === "next")) {
         expect(shown.some((b) => b.role === "next"), `${id}: next star`).toBe(true);
-        expect(shown.some((b) => b.role === "merge"), `${id}: merge progress`).toBe(true);
       }
+      // U2e step 1 (REQ-BFG-070): merge progress is gone (it showed whole after the next star): no panel draws it
+      expect(t.body.some((b) => b.role === "merge") || shown.some((b) => b.role === "merge"), `${id}: merge progress`).toBe(false);
       if (kind === "rig") expect(r.hitsUp || shown.some((b) => b.role === "hits" || b.role === "warn"), `${id}: hits`).toBe(true);
       expect(r.flavour, `${id}: flavour`).toBe("absent");
       if (r.plan.body.sub) expect(r.plan.body.sub.length, id).toBeGreaterThan(0);

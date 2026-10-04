@@ -16,7 +16,7 @@ import {
   type Block, type Laid, type PanelText, type PLine,
 } from "../src/screens/build/inspector";
 import { socketLines } from "../src/screens/build/turretPanel";
-import { abilityText, cardText, clashShortText, gatlingClashText, gist, mergeProgressText, n2, speedText } from "../src/ui/abilityText";
+import { abilityText, cardText, clashShortText, gatlingClashText, gist, n2, speedText } from "../src/ui/abilityText";
 import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
 import { faceLines } from "../src/ui/faces"; // U2a
@@ -299,8 +299,9 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
       expect(shownBlocks.some((b) => b.role === "ability" || b.role === "row" || (kind === "belt" && b.role === "hits")), `${id}: opening`).toBe(true);
       if (t.body.some((b) => b.role === "next")) {
         expect(shownBlocks.some((b) => b.role === "next"), `${id}: next star`).toBe(true);
-        expect(shownBlocks.some((b) => b.role === "merge"), `${id}: merge progress`).toBe(true);
       }
+      // U2e step 1 (REQ-BFG-070): merge progress is gone (it showed whole after the next star): no panel draws it
+      expect(t.body.some((b) => b.role === "merge") || shownBlocks.some((b) => b.role === "merge"), `${id}: merge progress`).toBe(false);
       if (kind === "rig") expect(r.hitsUp || shownBlocks.some((b) => b.role === "hits" || b.role === "warn"), `${id}: hits`).toBe(true);
       // 0b.5: the flavour shows whole or not at all
       expect(r.flavour, `${id}: flavour`).not.toBe("cut");
@@ -641,7 +642,7 @@ describe("0b.1-0b.3: the other carry-overs", () => {
       texts.add(flavourText(d.id, s));
       texts.add(cardText(d.id));
     }
-    for (const n of [1, 2]) texts.add(mergeProgressText(n));
+    // U2e step 1 (REQ-BFG-070): merge progress ("1 MORE COPY TO MERGE.") is gone, so it is no longer among the texts
     let checked = 0;
     for (const t of texts) for (const [w, font] of [[102, "5"], [116, "5"], [151, "3"], [66, "3"], [109, "3"]] as const) {
       const lines = wrapText(t, w, font);
@@ -652,8 +653,10 @@ describe("0b.1-0b.3: the other carry-overs", () => {
       expect(textWidth(`${lastUnit(prev)} ${last}`, font), `${t} at ${w}: "${lines.at(-2)}" / "${last}"`).toBeGreaterThan(w);
     }
     expect(checked).toBeGreaterThan(500);
-    // the polish's case: merge progress is its own sentence and never breaks on the phone band
-    for (const n of [1, 2]) expect(wrapText(mergeProgressText(n), 151, "3")).toHaveLength(1);
+    // the polish's case was merge progress, its own sentence that never broke on the phone band. U2e step 1 (REQ-BFG-070):
+    // merge progress is gone (inspectorLines "U2e step 1" pins that no panel draws it), so the check moves to the line that
+    // took its place at a panel's end, the next-star sentence: a short one stays one line on the phone band
+    expect(wrapText("NEXT STAR: ADDS 2 BURN.", 151, "3")).toHaveLength(1);
     // and a line that used to end "UP / TO 6." keeps the cap together
     expect(wrapText("NEXT STAR: 4 DAMAGE FOR EACH HIT, UP TO 6.", 151, "3")).toEqual(["NEXT STAR: 4 DAMAGE FOR EACH HIT,", "UP TO 6."]);
     expect(wrapText("SPLITS INTO 2 AT 60%.", 102, "5")).toEqual(["SPLITS INTO", "2 AT 60%."]);
@@ -808,7 +811,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // (179 to 126 on release-084). 0.8.6 move: 0.8.5's TURRET SPEED UPGRADE button and the faces: 202 to 153, measured
     // U2c group 0 fix 1: 154, SURGE VALVE's rule says its pulse (its speed and length), a line longer on the desk column
     // U2c step 4: 138, the installed turrets' stat row (one line, was three rows) leaves 16 more desk panels room for the hint
-    expect([withHint, missing.length]).toEqual([1934, 138]);
+    // U2e step 1 (REQ-BFG-070): 100, measured: merge progress is gone (a kept line on every fusible piece's panel), so 38
+    // more desk panels have room for the hint
+    expect([withHint, missing.length]).toEqual([1934, 100]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -832,7 +837,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // U2c group 0 fix 1: 494, SURGE VALVE's rule says its pulse (its speed and length), so 3 of its phone panels lose the hint
     // U2c step 5: 491, the notices in the notice form ("LABEL: TEXT.": the starting turret's TURRET SPEED line and free note,
     // the factory's level and UPGRADE lines, STAYS ABOARD, the STOKER's capped line) a few px longer on some phone panels
-    expect(hints).toBe(491);
+    // U2e step 1 (REQ-BFG-070): 581, measured: merge progress is gone, so 90 more phone panels have room for the hint
+    expect(hints).toBe(581);
   });
 });
 

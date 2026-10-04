@@ -6,11 +6,11 @@
 // one helper (src/ui/richText.ts) at draw time (T4):
 // - the ability text: bone, numbers white, BURN / SHOCK / FREEZE / POISON / FASTER / SLOWER in their battle colours, and
 //   a perk's name right after the sentence it names, in the perk colour, never split;
-// - the next-star line ("NEXT STAR: FEEDS 3 BELTS.") and merge progress ("1 MORE COPY TO MERGE."), each its own line;
+// - the next-star line ("NEXT STAR: FEEDS 3 BELTS."), its own line (U2e: no merge progress; the ⓘ view holds it);
 // - stat rows with aligned values (a belt's timeline and gun-end readout, a turret's rows);
 // - then, set apart by a rule, the flavour (dimmer, the small face) and the action hint (dimmer again).
 // planPanel is the pure layout that drawDetails and the tests share: blocks marked `keep` always show whole (the phone
-// guarantee, T6: the opening sentence, the hits or IDLE, the perk and the next-star line, and merge progress); every
+// guarantee, T6: the opening sentence, the hits or IDLE, the perk and the next-star line); every
 // other block shows whole or not at all (the flavour too, 0b.5), in rank order while there is room. Where the kept blocks
 // don't fit, the panel's compact variants are tried, fullest first (0.6.2p item 3's approach).
 
@@ -74,10 +74,10 @@ import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "..
 import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/upgradeText"; // bb-0.8.3 (REQ-BFG-043 D11)
 import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
 import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
-import { gainModule, mergePreview } from "../../game/fuse";
+import { mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
-  abilityText, cardText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergeProgressText, mergesWithText, n2,
+  abilityText, cardText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergesWithText, n2,
   newPerk, nextStarHeadline, nextStarText, percent, plural, seconds, shieldText, slagPulseExtra, type BeltKind, type TextOpts,
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
@@ -212,29 +212,19 @@ const tightForms = (body: Block[]): Variant[] => [
   { body, tight: true }, { body: noNextPerk(body), tight: true }, { body: headlineNext(body), tight: true },
 ];
 
-/** How many more 1★ gains of `def` (bought, dropped, however) it takes to pass `atLeast` stars,
- *  simulated on a cloned run through the real gainModule (no re-implemented fuse math). */
-function copiesToNextStar(run: Run, def: string, atLeast: number): number {
-  const clone = { ...run, build: JSON.parse(JSON.stringify(run.build)), inventory: run.inventory.map((i) => ({ ...i })), fuseFx: [] } as Run;
-  for (let n = 1; n <= 8; n++) {
-    const g = gainModule(clone, def);
-    if (g.stars > atLeast) return n;
-  }
-  return 8;
-}
-
-/** T5: the next-star line (and the perk that star brings) and merge progress; [] at the top star or when not fusible.
- *  The next-star block carries its headline (`alt`, T6) for the last compact variant. */
+/** T5: the next-star line (and the perk that star brings); [] at the top star or when not fusible. The next-star block
+ *  carries its headline (`alt`, T6) for the last compact variant. U2e step 1 (REQ-BFG-070; the operator: "The items
+ *  don't need to say 1 more to merge."): no merge progress, no copy count (copiesToNextStar and mergeProgressText are
+ *  gone). */
 function progressBlocks(run: Run, def: string, stars: number): Block[] {
-  // U2a (REQ-BFG-046, C7): a face's NEXT★ line, computed from the two stars' data; merge progress as today
+  // U2a (REQ-BFG-046, C7): a face's NEXT★ line, computed from the two stars' data
   const faceNext = hasFace(def) ? faceNextBlock(def, stars, textOpts(run)) : null;
-  if (faceNext) return [faceNext, { role: "merge", text: mergeProgressText(copiesToNextStar(run, def, stars)), keep: true }];
+  if (faceNext) return [faceNext];
   const next = nextStarText(def, stars, textOpts(run));
   if (!next) return [];
   const perk = newPerk(def, stars + 1), head = nextStarHeadline(def, stars, textOpts(run));
   return [
     { role: "next", text: next, keep: true, ...(perk ? { perk: `★${stars + 1} ${perk}` } : {}), ...(head ? { alt: head } : {}) },
-    { role: "merge", text: mergeProgressText(copiesToNextStar(run, def, stars)), keep: true },
   ];
 }
 
@@ -273,11 +263,11 @@ export function mergeLine(run: Run, def: string): string | null {
   return b ? `${b.text}${b.perk ? ` ${b.perk}` : ""}` : null;
 }
 
-/** T5: the next-star line with the perk it brings, then merge progress: "NEXT STAR: ADDS 7 BURN. 2 MORE COPIES TO
- *  MERGE."; null at the top star or for a non-fusible id. */
+/** T5: the next-star line with the perk it brings: "NEXT ★2: +2 {BURN}" (U2e: no merge progress after it); null at the
+ *  top star or for a non-fusible id. */
 export function nextLine(run: Run, def: string, stars: number): string | null {
   const b = progressBlocks(run, def, stars);
-  return b.length ? `${b[0].text}${b[0].perk ? ` ${b[0].perk}` : ""} ${b[1].text}` : null;
+  return b.length ? `${b[0].text}${b[0].perk ? ` ${b[0].perk}` : ""}` : null;
 }
 
 /** 0.6.2 BELTSIDE: the IDLE warning, and its phone-band form (the sub line says IDLE in amber; the turn hint follows). */

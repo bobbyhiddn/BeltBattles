@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs"; // U2e step 1
 import {
   IDLE_HEAD, IDLE_SHORT, IDLE_WARNING, mergeLine, nextLine, offerPanel, planPanel, portraitButtons, rigPanel, visibleLines,
   type PLine,
 } from "../src/screens/build/inspector";
+import { cargoPanel } from "../src/screens/build/inspector"; // U2e step 1
 import { key as K, rotField, startingTurrets, type Placed } from "../src/sim/deck"; // beltside-062c: P11; 0.6.2s: startingTurrets; 0.8.0 I1: Placed
 import { rotFacing } from "../src/sim/beltside"; // beltside-062c: P11
 import { ICON, icons, textWidth } from "../src/render/font"; // U2c (U2b's faces): ICON, icons
@@ -67,54 +69,50 @@ describe("F5: a perk whose values are still pending is never named (stubbed modu
   });
 });
 
-// 0.6.2t (T5): merge progress is a sentence of its own, "1 MORE COPY TO MERGE." / "2 MORE COPIES TO MERGE." (0.6.2p item 2's
-// "NEEDS 1 MORE" / "NEEDS 2 MORE" is gone everywhere)
-describe("N2 / T5: merge progress, 1 MORE COPY TO MERGE and 2 MORE COPIES TO MERGE", () => {
-  it("TEMPER from 1★ needs 1 copy, from a lone 2★ needs 2", () => {
-    // U2c (U2b's faces): the next star is TEMPER's NEXT★ line (faceNext: "NEXT ★2: +2 {BURN}", "NEXT ★3: +4 {BURN}"), was
-    // the sentence "NEXT STAR: ADDS 2 BURN." / "NEXT STAR: ADDS 4 BURN."; merge progress follows it as before
-    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe(`${faceNext("temper", 1)!.text} 1 MORE COPY TO MERGE.`);
-    expect(nextLine(holding("temper", [2]), "temper", 2)).toBe(`${faceNext("temper", 2)!.text} 2 MORE COPIES TO MERGE.`);
-    expect(nextLine(holding("temper", [2, 1]), "temper", 2)).toBe(`${faceNext("temper", 2)!.text} 1 MORE COPY TO MERGE.`);
-  });
-
-  it("every fusible module at 1 and 2 stars: the next-star sentence, then merge progress, never NEEDS n MORE", () => {
-    let lines = 0;
-    // 0.6.2s (S6/S7): FURNACE's free starting SCRAP CANNON counts toward a merge, so its own count is checked below
-    const own = new Set(startingTurrets("furnace").map((t) => t.def));
-    for (const d of Object.values(ITEMS)) {
-      if (own.has(d.id)) continue;
-      for (const s of [1, 2]) {
-        const line = nextLine(holding(d.id, [s]), d.id, s);
-        if (!line) continue;
-        // U2c (U2b's faces): a piece with a face opens with its NEXT★ block, exactly (faceNextBlock at the run's options:
-        // "NEXT ★2: +2 {BURN}", the perk that star brings after it), then merge progress; it opened with a "NEXT STAR: ... ."
-        // sentence, as every piece without a face still does
-        const nx = faceNextBlock(d.id, s, FURNACE);
-        if (nx) expect(line, d.id).toBe(`${nx.text}${nx.perk ? ` ${nx.perk}` : ""} ${s === 1 ? "1 MORE COPY TO MERGE." : "2 MORE COPIES TO MERGE."}`);
-        else expect(line, d.id).toMatch(/^NEXT STAR: [^·]+\. /);
-        expect(line, d.id).toMatch(s === 1 ? / 1 MORE COPY TO MERGE\.$/ : / 2 MORE COPIES TO MERGE\.$/);
-        expect(line, d.id).not.toMatch(/NEEDS \d MORE|·/);
-        lines++;
-      }
-    }
+// 0.6.2t (T5): merge progress was a sentence of its own, "1 MORE COPY TO MERGE." / "2 MORE COPIES TO MERGE." (0.6.2p item
+// 2's "NEEDS 1 MORE" before it). U2e step 1 (REQ-BFG-070; the operator: "The items don't need to say 1 more to merge."):
+// it is gone. T5's three tests (TEMPER's counts, every fusible module's count, the free starting turret's count) become
+// one: no panel, at any star, draws merge progress (no "TO MERGE", no copy count), and the next-star line (now the ⓘ
+// view's) is the NEXT★ block or the NEXT STAR sentence alone.
+describe("U2e step 1 (was N2 / T5): no panel draws merge progress", () => {
+  it("every fusible piece's cargo, offer and placed or fitted panels at every star, and its next-star line: no copy count", () => {
+    const COPIES = /TO MERGE|MORE COP(Y|IES)|NEEDS \d MORE|\bCOPIES? (LEFT|NEEDED)\b/;
     const fus = Object.keys(ITEMS).filter(fusible);
     // 23 rigs, 13 factories, 13 cores and 9 mods at 65a36b7; + 13 turrets (0.6.2s); 0.8.0 I1 M2 (REPORT-P1 section 13):
     // + wave 3's 15 (was 71)
     expect(fus).toHaveLength(86);
-    expect(lines).toBe(2 * (fus.length - own.size));
-  });
-
-  it("0.6.2s: the hull's free starting turret counts toward a merge (S6, S7)", () => {
-    // FURNACE's free ★1 SCRAP CANNON sits in slot 0: one more ★1 merges with it into a ★2, then the two ★2s make ★3
-    expect([...new Set(startingTurrets("furnace").map((t) => t.def))]).toEqual(["scrapcannon"]);
-    // 0.6.2rel (T5): merge progress is its own sentence after the next star's (the glossary's turret clause)
-    // U2c (U2b's faces): the next star is the turret's NEXT★ line (faceNext: its ★3 cadence and gear slots, "NEXT ★3:
-    // 0.8{SEC} {GEAR}3"), was "NEXT STAR: FIRES EVERY 0.8 SECONDS, 3 GEAR SLOTS."
-    expect(nextLine(holding("scrapcannon", [2]), "scrapcannon", 2)).toBe(`${faceNext("scrapcannon", 2)!.text} 1 MORE COPY TO MERGE.`);
-    // WEAVER starts with DART GUNs, not a SCRAP CANNON: the usual count
-    expect(nextLine(holding("scrapcannon", [2], "weaver"), "scrapcannon", 2)).toMatch(/ 2 MORE COPIES TO MERGE\.$/);
-    expect(nextLine(holding("bombard", [2]), "bombard", 2)).toMatch(/ 2 MORE COPIES TO MERGE\.$/);
+    let panels = 0, lines = 0;
+    for (const def of fus) {
+      const d = ITEMS[def];
+      for (const s of [1, 2, 3]) {
+        // a ★s copy (uid 900) and a ★1 copy in cargo, and one more on offer (a merge on purchase below ★3)
+        const run = holding(def, [s, 1]);
+        run.gold = 99;
+        run.shop.wagons = [{ merchant: d.merchant ?? "ironmonger", offers: [{ def, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
+        for (const p of [cargoPanel(run, 900), offerPanel(run, 0, 0)]) {
+          for (const body of [p!.body, ...(p!.variants ?? []).map((v) => v.body)]) for (const b of body) {
+            expect(b.role, `${def} ★${s}`).not.toBe("merge");
+            expect(`${b.text} ${b.perk ?? ""} ${b.alt ?? ""}`, `${def} ★${s}`).not.toMatch(COPIES);
+          }
+          panels++;
+        }
+        const line = nextLine(run, def, s);
+        if (!line) continue;
+        // a piece with a face: its NEXT★ block exactly (faceNextBlock at the run's options, the perk that star brings after
+        // it); else today's "NEXT STAR: ... ." sentence, and nothing after either
+        const nx = faceNextBlock(def, s, FURNACE);
+        if (nx) expect(line, def).toBe(`${nx.text}${nx.perk ? ` ${nx.perk}` : ""}`);
+        else expect(line, def).toMatch(/^NEXT STAR: [^·]+\.( ★\d [A-Z' -]+)?$/);
+        expect(line, def).not.toMatch(COPIES);
+        lines++;
+      }
+    }
+    expect(panels).toBe(2 * 3 * fus.length);
+    expect(lines).toBe(2 * fus.length); // ★1 and ★2 have a next star; ★3 none
+    // and no source the panels draw from holds a copy count's words
+    for (const f of ["src/ui/abilityText.ts", "src/ui/faces.ts", "src/screens/build/inspector.ts", "src/screens/build/faceBlocks.ts", "src/screens/build/keywords.ts", "src/screens/build/turretPanel.ts", "src/ui/glossary.ts"]) {
+      expect(readFileSync(new URL(`../${f}`, import.meta.url), "utf8"), f).not.toMatch(COPIES);
+    }
   });
 });
 
@@ -124,10 +122,10 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
     // k 1, through fmtDmg, the face's formatter); were "NEXT STAR: 2.6 MORE DAMAGE FOR EACH PAYLOAD WAITING." and
     // "MERGES WITH YOUR PRESSURE BREECH INTO ★2: 2.6 MORE DAMAGE FOR EACH PAYLOAD WAITING."
     const per = (s: number): string => `+${fmtDmg(effectAt("pressure", s).core!.perQueued!)} ${ICON.DMG}`;
-    expect(nextLine(holding("pressure", [1]), "pressure", 1)).toBe(`NEXT ★2: ${per(2)} 1 MORE COPY TO MERGE.`);
+    expect(nextLine(holding("pressure", [1]), "pressure", 1)).toBe(`NEXT ★2: ${per(2)}`);
     expect(mergeLine(holding("pressure", [1]), "pressure")).toBe(`MERGES INTO ★2: ${per(2)}.`);
     expect(abilityText("pressure", 2).sentences[0]).toBe("SHOTS DEAL 2.6 MORE DAMAGE FOR EACH PAYLOAD WAITING, UP TO 5 PAYLOADS.");
-    expect(nextLine(holding("pressure", [2]), "pressure", 2)).toBe(`NEXT ★3: ${per(3)} 2 MORE COPIES TO MERGE.`);
+    expect(nextLine(holding("pressure", [2]), "pressure", 2)).toBe(`NEXT ★3: ${per(3)}`);
     expect(mergeLine(holding("pressure", [2, 1]), "pressure")).toBe(`MERGES INTO ★3: ${per(3)}.`);
   });
 
@@ -140,8 +138,8 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
       r.build.mods.push({ uid: 950, def: "pressure", turret: 0, stars });
       return resolveCore(r.build, 0).spec.perQueued!;
     };
-    expect(nextLine(holding("pressure", [1], "weaver"), "pressure", 1)).toBe(`NEXT ★2: +${fmtDmg(fitted(2))} ${ICON.DMG} 1 MORE COPY TO MERGE.`);
-    expect(nextLine(holding("pressure", [2], "weaver"), "pressure", 2)).toBe(`NEXT ★3: +${fmtDmg(fitted(3))} ${ICON.DMG} 2 MORE COPIES TO MERGE.`);
+    expect(nextLine(holding("pressure", [1], "weaver"), "pressure", 1)).toBe(`NEXT ★2: +${fmtDmg(fitted(2))} ${ICON.DMG}`);
+    expect(nextLine(holding("pressure", [2], "weaver"), "pressure", 2)).toBe(`NEXT ★3: +${fmtDmg(fitted(3))} ${ICON.DMG}`);
     // the turret panel's source for the same core once fitted: resolveCore's k-scaled spec
     const run = newRun("weaver", 4242);
     run.build.mods.push({ uid: 950, def: "pressure", turret: 0, stars: 2 });
@@ -220,15 +218,15 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
       const next3 = face ? faceNext(def, 2, FURNACE)!.text : `NEXT STAR: ${h[2]}, ${outputsAt(def, 3)} BELTS.`;
       const into2 = face ? faceMerge(def, 2, FURNACE)! : `MERGES WITH YOUR ${ITEMS[def].name} INTO ★2: ${h[1]}, ${outputsAt(def, 2)} BELTS.`;
       // bb-0.8.3 (REQ-BFG-042 M4): each line closes with the factory's belt slots at that star
-      expect(nextLine(holding(def, [1]), def, 1), def).toBe(`${next2}${p2 ? ` ★2 ${p2}` : ""} 1 MORE COPY TO MERGE.`);
-      expect(nextLine(holding(def, [2]), def, 2), def).toBe(`${next3}${p3 && p3 !== p2 ? ` ★3 ${p3}` : ""} 2 MORE COPIES TO MERGE.`);
+      expect(nextLine(holding(def, [1]), def, 1), def).toBe(`${next2}${p2 ? ` ★2 ${p2}` : ""}`);
+      expect(nextLine(holding(def, [2]), def, 2), def).toBe(`${next3}${p3 && p3 !== p2 ? ` ★3 ${p3}` : ""}`);
       expect(mergeLine(holding(def, [1]), def), def).toBe(`${into2}${p2 ? ` ★2 ${p2}` : ""}`);
       // U2c (U2b's faces): M4's belts on a face: its NEXT★ and MERGES INTO lines carry that star's belt slots as the BELT
       // pair (outputsAt through fmtCount), where the sentence closed with "n BELTS."
       if (face) for (const [line, s] of [[next2, 2], [next3, 3], [into2, 2]] as const) expect(line, `${def} ★${s}`).toContain(`${ICON.BELT}${fmtCount(outputsAt(def, s))}`);
     }
     // U2c (U2b's faces): rigs alike: TEMPER's NEXT★ line (faceNext), was "NEXT STAR: ADDS 2 BURN."
-    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe(`${faceNext("temper", 1)!.text} 1 MORE COPY TO MERGE.`); // rigs alike
+    expect(nextLine(holding("temper", [1]), "temper", 1)).toBe(`${faceNext("temper", 1)!.text}`); // rigs alike
   });
 });
 // beltside-062c (ref/DESIGN-beltside.md §12 P11): a placed rig's panel (inspector.ts rigPanel) lists its hits (or IDLE),
@@ -261,14 +259,14 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // SHOCK.", "NEXT STAR: 2 COPIES AT 85% DAMAGE. ★3 PERFECT CUT"; hits, merge progress, flavour and hint as before
     expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
       "→ BELT 1, TILE 3", `${faceLines("splitter", 2)!.rules[0].text} ★2 CLEAN CUT`,
-      `${faceNext("splitter", 2)!.text} ★3 PERFECT CUT`, "1 MORE COPY TO MERGE.", "ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT.", TURN,
+      `${faceNext("splitter", 2)!.text} ★3 PERFECT CUT`, "ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT.", TURN, // U2e step 1: no merge progress
     ]);
     // a ★1 LONG HAUL (II) at (5,3) between both belts: two hits, no perk at ★1; 0.6.2t2 (F1): no flavour kept
     // U2c (U2b's faces): its face's rule line (faceLines) and NEXT★ (faceNext); were "ADDS 1 DAMAGE FOR EACH EARLIER RIG
     // HIT.", "EVERY RIG HIT ON THE PAYLOAD COUNTS, SPEED RIGS TOO.", "NEXT STAR: 2 DAMAGE FOR EACH EARLIER HIT, UP TO 6 HITS."
     expect(text(rigRun("longhaul", 1, 5, 3, 0, 0))).toEqual([
       "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", faceLines("longhaul", 1)!.rules[0].text,
-      faceNext("longhaul", 1)!.text, "1 MORE COPY TO MERGE.", TURN,
+      faceNext("longhaul", 1)!.text, TURN, // U2e step 1: no merge progress
     ]);
     // an IDLE ★2 TEMPER: the amber warning leads
     const idle = rigPanel(rigRun("temper", 2, 0, 9, 0, 0), 10)!;
@@ -278,7 +276,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // ADDS 4 BURN."
     expect(text(rigRun("temper", 2, 0, 9, 0, 0))).toEqual([
       IDLE_WARNING, faceLines("temper", 2)!.rules[0].text, icons(REMINDER.BURN()), faceNext("temper", 2)!.text,
-      "2 MORE COPIES TO MERGE.", TURN,
+      TURN, // U2e step 1: no merge progress
     ]);
     expect([idle.sub, idle.subColor, idle.idle, idle.labels]).toEqual(["RIG · IDLE", C.amber, true, ["ROTATE", "TO CARGO"]]);
     // a ★3 X OVERDRIVE at (5,3): no next star past ★3, no ROTATE for an X
@@ -303,7 +301,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     expect(rp.variants![0].body[0].text).toBe("→ BELT 1 TILE 4, BELT 2 TILES 4 AND 6");
     expect([...new Set(rp.variants!.map((v) => v.sub).filter(Boolean))]).toEqual(["RIG → BELT 1 TILE 4, BELT 2 TILES 4 AND 6", "RIG → BELT 1 T4, BELT 2 T4 AND T6"]);
     // every compact form keeps the opening sentence (CLEAN CUT names it), the next star and merge progress
-    for (const v of rp.variants!) expect(v.body.filter((b) => b.keep && b.role !== "hits").map((b) => b.role), `${v.sub}`).toEqual(["ability", "next", "merge"]);
+    for (const v of rp.variants!) expect(v.body.filter((b) => b.keep && b.role !== "hits").map((b) => b.role), `${v.sub}`).toEqual(["ability", "next"]); // U2e step 1: no "merge" block
     // an IDLE ★2 GALVANIC COIL: the warning moves up into the header, in amber (the short form where the header is narrow)
     const coil = rigPanel(rigRun("coil", 2, 0, 9, 0, 1), 10)!;
     expect([...new Set(coil.variants!.map((v) => v.sub).filter(Boolean))]).toEqual([IDLE_SHORT, IDLE_HEAD]);
@@ -367,7 +365,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // U2c (U2b's faces): the next star drawn in full is the face's NEXT★ line (faceNext: "NEXT ★3: {STUN} 2.8"), was
     // "NEXT STAR: STALLS 2 MACHINES FOR 2.8 SECONDS."; the merge progress after it pins where the line ends, as the
     // sentence's full stop did (no longer number can pass)
-    expect(drawn.join(" ")).toContain(`${faceNext("coil", 2)!.text} 2 MORE COPIES TO MERGE.`);
+    expect(drawn.join(" ")).toContain(`${faceNext("coil", 2)!.text}`);
   });
 });
 
@@ -403,8 +401,8 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     // star's flat through fmtDmg), its perk named after it; were "NEXT STAR: ADDS 2 DAMAGE. ★2 HOT SHOE ..." and
     // "MERGES WITH YOUR BRAKE SHOE INTO ★2: ADDS 2 DAMAGE. ★2 HOT SHOE"
     const heat = (s: number): string => `+${fmtDmg(effectAt("brake", s).gate!.flat!)} ${ICON.DMG}`;
-    expect(nextLine(holding("brake", [1]), "brake", 1)).toBe(`NEXT ★2: ${heat(2)} ★2 HOT SHOE 1 MORE COPY TO MERGE.`);
-    expect(nextLine(holding("brake", [2]), "brake", 2)).toBe(`NEXT ★3: ${heat(3)} ★3 RED-HOT SHOE 2 MORE COPIES TO MERGE.`);
+    expect(nextLine(holding("brake", [1]), "brake", 1)).toBe(`NEXT ★2: ${heat(2)} ★2 HOT SHOE`);
+    expect(nextLine(holding("brake", [2]), "brake", 2)).toBe(`NEXT ★3: ${heat(3)} ★3 RED-HOT SHOE`);
     expect(mergeLine(holding("brake", [1]), "brake")).toBe(`MERGES INTO ★2: ${heat(2)}. ★2 HOT SHOE`);
     expect(mergeLine(holding("brake", [2, 1]), "brake")).toBe(`MERGES INTO ★3: ${heat(3)}. ★3 RED-HOT SHOE`);
   });
@@ -415,8 +413,8 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     // star's split mult through fmtPct; the copies stay 2, so the diff leaves them out), its perk named after it; were
     // "NEXT STAR: 2 COPIES AT 72% DAMAGE. ★2 CLEAN CUT ..." and "MERGES WITH YOUR SPLITTER INTO ★2: 2 COPIES AT 72% DAMAGE. ★2 CLEAN CUT"
     const cut = (s: number): string => `${fmtPct(effectAt("splitter", s).gate!.split!.mult)} ${ICON.DMG}`;
-    expect(nextLine(holding("splitter", [1]), "splitter", 1)).toBe(`NEXT ★2: ${cut(2)} ★2 CLEAN CUT 1 MORE COPY TO MERGE.`);
-    expect(nextLine(holding("splitter", [2]), "splitter", 2)).toBe(`NEXT ★3: ${cut(3)} ★3 PERFECT CUT 2 MORE COPIES TO MERGE.`);
+    expect(nextLine(holding("splitter", [1]), "splitter", 1)).toBe(`NEXT ★2: ${cut(2)} ★2 CLEAN CUT`);
+    expect(nextLine(holding("splitter", [2]), "splitter", 2)).toBe(`NEXT ★3: ${cut(3)} ★3 PERFECT CUT`);
     expect(mergeLine(holding("splitter", [1]), "splitter")).toBe(`MERGES INTO ★2: ${cut(2)}. ★2 CLEAN CUT`);
     expect(mergeLine(holding("splitter", [2, 1]), "splitter")).toBe(`MERGES INTO ★3: ${cut(3)}. ★3 PERFECT CUT`);
   });
@@ -429,8 +427,8 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     // are ★2's too, so the diff leaves them out), no perk. Were "NEXT STAR: 5 TIMES AS FAST, ADDS 3 DAMAGE. ★3 AFTERBURNER
     // ..." and "NEXT STAR: STALLS 2 MACHINES FOR 2.8 SECONDS. ..."
     const od3 = effectAt("overdrive", 3).gate!;
-    expect(nextLine(holding("overdrive", [2]), "overdrive", 2)).toBe(`NEXT ★3: ${fmtCount(od3.speed!)} TIMES, +${fmtDmg(od3.flat!)} ${ICON.DMG} ★3 AFTERBURNER 2 MORE COPIES TO MERGE.`);
-    expect(nextLine(holding("coil", [2]), "coil", 2)).toBe(`NEXT ★3: ${ICON.STUN} ${fmtSec(effectAt("coil", 3).gate!.shockTime!)} 2 MORE COPIES TO MERGE.`); // SPARK JUMP already
+    expect(nextLine(holding("overdrive", [2]), "overdrive", 2)).toBe(`NEXT ★3: ${fmtCount(od3.speed!)} TIMES, +${fmtDmg(od3.flat!)} ${ICON.DMG} ★3 AFTERBURNER`);
+    expect(nextLine(holding("coil", [2]), "coil", 2)).toBe(`NEXT ★3: ${ICON.STUN} ${fmtSec(effectAt("coil", 3).gate!.shockTime!)}`); // SPARK JUMP already
   });
 
   it("phone: the offer's opening sentence and its MERGES WITH line show whole on the band (the tap preview)", () => {

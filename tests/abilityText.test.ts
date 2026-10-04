@@ -12,8 +12,9 @@ import { wideCardW } from "../src/screens/build/layout";
 import { effectAt, fusible, outputsAt, perkAt } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
 import {
-  SIM, abilityText, cardText, gist, hasAbilityText, mergeProgressText, mergesWithText, nextStarHeadline, nextStarText,
+  SIM, abilityText, cardText, gist, hasAbilityText, mergesWithText, nextStarHeadline, nextStarText,
 } from "../src/ui/abilityText";
+import * as glossaryModule from "../src/ui/abilityText"; // U2e step 1: no copy count exported
 import { MODULES, STARS, SUPPLIES, banned, fasterNum, kOf, numbers, pct, r1, r2, rateNum, starsOf } from "./textRules";
 // 0.8.0 P1: wave 3's rows (the block at the end)
 import { WAVE3_IDS, buyableModules, withWave3 } from "../src/sim/content";
@@ -336,8 +337,9 @@ describe("0.6.2t T5: next star, merge progress and MERGES WITH, as sentences", (
     expect(nextStarText("temper", 1)).toBe("NEXT STAR: ADDS 2 BURN.");
   });
 
-  it("merge progress and MERGES WITH read as whole sentences", () => {
-    expect([mergeProgressText(1), mergeProgressText(2)]).toEqual(["1 MORE COPY TO MERGE.", "2 MORE COPIES TO MERGE."]);
+  it("MERGES WITH reads as a whole sentence (U2e step 1: merge progress is gone)", () => {
+    // U2e step 1 (REQ-BFG-070): mergeProgressText ("1 MORE COPY TO MERGE.") is deleted, so the glossary exports no copy count
+    expect(Object.keys(glossaryModule)).not.toContain("mergeProgressText");
     expect(mergesWithText("temper", 2)).toBe("MERGES WITH YOUR TEMPER INTO ★2: ADDS 2 BURN.");
     // bb-0.8.3: no "FEEDS 2 BELTS" (0.8.0: "25% FASTER, FEEDS 2 BELTS."); the line closes with its 4 belts at ★3
     expect(mergesWithText("mimic", 3)).toBe("MERGES WITH YOUR MIMIC FORGE INTO ★3: 25% FASTER, 4 BELTS.");

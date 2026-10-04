@@ -1,7 +1,7 @@
 // 0.6.2t (REQ-BFG-032, T3): THE GLOSSARY. Every ability line the game shows comes from here: the inspect panel of a
 // rig, factory, turret core, turret gear or supply at every star (build screen: offer, cargo, placed, REFIT), the
 // turret panel's core and gear lines, the belt timeline, the shop card's one-line effect and its hover tooltip, and the
-// next-star, merge-progress and MERGES WITH lines. Text functions return whole sentences (full stops, no "·", no line
+// next-star and MERGES WITH lines (U2e: no merge progress). Text functions return whole sentences (full stops, no "·", no line
 // breaks); the one wrap helper (src/ui/richText.ts wrapRich) breaks them to a panel's width at draw time.
 //
 // API (pure; `o` is TextOpts: { k: a turret core's class factor (default 1, heavy), hero: the run's hero (MIMIC FORGE) }):
@@ -11,7 +11,6 @@
 //   gist(def, stars, o)          that star's effect as a short clause, no full stop ("ADDS 4 BURN")
 //   nextStarText(def, stars, o)  "NEXT STAR: ADDS 4 BURN." (null at the top star); newPerk(def, to) names a new perk;
 //                                nextStarHeadline(def, stars, o) its first clause only, for a short phone band
-//   mergeProgressText(n)         "2 MORE COPIES TO MERGE." / "1 MORE COPY TO MERGE."
 //   mergesWithText(def, to, o)   "MERGES WITH YOUR TEMPER INTO ★2: ADDS 4 BURN."
 //   cardText(def, o)             the shop card's one-line effect at 1 star, a whole sentence ("ADDS 2 BURN.")
 //   hitText(h, belt)             one rig hit in a belt's timeline (a labelled stat row; belt: free, locked or slag);
@@ -1311,11 +1310,6 @@ export function nextStarHeadline(def: string, stars: number, o: TextOpts = {}): 
   if (!nextStarText(def, stars, o)) return null;
   const all = starGist(def, stars + 1, o), head = all.split(", ")[0]; // bb-0.8.3 (M4): the belts close the full line
   return head !== all ? `NEXT STAR: ${head}.` : null;
-}
-
-/** T5: merge progress, a sentence of its own. */
-export function mergeProgressText(copies: number): string {
-  return copies === 1 ? "1 MORE COPY TO MERGE." : `${copies} MORE COPIES TO MERGE.`;
 }
 
 /** T5: an offer that merges on purchase: "MERGES WITH YOUR TEMPER INTO ★2: ADDS 4 BURN." (newPerk follows it). */
