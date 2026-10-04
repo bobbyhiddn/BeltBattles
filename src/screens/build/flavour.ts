@@ -142,7 +142,9 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
 // each keeps only a tip with no number: CLOCKWORKS's peak moved into its ability text; the KILN's tip is FURNACE's breech,
 // the LOOM's its lead, the SUMP's its two marks (its catalogue desc).
 const SIGNATURE_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
-  kiln: ["LONG BELTS HEAT ITS SLUGS, AND A LONG BELT SPEEDS UP THE GUN IT FEEDS."],
+  // U2c group 0 fix 5: "LONG BELTS HEAT ITS SLUGS" repeats the face's HEAT; the breech's half stays (battle.ts makeTurret:
+  // on a FURNACE build a belt of 8+ tiles into a gun fires it at FURNACE_LONG_BELT of its interval)
+  kiln: ["A LONG BELT SPEEDS UP THE GUN IT FEEDS."],
   loom: ["IT FEEDS ONE BELT MORE THAN MOST FACTORIES."],
   clockworks: [],
   sump: ["ITS SLUGS DRAG FOR THE LEFT GUN AND ECHO FOR THE RIGHT GUN."],

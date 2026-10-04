@@ -24,6 +24,7 @@ import { abilityText, cardText } from "../../ui/abilityText"; // 0.6.2t (T5): th
 import { drawCarry, drawFightCue, drawSuggestion } from "./cues";
 import { drawBeltX } from "./beltx"; // shoptap (D3)
 import { deleteRoute } from "./actions"; // shoptap (D3): the X removes the belt as REMOVE BELT does
+import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' faces in their tooltips
 
 /** Status bar: DAWN · DAY n/10, gold, the 5 hearts, the W-L record (landscape; portrait keeps it in
  *  the hero card below the shop), belt use when there is room, then MENU and SND. */
@@ -227,7 +228,9 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const ph = s.refit || c ? -1 : PACK_IDS.findIndex((id) => ui.hover === `pack-${id}`);
   if (ph >= 0) {
     const def = PACK_ITEM[PACK_IDS[ph]];
-    drawTooltip(g, packRects(L)[ph], ITEMS[def], L.W, abilityText(def, 1, textOpts(s.run)).sentences[0] ?? "");
+    // U2c group 0 fix 3: the pack's face, "+4 BELT TILES FOR THE RUN." and "+25 {HULL} FOR THE RUN." (the tooltip's layout
+    // as before: one line of its 3x5 text)
+    drawTooltip(g, packRects(L)[ph], ITEMS[def], L.W, faceLines(def, 1)?.rules[0]?.text ?? abilityText(def, 1, textOpts(s.run)).sentences[0] ?? "");
   }
   if (s.menu) {
     optionsCard(s.game, g, "PAUSED", [

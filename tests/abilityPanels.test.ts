@@ -799,7 +799,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // fit their hint (the faces' turret cores on installed turrets)
     // U2b (REQ-BFG-046): the rig and gear faces are shorter again, so more desk panels (rigs, mostly) fit their hint
     // (179 to 126 on release-084). 0.8.6 move: 0.8.5's TURRET SPEED UPGRADE button and the faces: 202 to 153, measured
-    expect([withHint, missing.length]).toEqual([1934, 153]);
+    // U2c group 0 fix 1: 154, SURGE VALVE's rule says its pulse (its speed and length), a line longer on the desk column
+    expect([withHint, missing.length]).toEqual([1934, 154]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -820,7 +821,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // 3's panels (was 115)
     // U2a (REQ-BFG-046): 422: the new faces (a stat row and one rule) leave room for the hint on many more phone panels
     // U2b (REQ-BFG-046): 497 with the rig, gear and supply faces (and the reminders giving way one at a time, F4)
-    expect(hints).toBe(497);
+    // U2c group 0 fix 1: 494, SURGE VALVE's rule says its pulse (its speed and length), so 3 of its phone panels lose the hint
+    expect(hints).toBe(494);
   });
 });
 

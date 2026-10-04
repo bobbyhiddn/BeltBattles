@@ -137,7 +137,8 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
   });
 
   it("every signature factory's flavour is a tip with no number (F1); the descriptions the new rules made false are reworded", () => {
-    expect(flavour("kiln")).toEqual(["LONG BELTS HEAT ITS SLUGS, AND A LONG BELT SPEEDS UP THE GUN IT FEEDS."]);
+    // U2c group 0 fix 5: the KILN's face says HEAT, so its tip keeps only the breech's half (battle.ts FURNACE_LONG_BELT)
+    expect(flavour("kiln")).toEqual(["A LONG BELT SPEEDS UP THE GUN IT FEEDS."]);
     expect(flavour("loom")).toEqual(["IT FEEDS ONE BELT MORE THAN MOST FACTORIES."]);
     expect(Math.max(...Object.values(ITEMS).filter((d) => d.kind === "factory").map((d) => outputsAt(d.id, 1)))).toBe(outputsAt("loom", 1));
     expect([ITEMS.loom.desc, ITEMS.gantry.desc, ITEMS.mimic.desc, ITEMS.twinmould.desc].map((d) => d.join(" "))).toEqual([

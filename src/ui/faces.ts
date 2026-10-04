@@ -303,10 +303,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   surge: (e) => {
     // Battle: every period its belts pulse (speed x pulse.speed for pulse.on s; the belt shows it) and each payload the
     // pulse speeds up gains pulse.flat
-    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat);
+    // U2c group 0 fix 1 (U2b question 3): the pulse is its main effect, so the face says it: its speed (as OVERDRIVE's
+    // "n TIMES AS FAST") and its length; NEXT★ shows the next speed; the tap text (glossary SURGE) explains the pulse
+    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat), n = fmtCount(p.speed), on = fmtSec(p.on);
     const label = `EVERY ${every}{SEC}:`;
-    return rules([{ text: `${label} ${itsBelts(e)} ${oneBelt(e) ? "SURGES" : "SURGE"}, +${d} {DMG}.`, label }],
-      [["every", `${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
+    // (NEXT★ names the speed and the damage: with the period too, ★2's line and its perk name OVERPRESSURE take 233 px of
+    // the band's 225; each star's rule line says its period)
+    return rules([{ text: `${label} ${itsBelts(e)} ${oneBelt(e) ? "SURGES" : "SURGE"} ${n} TIMES AS FAST FOR ${on}{SEC}, +${d} {DMG}.`, label }],
+      [["speed", `${n} TIMES`], ["flat", `+${d} {DMG}`]]);
   },
   sorting: (e) => {
     // Battle.applyHit: every `every`th payload it hits becomes `copies` payloads at full strength
@@ -378,8 +382,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
   },
   // ------------------------------------------------------------------------------------------ U2b: the supplies
-  // R1's face: {BELT} is C2's belt tile ("BELT TILES" in words scores 2 cross-refs, a common's red flag)
-  beltcrate: (e) => rules([{ text: `+${fmtCount(e.supply!.belt!)} {BELT} FOR THE RUN.` }]),
+  // U2c group 0 fix 2: {BELT} means belts, a count (a factory's {BELT}3); belt capacity is tiles, in words (hero select's
+  // "BELT 24 TILES")
+  beltcrate: (e) => rules([{ text: `+${fmtCount(e.supply!.belt!)} BELT TILES FOR THE RUN.` }]),
   plating: (e) => rules([{ text: `+${fmtDmg(e.supply!.hull!)} {HULL} FOR THE RUN.` }]),
 };
 

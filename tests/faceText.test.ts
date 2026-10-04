@@ -292,9 +292,49 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
   });
 });
 
+describe("U2c group 0: cap's fixes 1-5 on the 0.8.7 rune build", () => {
+  it("fix 1: SURGE VALVE's rule says its pulse, the speed and the length through the formatters; NEXT★ shows the next speed", () => {
+    for (const s of STARS) {
+      const p = effectAt("surge", s).gate!.pulse!;
+      const { value: fl, records } = captureFormats(() => faceLines("surge", s)!);
+      const rule = stripIcons(fl.rules[0].text);
+      expect(rule, `★${s}`).toContain(`${fmtCount(p.speed)} TIMES AS FAST FOR ${fmtSec(p.on)}`);
+      expect(records.map((r) => [r.unit, r.value]), `★${s}`).toEqual(expect.arrayContaining([["count", p.speed], ["sec", p.on], ["sec", p.period], ["dmg", p.flat]]));
+      if (s < FUSE_MAX) expect(stripIcons(faceNext("surge", s)!.text), `★${s}`).toContain(`${fmtCount(effectAt("surge", s + 1).gate!.pulse!.speed)} TIMES`);
+    }
+  });
+
+  it("fix 2: {BELT} means belts, a count: no face writes the belt icon but a factory's belts; belt capacity is BELT TILES, in words", () => {
+    for (const def of FACE_IDS) for (const s of starsOf(def)) {
+      const fl = faceLines(def, s, { k: 1, hero: "furnace" })!;
+      for (const line of [...fl.rules.map((r) => r.text), ...fl.reminders, fl.clause?.text ?? "", ...(fl.caveats ?? [])]) {
+        expect(line.includes(ICON.BELT), `${def} ★${s}: ${stripIcons(line)}`).toBe(false);
+      }
+      const belt = faceAt(def, s, { k: 1, hero: "furnace" })!.stats.find(([ic]) => ic === "BELT");
+      if (belt) expect(belt[1], def).toBe(fmtCount(outputsAt(def, s)));
+    }
+    expect(stripIcons(faceLines("beltcrate", 1)!.rules[0].text)).toBe(`+${fmtCount(ITEMS.beltcrate.supply!.belt!)} BELT TILES FOR THE RUN.`);
+  });
+
+  it("fix 3: the packs' tooltips read their faces (chrome.ts), one line of the tooltip's 3x5 text each", () => {
+    expect(readFileSync("src/screens/build/chrome.ts", "utf8")).toContain("faceLines(def, 1)?.rules[0]?.text");
+    expect(stripIcons(faceLines("plating", 1)!.rules[0].text)).toBe(`+${fmtDmg(ITEMS.plating.supply!.hull!)} ${ICON.HULL} FOR THE RUN.`);
+    for (const def of ["beltcrate", "plating"]) expect(textWidth(faceLines(def, 1)!.rules[0].text, "3"), def).toBeLessThanOrEqual(150); // shop.ts TOOLTIP_TEXT_W
+  });
+
+  it("fix 5: KILN's tip no longer repeats its face's HEAT; LOOM's says what its face doesn't (one belt more than most)", () => {
+    expect(flavour("kiln")).toEqual(["A LONG BELT SPEEDS UP THE GUN IT FEEDS."]);
+    expect(flavour("loom")).toEqual(["IT FEEDS ONE BELT MORE THAN MOST FACTORIES."]);
+    expect(effectAt("loom", 1).factory!.lead, "LOOM's lead belt").toBe(1);
+  });
+});
+
 /** The 390x844 phone's info band (tests/abilityPanels.test.ts's PHONE, 161 x 69) and the op view's phone band (402x690
  *  at x5: 241 x 414 art px, the zoomed band 235 x 122, 10 lines of 5x7; T1 REPORT 2.6). */
-const PHONE = buildLayout(167, 361, true, 5).info;
+// U2c group 0 fix 4: PACKS Q5's rule (oracle 35e8ebc1eda74818), as the other narrow-band tests took it: 0.8.6's pack row
+// under REROLL takes 33 px from buildLayout(167, 361)'s band (161 x 36: a 9 px body, no room for two kept lines), so the
+// legacy 161 x 69 band is 0.8.5's 167 x 361 plus the pack row (tests/abilityPanels, b1.text, families, stokerCap, wave3.text)
+const PHONE = buildLayout(167, 394, true, 5).info;
 const OP = buildLayout(241, 414, true, 5, true).info;
 /** U2b: the op view's touch target (402x690 CSS px, DPR 3): the game plans its band with { tap, band } (detailsPlan), so the
  *  buttons sit in the band's header row, not stacked under the text as a landscape column's (U2a planned it without them,
