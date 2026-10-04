@@ -231,7 +231,7 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
   // holds at least one of the 15 wave-3 modules tagged TWIN or PLATE (a tag alone is too loose: the v2 guards carry PLATE
   // too); their prizes may be wave-3 parts and are not pinned.
   const SIX = new Set(["brasswick", "voss", "grimhold", "karsk", "lockjaw", "thistlemail"]);
-  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds all 15, and the switch off refuses each such deck for them alone", () => {
+  it("no warlord prize or warlord deck of the 13 holds a wave-3 part, and every deck of the six holds a wave-3 TWIN or PLATE module; the regrown stand-in pool holds the 12 pinned below, and the switch off refuses each such deck for them alone", () => {
     const parts = (b: Build) => [...b.items.map((p) => p.def), ...b.mods.map((m) => m.def), ...(b.turrets ?? []).map((t) => t.def)];
     const family = (b: Build) => parts(b).filter((d) => isWave3(d) && (ITEMS[d].tags ?? []).some((t) => t === "TWIN" || t === "PLATE"));
     for (const id of RIVAL_IDS) for (const day of rivalDays(id)) {
@@ -262,7 +262,14 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
         });
       }
     }
-    expect([...inPool].sort()).toEqual([...WAVE3_IDS].sort()); // all 15, STOKER among them
+    // bb-0.8.6 (job PACKS run 2; oracle 47d683ef9b959301 (2)): the exact set the pool regrown under the packs holds, 12 of
+    // the 15 (was all 15). SHIELD WALL, TWIN LATCH and TWIN TRIGGER no longer reach any stand-in pick (they are still sold
+    // in the shops): the par player spends about 23% of its gold on packs by day 5 and 30% by day 10, so fewer part buys
+    // reach the picks. No coverage rule: any change to the set turns this red
+    expect([...inPool].sort()).toEqual([
+      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder", "spallcatcher", "steambreech",
+      "stoker", "twingauge", "twinmould",
+    ]);
     expect(inPool.has("stoker")).toBe(true);
     expect(decks).toBeGreaterThan(0);
   });
