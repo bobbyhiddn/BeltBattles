@@ -7,7 +7,8 @@ import type { LuckCapsTable } from "./luck";
 
 export const LUCK_CAPS: LuckCapsTable = {
   seeds: 48,
-  fingerprint: { furnace: "ca8005a0", weaver: "383bb148", foundry: "24325e93", bastion: "a4d5e9a3" },
+  // NUM-1 (cap's oracles bcc36c430b4f3a01 rule 4, 03f2cc3c1884e806): re-pinned for x10 hull units only (was ca8005a0, 383bb148, 24325e93, a4d5e9a3: with hullBonus / 10 seed 1's runs hash to exactly those, no par deck of these runs moved); the caps are carried; R6 runs npm run luckcaps
+  fingerprint: { furnace: "1236f7f0", weaver: "eabb2b11", foundry: "8696874a", bastion: "9aa33026" },
   caps: {
     furnace: [
       { ordinary: { value: 7, star2: 0, star3: 0, rare: 0, epic: 0, turrets: 0 }, good: { value: 8, star2: 0, star3: 0, rare: 1, epic: 0, turrets: 0 } }, // day 1

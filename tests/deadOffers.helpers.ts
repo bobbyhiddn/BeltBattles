@@ -357,7 +357,7 @@ export const DEFENSE: (keyof Metrics)[] = ["ownDisrupt", "hullLost", "platingSpe
 export const changedKeys = (a: Metrics, b: Metrics, keys: (keyof Metrics)[]): (keyof Metrics)[] => keys.filter((k) => Math.abs(a[k] - b[k]) > 1e-7);
 
 /** 0.8.0 B1 (oracle 2e5a00525c876f07): the quiet foe is the audit's ruler, so it keeps 240 hull whatever BASTION's hull is. */
-export const QUIET_FOE_HULL = 240;
+export const QUIET_FOE_HULL = 2400; // NUM-1 (REQ-BFG-047): hull x10 (was 240)
 
 /** An unarmed legal foe: offensive comparisons on one clock. */
 export function quietFoe(): Build {
@@ -370,7 +370,7 @@ export function quietFoe(): Build {
 /** A legal shock attacker with armor to keep a defensive fight running (sharedPool.effects.test.ts's). */
 function shockFoe(): Build {
   const b = heroStartBuild("weaver", 500);
-  b.hullBonus = 250;
+  b.hullBonus = 2500; // NUM-1: hull x10 (was 250: 10 ARMOR PACKs)
   const r = b.routes[0];
   for (const ti of [2, 3, 1, 4, 0, ...r.cells.map((_, i) => i)]) {
     const spot = spotForTile(b, "coil", 0, ti);
@@ -392,7 +392,7 @@ function markFoe(hero: HeroId): Build {
   sig.y = 8;
   b.items.push({ uid: 901, def: hero === "metronome" ? "frostbite" : "dragchain", ...at });
   b.routes[0].factory = 901;
-  b.hullBonus = 250;
+  b.hullBonus = 2500; // NUM-1: hull x10 (was 250: 10 ARMOR PACKs)
   return b;
 }
 
@@ -403,7 +403,7 @@ function markFoe(hero: HeroId): Build {
  */
 export function harasser(): Build {
   const b = heroStartBuild("weaver", 500);
-  b.hullBonus = 100;
+  b.hullBonus = 1000; // NUM-1: hull x10 (was 100: 4 ARMOR PACKs)
   for (let i = 0; i < 3; i++) {
     const s = bestSpot(b, "coil", (ri) => ri === i);
     if (!s) throw new Error("harasser: no spot for a coil");
