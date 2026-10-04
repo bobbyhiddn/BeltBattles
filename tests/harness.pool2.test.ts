@@ -57,7 +57,12 @@ describe("dry pool v2 against the shipped pool v1.1 (F3)", () => {
       for (let d = 1; d <= 10; d++) {
         const { field, jobs } = seen[10 * (ti + 1) + d - 1];
         const A = t.aPool === "v2" ? v2Of(t.a, d) : v11Of(t.a, d), B = v11Of(t.b, d);
-        expect(jobs).toHaveLength(A.size * B.size);
+        // PACKS run 2 (oracle 2427be6ec928a286, ruling R3): versus() plays every pick, duplicates included, which is the
+        // weight standInPickIndex gives them in the game. bb-0.8.6's WEAVER d1 holds two identical picks (77.8 and 78.4),
+        // so the jobs count picks, not distinct decks
+        const aPicks = t.aPool === "v2" ? days.find((x) => x.hero === t.a && x.day === d)!.picks.length : standInPool(t.a, d).length;
+        const bPicks = standInPool(t.b, d).length;
+        expect(jobs).toHaveLength(aPicks * bPicks);
         for (const j of jobs) {
           expect(A.has(key(field[j.a])), `${t.a} ${t.aPool} d${d}: side a`).toBe(true);
           expect(B.has(key(field[j.b])), `${t.b} v1.1 d${d}: side b is a shipped deck`).toBe(true);
