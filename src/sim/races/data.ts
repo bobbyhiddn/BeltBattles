@@ -8,7 +8,7 @@ export type RaceHeroId = "foundry" | "bastion" | "metronome" | "siphon";
 export type RaceAmmoKind = "blank" | "alloy" | "bulwark" | "pendulum" | "leechDrag" | "leechEcho";
 
 /** METRONOME pendulum curve (docs/RACES.md §3): 4 + 4 x max(0, 1 - |ride - 4.2| / 4.0). */
-export const PENDULUM = { floor: 4, swing: 4, peak: 4.2, spread: 4.0 } as const;
+export const PENDULUM = { floor: 40, swing: 40, peak: 4.2, spread: 4.0 } as const;
 
 export function pendulumCurve(ride: number): number {
   return PENDULUM.floor + PENDULUM.swing * Math.max(0, 1 - Math.abs(ride - PENDULUM.peak) / PENDULUM.spread);
@@ -53,27 +53,27 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
   longcase: {
     id: "longcase", name: "LONGCASE", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
     desc: ["OTHER SLUGS: +1.5", "DMG AFTER 2S RIDE.", "PENDULUM PEAK +1.2S."], tags: ["FORGE", "TEMPO"],
-    mod: { longRideFlat: 1.5, longRideMin: 2 },
-    levels: { 2: { mod: { longRideFlat: 2.5 }, perk: "DEEP WIND" }, 3: { mod: { longRideFlat: 4 }, perk: "FULL WIND" } },
+    mod: { longRideFlat: 15, longRideMin: 2 },
+    levels: { 2: { mod: { longRideFlat: 25 }, perk: "DEEP WIND" }, 3: { mod: { longRideFlat: 40 }, perk: "FULL WIND" } },
   },
 };
 
 export const RACE_AMMO: Record<RaceAmmoKind, AmmoDef> = {
-  blank: { name: "ALLOY BLANK", base: 3.5, rideScale: 0, fray: 0 },
+  blank: { name: "ALLOY BLANK", base: 35, rideScale: 0, fray: 0 },
   // A fused slug carries its whole damage in `flat` (FUSE_MULT x both blanks), so base is 0.
   alloy: { name: "ALLOY SLUG", base: 0, rideScale: 0, fray: 0 },
-  bulwark: { name: "BULWARK SLUG", base: 5, rideScale: 0, fray: 0 },
+  bulwark: { name: "BULWARK SLUG", base: 50, rideScale: 0, fray: 0 },
   // base is the curve's floor, for display; rideCurve replaces base + rideScale x ride.
   pendulum: { name: "PENDULUM SLUG", base: PENDULUM.floor, rideScale: 0, fray: 0, rideCurve: pendulumCurve },
   // One leech, two marks: the Sump stamps the mark into the ammo kind, so Splitter copies keep it.
-  leechDrag: { name: "LEECH SLUG: DRAG", base: 5, rideScale: 0, fray: 0 },
-  leechEcho: { name: "LEECH SLUG: ECHO", base: 5, rideScale: 0, fray: 0 },
+  leechDrag: { name: "LEECH SLUG: DRAG", base: 50, rideScale: 0, fray: 0 },
+  leechEcho: { name: "LEECH SLUG: ECHO", base: 50, rideScale: 0, fray: 0 },
 };
 
 export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   foundry: {
     id: "foundry", name: "FOUNDRY", faction: "human", factionName: "HUMAN GUILDS",
-    hull: 225, factory: "crucible", ammo: "blank", belt: 18,
+    hull: 2250, factory: "crucible", ammo: "blank", belt: 18,
     turrets: [
       { col0: 2, width: 2, connectors: [2, 3], kind: "medium", fireInterval: 0.8, window: 2, flight: 0.45 },
       { col0: 6, width: 2, connectors: [6, 7], kind: "medium", fireInterval: 0.8, window: 2, flight: 0.45 },
@@ -83,21 +83,21 @@ export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   },
   bastion: {
     id: "bastion", name: "BASTION", faction: "dwarf", factionName: "DWARVEN HOLDS",
-    hull: 215, factory: "wardworks", ammo: "bulwark", belt: 14,
+    hull: 2150, factory: "wardworks", ammo: "bulwark", belt: 14,
     turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", fireInterval: 0.75, window: 3, flight: 0.65 }],
     blurb: ["BULWARK SLUGS PLATE", "THE HULL AS THEY", "REACH THE CHAMBER."],
     pattern: "PLATE AND ENDURE",
   },
   metronome: {
     id: "metronome", name: "METRONOME", faction: "beastfolk", factionName: "BEASTFOLK PACKS",
-    hull: 210, factory: "clockworks", ammo: "pendulum", belt: 20,
+    hull: 2100, factory: "clockworks", ammo: "pendulum", belt: 20,
     turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "adaptable", fireInterval: 0.7, window: 3, flight: 0.55 }],
     blurb: ["PENDULUM SLUGS HIT", "HARDEST AFTER 10 TILES.", "NOTHING SPEEDS ITS BELTS."],
     pattern: "HIT THE BEAT",
   },
   siphon: {
     id: "siphon", name: "SIPHON", faction: "unaligned", factionName: "SUMP DRIFTERS",
-    hull: 220, factory: "sump", ammo: "leechDrag", belt: 20,
+    hull: 2200, factory: "sump", ammo: "leechDrag", belt: 20,
     turrets: [
       { col0: 1, width: 2, connectors: [2], kind: "light", fireInterval: 0.6, window: 2, flight: 0.34 },
       { col0: 7, width: 2, connectors: [7], kind: "light", fireInterval: 0.6, window: 2, flight: 0.34 },

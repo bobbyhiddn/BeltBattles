@@ -38,7 +38,7 @@ const MAX_UID = 2 ** 31 - 1; // = src/net/snapshot.ts MAX_UID
 // bb-0.8.6 (REQ-BFG-051 P3): the build's beltCap and hullBonus, integers in src/net/snapshot.ts checkBuildShape's bounds
 // (the packs make big belts and hulls ordinary, so this side takes exactly what the strict decoder takes)
 const MAX_BELT_CAP = 1000; // = checkBuildShape's beltCap 0..1000
-const HULL_BONUS_MIN = -1000, HULL_BONUS_MAX = 10000; // = its hullBonus -1000..10000
+const HULL_BONUS_MIN = -10000, HULL_BONUS_MAX = 100000; // = its hullBonus -1000..10000
 const TURRET_KEYS = ["slot", "def", "uid", "stars", "free"]; // RUNES-1: a turret's `grow` is refused (off) like any unknown key
 /** runId, playerId: anonymous, no personal data (same pattern as the async contract). */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;

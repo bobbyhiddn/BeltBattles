@@ -121,27 +121,27 @@ const r = (id: string, name: string, tier: Rarity, theme: RuneTheme, kind: RuneK
  */
 export const RUNE_LIST: readonly RuneDef[] = [
   // ---- common
-  r("iron_skin", "IRON SKIN", "common", "armor", "hull", 15, "+{N} {HULL}."),
+  r("iron_skin", "IRON SKIN", "common", "armor", "hull", 150, "+{N} {HULL}."),
   r("tar_barrel", "TAR BARREL", "common", "belts", "belt", 8, "+{N} {BELT}."),
   r("coin_purse", "COIN PURSE", "common", "gold", "dawnGold", 1, "AT DAWN: +{N} {GOLD}."),
-  r("sharp_scrap", "SHARP SCRAP", "common", "turrets", "firstShotDmg", 5, "EACH TURRET'S FIRST SHOT: +{N} {DMG}."),
+  r("sharp_scrap", "SHARP SCRAP", "common", "turrets", "firstShotDmg", 50, "EACH TURRET'S FIRST SHOT: +{N} {DMG}."),
   r("gun_oil", "GUN OIL", "common", "turrets", "turretRate", 15, "YOUR TURRETS: +{N} {RATE}."), // M5 bench: +10% measured +2.9
   r("oiled_cogs", "OILED COGS", "common", "factories", "factoryRate", 5, "YOUR FACTORIES: +{N} {RATE}."), // M5: +10% measured +7.2 (rare)
-  r("rivet_hoard", "RIVET HOARD", "common", "bastion", "startPlate", 6, "START EACH BATTLE WITH {N} {*PLATE}."),
-  r("twin_nails", "TWIN NAILS", "common", "foundry", "pairDmg", 2, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
+  r("rivet_hoard", "RIVET HOARD", "common", "bastion", "startPlate", 60, "START EACH BATTLE WITH {N} {*PLATE}."),
+  r("twin_nails", "TWIN NAILS", "common", "foundry", "pairDmg", 20, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
   r("coal_chute", "COAL CHUTE", "common", "furnace", "heatPct", 25, "YOUR {*HEAT}: +{N}."),
   r("loose_thread", "LOOSE THREAD", "common", "weaver", "startFray", 3, "BATTLE START: THE FOE HAS {N} {*FRAY}."),
   // ---- rare
-  r("spare_hull", "SPARE HULL", "rare", "armor", "hull", 30, "+{N} {HULL}."),
+  r("spare_hull", "SPARE HULL", "rare", "armor", "hull", 300, "+{N} {HULL}."),
   r("pitch_wagon", "PITCH WAGON", "rare", "belts", "belt", 16, "+{N} {BELT}."),
   r("fat_purse", "FAT PURSE", "rare", "gold", "dawnGold", 2, "AT DAWN: +{N} {GOLD}."),
-  r("war_edge", "WAR EDGE", "rare", "turrets", "shotDmg", 1, "YOUR SHOTS: +{N} {DMG}."),
+  r("war_edge", "WAR EDGE", "rare", "turrets", "shotDmg", 10, "YOUR SHOTS: +{N} {DMG}."),
   // RUNES-2a (Q6, cap's call): turrets AND factories, so the turrets get the loads to fire faster (RUNES-1's +50% turret
   // RATE measured +5.6, under the rare band: supply-bound); N benched into the rare band (+6 to +10)
   r("hair_trigger", "HAIR TRIGGER", "rare", "turrets", "allRate", 8, "YOUR TURRETS AND FACTORIES: +{N} {RATE}."),
   r("stoked_fires", "STOKED FIRES", "rare", "factories", "factoryRate", 15, "YOUR FACTORIES: +{N} {RATE}."), // M5: R1b's +25% measured +13.2 (epic)
-  r("grave_plates", "GRAVE PLATES", "rare", "bastion", "startPlate", 12, "START EACH BATTLE WITH {N} {*PLATE}."),
-  r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 4, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
+  r("grave_plates", "GRAVE PLATES", "rare", "bastion", "startPlate", 120, "START EACH BATTLE WITH {N} {*PLATE}."),
+  r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 40, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
   r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 50, "YOUR {*HEAT}: +{N}."),
   r("double_knot", "DOUBLE KNOT", "rare", "weaver", "frayHit", 1, "YOUR {*FRAY} HITS: +{N} {*FRAY}."),
   r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 6, "BATTLE START: THE FOE HAS {N} {*FRAY}."),
@@ -154,36 +154,36 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // M5: 3% +1.4, 12% +3.6. RUNES-087F (cap's Q2): judged on its own hero it was under its band (WEAVER +1.3; the other
   // three +4.4): like THREAD STORM it helps every hero but WEAVER, so it is a generic rune (turrets), judged on all heroes
   r("many_hands", "MANY HANDS", "common", "turrets", "perTurretRate", 12, "YOUR TURRETS: +{N} {RATE} PER TURRET."),
-  r("seam_rivets", "SEAM RIVETS", "common", "foundry", "pairPlate", 1, "EACH {*PAIR}: +{N} {*PLATE}."), // M5: 2 FOUNDRY +6.6, 1 +3.4
-  r("last_wall", "LAST WALL", "common", "bastion", "halfPlate", 8, "AT HALF {HULL}: +{N} {*PLATE}."),
-  r("final_nail", "FINAL NAIL", "common", "turrets", "finisherDmg", 1, "EACH VOLLEY'S LAST SHOT: +{N} {DMG}."), // M5: +3 +12.4, +1 +4.7
-  r("scrap_biter", "SCRAP BITER", "common", "turrets", "machineDmg", 1, "YOUR HITS ON MACHINES: +{N} {DMG}."),
+  r("seam_rivets", "SEAM RIVETS", "common", "foundry", "pairPlate", 10, "EACH {*PAIR}: +{N} {*PLATE}."), // M5: 2 FOUNDRY +6.6, 1 +3.4
+  r("last_wall", "LAST WALL", "common", "bastion", "halfPlate", 80, "AT HALF {HULL}: +{N} {*PLATE}."),
+  r("final_nail", "FINAL NAIL", "common", "turrets", "finisherDmg", 10, "EACH VOLLEY'S LAST SHOT: +{N} {DMG}."), // M5: +3 +12.4, +1 +4.7
+  r("scrap_biter", "SCRAP BITER", "common", "turrets", "machineDmg", 10, "YOUR HITS ON MACHINES: +{N} {DMG}."),
   r("quick_latch", "QUICK LATCH", "common", "belts", "rigSoon", 50, "YOUR {BELT} RIGS: ONLINE {N} SOONER."),
   r("ash_cloak", "ASH CLOAK", "common", "armor", "burnCut", 40, "{*BURN} ON YOUR {HULL}: -{N}."), // M5: 50% +5.2, 40% +4.3
-  r("bulkheads", "BULKHEADS", "common", "armor", "perTurretHull", 5, "+{N} {HULL} PER TURRET YOU HAVE."),
-  r("scrap_halo", "SCRAP HALO", "common", "stars", "mergedHull", 6, "+{N} {HULL} PER MERGED PIECE."), // M5: 3 +2.0, 6 +3.5
+  r("bulkheads", "BULKHEADS", "common", "armor", "perTurretHull", 50, "+{N} {HULL} PER TURRET YOU HAVE."),
+  r("scrap_halo", "SCRAP HALO", "common", "stars", "mergedHull", 60, "+{N} {HULL} PER MERGED PIECE."), // M5: 3 +2.0, 6 +3.5
   r("spoils_sack", "SPOILS SACK", "common", "gold", "victorGold", 2, "AFTER A WIN: +{N} {GOLD} AT DAWN."),
   // ---- rare (RUNES-087F: EMBER SHOT moved to the epics, below)
   r("slow_embers", "SLOW EMBERS", "rare", "furnace", "burnTime", 75, "YOUR {BURN} LASTS +{N} LONGER."), // M5: 50% FURNACE +5.6, 75% +7.4
-  r("snare_knot", "SNARE KNOT", "rare", "weaver", "fullFrayDmg", 2, "ON FULL {*FRAY}: YOUR HITS +{N} {DMG}."),
+  r("snare_knot", "SNARE KNOT", "rare", "weaver", "fullFrayDmg", 20, "ON FULL {*FRAY}: YOUR HITS +{N} {DMG}."),
   // M5: as a common, +1 measured WEAVER +7.7 (a rare's worth; 1 is the least flat amount)
-  r("barbed_silk", "BARBED SILK", "rare", "weaver", "frayHitDmg", 1, "YOUR {*FRAY} HITS: +{N} {DMG}."),
+  r("barbed_silk", "BARBED SILK", "rare", "weaver", "frayHitDmg", 10, "YOUR {*FRAY} HITS: +{N} {DMG}."),
   // M5: as a common, 2 BURN measured FOUNDRY +17.7 (every FOUNDRY load pairs): 1 BURN, a rare
   r("hot_seam", "HOT SEAM", "rare", "foundry", "pairBurn", 1, "YOUR {*PAIR} SHOTS: +{N} {BURN}."),
-  r("iron_temper", "IRON TEMPER", "rare", "bastion", "platedDmg", 3, "WHILE {*PLATE} HOLDS: SHOTS +{N} {DMG}."), // M5: +1: BASTION +3.2; +3: +8.2
+  r("iron_temper", "IRON TEMPER", "rare", "bastion", "platedDmg", 30, "WHILE {*PLATE} HOLDS: SHOTS +{N} {DMG}."), // M5: +1: BASTION +3.2; +3: +8.2
   // M5: +1 DMG per rig measured +18.0 (1 is the least flat amount): a whole % per rig instead (5% +11.1, 4% +9.1)
   r("toll_road", "TOLL ROAD", "rare", "belts", "priorPct", 4, "+{N} {DMG} PER RIG A LOAD PASSES."),
   r("ward_stone", "WARD STONE", "rare", "armor", "blockHits", 3, "THE FOE'S FIRST {N} HITS: NO {DMG}."),
   r("steady_iron", "STEADY IRON", "rare", "factories", "stallCut", 100, "{*STALL}S ON YOUR MACHINES: -{N}."), // M5: 50% +4.3, 93% +6.6
   // M5: an epic at -1 measured +8.8 and -2 +17.3: no whole amount lands in the epic band, +8.8 is a rare's
-  r("iron_hide", "IRON HIDE", "rare", "armor", "hitCut", 1, "HITS ON YOU: -{N} {DMG}."),
+  r("iron_hide", "IRON HIDE", "rare", "armor", "hitCut", 10, "HITS ON YOU: -{N} {DMG}."),
   // ---- epic (R1b 1.3: an epic changes a rule or scales)
   // RUNES-087F (cap's Q1): RUNES-2a's legendary "x2 DMG" measured FOUNDRY +28.4 (every FOUNDRY load pairs; x2 is the
   // least multiplier), so TWIN SUNS is FOUNDRY's epic as a whole % on a PAIR shot, benched into the epic band on FOUNDRY.
   // It takes MOLTEN VOWS' place in the catalogue order, and MOLTEN VOWS takes its place among the legendaries
   r("twin_suns", "TWIN SUNS", "epic", "foundry", "pairPct", 33, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FOUNDRY: 30% +12.0, 33% +12.9, 40% +15.2, 50% +17.9
   r("scrap_saint", "SCRAP SAINT", "epic", "stars", "mergedPct", 11, "+{N} {DMG} PER MERGED PIECE."), // M5: 5% +6.1, 11% +11.7
-  r("scab_iron", "SCAB IRON", "epic", "bastion", "plateOnHit", 1, "EACH HIT YOU TAKE: +{N} {*PLATE}."),
+  r("scab_iron", "SCAB IRON", "epic", "bastion", "plateOnHit", 10, "EACH HIT YOU TAKE: +{N} {*PLATE}."),
   r("widows_web", "WIDOW'S WEB", "epic", "weaver", "frayShotPct", 2, "+{N} {DMG} PER {*FRAY} ON THE FOE."),
   // M5: a generic theme (turrets): it is worth +3.3 to WEAVER (whose hits already fray) and +8.8 to +16.8 to the others
   r("thread_storm", "THREAD STORM", "epic", "turrets", "otherFray", 1, "HITS WITHOUT {*FRAY} ADD {N} {*FRAY}."),
@@ -191,7 +191,7 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // M5: turrets only measured +4.3 at 50% and +6.4 at 151% (supply-bound, it levels off): turrets AND factories
   r("last_stand", "LAST STAND", "epic", "turrets", "lastStand", 50, "BELOW HALF {HULL}: +{N} {RATE}."),
   r("rune_tithe", "RUNE TITHE", "epic", "gold", "runeTithe", 1, "AT DAWN: +{N} {GOLD} PER RUNE HELD."),
-  r("forge_ward", "FORGE WARD", "epic", "factories", "stampPlate", 1, "EACH STAMP: +{N} {*PLATE}."),
+  r("forge_ward", "FORGE WARD", "epic", "factories", "stampPlate", 10, "EACH STAMP: +{N} {*PLATE}."),
   // R1b #25: reads the wins the side carried into the fight (the snapshot's `wins`, which the server checks; the run's
   // own), passed to the battle and kept in its record, so ghosts and replays stay exact (battle.ts Battle, replay.ts)
   r("warlords_due", "WARLORD'S DUE", "epic", "turrets", "winDmgPct", 8, "+{N} {DMG} PER WIN."), // M5: 5% +8.0, 8% +12.1

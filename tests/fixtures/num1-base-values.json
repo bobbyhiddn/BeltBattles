@@ -1,0 +1,6248 @@
+{
+ "note": "NUM-1 (REQ-BFG-047): the base's values, recorded by scripts/num1-scale.mjs before it scaled them. rule x10: now = 10 x base (rounded: half up); same: now = base. tests/numbers.scale.test.ts checks the live values against `now`.",
+ "sentinel": {
+  "FRAY_BONUS": 0.2
+ },
+ "rounded": {
+  "ITEMS.counterweight.levels.3.gate.perTile.each": 18,
+  "WAVE3_ITEMS.anvil.levels.3.core.anvilFlat": 88
+ },
+ "rules": {
+  "spec": {
+   "gate.flat": "x10",
+   "gate.perPriorGate": "x10",
+   "gate.lockedFlat": "x10",
+   "gate.siftFlat": "x10",
+   "gate.pulse.flat": "x10",
+   "gate.repair": "x10",
+   "gate.heat": "x10",
+   "gate.keg.flat": "x10",
+   "gate.quench.flat": "x10",
+   "gate.quench.perBurn": "x10",
+   "gate.perStalled.each": "x10",
+   "gate.perStalled.max": "x10",
+   "gate.perTile.each": "x10",
+   "gate.perTile.max": "x10",
+   "gate.plate": "x10",
+   "gate.plated.min": "x10",
+   "gate.plated.flat": "x10",
+   "gate.gauge.flat": "x10",
+   "gate.gauge.matched": "x10",
+   "gate.pincer.flat": "x10",
+   "gate.pincer.each": "x10",
+   "gate.latch.flat": "x10",
+   "gate.breaker.flat": "x10",
+   "gate.breaker.floor": "x10",
+   "gate.burn": "same",
+   "gate.speed": "same",
+   "gate.split.copies": "same",
+   "gate.split.mult": "same",
+   "gate.priorCap": "same",
+   "gate.shockTime": "same",
+   "gate.jump": "same",
+   "gate.guard": "same",
+   "gate.toll": "same",
+   "gate.sift": "same",
+   "gate.siftClean": "same",
+   "gate.pulse.speed": "same",
+   "gate.pulse.on": "same",
+   "gate.pulse.period": "same",
+   "gate.sort.every": "same",
+   "gate.sort.copies": "same",
+   "gate.poison": "same",
+   "gate.overclockCooldown": "same",
+   "gate.keg.fuse": "same",
+   "gate.keg.burn": "same",
+   "gate.burnPerRide.seconds": "same",
+   "gate.burnPerRide.max": "same",
+   "gate.quench.stacks": "same",
+   "gate.staticTime": "same",
+   "gate.fray": "same",
+   "gate.frayCap": "same",
+   "gate.pincer.max": "same",
+   "gate.brace.mul": "same",
+   "gate.brace.plated": "same",
+   "gate.latch.hold": "same",
+   "gate.stoke": "same",
+   "factory.base": "x10",
+   "factory.scrapFlat": "x10",
+   "factory.round.blast": "x10",
+   "factory.plate.amount": "x10",
+   "factory.interval": "same",
+   "factory.lead": "same",
+   "factory.pour": "same",
+   "factory.batch": "same",
+   "factory.cycle.*.burn": "same",
+   "factory.cycle.*.shockTime": "same",
+   "factory.cycle.*.jump": "same",
+   "factory.commission": "same",
+   "factory.hotStart": "same",
+   "factory.intervalMul": "same",
+   "factory.round.seconds": "same",
+   "factory.round.spread": "same",
+   "factory.round.mul": "same",
+   "factory.round.delay": "same",
+   "factory.round.stall": "same",
+   "factory.plate.every": "same",
+   "mod.longRideFlat": "x10",
+   "mod.spall.every": "x10",
+   "mod.spall.add": "x10",
+   "mod.spall.max": "x10",
+   "mod.seam.pair": "x10",
+   "mod.seam.lone": "x10",
+   "mod.fireMul": "same",
+   "mod.longRideMin": "same",
+   "mod.perShot": "same",
+   "mod.window": "same",
+   "mod.windowTime": "same",
+   "mod.store": "same",
+   "mod.intakeGuard": "same",
+   "mod.finisher": "same",
+   "mod.intercept": "same",
+   "mod.rerolls": "same",
+   "mod.factoryWeight": "same",
+   "mod.pairBonus": "same",
+   "core.perQueued": "x10",
+   "core.flatPerBurn": "x10",
+   "core.volleyFlat": "x10",
+   "core.perSecond": "x10",
+   "core.anvilFlat": "x10",
+   "core.perPlate": "same",
+   "core.addBurn": "same",
+   "core.pellets": "same",
+   "core.share": "same",
+   "core.windowTime": "same",
+   "core.intervalMul": "same",
+   "core.maxCount": "same",
+   "core.start": "same",
+   "core.step": "same",
+   "core.floor": "same",
+   "core.gap": "same",
+   "core.hullMul": "same",
+   "core.burnTime": "same",
+   "core.flightMul": "same",
+   "core.reloadMul": "same",
+   "core.splash": "same",
+   "core.rip": "same",
+   "core.reach": "same",
+   "core.arcs": "same",
+   "core.stall": "same",
+   "core.maxSeconds": "same",
+   "core.mult": "same",
+   "core.hold": "same",
+   "core.columns": "same",
+   "core.steamPlated": "same",
+   "core.steamBare": "same",
+   "turret.fireInterval": "same",
+   "turret.window": "same",
+   "turret.flight": "same",
+   "supply.hull": "x10",
+   "supply.belt": "same",
+   "price": "same",
+   "size": "same"
+  },
+  "ammo": {
+   "base": "x10",
+   "rideScale": "x10",
+   "fray": "same",
+   "fixedSpeed": "same"
+  },
+  "heroes": {
+   "hull": "x10",
+   "belt": "same",
+   "turrets.*.col0": "same",
+   "turrets.*.width": "same",
+   "turrets.*.connectors.*": "same",
+   "turrets.*.fireInterval": "same",
+   "turrets.*.window": "same",
+   "turrets.*.flight": "same"
+  }
+ },
+ "values": [
+  {
+   "file": "src/sim/content.ts",
+   "id": "FRAY_BONUS",
+   "rule": "x10",
+   "base": 0.2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.kiln.price",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.kiln.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.kiln.factory.interval",
+   "rule": "same",
+   "base": 1.25,
+   "now": 1.25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.kiln.levels.2.factory.interval",
+   "rule": "same",
+   "base": 0.98,
+   "now": 0.98
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.kiln.levels.3.factory.interval",
+   "rule": "same",
+   "base": 0.83,
+   "now": 0.83
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.kiln.levels.4.factory.interval",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.loom.price",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.loom.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.loom.factory.interval",
+   "rule": "same",
+   "base": 0.72,
+   "now": 0.72
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.loom.factory.lead",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.loom.levels.2.factory.interval",
+   "rule": "same",
+   "base": 0.57,
+   "now": 0.57
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.loom.levels.3.factory.interval",
+   "rule": "same",
+   "base": 0.48,
+   "now": 0.48
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.loom.levels.4.factory.interval",
+   "rule": "same",
+   "base": 0.41,
+   "now": 0.41
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.press.price",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.press.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.press.factory.interval",
+   "rule": "same",
+   "base": 1.4,
+   "now": 1.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.press.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.1,
+   "now": 1.1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.press.levels.2.factory.base",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.press.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.press.levels.3.factory.base",
+   "rule": "x10",
+   "base": 7.5,
+   "now": 75
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.doublestamp.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.doublestamp.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.doublestamp.factory.interval",
+   "rule": "same",
+   "base": 2.2,
+   "now": 2.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.doublestamp.factory.batch",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.doublestamp.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.doublestamp.levels.2.factory.base",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.doublestamp.levels.3.factory.batch",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.shottower.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.shottower.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.shottower.factory.interval",
+   "rule": "same",
+   "base": 1.5,
+   "now": 1.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.shottower.factory.batch",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.shottower.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.35,
+   "now": 1.35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.shottower.levels.2.factory.base",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.shottower.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.3,
+   "now": 1.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.shottower.levels.3.factory.base",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.factory.interval",
+   "rule": "same",
+   "base": 1.5,
+   "now": 1.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.factory.cycle.0.burn",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.3,
+   "now": 1.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.levels.2.factory.cycle.0.burn",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.levels.2.factory.cycle.1.shockTime",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.levels.2.factory.cycle.1.jump",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.1,
+   "now": 1.1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.levels.3.factory.cycle.0.burn",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.levels.3.factory.cycle.1.shockTime",
+   "rule": "same",
+   "base": 2.8,
+   "now": 2.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hotswap.levels.3.factory.cycle.1.jump",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.slagpot.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.slagpot.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.slagpot.factory.interval",
+   "rule": "same",
+   "base": 2.8,
+   "now": 2.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.slagpot.levels.2.factory.interval",
+   "rule": "same",
+   "base": 2.2,
+   "now": 2.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.slagpot.levels.2.factory.base",
+   "rule": "x10",
+   "base": 12,
+   "now": 120
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.slagpot.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.75,
+   "now": 1.75
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.slagpot.levels.3.factory.base",
+   "rule": "x10",
+   "base": 15,
+   "now": 150
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.factory.interval",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.factory.commission",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.levels.2.factory.commission",
+   "rule": "same",
+   "base": 0.25,
+   "now": 0.25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.levels.2.factory.base",
+   "rule": "x10",
+   "base": 4.5,
+   "now": 45
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.levels.3.factory.commission",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.levels.3.factory.hotStart",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.assembly.levels.3.factory.base",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gantry.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gantry.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gantry.factory.interval",
+   "rule": "same",
+   "base": 1.2,
+   "now": 1.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gantry.factory.lead",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gantry.levels.2.factory.interval",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gantry.levels.3.factory.base",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapper.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapper.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapper.factory.interval",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapper.factory.scrapFlat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapper.levels.2.factory.interval",
+   "rule": "same",
+   "base": 2.5,
+   "now": 2.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapper.levels.2.factory.scrapFlat",
+   "rule": "x10",
+   "base": 6.5,
+   "now": 65
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapper.levels.3.factory.interval",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapper.levels.3.factory.scrapFlat",
+   "rule": "x10",
+   "base": 10.5,
+   "now": 105
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sabot.price",
+   "rule": "same",
+   "base": 9,
+   "now": 9
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sabot.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sabot.factory.interval",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sabot.levels.2.factory.interval",
+   "rule": "same",
+   "base": 2.8,
+   "now": 2.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sabot.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.9,
+   "now": 1.9
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.factory.interval",
+   "rule": "same",
+   "base": 2.8,
+   "now": 2.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.factory.round.seconds",
+   "rule": "same",
+   "base": 2.5,
+   "now": 2.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.factory.round.spread",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.levels.2.factory.round.seconds",
+   "rule": "same",
+   "base": 2.75,
+   "now": 2.75
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.levels.2.factory.round.spread",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.levels.3.factory.round.seconds",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.frostbite.levels.3.factory.round.spread",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.factory.interval",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.factory.round.mul",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.factory.round.seconds",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.levels.2.factory.round.mul",
+   "rule": "same",
+   "base": 0.4,
+   "now": 0.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.levels.2.factory.round.seconds",
+   "rule": "same",
+   "base": 4.4,
+   "now": 4.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.levels.3.factory.round.mul",
+   "rule": "same",
+   "base": 0.3,
+   "now": 0.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dragchain.levels.3.factory.round.seconds",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mimic.price",
+   "rule": "same",
+   "base": 11,
+   "now": 11
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mimic.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mimic.factory.interval",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mimic.factory.intervalMul",
+   "rule": "same",
+   "base": 1.4,
+   "now": 1.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mimic.levels.2.factory.intervalMul",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mimic.levels.3.factory.intervalMul",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mimic.levels.3.factory.pour",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.price",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.factory.interval",
+   "rule": "same",
+   "base": 2.4,
+   "now": 2.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.factory.round.delay",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.factory.round.blast",
+   "rule": "x10",
+   "base": 8,
+   "now": 80
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.levels.2.factory.round.delay",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.levels.2.factory.round.blast",
+   "rule": "x10",
+   "base": 18,
+   "now": 180
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.levels.2.factory.round.stall",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.levels.3.factory.round.delay",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.levels.3.factory.round.blast",
+   "rule": "x10",
+   "base": 28,
+   "now": 280
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.limpet.levels.3.factory.round.stall",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.temper.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.temper.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.temper.gate.burn",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.temper.levels.2.gate.burn",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.temper.levels.3.gate.burn",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.whetstone.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.whetstone.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.whetstone.gate.flat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.whetstone.levels.2.gate.flat",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.whetstone.levels.3.gate.flat",
+   "rule": "x10",
+   "base": 7,
+   "now": 70
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grease.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grease.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grease.gate.speed",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grease.gate.lockedFlat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grease.levels.2.gate.speed",
+   "rule": "same",
+   "base": 2.3,
+   "now": 2.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grease.levels.2.gate.lockedFlat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grease.levels.3.gate.speed",
+   "rule": "same",
+   "base": 3.1,
+   "now": 3.1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grease.levels.3.gate.lockedFlat",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.gate.speed",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.gate.lockedFlat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.levels.2.gate.speed",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.levels.2.gate.flat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.levels.2.gate.lockedFlat",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.levels.3.gate.speed",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.levels.3.gate.flat",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.brake.levels.3.gate.lockedFlat",
+   "rule": "x10",
+   "base": 7,
+   "now": 70
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.longhaul.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.longhaul.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.longhaul.gate.perPriorGate",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.longhaul.levels.2.gate.perPriorGate",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.longhaul.levels.2.gate.priorCap",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.longhaul.levels.3.gate.perPriorGate",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.longhaul.levels.3.gate.priorCap",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.coil.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.coil.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.coil.levels.2.gate.shockTime",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.coil.levels.2.gate.jump",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.coil.levels.3.gate.shockTime",
+   "rule": "same",
+   "base": 2.8,
+   "now": 2.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.coil.levels.3.gate.jump",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.splitter.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.splitter.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.splitter.gate.split.copies",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.splitter.gate.split.mult",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.splitter.levels.2.gate.split.copies",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.splitter.levels.2.gate.split.mult",
+   "rule": "same",
+   "base": 0.72,
+   "now": 0.72
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.splitter.levels.3.gate.split.copies",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.splitter.levels.3.gate.split.mult",
+   "rule": "same",
+   "base": 0.85,
+   "now": 0.85
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.price",
+   "rule": "same",
+   "base": 10,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.gate.speed",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.gate.lockedFlat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.levels.2.gate.speed",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.levels.2.gate.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.levels.2.gate.lockedFlat",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.levels.3.gate.speed",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.levels.3.gate.flat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overdrive.levels.3.gate.lockedFlat",
+   "rule": "x10",
+   "base": 11,
+   "now": 110
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tollbooth.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tollbooth.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tollbooth.gate.toll",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tollbooth.levels.2.gate.toll",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tollbooth.levels.3.gate.toll",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sifter.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sifter.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sifter.gate.sift",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sifter.levels.2.gate.siftFlat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sifter.levels.3.gate.siftFlat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sifter.levels.3.gate.siftClean",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.gate.pulse.speed",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.gate.pulse.on",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.gate.pulse.period",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.gate.pulse.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.gate.lockedFlat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.2.gate.pulse.speed",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.2.gate.pulse.on",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.2.gate.pulse.period",
+   "rule": "same",
+   "base": 2.5,
+   "now": 2.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.2.gate.pulse.flat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.2.gate.lockedFlat",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.3.gate.pulse.speed",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.3.gate.pulse.on",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.3.gate.pulse.period",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.3.gate.pulse.flat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.surge.levels.3.gate.lockedFlat",
+   "rule": "x10",
+   "base": 10,
+   "now": 100
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sorting.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sorting.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sorting.gate.sort.every",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sorting.gate.sort.copies",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sorting.levels.2.gate.sort.every",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sorting.levels.2.gate.sort.copies",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sorting.levels.3.gate.sort.every",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.sorting.levels.3.gate.sort.copies",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.riveter.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.riveter.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.riveter.gate.repair",
+   "rule": "x10",
+   "base": 0.6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.riveter.levels.2.gate.repair",
+   "rule": "x10",
+   "base": 1.3,
+   "now": 13
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.riveter.levels.3.gate.repair",
+   "rule": "x10",
+   "base": 2.1,
+   "now": 21
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.heatjacket.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.heatjacket.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.heatjacket.gate.heat",
+   "rule": "x10",
+   "base": 0.4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.heatjacket.levels.2.gate.heat",
+   "rule": "x10",
+   "base": 0.9,
+   "now": 9
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.heatjacket.levels.3.gate.heat",
+   "rule": "x10",
+   "base": 1.4,
+   "now": 14
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.venom.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.venom.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.venom.gate.poison",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.venom.levels.2.gate.poison",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.venom.levels.3.gate.poison",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overclocker.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overclocker.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overclocker.gate.overclockCooldown",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overclocker.levels.2.gate.overclockCooldown",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.overclocker.levels.3.gate.overclockCooldown",
+   "rule": "same",
+   "base": 1.15,
+   "now": 1.15
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.gate.keg.fuse",
+   "rule": "same",
+   "base": 12,
+   "now": 12
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.gate.keg.flat",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.gate.keg.burn",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.levels.2.gate.keg.fuse",
+   "rule": "same",
+   "base": 10,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.levels.2.gate.keg.flat",
+   "rule": "x10",
+   "base": 13,
+   "now": 130
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.levels.2.gate.keg.burn",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.levels.3.gate.keg.fuse",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.levels.3.gate.keg.flat",
+   "rule": "x10",
+   "base": 21,
+   "now": 210
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.keg.levels.3.gate.keg.burn",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bellows.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bellows.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bellows.gate.burnPerRide.seconds",
+   "rule": "same",
+   "base": 2.5,
+   "now": 2.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bellows.gate.burnPerRide.max",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bellows.levels.2.gate.burnPerRide.seconds",
+   "rule": "same",
+   "base": 1.15,
+   "now": 1.15
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bellows.levels.2.gate.burnPerRide.max",
+   "rule": "same",
+   "base": 9,
+   "now": 9
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bellows.levels.3.gate.burnPerRide.seconds",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bellows.levels.3.gate.burnPerRide.max",
+   "rule": "same",
+   "base": 14,
+   "now": 14
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.gate.quench.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.gate.quench.perBurn",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.gate.quench.stacks",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.levels.2.gate.quench.flat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.levels.2.gate.quench.perBurn",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.levels.2.gate.quench.stacks",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.levels.3.gate.quench.flat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.levels.3.gate.quench.perBurn",
+   "rule": "x10",
+   "base": 7,
+   "now": 70
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.quench.levels.3.gate.quench.stacks",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.staticbrush.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.staticbrush.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.staticbrush.gate.staticTime",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.staticbrush.levels.2.gate.staticTime",
+   "rule": "same",
+   "base": 1.3,
+   "now": 1.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.staticbrush.levels.3.gate.staticTime",
+   "rule": "same",
+   "base": 2.1,
+   "now": 2.1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.gate.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.gate.perStalled.each",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.gate.perStalled.max",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.levels.2.gate.flat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.levels.2.gate.perStalled.each",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.levels.2.gate.perStalled.max",
+   "rule": "x10",
+   "base": 13,
+   "now": 130
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.levels.3.gate.flat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.levels.3.gate.perStalled.each",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lodestone.levels.3.gate.perStalled.max",
+   "rule": "x10",
+   "base": 21,
+   "now": 210
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.barbed.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.barbed.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.barbed.gate.fray",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.barbed.levels.2.gate.fray",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.barbed.levels.2.gate.frayCap",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.barbed.levels.3.gate.fray",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.barbed.levels.3.gate.frayCap",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.counterweight.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.counterweight.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.counterweight.gate.perTile.each",
+   "rule": "x10",
+   "base": 0.5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.counterweight.gate.perTile.max",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.counterweight.levels.2.gate.perTile.each",
+   "rule": "x10",
+   "base": 1.1,
+   "now": 11
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.counterweight.levels.2.gate.perTile.max",
+   "rule": "x10",
+   "base": 13,
+   "now": 130
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.counterweight.levels.3.gate.perTile.each",
+   "rule": "x10",
+   "base": 1.75,
+   "now": 18,
+   "rounded": true
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.counterweight.levels.3.gate.perTile.max",
+   "rule": "x10",
+   "base": 21,
+   "now": 210
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.chamber.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.chamber.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.chamber.mod.perShot",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.chamber.levels.2.mod.perShot",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.chamber.levels.2.mod.window",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.chamber.levels.3.mod.perShot",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.chamber.levels.3.mod.window",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.calibrate.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.calibrate.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.calibrate.mod.fireMul",
+   "rule": "same",
+   "base": 0.75,
+   "now": 0.75
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.calibrate.levels.2.mod.fireMul",
+   "rule": "same",
+   "base": 0.58,
+   "now": 0.58
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.calibrate.levels.3.mod.fireMul",
+   "rule": "same",
+   "base": 0.46,
+   "now": 0.46
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.flak.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.flak.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.flak.mod.intercept",
+   "rule": "same",
+   "base": 0.25,
+   "now": 0.25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.flak.levels.2.mod.intercept",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.flak.levels.3.mod.intercept",
+   "rule": "same",
+   "base": 0.85,
+   "now": 0.85
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spotter.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spotter.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spotter.mod.rerolls",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spotter.levels.2.mod.rerolls",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spotter.levels.2.mod.factoryWeight",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spotter.levels.3.mod.factoryWeight",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hopper.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hopper.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hopper.mod.window",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hopper.mod.windowTime",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hopper.levels.2.mod.store",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hopper.levels.3.mod.store",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mantlet.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mantlet.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mantlet.levels.2.mod.intakeGuard",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mantlet.levels.3.mod.intakeGuard",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.ram.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.ram.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.ram.mod.finisher",
+   "rule": "same",
+   "base": 0.4,
+   "now": 0.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.ram.levels.2.mod.finisher",
+   "rule": "same",
+   "base": 0.88,
+   "now": 0.88
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.ram.levels.3.mod.finisher",
+   "rule": "same",
+   "base": 1.4,
+   "now": 1.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scatter.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scatter.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scatter.core.pellets",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scatter.core.share",
+   "rule": "same",
+   "base": 0.4,
+   "now": 0.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scatter.levels.2.core.pellets",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scatter.levels.2.core.share",
+   "rule": "same",
+   "base": 0.48,
+   "now": 0.48
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scatter.levels.3.core.pellets",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scatter.levels.3.core.share",
+   "rule": "same",
+   "base": 0.42,
+   "now": 0.42
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rotary.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rotary.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rotary.core.windowTime",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rotary.levels.2.core.intervalMul",
+   "rule": "same",
+   "base": 0.85,
+   "now": 0.85
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rotary.levels.3.core.intervalMul",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.pressure.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.pressure.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.pressure.core.perQueued",
+   "rule": "x10",
+   "base": 1.2,
+   "now": 12
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.pressure.core.maxCount",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.pressure.levels.2.core.perQueued",
+   "rule": "x10",
+   "base": 2.6,
+   "now": 26
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.pressure.levels.3.core.perQueued",
+   "rule": "x10",
+   "base": 4.2,
+   "now": 42
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.core.start",
+   "rule": "same",
+   "base": 1.2,
+   "now": 1.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.core.step",
+   "rule": "same",
+   "base": 0.06,
+   "now": 0.06
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.core.floor",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.core.gap",
+   "rule": "same",
+   "base": 2.5,
+   "now": 2.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.levels.2.core.step",
+   "rule": "same",
+   "base": 0.09,
+   "now": 0.09
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.levels.2.core.floor",
+   "rule": "same",
+   "base": 0.4,
+   "now": 0.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.levels.3.core.step",
+   "rule": "same",
+   "base": 0.12,
+   "now": 0.12
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.gatling.levels.3.core.floor",
+   "rule": "same",
+   "base": 0.29,
+   "now": 0.29
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hullbreaker.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hullbreaker.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hullbreaker.core.hullMul",
+   "rule": "same",
+   "base": 1.3,
+   "now": 1.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hullbreaker.levels.2.core.hullMul",
+   "rule": "same",
+   "base": 1.66,
+   "now": 1.66
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hullbreaker.levels.3.core.hullMul",
+   "rule": "same",
+   "base": 2.05,
+   "now": 2.05
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.core.flatPerBurn",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.core.addBurn",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.core.burnTime",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.core.flightMul",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.levels.2.core.flatPerBurn",
+   "rule": "x10",
+   "base": 1.5,
+   "now": 15
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.levels.2.core.addBurn",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.levels.2.core.burnTime",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.levels.3.core.flatPerBurn",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.levels.3.core.addBurn",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.drake.levels.3.core.burnTime",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.salvo.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.salvo.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.salvo.core.volleyFlat",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.salvo.core.reloadMul",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.salvo.levels.2.core.volleyFlat",
+   "rule": "x10",
+   "base": 4.4,
+   "now": 44
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.salvo.levels.3.core.volleyFlat",
+   "rule": "x10",
+   "base": 7,
+   "now": 70
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.core.flightMul",
+   "rule": "same",
+   "base": 2.2,
+   "now": 2.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.core.splash",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.core.share",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.levels.2.core.splash",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.levels.2.core.share",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.levels.3.core.splash",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.mortar.levels.3.core.share",
+   "rule": "same",
+   "base": 0.58,
+   "now": 0.58
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grapnel.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grapnel.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grapnel.core.rip",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grapnel.core.reach",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grapnel.levels.2.core.rip",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grapnel.levels.2.core.reach",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grapnel.levels.3.core.rip",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.grapnel.levels.3.core.reach",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.price",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.core.arcs",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.core.stall",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.core.share",
+   "rule": "same",
+   "base": 0.25,
+   "now": 0.25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.levels.2.core.arcs",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.levels.2.core.stall",
+   "rule": "same",
+   "base": 0.9,
+   "now": 0.9
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.levels.3.core.arcs",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.levels.3.core.stall",
+   "rule": "same",
+   "base": 0.93,
+   "now": 0.93
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.tesla.levels.3.core.share",
+   "rule": "same",
+   "base": 0.3,
+   "now": 0.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.capacitor.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.capacitor.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.capacitor.core.perSecond",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.capacitor.core.maxSeconds",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.capacitor.levels.2.core.perSecond",
+   "rule": "x10",
+   "base": 4.4,
+   "now": 44
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.capacitor.levels.3.core.perSecond",
+   "rule": "x10",
+   "base": 7,
+   "now": 70
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.compound.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.compound.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.compound.core.mult",
+   "rule": "same",
+   "base": 1.15,
+   "now": 1.15
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.compound.core.hold",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.compound.levels.2.core.mult",
+   "rule": "same",
+   "base": 1.33,
+   "now": 1.33
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.compound.levels.3.core.mult",
+   "rule": "same",
+   "base": 1.52,
+   "now": 1.52
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lance.price",
+   "rule": "same",
+   "base": 10,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lance.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lance.core.columns",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lance.core.share",
+   "rule": "same",
+   "base": 0.2,
+   "now": 0.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lance.levels.2.core.columns",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lance.levels.2.core.share",
+   "rule": "same",
+   "base": 0.22,
+   "now": 0.22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lance.levels.3.core.columns",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.lance.levels.3.core.share",
+   "rule": "same",
+   "base": 0.23,
+   "now": 0.23
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapcannon.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapcannon.turret.fireInterval",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapcannon.turret.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapcannon.turret.flight",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapcannon.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.9,
+   "now": 0.9
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.scrapcannon.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rampart.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rampart.turret.fireInterval",
+   "rule": "same",
+   "base": 0.75,
+   "now": 0.75
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rampart.turret.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rampart.turret.flight",
+   "rule": "same",
+   "base": 0.65,
+   "now": 0.65
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rampart.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.675,
+   "now": 0.675
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.rampart.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dartgun.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dartgun.turret.fireInterval",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dartgun.turret.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dartgun.turret.flight",
+   "rule": "same",
+   "base": 0.34,
+   "now": 0.34
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dartgun.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.495,
+   "now": 0.495
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.dartgun.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.44,
+   "now": 0.44
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spikegun.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spikegun.turret.fireInterval",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spikegun.turret.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spikegun.turret.flight",
+   "rule": "same",
+   "base": 0.34,
+   "now": 0.34
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spikegun.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.54,
+   "now": 0.54
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.spikegun.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.48,
+   "now": 0.48
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.carronade.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.carronade.turret.fireInterval",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.carronade.turret.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.carronade.turret.flight",
+   "rule": "same",
+   "base": 0.45,
+   "now": 0.45
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.carronade.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.72,
+   "now": 0.72
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.carronade.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.64,
+   "now": 0.64
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.swivel.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.swivel.turret.fireInterval",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.swivel.turret.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.swivel.turret.flight",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.swivel.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.63,
+   "now": 0.63
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.swivel.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.56,
+   "now": 0.56
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.twinneedle.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.twinneedle.turret.fireInterval",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.twinneedle.turret.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.twinneedle.turret.flight",
+   "rule": "same",
+   "base": 0.34,
+   "now": 0.34
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.twinneedle.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.495,
+   "now": 0.495
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.twinneedle.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.44,
+   "now": 0.44
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hailgun.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hailgun.turret.fireInterval",
+   "rule": "same",
+   "base": 0.45,
+   "now": 0.45
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hailgun.turret.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hailgun.turret.flight",
+   "rule": "same",
+   "base": 0.3,
+   "now": 0.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hailgun.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.405,
+   "now": 0.405
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.hailgun.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.36,
+   "now": 0.36
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.deckgun.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.deckgun.turret.fireInterval",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.deckgun.turret.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.deckgun.turret.flight",
+   "rule": "same",
+   "base": 0.45,
+   "now": 0.45
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.deckgun.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.72,
+   "now": 0.72
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.deckgun.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.64,
+   "now": 0.64
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.railgun.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.railgun.turret.fireInterval",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.railgun.turret.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.railgun.turret.flight",
+   "rule": "same",
+   "base": 0.3,
+   "now": 0.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.railgun.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.63,
+   "now": 0.63
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.railgun.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.56,
+   "now": 0.56
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bombard.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bombard.turret.fireInterval",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bombard.turret.window",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bombard.turret.flight",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bombard.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.9,
+   "now": 0.9
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.bombard.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.siegegun.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.siegegun.turret.fireInterval",
+   "rule": "same",
+   "base": 0.85,
+   "now": 0.85
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.siegegun.turret.window",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.siegegun.turret.flight",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.siegegun.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.765,
+   "now": 0.765
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.siegegun.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.68,
+   "now": 0.68
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.thunderer.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.thunderer.turret.fireInterval",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.thunderer.turret.window",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.thunderer.turret.flight",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.thunderer.levels.2.turret.fireInterval",
+   "rule": "same",
+   "base": 0.72,
+   "now": 0.72
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.thunderer.levels.3.turret.fireInterval",
+   "rule": "same",
+   "base": 0.64,
+   "now": 0.64
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.beltcrate.price",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.beltcrate.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.beltcrate.supply.belt",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.plating.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.plating.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "ITEMS.plating.supply.hull",
+   "rule": "x10",
+   "base": 25,
+   "now": 250
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.plateroller.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.plateroller.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.plateroller.gate.plate",
+   "rule": "x10",
+   "base": 0.5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.plateroller.levels.2.gate.plate",
+   "rule": "x10",
+   "base": 1.1,
+   "now": 11
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.plateroller.levels.3.gate.plate",
+   "rule": "x10",
+   "base": 1.7,
+   "now": 17
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twingauge.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twingauge.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twingauge.gate.gauge.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twingauge.gate.gauge.matched",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twingauge.levels.2.gate.gauge.flat",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twingauge.levels.2.gate.gauge.matched",
+   "rule": "x10",
+   "base": 6.6,
+   "now": 66
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twingauge.levels.3.gate.gauge.flat",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twingauge.levels.3.gate.gauge.matched",
+   "rule": "x10",
+   "base": 10.5,
+   "now": 105
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.price",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.gate.pincer.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.gate.pincer.each",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.gate.pincer.max",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.levels.2.gate.pincer.flat",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.levels.2.gate.pincer.each",
+   "rule": "x10",
+   "base": 4.4,
+   "now": 44
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.levels.2.gate.pincer.max",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.levels.3.gate.pincer.flat",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.levels.3.gate.pincer.each",
+   "rule": "x10",
+   "base": 7,
+   "now": 70
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.pincer.levels.3.gate.pincer.max",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.braceframe.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.braceframe.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.braceframe.gate.brace.mul",
+   "rule": "same",
+   "base": 0.5,
+   "now": 0.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.braceframe.gate.brace.plated",
+   "rule": "same",
+   "base": 0.25,
+   "now": 0.25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.braceframe.levels.2.gate.brace.mul",
+   "rule": "same",
+   "base": 0.3,
+   "now": 0.3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.braceframe.levels.2.gate.brace.plated",
+   "rule": "same",
+   "base": 0.15,
+   "now": 0.15
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.braceframe.levels.3.gate.brace.mul",
+   "rule": "same",
+   "base": 0.15,
+   "now": 0.15
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.braceframe.levels.3.gate.brace.plated",
+   "rule": "same",
+   "base": 0.05,
+   "now": 0.05
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinlatch.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinlatch.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinlatch.gate.latch.hold",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinlatch.gate.latch.flat",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinlatch.levels.2.gate.latch.hold",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinlatch.levels.2.gate.latch.flat",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinlatch.levels.3.gate.latch.hold",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinlatch.levels.3.gate.latch.flat",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.stoker.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.stoker.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.stoker.gate.stoke",
+   "rule": "same",
+   "base": 0.2,
+   "now": 0.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.stoker.levels.2.gate.stoke",
+   "rule": "same",
+   "base": 0.44,
+   "now": 0.44
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.stoker.levels.3.gate.stoke",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.platebreaker.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.platebreaker.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.platebreaker.gate.breaker.flat",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.platebreaker.gate.breaker.floor",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.platebreaker.levels.2.gate.breaker.flat",
+   "rule": "x10",
+   "base": 8.8,
+   "now": 88
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.platebreaker.levels.2.gate.breaker.floor",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.platebreaker.levels.3.gate.breaker.flat",
+   "rule": "x10",
+   "base": 14,
+   "now": 140
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.platebreaker.levels.3.gate.breaker.floor",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.price",
+   "rule": "same",
+   "base": 10,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.gate.plate",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.gate.plated.min",
+   "rule": "x10",
+   "base": 12,
+   "now": 120
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.gate.plated.flat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.levels.2.gate.plate",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.levels.2.gate.plated.min",
+   "rule": "x10",
+   "base": 12,
+   "now": 120
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.levels.2.gate.plated.flat",
+   "rule": "x10",
+   "base": 6.6,
+   "now": 66
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.levels.3.gate.plate",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.levels.3.gate.plated.min",
+   "rule": "x10",
+   "base": 12,
+   "now": 120
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.shieldwall.levels.3.gate.plated.flat",
+   "rule": "x10",
+   "base": 10.5,
+   "now": 105
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.price",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.factory.interval",
+   "rule": "same",
+   "base": 1.8,
+   "now": 1.8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.factory.pour",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.levels.2.factory.base",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.4,
+   "now": 1.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.levels.3.factory.base",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twinmould.levels.3.factory.pour",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.price",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.factory.interval",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.factory.plate.every",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.factory.plate.amount",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.4,
+   "now": 1.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.levels.2.factory.plate.every",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.levels.2.factory.plate.amount",
+   "rule": "x10",
+   "base": 6.6,
+   "now": 66
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.2,
+   "now": 1.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.levels.3.factory.plate.every",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.armorpress.levels.3.factory.plate.amount",
+   "rule": "x10",
+   "base": 10.5,
+   "now": 105
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.anvil.price",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.anvil.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.anvil.core.anvilFlat",
+   "rule": "x10",
+   "base": 2.5,
+   "now": 25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.anvil.core.perPlate",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.anvil.levels.2.core.anvilFlat",
+   "rule": "x10",
+   "base": 5.5,
+   "now": 55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.anvil.levels.2.core.perPlate",
+   "rule": "same",
+   "base": 2.2,
+   "now": 2.2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.anvil.levels.3.core.anvilFlat",
+   "rule": "x10",
+   "base": 8.75,
+   "now": 88,
+   "rounded": true
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.anvil.levels.3.core.perPlate",
+   "rule": "same",
+   "base": 3.5,
+   "now": 3.5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.steambreech.price",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.steambreech.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twintrigger.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twintrigger.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twintrigger.mod.pairBonus",
+   "rule": "same",
+   "base": 0.25,
+   "now": 0.25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twintrigger.mod.windowTime",
+   "rule": "same",
+   "base": -0.25,
+   "now": -0.25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twintrigger.levels.2.mod.pairBonus",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twintrigger.levels.2.mod.windowTime",
+   "rule": "same",
+   "base": -0.4,
+   "now": -0.4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twintrigger.levels.3.mod.pairBonus",
+   "rule": "same",
+   "base": 0.88,
+   "now": 0.88
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.twintrigger.levels.3.mod.windowTime",
+   "rule": "same",
+   "base": -0.55,
+   "now": -0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.mod.spall.every",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.mod.spall.add",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.mod.spall.max",
+   "rule": "x10",
+   "base": 8,
+   "now": 80
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.levels.2.mod.spall.every",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.levels.2.mod.spall.add",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.levels.2.mod.spall.max",
+   "rule": "x10",
+   "base": 17.6,
+   "now": 176
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.levels.3.mod.spall.every",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.levels.3.mod.spall.add",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.spallcatcher.levels.3.mod.spall.max",
+   "rule": "x10",
+   "base": 28,
+   "now": 280
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.seamwelder.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.seamwelder.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.seamwelder.mod.seam.pair",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.seamwelder.mod.seam.lone",
+   "rule": "x10",
+   "base": 0.2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.seamwelder.levels.2.mod.seam.pair",
+   "rule": "x10",
+   "base": 2.2,
+   "now": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.seamwelder.levels.2.mod.seam.lone",
+   "rule": "x10",
+   "base": 0.4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.seamwelder.levels.3.mod.seam.pair",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "WAVE3_ITEMS.seamwelder.levels.3.mod.seam.lone",
+   "rule": "x10",
+   "base": 0.7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.cinder.base",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.cinder.rideScale",
+   "rule": "x10",
+   "base": 1.2,
+   "now": 12
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.cinder.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.thread.base",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.thread.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.thread.fray",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.plain.base",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.plain.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.plain.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.shot.base",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.shot.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.shot.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.slag.base",
+   "rule": "x10",
+   "base": 7,
+   "now": 70
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.slag.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.slag.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.slag.fixedSpeed",
+   "rule": "same",
+   "base": 0.75,
+   "now": 0.75
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.sabot.base",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.sabot.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.sabot.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.frost.base",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.frost.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.frost.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.drag.base",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.drag.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.drag.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.limpet.base",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.limpet.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "AMMO.limpet.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.hull",
+   "rule": "x10",
+   "base": 200,
+   "now": 2000
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.belt",
+   "rule": "same",
+   "base": 14,
+   "now": 14
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.turrets.0.col0",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.turrets.0.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.turrets.0.connectors.0",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.turrets.0.connectors.1",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.turrets.0.fireInterval",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.turrets.0.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.furnace.turrets.0.flight",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.hull",
+   "rule": "x10",
+   "base": 180,
+   "now": 1800
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.belt",
+   "rule": "same",
+   "base": 24,
+   "now": 24
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.0.col0",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.0.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.0.connectors.0",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.0.fireInterval",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.0.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.0.flight",
+   "rule": "same",
+   "base": 0.34,
+   "now": 0.34
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.1.col0",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.1.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.1.connectors.0",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.1.fireInterval",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.1.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.1.flight",
+   "rule": "same",
+   "base": 0.34,
+   "now": 0.34
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.2.col0",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.2.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.2.connectors.0",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.2.fireInterval",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.2.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/content.ts",
+   "id": "HEROES.weaver.turrets.2.flight",
+   "rule": "same",
+   "base": 0.34,
+   "now": 0.34
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.crucible.price",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.crucible.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.crucible.factory.interval",
+   "rule": "same",
+   "base": 1.6,
+   "now": 1.6
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.crucible.factory.pour",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.crucible.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.26,
+   "now": 1.26
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.crucible.levels.3.factory.interval",
+   "rule": "same",
+   "base": 1.06,
+   "now": 1.06
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.crucible.levels.4.factory.interval",
+   "rule": "same",
+   "base": 0.9,
+   "now": 0.9
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.wardworks.price",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.wardworks.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.wardworks.factory.interval",
+   "rule": "same",
+   "base": 1.1,
+   "now": 1.1
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.wardworks.levels.2.factory.interval",
+   "rule": "same",
+   "base": 0.86,
+   "now": 0.86
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.wardworks.levels.3.factory.interval",
+   "rule": "same",
+   "base": 0.73,
+   "now": 0.73
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.wardworks.levels.4.factory.interval",
+   "rule": "same",
+   "base": 0.62,
+   "now": 0.62
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.clockworks.price",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.clockworks.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.clockworks.factory.interval",
+   "rule": "same",
+   "base": 1.3,
+   "now": 1.3
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.clockworks.levels.2.factory.interval",
+   "rule": "same",
+   "base": 1.02,
+   "now": 1.02
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.clockworks.levels.3.factory.interval",
+   "rule": "same",
+   "base": 0.86,
+   "now": 0.86
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.clockworks.levels.4.factory.interval",
+   "rule": "same",
+   "base": 0.73,
+   "now": 0.73
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.sump.price",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.sump.size",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.sump.factory.interval",
+   "rule": "same",
+   "base": 1.1,
+   "now": 1.1
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.sump.levels.2.factory.interval",
+   "rule": "same",
+   "base": 0.86,
+   "now": 0.86
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.sump.levels.3.factory.interval",
+   "rule": "same",
+   "base": 0.73,
+   "now": 0.73
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.sump.levels.4.factory.interval",
+   "rule": "same",
+   "base": 0.62,
+   "now": 0.62
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.escapement.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.escapement.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.escapement.mod.fireMul",
+   "rule": "same",
+   "base": 0.9,
+   "now": 0.9
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.escapement.levels.2.mod.fireMul",
+   "rule": "same",
+   "base": 0.86,
+   "now": 0.86
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.escapement.levels.3.mod.fireMul",
+   "rule": "same",
+   "base": 0.82,
+   "now": 0.82
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.longcase.price",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.longcase.size",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.longcase.mod.longRideFlat",
+   "rule": "x10",
+   "base": 1.5,
+   "now": 15
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.longcase.mod.longRideMin",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.longcase.levels.2.mod.longRideFlat",
+   "rule": "x10",
+   "base": 2.5,
+   "now": 25
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_ITEMS.longcase.levels.3.mod.longRideFlat",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.blank.base",
+   "rule": "x10",
+   "base": 3.5,
+   "now": 35
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.blank.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.blank.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.alloy.base",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.alloy.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.alloy.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.bulwark.base",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.bulwark.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.bulwark.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.pendulum.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.pendulum.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.leechDrag.base",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.leechDrag.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.leechDrag.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.leechEcho.base",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.leechEcho.rideScale",
+   "rule": "x10",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_AMMO.leechEcho.fray",
+   "rule": "same",
+   "base": 0,
+   "now": 0
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.hull",
+   "rule": "x10",
+   "base": 225,
+   "now": 2250
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.belt",
+   "rule": "same",
+   "base": 18,
+   "now": 18
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.0.col0",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.0.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.0.connectors.0",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.0.connectors.1",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.0.fireInterval",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.0.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.0.flight",
+   "rule": "same",
+   "base": 0.45,
+   "now": 0.45
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.1.col0",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.1.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.1.connectors.0",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.1.connectors.1",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.1.fireInterval",
+   "rule": "same",
+   "base": 0.8,
+   "now": 0.8
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.1.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.foundry.turrets.1.flight",
+   "rule": "same",
+   "base": 0.45,
+   "now": 0.45
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.hull",
+   "rule": "x10",
+   "base": 215,
+   "now": 2150
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.belt",
+   "rule": "same",
+   "base": 14,
+   "now": 14
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.turrets.0.col0",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.turrets.0.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.turrets.0.connectors.0",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.turrets.0.connectors.1",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.turrets.0.fireInterval",
+   "rule": "same",
+   "base": 0.75,
+   "now": 0.75
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.turrets.0.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.bastion.turrets.0.flight",
+   "rule": "same",
+   "base": 0.65,
+   "now": 0.65
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.hull",
+   "rule": "x10",
+   "base": 210,
+   "now": 2100
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.belt",
+   "rule": "same",
+   "base": 20,
+   "now": 20
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.turrets.0.col0",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.turrets.0.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.turrets.0.connectors.0",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.turrets.0.connectors.1",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.turrets.0.fireInterval",
+   "rule": "same",
+   "base": 0.7,
+   "now": 0.7
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.turrets.0.window",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.metronome.turrets.0.flight",
+   "rule": "same",
+   "base": 0.55,
+   "now": 0.55
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.hull",
+   "rule": "x10",
+   "base": 220,
+   "now": 2200
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.belt",
+   "rule": "same",
+   "base": 20,
+   "now": 20
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.0.col0",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.0.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.0.connectors.0",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.0.fireInterval",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.0.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.0.flight",
+   "rule": "same",
+   "base": 0.34,
+   "now": 0.34
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.1.col0",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.1.width",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.1.connectors.0",
+   "rule": "same",
+   "base": 7,
+   "now": 7
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.1.fireInterval",
+   "rule": "same",
+   "base": 0.6,
+   "now": 0.6
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.1.window",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "RACE_HEROES.siphon.turrets.1.flight",
+   "rule": "same",
+   "base": 0.34,
+   "now": 0.34
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "PENDULUM.floor",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "PENDULUM.swing",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "PENDULUM.peak",
+   "rule": "same",
+   "base": 4.2,
+   "now": 4.2
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "id": "PENDULUM.spread",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/races/bastion.ts",
+   "id": "PLATE_PER_SLUG",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/races/bastion.ts",
+   "id": "PLATE_CAP",
+   "rule": "x10",
+   "base": 24,
+   "now": 240
+  },
+  {
+   "file": "src/sim/races/siphon.ts",
+   "id": "ECHO_CAP.flat",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/races/siphon.ts",
+   "id": "ECHO_CAP.burn",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/races/siphon.ts",
+   "id": "ECHO_CAP.fray",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.iron_skin.amount.n",
+   "rule": "x10",
+   "base": 15,
+   "now": 150
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.tar_barrel.amount.n",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.coin_purse.amount.n",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.sharp_scrap.amount.n",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.gun_oil.amount.n",
+   "rule": "same",
+   "base": 15,
+   "now": 15
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.oiled_cogs.amount.n",
+   "rule": "same",
+   "base": 5,
+   "now": 5
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.rivet_hoard.amount.n",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.twin_nails.amount.n",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.coal_chute.amount.n",
+   "rule": "same",
+   "base": 25,
+   "now": 25
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.loose_thread.amount.n",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.spare_hull.amount.n",
+   "rule": "x10",
+   "base": 30,
+   "now": 300
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.pitch_wagon.amount.n",
+   "rule": "same",
+   "base": 16,
+   "now": 16
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.fat_purse.amount.n",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.war_edge.amount.n",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.hair_trigger.amount.n",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.stoked_fires.amount.n",
+   "rule": "same",
+   "base": 15,
+   "now": 15
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.grave_plates.amount.n",
+   "rule": "x10",
+   "base": 12,
+   "now": 120
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.molten_bond.amount.n",
+   "rule": "x10",
+   "base": 4,
+   "now": 40
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.heat_sink.amount.n",
+   "rule": "same",
+   "base": 50,
+   "now": 50
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.double_knot.amount.n",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.tangle_wire.amount.n",
+   "rule": "same",
+   "base": 6,
+   "now": 6
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.ash_kindle.amount.n",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.many_hands.amount.n",
+   "rule": "same",
+   "base": 12,
+   "now": 12
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.seam_rivets.amount.n",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.last_wall.amount.n",
+   "rule": "x10",
+   "base": 8,
+   "now": 80
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.final_nail.amount.n",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.scrap_biter.amount.n",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.quick_latch.amount.n",
+   "rule": "same",
+   "base": 50,
+   "now": 50
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.ash_cloak.amount.n",
+   "rule": "same",
+   "base": 40,
+   "now": 40
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.bulkheads.amount.n",
+   "rule": "x10",
+   "base": 5,
+   "now": 50
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.scrap_halo.amount.n",
+   "rule": "x10",
+   "base": 6,
+   "now": 60
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.spoils_sack.amount.n",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.slow_embers.amount.n",
+   "rule": "same",
+   "base": 75,
+   "now": 75
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.snare_knot.amount.n",
+   "rule": "x10",
+   "base": 2,
+   "now": 20
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.barbed_silk.amount.n",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.hot_seam.amount.n",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.iron_temper.amount.n",
+   "rule": "x10",
+   "base": 3,
+   "now": 30
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.toll_road.amount.n",
+   "rule": "same",
+   "base": 4,
+   "now": 4
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.ward_stone.amount.n",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.steady_iron.amount.n",
+   "rule": "same",
+   "base": 100,
+   "now": 100
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.iron_hide.amount.n",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.twin_suns.amount.n",
+   "rule": "same",
+   "base": 33,
+   "now": 33
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.scrap_saint.amount.n",
+   "rule": "same",
+   "base": 11,
+   "now": 11
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.scab_iron.amount.n",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.widows_web.amount.n",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.thread_storm.amount.n",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.pyre_heart.amount.n",
+   "rule": "same",
+   "base": 100,
+   "now": 100
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.last_stand.amount.n",
+   "rule": "same",
+   "base": 50,
+   "now": 50
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.rune_tithe.amount.n",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.forge_ward.amount.n",
+   "rule": "x10",
+   "base": 1,
+   "now": 10
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.warlords_due.amount.n",
+   "rule": "same",
+   "base": 8,
+   "now": 8
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.ember_shot.amount.n",
+   "rule": "same",
+   "base": 1,
+   "now": 1
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.molten_vows.amount.n",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.bulwark_oath.amount.n",
+   "rule": "same",
+   "base": 3,
+   "now": 3
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.loom_of_woe.amount.n",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.first_blood.amount.n",
+   "rule": "same",
+   "base": 70,
+   "now": 70
+  },
+  {
+   "file": "src/sim/runes.ts",
+   "id": "RUNE_LIST.long_road.amount.n",
+   "rule": "same",
+   "base": 2,
+   "now": 2
+  },
+  {
+   "file": "src/game/eventDefs.ts",
+   "id": "EVENTS.dock.PLATING.gain.hull",
+   "rule": "x10",
+   "base": 20,
+   "now": 200
+  },
+  {
+   "file": "src/game/eventDefs.ts",
+   "id": "EVENTS.storm.RIDE THROUGH.cost.hull",
+   "rule": "x10",
+   "base": 10,
+   "now": 100
+  },
+  {
+   "file": "src/game/road.ts",
+   "id": "SABOTAGE_HULL",
+   "rule": "x10",
+   "base": 25,
+   "now": 250
+  },
+  {
+   "file": "src/game/ghostSnapshot.ts",
+   "id": "HULL_BONUS_MIN",
+   "rule": "x10",
+   "base": -1000,
+   "now": -10000
+  },
+  {
+   "file": "src/game/ghostSnapshot.ts",
+   "id": "HULL_BONUS_MAX",
+   "rule": "x10",
+   "base": 10000,
+   "now": 100000
+  },
+  {
+   "file": "src/net/roadCap.ts",
+   "id": "HULL_FLOOR",
+   "rule": "x10",
+   "base": 100,
+   "now": 1000
+  }
+ ]
+}

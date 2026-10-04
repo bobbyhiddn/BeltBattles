@@ -11,7 +11,7 @@ import { RACE_AMMO } from "./data";
 export const DRAG_MULT = 0.25; // a dragged segment runs at x0.25 of its speed state
 export const DRAG_TIME = 3.0; // s; a re-hit refreshes it, never stacks
 export const ECHO_TURRET = 1; // routes into the right gun carry ECHO; every other route DRAG
-export const ECHO_CAP = { flat: 3, burn: 2, fray: 1 } as const;
+export const ECHO_CAP = { flat: 30, burn: 2, fray: 1 } as const;
 const EPS = 1e-9;
 
 // ---------------------------------------------------------------- Sump

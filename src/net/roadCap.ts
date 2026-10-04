@@ -83,7 +83,7 @@ const REWARD_MODEL: Record<keyof WarlordReward, string> = {
 export const MODELLED_REWARD_FIELDS = Object.keys(REWARD_MODEL) as readonly (keyof WarlordReward)[];
 
 /** events.ts blockReason's HULL TOO WEAK: a hull cost is refused when the hero's hull + hullBonus - cost < 100. */
-export const HULL_FLOOR = 100;
+export const HULL_FLOOR = 1000;
 
 /** Throws RoadModelError when the live road content has an event or a fork pick the model has not reviewed. */
 export function checkRoadModel(): void {

@@ -3,8 +3,8 @@
 
 import type { Payload } from "../battle";
 
-export const PLATE_PER_SLUG = 2; // plating per arriving bulwark slug (x its split multiplier)
-export const PLATE_CAP = 24;
+export const PLATE_PER_SLUG = 20; // plating per arriving bulwark slug (x its split multiplier)
+export const PLATE_CAP = 240;
 
 export interface PlateState {
   plate: number; // current plating

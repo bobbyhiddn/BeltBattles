@@ -267,7 +267,7 @@ export const EVENTS: Record<EventId, EventDef> = {
     id: "dock", title: "FIELD DOCK", kind: "REPAIR DOCK",
     text: ["AN ORC FIELD DOCK SPITS SPARKS.", "THE WELDERS WORK FOR COIN."],
     choices: () => [
-      { label: "PLATING", cost: [gold(2)], gain: [{ k: "hull", n: 20 }] },
+      { label: "PLATING", cost: [gold(2)], gain: [{ k: "hull", n: 200 }] },
       { label: "PATCH UP", cost: [gold(4)], gain: [{ k: "lives", n: 1 }] },
       moveOn(),
     ],
@@ -301,7 +301,7 @@ export const EVENTS: Record<EventId, EventDef> = {
     id: "storm", title: "DARK WIND FRONT", kind: "DARK WIND",
     text: ["THE DARK WIND RISES OVER THE ROAD.", "RIVAL SCAVENGERS TURN BACK."],
     choices: () => [
-      { label: "RIDE THROUGH", cost: [{ k: "hull", n: 10 }], gain: [gold(5)] },
+      { label: "RIDE THROUGH", cost: [{ k: "hull", n: 100 }], gain: [gold(5)] },
       moveOn("TAKE COVER"),
     ],
   },

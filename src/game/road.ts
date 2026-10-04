@@ -32,7 +32,7 @@ export function rewardGold(tier: Difficulty, day: number): number {
 }
 export const MATRIARCH_GOLD = 5;
 /** SABOTAGE with no deck for the day before (the Matriarch on day 8): the warlord fights with -25 hull. */
-export const SABOTAGE_HULL = 25;
+export const SABOTAGE_HULL = 250;
 // 0.8.0 H1 (REQ-BFG-011): every hero's signature factory (was only the KILN and the LOOM). A warlord's deck must never
 // pay out a signature as a reward part; once race captains fly (N1), their CRUCIBLE or WARDWORKS would have. Today's 13
 // captains are FURNACE and WEAVER decks, so nothing a run meets changes.
