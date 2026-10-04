@@ -1062,7 +1062,9 @@ async function namesSection(browsers, origin) {
       await page.reload();
       await page.waitForFunction(() => !!window.bb, null, { timeout: 15000 });
       await settle(page, "title");
-      const cont = await region(page, "cont");
+      // 0.8.8 staging: wait for CONTINUE to be drawn after the reload, as OPTIONS above does (c57de36); read at once, the
+      // region was null under load (touch-f80875e-run1, names phone), so nothing was pressed and the build wait timed out
+      const cont = await regionDrawn(page, "cont");
       if (cont) await press(center(cont));
       const met = await state();
       if (met.dom) await enter("cap 7", how);
