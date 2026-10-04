@@ -140,7 +140,8 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
   panel(g, r, "dark");
   rect(g, r.x + 1, r.y + 1, r.w - 2, 2, edge);
   rect(g, r.x + 1, r.y + r.h - 3, r.w - 2, 2, edge);
-  if (o.open) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, C.yellow);
+  // RUNES-2a: a legendary card's own frame is yellow, so its open ring is white (every other tier's stays yellow)
+  if (o.open) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, def.tier === "legendary" ? C.white : C.yellow);
   drawRuneChip(g, { x: r.x + 5, y: r.y + 6, w: 22, h: 22 }, def);
   drawText(g, def.name, r.x + 31, r.y + 7, edge, { outline: C.ink });
   drawText(g, o.sub, r.x + 31, r.y + 18, C.slate4, { font: "3" });

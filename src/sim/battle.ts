@@ -19,7 +19,6 @@ import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (sto
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
 import { mergedPieces, runeMods, type RuneMods } from "./runes"; // RUNES-1 (REQ-BFG-058); RUNES-2a: merged pieces
-import { SYNC_WINDOW } from "./races/foundry"; // RUNES-2a: LOOSE MOLDS widens the PAIR window of E2's pair readers
 import { inSync, pourAll } from "./races/foundry"; // 0.8.0 P1: E2's pair rule (Foundry's sync rule); TWIN MOULD's pour
 import { effectAt, gradeOf, starsOf } from "./stars";
 import { boostable, overclocked } from "./overclock";
@@ -345,6 +344,7 @@ export interface Projectile {
   burnTime?: number; // their duration, instead of BURN_TIME (DRAKE)
   noFray?: boolean; // SCATTER: only the first pellet applies the ammo's Fray stacks
   finisher?: boolean; // 0.6.1p: a FINISHER RAM finisher (render: a 1 px red trail); absent otherwise
+  runeBurn?: number; // RUNES-2a: EMBER SHOT's BURN stacks on this volley-opening shot; absent otherwise
   flakChecked?: boolean;
   splash?: number;
   splashShare?: number;
@@ -472,19 +472,23 @@ export class Battle {
 
   /**
    * The share side s's runes multiply a shot by (after the flat runes, before the debuffs): SCRAP SAINT +n% per merged
-   * piece; WIDOW'S WEB +n% per FRAY on the foe's hull; BULWARK OATH +n% per PLATE held; WARLORD'S DUE +n% per win; TWIN
-   * SUNS x n on a PAIR shot; FIRST BLOOD x n on a volley's first shot. 1 for every other shot.
+   * piece; WIDOW'S WEB +n% per FRAY on the foe's hull; WARLORD'S DUE +n% per win; TOLL ROAD +n% per rig the load passed;
+   * FIRST BLOOD +n% on a volley's first shot (`first`); TWIN SUNS x n on a PAIR shot. 1 for every other shot.
    */
-  private runeMul(s: SideState, tu: TurretState, paired: boolean): number {
+  private runeMul(s: SideState, paired: boolean, p: Payload, first: boolean): number {
     const m = s.rune!, foe = this.sides[s.side === 0 ? 1 : 0];
-    const pct = m.mergedPct * (s.merged ?? 0) + m.frayShotPct * foe.hull.fray + m.plateDmgPct * s.plate.plate + m.winDmgPct * (s.wins ?? 0);
+    const pct = m.mergedPct * (s.merged ?? 0) + m.frayShotPct * foe.hull.fray + m.winDmgPct * (s.wins ?? 0) + m.priorPct * p.prior
+      + (first ? m.volleyFirst : 0);
     let k = pct ? 1 + pct / 100 : 1;
     if (paired && m.pairMul) k *= m.pairMul;
-    if (tu.runeVolley) {
-      tu.runeVolley = false;
-      if (m.volleyFirst) k *= m.volleyFirst;
-    }
     return k;
+  }
+
+  /** FIRST BLOOD, EMBER SHOT: is this turret's shot the first of its volley? (Consumes the mark chambers set.) */
+  private volleyOpen(tu: TurretState): boolean {
+    if (!tu.runeVolley) return false;
+    tu.runeVolley = false;
+    return true;
   }
 
   /** MOLTEN VOWS: a PAIR shot fires n times: n - 1 more projectiles at its one target and aim point (no new draw), each
@@ -516,6 +520,14 @@ export class Battle {
       }
     }
     return total;
+  }
+
+  /** BULWARK OATH: a race hook's own plating (BASTION's bulwark slugs: races/bastion.ts plateOnLoad) x n too: the extra
+   *  (n - 1) x what it added, through addPlate (PLATE_CAP holds). Without the rune it just runs the hook. */
+  private racePlate(s: SideState, hook: () => void): void {
+    const k = s.rune?.plateMul, g0 = s.plate.gained;
+    hook();
+    if (k && s.plate.gained > g0) this.addPlate(s, (s.plate.gained - g0) * (k - 1), true);
   }
 
   /** LAST WALL: n PLATE once a battle, the first time side s's hull is below half (step, after the hull effects). */
@@ -711,13 +723,10 @@ export class Battle {
     // STOKED FIRES run the factories' timers a whole % faster (their pace x (1 + pct/100))
     const rune = runeMods(b.runes);
     // RUNES-2a: HAIR TRIGGER's new form (allRate) speeds both, adding to the turret and factory RATE runes; MANY HANDS
-    // adds its % per turret, SAINT'S OIL its % on a merged (★2 or ★3) turret
+    // adds its % per turret
     if (rune) {
-      const merged = (tu: TurretState) => ((b.turrets ?? []).find((t) => t.slot === tu.index)?.stars ?? 1) >= 2;
-      for (const tu of turrets) {
-        const pct = rune.turretRate + rune.allRate + rune.perTurretRate * turrets.length + (rune.mergedRate && merged(tu) ? rune.mergedRate : 0);
-        if (pct) tu.interval /= 1 + pct / 100;
-      }
+      const pct = rune.turretRate + rune.allRate + rune.perTurretRate * turrets.length;
+      if (pct) for (const tu of turrets) tu.interval /= 1 + pct / 100;
       if (rune.factoryRate + rune.allRate) for (const f of factories) f.pace *= 1 + (rune.factoryRate + rune.allRate) / 100;
       // QUICK LATCH: every rig comes online a whole % sooner (an IDLE rig never does)
       if (rune.rigSoon) for (const g of gates) if (Number.isFinite(g.commissionAt)) g.commissionAt *= Math.max(0, 1 - rune.rigSoon / 100);
@@ -727,8 +736,8 @@ export class Battle {
     }
     // TWIN NAILS / MOLTEN BOND read PAIRs (abilityText.ts: two loads into one turret through different intakes within
     // SYNC_WINDOW; a FOUNDRY fusion is a pair), so the side's turrets read pairs as E2's pair readers do (marks only).
-    // RUNES-2a: every PAIR rune does (MOLTEN VOWS, TWIN SUNS, HOT SEAM, SEAM RIVETS, LOOSE MOLDS)
-    if (rune && (rune.pairDmg || rune.pairTwice || rune.pairMul || rune.pairBurn || rune.pairPlate || rune.pairWindow)) for (const tu of turrets) tu.pairing = true;
+    // RUNES-2a: every PAIR rune does (MOLTEN VOWS, TWIN SUNS, HOT SEAM, SEAM RIVETS)
+    if (rune && (rune.pairDmg || rune.pairTwice || rune.pairMul || rune.pairBurn || rune.pairPlate)) for (const tu of turrets) tu.pairing = true;
     return {
       side, build: b, hero: h, hull, factories, gates, routes, turrets, targets,
       flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, wreckAccepted: 0,
@@ -898,7 +907,9 @@ export class Battle {
       if (!f.routes.length || f.disrupted > 0 || f.frozen > 0) continue;
       // 0.8.0 P1 (E3): a stoked factory's stamp timer and trigger cooldown run at pace x (1 + its active stokes), capped
       // so it never outruns its turrets (stokedPace); every other factory at f.pace
-      const pace = f.stokers ? this.stokedPace(s, f, dt) : f.pace;
+      let pace = f.stokers ? this.stokedPace(s, f, dt) : f.pace;
+      // RUNES-2a: LAST STAND, below half hull the factories work a whole % faster too (stamping and trigger cooldown)
+      if (s.rune?.lastStand && s.hull.hp < s.hull.max / 2) pace *= 1 + s.rune.lastStand / 100;
       // 0.8.0 P1: ARMOR PRESS's plating timer at the stamping pace, with the full stoke (it puts no payload on a belt)
       if (f.plateTimer !== undefined) this.pressPlate(s, f, dt * (f.stokers ? f.pace * (1 + this.stokeOf(f)) : f.pace));
       // 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory's timers run at f.pace (1 for every other factory: dt as before)
@@ -1265,8 +1276,10 @@ export class Battle {
   }
 
   /** E1: `n` plating onto side s's hull from a wave-3 part, up to PLATE_CAP (the same 24 BASTION's slugs fill); a
-   *  `plate` event when any lands. Returns the plating added. */
-  addPlate(s: SideState, n: number): number {
+   *  `plate` event when any lands. Returns the plating added. RUNES-2a: BULWARK OATH multiplies every gain (`raw`: the
+   *  extra share of a gain made elsewhere, already multiplied: racePlate). */
+  addPlate(s: SideState, n: number, raw = false): number {
+    if (!raw && s.rune?.plateMul) n *= s.rune.plateMul;
     const st = s.plate, add = Math.min(n, PLATE_CAP - st.plate);
     if (!(add > 0)) return 0;
     st.plate += add;
@@ -1298,9 +1311,7 @@ export class Battle {
       const q = tu.stack[i];
       if (q === p || q.paired) continue;
       const m = seen.get(q);
-      if (!m) continue;
-      // RUNES-2a: LOOSE MOLDS, the PAIR window a whole % longer (still two intakes, still no RNG)
-      if (!(s.rune?.pairWindow ? this.runeSync(s, this.t - m.at, m.route === route) : inSync(this.t - m.at, m.route === route))) continue;
+      if (!m || !inSync(this.t - m.at, m.route === route)) continue;
       q.paired = true;
       p.paired = true;
       paired = true;
@@ -1311,11 +1322,6 @@ export class Battle {
     seen.set(p, { at: this.t, route });
     if (tu.seam) this.addPlate(s, paired ? tu.seam.pair : tu.seam.lone);
     return paired;
-  }
-
-  /** RUNES-2a, LOOSE MOLDS: races/foundry.ts inSync with side s's PAIR window (SYNC_WINDOW) a whole % longer. */
-  private runeSync(s: SideState, gap: number, sameRoute: boolean): boolean {
-    return !sameRoute && gap >= -1e-6 && gap <= SYNC_WINDOW * (1 + s.rune!.pairWindow / 100) + 1e-6;
   }
 
   /** SPALL CATCHER: damage that lands on side s charges each of its turrets carrying one: add x (the hull's part + twice
@@ -1480,7 +1486,7 @@ export class Battle {
         tu.stack.push(front.p);
         r.ammo.shift();
         this.events.push({ type: "load", side: s.side, turret: tu.index });
-        if (s.race) raceLoaded(this, s, r, tu, front.p); // races: blank sync stamp, bulwark plating
+        if (s.race) this.racePlate(s, () => raceLoaded(this, s, r, tu, front.p)); // races: blank sync stamp, bulwark plating
         if (tu.pairing) this.loaded(s, tu, r.index, front.p); // 0.8.0 P1 (E2, SEAM WELDER)
       } else if (tu.phase === "fire" && tu.store.length < tu.storeMax) { // 0.6.2 FB-B: a HOPPER ★2/★3 store takes it
         tu.store.push({ p: front.p, route: r.index });
@@ -1514,7 +1520,7 @@ export class Battle {
         if (tu.stack.length > 0) tu.loadTimer += dt;
         if (rt.ready(tu)) { // identity: stack.length >= window || (stack.length > 0 && loadTimer >= WINDOW_TIME)
           tu.phase = "fire";
-          if (s.rune?.volleyFirst) tu.runeVolley = true; // RUNES-2a: FIRST BLOOD, this volley's first shot is next
+          if (s.rune?.volleyFirst || s.rune?.volleyBurn) tu.runeVolley = true; // RUNES-2a: FIRST BLOOD, EMBER SHOT: the volley opens
         } else if (tu.stack.length === 0 && tu.fireCd <= 0) {
           s.stats.idle += dt;
         }
@@ -1580,7 +1586,7 @@ export class Battle {
         continue;
       }
       tu.stack.push(it.p);
-      if (s.race) raceLoaded(this, s, r, tu, it.p); // races: blank sync stamp, bulwark plating
+      if (s.race) this.racePlate(s, () => raceLoaded(this, s, r, tu, it.p)); // races: blank sync stamp, bulwark plating
       if (tu.pairing) this.loaded(s, tu, it.route, it.p); // 0.8.0 P1 (E2): as if it reached its intake now
     }
   }
@@ -1596,9 +1602,10 @@ export class Battle {
     if (p.paired && tu.pairBonus) dmg *= 1 + tu.pairBonus; // 0.8.0 P1: TWIN TRIGGER on a paired load (E2), before the RAM
     if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM
     if (tu.spallCharge) { dmg += tu.spallCharge; tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot
+    const open = s.rune ? this.volleyOpen(tu) : false; // RUNES-2a: the volley's first shot (FIRST BLOOD, EMBER SHOT)
     if (s.rune) { // RUNES-1 (REQ-BFG-058): the flat runes; RUNES-2a: then the multiplying ones
       dmg += this.runeShot(s, tu, !!p.paired, p);
-      dmg *= this.runeMul(s, tu, !!p.paired);
+      dmg *= this.runeMul(s, !!p.paired, p, open);
     }
     dmg = debuffedDamage(dmg, p.debuffs);
     const target = this.pickTarget(foe, !!p.harass, tu);
@@ -1616,6 +1623,7 @@ export class Battle {
       id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg, t: 0, flight, target, tx, ty, heavy,
     };
     if (fin) proj.finisher = true; // 0.6.1p
+    if (open && s.rune?.volleyBurn) proj.runeBurn = s.rune.volleyBurn; // RUNES-2a: EMBER SHOT
     this.telegraph(proj);
     this.projectiles.push(proj);
     tu.recoil = 1;
@@ -1636,12 +1644,10 @@ export class Battle {
       tu.runeFired = true;
       add += m.firstShotDmg;
     }
-    // RUNES-2a: HOT IRON on a load carrying HEAT; BARBED SILK on a load that adds FRAY; TOLL ROAD per rig it passed; IRON
-    // TEMPER while the hull holds PLATE; FINAL NAIL on the shot that empties the volley (the window: chambers spliced it)
+    // RUNES-2a: BARBED SILK on a load that adds FRAY; IRON TEMPER while the hull holds PLATE; FINAL NAIL on the shot that
+    // empties the volley (the window: chambers spliced it)
     if (p) {
-      if (m.heatDmg && p.heat) add += m.heatDmg;
       if (m.frayHitDmg && (AMMO[p.ammo].fray > 0 || p.fray)) add += m.frayHitDmg;
-      if (m.priorDmg) add += m.priorDmg * p.prior;
     }
     if (m.platedDmg && s.plate.plate > 0) add += m.platedDmg;
     if (m.finisherDmg && tu.stack.length === 0 && tu.core.routine !== "gatling") add += m.finisherDmg; // a GATLING holds no window
@@ -1700,9 +1706,10 @@ export class Battle {
     if (tu.salvage) { dmg += tu.salvage; tu.salvage = 0; }
     if (tu.spallCharge) { dmg += tu.spallCharge; tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot
     const paired = !!(p.paired || p.compound?.paired);
+    const open = s.rune ? this.volleyOpen(tu) : false; // RUNES-2a: the volley's first shot (FIRST BLOOD, EMBER SHOT)
     if (s.rune) { // RUNES-1 (REQ-BFG-058): the flat runes; RUNES-2a: then the multiplying ones
       dmg += this.runeShot(s, tu, paired, p);
-      dmg *= this.runeMul(s, tu, paired);
+      dmg *= this.runeMul(s, paired, p, open);
     }
     if (routine !== "compound" || !p.compound) dmg = debuffedDamage(dmg, p.debuffs);
     const heavy = tu.def.kind === "heavy";
@@ -1724,6 +1731,7 @@ export class Battle {
         ...(burnTime !== undefined ? { burnTime } : {}),
         ...(pellets > 1 ? { share, noFray: j > 0 } : {}),
         ...(fin ? { finisher: true } : {}), // 0.6.1p
+        ...(j === 0 && open && s.rune?.volleyBurn ? { runeBurn: s.rune.volleyBurn } : {}), // RUNES-2a: EMBER SHOT, its first pellet
         ...(routine === "mortar" ? { splash: c.splash, splashShare: c.share } : {}),
         ...(routine === "tesla" ? { tesla: { arcs: c.arcs ?? 1, stall: c.stall ?? 0.8, share: c.share ?? 0.25 } } : {}),
         ...(routine === "lance" ? { lance: { columns: c.columns ?? 1, share: c.share ?? 0.2, col: Math.floor(target.x / CELL) } } : {}),
@@ -1822,9 +1830,8 @@ export class Battle {
     let burn = pr.burn ?? pr.payload.burn; // 0.6.1b: a core's Burn (SCATTER split, DRAKE added), else the payload's
     // RUNES-2a: SLOW EMBERS (your BURN lasts longer)
     if (burn > 0) def.hull.burns.push({ dps: burn, t: this.burnTime(atk, pr.burnTime ?? BURN_TIME) });
-    if (atk.rune) { // RUNES-2a: EMBER SHOT on a HEAT load, HOT SEAM on a PAIR shot: BURN stacks on this hit
-      const more = (atk.rune.heatBurn && pr.payload.heat ? atk.rune.heatBurn : 0)
-        + (atk.rune.pairBurn && (pr.payload.paired || pr.payload.compound?.paired) ? atk.rune.pairBurn : 0);
+    if (atk.rune) { // RUNES-2a: EMBER SHOT on a volley's first shot, HOT SEAM on a PAIR shot: BURN stacks on this hit
+      const more = (pr.runeBurn ?? 0) + (atk.rune.pairBurn && (pr.payload.paired || pr.payload.compound?.paired) ? atk.rune.pairBurn : 0);
       if (more > 0) {
         def.hull.burns.push({ dps: more, t: this.burnTime(atk, BURN_TIME) });
         burn += more;
@@ -2192,9 +2199,8 @@ export class Battle {
     if (this.t >= WIND_START) {
       const dps = this.windDps();
       for (const s of this.sides) {
-        const d = s.rune?.windCut ? Math.max(0, dps - s.rune.windCut) : dps; // RUNES-2a: WIND VEIL
-        s.hull.hp -= d * dt;
-        s.stats.windTaken += d * dt;
+        s.hull.hp -= dps * dt;
+        s.stats.windTaken += dps * dt;
       }
       this.windTick += dt;
       if (this.windTick >= 1) {

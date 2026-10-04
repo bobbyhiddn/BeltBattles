@@ -50,21 +50,21 @@ export const HERO_STYLE: Partial<Record<HeroId, RuneTheme>> = { furnace: "furnac
  * - the battle's start: startBurn: n BURN stacks on the foe's hull; perTurretHull, mergedHull: n HULL per turret / per
  *   merged piece (a ★2 or ★3 rig, factory, gear, core or turret) on your hull's max and hp.
  * - a shot of yours: pairTwice: a PAIR shot fires n times at its one target (no new draw); pairMul: a PAIR shot's DMG x n;
- *   mergedPct: +n% DMG per merged piece; frayShotPct: +n% DMG per FRAY on the foe's hull; plateDmgPct: +n% DMG per PLATE
- *   you hold; platedDmg: +n DMG while you hold PLATE; heatDmg: +n DMG on a load carrying HEAT; frayHitDmg: +n DMG on a
- *   load that adds FRAY; priorDmg: +n DMG per rig the load passed; finisherDmg: +n DMG on the shot that empties a
- *   volley (the turret's window); volleyFirst: the first shot of each volley x n DMG; rideMul: a load's ride bonus x n;
+ *   mergedPct: +n% DMG per merged piece; frayShotPct: +n% DMG per FRAY on the foe's hull; platedDmg: +n DMG while you
+ *   hold PLATE; frayHitDmg: +n DMG on a load that adds FRAY; priorPct: +n% DMG
+ *   per rig the load passed; finisherDmg: +n DMG on the shot that empties a volley (the turret's window); volleyFirst:
+ *   +n% DMG on the first shot of each volley; volleyBurn: that first shot adds n BURN; rideMul: a load's ride bonus x n;
  *   winDmgPct: +n% DMG per win (WARLORD'S DUE, from the battle's wins).
  * - a hit of yours: machineDmg: +n DMG when it lands on a machine; fullFrayDmg: +n DMG on a hull at its FRAY cap;
- *   otherFray: a hit that adds no FRAY adds n; frayMul: your FRAY bonus x n; heatBurn: a HEAT load adds n BURN;
- *   pairBurn: a PAIR shot adds n BURN; burnTime: your BURN lasts n% longer; burnPct: your BURN on their hull deals n% more.
+ *   otherFray: a hit that adds no FRAY adds n; frayMul: your FRAY bonus x n; pairBurn: a PAIR shot adds n BURN; burnTime:
+ *   your BURN lasts n% longer; burnPct: your BURN on their hull deals n% more.
+ * - your PLATE: plateMul: every PLATE gain x n (PLATE_CAP holds).
  * - your hull: hitCut: each hit on you deals n less (never below 0); blockHits: the foe's first n hits deal none;
  *   plateOnHit: n PLATE each time you are hit; halfPlate: n PLATE once, when your hull first drops below half; burnCut:
- *   BURN on your hull deals n% less; windCut: the dark wind deals n less a second to you.
- * - your machines: lastStand: below half hull your turrets fire n% faster; perTurretRate: your turrets n% faster per
- *   turret you have; mergedRate: your merged turrets n% faster; pairWindow: your PAIR window n% longer; stampPlate: n
- *   PLATE each time a factory stamps; pairPlate: n PLATE each time you PAIR; stallCut: a STALL on your machines lasts n%
- *   less; rigSoon: your rigs come online n% sooner.
+ *   BURN on your hull deals n% less.
+ * - your machines: lastStand: below half hull your turrets and factories n% faster; perTurretRate: your turrets n% faster
+ *   per turret you have; stampPlate: n PLATE each time a factory stamps; pairPlate: n PLATE each time you PAIR;
+ *   stallCut: a STALL on your machines lasts n% less; rigSoon: your rigs come online n% sooner.
  */
 export type RuneKind =
   | "hull" | "belt" | "dawnGold" | "shotDmg" | "firstShotDmg" | "pairDmg" | "turretRate" | "factoryRate"
@@ -73,11 +73,11 @@ export type RuneKind =
   | "allRate"
   | "runeTithe" | "victorGold"
   | "startBurn" | "perTurretHull" | "mergedHull"
-  | "pairTwice" | "pairMul" | "mergedPct" | "frayShotPct" | "plateDmgPct" | "platedDmg" | "heatDmg" | "frayHitDmg"
-  | "priorDmg" | "finisherDmg" | "volleyFirst" | "rideMul" | "winDmgPct"
-  | "machineDmg" | "fullFrayDmg" | "otherFray" | "frayMul" | "heatBurn" | "pairBurn" | "burnTime" | "burnPct"
-  | "hitCut" | "blockHits" | "plateOnHit" | "halfPlate" | "burnCut" | "windCut"
-  | "lastStand" | "perTurretRate" | "mergedRate" | "pairWindow" | "stampPlate" | "pairPlate" | "stallCut" | "rigSoon";
+  | "pairTwice" | "pairMul" | "mergedPct" | "frayShotPct" | "plateMul" | "platedDmg" | "frayHitDmg"
+  | "priorPct" | "finisherDmg" | "volleyFirst" | "rideMul" | "winDmgPct"
+  | "machineDmg" | "fullFrayDmg" | "otherFray" | "frayMul" | "volleyBurn" | "pairBurn" | "burnTime" | "burnPct"
+  | "hitCut" | "blockHits" | "plateOnHit" | "halfPlate" | "burnCut"
+  | "lastStand" | "perTurretRate" | "stampPlate" | "pairPlate" | "stallCut" | "rigSoon";
 
 /** The unit each kind's amount carries (a test pins every rune to it). */
 export const KIND_UNIT: Record<RuneKind, RuneUnit> = {
@@ -86,13 +86,13 @@ export const KIND_UNIT: Record<RuneKind, RuneUnit> = {
   allRate: "pct",
   runeTithe: "gold", victorGold: "gold",
   startBurn: "count", perTurretHull: "hull", mergedHull: "hull",
-  pairTwice: "count", pairMul: "count", mergedPct: "pct", frayShotPct: "pct", plateDmgPct: "pct", platedDmg: "dmg",
-  heatDmg: "dmg", frayHitDmg: "dmg", priorDmg: "dmg", finisherDmg: "dmg", volleyFirst: "count", rideMul: "count",
+  pairTwice: "count", pairMul: "count", mergedPct: "pct", frayShotPct: "pct", plateMul: "count", platedDmg: "dmg",
+  frayHitDmg: "dmg", priorPct: "pct", finisherDmg: "dmg", volleyFirst: "pct", rideMul: "count",
   winDmgPct: "pct",
-  machineDmg: "dmg", fullFrayDmg: "dmg", otherFray: "count", frayMul: "count", heatBurn: "count", pairBurn: "count",
+  machineDmg: "dmg", fullFrayDmg: "dmg", otherFray: "count", frayMul: "count", volleyBurn: "count", pairBurn: "count",
   burnTime: "pct", burnPct: "pct",
-  hitCut: "dmg", blockHits: "count", plateOnHit: "plate", halfPlate: "plate", burnCut: "pct", windCut: "dmg",
-  lastStand: "pct", perTurretRate: "pct", mergedRate: "pct", pairWindow: "pct", stampPlate: "plate", pairPlate: "plate",
+  hitCut: "dmg", blockHits: "count", plateOnHit: "plate", halfPlate: "plate", burnCut: "pct",
+  lastStand: "pct", perTurretRate: "pct", stampPlate: "plate", pairPlate: "plate",
   stallCut: "pct", rigSoon: "pct",
 };
 
@@ -144,54 +144,62 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 50, "YOUR {*HEAT}: +{N}."),
   r("double_knot", "DOUBLE KNOT", "rare", "weaver", "frayHit", 1, "YOUR {*FRAY} HITS: +{N} {*FRAY}."),
   r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 6, "BATTLE START: THE FOE HAS {N} {*FRAY}."),
-  // ---- RUNES-2a (REQ-BFG-058): 40 more, each a new idea on a new hook (no same-stat twin of a shipped rune), in today's
+  // ---- RUNES-2a (REQ-BFG-058): 36 more, each a new idea on a new hook (no same-stat twin of a shipped rune), in today's
   // units. R1b's theme x tier grid: the epics and legendaries first (so epic and legendary dawns show their own tier),
-  // then each hero style toward 3 common, 3 rare, 2 epic and 1 legendary, then the generic themes.
+  // then each hero style toward 3 common, 3 rare, 2 epic and 1 legendary, then the generic themes. 40 were built; the
+  // M5 bench left out 4 that do almost nothing on par decks (HOT IRON, WIND VEIL, LOOSE MOLDS, SAINT'S OIL: the report)
   // ---- common
   r("ash_kindle", "ASH KINDLE", "common", "furnace", "startBurn", 4, "BATTLE START: THE FOE HAS {N} {BURN}."),
-  r("hot_iron", "HOT IRON", "common", "furnace", "heatDmg", 1, "YOUR {*HEAT} LOADS: +{N} {DMG}."),
-  r("barbed_silk", "BARBED SILK", "common", "weaver", "frayHitDmg", 1, "YOUR {*FRAY} HITS: +{N} {DMG}."),
-  r("many_hands", "MANY HANDS", "common", "weaver", "perTurretRate", 3, "YOUR TURRETS: +{N} {RATE} PER TURRET."),
-  r("seam_rivets", "SEAM RIVETS", "common", "foundry", "pairPlate", 2, "EACH {*PAIR}: +{N} {*PLATE}."),
-  r("hot_seam", "HOT SEAM", "common", "foundry", "pairBurn", 2, "YOUR {*PAIR} SHOTS: +{N} {BURN}."),
+  r("many_hands", "MANY HANDS", "common", "weaver", "perTurretRate", 12, "YOUR TURRETS: +{N} {RATE} PER TURRET."), // M5: 3% +1.4, 12% +3.6
+  r("seam_rivets", "SEAM RIVETS", "common", "foundry", "pairPlate", 1, "EACH {*PAIR}: +{N} {*PLATE}."), // M5: 2 FOUNDRY +6.6, 1 +3.4
   r("last_wall", "LAST WALL", "common", "bastion", "halfPlate", 8, "AT HALF {HULL}: +{N} {*PLATE}."),
-  r("final_nail", "FINAL NAIL", "common", "turrets", "finisherDmg", 3, "EACH VOLLEY'S LAST SHOT: +{N} {DMG}."),
+  r("final_nail", "FINAL NAIL", "common", "turrets", "finisherDmg", 1, "EACH VOLLEY'S LAST SHOT: +{N} {DMG}."), // M5: +3 +12.4, +1 +4.7
   r("scrap_biter", "SCRAP BITER", "common", "turrets", "machineDmg", 1, "YOUR HITS ON MACHINES: +{N} {DMG}."),
   r("quick_latch", "QUICK LATCH", "common", "belts", "rigSoon", 50, "YOUR {BELT} RIGS: ONLINE {N} SOONER."),
-  r("ash_cloak", "ASH CLOAK", "common", "armor", "burnCut", 50, "{BURN} ON YOUR {HULL}: -{N}."),
-  r("wind_veil", "WIND VEIL", "common", "armor", "windCut", 1, "THE DARK WIND: -{N} {DMG} A SECOND."),
+  r("ash_cloak", "ASH CLOAK", "common", "armor", "burnCut", 40, "{*BURN} ON YOUR {HULL}: -{N}."), // M5: 50% +5.2, 40% +4.3
   r("bulkheads", "BULKHEADS", "common", "armor", "perTurretHull", 5, "+{N} {HULL} PER TURRET YOU HAVE."),
-  r("scrap_halo", "SCRAP HALO", "common", "stars", "mergedHull", 3, "+{N} {HULL} PER MERGED PIECE."),
+  r("scrap_halo", "SCRAP HALO", "common", "stars", "mergedHull", 6, "+{N} {HULL} PER MERGED PIECE."), // M5: 3 +2.0, 6 +3.5
   r("spoils_sack", "SPOILS SACK", "common", "gold", "victorGold", 2, "AFTER A WIN: +{N} {GOLD} AT DAWN."),
   // ---- rare
-  r("ember_shot", "EMBER SHOT", "rare", "furnace", "heatBurn", 1, "YOUR {*HEAT} LOADS: +{N} {BURN} A HIT."),
-  r("slow_embers", "SLOW EMBERS", "rare", "furnace", "burnTime", 50, "YOUR {BURN} LASTS +{N} LONGER."),
+  // M5: "YOUR HEAT LOADS: +1 BURN A HIT" measured +0.3 (par decks carry almost no HEAT loads): the volley's opener burns
+  r("ember_shot", "EMBER SHOT", "rare", "furnace", "volleyBurn", 1, "EACH VOLLEY'S FIRST SHOT: +{N} {*BURN}."),
+  r("slow_embers", "SLOW EMBERS", "rare", "furnace", "burnTime", 75, "YOUR {BURN} LASTS +{N} LONGER."), // M5: 50% FURNACE +5.6, 75% +7.4
   r("snare_knot", "SNARE KNOT", "rare", "weaver", "fullFrayDmg", 2, "ON FULL {*FRAY}: YOUR HITS +{N} {DMG}."),
-  r("loose_molds", "LOOSE MOLDS", "rare", "foundry", "pairWindow", 100, "YOUR {*PAIR} WINDOW: +{N}."),
-  r("iron_temper", "IRON TEMPER", "rare", "bastion", "platedDmg", 1, "WHILE {*PLATE} HOLDS: SHOTS +{N} {DMG}."),
-  r("toll_road", "TOLL ROAD", "rare", "belts", "priorDmg", 1, "+{N} {DMG} PER RIG A LOAD PASSES."),
+  // M5: as a common, +1 measured WEAVER +7.7 (a rare's worth; 1 is the least flat amount)
+  r("barbed_silk", "BARBED SILK", "rare", "weaver", "frayHitDmg", 1, "YOUR {*FRAY} HITS: +{N} {DMG}."),
+  // M5: as a common, 2 BURN measured FOUNDRY +17.7 (every FOUNDRY load pairs): 1 BURN, a rare
+  r("hot_seam", "HOT SEAM", "rare", "foundry", "pairBurn", 1, "YOUR {*PAIR} SHOTS: +{N} {BURN}."),
+  r("iron_temper", "IRON TEMPER", "rare", "bastion", "platedDmg", 3, "WHILE {*PLATE} HOLDS: SHOTS +{N} {DMG}."), // M5: +1: BASTION +3.2; +3: +8.2
+  // M5: +1 DMG per rig measured +18.0 (1 is the least flat amount): a whole % per rig instead (5% +11.1, 4% +9.1)
+  r("toll_road", "TOLL ROAD", "rare", "belts", "priorPct", 4, "+{N} {DMG} PER RIG A LOAD PASSES."),
   r("ward_stone", "WARD STONE", "rare", "armor", "blockHits", 3, "THE FOE'S FIRST {N} HITS: NO {DMG}."),
-  r("saints_oil", "SAINT'S OIL", "rare", "stars", "mergedRate", 15, "YOUR MERGED TURRETS: +{N} {RATE}."),
-  r("steady_iron", "STEADY IRON", "rare", "factories", "stallCut", 50, "{*STALL}S ON YOUR MACHINES: -{N}."),
+  r("steady_iron", "STEADY IRON", "rare", "factories", "stallCut", 100, "{*STALL}S ON YOUR MACHINES: -{N}."), // M5: 50% +4.3, 93% +6.6
+  // M5: an epic at -1 measured +8.8 and -2 +17.3: no whole amount lands in the epic band, +8.8 is a rare's
+  r("iron_hide", "IRON HIDE", "rare", "armor", "hitCut", 1, "HITS ON YOU: -{N} {DMG}."),
   // ---- epic (R1b 1.3: an epic changes a rule or scales)
   r("molten_vows", "MOLTEN VOWS", "epic", "foundry", "pairTwice", 2, "YOUR {*PAIR} SHOTS FIRE {N} TIMES."),
-  r("scrap_saint", "SCRAP SAINT", "epic", "stars", "mergedPct", 5, "+{N} {DMG} PER MERGED PIECE."),
+  r("scrap_saint", "SCRAP SAINT", "epic", "stars", "mergedPct", 11, "+{N} {DMG} PER MERGED PIECE."), // M5: 5% +6.1, 11% +11.7
   r("scab_iron", "SCAB IRON", "epic", "bastion", "plateOnHit", 1, "EACH HIT YOU TAKE: +{N} {*PLATE}."),
   r("widows_web", "WIDOW'S WEB", "epic", "weaver", "frayShotPct", 2, "+{N} {DMG} PER {*FRAY} ON THE FOE."),
-  r("thread_storm", "THREAD STORM", "epic", "weaver", "otherFray", 1, "HITS WITHOUT {*FRAY} ADD {N} {*FRAY}."),
-  r("pyre_heart", "PYRE HEART", "epic", "furnace", "burnPct", 50, "YOUR {BURN}: +{N} {DMG}."),
-  r("last_stand", "LAST STAND", "epic", "turrets", "lastStand", 50, "BELOW HALF {HULL}: TURRETS +{N} {RATE}."),
-  r("iron_hide", "IRON HIDE", "epic", "armor", "hitCut", 1, "HITS ON YOU: -{N} {DMG}."),
+  // M5: a generic theme (turrets): it is worth +3.3 to WEAVER (whose hits already fray) and +8.8 to +16.8 to the others
+  r("thread_storm", "THREAD STORM", "epic", "turrets", "otherFray", 1, "HITS WITHOUT {*FRAY} ADD {N} {*FRAY}."),
+  r("pyre_heart", "PYRE HEART", "epic", "furnace", "burnPct", 100, "YOUR {*BURN}: +{N} {DMG}."), // M5: 50% FURNACE +7.1, 92% +10.7
+  // M5: turrets only measured +4.3 at 50% and +6.4 at 151% (supply-bound, it levels off): turrets AND factories
+  r("last_stand", "LAST STAND", "epic", "turrets", "lastStand", 50, "BELOW HALF {HULL}: +{N} {RATE}."),
   r("rune_tithe", "RUNE TITHE", "epic", "gold", "runeTithe", 1, "AT DAWN: +{N} {GOLD} PER RUNE HELD."),
   r("forge_ward", "FORGE WARD", "epic", "factories", "stampPlate", 1, "EACH STAMP: +{N} {*PLATE}."),
   // R1b #25: reads the wins the side carried into the fight (the snapshot's `wins`, which the server checks; the run's
   // own), passed to the battle and kept in its record, so ghosts and replays stay exact (battle.ts Battle, replay.ts)
-  r("warlords_due", "WARLORD'S DUE", "epic", "turrets", "winDmgPct", 5, "+{N} {DMG} PER WIN."),
+  r("warlords_due", "WARLORD'S DUE", "epic", "turrets", "winDmgPct", 8, "+{N} {DMG} PER WIN."), // M5: 5% +8.0, 8% +12.1
   // ---- legendary (R1b 1.3: a legendary redefines the run)
   r("twin_suns", "TWIN SUNS", "legendary", "foundry", "pairMul", 2, "YOUR {*PAIR} SHOTS: x{N} {DMG}."),
-  r("bulwark_oath", "BULWARK OATH", "legendary", "bastion", "plateDmgPct", 2, "+{N} {DMG} PER {*PLATE} YOU HOLD."),
+  // M5: "+2% DMG PER PLATE YOU HOLD" measured +0.5 (BASTION +1.8): plate held is low when the guns fire. Every PLATE gain
+  // multiplied instead (PLATE_CAP holds; BASTION's bulwark slugs, the wave-3 parts and the PLATE runes alike): x2 BASTION
+  // +12.1, x3 +21.2
+  r("bulwark_oath", "BULWARK OATH", "legendary", "bastion", "plateMul", 3, "YOUR {*PLATE} GAINS: x{N}."),
   r("loom_of_woe", "LOOM OF WOE", "legendary", "weaver", "frayMul", 2, "YOUR {*FRAY} BONUS: x{N}."),
-  r("first_blood", "FIRST BLOOD", "legendary", "turrets", "volleyFirst", 2, "EACH VOLLEY'S FIRST SHOT: x{N} {DMG}."),
+  // M5: x2 measured +28.2 (x2 is the least whole multiplier): a whole % instead
+  r("first_blood", "FIRST BLOOD", "legendary", "turrets", "volleyFirst", 70, "EACH VOLLEY'S FIRST SHOT: +{N} {DMG}."),
   r("long_road", "THE LONG ROAD", "legendary", "furnace", "rideMul", 2, "YOUR {*RIDE} BONUS: x{N}."),
 ];
 

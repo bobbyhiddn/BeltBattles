@@ -4,11 +4,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { Battle, simulate, type Projectile, type SimEvent } from "../src/sim/battle";
-import { AMMO, BURN_TIME, FRAY_BONUS, WIND_START } from "../src/sim/content";
+import { AMMO, BURN_TIME, FRAY_BONUS } from "../src/sim/content";
 import { cloneBuild, turretList, type Build } from "../src/sim/deck";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNE_LIST, RUNES, dawnGold, mergedPieces, pickGold, runeGrants, runeMods, runeOffer } from "../src/sim/runes";
-import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { newRun, pendingRune, takeRune } from "../src/game/run";
 import { finishDay } from "../src/game/day";
 import { battleRecordFor, replay } from "../src/net/replay";
@@ -47,14 +46,14 @@ function impacts(b0: Build, b1: Build, side: 0 | 1, count: number, setup?: (bt: 
   return out.slice(0, count);
 }
 
-const hot = (bt: Battle) => { for (const r of bt.sides[0].routes) for (const a of r.ammo) a.p.heat ??= 0.4; }; // a HEAT JACKET's
 
 describe("RUNES-2a: the catalogue block", () => {
-  it("40 new runes: 15 common, 9 rare, 11 epic, 5 legendary, each on a kind of its own", () => {
+  it("36 new runes (40 built, 4 left out on the bench): 11 common, 10 rare, 10 epic, 5 legendary, each on a kind of its own", () => {
     const block = RUNE_LIST.slice(21);
-    expect(block.length).toBe(40);
-    expect(["common", "rare", "epic", "legendary"].map((t) => block.filter((d) => d.tier === t).length)).toEqual([15, 9, 11, 5]);
-    expect(new Set(block.map((d) => d.kind)).size).toBe(40);
+    expect(block.length).toBe(36);
+    expect(["common", "rare", "epic", "legendary"].map((t) => block.filter((d) => d.tier === t).length)).toEqual([11, 10, 10, 5]);
+    expect(new Set(block.map((d) => d.kind)).size).toBe(36);
+    for (const gone of ["hot_iron", "wind_veil", "loose_molds", "saints_oil"]) expect(RUNES[gone], gone).toBeUndefined();
   });
 
   it("no rune hook draws on the RNG (battle.ts: the RUNES-2a hook block and every RUNES-2a line hold no rng)", () => {
@@ -133,7 +132,7 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     expect(loss(W(b, "ash_kindle", "pyre_heart"))).toBeCloseTo(n("ash_kindle") * (1 + n("pyre_heart") / 100), 6);
   });
 
-  it("LAST STAND: below half HULL your turrets fire 50% faster; above half as before", () => {
+  it("LAST STAND: below half HULL your turrets and factories work 50% faster; above half as before", () => {
     const cd = (b: Build, low: boolean) => {
       const bt = new Battle(b, FOE, 2);
       if (low) bt.sides[0].hull.hp = bt.sides[0].hull.max * 0.4;
@@ -143,6 +142,10 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     const b = heroStartBuild("furnace");
     expect(cd(W(b, "last_stand"), true)).toBeCloseTo(cd(b, true) / (1 + n("last_stand") / 100), 9);
     expect(cd(W(b, "last_stand"), false)).toBeCloseTo(cd(b, false), 12);
+    // a factory's stamp timer after one tick (it starts at 0.35 s): it runs 50% faster below half hull
+    const timer = (x: Build, low: boolean) => { const bt = new Battle(x, FOE, 2); if (low) bt.sides[0].hull.hp = bt.sides[0].hull.max * 0.4; bt.step(); return 0.35 - bt.sides[0].factories[0].timer; };
+    expect(timer(W(b, "last_stand"), true)).toBeCloseTo(timer(b, true) * (1 + n("last_stand") / 100), 12);
+    expect(timer(W(b, "last_stand"), false)).toBeCloseTo(timer(b, false), 12);
   });
 
   it("IRON HIDE: each hit on you deals 1 less", () => {
@@ -211,16 +214,21 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     expect(fires(W(w, "twin_suns"), FOE, 4).map((p) => p.dmg)).toEqual(fires(w, FOE, 4).map((p) => p.dmg));
   });
 
-  it("BULWARK OATH: +2% DMG per PLATE you hold as the shot leaves (RIVET HOARD's 6 at the start)", () => {
-    const b = W(heroStartBuild("furnace"), "rivet_hoard");
-    const base = fires(b, FOE, 1), oath = fires(W(b, "bulwark_oath"), FOE, 1);
-    // the first shot leaves with RIVET HOARD's 6 PLATE untouched or partly soaked: 1 + 2% per whole PLATE held then
-    const ratio = oath[0].dmg / base[0].dmg;
-    const k = Math.round(((ratio - 1) * 100) / n("bulwark_oath"));
-    expect(ratio).toBeCloseTo(1 + (k * n("bulwark_oath")) / 100, 9);
-    expect(k >= 1 && k <= n("rivet_hoard")).toBe(true);
-    const bare = heroStartBuild("furnace");
-    expect(fires(W(bare, "bulwark_oath"), FOE, 2).map((p) => p.dmg)).toEqual(fires(bare, FOE, 2).map((p) => p.dmg)); // no PLATE: as before
+  it("BULWARK OATH: every PLATE gain x2 (RIVET HOARD's 6 start as 12; BASTION's bulwark slugs plate twice), PLATE_CAP holds", () => {
+    const start = (x: Build) => new Battle(x, FOE, 1).sides[0].plate.plate;
+    const f = heroStartBuild("furnace");
+    expect(start(W(f, "rivet_hoard", "bulwark_oath"))).toBe(n("rivet_hoard") * n("bulwark_oath"));
+    expect(start(W(f, "rivet_hoard", "grave_plates", "bulwark_oath"))).toBe(24); // the cap
+    // BASTION: the plating its bulwark slugs add by the first 3 loads, doubled (both well under the cap)
+    const gained = (x: Build) => {
+      const bt = new Battle(x, FOE, 4);
+      let loads = 0;
+      while (!bt.over && loads < 3) { bt.step(); for (const e of bt.drainEvents()) if (e.type === "load" && e.side === 0) loads++; }
+      return bt.sides[0].plate.gained;
+    };
+    const b = heroStartBuild("bastion");
+    expect(gained(b)).toBeGreaterThan(0);
+    expect(gained(W(b, "bulwark_oath"))).toBeCloseTo(Math.min(24, gained(b) * n("bulwark_oath")), 9);
   });
 
   it("LOOM OF WOE: your FRAY bonus x2 (10 FRAY: +2 a hit becomes +4)", () => {
@@ -230,13 +238,20 @@ describe("RUNES-2a M2: the epics and legendaries", () => {
     expect(loom[0].dmg - base[0].dmg).toBeCloseTo(10 * FRAY_BONUS * (n("loom_of_woe") - 1), 9);
   });
 
-  it("FIRST BLOOD: the first shot of each volley x2 DMG, the rest as before", () => {
+  it("FIRST BLOOD: the first shot of each volley +70% DMG, the rest as before; EMBER SHOT: that shot adds 1 BURN", () => {
     const b = heroStartBuild("weaver");
-    const base = fires(b, FOE, 12), first = fires(W(b, "first_blood"), FOE, 12);
+    const base = fires(b, FOE, 12), first = fires(W(b, "first_blood"), FOE, 12), ember = fires(W(b, "ember_shot"), FOE, 12);
+    const k = 1 + n("first_blood") / 100;
     const ratios = base.map((p, i) => first[i].dmg / p.dmg);
-    expect(ratios.every((r) => Math.abs(r - 1) < 1e-9 || Math.abs(r - n("first_blood")) < 1e-9)).toBe(true);
-    expect(ratios[0]).toBeCloseTo(n("first_blood"), 9);
-    expect(ratios.filter((r) => r > 1.5).length).toBeGreaterThanOrEqual(2);
+    expect(ratios.every((r) => Math.abs(r - 1) < 1e-9 || Math.abs(r - k) < 1e-9)).toBe(true);
+    expect(ratios[0]).toBeCloseTo(k, 9);
+    expect(ratios.filter((r) => r > 1.1).length).toBeGreaterThanOrEqual(2);
+    // EMBER SHOT marks exactly the volley openers FIRST BLOOD lifts, and changes no shot's DMG
+    expect(ember.map((p) => p.runeBurn ?? 0)).toEqual(ratios.map((r) => (r > 1.1 ? n("ember_shot") : 0)));
+    expect(ember.map((p) => p.dmg)).toEqual(base.map((p) => p.dmg));
+    const bt = new Battle(W(heroStartBuild("furnace"), "ember_shot"), FOE, 3);
+    while (!bt.over && !bt.sides[1].hull.burns.some((x) => x.dps === n("ember_shot")) && bt.t < 20) bt.step();
+    expect(bt.sides[1].hull.burns.some((x) => x.dps === n("ember_shot"))).toBe(true);
   });
 
   it("THE LONG ROAD: a load's RIDE bonus x2", () => {
@@ -259,19 +274,6 @@ describe("RUNES-2a M3: the commons and rares", () => {
     expect(slow.sides[1].hull.burns[0].t).toBeCloseTo(BURN_TIME * (1 + n("slow_embers") / 100), 12);
   });
 
-  it("HOT IRON: +1 DMG on a load carrying HEAT; none on a cold one", () => {
-    const b = heroStartBuild("furnace");
-    const base = fires(b, FOE, 3, { tick: hot }), iron = fires(W(b, "hot_iron"), FOE, 3, { tick: hot });
-    base.forEach((p, i) => expect(iron[i].dmg - p.dmg).toBeCloseTo(n("hot_iron"), 9));
-    expect(fires(W(b, "hot_iron"), FOE, 3).map((p) => p.dmg)).toEqual(fires(b, FOE, 3).map((p) => p.dmg));
-  });
-
-  it("EMBER SHOT: a HEAT load's hit adds 1 BURN on their hull", () => {
-    const burns = (b: Build) => { const bt = new Battle(b, FOE, 3); for (let i = 0; i < 60 * 20 && !bt.over; i++) { hot(bt); bt.step(); } return bt.sides[1].stats.burnDealt + bt.sides[0].stats.burnDealt; };
-    expect(burns(heroStartBuild("furnace"))).toBe(0);
-    expect(burns(W(heroStartBuild("furnace"), "ember_shot"))).toBeGreaterThan(0);
-  });
-
   it("BARBED SILK: +1 DMG on a load that adds FRAY (WEAVER's darts); none on a slug", () => {
     const w = heroStartBuild("weaver");
     const base = fires(w, FOE, 4), silk = fires(W(w, "barbed_silk"), FOE, 4);
@@ -280,13 +282,13 @@ describe("RUNES-2a M3: the commons and rares", () => {
     expect(fires(W(f, "barbed_silk"), FOE, 3).map((p) => p.dmg)).toEqual(fires(f, FOE, 3).map((p) => p.dmg));
   });
 
-  it("MANY HANDS: your turrets +3% RATE per turret (WEAVER's 3: +9%)", () => {
+  it("MANY HANDS: your turrets +12% RATE per turret (WEAVER's 3: +36%)", () => {
     const w = heroStartBuild("weaver");
     const s0 = new Battle(w, FOE, 1).sides[0], s1 = new Battle(W(w, "many_hands"), FOE, 1).sides[0];
     s0.turrets.forEach((tu, i) => expect(s1.turrets[i].interval).toBeCloseTo(tu.interval / (1 + (n("many_hands") * s0.turrets.length) / 100), 12));
   });
 
-  it("SEAM RIVETS: each PAIR gives 2 PLATE (FOUNDRY's fusions)", () => {
+  it("SEAM RIVETS: each PAIR gives PLATE (FOUNDRY's fusions)", () => {
     const bt = new Battle(W(heroStartBuild("foundry"), "seam_rivets"), FOE, 2);
     let pairs = 0;
     while (!bt.over && pairs < 3) { bt.step(); for (const e of bt.drainEvents()) if (e.type === "pair" && e.side === 0) pairs++; }
@@ -294,7 +296,7 @@ describe("RUNES-2a M3: the commons and rares", () => {
     expect(pairs).toBe(3);
   });
 
-  it("HOT SEAM: a PAIR shot adds 2 BURN on their hull", () => {
+  it("HOT SEAM: a PAIR shot adds 1 BURN on their hull", () => {
     const bt = new Battle(W(heroStartBuild("foundry"), "hot_seam"), FOE, 2);
     while (!bt.over && bt.sides[1].hull.burns.length === 0 && bt.t < 20) bt.step();
     expect(bt.sides[1].hull.burns.some((x) => x.dps === n("hot_seam"))).toBe(true);
@@ -311,12 +313,12 @@ describe("RUNES-2a M3: the commons and rares", () => {
     expect(bt.sides[0].plate.gained).toBe(n("last_wall"));
   });
 
-  it("FINAL NAIL: +3 DMG on the shot that empties a volley, never on the others", () => {
+  it("FINAL NAIL: +1 DMG on the shot that empties a volley, never on the others", () => {
     const w = heroStartBuild("weaver");
     const base = fires(w, FOE, 12), nail = fires(W(w, "final_nail"), FOE, 12);
     const d = base.map((p, i) => nail[i].dmg - p.dmg);
     expect(d.every((x) => Math.abs(x) < 1e-9 || Math.abs(x - n("final_nail")) < 1e-9)).toBe(true);
-    expect(d.filter((x) => x > 1).length).toBeGreaterThanOrEqual(2);
+    expect(d.filter((x) => x > n("final_nail") / 2).length).toBeGreaterThanOrEqual(2); // WEAVER's darts: each empties its window
   });
 
   it("SCRAP BITER: +1 DMG on a hit that lands on a machine, none on the bare hull", () => {
@@ -340,18 +342,7 @@ describe("RUNES-2a M3: the commons and rares", () => {
     expect(loss(b)).toBeGreaterThan(0);
   });
 
-  it("WIND VEIL: the dark wind deals 1 less a second to you", () => {
-    const bt = new Battle(W(heroStartBuild("furnace"), "wind_veil"), FOE, 1);
-    bt.t = WIND_START + 10;
-    const dps = bt.windDps();
-    bt.step();
-    const [veil, bare] = [bt.sides[0].stats.windTaken, bt.sides[1].stats.windTaken];
-    expect(bare).toBeCloseTo(bt.windDps() / 60, 9);
-    expect(veil).toBeCloseTo(Math.max(0, bt.windDps() - n("wind_veil")) / 60, 9);
-    expect(dps).toBeGreaterThan(1);
-  });
-
-  it("BULKHEADS: +5 HULL per turret; SCRAP HALO: +3 HULL per merged piece (this battle's hull, not the build's)", () => {
+  it("BULKHEADS: HULL per turret; SCRAP HALO: HULL per merged piece (this battle's hull, not the build's)", () => {
     const w = heroStartBuild("weaver");
     const s0 = new Battle(w, FOE, 1).sides[0];
     const s1 = new Battle(W(w, "bulkheads"), FOE, 1).sides[0];
@@ -386,16 +377,7 @@ describe("RUNES-2a M3: the commons and rares", () => {
     impacts(b, FOE, 1, 3).forEach((e, i) => expect(none[i].dmg).toBeCloseTo(e.dmg, 9));
   });
 
-  it("LOOSE MOLDS: your PAIR window 100% longer (two intakes still)", () => {
-    const bt = new Battle(W(heroStartBuild("weaver"), "loose_molds"), FOE, 1);
-    const sync = (gap: number, same: boolean) => (bt as unknown as { runeSync: (s: unknown, g: number, x: boolean) => boolean }).runeSync(bt.sides[0], gap, same);
-    expect(bt.sides[0].turrets.every((t) => t.pairing)).toBe(true);
-    expect(sync(SYNC_WINDOW * 1.9, false)).toBe(true);
-    expect(sync(SYNC_WINDOW * 2.1, false)).toBe(false);
-    expect(sync(0.01, true)).toBe(false);
-  });
-
-  it("IRON TEMPER: +1 DMG on your shots while your hull holds PLATE", () => {
+  it("IRON TEMPER: +3 DMG on your shots while your hull holds PLATE", () => {
     const b = W(heroStartBuild("furnace"), "rivet_hoard");
     const base = fires(b, FOE, 1), temper = fires(W(b, "iron_temper"), FOE, 1);
     expect(temper[0].dmg - base[0].dmg).toBeCloseTo(n("iron_temper"), 9);
@@ -403,10 +385,10 @@ describe("RUNES-2a M3: the commons and rares", () => {
     expect(fires(W(bare, "iron_temper"), FOE, 1)[0].dmg).toBeCloseTo(fires(bare, FOE, 1)[0].dmg, 9);
   });
 
-  it("TOLL ROAD: +1 DMG per rig the load passed", () => {
+  it("TOLL ROAD: +5% DMG per rig the load passed", () => {
     const b = heroRefBuild("furnace", 6);
     const base = fires(b, FOE, 6), road = fires(W(b, "toll_road"), FOE, 6);
-    base.forEach((p, i) => expect(road[i].dmg - p.dmg).toBeCloseTo(n("toll_road") * p.prior, 9));
+    base.forEach((p, i) => expect(road[i].dmg / p.dmg).toBeCloseTo(1 + (n("toll_road") * p.prior) / 100, 9));
     expect(base.some((p) => p.prior > 0)).toBe(true);
   });
 
@@ -417,16 +399,7 @@ describe("RUNES-2a M3: the commons and rares", () => {
     expect(ward[3].dmg).toBeCloseTo(base[3].dmg, 9);
   });
 
-  it("SAINT'S OIL: your merged turrets +15% RATE; the others as before", () => {
-    const b = cloneBuild(heroStartBuild("weaver"));
-    const list = turretList(b);
-    list[1].stars = 2;
-    b.turrets = list;
-    const s0 = new Battle(b, FOE, 1).sides[0], s1 = new Battle(W(b, "saints_oil"), FOE, 1).sides[0];
-    s0.turrets.forEach((tu, i) => expect(s1.turrets[i].interval).toBeCloseTo(tu.index === 1 ? tu.interval / (1 + n("saints_oil") / 100) : tu.interval, 12));
-  });
-
-  it("STEADY IRON: a STALL on your machines lasts 50% less", () => {
+  it("STEADY IRON: a STALL on your machines lasts 100% less (none)", () => {
     const stall = (b: Build) => {
       const bt = new Battle(b, FOE, 1);
       const s = bt.sides[0], f = s.factories[0];
