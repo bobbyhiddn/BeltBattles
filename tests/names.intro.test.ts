@@ -86,6 +86,16 @@ describe("the intro line", () => {
     expect(textWidth(nameEntryLabel("W".repeat(NAME_MAX)), "3") + 8).toBeLessThanOrEqual(Math.min(narrowest - 24, 150));
   });
 
+  it("the options card with its NAME row (one more row) still fits the screen: the build MENU (3 actions), the battle's PAUSED (2)", () => {
+    const cardH = (actions: number) => 18 + (3 + actions) * 22 + 4; // hud.ts optionsCard at k = 1: rows of 19 px + 3
+    for (const [what, cw, ch, dpr] of VIEWS) {
+      for (const [pick, actions, screen] of [[buildScale, 3, "build"], [battleScale, 2, "battle"]] as const) {
+        const v = computeView(cw, ch, dpr, pick);
+        expect(cardH(actions), `${what} ${screen} ${v.W}x${v.H}`).toBeLessThanOrEqual(v.H);
+      }
+    }
+  });
+
   it("the name screen: the panel and its texts fit every screen's view; the row is at least 44 CSS px tall, OK and CANCEL at least 44 wide", () => {
     expect(NAME_ROW_CSS).toBeGreaterThanOrEqual(44);
     expect(NAME_OK_CSS).toBeGreaterThanOrEqual(44);
