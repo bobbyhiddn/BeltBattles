@@ -64,7 +64,8 @@ describe("rune text (runeText.ts)", () => {
     expect(runeTaken(spare, 4)).toBe("RARE RUNE · TAKEN DAY 4");
     expect(runeReminder(spare)).toBe(PLAIN_REMINDER);
     expect(tierWord("common")).toBe("COMMON");
-    expect(runeReminder(RUNE_LIST.find((d) => d.id === "rivet_hoard")!)).toMatch(/^PLATE /);
+    // U2c (REQ-BFG-046): the reminders are the glossary's (RUNE_REMINDER), each in "WORD: ..." form, as every other keyword's
+    expect(runeReminder(RUNE_LIST.find((d) => d.id === "rivet_hoard")!)).toMatch(/^PLATE: /);
   });
 
   it("every effect is one line in the 5x7 face on the op view's card (and the desk's), with no '·' chain", () => {

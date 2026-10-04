@@ -8,7 +8,8 @@
 import { C, RARITY_COLOR } from "../render/palette";
 import type { Rarity } from "../sim/content";
 import type { RuneDef, RuneTheme, RuneUnit } from "../sim/runes";
-import { KEYWORD_COLOUR, NUMBER_COLOUR, type Span } from "./richText";
+import { NUMBER_COLOUR, type Span } from "./richText";
+import { RUNE_REMINDER, glossaryEntry } from "./glossary"; // U2c: the keyword colours and reminders, one source
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -34,11 +35,12 @@ export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
 };
 /** Each keyword's colour (render/palette.ts C): the hull's red, gold's yellow, the belts' brass, damage white, speed's yellow
  *  (richText.ts KEYWORD_COLOUR.faster), BASTION's plating, FOUNDRY's pair cyan, FURNACE's fire, WEAVER's plum. RUNES-2a:
- *  BURN in richText's burn colour (fire, as HEAT), RIDE in the belts' wood, STALL in shock's cyan (a shock stalls). */
-export const RUNE_KEYWORD_COLOUR: Readonly<Record<RuneKeyword, string>> = {
-  HULL: C.red, BELT: C.brass3, GOLD: C.yellow, DMG: C.white, RATE: C.yellow, PLATE: C.plate3, PAIR: C.cyan, HEAT: C.fire3, FRAY: C.plum4,
-  BURN: KEYWORD_COLOUR.burn, RIDE: C.wood4, STALL: KEYWORD_COLOUR.shock,
-};
+ *  BURN in richText's burn colour (fire, as HEAT), RIDE in the belts' wood, STALL in shock's cyan (a shock stalls).
+ *  U2c (REQ-BFG-046; REQ-BFG-032 rule 3): one source, the glossary's row for the word (src/ui/glossary.ts): a face keyword in
+ *  its icon's colour (font.ts ICON_COLOUR: PAIR the TWIN family's blue, HEAT amber, as the faces draw them), STALL in STUN's. */
+export const RUNE_KEYWORD_COLOUR: Readonly<Record<RuneKeyword, string>> = Object.fromEntries(
+  (Object.keys(KEYWORD_WORD) as RuneKeyword[]).map((k) => [k, glossaryEntry(KEYWORD_WORD[k])?.colour ?? C.bone]),
+) as Record<RuneKeyword, string>;
 /** The effect line's own colour (richText.ts colourize's base) and its numbers' (richText NUMBER_COLOUR). */
 export const RUNE_TEXT_COLOUR = C.bone;
 
@@ -104,18 +106,9 @@ export function runeKeyword(def: RuneDef): RuneKeyword | null {
   return all.length ? all[all.length - 1] : null;
 }
 
-/** The keyword reminders (no numbers: the amounts live in the effect line). */
-const REMINDER: Partial<Record<RuneKeyword, string>> = {
-  PLATE: "PLATE TAKES HITS BEFORE YOUR HULL.",
-  PAIR: "PAIR: TWO LOADS INTO ONE TURRET AT ONCE.",
-  HEAT: "HEAT: A HOT SLUG GAINS DAMAGE AS IT RIDES.",
-  FRAY: "FRAY: EACH ONE MAKES LATER HITS DEAL MORE.",
-  RATE: "RATE: HOW FAST THEY FIRE OR WORK.",
-  // RUNES-2a
-  BURN: "BURN: DAMAGE EACH SECOND FOR A WHILE.",
-  RIDE: "RIDE: A LOAD GAINS DAMAGE THE LONGER IT RIDES.",
-  STALL: "STALL: A STALLED MACHINE STOPS FOR A WHILE.",
-};
+/** The keyword reminders (no numbers: the amounts live in the effect line). U2c (REQ-BFG-046): the glossary's
+ *  (src/ui/glossary.ts RUNE_REMINDER), each saying what its row says, one source. */
+const REMINDER: Partial<Record<RuneKeyword, string>> = RUNE_REMINDER;
 export const PLAIN_REMINDER = "KEPT ALL RUN.";
 
 /** One short reminder line for an opened card: its keyword's (PLATE, PAIR, HEAT, FRAY, RATE), else PLAIN_REMINDER. */
