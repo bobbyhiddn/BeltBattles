@@ -53,17 +53,23 @@ describe("golden-060 decks: current E1 battles match their separate fixture", ()
         if (!rigFree(e.deck) || !rigFree(par.decks[e.opp])) continue; // 0.6.2 BELTSIDE: golden.beltside.test.ts
         const opp = par.decks[e.opp];
         expect(opp, e.opp).toBeTruthy();
-        const b = simulate(JSON.parse(JSON.stringify(e.deck)) as Build, JSON.parse(JSON.stringify(opp)) as Build, e.seed);
+        // NUM-1 (cap's oracle bcc36c430b4f3a01): the frozen 0.6.0 decks are in pre-NUM-1 units; this test reads them x10
+        const x10 = (d: Build): Build => ({ ...(JSON.parse(JSON.stringify(d)) as Build), hullBonus: d.hullBonus * 10 });
+        const b = simulate(x10(e.deck), x10(opp), e.seed);
         const got = [b.winner, b.ticks, b.sides[0].hull.hp, b.sides[1].hull.hp, b.sides[0].stats.shots, b.sides[1].stats.shots];
         const want = beltside.decks[e.key];
         if (JSON.stringify(got) !== JSON.stringify(want)) diffs.push(`${e.key}: got ${JSON.stringify(got)} want ${JSON.stringify(want)}`);
-        const historical = { winner: e.winner, t: e.t, ticks: e.ticks, hulls: e.hulls };
-        const unchanged = { winner: b.winner, t: b.t, ticks: b.ticks, hulls: [b.sides[0].hull.hp, b.sides[1].hull.hp] };
+        // NUM-1: hulls are x10 and whole and the wind ticks once a second, so 0.6.0's float hulls and times can't recur; the
+        // E1 fixture above pins them exactly. The historical check keeps what still holds exactly: the winner and the end
+        // tick (with the decks x10, every rig-free battle keeps both but sootjaw's end tick, E1's cadence; sparkfang's E1
+        // drift was in hull and time only)
+        const historical = { winner: e.winner, ticks: e.ticks };
+        const unchanged = { winner: b.winner, ticks: b.ticks };
         if (JSON.stringify(unchanged) !== JSON.stringify(historical)) historicalDrift.push(e.key);
       }
       expect(diffs).toEqual([]);
       expect(historicalDrift).toEqual(name.startsWith("rival captains")
-        ? ["rival/sootjaw/1", "rival/sparkfang/1"] : []);
+        ? ["rival/sootjaw/1"] : []);
     });
   }
 });

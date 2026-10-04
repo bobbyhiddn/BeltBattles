@@ -31,6 +31,7 @@ const SEEDS = Array.from({ length: 40 }, (_, i) => 1 + i * 7919); // = races.gol
 
 const migrated = (b: Build): Build => {
   const c = JSON.parse(JSON.stringify(b)) as Build;
+  c.hullBonus *= 10; // NUM-1 (cap's oracle bcc36c430b4f3a01): the frozen decks are in pre-NUM-1 units; this test reads them x10
   migrateInlineGates(c);
   return c;
 };

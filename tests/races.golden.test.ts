@@ -84,8 +84,19 @@ describe("E1 golden: rig-free Furnace and Weaver battles under the long-belt cad
       });
     });
   }
-  it("all rig-free matchups stay identical to the original fixture", () => {
-    for (const name of Object.keys(golden.matchups))
-      expect(golden.matchups[name], name).toEqual(old.matchups[name]);
+  // NUM-1 (REQ-BFG-047): hulls are x10 and whole, so no row can equal ff6914a's float hulls any more. The equivalent, row
+  // by row against the original fixture: every rig-free battle fires exactly the shots it fired there (NUM-1 changes
+  // damage, not the guns), and keeps its winner, except that a MIRROR battle may now end in a draw: two identical decks that
+  // reach the dark wind both die on the same whole-second wind tick with the same whole hull, where the continuous wind's
+  // float timing used to pick a winner (46 of the 320 rows: start FURNACE and WEAVER mirrors 4 + 2, warlord r1 FURNACE 40).
+  it("all rig-free matchups fire the original fixture's shots and keep its winners (NUM-1: a mirror may tie)", () => {
+    for (const name of Object.keys(golden.matchups)) {
+      golden.matchups[name].forEach((row, i) => {
+        const was = old.matchups[name][i];
+        expect([row[4], row[5]], `${name} #${i}: shots`).toEqual([was[4], was[5]]);
+        if (row[0] === -1 && was[0] !== -1) expect(name, `${name} #${i}: only a mirror battle may newly tie`).toMatch(/(furnace v furnace|weaver v weaver)$/);
+        else expect(row[0], `${name} #${i}: winner`).toBe(was[0]);
+      });
+    }
   });
 });
