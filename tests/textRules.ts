@@ -2,6 +2,7 @@
 // T2's banned-shorthand list, and the number reader the audits use.
 import { ITEMS, buyableModules, type ItemDef } from "../src/sim/content";
 import { fusible } from "../src/sim/stars";
+import { icons } from "../src/render/font"; // U2d: an icon's markup read as its glyph
 
 /** Every buyable module (the catalogue and fusible(): 23 rigs, 13 factories, 13 cores, 9 mods), then each supply. */
 export const MODULES: ItemDef[] = buyableModules().filter((d) => fusible(d.id));
@@ -37,9 +38,13 @@ export const BANNED: [RegExp, string][] = [
   [/\n/, "a hand-made line break"],
 ];
 
-/** The T2 violations in a text ([] when clean). */
+/** The T2 violations in a text ([] when clean). U2d (REQ-BFG-045, REQ-BFG-046; the style guide, output-t1/REPORT.md 2.7,
+ *  T2 narrowed): the faces' forms are allowed: an icon (its glyph, or its markup {DMG} / {*BURN}, read here as the glyph it
+ *  draws, so {DMG} is no bare DMG), SEC after a number ("1.5 SEC", "1.5{SEC}", glued to no lone S) and a trigger's colon
+ *  ("HIT:", "EVERY 3{SEC}:"). No ban reads a glyph or a colon; every ban stands (tests/faceText.test.ts "U2d step 1"). */
 export function banned(text: string): string[] {
-  return BANNED.filter(([re]) => re.test(text)).map(([, why]) => why);
+  const t = icons(text);
+  return BANNED.filter(([re]) => re.test(t)).map(([, why]) => why);
 }
 
 /** The numbers a text quotes, in reading order: digits (12, 2.75, 60%) and ONE to FIVE and TWICE as words. */

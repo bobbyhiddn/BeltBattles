@@ -31,6 +31,7 @@ import { icons } from "../src/render/font"; // U2d F1
 import { livePerk } from "../src/ui/abilityText"; // U2d F1
 import { NEXT_LINE_W, type FaceLines } from "../src/ui/faces"; // U2d F1
 import { GLOSSARY_WRAP_W } from "../src/ui/glossary"; // U2d F1
+import { banned } from "./textRules"; // U2d step 1
 
 // U2a (REQ-BFG-046, REQ-BFG-047): the face kit (src/ui/statFormat.ts, src/ui/faces.ts, src/screens/build/faceBlocks.ts).
 // The faces are pinned through the formatter registry (value to string, N1 6.4), never through literal strings: at
@@ -330,6 +331,35 @@ describe("U2c group 0: cap's fixes 1-5 on the 0.8.7 rune build", () => {
     expect(flavour("kiln")).toEqual(["A LONG BELT SPEEDS UP THE GUN IT FEEDS."]);
     expect(flavour("loom")).toEqual(["IT FEEDS ONE BELT MORE THAN MOST FACTORIES."]);
     expect(effectAt("loom", 1).factory!.lead, "LOOM's lead belt").toBe(1);
+  });
+});
+
+describe("U2d step 1: T2's bans (tests/textRules.ts) allow the icons, SEC after a number and a trigger's colon; every ban stands", () => {
+  it("the faces' forms pass, in markup and in glyphs; each ban still rejects its shorthand", () => {
+    for (const ok of ["+2 {*BURN}", `+2 ${ICON.BURN}BURN`, "{DMG}+2", "1.5 SEC", "1.5{SEC}", `1.5${ICON.SEC}`, "HIT: +2 {DMG}.", "EVERY 3{SEC}: +3 {*PLATE}.",
+      "NEXT ★2: EVERY 2.5{SEC}, 4 TIMES, +2 {DMG}", "SHOT: IT COUNTS UP TO 5 WAITING LOADS, AND IT NEVER JAMS."]) expect(banned(ok), ok).toEqual([]);
+    expect(banned("+2 DMG")).toEqual(["DMG"]);
+    expect(banned("EVERY 3S")).toEqual(["glued seconds"]);
+    expect(banned("X2 DAMAGE")).toEqual(["bare multiplier X2"]);
+    expect(banned("MAX 6.")).toEqual(["MAX/CAP before a number"]);
+    expect(banned("+1 DAMAGE/S")).toContain("slash rate");
+    expect(banned("THE 3RD SLUG")).toEqual(["ordinal"]);
+  });
+
+  it("every face line, NEXT★ and MERGES INTO line, at every star and context, passes T2 (a cap names its unit: U2b F3's rule)", () => {
+    // U2b F3 (abilityPanels, wave3.text): T2's ban on a bare "MAX 6" passes a MAX whose number is followed by its unit
+    const capNamesUnit = (s: string): boolean => [...s.matchAll(/\b(?:MAX|CAP)\s*\+?\d+(?:\.\d+)?( +\S+)?/g)]
+      .every((m) => !!m[1] && /^ +(?:[-]|[A-Z]{2,})/.test(m[1]));
+    let n = 0;
+    for (const def of FACE_IDS) for (const o of contexts(def)) for (const s of starsOf(def)) {
+      const fl = faceLines(def, s, o)!, nx = faceNext(def, s, o);
+      for (const line of [fl.stats ?? "", ...fl.rules.map((r) => r.text), fl.clause?.text ?? "", ...(fl.caveats ?? []), ...fl.reminders,
+        ...(nx ? [nx.text] : []), ...(s > 1 ? [faceMerge(def, s, o)!] : [])].filter(Boolean)) {
+        expect(banned(line).filter((why) => why !== "MAX/CAP before a number" || !capNamesUnit(line)), `${def} ★${s}: ${stripIcons(line)}`).toEqual([]);
+        n++;
+      }
+    }
+    expect(n).toBeGreaterThan(600);
   });
 });
 
