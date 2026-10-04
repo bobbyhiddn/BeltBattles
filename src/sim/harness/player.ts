@@ -1117,11 +1117,15 @@ function greedyPacks(run: Run, id: PackId, rolls: number, buys: PlayerBuy[]): vo
 function upgradeCands(run: Run, base: number, banned: ReadonlySet<string>): Cand[] {
   if (upgradePolicy(run.build.hero) !== "value") return [];
   const out: Cand[] = [];
+  const keep = syncKeeper(run.build); // bb-0.8.6 (PACKS): FOUNDRY's sync guard, as on every other candidate (0.8.0 B1 M1)
   UPGRADE_TRACKS.forEach((track, i) => {
     const n = nextUpgrade(run, track);
     if (n.next === undefined || n.price === undefined || n.price > run.gold || !upgradeShown(run, track)) return;
     const after = cloneBuild(run.build);
     after.upgrades = { ...after.upgrades, [track]: n.next };
+    // a FACTORY level changes the CRUCIBLE's cycle: a pair whose belts grew apart (a BELT PACK lengthens one belt where
+    // the gun stays in sync at today's cycle) may fall out of sync at the next level; no such level is a candidate
+    if (keep && !keep(after)) return;
     const rel = Math.max(relOf(after, base, run.day), track === "factory" ? moreSlotRel(after, run.day, base) : -Infinity);
     out.push({ wagon: -1, slot: i, def: `upgrade:${track}`, price: n.price, kind: "upgrade", merge: false, rel, track, ...(banned.has(`upgrade:${track}`) ? { banned: true } : {}) });
   });
