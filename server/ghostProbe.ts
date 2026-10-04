@@ -7,7 +7,7 @@
 // bytes the game's submitGhost sends (encodeSnapshot), signed with identity.sign. The checks, in order:
 //   furnace-signed      the FURNACE start deck, day 1, 0 wins, 5 lives                         -> 201 and its ghost id
 //   furnace-unsigned    the same bytes, without x-bb-key and x-bb-sig                          -> 401
-//   dishonest-signed    that deck with 100 more hull than day 1's budget pays for              -> 422, validateUpload's budget error
+//   dishonest-signed    that deck with 1000 more hull than day 1's budget pays for             -> 422, validateUpload's budget error
 //   unreachable-signed  that honest deck with a record no run carries: day 1, 0 wins, 1 life   -> 422, H2's record error
 //   hero-WEAVER, hero-FOUNDRY, hero-BASTION: each hero's honest day-3 reference deck (heroRefBuild) at 1 win and 5 lives,
 //                       a record a run carries into dusk 3 (records.ts isReachable)            -> 201 each
@@ -145,8 +145,8 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   const id = ghostId(honest);
   plan.push({ name: "furnace-signed", snapshot: honest, text: honestText, signed: true, expected: `201 {"id":"${id}"}`, pass: (a) => a.status === 201 && a.id === id });
   plan.push({ name: "furnace-unsigned", snapshot: honest, text: honestText, signed: false, expected: `401 ${UNSIGNED_ERROR}`, pass: (a) => a.status === 401 && a.error === UNSIGNED_ERROR });
-  // 3. dishonest: the same deck with 100 hull more than day 1's budget pays for
-  const over = dusk(playerId, "furnace", { day: 1, wins: 0, lives: 5 }, { ...honest.build, hullBonus: honest.build.hullBonus + 100 }, `${run}-over`, now);
+  // 3. dishonest: the same deck with 1000 hull (4 ARMOR PACKs; NUM-1 hull x10, was 100) more than day 1's budget pays for
+  const over = dusk(playerId, "furnace", { day: 1, wins: 0, lives: 5 }, { ...honest.build, hullBonus: honest.build.hullBonus + 1000 }, `${run}-over`, now);
   plan.push({
     name: "dishonest-signed", snapshot: over, text: encodeSnapshot(over), signed: true, expected: "422 deck failed validation: budget: ...",
     pass: (a) => a.status === 422 && a.error === "deck failed validation" && (a.errors ?? []).some((e) => e.startsWith("budget: ")),

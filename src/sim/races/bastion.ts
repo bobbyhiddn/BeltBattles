@@ -2,6 +2,7 @@
 // plates the hull; plating absorbs impact damage and Burn before HP. The dark wind bypasses it.
 
 import type { Payload } from "../battle";
+import { roundHalfUp } from "../pct"; // NUM-1 (REQ-BFG-047)
 
 export const PLATE_PER_SLUG = 20; // plating per arriving bulwark slug (x its split multiplier)
 export const PLATE_CAP = 240;
@@ -19,7 +20,7 @@ export function newPlateState(): PlateState {
 
 /** Plating a payload adds when it arrives at the chamber (0 for non-bulwark ammo). */
 export function plateFor(p: Payload): number {
-  return p.ammo === "bulwark" ? PLATE_PER_SLUG * p.mult : 0;
+  return p.ammo === "bulwark" ? roundHalfUp(PLATE_PER_SLUG * p.mult) : 0; // NUM-1: x the split share, rounded half up once
 }
 
 /** Chamber arrival: add plating, respecting the cap. Returns the plating actually added. */

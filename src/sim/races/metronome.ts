@@ -6,6 +6,7 @@
 import type { AmmoDef, HeroId } from "../content";
 import type { Build } from "../deck";
 import { ADAPTABLE_HEAD, PEAK_SHIFT, PENDULUM, heroRules, type AdaptableHead } from "./data";
+import { roundHalfUp } from "../pct"; // NUM-1 (REQ-BFG-047)
 
 /** Does this hero's every belt ignore speed states (its own speed gates and enemy Drag)? */
 export function speedLocked(hero: HeroId): boolean {
@@ -22,7 +23,7 @@ export function pendulumShift(b: Build, turret: number): number {
 /** Damage of a ride-curve payload: curve(ride - shift) x split mult + flat, at least 1. */
 export function curveDamage(ammo: AmmoDef, ride: number, mult: number, flat: number, shift = 0): number {
   const core = ammo.rideCurve ? ammo.rideCurve(ride - shift) : ammo.base + ammo.rideScale * ride;
-  return Math.max(1, core * mult + flat);
+  return Math.max(10, roundHalfUp(core * mult + flat)); // NUM-1: whole when fired, rounded half up once; at least 10 (x10)
 }
 
 /** Ride time (s) at which turret `turret` deals its peak pendulum damage. */

@@ -286,7 +286,8 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     beltCap: int(o.beltCap, `${path}.beltCap`, 0, 1000),
     // negative values are shape-legal so stored battle records holding warlord stand-ins
     // (warlordHull is negative on days 1-3) still decode; validateBuild rejects them.
-    hullBonus: int(o.hullBonus, `${path}.hullBonus`, -1000, 10000),
+    // NUM-1 (REQ-BFG-047): hull x10, so the bounds x10 (an honest day-10 deck can hold 50+ ARMOR PACKs, 12,500+ hull)
+    hullBonus: int(o.hullBonus, `${path}.hullBonus`, -10000, 100000),
     ...turrets(o, path, version),
     ...upgrades(o, path, version), // bb-0.8.3 (REQ-BFG-043 D10)
     ...runes(o, path, version), // RUNES-1 (snapshot v3): last, only when present

@@ -24,6 +24,8 @@ import { effectAt, gradeOf, starsOf } from "./stars";
 import { boostable, overclocked } from "./overclock";
 import { debuffedDamage, segmentBounds, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
+import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack each second
+import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047, N1 2.1): the integer damage pipeline's one rounding
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -257,8 +259,9 @@ export interface HullState {
   max: number;
   fray: number;
   frayMax: number;
-  poison: { stacks: number; t: number };
-  burns: { dps: number; t: number }[];
+  // NUM-1 (REQ-BFG-047): `acc`, the seconds since the last whole tick (poison and each Burn deal once a second)
+  poison: { stacks: number; t: number; acc?: number };
+  burns: { dps: number; t: number; acc?: number }[]; // dps: the Burn stacks (each deals BURN_DPS a second)
   burnShown: number;
   windShown: number;
   flash: number; // render
@@ -432,6 +435,7 @@ export class Battle {
   private nextId = 1;
   private windWarned = false;
   private windTick = 0;
+  private windDue = 0; // NUM-1: the wind blown since its last whole tick
 
   /** RUNES-2a: `wins`, the wins each side carried into the fight (the run's own, a ghost's snapshot `wins`; 0 for a
    *  stand-in or a warlord), read only by a side holding WARLORD'S DUE; the record keeps them only then (replay.ts), so a
@@ -1398,8 +1402,8 @@ export class Battle {
     if (e.plate) this.addPlate(s, e.plate); // PLATE ROLLER, SHIELD WALL: plating for each payload it hits (E1)
     if (e.plated && s.plate.plate >= e.plated.min) p.flat += e.plated.flat; // SHIELD WALL: after its plating, at 12+
     if (e.breaker) { // PLATE BREAKER: takes 1 plating for + flat; with none to take, + floor (it never takes more)
-      if (s.plate.plate >= 1) {
-        this.spendPlate(s, 1);
+      if (s.plate.plate >= 10) { // NUM-1: 10 plating (x10 of 1)
+        this.spendPlate(s, 10);
         p.flat += e.breaker.flat;
       } else p.flat += e.breaker.floor;
     }
@@ -1450,8 +1454,8 @@ export class Battle {
       }
     }
     if (e.split) {
-      p.mult *= e.split.mult;
-      p.flat *= e.split.mult;
+      p.mult *= e.split.mult; // a share: payloadDamage rounds the slug's damage once, at fire
+      p.flat = pct(p.flat, 100 * e.split.mult); // NUM-1: the flat bonus so far x the split's %, rounded half up once
       p.copy = true;
       for (let c = 1; c < e.split.copies; c++) { // generic: copies - 1 new ones (an overclocked split makes one more)
         const cp: Payload = { ...p, id: this.nextId++, ...(p.debuffs ? { debuffs: { ...p.debuffs } } : {}),
@@ -1598,13 +1602,15 @@ export class Battle {
       ? raceCurveDamage(ammo, s, tu, p)
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat + (p.heatBonus ?? 0)); // RUNES-2a: THE LONG ROAD
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
-    if (p.paired && tu.pairBonus) dmg *= 1 + tu.pairBonus; // 0.8.0 P1: TWIN TRIGGER on a paired load (E2), before the RAM
-    if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM
-    if (tu.spallCharge) { dmg += tu.spallCharge; tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot
+    // NUM-1 (REQ-BFG-047): payloadDamage made the slug's damage whole at fire (its HEAT and split share rounded once); each
+    // % below rounds half up once, where it applies (pct)
+    if (p.paired && tu.pairBonus) dmg = pct(dmg, 100 * (1 + tu.pairBonus)); // 0.8.0 P1: TWIN TRIGGER on a paired load (E2), before the RAM
+    if (fin) dmg = pct(dmg, 100 * (1 + tu.finisher)); // 0.6.1p: FINISHER RAM
+    if (tu.spallCharge) { dmg += roundHalfUp(tu.spallCharge); tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot (NUM-1: whole)
     const open = s.rune ? this.volleyOpen(tu) : false; // RUNES-2a: the volley's first shot (FIRST BLOOD, EMBER SHOT)
     if (s.rune) { // RUNES-1 (REQ-BFG-058): the flat runes; RUNES-2a: then the multiplying ones
       dmg += this.runeShot(s, tu, !!p.paired, p);
-      dmg *= this.runeMul(s, !!p.paired, p, open);
+      dmg = pct(dmg, 100 * this.runeMul(s, !!p.paired, p, open)); // NUM-1: the runes' whole % sum, rounded once
     }
     dmg = debuffedDamage(dmg, p.debuffs);
     const target = this.pickTarget(foe, !!p.harass, tu);
@@ -1669,19 +1675,21 @@ export class Battle {
     if (routine === "grapnel") p.rip = { count: c.rip ?? 1, reach: c.reach ?? 1 };
     const conv = routine === "drake" ? drakeConvert(c, p.flat) : { stacks: 0, used: 0 };
     let dmg = ammo.rideCurve
-      ? Math.max(1, raceCurveDamage(ammo, s, tu, p) - conv.used)
+      ? Math.max(10, raceCurveDamage(ammo, s, tu, p) - conv.used) // NUM-1: the least shot x10 (curveDamage's floor)
       : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat - conv.used + (p.heatBonus ?? 0)); // RUNES-2a: THE LONG ROAD
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
+    // NUM-1 (REQ-BFG-047): the core's numbers are whole at install (cores.ts scaleCore); every % or rate here rounds half
+    // up once (ANVIL's plating %, HULLBREAKER, CAPACITOR's idle seconds, COMPOUND)
     if (routine === "pressure") dmg += pressureBonus(c, queued);
     else if (routine === "salvo") dmg += c.volleyFlat ?? 0;
-    else if (routine === "anvil") dmg += (c.anvilFlat ?? 0) + (c.perPlate ?? 0) * s.plate.plate; // 0.8.0 P1: ANVIL BREECH (x k)
-    else if (routine === "hullbreaker") dmg *= c.hullMul ?? 1;
-    else if (routine === "capacitor") { dmg += (c.perSecond ?? 0) * tu.charge; tu.charge = 0; }
+    else if (routine === "anvil") dmg += (c.anvilFlat ?? 0) + pct(s.plate.plate, 100 * (c.perPlate ?? 0)); // 0.8.0 P1: ANVIL BREECH (x k)
+    else if (routine === "hullbreaker") dmg = pct(dmg, 100 * (c.hullMul ?? 1));
+    else if (routine === "capacitor") { dmg += roundHalfUp((c.perSecond ?? 0) * tu.charge); tu.charge = 0; }
     else if (routine === "compound" && p.compound) {
       const q = p.compound, qa = AMMO[q.ammo];
       const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, this.rideOf(s, q), q.mult, q.flat + (q.heatBonus ?? 0));
-      dmg = (debuffedDamage(dmg, p.debuffs) + debuffedDamage(qd, q.debuffs)) * (c.mult ?? 1);
+      dmg = pct(debuffedDamage(dmg, p.debuffs) + debuffedDamage(qd, q.debuffs), 100 * (c.mult ?? 1));
       p.burn += q.burn;
       burn += q.burn;
       p.poison = (p.poison ?? 0) + (q.poison ?? 0);
@@ -1700,15 +1708,15 @@ export class Battle {
       share = c.share ?? 1;
     }
     // 0.8.0 P1: TWIN TRIGGER on a paired load (E2; a COMPOUND shell packing one counts), before the RAM
-    if (tu.pairBonus && (p.paired || p.compound?.paired)) dmg *= 1 + tu.pairBonus;
-    if (fin) dmg *= 1 + tu.finisher; // 0.6.1p: FINISHER RAM, after the core's own bonus (never set on a GATLING)
+    if (tu.pairBonus && (p.paired || p.compound?.paired)) dmg = pct(dmg, 100 * (1 + tu.pairBonus));
+    if (fin) dmg = pct(dmg, 100 * (1 + tu.finisher)); // 0.6.1p: FINISHER RAM, after the core's own bonus (never set on a GATLING)
     if (tu.salvage) { dmg += tu.salvage; tu.salvage = 0; }
-    if (tu.spallCharge) { dmg += tu.spallCharge; tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot
+    if (tu.spallCharge) { dmg += roundHalfUp(tu.spallCharge); tu.spallCharge = 0; } // 0.8.0 P1: SPALL CATCHER's charge, this shot (NUM-1: whole)
     const paired = !!(p.paired || p.compound?.paired);
     const open = s.rune ? this.volleyOpen(tu) : false; // RUNES-2a: the volley's first shot (FIRST BLOOD, EMBER SHOT)
     if (s.rune) { // RUNES-1 (REQ-BFG-058): the flat runes; RUNES-2a: then the multiplying ones
       dmg += this.runeShot(s, tu, paired, p);
-      dmg *= this.runeMul(s, paired, p, open);
+      dmg = pct(dmg, 100 * this.runeMul(s, paired, p, open)); // NUM-1: the runes' whole % sum, rounded once
     }
     if (routine !== "compound" || !p.compound) dmg = debuffedDamage(dmg, p.debuffs);
     const heavy = tu.def.kind === "heavy";
@@ -1723,7 +1731,7 @@ export class Battle {
         ty += this.rng.range(-3, 3);
       }
       const flight = this.roundFlight(tu.def.flight * (routine === "mortar" ? c.flightMul ?? 2.2 : flightMul) + Math.max(0, ty) / 120 * 0.22 + k * 0.08 + j * 0.03, p);
-      const pd = dmg * share;
+      const pd = pct(dmg, 100 * share); // NUM-1: a SCATTER pellet's share, rounded half up once (share 1: dmg)
       const proj: Projectile = {
         id: this.nextId++, from: s.side, turret: tu.index, payload: p, dmg: pd, t: 0, flight, target, tx, ty, heavy,
         core: routine, burn: pellets > 1 ? Math.ceil(burn / pellets) : burn,
@@ -1804,9 +1812,10 @@ export class Battle {
     const ammo = AMMO[pr.payload.ammo];
     const hit = pr.lance ? hullTarget() : pr.target;
     // 0.6.1b: a SCATTER pellet's Fray bonus x its share, so Fray isn't multiplied (absent on identity shots)
-    let bonus = pr.share !== undefined ? def.hull.fray * FRAY_BONUS * pr.share : def.hull.fray * FRAY_BONUS;
+    // NUM-1 (REQ-BFG-047): FRAY_BONUS is whole (2 a stack); a pellet's share of it rounds half up once
+    let bonus = pr.share !== undefined ? pct(def.hull.fray * FRAY_BONUS, 100 * pr.share) : def.hull.fray * FRAY_BONUS;
     if (atk.rune?.frayMul) bonus *= atk.rune.frayMul; // RUNES-2a: LOOM OF WOE, your FRAY bonus x n
-    let total = pr.dmg + bonus + (pr.payload.harass?.kind === "sabot" && hit.kind === "hull" ? 6 : 0);
+    let total = pr.dmg + bonus + (pr.payload.harass?.kind === "sabot" && hit.kind === "hull" ? 60 : 0); // NUM-1: SABOT's x10
     if (atk.rune || def.rune) total = this.runeHit(atk, def, hit, total); // RUNES-2a: SCRAP BITER, SNARE KNOT, IRON HIDE, WARD STONE
     // races: bulwark plating soaks first. 0.8.0 P1 (E1): every hull's plating (0 without a source: the damage unchanged)
     const hullPart = absorb(def.plate, total);
@@ -1850,13 +1859,14 @@ export class Battle {
     if (pr.payload.rip) {
       const ripped = this.rip(def, hit, pr.payload.rip.count, pr.payload.rip.reach);
       const gun = turretAt(atk, pr.turret); // 0.6.2s: by slot
-      if (ripped && pr.core === "grapnel" && gun && gun.core.stars >= 3) gun.salvage += ripped * gun.core.k;
+      // NUM-1: 10 a ripped load (x10 of 1) x the class's whole %, rounded half up once
+      if (ripped && pr.core === "grapnel" && gun && gun.core.stars >= 3) gun.salvage += pct(10 * ripped, roundHalfUp(100 * gun.core.k));
     }
     if (pr.payload.harass) this.roundImpact(def, hit, pr.payload.harass, pr.from, pr.payload.debuffs);
     if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
     this.events.push({
       type: "impact", side: def.side, x: pr.tx, y: pr.ty, dmg: total, heavy: pr.heavy,
-      kind: hit.kind, shock: shocked, burn, big: total >= 14,
+      kind: hit.kind, shock: shocked, burn, big: total >= 140, // NUM-1: the big-hit flag x10
     });
     if (pr.splash) for (let i = 0; i < pr.splash; i++) {
       const t = this.pickTarget(def, !!pr.payload.harass);
@@ -1885,7 +1895,7 @@ export class Battle {
 
   private secondaryImpact(pr: Projectile, target: Target, share: number, effect: "arc" | "lance" | "splash"): void {
     this.events.push({ type: effect, side: pr.from === 0 ? 1 : 0, x: target.x, y: target.y });
-    this.impact({ ...pr, dmg: pr.dmg * share, target, tx: target.x, ty: target.y,
+    this.impact({ ...pr, dmg: pct(pr.dmg, 100 * share), target, tx: target.x, ty: target.y, // NUM-1: the share, rounded once
       splash: undefined, tesla: undefined, lance: undefined });
   }
 
@@ -2158,15 +2168,23 @@ export class Battle {
         if (charge.stall > 0) this.disrupt(s, charge.target, charge.stall, "limpet");
         this.events.push({ type: "limpet", side: s.side, kind: charge.target.kind, ref: charge.target.ref, cell: charge.target.cell });
       }
+      // NUM-1 (REQ-BFG-047, N1 2.1): each Burn ticks once a second, BURN_DPS a stack (was dps x step every tick, which made
+      // the hull fractional); a Burn whose length isn't whole (SLOW EMBERS) deals its last part when it ends, rounded half
+      // up once. The same total a stack, BURN_DPS x its seconds.
       let burn = 0;
       for (const b of s.hull.burns) {
         const step = Math.min(dt, b.t);
-        burn += b.dps * step;
+        b.acc = (b.acc ?? 0) + step;
         b.t -= dt;
+        if (b.acc >= 1 - 1e-9) {
+          burn += b.dps * BURN_DPS;
+          b.acc -= 1;
+        } else if (b.t <= 0 && b.acc > 1e-6) burn += roundHalfUp(b.dps * BURN_DPS * b.acc);
       }
       s.hull.burns = s.hull.burns.filter((b) => b.t > 0);
-      // RUNES-2a: PYRE HEART (the foe's BURN on this hull deals n% more), ASH CLOAK (this hull's runes: n% less)
-      if (burn > 0 && (foe.rune?.burnPct || s.rune?.burnCut)) burn *= (1 + (foe.rune?.burnPct ?? 0) / 100) * Math.max(0, 1 - (s.rune?.burnCut ?? 0) / 100);
+      // RUNES-2a: PYRE HEART (the foe's BURN on this hull deals n% more), ASH CLOAK (this hull's runes: n% less). NUM-1: the
+      // two whole %s multiply the tick once, rounded half up once
+      if (burn > 0 && (foe.rune?.burnPct || s.rune?.burnCut)) burn = pct(burn, (100 + (foe.rune?.burnPct ?? 0)) * Math.max(0, 100 - (s.rune?.burnCut ?? 0)) / 100);
       if (burn > 0) {
         const burnt = absorb(s.plate, burn); // races: plating soaks Burn (not the wind); 0.8.0 P1 (E1): on every hull
         s.hull.hp -= burnt;
@@ -2181,14 +2199,25 @@ export class Battle {
         }
       }
       if (s.hull.poison.t > 0) {
-        const damage = s.hull.poison.stacks * 0.4 * Math.min(dt, s.hull.poison.t);
+        // NUM-1 (REQ-BFG-047): poison ticks once a second, 4 a stack (x10 of 0.4 a stack each second; was x dt every tick);
+        // the part-second left when it runs out is dealt then, rounded half up once
+        const po = s.hull.poison;
+        po.acc = (po.acc ?? 0) + Math.min(dt, po.t);
+        let damage = 0;
+        if (po.acc >= 1 - 1e-9) {
+          damage = po.stacks * 4;
+          po.acc -= 1;
+        } else if (po.t - dt <= 0 && po.acc > 1e-6) {
+          damage = roundHalfUp(po.stacks * 4 * po.acc);
+          po.acc = 0;
+        }
         s.hull.poison.t = Math.max(0, s.hull.poison.t - dt);
         const poisoned = absorb(s.plate, damage); // 0.8.0 P1 (E1): plating soaks poison ticks on every hull
         s.hull.hp -= poisoned;
         if (s.spall) this.spallCharge(s, poisoned, damage - poisoned); // SPALL CATCHER
         foe.stats.damage += damage;
         if (damage > 0) this.events.push({ type: "poison", side: s.side, dmg: damage });
-        if (s.hull.poison.t === 0) s.hull.poison.stacks = 0;
+        if (s.hull.poison.t === 0) { s.hull.poison.stacks = 0; po.acc = 0; }
       }
     }
     if (!this.windWarned && this.t >= WIND_WARN) {
@@ -2196,22 +2225,26 @@ export class Battle {
       this.events.push({ type: "windwarn" });
     }
     if (this.t >= WIND_START) {
-      const dps = this.windDps();
-      for (const s of this.sides) {
-        s.hull.hp -= dps * dt;
-        s.stats.windTaken += dps * dt;
-      }
+      // NUM-1 (REQ-BFG-047, N1 2.1): the dark wind x10, in whole ticks: once a second (the old `wind` event's beat) both
+      // hulls take what the wind blew since the last tick (windDps x the seconds), rounded half up once
+      this.windDue += this.windDps() * dt;
       this.windTick += dt;
       if (this.windTick >= 1) {
         this.windTick -= 1;
-        this.events.push({ type: "wind", dmg: dps });
+        const dmg = roundHalfUp(this.windDue);
+        this.windDue = 0;
+        for (const s of this.sides) {
+          s.hull.hp -= dmg;
+          s.stats.windTaken += dmg;
+        }
+        this.events.push({ type: "wind", dmg });
       }
     }
   }
 
   windDps(): number {
     if (this.t < WIND_START) return 0;
-    return 1 + Math.floor((this.t - WIND_START) / 5);
+    return 10 * (1 + Math.floor((this.t - WIND_START) / 5)); // NUM-1: x10 (10 a second, +10 every 5 s)
   }
 
   /** 0..1 visual intensity of the dark wind. */

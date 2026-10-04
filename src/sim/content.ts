@@ -38,6 +38,9 @@ export const JAM_THRESHOLD = 4; // payloads backed up at a busy chamber before i
 export const JAM_COOLDOWN = 3.0;
 export const DISRUPT_TIME = 1.6; // Shock disruption duration (s)
 export const BURN_TIME = 3.0; // each Burn stack deals 1 dmg/s for this long
+/** NUM-1 (REQ-BFG-047, N1 2.1): the damage a Burn stack deals each second (x10 of 1), once a second (Battle.hullEffects):
+ *  BURN_DPS x BURN_TIME a stack, the same total as before, in whole ticks. */
+export const BURN_DPS = 10;
 export const FRAY_BONUS = 2; // extra damage per Fray stack on every later hit
 export const FRAY_MAX = 15;
 export const WIND_WARN = 20; // dark wind warning (s)

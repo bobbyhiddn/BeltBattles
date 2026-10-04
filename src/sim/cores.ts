@@ -11,6 +11,7 @@ import { HEROES, classFactor, type CoreRoutine, type CoreSpec, type TurretDef } 
 import { coreFor, turretSlots, type Build } from "./deck";
 import { effectAt, starsOf } from "./stars";
 import type { TurretState } from "./battle";
+import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer pipeline's rounding
 
 /** The identity routine: one payload per firing opportunity from a LIFO window, the turret's own numbers. */
 export const IDENTITY_CORE: CoreSpec = { routine: "identity" };
@@ -24,13 +25,22 @@ export const CORE_ABSOLUTE = ["perQueued", "volleyFlat", "addBurn", "perSecond",
 /** Stack counts among the absolute numbers: rounded half up, at least 1. */
 export const CORE_STACKS: readonly string[] = ["addBurn"];
 
-/** A core spec with its absolute numbers x k (CORE_ABSOLUTE; CORE_STACKS round half up, at least 1). */
+/**
+ * A core spec with its absolute numbers x k (CORE_ABSOLUTE; CORE_STACKS round half up, at least 1). NUM-1 (REQ-BFG-047,
+ * N1 2.1): the class factor is a whole %, round(100 x k) (k = clamp(fireInterval, 0.4, 1.2); NUM-2 makes it round(3000 /
+ * SPEED)), and each scaled number rounds half up once, here at install, so the battle and the placed panel read one
+ * integer. ANVIL's perPlate is a ratio of two damage-family numbers (damage per plating): it becomes a whole % of the
+ * hull's plating (x 100, x the class %, rounded), kept as that % / 100; Battle.fireCore applies it with pct.
+ */
 export function scaleCore(spec: CoreSpec, k: number): CoreSpec {
   const out: CoreSpec = { ...spec };
+  const kp = roundHalfUp(100 * k); // NUM-1: the class factor as a whole %
   for (const key of CORE_ABSOLUTE) {
     const v = spec[key];
     if (typeof v !== "number") continue;
-    out[key] = CORE_STACKS.includes(key) ? Math.max(1, Math.floor(v * k + 0.5)) : v * k;
+    out[key] = CORE_STACKS.includes(key) ? Math.max(1, pct(v, kp))
+      : key === "perPlate" ? roundHalfUp(v * kp) / 100
+      : pct(v, kp);
   }
   return out;
 }

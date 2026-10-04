@@ -5,6 +5,7 @@
 // path. Nothing in the game imports it; the balance harness's par player (src/sim/harness/player.ts) does.
 
 import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME, type FactorySpec, type HeroId } from "./content";
+import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
   walkRoute, type Build, type RigHit,
@@ -92,7 +93,7 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       // about `time` seconds of the route's payloads, of the (fight - time) it fires, and none when the fight is over
       // first. CAND-A (the skill-ladder fix): the rating read half the buff on every payload, whatever the fight; its
       // ablation lift on the par field was +0.1 points on day 10 (fights of 9.5 s; fuses 12/10/8 s at 1/2/3 stars).
-      if (e.keg) eq += ((e.keg.flat + BURN_TIME * e.keg.burn) * Math.max(0, Math.min(fight, e.keg.fuse + time) - e.keg.fuse)) / Math.max(1, fight - time);
+      if (e.keg) eq += ((e.keg.flat + BURN_TIME * BURN_DPS * e.keg.burn) * Math.max(0, Math.min(fight, e.keg.fuse + time) - e.keg.fuse)) / Math.max(1, fight - time); // NUM-1: a Burn stack's BURN_DPS a second
       if (e.overclockCooldown) eq += EQ.overclock / e.overclockCooldown;
       if (e.toll) eq += EQ.toll * e.toll;
       if (e.sift) eq += EQ.sift;
@@ -229,7 +230,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       plating += (spec.plate.amount * stoked * (pace.get(r.factory) ?? 1)) / spec.plate.every;
     }
     const arrival = (est.copies * (spec.batch ?? 1) * (pace.get(r.factory) ?? 1) * stoked) / (Math.max(0.1, interval) * shared);
-    const eq = dmg + (spec.scrapFlat ?? 0) + BURN_TIME * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0);
+    const eq = dmg + (spec.scrapFlat ?? 0) + BURN_TIME * BURN_DPS * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0); // NUM-1: BURN_DPS
     const list = feeds.get(info.turret) ?? [];
     list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride, ...(stoked > 1 ? { factory: r.factory, base: arrival / stoked } : stoke.size ? { factory: r.factory } : {}) });
     feeds.set(info.turret, list);

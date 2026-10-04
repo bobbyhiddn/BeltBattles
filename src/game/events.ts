@@ -90,7 +90,7 @@ export function blockReason(run: Run, c: Choice): string | undefined {
   if (run.day >= RUN_DAYS && c.gain.some((d) => d.k === "bounty" || d.k === "sabotage")) return "NO WARLORD LEFT";
   for (const d of c.cost) {
     if (d.k === "gold" && run.gold < d.n) return `NEED ${d.n - run.gold} MORE GOLD`;
-    if (d.k === "hull" && HEROES[run.hero].hull + run.build.hullBonus - d.n < 100) return "HULL TOO WEAK";
+    if (d.k === "hull" && HEROES[run.hero].hull + run.build.hullBonus - d.n < 1000) return "HULL TOO WEAK"; // NUM-1: hull x10 (roadCap.ts HULL_FLOOR)
     if (d.k === "belt" && run.build.beltCap - d.n < beltUsed(run.build)) return "BELTS IN USE";
     if (d.k === "item" && !owns(run, d)) return "NOTHING TO TRADE";
   }

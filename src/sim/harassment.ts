@@ -1,5 +1,7 @@
 /** Rules shared by the wave-2 harassment engine and its later module definitions. */
 
+import { pct } from "./pct"; // NUM-1 (REQ-BFG-047)
+
 export interface PayloadDebuffs {
   chill?: boolean;
   snag?: boolean;
@@ -27,7 +29,8 @@ export function siftDebuffs(debuffs: PayloadDebuffs | undefined, count: number |
 /** Apply carried damage marks after the shot's ordinary and core damage calculation. */
 export function debuffedDamage(damage: number, debuffs: PayloadDebuffs | undefined): number {
   if (!debuffs) return damage;
-  return Math.max(0, (debuffs.chill ? damage * 0.75 : damage) - (debuffs.sap ? 2 : 0));
+  // NUM-1 (REQ-BFG-047): CHILL's 75% rounds half up once; SAP takes 20 (x10 of 2)
+  return Math.max(0, (debuffs.chill ? pct(damage, 75) : damage) - (debuffs.sap ? 20 : 0));
 }
 
 /** A rig arrow is a segment node at its belt tile. A hit on that tile enters its downstream segment. */

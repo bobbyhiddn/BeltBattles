@@ -7,6 +7,7 @@ import type { RouteDef } from "../deck";
 import type { FactoryState, Payload, RouteState, SideState, Target } from "../battle";
 import { FUSE_MULT, type SimCtx } from "./foundry";
 import { RACE_AMMO } from "./data";
+import { pct } from "../pct"; // NUM-1 (REQ-BFG-047)
 
 export const DRAG_MULT = 0.25; // a dragged segment runs at x0.25 of its speed state
 export const DRAG_TIME = 3.0; // s; a re-hit refreshes it, never stacks
@@ -160,7 +161,7 @@ export function newEchoState(): EchoState {
 
 /** The flat damage a payload gained from processing. An alloy slug keeps its fused base in flat. */
 export function addedFlat(p: Payload): number {
-  const fused = p.ammo === "alloy" ? FUSE_MULT * 2 * RACE_AMMO.blank.base : 0;
+  const fused = p.ammo === "alloy" ? pct(2 * RACE_AMMO.blank.base, 100 * FUSE_MULT) : 0; // NUM-1: as foundry.ts fuse rounds it
   return Math.max(0, p.flat - fused);
 }
 
@@ -178,7 +179,7 @@ export function echoOf(p: Payload, carriesFray: boolean): EchoMemory {
 export function echoOnLoad(st: EchoState, p: Payload): void {
   if (p.ammo !== "leechEcho" || !st.mem) return;
   const m = st.mem;
-  p.flat += m.flat * p.mult;
+  p.flat += pct(m.flat, 100 * p.mult); // NUM-1: x its split share, rounded half up once
   p.burn += m.burn;
   p.shock = p.shock || m.shock;
   if (m.fray > 0) st.fray.add(p);

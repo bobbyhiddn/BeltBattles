@@ -117,7 +117,7 @@ function warlordLayout(heroId: HeroId, round: number): Build {
 
 /** Warlords start weaker than the player and outgrow them round by round (bb-0.4.0: x4/3). */
 export function warlordHull(round: number): number {
-  return (round - 1) * 11 - 27;
+  return (round - 1) * 110 - 270; // NUM-1 (REQ-BFG-047): hull x10 (was (round - 1) x 11 - 27)
 }
 
 export function warlordName(heroId: HeroId, round: number): string {

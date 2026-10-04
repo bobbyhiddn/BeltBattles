@@ -9,6 +9,7 @@ import {
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
+import { roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -499,7 +500,9 @@ export function routeDirs(b: Build, r: RouteDef, connected: boolean, join?: Join
  * bonuses gained before it, so gate order matters (spec §13).
  */
 export function payloadDamage(base: number, rideScale: number, ride: number, mult: number, flat: number): number {
-  return Math.max(1, (base + rideScale * ride) * mult + flat);
+  // NUM-1 (REQ-BFG-047, N1 2.1): whole, rounded half up once when the slug is fired (its HEAT for the seconds ridden, the
+  // HEAT it gained on the belt in `flat`, the split share); at least 10 (x10 of 1)
+  return Math.max(10, roundHalfUp((base + rideScale * ride) * mult + flat));
 }
 
 export interface RouteEstimate {

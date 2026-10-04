@@ -6,6 +6,7 @@ import { AMMO_SPACING } from "../content";
 import { payloadDamage } from "../deck";
 import type { FactoryState, Payload, SideState, SimEvent, TurretState } from "../battle";
 import { RACE_AMMO } from "./data";
+import { pct } from "../pct"; // NUM-1 (REQ-BFG-047)
 
 export const SYNC_WINDOW = 0.25; // s: max gap between the two loads (15 ticks)
 export const FUSE_MULT = 1.15; // alloy slug = FUSE_MULT x (blank A + blank B)
@@ -41,7 +42,7 @@ export function blankDamage(p: Payload): number {
 
 /** Merge blank `b` into blank `a` (in place): `a` becomes an alloy slug. */
 export function fuse(a: Payload, b: Payload): void {
-  const dmg = FUSE_MULT * (blankDamage(a) + blankDamage(b));
+  const dmg = pct(blankDamage(a) + blankDamage(b), 100 * FUSE_MULT); // NUM-1: the fuse's 115%, rounded half up once
   a.ammo = "alloy";
   a.flat = dmg;
   a.mult = 1;
