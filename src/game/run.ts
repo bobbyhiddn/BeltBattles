@@ -19,6 +19,7 @@ import { fusible, starField, starsOf, upgradeLevel } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
+import { dawnGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
 import {
   canSellTurret, installTurret, isTurretDef, moveTurret, removeTurret, turretList, turretSellValue, turretSlots,
   type TurretOpResult,
@@ -144,6 +145,11 @@ export interface Run {
   // optional field, as refund and the joins were. Absent (a save from before 0.8.0): today's rule, so a run in progress
   // never changes.
   wares?: Wares;
+  // RUNES-1 (REQ-BFG-058): the day whose dawn rune pick is pending (runePending: the picker shows over the caravan until
+  // it is taken; free, no skip). Set by newRun (day 1) and at every new dawn of a run that took a rune at every dawn
+  // before it (runes.length === day - 1); a save from before runes never gets one. The held runes live in build.runes
+  // (in pick order), so the snapshot, the battle and a reload carry them. Save v7, no bump (a new optional field).
+  runeDay?: number;
 }
 
 export const RUN_VERSION = 7; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once)
@@ -163,9 +169,46 @@ export function newRun(hero: HeroId, seed: number, runId = newRunId(seed)): Run 
     stage: "caravan", event: null, nextShop: { discount: 0, free: 0 }, events: [], dusk: null,
     road: null, warlord: null, warlords: [], matriarchBeatenOn: null, bounty: null, sabotage: null,
     wares: drawWares(seed), // 0.8.0 I1 M3: the per-run draw (the run seed alone)
+    runeDay: 1, // RUNES-1: the first dawn's rune pick
   };
   rollShop(run);
   return run;
+}
+
+// ---- RUNES-1 (REQ-BFG-058): the dawn rune pick ------------------------------------------------------------------------
+
+/** Today's pending rune offer (runes.ts runeOffer on the run's own "rune" stream), or null when no pick is pending. The
+ *  offer is re-derived from (seed, day, hero, held), never stored, so a reload shows the same cards. */
+export function pendingRune(run: Pick<Run, "seed" | "day" | "hero" | "build" | "runeDay" | "over">): RuneOffer | null {
+  if (run.over || run.runeDay !== run.day) return null;
+  const offer = runeOffer(run.seed, run.day, run.hero, (run.build.runes ?? []).map((q) => q.id));
+  return offer.ids.length ? offer : null;
+}
+
+/**
+ * Take rune `id` from today's offer: it joins build.runes (pick order), a HULL or BELT rune adds to build.hullBonus /
+ * build.beltCap at once, and a dawn-gold rune pays this dawn's gold at once (it is part of the dawn). Refused when no
+ * pick is pending or `id` is not on offer. The caller saves the run.
+ */
+export function takeRune(run: Run, id: string): { ok: boolean; reason?: string } {
+  const offer = pendingRune(run);
+  if (!offer) return { ok: false, reason: "NO RUNE TO PICK" };
+  if (!offer.ids.includes(id)) return { ok: false, reason: "NOT ON OFFER" };
+  const d = RUNES[id];
+  run.build.runes = [...(run.build.runes ?? []), { id }];
+  if (d.kind === "hull") run.build.hullBonus += d.amount.n;
+  else if (d.kind === "belt") run.build.beltCap += d.amount.n;
+  else if (d.kind === "dawnGold") run.gold += d.amount.n;
+  delete run.runeDay;
+  return { ok: true };
+}
+
+/** At a new dawn (day.ts finishDay): the held dawn-gold runes pay, then a run that took a rune at every dawn so far owes
+ *  today's pick. A run from before runes (fewer runes than dawns) never owes one. */
+export function runeDawn(run: Run): void {
+  run.gold += dawnGold(run.build.runes);
+  if ((run.build.runes?.length ?? 0) === run.day - 1) run.runeDay = run.day;
+  else delete run.runeDay;
 }
 
 export function battleSeed(run: Run): number {

@@ -24,6 +24,7 @@ export interface Placed {
   // 0.6.2 BELTSIDE (D1): a rig's rotation in clockwise quarter turns, 1..3; absent = 0. Written only for
   // rigs (kind "gate"), never as 0, never for an X rig (it ignores rotation).
   rot?: number;
+  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused by both snapshot checks until GROW-1 switches it on
 }
 
 export interface RouteDef {
@@ -40,6 +41,7 @@ export interface ModPlacement {
   def: string;
   turret: number;
   stars?: number; // 0.6.1a: 2 or 3 after a merge; absent = 1 (never written as 1)
+  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused until GROW-1 switches it on
 }
 
 export interface Build {
@@ -57,6 +59,11 @@ export interface Build {
   // 2..4 once bought; absent = level 1). Written only once one is bought (run.ts buyUpgrade), after the other keys, so
   // a build without upgrades serializes exactly as before. The levels stay with the run: nothing sells or refunds them.
   upgrades?: Upgrades;
+  // RUNES-1 (REQ-BFG-058, snapshot v3): the run's runes in pick order (runes[i] taken at the dawn of day i + 1;
+  // src/sim/runes.ts). Written only once one is taken (run.ts takeRune), last, so a rune-less build serializes exactly
+  // as before. Both sides' runes act in battle (runes.ts runeMods).
+  runes?: { id: string }[];
+  gold?: number; // RUNES-1 (snapshot v3): gold held at dusk (R1b-2, R1d); refused until the gold stage switches it on
 }
 
 /** 0.6.2s S8: one installed turret (a Build.turrets entry). A cargo copy is an InvItem with the same fields but `slot`. */
@@ -66,6 +73,7 @@ export interface BuildTurret {
   uid: number;
   stars?: number; // 2 or 3 after a merge; absent = 1 (never written as 1)
   free?: boolean; // S7: true when it contains the hull's starting copy; absent = false (never written as false)
+  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused until GROW-1 switches it on
 }
 
 /** A turret copy anywhere (a slot's or cargo's): what S7's value and selling read. */

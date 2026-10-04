@@ -21,8 +21,35 @@ import { nameProblem, type NameProblem } from "./names"; // PACKS M2 (REQ-BFG-06
 // byte for byte as before and every older snapshot decodes identically. Its legality is validateBuild's.
 // 0.7.0 (v070-rel M2): turrets and joins are bb-0.6.2 rules. checkSnapshot refuses a build that carries them under rules
 // that predate bb-0.6.2 or can't be read as bb-MAJOR.MINOR.PATCH (rulesGate.ts), on every path that decodes or encodes.
+// RUNES-1 (REQ-BFG-058; FIX-3 of REVIEW-R1-ALL.md): snapshot v3, the ONE ghost-format change of the redesign, with every
+// field it adds: R1b-2's `seed` (the run seed), Build `runes` and Build `gold` (held at dusk) and a piece's `grow`; R1d's
+// `battleGold` (its battle receipts travel beside the snapshot, not inside); R1e's `losses`, `mode`, `endlessWins`,
+// `endlessLives` and `victoryDay`. Every field is optional, written last (after `name`, in V3_SNAPSHOT_FIELDS order; a
+// build's after `upgrades`) and left out when zero, so a snapshot without them encodes byte for byte as v2 did. Only a
+// v3 snapshot may carry them. This rules version writes and takes `seed` and `runes` only (V3_LIVE); both this decoder
+// and the client's check (src/game/ghostSnapshot.ts) refuse every other v3 field when present, until the stage that owns
+// it switches it on. SNAPSHOT_VERSION stays the version a snapshot WITHOUT any v3 field travels as (the pools, the
+// stand-ins and the probe: unchanged bytes and ids); the player's own snapshot (day.ts ghostOf) carries its seed and so
+// travels as SNAPSHOT_V3.
 export const SNAPSHOT_VERSION = 2;
-export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2];
+export const SNAPSHOT_V3 = 3;
+export const SNAPSHOT_VERSIONS: readonly number[] = [1, 2, 3];
+/** RUNES-1: the v3 snapshot-level fields, in their canonical (written) order after `name`. */
+export const V3_SNAPSHOT_FIELDS = ["seed", "losses", "mode", "endlessWins", "endlessLives", "victoryDay", "battleGold"] as const;
+/** RUNES-1: the v3 build-level fields, after `upgrades`; and the piece-level field (items, mods, turrets). */
+export const V3_BUILD_FIELDS = ["runes", "gold"] as const;
+export const V3_PIECE_FIELD = "grow";
+/** RUNES-1: a rune entry's optional counter (GROW-1's growing runes). */
+export const V3_RUNE_COUNTER = "n";
+/** RUNES-1: which v3 fields this rules version takes. Each later stage switches its own on deliberately (R1d's gold
+ *  fields, R1e's losses/mode/endless fields, GROW-1's grow and rune counter); both checks refuse an off field. */
+export const V3_LIVE: Readonly<Record<string, boolean>> = {
+  seed: true, runes: true,
+  losses: false, mode: false, endlessWins: false, endlessLives: false, victoryDay: false, battleGold: false,
+  gold: false, grow: false, n: false,
+};
+export const MAX_SEED = 2 ** 32 - 1; // RUNES-1: a run seed (run.ts newRun), 1..2^32-1 (0 is left out)
+export const MAX_RUNES = 10; // RUNES-1: one a dawn (= MAX_DAY; runes.ts runeProblem holds the day's own bound)
 export const MAX_STARS = 3; // = stars.ts FUSE_MAX
 export const MAX_ROT = 3; // 0.6.2: a rig's rotation in quarter turns
 export const MAX_SNAPSHOT_BYTES = 16 * 1024; // encoded UTF-8 size cap (client, server, pool)
@@ -39,7 +66,7 @@ const DEF_PATTERN = /^[a-z0-9_]{1,32}$/;
 const MAX_UID = 2 ** 31 - 1;
 
 export interface GhostSnapshot {
-  v: 1 | 2; // 0.6.1a: 2 carries stars; 1 still loads
+  v: 1 | 2 | 3; // 0.6.1a: 2 carries stars; 1 still loads. RUNES-1: 3 may carry the v3 fields below
   rules: string; // RULES_VERSION the build fought under
   hero: HeroId;
   day: number; // 1-10
@@ -52,6 +79,16 @@ export interface GhostSnapshot {
   /** PACKS M2 (REQ-BFG-063): the player's name (names.ts), optional and last: absent on pool entries and older uploads;
    *  POST /v1/ghosts requires it under RULES_VERSION. Never the tag (readers derive it from playerId). */
   name?: string;
+  /** RUNES-1 (snapshot v3): the run seed (run.ts newRun), so the server re-derives the rune offers (runes.ts
+   *  runeProblem). Private: served ghosts strip it (FIX-6; server/app.ts). */
+  seed?: number;
+  // RUNES-1 (snapshot v3), refused in this rules version (V3_LIVE): R1e's record and endless fields, R1d's gold
+  losses?: number;
+  mode?: "run" | "endless";
+  endlessWins?: number;
+  endlessLives?: number;
+  victoryDay?: number;
+  battleGold?: number;
 }
 
 /** A snapshot with its pool id (content hash for stored ghosts, "offline-..." for stand-ins). */
@@ -110,7 +147,8 @@ function turrets(o: Obj, path: string, version: number): { turrets?: BuildTurret
   return {
     turrets: arr(o.turrets, `${path}.turrets`, MAX_TURRETS).map((tv, i): BuildTurret => {
       const at = `${path}.turrets[${i}]`;
-      const t = obj(tv, at, ["slot", "def", "uid"], ["stars", "free"]);
+      const t = obj(tv, at, ["slot", "def", "uid"], ["stars", "free", V3_PIECE_FIELD]);
+      grow(t, at, version); // RUNES-1: refused while off
       if (has(t, "free") && t.free !== true) throw new SnapshotError(`${at}.free: expected true (absent = false)`);
       return {
         slot: int(t.slot, `${at}.slot`, 0, MAX_SLOT),
@@ -148,6 +186,32 @@ function join(o: Obj, path: string, version: number): { join?: number } {
   return { join: int(o.join, `${path}.join`, 0, GRID * GRID - 1) };
 }
 
+/** RUNES-1 (snapshot v3): a present v3 field is allowed only in a v3 snapshot, and only while V3_LIVE switches it on. */
+function v3Gate(path: string, field: string, version: number): void {
+  if (version < SNAPSHOT_V3) throw new SnapshotError(`${path}: not allowed in a v${version} snapshot`);
+  if (!V3_LIVE[field]) throw new SnapshotError(`${path}: not in this rules version yet`);
+}
+
+/** RUNES-1: a piece's `grow` (GROW-1's counter): refused while off (v3Gate throws when present). */
+function grow(o: Obj, path: string, version: number): void {
+  if (has(o, V3_PIECE_FIELD) && o[V3_PIECE_FIELD] !== undefined) v3Gate(`${path}.${V3_PIECE_FIELD}`, V3_PIECE_FIELD, version);
+}
+
+/** RUNES-1 (snapshot v3): the build's optional `runes`, v3 only: at most MAX_RUNES strict entries { id } in pick order
+ *  (GROW-1's counter `n` refused while off); kept as given, last. Which ids are legal is runes.ts runeProblem's. */
+function runes(o: Obj, path: string, version: number): { runes?: { id: string }[] } {
+  if (!has(o, "runes") || o.runes === undefined) return {};
+  v3Gate(`${path}.runes`, "runes", version);
+  return {
+    runes: arr(o.runes, `${path}.runes`, MAX_RUNES).map((rv, i) => {
+      const at = `${path}.runes[${i}]`;
+      const e = obj(rv, at, ["id"], [V3_RUNE_COUNTER]);
+      if (has(e, V3_RUNE_COUNTER) && e[V3_RUNE_COUNTER] !== undefined) v3Gate(`${at}.${V3_RUNE_COUNTER}`, V3_RUNE_COUNTER, version);
+      return { id: str(e.id, `${at}.id`, DEF_PATTERN) };
+    }),
+  };
+}
+
 function int(v: unknown, path: string, min: number, max: number): number {
   if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max) {
     throw new SnapshotError(`${path}: expected an integer in ${min}..${max}`);
@@ -177,11 +241,15 @@ export function isHeroId(v: unknown): v is HeroId {
  * carry `stars` (1..MAX_STARS); in v1 it must be absent. 0.6.2s: from v2 the build may carry `turrets`
  * (see turrets()); the copy has the key only when the input has it, last.
  */
-export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_VERSION): Build {
-  const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"], ["turrets", "upgrades"]);
+export function checkBuildShape(v: unknown, path = "build", version: number = SNAPSHOT_V3): Build {
+  // RUNES-1: the default is the newest version (a build outside a snapshot: validateBuild, a battle record's builds), so
+  // a build with runes is shape-legal there; checkSnapshot passes its own snapshot's version
+  const o = obj(v, path, ["hero", "items", "routes", "mods", "beltCap", "hullBonus"], ["turrets", "upgrades", ...V3_BUILD_FIELDS]);
+  if (has(o, "gold") && o.gold !== undefined) v3Gate(`${path}.gold`, "gold", version); // RUNES-1: R1b-2/R1d's held gold, off
   if (!isHeroId(o.hero)) throw new SnapshotError(`${path}.hero: unknown hero`);
   const items = arr(o.items, `${path}.items`, MAX_ITEMS).map((it, i): Placed => {
-    const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars", "rot"]);
+    const p = obj(it, `${path}.items[${i}]`, ["uid", "def", "x", "y"], ["stars", "rot", V3_PIECE_FIELD]);
+    grow(p, `${path}.items[${i}]`, version); // RUNES-1: refused while off
     return {
       uid: int(p.uid, `${path}.items[${i}].uid`, 0, MAX_UID),
       def: str(p.def, `${path}.items[${i}].def`, DEF_PATTERN),
@@ -201,7 +269,8 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     };
   });
   const mods = arr(o.mods, `${path}.mods`, MAX_MODS).map((mv, i): ModPlacement => {
-    const m = obj(mv, `${path}.mods[${i}]`, ["uid", "def", "turret"], ["stars"]);
+    const m = obj(mv, `${path}.mods[${i}]`, ["uid", "def", "turret"], ["stars", V3_PIECE_FIELD]);
+    grow(m, `${path}.mods[${i}]`, version); // RUNES-1: refused while off
     return {
       uid: int(m.uid, `${path}.mods[${i}].uid`, 0, MAX_UID),
       def: str(m.def, `${path}.mods[${i}].def`, DEF_PATTERN),
@@ -220,7 +289,20 @@ export function checkBuildShape(v: unknown, path = "build", version: number = SN
     hullBonus: int(o.hullBonus, `${path}.hullBonus`, -1000, 10000),
     ...turrets(o, path, version),
     ...upgrades(o, path, version), // bb-0.8.3 (REQ-BFG-043 D10)
+    ...runes(o, path, version), // RUNES-1 (snapshot v3): last, only when present
   };
+}
+
+/** RUNES-1 (snapshot v3): the snapshot-level v3 fields, in V3_SNAPSHOT_FIELDS order, each only when present. `seed` (on):
+ *  an integer 1..MAX_SEED (a zero seed is left out). Every other field is refused while off (v3Gate). */
+function v3Fields(o: Obj, version: number): { seed?: number } {
+  const out: { seed?: number } = {};
+  for (const k of V3_SNAPSHOT_FIELDS) {
+    if (!has(o, k) || o[k] === undefined) continue;
+    v3Gate(`snapshot.${k}`, k, version);
+    if (k === "seed") out.seed = int(o.seed, "snapshot.seed", 1, MAX_SEED);
+  }
+  return out;
 }
 
 /**
@@ -240,9 +322,9 @@ function nameField(o: Obj): { name?: string } {
 
 /** Full strict check of a decoded value. Returns a canonical copy. */
 export function checkSnapshot(v: unknown): GhostSnapshot {
-  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name"]);
-  if (o.v !== 1 && o.v !== 2) throw new SnapshotError(`snapshot.v: expected 1 or ${SNAPSHOT_VERSION}`);
-  const ver: 1 | 2 = o.v;
+  const o = obj(v, "snapshot", ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"], ["name", ...V3_SNAPSHOT_FIELDS]);
+  if (o.v !== 1 && o.v !== 2 && o.v !== 3) throw new SnapshotError(`snapshot.v: expected 1, 2 or ${SNAPSHOT_V3}`);
+  const ver: 1 | 2 | 3 = o.v;
   const rules = str(o.rules, "snapshot.rules", RULES_PATTERN);
   if (!isHeroId(o.hero)) throw new SnapshotError("snapshot.hero: unknown hero");
   const day = int(o.day, "snapshot.day", 1, MAX_DAY);
@@ -262,6 +344,7 @@ export function checkSnapshot(v: unknown): GhostSnapshot {
     playerId: str(o.playerId, "snapshot.playerId", ID_PATTERN),
     createdAt: int(o.createdAt, "snapshot.createdAt", 0, Number.MAX_SAFE_INTEGER),
     ...nameField(o), // PACKS M2 (REQ-BFG-063): last, only when present
+    ...v3Fields(o, ver), // RUNES-1 (snapshot v3): after the name, only when present
   };
 }
 

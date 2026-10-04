@@ -7,6 +7,9 @@ import { GRID, HEROES, UPGRADE_MAX, UPGRADE_TRACKS, type HeroId } from "../sim/c
 import type { Build } from "../sim/deck";
 import { migrateDeck } from "../sim/beltside";
 import { NAME_KEY, nameProblem } from "../net/names"; // PACKS M2 (REQ-BFG-063): the one set of name rules
+import { runeProblem } from "../sim/runes"; // RUNES-1 (REQ-BFG-058): the one rune rule, shared with validate.ts
+// RUNES-1 (snapshot v3): the format's constants come from the strict decoder, so the two checks can't drift apart
+import { MAX_RUNES, MAX_SEED, SNAPSHOT_V3, V3_LIVE, V3_PIECE_FIELD, V3_RUNE_COUNTER, V3_SNAPSHOT_FIELDS } from "../net/snapshot";
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
@@ -20,6 +23,11 @@ import { NAME_KEY, nameProblem } from "../net/names"; // PACKS M2 (REQ-BFG-063):
 // 0.6.2j (REQ-BFG-027, J12): v2 routes may also carry `join` (a cell key 0..99, a joining belt's join tile; absent =
 // an ordinary belt), with src/net/snapshot.ts; still v2.
 export const SNAPSHOT_VERSION = 2;
+// RUNES-1 (REQ-BFG-058, FIX-3): snapshot v3 (src/net/snapshot.ts: the format, V3_LIVE). This check takes exactly what
+// the strict decoder takes: v 1..3; the v3 fields only in v3, only while live (`seed` 1..MAX_SEED and the build's
+// `runes`), every other v3 field refused when present; then runes.ts runeProblem (the server's own rune rule), with the
+// offer rule only when `seed` is present (served ghosts carry none, FIX-6). day.ts ghostOf writes v3 (it carries the seed).
+export { SNAPSHOT_V3 };
 const MAX_STARS = 3; // = stars.ts FUSE_MAX
 const MAX_ROT = 3; // 0.6.2: a rig's rotation, 0..3 quarter turns
 const MAX_TURRETS = 8; // 0.6.2s: = src/net/snapshot.ts MAX_TURRETS
@@ -30,7 +38,7 @@ const MAX_UID = 2 ** 31 - 1; // = src/net/snapshot.ts MAX_UID
 // (the packs make big belts and hulls ordinary, so this side takes exactly what the strict decoder takes)
 const MAX_BELT_CAP = 1000; // = checkBuildShape's beltCap 0..1000
 const HULL_BONUS_MIN = -1000, HULL_BONUS_MAX = 10000; // = its hullBonus -1000..10000
-const TURRET_KEYS = ["slot", "def", "uid", "stars", "free"];
+const TURRET_KEYS = ["slot", "def", "uid", "stars", "free"]; // RUNES-1: a turret's `grow` is refused (off) like any unknown key
 /** runId, playerId: anonymous, no personal data (same pattern as the async contract). */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Where the anonymous player id lives (made once per device). */
@@ -40,7 +48,7 @@ export const MAX_DAY = 10;
 export const MAX_LIVES = 9;
 
 export interface GhostSnapshot {
-  v: 1 | 2; // 0.6.1a: 2 carries stars; 1 still loads
+  v: 1 | 2 | 3; // 0.6.1a: 2 carries stars; 1 still loads. RUNES-1: 3 may carry the v3 fields
   rules: string; // RULES_VERSION the build fought under
   hero: HeroId;
   day: number; // 1-10
@@ -51,6 +59,14 @@ export interface GhostSnapshot {
   playerId: string; // anonymous random id, never an account name or e-mail
   createdAt: number; // ms since epoch, client clock (informational only)
   name?: string; // PACKS M2 (REQ-BFG-063): the player's name, as src/net/snapshot.ts takes it (names.ts); absent on pool entries
+  seed?: number; // RUNES-1 (snapshot v3): the run seed; the rune offer rule runs only when it is present
+  // RUNES-1 (snapshot v3), refused in this rules version (src/net/snapshot.ts V3_LIVE)
+  losses?: number;
+  mode?: "run" | "endless";
+  endlessWins?: number;
+  endlessLives?: number;
+  victoryDay?: number;
+  battleGold?: number;
 }
 
 export const SNAPSHOT_KEYS = ["v", "rules", "hero", "day", "wins", "lives", "build", "runId", "playerId", "createdAt"] as const;
@@ -118,12 +134,35 @@ function upgradesOk(q: object, v: number): boolean {
   return Object.keys(u).every((k) => (UPGRADE_TRACKS as readonly string[]).includes(k) && inRange((u as Raw)[k], 1, UPGRADE_MAX));
 }
 
+/** RUNES-1 (snapshot v3): a present v3 field is allowed only in v3 and only while V3_LIVE switches it on. */
+const v3Ok = (field: string, v: number): boolean => v >= SNAPSHOT_V3 && !!V3_LIVE[field];
+/** RUNES-1: a piece's `grow` (absent, or refused while off: GROW-1 switches it on). */
+const growOk = (list: unknown[], v: number): boolean =>
+  list.every((p) => !p || typeof p !== "object" || (p as Raw)[V3_PIECE_FIELD] === undefined || v3Ok(V3_PIECE_FIELD, v));
+
+/** RUNES-1 (snapshot v3): the build's `runes`: absent, or (v3) a list of at most MAX_RUNES strict entries { id } (id
+ *  DEF_PATTERN; the counter `n` refused while off), exactly as src/net/snapshot.ts checkBuildShape takes it; and the
+ *  build's `gold` refused while off. Which ids are legal is runeProblem's (isSnapshot). */
+function runesOk(q: object, v: number): boolean {
+  if ((q as Raw).gold !== undefined && !v3Ok("gold", v)) return false;
+  const list = (q as Raw).runes;
+  if (list === undefined) return true;
+  if (!v3Ok("runes", v) || !Array.isArray(list) || list.length > MAX_RUNES) return false;
+  return list.every((e) => {
+    if (!e || typeof e !== "object" || Array.isArray(e)) return false;
+    const keys = Object.keys(e).filter((k) => (e as Raw)[k] !== undefined);
+    if (keys.some((k) => k !== "id" && k !== V3_RUNE_COUNTER)) return false;
+    if ((e as Raw)[V3_RUNE_COUNTER] !== undefined && !v3Ok(V3_RUNE_COUNTER, v)) return false;
+    return typeof (e as Raw).id === "string" && DEF_PATTERN.test((e as Raw).id);
+  });
+}
+
 function buildOk(b: unknown, v = SNAPSHOT_VERSION): b is Build {
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
     && Array.isArray(q.mods) && inRange(q.beltCap, 0, MAX_BELT_CAP) && inRange(q.hullBonus, HULL_BONUS_MIN, HULL_BONUS_MAX)
     && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v) && joinOk(q.routes, v)
-    && upgradesOk(q, v);
+    && upgradesOk(q, v) && runesOk(q, v) && growOk(q.items, v) && growOk(q.mods, v); // RUNES-1: runes, gold, grow
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */
@@ -138,12 +177,17 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
   const keys = Object.keys(q);
   // PACKS M2 (REQ-BFG-063): `name` may follow, absent or a name names.ts accepts (an in-memory `name: undefined` is
   // absent), exactly as src/net/snapshot.ts checkSnapshot takes it, so this side refuses what the server refuses
-  if (!SNAPSHOT_KEYS.every((k) => keys.includes(k)) || keys.some((k) => k !== NAME_FIELD && !(SNAPSHOT_KEYS as readonly string[]).includes(k))) return false;
+  const extra = (k: string) => k === NAME_FIELD || (V3_SNAPSHOT_FIELDS as readonly string[]).includes(k); // RUNES-1: v3's fields
+  if (!SNAPSHOT_KEYS.every((k) => keys.includes(k)) || keys.some((k) => !extra(k) && !(SNAPSHOT_KEYS as readonly string[]).includes(k))) return false;
   if (q.name !== undefined && nameProblem(q.name) !== null) return false;
-  return (q.v === 1 || q.v === 2) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
+  // RUNES-1 (snapshot v3): each present v3 field only in v3 and only while live; `seed` 1..MAX_SEED
+  for (const k of V3_SNAPSHOT_FIELDS) if (q[k] !== undefined && !v3Ok(k, q.v)) return false;
+  if (q.seed !== undefined && !inRange(q.seed, 1, MAX_SEED)) return false;
+  return (q.v === 1 || q.v === 2 || q.v === 3) && typeof q.rules === "string" && !!HEROES[q.hero as HeroId] && inRange(q.day, 1, MAX_DAY)
     && inRange(q.wins, 0, q.day - 1) && inRange(q.lives, 1, MAX_LIVES) && buildOk(q.build, q.v) && q.build.hero === q.hero
     && typeof q.runId === "string" && ID_PATTERN.test(q.runId) && typeof q.playerId === "string"
-    && ID_PATTERN.test(q.playerId) && inRange(q.createdAt, 0, Number.MAX_SAFE_INTEGER);
+    && ID_PATTERN.test(q.playerId) && inRange(q.createdAt, 0, Number.MAX_SAFE_INTEGER)
+    && runeProblem(q.build.runes, q.day, q.hero, q.seed) === null; // RUNES-1: the server's rune rule (validate.ts validateBuild)
 }
 
 /** Any string made safe for ID_PATTERN (invalid characters become "_", at most 64 long). */

@@ -6,9 +6,9 @@
 import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES, incomeFor } from "../sim/content";
 import type { Side, SideStats } from "../sim/battle";
 import { pickGhost, standInFoe, type GhostSnapshot } from "./ghosts";
-import { currentName, playerId, SNAPSHOT_VERSION } from "./ghostSnapshot";
+import { currentName, playerId, SNAPSHOT_V3 } from "./ghostSnapshot";
 import { displayName, nameProblem, WANDERER } from "../net/names"; // PACKS M2 (REQ-BFG-063)
-import { rollShop, type DayResult, type DuskFoe, type Run } from "./run";
+import { rollShop, runeDawn, type DayResult, type DuskFoe, type Run } from "./run";
 import type { FetchedGhost } from "../net/ghostClient"; // 0.7.0a: online play (type only)
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -88,10 +88,14 @@ export function startDusk(run: Run, pool: readonly GhostSnapshot[], online?: { g
  *  0.6.1a: v2, whose build carries each copy's stars (absent = 1). PACKS M2 (REQ-BFG-063): `name`, the device's stored
  *  player name (ghostSnapshot.ts currentName), goes in last when there is one (no name: the snapshot is as before). */
 export function ghostOf(run: Run, createdAt = Date.now(), player = playerId(), name: string | null = currentName()): GhostSnapshot {
+  const seed = run.seed >>> 0;
   return {
-    v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero: run.hero, day: run.day, wins: run.wins, lives: Math.max(1, run.lives),
+    v: SNAPSHOT_V3, rules: RULES_VERSION, hero: run.hero, day: run.day, wins: run.wins, lives: Math.max(1, run.lives),
     build: clone(run.build), runId: run.runId, playerId: player, createdAt: Math.max(0, Math.floor(createdAt)),
     ...(name ? { name } : {}),
+    // RUNES-1 (REQ-BFG-058, snapshot v3): the run seed, last (left out when zero), so the server re-derives the rune
+    // offers (runes.ts runeProblem). FIX-5 (a server-issued seed) is a later job: this is the client's run seed.
+    ...(seed ? { seed } : {}),
   };
 }
 
@@ -171,6 +175,7 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
     run.shop = { wagons: [], rerolls: 0, discount: run.nextShop.discount, free: run.nextShop.free };
     run.nextShop = { discount: 0, free: 0 };
     rollShop(run);
+    runeDawn(run); // RUNES-1 (REQ-BFG-058): the held dawn-gold runes pay; today's rune pick (runes.ts' own stream, never the shop's)
     // 0.6.2 RULE EARLY-LOSS REFUND: the new dawn is day 3 and a life was lost on day 1 or 2: one back, once per run
     const back = earlyLossRefund(run);
     if (back !== null) {
