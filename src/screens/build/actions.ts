@@ -151,8 +151,12 @@ export function sell(ctx: Ctx, uid: number): void {
   ctx.select({ kind: "none" });
 }
 
+/** U2c step 5 (REQ-BFG-046; T1 2.2's notice form): the refusal's toast when the signature factory would leave the deck
+ *  (TO CARGO, SELL): was "THE SIGNATURE FACTORY STAYS ABOARD", the same meaning. */
+export const STAYS_ABOARD = "STAYS ABOARD: THE SIGNATURE FACTORY.";
+
 export function store(ctx: Ctx, uid: number): void {
-  if (!storePlaced(ctx.run, uid)) return ctx.invalid("THE SIGNATURE FACTORY STAYS ABOARD");
+  if (!storePlaced(ctx.run, uid)) return ctx.invalid(STAYS_ABOARD);
   ctx.game.audio.play("pickup");
   ctx.select({ kind: "cargo", uid });
   ctx.touched();
@@ -162,7 +166,7 @@ export function store(ctx: Ctx, uid: number): void {
  *  factory's belts go with it) and sells from cargo at its cargo price (sellValue at its stars). Nothing else changes; the
  *  signature factory stays aboard. */
 export function sellPlaced(ctx: Ctx, uid: number): void {
-  if (!storePlaced(ctx.run, uid)) return ctx.invalid("THE SIGNATURE FACTORY STAYS ABOARD");
+  if (!storePlaced(ctx.run, uid)) return ctx.invalid(STAYS_ABOARD);
   ctx.touched();
   sell(ctx, uid);
 }

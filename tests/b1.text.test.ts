@@ -46,7 +46,8 @@ const STOKER = 70;
 const OPENING = /^EACH FACTORY ITS ARROWS POINT AT WORKS \d+% FASTER\.$/;
 /** U2b (REQ-BFG-046): STOKER's face opens with its rule, the N% line in the face's words (faceLines, the registry's numbers). */
 const FACE_OPENING = /^ITS FACTORIES WORK \d+% FASTER\.$/;
-const CAPPED = /^THE .+'S GUN IS FULL, SO /;
+// U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): the capped line reads "THE KILN'S GUN IS FULL: IT WORKS ..." (was ", SO IT WORKS ..."), the same meaning
+const CAPPED = /^THE .+'S GUN IS FULL: /;
 
 // ------------------------------------------------------------------------------------------------------------- decks
 
@@ -330,7 +331,8 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
     const off = pressLog(pressDeck()); // no STOKER
     for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.7]] as const) {
       const b = sharedPress(s);
-      expect(capLine(b), `★${s}`).toBe(`THE ARMOR PRESS'S GUN IS FULL, SO ONLY ITS PLATING WORKS ${Math.round(k * 100)}% FASTER.`);
+      // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was ", SO ONLY ITS PLATING ..."
+      expect(capLine(b), `★${s}`).toBe(`THE ARMOR PRESS'S GUN IS FULL: ONLY ITS PLATING WORKS ${Math.round(k * 100)}% FASTER.`);
       const on = pressLog(b);
       expect(on.stamps, `★${s}: the press stamps as it did unstoked`).toEqual(off.stamps);
       const measured = fasterThan(on.plates, 3); // ARMOR PRESS plates every 3 s
@@ -342,9 +344,10 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
 
   it("room for part of the stoke: \"SO IT STAMPS ONLY 60% FASTER, BUT PLATES 70% FASTER\", both numbers the battle's", () => {
     const want: [number, number, string][] = [
-      [3, 1, "THE ARMOR PRESS'S GUN IS FULL, SO IT STAMPS ONLY 60% FASTER, BUT PLATES 70% FASTER."],
-      [2, 2, "THE ARMOR PRESS'S GUN IS FULL, SO IT STAMPS ONLY 40% FASTER, BUT PLATES 44% FASTER."],
-      [3, 2, "THE ARMOR PRESS'S GUN IS FULL, SO IT STAMPS ONLY 40% FASTER, BUT PLATES 70% FASTER."],
+      // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was ", SO IT STAMPS ONLY ..."
+      [3, 1, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 60% FASTER, BUT PLATES 70% FASTER."],
+      [2, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 40% FASTER, BUT PLATES 44% FASTER."],
+      [3, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 40% FASTER, BUT PLATES 70% FASTER."],
     ];
     for (const [s, press, text] of want) {
       const b = lonePress(s, press);
@@ -368,7 +371,7 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
     for (const b of [1, 2, 3].flatMap((s) => [sharedPress(s), lonePress(s), lonePress(s, 2)])) for (const spare of [0, 1]) {
       const run = pressRun(b, spare), t = rigPanel(run, STOKER)!, line = capLine(b);
       if (!line) continue;
-      expect(line).toMatch(/^THE ARMOR PRESS'S GUN IS FULL, SO (ONLY ITS PLATING WORKS \d+% FASTER|IT STAMPS ONLY \d+% FASTER, BUT PLATES \d+% FASTER)\.$/);
+      expect(line).toMatch(/^THE ARMOR PRESS'S GUN IS FULL: (ONLY ITS PLATING WORKS \d+% FASTER|IT STAMPS ONLY \d+% FASTER, BUT PLATES \d+% FASTER)\.$/); // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.)
       expect(banned(line)).toEqual([]);
       const open = t.body.find((x) => x.role !== "hits")!;
       expect([open.text, open.keep, open.colour]).toEqual([line, true, ROLE.warn.colour]);
@@ -383,9 +386,9 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
     }
     // a factory without plating keeps I1's words ("... SO IT WORKS NO FASTER." / "... ONLY 25% FASTER.")
     expect(stokeCapBlocks(runOf({ id: "", b: stoked(furnaceStart, 2, 6, 6), stars: 2 }, 0), [1]).map((x) => x.text))
-      .toEqual(["THE KILN'S GUN IS FULL, SO IT WORKS ONLY 25% FASTER."]);
+      .toEqual(["THE KILN'S GUN IS FULL: IT WORKS ONLY 25% FASTER."]); // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.)
     expect(stokeCapBlocks(runOf({ id: "", b: stoked(lockjaw, 1, 8, 6), stars: 1 }, 0), [2]).map((x) => x.text))
-      .toEqual(["THE TWIN MOULD'S GUN IS FULL, SO IT WORKS NO FASTER."]);
+      .toEqual(["THE TWIN MOULD'S GUN IS FULL: IT WORKS NO FASTER."]); // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.)
     // ARMOR PRESS's own sentences state no pace for a stoke to contradict (the STOKER's line says it where it applies)
     for (const s of [1, 2, 3]) expect(abilityText("armorpress", s).sentences.join(" "), `★${s}`).not.toMatch(/STOKE|PACE|FASTER/);
   });

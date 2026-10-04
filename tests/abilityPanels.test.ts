@@ -830,7 +830,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // U2a (REQ-BFG-046): 422: the new faces (a stat row and one rule) leave room for the hint on many more phone panels
     // U2b (REQ-BFG-046): 497 with the rig, gear and supply faces (and the reminders giving way one at a time, F4)
     // U2c group 0 fix 1: 494, SURGE VALVE's rule says its pulse (its speed and length), so 3 of its phone panels lose the hint
-    expect(hints).toBe(494);
+    // U2c step 5: 491, the notices in the notice form ("LABEL: TEXT.": the starting turret's TURRET SPEED line and free note,
+    // the factory's level and UPGRADE lines, STAYS ABOARD, the STOKER's capped line) a few px longer on some phone panels
+    expect(hints).toBe(491);
   });
 });
 

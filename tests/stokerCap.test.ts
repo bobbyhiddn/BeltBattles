@@ -56,7 +56,8 @@ function twoGuns(belts: "both" | "gun0" | "gun1" = "both"): Build {
 const runOf = (b: Build): Run => { const r = newRun(b.hero, 5, "stoker-cap"); r.build = b; return r; };
 /** 0.8.0 B1 M4 (oracle aa0494523ab57b7c): a capped line, found by its text. It takes the place of the opening sentence
  *  (the same kept ability block, drawn in the warning's amber: tests/b1.text.test.ts), so its role no longer marks it. */
-const isCapLine = (x: { text: string }): boolean => /^THE .+'S GUN IS FULL, SO /.test(x.text);
+// U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): "THE KILN'S GUN IS FULL: IT WORKS ..." (was ", SO IT WORKS ..."), the same meaning
+const isCapLine = (x: { text: string }): boolean => /^THE .+'S GUN IS FULL: /.test(x.text);
 const capLines = (b: Build): string[] => (rigPanel(runOf(b), 70)?.body ?? []).filter(isCapLine).map((x) => x.text);
 
 describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
@@ -67,7 +68,7 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
     for (const [s, stoke] of [[2, 0.44], [3, 0.7]] as const) {
       const keep = stokeKeep(stoked(furnaceStart, s));
       expect(keep.get(1)! * stoke, `★${s}`).toBeCloseTo(0.25, 2);
-      expect(capLines(stoked(furnaceStart, s)), `★${s}`).toEqual(["THE KILN'S GUN IS FULL, SO IT WORKS ONLY 25% FASTER."]);
+      expect(capLines(stoked(furnaceStart, s)), `★${s}`).toEqual(["THE KILN'S GUN IS FULL: IT WORKS ONLY 25% FASTER."]);
     }
   });
 
@@ -88,8 +89,8 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
 
   it("where the gun has room there is no line (the 8-tile Kiln, at every star); a full shared gun: NO FASTER", () => {
     for (const s of [1, 2, 3]) expect(capLines(stoked(longKiln, s)), `8-tile ★${s}`).toEqual([]);
-    expect(capLines(stoked(lockjaw, 1, 1, 6))).toEqual(["THE KILN'S GUN IS FULL, SO IT WORKS NO FASTER."]);
-    expect(capLines(stoked(lockjaw, 1, 8, 6))).toEqual(["THE TWIN MOULD'S GUN IS FULL, SO IT WORKS NO FASTER."]);
+    expect(capLines(stoked(lockjaw, 1, 1, 6))).toEqual(["THE KILN'S GUN IS FULL: IT WORKS NO FASTER."]);
+    expect(capLines(stoked(lockjaw, 1, 8, 6))).toEqual(["THE TWIN MOULD'S GUN IS FULL: IT WORKS NO FASTER."]);
     expect(capLines(withMod(stoked(lockjaw, 1, 8, 6), 60, "calibrate", 0, 3))).toEqual([]); // CALIBRATION ★3 makes room
     // no STOKER, no line; a factory list without a capped one gives none
     expect(stokeKeep(furnaceStart()).size).toBe(0);
@@ -122,7 +123,7 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
     expect(gBoth - g0, "slower than the looser gun allows").toBeGreaterThan(0.1);
     expect(Math.abs(gBoth - 1.8 / (1 + 0.44 * both!)), "the estimate's pace").toBeLessThan(1 / 60);
     // the panel names the kept share
-    expect(capLines(twoGuns())).toEqual([`THE TWIN MOULD'S GUN IS FULL, SO IT WORKS ONLY ${Math.round(44 * both!)}% FASTER.`]);
+    expect(capLines(twoGuns())).toEqual([`THE TWIN MOULD'S GUN IS FULL: IT WORKS ONLY ${Math.round(44 * both!)}% FASTER.`]);
   });
 
   it("reading the cap never changes the rating (rateDeck's out is read only)", () => {
@@ -146,7 +147,7 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
       if (!line) continue;
       tally.cases++;
       expect(banned(line.text), line.text).toEqual([]);
-      expect(line.text).toMatch(/^THE [A-Z ]+'S GUN IS FULL, SO IT WORKS (NO FASTER|ONLY \d+% FASTER)\.$/);
+      expect(line.text).toMatch(/^THE [A-Z ]+'S GUN IS FULL: IT WORKS (NO FASTER|ONLY \d+% FASTER)\.$/);
       for (const [band, area] of [["desk", DESK], ["phone", PHONE]] as const) {
         const p = planPanel(t, area);
         if (band === "desk") expect([p.body.fits, p.body.font], `${id} spare${spare} on the desk`).toEqual([true, "5"]);

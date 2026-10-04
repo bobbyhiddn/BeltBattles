@@ -72,6 +72,7 @@ import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, upgrade, type Ctx } from "./actions";
 import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "../../sim/stars";
 import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/upgradeText"; // bb-0.8.3 (REQ-BFG-043 D11)
+import { TRACK_NAME } from "../../ui/upgradeText"; // U2c step 5
 import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
 import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
 import { gainModule, mergePreview } from "../../game/fuse";
@@ -401,8 +402,10 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
 export const TOUCH_TURN = "TAP IT AGAIN TO TURN IT. DRAG TO MOVE.";
 /** shoptap (D2, REQ-BFG-035): what a placed part's SELL says: its cargo sell price (sellValue at its stars). */
 export const sellLabel = (def: string, stars: number): string => `SELL +${sellPrice(def, stars)}G`;
-/** shoptap (D2): the signature factory's panel on touch says why it offers no SELL (actions.ts store's own words). */
-export const SIGNATURE_ABOARD = "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.";
+/** shoptap (D2): the signature factory's panel on touch says why it offers no SELL (actions.ts store's own words).
+ *  U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE
+ *  SOLD.", the same meaning. */
+export const SIGNATURE_ABOARD = "STAYS ABOARD: THE SIGNATURE FACTORY CAN'T BE SOLD.";
 
 /**
  * 0.8.0 P1 (E3, DESIGN-beltside section 8's production rigs): a placed STOKER that points at factories: the factories it
@@ -485,10 +488,12 @@ export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] 
     if (k === undefined || k > 1 - 1e-9) return [];
     const p = itemByUid(run.build, f)!, stoke = factoryStoke(run.build, f);
     const eff = stoke * k, name = `THE ${ITEMS[p.def].name}'S`, none = Math.round(eff * 100) < 1;
+    // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): "THE KILN'S GUN IS FULL: IT WORKS ONLY 8% FASTER." (was
+    // "..., SO IT WORKS ONLY 8% FASTER."), the same meaning and numbers
     const text = effectAt(p.def, starsOf(p)).factory?.plate
-      ? none ? `${name} GUN IS FULL, SO ONLY ITS PLATING WORKS ${percent(stoke)} FASTER.`
-      : `${name} GUN IS FULL, SO IT STAMPS ONLY ${percent(eff)} FASTER, BUT PLATES ${percent(stoke)} FASTER.`
-      : none ? `${name} GUN IS FULL, SO IT WORKS NO FASTER.` : `${name} GUN IS FULL, SO IT WORKS ONLY ${percent(eff)} FASTER.`;
+      ? none ? `${name} GUN IS FULL: ONLY ITS PLATING WORKS ${percent(stoke)} FASTER.`
+      : `${name} GUN IS FULL: IT STAMPS ONLY ${percent(eff)} FASTER, BUT PLATES ${percent(stoke)} FASTER.`
+      : none ? `${name} GUN IS FULL: IT WORKS NO FASTER.` : `${name} GUN IS FULL: IT WORKS ONLY ${percent(eff)} FASTER.`;
     return [{ role: "warn", text, rank: 1 }];
   });
 }
@@ -852,7 +857,8 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   // a panel is short of room it gives way before anything the panel showed before (the board's level marker and the
   // UPGRADE button with its price still show)
   const startTurret = !!turretSlots(b)[index]?.turret?.free, tl = upgradeLevel(b, "turret");
-  if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `SPEED ${turretSpeedRow(every, tl)}.`, rank: 7 });
+  // U2c step 5: in the notice form, "TURRET SPEED: LEVEL 1/4. UPGRADE: FIRES FASTER." (was "SPEED LEVEL 1/4, NEXT: FASTER.")
+  if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `${TRACK_NAME.turret}: ${turretSpeedRow(every, tl)}`, rank: 7 });
   const body: Block[] = [
     ...warn(false),
     ...stats, // U2c step 4: the stat row first, then the CORE and GEAR rows as now

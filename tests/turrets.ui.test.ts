@@ -150,7 +150,7 @@ describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
     expect(rows(socketLines(b, 1, "KILN BREECH", fx, true))).toEqual(["CORE: KILN BREECH", "GEAR: EXT. CHAMBER ★★ AND 2 EMPTY SLOTS"]);
     expect(rows(socketLines(b, 0, "KILN BREECH", fx))).toEqual(["CORE: KILN BREECH", "GEAR: EMPTY"]);
     expect(socketLines(b, 1, "KILN BREECH", (d, s) => gist(d, s))[1].text).toBe(`EXT. CHAMBER ★★: ${gist("chamber", 2)}.`);
-    expect(slotNotes(b, 0)).toContain("IT IS YOUR HULL'S FREE STARTING TURRET, SO IT CAN'T BE SOLD AT 1 STAR.");
+    expect(slotNotes(b, 0)).toContain("STARTING TURRET: YOUR HULL'S FREE ONE, SO IT CAN'T BE SOLD AT ★1."); // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was "IT IS YOUR HULL'S FREE STARTING TURRET, SO IT CAN'T BE SOLD AT 1 STAR."
     expect(slotNotes(b, 0)[0]).toBe("IT TAKES BELTS ON COLUMNS 5 AND 6.");
     expect(socketLines(b, 5, "X", fx)).toEqual([]);
   });

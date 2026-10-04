@@ -113,7 +113,7 @@ describe("D2 / REQ-BFG-035: SELL on every carrier part's panel (touch); the mous
       expect(touch.body.find((b) => b.text === SIGNATURE_ABOARD), hero).toMatchObject({ role: "note", keep: true });
       expect(mouse.body.some((b) => b.text === SIGNATURE_ABOARD), hero).toBe(false);
     }
-    expect(SIGNATURE_ABOARD).toBe("THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD.");
+    expect(SIGNATURE_ABOARD).toBe("STAYS ABOARD: THE SIGNATURE FACTORY CAN'T BE SOLD."); // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was "THE SIGNATURE FACTORY STAYS ABOARD. IT CAN'T BE SOLD."
   });
 
   it("an installed turret offers SELL (a 1-star starting turret can't be sold, and says so); on touch its hint names the tap for its core and gear", () => {
@@ -180,7 +180,7 @@ describe("D2 / REQ-BFG-035: the SELL buttons sell, and nothing else changes", ()
     // the signature factory stays aboard
     const { ctx: c2, log } = ctxOf(run, true);
     sellPlaced(c2, 1);
-    expect([run.build.items.map((p) => p.uid), log]).toEqual([[1], ["invalid:THE SIGNATURE FACTORY STAYS ABOARD"]]);
+    expect([run.build.items.map((p) => p.uid), log]).toEqual([[1], ["invalid:STAYS ABOARD: THE SIGNATURE FACTORY."]]); // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was "THE SIGNATURE FACTORY STAYS ABOARD"
   });
 
   it("SELL on a fitted piece: gold + its cargo price, its turret selected; TO CARGO puts it in cargo, selected there", () => {

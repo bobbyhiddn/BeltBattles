@@ -46,9 +46,11 @@ export const turretHint = (offer: boolean, touch = false): string =>
   (offer ? "DRAG IT ONTO A TURRET SLOT TO INSTALL IT, OR ONTO CARGO."
     : touch ? "DRAG IT ONTO A TURRET SLOT TO INSTALL IT." : "DRAG IT ONTO A TURRET SLOT, OR TAP A SLOT, TO INSTALL IT.");
 
-/** A free starting copy's note (S6): at 1 star it can't be sold; merged, it holds the starting copy. */
+/** A free starting copy's note (S6): at 1 star it can't be sold; merged, it holds the starting copy. U2c step 5 (REQ-BFG-046;
+ *  T1 2.2's notice form, LABEL: TEXT.): were "IT HOLDS YOUR HULL'S FREE STARTING COPY." and "IT IS YOUR HULL'S FREE STARTING
+ *  TURRET, SO IT CAN'T BE SOLD AT 1 STAR.", the same meanings. */
 export const freeNote = (canSell: boolean): string =>
-  (canSell ? "IT HOLDS YOUR HULL'S FREE STARTING COPY." : "IT IS YOUR HULL'S FREE STARTING TURRET, SO IT CAN'T BE SOLD AT 1 STAR.");
+  (canSell ? "STARTING TURRET: IT HOLDS YOUR HULL'S FREE COPY." : "STARTING TURRET: YOUR HULL'S FREE ONE, SO IT CAN'T BE SOLD AT ★1.");
 
 /** A shop offer, a cargo copy or an empty TURRET SLOT: its panel; undefined when `show` is none of those (inspector.ts
  *  goes on with its own cases), null when there is nothing to show. */
