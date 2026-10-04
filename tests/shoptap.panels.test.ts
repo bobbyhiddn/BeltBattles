@@ -300,10 +300,10 @@ describe("D5: every button a finger presses is at least 44 CSS px tall (touch); 
         }
       }
     }
+    // U2a (REQ-BFG-046): GRAPNEL GUN, LIMPET WORKS and TESLA ARC draw their new faces, short enough to keep TO CARGO
     expect([...gaveWay].sort()).toEqual([
-      "grapnel ★2 on furnace", "grapnel ★2 on weaver", "limpet ★1", "limpet ★2", "mantlet ★2 on furnace", "mantlet ★2 on weaver",
+      "mantlet ★2 on furnace", "mantlet ★2 on weaver",
       "overdrive ★2 @0,9", "overdrive ★2 @3,3", "overdrive ★2 @5,3", "spotter ★2 on furnace", "spotter ★2 on weaver",
-      "tesla ★2 on furnace", "tesla ★2 on weaver",
     ]);
     expect(cases).toBeGreaterThan(300);
     // and the mouse's panels never lose a button

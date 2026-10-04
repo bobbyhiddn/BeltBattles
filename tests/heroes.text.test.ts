@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { abilityText, cardText, gist, hasAbilityText, nextStarText } from "../src/ui/abilityText";
 import { flavour } from "../src/screens/build/flavour";
 import { itemPanel } from "../src/screens/build/inspector";
+import { faceLines } from "../src/ui/faces"; // U2a
 import { wrapText } from "../src/ui/richText";
 import { textWidth } from "../src/render/font";
 import { AMMO, ITEMS, MERCHANTS, buyableModules, itemsSoldBy, type MerchantId } from "../src/sim/content";
@@ -68,13 +69,15 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
     }
   });
 
-  it("a placed CRUCIBLE's or WARDWORKS' panel shows those sentences and the tip, no stars and no TO CARGO", () => {
+  it("a placed CRUCIBLE's or WARDWORKS' panel shows its face and the tip, no stars and no TO CARGO", () => {
     for (const [hero, def] of [["foundry", "crucible"], ["bastion", "wardworks"]] as const) {
       const run = newRun(hero, 3);
       const sig = run.build.items.find((p) => p.def === def)!;
       const p = itemPanel(run, sig.uid)!;
       const text = p.body.map((b) => b.text);
-      for (const s of abilityText(def).sentences) expect(text, `${def}: ${s}`).toContain(s);
+      // U2a (REQ-BFG-046): the face (src/ui/faces.ts) in place of the sentences: its stat row, rule lines and reminder
+      const fl = faceLines(def)!;
+      for (const s of [fl.stats!, ...fl.rules.map((r) => r.text), fl.reminders.join(" ")]) expect(text, `${def}: ${s}`).toContain(s);
       expect(text.join(" ")).toContain(flavour(def)[0]);
       expect(p.labels).toEqual(["UPGRADE 10G"]); // bb-0.8.3 (REQ-BFG-043 D11): its FACTORY upgrade's button (0.8.0: [])
       expect(p.title).toBe(ITEMS[def].name);

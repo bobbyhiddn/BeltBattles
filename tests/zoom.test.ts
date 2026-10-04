@@ -433,7 +433,8 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
       // 390x660 and 390x664 its flavour gives way in the band (it was in its fullest form): fullest 788 -> 787, 800 -> 799;
       // in the band and grown unchanged at every view (no panel moved to the fallback)
       const want: Record<string, [number, number, number]> = {
-        "390x660": [104, 787, 847], "390x664": [106, 799, 847], "402x690": [122, 846, 872], "430x739": [151, 880, 885], "390x844": [162, 885, 885],
+        // U2a (REQ-BFG-046): the new faces are shorter: more panels in the band, and in their fullest form
+        "390x660": [104, 789, 856], "390x664": [106, 801, 856], "402x690": [122, 852, 878], "430x739": [151, 884, 885], "390x844": [162, 885, 885],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

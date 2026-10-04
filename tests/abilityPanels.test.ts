@@ -19,6 +19,7 @@ import { socketLines } from "../src/screens/build/turretPanel";
 import { abilityText, cardText, clashShortText, gatlingClashText, gist, mergeProgressText, n2, speedText } from "../src/ui/abilityText";
 import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
+import { faceLines } from "../src/ui/faces"; // U2a
 import { MODULES, STARS, SUPPLIES, banned, numbers, repeats, sentencesOf, starsOf } from "./textRules";
 
 // 0.6.2t (REQ-BFG-032): the panels. T6's phone fit for every buyable module at every star (rigs, factories, cores,
@@ -416,11 +417,11 @@ describe("0.6.2t T4: the panels' layout", () => {
     const run = newRun("furnace", 5, "f3");
     run.inventory = [{ uid: 900, def: "mimic", stars: 3 }];
     const text = visibleLines(planPanel(cargoPanel(run, 900)!, DESK)).flatMap((v) => (v.line === "rule" ? ["--"] : [lineText(v.line.spans)]));
-    // bb-0.8.3 (REQ-BFG-042 D3): ★3's opening no longer ends "AND FEEDS 2 BELTS" (its belts follow its stars)
-    expect(text.slice(0, 9)).toEqual([
-      "STAMPS YOUR HERO'S", "SIGNATURE AMMO", "25% FASTER THAN ITS", "OWN FACTORY.",
-      "FOR FURNACE, THAT IS", "A CINDER SLUG EVERY", "1 SECOND.", "★3 TWIN SIGNET", "--", // the rule: no text reads on
-    ]);
+    // U2a (REQ-BFG-046): the panel draws MIMIC FORGE's face (src/ui/faces.ts): its stat row for FURNACE, then its rule,
+    // which ★3 TWIN SIGNET ends; then the rule before the hint: no text reads on from the name
+    expect(text[0]).toBe(faceLines("mimic", 3, { hero: "furnace" })!.stats);
+    const p = text.findIndex((l) => l.endsWith("★3 TWIN SIGNET"));
+    expect([p > 0, text[p + 1]]).toEqual([true, "--"]);
   });
 
   it("the flavour is dimmer than the ability text and the hint dimmer again, in the small face after a rule", () => {
@@ -789,10 +790,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // (VERIFIED-P1 H5: "offer pincer held[1]" and "rig pincer ★2 1hit spare1" then fit their hint)
     // 0.8.0 B1 M2: 182: "turret steambreech ★1" (STEAM BREECH's retuned rates make its line longer: 35% / 10%) and
     // "rig overdrive ★2 3hit spare0", "rig overdrive ★2 idle spare1" (REDLINE's +1 adds a clause; oracle 1cd5224fab866da2)
-    // bb-0.8.3 (REQ-BFG-043 D11): 220: the starting turret's TURRET SPEED UPGRADE button (one more desk button under 38
-    // more "turret <core> ★n" panels, a core fitted on FURNACE's starting SCRAP CANNON) leaves no room for their optional
-    // hint; the speed line itself takes none from it (it ranks after the hint)
-    expect([withHint, missing.length]).toEqual([1934, 220]);
+    // U2a (REQ-BFG-046): 179: the new faces are shorter, so "cargo mantlet ★2"'s neighbours aside three more desk panels
+    // fit their hint (the faces' turret cores on installed turrets)
+    expect([withHint, missing.length]).toEqual([1934, 179]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -811,7 +811,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     console.log(`F4 phone hints: ${hints} of ${PANELS.length} panels`);
     // 111 at 881b38f; 0.6.2rel2 on the 0.6.2 candidate's panels (the REPORT gives b94077d's); 0.8.0 I1 M2: 130 with wave
     // 3's panels (was 115)
-    expect(hints).toBe(130);
+    // U2a (REQ-BFG-046): 422: the new faces (a stat row and one rule) leave room for the hint on many more phone panels
+    expect(hints).toBe(422);
   });
 });
 

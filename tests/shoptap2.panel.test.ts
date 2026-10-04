@@ -268,7 +268,8 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
       expect(n).toBeGreaterThan(800);
       expect(sell).toBeGreaterThan(300);
       // only the narrowest build screen (160 px) has panels that need more than PORT_BAND
-      expect(taller, `${name}: panels taller than PORT_BAND`).toBe(v.W < 165 ? 18 : 0);
+      // U2a (REQ-BFG-046): 10 (was 18): the new faces are shorter
+      expect(taller, `${name}: panels taller than PORT_BAND`).toBe(v.W < 165 ? 10 : 0);
       expect(k * PORT_BAND, `${name}: the panel is at least a 69 px band in CSS px`).toBeGreaterThan(130);
     });
   }
@@ -293,8 +294,9 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
     }
     // W 160-164: a 375-wide iPhone at x7 (375 x 3 / 7 = 160): a few panels need one line more (STATIC BRUSH, LIMPET ★2,
     // SABOT ★3, OVERDRIVE ★2, GATLING ★2 and GRAPNEL ★3 gear); 165 and up, every panel fits PORT_BAND
+    // U2a (REQ-BFG-046): fewer, with the new faces (was 18 / 16 / 15 / 12 / 6 at 160-164); 164 and up, every panel fits
     expect(counts).toEqual([
-      "W 160: 18 taller, up to 75", "W 161: 16 taller, up to 75", "W 162: 15 taller, up to 75", "W 163: 12 taller, up to 75", "W 164: 6 taller, up to 75",
+      "W 160: 10 taller, up to 75", "W 161: 8 taller, up to 75", "W 162: 7 taller, up to 75", "W 163: 6 taller, up to 75",
     ]);
   }, 120_000); // about 47,000 panels planned: 13 s alone on a loaded host, more under the full suite's 8 workers
 
@@ -316,7 +318,8 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
     for (const [run, sel] of [[temper, { kind: "item", uid: 3 }], [bombard, { kind: "turret", index: 1 }], [gantry, OFFER]] as [Run, Sel][]) {
       const before = look(run, sel, L.info), after = look(run, sel, panelArea(L, sel, TOUCH, () => true));
       expect([before.lines, before.whole], `${after.title} in the band`).toEqual([0, false]);
-      expect(after.lines, after.title).toBeGreaterThanOrEqual(3);
+      // U2a (REQ-BFG-046): GANTRY PRESS's new face is its stat row (and the hint): 2 lines, the others 3 or more
+      expect(after.lines, after.title).toBeGreaterThanOrEqual(after.title === "GANTRY PRESS" ? 2 : 3);
       expect(after.whole, after.title).toBe(true);
     }
   });
