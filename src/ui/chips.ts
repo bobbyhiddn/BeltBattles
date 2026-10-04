@@ -2,7 +2,8 @@
 // one chip: an icon alone (C2: "shop chips and the board use the icon alone") and one value, read off the face's own data
 // (faces.ts faceAt: its keyed rule numbers and its stat pairs, each printed by a formatter), never written again here. The
 // pick, in order:
-//   1. the rule's keyword with its count, when the face has one: HOT SWAP {BURN}+2, TESLA ARC {STUN}0.8 (at the hero's k);
+//   1. the rule's keyword with its count, when the face has one: TESLA ARC {STUN}0.8 (at the hero's k); U2e: or the keyword
+//      its own payloads carry, a stat of its second row: HOT SWAP {BURN}2 (was {BURN}+2, its rule's number);
 //   2. else the face's first stat pair: DART GUN 0.55{SEC} (SEC is a unit after its number), SCATTER CHOKE {DMG}40%;
 //   3. else the rule's first number with its icon: PRESSURE BREECH {DMG}+1.2, CHAMBER {SLUG}2; a gun's or a factory's
 //      FASTER is the {RATE} icon (C1: WORKS FASTER and FIRE RATE fold into RATE): CALIBRATION {RATE}+33% (U2d F2: the
@@ -61,6 +62,9 @@ export function shopChip(def: string, o: TextOpts = {}): string | null {
   // 1. the rule's keyword with its count
   const kw = f.nums.find(([, v]) => KEYWORDS.some((k) => v.includes(`{*${k}}`) || v.includes(`{${k}}`)));
   if (kw) return chipFrom(kw[1]);
+  // U2e step 2 (REQ-BFG-070): or the keyword its own payloads carry, a stat of its second row (HOT SWAP {BURN}2)
+  const own = f.stats2?.find(([ic]) => (KEYWORDS as readonly string[]).includes(ic));
+  if (own) return chipFrom(String(own[1]), own[0]);
   // 2. the face's first stat pair
   if (f.stats.length) return chipFrom(String(f.stats[0][1]), f.stats[0][0]);
   // 3. the rule's first number with its icon (U2d F2: never a waiting timer; a FASTER only under a RATE_KEYS key)

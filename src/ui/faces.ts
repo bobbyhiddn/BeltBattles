@@ -57,6 +57,10 @@ export interface FaceRule {
  *  its NEXT★ form (markup), so two stars' faces diff. */
 export interface Face {
   stats: Stat[];
+  /** U2e step 2 (REQ-BFG-070, the operator: "an item giving burn is an ability but an item with burn is just a stat"):
+   *  the stat row's second row, where a face's own stats need one: what a factory's own payloads carry (KILN's {HEAT},
+   *  LOOM's {FRAY}, HOT SWAP's {BURN} and {STUN}, a batch's {SLUG}), icon + number pairs from carryStats. */
+  stats2?: Stat[];
   rules: FaceRule[];
   reminders: string[];
   nums: [string, string][];
@@ -97,6 +101,33 @@ export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
   return [speedPair(interval), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
 }
 
+/**
+ * U2e step 2 (REQ-BFG-070): STATS APART FROM ABILITIES. The test: when the effect happens, whose shot, payload or effect
+ * is it? The piece's own is a STAT (icon + number in the stat row, never a sentence); one given to something else
+ * (payloads passing a rig, the turret a core or gear sits on, the belt, your hull, the run) is an ABILITY (a rule line).
+ * So a factory's own payloads' keywords and its batch are stats: the stat row's second row (the first holds its cadence,
+ * damage and belts). PLATE always lands on your hull, so ARMOR PRESS's and WARDWORKS' plating stays an ability. Null for
+ * a piece whose payloads carry nothing of their own.
+ */
+export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null {
+  const fs = effectAt(def, stars).factory;
+  if (!fs) return null;
+  // Battle.factoryDef: MIMIC FORGE stamps the hero's ammo (factoryStats), so its slugs carry what the hero's carry
+  const h = def === "mimic" && hero ? HEROES[hero] : undefined;
+  const out: Stat[] = [];
+  // Battle.stamp: a batch's slugs leave one by one (DOUBLE STAMP, SHOT TOWER)
+  if (fs.batch && fs.batch > 1) out.push(["SLUG", fmtCount(fs.batch)]);
+  // Battle.stamp: HOT SWAP's EMBER slugs carry its burn, its SPARK slugs a shock (DISRUPT_TIME, or the star's shockTime)
+  const ember = fs.cycle?.find((p) => p.tint === "ember"), spark = fs.cycle?.find((p) => p.tint === "spark");
+  if (ember?.burn) out.push(["BURN", fmtCount(ember.burn)]);
+  if (spark?.shock) out.push(["STUN", fmtSec(spark.shockTime ?? DISRUPT_TIME)]);
+  // the ammo's own: a CINDER SLUG's HEAT (its rideScale), a THREAD SLUG's FRAY (KILN, LOOM)
+  const ammo = AMMO[h ? h.ammo : fs.ammo];
+  if (ammo?.rideScale) out.push(["HEAT", fmtDmg(ammo.rideScale)]);
+  if (ammo?.fray) out.push(["FRAY", fmtCount(ammo.fray)]);
+  return out.length ? out : null;
+}
+
 /** A turret's stat pairs at `stars`: how often it fires, the loads its chamber holds, its gear slots (deck.ts). */
 export function turretStats(def: string, stars = 1): Stat[] {
   const t = effectAt(def, stars).turret!;
@@ -122,11 +153,12 @@ export function supplyStats(def: string): Stat[] {
   return [];
 }
 
-/** A turret core's stat pairs (R1 C4: a core is its share, "{DMG}40% EACH"): SCATTER CHOKE's pellet share; every other
- *  core's numbers are its rule's. `k`: the turret's class factor (cores.ts scaleCore; a share isn't scaled). */
+/** A turret core's stat pairs: none. U2e step 2 (REQ-BFG-070): a core's numbers act on the turret it is fitted to, so
+ *  they are its abilities, its rule's (SCATTER CHOKE's pellet share, "{DMG}40% EACH" here until U2e, joins its rule).
+ *  `k`: the turret's class factor (cores.ts scaleCore). */
 export function coreStats(def: string, stars = 1, k = 1): Stat[] {
-  const core = scaleCore(effectAt(def, stars).core!, k);
-  return def === "scatter" ? [["DMG", `${fmtPct(core.share!)} EACH`]] : [];
+  if (!scaleCore(effectAt(def, stars).core!, k)) throw new Error(`coreStats: ${def} is not a turret core`);
+  return [];
 }
 
 // -------------------------------------------------------------------------------------------------- the reminders
@@ -167,19 +199,16 @@ const runs = (e: ItemDef): string => (oneBelt(e) ? "ITS BELT RUNS" : "ITS BELTS 
 const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // --------------------------------------------------------------------------------------------------- factories
   press: () => rules([]),
-  doublestamp: (e) => {
-    const n = fmtCount(f(e).batch!);
-    return rules([{ text: `STAMPS ${n} SLUGS AT A TIME.` }], [["batch", `{SLUG}${n}`]]);
-  },
-  shottower: (e) => {
-    const n = fmtCount(f(e).batch!);
-    return rules([{ text: `DROPS ${n} SLUGS; RIGS HIT EACH ONE.` }], [["batch", `{SLUG}${n}`]]);
-  },
+  // U2e step 2 (REQ-BFG-070): a batch is the factory's own output, a stat ({SLUG}2 in its second stat row, carryStats):
+  // was "STAMPS 2 SLUGS AT A TIME." and "DROPS 3 SLUGS; RIGS HIT EACH ONE."
+  doublestamp: () => rules([]),
+  shottower: () => rules([{ text: "RIGS HIT EACH SLUG." }]),
   hotswap: (e) => {
     // Battle.stamp: EMBER slugs carry its burn, SPARK slugs a shock (DISRUPT_TIME, or the star's shockTime)
-    const t = cyc(e, "spark").shockTime ?? DISRUPT_TIME, burn = fmtCount(cyc(e, "ember").burn ?? 0), stun = fmtSec(t);
-    return rules([{ text: `ITS SLUGS ALTERNATE: +${burn} {*BURN}, THEN {*STUN} ${stun}.` }],
-      [["burn", `+${burn} {*BURN}`], ["stun", `{*STUN} ${stun}`]], [REMINDER.BURN(), REMINDER.STUN(t)]);
+    // U2e step 2: its slugs' BURN and STUN are its own, stats ({BURN}2 {STUN}1.6, carryStats); the line says only that
+    // they alternate (was "ITS SLUGS ALTERNATE: +2 {*BURN}, THEN {*STUN} 1.6.")
+    const t = cyc(e, "spark").shockTime ?? DISRUPT_TIME;
+    return rules([{ text: "ALTERNATES {*BURN} AND {*STUN} SLUGS." }], [], [REMINDER.BURN(), REMINDER.STUN(t)]);
   },
   slagpot: () => rules([{ text: "ITS SLUGS IGNORE BELT SPEED." }]),
   gantry: () => rules([]),
@@ -198,11 +227,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `${label} +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
   },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
-  kiln: (e) => {
-    const h = AMMO[f(e).ammo].rideScale;
-    return rules([{ text: `ITS SLUGS HAVE {*HEAT} ${fmtDmg(h)}.` }], [], [REMINDER.HEAT(h)]);
-  },
-  loom: (e) => rules([{ text: `ITS SLUGS HAVE {*FRAY} ${fmtCount(AMMO[f(e).ammo].fray)}.` }], [], [REMINDER.FRAY()]),
+  // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
+  // sentence (were "ITS SLUGS HAVE {*HEAT} 1.2." and "ITS SLUGS HAVE {*FRAY} 1."); the reminder stays for the tap
+  kiln: (e) => rules([], [], [REMINDER.HEAT(AMMO[f(e).ammo].rideScale)]),
+  loom: () => rules([], [], [REMINDER.FRAY()]),
   crucible: () => {
     // races/foundry.ts: crucibleProduce pours onto every belt at once; two blanks in sync fuse at FUSE_MULT
     const label = "{*PAIR}:";
@@ -212,8 +240,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   wardworks: () => rules([{ text: `ITS SLUGS LOAD: +${fmtDmg(PLATE_PER_SLUG)} {*PLATE}.`, label: "LOAD:" }], [], [REMINDER.PLATE()]),
   // ------------------------------------------------------------------------------------- turret cores (numbers x k)
   scatter: (e, x) => {
-    const n = fmtCount(c(e, x).pellets!); // its share is its stat pair (coreStats)
-    return rules([shot(`BURSTS INTO ${n} PELLETS.`)], [["pellets", `${n} PELLETS`]]);
+    // U2e step 2 (REQ-BFG-070): its pellets' share acts on the turret's shot, an ability: it joins the rule (was its stat
+    // pair "{DMG}40% EACH", coreStats)
+    const n = fmtCount(c(e, x).pellets!), share = fmtPct(c(e, x).share!);
+    return rules([shot(`BURSTS INTO ${n} PELLETS, ${share} {DMG} EACH.`)], [["pellets", `${n} PELLETS`], ["share", `${share} {DMG}`]]);
   },
   rotary: () => rules([{ text: "FIRES PART-FULL CHAMBERS SOONER." }]),
   pressure: (e, x) => {
@@ -551,8 +581,10 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
   const label = `★${stars}${perk ? ` ${perk}` : ""}:`;
   // U2b F5: the interim caveats (one table)
   const caveats = INTERIM_CAVEATS.filter((cv) => cv.applies(e)).map((cv) => cv.text(e));
+  // U2e step 2: a factory's own payloads' stats, its second stat row
+  const stats2 = e.kind === "factory" ? carryStats(def, stars, o.hero) : null;
   return {
-    stats, ...body,
+    stats, ...(stats2 ? { stats2 } : {}), ...body,
     ...(cl ? { nums: [...body.nums, ...cl.nums], reminders: [...body.reminders, ...(cl.reminders ?? [])], clause: { text: `${label} ${cl.text}`, label } } : {}),
     ...(caveats.length ? { caveats } : {}),
   };
@@ -562,6 +594,8 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
  *  reminders; U2b: the interim perk clause (F6) and caveats (F5), where it has them. */
 export interface FaceLines {
   stats: string | null;
+  /** U2e step 2: the second stat row (Face.stats2), where the face has one. */
+  stats2?: string;
   rules: FaceRule[];
   reminders: string[];
   clause?: FaceRule;
@@ -573,6 +607,7 @@ export function faceLines(def: string, stars = 1, o: TextOpts = {}): FaceLines |
   if (!fc) return null;
   return {
     stats: fc.stats.length ? statRow(fc.stats) : null,
+    ...(fc.stats2?.length ? { stats2: statRow(fc.stats2) } : {}),
     rules: fc.rules.map((r) => ({ text: icons(r.text), ...(r.label ? { label: icons(r.label) } : {}) })),
     reminders: fc.reminders.map((r) => icons(r)),
     ...(fc.clause ? { clause: { text: icons(fc.clause.text), label: icons(fc.clause.label!) } } : {}),
@@ -585,9 +620,11 @@ export function faceLines(def: string, stars = 1, o: TextOpts = {}): FaceLines |
 export function faceDiff(def: string, from: number, to: number, o: TextOpts = {}): string | null {
   const a = faceAt(def, from, o), b = faceAt(def, to, o);
   if (!a || !b) return null;
-  const stats = b.stats.filter(([ic, v]) => a.stats.find(([ic2]) => ic2 === ic)?.[1] !== v);
+  // U2e step 2: both stat rows (a second row's pairs are the face's own stats too), each row's changed pairs as a row
+  const changed = (bs: readonly Stat[], as: readonly Stat[]): Stat[] => bs.filter(([ic, v]) => as.find(([ic2]) => ic2 === ic)?.[1] !== v);
+  const rows = [changed(b.stats, a.stats), changed(b.stats2 ?? [], a.stats2 ?? [])].filter((r) => r.length).map((r) => statRow(r));
   const nums = b.nums.filter(([k, v]) => a.nums.find(([k2]) => k2 === k)?.[1] !== v).map(([, v]) => icons(v, "alone"));
-  return [...(stats.length ? [statRow(stats)] : []), ...nums].join(", ");
+  return [...rows, ...nums].join(", ");
 }
 
 /** U2d F1: the width (art px) a NEXT★ line keeps to: one line of 5x7 on the op view's band (T1 2.6; GLOSSARY_WRAP_W). */
