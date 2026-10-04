@@ -1,7 +1,8 @@
 // 0.7.0a browser checks (REQ-BFG-016, decisions D3-D6): the built page (dist/) in Chromium through playwright-core,
 // with real input (scripts/playthrough.mjs's taps and drags), on 127.0.0.1 only:
 //  A. offline: no server URL. Day 1 from NEW RUN to the dusk result card: 0 console errors, no request beyond the page
-//     (index.html and its script), no IndexedDB database, only 0.6.2's storage keys, window.bb.online() null.
+//     (index.html and its script), no IndexedDB database, only 0.6.2's storage keys and the player name,
+//     window.bb.online() null.
 //  B. online: ?server=<the local built ghost server> (seeded, BB_GHOST_UPLOADS=open, CORS for the page's origin). Day 1's
 //     dusk fetches a ghost (the NEXT BATTLE card and the enemy plate say ONLINE GHOST), the signed upload is accepted
 //     (201), the result stores the dusk's record; the summary's REPLAY plays it read-only (the same winner, time and
@@ -58,6 +59,8 @@ const NAME = opt("name", "asynccheck");
 const children = new Set(); // the ghost server processes this run started
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 const OLD_KEYS = ["beltbattles.run.v7", "beltbattles.ghosts.v1", "beltbattles.player.v1"]; // what 0.6.2 writes
+const NAME_KEY = "beltbattles.name.v1"; // PACKS M2, REQ-BFG-063, brief P7: the player's name, beside the player id (src/net/names.ts NAME_KEY); oracle b4a1c8fa04a2d404
+const OFFLINE_KEYS = [...OLD_KEYS, NAME_KEY]; // what the offline page may write from 0.8.6 on
 
 mkdirSync(OUT, { recursive: true });
 const lines = [];
@@ -230,7 +233,7 @@ async function main() {
     check(foreign.length === 0 && requests.length > 0, `offline: no request beyond the page: ${requests.length} requests, all to ${site.origin} (${requests.map((u) => u.replace(site.origin, "")).join(", ")})`);
     check(after.online === null, "offline: no online session (window.bb.online() is null)");
     check(after.dbs.length === 0, `offline: no IndexedDB database (${JSON.stringify(after.dbs)})`);
-    check(after.keys.every((k) => OLD_KEYS.includes(k)), `offline: only 0.6.2's storage keys: ${after.keys.join(", ")}`);
+    check(after.keys.every((k) => OFFLINE_KEYS.includes(k)), `offline: only 0.6.2's storage keys and the player name: ${after.keys.join(", ")}`);
     check(card.note === null && !r.record, "offline: no source line on the card and no battle record (0.6.2's card and save)");
     result.offline = { errors, requests, ...after, card, dusk: r };
     await ctx.close();
@@ -462,7 +465,7 @@ async function main() {
       log(`[${at()}] ${tag}: the offline page at ${gs.base}/: card ${card ?? "none"}; dusk ${r.outcome} vs ${r.foe}; requests ${requests.map((u) => u.replace(gs.base, "")).join(", ")}; keys ${after.keys.join(", ")}`);
       check(after.online === null && card === null && !r.record, `${tag}: the offline page served the same way plays offline: no session, 0.6.2's card, no record`);
       check(requests.length === 1 && requests[0] === `GET ${gs.base}/`, `${tag}: one request, the page itself (${requests.length})`);
-      check(after.dbs.length === 0 && after.keys.every((k) => OLD_KEYS.includes(k)), `${tag}: no IndexedDB, only 0.6.2's storage keys (${after.keys.join(", ")})`);
+      check(after.dbs.length === 0 && after.keys.every((k) => OFFLINE_KEYS.includes(k)), `${tag}: no IndexedDB, only 0.6.2's storage keys and the player name (${after.keys.join(", ")})`);
       check(errors.length === 0, `${tag}: 0 console errors (${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""})`);
       result.d[tag] = { card, dusk: r, requests, ...after, errors };
       await ctx.close();
