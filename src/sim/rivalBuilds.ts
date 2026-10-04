@@ -158,9 +158,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       P(3),
       // bb-0.8.6 (job PACKS M4, the packs' regenerated caps): the quench tank on day 10 (was 9; WEAVER's day-9 ordinary
       // rare cap is 6)
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/3/4/5/5/7 on days 3-10 (the WEAVER par field's count)
-      M(4, "drake", 0), G2(5, "whetstone", 3, 0), P(5), P(6), G(7, "sorting", 3, 1, 1), P(7), M(8, "flak", 0),
-      G(8, "overclocker", 0, 1), P(8), G(10, "quench", 2, 0), P(10, 2),
+      // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/2/2/2/2/3 on days 3-10, under the WEAVER par field's 1/1/2/3/4/5/5/7: with
+      // the full count her Easy road deck beat par (47-67% on days 6-10) and stood above the Hard captains (the ladder);
+      // the least trim that passes it (cap's ruling Q2 f77489ebe2e11698; capsearch lfix)
+      M(4, "drake", 0), G2(5, "whetstone", 3, 0), P(5), G(7, "sorting", 3, 1, 1), M(8, "flak", 0),
+      G(8, "overclocker", 0, 1), G(10, "quench", 2, 0), P(10),
     ],
   },
   // PRESS GANG: a DOUBLE STAMP (a rare stamp press) beside the kiln feeds the heavy turret's second intake from day 1.
@@ -173,10 +175,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     upgrades: [
       // bb-0.8.6 (job PACKS M4): the DOUBLE STAMP on day 2 (was 1; FURNACE's day-1 ordinary rare cap is 0)
       X(2, F("doublestamp", 8, 1, [9, 3, "L2ULULU"])), G(2, "whetstone", 6, 0, 2), G(2, "temper", 7, 1, 2),
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/3/3/3/5/6 on days 3-10 (the FURNACE par field's 1/1/2/3/4/5/6/7; days 7-8
-      // and 10 keep their gold upgrades and the ordinary value cap)
+      // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/2/2/2/3/4 on days 3-10, under the FURNACE par field's 1/1/2/3/4/5/6/7: the
+      // gold allowed 1/1/2/3/3/3/5/6, and with it his Easy road deck stood above THANE KARSK (the ladder) on days 8-10; the
+      // least trim that passes it (cap's ruling Q2 f77489ebe2e11698; capsearch lfix: days 8-10, and days 6-7 with day 8)
       G(2, "brake", 3, 4, 1), G(3, "keg", 5, 2), P(3), M(4, "flak", 0), G(5, "staticbrush", 6, 3), P(5), G2(6, "temper", 7, 1),
-      P(6), G2(7, "whetstone", 6, 0), M(8, "drake", 0), G(9, "surge", 9, 4, 1), P(9, 2), G(10, "longhaul", 3, 0), P(10),
+      G2(7, "whetstone", 6, 0), M(8, "drake", 0), G(9, "surge", 9, 4, 1), P(9), G(10, "longhaul", 3, 0), P(10),
     ],
   },
   // OVERCLOCK: a short kiln belt with a whetstone, a counterweight and a brake (2 stars from day 7). Synergy: a
@@ -278,9 +281,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // and day-6 decks read 83 and 81 vs the FURNACE field (K 24), over the stand-ins' 80
       G(1, "whetstone", 3, 0, 1), M(1, "scatter", 1), G(2, "temper", 3, 1, 1), G(3, "keg", 7, 0), P(3), G(4, "venom", 3, 2),
       // bb-0.8.6 (job PACKS M4): no second splitter (was day 9): WEAVER's ordinary epic+ cap is 1 on days 9 and 10
-      // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/3/4/5/5/7 on days 3-10 (the WEAVER par field's count)
-      G(5, "longhaul", 5, 2), P(5), P(6), G(7, "splitter", 5, 1), P(7), G2(8, "splitter", 5, 1), G(8, "grease", 3, 3, 2),
-      G(8, "brake", 0, 0, 1), P(8), P(10, 2),
+      // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/3/3/5/5/7 on days 3-10 (the WEAVER par field's count, but day 7's pack
+      // comes on day 8: with it the Medium slot came within 0.05 of the Hard one on day 7, the ladder; the least trim that
+      // clears it, cap's ruling Q2 f77489ebe2e11698; capsearch lfix)
+      G(5, "longhaul", 5, 2), P(5), P(6), G(7, "splitter", 5, 1), G2(8, "splitter", 5, 1), G(8, "grease", 3, 3, 2),
+      G(8, "brake", 0, 0, 1), P(8, 2), P(10, 2),
     ],
   },
   // EMBER WEAVE: synergy: a TEMPER on the centre thread from day 1 (2 stars from day 4), a DRAKE core from day 3 (flat
