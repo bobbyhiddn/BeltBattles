@@ -15,7 +15,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HEROES, RULES_VERSION, type HeroId } from "../src/sim/content";
+import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { setTurretList, type Build } from "../src/sim/deck";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { HEROES_RULES, RULES_HEROES, heroGateProblem, heroesFor } from "../src/net/rulesGate";
@@ -121,7 +121,7 @@ describe("the upload check (validateUpload, the player mode)", () => {
 
   it("still refuses the usual dishonest variants, with the usual reasons, under the next rules version", () => {
     const cases: [string, (b: Build, hero: HeroId) => void, RegExp][] = [
-      ["plating far past the ceiling", (b) => { b.hullBonus += 25 * 200; }, /^(supply|budget): /],
+      ["plating far past the ceiling", (b) => { b.hullBonus += ITEMS.plating.supply!.hull! * 200; }, /^(supply|budget): /], // NUM-1: 200 plates of 250 (was 25 * 200)
       ["another hero's signature factory", (b, hero) => { b.items.push({ uid: 777, def: hero === "foundry" ? "wardworks" : "crucible", x: 7, y: 8 }); }, /is another hero's signature factory/],
       ["a second signature factory", (b, hero) => { b.items.push({ uid: 777, def: HEROES[hero].factory, x: 7, y: 8 }); }, /^item: the deck must carry exactly one .* \(found 2\)$/],
       ["no signature factory", (b, hero) => { const s = b.items.find((p) => p.def === HEROES[hero].factory)!; b.items = b.items.filter((p) => p !== s); b.routes = b.routes.filter((r) => r.factory !== s.uid); }, /\(found 0\)$/],

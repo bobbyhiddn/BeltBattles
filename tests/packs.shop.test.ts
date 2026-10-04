@@ -1,5 +1,5 @@
 // bb-0.8.6 (REQ-BFG-051, job PACKS P1-P3, P6): every caravan visit has two FIXED offers outside the roll, BELT PACK (2 gold,
-// +4 belt capacity) and ARMOR PACK (5 gold, +25 max hull), bought again and again while the gold lasts, with no cap and no
+// +4 belt capacity) and ARMOR PACK (5 gold, +250 max hull; NUM-1: x10, was +25), bought again and again while the gold lasts, with no cap and no
 // discount. The crate and the plating left the rolled pool (their ITEMS entries and ids stay). Validation stays bounded by
 // gold, strict and in the player mode; the client's snapshot check takes beltCap and hullBonus exactly as the strict
 // decoder does. The bots buy packs on value (harness/belts.ts PACK_POLICY).
@@ -19,6 +19,8 @@ import { cardName } from "../src/screens/build/shop";
 
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const J = (x: unknown): string => JSON.stringify(x);
+/** NUM-1: one ARMOR PACK's hull, read from the data (250 since NUM-1's x10; was 25). */
+const ARMOR = ITEMS.plating.supply!.hull!;
 
 /** A run on `day` with `gold`, its caravan rolled. */
 function caravan(hero: HeroId, seed: number, day = 5, gold = 200): Run {
@@ -39,11 +41,11 @@ function withPacks<T>(h: HeroId, p: PackPolicy, fn: () => T): T {
 const packBuys = (days: PlayerDay[]) => days.flatMap((d) => d.buys.filter((b) => b.def === "beltcrate" || b.def === "plating"));
 
 describe("P1-P2: the two fixed packs", () => {
-  it("BELT PACK: 2 gold for +4 belt capacity; ARMOR PACK: 5 gold for +25 max hull; the ids beltcrate and plating stay", () => {
+  it("BELT PACK: 2 gold for +4 belt capacity; ARMOR PACK: 5 gold for +250 max hull; the ids beltcrate and plating stay", () => {
     expect(PACK_IDS).toEqual(["belt", "armor"]);
     expect(PACK_ITEM).toEqual({ belt: "beltcrate", armor: "plating" });
     expect([ITEMS.beltcrate.name, ITEMS.beltcrate.price, ITEMS.beltcrate.supply]).toEqual(["BELT PACK", 2, { belt: 4 }]);
-    expect([ITEMS.plating.name, ITEMS.plating.price, ITEMS.plating.supply]).toEqual(["ARMOR PACK", 5, { hull: 25 }]);
+    expect([ITEMS.plating.name, ITEMS.plating.price, ITEMS.plating.supply]).toEqual(["ARMOR PACK", 5, { hull: 250 }]); // NUM-1: x10 (was 25)
     expect([packPrice("belt"), packPrice("armor")]).toEqual([2, 5]);
     expect([ITEMS.beltcrate.kind, ITEMS.plating.kind, ITEMS.beltcrate.merchant, ITEMS.plating.merchant]).toEqual(["supply", "supply", "ironmonger", "ironmonger"]);
   });
@@ -56,7 +58,7 @@ describe("P1-P2: the two fixed packs", () => {
     }
   });
 
-  it("each buy applies at once (+4 beltCap or +25 hullBonus) for its price, again and again, with no cap", () => {
+  it("each buy applies at once (+4 beltCap or +250 hullBonus) for its price, again and again, with no cap", () => {
     for (const hero of HEROES4) {
       const run = caravan(hero, 2, 7, 120);
       const belt0 = run.build.beltCap, hull0 = run.build.hullBonus;
@@ -65,11 +67,11 @@ describe("P1-P2: the two fixed packs", () => {
         expect([run.build.beltCap, run.gold]).toEqual([belt0 + 4 * i, 120 - 2 * i]);
       }
       for (let i = 1; i <= 19; i++) expect(buyPack(run, "armor").ok, `${hero} armor ${i}`).toBe(true);
-      expect([run.build.hullBonus, run.gold]).toEqual([hull0 + 25 * 19, 120 - 24 - 95]);
+      expect([run.build.hullBonus, run.gold]).toEqual([hull0 + ARMOR * 19, 120 - 24 - 95]); // NUM-1: ARMOR (250) per pack (was 25)
       // 1 gold left: both refused, nothing changes, and the reason is the slot's tap text
       expect(buyPack(run, "belt")).toEqual({ ok: false, reason: "A BELT PACK COSTS 2G", price: 2 });
       expect(buyPack(run, "armor")).toEqual({ ok: false, reason: "AN ARMOR PACK COSTS 5G", price: 5 });
-      expect([run.gold, run.build.beltCap, run.build.hullBonus]).toEqual([1, belt0 + 48, hull0 + 475]);
+      expect([run.gold, run.build.beltCap, run.build.hullBonus]).toEqual([1, belt0 + 48, hull0 + 19 * ARMOR]); // NUM-1: 4750 (was 475)
     }
   });
 
@@ -157,7 +159,7 @@ describe("P5: the save keeps pack buys", () => {
     for (const p of ["belt", "belt", "armor", "belt", "armor"] as PackId[]) buyPack(run, p);
     saveRun(run);
     const back = loadRun()!;
-    expect([back.build.beltCap, back.build.hullBonus, back.gold]).toEqual([belt0 + 12, hull0 + 50, 40 - 6 - 10]);
+    expect([back.build.beltCap, back.build.hullBonus, back.gold]).toEqual([belt0 + 12, hull0 + 2 * ARMOR, 40 - 6 - 10]); // NUM-1: +500 (was +50)
     expect(J(back.shop)).toBe(J(run.shop));
   });
 });
@@ -167,7 +169,7 @@ describe("P3: validation stays bounded by gold, on the strict and the player che
   const withPacks0 = (hero: HeroId, belts: number, armors: number) => {
     const b = heroStartBuild(hero, 1);
     b.beltCap += 4 * belts;
-    b.hullBonus += 25 * armors;
+    b.hullBonus += ARMOR * armors; // NUM-1: 250 per pack (was 25)
     return b;
   };
 
@@ -200,7 +202,7 @@ describe("P3: validation stays bounded by gold, on the strict and the player che
     for (const hero of HEROES4) {
       const odd = withPacks0(hero, 0, 0);
       odd.hullBonus = 1;
-      expect(validateBuild(odd, 10).errors.join(" | ")).toMatch(/supply: hullBonus 1 is not a whole number of \+25 plating/);
+      expect(validateBuild(odd, 10).errors.join(" | ")).toMatch(new RegExp(`supply: hullBonus 1 is not a whole number of \\+${ARMOR} plating`)); // NUM-1: +250 (was +25)
       expect(validateUpload(odd, 10).errors.join(" | ")).toMatch(/supply: hullBonus 1 is not a hull a player can reach by day 10/);
       const belt = withPacks0(hero, 0, 0);
       belt.beltCap = HEROES[hero].belt + 1;
@@ -216,14 +218,16 @@ describe("P3: validation stays bounded by gold, on the strict and the player che
       build: { ...b0, beltCap, hullBonus }, runId: "packs-check", playerId: "p-packs", createdAt: 1_790_000_000_000,
     });
     const server = (s: GhostSnapshot) => { try { decodeSnapshot(JSON.stringify(s)); return true; } catch { return false; } };
+    // NUM-1: the hullBonus bounds are x10 (-10000..100000, were -1000..10000), so the edge cases are x10 too; 12.5 stays
+    // the non-integer case (x10 would make it a legal integer)
     const cases: [number, number][] = [
-      [b0.beltCap, 0], [b0.beltCap + 4 * 60, 25 * 24], [1000, 10000], [0, -1000], [1001, 0], [-1, 0], [b0.beltCap + 0.5, 0],
-      [b0.beltCap, 10001], [b0.beltCap, -1001], [b0.beltCap, 12.5], [b0.beltCap, Number.NaN],
+      [b0.beltCap, 0], [b0.beltCap + 4 * 60, ARMOR * 24], [1000, 100000], [0, -10000], [1001, 0], [-1, 0], [b0.beltCap + 0.5, 0],
+      [b0.beltCap, 100001], [b0.beltCap, -10001], [b0.beltCap, 12.5], [b0.beltCap, Number.NaN],
     ];
     const got = cases.map(([bc, hb]) => [bc, hb, server(snap(bc, hb)), isSnapshot(JSON.parse(JSON.stringify(snap(bc, hb))))]);
     for (const [bc, hb, s, c] of got) expect(c, `beltCap ${bc} hullBonus ${hb}`).toBe(s);
     expect(got.filter((g) => g[2]).length).toBe(4); // the first four are shape-legal, the rest aren't
-    expect(encodeSnapshot(snap(b0.beltCap + 8, 50))).toContain(`"beltCap":${b0.beltCap + 8}`);
+    expect(encodeSnapshot(snap(b0.beltCap + 8, 2 * ARMOR))).toContain(`"beltCap":${b0.beltCap + 8}`); // NUM-1: two packs, 500 (was 50)
   });
 });
 
@@ -238,7 +242,7 @@ describe("P6: the bots buy packs on value", () => {
         for (const b of buys) expect([b.price, b.merged, b.stars], `${hero} ${seed}`).toEqual([ITEMS[b.def].price, false, 1]);
         const last = days[days.length - 1].build, start = heroStartBuild(hero, 1);
         expect(last.beltCap - start.beltCap, `${hero} ${seed} belt`).toBe(4 * buys.filter((b) => b.def === "beltcrate").length);
-        expect(last.hullBonus - start.hullBonus, `${hero} ${seed} hull`).toBe(25 * buys.filter((b) => b.def === "plating").length);
+        expect(last.hullBonus - start.hullBonus, `${hero} ${seed} hull`).toBe(ARMOR * buys.filter((b) => b.def === "plating").length); // NUM-1: 250 per pack (was 25)
       }
       expect(runs, hero).toBeGreaterThanOrEqual(4);
     }

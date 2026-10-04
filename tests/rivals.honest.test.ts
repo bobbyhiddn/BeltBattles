@@ -9,11 +9,13 @@ import {
 import { legalityProblems } from "./rivals.legality";
 
 // Rulings R1 and R2 (Part 4): every dusk opponent is an honest deck a player could own. The async
-// validator (src/net, not in this series) is mirrored here: whole +25 plating, whole +4 belt crates,
+// validator (src/net, not in this series) is mirrored here: whole +250 plating (NUM-1: x10, was +25), whole +4 belt crates,
 // every belt reaching a turret, and cost <= maxGoldByDay(day). The Prime re-runs the real validator.
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const STAND_INS = RIVAL_IDS.filter((id) => id !== "matriarch");
+/** NUM-1 (REQ-BFG-047): one ARMOR PLATING's hull, read from the data (250; was the literal 25); pinned below. */
+const PLATE = ITEMS.plating.supply!.hull!;
 
 /** The validator's budget, written out independently: START_GOLD + incomeFor(d, true) for d < day. */
 function validatorBudget(day: number): number {
@@ -30,7 +32,7 @@ describe("honest-deck helpers mirror the async validator", () => {
 
   it("rampPlates converts the warlord hull ramp to whole plates: 0 (days 1-4), 1, 1, 2, 2, 2, 3", () => {
     expect(DAYS.map(rampPlates)).toEqual([0, 0, 0, 0, 1, 1, 2, 2, 2, 3]);
-    for (const d of DAYS) expect(rampPlates(d)).toBe(Math.max(0, Math.round(warlordHull(d) / 25)));
+    for (const d of DAYS) expect(rampPlates(d)).toBe(Math.max(0, Math.round(warlordHull(d) / PLATE))); // NUM-1: / 250 (was / 25)
   });
 
   it("deckCost is the validator's buildCost: items, mods, crates above the hero's belt, plating", () => {
@@ -40,15 +42,15 @@ describe("honest-deck helpers mirror the async validator", () => {
         { uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 6, y: 6 },
         { uid: 3, def: "temper", x: 4, y: 3 }, { uid: 4, def: "splitter", x: 4, y: 2 },
       ],
-      routes: [], mods: [{ uid: 5, def: "calibrate", turret: 0 }], beltCap: 14 + 8, hullBonus: 50,
+      routes: [], mods: [{ uid: 5, def: "calibrate", turret: 0 }], beltCap: 14 + 8, hullBonus: 500, // NUM-1: x10 (was 50): 2 plates
     };
     expect(deckCost(b)).toEqual({ items: 0 + 8 + 3 + 7, mods: 5, crates: 2, plates: 2, total: 18 + 5 + 2 * 2 + 2 * 5 });
     // ceil on partial supplies, never below 0, and unknown ids cost 0, exactly as buildCost does
-    expect(deckCost({ ...b, beltCap: 15, hullBonus: 6 })).toMatchObject({ crates: 1, plates: 1 });
-    expect(deckCost({ ...b, beltCap: 10, hullBonus: -27 })).toMatchObject({ crates: 0, plates: 0, total: 23 });
+    expect(deckCost({ ...b, beltCap: 15, hullBonus: 60 })).toMatchObject({ crates: 1, plates: 1 }); // NUM-1: x10 (was 6)
+    expect(deckCost({ ...b, beltCap: 10, hullBonus: -270 })).toMatchObject({ crates: 0, plates: 0, total: 23 }); // NUM-1: x10 (was -27)
     expect(deckCost({ ...b, items: [...b.items, { uid: 9, def: "nonsense", x: 0, y: 0 }] }).items).toBe(18);
     expect(deckCost({ ...b, hero: "weaver", beltCap: 24 }).crates).toBe(0);
-    expect([ITEMS.beltcrate.price, ITEMS.plating.price, ITEMS.beltcrate.supply!.belt, ITEMS.plating.supply!.hull]).toEqual([2, 5, 4, 25]);
+    expect([ITEMS.beltcrate.price, ITEMS.plating.price, ITEMS.beltcrate.supply!.belt, ITEMS.plating.supply!.hull]).toEqual([2, 5, 4, 250]); // NUM-1: plate hull x10 (was 25); PLATE above
   });
 });
 
@@ -63,8 +65,8 @@ describe("stand-in decks are honest (R1, R2)", () => {
         const why = `${id} day ${day}`;
         expect(legalityProblems(b), why).toEqual([]);
         expect(b.hullBonus, why).toBeGreaterThanOrEqual(0);
-        expect(b.hullBonus % 25, why).toBe(0);
-        expect(b.hullBonus, why).toBe(25 * (l.plating + rampPlates(day)));
+        expect(b.hullBonus % PLATE, why).toBe(0); // NUM-1: whole 250-hull plates (was % 25)
+        expect(b.hullBonus, why).toBe(PLATE * (l.plating + rampPlates(day))); // NUM-1: 250 x (was 25 x)
         expect((b.beltCap - HEROES[b.hero].belt) % 4, why).toBe(0);
         b.routes.forEach((_, i) => expect(routeInfo(b, i).connected, `${why} route ${i}`).toBe(true));
         expect(deckCost(b).total, why).toBeLessThanOrEqual(maxGoldByDay(day));
@@ -73,7 +75,7 @@ describe("stand-in decks are honest (R1, R2)", () => {
         // Easy or Medium captain; a Hard warlord adds what good luck brings (and brings sooner)
         expect({ ...b, hullBonus: 0 }, why).toEqual({ ...l.build, hullBonus: 0 });
         if (luckOf(id) === "ordinary") expect({ ...b, hullBonus: 0 }, why).toEqual({ ...w, hullBonus: 0 });
-        expect(w.hullBonus, why).toBe(warlordHull(day) + 25 * lw.plating);
+        expect(w.hullBonus, why).toBe(warlordHull(day) + PLATE * lw.plating); // NUM-1: 250 x (was 25 x)
       }
     });
   }
@@ -88,7 +90,7 @@ describe("stand-in decks are honest (R1, R2)", () => {
       for (const day of DAYS) {
         const r = honestReference(hero, day);
         const w = warlordBuild(hero, day);
-        expect(r.hullBonus).toBe(25 * rampPlates(day));
+        expect(r.hullBonus).toBe(PLATE * rampPlates(day)); // NUM-1: 250 x (was 25 x)
         expect({ ...r, hullBonus: 0 }).toEqual({ ...w, hullBonus: 0 });
         expect(legalityProblems(r), `${hero} day ${day}`).toEqual([]);
         expect(deckCost(r).total, `${hero} day ${day}`).toBeLessThanOrEqual(maxGoldByDay(day));

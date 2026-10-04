@@ -184,8 +184,11 @@ describe("harness factories (0.6.1c): legality", () => {
       for (const hero of HARNESS_HEROES) for (let day = 1; day <= 10; day++) for (let i = 0; i < 3; i++) b.push(JSON.stringify(fullPurseBuild(hero, day, hashSeed("fp-fac-off-pin", hero, day, i), undefined, 60, "on", FUSE_MAX, "on", "off")));
     });
     // REQ-BFG-021 changes Metronome's choices within the pre-expansion stock.
-    expect(hash32(a.join("|"))).toBe(788536636);
-    expect(hash32(b.join("|"))).toBe(1842022582);
+    // NUM-1 (REQ-BFG-047): both re-pinned (were 788536636 and 1842022582): the ARMOR PACK's hull x10
+    // (ITEMS.plating.supply.hull 25 -> 250), so every build's hullBonus is x10; the same builds with hullBonus / 10 (a) and
+    // build.hullBonus / 10 (b) hash to 788536636 and 1842022582 exactly (no other field or decision moved).
+    expect(hash32(a.join("|"))).toBe(3615626450);
+    expect(hash32(b.join("|"))).toBe(3585233270);
   }, 240_000);
 });
 

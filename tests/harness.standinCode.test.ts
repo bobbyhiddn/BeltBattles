@@ -92,17 +92,20 @@ describe("star-aware stand-in code (F2)", () => {
       for (let day = 1; day <= 10; day++) {
         const codes = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);
         standInPool(hero, day).forEach((e) => {
-          const code = codes.find((c) => JSON.stringify(loadStarred(hero, c)) === JSON.stringify(e.build));
+          // NUM-1 (cap's oracle bcc36c430b4f3a01): standInPool reads the bundled pool x10 (hullBonus); the stored codes are
+          // pre-NUM-1, so this test converts its own decode inline before it matches them
+          const x10 = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus * 10 });
+          const code = codes.find((c) => JSON.stringify(x10(loadStarred(hero, c))) === JSON.stringify(e.build));
           expect(code, `${hero} d${day}: the loader's deck is one of the stored codes (after D3)`).toBeDefined();
           const raw = decodeStarred(hero, code!); // the harness codec: the deck as written
           expect(JSON.stringify(raw)).toBe(JSON.stringify(decodeStarredRaw(hero, code!))); // = the loader's raw layer
           expect(encodeStarred(raw)).toBe(code); // round-trips byte for byte
-          expect(encodeStarred(e.build)).toBe(encodeStarred(loadStarred(hero, code!)));
+          expect(encodeStarred(e.build)).toBe(encodeStarred(x10(loadStarred(hero, code!)))); // NUM-1: the loader's x10
           expect(validateBuild(e.build, day).errors, `${hero} d${day}`).toEqual([]);
           expect(maxStars(e.build)).toBeLessThanOrEqual(2);
           // the stored cost is the deck as generated; the loaded deck is that minus the rigs D3 dropped (no free cell)
           const dropped = migrateInlineGates(JSON.parse(JSON.stringify(raw)) as Build).stranded;
-          expect(buildCost(raw).total).toBe(e.cost);
+          expect(buildCost(x10(raw)).total).toBe(e.cost); // NUM-1: priced in this build's units (the stored deck x10)
           expect(buildCost(e.build).total + dropped.reduce((g, p) => g + valueOf(p.def, starsOf(p)), 0)).toBe(e.cost);
           expect(e.cost).toBeLessThanOrEqual(maxGoldByDay(day));
           if (maxStars(e.build) > 1) starred++;

@@ -3,9 +3,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RULES_VERSION } from "../src/sim/content";
+import { ITEMS, RULES_VERSION } from "../src/sim/content";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { validateBuild, validateUpload, maxHonestSpend } from "../src/net/validate";
+import { roadOptions } from "../src/net/roadCap";
 import { floorRecord } from "../src/net/records";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { driveRun } from "./uploadDriver";
@@ -36,6 +37,11 @@ function req(over: Partial<GhostRequest> = {}): GhostRequest {
   return { rules: RULES_VERSION, day: 1, wins: 0, lives: 3, playerId: "me", seen: [], hero: "furnace", seed: 7, ...over };
 }
 
+// NUM-1 (x10): the road's hull choices as the live events give them (roadCap.ts roadOptions), and a plate's hull
+const DOCK_PLATING = roadOptions().get("dock")!.find((o) => o.label === "PLATING")!.hull; // +200 (was +20)
+const RIDE_THROUGH = roadOptions().get("storm")!.find((o) => o.label === "RIDE THROUGH")!.hull; // -100 (was -10)
+const PLATE = ITEMS.plating.supply!.hull!; // +250 (was +25)
+
 /** Honest dusk decks from the driver that the strict check refuses (road hull, road value), as v2 snapshots. */
 function honestRefusedByStrict(n: number): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
@@ -61,12 +67,13 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
       expect(res, `${s.hero} d${s.day}`).toMatchObject({ ok: true });
     }
     expect(app.store.size).toBe(12);
-    // a day-1 deck with the dock's +20 hull: strict refuses it (off the plating grid), the server stores it
-    const dock = snap({ lives: 5, build: { ...snap().build, hullBonus: 20 } }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
+    // a day-1 deck with the dock's +200 hull (NUM-1: x10, was +20): strict refuses it (off the plating grid), the server stores it
+    expect([DOCK_PLATING, RIDE_THROUGH, PLATE]).toEqual([200, -100, 250]); // NUM-1: x10 (was 20, -10, 25)
+    const dock = snap({ lives: 5, build: { ...snap().build, hullBonus: DOCK_PLATING } }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
     expect(validateBuild(dock.build, 1).ok).toBe(false);
     expect(await submitGhost(base, ownedBy(dock, me), me, 3000)).toMatchObject({ ok: true });
     // over the player ceiling: refused on budget (day 1 allows maxHonestSpend(1) = 13 on 40d2b2c, was 15; 4 plates cost 20)
-    const rich = snap({ build: { ...snap().build, hullBonus: 100 } });
+    const rich = snap({ build: { ...snap().build, hullBonus: 4 * PLATE } }); // NUM-1: 4 plates are 1000 hull (was 100)
     expect(maxHonestSpend(1)).toBeLessThan(20);
     const richBody = JSON.stringify(ownedBy(rich, me));
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, richBody), body: richBody });
@@ -75,8 +82,8 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
   });
 
   it("fetchGhost fights a served player ghost with a road hull; it still falls back on one the player mode refuses", async () => {
-    const ride = { ...snap({ day: 3, wins: 1 }), build: { ...snap().build, hullBonus: -10 } };
-    const off = { ...snap({ day: 4, wins: 0 }), build: { ...snap().build, hullBonus: 30 } };
+    const ride = { ...snap({ day: 3, wins: 1 }), build: { ...snap().build, hullBonus: RIDE_THROUGH } }; // NUM-1: -100 (was -10)
+    const off = { ...snap({ day: 4, wins: 0 }), build: { ...snap().build, hullBonus: 300 } }; // NUM-1: x10 (was 30)
     const srv = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
       s.end(JSON.stringify(q.url?.includes("day=3") ? { id: "gride", snapshot: ride } : { id: "goff", snapshot: off }));
@@ -85,12 +92,12 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     const a = srv.address();
     const url = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`;
     try {
-      expect(validateBuild(ride.build, 3).ok).toBe(false); // strict: -10 is not whole plating
+      expect(validateBuild(ride.build, 3).ok).toBe(false); // strict: -100 is not whole plating
       const g = await fetchGhost(url, req({ day: 3, wins: 1 }), 2000);
       expect(g).toMatchObject({ source: "server", id: "gride" });
       const f = await fetchGhost(url, req({ day: 4 }), 2000);
       expect(f.source).toBe("fallback");
-      expect(f.error).toMatch(/ghost deck invalid: supply: hullBonus 30 is not a hull a player can reach by day 4/);
+      expect(f.error).toMatch(/ghost deck invalid: supply: hullBonus 300 is not a hull a player can reach by day 4/); // NUM-1: x10 (was 30)
     } finally {
       srv.closeAllConnections();
       await new Promise<void>((r) => srv.close(() => r()));

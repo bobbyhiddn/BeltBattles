@@ -26,10 +26,14 @@ import { furnaceDeck, playerCheck } from "./netHelpers";
 const price = (id: string) => ITEMS[id].price;
 const max = (xs: number[]) => Math.max(...xs);
 const cats = (b: Build, day: number) => validateUpload(b, day).errors.map((e) => e.split(":")[0]);
+// NUM-1 (REQ-BFG-047): hull x10: a plate (ARMOR PACK) is ITEMS.plating.supply.hull, 250 (was 25); the dock's PLATING
+// +200 (was +20) and RIDE THROUGH -100 (was -10) are eventDefs.ts's values
+const PLATE = ITEMS.plating.supply!.hull!;
+const DOCK = 200, RIDE = -100; // NUM-1: x10 (were 20 and -10)
 
 /** The furnace starting deck plus `extra` rigs west of its belt (legal cells), plating and crates. */
 function deck(extra: string[] = [], plates = 0, crates = 0, hullExtra = 0): Build {
-  const b = furnaceDeck({ hullBonus: plates * 25 + hullExtra, beltCap: HEROES.furnace.belt + 4 * crates });
+  const b = furnaceDeck({ hullBonus: plates * PLATE + hullExtra, beltCap: HEROES.furnace.belt + 4 * crates }); // NUM-1: PLATE (was 25)
   extra.forEach((def, i) => b.items.push({ uid: 10 + i, def, x: 3, y: 4 - i, rot: 1 }));
   return b;
 }
@@ -69,8 +73,8 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
     expect(best("trader", "SWAP", (x) => x.parts)).toBe(swapBest);
     expect(best("trader", "SELL", (x) => x.gold + x.parts)).toBe(0); // the trader pays a part's value in full
     expect(best("dice", "BET 6", (x) => x.gold - x.pay)).toBe(11);
-    expect(o.get("dock")!.find((x) => x.label === "PLATING")).toMatchObject({ pay: 2, hull: 20 });
-    expect(o.get("storm")!.find((x) => x.label === "RIDE THROUGH")).toMatchObject({ gold: 5, hull: -10 });
+    expect(o.get("dock")!.find((x) => x.label === "PLATING")).toMatchObject({ pay: 2, hull: 200 }); // NUM-1: x10 (was 20)
+    expect(o.get("storm")!.find((x) => x.label === "RIDE THROUGH")).toMatchObject({ gold: 5, hull: -100 }); // NUM-1: x10 (was -10)
     expect(o.get("cache")!.find((x) => x.label === "BELT SPOOL")).toMatchObject({ belt: 4, gold: 0 });
     expect(o.get("scout")!.find((x) => x.label === "HAGGLE")).toMatchObject({ discount: 1 });
     expect(o.get("herald")!.find((x) => x.label === "STAKE 3")).toMatchObject({ pay: 3, bounty: 10 });
@@ -167,12 +171,13 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
 });
 
 describe("player hull and belt rules (D3)", () => {
+  // NUM-1: x10 (was [0, 20, -10, 10] and % 25)
   const reachable = (h: number, day: number) =>
-    [0, 20, -10, 10].some((r, i) => h - r >= 0 && (h - r) % 25 === 0 && (i < 3 || day >= 2)); // dock + storm need 2 road stops
+    [0, DOCK, RIDE, DOCK + RIDE].some((r, i) => h - r >= 0 && (h - r) % PLATE === 0 && (i < 3 || day >= 2)); // dock + storm need 2 road stops
 
-  it("accepts exactly the hullBonus values an honest run can reach by the day (plates, dock +20, ride-through -10)", () => {
+  it("accepts exactly the hullBonus values an honest run can reach by the day (plates, dock +200, ride-through -100)", () => {
     for (const day of [1, 2, 10]) {
-      for (let h = -40; h <= 160; h += 5) {
+      for (let h = -400; h <= 1600; h += 50) { // NUM-1: x10 (was -40..160 step 5)
         const e = validateUpload(deck([], 0, 0, h), day).errors;
         expect(e.some((x) => x.startsWith("supply: hullBonus")), `day ${day} hull ${h}: ${e.join(" | ")}`).toBe(!reachable(h, day));
       }
@@ -182,21 +187,23 @@ describe("player hull and belt rules (D3)", () => {
   it("the HULL_FLOOR is events.ts's HULL TOO WEAK", () => {
     const run = newRun("furnace", 3);
     const ride = EVENTS.storm.choices(run, { day: 1, id: "storm", roll: 0, pick: 0, picked: -1 })[0];
-    run.build.hullBonus = HULL_FLOOR + 10 - HEROES.furnace.hull;
+    expect(ride.cost).toEqual([{ k: "hull", n: -RIDE }]); // NUM-1: RIDE THROUGH costs 100 hull (was 10)
+    run.build.hullBonus = HULL_FLOOR - RIDE - HEROES.furnace.hull; // NUM-1: the ride's 100 (was HULL_FLOOR + 10 - hull)
     expect(blockReason(run, ride)).toBeUndefined();
     run.build.hullBonus -= 1;
     expect(blockReason(run, ride)).toBe("HULL TOO WEAK");
-    for (const h of Object.values(HEROES)) expect(h.hull - 10).toBeGreaterThanOrEqual(HULL_FLOOR); // never binds today
+    for (const h of Object.values(HEROES)) expect(h.hull + RIDE).toBeGreaterThanOrEqual(HULL_FLOOR); // never binds today (NUM-1: was h.hull - 10)
   });
 
   it("costs the hull at its cheapest honest mix: the dock's plating costs 2 gold and the day's road stop", () => {
-    expect(validateBuild(deck(["temper", "whetstone"], 0, 0, 20), 1).errors.join()).toMatch(/supply: hullBonus 20/); // strict
-    expect(validateUpload(deck(["temper", "whetstone"], 0, 0, 20), 1)).toEqual({ ok: true, errors: [] }); // 6 + dock 2 = 8
-    expect(validateUpload(deck(["temper", "quench"], 0, 0, 20), 1).errors.join()).toMatch(/^budget: build costs 7 gold .*road dock PLATING.* allows at most 6/);
-    expect(validateUpload(deck(["temper", "whetstone"], 0, 0, -10), 1).ok).toBe(true); // RIDE THROUGH: its 5 g come after dusk
-    expect(validateUpload(deck([], 0, 0, 10), 1).errors.join()).toMatch(/^supply: hullBonus 10 is not a hull a player can reach by day 1/);
-    expect(validateUpload(deck([], 0, 0, 10), 2).ok).toBe(true); // dock + ride-through on two days
-    expect(validateUpload(deck([], 1, 0, 20), 3).ok).toBe(true); // 45 = a plate + the dock
+    // NUM-1: hull x10: the dock's +200 (was 20), RIDE THROUGH's -100 (was -10), both 100 (was 10), a plate + the dock 450 (was 45)
+    expect(validateBuild(deck(["temper", "whetstone"], 0, 0, DOCK), 1).errors.join()).toMatch(/supply: hullBonus 200/); // strict
+    expect(validateUpload(deck(["temper", "whetstone"], 0, 0, DOCK), 1)).toEqual({ ok: true, errors: [] }); // 6 + dock 2 = 8
+    expect(validateUpload(deck(["temper", "quench"], 0, 0, DOCK), 1).errors.join()).toMatch(/^budget: build costs 7 gold .*road dock PLATING.* allows at most 6/);
+    expect(validateUpload(deck(["temper", "whetstone"], 0, 0, RIDE), 1).ok).toBe(true); // RIDE THROUGH: its 5 g come after dusk
+    expect(validateUpload(deck([], 0, 0, DOCK + RIDE), 1).errors.join()).toMatch(/^supply: hullBonus 100 is not a hull a player can reach by day 1/);
+    expect(validateUpload(deck([], 0, 0, DOCK + RIDE), 2).ok).toBe(true); // dock + ride-through on two days
+    expect(validateUpload(deck([], 1, 0, DOCK), 3).ok).toBe(true); // 450 = a plate + the dock
   });
 
   it("accepts the belt as the hero's base plus crates and the BELT SPOOL; nothing off the +4 grid", () => {
@@ -211,7 +218,8 @@ describe("player hull and belt rules (D3)", () => {
 
   it("the mixes: every combination of the road's hull and belt choices, costed by the plans that take them", () => {
     const keys = roadMixes().map((m) => m.key).sort();
-    expect(keys).toEqual(["", "cache(0,4)", "cache(0,4) dock(20,0)", "cache(0,4) dock(20,0) storm(-10,0)", "cache(0,4) storm(-10,0)", "dock(20,0)", "dock(20,0) storm(-10,0)", "storm(-10,0)"]);
+    // NUM-1: the hull parts x10 (were dock(20,0) and storm(-10,0))
+    expect(keys).toEqual(["", "cache(0,4)", "cache(0,4) dock(200,0)", "cache(0,4) dock(200,0) storm(-100,0)", "cache(0,4) storm(-100,0)", "dock(200,0)", "dock(200,0) storm(-100,0)", "storm(-100,0)"]);
     for (const m of roadMixes()) {
       for (let d = 1; d <= RUN_DAYS; d++) {
         const c = roadCapFor(d, m);
@@ -233,10 +241,11 @@ describe("adversarial decks (M3): each refused by the player mode with the right
   });
 
   it("a hull one step off the reachable set is refused on supply", () => {
-    expect(cats(deck([], 0, 0, 30), 5)).toEqual(["supply"]); // 30 = 25 + 5: no mix
-    expect(cats(deck([], 0, 0, 5), 10)).toEqual(["supply"]);
-    expect(cats(deck([], 0, 0, -20), 10)).toEqual(["supply"]); // below one RIDE THROUGH
-    expect(cats(deck([], 0, 0, 10), 1)).toEqual(["supply"]); // dock + storm: two road stops
+    // NUM-1: x10 (were 30, 5, -20 and 10), so each is still the same step off the reachable set
+    expect(cats(deck([], 0, 0, 300), 5)).toEqual(["supply"]); // 300 = 250 + 50: no mix
+    expect(cats(deck([], 0, 0, 50), 10)).toEqual(["supply"]);
+    expect(cats(deck([], 0, 0, 2 * RIDE), 10)).toEqual(["supply"]); // below one RIDE THROUGH (-200)
+    expect(cats(deck([], 0, 0, DOCK + RIDE), 1)).toEqual(["supply"]); // dock + storm: two road stops (100)
   });
 
   it("an unfused pair is refused (item)", () => {
@@ -318,7 +327,7 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
 
   it("on any deck, the player mode's errors are the strict errors minus supply and budget (plus its own supply/budget)", () => {
     const decks: [Build, number][] = [
-      [deck(["temper", "temper"], 2), 3], [furnaceDeck({ items: [] , routes: [] }), 2], [deck([], 0, 0, 20), 1], [deckCosting(200), 4],
+      [deck(["temper", "temper"], 2), 3], [furnaceDeck({ items: [] , routes: [] }), 2], [deck([], 0, 0, DOCK), 1], [deckCosting(200), 4], // NUM-1: DOCK (was 20)
     ];
     for (const [b, d] of decks) {
       const s = validateBuild(b, d).errors.filter((e) => !/^(supply|budget):/.test(e));

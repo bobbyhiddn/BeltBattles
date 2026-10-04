@@ -29,7 +29,7 @@ describe("sample pool and offline fallback", () => {
 
   it("rejects bad pool entries and keeps the good ones", () => {
     const good = snap({ day: 2, wins: 1 });
-    const overBudget = snap({ build: { ...good.build, hullBonus: 100 } });
+    const overBudget = snap({ build: { ...good.build, hullBonus: 1000 } }); // NUM-1: four plates of 250 (was 100)
     const foreignRules = snap({ rules: "bb-0.3.0" });
     const raw = [good, { ...good, extra: 1 }, overBudget, foreignRules, good, "junk"].map((s) => JSON.parse(JSON.stringify(s)));
     const load = loadGhostPool(raw);

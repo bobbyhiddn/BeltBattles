@@ -28,13 +28,14 @@ function refBuildCost(b: Build): number {
 
 // 0.6.0b: the honest helpers are tooling decks now (makeGhost, pinClassicFoe), not the dusk stand-in
 describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in", () => {
-  it("plateHull is ARMOR PLATING's +25 hull", () => {
-    expect(plateHull).toBe(25);
-    expect(ITEMS.plating.supply!.hull).toBe(25);
+  it("plateHull is ARMOR PLATING's +250 hull", () => { // NUM-1 (REQ-BFG-047): x10 (was +25)
+    expect(plateHull).toBe(250); // NUM-1: x10 (was 25)
+    expect(ITEMS.plating.supply!.hull).toBe(250); // NUM-1: x10 (was 25)
   });
 
   it("rampPlates: the warlord hull ramp in whole plating (0 on days 1-4, 1 on 5-6, 2 on 7-9, 3 on 10)", () => {
-    expect(DAYS.map(warlordHull)).toEqual([-27, -16, -5, 6, 17, 28, 39, 50, 61, 72]);
+    // NUM-1: warlordHull(d) = (d - 1) x 110 - 270, x10 (was [-27, -16, -5, 6, 17, 28, 39, 50, 61, 72])
+    expect(DAYS.map(warlordHull)).toEqual([-270, -160, -50, 60, 170, 280, 390, 500, 610, 720]);
     expect(DAYS.map(rampPlates)).toEqual([0, 0, 0, 0, 1, 1, 2, 2, 2, 3]);
     for (const d of DAYS) expect(Object.is(rampPlates(d), -0)).toBe(false);
   });
@@ -51,10 +52,10 @@ describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in"
     // 0.6.0b: deckCost returns the BuildCost breakdown { items, mods, crates, plates, total }
     for (const b of decks) expect(deckCost(b).total).toBe(refBuildCost(b));
     // hand-checked: furnace cooker (kiln 0, temper 3, brake 3, longhaul 5, press 8, grease 3,
-    // whetstone 3), calibrate 5, beltCap 18 = 1 crate (2), 3 plates (15)
-    expect(deckCost({ ...warlordBuild("furnace", 10), hullBonus: 75 })).toEqual({ items: 25, mods: 5, crates: 1, plates: 3, total: 25 + 5 + 2 + 15 });
-    expect(deckCost({ ...startingBuild("weaver", 1), hullBonus: 26 }).total).toBe(10); // 26 hull needs 2 plates
-    expect(deckCost({ ...startingBuild("weaver", 1), hullBonus: -27 }).total).toBe(0); // negative hull buys nothing
+    // whetstone 3), calibrate 5, beltCap 18 = 1 crate (2), 3 plates (15). NUM-1 (REQ-BFG-047): the hulls below x10
+    expect(deckCost({ ...warlordBuild("furnace", 10), hullBonus: 750 })).toEqual({ items: 25, mods: 5, crates: 1, plates: 3, total: 25 + 5 + 2 + 15 }); // was 75
+    expect(deckCost({ ...startingBuild("weaver", 1), hullBonus: 260 }).total).toBe(10); // 260 hull needs 2 plates (was 26)
+    expect(deckCost({ ...startingBuild("weaver", 1), hullBonus: -270 }).total).toBe(0); // negative hull buys nothing (was -27)
   });
 
   it("for both heroes on days 1-10: whole non-negative plating, within the day's gold, day 1 has none", () => {

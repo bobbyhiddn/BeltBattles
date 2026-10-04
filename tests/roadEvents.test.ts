@@ -255,13 +255,14 @@ describe("road events: save and load", () => {
 
 describe("road events: value", () => {
   it("an event is worth about +2 to +4 gold on average (reference pricing)", () => {
-    // value of each choice in gold: shop price for items, 0.2 G per hull (plating 5G/25), 0.5 G per belt
+    // value of each choice in gold: shop price for items, 0.02 G per hull (plating 5G/250; NUM-1: hull x10, was
+    // 0.2 G per hull, 5G/25: the rate is now read from ITEMS.plating, so every choice keeps its gold value), 0.5 G per belt
     // (crate 2G/4), 5 G per life, 2 G per free reroll, 2.5 G per discount point, bounty x 0.5 (win odds)
     const val = (d: Delta): number => {
       switch (d.k) {
         case "gold": return d.n;
         case "item": return ITEMS[d.def].price;
-        case "hull": return d.n * 0.2;
+        case "hull": return (d.n * ITEMS.plating.price) / ITEMS.plating.supply!.hull!; // NUM-1: 5 G per 250 hull (was d.n x 0.2)
         case "belt": return d.n * 0.5;
         case "lives": return d.n * 5;
         case "reroll": return d.n * 2;

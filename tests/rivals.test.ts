@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { simulate } from "../src/sim/battle";
 import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
 import { kx, ky, type Build } from "../src/sim/deck";
-import { BATTLE_CAP, HEROES, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
+import { BATTLE_CAP, HEROES, ITEMS, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import {
   DIFFICULTIES, MATRIARCH_DAY, RIVALS, RIVAL_IDS, RUN_DAYS, difficultyOf, rivalBuild, rivalDays, rivalLoadout,
   standInGhost, standInGhosts, warlordOffer, warlordOffers, warlordPool, type RivalId,
@@ -74,7 +74,8 @@ describe("rival builds are legal production builds", () => {
         expect(b.hero).toBe(RIVALS[id].hero);
         expect(legalityProblems(b), `${id} day ${day}`).toEqual([]);
         expect(b.beltCap).toBe(HEROES[b.hero].belt + 4 * l.crates);
-        expect(b.hullBonus).toBe(warlordHull(day) + 25 * l.plating);
+        // NUM-1 (REQ-BFG-047): a plate's hull from the data, 250 (was the literal 25)
+        expect(b.hullBonus).toBe(warlordHull(day) + ITEMS.plating.supply!.hull! * l.plating);
         if (rivalDays(id).includes(day)) expect(l.value, `${id} day ${day} value`).toBeLessThanOrEqual(budget(day));
       }
     });

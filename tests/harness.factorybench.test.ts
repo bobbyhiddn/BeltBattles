@@ -123,7 +123,8 @@ describe("factory bench (0.6.1c)", () => {
   it("the arsenal's press-slot deck is the golden-060 par/furnace/6 and par/weaver/6 on native rigs; arsenalPressSlot is its report-only table", () => {
     const par = JSON.parse(readFileSync(new URL("./fixtures/golden-060/par.json", import.meta.url), "utf8")) as { decks: Record<string, Build> };
     for (const hero of ["furnace", "weaver"] as const) {
-      const old = par.decks[`par/${hero}/6`], current = heroRefBuild(hero, 6);
+      // NUM-1 (cap's oracle bcc36c430b4f3a01): golden-060's decks are pre-NUM-1; this test reads them x10 (hullBonus)
+      const old0 = par.decks[`par/${hero}/6`], old = { ...old0, hullBonus: old0.hullBonus * 10 }, current = heroRefBuild(hero, 6);
       const gates = (b: Build) => b.items.filter((p) => ITEMS[p.def].kind === "gate");
       const withoutGates = (b: Build) => ({ ...b, items: b.items.filter((p) => ITEMS[p.def].kind !== "gate") });
       expect(withoutGates(current)).toEqual(withoutGates(old));

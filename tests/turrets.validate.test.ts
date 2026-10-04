@@ -156,7 +156,7 @@ describe("turret slots: rejections, each with its reason", () => {
     expect(c.turrets).toBe(4 * P);
     expect(errs(rich, 1)).toEqual([`budget: build costs ${c.total} gold (items ${c.items}, mods ${c.mods}, ${c.crates} crates, ${c.plates} plating, turrets ${4 * P}) but day 1 allows at most 8`]);
     for (const turrets of [undefined, startingTurrets("furnace")]) {
-      const plated = deck("furnace", turrets, { hullBonus: 50 });
+      const plated = deck("furnace", turrets, { hullBonus: 500 }); // NUM-1: two plates of 250 (was 50)
       const p = buildCost(plated);
       expect(errs(plated, 1)).toEqual([`budget: build costs ${p.total} gold (items ${p.items}, mods ${p.mods}, ${p.crates} crates, ${p.plates} plating) but day 1 allows at most 8`]);
     }

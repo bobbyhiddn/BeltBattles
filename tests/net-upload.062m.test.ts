@@ -33,7 +33,8 @@ const FREE = startingTurrets("furnace"); // slot 0: the free SCRAP CANNON; slot 
 
 /** The FURNACE starting deck with this turret list, plates and crates (its belt feeds slot 0's intake). */
 function turreted(turrets: BuildTurret[], plates = 0, crates = 0): Build {
-  return { ...furnaceDeck({ hullBonus: 25 * plates, beltCap: HEROES.furnace.belt + 4 * crates }), turrets };
+  // NUM-1: a plate is ITEMS.plating's +250 hull (was a literal 25)
+  return { ...furnaceDeck({ hullBonus: ITEMS.plating.supply!.hull! * plates, beltCap: HEROES.furnace.belt + 4 * crates }), turrets };
 }
 
 /** Turret layouts and what the strict mode's buildCost says they cost. */

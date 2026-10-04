@@ -21,7 +21,7 @@ describe("deck validation: budget formula", () => {
   it("costs items, mods, belt crates above the hero's base and plating", () => {
     const b = furnaceDeck({
       items: [...furnaceDeck().items, { uid: 2, def: "temper", x: 4, y: 3 }],
-      mods: [{ uid: 3, def: "calibrate", turret: 0 }], beltCap: 22, hullBonus: 50,
+      mods: [{ uid: 3, def: "calibrate", turret: 0 }], beltCap: 22, hullBonus: 500, // NUM-1: two plates of 250 (was 50)
     });
     expect(buildCost(b)).toEqual({ items: 3, mods: 5, crates: 2, plates: 2, total: 3 + 5 + 2 * 2 + 2 * 5 });
   });
@@ -114,8 +114,8 @@ describe("deck validation: rejections", () => {
     });
     expect(errorsOf(three, 1)).toMatch(/budget: build costs 9 gold .* day 1 allows at most 8/);
     expect(validateBuild(three, 2).ok).toBe(true);
-    expect(errorsOf(furnaceDeck({ hullBonus: 50 }), 1)).toMatch(/budget/);
-    expect(validateBuild(furnaceDeck({ hullBonus: 25 }), 1).ok).toBe(true);
+    expect(errorsOf(furnaceDeck({ hullBonus: 500 }), 1)).toMatch(/budget/); // NUM-1: two plates of 250 (was 50)
+    expect(validateBuild(furnaceDeck({ hullBonus: 250 }), 1).ok).toBe(true); // NUM-1: one plate (was 25)
     expect(errorsOf(furnaceDeck({ beltCap: 14 + 4 * 5 }), 1)).toMatch(/budget: build costs 10/);
   });
 
@@ -142,8 +142,9 @@ describe("deck validation: rejections", () => {
     expect(errorsOf(furnaceDeck({ items: [...furnaceDeck().items, { uid: 2, def: "calibrate", x: 0, y: 0 }] }))).toMatch(/NOT DECK EQUIPMENT/);
     expect(errorsOf(furnaceDeck({ beltCap: 15 }))).toMatch(/supply: beltCap 15/);
     expect(errorsOf(furnaceDeck({ beltCap: 10 }))).toMatch(/supply: beltCap 10/);
-    expect(errorsOf(furnaceDeck({ hullBonus: 10 }))).toMatch(/supply: hullBonus 10/);
-    expect(errorsOf(furnaceDeck({ hullBonus: -25 }))).toMatch(/supply: hullBonus -25/);
+    // NUM-1: x10 (were 10 and -25): a hull off the 250 grid, and minus one plate
+    expect(errorsOf(furnaceDeck({ hullBonus: 100 }))).toMatch(/supply: hullBonus 100 is not a whole number of \+250 plating/);
+    expect(errorsOf(furnaceDeck({ hullBonus: -250 }))).toMatch(/supply: hullBonus -250 is not a whole number of \+250 plating/);
     expect(errorsOf(furnaceDeck({ items: [...furnaceDeck().items, { uid: 2, def: "press", x: 9, y: 9 }] }))).toMatch(/OFF THE DECK/);
   });
 

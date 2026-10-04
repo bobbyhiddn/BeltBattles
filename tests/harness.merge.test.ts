@@ -170,7 +170,10 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
       }
     });
     // REQ-BFG-021 changes Metronome's choices within the pre-expansion stock.
-    expect(hash32(parts.join("|"))).toBe(675877753);
+    // NUM-1 (REQ-BFG-047): re-pinned (was 675877753): the ARMOR PACK's hull x10 (ITEMS.plating.supply.hull 25 -> 250, the
+    // harness's PLATE_HULL), so every build's hullBonus is x10; the same 90 builds with hullBonus / 10 hash to 675877753
+    // exactly (no other field or decision moved).
+    expect(hash32(parts.join("|"))).toBe(3878896561);
   }, 60_000);
 
   it("F11: stars off: fullPurseBuild output reproduces BELTSIDE's pre-v2 harness (beltside-062c) exactly for a fixed seed set (pinned hash)", () => {
@@ -192,7 +195,10 @@ describe("harness merge: gainInto is src/game/fuse.ts:gainModule on a wrapped bu
     // beltside-062-on-061 re-pin (P16, H2's rig placement): 3150828827 -> 555421802 = the same 60 builds from
     // beltside-062c's own fullPurseBuild(hero, day, seed, undefined, 60) in a scratch export.
     // The legacy-stock pin stays at 555421802; live timing gear is excluded by withLegacyStock.
-    expect(hash32(parts.join("|"))).toBe(555421802);
+    // NUM-1 (REQ-BFG-047): re-pinned (was 555421802): the ARMOR PACK's hull x10 (ITEMS.plating.supply.hull 25 -> 250), so
+    // every build's hullBonus is x10; the same 60 outputs with build.hullBonus / 10 hash to 555421802 exactly (cost, tries
+    // and floorMet are gold and counts, unchanged), so this is still BELTSIDE's pre-v2 output, build for build, in NUM-1 units.
+    expect(hash32(parts.join("|"))).toBe(805093062);
   }, 60_000);
 
   it("stars off: fullPurseBuild also reproduces v1 exactly (no merge lever, no extra RNG draws)", () => {

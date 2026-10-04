@@ -127,7 +127,9 @@ describe("stand-in pool", () => {
           expect(e.hero).toBe(hero);
           expect(e.build.hero).toBe(hero);
           expect(e.day).toBe(day);
-          expect(e.cost).toBe(buildCost(poolRaw(hero, day, i)).total);
+          // NUM-1 (cap's oracle bcc36c430b4f3a01): the raw stored deck is pre-NUM-1; priced in this build's units (hull x10)
+          const raw = poolRaw(hero, day, i);
+          expect(e.cost).toBe(buildCost({ ...raw, hullBonus: raw.hullBonus * 10 }).total);
           expect(buildCost(e.build).total, `${hero} d${day} #${i}`).toBe(e.cost - poolLoss(hero, day, i));
           if (POOL_NATIVE) expect(poolLoss(hero, day, i)).toBe(0);
           expect(e.cost, `${hero} d${day} #${i}: the deck's value`).toBeLessThanOrEqual(maxGoldByDay(day));

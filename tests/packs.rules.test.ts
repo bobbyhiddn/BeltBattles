@@ -9,7 +9,7 @@
 //    ARMOR-greedy and BELT-greedy policies: 201 for each day's dusk deck); one ARMOR PACK more than the day's gold allows
 //    is refused with the budget message; a hull or a belt that no road mix plus whole packs can make stays refused.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { HEROES, RULES_VERSION, type HeroId } from "../src/sim/content";
+import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { VERSION } from "../src/version";
 import type { Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -47,7 +47,7 @@ function withPacks<T>(h: HeroId, p: PackPolicy, fn: () => T): T {
 /** The hero's day-1 deck with `armors` ARMOR PACKs (and `belts` BELT PACKs) added. */
 function packed(hero: HeroId, armors: number, belts = 0): Build {
   const b = heroStartBuild(hero, 1);
-  b.hullBonus += 25 * armors;
+  b.hullBonus += ITEMS.plating.supply!.hull! * armors; // NUM-1: an ARMOR PACK is +250 hull (x10, was 25)
   b.beltCap += 4 * belts;
   return b;
 }
