@@ -17,6 +17,11 @@ import {
 } from "../src/screens/build/keywords";
 import { infoItems, infoLevels, infoPages, questionBox } from "../src/screens/build/keywords"; // U2e step 5: the ⓘ view
 import { lineWidth } from "../src/ui/richText"; // U2e step 5
+import { infoFree, infoView, runeWords, INFO_FREE_MIN, type KwWord } from "../src/screens/build/keywords"; // U2f: the taller ⓘ view
+import { phoneScreen } from "../src/screens/build/layout"; // U2f
+import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar"; // U2f: the text sheet's view
+import { RUNE_LIST } from "../src/sim/runes"; // U2f
+import { TAP_CSS } from "../src/ui/tap"; // U2f
 import { glossaryEntry } from "../src/ui/glossary";
 import { faceAt } from "../src/ui/faces";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
@@ -316,3 +321,157 @@ describe("U2c tap to explain: the tap, the close rules, `?`, the desk hover and 
     expect(keywordState(ot.ctx)!.page).toBeNull();
   });
 });
+
+// U2f (REQ-BFG-070, REQ-BFG-046): the taller ⓘ view (keywords.ts infoFree, infoView, infoPagesIn). While its entries fit
+// the body on one page it is U2e's; else it grows: on the phone into the room above the panel (over the shop, read first),
+// then the body; on the desk down the free column below the panel. It never covers the panel's header (its title row, star
+// badge, ⓘ button and the phone's buttons), and nothing changes while it is closed. Measured on the text sheet's panels
+// (U2d/U2e's probe: each buyable piece in cargo at each star, a core and MIMIC FORGE for FURNACE and WEAVER, a supply on
+// offer, each hero's signature factory placed) on the op view (402x690 @3, touch, planned with the rune row as the game
+// plans it after the dawn pick) and the 1920x1080 desk.
+
+/** The text sheet's view (U2e's probe): build.ts pickScale and layout() with one rune held, the phone's zoom and tap. */
+function sheetView(w: number, h: number, dpr: number) {
+  const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr), portrait = ph > pw * 1.05, isPh = phoneScreen(pw, ph, dpr);
+  const held = { run: { build: { runes: [{ id: "iron_skin", day: 1 }] } }, refit: false, offers: () => [0, 1, 2, 3, 4] } as unknown as Parameters<typeof runeRowFits>[0];
+  let scale = buildScale(pw, ph, portrait, dpr);
+  while (scale > 1 && !runeRowFits(held, pw, ph, portrait, scale, dpr)) scale--;
+  const v = { W: Math.floor(pw / scale), H: Math.floor(ph / scale), scale, portrait, dpr } as View;
+  const tap = isPh ? Math.ceil(TAP_CSS / (scale / dpr)) : 0, row = runeRowH(v, 1);
+  return { v, L: shiftLayout(buildLayout(v.W, v.H - row, portrait, 5, isPh && portrait, tap), row, v.H), touch: isPh };
+}
+
+/** The text sheet's panels (U2e's probe, its runs: newRun(hero, 12345, "u2dprobe")). */
+function sheetPanels(): { id: string; run: Run; sel: Sel }[] {
+  const out: { id: string; run: Run; sel: Sel }[] = [];
+  for (const d of buyableModules()) {
+    for (const hero of d.kind === "core" || d.id === "mimic" ? ["furnace", "weaver"] : ["furnace"]) {
+      for (const s of d.kind === "supply" ? [1] : fusible(d.id) ? [1, 2, 3] : [1]) {
+        const run = newRun(hero as Run["hero"], 12345, "u2dprobe");
+        if (d.kind === "supply") {
+          run.shop.wagons = [{ merchant: d.merchant ?? "ironmonger", offers: [{ def: d.id, price: d.price, sold: false }] }] as Run["shop"]["wagons"];
+          out.push({ id: `offer ${d.id}`, run, sel: { kind: "offer", wagon: 0, slot: 0 } });
+        } else {
+          run.inventory = [{ uid: 9401, def: d.id, ...(s > 1 ? { stars: s } : {}) }];
+          out.push({ id: `cargo ${d.id} ★${s} (${hero})`, run, sel: { kind: "cargo", uid: 9401 } });
+        }
+      }
+    }
+  }
+  for (const [hero, f] of [["furnace", "kiln"], ["weaver", "loom"], ["foundry", "crucible"], ["bastion", "wardworks"]] as const) {
+    const run = newRun(hero, 12345, "u2dprobe"), it = run.build.items.find((p) => p.def === f)!;
+    out.push({ id: `placed ${f}`, run, sel: { kind: "item", uid: it.uid } });
+  }
+  return out;
+}
+
+/** A panel's ⓘ view on `vw`: its entries (with `extra`, a held rune's words), U2e's pages (the body alone) and U2f's view. */
+function infoOf(vw: ReturnType<typeof sheetView>, c: { run: Run; sel: Sel }, extra: readonly KwWord[] = []) {
+  const ctx = { game: { ui: new UI(), t: 0, view: vw.v }, run: c.run, touch: vw.touch, L: vw.L } as unknown as Ctx;
+  const memo = new Map<string, ReturnType<typeof detailsPlan>>();
+  const plan = (r: Rect) => { const k = `${r.x},${r.y},${r.w},${r.h}`; if (!memo.has(k)) memo.set(k, detailsPlan(ctx, c.sel, null, r)); return memo.get(k)!; };
+  const area = panelArea(vw.L, c.sel, { touch: vw.touch, hover: false, busy: false }, (r) => { const d = plan(r); return d ? fullText(d.plan) : null; });
+  const d = plan(area)!, p = d.plan;
+  const own = panelWords(d.t.body, panelPiece(c.run, d.show));
+  const words = [...own, ...extra.filter((w) => !own.some((o) => o.word === w.word))];
+  const levels = infoLevels(c.run, c.sel);
+  if (!words.length && !levels.length) return null;
+  const items = infoItems(levels, words, p.r.w - 10);
+  const free = infoFree(vw.L, p.r, p.column);
+  return { plan: p, items, free, u2e: infoPages(items, p.maxY + 2 - (p.y - 1)).length, view: infoView(items, p.r, p.y - 1, p.maxY + 2, free) };
+}
+
+const histogram = (ns: number[]): number[] => Array.from({ length: Math.max(...ns) }, (_, i) => ns.filter((n) => n === i + 1).length);
+
+describe("U2f: the taller ⓘ view", () => {
+  const sheet = sheetPanels();
+  const op = sheetView(402, 690, 3), desk = sheetView(1920, 1080, 1);
+  /** Each rune's keywords (runeWords for a run holding it alone), for the "a rune held" measure. */
+  const runeSets = RUNE_LIST.map((r) => runeWords({ build: { runes: [{ id: r.id, day: 1 }] } } as unknown as Run)).filter((ws) => ws.length);
+
+  it("U2e's page distributions, re-measured (the body alone): op 118 / 160 / 27, desk 70 / 96 / 88 / 26 / 15 / 10", () => {
+    const o = sheet.map((c) => infoOf(op, c)).filter((x) => !!x), k = sheet.map((c) => infoOf(desk, c)).filter((x) => !!x);
+    expect(sheet.length).toBe(310);
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([118, 160, 27]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([70, 96, 88, 26, 15, 10]);
+  });
+
+  it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
+    const o = sheet.map((c) => infoOf(op, c)).filter((x) => !!x), k = sheet.map((c) => infoOf(desk, c)).filter((x) => !!x);
+    const ho = histogram(o.map((x) => x!.view.pages.length)), hk = histogram(k.map((x) => x!.view.pages.length));
+    const held = histogram(sheet.map((c) => Math.max(0, ...runeSets.map((ws) => infoOf(op, c, ws)?.view.pages.length ?? 0))).filter((n) => n > 0));
+    console.log(`U2f ⓘ pages: op ${ho.join(" / ")}; op, the worst rune held ${held.join(" / ")}; desk ${hk.join(" / ")}`);
+    expect(ho[0]).toBeGreaterThan(o.length / 2);
+    expect(ho.length).toBeLessThanOrEqual(2);
+    expect(held.length).toBeLessThanOrEqual(3);
+    expect(hk.length).toBeLessThanOrEqual(3);
+    expect(ho).toEqual(U2F_OP);
+    expect(held).toEqual(U2F_OP_RUNE);
+    expect(hk).toEqual(U2F_DESK);
+  });
+
+  it("on every phone view and the desk: the view never covers the panel's header (title row, star badge, ⓘ) and stays on screen; closed, nothing changes", () => {
+    const all = panels();
+    for (const [w, h, dpr] of [...VIEWS, [1920, 1080, 1] as [number, number, number]]) {
+      const { v, L } = w === 1920 ? (() => { const q = computeView(w, h, dpr, buildScale); return { v: q, L: buildLayout(q.W, q.H, q.portrait, 5) }; })() : screen(w, h, dpr);
+      let grown = 0;
+      for (const c of all) {
+        const o = opened(v, L, c, w !== 1920);
+        const p = o.plan, r = p.r;
+        const piece = panelPiece(c.run, o.d.show), words = panelWords(o.d.t.body, piece), levels = infoLevels(c.run, o.d.show);
+        if (!words.length && !levels.length) continue;
+        const items = infoItems(levels, words, r.w - 10);
+        const free = infoFree(L, r, p.column);
+        const view = infoView(items, r, p.y - 1, p.maxY + 2, free);
+        const tag = `${w}x${h}: ${c.id}`;
+        const header = { x: r.x, y: r.y, w: r.w, h: p.y - 1 - r.y }, q = questionRect(r, p.y, o.tap, o.buttons);
+        if (view.areas.length > 1 || view.areas[0].h > p.maxY + 2 - (p.y - 1)) grown++;
+        expect(view.pages.flat(2).map((it) => it.level ?? it.word), `${tag}: every entry, in order`).toEqual([...levels, ...words]);
+        for (const a of view.areas) {
+          expect(overlaps(a, header), `${tag}: the header`).toBe(false);
+          expect(overlaps(a, questionBox(r)), `${tag}: ⓘ`).toBe(false);
+          if (q) expect(overlaps(a, q), `${tag}: ⓘ's hit rect`).toBe(false);
+          expect(a.y, `${tag}: under the top bar`).toBeGreaterThan(L.bar.y + L.bar.h);
+          expect(a.y + a.h, `${tag}: on the screen`).toBeLessThanOrEqual(L.H);
+          // the room above the panel never reaches the phone's buttons (the body is U2e's view, which a grown target may meet)
+          if (!p.column && a.y + a.h <= r.y) for (const b of o.buttons) expect(overlaps(a, b), `${tag}: a button`).toBe(false);
+        }
+        if (free) expect(free.h, tag).toBeGreaterThanOrEqual(INFO_FREE_MIN);
+        if (free && !p.column) expect(free.y + free.h, `${tag}: above the panel`).toBeLessThanOrEqual(r.y - 1);
+      }
+      if (w === 402 && h === 690) expect(grown, "the op view grows some views").toBeGreaterThan(0);
+    }
+  });
+
+  it("drawn: a tap on the view's room above the panel turns the page (its region, over the shop); ⓘ keeps its rect, open or closed", () => {
+    const { v, L } = screen(402, 690, 3);
+    const run = furnace();
+    run.inventory = [{ uid: 900, def: "hotswap", stars: 2 }];
+    const c = { run, sel: { kind: "cargo", uid: 900 } as Sel };
+    const o = opened(v, L, c);
+    const closed = draw(o.ctx, c, o.plan.r).regions.filter((r) => r.id !== "kw:view").map((r) => ({ id: r.id, r: r.r }));
+    const info = draw(o.ctx, c, o.plan.r).regions.find((r) => r.id === "kw:?")!;
+    info.onTap!();
+    const ui = draw(o.ctx, c, o.plan.r);
+    const views = ui.regions.filter((r) => r.id === "kw:view");
+    expect(views.length, "the room above the panel and the body").toBe(2);
+    const up = views.find((r) => r.r.y + r.r.h <= o.plan.r.y)!;
+    expect(up).toBeDefined();
+    expect(ui.hit(up.r.x + 5, up.r.y + 3)?.id).toBe("kw:view");
+    expect(ui.regions.find((r) => r.id === "kw:?")!.r).toEqual(info.r);
+    // closed again (a press elsewhere), every region is where it was
+    keywordsPressed(o.ctx, null);
+    expect(draw(o.ctx, c, o.plan.r).regions.filter((r) => r.id !== "kw:view").map((r) => ({ id: r.id, r: r.r }))).toEqual(closed);
+    // a tap on the room above the panel turns the page (to the next, or past the last it closes)
+    info.onTap!();
+    expect(keywordState(o.ctx)!.page).toBe(0);
+    draw(o.ctx, c, o.plan.r).regions.filter((r) => r.id === "kw:view")[0].onTap!();
+    expect(keywordState(o.ctx)!.page).not.toBe(0);
+  });
+});
+
+/** U2f: the pinned page distributions (panels on 1 / 2 / ... pages), measured by the test above (U2e's, the body alone:
+ *  op 118 / 160 / 27, desk 70 / 96 / 88 / 26 / 15 / 10). With the worst one rune held, 310 panels have an ⓘ (5 gain one). */
+const U2F_OP = [305];
+const U2F_OP_RUNE = [272, 38];
+const U2F_DESK = [291, 14];

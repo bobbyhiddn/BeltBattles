@@ -43,6 +43,7 @@ import { KEYWORD_WORD, runeKeywords } from "../../ui/runeText";
 import type { Block, PLine, PanelPlan, PanelText } from "./inspector";
 import { levelLines, levelSpans, type LevelLine } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS
 import { fusible } from "../../sim/stars"; // U2e step 5
+import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
 
 /** The piece a panel shows (its number fills in a keyword's reminder; its tap note): an offer, a part in cargo, a placed
  *  part, a fitted core or gear piece, an installed turret's bought core. */
@@ -405,6 +406,93 @@ export function infoPages(items: readonly InfoItem[], h: number): InfoItem[][] {
   return pages;
 }
 
+/** U2f (REQ-BFG-070, REQ-BFG-046): the least free room (px) the ⓘ view grows into: a section's header row and one line. */
+export const INFO_FREE_MIN = 20;
+
+/**
+ * U2f: the room past a panel `r` that its ⓘ view may grow into, in layout `L` (null: none). On the phone (the portrait
+ * band) the room above the panel, over the shop: from the shop's top (its merchant tags too; so under the top bar and the
+ * rune row, whose targets stay theirs) to the row above the panel's frame. On the desk (the landscape column, `column`) the
+ * column below the panel. Its x and width are the view's (the panel's, 2 px in). Pure (tests).
+ */
+export function infoFree(L: Pick<BuildLayout, "portrait" | "bar" | "cards" | "reroll" | "packs" | "tags" | "info"> | undefined, r: Rect, column: boolean): Rect | null {
+  if (!L) return null;
+  let y0: number, y1: number;
+  if (column) {
+    y0 = r.y + r.h + 1;
+    y1 = L.info.y + L.info.h;
+  } else if (L.portrait) {
+    const shop = Math.min(...[...L.cards, L.reroll, ...L.packs].map((q) => q.y)) - (L.tags ? 7 : 1);
+    y0 = Math.max(L.bar.y + L.bar.h + 1, shop);
+    y1 = r.y - 1;
+  } else return null;
+  return y1 - y0 >= INFO_FREE_MIN ? { x: r.x + 2, y: y0, w: r.w - 4, h: y1 - y0 } : null;
+}
+
+/** U2f: the ⓘ view's pages over its areas (top to bottom): whole entries, each area opening with its section's header row,
+ *  filled in order; the last area keeps a page footer's room. An entry taller than every area goes alone on a page, in the
+ *  tallest area (drawView grows that area's box to it, as U2e's view did). Pure (tests). */
+export function infoPagesIn(items: readonly InfoItem[], hs: readonly number[]): InfoItem[][][] {
+  const pages: InfoItem[][][] = [];
+  const last = hs.length - 1;
+  const room = (a: number): number => hs[a] - (a === last ? 8 : 0);
+  let page: InfoItem[][] = hs.map(() => []), a = 0, used = 0;
+  for (const it of items) {
+    for (;;) {
+      const need = itemNeed(it, page[a][page[a].length - 1]);
+      if (used + need <= room(a)) {
+        page[a].push(it);
+        used += need;
+        break;
+      }
+      if (a < last) {
+        a++;
+        used = 0;
+        continue;
+      }
+      if (page.every((q) => !q.length)) {
+        page[hs.reduce((b, _, i) => (room(i) > room(b) ? i : b), 0)].push(it);
+        used = Infinity;
+        break;
+      }
+      pages.push(page);
+      page = hs.map(() => []);
+      a = 0;
+      used = 0;
+    }
+  }
+  if (page.some((q) => q.length)) pages.push(page);
+  // a page whose entries all fit the last area (the body) alone shows them there, as U2e's view did
+  for (const p of pages) {
+    const its = p.flat();
+    if (p[last].length < its.length && its.reduce((n, it, i) => n + itemNeed(it, its[i - 1]), 0) <= room(last)) p.forEach((q, i) => { p[i] = i === last ? its : []; });
+  }
+  return pages;
+}
+
+/** U2f: the ⓘ view's areas and their pages. */
+export interface InfoView {
+  /** The areas, top to bottom (the body last on the phone; one area on the desk). */
+  areas: Rect[];
+  /** Each page's entries per area. */
+  pages: InfoItem[][][];
+}
+
+/**
+ * U2f (REQ-BFG-070, REQ-BFG-046): the ⓘ view's geometry. While its entries fit the body on one page, U2e's view: the body,
+ * from `top` to `bottom`. Else it grows into `free` (infoFree): on the phone the room above the panel, read first, then
+ * the body (the panel's header between them, never covered: its title row, star badge, ⓘ button and buttons); on the desk
+ * one area from the body down the free column below the panel (over the panel's buttons while open). Nothing changes while
+ * the view is closed. Pure (drawView, the tests).
+ */
+export function infoView(items: readonly InfoItem[], r: Rect, top: number, bottom: number, free: Rect | null): InfoView {
+  const body: Rect = { x: r.x + 2, y: top, w: r.w - 4, h: Math.max(0, bottom - top) };
+  const one = infoPages(items, body.h);
+  if (one.length <= 1 || !free || free.h < INFO_FREE_MIN) return { areas: [body], pages: one.map((p) => [p]) };
+  const areas = free.y < r.y ? [free, body] : [{ ...body, h: Math.max(body.h, free.y + free.h - top) }];
+  return { areas, pages: infoPagesIn(items, areas.map((q) => q.h)) };
+}
+
 /** The ⓘ button's glyph in the icon box's corner (where U2c's `?` was): an "i", a dot over a stem on a foot, in a 3x5
  *  cell (drawn, so the font needs no new glyph). */
 function drawInfoGlyph(g: G, x: number, y: number, colour: string): void {
@@ -426,7 +514,8 @@ function underline(g: G, t: KwTarget): void {
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
 export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan },
-  lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null): void {
+  lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
+  free: Rect | null = null): void {
   const { plan } = d, r = plan.r;
   const piece = panelPiece(run, d.show);
   const own = panelWords(d.t.body, piece);
@@ -447,7 +536,8 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   if (s.page !== null) frame(g, qb.x - 1, qb.y - 1, qb.w + 2, qb.h + 2, C.yellow);
   if (qr) ui.add({ id: `${KW_REGION}?`, r: qr, onTap: () => { s.page = s.page === null ? 0 : null; s.word = null; } });
   if (s.page !== null) {
-    drawView(g, ui, s, infoItems(levels, words, r.w - 10), r, plan.y - 1, bottom);
+    // U2f: `free`, the room past the panel the view may grow into (infoFree: above it on the phone, below on the desk)
+    drawView(g, ui, s, infoItems(levels, words, r.w - 10), r, plan.y - 1, bottom, free);
     return setCursor(canvas, false);
   }
   const targets = keywordTargets(lines, plan, piece, avoid);
@@ -479,29 +569,59 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
 /** The ⓘ view over the body (from `top` to `bottom`; U2c's KEYWORDS view, U2e step 5: its LEVELS first): its page of
  *  entries, each in 5x7 under its section's header; a page footer where there are more. A tap on it turns the page; past
  *  the last, it closes. */
-function drawView(g: G, ui: UI, s: KwState, items: readonly InfoItem[], r: Rect, top: number, bottom: number): void {
-  const pages = infoPages(items, Math.max(0, bottom - top));
+function drawView(g: G, ui: UI, s: KwState, items: readonly InfoItem[], r: Rect, top: number, bottom: number, free: Rect | null = null): void {
+  // U2f: the view's areas (infoView: U2e's body alone while one page holds it; else the room above the panel then the body
+  // on the phone, or the body down the free column on the desk), each a box of its page's entries; one footer, at the end
+  const { areas, pages } = infoView(items, r, top, bottom, free);
   const page = pages[Math.min(s.page ?? 0, pages.length - 1)];
-  const need = page.reduce((n, it, i) => n + itemNeed(it, page[i - 1]), 0) + (pages.length > 1 ? 8 : 0);
-  const y0 = Math.min(top, bottom - need);
-  const box = { x: r.x + 2, y: y0, w: r.w - 4, h: bottom - y0 };
-  rect(g, box.x, box.y, box.w, box.h, C.navy);
-  rect(g, box.x, box.y, box.w, 1, C.slate1);
-  let y = y0 + 2;
-  page.forEach((it, i) => {
-    if (page[i - 1]?.section !== it.section) {
-      // the section's header row (U2c's "KEYWORDS" at the view's top; a second header sits under the LEVELS)
-      drawText(g, it.section, r.x + 5, y + 1, C.brass3, { font: "3" });
-      y += 9;
+  const last = areas.length - 1;
+  const turn = (): void => { s.page = (s.page ?? 0) + 1 >= pages.length ? null : (s.page ?? 0) + 1; };
+  let foot = bottom;
+  areas.forEach((a, ai) => {
+    const its = page[ai] ?? [];
+    const need = its.reduce((n, it, i) => n + itemNeed(it, its[i - 1]), 0) + (ai === last && pages.length > 1 ? 8 : 0);
+    let box: Rect;
+    if (ai === last) {
+      // the body's box (U2e's: the whole body, higher where one entry needs more); on the desk as far down the column as
+      // its entries need
+      const end = Math.max(bottom, Math.min(a.y + a.h, a.y + need + 3));
+      const y0 = Math.min(a.y, end - need);
+      box = { x: a.x, y: y0, w: a.w, h: end - y0 };
+      foot = end;
+    } else {
+      // the phone's room above the panel: a box as tall as its entries, on the panel's top edge
+      if (!its.length) return;
+      const h = Math.min(a.h, need + 3);
+      box = { x: a.x, y: a.y + a.h - h, w: a.w, h };
     }
-    for (const ln of it.lines) {
-      drawRich(g, ln, r.x + 5, y, "5");
-      y += 9;
+    // past the panel's frame, an ink edge: around the room above the panel; down the desk's column, from the panel's edge
+    // (never over the header)
+    const be = box.y + box.h, rb = r.y + r.h;
+    if (be <= r.y) frame(g, box.x - 1, box.y - 1, box.w + 2, box.h + 2, C.ink);
+    else if (be > rb) {
+      rect(g, box.x - 1, rb, 1, be + 1 - rb, C.ink);
+      rect(g, box.x + box.w, rb, 1, be + 1 - rb, C.ink);
+      rect(g, box.x - 1, be, box.w + 2, 1, C.ink);
     }
-    y += it.gap;
+    rect(g, box.x, box.y, box.w, box.h, C.navy);
+    rect(g, box.x, box.y, box.w, 1, C.slate1);
+    let y = box.y + 2;
+    its.forEach((it, i) => {
+      if (its[i - 1]?.section !== it.section) {
+        // the section's header row (U2c's "KEYWORDS" at the view's top; a second header sits under the LEVELS; U2f: each
+        // area opens with its section's header)
+        drawText(g, it.section, r.x + 5, y + 1, C.brass3, { font: "3" });
+        y += 9;
+      }
+      for (const ln of it.lines) {
+        drawRich(g, ln, r.x + 5, y, "5");
+        y += 9;
+      }
+      y += it.gap;
+    });
+    ui.add({ id: `${KW_REGION}view`, r: box, onTap: turn });
   });
-  if (pages.length > 1) drawText(g, `TAP FOR MORE ${(s.page ?? 0) + 1}/${pages.length}`, r.x + r.w - 5, bottom - 7, C.slate4, { font: "3", align: "right" });
-  ui.add({ id: `${KW_REGION}view`, r: box, onTap: () => { s.page = (s.page ?? 0) + 1 >= pages.length ? null : (s.page ?? 0) + 1; } });
+  if (pages.length > 1) drawText(g, `TAP FOR MORE ${(s.page ?? 0) + 1}/${pages.length}`, r.x + r.w - 5, foot - 7, C.slate4, { font: "3", align: "right" });
 }
 
 /** The desk's hover tooltip (shop.ts drawTooltip's style: night, an ink frame and shadow) under the word, as the shop's
