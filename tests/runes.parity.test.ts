@@ -98,7 +98,9 @@ if (process.env.BB_RUNES_PARITY_WRITE) {
     expect(Object.keys(decks).sort()).toEqual(Object.keys(old.decks).sort());
     const battles = old.battles.map((p) => asRow(fight(decks[p.a], decks[p.b], p.seed), p));
     const F: Fixture = {
-      about: "BAL-2 (REQ-BFG-058; the one regeneration of 0.9.1): the parity record re-written on bal2 under bb-0.9.1 from the regenerated seed pool and the dusk stand-ins (with their runes); RUNES-1's battle plan (kinds, pairs, seeds), as FLIP-X2 re-based it on release X under bb-0.9.0. tests/runes.parity.test.ts replays it exactly.",
+      // CATCHUP-091: re-written at 36e7214 (cap's ruling 3c58471c74bdc4ed Q5 (1): LONGTOOTH's counterweight back on day 4,
+      // re-placed in day order, moves his day-7 dusk stand-in's part ids); the seed pool and the battle plan as BAL-2 left them
+      about: "CATCHUP-091 (REQ-BFG-024): the parity record re-written at 36e7214 under bb-0.9.1 after the captains' plan moves (LONGTOOTH's day-7 dusk stand-in); BAL-2's seed pool (the one regeneration of 0.9.1) and RUNES-1's battle plan (kinds, pairs, seeds), as FLIP-X2 re-based it on release X. tests/runes.parity.test.ts replays it exactly.",
       base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
       decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
     };
