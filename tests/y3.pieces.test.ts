@@ -5,7 +5,7 @@
 // line at every star, inside the 225 px band of font.ts textWidth, no caveat and no star clause, its perk's name never on
 // the face: ruling R-1); and its ⓘ LEVELS ladder, every line inside the band.
 import { describe, expect, it } from "vitest";
-import { Battle, type Payload } from "../src/sim/battle";
+import { Battle, type Payload, type SideState } from "../src/sim/battle";
 import { withStarRules } from "../src/sim/content";
 import { walkRoute, type Build } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
@@ -144,5 +144,110 @@ describe("Y3 row 23: QUENCH TANK turns each BURN into +30/+50/+70; no floor, no 
     expect(levels("quench", 1)).toEqual(["{DMG} [+30]/+50/+70", next(2, "+50 {DMG}")]);
     expect([hasFace("quench"), on(() => hasFace("quench"))]).toEqual([false, true]);
     expect(withStarRules(() => faceAt("quench", 1), false)).toBeNull();
+  });
+});
+
+/** REAL BATTLE: `b` against the barge for `secs` seconds (rigs come online as they do in play). */
+function runFor(b: Build, secs: number, star: boolean): Battle {
+  return withStarRules(() => {
+    const bt = new Battle(b, barge(), 8);
+    while (bt.t < secs && !bt.over) { bt.step(); bt.events.length = 0; }
+    return bt;
+  }, star);
+}
+
+// --------------------------------------------------------------------------------------------- row 24: LONG HAUL
+describe("Y3 row 24: LONG HAUL counts every earlier hit (no MAX 6 at ★2/★3)", () => {
+  it("hook: on, 8 earlier hits pay 80/160/280 (off ★2/★3 count 6: 120/210)", () => {
+    const at = (s: number, star: boolean) => hitOnce(rigBench([["longhaul", 4, 3, s]]), star, (p) => { p.prior = 8; }).flat;
+    expect(STARS.map((s) => [at(s, true), at(s, false)])).toEqual([[80, 80], [160, 120], [280, 210]]);
+  });
+
+  it("face: today's line HIT: +10/+20/+35 DMG FOR EACH RIG BEFORE IT, no MAX 6 RIGS clause; ladder +10/+20/+35 DMG EACH", () => {
+    expect(lines("longhaul")).toEqual([10, 20, 35].map((d) => [`HIT: +${d} {DMG} FOR EACH RIG BEFORE IT.`]));
+    oneLine("longhaul");
+    expect(levels("longhaul", 1)).toEqual(["[+10]/+20/+35 {DMG} EACH", next(2, "+20 {DMG} EACH")]);
+    expect(withStarRules(() => faceAt("longhaul", 2)!.clause?.text, false)).toBe("★2: MAX 6 RIGS.");
+  });
+});
+
+// ------------------------------------------------------------------------------------------ row 25: BARBED SPOOL
+describe("Y3 row 25: BARBED SPOOL: +1/+2/+3 FRAY; the hull keeps FRAY's own MAX 15 (no RAZOR WIRE cap)", () => {
+  it("hook: on, a ★3 hit adds 3 FRAY and no cap raise (off: frayCap 6)", () => {
+    const at = (star: boolean) => { const p = hitOnce(rigBench([["barbed", 4, 3, 3]]), star); return [p.fray, p.frayCap]; };
+    expect([at(true), at(false)]).toEqual([[3, 0], [3, 6]]);
+  });
+
+  it("battle: on, 20 s of a ★3 BARBED SPOOL's slugs leave the enemy hull at MAX 15 FRAY (off: RAZOR WIRE's 21)", () => {
+    const b = rigBench([["barbed", 4, 3, 3]]);
+    const [a, o] = [runFor(b, 20, true).sides[1].hull, runFor(b, 20, false).sides[1].hull];
+    expect([a.frayMax, o.frayMax]).toEqual([15, 21]);
+    expect(a.fray).toBeLessThanOrEqual(15);
+    expect(o.fray).toBeGreaterThan(15); // the base's slugs pile past 15 (so the scene reaches the cap)
+  });
+
+  it("face: today's line HIT: +1/+2/+3 FRAY, no RAZOR WIRE clause; ladder FRAY +1/+2/+3; RAZOR WIRE in the ⓘ view only", () => {
+    expect(lines("barbed")).toEqual([1, 2, 3].map((n) => [`HIT: +${n} {*FRAY}.`]));
+    oneLine("barbed");
+    expect(levels("barbed", 1)).toEqual(["{FRAY} [+1]/+2/+3", "★2 RAZOR WIRE", `${next(2, "+2 {*FRAY}")} ★2 RAZOR WIRE`]);
+    expect(withStarRules(() => faceAt("barbed", 2)!.clause?.text, false)).toBe("★2 RAZOR WIRE: MAX 18 {FRAY}.");
+  });
+});
+
+// ----------------------------------------------------------------------------------------- row 26: PLATE BREAKER
+describe("Y3 row 26: PLATE BREAKER spends 10 PLATE for +40/+88/+140; no ELSE floor", () => {
+  it("hook: on, with no PLATE it adds 0 (off the floor 10/22/35); with 20 PLATE it spends 10 for +40/+88/+140, as off", () => {
+    for (const s of STARS) {
+      const b = rigBench([["platebreaker", 4, 3, s]]);
+      expect([hitOnce(b, true).flat, hitOnce(b, false).flat], `bare ★${s}`).toEqual([0, [10, 22, 35][s - 1]]);
+      for (const star of [true, false]) {
+        let side: SideState | undefined;
+        const p = hitOnce(b, star, (_p, _h, sd) => { sd.plate.plate = 20; side = sd; });
+        expect([p.flat, side!.plate.plate], `plated ★${s} ${star ? "on" : "off"}`).toEqual([[40, 88, 140][s - 1], 10]);
+      }
+    }
+  });
+
+  it("walk: on, an unplated deck's PLATE BREAKER counts 0 (off its floor 10)", () => {
+    const b = rigBench([["platebreaker", 4, 3, 1]]);
+    expect([walkHit(b, "platebreaker", true).flat, walkHit(b, "platebreaker", false).flat]).toEqual([0, 10]);
+  });
+
+  it("face: HIT: SPENDS 10 PLATE FOR +40/+88/+140 DMG, one line (no ELSE line); ladder DMG +40/+88/+140", () => {
+    expect(lines("platebreaker")).toEqual([40, 88, 140].map((d) => [`HIT: SPENDS 10 {*PLATE} FOR +${d} {DMG}.`]));
+    oneLine("platebreaker");
+    expect(levels("platebreaker", 1)).toEqual(["{DMG} [+40]/+88/+140", next(2, "+88 {DMG}")]);
+    expect(lines("platebreaker", false)[0]).toEqual(["HIT: SPENDS 10 {*PLATE} FOR +40 {DMG}.", "ELSE: +10 {DMG}."]);
+  });
+});
+
+// ------------------------------------------------------------------------------------------- row 27: BRAKE SHOE
+describe("Y3 row 27: BRAKE SHOE ★2/★3 slow the belt to 40% / 30% and lose their flats", () => {
+  it("hook: on, ★2/★3 add no damage (off HOT SHOE's 20, RED-HOT SHOE's 50)", () => {
+    const at = (s: number, star: boolean) => hitOnce(rigBench([["brake", 4, 3, s]]), star).flat;
+    expect(STARS.map((s) => [at(s, true), at(s, false)])).toEqual([[0, 0], [0, 20], [0, 50]]);
+  });
+
+  it("battle: on, the belt runs at 50% / 40% / 30% from its tile on (off 50% at every star)", () => {
+    for (const s of STARS) {
+      const b = rigBench([["brake", 4, 3, s]]);
+      const speed = (star: boolean) => { const r = runFor(b, 3, star).sides[0].routes[0]; return [r.speedAt[1], r.speedAt[2], r.speedAt[5]]; };
+      expect([speed(true), speed(false)], `★${s}`).toEqual([[1, [0.5, 0.4, 0.3][s - 1], [0.5, 0.4, 0.3][s - 1]], [1, 0.5, 0.5]]);
+    }
+  });
+
+  it("walk: on, a ★3 BRAKE SHOE's belt takes longer and its hit adds nothing (off +50)", () => {
+    const b = rigBench([["brake", 4, 3, 3]]);
+    const t = (star: boolean) => withStarRules(() => walkRoute(b, 0).estimate.time, star);
+    expect(t(true)).toBeGreaterThan(t(false));
+    expect([walkHit(b, "brake", true).flat, walkHit(b, "brake", false).flat]).toEqual([0, 50]);
+  });
+
+  it("face: today's line ITS BELT RUNS AT 50%/40%/30% SPEED, no HOT SHOE clause; ladder 50%/40%/30% SPEED; perks in the ⓘ view only", () => {
+    expect(lines("brake")).toEqual(["50%", "40%", "30%"].map((p) => [`ITS BELT RUNS AT ${p} SPEED.`]));
+    oneLine("brake");
+    expect(levels("brake", 1)).toEqual(["[50%]/40%/30% SPEED", "★2 HOT SHOE", "★3 RED-HOT SHOE", `${next(2, "40% SPEED")} ★2 HOT SHOE`]);
+    expect(withStarRules(() => faceAt("brake", 2)!.clause?.text, false)).toBe("★2 HOT SHOE: +20 {DMG} ON EACH HIT.");
+    expect(lines("brake", false)[2]).toEqual(["ITS BELT RUNS AT 50% SPEED."]);
   });
 });

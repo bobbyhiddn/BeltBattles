@@ -1252,6 +1252,19 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   // row 23, QUENCH TANK: the floor goes (flat 0) and so does the 4/5/6-stack cap (no `stacks`): each BURN on the slug turns
   // into +30/+50/+70
   quench: { gate: { quench: { flat: 0, perBurn: 30 } }, levels: { 2: { gate: { quench: { flat: 0, perBurn: 50 } } }, 3: { gate: { quench: { flat: 0, perBurn: 70 } } } } },
+  // row 24, LONG HAUL: priorCap goes (★2/★3 counted at most 6 earlier hits); +10/+20/+35 for each rig hit before it
+  longhaul: { levels: { 2: { gate: { perPriorGate: 20 } }, 3: { gate: { perPriorGate: 35 } } } },
+  // row 25, BARBED SPOOL: frayCap goes (★2/★3 RAZOR WIRE raised the hull's MAX to 18/21); the hull keeps FRAY's own MAX 15.
+  // The perk's name stays (ⓘ only, R-1), though its rule is gone
+  barbed: { levels: { 2: { gate: { fray: 2 }, perk: "RAZOR WIRE" }, 3: { gate: { fray: 3 }, perk: "RAZOR WIRE" } } },
+  // row 26, PLATE BREAKER: the ELSE floor goes (floor 0); it spends 10 PLATE for +40/+88/+140
+  platebreaker: {
+    gate: { breaker: { flat: 40, floor: 0 } },
+    levels: { 2: { gate: { breaker: { flat: 88, floor: 0 } } }, 3: { gate: { breaker: { flat: 140, floor: 0 } } } },
+  },
+  // row 27, BRAKE SHOE: ★2/★3 lose their flats (HOT SHOE +20, RED-HOT SHOE +50) and slow the belt to 40% / 30% (was 50% at
+  // every star); METRONOME's locked-belt flat (lockedFlat) stays, as OVERDRIVE's did in Y2. The perks' names stay (ⓘ only)
+  brake: { levels: { 2: { gate: { speed: 0.4, lockedFlat: 40 }, perk: "HOT SHOE" }, 3: { gate: { speed: 0.3, lockedFlat: 70 }, perk: "RED-HOT SHOE" } } },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */

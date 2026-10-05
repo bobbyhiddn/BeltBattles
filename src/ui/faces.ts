@@ -837,11 +837,20 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const d = fmtDmg(gt(e).quench!.perBurn);
     return rules([hit(`TURNS EACH {*BURN} INTO +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
   },
+  platebreaker: (e) => {
+    // DESIGN-Y row 26: Battle.applyHit: with FACE_SIM.breakerPlate plating on your hull it spends that much for + flat;
+    // with less, nothing (the ELSE floor is gone: content.ts STAR_DIFF). Was the same line and "ELSE: +10 {DMG}."
+    const spend = fmtDmg(FACE_SIM.breakerPlate), flat = fmtDmg(gt(e).breaker!.flat);
+    return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`)], [["flat", `+${flat} {DMG}`]], [REMINDER.PLATE()]);
+  },
 };
 
 /** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the
  *  ladder now, or gone from the sim (DESIGN-Y rows 8-19). */
-const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "grapnel", "overdrive", "sabot", "scrapper", "tollbooth", "spotter", "mantlet"]);
+const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "grapnel", "overdrive", "sabot", "scrapper", "tollbooth", "spotter", "mantlet",
+  // Y3 (DESIGN-Y rows 24, 25, 27): LONG HAUL's MAX 6 RIGS, BARBED SPOOL's RAZOR WIRE MAX and BRAKE SHOE's HOT SHOE flats are
+  // gone from the sim (their data hold none with the switch on, so the clauses would say nothing; listed so none returns)
+  "longhaul", "barbed", "brake"]);
 /** Y2: the interim caveats (INTERIM_CAVEATS ids) that leave with the switch on: each rule left the sim (the shared rule,
  *  SCRAPPER's uncapped queue, FLAK SCREEN's screens rolling on their own) or is the face's own words now (TOLLBOOTH's
  *  PARTS). */
