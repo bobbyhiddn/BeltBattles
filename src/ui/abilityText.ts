@@ -1309,7 +1309,7 @@ const TURRET: Entry = {
     const t = e.turret!, one = ITEMS[e.id].turret!.speed;
     return [
       `${an(CLASS_WORD[t.class] ?? t.class.toUpperCase())} TURRET THAT FIRES ${rate(t.speed)} AND HOLDS ${plural(t.window, "LOAD")}.`,
-      ...(t.speed > one ? [`ITS RATE IS ${fmtCount(t.speed - one)} MORE THAN AT 1 STAR.`] : []),
+      ...(t.speed > one ? [`ITS RATE IS ${fmtSpeed(t.speed - one)} MORE THAN AT 1 STAR.`] : []), // a SPEED difference (fmtSpeed)
       t.intake === "inner" ? "IT TAKES A BELT ON ITS INNER COLUMN ONLY." : "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.",
       `IT HAS ${plural(gearSlotsOf(e.id, x.stars), "GEAR SLOT")} AND 1 CORE SOCKET.`,
     ];

@@ -16,7 +16,8 @@ import { faceAt } from "../src/ui/faces"; // U2d F2
 import { fmtDmg } from "../src/ui/statFormat"; // U2d F2
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds"; // U2d F2
 import { AMMO } from "../src/sim/content"; // U2e step 2
-import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (30 / speed)
+import { factorySpeed } from "../src/sim/content"; // NUM-4 (REQ-BFG-047): MIMIC FORGE's SPEED on a hero (was secPer: 30 / speed)
+import { factoryStats, turretStats } from "../src/ui/faces"; // NUM-4: a cadence chip is the RATE stat pair
 
 // U2c (REQ-BFG-046, REQ-BFG-047; R1 MEMO C4, U3): the shop card's stat chip (src/ui/chips.ts): one icon alone and one value
 // from the face's own data (each number printed by a formatter), picked in the brief's order; a piece without a face keeps
@@ -29,7 +30,9 @@ const k = 1; // the FURNACE's class factor (the heroes' cores scale; tests pass 
 const BUYABLE = buyableModules().map((d) => d.id);
 
 describe("U2c the shop chip: the pick and its numbers", () => {
-  it("the brief's examples: HOT SWAP {BURN}2, TESLA ARC {STUN}0.8 (at k), DART GUN 0.55{SEC}, SCATTER CHOKE {DMG}40%", () => {
+  // NUM-4 (REQ-BFG-047): retitled, the checks kept: DART GUN's chip is its RATE pair, {RATE}55 (its SPEED), and TESLA ARC's
+  // STUN at k 0.55 is NUM-3's whole second, {STUN}1 (the title said DART GUN 0.55{SEC} and TESLA ARC {STUN}0.8)
+  it("the brief's examples: HOT SWAP {BURN}2, TESLA ARC {STUN}1 (at k 0.55), DART GUN {RATE}55 (its SPEED), SCATTER CHOKE {DMG}40%", () => {
     const swap = effectAt("hotswap", 1).factory!.cycle!.find((p) => p.tint === "ember")!.burn!;
     // U2e step 2 (REQ-BFG-070): HOT SWAP's slugs carry their BURN, a stat of its second row ({BURN}2), so its chip is that
     // stat (was {BURN}+2, its rule's number)
@@ -37,7 +40,11 @@ describe("U2c the shop chip: the pick and its numbers", () => {
     // MIMIC FORGE stamps the hero's slugs: on FURNACE they carry the CINDER SLUG's HEAT (its second row), the chip
     expect(shopChip("mimic", { k, hero: "furnace" })).toBe(`{HEAT}${fmtDmg(AMMO.cinder.rideScale)}`);
     expect(shopChip("tesla", { k: 0.55 })).toBe(`{STUN}${fmtSec(scaleCore(ITEMS.tesla.core!, 0.55).stall!)}`);
-    expect(shopChip("dartgun")).toBe(`${fmtSpeed(secPer(effectAt("dartgun", 1).turret!.speed))}{SEC}`); // NUM-2 (REQ-BFG-047): 30 / 55 = 0.55 (was fireInterval)
+    // NUM-4 (REQ-BFG-047): a gun's cadence chip is its RATE stat pair (turretStats' first pair), its SPEED through fmtSpeed,
+    // unsigned ({RATE}55); was its interval, 30 / speed, with SEC after it (NUM-2: 0.55{SEC}; fireInterval before)
+    expect(turretStats("dartgun", 1)[0]).toEqual(["RATE", fmtSpeed(effectAt("dartgun", 1).turret!.speed)]);
+    expect(shopChip("dartgun")).toBe(`{RATE}${turretStats("dartgun", 1)[0][1]}`);
+    expect(shopChip("dartgun")).toBe(`{RATE}${fmtSpeed(effectAt("dartgun", 1).turret!.speed)}`);
     expect(shopChip("scatter", { k })).toBe(`{DMG}${fmtPct(scaleCore(ITEMS.scatter.core!, k).share!)}`);
     // 3. the rule's first number with its icon; FASTER is the RATE icon (C1's fold)
     expect(shopChip("pressure", { k })).toMatch(/^\{DMG\}\+/);
@@ -46,7 +53,9 @@ describe("U2c the shop chip: the pick and its numbers", () => {
     // NUM-3 (R1's STUN fold): SCRAPPER has a face, so its chip is its first stat pair, its cadence (it was faceless here);
     // TOLLBOOTH, FLAK SCREEN and MANTLET have faces whose numbers carry no STUN count (a block count, a share, none): no chip
     for (const def of ["drake", "tollbooth", "flak", "mantlet", "hopper", "beltcrate", "plating", "sorting", "spotter", "brake", "overdrive", "grapnel"]) expect(shopChip(def, { k }), def).toBeNull();
-    expect(shopChip("scrapper")).toBe(`${fmtSpeed(secPer(effectAt("scrapper", 1).factory!.speed))}{SEC}`);
+    // NUM-4 (REQ-BFG-047): its cadence is its RATE pair (factoryStats' first pair), its SPEED, unsigned (was 30 / speed{SEC})
+    expect(factoryStats("scrapper", 1)[0]).toEqual(["RATE", fmtSpeed(effectAt("scrapper", 1).factory!.speed)]);
+    expect(shopChip("scrapper")).toBe(`{RATE}${fmtSpeed(effectAt("scrapper", 1).factory!.speed)}`);
     // the STUN-fold rounds carry their STUN, a stat of the second row: {STUN} and the round's seconds
     for (const def of ["sabot", "frostbite", "dragchain"]) expect(shopChip(def), def).toBe(`{STUN}${fmtSec((effectAt(def, 1).factory!.round as { seconds: number }).seconds)}`);
   });
@@ -74,23 +83,47 @@ describe("U2d F2 (cap's answer to U2c question 3): the chip rule, a chip's icon 
     expect(shopChip("overclocker")).toBeNull();
   });
 
-  it("FASTER is {RATE} only for a gun firing or a factory working (RATE_KEYS); a {SEC} chip is only a cadence, never a waiting timer", () => {
+  // NUM-4 (REQ-BFG-047): retitled, its checks kept or replaced by their equivalents. A gun's or a factory's cadence is its RATE
+  // stat pair now (faces.ts speedPair: its SPEED, an unsigned stat; chips.ts signs only a rule's FASTER), so a {RATE} chip is
+  // either a RATE_KEYS FASTER (signed) or that cadence pair (unsigned), and no cadence is a {SEC} chip any more (was "a {SEC}
+  // chip is only a cadence, never a waiting timer": the cadence was its interval, 30 / speed, with SEC after it)
+  it("FASTER is {RATE} only for a gun firing or a factory working (RATE_KEYS); a cadence is its unsigned {RATE} stat pair, never {SEC}; a {SEC} chip is never a waiting timer", () => {
     expect(Object.keys(RATE_KEYS).sort()).toEqual(["rate", "spin", "stoke"]);
-    const rate: string[] = [];
+    const rate: string[] = [], cadence: string[] = [];
     // every context that changes a ★1 face: a core's class factor (faceText's k list), MIMIC FORGE's hero
     for (const def of BUYABLE) for (const [hero, kk] of PLAYABLE_HEROES.flatMap((h) => [1, 0.8, 0.75, 0.55, 0.4].map((x) => [h, x] as const))) {
       const o = { k: kk, hero }, chip = shopChip(def, o), f = faceAt(def, 1, o);
       if (!chip || !f) continue;
-      if (chip.startsWith("{RATE}")) {
-        // the number's own key says it measures how often a gun fires or a factory works
+      if (chip.startsWith("{RATE}+")) {
+        // a rule's FASTER (signed): the number's own key says it measures how often a gun fires or a factory works
+        expect(chip, def).toMatch(/^\{RATE\}\+\d+%$/); // NUM-4: signed, a whole % (chips.ts signs a FASTER only)
         const at = f.nums.find(([, v]) => /FASTER/.test(v) && v.includes(chip.replace(/^\{RATE\}\+/, "")));
         expect(at && at[0] in RATE_KEYS, `${def}: ${chip}`).toBe(true);
         if (!rate.includes(def)) rate.push(def);
+      } else if (chip.startsWith("{RATE}")) {
+        // NUM-4 (REQ-BFG-047): an unsigned {RATE} chip is a gun's or a factory's cadence, never a rig's (a belt's speed) or a
+        // rule's number: the face's first stat pair, equal to its turretStats / factoryStats RATE pair, its SPEED through
+        // fmtSpeed (MIMIC FORGE's on the hero through factorySpeed). Was the {SEC} chip below: that pair as 30 / speed
+        const kind = ITEMS[def].kind;
+        expect(kind === "turret" || kind === "factory", `${def}: ${chip}`).toBe(true);
+        const pair = kind === "turret" ? turretStats(def, 1)[0] : factoryStats(def, 1, hero)[0];
+        const speed = kind === "turret" ? effectAt(def, 1).turret!.speed : factorySpeed(def, effectAt(def, 1).factory!, hero);
+        expect([f.stats[0], pair, chip], `${def} (${hero})`).toEqual([["RATE", fmtSpeed(speed)], ["RATE", fmtSpeed(speed)], `{RATE}${fmtSpeed(speed)}`]);
+        if (!cadence.includes(def)) cadence.push(def);
       }
-      // a chip in seconds is a stat pair's: a gun's or a factory's cadence (the first pair, SEC), never a rule's timer
+      // a chip in seconds is a stat pair's (the first pair, SEC), never a rule's timer. NUM-4: kept; no stat pair is SEC now,
+      // so a {SEC} chip can come from nothing but a rule's {SEC} number, a waiting timer (chips.ts isTimer), and fails here
       if (chip.endsWith("{SEC}")) expect([f.stats[0]?.[0], chip], def).toEqual(["SEC", `${f.stats[0]?.[1]}{SEC}`]);
+      // NUM-4 (REQ-BFG-047): no cadence is a {SEC} chip any more: a gun's or a factory's speed pair is RATE (faces.ts speedPair)
+      if (f.stats.length && (ITEMS[def].kind === "turret" || ITEMS[def].kind === "factory")) {
+        expect(f.stats[0][0], def).toBe("RATE");
+        expect(chip, def).not.toMatch(/\{SEC\}/);
+      }
     }
     expect(rate.sort()).toEqual(["calibrate", "escapement", "gatling", "stoker"]);
+    // NUM-4: every buyable gun's chip is its cadence (its face has no keyword to show first), and some factories' too
+    expect(cadence).toEqual(expect.arrayContaining(BUYABLE.filter((d) => ITEMS[d].kind === "turret")));
+    expect(cadence.filter((d) => ITEMS[d].kind === "factory")).toEqual(expect.arrayContaining(["press", "scrapper", "mimic"]));
     // the speed rigs' FASTER, TIMES and SPEED are their belts': SURGE's chip is its damage, the others keep today's card
     expect(shopChip("surge")).toBe(`{DMG}+${fmtDmg(effectAt("surge", 1).gate!.pulse!.flat)}`);
     for (const def of ["grease", "brake", "overdrive"]) expect(shopChip(def), def).toBeNull();

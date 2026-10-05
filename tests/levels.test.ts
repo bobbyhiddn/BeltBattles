@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
-import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (30 / speed)
 import { effectAt, FUSE_MAX, fusible } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
 import { CURRENT_COLOUR, LADDER_SEP, ladderText, levelLines, levelSpans, levelText, nextBlocks, type LevelLine } from "../src/screens/build/levels";
@@ -37,12 +36,15 @@ describe("U2e step 5: the ⓘ view's LEVELS", () => {
     }
   });
 
-  it("a turret (SCRAP CANNON): its stat row's numbers that change, SEC after its numbers", () => {
+  // NUM-4 (REQ-BFG-047): retitled, its checks kept in the new form (was "..., SEC after its numbers")
+  it("a turret (SCRAP CANNON): its stat row's numbers that change, RATE before its numbers", () => {
     const t = (s: number) => effectAt("scrapcannon", s).turret!;
     const ls = ladders(levelLines("scrapcannon", 2)!);
-    const sec = [1, 2, 3].map((s) => fmtSpeed(secPer(t(s).speed))); // NUM-2 (REQ-BFG-047): 30 / speed (was fireInterval)
-    expect(ls[0]).toEqual({ lead: "", values: sec, tail: "{SEC}", current: 1 });
-    expect(ladderText(ls[0])).toBe(`${sec.join(LADDER_SEP)}{SEC}`);
+    // NUM-4 (REQ-BFG-047): the cadence ladder is its SPEED through fmtSpeed, the RATE icon before it as the stat row draws
+    // it ({RATE}30; faces.ts speedPair) (was fmtSpeed(secPer(speed)), 30 / speed, with {SEC} after it; NUM-2: was fireInterval)
+    const rate = [1, 2, 3].map((s) => fmtSpeed(t(s).speed));
+    expect(ls[0]).toEqual({ lead: "{RATE} ", values: rate, tail: "", current: 1 });
+    expect(ladderText(ls[0])).toBe(`{RATE} ${rate.join(LADDER_SEP)}`);
     // every ladder is a number that changes with the stars
     for (const l of ls) expect(new Set(l.values).size, ladderText(l)).toBeGreaterThan(1);
   });

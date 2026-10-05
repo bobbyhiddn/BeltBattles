@@ -2,11 +2,11 @@
 // one chip: an icon alone (C2: "shop chips and the board use the icon alone") and one value, read off the face's own data
 // (faces.ts faceAt: its keyed rule numbers and its stat pairs, each printed by a formatter), never written again here. The
 // pick, in order:
-//   1. the rule's keyword with its count, when the face has one: TESLA ARC {STUN}0.8 (at the hero's k); U2e: or the keyword
+//   1. the rule's keyword with its count, when the face has one: TESLA ARC {STUN}1 (at the hero's k; NUM-3: whole seconds); U2e: or the keyword
 //      its own payloads carry, a stat of its second row: HOT SWAP {BURN}2 (was {BURN}+2, its rule's number);
-//   2. else the face's first stat pair: DART GUN 0.55{SEC} (SEC is a unit after its number), SCATTER CHOKE {DMG}40%;
+//   2. else the face's first stat pair: DART GUN {RATE}55 (NUM-4: its SPEED; was 0.55{SEC}), SCATTER CHOKE {DMG}40%;
 //      NUM-4 (REQ-BFG-047): a gun's or a factory's cadence is its SPEED now, DART GUN {RATE}55 (unsigned: a stat);
-//   3. else the rule's first number with its icon: PRESSURE BREECH {DMG}+1.2, CHAMBER {SLUG}2; a gun's or a factory's
+//   3. else the rule's first number with its icon: PRESSURE BREECH {DMG}+12 (NUM-1: x10), CHAMBER {SLUG}2; a gun's or a factory's
 //      FASTER is the {RATE} icon (C1: WORKS FASTER and FIRE RATE fold into RATE): CALIBRATION {RATE}+33% (U2d F2: the
 //      chip rule below; a belt's speed is not RATE).
 // A piece without a face (RULES and STUN-fold pieces), or a face with no number that has an icon (ROTARY BREECH ★1, SORTING
@@ -19,7 +19,8 @@
 //     FASTER" is its belts' speed, so it has no chip (today's card).
 //   - A chip never shows a waiting timer (a rest, a cooldown, a hold, a delay, a pulse's period): a rule's {SEC} number is
 //     one of those (OVERCLOCKER's rest: no chip, today's card; LIMPET WORKS' delay; SURGE VALVE's and ARMOR PRESS's
-//     period). Only a stat pair's {SEC}, a gun's or a factory's cadence, makes a {SEC} chip.
+//     period). Only a stat pair's {SEC}, a gun's or a factory's cadence, made a {SEC} chip; NUM-4: a cadence is a {RATE}
+//     pair now ({RATE}55, unsigned), so no piece makes a {SEC} chip.
 
 import { KEYWORDS, icons, type IconName } from "../render/font";
 import { ITEMS } from "../sim/content";

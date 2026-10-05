@@ -18,8 +18,7 @@ import { abilityText, gist, livePerk, newPerk, nextStarHeadline, nextStarText, t
 import { REMINDER, faceLines, faceMerge, faceNext, hasFace } from "../src/ui/faces"; // U2c (U2b's faces): the face kit
 import { faceNextBlock } from "../src/screens/build/faceBlocks"; // U2c (U2b's faces)
 import { fmtCount, fmtDmg, fmtPct, fmtSec } from "../src/ui/statFormat"; // U2c (U2b's faces): the formatters
-import { fmtSpeed } from "../src/ui/statFormat"; // NUM-2 (REQ-BFG-047): a stamp interval, 30 / speed, at two decimals
-import { secPer } from "../src/sim/content"; // NUM-2: SPEED (30 / speed)
+import { fmtSpeed } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): a stamp's SPEED as it is (NUM-2: its interval, 30 / speed, via secPer)
 import { DISRUPT_TIME, WINDOW_TIME } from "../src/sim/content"; // NUM-3 step 2: HOT SWAP's spark STUN, ROTARY's load time
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
@@ -156,7 +155,10 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
   });
 
   it("ROTARY BREECH: its stars make the turret fire faster, then never jam (the perk named after that sentence)", () => {
-    const CHAMBER = "A TURRET FIRES WHEN ITS CHAMBER IS FULL OR ITS LOAD TIME ENDS, 1.5 SECONDS AFTER THE FIRST LOAD.";
+    // NUM-4 (REQ-BFG-047; N1 2.2): the load window (WINDOW_TIME, 1.5 s) is a hidden timer no whole second can say, so the
+    // sentence keeps the rule, not the number: "..., SOON AFTER THE FIRST LOAD." (was "..., 1.5 SECONDS AFTER THE FIRST
+    // LOAD."); that the clause is gone is checked below
+    const CHAMBER = "A TURRET FIRES WHEN ITS CHAMBER IS FULL OR ITS LOAD TIME ENDS, SOON AFTER THE FIRST LOAD.";
     // NUM-3 step 2 (REQ-BFG-047, N1 2.2's LOAD 50% SHORTER): its load time as the whole % it is shorter than WINDOW_TIME,
     // from that star's windowTime (0.75 of 1.5 s) through fmtPct (50%); was the literal CUTS THE LOAD TIME TO 0.8 SECONDS AND
     // FIRES THE OLDEST LOAD FIRST.
@@ -166,6 +168,12 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
     expect(abilityText("rotary", 2)).toEqual({ sentences: [OPEN(2), "IT FIRES 18% FASTER.", CHAMBER], perk: { name: "GREASED RACE", stars: 2, after: 1 } });
     expect(abilityText("rotary", 3)).toEqual({ sentences: [OPEN(3), "IT FIRES 43% FASTER AND NEVER JAMS.", CHAMBER], perk: { name: "CLEAN FEED", stars: 3, after: 1 } });
     expect(gist("rotary", 1)).toBe(`LOAD ${cut(1)} SHORTER`); // NUM-3 step 2: was LOAD TIME 0.8 SECONDS
+    // NUM-4 (REQ-BFG-047): the load window's clause is gone at every star: no sentence quotes its seconds (WINDOW_TIME)
+    for (const s of [1, 2, 3]) {
+      const said = abilityText("rotary", s).sentences.join(" ");
+      expect(said, `rotary ★${s}`).not.toMatch(/\bSECONDS?\b/);
+      expect(said, `rotary ★${s}`).not.toContain(String(WINDOW_TIME));
+    }
   });
 });
 
@@ -208,16 +216,22 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
   // 120, 150, 60); was 3 / 5 / 5, 1 / 2 / 3, 7 / 12 / 15 and GANTRY ★3's 6. Burn stacks, counts and times unchanged
   /** NUM-3 step 2: HOT SWAP's spark STUN at a star, from the data (its shockTime, else DISRUPT_TIME), through fmtSec. */
   const spark = (s: number): string => fmtSec(effectAt("hotswap", s).factory!.cycle!.find((p) => p.tint === "spark")!.shockTime ?? DISRUPT_TIME);
+  /** NUM-4 (REQ-BFG-047): a factory's stamp SPEED at a star, from the data (effectAt's factory speed) through fmtSpeed. */
+  const rateAt = (def: string, s: number): string => fmtSpeed(effectAt(def, s).factory!.speed);
   const HEAD: Record<string, [string, string, string]> = {
     // NUM-2 (REQ-BFG-047): the stamp every 30 / speed s (two decimals): DOUBLE STAMP 14 / 19 / 19 -> 2.14 / 1.58 / 1.58 (was
     // 2.2 / 1.6 / 1.6), SHOT TOWER 20 / 22 / 23 -> 1.5 / 1.36 / 1.3 (was 1.5 / 1.35 / 1.3), SLAG POT 11 / 14 / 17 -> 2.73 /
     // 2.14 / 1.76 (was 2.8 / 2.2 / 1.75)
-    doublestamp: ["2 SLUGS OF 30 DAMAGE EVERY 2.14 SECONDS", "2 SLUGS OF 50 DAMAGE EVERY 1.58 SECONDS", "3 SLUGS OF 50 DAMAGE EVERY 1.58 SECONDS"],
-    shottower: ["10 DAMAGE BUCKSHOT EVERY 1.5 SECONDS", "20 DAMAGE BUCKSHOT EVERY 1.36 SECONDS", "30 DAMAGE BUCKSHOT EVERY 1.3 SECONDS"],
+    // NUM-4 (REQ-BFG-047): the clause quotes the stamp's SPEED itself, "AT RATE n" (abilityText rate(), the RATE number on the
+    // face), from the data through fmtSpeed (rateAt: DOUBLE STAMP 14 / 19 / 19, SHOT TOWER 20 / 22 / 23, SLAG POT 11 / 14 /
+    // 17); was its interval, 30 / speed: "EVERY 2.14 SECONDS" and the like. The slug damage and batch as before
+    doublestamp: [`2 SLUGS OF 30 DAMAGE AT RATE ${rateAt("doublestamp", 1)}`, `2 SLUGS OF 50 DAMAGE AT RATE ${rateAt("doublestamp", 2)}`, `3 SLUGS OF 50 DAMAGE AT RATE ${rateAt("doublestamp", 3)}`],
+    shottower: [`10 DAMAGE BUCKSHOT AT RATE ${rateAt("shottower", 1)}`, `20 DAMAGE BUCKSHOT AT RATE ${rateAt("shottower", 2)}`, `30 DAMAGE BUCKSHOT AT RATE ${rateAt("shottower", 3)}`],
     // NUM-3 step 2 (REQ-BFG-047, N1 2.2): the spark's STUN through the data (DISRUPT_TIME 2 at ★1, shockTime 2 / 3) and
     // fmtSec; was the literal 1.6 / 1.8 / 2.8
-    hotswap: [`2 BURN, SHOCK STALLS A MACHINE FOR ${spark(1)} SECONDS`, `4 BURN, SHOCK STALLS 2 MACHINES FOR ${spark(2)} SECONDS`, `7 BURN, SHOCK STALLS 2 MACHINES FOR ${spark(3)} SECONDS`],
-    slagpot: ["70 DAMAGE SLAG EVERY 2.73 SECONDS", "120 DAMAGE SLAG EVERY 2.14 SECONDS", "150 DAMAGE SLAG EVERY 1.76 SECONDS"], // NUM-2: above
+    // NUM-4 (REQ-BFG-047; REVIEW-NUM3 F2): a stop's one word is STUN, SHOCK STUNS (was SHOCK STALLS); its numbers as before
+    hotswap: [`2 BURN, SHOCK STUNS A MACHINE FOR ${spark(1)} SECONDS`, `4 BURN, SHOCK STUNS 2 MACHINES FOR ${spark(2)} SECONDS`, `7 BURN, SHOCK STUNS 2 MACHINES FOR ${spark(3)} SECONDS`],
+    slagpot: [`70 DAMAGE SLAG AT RATE ${rateAt("slagpot", 1)}`, `120 DAMAGE SLAG AT RATE ${rateAt("slagpot", 2)}`, `150 DAMAGE SLAG AT RATE ${rateAt("slagpot", 3)}`], // NUM-2 and NUM-4: above
     assembly: ["RIGS ONLINE IN HALF THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME", "ALL RIGS ONLINE AT ONCE"],
     // bb-0.8.3 (REQ-BFG-042 D3, M4): its belts (3 / 4 / 5, were 2 / 3 / 3) close the next-star line, so the clause is
     // FOURTH ARM's stamp (0.8.0: "FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS"). T47 (REQ-BFG-047): no seconds, so
@@ -230,7 +244,11 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
   it("gist, the next-star sentence and MERGES WITH (STAMP PRESS keeps its stamp rate and slug damage)", () => {
     // NUM-1 (REQ-BFG-047): x10, STAMP PRESS ★2's factory base through fmtDmg ("50"; was the literal "5")
     // NUM-2 (REQ-BFG-047): and its stamp interval through the data, 30 / speed (★2 speed 27: 1.11; was the literal 1.1)
-    expect(gist("press", 2)).toBe(`${fmtDmg(effectAt("press", 2).factory!.base!)} DAMAGE SLUGS EVERY ${fmtSpeed(secPer(effectAt("press", 2).factory!.speed))} SECONDS`);
+    // NUM-4 (REQ-BFG-047): the stamp rate the clause quotes is its SPEED, effectAt("press", 2).factory.speed through fmtSpeed,
+    // "AT RATE 27" (abilityText rate()); was the interval, 30 / speed, "EVERY 1.11 SECONDS"
+    expect(gist("press", 2)).toBe(`${fmtDmg(effectAt("press", 2).factory!.base!)} DAMAGE SLUGS AT RATE ${fmtSpeed(effectAt("press", 2).factory!.speed)}`);
+    // NUM-4: a rate the clauses quote is whole (fmtSpeed prints a fraction as it is: no decimal may reach these clauses)
+    for (const h of [[gist("press", 2)], ...Object.values(HEAD)]) for (const g of h) expect(g).not.toMatch(/\d\.\d/);
     for (const [def, h] of Object.entries(HEAD)) {
       expect([1, 2, 3].map((s) => gist(def, s)), def).toEqual(h);
       const [p2, p3] = PERK[def];
@@ -400,14 +418,22 @@ describe("P11: a rig's panel order, and the phone band", () => {
 
 describe("shared timing gear inspection", () => {
   it("shows the fire rate, the pendulum shift and its tiles, and the cross-hero effect at every star", () => {
+    // NUM-4 (REQ-BFG-047; N1 2.2): the peak's shift (races/data.ts PEAK_SHIFT, 1.2 s, no whole second) left both pendulum
+    // sentences; the direction and the tiles (as the data gives them, 7 and 13) say where the peak moves (were "... PEAK 1.2
+    // SECONDS EARLIER, AFTER 7 TILES." and "... PEAK 1.2 SECONDS LATER ON THIS TURRET, AFTER 13 TILES."); that the clause is
+    // gone is checked below
     expect([1, 2, 3].map((s) => abilityText("escapement", s).sentences)).toEqual([11, 16, 22].map((p) => [
-      `THE TURRET FIRES ${p}% FASTER.`, "ON METRONOME, PENDULUM SLUGS FROM THIS TURRET PEAK 1.2 SECONDS EARLIER, AFTER 7 TILES.",
+      `THE TURRET FIRES ${p}% FASTER.`, "ON METRONOME, PENDULUM SLUGS FROM THIS TURRET PEAK EARLIER, AFTER 7 TILES.",
     ]));
     // NUM-1 (REQ-BFG-047): x10, each star's longRideFlat through fmtDmg (15, 25, 40; was the literals 1.5, 2.5, 4)
     expect([1, 2, 3].map((s) => abilityText("longcase", s).sentences)).toEqual([1, 2, 3].map((s) => fmtDmg(effectAt("longcase", s).mod!.longRideFlat!)).map((d) => [
       `SHOTS FROM PAYLOADS THAT RODE 2 SECONDS OR MORE DEAL ${d} MORE DAMAGE.`,
-      "PENDULUM SLUGS DON'T GET IT; ON METRONOME THEY PEAK 1.2 SECONDS LATER ON THIS TURRET, AFTER 13 TILES.",
+      "PENDULUM SLUGS DON'T GET IT; ON METRONOME THEY PEAK LATER ON THIS TURRET, AFTER 13 TILES.",
     ]));
+    // NUM-4: the shift's seconds are gone from the pendulum sentence at every star
+    for (const def of ["escapement", "longcase"]) for (const s of [1, 2, 3]) {
+      expect(abilityText(def, s).sentences[1], `${def} ★${s}`).not.toMatch(/\bSECONDS?\b/);
+    }
   });
 });
 
@@ -453,7 +479,12 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
   });
 
   it("the other speed rigs read their speed in words; a rig's next-star line names the perk that star brings, once", () => {
-    expect([1, 2, 3].map((s) => gist("grease", s))).toEqual(["60% FASTER", "2.3 TIMES AS FAST", "3.1 TIMES AS FAST"]);
+    // NUM-4 (REQ-BFG-047): a speed that is no whole ratio reads as a whole % FASTER (abilityText faster(): never a float ratio),
+    // so ★2 and ★3 read their speed's rise from the data through fmtPct, 130% and 210% FASTER (GREASE speed 2.3 and 3.1; were
+    // the literals "2.3 TIMES AS FAST" and "3.1 TIMES AS FAST"); ★1 as before. Each % is whole (no decimal)
+    const up = (s: number): string => `${fmtPct(effectAt("grease", s).gate!.speed! - 1)} FASTER`;
+    for (const s of [2, 3]) expect(up(s), `grease ★${s}`).toMatch(/^\d+% FASTER$/);
+    expect([1, 2, 3].map((s) => gist("grease", s))).toEqual(["60% FASTER", up(2), up(3)]);
     // NUM-1 (REQ-BFG-047): x10, OVERDRIVE ★3's flat through fmtDmg ("30"; was the literal "3")
     expect(gist("overdrive", 3)).toBe(`5 TIMES AS FAST, ADDS ${fmtDmg(effectAt("overdrive", 3).gate!.flat!)} DAMAGE`);
     // U2c (U2b's faces): NEXT★ shows the next star's changed numbers, each the ★3 value through its formatter: OVERDRIVE's

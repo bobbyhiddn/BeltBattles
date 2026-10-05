@@ -67,12 +67,15 @@ function anvilFit(hero: HeroId, stars: number): { fits: { flat: number; per: num
   return { fits, n: pts.length };
 }
 
-/** The two numbers of ANVIL BREECH's sentence as `hero`'s panel shows them (textOpts of a fresh run: its class factor). */
+/** The two numbers of ANVIL BREECH's sentence as `hero`'s panel shows them (textOpts of a fresh run: its class factor).
+ *  NUM-4 (REQ-BFG-047): the second is the sim's perPlate as a whole % of the hull's plating, "PLUS n% OF THE PLATING ON
+ *  YOUR HULL" (abilityText percent(), fmtPct), returned as the share n / 100 the battle's fit reads (was "AND x MORE FOR
+ *  EACH PLATING", perPlate to one decimal). */
 function anvilText(hero: HeroId, stars: number): [number, number] {
   const s = abilityText("anvil", stars, textOpts(newRun(hero, 1))).sentences[0];
-  const m = /^EACH SHOT DEALS ([\d.]+) MORE DAMAGE, AND ([\d.]+) MORE FOR EACH PLATING ON YOUR HULL\.$/.exec(s);
+  const m = /^EACH SHOT DEALS ([\d.]+) MORE DAMAGE, PLUS ([\d.]+)% OF THE PLATING ON YOUR HULL\.$/.exec(s);
   expect(m, `${hero} ★${stars}: ${s}`).not.toBeNull();
-  return [Number(m![1]), Number(m![2])];
+  return [Number(m![1]), Number(m![2]) / 100];
 }
 
 describe("a turret core's numbers on every playable hero's own gun (the text sheet's per-hero cores)", () => {
@@ -87,8 +90,9 @@ describe("a turret core's numbers on every playable hero's own gun (the text she
       for (const f of fit.fits) {
         // NUM-1: the flat is whole on the panel and in the battle: the same number (was within 0.05)
         expect(f.flat, `${hero} ★${stars} flat: text ${flat}, battle ${f.flat}`).toBe(flat);
-        // the panel rounds per to one decimal place (0.75 shows 0.8): within half a step of the battle's number
-        expect(Math.abs(f.per - per), `${hero} ★${stars} per plating: text ${per}, battle ${f.per}`).toBeLessThanOrEqual(0.05 + 1e-9);
+        // NUM-4 (REQ-BFG-047): the panel prints per as the battle keeps it, a whole % of the plating, so the text's % is the
+        // battle's exactly (was: the panel rounded per to one decimal place, 0.75 showed 0.8, within half a step, 0.05)
+        expect(f.per, `${hero} ★${stars} per plating: text ${per}, battle ${f.per}`).toBe(per);
       }
       seen.add(`${flat}/${per}`);
     }

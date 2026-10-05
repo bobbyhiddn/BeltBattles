@@ -15,7 +15,8 @@ import {
   SIM, abilityText, cardText, gist, hasAbilityText, mergesWithText, nextStarHeadline, nextStarText,
 } from "../src/ui/abilityText";
 import * as glossaryModule from "../src/ui/abilityText"; // U2e step 1: no copy count exported
-import { MODULES, STARS, SUPPLIES, banned, fasterNum, kOf, numbers, pct, r1, r2, rateNum, starsOf } from "./textRules";
+// NUM-4 (REQ-BFG-047): fasterNum and rateNum are this file's own now (below: faster()'s whole %; was textRules')
+import { MODULES, STARS, SUPPLIES, banned, kOf, numbers, pct, r1, r2, starsOf } from "./textRules";
 // 0.8.0 P1: wave 3's rows (the block at the end)
 import { WAVE3_IDS, buyableModules, withWave3 } from "../src/sim/content";
 import { BURN_DPS } from "../src/sim/content"; // NUM-1: a Burn stack's damage a second
@@ -23,8 +24,10 @@ import { PLATE_CAP } from "../src/sim/races/bastion";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { LOAD_FLOOR } from "../src/sim/battle";
 import { S, clashShortText, gatlingClashText } from "../src/ui/abilityText";
-import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (30 / speed) and the whole rate %
+import { rateMul } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): the whole rate %; NUM-4: SPEED quoted as it is (no secPer)
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: MIMIC's speed rounds half up once (battle.ts factoryDef)
+import { pct as simPct } from "../src/sim/pct"; // NUM-4: GRAPNEL's salvage as the sim rounds it (battle.ts impact)
+import { PEAK_SHIFT } from "../src/sim/races/data"; // NUM-4: METRONOME's peak shift, a hidden timer no sentence quotes
 
 // 0.6.2t (REQ-BFG-032): the ability text of every buyable module (0.8.0: 31 rigs, 15 factories, 15 cores, 12 mods) at 1, 2
 // and 3 stars, and of each supply: its numbers are that star's real values, it opens with one plain sentence, it uses
@@ -67,13 +70,23 @@ const g = (e: ItemDef) => e.gate!;
 const f = (e: ItemDef) => e.factory!;
 const m = (e: ItemDef) => e.mod!;
 const base = (e: ItemDef) => f(e).base ?? AMMO[f(e).ammo].base;
+/** NUM-4 (REQ-BFG-047): a speed or rate multiplier above 1 as faster() quotes it now: a whole % ("130% FASTER": 130), or
+ *  an exact whole ratio in TIMES ("TWICE AS FAST": 2, "3 TIMES AS FAST": 3), never a float ratio (was textRules'
+ *  fasterNum, r1(r) from 2 up: GREASE ★2 "2.3 TIMES AS FAST", GATLING ★3 "3.4 TIMES AS FAST"). */
+const fasterNum = (r: number): number => {
+  const n = Math.round(r);
+  return n >= 2 && Math.abs(r - n) < 1e-9 ? n : Math.round((r - 1) * 100);
+};
+/** A fire interval multiplier as the rate the texts quote: x0.75 fires 33% faster (textRules' rateNum, through NUM-4's
+ *  fasterNum above). */
+const rateNum = (intervalMul: number): number => fasterNum(1 / intervalMul);
 /** A rate or speed below 1 as the texts quote it: "40% SLOWER", "17% SLOWER" (40, 17); at or above 1 as fasterNum. */
 const speedNum = (r: number): number => (r >= 1 ? fasterNum(r) : Math.round((1 - r) * 100));
 const round = <T>(e: ItemDef) => f(e).round as unknown as T;
 const BURN = [BURN_DPS, BURN_TIME]; // EACH BURN DEALS THE ENEMY HULL 10 DAMAGE A SECOND FOR 3 SECONDS. (NUM-1: was 1)
-/** NUM-2 (REQ-BFG-047): a factory's stamp interval as the texts quote it: 30 / speed (secPer) at two decimals (was
- *  FactorySpec.interval, which needed no rounding: every stored interval had at most two decimals). */
-const sec = (e: ItemDef): number => r2(secPer(f(e).speed));
+/** NUM-4 (REQ-BFG-047): a factory's stamp cadence as the texts quote it: its SPEED, slugs per 30 s, "AT RATE 21" (was
+ *  sec(e), the interval 30 / speed at two decimals, "EVERY 1.43 SECONDS"; NUM-2's). */
+const spd = (e: ItemDef): number => f(e).speed;
 /** NUM-2: a stored whole rate % as the interval share the texts' rateText reads (1 / rateMul(X)); rateNum(imul(X)) is the
  *  "X% FASTER" a sentence quotes, speedNum(1 / imul(X)) the "X% SLOWER" (was the stored interval multiplier itself). */
 const imul = (rate: number | undefined): number => 1 / rateMul(rate);
@@ -117,32 +130,35 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   lodestone: (e) => [g(e).flat!, g(e).perStalled!.each, g(e).perStalled!.max], // 0.6.2rel3 (TUNE-M T2): the floor first
   barbed: (e) => (g(e).frayCap ? [g(e).fray!, FRAY_MAX + g(e).frayCap, FRAY_BONUS] : [g(e).fray!, FRAY_BONUS, FRAY_MAX]),
   counterweight: (e) => [r1(g(e).perTile!.each), g(e).perTile!.max],
-  // factories (NUM-2, REQ-BFG-047: each stamp interval is sec(e), 30 / speed at two decimals; was f(e).interval)
-  press: (e) => [base(e), sec(e)],
-  doublestamp: (e) => [f(e).batch!, base(e), sec(e), 1, 1], // THEY LEAVE ONE BY ONE
-  shottower: (e) => [f(e).batch!, base(e), sec(e)],
+  // factories (NUM-4, REQ-BFG-047: each stamp cadence is spd(e), the factory's SPEED, "AT RATE n"; was sec(e), 30 / speed
+  // at two decimals, NUM-2's; before that f(e).interval)
+  press: (e) => [base(e), spd(e)],
+  doublestamp: (e) => [f(e).batch!, base(e), spd(e), 1, 1], // THEY LEAVE ONE BY ONE
+  shottower: (e) => [f(e).batch!, base(e), spd(e)],
   hotswap: (e) => {
     const em = f(e).cycle!.find((p) => p.tint === "ember")!, sp = f(e).cycle!.find((p) => p.tint === "spark")!;
-    return [em.burn ?? 0, 1, sec(e), ...(sp.jump ? [1 + sp.jump] : []), sp.shockTime ?? DISRUPT_TIME, ...BURN];
+    return [em.burn ?? 0, 1, spd(e), ...(sp.jump ? [1 + sp.jump] : []), sp.shockTime ?? DISRUPT_TIME, ...BURN];
   },
-  slagpot: (e) => [base(e), sec(e), pct(AMMO.slag.fixedSpeed!)],
-  assembly: (e) => [...(f(e).hotStart ? [2, f(e).hotStart] : []), base(e), sec(e), COMMISSION_BASE, COMMISSION_STEP],
-  gantry: (e, _k, s) => [outputsAt("gantry", s), base(e), sec(e)], // bb-0.8.3: its slots by stars (outputsAt)
-  scrapper: (e) => [f(e).scrapFlat!, 1, sec(e), 1, SIM.scrapQueue, ...(f(e).bigHaul ? [2, 1] : [])], // BIG HAUL: 2 SLUGS, NOT 1
+  slagpot: (e) => [base(e), spd(e), pct(AMMO.slag.fixedSpeed!)],
+  // NUM-4 (REQ-BFG-047; N1 2.2): S.online says the commission timers in words, SOON AFTER ... A LITTLE LATER (was
+  // COMMISSION_BASE 1.2 and COMMISSION_STEP 0.6 quoted in seconds; the hidden timers are checked after the loop below)
+  assembly: (e) => [...(f(e).hotStart ? [2, f(e).hotStart] : []), base(e), spd(e)],
+  gantry: (e, _k, s) => [outputsAt("gantry", s), base(e), spd(e)], // bb-0.8.3: its slots by stars (outputsAt)
+  scrapper: (e) => [f(e).scrapFlat!, 1, spd(e), 1, SIM.scrapQueue, ...(f(e).bigHaul ? [2, 1] : [])], // BIG HAUL: 2 SLUGS, NOT 1
   // NUM-3 (R1's STUN fold): a SABOT STUNs any other part for round.seconds (was 5 / 4 / 3 s by target, + 60 on bare hull)
-  sabot: (e) => [1, sec(e), ...(round<{ shrapnel?: boolean }>(e).shrapnel ? [SIM.shrapnel] : []), round<{ seconds: number }>(e).seconds],
+  sabot: (e) => [1, spd(e), ...(round<{ shrapnel?: boolean }>(e).shrapnel ? [SIM.shrapnel] : []), round<{ seconds: number }>(e).seconds],
   // NUM-3: a frost round STUNs (was a freeze, with CHILL's 25%)
   frostbite: (e) => {
     const r = round<{ seconds: number; spread: number }>(e);
-    return [...(r.spread ? [r.spread + 1] : []), r.seconds, ...(r.spread ? [r.spread] : []), 1, sec(e)];
+    return [...(r.spread ? [r.spread + 1] : []), r.seconds, ...(r.spread ? [r.spread] : []), 1, spd(e)];
   },
   // NUM-3: a chain round STUNs the part it hits (was a belt slow with SNAG's 20%, a factory's + 0.8 s and a turret's + 0.5 s)
-  dragchain: (e) => [round<{ seconds: number }>(e).seconds, 1, sec(e)],
+  dragchain: (e) => [round<{ seconds: number }>(e).seconds, 1, spd(e)],
   // NUM-2: MIMIC's whole rate % (-29 / 0 / +25) as the interval share (was intervalMul 1.4 / 1 / 0.8): 29% SLOWER, 25% FASTER
   mimic: (e) => [...(imul(f(e).rate) === 1 ? [] : [speedNum(1 / imul(f(e).rate))])], // bb-0.8.3: no FEEDS 2 BELTS at ★3
   limpet: (e) => {
     const r = round<{ delay: number; blast: number; stall?: number }>(e);
-    return [r.blast, r.delay, ...(r.stall ? [r.stall] : []), 1, sec(e)];
+    return [r.blast, r.delay, ...(r.stall ? [r.stall] : []), 1, spd(e)];
   },
   // turret cores (x k)
   scatter: (e, k) => [scaleCore(e.core!, k).pellets!, pct(scaleCore(e.core!, k).share!)],
@@ -150,13 +166,17 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
     const c = scaleCore(e.core!, k);
     // NUM-3 step 2 (REQ-BFG-047, N1 2.2): its load time as the whole % shorter than WINDOW_TIME (0.75 of 1.5 s: 50; was its
     // seconds, c.windowTime 0.8)
-    return [pct(1 - c.windowTime! / WINDOW_TIME), ...(c.fireRate ? [rateNum(imul(c.fireRate))] : []), WINDOW_TIME]; // NUM-2: fireRate +18 / +43 (was intervalMul)
+    // NUM-4 (REQ-BFG-047; N1 2.2): S.chamber says the load window in words, SOON AFTER THE FIRST LOAD (was WINDOW_TIME, 1.5
+    // SECONDS; checked after the loop below)
+    return [pct(1 - c.windowTime! / WINDOW_TIME), ...(c.fireRate ? [rateNum(imul(c.fireRate))] : [])]; // NUM-2: fireRate +18 / +43 (was intervalMul)
   },
   pressure: (e, k) => [r1(scaleCore(e.core!, k).perQueued!), scaleCore(e.core!, k).maxCount!],
   gatling: (e, k) => {
     const c = scaleCore(e.core!, k);
-    // NUM-2: top +67 / +150 / +245 and start -17, whole rate % (was floor 0.6 / 0.4 / 0.29 and start 1.2, interval x)
-    return [rateNum(imul(c.top)), speedNum(1 / imul(c.start)), c.gap!, pct(c.step!)];
+    // NUM-2: top +67 / +150 / +245 and start -17, whole rate % (was floor 0.6 / 0.4 / 0.29 and start 1.2, interval x).
+    // NUM-4 (REQ-BFG-047): +150 / +245 read 150% / 245% FASTER (fasterNum above; was 2.5 / 3.4 TIMES AS FAST), and its gap
+    // is SOON AFTER THE LAST (was c.gap, 2.5 SECONDS; a hidden timer, checked after the loop below)
+    return [rateNum(imul(c.top)), speedNum(1 / imul(c.start)), pct(c.step!)];
   },
   hullbreaker: (e, k) => [pct(scaleCore(e.core!, k).hullMul! - 1)],
   drake: (e, k) => {
@@ -164,10 +184,14 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
     return [1, c.flatPerBurn!, c.addBurn!, c.burnTime!, BURN_TIME, pct(1 - c.flightMul!)];
   },
   salvo: (e, k) => [r1(scaleCore(e.core!, k).volleyFlat!), 2, pct(scaleCore(e.core!, k).reloadMul! - 1)], // OR TWICE ITS LOAD TIME
-  mortar: (e, k) => [scaleCore(e.core!, k).splash!, pct(scaleCore(e.core!, k).share!), scaleCore(e.core!, k).flightMul!],
+  // NUM-4 (REQ-BFG-047; N1 2.2): ITS SHOTS TAKE LONGER TO LAND (was its flightMul, 2.2 TIMES AS LONG; a hidden timer's
+  // multiplier, checked after the loop below)
+  mortar: (e, k) => [scaleCore(e.core!, k).splash!, pct(scaleCore(e.core!, k).share!)],
   grapnel: (e, k, s) => {
     const c = scaleCore(e.core!, k);
-    return [...(c.rip! > 1 ? [c.rip!] : []), c.reach!, ...(s >= 3 ? [r1(k)] : [])];
+    // NUM-4 (REQ-BFG-047): a ★3 rip's salvage is the sim's pct(10, k%) (battle.ts impact: gun.salvage += pct(10 x ripped,
+    // roundHalfUp(100 x k)); was r1(k), the x1 scale's 1 x k: 1 and 0.6)
+    return [...(c.rip! > 1 ? [c.rip!] : []), c.reach!, ...(s >= 3 ? [simPct(10, roundHalfUp(100 * k))] : [])];
   },
   tesla: (e, k) => {
     const c = scaleCore(e.core!, k);
@@ -182,12 +206,16 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   flak: (e) => [pct(m(e).intercept!)],
   spotter: (e) => (m(e).alwaysMachine ? [m(e).factoryWeight!] : m(e).factoryWeight ? [2, 2] : []), // UP TO TWICE, TWICE AS OFTEN
   // 0.6.2 FB-B: ★1's slot and seconds at every star; ★2/★3 store 1/2 loads while the turret fires (ModSpec.store)
-  hopper: (e) => [m(e).window!, m(e).windowTime!, ...(m(e).store ? [m(e).store] : []), WINDOW_TIME],
+  // NUM-4 (REQ-BFG-047; N1 2.2): THE LOAD TIME IS LONGER, and S.chamber's SOON AFTER THE FIRST LOAD (was its windowTime,
+  // 0.5 SECONDS, and WINDOW_TIME, 1.5; hidden timers, checked after the loop below)
+  hopper: (e) => [m(e).window!, ...(m(e).store ? [m(e).store] : [])],
   // 0.6.2 FB-B: ★2 shields THE LAST TILE of each belt in (no digit), ★3 THE LAST 3 TILES
   mantlet: (e) => ((m(e).intakeGuard ?? 0) > 1 ? [m(e).intakeGuard!] : []),
   ram: (e) => [pct(m(e).finisher!)],
-  escapement: (e) => [rateNum(imul(m(e).fireRate)), 1.2, 7], // PEAK_SHIFT -1.2 s: 7 tiles (10 by default); NUM-2: fireRate (was fireMul)
-  longcase: (e) => [m(e).longRideMin!, m(e).longRideFlat!, 1.2, 13], // PEAK_SHIFT +1.2 s: 13 tiles
+  // NUM-4 (REQ-BFG-047; N1 2.2): the pendulum peaks EARLIER / LATER, AFTER its tiles (was PEAK_SHIFT's 1.2 SECONDS too; a
+  // hidden timer, checked after the loop below)
+  escapement: (e) => [rateNum(imul(m(e).fireRate)), 7], // PEAK_SHIFT -1.2 s: 7 tiles (10 by default); NUM-2: fireRate (was fireMul)
+  longcase: (e) => [m(e).longRideMin!, m(e).longRideFlat!, 13], // PEAK_SHIFT +1.2 s: 13 tiles
   // wave 3 (0.8.0 P1's WAVE3_NUMBERS, moved here by I1 M2 when the switch went on; REPORT-P1 section 13)
   plateroller: (e) => [g(e).plate!, PLATE_CAP], // + the plating sentence: UP TO 24 PLATING
   twingauge: (e) => [g(e).gauge!.flat, g(e).gauge!.matched],
@@ -199,14 +227,18 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   shieldwall: (e) => [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP],
   // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS ... THE NEXT TWO IN TURN ... INTO ONE TURRET
   // (bb-0.8.3, REQ-BFG-042 D3: the pour size, FactorySpec.pour, where 0.8.0 quoted its outputs)
-  twinmould: (e) => [f(e).pour!, base(e), 1, f(e).pour!, sec(e), f(e).pour!, 1], // NUM-2: sec(e) (was f(e).interval)
-  armorpress: (e) => [f(e).plate!.amount, f(e).plate!.every, base(e), sec(e), PLATE_CAP], // NUM-2: sec(e) (was f(e).interval)
-  anvil: (e, k) => [r1(scaleCore(e.core!, k).anvilFlat!), r1(scaleCore(e.core!, k).perPlate!), PLATE_CAP], // x k
+  twinmould: (e) => [f(e).pour!, base(e), 1, f(e).pour!, spd(e), f(e).pour!, 1], // NUM-4: spd(e) (was sec(e); NUM-2: was f(e).interval)
+  armorpress: (e) => [f(e).plate!.amount, f(e).plate!.every, base(e), spd(e), PLATE_CAP], // NUM-4: spd(e) (was sec(e); NUM-2: was f(e).interval)
+  // x k. NUM-4 (REQ-BFG-047): perPlate is quoted as the sim keeps it, a whole % of the hull's plating, PLUS 220% OF THE
+  // PLATING (cores.ts scaleCore; was r1(perPlate), "2.2 MORE FOR EACH PLATING")
+  anvil: (e, k) => [r1(scaleCore(e.core!, k).anvilFlat!), pct(scaleCore(e.core!, k).perPlate!), PLATE_CAP],
   // rates: no k. NUM-2: +35 / +70 / +110 and +10 / +20 / +30, whole rate % (was 1 / 1.35 ... the interval x)
   steambreech: (e, k) => [rateNum(imul(scaleCore(e.core!, k).steamPlated)), rateNum(imul(scaleCore(e.core!, k).steamBare))],
-  twintrigger: (e) => [pct(m(e).pairBonus!), 2, 1, SYNC_WINDOW, -m(e).windowTime!, LOAD_FLOOR], // A PAIR IS TWO LOADS ... ONE TURRET
+  // NUM-4 (REQ-BFG-047; N1 2.2): S.pair's AT ONCE and ITS LOAD TIME IS SHORTER, DOWN TO A FLOOR (was SYNC_WINDOW, its
+  // -windowTime and LOAD_FLOOR in seconds; hidden timers, checked after the loop below)
+  twintrigger: (e) => [pct(m(e).pairBonus!), 2, 1], // A PAIR IS TWO LOADS ... ONE TURRET
   spallcatcher: (e) => [m(e).spall!.every, m(e).spall!.add, m(e).spall!.max, 2], // ... COUNTS TWICE
-  seamwelder: (e) => [m(e).seam!.pair, m(e).seam!.lone, 2, 1, SYNC_WINDOW, PLATE_CAP],
+  seamwelder: (e) => [m(e).seam!.pair, m(e).seam!.lone, 2, 1, PLATE_CAP], // NUM-4: S.pair's AT ONCE (was SYNC_WINDOW)
   // supplies
   beltcrate: (e) => [e.supply!.belt!],
   plating: (e) => [e.supply!.hull!],
@@ -215,10 +247,13 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   // gear slots (the rarity's GEAR_SLOTS + 1 for each star above 1) and 1 core socket, and its shots' flight.
   // NUM-2 (REQ-BFG-047): the interval is 30 / speed (secPer; was fireInterval) and the rate against 1 star reads the
   // speeds (SCRAP CANNON 33 / 30: 10%, 38 / 30: 27%; was 11%, 25%)
+  // NUM-4 (REQ-BFG-047): its SPEED as it is, FIRES AT RATE 33, and the star's gain as the SPEED difference, ITS RATE IS 3
+  // MORE THAN AT 1 STAR (was r2(30 / speed) and the % faster); its flight is a hidden timer no sentence quotes (was
+  // r2(t.flight), ITS SHOTS LAND 0.6 SECONDS AFTER IT FIRES; checked after the loop below)
   ...Object.fromEntries(MODULES.filter((d) => d.kind === "turret").map((d) => [d.id, (e: ItemDef, _k: number, s: number) => {
-    const t = e.turret!, one = secPer(ITEMS[d.id].turret!.speed), at = secPer(t.speed);
-    return [r2(at), t.window, ...(s > 1 ? [fasterNum(one / at), 1] : []), ...(t.intake === "inner" ? [] : [2]),
-      GEAR_SLOTS[d.rarity] + s - 1, 1, r2(t.flight)];
+    const t = e.turret!, one = ITEMS[d.id].turret!.speed;
+    return [t.speed, t.window, ...(s > 1 ? [t.speed - one, 1] : []), ...(t.intake === "inner" ? [] : [2]),
+      GEAR_SLOTS[d.rarity] + s - 1, 1];
   }])),
 };
 /** Every module with ability text: the buyable modules at 1-3 stars, then each supply at its single level. */
@@ -244,16 +279,29 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     for (const { d, s, k, id } of CASES) {
       expect(numbers(abilityText(d.id, s, { k }).sentences.join(" ")), id).toEqual(NUMBERS[d.id](effectAt(d.id, s), k, s));
     }
+    // NUM-4 (REQ-BFG-047; N1 2.2): the hidden timers the rows above no longer quote (was each in seconds, MORTAR's x2.2):
+    // none is a whole second, so the sentences say them in words (SOON AFTER, AT ONCE, LONGER, SHORTER, EARLIER, LATER) and
+    // the three shared sentences that carried them quote none of them (S.pair keeps its TWO LOADS and ONE TURRET); the sim
+    // keeps every one
+    expect([S.online, S.chamber, S.pair].map(numbers)).toEqual([[], [], [2, 1]]);
+    const hidden = [
+      COMMISSION_BASE, COMMISSION_STEP, WINDOW_TIME, SYNC_WINDOW, LOAD_FLOOR, -PEAK_SHIFT.escapement, PEAK_SHIFT.longcase,
+      ...STARS.map((s) => effectAt("hopper", s).mod!.windowTime!), ...STARS.map((s) => -effectAt("twintrigger", s).mod!.windowTime!),
+      ...STARS.map((s) => scaleCore(effectAt("gatling", s).core!, 1).gap!), ...STARS.map((s) => scaleCore(effectAt("mortar", s).core!, 1).flightMul!),
+      ...MODULES.filter((d) => d.kind === "turret").flatMap((d) => STARS.map((s) => effectAt(d.id, s).turret!.flight)),
+    ];
+    expect(hidden.filter((t) => !(t > 0) || Number.isInteger(t)), "a hidden timer a whole second could say").toEqual([]);
   });
 
   it("MIMIC FORGE names the hero's own ammo and its rate, from the hero's signature factory", () => {
     for (const hero of ["furnace", "weaver"] as const) for (const s of STARS) {
       const h = HEROES[hero], sig = ITEMS[h.factory].factory!, rate = effectAt("mimic", s).factory!.rate;
       const last = abilityText("mimic", s, { hero }).sentences.at(-1)!;
-      expect(last, `${hero} ★${s}`).toMatch(new RegExp(`^FOR ${h.name}, THAT IS AN? [A-Z ]+ EVERY `));
+      // NUM-4 (REQ-BFG-047): the rate in words, AT RATE n (was EVERY n SECONDS)
+      expect(last, `${hero} ★${s}`).toMatch(new RegExp(`^FOR ${h.name}, THAT IS AN? [A-Z ]+ AT RATE `));
       // NUM-2 (REQ-BFG-047): the hero factory's (level 1) speed x MIMIC's whole rate %, rounded half up once as the battle
-      // does (battle.ts factoryDef), quoted as 30 / speed (was sig.interval * intervalMul): FURNACE ★1 24 x 0.71 -> 17, 1.76
-      expect(numbers(last), `${hero} ★${s}`).toEqual([r2(secPer(roundHalfUp(sig.speed * rateMul(rate))))]);
+      // does (battle.ts factoryDef): FURNACE ★1 24 x 0.71 -> 17. NUM-4: quoted as that SPEED (was 30 / speed, 1.76)
+      expect(numbers(last), `${hero} ★${s}`).toEqual([roundHalfUp(sig.speed * rateMul(rate))]);
     }
   });
 
@@ -267,7 +315,8 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     });
     expect(at("scrapper", 3).sentences.slice(0, 3)).toEqual([
       "STAMPS SCRAP SLUGS THAT DEAL 105 MORE DAMAGE THAN PLAIN ONES.", // NUM-1: x10 (was 10.5)
-      "IT STAMPS ONE EVERY 2 SECONDS, AND ONE MORE EACH TIME YOUR HARASSMENT LANDS, UP TO 3 WAITING.",
+      // NUM-4 (REQ-BFG-047): its SPEED (★3 15), AT RATE 15 (was EVERY 2 SECONDS, 30 / 15)
+      `IT STAMPS ONE AT RATE ${effectAt("scrapper", 3).factory!.speed}, AND ONE MORE EACH TIME YOUR HARASSMENT LANDS, UP TO 3 WAITING.`,
       "A RIG YOUR SABOTS WRECK EARNS 2 SCRAP SLUGS, NOT 1.",
     ]);
     expect(at("scrapper", 3).perk).toEqual({ name: "BIG HAUL", stars: 3, after: 2 });
@@ -292,17 +341,23 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     expect([at("mantlet", 1).sentences[0], cardText("mantlet")]).toEqual(["THE TURRET IGNORES EVERY STUN.", "IGNORES EVERY STUN."]);
     // NUM-2 (REQ-BFG-047; was EVERY 0.9 SECONDS and 11% FASTER): BOMBARD ★2's speed is 33 (30 / 0.9 = 33.3 rounded), so it
     // fires every 30 / 33 = 0.909 -> 0.91 s, and 33 / 30 = 1.1 is 10% faster than ★1's 30 (was 1 / 0.9 = 1.11, 11%)
+    // NUM-4 (REQ-BFG-047): its SPEED as it is, AT RATE 33, and the star's gain as the SPEED difference, 33 - 30 = 3 MORE
+    // (was EVERY 0.91 SECONDS and 10% FASTER); its flight (0.6 s) is a hidden timer, so its sentence is gone (was "ITS SHOTS
+    // LAND 0.6 SECONDS AFTER IT FIRES."): the check is that no sentence quotes it, and the sim keeps it
+    const b1 = ITEMS.bombard.turret!, b2 = effectAt("bombard", 2).turret!;
     expect(at("bombard", 2)).toEqual({
       sentences: [
-        "A HEAVY TURRET THAT FIRES EVERY 0.91 SECONDS AND HOLDS 4 LOADS.", "IT FIRES 10% FASTER THAN AT 1 STAR.",
-        "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.", "IT HAS 3 GEAR SLOTS AND 1 CORE SOCKET.", "ITS SHOTS LAND 0.6 SECONDS AFTER IT FIRES.",
+        `A HEAVY TURRET THAT FIRES AT RATE ${b2.speed} AND HOLDS 4 LOADS.`, `ITS RATE IS ${b2.speed - b1.speed} MORE THAN AT 1 STAR.`,
+        "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.", "IT HAS 3 GEAR SLOTS AND 1 CORE SOCKET.",
       ],
     });
-    expect(at("hailgun", 1).sentences.slice(0, 2)).toEqual(["A LIGHT TURRET THAT FIRES EVERY 0.45 SECONDS AND HOLDS 3 LOADS.", "IT TAKES A BELT ON ITS INNER COLUMN ONLY."]);
+    expect([b2.flight, at("bombard", 2).sentences.some((t) => /LAND|SECOND/.test(t))]).toEqual([0.6, false]);
+    expect(at("hailgun", 1).sentences.slice(0, 2)).toEqual([`A LIGHT TURRET THAT FIRES AT RATE ${ITEMS.hailgun.turret!.speed} AND HOLDS 3 LOADS.`, "IT TAKES A BELT ON ITS INNER COLUMN ONLY."]); // NUM-4: was EVERY 0.45 SECONDS
     expect(at("thunderer", 3).sentences[3]).toBe("IT HAS 6 GEAR SLOTS AND 1 CORE SOCKET."); // legendary 4, + 1 for each star above 1
-    expect(at("swivel", 1).sentences[0]).toBe("AN ADAPTABLE TURRET THAT FIRES EVERY 0.7 SECONDS AND HOLDS 3 LOADS.");
-    // NUM-2 (REQ-BFG-047; was 0.9 SECONDS): ★2 speed 33, 30 / 33 = 0.91
-    expect([cardText("bombard"), nextStarText("bombard", 1)]).toEqual(["FIRES EVERY 1 SECOND.", "NEXT STAR: FIRES EVERY 0.91 SECONDS, 3 GEAR SLOTS."]);
+    expect(at("swivel", 1).sentences[0]).toBe(`AN ADAPTABLE TURRET THAT FIRES AT RATE ${ITEMS.swivel.turret!.speed} AND HOLDS 3 LOADS.`); // NUM-4: was EVERY 0.7 SECONDS
+    // NUM-2 (REQ-BFG-047; was 0.9 SECONDS): ★2 speed 33, 30 / 33 = 0.91. NUM-4: the SPEEDs, AT RATE 30 and AT RATE 33 (was
+    // EVERY 1 SECOND, EVERY 0.91 SECONDS)
+    expect([cardText("bombard"), nextStarText("bombard", 1)]).toEqual([`FIRES AT RATE ${b1.speed}.`, `NEXT STAR: FIRES AT RATE ${b2.speed}, 3 GEAR SLOTS.`]);
   });
 });
 
@@ -469,7 +524,9 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
   it("the four glossary sentences, word for word (DESIGN-wave3.md 3.2), with the sim's numbers", () => {
     expect([S.plating, S.pair, S.matched, S.worksFaster]).toEqual([
       "PLATING TAKES DAMAGE, BURN AND POISON BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.", // NUM-1: x10 (was 24)
-      "A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN 0.25 SECONDS; A FOUNDRY FUSION IS A PAIR.",
+      // NUM-4 (REQ-BFG-047; N1 2.2): the pair window, SYNC_WINDOW 0.25 s (pinned below), is a hidden timer said AT ONCE
+      // (was "WITHIN 0.25 SECONDS")
+      "A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES AT ONCE; A FOUNDRY FUSION IS A PAIR.",
       "A MATCHED BELT HAS AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.",
       "A FACTORY THAT WORKS FASTER STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO.",
     ]);
@@ -519,23 +576,35 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(at("shieldwall")[1]).toBe("WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE."); // was 12, 3
     // bb-0.8.3 (REQ-BFG-042 D3): the pour, not its belts: TWO (★3 THIRD SPRUE: THREE) at once, the next ones in turn
     // NUM-2 (REQ-BFG-047): the casts every 30 / speed s: ★1 speed 17, 30 / 17 = 1.76 (was 1.8); ★3 speed 21, 1.43 (was 1.4)
-    expect(at("twinmould")[0]).toBe("CASTS TWO PLAIN SLUGS (30 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS, EVERY 1.76 SECONDS."); // was 3
+    // NUM-4 (REQ-BFG-047): the casts AT RATE n, n its SPEED (★1 17, ★3 21; was EVERY 1.76 / 1.43 SECONDS)
+    const spdAt = (def: string, s: number) => effectAt(def, s).factory!.speed;
+    expect(at("twinmould")[0]).toBe(`CASTS TWO PLAIN SLUGS (30 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS, AT RATE ${spdAt("twinmould", 1)}.`); // was 3
     expect(abilityText("twinmould", 3)).toEqual({
       sentences: [
-        "CASTS THREE SLUGS (60 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF THREE BELTS, EVERY 1.43 SECONDS.", // was 6
+        `CASTS THREE SLUGS (60 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF THREE BELTS, AT RATE ${spdAt("twinmould", 3)}.`, // was 6
         "WITH MORE BELTS, EACH CAST TAKES THE NEXT THREE IN TURN.",
         "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR.",
       ],
       perk: { name: "THIRD SPRUE", stars: 3, after: 0 },
     });
     // NUM-2 (REQ-BFG-047; was EVERY 1.6 SECONDS): ★1 speed 19, a slug every 30 / 19 = 1.58 s
-    expect(at("armorpress")[0]).toBe("PRESSES 30 PLATING ONTO YOUR HULL EVERY 3 SECONDS, AND STAMPS A PLAIN SLUG (30 DAMAGE) EVERY 1.58 SECONDS."); // 0.8.0 B1 M2: 2 every 4 s -> 3 every 3 s; NUM-1: was 3, 3
-    expect(at("anvil")[0]).toBe("EACH SHOT DEALS 25 MORE DAMAGE, AND 1 MORE FOR EACH PLATING ON YOUR HULL."); // 0.8.0 B1 M2: was 1 and 0.2; NUM-1: was 2.5 (perPlate a ratio: 1)
+    // NUM-4 (REQ-BFG-047): AT RATE 19, its SPEED (was EVERY 1.58 SECONDS)
+    expect(at("armorpress")[0]).toBe(`PRESSES 30 PLATING ONTO YOUR HULL EVERY 3 SECONDS, AND STAMPS A PLAIN SLUG (30 DAMAGE) AT RATE ${spdAt("armorpress", 1)}.`); // 0.8.0 B1 M2: 2 every 4 s -> 3 every 3 s; NUM-1: was 3, 3
+    // NUM-4 (REQ-BFG-047): perPlate as the sim keeps it, a whole % of the hull's plating (cores.ts scaleCore; Battle.fireCore:
+    // pct(plate, 100 x perPlate)): ★1 1 -> 100% (was "AND 1 MORE FOR EACH PLATING ON YOUR HULL.", the ratio at one decimal)
+    const perPlate = (s: number, k: number) => pct(scaleCore(effectAt("anvil", s).core!, k).perPlate!);
+    expect(at("anvil")[0]).toBe(`EACH SHOT DEALS 25 MORE DAMAGE, PLUS ${perPlate(1, 1)}% OF THE PLATING ON YOUR HULL.`); // 0.8.0 B1 M2: was 1 and 0.2; NUM-1: was 2.5 (perPlate a ratio: 1)
     // x k, as every core (0.8.0 B1 M2: was 1.9 and 0.4); NUM-1: was 4.8. ★3 anvilFlat 88 x 55% = 48.4, rounded half up at
-    // install (scaleCore) to 48; perPlate 3.5 x 55% = 1.925 -> 1.93 (a whole % of a ratio), printed 1.9 as before
-    expect(at("anvil", 3, 0.55)[0]).toBe("EACH SHOT DEALS 48 MORE DAMAGE, AND 1.9 MORE FOR EACH PLATING ON YOUR HULL.");
+    // install (scaleCore) to 48; perPlate 3.5 x 55% = 1.925 -> 1.93 (a whole % of a ratio), printed 1.9 as before.
+    // NUM-4: printed as the sim keeps it, 193% (was "AND 1.9 MORE FOR EACH PLATING ON YOUR HULL.")
+    expect(at("anvil", 3, 0.55)[0]).toBe(`EACH SHOT DEALS 48 MORE DAMAGE, PLUS ${perPlate(3, 0.55)}% OF THE PLATING ON YOUR HULL.`);
+    expect(perPlate(3, 0.55)).toBe(193);
     expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 70% FASTER WHILE YOUR HULL HOLDS PLATING, AND 20% FASTER WITHOUT IT."]); // 0.8.0 B1 M2: was 44% and 10%
-    expect(at("twintrigger", 3)[2]).toBe("ITS LOAD TIME IS 0.55 SECONDS SHORTER, BUT NEVER UNDER 0.3 SECONDS.");
+    // NUM-4 (REQ-BFG-047; N1 2.2): its -0.55 s and the 0.3 s floor are hidden timers no whole second says, so the sentence
+    // says SHORTER, DOWN TO A FLOOR (was "ITS LOAD TIME IS 0.55 SECONDS SHORTER, BUT NEVER UNDER 0.3 SECONDS."); the sim
+    // keeps both (pinned here)
+    expect(at("twintrigger", 3)[2]).toBe("ITS LOAD TIME IS SHORTER, DOWN TO A FLOOR.");
+    expect([-effectAt("twintrigger", 3).mod!.windowTime!, LOAD_FLOOR]).toEqual([0.55, 0.3]);
     expect(at("spallcatcher", 2)[0]).toBe("EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 22 DAMAGE TO THIS TURRET'S NEXT SHOT, UP TO 176 DAMAGE."); // NUM-1: was 4, 2.2, 17.6
     expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS 2."); // NUM-1: was 1, 0.2
     // the next-star lines DESIGN 3.3 gives
@@ -547,10 +616,14 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 88 DAMAGE FOR 10 PLATING, 22 WITHOUT.");
     expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 22 PLATING A PAYLOAD, 66 DAMAGE AT 120 PLATING."); // NUM-1: was 2.2, 6.6, 12
     // NUM-2 (REQ-BFG-047): ★2 TWIN MOULD speed 19, 30 / 19 = 1.58 (was 1.6); ★2 ARMOR PRESS speed 21, 1.43 (was 1.4)
-    expect(nextStarText("twinmould", 1)).toBe("NEXT STAR: 50 DAMAGE EACH, EVERY 1.58 SECONDS, 3 BELTS."); // bb-0.8.3 (M4); NUM-1: was 5
-    expect(nextStarText("armorpress", 1)).toBe("NEXT STAR: 66 PLATING EVERY 3 SECONDS, A SLUG EVERY 1.43 SECONDS, 3 BELTS."); // 0.8.0 B1 M2; bb-0.8.3 (M4); NUM-1: was 6.6
+    // NUM-4 (REQ-BFG-047): AT RATE 19 and AT RATE 21, the ★2 SPEEDs (was EVERY 1.58 / 1.43 SECONDS)
+    expect(nextStarText("twinmould", 1)).toBe(`NEXT STAR: 50 DAMAGE EACH, AT RATE ${spdAt("twinmould", 2)}, 3 BELTS.`); // bb-0.8.3 (M4); NUM-1: was 5
+    expect(nextStarText("armorpress", 1)).toBe(`NEXT STAR: 66 PLATING EVERY 3 SECONDS, A SLUG AT RATE ${spdAt("armorpress", 2)}, 3 BELTS.`); // 0.8.0 B1 M2; bb-0.8.3 (M4); NUM-1: was 6.6
     expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 70% FASTER PLATED, 20% WITHOUT."); // 0.8.0 B1 M2
-    expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 55% MORE, LOAD TIME 0.4 SECONDS SHORTER.");
+    // NUM-4 (REQ-BFG-047; N1 2.2): ★2's -0.4 s is a hidden timer (pinned here), SHORTER LOAD TIME (was "LOAD TIME 0.4
+    // SECONDS SHORTER")
+    expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 55% MORE, SHORTER LOAD TIME.");
+    expect(-effectAt("twintrigger", 2).mod!.windowTime!).toBe(0.4);
     expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 22 PLATING A PAIR, 4 FOR ANY OTHER LOAD."); // NUM-1: was 2.2, 0.4
   });
 
@@ -609,14 +682,16 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
       }
     }
     // NUM-2 (REQ-BFG-047; was EVERY 1.4 SECONDS): ★3 speed 21, 30 / 21 = 1.43
-    expect(withWave3(() => mergesWithText("twinmould", 3))).toBe("MERGES WITH YOUR TWIN MOULD INTO ★3: 3 SLUGS OF 60 DAMAGE, EVERY 1.43 SECONDS, 4 BELTS."); // bb-0.8.3 (M4); NUM-1: x10 (was 6)
+    // NUM-4 (REQ-BFG-047): AT RATE 21, the ★3 SPEED (was EVERY 1.43 SECONDS)
+    expect(withWave3(() => mergesWithText("twinmould", 3))).toBe(`MERGES WITH YOUR TWIN MOULD INTO ★3: 3 SLUGS OF 60 DAMAGE, AT RATE ${effectAt("twinmould", 3).factory!.speed}, 4 BELTS.`); // bb-0.8.3 (M4); NUM-1: x10 (was 6)
   });
 
   it("each offer's one-line effect: a whole sentence, its numbers from the 1-star text, two lines on the wide card", () => {
     const cards = Object.fromEntries(W3.map((d) => [d.id, cardText(d.id)]));
     expect(cards).toEqual({
       plateroller: "PLATES YOUR HULL AS SLUGS PASS.", twingauge: "MORE DAMAGE ON A MATCHED BELT.", pincer: "MORE DAMAGE WITH RIGS ON ITS TILE.",
-      braceframe: "SHORTER STALLS ON ITS TILES.", twinlatch: "LETS TWO BELTS GO TOGETHER.", stoker: "MAKES FACTORIES WORK FASTER.",
+      // NUM-4 (REVIEW-NUM3 F2): one word for one stop, STUNS (was "SHORTER STALLS ON ITS TILES.")
+      braceframe: "SHORTER STUNS ON ITS TILES.", twinlatch: "LETS TWO BELTS GO TOGETHER.", stoker: "MAKES FACTORIES WORK FASTER.",
       platebreaker: "TURNS PLATING INTO DAMAGE.", shieldwall: "PLATES YOUR HULL, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.",
       armorpress: "PLATES YOUR HULL EVERY 3 SECONDS.", anvil: "MORE DAMAGE THE MORE PLATING.", steambreech: "FIRES FASTER WHILE PLATED.",
       twintrigger: "PAIRS HIT 25% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS PLATE YOUR HULL.",

@@ -7,7 +7,7 @@
 // the switch flips.
 import { describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
-import { AMMO, ITEMS, SHIELD_CAP, SUSTAIN_IDS, SUSTAIN_LIVE, buyableModules, secPer, withSustain, type ItemDef } from "../src/sim/content";
+import { AMMO, ITEMS, SHIELD_CAP, SUSTAIN_IDS, SUSTAIN_LIVE, buyableModules, withSustain, type ItemDef } from "../src/sim/content"; // NUM-4: secPer unused (RATE)
 import { effectAt, fusible } from "../src/sim/stars";
 import { ICON, ICON_COLOUR, KEYWORDS, icons, stripIcons, textWidth } from "../src/render/font";
 import { C } from "../src/render/palette";
@@ -58,7 +58,9 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
       const pe = `EVERY ${fmtSec(h.every)}{SEC}:`;
       // MEND PRESS's stat row is ARMOR PRESS's kind's (factoryStats: its cadence, its plain slug's damage, its belts)
       expect(mp.stats).toEqual(factoryStats("mendpress", s));
-      expect(mp.stats.slice(0, 2)).toEqual([["SEC", fmtSpeed(secPer(g("mendpress", s).factory!.speed))], ["DMG", fmtDmg(AMMO.plain.base)]]);
+      // NUM-4 (REQ-BFG-047): the cadence pair is ["RATE", its SPEED] through fmtSpeed (faces.ts speedPair; was ["SEC",
+      // fmtSpeed(secPer(speed))], the interval 30 / speed)
+      expect(mp.stats.slice(0, 2)).toEqual([["RATE", fmtSpeed(g("mendpress", s).factory!.speed)], ["DMG", fmtDmg(AMMO.plain.base)]]);
       expect(factoryStats("armorpress", s).map(([ic]) => ic)).toEqual(mp.stats.map(([ic]) => ic));
       expect([mp.rules, mp.reminders, mp.stats2]).toEqual([[{ text: `${pe} {*HEAL} ${fmtDmg(h.amount)}.`, label: pe }], [REMINDER.HEAL()], undefined]);
       const ml = faceAt("mendingloom", s)!;
@@ -138,8 +140,11 @@ describe("SUS-B the ability text (the kept sentences, gist, card; RIVETER's word
   /** The numbers each piece's sentences quote at a star (abilityText.test's NUMBERS rows, for RUNES-2b to move there). */
   const NUMBERS: Record<string, (e: ItemDef) => number[]> = {
     riveter: (e) => [e.gate!.heal!],
-    wardbell: (e) => [e.mod!.shield!.amount, e.mod!.shield!.every, SHIELD_CAP, 1], // GAINS ONE ... UP TO 3; STOPS ONE WHOLE HIT
-    mendpress: (e) => [e.factory!.heal!.amount, e.factory!.heal!.every, AMMO.plain.base, +secPer(e.factory!.speed).toFixed(2)],
+    // NUM-4 (REVIEW-SUSB F1): the 1 is BLOCKS ONE HIT'S DAMAGE now (was STOPS ONE WHOLE HIT)
+    wardbell: (e) => [e.mod!.shield!.amount, e.mod!.shield!.every, SHIELD_CAP, 1], // GAINS ONE ... UP TO 3; BLOCKS ONE HIT'S DAMAGE
+    // NUM-4 (REQ-BFG-047): the stamp's cadence is quoted as its SPEED, "AT RATE n" with n = effectAt(...).factory.speed (was
+    // its interval, +secPer(speed).toFixed(2), "EVERY 1.58 SECONDS")
+    mendpress: (e) => [e.factory!.heal!.amount, e.factory!.heal!.every, AMMO.plain.base, e.factory!.speed],
     mendingloom: (e) => [e.mod!.regen!],
   };
 
@@ -171,7 +176,8 @@ describe("SUS-B the ability text (the kept sentences, gist, card; RIVETER's word
         expect(line, id).not.toMatch(/\d|SHIELD|HEAL|REGEN/);
       }
     }
-    expect(ITEMS.wardbell.desc.join(" ")).toBe("RINGS A WARD THAT STOPS ONE WHOLE HIT, AGAIN AND AGAIN.");
+    // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one hit's damage, not the whole hit (was "... STOPS ONE WHOLE HIT, ...")
+    expect(ITEMS.wardbell.desc.join(" ")).toBe("RINGS A WARD THAT BLOCKS ONE HIT, AGAIN AND AGAIN.");
   });
 });
 
@@ -183,7 +189,8 @@ describe("SUS-B WARD STONE reads as SHIELD (its rune line; runes.ts keeps the ru
     expect(runeKeywords(ward)).toEqual(["SHIELD"]);
     expect(runeSpans(ward).find((sp) => sp.t === "SHIELD")!.c).toBe(ICON_COLOUR[ICON.SHIELD]);
     expect(RUNE_KEYWORD_COLOUR.SHIELD).toBe(ICON_COLOUR[ICON.SHIELD]);
-    expect(runeReminder(ward)).toBe("SHIELD: STOPS ONE WHOLE HIT, THEN BREAKS.");
+    // NUM-4 (REVIEW-SUSB F1): it blocks one hit's DAMAGE (was "SHIELD: STOPS ONE WHOLE HIT, THEN BREAKS.")
+    expect(runeReminder(ward)).toBe("SHIELD: BLOCKS ONE HIT'S DAMAGE, THEN BREAKS.");
     // every other rune reads as before
     for (const r of RUNE_LIST.filter((q) => q.id !== "ward_stone")) expect(runeLine(r), r.id).not.toContain("SHIELD");
   });
@@ -207,7 +214,8 @@ describe("SUS-B a tap on each new label (the panel's own words, as keywords.ts f
     withSustain(() => {
       const wb = wordsOf("wardbell", 1), rv = wordsOf("riveter", 2), mp = wordsOf("mendpress", 1), ml = wordsOf("mendingloom", 3);
       expect(wb.SHIELD).toBe(glossaryText("SHIELD", { def: "wardbell", stars: 1 }));
-      expect(stripIcons(icons(wb.SHIELD))).toMatch(/^EACH SHIELD: STOPS ONE WHOLE HIT\./);
+      // NUM-4 (REVIEW-SUSB F1): REMINDER.SHIELD blocks one hit's DAMAGE (was /^EACH SHIELD: STOPS ONE WHOLE HIT\./)
+      expect(stripIcons(icons(wb.SHIELD))).toMatch(/^EACH SHIELD: BLOCKS ONE HIT'S DAMAGE\./);
       expect(wb.EVERY).toBe(glossaryEntry("EVERY")!.def);
       expect(stripIcons(icons(rv.HEAL))).toMatch(/^HEAL: GIVES BACK ♥, NEVER PAST FULL\./);
       expect(rv.HIT).toBe(glossaryEntry("HIT")!.def);

@@ -11,6 +11,8 @@ import type { Sel } from "../src/screens/build/layout";
 import { deadEndsAfter, dropTurret, sellTurretAt } from "../src/screens/build/turretActions";
 import { deadEndLines, slotNotes, socketLines, turretFacts, type SocketRow } from "../src/screens/build/turretPanel";
 import { gist } from "../src/ui/abilityText"; // 0.6.2rel
+import { effectAt } from "../src/sim/stars"; // NUM-4 (REQ-BFG-047): the turret's SPEED at a star
+import { fmtSpeed } from "../src/ui/statFormat"; // NUM-4: the RATE number as the sentences print it
 
 const CARGO = { x: 100, y: 100, w: 100, h: 20 };
 const HULL = { x: 0, y: 0, w: 60, h: 60 };
@@ -114,18 +116,25 @@ describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
     // next-star line; the catalogue's reason line isn't shown (it repeats these facts at 1 star)
     // NUM-2 (REQ-BFG-047): the seconds are 30 / speed (the faces keep SEC): ★2 BOMBARD speed 33, 30 / 33 = 0.909 reads 0.91
     // (was 0.9); ★3 THUNDERER speed 47 against ★1 38, 47 / 38 = 1.237: 24% FASTER (was 0.8 / 0.64 = 1.25, 25%)
+    // NUM-4 (REQ-BFG-047): the fire rate is the SPEED itself, "FIRES AT RATE n" with n = effectAt(...).turret.speed through
+    // fmtSpeed (was "FIRES EVERY x SECONDS", x = 30 / speed: BOMBARD ★1 "1 SECOND", ★2 "0.91"; DART GUN ★2 "0.49", ★3 "0.44";
+    // THUNDERER ★3 "0.64"); the star's rate is the whole SPEED gain over 1 star, "ITS RATE IS n MORE THAN AT 1 STAR." with
+    // n = effectAt(id, s).turret.speed - ITEMS[id].turret.speed (was "IT FIRES 11% / 24% FASTER THAN AT 1 STAR.", a rounded
+    // ratio); the flight sentence is gone, a hidden timer (N1 2.2; was "ITS SHOTS LAND 0.6 / 0.5 SECONDS AFTER IT FIRES."),
+    // so BOMBARD ★1 has 4 lines (was 5) and THUNDERER ★3 4 (was 5), and no turret at any star says it (the loop below)
+    const rate = (id: string, s: number) => fmtSpeed(effectAt(id, s).turret!.speed);
+    const gain = (id: string, s: number) => fmtSpeed(effectAt(id, s).turret!.speed - ITEMS[id].turret!.speed);
     expect(turretFacts("bombard", 1)).toEqual([
-      "A HEAVY TURRET THAT FIRES EVERY 1 SECOND AND HOLDS 4 LOADS.",
+      `A HEAVY TURRET THAT FIRES AT RATE ${rate("bombard", 1)} AND HOLDS 4 LOADS.`,
       "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.",
       "IT HAS 2 GEAR SLOTS AND 1 CORE SOCKET.",
-      "ITS SHOTS LAND 0.6 SECONDS AFTER IT FIRES.",
-      "NEXT STAR: FIRES EVERY 0.91 SECONDS, 3 GEAR SLOTS.", // NUM-2 (was "0.9 SECONDS")
+      `NEXT STAR: FIRES AT RATE ${rate("bombard", 2)}, 3 GEAR SLOTS.`,
     ]);
-    expect(turretFacts("dartgun", 2).slice(0, 2)).toEqual(["A LIGHT TURRET THAT FIRES EVERY 0.49 SECONDS AND HOLDS 2 LOADS.", "IT FIRES 11% FASTER THAN AT 1 STAR."]);
-    expect(turretFacts("dartgun", 2)).toContain("NEXT STAR: FIRES EVERY 0.44 SECONDS, 3 GEAR SLOTS.");
+    expect(turretFacts("dartgun", 2).slice(0, 2)).toEqual([`A LIGHT TURRET THAT FIRES AT RATE ${rate("dartgun", 2)} AND HOLDS 2 LOADS.`, `ITS RATE IS ${gain("dartgun", 2)} MORE THAN AT 1 STAR.`]);
+    expect(turretFacts("dartgun", 2)).toContain(`NEXT STAR: FIRES AT RATE ${rate("dartgun", 3)}, 3 GEAR SLOTS.`);
     expect(turretFacts("thunderer", 3)).toEqual([
-      "A HEAVY TURRET THAT FIRES EVERY 0.64 SECONDS AND HOLDS 4 LOADS.", "IT FIRES 24% FASTER THAN AT 1 STAR.", // NUM-2 (was 25%)
-      "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.", "IT HAS 6 GEAR SLOTS AND 1 CORE SOCKET.", "ITS SHOTS LAND 0.5 SECONDS AFTER IT FIRES.",
+      `A HEAVY TURRET THAT FIRES AT RATE ${rate("thunderer", 3)} AND HOLDS 4 LOADS.`, `ITS RATE IS ${gain("thunderer", 3)} MORE THAN AT 1 STAR.`,
+      "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.", "IT HAS 6 GEAR SLOTS AND 1 CORE SOCKET.",
     ]);
     expect(turretFacts("spikegun", 1)).toContain("IT TAKES A BELT ON ITS INNER COLUMN ONLY.");
     // plain sentences: no dot chains, every line ends with a full stop
@@ -133,6 +142,8 @@ describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
       for (const ln of turretFacts(d.id, s)) {
         expect(ln, `${d.id} ★${s}`).not.toContain("·");
         expect(ln.endsWith("."), `${d.id} ★${s}: ${ln}`).toBe(true);
+        // NUM-4 (REQ-BFG-047; N1 2.2): the flight time is a hidden timer: no line says when its shots land
+        expect(ln, `${d.id} ★${s}`).not.toMatch(/SHOTS LAND|AFTER IT FIRES/);
       }
     }
   });

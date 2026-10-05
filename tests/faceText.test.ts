@@ -6,15 +6,17 @@ import { effectAt, fusible, FUSE_MAX, outputsAt } from "../src/sim/stars";
 import { gearSlotsOf } from "../src/sim/deck";
 import { ICON, ICON_COLOUR, KEYWORDS, stripIcons, textWidth } from "../src/render/font";
 import { STAT_ROW_MAX } from "../src/ui/icons";
-import { cardText, n1, n2, percent } from "../src/ui/abilityText";
+import { cardText, percent } from "../src/ui/abilityText"; // NUM-4 (REQ-BFG-047): n1 and n2 are deleted (were imported here)
 import { captureFormats, fmtCount, fmtDmg, fmtGold, fmtPct, fmtSec, fmtSpeed, FORMATTERS } from "../src/ui/statFormat";
+import { FRACTIONAL } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): the findings list (a fraction, printed as it is)
 import {
   FACE_IDS, faceAt, faceDiff, faceLines, faceMerge, faceNext, factoryStats, hasFace, heroFace, heroPlaystyle, turretStats,
 } from "../src/ui/faces";
 import { INTERIM_CAVEATS, REMINDER, gearStats, rigStats, supplyStats } from "../src/ui/faces"; // U2b
 import { REMINDER_RANK, REMINDER_STEP, faceBlocks } from "../src/screens/build/faceBlocks"; // U2b F4-F6
 import { FRAY_BONUS, FRAY_MAX } from "../src/sim/content"; // U2b F3
-import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (30 / speed) and the whole rate %
+import { rateMul } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): the whole rate %
+import { factorySpeed } from "../src/sim/content"; // NUM-4 (REQ-BFG-047): MIMIC's SPEED as factoryStats reads it (secPer's 30 / speed left the faces)
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: MIMIC's speed rounds half up once (battle.ts factoryDef)
 import { PLATE_CAP } from "../src/sim/races/bastion"; // U2b F3
 import { ROLE } from "../src/screens/build/inspector"; // U2b F5
@@ -49,15 +51,49 @@ const starsOf = (def: string): number[] => (fusible(def) ? STARS : [1]);
 /** The numbers a line shows, its star labels aside. */
 const numbersIn = (s: string): string[] => [...stripIcons(s).replace(/★\d/g, "").matchAll(/\d+(?:\.\d+)?%?/g)].map((m) => m[0]);
 
-describe("U2a the formatters: one per unit; the interim prints today's value with today's display rounding (N1 2.6)", () => {
-  it("each formatter equals the helper today's text uses for that number", () => {
-    for (const x of [0, 0.2, 1, 1.2, 2.5, 3.5, 4.4, 6.6, 8.75, 10.5, 12, 28]) expect(fmtDmg(x)).toBe(n1(x));
-    for (const x of [0.36, 0.405, 0.44, 0.45, 0.495, 0.55, 0.675, 0.72, 0.765, 0.8, 0.93, 1, 1.25, 1.6, 2.8, 6]) {
-      expect(fmtSpeed(x)).toBe(n2(x));
-      expect(fmtSec(x)).toBe(n2(x));
+// NUM-4 (REQ-BFG-047; N1 2.5): retitled. The interim (N1 2.6: each formatter printed today's value with today's display
+// rounding, abilityText.ts n1 / n2 / percent) ended with NUM-4's bodies; was "... the interim prints today's value with
+// today's display rounding (N1 2.6)"
+describe("U2a the formatters: one per unit; NUM-4: each prints the sim's whole value as it is (N1 2.5; was the interim's rounding, N1 2.6)", () => {
+  it("NUM-4: each formatter prints the sim's whole value as it is; a fraction is recorded in FRACTIONAL, never rounded (replaces: each formatter equals the helper today's text uses)", () => {
+    // NUM-4 (REQ-BFG-047): replaces "each formatter equals the helper today's text uses for that number" (fmtDmg was n1,
+    // fmtSpeed and fmtSec n2, fmtPct percent): n1 and n2 (toFixed(1) / toFixed(2)) are deleted. The same probes, each held to
+    // NUM-4's bodies: a whole value prints as String(value) and is no finding; a fraction prints as it is, never rounded,
+    // and is recorded in FRACTIONAL (unit, value, printed); fmtPct prints a whole % (x 100 rounded only within float noise)
+    // and is still the % the text prints (abilityText percent). The findings so far are set aside and put back after, so
+    // this probe's own fractions pollute no other check.
+    const saved = FRACTIONAL.splice(0);
+    try {
+      const probe = (f: (x: number) => string, unit: string, x: number): void => {
+        const n = FRACTIONAL.length;
+        expect(f(x), `${unit} ${x}`).toBe(String(x));
+        expect(FRACTIONAL.slice(n), `${unit} ${x}`).toEqual(Number.isInteger(x) ? [] : [{ unit, value: x, printed: String(x), site: "" }]);
+      };
+      for (const x of [0, 0.2, 1, 1.2, 2.5, 3.5, 4.4, 6.6, 8.75, 10.5, 12, 28, 40, 250]) probe(fmtDmg, "dmg", x);
+      for (const x of [0.36, 0.405, 0.44, 0.45, 0.495, 0.55, 0.675, 0.72, 0.765, 0.8, 0.93, 1, 1.25, 1.6, 2.8, 6, 19, 55]) {
+        probe(fmtSpeed, "speed", x);
+        probe(fmtSec, "sec", x);
+      }
+      // a whole %: 0.15 is "15%", 0.07 "7%" (x 100 is 7.000000000000001: float noise, not a fraction); no finding
+      const whole: [number, string][] = [
+        [0, "0%"], [0.07, "7%"], [0.15, "15%"], [0.2, "20%"], [0.25, "25%"], [0.3, "30%"], [0.42, "42%"], [0.48, "48%"], [0.66, "66%"],
+        [1.05, "105%"], [1.5, "150%"], [1.15 - 1, "15%"], [2.3 - 1, "130%"], [3.1 - 1, "210%"],
+      ];
+      for (const [x, p] of whole) {
+        const n = FRACTIONAL.length;
+        expect([fmtPct(x), percent(x)], `${x}`).toEqual([p, p]);
+        expect(FRACTIONAL.length, `${x}`).toBe(n);
+      }
+      // a fractional % (1 / 0.6 - 1 printed "67%" before NUM-4) prints as it is, x 100 never rounded, and is a finding
+      for (const x of [1 / 0.6 - 1, 0.125]) {
+        const n = FRACTIONAL.length;
+        expect(fmtPct(x), `${x}`).toBe(`${x * 100}%`);
+        expect(FRACTIONAL.slice(n), `${x}`).toEqual([{ unit: "pct", value: x, printed: `${x * 100}%`, site: "" }]);
+      }
+      for (const n of [0, 1, 2, 3, 15, 24]) expect([fmtCount(n), fmtGold(n)]).toEqual([String(n), String(n)]);
+    } finally {
+      FRACTIONAL.splice(0, FRACTIONAL.length, ...saved);
     }
-    for (const x of [0.15, 0.2, 0.25, 0.3, 0.42, 0.48, 0.66, 1.05, 1.5, 1 / 0.6 - 1, 1.15 - 1]) expect(fmtPct(x)).toBe(percent(x));
-    for (const n of [0, 1, 2, 3, 15, 24]) expect([fmtCount(n), fmtGold(n)]).toEqual([String(n), String(n)]);
   });
 
   it("the registry records unit, value and printed text, nested captures included; outside a capture nothing is kept", () => {
@@ -121,7 +157,9 @@ describe("U2a the faces: every number from sim data through one formatter", () =
   it("the stat pairs come from the data functions: a factory's cadence, slug damage and belts; a turret's cadence, loads and gear slots", () => {
     for (const def of FACE_IDS.filter((d) => ITEMS[d].kind === "factory" && d !== "mimic")) for (const s of starsOf(def)) {
       const fs = effectAt(def, s).factory!, row = factoryStats(def, s);
-      expect(row[0], def).toEqual(["SEC", fmtSpeed(secPer(fs.speed))]); // the speed pair: SEC until NUMBERS (N1 2.6); NUM-2: 30 / speed (was fs.interval)
+      // NUM-4 (REQ-BFG-047): the speed pair is ["RATE", speed], the factory's SPEED through fmtSpeed (faces.ts speedPair); was
+      // ["SEC", 30 / speed], SEC until NUMBERS (N1 2.6; NUM-2: 30 / speed, fs.interval before)
+      expect(row[0], def).toEqual(["RATE", fmtSpeed(fs.speed)]);
       // NUM-3: a SCRAPPER's slug carries its scrapFlat on top (Battle.stamp: p.flat += scrapFlat), so its DMG is the sum
       expect(row[1], def).toEqual(["DMG", fmtDmg((fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0))]);
       if (row[2]) expect(row[2], def).toEqual(["BELT", fmtCount(outputsAt(def, s))]);
@@ -131,12 +169,16 @@ describe("U2a the faces: every number from sim data through one formatter", () =
       // NUM-2 (REQ-BFG-047): MIMIC ★1 at the hero factory's speed x its whole rate % (-29), rounded half up once as the battle
       // does (battle.ts factoryDef), 30 / that (was sig.interval * 1.4, its interval x)
       const mimic = roundHalfUp(sig.speed * rateMul(effectAt("mimic", 1).factory!.rate));
-      expect(factoryStats("mimic", 1, h).slice(0, 2)).toEqual([["SEC", fmtSpeed(secPer(mimic))], ["DMG", fmtDmg(AMMO[HEROES[h].ammo].base)]]);
+      // NUM-4 (REQ-BFG-047): that SPEED is the data function's (factorySpeed, which factoryStats reads), and the pair is
+      // ["RATE", speed] (was ["SEC", 30 / speed])
+      expect(factorySpeed("mimic", effectAt("mimic", 1).factory!, h), h).toBe(mimic);
+      expect(factoryStats("mimic", 1, h).slice(0, 2)).toEqual([["RATE", fmtSpeed(mimic)], ["DMG", fmtDmg(AMMO[HEROES[h].ammo].base)]]);
     }
     for (const def of FACE_IDS.filter((d) => ITEMS[d].kind === "turret")) for (const s of STARS) {
       const t = effectAt(def, s).turret!;
-      // NUM-2 (REQ-BFG-047): the SEC pair is 30 / speed (was t.fireInterval)
-      expect(turretStats(def, s), def).toEqual([["SEC", fmtSpeed(secPer(t.speed))], ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, s))]]);
+      // NUM-4 (REQ-BFG-047): the speed pair is ["RATE", speed], the turret's SPEED through fmtSpeed (was ["SEC", 30 / speed];
+      // NUM-2: 30 / speed, t.fireInterval before)
+      expect(turretStats(def, s), def).toEqual([["RATE", fmtSpeed(t.speed)], ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, s))]]);
     }
     for (const def of FACE_IDS) for (const s of starsOf(def)) expect(faceAt(def, s, { hero: "furnace" })!.stats.length).toBeLessThanOrEqual(STAT_ROW_MAX);
     // U2b: a rig, a piece of gear and a supply carry no stat pair (R1 C4); their numbers are their rule's
