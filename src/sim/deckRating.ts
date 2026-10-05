@@ -17,6 +17,8 @@ import {
 import { platedDeck, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's plating and stokers
 import { FURNACE_LONG_BELT, SHARED_HEADROOM, gearStats } from "./battle";
 import { resolveCore } from "./cores";
+import { drakeConvert } from "./cores"; // Y4 (release Y): DRAKE NOZZLE's price with the star switch on (drakeGain)
+import type { CoreSpec } from "./content"; // Y4
 import { doubles } from "./overclock"; // Y3 (release Y): the OVERCLOCKER's price with the star switch on (chargeGains)
 import { effectAt, gradeOf, starsOf, valueOf } from "./stars";
 
@@ -120,8 +122,26 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  *   BREAKER without their floors, BELLOWS for each whole 2 s uncapped, QUENCH without its stack cap, LONG HAUL uncapped,
  *   BRAKE SHOE's slower ★2/★3 belts without their flats, TWIN LATCH without its flat, SURGE VALVE's pulses for the seconds
  *   a slug rides its belts (no speed). BARBED SPOOL's FRAY cap and ASSEMBLY LINE's start times were never rated: unchanged.
+ * Y4 (release Y; DESIGN-Y rows 33-40), also read only with the switch on; no new constant:
+ * - SEAM WELDER: its plating is pairs only (a lone load rolls none), so its NOMINAL credit counts on the turret's share of
+ *   paired loads (pairShare, as TWIN TRIGGER's bonus): a turret with no pairs rates it at nothing.
+ * - EXT. CHAMBER: it fires 2/3/4 loads a shot, at most what the chamber holds (its +1 slot is gone): the turret's shot is
+ *   min(perShot, its chamber) loads (Battle.chambers).
+ * - DRAKE NOZZLE: each flatPerBurn (10/7/5) of a shot's bonus damage is a BURN (worth BURN_TIME x BURN_DPS) in place of that
+ *   damage (cores.ts drakeConvert on the walk's flat, deck.ts RouteEstimate.flat), its free BURN gone: computed, so no NOMINAL.
+ * - The rest comes from the switch's own data: HOPPER's window +1/+2/+3 with no load time, store or no-jam (`start`, the
+ *   finisher's split, firedShare), TWIN TRIGGER's pairBonus 30/60/95 with no load-time cut (`start`), ROTARY BREECH's load
+ *   time with no fire rate or no-jam (`start`, the cadence, firedShare), ANVIL BREECH's fold (perPlate 1.25/2.75/4.38 x
+ *   meanPlate, no flat) and STEAM BREECH's plated-only speed (bare: its own rate). SALVO RACK's pace was never read here.
  */
 export const STAR_EQ = { perStun: 0.75, tollFactory: 1.25 } as const;
+
+/** Y4 (release Y; DESIGN-Y row 40): with the star switch on, what a DRAKE NOZZLE adds to a shot of bonus damage `flat`: each
+ *  flatPerBurn of it is one BURN stack (cores.ts drakeConvert) worth BURN_TIME x BURN_DPS, in place of the damage it used. */
+export function drakeGain(spec: CoreSpec, flat: number): number {
+  const { stacks, used } = drakeConvert(spec, flat);
+  return stacks * BURN_TIME * BURN_DPS - used;
+}
 
 /** Y2: the pieces of `b` that land a STUN (the star switch's LODESTONE price): a shock or static rig (GALVANIC COIL,
  *  STATIC BRUSH), a factory stamping shock slugs (HOT SWAP) or STUN rounds (SABOT, FROSTBITE, DRAG CHAIN; a LIMPET WORKS
@@ -192,6 +212,7 @@ export const firedShare = (rho: number, noJam = false, m: Readonly<RatingModel> 
 
 interface Feed {
   route: number; arrival: number; eq: number; first: number; ride: number;
+  flat?: number; // Y4 (release Y): with the star switch on, the walk's bonus damage a payload carries (DRAKE NOZZLE's price)
   factory?: number; // 0.8.0 P1: the feeding factory (STOKER's cap counts the factories sharing a turret)
   base?: number; // 0.8.0 P1: a stoked feed's arrival without the stoke
 }
@@ -380,7 +401,8 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const eq = dmg + (spec.scrapFlat ?? 0) + BURN_TIME * BURN_DPS * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0) + // NUM-1: BURN_DPS
       (starRules() && spec.round?.kind === "limpet" ? AMMO.limpet.base : 0); // Y2: LIMPET's 20 on impact is in its blast now
     const list = feeds.get(info.turret) ?? [];
-    list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride, ...(stoked > 1 ? { factory: r.factory, base: arrival / stoked } : stoke.size ? { factory: r.factory } : {}) });
+    list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride, ...(stoked > 1 ? { factory: r.factory, base: arrival / stoked } : stoke.size ? { factory: r.factory } : {}),
+      ...(est.flat !== undefined ? { flat: est.flat } : {}) }); // Y4: the walk's flat, set only with the star switch on
     feeds.set(info.turret, list);
     const tiles = info.join ? journeyTiles(b, ri, occ) : r.cells.length; // E1 (battle.ts makeTurret): its journey
     longest.set(info.turret, Math.max(longest.get(info.turret) ?? 0, tiles));
@@ -432,7 +454,8 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       const plated = at(raw * rateMul(core.spec.steamPlated)), bare = at(raw * rateMul(core.spec.steamBare)); // NUM-2: cores.ts steamInterval
       interval = platedDeck(b) ? PLATED_SHARE * plated + (1 - PLATED_SHARE) * bare : bare;
     }
-    const cap = g.perShot / interval;
+    // Y4 (release Y; DESIGN-Y row 36): with the star switch on EXT. CHAMBER's 3/4 loads a shot fire at most the chamber
+    const cap = (starRules() ? Math.min(g.perShot, td.window + g.window) : g.perShot) / interval;
     // 0.8.0 P1 (STOKER's cap, as Battle.stokedPace): a stoke never feeds a turret past its pace (SHARED_HEADROOM of it
     // kept free when several factories share it); the stoked feeds give their extra back, never below unstoked
     const stokedFs = fs.filter((f) => f.base !== undefined);
@@ -469,10 +492,14 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     if (g.longRideFlat) eq += g.longRideFlat * fs.reduce((s, f, i) => s + (f.ride >= g.longRideMin ? flows[i] * left(f) : 0), 0) / inflow;
     // 0.8.0 P1: ANVIL BREECH's flat on each shot, and its per-plating damage at MEAN_PLATE on a deck that plates its hull
     if (core.routine === "anvil") eq += (core.spec.anvilFlat ?? 0) + (core.spec.perPlate ?? 0) * (platedDeck(b) ? meanPlate(b.hero) : 0);
+    // Y4 (release Y; DESIGN-Y row 40): with the star switch on, a DRAKE NOZZLE's BURN for each flatPerBurn of each belt's
+    // bonus damage (drakeGain), weighed as the belts' damage is (computed: no NOMINAL below)
+    const drake = starRules() && core.routine === "drake";
+    if (drake) eq += fs.reduce((s, f, i) => s + flows[i] * drakeGain(core.spec, f.flat ?? 0) * left(f), 0) / inflow;
     let mult = 1 + (g.finisher ? g.finisher / (td.window + g.window) : 0);
     // 0.8.0 P1: ANVIL and STEAM BREECH are computed above, so they take no NOMINAL credit; TWIN TRIGGER pays its pair
     // bonus on the turret's share of paired loads (pairShare; its shorter load time is in `start`)
-    if (core.bought && core.routine !== "anvil" && core.routine !== "steam") mult *= 1 + NOMINAL * valueOf(core.def, core.stars);
+    if (core.bought && core.routine !== "anvil" && core.routine !== "steam" && !drake) mult *= 1 + NOMINAL * valueOf(core.def, core.stars);
     if (g.pairBonus) mult *= 1 + g.pairBonus * pairShare(b, fs);
     for (const m of b.mods) {
       if (m.turret !== t || ITEMS[m.def]?.kind !== "mod") continue;
@@ -482,7 +509,10 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       // the first shot; the finisher's split; ★3's noJam in firedShare), so it takes no NOMINAL credit on top. It took
       // +12% / +24% / +48% of the turret's damage at ★1/★2/★3 (0.03 x 4/8/16 g), while its battle lift is negative
       // (flag 3: -2 to -9; its control -12 to -32), so the par player bought it where it costs damage
-      if (!md.fireRate && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m));
+      // Y4 (release Y; DESIGN-Y row 35): with the star switch on SEAM WELDER plates pairs only: its credit x the turret's
+      // share of paired loads (pairShare); off, x 1
+      const seamShare = starRules() && md.seam ? pairShare(b, fs) : 1;
+      if (!md.fireRate && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m)) * seamShare;
     }
     offense += thr * eq * mult;
     out?.turretDmg?.set(t, thr * eq * mult); // BOTS-X: read only

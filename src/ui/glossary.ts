@@ -158,6 +158,11 @@ export function glossaryRows(): GlossaryRow[] {
  * say START now (abilityText.ts startIn, S_STARTS), but POWDER KEG's kept sentence ("12 SECONDS AFTER IT COMES ONLINE",
  * Y5's piece) and the QUICK LATCH rune ("YOUR {BELT} RIGS: ONLINE {N} SOONER.") still do, so ONLINE stays; no word joins.
  * MATCHED (TWIN GAUGE's face) is a row already.
+ * Y4 (release Y; DESIGN-Y section 5, column g): LOAD TIME would retire if no switch-on text named it. The texts of the 8 gear
+ * and cores never say it with the switch on (HOPPER's, TWIN TRIGGER's and ROTARY BREECH's say CHAMBER and SOONER; their
+ * GATLING clashes are gone), but SALVO RACK's kept sentence ("IT WAITS FOR A FULL CHAMBER, OR TWICE ITS LOAD TIME.") and
+ * the TEMPO family's glossary line (families.ts: "... FIRE RATE, LOAD TIME, COMMISSIONING ...") still do, so LOAD TIME
+ * stays; BONUS DAMAGE stays (DRAKE NOZZLE's face taps it). No word joins.
  */
 export const STAR_RETIRED: readonly string[] = ["HARASSMENT"];
 /** Y2: is `r` a row the star switch retires, while it is on? */
@@ -288,9 +293,19 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   stoker: { word: "FASTER", text: () => "FASTER: IT STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO." },
 };
 
-/** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. */
+/**
+ * Y4 (release Y; REVIEW-Y1 ruling 3; BRIEF-Y4 S2): the tap notes the star switch adds, beside TAP_NOTES (read only with it
+ * on; off, every tap as before). TESLA ARC's face keeps its lone {DMG}25% stat (faces.ts coreStats); its SHOT label's tap
+ * says what that share is: Battle.impact: each arc deals tesla.share of the shot's damage (25% / 25% / 30%, its data's).
+ */
+export const STAR_TAP_NOTES: Readonly<Record<string, TapNote>> = {
+  tesla: { word: "SHOT", text: (e, x) => `SHOT: EACH ARC DEALS ${fmtPct(core(e, x).share!)} OF THE SHOT'S {DMG}.` },
+};
+
+/** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. Y4: with the star
+ *  switch on, STAR_TAP_NOTES' too. */
 export function tapNote(def: string, word: string): TapNote | undefined {
-  const n = TAP_NOTES[def];
+  const n = TAP_NOTES[def] ?? (starRules() ? STAR_TAP_NOTES[def] : undefined);
   return n && n.word === word.toUpperCase().replace(/:$/, "") ? n : undefined;
 }
 

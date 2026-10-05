@@ -520,6 +520,7 @@ export interface RouteEstimate {
   copies: number;
   burn: number;
   shock: boolean;
+  flat?: number; // Y4 (release Y): with the star switch on, the payload's bonus damage (rigs, splits, pulses; not HEAT)
 }
 
 /** 0.6.2 BELTSIDE (V4): what one hit did to the payload in the single-payload walk (walkRoute). */
@@ -814,7 +815,9 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat + heatBonus, pendulumShift(b, info.turret)) // 0.6.2: HEAT JACKET on the curve too
     : payloadDamage(base, ammo.rideScale, ride, mult, flat + heatBonus, shotFloor(fs?.ammo ?? "plain")); // includes HEAT JACKET's downstream ride (Y2: shotFloor)
-  const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
+  // Y4 (release Y; DESIGN-Y row 40): with the star switch on the estimate also carries the payload's bonus damage, `flat`
+  // (what a DRAKE NOZZLE turns into BURN at fire: Battle.fireCore's drakeConvert(p.flat)), for the bots' rating; off, as before
+  const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock, ...(star ? { flat } : {}) }, timeline, speedEnd: speed, locked };
   if (fixed !== undefined) walk.fixed = fixed; // beltside-062c (P8)
   if (joins.length) walk.joins = joins; // 0.6.2j
   return walk;

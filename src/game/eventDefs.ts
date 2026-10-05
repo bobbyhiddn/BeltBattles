@@ -4,6 +4,7 @@
 // gold on average and none of them wins a run by itself.
 
 import { ITEMS, buyableModules, type GateEffect, type ItemDef, type Rarity } from "../sim/content";
+import { starRules } from "../sim/content"; // Y4 (release Y; BRIEF-Y4 S3): the star switch (the SMUGGLER card's NONE ON OFFER line)
 import { fusible, starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
@@ -41,6 +42,7 @@ export interface Choice {
   odds?: number; // gamble: chance the gain comes through (the cost is always paid)
   note?: string;
   blocked?: string; // why it can't be picked right now (shown on the disabled card)
+  quiet?: boolean; // Y4 (release Y; BRIEF-Y4 S3): blocked, but the card draws no line for it (the SMUGGLER's NONE ON OFFER)
 }
 
 export interface EventState {
@@ -195,6 +197,18 @@ function partChoice(label: string, cost: Delta[], def: string | undefined, note?
   return c;
 }
 
+/**
+ * Y4 (release Y; REVIEW-REDOX answer 3; BRIEF-Y4 S3): a SMUGGLER choice. Since FIX-ABE the ALCHEMIST's rare tier always holds
+ * 4+ BURN and SHOCK wares, so no real run reaches its NONE ON OFFER case. With the star switch on that line leaves the card
+ * (`quiet`: cards.ts drawChoiceCard draws no line for it); the guard stays: the choice is still blocked (an old save without
+ * such a ware can't pick it; events.ts pickChoice). The pools are untouched. Off, partChoice's choice exactly as before.
+ */
+function smugglerChoice(label: string, cost: Delta[], def: string | undefined): Choice {
+  const c = partChoice(label, cost, def);
+  if (c.blocked && starRules()) c.quiet = true;
+  return c;
+}
+
 export interface Good {
   uid: number;
   def: string;
@@ -310,7 +324,7 @@ export const EVENTS: Record<EventId, EventDef> = {
     text: ["A SMUGGLER SELLS HOT RIGS FROM", "UNDER A TARP. NO QUESTIONS ASKED."], // beltside-062c: BELTSIDE's text (P10)
     choices: (run, ev) => {
       const [burn, shock] = smugglerParts(ev.pick, run); // 0.6.1c: the catalogue's burn and shock gates; 0.8.0 I1: the run's wares
-      return [partChoice("BURN", [gold(2)], burn), partChoice("SHOCK", [gold(3)], shock), moveOn()];
+      return [smugglerChoice("BURN", [gold(2)], burn), smugglerChoice("SHOCK", [gold(3)], shock), moveOn()]; // Y4 (S3)
     },
   },
 };

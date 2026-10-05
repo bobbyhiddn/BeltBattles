@@ -85,6 +85,10 @@ export interface CardView {
   badge?: ShopBadge | null; // 0.6.1d2: live from run.ts:shopBadge, for a choice that gains an item
 }
 
+/** The line at the foot of a choice card: why it is blocked, else its note. Y4 (release Y; BRIEF-Y4 S3): a quiet block (the
+ *  SMUGGLER's NONE ON OFFER with the star switch on: eventDefs.ts smugglerChoice) draws no line; off, none is quiet. */
+export const cardNote = (c: Choice): string | undefined => (c.quiet ? c.note : c.blocked ?? c.note);
+
 export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView): void {
   const dim = !!c.blocked || v.state === "other";
   const lift = v.state === "open" && !c.blocked && v.hover && !v.pressed ? 1 : 0;
@@ -113,7 +117,7 @@ export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView)
     drawBadge(g, x + r.w - bw - 4, y + 6, bw, v.badge, v.t);
   }
   exchange(g, x + 5, y + 25, r.w - 10, c, dim);
-  const note = c.blocked ?? c.note;
+  const note = cardNote(c);
   if (note) drawText(g, note, x + 5, y + r.h - 9, c.blocked ? C.red : C.slate4, { font: "3" });
   if (v.state === "chosen") {
     const tag = v.won ? "CHOSEN" : "LOST";
