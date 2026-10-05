@@ -65,7 +65,7 @@ import { RUNES, RULE_KINDS, STYLE_THEMES, type RuneKind, type RuneUnit } from ".
 import { transform } from "./sustainBench"; // SUS-D: --decks typ2r (its run guard keeps it idle when imported)
 
 // ---- the command line ------------------------------------------------------------------------------------------------
-const FLAGS = ["ids", "out", "k", "ko", "shard", "merge", "days", "sustain", "decks", "foes"] as const;
+const FLAGS = ["ids", "out", "k", "ko", "shard", "merge", "days", "sustain", "decks", "foes", "field", "members"] as const;
 type Flag = (typeof FLAGS)[number];
 const flags: Partial<Record<Flag, string>> = {};
 const pos: string[] = [];
@@ -98,6 +98,18 @@ if (DECKS !== "par" && DECKS !== "typ2r") throw new Error(`runevalue: --decks pa
 // decks it counters (typ2r: BASTION's hold SHIELD; FOUNDRY's and WEAVER's heal); the members are every hero's as before
 const FOES: HeroId[] = flags.foes ? (flags.foes.split(",") as HeroId[]) : HEROES;
 if (FOES.some((f) => !HEROES.includes(f))) throw new Error(`runevalue: --foes wants heroes of ${HEROES.join(",")}, not ${flags.foes}`);
+// TUNE-X (bench only, never merged): release X's field, both switches on (SUSTAIN_LIVE and BOT_RUNES on this branch).
+// --field x: the FIELD is release X's par decks as BOTS-X's bots build them (parField: sustain pieces bought from day 3,
+//   a bot rune every dawn); the MEMBERS are the same par player's decks with the sustain switch on but no runes
+//   (parField's botRunes false), so a member holds exactly the benched rune, as RUNES-2a measured the bands.
+// --field xlm: --field x, and every field deck j (seeds 1..KO) of every hero and day also holds LEECH VOW (j even: seeds
+//   1, 3, 5) or SCRAP MEDIC (j odd: seeds 2, 4), added after its own runes (REVIEW-SUSD answer 1's field variant).
+// --members runes (with x or xlm): each member keeps its bot runes (the stack), less any benched id it holds, and the
+//   benched rune is added on top: the rune's worth beside the deck's own runes.
+const FIELD = flags.field ?? "par";
+if (!["par", "x", "xlm"].includes(FIELD)) throw new Error(`runevalue: --field par|x|xlm, not ${flags.field}`);
+const MEMBERS = flags.members ?? "bare";
+if (!["bare", "runes"].includes(MEMBERS) || (MEMBERS === "runes" && FIELD === "par")) throw new Error(`runevalue: --members bare|runes (runes needs --field x or xlm), not ${flags.members}`);
 const [SHARD_I, SHARD_N] = (flags.shard ?? "1/1").split("/").map(Number);
 if (!(Number.isInteger(SHARD_I) && Number.isInteger(SHARD_N) && SHARD_N >= 1 && SHARD_I >= 1 && SHARD_I <= SHARD_N))
   throw new Error(`runevalue: --shard wants i/n with 1 <= i <= n, not ${flags.shard}`);
@@ -266,6 +278,7 @@ function report(rows: Row[], m: Meta): string {
 interface RunJson {
   tool: "runevalue"; rules: string; K: number; KO: number; days: number[]; variants: string[]; shard: string;
   decks?: string; sustain?: boolean; foes?: string[]; // SUS-D (absent in a RUNES-2a run: par, as shipped, all four)
+  field?: string; members?: string; fieldHolds?: unknown; membHolds?: unknown; // TUNE-X (absent: par, bare)
   battles: number; seconds: number; tField: number; started: string; baseWr: Record<string, number>; runes: Row[];
   gains: Record<string, Record<string, number[]>>; gainsDays4to10: Record<string, Record<string, number[]>>;
   byDay: Record<string, Record<number, number[]>>;
@@ -288,13 +301,40 @@ function bench(): void {
 
   const t0 = Date.now();
   const field: Record<string, Build[]> = {};
-  for (const h of HEROES) for (const d of DAYS) field[`${h}:${d}`] = parField(h, d, Math.max(K, KO));
+  let memb: Record<string, Build[]> = field; // TUNE-X: the members (the field itself unless --field x / xlm)
+  if (FIELD === "par") for (const h of HEROES) for (const d of DAYS) field[`${h}:${d}`] = parField(h, d, Math.max(K, KO));
+  else { // TUNE-X: release X's field; the members as --members says
+    memb = {};
+    const benched = new Set(all.map((v) => v.id));
+    for (const h of HEROES) for (const d of DAYS) {
+      field[`${h}:${d}`] = parField(h, d, KO).map((b, j) => {
+        if (FIELD !== "xlm") return b;
+        const add = j % 2 === 0 ? "leech_vow" : "scrap_medic";
+        return b.runes?.some((q) => q.id === add) ? b : withRune(b, add);
+      });
+      memb[`${h}:${d}`] = MEMBERS === "bare" ? parField(h, d, K, { botRunes: false })
+        : parField(h, d, K).map((b) => {
+          const out = cloneBuild(b);
+          for (const q of b.runes ?? []) if (benched.has(q.id) && (RUNES[q.id].kind === "hull" || RUNES[q.id].kind === "belt")) throw new Error(`runevalue: --members runes can't strip a HULL or BELT rune (${q.id})`);
+          out.runes = (b.runes ?? []).filter((q) => !benched.has(q.id));
+          return out;
+        });
+    }
+  }
   // SUS-D: --decks typ2r, the typical sustain load on every deck of both sides (sustainBench's transform)
   if (DECKS === "typ2r") for (const h of HEROES) for (const d of DAYS) {
     field[`${h}:${d}`] = field[`${h}:${d}`].map((b, i) => transform("typ2r", d, b, hashSeed("susd-typ2r", h, d, i)).b);
+    if (memb !== field) memb[`${h}:${d}`] = memb[`${h}:${d}`].map((b, i) => transform("typ2r", d, b, hashSeed("susd-typ2r", h, d, i)).b);
   }
   const tField = (Date.now() - t0) / 1000;
-  for (const k of Object.keys(field)) if (field[k].some((b) => b.runes?.length)) throw new Error(`runevalue: a par deck of ${k} holds runes`);
+  if (FIELD === "par" || MEMBERS === "bare") for (const k of Object.keys(memb)) if (memb[k].some((b) => b.runes?.length)) throw new Error(`runevalue: a member deck of ${k} holds runes`);
+  // TUNE-X: what the field and the members hold (runes per deck, sustain pieces per deck), for the report
+  const SUS = new Set(["wardbell", "mendpress", "mendingloom", "riveter"]);
+  const holds = (bs: Build[]) => ({ decks: bs.length, runesPerDeck: bs.reduce((a, b) => a + (b.runes?.length ?? 0), 0) / bs.length,
+    sustainPieceDecks: bs.filter((b) => b.items.some((p) => SUS.has(p.def)) || b.mods.some((m) => SUS.has(m.def))).length,
+    leechDecks: bs.filter((b) => b.runes?.some((q) => q.id === "leech_vow")).length, medicDecks: bs.filter((b) => b.runes?.some((q) => q.id === "scrap_medic")).length });
+  const fieldHolds = holds(Object.values(field).flat()), membHolds = holds(Object.values(memb).flat());
+  console.log(`runevalue ${SHARD_I}/${SHARD_N}: field ${FIELD} ${JSON.stringify(fieldHolds)}; members ${MEMBERS} ${JSON.stringify(membHolds)}; built in ${tField.toFixed(0)} s`);
 
   let battles = 0;
   const score = (bt: Battle) => (bt.winner === 0 ? 1 : bt.winner === -1 ? 0.5 : 0);
@@ -322,7 +362,7 @@ function bench(): void {
       const sum: Record<string, number> = {}, sumR1b: Record<string, number> = {};
       let n = 0, nR1b = 0;
       for (const d of DAYS) {
-        const mine = field[`${h}:${d}`][i];
+        const mine = memb[`${h}:${d}`][i]; // TUNE-X: the members' map (the field itself for --field par)
         const wins: readonly [number, number] = [Math.floor((d - 1) / 2), 0]; // WARLORD'S DUE: the member's wins, the field's
         const builds = MINE.map((v) => withAmount(v, () => withRune(mine, v.id)));
         const perDay: Record<string, number> = {};
@@ -370,11 +410,11 @@ function bench(): void {
     };
   });
   const seconds = (Date.now() - t0) / 1000;
-  const head = `Generated ${new Date().toISOString()} by tools/runevalue.ts, shard ${shard} of --ids ${all.map((v) => v.key).join(",")}. ${battles} battles; par fields ${tField.toFixed(0)} s; total ${seconds.toFixed(0)} s. Decks: ${DECKS}; the sustain switch: ${SUSTAIN ? "on (withSustain) in every battle" : "as shipped"}; the field's heroes: ${FOES.join(", ")}.`;
+  const head = `Generated ${new Date().toISOString()} by tools/runevalue.ts, shard ${shard} of --ids ${all.map((v) => v.key).join(",")}. ${battles} battles; par fields ${tField.toFixed(0)} s; total ${seconds.toFixed(0)} s. Decks: ${DECKS}; the sustain switch: ${SUSTAIN ? "on (withSustain) in every battle" : "as shipped"}; the field's heroes: ${FOES.join(", ")}. TUNE-X: field ${FIELD} ${JSON.stringify(fieldHolds)}; members ${MEMBERS} ${JSON.stringify(membHolds)}.`;
   mkdirSync(OUT, { recursive: true });
   writeFileSync(`${OUT}/runevalue.md`, report(rows, { rules: RULES_VERSION, K, KO, days: DAYS, head, bases: [{ label: "", baseWr }] }));
   const json: RunJson = {
-    tool: "runevalue", rules: RULES_VERSION, K, KO, days: DAYS, decks: DECKS, sustain: SUSTAIN, foes: FOES, variants: all.map((v) => v.key), shard, battles,
+    tool: "runevalue", rules: RULES_VERSION, K, KO, days: DAYS, decks: DECKS, sustain: SUSTAIN, foes: FOES, field: FIELD, members: MEMBERS, fieldHolds, membHolds, variants: all.map((v) => v.key), shard, battles,
     seconds: Math.round(seconds), tField: Math.round(tField), started: new Date(t0).toISOString(), baseWr, runes: rows,
     gains, gainsDays4to10: gainsR1b, byDay,
   };
@@ -391,7 +431,8 @@ function merge(dirs: string[]): void {
       throw new Error(`runevalue --merge: ${s.dir} ran rules ${s.j.rules}, K ${s.j.K}, KO ${s.j.KO}, days ${s.j.days.join()}; ${shards[0].dir} ran ${f.rules}, K ${f.K}, KO ${f.KO}, days ${f.days.join()}`);
   // SUS-D: one table never mixes deck settings or the switch
   for (const s of shards)
-    if ((s.j.decks ?? "par") !== (f.decks ?? "par") || !!s.j.sustain !== !!f.sustain || (s.j.foes ?? HEROES).join() !== (f.foes ?? HEROES).join())
+    if ((s.j.decks ?? "par") !== (f.decks ?? "par") || !!s.j.sustain !== !!f.sustain || (s.j.foes ?? HEROES).join() !== (f.foes ?? HEROES).join()
+      || (s.j.field ?? "par") !== (f.field ?? "par") || (s.j.members ?? "bare") !== (f.members ?? "bare")) // TUNE-X
       throw new Error(`runevalue --merge: ${s.dir} ran decks ${s.j.decks ?? "par"} (sustain ${!!s.j.sustain}); ${shards[0].dir} ran ${f.decks ?? "par"} (sustain ${!!f.sustain})`);
   // a run: the shards of one --ids list (each paired with its own base)
   const runs: { variants: string[]; shards: typeof shards; baseWr: Record<string, number> }[] = [];
@@ -415,7 +456,7 @@ function merge(dirs: string[]): void {
   const battles = shards.reduce((a, s) => a + s.j.battles, 0), cpu = shards.reduce((a, s) => a + s.j.seconds, 0);
   const sameBase = runs.every((r) => JSON.stringify(r.baseWr) === JSON.stringify(runs[0].baseWr));
   const runText = runs.map((r, i) => `run ${i + 1} (${r.shards.length} shard${r.shards.length > 1 ? "s" : ""}: ${r.shards.map((s) => `${s.j.shard} ${s.j.battles} battles ${s.j.seconds} s`).join(", ")})`).join("; ");
-  const head = `Merged ${new Date().toISOString()} by tools/runevalue.ts --merge from ${shards.length} shard${shards.length > 1 ? "s" : ""}: ${runText}. ${battles} battles in all (every shard plays the shared base itself); ${cpu} s of process time. Decks: ${f.decks ?? "par"}; the sustain switch: ${f.sustain ? "on (withSustain) in every battle" : "as shipped"}.${missing.length ? ` NOT merged (shard missing): ${missing.join(", ")}.` : ""}${runs.length > 1 ? (sameBase ? " Every run played the same base." : " The runs' bases differ (the code changed between them); each gain is paired with its own run's base.") : ""}`;
+  const head = `Merged ${new Date().toISOString()} by tools/runevalue.ts --merge from ${shards.length} shard${shards.length > 1 ? "s" : ""}: ${runText}. ${battles} battles in all (every shard plays the shared base itself); ${cpu} s of process time. TUNE-X: field ${f.field ?? "par"}, members ${f.members ?? "bare"}. Decks: ${f.decks ?? "par"}; the sustain switch: ${f.sustain ? "on (withSustain) in every battle" : "as shipped"}.${missing.length ? ` NOT merged (shard missing): ${missing.join(", ")}.` : ""}${runs.length > 1 ? (sameBase ? " Every run played the same base." : " The runs' bases differ (the code changed between them); each gain is paired with its own run's base.") : ""}`;
   const bases = sameBase ? [{ label: "", baseWr: runs[0].baseWr }] : runs.map((r, i) => ({ label: `, run ${i + 1}`, baseWr: r.baseWr }));
   const md = report(rows, { rules: f.rules, K: f.K, KO: f.KO, days: f.days, head, bases });
   mkdirSync(OUT, { recursive: true });

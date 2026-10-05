@@ -23,6 +23,13 @@
 //     most belt tiles (ties: cell order, then rotation); else the cheapest non-damage rig becomes it.
 //   npx vite build --ssr tools/sustainBench.ts --outDir tools/dist/susa --emptyOutDir --logLevel warn
 //   nice -n 19 node tools/dist/susa/sustainBench.js --days 1,3,6,10 --k 6 --seeds 4 --workers 2 --settings off,typ2r,heavy2r --json out.json
+// TUNE-X (bench only, never merged; both switches on on its branch): the settings start from baseField's fields:
+//   off0    both switches off (today's live field); off: the sustain switch off, the bots' runes on (THE baseline);
+//   bought  release X's field as BOTS-X's bots build it (pieces bought, sustain runes taken), nothing handed out: the main row;
+//   typ2r   bought, topped up to the typical load (a piece the deck already holds is not added again);
+//   heavy2r bought plus the stress pieces on every deck; heavy2l heavy2r plus LEECH VOW; leech bought plus LEECH VOW on every deck.
+//   --leechn N sets LEECH VOW's amount for the run (REVIEW-SUSD answer 3's rare-at-15 form).
+//   nice -n 19 node <dist>/sustainBench.js --days 1,3,6,10 --k 6 --seeds 4 --workers 4 --settings off0,off,bought,typ2r,heavy2r,leech,heavy2l --json out.json
 // Reports, per day and setting: fight length (median, p10, p90, mean; mirrors), hard stops (120 s), fights of 60 s or
 // more, the share in the wind (25 s or more), hero win rates (Wilson 95%) and the paired shift against off, flips, and
 // what the sustain did per battle (hits stopped, SHIELD gained, hull healed, healing lost to BURN and to the wind).
@@ -31,7 +38,8 @@ import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { writeFileSync } from "node:fs";
 import { Rng, hashSeed } from "../src/core/rng";
 import { Battle } from "../src/sim/battle";
-import { BATTLE_CAP, GRID, HEROES, ITEMS, WIND_START, type HeroId } from "../src/sim/content";
+import { BATTLE_CAP, GRID, HEROES, ITEMS, WIND_START, withSustain, type HeroId } from "../src/sim/content";
+import { RUNES } from "../src/sim/runes"; // TUNE-X: --leechn
 import {
   arrowCell, cloneBuild, commitRoute, footprint, gearSlotsOf, installedTurrets, occupancy, rigArrows, rigHits, type Build,
 } from "../src/sim/deck";
@@ -163,23 +171,42 @@ function placeRiveter(b: Build, stars: number): How {
   return "replace";
 }
 
+/** TUNE-X: does the deck already hold `def` (a piece or a gear)? A bought piece counts, so typ2r on release X's field
+ *  tops a deck up to the typical load instead of doubling what its bot bought (a switch-off field holds none: as before). */
+const holdsDef = (b: Build, def: string): boolean => b.items.some((p) => p.def === def) || b.mods.some((m) => m.def === def);
+/** TUNE-X: add rune `id` to a deck that doesn't hold it (none of the runes used here is a HULL or BELT rune). */
+const addRune = (b: Build, id: string): void => { if (!b.runes?.some((q) => q.id === id)) b.runes = [...(b.runes ?? []), { id }]; };
+
 /** The deck a setting fights with (a copy), and how each piece was placed. */
 export function transform(setting: string, day: number, src: Build, seed: number): { b: Build; how: Record<string, How> } {
   const b = cloneBuild(src);
   const how: Record<string, How> = {};
   const s = starOf(day);
   if (setting === "typ2r") {
-    if (b.hero === "bastion") how.wardbell = placeGear(b, "wardbell", s);
-    if (b.hero === "foundry") how.mendpress = placePress(b, s, seed);
-    if (b.hero === "weaver") how.mendingloom = placeGear(b, "mendingloom", s);
-  } else if (setting === "heavy2r") {
+    if (b.hero === "bastion" && !holdsDef(b, "wardbell")) how.wardbell = placeGear(b, "wardbell", s);
+    if (b.hero === "foundry" && !holdsDef(b, "mendpress")) how.mendpress = placePress(b, s, seed);
+    if (b.hero === "weaver" && !holdsDef(b, "mendingloom")) how.mendingloom = placeGear(b, "mendingloom", s);
+  } else if (setting === "heavy2r" || setting === "heavy2l") { // TUNE-X: heavy2l = heavy2r plus LEECH VOW on every deck
     how.wardbell = placeGear(b, "wardbell", 3);
     how.mendingloom = placeGear(b, "mendingloom", 3);
     how.mendpress = placePress(b, 3, seed);
     how.riveter = placeRiveter(b, 3);
-    b.runes = [...(b.runes ?? []), { id: "ward_stone" }];
-  } else if (setting !== "off") throw new Error(`unknown setting ${setting}`);
+    addRune(b, "ward_stone");
+    if (setting === "heavy2l") addRune(b, "leech_vow");
+  } else if (setting === "leech") { // TUNE-X: release X's field, every deck on both sides also holds LEECH VOW
+    addRune(b, "leech_vow");
+  } else if (setting !== "off" && setting !== "off0" && setting !== "bought") throw new Error(`unknown setting ${setting}`);
   return { b, how };
+}
+
+/** TUNE-X: the field a setting starts from (bench only, never merged; both switches are on on this branch).
+ *  off0: both switches off (today's live field: no sustain piece, no bot rune).
+ *  off: the sustain switch off, the bots' runes on (release X's field without sustain): THE baseline of SUSTAIN-1 5.8.
+ *  any other setting: release X's field as BOTS-X's bots build it, both switches on (the pieces bought from day 3 under
+ *  rules 2-6, a bot rune every dawn, the 8 sustain runes among them from day 3). `bought` plays it as it is. */
+export function baseField(setting: string, heroes: readonly HeroId[], day: number, k: number): Build[] {
+  const build = () => heroes.flatMap((h) => parField(h, day, k, setting === "off0" ? { botRunes: false } : {}));
+  return withSustain(build, setting !== "off" && setting !== "off0");
 }
 
 function play(field: Build[], f: Fight): Out {
@@ -236,8 +263,10 @@ async function main(): Promise<void> {
   const hardAll = new Map<string, { hard: number; n: number; hardMir: number; nMir: number; over60: number }>();
   for (const day of days) {
     const t0 = performance.now();
-    const base: Build[] = [];
-    for (const h of heroes) base.push(...parField(h, day, k));
+    // TUNE-X: each setting starts from its base field (baseField: off0, off, or release X's field as bought)
+    const bases = new Map<string, Build[]>();
+    const kindOf = (st: string) => (st === "off0" || st === "off" ? st : "on");
+    for (const st of settings) if (!bases.has(kindOf(st))) bases.set(kindOf(st), baseField(st, heroes, day, k));
     const tf = (performance.now() - t0) / 1000;
     const fights: Fight[] = [];
     const meta: { x: number; y: number; aIsX: boolean; mirror: boolean }[] = [];
@@ -253,7 +282,7 @@ async function main(): Promise<void> {
     const placed: Record<string, Record<string, Record<How, number>>> = {};
     for (const st of settings) {
       const t1 = performance.now();
-      const field = base.map((d, i) => {
+      const field = bases.get(kindOf(st))!.map((d, i) => {
         const { b, how } = transform(st, day, d, hashSeed("susa-place", day, i));
         for (const [piece, h] of Object.entries(how)) {
           const row = ((placed[st] ??= {})[piece] ??= { free: 0, replace: 0, star: 0, none: 0 });
@@ -342,6 +371,8 @@ async function main(): Promise<void> {
 // only when the built bench runs (node .../sustainBench.js; its worker threads share that argv): a worker of it, or its
 // main. Imported elsewhere (tests/sustain.stall.test.ts reads transform), it does nothing
 const benchRun = !!process.argv[1]?.endsWith("sustainBench.js");
+// TUNE-X: --leechn N sets LEECH VOW's amount for the whole run, in the main thread and every worker (they share argv)
+if (benchRun && flag("leechn") !== undefined) RUNES.leech_vow.amount.n = Number(flag("leechn"));
 if (benchRun && !isMainThread) {
   parentPort!.on("message", (c: Chunk) => {
     parentPort!.postMessage({ id: c.id, out: c.fights.map((f) => play(c.field, f)) });
