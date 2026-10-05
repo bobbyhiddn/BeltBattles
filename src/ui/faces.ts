@@ -380,7 +380,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   coil: (e) => {
     // Battle.impact: a shocked payload stalls the part it hits for DISRUPT_TIME, or the star's shockTime (STUN today)
     const t = gt(e).shockTime ?? DISRUPT_TIME, stun = fmtSec(t);
-    return rules([hit(`{*STUN} ${stun}.`)], [["stun", `{*STUN} ${stun}`]], [REMINDER.STUN(t)]);
+    // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 1): ★2/★3 SPARK JUMP is a number, the parts its STUN hits: 1 + jump
+    // (Battle.sparkJump: the shock also stalls the `jump` nearest other parts). Was "{*STUN} 2." and the clause "★2 SPARK
+    // JUMP: {*STUN} HITS 2 PARTS."; the perk's name shows in the ⓘ LEVELS only (ruling R-1, faceBlocks.ts PERK_INFO_ONLY)
+    const parts = 1 + (gt(e).jump ?? 0), n = fmtCount(parts);
+    return rules([hit(`{*STUN} ${stun} ON ${n} PART${s(parts)}.`)],
+      [["stun", `{*STUN} ${stun}`], ["parts", `${n} PART${s(parts)}`]], [REMINDER.STUN(t)]);
   },
   splitter: (e) => {
     const sp = gt(e).split!, n = fmtCount(sp.copies), share = fmtPct(sp.mult);
@@ -633,12 +638,7 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
     const n = fmtCount(cap);
     return { text: `MAX ${n} RIGS.`, nums: [["cap", `MAX ${n} RIGS`]] };
   },
-  coil: (e) => {
-    const j = gt(e).jump; // Battle.sparkJump: the shock also stalls the `jump` nearest other parts
-    if (!j) return null;
-    const n = fmtCount(1 + j);
-    return { text: `{*STUN} HITS ${n} PARTS.`, nums: [["jump", `${n} PARTS`]] };
-  },
+  // Y1: GALVANIC COIL's SPARK JUMP clause is its face line's part count now (FACES coil)
   overdrive: (e) => {
     // Battle.acceptHarassment / routeGuardActive: from its tiles on, GUARD_SLOW keeps enemy CHAIN rounds' STUNs (cause
     // "drag") off its belts, GUARD_FREEZE FROST rounds' (cause "freeze"). NUM-3 (R1's STUN fold): no SLOW or FREEZE any more
