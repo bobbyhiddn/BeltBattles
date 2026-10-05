@@ -63,6 +63,10 @@ export const FACE_SIM = {
   scrapPerHarass: 1,
   // NUM-3: ... and with ★3 BIG HAUL one more for each wreck (wreckAccepted - seenWreck)
   scrapPerWreck: 1,
+  // Y1 (STAR-D row 5): cores.ts ROUTINES.compound is ready at 2 loads in the chamber, and Battle.fireCore fires them as one
+  // shell (the second load rides in the first, p.compound): COMPOUND BREECH's "FUSES 2 {SLUG} INTO 1"
+  compoundLoads: 2,
+  compoundShells: 1,
 } as const;
 
 /** One rule line: markup ({NAME}, {*NAME}); `label`, its brass trigger label, a part of `text` ("SHOT:"). */
@@ -346,7 +350,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   compound: (e, x) => {
     const more = fmtPct(c(e, x).mult! - 1);
-    return rules([shot(`TWO LOADS FUSE INTO ONE SHELL, +${more} {DMG}.`)], [["mult", `+${more} {DMG}`]]);
+    // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 5): one verb with its own amount (was "TWO LOADS FUSE INTO ONE SHELL, +15%
+    // {DMG}.", two clauses); the counts through fmtCount (FACE_SIM)
+    const from = fmtCount(FACE_SIM.compoundLoads), into = fmtCount(FACE_SIM.compoundShells);
+    return rules([shot(`FUSES ${from} {SLUG} INTO ${into} AT +${more} {DMG}.`)], [["mult", `+${more} {DMG}`]]);
   },
   lance: (e, x) => {
     const n = c(e, x).columns!, cols = fmtCount(n), share = fmtPct(c(e, x).share!);
