@@ -12,6 +12,8 @@ import { hashSeed } from "../src/core/rng";
 import { ITEMS, RUN_DAYS, buyableModules, withWave3, type HeroId } from "../src/sim/content";
 import { SUSTAIN_FIRST_DAY, isSustain } from "../src/sim/content"; // FLIP-X2: the sustain pieces' day-3 hold
 import { DRAW, drawWares, quotas, unlocked, unlockDay, waresOk, type Wares } from "../src/game/wares";
+import { heldPast, seatDay } from "../src/game/wares"; // REDO-X (FIX-ABE F3): the stand-ins' rule
+import { RARITIES } from "../src/sim/content"; // REDO-X (FIX-ABE F3): the draw's rarity tiers
 import { migrateRun, newRun, rollShop, type Run } from "../src/game/run";
 import { EVENTS, SALVAGE_OWNED, UPGRADE, salvagePart, salvagePool, smugglerParts, smugglerPool, swapPart, type EventState } from "../src/game/eventDefs";
 import { choicesFor, makeEvent } from "../src/game/events";
@@ -32,6 +34,35 @@ function caravan(run: Run, day: number, r: number): string[] {
   run.shop = { wagons: [], rerolls: r, discount: 0, free: 0 };
   rollShop(run);
   return run.shop.wagons.flatMap((w) => w.offers.map((o) => o.def));
+}
+/** REDO-X (cap's ruling on FIX-ABE F3, REVIEW-FIXABE): a run's DRAW.active seats (slots), dealt as drawWares deals them
+ *  (D1's draw, tools/wave3.ts wares): each merchant's quota, its rarity tiers' quotas, each tier's seeded shuffle. */
+function seatsOf(seed: number): string[] {
+  const all = buyableModules().map((d) => d.id);
+  const merchants = [...new Set(all.map((id) => ITEMS[id].merchant!))].sort();
+  const stockOf = (m: string) => all.filter((id) => ITEMS[id].merchant === m);
+  const qm = quotas(merchants.map((m) => stockOf(m).length), Math.min(DRAW.active, all.length), new Rng(hashSeed(seed, "wares-merchant")));
+  return merchants.flatMap((m, i) => {
+    const stock = stockOf(m), tiers = RARITIES.filter((r) => stock.some((id) => ITEMS[id].rarity === r));
+    const qr = quotas(tiers.map((r) => stock.filter((id) => ITEMS[id].rarity === r).length), qm[i], new Rng(hashSeed(seed, "wares-rarity", m)));
+    return tiers.flatMap((r, j) => new Rng(hashSeed(seed, "wares", m, r)).shuffle(stock.filter((id) => ITEMS[id].rarity === r)).slice(0, qr[j]));
+  });
+}
+/** REDO-X (cap's ruling on FIX-ABE F3 / b1.smuggler, REVIEW-FIXABE): the stand-ins (74e14a1) in the run wares `w` of
+ *  `seed`, checked; returns how many. Each seat's ware is the run's. A held ware (heldPast) that drew a seat owes one
+ *  stand-in from the wares its tier's seats left (none when they left none: IRONMONGER's three epics, all drawn). The
+ *  stand-ins are the run's wares beyond its seats: exactly those owed, each open on its slot's day (the held ware's
+ *  seatDay). */
+function standIns(seed: number, w: Wares): number {
+  const tier = (id: string) => `${ITEMS[id].merchant} ${ITEMS[id].rarity}`;
+  const seats = seatsOf(seed), held = Object.keys(w).filter((id) => heldPast(id));
+  const left = buyableModules().map((d) => d.id).filter((id) => !seats.includes(id) && !heldPast(id));
+  const owed = [...new Set(held.map(tier))].flatMap((t) => Array<string>(Math.min(held.filter((id) => tier(id) === t).length, left.filter((id) => tier(id) === t).length)).fill(t));
+  const extra = Object.keys(w).filter((id) => !seats.includes(id));
+  expect(seats.filter((id) => !(id in w)), `seed ${seed}: a seat's ware is missing`).toEqual([]);
+  expect(extra.map(tier).sort(), `seed ${seed}: the stand-ins' tiers`).toEqual(owed.sort());
+  for (const id of extra) expect(w[id], `seed ${seed}: stand-in ${id}`).toBe(seatDay(held.find((h) => tier(h) === tier(id))!));
+  return owed.length;
 }
 
 describe("the per-run draw: a run's wares (DESIGN-wave3.md 4.1)", () => {
@@ -64,7 +95,9 @@ describe("the per-run draw: a run's wares (DESIGN-wave3.md 4.1)", () => {
     const day1: number[] = [];
     for (const s of SEEDS) {
       const w = drawWares(s), p = poolOf(w);
-      expect(p.active, `seed ${s}`).toBe(DRAW.active);
+      // REDO-X (cap's ruling on FIX-ABE F3 / b1.smuggler, REVIEW-FIXABE): exactly 62 wares plus the run's stand-ins (one per
+      // held ware that drew a slot, while its tier has a ware left), each open on its slot's day: 62-65 (was DRAW.active, 62)
+      expect(p.active, `seed ${s}`).toBe(DRAW.active + standIns(s, w));
       expect(p.active).toBeGreaterThanOrEqual(55);
       expect(p.active).toBeLessThanOrEqual(70);
       expect(p.day1, `seed ${s}`).toBeGreaterThanOrEqual(17);
@@ -309,7 +342,9 @@ describe("a save without wares plays today's rule (DESIGN-wave3.md 4.2: a run in
   it("with wave 3 off for one call the draw reads that catalogue (71 modules), and every run still gets 62 wares", () => {
     withWave3(() => {
       const w = drawWares(17);
-      expect(Object.keys(w)).toHaveLength(62);
+      // REDO-X (cap's ruling on FIX-ABE F3 / b1.smuggler, REVIEW-FIXABE): exactly 62 wares plus the run's stand-ins, each open
+      // on its slot's day: 63 (MENDING LOOM's ALCHEMIST rare slot has one; MEND PRESS's none: both IRONMONGER epics drawn) (was 62)
+      expect(Object.keys(w)).toHaveLength(62 + standIns(17, w));
       expect(Object.keys(w).every((id) => buyableModules().some((d) => d.id === id))).toBe(true);
     }, false);
   });
