@@ -154,7 +154,7 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("oiled_cogs", "OILED COGS", "common", "factories", "factoryRate", 5, "YOUR FACTORIES: +{N} {RATE}."), // M5: +10% measured +7.2 (rare)
   r("rivet_hoard", "RIVET HOARD", "common", "bastion", "startPlate", 60, "START: +{N} {*PLATE}."), // Y1: TEXT-STYLE 3.2's START: label (was "START EACH BATTLE WITH {N} {*PLATE}.")
   r("twin_nails", "TWIN NAILS", "common", "foundry", "pairDmg", 10, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FLIP-X2 (TUNE-X line 7, REVIEW-TUNEX): 20 -> 10
-  r("coal_chute", "COAL CHUTE", "common", "furnace", "heatPct", 25, "YOUR {*HEAT}: +{N}."),
+  r("coal_chute", "COAL CHUTE", "common", "furnace", "heatPct", 20, "YOUR {*HEAT}: +{N}."), // FURN-Y: 25 -> 20 (reads the KILN's HEAT: FURNACE +4.4)
   r("loose_thread", "LOOSE THREAD", "common", "weaver", "startFray", 2, "START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 9): 3 -> 2. Y1: the START: label (was "BATTLE START:")
   // ---- rare
   r("spare_hull", "SPARE HULL", "rare", "armor", "hull", 300, "+{N} {HULL}."),
@@ -169,7 +169,7 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // rare band), as MANY HANDS and THREAD STORM were
   r("grave_plates", "GRAVE PLATES", "rare", "armor", "startPlate", 240, "START: +{N} {*PLATE}."), // Y1: the START: label (was "START EACH BATTLE WITH {N} {*PLATE}.")
   r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 20, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FLIP-X2 (TUNE-X line 11): 40 -> 20
-  r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 50, "YOUR {*HEAT}: +{N}."),
+  r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 40, "YOUR {*HEAT}: +{N}."), // FURN-Y: 50 -> 40 (FURNACE +8.0)
   r("double_knot", "DOUBLE KNOT", "rare", "weaver", "frayHit", 1, "YOUR {*FRAY} HITS: +{N} {*FRAY}."),
   r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 5, "START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 14): 6 -> 5. Y1: the START: label (was "BATTLE START:")
   // ---- RUNES-2a (REQ-BFG-058): 36 more, each a new idea on a new hook (no same-stat twin of a shipped rune), in today's
@@ -277,7 +277,7 @@ export const SUSTAIN_RUNE_LIST: readonly RuneDef[] = [
   // FURN-Y (release Y bench, never merged): each counter keeps its rule and gains a baseline (one new kind each); the
   // amounts are the bench's (T/output-furny/REPORT.md)
   r("searing", "SEARING", "rare", "furnace", "searBurn", 6, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}."),
-  r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", 10, "YOUR SHOTS: +{N} {DMG}. A {*SHIELD} THEY BREAK STILL TAKES THE HIT."),
+  r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", 15,"YOUR SHOTS: +{N} {DMG}. A {*SHIELD} THEY BREAK STILL TAKES THE HIT."),
 ];
 
 /** SUS-D: every rune of this rules version, the sustain runes last (RUNES' order). */
