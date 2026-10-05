@@ -27,9 +27,8 @@
 // more, the share in the wind (25 s or more), hero win rates (Wilson 95%) and the paired shift against off, flips, and
 // what the sustain did per battle (hits stopped, SHIELD gained, hull healed, healing lost to BURN and to the wind).
 
-import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
+import { Worker, isMainThread, parentPort } from "node:worker_threads";
 import { writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import { Rng, hashSeed } from "../src/core/rng";
 import { Battle } from "../src/sim/battle";
 import { BATTLE_CAP, GRID, HEROES, ITEMS, WIND_START, type HeroId } from "../src/sim/content";
@@ -197,7 +196,7 @@ function play(field: Build[], f: Fight): Out {
 }
 
 function pool(n: number, script: string) {
-  const ws = Array.from({ length: n }, () => new Worker(new URL(script), { workerData: { susaBench: true } }));
+  const ws = Array.from({ length: n }, () => new Worker(new URL(script)));
   const run = (field: Build[], fights: Fight[]) => new Promise<Out[]>((done, fail) => {
     const size = Math.max(8, Math.ceil(fights.length / (n * 8)));
     const chunks: Chunk[] = [];
@@ -340,10 +339,11 @@ async function main(): Promise<void> {
   await workers.close();
 }
 
-// a worker of this bench (workerData.susaBench), or the bench run directly; imported (tests/sustain.stall.test.ts reads
-// transform), it does nothing
-if (!isMainThread && (workerData as { susaBench?: boolean } | null)?.susaBench) {
+// only when the built bench runs (node .../sustainBench.js; its worker threads share that argv): a worker of it, or its
+// main. Imported elsewhere (tests/sustain.stall.test.ts reads transform), it does nothing
+const benchRun = !!process.argv[1]?.endsWith("sustainBench.js");
+if (benchRun && !isMainThread) {
   parentPort!.on("message", (c: Chunk) => {
     parentPort!.postMessage({ id: c.id, out: c.fights.map((f) => play(c.field, f)) });
   });
-} else if (isMainThread && !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) void main();
+} else if (benchRun) void main();
