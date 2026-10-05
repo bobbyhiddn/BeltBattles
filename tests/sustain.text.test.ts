@@ -134,7 +134,7 @@ describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, le
       `{HEAL}${fmtDmg(ITEMS.mendpress.factory!.heal!.amount)}`, `{REGEN}${fmtDmg(ITEMS.mendingloom.mod!.regen!)}`,
     ]);
     expect(SUSTAIN_FACES.map((id) => cardText(id))).toEqual([
-      "HEALS 6 HULL EACH HIT.", "+1 SHIELD EVERY 8 SECONDS.", "HEALS YOUR HULL EVERY 3 SECONDS.", "HEALS 10 HULL EVERY SECOND.",
+      "HEALS 6 HULL EACH HIT.", "SHIELDS YOUR HULL EVERY 8 SECONDS." /* FLIP-X2 (cap's ruling 207816b18a9fbfdb C): was "+1 SHIELD EVERY 8 SECONDS." */, "HEALS YOUR HULL EVERY 3 SECONDS.", "HEALS 10 HULL EVERY SECOND.",
     ]);
   });
 });

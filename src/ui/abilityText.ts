@@ -1266,7 +1266,8 @@ const ENTRIES: Record<string, Entry> = {
       "A STUN ON ITS TURRET PAUSES IT.", // NUM-4 (REVIEW-NUM3 F2): one word for one stop (was "A STALL OR FREEZE")
     ],
     gist: (e) => `${countWord(m(e).shield!.amount)} ${SW.shield} ${every(m(e).shield!.every)}`,
-    card: (e) => `+${m(e).shield!.amount} ${SW.shield} ${every(m(e).shield!.every)}`,
+    // FLIP-X2 (cap's ruling 207816b18a9fbfdb C): verb-first, in ARMOR PRESS's form (was `+${amount} ${SW.shield} ${every}`)
+    card: (e) => `${SW.shield}S YOUR HULL ${every(m(e).shield!.every)}`,
   },
   mendpress: {
     // Battle.pressHeal: heal.amount every heal.every s through heal() while it feeds a turret and isn't stalled or frozen

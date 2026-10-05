@@ -127,6 +127,10 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
   shieldwall: [],
   twinmould: [],
   armorpress: [],
+  // FLIP-X2 (cap's ruling 207816b18a9fbfdb D): the sustain pieces, sold with SUSTAIN_LIVE on; no flavour (each has a face)
+  wardbell: [],
+  mendpress: [],
+  mendingloom: [],
   anvil: [],
   steambreech: [],
   twintrigger: [],
