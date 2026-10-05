@@ -16,6 +16,7 @@ import { drawText, textWidth } from "../render/font";
 import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): SHIELD's pips and REGEN's badge, one source
 import { SHIELD_CAP } from "../sim/content"; // SUS-B: the pips' count
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: the REGEN badge prints as the faces print REGEN
+import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results
 import { heartIcon } from "../render/sprites";
 import { button, panel, type Rect } from "../ui/ui";
 import { hullBar } from "../ui/hud";
@@ -226,19 +227,23 @@ export function drawHearts(g: G, x: number, y: number, lives: number, t = 0, los
  *  Furnace or Weaver fight has no such rows. */
 export function resultRows(r: Pick<DayResult, "player" | "enemy" | "shocks" | "race">): [string, string, string][] {
   const p = r.player, e = r.enemy;
-  const idle = (s: typeof p) => `${Math.round((s.idle / Math.max(0.001, s.turretTime)) * 100)}%`;
+  // NUM-4 (REQ-BFG-047; N1 2.5): the totals are sums of whole events, printed as they are (fmtDmg; was Math.round);
+  // FIRST SHOT is a clock reading, whole elapsed seconds (fmtClock; was toFixed(1)); GUNS IDLE a measured share, a reading
+  // (fmtReadPct, the one rounded %)
+  const idle = (s: typeof p) => fmtReadPct(s.idle / Math.max(0.001, s.turretTime));
   const rows: [string, string, string][] = [
-    ["DAMAGE DEALT", String(Math.round(p.damage)), String(Math.round(e.damage))],
+    ["DAMAGE DEALT", fmtDmg(p.damage), fmtDmg(e.damage)],
     ["SHOTS", String(p.shots), String(e.shots)],
-    ["FIRST SHOT", p.firstShot < 0 ? "NEVER" : `${p.firstShot.toFixed(1)}S`, e.firstShot < 0 ? "NEVER" : `${e.firstShot.toFixed(1)}S`],
+    ["FIRST SHOT", p.firstShot < 0 ? "NEVER" : `${fmtClock(p.firstShot)}S`, e.firstShot < 0 ? "NEVER" : `${fmtClock(e.firstShot)}S`],
     ["GUNS IDLE", idle(p), idle(e)],
     ["JAMS", String(p.jams), String(e.jams)],
-    ["BURN DAMAGE", String(Math.round(p.burnDealt)), String(Math.round(e.burnDealt))],
+    ["BURN DAMAGE", fmtDmg(p.burnDealt), fmtDmg(e.burnDealt)],
     ["SHOCK STALLS", r.shocks ? String(r.shocks[0]) : "-", r.shocks ? String(r.shocks[1]) : "-"],
   ];
-  const v = (x: number | null): string => (x === null ? "-" : String(Math.round(x)));
+  // NUM-4: whole sums printed as they are (a count, or plating through fmtDmg; was Math.round)
+  const v = (x: number | null, f: (n: number) => string = fmtDmg): string => (x === null ? "-" : f(x));
   const race = r.race;
-  if (race?.fused) rows.push(["FUSED SLUGS", v(race.fused[0]), v(race.fused[1])]);
+  if (race?.fused) rows.push(["FUSED SLUGS", v(race.fused[0], fmtCount), v(race.fused[1], fmtCount)]);
   if (race?.plated) rows.push(["PLATING GAINED", v(race.plated[0]), v(race.plated[1])]);
   if (race?.spent) rows.push(["PLATING SPENT", v(race.spent[0]), v(race.spent[1])]);
   return rows;
@@ -281,7 +286,7 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   const title = r.outcome === "win" ? "WIN" : loss ? "LOSS" : "DRAW";
   const tc = r.outcome === "win" ? C.lime : loss ? C.red : C.bone;
   drawText(g, title, W / 2, yy + 6, tc, { align: "center", scale: 2, outline: C.ink });
-  drawText(g, `DUSK · DAY ${r.day} · ${r.time.toFixed(1)}S`, W / 2, yy + 23, C.slate4, { font: "3", align: "center" });
+  drawText(g, `DUSK · DAY ${r.day} · ${fmtClock(r.time)}S`, W / 2, yy + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
   drawText(g, `VS ${r.foe}`, W / 2, yy + 31, C.bone, { font: "3", align: "center" });
   // lives, with the heart just lost blinking and -1 LIFE beside them; the W-L record on the right. 0.6.2 RULE
   // EARLY-LOSS REFUND: the hearts are the lives after this dusk (the refund comes at the dawn the card leads to)

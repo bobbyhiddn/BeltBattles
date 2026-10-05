@@ -37,7 +37,9 @@ import {
 import { SHIELD_CAP } from "../sim/content"; // SUS-B (REQ-BFG-069): SHIELD's MAX 3
 import { GUARD_FREEZE, SHAPE_ARROWS, rigShape } from "../sim/content"; // U2b: the rigs' belts and OVERDRIVE's guards
 import { GUARD_SLOW, STUN_CAUSES } from "../sim/content"; // NUM-3: OVERDRIVE's chain guard; MANTLET's immunity
-import { factorySpeed, secPer } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED (the faces keep SEC: 30 / speed)
+import { factorySpeed } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED; NUM-4: the RATE pair prints it
+import { BURN_DPS } from "../sim/content"; // NUM-4: a Burn stack's damage a second (FACE_SIM.burnTick)
+import { pct, roundHalfUp } from "../sim/pct"; // NUM-4: GRAPNEL's salvage as the sim rounds it
 import { FUSE_MULT } from "../sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { scaleCore } from "../sim/cores";
@@ -49,11 +51,14 @@ import { gearSlotsOf } from "../sim/deck";
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
  */
 export const FACE_SIM = {
-  burnTick: 1, // battle.ts hullEffects: each Burn stack deals the enemy hull 1 damage a second (abilityText S.burn)
-  // U2b: battle.ts applyHit: a PLATE BREAKER takes 1 plating from your hull for its flat (s.plate.plate >= 1, spendPlate 1)
-  breakerPlate: 1,
-  // U2b F6: battle.ts impact: a ★3 GRAPNEL GUN's next shot gains 1 damage x its class factor k for each payload it rips
-  salvagePerRip: 1,
+  // NUM-4 (REQ-BFG-047): three numbers here were still on the x1 scale after NUM-1 (a finding each; NUM-4's report):
+  burnTick: BURN_DPS, // battle.ts hullEffects: each Burn stack deals the enemy hull BURN_DPS (10) a second (was 1)
+  // U2b: battle.ts applyHit: a PLATE BREAKER takes 10 plating from your hull for its flat (NUM-1: plate >= 10, spendPlate
+  // 10; was 1)
+  breakerPlate: 10,
+  // U2b F6: battle.ts impact: a ★3 GRAPNEL GUN's next shot gains pct(10, k%) damage for each payload it rips (NUM-1: x10,
+  // the class factor as a whole %, rounded once; was 1 x k, a fraction on every class)
+  salvagePerRip: 10,
   // NUM-3: battle.ts produce: a SCRAPPER queues one stamp for each harassment its side lands (harassAccepted - seenHarass)
   scrapPerHarass: 1,
   // NUM-3: ... and with ★3 BIG HAUL one more for each wreck (wreckAccepted - seenWreck)
@@ -92,9 +97,9 @@ interface X {
 
 // ------------------------------------------------------------------------------------------------- the stat pairs
 
-/** THE speed pair (N1 6.2): a repeating action's cadence. Until NUMBERS, ["SEC", interval], drawn as today's interval
- *  with SEC after it; NUMBERS makes it ["RATE", speed] here and nowhere else. */
-export const speedPair = (interval: number): Stat => ["SEC", fmtSpeed(interval)];
+/** THE speed pair (N1 6.2): a repeating action's cadence. NUM-4 (REQ-BFG-047; N1 2.2): ["RATE", speed], its SPEED, shots
+ *  or slugs per 30 s ({RATE}19), here and nowhere else (was ["SEC", interval], today's interval with SEC after it). */
+export const speedPair = (speed: number): Stat => ["RATE", fmtSpeed(speed)];
 
 /** A factory shows its belts when it is a hero's (BELTS levels add belts) or when any star feeds more than one. */
 const showsBelts = (def: string): boolean => !fusible(def) || [1, 2, 3].some((n) => outputsAt(def, n) > 1);
@@ -104,15 +109,15 @@ const showsBelts = (def: string): boolean => !fusible(def) || [1, 2, 3].some((n)
  *  SCRAPPER's scrapFlat on top (NUM-3: Battle.stamp adds it to each slug it stamps). */
 export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
   const fs = effectAt(def, stars).factory!;
-  let interval = secPer(fs.speed), dmg = (fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0); // NUM-2 (REQ-BFG-047): SEC stays, 30 / speed
+  let speed = fs.speed, dmg = (fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0); // NUM-4 (REQ-BFG-047): its SPEED (RATE)
   if (def === "mimic") {
     // Battle.factoryDef: the hero's ammo at its own factory's interval x intervalMul; no hero, no cadence to show
     const h = hero ? HEROES[hero] : undefined, sig = h ? ITEMS[h.factory]?.factory : undefined;
     if (!h || !sig) return [["BELT", fmtCount(outputsAt(def, stars))]];
-    interval = secPer(factorySpeed(def, fs, hero!)); // NUM-2: the hero factory's speed x its rate %, rounded once
+    speed = factorySpeed(def, fs, hero!); // NUM-2: the hero factory's speed x its rate %, rounded once
     dmg = AMMO[h.ammo].base;
   }
-  return [speedPair(interval), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
+  return [speedPair(speed), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
 }
 
 /**
@@ -148,7 +153,7 @@ export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null
 /** A turret's stat pairs at `stars`: how often it fires, the loads its chamber holds, its gear slots (deck.ts). */
 export function turretStats(def: string, stars = 1): Stat[] {
   const t = effectAt(def, stars).turret!;
-  return [speedPair(secPer(t.speed)), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars))]]; // NUM-2: 30 / speed
+  return [speedPair(t.speed), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars))]]; // NUM-4: its SPEED (RATE)
 }
 
 /** U2b: a rig's stat pairs (R1 C4: "Rigs and gear: none"): a rig's numbers are its rule's. This is the rig kind's one
@@ -339,8 +344,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [["columns", `${cols} COLUMN${s(n)}`], ["share", `${share} {DMG}`]]);
   },
   anvil: (e, x) => {
-    const flat = fmtDmg(c(e, x).anvilFlat!), per = fmtDmg(c(e, x).perPlate!);
-    return rules([shot(`+${flat} {DMG}, +${per} MORE FOR EACH {*PLATE}.`)], [["flat", `+${flat} {DMG}`], ["per", `+${per} EACH`]],
+    // NUM-4 (REQ-BFG-047): perPlate is a ratio of two damage-family numbers, kept by the sim as a whole % of the hull's
+    // plating (cores.ts scaleCore; Battle.fireCore: pct(plate, 100 x perPlate)), so the face prints that % (was "+2.2 EACH")
+    const flat = fmtDmg(c(e, x).anvilFlat!), per = fmtPct(c(e, x).perPlate!);
+    return rules([shot(`+${flat} {DMG}, +${per} OF YOUR {*PLATE}.`)], [["flat", `+${flat} {DMG}`], ["per", `+${per} OF {PLATE}`]],
       [REMINDER.PLATE()]);
   },
   // ------------------------------------------------------------------- U2b: the TEXT rigs (HIT: in brass; no stat row)
@@ -608,7 +615,7 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
   grapnel: (e, x) => {
     // battle.ts impact: the salvage needs a ★3 core (gun.core.stars >= 3, FUSE_MAX); it pays on the next shot
     if (x.stars < FUSE_MAX) return null;
-    const d = fmtDmg(FACE_SIM.salvagePerRip * x.k);
+    const d = fmtDmg(pct(FACE_SIM.salvagePerRip, roundHalfUp(100 * x.k))); // NUM-4: the sim's own pct(10, k%) (battle.ts impact)
     // U2d F1: its number is keyed, so NEXT★ shows it ("RIPS 3, +1 {DMG} EACH"); the perk name gives way past the band
     return { text: `NEXT SHOT +${d} {DMG} FOR EACH SLUG IT RIPS.`, nums: [["salvage", `+${d} {DMG} EACH`]] };
   },

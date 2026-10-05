@@ -15,6 +15,7 @@ import type { G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
 import { ArenaBg } from "../render/arenaBg";
 import { banner } from "../ui/hud";
+import { fmtClock, fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock and the hull, whole
 import { button, panel } from "../ui/ui";
 import { SPEEDS, SPEED_1X, drawBar, drawPlate, type BarState } from "./battleHud";
 import type { View } from "../core/io";
@@ -143,7 +144,7 @@ export class ReplayScreen implements Screen {
     this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
     drawArena(g, a, W, H);
     for (let s = 0; s < 2; s++) {
-      this.hp[s] = String(Math.max(0, Math.ceil(b.sides[s].hull.hp)));
+      this.hp[s] = fmtDmg(Math.max(0, b.sides[s].hull.hp)); // NUM-4: the hull is whole (NUM-1); was Math.ceil
       const p = this.L.plates[s], r = this.plateR[s];
       r.x = p.x; r.y = p.y; r.w = p.w; r.h = p.h;
     }
@@ -167,7 +168,7 @@ export class ReplayScreen implements Screen {
       const x = Math.round(W / 2 - w / 2), y = cy - Math.round(h / 2);
       panel(g, { x, y, w, h }, "raised");
       drawText(g, won ? "WIN" : lost ? "LOSS" : "DRAW", W / 2, y + 6, won ? C.lime : lost ? C.red : C.bone, { align: "center", scale: 2, outline: C.ink });
-      drawText(g, `REPLAY · DAY ${this.label.day} · ${b.t.toFixed(1)}S`, W / 2, y + 23, C.slate4, { font: "3", align: "center" });
+      drawText(g, `REPLAY · DAY ${this.label.day} · ${fmtClock(b.t)}S`, W / 2, y + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
       button(ui, g, "replayback", { x: x + 10, y: y + h - 4 - bh, w: w - 20, h: bh }, "BACK", { primary: true, onTap: () => this.leave() });
     } else {
       button(ui, g, "replayleave", replayLeaveRect(this.L, this.game.view), "BACK", { font: "3", onTap: () => this.leave() });

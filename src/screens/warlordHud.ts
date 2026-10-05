@@ -12,6 +12,7 @@ import { rect, type G } from "../render/pixel";
 import { drawText } from "../render/font";
 import { itemIcon } from "../render/sprites";
 import { blockedButton, button, panel } from "../ui/ui";
+import { fmtClock } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock, whole elapsed seconds
 import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawHearts } from "./battleHud";
@@ -40,7 +41,7 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   ui.add({ id: "resultbg", r: { x: 0, y: 0, w: W, h: H }, block: true });
   const win = r.outcome === "win", loss = r.outcome === "loss";
   drawText(g, win ? "WIN" : loss ? "LOSS" : "DRAW", W / 2, yy + 6, win ? C.lime : loss ? C.red : C.bone, { align: "center", scale: 2, outline: C.ink });
-  drawText(g, `ROAD · DAY ${w.day} · ${TIER_LABEL[w.tier]} WARLORD · ${r.time.toFixed(1)}S`, W / 2, yy + 23, C.slate4, { font: "3", align: "center" });
+  drawText(g, `ROAD · DAY ${w.day} · ${TIER_LABEL[w.tier]} WARLORD · ${fmtClock(r.time)}S`, W / 2, yy + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
   // the warlord: portrait, name, tier
   drawPortrait(g, w.id, x + 10, yy + 32);
   drawText(g, w.name, x + 40, yy + 34, nameColor(w.id), { outline: C.ink });

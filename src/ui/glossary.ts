@@ -24,6 +24,7 @@
 
 import { COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, WINDOW_TIME, type ItemDef } from "../sim/content";
 import { WIND_START } from "../sim/content"; // SUS-B (REQ-BFG-069): the DARK WIND row
+import { SPEED_K } from "../sim/content"; // NUM-4 (REQ-BFG-047): the RATE row's 30 seconds
 import { SYNC_WINDOW } from "../sim/races/foundry";
 import { scaleCore } from "../sim/cores";
 import { effectAt } from "../sim/stars";
@@ -68,7 +69,9 @@ export function glossaryRows(): GlossaryRow[] {
   const stunExtra = "THE HULL ITSELF NEVER STOPS.";
   const heatExtra = "JACKETS ADD UP, FROM THEIR TILE ON.";
   const plateExtra = "THE DARK WIND GOES PAST IT.";
-  const pairExtra = `BY TWO INTAKES, WITHIN ${fmtSec(SYNC_WINDOW)}{SEC}.`;
+  // NUM-4 (REQ-BFG-047; N1 2.2): the pair window (SYNC_WINDOW 0.25 s), the load window (1.5 s) and the commission timers
+  // (1.2 s, +0.6 s) are hidden timers no whole second says: the rows keep the rule, not the number
+  const pairExtra = "BY TWO INTAKES.";
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1): the sustain keywords' one extra sentence each. A face keyword never stands as a
   // bare word in a text a tap shows (REQ-BFG-032 rule 3; tests/glossary.test.ts), so 4.1's verb HEALS is said another way:
   // HEAL's "A HULL WITH BURN HEALS HALF." is "GETS HALF", REGEN's "NOTHING HEALS IN THE DARK WIND." is "IT STOPS"
@@ -99,7 +102,9 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "RIDE", aliases: [], colour: C.wood4, def: "RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.", scope: "rune" },
     {
       word: "RATE", aliases: ["FIRE RATE", "FIRES", "WORKS FASTER", "WORK FASTER"], colour: ICON_COLOUR[ICON.RATE],
-      def: "RATE: HOW OFTEN A GUN FIRES OR A FACTORY WORKS. FASTER IS MORE OF IT.", scope: "text",
+      // NUM-4 (REQ-BFG-047; N1 2.2's tap text, in the row's form: its word first, no PER, the number through fmtSec): {RATE}
+      // n is the SPEED, shots or slugs in SPEED_K seconds (was "HOW OFTEN A GUN FIRES OR A FACTORY WORKS. FASTER IS MORE OF IT.")
+      def: `RATE: {RATE} SHOTS OR SLUGS IN ${fmtSec(SPEED_K)}{SEC}. FASTER IS MORE OF THEM.`, scope: "text",
     },
     { word: "HULL", aliases: [], colour: C.red, def: "HULL: YOUR SHIP'S LIFE. WHEN IT RUNS OUT, YOU LOSE THE FIGHT.", scope: "rune" },
     { word: "BELT", aliases: [], colour: C.brass3, def: "BELT: YOUR BELT TILES, SHARED BY ALL YOUR BELTS.", scope: "rune" },
@@ -115,7 +120,7 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "SPEED", aliases: ["AS FAST", "HALF SPEED", "SPEED RIG", "SPEED RIGS"], colour: KEYWORD_COLOUR.faster, def: "SPEED: A SPEED RIG CHANGES ITS BELT FROM THE TILE IT HITS ON.", scope: "text" },
     { word: "LOCKED", aliases: ["LOCKED BELT", "LOCKED BELTS"], colour: PLAIN, def: "LOCKED: METRONOME'S BELTS KEEP THEIR SPEED; SPEED RIGS ADD DAMAGE INSTEAD.", scope: "text" },
     { word: "COPIES", aliases: ["COPY", "COPIED"], colour: PLAIN, def: "COPIES: SPLITTER AND SORTING ARM TURN A SLUG INTO MORE SLUGS.", scope: "text" },
-    { word: "LOAD TIME", aliases: [], colour: PLAIN, def: `LOAD TIME: A GUN FIRES A FULL CHAMBER, OR ${fmtSec(WINDOW_TIME)}{SEC} AFTER ITS FIRST LOAD.`, scope: "text" },
+    { word: "LOAD TIME", aliases: [], colour: PLAIN, def: "LOAD TIME: A GUN FIRES A FULL CHAMBER, OR SOON AFTER ITS FIRST LOAD.", scope: "text" },
     // JAM keeps one meaning: an over-fed gun skipping a shot (battle.ts: JAM_THRESHOLD loads backed up)
     { word: "JAM", aliases: ["JAMS", "JAMMED"], colour: PLAIN, def: `JAM: A GUN WITH ${fmtCount(JAM_THRESHOLD)} LOADS BACKED UP AT ITS INTAKES SKIPS A SHOT.`, scope: "text" },
     // NUM-3 (R1's STUN fold): no FREEZE or SLOW any more (battle.ts acceptHarassment: a STUN, a SABOT wreck, a GRAPNEL rip)
@@ -128,7 +133,7 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "MATCHED", aliases: ["MATCHED BELT"], colour: PLAIN, def: "MATCHED: A BELT WITH AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.", scope: "text" },
     {
       word: "ONLINE", aliases: ["COME ONLINE", "COMES ONLINE"], colour: PLAIN,
-      def: `ONLINE: A RIG WORKS FROM ${fmtSec(COMMISSION_BASE)}{SEC} IN, +${fmtSec(COMMISSION_STEP)}{SEC} FOR EACH EARLIER RIG ON ITS BELT.`, scope: "text",
+      def: "ONLINE: A RIG WORKS SOON AFTER THE START, LATER FOR EACH EARLIER RIG ON ITS BELT.", scope: "text",
     },
     { word: "BONUS DAMAGE", aliases: [], colour: PLAIN, def: "BONUS DAMAGE: WHAT RIGS AND SCRAP ADD TO A SLUG.", scope: "text" },
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1): the dark wind's text row, no icon (battle.ts: WIND_START, nothing heals from then;
@@ -249,7 +254,7 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
   // battle.ts pickTarget: a pick of bare hull is picked again; a shot at a part still hits the hull too
   spotter: { word: "AIM", text: () => "AIM: A SHOT AT BARE HULL PICKS AGAIN; A SHOT AT A PART STILL HITS THE HULL." },
   // races/foundry.ts: two blanks by two intakes within SYNC_WINDOW fuse (FUSE_MULT); a lone blank fires as a load of its own
-  crucible: { word: "PAIR", text: () => `{*PAIR}: TWO BLANKS BY TWO INTAKES WITHIN ${fmtSec(SYNC_WINDOW)}{SEC} FUSE; A LONE ONE FIRES ON ITS OWN.` },
+  crucible: { word: "PAIR", text: () => "{*PAIR}: TWO BLANKS BY TWO INTAKES AT ONCE FUSE; A LONE ONE FIRES ON ITS OWN." }, // NUM-4: no 0.25 s
   // battle.ts stokedPace: a stoked factory's other timers (ARMOR PRESS's plating) run faster too
   stoker: { word: "FASTER", text: () => "FASTER: IT STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO." },
 };

@@ -16,7 +16,7 @@ import type { Arena } from "./arena";
 import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): HEAL's and SHIELD's colours, one source
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: a heal's float prints as the faces print HEAL
 
-const HOT =[C.fire5, C.fire4, C.fire3, C.white] as const;
+const HOT = [C.fire5, C.fire4, C.fire3, C.white] as const;
 const COLD = [C.white, C.ice, C.cyan] as const;
 const STEEL = [C.steel3, C.steel2, C.white] as const;
 const DEBRIS_ORC = [C.rust3, C.steel2, C.rust4, C.steel1] as const;
@@ -204,7 +204,9 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
     case "impact": {
       const fr = a.drawn[e.side];
       const x = sx(fr, e.x, e.y), y = sy(fr, e.x, e.y);
-      const dmg = Math.max(1, Math.round(e.dmg));
+      // NUM-4 (REQ-BFG-047; N1 2.5's numbers.battle): the pop prints the impact's whole damage as the sim dealt it, through
+      // fmtDmg (was max(1, round(dmg)): a SHIELDed hit's 0 popped as 1); the shake keeps its floor of 1
+      const dmg = Math.max(1, e.dmg), shown = fmtDmg(e.dmg);
       const size = e.big ? 28 : e.heavy ? 20 : 12;
       fx.explode(x, y, size, !e.heavy);
       // sparks fly back toward the shooter's side
@@ -223,7 +225,7 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       // on every hull without plating, which draws exactly as before)
       const soak = a.takeSoak(e.side, e.dmg);
       if (soak > 0) fx.sparks(x, y, 5, PLATED, 55);
-      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, String(dmg), soak > 0 ? C.rune3 : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
+      fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, shown, soak > 0 ? C.rune3 : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
       // shake scales with the damage dealt: the landing frame shows exactly 1 px for a light
       // bolt and 2+ px for a heavy shell or 60+ damage (NUM-2: x10); big hits add their trauma on top
       hitShake(fx, dmg, e.heavy, -dx, -dy);
@@ -307,14 +309,15 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
     }
     case "harass": return;
     case "burn":
-      fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, String(e.dmg), C.fire3);
+      fx.popup(hullCx(a, e.side) + (fx.rnd() - 0.5) * 60, hullCy(a, e.side) + (fx.rnd() - 0.5) * 40, fmtDmg(e.dmg), C.fire3); // NUM-4
       return;
     case "poison":
-      if (!fast && e.dmg >= 0.1) fx.popup(hullCx(a, e.side), hullCy(a, e.side), e.dmg.toFixed(1), C.lime);
+      // NUM-4 (REQ-BFG-047): poison ticks whole damage once a second (NUM-1), printed as it is (was toFixed(1), from 0.1)
+      if (!fast && e.dmg > 0) fx.popup(hullCx(a, e.side), hullCy(a, e.side), fmtDmg(e.dmg), C.lime);
       return;
     case "wind":
       for (const side of [0, 1] as Side[]) {
-        fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), String(Math.round(e.dmg)), C.plum4);
+        fx.popup(hullCx(a, side) + (fx.rnd() - 0.5) * 50, hullCy(a, side), fmtDmg(e.dmg), C.plum4); // NUM-4: was Math.round
       }
       snd?.play("whoosh");
       return;

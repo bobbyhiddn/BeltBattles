@@ -27,6 +27,7 @@ import { banner, optionsCard } from "../ui/hud";
 import { button, panel } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { SummaryScreen } from "./summary";
+import { fmtDmg } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the hull readout, whole
 import { TitleScreen } from "./title";
 import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, plateSource, type BarState } from "./battleHud";
 
@@ -388,10 +389,10 @@ export class BattleScreen implements Screen {
     const L = this.L;
     const b = this.arena.b;
     for (let s = 0; s < 2; s++) {
-      const hp = Math.max(0, Math.ceil(b.sides[s].hull.hp));
+      const hp = Math.max(0, b.sides[s].hull.hp); // NUM-4 (REQ-BFG-047): the hull is whole since NUM-1 (was Math.ceil)
       if (hp !== this.hpInt[s]) {
         this.hpInt[s] = hp;
-        this.hpText[s] = String(hp);
+        this.hpText[s] = fmtDmg(hp);
       }
     }
     // plates ride with their cruiser during the drive-in

@@ -46,8 +46,11 @@ export function joinPaceLines(b: Build, factoryUid: number, index = b.routes.fin
   if (pace >= 1 || index < 0) return [];
   const every = loadEvery(b, index);
   const lines: [string, string][] = [[JOIN_PACE_LINE, C.cyan]];
-  // 0.6.2rel3 (REQ-BFG-032 F2): the seconds in the glossary's words ("2 SECONDS"), as every other sentence says them
-  if (Number.isFinite(every)) lines.push([`A LOAD EVERY ${seconds(every)} ON THIS BELT, NOT ${seconds(every * pace)}.`, C.cyan]);
+  // 0.6.2rel3 (REQ-BFG-032 F2): the seconds in the glossary's words ("2 SECONDS"), as every other sentence says them.
+  // NUM-4 (REQ-BFG-047): a joined belt's load cadence (loadEvery: the stamp's 30 / speed x its belts / the pace) is a
+  // repeating action that no whole number states exactly (2.5 s / 0.7 = 3.57 s), so the line says it in loads: as many as
+  // the pace lets through, said by the pace line's whole % (was "A LOAD EVERY 3.57 SECONDS ON THIS BELT, NOT 2.5 SECONDS.")
+  if (Number.isFinite(every)) lines.push([`FEWER LOADS REACH THIS BELT: ${JOIN_PACE_PCT}% AS MANY.`, C.cyan]);
   return lines;
 }
 
@@ -76,10 +79,11 @@ import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "..
 import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/upgradeText"; // bb-0.8.3 (REQ-BFG-043 D11)
 import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
 import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
+import { UPGRADE_MAX } from "../../sim/content"; // NUM-4: the starting turret's next TURRET SPEED level
 import { mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
-  abilityText, cardText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergesWithText, n2,
+  abilityText, cardText, clashShortText, every as everyText, gatlingClashText, gist, hasAbilityText, hitText, mergesWithText,
   newPerk, nextStarHeadline, nextStarText, percent, plural, seconds, shieldText, slagPulseExtra, type BeltKind, type TextOpts,
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
@@ -97,7 +101,7 @@ import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks
 import { faceGist, heroPlaystyle, ruleSpans } from "../../ui/faces"; // U2a
 import { speedPair } from "../../ui/faces"; // U2c step 4: the installed turret's stat row
 import { statRow } from "../../ui/icons"; // U2c step 4
-import { fmtCount } from "../../ui/statFormat"; // U2c step 4
+import { fmtClock, fmtCount, fmtDmg } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
 import { icons } from "../../render/font"; // U2c step 4
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
@@ -653,22 +657,23 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const belt = beltKind(w);
   const est = w.estimate;
   // 0b.4: the walk counts SURGE VALVE's pulse damage on a SLAG belt, where the sim never pays it
-  const big = Math.max(1, est.dmg - slagPulseExtra(w.timeline, belt)).toFixed(1);
+  // NUM-4 (REQ-BFG-047; N1 2.5): the walk's own estimate through fmtDmg, as it is (was toFixed(1) over a max(1, ...) floor)
+  const big = fmtDmg(est.dmg - slagPulseExtra(w.timeline, belt));
   // 0.8.0 B1 M2 (G1's F1, ref/BRIEF-v080-B1.md 3.4): a PLATE BREAKER pays its big number only on a blow that finds a whole
   // plating on the hull, and its floor on every other (in real fights about half the blows: N1's m4/breaker.md 39-51%;
   // B1's m2/platemean: a plated hull holds no plating at 53-63% of its shots). On a deck that plates its hull the walk
   // counts the big number, so DMG shows both: the floor's total, then the big number's ("DMG 9.1-12.1")
   const breakers = w.timeline.some((row) => row.hits.some((h) => h.breaker));
   const low = breakers && platedDeck(b) ? walkRoute(b, index, undefined, { unplated: true }) : null;
-  const floorDmg = low ? Math.max(1, low.estimate.dmg - slagPulseExtra(low.timeline, belt)).toFixed(1) : big;
+  const floorDmg = low ? fmtDmg(low.estimate.dmg - slagPulseExtra(low.timeline, belt)) : big;
   const dmg = floorDmg !== big ? `${floorDmg}-${big}` : big;
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
   const spd = belt === "locked" ? "100% (LOCKED)" : belt === "slag" ? `${percent(w.speedEnd)} (SLAG)` : percent(w.speedEnd);
-  const time = `${est.time.toFixed(1)} SEC`;
+  const time = `${fmtClock(est.time)} SEC`; // NUM-4: the ride's whole elapsed seconds, as a clock reads (was toFixed(1))
   const cells: [string, string][][] = [
     [["DMG", dmg], ["BURN", String(est.burn)]],
     [["SPD", spd], ["TIME", time]],
-    ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", n2(est.copies)]] as [string, string][]] : []),
+    ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", fmtCount(est.copies)]] as [string, string][]] : []),
   ];
   const joined = joinersOf(b, index); // 0.6.2j (J10): the belts that join this one
   const joins = w.joins ?? [];
@@ -729,14 +734,16 @@ export function syncLine(b: Build, index: number): { text: string; state: SyncSt
   const gun = `TURRET ${s.turret + 1}`;
   if (!s.partners.length) return { text: `NO OTHER CRUCIBLE BELT REACHES ${gun}, SO ITS BLANKS FIRE UNFUSED.`, state: "alone" };
   const p = s.partners.find((q) => q.sync) ?? s.partners.reduce((m, q) => (q.offset < m.offset ? q : m));
-  const when = n2(p.offset) === "0" ? "AT THE SAME MOMENT" : `${seconds(p.offset)} APART`;
+  // NUM-4 (REQ-BFG-047): the arrival gap and the 0.25 s window are hidden timers no whole second can say (N1 2.2): the
+  // line says AT ONCE (the PAIR word) or TOO FAR APART (was "0.35 SECONDS APART, MORE THAN 0.25 SECONDS")
+  const when = Math.abs(p.offset) < 1e-9 ? "AT THE SAME MOMENT" : p.sync ? "AT ONCE" : "TOO FAR APART";
   if (p.sync) {
     // a delay line: the longer belt's blank meets a later pour's blank from the shorter one
     const pours = p.pours === 0 ? "" : `, ${p.pours === 1 ? "ONE POUR" : `${p.pours} POURS`} APART`;
     return { text: `IN SYNC WITH BELT ${p.route + 1}${pours}: THEIR BLANKS REACH ${gun} ${when} AND FUSE.`, state: "sync" };
   }
   return {
-    text: `OUT OF SYNC WITH BELT ${p.route + 1}: THEIR BLANKS REACH ${gun} ${when}, MORE THAN ${seconds(SYNC_WINDOW)}, SO THEY FIRE UNFUSED.`,
+    text: `OUT OF SYNC WITH BELT ${p.route + 1}: THEIR BLANKS REACH ${gun} ${when}, SO THEY FIRE UNFUSED.`,
     state: "apart",
   };
 }
@@ -820,7 +827,9 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     ...(capped ? [`COUNTS UP TO ${fmtCount(capped)} WAITING {SLUG}.`] : []), // U2d F5: was MAX 5 {SLUG} WAITING COUNT.
   ].join(" ");
   const stats: Block[] = [
-    { role: "ability", text: statRow([speedPair(every), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true },
+    // NUM-4 (REQ-BFG-047): the RATE pair is the SPEED the battle uses (TurretState.speed: every gear piece, the core, the
+    // long belt and the TURRET SPEED level, rounded once); SALVO's longer reload is its own rule line, not the row's
+    { role: "ability", text: statRow([speedPair(tu.speed), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true },
     ...(note ? [{ role: "note", text: icons(note), keep: true } as Block] : []),
   ];
   // a clash (a piece of gear that does nothing here) and the shield. 0.6.2rel2 (the rehearsal's nit 1): the desk column
@@ -840,7 +849,14 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const startTurret = !!turretSlots(b)[index]?.turret?.free, tl = upgradeLevel(b, "turret");
   // U2c step 5: in the notice form, "SPEED: LEVEL 1/4. UPGRADE: FASTER." (was "SPEED LEVEL 1/4, NEXT: FASTER."): what the
   // UPGRADE button beside it does; two lines of the desk column, as before
-  if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `SPEED: ${turretSpeedRow(every, tl)}`, rank: 7 });
+  // NUM-4 (REQ-BFG-047; N1 2.2): its UPGRADE names the next level's SPEED, the battle's: makeTurret on this build at that
+  // TURRET SPEED level (deck.ts turretSlots: levelSpeed, then every gear piece and the core as now)
+  const nextSpeed = (): number => {
+    if (tl >= UPGRADE_MAX) return tu.speed;
+    const b2 = { ...b, upgrades: { ...(b.upgrades ?? {}), turret: tl + 1 } };
+    return makeTurret(b2, index, turretSlots(b2)[index]?.td ?? td).speed;
+  };
+  if (startTurret) rest.splice(rest.length - 1, 0, { role: "ability", text: `SPEED: ${turretSpeedRow(nextSpeed(), tl)}`, rank: 7 });
   const body: Block[] = [
     ...warn(false),
     ...stats, // U2c step 4: the stat row first, then the CORE and GEAR rows as now
