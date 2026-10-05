@@ -125,7 +125,12 @@ describe("the SMUGGLER's contraband rule (0.8.0 B1 M4, REQ-BFG-033)", () => {
         }
       }
     }
-    expect(blocked).toBeGreaterThan(0); // some of these runs drew no ware of one effect
+    // REDO-X (cap's ruling 9bbe787110a51646): since 74e14a1 (FIX-ABE's stand-ins) no run draws none of an effect: ALCHEMIST's
+    // rare tier always holds at least 4 of COIL, VENOM, BELLOWS, QUENCH TANK and STATIC BRUSH (0 in 100,000 seeds), so the
+    // blocked path is checked by the made-up no-SHOCK run below, and the lines above prove "never blocked, always one part"
+    // on every real run. A tripwire: if a later pool or tier change makes such a run possible again this goes red on
+    // purpose, and that is a stop-and-ask, not a re-pin (was toBeGreaterThan(0): 3 of these 120 seeds before 74e14a1)
+    expect(blocked).toBe(0);
     // a run that drew no SHOCK ware: SHOCK is blocked on every day, BURN is not
     const w = drawWares(TABLE_SEEDS[7]);
     const noShock: Wares = Object.fromEntries(Object.entries(w).filter(([id]) => !smugglerPool("SHOCK").includes(id)));
@@ -245,10 +250,16 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): the per-run draw reads buyableModules(), so SIFTER's dormancy (-1) and
     // the 3 sustain pieces (+3, held to day 3) redraw every run's wares: SHOCK with no unlocked ware on day 1 349 -> 335
     // (16.75%), BURN 133 (6.65%) as before (SIFTER alone gave [121, 324] at step 1b) (was [133, 349])
-    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([133, 335]);
-    // about 2% expected (VERIFIED-I1's call 4): a run drew none of an effect's three rigs
+    // REDO-X (cap's ruling on FIX-ABE F3 / b1.smuggler, REVIEW-FIXABE): the stand-ins (74e14a1) open more BURN and SHOCK
+    // wares on day 1: BURN with no unlocked ware on day 1 52 (2.60%), SHOCK 131 (6.55%) (was [133, 335])
+    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([52, 131]);
+    // about 2% expected (VERIFIED-I1's call 4): a run drew none of an effect's three rigs. REDO-X (cap's ruling
+    // 9bbe787110a51646): I1's ~2% has been 0 since 74e14a1 (FIX-ABE's stand-ins: ALCHEMIST's rare tier always holds at least
+    // 4 of COIL, VENOM, BELLOWS, QUENCH TANK and STATIC BRUSH). A tripwire: if a later pool or tier change makes a no-BURN or
+    // no-SHOCK run possible again this goes red on purpose, and that is a stop-and-ask, not a re-pin (was noneS + noneB > 0:
+    // [25, 38] of these 2,000 before 74e14a1)
     expect(noneS / n).toBeLessThan(0.04);
     expect(noneB / n).toBeLessThan(0.04);
-    expect(noneS + noneB).toBeGreaterThan(0);
+    expect([noneB, noneS]).toEqual([0, 0]);
   });
 });
