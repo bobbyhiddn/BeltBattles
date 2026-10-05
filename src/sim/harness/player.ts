@@ -230,12 +230,16 @@ interface Cand {
   track?: UpgradeTrack; // bb-0.8.3 (D7'): the hero's gold upgrade's next level (no wagon: wagon -1, slot the track's index)
   pack?: PackId; // bb-0.8.6 (REQ-BFG-051 P6): a fixed pack (no wagon: wagon -2, slot the pack's index in PACK_IDS)
   rel: number; // (rateDeck(after) - rateDeck(now)) / rateDeck(now)
-  banned?: boolean; // TUNE-M: its def is in pol.forbid (judged as usual, never taken)
+  banned?: boolean; // BOTS-X: the sustain rule's mark (judged as usual, never taken)
+  // FIX-ABE E (cap's ruling 207816b18a9fbfdb): TUNE-M's mark, its def is in pol.forbid: judged, weighed and counted as
+  // spendable change as usual, refused only at the moment it would be taken (pickOffer, fillPick, the packs)
+  forbid?: boolean;
 }
 
 /** TUNE-M (T1): the defs pol.forbid names (none for both policies). */
 const forbidden = (pol: PolicyKnobs): ReadonlySet<string> => new Set((pol.forbid ?? "").split("+").filter(Boolean));
-/** TUNE-M (T1): the candidates the player may take. */
+/** TUNE-M (T1): the candidates the player may take (FIX-ABE E: the sustain rule's `banned` out; pol.forbid's parts are
+ *  refused only when picked). */
 const allowed = (cs: readonly Cand[]): Cand[] => cs.filter((c) => !c.banned);
 
 /** A late sink (pickOffer): an upgrade that sells a part it replaces, or a turret that replaces a working one (a
@@ -1132,7 +1136,8 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
           for (const f of factories) {
             if (o.price + f.price > run.gold) continue;
             const pc = pairCand(run, o.def, f.def, pol, rng, base, keep);
-            if (pc && !banned.has(f.def) && (!extra || pc.rel > extra.rel)) extra = pc; // TUNE-M: never with a forbidden factory
+            // FIX-ABE E: a forbidden factory is weighed as usual (the plan buys only the turret; the factory is refused when taken)
+            if (pc && (!extra || pc.rel > extra.rel)) extra = pc;
           }
         }
         if (extra) c = { def: o.def, kind: "turret", merge: false, turret: extra.plan, rel: extra.rel };
@@ -1140,7 +1145,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
       }
     }
     const cs = [...(c ? [c] : []), ...more];
-    if (banned.has(o.def)) for (const x of cs) x.banned = true; // TUNE-M (T1): judged, never taken
+    if (banned.has(o.def)) for (const x of cs) x.forbid = true; // TUNE-M (T1): judged, never taken (FIX-ABE E: its own mark)
     planned.set(o.def, cs);
     push(cs);
   }));
@@ -1172,7 +1177,7 @@ function packCands(run: Run, base: number, banned: ReadonlySet<string>): Cand[] 
       const g = growBelt(after, run.day, new Rng(hashSeed(run.day, "pack-belt")), base);
       if (g && g.rel > c.rel) c = { ...c, rel: g.rel, grown: { build: g.build, tiles: g.tiles } };
     }
-    if (banned.has(`pack:${id}`)) c.banned = true;
+    if (banned.has(`pack:${id}`)) c.forbid = true; // FIX-ABE E: TUNE-M's own mark
     out.push(c);
   });
   return out;
@@ -1221,7 +1226,7 @@ function upgradeCands(run: Run, base: number, banned: ReadonlySet<string>): Cand
     // the gun stays in sync at today's cycle) may fall out of sync at the next level; no such level is a candidate
     if (keep && !keep(after)) return;
     const rel = Math.max(relOf(after, base, run.day), track === "factory" ? moreSlotRel(after, run.day, base) : -Infinity);
-    out.push({ wagon: -1, slot: i, def: `upgrade:${track}`, price: n.price, kind: "upgrade", merge: false, rel, track, ...(banned.has(`upgrade:${track}`) ? { banned: true } : {}) });
+    out.push({ wagon: -1, slot: i, def: `upgrade:${track}`, price: n.price, kind: "upgrade", merge: false, rel, track, ...(banned.has(`upgrade:${track}`) ? { forbid: true } : {}) });
   });
   return out;
 }
@@ -1278,11 +1283,25 @@ function bestSpend(prices: number[], cap: number): number {
  * player counts its coins: it prefers a part after which the change can still be spent on the other offers that do
  * no harm (a subset-sum over them), down to `keep` gold (the reserve, or less when the floor needs it). null:
  * nothing helps.
+ *
+ * FIX-ABE E (cap's ruling 207816b18a9fbfdb): TUNE-M's forbidden parts (pol.forbid, Cand.forbid) are refused only at the
+ * moment one would be taken. The pick is made as the player without the knob makes it (a forbidden part is judged, is
+ * spendable change for the other offers, and fills every step as any offer does); only when that pick is a forbidden
+ * part does the player refuse it and pick again without the forbidden parts. So a run with a forbidden part stays aligned
+ * with the run without one until that run would first take the part (was: forbidden parts were dropped from the
+ * spendable change, so the run could drift before it, e.g. FURNACE, TEMPER forbidden, seed 6, day 9). With nothing
+ * forbidden no candidate carries the mark, and this is exactly the pick as before.
  */
 function pickOffer(cands: Cand[], gold: number, keep: number, pol: PolicyKnobs, rng: Rng, short = false): { c: Cand; why: PlayerBuy["why"] } | null {
+  const p = pickAs(cands, gold, keep, pol, rng, short);
+  return p && p.c.forbid ? pickAs(cands.filter((c) => !c.forbid), gold, keep, pol, rng, short) : p;
+}
+
+/** pickOffer's pick among `cands` (the sustain rule's `banned` candidates judged, never taken; Cand.forbid unread). */
+function pickAs(cands: Cand[], gold: number, keep: number, pol: PolicyKnobs, rng: Rng, short: boolean): { c: Cand; why: PlayerBuy["why"] } | null {
   const judge = (c: Cand) => (c.rel * (pol.noise ? 1 + pol.noise * (2 * rng.next() - 1) : 1)) / c.price;
-  // TUNE-M (T1, pol.forbid): a forbidden candidate is judged like any other (the same RNG draws as a player without the
-  // knob) but never becomes the top; with no forbidden candidate this is the pick as before
+  // TUNE-M (T1): a banned candidate is judged like any other (the same RNG draws as a player without the mark) but never
+  // becomes the top; with no banned candidate this is the pick as before (FIX-ABE E: the sustain rule's mark alone)
   const best = (xs: Cand[]) => {
     let top: Cand | null = null, v = -Infinity;
     for (const x of xs) {
@@ -1314,7 +1333,7 @@ function pickOffer(cands: Cand[], gold: number, keep: number, pol: PolicyKnobs, 
     return left - bestSpend(prices, left) <= keep;
   });
   const any = cands.filter((c) => !c.merge && c.kind !== "crate");
-  // TUNE-M (T1): a random pick that lands on a forbidden candidate picks again among the allowed ones
+  // TUNE-M (T1): a random pick that lands on a banned candidate picks again among the allowed ones
   const pickAllowed = (xs: Cand[]) => { const c = rng.pick(xs); return c.banned ? rng.pick(allowed(xs)) : c; };
   if (pol.impulse > 0 && allowed(any).length && rng.next() < pol.impulse) {
     const ok = keepsOf(any, any);
@@ -1324,7 +1343,7 @@ function pickOffer(cands: Cand[], gold: number, keep: number, pol: PolicyKnobs, 
   const keepsHelp = keeps.filter((c) => help.includes(c));
   const poolOf = (kh: Cand[], ks: Cand[], hp: Cand[]) => (kh.length ? kh : ks.length ? ks : hp);
   let pool = poolOf(keepsHelp, keeps, help);
-  if (!allowed(pool).length) pool = poolOf(allowed(keepsHelp), allowed(keeps), allowed(help)); // TUNE-M: only forbidden ones
+  if (!allowed(pool).length) pool = poolOf(allowed(keepsHelp), allowed(keeps), allowed(help)); // TUNE-M: only banned ones
   if (pol.whim > 0 && rng.next() < pol.whim) return { c: pickAllowed(pool), why: "whim" };
   return { c: best(pool)!, why: "best" };
 }
@@ -1422,7 +1441,9 @@ function drawKilnBelt(run: Run, rng: Rng, tiles: number): void {
 /** The fill: harmless offers (else the least harmful down to pol.fillFloor), supplies first, then the best rating,
  *  then the dearer (it fills more of the purse). */
 function fillPick(cands: Cand[], pol: PolicyKnobs): Cand | null {
-  cands = cands.filter((c) => c.kind !== "turret" && !c.banned); // CAND-A: nobody swaps or adds a gun to fill the purse
+  // CAND-A: nobody swaps or adds a gun to fill the purse. FIX-ABE E: a forbidden part out changes the fill only when it
+  // would have been the fill (the order below is fixed), so it is refused only at the moment it would be taken
+  cands = cands.filter((c) => c.kind !== "turret" && !c.banned && !c.forbid);
   let ok = cands.filter((c) => c.rel >= -pol.harmless);
   if (!ok.length) ok = cands.filter((c) => c.rel >= pol.fillFloor);
   const supply = (c: Cand) => (c.kind === "plating" || c.kind === "crate" ? 0 : 1);
@@ -1541,7 +1562,8 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
   // when one helps (rel > minRel: better than keeping the gold), the better gain for its gold first.
   const pp = packPolicy(run.build.hero);
   for (let guard = 0; pp !== "never" && guard < 20 && run.gold > pol.reserve; guard++) {
-    const cands = packCands(run, rateOn(run.build, run.day), forbidden(pol)).filter((c) => !c.banned && c.rel > pol.minRel);
+    // FIX-ABE E: a forbidden pack out changes the pick only when it would have been the pick (the order is fixed)
+    const cands = packCands(run, rateOn(run.build, run.day), forbidden(pol)).filter((c) => !c.banned && !c.forbid && c.rel > pol.minRel);
     const pack = cands.sort((a, b) => b.rel / b.price - a.rel / a.price || a.price - b.price)[0];
     if (!pack) break;
     buyPackCand(run, pack, "crate", rolls, buys);
