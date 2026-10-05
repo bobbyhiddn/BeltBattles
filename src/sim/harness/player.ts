@@ -320,24 +320,27 @@ export function quietTurret(b: Build, day: number, free: readonly number[]): num
  * - rule 2: a sustain candidate may be taken only once the deck has its second damage source, and only as the best value
  *   per gold (rel / price) of the offer row: every candidate from the caravan's rolled offers (wagon >= 0; the two fixed
  *   packs and the gold upgrades sit outside the row: an ARMOR PACK's 250 hull for 5 gold would outbid every sustain piece
- *   at 1 star on every day); a tie goes to the lower item id (rule 6);
+ *   at 1 star on every day) that the deck may take (rule 3's caps first); a tie goes to the lower item id (rule 6);
  * - rule 3: a new sustain piece only while the deck holds fewer than SUSTAIN_MAX, and a new WARD BELL only while it holds
  *   fewer than SHIELD_MAX (a copy that merges adds none).
  * A candidate that fails is `banned` (TUNE-M's mark): judged with the same draws, never taken. No RNG is read here.
+ * Exported for tests (tests/botsx.sustain.test.ts).
  */
-function sustainRule(b: Build, out: Cand[]): void {
+export function sustainRule(b: Build, out: Cand[]): void {
   const lean = HERO_SUSTAIN[b.hero];
   for (const c of out) if (lean && sustainKeyword(c.def) === lean && c.rel > 0) c.rel *= SUSTAIN_LEAN;
   const held = sustainPieces(b), shields = held.filter((p) => p.kw === "SHIELD").length, ready = secondSource(b);
   const per = (c: Cand): number => c.rel / Math.max(1, c.price);
+  // first the gates (rules 2 and 3), then the value among the candidates still open: a piece the deck may not take (a
+  // second WARD BELL) never blocks one it may; the open set is fixed before the comparison, so the order never matters
   for (const c of out) {
     const kw = sustainKeyword(c.def);
-    if (!kw) continue;
-    let ok = ready;
-    if (ok && !c.merge) ok = held.length < SUSTAIN_MAX && (kw !== "SHIELD" || shields < SHIELD_MAX);
-    if (ok) ok = out.every((o) => o.wagon < 0 || o.def === c.def || per(c) > per(o) || (per(c) === per(o) && c.def < o.def));
-    if (!ok) c.banned = true;
+    if (kw && !(ready && (c.merge || (held.length < SUSTAIN_MAX && (kw !== "SHIELD" || shields < SHIELD_MAX))))) c.banned = true;
   }
+  const open = out.filter((o) => o.wagon >= 0 && !o.banned);
+  const lose = out.filter((c) => !c.banned && sustainKeyword(c.def)
+    && !open.every((o) => o.def === c.def || per(c) > per(o) || (per(c) === per(o) && c.def < o.def)));
+  for (const c of lose) c.banned = true;
 }
 
 const relOf = (after: Build, base: number, day: number): number => {
