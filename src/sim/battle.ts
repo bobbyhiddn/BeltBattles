@@ -499,6 +499,8 @@ export class Battle {
       }
       // RUNES-2a: ASH KINDLE, BURN stacks on the foe's hull (BURN_TIME each; SLOW EMBERS makes yours last longer)
       if (s.rune.startBurn > 0) this.sides[s.side === 0 ? 1 : 0].hull.burns.push({ dps: s.rune.startBurn, t: this.burnTime(s, BURN_TIME) });
+      // FURN-Y: SEARING's baseline, n BURN on the foe's hull at the start (its own stack; heal() reads its no-HEAL rule)
+      if (s.rune.searBurn > 0) this.sides[s.side === 0 ? 1 : 0].hull.burns.push({ dps: s.rune.searBurn, t: this.burnTime(s, BURN_TIME) });
       // SUS-A (REQ-BFG-069): WARD STONE's SHIELD at t = 0 (its kind was blockHits: the foe's first n hits; SHIELD_CAP holds)
       if (s.rune.startShield > 0) this.gainShield(s, s.rune.startShield);
       if (s.rune.shieldEvery > 0) s.guardTimer = s.rune.shieldEvery; // SUS-D: TICK GUARD, its first SHIELD at t = n
@@ -515,7 +517,11 @@ export class Battle {
 
   /** A load's ride for its damage (THE LONG ROAD: its ride bonus x n). */
   private rideOf(s: SideState, p: Payload): number {
-    return s.rune?.rideMul ? p.ride * s.rune.rideMul : p.ride;
+    const ride = s.rune?.rideMul ? p.ride * s.rune.rideMul : p.ride;
+    // FURN-Y (release Y bench): COAL CHUTE / HEAT SINK's "YOUR HEAT: +n%" reads the KILN's HEAT too (its face's {HEAT}12, the
+    // glossary's RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE"), not only a HEAT JACKET's: the ride the
+    // slug's own rideScale reads, +n%. Only payloadDamage reads rideOf; a side without heatPct rides exactly as before
+    return s.rune?.heatPct ? ride * (1 + s.rune.heatPct / 100) : ride;
   }
 
   /**
@@ -527,7 +533,7 @@ export class Battle {
   private runeMul(s: SideState, paired: boolean, p: Payload, first: boolean): number {
     const m = s.rune!, foe = this.sides[s.side === 0 ? 1 : 0];
     const pct = m.mergedPct * (s.merged ?? 0) + m.frayShotPct * foe.hull.fray + m.winDmgPct * (s.wins ?? 0) + m.priorPct * p.prior
-      + (first ? m.volleyFirst : 0) + (paired ? m.pairPct : 0);
+      + (first ? m.volleyFirst : 0) + (paired ? m.pairPct : 0) + m.shatterPct; // FURN-Y: SHATTER SHOT's baseline, +n% on every shot
     return pct ? 1 + pct / 100 : 1;
   }
 
@@ -1363,7 +1369,8 @@ export class Battle {
       c.windLost += n;
       return 0;
     }
-    if (s.hull.burns.length > 0 && this.sides[s.side === 0 ? 1 : 0].rune?.burnNoHeal) { c.burnLost += n; return 0; } // SUS-D: SEARING
+    const foeRune = this.sides[s.side === 0 ? 1 : 0].rune;
+    if (s.hull.burns.length > 0 && (foeRune?.burnNoHeal || foeRune?.searBurn)) { c.burnLost += n; return 0; } // SUS-D: SEARING (FURN-Y: searBurn keeps it)
     if (s.hull.burns.length > 0) { // BURN's rule: half, rounded down
       const half = Math.floor(n / 2);
       c.burnLost += n - half;
@@ -1994,7 +2001,7 @@ export class Battle {
     if (atk.rune || def.rune) total = this.runeHit(atk, def, hit, total); // RUNES-2a: SCRAP BITER, SNARE KNOT, IRON HIDE, WARD STONE
     // SUS-A (REQ-BFG-069): SHIELD, then PLATE, then HULL. A SHIELD stops this whole hit (0, its FRAY bonus included), where
     // WARD STONE's blockHits stopped it: after IRON HIDE, on any impact; its BURN, FRAY, STUN and poison still land below
-    if (def.shield) total = atk.rune?.shieldPierce ? this.shieldShatter(def, total) : this.shieldHit(def); // SUS-D: SHATTER SHOT
+    if (def.shield) total = atk.rune?.shieldPierce || atk.rune?.shatterPct ? this.shieldShatter(def, total) : this.shieldHit(def); // SUS-D: SHATTER SHOT (FURN-Y: shatterPct keeps it)
     // races: bulwark plating soaks first. 0.8.0 P1 (E1): every hull's plating (0 without a source: the damage unchanged)
     const hullPart = absorb(def.plate, total);
     def.hull.hp -= hullPart;
