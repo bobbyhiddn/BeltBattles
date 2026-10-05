@@ -11,6 +11,11 @@ import { P1_WAVE3_ITEMS } from "../tools/wave3Defs";
 import { cloneBuild, installedTurrets, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars";
+import { turretAt } from "../src/sim/battle"; // NUM-4
+import { turretSlots } from "../src/sim/deck";
+import { ICON } from "../src/render/font";
+import { newRun } from "../src/game/run";
+import { turretPanel } from "../src/screens/build/inspector";
 
 interface Row { file: string; path: string; field: string; to: string; kind: "speed" | "rate"; base: number; value: number; track?: boolean }
 const FIX = JSON.parse(readFileSync(new URL("./fixtures/num2-base-intervals.json", import.meta.url), "utf8")) as { K: number; FACTORY_STEP: number; rows: Row[] };
@@ -193,5 +198,32 @@ describe("NUM-2 SPEED: the timers carry their remainder (Battle.chambers, Battle
       expect(Math.abs(made - (120 * speed) / SPEED_K), `${hero} FACTORY ${level}: speed ${speed}, ${made} slugs in 120 s`).toBeLessThanOrEqual(1);
       expect(secPer(speed)).toBeCloseTo(30 / speed, 12);
     }
+  });
+});
+
+// NUM-4 (REQ-BFG-047; N1 2.5 "numbers.speed"): the printed SPEED is the battle's. A turret's and a factory's stat row lead
+// with {RATE}n through fmtSpeed (faces.ts speedPair; tests/numbers.faces checks every piece x star against its spec); an
+// installed turret's panel prints the speed makeTurret builds, so here every starting turret x TURRET SPEED level 1-4 x
+// the speed gear (none, CALIBRATION and ESCAPEMENT at each star) prints exactly the TurretState speed the battle fights
+// with. STEAM BREECH's plated rate and GATLING SPOOL's spin move during a fight: their rule lines say them (whole %s).
+describe("NUM-4: the turret panel's {RATE}n is the battle's TurretState.speed (levels x speed gear)", () => {
+  it("every starting turret, TURRET SPEED 1-4, no gear / CALIBRATION / ESCAPEMENT at each star", () => {
+    const rateIn = (text: string): number => Number(new RegExp(`${ICON.RATE}(\\d+)`).exec(text)?.[1] ?? NaN);
+    let n = 0;
+    for (const hero of ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"] as HeroId[]) {
+      const run = newRun(hero, 6262);
+      const i = turretSlots(run.build).findIndex((s) => s.turret?.free);
+      if (i < 0) continue;
+      const slot = turretSlots(run.build)[i].slot;
+      for (const level of [1, 2, 3, 4]) for (const gear of [null, "calibrate", "escapement"]) for (const stars of gear ? [1, 2, 3] : [1]) {
+        run.build = { ...cloneBuild(heroStartBuild(hero, 1)), ...(level > 1 ? { upgrades: { turret: level } } : {}),
+          mods: gear ? [{ uid: 990, def: gear, turret: slot, ...(stars > 1 ? { stars } : {}) }] : [] };
+        const row = turretPanel(run, i)!.body.find((b) => b.role === "ability")!.text;
+        const speed = turretAt(new Battle(run.build, heroStartBuild("weaver", 1), 4411).sides[0], slot)!.speed;
+        expect([rateIn(row), Number.isInteger(speed)], `${hero} L${level} ${gear ?? "-"} ★${stars}: ${row}`).toEqual([speed, true]);
+        n++;
+      }
+    }
+    expect(n).toBe(6 * 4 * 7); // the 6 heroes' starting turrets x 4 levels x 7 gear cases
   });
 });

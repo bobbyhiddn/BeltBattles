@@ -12,6 +12,12 @@ import { Battle } from "../src/sim/battle";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { barge, SEED } from "./arsenal.bench";
 import { K } from "./belts.helpers";
+import { turretAt } from "../src/sim/battle"; // NUM-4: the BELTS lines against the battle
+import { outputsAt } from "../src/sim/stars";
+import { ICON } from "../src/render/font";
+import { newRun } from "../src/game/run";
+import { turretPanel } from "../src/screens/build/inspector";
+import { factoryNext } from "../src/ui/upgradeText";
 
 const HEROES6: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
 const roundHalfUp = (x: number): number => Math.floor(x + 0.5 + 1e-9);
@@ -85,6 +91,45 @@ describe("NUM-2: the BELTS tracks as whole steps (N1 2.2)", () => {
         expect(Math.abs(want[level - 1] / (30 / row.base) - 1), `${def} L${level} vs ${row.base} s`).toBeLessThanOrEqual(0.05);
       }
       expect(ITEMS[def].factory!.speed).toBe(want[0]);
+    }
+  });
+});
+
+/** NUM-4: the {RATE} number a BELTS line names (the RATE glyph, then its digits). */
+const rateIn = (text: string): number => Number(new RegExp(`${ICON.RATE}(\\d+)`).exec(text)?.[1] ?? NaN);
+
+describe("NUM-4 (REQ-BFG-047; N1 2.5 belts.numbers): each BELTS line names the battle's SPEED after buying that level", () => {
+  it("a starting turret's panel: SPEED: LEVEL l/4. UPGRADE: {RATE}n, n the turret's speed in a battle at level l + 1", () => {
+    let n = 0;
+    for (const hero of HEROES6) {
+      const run = newRun(hero, 5150);
+      const i = turretSlots(run.build).findIndex((s) => s.turret?.free);
+      if (i < 0) continue;
+      const slot = turretSlots(run.build)[i].slot;
+      for (const level of [1, 2, 3, 4]) {
+        run.build = { ...run.build, upgrades: level > 1 ? { turret: level } : undefined };
+        const line = turretPanel(run, i)!.body.find((b) => b.text.startsWith("SPEED: "))?.text;
+        expect(line, `${hero} L${level}`).toBeDefined();
+        if (level === 4) { expect(line, hero).toBe("SPEED: LEVEL 4/4."); continue; }
+        const next = { ...run.build, upgrades: { turret: level + 1 } };
+        const speed = turretAt(new Battle(next, barge(), SEED).sides[0], slot)!.speed;
+        expect([line!.startsWith(`SPEED: LEVEL ${level}/4. UPGRADE: `), rateIn(line!)], `${hero} L${level}: ${line}`).toEqual([true, speed]);
+        n++;
+      }
+    }
+    expect(n).toBe(18); // the 6 heroes' starting turrets x levels 1-3
+  });
+
+  it("a signature factory's panel line: UPGRADE: n BELTS, {RATE}m, m the factory's speed in a battle at level l + 1", () => {
+    for (const hero of HEROES6) {
+      const def = HEROES[hero].factory;
+      for (const level of [1, 2, 3]) {
+        const line = factoryNext(def, level)!;
+        const b: Build = { hero, items: [{ uid: 7, def, x: 4, y: 6 }], routes: [{ factory: 7, cells: [K(4, 5)] }], mods: [], beltCap: 40, hullBonus: 0, upgrades: { factory: level + 1 } };
+        const f = new Battle(b, barge(), SEED).sides[0].factories.find((x) => x.uid === 7)!;
+        expect([line.startsWith(`UPGRADE: ${outputsAt(def, level + 1)} BELTS, `), rateIn(line)], `${def} L${level}: ${line}`).toEqual([true, f.def.factory!.speed]);
+      }
+      expect(factoryNext(def, 4)).toBeNull();
     }
   });
 });

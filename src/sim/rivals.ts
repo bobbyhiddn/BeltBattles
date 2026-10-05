@@ -82,7 +82,7 @@ export const RIVALS: Record<RivalId, RivalDef> = {
     "SPLIT BOLTS, TWO PLATES. FRAY PILES UP.",
     ["plum3", "plum4", "ice", "verd4"], "moth-wing mantle with frayed, glowing edges"),
   sparkfang: rival("sparkfang", "SPARKFANG", "furnace", 2, "regular", "SHOCK TROOPER",
-    "GALVANIC COILS STALL YOUR MACHINES.",
+    "GALVANIC COILS STUN YOUR MACHINES.", // NUM-4 (REVIEW-NUM3 F2): its blurb, a display string: one word for one stop (was STALL)
     ["rust2", "cyan", "ice", "steel2"], "copper fang arcing a blue spark"),
   lacewing: rival("lacewing", "LACEWING", "weaver", 2, "regular", "SPLITTER SWARM",
     "SPLITTERS TURN EVERY BOLT INTO TWO.",
