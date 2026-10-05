@@ -3,6 +3,20 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.2: the captains' catch-up
+
+Same battle rules as 0.9.1 (bb-0.9.1), so 0.9.1 and 0.9.2 players meet each other's ghosts, and their uploads keep
+playing.
+- **MASTER VOSS** no longer shuts out strong players: his early armor comes later, and he skips two of his strongest
+  runes, TWIN SUNS and MOLTEN VOWS.
+- **SILKSHADE, the MOTH QUEEN and LONGTOOTH** ease off on the days they stopped strong decks.
+- **The IRON MATRIARCH** no longer takes PYRE HEART.
+- **THANE KARSK** drops his day-5 road armor.
+- **A little more road armor:** HIGHSPIRE and THANE KARSK on day 4, SILKSHADE on days 4 and 5, and HIGHSPIRE on day 8.
+- **Two parts come sooner:** on the road, HIGHSPIRE's TEMPER gets its second star on day 5 (was day 6). LONGTOOTH's
+  stand-in gets its COUNTERWEIGHT on day 4 (was day 6).
+- **EMBERLYN** no longer picks COAL CHUTE, which did nothing for her.
+
 ## 0.9.1: the hero balance pass
 
 New battle rules: bb-0.9.1. Ghosts and uploads from 0.9.0 no longer meet 0.9.1 players. You'll fight a fresh pool of 120
