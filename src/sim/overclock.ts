@@ -16,6 +16,13 @@ export function chargeable(e: GateEffect): boolean {
   return starRules() || boostable(e);
 }
 
+/** Y3 (release Y; DESIGN-Y row 29): does doubling `e` change any of its numbers (the bots' deck rating: a charge spent on a
+ *  rig with nothing to double is worth nothing)? A switch-on TWIN LATCH (flat 0) or a speed rig: no; a damage rig: yes. */
+export function doubles(e: GateEffect): boolean {
+  const o = overclocked(e);
+  return o !== e && JSON.stringify(o) !== JSON.stringify(e);
+}
+
 /**
  * §3.4: speed gates are skipped (they set a belt state, not a payload effect). Wave 2 adds TOLLBOOTH, SIFTER,
  * RIVETER and POWDER KEG to the skipped list when they exist.

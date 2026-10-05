@@ -174,6 +174,11 @@ const an = (w: string): string => (/^[AEIOU]/.test(w) ? `AN ${w}` : `A ${w}`);
 export function onlineIn(k: number): string {
   return k <= 0 ? "AT ONCE" : k === 0.5 ? "IN HALF THE TIME" : k === 0.25 ? "IN A QUARTER OF THE TIME" : `IN ${percent(k)} OF THE TIME`;
 }
+/** Y3 (release Y; DESIGN-Y row 32): how much sooner rigs start at a commission factor, the face's words: "50% SOONER",
+ *  "AT ONCE" (no ONLINE: with the star switch on ASSEMBLY LINE's texts say START, as its face does). */
+export const startIn = (k: number): string => (k <= 0 ? "AT ONCE" : `${percent(1 - k)} SOONER`);
+/** Y3 (DESIGN-Y row 27): a BRAKE SHOE's belt speed with the star switch on: "HALF SPEED", "40% SPEED" (its face's %). */
+const brakeSpeed = (r: number): string => (Math.abs(r - 0.5) < 1e-9 ? "HALF SPEED" : `${percent(r)} SPEED`);
 
 // ----------------------------------------------------------------------------------------------------------- sentences
 
@@ -261,6 +266,10 @@ export const S = {
   // dark wind's start nothing heals)
   heal: `A HULL WITH BURN ${SW.heals} HALF, AND NOTHING ${SW.heals} IN THE DARK WIND.`,
 };
+
+/** Y3 (release Y; DESIGN-Y row 32): S.online in START's words, for ASSEMBLY LINE's texts with the star switch on (kept
+ *  apart from S, whose sentences are the base's whatever the switch). */
+export const S_STARTS = "RIGS NORMALLY START WORKING SOON AFTER A BATTLE STARTS, A LITTLE LATER FOR EACH RIG BEFORE THEM ON THEIR BELT.";
 
 /** 0.8.0 P1: a small count as a word ("TWO PLAIN SLUGS"), as DESIGN-wave3.md 3.3 writes TWIN MOULD's. */
 const COUNT = ["NO", "ONE", "TWO", "THREE", "FOUR", "FIVE"];
@@ -370,13 +379,14 @@ const ENTRIES: Record<string, Entry> = {
   },
   brake: {
     // 0.6.1f: half speed at every star; ★2 HOT SHOE and ★3 RED-HOT SHOE add friction heat (flat damage)
-    text: (e) => [
+    // Y3 (release Y; DESIGN-Y row 27): with the star switch on ★2/★3 slow the belt to 40% / 30% and add no damage
+    text: (e) => (starRules() ? [`SLOWS ${belts(e)} PAST IT TO ${brakeSpeed(g(e).speed!)}.`, S.locked(g(e).lockedFlat!)] : [
       g(e).flat
         ? `SLOWS ${belts(e)} PAST IT TO HALF SPEED AND ADDS ${damage(g(e).flat!)} TO EACH PAYLOAD.`
         : `SLOWS ${belts(e)} PAST IT TO HALF SPEED.`,
       S.locked(g(e).lockedFlat!, !!g(e).flat),
-    ],
-    gist: (e) => (g(e).flat ? `ADDS ${damage(g(e).flat!)}` : "HALF SPEED"),
+    ]),
+    gist: (e) => (starRules() ? brakeSpeed(g(e).speed!) : g(e).flat ? `ADDS ${damage(g(e).flat!)}` : "HALF SPEED"),
     card: () => "SLOWS BELTS TO HALF SPEED",
   },
   longhaul: {
@@ -466,8 +476,11 @@ const ENTRIES: Record<string, Entry> = {
     // Battle.tileSpeedAt: the pulse holds its tile `on` seconds of every `period` (else normal speed); transport: a
     // payload riding past it gains `flat` once a pulse (never on slag or a locked belt, like every speed effect)
     // T6: ★2 OVERPRESSURE's pulse damage joins the opening sentence (its name follows it), so the phone band holds it
+    // Y3 (release Y; DESIGN-Y row 28; REVIEW-STARD answer 5): with the star switch on, the damage pulse (Battle.surgeTick):
+    // once each period every payload on the belts it hits gains `flat`, wherever it is; no speed, no locked-belt line
     text: (e) => {
       const p = g(e).pulse!;
+      if (starRules()) return [`EVERY ${seconds(p.period)}, EACH PAYLOAD ON ${belts(e)} IT HITS GAINS ${damage(p.flat)}.`, "PAYLOADS BEFORE ITS TILE GET IT TOO."];
       return [
         `PULSES ITS BELTS ${speedText(p.speed)} FOR ${seconds(p.on)} ${every(p.period)}${p.flat ? `, EACH PULSE ADDING ${damage(p.flat)}` : ""}.`,
         ...(p.flat ? ["THE DAMAGE GOES TO EVERY PAYLOAD THE PULSE SPEEDS UP."] : []),
@@ -475,8 +488,9 @@ const ENTRIES: Record<string, Entry> = {
         S.locked(g(e).lockedFlat!),
       ];
     },
-    gist: (e) => `${speedText(g(e).pulse!.speed)}${g(e).pulse!.flat ? `, ${damage(g(e).pulse!.flat)} A PULSE` : ""}`,
-    card: (e) => `PULSES BELTS ${speedText(g(e).pulse!.speed)}`,
+    gist: (e) => (starRules() ? `${damage(g(e).pulse!.flat)} ${every(g(e).pulse!.period)}`
+      : `${speedText(g(e).pulse!.speed)}${g(e).pulse!.flat ? `, ${damage(g(e).pulse!.flat)} A PULSE` : ""}`),
+    card: (e) => (starRules() ? `PULSES ${damage(g(e).pulse!.flat)} ONTO ITS BELTS` : `PULSES BELTS ${speedText(g(e).pulse!.speed)}`),
   },
   sorting: {
     // Battle.applyHit: g.sorted counts every arrow hit; every `every`-th makes copies - 1 more at full strength
@@ -509,12 +523,18 @@ const ENTRIES: Record<string, Entry> = {
   overclocker: {
     // Battle.makeSide: each OVERCLOCKER boosts the first later boostable rig on its belt (overclock.ts boostable);
     // Battle.applyHit: the boosted hit is doubled (overclocked) and the booster recharges for overclockCooldown
-    text: (e) => [
+    // Y3 (release Y; DESIGN-Y row 29): with the star switch on it charges the next rig whatever it is (overclock.ts
+    // chargeable), so the skip list's sentence (it still names the dormant SIFTER) leaves; off, as before
+    text: (e) => (starRules() ? [
+      `DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR ${seconds(g(e).overclockCooldown!)}.`,
+      "THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT, WHATEVER IT IS.",
+      "A RIG WITH NOTHING TO DOUBLE USES UP THE CHARGE.",
+    ] : [
       `DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR ${seconds(g(e).overclockCooldown!)}.`,
       "THE NEXT RIG IS THE FIRST LATER RIG ON ITS BELT THAT CAN BE DOUBLED.",
       // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3's STOKER and BRACE FRAME act on no payload (overclock.ts boostable)
       "SPEED RIGS, TOLLBOOTHS, SIFTERS, RIVETERS, POWDER KEGS, STOKERS, BRACE FRAMES AND OVERCLOCKERS CAN'T.",
-    ],
+    ]),
     gist: (e) => `RECHARGES IN ${seconds(g(e).overclockCooldown!)}`,
     card: () => "DOUBLES THE NEXT RIG'S HIT",
   },
@@ -537,25 +557,29 @@ const ENTRIES: Record<string, Entry> = {
     // walkRoute, Battle.applyHit); was 1 BURN every `seconds`. The same sentence, read from the new fields
     // NUM-3 step 2, batch C: FOR EACH (docs/TEXT-STYLE.md 8.4's word for a rate; was FOR EVERY), and the gist says FOR EACH
     // too, never EVERY n SECONDS, which reads as a timer (TEXT-STYLE 3.2): it adds the BURN once, as the payload passes
+    // Y3 (release Y; DESIGN-Y row 22): with the star switch on, for each whole `per` s and no cap (no UP TO)
     text: (e) => [
-      `ADDS ${g(e).burnPerRide!.burn} BURN FOR EACH ${seconds(g(e).burnPerRide!.per)} THE PAYLOAD HAS RIDDEN, UP TO ${g(e).burnPerRide!.max} BURN.`,
+      `ADDS ${g(e).burnPerRide!.burn} BURN FOR EACH ${seconds(g(e).burnPerRide!.per)} THE PAYLOAD HAS RIDDEN${starRules() ? "" : `, UP TO ${g(e).burnPerRide!.max} BURN`}.`,
       S.burn,
     ],
-    gist: (e) => `${g(e).burnPerRide!.burn} BURN FOR EACH ${seconds(g(e).burnPerRide!.per)}, UP TO ${g(e).burnPerRide!.max} BURN`,
-    card: (e) => `BURN FOR RIDE TIME, UP TO ${g(e).burnPerRide!.max}`,
+    gist: (e) => `${g(e).burnPerRide!.burn} BURN FOR EACH ${seconds(g(e).burnPerRide!.per)}${starRules() ? "" : `, UP TO ${g(e).burnPerRide!.max} BURN`}`,
+    card: (e) => (starRules() ? "BURN FOR RIDE TIME" : `BURN FOR RIDE TIME, UP TO ${g(e).burnPerRide!.max}`),
   },
   quench: {
     // 0.6.2 FB-B (Battle.applyHit): + flat on every payload it hits; then up to `stacks` of the payload's Burn, each
     // spent for perBurn more damage (a Burn is worth 1 damage a second for 3 seconds); any more Burn stays on it
+    // Y3 (release Y; DESIGN-Y row 23): with the star switch on, no flat and no stack cap: every BURN turns
     text: (e) => {
       const q = g(e).quench!;
+      if (starRules()) return [`TURNS EACH BURN ON THE PAYLOADS IT HITS INTO ${damage(q.perBurn)}.`, S.burn];
       return [
         `ADDS ${damage(q.flat)} TO EACH PAYLOAD IT HITS, THEN TURNS UP TO ${q.stacks} OF ITS BURN INTO ${moreDamage(q.perBurn)} EACH.`,
         "ANY MORE BURN STAYS ON THE PAYLOAD.",
         S.burn,
       ];
     },
-    gist: (e) => `ADDS ${damage(g(e).quench!.flat)}, THEN ${moreDamage(g(e).quench!.perBurn)} FOR EACH BURN, UP TO ${g(e).quench!.stacks} BURN`,
+    gist: (e) => (starRules() ? `${damage(g(e).quench!.perBurn)} FOR EACH BURN`
+      : `ADDS ${damage(g(e).quench!.flat)}, THEN ${moreDamage(g(e).quench!.perBurn)} FOR EACH BURN, UP TO ${g(e).quench!.stacks} BURN`),
     card: () => "TURNS BURN INTO DAMAGE",
   },
   staticbrush: {
@@ -645,8 +669,17 @@ const ENTRIES: Record<string, Entry> = {
   assembly: {
     // Battle.makeSide (assemblyLines): while it feeds a turret, every rig's online time x commission; its own belts'
     // rigs at 0 s; ★3 HOT START overclocks its belts' rigs (every hit doubled) until hotStart seconds
+    // Y3 (release Y; DESIGN-Y row 32): with the star switch on its own belt's rigs take the same factor and HOT START is
+    // gone (Battle.makeSide); its texts say START, as its face does (no ONLINE)
     text: (e) => {
       const fs = f(e), k = fs.commission!;
+      if (starRules()) {
+        return [
+          `WHILE IT FEEDS A TURRET, ${k <= 0 ? "ALL " : ""}YOUR RIGS START WORKING ${startIn(k)}, THOSE ON ITS OWN BELT TOO.`,
+          S.stamps(`A PLAIN SLUG (${damage(slugBase(e))})`, fs.speed),
+          S_STARTS,
+        ];
+      }
       return [
         `WHILE IT FEEDS A TURRET, ${k <= 0 ? "ALL " : ""}YOUR RIGS COME ONLINE ${onlineIn(k)}.`,
         fs.hotStart ? `RIGS ON ITS OWN BELT HIT TWICE AS HARD FOR THE FIRST ${seconds(fs.hotStart)}.` : "RIGS ON ITS OWN BELT COME ONLINE AT ONCE.",
@@ -655,8 +688,9 @@ const ENTRIES: Record<string, Entry> = {
       ];
     },
     perkAt: (e) => (f(e).hotStart ? 1 : 0),
-    gist: (e) => `${f(e).commission! <= 0 ? "ALL " : ""}RIGS ONLINE ${onlineIn(f(e).commission!)}`,
-    card: () => "RIGS ONLINE IN HALF THE TIME",
+    gist: (e) => (starRules() ? `${f(e).commission! <= 0 ? "ALL " : ""}RIGS START ${startIn(f(e).commission!)}`
+      : `${f(e).commission! <= 0 ? "ALL " : ""}RIGS ONLINE ${onlineIn(f(e).commission!)}`),
+    card: (e) => (starRules() ? `RIGS START ${startIn(f(e).commission!)}` : "RIGS ONLINE IN HALF THE TIME"),
   },
   gantry: {
     text: (e, x) => [
@@ -1109,24 +1143,29 @@ const ENTRIES: Record<string, Entry> = {
   },
   twingauge: {
     // Battle.applyHit: + flat, or + matched on a matched belt (E6: deck.ts matchedRoutes, read once in Battle.makeSide)
-    text: (e) => [`ADDS ${damage(g(e).gauge!.flat)} TO EACH PAYLOAD IT HITS, OR ${damage(g(e).gauge!.matched)} ON A MATCHED BELT.`, S.matched],
-    gist: (e) => `ADDS ${damage(g(e).gauge!.flat)}, OR ${fmtDmg(g(e).gauge!.matched)} ON A MATCHED BELT`,
-    card: () => "MORE DAMAGE ON A MATCHED BELT",
+    // Y3 (release Y; DESIGN-Y row 21): with the star switch on, nothing off a matched belt (no floor)
+    text: (e) => (starRules() ? [`ADDS ${damage(g(e).gauge!.matched)} TO EACH PAYLOAD IT HITS ON A MATCHED BELT.`, S.matched]
+      : [`ADDS ${damage(g(e).gauge!.flat)} TO EACH PAYLOAD IT HITS, OR ${damage(g(e).gauge!.matched)} ON A MATCHED BELT.`, S.matched]),
+    gist: (e) => (starRules() ? `${damage(g(e).gauge!.matched)} ON A MATCHED BELT` : `ADDS ${damage(g(e).gauge!.flat)}, OR ${fmtDmg(g(e).gauge!.matched)} ON A MATCHED BELT`),
+    card: () => (starRules() ? "DAMAGE ON A MATCHED BELT" : "MORE DAMAGE ON A MATCHED BELT"),
   },
   pincer: {
     // Battle.applyHit (E5): + flat, and + each for every other working rig hitting the tile (online, not stalled, frozen
     // or wrecked), up to max. 0.8.0 I1 (VERIFIED-P1 H5): the text names no cap: a belt tile has 4 sides and at least two
     // are belt, factory or turret, so at most 2 other rigs can ever hit a PINCER's tile and max (3) never binds; the code
     // keeps it
+    // Y3 (release Y; DESIGN-Y row 20): with the star switch on, no floor (and no max in its data)
     text: (e) => {
       const p = g(e).pincer!;
+      if (starRules()) return [`ADDS ${damage(p.each)} TO EACH PAYLOAD IT HITS FOR EACH OTHER RIG HITTING THAT TILE.`, "STUNNED AND WRECKED RIGS DON'T COUNT."];
       return [
         `ADDS ${damage(p.flat)} TO EACH PAYLOAD IT HITS, AND ${fmtDmg(p.each)} MORE FOR EACH OTHER RIG HITTING THAT TILE.`,
         "STUNNED AND WRECKED RIGS DON'T COUNT.", // NUM-3 (R1's STUN fold): nothing freezes any more
       ];
     },
-    gist: (e) => `ADDS ${damage(g(e).pincer!.flat)}, AND ${fmtDmg(g(e).pincer!.each)} MORE FOR EACH OTHER RIG ON ITS TILE`,
-    card: () => "MORE DAMAGE WITH RIGS ON ITS TILE",
+    gist: (e) => (starRules() ? `${damage(g(e).pincer!.each)} FOR EACH OTHER RIG ON ITS TILE`
+      : `ADDS ${damage(g(e).pincer!.flat)}, AND ${fmtDmg(g(e).pincer!.each)} MORE FOR EACH OTHER RIG ON ITS TILE`),
+    card: () => (starRules() ? "DAMAGE FOR EACH RIG ON ITS TILE" : "MORE DAMAGE WITH RIGS ON ITS TILE"),
   },
   braceframe: {
     // Battle.braceCut: an enemy STUN on a tile it hits, or on the brace itself, lasts x mul while it works, x plated while
@@ -1143,23 +1182,25 @@ const ENTRIES: Record<string, Entry> = {
     // E4 (Battle.latchTick): it holds only while both arrows hit belts, each payload at most `hold` seconds. Into one
     // turret the longer remaining trip goes first and the other after the difference, so both arrive together (oracle
     // a0e94bc69949561f); into two turrets both go at once. Battle.applyHit adds flat to every payload it hits
+    // Y3 (release Y; DESIGN-Y row 30): with the star switch on it adds no damage (no flat) and holds up to 1/2/3 s
     text: (e) => [
       // T6: DESIGN 3.3's "AT THE TILE IT HITS" moves to the second sentence, so the opening fits the phone band whole
       "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
       `IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST ${seconds(g(e).latch!.hold)}, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.`,
-      `EACH PAYLOAD IT LETS GO GAINS ${damage(g(e).latch!.flat)}.`,
+      ...(starRules() ? [] : [`EACH PAYLOAD IT LETS GO GAINS ${damage(g(e).latch!.flat)}.`]),
       "ON BELTS INTO TWO GUNS, IT LETS BOTH GO AT ONCE.",
     ],
     // T6: DESIGN 3.3's "EACH PAYLOAD IT LETS GO GAINS 2.2 DAMAGE" takes two phone lines; WHETSTONE's clause takes one
-    gist: (e) => `ADDS ${damage(g(e).latch!.flat)}`,
+    gist: (e) => (starRules() ? `HOLDS UP TO ${seconds(g(e).latch!.hold)}` : `ADDS ${damage(g(e).latch!.flat)}`),
     card: () => "LETS TWO BELTS GO TOGETHER",
   },
   stoker: {
     // E3: its arrows work factories (deck.ts stokeHits), never belts. Battle.stokedPace: the factory's timers x (1 + its
     // stokes), the stamping capped so it never outruns the turret its belt feeds (oracle a0e94bc69949561f)
+    // Y3 (release Y; DESIGN-Y row 31): with the star switch on the cap is gone, so the sentence says it may overfeed
     text: (e) => [
       `EACH FACTORY ITS ARROWS POINT AT WORKS ${percent(g(e).stoke!)} FASTER.`,
-      "IT NEVER MAKES A FACTORY OUTRUN ITS GUN.",
+      starRules() ? "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT." : "IT NEVER MAKES A FACTORY OUTRUN ITS GUN.",
       S.worksFaster,
       "ITS ARROWS DO NOTHING TO BELTS.",
     ],
@@ -1169,11 +1210,12 @@ const ENTRIES: Record<string, Entry> = {
   },
   platebreaker: {
     // Battle.applyHit (tier 1): with 1 plating or more on the hull it takes 1 (a plate event) and adds flat, else floor
+    // Y3 (release Y; DESIGN-Y row 26): with the star switch on, no floor: with less plating it adds nothing
     text: (e) => [
       `EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS ${damage(g(e).breaker!.flat)}.`, // NUM-1: battle.ts spends 10
-      `WITH NO PLATING TO TAKE, IT ADDS ${damage(g(e).breaker!.floor)}.`,
+      starRules() ? "WITH LESS PLATING THAN THAT, IT ADDS NOTHING." : `WITH NO PLATING TO TAKE, IT ADDS ${damage(g(e).breaker!.floor)}.`,
     ],
-    gist: (e) => `${damage(g(e).breaker!.flat)} FOR 10 PLATING, ${fmtDmg(g(e).breaker!.floor)} WITHOUT`, // NUM-1: 10 plating
+    gist: (e) => (starRules() ? `${damage(g(e).breaker!.flat)} FOR 10 PLATING` : `${damage(g(e).breaker!.flat)} FOR 10 PLATING, ${fmtDmg(g(e).breaker!.floor)} WITHOUT`), // NUM-1: 10 plating
     card: () => "TURNS PLATING INTO DAMAGE", // DESIGN 3.3's "TURNS YOUR PLATING INTO DAMAGE" takes three card lines
   },
   shieldwall: {
@@ -1438,6 +1480,15 @@ export type BeltKind = "free" | "locked" | "slag";
  */
 export function hitText(h: TimelineHit, belt: BeltKind): string {
   const name = ITEMS[h.def].name, e = effectAt(h.def, h.stars).gate ?? {};
+  // Y3 (release Y; DESIGN-Y rows 20, 21, 26, 28, 30): with the star switch on SURGE VALVE is a damage pulse on any belt (no
+  // speed, slag and locked belts too), and the rigs whose floor or flat left say what they do instead of "+0 DAMAGE"
+  if (starRules()) {
+    if (e.pulse) return `${name} +${damage(e.pulse.flat)} EVERY ${fmtSec(e.pulse.period)} SEC`;
+    if (e.gauge && !h.matched) return `${name}: NO EFFECT ON AN UNMATCHED BELT`;
+    if (e.pincer && !h.others) return `${name}: NO OTHER RIG ON ITS TILE`;
+    if (e.latch) return `${name} HOLDS UP TO ${fmtSec(e.latch.hold)} SEC`;
+    if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING`; // NUM-1: 10 plating
+  }
   if (e.speed !== undefined || e.pulse) {
     if (belt === "locked") return `${name} +${damage(h.flat ?? 0)} (LOCKED)`;
     if (belt === "slag") {
@@ -1491,7 +1542,8 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
  * walk scales it. 0 on any other belt. The belt readout subtracts it, so it says what the sim does.
  */
 export function slagPulseExtra(rows: readonly { hits: readonly TimelineHit[] }[], belt: BeltKind): number {
-  if (belt !== "slag") return 0;
+  // Y3 (release Y; DESIGN-Y row 28): with the star switch on Battle.surgeTick pays slag too, so the walk's count stands
+  if (belt !== "slag" || starRules()) return 0;
   let extra = 0;
   for (const row of rows) for (const h of row.hits) {
     if (h.split) extra *= h.split.mult;

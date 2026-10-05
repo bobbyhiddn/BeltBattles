@@ -17,6 +17,7 @@ import {
 import { platedDeck, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's plating and stokers
 import { FURNACE_LONG_BELT, SHARED_HEADROOM, gearStats } from "./battle";
 import { resolveCore } from "./cores";
+import { doubles } from "./overclock"; // Y3 (release Y): the OVERCLOCKER's price with the star switch on (chargeGains)
 import { effectAt, gradeOf, starsOf, valueOf } from "./stars";
 
 /** Seconds in a typical dusk fight (the desk run's fights last 17-29 s): damage is weighed by how much of it lands. */
@@ -111,6 +112,14 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  * The rest comes from the switch's own data: the walk drops LODESTONE's floor and OVERDRIVE's flats and counts HOT SWAP's
  * BURN 5 / 9; the cadence reads SABOT ★3's RATE 20. MANTLET, FLAK SCREEN, SPOTTER and GRAPNEL GUN stay rated by price
  * (NOMINAL), and SCRAPPER's trigger stamps were never rated: unchanged.
+ * Y3 (release Y; DESIGN-Y rows 20-32), also read only with the switch on; no new constant:
+ * - OVERCLOCKER: EQ.overclock / its rest only when the rig it charges, the next one whatever it is, has something to double
+ *   (chargeGains; a speed rig, a STOKER or a flat-less TWIN LATCH next: 0).
+ * - STOKER: no cap (rateDeck skips it): the stoked feed arrives in full and firedShare prices the overfed gun's jams.
+ * - The walk (deck.ts walkRoute) carries the rest from the switch's data and rules: PINCER, TWIN GAUGE, QUENCH TANK and PLATE
+ *   BREAKER without their floors, BELLOWS for each whole 2 s uncapped, QUENCH without its stack cap, LONG HAUL uncapped,
+ *   BRAKE SHOE's slower ★2/★3 belts without their flats, TWIN LATCH without its flat, SURGE VALVE's pulses for the seconds
+ *   a slug rides its belts (no speed). BARBED SPOOL's FRAY cap and ASSEMBLY LINE's start times were never rated: unchanged.
  */
 export const STAR_EQ = { perStun: 0.75, tollFactory: 1.25 } as const;
 
@@ -126,6 +135,20 @@ export function stunSources(b: Build): number {
   }
   for (const m of b.mods) if (ITEMS[m.def]?.kind === "core" && effectAt(m.def, starsOf(m)).core?.routine === "tesla") n++;
   return n;
+}
+
+/** Y3 (release Y; DESIGN-Y row 29): with the star switch on, the rig an OVERCLOCKER's hit `h` charges on belt `tiles` (its
+ *  hits by tile, R7 order, as Battle.makeSide reads them): the first later hit of another rig, whatever it is; does
+ *  doubling it change anything (overclock.ts doubles)? false with no later rig on the belt. */
+export function chargeGains(b: Build, tiles: readonly (readonly RigHit[])[], h: RigHit): boolean {
+  let seen = false;
+  for (const tile of tiles) for (const o of tile) {
+    if (o === h) { seen = true; continue; }
+    if (!seen || o.uid === h.uid) continue;
+    const e = effectAt(o.def, starsOf(itemByUid(b, o.uid))).gate;
+    return !!e && doubles(e);
+  }
+  return false;
 }
 
 /** Y2: BRACE FRAME's share of its old guard with the star switch on: the tiles its arrows hit, not itself. */
@@ -191,7 +214,9 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       // first. CAND-A (the skill-ladder fix): the rating read half the buff on every payload, whatever the fight; its
       // ablation lift on the par field was +0.1 points on day 10 (fights of 9.5 s; fuses 12/10/8 s at 1/2/3 stars).
       if (e.keg) eq += ((e.keg.flat + BURN_TIME * BURN_DPS * e.keg.burn) * Math.max(0, Math.min(fight, e.keg.fuse + time) - e.keg.fuse)) / Math.max(1, fight - time); // NUM-1: a Burn stack's BURN_DPS a second
-      if (e.overclockCooldown) eq += EQ.overclock / e.overclockCooldown;
+      // Y3 (release Y; DESIGN-Y row 29): with the star switch on it charges the next rig whatever it is, so it is worth its
+      // EQ only when that rig has something to double (chargeGains); off, as before
+      if (e.overclockCooldown) eq += !starRules() || chargeGains(b, hits[ri] ?? [], h) ? EQ.overclock / e.overclockCooldown : 0;
       if (e.toll) eq += starRules() ? EQ.toll * e.toll * STAR_EQ.tollFactory : EQ.toll * e.toll; // Y2: its factory from ★1
       if (e.sift) eq += EQ.sift;
       if (e.heal) repair += e.heal; // SUS-A (REQ-BFG-069): RIVETER's heal (was repair), rated as before (the valuation is SUS-C's)
@@ -411,7 +436,9 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     // 0.8.0 P1 (STOKER's cap, as Battle.stokedPace): a stoke never feeds a turret past its pace (SHARED_HEADROOM of it
     // kept free when several factories share it); the stoked feeds give their extra back, never below unstoked
     const stokedFs = fs.filter((f) => f.base !== undefined);
-    if (stokedFs.length) {
+    // Y3 (release Y; DESIGN-Y row 31): with the star switch on the cap is gone (Battle.stokedPace): a stoked feed arrives in
+    // full, and what the gun can't take is priced by firedShare (the jams of an overfed gun); no stokeKeep line either
+    if (stokedFs.length && !starRules()) {
       const room = cap * (new Set(fs.map((f) => f.factory)).size > 1 ? 1 - SHARED_HEADROOM : 1);
       const total = fs.reduce((s, f) => s + f.arrival, 0), extra = stokedFs.reduce((s, f) => s + f.arrival - f.base!, 0);
       if (total > room && extra > 0) {

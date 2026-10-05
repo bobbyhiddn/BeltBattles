@@ -154,6 +154,10 @@ export function glossaryRows(): GlossaryRow[] {
  * Y2 (release Y; DESIGN-Y 1.2, REVIEW-STARD rule 6): the rows the star switch (content.ts starRules) retires. HARASSMENT:
  * with the switch on harassment is a STUN (battle.ts acceptHarassment), so no face or kept text names it (the STUN row
  * says it). PART stays a glossary word, no colour of its own and no token: TOLLBOOTH's face names it. No new keyword.
+ * Y3 (release Y; DESIGN-Y section 5, column g): ONLINE would retire if no switch-on text named it. ASSEMBLY LINE's texts
+ * say START now (abilityText.ts startIn, S_STARTS), but POWDER KEG's kept sentence ("12 SECONDS AFTER IT COMES ONLINE",
+ * Y5's piece) and the QUICK LATCH rune ("YOUR {BELT} RIGS: ONLINE {N} SOONER.") still do, so ONLINE stays; no word joins.
+ * MATCHED (TWIN GAUGE's face) is a row already.
  */
 export const STAR_RETIRED: readonly string[] = ["HARASSMENT"];
 /** Y2: is `r` a row the star switch retires, while it is on? */
@@ -256,6 +260,9 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
     word: "EVERY",
     text: (e) => {
       const p = e.gate!.pulse!;
+      // Y3 (release Y; DESIGN-Y row 28): with the star switch on there is no speed pulse (Battle.surgeTick: every slug on
+      // its belts gains the {DMG} once a period, wherever it is)
+      if (starRules()) return `EVERY ${fmtSec(p.period)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.`;
       return `EVERY ${fmtSec(p.period)}{SEC}: ITS BELT RUNS FAST FOR ${fmtSec(p.on)}{SEC}, THEN AS BEFORE; A SLUG GETS THE {DMG} ONCE.`;
     },
   },
