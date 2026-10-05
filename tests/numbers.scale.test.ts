@@ -115,6 +115,13 @@ const TUNEX_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: numb
   "RUNE_LIST.tangle_wire.amount.n": { rule: "same", was: 6, now: 5 }, // TANGLE WIRE (line 14)
 };
 
+// Y-FURN (release Y; FURN-Y rows 1-2, REVIEW-FURNY): two more RUNE_LIST amounts moved after NUM-1's record, both "same"
+// rows (a whole %), the fixture untouched. Each is checked at its release-Y value, as TUNEX_MOVED's are
+const YFURN_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: number }> = {
+  "RUNE_LIST.coal_chute.amount.n": { rule: "same", was: 25, now: 20 }, // COAL CHUTE (row 1; it reads the KILN's HEAT too)
+  "RUNE_LIST.heat_sink.amount.n": { rule: "same", was: 50, now: 40 }, // HEAT SINK (row 2)
+};
+
 // FLIP-X2 (REQ-BFG-069, the sustain switch on): ITEMS lists WARD BELL, MEND PRESS and MENDING LOOM now, so the walk meets
 // their numeric fields. SUS-A wrote them after NUM-1's script and NUM-2's (content.ts SUSTAIN_ITEMS: "on the N1 scale",
 // MEND PRESS's speeds ARMOR PRESS's whole ones), so, as the sustain runes, no fixture row and no x10: N1-native, each
@@ -209,8 +216,17 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     expect([handed.length, handed.filter((r) => num2At.get(r.id)!.kind === "speed").length]).toEqual([129, 114]);
     // NUM-3: a row NUM-3 moved (NUM3_MOVED) is checked at its NUM-3 value below instead of its recorded one
     // FLIP-X2: and a row TUNE-X moved (TUNEX_MOVED, the 5 rune amounts) at its FLIP-X2 value below
-    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    // Y-FURN: and a row FURN-Y moved (YFURN_MOVED, COAL CHUTE and HEAT SINK) at its release-Y value below (was each live at
+    // its recorded value, 25 and 50)
+    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    const yfurn = rows.filter((r) => r.id in YFURN_MOVED);
+    expect(yfurn.map((r) => r.id).sort()).toEqual(Object.keys(YFURN_MOVED).sort());
+    for (const r of yfurn) {
+      const m = YFURN_MOVED[r.id];
+      expect([r.file, r.rule, r.now], r.id).toEqual(["src/sim/runes.ts", m.rule, m.was]);
+      expect(live(r.id), r.id).toBe(m.now);
+    }
     // FLIP-X2 (TUNE-X, REVIEW-TUNEX): the 5 moved rune amounts, every one a fixture row of runes.ts recorded at the map's
     // `was` under the map's rule, each live at its FLIP-X2 value (was each live at its recorded value)
     const tunex = rows.filter((r) => r.id in TUNEX_MOVED);
@@ -330,9 +346,11 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // FLIP-X1 (F-d): the 8 sustain runes are N1-native: SUS-D measured them in N1 units (a hull amount is already x10's
     // size), so no x10 applies. Each is whole and live as built (unit, n)
     // FLIP-X2 (TUNE-X line 4, REVIEW-TUNEX): LEECH VOW is rare at 15 (was "hull 20", epic)
+    // Y-FURN (FURN-Y rows 3-4): SEARING searBurn 6 BURN stacks, "count 6", and SHATTER SHOT shatterPct 15, "pct 15" (were
+    // both rule runes, "count 1")
     expect(Object.fromEntries(SUSTAIN_RUNES.map((d) => [d.id, `${d.amount.unit} ${live(`SUSTAIN_RUNES.${d.id}.amount.n`)}`]))).toEqual({
       bulwark_ward: "count 2", tick_guard: "sec 6", twin_salve: "hull 20", scrap_medic: "hull 300", leech_vow: "hull 15",
-      green_thread: "hull 10", searing: "count 1", shatter_shot: "count 1",
+      green_thread: "hull 10", searing: "count 6", shatter_shot: "pct 15",
     });
     for (const d of SUSTAIN_RUNES) expect(Number.isInteger(d.amount.n), d.id).toBe(true);
   });

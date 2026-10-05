@@ -338,7 +338,9 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
     expect(capped.sides[0].plate.plate).toBeLessThanOrEqual(PLATE_CAP); // NUM-1: 240 (was a bare 24)
   });
 
-  it("HEAT SINK: a slug that carries HEAT (a HEAT JACKET's) gains 50% more of it on the ride", () => {
+  // Y-FURN (FURN-Y row 2, REVIEW-FURNY): HEAT SINK 40% (was 50%: "gains 50% more", base * 1.5). The HEAT JACKET's part reads
+  // heatPct as before; tests/furny.runes.test.ts reads the KILN's ride part
+  it("HEAT SINK: a slug that carries HEAT (a HEAT JACKET's) gains 40% more of it on the ride", () => {
     const b = heroStartBuild("furnace");
     const heated = (x: Build) => {
       const bt = new Battle(x, foe, 2);
@@ -350,7 +352,7 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
     };
     const base = heated(b), sink = heated(withRunes(b, "heat_sink"));
     expect(base).toBeGreaterThan(0);
-    expect(sink).toBeCloseTo(base * 1.5, 9);
+    expect(sink).toBeCloseTo(base * 1.4, 9);
   });
 
   it("DOUBLE KNOT: each WEAVER hit that adds FRAY adds 1 more", () => {

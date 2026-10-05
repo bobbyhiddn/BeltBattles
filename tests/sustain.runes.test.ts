@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { Battle, simulate, type Payload, type SimEvent, type Target } from "../src/sim/battle";
 import { SHIELD_CAP, TICK, WIND_START, withSustain } from "../src/sim/content";
+import { BURN_TIME } from "../src/sim/content"; // Y-FURN: SEARING's start BURN, one stack for BURN_TIME
 import { cloneBuild, installedTurrets, type Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNES, SUSTAIN_RUNE_LIST, runeMods } from "../src/sim/runes";
@@ -308,12 +309,37 @@ describe("SUS-D: a side without the sustain runes battles exactly as before", ()
     expect([bt.sides[0].guardTimer, bt.sides[0].halfHealed]).toEqual([undefined, undefined]);
   });
 
-  it("each sustain rune changes only its holder's side: the foe of a rune that never fires battles as before", () => {
-    // SEARING and SHATTER SHOT against a foe that never heals and holds no SHIELD: the battle is the plain one
-    for (const id of ["searing", "shatter_shot"]) {
-      const end = (x: Battle) => [x.winner, x.ticks, x.sides[0].hull.hp, x.sides[1].hull.hp];
-      expect(end(simulate(W(heroStartBuild("furnace"), id), FOE, 5)), id).toEqual(end(simulate(heroStartBuild("furnace"), FOE, 5)));
+  // Y-FURN (FURN-Y rows 3-4, REVIEW-FURNY): each counter has a baseline that always fires (SEARING's start BURN, SHATTER
+  // SHOT's +n% shot DMG), so against a foe that never heals and holds no SHIELD its battle is no longer the plain one (was:
+  // "the foe of a rune that never fires battles as before", each equal to the plain battle). Its counter rule still never
+  // fires there: the battle is exactly the plain one with the baseline alone
+  it("each sustain rune changes only its holder's side: against a foe that never heals or shields, a counter battles as its baseline alone", () => {
+    const end = (x: Battle) => [x.winner, x.ticks, x.sides[0].hull.hp, x.sides[1].hull.hp];
+    const finish = (bt: Battle): Battle => { // simulate's loop
+      while (!bt.over && bt.ticks < 60 * 200) { bt.step(); bt.events.length = 0; }
+      return bt;
+    };
+    const f = heroStartBuild("furnace"), plain = end(simulate(f, FOE, 5));
+    // SEARING: the plain battle with its n BURN on the foe's hull at the start (one stack, BURN_TIME, as ASH KINDLE's)
+    const burnt = new Battle(f, FOE, 5);
+    burnt.sides[1].hull.burns.push({ dps: n("searing"), t: BURN_TIME });
+    const sear = simulate(W(f, "searing"), FOE, 5);
+    expect(end(sear), "searing").toEqual(end(finish(burnt)));
+    expect(end(sear), "searing").not.toEqual(plain);
+    expect(sear.sides[1].heals, "searing: the foe never heals, so no heal is lost to the rule").toBeUndefined();
+    // SHATTER SHOT: the plain battle with every shot +n% DMG in runeMul's % sum. WARLORD'S DUE (n% a win) at n / its amount
+    // wins puts the same n there; the foe holds no SHIELD, so the rule (a hit breaks a SHIELD and still lands) never fires
+    const due = new Battle(W(f, "warlords_due"), FOE, 5);
+    due.sides[0].wins = n("shatter_shot") / n("warlords_due");
+    const shatter = new Battle(W(f, "shatter_shot"), FOE, 5);
+    let shields = 0;
+    while (!shatter.over && shatter.ticks < 60 * 200) {
+      shatter.step();
+      shields += shatter.drainEvents().filter((e) => e.type === "shield").length;
     }
+    expect(end(shatter), "shatter_shot").toEqual(end(finish(due)));
+    expect(end(shatter), "shatter_shot").not.toEqual(plain);
+    expect([shields, shatter.sides[1].shield ?? 0, shatter.sides[1].blocked ?? 0], "shatter_shot: no SHIELD met").toEqual([0, 0, 0]);
   });
 
   it("no SUS-D hook draws on the RNG (battle.ts: the SUS-D hook block and every SUS-D line)", () => {
