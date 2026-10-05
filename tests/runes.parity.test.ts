@@ -21,7 +21,7 @@
 import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it } from "vitest";
-import { POOL_RULES, POOL_RULES_CARRIED, RULES_VERSION } from "../src/sim/content";
+import { ITEMS, POOL_RULES, POOL_RULES_CARRIED, RULES_VERSION } from "../src/sim/content";
 import { Battle } from "../src/sim/battle";
 import type { Build } from "../src/sim/deck";
 import { standInBuild, standInGhost } from "../src/sim/rivals";
@@ -117,9 +117,19 @@ describe("RUNES-1 parity: the base's fixture and its decks", () => {
       if (!isDeepStrictEqual(s.build, num1(F.decks[k]))) differ.push(k); // NUM-1: the fixture's deck in this build's units
       expect((s as { runes?: unknown }).runes, k).toBeUndefined();
     }
+    // 0.8.9 (CATCHUP-089, REQ-BFG-051; backlog #346): the captains buy ARMOR PACKs (rivalBuilds.ts P(), an untagged
+    // plating upgrade), so this build's dusk stand-in is the fixture's (the base's) deck plus its packs: the same parts in
+    // the same order with the same cells, turns and stars, the same routes, belt and gold upgrades; uids aside (a P() holds
+    // a place in the plan, so a later part's uid moves up); and 250 hull more per pack the plan bought by that day, never
+    // less. The battles below replay the fixture's own decks, so the parity they prove is unchanged.
+    const noUid = <T extends { uid?: number }>(xs: readonly T[] | undefined) => (xs ?? []).map(({ uid: _u, ...rest }) => rest);
+    const shape = (b: Build) => ({ ...b, hullBonus: 0, items: noUid(b.items), mods: noUid(b.mods), turrets: noUid(b.turrets) });
     for (let day = 1; day <= 10; day++) {
-      const id = standInGhost(F.standInRun, day);
-      if (!isDeepStrictEqual(standInBuild(id, day), num1(F.decks[`standin-${id}-d${day}`]))) differ.push(`standin-${id}-d${day}`);
+      // NUM-1: the fixture's deck in this build's units (num1), so the hull difference is whole packs of 250
+      const id = standInGhost(F.standInRun, day), base = num1(F.decks[`standin-${id}-d${day}`]), now = standInBuild(id, day);
+      expect(shape(now), `${id} d${day}`).toEqual(shape(base));
+      expect((now.hullBonus - base.hullBonus) % ITEMS.plating.supply!.hull!, `${id} d${day}`).toBe(0);
+      expect(now.hullBonus, `${id} d${day}`).toBeGreaterThanOrEqual(base.hullBonus);
     }
     expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
     // NUM-3: NUM-2's 11 and NUM-3's 9 (20 of the pool's 120), as a set
