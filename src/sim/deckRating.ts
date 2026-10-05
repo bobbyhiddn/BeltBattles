@@ -48,19 +48,25 @@ export const fightTime = (day: number): number => FIGHT_BY_DAY[Math.max(1, Math.
  * and hit moved by more than 10% on 8 of 10 days (most: day 8's BURN +46%, day 10's fight -23%), so this table is
  * release X's (TUNE-X REPORT step 0; FLIP-X2 applies it before the regeneration). BOTS-X's bx table was 29.34 / 0.208 /
  * 65.5 on day 1 to 17.91 / 0.527 / 95.5 on day 10.
+ * FLIP-X2 step 3c (Addendum 1; REVIEW-TUNEX's re-run after the rune lines): re-run on flipx2 8d714af (both switches on,
+ * bb-0.9.0, TUNE-X's rune lines and DORMANT_RUNES in, the captains' SIFTERs out), 2026-10-05 08:48:43-08:49:28Z, the same
+ * command and four shards (W/output-flipx2/bench/foe-*.json). Days 1, 2, 3, 7, 9 and 10 moved by more than 10%, all in
+ * the BURN share (day 1 0.208 -> 0.250, day 3 0.303 -> 0.380, day 9 0.637 -> 0.721, day 10 0.631 -> 0.719); fight and
+ * hit moved under 5% on every day. So the table is re-pinned (TUNE-X's was 29.24 / 0.208 / 74.7 on day 1 to 13.84 /
+ * 0.631 / 109.8 on day 10).
  */
 export interface FoeDay { fight: number; burn: number; hit: number }
 export const SUSTAIN_FOE: readonly FoeDay[] = [
-  { fight: 29.24, burn: 0.208, hit: 74.7 }, // day 1
-  { fight: 23.95, burn: 0.291, hit: 83.0 },
-  { fight: 21.92, burn: 0.303, hit: 76.7 },
-  { fight: 19.52, burn: 0.363, hit: 81.5 },
-  { fight: 18.36, burn: 0.519, hit: 89.5 }, // day 5
-  { fight: 17.91, burn: 0.574, hit: 86.5 },
-  { fight: 16.79, burn: 0.556, hit: 93.3 },
-  { fight: 16.27, burn: 0.611, hit: 95.7 },
-  { fight: 15.10, burn: 0.637, hit: 101.5 },
-  { fight: 13.84, burn: 0.631, hit: 109.8 }, // day 10
+  { fight: 29.25, burn: 0.250, hit: 74.5 }, // day 1
+  { fight: 24.18, burn: 0.328, hit: 81.9 },
+  { fight: 21.76, burn: 0.380, hit: 75.1 },
+  { fight: 19.44, burn: 0.385, hit: 80.3 },
+  { fight: 18.56, burn: 0.490, hit: 88.0 }, // day 5
+  { fight: 17.75, burn: 0.598, hit: 87.1 },
+  { fight: 16.19, burn: 0.613, hit: 96.9 },
+  { fight: 15.60, burn: 0.661, hit: 98.1 },
+  { fight: 14.39, burn: 0.721, hit: 104.9 },
+  { fight: 13.41, burn: 0.719, hit: 113.1 }, // day 10
 ];
 /** BOTS-X: the expected foe of `day` (SUSTAIN_FOE; days past the table read its last row). */
 export const foeOn = (day: number): FoeDay => SUSTAIN_FOE[Math.max(1, Math.min(SUSTAIN_FOE.length, Math.floor(day))) - 1];
