@@ -63,13 +63,14 @@ describe("golden-060 decks: current E1 battles match their separate fixture", ()
         // E1 fixture above pins them exactly. The historical check keeps what still holds exactly: the winner and the end
         // tick (with the decks x10, every rig-free battle keeps both but sootjaw's end tick, E1's cadence; sparkfang's E1
         // drift was in hull and time only)
-        const historical = { winner: e.winner, ticks: e.ticks };
-        const unchanged = { winner: b.winner, ticks: b.ticks };
-        if (JSON.stringify(unchanged) !== JSON.stringify(historical)) historicalDrift.push(e.key);
+        // NUM-2 (REQ-BFG-047, SPEED): whole speeds and the timers' carried remainder move every gun's and factory's cadence
+        // a little (the exact 30 / speed, where the old reset ran each cycle up to whole ticks), so 0.6.0's end tick can't
+        // recur exactly (it held for all but sootjaw on num1u). The equivalent, measured on the 11 rig-free battles: every
+        // one keeps its 0.6.0 winner exactly, and ends within 60 ticks (1 s) of its 0.6.0 end tick (now -41 to +3 ticks)
+        if (b.winner !== e.winner || Math.abs(b.ticks - e.ticks) > 60) historicalDrift.push(`${e.key}: ${e.winner}@${e.ticks} -> ${b.winner}@${b.ticks}`);
       }
       expect(diffs).toEqual([]);
-      expect(historicalDrift).toEqual(name.startsWith("rival captains")
-        ? ["rival/sootjaw/1"] : []);
+      expect(historicalDrift).toEqual([]);
     });
   }
 });

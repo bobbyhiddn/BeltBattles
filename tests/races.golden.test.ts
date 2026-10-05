@@ -89,11 +89,15 @@ describe("E1 golden: rig-free Furnace and Weaver battles under the long-belt cad
   // damage, not the guns), and keeps its winner, except that a MIRROR battle may now end in a draw: two identical decks that
   // reach the dark wind both die on the same whole-second wind tick with the same whole hull, where the continuous wind's
   // float timing used to pick a winner (46 of the 320 rows: start FURNACE and WEAVER mirrors 4 + 2, warlord r1 FURNACE 40).
-  it("all rig-free matchups fire the original fixture's shots and keep its winners (NUM-1: a mirror may tie)", () => {
+  // NUM-2 (REQ-BFG-047, SPEED): whole speeds and the timers' carried remainder move a gun's cadence by up to 4% (the old
+  // reset ran each cycle up to whole ticks), so a battle may fire one shot more or fewer than ff6914a's. The equivalent,
+  // measured: every row keeps its winner (the same 46 mirror ties as NUM-1, none else), and each side fires within one shot
+  // of the original fixture (101 of the 320 rows move by one, none by more)
+  it("all rig-free matchups fire within one shot of the original fixture and keep its winners (NUM-1: a mirror may tie)", () => {
     for (const name of Object.keys(golden.matchups)) {
       golden.matchups[name].forEach((row, i) => {
         const was = old.matchups[name][i];
-        expect([row[4], row[5]], `${name} #${i}: shots`).toEqual([was[4], was[5]]);
+        expect([Math.abs(row[4] - was[4]) <= 1, Math.abs(row[5] - was[5]) <= 1], `${name} #${i}: shots ${row[4]}/${row[5]} vs ${was[4]}/${was[5]}`).toEqual([true, true]);
         if (row[0] === -1 && was[0] !== -1) expect(name, `${name} #${i}: only a mirror battle may newly tie`).toMatch(/(furnace v furnace|weaver v weaver)$/);
         else expect(row[0], `${name} #${i}: winner`).toBe(was[0]);
       });
