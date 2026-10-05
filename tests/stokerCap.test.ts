@@ -11,6 +11,8 @@ import { planPanel, rigPanel, stokeCapBlocks, visibleLines } from "../src/screen
 import { buildLayout } from "../src/screens/build/layout";
 import { K, barge, item, withItem, withMod } from "./wave3.helpers";
 import { banned } from "./textRules";
+import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): 30 / speed
+import { effectAt } from "../src/sim/stars";
 
 const PHONE = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
 const DESK = buildLayout(480, 270, false, 5).info;
@@ -108,7 +110,7 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
     expect(k1, "gun 1 alone").toBeGreaterThan(0);
     expect(both, "both guns: the strictest").toBe(Math.min(k0!, k1!));
     // the battle stamps the mould at the stricter gun's pace: as with gun 1's belt alone, slower than with gun 0's alone,
-    // and at the pace the kept share gives (1.8 s / (1 + 0.44 x keep)) to the tick
+    // and at the pace the kept share gives (30 / 17 s / (1 + 0.44 x keep); NUM-2, was 1.8 s) to the tick
     const gap = (b: Build): number => {
       const t: number[] = [];
       const bt = new Battle({ ...b, hullBonus: 3000 }, { ...heroStartBuild("weaver", 101), hullBonus: 3000 }, 1);
@@ -121,7 +123,9 @@ describe("STOKER's capped stoke in its panel (VERIFIED-P1 H4)", () => {
     const [g0, g1, gBoth] = [gap(twoGuns("gun0")), gap(twoGuns("gun1")), gap(twoGuns())];
     expect(gBoth).toBeCloseTo(g1, 6);
     expect(gBoth - g0, "slower than the looser gun allows").toBeGreaterThan(0.1);
-    expect(Math.abs(gBoth - 1.8 / (1 + 0.44 * both!)), "the estimate's pace").toBeLessThan(1 / 60);
+    // NUM-2 (REQ-BFG-047; was the literal 1.8 s, the mould's ★1 interval): 30 / its whole speed (17: 1.7647 s), from the data
+    const mould = secPer(effectAt("twinmould", 1).factory!.speed);
+    expect(Math.abs(gBoth - mould / (1 + 0.44 * both!)), "the estimate's pace").toBeLessThan(1 / 60);
     // the panel names the kept share
     expect(capLines(twoGuns())).toEqual([`THE TWIN MOULD'S GUN IS FULL: IT WORKS ONLY ${Math.round(44 * both!)}% FASTER.`]);
   });

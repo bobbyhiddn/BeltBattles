@@ -10,6 +10,7 @@ import { estimateRoute, matchedRoutes, rigFactoryHits, rigHits, stokeHits, walkR
 import { stokeSpots, stokesIfPlaced, hitsIfPlaced } from "../src/sim/beltside";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { effectAt } from "../src/sim/stars"; // NUM-1 (REQ-BFG-047): the rigs' numbers read from the data (x10)
+import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): 30 / speed
 import { K, SEED, barge, events, furnaceBench, item, latchDeck, pastTile, run, twoPress, withItem, withMod } from "./wave3.helpers";
 
 const plain = (id: number): Payload => ({ id, ammo: "plain", ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: 0, copy: false });
@@ -176,10 +177,12 @@ describe("E3: rig arrows at factories (STOKER; the Prime's Q6 guard)", () => {
 
   it("a STOKER beside a factory makes it work 20% / 44% / 70% faster (its stamp timer)", () => {
     const base = gaps(press());
-    expect(Math.max(...base) - 1.4).toBeLessThan(2 / 60);
+    // NUM-2 (REQ-BFG-047; was the literal 1.4 s, the press's ★1 interval): 30 / its whole speed (21: 1.4286 s), from the data
+    const every = secPer(effectAt("press", 1).factory!.speed);
+    expect(Math.max(...base) - every).toBeLessThan(2 / 60);
     [0.2, 0.44, 0.7].forEach((k, i) => {
       const g = gaps(withItem(press(), item(30, "stoker", 6, 6, 0, i + 1))); // west arrow on the press at (5,6)
-      for (const x of g) expect(Math.abs(x - 1.4 / (1 + k)), `★${i + 1} ${x}`).toBeLessThan(2 / 60);
+      for (const x of g) expect(Math.abs(x - every / (1 + k)), `★${i + 1} ${x}`).toBeLessThan(2 / 60);
     });
   });
 
@@ -218,7 +221,8 @@ describe("E3: rig arrows at factories (STOKER; the Prime's Q6 guard)", () => {
       if (bt.t > 5) g.disrupted = 1; // held stalled from 5 s on
       for (const e of ev) if (e.type === "produce" && e.side === 0 && e.factory === 7 && bt.t > 7) t.push(bt.t);
     });
-    for (const x of t.slice(1).map((v, i) => v - t[i])) expect(Math.abs(x - 1.4)).toBeLessThan(2 / 60);
+    // NUM-2 (REQ-BFG-047; was the literal 1.4 s): the press's 30 / speed (21: 1.4286 s), from the data
+    for (const x of t.slice(1).map((v, i) => v - t[i])) expect(Math.abs(x - secPer(effectAt("press", 1).factory!.speed))).toBeLessThan(2 / 60);
     const bt = new Battle(b, barge(), SEED);
     const f = bt.sides[0].factories.find((x) => x.uid === 7)!;
     expect(f.stokers!.map((s) => s.stoke)).toEqual([0.2]);
@@ -332,10 +336,17 @@ describe("E4: holds (TWIN LATCH, the Prime's Q7)", () => {
     });
     const without = typeCount(events(lockjaw(false), 30), "pair", 0), with_ = typeCount(events(lockjaw(true), 30), "pair", 0);
     const moulded = run(lockjaw(true), 30).sides[0].factories.find((f) => f.uid === 2)!.produced;
-    // without a latch the Kiln (1.25 s) and the mould (1.8 s) meet by chance about every 3.6 s; with it, nearly every
-    // mould slug arrives with a Kiln slug
-    expect(with_, `${without} pairs without, ${with_} with, ${moulded} mould slugs`).toBeGreaterThanOrEqual(without + 5);
-    expect(with_).toBeGreaterThanOrEqual(moulded - 4);
+    // without a latch the Kiln (1.25 s) and the mould (1.8 s; NUM-2: 30 / 17 = 1.76 s) meet by chance about every 3.6 s;
+    // with it, nearly every mould slug arrives with a Kiln slug
+    // NUM-2 (REQ-BFG-047), re-measured: 7 / 11 / 17 (was 7 / 13 / 17 on the base, the margins +5 and -4 its own). The
+    // mould's 30 / 17 s cycle (was 1.8 s, 109 ticks with the reset; now 105.9, the remainder carried) moves its arrivals
+    // against the Kiln's 75 ticks: at tick 764 a mould slug reaches the latch on the tick the held Kiln slug's 1 s runs out
+    // (they miss by 0 ticks), and that lone Kiln slug fills the gun's 3-load window at 899, one tick before the next
+    // pair's mould half, which then waits out the volley: 2 pairs fewer. The latch rule is unchanged; the margins are the
+    // new measurement's, and the measurement itself is pinned so it can't drift unseen
+    expect([without, with_, moulded], "pairs without / with, mould slugs").toEqual([7, 11, 17]); // NUM-2: the measurement (was 7 / 13 / 17)
+    expect(with_, `${without} pairs without, ${with_} with, ${moulded} mould slugs`).toBeGreaterThanOrEqual(without + 4); // NUM-2 (was without + 5)
+    expect(with_).toBeGreaterThanOrEqual(moulded - 6); // NUM-2 (was moulded - 4)
   });
 
   it("on FOUNDRY's mirrored belts a latch never gives fewer fusions than no latch, with or without shocks on one belt", () => {

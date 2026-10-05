@@ -5,6 +5,9 @@
 import { describe, expect, it } from "vitest";
 import { Battle, assemblyLines, makeTurret, type Payload, type RouteState, type SideState } from "../src/sim/battle";
 import { AMMO_SPACING, CELL, GUARD_SKIRT, HEROES, JOIN_PACE } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): E1's whole rate %, 30 / speed
+import { FURNACE_LONG_BELT } from "../src/sim/battle"; // NUM-2: E1, a whole rate % (39)
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import { cloneBuild, joinOf, journeyTiles, key as K, rotField, type Build, type Placed } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
@@ -317,7 +320,9 @@ describe("J7: race hooks see a joined payload as on the main belt", () => {
   it("E1: a joining belt feeds FURNACE's Breech as a long belt when its journey (not its own tiles) runs 8 tiles or more", () => {
     const heavy = HEROES.furnace.turrets[0];
     // R: 4 own tiles, then M's 5 from the join tile on: a 9-tile journey (M itself is 6 tiles, R alone 4)
-    expect(makeTurret(deck(), 0, heavy).interval).toBeCloseTo(0.72, 9);
+    // NUM-2 (REQ-BFG-047, N1 2.3): E1 is a whole rate % on the speed, rounded half up once: 30 / roundHalfUp(30 x 1.39)
+    // = 30 / 42 = 0.714 s (was the interval x0.72 = 0.72 s)
+    expect(makeTurret(deck(), 0, heavy).interval).toBeCloseTo(secPer(roundHalfUp(heavy.speed * rateMul(FURNACE_LONG_BELT))), 9); // NUM-2 (was 0.72)
     expect(makeTurret(deck([], { joined: false }), 0, heavy).interval).toBe(1); // unjoined, R reaches no turret
     // a STAMP PRESS beside M's tile 4 joins it from 1 own tile: a 3-tile journey, not long
     const near: Build = {

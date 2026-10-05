@@ -7,6 +7,7 @@ import { NOWHERE, brokenRoutes, fightBlock, routeProblems } from "../src/game/ro
 import { JOIN_LOOP, key as K, removeItem, removeRoute, rotField, routeInfo, type Build, type Placed } from "../src/sim/deck";
 import { JOIN_PACE_LINE, JOIN_PACE_PCT } from "../src/sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { JOIN_PACE } from "../src/sim/content";
+import { ITEMS, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): the STAMP PRESS's seconds a stamp, 30 / speed
 import { frame as deckFrame } from "../src/render/frame";
 import { cruiserModel } from "../src/render/cruiser";
 import { Editor, type EditHost } from "../src/screens/build/edit";
@@ -172,7 +173,10 @@ describe("J10: the inspector's readouts through a join", () => {
     expect(bp.sub).toBe(`JOINS BELT 1 AT ${JOIN_PACE_PCT}% PACE. FEEDS TURRET 1.`);
     expect(bp.subShort).toBe("JOINS BELT 1.");
     // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): the joined STAMP PRESS's pace leads, cyan (★1: 1.4 s unjoined, 1.4 / JOIN_PACE joined)
-    expect(txt(bp.head)).toEqual([JOIN_PACE_LINE, `A LOAD EVERY ${+(1.4 / JOIN_PACE).toFixed(2)} SECONDS ON THIS BELT, NOT 1.4 SECONDS.`, "4 TILES, 2 HITS:"]);
+    // NUM-2 (REQ-BFG-047): ★1 is speed 21, so 30 / 21 s unjoined and that / JOIN_PACE joined, two decimals: "2.04" and
+    // "1.43" (was the literal 1.4 s: "2" and "1.4")
+    const press = secPer(ITEMS.press.factory!.speed);
+    expect(txt(bp.head)).toEqual([JOIN_PACE_LINE, `A LOAD EVERY ${+(press / JOIN_PACE).toFixed(2)} SECONDS ON THIS BELT, NOT ${+press.toFixed(2)} SECONDS.`, "4 TILES, 2 HITS:"]); // NUM-2 (was 1.4 / JOIN_PACE, NOT 1.4)
     expect(bp.head[0]).toMatchObject({ colour: C.cyan, keep: true });
     expect(txt(bp.rows)).toEqual(["T2: TEMPER +1 BURN", "JOINS BELT 1 AT TILE 2.", "T2: WHETSTONE +20 DAMAGE"]); // NUM-1: x10 (was +2 DAMAGE)
     expect(bp.rows[1]).toMatchObject({ colour: C.cyan, join: true, trim: true });

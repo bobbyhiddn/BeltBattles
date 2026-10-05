@@ -7,6 +7,7 @@
 // the sim.
 import { describe, expect, it } from "vitest";
 import { ITEMS, TICK, type HeroId } from "../src/sim/content";
+import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a cycle is 30 / speed
 import { loadEvery, routeInfo, type Build } from "../src/sim/deck";
 import { effectAt, isSignatureFactory, outputsAt, pourAt, starField } from "../src/sim/stars";
 import { loadsPerStamp } from "../src/sim/battle";
@@ -53,7 +54,10 @@ describe("D4: round-robin factories: the same deck at 1, 2, 3 and 4 belts stamps
         // one cycle's slugs a cycle (its first at 0.35 s), and the same slugs at every belt count but for stall relief: a
         // belt that backs up stalls the cycle (a DOUBLE STAMP's batch into one gun), and another belt takes those slugs
         // the battle's own cycle (a MIMIC FORGE: the hero factory's interval x its intervalMul, Battle.factoryDef)
-        const cycle = t.bt.sides[0].factories.find((x) => x.uid === 7)!.def.factory!.interval;
+        // NUM-2 (REQ-BFG-047; was def.factory.interval): 30 / the battle's whole speed (a MIMIC FORGE's: the hero factory's
+        // level-1 speed x its rate %, rounded half up once); the stamp timer carries its remainder, so the stamps fall at
+        // 0.35 s + k cycles (to the tick; the old reset made each cycle a whole number of ticks, often one over)
+        const cycle = secPer(t.bt.sides[0].factories.find((x) => x.uid === 7)!.def.factory!.speed);
         const cycles = Math.floor((SECS - 0.35) / cycle) + 1;
         // (a batch's last waiting slug and the next cycle's first may leave on one tick, onto two belts)
         expect(t.maxPerTick, def).toBeLessThanOrEqual(batch > 1 ? 2 : 1);
@@ -163,7 +167,7 @@ describe("D4: the forecast, the rating and the build screen's estimate agree wit
       const n = b.routes.length, batch = fs.batch ?? 1;
       b.routes.forEach((_, ri) => {
         // the build screen: its seconds between loads on each belt, as slugs over the casts (to within one slug)
-        const every = loadEvery(b, ri), fromEvery = (t.casts * fs.interval * batch) / (every * batch);
+        const every = loadEvery(b, ri), fromEvery = (t.casts * secPer(fs.speed) * batch) / (every * batch); // NUM-2: 30 / speed (was fs.interval)
         expect(Math.abs(t.perRoute[ri] - fromEvery), `${id}: belt ${ri}: ${t.perRoute[ri]} slugs, loadEvery ${every} says ${fromEvery.toFixed(1)}`).toBeLessThanOrEqual(1.01);
         // the rating: a TWIN MOULD's and every stamping factory's share is the sim's; the CRUCIBLE's (and a ★3 MIMIC's on
         // FOUNDRY, rated by its own spec) is 0.8.0's one load a cycle over its belts: a fused pair once

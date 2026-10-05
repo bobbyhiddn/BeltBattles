@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle, type SideState } from "../src/sim/battle";
 import { ITEMS, JOIN_PACE } from "../src/sim/content";
+import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a factory's seconds a stamp, 30 / speed
 import {
   JOIN_PACE_LINE, JOIN_PACE_PCT, cloneBuild, factoryPace, key as K, loadEvery, walkRoute, type Build,
 } from "../src/sim/deck";
@@ -42,7 +43,7 @@ function produced(b: Build, uid: number, seconds: number, setup?: (s: SideState)
   expect(bt.over).toBe(false);
   return bt.sides[0].factories.find((f) => f.uid === uid)!.produced;
 }
-const PRESS = ITEMS.press.factory!.interval; // 1.4 s at 1 star
+const PRESS = secPer(ITEMS.press.factory!.speed); // NUM-2 (was ITEMS.press.factory!.interval, 1.4 s): 30 / 21 = 1.43 s at 1 star
 
 describe("RULE JOIN PACE: what a joined factory makes", () => {
   it("a joined factory makes JOIN_PACE x the loads of the same factory unjoined, over a fixed window", () => {
@@ -83,7 +84,7 @@ describe("RULE JOIN PACE: the estimate and the rating", () => {
     const b = deck();
     const every = loadEvery(b, 1);
     expect(every).toBeCloseTo(PRESS / JOIN_PACE, 9);
-    expect(loadEvery(b, 0)).toBeCloseTo(ITEMS.kiln.factory!.interval, 9); // the main belt's factory: unpaced
+    expect(loadEvery(b, 0)).toBeCloseTo(secPer(ITEMS.kiln.factory!.speed), 9); // the main belt's factory: unpaced (NUM-2: 30 / 24 = 1.25 s; was ITEMS.kiln.factory!.interval)
     expect(loadEvery(deck(false), 1)).toBeCloseTo(PRESS, 9);
     for (const [uid, index, setup] of [[2, 1, quiet(1)], [1, 0, undefined]] as const) {
       const n = produced(b, uid, 60, setup);
@@ -110,7 +111,7 @@ describe("RULE JOIN PACE: the player reads it", () => {
     // the joined factory's panel (and each of its belts') leads with it; an unjoined factory's reads as before
     expect(joinPaceLines(deck(), 2)).toEqual([
       [JOIN_PACE_LINE, C.cyan],
-      [`A LOAD EVERY ${seconds(PRESS / JOIN_PACE)} ON THIS BELT, NOT ${seconds(PRESS)}.`, C.cyan], // 0.6.2rel3: "2 SECONDS", not "2.0S"
+      [`A LOAD EVERY ${seconds(PRESS / JOIN_PACE)} ON THIS BELT, NOT ${seconds(PRESS)}.`, C.cyan], // 0.6.2rel3: "2 SECONDS", not "2.0S" (NUM-2: PRESS 30 / 21 s: "2.04 SECONDS", "1.43 SECONDS")
     ]);
     expect(joinPaceLines(deck(), 1)).toEqual([]);
     expect(joinPaceLines(deck(false), 2)).toEqual([]);

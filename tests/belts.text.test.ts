@@ -11,6 +11,9 @@
 //    stay numbers, each still the sim's. tests/t47.decimals.test.ts checks every T47 text.
 import { describe, expect, it } from "vitest";
 import { AMMO, FRAY_BONUS, FRAY_MAX, ITEMS, TURRET_SPEED, UPGRADE_PRICE, type HeroId } from "../src/sim/content";
+import { levelSpeed, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (K = 30), TURRET SPEED's whole steps
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
+import { fmtSpeed } from "../src/ui/statFormat"; // NUM-2: the faces keep SEC, 30 / speed in two decimals
 import { PENDULUM } from "../src/sim/races/data";
 import { effectAt, outputsAt, SIGNATURE_FACTORIES } from "../src/sim/stars";
 import { Battle } from "../src/sim/battle";
@@ -56,7 +59,9 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
       const hero = OWNER[def];
       const b = { hero, items: [{ uid: 7, def, x: 4, y: 6 }], routes: [], mods: [], beltCap: 40, hullBonus: 0, ...(s > 1 ? { upgrades: { factory: s } } : {}) };
       const f = new Battle(b, barge(), SEED).sides[0].factories.find((x) => x.uid === 7)!;
-      expect([f.def.factory!.interval, f.def.factory!.base ?? AMMO[f.def.factory!.ammo].base], `${def} L${s}`).toEqual([effectAt(def, s).factory!.interval, base(def, s)]);
+      // NUM-2 (REQ-BFG-047): the cycle is the whole speed (was .interval on both sides, undefined === undefined after the rename)
+      expect([f.def.factory!.speed, f.def.factory!.base ?? AMMO[f.def.factory!.ammo].base], `${def} L${s}`).toEqual([effectAt(def, s).factory!.speed, base(def, s)]);
+      expect(f.def.factory!.speed, `${def} L${s}`).toBeGreaterThan(0); // NUM-2: a real number, never undefined
     }
   });
 
@@ -71,7 +76,7 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
         // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): what its UPGRADE button does (was `NEXT: ${n} BELTS, FASTER`); T47: no seconds
         expect(next, `${def} L${l}`).toBe(`UPGRADE: ${outputsAt(def, l + 1)} BELTS, WORKS FASTER.`);
         expect(numbers(next)).toEqual([outputsAt(def, l + 1)]);
-        expect(effectAt(def, l + 1).factory!.interval, `${def} L${l}`).toBeLessThan(effectAt(def, l).factory!.interval);
+        expect(secPer(effectAt(def, l + 1).factory!.speed), `${def} L${l}`).toBeLessThan(secPer(effectAt(def, l).factory!.speed)); // NUM-2: 30 / speed (was .interval)
       }
       expect(factoryNext(def, 4)).toBeNull();
     }
@@ -98,6 +103,8 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
   it("a starting turret's panel: TURRET SPEED level and next level in one line, its numbers the battle's; the UPGRADE button first", () => {
     const run = newRun("furnace", 5, "speed");
     run.gold = 100;
+    // NUM-2 (REQ-BFG-047): the starting turret's level-1 speed (its TurretDef's) and its other rates (gear, long belt: none here)
+    const t1 = new Battle(run.build, barge(), SEED).sides[0].turrets[0], s1 = t1.def.speed, rates = t1.speedRaw / s1;
     for (const l of LEVELS) {
       const t = turretPanel(run, 0)!;
       const fires = new Battle(run.build, barge(), SEED).sides[0].turrets[0].interval;
@@ -109,8 +116,14 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
         expect(t.labels[0], `L${l}`).toBe(upgradeLabel(l));
         buyUpgrade(run, "turret");
         // FASTER is the battle's: the next level's interval is this one scaled by TURRET_SPEED, and shorter
+        // NUM-2 (REQ-BFG-047; was +after.toFixed(2) = +(fires x TURRET_SPEED[l + 1] / TURRET_SPEED[l]).toFixed(2), x0.85 a
+        // level): an EQUIVALENT check of the new rule: the next level's speed is levelSpeed(s1, l + 1, TURRET_SPEED) (+
+        // roundHalfUp(20% x s1) a level: SCRAP CANNON 30 / 36 / 42 / 48), x its rates rounded half up once, and the gun
+        // fires every 30 / that: the panel's SEC (fmtSpeed, two decimals) and the battle's interval exactly
         const after = new Battle(run.build, barge(), SEED).sides[0].turrets[0].interval;
-        expect(+after.toFixed(2)).toBe(+((fires * TURRET_SPEED[l + 1]) / TURRET_SPEED[l]).toFixed(2));
+        const want = secPer(Math.max(1, roundHalfUp(levelSpeed(s1, l + 1, TURRET_SPEED) * rates)));
+        expect(fmtSpeed(after), `L${l + 1}`).toBe(fmtSpeed(want));
+        expect(after, `L${l + 1}`).toBeCloseTo(want, 9);
         expect(after).toBeLessThan(fires);
       } else {
         expect(line).toBe("SPEED: LEVEL 4/4.");

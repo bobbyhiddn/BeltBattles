@@ -2,12 +2,15 @@
 // factory has 2 belt slots at ★1, 3 at ★2 and 4 at ★3 (stars.ts BELT_SLOTS, the one rule in outputsAt); GANTRY PRESS one
 // more (3 / 4 / 5). A hero's signature factory never merges and has no stars: its hero's FACTORY upgrade takes it from
 // level 1 to level 4, with 2 / 3 / 4 / 5 slots (the LOOM 3 / 4 / 5 / 6) and a faster cycle on the house's curve (the
-// bought factories' median per-star interval change). validate.ts (the upload check) and routeCheck.ts (FIGHT) read
+// bought factories' median per-star interval change; NUM-2: + roundHalfUp(25% x its level-1 speed) a level, whole steps).
+// validate.ts (the upload check) and routeCheck.ts (FIGHT) read
 // outputsAt at the factory's grade (stars.ts gradeOf: the hero factory's level, any other's stars) and agree on both
 // sides: a factory takes its slots' worth of belts and refuses one more, at every level; a merged copy, or a factory
 // upgrade, keeps the belts and offers the new slot at once (the editor's freeOutputs, routeCheck and validate agree).
 import { describe, expect, it } from "vitest";
 import { AMMO, ITEMS, type HeroId } from "../src/sim/content";
+import { factorySpeed, levelSpeed, rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (K = 30)
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a speed rounds half up once
 import { loadEvery, routesOf, type Build } from "../src/sim/deck";
 import {
   BELT_SLOTS, effectAt, FUSE_MAX, fusible, gradeOf, isSignatureFactory, outputsAt, perkAt, SIGNATURE_FACTORIES, starsOf,
@@ -42,8 +45,13 @@ const median = (xs: number[]): number => {
   const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
-/** A factory's cycle at `stars` (a MIMIC FORGE: its intervalMul, the share of the hero factory's) and its slug's base. */
-const cycleAt = (id: string, s: number): number => { const f = effectAt(id, s).factory!; return f.interval * (f.intervalMul ?? 1); };
+/** A factory's cycle at `stars` (a MIMIC FORGE: its intervalMul, the share of the hero factory's) and its slug's base.
+ *  NUM-2 (REQ-BFG-047): the cycle is 30 / speed (a MIMIC FORGE: x 100 / (100 + its rate %), its share of the hero
+ *  factory's); was interval x intervalMul. */
+const cycleAt = (id: string, s: number): number => { const f = effectAt(id, s).factory!; return secPer(f.speed) / rateMul(f.rate); };
+/** NUM-2 (REQ-BFG-047, N1 2.2): the % of its level-1 speed a signature factory's FACTORY level adds (its ItemDef.levels 2-4,
+ *  written by scripts/num2-speed.mjs, FACTORY_STEP; tests/belts.numbers.test.ts pins N1's examples). */
+const FACTORY_STEP = 25;
 const baseAt = (id: string, s: number): number => { const f = effectAt(id, s).factory!; return f.base ?? AMMO[f.ammo].base; };
 /** The house's curve: per star (★1 -> ★2, ★2 -> ★3), the median ratio over the bought factories' levels that change it. */
 const curve = (at: (id: string, s: number) => number): number[] =>
@@ -95,23 +103,31 @@ describe("D1-D3, D10: belt slots by level, the one rule (stars.ts outputsAt)", (
 
   // D10 (the starting shape: the Prime's oracle 6c20deea1363d0bb, D2): a FACTORY level grows the cycle only, on the house
   // curve's interval steps (x 11/14, then x 11/13, and level 4 one more step along it, x 11/13); its base stays level 1's
+  // NUM-2 (REQ-BFG-047, N1 2.2), an EQUIVALENT REPLACEMENT: the house curve's interval steps are gone (c2 = 11/14 and
+  // c3 = 11/13, the bought factories' median, and the levels r2(i1 x c2), r2(i1 x c2 x c3), r2(i1 x c2 x c3 x c3)); a
+  // FACTORY level now adds one whole step of speed, roundHalfUp(25% x the level-1 speed) (content.ts levelSpeed), level 4
+  // one more step, so each level's cycle (30 / speed) is shorter. The base steps (5/3, 17/12) and "base unchanged" stay.
   it("the FACTORY levels follow the house curve's interval steps, level 4 one more step; base unchanged", () => {
-    const [c2, c3] = curve(cycleAt), [b2, b3] = curve(baseAt);
-    expect([c2, c3, b2, b3].map((x) => x.toFixed(6))).toEqual([11 / 14, 11 / 13, 5 / 3, 17 / 12].map((x) => x.toFixed(6)));
-    const r2 = (x: number): number => Math.round(x * 100) / 100;
+    const [b2, b3] = curve(baseAt);
+    expect([b2, b3].map((x) => x.toFixed(6))).toEqual([5 / 3, 17 / 12].map((x) => x.toFixed(6))); // NUM-2 (was [c2, c3, b2, b3] vs [11 / 14, 11 / 13, 5 / 3, 17 / 12])
     const rows: string[] = [];
     for (const id of Object.keys(SIGNATURE)) {
-      const one = effectAt(id, 1).factory!, i1 = one.interval;
+      const one = effectAt(id, 1).factory!, s1 = one.speed; // NUM-2 (was i1 = one.interval)
       expect(one.base, `${id} level 1 base: its ammo's`).toBeUndefined();
-      // the cycle: from the unrounded level before, to 0.01 s
-      expect([2, 3, 4].map((l) => effectAt(id, l).factory!.interval), id).toEqual([r2(i1 * c2), r2(i1 * c2 * c3), r2(i1 * c2 * c3 * c3)]);
+      // the cycle: NUM-2 (was from the unrounded level before, to 0.01 s): one whole step of speed a level, the same step
+      // at every level (KILN 24 / 30 / 36 / 42, LOOM 42 / 53 / 64 / 75, CRUCIBLE 19 / 24 / 29 / 34, ...)
+      const step = roundHalfUp((s1 * FACTORY_STEP) / 100);
+      expect(step, id).toBeGreaterThan(0);
+      expect([2, 3, 4].map((l) => effectAt(id, l).factory!.speed), id).toEqual([s1 + step, s1 + 2 * step, s1 + 3 * step]);
+      expect([2, 3, 4].map((l) => effectAt(id, l).factory!.speed), id).toEqual([2, 3, 4].map((l) => levelSpeed(s1, l, FACTORY_STEP)));
+      for (const l of [2, 3, 4]) expect(cycleAt(id, l), `${id} L${l}: a shorter cycle`).toBeLessThan(cycleAt(id, l - 1));
       // nothing else moves with the level: base, ammo, pour, lead
       for (const l of [2, 3, 4]) {
-        const { interval: _i, ...rest } = effectAt(id, l).factory!;
-        const { interval: _i1, ...rest1 } = one;
+        const { speed: _s, ...rest } = effectAt(id, l).factory!; // NUM-2 (was interval)
+        const { speed: _s1, ...rest1 } = one;
         expect(rest, `${id} L${l}`).toEqual(rest1);
       }
-      rows.push(`${id} ${LEVELS.map((l) => `L${l} ${effectAt(id, l).factory!.interval} s`).join(", ")}`);
+      rows.push(`${id} ${LEVELS.map((l) => `L${l} ${effectAt(id, l).factory!.speed} (${cycleAt(id, l).toFixed(2)} s)`).join(", ")}`); // NUM-2: speed (SEC)
     }
     console.log(`FACTORY levels (cycle; base unchanged): ${rows.join("; ")}`);
     expect(LEVELS.map((l) => effectAt("crucible", l).factory!.pour)).toEqual([2, 2, 2, 2]); // the fuse's pair, every level
@@ -209,12 +225,16 @@ describe("D1, D6, D10: a merged copy or a factory upgrade keeps the belts and of
         items: [{ uid: 1, def, x: 0, y: 8 }, { uid: 7, def: "mimic", x: 4, y: 6, ...(ms > 1 ? { stars: ms } : {}) }],
         routes: [{ factory: 7, cells: [K(4, 5)] }], ...(level > 1 ? { upgrades: { factory: level } } : {}),
       };
-      const want = ITEMS[def].factory!.interval * effectAt("mimic", ms).factory!.intervalMul!, id = `${def} L${level}, MIMIC ★${ms}`;
+      // NUM-2 (REQ-BFG-047; was the hero factory's interval x MIMIC's intervalMul): the hero factory's level-1 speed x MIMIC's
+      // rate %, rounded half up once (content.ts factorySpeed; KILN 24: 17 / 24 / 30); its cycle is 30 / that
+      const mimic = effectAt("mimic", ms).factory!;
+      const want = roundHalfUp(ITEMS[def].factory!.speed * rateMul(mimic.rate)), id = `${def} L${level}, MIMIC ★${ms}`;
+      expect(factorySpeed("mimic", mimic, hero), id).toBe(want); // NUM-2
       const bt = new Battle(b, barge(), SEED);
-      expect(bt.sides[0].factories.find((f) => f.uid === 7)!.def.factory!.interval, id).toBeCloseTo(want, 9);
-      expect(bt.sides[0].factories.find((f) => f.uid === 1)!.def.factory!.interval, id).toBe(effectAt(def, level).factory!.interval);
+      expect(bt.sides[0].factories.find((f) => f.uid === 7)!.def.factory!.speed, id).toBe(want); // NUM-2 (was .interval toBeCloseTo(want, 9))
+      expect(bt.sides[0].factories.find((f) => f.uid === 1)!.def.factory!.speed, id).toBe(effectAt(def, level).factory!.speed); // NUM-2 (was .interval)
       // the build screen's estimate reads the same cycle (one belt, nothing joined)
-      expect(loadEvery(b, 0), id).toBeCloseTo(want, 9);
+      expect(loadEvery(b, 0), id).toBeCloseTo(secPer(want), 9); // NUM-2: 30 / speed (was want, the interval)
     }
   });
 

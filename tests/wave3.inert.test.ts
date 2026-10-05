@@ -29,6 +29,7 @@ interface Tally {
   spallMax: number; // the most charge a SPALL CATCHER held
   window: number; // the load time of the module's turret (or turret 0)
   dealt: number; // damage dealt to the foe's hull and plating
+  held?: number; // NUM-2 (REQ-BFG-047): loads in the turret's chamber at the end, not yet fired (`turret`'s stack)
 }
 
 function tally(b: Build, foe: Build, turret: number, secs = SECS, plate = 0): Tally {
@@ -57,6 +58,7 @@ function tally(b: Build, foe: Build, turret: number, secs = SECS, plate = 0): Ta
     }
   }
   t.dealt = hull0 - bt.sides[1].hull.hp;
+  t.held = bt.sides[0].turrets.find((tu) => tu.index === turret)?.stack.length ?? 0; // NUM-2: loads in its chamber, unfired
   return t;
 }
 
@@ -270,11 +272,30 @@ describe("fire-rate parts on a starting deck: STEAM BREECH as CALIBRATION (the e
       rows.push(`| ${hero} | ${none.fires.length} / ${steam.fires.length} / ${cal.fires.length} | ${why.join(" / ")} | ${tNone.fires.length} / ${tSteam.fires.length} / ${tCal.fires.length} | ${tPlatedNone.fires.length} / ${tPlated.fires.length} | ${tNone.dealt.toFixed(0)} / ${tSteam.dealt.toFixed(0)} / ${tCal.dealt.toFixed(0)} |`);
       // on the starting deck the gun is never the bottleneck: STEAM BREECH adds no shot (nor does CALIBRATION); on
       // WEAVER, FOUNDRY and SIPHON the battle is the same shot for shot (starved)
-      expect([steam.fires.length, cal.fires.length], hero).toEqual([none.fires.length, none.fires.length]);
+      // NUM-2 (REQ-BFG-047), an equivalent check (was: the same shot count in SECS, [steam, cal] = [none, none]): the part
+      // fires the bare gun's loads, never one more: its shots plus the loads still in its chamber at the cut-off are the
+      // bare deck's, and none of its shots comes later than the bare one's. With the remainder carried and WARDWORKS at
+      // 27 (1.11 s; was 1.1 s), BASTION's volleys moved: the faster gun's 33rd shot (the same load) lands at 40.00 s,
+      // inside the cut-off, and the bare one's at 40.72 s, past it: 33 shots + 1 held = 32 + 2 (the base: 33 / 33 / 33)
+      for (const [w, part] of [[steam, "STEAM"], [cal, "CALIBRATION"]] as const) {
+        expect(w.fires.length + w.held!, `${hero} ${part}: shots + held`).toBe(none.fires.length + none.held!);
+        expect(w.fires.length, `${hero} ${part}: shots`).toBeGreaterThanOrEqual(none.fires.length);
+        expect(w.fires.slice(0, none.fires.length).every((f, i) => f.t <= none.fires[i].t + 1e-9), `${hero} ${part}: never later`).toBe(true);
+      }
       if (hero === "weaver" || hero === "foundry" || hero === "siphon") expect(why, hero).toEqual([STARVED, STARVED]);
       // on the busy gun both add shots, and plated STEAM BREECH more than bare
       expect(tSteam.fires.length > tNone.fires.length && tCal.fires.length > tNone.fires.length, hero).toBe(true);
-      expect(tPlated.fires.length, hero).toBeGreaterThan(tSteam.fires.length);
+      // NUM-2 (REQ-BFG-047), an equivalent check (was: plated fires more shots than bare on every hero): the shot timer
+      // carries its remainder and the speed is whole, so bare STEAM ★1 on WEAVER's tower-fed light gun (55 x 1.1 = 60.5
+      // -> 61, 0.49 s; was 0.5 s, its timer reset each shot: 64 shots) already fires every load the tower brings: 74, as
+      // many as CALIBRATION ★1 (and plated) fire. Plated can add no shot there; it fires the same 74 sooner (61 earlier,
+      // none later). Wherever bare is below that feed cap, plated still fires more shots
+      if (tSteam.fires.length < tCal.fires.length) expect(tPlated.fires.length, hero).toBeGreaterThan(tSteam.fires.length);
+      else {
+        expect(tPlated.fires.length, `${hero}: the feed's cap`).toBe(tSteam.fires.length);
+        expect(tPlated.fires.every((f, i) => f.t <= tSteam.fires[i].t + 1e-9), `${hero}: plated never later`).toBe(true);
+        expect(tPlated.fires.some((f, i) => f.t < tSteam.fires[i].t - 1e-9), `${hero}: plated sooner`).toBe(true);
+      }
     }
     if (process.env.BB_TABLES) {
       console.log(["| hero | start deck: shots none / STEAM ★1 / CALIBRATION ★1 | why (STEAM / CALIBRATION) | busy gun: shots none / STEAM bare / CALIBRATION | busy gun, 24 plating: none / STEAM plated | busy gun: dealt |",

@@ -1,5 +1,6 @@
 // bb-0.8.3 (REQ-BFG-042, job BELTS D5): FURNACE keeps its long-belt identity. The KILN BREECH (battle.ts makeTurret,
-// deckRating.ts) makes a gun fed by a belt of 8+ tiles fire at FURNACE_LONG_BELT (0.72) of its interval, and cinder
+// deckRating.ts) makes a gun fed by a belt of 8+ tiles fire at FURNACE_LONG_BELT (0.72) of its interval (NUM-2: a whole
+// rate %, +39 on its speed, rounded half up once: 30 -> 42, 0.714 s), and cinder
 // slugs gain AMMO.cinder.rideScale damage a second of ride. Both stay unchanged in kind with more KILN belts: the breech
 // reads the longest belt into a gun, not how many slugs it carries, so one 8+ belt still sets the heavy gun's cadence;
 // the KILN deals its slugs one belt at a time, so each extra short belt takes its share of them off the long ride. With
@@ -7,6 +8,7 @@
 // REQ-BFG-043 D10) on three, one of 8+ tiles into the heavy gun.
 import { describe, expect, it } from "vitest";
 import { AMMO, HEROES } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (K = 30), whole rate %s
 import { routeInfo, walkRoute, type Build } from "../src/sim/deck";
 import { Battle, FURNACE_LONG_BELT } from "../src/sim/battle";
 import { rateDeck } from "../src/sim/deckRating";
@@ -56,8 +58,13 @@ describe("D5: the KILN BREECH and cinder ride scaling with more KILN belts", () 
 
   it("the breech: an 8+ belt into the heavy gun sets its cadence at 0.72 of its interval, at level 1 on 2 belts and level 2 on 3", () => {
     const [a, b, c] = [intervals(A), intervals(B), intervals(C)];
-    expect(a[0]).toBeCloseTo(b[0] * FURNACE_LONG_BELT, 9); // level 1, 2 belts: the long belt's gun is breeched
-    expect(c[0]).toBeCloseTo(b[0] * FURNACE_LONG_BELT, 9); // level 2, 3 belts: still, with a short belt beside it into that gun
+    // NUM-2 (REQ-BFG-047; was toBeCloseTo(b[0] x FURNACE_LONG_BELT, 9), the interval x0.72): the long belt is a whole rate %
+    // (+39) on the gun's speed, rounded half up once: 30 / roundHalfUp(30 / b[0] x 1.39) (SCRAP CANNON 30 -> 41.7 -> 42: 0.714 s)
+    expect(FURNACE_LONG_BELT).toBe(39); // NUM-2 (was 0.72, the interval x)
+    const breeched = secPer(roundHalfUp(secPer(b[0]) * rateMul(FURNACE_LONG_BELT)));
+    expect(a[0]).toBeCloseTo(breeched, 9); // level 1, 2 belts: the long belt's gun is breeched
+    expect(c[0]).toBeCloseTo(breeched, 9); // level 2, 3 belts: still, with a short belt beside it into that gun
+    expect([secPer(b[0]), secPer(a[0])].map(roundHalfUp)).toEqual([30, 42]); // NUM-2: the speeds, N1's example
     expect([a[1], c[1]]).toEqual([b[1], b[1]]); // the BOMBARD, fed by a short belt only, keeps its interval
     // the rating reads the same rule (deckRating.ts: the longest belt into a gun)
     expect(rateDeck(A).offense).toBeGreaterThan(rateDeck(B).offense);
@@ -70,8 +77,10 @@ describe("D5: the KILN BREECH and cinder ride scaling with more KILN belts", () 
     // round-robin: each belt within one slug of an even share (bb-0.8.3 D4: a belt adds reach, not slugs)
     for (const c of ta.perRoute) expect(Math.abs(c - ta.produced / 2)).toBeLessThanOrEqual(1);
     for (const c of tc.perRoute) expect(Math.abs(c - tc.produced / 3)).toBeLessThanOrEqual(1);
-    // the level 2 KILN's cycle (0.98 s) stamps more slugs than level 1's (1.25 s): its level, not its belts
-    const cycles = (s: number): number => Math.floor((30 - 0.35) / effectAt("kiln", s).factory!.interval) + 1;
+    // the level 2 KILN's cycle (speed 30: 1 s) stamps more slugs than level 1's (speed 24: 1.25 s): its level, not its belts
+    // NUM-2 (REQ-BFG-047): the cycle is 30 / speed (was the interval: 1.25 s and 0.98 s); the stamp timer carries its
+    // remainder, so the stamps fall at 0.35 s + k cycles: 24 and 30 in 30 s (were 24 and 31: level 2's 1 s cycle is longer)
+    const cycles = (s: number): number => Math.floor((30 - 0.35) / secPer(effectAt("kiln", s).factory!.speed)) + 1; // NUM-2 (was .interval)
     expect([ta.produced, tc.produced]).toEqual([cycles(1), cycles(2)]);
     // the build screen's estimate (walkRoute): base + rideScale x ride; the long ride is worth more on every slug
     const est = (b: Build, ri: number) => walkRoute(b, ri).estimate;

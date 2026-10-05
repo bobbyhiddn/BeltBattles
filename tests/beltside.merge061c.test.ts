@@ -267,10 +267,16 @@ describe("P8: SLAG rides at its fixed 0.75x", () => {
       f0.timer = 0;
       const born = new Map<number, number>();
       const loads: { p: (typeof bt.sides)[0]["routes"][0]["ammo"][0]["p"]; t: number }[] = [];
+      // NUM-2 (REQ-BFG-047): the stamp timer carries its remainder, so HOT SWAP ★1's cycle is exactly 1.5 s (90 ticks; the
+      // old reset made it 91) and its spark reaches the chamber on the very tick the ember's window (WINDOW_TIME 1.5 s)
+      // closes: it joins that window and fires at once (LIFO), never resting in the stack at a tick's end. So a slug also
+      // counts as it leaves the belt's end into the chamber (was: only as seen in the stack after a tick)
       while (bt.t < 30 && loads.length < 2) {
+        const front = bt.sides[0].routes[0].ammo[0]?.p; // NUM-2: the slug at the belt's end before the tick
         bt.step();
         bt.drainEvents();
         for (const a of bt.sides[0].routes[0].ammo) if (!born.has(a.p.id)) born.set(a.p.id, bt.t);
+        if (front && !bt.sides[0].routes[0].ammo.some((a) => a.p.id === front.id) && !loads.some((l) => l.p.id === front.id)) loads.push({ p: front, t: bt.t }); // NUM-2
         for (const p of bt.sides[0].turrets[0].stack) if (!loads.some((l) => l.p.id === p.id)) loads.push({ p, t: bt.t });
       }
       const first = loads[0];

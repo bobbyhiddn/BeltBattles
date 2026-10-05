@@ -13,6 +13,9 @@ import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Battle, gearStats, makeTurret, simulate } from "../src/sim/battle";
 import { HEROES, type HeroId } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): E1's whole rate %, 30 / speed
+import { FURNACE_LONG_BELT } from "../src/sim/battle"; // NUM-2: E1, a whole rate % (39)
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { fightBlock } from "../src/game/routeCheck";
 import { hitsOfRig, joinOf, key as K, rotField, type Build, type Placed, type RouteDef } from "../src/sim/deck";
@@ -182,8 +185,12 @@ describe("0.6.2j join bench: the decks (always on)", () => {
     for (const day of JOIN_BENCH_DAYS) {
       for (const l of FURNACE_LAYOUTS) {
         const b = l.build(day);
-        const base = makeTurret(b, 0, HEROES.furnace.turrets[0]).interval / gearStats(b, 0).fireMul;
-        expect(base, `${l.id} day ${day}`).toBeCloseTo(long[l.id] ? 0.72 : 1, 9);
+        // NUM-2 (REQ-BFG-047, N1 2.3): E1 is a whole rate % on the speed (FURNACE_LONG_BELT 39), in the turret's one rounding
+        // with its gear's (CALIBRATION ★1 +33% on days 7 and 10): 30 / roundHalfUp(30 x speedMul x 1.39, or x 1). Day 5:
+        // 30 / 42 or 30 / 30; days 7, 10: 30 / 55 or 30 / 40 (was: the interval / the gear's fireMul = 0.72 or 1)
+        const td = HEROES.furnace.turrets[0], g = gearStats(b, 0);
+        const speed = roundHalfUp(td.speed * g.speedMul * (long[l.id] ? rateMul(FURNACE_LONG_BELT) : 1));
+        expect(makeTurret(b, 0, td).interval, `${l.id} day ${day}`).toBeCloseTo(secPer(speed), 9); // NUM-2 (was base 0.72 : 1)
       }
     }
   });

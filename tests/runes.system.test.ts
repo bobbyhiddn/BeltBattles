@@ -8,6 +8,8 @@ import {
   runeOffer, runeProblem, tierOdds, type RuneDef,
 } from "../src/sim/runes";
 import { HEROES, ITEMS, RARITIES, type HeroId } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a whole rate % on the speed, 30 / speed
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts setSpeed)
 import { newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { finishDay } from "../src/game/day";
 import { heroStartBuild } from "../src/sim/heroBuilds";
@@ -309,7 +311,11 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
     const s0 = new Battle(b, foe, 1).sides[0];
     const pct = (...ids: string[]) => ids.reduce((s, id) => s + RUNES[id].amount.n, 0) / 100;
     const oil = new Battle(withRunes(b, "gun_oil", "hair_trigger"), foe, 1).sides[0];
-    s0.turrets.forEach((tu, i) => expect(oil.turrets[i].interval).toBeCloseTo(tu.interval / (1 + pct("gun_oil", "hair_trigger")), 12));
+    // NUM-2 (REQ-BFG-047, N1 2.3): the RATE runes' whole % multiplies each turret's unrounded speed inside its one rounding
+    // (battle.ts setSpeed): 30 / roundHalfUp(55 x (100 + 15 + 8) / 100 = 67.65) = 30 / 68 = 0.441 s (was the interval / 1.23
+    // = 0.443 s). The factories' pace is unchanged (below).
+    const rate = RUNES.gun_oil.amount.n + RUNES.hair_trigger.amount.n;
+    s0.turrets.forEach((tu, i) => expect(oil.turrets[i].interval).toBeCloseTo(secPer(roundHalfUp(tu.speedRaw * rateMul(rate))), 12)); // NUM-2 (was tu.interval / (1 + pct("gun_oil", "hair_trigger")))
     const cogs = new Battle(withRunes(b, "oiled_cogs", "stoked_fires"), foe, 1).sides[0];
     s0.factories.forEach((f, i) => expect(cogs.factories[i].pace).toBeCloseTo(f.pace * (1 + pct("oiled_cogs", "stoked_fires")), 12));
   });

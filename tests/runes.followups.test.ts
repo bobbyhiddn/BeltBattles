@@ -9,6 +9,8 @@ import { isSnapshot } from "../src/game/ghostSnapshot";
 import { ghostOf, finishDay } from "../src/game/day";
 import { RUNE_FIRST, fightRefusal, newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { RULES_VERSION } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a whole rate % on the speed, 30 / speed
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts setSpeed)
 import { RUNES } from "../src/sim/runes";
 import { Battle } from "../src/sim/battle";
 import { cloneBuild, type Build } from "../src/sim/deck";
@@ -108,11 +110,16 @@ describe("RUNES-2a M1 (Q6): HAIR TRIGGER, YOUR TURRETS AND FACTORIES: +N% RATE (
       const s0 = new Battle(b, foe, 1).sides[0];
       const s1 = new Battle({ ...cloneBuild(b), runes: [{ id: "hair_trigger" }] }, foe, 1).sides[0];
       const k = 1 + d.amount.n / 100;
-      s0.turrets.forEach((tu, i) => expect(s1.turrets[i].interval).toBeCloseTo(tu.interval / k, 12));
+      // NUM-2 (REQ-BFG-047, N1 2.3): a RATE rune multiplies the turret's unrounded speed by rateMul(N) inside its one
+      // rounding (battle.ts setSpeed): interval = 30 / roundHalfUp(speedRaw x (100 + N) / 100) (was the interval / k, which
+      // the rounding no longer gives exactly: SCRAP CANNON 30 x 1.08 = 32.4 -> 32, 0.9375 s, not 1 / 1.08 = 0.926 s).
+      // The factories' pace is unchanged (x k).
+      const at = (raw: number): number => secPer(roundHalfUp(raw));
+      s0.turrets.forEach((tu, i) => expect(s1.turrets[i].interval).toBeCloseTo(at(tu.speedRaw * rateMul(d.amount.n)), 12)); // NUM-2 (was tu.interval / k)
       s0.factories.forEach((f, i) => expect(s1.factories[i].pace).toBeCloseTo(f.pace * k, 12));
       // with GUN OIL and STOKED FIRES the percentages add
       const s2 = new Battle({ ...cloneBuild(b), runes: [{ id: "hair_trigger" }, { id: "gun_oil" }, { id: "stoked_fires" }] }, foe, 1).sides[0];
-      s0.turrets.forEach((tu, i) => expect(s2.turrets[i].interval).toBeCloseTo(tu.interval / (1 + (d.amount.n + RUNES.gun_oil.amount.n) / 100), 12));
+      s0.turrets.forEach((tu, i) => expect(s2.turrets[i].interval).toBeCloseTo(at(tu.speedRaw * rateMul(d.amount.n + RUNES.gun_oil.amount.n)), 12)); // NUM-2 (was tu.interval / (1 + (N + GUN OIL) / 100))
       s0.factories.forEach((f, i) => expect(s2.factories[i].pace).toBeCloseTo(f.pace * (1 + (d.amount.n + RUNES.stoked_fires.amount.n) / 100), 12));
     }
   });

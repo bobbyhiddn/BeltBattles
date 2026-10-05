@@ -7,8 +7,9 @@
 import { describe, expect, it } from "vitest";
 import { Battle, LOAD_FLOOR, type Payload, type Projectile, type SimEvent } from "../src/sim/battle";
 import { AMMO, ITEMS, WINDOW_TIME } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
 import { ROUTINES } from "../src/sim/cores";
-import { pct } from "../src/sim/pct";
+import { pct, roundHalfUp } from "../src/sim/pct";
 import { overclocked, boostable } from "../src/sim/overclock";
 import { effectAt, outputsAt, perkAt } from "../src/sim/stars";
 import { walkRoute, type Build } from "../src/sim/deck";
@@ -91,7 +92,7 @@ export const ROWS: Row[] = [
   { id: "twinlatch", headline: "Damage on each payload it lets go", band: BAND,
     at: (s) => mean(pastTile(withItem(latchDeck(), item(40, "twinlatch", 4, 3, 0, s)), 0, 2).map((x) => x.flat)) },
   { id: "stoker", headline: "How much faster the factory it points at stamps", band: BAND,
-    at: (s) => 1.4 / mean(stampGaps(withItem(pressBench(), item(30, "stoker", 6, 6, 0, s)))) - 1 },
+    at: (s) => PRESS_EVERY / mean(stampGaps(withItem(pressBench(), item(30, "stoker", 6, 6, 0, s)))) - 1 }, // NUM-2: 30 / 21 (was 1.4)
   { id: "platebreaker", headline: "Damage a payload gains for 1 plating (20 plating on the hull)", band: BAND,
     at: (s) => flatsPast(onTile3("platebreaker", s), 3, 20)[0] },
   { id: "shieldwall", headline: "Plating per payload it hits", band: BAND,
@@ -127,6 +128,9 @@ function braceCut(stars: number): number[] {
   }
   return out;
 }
+
+/** NUM-2 (REQ-BFG-047): the STAMP PRESS's ★1 stamp, 30 / its whole speed (21: 1.4286 s; was the literal 1.4 s). */
+const PRESS_EVERY = secPer(effectAt("press", 1).factory!.speed);
 
 /** The STOKER bench: a WEAVER whose STAMP PRESS (uid 7, (4,6)) feeds light turret 1 (EXT. CHAMBER ★3: never full). */
 function pressBench(): Build {
@@ -199,13 +203,16 @@ function anvilGain(stars: number, plate: number): number {
   return mean(with_.map((d, i) => d - base[i]));
 }
 
-/** STEAM BREECH on FURNACE's heavy gun: the fire rate against its interval (1 / the cooldown after a shot), plated or bare. */
+/** STEAM BREECH on FURNACE's heavy gun: the fire rate against its interval (1 / the cooldown after a shot), plated or bare.
+ *  NUM-2 (REQ-BFG-047): the shot timer carries its remainder now (fireCd += cadence), so the cooldown after a shot is the
+ *  cadence less up to a tick; this reads the cadence the shot adds (ROUTINES.steam.cadence, on the battle's turret as it
+ *  fired: its plated flag and speed), exactly (was tu.fireCd / tu.interval, which the old reset made the cadence). */
 function steamRate(stars: number, plated: boolean): number {
   const cds: number[] = [];
   run(withMod(furnaceBench(), 50, "steambreech", 0, stars), 10, barge(), SEED, (ev, bt) => {
     if (bt.ticks === 1 && plated) bt.addPlate(bt.sides[0], 20);
     const tu = bt.sides[0].turrets[0];
-    for (const e of ev) if (e.type === "fire" && e.side === 0) cds.push(tu.fireCd / tu.interval);
+    for (const e of ev) if (e.type === "fire" && e.side === 0) cds.push(ROUTINES.steam.cadence(tu, bt.t) / tu.interval);
   });
   return 1 / mean(cds);
 }
@@ -280,7 +287,8 @@ describe("wave 3's named rules", () => {
 
   it("STOKER: 20% / 44% / 70% faster; OVERCLOCKER can't boost it or BRACE FRAME (they act on no payload)", () => {
     for (const [s, k] of [[1, 0.2], [2, 0.44], [3, 0.7]] as const) {
-      for (const g of stampGaps(withItem(pressBench(), item(30, "stoker", 6, 6, 0, s)))) expect(Math.abs(g - 1.4 / (1 + k))).toBeLessThan(2 / 60);
+      // NUM-2 (REQ-BFG-047; was the literal 1.4 s, the press's ★1 interval): 30 / its whole speed (21: 1.4286 s)
+      for (const g of stampGaps(withItem(pressBench(), item(30, "stoker", 6, 6, 0, s)))) expect(Math.abs(g - PRESS_EVERY / (1 + k))).toBeLessThan(2 / 60);
     }
     for (const id of ["stoker", "braceframe"]) for (const s of [1, 2, 3]) expect(boostable(effectAt(id, s).gate!), id).toBe(false);
   });
@@ -331,10 +339,13 @@ describe("wave 3's named rules", () => {
     expect([1, 2, 3].map((s) => outputsAt("twinmould", s))).toEqual([2, 3, 4]);
     expect([1, 2, 3].map((s) => effectAt("twinmould", s).factory!.pour)).toEqual([2, 2, 3]);
     expect(perkAt("twinmould", 3)).toBe("THIRD SPRUE");
-    for (const [s, base, every, n] of [[1, 30, 1.8, 2], [2, 50, 1.6, 2], [3, 60, 1.4, 3]] as const) { // NUM-1: base x10 (was 3 / 5 / 6)
+    for (const [s, base, was, n] of [[1, 30, 1.8, 2], [2, 50, 1.6, 2], [3, 60, 1.4, 3]] as const) { // NUM-1: base x10 (was 3 / 5 / 6)
+      // NUM-2 (REQ-BFG-047): the speed is the title's interval converted as scripts/num2-speed.mjs does, roundHalfUp(30 /
+      // interval): 17 / 19 / 21 (was `interval` 1.8 / 1.6 / 1.4); a cast every 30 / speed s (1.76 / 1.58 / 1.43)
+      expect(effectAt("twinmould", s).factory!.speed).toBe(roundHalfUp(30 / was));
+      const every = secPer(effectAt("twinmould", s).factory!.speed);
       // NUM-1: the dps is x10 (same slug count), so the same +-0.5 a second of the old units is +-5 now (digits -1)
-      expect(mouldDps(s)).toBeCloseTo((n * base) / every, -1);
-      expect(effectAt("twinmould", s).factory!.interval).toBe(every);
+      expect(mouldDps(s)).toBeCloseTo((n * base) / every, -1); // NUM-2: every = 30 / speed (was the interval)
       // every cast lands on every belt on one tick, plain slugs of its base
       const perTick = new Map<number, number>(), seen = new Set<number>(), bases = new Set<number>();
       run(mouldDeck(s), 8, barge(), SEED, (_ev, bt) => {
@@ -354,11 +365,14 @@ describe("wave 3's named rules", () => {
 
   // 0.8.0 B1 M2 (brief 3.3): ARMOR PRESS 2 / 4.4 / 7 plating every 4 s -> 3 / 6.6 / 10.5 every 3 s (its stamping unchanged)
   it("ARMOR PRESS: 3 / 6.6 / 10.5 plating every 3 s; its plain slugs every 1.6 / 1.4 / 1.2 s; no belt to a turret: no plating", () => {
-    for (const [s, amount, every] of [[1, 30, 1.6], [2, 66, 1.4], [3, 105, 1.2]] as const) { // NUM-1: x10 (was 3 / 6.6 / 10.5)
+    for (const [s, amount, was] of [[1, 30, 1.6], [2, 66, 1.4], [3, 105, 1.2]] as const) { // NUM-1: x10 (was 3 / 6.6 / 10.5)
       const ps = plates(pressFurnace("armorpress", s), 7); // two pressings under the 240 cap at every star
       expect(ps.map((p) => p.amount)).toEqual([amount, amount]);
       expect(ps.map((p) => +p.t.toFixed(4))).toEqual([3, 6]);
-      expect(effectAt("armorpress", s).factory!.interval).toBe(every);
+      // NUM-2 (REQ-BFG-047): the speed is the title's interval converted as scripts/num2-speed.mjs does, roundHalfUp(30 /
+      // interval): 19 / 21 / 25 (was `interval` 1.6 / 1.4 / 1.2); its slugs every 30 / speed s (1.58 / 1.43 / 1.2)
+      expect(effectAt("armorpress", s).factory!.speed).toBe(roundHalfUp(30 / was));
+      const every = secPer(effectAt("armorpress", s).factory!.speed);
       const t: number[] = [];
       run(pressFurnace("armorpress", s), 10, barge(), SEED, (ev, bt) => { for (const e of ev) if (e.type === "produce" && e.factory === 7) t.push(bt.t); });
       const gaps = t.slice(1).map((x, i) => x - t[i]); // its slugs: every `every` s while its belt has room (the gun gets busy)
@@ -383,11 +397,18 @@ describe("wave 3's named rules", () => {
   // 0.8.0 B1 M2 (brief 3.2, VERIFIED-P1 H1: its weak bare rate): 20 / 44 / 70% plated, 5 / 10 / 15% bare -> 35 / 70 / 110%
   // plated, 10 / 20 / 30% bare
   it("STEAM BREECH: 35 / 70 / 110% faster while plated, 10 / 20 / 30% faster without", () => {
-    for (const [s, plated, bare] of [[1, 1.35, 1.1], [2, 1.7, 1.2], [3, 2.1, 1.3]] as const) {
-      expect(steamRate(s, true)).toBeCloseTo(plated, 6);
-      expect(steamRate(s, false)).toBeCloseTo(bare, 6);
+    // NUM-2 (REQ-BFG-047): the stored whole rate %s are the title's; the battle rounds the gun's speed x (100 + X) / 100
+    // half up once, so the rate is that whole speed over the gun's (SCRAP CANNON 30): ★1 plated 40.5 -> 41, 41 / 30 =
+    // 1.3667 (was 1.35, the interval x 1 / 1.35); the rest land whole (33, 51, 36, 63, 39 / 30)
+    const gun = effectAt("scrapcannon", 1).turret!.speed;
+    for (const [s, plated, bare] of [[1, 35, 10], [2, 70, 20], [3, 110, 30]] as const) {
+      const core = effectAt("steambreech", s).core!;
+      expect([core.steamPlated, core.steamBare]).toEqual([plated, bare]); // NUM-2: the stored rate % (was 1 / 1.35 ... the interval x)
+      expect(steamRate(s, true)).toBeCloseTo(roundHalfUp(gun * rateMul(plated)) / gun, 6); // NUM-2 (was 1.35 / 1.7 / 2.1)
+      expect(steamRate(s, false)).toBeCloseTo(roundHalfUp(gun * rateMul(bare)) / gun, 6); // NUM-2 (was 1.1 / 1.2 / 1.3)
     }
-    const tu = { interval: 1, plated: true, core: { spec: { steamPlated: 0.5, steamBare: 0.9 } } } as unknown as Parameters<typeof ROUTINES.steam.cadence>[0];
+    // NUM-2: the cadence is 30 / the whole speed (speedRaw x (100 + steamPlated) / 100); was interval 1 x steamPlated 0.5
+    const tu = { speedRaw: 30, speed: 30, interval: 1, plated: true, core: { spec: { steamPlated: 100, steamBare: 11 } } } as unknown as Parameters<typeof ROUTINES.steam.cadence>[0];
     expect(ROUTINES.steam.cadence(tu, 0)).toBe(0.5);
   });
 

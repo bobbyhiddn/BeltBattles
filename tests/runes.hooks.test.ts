@@ -7,6 +7,8 @@ import { Battle, simulate, type Projectile, type SimEvent } from "../src/sim/bat
 import { AMMO, BURN_DPS, BURN_TIME, FRAY_BONUS } from "../src/sim/content";
 import { cloneBuild, payloadDamage, turretList, type Build } from "../src/sim/deck";
 import { pct } from "../src/sim/pct";
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2 (REQ-BFG-047): a turret's speed rounds half up once (battle.ts setSpeed)
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2: a whole rate % on the speed, 30 / speed
 import { PLATE_CAP } from "../src/sim/races/bastion";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNE_LIST, RUNES, dawnGold, mergedPieces, pickGold, runeGrants, runeMods, runeOffer } from "../src/sim/runes";
@@ -300,7 +302,9 @@ describe("RUNES-2a M3: the commons and rares", () => {
   it("MANY HANDS: your turrets +12% RATE per turret (WEAVER's 3: +36%)", () => {
     const w = heroStartBuild("weaver");
     const s0 = new Battle(w, FOE, 1).sides[0], s1 = new Battle(W(w, "many_hands"), FOE, 1).sides[0];
-    s0.turrets.forEach((tu, i) => expect(s1.turrets[i].interval).toBeCloseTo(tu.interval / (1 + (n("many_hands") * s0.turrets.length) / 100), 12));
+    // NUM-2 (REQ-BFG-047, N1 2.3): the rune's % multiplies each turret's unrounded speed inside its one rounding (battle.ts
+    // setSpeed): 30 / roundHalfUp(55 x 1.36 = 74.8) = 30 / 75 = 0.4 s (was the interval / 1.36 = 0.401 s)
+    s0.turrets.forEach((tu, i) => expect(s1.turrets[i].interval).toBeCloseTo(secPer(roundHalfUp(tu.speedRaw * rateMul(n("many_hands") * s0.turrets.length))), 12)); // NUM-2 (was tu.interval / (1 + 36 / 100))
   });
 
   it("SEAM RIVETS: each PAIR gives PLATE (FOUNDRY's fusions)", () => {

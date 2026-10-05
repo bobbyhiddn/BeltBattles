@@ -14,6 +14,9 @@ import { deckCost } from "../src/sim/rivals";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { checkBuildShape, decodeSnapshot, encodeSnapshot, SnapshotError, type GhostSnapshot } from "../src/net/snapshot";
 import { RULES_VERSION } from "../src/sim/content";
+import { levelSpeed, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (K = 30), TURRET SPEED's whole steps
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
+import type { TurretState } from "../src/sim/battle";
 import {
   buyUpgrade, loadRun, newRun, nextUpgrade, reroll, rollShop, saveRun, sellInventory, upgradeShown, type Run,
 } from "../src/game/run";
@@ -115,11 +118,13 @@ describe("D10: each level's effect, against the sim", () => {
       for (const l of [1, 2, 3, 4]) {
         const b: Build = { hero, items: [{ uid: 7, def, x: 4, y: 6 }], routes: [{ factory: 7, cells: [K(4, 5)] }], mods: [], beltCap: 40, hullBonus: 0, ...(l > 1 ? { upgrades: { factory: l } } : {}) };
         const f = new Battle(b, barge(), SEED).sides[0].factories.find((x) => x.uid === 7)!;
-        expect([gradeOf(b, b.items[0]), f.def.factory!.interval], `${def} L${l}`).toEqual([l, effectAt(def, l).factory!.interval]);
+        // NUM-2 (REQ-BFG-047): the cycle is the whole speed (was .interval on both sides, undefined === undefined after the rename)
+        expect([gradeOf(b, b.items[0]), f.def.factory!.speed], `${def} L${l}`).toEqual([l, effectAt(def, l).factory!.speed]);
+        expect(f.def.factory!.speed, `${def} L${l}`).toBeGreaterThan(0); // NUM-2: a real number, never undefined
         expect(f.def.factory!.base, `${def} L${l}`).toBe(ITEMS[def].factory!.base); // the cycle only (oracle 6c20deea1363d0bb, D2)
       }
       // each level is faster than the one before
-      const iv = [1, 2, 3, 4].map((l) => effectAt(def, l).factory!.interval);
+      const iv = [1, 2, 3, 4].map((l) => secPer(effectAt(def, l).factory!.speed)); // NUM-2: 30 / speed (was .interval)
       for (let i = 1; i < 4; i++) expect(iv[i], `${def}`).toBeLessThan(iv[i - 1]);
     }
     // the slugs stamped: a level-4 KILN on one long belt stamps its cycles' worth in 30 s, as the cycle says
@@ -129,20 +134,33 @@ describe("D10: each level's effect, against the sim", () => {
       turrets: [{ slot: 0, def: "scrapcannon", uid: 90, free: true }], ...(l > 1 ? { upgrades: { factory: l } } : {}),
     });
     const n = [1, 4].map((l) => tally(kiln(l), 7, 30));
-    const cycles = (l: number): number => Math.floor((30 - 0.35) / effectAt("kiln", l).factory!.interval) + 1;
+    // NUM-2 (REQ-BFG-047): the cycle is 30 / speed (was the interval: 1.25 s and 0.7 s); the stamp timer carries its
+    // remainder, so the stamps fall at 0.35 s + k cycles: 24 and 42 casts in 30 s (were 24 and 43: level 4's 30 / 42 s cycle
+    // is longer than its old 0.7 s)
+    const cycles = (l: number): number => Math.floor((30 - 0.35) / secPer(effectAt("kiln", l).factory!.speed)) + 1; // NUM-2 (was .interval)
     expect(n.map((t) => t.casts)).toEqual([cycles(1), cycles(4)]);
+    expect([cycles(1), cycles(4)]).toEqual([24, 42]); // NUM-2 (was 24, 43): the measured casts, as the cycle says
   });
 
   it("TURRET SPEED: a starting turret fires at TURRET_SPEED[level] of its interval (x0.85 a level); a bought one doesn't change", () => {
-    expect(TURRET_SPEED.slice(1)).toEqual([1, 0.85, 0.72, 0.61]);
+    // NUM-2 (REQ-BFG-047, N1 2.2), an EQUIVALENT REPLACEMENT of the x0.85-a-level interval shares: TURRET SPEED is a whole
+    // step of speed, + roundHalfUp(20% x the level-1 speed) a level (content.ts levelSpeed: SCRAP CANNON 30 / 36 / 42 / 48),
+    // and the battle rounds the speed x the turret's other rates (gear, the long belt) half up once: 30 / that is its interval
+    expect(TURRET_SPEED).toBe(20); // NUM-2 (was TURRET_SPEED.slice(1) = [1, 0.85, 0.72, 0.61], the interval x at levels 1-4)
+    /** NUM-2: a starting turret's interval at TURRET SPEED level `l`, from its level-1 TurretState (its TurretDef's speed s1
+     *  and its other rates, speedRaw / s1). */
+    const at = (t1: TurretState, l: number): number => secPer(Math.max(1, roundHalfUp(levelSpeed(t1.def.speed, l, TURRET_SPEED) * (t1.speedRaw / t1.def.speed))));
     for (const hero of HEROES4) {
       const run = newRun(hero, 5);
-      const base = new Battle(run.build, barge(), SEED).sides[0].turrets.map((t) => t.interval);
+      const ones = new Battle(run.build, barge(), SEED).sides[0].turrets; // NUM-2: level 1's TurretStates (speed and rates)
+      const base = ones.map((t) => t.interval);
       for (const l of [2, 3, 4]) {
         const b: Build = { ...run.build, upgrades: { turret: l } };
         const now = new Battle(b, barge(), SEED).sides[0].turrets.map((t) => t.interval);
         const free = installedTurrets(b).map((s) => !!s.turret.free);
-        now.forEach((x, i) => expect(x, `${hero} L${l} slot ${i}`).toBeCloseTo(free[i] ? base[i] * TURRET_SPEED[l] : base[i], 9));
+        // NUM-2 (was toBeCloseTo(free[i] ? base[i] x TURRET_SPEED[l] : base[i], 9))
+        now.forEach((x, i) => expect(x, `${hero} L${l} slot ${i}`).toBeCloseTo(free[i] ? at(ones[i], l) : base[i], 9));
+        now.forEach((x, i) => { if (free[i]) expect(x, `${hero} L${l} slot ${i}: faster`).toBeLessThan(base[i]); }); // NUM-2
         // the forecast reads the same turrets (deck.ts turretSlots): faster guns rate higher
         expect(rateDeck(b).offense, `${hero} L${l}`).toBeGreaterThanOrEqual(rateDeck(run.build).offense);
       }
@@ -150,9 +168,12 @@ describe("D10: each level's effect, against the sim", () => {
     // a bought turret in the extra slot keeps its interval; a starting turret merged with a bought copy keeps the speed
     const run = newRun("furnace", 5);
     setTurretList(run.build, [{ slot: 0, def: "scrapcannon", uid: 700, stars: 2, free: true }, { slot: 1, def: "bombard", uid: 701 }]);
-    const plain = new Battle(run.build, barge(), SEED).sides[0].turrets.map((t) => t.interval);
+    const plainT = new Battle(run.build, barge(), SEED).sides[0].turrets; // NUM-2: level 1's TurretStates
+    const plain = plainT.map((t) => t.interval);
     const fast = new Battle({ ...run.build, upgrades: { turret: 3 } }, barge(), SEED).sides[0].turrets.map((t) => t.interval);
-    expect(fast[0]).toBeCloseTo(plain[0] * TURRET_SPEED[3], 9);
+    expect(fast[0]).toBeCloseTo(at(plainT[0], 3), 9); // NUM-2 (was plain[0] x TURRET_SPEED[3], x0.72)
+    // NUM-2: the merged ★2 copy's own speed is the step's base (SCRAP CANNON ★2 33: 33 + 2 x roundHalfUp(6.6) = 47 at level 3)
+    expect([plainT[0].def.speed, roundHalfUp(secPer(fast[0]))]).toEqual([ITEMS.scrapcannon.levels![2]!.turret!.speed, levelSpeed(ITEMS.scrapcannon.levels![2]!.turret!.speed, 3, TURRET_SPEED)]);
     expect(fast[1]).toBe(plain[1]);
   });
 
