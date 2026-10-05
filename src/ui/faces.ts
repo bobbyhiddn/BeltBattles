@@ -271,8 +271,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // Battle.roundImpact: a round on a rig wrecks it for the battle; on any other part, a STUN of round.seconds (its stat)
     return rules([{ text: "ITS ROUNDS WRECK RIGS FOR THE FIGHT." }], [], [REMINDER.STUN(rnd(e).seconds)]);
   },
-  // Battle.roundImpact: a frost or chain round STUNs the part it hits (its stat); ★2/★3 HOARFROST's spread is a clause
-  frostbite: (e) => rules([], [], [REMINDER.STUN(rnd(e).seconds)]),
+  // Battle.roundImpact: a frost or chain round STUNs the part it hits (its stat)
+  frostbite: (e) => {
+    // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 2): ★2/★3 HOARFROST is a number, the parts its round's STUN hits: 1 + spread
+    // (Battle.roundImpact: the round also STUNs the `spread` nearest other parts). Was no line, and the clause "★2
+    // HOARFROST: {*STUN} HITS 2 PARTS."; the perk's name shows in the ⓘ LEVELS only (ruling R-1, faceBlocks.ts PERK_INFO_ONLY)
+    const parts = 1 + (rnd(e).spread ?? 0), n = fmtCount(parts);
+    return rules([{ text: `ITS {*STUN} HITS ${n} PART${s(parts)}.` }], [["parts", `${n} PART${s(parts)}`]], [REMINDER.STUN(rnd(e).seconds)]);
+  },
   dragchain: (e) => rules([], [], [REMINDER.STUN(rnd(e).seconds)]),
   mendpress: (e) => {
     // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): ARMOR PRESS's face with HEAL, its stat row ARMOR PRESS's (factoryStats).
@@ -649,12 +655,7 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
     return { text: `ENEMY ${kinds.join(" AND ")} ROUNDS CAN'T {*STUN} ${itsBelts(e)}.`, nums: [] };
   },
   // NUM-3 (R1's STUN fold): the STUN-fold pieces' own STAR-batch perks
-  frostbite: (e) => {
-    const j = rnd(e).spread; // Battle.roundImpact: the round also STUNs the `spread` nearest other parts (★2/★3 HOARFROST)
-    if (!j) return null;
-    const n = fmtCount(1 + j);
-    return { text: `{*STUN} HITS ${n} PARTS.`, nums: [["spread", `${n} PARTS`]] };
-  },
+  // Y1: FROSTBITE FOUNDRY's HOARFROST clause is its face line's part count now (FACES frostbite)
   sabot: (e) => {
     // Battle.roundImpact: ★3 SHRAPNEL: a round on a belt tile or a rig also STUNs the belt tiles either side of that tile (or
     // of the rig's arrow tiles) for SIM.shrapnel s
