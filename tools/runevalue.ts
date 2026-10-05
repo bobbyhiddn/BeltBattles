@@ -120,8 +120,6 @@ const R1B: Record<string, { value: number | null; text: string }> = {
 const NO_R1B = { value: null, text: "none" };
 /** R1b-2 1.5: what a pick should be worth, in points. */
 const TARGET: Record<Rarity, [number, number]> = { common: [3, 5], rare: [6, 10], epic: [10, 16], legendary: [16, 25] };
-/** The units NUM-1 multiplies by 10 (runes.ts header); the others stay. For the N1 column only. */
-const N1_X10: readonly RuneUnit[] = ["dmg", "hull", "plate"];
 /** The run's gold kinds: the bench can't see them (their gold never reaches a battle). */
 const GOLD_KINDS: readonly RuneKind[] = ["dawnGold", "runeTithe", "victorGold"];
 /** The kinds whose amount is a multiplier ("x n", "fires n times"): their gain scales with n - 1. */
@@ -177,7 +175,7 @@ const cell = (c: CI) => `${sg(c.mean)} (${iv(c)})`;
 type Where = "in" | "under" | "over";
 interface Row {
   key: string; index: number; id: string; name: string; tier: Rarity; theme: string; kind: RuneKind;
-  amount: { unit: RuneUnit; n: number }; catalogueN: number; override: boolean; text: string; n1: number;
+  amount: { unit: RuneUnit; n: number }; catalogueN: number; override: boolean; text: string;
   all: CI; days4to10: CI | null; byDay: Record<number, CI>; byHero: Record<string, CI>;
   r1b: { value: number | null; text: string }; target: [number, number]; where: Where; verdict: string;
   proposal: { n: number | null; text: string } | null;
@@ -212,8 +210,10 @@ function propose(kind: RuneKind, n: number, gain: number, tier: Rarity): Row["pr
 
 const effectText = (text: string, n: number, unit: RuneUnit) =>
   text.replace(/\{N\}/g, `${n}${unit === "pct" ? "%" : unit === "sec" ? "s" : ""}`).replace(/\{\*?([A-Z]+)\}/g, "$1"); // SUS-D: sec
+// FLIP-X1 (F-f, REVIEW-SUSD F-f): the amount as it is. runes.ts holds N1 amounts since NUM-1, so the old "N1" column
+// (dmg, hull and plate x10: "20 hull (N1 200)") is gone, from the table and the JSON (Row.n1)
 const amountText = (r: Row) =>
-  `${r.amount.n} ${r.amount.unit}${N1_X10.includes(r.amount.unit) ? ` (N1 ${r.amount.n * 10})` : ""}${r.override ? ` [catalogue ${r.catalogueN}]` : ""}`;
+  `${r.amount.n} ${r.amount.unit}${r.override ? ` [catalogue ${r.catalogueN}]` : ""}`;
 const label = (r: Row) => (r.override ? `${r.name} @${r.amount.n}` : r.name);
 
 interface Meta { rules: string; K: number; KO: number; days: number[]; head: string; bases: { label: string; baseWr: Record<string, number> }[] }
@@ -361,7 +361,7 @@ function bench(): void {
     return {
       key: v.key, index: v.index, id: v.id, name: d.name, tier: d.tier, theme: d.theme, kind: d.kind,
       amount: { unit: d.amount.unit, n: v.n }, catalogueN: d.amount.n, override: v.override,
-      text: effectText(d.text, v.n, d.amount.unit), n1: N1_X10.includes(d.amount.unit) ? v.n * 10 : v.n,
+      text: effectText(d.text, v.n, d.amount.unit),
       all: allCi, days4to10: DAYS_R1B.length ? ci(HEROES.flatMap((h) => gainsR1b[v.key][h])) : null,
       byDay: Object.fromEntries(DAYS.map((day) => [day, ci(byDay[v.key][day])])) as Record<number, CI>,
       byHero: Object.fromEntries(HEROES.map((h) => [h, ci(gains[v.key][h])])) as Record<string, CI>,
