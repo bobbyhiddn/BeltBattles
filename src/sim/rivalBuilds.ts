@@ -176,8 +176,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // on any day), so the least change: the OVERDRIVE on day 6 (was 5), the venom on day 7 (was 6), no DART GUN (was 9)
       // bb-0.8.6 (job PACKS M4): under the packs' caps (ordinary FURNACE: no epic+ before day 7, rare+ 4/5/5/6/7 on days
       // 6-10) the OVERDRIVE on day 7 (was 6), a sifter (common) for the venom (day 7) and the long haul on day 10 (was 9)
+      // FLIP-X2 (REVIEW-NUM3 answer 2; oracle 77e35129477cb4ca): SIFTER dormant, its sifter removed (value -3 g from day 7)
       G(2, "whetstone", 3, 2, 1), G(3, "counterweight", 3, 0), G(3, "brake", 5, 5, 3), M(3, "calibrate", 0),
-      G(3, "temper", 3, 3, 1), M(4, "gatling", 0), G(5, "quench", 3, 1), G(7, "overdrive", 5, 3), G(7, "sifter", 3, 4, 1),
+      G(3, "temper", 3, 3, 1), M(4, "gatling", 0), G(5, "quench", 3, 1), G(7, "overdrive", 5, 3),
       M2(7, "calibrate", 0), G2(7, "brake", 5, 5), G(9, "tollbooth", 5, 1, 3), G(9, "surge", 4, 6, 1), G(10, "longhaul", 5, 4),
     ],
   },
@@ -221,15 +222,16 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   },
   // SHOCK TROOPER: synergy: a GALVANIC COIL on the kiln belt from day 1 (2 stars from day 7) stalls the enemy
   // machinery, a LODESTONE from day 3 hits harder for every stalled machine, and a TESLA core from day 6 arcs to the
-  // nearest machine. Filled with a temper, whetstone, tollbooth, long haul, sifter and surge valve.
+  // nearest machine. Filled with a temper, whetstone, tollbooth, long haul and surge valve.
   sparkfang: {
     hero: "furnace", crates: 0, synergy: ["coil", "lodestone", "tesla"],
     factories: [F("kiln", 4, 6, [4, 5, "L2U3R2U2"])],
     upgrades: [
       // bb-0.8.6 (job PACKS M4): the coil on day 2 (was 1) and the TESLA core on day 7 (was 6): FURNACE's ordinary rare
       // cap is 0 on day 1, its epic cap 0 until day 7
+      // FLIP-X2 (REVIEW-NUM3 answer 2; oracle 77e35129477cb4ca): SIFTER dormant, its sifter removed (value -3 g from day 4)
       G(2, "coil", 3, 1, 1), G(2, "temper", 3, 0, 1), G(3, "lodestone", 5, 1), G(3, "whetstone", 1, 3, 1),
-      G(3, "tollbooth", 5, 2, 3), G(4, "longhaul", 4, 3, 1), G(4, "sifter", 3, 3, 3), G(5, "surge", 1, 5), M(7, "tesla", 0),
+      G(3, "tollbooth", 5, 2, 3), G(4, "longhaul", 4, 3, 1), G(5, "surge", 1, 5), M(7, "tesla", 0),
       // bb-0.8.3 (job BELTS run 4): no DART GUN (was day 9): no ordinary FURNACE turret on any day under the regenerated caps
       G2(7, "coil", 3, 1), G2(8, "temper", 3, 0),
     ],
@@ -297,11 +299,13 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // keeping the warlord's days 1 and 7; a sifter (common) for the counterweight; the good-luck long haul on day 8 (was
       // 3); both coils kept (tests/presets.fusion); and (the ladder: the Hard mean below 0 on days 5-8) the static brush's
       // second star on day 5 at good luck (ordinary: day 9)
+      // FLIP-X2 (REVIEW-NUM3 answer 2; oracle 77e35129477cb4ca): SIFTER dormant, its sifter removed (value -3 g from day 6;
+      // day 4 at good luck)
       G(1, "temper", 5, 0, 3), soon(1, G(2, "coil", 3, 0)), M(2, "scatter", 1), soon(2, G(3, "whetstone", 3, 1, 1)),
       // bb-0.8.3 (job BELTS run 4): the bellows on day 7 at ordinary luck (was 6; the stand-in's day-6 rare cap is 5);
       // soon() keeps the warlord's day 5
       G(3, "staticbrush", 3, 3), G2(4, "coil", 3, 0),
-      soon(4, G(6, "sifter", 7, 0, 1)), soon(5, G(6, "coil", 0, 0)), G(6, "lodestone", 4, 5, 1),
+      soon(5, G(6, "coil", 0, 0)), G(6, "lodestone", 4, 5, 1),
       ...good(G(6, "grease", 4, 7)), soon(5, G(7, "bellows", 7, 1)), soon(7, M(8, "drake", 2)), ...good(G(8, "longhaul", 5, 1)),
       soon(5, G2(9, "staticbrush", 3, 3)),
       ...good(G(10, "venom", 3, 2)), ...good(M2(10, "drake", 2)), ...good(M(10, "flak", 0)),
@@ -326,7 +330,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
   },
   // TRIPLE THREAT: synergy: burn left (a TEMPER on the left belt from day 1, 2 stars from day 6), a LONG HAUL on the
   // right from day 4 (2 stars the same day) and a SPLITTER in the centre from day 5 (an epic: ordinary luck owns none
-  // before day 5), behind a centre whetstone. A mortar core, grease, venom, a tollbooth, a sifter and a sorting arm
+  // before day 5), behind a centre whetstone. A mortar core, grease, venom, a tollbooth and a sorting arm
   // fill in. Good luck: a barbed spool on day 3, an overclocker on day 7 and the whetstone's second star on day 10.
   highspire: {
     hero: "weaver", crates: 0, synergy: ["temper", "splitter", "longhaul"],
@@ -339,8 +343,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // bb-0.8.6 (job PACKS M4): the packs' WEAVER caps (rare+ ordinary 3/4/5 on days 5-7, epic+ ordinary 1, good 4 on day
       // 5): the barbed spool on day 7 at ordinary luck and day 6 at good luck (were 5 and 3), the overclocker on day 8 at
       // ordinary luck (was 7; soon() keeps the warlord's day 7) and the sorting arm at good luck only (still day 9)
+      // FLIP-X2 (REVIEW-NUM3 answer 2; oracle 77e35129477cb4ca): SIFTER dormant, its sifter removed (value -3 g from day 6)
       G(3, "venom", 0, 0), G(4, "longhaul", 7, 3), G(4, "tollbooth", 9, 3, 3), G2(4, "longhaul", 7, 3),
-      soon(5, G(6, "splitter", 3, 4)), G2(6, "temper", 0, 2), G(6, "sifter", 7, 4, 1), soon(6, G(7, "barbed", 2, 0)),
+      soon(5, G(6, "splitter", 3, 4)), G2(6, "temper", 0, 2), soon(6, G(7, "barbed", 2, 0)),
       soon(7, G(8, "overclocker", 6, 5, 1)), G(8, "temper", 5, 0, 3), ...good(G(9, "sorting", 7, 5, 1)), ...good(G(10, "quench", 9, 4)),
       ...good(G2(10, "whetstone", 3, 0)),
     ],
