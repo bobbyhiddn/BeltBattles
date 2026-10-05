@@ -3,6 +3,48 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.8.9: tougher captains, cleaner shop cards
+
+No battle rule changes: the rules stay bb-0.8.7, so 0.8.7, 0.8.8 and 0.8.9 players meet each other's ghosts, and their
+uploads keep playing.
+- **Tougher captains:** the computer captains now buy ARMOR PACKs too, as players do, so the Hard captains stay a
+  fight in the later days.
+- **Owned marker:** a shop card for a piece you already own shows a small owned marker instead of a copy count. The
+  MERGE badge and the BUY+MERGE button still show when a buy merges.
+- **A taller info view:** the info view (ⓘ) is taller, so long card info fits on one page.
+
+## 0.8.8: card faces
+
+No battle rule changes: the rules stay bb-0.8.7, so 0.8.7's ghosts and uploads keep playing, and 0.8.7 and 0.8.8 players
+meet each other's ghosts.
+- **Plain card text:** parts, rigs, turrets and heroes say what they do in a few short words. A number comes with a
+  small icon for what it measures, such as damage, seconds, slugs, belts or gold.
+- **Cleaner cards:** the face you always see shows the stats, then one short line for each ability. The stats sit in
+  their own rows, apart from the abilities. A factory's second stat row shows what its slugs carry, such as BURN or
+  HEAT.
+- **The info button (ⓘ)** on a panel's header opens the details. It shows the level ladder, with each number at every
+  star and your star's number in yellow. It also shows what each star adds, what the next star changes, and what the
+  panel's keywords mean.
+- **No copies-to-merge line:** a card no longer counts the copies you still need for a merge. The MERGE badge and the
+  BUY+MERGE button still show when a buy merges.
+- **Keywords:** BURN, STUN, HEAT, FRAY, PLATE and PAIR each have their own colour and icon, on parts, captains and
+  rune reminders. Tap a keyword on a build-screen panel to read what it means, or hover it with a mouse.
+- **Shop cards** show the piece's main number with its icon.
+- **Tall phones:** the part panel is a little shorter, so your carrier gets more room. Every panel still shows whole.
+
+## 0.8.7: runes
+
+New battle rules: bb-0.8.7. Ghosts and uploads from 0.8.6 stay with that version. You'll start against the same 120
+ghosts 0.8.6 started with, then meet other players' 0.8.7 runs as they come in.
+- **A rune at every dawn:** each day starts with a rune pick, one of three cards on days 1 to 4 and one of two from day
+  5. A rune boosts you for the rest of the run. Take the day's rune before you fight.
+- **57 runes:** 21 common, 20 rare, 11 epic and 5 legendary. Day 1 offers only commons, rarer runes come up as the run
+  goes on, and legendaries from day 5. You never get the same rune twice.
+- **The rune bar:** the runes you hold sit in a bar at the top of the build screen. Tap one to read what it does.
+- **Ghosts carry their runes:** your ghosts fight with the runes you held, and the ghosts you meet fight with theirs.
+  The server checks that each rune was one your run was offered. The starting ghosts and the caravan's stand-ins hold
+  no runes yet.
+
 ## 0.8.6: belt and armor packs, and your name on your ghosts
 
 New battle rules: bb-0.8.6. You'll fight the new rules' ghosts: a fresh pool of 120 at first, then other players'
