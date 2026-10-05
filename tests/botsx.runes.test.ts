@@ -40,7 +40,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
  * (120 pool codes through four readers, the loader's standInPool / standInPar / standInPick, and the 120 v1.1 fixture
  * codes through five decoders), byte for byte, key order included. The rune-less codes below were written there too.
  */
-const POOL_DIGEST = "c51140d65a61f1ebfa7291edb54b95f6bad08a95f7a40a53a920db1fac06a92e";
+// FLIP-X2 step 4.1: the stand-in pool is regenerated (94e0cbf; every deck holds its day's runes) and read as stored
+// (BUNDLED_POOL_HULL_SCALE deleted, 9006765), so POOL_DIGEST is the regenerated pool's reads, taken on flipx2 4c50574 (was
+// c51140d65a61f1ebfa7291edb54b95f6bad08a95f7a40a53a920db1fac06a92e on bx). V11_DIGEST (the v1.1 fixture) is unchanged.
+const POOL_DIGEST = "ef36014376cc240c66c424d5e1450efa94e3a830c77cdd0829f305a0c64128e6";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";
@@ -107,17 +110,19 @@ const thrown = (f: () => unknown): string => { try { f(); } catch (e) { return (
 // ---------------------------------------------------------------- 1. the codecs' runes word
 
 describe("BOTS-X the stand-in codecs carry Build.runes (RUNES-2a 3 step 2)", () => {
-  it("every stored stand-in decodes exactly as on bx (pinned digests over the whole pool and the v1.1 fixture), with no runes key, and re-encodes byte for byte", () => {
+  it("every stored stand-in decodes exactly as pinned (digests over the whole regenerated pool and the v1.1 fixture), holding its day's runes as the last key (the v1.1 fixture none), and re-encodes byte for byte", () => {
     const pool = poolReads(), v11 = v11Reads();
     expect(digest(pool)).toBe(POOL_DIGEST);
     expect(digest(v11)).toBe(V11_DIGEST);
-    expect(JSON.stringify(pool)).not.toContain('"runes"');
+    // FLIP-X2: the regenerated pool's decks hold their runes (was: no "runes" key anywhere, the bx pool was rune-less)
+    expect(JSON.stringify(pool)).toContain('"runes"');
     expect(JSON.stringify(v11)).not.toContain('"runes"');
     const codes = storedCodes();
     expect(codes).toHaveLength(120);
     for (const { hero, day, code } of codes) {
       const raw = loader.decodeStarredRaw(hero, code), h = harness.decodeStarred(hero, code);
-      expect("runes" in raw || "runes" in h, `${hero} d${day}`).toBe(false);
+      // FLIP-X2: each stored deck holds exactly its day's runes, as the last key, in both codecs (was: no runes key)
+      expect([raw.runes?.length, h.runes?.length, lastKey(raw), lastKey(h)], `${hero} d${day}`).toEqual([day, day, "runes", "runes"]);
       expect(loader.encodeStarred(raw), `${hero} d${day}`).toBe(code);
       expect(harness.encodeStarred(h), `${hero} d${day}`).toBe(code);
     }
@@ -134,7 +139,10 @@ describe("BOTS-X the stand-in codecs carry Build.runes (RUNES-2a 3 step 2)", () 
     expect("runes" in loader.decodeStandIn("furnace", START_FURNACE_V1)).toBe(false);
     expect(loader.encodeStarred(heroStartBuild("weaver", 3))).toBe(START_WEAVER);
     expect(harness.encodeStarred(heroStartBuild("weaver", 3))).toBe(START_WEAVER);
-    expect(loader.encodeStarred(loader.standInPar("weaver", 7))).toBe(PAR_WEAVER_7);
+    // FLIP-X2: bx's par deck (weaver day 7) is no longer in the regenerated pool, so its pinned code is decoded and
+    // re-encoded by both codecs (was loader.encodeStarred(loader.standInPar("weaver", 7)))
+    expect([loader.encodeStarred(loader.decodeStarredRaw("weaver", PAR_WEAVER_7)), harness.encodeStarred(harness.decodeStarred("weaver", PAR_WEAVER_7))]).toEqual([PAR_WEAVER_7, PAR_WEAVER_7]);
+    expect("runes" in loader.decodeStarredRaw("weaver", PAR_WEAVER_7)).toBe(false);
   });
 
   it("a deck with runes round-trips through both codecs (turrets, a join, stars and levels too) and the v1 codec: same runes in pick order, the last key, everything else the same", () => {
@@ -158,7 +166,11 @@ describe("BOTS-X the stand-in codecs carry Build.runes (RUNES-2a 3 step 2)", () 
     // every stored deck of the pool with three runes (a HULL rune among them; HULL stays in hullBonus as written)
     const three = rq("iron_skin", "war_edge", "tar_barrel");
     let n = 0;
-    for (const { hero, day, code: stored } of storedCodes()) {
+    for (const { hero, day, code: held } of storedCodes()) {
+      // FLIP-X2: the stored deck without its own runes word (the regenerated pool's decks hold their runes), so the word
+      // added is the only one (was the stored code itself)
+      const { runes: _own, ...bare } = loader.decodeStarredRaw(hero, held);
+      const stored = loader.encodeStarred(bare as Build);
       const b: Build = { ...loader.decodeStarredRaw(hero, stored), runes: three };
       const c = loader.encodeStarred(b);
       expect(c, `${hero} d${day}`).toBe(withWord(stored, "r:iron_skin,war_edge,tar_barrel"));
@@ -257,15 +269,17 @@ describe("BOTS-X caravanCand costs the bought deck, as caravanDeck does (RUNES-2
 // ---------------------------------------------------------------- 3. CAPTAIN_RUNES and rivalBuild
 
 describe("BOTS-X CAPTAIN_RUNES and rivalBuild (RUNES-2a 3 step 5's code)", () => {
-  it("CAPTAIN_RUNES is empty, so every captain's rivalBuild(id, d), d = 1..10, is exactly its plan's build", () => {
-    expect(CAPTAIN_RUNES).toEqual({});
+  it("CAPTAIN_RUNES holds every captain's 10 runes (step 4.3), so every captain's rivalBuild(id, d), d = 1..10, is its plan's build holding the first d (captainRunesOn)", () => {
+    // FLIP-X2 step 4.3 (b7ab24a): the table is filled (was: CAPTAIN_RUNES {} and rivalBuild exactly the plan's build)
+    expect(Object.keys(CAPTAIN_RUNES).sort()).toEqual([...RIVAL_IDS].sort());
     let n = 0;
     for (const id of RIVAL_IDS) {
+      expect(CAPTAIN_RUNES[id], id).toHaveLength(10);
       for (let d = 1; d <= 10; d++) {
         const b = rivalBuild(id, d), plan = rivalLoadout(id, d).build;
-        expect(b, `${id} d${d}`).toEqual(plan);
-        expect(JSON.stringify(b), `${id} d${d}`).toBe(JSON.stringify(plan));
-        expect("runes" in b).toBe(false);
+        expect(b, `${id} d${d}`).toEqual(captainRunesOn(plan, CAPTAIN_RUNES[id], d));
+        expect(b.runes?.map((q) => q.id), `${id} d${d}`).toEqual(CAPTAIN_RUNES[id]!.slice(0, d));
+        expect(lastKey(b), `${id} d${d}`).toBe("runes");
         n++;
       }
     }
@@ -280,10 +294,15 @@ describe("BOTS-X CAPTAIN_RUNES and rivalBuild (RUNES-2a 3 step 5's code)", () =>
     const sample = HEROES4.map((hero) => RIVAL_IDS.find((id) => RIVALS[id].hero === hero)!);
     expect(new Set(sample.map((id) => RIVALS[id].hero)).size).toBe(4);
     const table = CAPTAIN_RUNES as Partial<Record<RivalId, readonly string[]>>;
+    const before = JSON.stringify(CAPTAIN_RUNES);
     for (const id of sample) {
       const hero = RIVALS[id].hero, seed = hashSeed("captain-runes", id);
       const list = botRuneList(seed, hero, (d) => rivalBuild(id, d), 10);
       expect(list, id).toHaveLength(10);
+      // FLIP-X2: the pinned list IS this list (step 4.3 generated it so); the real list is put back below (was: deleted,
+      // the table being empty)
+      const real = table[id];
+      expect(list, id).toEqual(real);
       table[id] = list; // rivalBuild reads CAPTAIN_RUNES[id]; put back below
       try {
         for (let d = 1; d <= 10; d++) {
@@ -299,11 +318,11 @@ describe("BOTS-X CAPTAIN_RUNES and rivalBuild (RUNES-2a 3 step 5's code)", () =>
           expect(b, at).toEqual(captainRunesOn(plan, list, d));
         }
       } finally {
-        delete table[id];
+        table[id] = real;
       }
-      expect(rivalBuild(id, 10)).toEqual(rivalLoadout(id, 10).build);
+      expect(rivalBuild(id, 10)).toEqual(captainRunesOn(rivalLoadout(id, 10).build, real, 10)); // FLIP-X2: was the bare plan
     }
-    expect(CAPTAIN_RUNES).toEqual({});
+    expect(JSON.stringify(CAPTAIN_RUNES)).toBe(before); // FLIP-X2: the table as it was (was toEqual({}))
     // HULL and BELT runes on the build by day (a hand-made list: SPARE HULL taken on day 3)
     const plan = rivalLoadout("grimhold", 6).build, list = ["iron_skin", "tar_barrel", "spare_hull", "war_edge"];
     const hull = (d: number) => captainRunesOn(plan, list, d).hullBonus - plan.hullBonus, belt = (d: number) => captainRunesOn(plan, list, d).beltCap - plan.beltCap;
