@@ -45,8 +45,8 @@ function pieceTexts(def: string, s: number): string[] {
 
 // ---------------------------------------------------------------------------------------------- the words
 describe("Y5 words: ONLINE retires; QUICK LATCH says START; no new keyword", () => {
-  it("STAR_RETIRED is HARASSMENT and ONLINE; on, no ONLINE row, entry, alias or tap (off: the row and its aliases as before)", () => {
-    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE"]);
+  it("STAR_RETIRED is HARASSMENT and ONLINE (Y6: and POISON); on, no ONLINE row, entry, alias or tap (off: the row and its aliases as before)", () => {
+    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); // Y6 (BRIEF-Y6): was ["HARASSMENT", "ONLINE"]
     on(() => {
       expect(glossaryRows().map((r) => r.word)).not.toContain("ONLINE");
       for (const w of ["ONLINE", "COME ONLINE", "COMES ONLINE"]) expect(glossaryEntry(w), w).toBeUndefined();

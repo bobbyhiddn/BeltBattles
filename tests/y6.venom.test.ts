@@ -14,8 +14,11 @@ import { BURN_DPS, BURN_TIME, CELL, ITEMS, withStarRules } from "../src/sim/cont
 import type { Build } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
 import { boostable, chargeable, doubles, overclocked } from "../src/sim/overclock";
-import { STARS, on, payload, probe } from "./y3.helpers";
+import { STARS, lines, levels, next, on, oneLine, payload, probe, px } from "./y3.helpers";
 import { barge, bench, SEED } from "./arsenal.bench";
+import { faceAt, hasFace, Y6_PIECES } from "../src/ui/faces";
+import { perkInfoOnly } from "../src/screens/build/faceBlocks";
+import { shopChip } from "../src/ui/chips";
 
 const PLUS = [3, 6, 9] as const; // DESIGN-Y row 48's ladder: the face's numbers, the sim's (no rounding)
 
@@ -227,5 +230,31 @@ describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POIS
     expect(on(() => STARS.map((s) => { const e = effectAt("venom", s).gate!; return [boostable(e), chargeable(e), doubles(e)]; })))
       .toEqual(STARS.map(() => [true, true, true]));
     expect(STARS.map((s) => boostable(effectAt("venom", s).gate!))).toEqual([true, true, true]); // off: its poison, as before
+  });
+});
+
+describe("Y6 row 48: VENOM DRIP's face and ladder (DESIGN-Y: HIT: ITS [BURN]BURN LASTS +3[SEC]., 133 px; +3/+6/+9[SEC])", () => {
+  it("face: one line HIT: ITS {*BURN} LASTS +3/+6/+9{SEC}. (133 px at every star), BURN's reminder; off, no face (its RULES text)", () => {
+    expect(Y6_PIECES).toEqual(["venom"]);
+    oneLine("venom"); // one line in the band, no clause, no caveat, no perk on the face; every ⓘ line in the band
+    expect(lines("venom")).toEqual(PLUS.map((n) => [`HIT: ITS {*BURN} LASTS +${n}{SEC}.`]));
+    expect(lines("venom").map((l) => px(l[0]))).toEqual([133, 133, 133]);
+    expect(on(() => STARS.map((s) => faceAt("venom", s)!.reminders))).toEqual(STARS.map(() => ["EACH {*BURN}: 10 HULL DAMAGE A SEC FOR 3{SEC}."]));
+    for (const s of STARS) expect(on(() => JSON.stringify(faceAt("venom", s)))).not.toMatch(/POISON/);
+    expect([hasFace("venom"), on(() => hasFace("venom")), faceAt("venom", 1)]).toEqual([false, true, null]);
+    // no perk names (R-1: nothing to move to the ⓘ view); it is on the switch's list all the same
+    expect([perkInfoOnly("venom"), on(() => perkInfoOnly("venom"))]).toEqual([false, true]);
+  });
+
+  it("ⓘ LEVELS: the ladder +3/+6/+9{SEC} (53 px) and NEXT★ (63 px); off, the legacy NEXT STAR: line", () => {
+    expect(levels("venom", 1)).toEqual(["[+3]/+6/+9{SEC}", next(2, "+6{SEC}")]);
+    expect(levels("venom", 2)).toEqual(["+3/[+6]/+9{SEC}", next(3, "+9{SEC}")]);
+    expect(levels("venom", 3)).toEqual(["+3/+6/[+9]{SEC}"]);
+    expect([px("+3/+6/+9{SEC}"), px(next(2, "+6{SEC}"))]).toEqual([53, 63]);
+    expect(levels("venom", 1, false)).toEqual(["NEXT STAR: ADDS 4 POISON."]);
+  });
+
+  it("the shop card: no chip (its one number is a {SEC}, which the chip rule never shows), so it keeps its card line", () => {
+    expect([shopChip("venom"), on(() => shopChip("venom"))]).toEqual([null, null]);
   });
 });

@@ -145,8 +145,22 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  *   about a quarter of what such a hull takes, so its charge falls from 1.25 to 1 for each damage taken: 1 / 1.25 = 0.8);
  *   elsewhere as before. Its cap was never rated (NOMINAL), so its going changes nothing here.
  * - LONGCASE and FINISHER RAM change no rule: rated as before.
+ * Y6 (release Y; DESIGN-Y section 4.1), also read only with the switch on (VENOM's switch-on def is burnPlus's one source);
+ * no new constant:
+ * - VENOM DRIP: EQ.poison's term becomes a burnPlus term (burnPlusGain): its extra BURN seconds x BURN_DPS x the BURN stacks
+ *   a slug of its belt carries (the walk's estimate.burn, after any QUENCH), on each payload it hits. With no BURN on the
+ *   belt it rates as nothing. An OVERCLOCKER's charge on it counts as on any rig whose number doubling changes (chargeGains:
+ *   overclock.ts doubles burnPlus). The core's and the runes' BURN (DRAKE NOZZLE, EMBER SHOT, HOT SEAM) and SLOW EMBERS'
+ *   % are not counted here, as the walk's BURN term counts none of them.
  */
 export const STAR_EQ = { perStun: 0.75, tollFactory: 1.25, capacitorPaid: 5, spallPlated: 0.8 } as const;
+
+/** Y6 (release Y; DESIGN-Y section 4.1): with the star switch on, what a VENOM DRIP hit of `burnPlus` seconds adds to each
+ *  payload of a belt whose slugs carry `burn` BURN stacks (deck.ts walkRoute's estimate): each stack lasts burnPlus s
+ *  longer at BURN_DPS a second (Battle.impact). No BURN, nothing. */
+export function burnPlusGain(burnPlus: number, burn: number): number {
+  return burnPlus * BURN_DPS * burn;
+}
 
 /** Y5 (release Y; DESIGN-Y row 42): with the star switch on, a CAPACITOR BANK's charge past the base's cap (capacitorPaid
  *  seconds), for each load a turret fires: a gun whose loads come `gap` s apart, each fired alone after its `loadTime`,
@@ -250,14 +264,17 @@ interface Feed {
 }
 
 /** Per payload, the rig effects the walk leaves out (EQ), and the hull a RIVETER repairs per passing payload.
- *  `fight`: the fight's length; `time`: the route's first payload's ride to its turret (walkRoute's estimate). */
-function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time: number): { eq: number; repair: number; heal: number } {
+ *  `fight`: the fight's length; `time`: the route's first payload's ride to its turret (walkRoute's estimate). Y6: `burn`,
+ *  the BURN stacks its slugs carry (walkRoute's estimate), read only by a switch-on VENOM DRIP (burnPlusGain). */
+function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time: number, burn = 0): { eq: number; repair: number; heal: number } {
   let eq = 0, repair = 0, heal = 0; // BOTS-X: `heal`, RIVETER's part of `repair` (read only with the switch on)
   for (const tile of hits[ri] ?? []) {
     for (const h of tile) {
       const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate;
       if (!e) continue;
       if (e.poison) eq += EQ.poison * e.poison;
+      // Y6 (release Y; DESIGN-Y 4.1): with the star switch on VENOM DRIP holds burnPlus in place of its poison (STAR_EQ's note)
+      if (e.burnPlus) eq += burnPlusGain(e.burnPlus, burn);
       if (e.fray) eq += EQ.fray * e.fray;
       if (e.staticTime) eq += EQ.static * e.staticTime;
       // Y2 (release Y): with the star switch on, LODESTONE by your STUN pieces (STAR_EQ.perStun)
@@ -420,7 +437,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const low = walk.timeline.some((row) => row.hits.some((th) => th.breaker)) && platedDeck(b)
       ? walkRoute(b, ri, hits, { unplated: true }).estimate : undefined;
     const dmg = low ? low.dmg + breakerShare * (est.dmg - low.dmg) : est.dmg;
-    const x = hitExtras(b, hits, ri, fight, est.time);
+    const x = hitExtras(b, hits, ri, fight, est.time, est.burn); // Y6: est.burn, read only by a switch-on VENOM DRIP
     // 0.8.0 P1: a TWIN MOULD casts onto each of its belts at once (each belt a slug a cast, as a CRUCIBLE pours); a stoked
     // factory works x (1 + stoke); an ARMOR PRESS with a belt to a turret plates every `every` s (counted once).
     // bb-0.8.3 (REQ-BFG-042 D4): beltShare, the pour size included

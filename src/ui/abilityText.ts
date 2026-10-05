@@ -271,6 +271,13 @@ export const S = {
  *  apart from S, whose sentences are the base's whatever the switch). */
 export const S_STARTS = "RIGS NORMALLY START WORKING SOON AFTER A BATTLE STARTS, A LITTLE LATER FOR EACH RIG BEFORE THEM ON THEIR BELT.";
 
+/** Y6 (release Y; DESIGN-Y section 4.1; BRIEF-Y6 words): S.plating without POISON, for the PLATE texts with the star switch
+ *  on (POISON is retired: glossary.ts STAR_RETIRED; no switch-on payload or hull holds any). Kept apart from S, as S_STARTS
+ *  is; `plating()` picks it. */
+export const S_PLATING = `PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO ${PLATE_CAP} PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.`;
+/** Y6: PLATING's sentence as the switch has it (S_PLATING on; S.plating off, as before). */
+const plating = (): string => (starRules() ? S_PLATING : S.plating);
+
 /** 0.8.0 P1: a small count as a word ("TWO PLAIN SLUGS"), as DESIGN-wave3.md 3.3 writes TWIN MOULD's. */
 const COUNT = ["NO", "ONE", "TWO", "THREE", "FOUR", "FIVE"];
 const countWord = (n: number): string => COUNT[n] ?? String(n);
@@ -429,7 +436,8 @@ const ENTRIES: Record<string, Entry> = {
   splitter: {
     text: (e) => [
       `SPLITS EACH PAYLOAD INTO ${g(e).split!.copies} COPIES AT ${percent(g(e).split!.mult)} DAMAGE.`,
-      "EACH COPY KEEPS ALL OF THE BURN, POISON AND SHOCK.",
+      // Y6 (release Y; DESIGN-Y 4.1): with the star switch on no POISON (retired); a copy keeps VENOM's BURN seconds too
+      starRules() ? "EACH COPY KEEPS ALL OF THE BURN AND SHOCK." : "EACH COPY KEEPS ALL OF THE BURN, POISON AND SHOCK.",
     ],
     gist: (e) => `${g(e).split!.copies} COPIES AT ${percent(g(e).split!.mult)} DAMAGE`,
     card: (e) => `SPLITS INTO ${g(e).split!.copies} AT ${percent(g(e).split!.mult)}`,
@@ -531,8 +539,13 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `${damage(g(e).heat!)} A SECOND RIDDEN`,
   },
   venom: {
-    text: (e) => [`ADDS ${g(e).poison} POISON TO EACH PAYLOAD IT HITS.`, S.poison, S.poisonTime],
-    gist: (e) => `ADDS ${g(e).poison} POISON`,
+    // Battle.impact: the payload's poison joins the enemy hull's pool. Y6 (release Y; DESIGN-Y section 4.1): with the star
+    // switch on it gives each payload it hits burnPlus seconds instead: each BURN stack of that payload's hit lasts BURN_TIME +
+    // burnPlus (then SLOW EMBERS' %); it adds no BURN, so alone it deals nothing; no POISON (STAR_RETIRED). The card is the gist
+    text: (e) => (starRules()
+      ? [`EACH BURN ON THE PAYLOADS IT HITS LASTS ${seconds(g(e).burnPlus!)} LONGER.`, "IT ADDS NO BURN OF ITS OWN.", S.burn]
+      : [`ADDS ${g(e).poison} POISON TO EACH PAYLOAD IT HITS.`, S.poison, S.poisonTime]),
+    gist: (e) => (starRules() ? `BURN LASTS ${seconds(g(e).burnPlus!)} LONGER` : `ADDS ${g(e).poison} POISON`),
   },
   overclocker: {
     // Battle.makeSide: each OVERCLOCKER boosts the first later boostable rig on its belt (overclock.ts boostable);
@@ -1049,7 +1062,8 @@ const ENTRIES: Record<string, Entry> = {
   compound: {
     text: (e, x) => [
       `PACKS 2 LOADS INTO ONE SHELL THAT DEALS ${percent(c(e, x).mult!)} OF THEIR DAMAGE.`,
-      "BOTH LOADS' BURN, POISON AND SHOCK RIDE ALONG.",
+      // Y6 (release Y; DESIGN-Y 4.1): with the star switch on no POISON (retired); the shell keeps both loads' BURN seconds
+      starRules() ? "BOTH LOADS' BURN AND SHOCK RIDE ALONG." : "BOTH LOADS' BURN, POISON AND SHOCK RIDE ALONG.",
       `A LONE LOAD FIRES AFTER ${seconds(c(e, x).hold!)}.`,
     ],
     gist: (e, x) => `ONE SHELL AT ${percent(c(e, x).mult!)}`,
@@ -1175,7 +1189,7 @@ const ENTRIES: Record<string, Entry> = {
   // whatever the switch (content.ts WAVE3_LIVE); nothing shows it while wave 3 is dormant.
   plateroller: {
     // Battle.applyHit (tier 1): addPlate(s, plate) for each payload it hits (E1)
-    text: (e) => [`ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`, S.plating],
+    text: (e) => [`ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`, plating()], // Y6: plating()
     gist: (e) => `ROLLS ${fmtDmg(g(e).plate!)} PLATING FOR EACH PAYLOAD`,
     card: () => "PLATES YOUR HULL AS SLUGS PASS",
   },
@@ -1261,7 +1275,7 @@ const ENTRIES: Record<string, Entry> = {
     // Y; DESIGN-Y row 45): with the star switch on its own plating is gone (no plate): a pure PLATE payoff
     text: (e) => (starRules() ? [
       `WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH PAYLOAD IT HITS GAINS ${damage(g(e).plated!.flat)}.`,
-      S.plating,
+      S_PLATING, // Y6: the switch is on here
     ] : [
       `ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`,
       `WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS ${damage(g(e).plated!.flat)}.`,
@@ -1299,7 +1313,7 @@ const ENTRIES: Record<string, Entry> = {
       return [
         `PRESSES ${fmtDmg(fs.plate!.amount)} PLATING ONTO YOUR HULL ${every(fs.plate!.every)}, AND STAMPS ${fs.base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${rate(fs.speed)}.`,
         "IT NEEDS A BELT TO A TURRET TO WORK.",
-        S.plating,
+        plating(), // Y6: plating()
       ];
     },
     gist: (e) => `${fmtDmg(f(e).plate!.amount)} PLATING ${every(f(e).plate!.every)}, A SLUG ${rate(f(e).speed)}`,
@@ -1311,7 +1325,7 @@ const ENTRIES: Record<string, Entry> = {
     // Y4 (release Y; DESIGN-Y row 38): with the star switch on the flat folds into the share (no anvilFlat): its share of
     // your plating alone, as damage
     text: (e, x) => (starRules()
-      ? [`EACH SHOT DEALS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL AS MORE DAMAGE.`, S.plating]
+      ? [`EACH SHOT DEALS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL AS MORE DAMAGE.`, S_PLATING] // Y6: on here
       : [`EACH SHOT DEALS ${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL.`, S.plating]),
     gist: (e, x) => (starRules() ? `${percent(c(e, x).perPlate!)} OF YOUR PLATING AS DAMAGE`
       : `${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF YOUR PLATING`),
@@ -1369,7 +1383,7 @@ const ENTRIES: Record<string, Entry> = {
       starRules() ? `EACH PAIR THIS TURRET TAKES ROLLS ${fmtDmg(m(e).seam!.pair)} PLATING ONTO YOUR HULL.`
         : `EACH PAIR THIS TURRET TAKES ROLLS ${fmtDmg(m(e).seam!.pair)} PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS ${fmtDmg(m(e).seam!.lone)}.`,
       S.pair,
-      S.plating,
+      plating(), // Y6: plating()
     ],
     gist: (e) => (starRules() ? `${fmtDmg(m(e).seam!.pair)} PLATING A PAIR` : `${fmtDmg(m(e).seam!.pair)} PLATING A PAIR, ${fmtDmg(m(e).seam!.lone)} FOR ANY OTHER LOAD`),
     card: () => "PAIRS PLATE YOUR HULL",
@@ -1391,8 +1405,10 @@ const ENTRIES: Record<string, Entry> = {
       `YOUR HULL GAINS ${countWord(m(e).shield!.amount)} ${SW.shield} ${every(m(e).shield!.every)}, UP TO ${SHIELD_CAP}.`,
       // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one impact's damage; that hit's BURN, FRAY, STUN and poison still land
       // (battle.ts impact()), and BURN, poison and the wind deal their damage past it
-      `EACH ${SW.shield} BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY, STUN AND POISON STILL LAND.`,
-      "BURN, POISON AND THE DARK WIND DEAL THEIR DAMAGE PAST IT.",
+      // Y6 (release Y; DESIGN-Y 4.1): with the star switch on no POISON (retired: no switch-on hit or hull carries any)
+      starRules() ? `EACH ${SW.shield} BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY AND STUN STILL LAND.`
+        : `EACH ${SW.shield} BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY, STUN AND POISON STILL LAND.`,
+      starRules() ? "BURN AND THE DARK WIND DEAL THEIR DAMAGE PAST IT." : "BURN, POISON AND THE DARK WIND DEAL THEIR DAMAGE PAST IT.",
       "A STUN ON ITS TURRET PAUSES IT.", // NUM-4 (REVIEW-NUM3 F2): one word for one stop (was "A STALL OR FREEZE")
     ],
     gist: (e) => `${countWord(m(e).shield!.amount)} ${SW.shield} ${every(m(e).shield!.every)}`,
@@ -1554,6 +1570,8 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
     if (e.plated && !e.plate) return `${name} +${damage(e.plated.flat)} AT ${e.plated.min} PLATING`;
     // Y5 (DESIGN-Y row 46): POWDER KEG re-arms (Battle.kegTick), with no BURN
     if (e.keg) return `${name} +${damage(e.keg.flat)} EVERY ${fmtSec(e.keg.fuse)} SEC`;
+    // Y6 (DESIGN-Y 4.1): VENOM DRIP lengthens the slug's BURN (Battle.impact), no POISON
+    if (e.burnPlus) return `${name}: ITS BURN LASTS +${fmtSec(e.burnPlus)} SEC`;
   }
   if (e.speed !== undefined || e.pulse) {
     if (belt === "locked") return `${name} +${damage(h.flat ?? 0)} (LOCKED)`;

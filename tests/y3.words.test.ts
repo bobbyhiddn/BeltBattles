@@ -28,9 +28,9 @@ import { item, withItem } from "./wave3.helpers";
 const GONE = /UP TO \d+ BURN|UP TO \d+ HITS|MAX \d+ RIGS|MAX \d+ \{?FRAY|HOLD \d+ FRAY|ELSE|NEVER OUTRUN|CAN'T DOUBLE|THAT CAN BE DOUBLED|SIFTER|SURGE \d|TIMES AS FAST|PULSES ITS BELTS|SPEEDS UP|LETS GO GAINS|TWICE AS HARD|ONLINE|TO EACH PAYLOAD IT HITS, (OR|AND)|UP TO \d+ OF ITS BURN|ANY MORE BURN STAYS|NO PLATING TO TAKE|RAZOR WIRE:|HOT SHOE:|HOT START:|FOR \d+\{SEC\}, \+/;
 
 describe("Y3 words: no new keyword; ONLINE stays (KEG, QUICK LATCH; Y5: it retires); MATCHED is a row", () => {
-  it("on, the glossary is Y2's: only HARASSMENT retires (Y5: and ONLINE); MATCHED stays, and no keyword joins", () => {
-    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE"]); // Y5 (ruling 882ecc77): was ["HARASSMENT"]
-    expect(on(() => glossaryRows().map((r) => r.word))).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE")); // Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
+  it("on, the glossary is Y2's: only HARASSMENT retires (Y5: and ONLINE; Y6: and POISON); MATCHED stays, and no keyword joins", () => {
+    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); // Y6 (BRIEF-Y6): was ["HARASSMENT", "ONLINE"]; Y5 (ruling 882ecc77): was ["HARASSMENT"]
+    expect(on(() => glossaryRows().map((r) => r.word))).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE" && w !== "POISON")); // Y6 (BRIEF-Y6): was .filter((w) => w !== "HARASSMENT" && w !== "ONLINE"); Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
     expect(on(() => glossaryEntry("ONLINE"))).toBeUndefined(); // Y5 (ruling 882ecc77): was ?.word).toBe("ONLINE")
     expect(on(() => glossaryEntry("MATCHED BELT"))?.word).toBe("MATCHED");
     expect(on(() => glossaryRows().filter((r) => r.kw).map((r) => r.word))).toEqual(GLOSSARY.filter((r) => r.kw).map((r) => r.word));

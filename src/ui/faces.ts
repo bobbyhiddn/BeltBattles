@@ -797,6 +797,14 @@ export const Y5_PIECES: readonly string[] = [
   "counterweight", "capacitor", "longcase", "ram", "shieldwall", "keg", "spallcatcher",
 ];
 
+/**
+ * Y6 (release Y; REQ-BFG-070, REQ-BFG-046; DESIGN-Y section 3 row 48 and section 4.1, R1's R2; ruling R-2): VENOM DRIP, a
+ * BURN-length engine. With the star switch on it gets its first face, one ability line (its RULES sentences and POISON gone:
+ * glossary.ts STAR_RETIRED), its ★2/★3 change a number on its ⓘ ladder; it has no perk names (ruling R-1: faceBlocks.ts
+ * perkInfoOnly reads this list as it reads Y2_PIECES .. Y5_PIECES). Off, it keeps today's text.
+ */
+export const Y6_PIECES: readonly string[] = ["venom"];
+
 /** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
  *  (LODESTONE, BRACE FRAME); the other seven keep today's line, every number from the switch's data. */
 const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
@@ -1006,6 +1014,14 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // twice), on this turret's next shot, no cap. Today's line; its cap's number (NEXT★'s MAX) and its caveat go
     const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
     return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
+  },
+  // ---- Y6 (DESIGN-Y section 3 row 48 and section 4.1, R1's R2)
+  venom: (e) => {
+    // DESIGN-Y row 48: Battle.applyHit gives each slug it hits burnPlus seconds; Battle.impact: each BURN stack of that slug's
+    // hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %). It adds no BURN of its own. Was the RULES text "ADDS 2 POISON TO
+    // EACH PAYLOAD IT HITS." with POISON's two sentences (its pool, its clock)
+    const t = fmtSec(gt(e).burnPlus!);
+    return rules([hit(`ITS {*BURN} LASTS +${t}{SEC}.`)], [["plus", `+${t}{SEC}`]], [REMINDER.BURN()]);
   },
 };
 

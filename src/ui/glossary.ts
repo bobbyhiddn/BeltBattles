@@ -169,8 +169,14 @@ export function glossaryRows(): GlossaryRow[] {
  * do since Y3; tests/y5.words sweeps every switch-on text for it. Two ONLINEs are not this word and stay: the battle
  * plate's network tag (session.ts SOURCE_ONLINE, "ONLINE GHOST") and content.ts's catalogue descs, which no panel draws for
  * a piece with ability text. No word joins.
+ * Y6 (release Y; DESIGN-Y section 4.1, R1's R2; REVIEW-STARD rule 6; BRIEF-Y6 words): POISON retires (its alias POISONED
+ * with it). With the switch on VENOM DRIP lengthens BURN instead (no def holds poison, so no hull pool, tick or event), and
+ * no text names it: VENOM's texts say BURN's seconds (abilityText.ts venom, faces.ts STAR_FACES), the PLATE sentences drop
+ * "AND POISON" (abilityText.ts S_PLATING), SPLITTER's tap (STAR_TAP_NOTES), SPLITTER's, COMPOUND BREECH's and WARD BELL's
+ * sentences and the FORGE family's line (families.ts) drop it; tests/y6.words sweeps every switch-on text with a plain
+ * /\bPOISON\b/. The POISON colour (richText.ts) and VENOM's catalogue desc stay for the off path. No word joins.
  */
-export const STAR_RETIRED: readonly string[] = ["HARASSMENT", "ONLINE"];
+export const STAR_RETIRED: readonly string[] = ["HARASSMENT", "ONLINE", "POISON"];
 /** Y2: is `r` a row the star switch retires, while it is on? */
 const retired = (r: GlossaryRow): boolean => starRules() && STAR_RETIRED.includes(r.word);
 
@@ -306,12 +312,16 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
  */
 export const STAR_TAP_NOTES: Readonly<Record<string, TapNote>> = {
   tesla: { word: "SHOT", text: (e, x) => `SHOT: EACH ARC DEALS ${fmtPct(core(e, x).share!)} OF THE SHOT'S {DMG}.` },
+  // Y6 (release Y; DESIGN-Y 4.1): with the switch on POISON is retired, so SPLITTER's tap (TAP_NOTES') names the two a copy
+  // keeps (Battle.applyHit's spread: its BURN, with VENOM's seconds, and its STUN)
+  splitter: { word: "HIT", text: () => "HIT: EACH COPY KEEPS THE SLUG'S {*BURN} AND {*STUN}." },
 };
 
 /** The tap note of piece `def` for `word` (a trigger label's word or a rule's word), else undefined. Y4: with the star
- *  switch on, STAR_TAP_NOTES' too. */
+ *  switch on, STAR_TAP_NOTES' too. Y6: with the switch on a STAR_TAP_NOTES note goes first (SPLITTER's replaces its
+ *  TAP_NOTES one); off, TAP_NOTES' alone, as before. */
 export function tapNote(def: string, word: string): TapNote | undefined {
-  const n = TAP_NOTES[def] ?? (starRules() ? STAR_TAP_NOTES[def] : undefined);
+  const n = (starRules() ? STAR_TAP_NOTES[def] : undefined) ?? TAP_NOTES[def];
   return n && n.word === word.toUpperCase().replace(/:$/, "") ? n : undefined;
 }
 

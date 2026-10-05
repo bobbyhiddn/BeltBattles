@@ -21,7 +21,7 @@ const on = <T>(fn: () => T): T => withStarRules(fn);
 
 describe("Y2 words: HARASSMENT retires with the switch on; PART is a plain glossary word", () => {
   it("on, no HARASSMENT row, entry or tap (off: the row and its tap as before)", () => {
-    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE"]); // Y5 (ruling 882ecc77): was ["HARASSMENT"]
+    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); // Y6 (BRIEF-Y6): was ["HARASSMENT", "ONLINE"]; Y5 (ruling 882ecc77): was ["HARASSMENT"]
     expect(on(() => glossaryRows().map((r) => r.word))).not.toContain("HARASSMENT");
     expect(on(() => glossaryEntry("HARASSMENT"))).toBeUndefined();
     expect(on(() => glossaryWordsIn("ANY HARASSMENT LANDS.").map((r) => r.word))).toEqual([]);
@@ -30,8 +30,8 @@ describe("Y2 words: HARASSMENT retires with the switch on; PART is a plain gloss
     expect(glossaryRows().map((r) => r.word)).toContain("HARASSMENT");
     expect(glossaryEntry("HARASSMENT")?.def).toBe("HARASSMENT: ANY {*STUN}, WRECK OR RIP ON AN ENEMY PART.");
     expect(GLOSSARY.map((r) => r.word)).toContain("HARASSMENT");
-    // on, every other row stays, in order (Y5: but ONLINE, which Y5 retires)
-    expect(on(() => glossaryRows().map((r) => r.word))).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE")); // Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
+    // on, every other row stays, in order (Y5: but ONLINE, which Y5 retires; Y6: and POISON, which Y6 retires)
+    expect(on(() => glossaryRows().map((r) => r.word))).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE" && w !== "POISON")); // Y6 (BRIEF-Y6): was .filter((w) => w !== "HARASSMENT" && w !== "ONLINE"); Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
   });
 
   it("PART (TOLLBOOTH's tap) is a glossary row with no colour of its own and no token, and no new keyword joins", () => {
