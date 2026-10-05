@@ -335,7 +335,12 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   gatling: (e, x) => {
     // rateText's rule: the spin's floor x0.6 of the interval fires 1 / 0.6 = 67% faster (N1 2.3: X% FASTER is the rate)
     const up = fmtPct(c(e, x).top! / 100); // NUM-2 (REQ-BFG-047): the stored whole rate % (was 1 / floor - 1)
-    return rules([{ text: `SPINS UP TO ${up} FASTER AS IT FIRES.` }], [["spin", `${up} FASTER`]]);
+    // Y1 (REQ-BFG-070; STAR-D 1.6, REVIEW-STARD): its spin step, the share of its reload each quick shot takes off (cores.ts
+    // gatlingCadence: spin - step for a shot within `gap` s of the last), 6 / 9 / 12%, a number that changes with its stars:
+    // keyed, so the ⓘ LEVELS ladder shows it ("+6%/+9%/+12% A QUICK SHOT") and NEXT★ with it. The face line is unchanged.
+    // ("EACH QUICK SHOT" would take ★2's NEXT★ line to 230 px, past NEXT_LINE_W)
+    const step = fmtPct(c(e, x).step!);
+    return rules([{ text: `SPINS UP TO ${up} FASTER AS IT FIRES.` }], [["spin", `${up} FASTER`], ["step", `+${step} A QUICK SHOT`]]);
   },
   hullbreaker: (e, x) => {
     const more = fmtPct(c(e, x).hullMul! - 1);
