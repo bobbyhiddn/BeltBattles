@@ -7,11 +7,11 @@
 // purpose: they are handed off, row for row, to NUM-2's record tests/fixtures/num2-base-intervals.json and its checkers.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { AMMO, FRAY_BONUS, HEROES, ITEMS, WAVE3_IDS, WAVE3_ITEMS } from "../src/sim/content";
+import { AMMO, FRAY_BONUS, HEROES, ITEMS, WAVE3_IDS, WAVE3_ITEMS, withSustain } from "../src/sim/content";
 import { PENDULUM, RACE_AMMO, RACE_HEROES, RACE_ITEMS } from "../src/sim/races/data";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { ECHO_CAP } from "../src/sim/races/siphon";
-import { RUNE_LIST } from "../src/sim/runes";
+import { RUNE_LIST, runeList } from "../src/sim/runes";
 import { SABOTAGE_HULL } from "../src/game/road";
 import { HULL_FLOOR } from "../src/net/roadCap";
 import { EQ, MEAN_PLATE, MEAN_PLATE_OTHER, ROUND_EQ } from "../src/sim/deckRating";
@@ -94,10 +94,17 @@ const num3New = new Map<string, number>([
   ...Object.entries(NUM3_ADDED),
 ]);
 
+// FLIP-X1 (F-d, SUS-D §9): the 8 sustain runes runeList() adds with the switch on (SUS-D) were born in N1 units, after
+// NUM-1's script ran: no fixture row and no x10. The walk meets them as SUSTAIN_RUNES.<id>.amount.n, classified here as
+// N1-native (n1Native), each checked live below with its own pins. RUNE_LIST's rows and counts are as before.
+const SUSTAIN_RUNES = withSustain(() => runeList().filter((d) => !RUNE_LIST.includes(d)));
+const n1Native = new Map(SUSTAIN_RUNES.map((d): [string, number] => [`SUSTAIN_RUNES.${d.id}.amount.n`, d.amount.n]));
+
 const TABLES: Record<string, unknown> = {
   FRAY_BONUS, ITEMS, WAVE3_ITEMS, AMMO, HEROES, RACE_ITEMS, RACE_AMMO, RACE_HEROES, PENDULUM, PLATE_PER_SLUG, PLATE_CAP, ECHO_CAP,
   RUNE_LIST: Object.fromEntries(RUNE_LIST.map((d) => [d.id, d])), SABOTAGE_HULL, HULL_FLOOR, EQ, ROUND_EQ, MEAN_PLATE,
   MEAN_PLATE_OTHER, P1_WAVE3_ITEMS,
+  SUSTAIN_RUNES: Object.fromEntries(SUSTAIN_RUNES.map((d) => [d.id, d])), // FLIP-X1 (F-d)
 };
 
 /** A value the module doesn't export, read from its source: ghostSnapshot.ts's hullBonus bounds, the road events' hull deltas
@@ -208,6 +215,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     numericLeaves("PENDULUM", PENDULUM, ids);
     numericLeaves("ECHO_CAP", ECHO_CAP, ids);
     for (const d of RUNE_LIST) ids.push(`RUNE_LIST.${d.id}.amount.n`);
+    for (const d of SUSTAIN_RUNES) ids.push(`SUSTAIN_RUNES.${d.id}.amount.n`); // FLIP-X1 (F-d): the 8, N1-native
     // a field that names another scaled value follows it (the script skips it): the pendulum slug's base is the curve's floor
     const derived: Record<string, string> = { "RACE_AMMO.pendulum.base": "PENDULUM.floor" };
     // a numeric field missing from the fixture is fine only when its rule is "same" (a helper-built or computed value the
@@ -237,8 +245,12 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     };
     const missing = ids.filter((id) => !byId.has(susaOld(id)) && !(id in derived) // SUS-A: a renamed field counts as its row
       && !num3New.has(id) // NUM-3: a field NUM-3 added (num3New, classified above) counts as NUM-3's, checked below
+      && !n1Native.has(id) // FLIP-X1 (F-d): a sustain rune's amount is N1-native (n1Native), checked below
       && (ruleOf(id, NUM2_RULES) === N2 ? !num2To.has(id) : ruleOf(id) !== "same"));
     expect(missing).toEqual([]);
+    // FLIP-X1 (F-d), the sustain-on pins: two-sided, the scan meets the 8 and none is a fixture row (under either name)
+    expect(ids.filter((id) => n1Native.has(id)).sort()).toEqual([...n1Native.keys()].sort());
+    expect([n1Native.size, [...n1Native.keys()].filter((id) => byId.has(id) || byId.has(id.replace(/^SUSTAIN_RUNES\./, "RUNE_LIST."))).length]).toEqual([8, 0]);
     // NUM-3 (R1's STUN fold, N1 2.2): two-sided: the scan meets every field of num3New and none is a fixture row; measured
     // 8 (BELLOWS' burn and per at ★1-★3, SABOT's round.seconds at ★1 and ★3), each live at its value. Unclassified, SABOT's
     // two would pass the line above as "same" (factory.round.seconds is FROSTBITE's and DRAG CHAIN's rule).
@@ -267,5 +279,12 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
       const r = byId.get(`RUNE_LIST.${d.id}.amount.n`)!;
       expect(r.rule, d.id).toBe(["dmg", "hull", "plate"].includes(d.amount.unit) ? "x10" : "same");
     }
+    // FLIP-X1 (F-d): the 8 sustain runes are N1-native: SUS-D measured them in N1 units (a hull amount is already x10's
+    // size), so no x10 applies. Each is whole and live as built (unit, n)
+    expect(Object.fromEntries(SUSTAIN_RUNES.map((d) => [d.id, `${d.amount.unit} ${live(`SUSTAIN_RUNES.${d.id}.amount.n`)}`]))).toEqual({
+      bulwark_ward: "count 2", tick_guard: "sec 6", twin_salve: "hull 20", scrap_medic: "hull 300", leech_vow: "hull 20",
+      green_thread: "hull 10", searing: "count 1", shatter_shot: "count 1",
+    });
+    for (const d of SUSTAIN_RUNES) expect(Number.isInteger(d.amount.n), d.id).toBe(true);
   });
 });

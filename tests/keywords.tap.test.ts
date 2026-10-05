@@ -20,7 +20,8 @@ import { lineWidth } from "../src/ui/richText"; // U2e step 5
 import { infoFree, infoView, runeWords, INFO_FREE_MIN, type KwWord } from "../src/screens/build/keywords"; // U2f: the taller ⓘ view
 import { phoneScreen } from "../src/screens/build/layout"; // U2f
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar"; // U2f: the text sheet's view
-import { RUNE_LIST } from "../src/sim/runes"; // U2f
+import { RUNE_LIST, runeList } from "../src/sim/runes"; // U2f; FLIP-X1 (F-d): runeList
+import { withSustain } from "../src/sim/content"; // FLIP-X1 (F-d)
 import { TAP_CSS } from "../src/ui/tap"; // U2f
 import { glossaryEntry } from "../src/ui/glossary";
 import { faceAt } from "../src/ui/faces";
@@ -388,6 +389,10 @@ describe("U2f: the taller ⓘ view", () => {
   const op = sheetView(402, 690, 3), desk = sheetView(1920, 1080, 1);
   /** Each rune's keywords (runeWords for a run holding it alone), for the "a rune held" measure. */
   const runeSets = RUNE_LIST.map((r) => runeWords({ build: { runes: [{ id: r.id, day: 1 }] } } as unknown as Run)).filter((ws) => ws.length);
+  /** FLIP-X1 (F-d, SUS-D §9): the 8 sustain runes runeList() adds with the switch on, for the sustain-on measure (its own
+   *  pin, U2F_OP_RUNE_ON; the switch-off one stays RUNE_LIST's). */
+  const sustainSets = withSustain(() => runeList().filter((r) => !RUNE_LIST.includes(r))
+    .map((r) => runeWords({ build: { runes: [{ id: r.id, day: 1 }] } } as unknown as Run)).filter((ws) => ws.length));
 
   it("U2e's view (the body alone), re-measured: op 119 / 166 / 18 / 2, desk 65 / 91 / 86 / 34 / 18 / 10 / 1 (NUM-4 on x1)", () => {
     // on u2e's text (U2f step 2, b8b4262) this measure gave U2e's own numbers exactly: op 118 / 160 / 27, desk
@@ -417,8 +422,12 @@ describe("U2f: the taller ⓘ view", () => {
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
     const o = sheet.map((c) => infoOf(op, c)).filter((x) => !!x), k = sheet.map((c) => infoOf(desk, c)).filter((x) => !!x);
     const ho = histogram(o.map((x) => x!.view.pages.length)), hk = histogram(k.map((x) => x!.view.pages.length));
-    const held = histogram(sheet.map((c) => Math.max(0, ...runeSets.map((ws) => infoOf(op, c, ws)?.view.pages.length ?? 0))).filter((n) => n > 0));
-    console.log(`U2f ⓘ pages: op ${ho.join(" / ")}; op, the worst rune held ${held.join(" / ")}; desk ${hk.join(" / ")}`);
+    const worst = sheet.map((c) => Math.max(0, ...runeSets.map((ws) => infoOf(op, c, ws)?.view.pages.length ?? 0)));
+    const held = histogram(worst.filter((n) => n > 0));
+    // FLIP-X1 (F-d): with the switch on, the worst of the 65 runes (RUNE_LIST's and the 8): a separate pin
+    const worstOn = withSustain(() => sheet.map((c, i) => Math.max(worst[i], ...sustainSets.map((ws) => infoOf(op, c, ws)?.view.pages.length ?? 0))));
+    const heldOn = histogram(worstOn.filter((n) => n > 0));
+    console.log(`U2f ⓘ pages: op ${ho.join(" / ")}; op, the worst rune held ${held.join(" / ")} (switch on: ${heldOn.join(" / ")}); desk ${hk.join(" / ")}`);
     expect(ho[0]).toBeGreaterThan(o.length / 2);
     expect(ho.length).toBeLessThanOrEqual(2);
     expect(held.length).toBeLessThanOrEqual(3);
@@ -426,6 +435,8 @@ describe("U2f: the taller ⓘ view", () => {
     expect(ho).toEqual(U2F_OP);
     expect(held).toEqual(U2F_OP_RUNE);
     expect(hk).toEqual(U2F_DESK);
+    expect(heldOn.length).toBeLessThanOrEqual(3); // FLIP-X1 (F-d): U2f's aim holds with the switch on
+    expect(heldOn).toEqual(U2F_OP_RUNE_ON);
   });
 
   it("on every phone view and the desk: the view never covers the panel's header (title row, star badge, ⓘ) and stays on screen; closed, nothing changes", () => {
@@ -498,4 +509,8 @@ describe("U2f: the taller ⓘ view", () => {
 // [297, 8] -> [296, 9]. U2f's aims hold: op none over 2 pages, a rune held none over 2 (3 allowed), desk none over 3.
 const U2F_OP = [303, 2];
 const U2F_OP_RUNE = [276, 34];
+/** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
+ *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
+ *  pin above is RUNE_LIST's, unchanged. */
+const U2F_OP_RUNE_ON = [276, 34];
 const U2F_DESK = [296, 9];
