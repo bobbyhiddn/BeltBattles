@@ -245,9 +245,13 @@ describe("D10: value, the upload budget and the strict decoder", () => {
 
 describe("D7': the bots buy the upgrades; the stand-in code and the captains carry them", () => {
   it("the par player buys level 2 of some track in most runs, through buyUpgrade, and its dusk decks carry the levels", () => {
+    // REDO-X (cap's ruling on FIX-ABE F6, REVIEW-FIXABE): "most runs" read as written, more than half of par seeds 1-24 per
+    // hero (>= 13 of 24): FURNACE 24, WEAVER 17, FOUNDRY 15, BASTION 22 when measured. Six runs at the edge measured noise:
+    // FOUNDRY went 4/6 -> 3/6 when the offers changed (74e14a1) (was par seeds 1-6, >= 4 of 6)
+    const SEEDS = 24, MOST = Math.floor(SEEDS / 2) + 1;
     for (const hero of HEROES4) {
       let runs = 0;
-      for (let seed = 1; seed <= 6; seed++) {
+      for (let seed = 1; seed <= SEEDS; seed++) {
         const days = playerRun(hero, 10, seed);
         const ups = days.flatMap((d) => d.buys.filter((b) => b.def.startsWith("upgrade:")));
         if (ups.length) runs++;
@@ -257,9 +261,9 @@ describe("D7': the bots buy the upgrades; the stand-in code and the captains car
         expect(upgradeLevel(last, "factory") + upgradeLevel(last, "turret") - 2, `${hero} ${seed}`).toBe(ups.length);
         expect(buildCost(last).upgrades ?? 0).toBe(ups.reduce((s, u) => s + u.price, 0));
       }
-      expect(runs, hero).toBeGreaterThanOrEqual(4);
+      expect(runs, hero).toBeGreaterThanOrEqual(MOST);
     }
-  });
+  }, 120_000); // REDO-X: 96 par runs (was 24) take 30-45 s under load, over the 30 s default (as bccf33f's two limits)
 
   it("an honest run with upgrades passes the upload check on every day (validateUpload, the player mode and its budget)", () => {
     let withLevels = 0;
