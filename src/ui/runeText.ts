@@ -74,6 +74,21 @@ export const runeAmountText = (def: RuneDef): string => RUNE_UNIT_TEXT[def.amoun
  * word in its colour; the rest in RUNE_TEXT_COLOUR. An unknown token shows as its bare name (a test pins that none is).
  */
 export function runeSpans(def: RuneDef, base: string = RUNE_TEXT_COLOUR): Span[] {
+  return spansOf(def, runeTextOf(def), base); // SUS-B: WARD STONE's SHIELD line (RUNE_TEXT)
+}
+
+/** Y-FURN (REQ-BFG-070; TEXT-STYLE 3.1): a rune text's sentences, in order. One ability line is one trigger and one
+ *  effect, so a text of two abilities (SEARING, SHATTER SHOT) is two sentences, and a card starts each on its own line
+ *  (runeBar.ts runeTextLines). Every other rune's text is one sentence. A template holds no digit (no literal number) and
+ *  no line break (TEXT-STYLE 8.2), so a full stop then a space always ends a sentence. */
+export const runeSentences = (def: RuneDef): string[] => runeTextOf(def).replace(/\.\s+(?=\S)/g, ".\n").split("\n");
+
+/** Y-FURN: each sentence of the rune's text as rich-text spans, as runeSpans makes the whole text's. */
+export const runeSentenceSpans = (def: RuneDef, base: string = RUNE_TEXT_COLOUR): Span[][] =>
+  runeSentences(def).map((t) => spansOf(def, t, base));
+
+/** RuneDef.text's tokens in `text` (the whole text or one sentence of it) as spans: runeSpans' rule. */
+function spansOf(def: RuneDef, text: string, base: string): Span[] {
   const out: Span[] = [];
   const push = (t: string, c: string) => {
     if (!t) return;
@@ -82,7 +97,6 @@ export function runeSpans(def: RuneDef, base: string = RUNE_TEXT_COLOUR): Span[]
     else out.push({ t, c });
   };
   let at = 0;
-  const text = runeTextOf(def); // SUS-B: WARD STONE's SHIELD line (RUNE_TEXT)
   for (const m of text.matchAll(TOKEN)) {
     let plain = text.slice(at, m.index);
     at = (m.index ?? 0) + m[0].length;

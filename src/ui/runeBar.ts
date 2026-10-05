@@ -17,10 +17,10 @@ import { drawText, textWidth } from "../render/font";
 import { panel, type Rect } from "./ui";
 import { tapPx, TAP_CSS } from "./tap";
 import type { View } from "../core/io";
-import { drawRich, wrapRich } from "./richText";
+import { drawRich, wrapRich, type RichLine } from "./richText";
 import { RUNES, isRune, type RuneDef, type RuneHeld } from "../sim/runes";
 import {
-  RUNE_KEYWORD_COLOUR, KEYWORD_WORD, runeInitials, runeKeyword, runeReminderSpans, runeSpans, runeTaken, tierColour,
+  RUNE_KEYWORD_COLOUR, KEYWORD_WORD, runeInitials, runeKeyword, runeReminderSpans, runeSentenceSpans, runeTaken, tierColour,
 } from "./runeText";
 import { buildLayout, FOE_H, phoneScreen, type BuildLayout } from "../screens/build/layout";
 import { OFFERS } from "../sim/content";
@@ -153,10 +153,17 @@ export function runeChipW(def: RuneDef, side: number): number {
   return Math.max(side, k ? textWidth(KEYWORD_WORD[k], "3") + 3 : 0);
 }
 
+/** Y-FURN (REQ-BFG-070; TEXT-STYLE 3.1): a card's effect lines at text width `tw`: each sentence of the rune's text
+ *  (runeText.ts runeSentences: one trigger and one effect each) starts a line, and wrapRich wraps it where the card is
+ *  narrow. A one-sentence text, every rune's but SEARING's and SHATTER SHOT's, wraps as before. Pure (tests). */
+export function runeTextLines(def: RuneDef, tw: number): RichLine[] {
+  return runeSentenceSpans(def).flatMap((s) => wrapRich(s, tw, "5"));
+}
+
 /** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
  *  bar 13, 4 at the foot). Pure (tests). */
 export function runeCardH(def: RuneDef, w: number, o: Omit<RuneCardOpts, "sub">): number {
-  let h = CARD_TEXT_Y + wrapRich(runeSpans(def), runeCardTextW(w), "5").length * 9;
+  let h = CARD_TEXT_Y + runeTextLines(def, runeCardTextW(w)).length * 9;
   if (o.reminder) h += 1 + wrapRich(runeReminderSpans(def), runeCardTextW(w), "3").length * 7;
   if (o.hint) h += 13;
   return h + 4;
@@ -177,7 +184,7 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
   drawText(g, o.sub, tx, r.y + 18, C.slate4, { font: "3" });
   const tw = runeCardTextW(r.w);
   let y = r.y + CARD_TEXT_Y;
-  for (const l of wrapRich(runeSpans(def), tw, "5")) {
+  for (const l of runeTextLines(def, tw)) { // Y-FURN: each sentence starts a line
     drawRich(g, l, r.x + 5, y, "5");
     y += 9;
   }
@@ -260,7 +267,7 @@ export class RuneBar {
         const ry = r.y + 16 + i * 19;
         drawText(g, d.name, r.x + 5, ry, tierColour(d.tier));
         drawText(g, `DAY ${i + 1}`, r.x + r.w - 5, ry + 1, C.slate4, { font: "3", align: "right" });
-        const line = wrapRich(runeSpans(d), runeCardTextW(r.w), "5")[0] ?? [];
+        const line = runeTextLines(d, runeCardTextW(r.w))[0] ?? []; // Y-FURN: a two-line rune's first sentence, whole
         drawRich(g, line, r.x + 5, ry + 9, "5");
       });
       ui.add({ id: "rune-readout", r, onTap: () => { this.list = false; } });
