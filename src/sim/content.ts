@@ -869,7 +869,7 @@ export const ITEMS: Record<string, ItemDef> = {
   hailgun: {
     id: "hailgun", name: "HAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
     desc: ["LIGHT TURRET.", "A STEADY GUN.", "HOLDS 3 LOADS."], tags: ["SWARM", "TEMPO"],
-    reason: "The fastest gun: it fires every 0.45 s and holds 3 loads.",
+    reason: "The fastest gun, with three loads.",
     turret: { class: "light", speed: 67, window: 3, flight: 0.3, intake: "inner" },
     levels: { 2: { turret: { speed: 74 } }, 3: { turret: { speed: 83 } } },
   },
@@ -883,7 +883,7 @@ export const ITEMS: Record<string, ItemDef> = {
   railgun: {
     id: "railgun", name: "RAIL GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
     desc: ["MEDIUM TURRET.", "A STEADY GUN.", "HOLDS 3 LOADS."], tags: ["TEMPO", "TWIN"],
-    reason: "Fires every 0.7 s, and its shots land in 0.3 s.",
+    reason: "The quickest medium gun, and its shots fly the fastest.",
     turret: { class: "medium", speed: 43, window: 3, flight: 0.3, intake: "both" },
     levels: { 2: { turret: { speed: 48 } }, 3: { turret: { speed: 54 } } },
   },
@@ -897,14 +897,14 @@ export const ITEMS: Record<string, ItemDef> = {
   siegegun: {
     id: "siegegun", name: "SIEGE GUN", kind: "turret", rarity: "epic", price: TURRET_PRICE.epic, size: 2, merchant: "gunsmith",
     desc: ["HEAVY TURRET.", "A STEADY GUN.", "HOLDS 4 LOADS."], tags: ["BURST", "TWIN"],
-    reason: "A heavy gun that fires every 0.85 s and holds 4 loads.",
+    reason: "A heavy gun that holds four loads and fires faster than BOMBARD.",
     turret: { class: "heavy", speed: 35, window: 4, flight: 0.55, intake: "both" },
     levels: { 2: { turret: { speed: 39 } }, 3: { turret: { speed: 44 } } },
   },
   thunderer: {
     id: "thunderer", name: "THUNDERER", kind: "turret", rarity: "legendary", price: TURRET_PRICE.legendary, size: 2, merchant: "arcane",
     desc: ["HEAVY TURRET.", "A STEADY GUN.", "HOLDS 4 LOADS."], tags: ["BURST", "TWIN"],
-    reason: "A heavy gun that fires every 0.8 s, with 4 gear slots.",
+    reason: "A quick heavy gun, with four gear slots.",
     turret: { class: "heavy", speed: 38, window: 4, flight: 0.5, intake: "both" },
     levels: { 2: { turret: { speed: 42 } }, 3: { turret: { speed: 47 } } },
   },
