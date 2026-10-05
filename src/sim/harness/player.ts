@@ -80,6 +80,8 @@ import { BOT_RUNES, botTakeRune, runeGrants } from "../runes"; // RUNES-2a (REQ-
 // effects through stars.ts like the build screen's inspector, which no src/sim/harness file may do itself.
 export { EQ, FIGHT_T, NOMINAL, ROUND_EQ, SATURATED, rateDeck, type DeckRating } from "../deckRating";
 import { FIGHT_T, RATING_CURVE, fightTime, rateDeck } from "../deckRating";
+import { sustainKeyword, type RateOut, type SustainKw } from "../deckRating"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain
+import { sustainLive } from "../content"; // BOTS-X: the sustain switch (SUSTAIN_LIVE, or a withSustain call)
 
 // ---------------------------------------------------------------- the policy
 
@@ -267,7 +269,76 @@ function afterGain(run: Run, def: string, at: GainAt | undefined): Build {
 
 /** CAND-A (the skill-ladder fix): the rating the player reads on `day`, its damage weighed over that day's fight
  *  (deckRating.ts fightTime: 24 s on day 1 to 9.5 s on day 10; it was FIGHT_T, 25 s, on every day). */
-export const rateOn = (b: Build, day: number): number => rateDeck(b, RATING_CURVE, fightTime(day)).value;
+export const rateOn = (b: Build, day: number): number => rateDeck(b, RATING_CURVE, fightTime(day), undefined, undefined, day).value; // BOTS-X: `day`, the sustain value while the switch is on (off: as before)
+
+// ---------------------------------------------------------------- the bots' sustain (BOTS-X, SUS-C; SUSTAIN-1 4.8)
+
+/** SUSTAIN-1 4.8 rule 3: a deck holds at most this many sustain pieces (WARD BELL, RIVETER, MEND PRESS, MENDING LOOM; a
+ *  copy that merges into one is no new piece) ... */
+export const SUSTAIN_MAX = 2;
+/** ... and at most this many SHIELD sources (WARD BELL). */
+export const SHIELD_MAX = 1;
+/** Rule 4, the hero lean: a sustain piece of the hero's own keyword is worth this much more to it (the runes' style weight). */
+export const SUSTAIN_LEAN = 1.5;
+export const HERO_SUSTAIN: Readonly<Partial<Record<HeroId, SustainKw>>> = { bastion: "SHIELD", foundry: "HEAL", weaver: "REGEN" };
+
+/** Rule 2's gate: the deck has its second damage source, a turret line (a belt into a turret) plus one rig (not RIVETER). */
+export function secondSource(b: Build): boolean {
+  return b.items.some((p) => ITEMS[p.def]?.kind === "gate" && !sustainKeyword(p.def)) && fedTurrets(b).size > 0;
+}
+
+/** The sustain pieces on the deck (its rigs, factories and gear), one per placed copy. */
+export const sustainPieces = (b: Build): { def: string; kw: SustainKw }[] =>
+  [...b.items, ...b.mods].flatMap((p) => { const kw = sustainKeyword(p.def); return kw ? [{ def: p.def, kw }] : []; });
+
+/** The rating's read-outs on `day` (deckRating.ts RateOut): payloads a second by route, damage a second by turret. */
+function readOuts(b: Build, day: number): RateOut {
+  const ro: RateOut = { stokeKeep: new Map(), arrival: new Map(), turretDmg: new Map() };
+  rateDeck(b, RATING_CURVE, fightTime(day), ro, undefined, day);
+  return ro;
+}
+
+/** Rule 5: RIVETER's belt, the connected belt with the most payloads a second (ties: the lower route index); undefined: none. */
+export function busiestRoute(b: Build, day: number): number | undefined {
+  let best: number | undefined, most = 0;
+  for (const [ri, a] of [...readOuts(b, day).arrival!].sort((x, y) => x[0] - y[0])) if (a > most) { most = a; best = ri; }
+  return best;
+}
+
+/** Rule 5: WARD BELL's or MENDING LOOM's turret among `free` (turret slots with a free gear slot for it): one that doesn't
+ *  need damage gear, an installed turret no belt feeds first, else the fed one with the least rated damage (damage gear
+ *  multiplies a turret's damage, so it is worth least there); ties: the lower slot. */
+export function quietTurret(b: Build, day: number, free: readonly number[]): number | undefined {
+  const fed = fedTurrets(b), dmg = readOuts(b, day).turretDmg!;
+  return [...free].sort((x, y) => Number(fed.has(x)) - Number(fed.has(y)) || (dmg.get(x) ?? 0) - (dmg.get(y) ?? 0) || x - y)[0];
+}
+
+/**
+ * SUSTAIN-1 4.8 rules 2-4 and 6, with the sustain switch on (candidates() calls it only then). Every candidate is judged
+ * as before (deckRating.ts: a sustain piece's gain is its effective hull against the day's expected foe); then
+ * - rule 4: a sustain piece of the hero's own keyword gains x SUSTAIN_LEAN (a positive gain);
+ * - rule 2: a sustain candidate may be taken only once the deck has its second damage source, and only as the best value
+ *   per gold (rel / price) of the offer row: every candidate from the caravan's rolled offers (wagon >= 0; the two fixed
+ *   packs and the gold upgrades sit outside the row: an ARMOR PACK's 250 hull for 5 gold would outbid every sustain piece
+ *   at 1 star on every day); a tie goes to the lower item id (rule 6);
+ * - rule 3: a new sustain piece only while the deck holds fewer than SUSTAIN_MAX, and a new WARD BELL only while it holds
+ *   fewer than SHIELD_MAX (a copy that merges adds none).
+ * A candidate that fails is `banned` (TUNE-M's mark): judged with the same draws, never taken. No RNG is read here.
+ */
+function sustainRule(b: Build, out: Cand[]): void {
+  const lean = HERO_SUSTAIN[b.hero];
+  for (const c of out) if (lean && sustainKeyword(c.def) === lean && c.rel > 0) c.rel *= SUSTAIN_LEAN;
+  const held = sustainPieces(b), shields = held.filter((p) => p.kw === "SHIELD").length, ready = secondSource(b);
+  const per = (c: Cand): number => c.rel / Math.max(1, c.price);
+  for (const c of out) {
+    const kw = sustainKeyword(c.def);
+    if (!kw) continue;
+    let ok = ready;
+    if (ok && !c.merge) ok = held.length < SUSTAIN_MAX && (kw !== "SHIELD" || shields < SHIELD_MAX);
+    if (ok) ok = out.every((o) => o.wagon < 0 || o.def === c.def || per(c) > per(o) || (per(c) === per(o) && c.def < o.def));
+    if (!ok) c.banned = true;
+  }
+}
 
 const relOf = (after: Build, base: number, day: number): number => {
   const v = rateOn(after, day);
@@ -967,12 +1038,14 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
   });
   // CAND-A: the factories on offer, for a turret judged with the factory that would feed it (pairCand)
   const factories = run.shop.wagons.flatMap((w) => w.offers.filter((o) => !o.sold && ITEMS[o.def].kind === "factory").map((o) => ({ def: o.def, price: o.price })));
+  const sus = sustainLive(); // BOTS-X (SUS-C): the bots' sustain rules (SUSTAIN-1 4.8), only while the switch is on
   run.shop.wagons.forEach((w, wi) => w.offers.forEach((o, si) => {
     if (o.sold || o.price > run.gold) return;
     const d = ITEMS[o.def];
     const push = (cs: Omit<Cand, "wagon" | "slot" | "price">[]) => { for (const c of cs) out.push({ ...c, wagon: wi, slot: si, price: o.price }); };
     if (planned.has(o.def)) return push(planned.get(o.def)!);
     let c: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
+    const kw = sus ? sustainKeyword(o.def) : undefined; // BOTS-X: a sustain piece (placed by rule 5 below)
     const more: Omit<Cand, "wagon" | "slot" | "price">[] = []; // CAND-A: a turret's second plan (its best swap)
     if (d.kind === "supply") {
       const after = cloneBuild(b);
@@ -993,14 +1066,19 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
         c = keep && !keep(after) ? null : { def: o.def, kind: kindOf(o.def), merge: true, rel: relOf(after, base, day) };
       } else if (d.kind === "gate") {
         let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
-        for (const sp of rigSpots(s, o.def, pol.place === "tile" ? rng : undefined, pol.aim, pol.aimTop, keepSpot ? keepSpot(o.def) : undefined)) {
+        // BOTS-X (rule 5): RIVETER only on the belt with the most payloads a second (its HIT heals scale with traffic)
+        const busy = kw ? busiestRoute(b, day) : undefined;
+        const ok = keepSpot ? keepSpot(o.def) : undefined;
+        const spotOk = kw ? (sp: RigSpot) => busy !== undefined && sp.hits.some((h) => h.route === busy) && (!ok || ok(sp)) : ok;
+        for (const sp of rigSpots(s, o.def, pol.place === "tile" ? rng : undefined, pol.aim, pol.aimTop, spotOk)) {
           const after = cloneBuild(b);
           placeRigAt(after, run.nextUid, o.def, sp);
           const r = relOf(after, base, day);
           if (!best || r > best.rel) best = { def: o.def, kind: "rig", merge: false, at: { x: sp.x, y: sp.y, rot: sp.rot }, rel: r };
         }
-        // no free cell beside a belt: an upgrade sells a cheaper placed rig and puts the new one on its cell
-        if (!best && pol.upgrade && !s.hasRigTile()) best = rigSwap(b, s, o.def, o.price, run.nextUid, base, day, keep);
+        // no free cell beside a belt: an upgrade sells a cheaper placed rig and puts the new one on its cell (BOTS-X: never
+        // for a sustain piece, which takes no damage piece's place)
+        if (!best && pol.upgrade && !kw && !s.hasRigTile()) best = rigSwap(b, s, o.def, o.price, run.nextUid, base, day, keep);
         c = best;
       } else if (d.kind === "mod" || d.kind === "core") {
         // 0.6.2s (S4): gear into a free GEAR SLOT of an installed turret (never two copies of one def on a turret), a
@@ -1009,7 +1087,9 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
         const room = (t: number) => (d.kind === "mod" ? canFitGear(b, t, o.def).ok : !coreFor(b, t));
         const free = slots.filter(room);
         const live = free.filter((t) => fed.has(t));
-        const tries = pol.place === "tile" ? (free.length ? [rng.pick(live.length ? live : free)] : []) : free;
+        // BOTS-X (rule 5): WARD BELL and MENDING LOOM in a free gear slot of a turret that doesn't need damage gear (no draw)
+        const quiet = kw ? quietTurret(b, day, free) : undefined;
+        const tries = kw ? (quiet !== undefined ? [quiet] : []) : pol.place === "tile" ? (free.length ? [rng.pick(live.length ? live : free)] : []) : free;
         let best: Omit<Cand, "wagon" | "slot" | "price"> | null = null;
         for (const t of tries) {
           const after = cloneBuild(b);
@@ -1017,7 +1097,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
           const r = relOf(after, base, day);
           if (!best || r > best.rel) best = { def: o.def, kind: kindOf(o.def), merge: false, at: { turret: t }, rel: r };
         }
-        if (!free.length && pol.upgrade) {
+        if (!free.length && pol.upgrade && !kw) { // BOTS-X: a sustain piece never replaces fitted gear
           // no room for it on any turret: an upgrade replaces a fitted piece of its kind worth less than this offer (sold)
           for (const t of slots) {
             const fitted: ModPlacement[] = d.kind === "mod" ? gearOn(b, t) : [coreFor(b, t)].filter((m): m is ModPlacement => !!m);
@@ -1034,7 +1114,9 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
         }
         c = best;
       } else if (d.kind === "factory") {
-        const fp = factoryCand(b, o.def, run.nextUid, rng, pol, base, day, keep);
+        // BOTS-X (rule 5): MEND PRESS where ARMOR PRESS would go, only where it adds a line: a free spot and a free intake,
+        // never a join (cap's answer 2 to SUS-A)
+        const fp = factoryCand(b, o.def, run.nextUid, rng, kw ? { ...pol, join: 0 } : pol, base, day, keep);
         if (fp) c = { def: o.def, kind: "factory", merge: false, at: { x: fp.x, y: fp.y }, routes: fp.routes, rel: fp.rel };
       } else if (d.kind === "turret" && pol.turret) {
         const tp = turretCand(run, o.def, pol, rng, base, keep);
@@ -1057,6 +1139,7 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
   }));
   out.push(...upgradeCands(run, base, banned));
   out.push(...packCands(run, base, banned)); // bb-0.8.6 (REQ-BFG-051 P6)
+  if (sus) sustainRule(b, out); // BOTS-X (SUS-C): rules 2-4 and 6, only while the switch is on
   return out;
 }
 
@@ -1484,7 +1567,8 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   const pol = knobsOf(policy, opts.tune);
   const traced = !!(opts.trace || opts.onReroll || opts.onDecide);
   const runes = opts.botRunes ?? BOT_RUNES; // RUNES-2a: THE switch (off: the cache key and the run exactly as before)
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}`;
+  // BOTS-X: the sustain switch too (on: another run; off: the key exactly as before)
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
