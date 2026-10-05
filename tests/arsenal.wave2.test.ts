@@ -107,10 +107,13 @@ describe("wave-2 stock and live star data", () => {
     expect(read("scrapper", (s) => effectAt("scrapper", s).factory?.scrapFlat)).toEqual([30, 65, 105]); // NUM-1: x10 (was [3, 6.5, 10.5])
     // NUM-2 (REQ-BFG-047): slugs per 30 s, roundHalfUp(30 / interval) (was interval [6, 2.8, 1.9]; the fixture's rows)
     expect(read("sabot", (s) => effectAt("sabot", s).factory?.speed)).toEqual([5, 11, 16]);
+    // NUM-3 (N1 2.2): FROSTBITE's STUN 2 / 3 / 3 s (was 2.5 / 2.75 / 3); HOARFROST's spread 0 / 1 / 2 as before
     expect(read("frostbite", (s) => effectAt("frostbite", s).factory?.round)).toEqual([
-      { kind: "frost", seconds: 2.5, spread: 0 }, { kind: "frost", seconds: 2.75, spread: 1 }, { kind: "frost", seconds: 3, spread: 2 }]);
+      { kind: "frost", seconds: 2, spread: 0 }, { kind: "frost", seconds: 3, spread: 1 }, { kind: "frost", seconds: 3, spread: 2 }]);
+    // NUM-3 (R1's STUN fold, N1 2.2): a DRAG CHAIN round STUNs the part it hits for 1 / 2 / 2 s and has no slow `mul` (was
+    // a belt slow x0.6 / x0.4 / x0.3 for 3 / 4.4 / 6 s: { kind: "drag", mul, seconds })
     expect(read("dragchain", (s) => effectAt("dragchain", s).factory?.round)).toEqual([
-      { kind: "drag", mul: 0.6, seconds: 3 }, { kind: "drag", mul: 0.4, seconds: 4.4 }, { kind: "drag", mul: 0.3, seconds: 6 }]);
+      { kind: "drag", seconds: 1 }, { kind: "drag", seconds: 2 }, { kind: "drag", seconds: 2 }]);
     // NUM-2 (REQ-BFG-047): a whole rate %, roundHalfUp(100 / mul - 100) (was intervalMul [1.4, 1, 0.8]: -28.6 -> -29, 0, 25)
     expect(read("mimic", (s) => effectAt("mimic", s).factory?.rate)).toEqual([-29, 0, 25]);
     expect(read("limpet", (s) => effectAt("limpet", s).factory?.round?.kind === "limpet" ? effectAt("limpet", s).factory!.round!.blast : 0)).toEqual([80, 180, 280]); // NUM-1: x10 (was [8, 18, 28])
@@ -143,12 +146,28 @@ describe("wave-2 rigs through BELTSIDE arrows", () => {
       expect(g.tolls).toBe(before - 1);
     }
   });
-  it("SIFTER removes ordered marks and gives its star perks", () => {
+  // NUM-3 (R1's STUN fold): CHILL and SNAG are gone (PayloadDebuffs = { sap? }; siftDebuffs reads SAP only), so SAP is the
+  // one mark left. Was: a payload marked CHILL, SNAG and SAP lost CHILL at ★1 (one mark, in CHILL/SNAG/SAP order: { snag,
+  // sap } left) and all three at ★2 / ★3, for 3 x siftFlat (0 / 30 / 60). Now its SAP goes at every star (sift 1 / "all"),
+  // for 1 x siftFlat (POLISH / FINE MESH: 0 / 10 / 20, read from the data); and the order's other marks are gone: a frost
+  // round and a chain round leave the payload on the tile they hit unmarked (the freeze marked it CHILL, the slow SNAG)
+  it("SIFTER removes the SAP mark (the one mark left) and gives its star perks", () => {
     for (const stars of [1, 2, 3]) {
-      const payload = p(); payload.debuffs = { chill: true, snag: true, sap: true };
+      const payload = p(); payload.debuffs = { sap: true };
       const { a } = rig("sifter", stars, payload);
-      expect(a.p.debuffs).toEqual(stars === 1 ? { snag: true, sap: true } : {});
-      expect(a.p.flat).toBe([0, 30, 60][stars - 1]); // NUM-1: x10 (was [0, 3, 6]): 3 marks x siftFlat 10 / 20
+      expect(a.p.debuffs).toEqual({}); // NUM-3: was stars === 1 ? { snag: true, sap: true } : {}
+      // NUM-1: x10 (was [0, 3, 6]). NUM-3: 1 mark x siftFlat 0 / 10 / 20 (was [0, 30, 60]: 3 marks x siftFlat 10 / 20)
+      const siftFlat = effectAt("sifter", stars).gate!.siftFlat ?? 0;
+      expect(siftFlat > 0, `★${stars} pays`).toBe(stars > 1); // POLISH and FINE MESH pay for the mark
+      expect(a.p.flat).toBe(siftFlat);
+    }
+    for (const id of ["frostbite", "dragchain"]) {
+      const bt = new Battle(bench(), bench([["whetstone", 4, 3, 1]]), 11);
+      const fs = bt.sides[1], a: BeltAmmo = { p: p(), s: 2 * CELL + 5, processed: 1, blocked: false };
+      fs.routes[0].ammo.push(a);
+      (bt as any).roundImpact(fs, target(fs, "belt", 0, 2), effectAt(id, 3).factory!.round!, 0);
+      expect(fs.routes[0].cellDisrupt[2], id).toBeGreaterThan(0); // the round landed (a STUN)
+      expect(a.p.debuffs, id).toBeUndefined(); // NUM-3: no CHILL, no SNAG
     }
     expect(rig("sifter", 3).a.p.flat).toBe(ITEMS.sifter.levels![3]!.gate!.siftClean); // NUM-1: siftClean is flat damage, x10 (was 1)
     expect(ITEMS.sifter.levels![3]!.gate!.siftClean).toBe(10);
@@ -243,7 +262,12 @@ describe("wave-2 factories and cores", () => {
       expect(f.triggerQueue + f.produced).toBe(stars === 3 ? 2 : 1);
     }
   });
-  it("SABOT's faster stars stamp more rounds, FROST spreads, and DRAG deepens its segment slow", () => {
+  // NUM-3 (R1's STUN fold): a FROSTBITE round and a DRAG CHAIN round STUN the part they hit (Battle.disrupt, causes
+  // "freeze" and "drag"). Was: a freeze (cellFrozen[2] 2.5 / 2.75 / 3 s, one "freeze" event per frozen part) and a chain
+  // slow over the rig-to-rig segment (cellSlow[2] { mul 0.6 / 0.4 / 0.3, t 3 / 4.4 / 6 }). Now the frost round STUNs the
+  // tile and HOARFROST's 0 / 1 / 2 nearest parts for round.seconds, and the chain round STUNs the tile it hits, and only
+  // that tile, for round.seconds (both read from the data)
+  it("SABOT's faster stars stamp more rounds, FROST spreads its STUN, and a DRAG round STUNs only the tile it hits", () => {
     const stamps: number[] = [];
     for (const stars of [1, 2, 3]) {
       const sabot = new Battle(factoryBench("sabot", stars, { only: true }), barge(), 11);
@@ -252,14 +276,24 @@ describe("wave-2 factories and cores", () => {
 
       const frost = new Battle(bench(), bench([["whetstone", 4, 3, 1]]), 11);
       const fs = frost.sides[1], ft = target(fs, "belt", 0, 2);
-      (frost as any).roundImpact(fs, ft, effectAt("frostbite", stars).factory!.round!, 0);
-      expect(fs.routes[0].cellFrozen[2]).toBe([2.5, 2.75, 3][stars - 1]);
-      expect(frost.events.filter((e) => e.type === "freeze")).toHaveLength(stars);
+      const fr = effectAt("frostbite", stars).factory!.round! as { seconds: number };
+      (frost as any).roundImpact(fs, ft, fr, 0);
+      expect(fs.routes[0].cellDisrupt[2]).toBeCloseTo(fr.seconds); // NUM-3: was cellFrozen[2] toBe [2.5, 2.75, 3][stars - 1]
+      expect(fs.routes[0].cellFrozen[2]).toBe(0); // nothing freezes
+      // NUM-3: was `stars` "freeze" events; now `stars` STUNs (cause "freeze"): the tile and HOARFROST's spread
+      expect(frost.events.filter((e) => e.type === "disrupt" && e.side === 1)).toHaveLength(stars);
+      expect(frost.events.filter((e) => e.type === "harass" && e.cause === "freeze")).toHaveLength(stars);
+      expect(frost.events.filter((e) => e.type === "freeze")).toHaveLength(0);
 
       const drag = new Battle(bench(), bench([["whetstone", 4, 3, 1]]), 11);
       const ds = drag.sides[1], dt = target(ds, "belt", 0, 2);
-      (drag as any).roundImpact(ds, dt, effectAt("dragchain", stars).factory!.round!, 0);
-      expect(ds.routes[0].cellSlow[2]).toEqual({ mul: [0.6, 0.4, 0.3][stars - 1], t: [3, 4.4, 6][stars - 1] });
+      const dr = effectAt("dragchain", stars).factory!.round! as { seconds: number };
+      (drag as any).roundImpact(ds, dt, dr, 0);
+      // NUM-3: was cellSlow[2] toEqual { mul: [0.6, 0.4, 0.3], t: [3, 4.4, 6] } (over the segment); now a STUN on tile 2 alone
+      expect(ds.routes[0].cellDisrupt[2]).toBeCloseTo(dr.seconds);
+      expect(ds.routes.flatMap((r) => r.cellDisrupt.filter((x, i) => x > 0 && !(r.index === 0 && i === 2)))).toEqual([]);
+      expect([...ds.gates, ...ds.factories, ...ds.turrets].filter((m) => m.disrupted > 0)).toEqual([]);
+      expect(drag.events.filter((e) => e.type === "harass" && e.cause === "drag")).toHaveLength(1);
     }
     expect(stamps[0]).toBeLessThan(stamps[1]);
     expect(stamps[1]).toBeLessThan(stamps[2]);
@@ -275,11 +309,17 @@ describe("wave-2 factories and cores", () => {
       expect(foe.hull.hp).toBe(hp);
       until(bt, 3.05);
       expect(hp - foe.hull.hp).toBe([80, 180, 280][stars - 1]); // NUM-1: x10 (was [8, 18, 28])
-      expect(foe.factories[0].disrupted).toBeGreaterThanOrEqual([0, 0.9, 1.5][stars - 1]);
-      expect(foe.factories[0].disrupted).toBeLessThanOrEqual([0, 1, 1.6][stars - 1]);
+      // NUM-3 (N1 2.2): the stall read from the data, - / 1 / 2 s (was the literals: at least [0, 0.9, 1.5], at most
+      // [0, 1, 1.6], for - / 1 / 1.6 s); read 0.05 s after the detonation, so within 0.1 s under it
+      const stall = (effectAt("limpet", stars).factory!.round! as { stall?: number }).stall ?? 0;
+      expect(stall > 0, `★${stars} stall`).toBe(stars > 1); // the timed stalls at stars 2 and 3
+      expect(foe.factories[0].disrupted).toBeGreaterThanOrEqual(stall > 0 ? stall - 0.1 : 0);
+      expect(foe.factories[0].disrupted).toBeLessThanOrEqual(stall);
     }
   });
-  it("special foundry shots telegraph, freeze or slow, and Limpets detonate later", () => {
+  // NUM-3 (R1's STUN fold): the frost and chain shots STUN the tile they land on (cellDisrupt), as the sabot shot does
+  // (was cellFrozen[2] > 0, a freeze, and cellSlow[2].t > 0, a chain slow)
+  it("special foundry shots telegraph, STUN the tile they hit, and Limpets detonate later", () => {
     for (const id of ["sabot", "frostbite", "dragchain", "limpet"]) {
       const bt = new Battle(factoryBench(id, 3, { only: true }), bench([["whetstone", 4, 3, 1]]), 8);
       const s = bt.sides[0], tu = s.turrets[0];
@@ -293,8 +333,8 @@ describe("wave-2 factories and cores", () => {
       until(bt, shot.flight + 0.05);
       const foe = bt.sides[1];
       if (id === "sabot") expect(foe.routes[0].cellDisrupt[2]).toBeGreaterThan(0);
-      if (id === "frostbite") expect(foe.routes[0].cellFrozen[2]).toBeGreaterThan(0);
-      if (id === "dragchain") expect(foe.routes[0].cellSlow[2].t).toBeGreaterThan(0);
+      if (id === "frostbite") { expect(foe.routes[0].cellDisrupt[2]).toBeGreaterThan(0); expect(foe.routes[0].cellFrozen[2]).toBe(0); } // NUM-3: was cellFrozen[2] > 0
+      if (id === "dragchain") expect(foe.routes[0].cellDisrupt[2]).toBeGreaterThan(0); // NUM-3: was cellSlow[2].t > 0
       if (id === "limpet") { expect(foe.limpets).toHaveLength(1); until(bt, shot.flight + 3.1); expect(foe.limpets).toHaveLength(0); }
     }
   });

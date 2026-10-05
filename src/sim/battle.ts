@@ -23,7 +23,7 @@ import { mergedPieces, runeMods, type RuneMods } from "./runes"; // RUNES-1 (REQ
 import { inSync, pourAll } from "./races/foundry"; // 0.8.0 P1: E2's pair rule (Foundry's sync rule); TWIN MOULD's pour
 import { effectAt, gradeOf, starsOf } from "./stars";
 import { boostable, overclocked } from "./overclock";
-import { debuffedDamage, segmentBounds, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
+import { debuffedDamage, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack each second
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047, N1 2.1): the integer damage pipeline's one rounding
@@ -46,6 +46,12 @@ export interface HealCounts {
 const TICKS_PER_SEC = Math.round(1 / TICK);
 /** SUS-A: the tick from which nothing heals (WIND_START on the integer tick count: 1500, at 25 s exactly). */
 const WIND_TICKS = Math.round(WIND_START / TICK);
+/** NUM-3 (REQ-BFG-047): a STUN's seconds as a whole number of ticks (Battle.disrupt sets it; BRACE FRAME's and STEADY
+ *  IRON's cuts first), so a STUN of n ticks set on tick T reads 0 from tick T + n on, on the integer tick count. */
+const stunTicks = (secs: number): number => Math.round(secs * TICKS_PER_SEC);
+/** NUM-3: one tick off a STUN's timer. Below half a tick it is over: a whole-tick timer never ends a tick late on a float
+ *  residue of its 1/60 s steps (1.6 s used to run 96 or 97 ticks). */
+const stunLeft = (left: number, dt: number): number => (left - dt < TICK / 2 ? 0 : left - dt);
 
 export interface Payload {
   id: number;
@@ -157,14 +163,13 @@ export interface RouteState {
   gateAt: TileHit[][]; // 0.6.2: per tile, the hits landing on it in R7 order (was one gate or null)
   ammo: BeltAmmo[]; // front (largest s) first
   cellDisrupt: number[];
-  cellFrozen: number[];
-  cellSlow: { mul: number; t: number }[];
+  cellFrozen: number[]; // NUM-3 (R1's STUN fold): nothing freezes any more (frost rounds STUN); always 0, kept for its readers
   speedAt: number[]; // render: speed state per cell
   pts: { x: number; y: number }[];
   phase: number[]; // render: belt animation phase per cell (px)
   pressure: number; // blocked payloads on this route
   // 0.6.1p: GUARD_* flags per cell (content.ts), set in makeSide: OVERDRIVE REDLINE/AFTERBURNER (read by wave 2's
-  // enemy slow and freeze; nothing in wave 1 does) and the tiles a MANTLET shields (★2 FULL PLATE, 0.6.2 FB-B, and ★3
+  // enemy CHAIN and FROST rounds' STUNs since NUM-3's STUN fold) and the tiles a MANTLET shields (★2 FULL GUARD, 0.6.2 FB-B, and ★3
   // BULWARK SKIRT; read by Battle.disrupt)
   guard: number[];
   // 0.6.2j: set only on a joining belt (legal join). Its payloads go to the main belt at the join tile (Battle.joins),
@@ -255,7 +260,7 @@ export interface TurretState {
   storeMax: number;
   noJam: boolean; // HOPPER ★3 BOTTOMLESS
   immune: HarassCause[]; // MANTLET: stalls Battle.disrupt ignores on this turret
-  intakeGuard: number; // MANTLET ★2 FULL PLATE (1, 0.6.2 FB-B), ★3 BULWARK SKIRT (3): the last n tiles of each route into it share `immune`
+  intakeGuard: number; // MANTLET ★2 FULL GUARD (1, 0.6.2 FB-B; NUM-3: was FULL PLATE), ★3 BULWARK SKIRT (3): the last n tiles of each route into it share `immune`
   finisher: number; // FINISHER RAM: + this share of damage on the payload that empties the window (never on a GATLING)
   intercept: number; // Flak mod's chance; the side takes the maximum across its turrets
   rerolls: number;
@@ -416,7 +421,7 @@ export type SimEvent =
   | { type: "plate"; side: Side; amount: number; plate: number } // E1: plating added (+) or spent (-); `plate`: the pool after
   | { type: "pair"; side: Side; turret: number } // E2: two loads paired in a pair-reading turret (a FOUNDRY fusion too)
   | { type: "hold" | "release"; side: Side; gate: number; route: number } // E4: a TWIN LATCH holds or lets go a payload
-  | { type: "brace"; side: Side; gate: number; saved: number } // BRACE FRAME: seconds it took off an enemy stall, freeze or slow
+  | { type: "brace"; side: Side; gate: number; saved: number } // BRACE FRAME: seconds it took off an enemy STUN (NUM-3: every STUN)
   | { type: "wind"; dmg: number }
   | { type: "windwarn" }
   | { type: "end"; winner: Side | -1 };
@@ -686,7 +691,7 @@ export class Battle {
         // 0.6.2j: a joining belt feeds no turret intake itself (connected false, turret -1; its join below)
         index: i, factory: r.factory, cells: [...r.cells], connected: info.connected && !info.join, turret: info.join ? -1 : info.turret,
         L: info.length, gateAt, ammo: [], cellDisrupt: r.cells.map(() => 0),
-        cellFrozen: r.cells.map(() => 0), cellSlow: r.cells.map(() => ({ mul: 1, t: 0 })),
+        cellFrozen: r.cells.map(() => 0),
         speedAt: r.cells.map(() => 1),
         pts: routePolyline(b, r, info.connected, info.join), phase: r.cells.map(() => 0), pressure: 0,
         guard: r.cells.map(() => 0), // 0.6.1p
@@ -701,7 +706,7 @@ export class Battle {
       g.latch = { held: [null, null], since: [0, 0], at: [null, null], same: ends[0] >= 0 && ends[0] === ends[1] };
       for (const h of g.hits) (routes[h.route].holds ??= routes[h.route].cells.map(() => []))[h.tile].push(h);
     }
-    // 0.8.0 P1: BRACE FRAME: each tile it hits remembers it (Battle.braceCut shortens stalls, freezes and chain slows there)
+    // 0.8.0 P1: BRACE FRAME: each tile it hits remembers it (Battle.braceCut shortens STUNs there; NUM-3: every STUN source)
     for (const g of gates) {
       if (!g.def.gate?.brace) continue;
       for (const h of g.hits) (routes[h.route].braces ??= routes[h.route].cells.map(() => []))[h.tile].push(g);
@@ -775,7 +780,7 @@ export class Battle {
     const turrets: TurretState[] = installedTurrets(b).map((s) => makeTurret(b, s.slot, s.td));
     const bySlot = (slot: number) => turrets.find((tu) => tu.index === slot);
     // 0.6.1p: guard flags. OVERDRIVE ★2/★3 flags its own tile and every tile downstream (static: wave 2's hooks
-    // decide whether the gate must be online); a MANTLET turret's shield (★2 FULL PLATE: 1 tile, 0.6.2 FB-B; ★3 BULWARK
+    // decide whether the gate must be online); a MANTLET turret's shield (★2 FULL GUARD, was FULL PLATE: 1 tile, 0.6.2 FB-B; ★3 BULWARK
     // SKIRT: 3) flags each connected route's last n tiles.
     // beltside-062 B4 (DESIGN §11 P5): a tile's flags are the OR of every hit landing on it, whichever speed wins
     // the tile, and they reach that tile and every tile downstream; an X rig flags each belt it hits.
@@ -885,7 +890,7 @@ export class Battle {
       for (let d = 0; d < 4; d++) if (g.arrowFlash[d] > 0) g.arrowFlash[d] = Math.max(0, g.arrowFlash[d] - dt);
       const stopped = g.disrupted > 0 || g.frozen > 0;
       if (g.disrupted > 0) {
-        g.disrupted = Math.max(0, g.disrupted - dt);
+        g.disrupted = stunLeft(g.disrupted, dt); // NUM-3: ends on its whole tick
       }
       if (g.frozen > 0) {
         g.frozen = Math.max(0, g.frozen - dt);
@@ -910,13 +915,12 @@ export class Battle {
       for (let i = 0; i < r.cellDisrupt.length; i++) {
         const stopped = r.cellDisrupt[i] > 0 || r.cellFrozen[i] > 0;
         if (r.cellDisrupt[i] > 0) {
-          r.cellDisrupt[i] = Math.max(0, r.cellDisrupt[i] - dt);
+          r.cellDisrupt[i] = stunLeft(r.cellDisrupt[i], dt); // NUM-3: ends on its whole tick
         }
         if (r.cellFrozen[i] > 0) {
           r.cellFrozen[i] = Math.max(0, r.cellFrozen[i] - dt);
         }
         if (stopped) s.stats.disrupted += dt;
-        if (r.cellSlow[i].t > 0) r.cellSlow[i].t = Math.max(0, r.cellSlow[i].t - dt);
       }
       // speed states: the latest tile with an active speed hit wins for everything downstream of it
       // (0.6.2, R7 item 4: several speed hits on one tile resolve by tileSpeed)
@@ -925,8 +929,7 @@ export class Battle {
         const won = this.tileSpeedAt(r.gateAt[i]);
         if (won !== undefined) state = won;
         const shown = s.race ? raceBeltSpeed(this, s, r.index, i, state) : state; // races: speed lock, Drag
-        const slow = !s.race?.speedLock && r.cellSlow[i].t > 0 && !this.routeGuardActive(r, i, GUARD_SLOW) ? r.cellSlow[i].mul : 1;
-        r.speedAt[i] = shown * slow;
+        r.speedAt[i] = shown; // NUM-3 (R1's STUN fold): no chain slow any more (its rounds STUN)
         const v = r.cellDisrupt[i] > 0 || r.cellFrozen[i] > 0 ? 0 : BELT_SPEED * r.speedAt[i];
         r.phase[i] += v * dt;
       }
@@ -935,7 +938,7 @@ export class Battle {
       if (f.flash > 0) f.flash -= dt;
       const stopped = f.disrupted > 0 || f.frozen > 0;
       if (f.disrupted > 0) {
-        f.disrupted = Math.max(0, f.disrupted - dt);
+        f.disrupted = stunLeft(f.disrupted, dt); // NUM-3: ends on its whole tick
       }
       if (f.frozen > 0) f.frozen = Math.max(0, f.frozen - dt);
       if (stopped) s.stats.disrupted += dt;
@@ -945,7 +948,7 @@ export class Battle {
       if (tu.jamFx > 0) tu.jamFx = Math.max(0, tu.jamFx - dt);
       const stopped = tu.disrupted > 0 || tu.frozen > 0;
       if (tu.disrupted > 0) {
-        tu.disrupted = Math.max(0, tu.disrupted - dt);
+        tu.disrupted = stunLeft(tu.disrupted, dt); // NUM-3: ends on its whole tick
       }
       if (tu.frozen > 0) tu.frozen = Math.max(0, tu.frozen - dt);
       if (stopped) s.stats.disrupted += dt;
@@ -1096,9 +1099,23 @@ export class Battle {
       if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
       const e = g.def.gate!;
       if (e.speed !== undefined) speeds.push(e.speed);
-      if (e.pulse) speeds.push(this.t % e.pulse.period < e.pulse.on ? e.pulse.speed : 1);
+      if (e.pulse) speeds.push(this.pulsePhase(e.pulse).on ? e.pulse.speed : 1);
     }
     return speedWinner(speeds);
+  }
+
+  /**
+   * NUM-3 (REQ-BFG-047; cap's answer 3 to NUM-2: a repeating cadence carries its remainder): SURGE VALVE's pulse on the
+   * battle's integer tick count. Pulse `cycle` starts on the first tick at or after cycle x period (each period runs from
+   * the last one's exact end, never from the tick it landed on: 1.01 s pulses start on ticks 61, 122, 182, 243, where a
+   * reset would give 183, 244) and lasts `on` s. Was `this.t % period < on` on the float clock, whose drift (this.t is
+   * 24.99999999999986 on tick 1500) put a whole-second pulse's first or last tick on either side of its boundary.
+   */
+  private pulsePhase(p: { on: number; period: number }): { on: boolean; cycle: number } {
+    const per = p.period * TICKS_PER_SEC; // ticks a period: whole for N1's whole seconds (180 / 180 / 120)
+    const cycle = Math.floor((this.ticks + 1e-9) / per);
+    const start = Math.ceil(cycle * per - 1e-9);
+    return { on: this.ticks - start < Math.round(p.on * TICKS_PER_SEC), cycle };
   }
 
   private pulseAt(r: RouteState, pos: number): GateState | undefined {
@@ -1132,12 +1149,7 @@ export class Battle {
         if (ci >= 0 && (r.cellDisrupt[ci] > 0 || r.cellFrozen[ci] > 0)) v = 0;
         const drag = s.race && fixed === undefined ? raceDrag(this, s, r.index, ci) : 1; // races: SIPHON Drag
         if (drag !== 1) v *= drag; // races:
-        if (ci >= 0 && r.cellFrozen[ci] > 0) (a.p.debuffs ??= {}).chill = true;
-        if (ci >= 0 && r.cellSlow[ci].t > 0 && !this.routeGuardActive(r, ci, GUARD_SLOW) && !s.race?.speedLock && fixed === undefined) {
-          v *= r.cellSlow[ci].mul;
-          (a.p.debuffs ??= {}).snag = true;
-        }
-        if (a.p.debuffs?.snag && fixed === undefined) v *= 0.8;
+        // NUM-3 (R1's STUN fold): no CHILL (a frozen tile's mark) and no SNAG (a chain slow's mark and x0.8 ride) any more
         const want = a.s + v * dt;
         let ns = Math.min(want, limit);
         if (ns < a.s) ns = a.s;
@@ -1152,8 +1164,9 @@ export class Battle {
           }
           const surge = fixed === undefined && !s.race?.speedLock ? this.pulseAt(r, a.s) : undefined;
           const pulse = surge?.def.gate?.pulse;
-          if (surge && pulse && pulse.flat > 0 && this.t % pulse.period < pulse.on) {
-            const cycle = Math.floor(this.t / pulse.period);
+          const phase = surge && pulse && pulse.flat > 0 ? this.pulsePhase(pulse) : undefined; // NUM-3: the integer tick count
+          if (surge && pulse && phase?.on) {
+            const cycle = phase.cycle;
             const seen = a.p.pulseSeen ??= {};
             if (seen[surge.uid] !== cycle) { seen[surge.uid] = cycle; a.p.flat += pulse.flat; }
           }
@@ -1578,7 +1591,7 @@ export class Battle {
     if (e.poison) p.poison = (p.poison ?? 0) + e.poison;
     if (e.burnPerRide) {
       const original = g.def.gate!.burnPerRide!;
-      p.burn += (doubled ? 2 : 1) * Math.min(original.max, Math.floor(p.ride / original.seconds));
+      p.burn += (doubled ? 2 : 1) * Math.min(original.max, Math.floor((p.ride * original.burn) / original.per)); // NUM-3: n per 10 s
     }
     if (e.quench) { // 0.6.2 FB-B: + flat on every payload; up to `stacks` Burn stacks at perBurn each, the rest stays Burn
       const spent = Math.min(p.burn, e.quench.stacks);
@@ -1979,7 +1992,7 @@ export class Battle {
     // NUM-1 (REQ-BFG-047): FRAY_BONUS is whole (2 a stack); a pellet's share of it rounds half up once
     let bonus = pr.share !== undefined ? pct(def.hull.fray * FRAY_BONUS, 100 * pr.share) : def.hull.fray * FRAY_BONUS;
     if (atk.rune?.frayMul) bonus *= atk.rune.frayMul; // RUNES-2a: LOOM OF WOE, your FRAY bonus x n
-    let total = pr.dmg + bonus + (pr.payload.harass?.kind === "sabot" && hit.kind === "hull" ? 60 : 0); // NUM-1: SABOT's x10
+    let total = pr.dmg + bonus; // NUM-3 (R1's STUN fold): SABOT's bare-hull +60 is gone
     if (atk.rune || def.rune) total = this.runeHit(atk, def, hit, total); // RUNES-2a: SCRAP BITER, SNARE KNOT, IRON HIDE, WARD STONE
     // SUS-A (REQ-BFG-069): SHIELD, then PLATE, then HULL. A SHIELD stops this whole hit (0, its FRAY bonus included), where
     // WARD STONE's blockHits stopped it: after IRON HIDE, on any impact; its BURN, FRAY, STUN and poison still land below
@@ -2110,7 +2123,7 @@ export class Battle {
   }
 
   /**
-   * 0.8.0 P1, BRACE FRAME: the seconds an enemy stall, freeze or chain slow lasts on a tile working braces `list` hit (or
+   * 0.8.0 P1, BRACE FRAME: the seconds an enemy STUN (NUM-3: every source) lasts on a tile working braces `list` hit (or
    * on a brace itself): x the best working brace's multiplier there, its plated one while the hull holds plating. A
    * `brace` event names the brace and the seconds it saved. The harassment is accepted first, so it still counts
    * (an enemy SCRAPPER's stamp). Only a side holding a brace comes here.
@@ -2143,6 +2156,7 @@ export class Battle {
     if (secs <= 0 || !this.acceptHarassment(s, t, cause)) return false;
     if (s.braced) secs = this.braceCut(s, this.bracesAt(s, t), secs); // 0.8.0 P1: BRACE FRAME
     if (s.rune?.stallCut) secs *= Math.max(0, 1 - s.rune.stallCut / 100); // RUNES-2a: STEADY IRON, a STALL n% shorter
+    secs = stunTicks(secs) * TICK; // NUM-3 (REQ-BFG-047): a whole number of ticks, after the cuts (stunLeft ends it on its tick)
     if (t.kind === "gate") s.gates.find((g) => g.uid === t.ref)!.disrupted = Math.max(s.gates.find((g) => g.uid === t.ref)!.disrupted, secs);
     else if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.disrupted = Math.max(s.factories.find((f) => f.uid === t.ref)!.disrupted, secs);
     else if (t.kind === "turret") turretAt(s, t.ref)!.disrupted = Math.max(turretAt(s, t.ref)!.disrupted, secs);
@@ -2151,6 +2165,13 @@ export class Battle {
     return true;
   }
 
+  /**
+   * NUM-3 (R1's STUN fold, REQ-BFG-046): a SABOT round wrecks a rig and STUNs any other part (one STUN, `round.seconds`;
+   * was a stall of 5 / 4 / 3 s by belt tile / factory / turret); a FROSTBITE round STUNs the part it hits (and its
+   * HOARFROST spread; was a freeze with CHILL); a DRAG CHAIN round STUNs the part it hits (was a belt slow over a rig-to-rig
+   * stretch with SNAG, or a factory +0.8 s / turret +0.5 s delay). Each STUN goes through `disrupt`, so it is one timer
+   * with one meaning: TOLLBOOTH, MANTLET, BRACE FRAME, STEADY IRON and SUS-A's pauses read it alike.
+   */
   private roundImpact(s: SideState, t: Target, round: HarassRound, from: Side, debuffs?: PayloadDebuffs): void {
     if (round.kind === "sabot") {
       let landed = false;
@@ -2159,10 +2180,10 @@ export class Battle {
         s.gates.find((g) => g.uid === t.ref)!.wrecked = true;
         landed = true;
       } else if (t.kind === "belt") {
-        if (!this.disrupt(s, t, 5, "sabot")) return;
+        if (!this.disrupt(s, t, round.seconds, "sabot")) return;
         landed = true;
       } else if (t.kind === "factory" || t.kind === "turret") {
-        if (!this.disrupt(s, t, t.kind === "factory" ? 4 : 3, "sabot")) return;
+        if (!this.disrupt(s, t, round.seconds, "sabot")) return;
       } else return;
       if (t.kind === "gate") this.events.push({ type: "wreck", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
       if (round.shrapnel && landed) {
@@ -2177,74 +2198,13 @@ export class Battle {
         }
       }
     } else if (round.kind === "frost") {
-      if (this.freeze(s, t, round.seconds) && round.spread)
-        for (const other of this.nearestMachines(s, t, round.spread)) this.freeze(s, other, round.seconds);
+      if (this.disrupt(s, t, round.seconds, "freeze") && round.spread)
+        for (const other of this.nearestMachines(s, t, round.spread)) this.disrupt(s, other, round.seconds, "freeze");
     } else if (round.kind === "drag") {
-      this.slowSegment(s, t, round.mul, round.seconds);
+      this.disrupt(s, t, round.seconds, "drag");
     } else {
       s.limpets.push({ at: this.t + round.delay, target: t, from, blast: debuffedDamage(round.blast, debuffs), stall: round.stall ?? 0 });
     }
-  }
-
-  private freeze(s: SideState, t: Target, secs: number): boolean {
-    if (secs <= 0 || !this.acceptHarassment(s, t, "freeze")) return false;
-    if (s.braced) secs = this.braceCut(s, this.bracesAt(s, t), secs); // 0.8.0 P1: BRACE FRAME
-    if (t.kind === "gate") {
-      const g = s.gates.find((g) => g.uid === t.ref)!;
-      g.frozen = Math.max(g.frozen, secs);
-    } else if (t.kind === "factory") {
-      const f = s.factories.find((f) => f.uid === t.ref)!;
-      f.frozen = Math.max(f.frozen, secs);
-    } else if (t.kind === "turret") {
-      const tu = turretAt(s, t.ref)!;
-      tu.frozen = Math.max(tu.frozen, secs);
-    } else if (t.kind === "belt") {
-      const r = s.routes[t.ref];
-      r.cellFrozen[t.cell] = Math.max(r.cellFrozen[t.cell], secs);
-      for (const a of r.ammo) if (Math.floor(a.s / CELL) === t.cell) (a.p.debuffs ??= {}).chill = true;
-    }
-    this.events.push({ type: "freeze", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
-    return true;
-  }
-
-  /** A rig contributes nodes at arrow-hit belt tiles; its own deck cell is never a segment tile. */
-  private slowSegment(s: SideState, t: Target, mul: number, secs: number): boolean {
-    if (secs <= 0 || mul >= 1 || (t.kind !== "belt" && t.kind !== "gate" && t.kind !== "factory" && t.kind !== "turret")) return false;
-    if (t.kind === "factory" || t.kind === "turret") {
-      if (!this.acceptHarassment(s, t, "drag")) return false;
-      if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.timer += 0.8;
-      else turretAt(s, t.ref)!.fireCd += 0.5;
-    } else {
-      const hits = t.kind === "belt" ? [{ route: t.ref, tile: t.cell }]
-        : s.gates.find((g) => g.uid === t.ref)?.hits ?? [];
-      const tiles = new Map<number, Set<number>>();
-      for (const h of hits) {
-        const r = s.routes[h.route];
-        if (!r || h.tile < 0 || h.tile >= r.cells.length) continue;
-        const [lo, hi] = segmentBounds(r.gateAt.map((list) => list.length > 0), h.tile);
-        for (let ci = lo; ci <= hi; ci++) {
-          if (this.routeGuardActive(r, ci, GUARD_SLOW) || s.race?.speedLock) continue;
-          // 0.6.2 FB-B: a tile a MANTLET shields (★2 FULL PLATE, ★3 BULWARK SKIRT) keeps out of a chain round's segment
-          // slow too, as a REDLINE tile does, wherever on the segment the round landed
-          if (this.skirted(s, r, ci, "drag")) continue;
-          if (!tiles.has(h.route)) tiles.set(h.route, new Set());
-          tiles.get(h.route)!.add(ci);
-        }
-      }
-      if (!tiles.size || !this.acceptHarassment(s, t, "drag")) return false;
-      for (const [ri, cells] of tiles) {
-        const r = s.routes[ri];
-        for (const ci of cells) {
-          const slow = r.cellSlow[ci];
-          slow.mul = Math.min(slow.t > 0 ? slow.mul : 1, mul);
-          slow.t = Math.max(slow.t, s.braced ? this.braceCut(s, r.braces?.[ci], secs) : secs); // 0.8.0 P1: BRACE FRAME
-        }
-        for (const a of r.ammo) if (cells.has(Math.floor(a.s / CELL)) && AMMO[a.p.ammo].fixedSpeed === undefined)
-          (a.p.debuffs ??= {}).snag = true;
-      }
-    }
-    this.events.push({ type: "slow", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell });
-    return true;
   }
 
   /** Grapnel candidates use route distance, then route index and payload id for stable ties. */
@@ -2288,13 +2248,13 @@ export class Battle {
     if (!r || t.cell < 0 || t.cell >= r.cells.length) return false;
     const centre = t.cell * CELL + CELL / 2;
     const a = [...r.ammo].sort((x, y) => Math.abs(x.s - centre) - Math.abs(y.s - centre) || x.p.id - y.p.id)[0];
-    if (!a || !this.acceptHarassment(s, t, mark === "sap" ? "sap" : mark === "chill" ? "freeze" : "drag")) return false;
+    if (!a || !this.acceptHarassment(s, t, mark)) return false; // NUM-3: SAP is the one mark left (CHILL and SNAG are gone)
     (a.p.debuffs ??= {})[mark] = true;
     return true;
   }
 
   /** 0.6.1p MANTLET: cell `ci` of route `r` lies in its turret's shield (★3 BULWARK SKIRT; since 0.6.2 FB-B also ★2
-   *  FULL PLATE's intake tile) and that turret ignores `cause`. */
+   *  FULL GUARD's intake tile, was FULL PLATE) and that turret ignores `cause`. */
   private skirted(s: SideState, r: RouteState | undefined, ci: number, cause: HarassCause): boolean {
     if (!r || ci < 0 || !((r.guard[ci] ?? 0) & GUARD_SKIRT)) return false;
     return turretAt(s, r.turret)?.immune.includes(cause) ?? false;

@@ -43,15 +43,18 @@ describe("the glossary's engine numbers (SIM) are the sim's", () => {
     // (re-quoted: was `s.hull.poison.stacks * ${SIM.poisonTick} *`, x dt every tick)
     expect(battle).toContain(`damage = po.stacks * ${SIM.poisonTick};`);
     expect(battle).toContain(`damage = roundHalfUp(po.stacks * ${SIM.poisonTick} * po.acc);`);
-    expect(battle).toContain(`this.disrupt(s, t, ${SIM.sabotBelt}, "sabot")`);
-    expect(battle).toContain(`t.kind === "factory" ? ${SIM.sabotFactory} : ${SIM.sabotTurret}, "sabot"`);
-    expect(battle).toContain(`"sabot" && hit.kind === "hull" ? ${SIM.sabotHull} : 0`);
+    // NUM-3 (R1's STUN fold): SABOT's 5 / 4 / 3 s stalls and bare-hull +60, DRAG CHAIN's factory +0.8 s and turret +0.5 s
+    // delays, SNAG's x0.8 and CHILL's x0.75 left the sim and SIM (sabotBelt, sabotFactory, sabotTurret, sabotHull,
+    // chainFactory, chainTurret, snag, chill). Their checks become: a sabot, frost or chain round STUNs for its own data's
+    // round.seconds (what the faces' {STUN} stat and the sentences read), and no CHILL or SNAG mark is left
+    expect(battle).toContain(`this.disrupt(s, t, round.seconds, "sabot")`);
+    expect(battle).toContain(`this.disrupt(s, t, round.seconds, "freeze")`);
+    expect(battle).toContain(`this.disrupt(s, t, round.seconds, "drag")`);
+    expect(battle).not.toMatch(/"sabot" && hit\.kind === "hull" \?/);
+    expect(harass).not.toMatch(/chill\?|snag\?|debuffs\.chill|debuffs\.snag/);
     expect(battle).toContain(`this.disrupt(s, target, ${SIM.shrapnel}, "sabot")`);
-    expect(battle).toContain(`.timer += ${SIM.chainFactory};`);
-    expect(battle).toContain(`.fireCd += ${SIM.chainTurret};`);
-    expect(battle).toContain(`if (a.p.debuffs?.snag && fixed === undefined) v *= ${SIM.snag};`);
-    // NUM-1 (REQ-BFG-047): CHILL's x0.75 is a whole % that rounds half up once (re-quoted: was `damage * ${SIM.chill}`)
-    expect(harass).toContain(`debuffs.chill ? pct(damage, ${SIM.chill * 100}) : damage`);
+    expect(harass).toContain(`damage - (debuffs.sap ? ${SIM.sap} : 0)`); // NUM-3: SAP, the one mark left
+    for (const gone of ["sabotBelt", "sabotFactory", "sabotTurret", "sabotHull", "chainFactory", "chainTurret", "snag", "chill"]) expect(SIM, gone).not.toHaveProperty(gone);
     expect(battle).toContain(`Math.min(${SIM.scrapQueue}, f.triggerQueue + gained)`);
     expect(battle).toContain(`if (count >= ${SIM.lanceMax}) break;`);
     expect(cores).toContain(`tu.loadTimer >= ${SIM.salvoWait} * tu.windowTime`);
@@ -94,7 +97,8 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   splitter: (e) => [g(e).split!.copies, pct(g(e).split!.mult)],
   overdrive: (e) => [fasterNum(g(e).speed!), ...(g(e).flat ? [g(e).flat] : []), g(e).lockedFlat!],
   tollbooth: (e) => [g(e).toll!],
-  sifter: (e) => (g(e).sift === "all" ? [g(e).siftFlat!, ...(g(e).siftClean ? [g(e).siftClean] : []), 25, 20] : [1, 25, 20]),
+  // NUM-3 (R1's STUN fold): S.marks names SAP, the one mark left, and its cut (SIM.sap; was CHILL's 25% and SNAG's 20%)
+  sifter: (e) => (g(e).sift === "all" ? [g(e).siftFlat!, ...(g(e).siftClean ? [g(e).siftClean] : []), SIM.sap] : [1, SIM.sap]),
   surge: (e) => {
     const p = g(e).pulse!;
     return [fasterNum(p.speed), p.on, p.period, ...(p.flat ? [p.flat] : []), g(e).lockedFlat!];
@@ -105,7 +109,8 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   venom: (e) => [g(e).poison!, SIM.poisonTick, SIM.poisonMax, SIM.poisonTime],
   overclocker: (e) => [g(e).overclockCooldown!],
   keg: (e) => [g(e).keg!.flat, g(e).keg!.burn, g(e).keg!.fuse, ...BURN],
-  bellows: (e) => [1, g(e).burnPerRide!.seconds, g(e).burnPerRide!.max, ...BURN],
+  // NUM-3 step 2: burnPerRide { burn, per, max } (BURN for each `per` s ridden; was 1 BURN every `seconds`)
+  bellows: (e) => [g(e).burnPerRide!.burn, g(e).burnPerRide!.per, g(e).burnPerRide!.max, ...BURN],
   // 0.6.2 FB-B: + flat on every payload, then up to `stacks` of its Burn at perBurn more each (the rest stays Burn)
   quench: (e) => [g(e).quench!.flat, g(e).quench!.stacks, g(e).quench!.perBurn, ...BURN],
   staticbrush: (e) => [g(e).staticTime!],
@@ -124,15 +129,15 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   assembly: (e) => [...(f(e).hotStart ? [2, f(e).hotStart] : []), base(e), sec(e), COMMISSION_BASE, COMMISSION_STEP],
   gantry: (e, _k, s) => [outputsAt("gantry", s), base(e), sec(e)], // bb-0.8.3: its slots by stars (outputsAt)
   scrapper: (e) => [f(e).scrapFlat!, 1, sec(e), 1, SIM.scrapQueue, ...(f(e).bigHaul ? [2, 1] : [])], // BIG HAUL: 2 SLUGS, NOT 1
-  sabot: (e) => [1, sec(e), ...(round<{ shrapnel?: boolean }>(e).shrapnel ? [SIM.shrapnel] : []), SIM.sabotBelt, SIM.sabotFactory, SIM.sabotTurret, SIM.sabotHull],
+  // NUM-3 (R1's STUN fold): a SABOT STUNs any other part for round.seconds (was 5 / 4 / 3 s by target, + 60 on bare hull)
+  sabot: (e) => [1, sec(e), ...(round<{ shrapnel?: boolean }>(e).shrapnel ? [SIM.shrapnel] : []), round<{ seconds: number }>(e).seconds],
+  // NUM-3: a frost round STUNs (was a freeze, with CHILL's 25%)
   frostbite: (e) => {
     const r = round<{ seconds: number; spread: number }>(e);
-    return [...(r.spread ? [r.spread + 1] : []), r.seconds, ...(r.spread ? [r.spread] : []), 1, sec(e), pct(1 - SIM.chill)];
+    return [...(r.spread ? [r.spread + 1] : []), r.seconds, ...(r.spread ? [r.spread] : []), 1, sec(e)];
   },
-  dragchain: (e) => {
-    const r = round<{ mul: number; seconds: number }>(e);
-    return [speedNum(r.mul), r.seconds, pct(1 - SIM.snag), 1, sec(e), 2, SIM.chainFactory, SIM.chainTurret];
-  },
+  // NUM-3: a chain round STUNs the part it hits (was a belt slow with SNAG's 20%, a factory's + 0.8 s and a turret's + 0.5 s)
+  dragchain: (e) => [round<{ seconds: number }>(e).seconds, 1, sec(e)],
   // NUM-2: MIMIC's whole rate % (-29 / 0 / +25) as the interval share (was intervalMul 1.4 / 1 / 0.8): 29% SLOWER, 25% FASTER
   mimic: (e) => [...(imul(f(e).rate) === 1 ? [] : [speedNum(1 / imul(f(e).rate))])], // bb-0.8.3: no FEEDS 2 BELTS at ★3
   limpet: (e) => {
@@ -143,7 +148,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   scatter: (e, k) => [scaleCore(e.core!, k).pellets!, pct(scaleCore(e.core!, k).share!)],
   rotary: (e, k) => {
     const c = scaleCore(e.core!, k);
-    return [c.windowTime!, ...(c.fireRate ? [rateNum(imul(c.fireRate))] : []), WINDOW_TIME]; // NUM-2: fireRate +18 / +43 (was intervalMul)
+    // NUM-3 step 2 (REQ-BFG-047, N1 2.2): its load time as the whole % shorter than WINDOW_TIME (0.75 of 1.5 s: 50; was its
+    // seconds, c.windowTime 0.8)
+    return [pct(1 - c.windowTime! / WINDOW_TIME), ...(c.fireRate ? [rateNum(imul(c.fireRate))] : []), WINDOW_TIME]; // NUM-2: fireRate +18 / +43 (was intervalMul)
   },
   pressure: (e, k) => [r1(scaleCore(e.core!, k).perQueued!), scaleCore(e.core!, k).maxCount!],
   gatling: (e, k) => {
@@ -264,7 +271,10 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
       "A RIG YOUR SABOTS WRECK EARNS 2 SCRAP SLUGS, NOT 1.",
     ]);
     expect(at("scrapper", 3).perk).toEqual({ name: "BIG HAUL", stars: 3, after: 2 });
-    expect(at("frostbite", 2).sentences[0]).toBe("STAMPS ROUNDS THAT FREEZE 2 MACHINES FOR 2.75 SECONDS.");
+    // NUM-3 (R1's STUN fold): a frost round STUNs (was "STAMPS ROUNDS THAT FREEZE 2 MACHINES FOR 2.75 SECONDS."); its
+    // seconds through the data (step 2's whole seconds)
+    const frost2 = effectAt("frostbite", 2).factory!.round as { seconds: number; spread: number };
+    expect(at("frostbite", 2).sentences[0]).toBe(`STAMPS ROUNDS THAT STUN ${frost2.spread + 1} MACHINES FOR ${r2(frost2.seconds)} SECOND${frost2.seconds === 1 ? "" : "S"}.`);
     expect(at("temper", 1).sentences).toEqual(["ADDS 1 BURN TO EACH PAYLOAD IT HITS.", "EACH BURN DEALS THE ENEMY HULL 10 DAMAGE A SECOND FOR 3 SECONDS."]); // NUM-1: BURN_DPS 10 (was 1)
   });
 
@@ -274,9 +284,12 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     expect(at("quench", 1).sentences[0]).toBe("ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH.");
     expect(at("surge", 1).sentences[0]).toBe("PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE."); // NUM-1: x10 (was 1)
     expect(at("hopper", 2).sentences[1]).toBe("WHILE THE TURRET FIRES, IT STORES 1 LOAD FROM THE BELT FOR ITS NEXT CHAMBER.");
+    // NUM-3 (R1's STUN fold): MANTLET ignores every STUN source from ★1 (was "THE TURRET IGNORES SHOCK, STATIC, ARC, CHAIN,
+    // FROST AND SABOT STALLS." at ★2, FULL PLATE's list); ★2 FULL GUARD keeps its tile
     expect(at("mantlet", 2).sentences).toEqual([
-      "THE TURRET IGNORES SHOCK, STATIC, ARC, CHAIN, FROST AND SABOT STALLS.", "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
+      "THE TURRET IGNORES EVERY STUN.", "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
     ]);
+    expect([at("mantlet", 1).sentences[0], cardText("mantlet")]).toEqual(["THE TURRET IGNORES EVERY STUN.", "IGNORES EVERY STUN."]);
     // NUM-2 (REQ-BFG-047; was EVERY 0.9 SECONDS and 11% FASTER): BOMBARD ★2's speed is 33 (30 / 0.9 = 33.3 rounded), so it
     // fires every 30 / 33 = 0.909 -> 0.91 s, and 33 / 30 = 1.1 is 10% faster than ★1's 30 (was 1 / 0.9 = 1.11, 11%)
     expect(at("bombard", 2)).toEqual({
@@ -484,10 +497,10 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     expect(at("twingauge", 2)[0]).toBe("ADDS 22 DAMAGE TO EACH PAYLOAD IT HITS, OR 66 DAMAGE ON A MATCHED BELT."); // was 2.2, 6.6
     expect(at("pincer")).toEqual([ // 0.8.0 I1 (VERIFIED-P1 H5): no "UP TO 3 OTHERS" (it never binds; the code keeps the cap)
       "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE.", // was 1, 2
-      "STALLED, FROZEN AND WRECKED RIGS DON'T COUNT.",
+      "STUNNED AND WRECKED RIGS DON'T COUNT.", // NUM-3 (R1's STUN fold): was "STALLED, FROZEN AND WRECKED ..."
     ]);
     expect(at("braceframe", 3)).toEqual([
-      "ENEMY STALLS, FREEZES AND CHAIN SLOWS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST 85% SHORTER.",
+      "ENEMY STUNS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST 85% SHORTER.", // NUM-3: was "STALLS, FREEZES AND CHAIN SLOWS"
       "WHILE YOUR HULL HOLDS PLATING THEY LAST 95% SHORTER.",
     ]);
     // T6: DESIGN's "AT THE TILE IT HITS" moves to the second sentence, so the opening fits the phone band whole

@@ -43,13 +43,15 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
       }
     }
     expect([1, 2, 3].map((s) => effectAt("venom", s).gate?.poison)).toEqual([2, 4, 7]);
-    expect([1, 2, 3].map((s) => effectAt("overclocker", s).gate?.overclockCooldown)).toEqual([4, 1.8, 1.15]);
+    // NUM-3 (N1 2.2): the rest 4 / 2 / 1 s, whole (was 4 / 1.8 / 1.15)
+    expect([1, 2, 3].map((s) => effectAt("overclocker", s).gate?.overclockCooldown)).toEqual([4, 2, 1]);
     expect([1, 2, 3].map((s) => effectAt("keg", s).gate?.keg?.flat)).toEqual([6, 13, 21].map((v) => 10 * v)); // NUM-1: x10 (was 6 / 13 / 21)
     expect([1, 2, 3].map((s) => effectAt("bellows", s).gate?.burnPerRide?.max)).toEqual([4, 9, 14]);
     // 0.6.2 FB-B (tests/fb062.quench.test.ts): +3/+5/+7 per Burn stack, up to 4/5/6 stacks, +1/+2/+3 on every payload
     // (was +2/+4/+6 per stack, capped at +12/+26/+42 damage)
     expect([1, 2, 3].map((s) => effectAt("quench", s).gate?.quench?.perBurn)).toEqual([3, 5, 7].map((v) => 10 * v)); // NUM-1: x10 (was 3 / 5 / 7)
-    expect([1, 2, 3].map((s) => effectAt("staticbrush", s).gate?.staticTime)).toEqual([0.6, 1.3, 2.1]);
+    // NUM-3 (N1 2.2): STUN 1 / 2 / 3 s, whole (was 0.6 / 1.3 / 2.1)
+    expect([1, 2, 3].map((s) => effectAt("staticbrush", s).gate?.staticTime)).toEqual([1, 2, 3]);
     expect([1, 2, 3].map((s) => effectAt("lodestone", s).gate?.perStalled?.each)).toEqual([10, 22, 35]); // NUM-1: x10 (was 1 / 2.2 / 3.5)
     expect([1, 2, 3].map((s) => effectAt("barbed", s).gate?.fray)).toEqual([1, 2, 3]);
     // NUM-1: x10, rounded half up (was 0.5 / 1.1 / 1.75; ★3 17.5 -> 18, tests/fixtures/num1-base-values.json "rounded")
@@ -84,7 +86,8 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
       (bt as any).applyHit(s, a, route.gateAt[1][0]);
       (bt as any).applyHit(s, a, route.gateAt[2][0]);
       expect(a.p.flat).toBe(10 * 4); // NUM-1: x10 (was 4: WHETSTONE's 2, doubled)
-      expect(booster.cooldown).toBe([4, 1.8, 1.15][stars - 1]);
+      // NUM-3 (N1 2.2): the rest read from the data, 4 / 2 / 1 s (was the literals 4 / 1.8 / 1.15)
+      expect(booster.cooldown).toBe(effectAt("overclocker", stars).gate!.overclockCooldown!);
       (bt as any).applyHit(s, { ...a, p: payload() }, route.gateAt[2][0]);
       expect(booster.cooldown).toBeGreaterThan(0);
     }
@@ -112,7 +115,11 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
   it("Bellows counts ride time and Quench converts Burn up to its cap (0.6.2 FB-B: the rest stays Burn)", () => {
     for (const stars of [1, 2, 3]) {
       const bellows = process("bellows", stars, 10);
-      expect(bellows.a.p.burn).toBe([4, 8, 14][stars - 1]);
+      // NUM-3 (N1 2.2): burnPerRide { burn, per, max }: + burn BURN for each `per` s ridden, at most max (4 / 9 / 14 a 10 s;
+      // was 1 BURN every 2.5 / 1.15 / 0.7 s, so 10 s gave 4 / 8 / 14). 10 s ridden is one whole `per`: `burn` BURN
+      const bpr = effectAt("bellows", stars).gate!.burnPerRide!;
+      expect(bpr.per).toBe(10);
+      expect(bellows.a.p.burn).toBe(Math.min(bpr.max, bpr.burn)); // 4 / 9 / 14 (was [4, 8, 14])
       const quench = process("quench", stars, 3, 10);
       // NUM-1: flat and perBurn x10 (was 1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7)
       expect(quench.a.p.flat).toBe(10 * [1 + 4 * 3, 2 + 5 * 5, 3 + 6 * 7][stars - 1]); // was 12 / 26 / 42 (all 10 spent)
@@ -125,10 +132,15 @@ describe("nine wave-1 rigs required by the complete 0.6.2 catalogue", () => {
     for (const stars of [1, 2, 3]) {
       const stat = process("staticbrush", stars);
       strike(stat.bt, stat.a.p);
-      expect(Math.max(...stat.bt.sides[1].turrets.map((t) => t.disrupted))).toBeCloseTo([0.6, 1.3, 2.1][stars - 1]);
+      // NUM-3 (N1 2.2): the STUN read from the data, 1 / 2 / 3 s (was the literals 0.6 / 1.3 / 2.1)
+      expect(Math.max(...stat.bt.sides[1].turrets.map((t) => t.disrupted))).toBeCloseTo(effectAt("staticbrush", stars).gate!.staticTime!);
       const lodestone = setup("lodestone", stars);
       lodestone.bt.sides[1].turrets[0].disrupted = 2;
-      lodestone.bt.sides[1].factories[0].frozen = 2;
+      // NUM-3 (R1's STUN fold): was factories[0].frozen = 2 (a FROSTBITE freeze); nothing freezes now, a frost round STUNs
+      // the part it hits (Battle.disrupt, cause "freeze"), so the factory's second stall is that STUN
+      const foe = lodestone.bt.sides[1], factory = foe.targets.find((t) => t.kind === "factory" && t.ref === foe.factories[0].uid)!;
+      expect((lodestone.bt as any).disrupt(foe, factory, 2, "freeze")).toBe(true);
+      expect([foe.factories[0].disrupted, foe.factories[0].frozen]).toEqual([2, 0]);
       (lodestone.bt as any).applyHit(lodestone.s, lodestone.a, lodestone.hit);
       // 0.6.2 TUNE-M T2 (tests/tune062.lodestone.test.ts): its floor +1/+2/+3, then 2 stalled x 1/2.2/3.5 (was 2 / 4.4 / 7)
       // NUM-1: x10, all whole: floor +10/+20/+30, then 2 stalled x 10/22/35 (was toBeCloseTo 3 / 6.4 / 10)

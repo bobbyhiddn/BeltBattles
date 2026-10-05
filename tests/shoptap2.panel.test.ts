@@ -272,7 +272,9 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
       // U2b (REQ-BFG-046): 4: the rig and gear faces are shorter too
       // U2e steps 1 and 4 (REQ-BFG-070): 2, measured: only SABOT ★3 (a RULES piece) in cargo and placed; LIMPET ★2 fits now
       // that its face carries no NEXT★, merge progress or reminder
-      expect(taller, `${name}: panels taller than PORT_BAND`).toBe(v.W < 165 ? 2 : 0);
+      // NUM-3 (REQ-BFG-046, R1's STUN fold): 0, measured: SABOT ★3 has a face now and fits; TOLLBOOTH ★3's clause is
+      // \"THE BELT'S FACTORY.\" (136 px of 3x5), so no panel needs more than PORT_BAND, even at 160 px (a stricter pin)
+      expect(taller, `${name}: panels taller than PORT_BAND`).toBe(0);
       expect(k * PORT_BAND, `${name}: the panel is at least a 69 px band in CSS px`).toBeGreaterThan(130);
     });
   }
@@ -303,7 +305,9 @@ describe("shoptap2 (REQ-BFG-034, -035): on the short views every touch panel sho
     // placed; the console names them), and 163 and up every panel fits
     // U2e steps 1 and 4 (REQ-BFG-070): measured, 2 at W 160 (SABOT ★3, a RULES piece, in cargo and placed; the console
     // names them), and 161 and up every panel fits PORT_BAND (LIMPET ★2's face lost its NEXT★, merge progress and reminder)
-    expect(counts).toEqual(["W 160: 2 taller, up to 75"]);
+    // NUM-3 (REQ-BFG-046, R1's STUN fold): measured, none at any width: SABOT ★3 has a face now (it was the 2 at W 160),
+    // and every panel fits PORT_BAND from 160 px (a stricter pin than U2e's)
+    expect(counts).toEqual([]);
   }, 120_000); // about 47,000 panels planned: 13 s alone on a loaded host, more under the full suite's 8 workers
 
   it("the measured panels of the reproduction: the TEMPER, the BOMBARD and the GANTRY PRESS card now show their text at 390x700 (0350e5f: nothing)", () => {

@@ -31,9 +31,11 @@
 // THE VOCABULARY. Each effect is named once, here, and reads the same everywhere (T5):
 //   DAMAGE      "2 DAMAGE", "10.5 MORE DAMAGE": at most one decimal. BONUS DAMAGE is what rigs and scrap add to a payload.
 //   BURN        each burn deals the enemy hull 1 damage a second for 3 seconds (BURN_TIME) once its shot lands.
-//   SHOCK       a shocked shot stalls the machine it hits (1.6 seconds, DISRUPT_TIME, unless a star says longer).
+//   SHOCK       a shocked shot stalls the machine it hits (2 seconds, DISRUPT_TIME, unless a star says longer; NUM-3 step 2: was 1.6).
 //   STALL       a stalled machine stops working for a while. A MACHINE is an enemy rig, factory, turret or belt tile.
-//   FREEZE      a frozen machine stops and its timers pause; a frozen belt tile also chills the payloads on it.
+//   STUN        NUM-3 (R1's STUN fold, REQ-BFG-046): every stop is a STUN (Battle.disrupt, one timer): a shock, a stall, a
+//               SABOT, FROSTBITE or DRAG CHAIN round (no FREEZE, CHILL, belt SLOW or SNAG any more); the new sentences
+//               say STUN, STUNS, STUNNED (the glossary folds STALL and SHOCK into it).
 //   POISON      each poison on the enemy hull deals 0.4 damage a second (up to 24 poison) until 6 seconds pass without a
 //               poisoned hit.
 //   FRAY        each fray on the enemy hull makes every later hit deal 0.2 more damage (up to 15 fray).
@@ -43,8 +45,8 @@
 //   LOADS       a turret's chamber holds loads. It fires when the chamber is full or its LOAD TIME ends (1.5 seconds
 //               after the first load, WINDOW_TIME). A turret with 4 payloads backed up at its intakes JAMS.
 //   FIRE RATE   "THE TURRET FIRES 33% FASTER": the rate, from the fire interval (x0.75 fires 1 / 0.75 = 33% faster).
-//   HARASSMENT  any stall, freeze, slow, wreck or rip that lands on an enemy machine.
-//   MARKS       CHILL (from a frozen belt tile: 25% less damage) and SNAG (from a chain slow: 20% slower ride).
+//   HARASSMENT  any STUN, wreck or rip that lands on an enemy machine (NUM-3: no freeze or slow any more).
+//   MARKS       SAP, the one mark left (2 less damage; no piece gives it yet). NUM-3: CHILL and SNAG are gone.
 // 0.8.0 P1 (wave 3, DESIGN-wave3.md 3.2's glossary; each a shared sentence in S below):
 //   PLATING     plating takes damage, burn and poison before your hull, up to 24 (PLATE_CAP); the dark wind goes straight
 //               through it (S.plating). "2 PLATING", "0.5 PLATING": at most one decimal, the word PLATING as its unit.
@@ -60,6 +62,7 @@ import {
   AMMO, BURN_TIME, CELL, BELT_SPEED, COMMISSION_BASE, COMMISSION_STEP, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS,
   JAM_THRESHOLD, SHAPE_ARROWS, WINDOW_TIME, rigShape, type HarassCause, type HeroId, type ItemDef,
 } from "../sim/content";
+import { STUN_CAUSES } from "../sim/content"; // NUM-3 (R1's STUN fold): MANTLET's immunity is every STUN source
 import { PEAK_SHIFT, PENDULUM } from "../sim/races/data";
 import { BURN_DPS } from "../sim/content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
 import { factorySpeed, rateMul, secPer } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED (the faces keep SEC: 30 / speed)
@@ -81,15 +84,10 @@ export const SIM = {
   poisonMax: 24, // battle.ts impact: stacks = Math.min(24, stacks + poison)
   poisonTime: 6, // battle.ts impact: poison.t = 6
   poisonTick: 4, // battle.ts hullEffects: stacks * 4 damage a second (NUM-1: x10 of 0.4, once a second)
-  sabotBelt: 5, // battle.ts roundImpact: a sabot stalls a belt tile 5 s
-  sabotFactory: 4, // ... a factory 4 s
-  sabotTurret: 3, // ... a turret 3 s
-  sabotHull: 60, // battle.ts impact: + 60 on bare hull (NUM-1: x10 of 6)
-  shrapnel: 2, // battle.ts roundImpact: SHRAPNEL stalls the tiles either side 2 s
-  chainFactory: 0.8, // battle.ts slowSegment: a factory's timer + 0.8 s
-  chainTurret: 0.5, // ... a turret's fire cooldown + 0.5 s
-  snag: 0.8, // battle.ts transport: a snagged payload rides x0.8 (20% slower)
-  chill: 0.75, // harassment.ts debuffedDamage: a chilled payload deals x0.75 (25% less)
+  // NUM-3 (R1's STUN fold): SABOT's 5 / 4 / 3 s stalls and bare-hull +60, DRAG CHAIN's factory and turret delays and SNAG's
+  // x0.8, and CHILL's x0.75 are gone from the sim; a sabot, frost or chain round's STUN is its round.seconds (content.ts)
+  shrapnel: 2, // battle.ts roundImpact: SHRAPNEL stuns the tiles either side 2 s
+  sap: 20, // harassment.ts debuffedDamage: a SAP-marked payload deals 20 less (NUM-1: x10 of 2)
   scrapQueue: 3, // battle.ts produce: up to 3 triggered stamps wait
   lanceMax: 10, // battle.ts impact: a lance strikes at most 10 targets
   salvoWait: 2, // cores.ts salvo: fires once full, or after twice the load time
@@ -222,16 +220,17 @@ export const S = {
   burn: `EACH BURN DEALS THE ENEMY HULL ${BURN_DPS} DAMAGE A SECOND FOR ${seconds(BURN_TIME)}.`, // NUM-1: the sim's BURN_DPS (was a literal 1)
   /** What a shock does: "STALLS A MACHINE FOR 1.6 SECONDS" (n machines with a jump). */
   stalls: (t: number, n: number) => `STALLS ${n === 1 ? "A MACHINE" : `${n} MACHINES`} FOR ${seconds(t)}`,
-  /** How a jump spreads a shock (or a freeze) after the machine the shot hits. */
+  /** How a jump spreads a shock (or a FROSTBITE round's STUN) after the machine the shot hits. */
   spread: (verb: string, n: number) => `THE SHOT ${verb} THE MACHINE IT HITS, THEN THE ${n === 1 ? "NEAREST OTHER ONE" : `${n} NEAREST OTHERS`}.`,
   hullShock: "A SHOT THAT HITS BARE HULL STALLS NOTHING.",
   /** A speed rig on METRONOME's locked belts: the lockedFlat it pays there (`more`: on top of its own damage). */
   locked: (d: number, more = false) =>
     `ON METRONOME'S LOCKED BELTS IT ADDS ${more ? moreDamage(d) : damage(d)} INSTEAD${more ? " OF THE SPEED CHANGE" : ""}.`,
-  harassment: "HARASSMENT IS ANY STALL, FREEZE, SLOW, WRECK OR RIP ON AN ENEMY MACHINE.",
+  harassment: "HARASSMENT IS ANY STUN, WRECK OR RIP ON AN ENEMY MACHINE.", // NUM-3: no freeze or slow any more
   poison: `EACH POISON ON THE ENEMY HULL DEALS ${n1(SIM.poisonTick)} DAMAGE A SECOND, UP TO ${SIM.poisonMax} POISON.`,
   poisonTime: `THE POISON CLEARS ${seconds(SIM.poisonTime)} AFTER THE LAST POISONED HIT.`,
-  marks: `MARKS ARE CHILL FROM A FROZEN TILE (${percent(1 - SIM.chill)} LESS DAMAGE) AND SNAG FROM A CHAIN (${percent(1 - SIM.snag)} SLOWER RIDE).`,
+  // NUM-3 (R1's STUN fold): CHILL and SNAG are gone; SAP is the one mark left, and no piece gives it yet (harassment.ts)
+  marks: `SAP IS THE ONLY MARK: ITS PAYLOAD DEALS ${n1(SIM.sap)} LESS DAMAGE; NO PIECE GIVES IT YET.`,
   fray: (max?: number) => `EACH FRAY ON THE ENEMY HULL MAKES EVERY LATER HIT DEAL ${moreDamage(FRAY_BONUS)}${max ? `, UP TO ${max} FRAY` : ""}.`,
   online: `RIGS NORMALLY COME ONLINE ${seconds(COMMISSION_BASE)} INTO A BATTLE, ${seconds(COMMISSION_STEP)} LATER FOR EACH RIG BEFORE THEM ON THEIR BELT.`,
   bonus: "BONUS DAMAGE IS WHAT RIGS AND SCRAP ADD TO A PAYLOAD.",
@@ -264,8 +263,13 @@ export const STALL_WORD: Record<HarassCause, string> = {
 function list(words: string[]): string {
   return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} AND ${words[words.length - 1]}`;
 }
-const immunities = (e: ItemDef): string => list((m(e).immune ?? []).map((k) => STALL_WORD[k]));
-/** 0.6.2 FB-B: MANTLET ★2 FULL PLATE shields the last tile of each belt into its turret, ★3 BULWARK SKIRT the last 3
+/** NUM-3 (R1's STUN fold): the stops a MANTLET's turret ignores: EVERY STUN when its list holds every STUN source
+ *  (content.ts STUN_CAUSES, from ★1), else its list's words. */
+const immunities = (e: ItemDef): string => {
+  const im = m(e).immune ?? [];
+  return STUN_CAUSES.every((k) => im.includes(k)) ? "EVERY STUN" : `${list(im.map((k) => STALL_WORD[k]))} STUNS`;
+};
+/** 0.6.2 FB-B: MANTLET ★2 FULL GUARD (NUM-3: was FULL PLATE) shields the last tile of each belt into its turret, ★3 BULWARK SKIRT the last 3
  *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it); a rig with an arrow on a shielded
  *  tile is shielded too (Battle.skirted), against the turret's own list. */
 const shielded = (n: number): string => (n === 1
@@ -276,7 +280,7 @@ function mantletGist(e: ItemDef, stars: number): string {
   const was = stars > 1 ? effectAt("mantlet", stars - 1).mod?.immune ?? [] : [];
   const added = (m(e).immune ?? []).filter((c) => !was.includes(c)), guard = m(e).intakeGuard ?? 0;
   return [
-    ...(stars <= 1 ? [`IGNORES ${immunities(e)} STALLS`] : added.length ? [`IGNORES ${list(added.map((c) => STALL_WORD[c]))} TOO`] : []),
+    ...(stars <= 1 ? [`IGNORES ${immunities(e)}`] : added.length ? [`IGNORES ${list(added.map((c) => STALL_WORD[c]))} TOO`] : []),
     ...(guard ? [`SHIELDS THE LAST ${guard === 1 ? "TILE" : `${guard} TILES`} OF EACH BELT IN`] : []),
   ].join(", ");
 }
@@ -329,6 +333,10 @@ function mimicRate(e: ItemDef): string {
   const mul = imul(f(e).rate); // NUM-2: its whole rate % as the interval share rateText reads
   return Math.abs(mul - 1) < 1e-9 ? "AS OFTEN AS" : `${rateText(mul)} THAN`;
 }
+
+/** NUM-3 step 2 (REQ-BFG-047, N1 2.2's LOAD 50% SHORTER): how much shorter a core's load time is than WINDOW_TIME, as a
+ *  whole percent (ROTARY BREECH's windowTime 0.75 of 1.5 s: 50%); its seconds were a non-whole number (0.8 s). */
+const loadCut = (s: { windowTime?: number }): string => percent(1 - (s.windowTime ?? WINDOW_TIME) / WINDOW_TIME);
 
 const ENTRIES: Record<string, Entry> = {
   // ----------------------------------------------------------------------------------------------------------- rigs
@@ -388,13 +396,13 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `SPLITS INTO ${g(e).split!.copies} AT ${percent(g(e).split!.mult)}`,
   },
   overdrive: {
-    // ★2 REDLINE: GUARD_SLOW (chain slows can't slow its belts from its tiles on); ★3 AFTERBURNER: + 3 flat and
-    // GUARD_FREEZE (frost can't freeze those tiles). Battle.acceptHarassment, routeGuardActive
+    // ★2 REDLINE: GUARD_SLOW (enemy CHAIN rounds can't STUN its belts from its tiles on); ★3 AFTERBURNER: + 3 flat and
+    // GUARD_FREEZE (nor FROST rounds). Battle.acceptHarassment, routeGuardActive. NUM-3: no slow or freeze any more
     text: (e) => {
       const gt = g(e), guard = gt.guard ?? 0;
       return [
         `MAKES ${belts(e)} PAST IT ${speedText(gt.speed!)}${gt.flat ? ` AND ADDS ${damage(gt.flat)} TO EACH PAYLOAD` : ""}.`,
-        ...(guard ? [`ENEMY CHAINS${guard & 2 ? " AND FROST" : ""} CAN'T SLOW${guard & 2 ? " OR FREEZE" : ""} ${belts(e)} PAST IT.`] : []),
+        ...(guard ? [`ENEMY CHAIN${guard & 2 ? " AND FROST" : ""} ROUNDS CAN'T STUN ${belts(e)} PAST IT.`] : []),
         S.locked(gt.lockedFlat!, !!gt.flat),
       ];
     },
@@ -417,10 +425,11 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `BLOCKS ${g(e).toll} HITS OF HARASSMENT`,
   },
   sifter: {
-    // harassment.ts siftDebuffs: CHILL, SNAG, SAP order; ★2 POLISH / ★3 FINE MESH sift all, + flat per mark (+ clean)
+    // harassment.ts siftDebuffs: NUM-3 (R1's STUN fold): SAP only (CHILL and SNAG are gone; no piece gives SAP yet, S.marks);
+    // ★2 POLISH / ★3 FINE MESH sift all, + flat for each mark removed; ★3's siftClean on a payload with no mark
     text: (e) => {
       const gt = g(e);
-      if (gt.sift !== "all") return [`REMOVES ${gt.sift === 1 ? "ONE ENEMY MARK" : `${gt.sift} ENEMY MARKS`} FROM EACH PAYLOAD IT HITS, CHILL FIRST.`, S.marks];
+      if (gt.sift !== "all") return [`REMOVES ${gt.sift === 1 ? "ONE ENEMY MARK" : `${gt.sift} ENEMY MARKS`} FROM EACH PAYLOAD IT HITS.`, S.marks];
       return [
         `REMOVES EVERY ENEMY MARK FROM EACH PAYLOAD AND ADDS ${damage(gt.siftFlat ?? 0)} FOR EACH.`,
         ...(gt.siftClean ? [`A PAYLOAD WITH NO MARK GETS ${damage(gt.siftClean)} INSTEAD.`] : []),
@@ -490,13 +499,13 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "DOUBLES THE NEXT RIG'S HIT",
   },
   keg: {
-    // Battle.detonateKeg: once, when the fuse (running while online, paused by a stall or freeze) ends; ★3 WIDE BLAST:
+    // Battle.detonateKeg: once, when the fuse (running while online, paused by a STUN) ends; ★3 WIDE BLAST:
     // every belt beside the keg, not only those its arrows hit
     text: (e) => {
       const k = g(e).keg!;
       return [
         `ADDS ${damage(k.flat)} AND ${k.burn} BURN TO EVERY PAYLOAD ON ${k.wide ? "EVERY BELT BESIDE IT" : "ITS BELTS"} WHEN IT BLOWS UP.`,
-        `IT BLOWS ONCE, ${seconds(k.fuse)} AFTER IT COMES ONLINE; A STALL OR FREEZE PAUSES THE FUSE.`,
+        `IT BLOWS ONCE, ${seconds(k.fuse)} AFTER IT COMES ONLINE; A STUN PAUSES THE FUSE.`, // NUM-3: no freeze any more
         S.burn,
       ];
     },
@@ -504,11 +513,15 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `BLOWS UP: ${damage(g(e).keg!.flat)}, ${g(e).keg!.burn} BURN`,
   },
   bellows: {
+    // NUM-3 step 2 (compile-driven): burnPerRide is { burn, per, max }: floor(ride x burn / per) BURN, at most max (deck.ts
+    // walkRoute, Battle.applyHit); was 1 BURN every `seconds`. The same sentence, read from the new fields
+    // NUM-3 step 2, batch C: FOR EACH (docs/TEXT-STYLE.md 8.4's word for a rate; was FOR EVERY), and the gist says FOR EACH
+    // too, never EVERY n SECONDS, which reads as a timer (TEXT-STYLE 3.2): it adds the BURN once, as the payload passes
     text: (e) => [
-      `ADDS 1 BURN FOR EVERY ${seconds(g(e).burnPerRide!.seconds)} THE PAYLOAD HAS RIDDEN, UP TO ${g(e).burnPerRide!.max} BURN.`,
+      `ADDS ${g(e).burnPerRide!.burn} BURN FOR EACH ${seconds(g(e).burnPerRide!.per)} THE PAYLOAD HAS RIDDEN, UP TO ${g(e).burnPerRide!.max} BURN.`,
       S.burn,
     ],
-    gist: (e) => `1 BURN ${every(g(e).burnPerRide!.seconds)}, UP TO ${g(e).burnPerRide!.max} BURN`,
+    gist: (e) => `${g(e).burnPerRide!.burn} BURN FOR EACH ${seconds(g(e).burnPerRide!.per)}, UP TO ${g(e).burnPerRide!.max} BURN`,
     card: (e) => `BURN FOR RIDE TIME, UP TO ${g(e).burnPerRide!.max}`,
   },
   quench: {
@@ -538,7 +551,7 @@ const ENTRIES: Record<string, Entry> = {
     // As short as the sentence it replaces (it must still fit the phone band and the desk column whole)
     text: (e) => [
       `ADDS ${damage(g(e).flat ?? 0)}, AND ${n1(g(e).perStalled!.each)} FOR EACH ENEMY MACHINE STALLED, UP TO ${damage(g(e).perStalled!.max)}.`,
-      "FROZEN AND WRECKED MACHINES COUNT; BELT TILES DON'T.",
+      "WRECKED MACHINES COUNT TOO; BELT TILES DON'T.", // NUM-3 (R1's STUN fold): nothing freezes any more
     ],
     gist: (e) => `ADDS ${damage(g(e).flat ?? 0)}, AND ${n1(g(e).perStalled!.each)} FOR EACH STALLED MACHINE`,
     card: (e) => `${damage(g(e).flat ?? 0)}, MORE FOR EACH STALL`,
@@ -595,10 +608,10 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "BURN AND SHOCK SLUGS IN TURN",
   },
   slagpot: {
-    // Battle.transport: slag keeps AMMO.slag.fixedSpeed whatever the speed rigs, the speed lock and slows
+    // Battle.transport: slag keeps AMMO.slag.fixedSpeed whatever the speed rigs and the speed lock (NUM-3: no enemy slows)
     text: (e) => [
       `STAMPS A HEAVY SLAG SLUG (${damage(slugBase(e))}) ${every(secPer(f(e).speed))}.`,
-      `SLAG ALWAYS RIDES AT ${percent(AMMO.slag.fixedSpeed!)} SPEED: SPEED RIGS AND ENEMY SLOWS CAN'T CHANGE IT.`,
+      `SLAG ALWAYS RIDES AT ${percent(AMMO.slag.fixedSpeed!)} SPEED: SPEED RIGS CAN'T CHANGE IT.`,
     ],
     gist: (e) => `${damage(slugBase(e))} SLAG ${every(secPer(f(e).speed))}`,
     card: (e) => `HEAVY ${damage(slugBase(e))} SLAG SLUGS`,
@@ -651,16 +664,16 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `SCRAP SLUGS, ${moreDamage(f(e).scrapFlat!)}`,
   },
   sabot: {
-    // Battle.roundImpact: a rig is wrecked (for the battle), a belt tile stalls 5 s, a factory 4 s, a turret 3 s; bare hull
-    // takes + 6 (Battle.impact); ★3 SHRAPNEL: the belt tiles either side of where it landed stall 2 s
+    // Battle.roundImpact: a rig is wrecked (for the battle); NUM-3 (R1's STUN fold): any other part (a belt tile, a factory,
+    // a turret) is STUNned for round.seconds (was 5 / 4 / 3 s by target; its bare-hull + 6 is gone); ★3 SHRAPNEL: the belt
+    // tiles either side of where it landed are STUNned 2 s
     text: (e) => {
-      const shrapnel = round<{ shrapnel?: boolean }>(e).shrapnel;
+      const r = round<{ seconds: number; shrapnel?: boolean }>(e);
       return [
         "STAMPS SABOTS THAT WRECK THE ENEMY RIG THEY HIT FOR THE REST OF THE BATTLE.",
         S.stamps("ONE", secPer(f(e).speed)),
-        ...(shrapnel ? [`ON A RIG OR BELT, IT ALSO STALLS THE TILES ON EITHER SIDE FOR ${seconds(SIM.shrapnel)}.`] : []),
-        `A SABOT STALLS A BELT TILE FOR ${seconds(SIM.sabotBelt)}, A FACTORY FOR ${seconds(SIM.sabotFactory)} OR A TURRET FOR ${seconds(SIM.sabotTurret)}.`,
-        `ON BARE HULL IT DEALS ${moreDamage(SIM.sabotHull)}.`,
+        ...(r.shrapnel ? [`ON A RIG OR BELT, IT ALSO STUNS THE TILES ON EITHER SIDE FOR ${seconds(SIM.shrapnel)}.`] : []),
+        `ANY OTHER MACHINE A SABOT HITS IS STUNNED FOR ${seconds(r.seconds)}.`,
       ];
     },
     perkAt: (e) => (round<{ shrapnel?: boolean }>(e).shrapnel ? 2 : 0),
@@ -669,40 +682,36 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "SABOTS WRECK ENEMY RIGS",
   },
   frostbite: {
-    // Battle.roundImpact: freeze the machine it hits, then the `spread` nearest others (★2/★3 HOARFROST)
+    // Battle.roundImpact: NUM-3 (R1's STUN fold): STUN the machine it hits (cause "freeze"), then the `spread` nearest
+    // others (★2/★3 HOARFROST); was a freeze, whose frozen belt tile CHILLed its payloads
     text: (e) => {
       const r = round<{ seconds: number; spread: number }>(e);
       return [
-        `STAMPS ROUNDS THAT FREEZE ${r.spread ? `${r.spread + 1} MACHINES` : "THE MACHINE THEY HIT"} FOR ${seconds(r.seconds)}.`,
-        ...(r.spread ? [S.spread("FREEZES", r.spread)] : []),
+        `STAMPS ROUNDS THAT STUN ${r.spread ? `${r.spread + 1} MACHINES` : "THE MACHINE THEY HIT"} FOR ${seconds(r.seconds)}.`,
+        ...(r.spread ? [S.spread("STUNS", r.spread)] : []),
         S.stamps("ONE", secPer(f(e).speed)),
-        `A FROZEN MACHINE STOPS AND ITS TIMERS PAUSE; A FROZEN BELT TILE ALSO CHILLS ITS PAYLOADS (${percent(1 - SIM.chill)} LESS DAMAGE).`,
-        "A ROUND THAT HITS BARE HULL FREEZES NOTHING.",
+        "A ROUND THAT HITS BARE HULL STUNS NOTHING.",
       ];
     },
     gist: (e) => {
       const r = round<{ seconds: number; spread: number }>(e);
-      return `FREEZES ${r.spread ? plural(r.spread + 1, "MACHINE") : "A MACHINE"} FOR ${seconds(r.seconds)}`;
+      return `STUNS ${r.spread ? plural(r.spread + 1, "MACHINE") : "A MACHINE"} FOR ${seconds(r.seconds)}`;
     },
-    card: (e) => `FREEZES A MACHINE FOR ${seconds(round<{ seconds: number }>(e).seconds)}`,
+    card: (e) => `STUNS A MACHINE FOR ${seconds(round<{ seconds: number }>(e).seconds)}`,
   },
   dragchain: {
-    // Battle.slowSegment: the stretch of belt between its rigs; snagged payloads ride 20% slower from then on
+    // Battle.roundImpact: NUM-3 (R1's STUN fold): STUN the machine it hits (cause "drag"); was a belt slow over the stretch
+    // between two rigs with SNAG (20% slower ride), or a factory's next slug + 0.8 s and a turret's next shot + 0.5 s
     text: (e) => {
-      const r = round<{ mul: number; seconds: number }>(e);
+      const r = round<{ seconds: number }>(e);
       return [
-        `STAMPS CHAIN ROUNDS THAT MAKE THE ENEMY BELT THEY HIT ${speedText(r.mul)} FOR ${seconds(r.seconds)}.`,
-        `PAYLOADS ON IT ARE SNAGGED AND RIDE ${percent(1 - SIM.snag)} SLOWER FROM THEN ON.`,
+        `STAMPS CHAIN ROUNDS THAT STUN THE ENEMY MACHINE THEY HIT FOR ${seconds(r.seconds)}.`,
         S.stamps("ONE", secPer(f(e).speed)),
-        "THE SLOW COVERS THE STRETCH OF BELT BETWEEN TWO RIGS.",
-        `A CHAIN ON A FACTORY DELAYS ITS NEXT SLUG BY ${seconds(SIM.chainFactory)}; ON A TURRET, ITS NEXT SHOT BY ${seconds(SIM.chainTurret)}.`,
+        "A ROUND THAT HITS BARE HULL STUNS NOTHING.",
       ];
     },
-    gist: (e) => {
-      const r = round<{ mul: number; seconds: number }>(e);
-      return `${speedText(r.mul)} FOR ${seconds(r.seconds)}`;
-    },
-    card: (e) => `MAKES ENEMY BELTS ${speedText(round<{ mul: number }>(e).mul)}`,
+    gist: (e) => `STUNS A MACHINE FOR ${seconds(round<{ seconds: number }>(e).seconds)}`,
+    card: (e) => `CHAIN ROUNDS STUN FOR ${seconds(round<{ seconds: number }>(e).seconds)}`,
   },
   // 0.8.0 H1 (REQ-BFG-032, REQ-BFG-011): the two playable race heroes' signature factories, never sold (no card, no
   // stars). Each says what its ammo does too, from the race rules' own numbers (races/foundry.ts, races/bastion.ts).
@@ -825,10 +834,12 @@ const ENTRIES: Record<string, Entry> = {
   },
   rotary: {
     // cores.ts ROUTINES.rotary: FIFO; its windowTime; ★2 GREASED RACE / ★3 CLEAN FEED: intervalMul (and noJam)
+    // NUM-3 step 2 (REQ-BFG-047, N1 2.2): its load time as the whole % shorter (loadCut: windowTime 0.75 of WINDOW_TIME's
+    // 1.5 s, 50%); was CUTS THE LOAD TIME TO 0.8 SECONDS, gist LOAD TIME 0.8 SECONDS, card CUTS LOAD TIME TO 0.8 SECONDS
     text: (e, x) => {
       const s = c(e, x);
       return [
-        `CUTS THE LOAD TIME TO ${seconds(s.windowTime ?? WINDOW_TIME)} AND FIRES THE OLDEST LOAD FIRST.`,
+        `ITS LOAD TIME IS ${loadCut(s)} SHORTER, AND IT FIRES THE OLDEST LOAD FIRST.`,
         ...(s.fireRate ? [`IT FIRES ${rateText(imul(s.fireRate))}${s.noJam ? " AND NEVER JAMS" : ""}.`] : []),
         S.chamber,
       ];
@@ -836,9 +847,9 @@ const ENTRIES: Record<string, Entry> = {
     perkAt: (e, x) => (c(e, x).fireRate ? 1 : 0),
     gist: (e, x) => {
       const s = c(e, x);
-      return s.fireRate ? `FIRES ${rateText(imul(s.fireRate))}${s.noJam ? ", NEVER JAMS" : ""}` : `LOAD TIME ${seconds(s.windowTime ?? WINDOW_TIME)}`;
+      return s.fireRate ? `FIRES ${rateText(imul(s.fireRate))}${s.noJam ? ", NEVER JAMS" : ""}` : `LOAD ${loadCut(s)} SHORTER`;
     },
-    card: (e, x) => `CUTS LOAD TIME TO ${seconds(c(e, x).windowTime ?? WINDOW_TIME)}`,
+    card: (e, x) => `LOAD TIME ${loadCut(c(e, x))} SHORTER`,
   },
   pressure: {
     // cores.ts pressureBonus: waiting at its intakes plus in its chamber, this load included, up to maxCount
@@ -1015,15 +1026,16 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `CHAMBER HOLDS ${plural(m(e).window!, "MORE LOAD")}`,
   },
   mantlet: {
-    // Battle.acceptHarassment: the turret ignores its immune causes (0.6.2 FB-B's words); ★2 FULL PLATE adds FROST and
-    // SABOT and shields the last tile of each belt into the turret, ★3 BULWARK SKIRT the last 3, and the rigs working them
+    // Battle.acceptHarassment: the turret ignores its immune causes; NUM-3 (R1's STUN fold): every STUN source from ★1
+    // (was SHOCK, STATIC, ARC and CHAIN, ★2 FULL PLATE + FROST and SABOT); ★2 FULL GUARD shields the last tile of each belt
+    // into the turret, ★3 BULWARK SKIRT the last 3, and the rigs working them
     text: (e) => [
-      `THE TURRET IGNORES ${immunities(e)} STALLS.`,
+      `THE TURRET IGNORES ${immunities(e)}.`,
       ...(m(e).intakeGuard ? [shielded(m(e).intakeGuard!)] : []),
     ],
     perkAt: (e) => (m(e).intakeGuard ? 1 : 0),
     gist: (e, x) => mantletGist(e, x.stars),
-    card: () => "IGNORES SHOCK AND CHAIN STALLS",
+    card: (e) => `IGNORES ${immunities(e)}`,
   },
   ram: {
     text: (e) => [`THE LOAD THAT EMPTIES THE CHAMBER DEALS ${percent(m(e).finisher!)} MORE DAMAGE.`, S.gatling],
@@ -1072,17 +1084,17 @@ const ENTRIES: Record<string, Entry> = {
       const p = g(e).pincer!;
       return [
         `ADDS ${damage(p.flat)} TO EACH PAYLOAD IT HITS, AND ${n1(p.each)} MORE FOR EACH OTHER RIG HITTING THAT TILE.`,
-        "STALLED, FROZEN AND WRECKED RIGS DON'T COUNT.",
+        "STUNNED AND WRECKED RIGS DON'T COUNT.", // NUM-3 (R1's STUN fold): nothing freezes any more
       ];
     },
     gist: (e) => `ADDS ${damage(g(e).pincer!.flat)}, AND ${n1(g(e).pincer!.each)} MORE FOR EACH OTHER RIG ON ITS TILE`,
     card: () => "MORE DAMAGE WITH RIGS ON ITS TILE",
   },
   braceframe: {
-    // Battle.braceCut: an enemy stall, freeze or chain slow on a tile it hits, or on the brace itself, lasts x mul while
-    // it works, x plated while the hull holds plating (E1)
+    // Battle.braceCut: an enemy STUN on a tile it hits, or on the brace itself, lasts x mul while it works, x plated while
+    // the hull holds plating (E1). NUM-3 (R1's STUN fold): no freeze or chain slow any more (Battle.disrupt cuts every STUN)
     text: (e) => [
-      `ENEMY STALLS, FREEZES AND CHAIN SLOWS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST ${percent(1 - g(e).brace!.mul)} SHORTER.`,
+      `ENEMY STUNS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST ${percent(1 - g(e).brace!.mul)} SHORTER.`,
       `WHILE YOUR HULL HOLDS PLATING THEY LAST ${percent(1 - g(e).brace!.plated)} SHORTER.`,
     ],
     gist: (e) => `${percent(1 - g(e).brace!.mul)} SHORTER, ${percent(1 - g(e).brace!.plated)} WHILE PLATED`,

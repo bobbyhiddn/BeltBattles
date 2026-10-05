@@ -43,7 +43,10 @@ describe("B1 M2: OVERDRIVE ★2 REDLINE (oracle 1cd5224fab866da2 (A))", () => {
     const t2 = abilityText("overdrive", 2);
     expect(t2.perk).toEqual({ name: "REDLINE", stars: 2, after: 1 });
     expect(t2.sentences[0]).toContain("AND ADDS 10 DAMAGE TO EACH PAYLOAD"); // NUM-1: x10 (was ADDS 1)
-    expect(t2.sentences[1]).toContain("ENEMY CHAINS CAN'T SLOW");
+    // NUM-3 (R1's STUN fold): was toContain("ENEMY CHAINS CAN'T SLOW") (a chain round slowed a belt stretch); now REDLINE's
+    // chain guard keeps enemy CHAIN rounds' STUNs off its belts, and abilityText's sentence says so (step 1b: "ENEMY CHAIN
+    // [AND FROST] ROUNDS CAN'T STUN ..."); at ★2 the chain alone, as before (★3 AFTERBURNER adds AND FROST)
+    expect(t2.sentences[1]).toContain("ENEMY CHAIN ROUNDS CAN'T STUN");
     expect(gist("overdrive", 3)).toBe("5 TIMES AS FAST, ADDS 30 DAMAGE"); // NUM-1: x10 (was ADDS 3)
     expect(abilityText("overdrive", 3).perk).toEqual({ name: "AFTERBURNER", stars: 3, after: 0 });
   });

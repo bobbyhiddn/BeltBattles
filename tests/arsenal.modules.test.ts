@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
-import { DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, WINDOW_TIME, type HarassCause } from "../src/sim/content";
+import { DISRUPT_TIME, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, STUN_CAUSES, WINDOW_TIME, type HarassCause } from "../src/sim/content";
 import { arrowCell, arrowsOf, hitsOfRig, key, kx, ky, rigHits, rotField, type Build } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { barge, bench, busy, coilStall, est, finishers, pressDps, pressOnly, rawDamage, run, SEED, turretStall } from "./arsenal.bench";
@@ -138,14 +138,17 @@ describe("0.6.1p: the six pending perks, each applied", () => {
     for (const a of past) expect(a.p.flat).toBe(8 * effectAt("whetstone", 1).gate!.flat! + effectAt("longhaul", 2).gate!.perPriorGate! * 6);
   });
 
-  it("GALVANIC COIL: 1 star stalls exactly DISRUPT_TIME as in 0.6.0; 1.8 s and 2.8 s; SPARK JUMP stalls a second machine", () => {
+  // NUM-3 (N1 2.2): whole-second STUNs: DISRUPT_TIME 2 at ★1, shockTime 2 / 3 at ★2 / ★3 (was 1.6, 1.8 and 2.8 s). The
+  // stalls and the seconds per hit are read from the data (DISRUPT_TIME, effectAt); each is a whole number of ticks
+  it("GALVANIC COIL: 1 star stalls exactly DISRUPT_TIME as in 0.6.0; 2 s and 3 s; SPARK JUMP stalls a second machine", () => {
     const c = [1, 2, 3].map((s) => coilStall(s));
-    expect(c[0].stalls).toEqual([DISRUPT_TIME]); // every 1-star stall is exactly 0.6.0's
-    expect(DISRUPT_TIME).toBe(1.6); // catalogue star1
-    expect(c.map((x) => x.stalls)).toEqual([[1.6], [1.8], [2.8]]);
-    expect(c[0].perHit).toBeCloseTo(1.6);
-    expect(c[1].perHit).toBeCloseTo(3.6); // 1.8 s on the struck machine + 1.8 s on the jump
-    expect(c[2].perHit).toBeCloseTo(5.6);
+    const shockTime = (s: number) => effectAt("coil", s).gate!.shockTime!;
+    expect(c[0].stalls).toEqual([DISRUPT_TIME]); // every 1-star stall is exactly DISRUPT_TIME, as in 0.6.0
+    expect(DISRUPT_TIME).toBe(2); // catalogue star1. NUM-3 (N1 2.2): whole seconds (was 1.6)
+    expect(c.map((x) => x.stalls)).toEqual([[DISRUPT_TIME], [shockTime(2)], [shockTime(3)]]); // NUM-3: was [[1.6], [1.8], [2.8]]
+    expect(c[0].perHit).toBeCloseTo(DISRUPT_TIME); // NUM-3: was 1.6
+    expect(c[1].perHit).toBeCloseTo(2 * shockTime(2)); // the stall on the struck machine + the same on the jump (NUM-3: was 3.6, 1.8 + 1.8)
+    expect(c[2].perHit).toBeCloseTo(2 * shockTime(3)); // NUM-3: was 5.6 (2.8 + 2.8)
     expect(c.map((x) => x.maxPerTick)).toEqual([1, 2, 2]); // the jump: a second disrupt in the same tick
     for (const x of c) expect(x.hits).toBeGreaterThan(3);
   });
@@ -285,20 +288,26 @@ describe("0.6.1p: HOPPER, MANTLET and FINISHER RAM", () => {
   });
 
   // 0.6.2 FB-B (tests/fb062.mantlet.test.ts): FULL PLATE also shields the intake tile (intakeGuard 1; was 0)
-  it("MANTLET: shock/static/arc/drag at 1 star, + freeze and sabot and the intake tile (FULL PLATE), + the last 3 intake tiles (BULWARK SKIRT)", () => {
+  // NUM-3 (R1's STUN fold): immune to every STUN source from ★1 (content.ts STUN_CAUSES; was shock/static/arc/drag at ★1,
+  // + freeze and sabot at ★2, and LIMPET's stall in no star's list); ★2's perk is FULL GUARD (was FULL PLATE), the same tile
+  it("MANTLET: every STUN cause (STUN_CAUSES) at 1 star, + the intake tile (FULL GUARD), + the last 3 intake tiles (BULWARK SKIRT)", () => {
     const tu = (s: number) => tu0(bench([], [["mantlet", s]]));
-    expect(tu(1).immune).toEqual(["shock", "static", "arc", "drag"]);
-    expect(tu(2).immune).toEqual(["shock", "static", "arc", "drag", "freeze", "sabot"]);
+    expect(tu(1).immune).toEqual([...STUN_CAUSES]); // NUM-3: was ["shock", "static", "arc", "drag"]
+    expect(tu(2).immune).toEqual(tu(1).immune); // NUM-3: was ★1's + "freeze" and "sabot"
     expect(tu(3).immune).toEqual(tu(2).immune);
     expect([1, 2, 3].map((s) => tu(s).intakeGuard)).toEqual([0, 1, 3]);
     for (const s of [1, 2, 3]) {
       const bt = new Battle(bench([["whetstone", 4, 1, 1], ["whetstone", 4, 3, 1]], [["mantlet", s]]), barge(), SEED);
       expect(hit(bt, "turret", 0, -1), `${s} shock`).toBe(false);
       expect(bt.sides[0].turrets[0].disrupted).toBe(0);
-      expect(hit(bt, "turret", 0, -1, "freeze"), `${s} freeze`).toBe(s === 1);
+      // NUM-3: was a freeze accepted at ★1 only (toBe(s === 1)); now every STUN cause is refused at every star
+      for (const cause of STUN_CAUSES) expect(hit(bt, "turret", 0, -1, cause), `${s} ${cause}`).toBe(false);
+      expect(bt.sides[0].turrets[0].disrupted).toBe(0);
       const skirt = bt.sides[0].routes[0].guard.map((g) => (g & GUARD_SKIRT ? 1 : 0));
       expect(skirt).toEqual(s === 3 ? [0, 0, 0, 1, 1, 1] : s === 2 ? [0, 0, 0, 0, 0, 1] : [0, 0, 0, 0, 0, 0]);
       expect(hit(bt, "belt", 0, 5), `${s} belt 5`).toBe(s === 1); // the intake tile
+      // NUM-3: the intake tile (FULL GUARD, BULWARK SKIRT) shares the turret's immunity to every STUN cause
+      for (const cause of STUN_CAUSES) expect(hit(bt, "belt", 0, 5, cause), `${s} belt 5 ${cause}`).toBe(s === 1);
       expect(hit(bt, "belt", 0, 0), `${s} belt 0`).toBe(true); // outside the skirt
       // 0.6.2 BELTSIDE merge: the rigs stand at (3,1) and (3,3), each with its one arrow on its old tile (P6)
       expect(hit(bt, "gate", 10, -1), `${s} gate on tile 4`).toBe(s !== 3); // uid 10: the WHETSTONE working (4,1)
@@ -397,8 +406,13 @@ describe("0.6.1c: the six factories' special rules", () => {
     expect(processed).toBeLessThanOrEqual(bt.sides[0].stats.produced);
   });
 
-  it("HOT SWAP: EMBER then SPARK in turn at 1.5 / 1.3 / 1.1 s; Burn 2 / 4 / 7; Shock 1.6 s (DISRUPT_TIME), 1.8 s + jump, 2.8 s + jump", () => {
-    const burn = [2, 4, 7], stall = [undefined, 1.8, 2.8], jump = [undefined, 1, 1];
+  // NUM-3 (N1 2.2): the spark's STUN is 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8): DISRUPT_TIME at ★1 (no shockTime), and the
+  // ★2 / ★3 shockTime read from the data (was the literals 1.8 / 2.8)
+  it("HOT SWAP: EMBER then SPARK in turn at 1.5 / 1.3 / 1.1 s; Burn 2 / 4 / 7; Shock 2 s (DISRUPT_TIME), 2 s + jump, 3 s + jump", () => {
+    const spark = (s: number) => effectAt("hotswap", s).factory!.cycle!.find((c) => c.tint === "spark")!;
+    const burn = [2, 4, 7], stall = [1, 2, 3].map((s) => spark(s).shockTime), jump = [undefined, 1, 1];
+    expect(stall[0]).toBeUndefined(); // ★1: no shockTime, so DISRUPT_TIME applies
+    for (const x of stall.slice(1)) expect(x).toBeGreaterThan(0); // ★2 / ★3 name their own
     for (const s of [1, 2, 3]) {
       const seen = new Map<number, Payload>();
       run(factoryLight("hotswap", s), 12, barge(), SEED, (_ev, bt) => {
@@ -416,10 +430,12 @@ describe("0.6.1c: the six factories' special rules", () => {
       const t = factoryOut("hotswap", s).times, iv = secPer(effectAt("hotswap", s).factory!.speed);
       for (let i = 1; i < t.length; i++) expect(Math.abs(t[i] - t[i - 1] - iv)).toBeLessThan(1.5 / 60);
     }
-    expect(DISRUPT_TIME).toBe(1.6);
+    expect(DISRUPT_TIME).toBe(2); // NUM-3 (N1 2.2): whole seconds (was 1.6)
   });
 
-  it("HOT SWAP: its sparks stall the machine they hit for 1.6 / 1.8 / 2.8 s, and at 2-3 stars SPARK JUMP stalls a second one", () => {
+  // NUM-3 (N1 2.2): 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8), read from the data: the spark's shockTime, else DISRUPT_TIME
+  it("HOT SWAP: its sparks stall the machine they hit for 2 / 2 / 3 s, and at 2-3 stars SPARK JUMP stalls a second one", () => {
+    const sparkStall = (s: number) => effectAt("hotswap", s).factory!.cycle!.find((c) => c.tint === "spark")!.shockTime ?? DISRUPT_TIME;
     for (const s of [1, 2, 3]) {
       const stalls = new Set<number>();
       let maxPerTick = 0;
@@ -435,7 +451,7 @@ describe("0.6.1c: the six factories' special rules", () => {
         }
         maxPerTick = Math.max(maxPerTick, n);
       });
-      expect([...stalls], `${s}`).toEqual([[1.6, 1.8, 2.8][s - 1]]);
+      expect([...stalls], `${s}`).toEqual([sparkStall(s)]); // NUM-3: was [[1.6, 1.8, 2.8][s - 1]]
       expect(maxPerTick >= 2, `${s} jump`).toBe(s > 1);
     }
   });

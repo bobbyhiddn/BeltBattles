@@ -214,7 +214,10 @@ describe("P3: LONG HAUL priorCap counts prior HITS; the inspector says UP TO 6 H
 
 describe("P4: GALVANIC COIL ★2/★3: shockTime and jump ride on each rig hit", () => {
   it("a payload past the COIL rig carries its stall and SPARK JUMP (★1: neither, so DISRUPT_TIME applies)", () => {
-    for (const [s, shockTime, jump] of [[1, undefined, undefined], [2, 1.8, 1], [3, 2.8, 1]] as const) {
+    // NUM-3 (N1 2.2): the stall 2 / 3 s (was the literals 1.8 / 2.8), written out from the catalogue (content.ts levels)
+    const lv = (s: 2 | 3) => ITEMS.coil.levels![s]!.gate!;
+    for (const s of [2, 3] as const) expect(lv(s).shockTime, `★${s} names a stall`).toBeGreaterThan(0);
+    for (const [s, shockTime, jump] of [[1, undefined, undefined], [2, lv(2).shockTime, 1], [3, lv(3).shockTime, 1]] as const) {
       const fam = family(bench([["coil", 4, 3, s]]), 2);
       expect(fam.length).toBe(1);
       expect([fam[0].shock, fam[0].shockTime, fam[0].jump], `★${s}`).toEqual([true, shockTime, jump]);
@@ -225,7 +228,7 @@ describe("P4: GALVANIC COIL ★2/★3: shockTime and jump ride on each rig hit",
     corner.items.push({ uid: 10, def: "coil", x: 4, y: 3, rot: 2, stars: 3 }); // P3's corner: tiles 1 and 3
     expect(hitsOfRig(corner, 10).map((x) => x.tile)).toEqual([1, 3]);
     const p = family(corner, 3)[0];
-    expect([p.shockTime, p.jump, p.prior]).toEqual([2.8, 1, 2]);
+    expect([p.shockTime, p.jump, p.prior]).toEqual([lv(3).shockTime, 1, 2]); // NUM-3: 3 s (was 2.8)
   });
 
   it("SPARK JUMP picks the nearest targets by centre distance: a struck rig's nearest target is the belt tile it works", () => {

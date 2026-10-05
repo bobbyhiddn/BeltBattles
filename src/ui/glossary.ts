@@ -107,7 +107,7 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "DMG", aliases: [], colour: C.white, def: "DMG: DAMAGE, TO A PART OR TO THE HULL.", scope: "rune" },
     // ------------------------------------------------- the words the kept texts still name (T2a's rows, T1 2.4's form)
     { word: "PART", aliases: ["PARTS", "MACHINE", "MACHINES"], colour: PLAIN, def: "PART: A RIG, FACTORY, TURRET OR BELT TILE.", scope: "text" },
-    { word: "FREEZE", aliases: ["FREEZES", "FROZEN", "FROST"], colour: KEYWORD_COLOUR.freeze, def: "FREEZE: STOPS A PART AND PAUSES ITS TIMERS. A FROZEN TILE CHILLS ITS SLUGS.", scope: "text" },
+    // NUM-3 (R1's STUN fold, REQ-BFG-046): the FREEZE row is gone: a FROSTBITE round STUNs (the STUN row); nothing freezes
     {
       word: "POISON", aliases: ["POISONED"], colour: KEYWORD_COLOUR.poison,
       def: `EACH POISON: ${fmtDmg(SIM.poisonTick)} HULL DAMAGE A SEC, MAX ${fmtCount(SIM.poisonMax)}, UNTIL ${fmtSec(SIM.poisonTime)}{SEC} PASS WITH NO POISONED HIT.`, scope: "text",
@@ -118,10 +118,12 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "LOAD TIME", aliases: [], colour: PLAIN, def: `LOAD TIME: A GUN FIRES A FULL CHAMBER, OR ${fmtSec(WINDOW_TIME)}{SEC} AFTER ITS FIRST LOAD.`, scope: "text" },
     // JAM keeps one meaning: an over-fed gun skipping a shot (battle.ts: JAM_THRESHOLD loads backed up)
     { word: "JAM", aliases: ["JAMS", "JAMMED"], colour: PLAIN, def: `JAM: A GUN WITH ${fmtCount(JAM_THRESHOLD)} LOADS BACKED UP AT ITS INTAKES SKIPS A SHOT.`, scope: "text" },
-    { word: "HARASSMENT", aliases: [], colour: PLAIN, def: "HARASSMENT: ANY {*STUN}, FREEZE, SLOW, WRECK OR RIP ON AN ENEMY PART.", scope: "text" },
+    // NUM-3 (R1's STUN fold): no FREEZE or SLOW any more (battle.ts acceptHarassment: a STUN, a SABOT wreck, a GRAPNEL rip)
+    { word: "HARASSMENT", aliases: [], colour: PLAIN, def: "HARASSMENT: ANY {*STUN}, WRECK OR RIP ON AN ENEMY PART.", scope: "text" },
     {
-      word: "MARKS", aliases: ["MARK", "CHILL", "CHILLS", "SNAG", "SNAGGED"], colour: PLAIN,
-      def: `MARKS: CHILL (FROZEN TILE: ${fmtPct(1 - SIM.chill)} LESS DAMAGE) AND SNAG (CHAIN: ${fmtPct(1 - SIM.snag)} SLOWER RIDE).`, scope: "text",
+      // NUM-3: CHILL and SNAG are gone (harassment.ts PayloadDebuffs); SAP is the one mark left, and no piece gives it yet
+      word: "MARKS", aliases: ["MARK", "SAP"], colour: PLAIN,
+      def: `MARKS: SAP, THE ONE MARK: ITS SLUG DEALS ${fmtDmg(SIM.sap)} LESS {DMG}. NO PIECE GIVES IT YET.`, scope: "text",
     },
     { word: "MATCHED", aliases: ["MATCHED BELT"], colour: PLAIN, def: "MATCHED: A BELT WITH AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.", scope: "text" },
     {

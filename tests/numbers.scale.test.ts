@@ -42,6 +42,58 @@ const SUSA_RENAMED: readonly [string, string][] = [[".gate.repair", ".gate.heal"
 const susaNew = (id: string): string => SUSA_RENAMED.reduce((s, [from, to]) => (s.endsWith(from) ? s.slice(0, -from.length) + to : s), id);
 const susaOld = (id: string): string => SUSA_RENAMED.reduce((s, [from, to]) => (s.endsWith(to) ? s.slice(0, -to.length) + from : s), id);
 
+// NUM-3 (REQ-BFG-046, REQ-BFG-047; 9dd6571 R1's STUN fold, 1337c43 N1 2.2's whole seconds): NUM-3 moved no damage-family
+// value. The fixture stays NUM-1's record (it has no re-record switch: scripts/num1-scale.mjs run again would scale again),
+// so, as NUM-2 and SUS-A did, the "same" rows NUM-3 moved are classified here row for row and checked at their NUM-3
+// value instead of their recorded one; every other row keeps its check. Measured at 01bb1f8, 26 rows:
+//  - "time" (20): the field kept, its value N1 2.2's whole seconds (ROTARY's window 0.75 s: LOAD 50% SHORTER): GALVANIC
+//    COIL's and HOT SWAP's shockTime, FROSTBITE's and DRAG CHAIN's round.seconds (a STUN's seconds since the fold; DRAG
+//    CHAIN's were the belt slow's), LIMPET ★3's stall, SURGE ★2's period, OVERCLOCKER's rest, STATIC BRUSH's staticTime,
+//    TESLA ARC's stall, ROTARY BREECH's windowTime
+//  - "gone" (3): DRAG CHAIN's round.mul, the chain slow's multiplier (its rounds STUN now; the field is gone)
+//  - "reshaped" (3): BELLOWS' burnPerRide.seconds (1 BURN every n s) is { burn, per } (burn BURN for each per s ridden;
+//    its max rows are unchanged and keep their check), each live at its two new fields
+// NUM-3's numeric fields with no NUM-1 row (BELLOWS' burn and per, and SABOT's round.seconds, "added": its one STUN, was
+// 5 / 4 / 3 s by part inside battle.ts) count as NUM-3's in the scan below, each checked live.
+type Num3Row = { was: number } & ({ kind: "time"; now: number } | { kind: "gone" } | { kind: "reshaped"; now: Record<string, number> });
+const NUM3_MOVED: Record<string, Num3Row> = {
+  "ITEMS.hotswap.levels.2.factory.cycle.1.shockTime": { was: 1.8, kind: "time", now: 2 },
+  "ITEMS.hotswap.levels.3.factory.cycle.1.shockTime": { was: 2.8, kind: "time", now: 3 },
+  "ITEMS.frostbite.factory.round.seconds": { was: 2.5, kind: "time", now: 2 },
+  "ITEMS.frostbite.levels.2.factory.round.seconds": { was: 2.75, kind: "time", now: 3 },
+  "ITEMS.dragchain.factory.round.mul": { was: 0.6, kind: "gone" },
+  "ITEMS.dragchain.factory.round.seconds": { was: 3, kind: "time", now: 1 },
+  "ITEMS.dragchain.levels.2.factory.round.mul": { was: 0.4, kind: "gone" },
+  "ITEMS.dragchain.levels.2.factory.round.seconds": { was: 4.4, kind: "time", now: 2 },
+  "ITEMS.dragchain.levels.3.factory.round.mul": { was: 0.3, kind: "gone" },
+  "ITEMS.dragchain.levels.3.factory.round.seconds": { was: 6, kind: "time", now: 2 },
+  "ITEMS.limpet.levels.3.factory.round.stall": { was: 1.6, kind: "time", now: 2 },
+  "ITEMS.coil.levels.2.gate.shockTime": { was: 1.8, kind: "time", now: 2 },
+  "ITEMS.coil.levels.3.gate.shockTime": { was: 2.8, kind: "time", now: 3 },
+  "ITEMS.surge.levels.2.gate.pulse.period": { was: 2.5, kind: "time", now: 3 },
+  "ITEMS.overclocker.levels.2.gate.overclockCooldown": { was: 1.8, kind: "time", now: 2 },
+  "ITEMS.overclocker.levels.3.gate.overclockCooldown": { was: 1.15, kind: "time", now: 1 },
+  "ITEMS.bellows.gate.burnPerRide.seconds": { was: 2.5, kind: "reshaped", now: { burn: 4, per: 10 } },
+  "ITEMS.bellows.levels.2.gate.burnPerRide.seconds": { was: 1.15, kind: "reshaped", now: { burn: 9, per: 10 } },
+  "ITEMS.bellows.levels.3.gate.burnPerRide.seconds": { was: 0.7, kind: "reshaped", now: { burn: 14, per: 10 } },
+  "ITEMS.staticbrush.gate.staticTime": { was: 0.6, kind: "time", now: 1 },
+  "ITEMS.staticbrush.levels.2.gate.staticTime": { was: 1.3, kind: "time", now: 2 },
+  "ITEMS.staticbrush.levels.3.gate.staticTime": { was: 2.1, kind: "time", now: 3 },
+  "ITEMS.rotary.core.windowTime": { was: 0.8, kind: "time", now: 0.75 },
+  "ITEMS.tesla.core.stall": { was: 0.8, kind: "time", now: 1 },
+  "ITEMS.tesla.levels.2.core.stall": { was: 0.9, kind: "time", now: 1 },
+  "ITEMS.tesla.levels.3.core.stall": { was: 0.93, kind: "time", now: 1 },
+};
+const NUM3_ADDED: Record<string, number> = { "ITEMS.sabot.factory.round.seconds": 4, "ITEMS.sabot.levels.3.factory.round.seconds": 4 };
+/** The id of the field `name` beside fixture id `id` (BELLOWS' burnPerRide.seconds -> burnPerRide.burn). */
+const sibling = (id: string, name: string): string => [...id.split(".").slice(0, -1), name].join(".");
+/** NUM-3's new numeric fields (no NUM-1 row), id -> its value: the reshaped rows' new fields and the added ones. */
+const num3New = new Map<string, number>([
+  ...Object.entries(NUM3_MOVED).flatMap(([id, m]) =>
+    m.kind === "reshaped" ? Object.entries(m.now).map(([k, v]): [string, number] => [sibling(id, k), v]) : []),
+  ...Object.entries(NUM3_ADDED),
+]);
+
 const TABLES: Record<string, unknown> = {
   FRAY_BONUS, ITEMS, WAVE3_ITEMS, AMMO, HEROES, RACE_ITEMS, RACE_AMMO, RACE_HEROES, PENDULUM, PLATE_PER_SLUG, PLATE_CAP, ECHO_CAP,
   RUNE_LIST: Object.fromEntries(RUNE_LIST.map((d) => [d.id, d])), SABOTAGE_HULL, HULL_FLOOR, EQ, ROUND_EQ, MEAN_PLATE,
@@ -118,8 +170,22 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // NUM-2 (REQ-BFG-047): measured, 129 rows handed off: NUM-2's 114 speeds and 15 of its 27 rate %s (the other 12,
     // STEAM BREECH's steamPlated / steamBare, were never NUM-1 rows: 1 / 1.35 is not a literal; the scan below)
     expect([handed.length, handed.filter((r) => num2At.get(r.id)!.kind === "speed").length]).toEqual([129, 114]);
-    const bad = rows.filter((r) => !num2At.has(r.id) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    // NUM-3: a row NUM-3 moved (NUM3_MOVED) is checked at its NUM-3 value below instead of its recorded one
+    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    // NUM-3 (R1's STUN fold, N1 2.2): the moved rows, measured: 26 (20 "time", 3 "gone", 3 "reshaped"), every one a fixture
+    // row of content.ts, "same" (no damage-family value moved) and recorded at the map's `was`; each live at its NUM-3 value
+    // ("gone": no field; "reshaped": no field at the old name, its new fields live)
+    const moved = rows.filter((r) => r.id in NUM3_MOVED);
+    expect(moved.map((r) => r.id).sort()).toEqual(Object.keys(NUM3_MOVED).sort());
+    expect(["time", "gone", "reshaped"].map((k) => moved.filter((r) => NUM3_MOVED[r.id].kind === k).length)).toEqual([20, 3, 3]);
+    for (const r of moved) {
+      const m = NUM3_MOVED[r.id];
+      expect([r.file, r.rule, r.base, r.now], r.id).toEqual(["src/sim/content.ts", "same", m.was, m.was]);
+      if (m.kind === "time") expect(live(r.id), r.id).toBe(m.now);
+      else expect(live(r.id), r.id).toBeUndefined();
+      if (m.kind === "reshaped") for (const [k, v] of Object.entries(m.now)) expect(live(sibling(r.id, k)), sibling(r.id, k)).toBe(v);
+    }
     // SUS-A: the renamed rows (RIVETER ★1-★3), measured: 3, each live at its new path only
     const renamed = rows.filter((r) => susaNew(r.id) !== r.id);
     expect(renamed.map((r) => [r.id, live(r.id), live(susaNew(r.id))])).toEqual([
@@ -170,8 +236,15 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
       ammo: {}, heroes: { "turrets.*.speed": N2 },
     };
     const missing = ids.filter((id) => !byId.has(susaOld(id)) && !(id in derived) // SUS-A: a renamed field counts as its row
+      && !num3New.has(id) // NUM-3: a field NUM-3 added (num3New, classified above) counts as NUM-3's, checked below
       && (ruleOf(id, NUM2_RULES) === N2 ? !num2To.has(id) : ruleOf(id) !== "same"));
     expect(missing).toEqual([]);
+    // NUM-3 (R1's STUN fold, N1 2.2): two-sided: the scan meets every field of num3New and none is a fixture row; measured
+    // 8 (BELLOWS' burn and per at ★1-★3, SABOT's round.seconds at ★1 and ★3), each live at its value. Unclassified, SABOT's
+    // two would pass the line above as "same" (factory.round.seconds is FROSTBITE's and DRAG CHAIN's rule).
+    expect(ids.filter((id) => num3New.has(id)).sort()).toEqual([...num3New.keys()].sort());
+    expect([num3New.size, [...num3New.keys()].filter((id) => byId.has(id)).length]).toEqual([8, 0]);
+    for (const [id, v] of num3New) expect(live(id), id).toBe(v);
     // NUM-2 (REQ-BFG-047): two-sided: every NUM-2 field the scan meets is a NUM-2 row under its new name and every NUM-2
     // row is a live numeric field the scan meets; measured 141 (114 speeds, 27 rate %s), 140 of them not in this fixture
     // (128 renamed, STEAM BREECH's 12) and 1 in it (GATLING's core.start, handed off above). And every field NUM-2

@@ -157,11 +157,13 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
       }
     });
 
-    it(`ROTARY BREECH, ${c.name}: oldest load first, windows close in 0.8 s, intervalMul, no jam at 3 stars`, () => {
+    // NUM-3 (N1 2.2): the title's "windows close in 0.8 s" is 0.75 s now (LOAD 50% SHORTER, WINDOW_TIME 1.5 s x 50%)
+    it(`ROTARY BREECH, ${c.name}: oldest load first, windows close in 0.75 s, intervalMul, no jam at 3 stars`, () => {
       for (const s of STARS) {
         const lv = effectAt("rotary", s).core!;
         const { bt, tu } = bench(c, "rotary", s);
-        expect(tu.windowTime).toBe(0.8);
+        // NUM-3 (N1 2.2): was toBe(0.8); now the core's windowTime read from ITEMS (effectAt: 0.75 s at every star)
+        expect(tu.windowTime).toBe(lv.windowTime);
         // NUM-2 (REQ-BFG-047; was the interval x intervalMul 0.85 / 0.7): ★2 / ★3 fire a whole 18% / 43% faster, the
         // speed x (100 + fireRate) / 100 rounded half up once (battle.ts makeTurret), and the interval is 30 / that speed
         expect(tu.interval).toBe(secPer(Math.max(1, half(tu.def.speed * rateMul(lv.fireRate)))));
@@ -173,7 +175,7 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         expect(shots[1].t - shots[0].t).toBeCloseTo(tu.interval, 1);
         const b2 = bench(c, "rotary", s);
         chamber(b2.tu, [load()], "load");
-        expect(run(b2.bt, 4, 1)[0].t).toBeCloseTo(0.8, 1);
+        expect(run(b2.bt, 4, 1)[0].t).toBeCloseTo(lv.windowTime!, 1); // NUM-3 (N1 2.2): was toBeCloseTo(0.8, 1); now the core's windowTime from ITEMS
       }
     });
 

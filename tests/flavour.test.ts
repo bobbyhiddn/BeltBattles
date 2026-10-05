@@ -21,7 +21,7 @@ import { STARS, SUPPLIES, banned, numbers, sentencesOf, starsOf } from "./textRu
 /** The kept table, pinned: the modules that keep a flavour sentence (the same at every star and class factor). */
 const KEPT: Record<string, string[]> = {
   press: ["NEEDS A FREE TURRET INTAKE."],
-  sabot: ["TELEGRAPHED ROUNDS WRECK RIGS OR STALL OTHER MACHINERY."],
+  sabot: ["THE ENEMY SEES EACH ROUND COMING."], // NUM-3: SABOT has a face (U2b F2: never its desc; was the desc's sentence)
   whetstone: ["BEFORE A SPLITTER, BOTH COPIES GAIN IT."],
   splitter: ["ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT."],
   beltcrate: ["LONGER ROUTES COOK HOTTER PAYLOADS."],
@@ -117,7 +117,8 @@ describe("0b.1: LIMPET WORKS promises no stall at 1 star", () => {
   it("not in its catalogue desc nor its flavour (it keeps none); from ★2 its ability text names the stall", () => {
     expect(ITEMS.limpet.desc.join(" ")).toBe("STICKY CHARGES BLOW 3 SECONDS LATER FOR HULL DAMAGE.");
     expect(STARS.map((s) => flavourText("limpet", s))).toEqual(["", "", ""]);
-    expect(STARS.map((s) => (effectAt("limpet", s).factory!.round as { stall?: number }).stall ?? 0)).toEqual([0, 1, 1.6]);
+    // NUM-3 step 2 (REQ-BFG-047, N1 2.2): the stall is - / 1 / 2 s, whole seconds (was - / 1 / 1.6); still none at ★1
+    expect(STARS.map((s) => (effectAt("limpet", s).factory!.round as { stall?: number }).stall ?? 0)).toEqual([0, 1, 2]);
     expect(abilityText("limpet", 1).sentences.join(" ")).not.toMatch(/STALL/);
     expect(abilityText("limpet", 2).sentences).toContain("THE BLAST ALSO STALLS THE MACHINE THE CHARGE STUCK TO FOR 1 SECOND.");
   });

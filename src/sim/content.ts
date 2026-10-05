@@ -45,7 +45,7 @@ export const AMMO_SPACING = 7; // minimum distance between payloads on a belt (p
 export const WINDOW_TIME = 1.5; // chamber loading window closes this long after first load (s)
 export const JAM_THRESHOLD = 4; // payloads backed up at a busy chamber before it jams
 export const JAM_COOLDOWN = 3.0;
-export const DISRUPT_TIME = 1.6; // Shock disruption duration (s)
+export const DISRUPT_TIME = 2; // Shock disruption duration (s). NUM-3 (REQ-BFG-047, N1 2.2): a ★1 GALVANIC COIL or SPARK STUN, whole seconds (was 1.6)
 export const BURN_TIME = 3.0; // each Burn stack deals 1 dmg/s for this long
 /** NUM-1 (REQ-BFG-047, N1 2.1): the damage a Burn stack deals each second (x10 of 1), once a second (Battle.hullEffects):
  *  BURN_DPS x BURN_TIME a stack, the same total as before, in whole ticks. */
@@ -111,12 +111,12 @@ export interface GateEffect {
   split?: { copies: number; mult: number }; // Splitter
   // 0.6.1p: the star perks (ARSENAL.md §4.3, catalogue.json). Absent at 1 star, so 1-star decks fight as in 0.6.0.
   priorCap?: number; // LONG HAUL 2-3 stars: prior gates counted at most
-  shockTime?: number; // GALVANIC COIL 2-3 stars: the stall in s (1 star: DISRUPT_TIME, 1.6 s, the catalogue's star1)
+  shockTime?: number; // GALVANIC COIL 2-3 stars: the STUN in s (1 star: DISRUPT_TIME, 2 s since NUM-3; was 1.6 s, the catalogue's star1)
   jump?: number; // GALVANIC COIL SPARK JUMP: the spark also stalls this many nearest other machines (no RNG)
   guard?: number; // OVERDRIVE REDLINE/AFTERBURNER: GUARD_* flags on the tiles downstream (RouteState.guard)
   toll?: number; // future TOLLBOOTH: harassment hits absorbed on every route this rig reaches
   tollFactory?: boolean; // future TOLLBOOTH star 3: also protect the route's factory
-  sift?: number | "all"; // future SIFTER: debuffs removed from a passing payload, in CHILL/SNAG/SAP order
+  sift?: number | "all"; // SIFTER: marks removed from a passing payload (NUM-3: SAP only; CHILL and SNAG are gone)
   siftFlat?: number;
   siftClean?: number;
   pulse?: { speed: number; on: number; period: number; flat: number };
@@ -126,7 +126,9 @@ export interface GateEffect {
   poison?: number;
   overclockCooldown?: number;
   keg?: { fuse: number; flat: number; burn: number; wide?: boolean };
-  burnPerRide?: { seconds: number; max: number };
+  // NUM-3 (REQ-BFG-047, N1 2.2): BELLOWS, + `burn` BURN for each `per` s the payload has ridden, at most `max` (was 1 BURN
+  // every `seconds`: 2.5 / 1.15 / 0.7 s; now 4 / 9 / 14 BURN for each 10 s, exact at ★1, +3.5% at ★2, -2% at ★3)
+  burnPerRide?: { burn: number; per: number; max: number };
   // QUENCH TANK (0.6.2 FB-B): `flat` on every payload it hits, then up to `stacks` Burn stacks become `perBurn` each;
   // Burn past `stacks` stays Burn (Battle.applyHit, deck.ts walkRoute)
   quench?: { flat: number; perBurn: number; stacks: number };
@@ -140,7 +142,7 @@ export interface GateEffect {
   plated?: { min: number; flat: number }; // SHIELD WALL: + flat on those payloads while your hull holds `min` plating or more
   gauge?: { flat: number; matched: number }; // TWIN GAUGE: + flat, or + matched on a matched belt (E6)
   pincer?: { flat: number; each: number; max: number }; // PINCER: + flat, + each for every other active rig on its tile (E5)
-  brace?: { mul: number; plated: number }; // BRACE FRAME: enemy stalls, freezes and chain slows on its tiles and itself x mul (x plated while plated)
+  brace?: { mul: number; plated: number }; // BRACE FRAME: enemy STUNs on its tiles and itself x mul (x plated while plated; NUM-3: every STUN)
   latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
   stoke?: number; // STOKER: each factory its arrows point at works this share faster (E3); its arrows do nothing to belts
   breaker?: { flat: number; floor: number }; // PLATE BREAKER: 1 plating for + flat; with none, + floor
@@ -148,16 +150,20 @@ export interface GateEffect {
 
 /**
  * 0.6.1p: RouteState.guard flags. OVERDRIVE ★2 REDLINE sets GUARD_SLOW downstream and ★3 AFTERBURNER adds
- * GUARD_FREEZE; they act only once wave 2 adds enemy slow and freeze (nothing in wave 1 reads them). GUARD_SKIRT
- * marks a tile a MANTLET shields (★2 FULL PLATE: the last tile, 0.6.2 FB-B; ★3 BULWARK SKIRT: the last 3): the fed
+ * GUARD_FREEZE (NUM-3, R1's STUN fold: they keep enemy CHAIN and FROST rounds' STUNs off those tiles). GUARD_SKIRT
+ * marks a tile a MANTLET shields (★2 FULL GUARD, was FULL PLATE: the last tile, 0.6.2 FB-B; ★3 BULWARK SKIRT: the last 3): the fed
  * turret's immunities cover it (Battle.disrupt).
  */
 export const GUARD_SLOW = 1;
 export const GUARD_FREEZE = 2;
 export const GUARD_SKIRT = 4;
 
-/** 0.6.1p: what stalls a machine (MANTLET immunities). Only "shock" exists in wave 1; wave 2 adds the rest. */
+/** 0.6.1p: what stalls a machine (MANTLET immunities). Only "shock" exists in wave 1; wave 2 adds the rest.
+ *  NUM-3 (R1's STUN fold, REQ-BFG-046): a cause names the SOURCE; every one but "rip" and "sap" is a STUN now (Battle.disrupt):
+ *  "freeze" is a FROSTBITE round, "drag" a DRAG CHAIN round, "sabot" a SABOT's STUN on a part that isn't a rig. */
 export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabot" | "rip" | "limpet" | "sap";
+/** NUM-3 (R1's STUN fold): every source of a STUN. MANTLET is immune to all of them from ★1 (R1: "IMMUNE TO STUN"). */
+export const STUN_CAUSES: readonly HarassCause[] = ["shock", "static", "arc", "drag", "freeze", "sabot", "limpet"];
 
 export interface FactorySpec {
   ammo: AmmoKind;
@@ -179,8 +185,9 @@ export interface FactorySpec {
   trigger?: "harass";
   scrapFlat?: number;
   bigHaul?: boolean;
-  round?: { kind: "sabot"; shrapnel?: boolean } | { kind: "frost"; seconds: number; spread: number } |
-    { kind: "drag"; mul: number; seconds: number } | { kind: "limpet"; delay: number; blast: number; stall?: number };
+  // NUM-3 (R1's STUN fold): a sabot, frost or chain round STUNs the part it hits for `seconds` (Battle.roundImpact)
+  round?: { kind: "sabot"; seconds: number; shrapnel?: boolean } | { kind: "frost"; seconds: number; spread: number } |
+    { kind: "drag"; seconds: number } | { kind: "limpet"; delay: number; blast: number; stall?: number };
   rate?: number; // MIMIC (NUM-2): a whole rate % on the hero signature factory's speed (was intervalMul, the interval x)
   // 0.8.0 P1, wave 3 (absent on every older factory):
   twin?: boolean; // TWIN MOULD: each cast pours one slug onto up to `pour` belts with room on the same tick (pourAll)
@@ -208,7 +215,7 @@ export interface ModSpec {
   store?: number; // HOPPER ★2/★3 (0.6.2 FB-B): loads taken off the belt while the gun fires, dropped into the next window
   noJam?: boolean; // HOPPER ★3 BOTTOMLESS: this turret never jams
   immune?: HarassCause[]; // MANTLET: stalls this turret ignores (Battle.disrupt)
-  intakeGuard?: number; // MANTLET ★2 FULL PLATE (1, 0.6.2 FB-B) and ★3 BULWARK SKIRT (3): the last n tiles of each route into this turret share its immunities
+  intakeGuard?: number; // MANTLET ★2 FULL GUARD (1, 0.6.2 FB-B; NUM-3: was FULL PLATE) and ★3 BULWARK SKIRT (3): the last n tiles of each route into this turret share its immunities
   finisher?: number; // FINISHER RAM: + this share of damage on the payload that empties a loading window
   intercept?: number; // future FLAK SCREEN: one side-wide intercept roll per incoming harassment projectile
   rerolls?: number;
@@ -401,9 +408,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
     desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["FORGE", "HARASS"],
     factory: { ammo: "plain", speed: 20, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
-    levels: { // the spark tracks GALVANIC COIL: 1.8 s and 2.8 s with SPARK JUMP (0.6.1p's shockTime and jump)
-      2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 1.8, jump: 1 }] } },
-      3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 7 }, { tint: "spark", shock: true, shockTime: 2.8, jump: 1 }] } },
+    levels: { // NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8). The spark tracks GALVANIC COIL: its ★2 / ★3 shockTime with SPARK JUMP (0.6.1p's shockTime and jump)
+      2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 2, jump: 1 }] } },
+      3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 7 }, { tint: "spark", shock: true, shockTime: 3, jump: 1 }] } },
     },
   },
   slagpot: {
@@ -441,22 +448,27 @@ export const ITEMS: Record<string, ItemDef> = {
   sabot: {
     id: "sabot", name: "SABOT FOUNDRY", kind: "factory", rarity: "epic", price: 9, size: 2, merchant: "quartermaster",
     desc: ["TELEGRAPHED ROUNDS", "WRECK RIGS OR STALL", "OTHER MACHINERY."], tags: ["HARASS", "BURST"],
-    factory: { ammo: "sabot", speed: 5, round: { kind: "sabot" } },
-    levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 16, round: { kind: "sabot", shrapnel: true } }, perk: "SHRAPNEL" } },
+    // NUM-3 (R1's STUN fold): the stalls 5 / 4 / 3 s (belt tile / factory / turret) became one STUN 4 s; the bare-hull +60 is gone
+    factory: { ammo: "sabot", speed: 5, round: { kind: "sabot", seconds: 4 } },
+    levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 16, round: { kind: "sabot", seconds: 4, shrapnel: true } }, perk: "SHRAPNEL" } },
   },
   frostbite: {
     id: "frostbite", name: "FROSTBITE FOUNDRY", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "arcane",
-    desc: ["FROST ROUNDS FREEZE", "MACHINES AND PAUSE", "THEIR TIMERS."], tags: ["HARASS"],
-    factory: { ammo: "frost", speed: 11, round: { kind: "frost", seconds: 2.5, spread: 0 } },
-    levels: { 2: { factory: { round: { kind: "frost", seconds: 2.75, spread: 1 } }, perk: "HOARFROST" },
+    desc: ["FROST ROUNDS STUN", "THE ENEMY PART", "THEY HIT."], tags: ["HARASS"], // NUM-3 (R1's STUN fold): FREEZE became STUN
+    // NUM-3 (N1 2.2): STUN 2 / 3 / 3 s (was 2.5 / 2.75 / 3)
+    factory: { ammo: "frost", speed: 11, round: { kind: "frost", seconds: 2, spread: 0 } },
+    levels: { 2: { factory: { round: { kind: "frost", seconds: 3, spread: 1 } }, perk: "HOARFROST" },
       3: { factory: { round: { kind: "frost", seconds: 3, spread: 2 } }, perk: "HOARFROST" } },
   },
   dragchain: {
     id: "dragchain", name: "DRAG CHAIN FOUNDRY", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "scrapper",
-    desc: ["CHAIN ROUNDS SLOW", "A BELT SEGMENT AND", "SNAG ITS PAYLOADS."], tags: ["HARASS", "TEMPO"],
-    factory: { ammo: "drag", speed: 17, round: { kind: "drag", mul: 0.6, seconds: 3 } },
-    levels: { 2: { factory: { round: { kind: "drag", mul: 0.4, seconds: 4.4 } } },
-      3: { factory: { round: { kind: "drag", mul: 0.3, seconds: 6 } } } },
+    desc: ["CHAIN ROUNDS STUN", "THE ENEMY PART", "THEY HIT."], tags: ["HARASS", "TEMPO"],
+    // NUM-3 (R1's STUN fold): the belt slow (x0.6 / x0.4 / x0.3 for 3 / 4.4 / 6 s over a rig-to-rig stretch), SNAG and the
+    // factory +0.8 s / turret +0.5 s delays became one STUN on the part it hits: R1's 1 / 1.5, and ★3 2 (today's slow
+    // grows x6 / 4.4 from ★2 to ★3: 1.5 x 1.36 = 2.05)
+    factory: { ammo: "drag", speed: 17, round: { kind: "drag", seconds: 1 } },
+    levels: { 2: { factory: { round: { kind: "drag", seconds: 2 } } }, // NUM-3 (N1 2.2): R1's 1.5 s is 2
+      3: { factory: { round: { kind: "drag", seconds: 2 } } } },
   },
   mimic: {
     id: "mimic", name: "MIMIC FORGE", kind: "factory", rarity: "legendary", price: 11, size: 2, merchant: "arcane",
@@ -472,7 +484,7 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["STICKY CHARGES BLOW", "3 SECONDS LATER FOR", "HULL DAMAGE."], tags: ["HARASS", "BURST"], // 0.6.2t 0b.1: no stall at 1 star
     factory: { ammo: "limpet", speed: 13, round: { kind: "limpet", delay: 3, blast: 80 } },
     levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 180, stall: 1 } } },
-      3: { factory: { round: { kind: "limpet", delay: 3, blast: 280, stall: 1.6 } } } },
+      3: { factory: { round: { kind: "limpet", delay: 3, blast: 280, stall: 2 } } } }, // NUM-3 (N1 2.2): the stall 1 / 2 s (was 1 / 1.6)
   },
   // --- processing gates ---
   temper: {
@@ -514,10 +526,10 @@ export const ITEMS: Record<string, ItemDef> = {
   coil: {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
     desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."], tags: ["HARASS"],
-    gate: { shock: true }, // 1 star stalls DISRUPT_TIME (1.6 s, catalogue star1) exactly as in 0.6.0
-    levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied
-      2: { gate: { shockTime: 1.8, jump: 1 }, perk: "SPARK JUMP" },
-      3: { gate: { shockTime: 2.8, jump: 1 }, perk: "SPARK JUMP" },
+    gate: { shock: true }, // 1 star STUNs DISRUPT_TIME (NUM-3: 2 s; was 1.6 s, catalogue star1, as in 0.6.0)
+    levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied. NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8)
+      2: { gate: { shockTime: 2, jump: 1 }, perk: "SPARK JUMP" },
+      3: { gate: { shockTime: 3, jump: 1 }, perk: "SPARK JUMP" },
     },
   },
   splitter: {
@@ -534,7 +546,7 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker", shape: "X",
     desc: ["4 ARROWS: 3X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +3 DAMAGE."], tags: ["TEMPO"],
     gate: { speed: 3, lockedFlat: 30 },
-    levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; the guard flags wait for wave 2's enemy slow and freeze
+    levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; NUM-3: the guard flags keep enemy CHAIN / FROST rounds' STUNs off its tiles
       2: { gate: { speed: 4, flat: 10, lockedFlat: 50, guard: GUARD_SLOW }, perk: "REDLINE" },
       3: { gate: { speed: 5, flat: 30, lockedFlat: 110, guard: GUARD_SLOW | GUARD_FREEZE }, perk: "AFTERBURNER" },
     },
@@ -546,7 +558,9 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   sifter: {
     id: "sifter", name: "SIFTER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    desc: ["REMOVES CHILL, SNAG", "OR SAP FROM PASSING", "PAYLOADS IN ORDER."], tags: ["HARASS", "FORGE", "PLATE"],
+    // NUM-3 (R1's STUN fold): CHILL and SNAG are gone; SAP is the one mark left, and no piece gives it yet (RUNES-2b decides
+    // whether SIFTER goes dormant): ★1 and ★2 POLISH do nothing in play, ★3 FINE MESH's siftClean lands on every payload
+    desc: ["REMOVES SAP FROM", "PASSING PAYLOADS."], tags: ["HARASS", "FORGE", "PLATE"],
     gate: { sift: 1 }, levels: { 2: { gate: { sift: "all", siftFlat: 10 }, perk: "POLISH" },
       3: { gate: { sift: "all", siftFlat: 20, siftClean: 10 }, perk: "FINE MESH" } },
   },
@@ -558,7 +572,8 @@ export const ITEMS: Record<string, ItemDef> = {
     // 0.6.2 FB-B (oracle 16085a6430e4cc6a): the per-pulse flat is 1/2/3 (was 0/1/2). At ★1 the pulse cut ride time on
     // ride-scaled ammo and added nothing when the turret was the bottleneck (Furnace's audit cell: 78.3 -> 71.5)
     gate: { pulse: { speed: 3, on: 1, period: 3, flat: 10 }, lockedFlat: 30 },
-    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 2.5, flat: 20 }, lockedFlat: 60 }, perk: "OVERPRESSURE" },
+    // NUM-3 (N1 2.2): the period 3 / 3 / 2 s (was 3 / 2.5 / 2)
+    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 3, flat: 20 }, lockedFlat: 60 }, perk: "OVERPRESSURE" },
       3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 30 }, lockedFlat: 100 }, perk: "HAMMER VALVE" } },
   },
   sorting: {
@@ -585,7 +600,7 @@ export const ITEMS: Record<string, ItemDef> = {
   overclocker: {
     id: "overclocker", name: "OVERCLOCKER", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker",
     desc: ["DOUBLES THE NEXT", "BOOSTABLE RIG ONCE,", "THEN COOLS FOR 4S."], tags: ["FORGE", "BURST", "TEMPO"],
-    gate: { overclockCooldown: 4 }, levels: { 2: { gate: { overclockCooldown: 1.8 } }, 3: { gate: { overclockCooldown: 1.15 } } },
+    gate: { overclockCooldown: 4 }, levels: { 2: { gate: { overclockCooldown: 2 } }, 3: { gate: { overclockCooldown: 1 } } }, // NUM-3 (N1 2.2): the rest 4 / 2 / 1 s (was 4 / 1.8 / 1.15)
   },
   keg: {
     id: "keg", name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
@@ -596,8 +611,8 @@ export const ITEMS: Record<string, ItemDef> = {
   bellows: {
     id: "bellows", name: "BELLOWS", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
     desc: ["ADDS BURN FROM", "RIDE TIME SO FAR,", "UP TO 4 STACKS."], tags: ["FORGE"],
-    gate: { burnPerRide: { seconds: 2.5, max: 4 } }, levels: { 2: { gate: { burnPerRide: { seconds: 1.15, max: 9 } } },
-      3: { gate: { burnPerRide: { seconds: 0.7, max: 14 } } } },
+    gate: { burnPerRide: { burn: 4, per: 10, max: 4 } }, levels: { 2: { gate: { burnPerRide: { burn: 9, per: 10, max: 9 } } },
+      3: { gate: { burnPerRide: { burn: 14, per: 10, max: 14 } } } },
   },
   quench: {
     id: "quench", name: "QUENCH TANK", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
@@ -612,7 +627,7 @@ export const ITEMS: Record<string, ItemDef> = {
   staticbrush: {
     id: "staticbrush", name: "STATIC BRUSH", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
     desc: ["BARE-HULL HITS", "STALL A RANDOM", "ENEMY TURRET."], tags: ["HARASS"],
-    gate: { staticTime: 0.6 }, levels: { 2: { gate: { staticTime: 1.3 } }, 3: { gate: { staticTime: 2.1 } } },
+    gate: { staticTime: 1 }, levels: { 2: { gate: { staticTime: 2 } }, 3: { gate: { staticTime: 3 } } }, // NUM-3 (N1 2.2): STUN 1 / 2 / 3 s (was 0.6 / 1.3 / 2.1)
   },
   lodestone: {
     id: "lodestone", name: "LODESTONE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "arcane",
@@ -682,13 +697,16 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   mantlet: {
     id: "mantlet", name: "MANTLET", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "ironmonger",
-    desc: ["ARMORED TURRET:", "SHOCK AND CHAIN SLOWS", "CAN'T STALL IT."], tags: ["HARASS", "PLATE"],
-    mod: { immune: ["shock", "static", "arc", "drag"] },
+    desc: ["ARMORED TURRET:", "NO STUN CAN", "STOP IT."], tags: ["HARASS", "PLATE"],
+    // NUM-3 (R1's STUN fold): immune to every STUN source from ★1 (was shock, static, arc and chain; ★2 added frost and
+    // sabot; LIMPET's stall was in no star's list)
+    mod: { immune: [...STUN_CAUSES] },
     levels: {
       // 0.6.2 FB-B (oracle 16085a6430e4cc6a): FULL PLATE also shields the belt tile feeding its turret (intakeGuard 1),
       // and the rigs working it (DESIGN §11 P6), against the same stalls. Freeze and sabot rounds almost never strike
       // the turret itself, so FULL PLATE alone changed no star-bench fight (the MANTLET ★2 NO EFFECT rows).
-      2: { mod: { immune: ["shock", "static", "arc", "drag", "freeze", "sabot"], intakeGuard: 1 }, perk: "FULL PLATE" },
+      // NUM-3: the perk is FULL GUARD (the sustain design's rename; was FULL PLATE); ★2 and ★3 keep only the tile shield
+      2: { mod: { intakeGuard: 1 }, perk: "FULL GUARD" },
       3: { mod: { intakeGuard: 3 }, perk: "BULWARK SKIRT" },
     },
   },
@@ -708,8 +726,8 @@ export const ITEMS: Record<string, ItemDef> = {
   rotary: {
     // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
     id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "gunsmith",
-    desc: ["FIRES THE OLDEST", "LOAD FIRST. WINDOWS", "CLOSE IN 0.8S."], tags: ["TEMPO"],
-    core: { routine: "rotary", order: "FIFO", windowTime: 0.8 },
+    desc: ["FIRES THE OLDEST", "LOAD FIRST. LOAD", "TIME 50% SHORTER."], tags: ["TEMPO"],
+    core: { routine: "rotary", order: "FIFO", windowTime: 0.75 }, // NUM-3 (N1 2.2): LOAD 50% SHORTER, WINDOW_TIME 1.5 s x 50% (was 0.8 s)
     levels: {
       2: { core: { fireRate: 18 }, perk: "GREASED RACE" },
       3: { core: { fireRate: 43, noJam: true }, perk: "CLEAN FEED" },
@@ -766,9 +784,9 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   tesla: {
     id: "tesla", name: "TESLA ARC", kind: "core", rarity: "epic", price: 8, size: 1, merchant: "arcane",
-    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS 0.8S STALL."], tags: ["HARASS"],
-    core: { routine: "tesla", arcs: 1, stall: 0.8, share: 0.25 },
-    levels: { 2: { core: { arcs: 2, stall: 0.9 } }, 3: { core: { arcs: 3, stall: 0.93, share: 0.3 } } },
+    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS 1S STALL."], tags: ["HARASS"],
+    core: { routine: "tesla", arcs: 1, stall: 1, share: 0.25 }, // NUM-3 (N1 2.2): STUN 1 s at every star (was 0.8 / 0.9 / 0.93)
+    levels: { 2: { core: { arcs: 2, stall: 1 } }, 3: { core: { arcs: 3, stall: 1, share: 0.3 } } },
   },
   capacitor: {
     id: "capacitor", name: "CAPACITOR BANK", kind: "core", rarity: "epic", price: 7, size: 1, merchant: "arcane",

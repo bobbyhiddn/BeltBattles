@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util"; // NUM-3: the exceptions' exact pin
 import { hashSeed } from "../src/core/rng";
 import { simulate } from "../src/sim/battle";
 import { POOL_RULES, RULES_VERSION, type HeroId } from "../src/sim/content";
@@ -106,7 +107,18 @@ const PAR_TOLERANCE = 0.02;
  */
 const NUM2_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {
   "weaver|4": { stored: 0.5917, resim: 0.3833 }, // the biggest band move NUM-2 measured (-0.2084)
-  "weaver|9": { stored: 0.5275, resim: 0.4917 }, // -0.0358 (furnace d2 -0.015 and d7 -0.0042 stay inside the tolerance)
+  // NUM-3: weaver|9 (num2: 0.4917, -0.0358) is gone: on num3 it re-simulates 0.5125, -0.015, inside the tolerance again,
+  // so the tolerance checks it (stricter than its exact pin); furnace d7 +0.0133 stays inside too
+};
+/**
+ * NUM-3 (REQ-BFG-046, REQ-BFG-047; the brief's step 5, as NUM-2's option B, under the same tripwire): the spread pars past
+ * PAR_TOLERANCE on num3, or NUM-2's moved again, each with its stored and re-simulated vsPar. R1's STUN fold and the
+ * whole-second durations changed the par field these pars are re-simulated against (no stand-in, par deck or number
+ * changed). Pinned exactly; R6 regenerates the pool, then deletes these, NUM-2's and the tripwire.
+ */
+const NUM3_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {
+  "furnace|2": { stored: 0.5675, resim: 0.51 }, // -0.0575 (num2: -0.015, inside the tolerance)
+  "weaver|4": { stored: 0.5917, resim: 0.4458 }, // -0.1459; NUM-2's exception moved again (num2: 0.3833, -0.2084)
 };
 /** The rules version the exceptions were measured under (the tripwire: red at the next bump until R6 removes them). */
 const EXCEPTIONS_RULES = "bb-0.8.7";
@@ -115,20 +127,23 @@ const EXCEPTIONS_RULES = "bb-0.8.7";
  *  inside the header's --par-band, unless its hero/day is listed short. */
 async function caravanPars(): Promise<void> {
   expect(POOL_SOURCE, "a step-5 pool's par is re-simulated through its caravan candidates").toBe("caravan");
-  const lines: string[] = [];
+  const lines: string[] = [], over: string[] = [];
   for (const [hero, day] of PAR_SPREAD) {
     const t0 = performance.now(), stored = standInPool(hero, day)[standInParIndex(hero, day)].vsPar, r = await parVsPar(hero, day);
     const diff = r4(r4(r.vsPar) - stored); // NUM-1 (oracle 03f2cc3c1884e806): stored, re-simulated and their difference, per par
     lines.push(`${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff} (10-seed sample ${r4(r.sample)}${r.idx === undefined ? "" : `, robust re-play of candidate #${r.idx}`}; ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
     console.log(`stand-in par ${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff}`);
-    const ex = NUM2_PAR_EXCEPTIONS[`${hero}|${day}`];
-    if (ex) { // NUM-2's open item: pinned exactly, under this rules version only
+    // NUM-3: its own exception first (a NUM-2 par NUM-3 moved again is re-pinned there), then NUM-2's
+    const ex = NUM3_PAR_EXCEPTIONS[`${hero}|${day}`] ?? NUM2_PAR_EXCEPTIONS[`${hero}|${day}`];
+    if (ex) { // NUM-2's or NUM-3's open item: pinned exactly, under this rules version only
       expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
-      expect([stored, r4(r.vsPar)], `${hero} d${day}: NUM2_PAR_EXCEPTIONS`).toEqual([ex.stored, ex.resim]);
+      if (!isDeepStrictEqual([stored, r4(r.vsPar)], [ex.stored, ex.resim])) over.push(`${hero} d${day}: exception ${JSON.stringify(ex)}, now stored ${stored}, re-simulated ${r4(r.vsPar)}`);
       continue;
     }
-    expect(Math.abs(diff), `${hero} d${day}: its stored vsPar ${stored}, re-simulated against the par field ${r4(r.vsPar)}: within ${PAR_TOLERANCE}`).toBeLessThanOrEqual(PAR_TOLERANCE);
+    // NUM-3: every par past the tolerance listed before one assertion (the loop stopped at the first and hid the rest)
+    if (Math.abs(diff) > PAR_TOLERANCE) over.push(`${hero} d${day}: its stored vsPar ${stored}, re-simulated against the par field ${r4(r.vsPar)}: difference ${diff}, past ${PAR_TOLERANCE}`);
   }
+  expect(over, over.join("\n")).toEqual([]);
   for (const hero of STAND_IN_POOL_HEROES) {
     for (const day of DAYS) {
       if (POOL_PAR_SHORT.has(`${hero}|${day}`)) continue;

@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle, LOAD_FLOOR, type Payload, type Projectile, type SimEvent } from "../src/sim/battle";
 import { AMMO, ITEMS, WINDOW_TIME } from "../src/sim/content";
+import { DISRUPT_TIME, TICK } from "../src/sim/content"; // NUM-3 (REQ-BFG-047): the ★1 STUN (2 s, was 1.6 s) and the tick a STUN is counted in
 import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
 import { ROUTINES } from "../src/sim/cores";
 import { pct, roundHalfUp } from "../src/sim/pct";
@@ -47,10 +48,13 @@ const PLAIN = AMMO.plain.base;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const hull = (): { kind: "hull"; ref: number; cell: number; x: number; y: number; weight: number } => ({ kind: "hull", ref: -1, cell: -1, x: 60, y: 60, weight: 1 });
 const belt = (route: number, cell: number) => ({ kind: "belt" as const, ref: route, cell, x: 0, y: 0, weight: 1 });
+// NUM-3 (R1's STUN fold): Battle.freeze and Battle.slowSegment are gone (FROSTBITE's and DRAG CHAIN's rounds STUN through
+// disrupt), so they left this interface
 const priv = (bt: Battle) => bt as unknown as {
   impact(p: Projectile): void; disrupt(s: unknown, t: unknown, secs: number, cause: string): boolean;
-  freeze(s: unknown, t: unknown, secs: number): boolean; slowSegment(s: unknown, t: unknown, mul: number, secs: number): boolean;
 };
+/** NUM-3 (REQ-BFG-047): a STUN of `secs` as Battle.disrupt sets it, a whole number of ticks (after BRACE FRAME's cut). */
+const stun = (secs: number) => Math.round(secs / TICK) * TICK;
 const plain = (id: number): Payload => ({ id, ammo: "plain", ride: 0, mult: 1, flat: 0, burn: 0, shock: false, prior: 0, factory: 0, copy: false });
 const shot = (from: 0 | 1, dmg: number): Projectile => ({ id: 999, from, turret: 0, payload: plain(998), dmg, t: 0, flight: 0, target: hull(), tx: 60, ty: 60, heavy: false });
 
@@ -116,15 +120,18 @@ export const ROWS: Row[] = [
 // ------------------------------------------------------------------------------------------------- bench helpers
 
 /** BRACE FRAME (shape L) at (3,4): its east arrow on the Kiln belt's tile 1 (4,4); its north arrow at empty deck. The
- *  share of a 1.6 s shock it takes off that tile, bare and with 5 plating on the hull: [bare, plated]. */
+ *  share of a ★1 shock (DISRUPT_TIME) it takes off that tile, bare and with 5 plating on the hull: [bare, plated].
+ *  NUM-3 (N1 2.2): was a 1.6 s shock (DISRUPT_TIME's old value, a literal); now DISRUPT_TIME, 2 s. A STUN is a whole number
+ *  of ticks after the cut (Battle.disrupt), and every cut of 2 s is whole (60 / 30, 36 / 18, 18 / 6 ticks), so the share
+ *  reads exactly; 1.6 s x 30% = 0.48 s would run 29 ticks. */
 function braceCut(stars: number): number[] {
   const out: number[] = [];
   for (const plated of [false, true]) {
     const bt = stepped(withItem(furnaceBench(), item(30, "braceframe", 3, 4, 0, stars)));
     const s = bt.sides[0];
     if (plated) bt.addPlate(s, 5);
-    priv(bt).disrupt(s, belt(0, 1), 1.6, "shock");
-    out.push(1 - s.routes[0].cellDisrupt[1] / 1.6);
+    priv(bt).disrupt(s, belt(0, 1), DISRUPT_TIME, "shock");
+    out.push(1 - s.routes[0].cellDisrupt[1] / DISRUPT_TIME);
   }
   return out;
 }
@@ -259,22 +266,33 @@ describe("wave 3's named rules", () => {
     }
   });
 
-  it("BRACE FRAME: 50/70/85% shorter stalls, freezes and chain slows on its tiles; 75/85/95% while plated; on itself too", () => {
+  // NUM-3 (R1's STUN fold): the title's "stalls, freezes and chain slows" is every STUN now (FROSTBITE's and DRAG CHAIN's
+  // rounds STUN through Battle.disrupt, so the brace cuts them as it cuts a shock)
+  it("BRACE FRAME: 50/70/85% shorter STUNs on its tiles, from every source (frost and chain rounds too); 75/85/95% while plated; on itself too", () => {
     for (const [s, bare, plated] of [[1, 0.5, 0.75], [2, 0.7, 0.85], [3, 0.85, 0.95]] as const) {
       expect(braceCut(s).map((x) => +x.toFixed(9))).toEqual([bare, plated]);
       const bt = stepped(withItem(furnaceBench(), item(30, "braceframe", 3, 4, 0, s)));
       const side = bt.sides[0];
-      priv(bt).freeze(side, belt(0, 1), 2.5);
-      expect(side.routes[0].cellFrozen[1]).toBeCloseTo(2.5 * (1 - bare), 9);
-      priv(bt).slowSegment(side, belt(0, 1), 0.6, 3);
-      expect(side.routes[0].cellSlow[1].t).toBeCloseTo(3 * (1 - bare), 9);
-      priv(bt).disrupt(side, { kind: "gate", ref: 30, cell: -1, x: 0, y: 0, weight: 2 }, 1.6, "shock"); // on itself
-      expect(side.gates.find((g) => g.uid === 30)!.disrupted).toBeCloseTo(1.6 * (1 - bare), 9);
+      // NUM-3 (R1's STUN fold): was priv(bt).freeze(side, belt(0, 1), 2.5) -> cellFrozen[1] = 2.5 x (1 - bare), and
+      // priv(bt).slowSegment(side, belt(0, 1), 0.6, 3) -> cellSlow[1].t = 3 x (1 - bare) (FROSTBITE's and DRAG CHAIN's ★1
+      // freeze and chain slow); now their ★1 rounds' STUNs (round.seconds from ITEMS: 2 s and 1 s) on the tile, through
+      // disrupt with their causes ("freeze", "drag"), cut the same and then a whole number of ticks (NUM-3 step 2). One
+      // timer now (cellDisrupt; was cellFrozen and cellSlow), so it is cleared before each round.
+      for (const [id, cause] of [["frostbite", "freeze"], ["dragchain", "drag"]] as const) {
+        const secs = (ITEMS[id].factory!.round as { seconds: number }).seconds;
+        side.routes[0].cellDisrupt[1] = 0;
+        expect(priv(bt).disrupt(side, belt(0, 1), secs, cause), `★${s} ${id}`).toBe(true);
+        expect(side.routes[0].cellDisrupt[1], `★${s} ${id}`).toBe(stun(secs * (1 - bare)));
+      }
+      // NUM-3 (N1 2.2): was a 1.6 s shock and toBeCloseTo(1.6 x (1 - bare), 9) / toBe(1.6) below; now DISRUPT_TIME (2 s),
+      // the cut STUN in whole ticks
+      priv(bt).disrupt(side, { kind: "gate", ref: 30, cell: -1, x: 0, y: 0, weight: 2 }, DISRUPT_TIME, "shock"); // on itself
+      expect(side.gates.find((g) => g.uid === 30)!.disrupted).toBe(stun(DISRUPT_TIME * (1 - bare)));
       // a tile it doesn't hit, and a stall on it while it is itself stalled, are untouched
-      priv(bt).disrupt(side, belt(0, 3), 1.6, "shock");
-      expect(side.routes[0].cellDisrupt[3]).toBe(1.6);
-      priv(bt).disrupt(side, belt(0, 1), 1.6, "shock");
-      expect(side.routes[0].cellDisrupt[1]).toBe(1.6); // the brace is stalled now: no cut
+      priv(bt).disrupt(side, belt(0, 3), DISRUPT_TIME, "shock");
+      expect(side.routes[0].cellDisrupt[3]).toBe(stun(DISRUPT_TIME));
+      priv(bt).disrupt(side, belt(0, 1), DISRUPT_TIME, "shock");
+      expect(side.routes[0].cellDisrupt[1]).toBe(stun(DISRUPT_TIME)); // the brace is stalled now: no cut
     }
   });
 
@@ -418,9 +436,11 @@ describe("wave 3's named rules", () => {
       expect(pairedShare(s)).toBeCloseTo(pct(PLAIN, 100 * (1 + bonus)) / PLAIN - 1, 6);
       const tu = new Battle(withMod(furnaceBench(), 50, "twintrigger", 0, s), barge(), SEED).sides[0].turrets[0];
       expect(tu.windowTime).toBeCloseTo(WINDOW_TIME - cut, 9);
-      // on a ROTARY BREECH (0.8 s) the floor holds: 0.8 - 0.55 = 0.25 -> 0.3
+      // on a ROTARY BREECH the floor holds: 0.75 - 0.55 = 0.2 -> 0.3 (NUM-3 (N1 2.2): ROTARY's window 0.75 s, was 0.8 s:
+      // 0.8 - 0.55 = 0.25 -> 0.3)
       const rot = new Battle(withMod(withMod(furnaceBench(), 50, "twintrigger", 0, s), 51, "rotary", 0), barge(), SEED).sides[0].turrets[0];
-      expect(rot.windowTime).toBeCloseTo(Math.max(LOAD_FLOOR, 0.8 - cut), 9);
+      // NUM-3 (N1 2.2): was Math.max(LOAD_FLOOR, 0.8 - cut); now ROTARY's ★1 windowTime read from ITEMS (effectAt: 0.75 s)
+      expect(rot.windowTime).toBeCloseTo(Math.max(LOAD_FLOOR, effectAt("rotary", 1).core!.windowTime! - cut), 9);
     }
     // an unpaired load gets nothing: one belt only
     const one = twoPress();

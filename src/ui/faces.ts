@@ -17,10 +17,12 @@
 // through one formatter of src/ui/statFormat.ts. No template here holds a digit (tests/faceText.test.ts reads this
 // file's string literals and fails on one).
 //
-// Which pieces (BRIEF-U2a): kind hero, factory, core and turret with flag TEXT in redesign.json, except the STUN-fold
-// face (SCRAPPER) and N1's crit piece (CAPACITOR BANK), which keep today's text, as every RULES piece does (FURNACE's
-// ability, ASSEMBLY LINE, SABOT and FROSTBITE FOUNDRY, DRAG CHAIN FOUNDRY, DRAKE NOZZLE, STEAM BREECH): they have no
-// entry here, so every panel draws them exactly as today.
+// Which pieces (BRIEF-U2a): kind hero, factory, core and turret with flag TEXT in redesign.json, except N1's crit piece
+// (CAPACITOR BANK), which keeps today's text, as every RULES piece does (FURNACE's ability, ASSEMBLY LINE, DRAKE NOZZLE,
+// STEAM BREECH): they have no entry here, so every panel draws them exactly as today.
+// NUM-3 (R1's STUN fold, REQ-BFG-046, REQ-BFG-070): the 7 STUN-fold pieces have faces now (R1's after faces in U2e's
+// stat / ability split): SCRAPPER, SABOT, FROSTBITE and DRAG CHAIN FOUNDRY (a round's STUN is its own: carryStats),
+// TOLLBOOTH, FLAK SCREEN and MANTLET.
 // THE INTERIM (N1 2.6): the faces are held for stage A's NUMBERS release; until then the formatters print today's values.
 
 import { icons, textWidth, type KeywordName } from "../render/font";
@@ -28,11 +30,13 @@ import { colourize, PERK_COLOUR, type Span } from "./richText";
 import { statRow, type Stat } from "./icons";
 import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat";
 import { livePerk, type TextOpts } from "./abilityText";
+import { SIM } from "./abilityText"; // NUM-3: SCRAPPER's queue cap and SABOT's SHRAPNEL STUN (each checked against battle.ts)
 import {
   AMMO, BURN_TIME, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId, type ItemDef, type PayloadPreset,
 } from "../sim/content";
 import { SHIELD_CAP } from "../sim/content"; // SUS-B (REQ-BFG-069): SHIELD's MAX 3
 import { GUARD_FREEZE, SHAPE_ARROWS, rigShape } from "../sim/content"; // U2b: the rigs' belts and OVERDRIVE's guards
+import { GUARD_SLOW, STUN_CAUSES } from "../sim/content"; // NUM-3: OVERDRIVE's chain guard; MANTLET's immunity
 import { factorySpeed, secPer } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED (the faces keep SEC: 30 / speed)
 import { FUSE_MULT } from "../sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
@@ -50,6 +54,10 @@ export const FACE_SIM = {
   breakerPlate: 1,
   // U2b F6: battle.ts impact: a ★3 GRAPNEL GUN's next shot gains 1 damage x its class factor k for each payload it rips
   salvagePerRip: 1,
+  // NUM-3: battle.ts produce: a SCRAPPER queues one stamp for each harassment its side lands (harassAccepted - seenHarass)
+  scrapPerHarass: 1,
+  // NUM-3: ... and with ★3 BIG HAUL one more for each wreck (wreckAccepted - seenWreck)
+  scrapPerWreck: 1,
 } as const;
 
 /** One rule line: markup ({NAME}, {*NAME}); `label`, its brass trigger label, a part of `text` ("SHOT:"). */
@@ -92,10 +100,11 @@ export const speedPair = (interval: number): Stat => ["SEC", fmtSpeed(interval)]
 const showsBelts = (def: string): boolean => !fusible(def) || [1, 2, 3].some((n) => outputsAt(def, n) > 1);
 
 /** A factory's stat pairs at `stars` (MIMIC FORGE's for `hero`): its stamp's cadence, its slug's damage and, where it
- *  shows them, its belts. The slug damage is its dies' (FactorySpec.base), else its ammo's (Battle.stamp). */
+ *  shows them, its belts. The slug damage is its dies' (FactorySpec.base), else its ammo's (Battle.stamp), and a
+ *  SCRAPPER's scrapFlat on top (NUM-3: Battle.stamp adds it to each slug it stamps). */
 export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
   const fs = effectAt(def, stars).factory!;
-  let interval = secPer(fs.speed), dmg = fs.base ?? AMMO[fs.ammo].base; // NUM-2 (REQ-BFG-047): SEC stays, 30 / speed
+  let interval = secPer(fs.speed), dmg = (fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0); // NUM-2 (REQ-BFG-047): SEC stays, 30 / speed
   if (def === "mimic") {
     // Battle.factoryDef: the hero's ammo at its own factory's interval x intervalMul; no hero, no cadence to show
     const h = hero ? HEROES[hero] : undefined, sig = h ? ITEMS[h.factory]?.factory : undefined;
@@ -126,6 +135,9 @@ export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null
   const ember = fs.cycle?.find((p) => p.tint === "ember"), spark = fs.cycle?.find((p) => p.tint === "spark");
   if (ember?.burn) out.push(["BURN", fmtCount(ember.burn)]);
   if (spark?.shock) out.push(["STUN", fmtSec(spark.shockTime ?? DISRUPT_TIME)]);
+  // NUM-3 (R1's STUN fold): a SABOT, FROST or CHAIN round STUNs the part it hits for round.seconds (Battle.roundImpact)
+  const r = fs.round;
+  if (r && (r.kind === "sabot" || r.kind === "frost" || r.kind === "drag")) out.push(["STUN", fmtSec(r.seconds)]);
   // the ammo's own: a CINDER SLUG's HEAT (its rideScale), a THREAD SLUG's FRAY (KILN, LOOM)
   const ammo = AMMO[h ? h.ammo : fs.ammo];
   if (ammo?.rideScale) out.push(["HEAT", fmtDmg(ammo.rideScale)]);
@@ -196,6 +208,8 @@ const rules = (rs: FaceRule[], nums: [string, string][] = [], reminders: string[
 const shot = (text: string): FaceRule => ({ text: `SHOT: ${text}`, label: "SHOT:" });
 /** HOT SWAP's step of the cycle by its tint. */
 const cyc = (e: ItemDef, tint: PayloadPreset["tint"]): PayloadPreset => f(e).cycle!.find((p) => p.tint === tint)!;
+/** NUM-3: a SABOT, FROST or CHAIN round's spec (its STUN's seconds; FROSTBITE's spread, SABOT's shrapnel). */
+const rnd = (e: ItemDef) => f(e).round as { seconds: number; spread?: number; shrapnel?: boolean };
 /** U2b: a rig's rule, its trigger HIT: in brass (cap's review call 5: rigs keep HIT:, as the board's "1 HIT"). */
 const hit = (text: string): FaceRule => ({ text: `HIT: ${text}`, label: "HIT:" });
 const gt = (e: ItemDef) => e.gate!;
@@ -238,6 +252,22 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // U2d F1: the period's NEXT★ form is SURGE's, without the label's colon (its period is one at every star today)
     return rules([{ text: `${label} +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
   },
+  // NUM-3 (R1's STUN fold, REQ-BFG-046, REQ-BFG-070): the four STUN-fold factories. A SABOT, FROST or CHAIN round's STUN is
+  // its own payload's, a stat ({STUN} in the second stat row, carryStats: R1's "ITS ROUNDS: {STUN} 2.5." line is a stat in
+  // U2e's split); the reminder, with the round's seconds, stays for the tap
+  scrapper: () => {
+    // Battle.produce: one more stamp for each harassment its side lands (acceptHarassment); that wrecks and rips count too
+    // and the queue's cap are interim caveats, ★3 BIG HAUL's wreck a clause. Its slugs' scrapFlat is in its DMG stat
+    const n = fmtCount(FACE_SIM.scrapPerHarass);
+    return rules([{ text: `+${n} {SLUG} FOR EACH {*STUN} YOU LAND.` }]);
+  },
+  sabot: (e) => {
+    // Battle.roundImpact: a round on a rig wrecks it for the battle; on any other part, a STUN of round.seconds (its stat)
+    return rules([{ text: "ITS ROUNDS WRECK RIGS FOR THE FIGHT." }], [], [REMINDER.STUN(rnd(e).seconds)]);
+  },
+  // Battle.roundImpact: a frost or chain round STUNs the part it hits (its stat); ★2/★3 HOARFROST's spread is a clause
+  frostbite: (e) => rules([], [], [REMINDER.STUN(rnd(e).seconds)]),
+  dragchain: (e) => rules([], [], [REMINDER.STUN(rnd(e).seconds)]),
   mendpress: (e) => {
     // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): ARMOR PRESS's face with HEAL, its stat row ARMOR PRESS's (factoryStats).
     // Battle.pressHeal: heal.amount every heal.every s through heal(), at the stamping pace, while it feeds a turret (the
@@ -314,8 +344,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [REMINDER.PLATE()]);
   },
   // ------------------------------------------------------------------- U2b: the TEXT rigs (HIT: in brass; no stat row)
-  // TOLLBOOTH (a STUN-fold face) and IRON WALL (SHIELD WALL until SUS-B; N1 3.3's crit piece) keep today's text, as every
-  // RULES rig does.
+  // IRON WALL (SHIELD WALL until SUS-B; N1 3.3's crit piece) keeps today's text, as every RULES rig does. NUM-3: TOLLBOOTH
+  // (a STUN-fold face) has its face (below SORTING ARM).
   temper: (e) => {
     const n = fmtCount(gt(e).burn!); // Battle.applyHit: + burn stacks on each payload it hits
     return rules([hit(`+${n} {*BURN}.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
@@ -374,6 +404,13 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const so = gt(e).sort!, every = fmtCount(so.every), n = fmtCount(so.copies);
     return rules([hit(`OF EVERY ${every} {SLUG}, ONE BECOMES ${n}.`)], [["every", `OF EVERY ${every}`], ["copies", `BECOMES ${n}`]]);
   },
+  tollbooth: (e) => {
+    // NUM-3 (R1's STUN fold): Battle.acceptHarassment: while it works, the first `toll` harassments (a STUN, a SABOT wreck, a
+    // GRAPNEL rip) on its belts, the rigs working them and the turrets they feed are blocked; the wrecks and rips and the
+    // rigs and gun are interim caveats, ★3 FACTORY GUARD (tollFactory) a clause. (No chip: its count is no STUN's.)
+    const n = fmtCount(gt(e).toll!);
+    return rules([{ text: `BLOCKS THE FIRST ${n} {*STUN} HITS ON ${itsBelts(e)}.` }], [["toll", `BLOCKS ${n}`]]);
+  },
   riveter: (e) => {
     // SUS-B (REQ-BFG-069; SUSTAIN-1 4.9): its repair is HEAL, the same numbers (battle.ts heal(): never past your full hull,
     // half with BURN, none in the dark wind; the HEAL row says so); was "HIT: +6 {HULL}." keyed "repair"
@@ -417,8 +454,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [["flat", `+${flat} {DMG}`], ["floor", `ELSE +${floor}`]], [REMINDER.PLATE()]);
   },
   // ------------------------------------------------- U2b: the TEXT turret gear (it describes the turret it sits on)
-  // FLAK SCREEN (a STUN-fold face), LONGCASE and FINISHER RAM (N1 3.3's crit pieces) keep today's text, as every RULES
-  // gear does.
+  // LONGCASE and FINISHER RAM (N1 3.3's crit pieces) keep today's text, as every RULES gear does. NUM-3: FLAK SCREEN and
+  // MANTLET (STUN-fold faces) have theirs (below SPALL CATCHER).
   chamber: (e) => {
     const n = fmtCount(md(e).perShot!); // ★2 WIDE BREECH / ★3 TRIPLE BREECH: + window (a clause)
     return rules([{ text: `EACH SHOT FIRES ${n} {SLUG}.` }], [["shot", `FIRES ${n} {SLUG}`]]);
@@ -442,6 +479,19 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
     // U2d F1: its cap (the interim caveat's MAX, INTERIM_CAVEATS spallcatcher) changes with its stars: keyed, so NEXT★ shows it
     return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`], ["max", `MAX ${fmtDmg(sp.max)} {DMG}`]]);
+  },
+  flak: (e) => {
+    // NUM-3 (R1's STUN fold): Battle.flight: one roll at mid-flight for each enemy harassing shot (isHarassingProjectile),
+    // at the side's best screen; the shots that carry no STUN and the best screen are interim caveats. (No chip: its share
+    // is no STUN's.)
+    const p = fmtPct(md(e).intercept!);
+    return rules([{ text: `SHOOTS DOWN ${p} OF ENEMY {*STUN} SHOTS.` }], [["intercept", `SHOOTS DOWN ${p}`]]);
+  },
+  mantlet: (e) => {
+    // NUM-3 (R1's STUN fold): Battle.acceptHarassment: its turret ignores every cause in mod.immune, from ★1 every STUN
+    // source (content.ts STUN_CAUSES); ★2 FULL GUARD and ★3 BULWARK SKIRT's tiles are a clause
+    const all = STUN_CAUSES.every((cause) => (md(e).immune ?? []).includes(cause));
+    return rules([{ text: all ? "IMMUNE TO {*STUN}." : "IMMUNE TO SOME {*STUN}." }]);
   },
   // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): the sustain gear. Each gives your hull its effect: an ability line
   wardbell: (e) => {
@@ -493,6 +543,27 @@ export const INTERIM_CAVEATS: readonly InterimCaveat[] = [
   // overclock.ts boostable: no speed rig (speed, pulse), TOLLBOOTH, SIFTER, RIVETER, POWDER KEG, OVERCLOCKER, nor a rig
   // that acts on no payload (STOKER, BRACE FRAME); U2c's tap text can list them
   { id: "overclocker", until: "the board cues job: the link to the rig it will double", applies: (e) => !!e.gate?.overclockCooldown, text: () => "IT SKIPS RIGS IT CAN'T DOUBLE." },
+  // NUM-3 (R1's STUN fold): Battle.acceptHarassment: a toll also covers the rigs whose arrows hit its belts and the turrets
+  // those belts feed
+  {
+    id: "tollreach", until: "the board cues job: the parts a toll covers", applies: (e) => !!e.gate?.toll,
+    text: (e) => (oneBelt(e) ? "IT GUARDS ITS BELT'S RIGS AND GUN TOO." : "IT GUARDS ITS BELTS' RIGS AND GUNS TOO."),
+  },
+  // NUM-3: Battle.acceptHarassment counts every harassment alike: a STUN, a SABOT wreck of a rig and a GRAPNEL rip
+  // (TOLLBOOTH blocks them, SCRAPPER's queue counts them); the face's line names the STUN only
+  {
+    id: "harass", until: "the STAR batch or a rules job: one word for what TOLLBOOTH and SCRAPPER count",
+    applies: (e) => !!e.gate?.toll || e.factory?.trigger === "harass", text: () => "WRECKS AND RIPS COUNT TOO.",
+  },
+  // battle.ts produce: the triggered stamps wait, at most SIM.scrapQueue of them
+  {
+    id: "scrapqueue", until: "the board cues job: the factory's waiting slugs", applies: (e) => e.factory?.trigger === "harass",
+    text: () => `MAX ${fmtCount(SIM.scrapQueue)} SLUGS WAITING.`,
+  },
+  // Battle.isHarassingProjectile: GRAPNEL rips, LANCE shots and LIMPET charges are harassing shots too, and Battle.flight
+  // rolls at the side's best screen (makeSide: the maximum intercept of its turrets)
+  { id: "flakshots", until: "a rules job: one word for the shots FLAK SCREEN downs", applies: (e) => !!e.mod?.intercept, text: () => "ALSO GRAPNEL, LANCE AND LIMPET SHOTS." },
+  { id: "flakbest", until: "the board cues job: the side's screen", applies: (e) => !!e.mod?.intercept, text: () => "ONLY YOUR BEST FLAK SCREEN COUNTS." },
 ];
 
 /** One interim perk clause (U2b F6): its text, its numbers keyed for NEXT★, any keyword reminder, and a perk name where
@@ -561,13 +632,37 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
     return { text: `{*STUN} HITS ${n} PARTS.`, nums: [["jump", `${n} PARTS`]] };
   },
   overdrive: (e) => {
-    // Battle.acceptHarassment / routeGuardActive: GUARD_SLOW keeps enemy chains from slowing its belts from its tiles on,
-    // GUARD_FREEZE keeps frost from freezing them (today's harassments; STUN keeps today's meaning, N1 INPUTS 5)
+    // Battle.acceptHarassment / routeGuardActive: from its tiles on, GUARD_SLOW keeps enemy CHAIN rounds' STUNs (cause
+    // "drag") off its belts, GUARD_FREEZE FROST rounds' (cause "freeze"). NUM-3 (R1's STUN fold): no SLOW or FREEZE any more
     const guard = gt(e).guard ?? 0;
-    if (!guard) return null;
-    const frost = (guard & GUARD_FREEZE) !== 0;
+    const kinds = [...(guard & GUARD_SLOW ? ["CHAIN"] : []), ...(guard & GUARD_FREEZE ? ["FROST"] : [])];
+    if (!kinds.length) return null;
     // (no NEXT★ number: the line names the perk, and the clause says it at that star)
-    return { text: `ENEMY CHAINS${frost ? " AND FROST" : ""} CAN'T SLOW${frost ? " OR FREEZE" : ""} ${itsBelts(e)}.`, nums: [] };
+    return { text: `ENEMY ${kinds.join(" AND ")} ROUNDS CAN'T {*STUN} ${itsBelts(e)}.`, nums: [] };
+  },
+  // NUM-3 (R1's STUN fold): the STUN-fold pieces' own STAR-batch perks
+  frostbite: (e) => {
+    const j = rnd(e).spread; // Battle.roundImpact: the round also STUNs the `spread` nearest other parts (★2/★3 HOARFROST)
+    if (!j) return null;
+    const n = fmtCount(1 + j);
+    return { text: `{*STUN} HITS ${n} PARTS.`, nums: [["spread", `${n} PARTS`]] };
+  },
+  sabot: (e) => {
+    // Battle.roundImpact: ★3 SHRAPNEL: a round on a belt tile or a rig also STUNs the belt tiles either side of that tile (or
+    // of the rig's arrow tiles) for SIM.shrapnel s
+    if (!rnd(e).shrapnel) return null;
+    const t = fmtSec(SIM.shrapnel);
+    return { text: `ON A TILE OR RIG, {*STUN} ${t} TO THE TILES EITHER SIDE.`, nums: [["shrapnel", `{*STUN} ${t} EITHER SIDE`]] };
+  },
+  scrapper: (e) => {
+    if (!f(e).bigHaul) return null; // Battle.produce: ★3 BIG HAUL: each wreck its side lands queues one more stamp
+    const n = fmtCount(FACE_SIM.scrapPerWreck);
+    return { text: `+${n} MORE {SLUG} FOR EACH WRECK.`, nums: [["haul", `+${n} A WRECK`]] };
+  },
+  tollbooth: (e) => {
+    if (!gt(e).tollFactory) return null; // Battle.acceptHarassment: ★3 FACTORY GUARD: a factory feeding its belts too
+    // (the 3x5 line fits the narrowest build screen's panel, 144 px at W 160: \"ITS BELT'S FACTORY TOO.\" was 151 px)
+    return { text: oneBelt(e) ? "THE BELT'S FACTORY." : "THE BELTS' FACTORIES.", nums: [] };
   },
   barbed: (e) => {
     const cap = gt(e).frayCap; // Battle.impact: the hull's FRAY cap is FRAY_MAX + frayCap
@@ -593,6 +688,14 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
       // way where the line would pass the band (meaning before names)
       nums: [["weight", `FACTORIES ${n} TIMES`]],
     };
+  },
+  mantlet: (e) => {
+    // NUM-3: ★2 FULL GUARD / ★3 BULWARK SKIRT: the last intakeGuard tiles of each belt into its turret, and the rigs whose
+    // arrows hit them, share its immunity (Battle.makeSide's GUARD_SKIRT tiles, Battle.skirted)
+    const n = md(e).intakeGuard;
+    if (!n) return null;
+    const tiles = n === 1 ? "LAST TILE" : `LAST ${fmtCount(n)} TILES`;
+    return { text: `SO ARE ITS BELTS' ${tiles} AND THEIR RIGS.`, nums: [["guard", `LAST ${fmtCount(n)} TILE${s(n)}`]] };
   },
 };
 

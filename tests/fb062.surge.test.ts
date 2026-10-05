@@ -35,10 +35,13 @@ function valve(stars: number): { bt: Battle; a: BeltAmmo } {
 }
 
 describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
-  it("the rule: per-pulse flat 1/2/3 (was 0/1/2); speed, timing and the locked-belt flat unchanged", () => {
+  // NUM-3 (N1 2.2): the title's "timing unchanged" was FB-B's (FB-B moved only the flat); NUM-3 made the period whole
+  // seconds, 3 / 3 / 2 s (was 3 / 2.5 / 2), so the title names it. The 1 s on-time, the speed and the flats are unchanged.
+  it("the rule: per-pulse flat 1/2/3 (was 0/1/2); speed, on-time and the locked-belt flat unchanged; period 3/3/2 s (NUM-3)", () => {
     // NUM-1: the per-pulse flat x10 (was 1/2/3), the locked-belt flat x10 (was 3/6/10); speed and timing unchanged
+    // NUM-3 (N1 2.2): was ★2 period 2.5; now ★2 period 3 (whole seconds; the one row NUM-3 moved)
     expect(STARS.map((s) => effectAt("surge", s).gate?.pulse)).toEqual([
-      { speed: 3, on: 1, period: 3, flat: 10 }, { speed: 4, on: 1, period: 2.5, flat: 20 }, { speed: 5, on: 1, period: 2, flat: 30 },
+      { speed: 3, on: 1, period: 3, flat: 10 }, { speed: 4, on: 1, period: 3, flat: 20 }, { speed: 5, on: 1, period: 2, flat: 30 },
     ]);
     expect(STARS.map((s) => effectAt("surge", s).gate?.lockedFlat)).toEqual([30, 60, 100]);
   });
@@ -48,7 +51,7 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
       const { bt, a } = valve(s);
       until(bt, 0.12);
       expect(bt.sides[0].routes[0].speedAt[3], `★${s} pulse`).toBe([3, 4, 5][s - 1]);
-      until(bt, 1.3); // the first pulse is over at every star (on for 1 s of each 3 / 2.5 / 2 s)
+      until(bt, 1.3); // the first pulse is over at every star (on for 1 s of each 3 / 3 / 2 s; NUM-3: was 3 / 2.5 / 2)
       expect(bt.sides[0].routes[0].speedAt[3], `★${s} between pulses`).toBe(1);
       expect(a.p.flat, `★${s}`).toBe(FLAT[s - 1]);
     }
@@ -94,9 +97,10 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
     expect(d.desc.every((l) => l.length <= 20)).toBe(true);
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's opening sentence (abilityText) and clause (gist)
     // NUM-1: the per-pulse damage x10 (was 1/2/3 DAMAGE)
+    // NUM-3 (N1 2.2): was "EVERY 2.5 SECONDS" at ★2; now ★2's period read from ITEMS (effectAt: 3 s)
     expect(STARS.map((s) => abilityText("surge", s).sentences[0])).toEqual([
       "PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE.",
-      "PULSES ITS BELTS 4 TIMES AS FAST FOR 1 SECOND EVERY 2.5 SECONDS, EACH PULSE ADDING 20 DAMAGE.",
+      `PULSES ITS BELTS 4 TIMES AS FAST FOR 1 SECOND EVERY ${effectAt("surge", 2).gate!.pulse!.period} SECONDS, EACH PULSE ADDING 20 DAMAGE.`,
       "PULSES ITS BELTS 5 TIMES AS FAST FOR 1 SECOND EVERY 2 SECONDS, EACH PULSE ADDING 30 DAMAGE.",
     ]);
     expect(STARS.map((s) => gist("surge", s))).toEqual(["3 TIMES AS FAST, 10 DAMAGE A PULSE", "4 TIMES AS FAST, 20 DAMAGE A PULSE", "5 TIMES AS FAST, 30 DAMAGE A PULSE"]);

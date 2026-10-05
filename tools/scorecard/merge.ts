@@ -56,7 +56,8 @@ export function kindOf(path: string): EffectKind {
   // NUM-2 (REQ-BFG-047): a turret's or factory's speed (shots or slugs per 30 s) is already a rate, and a whole rate %
   // (fireRate, MIMIC's rate, STEAM BREECH's, GATLING's start and top) is already its bonus: both amounts
   if (path === "factory.speed" || path === "turret.speed" || /(^|\.)(fireRate|rate|top|steamPlated|steamBare)$/.test(path) || path === "core.start") return "amount";
-  if (path === "factory.intervalMul" || path === "gate.burnPerRide.seconds") return "rate";
+  if (path === "factory.intervalMul") return "rate";
+  if (path === "gate.burnPerRide.burn") return "amount"; // NUM-3 (REQ-BFG-047): BELLOWS, BURN for each 10 s ridden (was gate.burnPerRide.seconds, a rate)
   if (/(^|\.)(interval|fireInterval|overclockCooldown|period|every|fuse|flatPerBurn)$/.test(path)) return "rate";
   if (path === "core.intervalMul" || /(^|\.)(fireMul|floor|start|reloadMul|flightMul)$/.test(path)) return "imult";
   if (path === "core.mult" || /(^|\.)(speed|hullMul)$/.test(path)) return "mult";
@@ -123,7 +124,7 @@ export const MAIN: Record<string, MainDef> = {
   venom: one("gate.poison", "Poison added"),
   overclocker: one("gate.overclockCooldown", "boosts per second (1 / cooldown)"),
   keg: one("gate.keg.flat", "blast damage"),
-  bellows: one("gate.burnPerRide.seconds", "Burn per second ridden (1 / seconds)"),
+  bellows: one("gate.burnPerRide.burn", "Burn for each 10 s ridden"), // NUM-3: was gate.burnPerRide.seconds (1 / seconds)
   quench: one("gate.quench.perBurn", "damage per Burn stack spent"),
   staticbrush: one("gate.staticTime", "stall seconds"),
   lodestone: one("gate.perStalled.each", "damage per stalled machine"),

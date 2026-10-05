@@ -52,7 +52,10 @@ describe("U2c the glossary: the table and its API (T2a's, ported)", () => {
     expect(new Set(forms).size).toBe(forms.length);
     for (const f of forms) expect(f, f).toMatch(/^[A-Z][A-Z' ]*[A-Z]$/);
     expect(glossaryEntry("burn")!.word).toBe("BURN");
-    expect(glossaryEntry("FROZEN")!.word).toBe("FREEZE");
+    // NUM-3 (R1's STUN fold): the FREEZE row is gone (a FROSTBITE round STUNs), so FROZEN names no row; an alias still finds
+    // its row (was: FROZEN found FREEZE)
+    expect(glossaryEntry("FROZEN")).toBeUndefined();
+    expect(glossaryEntry("STUNNED")!.word).toBe("STUN");
     expect(glossaryEntry("PAIRS")!.word).toBe("PAIR");
     expect(glossaryEntry("NOT A WORD")).toBeUndefined();
     expect(GLOSSARY_WRAP_W).toBe(225);
@@ -94,7 +97,9 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     expect(glossaryEntry("JAM")!.def).toBe(`JAM: A GUN WITH ${fmtCount(JAM_THRESHOLD)} LOADS BACKED UP AT ITS INTAKES SKIPS A SHOT.`);
     expect(stripIcons(keywordRow("STUN").def)).toContain("THE ENEMY PART IT HITS STOPS");
     // colours: battle colours where the game has them
-    expect([glossaryEntry("FREEZE")!.colour, glossaryEntry("POISON")!.colour, glossaryEntry("SPEED")!.colour]).toEqual([KEYWORD_COLOUR.freeze, KEYWORD_COLOUR.poison, KEYWORD_COLOUR.faster]);
+    // NUM-3 (R1's STUN fold): FREEZE has no row (it is STUN's, in STUN's colour); POISON and SPEED keep their battle colours
+    expect([glossaryEntry("FREEZE"), glossaryEntry("POISON")!.colour, glossaryEntry("SPEED")!.colour]).toEqual([undefined, KEYWORD_COLOUR.poison, KEYWORD_COLOUR.faster]);
+    expect(keywordRow("STUN").colour).toBe(ICON_COLOUR[ICON.STUN]);
   });
 
   it("the rune keywords have rows (BURN, RIDE and STALL too), and the rune cards' colours and reminders come from them", () => {
