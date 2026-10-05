@@ -133,7 +133,10 @@ export interface GateEffect {
   heat?: number;
   poison?: number;
   overclockCooldown?: number;
-  keg?: { fuse: number; flat: number; burn: number; wide?: boolean };
+  // POWDER KEG: once, `fuse` s after it comes online, + flat and burn to every payload on its belts (★3 WIDE BLAST: every
+  // belt beside it). Y5 (release Y; DESIGN-Y row 46): with the star switch on no `burn` and no `wide`: every `fuse` s from
+  // the battle's start it blasts + flat onto its belts (battle.ts kegTick)
+  keg?: { fuse: number; flat: number; burn?: number; wide?: boolean };
   // NUM-3 (REQ-BFG-047, N1 2.2): BELLOWS, + `burn` BURN for each `per` s the payload has ridden, at most `max` (was 1 BURN
   // every `seconds`: 2.5 / 1.15 / 0.7 s; now 4 / 9 / 14 BURN for each 10 s, exact at ★1, +3.5% at ★2, -2% at ★3)
   // Y3 (release Y; DESIGN-Y row 22): with the star switch on, + `burn` for each whole `per` s ridden and no `max` (STAR_DIFF)
@@ -1333,6 +1336,13 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   shieldwall: {
     gate: { plated: { min: 120, flat: 30 } },
     levels: { 2: { gate: { plated: { min: 120, flat: 66 } } }, 3: { gate: { plated: { min: 120, flat: 105 } } } },
+  },
+  // row 46, POWDER KEG: it re-arms on a timer: every 12/10/8 s from the battle's start (a STUN or a wreck pauses the fuse)
+  // it blasts +60/+130/+210 onto the slugs on its belts (battle.ts kegTick); its BURN (1/2/3) and ★3 WIDE BLAST's every
+  // belt beside it go. The perk's name stays (ⓘ only)
+  keg: {
+    gate: { keg: { fuse: 12, flat: 60 } },
+    levels: { 2: { gate: { keg: { fuse: 10, flat: 130 } } }, 3: { gate: { keg: { fuse: 8, flat: 210 } }, perk: "WIDE BLAST" } },
   },
   // row 47, SPALL CATCHER: the cap goes (no `max`; was 80/176/280); a PLATE soak counts once (battle.ts spallCharge)
   spallcatcher: {

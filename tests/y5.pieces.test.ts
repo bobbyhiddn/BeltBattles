@@ -5,7 +5,7 @@
 // every star, inside the 225 px band of font.ts textWidth, no caveat and no star clause, its perk's name never on the face:
 // ruling R-1); and its ⓘ LEVELS ladder, every line inside the band.
 import { describe, expect, it } from "vitest";
-import { Battle, type SideState, type TurretState } from "../src/sim/battle";
+import { Battle, type GateState, type SideState, type TurretState } from "../src/sim/battle";
 import { CELL, withStarRules } from "../src/sim/content";
 import { type Build } from "../src/sim/deck";
 import { effectAt, starText } from "../src/sim/stars";
@@ -227,6 +227,101 @@ describe("Y5 row 45: IRON WALL: +30/+66/+105 at 120 PLATE or more; its own plati
     expect(Math.max(...lines("shieldwall").map((l) => px(l[0])))).toBe(181);
     expect(levels("shieldwall", 1)).toEqual(["{DMG} [+30]/+66/+105", next(2, "+66 {DMG}")]);
     expect([hasFace("shieldwall"), on(() => hasFace("shieldwall"))]).toEqual([false, true]);
+  });
+});
+
+// --------------------------------------------------------------------------------------------- row 46: POWDER KEG
+describe("Y5 row 46: POWDER KEG: every 12/10/8 s from the start, +60/+130/+210 to the slugs on its belts; no BURN", () => {
+  const FUSE = [12, 10, 8], FLAT = [60, 130, 210];
+  const TICK = 1 / 60;
+  type Blast = { t: number; gains: number[]; burns: number[] };
+  /** A battle of the bench with a POWDER KEG (★`stars`, west of belt tile (4,3), uid 10) for `secs`, with the switch on or
+   *  off: each blast of side 0's keg (a `keg` event) with its time and what it gave the slugs on its belt then (each one's
+   *  flat and BURN gained that tick). `at(bt)`: a setup on each tick before it is stepped (STUN, wreck, rip). */
+  function blasts(star: boolean, stars = 1, secs = 30, at: (bt: Battle, keg: GateState) => void = () => {}): { list: Blast[]; bt: Battle } {
+    return withStarRules(() => {
+      const bt = new Battle(rigBench([["keg", 4, 3, stars]]), barge(), SEED), s = bt.sides[0];
+      const keg = s.gates.find((g) => g.def.id === "keg")!;
+      const list: Blast[] = [];
+      while (bt.t < secs && !bt.over) {
+        at(bt, keg);
+        const before = new Map(s.routes[0].ammo.map((a) => [a.p.id, [a.p.flat, a.p.burn]] as const));
+        bt.step();
+        const ev = bt.drainEvents().filter((e) => e.type === "keg" && e.side === 0);
+        if (!ev.length) continue;
+        const after = s.routes[0].ammo.filter((a) => before.has(a.p.id));
+        list.push({ t: bt.t, gains: after.map((a) => a.p.flat - before.get(a.p.id)![0]), burns: after.map((a) => a.p.burn - before.get(a.p.id)![1]) });
+      }
+      return { list, bt };
+    }, star);
+  }
+  const near = (t: number, want: number): boolean => Math.abs(t - want) <= TICK + 1e-9;
+
+  it("data: on, keg { fuse 12/10/8, flat 60/130/210 }: no burn, no wide (off: burn 1/2/3, ★3 wide)", () => {
+    for (const s of STARS) {
+      expect(on(() => effectAt("keg", s).gate), `★${s}`).toEqual({ keg: { fuse: FUSE[s - 1], flat: FLAT[s - 1] } });
+      expect(effectAt("keg", s).gate, `★${s} off`).toEqual({ keg: { fuse: FUSE[s - 1], flat: FLAT[s - 1], burn: s, ...(s === 3 ? { wide: true } : {}) } });
+    }
+  });
+
+  it("battle: it blasts at 12 and 24 s from the battle's start, each +60 to every slug on its belt, no BURN (off: once, 12 s after it comes online, +60 and 1 BURN)", () => {
+    const onR = blasts(true).list, offR = blasts(false).list;
+    expect(onR.map((b) => b.t).every((t, i) => near(t, 12 * (i + 1))), JSON.stringify(onR.map((b) => b.t))).toBe(true);
+    expect(onR).toHaveLength(2);
+    for (const b of onR) {
+      expect(b.gains.length).toBeGreaterThan(0);
+      expect(new Set(b.gains)).toEqual(new Set([60]));
+      expect(new Set(b.burns)).toEqual(new Set([0]));
+    }
+    expect(offR).toHaveLength(1);
+    expect(offR[0].t).toBeGreaterThan(12.5); // its fuse waited for it to come online (COMMISSION_BASE 1.2 s)
+    expect(new Set(offR[0].gains)).toEqual(new Set([60]));
+    expect(new Set(offR[0].burns)).toEqual(new Set([1]));
+  });
+
+  it("battle: every 10 s at ★2 and every 8 s at ★3, +130 / +210", () => {
+    for (const s of [2, 3]) {
+      const list = blasts(true, s, 25).list;
+      expect(list.map((b) => b.t).every((t, i) => near(t, FUSE[s - 1] * (i + 1))), `★${s}: ${JSON.stringify(list.map((b) => b.t))}`).toBe(true);
+      expect(list).toHaveLength(Math.floor(25 / FUSE[s - 1]));
+      for (const b of list) expect(new Set(b.gains)).toEqual(new Set([FLAT[s - 1]]));
+    }
+  });
+
+  it("battle: a 3 s STUN at 5 s pauses the fuse: the blasts come at 15 and 27 s", () => {
+    const stun = (bt: Battle, keg: GateState) => { if (bt.ticks === 300) keg.disrupted = 3; };
+    const list = blasts(true, 1, 30, stun).list;
+    expect(list.map((b) => b.t).every((t, i) => near(t, 15 + 12 * i)), JSON.stringify(list.map((b) => b.t))).toBe(true);
+    expect(list).toHaveLength(2);
+  });
+
+  it("battle: a wreck at 5 s stops it for the fight: no blast", () => {
+    const wreck = (bt: Battle, keg: GateState) => { if (bt.ticks === 300) keg.wrecked = true; };
+    expect(blasts(true, 1, 30, wreck).list).toEqual([]);
+  });
+
+  it("battle: a GRAPNEL rip on it at 5 s doesn't disarm it: it still blasts at 12 and 24 s (off: disarmed, no blast)", () => {
+    type Ripper = { rip(s: SideState, t: unknown, count: number, reach: number): number };
+    const rip = (bt: Battle, keg: GateState) => {
+      if (bt.ticks !== 300) return;
+      const s = bt.sides[0], t = s.targets.find((x) => x.kind === "gate" && x.ref === keg.uid);
+      (bt as unknown as Ripper).rip(s, t, 1, 1);
+    };
+    const onR = blasts(true, 1, 30, rip);
+    expect(onR.list.map((b) => b.t).every((t, i) => near(t, 12 * (i + 1)))).toBe(true);
+    expect(onR.list).toHaveLength(2);
+    expect(onR.bt.sides[0].gates.find((g) => g.def.id === "keg")!.consumed).toBe(false);
+    expect(blasts(false, 1, 30, rip).list).toEqual([]);
+  });
+
+  it("face: one line, EVERY 12{SEC}: +60 {DMG} TO SLUGS ON ITS BELTS. (209 px at ★1, 215 at ★2); ladders EVERY 12/10/8{SEC}, {DMG} +60/+130/+210", () => {
+    oneLine("keg");
+    expect(lines("keg")).toEqual(STARS.map((s) => [`EVERY ${FUSE[s - 1]}{SEC}: +${FLAT[s - 1]} {DMG} TO SLUGS ON ITS BELTS.`]));
+    expect(lines("keg").map((l) => px(l[0]))).toEqual([209, 215, 209]);
+    for (const s of STARS) expect(on(() => JSON.stringify(faceAt("keg", s)))).not.toMatch(/BURN|ONLINE|WIDE/);
+    // ★3 WIDE BLAST's name stays, in the ⓘ view only (R-1); its rule is gone
+    expect(levels("keg", 1)).toEqual(["EVERY [12]/10/8{SEC}", "{DMG} [+60]/+130/+210", "★3 WIDE BLAST", next(2, "EVERY 10{SEC}, +130 {DMG}")]);
+    expect([hasFace("keg"), on(() => hasFace("keg"))]).toEqual([false, true]);
   });
 });
 

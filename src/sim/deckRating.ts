@@ -143,6 +143,17 @@ export function drakeGain(spec: CoreSpec, flat: number): number {
   return stacks * BURN_TIME * BURN_DPS - used;
 }
 
+/** Y5 (release Y; DESIGN-Y row 46): with the star switch on, a POWDER KEG's worth for each payload of a route whose first
+ *  payload rides `time` s, in a fight of `fight` s. It blasts `flat` at every multiple of its fuse while the fight lasts
+ *  (Battle.kegTick: its fuse runs from the start), each blast onto the payloads then on its belts: about `time` s of the
+ *  route's payloads (clipped at the fight's end; a belt longer than a fuse holds slugs two blasts reach), of the
+ *  (fight - time) it fires. Its BURN is gone. The base's one blast is this sum's first term, with its BURN. */
+export function kegGain(keg: { fuse: number; flat: number }, fight: number, time: number): number {
+  let buffed = 0;
+  for (let t = keg.fuse; t < fight; t += keg.fuse) buffed += Math.min(fight, t + time) - t;
+  return (keg.flat * buffed) / Math.max(1, fight - time);
+}
+
 /** Y2: the pieces of `b` that land a STUN (the star switch's LODESTONE price): a shock or static rig (GALVANIC COIL,
  *  STATIC BRUSH), a factory stamping shock slugs (HOT SWAP) or STUN rounds (SABOT, FROSTBITE, DRAG CHAIN; a LIMPET WORKS
  *  only with a stall, none with the switch on), and a TESLA ARC core; each at its own stars. */
@@ -234,7 +245,9 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       // about `time` seconds of the route's payloads, of the (fight - time) it fires, and none when the fight is over
       // first. CAND-A (the skill-ladder fix): the rating read half the buff on every payload, whatever the fight; its
       // ablation lift on the par field was +0.1 points on day 10 (fights of 9.5 s; fuses 12/10/8 s at 1/2/3 stars).
-      if (e.keg) eq += ((e.keg.flat + BURN_TIME * BURN_DPS * e.keg.burn) * Math.max(0, Math.min(fight, e.keg.fuse + time) - e.keg.fuse)) / Math.max(1, fight - time); // NUM-1: a Burn stack's BURN_DPS a second
+      // Y5 (release Y; DESIGN-Y row 46): with the star switch on it blasts at every multiple of its fuse, with no BURN (kegGain)
+      if (e.keg) eq += starRules() ? kegGain(e.keg, fight, time)
+        : ((e.keg.flat + BURN_TIME * BURN_DPS * e.keg.burn!) * Math.max(0, Math.min(fight, e.keg.fuse + time) - e.keg.fuse)) / Math.max(1, fight - time); // NUM-1: a Burn stack's BURN_DPS a second
       // Y3 (release Y; DESIGN-Y row 29): with the star switch on it charges the next rig whatever it is, so it is worth its
       // EQ only when that rig has something to double (chargeGains); off, as before
       if (e.overclockCooldown) eq += !starRules() || chargeGains(b, hits[ri] ?? [], h) ? EQ.overclock / e.overclockCooldown : 0;

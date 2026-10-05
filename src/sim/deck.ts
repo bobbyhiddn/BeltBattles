@@ -722,7 +722,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         th.flat = (th.flat ?? 0) + amount;
       }
       if (e.overclockCooldown) th.timed = `X2 EVERY ${e.overclockCooldown}S`;
-      if (e.keg) th.timed = `BLAST +${e.keg.flat} AT ${e.keg.fuse}S`;
+      // Y5 (release Y; DESIGN-Y row 46): with the star switch on the keg blasts every fuse s (Battle.kegTick)
+      if (e.keg) th.timed = starRules() ? `BLAST +${e.keg.flat} EVERY ${e.keg.fuse}S` : `BLAST +${e.keg.flat} AT ${e.keg.fuse}S`;
       // Y2 (release Y; DESIGN-Y row 15): with the star switch on LODESTONE has no cap
       if (e.perStalled) th.timed = starRules() ? `+${e.perStalled.each}/STALLED` : `+${e.perStalled.each}/STALLED, MAX ${e.perStalled.max}`;
       if (e.shock) {

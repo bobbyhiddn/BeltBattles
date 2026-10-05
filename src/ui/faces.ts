@@ -794,7 +794,7 @@ export const Y4_PIECES: readonly string[] = [
  * every face is as before.
  */
 export const Y5_PIECES: readonly string[] = [
-  "counterweight", "capacitor", "longcase", "ram", "shieldwall", "spallcatcher",
+  "counterweight", "capacitor", "longcase", "ram", "shieldwall", "keg", "spallcatcher",
 ];
 
 /** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
@@ -991,6 +991,15 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // GAINS 30 DAMAGE." and PLATING's definition
     const pl = gt(e).plated!, d = fmtDmg(pl.flat);
     return rules([hit(`+${d} {DMG} AT ${fmtDmg(pl.min)} {*PLATE} OR MORE.`)], [["flat", `+${d} {DMG}`]], [REMINDER.PLATE()]);
+  },
+  keg: (e) => {
+    // DESIGN-Y row 46: Battle.kegTick: its fuse runs from the battle's start (a STUN or a wreck pauses it); each keg.fuse s it
+    // blasts + flat onto every slug on its belts (beltPulse, SURGE VALVE's walk) and re-arms; its BURN and ★3 WIDE BLAST's
+    // reach are gone (content.ts STAR_DIFF). Was the RULES text "ADDS 60 DAMAGE AND 1 BURN TO EVERY PAYLOAD ON ITS BELTS WHEN
+    // IT BLOWS UP." with "IT BLOWS ONCE, 12 SECONDS AFTER IT COMES ONLINE; A STUN PAUSES THE FUSE." and BURN's definition
+    const k = gt(e).keg!, every = fmtSec(k.fuse), d = fmtDmg(k.flat);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
   },
   spallcatcher: (e) => {
     // DESIGN-Y row 47: Battle.spallCharge: + add for every `every` damage your ship takes (a PLATE soak counted once, not

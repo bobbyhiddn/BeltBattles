@@ -37,8 +37,8 @@ describe("Y3 words: no new keyword; ONLINE stays (KEG, QUICK LATCH); MATCHED is 
     expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]); // the 9, as before
   });
 
-  it("why ONLINE stays: with the switch on POWDER KEG's kept sentence and the QUICK LATCH rune still name it; none of the 13's texts do", () => {
-    expect(on(() => abilityText("keg", 1).sentences.some((t) => glossaryWordsIn(t).some((r) => r.word === "ONLINE")))).toBe(true);
+  it("why ONLINE stays: with the switch on the QUICK LATCH rune still names it (Y5: POWDER KEG's kept sentence no more); none of the 13's texts do", () => {
+    expect(on(() => abilityText("keg", 1).sentences.some((t) => glossaryWordsIn(t).some((r) => r.word === "ONLINE")))).toBe(false); // Y5 (ruling 882ecc77): was toBe(true)
     expect(JSON.stringify(RUNES.quick_latch)).toMatch(/ONLINE/); // its text: "YOUR {BELT} RIGS: ONLINE {N} SOONER."
     on(() => {
       for (const def of Y3_PIECES) for (const s of STARS) {

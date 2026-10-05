@@ -929,11 +929,13 @@ export class Battle {
       }
       if (!stopped && !g.wrecked && g.online) {
         if (g.cooldown > 0) g.cooldown = Math.max(0, g.cooldown - dt);
-        if (g.def.gate?.keg && !g.consumed) {
+        // Y5 (release Y; DESIGN-Y row 46): with the star switch on POWDER KEG's fuse is kegTick's (below); off, as before
+        if (g.def.gate?.keg && !g.consumed && !starRules()) {
           g.fuse -= dt;
           if (g.fuse <= 0) this.detonateKeg(s, g);
         }
       }
+      if (g.def.gate?.keg && starRules()) this.kegTick(s, g, dt, stopped); // Y5: the re-arming keg (star switch on)
     }
     if (s.latches) for (const g of s.latches) this.latchTick(s, g); // 0.8.0 P1 (E4): releases, before this tick's transport
     if (s.surges) for (const g of s.surges) this.surgeTick(s, g); // Y3 (DESIGN-Y row 28): the damage pulses (star switch on)
@@ -989,8 +991,28 @@ export class Battle {
     }
     for (const id of routes) for (const a of s.routes[id].ammo) {
       a.p.flat += keg.flat;
-      a.p.burn += keg.burn;
+      a.p.burn += keg.burn!; // Y5: every keg's def holds a burn while the star switch is off (detonateKeg's only case)
     }
+    this.events.push({ type: "keg", side: s.side, gate: g.uid });
+  }
+
+  /**
+   * Y5 (release Y; DESIGN-Y row 46; BRIEF-Y5: "the fuse counts battle time from the start"), each tick with the star switch
+   * on: POWDER KEG's fuse (GateState.fuse, the keg's own timer, keg.fuse at the start) runs from the battle's start, not from
+   * its coming online, and pauses while the keg is stopped (`stopped`: STUNned or frozen this tick, as a stopped part's
+   * timers do) or wrecked. Each time it runs out (to within 1e-9 s of the tick: the 1/60 s steps don't sum to a whole
+   * second exactly) it re-arms for keg.fuse (12/10/8 s), the remainder carried, and the keg blasts if it works (online):
+   * keg.flat onto every slug on the belts its arrows hit (beltPulse, SURGE VALVE's walk). No BURN and no WIDE BLAST, and a
+   * GRAPNEL rip never disarms it (Battle.rip reads no keg with the switch on), so it is never consumed.
+   */
+  private kegTick(s: SideState, g: GateState, dt: number, stopped: boolean): void {
+    if (stopped || g.wrecked) return;
+    g.fuse -= dt;
+    if (g.fuse > 1e-9) return;
+    const keg = g.def.gate!.keg!;
+    g.fuse += keg.fuse;
+    if (!g.online) return; // a keg not working yet misses that blast, as a SURGE VALVE misses its pulse
+    this.beltPulse(s, g, keg.flat);
     this.events.push({ type: "keg", side: s.side, gate: g.uid });
   }
 
@@ -1144,7 +1166,14 @@ export class Battle {
     const p = g.def.gate!.pulse!, phase = this.pulsePhase(p);
     if (!phase.on || g.surged === phase.cycle) return;
     g.surged = phase.cycle;
-    for (const ri of new Set(g.hits.map((h) => h.route))) for (const a of s.routes[ri].ammo) a.p.flat += p.flat;
+    this.beltPulse(s, g, p.flat);
+  }
+
+  /** Y3's damage-pulse walk (surgeTick), shared with Y5's POWDER KEG (kegTick; DESIGN-Y row 46), both read only with the
+   *  star switch on: every slug on each belt rig g's arrows hit gains `flat` once (before or after its tile, on slag and on
+   *  a locked belt alike), and the rig and its arrows flash. */
+  private beltPulse(s: SideState, g: GateState, flat: number): void {
+    for (const ri of new Set(g.hits.map((h) => h.route))) for (const a of s.routes[ri].ammo) a.p.flat += flat;
     g.flash = 0.22;
     for (const h of g.hits) g.arrowFlash[h.dir] = 0.22;
   }

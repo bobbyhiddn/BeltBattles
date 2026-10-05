@@ -554,17 +554,26 @@ const ENTRIES: Record<string, Entry> = {
   },
   keg: {
     // Battle.detonateKeg: once, when the fuse (running while online, paused by a STUN) ends; ★3 WIDE BLAST:
-    // every belt beside the keg, not only those its arrows hit
+    // every belt beside the keg, not only those its arrows hit. Y5 (release Y; DESIGN-Y row 46): with the star switch on
+    // Battle.kegTick: every fuse s from the battle's start (a STUN pauses the fuse) it blasts flat onto its belts; no BURN,
+    // no WIDE BLAST, and no ONLINE (its fuse doesn't wait for it)
     text: (e) => {
       const k = g(e).keg!;
+      if (starRules()) {
+        return [
+          `EVERY ${seconds(k.fuse)} IT BLOWS UP, ADDING ${damage(k.flat)} TO EVERY PAYLOAD ON ITS BELTS.`,
+          "ITS FUSE RUNS FROM THE START OF THE BATTLE; A STUN PAUSES IT.",
+        ];
+      }
       return [
         `ADDS ${damage(k.flat)} AND ${k.burn} BURN TO EVERY PAYLOAD ON ${k.wide ? "EVERY BELT BESIDE IT" : "ITS BELTS"} WHEN IT BLOWS UP.`,
         `IT BLOWS ONCE, ${seconds(k.fuse)} AFTER IT COMES ONLINE; A STUN PAUSES THE FUSE.`, // NUM-3: no freeze any more
         S.burn,
       ];
     },
-    gist: (e) => `${damage(g(e).keg!.flat)} AND ${g(e).keg!.burn} BURN${g(e).keg!.wide ? " ON EVERY BELT BESIDE IT" : ` AFTER ${seconds(g(e).keg!.fuse)}`}`,
-    card: (e) => `BLOWS UP: ${damage(g(e).keg!.flat)}, ${g(e).keg!.burn} BURN`,
+    gist: (e) => (starRules() ? `${damage(g(e).keg!.flat)} ${every(g(e).keg!.fuse)}`
+      : `${damage(g(e).keg!.flat)} AND ${g(e).keg!.burn} BURN${g(e).keg!.wide ? " ON EVERY BELT BESIDE IT" : ` AFTER ${seconds(g(e).keg!.fuse)}`}`),
+    card: (e) => (starRules() ? `BLOWS UP ${every(g(e).keg!.fuse)}` : `BLOWS UP: ${damage(g(e).keg!.flat)}, ${g(e).keg!.burn} BURN`),
   },
   bellows: {
     // NUM-3 step 2 (compile-driven): burnPerRide is { burn, per, max }: floor(ride x burn / per) BURN, at most max (deck.ts
@@ -1543,6 +1552,8 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
     if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING`; // NUM-1: 10 plating
     // Y5 (DESIGN-Y row 45): IRON WALL rolls no plating any more; its bonus waits for its PLATE in the battle (not counted)
     if (e.plated && !e.plate) return `${name} +${damage(e.plated.flat)} AT ${e.plated.min} PLATING`;
+    // Y5 (DESIGN-Y row 46): POWDER KEG re-arms (Battle.kegTick), with no BURN
+    if (e.keg) return `${name} +${damage(e.keg.flat)} EVERY ${fmtSec(e.keg.fuse)} SEC`;
   }
   if (e.speed !== undefined || e.pulse) {
     if (belt === "locked") return `${name} +${damage(h.flat ?? 0)} (LOCKED)`;
