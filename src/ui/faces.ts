@@ -188,11 +188,16 @@ export function supplyStats(def: string): Stat[] {
   return [];
 }
 
-/** A turret core's stat pairs: none. U2e step 2 (REQ-BFG-070): a core's numbers act on the turret it is fitted to, so
- *  they are its abilities, its rule's (SCATTER CHOKE's pellet share, "{DMG}40% EACH" here until U2e, joins its rule).
- *  `k`: the turret's class factor (cores.ts scaleCore). */
+/** A turret core's stat pairs: none, but TESLA ARC's arc damage (Y1). U2e step 2 (REQ-BFG-070): a core's numbers act on
+ *  the turret it is fitted to, so they are its abilities, its rule's (SCATTER CHOKE's pellet share, "{DMG}40% EACH" here
+ *  until U2e, joins its rule). `k`: the turret's class factor (cores.ts scaleCore). */
 export function coreStats(def: string, stars = 1, k = 1): Stat[] {
-  if (!scaleCore(effectAt(def, stars).core!, k)) throw new Error(`coreStats: ${def} is not a turret core`);
+  const cs = scaleCore(effectAt(def, stars).core!, k);
+  if (!cs) throw new Error(`coreStats: ${def} is not a turret core`);
+  // Y1 (REQ-BFG-070; REVIEW-STARD, found outside STAR-D's list): TESLA ARC's arc deals tesla.share of the shot's damage to
+  // each part it arcs to (Battle.impact: secondaryImpact(..., share, "arc")), 25% / 25% / 30%, a number no face said: its
+  // own stat, {DMG}25%, so the ⓘ ladder reads "{DMG} 25%/25%/30%" (a share, not scaled by k: cores.ts scaleCore)
+  if (def === "tesla" && cs.share) return [["DMG", fmtPct(cs.share)]];
   return [];
 }
 
