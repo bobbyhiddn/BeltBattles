@@ -165,7 +165,9 @@ function cardRow(n: number, x0: number, y: number, perRow: number, step: number)
  * 169 / 162 / 155 / 148 / 141 / 136; the step at 278 is gone); without its flavour and hint a panel needs at most 130.
  */
 export function phoneBand(W: number): number {
-  return W < 194 ? 155 : W < 281 ? 148 : W < 316 ? 141 : W < 320 ? 134 : 129;
+  // NUM-4 (REQ-BFG-047), re-measured (tests/zoom.test.ts): the turret panels' whole RATE numbers are narrower than the
+  // decimal intervals, so the THUNDERER ★3 with a core and gear needs 141 from W 237 (was from 281); every other step holds
+  return W < 194 ? 155 : W < 237 ? 148 : W < 316 ? 141 : W < 320 ? 134 : 129;
 }
 
 /** The build screen's layout. zoom (REQ-BFG-040, D2): `phone`, a portrait phone's (phoneScreen): the shop's slots in

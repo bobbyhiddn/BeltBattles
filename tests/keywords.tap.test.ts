@@ -389,7 +389,7 @@ describe("U2f: the taller ⓘ view", () => {
   /** Each rune's keywords (runeWords for a run holding it alone), for the "a rune held" measure. */
   const runeSets = RUNE_LIST.map((r) => runeWords({ build: { runes: [{ id: r.id, day: 1 }] } } as unknown as Run)).filter((ws) => ws.length);
 
-  it("U2e's view (the body alone), re-measured: op 118 / 167 / 18 / 2, desk 66 / 86 / 90 / 34 / 18 / 10 / 1 (x1: NUM-3 + SUS-B)", () => {
+  it("U2e's view (the body alone), re-measured: op 119 / 166 / 18 / 2, desk 65 / 91 / 86 / 34 / 18 / 10 / 1 (NUM-4 on x1)", () => {
     // on u2e's text (U2f step 2, b8b4262) this measure gave U2e's own numbers exactly: op 118 / 160 / 27, desk
     // 70 / 96 / 88 / 26 / 15 / 10. Step 3's shorter lines make 4 desk column panels shorter (it sizes to its text), so
     // U2e's body-only view would page them more; the op band's panels keep their height
@@ -406,8 +406,12 @@ describe("U2f: the taller ⓘ view", () => {
     // 20 / 10 -> 67 / 88 / 87 / 34 / 18 / 10 / 1 (the 7 STUN-fold pieces' faces: their LEVELS ladders and KEYWORDS replace a
     // legacy NEXT STAR sentence, so their body-only views page otherwise; U2f's view below is the one the game draws)
     // x1 (cap's merge of num3 + susb), re-measured on x1: op 118 / 167 / 18 / 2, desk 66 / 86 / 90 / 34 / 18 / 10 / 1
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([118, 167, 18, 2]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([66, 86, 90, 34, 18, 10, 1]);
+    // NUM-4 (REQ-BFG-047, REQ-BFG-046), re-measured on num4 (the same 310 panels): the RATE rows and ladders, the kept
+    // sentences' AT RATE n, the hidden timers gone and F1's longer SHIELD lines move a few body-only views: op 118 / 167 /
+    // 18 / 2 -> 119 / 166 / 18 / 2, desk 66 / 86 / 90 / 34 / 18 / 10 / 1 -> 65 / 91 / 86 / 34 / 18 / 10 / 1
+    console.log(`U2e ⓘ pages (body alone): op ${histogram(o.map((x) => x!.u2e)).join(" / ")}; desk ${histogram(k.map((x) => x!.u2e)).join(" / ")}`);
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([119, 166, 18, 2]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([65, 91, 86, 34, 18, 10, 1]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -490,6 +494,8 @@ describe("U2f: the taller ⓘ view", () => {
 // worst rune held 272 / 38 -> 276 / 34; desk 291 / 14 -> 299 / 6. SUS-B (REQ-BFG-069), measured on susb: the DARK WIND row
 // and RIVETER's HEAL put one more definition in a few views: op [303, 2], rune held [271, 39], desk [289, 16].
 // x1 (cap's merge of num3 + susb), re-measured on x1 (U2f's aims hold: none over 2, 3 with a rune held, desk none over 3)
+// NUM-4 (REQ-BFG-047), re-measured on num4: op [303, 2] unchanged; the worst rune held [275, 35] -> [276, 34]; desk
+// [297, 8] -> [296, 9]. U2f's aims hold: op none over 2 pages, a rune held none over 2 (3 allowed), desk none over 3.
 const U2F_OP = [303, 2];
-const U2F_OP_RUNE = [275, 35];
-const U2F_DESK = [297, 8];
+const U2F_OP_RUNE = [276, 34];
+const U2F_DESK = [296, 9];

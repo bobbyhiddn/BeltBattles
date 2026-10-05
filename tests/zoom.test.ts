@@ -229,7 +229,9 @@ describe("zoom D1: the build screen's scale on a phone is capped at 1.75 CSS px 
       "402x690: 241x414 x5 (1.67 CSS px), band 122",
       // U2d (phoneBand re-measured with the new faces, 162 -> 148 at W 194-280): 390x844 band 162 -> 148, 430x739 151 -> 148
       "390x844: 234x506 x5 (1.67 CSS px), band 148",
-      "430x739: 258x443 x5 (1.67 CSS px), band 148",
+      // NUM-4 (phoneBand re-measured: 141 from W 237): 430x739 (W 258) band 148 -> 141, every one of the 885 panels still in
+      // the band in its fullest form (the D3 test below); the op view (W 241) keeps its 122 (its room, not phoneBand)
+      "430x739: 258x443 x5 (1.67 CSS px), band 141",
     ]);
     // before: x7 at 402x690 @3, a 172x295 screen and a 3 px band (the operator's screenshot)
     const before = computeView(402, 690, 3, (pw, ph, p) => baseScale(pw, ph, p));
@@ -403,11 +405,14 @@ describe("U2d: phoneBand(W) is what the tallest touch panel needs at W, and no m
       }
       return [max, who];
     };
-    const widths = [186, 193, 194, 241, 280, 281, 315, 316, 319, 320, 340], tallest: string[] = [];
+    // NUM-4 (REQ-BFG-047), re-measured at every W 194-241: the 148 -> 141 step moved from 281 to 237 (the turret panels'
+    // whole RATE numbers are narrower than their decimal intervals); the widths keep each step and either side of it
+    // (236 / 237 added; 241, 280 and 281 kept as samples, now all 141)
+    const widths = [186, 193, 194, 236, 237, 241, 280, 281, 315, 316, 319, 320, 340], tallest: string[] = [];
     const got = widths.map((W) => { const [n, who] = need(W); tallest.push(`${W}: ${n} ${who}`); return [W, n]; });
     console.log(`U2d phoneBand: ${tallest.join(" | ")}`);
     expect(got).toEqual(widths.map((W) => [W, phoneBand(W)]));
-    expect(widths.map(phoneBand)).toEqual([155, 155, 148, 148, 148, 141, 141, 134, 134, 129, 129]); // was 169, 169, 162, 162, 155, 148, 148, 141, 141, 136, 136
+    expect(widths.map(phoneBand)).toEqual([155, 155, 148, 148, 141, 141, 141, 141, 141, 134, 134, 129, 129]); // was 169, 169, 162, 162, 155, 148, 148, 141, 141, 136, 136; x1: 148 at 241-280
   }, 120_000);
 });
 
@@ -474,7 +479,10 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // leaves as they were); phoneBand is unchanged (its test above measures it at 11 widths)
         // NUM-3 (R1's STUN fold), measured on num3 with steps 1-3: the 7 STUN-fold pieces' faces are shorter than their
         // sentences, so more of their panels fit the band in their fullest form: 390x660 838 -> 842
-        "390x660": [104, 842, 868], "390x664": [106, 846, 868], "402x690": [122, 861, 881], "430x739": [148, 885, 885], "390x844": [148, 885, 885],
+        // NUM-4 (REQ-BFG-047), measured on num4: the turret panels' whole RATE numbers make more of them fit the op band in
+        // their fullest form: 402x690 [861, 881] -> [873, 884] (grown: the THUNDERER ★3 with a core and gear, 1 of 885; was
+        // 4); 430x739's band 148 -> 141 (phoneBand above), still all 885 in their fullest form; the rest unchanged
+        "390x660": [104, 842, 868], "390x664": [106, 846, 868], "402x690": [122, 873, 884], "430x739": [141, 885, 885], "390x844": [148, 885, 885],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

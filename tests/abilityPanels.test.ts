@@ -16,7 +16,7 @@ import {
   type Block, type Laid, type PanelText, type PLine,
 } from "../src/screens/build/inspector";
 import { socketLines } from "../src/screens/build/turretPanel";
-import { abilityText, cardText, clashShortText, gatlingClashText, gist, n2, speedText } from "../src/ui/abilityText";
+import { abilityText, cardText, clashShortText, gatlingClashText, gist, speedText } from "../src/ui/abilityText"; // NUM-4: n2 is gone
 import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour";
 import { PERK_COLOUR, lineText, stubLine, wrapText } from "../src/ui/richText";
 import { faceLines } from "../src/ui/faces"; // U2a
@@ -25,7 +25,7 @@ import { statRow } from "../src/ui/icons"; // U2c step 4
 import { fmtCount, fmtDmg, fmtSec } from "../src/ui/statFormat"; // U2c step 4; NUM-1: fmtDmg
 import { icons, stripIcons } from "../src/render/font"; // U2c step 4
 import { resolveCore } from "../src/sim/cores"; // U2c step 4
-import { glossaryText } from "../src/ui/glossary"; // U2c step 4: COMPOUND BREECH's hold, its tap text
+import { glossaryEntry, glossaryText } from "../src/ui/glossary"; // U2c step 4: COMPOUND BREECH's hold, its tap text
 import { MODULES, STARS, SUPPLIES, banned, numbers, repeats, sentencesOf, starsOf } from "./textRules";
 
 // 0.6.2t (REQ-BFG-032): the panels. T6's phone fit for every buyable module at every star (rigs, factories, cores,
@@ -504,7 +504,7 @@ describe("0b.4: a SLAG belt's readout says what the sim does there; METRONOME's 
       expect(text, `★${s}`).toContain(flat ? `BRAKE SHOE +${flat} DAMAGE, NO SPEED CHANGE ON SLAG` : "BRAKE SHOE: NO EFFECT ON SLAG");
       // the gun end: slag's base plus the shoe's heat, never a locked bonus; the belt at slag's own 75%
       // NUM-1: slag's base from the data (AMMO.slag.base, 70; was the literal 7)
-      expect(text, `★${s}`).toContain(`DMG ${(AMMO.slag.base + flat).toFixed(1)}, BURN 0`);
+      expect(text, `★${s}`).toContain(`DMG ${AMMO.slag.base + flat}, BURN 0`);
       expect(all, `★${s}`).toContain("SPD 75% (SLAG)");
     }
   });
@@ -514,7 +514,7 @@ describe("0b.4: a SLAG belt's readout says what the sim does there; METRONOME's 
       const run = slagRun(s, "surge"), i = run.build.routes.length - 1;
       const text = readout(run, i), flat = effectAt("brake", s).gate!.flat ?? 0;
       expect(text, `★${s}`).toContain("SURGE VALVE: NO EFFECT ON SLAG");
-      expect(text, `★${s}`).toContain(`DMG ${(AMMO.slag.base + flat).toFixed(1)}, BURN 0`); // NUM-1: AMMO.slag.base (70; was 7)
+      expect(text, `★${s}`).toContain(`DMG ${AMMO.slag.base + flat}, BURN 0`); // NUM-1: AMMO.slag.base (70; was 7); NUM-4: the walk's whole number (was toFixed(1), "70.0")
     }
     // the sim's own rule (battle.ts transport): no pulse on fixed-speed ammo or a speed-locked side
     expect(readFileSync(new URL("../src/sim/battle.ts", import.meta.url), "utf8")).toContain("const surge = fixed === undefined && !s.race?.speedLock ? this.pulseAt(r, a.s) : undefined;");
@@ -632,7 +632,7 @@ describe("0b.1-0b.3: the other carry-overs", () => {
     ];
     expect(one.length).toBeGreaterThan(8);
     for (const t of one) expect(t).not.toMatch(/STALL/);
-    expect(abilityText("limpet", 2).sentences).toContain("THE BLAST ALSO STALLS THE MACHINE THE CHARGE STUCK TO FOR 1 SECOND.");
+    expect(abilityText("limpet", 2).sentences).toContain("THE BLAST ALSO STUNS THE MACHINE THE CHARGE STUCK TO FOR 1 SECOND."); // NUM-4 (REVIEW-NUM3 F2): STUNS (was STALLS)
   });
 
   it("0b.2: the wrap never ends a paragraph on a stub line when pulling one more word down still fits", () => {
@@ -895,20 +895,26 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       const f = turretFace(fitted("scrapcannon", 1, core, cs, gear));
       return [f.stats, f.note];
     };
-    const row = (every: number, loads: number) => statRow([speedPair(every), ["SLUG", fmtCount(loads)], ["GEAR", fmtCount(1)]]);
-    expect(face(null, 1)).toEqual([row(1, 3), undefined]); // the KILN BREECH
-    expect(face("rotary", 1)).toEqual([row(1, 3), undefined]);
+    // NUM-4 (REQ-BFG-047): the row's RATE pair is the SPEED the battle uses (TurretState.speed; was the interval in seconds,
+    // row(1, ...) for every 1 s): SCRAP CANNON's 30 with every core and gear here (none of them changes its speed)
+    const row = (speed: number, loads: number) => statRow([speedPair(speed), ["SLUG", fmtCount(loads)], ["GEAR", fmtCount(1)]]);
+    const S = ITEMS.scrapcannon.turret!.speed;
+    expect(S).toBe(30);
+    expect(face(null, 1)).toEqual([row(S, 3), undefined]); // the KILN BREECH
+    expect(face("rotary", 1)).toEqual([row(S, 3), undefined]);
     // 0.6.2 FB-B: every HOPPER star adds 1 slot; ★2 and ★3 store 1 and 2 loads while firing; ★3 never jams
-    expect(face("rotary", 1, [["hopper", 3]])).toEqual([row(1, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
-    expect(face(null, 1, [["hopper", 1]])).toEqual([row(1, 4), undefined]);
-    expect(face(null, 1, [["hopper", 2]])).toEqual([row(1, 4), icons(`STORES +${fmtCount(1)} {SLUG} WHILE IT FIRES.`)]);
+    expect(face("rotary", 1, [["hopper", 3]])).toEqual([row(S, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
+    expect(face(null, 1, [["hopper", 1]])).toEqual([row(S, 4), undefined]);
+    expect(face(null, 1, [["hopper", 2]])).toEqual([row(S, 4), icons(`STORES +${fmtCount(1)} {SLUG} WHILE IT FIRES.`)]);
     // PRESSURE BREECH never jams and counts at most 5 loads waiting (U2b's ledger: its cap in the turret's stat rows)
     // U2d F5: the note reads forwards (was `NEVER JAMS. MAX 5 {SLUG} WAITING COUNT.`)
-    expect(face("pressure", 2)).toEqual([row(1, 3), icons(`NEVER JAMS. COUNTS UP TO ${fmtCount(ITEMS.pressure.core!.maxCount!)} WAITING {SLUG}.`)]);
-    expect(face("salvo", 1)).toEqual([row(1.6, 3), undefined]); // its volley reload, as the FIRES row read it
-    expect(face("compound", 1, [["hopper", 3]])).toEqual([row(1, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
-    expect(face("gatling", 1, [["hopper", 1]])).toEqual([row(1, 4), undefined]);
-    expect(face(null, 1, [["chamber", 2]])).toEqual([row(1, 4), undefined]); // 2 LOADS EACH SHOT: EXT. CHAMBER's own rule, under its GEAR row
+    expect(face("pressure", 2)).toEqual([row(S, 3), icons(`NEVER JAMS. COUNTS UP TO ${fmtCount(ITEMS.pressure.core!.maxCount!)} WAITING {SLUG}.`)]);
+    // NUM-4: SALVO RACK's longer volley reload is its own rule line (glossary SHOT: "ITS NEXT RELOAD TAKES 60% LONGER"), not
+    // the row's: the row is the turret's SPEED, 30 (was row(1.6, 3), the interval x its reload, which no whole SPEED is)
+    expect(face("salvo", 1)).toEqual([row(S, 3), undefined]);
+    expect(face("compound", 1, [["hopper", 3]])).toEqual([row(S, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
+    expect(face("gatling", 1, [["hopper", 1]])).toEqual([row(S, 4), undefined]);
+    expect(face(null, 1, [["chamber", 2]])).toEqual([row(S, 4), undefined]); // 2 LOADS EACH SHOT: EXT. CHAMBER's own rule, under its GEAR row
     expect(stripIcons(faceLines("chamber", 2)!.rules[0].text)).toBe(`EACH SHOT FIRES ${fmtCount(effectAt("chamber", 2).mod!.perShot!)} .`);
   });
 
@@ -934,7 +940,11 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
         continue;
       }
       const lt = tu.core.routine === "compound" ? tu.core.spec.hold ?? 3 : tu.windowTime; // COMPOUND: its hold, never windowTime
-      expect(Math.abs(Number(n2(lt)) - lt), id).toBeLessThan(1e-9); // the glossary's LOAD TIME and COMPOUND's tap text say it exactly
+      // NUM-4 (REQ-BFG-047; N1 2.2): the load window (1.5 s, + HOPPER's 0.5 s a star) is a hidden timer no whole second
+      // says, so the glossary's LOAD TIME row names no number (it said n2(lt)); COMPOUND's hold is whole and its tap text
+      // says it exactly through fmtSec. EQUIVALENT of "say it exactly": what a text says of the wait is exact or absent
+      if (tu.core.routine === "compound") expect([Number.isInteger(lt), fmtSec(lt)], id).toEqual([true, String(lt)]);
+      else expect(glossaryEntry("LOAD TIME")!.def, id).not.toMatch(/\d/);
       const wait = tu.core.routine === "salvo" ? 2 * lt : lt; // SALVO RACK waits twice its load time, as its text says
       expect([ready(wait - 0.01), ready(wait)], id).toEqual([false, true]);
       // HOPPER adds 0.5 SECONDS for every star it has, except on a COMPOUND BREECH
@@ -980,9 +990,9 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       }
       for (const b of t.body.filter((x) => x.role === "grid")) for (const [l, v] of b.cells!) {
         expect(l, `${id}: ${v}`).toMatch(/^(DMG|BURN|SPD|TIME|SHOCK|COPIES)$/); // each value sits beside its label
-        if (l === "TIME") expect(v, id).toMatch(/^\d+\.\d SEC$/);
+        if (l === "TIME") expect(v, id).toMatch(/^\d+ SEC$/); // NUM-4 (REQ-BFG-047): whole elapsed seconds, fmtClock (was one decimal)
       }
-      for (const text of t.headerOnly?.texts ?? []) expect(text, id).toMatch(/, TIME \d+\.\d SEC/);
+      for (const text of t.headerOnly?.texts ?? []) expect(text, id).toMatch(/, TIME \d+ SEC/); // NUM-4: whole seconds (fmtClock; was one decimal)
     };
     for (const d of MODULES.filter((x) => x.kind === "gate")) for (const s of STARS) check(rigRun(d.id, s, 3, 3, rotFacing(d.id, 1), 0), 0, `${d.id} ★${s}`);
     for (const s of STARS) {
@@ -1004,7 +1014,7 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     // NUM-1: LODESTONE ★2's numbers from the data through the formatter (x10: +20, +22, UP TO 130; were +2, +2.2, 13)
     const ls = effectAt("lodestone", 2).gate!;
     expect([ls.flat, ls.perStalled!.each, ls.perStalled!.max]).toEqual([20, 22, 130]);
-    expect(row("lodestone", 2)).toBe(`LODESTONE +${fmtDmg(ls.flat!)} DAMAGE, +${fmtDmg(ls.perStalled!.each)} DAMAGE FOR EACH STALLED MACHINE, UP TO ${fmtDmg(ls.perStalled!.max)} DAMAGE`);
+    expect(row("lodestone", 2)).toBe(`LODESTONE +${fmtDmg(ls.flat!)} DAMAGE, +${fmtDmg(ls.perStalled!.each)} DAMAGE FOR EACH STUNNED MACHINE, UP TO ${fmtDmg(ls.perStalled!.max)} DAMAGE`); // NUM-4 (REVIEW-NUM3 F2): STUNNED (was STALLED)
   });
 });
 
@@ -1136,13 +1146,13 @@ function turretFace(run: Run, i = 0): { stats: string; note?: string } {
  *  formatters: its interval x SALVO's reload, its window, its slot's gear slots; NEVER JAMS, a HOPPER's store, PRESSURE's cap. */
 function expectedFace(run: Run, i = 0): { stats: string; note?: string } {
   const sl = turretSlots(run.build)[i], td = sl.td!, tu = makeTurret(run.build, i, td), tc = resolveCore(run.build, i, td);
-  const every = tu.interval * (tc.bought ? tc.spec.reloadMul ?? 1 : 1);
+  // NUM-4 (REQ-BFG-047): the RATE pair is TurretState.speed (was its interval x SALVO's reload; SALVO's reload is its rule's)
   const note = [
     ...(tu.noJam || (tc.bought && tc.spec.noJam) ? ["NEVER JAMS."] : []),
     ...(tu.storeMax ? [`STORES +${fmtCount(tu.storeMax)} {SLUG} WHILE IT FIRES.`] : []),
     ...(tc.bought && tc.routine === "pressure" ? [`COUNTS UP TO ${fmtCount(tc.spec.maxCount!)} WAITING {SLUG}.`] : []), // U2d F5 (was MAX n {SLUG} WAITING COUNT.)
   ].join(" ");
-  return { stats: statRow([speedPair(every), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(sl.gearSlots)]]), note: note ? icons(note) : undefined };
+  return { stats: statRow([speedPair(tu.speed), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(sl.gearSlots)]]), note: note ? icons(note) : undefined };
 }
 
 /** A panel's labelled rows by label (the full form). */

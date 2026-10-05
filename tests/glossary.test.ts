@@ -114,14 +114,17 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
       // U2d F4: RIDE's row reworded (cap), its reminder its first sentence; was "CINDER SLUG'S OWN"
       RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE", STALL: "STOPS FOR A WHILE",
       // SUS-B (REQ-BFG-069): the sustain keywords' rune reminders (SUSTAIN-1 4.1)
-      SHIELD: "STOPS ONE WHOLE HIT", HEAL: "NEVER PAST FULL", REGEN: "EACH SEC",
+      // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one hit's DAMAGE (was "STOPS ONE WHOLE HIT")
+      SHIELD: "BLOCKS ONE HIT'S DAMAGE", HEAL: "NEVER PAST FULL", REGEN: "EACH SEC",
     };
     // U2d F4 (cap, seen in crop-keywords-rune-op): RIDE's row in cap's words, whole (2 lines of 5x7 at 225 px: the fit test below)
     expect(glossaryEntry("RIDE")!.def).toBe("RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.");
     expect(Object.keys(RUNE_REMINDER).sort()).toEqual(Object.keys(same).sort());
     for (const [k, phrase] of Object.entries(same)) {
       const rem = RUNE_REMINDER[k];
-      expect(rem.startsWith(`${k}: `), rem).toBe(true);
+      // NUM-4 (REVIEW-NUM3 F2): its word first, the word the rune card draws (runeText KEYWORD_WORD): the STALL token reads
+      // STUN now, so its reminder leads with STUN (an EQUIVALENT check; every other keyword's word is its own name)
+      expect(rem.startsWith(`${KEYWORD_WORD[k as RuneKeyword]}: `), rem).toBe(true);
       expect(rem, k).not.toMatch(/\d/);
       expect(rem, k).toContain(phrase);
       expect(stripIcons(icons(glossaryEntry(k)!.def)).replace(/  +/g, " "), k).toContain(phrase);
@@ -194,7 +197,8 @@ describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND
   // SUSTAIN-1 4.1 as cap accepted it; where 4.1's verb HEALS would stand as a bare keyword (REQ-BFG-032 rule 3, the fit
   // test above), the row says it another way: REGEN GIVES BACK, a hull with BURN GETS HALF, IT STOPS, NO HEAL IN IT
   const want: Record<string, { def: string; aliases: string[]; colour: string }> = {
-    SHIELD: { def: `EACH {*SHIELD}: STOPS ONE WHOLE HIT. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["SHIELDS"], colour: ICON_COLOUR[ICON.SHIELD] },
+    // NUM-4 (REVIEW-SUSB F1): BLOCKS ONE HIT'S DAMAGE (was "STOPS ONE WHOLE HIT"); the extra {*BURN} GOES PAST IT. stays
+    SHIELD: { def: `EACH {*SHIELD}: BLOCKS ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["SHIELDS"], colour: ICON_COLOUR[ICON.SHIELD] },
     HEAL: { def: "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL. A HULL WITH {*BURN} GETS HALF.", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: ICON_COLOUR[ICON.HEAL] },
     REGEN: { def: "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC. IT STOPS IN THE DARK WIND.", aliases: [], colour: ICON_COLOUR[ICON.REGEN] },
     "DARK WIND": { def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`, aliases: [], colour: C.bone },
@@ -251,10 +255,14 @@ describe("U2c U2b's ledger: every NEEDED: U2c row now has a home", () => {
     // SORTING ARM: one count across every belt its arrows reach
     expect(glossaryText("HIT", { def: "sorting", stars: 1 })).toContain("ON EVERY BELT ITS ARROWS REACH");
     // FOUNDRY / CRUCIBLE: the pair window, the two intakes and the lone blank (PAIR, on CRUCIBLE's own face)
+    // NUM-4 (REQ-BFG-047; N1 2.2): the pair window, SYNC_WINDOW 0.25 s, is a hidden timer no whole second says, so the
+    // rows name it in the PAIR word's own terms, AT ONCE (was "WITHIN 0.25{SEC}"): an EQUIVALENT home for the window,
+    // and the window itself is still the sim's 15 ticks (the rows say when, not how long)
+    expect(SYNC_WINDOW).toBe(0.25);
     const pair = stripIcons(icons(glossaryText("PAIR", { def: "crucible", stars: 1 })!));
-    expect(pair).toContain(`BY TWO INTAKES WITHIN ${fmtSec(SYNC_WINDOW)}`);
+    expect(pair).toContain("BY TWO INTAKES AT ONCE");
     expect(pair).toContain("A LONE ONE FIRES ON ITS OWN");
-    expect(stripIcons(icons(glossaryText("PAIR")!))).toContain(`BY TWO INTAKES, WITHIN ${fmtSec(SYNC_WINDOW)}`); // every other PAIR
+    expect(stripIcons(icons(glossaryText("PAIR")!))).toContain("TWO LOADS REACH ONE TURRET AT ONCE. BY TWO INTAKES."); // every other PAIR
     // SURGE VALVE: its face says the pulse's speed and length (group 0 fix 1), its EVERY label's tap explains it
     const p = effectAt("surge", 1).gate!.pulse!;
     expect(stripIcons(faceLines("surge", 1)!.rules[0].text)).toContain(`${fmtCount(p.speed)} TIMES AS FAST FOR ${fmtSec(p.on)}`);
