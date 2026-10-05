@@ -12,7 +12,9 @@ export type Reason =
   // 0.8.0 I1 M2 (wave 3 joins the audit; oracle 0cf9f46b9ce87750)
   | "gunFull"
   // NUM-1 (REQ-BFG-047; cap's oracle 3cf09080186f8f84): a pair the whole numbers made inert, open until classified
-  | "num1Open";
+  | "num1Open"
+  // NUM-2 (cap's oracle 3cf09080186f8f84): BASTION's GREASE WORKS days 5-6, classified SUB-POINT; no older reason fits
+  | "stampPaced";
 // 0.8.0 B1 M1 (oracle 60ce2081b6171361): echoBelt and laterGun described reference-deck defects B1 fixed (SIPHON's merged
 // ECHO WHETSTONE; its CALIBRATION in starved gun 0's only gear slot), so no pair has either reason any more
 
@@ -32,6 +34,9 @@ export const REASONS: Record<Reason, string> = {
   // on day 10), and the gun cap (oracle a0e94bc69949561f) binds
   gunFull: "STOKER's factories already feed their gun as fast as it takes loads, and a stoke never makes a factory outrun its gun, so it adds no stamp.",
   num1Open: "NUM-1's whole numbers: on bb-0.8.7's rules this part moved a battle metric on this deck, on num1's it moves none. Open until it is classified against the base (oracle 3cf09080186f8f84).",
+  // NUM-2 (cap's oracle 3cf09080186f8f84), from the base 11fbc6a's rows (W/output-num2/deadaudit): produced, shots and
+  // firstShot equal; gun 0's fourth shot 19 ticks sooner; 0.033 of Burn by the clock (under one num1 point)
+  stampPaced: "The copy merges into BASTION's GREASE WORKS (2 stars: its belt runs 2.3 times as fast from its hit, not 1.6); the bulwark slugs reach gun 0 sooner, but the factories' stamp pace sets how many loads the gun gets: the same slugs and shots, one shot a moment sooner.",
 };
 
 /** The inert pairs: hero, module, its days (ascending), as the audit finds them on the reference decks. */
@@ -49,6 +54,10 @@ export const REASONS: Record<Reason, string> = {
 // whole damage and whole-second burn / poison / wind ticks don't carry. Every new pair has the reason num1Open (WHY's day
 // ranges below, so byDefault's "starved" can't claim it unchecked) until it is classified against the base 11fbc6a
 // (sub-point, kill edge or lost); no num1Open may remain at R6's bump. The rows: W/output-num1/deadaudit.
+// NUM-2 (cap's oracle 3cf09080186f8f84): all 246 num1Open rows classified against the base 11fbc6a (W/output-num2/
+// deadaudit/CLASSIFY.md): 31 rows sub-point and 5 kill edge take their physics reason in WHY (starved; GREASE WORKS on
+// BASTION the new stampPaced); 210 rows (38 pairs) are lost (damage, Burn and the foe's hull moved 0.1-1.97 base units
+// with the same shots) and keep num1Open. INERT itself is unchanged.
 export const INERT: Record<HeroId, Record<string, number[]>> = {
   foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], railgun: [1, 3, 4, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9], bellows: [6, 7, 8, 10] },
   bastion: { bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7], scrapcannon: [1, 2, 3], deckgun: [1, 5, 6, 10], thunderer: [1], siegegun: [2, 3, 4], longcase: [2, 3, 4], rampart: [4], grease: [5, 6], overclocker: [5, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10] },
@@ -71,28 +80,40 @@ export const WHY: Partial<Record<HeroId, Record<string, Why>>> = {
   // was FUSE_MULT 1.3's kill edge: the deck killed the quiet foe on the clock's last shot (0.0 hull left on day 7), so a
   // swap moved the kill, not a shot of its own
   // NUM-1 (cap's oracle 3cf09080186f8f84): every pair the num1 re-pin added is num1Open (the old days keep their reasons)
+  // NUM-2 (cap's oracle 3cf09080186f8f84): the num1Open days classified against the base 11fbc6a (W/output-num2/deadaudit):
+  // sub-point or kill edge take the physics reason; lost days stay num1Open. Kill edges (bb-0.8.7 units, the quiet foe's
+  // 240 hull; base deck vs bought deck, seed 20210924, 18 s clock):
+  // - ESCAPEMENT day 9 (gear on starved gun 1): 18 vs 18 shots, killed at 16.97 vs 16.90 s, -6.15 vs -5.71 hull left
+  // - STEAM BREECH day 9 (core on starved gun 1): 18 vs 18 shots, killed at 16.97 vs 16.90 s, -6.15 vs -5.71 hull left
   foundry: { dartgun: [[1, 6, "oneIntake"], [7, 8, "starved"]], spikegun: [[1, 6, "oneIntake"], [7, 8, "starved"], [9, 9, "num1Open"]], hailgun: "oneIntake",
     twinneedle: [[1, 1, "starved"], [2, 6, "num1Open"]], calibrate: [[1, 8, "starved"], [9, 9, "num1Open"]],
-    railgun: [[1, 1, "starved"], [3, 4, "num1Open"], [6, 6, "num1Open"]], escapement: [[1, 8, "starved"], [9, 9, "num1Open"]],
-    steambreech: [[1, 8, "starved"], [9, 9, "num1Open"]] },
+    railgun: [[1, 1, "starved"], [3, 4, "num1Open"], [6, 6, "num1Open"]], escapement: [[1, 8, "starved"], [9, 9, "starved"]],
+    steambreech: [[1, 8, "starved"], [9, 9, "starved"]] },
   bastion: { longcase: "shortRide", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake", stoker: "gunFull", // 0.8.0 I1: STOKER
-    scrapcannon: "num1Open", deckgun: "num1Open", thunderer: "num1Open", siegegun: "num1Open", rampart: "num1Open", grease: "num1Open" },
+    scrapcannon: "num1Open", deckgun: [[1, 1, "num1Open"], [5, 6, "starved"], [10, 10, "num1Open"]], thunderer: "num1Open",
+    siegegun: [[2, 3, "num1Open"], [4, 4, "starved"]], rampart: "starved", grease: "stampPaced" },
   furnace: { longhaul: "needsPriorHits", dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake",
-    calibrate: "num1Open", scrapcannon: "num1Open", rampart: "num1Open", swivel: "num1Open", deckgun: "num1Open", siegegun: "num1Open",
-    thunderer: "num1Open", escapement: "num1Open", steambreech: "num1Open" },
+    calibrate: "num1Open", scrapcannon: [[4, 5, "starved"], [6, 10, "num1Open"]], rampart: [[4, 5, "starved"], [6, 10, "num1Open"]],
+    swivel: "num1Open", deckgun: "num1Open", siegegun: "num1Open",
+    thunderer: "num1Open", escapement: "starved", steambreech: [[4, 5, "starved"], [6, 10, "num1Open"]] },
   weaver: { longhaul: "needsPriorHits", dartgun: "starved", spikegun: "starved", grease: "mergeNoGain",
     carronade: [[1, 2, "starved"], [3, 10, "num1Open"]], swivel: [[1, 2, "starved"], [3, 10, "num1Open"]],
-    deckgun: [[1, 2, "starved"], [3, 10, "num1Open"]], railgun: [[1, 2, "starved"], [3, 4, "num1Open"]],
+    deckgun: [[1, 2, "starved"], [3, 10, "num1Open"]], railgun: [[1, 2, "starved"], [3, 4, "starved"]],
     siegegun: [[1, 2, "starved"], [3, 10, "num1Open"]], thunderer: [[1, 2, "starved"], [3, 10, "num1Open"]] },
   metronome: { dartgun: "oneIntake", spikegun: "oneIntake", hailgun: "oneIntake",
-    calibrate: "num1Open", rampart: "num1Open", swivel: "num1Open", deckgun: "num1Open", siegegun: "num1Open", thunderer: "num1Open",
+    calibrate: "num1Open", rampart: "num1Open", swivel: "num1Open", deckgun: [[1, 4, "num1Open"], [5, 6, "starved"], [7, 7, "num1Open"]],
+    siegegun: "num1Open", thunderer: "starved",
     steambreech: "num1Open", scrapcannon: "num1Open", bombard: "num1Open" },
   // 0.8.0 B1 M1 (oracle 60ce2081b6171361): the reference deck works the ECHO belt and keeps CALIBRATION off its starved
   // gun 0, so LONG HAUL (echoBelt) and TWIN TRIGGER (laterGun) are no longer inert
-  siphon: { dartgun: "starved", spikegun: "starved", hailgun: [[1, 1, "starved"], [2, 10, "num1Open"]],
+  // NUM-2 kill edges, RAIL GUN in place of starved gun 0's SPIKE GUN (base deck vs bought deck, seed 20210924, 32 s clock):
+  // - day 7: 17 vs 17 shots, killed at 23.32 vs 23.27 s, -2.37 vs -2.05 hull left
+  // - day 8: 17 vs 17 shots, killed at 23.32 vs 23.27 s, -11.77 vs -11.45 hull left
+  // - day 10: 15 vs 15 shots, killed at 20.98 vs 20.93 s, -1.67 vs -1.39 hull left
+  siphon: { dartgun: "starved", spikegun: "starved", hailgun: [[1, 1, "starved"], [2, 5, "starved"], [6, 10, "num1Open"]],
     scrapcannon: [[1, 1, "starved"], [2, 10, "num1Open"]], rampart: [[1, 1, "starved"], [2, 10, "num1Open"]],
     carronade: [[1, 1, "starved"], [2, 10, "num1Open"]], swivel: [[1, 1, "starved"], [2, 10, "num1Open"]],
-    deckgun: [[1, 1, "starved"], [2, 10, "num1Open"]], railgun: [[1, 1, "starved"], [2, 3, "num1Open"], [5, 10, "num1Open"]],
+    deckgun: [[1, 1, "starved"], [2, 10, "num1Open"]], railgun: [[1, 1, "starved"], [2, 3, "starved"], [5, 10, "starved"]],
     bombard: [[1, 1, "starved"], [2, 10, "num1Open"]], siegegun: [[1, 1, "starved"], [2, 10, "num1Open"]],
     thunderer: [[1, 1, "starved"], [2, 10, "num1Open"]] },
 };
