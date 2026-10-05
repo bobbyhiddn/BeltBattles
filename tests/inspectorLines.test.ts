@@ -20,6 +20,7 @@ import { faceNextBlock } from "../src/screens/build/faceBlocks"; // U2c (U2b's f
 import { fmtCount, fmtDmg, fmtPct, fmtSec } from "../src/ui/statFormat"; // U2c (U2b's faces): the formatters
 import { fmtSpeed } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): a stamp's SPEED as it is (NUM-2: its interval, 30 / speed, via secPer)
 import { DISRUPT_TIME, WINDOW_TIME } from "../src/sim/content"; // NUM-3 step 2: HOT SWAP's spark STUN, ROTARY's load time
+import { stripIcons } from "../src/render/font"; // Y1: COIL's one line, read as text
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
 // 0.6.2t (REQ-BFG-032): they read as whole sentences from the glossary (src/ui/abilityText.ts): "NEXT STAR: ADDS 4 BURN.",
@@ -410,9 +411,15 @@ describe("P11: a rig's panel order, and the phone band", () => {
     const drawn = visibleLines(plan).map((v) => v.line).filter((l): l is PLine => l !== "rule").map((l) => l.spans.map((sp) => sp.t).join(""));
     // U2c (U2b's faces): the next star drawn in full was the face's NEXT★ line (faceNext: "NEXT ★3: {STUN} 2.8"). U2e step 4
     // (REQ-BFG-070): the face draws no NEXT★; the full text in 5x7 is its rule line and its ★2 clause, each whole
+    // Y1 (STAR-D row 1, cap's ruling R-1): COIL ★2's SPARK JUMP is its line's part count ("HIT: {*STUN} 2 ON 2 PARTS."), so
+    // the full text is that one line, whole, with no clause and no perk name (was: the rule line and the ★2 clause "★2 SPARK
+    // JUMP: {*STUN} HITS 2 PARTS.", each whole)
     const fl = faceLines("coil", 2)!;
     expect(drawn.join(" ")).toContain(fl.rules[0].text);
-    expect(drawn.join(" ")).toContain(fl.clause!.text);
+    const g2 = effectAt("coil", 2).gate!;
+    expect(stripIcons(fl.rules[0].text)).toBe(`HIT: STUN ${fmtSec(g2.shockTime!)} ON ${fmtCount(1 + g2.jump!)} PARTS.`);
+    expect(fl.clause).toBeUndefined();
+    expect(drawn.join(" ")).not.toContain("SPARK JUMP");
     expect(drawn.join(" ")).not.toContain("NEXT ★");
   });
 });

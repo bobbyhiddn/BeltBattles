@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { newRun, type Run } from "../src/game/run";
 import { AMMO, HEROES, ITEMS, buyableModules, rigShape, type HeroId } from "../src/sim/content";
+import { roundHalfUp } from "../src/sim/pct"; // Y1: SALVO RACK's volley pace on its turret's RATE
 import { gearSlotsOf, key as K, rotField, setTurretList, turretSlots, walkRoute, type Placed } from "../src/sim/deck";
 import { emptySlotPanel } from "../src/screens/build/turretPanel";
 import { rotFacing } from "../src/sim/beltside";
@@ -430,10 +431,14 @@ describe("0.6.2t T4: the panels' layout", () => {
     const run = newRun("furnace", 5, "f3");
     run.inventory = [{ uid: 900, def: "mimic", stars: 3 }];
     const text = visibleLines(planPanel(cargoPanel(run, 900)!, DESK)).flatMap((v) => (v.line === "rule" ? ["--"] : [lineText(v.line.spans)]));
-    // U2a (REQ-BFG-046): the panel draws MIMIC FORGE's face (src/ui/faces.ts): its stat row for FURNACE, then its rule,
-    // which ★3 TWIN SIGNET ends; then the rule before the hint: no text reads on from the name
+    // U2a (REQ-BFG-046): the panel draws MIMIC FORGE's face (src/ui/faces.ts): its stat row for FURNACE, then its rule;
+    // then the rule before the hint: no text reads on from it. Y1 (cap's ruling R-1; faceBlocks.ts PERK_INFO_ONLY): ★3
+    // TWIN SIGNET's name is in the ⓘ LEVELS only, so no line names it and the rule's sentence ends the line (was: the line
+    // ended with "★3 TWIN SIGNET", then the rule)
     expect(text[0]).toBe(faceLines("mimic", 3, { hero: "furnace" })!.stats);
-    const p = text.findIndex((l) => l.endsWith("★3 TWIN SIGNET"));
+    expect(text.filter((l) => l.includes("TWIN SIGNET"))).toEqual([]);
+    expect(text.join(" ")).toContain("STAMPS YOUR HERO'S SLUGS."); // (the desk column wraps it: its last line ends "SLUGS.")
+    const p = text.findIndex((l) => l.endsWith("SLUGS."));
     expect([p > 0, text[p + 1]]).toEqual([true, "--"]);
   });
 
@@ -868,7 +873,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // line where their sentences were, and step 2's whole seconds): 31 more phone panels have room for the hint
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): 877, the 3 sustain pieces' panels join (33 phone panels with room for
     // the hint); SIFTER's left at step 1 with no change here (was 844)
-    expect(hints).toBe(877);
+    // Y1 (REQ-BFG-070): 881, measured: COIL's and FROSTBITE's perk clauses and the perk names on COIL, FROSTBITE, MIMIC and
+    // TWIN MOULD faces are gone (their numbers are on the line), so 4 more phone panels have room for the hint (was 877)
+    expect(hints).toBe(881);
   });
 });
 
@@ -921,7 +928,11 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     expect(face("pressure", 2)).toEqual([row(S, 3), icons(`NEVER JAMS. COUNTS UP TO ${fmtCount(ITEMS.pressure.core!.maxCount!)} WAITING {SLUG}.`)]);
     // NUM-4: SALVO RACK's longer volley reload is its own rule line (glossary SHOT: "ITS NEXT RELOAD TAKES 60% LONGER"), not
     // the row's: the row is the turret's SPEED, 30 (was row(1.6, 3), the interval x its reload, which no whole SPEED is)
-    expect(face("salvo", 1)).toEqual([row(S, 3), undefined]);
+    // Y1 (STAR-D rule 7's cue, with SALVO's face "SHOT: FIRES THE CHAMBER AT +20 {DMG} EACH."): the row's RATE is its volley
+    // pace, the SPEED over reloadMul rounded half up once as makeTurret rounds a SPEED: 30 / 1.6 = 18.75 is 19 (was row(S, 3))
+    const V = Math.max(1, roundHalfUp(S / ITEMS.salvo.core!.reloadMul!));
+    expect(V).toBe(19);
+    expect(face("salvo", 1)).toEqual([row(V, 3), undefined]);
     expect(face("compound", 1, [["hopper", 3]])).toEqual([row(S, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
     expect(face("gatling", 1, [["hopper", 1]])).toEqual([row(S, 4), undefined]);
     expect(face(null, 1, [["chamber", 2]])).toEqual([row(S, 4), undefined]); // 2 LOADS EACH SHOT: EXT. CHAMBER's own rule, under its GEAR row
@@ -1159,12 +1170,15 @@ function turretFace(run: Run, i = 0): { stats: string; note?: string } {
 function expectedFace(run: Run, i = 0): { stats: string; note?: string } {
   const sl = turretSlots(run.build)[i], td = sl.td!, tu = makeTurret(run.build, i, td), tc = resolveCore(run.build, i, td);
   // NUM-4 (REQ-BFG-047): the RATE pair is TurretState.speed (was its interval x SALVO's reload; SALVO's reload is its rule's)
+  // Y1 (STAR-D rule 7's cue): with a SALVO RACK core, its volley pace, the SPEED over reloadMul rounded half up once (was
+  // TurretState.speed for every core)
+  const rate = tc.bought && tc.routine === "salvo" && tc.spec.reloadMul ? Math.max(1, roundHalfUp(tu.speed / tc.spec.reloadMul)) : tu.speed;
   const note = [
     ...(tu.noJam || (tc.bought && tc.spec.noJam) ? ["NEVER JAMS."] : []),
     ...(tu.storeMax ? [`STORES +${fmtCount(tu.storeMax)} {SLUG} WHILE IT FIRES.`] : []),
     ...(tc.bought && tc.routine === "pressure" ? [`COUNTS UP TO ${fmtCount(tc.spec.maxCount!)} WAITING {SLUG}.`] : []), // U2d F5 (was MAX n {SLUG} WAITING COUNT.)
   ].join(" ");
-  return { stats: statRow([speedPair(tu.speed), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(sl.gearSlots)]]), note: note ? icons(note) : undefined };
+  return { stats: statRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(sl.gearSlots)]]), note: note ? icons(note) : undefined };
 }
 
 /** A panel's labelled rows by label (the full form). */

@@ -423,8 +423,13 @@ describe("U2f: the taller ⓘ view", () => {
     console.log(`U2e ⓘ pages (body alone): op ${histogram(o.map((x) => x!.u2e)).join(" / ")}; desk ${histogram(k.map((x) => x!.u2e)).join(" / ")}`);
     // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069), re-measured on flipx2 (316 panels: SIFTER's 3 out, the sustain pieces' 9
     // in): op 119 / 166 / 18 / 2 -> 120 / 171 / 18 / 2, desk 65 / 91 / 86 / 34 / 18 / 10 / 1 -> 64 / 90 / 89 / 36 / 19 / 12 / 1
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([120, 171, 18, 2]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([64, 90, 89, 36, 19, 12, 1]);
+    // Y1 (REQ-BFG-070), re-measured on y1 (the same 316 panels): op 120 / 171 / 18 / 2 -> 119 / 172 / 18 / 2, desk 64 / 90 /
+    // 89 / 36 / 19 / 12 / 1 -> 56 / 88 / 102 / 35 / 18 / 12, measured (Y1's new ladders, COIL's and FROSTBITE's PARTS,
+    // MIMIC's and TWIN MOULD's SLUG, TESLA's DMG and GATLING's step, lengthen those LEVELS, and the faces that lost a clause
+    // or a perk name are shorter, which the desk column sizes to). U2f's view, the one the game draws, is the next test's:
+    // unchanged on op and desk
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([119, 172, 18, 2]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([56, 88, 102, 35, 18, 12]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -527,12 +532,16 @@ describe("U2f: the taller ⓘ view", () => {
 // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069), re-measured on flipx2 (the sheet's 316 panels: SIFTER's 3 out, the sustain
 // pieces' 9 in; at step 1b, SIFTER alone, op read [300, 2]): op [303, 2] -> [309, 2]; the worst rune held [276, 34] ->
 // [280, 36], the same with the switch on; desk [296, 9] -> [302, 9]. U2f's aims hold as above.
+// Y1 (REQ-BFG-070), re-measured on y1 (the same 316 panels): op [309, 2] unchanged; desk [302, 9] unchanged; the worst rune
+// held [280, 36] -> [282, 34], the same with the switch on (COIL's and FROSTBITE's clauses left their faces, so two more
+// views fit one page with a rune held). U2f's aims hold as above.
 const U2F_OP = [309, 2];
-const U2F_OP_RUNE = [280, 36];
+const U2F_OP_RUNE = [282, 34];
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
- *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). */
-const U2F_OP_RUNE_ON = [280, 36];
+ *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
+ *  [280, 36]). */
+const U2F_OP_RUNE_ON = [282, 34];
 const U2F_DESK = [302, 9];
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on

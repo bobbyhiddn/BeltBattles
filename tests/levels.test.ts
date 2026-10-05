@@ -6,6 +6,8 @@ import { CURRENT_COLOUR, LADDER_SEP, ladderText, levelLines, levelSpans, levelTe
 import { faceNext, hasFace, NEXT_LINE_W } from "../src/ui/faces";
 import { faceNextBlock } from "../src/screens/build/faceBlocks";
 import { fmtCount, fmtDmg, fmtPct, fmtSpeed } from "../src/ui/statFormat";
+import { fmtSec } from "../src/ui/statFormat"; // Y1: COIL's STUN ladder
+import { DISRUPT_TIME } from "../src/sim/content"; // Y1: COIL's ★1 STUN
 import { nextStarText, newPerk, type TextOpts } from "../src/ui/abilityText";
 import { lineWidth, wrapRich } from "../src/ui/richText";
 import { textWidth } from "../src/render/font";
@@ -63,7 +65,17 @@ describe("U2e step 5: the ⓘ view's LEVELS", () => {
 
   it("each star's perk: its interim clause where it has one, else its name, once", () => {
     const coil = levelLines("coil", 1)!.filter((l) => l.kind === "perk").map((l) => levelText(l));
-    expect(coil).toEqual(["★2 SPARK JUMP: {*STUN} HITS 2 PARTS."]); // ★3 keeps SPARK JUMP: it adds nothing new
+    // Y1 (STAR-D row 1, cap's ruling R-1): COIL's SPARK JUMP is a number on its line ("1/2/2 PARTS" ladder), so its LEVELS
+    // show the perk's name once (was its clause, "★2 SPARK JUMP: {*STUN} HITS 2 PARTS."). ★3 keeps SPARK JUMP: nothing new
+    expect(coil).toEqual(["★2 SPARK JUMP"]);
+    const g = [1, 2, 3].map((s) => effectAt("coil", s).gate!);
+    expect(ladders(levelLines("coil", 2)!).map((l) => ladderText(l))).toEqual([
+      `{STUN} ${g.map((x) => fmtSec(x.shockTime ?? DISRUPT_TIME)).join(LADDER_SEP)}`,
+      `${g.map((x) => fmtCount(1 + (x.jump ?? 0))).join(LADDER_SEP)} PARTS`,
+    ]);
+    // a piece that keeps an interim clause shows it (HOT SWAP's spark, GALVANIC COIL's SPARK JUMP on its EMBER/SPARK cycle)
+    const hot = levelLines("hotswap", 1)!.filter((l) => l.kind === "perk").map((l) => levelText(l));
+    expect(hot[0]).toMatch(/^★2 SPARK JUMP: \{\*STUN\} HITS \d+ PARTS\.$/);
     const split = levelLines("splitter", 1)!.filter((l) => l.kind === "perk").map((l) => levelText(l));
     expect(split).toEqual(["★2 CLEAN CUT", "★3 PERFECT CUT"]);
   });

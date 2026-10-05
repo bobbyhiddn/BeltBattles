@@ -38,6 +38,7 @@ import { GLOSSARY_WRAP_W } from "../src/ui/glossary"; // U2d F1
 import { banned } from "./textRules"; // U2d step 1
 import { STUN_CAUSES } from "../src/sim/content"; // NUM-3 (R1's STUN fold): MANTLET's immunity
 import { SIM } from "../src/ui/abilityText"; // NUM-3: SCRAPPER's queue cap
+import { FURNACE_LONG_BELT } from "../src/sim/battle"; // Y1: FURNACE's hero face, its long-belt rate %
 
 // U2a (REQ-BFG-046, REQ-BFG-047): the face kit (src/ui/statFormat.ts, src/ui/faces.ts, src/screens/build/faceBlocks.ts).
 // The faces are pinned through the formatter registry (value to string, N1 6.4), never through literal strings: at
@@ -113,7 +114,7 @@ describe("U2a the formatters: one per unit; NUM-4: each prints the sim's whole v
 describe("U2a the faces: every number from sim data through one formatter", () => {
   // SUS-B (REQ-BFG-069): + MEND PRESS (a factory), WARD BELL and MENDING LOOM (gear). Their faces exist while the
   // sustain switch is off (ITEMS resolves them; no listing shows them), so every face rule below runs on them already
-  it("scope: 74 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies; NUM-3 the 7 STUN-fold pieces; SUS-B 1 factory, 2 gear) and 3 heroes; the crit and RULES pieces keep today's text", () => {
+  it("scope: 74 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies; NUM-3 the 7 STUN-fold pieces; SUS-B 1 factory, 2 gear) and 4 heroes (Y1: FURNACE); the crit and RULES pieces keep today's text", () => {
     const kinds = FACE_IDS.map((d) => ITEMS[d].kind);
     const n = (k: string) => kinds.filter((x) => x === k).length;
     // NUM-3 (R1's STUN fold): + SCRAPPER, SABOT, FROSTBITE and DRAG CHAIN FOUNDRY (factories), TOLLBOOTH (a rig), FLAK SCREEN
@@ -126,8 +127,13 @@ describe("U2a the faces: every number from sim data through one formatter", () =
     // 3 RULES gear keep today's text (NUM-3: TOLLBOOTH, FLAK SCREEN and MANTLET left this list: they have faces)
     for (const keep of ["shieldwall", "longcase", "ram", "sifter", "venom", "keg", "bellows", "quench", "lodestone",
       "counterweight", "twingauge", "pincer", "braceframe", "twinlatch", "hopper", "twintrigger", "seamwelder"]) expect(hasFace(keep), keep).toBe(false);
-    expect(PLAYABLE_HEROES.filter((h) => heroFace(h))).toEqual(["weaver", "foundry", "bastion"]);
-    expect(heroFace("furnace")).toBeNull();
+    // Y1 (STAR-D 4.2, REVIEW-STARD R5): FURNACE's hero face, two one-line abilities (was ["weaver", "foundry", "bastion"]
+    // and heroFace("furnace") null: it drew heroTrick's two-clause sentence)
+    expect(PLAYABLE_HEROES.filter((h) => heroFace(h))).toEqual(["furnace", "weaver", "foundry", "bastion"]);
+    expect(heroFace("furnace")!.rules.map((r) => stripIcons(r.text))).toEqual([
+      `KILN SLUGS HAVE HEAT ${fmtDmg(AMMO.cinder.rideScale!)}.`,
+      `GUNS ON ${fmtCount(SIM.furnaceLongTiles)}+ TILE BELTS FIRE ${fmtPct(FURNACE_LONG_BELT / 100)} FASTER.`,
+    ]);
   });
 
   it("every number drawn on every face, at every star and context, is a number its own render printed through a formatter", () => {
@@ -366,11 +372,17 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
       expect(STUN_CAUSES.every((c) => effectAt("mantlet", s).mod!.immune!.includes(c)), `★${s}`).toBe(true);
       expect(stripIcons(faceLines("mantlet", s)!.rules[0].text), `★${s}`).toBe("IMMUNE TO STUN.");
     }
-    // the clauses at the stars that have them, written from the sim
-    const at: Record<string, number[]> = { frostbite: [2, 3], sabot: [3], scrapper: [3], tollbooth: [3], mantlet: [2, 3], overdrive: [2, 3] };
+    // the clauses at the stars that have them, written from the sim. Y1 (STAR-D row 2): FROSTBITE's HOARFROST is a number on
+    // its line at every star, so it has no clause (was frostbite: [2, 3] here, and the clause "★2 HOARFROST: STUN HITS 2
+    // PARTS.")
+    const at: Record<string, number[]> = { frostbite: [], sabot: [3], scrapper: [3], tollbooth: [3], mantlet: [2, 3], overdrive: [2, 3] };
     for (const [def, stars] of Object.entries(at)) for (const s of STARS) expect(!!faceLines(def, s)!.clause, `${def} ★${s}`).toBe(stars.includes(s));
     const spread = (s: number) => (effectAt("frostbite", s).factory!.round as { spread: number }).spread;
-    for (const s of [2, 3]) expect(stripIcons(faceLines("frostbite", s)!.clause!.text)).toBe(`★${s} HOARFROST: STUN HITS ${fmtCount(1 + spread(s))} PARTS.`);
+    expect(STARS.map((s) => 1 + spread(s))).toEqual([1, 2, 3]);
+    for (const s of STARS) {
+      const n = 1 + spread(s);
+      expect(stripIcons(faceLines("frostbite", s)!.rules[0].text)).toBe(`ITS STUN HITS ${fmtCount(n)} PART${n === 1 ? "" : "S"}.`);
+    }
     // OVERDRIVE's guard names the rounds it keeps off, by its flags: no SLOW or FREEZE any more
     expect(stripIcons(faceLines("overdrive", 2)!.clause!.text)).toBe("★2 REDLINE: ENEMY CHAIN ROUNDS CAN'T STUN ITS BELTS.");
     expect(stripIcons(faceLines("overdrive", 3)!.clause!.text)).toBe("★3 AFTERBURNER: ENEMY CHAIN AND FROST ROUNDS CAN'T STUN ITS BELTS.");
