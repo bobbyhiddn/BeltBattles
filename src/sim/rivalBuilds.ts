@@ -529,7 +529,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // deck pays for them with its TURRET SPEED level 2 (day 7 before; no later day's gold holds it). The walls (cap's
       // ruling Q2 f77489ebe2e11698): with the 6/7 the gold allowed on days 9-10 the par field's top quartile beat his road
       // deck only 32-34% of the time (79-86% at 1210ee8); 4/5 packs read 41% on both days
-      G(3, "counterweight", 4, 0), P(3), soon(2, G(4, "twinlatch", 3, 2)), M2(4, "twintrigger", 0), soon(5, M(7, "compound", 0)),
+      P(3), soon(2, G(4, "twinlatch", 3, 2)), M2(4, "twintrigger", 0),
+      // BAL-2 step 6 (cap's ruling 97e639e5813acb37): the counterweight (rare, non-synergy) on day 5 at ordinary luck (was
+      // 3; FOUNDRY's ordinary rare+ cap fell 3 -> 2 on day 4, where the TWIN LATCH and TWIN TRIGGER hold both); soon()
+      // keeps the warlord's day 3; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      soon(3, G(5, "counterweight", 4, 0)),
+      soon(5, M(7, "compound", 0)),
       // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37, item 2): the latch's second star at good luck only, day 9 (was
       // ordinary day 10; FOUNDRY's ordinary star2 cap is 2 on day 10 and no later day exists)
       M2(7, "compound", 0), ...good(M(7, "flak", 1)), P(8, 3), ...good(G2(9, "twinlatch", 3, 2)),
