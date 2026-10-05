@@ -145,6 +145,9 @@ export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null
   // its belts are its own output, a stat: 1, and 2 at ★3 TWIN SIGNET (stars.ts pourAt; Battle.factoryDef keeps `pour`
   // only for a blank-ammo hero). On every other hero it stamps one slug a cycle, in turn, as before: no row
   if (h && h.ammo === "blank") out.push(["SLUG", fmtCount(Math.max(1, pourAt(def, stars, h.ammo)))]);
+  // Y1 (STAR-D row 7): TWIN MOULD's pour, the slugs one cast puts onto separate belts at once: 2, and 3 at ★3 THIRD SPRUE
+  // (battle.ts: a twin factory's pourAll, onto at most spec.pour belts with room), whatever its belts (2 / 3 / 4)
+  if (fs.twin) out.push(["SLUG", fmtCount(pourAt(def, stars))]);
   // Battle.stamp: HOT SWAP's EMBER slugs carry its burn, its SPARK slugs a shock (DISRUPT_TIME, or the star's shockTime)
   const ember = fs.cycle?.find((p) => p.tint === "ember"), spark = fs.cycle?.find((p) => p.tint === "spark");
   if (ember?.burn) out.push(["BURN", fmtCount(ember.burn)]);
@@ -260,7 +263,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `CHARGES BLAST THE HULL: ${blast} {DMG}, ${delay}{SEC} LATER.` }],
       [["blast", `${blast} {DMG}`], ["delay", `${delay}{SEC}`]]);
   },
-  twinmould: () => rules([{ text: "CASTS A SLUG ONTO EACH BELT AT ONCE." }]),
+  // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 7): its pour is its {SLUG} stat (carryStats: 2 / 2 / 3), so the line names no
+  // count. Was "CASTS A SLUG ONTO EACH BELT AT ONCE.", wrong at ★2/★3: it pours 2 slugs (★3 3) while it feeds 3 (4) belts
+  twinmould: () => rules([{ text: "CASTS ITS {SLUG} ONTO SEPARATE BELTS AT ONCE." }]),
   armorpress: (e) => {
     const p = f(e).plate!, every = fmtSec(p.every), amount = fmtDmg(p.amount);
     const label = `EVERY ${every}{SEC}:`;
