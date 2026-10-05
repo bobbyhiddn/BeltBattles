@@ -30,12 +30,12 @@ import { startingBuild } from "../src/sim/ai";
 import { installedTurrets, occupancy, type Build } from "../src/sim/deck";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { PAR_K, parSeeds } from "../src/sim/harness/par";
-import { playerBuild } from "../src/sim/harness/player";
+import { parRunSeed, playerBuild } from "../src/sim/harness/player";
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { eligible } from "../src/net/matchmaking";
 import { floorRecord, isReachable, reachableRecords, type DuskRecord } from "../src/net/records";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
-import { checkSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { checkSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { encodeStarred, standInParIndex, standInPickIndex, standInPool } from "../src/sim/standInPool";
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
@@ -101,16 +101,22 @@ export function reachableLabel(day: number, wins: number, lives: number): DuskRe
   return same.reduce((a, b) => (Math.abs(b.lives - lives) < Math.abs(a.lives - lives) || (Math.abs(b.lives - lives) === Math.abs(a.lives - lives) && b.lives > a.lives) ? b : a));
 }
 
-/** One seed ghost, checked: the strict shop rules and the player mode (D5), and a reachable label. */
-function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number): GhostSnapshot {
+/** One seed ghost, checked: the strict shop rules and the player mode (D5), and a reachable label. FLIP-X2 (RUNES-2a
+ *  section 3 step 4; BOTSX-REPORT section 9): a deck that holds runes travels as a v3 snapshot (Build.runes is v3 only),
+ *  carrying the run seed when the deck's run is known (`seed`: a race ghost's par-field run), so the upload check
+ *  re-derives every dawn's offer; a stand-in pool deck stores no run seed, so its ghost carries none (the count rule
+ *  still holds it to one rune a dawn). A rune-less deck is v2 exactly as before. */
+function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number): GhostSnapshot {
+  const runes = (build.runes?.length ?? 0) > 0;
   const snap = checkSnapshot({
     // v2: pool decks carry stars (the 0.6.1 flip) and rigs their `rot` (0.6.2 BELTSIDE, DESIGN-beltside D1)
-    v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
+    v: runes ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
     runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: at,
+    ...(runes && seed !== undefined ? { seed } : {}),
   });
   const val = validateBuild(snap.build, day);
   if (!val.ok) throw new Error(`sample ghost ${hero} v${v} day ${day} is invalid: ${val.errors.join("; ")}`);
-  const up = validateUpload(snap.build, day, snap.rules); // D5: an honest player could have uploaded it
+  const up = validateUpload(snap.build, day, snap.rules, { seed: snap.seed }); // D5: an honest player could have uploaded it
   if (!up.ok) throw new Error(`sample ghost ${hero} v${v} day ${day} fails validateUpload (player mode): ${up.errors.join("; ")}`);
   if (!isReachable(day, snap.wins, snap.lives)) throw new Error(`sample ghost ${hero} v${v} day ${day}: ${snap.wins}W ${snap.lives} lives is not a record a run can carry into that dusk`);
   return snap;
@@ -188,7 +194,8 @@ export function raceGhosts(
   for (const hero of RACE_SEED_HEROES) {
     for (let v = 0; v < RACE_VARIANTS; v++) {
       for (let day = 1; day <= MAX_DAY; day++) {
-        const { build } = deckOf(hero, day, v);
+        const { build, seed: field } = deckOf(hero, day, v);
+        const seed = (parRunSeed(hero, field) >>> 0) || undefined; // FLIP-X2: that par run's own run seed, in the v3 snapshot
         let rec: DuskRecord;
         if (v === FLOOR_VARIANT) rec = floorRecord(day);
         else {
@@ -197,7 +204,7 @@ export function raceGhosts(
           const losses = Math.min(START_LIVES - 1, rng.int(day - wins));
           rec = reachableLabel(day, wins, START_LIVES - losses);
         }
-        out.push(seedGhost(hero, day, v, build, rec, EPOCH + (first + out.length) * 1000));
+        out.push(seedGhost(hero, day, v, build, rec, EPOCH + (first + out.length) * 1000, seed));
       }
     }
   }

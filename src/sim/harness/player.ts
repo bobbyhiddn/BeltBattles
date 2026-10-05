@@ -244,9 +244,13 @@ const sinks = (c: Cand): boolean => c.swap !== undefined || c.turret?.into === "
 
 const SIDE0: SideStats = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
 
+/** FLIP-X2: the run seed of the par player's run `seed` for `hero` (its runeOffer seed): what a v3 seed ghost made from
+ *  that run carries (tools/samplePool.ts raceGhosts), so the upload check re-derives each dawn's offer. */
+export const parRunSeed = (hero: HeroId, seed: number): number => hashSeed("par-player-run", hero, seed);
+
 /** The run the par player plays: the game's own newRun (runId fixed, so nothing reads the clock). */
 function startRun(hero: HeroId, seed: number): Run {
-  return newRun(hero, hashSeed("par-player-run", hero, seed), `par-${hero}-${seed}`);
+  return newRun(hero, parRunSeed(hero, seed), `par-${hero}-${seed}`);
 }
 
 /** Dusk won, next dawn: the game's finishDay (a win's income, yesterday's merchants, a fresh caravan). */
