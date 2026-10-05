@@ -76,7 +76,7 @@ describe("0.6.2s turret slots: battle (S9)", () => {
     expect([...n.keys()]).toEqual([1]);
   });
 
-  it("FURNACE E1: a long belt shortens ANY turret's interval by the same share (0.72 s for the SCRAP CANNON, as before)", () => {
+  it("FURNACE E1: a long belt raises ANY turret's SPEED by the same whole rate % (+39: SCRAP CANNON 30 -> 42)", () => {
     const ref = heroRefBuild7();
     const bt = new Battle(ref, heroStartBuild("weaver"), 1);
     const t0 = turretAt(bt.sides[0], 0)!;

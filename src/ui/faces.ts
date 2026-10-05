@@ -197,7 +197,8 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET AT ONCE.",
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1 and 4.9): SHIELD a count (fmtCount; content.ts SHIELD_CAP), HEAL and REGEN on hull.
   // REGEN's verb is HEAL's (GIVES BACK; 4.9 wrote HEALS, which would stand as a bare keyword: REQ-BFG-032 rule 3)
-  SHIELD: () => `EACH {*SHIELD}: STOPS ONE WHOLE HIT. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
+  // NUM-4 (REVIEW-SUSB F1): it blocks one hit's DAMAGE; that hit's BURN, FRAY, STUN and poison still land (battle.ts impact)
+  SHIELD: () => `EACH {*SHIELD}: BLOCKS ONE HIT'S DAMAGE. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
   HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
   REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC.",
 };

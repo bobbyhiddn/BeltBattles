@@ -33,7 +33,9 @@ export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | 
   | "SHIELD" | "HEAL" | "REGEN";
 export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
   HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "PLATE", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
-  BURN: "BURN", RIDE: "RIDE", STALL: "STALL", SHIELD: "SHIELD", HEAL: "HEAL", REGEN: "REGEN",
+  // NUM-4 (REVIEW-NUM3 F2, one word for one stop): a rune's {*STALL} renders as STUN (STEADY IRON: "STUNS ON YOUR
+  // MACHINES"); runes.ts keeps its token (a display job leaves it), and STALL stays a glossary alias of STUN
+  BURN: "BURN", RIDE: "RIDE", STALL: "STUN", SHIELD: "SHIELD", HEAL: "HEAL", REGEN: "REGEN",
 };
 
 /**

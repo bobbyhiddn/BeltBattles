@@ -104,7 +104,7 @@ export function glossaryRows(): GlossaryRow[] {
       word: "RATE", aliases: ["FIRE RATE", "FIRES", "WORKS FASTER", "WORK FASTER"], colour: ICON_COLOUR[ICON.RATE],
       // NUM-4 (REQ-BFG-047; N1 2.2's tap text, in the row's form: its word first, no PER, the number through fmtSec): {RATE}
       // n is the SPEED, shots or slugs in SPEED_K seconds (was "HOW OFTEN A GUN FIRES OR A FACTORY WORKS. FASTER IS MORE OF IT.")
-      def: `RATE: {RATE} SHOTS OR SLUGS IN ${fmtSec(SPEED_K)}{SEC}. FASTER IS MORE OF THEM.`, scope: "text",
+      def: `RATE: HOW OFTEN A GUN FIRES OR A FACTORY WORKS: {RATE} SHOTS OR SLUGS IN ${fmtSec(SPEED_K)}{SEC}.`, scope: "text",
     },
     { word: "HULL", aliases: [], colour: C.red, def: "HULL: YOUR SHIP'S LIFE. WHEN IT RUNS OUT, YOU LOSE THE FIGHT.", scope: "rune" },
     { word: "BELT", aliases: [], colour: C.brass3, def: "BELT: YOUR BELT TILES, SHARED BY ALL YOUR BELTS.", scope: "rune" },
@@ -160,9 +160,9 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   RATE: "RATE: HOW OFTEN A GUN FIRES OR A FACTORY WORKS.",
   BURN: "BURN: EACH ONE DEALS HULL DAMAGE EVERY SEC FOR A WHILE.",
   RIDE: "RIDE: THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE.", // U2d F4: its row's first sentence (was A CINDER SLUG'S OWN HEAT FOR EACH SEC IT RIDES.)
-  STALL: "STALL: A STALLED PART STOPS FOR A WHILE.",
+  STALL: "STUN: A STUNNED PART STOPS FOR A WHILE.", // NUM-4 (REVIEW-NUM3 F2): the rune token STALL reads STUN
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1's rune reminders; REGEN's says GIVES BACK, as its row does)
-  SHIELD: "SHIELD: STOPS ONE WHOLE HIT, THEN BREAKS.",
+  SHIELD: "SHIELD: BLOCKS ONE HIT'S DAMAGE, THEN BREAKS.", // NUM-4 (REVIEW-SUSB F1; was "STOPS ONE WHOLE HIT")
   HEAL: "HEAL: GIVES BACK HULL, NEVER PAST FULL.",
   REGEN: "REGEN: GIVES BACK HULL EACH SEC.",
 };

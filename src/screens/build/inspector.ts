@@ -101,7 +101,7 @@ import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks
 import { faceGist, heroPlaystyle, ruleSpans } from "../../ui/faces"; // U2a
 import { speedPair } from "../../ui/faces"; // U2c step 4: the installed turret's stat row
 import { statRow } from "../../ui/icons"; // U2c step 4
-import { fmtClock, fmtCount, fmtDmg } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
+import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
 import { icons } from "../../render/font"; // U2c step 4
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
@@ -474,13 +474,21 @@ export function stokeCapBlocks(run: Run, factories: readonly number[]): Block[] 
     const k = keep.get(f);
     if (k === undefined || k > 1 - 1e-9) return [];
     const p = itemByUid(run.build, f)!, stoke = factoryStoke(run.build, f);
-    const eff = stoke * k, name = `THE ${ITEMS[p.def].name}'S`, none = Math.round(eff * 100) < 1;
+    // NUM-4 (REQ-BFG-047; REVIEW-NUM2 answer 2): the line tells the battle's truth in the faces' unit. A factory's cadence
+    // is a whole SPEED (slugs in 30 s), so the cap matters only when it holds back at least one SPEED point of the stoke:
+    // speed x stoke x (1 - keep) >= 1. Below that the factory's shown SPEED would not change, and the STOKER's own line
+    // stands (ARMOR PRESS ★2 under STOKER ★2: 21 x 44% x (1 - 43/44) = 0.21 of a point, the "1-point gap" NUM-2 flagged)
+    const speed = effectAt(p.def, starsOf(p)).factory?.speed ?? 0;
+    if (speed * stoke * (1 - k) < 1) return [];
+    // NUM-4: `eff` is the rating's estimate of the share the gun lets through (stokeKeep), a reading, so it prints through
+    // fmtReadPct (whole, rounded as before); the stoke itself is a rule's whole % (percent)
+    const eff = stoke * k, name = `THE ${ITEMS[p.def].name}'S`, none = Math.round(eff * 100) < 1, effPct = fmtReadPct(eff);
     // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): "THE KILN'S GUN IS FULL: IT WORKS ONLY 8% FASTER." (was
     // "..., SO IT WORKS ONLY 8% FASTER."), the same meaning and numbers
     const text = effectAt(p.def, starsOf(p)).factory?.plate
       ? none ? `${name} GUN IS FULL: ONLY ITS PLATING WORKS ${percent(stoke)} FASTER.`
-      : `${name} GUN IS FULL: IT STAMPS ONLY ${percent(eff)} FASTER, BUT PLATES ${percent(stoke)} FASTER.`
-      : none ? `${name} GUN IS FULL: IT WORKS NO FASTER.` : `${name} GUN IS FULL: IT WORKS ONLY ${percent(eff)} FASTER.`;
+      : `${name} GUN IS FULL: IT STAMPS ONLY ${effPct} FASTER, BUT PLATES ${percent(stoke)} FASTER.`
+      : none ? `${name} GUN IS FULL: IT WORKS NO FASTER.` : `${name} GUN IS FULL: IT WORKS ONLY ${effPct} FASTER.`;
     return [{ role: "warn", text, rank: 1 }];
   });
 }
@@ -668,7 +676,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const floorDmg = low ? fmtDmg(low.estimate.dmg - slagPulseExtra(low.timeline, belt)) : big;
   const dmg = floorDmg !== big ? `${floorDmg}-${big}` : big;
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
-  const spd = belt === "locked" ? "100% (LOCKED)" : belt === "slag" ? `${percent(w.speedEnd)} (SLAG)` : percent(w.speedEnd);
+  const spd = belt === "locked" ? "100% (LOCKED)" : belt === "slag" ? `${fmtReadPct(w.speedEnd)} (SLAG)` : fmtReadPct(w.speedEnd); // NUM-4: the walk's end speed, a product of speed states (a reading)
   const time = `${fmtClock(est.time)} SEC`; // NUM-4: the ride's whole elapsed seconds, as a clock reads (was toFixed(1))
   const cells: [string, string][][] = [
     [["DMG", dmg], ["BURN", String(est.burn)]],
@@ -695,7 +703,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
     // 0.6.2t2 (F2): the header strip labels its time as the readout's grid does (TIME), never a bare number
     headerOnly: info.connected ? {
       texts: [
-        `DMG ${dmg}, BURN ${est.burn}${est.shock ? ", SHOCK" : ""}, SPD ${percent(w.speedEnd)}, TIME ${time}`,
+        `DMG ${dmg}, BURN ${est.burn}${est.shock ? ", SHOCK" : ""}, SPD ${fmtReadPct(w.speedEnd)}, TIME ${time}`,
         `DMG ${dmg}, TIME ${time}, BURN ${est.burn}`,
         `DMG ${dmg}, TIME ${time}`,
       ],

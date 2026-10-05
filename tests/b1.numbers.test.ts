@@ -53,7 +53,7 @@ describe("B1 M2: OVERDRIVE ★2 REDLINE (oracle 1cd5224fab866da2 (A))", () => {
 });
 
 describe("B1 M2: ASSEMBLY LINE ★2/★3 pour heavier slugs at the 1-star pace (KNOWN_FALLS emptied)", () => {
-  it("stamps every 1.8 s at every star, with base 3 / 4.5 / 6, so a busy gun's chamber never gets more loads than at ★1", () => {
+  it("stamps at SPEED 17 at every star, with base 30 / 45 / 60, so a busy gun's chamber never gets more loads than at ★1", () => {
     // NUM-2 (REQ-BFG-047): one speed at every star, roundHalfUp(30 / 1.8 = 16.67) = 17 (was interval [1.8, 1.8, 1.8])
     expect([1, 2, 3].map((s) => effectAt("assembly", s).factory!.speed)).toEqual([17, 17, 17]);
     // NUM-1: x10 (was ?? 3 and 3 / 4.5 / 6; the ★1 line pours plain slugs at AMMO.plain.base, 3 -> 30)

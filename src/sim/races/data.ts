@@ -32,7 +32,7 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
   },
   clockworks: {
     id: "clockworks", name: "CLOCKWORKS", kind: "factory", rarity: "epic", price: 0, size: 2,
-    desc: ["STAMPS PENDULUM SLUGS.", "THEY PEAK AFTER 4.2S", "OF RIDE: 10 TILES."],
+    desc: ["STAMPS PENDULUM SLUGS.", "THEY PEAK AFTER", "10 TILES OF RIDE."],
     // bb-0.8.3 (D10): FACTORY levels on the house's curve, interval only: the pendulum's curve replaces a slug's base
     factory: { ammo: "pendulum", speed: 23 },
     levels: { 2: { factory: { speed: 29 } }, 3: { factory: { speed: 35 } }, 4: { factory: { speed: 41 } } },
@@ -46,13 +46,13 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
   // Timing gear joins the same merchant pool as every other module. Priced like CALIBRATION.
   escapement: {
     id: "escapement", name: "ESCAPEMENT", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
-    desc: ["FIRES 10% FASTER.", "PENDULUM PEAK 1.2S", "EARLIER: 7 TILES."], tags: ["TEMPO"],
+    desc: ["FIRES 11% FASTER.", "PENDULUM SLUGS PEAK", "EARLIER: 7 TILES."], tags: ["TEMPO"],
     mod: { fireRate: 11 },
     levels: { 2: { mod: { fireRate: 16 }, perk: "QUICK TICK" }, 3: { mod: { fireRate: 22 }, perk: "FAST TICK" } },
   },
   longcase: {
     id: "longcase", name: "LONGCASE", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
-    desc: ["OTHER SLUGS: +1.5", "DMG AFTER 2S RIDE.", "PENDULUM PEAK +1.2S."], tags: ["FORGE", "TEMPO"],
+    desc: ["OTHER SLUGS: +15", "DMG AFTER 2S RIDE.", "PENDULUMS PEAK LATER."], tags: ["FORGE", "TEMPO"],
     mod: { longRideFlat: 15, longRideMin: 2 },
     levels: { 2: { mod: { longRideFlat: 25 }, perk: "DEEP WIND" }, 3: { mod: { longRideFlat: 40 }, perk: "FULL WIND" } },
   },

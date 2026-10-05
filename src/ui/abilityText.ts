@@ -138,9 +138,10 @@ export const percent = (x: number): string => fmtPct(x);
 export const plural = (n: number, one: string, many = `${one}S`): string => `${n} ${n === 1 ? one : many}`;
 /** "TWICE", "3 TIMES" (a whole count). */
 export const times = (r: number): string => (r === 2 ? "TWICE" : `${fmtCount(r)} TIMES`);
-/** NUM-4: a SPEED in words, for the kept sentences (no icons there): "19 TIMES IN 30 SECONDS" (shots or slugs per
- *  SPEED_K seconds: the RATE icon's number on the faces, fmtSpeed). */
-export const rate = (speed: number): string => `${fmtSpeed(speed)} TIMES IN ${seconds(SPEED_K)}`;
+/** NUM-4: a SPEED in words, for the kept sentences (no icons there): "AT RATE 19", the RATE icon's number on the faces
+ *  (fmtSpeed: shots or slugs in SPEED_K seconds), the word a tap explains (glossary.ts RATE row). Shorter than "19 TIMES
+ *  IN 30 SECONDS", so the landscape card's two lines still hold it. */
+export const rate = (speed: number): string => `AT RATE ${fmtSpeed(speed)}`;
 /** A rate or speed multiplier above 1: "33% FASTER", "245% FASTER", or a whole "TWICE AS FAST", "3 TIMES AS FAST".
  *  NUM-4: never a float ratio ("3.4 TIMES AS FAST" was GATLING's +245%); the % is whole (fmtPct). */
 export function faster(r: number): string {
@@ -226,10 +227,10 @@ const SW = { shield: "SHIELD", heals: "HEALS" } as const;
 export const S = {
   burn: `EACH BURN DEALS THE ENEMY HULL ${BURN_DPS} DAMAGE A SECOND FOR ${seconds(BURN_TIME)}.`, // NUM-1: the sim's BURN_DPS (was a literal 1)
   /** What a shock does: "STALLS A MACHINE FOR 1.6 SECONDS" (n machines with a jump). */
-  stalls: (t: number, n: number) => `STALLS ${n === 1 ? "A MACHINE" : `${n} MACHINES`} FOR ${seconds(t)}`,
+  stalls: (t: number, n: number) => `STUNS ${n === 1 ? "A MACHINE" : `${n} MACHINES`} FOR ${seconds(t)}`,
   /** How a jump spreads a shock (or a FROSTBITE round's STUN) after the machine the shot hits. */
   spread: (verb: string, n: number) => `THE SHOT ${verb} THE MACHINE IT HITS, THEN THE ${n === 1 ? "NEAREST OTHER ONE" : `${n} NEAREST OTHERS`}.`,
-  hullShock: "A SHOT THAT HITS BARE HULL STALLS NOTHING.",
+  hullShock: "A SHOT THAT HITS BARE HULL STUNS NOTHING.",
   /** A speed rig on METRONOME's locked belts: the lockedFlat it pays there (`more`: on top of its own damage). */
   locked: (d: number, more = false) =>
     `ON METRONOME'S LOCKED BELTS IT ADDS ${more ? moreDamage(d) : damage(d)} INSTEAD${more ? " OF THE SPEED CHANGE" : ""}.`,
@@ -290,13 +291,14 @@ function mantletGist(e: ItemDef, stars: number): string {
   const added = (m(e).immune ?? []).filter((c) => !was.includes(c)), guard = m(e).intakeGuard ?? 0;
   return [
     ...(stars <= 1 ? [`IGNORES ${immunities(e)}`] : added.length ? [`IGNORES ${list(added.map((c) => STALL_WORD[c]))} TOO`] : []),
-    ...(guard ? [`SHIELDS THE LAST ${guard === 1 ? "TILE" : `${guard} TILES`} OF EACH BELT IN`] : []),
+    ...(guard ? [`GUARDS THE LAST ${guard === 1 ? "TILE" : `${guard} TILES`} OF EACH BELT IN`] : []),
   ].join(", ");
 }
 
 /** 0.6.2 FB-B (DESIGN §11 P6): the turret panel's sentence for a turret whose MANTLET ★2/★3 shields `n` belt tiles. */
 export function shieldText(n: number): string {
-  return `SHIELDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN, AND THE RIGS WORKING ${n === 1 ? "IT" : "THEM"}.`;
+  // NUM-4 (REVIEW-SUSB F3): MANTLET's word is GUARD (NUM-3's FULL GUARD); SHIELD is the sustain keyword (was SHIELDED)
+  return `GUARDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN, AND THE RIGS WORKING ${n === 1 ? "IT" : "THEM"}.`;
 }
 
 /**
@@ -389,12 +391,12 @@ const ENTRIES: Record<string, Entry> = {
       const t = g(e).shockTime ?? DISRUPT_TIME, jump = g(e).jump ?? 0;
       return [
         `ADDS SHOCK, WHICH ${S.stalls(t, 1 + jump)}.`,
-        ...(jump ? [S.spread("STALLS", jump)] : []),
+        ...(jump ? [S.spread("STUNS", jump)] : []),
         S.hullShock,
       ];
     },
-    gist: (e) => `STALLS ${g(e).jump ? plural(1 + g(e).jump!, "MACHINE") : "A MACHINE"} FOR ${seconds(g(e).shockTime ?? DISRUPT_TIME)}`,
-    card: (e) => `SHOCK STALLS FOR ${seconds(g(e).shockTime ?? DISRUPT_TIME)}`,
+    gist: (e) => `STUNS ${g(e).jump ? plural(1 + g(e).jump!, "MACHINE") : "A MACHINE"} FOR ${seconds(g(e).shockTime ?? DISRUPT_TIME)}`,
+    card: (e) => `SHOCK STUNS FOR ${seconds(g(e).shockTime ?? DISRUPT_TIME)}`,
   },
   splitter: {
     text: (e) => [
@@ -549,9 +551,9 @@ const ENTRIES: Record<string, Entry> = {
   },
   staticbrush: {
     // Battle.impact: a static payload that hits bare hull stalls a random enemy turret
-    text: (e) => [`PAYLOADS IT HITS STALL AN ENEMY TURRET FOR ${seconds(g(e).staticTime!)} WHEN THEY HIT BARE HULL.`, "THE TURRET IS PICKED AT RANDOM."],
-    gist: (e) => `STALLS A TURRET FOR ${seconds(g(e).staticTime!)}`,
-    card: () => "HULL HITS STALL A TURRET",
+    text: (e) => [`PAYLOADS IT HITS STUN AN ENEMY TURRET FOR ${seconds(g(e).staticTime!)} WHEN THEY HIT BARE HULL.`, "THE TURRET IS PICKED AT RANDOM."],
+    gist: (e) => `STUNS A TURRET FOR ${seconds(g(e).staticTime!)}`,
+    card: () => "HULL HITS STUN A TURRET",
   },
   lodestone: {
     // Battle.applyHit: the foe's rigs, factories and turrets stalled, frozen or wrecked as the payload passes.
@@ -559,11 +561,11 @@ const ENTRIES: Record<string, Entry> = {
     // bonus on top, capped by perStalled.max; one sentence, so the floor never shows without the bonus or the other way.
     // As short as the sentence it replaces (it must still fit the phone band and the desk column whole)
     text: (e) => [
-      `ADDS ${damage(g(e).flat ?? 0)}, AND ${fmtDmg(g(e).perStalled!.each)} FOR EACH ENEMY MACHINE STALLED, UP TO ${damage(g(e).perStalled!.max)}.`,
+      `ADDS ${damage(g(e).flat ?? 0)}, AND ${fmtDmg(g(e).perStalled!.each)} FOR EACH ENEMY MACHINE STUNNED, UP TO ${damage(g(e).perStalled!.max)}.`,
       "WRECKED MACHINES COUNT TOO; BELT TILES DON'T.", // NUM-3 (R1's STUN fold): nothing freezes any more
     ],
-    gist: (e) => `ADDS ${damage(g(e).flat ?? 0)}, AND ${fmtDmg(g(e).perStalled!.each)} FOR EACH STALLED MACHINE`,
-    card: (e) => `${damage(g(e).flat ?? 0)}, MORE FOR EACH STALL`,
+    gist: (e) => `ADDS ${damage(g(e).flat ?? 0)}, AND ${fmtDmg(g(e).perStalled!.each)} FOR EACH STUNNED MACHINE`,
+    card: (e) => `${damage(g(e).flat ?? 0)}, MORE FOR EACH STUN`,
   },
   barbed: {
     // Battle.impact: the hull's fray limit rises to FRAY_MAX + frayCap (★2/★3 RAZOR WIRE)
@@ -612,7 +614,7 @@ const ENTRIES: Record<string, Entry> = {
     },
     gist: (e) => {
       const em = f(e).cycle!.find((p) => p.tint === "ember")!, sp = f(e).cycle!.find((p) => p.tint === "spark")!;
-      return `${em.burn ?? 0} BURN, SHOCK STALLS ${sp.jump ? plural(1 + sp.jump, "MACHINE") : "A MACHINE"} FOR ${seconds(sp.shockTime ?? DISRUPT_TIME)}`;
+      return `${em.burn ?? 0} BURN, SHOCK STUNS ${sp.jump ? plural(1 + sp.jump, "MACHINE") : "A MACHINE"} FOR ${seconds(sp.shockTime ?? DISRUPT_TIME)}`;
     },
     card: () => "BURN AND SHOCK SLUGS IN TURN",
   },
@@ -820,13 +822,13 @@ const ENTRIES: Record<string, Entry> = {
       const r = round<{ delay: number; blast: number; stall?: number }>(e);
       return [
         `STAMPS CHARGES THAT BLAST THE ENEMY HULL FOR ${damage(r.blast)}, ${seconds(r.delay)} AFTER THEY LAND.`,
-        ...(r.stall ? [`THE BLAST ALSO STALLS THE MACHINE THE CHARGE STUCK TO FOR ${seconds(r.stall)}.`] : []),
+        ...(r.stall ? [`THE BLAST ALSO STUNS THE MACHINE THE CHARGE STUCK TO FOR ${seconds(r.stall)}.`] : []),
         S.stamps("ONE", f(e).speed),
       ];
     },
     gist: (e) => {
       const r = round<{ delay: number; blast: number; stall?: number }>(e);
-      return `BLASTS FOR ${damage(r.blast)}${r.stall ? ` AND STALLS FOR ${seconds(r.stall)}` : ""}`;
+      return `BLASTS FOR ${damage(r.blast)}${r.stall ? ` AND STUNS FOR ${seconds(r.stall)}` : ""}`;
     },
     card: (e) => `BLASTS THE HULL FOR ${damage(round<{ blast: number }>(e).blast)}`,
   },
@@ -942,12 +944,12 @@ const ENTRIES: Record<string, Entry> = {
     text: (e, x) => {
       const s = c(e, x);
       return [
-        `EACH SHOT ARCS TO THE ${s.arcs === 1 ? "NEAREST ENEMY MACHINE AND STALLS IT" : `${s.arcs} NEAREST ENEMY MACHINES AND STALLS THEM`} FOR ${seconds(s.stall!)}.`,
+        `EACH SHOT ARCS TO THE ${s.arcs === 1 ? "NEAREST ENEMY MACHINE AND STUNS IT" : `${s.arcs} NEAREST ENEMY MACHINES AND STUNS THEM`} FOR ${seconds(s.stall!)}.`,
         `EACH ARC DEALS ${percent(s.share!)} OF THE SHOT'S DAMAGE.`,
       ];
     },
-    gist: (e, x) => `ARCS TO ${plural(c(e, x).arcs!, "MACHINE")} AND STALLS ${c(e, x).arcs === 1 ? "IT" : "THEM"} FOR ${seconds(c(e, x).stall!)}`,
-    card: () => "SHOTS ARC AND STALL MACHINES",
+    gist: (e, x) => `ARCS TO ${plural(c(e, x).arcs!, "MACHINE")} AND STUNS ${c(e, x).arcs === 1 ? "IT" : "THEM"} FOR ${seconds(c(e, x).stall!)}`,
+    card: () => "SHOTS ARC AND STUN MACHINES",
   },
   capacitor: {
     // Battle.chambers: charge while the chamber is empty (up to maxSeconds), spent on the next shot
@@ -1109,7 +1111,7 @@ const ENTRIES: Record<string, Entry> = {
       `WHILE YOUR HULL HOLDS PLATING THEY LAST ${percent(1 - g(e).brace!.plated)} SHORTER.`,
     ],
     gist: (e) => `${percent(1 - g(e).brace!.mul)} SHORTER, ${percent(1 - g(e).brace!.plated)} WHILE PLATED`,
-    card: () => "SHORTER STALLS ON ITS TILES",
+    card: () => "SHORTER STUNS ON ITS TILES",
   },
   twinlatch: {
     // E4 (Battle.latchTick): it holds only while both arrows hit belts, each payload at most `hold` seconds. Into one
@@ -1257,8 +1259,11 @@ const ENTRIES: Record<string, Entry> = {
     // its turret pauses it (Battle.sustainTick); Battle.shieldHit: a SHIELD stops one whole hit
     text: (e) => [
       `YOUR HULL GAINS ${countWord(m(e).shield!.amount)} ${SW.shield} ${every(m(e).shield!.every)}, UP TO ${SHIELD_CAP}.`,
-      `EACH ${SW.shield} STOPS ONE WHOLE HIT, THEN BREAKS; BURN, POISON AND THE DARK WIND GO PAST IT.`,
-      "A STALL OR FREEZE ON ITS TURRET PAUSES IT.",
+      // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one impact's damage; that hit's BURN, FRAY, STUN and poison still land
+      // (battle.ts impact()), and BURN, poison and the wind deal their damage past it
+      `EACH ${SW.shield} BLOCKS ONE HIT'S DAMAGE, THEN BREAKS; THAT HIT'S BURN, FRAY, STUN AND POISON STILL LAND.`,
+      "BURN, POISON AND THE DARK WIND DEAL THEIR DAMAGE PAST IT.",
+      "A STUN ON ITS TURRET PAUSES IT.", // NUM-4 (REVIEW-NUM3 F2): one word for one stop (was "A STALL OR FREEZE")
     ],
     gist: (e) => `${countWord(m(e).shield!.amount)} ${SW.shield} ${every(m(e).shield!.every)}`,
     card: (e) => `+${m(e).shield!.amount} ${SW.shield} ${every(m(e).shield!.every)}`,
@@ -1280,7 +1285,7 @@ const ENTRIES: Record<string, Entry> = {
   mendingloom: {
     // TurretState.regen: at each whole second your living hull heals its working looms' REGEN through heal() (Battle.
     // sustainTick); a STUN or freeze on its turret pauses it
-    text: (e) => [`${SW.heals} YOUR HULL BY ${fmtDmg(m(e).regen!)} EVERY SECOND.`, "A STALL OR FREEZE ON ITS TURRET PAUSES IT.", S.heal],
+    text: (e) => [`${SW.heals} YOUR HULL BY ${fmtDmg(m(e).regen!)} EVERY SECOND.`, "A STUN ON ITS TURRET PAUSES IT.", S.heal],
     gist: (e) => `${SW.heals} ${fmtDmg(m(e).regen!)} EVERY SECOND`,
     card: (e) => `${SW.heals} ${fmtDmg(m(e).regen!)} HULL EVERY SECOND`,
   },
@@ -1304,7 +1309,7 @@ const TURRET: Entry = {
     const t = e.turret!, one = ITEMS[e.id].turret!.speed;
     return [
       `${an(CLASS_WORD[t.class] ?? t.class.toUpperCase())} TURRET THAT FIRES ${rate(t.speed)} AND HOLDS ${plural(t.window, "LOAD")}.`,
-      ...(t.speed > one ? [`THAT IS ${fmtCount(t.speed - one)} MORE SHOTS THAN AT 1 STAR.`] : []),
+      ...(t.speed > one ? [`ITS RATE IS ${fmtCount(t.speed - one)} MORE THAN AT 1 STAR.`] : []),
       t.intake === "inner" ? "IT TAKES A BELT ON ITS INNER COLUMN ONLY." : "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.",
       `IT HAS ${plural(gearSlotsOf(e.id, x.stars), "GEAR SLOT")} AND 1 CORE SOCKET.`,
     ];
@@ -1425,12 +1430,12 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.overclockCooldown) return `${name} DOUBLES THE NEXT RIG, THEN WAITS ${fmtSec(e.overclockCooldown)} SEC`;
   if (e.keg) return `${name} +${damage(e.keg.flat)} AND ${e.keg.burn} BURN AFTER ${fmtSec(e.keg.fuse)} SEC`;
   // 0.6.2rel3 (TUNE-M T2): LODESTONE's floor is the hit's flat (walkRoute); its stall bonus waits for the battle
-  if (e.perStalled) return `${name} ${h.flat ? `+${damage(h.flat)}, ` : ""}+${damage(e.perStalled.each)} FOR EACH STALLED MACHINE, UP TO ${damage(e.perStalled.max)}`;
+  if (e.perStalled) return `${name} ${h.flat ? `+${damage(h.flat)}, ` : ""}+${damage(e.perStalled.each)} FOR EACH STUNNED MACHINE, UP TO ${damage(e.perStalled.max)}`;
   if (e.toll) return `${name} BLOCKS ${e.toll} HARASSMENT HITS`;
   if (e.sift) return `${name} REMOVES ${e.sift === "all" ? "EVERY MARK" : "ONE MARK"}${h.flat ? `, +${damage(h.flat)} IF CLEAN` : ""}`;
   if (e.heal) return `${name} ${SW.heals} ${fmtDmg(e.heal)} HULL`; // SUS-A: the field is `heal`; SUS-B: HEAL's word (was REPAIRS)
   if (e.heat) return `${name} +${damage(e.heat)} FOR EACH SECOND AFTER`;
-  if (e.staticTime) return `${name} STALLS A TURRET ${fmtSec(e.staticTime)} SEC ON BARE HULL`;
+  if (e.staticTime) return `${name} STUNS A TURRET ${fmtSec(e.staticTime)} SEC ON BARE HULL`;
   if (e.poison) return `${name} +${e.poison} POISON`;
   if (e.fray) return `${name} +${e.fray} FRAY`;
   // 0.6.2 FB-B: its flat, plus perBurn for each Burn stack it spent (deck.ts walkRoute's quenched)
@@ -1440,7 +1445,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.pincer) return `${name} +${damage(h.flat ?? 0)}${h.others ? `, CROSSFIRE WITH ${plural(h.others, "RIG")}` : ""}`;
   if (e.latch) return `${name} +${damage(h.flat ?? 0)}, HOLDS UP TO ${fmtSec(e.latch.hold)} SEC`;
   if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING, ELSE +${damage(e.breaker.floor)}`; // NUM-1: 10 plating
-  if (e.brace) return `${name} ENEMY STALLS ${percent(1 - e.brace.mul)} SHORTER (${percent(1 - e.brace.plated)} SHORTER PLATED)`;
+  if (e.brace) return `${name} ENEMY STUNS ${percent(1 - e.brace.mul)} SHORTER (${percent(1 - e.brace.plated)} SHORTER PLATED)`;
   if (e.plate) return `${name} +${fmtDmg(e.plate)} PLATING${e.plated ? `, +${damage(e.plated.flat)} AT ${e.plated.min} PLATING` : ""}`;
   const parts = [
     ...(h.flat ? [`+${damage(h.flat)}`] : []),

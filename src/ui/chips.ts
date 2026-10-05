@@ -5,6 +5,7 @@
 //   1. the rule's keyword with its count, when the face has one: TESLA ARC {STUN}0.8 (at the hero's k); U2e: or the keyword
 //      its own payloads carry, a stat of its second row: HOT SWAP {BURN}2 (was {BURN}+2, its rule's number);
 //   2. else the face's first stat pair: DART GUN 0.55{SEC} (SEC is a unit after its number), SCATTER CHOKE {DMG}40%;
+//      NUM-4 (REQ-BFG-047): a gun's or a factory's cadence is its SPEED now, DART GUN {RATE}55 (unsigned: a stat);
 //   3. else the rule's first number with its icon: PRESSURE BREECH {DMG}+1.2, CHAMBER {SLUG}2; a gun's or a factory's
 //      FASTER is the {RATE} icon (C1: WORKS FASTER and FIRE RATE fold into RATE): CALIBRATION {RATE}+33% (U2d F2: the
 //      chip rule below; a belt's speed is not RATE).
@@ -49,7 +50,8 @@ function chipFrom(text: string, icon?: IconName, key?: string): string | null {
   const rate = /FASTER/.test(text) && key !== undefined && key in RATE_KEYS;
   const name = icon ?? (TOKEN.exec(text)?.[1] as IconName | undefined) ?? (rate ? "RATE" : undefined);
   if (!n || !name) return null;
-  const v = name === "RATE" && !n.startsWith("+") ? `+${n}` : n;
+  // a FASTER (a rule's rate bonus) is signed; NUM-4: a stat pair's {RATE}, a gun's or a factory's SPEED, is a stat: unsigned
+  const v = name === "RATE" && rate && !n.startsWith("+") ? `+${n}` : n;
   return name === "SEC" ? `${v}{SEC}` : `{${name}}${v}`;
 }
 

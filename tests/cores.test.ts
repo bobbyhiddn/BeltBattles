@@ -63,7 +63,7 @@ const half = (x: number) => Math.floor(x + 0.5 + 1e-9);
 const scaled = (v: number, k: number) => half((v * half(100 * k)) / 100);
 
 describe("the core resolver and the class factor", () => {
-  it("classFactor = clamp(fireInterval / 1 s, 0.4, 1.2): heavy 1, medium 0.75, light 0.55", () => {
+  it("classFactor = clamp(30 / speed, 0.4, 1.2): heavy 1, medium 0.75, light 30 / 55 (its whole class % 55)", () => {
     expect(classFactor(HEROES.furnace.turrets[0])).toBe(1);
     expect(classFactor(MEDIUM)).toBe(0.75);
     // NUM-2 (REQ-BFG-047; was 0.55): the interval is 30 / speed, 30 / 55 = 0.5454..; the class % it scales by stays 55
@@ -195,7 +195,7 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
       }
     });
 
-    it(`GATLING SPOOL, ${c.name}: x1.2 at first, each quick shot a step faster down to the floor, a long gap halves the spin`, () => {
+    it(`GATLING SPOOL, ${c.name}: -17% at first, each quick shot a step faster up to the top, a long gap halves the spin`, () => {
       for (const s of STARS) {
         const lv = effectAt("gatling", s).core!;
         const { tu } = bench(c, "gatling", s);

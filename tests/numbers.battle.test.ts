@@ -12,6 +12,8 @@ import { FRACTIONAL, captureFormats, fmtClock, fmtDmg } from "../src/ui/statForm
 import { resultRows } from "../src/screens/battleHud";
 import { factoryNext, turretSpeedRow } from "../src/ui/upgradeText";
 import { icons } from "../src/render/font";
+import { newRun } from "../src/game/run";
+import { beltPanel } from "../src/screens/build/inspector";
 
 const HERO_IDS: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
 
@@ -51,6 +53,26 @@ describe("numbers.battle (NUM-4): pops, hull, clocks, results, the estimate and 
     expect(FRACTIONAL).toEqual([]);
     expect(pops).toBeGreaterThan(1000);
     expect([...kinds].sort()).toEqual(expect.arrayContaining(["burn", "impact"]));
+  });
+
+  it("the estimate: every belt panel's DMG and TIME cells print the walk's whole numbers (every hero's ref deck, days 1-10)", () => {
+    FRACTIONAL.length = 0;
+    let cells = 0;
+    for (const hero of HERO_IDS) for (let day = 1; day <= 10; day++) {
+      const run = newRun(hero, 4242);
+      run.build = heroRefBuild(hero, day);
+      run.build.routes.forEach((_, i) => {
+        const bp = beltPanel(run, i);
+        if (!bp) return;
+        for (const row of bp.foot) for (const [label, v] of row.cells ?? []) {
+          if (label === "DMG") expect(v, `${hero} d${day} belt ${i}`).toMatch(/^\d+(-\d+)?$/);
+          if (label === "TIME") expect(v, `${hero} d${day} belt ${i}`).toMatch(/^\d+ SEC$/);
+          cells++;
+        }
+      });
+    }
+    expect(FRACTIONAL.map((r) => `${r.unit} ${r.value}`)).toEqual([]);
+    expect(cells).toBeGreaterThan(200);
   });
 
   it("the clocks: whole elapsed seconds, floored like any clock", () => {
