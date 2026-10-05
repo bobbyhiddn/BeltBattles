@@ -9,7 +9,10 @@ import { describe, expect, it } from "vitest";
 import { G, fresh, installRaster } from "./raster.helpers";
 import { Arena } from "../src/game/arena";
 import { HEAL_COLOUR, SHIELD_BREAK_TIME } from "../src/game/arenaReact";
-import { SHIELD_PIPS_W, drawShieldPips, regenMax, regenNow, showsShield } from "../src/screens/battleHud";
+import { SHIELD_PIPS_W, drawPlate, drawShieldPips, regenMax, regenNow, showsShield } from "../src/screens/battleHud";
+import type { Game } from "../src/game/game";
+import { RUNES } from "../src/sim/runes";
+import { drawText, textWidth } from "../src/render/font";
 import type { SimEvent } from "../src/sim/battle";
 import { simulate } from "../src/sim/battle";
 import { SHIELD_CAP, WIND_START, withSustain } from "../src/sim/content";
@@ -108,6 +111,36 @@ describe("SUS-B the HUD: SHIELD pips, the REGEN badge, HEAL floats", () => {
     const cv2 = fresh(16, 8);
     drawShieldPips(G(cv2), 0, 0, 3, -1, 0);
     expect([cv2.at(lx, ly), cv2.at(4 + lx, ly), cv2.at(8 + lx, ly)]).toEqual(Array(3).fill(ICON_COLOUR[ICON.SHIELD]));
+  });
+
+  // FLIP-X1 (F-b, REVIEW-SUSD F-b, SUS-D finding 6): the badge read only the MENDING LOOMs, so a GREEN THREAD side regenerated
+  // with no badge. It shows the side's whole REGEN now, looms plus rune, as Battle.sustainTick sums them.
+  it("FLIP-X1 F-b: a side with GREEN THREAD and no loom shows the REGEN badge with the rune's amount", () => {
+    withSustain(() => {
+      const own = { ...parField("weaver", DAY, 1)[0], runes: [{ id: "green_thread" }] };
+      const a = new Arena(own, parField("furnace", DAY, 1)[0], 11, null);
+      a.quiet = true;
+      const n = RUNES.green_thread.amount.n;
+      expect(a.b.sides[0].turrets.some((t) => t.regen)).toBe(false); // no MENDING LOOM
+      expect(a.b.sides[0].rune?.regen).toBe(n);
+      expect([regenMax(a, 0), regenNow(a, 0), regenMax(a, 1), regenNow(a, 1)]).toEqual([n, n, 0, 0]);
+      // the plate draws "+10" in REGEN's colour, right-aligned 3 px before the HP (drawPlate), and nothing else in it
+      const r = { x: 0, y: 0, w: 160, h: 11 }, hp = "1000", badge = `+${fmtDmg(n)}`, col = ICON_COLOUR[ICON.REGEN];
+      const cv = fresh(r.w, r.h), ref = fresh(r.w, r.h);
+      drawPlate(G(cv), { t: 0 } as unknown as Game, a, r, 0, "YOU", hp);
+      const ty = r.y + Math.floor((r.h - 5) / 2);
+      drawText(G(ref), badge, r.x + r.w - 3 - textWidth(hp, "3") - 3, ty, col, { font: "3", align: "right" });
+      const lit = (c: typeof cv) => c.px.flatMap((p, i) => (p === col ? [i] : []));
+      expect(lit(ref).length).toBeGreaterThan(0);
+      expect(lit(cv)).toEqual(lit(ref));
+      // a STUN pauses no rune (sustainTick skips only a stunned loom): with every turret stunned the badge still reads n;
+      // none in the dark wind
+      for (const tu of a.b.sides[0].turrets) tu.disrupted = 1;
+      expect(regenNow(a, 0)).toBe(n);
+      for (const tu of a.b.sides[0].turrets) tu.disrupted = 0;
+      while (a.b.t < WIND_START && !a.b.over) a.b.step();
+      if (!a.b.over) expect(regenNow(a, 0)).toBe(0);
+    });
   });
 
   it("the HUD is display only: the heavy deck's battle through the Arena ends exactly as simulate() does", () => {

@@ -81,7 +81,7 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
   drawText(g, hpText, r.x + r.w - 3, ty, C.bone, { font: "3", align: "right" });
   let bx = tx + nameW + 3, bw = r.x + r.w - 3 - hpW - 3 - bx;
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): a side that can hold SHIELD shows its pips before its bar (lit up to its count, the
-  // rest of SHIELD_CAP dim; a broken one flashes out), and a side with MENDING LOOMs its REGEN badge before its HP. Their
+  // rest of SHIELD_CAP dim; a broken one flashes out), and a side with REGEN (MENDING LOOMs, FLIP-X1: or GREEN THREAD) its REGEN badge before its HP. Their
   // room is kept from the start, so the bar never moves; a plate without either draws exactly as before
   if (bw > 8 + SHIELD_PIPS_W && showsShield(a, side)) {
     drawShieldPips(g, bx, ty, s.shield ?? 0, f.shieldBreak > 0 ? f.shieldAt : -1, game.t);
@@ -122,19 +122,21 @@ export function showsShield(a: Pick<Arena, "b">, side: Side): boolean {
 }
 
 /** SUS-B (REQ-BFG-069): the REGEN the side's working MENDING LOOMs (TurretState.regen; a STUN or freeze on the turret
- *  pauses one, Battle.sustainTick) give its living hull now; 0 in the dark wind, where nothing heals. */
+ *  pauses one, Battle.sustainTick) give its living hull now; 0 in the dark wind, where nothing heals. FLIP-X1 (F-b): plus
+ *  its rune's REGEN (GREEN THREAD, SideState.rune.regen, which nothing pauses), as Battle.sustainTick sums them. */
 export function regenNow(a: Pick<Arena, "b">, side: Side): number {
   const s = a.b.sides[side];
   if (a.b.t >= WIND_START || s.hull.hp <= 0) return 0;
-  let n = 0;
+  let n = s.rune?.regen ?? 0; // F-b: GREEN THREAD's REGEN starts the sum, as in Battle.sustainTick
   for (const tu of s.turrets) if (tu.regen && !(tu.disrupted > 0) && !(tu.frozen > 0)) n += tu.regen;
   return n;
 }
 
-/** SUS-B: the most REGEN the side's looms give (its badge's room, kept from the start). */
+/** SUS-B: the most REGEN the side's looms give (its badge's room, kept from the start). FLIP-X1 (F-b): its rune's too. */
 export function regenMax(a: Pick<Arena, "b">, side: Side): number {
-  let n = 0;
-  for (const tu of a.b.sides[side].turrets) if (tu.regen) n += tu.regen;
+  const s = a.b.sides[side];
+  let n = s.rune?.regen ?? 0; // F-b: GREEN THREAD's
+  for (const tu of s.turrets) if (tu.regen) n += tu.regen;
   return n;
 }
 
