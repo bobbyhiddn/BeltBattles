@@ -95,7 +95,7 @@ export interface RivalPlan {
   // never reads them: every captain deck, and every test that walks `upgrades`, is exactly as before
   sustain?: Upgrade[];
   // 0.8.9 (CATCHUP-089 fallback 2; cap's ruling Q1 e2ca295ce9dcd60a): PvE plates by day (day -> plates), armor the road
-  // warlord carries free on that day, like the hull ramp (+250 hull each on the N1 scale, the ARMOR PACK's), on the days a Hard captain
+  // warlord carries free on that day, like the hull ramp (+250 hull each, the ARMOR PACK's), on the days a Hard captain
   // was still under 0.55 against the par fields after its packs and its gold ran short of the par field's pack count:
   // the count less its paid plates. In the road deck's hull only (good luck and better), never in its value, and never
   // in the stand-in deck (rivals.ts standInBuild builds its hull from the paid plating alone).
@@ -136,7 +136,7 @@ void T2;
 // maxGoldByDay (R1) and under each tier's measured caps. A part's uid is its upgrade's index, so the order below is the
 // order the decks were measured in (tests/rivals.test.ts: in day order).
 // 0.8.9 (job CATCHUP-089, REQ-BFG-024, REQ-BFG-051; cap's ruling on PACKS Q10, oracle c6b7a0aae081a6a3, option 1): the
-// par field buys ARMOR PACKs (0.8.6), so the captains buy them too: P() is an ARMOR PACK (5 g, +25 hull), bought up to
+// par field buys ARMOR PACKs (0.8.6), so the captains buy them too: P() is an ARMOR PACK (5 g, +250 hull), bought up to
 // the par field's mean count for the captain's hero and day (par players 1-24, rounded), with only the gold the plan
 // leaves over: capsearch's packs mode added, day by day, the most packs that keep every deck within maxGoldByDay and its
 // luck caps, the roadCap guard, and the stand-in deck's gold upgrades (captainLevels). Each P() sits at the end of its
