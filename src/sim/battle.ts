@@ -338,6 +338,9 @@ export interface SideState {
   turrets: TurretState[];
   targets: Target[];
   flak: number;
+  /** Y2 (release Y, DESIGN-Y row 10): with the star switch on, each FLAK SCREEN's share, in turret order (each rolls on its
+   *  own, Battle.flight); absent off, and without a screen. */
+  flaks?: number[];
   harassAccepted: number; // future Scrapper consumes accepted enemy effects from this side
   wreckAccepted: number;
   limpets: { at: number; target: Target; from: Side; blast: number; stall: number }[];
@@ -842,6 +845,8 @@ export class Battle {
     return {
       side, build: b, hero: h, hull, factories, gates, routes, turrets, targets,
       flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, wreckAccepted: 0,
+      // Y2 (DESIGN-Y row 10): with the switch on, every FLAK SCREEN's own share (absent without a screen, and off)
+      ...(starRules() && turrets.some((tu) => tu.intercept > 0) ? { flaks: turrets.map((tu) => tu.intercept).filter((v) => v > 0) } : {}),
       limpets: [], stats: emptyStats(),
       race: makeRaceSide(b, plate), // races:
       ...(joiners.length ? { joiners } : {}), // 0.6.2j
@@ -999,8 +1004,11 @@ export class Battle {
     for (const f of s.factories) {
       const spec = f.def.factory!;
       if (spec.trigger === "harass") {
-        const gained = s.harassAccepted - f.seenHarass + (spec.bigHaul ? s.wreckAccepted - f.seenWreck : 0);
-        f.triggerQueue = Math.min(3, f.triggerQueue + gained);
+        // Y2 (DESIGN-Y row 9, SCRAPPER): with the switch on it counts only STUNs (harassAccepted: the shared rule), ★3 BIG
+        // HAUL's wreck stamp goes, and its queue has no cap (the belt's room still paces its stamps: Battle.stamp)
+        const star = starRules();
+        const gained = s.harassAccepted - f.seenHarass + (spec.bigHaul && !star ? s.wreckAccepted - f.seenWreck : 0);
+        f.triggerQueue = star ? f.triggerQueue + gained : Math.min(3, f.triggerQueue + gained);
         f.seenHarass = s.harassAccepted;
         f.seenWreck = s.wreckAccepted;
       }
@@ -1983,7 +1991,9 @@ export class Battle {
       if (!pr.flakChecked && this.isHarassingProjectile(pr) && pr.t >= pr.flight / 2) {
         pr.flakChecked = true;
         const defender = this.sides[pr.from === 0 ? 1 : 0];
-        if (defender.flak > 0 && this.rng.next() < defender.flak) {
+        // Y2 (DESIGN-Y row 10, FLAK SCREEN): with the switch on each screen rolls on its own (SideState.flaks, in turret
+        // order) until one downs the shot; off, one roll at the side's best screen, as before
+        if (defender.flaks ? defender.flaks.some((f) => this.rng.next() < f) : defender.flak > 0 && this.rng.next() < defender.flak) {
           this.events.push({ type: "flak", side: defender.side, proj: pr.id });
           continue;
         }
@@ -2055,7 +2065,8 @@ export class Battle {
       const ripped = this.rip(def, hit, pr.payload.rip.count, pr.payload.rip.reach);
       const gun = turretAt(atk, pr.turret); // 0.6.2s: by slot
       // NUM-1: 10 a ripped load (x10 of 1) x the class's whole %, rounded half up once
-      if (ripped && pr.core === "grapnel" && gun && gun.core.stars >= 3) gun.salvage += pct(10 * ripped, roundHalfUp(100 * gun.core.k));
+      // Y2 (DESIGN-Y row 19, GRAPNEL GUN ★3): with the switch on SALVAGE LINE's next-shot damage goes (its name stays, ⓘ only)
+      if (ripped && pr.core === "grapnel" && gun && gun.core.stars >= 3 && !starRules()) gun.salvage += pct(10 * ripped, roundHalfUp(100 * gun.core.k));
     }
     if (pr.payload.harass) this.roundImpact(def, hit, pr.payload.harass, pr.from, pr.payload.debuffs);
     if (atk.race || def.race) raceImpact(this, atk, def, pr); // races: SIPHON echo memory and Drag
@@ -2119,9 +2130,10 @@ export class Battle {
       : t.kind === "gate" ? [...new Set(g!.hits.map((h) => h.route))]
       : t.kind === "factory" ? f!.routes
       : t.kind === "turret" ? s.routes.filter((route) => route.connected && route.turret === t.ref).map((route) => route.index) : [];
+    // Y2 (DESIGN-Y row 8, TOLLBOOTH): with the switch on its belt's factory is covered from ★1 (off: ★3 FACTORY GUARD only)
     const toll = stun && s.gates.find((gate) => gate.online && !gate.wrecked && gate.disrupted <= 0 && gate.frozen <= 0 && gate.tolls > 0 &&
       gate.hits.some((h) => routeIds.includes(h.route)) &&
-      (t.kind !== "factory" || gate.def.gate?.tollFactory));
+      (t.kind !== "factory" || starRules() || gate.def.gate?.tollFactory));
     if (toll) {
       toll.tolls--;
       this.events.push({ type: "toll", side: s.side, gate: toll.uid, remaining: toll.tolls, cause });
@@ -2229,7 +2241,9 @@ export class Battle {
   /** Grapnel candidates use route distance, then route index and payload id for stable ties. */
   private rip(s: SideState, t: Target, count: number, reach: number): number {
     if (count <= 0 || reach < 0 || (t.kind !== "belt" && t.kind !== "gate")) return 0;
-    const keg = t.kind === "gate" ? s.gates.find((g) => g.uid === t.ref && !!g.def.gate?.keg) : undefined;
+    // Y2 (DESIGN-Y row 19): with the switch on a hit POWDER KEG is no longer disarmed (a rig like any other: the slugs by
+    // its arrows' tiles are ripped)
+    const keg = t.kind === "gate" && !starRules() ? s.gates.find((g) => g.uid === t.ref && !!g.def.gate?.keg) : undefined;
     const hits = t.kind === "belt" ? [{ route: t.ref, tile: t.cell }]
       : s.gates.find((g) => g.uid === t.ref)?.hits ?? [];
     const candidates = new Map<number, { route: number; ammo: BeltAmmo; distance: number }>();

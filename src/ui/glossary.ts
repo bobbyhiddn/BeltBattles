@@ -25,6 +25,7 @@
 import { COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, WINDOW_TIME, type ItemDef } from "../sim/content";
 import { WIND_START } from "../sim/content"; // SUS-B (REQ-BFG-069): the DARK WIND row
 import { SPEED_K } from "../sim/content"; // NUM-4 (REQ-BFG-047): the RATE row's 30 seconds
+import { starRules } from "../sim/content"; // Y2 (release Y): the star switch (HARASSMENT retires; GRAPNEL's tap)
 import { SYNC_WINDOW } from "../sim/races/foundry";
 import { scaleCore } from "../sim/cores";
 import { effectAt } from "../sim/stars";
@@ -254,6 +255,8 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
     word: "SHOT",
     text: (e, x) => {
       const n = core(e, x).reach!;
+      // Y2 (release Y; DESIGN-Y row 19): with the star switch on a hit POWDER KEG is no longer disarmed, so the tap drops it
+      if (starRules()) return `SHOT: IT RIPS THE NEAREST SLUGS WITHIN ${fmtCount(n)} TILE${n === 1 ? "" : "S"} OF A HIT.`;
       return `SHOT: IT RIPS THE NEAREST SLUGS WITHIN ${fmtCount(n)} TILE${n === 1 ? "" : "S"} OF A HIT; A HIT KEG IS DISARMED.`;
     },
   },

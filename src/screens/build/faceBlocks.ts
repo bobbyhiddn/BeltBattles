@@ -9,6 +9,8 @@ import type { Block } from "./inspector";
 import { faceLines, faceMerge, faceNext, hasFace } from "../../ui/faces";
 import type { TextOpts } from "../../ui/abilityText";
 import { livePerk } from "../../ui/abilityText";
+import { Y2_PIECES } from "../../ui/faces"; // Y2 (release Y): the STUN pieces whose perk names go to the ⓘ view
+import { starRules } from "../../sim/content"; // Y2: the star switch
 
 /** The reminder's rank among a panel's optional blocks: after an ability's later sentences (2) and a turret's notes'
  *  first rank (1), before the turret notes (4), the hint (6) and the flavour (7). */
@@ -23,6 +25,13 @@ export const REMINDER_STEP = 0.1;
  *  HOARFROST, MIMIC FORGE's TWIN SIGNET and TWIN MOULD's THIRD SPRUE. */
 export const PERK_INFO_ONLY: readonly string[] = ["coil", "frostbite", "mimic", "twinmould"];
 
+/** Y2 (release Y; ruling R-1, DESIGN-Y rows 8-19): PERK_INFO_ONLY, and with the star switch on (content.ts starRules) the
+ *  12 STUN pieces too (faces.ts Y2_PIECES): their star changes are ladder numbers, so a perk's name (BIG HAUL, FULL GUARD,
+ *  REDLINE, ...) shows in the ⓘ LEVELS view only, never after the face line. */
+export function perkInfoOnly(def: string): boolean {
+  return PERK_INFO_ONLY.includes(def) || (starRules() && Y2_PIECES.includes(def));
+}
+
 /** The face's blocks at `stars`, or null for a piece that keeps today's text. A star's perk name follows the last rule
  *  line (or the stat row, on a face without one), as today's perk follows the sentence it names (not for PERK_INFO_ONLY's
  *  pieces). U2b: then the star's interim perk clause (F6, kept; it names its perk itself) and the interim caveats (F5,
@@ -30,7 +39,7 @@ export const PERK_INFO_ONLY: readonly string[] = ["coil", "frostbite", "mimic", 
 export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | null {
   const fl = faceLines(def, stars, o);
   if (!fl) return null;
-  const perkName = stars > 1 && !PERK_INFO_ONLY.includes(def) ? livePerk(def, stars) : undefined;
+  const perkName = stars > 1 && !perkInfoOnly(def) ? livePerk(def, stars) : undefined;
   const perk = perkName && !fl.clause ? `★${stars} ${perkName}` : undefined;
   const out: Block[] = [];
   if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });

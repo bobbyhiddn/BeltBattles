@@ -48,6 +48,7 @@ import { effectAt, FUSE_MAX, fusible, outputsAt } from "../sim/stars";
 import { perkAt } from "../sim/stars"; // U2b F6: HOT SWAP's spark carries GALVANIC COIL's SPARK JUMP (content.ts hotswap)
 import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat (carryStats)
 import { gearSlotsOf } from "../sim/deck";
+import { starRules } from "../sim/content"; // Y2 (release Y): the star switch (STAR_FACES, the interim lines it retires)
 
 /**
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
@@ -743,31 +744,66 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
 /** The turrets: a stat row only (R1 C3: a turret carries no rules text). */
 const TURRET_FACE = (): Rules => rules([]);
 
+// ------------------------------------------------------------- Y2 (release Y): the STUN pieces with the switch on
+
+/**
+ * Y2 (release Y; REQ-BFG-070, REQ-BFG-046; DESIGN-Y section 3, rows 8-19; ruling R-2): with the star switch on
+ * (content.ts starRules) harassment is a STUN, and each of these 12 pieces shows one ability line with its star changes as
+ * ladder numbers: no caveat, no star clause (STAR_GONE_CLAUSES, STAR_GONE_CAVEATS), its perk's name in the ⓘ view only
+ * (ruling R-1: faceBlocks.ts perkInfoOnly). Off, every face is as before.
+ */
+export const Y2_PIECES: readonly string[] = [
+  "tollbooth", "scrapper", "flak", "sabot", "hotswap", "limpet", "mantlet", "lodestone", "braceframe", "spotter", "overdrive", "grapnel",
+];
+
+/** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
+ *  (LODESTONE, BRACE FRAME); the other seven keep today's line, every number from the switch's data. */
+const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  tollbooth: (e) => {
+    // DESIGN-Y row 8: Battle.acceptHarassment: while it works, its first `toll` enemy STUNs on its belt's parts (its belt's
+    // tiles, the rigs working them, the gun they feed and, from ★1, the belt's factory: PART, a glossary word) are
+    // blocked; a wreck or a rip is no STUN (the shared rule). Was "BLOCKS THE FIRST 2 {*STUN} HITS ON ITS BELT." with two
+    // caveats and ★3 FACTORY GUARD's clause
+    const n = fmtCount(gt(e).toll!);
+    return rules([{ text: `BLOCKS ${n} {*STUN} ON ${oneBelt(e) ? "ITS BELT'S" : "ITS BELTS'"} PARTS.` }], [["toll", `BLOCKS ${n}`]]);
+  },
+};
+
+/** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the
+ *  ladder now, or gone from the sim (DESIGN-Y rows 8-19). */
+const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "grapnel", "overdrive", "sabot", "scrapper", "tollbooth", "spotter", "mantlet"]);
+/** Y2: the interim caveats (INTERIM_CAVEATS ids) that leave with the switch on: each rule left the sim (the shared rule,
+ *  SCRAPPER's uncapped queue, FLAK SCREEN's screens rolling on their own) or is the face's own words now (TOLLBOOTH's
+ *  PARTS). */
+const STAR_GONE_CAVEATS: ReadonlySet<string> = new Set(["tollreach", "harass", "scrapqueue", "flakshots", "flakbest"]);
+
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [
   ...Object.keys(FACES),
   ...Object.values(ITEMS).filter((d) => d.kind === "turret").map((d) => d.id),
 ];
 
-/** True for a piece that draws its new face (every other piece keeps today's text). */
+/** True for a piece that draws its new face (every other piece keeps today's text). Y2: with the star switch on, also a
+ *  piece the switch gives a face (STAR_FACES: LODESTONE, BRACE FRAME). */
 export function hasFace(def: string): boolean {
-  return FACE_IDS.includes(def);
+  return FACE_IDS.includes(def) || (starRules() && Object.prototype.hasOwnProperty.call(STAR_FACES, def));
 }
 
 /** A piece's face at `stars` as data (o: the turret class factor k for a core, the run's hero for MIMIC FORGE). */
 export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
   if (!hasFace(def)) return null;
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero };
-  const body = e.kind === "turret" ? TURRET_FACE() : FACES[def](e, x);
+  const star = starRules(); // Y2: the switch's face, clauses and caveats
+  const body = e.kind === "turret" ? TURRET_FACE() : (star && STAR_FACES[def] ? STAR_FACES[def] : FACES[def])(e, x);
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
     : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions
   // U2b F6: the star's interim perk clause, after its perk name; its numbers join the face's (NEXT★ diffs them)
-  const cl = INTERIM_CLAUSES[def]?.(e, x) ?? null;
+  const cl = star && STAR_GONE_CLAUSES.has(def) ? null : INTERIM_CLAUSES[def]?.(e, x) ?? null;
   const perk = cl ? cl.perk ?? livePerk(def, stars) : undefined;
   const label = `★${stars}${perk ? ` ${perk}` : ""}:`;
   // U2b F5: the interim caveats (one table)
-  const caveats = INTERIM_CAVEATS.filter((cv) => cv.applies(e)).map((cv) => cv.text(e));
+  const caveats = INTERIM_CAVEATS.filter((cv) => !(star && STAR_GONE_CAVEATS.has(cv.id)) && cv.applies(e)).map((cv) => cv.text(e));
   // U2e step 2: a factory's own payloads' stats, its second stat row
   const stats2 = e.kind === "factory" ? carryStats(def, stars, o.hero) : null;
   return {
