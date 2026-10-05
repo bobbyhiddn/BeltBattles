@@ -11,6 +11,7 @@ import {
   type AmmoKind, type CoreRoutine, type FactorySpec, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
 import { drakeConvert, pressureBonus, resolveCore, ROUTINES, spinInterval, steamInterval, type TurretCore } from "./cores"; // 0.6.1b
+import { salvoReload } from "./cores"; // Y4 (release Y; BRIEF-Y4 S1): SALVO RACK's volley reload, one helper with the turret row
 import {
   cloneBuild, connectorClaims, defOf, installedTurrets, kx, ky, occupancy, payloadDamage, rigHits,
   routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier, type RigHit,
@@ -2655,8 +2656,8 @@ export const SHARED_HEADROOM = 0.1;
  * spin), over the loads a shot takes (EXT. CHAMBER; a COMPOUND packs 2; a SALVO fires its whole chamber, then reloads).
  */
 export function loadPace(tu: TurretState): number {
-  const c = tu.core.spec, routine = tu.core.routine;
-  if (routine === "salvo") return (tu.interval * (c.reloadMul ?? 1)) / Math.max(1, tu.window);
+  const routine = tu.core.routine;
+  if (routine === "salvo") return salvoReload(tu) / Math.max(1, tu.window); // Y4 (S1): cores.ts salvoReload (off: interval x reloadMul)
   let cd = tu.interval;
   if (routine === "steam") cd = steamInterval(tu); // NUM-2: 30 / its whole speed now (cores.ts)
   else if (routine === "gatling") cd = spinInterval(tu);

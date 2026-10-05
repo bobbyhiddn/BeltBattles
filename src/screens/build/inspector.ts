@@ -100,7 +100,7 @@ import { tapPx } from "../../ui/tap"; // shoptap (D5)
 import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
 import { faceGist, heroPlaystyle, ruleSpans } from "../../ui/faces"; // U2a
 import { speedPair } from "../../ui/faces"; // U2c step 4: the installed turret's stat row
-import { roundHalfUp } from "../../sim/pct"; // Y1: SALVO RACK's volley pace, in a SPEED's one rounding
+import { salvoSpeed } from "../../sim/cores"; // Y1: SALVO RACK's volley pace, in a SPEED's one rounding; Y4 (S1): the sim's helper
 import { statRow } from "../../ui/icons"; // U2c step 4
 import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
 import { icons } from "../../render/font"; // U2c step 4
@@ -838,9 +838,11 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   // Y1 (REQ-BFG-070; STAR-D rule 7's cue, ships with SALVO RACK's face 'SHOT: FIRES THE CHAMBER AT +20 {DMG} EACH.'): a
   // SALVO RACK fires its whole chamber, then reloads for its interval x reloadMul (cores.ts ROUTINES.salvo cadence; the
   // `every` above), so its turret's RATE is its volley pace: the SPEED over reloadMul, rounded half up once as makeTurret
-  // rounds a SPEED (30 / 1.6 = 18.75 is 19). Every other turret's RATE is its SPEED, as before
+  // rounds a SPEED (30 / 1.6 = 18.75 is 19). Every other turret's RATE is its SPEED, as before. Y4 (release Y; REQ-BFG-047;
+  // BRIEF-Y4 S1): through cores.ts salvoSpeed, the helper the sim's volley reload reads (salvoReload: with the star switch
+  // on, the interval of this RATE), so the row and the sim can't drift; the same number whatever the switch
   const salvo = tc.bought && tc.routine === "salvo" && !!tc.spec.reloadMul;
-  const rate = salvo ? Math.max(1, roundHalfUp(tu.speed / tc.spec.reloadMul!)) : tu.speed;
+  const rate = salvo ? salvoSpeed(tu.speed, tc.spec.reloadMul!) : tu.speed;
   const stats: Block[] = [
     // NUM-4 (REQ-BFG-047): the RATE pair is the SPEED the battle uses (TurretState.speed: every gear piece, the core, the
     // long belt and the TURRET SPEED level, rounded once); Y1: a SALVO RACK's, its volley pace (above)
