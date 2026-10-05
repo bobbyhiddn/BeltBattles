@@ -759,6 +759,17 @@ export const Y2_PIECES: readonly string[] = [
   "tollbooth", "scrapper", "flak", "sabot", "hotswap", "limpet", "mantlet", "lodestone", "braceframe", "spotter", "overdrive", "grapnel",
 ];
 
+/**
+ * Y3 (release Y; REQ-BFG-070, REQ-BFG-046; DESIGN-Y section 3, rows 20-32; ruling R-2): THE 13 RIGS, one number each. With
+ * the star switch on each shows one ability line, its floors, caps, caveats and star clauses gone (STAR_GONE_CLAUSES,
+ * STAR_GONE_CAVEATS), every ★2/★3 change a number on its ⓘ ladder, its perk's name in the ⓘ view only (ruling R-1:
+ * faceBlocks.ts perkInfoOnly). The six RULES pieces (PINCER, TWIN GAUGE, BELLOWS, QUENCH TANK, TWIN LATCH, ASSEMBLY LINE)
+ * get their first face here; off, each keeps today's text, and every face is as before.
+ */
+export const Y3_PIECES: readonly string[] = [
+  "pincer", "twingauge", "bellows", "quench", "longhaul", "barbed", "platebreaker", "brake", "surge", "overclocker", "twinlatch", "stoker", "assembly",
+];
+
 /** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
  *  (LODESTONE, BRACE FRAME); the other seven keep today's line, every number from the switch's data. */
 const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
@@ -797,6 +808,34 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // SHORTER." with "WHILE YOUR HULL HOLDS PLATING THEY LAST 75% SHORTER."
     const cut = fmtPct(1 - gt(e).brace!.mul);
     return rules([{ text: `ENEMY {*STUN} ON ITS TILES: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
+  },
+  // ---- Y3 (DESIGN-Y rows 20-32): the rigs whose line changes; LONG HAUL, BARBED SPOOL, BRAKE SHOE and STOKER keep today's
+  // line (FACES), every number from the switch's data, their clauses and caveats gone
+  pincer: (e) => {
+    // DESIGN-Y row 20: Battle.applyHit: + each for each other working rig on its tile (crossfire: a STUNned rig stops, so it
+    // doesn't count), no floor, no cap (content.ts STAR_DIFF). Was the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS,
+    // AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE." with "STUNNED AND WRECKED RIGS DON'T COUNT."
+    const d = fmtDmg(gt(e).pincer!.each);
+    return rules([hit(`+${d} {DMG} FOR EACH OTHER RIG ON ITS TILE.`)], [["each", `+${d} {DMG} EACH`]]);
+  },
+  twingauge: (e) => {
+    // DESIGN-Y row 21: Battle.applyHit: + matched on a matched belt (MATCHED: its glossary tap), nothing off one. Was the
+    // RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, OR 30 DAMAGE ON A MATCHED BELT." with MATCHED's definition
+    const d = fmtDmg(gt(e).gauge!.matched);
+    return rules([hit(`+${d} {DMG} ON A MATCHED BELT.`)], [["matched", `+${d} {DMG}`]]);
+  },
+  bellows: (e) => {
+    // DESIGN-Y row 22: Battle.applyHit: + burn BURN for each whole `per` s the slug has ridden, no cap. Was the RULES text
+    // "ADDS 4 BURN FOR EACH 10 SECONDS THE PAYLOAD HAS RIDDEN, UP TO 4 BURN." with BURN's definition
+    const br = gt(e).burnPerRide!, n = fmtCount(br.burn);
+    return rules([hit(`+${n} {*BURN} FOR EACH ${fmtSec(br.per)}{SEC} RIDDEN.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
+  },
+  quench: (e) => {
+    // DESIGN-Y row 23: Battle.applyHit: every BURN stack on the slug turns into perBurn damage (no floor, no stack cap). Was
+    // the RULES text "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH." with
+    // "ANY MORE BURN STAYS ON THE PAYLOAD." and BURN's definition
+    const d = fmtDmg(gt(e).quench!.perBurn);
+    return rules([hit(`TURNS EACH {*BURN} INTO +${d} {DMG}.`)], [["per", `+${d} {DMG}`]], [REMINDER.BURN()]);
   },
 };
 

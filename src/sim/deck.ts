@@ -692,12 +692,14 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       }
       if (e.poison) th.poison = e.poison;
       if (e.burnPerRide) {
-        const amount = Math.min(e.burnPerRide.max, Math.floor((ride * e.burnPerRide.burn) / e.burnPerRide.per)); // NUM-3: n per 10 s
+        // Y3 (release Y; DESIGN-Y row 22): as Battle.applyHit, with the star switch on + burn for each whole `per` s, no cap
+        const br = e.burnPerRide;
+        const amount = starRules() ? br.burn * Math.floor(ride / br.per) : Math.min(br.max ?? Infinity, Math.floor((ride * br.burn) / br.per)); // NUM-3: n per 10 s
         burn += amount;
         th.burn = (th.burn ?? 0) + amount;
       }
       if (e.quench) { // 0.6.2 FB-B: as Battle.applyHit (+ flat; up to `stacks` Burn at perBurn each; the rest stays Burn)
-        const spent = Math.min(burn, e.quench.stacks);
+        const spent = Math.min(burn, e.quench.stacks ?? Infinity); // Y3 (DESIGN-Y row 23): no `stacks` with the star switch on
         const amount = e.quench.flat + spent * e.quench.perBurn;
         flat += amount;
         th.flat = (th.flat ?? 0) + amount;
@@ -728,8 +730,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         th.flat = (th.flat ?? 0) + amount;
         th.matched = m;
       }
-      if (e.pincer) { // E5: every other rig's hit on this tile, up to its max
-        const others = Math.min(e.pincer.max, (hits[ri]?.[tile] ?? []).filter((o) => o.uid !== h.uid).length);
+      if (e.pincer) { // E5: every other rig's hit on this tile, up to its max (Y3, DESIGN-Y row 20: no max with the star switch on)
+        const others = Math.min(e.pincer.max ?? Infinity, (hits[ri]?.[tile] ?? []).filter((o) => o.uid !== h.uid).length);
         const amount = e.pincer.flat + e.pincer.each * others;
         flat += amount;
         th.flat = (th.flat ?? 0) + amount;

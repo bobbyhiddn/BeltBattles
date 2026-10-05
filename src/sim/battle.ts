@@ -1590,7 +1590,9 @@ export class Battle {
     if (s.race?.speedLock && e.lockedFlat) p.flat += e.lockedFlat;
     // 0.8.0 P1, wave 3 (R7 tier 1, additive; each field exists only on its wave-3 rig):
     if (e.gauge) p.flat += h.matched ? e.gauge.matched : e.gauge.flat; // E6 TWIN GAUGE: more on a matched belt
-    if (e.pincer) p.flat += e.pincer.flat + e.pincer.each * Math.min(e.pincer.max, this.crossfire(s, h)); // E5 PINCER
+    // E5 PINCER. Y3 (release Y; DESIGN-Y row 20): with the star switch on its def has no `max` (and flat 0: content.ts
+    // STAR_DIFF), so every other working rig counts; off, max 3, as before
+    if (e.pincer) p.flat += e.pincer.flat + e.pincer.each * Math.min(e.pincer.max ?? Infinity, this.crossfire(s, h));
     if (e.latch) p.flat += e.latch.flat; // TWIN LATCH: each payload it hits (its hold is E4, after the tile's hits)
     if (e.plate) this.addPlate(s, e.plate); // PLATE ROLLER, SHIELD WALL: plating for each payload it hits (E1)
     if (e.plated && s.plate.plate >= e.plated.min) p.flat += e.plated.flat; // SHIELD WALL: after its plating, at 12+
@@ -1606,10 +1608,14 @@ export class Battle {
     if (e.poison) p.poison = (p.poison ?? 0) + e.poison;
     if (e.burnPerRide) {
       const original = g.def.gate!.burnPerRide!;
-      p.burn += (doubled ? 2 : 1) * Math.min(original.max, Math.floor((p.ride * original.burn) / original.per)); // NUM-3: n per 10 s
+      // Y3 (release Y; DESIGN-Y row 22): with the star switch on, + burn for each whole `per` s ridden (1/2/3 for each 2 s),
+      // no cap; off, floor(ride x burn / per) up to max, as before (NUM-3: n per 10 s)
+      const n = starRules() ? original.burn * Math.floor(p.ride / original.per) : Math.min(original.max ?? Infinity, Math.floor((p.ride * original.burn) / original.per));
+      p.burn += (doubled ? 2 : 1) * n;
     }
     if (e.quench) { // 0.6.2 FB-B: + flat on every payload; up to `stacks` Burn stacks at perBurn each, the rest stays Burn
-      const spent = Math.min(p.burn, e.quench.stacks);
+      // Y3 (DESIGN-Y row 23): with the star switch on its def has no `stacks` (and flat 0), so every BURN stack turns
+      const spent = Math.min(p.burn, e.quench.stacks ?? Infinity);
       p.flat += e.quench.flat + spent * e.quench.perBurn;
       p.burn -= spent;
     }

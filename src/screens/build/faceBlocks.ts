@@ -10,6 +10,7 @@ import { faceLines, faceMerge, faceNext, hasFace } from "../../ui/faces";
 import type { TextOpts } from "../../ui/abilityText";
 import { livePerk } from "../../ui/abilityText";
 import { Y2_PIECES } from "../../ui/faces"; // Y2 (release Y): the STUN pieces whose perk names go to the ⓘ view
+import { Y3_PIECES } from "../../ui/faces"; // Y3 (release Y): the 13 rigs whose perk names go to the ⓘ view
 import { starRules } from "../../sim/content"; // Y2: the star switch
 
 /** The reminder's rank among a panel's optional blocks: after an ability's later sentences (2) and a turret's notes'
@@ -29,7 +30,9 @@ export const PERK_INFO_ONLY: readonly string[] = ["coil", "frostbite", "mimic", 
  *  12 STUN pieces too (faces.ts Y2_PIECES): their star changes are ladder numbers, so a perk's name (BIG HAUL, FULL GUARD,
  *  REDLINE, ...) shows in the ⓘ LEVELS view only, never after the face line. */
 export function perkInfoOnly(def: string): boolean {
-  return PERK_INFO_ONLY.includes(def) || (starRules() && Y2_PIECES.includes(def));
+  // Y3 (release Y; ruling R-1, DESIGN-Y rows 20-32): and the 13 rigs (faces.ts Y3_PIECES: HOT SHOE, RED-HOT SHOE, RAZOR
+  // WIRE, OVERPRESSURE, HAMMER VALVE, HOT START)
+  return PERK_INFO_ONLY.includes(def) || (starRules() && (Y2_PIECES.includes(def) || Y3_PIECES.includes(def)));
 }
 
 /** The face's blocks at `stars`, or null for a piece that keeps today's text. A star's perk name follows the last rule

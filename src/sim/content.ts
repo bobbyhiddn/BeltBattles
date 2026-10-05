@@ -136,10 +136,12 @@ export interface GateEffect {
   keg?: { fuse: number; flat: number; burn: number; wide?: boolean };
   // NUM-3 (REQ-BFG-047, N1 2.2): BELLOWS, + `burn` BURN for each `per` s the payload has ridden, at most `max` (was 1 BURN
   // every `seconds`: 2.5 / 1.15 / 0.7 s; now 4 / 9 / 14 BURN for each 10 s, exact at ★1, +3.5% at ★2, -2% at ★3)
-  burnPerRide?: { burn: number; per: number; max: number };
+  // Y3 (release Y; DESIGN-Y row 22): with the star switch on, + `burn` for each whole `per` s ridden and no `max` (STAR_DIFF)
+  burnPerRide?: { burn: number; per: number; max?: number };
   // QUENCH TANK (0.6.2 FB-B): `flat` on every payload it hits, then up to `stacks` Burn stacks become `perBurn` each;
   // Burn past `stacks` stays Burn (Battle.applyHit, deck.ts walkRoute)
-  quench?: { flat: number; perBurn: number; stacks: number };
+  // Y3 (DESIGN-Y row 23): with the star switch on no `stacks` (every BURN turns) and `flat` 0 (STAR_DIFF)
+  quench?: { flat: number; perBurn: number; stacks?: number };
   staticTime?: number;
   perStalled?: { each: number; max: number };
   fray?: number;
@@ -149,7 +151,8 @@ export interface GateEffect {
   plate?: number; // PLATE ROLLER, SHIELD WALL: plating onto your hull for each payload it hits (E1, Battle.addPlate)
   plated?: { min: number; flat: number }; // SHIELD WALL: + flat on those payloads while your hull holds `min` plating or more
   gauge?: { flat: number; matched: number }; // TWIN GAUGE: + flat, or + matched on a matched belt (E6)
-  pincer?: { flat: number; each: number; max: number }; // PINCER: + flat, + each for every other active rig on its tile (E5)
+  // Y3 (DESIGN-Y row 20; REVIEW-STARD: "PINCER's dead `max: 3`: Y3 deletes it"): the switch-on def has no max and flat 0
+  pincer?: { flat: number; each: number; max?: number }; // PINCER: + flat, + each for every other active rig on its tile (E5)
   brace?: { mul: number; plated: number }; // BRACE FRAME: enemy STUNs on its tiles and itself x mul (x plated while plated; NUM-3: every STUN)
   latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
   stoke?: number; // STOKER: each factory its arrows point at works this share faster (E3); its arrows do nothing to belts
@@ -1234,6 +1237,21 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
     gate: { speed: 3, lockedFlat: 30 },
     levels: { 2: { gate: { speed: 4, lockedFlat: 50 }, perk: "REDLINE" }, 3: { gate: { speed: 5, lockedFlat: 110 }, perk: "AFTERBURNER" } },
   },
+  // ---- Y3 (DESIGN-Y section 3, rows 20-32: the rigs, one number each; REVIEW-STARD answer 4: the floors and caps go)
+  // row 20, PINCER: the floor goes (flat 0) and so does the dead `max: 3` (a tile has at most 2 other rigs); +20/+44/+70
+  // for each other working rig on its tile (battle.ts applyHit, deck.ts walkRoute: no max, no cap)
+  pincer: { gate: { pincer: { flat: 0, each: 20 } }, levels: { 2: { gate: { pincer: { flat: 0, each: 44 } } }, 3: { gate: { pincer: { flat: 0, each: 70 } } } } },
+  // row 21, TWIN GAUGE: the unmatched floor goes (flat 0); +30/+66/+105 on a matched belt
+  twingauge: { gate: { gauge: { flat: 0, matched: 30 } }, levels: { 2: { gate: { gauge: { flat: 0, matched: 66 } } }, 3: { gate: { gauge: { flat: 0, matched: 105 } } } } },
+  // row 22, BELLOWS: +1/+2/+3 BURN for each whole 2 s ridden, no cap (no `max`; battle.ts applyHit reads burn x floor(ride /
+  // per) with the switch on). Was 4/9/14 for each 10 s, up to 4/9/14
+  bellows: {
+    gate: { burnPerRide: { burn: 1, per: 2 } },
+    levels: { 2: { gate: { burnPerRide: { burn: 2, per: 2 } } }, 3: { gate: { burnPerRide: { burn: 3, per: 2 } } } },
+  },
+  // row 23, QUENCH TANK: the floor goes (flat 0) and so does the 4/5/6-stack cap (no `stacks`): each BURN on the slug turns
+  // into +30/+50/+70
+  quench: { gate: { quench: { flat: 0, perBurn: 30 } }, levels: { 2: { gate: { quench: { flat: 0, perBurn: 50 } } }, 3: { gate: { quench: { flat: 0, perBurn: 70 } } } } },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */
