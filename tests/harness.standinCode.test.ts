@@ -15,7 +15,8 @@ import { STAND_IN_DATA as V11 } from "./fixtures/standInPoolData.v1.1";
 import { randomBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { decodeStarred, encodeStarred } from "../src/sim/harness/standinCode";
-import { STANDIN_DEFAULTS, dataModuleText, genStandIns, writtenPicks, writtenProblems } from "../src/sim/harness/standins";
+import { STANDIN_DEFAULTS, boughtCost, dataModuleText, genStandIns, writtenPicks, writtenProblems } from "../src/sim/harness/standins";
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: a stored deck's runes' dawn gold
 import { localRunner } from "../src/sim/harness/tournament";
 import { starsOf, valueOf } from "../src/sim/stars";
 
@@ -92,9 +93,9 @@ describe("star-aware stand-in code (F2)", () => {
       for (let day = 1; day <= 10; day++) {
         const codes = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);
         standInPool(hero, day).forEach((e) => {
-          // NUM-1 (cap's oracle bcc36c430b4f3a01): standInPool reads the bundled pool x10 (hullBonus); the stored codes are
-          // pre-NUM-1, so this test converts its own decode inline before it matches them
-          const x10 = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus * 10 });
+          // NUM-1 (cap's oracle bcc36c430b4f3a01) converted the pre-NUM-1 stored codes x10 before matching them. FLIP-X2 step
+          // 4.5: the pool is native N1 (BUNDLED_POOL_HULL_SCALE deleted), so the identity (kept by name for the lines below)
+          const x10 = (b: Build): Build => b;
           const code = codes.find((c) => JSON.stringify(x10(loadStarred(hero, c))) === JSON.stringify(e.build));
           expect(code, `${hero} d${day}: the loader's deck is one of the stored codes (after D3)`).toBeDefined();
           const raw = decodeStarred(hero, code!); // the harness codec: the deck as written
@@ -105,9 +106,11 @@ describe("star-aware stand-in code (F2)", () => {
           expect(maxStars(e.build)).toBeLessThanOrEqual(2);
           // the stored cost is the deck as generated; the loaded deck is that minus the rigs D3 dropped (no free cell)
           const dropped = migrateInlineGates(JSON.parse(JSON.stringify(raw)) as Build).stranded;
-          expect(buildCost(x10(raw)).total).toBe(e.cost); // NUM-1: priced in this build's units (the stored deck x10)
-          expect(buildCost(e.build).total + dropped.reduce((g, p) => g + valueOf(p.def, starsOf(p)), 0)).toBe(e.cost);
-          expect(e.cost).toBeLessThanOrEqual(maxGoldByDay(day));
+          // FLIP-X2 (BOTSX-REPORT section 9): a stored deck may hold HULL or BELT runes now, so its cost is the deck as bought
+          // (boughtCost: the runes' grants out; was buildCost(...) === e.cost), against the day's gold plus its runes' dawn gold
+          expect(boughtCost(x10(raw))).toBe(e.cost);
+          expect(boughtCost(e.build) + dropped.reduce((g, p) => g + valueOf(p.def, starsOf(p)), 0)).toBe(e.cost);
+          expect(e.cost).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
           if (maxStars(e.build) > 1) starred++;
           n++;
         });

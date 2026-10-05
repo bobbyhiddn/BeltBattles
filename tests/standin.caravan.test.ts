@@ -26,6 +26,8 @@ import {
 } from "../src/sim/harness/standins";
 import type { Runner } from "../src/sim/harness/tournament";
 import { FUSE_MAX } from "../src/sim/stars";
+import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: the bought deck's value (the runes' HULL and BELT out)
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
 
 const HEROES = ["furnace", "weaver"] as const;
 
@@ -81,12 +83,18 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
           const at = `${hero} #${idx} (${d.meta.policy} ${d.meta.seed}) d${day}`;
           expect(validateBuild(d.build, day).errors, at).toEqual([]);
           expect(unfusedPairs(d.build), at).toEqual([]);
-          expect(d.value, at).toBe(buildCost(d.build).total);
-          expect(d.value, at).toBeLessThanOrEqual(maxGoldByDay(day));
+          // FLIP-X2 (REQ-BFG-058, BOT_RUNES on): the caravan run takes a rune each dawn, so its value is the deck as bought
+          // (boughtCost: the runes' HULL and BELT out of hullBonus / beltCap, as caravanDeck and validate.ts value it) and its
+          // gold is the day's maxGoldByDay plus its runes' dawn gold (runeGrants); rune-less, both are as before
+          // (was d.value === buildCost(d.build).total: furnace #0 (typical 1000) d10 118 vs 128; and the bounds below
+          // were maxGoldByDay(day))
+          const grant = runeGrants(d.build.runes, day);
+          expect(d.value, at).toBe(boughtCost(d.build));
+          expect(d.value, at).toBeLessThanOrEqual(maxGoldByDay(day) + grant.gold);
           expect(maxStarsOf(d.build), at).toBeLessThanOrEqual(STANDIN_MAX_STARS);
-          expect(d.meta.cargoGold, at).toBe(0); // deck + rerolls + sale losses + unspent = maxGoldByDay
+          expect(d.meta.cargoGold, at).toBe(0); // deck + rerolls + sale losses + unspent = maxGoldByDay (+ the runes' gold)
           expect(d.meta.spent, at).toBe(d.value + d.meta.rerollGold + d.meta.soldLoss);
-          expect(d.meta.spent + d.meta.unspent, at).toBe(maxGoldByDay(day));
+          expect(d.meta.spent + d.meta.unspent, at).toBe(maxGoldByDay(day) + grant.gold);
           expect(d.floorMet, at).toBe(d.meta.spent >= spendFloor(day));
           // the candidate as scored: normalised through the stored code, its value as the cost
           const c = caravanCand(idx, d);
@@ -257,7 +265,9 @@ describe("M2: genStandIns --source caravan", () => {
       for (const p of h.picks) {
         expect(validateBuild(p.build, h.day).errors).toEqual([]);
         expect(unfusedPairs(p.build)).toEqual([]);
-        expect(p.cost).toBeLessThanOrEqual(maxGoldByDay(h.day));
+        // FLIP-X2: the pick's bought value against the day's gold plus its runes' dawn gold, the generator's own budget
+        // (tools/genStandInPool.ts; was maxGoldByDay(h.day): 53 <= 50)
+        expect(p.cost, `${h.hero} d${h.day} #${p.idx}`).toBeLessThanOrEqual(maxGoldByDay(h.day) + runeGrants(p.build.runes, h.day).gold);
         expect(maxStarsOf(p.build)).toBeLessThanOrEqual(2);
       }
       // F8: the 2-star cap report compares with the same player uncapped
@@ -445,7 +455,9 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
           expect(tuples[i], `${hero} d${day} #${i}`).toHaveLength(legacy ? 5 : 6);
           expect(e.spent, `${hero} d${day} #${i}`).toBe(legacy ? e.cost : tuples[i][5]);
           expect(e.spent).toBeGreaterThanOrEqual(e.cost);
-          expect(e.spent).toBeLessThanOrEqual(maxGoldByDay(day));
+          // FLIP-X2: a pick's gold spent includes the gold its runes paid, so the bound is the day's gold plus its runes'
+          // dawn gold (was maxGoldByDay(day): 54 <= 50)
+          expect(e.spent, `${hero} d${day} #${i}`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
           n++;
         });
       }

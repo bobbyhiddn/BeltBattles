@@ -29,7 +29,7 @@ import { hullSlots, key as K, setTurretList, startingTurrets, type Build, type B
 import { simulate, type SideStats } from "../src/sim/battle";
 import { heroRefBuild, heroStartBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { gradeOf, outputsAt, upgradeGold } from "../src/sim/stars";
-import { HEROES_RULES, heroesFor, parseRules, rulesAtLeast } from "../src/net/rulesGate";
+import { HEROES_RULES, heroesFor, parseRules, rulesAtLeast, rulesGateProblem } from "../src/net/rulesGate";
 import { isReachable } from "../src/net/records";
 import { encodeSnapshot, ghostId, SnapshotError, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { buildCost, maxGoldByDay, maxHonestSpend, validateBuild, validateUpload } from "../src/net/validate";
@@ -47,6 +47,7 @@ import { floorGhosts, sampleGhosts } from "../tools/samplePool";
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
+import { runeGrants } from "../src/sim/runes";
 
 const OLD_RULES = "bb-0.8.0"; // 0.8.0 to 0.8.4's rules (HEROES_RULES): the live pool's
 const NOSTATS = {} as SideStats;
@@ -399,7 +400,15 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
   });
 
   it("where the store still holds a bb-0.8.0 pool, a 0.8.4 page is served one of those (never a bb-0.8.7 ghost), and its upload is still refused", async () => {
-    const pool080 = [...sampleGhosts(), ...floorGhosts()].map((s) => ({ ...s, rules: OLD_RULES }));
+    // FLIP-X2: each one the rune-less v2 deck a bb-0.8.0 pool held (was the v3 seed deck holding its day's runes, which the
+    // rules gate refuses under bb-0.8.0): no runes (their hull and belt back out of hullBonus / beltCap) and no seed; and
+    // only the decks bb-0.8.0's gate takes (was all 60: a deck with a bb-0.9.0 sustain piece was never in a bb-0.8.0 pool)
+    const pool080: GhostSnapshot[] = [...sampleGhosts(), ...floorGhosts()].map((s): GhostSnapshot => {
+      const { seed: _seed, ...rest } = s;
+      const { runes, ...build } = s.build;
+      const g = runeGrants(runes, s.day);
+      return { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
+    }).filter((s) => rulesGateProblem(OLD_RULES, s.build) === null);
     await app.store.replacePool(OLD_RULES, pool080.map((s) => ({ id: ghostId(s), snapshot: s })));
     try {
       const ids = new Set(pool080.map(ghostId));

@@ -10,7 +10,7 @@ import * as net from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import { offlineGhost, STAND_IN_HEROES } from "../src/net/fallback";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
-import { RUNE_LIST, RUNES, runeOffer } from "../src/sim/runes";
+import { RUNE_LIST, RUNES, runeGrants, runeOffer } from "../src/sim/runes";
 import type { Build } from "../src/sim/deck";
 import { generateSamplePool } from "../tools/samplePool";
 import { ghostOf } from "../src/game/day";
@@ -49,6 +49,15 @@ function legalRunes(seed: number, hero: HeroId, days: number): { id: string }[] 
   return held.map((id) => ({ id }));
 }
 
+/** FLIP-X2: `s` as a rune-less v2 snapshot (no build.runes, no seed: both are v3 only), the runes' HULL and BELT taken
+ *  back out of the build (the deck as an older client held it). */
+function bareV2(s: Snap): Snap {
+  const { runes, ...build } = s.build;
+  const g = runeGrants(runes, s.day as number);
+  const { seed: _seed, ...rest } = s;
+  return { ...rest, v: 2, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } as Snap["build"] };
+}
+
 /** `s` as a v3 snapshot carrying `seed` and `runes`, with the runes' HULL and BELT on the build (run.ts takeRune). */
 function withRunes(s: Snap, runes: { id: string }[], seed: number | null = SEED): Snap {
   const b = { ...s.build, runes } as Snap["build"];
@@ -71,7 +80,10 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
   const swap = (i: number, id: string) => runes.map((q, j) => (j === i ? { id } : q));
   const rows: [string, unknown, boolean][] = [
     ["a legal day-6 build: 6 runes, each from its dawn's offer, with its seed", legal, true],
-    ["the same with 5 runes (fewer than the day is allowed until RUNES-2)", withRunes(base, runes.slice(0, 5)), true],
+    // FLIP-X2: cap's ruling 5d6d83ef57d1494c (item 5): validateUpload's player mode now wants exactly `day` runes, so
+    // both sides refuse 5 on day 6 ("rune: runes: 5 held on day 6, one a dawn (6)"; not DORMANT_RUNES, not an offer):
+    // true -> false
+    ["the same with 5 runes (fewer than the day: refused since the exact count, cap's ruling 5d6d83ef57d1494c)", withRunes(base, runes.slice(0, 5)), false],
     ["the same without its seed (a served ghost, FIX-6): the offer rule is skipped", withRunes(base, runes, null), true],
     ["one rune too many (7 on day 6)", withRunes(base, [...runes, { id: notHeld("common", runes.map((q) => q.id)).id }]), false],
     ["a rune its dawn didn't offer (day 3)", withRunes(base, swap(2, wrong3.id)), false],
@@ -93,8 +105,10 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
     ["seed as a string", { ...legal, seed: "4242" }, false],
     ["its v2 copy (runes and the seed need v3)", { ...legal, v: 2 }, false],
     ["its v2 copy with the seed only", { ...withRunes(base, [], SEED), build: base.build, v: 2 }, false],
-    ["a v3 snapshot with the seed and no runes", { ...base, v: 3, seed: SEED }, true],
-    ["a v3 snapshot with no v3 field at all", { ...base, v: 3 }, true],
+    // FLIP-X2: `base` (the regenerated pool's day-6 deck) now holds 6 runes, so "no runes" is its rune-less copy
+    // (bareV2); the exact count (cap's ruling 5d6d83ef57d1494c: 0 held on day 6) refuses it on both sides: true -> false
+    ["a v3 snapshot with the seed and no runes", { ...bareV2(base), v: 3, seed: SEED }, false],
+    ["a v3 snapshot with no v3 field at all", { ...bareV2(base), v: 3 }, false],
     ["v4", { ...legal, v: 4 }, false],
   ];
 
@@ -111,7 +125,15 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
     for (const s of [...POOL, ...standIns]) {
       const tag = `${s.hero} d${s.day} ${s.runId}`;
       expect(both(s), tag).toEqual([true, true]);
-      expect(both({ ...s, v: 3, seed: 1 + (s.day * 7919) }), `${tag} v3`).toEqual([true, true]);
+      // FLIP-X2: the seed pool (94e0cbf) and the stand-ins (eb22262) are v3 now, each deck holding its day's runes. v3
+      // with a seed: a race ghost's own par-run seed passes (the offer rule holds); a sample, floor or stand-in deck
+      // stores no run seed (its runes follow none), so a made-up seed (1 + day * 7919) is refused by the offer rule on
+      // both sides (was [true, true] for every ghost: the decks held no runes)
+      const seeded = typeof s.seed === "number";
+      expect(both({ ...s, v: 3, seed: seeded ? s.seed : 1 + (s.day * 7919) }), `${tag} v3`).toEqual(seeded ? [true, true] : [false, false]);
+      // FLIP-X2: as v2 the deck can't hold its runes (build.runes is v3 only): its rune-less v2 copy is refused on both
+      // sides by the exact count (cap's ruling 5d6d83ef57d1494c: 0 held on day N) (was: the stored v2 ghost, [true, true])
+      expect(both(bareV2(s as unknown as Snap)), `${tag} v2`).toEqual([false, false]);
     }
   });
 
@@ -123,7 +145,13 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
     expect(keys[keys.length - 1]).toBe("runes");
     // a snapshot without any v3 field encodes byte for byte as before
     expect(net.encodeSnapshot(base as never)).toBe(JSON.stringify(net.checkSnapshot(base)));
-    expect(net.encodeSnapshot(base as never).includes("runes")).toBe(false);
+    // FLIP-X2: the seed pool regenerated (94e0cbf): `base`, its day-6 deck, now holds its 6 runes and travels as v3, so
+    // it is no longer a snapshot without a v3 field (its text includes "runes": false -> true). The no-v3-field check
+    // moves to its rune-less v2 copy (no runes, no seed), the snapshot the line is about
+    expect(net.encodeSnapshot(base as never).includes("runes")).toBe(true);
+    const bare = bareV2(base);
+    expect(net.encodeSnapshot(bare as never)).toBe(JSON.stringify(net.checkSnapshot(bare)));
+    expect(net.encodeSnapshot(bare as never).includes("runes")).toBe(false);
   });
 
   it("the game's own snapshot (day.ts ghostOf) is v3 with the run seed and the held runes, and both checks take it", () => {
@@ -147,13 +175,18 @@ describe("RUNES-1 M3: runeOffer pinned (a catalogue edit can't move offers silen
     // tar_barrel, oiled_cogs, ash_cloak), 123456789 d10 (was warlords_due, scrap_saint) and 12 d4 (was warlords_due first)
     const pins: [number, number, HeroId, string[], string][] = [
       [1, 1, "furnace", ["tar_barrel", "sharp_scrap", "coin_purse"], "common"],
-      [4242, 3, "weaver", ["iron_skin", "oiled_cogs", "scrap_biter"], "common"],
-      [77, 5, "foundry", ["ash_cloak", "coin_purse"], "common"],
+      // FLIP-X2: DORMANT_RUNES (searing, shatter_shot, coal_chute, heat_sink) left the offer pool (step 3b), moving
+      // the common day-3+ dawns: was iron_skin, oiled_cogs, scrap_biter
+      [4242, 3, "weaver", ["tar_barrel", "oiled_cogs", "scrap_halo"], "common"],
+      // FLIP-X2: the same (DORMANT_RUNES left the offer pool): was ash_cloak, coin_purse
+      [77, 5, "foundry", ["scrap_halo", "tar_barrel"], "common"],
       [123456789, 10, "bastion", ["ember_shot", "scrap_saint"], "epic"],
       [4294967295, 7, "furnace", ["pyre_heart", "last_stand"], "epic"],
-      [2026, 2, "bastion", ["ash_kindle", "ash_cloak", "gun_oil"], "common"],
       [12, 4, "foundry", ["ember_shot", "twin_suns", "scrap_saint"], "epic"],
       [23, 6, "foundry", ["bulwark_oath", "molten_vows"], "legendary"],
+      // FLIP-X2: the same cause on days 1-2: their list is RUNE_LIST minus DORMANT_RUNES (COAL CHUTE and HEAT SINK are in
+      // RUNE_LIST), so a day-2 draw moves too (seed 1 day 1 happens not to): was ash_kindle, ash_cloak, gun_oil
+      [2026, 2, "bastion", ["many_hands", "bulkheads", "oiled_cogs"], "common"],
     ];
     for (const [seed, day, hero, ids, tier] of pins) {
       const o = runeOffer(seed, day, hero, []);

@@ -26,6 +26,7 @@ import { floorGhosts, generateSamplePool, sampleGhosts } from "../tools/samplePo
 import { storeBackends } from "./netStores";
 import { signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
+import { runeGrants } from "../src/sim/runes";
 
 const T0 = 1_790_000_000_000;
 const rot13 = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 65 + 13) % 26) + 65));
@@ -229,7 +230,12 @@ describe("ghosts:admin revalidate: an upload under this build's rules needs its 
     expect(uploadProblems(rec(s), RULES_VERSION)).toEqual(["name: missing"]);
     expect(uploadProblems(rec({ ...s, name: "ANNA" }), RULES_VERSION)).toEqual([]);
     expect(uploadProblems(rec({ ...s, name: "anna" }), RULES_VERSION)).toEqual(["strict decode: name: bad characters"]);
-    const old = { ...s, rules: "bb-0.6.1" };
+    // FLIP-X2: the older-rules upload is the rune-less v2 deck an older client sent (was the v3 seed deck holding its day's
+    // runes under bb-0.6.1, which the rules gate refuses: runes need bb-0.8.7); no runes, so no rune hull/belt and no seed
+    const { seed: _seed, ...rest } = s;
+    const { runes, ...build } = s.build;
+    const g = runeGrants(runes, s.day);
+    const old: GhostSnapshot = { ...rest, v: SNAPSHOT_VERSION, rules: "bb-0.6.1", build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
     expect(uploadProblems(rec(old), "bb-0.6.1").some((p) => p.startsWith("name:"))).toBe(false);
   });
 });

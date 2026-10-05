@@ -250,7 +250,12 @@ describe("M1: absent fields encode exactly as before, and older codes decode exa
           const fifth = code.split("/").length === 5, join = raw.routes.some((r) => r.join !== undefined);
           expect(code.split("/").length === 4 || fifth, code).toBe(true);
           expect(raw.turrets !== undefined, code).toBe(fifth);
-          if (!fifth && !join) expect(legacyEncode(raw)).toBe(raw.upgrades ? code.replace(/^(\S+ \S+) u[1-4][1-4]\//, "$1/") : code);
+          // FLIP-X2 (BOTS-X runes' head word; the pool regenerated at step 4.1, every deck holding its day runes): the head's
+          // last word " r:<ids>" is newer than the frozen encoder too, so such a code is the frozen encoder's but that word, as
+          // with the levels' (was the code as stored: '18 0/kiln64/...' vs '18 0 r:sharp_scrap/kiln64/...')
+          const runeless = raw.runes?.length ? code.replace(/^(\S+ \S+(?: u[1-4][1-4])?) r:[^ /]+\//, "$1/") : code;
+          if (raw.runes?.length) expect(runeless, `${code}: one runes word`).not.toBe(code);
+          if (!fifth && !join) expect(legacyEncode(raw)).toBe(raw.upgrades ? runeless.replace(/^(\S+ \S+) u[1-4][1-4]\//, "$1/") : runeless);
           if (fifth) turreted++;
           if (join) joined++;
           n++;
@@ -264,8 +269,18 @@ describe("M1: absent fields encode exactly as before, and older codes decode exa
   it("decks without turrets or joins encode as the frozen pre-step-5 encoder does: v1.1 decks, random builds of every hero, par-player decks", () => {
     let n = 0;
     const check = (b: Build) => {
-      expect(loader.encodeStarred(b)).toBe(legacyEncode(b));
-      expect(harness.encodeStarred(b)).toBe(legacyEncode(b));
+      // FLIP-X2 (BOT_RUNES on): random builds and par-player decks now hold runes (the bots take one each dawn), whose head
+      // word " r:<ids>" the frozen encoder predates; so the frozen encoder is compared with the deck's rune-less copy, and
+      // the deck's own code must be exactly that plus the runes' word (was the deck itself: '22 0 r:ash_kindle/...' vs '22 0/...')
+      const bare = cloneBuild(b);
+      delete bare.runes;
+      expect(loader.encodeStarred(bare)).toBe(legacyEncode(bare));
+      expect(harness.encodeStarred(bare)).toBe(legacyEncode(bare));
+      if (b.runes?.length) {
+        const withWord = legacyEncode(bare).replace(/^([^ /]+ [^ /]+)\//, `$1 r:${b.runes.map((r) => r.id).join(",")}/`);
+        expect(loader.encodeStarred(b)).toBe(withWord);
+        expect(harness.encodeStarred(b)).toBe(withWord);
+      }
       n++;
     };
     for (const [hero, days] of Object.entries(V11.pools)) for (const d of days!) for (const t of d[1]) check(loader.decodeStandInRaw(hero as HeroId, t[3]));

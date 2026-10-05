@@ -85,9 +85,9 @@ describe("star-aware stand-in code in the loader (0.6.1g M2)", () => {
     for (const hero of STAND_IN_POOL_HEROES) for (let day = 1; day <= STAND_IN_POOL_DAYS; day++) {
       const stored = STAND_IN_DATA.pools[hero]![day - 1][1].map((t) => t[3]);
       for (const c of stored) expect(encodeStarred(decodeStarredRaw(hero, c)), `${hero} d${day}`).toBe(c);
-      // NUM-1 (cap's oracle bcc36c430b4f3a01): standInPool reads the bundled pool in this build's units (hullBonus x10,
-      // BUNDLED_POOL_HULL_SCALE); the stored codes are pre-NUM-1, so this test converts them with its own inline x10
-      const loaded = stored.map((c) => { const d = decodeStarred(hero, c); return encodeStarred({ ...d, hullBonus: d.hullBonus * 10 }); });
+      // NUM-1 (cap's oracle bcc36c430b4f3a01) converted the pre-NUM-1 stored codes with an inline x10. FLIP-X2 step 4.5: the
+      // pool is native N1 (BUNDLED_POOL_HULL_SCALE deleted), so the stored codes are read as they are
+      const loaded = stored.map((c) => encodeStarred(decodeStarred(hero, c)));
       for (const e of standInPool(hero, day)) {
         expect(loaded, `${hero} d${day}`).toContain(encodeStarred(e.build));
         n++;

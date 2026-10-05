@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
 import { simulate, type SideStats } from "../src/sim/battle";
-import { battleSeed, migrateRun, newRun, saveRun, SAVE_KEY, type Run } from "../src/game/run";
+import { battleSeed, migrateRun, newRun, pendingRune, saveRun, SAVE_KEY, takeRune, type Run } from "../src/game/run";
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe, storeOnlineFoe, ghostName } from "../src/game/day";
 import { GHOST_KEY, loadPool, saveGhost, standInFoe } from "../src/game/ghosts";
 import { PLAYER_KEY, setPlayerName } from "../src/game/ghostSnapshot";
@@ -49,6 +49,13 @@ async function until(cond: () => boolean, ms = 6000): Promise<void> {
     if (Date.now() - t0 > ms) throw new Error("timed out waiting");
     await new Promise((r) => setTimeout(r, 5));
   }
+}
+
+// FLIP-X2: an upload (validateUpload, player mode) must hold exactly `day` runes (was at most `day`, so a rune-less day-1
+// deck went up), so a run that uploads takes its dawn's rune (the first card) before its dusk, as tooling.ts playOut does
+function takeDawnRune(run: Run): void {
+  const offer = pendingRune(run);
+  if (offer) takeRune(run, offer.ids[0]);
 }
 
 const g = globalThis as { localStorage?: Storage };
@@ -246,12 +253,14 @@ describe("the online session (src/game/online.ts), with fakes", () => {
     expect(foeNote(run, duskFoe(run, loadPool()))).toBeNull(); // 0.6.2's card
   });
 
-  it("uploads tonight's deck once per dusk, as ghostOf v2 under the device's playerId, only if validateUpload accepts it, never awaited", async () => {
+  // FLIP-X2: the name said "as ghostOf v2"; ghostOf writes v3 since RUNES-1 (the assertion below already pinned SNAPSHOT_V3)
+  it("uploads tonight's deck once per dusk, as ghostOf v3 under the device's playerId, only if validateUpload accepts it, never awaited", async () => {
     const f = fakes();
     f.setIdentity(me);
     const s = new Online("https://ghosts.example", f.deps);
     await until(() => s.active);
     const run = newRun("weaver", 31);
+    takeDawnRune(run); // FLIP-X2: an upload holds `day` runes (was: none taken, refused "rune: runes: 0 held on day 1")
     s.submitDusk(run); // returns at once although the upload never answers
     s.submitDusk(run);
     expect(f.calls.submit).toHaveLength(1);
@@ -259,11 +268,16 @@ describe("the online session (src/game/online.ts), with fakes", () => {
     expect([url, ident, ms]).toEqual(["https://ghosts.example", me, UPLOAD_TIMEOUT_MS]);
     expect(snap).toEqual(ghostOf(run, 1_790_000_000_000, me.playerId));
     expect([snap.v, snap.rules, snap.playerId]).toEqual([SNAPSHOT_V3, RULES_VERSION, me.playerId]); // RUNES-1: v3 (the seed)
+    expect(snap.build.runes).toEqual(run.build.runes); // FLIP-X2: the dawn's rune travels with the deck (runes only in v3)
+    expect(snap.build.runes).toHaveLength(1);
     expect(run.uploaded).toBe(1);
     // a deck the player mode refuses is not uploaded (a console.debug line says why)
     const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
     const rich = newRun("weaver", 32);
-    rich.build.hullBonus = 5000; // NUM-1: hull x10 (was 500: 20 ARMOR PACKs, over day 1's budget)
+    // FLIP-X2: the dawn's rune first, so the refusal is the budget's (without it: "rune: runes: 0 held on day 1"); the 20
+    // ARMOR PACKs go on top of any hull the rune gave (was `= 5000` on a rune-less deck; validate.ts reads the bought hull)
+    takeDawnRune(rich);
+    rich.build.hullBonus += 5000; // NUM-1: hull x10 (was 500: 20 ARMOR PACKs, over day 1's budget)
     expect(validateUpload(rich.build, 1).ok).toBe(false);
     s.submitDusk(rich);
     expect(f.calls.submit).toHaveLength(1);
@@ -321,6 +335,7 @@ describe("online end to end (the in-process server, signed uploads open, the see
     const s = startOnline(base, realDeps());
     await until(() => s.active);
     const run = newRun("furnace", 2026);
+    takeDawnRune(run); // FLIP-X2: an upload holds `day` runes (was: none taken, refused locally, so nothing was stored)
     s.tick(run);
     await until(() => s.lastFetch !== null);
     s.tick(run);
@@ -355,6 +370,7 @@ describe("online end to end (the in-process server, signed uploads open, the see
       const s = new Online(cbase, realDeps());
       await until(() => s.active);
       const run = newRun("weaver", 77);
+      takeDawnRune(run); // FLIP-X2: an upload holds `day` runes (was: none taken, refused locally before any request, no 403)
       s.submitDusk(run);
       await until(() => s.lastUpload !== null);
       expect(s.lastUpload).toMatchObject({ ok: false, status: 403 });

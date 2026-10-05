@@ -12,7 +12,7 @@ import { hitsOfRig, key as K, occupancy, payloadDamage, rigHits, rotField, stoke
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { beltKind, hitLabel } from "../src/screens/build/inspector";
 import { validateBuild } from "../src/net/validate";
-import { decodeSnapshot, encodeSnapshot, checkSnapshot, SNAPSHOT_VERSION } from "../src/net/snapshot";
+import { decodeSnapshot, encodeSnapshot, checkSnapshot, SNAPSHOT_V3, SNAPSHOT_VERSION } from "../src/net/snapshot"; // FLIP-X2: SNAPSHOT_V3
 import { offlineGhost } from "../src/net/fallback";
 import { decodeStarred, decodeStarredRaw, encodeStarred, STAND_IN_POOL_HEROES } from "../src/sim/standInPool";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
@@ -267,9 +267,10 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
           const m = migrateInlineGates(mig); // what the loader does, before renumbering
           const loaded = decodeStarred(hero, t[3]);
           decks++;
-          // NUM-1 (cap's oracle bcc36c430b4f3a01): the bundled pool's codes are in pre-NUM-1 units; the deck validated in
-          // this build's units, with this test's own inline x10 of hullBonus (standInPool.ts scales on read; this decode doesn't)
-          expect(validateBuild({ ...loaded, hullBonus: loaded.hullBonus * 10 }, day).errors, `${hero} d${day} #${i}`).toEqual([]);
+          // NUM-1 (cap's oracle bcc36c430b4f3a01) validated the pre-NUM-1 codes with this test's own inline x10 of hullBonus.
+          // FLIP-X2 (steps 4.1 and 4.5): the pool is regenerated in native N1 units (BUNDLED_POOL_HULL_SCALE deleted), so the
+          // deck is validated as stored (was { ...loaded, hullBonus: loaded.hullBonus * 10 }: furnace d1 #3 failed on its hull x10)
+          expect(validateBuild(loaded, day).errors, `${hero} d${day} #${i}`).toEqual([]);
           const belt = new Set(loaded.routes.flatMap((r) => r.cells)), occ = occupancy(loaded);
           expect([...belt].filter((k) => occ[k].item >= 0), `${hero} d${day} #${i}: machinery on a belt tile`).toEqual([]);
           expect(encodeStarred(loaded), `${hero} d${day} #${i}`).toBe(encodeStarred(mig)); // the loader = raw + D3 (+ renumber)
@@ -402,7 +403,10 @@ describe("P17: offline ghosts carry stars and rotation (v2 snapshots)", () => {
     let starRigs = 0;
     for (const hero of ["furnace", "weaver"] as const) for (let day = 1; day <= 10; day++) for (let seed = 0; seed < 6; seed++) {
       const s = offlineGhost(hero, day, seed).snapshot;
-      expect(s.v).toBe(SNAPSHOT_VERSION);
+      // FLIP-X2 (eb22262, src/net/fallback.ts offlineGhost): every pool deck holds its dawn runes, which travel only in v3,
+      // so a deck with runes is a SNAPSHOT_V3 ghost and a rune-less one still SNAPSHOT_VERSION (was SNAPSHOT_VERSION for all:
+      // offlineGhost threw "snapshot.build.runes: not allowed in a v2 snapshot" before eb22262)
+      expect(s.v, `${hero} d${day} #${seed}`).toBe(s.build.runes?.length ? SNAPSHOT_V3 : SNAPSHOT_VERSION);
       expect(validateBuild(s.build, s.day).errors, `${hero} d${day} #${seed}`).toEqual([]);
       const back = decodeSnapshot(encodeSnapshot(s));
       expect(back).toEqual(s);

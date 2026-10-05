@@ -151,10 +151,12 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // BELTS run 5 (REQ-BFG-043/044): the stand-in pool regenerated under bb-0.8.3 with the gold upgrades (44ee031)
   // (were 8 and 29, 7 and 12)
   // bb-0.8.6 (PACKS M4): the stand-in pool regenerated with the packs (23bb3d2) (were 11 and 24, 4 and 16)
-  it("keeps its turret and join decks: the sample ghosts' 9 and 24, plus the floor ghosts' 4 and 10 (each a deck of its own)", () => {
+  // FLIP-X2: the stand-in pool regenerated at 94e0cbf (every deck holding its day's runes; BUNDLED_POOL_HULL_SCALE gone at
+  // 9006765), so the sample and floor decks drawn from it moved (were 9 and 24, 4 and 10)
+  it("keeps its turret and join decks: the sample ghosts' 5 and 21, plus the floor ghosts' 5 and 13 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
-    expect(carry(SAMPLE)).toEqual([9, 24]);
-    expect(carry(FLOOR)).toEqual([4, 10]);
+    expect(carry(SAMPLE)).toEqual([5, 21]); // FLIP-X2: [9, 24] -> [5, 21]
+    expect(carry(FLOOR)).toEqual([5, 13]); // FLIP-X2: [4, 10] -> [5, 13]
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);

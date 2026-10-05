@@ -10,7 +10,7 @@ import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
 import { encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { sampleGhosts } from "../tools/samplePool";
-import { snap } from "./netHelpers";
+import { snap, upSnap } from "./netHelpers";
 import { identitiesFor, ownedBy, signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
 import { storeBackends } from "./netStores";
 
@@ -112,7 +112,10 @@ afterAll(async () => {
   });
 
   it("rejects a bad deck, foreign rules, malformed JSON, oversize bodies and bad queries", async () => {
-    const s = snap({ playerId: ME.playerId, name: TEST_NAME }); // post() signs with ME: past the signature, these are the old refusals (PACKS M2: with a player name)
+    // FLIP-X2: snap() -> upSnap() (v1 rune-less -> v3 holding day 1's one neutral rune): validateUpload's player mode wants
+    // exactly `day` runes and checks them first, so a rune-less deck was refused on the count ('rune: runes: 0 held on day
+    // 1') before the faults under test (signature factory, budget) were reached
+    const s = upSnap({ playerId: ME.playerId, name: TEST_NAME }); // post() signs with ME: past the signature, these are the old refusals (PACKS M2: with a player name)
     const loom = { ...s, build: { ...s.build, items: [...s.build.items, { uid: 2, def: "loom", x: 0, y: 8 }] } };
     const bad = await post(JSON.stringify(loom));
     expect(bad.status).toBe(422);
@@ -120,7 +123,11 @@ afterAll(async () => {
     const rich = await post(JSON.stringify({ ...s, build: { ...s.build, hullBonus: 5000 } })); // NUM-1: hull x10 (was 500: 20 ARMOR PACKs)
     expect(rich.status).toBe(422);
     expect(rich.body.errors.join()).toMatch(/budget/);
-    expect((await post(encodeSnapshot({ ...s, rules: "bb-0.3.0" }))).status).toBe(422);
+    // FLIP-X2: the foreign-rules case stays rune-less (snap(), was `s`): runes are bb-0.8.7+ rules, so encodeSnapshot itself
+    // refuses a rune-holding deck under bb-0.3.0; the server's rules check comes before the deck's, as the error shows
+    const foreign = await post(encodeSnapshot({ ...snap({ playerId: ME.playerId, name: TEST_NAME }), rules: "bb-0.3.0" }));
+    expect(foreign.status).toBe(422);
+    expect(foreign.body.error).toMatch(/^rules bb-0\.3\.0 not accepted/);
     expect((await post("{")).status).toBe(400);
     expect((await post(JSON.stringify({ ...s, extra: 1 }))).status).toBe(400);
     expect((await post(" ".repeat(20_000))).status).toBe(413);
@@ -215,7 +222,9 @@ afterAll(async () => {
 
   it("stores a signed upload: 201, then 200 with the same id when repeated", async () => {
     const before = stored();
-    const mine = snap({ playerId: ME.playerId, createdAt: 1_790_000_000_004, lives: 5, name: TEST_NAME }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives (PACKS M2: with a player name)
+    // FLIP-X2: snap() -> upSnap() (v1 rune-less -> v3 holding day 1's one neutral rune): the server's validateUpload wants
+    // exactly `day` runes, so the rune-less upload was a 422 on the count instead of the 201 under test
+    const mine = upSnap({ playerId: ME.playerId, createdAt: 1_790_000_000_004, lives: 5, name: TEST_NAME }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives (PACKS M2: with a player name)
     const body = encodeSnapshot(mine);
     const first = await upload(body, await signedHeaders(ME, body));
     expect(first).toEqual({ status: 201, body: { id: ghostId(mine) } });
@@ -263,9 +272,13 @@ describe("ghost client fallback", () => {
   });
 
   it("falls back when the server answers with junk or an invalid ghost", async () => {
+    // FLIP-X2: the invalid ghost snap() -> upSnap() (v1 rune-less -> v3 holding day 4's four neutral runes): the client
+    // checks a served deck with validateUpload, whose exact rune count comes first, so the rune-less ghost was refused on
+    // the count ('rune: runes: 0 held on day 4') instead of the supply fault under test (hullBonus 999, unchanged)
+    const g4 = upSnap({ day: 4, wins: 0 });
     const junk = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
-      s.end(q.url?.includes("day=4") ? JSON.stringify({ id: "gx", snapshot: { ...snap(), day: 4, wins: 0, build: { ...snap().build, hullBonus: 999 } } }) : "");
+      s.end(q.url?.includes("day=4") ? JSON.stringify({ id: "gx", snapshot: { ...g4, build: { ...g4.build, hullBonus: 999 } } }) : "");
     });
     await new Promise<void>((r) => junk.listen(0, "127.0.0.1", () => r()));
     const addr = junk.address();

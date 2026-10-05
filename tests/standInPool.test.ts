@@ -15,6 +15,8 @@ import { migrateRun, newRun } from "../src/game/run";
 import { routeProblems } from "../src/game/routeCheck";
 import type { Build } from "../src/sim/deck";
 import { poolLoss } from "./beltside.helpers";
+import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a deck with runes valued as bought (the runes' HULL and BELT out)
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold and own hull
 import { POOL_LEGACY, POOL_PAR_BAND, POOL_PAR_SHORT } from "./standInPool.helpers";
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
@@ -82,7 +84,10 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
           if (!exempt && POOL_PAR_BAND) expect(e.vsPar >= POOL_PAR_BAND[0] && e.vsPar <= POOL_PAR_BAND[1], `${hero} d${day} #${i}: vsPar ${e.vsPar} outside --par-band ${POOL_PAR_BAND.join(",")}`).toBe(true);
           // 0.6.2 BELTSIDE: the deck as loaded lacks only the rigs D3 dropped (tests/beltside.helpers.ts); 0.6.2 TUNE-C
           // (17df327): deckCost counts installed turrets as buildCost does, so a deck with a merged starting turret is priced right
-          expect(deckCost(e.build).total).toBe(e.cost - poolLoss(hero, day, i));
+          // FLIP-X2 (steps 4.1 and 4.5): every pool deck holds its day runes, and the stored cost is the deck as bought
+          // (standins.ts boughtCost: deckCost / buildCost with the runes' HULL and BELT taken out, as the generator stores it);
+          // deckCost charges a TAR BARREL's belt as crates (was deckCost(e.build).total === e.cost - poolLoss: 12 vs 8)
+          expect(boughtCost(e.build), `${hero} d${day} #${i}`).toBe(e.cost - poolLoss(hero, day, i));
         }
       }
     }
@@ -114,10 +119,15 @@ describe("standInFoe: the day's captain with its named build (200 seeds x days 1
     for (const seed of SEEDS) {
       for (const day of DAYS) {
         const b = standInFoe(seed, day).build;
-        const cost = deckCost(b).total, budget = maxGoldByDay(day);
-        expect(cost).toBeLessThanOrEqual(budget);
-        expect(b.hullBonus).toBeGreaterThanOrEqual(0);
-        expect(b.hullBonus % PLATE).toBe(0);
+        // FLIP-X2 (REVIEW-BOTSX section 5): the captain's deck holds its CAPTAIN_RUNES prefix (their HULL and BELT on the
+        // deck), so it is read as bought, as validate.ts reads a deck with runes: its value is boughtCost (the runes' grants
+        // out) against the day's gold plus its runes' dawn gold, and its plating is the hull less the runes' own (was
+        // deckCost(b).total <= maxGoldByDay(day): 110 <= 105, and b.hullBonus % PLATE)
+        const grant = runeGrants(b.runes, day);
+        const cost = boughtCost(b), budget = maxGoldByDay(day) + grant.gold;
+        expect(cost, `${b.hero} d${day}`).toBeLessThanOrEqual(budget);
+        expect(b.hullBonus - grant.hull).toBeGreaterThanOrEqual(0);
+        expect((b.hullBonus - grant.hull) % PLATE).toBe(0);
         expect(routeProblems(b)).toEqual([]);
         expect(b.routes.length).toBeGreaterThan(0);
         const k = `${b.hero}@${day}`;

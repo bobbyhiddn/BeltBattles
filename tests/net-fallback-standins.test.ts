@@ -5,6 +5,8 @@ import { STAND_IN_POOL_HEROES, standInPick } from "../src/sim/standInPool";
 import { STAND_IN_HEROES, fallbackGhost, offlineGhost, rivalHero } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { generateSamplePool } from "../tools/samplePool";
+import { boughtCost } from "../src/sim/harness/standins";
+import { runeGrants } from "../src/sim/runes";
 import { pickLoss } from "./beltside.helpers";
 import { POOL_LEGACY, pickEntry } from "./standInPool.helpers";
 
@@ -42,11 +44,18 @@ describe("fallback stand-ins", () => {
           // 0.6.2 BELTSIDE: as generated; as loaded the deck lacks only what D3 dropped (beltside.helpers). Step 5 M5
           // (decision D2): the floor applies to the pool entry's gold spent; the deck's value (buildCost) as generated is
           // its stored cost, at most maxGoldByDay
-          const e = pickEntry(g.snapshot.hero, day, seed), value = buildCost(g.snapshot.build).total + pickLoss(g.snapshot.hero, day, seed);
+          // FLIP-X2: the stand-in pool regenerated at 94e0cbf (every deck holds its day's runes) and stores the deck as
+          // bought (standins.ts boughtCost: a HULL or BELT rune's grant is not plating or crates); BUNDLED_POOL_HULL_SCALE
+          // is gone (9006765), so the deck reads as stored. The value is boughtCost (was buildCost(build).total, which
+          // charged a rune's HULL / BELT: 20 -> 16 on the first deck that holds one)
+          const e = pickEntry(g.snapshot.hero, day, seed), value = boughtCost(g.snapshot.build) + pickLoss(g.snapshot.hero, day, seed);
           expect(e.spent, `${hero} d${day} seed ${seed}`).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day)));
-          expect(e.spent).toBeLessThanOrEqual(maxGoldByDay(day));
+          // FLIP-X2: the budget is the day's gold plus the runes' dawn gold (runeGrants(runes, day).gold), as validate.ts
+          // budgets a deck (was maxGoldByDay(day) alone: an entry that spent its rune gold read spent 53 against 50)
+          const budget = maxGoldByDay(day) + runeGrants(g.snapshot.build.runes, day).gold;
+          expect(e.spent).toBeLessThanOrEqual(budget);
           expect(value).toBe(e.cost);
-          expect(value).toBeLessThanOrEqual(maxGoldByDay(day));
+          expect(value).toBeLessThanOrEqual(budget); // FLIP-X2: maxGoldByDay(day) -> the budget above
           if (POOL_LEGACY) expect(value).toBeGreaterThanOrEqual(Math.ceil(0.9 * maxGoldByDay(day))); // pool v2.1: the deck itself
         }
       }

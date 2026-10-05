@@ -7,7 +7,8 @@ import { PLAYER_DAYS, knobsOf, playerBuild, playerRun } from "../src/sim/harness
 import { PAR_K, medianIndex, parDeck, parField, parReference, parRefs, parSeeds, parSourceFor } from "../src/sim/harness/par";
 import { heroRefBuild } from "../src/sim/harness/heroes";
 import { balanceMarkdown } from "../src/sim/harness/report";
-import { STANDIN_DEFAULTS, dataModuleText, genStandIns, standInCommand, standInRefs } from "../src/sim/harness/standins";
+import { STANDIN_DEFAULTS, boughtCost, dataModuleText, genStandIns, standInCommand, standInRefs } from "../src/sim/harness/standins"; // FLIP-X2: boughtCost
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
 import { DEFAULT_OPTS, localRunner, runTournament, type Runner, type TourneyOpts } from "../src/sim/harness/tournament";
 // 0.6.2 CAND-A
 import { HEROES as HERO_DEFS } from "../src/sim/content";
@@ -63,7 +64,13 @@ describe("par player (playerBuild): a real run through the caravan", () => {
           expect(unfusedPairs(d.build)).toEqual([]);
           expect(d.value).toBe(buildCost(d.build).total);
           // deck value + reroll gold + unspent gold + what selling replaced parts lost = every gold the run received
-          expect(d.value + d.rerollGold + d.gold + d.soldLoss, `${hero} s${seed} d${d.day}`).toBe(maxGoldByDay(d.day));
+          // FLIP-X2 (REQ-BFG-058, BOT_RUNES on): the par player takes a rune each dawn. d.value (buildCost) charges a HULL or
+          // BELT rune's grant as plating / crates, and its dawn-gold runes add to the day's gold, so the gold adds up as the
+          // bought deck (boughtCost, as validate.ts costs it) + rerolls + purse + sold loss = d.budget, the day's maxGoldByDay
+          // + its runes' dawn gold (runeGrants); without runes both are as before (was d.value + d.rerollGold + d.gold +
+          // d.soldLoss = maxGoldByDay(d.day): 96 = 91 on furnace s1 d8)
+          expect(d.budget, `${hero} s${seed} d${d.day}`).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold);
+          expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss, `${hero} s${seed} d${d.day}`).toBe(d.budget);
         }
       }
     }
@@ -215,7 +222,10 @@ describe("0.6.2 CAND-A: the par player buys, installs and replaces turrets throu
       const buy = d.buys.find((x) => x.into === "replace")!;
       expect(buy.replaced, `${hero} s${seed} d${d.day}`).toBeDefined();
       expect(validateBuild(d.build, d.day).errors).toEqual([]);
-      expect(d.value + d.rerollGold + d.gold + d.soldLoss).toBe(maxGoldByDay(d.day));
+      // FLIP-X2 (BOT_RUNES on): the bought deck (boughtCost: the runes' HULL and BELT out) and the day's gold plus its
+      // runes' dawn gold (d.budget), as in the test above (was d.value + ... = maxGoldByDay(d.day): 131 = 119)
+      expect(d.budget, `${hero} s${seed} d${d.day}`).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold);
+      expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss, `${hero} s${seed} d${d.day}`).toBe(d.budget);
     }
   }, 300_000); // 0.8.0 B1: 96 par runs, about 15 s alone
 
@@ -421,7 +431,10 @@ describe("0.6.2 CAND-A: the policy variants still run", () => {
           const run = playerRun(hero, PLAYER_DAYS, seed, opts);
           for (const d of run) {
             expect(validateBuild(d.build, d.day).errors, `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toEqual([]);
-            expect(d.value + d.rerollGold + d.gold + d.soldLoss).toBe(maxGoldByDay(d.day));
+            // FLIP-X2 (BOT_RUNES on): the bought deck and the day's gold plus its runes' dawn gold, as above (was d.value +
+            // ... = maxGoldByDay(d.day): 96 = 91)
+            expect(d.budget, `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold);
+            expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss, `${JSON.stringify(opts)} ${hero} s${seed} d${d.day}`).toBe(d.budget);
           }
           expect(JSON.stringify(playerRun(hero, 7, seed, { ...opts, trace: () => {} })[6].build)).toBe(JSON.stringify(run[6].build));
         }

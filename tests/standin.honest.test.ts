@@ -11,6 +11,8 @@ import { startingBuild, warlordBuild, warlordHull } from "../src/sim/ai";
 import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { starsOf, valueOf } from "../src/sim/stars";
+import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a deck with runes valued as bought (the runes' HULL and BELT out)
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
 
 const DAYS = Array.from({ length: RUN_DAYS }, (_, i) => i + 1);
 const BOTH: HeroId[] = ["furnace", "weaver"];
@@ -96,7 +98,10 @@ describe("honest deck helpers (M3b; tooling since 0.6.0b) and the dusk stand-in"
         expect(f.kind).toBe("standin");
         expect(f.build).toEqual(a.build);
         expect([f.name, f.rival]).toEqual([a.name, id]);
-        expect(deckCost(f.build).total).toBeLessThanOrEqual(maxGoldByDay(d));
+        // FLIP-X2 (REVIEW-BOTSX section 5): standInBuild holds the captain's CAPTAIN_RUNES prefix (its HULL and BELT on the
+        // deck), so the deck is valued as bought (boughtCost: the runes' grants out, as validate.ts) against the day's gold
+        // plus its runes' dawn gold (was deckCost(f.build).total <= maxGoldByDay(d): 18 <= 17)
+        expect(boughtCost(f.build), `${id} d${d}`).toBeLessThanOrEqual(maxGoldByDay(d) + runeGrants(f.build.runes, d).gold);
       }
     }
   });

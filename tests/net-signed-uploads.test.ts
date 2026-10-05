@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { submitGhost } from "../src/net/ghostClient";
 import { KEY_HEADER, SIG_HEADER, verifyUpload, type Identity } from "../src/net/identity";
-import { encodeSnapshot, ghostId, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { encodeSnapshot, ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { JsonlStore, type GhostStore } from "../server/store";
 import type { FakeS3 } from "../tools/fakeS3";
 import { generateSamplePool } from "../tools/samplePool";
-import { snap } from "./netHelpers";
+import { snap, upSnap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { startFake, tigrisFor } from "./netStores";
 
@@ -104,9 +104,11 @@ describe("submitGhost signs exactly what it sends", () => {
 });
 
 describe("a signed upload is stored in the record format it always had: no key, no signature", () => {
+  // FLIP-X2: the posted fixture snap() -> upSnap() (v1 rune-less -> v3 holding day 1's one neutral rune), here and in
+  // expectRecord: the server's validateUpload wants exactly `day` runes, so the rune-less upload was a 422, not the 201
   async function uploadOnce(app: GhostServer): Promise<{ id: string; key: string; sig: string }> {
     const base = `http://127.0.0.1:${await app.listen(0)}`;
-    const mine = ownedBy(snap({ lives: 5 }), ME); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
+    const mine = ownedBy(upSnap({ lives: 5 }), ME); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
     const body = encodeSnapshot(mine);
     const headers = await signedHeaders(ME, body);
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers, body });
@@ -120,7 +122,7 @@ describe("a signed upload is stored in the record format it always had: no key, 
     const rec = JSON.parse(text) as Record<string, unknown>;
     expect(Object.keys(rec)).toEqual(["id", "at", "snapshot"]);
     expect(rec.id).toBe(id);
-    expect(rec.snapshot).toEqual(ownedBy(snap({ lives: 5 }), ME)); // 0.8.0 H2: the posted fixture, echoed (oracle 9c95e37aab0a70fb)
+    expect(rec.snapshot).toEqual(ownedBy(upSnap({ lives: 5 }), ME)); // 0.8.0 H2: the posted fixture, echoed (oracle 9c95e37aab0a70fb)
     expect(text).not.toContain(key);
     expect(text).not.toContain(sig);
     expect(text).not.toContain(key.slice(0, 20)); // not even part of the key
@@ -159,9 +161,14 @@ describe("0.6.2: a v2 snapshot with turrets and a join signs and verifies on the
     return at + marker.length;
   };
 
-  it("the sample pool has such a deck, and it travels as SNAPSHOT_VERSION", () => {
+  // FLIP-X2: the deck travels as SNAPSHOT_V3 (3), was SNAPSHOT_VERSION (2): since step 4.1 every seed-pool deck holds its
+  // day's runes (tools/samplePool.ts generateSamplePool), and runes travel only in a v3 snapshot (a v2 one holding
+  // build.runes is refused). The turrets and the join are unchanged; SNAPSHOT_VERSION stays 2 for rune-less decks.
+  it("the sample pool has such a deck, and it travels as SNAPSHOT_V3", () => {
     expect(V2).toBeDefined();
-    expect(V2!.v).toBe(SNAPSHOT_VERSION);
+    expect(V2!.v).toBe(SNAPSHOT_V3);
+    expect(SNAPSHOT_V3).toBe(3);
+    expect(V2!.build.runes).toHaveLength(V2!.day); // why it is v3: its day's runes
     expect(SNAPSHOT_VERSION).toBe(2);
   });
 

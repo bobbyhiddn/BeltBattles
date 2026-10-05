@@ -3,7 +3,8 @@ import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
-import { ghostId, SNAPSHOT_VERSION, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
+import { ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
+import { runeGrants } from "../src/sim/runes";
 import { createGhostServer } from "../server/app";
 import { checkPool, SeedError, seedStore } from "../server/seed";
 import { encodeRecord, JsonlStore, poolRecord, type GhostStore } from "../server/store";
@@ -18,9 +19,19 @@ const POOL = generateSamplePool();
 const N = POOL.length;
 const BUNDLE = POOL.map((s) => ({ id: ghostId(s), snapshot: s }));
 const STALE: GhostSnapshot = { ...POOL[5], createdAt: POOL[5].createdAt + 1 }; // valid, current rules, not in the bundle
+/** FLIP-X2: `s` as a pool of older `rules` held it: the rune-less v2 deck (was the pool deck as is, runes and all). Runes
+ *  and a run seed travel only in v3, and rules before bb-0.8.7 refuse a deck holding runes ("predate bb-0.8.7: runes"), so
+ *  the runes go, their hull and belt (runeGrants) come back out of hullBonus / beltCap, and the seed goes. */
+function olderRules(s: GhostSnapshot, rules: string): GhostSnapshot {
+  const { seed: _seed, ...rest } = s;
+  const { runes, ...build } = s.build;
+  const g = runeGrants(runes, s.day);
+  return { ...rest, v: SNAPSHOT_VERSION, rules, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
+}
 // another rules version's pool entry. 0.8.0 I1 M3 (oracle 64485b535a06683c): the first plain deck (no turret list, no
-// joined belt), as ghost-admin's OLD_POOL; the regrown pool's POOL[0] joins a belt, which bb-0.3.0 can't carry
-const OLD_RULES: GhostSnapshot = { ...POOL.find((s) => !s.build.turrets && !s.build.routes.some((r) => r.join !== undefined))!, rules: "bb-0.3.0" };
+// joined belt), as ghost-admin's OLD_POOL; the regrown pool's POOL[0] joins a belt, which bb-0.3.0 can't carry.
+// FLIP-X2: and rune-less v2 (olderRules; was the v3 deck holding its day's runes, refused under bb-0.3.0)
+const OLD_RULES: GhostSnapshot = olderRules(POOL.find((s) => !s.build.turrets && !s.build.routes.some((r) => r.join !== undefined))!, "bb-0.3.0");
 const PLAYER: GhostSnapshot = { ...POOL[12], playerId: "real-player-1", runId: "run-p1" };
 const entry = (s: GhostSnapshot): PoolEntry => ({ id: ghostId(s), snapshot: s });
 // 0.6.2's v2 snapshot: a build may carry turrets (REQ-BFG-031) and a route a join (REQ-BFG-027)
@@ -28,9 +39,10 @@ const TURRET_DECKS = BUNDLE.filter((e) => e.snapshot.build.turrets !== undefined
 const JOIN_DECKS = BUNDLE.filter((e) => e.snapshot.build.routes.some((r) => r.join !== undefined));
 
 describe("the bundled pool the seed writes", () => {
-  it("is 120 v2 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
+  it("is 120 v3 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
     expect(N).toBe(120); // 0.7.0a D5 and 0.8.0 RC: 4 heroes x (2 sample variants + 1 floor ghost) x 10 days (was 60)
-    for (const s of POOL) expect([s.v, s.rules]).toEqual([SNAPSHOT_VERSION, RULES_VERSION]);
+    // FLIP-X2: v2 -> v3 (SNAPSHOT_V3): every pool deck holds its day's runes, and runes travel only in a v3 snapshot
+    for (const s of POOL) expect([s.v, s.rules]).toEqual([SNAPSHOT_V3, RULES_VERSION]);
     expect(TURRET_DECKS.length).toBeGreaterThan(0);
     expect(JOIN_DECKS.length).toBeGreaterThan(0);
     // strict decode, the current rules, validateUpload (the player mode), a reachable record, no duplicates

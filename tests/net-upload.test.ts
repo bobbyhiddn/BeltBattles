@@ -447,7 +447,9 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // lists (18 with a bought turret), 76 joined belts (124 joins), 20 both (was 35 (29), 76 (121), 27)
 // bb-0.8.6 (PACKS M4): the stand-in pool regenerated with the packs (23bb3d2; the tool's data): was turrets 30, bought
 // 18, joined 76, joins 124, both 20
-const POOL_CARRIES = { turrets: 25, bought: 9, joined: 62, joins: 96, both: 17 };
+// FLIP-X2: the stand-in pool regenerated at 94e0cbf under bb-0.9.0 (every deck holding its day's runes): was turrets 25,
+// bought 9, joined 62, joins 96, both 17
+const POOL_CARRIES = { turrets: 17, bought: 10, joined: 64, joins: 91, both: 8 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
@@ -467,4 +469,5 @@ const POOL_CARRIES = { turrets: 25, bought: 9, joined: 62, joins: 96, both: 17 }
 // snapshot passes validateUpload. The par player generates the race ghosts, and R1's STUN fold and the whole-second
 // durations move its fights, so 9 more FOUNDRY / BASTION dusk decks come out differently (rc.seedpool's NUM3_GHOSTS_DIFFER);
 // two of them no longer carry a joined belt. The seed pool is not regenerated (R6 does)
-const GHOST_POOL_CARRIES = [22, 59]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61
+// FLIP-X2: the seed pool from the stand-in pool regenerated at 94e0cbf (120 v3 snapshots holding their day's runes): was 22, 59
+const GHOST_POOL_CARRIES = [15, 54]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61

@@ -10,8 +10,9 @@ import { POOL_NATIVE, poolLoss, poolRaw } from "./beltside.helpers";
 import { POOL_LEGACY, POOL_PAR, POOL_PAR_BAND, POOL_PAR_SHORT, POOL_SOURCE } from "./standInPool.helpers";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import {
-  ROBUST_BAND, ROBUST_MULT, STANDIN_DEFAULTS, STANDIN_MAX_STARS, caravanCand, robustBorderline, robustReplay, standInRefs, type Cand, type StandInOpts,
+  ROBUST_BAND, ROBUST_MULT, STANDIN_DEFAULTS, STANDIN_MAX_STARS, boughtCost, caravanCand, robustBorderline, robustReplay, standInRefs, type Cand, type StandInOpts,
 } from "../src/sim/harness/standins";
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: a stored deck's runes' dawn gold
 import { caravanCandidate } from "../src/sim/harness/caravan";
 import { localRunner, playJob } from "../src/sim/harness/tournament";
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
@@ -66,9 +67,9 @@ const PAR_SPREAD: readonly (readonly [HeroId, number])[] = [["furnace", 2], ["we
 async function parVsPar(hero: HeroId, day: number): Promise<{ vsPar: number; sample: number; idx?: number }> {
   const o = genOpts(), { refs, refHero } = standInRefs(o, day);
   const [parIndex, entries, , popSize] = dayData(hero, day);
-  // NUM-1 (cap's oracle 03f2cc3c1884e806): the stored code is pre-NUM-1; like with like, the stored par deck is brought
-  // into this build's units (hull x10, the test's own inline x10 as below) before it is matched against the candidates
-  const raw = poolRaw(hero, day, parIndex), code = encodeStarred({ ...raw, hullBonus: raw.hullBonus * 10 });
+  // NUM-1 (cap's oracle 03f2cc3c1884e806) brought the pre-NUM-1 stored code into this build's units (hull x10) here.
+  // FLIP-X2 step 4.5: the pool is regenerated in native N1 units (BUNDLED_POOL_HULL_SCALE deleted), so the code as stored
+  const raw = poolRaw(hero, day, parIndex), code = encodeStarred(raw);
   const stored = entries[parIndex][4], build = standInPar(hero, day);
   const pts = refs.map((ref, r) => playJob([build, ref], { a: 0, b: 1, seeds: Array.from({ length: o.refSeeds }, (_, k) => hashSeed("standin-ref", o.seed, hero, day, r, k)) }));
   const vsRef: Partial<Record<HeroId, number>> = {};
@@ -98,30 +99,10 @@ async function parVsPar(hero: HeroId, day: number): Promise<{ vsPar: number; sam
  * uses the same 0.02, the closest re-play taken). The tolerance holds until R6 regenerates the pool, and then R6
  * restores the exact toBe(stored). Don't widen it: a par that misses stays red.
  */
-const PAR_TOLERANCE = 0.02;
-/**
- * NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): the spread pars past PAR_TOLERANCE on num2, each
- * with its stored and re-simulated vsPar. SPEED's whole speeds and carried timers changed the par field these pars are
- * re-simulated against (no stand-in, par deck or number changed). The seeds are fixed, so the re-simulated value is
- * pinned exactly; every other par keeps the tolerance. R6 regenerates the pool, then deletes these and the tripwire.
- */
-const NUM2_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {
-  "weaver|4": { stored: 0.5917, resim: 0.3833 }, // the biggest band move NUM-2 measured (-0.2084)
-  // NUM-3: weaver|9 (num2: 0.4917, -0.0358) is gone: on num3 it re-simulates 0.5125, -0.015, inside the tolerance again,
-  // so the tolerance checks it (stricter than its exact pin); furnace d7 +0.0133 stays inside too
-};
-/**
- * NUM-3 (REQ-BFG-046, REQ-BFG-047; the brief's step 5, as NUM-2's option B, under the same tripwire): the spread pars past
- * PAR_TOLERANCE on num3, or NUM-2's moved again, each with its stored and re-simulated vsPar. R1's STUN fold and the
- * whole-second durations changed the par field these pars are re-simulated against (no stand-in, par deck or number
- * changed). Pinned exactly; R6 regenerates the pool, then deletes these, NUM-2's and the tripwire.
- */
-const NUM3_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {
-  "furnace|2": { stored: 0.5675, resim: 0.51 }, // -0.0575 (num2: -0.015, inside the tolerance)
-  "weaver|4": { stored: 0.5917, resim: 0.4458 }, // -0.1459; NUM-2's exception moved again (num2: 0.3833, -0.2084)
-};
-/** The rules version the exceptions were measured under (the tripwire: red at the next bump until R6 removes them). */
-const EXCEPTIONS_RULES = "bb-0.8.7";
+// FLIP-X2 step 6 (the brief; NUM2-REPORT section 12, NUM3-REPORT section 7): the pool is regenerated on this build (bb-0.9.0),
+// so the exact check is restored (the re-simulated par equals its stored vsPar; was NUM-1's PAR_TOLERANCE 0.02), and
+// NUM-2's NUM2_PAR_EXCEPTIONS (weaver d4), NUM-3's NUM3_PAR_EXCEPTIONS (furnace d2, weaver d4) and their tripwire are gone.
+const PAR_TOLERANCE = 0;
 
 /** Step 5 M5: test 2 for a caravan pool: the spread's pars re-simulated exactly, and every par at least parFloor and
  *  inside the header's --par-band, unless its hero/day is listed short. */
@@ -133,13 +114,6 @@ async function caravanPars(): Promise<void> {
     const diff = r4(r4(r.vsPar) - stored); // NUM-1 (oracle 03f2cc3c1884e806): stored, re-simulated and their difference, per par
     lines.push(`${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff} (10-seed sample ${r4(r.sample)}${r.idx === undefined ? "" : `, robust re-play of candidate #${r.idx}`}; ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
     console.log(`stand-in par ${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff}`);
-    // NUM-3: its own exception first (a NUM-2 par NUM-3 moved again is re-pinned there), then NUM-2's
-    const ex = NUM3_PAR_EXCEPTIONS[`${hero}|${day}`] ?? NUM2_PAR_EXCEPTIONS[`${hero}|${day}`];
-    if (ex) { // NUM-2's or NUM-3's open item: pinned exactly, under this rules version only
-      expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
-      if (!isDeepStrictEqual([stored, r4(r.vsPar)], [ex.stored, ex.resim])) over.push(`${hero} d${day}: exception ${JSON.stringify(ex)}, now stored ${stored}, re-simulated ${r4(r.vsPar)}`);
-      continue;
-    }
     // NUM-3: every par past the tolerance listed before one assertion (the loop stopped at the first and hid the rest)
     if (Math.abs(diff) > PAR_TOLERANCE) over.push(`${hero} d${day}: its stored vsPar ${stored}, re-simulated against the par field ${r4(r.vsPar)}: difference ${diff}, past ${PAR_TOLERANCE}`);
   }
@@ -178,14 +152,20 @@ describe("stand-in pool", () => {
           expect(e.hero).toBe(hero);
           expect(e.build.hero).toBe(hero);
           expect(e.day).toBe(day);
-          // NUM-1 (cap's oracle bcc36c430b4f3a01): the raw stored deck is pre-NUM-1; priced in this build's units (hull x10)
+          // NUM-1 (cap's oracle bcc36c430b4f3a01) priced the pre-NUM-1 stored deck x10. FLIP-X2 (steps 4.1 and 4.5): the pool
+          // is native N1 and its decks hold their runes, so the stored cost is the stored deck as bought (standins.ts
+          // boughtCost: the runes' HULL and BELT out), against the day's gold plus its runes' dawn gold (writtenProblems)
           const raw = poolRaw(hero, day, i);
-          expect(e.cost).toBe(buildCost({ ...raw, hullBonus: raw.hullBonus * 10 }).total);
-          expect(buildCost(e.build).total, `${hero} d${day} #${i}`).toBe(e.cost - poolLoss(hero, day, i));
+          expect(e.cost).toBe(boughtCost(raw));
+          expect(boughtCost(e.build), `${hero} d${day} #${i}`).toBe(e.cost - poolLoss(hero, day, i));
           if (POOL_NATIVE) expect(poolLoss(hero, day, i)).toBe(0);
-          expect(e.cost, `${hero} d${day} #${i}: the deck's value`).toBeLessThanOrEqual(maxGoldByDay(day));
+          expect(e.cost, `${hero} d${day} #${i}: the deck's value`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
+          expect(e.build.runes?.length, `${hero} d${day} #${i}: one rune a dawn`).toBe(day); // FLIP-X2: the content guarantee
           expect(e.spent, `${hero} d${day} #${i}: gold spent covers the deck`).toBeGreaterThanOrEqual(e.cost);
-          expect(e.spent, `${hero} d${day} #${i}: gold spent`).toBeLessThanOrEqual(maxGoldByDay(day));
+          // FLIP-X2: the caravan run took a rune each dawn, and its gold spent includes the gold its runes paid (COIN PURSE,
+          // FAT PURSE, RUNE TITHE ...), so the bound is the day's gold plus its runes' dawn gold (was maxGoldByDay(day);
+          // furnace d5 #0 spent 54 of 50 + its runes' gold)
+          expect(e.spent, `${hero} d${day} #${i}: gold spent`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(e.build.runes, day).gold);
           if (POOL_LEGACY) expect(e.spent).toBe(e.cost); // pool v2.1: full purse, its gold spent is its cost
           if (!short.has(`${hero}|${day}|${e.cost}`)) {
             expect(e.spent, `${hero} d${day} #${i}: gold spent`).toBeGreaterThanOrEqual(floor(day));
