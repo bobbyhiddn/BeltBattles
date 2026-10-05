@@ -18,6 +18,7 @@ import {
 import { infoItems, infoLevels, infoPages, questionBox } from "../src/screens/build/keywords"; // U2e step 5: the ⓘ view
 import { lineWidth } from "../src/ui/richText"; // U2e step 5
 import { infoFree, infoView, runeWords, INFO_FREE_MIN, type KwWord } from "../src/screens/build/keywords"; // U2f: the taller ⓘ view
+import { infoDrawn } from "../src/screens/build/keywords"; // FLIP-X1 (N4-b): the view as drawn
 import { phoneScreen } from "../src/screens/build/layout"; // U2f
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar"; // U2f: the text sheet's view
 import { RUNE_LIST, runeList } from "../src/sim/runes"; // U2f; FLIP-X1 (F-d): runeList
@@ -331,14 +332,15 @@ describe("U2c tap to explain: the tap, the close rules, `?`, the desk hover and 
 // offer, each hero's signature factory placed) on the op view (402x690 @3, touch, planned with the rune row as the game
 // plans it after the dawn pick) and the 1920x1080 desk.
 
-/** The text sheet's view (U2e's probe): build.ts pickScale and layout() with one rune held, the phone's zoom and tap. */
-function sheetView(w: number, h: number, dpr: number) {
+/** The text sheet's view (U2e's probe): build.ts pickScale and layout() with one rune held, the phone's zoom and tap.
+ *  FLIP-X1 (N4-b): `n` runes held (0: no rune row, the layout as the game plans it before the first pick). */
+function sheetView(w: number, h: number, dpr: number, n = 1) {
   const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr), portrait = ph > pw * 1.05, isPh = phoneScreen(pw, ph, dpr);
-  const held = { run: { build: { runes: [{ id: "iron_skin", day: 1 }] } }, refit: false, offers: () => [0, 1, 2, 3, 4] } as unknown as Parameters<typeof runeRowFits>[0];
+  const held = { run: { build: { runes: Array.from({ length: n }, (_, i) => ({ id: "iron_skin", day: i + 1 })) } }, refit: false, offers: () => [0, 1, 2, 3, 4] } as unknown as Parameters<typeof runeRowFits>[0];
   let scale = buildScale(pw, ph, portrait, dpr);
   while (scale > 1 && !runeRowFits(held, pw, ph, portrait, scale, dpr)) scale--;
   const v = { W: Math.floor(pw / scale), H: Math.floor(ph / scale), scale, portrait, dpr } as View;
-  const tap = isPh ? Math.ceil(TAP_CSS / (scale / dpr)) : 0, row = runeRowH(v, 1);
+  const tap = isPh ? Math.ceil(TAP_CSS / (scale / dpr)) : 0, row = runeRowH(v, n);
   return { v, L: shiftLayout(buildLayout(v.W, v.H - row, portrait, 5, isPh && portrait, tap), row, v.H), touch: isPh };
 }
 
@@ -461,9 +463,18 @@ describe("U2f: the taller ⓘ view", () => {
           expect(overlaps(a, questionBox(r)), `${tag}: ⓘ`).toBe(false);
           if (q) expect(overlaps(a, q), `${tag}: ⓘ's hit rect`).toBe(false);
           expect(a.y, `${tag}: under the top bar`).toBeGreaterThan(L.bar.y + L.bar.h);
-          expect(a.y + a.h, `${tag}: on the screen`).toBeLessThanOrEqual(L.H);
+          expect(a.y + a.h, `${tag}: its area on the screen`).toBeLessThanOrEqual(L.H);
           // the room above the panel never reaches the phone's buttons (the body is U2e's view, which a grown target may meet)
           if (!p.column && a.y + a.h <= r.y) for (const b of o.buttons) expect(overlaps(a, b), `${tag}: a button`).toBe(false);
+        }
+        // FLIP-X1 (N4-b): what it draws stays on the screen: the bottom of its last text line (the footer's too) and the top
+        // of its first, on every page (keywords.ts infoDrawn, drawView's geometry). The area above can hold while a line
+        // inside runs past the edge (NUM-4 finding 6)
+        for (let pg = 0; pg < view.pages.length; pg++) {
+          const dr = infoDrawn(items, r, p.y - 1, p.maxY + 2, free, pg);
+          const lastLine = Math.max(...dr.rows.map((q) => q.y + q.h), dr.foot === null ? -Infinity : dr.foot + 5);
+          expect(lastLine, `${tag} page ${pg + 1}: its last text line on the screen`).toBeLessThanOrEqual(L.H);
+          expect(Math.min(...dr.rows.map((q) => q.y)), `${tag} page ${pg + 1}: its first text line under the top bar`).toBeGreaterThan(L.bar.y + L.bar.h);
         }
         if (free) expect(free.h, tag).toBeGreaterThanOrEqual(INFO_FREE_MIN);
         if (free && !p.column) expect(free.y + free.h, `${tag}: above the panel`).toBeLessThanOrEqual(r.y - 1);
@@ -514,3 +525,85 @@ const U2F_OP_RUNE = [276, 34];
  *  pin above is RUNE_LIST's, unchanged. */
 const U2F_OP_RUNE_ON = [276, 34];
 const U2F_DESK = [296, 9];
+
+// FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
+// the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly
+// below its bottom edge. This sweep measures what the view draws (keywords.ts infoDrawn, drawView's geometry): the top of
+// its first text row and the bottom of its last (the footer's too), on every page, for every panel (the text sheet's and
+// the zoom sweep's), on the op phone (402x690 @3) and the 1920x1080 desk, with the switch off and on, with no rune held
+// (no rune row) and with each held rune's keywords (the rune row, as the game plans it after the dawn pick).
+describe("FLIP-X1 N4-b: every line of every panel's ⓘ view is on screen", () => {
+  /** Every page of a panel's view as drawn: the top of its first text row and the bottom of its last. */
+  const span = (vw: ReturnType<typeof sheetView>, c: { run: Run; sel: Sel }, extra: readonly KwWord[]) => {
+    const x = infoOf(vw, c, extra);
+    if (!x) return null;
+    const p = x.plan;
+    let lo = Infinity, hi = -Infinity;
+    for (let pg = 0; pg < x.view.pages.length; pg++) {
+      const d = infoDrawn(x.items, p.r, p.y - 1, p.maxY + 2, x.free, pg);
+      for (const row of d.rows) { lo = Math.min(lo, row.y); hi = Math.max(hi, row.y + row.h); }
+      if (d.foot !== null) hi = Math.max(hi, d.foot + 5);
+    }
+    return { lo, hi, pages: x.view.pages.length };
+  };
+
+  /** Each distinct set of one held rune's keywords, over runeList() (with the switch on, the 8 sustain runes' too). */
+  const runeSetsNow = () => {
+    const sets = new Map<string, { ids: string[]; ws: KwWord[] }>();
+    for (const r of runeList()) {
+      const ws = runeWords({ build: { runes: [{ id: r.id, day: 1 }] } } as unknown as Run);
+      const k = ws.map((w) => w.word).join("+");
+      if (!sets.has(k)) sets.set(k, { ids: [], ws });
+      sets.get(k)!.ids.push(r.id);
+    }
+    return [...sets].map(([k, s]) => ({ label: `rune ${k} (${s.ids[0]})`, ws: s.ws }));
+  };
+  /** Sweep `views` (each a view, and whether it holds a rune): every panel, with no rune or (a view holding one) each
+   *  rune's keywords; the rows past an edge ("on/off | size | panel | held | pages | below | above") and the views measured. */
+  const sweep = (on: boolean, views: { size: string; vw: ReturnType<typeof sheetView>; held: boolean }[]) => withSustain(() => {
+    const all = [...sheetPanels(), ...panels()], sets = runeSetsNow(), out: string[] = [];
+    let n = 0;
+    for (const { size, vw, held } of views) for (const c of all) {
+      for (const t of held ? sets : [{ label: "no rune", ws: [] as KwWord[] }]) {
+        const sp = span(vw, c, t.ws);
+        if (!sp) continue;
+        n++;
+        const below = sp.hi - vw.v.H, above = -sp.lo;
+        if (below > 0 || above > 0) out.push(`${on ? "on" : "off"} | ${size} ${vw.v.W}x${vw.v.H} | ${c.id} | ${t.label} | pages ${sp.pages} | below ${below} | above ${above}`);
+      }
+    }
+    return { out, n };
+  }, on);
+
+  it("as the game plans it (no rune: no rune row; a rune held: its row, at the scale pickScale steps to): no line past an edge, the switch off and on", () => {
+    for (const on of [false, true]) {
+      const views = ([["phone", 402, 690, 3], ["desk", 1920, 1080, 1]] as const).flatMap(([size, w, h, dpr]) => [
+        { size, vw: sheetView(w, h, dpr, 0), held: false },
+        { size, vw: sheetView(w, h, dpr, 1), held: true },
+      ]);
+      const { out, n } = sweep(on, views);
+      console.log(`N4-b, the switch ${on ? "on" : "off"}: ${n} views; past an edge: ${out.length}${out.length ? `\n${out.join("\n")}` : ""}`);
+      expect(n).toBeGreaterThan(18000);
+      expect(out, `the switch ${on ? "on" : "off"}`).toEqual([]);
+    }
+  });
+
+  it("NUM-4's shot (the desk at 480x270 with a rune row: the shot tooling's bb.holdRunes skips the pick's game.resize()): WARD BELL's view pages on the screen, and every panel's does", () => {
+    // the game steps the 1920x1080 desk from x4 (480x270) to x3 (640x360) when a rune is held (runeRowFits); this is the
+    // layout at x4 with the rune row, whose column runs past the screen's bottom (its cargo tray is cut too)
+    const v4 = sheetView(1920, 1080, 1, 0).v, row = runeRowH(v4, 1);
+    const at4 = { v: v4, L: shiftLayout(buildLayout(v4.W, v4.H - row, false, 5, false, 0), row, v4.H), touch: false };
+    expect([at4.v.W, at4.v.H, at4.L.info.y + at4.L.info.h > at4.v.H]).toEqual([480, 270, true]);
+    const ward = withSustain(() => {
+      const c = sheetPanels().find((q) => q.id === "cargo wardbell ★1 (furnace)")!;
+      return span(at4, c, runeWords({ build: { runes: [{ id: "spare_hull", day: 1 }] } } as unknown as Run))!;
+    });
+    console.log(`N4-b, NUM-4's shot state: WARD BELL ★1 with SPARE HULL's HULL: ${ward.pages} pages, its last line ends at ${ward.hi} of ${at4.v.H}`);
+    expect(ward.hi).toBeLessThanOrEqual(at4.v.H); // x2a: 1 page, its last line to 271 of 270 (HULL's "FIGHT." 1 px past)
+    for (const on of [false, true]) {
+      const { out, n } = sweep(on, [{ size: "desk x4 + a rune row", vw: at4, held: true }]);
+      console.log(`N4-b, NUM-4's shot state, the switch ${on ? "on" : "off"}: ${n} views; past an edge: ${out.length}${out.length ? `\n${out.join("\n")}` : ""}`);
+      expect(out, `the switch ${on ? "on" : "off"}`).toEqual([]);
+    }
+  });
+});
