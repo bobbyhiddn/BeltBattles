@@ -226,7 +226,7 @@ const SW = { shield: "SHIELD", heals: "HEALS" } as const;
 /** The shared sentences: the same effect reads the same everywhere (T5). */
 export const S = {
   burn: `EACH BURN DEALS THE ENEMY HULL ${BURN_DPS} DAMAGE A SECOND FOR ${seconds(BURN_TIME)}.`, // NUM-1: the sim's BURN_DPS (was a literal 1)
-  /** What a shock does: "STALLS A MACHINE FOR 1.6 SECONDS" (n machines with a jump). */
+  /** What a shock does: a STUN in whole seconds (fmtSec), "STUNS A MACHINE FOR 2 SECONDS" (n machines with a jump). */
   stalls: (t: number, n: number) => `STUNS ${n === 1 ? "A MACHINE" : `${n} MACHINES`} FOR ${seconds(t)}`,
   /** How a jump spreads a shock (or a FROSTBITE round's STUN) after the machine the shot hits. */
   spread: (verb: string, n: number) => `THE SHOT ${verb} THE MACHINE IT HITS, THEN THE ${n === 1 ? "NEAREST OTHER ONE" : `${n} NEAREST OTHERS`}.`,
