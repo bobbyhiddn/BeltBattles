@@ -451,7 +451,9 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // bought 9, joined 62, joins 96, both 17
 // REDO-X step 2 (4.1): the stand-in pool regenerated once more on FIX-ABE's offers (09ce97c; the pools changed, the
 // regeneration): was turrets 17, bought 10, joined 64, joins 91, both 8
-const POOL_CARRIES = { turrets: 12, bought: 5, joined: 70, joins: 106, both: 7 };
+// BAL-2 step 5 (4.1): the stand-in pool regenerated once on bb-0.9.1 (c5e4780; the pools changed, the regeneration): was
+// turrets 12, bought 5, joined 70, joins 106, both 7
+const POOL_CARRIES = { turrets: 19, bought: 10, joined: 75, joins: 113, both: 11 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
@@ -474,4 +476,5 @@ const POOL_CARRIES = { turrets: 12, bought: 5, joined: 70, joins: 106, both: 7 }
 // FLIP-X2: the seed pool from the stand-in pool regenerated at 94e0cbf (120 v3 snapshots holding their day's runes): was 22, 59
 // REDO-X step 2 (4.2): the seed pool from the stand-in pool regenerated at 09ce97c and the par player on FIX-ABE's offers
 // (the pools changed, the regeneration): was 15, 54
-const GHOST_POOL_CARRIES = [9, 59]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61
+// BAL-2 step 5 (the seed pool from the stand-in pool regenerated at c5e4780; the pools changed): was 9, 59
+const GHOST_POOL_CARRIES = [12, 62]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61

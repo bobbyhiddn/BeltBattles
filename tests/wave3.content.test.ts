@@ -292,8 +292,10 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     // reach stand-in picks once more (was the 12 below without them)
     // REDO-X step 2 (4.1, 09ce97c; the pools changed, the regeneration): 14 of the 15; TWIN TRIGGER no longer reaches a
     // stand-in pick on FIX-ABE's offers (it is still sold in the shops) (was all 15)
+    // BAL-2 step 5 (4.1, c5e4780; the pools changed, the regeneration): 13 of the 15; SHIELD WALL no longer reaches a
+    // stand-in pick on bb-0.9.1 (it is still sold in the shops) (was the 14 with it)
     expect([...inPool].sort()).toEqual([
-      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder", "shieldwall", "spallcatcher",
+      "anvil", "armorpress", "braceframe", "pincer", "platebreaker", "plateroller", "seamwelder", "spallcatcher",
       "steambreech", "stoker", "twingauge", "twinlatch", "twinmould",
     ]);
     expect(inPool.has("stoker")).toBe(true);

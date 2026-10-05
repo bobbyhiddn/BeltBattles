@@ -23,7 +23,7 @@ describe("FLIP-X2: the regenerated pools hold their runes", () => {
     expect(RULES_VERSION).toBe("bb-0.9.1"); // BAL-2: the bump (was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(RULES_VERSION);
-    expect(STAND_IN_DATA.rules).toBe("bb-0.9.0");
+    expect(STAND_IN_DATA.rules).toBe("bb-0.9.1"); // BAL-2: the pool regenerated under the bump (c5e4780; was bb-0.9.0)
   });
 
   it("every stand-in pool deck holds exactly `day` runes, none dormant", () => {
