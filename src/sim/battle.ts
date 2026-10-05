@@ -1054,9 +1054,23 @@ export class Battle {
       if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
       const e = g.def.gate!;
       if (e.speed !== undefined) speeds.push(e.speed);
-      if (e.pulse) speeds.push(this.t % e.pulse.period < e.pulse.on ? e.pulse.speed : 1);
+      if (e.pulse) speeds.push(this.pulsePhase(e.pulse).on ? e.pulse.speed : 1);
     }
     return speedWinner(speeds);
+  }
+
+  /**
+   * NUM-3 (REQ-BFG-047; cap's answer 3 to NUM-2: a repeating cadence carries its remainder): SURGE VALVE's pulse on the
+   * battle's integer tick count. Pulse `cycle` starts on the first tick at or after cycle x period (each period runs from
+   * the last one's exact end, never from the tick it landed on: 1.01 s pulses start on ticks 61, 122, 182, 243, where a
+   * reset would give 183, 244) and lasts `on` s. Was `this.t % period < on` on the float clock, whose drift (this.t is
+   * 24.99999999999986 on tick 1500) put a whole-second pulse's first or last tick on either side of its boundary.
+   */
+  private pulsePhase(p: { on: number; period: number }): { on: boolean; cycle: number } {
+    const per = p.period * TICKS_PER_SEC; // ticks a period: whole for N1's whole seconds (180 / 180 / 120)
+    const cycle = Math.floor((this.ticks + 1e-9) / per);
+    const start = Math.ceil(cycle * per - 1e-9);
+    return { on: this.ticks - start < Math.round(p.on * TICKS_PER_SEC), cycle };
   }
 
   private pulseAt(r: RouteState, pos: number): GateState | undefined {
@@ -1105,8 +1119,9 @@ export class Battle {
           }
           const surge = fixed === undefined && !s.race?.speedLock ? this.pulseAt(r, a.s) : undefined;
           const pulse = surge?.def.gate?.pulse;
-          if (surge && pulse && pulse.flat > 0 && this.t % pulse.period < pulse.on) {
-            const cycle = Math.floor(this.t / pulse.period);
+          const phase = surge && pulse && pulse.flat > 0 ? this.pulsePhase(pulse) : undefined; // NUM-3: the integer tick count
+          if (surge && pulse && phase?.on) {
+            const cycle = phase.cycle;
             const seen = a.p.pulseSeen ??= {};
             if (seen[surge.uid] !== cycle) { seen[surge.uid] = cycle; a.p.flat += pulse.flat; }
           }
