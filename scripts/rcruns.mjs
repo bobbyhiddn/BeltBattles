@@ -167,8 +167,12 @@ async function laterRun(browser, online, data) {
   log(`\n## later: a new player (runs 3) on a server over the uploads alone`);
   const only = mkdtempSync(join(tmpdir(), "bb-rcruns-later-"));
   copyFileSync(join(data, "ghosts.jsonl"), join(only, "ghosts.jsonl"));
-  const ids = readFileSync(join(only, "ghosts.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((r) => r.snapshot.day === 1).map((r) => r.id);
-  log(`  the store's day-1 uploads: ${ids.length} (${ids.join(", ")})`);
+  // STAGE-091, backlog 337: the store's day-1 upload ids, read again after each later run. Uploads are open here, so an
+  // earlier later player's own dusk-1 upload joins the store, and the next one (3 runs, so matched with uploads) can meet
+  // it: a list read once, before the runs, missed that id (H2 saw 85 of 86, then 44 of 44 on a rerun).
+  const dayOneIds = () => readFileSync(join(only, "ghosts.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((r) => r.snapshot.day === 1).map((r) => r.id);
+  const ids0 = dayOneIds();
+  log(`  the store's day-1 uploads: ${ids0.length} (${ids0.join(", ")})`);
   const srv = await startServer(online, only, "open", false); // open: the later player's own upload gets 201, not a 403 line
   try {
     for (const [vname, [view, pin]] of Object.entries(RUNVIEWS)) {
@@ -183,6 +187,8 @@ async function laterRun(browser, online, data) {
         const o = await c.page.evaluate(() => window.bb.online());
         await c.page.screenshot({ path: join(OUT, `later-${vname}-day1.png`) });
         log(`  session: runs ${o.runs}, seen ${o.seen.join(", ")}, lastFetch ${o.lastFetch?.source} ${o.lastFetch?.hero ?? ""} ${o.lastFetch?.id ?? ""}`);
+        const ids = dayOneIds(); // backlog 337: after this run, with any earlier later player's own upload in it
+        if (ids.length !== ids0.length) log(`  the store's day-1 uploads now: ${ids.length} (${ids.filter((id) => !ids0.includes(id)).join(", ")} joined)`);
         // seen[0] is dusk 1's foe; the session may already have stored tomorrow's (it fetches from the result card on)
         check(o.runs >= 3 && o.seen.length >= 1 && ids.includes(o.seen[0]), `later ${vname}: dusk 1 fought an uploaded ghost (${o.seen[0]}), served by the server`);
       } catch (e) {

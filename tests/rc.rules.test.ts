@@ -157,6 +157,26 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
     for (const day of DAYS) expect(await app.store.bucket(OLD_RULES, day)).toEqual([]);
   });
 
+  // STAGE-091, backlog 333-11 (VERIFIED-RC's mutant CM2): the server's rules check is exact, not a prefix. An otherwise
+  // honest upload under this build's two neighbours, bb-0.9.0 (0.9.0's rules) and bb-0.9.2, is refused with 422 at that
+  // check, and nothing is stored under either. A check loosened to the prefix "bb-0.9" would store both (CM2).
+  it("refuses an otherwise honest upload under bb-0.9.0 and under bb-0.9.2: 422 at the exact rules check, nothing stored under either", async () => {
+    expect(RULES_VERSION).toBe("bb-0.9.1"); // the two near misses are this build's neighbours
+    const before = backend.storedRecords();
+    const day = 3;
+    for (const rules of ["bb-0.9.0", "bb-0.9.2"]) {
+      for (const hero of PLAYABLE_HEROES) {
+        const deck = withDawnRunes(heroRefBuild(hero, day), day);
+        expect(validateUpload(deck, day, rules).ok, `${hero} ${rules}: honest under its own rules`).toBe(true); // only the rules string is off
+        const r = await post({ ...snapOf(hero, day, rules, deck), v: SNAPSHOT_V3 });
+        expect(r.status, `${hero} d${day} ${rules}`).toBe(422);
+        expect(r.body.error).toBe(`rules ${rules} not accepted: this server validates bb-0.9.1`);
+      }
+      expect(await app.store.bucket(rules, day)).toEqual([]);
+    }
+    expect(backend.storedRecords()).toBe(before);
+  });
+
   it("a 0.7.0 session: its fetch falls back to the stand-in (404), its upload is refused quietly (422), and the run plays on to day 2 with no console line", async () => {
     const error = vi.spyOn(console, "error");
     const warn = vi.spyOn(console, "warn");
