@@ -57,105 +57,131 @@ interface LadderOpen { rule: LadderRule; day: number; a?: string; b?: string; v:
  * them: cap re-trims the packs on the flipped field in its own job (CATCHUP's capsearch method), which deletes this list.
  */
 const LADDER_X_OPEN: readonly LadderOpen[] = [
+  // CATCHUP-091 (REQ-BFG-024; cap's ruling 3c58471c74bdc4ed Q4 (i): everything that stays is re-pinned at the measured v
+  // + 0.02, each with its reason; more than 10 authorized): re-measured at fa273df (the captains' final plans and
+  // CAPTAIN_RUNES) with kit091's collector, an uncommitted copy of these rules with no exception list
+  // (W/output-c091/ladder/ladder-final-fa273df.json): 110 entries, BAL-2's 92 -> 110. Out (pass now) 7: easyOverHard d4
+  // BRASSWICK v HIGHSPIRE and v KARSK, d4 RATCHET v HIGHSPIRE and v KARSK, d5 RATCHET v HIGHSPIRE, d8 GRUBNOSE v
+  // HIGHSPIRE; matriarchLowest d10 VOSS. New 25, every one from the walls' fixes (walls first, ruling 3c58471c74bdc4ed):
+  // the Matriarch's PYRE HEART rule (matriarchLowest 14, easyOverHard v the Matriarch 3), MASTER VOSS's and SILKSHADE's
+  // fixes (easyOverHard 6), parLosesToHard d3 and slotGap d8 medium / hard. The Easy captains over the Hard ones are a
+  // structural item for a pass after 0.9.2 (the ruling: no Easy-captain rune rule or plan move here). Each line's
+  // comment: "carried" (in BAL-2's list, its old v) or what moved it in. Before, BAL-2's note:
   // BAL-2 step 8 (cap's REVIEW-BAL1 answer 3: any rivals.difficulty rule may enter it; cap's ruling ebdb9a49d368e029 for
   // the pacing pins): re-measured on bal2 b1b0d28 (16:15Z; 0.9.1's lines, the regenerated caps, CAPTAIN_RUNES re-pinned
   // and the captain fit; W/output-bal2/ladder/ladder.json): 90 ladder rules + 2 pacing pins, v and ceiling = v + 0.02.
-  // REDO-X measured 78 + 3 on 7d99f56; 14 now pass and came out (easyOverHard 9, parBeatsEasy 2, poolBand 1, slotGap 1,
-  // pacing d2 GRIMHOLD / FURNACE), 25 are new (easyOverHard 19, slotGap 4, parLosesToHard d2, poolBand d1); no new pacing
-  // pair. The old -> new v of every entry: W/output-bal2/ladder/ladder-compare.txt
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "highspire", v: 0.0226, ceiling: 0.0426 },
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "karsk", v: 0.0659, ceiling: 0.0859 },
-  { rule: "easyOverHard", day: 1, a: "nettle", b: "mothqueen", v: 0.0467, ceiling: 0.0667 },
-  { rule: "easyOverHard", day: 2, a: "brasswick", b: "karsk", v: 0.1272, ceiling: 0.1472 },
-  { rule: "easyOverHard", day: 2, a: "grubnose", b: "karsk", v: 0.0000, ceiling: 0.0200 },
-  { rule: "easyOverHard", day: 2, a: "nettle", b: "karsk", v: 0.1361, ceiling: 0.1561 },
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "karsk", v: 0.0796, ceiling: 0.0996 },
-  { rule: "easyOverHard", day: 3, a: "brasswick", b: "mothqueen", v: 0.0409, ceiling: 0.0609 },
-  { rule: "easyOverHard", day: 3, a: "nettle", b: "karsk", v: 0.0335, ceiling: 0.0535 },
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "highspire", v: 0.1189, ceiling: 0.1389 },
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "karsk", v: 0.2420, ceiling: 0.2620 },
-  { rule: "easyOverHard", day: 3, a: "ratchet", b: "mothqueen", v: 0.2033, ceiling: 0.2233 },
-  { rule: "easyOverHard", day: 4, a: "brasswick", b: "highspire", v: 0.0474, ceiling: 0.0674 },
-  { rule: "easyOverHard", day: 4, a: "brasswick", b: "karsk", v: 0.0486, ceiling: 0.0686 },
-  { rule: "easyOverHard", day: 4, a: "brasswick", b: "mothqueen", v: 0.1557, ceiling: 0.1757 },
-  { rule: "easyOverHard", day: 4, a: "ratchet", b: "highspire", v: 0.0648, ceiling: 0.0848 },
-  { rule: "easyOverHard", day: 4, a: "ratchet", b: "karsk", v: 0.0661, ceiling: 0.0861 },
-  { rule: "easyOverHard", day: 4, a: "ratchet", b: "mothqueen", v: 0.1731, ceiling: 0.1931 },
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "bulwark", v: 0.4342, ceiling: 0.4542 },
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "highspire", v: 0.4518, ceiling: 0.4718 },
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "karsk", v: 0.4295, ceiling: 0.4495 },
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "longtooth", v: 0.3095, ceiling: 0.3295 },
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "mothqueen", v: 0.3119, ceiling: 0.3319 },
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "silkshade", v: 0.3084, ceiling: 0.3284 },
-  { rule: "easyOverHard", day: 5, a: "brasswick", b: "voss", v: 0.2775, ceiling: 0.2975 },
-  { rule: "easyOverHard", day: 5, a: "ratchet", b: "bulwark", v: 0.0395, ceiling: 0.0595 },
-  { rule: "easyOverHard", day: 5, a: "ratchet", b: "highspire", v: 0.0571, ceiling: 0.0771 },
-  { rule: "easyOverHard", day: 5, a: "ratchet", b: "karsk", v: 0.0349, ceiling: 0.0549 },
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "bulwark", v: 0.5678, ceiling: 0.5878 },
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "highspire", v: 0.2169, ceiling: 0.2369 },
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "karsk", v: 0.5238, ceiling: 0.5438 },
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "longtooth", v: 0.2406, ceiling: 0.2606 },
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "mothqueen", v: 0.3027, ceiling: 0.3227 },
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "silkshade", v: 0.1438, ceiling: 0.1638 },
-  { rule: "easyOverHard", day: 6, a: "brasswick", b: "voss", v: 0.0913, ceiling: 0.1113 },
-  { rule: "easyOverHard", day: 6, a: "nettle", b: "bulwark", v: 0.0563, ceiling: 0.0763 },
-  { rule: "easyOverHard", day: 6, a: "nettle", b: "karsk", v: 0.0123, ceiling: 0.0323 },
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "bulwark", v: 0.2888, ceiling: 0.3088 },
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "highspire", v: 0.1456, ceiling: 0.1656 },
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "karsk", v: 0.4713, ceiling: 0.4913 },
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "longtooth", v: 0.1352, ceiling: 0.1552 },
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "mothqueen", v: 0.1937, ceiling: 0.2137 },
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "silkshade", v: 0.1497, ceiling: 0.1697 },
-  { rule: "easyOverHard", day: 7, a: "brasswick", b: "voss", v: 0.1114, ceiling: 0.1314 },
-  { rule: "easyOverHard", day: 7, a: "nettle", b: "karsk", v: 0.1195, ceiling: 0.1395 },
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "bulwark", v: 0.3020, ceiling: 0.3220 },
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "highspire", v: 0.3849, ceiling: 0.4049 },
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "karsk", v: 0.5733, ceiling: 0.5933 },
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "longtooth", v: 0.0258, ceiling: 0.0458 },
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "mothqueen", v: 0.2782, ceiling: 0.2982 },
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "silkshade", v: 0.2661, ceiling: 0.2861 },
-  { rule: "easyOverHard", day: 8, a: "brasswick", b: "voss", v: 0.1617, ceiling: 0.1817 },
-  { rule: "easyOverHard", day: 8, a: "grubnose", b: "bulwark", v: 0.0616, ceiling: 0.0816 },
-  { rule: "easyOverHard", day: 8, a: "grubnose", b: "highspire", v: 0.1446, ceiling: 0.1646 },
-  { rule: "easyOverHard", day: 8, a: "grubnose", b: "karsk", v: 0.3330, ceiling: 0.3530 },
-  { rule: "easyOverHard", day: 8, a: "grubnose", b: "mothqueen", v: 0.0379, ceiling: 0.0579 },
-  { rule: "easyOverHard", day: 8, a: "grubnose", b: "silkshade", v: 0.0258, ceiling: 0.0458 },
-  { rule: "easyOverHard", day: 8, a: "nettle", b: "karsk", v: 0.1643, ceiling: 0.1843 },
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "bulwark", v: 0.2911, ceiling: 0.3111 },
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "highspire", v: 0.2103, ceiling: 0.2303 },
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "karsk", v: 0.5102, ceiling: 0.5302 },
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "longtooth", v: 0.1967, ceiling: 0.2167 },
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "mothqueen", v: 0.2507, ceiling: 0.2707 },
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "silkshade", v: 0.1450, ceiling: 0.1650 },
-  { rule: "easyOverHard", day: 9, a: "brasswick", b: "voss", v: 0.4459, ceiling: 0.4659 },
-  { rule: "easyOverHard", day: 9, a: "grubnose", b: "karsk", v: 0.1772, ceiling: 0.1972 },
-  { rule: "easyOverHard", day: 9, a: "grubnose", b: "voss", v: 0.1129, ceiling: 0.1329 },
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "bulwark", v: 0.1480, ceiling: 0.1680 },
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "highspire", v: 0.1486, ceiling: 0.1686 },
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "karsk", v: 0.4410, ceiling: 0.4610 },
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "longtooth", v: 0.1121, ceiling: 0.1321 },
-  { rule: "easyOverHard", day: 10, a: "brasswick", b: "mothqueen", v: 0.1184, ceiling: 0.1384 },
-  { rule: "easyOverHard", day: 10, a: "grubnose", b: "karsk", v: 0.2335, ceiling: 0.2535 },
-  { rule: "easyOverHard", day: 10, a: "ratchet", b: "karsk", v: 0.2501, ceiling: 0.2701 },
-  { rule: "matriarchLowest", day: 10, a: "voss", v: 0.0189, ceiling: 0.0389 },
-  // non-ladder pins: the days 1-3 pacing floor (15 s), a = the captain, b = the pacing deck's hero; v = 15 - the mean fight
-  { rule: "pacing", day: 3, a: "grimhold", b: "furnace", v: 0.2758, ceiling: 0.2958 }, // mean 14.7242 s; pacing pin (cap's ruling ebdb9a49d368e029)
-  { rule: "pacing", day: 3, a: "grimhold", b: "weaver", v: 0.9558, ceiling: 0.9758 }, // mean 14.0442 s; pacing pin (cap's ruling ebdb9a49d368e029)
-  { rule: "parBeatsEasy", day: 5, v: 0.1734, ceiling: 0.1934 },
-  { rule: "parBeatsEasy", day: 6, v: 0.1381, ceiling: 0.1581 },
-  { rule: "parBeatsEasy", day: 7, v: 0.0800, ceiling: 0.1000 },
-  { rule: "parBeatsEasy", day: 8, v: 0.1153, ceiling: 0.1353 },
-  { rule: "parBeatsEasy", day: 9, v: 0.0663, ceiling: 0.0863 },
-  { rule: "parBeatsEasy", day: 10, v: 0.0466, ceiling: 0.0666 },
-  { rule: "parLosesToHard", day: 2, v: 0.0314, ceiling: 0.0514 },
-  { rule: "poolBand", day: 1, v: 0.0169, ceiling: 0.0369 },
-  { rule: "slotGap", day: 3, a: "medium", b: "hard", v: 0.0889, ceiling: 0.1089 },
-  { rule: "slotGap", day: 4, a: "medium", b: "hard", v: 0.0633, ceiling: 0.0833 },
-  { rule: "slotGap", day: 5, a: "easy", b: "medium", v: 0.1257, ceiling: 0.1457 },
-  { rule: "slotGap", day: 7, a: "easy", b: "medium", v: 0.0165, ceiling: 0.0365 },
-  { rule: "slotGap", day: 8, a: "easy", b: "medium", v: 0.0135, ceiling: 0.0335 },
-  { rule: "slotGap", day: 9, a: "easy", b: "medium", v: 0.0647, ceiling: 0.0847 },
-  { rule: "slotGap", day: 10, a: "easy", b: "medium", v: 0.1420, ceiling: 0.1620 },
+  // The pacing entries are non-ladder pins: the days 1-3 pacing floor (15 s), a = the captain, b = the pacing deck's hero;
+  // v = 15 - the mean fight (GRIMHOLD's day-3 pins stay: no least change of his own plan clears them in this job).
+  { rule: "easyOverHard", day: 1, a: "nettle", b: "highspire", v: 0.0226, ceiling: 0.0426 }, // carried (BAL-2 0.0226)
+  { rule: "easyOverHard", day: 1, a: "nettle", b: "karsk", v: 0.0659, ceiling: 0.0859 }, // carried (BAL-2 0.0659)
+  { rule: "easyOverHard", day: 1, a: "nettle", b: "mothqueen", v: 0.0467, ceiling: 0.0667 }, // carried (BAL-2 0.0467)
+  { rule: "easyOverHard", day: 2, a: "brasswick", b: "karsk", v: 0.1272, ceiling: 0.1472 }, // carried (BAL-2 0.1272)
+  { rule: "easyOverHard", day: 2, a: "grubnose", b: "karsk", v: 0.0000, ceiling: 0.0200 }, // carried (BAL-2 0.0000)
+  { rule: "easyOverHard", day: 2, a: "nettle", b: "karsk", v: 0.1361, ceiling: 0.1561 }, // carried (BAL-2 0.1361)
+  { rule: "easyOverHard", day: 3, a: "brasswick", b: "karsk", v: 0.0796, ceiling: 0.0996 }, // carried (BAL-2 0.0796)
+  { rule: "easyOverHard", day: 3, a: "brasswick", b: "mothqueen", v: 0.0409, ceiling: 0.0609 }, // carried (BAL-2 0.0409)
+  { rule: "easyOverHard", day: 3, a: "nettle", b: "karsk", v: 0.0335, ceiling: 0.0535 }, // carried (BAL-2 0.0335)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "highspire", v: 0.1189, ceiling: 0.1389 }, // carried (BAL-2 0.1189)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "karsk", v: 0.2420, ceiling: 0.2620 }, // carried (BAL-2 0.2420)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "mothqueen", v: 0.2033, ceiling: 0.2233 }, // carried (BAL-2 0.2033)
+  { rule: "easyOverHard", day: 3, a: "ratchet", b: "silkshade", v: 0.1458, ceiling: 0.1658 }, // new: walls first (ruling 3c58471c74bdc4ed), SILKSHADE's walls fixes
+  { rule: "easyOverHard", day: 4, a: "brasswick", b: "mothqueen", v: 0.1557, ceiling: 0.1757 }, // carried (BAL-2 0.1557)
+  { rule: "easyOverHard", day: 4, a: "ratchet", b: "mothqueen", v: 0.1731, ceiling: 0.1931 }, // carried (BAL-2 0.1731)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "bulwark", v: 0.4342, ceiling: 0.4542 }, // carried (BAL-2 0.4342)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "highspire", v: 0.2903, ceiling: 0.3103 }, // carried (BAL-2 0.4518)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "karsk", v: 0.5394, ceiling: 0.5594 }, // carried (BAL-2 0.4295)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "longtooth", v: 0.3095, ceiling: 0.3295 }, // carried (BAL-2 0.3095)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "mothqueen", v: 0.3119, ceiling: 0.3319 }, // carried (BAL-2 0.3119)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "silkshade", v: 0.5893, ceiling: 0.6093 }, // carried (BAL-2 0.3084)
+  { rule: "easyOverHard", day: 5, a: "brasswick", b: "voss", v: 0.2775, ceiling: 0.2975 }, // carried (BAL-2 0.2775)
+  { rule: "easyOverHard", day: 5, a: "ratchet", b: "bulwark", v: 0.0395, ceiling: 0.0595 }, // carried (BAL-2 0.0395)
+  { rule: "easyOverHard", day: 5, a: "ratchet", b: "karsk", v: 0.1448, ceiling: 0.1648 }, // carried (BAL-2 0.0349)
+  { rule: "easyOverHard", day: 5, a: "ratchet", b: "silkshade", v: 0.1946, ceiling: 0.2146 }, // new: walls first (ruling 3c58471c74bdc4ed), SILKSHADE's walls fixes
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "bulwark", v: 0.5678, ceiling: 0.5878 }, // carried (BAL-2 0.5678)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "highspire", v: 0.2169, ceiling: 0.2369 }, // carried (BAL-2 0.2169)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "karsk", v: 0.5238, ceiling: 0.5438 }, // carried (BAL-2 0.5238)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "longtooth", v: 0.2406, ceiling: 0.2606 }, // carried (BAL-2 0.2406)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "mothqueen", v: 0.3027, ceiling: 0.3227 }, // carried (BAL-2 0.3027)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "silkshade", v: 0.2547, ceiling: 0.2747 }, // carried (BAL-2 0.1438)
+  { rule: "easyOverHard", day: 6, a: "brasswick", b: "voss", v: 0.2063, ceiling: 0.2263 }, // carried (BAL-2 0.0913)
+  { rule: "easyOverHard", day: 6, a: "nettle", b: "bulwark", v: 0.0563, ceiling: 0.0763 }, // carried (BAL-2 0.0563)
+  { rule: "easyOverHard", day: 6, a: "nettle", b: "karsk", v: 0.0123, ceiling: 0.0323 }, // carried (BAL-2 0.0123)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "bulwark", v: 0.2888, ceiling: 0.3088 }, // carried (BAL-2 0.2888)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "highspire", v: 0.1456, ceiling: 0.1656 }, // carried (BAL-2 0.1456)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "karsk", v: 0.4713, ceiling: 0.4913 }, // carried (BAL-2 0.4713)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "longtooth", v: 0.1160, ceiling: 0.1360 }, // carried (BAL-2 0.1352)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "mothqueen", v: 0.2511, ceiling: 0.2711 }, // carried (BAL-2 0.1937)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "silkshade", v: 0.2646, ceiling: 0.2846 }, // carried (BAL-2 0.1497)
+  { rule: "easyOverHard", day: 7, a: "brasswick", b: "voss", v: 0.3236, ceiling: 0.3436 }, // carried (BAL-2 0.1114)
+  { rule: "easyOverHard", day: 7, a: "nettle", b: "karsk", v: 0.1195, ceiling: 0.1395 }, // carried (BAL-2 0.1195)
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "bulwark", v: 0.3020, ceiling: 0.3220 }, // carried (BAL-2 0.3020)
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "highspire", v: 0.2019, ceiling: 0.2219 }, // carried (BAL-2 0.3849)
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "karsk", v: 0.5733, ceiling: 0.5933 }, // carried (BAL-2 0.5733)
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "longtooth", v: 0.0818, ceiling: 0.1018 }, // carried (BAL-2 0.0258)
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "matriarch", v: 0.2262, ceiling: 0.2462 }, // new: walls first (ruling 3c58471c74bdc4ed), the Matriarch's PYRE HEART rule
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "mothqueen", v: 0.2782, ceiling: 0.2982 }, // carried (BAL-2 0.2782)
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "silkshade", v: 0.2661, ceiling: 0.2861 }, // carried (BAL-2 0.2661)
+  { rule: "easyOverHard", day: 8, a: "brasswick", b: "voss", v: 0.2858, ceiling: 0.3058 }, // carried (BAL-2 0.1617)
+  { rule: "easyOverHard", day: 8, a: "grubnose", b: "bulwark", v: 0.0616, ceiling: 0.0816 }, // carried (BAL-2 0.0616)
+  { rule: "easyOverHard", day: 8, a: "grubnose", b: "karsk", v: 0.3330, ceiling: 0.3530 }, // carried (BAL-2 0.3330)
+  { rule: "easyOverHard", day: 8, a: "grubnose", b: "mothqueen", v: 0.0379, ceiling: 0.0579 }, // carried (BAL-2 0.0379)
+  { rule: "easyOverHard", day: 8, a: "grubnose", b: "silkshade", v: 0.0258, ceiling: 0.0458 }, // carried (BAL-2 0.0258)
+  { rule: "easyOverHard", day: 8, a: "grubnose", b: "voss", v: 0.0455, ceiling: 0.0655 }, // new: walls first (ruling 3c58471c74bdc4ed), MASTER VOSS's walls fixes
+  { rule: "easyOverHard", day: 8, a: "nettle", b: "karsk", v: 0.1643, ceiling: 0.1843 }, // carried (BAL-2 0.1643)
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "bulwark", v: 0.2911, ceiling: 0.3111 }, // carried (BAL-2 0.2911)
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "highspire", v: 0.2103, ceiling: 0.2303 }, // carried (BAL-2 0.2103)
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "karsk", v: 0.5102, ceiling: 0.5302 }, // carried (BAL-2 0.5102)
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "longtooth", v: 0.2283, ceiling: 0.2483 }, // carried (BAL-2 0.1967)
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "matriarch", v: 0.2670, ceiling: 0.2870 }, // new: walls first (ruling 3c58471c74bdc4ed), the Matriarch's PYRE HEART rule
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "mothqueen", v: 0.2507, ceiling: 0.2707 }, // carried (BAL-2 0.2507)
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "silkshade", v: 0.1450, ceiling: 0.1650 }, // carried (BAL-2 0.1450)
+  { rule: "easyOverHard", day: 9, a: "brasswick", b: "voss", v: 0.4422, ceiling: 0.4622 }, // carried (BAL-2 0.4459)
+  { rule: "easyOverHard", day: 9, a: "grubnose", b: "karsk", v: 0.1772, ceiling: 0.1972 }, // carried (BAL-2 0.1772)
+  { rule: "easyOverHard", day: 9, a: "grubnose", b: "voss", v: 0.1092, ceiling: 0.1292 }, // carried (BAL-2 0.1129)
+  { rule: "easyOverHard", day: 10, a: "brasswick", b: "bulwark", v: 0.1480, ceiling: 0.1680 }, // carried (BAL-2 0.1480)
+  { rule: "easyOverHard", day: 10, a: "brasswick", b: "highspire", v: 0.1486, ceiling: 0.1686 }, // carried (BAL-2 0.1486)
+  { rule: "easyOverHard", day: 10, a: "brasswick", b: "karsk", v: 0.4410, ceiling: 0.4610 }, // carried (BAL-2 0.4410)
+  { rule: "easyOverHard", day: 10, a: "brasswick", b: "longtooth", v: 0.1469, ceiling: 0.1669 }, // carried (BAL-2 0.1121)
+  { rule: "easyOverHard", day: 10, a: "brasswick", b: "matriarch", v: 0.1006, ceiling: 0.1206 }, // new: walls first (ruling 3c58471c74bdc4ed), the Matriarch's PYRE HEART rule
+  { rule: "easyOverHard", day: 10, a: "brasswick", b: "mothqueen", v: 0.1184, ceiling: 0.1384 }, // carried (BAL-2 0.1184)
+  { rule: "easyOverHard", day: 10, a: "brasswick", b: "voss", v: 0.3599, ceiling: 0.3799 }, // new: walls first (ruling 3c58471c74bdc4ed), MASTER VOSS's walls fixes
+  { rule: "easyOverHard", day: 10, a: "grubnose", b: "karsk", v: 0.2335, ceiling: 0.2535 }, // carried (BAL-2 0.2335)
+  { rule: "easyOverHard", day: 10, a: "grubnose", b: "voss", v: 0.1524, ceiling: 0.1724 }, // new: walls first (ruling 3c58471c74bdc4ed), MASTER VOSS's walls fixes
+  { rule: "easyOverHard", day: 10, a: "ratchet", b: "karsk", v: 0.2501, ceiling: 0.2701 }, // carried (BAL-2 0.2501)
+  { rule: "easyOverHard", day: 10, a: "ratchet", b: "voss", v: 0.1690, ceiling: 0.1890 }, // new: walls first (ruling 3c58471c74bdc4ed), MASTER VOSS's walls fixes
+  { rule: "matriarchLowest", day: 8, a: "brasswick", v: 0.2262, ceiling: 0.2462 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 8, a: "highspire", v: 0.0244, ceiling: 0.0444 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule; HIGHSPIRE's day-8 plates
+  { rule: "matriarchLowest", day: 8, a: "lacewing", v: 0.0301, ceiling: 0.0501 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 8, a: "longtooth", v: 0.1444, ceiling: 0.1644 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 8, a: "thistlemail", v: 0.0671, ceiling: 0.0871 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 9, a: "brasswick", v: 0.2670, ceiling: 0.2870 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 9, a: "highspire", v: 0.0567, ceiling: 0.0767 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule; HIGHSPIRE's day-8 plates
+  { rule: "matriarchLowest", day: 9, a: "longtooth", v: 0.0387, ceiling: 0.0587 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 9, a: "mothqueen", v: 0.0163, ceiling: 0.0363 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 9, a: "silkshade", v: 0.1221, ceiling: 0.1421 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 9, a: "thistlemail", v: 0.0808, ceiling: 0.1008 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 10, a: "brasswick", v: 0.1006, ceiling: 0.1206 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 10, a: "silkshade", v: 0.1941, ceiling: 0.2141 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "matriarchLowest", day: 10, a: "thistlemail", v: 0.0662, ceiling: 0.0862 }, // new: walls first (ruling 3c58471c74bdc4ed Q3), the Matriarch's PYRE HEART rule
+  { rule: "pacing", day: 3, a: "grimhold", b: "furnace", v: 0.2758, ceiling: 0.2958 }, // carried (BAL-2 0.2758); pacing pin, cap's ruling ebdb9a49d368e029
+  { rule: "pacing", day: 3, a: "grimhold", b: "weaver", v: 0.9558, ceiling: 0.9758 }, // carried (BAL-2 0.9558); pacing pin, cap's ruling ebdb9a49d368e029
+  { rule: "parBeatsEasy", day: 5, v: 0.1734, ceiling: 0.1934 }, // carried (BAL-2 0.1734)
+  { rule: "parBeatsEasy", day: 6, v: 0.1381, ceiling: 0.1581 }, // carried (BAL-2 0.1381)
+  { rule: "parBeatsEasy", day: 7, v: 0.0800, ceiling: 0.1000 }, // carried (BAL-2 0.0800)
+  { rule: "parBeatsEasy", day: 8, v: 0.1153, ceiling: 0.1353 }, // carried (BAL-2 0.1153)
+  { rule: "parBeatsEasy", day: 9, v: 0.0663, ceiling: 0.0863 }, // carried (BAL-2 0.0663)
+  { rule: "parBeatsEasy", day: 10, v: 0.0466, ceiling: 0.0666 }, // carried (BAL-2 0.0466)
+  { rule: "parLosesToHard", day: 2, v: 0.0314, ceiling: 0.0514 }, // carried (BAL-2 0.0314)
+  { rule: "parLosesToHard", day: 3, v: 0.0077, ceiling: 0.0277 }, // new: walls first, the Hard captains' day-3 fixes (SILKSHADE's static brush, MASTER VOSS's pack)
+  { rule: "poolBand", day: 1, v: 0.0169, ceiling: 0.0369 }, // carried (BAL-2 0.0169)
+  { rule: "slotGap", day: 3, a: "medium", b: "hard", v: 0.1347, ceiling: 0.1547 }, // carried (BAL-2 0.0889)
+  { rule: "slotGap", day: 4, a: "medium", b: "hard", v: 0.0395, ceiling: 0.0595 }, // carried (BAL-2 0.0633)
+  { rule: "slotGap", day: 5, a: "easy", b: "medium", v: 0.1257, ceiling: 0.1457 }, // carried (BAL-2 0.1257)
+  { rule: "slotGap", day: 7, a: "easy", b: "medium", v: 0.0165, ceiling: 0.0365 }, // carried (BAL-2 0.0165)
+  { rule: "slotGap", day: 8, a: "easy", b: "medium", v: 0.0135, ceiling: 0.0335 }, // carried (BAL-2 0.0135)
+  { rule: "slotGap", day: 8, a: "medium", b: "hard", v: 0.0412, ceiling: 0.0612 }, // new: walls first, the Hard captains' day-8 fixes (LONGTOOTH, MASTER VOSS, the Matriarch)
+  { rule: "slotGap", day: 9, a: "easy", b: "medium", v: 0.0647, ceiling: 0.0847 }, // carried (BAL-2 0.0647)
+  { rule: "slotGap", day: 10, a: "easy", b: "medium", v: 0.1420, ceiling: 0.1620 }, // carried (BAL-2 0.1420)
 ];
 const open = (rule: LadderRule, day: number, a?: string, b?: string): LadderOpen | undefined =>
   LADDER_X_OPEN.find((x) => x.rule === rule && x.day === day && x.a === a && x.b === b);
