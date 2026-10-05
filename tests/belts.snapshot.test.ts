@@ -22,7 +22,11 @@ function netOk(s: unknown): boolean {
 
 describe("BELTS D10: the upgrade levels in a snapshot, local and strict checks agree", () => {
   const base = POOL.find((s) => s.build.upgrades === undefined)!;
-  const withUp = (v: 1 | 2, upgrades: unknown) => ({ ...base, v, build: { ...base.build, upgrades } });
+  // FLIP-X2: the sample decks are v3 and hold their day's runes (BOT_RUNES), which a v1 or v2 snapshot refuses
+  // ("snapshot.build.runes: not allowed in a v2 snapshot"), so the v2 and v1 rows take a rune-less copy of the deck
+  // (was { ...base.build, upgrades }, runes and all: v2 turret 2 refused on both sides, [false, false] for [true, true])
+  const { runes: _runes, ...runeless } = base.build;
+  const withUp = (v: 1 | 2, upgrades: unknown) => ({ ...base, v, build: { ...runeless, upgrades } });
   const cases: [string, unknown, boolean][] = [
     ["turret 2", { turret: 2 }, true], ["factory 4", { factory: UPGRADE_MAX }, true], ["both 3", { turret: 3, factory: 3 }, true],
     ["level 1 written", { turret: 1 }, true], ["empty object", {}, true],

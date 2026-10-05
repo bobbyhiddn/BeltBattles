@@ -94,7 +94,15 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     const starry = (s: net.GhostSnapshot): boolean => [...s.build.items, ...s.build.mods].some((p) => p.stars !== undefined);
     expect(POOL.filter((s) => !starry(s)).length).toBeGreaterThan(0);
     expect(POOL.filter((s) => starry(s)).length).toBeGreaterThan(0);
-    for (const s of POOL) {
+    for (const s3 of POOL) {
+      // FLIP-X2: the sample decks are v3 and hold their day's runes (BOT_RUNES), which a v1 or v2 snapshot refuses
+      // ("snapshot.build.runes: not allowed in a v1 snapshot"), and a race ghost carries its run seed, also v3-only
+      // ("snapshot.seed: not allowed in a v1 snapshot", foundry d1), so the v1 and v2 rows below take a copy without the
+      // runes and the seed (was the snapshot as it is: v1 furnace d1 and foundry d1 refused on both sides, [false, false]
+      // for [true, true])
+      const { runes: _runes, ...runeless } = s3.build;
+      const { seed: _seed, ...seedless } = s3;
+      const s: net.GhostSnapshot = { ...seedless, build: runeless };
       // 0.6.2 BELTSIDE: a v1 copy loads on both sides unless a rig carries `rot`, which only v2 allows; since the 0.6.1
       // flip it may not carry merge stars either. beltside-062-on-061: both rules at once, on each side separately
       // (BELTSIDE's form, which implies the flip's `local && net`), and a starred v1 copy is refused on both sides.
@@ -122,6 +130,8 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
     delete plain.build.turrets;
     delete plain.build.upgrades; // bb-0.8.3: the levels are v2-only too
     for (const r of plain.build.routes) delete r.join;
+    delete plain.build.runes; // FLIP-X2: the runes are v3-only (was kept: POOL[0], furnace d1, holds TAR BARREL)
+    delete plain.seed; // FLIP-X2: so is a race ghost's run seed (was kept)
     expect([local.isSnapshot({ ...plain, v: 1 }), netOk({ ...plain, v: 1 })]).toEqual([true, true]);
     expect(bad).toEqual([]);
   });

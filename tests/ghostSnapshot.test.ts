@@ -9,7 +9,9 @@ import { GHOST_KEY, loadPool, pickGhost, saveGhost, standInFoe, type GhostSnapsh
 import { finishDay, ghostOf, startDusk } from "../src/game/day";
 import { newRun } from "../src/game/run";
 import { startingBuild } from "../src/sim/ai";
-import { RIVALS, deckCost, maxGoldByDay, standInBuild, standInGhost } from "../src/sim/rivals";
+import { RIVALS, maxGoldByDay, standInBuild, standInGhost } from "../src/sim/rivals";
+import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck with runes valued as bought (was deckCost)
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' hull out of the plating, their dawn gold in the budget
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import type { SideStats } from "../src/sim/battle";
@@ -213,9 +215,14 @@ describe("standInFoe: the day's rival captain with its named build", () => {
         expect(f.id).not.toBe("matriarch");
         expect(f.build).toEqual(standInBuild(id, day));
         expect([f.hero, f.name, f.build.hero]).toEqual([RIVALS[id].hero, RIVALS[id].name, RIVALS[id].hero]);
-        expect(f.build.hullBonus).toBeGreaterThanOrEqual(0);
-        expect(Number.isInteger(f.build.hullBonus / PLATE)).toBe(true);
-        expect(deckCost(f.build).total).toBeLessThanOrEqual(maxGoldByDay(day));
+        // FLIP-X2 (REVIEW-BOTSX section 5): the captain's deck holds its CAPTAIN_RUNES, their HULL and BELT on the deck, so the
+        // paid plating is the hull as bought (the runes' hull out) and the deck is valued as bought (boughtCost) against the
+        // day's gold plus its runes' dawn gold, as validate.ts does (was f.build.hullBonus, and
+        // deckCost(f.build).total <= maxGoldByDay(day): 18 <= 17)
+        const g = runeGrants(f.build.runes, day), hull = f.build.hullBonus - g.hull;
+        expect(hull).toBeGreaterThanOrEqual(0);
+        expect(Number.isInteger(hull / PLATE)).toBe(true);
+        expect(boughtCost(f.build)).toBeLessThanOrEqual(maxGoldByDay(day) + g.gold);
         ids.add(f.id);
       }
       expect(ids.size).toBe(RUN_DAYS); // no captain stands in twice in a run

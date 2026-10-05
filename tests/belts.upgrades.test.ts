@@ -28,8 +28,15 @@ import { RIVAL_IDS, rivalLoadout, standInBuild } from "../src/sim/rivals";
 import { CAPTAIN_LEVELS } from "../src/sim/rivalBuilds";
 import { barge, SEED } from "./arsenal.bench";
 
-/** A captain's stand-in deck's cost (the honest deck rivals.ts standInBuild serves): buildCost of it. */
-const standInCost = (id: (typeof RIVAL_IDS)[number], day: number): number => buildCost(standInBuild(id, day)).total;
+/** A captain's stand-in deck's cost (the honest deck rivals.ts standInBuild serves), as bought. FLIP-X2: the deck holds
+ *  its CAPTAIN_RUNES (their HULL and BELT on the deck), so it is valued as bought (boughtCost: the runes' grants out, as
+ *  validate.ts) (was buildCost(standInBuild(id, day)).total). */
+const standInCost = (id: (typeof RIVAL_IDS)[number], day: number): number => boughtCost(standInBuild(id, day));
+/** FLIP-X2: the stand-in's budget, the day's gold plus its runes' dawn gold (runeGrants), the rule validate.ts applies
+ *  (was maxGoldByDay(day) alone). */
+const standInBudget = (id: (typeof RIVAL_IDS)[number], day: number): number => maxGoldByDay(day) + runeGrants(standInBuild(id, day).runes, day).gold;
+import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck with runes valued as bought
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
 import { K, tally } from "./belts.helpers";
 
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
@@ -295,7 +302,9 @@ describe("D7': the bots buy the upgrades; the stand-in code and the captains car
         const lv = upgradeLevel(l.build, track), plan = days[track] ?? [];
         expect(lv - 1, `${id} d${day} ${track}`).toBeLessThanOrEqual(plan.filter((d) => d <= day).length);
       }
-      if (id !== "matriarch") expect(standInCost(id, day), `${id} d${day}`).toBeLessThanOrEqual(maxGoldByDay(day));
+      // FLIP-X2: the deck as bought against the day's gold plus its runes' dawn gold (was standInCost <= maxGoldByDay(day),
+      // the deck with its runes' hull charged as plating: sootjaw d7 83 <= 77)
+      if (id !== "matriarch") expect(standInCost(id, day), `${id} d${day}`).toBeLessThanOrEqual(standInBudget(id, day));
     }
     // most captains of a hero with a FACTORY level day hold that level by day 10
     expect(RIVAL_IDS.filter((id) => upgradeLevel(rivalLoadout(id, 10).build, "factory") >= 2).length).toBeGreaterThan(RIVAL_IDS.length / 2);
