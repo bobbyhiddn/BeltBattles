@@ -43,7 +43,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // FLIP-X2 step 4.1: the stand-in pool is regenerated (94e0cbf; every deck holds its day's runes) and read as stored
 // (BUNDLED_POOL_HULL_SCALE deleted, 9006765), so POOL_DIGEST is the regenerated pool's reads, taken on flipx2 4c50574 (was
 // c51140d65a61f1ebfa7291edb54b95f6bad08a95f7a40a53a920db1fac06a92e on bx). V11_DIGEST (the v1.1 fixture) is unchanged.
-const POOL_DIGEST = "ef36014376cc240c66c424d5e1450efa94e3a830c77cdd0829f305a0c64128e6";
+// REDO-X step 2 (4.1): the stand-in pool regenerated once more on FIX-ABE's offers (09ce97c; the pools changed, the
+// regeneration), so POOL_DIGEST is that pool's reads, taken on redox 9e62dd4 (was
+// ef36014376cc240c66c424d5e1450efa94e3a830c77cdd0829f305a0c64128e6 on flipx2 4c50574)
+const POOL_DIGEST = "ff8fb68494a75e02959db00fa37194612fa53f807946c7d232b38d17312c603a";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";
