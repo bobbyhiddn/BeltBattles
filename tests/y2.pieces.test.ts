@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle, gearStats, type Payload, type Projectile, type SideState, type Target, type TurretState } from "../src/sim/battle";
 import { AMMO, CELL, DISRUPT_TIME, TICK, withStarRules, type HarassCause } from "../src/sim/content";
-import { type Build } from "../src/sim/deck";
+import { shotFloor, type Build } from "../src/sim/deck";
 import { type HarassRound } from "../src/sim/harassment";
 import { effectAt, starField } from "../src/sim/stars";
 import { faceAt, hasFace } from "../src/ui/faces";
@@ -231,6 +231,22 @@ describe("Y2 row 13: LIMPET WORKS' DMG is its blast; its stall becomes blast dam
       while (bt.t < 3 + 2 * TICK) bt.step();
       expect([hp - s.hull.hp, f.disrupted > 0], star ? "on" : "off").toEqual(star ? [230, false] : [180, true]);
     }, star);
+  });
+
+  it("sim: on, a charge's shot deals 0 of its own (no floor of 10: deck.ts shotFloor), what rigs added on top; off, its 20", () => {
+    const shotDmg = (star: boolean, flat = 0): number => withStarRules(() => {
+      const bt = new Battle(barge(), barge(), 8), tu = bt.sides[0].turrets[0], p = payload();
+      p.ammo = "limpet";
+      if (star) p.base = 0; // as its factory stamps it with the switch on (content.ts STAR_DIFF limpet base 0)
+      p.flat = flat;
+      tu.stack.push(p);
+      tu.phase = "fire";
+      bt.step();
+      return bt.projectiles[0].dmg;
+    }, star);
+    expect([shotDmg(true), shotDmg(false), shotDmg(true, 20)]).toEqual([0, 20, 20]);
+    expect(withStarRules(() => shotFloor("limpet"))).toBe(0);
+    expect([shotFloor("limpet"), withStarRules(() => shotFloor("plain"))]).toEqual([10, 10]);
   });
 
   it("sim: on, its stamped charges carry no base damage (the blast holds it)", () => {

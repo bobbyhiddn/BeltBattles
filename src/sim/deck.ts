@@ -8,6 +8,7 @@ import {
   factorySpeed, levelSpeed, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake, type Upgrades,
 } from "./content";
+import { starRules } from "./content"; // Y2 (release Y): the star switch (LODESTONE's timeline note)
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
 import { effectAt, gradeOf, pourAt, starsOf, upgradeLevel } from "./stars";
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047): the integer damage pipeline
@@ -500,11 +501,17 @@ export function routeDirs(b: Build, r: RouteDef, connected: boolean, join?: Join
  * split multipliers; flat bonuses are added after. A Splitter also scales flat
  * bonuses gained before it, so gate order matters (spec §13).
  */
-export function payloadDamage(base: number, rideScale: number, ride: number, mult: number, flat: number): number {
+export function payloadDamage(base: number, rideScale: number, ride: number, mult: number, flat: number, floor = 10): number {
   // NUM-1 (REQ-BFG-047, N1 2.1): whole, rounded half up once when the slug is fired (its HEAT for the seconds ridden, the
-  // HEAT it gained on the belt in `flat`, the split share); at least 10 (x10 of 1)
-  return Math.max(10, roundHalfUp((base + rideScale * ride) * mult + flat));
+  // HEAT it gained on the belt in `flat`, the split share); at least 10 (x10 of 1). Y2: `floor` (shotFloor), 10 but for a
+  // LIMPET charge with the star switch on
+  return Math.max(floor, roundHalfUp((base + rideScale * ride) * mult + flat));
 }
+
+/** Y2 (release Y; DESIGN-Y row 13): the least a slug of `ammo` deals when fired (payloadDamage's floor): 10 (x10 of 1),
+ *  but with the star switch on a LIMPET charge's damage is its blast (content.ts STAR_DIFF limpet: base 0, its 20 on
+ *  impact joined the blast), so its impact deals only what rigs added to it, from 0. Off, always 10. */
+export const shotFloor = (ammo: string): number => (ammo === "limpet" && starRules() ? 0 : 10);
 
 export interface RouteEstimate {
   time: number; // seconds from stamp to chamber for the first payload (all gates online)
@@ -706,7 +713,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       }
       if (e.overclockCooldown) th.timed = `X2 EVERY ${e.overclockCooldown}S`;
       if (e.keg) th.timed = `BLAST +${e.keg.flat} AT ${e.keg.fuse}S`;
-      if (e.perStalled) th.timed = `+${e.perStalled.each}/STALLED, MAX ${e.perStalled.max}`;
+      // Y2 (release Y; DESIGN-Y row 15): with the star switch on LODESTONE has no cap
+      if (e.perStalled) th.timed = starRules() ? `+${e.perStalled.each}/STALLED` : `+${e.perStalled.each}/STALLED, MAX ${e.perStalled.max}`;
       if (e.shock) {
         shock = true;
         th.shock = true;
@@ -778,7 +786,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   }
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat + heatBonus, pendulumShift(b, info.turret)) // 0.6.2: HEAT JACKET on the curve too
-    : payloadDamage(base, ammo.rideScale, ride, mult, flat + heatBonus); // includes HEAT JACKET's downstream ride
+    : payloadDamage(base, ammo.rideScale, ride, mult, flat + heatBonus, shotFloor(fs?.ammo ?? "plain")); // includes HEAT JACKET's downstream ride (Y2: shotFloor)
   const walk: RouteWalk = { estimate: { time, ride, dmg: total, copies, burn, shock }, timeline, speedEnd: speed, locked };
   if (fixed !== undefined) walk.fixed = fixed; // beltside-062c (P8)
   if (joins.length) walk.joins = joins; // 0.6.2j

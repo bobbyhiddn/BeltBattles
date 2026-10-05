@@ -16,6 +16,7 @@ import {
   routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier, type RigHit,
 } from "./deck";
 import { journeyTiles, type JoinLink } from "./deck"; // 0.6.2j: belt joins
+import { shotFloor } from "./deck"; // Y2 (release Y): a LIMPET charge's shot floor with the star switch on
 import { matchedRoutes, stokeHits } from "./deck"; // 0.8.0 P1: wave 3's E3 (stokers) and E6 (matched belts)
 import { makeRaceSide, raceIntake, raceLoaded, raceProduce, type RaceSide } from "./races"; // races:
 import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/bastion"; // 0.8.0 P1 (E1): plating on every hull
@@ -1798,7 +1799,7 @@ export class Battle {
     const ammo = AMMO[p.ammo];
     let dmg = ammo.rideCurve // races: PENDULUM curve
       ? raceCurveDamage(ammo, s, tu, p)
-      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat + (p.heatBonus ?? 0)); // RUNES-2a: THE LONG ROAD
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     // NUM-1 (REQ-BFG-047): payloadDamage made the slug's damage whole at fire (its HEAT and split share rounded once); each
     // % below rounds half up once, where it applies (pct)
@@ -1874,7 +1875,7 @@ export class Battle {
     const conv = routine === "drake" ? drakeConvert(c, p.flat) : { stacks: 0, used: 0 };
     let dmg = ammo.rideCurve
       ? Math.max(10, raceCurveDamage(ammo, s, tu, p) - conv.used) // NUM-1: the least shot x10 (curveDamage's floor)
-      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat - conv.used + (p.heatBonus ?? 0)); // RUNES-2a: THE LONG ROAD
+      : payloadDamage(p.base ?? ammo.base, ammo.rideScale, this.rideOf(s, p), p.mult, p.flat - conv.used + (p.heatBonus ?? 0), shotFloor(p.ammo)); // RUNES-2a: THE LONG ROAD; Y2: shotFloor
     if (!ammo.rideCurve && tu.longRideFlat && p.ride >= tu.longRideMin) dmg += tu.longRideFlat;
     let burn = p.burn, burnTime: number | undefined, flightMul = 1, pellets = 1, share = 1;
     // NUM-1 (REQ-BFG-047): the core's numbers are whole at install (cores.ts scaleCore); every % or rate here rounds half
@@ -1886,7 +1887,7 @@ export class Battle {
     else if (routine === "capacitor") { dmg += roundHalfUp((c.perSecond ?? 0) * tu.charge); tu.charge = 0; }
     else if (routine === "compound" && p.compound) {
       const q = p.compound, qa = AMMO[q.ammo];
-      const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, this.rideOf(s, q), q.mult, q.flat + (q.heatBonus ?? 0));
+      const qd = qa.rideCurve ? raceCurveDamage(qa, s, tu, q) : payloadDamage(q.base ?? qa.base, qa.rideScale, this.rideOf(s, q), q.mult, q.flat + (q.heatBonus ?? 0), shotFloor(q.ammo)); // Y2: shotFloor
       dmg = pct(debuffedDamage(dmg, p.debuffs) + debuffedDamage(qd, q.debuffs), 100 * (c.mult ?? 1));
       p.burn += q.burn;
       burn += q.burn;
