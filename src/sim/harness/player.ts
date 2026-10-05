@@ -82,6 +82,7 @@ export { EQ, FIGHT_T, NOMINAL, ROUND_EQ, SATURATED, rateDeck, type DeckRating } 
 import { FIGHT_T, RATING_CURVE, fightTime, rateDeck } from "../deckRating";
 import { sustainKeyword, type RateOut, type SustainKw } from "../deckRating"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain
 import { sustainLive } from "../content"; // BOTS-X: the sustain switch (SUSTAIN_LIVE, or a withSustain call)
+import { starRules } from "../content"; // Y2 (release Y): the star switch (the run cache key)
 
 // ---------------------------------------------------------------- the policy
 
@@ -1597,7 +1598,8 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   const traced = !!(opts.trace || opts.onReroll || opts.onDecide);
   const runes = opts.botRunes ?? BOT_RUNES; // RUNES-2a: THE switch (off: the cache key and the run exactly as before)
   // BOTS-X: the sustain switch too (on: another run; off: the key exactly as before)
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}`;
+  // Y2 (release Y): and the star switch (content.ts starRules; on: another run; off: the key exactly as before)
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${starRules() ? "|star" : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
