@@ -118,7 +118,7 @@ export const MAIN: Record<string, MainDef> = {
   sifter: one("gate.sift", "debuffs removed"),
   surge: one("gate.pulse.flat", "damage per pulse ridden"),
   sorting: prod("extra copies per payload ((copies - 1) / every) [gate.sort]", (g) => (g("gate.sort.copies") - 1) / g("gate.sort.every")),
-  riveter: one("gate.repair", "hull repaired per slug"),
+  riveter: one("gate.heal", "hull repaired per slug"), // SUS-A (REQ-BFG-069): RIVETER's field is `heal` (was repair)
   heatjacket: one("gate.heat", "damage per second ridden"),
   venom: one("gate.poison", "Poison added"),
   overclocker: one("gate.overclockCooldown", "boosts per second (1 / cooldown)"),

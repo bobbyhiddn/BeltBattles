@@ -36,6 +36,12 @@ const num2At = new Map(num2.map((q) => [q.path, q])); // by the old field's id (
 const toPath = (q: Num2Row): string => [...q.path.split(".").slice(0, -1), q.to].join(".");
 const num2To = new Map(num2.map((q) => [toPath(q), q])); // by the new field's id (the live one)
 
+// SUS-A (REQ-BFG-069): RIVETER's gate.repair is gate.heal now, the same values under the new name (6 / 13 / 21). A fixture
+// row at the old path is checked at the new one, and the scan's new path counts as its old row; nothing else moves.
+const SUSA_RENAMED: readonly [string, string][] = [[".gate.repair", ".gate.heal"]];
+const susaNew = (id: string): string => SUSA_RENAMED.reduce((s, [from, to]) => (s.endsWith(from) ? s.slice(0, -from.length) + to : s), id);
+const susaOld = (id: string): string => SUSA_RENAMED.reduce((s, [from, to]) => (s.endsWith(to) ? s.slice(0, -to.length) + from : s), id);
+
 const TABLES: Record<string, unknown> = {
   FRAY_BONUS, ITEMS, WAVE3_ITEMS, AMMO, HEROES, RACE_ITEMS, RACE_AMMO, RACE_HEROES, PENDULUM, PLATE_PER_SLUG, PLATE_CAP, ECHO_CAP,
   RUNE_LIST: Object.fromEntries(RUNE_LIST.map((d) => [d.id, d])), SABOTAGE_HULL, HULL_FLOOR, EQ, ROUND_EQ, MEAN_PLATE,
@@ -112,8 +118,14 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // NUM-2 (REQ-BFG-047): measured, 129 rows handed off: NUM-2's 114 speeds and 15 of its 27 rate %s (the other 12,
     // STEAM BREECH's steamPlated / steamBare, were never NUM-1 rows: 1 / 1.35 is not a literal; the scan below)
     expect([handed.length, handed.filter((r) => num2At.get(r.id)!.kind === "speed").length]).toEqual([129, 114]);
-    const bad = rows.filter((r) => !num2At.has(r.id) && live(r.id) !== r.now).map((r) => `${r.id}: live ${String(live(r.id))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    const bad = rows.filter((r) => !num2At.has(r.id) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    // SUS-A: the renamed rows (RIVETER ★1-★3), measured: 3, each live at its new path only
+    const renamed = rows.filter((r) => susaNew(r.id) !== r.id);
+    expect(renamed.map((r) => [r.id, live(r.id), live(susaNew(r.id))])).toEqual([
+      ["ITEMS.riveter.gate.repair", undefined, 6], ["ITEMS.riveter.levels.2.gate.repair", undefined, 13],
+      ["ITEMS.riveter.levels.3.gate.repair", undefined, 21],
+    ]);
   });
 
   it("every numeric field of the scaled tables is in the fixture (a new piece needs the script re-run)", () => {
@@ -157,7 +169,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
         "core.start": N2, "core.top": N2, "core.steamPlated": N2, "core.steamBare": N2 },
       ammo: {}, heroes: { "turrets.*.speed": N2 },
     };
-    const missing = ids.filter((id) => !byId.has(id) && !(id in derived)
+    const missing = ids.filter((id) => !byId.has(susaOld(id)) && !(id in derived) // SUS-A: a renamed field counts as its row
       && (ruleOf(id, NUM2_RULES) === N2 ? !num2To.has(id) : ruleOf(id) !== "same"));
     expect(missing).toEqual([]);
     // NUM-2 (REQ-BFG-047): two-sided: every NUM-2 field the scan meets is a NUM-2 row under its new name and every NUM-2
@@ -172,7 +184,7 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
   });
 
   it("the damage family is whole at x10 and its sizes are N1's (hulls 1800-2250, plating cap 240, FRAY 2 a stack)", () => {
-    for (const r of rows) if (r.rule === "x10") expect(Number.isInteger(live(r.id)), r.id).toBe(true);
+    for (const r of rows) if (r.rule === "x10") expect(Number.isInteger(live(susaNew(r.id))), r.id).toBe(true); // SUS-A: at its new path
     expect(FRAY_BONUS).toBe(2);
     expect(PLATE_CAP).toBe(240);
     expect(PLATE_PER_SLUG).toBe(20);

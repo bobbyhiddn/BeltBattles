@@ -453,9 +453,10 @@ const ENTRIES: Record<string, Entry> = {
     gist: (e) => `COPIES EVERY ${nth(g(e).sort!.every)} PAYLOAD${g(e).sort!.copies > 2 ? ` ${times(g(e).sort!.copies - 1)}` : ""}`,
   },
   riveter: {
-    text: (e) => [`REPAIRS YOUR HULL BY ${n1(g(e).repair!)} FOR EACH PAYLOAD IT HITS.`, "IT NEVER REPAIRS PAST YOUR FULL HULL."],
-    gist: (e) => `REPAIRS ${n1(g(e).repair!)} FOR EACH PAYLOAD`,
-    card: (e) => `REPAIRS ${n1(g(e).repair!)} HULL EACH HIT`,
+    // SUS-A (REQ-BFG-069): the field is `heal` now (compile-driven); the words are SUS-B's
+    text: (e) => [`REPAIRS YOUR HULL BY ${n1(g(e).heal!)} FOR EACH PAYLOAD IT HITS.`, "IT NEVER REPAIRS PAST YOUR FULL HULL."],
+    gist: (e) => `REPAIRS ${n1(g(e).heal!)} FOR EACH PAYLOAD`,
+    card: (e) => `REPAIRS ${n1(g(e).heal!)} HULL EACH HIT`,
   },
   heatjacket: {
     // transport: heatBonus += heat x ride, from the hit on; two jackets add up
@@ -1359,7 +1360,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.perStalled) return `${name} ${h.flat ? `+${damage(h.flat)}, ` : ""}+${damage(e.perStalled.each)} FOR EACH STALLED MACHINE, UP TO ${damage(e.perStalled.max)}`;
   if (e.toll) return `${name} BLOCKS ${e.toll} HARASSMENT HITS`;
   if (e.sift) return `${name} REMOVES ${e.sift === "all" ? "EVERY MARK" : "ONE MARK"}${h.flat ? `, +${damage(h.flat)} IF CLEAN` : ""}`;
-  if (e.repair) return `${name} REPAIRS ${n1(e.repair)} HULL`;
+  if (e.heal) return `${name} REPAIRS ${n1(e.heal)} HULL`; // SUS-A: the field is `heal` (compile-driven)
   if (e.heat) return `${name} +${damage(e.heat)} FOR EACH SECOND AFTER`;
   if (e.staticTime) return `${name} STALLS A TURRET ${n2(e.staticTime)} SEC ON BARE HULL`;
   if (e.poison) return `${name} +${e.poison} POISON`;

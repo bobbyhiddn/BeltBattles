@@ -60,7 +60,8 @@ export const HERO_STYLE: Partial<Record<HeroId, RuneTheme>> = { furnace: "furnac
  *   otherFray: a hit that adds no FRAY adds n; frayMul: your FRAY bonus x n; pairBurn: a PAIR shot adds n BURN; burnTime:
  *   your BURN lasts n% longer; burnPct: your BURN on their hull deals n% more.
  * - your PLATE: plateMul: every PLATE gain x n (PLATE_CAP holds).
- * - your hull: hitCut: each hit on you deals n less (never below 0); blockHits: the foe's first n hits deal none;
+ * - your hull: hitCut: each hit on you deals n less (never below 0); startShield: n SHIELD at the battle's start (SUS-A;
+ *   SHIELD_CAP holds; each stops one whole hit: WARD STONE's old blockHits);
  *   plateOnHit: n PLATE each time you are hit; halfPlate: n PLATE once, when your hull first drops below half; burnCut:
  *   BURN on your hull deals n% less.
  * - your machines: lastStand: below half hull your turrets and factories n% faster; perTurretRate: your turrets n% faster
@@ -77,7 +78,7 @@ export type RuneKind =
   | "pairTwice" | "pairPct" | "mergedPct" | "frayShotPct" | "plateMul" | "platedDmg" | "frayHitDmg"
   | "priorPct" | "finisherDmg" | "volleyFirst" | "rideMul" | "winDmgPct"
   | "machineDmg" | "fullFrayDmg" | "otherFray" | "frayMul" | "volleyBurn" | "pairBurn" | "burnTime" | "burnPct"
-  | "hitCut" | "blockHits" | "plateOnHit" | "halfPlate" | "burnCut"
+  | "hitCut" | "startShield" | "plateOnHit" | "halfPlate" | "burnCut"
   | "lastStand" | "perTurretRate" | "stampPlate" | "pairPlate" | "stallCut" | "rigSoon";
 
 /** The unit each kind's amount carries (a test pins every rune to it). */
@@ -92,7 +93,7 @@ export const KIND_UNIT: Record<RuneKind, RuneUnit> = {
   winDmgPct: "pct",
   machineDmg: "dmg", fullFrayDmg: "dmg", otherFray: "count", frayMul: "count", volleyBurn: "count", pairBurn: "count",
   burnTime: "pct", burnPct: "pct",
-  hitCut: "dmg", blockHits: "count", plateOnHit: "plate", halfPlate: "plate", burnCut: "pct",
+  hitCut: "dmg", startShield: "count", plateOnHit: "plate", halfPlate: "plate", burnCut: "pct",
   lastStand: "pct", perTurretRate: "pct", stampPlate: "plate", pairPlate: "plate",
   stallCut: "pct", rigSoon: "pct",
 };
@@ -173,7 +174,9 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("iron_temper", "IRON TEMPER", "rare", "bastion", "platedDmg", 30, "WHILE {*PLATE} HOLDS: SHOTS +{N} {DMG}."), // M5: +1: BASTION +3.2; +3: +8.2
   // M5: +1 DMG per rig measured +18.0 (1 is the least flat amount): a whole % per rig instead (5% +11.1, 4% +9.1)
   r("toll_road", "TOLL ROAD", "rare", "belts", "priorPct", 4, "+{N} {DMG} PER RIG A LOAD PASSES."),
-  r("ward_stone", "WARD STONE", "rare", "armor", "blockHits", 3, "THE FOE'S FIRST {N} HITS: NO {DMG}."),
+  // SUS-A (REQ-BFG-069): its kind is SHIELD's now (3 at the start: the foe's first 3 hits, as before, unless something else
+  // adds SHIELD); its text stays until SUS-B and SUS-D reword it
+  r("ward_stone", "WARD STONE", "rare", "armor", "startShield", 3, "THE FOE'S FIRST {N} HITS: NO {DMG}."),
   r("steady_iron", "STEADY IRON", "rare", "factories", "stallCut", 100, "{*STALL}S ON YOUR MACHINES: -{N}."), // M5: 50% +4.3, 93% +6.6
   // M5: an epic at -1 measured +8.8 and -2 +17.3: no whole amount lands in the epic band, +8.8 is a rare's
   r("iron_hide", "IRON HIDE", "rare", "armor", "hitCut", 10, "HITS ON YOU: -{N} {DMG}."),

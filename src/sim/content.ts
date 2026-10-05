@@ -121,7 +121,7 @@ export interface GateEffect {
   siftClean?: number;
   pulse?: { speed: number; on: number; period: number; flat: number };
   sort?: { every: number; copies: number };
-  repair?: number;
+  heal?: number; // SUS-A (REQ-BFG-069; was `repair`): RIVETER, HEAL this much for each payload it hits (Battle.heal)
   heat?: number;
   poison?: number;
   overclockCooldown?: number;
@@ -570,7 +570,7 @@ export const ITEMS: Record<string, ItemDef> = {
   riveter: {
     id: "riveter", name: "RIVETER", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger",
     desc: ["EACH PASSING SLUG", "REPAIRS YOUR HULL", "BY 0.6."], tags: ["SWARM", "PLATE"],
-    gate: { repair: 6 }, levels: { 2: { gate: { repair: 13 } }, 3: { gate: { repair: 21 } } },
+    gate: { heal: 6 }, levels: { 2: { gate: { heal: 13 } }, 3: { gate: { heal: 21 } } }, // SUS-A (REQ-BFG-069): repair -> heal
   },
   heatjacket: {
     id: "heatjacket", name: "HEAT JACKET", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "quartermaster",
@@ -1057,6 +1057,78 @@ export function withWave3<T>(fn: () => T, on = true): T {
 }
 
 setWave3(WAVE3_LIVE);
+
+// ---------------------------------------------------------------------------------------------------- SUS-A (sustain)
+
+/**
+ * SUS-A (REQ-BFG-069): THE SUSTAIN SWITCH. WARD BELL, MEND PRESS and MENDING LOOM are ITEMS entries (ITEMS[id] resolves,
+ * so the sim, the stars, the bench and the tests read them at any time), but while this is false they are hidden from
+ * every listing of the catalogue (Object.keys/values(ITEMS)), as wave 3 was (setWave3): buyableModules() (the wares draw,
+ * game/wares.ts), itemsSoldBy() (the caravan), the road-event pools, the captains' synergy swaps, the stand-in tools and
+ * the par player never see one, so every seeded shop, bot and pool stays identical; validate.ts refuses a deck that holds
+ * one. RUNES-2b turns them on with this one line and the one pool regeneration. When it does, cap's answer 4 to SUSTAIN-1
+ * holds: they are rare or better and first offered on day 3 (RUNES-2b's draw must hold them back until then).
+ */
+export const SUSTAIN_LIVE = false;
+
+/** SUS-A: the three new sustain pieces (SUSTAIN-1 4.6, on the N1 scale; ★1 / ★2 / ★3). Their words are SUS-B's. */
+export const SUSTAIN_ITEMS: Record<string, ItemDef> = {
+  wardbell: { // SHIELD: EVERY 6 / 5 / 4 s: +1 SHIELD, the first at t = every (TurretState.bell)
+    id: "wardbell", name: "WARD BELL", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "tinker",
+    desc: ["EVERY FEW SECONDS", "YOUR HULL STOPS ONE", "MORE WHOLE HIT."], tags: ["PLATE", "TEMPO"],
+    mod: { shield: { every: 6, amount: 1 } },
+    levels: { 2: { mod: { shield: { every: 5, amount: 1 } } }, 3: { mod: { shield: { every: 4, amount: 1 } } } },
+  },
+  mendpress: { // HEAL: EVERY 3 s: HEAL 20 / 30 / 45; ARMOR PRESS's kind, timer, stall pause and stamping (FactoryState.healTimer)
+    id: "mendpress", name: "MEND PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
+    desc: ["MENDS YOUR HULL", "EVERY FEW SECONDS AND", "STAMPS PLAIN SLUGS."], tags: ["PLATE", "SWARM"],
+    factory: { ammo: "plain", speed: 19, heal: { every: 3, amount: 20 } }, // base 3: the plain slug's (ARMOR PRESS's speeds)
+    levels: { 2: { factory: { speed: 21, heal: { every: 3, amount: 30 } } }, 3: { factory: { speed: 25, heal: { every: 3, amount: 45 } } } },
+  },
+  mendingloom: { // REGEN: YOUR HULL: REGEN 10 / 15 / 20 (TurretState.regen)
+    id: "mendingloom", name: "MENDING LOOM", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
+    desc: ["MENDS YOUR HULL A", "LITTLE EVERY", "SECOND."], tags: ["PLATE"],
+    mod: { regen: 10 },
+    levels: { 2: { mod: { regen: 15 } }, 3: { mod: { regen: 20 } } },
+  },
+};
+
+/** SUS-A: the sustain pieces' ids. */
+export const SUSTAIN_IDS: readonly string[] = Object.keys(SUSTAIN_ITEMS);
+
+let sustainOn = false;
+
+/** SUS-A: is `id` one of the new sustain pieces (whatever the switch)? */
+export function isSustain(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(SUSTAIN_ITEMS, id);
+}
+
+/** SUS-A: are the sustain pieces in the game now (SUSTAIN_LIVE, or a withSustain call)? */
+export function sustainLive(): boolean {
+  return sustainOn;
+}
+
+/** SUS-A: put the sustain pieces in the game (on) or keep them out (off): setWave3's mechanism. Each stays an own property
+ *  of ITEMS either way; only its enumerability follows the switch, and its place in ITEMS order (after wave 3) never moves. */
+export function setSustain(on: boolean): void {
+  for (const id of SUSTAIN_IDS) {
+    Object.defineProperty(ITEMS, id, { value: SUSTAIN_ITEMS[id], enumerable: on, writable: true, configurable: true });
+  }
+  sustainOn = on;
+}
+
+/** SUS-A: run `fn` with the sustain pieces on (or off), then put the switch back as it was, even if `fn` throws. */
+export function withSustain<T>(fn: () => T, on = true): T {
+  const was = sustainOn;
+  setSustain(on);
+  try {
+    return fn();
+  } finally {
+    setSustain(was);
+  }
+}
+
+setSustain(SUSTAIN_LIVE);
 
 export interface AmmoDef {
   name: string;

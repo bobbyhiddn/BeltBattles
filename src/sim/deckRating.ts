@@ -99,7 +99,7 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       if (e.overclockCooldown) eq += EQ.overclock / e.overclockCooldown;
       if (e.toll) eq += EQ.toll * e.toll;
       if (e.sift) eq += EQ.sift;
-      if (e.repair) repair += e.repair;
+      if (e.heal) repair += e.heal; // SUS-A (REQ-BFG-069): RIVETER's heal (was repair), rated as before (the valuation is SUS-C's)
       // 0.8.0 P1, wave 3 (D1's proxies, tools/wave3.ts): plating per payload rated as RIVETER's repair; SHIELD WALL's
       // damage at 12+ plating for half the fight; BRACE FRAME as a guard like TOLLBOOTH's (1, 1.4, 1.7 at its stars)
       if (e.plate) repair += e.plate;

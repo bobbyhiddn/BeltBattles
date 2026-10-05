@@ -9,7 +9,7 @@ import type { GateEffect } from "./content";
  * RIVETER and POWDER KEG to the skipped list when they exist.
  */
 export function boostable(e: GateEffect): boolean {
-  return e.speed === undefined && !e.pulse && !e.toll && !e.sift && !e.repair && !e.keg && !e.overclockCooldown &&
+  return e.speed === undefined && !e.pulse && !e.toll && !e.sift && !e.heal && !e.keg && !e.overclockCooldown && // SUS-A: heal (was repair) never doubles
     !!(e.burn || e.flat || e.perPriorGate || e.shock || e.split || e.poison || e.burnPerRide || e.quench ||
       e.staticTime || e.perStalled || e.fray || e.perTile || e.heat || e.sort ||
       // 0.8.0 P1, wave 3 (DESIGN-wave3.md 3.2): plating, the gauge, the pincer, the latch's damage and the breaker.

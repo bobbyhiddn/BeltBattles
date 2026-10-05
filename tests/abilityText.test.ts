@@ -100,7 +100,7 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
     return [fasterNum(p.speed), p.on, p.period, ...(p.flat ? [p.flat] : []), g(e).lockedFlat!];
   },
   sorting: (e) => (g(e).sort!.copies > 2 ? [2] : []), // EVERY THIRD / OTHER PAYLOAD (words), TWICE from ★3
-  riveter: (e) => [g(e).repair!],
+  riveter: (e) => [g(e).heal!], // SUS-A (REQ-BFG-069): the field is `heal` (was repair)
   heatjacket: (e) => [g(e).heat!, 2], // TWO JACKETS ADD UP.
   venom: (e) => [g(e).poison!, SIM.poisonTick, SIM.poisonMax, SIM.poisonTime],
   overclocker: (e) => [g(e).overclockCooldown!],

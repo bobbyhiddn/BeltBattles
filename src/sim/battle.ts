@@ -489,6 +489,8 @@ export class Battle {
       }
       // RUNES-2a: ASH KINDLE, BURN stacks on the foe's hull (BURN_TIME each; SLOW EMBERS makes yours last longer)
       if (s.rune.startBurn > 0) this.sides[s.side === 0 ? 1 : 0].hull.burns.push({ dps: s.rune.startBurn, t: this.burnTime(s, BURN_TIME) });
+      // SUS-A (REQ-BFG-069): WARD STONE's SHIELD at t = 0 (its kind was blockHits: the foe's first n hits; SHIELD_CAP holds)
+      if (s.rune.startShield > 0) this.gainShield(s, s.rune.startShield);
     }
   }
 
@@ -539,8 +541,8 @@ export class Battle {
   }
 
   /** The damage of a projectile landing on side def from side atk, after both sides' runes (impact): SCRAP BITER +n on a
-   *  machine; SNARE KNOT +n on a hull at its FRAY cap; IRON HIDE -n a hit (never below 0); WARD STONE: the foe's first n
-   *  hits deal none. */
+   *  machine; SNARE KNOT +n on a hull at its FRAY cap; IRON HIDE -n a hit (never below 0). SUS-A: WARD STONE is SHIELD
+   *  now (startShield; Battle.shieldHit stops the hit right after this, where its blockHits did). */
   private runeHit(atk: SideState, def: SideState, hit: Target, total: number): number {
     if (atk.rune) {
       if (atk.rune.machineDmg && hit.kind !== "hull") total += atk.rune.machineDmg;
@@ -548,10 +550,6 @@ export class Battle {
     }
     if (def.rune) {
       if (def.rune.hitCut) total = Math.max(0, total - def.rune.hitCut);
-      if (def.rune.blockHits && (def.blocked ?? 0) < def.rune.blockHits) {
-        def.blocked = (def.blocked ?? 0) + 1;
-        total = 0;
-      }
     }
     return total;
   }
@@ -1562,7 +1560,7 @@ export class Battle {
       p.flat += removed * (e.siftFlat ?? 0) + (removed === 0 ? e.siftClean ?? 0 : 0);
     }
     if (e.heat) p.heat = (p.heat ?? 0) + e.heat;
-    if (e.repair) this.heal(s, e.repair, "riveter", g.uid); // SUS-A (REQ-BFG-069): RIVETER heals through heal() (its rules)
+    if (e.heal) this.heal(s, e.heal, "riveter", g.uid); // SUS-A (REQ-BFG-069): RIVETER heals through heal() (its rules)
     if (e.sort) {
       g.sorted++;
       if (g.sorted % e.sort.every === 0) for (let c = 1; c < e.sort.copies; c++) {

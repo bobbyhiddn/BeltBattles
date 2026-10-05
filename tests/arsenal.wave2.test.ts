@@ -102,7 +102,7 @@ describe("wave-2 stock and live star data", () => {
     expect(read("sifter", (s) => effectAt("sifter", s).gate?.sift)).toEqual([1, "all", "all"]);
     expect(read("surge", (s) => effectAt("surge", s).gate?.pulse?.speed)).toEqual([3, 4, 5]);
     expect(read("sorting", (s) => effectAt("sorting", s).gate?.sort)).toEqual([{ every: 3, copies: 2 }, { every: 2, copies: 2 }, { every: 2, copies: 3 }]);
-    expect(read("riveter", (s) => effectAt("riveter", s).gate?.repair)).toEqual([6, 13, 21]); // NUM-1: x10 (was [0.6, 1.3, 2.1])
+    expect(read("riveter", (s) => effectAt("riveter", s).gate?.heal)).toEqual([6, 13, 21]); // NUM-1: x10 (was [0.6, 1.3, 2.1]); SUS-A: `heal` (was repair)
     expect(read("heatjacket", (s) => effectAt("heatjacket", s).gate?.heat)).toEqual([4, 9, 14]); // NUM-1: x10 (was [0.4, 0.9, 1.4])
     expect(read("scrapper", (s) => effectAt("scrapper", s).factory?.scrapFlat)).toEqual([30, 65, 105]); // NUM-1: x10 (was [3, 6.5, 10.5])
     // NUM-2 (REQ-BFG-047): slugs per 30 s, roundHalfUp(30 / interval) (was interval [6, 2.8, 1.9]; the fixture's rows)

@@ -360,7 +360,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([hit(`OF EVERY ${every} {SLUG}, ONE BECOMES ${n}.`)], [["every", `OF EVERY ${every}`], ["copies", `BECOMES ${n}`]]);
   },
   riveter: (e) => {
-    const d = fmtDmg(gt(e).repair!); // never past your full hull (the sim; the hull bar shows it)
+    const d = fmtDmg(gt(e).heal!); // never past your full hull (the sim; the hull bar shows it). SUS-A: the field is `heal`
     return rules([hit(`+${d} {HULL}.`)], [["repair", `+${d} {HULL}`]]);
   },
   heatjacket: (e) => {
