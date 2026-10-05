@@ -1328,6 +1328,12 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   // row 42, CAPACITOR BANK: the 5 s cap goes (no `maxSeconds`; battle.ts chambers charges for as long as the chamber sits
   // empty); +20/+44/+70 for each second
   capacitor: { core: { routine: "capacitor", perSecond: 20 } },
+  // row 45, IRON WALL: its own plating goes (no `plate`; was 10/22/35 for each slug it hits): a pure PLATE payoff, +30/+66/
+  // +105 while your hull holds 120 PLATE or more (REVIEW-STARD's note for Y7a: its own plating doesn't return)
+  shieldwall: {
+    gate: { plated: { min: 120, flat: 30 } },
+    levels: { 2: { gate: { plated: { min: 120, flat: 66 } } }, 3: { gate: { plated: { min: 120, flat: 105 } } } },
+  },
   // row 47, SPALL CATCHER: the cap goes (no `max`; was 80/176/280); a PLATE soak counts once (battle.ts spallCharge)
   spallcatcher: {
     mod: { spall: { every: 40, add: 10 } },

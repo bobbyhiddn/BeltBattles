@@ -15,6 +15,8 @@ import { ITEMS } from "../../sim/content";
 import { canSellTurret, deadEndsAt, gearOn, hullSlots, kx, turretSellValue, turretSlots, type Build } from "../../sim/deck";
 import { coreFor } from "../../sim/deck"; // shoptap: touchSlotHint
 import { starsOf, starText } from "../../sim/stars";
+import { effectAt } from "../../sim/stars"; // Y5 (release Y): the bought core's routine (FINISHER RAM's IDLE cue)
+import { gearIdle } from "../../ui/abilityText"; // Y5 (release Y; DESIGN-Y row 44): the IDLE cue
 import { C, RARITY_COLOR } from "../../render/palette";
 import { itemIcon } from "../../render/sprites";
 import { abilityText, nextStarText } from "../../ui/abilityText";
@@ -175,8 +177,13 @@ export function socketLines(b: Build, t: number, coreName: string, gearText?: (d
   if (!s?.turret) return [];
   const gear = gearOn(b, t).slice(0, s.gearSlots);
   const out: SocketRow[] = [{ label: "CORE", text: coreName }];
+  // Y5 (release Y; DESIGN-Y row 44; REVIEW-STARD rule 7): with the star switch on, a piece of gear that does nothing on this
+  // turret's core says IDLE in its row (abilityText.ts gearIdle: a FINISHER RAM on a GATLING SPOOL), the cue for the
+  // GATLING sentence its face drops; off, never (the rows as before)
+  const bought = coreFor(b, t), routine = bought ? effectAt(bought.def, starsOf(bought)).core?.routine : undefined;
+  const idle = (def: string): boolean => gearIdle(def, routine);
   if (compact) {
-    const names = gear.map((m) => starred(ITEMS[m.def].name, starsOf(m)));
+    const names = gear.map((m) => `${starred(ITEMS[m.def].name, starsOf(m))}${idle(m.def) ? ` ${IDLE_MARK}` : ""}`);
     const empty = s.gearSlots - names.length;
     // 0.6.2rel2 (the rehearsal's nit 2): the empty hardpoints say what they are, "3 EMPTY SLOTS", never a bare "3 EMPTY"
     const all = [...names, ...(empty ? [`${empty} EMPTY SLOT${empty === 1 ? "" : "S"}`] : [])];
@@ -190,10 +197,13 @@ export function socketLines(b: Build, t: number, coreName: string, gearText?: (d
       continue;
     }
     const name = starred(ITEMS[m.def].name, starsOf(m)), fx = gearText?.(m.def, starsOf(m));
-    out.push({ label, text: fx ? `${name}: ${fx}.` : name, def: m.def, stars: starsOf(m) });
+    out.push({ label, text: idle(m.def) ? `${name}: IDLE.` : fx ? `${name}: ${fx}.` : name, def: m.def, stars: starsOf(m) });
   }
   return out;
 }
+
+/** Y5 (DESIGN-Y row 44): an IDLE gear piece's mark in the compact one-row gear list ("FINISHER RAM ★ (IDLE), ..."). */
+export const IDLE_MARK = "(IDLE)";
 
 /** The notes under an installed turret's sockets, whole sentences: the columns it takes belts on, and a free starting
  *  copy's note. */

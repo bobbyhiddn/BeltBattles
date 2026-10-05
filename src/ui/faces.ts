@@ -794,7 +794,7 @@ export const Y4_PIECES: readonly string[] = [
  * every face is as before.
  */
 export const Y5_PIECES: readonly string[] = [
-  "counterweight", "capacitor", "longcase", "spallcatcher",
+  "counterweight", "capacitor", "longcase", "ram", "shieldwall", "spallcatcher",
 ];
 
 /** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
@@ -975,6 +975,22 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // DAMAGE." with "PENDULUM SLUGS DON'T GET IT; ON METRONOME THEY PEAK LATER ON THIS TURRET, AFTER 13 TILES."
     const d = fmtDmg(md(e).longRideFlat!), t = fmtSec(md(e).longRideMin!);
     return rules([shot(`+${d} {DMG} IF ITS {SLUG} RODE ${t}{SEC}.`)], [["flat", `+${d} {DMG}`]]);
+  },
+  ram: (e) => {
+    // DESIGN-Y row 44: Battle.chambers / fire: the load that empties the chamber deals x (1 + finisher) (no sim change). Its
+    // GATLING sentence leaves the face; the cue takes its place (REVIEW-STARD rule 7): on a GATLING SPOOL's turret its gear
+    // row says IDLE (turretPanel.ts socketLines, abilityText.ts gearIdle). Was the RULES text "THE LOAD THAT EMPTIES THE
+    // CHAMBER DEALS 40% MORE DAMAGE." with "IT DOES NOTHING ON A GATLING SPOOL, WHICH NEVER WAITS FOR A FULL CHAMBER."
+    const more = fmtPct(md(e).finisher!);
+    return rules([shot(`THE CHAMBER'S LAST {SLUG} +${more} {DMG}.`)], [["more", `+${more} {DMG}`]]);
+  },
+  shieldwall: (e) => {
+    // DESIGN-Y row 45: Battle.applyHit: + plated.flat on each slug it hits while your hull holds plated.min PLATE or more;
+    // its own plating is gone (content.ts STAR_DIFF), so other pieces feed it. Was the RULES text "ROLLS 10 PLATING ONTO
+    // YOUR HULL FOR EACH PAYLOAD IT HITS." with "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO
+    // GAINS 30 DAMAGE." and PLATING's definition
+    const pl = gt(e).plated!, d = fmtDmg(pl.flat);
+    return rules([hit(`+${d} {DMG} AT ${fmtDmg(pl.min)} {*PLATE} OR MORE.`)], [["flat", `+${d} {DMG}`]], [REMINDER.PLATE()]);
   },
   spallcatcher: (e) => {
     // DESIGN-Y row 47: Battle.spallCharge: + add for every `every` damage your ship takes (a PLATE soak counted once, not

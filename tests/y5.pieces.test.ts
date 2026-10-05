@@ -6,11 +6,13 @@
 // ruling R-1); and its ⓘ LEVELS ladder, every line inside the band.
 import { describe, expect, it } from "vitest";
 import { Battle, type SideState, type TurretState } from "../src/sim/battle";
-import { withStarRules } from "../src/sim/content";
+import { CELL, withStarRules } from "../src/sim/content";
 import { type Build } from "../src/sim/deck";
-import { effectAt } from "../src/sim/stars";
+import { effectAt, starText } from "../src/sim/stars";
 import { faceAt, hasFace } from "../src/ui/faces";
-import { STARS, hitOnce, levels, lines, next, on, oneLine, px, rigBench } from "./y3.helpers";
+import { gearIdle, gist } from "../src/ui/abilityText";
+import { socketLines, type SocketRow } from "../src/screens/build/turretPanel";
+import { STARS, hitOnce, levels, lines, next, on, oneLine, payload, probe, px, rigBench } from "./y3.helpers";
 import { SEED, barge, furnaceBench, withMod } from "./wave3.helpers";
 
 /** The turrets' private SPALL CATCHER hook (Battle.spallCharge: damage side s takes, its hull's part and plating's). */
@@ -125,6 +127,106 @@ describe("Y5 row 43: LONGCASE: +15/+25/+40 if its slug rode 2 s; no sim change",
     // its perks' names (DEEP WIND, FULL WIND) in the ⓘ view only (R-1)
     expect(levels("longcase", 1)).toEqual(["{DMG} [+15]/+25/+40", "★2 DEEP WIND", "★3 FULL WIND", `${next(2, "+25 {DMG}")} ★2 DEEP WIND`]);
     expect([hasFace("longcase"), on(() => hasFace("longcase"))]).toEqual([false, true]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------- row 44: FINISHER RAM
+describe("Y5 row 44: FINISHER RAM: the chamber's last slug +40%/+88%/+140%; no sim change; IDLE on a GATLING turret", () => {
+  const PCT = ["40%", "88%", "140%"];
+  /** FURNACE's heavy gun with a FINISHER RAM (★`stars`), and a GATLING SPOOL core if `gatling`. */
+  const gun = (gatling: boolean, stars = 1): Build => {
+    const b = withMod(furnaceBench(), 61, "ram", 0, stars);
+    return gatling ? withMod(b, 60, "gatling", 0) : b;
+  };
+  const ramRow = (rows: SocketRow[]): SocketRow => rows.find((r) => r.def === "ram")!;
+
+  it("data: the same on and off (finisher 0.4/0.88/1.4)", () => {
+    for (const s of STARS) {
+      expect(on(() => effectAt("ram", s).mod), `★${s}`).toEqual({ finisher: [0.4, 0.88, 1.4][s - 1] });
+      expect(effectAt("ram", s).mod).toEqual(on(() => effectAt("ram", s).mod));
+    }
+  });
+
+  it("face: one line, SHOT: THE CHAMBER'S LAST {SLUG} +40% {DMG}. (185 px at ★3); ladder {DMG} +40%/+88%/+140%", () => {
+    oneLine("ram");
+    expect(lines("ram")).toEqual(PCT.map((p) => [`SHOT: THE CHAMBER'S LAST {SLUG} +${p} {DMG}.`]));
+    expect(lines("ram").map((l) => px(l[0]))).toEqual([179, 179, 185]);
+    for (const s of STARS) expect(on(() => JSON.stringify(faceAt("ram", s)))).not.toMatch(/GATLING/);
+    expect(levels("ram", 1)).toEqual(["{DMG} [+40%]/+88%/+140%", next(2, "+88% {DMG}")]);
+    expect([hasFace("ram"), on(() => hasFace("ram"))]).toEqual([false, true]);
+  });
+
+  it("cue: on a GATLING SPOOL's turret its gear row says IDLE in every form, inside the band (off: as before)", () => {
+    for (const s of STARS) {
+      const b = gun(true, s), name = s > 1 ? `FINISHER RAM ${starText(s)}` : "FINISHER RAM";
+      // the full form (its name, then its face line under it) and the gists' form (its name and gist)
+      expect(ramRow(on(() => socketLines(b, 0, "GATLING SPOOL"))).text, `★${s}`).toBe(`${name}: IDLE.`);
+      expect(ramRow(on(() => socketLines(b, 0, "GATLING SPOOL", (d, st) => gist(d, st)))).text).toBe(`${name}: IDLE.`);
+      expect(on(() => socketLines(b, 0, "GATLING SPOOL", undefined, true))[1].text).toBe(`${name} (IDLE)`);
+      // off: the base's rows (its name; its gist), byte for byte
+      expect(ramRow(withStarRules(() => socketLines(b, 0, "GATLING SPOOL"), false)).text).toBe(name);
+      expect(ramRow(withStarRules(() => socketLines(b, 0, "GATLING SPOOL", (d, st) => gist(d, st)), false)).text)
+        .toBe(`${name}: ${PCT[s - 1]} MORE DAMAGE.`);
+      // the cue's row, its label and text, fits the band
+      const row = ramRow(on(() => socketLines(b, 0, "GATLING SPOOL")));
+      expect(px(`${row.label} ${row.text}`)).toBeLessThanOrEqual(225);
+    }
+    // on any other core, no cue: its row as off
+    const plain = gun(false);
+    expect(ramRow(on(() => socketLines(plain, 0, "SCRAP CANNON", (d, st) => gist(d, st)))).text).toBe("FINISHER RAM: 40% MORE DAMAGE.");
+    expect(gearIdle("ram", "gatling")).toBe(false);
+    expect(on(() => [gearIdle("ram", "gatling"), gearIdle("ram", "identity"), gearIdle("hopper", "gatling")])).toEqual([true, false, false]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------- row 45: IRON WALL
+describe("Y5 row 45: IRON WALL: +30/+66/+105 at 120 PLATE or more; its own plating goes", () => {
+  const FLAT = [30, 66, 105];
+  /** IRON WALL's hit on a slug with `plate` PLATE on side 0's hull: the slug's flat, and the hull's PLATE after. */
+  const wallHit = (star: boolean, stars: number, plate: number): [number, number] => withStarRules(() => {
+    const bt = new Battle(rigBench([["shieldwall", 4, 3, stars]]), barge(), 8), s = bt.sides[0];
+    for (const g of s.gates) { g.online = true; g.commissionAt = 0; }
+    s.plate.plate = plate;
+    const h = s.gates[0].hits[0], p = payload();
+    probe(bt).applyHit(s, { p, s: h.tile * CELL + CELL / 2, processed: h.tile, blocked: false }, h);
+    return [p.flat, s.plate.plate] as [number, number];
+  }, star);
+
+  it("data: on, plated { min 120, flat 30/66/105 } and no plate (off: plate 10/22/35 too)", () => {
+    for (const s of STARS) {
+      expect(on(() => effectAt("shieldwall", s).gate), `★${s}`).toEqual({ plated: { min: 120, flat: FLAT[s - 1] } });
+      expect(effectAt("shieldwall", s).gate, `★${s} off`).toEqual({ plate: [10, 22, 35][s - 1], plated: { min: 120, flat: FLAT[s - 1] } });
+    }
+  });
+
+  it("hook: it rolls no PLATE (off: 10/22/35 a slug), and pays at 120 PLATE or more, nothing below", () => {
+    for (const s of STARS) {
+      expect(wallHit(true, s, 0), `★${s} on, bare`).toEqual([0, 0]);
+      expect(wallHit(false, s, 0), `★${s} off, bare`).toEqual([0, [10, 22, 35][s - 1]]);
+      expect(wallHit(true, s, 150), `★${s} on, plated`).toEqual([FLAT[s - 1], 150]);
+      expect(wallHit(true, s, 119)[0], `★${s} on, 119`).toBe(0);
+    }
+    // off, its own plating takes a hull at 110 PLATE past 120 before its bonus is read (Battle.applyHit's order)
+    expect(wallHit(false, 1, 110)).toEqual([30, 120]);
+    expect(wallHit(true, 1, 110)).toEqual([0, 110]);
+  });
+
+  it("battle: 15 s on the bench, its side rolls no PLATE (off: it plates the hull)", () => {
+    const plated = (star: boolean): number => withStarRules(() => {
+      const bt = new Battle(rigBench([["shieldwall", 4, 3, 1]]), barge(), SEED);
+      while (bt.t < 15 && !bt.over) bt.step();
+      return bt.sides[0].plate.gained;
+    }, star);
+    expect(plated(true)).toBe(0);
+    expect(plated(false)).toBeGreaterThan(0);
+  });
+
+  it("face: one line, HIT: +30 {DMG} AT 120 {*PLATE} OR MORE. (181 px at ★3); ladder {DMG} +30/+66/+105", () => {
+    oneLine("shieldwall");
+    expect(lines("shieldwall")).toEqual(FLAT.map((d) => [`HIT: +${d} {DMG} AT 120 {*PLATE} OR MORE.`]));
+    expect(Math.max(...lines("shieldwall").map((l) => px(l[0])))).toBe(181);
+    expect(levels("shieldwall", 1)).toEqual(["{DMG} [+30]/+66/+105", next(2, "+66 {DMG}")]);
+    expect([hasFace("shieldwall"), on(() => hasFace("shieldwall"))]).toEqual([false, true]);
   });
 });
 

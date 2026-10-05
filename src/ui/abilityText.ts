@@ -338,6 +338,16 @@ export function gatlingClashText(def: string, stars: number, routine = "gatling"
 }
 
 /**
+ * Y5 (release Y; DESIGN-Y row 44; REVIEW-STARD rule 7: FINISHER RAM's cue ships with its face): with the star switch on, is
+ * gear `def` IDLE on a turret whose core runs `routine`? A FINISHER RAM on a GATLING SPOOL, which never waits for a full
+ * chamber (gatlingClashText's RAM case): its gear row says IDLE (turretPanel.ts socketLines), the cue for the GATLING
+ * sentence its face drops. Off, never (the rows as before).
+ */
+export function gearIdle(def: string, routine?: string): boolean {
+  return starRules() && def === "ram" && routine === "gatling";
+}
+
+/**
  * 0.6.2rel2 (the release owner's answer d957272806131146): a clash's short line, for a desk turret panel whose gear list
  * leaves no room for the whole sentence (gatlingClashText): the same trigger, one line for each clashing gear type. It
  * claims no more than the sentence does: only HOPPER's seconds do nothing (its slot and store still count), and FINISHER
@@ -1238,14 +1248,19 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "TURNS PLATING INTO DAMAGE", // DESIGN 3.3's "TURNS YOUR PLATING INTO DAMAGE" takes three card lines
   },
   shieldwall: {
-    // Battle.applyHit: addPlate(plate) first, then + plated.flat while the hull holds plated.min plating or more
-    text: (e) => [
+    // Battle.applyHit: addPlate(plate) first, then + plated.flat while the hull holds plated.min plating or more. Y5 (release
+    // Y; DESIGN-Y row 45): with the star switch on its own plating is gone (no plate): a pure PLATE payoff
+    text: (e) => (starRules() ? [
+      `WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH PAYLOAD IT HITS GAINS ${damage(g(e).plated!.flat)}.`,
+      S.plating,
+    ] : [
       `ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`,
       `WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS ${damage(g(e).plated!.flat)}.`,
       S.plating,
-    ],
-    gist: (e) => `${fmtDmg(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`,
-    card: () => "PLATES YOUR HULL, HITS HARDER", // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
+    ]),
+    gist: (e) => (starRules() ? `${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`
+      : `${fmtDmg(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`),
+    card: () => (starRules() ? "HITS HARDER WHILE PLATED" : "PLATES YOUR HULL, HITS HARDER"), // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
   },
   twinmould: {
     // Battle.produce (twin): one slug onto each of `pour` belts with room, on the same tick (races/foundry.ts pourAll);
@@ -1526,6 +1541,8 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
     if (e.pincer && !h.others) return `${name}: NO OTHER RIG ON ITS TILE`;
     if (e.latch) return `${name} HOLDS UP TO ${fmtSec(e.latch.hold)} SEC`;
     if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING`; // NUM-1: 10 plating
+    // Y5 (DESIGN-Y row 45): IRON WALL rolls no plating any more; its bonus waits for its PLATE in the battle (not counted)
+    if (e.plated && !e.plate) return `${name} +${damage(e.plated.flat)} AT ${e.plated.min} PLATING`;
   }
   if (e.speed !== undefined || e.pulse) {
     if (belt === "locked") return `${name} +${damage(h.flat ?? 0)} (LOCKED)`;
