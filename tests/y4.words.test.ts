@@ -29,8 +29,8 @@ import { rigBench } from "./y3.helpers";
 const k1 = (def: string) => (ITEMS[def].kind === "core" ? { k: 1 } : {});
 
 describe("Y4 words: no new keyword; LOAD TIME and BONUS DAMAGE stay", () => {
-  it("on, the glossary is Y3's: only HARASSMENT retires; LOAD TIME and BONUS DAMAGE stay; the 9 keywords", () => {
-    expect(STAR_RETIRED).toEqual(["HARASSMENT"]);
+  it("on, the glossary is Y3's: only HARASSMENT retires (Y5: and ONLINE); LOAD TIME and BONUS DAMAGE stay; the 9 keywords", () => {
+    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE"]); // Y5 (ruling 882ecc77): was ["HARASSMENT"]
     expect(on(() => [glossaryEntry("LOAD TIME")?.word, glossaryEntry("BONUS DAMAGE")?.word])).toEqual(["LOAD TIME", "BONUS DAMAGE"]);
     expect(KEYWORDS).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
   });

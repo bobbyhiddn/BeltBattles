@@ -1,7 +1,7 @@
 // Y3 (release Y; REQ-BFG-070, REQ-BFG-046; DESIGN-Y 1.2, section 3 rows 20-32 and section 5 column g): THE WORDS and THE
 // BOTS' DECK RATING of the 13 rigs with the star switch on (content.ts STAR_RULES, withStarRules).
-// - No new keyword. ONLINE stays: ASSEMBLY LINE's texts say START, but POWDER KEG's kept sentence (Y5's piece) and the QUICK
-//   LATCH rune still name ONLINE with the switch on. MATCHED (TWIN GAUGE's face) is a glossary row already.
+// - No new keyword. ONLINE stays (Y5: it retires): ASSEMBLY LINE's texts say START, but POWDER KEG's kept sentence (Y5's piece)
+//   and the QUICK LATCH rune still name ONLINE with the switch on (Y5: no more). MATCHED (TWIN GAUGE's face) is a row already.
 // - No switch-on text of the 13 (faces, ⓘ lines, kept sentences, gists, cards, the belt timeline, SURGE's tap) names a
 //   floor, cap, caveat or clause that left; the new kept sentences and cards say the new rules.
 // - The rating prices each new rule (deckRating.ts, behind the switch): the OVERCLOCKER by the rig it charges, STOKER with
@@ -27,17 +27,17 @@ import { item, withItem } from "./wave3.helpers";
 /** The words a switch-on text of the 13 may never say: each names a floor, cap, caveat, clause or rule that left. */
 const GONE = /UP TO \d+ BURN|UP TO \d+ HITS|MAX \d+ RIGS|MAX \d+ \{?FRAY|HOLD \d+ FRAY|ELSE|NEVER OUTRUN|CAN'T DOUBLE|THAT CAN BE DOUBLED|SIFTER|SURGE \d|TIMES AS FAST|PULSES ITS BELTS|SPEEDS UP|LETS GO GAINS|TWICE AS HARD|ONLINE|TO EACH PAYLOAD IT HITS, (OR|AND)|UP TO \d+ OF ITS BURN|ANY MORE BURN STAYS|NO PLATING TO TAKE|RAZOR WIRE:|HOT SHOE:|HOT START:|FOR \d+\{SEC\}, \+/;
 
-describe("Y3 words: no new keyword; ONLINE stays (KEG, QUICK LATCH); MATCHED is a row", () => {
-  it("on, the glossary is Y2's: only HARASSMENT retires; ONLINE and MATCHED stay, and no keyword joins", () => {
-    expect(STAR_RETIRED).toEqual(["HARASSMENT"]);
-    expect(on(() => glossaryRows().map((r) => r.word))).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT"));
-    expect(on(() => glossaryEntry("ONLINE"))?.word).toBe("ONLINE");
+describe("Y3 words: no new keyword; ONLINE stays (KEG, QUICK LATCH; Y5: it retires); MATCHED is a row", () => {
+  it("on, the glossary is Y2's: only HARASSMENT retires (Y5: and ONLINE); MATCHED stays, and no keyword joins", () => {
+    expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE"]); // Y5 (ruling 882ecc77): was ["HARASSMENT"]
+    expect(on(() => glossaryRows().map((r) => r.word))).toEqual(GLOSSARY.map((r) => r.word).filter((w) => w !== "HARASSMENT" && w !== "ONLINE")); // Y5 (ruling 882ecc77): was .filter((w) => w !== "HARASSMENT")
+    expect(on(() => glossaryEntry("ONLINE"))).toBeUndefined(); // Y5 (ruling 882ecc77): was ?.word).toBe("ONLINE")
     expect(on(() => glossaryEntry("MATCHED BELT"))?.word).toBe("MATCHED");
     expect(on(() => glossaryRows().filter((r) => r.kw).map((r) => r.word))).toEqual(GLOSSARY.filter((r) => r.kw).map((r) => r.word));
     expect([...KEYWORDS]).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]); // the 9, as before
   });
 
-  it("why ONLINE stays: with the switch on the QUICK LATCH rune still names it (Y5: POWDER KEG's kept sentence no more); none of the 13's texts do", () => {
+  it("why ONLINE stayed (Y5: it retires): with the switch on neither POWDER KEG's kept sentence nor the QUICK LATCH rune's line names it (Y5; the rune's def text still does); none of the 13's texts do", () => {
     expect(on(() => abilityText("keg", 1).sentences.some((t) => glossaryWordsIn(t).some((r) => r.word === "ONLINE")))).toBe(false); // Y5 (ruling 882ecc77): was toBe(true)
     expect(JSON.stringify(RUNES.quick_latch)).toMatch(/ONLINE/); // its text: "YOUR {BELT} RIGS: ONLINE {N} SOONER."
     on(() => {

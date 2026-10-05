@@ -163,8 +163,14 @@ export function glossaryRows(): GlossaryRow[] {
  * GATLING clashes are gone), but SALVO RACK's kept sentence ("IT WAITS FOR A FULL CHAMBER, OR TWICE ITS LOAD TIME.") and
  * the TEMPO family's glossary line (families.ts: "... FIRE RATE, LOAD TIME, COMMISSIONING ...") still do, so LOAD TIME
  * stays; BONUS DAMAGE stays (DRAKE NOZZLE's face taps it). No word joins.
+ * Y5 (release Y; BRIEF-Y5; DESIGN-Y section 5, column g; cap's ruling 882ecc7750f6dd37): ONLINE retires. With the switch on
+ * no text names it any more: POWDER KEG's kept sentence says its fuse runs from the start (abilityText.ts keg), and the
+ * QUICK LATCH rune's line says START (runeText.ts STAR_RUNE_TEXT; its RuneDef.text is unchanged), as ASSEMBLY LINE's texts
+ * do since Y3; tests/y5.words sweeps every switch-on text for it. Two ONLINEs are not this word and stay: the battle
+ * plate's network tag (session.ts SOURCE_ONLINE, "ONLINE GHOST") and content.ts's catalogue descs, which no panel draws for
+ * a piece with ability text. No word joins.
  */
-export const STAR_RETIRED: readonly string[] = ["HARASSMENT"];
+export const STAR_RETIRED: readonly string[] = ["HARASSMENT", "ONLINE"];
 /** Y2: is `r` a row the star switch retires, while it is on? */
 const retired = (r: GlossaryRow): boolean => starRules() && STAR_RETIRED.includes(r.word);
 

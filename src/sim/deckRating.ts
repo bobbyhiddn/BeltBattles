@@ -133,8 +133,29 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  *   finisher's split, firedShare), TWIN TRIGGER's pairBonus 30/60/95 with no load-time cut (`start`), ROTARY BREECH's load
  *   time with no fire rate or no-jam (`start`, the cadence, firedShare), ANVIL BREECH's fold (perPlate 1.25/2.75/4.38 x
  *   meanPlate, no flat) and STEAM BREECH's plated-only speed (bare: its own rate). SALVO RACK's pace was never read here.
+ * Y5 (release Y; DESIGN-Y rows 41-47), also read only with the switch on:
+ * - COUNTERWEIGHT uncapped: the walk counts every tile ridden (deck.ts walkRoute reads no max), as Battle.applyHit does.
+ * - CAPACITOR BANK uncapped: NOMINAL priced it with its 5 s cap (capacitorPaid, the base's maxSeconds); the charge past that
+ *   is priced on top (capacitorTail): on a gun fed a load every more than its load time + 5 s, each shot's extra seconds,
+ *   and the first shot's past 5 s when its first load comes later than that.
+ * - IRON WALL without its plating: it rolls none (no `plate`: no repair), and its bonus at 120 PLATE counts only on a deck
+ *   that plates its hull (platedDeck: BASTION, a plating rig or factory, a SEAM WELDER), at the base's half the fight.
+ * - POWDER KEG's repeating pulse without BURN (kegGain: a blast at every multiple of its fuse).
+ * - SPALL CATCHER's single-count soak: on a deck that plates its hull its NOMINAL credit counts spallPlated of it (a soak is
+ *   about a quarter of what such a hull takes, so its charge falls from 1.25 to 1 for each damage taken: 1 / 1.25 = 0.8);
+ *   elsewhere as before. Its cap was never rated (NOMINAL), so its going changes nothing here.
+ * - LONGCASE and FINISHER RAM change no rule: rated as before.
  */
-export const STAR_EQ = { perStun: 0.75, tollFactory: 1.25 } as const;
+export const STAR_EQ = { perStun: 0.75, tollFactory: 1.25, capacitorPaid: 5, spallPlated: 0.8 } as const;
+
+/** Y5 (release Y; DESIGN-Y row 42): with the star switch on, a CAPACITOR BANK's charge past the base's cap (capacitorPaid
+ *  seconds), for each load a turret fires: a gun whose loads come `gap` s apart, each fired alone after its `loadTime`,
+ *  sits empty gap - loadTime s before each shot; and before its first shot it sat empty from the start to its first load
+ *  (`first` s), once in the fight's `loads` loads. Each second past the cap is perSecond (spec: at the turret's class %). */
+export function capacitorTail(spec: CoreSpec, gap: number, loadTime: number, first: number, loads: number): number {
+  const per = spec.perSecond ?? 0, cap = STAR_EQ.capacitorPaid;
+  return per * Math.max(0, gap - loadTime - cap) + (per * Math.max(0, first - cap)) / Math.max(1, loads);
+}
 
 /** Y4 (release Y; DESIGN-Y row 40): with the star switch on, what a DRAKE NOZZLE adds to a shot of bonus damage `flat`: each
  *  flatPerBurn of it is one BURN stack (cores.ts drakeConvert) worth BURN_TIME x BURN_DPS, in place of the damage it used. */
@@ -258,7 +279,9 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       // 0.8.0 P1, wave 3 (D1's proxies, tools/wave3.ts): plating per payload rated as RIVETER's repair; SHIELD WALL's
       // damage at 12+ plating for half the fight; BRACE FRAME as a guard like TOLLBOOTH's (1, 1.4, 1.7 at its stars)
       if (e.plate) repair += e.plate;
-      if (e.plated) eq += e.plated.flat * 0.5;
+      // Y5 (release Y; DESIGN-Y row 45): with the star switch on IRON WALL rolls no plating (no `plate` above), so its bonus
+      // counts only on a deck that plates its hull (platedDeck); off, as before
+      if (e.plated) eq += starRules() && !platedDeck(b) ? 0 : e.plated.flat * 0.5;
       // Y2 (release Y): with the star switch on, BRACE FRAME guards its arrows' tiles only (braceShare)
       if (e.brace) eq += starRules() ? ((EQ.toll * (1 - e.brace.mul)) / 0.25) * braceShare(h.def) : (EQ.toll * (1 - e.brace.mul)) / 0.25;
     }
@@ -509,6 +532,12 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     // bonus damage (drakeGain), weighed as the belts' damage is (computed: no NOMINAL below)
     const drake = starRules() && core.routine === "drake";
     if (drake) eq += fs.reduce((s, f, i) => s + flows[i] * drakeGain(core.spec, f.flat ?? 0) * left(f), 0) / inflow;
+    // Y5 (release Y; DESIGN-Y row 42): with the star switch on a CAPACITOR BANK charges past its old 5 s cap (capacitorTail),
+    // on top of its NOMINAL credit below
+    if (starRules() && core.routine === "capacitor") {
+      const loadTime = (core.spec.windowTime ?? WINDOW_TIME) + g.windowTime;
+      eq += capacitorTail(core.spec, 1 / inflow, loadTime, Math.min(...fs.map((f) => f.first)), thr * fight);
+    }
     let mult = 1 + (g.finisher ? g.finisher / (td.window + g.window) : 0);
     // 0.8.0 P1: ANVIL and STEAM BREECH are computed above, so they take no NOMINAL credit; TWIN TRIGGER pays its pair
     // bonus on the turret's share of paired loads (pairShare; its shorter load time is in `start`)
@@ -525,7 +554,10 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       // Y4 (release Y; DESIGN-Y row 35): with the star switch on SEAM WELDER plates pairs only: its credit x the turret's
       // share of paired loads (pairShare); off, x 1
       const seamShare = starRules() && md.seam ? pairShare(b, fs) : 1;
-      if (!md.fireRate && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m)) * seamShare;
+      // Y5 (release Y; DESIGN-Y row 47): with the star switch on SPALL CATCHER counts a PLATE soak once: on a deck that plates
+      // its hull its credit is STAR_EQ.spallPlated of it; off, x 1
+      const spallShare = starRules() && md.spall && platedDeck(b) ? STAR_EQ.spallPlated : 1;
+      if (!md.fireRate && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m)) * seamShare * spallShare;
     }
     offense += thr * eq * mult;
     out?.turretDmg?.set(t, thr * eq * mult); // BOTS-X: read only
