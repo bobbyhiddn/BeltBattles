@@ -8,9 +8,12 @@ import { describe, expect, it } from "vitest";
 import { Battle, type Payload, type SideState } from "../src/sim/battle";
 import { withStarRules } from "../src/sim/content";
 import { walkRoute, type Build } from "../src/sim/deck";
-import { effectAt } from "../src/sim/stars";
+import { effectAt, starField } from "../src/sim/stars";
+import { heroStartBuild } from "../src/sim/heroBuilds";
 import { faceAt, hasFace } from "../src/ui/faces";
-import { STARS, barge, east, hitOnce, levels, lines, next, on, oneLine, rigBench } from "./y3.helpers";
+import { statRow } from "../src/ui/icons";
+import { STARS, barge, east, hitOnce, key as K, levels, lines, next, on, oneLine, rigBench } from "./y3.helpers";
+import { SEED, item, latchDeck, withItem } from "./wave3.helpers";
 
 /** The flat and BURN the walk's hit of `def` adds (its first timeline hit of that def), on and off. */
 const walkHit = (b: Build, def: string, star: boolean) => withStarRules(() => {
@@ -337,5 +340,106 @@ describe("Y3 row 29: OVERCLOCKER charges the next rig, whatever it is", () => {
     expect(levels("overclocker", 1)).toEqual(["EVERY [4]/2/1{SEC}", next(2, "EVERY 2{SEC}")]);
     expect(withStarRules(() => faceAt("overclocker", 1)!.caveats, false)).toEqual(["IT SKIPS RIGS IT CAN'T DOUBLE."]);
     expect(lines("overclocker", false)[0]).toEqual(["DOUBLES THE NEXT RIG'S HIT, RESTS 4{SEC}."]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------- row 30: TWIN LATCH
+describe("Y3 row 30: TWIN LATCH holds a slug up to 1/2/3 s to make a PAIR; no flat", () => {
+  it("data: on, hold 1/2/3 s and flat 0 (off 1 s at every star, +10/+22/+35)", () => {
+    expect(STARS.map((s) => on(() => effectAt("twinlatch", s).gate!.latch))).toEqual([{ hold: 1, flat: 0 }, { hold: 2, flat: 0 }, { hold: 3, flat: 0 }]);
+    expect(STARS.map((s) => effectAt("twinlatch", s).gate!.latch)).toEqual([{ hold: 1, flat: 10 }, { hold: 1, flat: 22 }, { hold: 1, flat: 35 }]);
+  });
+
+  it("hook: on, its hit adds nothing (off +10/+22/+35)", () => {
+    const at = (s: number, star: boolean) => hitOnce(rigBench([["twinlatch", 4, 3, s]]), star).flat;
+    expect(STARS.map((s) => [at(s, true), at(s, false)])).toEqual([[0, 10], [0, 22], [0, 35]]);
+  });
+
+  it("battle: on, with nothing on its other belt each slug goes alone after 1/2/3 s (off 1 s at every star)", () => {
+    /** The latch deck (tests/wave3.helpers.ts) with a ★`s` latch between its belts; belt B's press held STUNned. */
+    const gaps = (s: number, star: boolean): number[] => withStarRules(() => {
+      const bt = new Battle(withItem(latchDeck(), item(40, "twinlatch", 4, 3, 0, s)), barge(), SEED), holds: number[] = [], rel: number[] = [];
+      while (bt.t < 14) {
+        bt.sides[0].factories.find((f) => f.uid === 3)!.disrupted = 1;
+        bt.step();
+        for (const e of bt.drainEvents()) { if (e.type === "hold") holds.push(bt.t); if (e.type === "release") rel.push(bt.t); }
+      }
+      expect(holds.length, `★${s}`).toBeGreaterThan(2);
+      return rel.map((t, i) => Math.round((t - holds[i]) * 1000) / 1000);
+    }, star);
+    for (const s of STARS) {
+      expect(new Set(gaps(s, true)), `on ★${s}`).toEqual(new Set([s]));
+      expect(new Set(gaps(s, false)), `off ★${s}`).toEqual(new Set([1]));
+    }
+  });
+
+  it("face: HIT: HOLDS A SLUG UP TO 1/2/3 SEC TO MAKE A PAIR, one line; ladder UP TO 1/2/3 SEC", () => {
+    expect(lines("twinlatch")).toEqual([1, 2, 3].map((t) => [`HIT: HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}.`]));
+    oneLine("twinlatch");
+    expect(levels("twinlatch", 1)).toEqual(["UP TO [1]/2/3{SEC}", next(2, "UP TO 2{SEC}")]);
+    expect([hasFace("twinlatch"), on(() => hasFace("twinlatch"))]).toEqual([false, true]);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ row 31: STOKER
+describe("Y3 row 31: STOKER's factories work 20%/44%/70% faster; no cap", () => {
+  /** FURNACE's start deck with a ★`s` STOKER at (6,6) on its Kiln (tests/stokerCap.test.ts): the Kiln's stamp pace over
+   *  its own after 3 s (the stoker online). */
+  const paceUp = (s: number, star: boolean): number => withStarRules(() => {
+    const bt = new Battle(withItem(heroStartBuild("furnace", 1), item(70, "stoker", 6, 6, 0, s)), barge(), 1), f = bt.sides[0].factories[0];
+    while (bt.t < 3) { bt.step(); bt.events.length = 0; }
+    return f.curPace! / f.pace;
+  }, star);
+
+  it("battle: on, a ★2/★3 STOKER's Kiln stamps at the full +44% / +70% though its gun takes only +25% (off: held to +25%)", () => {
+    expect(paceUp(2, true)).toBeCloseTo(1.44, 9);
+    expect(paceUp(3, true)).toBeCloseTo(1.7, 9);
+    expect(paceUp(2, false)).toBeCloseTo(1.25, 2);
+    expect(paceUp(3, false)).toBeCloseTo(1.25, 2);
+    expect([paceUp(1, true), paceUp(1, false)].map((v) => Math.round(v * 100) / 100)).toEqual([1.2, 1.2]); // ★1 fits under the gun either way
+  });
+
+  it("face: today's line ITS FACTORIES WORK 20%/44%/70% FASTER, no caveat; ladder 20%/44%/70% FASTER", () => {
+    expect(lines("stoker")).toEqual(["20%", "44%", "70%"].map((p) => [`ITS FACTORIES WORK ${p} FASTER.`]));
+    oneLine("stoker");
+    expect(levels("stoker", 1)).toEqual(["[20%]/44%/70% FASTER", next(2, "44% FASTER")]);
+    expect(withStarRules(() => faceAt("stoker", 1)!.caveats, false)).toEqual(["A FACTORY NEVER OUTRUNS ITS GUN."]);
+  });
+});
+
+// ----------------------------------------------------------------------------------------- row 32: ASSEMBLY LINE
+describe("Y3 row 32: ASSEMBLY LINE: your rigs start 50%/75%/100% sooner, its own belt's too; no HOT START", () => {
+  /** The bench with an ASSEMBLY LINE (★`s`) in the Kiln's place: WHETSTONEs on its belt's tiles 2 and 4 (ranks 0, 1), and a
+   *  STAMP PRESS (uid 7) on a second belt into the same gun with a WHETSTONE (rank 0 there). */
+  const asm = (s: number): Build => {
+    const b = rigBench([["whetstone", 4, 3, 1], ["whetstone", 4, 1, 1]]);
+    b.items[0] = { uid: 1, def: "assembly", x: 4, y: 6, ...starField(s) };
+    b.items.push({ uid: 7, def: "press", x: 6, y: 6 });
+    b.routes.push({ factory: 7, cells: [K(6, 5), K(5, 5), K(5, 4), K(5, 3), K(5, 2), K(5, 1), K(5, 0)] });
+    return east(b, "whetstone", 5, 3);
+  };
+  const online = (s: number, star: boolean) => withStarRules(() => new Battle(asm(s), barge(), 8).sides[0].gates.map((g) => Math.round(g.commissionAt * 1000) / 1000), star);
+
+  it("sim: on, its own belt's rigs come online at x0.5 / x0.25 / x0 of their time like every rig (off: at once); the other belt's as before", () => {
+    expect(online(1, true)).toEqual([0.6, 0.9, 0.6]);
+    expect(online(1, false)).toEqual([0, 0, 0.6]);
+    expect(online(2, true)).toEqual([0.3, 0.45, 0.3]);
+    expect(online(2, false)).toEqual([0, 0, 0.3]);
+    expect([online(3, true), online(3, false)]).toEqual([[0, 0, 0], [0, 0, 0]]);
+  });
+
+  it("sim: on, ★3 HOT START is gone: no rig of its belt is overclocked, and the first slug past a WHETSTONE gains 20 (off: doubled, 40)", () => {
+    expect(on(() => new Battle(asm(3), barge(), 8).sides[0].gates.map((g) => g.hotUntil))).toEqual([undefined, undefined, undefined]);
+    expect(new Battle(asm(3), barge(), 8).sides[0].gates.map((g) => g.hotUntil)).toEqual([4, 4, undefined]);
+    expect([slugPast(asm(3), 2, true).flat, slugPast(asm(3), 2, false).flat]).toEqual([20, 40]);
+  });
+
+  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; YOUR RIGS START 50%/75%/100% SOONER; ladders DMG 30/45/60, 50%/75%/100% SOONER; HOT START in the ⓘ view only", () => {
+    expect(lines("assembly")).toEqual(["50%", "75%", "100%"].map((p) => [`YOUR RIGS START ${p} SOONER.`]));
+    expect(on(() => faceAt("assembly", 1)!.stats)).toEqual([["RATE", "17"], ["DMG", "30"], ["BELT", "2"]]);
+    oneLine("assembly");
+    expect(levels("assembly", 1)).toEqual(["{DMG} [30]/45/60", "{BELT} [2]/3/4", "[50%]/75%/100% SOONER", "★3 HOT START",
+      `NEXT ★2: ${statRow([["DMG", "45"], ["BELT", "3"]])}, 75% SOONER`]);
+    expect([hasFace("assembly"), on(() => hasFace("assembly"))]).toEqual([false, true]);
   });
 });

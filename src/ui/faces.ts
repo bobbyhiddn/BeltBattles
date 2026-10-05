@@ -859,6 +859,21 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const label = `EVERY ${t}{SEC}:`;
     return rules([{ text: `${label} DOUBLES THE NEXT RIG'S HIT.`, label }], [["every", `EVERY ${t}{SEC}`]]);
   },
+  twinlatch: (e) => {
+    // DESIGN-Y row 30: Battle.latchTick: while both its arrows hit belts it holds a slug at most `hold` s for its other belt,
+    // so the two reach the gun together (a PAIR); no flat any more. The header's "n/2 ARROWS ON BELTS" shows the both-arrows
+    // rule; belts into two guns have no pair to make. Was the RULES text "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE,
+    // THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER." and 3 more sentences (its 1 s, both arrows, +10, two guns)
+    const t = fmtSec(gt(e).latch!.hold);
+    return rules([hit(`HOLDS A {SLUG} UP TO ${t}{SEC} TO MAKE A {*PAIR}.`)], [["hold", `UP TO ${t}{SEC}`]], [REMINDER.PAIR()]);
+  },
+  assembly: (e) => {
+    // DESIGN-Y row 32 (its stats factoryStats': RATE, its slugs' DMG, BELT): Battle.makeSide: while it feeds a turret every
+    // rig on your side comes online at x commission of its time, its own belts' rigs too (no instant start); HOT START is
+    // gone. Was the RULES text "WHILE IT FEEDS A TURRET, YOUR RIGS COME ONLINE IN HALF THE TIME." and 3 more sentences
+    const soon = fmtPct(1 - f(e).commission!);
+    return rules([{ text: `YOUR RIGS START ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
+  },
 };
 
 /** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the
@@ -871,8 +886,9 @@ const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "gr
  *  SCRAPPER's uncapped queue, FLAK SCREEN's screens rolling on their own) or is the face's own words now (TOLLBOOTH's
  *  PARTS). */
 const STAR_GONE_CAVEATS: ReadonlySet<string> = new Set(["tollreach", "harass", "scrapqueue", "flakshots", "flakbest",
-  // Y3 (DESIGN-Y row 29): the OVERCLOCKER skips no rig any more (it charges the next one, whatever it is)
-  "overclocker"]);
+  // Y3 (DESIGN-Y rows 29, 31): the OVERCLOCKER skips no rig any more (it charges the next one, whatever it is), and STOKER's
+  // cap is gone from the sim (a stoked factory may overfeed its gun)
+  "overclocker", "stoker"]);
 
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [

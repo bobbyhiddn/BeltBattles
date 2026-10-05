@@ -690,7 +690,9 @@ export class Battle {
           let at = COMMISSION_BASE + COMMISSION_STEP * (rank.size - 1);
           if (asm.own.size) { // 0.6.1c: x the best factor; online at 0 s on an Assembly Line's own belt (+ HOT START)
             const hot = asm.own.get(i);
-            at = hot === undefined ? at * asm.factor : 0;
+            // Y3 (release Y; DESIGN-Y row 32): with the star switch on its own belts' rigs take the same factor as every
+            // rig (no instant start), and HOT START is gone (its data holds no hotStart, so `hot` is 0 and sets nothing)
+            at = hot === undefined || starRules() ? at * asm.factor : 0;
             if (hot) g.hotUntil = Math.max(g.hotUntil ?? 0, hot);
           }
           g.commissionAt = Math.min(g.commissionAt, at);
@@ -1482,7 +1484,9 @@ export class Battle {
   private stokedPace(s: SideState, f: FactoryState, dt: number): number {
     const k = this.stokeOf(f);
     let pace = f.pace * (1 + k);
-    if (k > 0 && f.stokeCap?.length) {
+    // Y3 (release Y; DESIGN-Y row 31; REVIEW-STARD answer 4): with the star switch on the cap is gone: the full stoke, so a
+    // stoked factory may overfeed its gun (and jam it); off, capped as before
+    if (k > 0 && f.stokeCap?.length && !starRules()) {
       const i0 = secPer(f.def.factory!.speed) / f.pace; // NUM-2: 30 / speed
       let imin = 0;
       for (const c of f.stokeCap) {

@@ -1274,6 +1274,19 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
     levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 3, flat: 20 } }, perk: "OVERPRESSURE" },
       3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 30 } }, perk: "HAMMER VALVE" } },
   },
+  // row 30, TWIN LATCH: the flat goes (flat 0; was +10/+22/+35 on each payload it hits) and the hold grows to 1/2/3 s (was
+  // 1 s at every star; battle.ts latchTick reads `hold`)
+  twinlatch: { gate: { latch: { hold: 1, flat: 0 } }, levels: { 2: { gate: { latch: { hold: 2, flat: 0 } } }, 3: { gate: { latch: { hold: 3, flat: 0 } } } } },
+  // row 31, STOKER: no data change; its cap goes in battle.ts stokedPace (a stoked factory may overfeed its gun)
+  // row 32, ASSEMBLY LINE: ★3 HOT START goes (no hotStart); it keeps the global speed-up, commission 0.5/0.25/0 (rigs start
+  // 50%/75%/100% sooner), and its own belts' rigs take the same factor (battle.ts makeSide: no instant start). The perk's
+  // name stays (ⓘ only)
+  assembly: {
+    levels: {
+      2: { factory: { speed: 17, commission: 0.25, base: 45 } },
+      3: { factory: { speed: 17, commission: 0, base: 60 }, perk: "HOT START" },
+    },
+  },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */
