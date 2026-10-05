@@ -8,7 +8,7 @@ import { Battle, type SimEvent } from "../src/sim/battle";
 import { cloneBuild, type Build } from "../src/sim/deck";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import { RUNE_LIST, RUN_KINDS, runeList } from "../src/sim/runes";
-import { DORMANT_RUNES, SUSTAIN_RUNE_LIST } from "../src/sim/runes"; // FLIP-X2: the 8 sustain runes' defs, 2 of them dormant
+import { DORMANT_RUNES, SUSTAIN_RUNE_LIST } from "../src/sim/runes"; // FLIP-X2: the 8 sustain runes' defs, 2 of them dormant; BAL-2 (the lines): none
 import { withSustain, type HeroId } from "../src/sim/content";
 
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
@@ -73,6 +73,7 @@ describe("numbers.hull: hull and plating stay whole (the integer damage pipeline
 // FLIP-X2 (REVIEW-TUNEX): runeList() never holds a dormant rune (DORMANT_RUNES), so with the switch on it adds 6 of the 8
 // (SEARING and SHATTER SHOT are dormant). Their defs stay (an old snapshot decodes, and a battle still reads them), so these
 // battles keep all 8, as runes.ts's SUSTAIN_RUNE_LIST (was the runeList() difference, then the same 8 in the same order)
+// BAL-2 (the lines: DORMANT_RUNES empty): none is dormant, so runeList() adds all 8 with the switch on again (the pins below)
 const SUSTAIN_RUNES = SUSTAIN_RUNE_LIST;
 const sustainFor = (i: number): string[] => [0, 1, 2].map((j) => SUSTAIN_RUNES[(i * 3 + j) % SUSTAIN_RUNES.length].id);
 
@@ -83,9 +84,11 @@ describe("numbers.hull with the switch on: the 8 sustain runes (FLIP-X1 F-d)", (
     expect(SUSTAIN_RUNES.filter((d) => RUN_KINDS.includes(d.kind))).toEqual([]);
     expect(SUSTAIN_RUNES.filter((d) => RUNE_LIST.includes(d))).toEqual([]);
     // FLIP-X2 (REVIEW-TUNEX): what runeList() adds with the switch on, the dormant two left out (was the 8 above)
+    // BAL-2 (the lines: DORMANT_RUNES empty): all 8 again, SEARING and SHATTER SHOT offered (was the 6, without them)
     expect(withSustain(() => runeList().filter((d) => !RUNE_LIST.includes(d))).map((d) => d.id)).toEqual(
-      ["bulwark_ward", "tick_guard", "twin_salve", "scrap_medic", "leech_vow", "green_thread"]);
-    expect(SUSTAIN_RUNES.filter((d) => DORMANT_RUNES.has(d.id)).map((d) => d.id)).toEqual(["searing", "shatter_shot"]);
+      ["bulwark_ward", "tick_guard", "twin_salve", "scrap_medic", "leech_vow", "green_thread", "searing", "shatter_shot"]);
+    // BAL-2 (the lines: DORMANT_RUNES empty): none of the 8 is dormant (was ["searing", "shatter_shot"])
+    expect(SUSTAIN_RUNES.filter((d) => DORMANT_RUNES.has(d.id)).map((d) => d.id)).toEqual([]);
   });
 
   for (const [h, hero] of HEROES.entries()) {

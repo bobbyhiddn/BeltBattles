@@ -8,7 +8,7 @@ import { G, fresh, installRaster } from "./raster.helpers";
 import { textWidth } from "../src/render/font";
 import { withSustain } from "../src/sim/content";
 import { RUNE_LIST, runeList, type RuneDef } from "../src/sim/runes";
-import { DORMANT_RUNES, RUNES } from "../src/sim/runes"; // FLIP-X2: the 4 dormant runes (out of runeList(), their cards kept)
+import { DORMANT_RUNES, RUNES } from "../src/sim/runes"; // FLIP-X2: the 4 dormant runes (out of runeList(), their cards kept); BAL-2 (the lines): none
 import { KEYWORD_WORD, RUNE_KEYWORD_COLOUR, runeKeyword, runeTag, runeTaken } from "../src/ui/runeText";
 import { drawRuneCard, readoutW, runeCardChipW, runeCardH } from "../src/ui/runeBar";
 import { pickLayout } from "../src/screens/runePicker";
@@ -56,8 +56,10 @@ describe("FLIP-X1 F-a: the rune card's chip word fits its box", () => {
       // FLIP-X2 (REVIEW-TUNEX): runeList() leaves the 4 dormant runes out (DORMANT_RUNES: SEARING, SHATTER SHOT, COAL CHUTE,
       // HEAT SINK), 65 -> 61. Their cards still draw (a ghost in the device's local pool may hold one), so the sweep draws
       // them too: the 61 and the 4, all 65 cards as before (was runeList() alone, 65)
+      // BAL-2 (the lines: DORMANT_RUNES empty): runeList() holds all 65 again, the four FURNACE runes included, so the
+      // sweep's cards are runeList() itself (was the 61 and the 4 dormant)
       const list = runeList();
-      expect(list.length).toBe(RUNE_LIST.length + 8 - 4);
+      expect(list.length).toBe(RUNE_LIST.length + 8); // BAL-2 (the lines: DORMANT_RUNES empty): 57 + 8 = 65 (was 57 + 8 - 4 = 61)
       expect(list.filter((d) => DORMANT_RUNES.has(d.id))).toEqual([]);
       const cards = [...list, ...[...DORMANT_RUNES].map((id) => RUNES[id])];
       expect(cards.length).toBe(RUNE_LIST.length + 8);
@@ -87,7 +89,9 @@ describe("FLIP-X1 F-a: the rune card's chip word fits its box", () => {
     expect(wide(RUNE_LIST)).toEqual([["ward_stone", 26]]); // switch off: WARD STONE, x2a's one SHIELD rune
     // FLIP-X2 (REVIEW-TUNEX): SHATTER SHOT is dormant, so runeList() leaves it out: the three SHIELD runes the dawn offers, in
     // runeList() order (was the four, SHATTER SHOT last); its own card still widens
-    expect(withSustain(() => wide(runeList()))).toEqual([["ward_stone", 26], ["bulwark_ward", 26], ["tick_guard", 26]]);
+    // BAL-2 (the lines: DORMANT_RUNES empty): SHATTER SHOT is offered again, so runeList() holds the four SHIELD runes,
+    // SHATTER SHOT last (was the three, without it)
+    expect(withSustain(() => wide(runeList()))).toEqual([["ward_stone", 26], ["bulwark_ward", 26], ["tick_guard", 26], ["shatter_shot", 26]]);
     expect(wide([RUNES.shatter_shot])).toEqual([["shatter_shot", 26]]);
   });
 });

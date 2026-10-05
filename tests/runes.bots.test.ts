@@ -34,7 +34,9 @@ describe("RUNES-2a botRunePick: style, then the board's themes, then catalogue o
     // FLIP-X2 (REVIEW-TUNEX): COAL CHUTE is dormant (DORMANT_RUNES): runeList() leaves it out, so the picker never takes it
     // even when handed one (no dawn offers it): the board's armor (500 hull, 2 packs) wins (was coal_chute). FURNACE's live
     // style rune ASH KINDLE is its first pick, whatever the board holds
-    expect(botRunePick(["iron_skin", "coal_chute", "oiled_cogs"], "furnace", b)).toBe("iron_skin");
+    // BAL-2 (the lines: DORMANT_RUNES empty): COAL CHUTE is offered again and in runeList(), so FURNACE's style takes it
+    // first, whatever the board holds (was iron_skin, the board's armor)
+    expect(botRunePick(["iron_skin", "coal_chute", "oiled_cogs"], "furnace", b)).toBe("coal_chute");
     expect(botRunePick(["iron_skin", "ash_kindle", "oiled_cogs"], "furnace", b)).toBe("ash_kindle");
     expect(botRunePick(["loose_thread", "war_edge"], "weaver", b)).toBe("loose_thread");
     expect(botRunePick(["twin_nails", "iron_skin"], "foundry", b)).toBe("twin_nails");
@@ -61,7 +63,9 @@ describe("RUNES-2a botRunePick: style, then the board's themes, then catalogue o
     expect(boardThemeCount("factories", b)).toBe(1);
     // FLIP-X2 (REVIEW-TUNEX): COAL CHUTE is dormant, so the picker never takes it: TAR BARREL (belts 2) is the only card
     // left (was coal_chute); ASH KINDLE, FURNACE's live style rune, reads the same 3 HEAT pieces and wins over the belts
-    expect(botRunePick(["tar_barrel", "coal_chute"], "metronome", b)).toBe("tar_barrel");
+    // BAL-2 (the lines: DORMANT_RUNES empty): COAL CHUTE is a card again and reads the 3 HEAT pieces (furnace 3), so it wins
+    // over TAR BARREL's belts 2 (was tar_barrel)
+    expect(botRunePick(["tar_barrel", "coal_chute"], "metronome", b)).toBe("coal_chute");
     expect(botRunePick(["tar_barrel", "ash_kindle"], "metronome", b)).toBe("ash_kindle");
     // the LOOM frays (weaver), TWIN MOULD pours (foundry), PLATE ROLLER plates (bastion)
     const w = board("siphon", { items: [at("loom", 1), at("twinmould", 2), at("plateroller", 3)] });

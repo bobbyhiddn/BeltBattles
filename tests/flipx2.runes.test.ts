@@ -46,11 +46,17 @@ describe("FLIP-X2 step 3b: TUNE-X's rune lines and the dormant runes (REVIEW-TUN
     expect(at("tangle_wire")).toEqual(["rare", "weaver", 5]); // was 6
   });
 
-  it("SEARING, SHATTER SHOT, COAL CHUTE and HEAT SINK are dormant: never offered, not listed, refused at a dawn; their defs stay", () => {
-    expect([...DORMANT_RUNES].sort()).toEqual(["coal_chute", "heat_sink", "searing", "shatter_shot"]);
-    for (const id of DORMANT_RUNES) expect(isRune(id), id).toBe(true); // an old snapshot decodes
-    expect(runeList().some((d) => DORMANT_RUNES.has(d.id))).toBe(false);
-    expect(runeList().length).toBe(RUNE_LIST.length + SUSTAIN_RUNE_LIST.length - 4); // 57 + 8 - 4 = 61
+  // BAL-2 (the lines: cap's REVIEW-BAL1 row 2, DORMANT_RUNES empty): the four are offered again in 0.9.1, so each check of
+  // this test reads the four by name and pins the new truth: none dormant, all four listed and offered, each taken at a
+  // dawn (was: dormant, not listed, never offered, refused at a dawn; title was "... are dormant: never offered, not
+  // listed, refused at a dawn; their defs stay")
+  it("SEARING, SHATTER SHOT, COAL CHUTE and HEAT SINK are offered again (BAL-2): listed, offered, taken at a dawn; their defs stay", () => {
+    const FOUR = ["coal_chute", "heat_sink", "searing", "shatter_shot"]; // BAL-2: FLIP-X2's DORMANT_RUNES, by name (the set is empty now)
+    expect([...DORMANT_RUNES].sort()).toEqual([]); // BAL-2 (the lines): empty (was ["coal_chute", "heat_sink", "searing", "shatter_shot"])
+    for (const id of FOUR) expect(isRune(id), id).toBe(true); // an old snapshot decodes. BAL-2: the four by name (was DORMANT_RUNES)
+    // BAL-2 (the lines): all four listed, in runeList() order (was none: runeList().some(dormant) false)
+    expect(runeList().filter((d) => FOUR.includes(d.id)).map((d) => d.id)).toEqual(FOUR);
+    expect(runeList().length).toBe(RUNE_LIST.length + SUSTAIN_RUNE_LIST.length); // BAL-2 (the lines): 57 + 8 = 65 (was 57 + 8 - 4 = 61)
     const offered = new Set<string>();
     for (const hero of HEROES4) for (let seed = 1; seed <= 150; seed++) {
       const held: string[] = [];
@@ -60,11 +66,13 @@ describe("FLIP-X2 step 3b: TUNE-X's rune lines and the dormant runes (REVIEW-TUN
         if (o.ids.length) held.push(o.ids[0]);
       }
     }
-    expect([...offered].filter((id) => DORMANT_RUNES.has(id))).toEqual([]);
-    for (const id of DORMANT_RUNES) {
+    // BAL-2 (the lines): all four are offered in these 600 runs' first 10 dawns (was [], none: dormant)
+    expect([...offered].filter((id) => FOUR.includes(id)).sort()).toEqual(FOUR);
+    for (const id of FOUR) { // BAL-2: the four by name (was DORMANT_RUNES)
       const list = [{ id: "iron_skin" }, { id: "tar_barrel" }, { id }]; // taken at the dawn of day 3 (a sustain rune's first)
-      expect(runeProblem(list, 3, "furnace"), id).toBe(`runes[2]: ${RUNES[id].name} is dormant: no dawn offers it`);
-      expect(runeProblem(list, 3, "furnace", undefined, "exact"), id).toBe(`runes[2]: ${RUNES[id].name} is dormant: no dawn offers it`);
+      // BAL-2 (the lines): taken at a dawn, in both counts (was `runes[2]: ${RUNES[id].name} is dormant: no dawn offers it`)
+      expect(runeProblem(list, 3, "furnace"), id).toBeNull();
+      expect(runeProblem(list, 3, "furnace", undefined, "exact"), id).toBeNull();
       expect(runeProblem(list, 3, "furnace", undefined, "atMost", true), `${id}: the local pool keeps it`).toBeNull();
     }
   });

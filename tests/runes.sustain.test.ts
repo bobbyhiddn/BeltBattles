@@ -9,7 +9,7 @@ import {
   BOT_RUNES, KIND_UNIT, RULE_KINDS, RUNE_LIST, RUNES, STYLE_THEMES, SUSTAIN_RUNE_LIST, isRune, isSustainRune, runeList, runeOffer,
   runeProblem, type RuneDef,
 } from "../src/sim/runes";
-import { DORMANT_RUNES } from "../src/sim/runes"; // FLIP-X2: SEARING and SHATTER SHOT dormant (REVIEW-TUNEX)
+import { DORMANT_RUNES } from "../src/sim/runes"; // FLIP-X2: SEARING and SHATTER SHOT dormant (REVIEW-TUNEX); BAL-2 (the lines): none, DORMANT_RUNES empty
 import { SUSTAIN_LIVE, sustainLive, withSustain, type HeroId } from "../src/sim/content";
 import { KEYWORD_WORD, RUNE_TEXT, RUNE_UNIT_TEXT, runeKeyword, runeLine, runeReminder, runeSpans, runeTag } from "../src/ui/runeText";
 import { RUNE_KEYWORD_COLOUR, runeReminderSpans, runeSentenceSpans } from "../src/ui/runeText"; // Y-FURN: the card's lines, SHATTER SHOT's reminder
@@ -40,10 +40,14 @@ const TABLE: readonly [string, string, string, string, string, string, number, s
   ["green_thread", "GREEN THREAD", "common", "weaver", "regen", "hull", 10, "YOUR HULL: {*REGEN} {N}.", "YOUR HULL: REGEN 10.", [105]],
   // Y-FURN (FURN-Y row 3, REVIEW-FURNY): searBurn 6, two lines (was "burnNoHeal", "count", 1, "FOE WITH YOUR {*BURN}: NO
   // {*HEAL}.", "FOE WITH YOUR BURN: NO HEAL.", 149); its second line is the old one
-  ["searing", "SEARING", "rare", "furnace", "searBurn", "count", 6, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}.", "START: THE FOE HAS 6 BURN. FOE WITH YOUR BURN: NO HEAL.", [137, 149]],
+  // BAL-2 (the lines: cap's REVIEW-BAL1 row 5, SEARING searBurn 6 -> 5): 5, "... HAS 5 BURN. ..." (was 6, "... HAS 6 BURN.
+  // ..."); the widths measured unchanged, 137 / 149
+  ["searing", "SEARING", "rare", "furnace", "searBurn", "count", 5, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}.", "START: THE FOE HAS 5 BURN. FOE WITH YOUR BURN: NO HEAL.", [137, 149]],
   // Y-FURN (FURN-Y row 4; REVIEW-STARD's amendment, no PIERCE): shatterPct 15, two lines (was "shieldPierce", "count", 1,
   // "YOUR SHOTS: BREAK A {*SHIELD} AND STILL HIT.", "YOUR SHOTS: BREAK A SHIELD AND STILL HIT.", 223)
-  ["shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", "pct", 15, "YOUR SHOTS: +{N} {DMG}. YOUR HITS SHATTER {*SHIELD}.", "YOUR SHOTS: +15% DMG. YOUR HITS SHATTER SHIELD.", [111, 139]],
+  // BAL-2 (the lines: cap's ruling f894080daebfa8c0, SHATTER SHOT shatterPct 15 -> 14): 14, "YOUR SHOTS: +14% DMG." (was
+  // 15, "+15% DMG."); the widths measured unchanged, 111 / 139
+  ["shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", "pct", 14, "YOUR SHOTS: +{N} {DMG}. YOUR HITS SHATTER {*SHIELD}.", "YOUR SHOTS: +14% DMG. YOUR HITS SHATTER SHIELD.", [111, 139]],
 ];
 
 describe("SUS-D: the sustain runes in the catalogue", () => {
@@ -78,8 +82,10 @@ describe("SUS-D: the sustain runes in the catalogue", () => {
     expect(RULE_KINDS).toEqual(["burnNoHeal", "shieldPierce"]);
     expect(SUSTAIN_RUNE_LIST.filter((d) => RULE_KINDS.includes(d.kind)).map((d) => d.id)).toEqual([]); // was ["searing", "shatter_shot"]
     expect([...RUNE_LIST, ...SUSTAIN_RUNE_LIST].filter((d) => RULE_KINDS.includes(d.kind)).length).toBe(0); // was 2
+    // BAL-2 (the lines: SEARING 6 -> 5, cap's REVIEW-BAL1 row 5; SHATTER SHOT 15 -> 14, cap's ruling f894080daebfa8c0): 5
+    // and 14%, as the cards draw them (was 6, ["6"] and 15, ["15%"])
     expect(["searing", "shatter_shot"].map((id) => [RUNES[id].kind, RUNES[id].amount.n, runeLine(RUNES[id]).match(/\d+%?/g)])).toEqual([
-      ["searBurn", 6, ["6"]], ["shatterPct", 15, ["15%"]],
+      ["searBurn", 5, ["5"]], ["shatterPct", 14, ["14%"]],
     ]);
     for (const d of SUSTAIN_RUNE_LIST) {
       const rule = RULE_KINDS.includes(d.kind);
@@ -106,11 +112,13 @@ describe("SUS-D: the switch (offered only while sustain is on)", () => {
     // FLIP-X2 (REVIEW-TUNEX): runeList() never holds a dormant rune (DORMANT_RUNES), so the switch off it is RUNE_LIST
     // without COAL CHUTE and HEAT SINK, 55 (was RUNE_LIST itself), and on it is that and the sustain runes without SEARING
     // and SHATTER SHOT, 61 (was the 65)
+    // BAL-2 (the lines: cap's REVIEW-BAL1 row 2, DORMANT_RUNES empty): none is dormant, so the switch off runeList() is
+    // RUNE_LIST itself again, 57 (was 55), and on it is RUNE_LIST and all 8 sustain runes, 65 (was 61)
     const live = (l: readonly RuneDef[]) => l.filter((d) => !DORMANT_RUNES.has(d.id)).map((d) => d.id);
     withSustain(() => expect(runeList().map((d) => d.id)).toEqual(live(RUNE_LIST)), false);
-    expect(withSustain(() => runeList().length, false)).toBe(55);
+    expect(withSustain(() => runeList().length, false)).toBe(57); // BAL-2 (the lines: DORMANT_RUNES empty): 57 (was 55)
     expect(runeList().map((d) => d.id)).toEqual(live([...RUNE_LIST, ...SUSTAIN_RUNE_LIST]));
-    expect(runeList().length).toBe(61);
+    expect(runeList().length).toBe(65); // BAL-2 (the lines: DORMANT_RUNES empty): 65 (was 61)
     withSustain(() => expect(runeList().map((d) => d.id)).toEqual(live([...RUNE_LIST, ...SUSTAIN_RUNE_LIST])));
     expect(sustainLive()).toBe(true); // the switch is back (on)
   });
@@ -136,9 +144,12 @@ describe("SUS-D: the switch (offered only while sustain is on)", () => {
     for (const d of SUSTAIN_RUNE_LIST) {
       expect(off.has(d.id), d.id).toBe(false);
       // FLIP-X2 (REVIEW-TUNEX): SEARING and SHATTER SHOT are dormant: no dawn offers them, on or off (was each at its tier)
-      expect([...(on.get(d.id) ?? [])], d.id).toEqual(DORMANT_RUNES.has(d.id) ? [] : [d.tier]);
+      // BAL-2 (the lines: DORMANT_RUNES empty): all 8 are offered with the switch on, each at its own tier (was [] for
+      // SEARING and SHATTER SHOT, dormant)
+      expect([...(on.get(d.id) ?? [])], d.id).toEqual([d.tier]);
     }
-    expect(SUSTAIN_RUNE_LIST.filter((d) => DORMANT_RUNES.has(d.id)).map((d) => d.id)).toEqual(["searing", "shatter_shot"]);
+    // BAL-2 (the lines: DORMANT_RUNES empty): no sustain rune is dormant (was ["searing", "shatter_shot"])
+    expect(SUSTAIN_RUNE_LIST.filter((d) => DORMANT_RUNES.has(d.id)).map((d) => d.id)).toEqual([]);
   });
 
   it("runeProblem refuses a sustain rune while the switch is off (with the seed or without); on, an offered one passes", () => {
@@ -191,12 +202,20 @@ describe("SUS-D: the M5 bench (tools/runevalue.ts, RUNES-2a's method, the switch
     // Y-FURN (FURN-Y section 4, REVIEW-FURNY rows 3-4): the counters with their baselines, benched on release X's field
     // (runevalue --field x --members runes, K 10, KO 5, days 3-10; FURN-Y's bench/rv1), FURNACE's own gain; the other
     // heroes' mean 7.0 (SEARING) and 9.2 (SHATTER SHOT), under the rare top. Before, rule runes, not benched (next test)
-    searing: { n: 6, on: "furnace", run: "FURN-Y rv1 x-field", gain: 7.8, lo: 3.9, hi: 11.6 },
-    shatter_shot: { n: 15, on: "furnace", run: "FURN-Y rv1 x-field", gain: 8.1, lo: 4.9, hi: 11.3 },
+    // BAL-2 (the lines): the four FURNACE runes at their 0.9.1 amounts, BAL-2 step 3a's measurement (W/output-bal2/rv/s4:
+    // tools/runevalue.ts --field x --members runes --k 10 --ko 5, days 3-10, the four together, 4 shards merged, judged on
+    // FURNACE); the other heroes' mean 5.2 (SEARING) and 8.4 (SHATTER SHOT). SEARING and SHATTER SHOT replace FURN-Y's rv1
+    // rows; COAL CHUTE and HEAT SINK, offered again, are new rows
+    searing: { n: 5, on: "furnace", run: "BAL-2 3a rv/s4 x-field", gain: 7.1, lo: 5.2, hi: 9.0 }, // BAL-2 (the lines): SEARING 5 +7.1 (5.2 to 9.0) (was n 6, FURN-Y rv1 +7.8, 3.9 to 11.6)
+    shatter_shot: { n: 14, on: "furnace", run: "BAL-2 3a rv/s4 x-field", gain: 9.6, lo: 6.5, hi: 12.7 }, // BAL-2 (the lines): SHATTER SHOT 14 +9.6 (6.5 to 12.7) (was n 15, FURN-Y rv1 +8.1, 4.9 to 11.3)
+    coal_chute: { n: 15, on: "furnace", run: "BAL-2 3a rv/s4 x-field", gain: 3.9, lo: 2.1, hi: 5.8 }, // BAL-2 (the lines): COAL CHUTE 15 +3.9 (2.1 to 5.8) (was no row: dormant)
+    heat_sink: { n: 25, on: "furnace", run: "BAL-2 3a rv/s4 x-field", gain: 6.6, lo: 4.3, hi: 9.0 }, // BAL-2 (the lines): HEAT SINK 25 +6.6 (4.3 to 9.0) (was no row: dormant)
   };
 
   it("each benched rune at its catalogue amount is in its tier band (a style rune on its own hero, a generic one on all)", () => {
-    expect(Object.keys(BENCH).sort()).toEqual([...SUSTAIN_RUNE_LIST.filter((d) => !RULE_KINDS.includes(d.kind)).map((d) => d.id), "ward_stone"].sort());
+    // BAL-2 (the lines): the benched runes are the sustain runes, WARD STONE, and COAL CHUTE and HEAT SINK (offered again;
+    // was the sustain runes and WARD STONE)
+    expect(Object.keys(BENCH).sort()).toEqual([...SUSTAIN_RUNE_LIST.filter((d) => !RULE_KINDS.includes(d.kind)).map((d) => d.id), "ward_stone", "coal_chute", "heat_sink"].sort());
     for (const [id, b] of Object.entries(BENCH)) {
       const d = RUNES[id], [lo, hi] = BAND[d.tier];
       expect(d.amount.n, `${id}: benched at ${b.n}`).toBe(b.n);

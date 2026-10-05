@@ -177,7 +177,9 @@ describe("RUNES-1 M3: runeOffer pinned (a catalogue edit can't move offers silen
       [1, 1, "furnace", ["tar_barrel", "sharp_scrap", "coin_purse"], "common"],
       // FLIP-X2: DORMANT_RUNES (searing, shatter_shot, coal_chute, heat_sink) left the offer pool (step 3b), moving
       // the common day-3+ dawns: was iron_skin, oiled_cogs, scrap_biter
-      [4242, 3, "weaver", ["tar_barrel", "oiled_cogs", "scrap_halo"], "common"],
+      // BAL-2 (the lines: DORMANT_RUNES empty, the four back in the offer pool, COAL CHUTE among the commons): was tar_barrel,
+      // oiled_cogs, scrap_halo. Cause check: FLIP-X2's four put back in DORMANT_RUNES at run time give every old pin here
+      [4242, 3, "weaver", ["tar_barrel", "rivet_hoard", "scrap_halo"], "common"],
       // FLIP-X2: the same (DORMANT_RUNES left the offer pool): was ash_cloak, coin_purse
       [77, 5, "foundry", ["scrap_halo", "tar_barrel"], "common"],
       [123456789, 10, "bastion", ["ember_shot", "scrap_saint"], "epic"],
@@ -186,7 +188,9 @@ describe("RUNES-1 M3: runeOffer pinned (a catalogue edit can't move offers silen
       [23, 6, "foundry", ["bulwark_oath", "molten_vows"], "legendary"],
       // FLIP-X2: the same cause on days 1-2: their list is RUNE_LIST minus DORMANT_RUNES (COAL CHUTE and HEAT SINK are in
       // RUNE_LIST), so a day-2 draw moves too (seed 1 day 1 happens not to): was ash_kindle, ash_cloak, gun_oil
-      [2026, 2, "bastion", ["many_hands", "bulkheads", "oiled_cogs"], "common"],
+      // BAL-2 (the lines: DORMANT_RUNES empty): the day 1-2 list is RUNE_LIST itself again (COAL CHUTE and HEAT SINK back),
+      // so this dawn is the one before FLIP-X2 again: was many_hands, bulkheads, oiled_cogs
+      [2026, 2, "bastion", ["ash_kindle", "ash_cloak", "gun_oil"], "common"],
     ];
     for (const [seed, day, hero, ids, tier] of pins) {
       const o = runeOffer(seed, day, hero, []);

@@ -73,7 +73,8 @@ describe("FLIP-X2 step 1b: the bar's and the tray's chips sized from the word (R
   it("only a SHIELD chip widens: 26 on the desk's bar and in the tray, 27 (unchanged) on the phone's bar", () => {
     expect([runeChip(OP), runeChip(DESK), RUNE_CHIP_MIN]).toEqual([27, 22, 22]);
     // the SHIELD runes: the three the dawn offers (runeList) and SHATTER SHOT, dormant since step 3b (its card still draws)
-    expect(withSustain(() => runeList().filter((d) => runeKeyword(d) === "SHIELD").map((d) => d.id))).toEqual(SHIELD_IDS.slice(0, 3));
+    // BAL-2 (the lines: DORMANT_RUNES empty): SHATTER SHOT is offered again, so the dawn offers all four (was the first three)
+    expect(withSustain(() => runeList().filter((d) => runeKeyword(d) === "SHIELD").map((d) => d.id))).toEqual(SHIELD_IDS);
     expect(runeKeyword(RUNES.shatter_shot)).toBe("SHIELD");
     for (const d of shields()) expect([runeChipW(d, runeChip(DESK)), runeChipW(d, RUNE_CHIP_MIN), runeChipW(d, runeChip(OP))], d.id).toEqual([26, 26, 27]);
     for (const d of others()) expect([runeChipW(d, 22), runeChipW(d, 27)], d.id).toEqual([22, 27]);
