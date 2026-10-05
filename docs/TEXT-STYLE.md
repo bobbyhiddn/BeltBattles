@@ -52,8 +52,8 @@ U2f (0.8.9) adds three rules: the ⓘ view's size (5.8), the owned marker (9.5) 
 2. SEC follows its number (`1.4{SEC}`); every other icon precedes it (`{DMG}4`, `{SLUG}2`). A keyword in a row is its icon alone, unsigned:
    `{HEAT}1.2`, never `{*HEAT}`.
 3. Each kind's pairs come from its one data function (`factoryStats`: cadence, DMG, belts; `turretStats`: cadence, loads, gear slots). The
-   cadence is `speedPair`'s, the one place the NUMBERS release turns `n{SEC}` into a `{RATE}` pair.
-4. A face takes a second row only for its own extra stats: KILN `1.25{SEC} {DMG}4 {BELT}2`, then `{HEAT}1.2`.
+   cadence is `speedPair`'s, the one place the NUMBERS release turned `n{SEC}` into a `{RATE}` pair (NUM-4: `{RATE}19`, the SPEED, shots or slugs in 30 s).
+4. A face takes a second row only for its own extra stats: KILN `{RATE}24 {DMG}40 {BELT}2`, then `{HEAT}12` (NUM-4; was `1.25{SEC} {DMG}4 {BELT}2`, `{HEAT}1.2`).
 5. Every row fits the op view's band: 225 px of the 5x7 font.
 6. `{BELT}` is a factory's belt count only; belt capacity is tiles, in words: `+4 BELT TILES FOR THE RUN.` (U2c fix 2).
 
@@ -150,7 +150,7 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
    literal numbers; numcheck traces every number on a face. NUMBERS changes only the formatter bodies and `speedPair`, so these pins rebase.
 4. A stat is unsigned (`{HEAT}1.2`, `{BURN}2`). An ability's value is signed when it adds or cuts (`+1 {*BURN}`, `+15% {DMG}`). A ladder
    prints each value as the face does.
-5. Until NUMBERS, formatters print today's values and rounding (damage one decimal, seconds two, percents whole); upgrade texts have no decimals (T47).
+5. NUM-4: every formatter prints the sim's whole value as it is (damage x10, SPEED per 30 s, whole seconds, whole %); a fraction is a finding, never rounded (statFormat.ts FRACTIONAL; tests/numbers.faces). Clocks and measured shares are readings: `fmtClock` (floored seconds) and `fmtReadPct`. Upgrade lines name the next SPEED (`UPGRADE: {RATE}36.`).
 
 ## 7. Keywords, colours and the glossary
 1. Six keywords (font.ts `KEYWORDS`): BURN, STUN, HEAT, FRAY, PLATE, PAIR. One keyword, one colour, everywhere (font.ts `ICON_COLOUR`): BURN
@@ -195,7 +195,7 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
 1. Each offer shows a one-line effect: its stat chip, one icon alone and one value, read off the face at ★1 (`faceAt(def, 1, o)`; a shop
    offers ★1 only).
 2. The chip rule (chips.ts): an icon is the mechanic its number measures. The pick: the rule's keyword with its count (TEMPER `{BURN}+1`, GALVANIC
-   COIL `{STUN}1.6`), else the first stat pair (DART GUN `0.55{SEC}`), else the rule's first number with an icon (CALIBRATION `{RATE}+33%`).
+   COIL `{STUN}1.6`), else the first stat pair (DART GUN `{RATE}55`, unsigned; was `0.55{SEC}`), else the rule's first number with an icon (CALIBRATION `{RATE}+33%`).
 3. `{RATE}` only for a gun firing or a factory working (`RATE_KEYS`: CALIBRATION, ESCAPEMENT, GATLING SPOOL, STOKER), never a belt's speed
    (GREASE WORKS: no chip). Never a waiting timer (a rest, a delay, a period): OVERCLOCKER's rest is no chip; only a cadence is a `{SEC}` chip.
 4. A faceless piece, a pack, or a face with no number that has an icon keeps today's card and its one line of effect. On the op view's

@@ -20,7 +20,7 @@
 //                                SPOOL; 0.6.2rel2: HOPPER's seconds on a COMPOUND BREECH too),
 //                                shieldText(n) (a MANTLET ★2/★3's shielded belt tiles), STALL_WORD (FB-B's stall names)
 //   units: seconds(), damage(), moreDamage(), percent(), faster(), speedText(), rateText(), times(), plural(), every(),
-//          nth(), onlineIn(), peakTiles(), n1(), n2()
+//          nth(), onlineIn(), peakTiles(), rate() (NUM-4: n1() and n2() are gone; every number through statFormat.ts)
 // Adding a module: one ENTRIES row (text, gist, optional card and perkAt) built from these units;
 // tests/abilityText.test.ts then needs its NUMBERS row, and every rule (T1-T7) applies to it unchanged. 0.6.2rel: the 13
 // buyable turrets (REQ-BFG-031) share one block (TURRET, below), read from each one's TurretSpec at its stars.
@@ -29,7 +29,7 @@
 // against its source by tests/abilityText.test.ts). Turret modules the turret task adds route their text through here.
 //
 // THE VOCABULARY. Each effect is named once, here, and reads the same everywhere (T5):
-//   DAMAGE      "2 DAMAGE", "10.5 MORE DAMAGE": at most one decimal. BONUS DAMAGE is what rigs and scrap add to a payload.
+//   DAMAGE      "20 DAMAGE", "105 MORE DAMAGE": whole (NUM-4: fmtDmg). BONUS DAMAGE is what rigs and scrap add to a payload.
 //   BURN        each burn deals the enemy hull 1 damage a second for 3 seconds (BURN_TIME) once its shot lands.
 //   SHOCK       a shocked shot stalls the machine it hits (2 seconds, DISRUPT_TIME, unless a star says longer; NUM-3 step 2: was 1.6).
 //   STALL       a stalled machine stops working for a while. A MACHINE is an enemy rig, factory, turret or belt tile.
@@ -49,13 +49,13 @@
 //   MARKS       SAP, the one mark left (2 less damage; no piece gives it yet). NUM-3: CHILL and SNAG are gone.
 // 0.8.0 P1 (wave 3, DESIGN-wave3.md 3.2's glossary; each a shared sentence in S below):
 //   PLATING     plating takes damage, burn and poison before your hull, up to 24 (PLATE_CAP); the dark wind goes straight
-//               through it (S.plating). "2 PLATING", "0.5 PLATING": at most one decimal, the word PLATING as its unit.
+//               through it (S.plating). "20 PLATING", "5 PLATING": whole (NUM-4: fmtDmg), the word PLATING as its unit.
 //   PAIR        two loads that reach one turret through different intakes within 0.25 seconds (SYNC_WINDOW); a FOUNDRY
 //               fusion is a pair (S.pair).
 //   MATCHED     a belt with as many tiles as another belt into the same turret (S.matched).
 //   WORKS FASTER a factory that works faster stamps and pours sooner, and its other timers run faster too (S.worksFaster).
-// UNITS (T2): seconds as "2.75 SECONDS" or "1 SECOND" (at most two decimals); percentages whole, with "%"; damage with
-// at most one decimal and the word DAMAGE. Never a bare multiplier (X2, 1.5X), a slash rate (/HIT, /S), a glued second
+// UNITS (T2; NUM-4): seconds as "3 SECONDS" or "1 SECOND" (whole, fmtSec); a cadence as "AT RATE 19" (fmtSpeed);
+// percentages whole, with "%" (fmtPct); damage whole with the word DAMAGE (fmtDmg). Never a bare multiplier (X2, 1.5X), a slash rate (/HIT, /S), a glued second
 // (4S), an ordinal (3RD) or a "·". Labelled stat rows (the belt timeline, the turret rows) may keep short labels and SEC.
 
 import {
