@@ -109,20 +109,24 @@ describe("SUS-D: the switch (offered only while sustain is on)", () => {
   });
 
   it("runeProblem refuses a sustain rune while the switch is off (with the seed or without); on, an offered one passes", () => {
-    let found: { seed: number; id: string } | null = null;
+    // BOTS-X (the day-3 hold, content.ts SUSTAIN_FIRST_DAY): no dawn before day 3 offers one, so the offered sustain rune is
+    // the day-3 pick, after the first card of dawns 1 and 2 (was a day-1 pick)
+    let found: { seed: number; id: string; held: string[] } | null = null;
     withSustain(() => {
       for (let seed = 1; seed <= 400 && !found; seed++) {
-        const id = runeOffer(seed, 1, "bastion", []).ids.find(isSustainRune);
-        if (id) found = { seed, id };
+        const held = [runeOffer(seed, 1, "bastion", []).ids[0]];
+        held.push(runeOffer(seed, 2, "bastion", held).ids[0]);
+        const id = runeOffer(seed, 3, "bastion", held).ids.find(isSustainRune);
+        if (id) found = { seed, id, held };
       }
     });
     expect(found).not.toBeNull();
-    const { seed, id } = found!;
-    const runes = [{ id }];
-    expect(withSustain(() => runeProblem(runes, 1, "bastion", seed))).toBeNull();
-    expect(withSustain(() => runeProblem(runes, 1, "bastion"))).toBeNull();
-    expect(runeProblem(runes, 1, "bastion", seed)).toMatch(/is not in the game while sustain is off/);
-    expect(runeProblem(runes, 1, "bastion")).toMatch(/is not in the game while sustain is off/);
+    const { seed, id, held } = found!;
+    const runes = [...held, id].map((q) => ({ id: q }));
+    expect(withSustain(() => runeProblem(runes, 3, "bastion", seed))).toBeNull();
+    expect(withSustain(() => runeProblem(runes, 3, "bastion"))).toBeNull();
+    expect(runeProblem(runes, 3, "bastion", seed)).toMatch(/is not in the game while sustain is off/);
+    expect(runeProblem(runes, 3, "bastion")).toMatch(/is not in the game while sustain is off/);
     // the other runes as before
     expect(runeProblem([{ id: runeOffer(seed, 1, "bastion", []).ids[0] }], 1, "bastion", seed)).toBeNull();
     // the server's check reads the same rule (validate.ts validateBuild -> runeProblem): no server edit needed

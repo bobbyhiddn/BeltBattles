@@ -18,6 +18,7 @@
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, RARITIES, type HeroId, type Rarity } from "./content";
 import { sustainLive } from "./content"; // SUS-D (REQ-BFG-069): the sustain switch gates the sustain runes' offer
+import { SUSTAIN_FIRST_DAY } from "./content"; // BOTS-X (REQ-BFG-069): the day-3 hold (runeOffer, runeProblem)
 
 /** SUS-D: "sec" is a whole number of seconds (TICK GUARD's timer; runeText.ts writes it with the SEC icon, as `8{SEC}`). */
 export type RuneUnit = "dmg" | "hull" | "plate" | "gold" | "belt" | "pct" | "count" | "sec";
@@ -339,7 +340,10 @@ export function runeOffer(seed: number, day: number, hero: HeroId, held: readonl
   const size = offerSize(day);
   const odds = tierOdds(day);
   const drawn = rng.weighted(RARITIES, (t) => odds[t]);
-  const left = (t: Rarity) => runeList().filter((d) => d.tier === t && !held.includes(d.id)); // SUS-D: the switch
+  // BOTS-X (REQ-BFG-069; cap's answer 4 in REVIEW-SUSD): before the first sustain day the dawn draws from RUNE_LIST alone,
+  // so with the switch on the day 1-2 offers are exactly the switch-off offers (the same list, the same draws)
+  const list = day < SUSTAIN_FIRST_DAY ? RUNE_LIST : runeList();
+  const left = (t: Rarity) => list.filter((d) => d.tier === t && !held.includes(d.id)); // SUS-D: the switch
   const at = RARITIES.indexOf(drawn);
   const order = [...RARITIES.slice(0, at + 1).reverse(), ...RARITIES.slice(at + 1)];
   let tier = order.find((t) => left(t).length >= size);
@@ -390,6 +394,8 @@ export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: nu
     if (!isRune(q.id)) return `runes[${i}]: unknown rune ${JSON.stringify(q.id)}`;
     // SUS-D (REQ-BFG-069): a sustain rune only while the sustain switch is on (no dawn offers one before), seed or none
     if (isSustainRune(q.id) && !sustainLive()) return `runes[${i}]: ${RUNES[q.id].name} is not in the game while sustain is off`;
+    // BOTS-X (REQ-BFG-069): no dawn before the first sustain day offers one; with the seed the offer check below refuses it
+    if (seed === undefined && isSustainRune(q.id) && i + 1 < SUSTAIN_FIRST_DAY) return `runes[${i}]: ${RUNES[q.id].name} is not offered before the dawn of day ${SUSTAIN_FIRST_DAY}`;
     if (held.includes(q.id)) return `runes[${i}]: ${RUNES[q.id].name} is held twice`;
     if (seed !== undefined && !runeOffer(seed, i + 1, hero, held).ids.includes(q.id)) {
       return `runes[${i}]: ${RUNES[q.id].name} was not offered at the dawn of day ${i + 1}`;
