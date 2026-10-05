@@ -71,15 +71,9 @@ import { STAND_IN_DATA, type StandInDay } from "./standInPoolData";
 
 /** RULES_VERSION the pool was generated (and scored) under. */
 export const STAND_IN_POOL_RULES: string = STAND_IN_DATA.rules;
-/**
- * NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): bundled pool is in pre-NUM-1 units; R6 regenerates it in the new
- * units and deletes this. Every deck read from the bundled pool (STAND_IN_DATA: standInPool, standInPick, standInPar) has
- * its hullBonus x this, unconditionally (RULES_VERSION stays bb-0.8.7 until R6, so no tag tells old bytes from new); the
- * shared decoders (decodeStarred, decodeStandIn) never scale, so a pool built at run time is never scaled twice.
- */
-export const BUNDLED_POOL_HULL_SCALE = 10;
-/** A deck decoded from the bundled pool, in num1's hull units (BUNDLED_POOL_HULL_SCALE). */
-const bundled = (b: Build): Build => Object.assign(b, { hullBonus: b.hullBonus * BUNDLED_POOL_HULL_SCALE });
+// FLIP-X2 step 4.5 (REQ-BFG-047): BUNDLED_POOL_HULL_SCALE deleted (NUM-1, cap's oracle bcc36c430b4f3a01, read every
+// bundled deck's hullBonus x10 until the pool was regenerated in N1 units). The pool regenerated at FLIP-X2 (bb-0.9.0) is
+// native N1, so standInPool, standInPick and standInPar decode it as stored.
 /** Heroes with stand-in decks, in pool order. */
 export const STAND_IN_POOL_HEROES: readonly HeroId[] = Object.keys(STAND_IN_DATA.pools) as HeroId[];
 export const STAND_IN_POOL_DAYS = 10;
@@ -385,7 +379,7 @@ export function standInPool(hero: HeroId, day: number): StandInEntry[] {
   if (!d) return [];
   const dd = standInDay(day);
   const entries: readonly PoolTuple[] = d[1];
-  return entries.map(([cost, pct, , code, vsPar, spent]) => ({ hero, day: dd, build: bundled(decodeStarred(hero, code)), cost, spent: spent ?? cost, pct, vsPar }))
+  return entries.map(([cost, pct, , code, vsPar, spent]) => ({ hero, day: dd, build: decodeStarred(hero, code), cost, spent: spent ?? cost, pct, vsPar }))
     .sort((a, b) => a.pct - b.pct);
 }
 
@@ -409,7 +403,7 @@ export function standInPickIndex(hero: HeroId, day: number, seed: number): numbe
 /** A deterministic stand-in deck for (hero, day, seed), as a fresh copy. Throws for a hero not in the pool. */
 export function standInPick(hero: HeroId, day: number, seed: number): Build {
   const d = need(hero, day, "standInPick");
-  return bundled(decodeStarred(hero, d[1][standInPickIndex(hero, day, seed)][3]));
+  return decodeStarred(hero, d[1][standInPickIndex(hero, day, seed)][3]);
 }
 
 /** Index (into standInPool(hero, day)) of the par: the pick nearest the middle of its window. */
@@ -420,5 +414,5 @@ export function standInParIndex(hero: HeroId, day: number): number {
 /** The par stand-in deck for (hero, day), as a fresh copy. Throws for a hero not in the pool. */
 export function standInPar(hero: HeroId, day: number): Build {
   const d = need(hero, day, "standInPar");
-  return bundled(decodeStarred(hero, d[1][d[0]][3]));
+  return decodeStarred(hero, d[1][d[0]][3]);
 }
