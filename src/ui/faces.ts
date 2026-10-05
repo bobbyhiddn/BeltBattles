@@ -314,7 +314,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [REMINDER.PLATE()]);
   },
   // ------------------------------------------------------------------- U2b: the TEXT rigs (HIT: in brass; no stat row)
-  // TOLLBOOTH (a STUN-fold face) and SHIELD WALL (N1 3.3's crit piece) keep today's text, as every RULES rig does.
+  // TOLLBOOTH (a STUN-fold face) and IRON WALL (SHIELD WALL until SUS-B; N1 3.3's crit piece) keep today's text, as every
+  // RULES rig does.
   temper: (e) => {
     const n = fmtCount(gt(e).burn!); // Battle.applyHit: + burn stacks on each payload it hits
     return rules([hit(`+${n} {*BURN}.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);

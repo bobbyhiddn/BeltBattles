@@ -250,7 +250,8 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
     const h = (def: string, stars: number, more: object = {}) => hitText({ uid: 1, def, dir: 1, stars, tier: 1, ...more } as Parameters<typeof hitText>[0], "free");
     // NUM-1: x10 (the walk's hit values and the rows were 1.1 / 1, 12, 3 / 3, 1 / 1, 5, 3 / 2.2 / 4, 1)
     expect(h("plateroller", 2, { plate: 11 })).toBe("PLATE ROLLER +11 PLATING");
-    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("SHIELD WALL +10 PLATING, +30 DAMAGE AT 120 PLATING");
+    // SUS-B (cap's answer 3 to SUSTAIN-1): SHIELD WALL is IRON WALL (the name; the id and the row stay)
+    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 PLATING, +30 DAMAGE AT 120 PLATING");
     expect([h("twingauge", 1, { flat: 30, matched: true }), h("twingauge", 1, { flat: 10, matched: false })])
       .toEqual(["TWIN GAUGE +30 DAMAGE ON A MATCHED BELT", "TWIN GAUGE +10 DAMAGE"]);
     expect([h("pincer", 1, { flat: 10, others: 0 }), h("pincer", 1, { flat: 50, others: 2 }), h("pincer", 1, { flat: 30, others: 1 })])

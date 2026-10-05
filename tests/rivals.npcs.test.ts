@@ -38,7 +38,7 @@ describe("the six wave-3 captains join the roster (0.8.0 N1)", () => {
       brasswick: ["foundry", "BRASSWICK", "MATCHED POUR", "easy", "ordinary"],
       voss: ["foundry", "MASTER VOSS", "LOCKSTEP", "hard", "good"],
       grimhold: ["bastion", "GRIMHOLD", "ANVIL WALL", "medium", "ordinary"],
-      karsk: ["bastion", "THANE KARSK", "SHIELD WALL", "hard", "good"],
+      karsk: ["bastion", "THANE KARSK", "IRON WALL", "hard", "good"], // SUS-B (cap's answer 3 to SUSTAIN-1): D1's SHIELD WALL
       lockjaw: ["furnace", "LOCKJAW", "TWIN BITE", null, "ordinary"],
       thistlemail: ["weaver", "THISTLEMAIL", "LEAF MAIL", null, "ordinary"],
     };

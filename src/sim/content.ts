@@ -966,8 +966,8 @@ export const WAVE3_ITEMS: Record<string, ItemDef> = {
     gate: { breaker: { flat: 40, floor: 10 } },
     levels: { 2: { gate: { breaker: { flat: 88, floor: 22 } } }, 3: { gate: { breaker: { flat: 140, floor: 35 } } } },
   },
-  shieldwall: {
-    id: "shieldwall", name: "SHIELD WALL", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "ironmonger", shape: "X",
+  shieldwall: { // SUS-B (cap's answer 3 to SUSTAIN-1): IRON WALL, so no name says SHIELD where it means PLATE (the id stays)
+    id: "shieldwall", name: "IRON WALL", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "ironmonger", shape: "X",
     desc: ["PLATES YOUR HULL,", "AND HITS HARDER", "WHILE WELL PLATED."], tags: ["PLATE", "FORGE"],
     gate: { plate: 10, plated: { min: 120, flat: 30 } },
     levels: { 2: { gate: { plate: 22, plated: { min: 120, flat: 66 } } }, 3: { gate: { plate: 35, plated: { min: 120, flat: 105 } } } },
