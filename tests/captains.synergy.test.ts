@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
+import { withSustain } from "../src/sim/content"; // BOTS-X (SUS-C): the same checks with the sustain switch on
 import type { Build } from "../src/sim/deck";
 import { RIVALS, RIVAL_IDS, deckCost, luckOf, rivalBuild, standInBuild, type RivalId } from "../src/sim/rivals";
 import { LUCK_CAPS } from "../src/sim/harness/luckCapsData"; // bb-0.8.3 (oracle 512f23ac589b2482 (1)): captains.luck's cap reader
@@ -128,4 +129,63 @@ describe("the synergy check's swaps (harness/synergy.ts)", () => {
       }
     }
   });
+});
+
+// BOTS-X (SUS-C, REQ-BFG-069; SUSTAIN-1 4.8 rule 7): the same checks with the sustain switch on. THANE KARSK's plan adds
+// his WARD BELL on day 5 (rivalBuilds.ts RivalPlan.sustain: his RAMPART at 2 stars holds it beside the SPALL CATCHER), and
+// the swap pools hold the three sustain pieces from day 3 (synergy.ts firstOfferDay's day-3 hold). The block above is the
+// switch-off case, unchanged.
+describe("the synergy check's swaps with the sustain switch on (BOTS-X)", () => {
+  it("every build holds all its synergy parts by day 9, each on the deck of the luck that buys it; THANE KARSK's WARD BELL is no synergy part", () => withSustain(() => {
+    for (const c of CASES.filter((x) => x.day !== 5)) {
+      const plan = PLANS[c.id], syn = plan.synergy ?? [];
+      const goodOnly = c.pve ? [] : syn.filter((def) => !ordinaryDefs(plan).has(def));
+      for (const def of syn) {
+        const deck = c.pve || goodOnly.includes(def) ? rivalBuild(c.id, c.day) : deckOf(c);
+        expect(defsIn(deck).has(def), `${c.id} d${c.day}: ${def}`).toBe(true);
+      }
+    }
+    expect(PLANS.karsk.synergy).not.toContain("wardbell");
+    for (const day of [5, 9]) expect(defsIn(standInBuild("karsk", day)).has("wardbell"), `karsk d${day}`).toBe(true);
+  }));
+
+  it("candidates: same kind, never a synergy part or a race part, offerable by the day (the sustain pieces from day 3)", () => withSustain(() => {
+    let sustainCands = 0;
+    for (const c of CASES) {
+      const plan = PLANS[c.id], deck = deckOf(c), own = planDefs(plan);
+      for (const p of [...deck.items, ...deck.mods].filter((q) => (plan.synergy ?? []).includes(q.def))) {
+        const { tier, defs } = swapCandidates(plan, deck, p.def, c.day);
+        expect(defs.length, `${c.id} d${c.day} ${p.def}`).toBeGreaterThan(0);
+        for (const to of defs) {
+          if (["wardbell", "mendpress", "mendingloom"].includes(to)) sustainCands++;
+          expect(ITEMS[to].kind, `${c.id} ${p.def} -> ${to}`).toBe(ITEMS[p.def].kind);
+          expect(plan.synergy, `${c.id} ${p.def} -> ${to}`).not.toContain(to);
+          expect(firstOfferDay(ITEMS[to]), `${c.id} d${c.day} ${to}`).toBeLessThanOrEqual(c.day);
+          if (tier !== "nearest") expect(ITEMS[to].price, `${c.id} ${p.def} -> ${to}`).toBe(ITEMS[p.def].price);
+          if (tier !== "unused") expect(own.has(to), `${c.id} ${p.def} -> ${to} is off-plan`).toBe(false);
+        }
+      }
+    }
+    expect(sustainCands, "the swap pools hold the sustain pieces with the switch on").toBeGreaterThan(0);
+    expect(["wardbell", "mendpress", "mendingloom"].map((d) => firstOfferDay(ITEMS[d]))).toEqual([3, 3, 3]);
+  }));
+
+  it("each variant swaps every synergy part in its own slot, stays legal, and costs what it reports", () => withSustain(() => {
+    for (const c of CASES) {
+      const plan = PLANS[c.id], deck = deckOf(c);
+      for (let v = 0; v < 3; v++) {
+        const s = synergySwap(c.id, plan, deck, c.day, v, c.pve);
+        const tag = `${c.id} d${c.day} v${v}`;
+        expect(s.kept, tag).toEqual([]);
+        expect(swapLegal(s.build, c.day, c.pve), tag).toBe(true);
+        expect([...s.build.items, ...s.build.mods].filter((p) => (plan.synergy ?? []).includes(p.def)).map((p) => p.def), tag).toEqual([]);
+        for (const w of s.swaps) {
+          const now = [...s.build.items, ...s.build.mods].find((p) => p.uid === w.uid)!;
+          expect(now.def, tag).toBe(w.to);
+          if (w.tier !== "nearest") expect(w.dGold, tag).toBe(0);
+        }
+        expect(deckCost(s.build).total, tag).toBe(deckCost(deck).total + s.swaps.reduce((n, w) => n + w.dGold, 0));
+      }
+    }
+  }));
 });

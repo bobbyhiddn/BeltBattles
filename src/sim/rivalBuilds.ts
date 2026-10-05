@@ -25,6 +25,7 @@
 import {
   HEROES, ITEMS, START_GOLD, UPGRADE_PRICE, incomeFor, type HeroId, type Upgrades, type UpgradeTrack,
 } from "./content";
+import { sustainLive } from "./content"; // BOTS-X (SUS-C, REQ-BFG-069): RivalPlan.sustain, only while the switch is on
 import { installTurret, key, rotField, setTurretList, turretList, turretsCost, type Build, type ModPlacement, type Placed } from "./deck";
 import { warlordHull } from "./ai";
 import { migrateDeck } from "./beltside";
@@ -88,6 +89,10 @@ export interface RivalPlan {
   factories: FactoryPlan[]; // the day-1 deck: the signature factory and its belts
   crates: number; // belt crates the day-1 deck needs
   upgrades: Upgrade[];
+  // BOTS-X (SUS-C, REQ-BFG-069; SUSTAIN-1 4.8 rule 7): the upgrades the plan adds while the sustain switch is on
+  // (content.ts sustainLive), taken after `upgrades` (their uids follow it, so every other part keeps its uid). Off, planBuild
+  // never reads them: every captain deck, and every test that walks `upgrades`, is exactly as before
+  sustain?: Upgrade[];
 }
 
 export interface RivalLoadout {
@@ -467,6 +472,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(2, G2(8, "temper", 5, 3)), ...good(G2(8, "pincer", 5, 4)), ...good(G(9, "shieldwall", 5, 0)),
       G(9, "venom", 5, 5),
     ],
+    // BOTS-X (SUS-C; SUSTAIN-1 4.8 rule 7: "THANE KARSK adds WARD BELL on day 5"), only while the sustain switch is on:
+    // BASTION's SHIELD beside his PLATE (PLATE eats the small hits, SHIELD the big ones). His one gun, the common RAMPART,
+    // has one gear slot and holds the SPALL CATCHER (a synergy part) from day 3, so on day 5 it takes a second copy (★2: a
+    // second gear slot) and the WARD BELL goes there (11 gold: day 5 is 47 of 50). No synergy part moves; the BOTS-X report
+    // lists what this does to his ordinary luck caps (measured with the switch off; FLIP-X regenerates them)
+    sustain: [T2(5, 0), M(5, "wardbell", 0)],
   },
   // ---------------------------------------------------------------- dusk stand-ins only (standInOnly), FURNACE and WEAVER
   // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
@@ -546,7 +557,9 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   };
   plan.factories.forEach((f, i) => { if ((f.at ?? 1) <= day) addFactory(f, U + 1 + i); }); // 0.8.0 I1: FactoryPlan.at
   let crates = plan.crates, plating = 0, fu = U + 1 + plan.factories.length;
-  for (const [i, u] of plan.upgrades.entries()) {
+  // BOTS-X (SUS-C): with the sustain switch on, the plan's sustain upgrades after its own (off: `upgrades` itself)
+  const ups = sustainLive() && plan.sustain?.length ? [...plan.upgrades, ...plan.sustain] : plan.upgrades;
+  for (const [i, u] of ups.entries()) {
     const uid = U + 10 + i, tu = TURRET_UID + i;
     const f = u.factory ? fu++ : 0; // factory uids follow the plan's factory order whether or not this luck owns them yet
     if (dayOwned(u, luck) > day) continue;
