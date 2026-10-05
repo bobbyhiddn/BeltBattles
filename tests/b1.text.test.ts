@@ -348,19 +348,28 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
   it("room for part of the stoke: \"SO IT STAMPS ONLY 60% FASTER, BUT PLATES 70% FASTER\", both numbers the battle's", () => {
     const want: [number, number, string][] = [
       // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was ", SO IT STAMPS ONLY ..."
-      [3, 1, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 60% FASTER, BUT PLATES 70% FASTER."],
-      [2, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 40% FASTER, BUT PLATES 44% FASTER."],
-      [3, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 40% FASTER, BUT PLATES 70% FASTER."],
+      // NUM-2 (REQ-BFG-047; was 60%): the ★1 press stamps every 30 / 19 = 1.58 s (was 1.6), so the full gun leaves it 58%
+      [3, 1, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 58% FASTER, BUT PLATES 70% FASTER."],
+      // NUM-2 (was 40%, 40%): the ★2 press stamps every 30 / 21 = 1.43 s (was 1.4), so the full gun leaves it 43%
+      [2, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT PLATES 44% FASTER."],
+      [3, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT PLATES 70% FASTER."],
     ];
     for (const [s, press, text] of want) {
       const b = lonePress(s, press);
       expect(capLine(b)).toBe(text);
-      // against the same press unstoked in the battle (its stamps land on the tick after each 1.6 s: every 1.617 s)
+      // against the same press unstoked in the battle (its stamps land on the tick after each 1.6 s: every 1.617 s). NUM-2:
+      // every 30 / speed s, the timer carrying its remainder: measured 1.579 s at ★1 (30 / 19), 1.430 s at ★2 (30 / 21)
       const off = pressLog(lonePress(0, press)), on = pressLog(b), [stamp, plate] = pcts(text);
       const stamped = fasterThan(on.stamps.filter((t) => t > 3), meanGap(off.stamps)), plated = fasterThan(on.plates, meanGap(off.plates));
       expect(Math.abs(stamped - stamp), `${text}: the stamping ${stamped.toFixed(3)} faster`).toBeLessThan(0.015);
       expect(Math.abs(plated - plate), `${text}: the plating ${plated.toFixed(3)} faster`).toBeLessThan(0.01);
-      expect(plated - stamped, text).toBeGreaterThan(0.02); // the plating outpaces the stamping, as the line says
+      // the plating outpaces the stamping, as the line says. NUM-2 (REQ-BFG-047): an EQUIVALENT replacement of `plated -
+      // stamped > 0.02`, the fixed margin that was half the smallest gap a line claimed (0.44 - 0.40): the battle's gap is
+      // above 0 and is the line's own gap (plate - stamp) within 0.005 either way. NUM-2's ★2 press stamps every 30 / 21 =
+      // 1.43 s (was 1.4), so the full gun leaves it 43% of STOKER ★2's 44% and that line claims a 1-point gap; the battle
+      // measures 0.0105 (the other two lines: 0.119 of 0.12, 0.269 of 0.27)
+      expect(plated - stamped, text).toBeGreaterThan(0);
+      expect(Math.abs(plated - stamped - (plate - stamp)), text).toBeLessThan(0.005);
     }
     // where the gun has room for the whole stoke (1 and 2 stars on the 1-star press) the opening sentence stays the
     // glossary's: the press works 20 / 44% faster, its plating with it

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS } from "../src/sim/content";
+import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (30 / speed)
 import { effectAt, FUSE_MAX, fusible } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
 import { CURRENT_COLOUR, LADDER_SEP, ladderText, levelLines, levelSpans, levelText, nextBlocks, type LevelLine } from "../src/screens/build/levels";
@@ -39,7 +40,7 @@ describe("U2e step 5: the ⓘ view's LEVELS", () => {
   it("a turret (SCRAP CANNON): its stat row's numbers that change, SEC after its numbers", () => {
     const t = (s: number) => effectAt("scrapcannon", s).turret!;
     const ls = ladders(levelLines("scrapcannon", 2)!);
-    const sec = [1, 2, 3].map((s) => fmtSpeed(t(s).fireInterval));
+    const sec = [1, 2, 3].map((s) => fmtSpeed(secPer(t(s).speed))); // NUM-2 (REQ-BFG-047): 30 / speed (was fireInterval)
     expect(ls[0]).toEqual({ lead: "", values: sec, tail: "{SEC}", current: 1 });
     expect(ladderText(ls[0])).toBe(`${sec.join(LADDER_SEP)}{SEC}`);
     // every ladder is a number that changes with the stars

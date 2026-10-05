@@ -16,6 +16,7 @@ import { faceAt } from "../src/ui/faces"; // U2d F2
 import { fmtDmg } from "../src/ui/statFormat"; // U2d F2
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds"; // U2d F2
 import { AMMO } from "../src/sim/content"; // U2e step 2
+import { secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (30 / speed)
 
 // U2c (REQ-BFG-046, REQ-BFG-047; R1 MEMO C4, U3): the shop card's stat chip (src/ui/chips.ts): one icon alone and one value
 // from the face's own data (each number printed by a formatter), picked in the brief's order; a piece without a face keeps
@@ -36,7 +37,7 @@ describe("U2c the shop chip: the pick and its numbers", () => {
     // MIMIC FORGE stamps the hero's slugs: on FURNACE they carry the CINDER SLUG's HEAT (its second row), the chip
     expect(shopChip("mimic", { k, hero: "furnace" })).toBe(`{HEAT}${fmtDmg(AMMO.cinder.rideScale)}`);
     expect(shopChip("tesla", { k: 0.55 })).toBe(`{STUN}${fmtSec(scaleCore(ITEMS.tesla.core!, 0.55).stall!)}`);
-    expect(shopChip("dartgun")).toBe(`${fmtSpeed(effectAt("dartgun", 1).turret!.fireInterval)}{SEC}`);
+    expect(shopChip("dartgun")).toBe(`${fmtSpeed(secPer(effectAt("dartgun", 1).turret!.speed))}{SEC}`); // NUM-2 (REQ-BFG-047): 30 / 55 = 0.55 (was fireInterval)
     expect(shopChip("scatter", { k })).toBe(`{DMG}${fmtPct(scaleCore(ITEMS.scatter.core!, k).share!)}`);
     // 3. the rule's first number with its icon; FASTER is the RATE icon (C1's fold)
     expect(shopChip("pressure", { k })).toMatch(/^\{DMG\}\+/);

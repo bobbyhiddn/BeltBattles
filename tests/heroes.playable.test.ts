@@ -15,6 +15,7 @@ import { SIM, heroTrick } from "../src/ui/abilityText";
 import { FURNACE_LONG_BELT, simulate } from "../src/sim/battle";
 import { bestSpot } from "../src/sim/beltside";
 import { AMMO, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, RUN_DAYS, type HeroId } from "../src/sim/content";
+import { rateMul } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a whole rate % as its speed multiplier
 import { canFitGear, coreFor, installedTurrets, turretSlots } from "../src/sim/deck";
 import { PLAYABLE_HEROES, heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { PAR_FIELD_HEROES, parRefs, parSourceFor } from "../src/sim/harness/par";
@@ -66,7 +67,9 @@ describe("each hero's trick in one plain sentence (REQ-BFG-032)", () => {
 
   it("quotes the sim's own numbers", () => {
     const num = (s: string) => (s.match(/\d+(\.\d+)?/g) ?? []).map(Number);
-    expect(num(T.furnace)).toEqual([AMMO.cinder.rideScale, SIM.furnaceLongTiles, Math.round((1 / FURNACE_LONG_BELT - 1) * 100)]);
+    // NUM-2 (REQ-BFG-047): FURNACE_LONG_BELT is a whole rate % (+39; was the interval x0.72), so the rate up is
+    // rateMul(39) - 1 (was 1 / 0.72 - 1): 39% FASTER either way
+    expect(num(T.furnace)).toEqual([AMMO.cinder.rideScale, SIM.furnaceLongTiles, Math.round((rateMul(FURNACE_LONG_BELT) - 1) * 100)]);
     // bb-0.8.3 (REQ-BFG-042 D2): FactorySpec.outputs is gone; the LOOM's belt slots at ★1 are outputsAt's (3, as before)
     expect(num(T.weaver)).toEqual([outputsAt("loom", 1), FRAY_BONUS, FRAY_MAX]);
     expect(num(T.foundry)).toEqual([SYNC_WINDOW, FUSE_MULT]);

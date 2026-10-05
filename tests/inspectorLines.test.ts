@@ -18,6 +18,8 @@ import { abilityText, gist, livePerk, newPerk, nextStarHeadline, nextStarText, t
 import { REMINDER, faceLines, faceMerge, faceNext, hasFace } from "../src/ui/faces"; // U2c (U2b's faces): the face kit
 import { faceNextBlock } from "../src/screens/build/faceBlocks"; // U2c (U2b's faces)
 import { fmtCount, fmtDmg, fmtPct, fmtSec } from "../src/ui/statFormat"; // U2c (U2b's faces): the formatters
+import { fmtSpeed } from "../src/ui/statFormat"; // NUM-2 (REQ-BFG-047): a stamp interval, 30 / speed, at two decimals
+import { secPer } from "../src/sim/content"; // NUM-2: SPEED (30 / speed)
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
 // 0.6.2t (REQ-BFG-032): they read as whole sentences from the glossary (src/ui/abilityText.ts): "NEXT STAR: ADDS 4 BURN.",
@@ -199,10 +201,13 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
   // NUM-1 (REQ-BFG-047): the slug damage x10 (catalogue: AMMO plain 30 / shot 10 / slag 70, factory bases 50, 20, 30,
   // 120, 150, 60); was 3 / 5 / 5, 1 / 2 / 3, 7 / 12 / 15 and GANTRY ★3's 6. Burn stacks, counts and times unchanged
   const HEAD: Record<string, [string, string, string]> = {
-    doublestamp: ["2 SLUGS OF 30 DAMAGE EVERY 2.2 SECONDS", "2 SLUGS OF 50 DAMAGE EVERY 1.6 SECONDS", "3 SLUGS OF 50 DAMAGE EVERY 1.6 SECONDS"],
-    shottower: ["10 DAMAGE BUCKSHOT EVERY 1.5 SECONDS", "20 DAMAGE BUCKSHOT EVERY 1.35 SECONDS", "30 DAMAGE BUCKSHOT EVERY 1.3 SECONDS"],
+    // NUM-2 (REQ-BFG-047): the stamp every 30 / speed s (two decimals): DOUBLE STAMP 14 / 19 / 19 -> 2.14 / 1.58 / 1.58 (was
+    // 2.2 / 1.6 / 1.6), SHOT TOWER 20 / 22 / 23 -> 1.5 / 1.36 / 1.3 (was 1.5 / 1.35 / 1.3), SLAG POT 11 / 14 / 17 -> 2.73 /
+    // 2.14 / 1.76 (was 2.8 / 2.2 / 1.75)
+    doublestamp: ["2 SLUGS OF 30 DAMAGE EVERY 2.14 SECONDS", "2 SLUGS OF 50 DAMAGE EVERY 1.58 SECONDS", "3 SLUGS OF 50 DAMAGE EVERY 1.58 SECONDS"],
+    shottower: ["10 DAMAGE BUCKSHOT EVERY 1.5 SECONDS", "20 DAMAGE BUCKSHOT EVERY 1.36 SECONDS", "30 DAMAGE BUCKSHOT EVERY 1.3 SECONDS"],
     hotswap: ["2 BURN, SHOCK STALLS A MACHINE FOR 1.6 SECONDS", "4 BURN, SHOCK STALLS 2 MACHINES FOR 1.8 SECONDS", "7 BURN, SHOCK STALLS 2 MACHINES FOR 2.8 SECONDS"],
-    slagpot: ["70 DAMAGE SLAG EVERY 2.8 SECONDS", "120 DAMAGE SLAG EVERY 2.2 SECONDS", "150 DAMAGE SLAG EVERY 1.75 SECONDS"],
+    slagpot: ["70 DAMAGE SLAG EVERY 2.73 SECONDS", "120 DAMAGE SLAG EVERY 2.14 SECONDS", "150 DAMAGE SLAG EVERY 1.76 SECONDS"], // NUM-2: above
     assembly: ["RIGS ONLINE IN HALF THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME", "ALL RIGS ONLINE AT ONCE"],
     // bb-0.8.3 (REQ-BFG-042 D3, M4): its belts (3 / 4 / 5, were 2 / 3 / 3) close the next-star line, so the clause is
     // FOURTH ARM's stamp (0.8.0: "FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS"). T47 (REQ-BFG-047): no seconds, so
@@ -214,7 +219,8 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
 
   it("gist, the next-star sentence and MERGES WITH (STAMP PRESS keeps its stamp rate and slug damage)", () => {
     // NUM-1 (REQ-BFG-047): x10, STAMP PRESS ★2's factory base through fmtDmg ("50"; was the literal "5")
-    expect(gist("press", 2)).toBe(`${fmtDmg(effectAt("press", 2).factory!.base!)} DAMAGE SLUGS EVERY 1.1 SECONDS`);
+    // NUM-2 (REQ-BFG-047): and its stamp interval through the data, 30 / speed (★2 speed 27: 1.11; was the literal 1.1)
+    expect(gist("press", 2)).toBe(`${fmtDmg(effectAt("press", 2).factory!.base!)} DAMAGE SLUGS EVERY ${fmtSpeed(secPer(effectAt("press", 2).factory!.speed))} SECONDS`);
     for (const [def, h] of Object.entries(HEAD)) {
       expect([1, 2, 3].map((s) => gist(def, s)), def).toEqual(h);
       const [p2, p3] = PERK[def];

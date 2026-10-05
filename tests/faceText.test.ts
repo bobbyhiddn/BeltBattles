@@ -14,6 +14,8 @@ import {
 import { INTERIM_CAVEATS, REMINDER, gearStats, rigStats, supplyStats } from "../src/ui/faces"; // U2b
 import { REMINDER_RANK, REMINDER_STEP, faceBlocks } from "../src/screens/build/faceBlocks"; // U2b F4-F6
 import { FRAY_BONUS, FRAY_MAX } from "../src/sim/content"; // U2b F3
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (30 / speed) and the whole rate %
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2: MIMIC's speed rounds half up once (battle.ts factoryDef)
 import { PLATE_CAP } from "../src/sim/races/bastion"; // U2b F3
 import { ROLE } from "../src/screens/build/inspector"; // U2b F5
 import { flavour } from "../src/screens/build/flavour"; // U2b F2
@@ -111,17 +113,21 @@ describe("U2a the faces: every number from sim data through one formatter", () =
   it("the stat pairs come from the data functions: a factory's cadence, slug damage and belts; a turret's cadence, loads and gear slots", () => {
     for (const def of FACE_IDS.filter((d) => ITEMS[d].kind === "factory" && d !== "mimic")) for (const s of starsOf(def)) {
       const fs = effectAt(def, s).factory!, row = factoryStats(def, s);
-      expect(row[0], def).toEqual(["SEC", fmtSpeed(fs.interval)]); // the speed pair: SEC until NUMBERS (N1 2.6)
+      expect(row[0], def).toEqual(["SEC", fmtSpeed(secPer(fs.speed))]); // the speed pair: SEC until NUMBERS (N1 2.6); NUM-2: 30 / speed (was fs.interval)
       expect(row[1], def).toEqual(["DMG", fmtDmg(fs.base ?? AMMO[fs.ammo].base)]);
       if (row[2]) expect(row[2], def).toEqual(["BELT", fmtCount(outputsAt(def, s))]);
     }
     for (const h of PLAYABLE_HEROES) {
       const sig = ITEMS[HEROES[h].factory].factory!;
-      expect(factoryStats("mimic", 1, h).slice(0, 2)).toEqual([["SEC", fmtSpeed(sig.interval * 1.4)], ["DMG", fmtDmg(AMMO[HEROES[h].ammo].base)]]);
+      // NUM-2 (REQ-BFG-047): MIMIC ★1 at the hero factory's speed x its whole rate % (-29), rounded half up once as the battle
+      // does (battle.ts factoryDef), 30 / that (was sig.interval * 1.4, its interval x)
+      const mimic = roundHalfUp(sig.speed * rateMul(effectAt("mimic", 1).factory!.rate));
+      expect(factoryStats("mimic", 1, h).slice(0, 2)).toEqual([["SEC", fmtSpeed(secPer(mimic))], ["DMG", fmtDmg(AMMO[HEROES[h].ammo].base)]]);
     }
     for (const def of FACE_IDS.filter((d) => ITEMS[d].kind === "turret")) for (const s of STARS) {
       const t = effectAt(def, s).turret!;
-      expect(turretStats(def, s), def).toEqual([["SEC", fmtSpeed(t.fireInterval)], ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, s))]]);
+      // NUM-2 (REQ-BFG-047): the SEC pair is 30 / speed (was t.fireInterval)
+      expect(turretStats(def, s), def).toEqual([["SEC", fmtSpeed(secPer(t.speed))], ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, s))]]);
     }
     for (const def of FACE_IDS) for (const s of starsOf(def)) expect(faceAt(def, s, { hero: "furnace" })!.stats.length).toBeLessThanOrEqual(STAT_ROW_MAX);
     // U2b: a rig, a piece of gear and a supply carry no stat pair (R1 C4); their numbers are their rule's
@@ -290,7 +296,8 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
       expect([b.keep, b.brass, b.role], def).toEqual([true, fl.clause.label, "ability"]);
     }
     // written from the sim: ROTARY's rate (N1 2.3: X% FASTER is the rate up X%) and CLEAN FEED's never-jam; the spark's jump
-    const rate = (s: number) => fmtPct(1 / effectAt("rotary", s).core!.intervalMul! - 1);
+    // NUM-2 (REQ-BFG-047): the rate up is rateMul(fireRate) - 1, the whole % stored (+18 / +43; was 1 / intervalMul - 1)
+    const rate = (s: number) => fmtPct(rateMul(effectAt("rotary", s).core!.fireRate) - 1);
     expect(faceLines("rotary", 2, { k: 1 })!.clause!.text).toBe(`★2 GREASED RACE: FIRES ${rate(2)} FASTER.`);
     expect(faceLines("rotary", 3, { k: 1 })!.clause!.text).toBe(`★3 CLEAN FEED: FIRES ${rate(3)} FASTER, NEVER JAMS.`);
     const jump = effectAt("hotswap", 2).factory!.cycle!.find((p) => p.tint === "spark")!.jump!;

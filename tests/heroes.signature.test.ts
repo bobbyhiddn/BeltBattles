@@ -285,9 +285,14 @@ describe("SYNC", () => {
   it("the inspector's SYNC line: whole sentences with the real numbers, kept on the belt's panel", () => {
     const d = foundryDecks();
     expect(syncLine(d.start, 0)).toEqual({ text: "IN SYNC WITH BELT 2: THEIR BLANKS REACH TURRET 1 AT THE SAME MOMENT AND FUSE.", state: "sync" });
-    expect(syncLine(d.delay, 1)).toEqual({ text: "IN SYNC WITH BELT 1, ONE POUR APART: THEIR BLANKS REACH TURRET 1 AT THE SAME MOMENT AND FUSE.", state: "sync" });
+    // NUM-2 (REQ-BFG-047; was "AT THE SAME MOMENT"): the delay deck's +4 tiles ride 4 x 0.4 = 1.6 s, the old CRUCIBLE pour
+    // interval exactly; its ★1 speed 19 pours every 30 / 19 = 1.579 s, so the blanks arrive 0.021 s apart, well inside
+    // SYNC_WINDOW 0.25 (the first SYNC test: still in sync, one pour, and the battle still fuses them)
+    expect(syncLine(d.delay, 1)).toEqual({ text: "IN SYNC WITH BELT 1, ONE POUR APART: THEIR BLANKS REACH TURRET 1 0.02 SECONDS APART AND FUSE.", state: "sync" });
+    // NUM-2 (REQ-BFG-047; was 0.8 SECONDS): the off deck's +2 tiles ride 0.8 s, and the nearer pour is now 30 / 19 - 0.8 =
+    // 0.779 s away (was 1.6 - 0.8 = 0.8), still more than SYNC_WINDOW, and the battle fuses none (the first SYNC test)
     expect(syncLine(d.off, 0)).toEqual({
-      text: "OUT OF SYNC WITH BELT 2: THEIR BLANKS REACH TURRET 1 0.8 SECONDS APART, MORE THAN 0.25 SECONDS, SO THEY FIRE UNFUSED.", state: "apart",
+      text: "OUT OF SYNC WITH BELT 2: THEIR BLANKS REACH TURRET 1 0.78 SECONDS APART, MORE THAN 0.25 SECONDS, SO THEY FIRE UNFUSED.", state: "apart",
     });
     expect(numbers(syncLine(d.over, 0)!.text)).toEqual([2, 1, +syncOf(d.over, 0)!.partners[0].offset.toFixed(2), SYNC_WINDOW]);
     const lone = clone(d.start);
