@@ -76,7 +76,7 @@ function sheet(): string {
   out.push("## Runes", "");
   // FLIP-X1 (F-d, SUS-D §9): the runes with the switch on, as the pieces: RUNE_LIST's 57, then SUS-D's 8 (runeList())
   const runes = withSustain(() => runeList());
-  for (const r of runes) out.push(`- ${r.name} (${r.id}; ${r.tier}, ${r.theme}): \`${runeLine(r)}\` — reminder \`${runeReminder(r)}\`${RUNE_TEXT[r.id] ? " — SUS-B" : ""}${isSustainRune(r.id) ? " — SUS-D" : ""}`);
+  for (const r of runes) out.push(`- ${r.name} (${r.id}; ${r.tier}, ${r.theme}): \`${plain(runeLine(r))}\` — reminder \`${runeReminder(r)}\`${RUNE_TEXT[r.id] ? " — SUS-B" : ""}${isSustainRune(r.id) ? " — SUS-D" : ""}`);
   out.push("", "Rune reminders: " + Object.entries(RUNE_REMINDER).map(([k, v]) => `${k} \`${v}\``).join("; "), "");
   out.push("## Captains", "");
   for (const id of RIVAL_IDS) out.push(`- ${RIVALS[id].name}: trick \`${RIVALS[id].trick}\`, blurb \`${RIVALS[id].blurb}\`${id === "karsk" ? " — SUS-B" : ""}`);
