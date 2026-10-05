@@ -1,27 +1,26 @@
-// RUNES-1 M4 (REQ-BFG-058, decision 10): rune-less builds battle exactly as on the base c57de36 (bb-0.8.6), so the launch
-// can carry the bb-0.8.6 pools forward (content.ts POOL_RULES_CARRIED; RUNES-2 regenerates them, with runes).
-// tests/fixtures/runes.parity.base.json was written ON THE BASE by a generator that is never committed (its text is kept
-// as R/output-runes1/parity-gen.test.ts.txt; it runs in a throwaway worktree of c57de36). It holds 130 decks: the seed
-// pool's 120 ghosts (tools/samplePool.ts generateSamplePool, 12 a day: FURNACE, WEAVER, FOUNDRY and BASTION, variants
-// 0-2) and each day's dusk stand-in (the rival captain standInGhost picks for the run seed `standInRun`, with its
-// standInBuild deck); and 360 battles: on each day, each seed ghost against the next one of that day in pool order
-// (wrapping, "ring"), against the day's stand-in ("standin") and the stand-in against it, on the player's side
-// ("standin2"). A row holds the winner, ticks, t, both hulls (hp, max), both plating pools (PlateState) and both sides'
-// SideStats, compared exactly: the replayed row goes through the same JSON round trip as the fixture's, and a field this
-// build adds to PlateState or SideStats is not compared.
-//  - the decks: this build's seed pool and stand-ins are the fixture's, deck for deck, and none of them holds runes;
-//  - the battles: each one replayed here (new Battle(a, b, seed), stepped until over) gives the base's row.
+// RUNES-1 M4 (REQ-BFG-058, decision 10) built this parity record on the base c57de36 (bb-0.8.6) so the launch could carry
+// the bb-0.8.6 pools forward (content.ts POOL_RULES_CARRIED). NUM-1 to NUM-3 relaxed its exact check (a flip cap of 7, then
+// 25, then 38, and the NUM2_DECKS_DIFFER / NUM3_DECKS_DIFFER lists), each under the RULES_VERSION tripwire, until R6.
+// FLIP-X2 (RUNES-2a section 3 step 6; NUM2-REPORT section 12 and NUM3-REPORT section 7: "re-record the fixture, restore the
+// exact check"): RE-BASED on release X. POOL_RULES_CARRIED is empty (no pool is carried), so the record now pins the pools
+// release X ships: tests/fixtures/runes.parity.x.json, written on flipx2 under bb-0.9.0 by the writer below
+// (BB_RUNES_PARITY_WRITE=<commit> npx vitest run tests/runes.parity.test.ts), from the regenerated seed pool
+// (tools/samplePool.ts generateSamplePool, 120 ghosts, v3 with their runes) and each day's dusk stand-in (standInGhost of
+// the record's `standInRun`, its standInBuild deck with the captain's runes): 130 decks. The 360 battles keep RUNES-1's
+// plan (the same kinds, pairs and seeds: on each day each seed ghost against the next one in pool order, "ring"; against
+// the day's stand-in, "standin"; the stand-in against it on the player's side, "standin2"), replayed on these decks. A row
+// holds the winner, ticks, t, both hulls (hp, max), both plating pools (PlateState) and both sides' SideStats, compared
+// EXACTLY.
+//  - the decks: this build's seed pool and stand-ins are the record's, deck for deck, and each holds exactly `day` runes;
+//  - the battles: each one replayed here (new Battle(a, b, seed), stepped until over) gives the record's row.
+// Gone with the re-base: NUM-2's NUM2_DECKS_DIFFER (11) and flip cap 25, NUM-3's NUM3_DECKS_DIFFER (9) and flip cap 38, the
+// NUM-1 x10 conversion of the base's decks, CATCHUP-089's stand-in pack allowance (it compared with the base's decks; the
+// record's stand-ins now hold their packs) and the bb-0.8.6 base fixture (tests/fixtures/runes.parity.base.json).
 // Re-run after any change to the sim: npx vitest run --maxWorkers=4 tests/runes.parity.test.ts
-// NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): the fixture stays as written, in pre-NUM-1 units. This test converts
-// its decks when it reads them (hullBonus x10, its own inline x10, not the pool's BUNDLED_POOL_HULL_SCALE, so the deck-for-
-// deck check still tests the pool conversion). x10 and the integer damage pipeline change every battle a little, so the
-// exact-row check is replaced by the property that justifies carrying the pool, the NUMBERS chain's parity target: the
-// 360 battles, replayed on this build with the converted decks, flip at most 2% of the winners of the bb-0.8.6 rows (at
-// most 7 of 360). R6 re-records this fixture exactly, with the regenerated pool, and restores the exact check.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it } from "vitest";
-import { ITEMS, POOL_RULES, POOL_RULES_CARRIED, RULES_VERSION } from "../src/sim/content";
+import { POOL_RULES, POOL_RULES_CARRIED, RULES_VERSION } from "../src/sim/content";
 import { Battle } from "../src/sim/battle";
 import type { Build } from "../src/sim/deck";
 import { standInBuild, standInGhost } from "../src/sim/rivals";
@@ -51,24 +50,10 @@ interface Fixture {
   battles: Row[];
 }
 
-const F = JSON.parse(readFileSync(new URL("./fixtures/runes.parity.base.json", import.meta.url), "utf8")) as Fixture;
-/** NUM-1: a fixture deck in this build's units (hullBonus, the one damage-family field a Build holds, x10). */
-const num1 = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus * 10 });
-/** NUM-2 (cap's oracle ec91a967c21f4c7b): the exceptions' rules version (the tripwire) and the decks SPEED changed. */
-const EXCEPTIONS_RULES = "bb-0.8.7";
-const NUM2_DECKS_DIFFER: string[] = [
-  "foundry-v0-d7", "bastion-v0-d3", "bastion-v0-d7", "bastion-v0-d9", "bastion-v1-d6", "bastion-v1-d7", "bastion-v1-d8",
-  "bastion-v1-d10", "bastion-v2-d5", "bastion-v2-d9", "bastion-v2-d10",
-]; // measured on num2: 11 of the pool's 120 decks; every FURNACE / WEAVER ghost and every dusk stand-in still the fixture's
-/** NUM-3 (REQ-BFG-046, REQ-BFG-047; as NUM-2's option B, under the same tripwire): the decks NUM-3's rules changed on top
- *  of NUM-2's (rc.seedpool's NUM3_GHOSTS_DIFFER); every FURNACE / WEAVER ghost and every dusk stand-in is still the
- *  fixture's. R6 re-records the fixture and deletes both lists. */
-const NUM3_DECKS_DIFFER: string[] = [
-  "foundry-v0-d4", "foundry-v0-d9", "foundry-v1-d4", "foundry-v1-d9", "foundry-v2-d7", "foundry-v2-d9", "foundry-v2-d10", "bastion-v1-d3", "bastion-v1-d5",
-];
+const X_PATH = new URL("./fixtures/runes.parity.x.json", import.meta.url);
 const MAX_TICKS = 200_000; // far past BATTLE_CAP; a battle that has not ended by then is a failure
 
-/** The generator's fight, verbatim: one battle stepped to its end. */
+/** The record's fight, verbatim: one battle stepped to its end. */
 function fight(a: Build, b: Build, seed: number) {
   const bt = new Battle(a, b, seed);
   for (let i = 0; i < MAX_TICKS && !bt.over; i++) {
@@ -84,85 +69,75 @@ function fight(a: Build, b: Build, seed: number) {
   };
 }
 
-/** A replayed battle as the fixture holds it: the base's fields only, through the same JSON round trip. */
-function asBase(got: ReturnType<typeof fight>, want: Row): Row {
-  const only = (o: object, keys: object) => Object.fromEntries(Object.keys(keys).map((k) => [k, (o as Record<string, unknown>)[k]]));
-  return JSON.parse(JSON.stringify({
-    kind: want.kind, a: want.a, b: want.b, seed: want.seed, winner: got.winner, ticks: got.ticks, t: got.t, hull: got.hull,
-    plate: got.plate.map((p, i) => only(p, want.plate[i])), stats: got.stats.map((s, i) => only(s, want.stats[i])),
-  })) as Row;
+/** A replayed battle as the record holds it, through the same JSON round trip (every PlateState and SideStats field). */
+function asRow(got: ReturnType<typeof fight>, plan: Pick<Row, "kind" | "a" | "b" | "seed">): Row {
+  return JSON.parse(JSON.stringify({ kind: plan.kind, a: plan.a, b: plan.b, seed: plan.seed, ...got })) as Row;
 }
 
-describe("RUNES-1 parity: the base's fixture and its decks", () => {
-  it("was written on the base c57de36 under bb-0.8.6, the rules bb-0.8.7 carries the pools from (POOL_RULES)", () => {
-    expect(F.base).toMatch(/^c57de36[0-9a-f]{33}$/);
-    expect(F.rules).toBe("bb-0.8.6");
-    expect(RULES_VERSION).toBe("bb-0.8.7");
-    expect(POOL_RULES_CARRIED[RULES_VERSION]).toBe(F.rules);
+/** This build's 130 decks: the seed pool's 120 ghosts (hero-v<variant>-d<day>) and each day's dusk stand-in. */
+function decksNow(standInRun: number): Record<string, Build> {
+  const out: Record<string, Build> = {};
+  for (const s of generateSamplePool()) out[`${s.hero}-v${s.playerId.slice(-1)}-d${s.day}`] = s.build;
+  for (let day = 1; day <= 10; day++) {
+    const id = standInGhost(standInRun, day);
+    out[`standin-${id}-d${day}`] = standInBuild(id, day);
+  }
+  return JSON.parse(JSON.stringify(out)) as Record<string, Build>;
+}
+
+/** The day a record deck is built for (its key's d<day>). */
+const dayOf = (k: string): number => Number(/-d(\d+)$/.exec(k)![1]);
+
+// the writer: BB_RUNES_PARITY_WRITE=<commit> re-records the fixture on this build, keeping the battle plan (kinds, pairs,
+// seeds) of the record it replaces (runes.parity.x.json, or RUNES-1's base fixture the first time)
+if (process.env.BB_RUNES_PARITY_WRITE) {
+  it("writes tests/fixtures/runes.parity.x.json on this build (BB_RUNES_PARITY_WRITE)", () => {
+    const basePath = new URL("./fixtures/runes.parity.base.json", import.meta.url);
+    const old = JSON.parse(readFileSync(existsSync(X_PATH) ? X_PATH : basePath, "utf8")) as Fixture;
+    const decks = decksNow(old.standInRun);
+    expect(Object.keys(decks).sort()).toEqual(Object.keys(old.decks).sort());
+    const battles = old.battles.map((p) => asRow(fight(decks[p.a], decks[p.b], p.seed), p));
+    const F: Fixture = {
+      about: "FLIP-X2 (REQ-BFG-058; RUNES-2a section 3 step 6): release X's parity record, re-based on flipx2 under bb-0.9.0 from the regenerated seed pool and the dusk stand-ins (with their runes); RUNES-1's battle plan (kinds, pairs, seeds). tests/runes.parity.test.ts replays it exactly.",
+      base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
+      decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
+    };
+    writeFileSync(X_PATH, JSON.stringify(F) + "\n");
+  }, 300_000);
+}
+
+describe("release X parity: the record and its decks", () => {
+  it("was written on flipx2 under this build's rules, the rules its pools were generated under (POOL_RULES; nothing carried)", () => {
+    const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
+    expect(F.rules).toBe(RULES_VERSION);
+    expect(RULES_VERSION).toBe("bb-0.9.0");
+    expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(F.rules);
     expect([Object.keys(F.decks).length, F.battles.length]).toEqual([F.decksCount, F.battlesCount]);
     expect([F.decksCount, F.battlesCount]).toEqual([130, 360]);
     expect(F.battles.map((r) => r.kind).filter((k, i, all) => all.indexOf(k) === i)).toEqual(["ring", "standin", "standin2"]);
   });
 
-  it("its decks are this build's seed pool and dusk stand-ins, deck for deck, and none holds runes", () => {
-    const pool = generateSamplePool();
-    expect(pool).toHaveLength(120);
-    // NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): the par player rates SPEED's whole speeds and
-    // steps, so a few par-field dusk decks of the pool's FOUNDRY / BASTION runs come out differently; NUM2_DECKS_DIFFER pins
-    // exactly which, every other deck still equals the fixture's, and R6 re-records the fixture and deletes the list
-    const differ: string[] = [];
-    for (const s of pool) {
-      const k = `${s.hero}-v${s.playerId.slice(-1)}-d${s.day}`;
-      if (!isDeepStrictEqual(s.build, num1(F.decks[k]))) differ.push(k); // NUM-1: the fixture's deck in this build's units
-      expect((s as { runes?: unknown }).runes, k).toBeUndefined();
-    }
-    // 0.8.9 (CATCHUP-089, REQ-BFG-051; backlog #346): the captains buy ARMOR PACKs (rivalBuilds.ts P(), an untagged
-    // plating upgrade), so this build's dusk stand-in is the fixture's (the base's) deck plus its packs: the same parts in
-    // the same order with the same cells, turns and stars, the same routes, belt and gold upgrades; uids aside (a P() holds
-    // a place in the plan, so a later part's uid moves up); and 250 hull more per pack the plan bought by that day, never
-    // less. The battles below replay the fixture's own decks, so the parity they prove is unchanged.
-    const noUid = <T extends { uid?: number }>(xs: readonly T[] | undefined) => (xs ?? []).map(({ uid: _u, ...rest }) => rest);
-    const shape = (b: Build) => ({ ...b, hullBonus: 0, items: noUid(b.items), mods: noUid(b.mods), turrets: noUid(b.turrets) });
-    for (let day = 1; day <= 10; day++) {
-      // NUM-1: the fixture's deck in this build's units (num1), so the hull difference is whole packs of 250
-      const id = standInGhost(F.standInRun, day), base = num1(F.decks[`standin-${id}-d${day}`]), now = standInBuild(id, day);
-      expect(shape(now), `${id} d${day}`).toEqual(shape(base));
-      expect((now.hullBonus - base.hullBonus) % ITEMS.plating.supply!.hull!, `${id} d${day}`).toBe(0);
-      expect(now.hullBonus, `${id} d${day}`).toBeGreaterThanOrEqual(base.hullBonus);
-    }
-    expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
-    // NUM-3: NUM-2's 11 and NUM-3's 9 (20 of the pool's 120), as a set
-    expect([...differ].sort(), differ.join(", ")).toEqual([...NUM2_DECKS_DIFFER, ...NUM3_DECKS_DIFFER].sort());
-    for (const [k, b] of Object.entries(F.decks)) expect("runes" in b, k).toBe(false);
+  it("its decks are this build's seed pool and dusk stand-ins, deck for deck, and each holds exactly `day` runes", () => {
+    const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
+    const now = decksNow(F.standInRun);
+    expect(Object.keys(now).sort()).toEqual(Object.keys(F.decks).sort());
+    const differ = Object.keys(F.decks).filter((k) => !isDeepStrictEqual(now[k], F.decks[k]));
+    expect(differ, differ.join(", ")).toEqual([]);
+    for (const [k, b] of Object.entries(F.decks)) expect(b.runes?.length, k).toBe(dayOf(k));
   }, 120_000);
 });
 
-describe("RUNES-1 parity: the battles", () => {
-  // NUM-1 (cap's oracle bcc36c430b4f3a01): was "rune-less builds battle exactly as on the base c57de36 (bb-0.8.6): the same
-  // winner, ticks, time, hulls, plating and stats in all 360 battles"; R6 re-records the fixture and restores it (`exact`
-  // below counts the rows that still match in full, for the log)
-  it("rune-less builds, their decks converted to NUM-1 units, keep the base c57de36's winner (bb-0.8.6) in at least 98% of the 360 battles (at most 7 flip)", () => {
+describe("release X parity: the battles", () => {
+  it("every one of the 360 battles replays exactly as recorded (winner, ticks, time, hulls, plating, stats)", () => {
+    const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
     const t0 = performance.now();
-    const flipped: string[] = [];
-    let exact = 0;
+    const moved: string[] = [];
     for (const want of F.battles) {
-      const a = F.decks[want.a], b = F.decks[want.b];
-      expect("runes" in a || "runes" in b, `${want.a} vs ${want.b}`).toBe(false);
-      const got = asBase(fight(num1(a), num1(b), want.seed), want);
-      if (isDeepStrictEqual(got, want)) exact++;
-      if (got.winner !== want.winner) {
-        flipped.push(`${want.kind} ${want.a} vs ${want.b} (seed ${want.seed}): winner ${got.winner} (base ${want.winner}), ticks ${got.ticks} (base ${want.ticks}), hull ${JSON.stringify(got.hull)} (base ${JSON.stringify(want.hull)})`);
-      }
+      const got = asRow(fight(F.decks[want.a], F.decks[want.b], want.seed), want);
+      if (!isDeepStrictEqual(got, want)) moved.push(`${want.kind} ${want.a} vs ${want.b} (seed ${want.seed}): winner ${got.winner} (${want.winner}), ticks ${got.ticks} (${want.ticks})`);
     }
-    console.log(`runes parity (NUM-1): ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${flipped.length} winners flipped against the base c57de36, ${exact} rows exactly as the base\n${flipped.join("\n")}`);
-    // NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): the cap was NUM-1's 7 (2%); SPEED's whole
-    // speeds and carried timers flip 25 (the measured count: the seeds are fixed; NUM-2's parity bench 7.25%, W/output-num2
-    // /bench). Under this rules version only (the tripwire); R6 re-records the fixture and restores the exact check
-    expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
-    // NUM-3 (the brief's step 5: a measured exception under the same tripwire, on R6's MUST-REMOVE list): R1's STUN fold
-    // and the whole-second durations flip 38 of the 360 (measured; the seeds are fixed; NUM-3's parity bench 8.00%,
-    // W/output-num3/parity). Was NUM-2's 25. R6 re-records the fixture and restores the exact check
-    expect(flipped.length, `${flipped.length} of ${F.battles.length} winners flipped (at most 38 under NUM-3; 25 under NUM-2)`).toBeLessThanOrEqual(38);
+    console.log(`runes parity (release X): ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${moved.length} rows moved`);
+    expect(moved, moved.slice(0, 10).join("\n")).toEqual([]);
   }, 120_000);
 });

@@ -16,21 +16,26 @@
 // RUNES-1 (REQ-BFG-058, decision 10): bb-0.8.7 carries bb-0.8.6's pools forward unregenerated (content.ts POOL_RULES;
 // tests/runes.parity.test.ts): the seed ghosts travel under bb-0.8.7, and both digests are taken with the rules string
 // normalised to POOL_RULES (bb-0.8.6), so they still pin PACKS's decks and records byte for byte.
+// FLIP-X2 (release X, bb-0.9.0; REQ-BFG-058, REQ-BFG-069): the ONE regeneration. The stand-in pool was regenerated at
+// step 4.1 (native N1: BUNDLED_POOL_HULL_SCALE deleted) and the par player takes its dawn runes, so both parts are new
+// decks, each holding exactly `day` runes, as v3 snapshots (the race ghosts with their par run's seed). Nothing is carried
+// any more (POOL_RULES = RULES_VERSION): NUM-1's /10 conversion, NUM-2/NUM-3's lists of changed race decks, their
+// digests and the tripwire are gone; each part is pinned by its own new digest. The whole pool's digest is the file
+// `npm run gen:ghosts` wrote at step 4.2 (sha256 620f5c9e2eea14e68b21c6dd31f1963251e4c7481a5e0031548e6ce18fc012b5).
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { isDeepStrictEqual } from "node:util";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { POOL_RULES, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { PAR_K, parSeeds } from "../src/sim/harness/par";
-import { playerBuild } from "../src/sim/harness/player";
+import { parRunSeed, playerBuild } from "../src/sim/harness/player";
 import { encodeStarred } from "../src/sim/standInPool";
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { floorRecord, isReachable } from "../src/net/records";
-import { heroGateProblem, rulesGateProblem } from "../src/net/rulesGate";
-import { checkSnapshot, decodeSnapshot, encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
+import { heroGateProblem, rulesGateProblem, sustainFeatures } from "../src/net/rulesGate";
+import { checkSnapshot, decodeSnapshot, encodeSnapshot, ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { fetchGhost, submitGhost } from "../src/net/ghostClient";
 import { newRun } from "../src/game/run";
@@ -51,42 +56,22 @@ import { testIdentity } from "./netIdentity";
 const POOL = generateSamplePool();
 const STANDIN_PART = POOL.slice(0, 60);
 const RACE_PART = POOL.slice(60);
-/** NUM-2 (cap's oracle ec91a967c21f4c7b): the bb-0.8.6 decks the pool carried (runes.parity's fixture, pre-NUM-1 units),
- *  the race decks SPEED changed, the exceptions' rules version (the tripwire) and num2's race-part digest. */
-const BASE_DECKS = (JSON.parse(readFileSync(new URL("./fixtures/runes.parity.base.json", import.meta.url), "utf8")) as { decks: Record<string, GhostSnapshot["build"]> }).decks;
-const NUM2_GHOSTS_DIFFER = [
-  "foundry-v0-d7", "bastion-v0-d3", "bastion-v0-d7", "bastion-v0-d9", "bastion-v1-d6", "bastion-v1-d7", "bastion-v1-d8",
-  "bastion-v1-d10", "bastion-v2-d5", "bastion-v2-d9", "bastion-v2-d10",
-];
-const EXCEPTIONS_RULES = "bb-0.8.7";
-const NUM2_RACE_PART_SHA256 = "572e7452fa0c7b8c2f0a29a8e0351bf78c3f82a13d0387c6ff0a257990337049"; // num2's (and susa's) race part: kept for the record
-/** NUM-3 (REQ-BFG-046, REQ-BFG-047; as NUM-2's option B, under the same tripwire): the race decks NUM-3's rules changed
- *  on top of NUM-2's (R1's STUN fold and the whole-second durations move the par player's fights, so its buys), and
- *  num3's race-part digest (the test pins this one; was NUM2_RACE_PART_SHA256). R6 regenerates the seed pool, then
- *  deletes both lists, both digests and the tripwire. */
-const NUM3_GHOSTS_DIFFER = [
-  "foundry-v0-d4", "foundry-v0-d9", "foundry-v1-d4", "foundry-v1-d9", "foundry-v2-d7", "foundry-v2-d9", "foundry-v2-d10", "bastion-v1-d3", "bastion-v1-d5",
-];
-const NUM3_RACE_PART_SHA256 = "b3c0ea319c3f7af46a7d2b9a85e606dbce553cb7b4d859e794c4d3dffca0751a";
+// FLIP-X2: NUM-2's NUM2_GHOSTS_DIFFER (11) and NUM2_RACE_PART_SHA256, NUM-3's NUM3_GHOSTS_DIFFER (9) and
+// NUM3_RACE_PART_SHA256, their tripwire (EXCEPTIONS_RULES bb-0.8.7), BASE_DECKS (runes.parity's bb-0.8.6 fixture), RUNES-1's
+// carried() (rules normalised to POOL_RULES) and NUM-1's preNum1 (/10) are deleted: the pool is regenerated, not carried.
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
-/** RUNES-1: a part as the pool it carries forward (the rules string normalised to POOL_RULES), for its digest. */
-const carried = (part: GhostSnapshot[]): GhostSnapshot[] => part.map((s) => ({ ...s, rules: POOL_RULES }));
 const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
-/** NUM-1 (REQ-BFG-047; cap's oracle bcc36c430b4f3a01): a part with each ghost's hullBonus back in pre-NUM-1 units (/ 10,
- *  this test's own inline conversion, not the pool's), so both digests still pin the carried decks byte for byte: the
- *  stand-in pool is read x10 (standInPool.ts BUNDLED_POOL_HULL_SCALE) and the par player buys x10 ARMOR PACKs. */
-const preNum1 = (part: GhostSnapshot[]): GhostSnapshot[] => part.map((s) => ({ ...s, build: { ...s.build, hullBonus: s.build.hullBonus / 10 } }));
 /** FURNACE and WEAVER's 60 as a pool file: the sample and floor ghosts of the stand-in pool. Until BELTS they were
  *  7c7feb9's seed pool but the rules string (its sha256 110f813c..., with the rules normalised to bb-0.6.2); BELTS run 5
  *  regenerated the stand-in pool they are drawn from (44ee031, the gold upgrades), so they are pinned by their own
  *  digest now (W/output-belts/ghosts). A change to the stand-in pool or to this generator moves it. PACKS (bb-0.8.6): the
  *  stand-in pool regenerated with the packs (23bb3d2). */
-const STANDIN_PART_SHA256 = "2bd3adfdb718c545aa3d26bd512d0a4ff94c0cce2b608a2f5ab1cac20d067d8b";
+const STANDIN_PART_SHA256 = "4de26dafb7ca9c3c2b9017ff1774ecc1a3a9973c09025755b99ed8f18f074a3f"; // FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
 /** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it.
  *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). PACKS (bb-0.8.6): it buys BELT and ARMOR PACKs. */
-const RACE_PART_SHA256 = "94e26280fbbc950a7a95b1ab9cf849e36ae38ba4171a1208c107b3bd6c07faf0";
+const RACE_PART_SHA256 = "f60d1921aecdd0023a5284add12e331ed86bd10b2b93118f5af34be5a3eb8ac3"; // FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
 
-describe("the bb-0.8.7 seed pool (tools/samplePool.ts; bb-0.8.6's decks and records, carried forward)", () => {
+describe("the bb-0.9.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, v3 snapshots holding their runes)", () => {
   it("holds every playable hero on every day 1-10, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 120 in all", () => {
     expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
     expect([...STAND_IN_HEROES]).toEqual(["furnace", "weaver"]);
@@ -99,32 +84,21 @@ describe("the bb-0.8.7 seed pool (tools/samplePool.ts; bb-0.8.6's decks and reco
     }
     expect(new Set(POOL.map((s) => s.rules))).toEqual(new Set([RULES_VERSION]));
     expect(new Set(POOL.map(ghostId)).size).toBe(120);
+    // FLIP-X2: every ghost is a v3 snapshot whose deck holds exactly its day's runes (one a dawn)
+    for (const s of POOL) expect([s.v, s.build.runes?.length], `${s.hero} d${s.day} v${variantOf(s)}`).toEqual([SNAPSHOT_V3, s.day]);
   });
 
-  it("FURNACE and WEAVER's 60 come first: the sample and floor ghosts of the bb-0.8.6 stand-in pool, pinned by their digest (under POOL_RULES)", () => {
+  it("FURNACE and WEAVER's 60 come first: the sample and floor ghosts of the bb-0.9.0 stand-in pool, pinned by their digest", () => {
     expect(STANDIN_PART).toEqual([...sampleGhosts(), ...floorGhosts()]);
     expect(STANDIN_PART.every((s) => s.hero === "furnace" || s.hero === "weaver")).toBe(true);
-    expect(POOL_RULES).toBe("bb-0.8.6");
-    expect(sha(samplePoolJson(carried(preNum1(STANDIN_PART))))).toBe(STANDIN_PART_SHA256);
+    expect(POOL_RULES).toBe(RULES_VERSION); // FLIP-X2: nothing carried (was "bb-0.8.6")
+    expect(sha(samplePoolJson(STANDIN_PART))).toBe(STANDIN_PART_SHA256);
   });
 
   it("each FOUNDRY and BASTION ghost is the par player's dusk deck of its day from a par-field run; three distinct decks per hero and day", () => {
     expect(RACE_PART).toEqual(raceGhosts());
-    // NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): the par player rates SPEED's whole speeds and
-    // steps, so 11 of the race part's 60 dusk decks come out differently (the same 11 as runes.parity's deck check). Each
-    // ghost is held deck for deck against the bb-0.8.6 deck it carried (runes.parity's fixture, read x10): exactly the
-    // listed ones differ, every other one is the same deck. The digest is re-pinned to num2's race part (was
-    // RACE_PART_SHA256), so any further change to the par player or the generator still moves it. R6 regenerates the seed
-    // pool, then deletes the list, the tripwire and NUM2_RACE_PART_SHA256.
-    const differ = RACE_PART.flatMap((s) => {
-      const k = `${s.hero}-v${variantOf(s)}-d${s.day}`, was = BASE_DECKS[k];
-      return was && isDeepStrictEqual(s.build, { ...was, hullBonus: was.hullBonus * 10 }) ? [] : [k];
-    });
-    expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
-    // NUM-3: NUM-2's 11 and NUM-3's 9 (20 of 60), as a set; every other ghost is still the bb-0.8.6 deck it carried
-    expect([...differ].sort(), differ.join(", ")).toEqual([...NUM2_GHOSTS_DIFFER, ...NUM3_GHOSTS_DIFFER].sort());
-    expect(sha(samplePoolJson(carried(preNum1(RACE_PART))))).not.toBe(NUM2_RACE_PART_SHA256); // NUM-3: num2's moved
-    expect(sha(samplePoolJson(carried(preNum1(RACE_PART))))).toBe(NUM3_RACE_PART_SHA256);
+    // FLIP-X2: the regenerated race part, pinned by its own digest (NUM-2/NUM-3's changed-deck lists and tripwire deleted)
+    expect(sha(samplePoolJson(RACE_PART))).toBe(RACE_PART_SHA256);
     const field = parSeeds(PAR_K);
     for (const hero of RACE_SEED_HEROES) for (let day = 1; day <= 10; day++) {
       const here = RACE_PART.filter((s) => s.hero === hero && s.day === day);
@@ -134,12 +108,14 @@ describe("the bb-0.8.7 seed pool (tools/samplePool.ts; bb-0.8.6's decks and reco
         const { seed } = raceDeck(hero, day, variantOf(s));
         expect(field).toContain(seed);
         expect(s.build, `${hero} d${day} v${variantOf(s)}`).toEqual(playerBuild(hero, day, seed));
+        expect(s.seed, `${hero} d${day} v${variantOf(s)}`).toBe(parRunSeed(hero, seed) >>> 0); // FLIP-X2: its par run's seed travels in v3
         if (variantOf(s) === FLOOR_VARIANT) expect({ wins: s.wins, lives: s.lives }).toEqual(floorRecord(day));
       }
     }
   });
 
   it("every ghost passes the upload check: the strict decoder, validateUpload (player mode), the reachable record and the rules gate; under 0.7.0's rules FOUNDRY and BASTION can't travel", () => {
+    const branch = { sustain: 0, standIn: 0, heroGate: 0 };
     for (const s of POOL) {
       const at = `${s.hero} d${s.day} v${variantOf(s)}`;
       expect(decodeSnapshot(encodeSnapshot(s)), at).toEqual(s);
@@ -148,10 +124,22 @@ describe("the bb-0.8.7 seed pool (tools/samplePool.ts; bb-0.8.6's decks and reco
       expect(isReachable(s.day, s.wins, s.lives), at).toBe(true);
       expect(rulesGateProblem(s.rules, s.build), at).toBeNull();
       expect(heroGateProblem(s.rules, s.hero), at).toBeNull();
-      const old = { ...s, rules: "bb-0.6.2" };
-      if (STAND_IN_HEROES.includes(s.hero)) expect(checkSnapshot(old).hero).toBe(s.hero);
-      else expect(() => checkSnapshot(old), at).toThrow(/^snapshot\.hero: rules bb-0\.6\.2 accept only FURNACE, WEAVER/);
+      // FLIP-X2: a bb-0.6.2 client holds no runes (they need bb-0.8.7), so the hero-gate check reads the ghost as such a
+      // client sent it: v2, without its runes and seed (was { ...s, rules: "bb-0.6.2" }); with its runes it is refused first
+      expect(() => checkSnapshot({ ...s, rules: "bb-0.6.2" }), at).toThrow(/runes \(build\.runes\) need bb-0\.8\.7 or later/);
+      const { runes: _runes, ...bare } = s.build;
+      const { seed: _seed, ...rest } = s;
+      const old = { ...rest, v: 2, rules: "bb-0.6.2", build: bare };
+      // FLIP-X2: a deck holding a sustain piece (WARD BELL, MEND PRESS, MENDING LOOM; SUSTAIN_LIVE) can't travel under
+      // bb-0.6.2 at all: the rules gate (bb-0.9.0's row) refuses it before the hero gate is read
+      if (sustainFeatures(bare).length) { branch.sustain++; expect(() => checkSnapshot(old), at).toThrow(/^snapshot\.rules: rules bb-0\.6\.2 predate bb-0\.9\.0: sustain pieces/); }
+      else if (STAND_IN_HEROES.includes(s.hero)) { branch.standIn++; expect(checkSnapshot(old).hero).toBe(s.hero); }
+      else { branch.heroGate++; expect(() => checkSnapshot(old), at).toThrow(/^snapshot\.hero: rules bb-0\.6\.2 accept only FURNACE, WEAVER/); }
     }
+    // FLIP-X2: both pre-flip branches are still exercised (the hero gate on FOUNDRY / BASTION, a stand-in hero passing)
+    expect(branch.standIn, JSON.stringify(branch)).toBeGreaterThan(0);
+    expect(branch.heroGate, JSON.stringify(branch)).toBeGreaterThan(0);
+    console.log(`rc.seedpool (FLIP-X2): under bb-0.6.2 ${JSON.stringify(branch)}`);
     expect(checkPool(POOL)).toHaveLength(120);
   });
 
@@ -168,7 +156,7 @@ describe("the bb-0.8.7 seed pool (tools/samplePool.ts; bb-0.8.6's decks and reco
 /** One store as the admin tool and the seed see it. */
 interface Store { name: string; store(): ReturnType<typeof tigrisFor> | JsonlStore; env(): Record<string, string>; argv(): string[] }
 
-describe("the seed pool on both stores: ghosts:admin list --rules bb-0.8.7", () => {
+describe("the seed pool on both stores: ghosts:admin list --rules bb-0.9.0", () => {
   let fake: FakeS3;
   const dirs: string[] = [];
   beforeAll(async () => {
@@ -201,7 +189,7 @@ describe("the seed pool on both stores: ghosts:admin list --rules bb-0.8.7", () 
     return t;
   };
 
-  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.8.7, none under bb-0.6.2", async () => {
+  it("the seed writes 120 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.9.0, none under bb-0.6.2", async () => {
     for (const h of stores()) {
       expect(await seedStore(h.store()), h.name).toMatchObject({ rules: RULES_VERSION, entries: 120, written: 120, removed: 0 });
       for (const [rules, perDay, all] of [[RULES_VERSION, 12, 120], ["bb-0.6.2", 0, 0]] as const) {
