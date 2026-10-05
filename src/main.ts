@@ -87,6 +87,10 @@ game.start();
   /** M3b: what a deck costs (= buildCost) and the gold a player can have by a day's dusk. */
   deckCost: (b: Build) => deckCost(b).total,
   maxGoldByDay: (day: number) => maxGoldByDay(day),
+  /** STAGE-090 (cap's ruling eaf260a2a192acf6; read-only tooling): what a deck's runes have put on the build and into the
+   *  purse by `day`'s dusk (runes.ts runeGrants: { hull, belt, gold }), for the scripted runs' rune-aware honesty check
+   *  (scripts/playthrough.mjs honestFoe: boughtCost <= maxGoldByDay + the runes' gold, as standin.honest and captains.luck). */
+  runeGrant: (b: Build, day: number) => runeGrants(b.runes, day),
   setupRun(o: RunSpec = {}): void {
     game.run = setupRun(o);
   },
