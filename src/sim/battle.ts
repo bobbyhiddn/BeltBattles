@@ -738,7 +738,7 @@ export class Battle {
     const turrets: TurretState[] = installedTurrets(b).map((s) => makeTurret(b, s.slot, s.td));
     const bySlot = (slot: number) => turrets.find((tu) => tu.index === slot);
     // 0.6.1p: guard flags. OVERDRIVE ★2/★3 flags its own tile and every tile downstream (static: wave 2's hooks
-    // decide whether the gate must be online); a MANTLET turret's shield (★2 FULL PLATE: 1 tile, 0.6.2 FB-B; ★3 BULWARK
+    // decide whether the gate must be online); a MANTLET turret's shield (★2 FULL GUARD, was FULL PLATE: 1 tile, 0.6.2 FB-B; ★3 BULWARK
     // SKIRT: 3) flags each connected route's last n tiles.
     // beltside-062 B4 (DESIGN §11 P5): a tile's flags are the OR of every hit landing on it, whichever speed wins
     // the tile, and they reach that tile and every tile downstream; an X rig flags each belt it hits.
@@ -2076,7 +2076,7 @@ export class Battle {
   }
 
   /**
-   * 0.8.0 P1, BRACE FRAME: the seconds an enemy stall, freeze or chain slow lasts on a tile working braces `list` hit (or
+   * 0.8.0 P1, BRACE FRAME: the seconds an enemy STUN (NUM-3: every source) lasts on a tile working braces `list` hit (or
    * on a brace itself): x the best working brace's multiplier there, its plated one while the hull holds plating. A
    * `brace` event names the brace and the seconds it saved. The harassment is accepted first, so it still counts
    * (an enemy SCRAPPER's stamp). Only a side holding a brace comes here.
@@ -2207,7 +2207,7 @@ export class Battle {
   }
 
   /** 0.6.1p MANTLET: cell `ci` of route `r` lies in its turret's shield (★3 BULWARK SKIRT; since 0.6.2 FB-B also ★2
-   *  FULL PLATE's intake tile) and that turret ignores `cause`. */
+   *  FULL GUARD's intake tile, was FULL PLATE) and that turret ignores `cause`. */
   private skirted(s: SideState, r: RouteState | undefined, ci: number, cause: HarassCause): boolean {
     if (!r || ci < 0 || !((r.guard[ci] ?? 0) & GUARD_SKIRT)) return false;
     return turretAt(s, r.turret)?.immune.includes(cause) ?? false;

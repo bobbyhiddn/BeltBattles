@@ -33,7 +33,7 @@ export const fightTime = (day: number): number => FIGHT_BY_DAY[Math.max(1, Math.
 /**
  * Damage-equivalents per payload of the effects the route walk doesn't turn into damage, read off the cards:
  * Poison ticks 0.4/s per stack for up to 6 s (~3 per stack), a Fray stack adds 0.2 to each later hit (~3), a
- * shocked payload stalls a machine for 1.6 s, a static stall per second, LODESTONE's +1 per stalled machine, an
+ * shocked payload stalls a machine for DISRUPT_TIME (NUM-3: 2 s; was 1.6 s), a static stall per second, LODESTONE's +1 per stalled machine, an
  * OVERCLOCKER doubling a rig every few seconds, TOLLBOOTH and SIFTER guards.
  */
 export const EQ = { poison: 30, fray: 30, shock: 30, static: 40, perStalled: 1.5, overclock: 80, toll: 5, sift: 5 } as const;

@@ -417,15 +417,24 @@ describe("U2d step 1: T2's bans (tests/textRules.ts) allow the icons, SEC after 
 
 describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number the next star changes; a perk's name gives way first", () => {
   it("SURGE VALVE keys its period: NEXT ★2: EVERY 2.5{SEC}, 4 TIMES, +2 {DMG}, each number through its formatter", () => {
+    // NUM-3 step 2 (REQ-BFG-047, N1 2.2): its period is 3 / 3 / 2 s (was 3 / 2.5 / 2), so it changes from ★2 to ★3 only.
+    // The check 'its period changes at every star' becomes its equivalent for the keyed period: NEXT★ shows EVERY n{SEC}
+    // exactly at the stars where the period changes (★2: NEXT ★3: EVERY 2{SEC}, ...) and not where it stays (★1: NEXT ★2:
+    // 4 TIMES, +20 {DMG}), and it does change at some star. The title's NEXT ★2 line is U2d's (before NUM-1 and step 2)
+    let keyed = 0;
     for (let s = 1; s < FUSE_MAX; s++) {
-      const p = effectAt("surge", s + 1).gate!.pulse!;
-      expect(effectAt("surge", s + 1).gate!.pulse!.period, `★${s + 1}: its period changes with its stars`).not.toBe(effectAt("surge", s).gate!.pulse!.period);
+      const p = effectAt("surge", s + 1).gate!.pulse!, moved = p.period !== effectAt("surge", s).gate!.pulse!.period;
+      if (moved) keyed++;
       const nx = faceNext("surge", s)!;
-      expect(nx.text, `★${s}`).toBe(icons(`NEXT ★${s + 1}: EVERY ${fmtSec(p.period)}{SEC}, ${fmtCount(p.speed)} TIMES, +${fmtDmg(p.flat)} {DMG}`));
-      // its perk's name (OVERPRESSURE, HAMMER VALVE) would take the line past the band: the numbers say what the star brings
-      expect(nx.perk, `★${s}`).toBeUndefined();
-      expect(textWidth(`${nx.text} ★${s + 1} ${livePerk("surge", s + 1)}`, "5"), `★${s}`).toBeGreaterThan(NEXT_LINE_W);
+      expect(nx.text, `★${s}`).toBe(icons(`NEXT ★${s + 1}: ${moved ? `EVERY ${fmtSec(p.period)}{SEC}, ` : ""}${fmtCount(p.speed)} TIMES, +${fmtDmg(p.flat)} {DMG}`));
+      // its perk's name (OVERPRESSURE, HAMMER VALVE) gives way where it would take the line past the band: the numbers say
+      // what the star brings. NUM-3 step 2: the line with the period still passes it (HAMMER VALVE gives way at ★2); ★1's
+      // line, without the period, now fits its name (OVERPRESSURE shows), as the band rule below says for every piece
+      const whole = textWidth(`${nx.text} ★${s + 1} ${livePerk("surge", s + 1)}`, "5");
+      expect(nx.perk, `★${s}`).toBe(whole > NEXT_LINE_W ? undefined : livePerk("surge", s + 1));
+      if (moved) expect(whole, `★${s}`).toBeGreaterThan(NEXT_LINE_W);
     }
+    expect(keyed, "its period changes with its stars").toBeGreaterThan(0);
     expect(NEXT_LINE_W).toBe(GLOSSARY_WRAP_W); // the op view's band in 5x7 (T1 2.6), the definitions' width
   });
 

@@ -31,7 +31,7 @@
 // THE VOCABULARY. Each effect is named once, here, and reads the same everywhere (T5):
 //   DAMAGE      "2 DAMAGE", "10.5 MORE DAMAGE": at most one decimal. BONUS DAMAGE is what rigs and scrap add to a payload.
 //   BURN        each burn deals the enemy hull 1 damage a second for 3 seconds (BURN_TIME) once its shot lands.
-//   SHOCK       a shocked shot stalls the machine it hits (1.6 seconds, DISRUPT_TIME, unless a star says longer).
+//   SHOCK       a shocked shot stalls the machine it hits (2 seconds, DISRUPT_TIME, unless a star says longer; NUM-3 step 2: was 1.6).
 //   STALL       a stalled machine stops working for a while. A MACHINE is an enemy rig, factory, turret or belt tile.
 //   STUN        NUM-3 (R1's STUN fold, REQ-BFG-046): every stop is a STUN (Battle.disrupt, one timer): a shock, a stall, a
 //               SABOT, FROSTBITE or DRAG CHAIN round (no FREEZE, CHILL, belt SLOW or SNAG any more); the new sentences
@@ -326,6 +326,10 @@ function mimicRate(e: ItemDef): string {
   return Math.abs(mul - 1) < 1e-9 ? "AS OFTEN AS" : `${rateText(mul)} THAN`;
 }
 
+/** NUM-3 step 2 (REQ-BFG-047, N1 2.2's LOAD 50% SHORTER): how much shorter a core's load time is than WINDOW_TIME, as a
+ *  whole percent (ROTARY BREECH's windowTime 0.75 of 1.5 s: 50%); its seconds were a non-whole number (0.8 s). */
+const loadCut = (s: { windowTime?: number }): string => percent(1 - (s.windowTime ?? WINDOW_TIME) / WINDOW_TIME);
+
 const ENTRIES: Record<string, Entry> = {
   // ----------------------------------------------------------------------------------------------------------- rigs
   temper: {
@@ -502,11 +506,13 @@ const ENTRIES: Record<string, Entry> = {
   bellows: {
     // NUM-3 step 2 (compile-driven): burnPerRide is { burn, per, max }: floor(ride x burn / per) BURN, at most max (deck.ts
     // walkRoute, Battle.applyHit); was 1 BURN every `seconds`. The same sentence, read from the new fields
+    // NUM-3 step 2, batch C: FOR EACH (docs/TEXT-STYLE.md 8.4's word for a rate; was FOR EVERY), and the gist says FOR EACH
+    // too, never EVERY n SECONDS, which reads as a timer (TEXT-STYLE 3.2): it adds the BURN once, as the payload passes
     text: (e) => [
-      `ADDS ${g(e).burnPerRide!.burn} BURN FOR EVERY ${seconds(g(e).burnPerRide!.per)} THE PAYLOAD HAS RIDDEN, UP TO ${g(e).burnPerRide!.max} BURN.`,
+      `ADDS ${g(e).burnPerRide!.burn} BURN FOR EACH ${seconds(g(e).burnPerRide!.per)} THE PAYLOAD HAS RIDDEN, UP TO ${g(e).burnPerRide!.max} BURN.`,
       S.burn,
     ],
-    gist: (e) => `${g(e).burnPerRide!.burn} BURN ${every(g(e).burnPerRide!.per)}, UP TO ${g(e).burnPerRide!.max} BURN`,
+    gist: (e) => `${g(e).burnPerRide!.burn} BURN FOR EACH ${seconds(g(e).burnPerRide!.per)}, UP TO ${g(e).burnPerRide!.max} BURN`,
     card: (e) => `BURN FOR RIDE TIME, UP TO ${g(e).burnPerRide!.max}`,
   },
   quench: {
@@ -819,10 +825,12 @@ const ENTRIES: Record<string, Entry> = {
   },
   rotary: {
     // cores.ts ROUTINES.rotary: FIFO; its windowTime; ★2 GREASED RACE / ★3 CLEAN FEED: intervalMul (and noJam)
+    // NUM-3 step 2 (REQ-BFG-047, N1 2.2): its load time as the whole % shorter (loadCut: windowTime 0.75 of WINDOW_TIME's
+    // 1.5 s, 50%); was CUTS THE LOAD TIME TO 0.8 SECONDS, gist LOAD TIME 0.8 SECONDS, card CUTS LOAD TIME TO 0.8 SECONDS
     text: (e, x) => {
       const s = c(e, x);
       return [
-        `CUTS THE LOAD TIME TO ${seconds(s.windowTime ?? WINDOW_TIME)} AND FIRES THE OLDEST LOAD FIRST.`,
+        `ITS LOAD TIME IS ${loadCut(s)} SHORTER, AND IT FIRES THE OLDEST LOAD FIRST.`,
         ...(s.fireRate ? [`IT FIRES ${rateText(imul(s.fireRate))}${s.noJam ? " AND NEVER JAMS" : ""}.`] : []),
         S.chamber,
       ];
@@ -830,9 +838,9 @@ const ENTRIES: Record<string, Entry> = {
     perkAt: (e, x) => (c(e, x).fireRate ? 1 : 0),
     gist: (e, x) => {
       const s = c(e, x);
-      return s.fireRate ? `FIRES ${rateText(imul(s.fireRate))}${s.noJam ? ", NEVER JAMS" : ""}` : `LOAD TIME ${seconds(s.windowTime ?? WINDOW_TIME)}`;
+      return s.fireRate ? `FIRES ${rateText(imul(s.fireRate))}${s.noJam ? ", NEVER JAMS" : ""}` : `LOAD ${loadCut(s)} SHORTER`;
     },
-    card: (e, x) => `CUTS LOAD TIME TO ${seconds(c(e, x).windowTime ?? WINDOW_TIME)}`,
+    card: (e, x) => `LOAD TIME ${loadCut(c(e, x))} SHORTER`,
   },
   pressure: {
     // cores.ts pressureBonus: waiting at its intakes plus in its chamber, this load included, up to maxCount

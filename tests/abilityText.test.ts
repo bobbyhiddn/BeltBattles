@@ -148,7 +148,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   scatter: (e, k) => [scaleCore(e.core!, k).pellets!, pct(scaleCore(e.core!, k).share!)],
   rotary: (e, k) => {
     const c = scaleCore(e.core!, k);
-    return [c.windowTime!, ...(c.fireRate ? [rateNum(imul(c.fireRate))] : []), WINDOW_TIME]; // NUM-2: fireRate +18 / +43 (was intervalMul)
+    // NUM-3 step 2 (REQ-BFG-047, N1 2.2): its load time as the whole % shorter than WINDOW_TIME (0.75 of 1.5 s: 50; was its
+    // seconds, c.windowTime 0.8)
+    return [pct(1 - c.windowTime! / WINDOW_TIME), ...(c.fireRate ? [rateNum(imul(c.fireRate))] : []), WINDOW_TIME]; // NUM-2: fireRate +18 / +43 (was intervalMul)
   },
   pressure: (e, k) => [r1(scaleCore(e.core!, k).perQueued!), scaleCore(e.core!, k).maxCount!],
   gatling: (e, k) => {

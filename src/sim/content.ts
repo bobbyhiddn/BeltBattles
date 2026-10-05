@@ -111,7 +111,7 @@ export interface GateEffect {
   split?: { copies: number; mult: number }; // Splitter
   // 0.6.1p: the star perks (ARSENAL.md §4.3, catalogue.json). Absent at 1 star, so 1-star decks fight as in 0.6.0.
   priorCap?: number; // LONG HAUL 2-3 stars: prior gates counted at most
-  shockTime?: number; // GALVANIC COIL 2-3 stars: the stall in s (1 star: DISRUPT_TIME, 1.6 s, the catalogue's star1)
+  shockTime?: number; // GALVANIC COIL 2-3 stars: the STUN in s (1 star: DISRUPT_TIME, 2 s since NUM-3; was 1.6 s, the catalogue's star1)
   jump?: number; // GALVANIC COIL SPARK JUMP: the spark also stalls this many nearest other machines (no RNG)
   guard?: number; // OVERDRIVE REDLINE/AFTERBURNER: GUARD_* flags on the tiles downstream (RouteState.guard)
   toll?: number; // future TOLLBOOTH: harassment hits absorbed on every route this rig reaches
@@ -408,7 +408,7 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
     desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["FORGE", "HARASS"],
     factory: { ammo: "plain", speed: 20, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
-    levels: { // NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8). The spark tracks GALVANIC COIL: 1.8 s and 2.8 s with SPARK JUMP (0.6.1p's shockTime and jump)
+    levels: { // NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8). The spark tracks GALVANIC COIL: its ★2 / ★3 shockTime with SPARK JUMP (0.6.1p's shockTime and jump)
       2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 2, jump: 1 }] } },
       3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 7 }, { tint: "spark", shock: true, shockTime: 3, jump: 1 }] } },
     },
@@ -526,7 +526,7 @@ export const ITEMS: Record<string, ItemDef> = {
   coil: {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
     desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."], tags: ["HARASS"],
-    gate: { shock: true }, // 1 star stalls DISRUPT_TIME (1.6 s, catalogue star1) exactly as in 0.6.0
+    gate: { shock: true }, // 1 star STUNs DISRUPT_TIME (NUM-3: 2 s; was 1.6 s, catalogue star1, as in 0.6.0)
     levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied. NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8)
       2: { gate: { shockTime: 2, jump: 1 }, perk: "SPARK JUMP" },
       3: { gate: { shockTime: 3, jump: 1 }, perk: "SPARK JUMP" },
@@ -546,7 +546,7 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "overdrive", name: "OVERDRIVE", kind: "gate", rarity: "legendary", price: 10, size: 1, merchant: "tinker", shape: "X",
     desc: ["4 ARROWS: 3X SPEED", "FROM HIT; LOCKED BELTS", "GAIN +3 DAMAGE."], tags: ["TEMPO"],
     gate: { speed: 3, lockedFlat: 30 },
-    levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; the guard flags wait for wave 2's enemy slow and freeze
+    levels: { // 0.6.1p: AFTERBURNER's +3 flat applied; NUM-3: the guard flags keep enemy CHAIN / FROST rounds' STUNs off its tiles
       2: { gate: { speed: 4, flat: 10, lockedFlat: 50, guard: GUARD_SLOW }, perk: "REDLINE" },
       3: { gate: { speed: 5, flat: 30, lockedFlat: 110, guard: GUARD_SLOW | GUARD_FREEZE }, perk: "AFTERBURNER" },
     },
@@ -726,7 +726,7 @@ export const ITEMS: Record<string, ItemDef> = {
   rotary: {
     // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
     id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "gunsmith",
-    desc: ["FIRES THE OLDEST", "LOAD FIRST. WINDOWS", "CLOSE IN 0.8S."], tags: ["TEMPO"],
+    desc: ["FIRES THE OLDEST", "LOAD FIRST. LOAD", "TIME 50% SHORTER."], tags: ["TEMPO"],
     core: { routine: "rotary", order: "FIFO", windowTime: 0.75 }, // NUM-3 (N1 2.2): LOAD 50% SHORTER, WINDOW_TIME 1.5 s x 50% (was 0.8 s)
     levels: {
       2: { core: { fireRate: 18 }, perk: "GREASED RACE" },
@@ -784,7 +784,7 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   tesla: {
     id: "tesla", name: "TESLA ARC", kind: "core", rarity: "epic", price: 8, size: 1, merchant: "arcane",
-    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS 0.8S STALL."], tags: ["HARASS"],
+    desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS 1S STALL."], tags: ["HARASS"],
     core: { routine: "tesla", arcs: 1, stall: 1, share: 0.25 }, // NUM-3 (N1 2.2): STUN 1 s at every star (was 0.8 / 0.9 / 0.93)
     levels: { 2: { core: { arcs: 2, stall: 1 } }, 3: { core: { arcs: 3, stall: 1, share: 0.3 } } },
   },

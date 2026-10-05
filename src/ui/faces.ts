@@ -631,7 +631,8 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
   },
   tollbooth: (e) => {
     if (!gt(e).tollFactory) return null; // Battle.acceptHarassment: ★3 FACTORY GUARD: a factory feeding its belts too
-    return { text: oneBelt(e) ? "ITS BELT'S FACTORY TOO." : "ITS BELTS' FACTORIES TOO.", nums: [] };
+    // (the 3x5 line fits the narrowest build screen's panel, 144 px at W 160: \"ITS BELT'S FACTORY TOO.\" was 151 px)
+    return { text: oneBelt(e) ? "THE BELT'S FACTORY." : "THE BELTS' FACTORIES.", nums: [] };
   },
   barbed: (e) => {
     const cap = gt(e).frayCap; // Battle.impact: the hull's FRAY cap is FRAY_MAX + frayCap

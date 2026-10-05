@@ -20,6 +20,7 @@ import { faceNextBlock } from "../src/screens/build/faceBlocks"; // U2c (U2b's f
 import { fmtCount, fmtDmg, fmtPct, fmtSec } from "../src/ui/statFormat"; // U2c (U2b's faces): the formatters
 import { fmtSpeed } from "../src/ui/statFormat"; // NUM-2 (REQ-BFG-047): a stamp interval, 30 / speed, at two decimals
 import { secPer } from "../src/sim/content"; // NUM-2: SPEED (30 / speed)
+import { DISRUPT_TIME, WINDOW_TIME } from "../src/sim/content"; // NUM-3 step 2: HOT SWAP's spark STUN, ROTARY's load time
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
 // 0.6.2t (REQ-BFG-032): they read as whole sentences from the glossary (src/ui/abilityText.ts): "NEXT STAR: ADDS 4 BURN.",
@@ -156,10 +157,15 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
 
   it("ROTARY BREECH: its stars make the turret fire faster, then never jam (the perk named after that sentence)", () => {
     const CHAMBER = "A TURRET FIRES WHEN ITS CHAMBER IS FULL OR ITS LOAD TIME ENDS, 1.5 SECONDS AFTER THE FIRST LOAD.";
-    const OPEN = "CUTS THE LOAD TIME TO 0.8 SECONDS AND FIRES THE OLDEST LOAD FIRST.";
-    expect(abilityText("rotary", 1)).toEqual({ sentences: [OPEN, CHAMBER] });
-    expect(abilityText("rotary", 2)).toEqual({ sentences: [OPEN, "IT FIRES 18% FASTER.", CHAMBER], perk: { name: "GREASED RACE", stars: 2, after: 1 } });
-    expect(abilityText("rotary", 3)).toEqual({ sentences: [OPEN, "IT FIRES 43% FASTER AND NEVER JAMS.", CHAMBER], perk: { name: "CLEAN FEED", stars: 3, after: 1 } });
+    // NUM-3 step 2 (REQ-BFG-047, N1 2.2's LOAD 50% SHORTER): its load time as the whole % it is shorter than WINDOW_TIME,
+    // from that star's windowTime (0.75 of 1.5 s) through fmtPct (50%); was the literal CUTS THE LOAD TIME TO 0.8 SECONDS AND
+    // FIRES THE OLDEST LOAD FIRST.
+    const cut = (s: number): string => fmtPct(1 - effectAt("rotary", s).core!.windowTime! / WINDOW_TIME);
+    const OPEN = (s: number): string => `ITS LOAD TIME IS ${cut(s)} SHORTER, AND IT FIRES THE OLDEST LOAD FIRST.`;
+    expect(abilityText("rotary", 1)).toEqual({ sentences: [OPEN(1), CHAMBER] });
+    expect(abilityText("rotary", 2)).toEqual({ sentences: [OPEN(2), "IT FIRES 18% FASTER.", CHAMBER], perk: { name: "GREASED RACE", stars: 2, after: 1 } });
+    expect(abilityText("rotary", 3)).toEqual({ sentences: [OPEN(3), "IT FIRES 43% FASTER AND NEVER JAMS.", CHAMBER], perk: { name: "CLEAN FEED", stars: 3, after: 1 } });
+    expect(gist("rotary", 1)).toBe(`LOAD ${cut(1)} SHORTER`); // NUM-3 step 2: was LOAD TIME 0.8 SECONDS
   });
 });
 
@@ -200,13 +206,17 @@ describe("F7 (the Prime's call): portrait action buttons (portraitButtons, pure 
 describe("0.6.1c: each factory's clause at each star, its perks named, and the phone band", () => {
   // NUM-1 (REQ-BFG-047): the slug damage x10 (catalogue: AMMO plain 30 / shot 10 / slag 70, factory bases 50, 20, 30,
   // 120, 150, 60); was 3 / 5 / 5, 1 / 2 / 3, 7 / 12 / 15 and GANTRY ★3's 6. Burn stacks, counts and times unchanged
+  /** NUM-3 step 2: HOT SWAP's spark STUN at a star, from the data (its shockTime, else DISRUPT_TIME), through fmtSec. */
+  const spark = (s: number): string => fmtSec(effectAt("hotswap", s).factory!.cycle!.find((p) => p.tint === "spark")!.shockTime ?? DISRUPT_TIME);
   const HEAD: Record<string, [string, string, string]> = {
     // NUM-2 (REQ-BFG-047): the stamp every 30 / speed s (two decimals): DOUBLE STAMP 14 / 19 / 19 -> 2.14 / 1.58 / 1.58 (was
     // 2.2 / 1.6 / 1.6), SHOT TOWER 20 / 22 / 23 -> 1.5 / 1.36 / 1.3 (was 1.5 / 1.35 / 1.3), SLAG POT 11 / 14 / 17 -> 2.73 /
     // 2.14 / 1.76 (was 2.8 / 2.2 / 1.75)
     doublestamp: ["2 SLUGS OF 30 DAMAGE EVERY 2.14 SECONDS", "2 SLUGS OF 50 DAMAGE EVERY 1.58 SECONDS", "3 SLUGS OF 50 DAMAGE EVERY 1.58 SECONDS"],
     shottower: ["10 DAMAGE BUCKSHOT EVERY 1.5 SECONDS", "20 DAMAGE BUCKSHOT EVERY 1.36 SECONDS", "30 DAMAGE BUCKSHOT EVERY 1.3 SECONDS"],
-    hotswap: ["2 BURN, SHOCK STALLS A MACHINE FOR 1.6 SECONDS", "4 BURN, SHOCK STALLS 2 MACHINES FOR 1.8 SECONDS", "7 BURN, SHOCK STALLS 2 MACHINES FOR 2.8 SECONDS"],
+    // NUM-3 step 2 (REQ-BFG-047, N1 2.2): the spark's STUN through the data (DISRUPT_TIME 2 at ★1, shockTime 2 / 3) and
+    // fmtSec; was the literal 1.6 / 1.8 / 2.8
+    hotswap: [`2 BURN, SHOCK STALLS A MACHINE FOR ${spark(1)} SECONDS`, `4 BURN, SHOCK STALLS 2 MACHINES FOR ${spark(2)} SECONDS`, `7 BURN, SHOCK STALLS 2 MACHINES FOR ${spark(3)} SECONDS`],
     slagpot: ["70 DAMAGE SLAG EVERY 2.73 SECONDS", "120 DAMAGE SLAG EVERY 2.14 SECONDS", "150 DAMAGE SLAG EVERY 1.76 SECONDS"], // NUM-2: above
     assembly: ["RIGS ONLINE IN HALF THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME", "ALL RIGS ONLINE AT ONCE"],
     // bb-0.8.3 (REQ-BFG-042 D3, M4): its belts (3 / 4 / 5, were 2 / 3 / 3) close the next-star line, so the clause is
