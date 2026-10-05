@@ -39,21 +39,22 @@ function hullCy(a: Arena, side: Side): number {
   return b.y + b.h / 2;
 }
 
-/** Camera trauma added by a hit: scales with the damage dealt (capped). */
+/** Camera trauma added by a hit: scales with the damage dealt (capped).
+ *  NUM-2 (REQ-BFG-047; NUM-1's question 2, cap's answer): the damage keys x10 with NUM-1's damage (0.03 a point -> 0.003). */
 export function hitTrauma(dmg: number): number {
-  return Math.min(0.65, 0.04 + dmg * 0.03);
+  return Math.min(0.65, 0.04 + dmg * 0.003);
 }
 
 /** Directional camera kick (px) along the shell's travel: every hit nudges the camera at least
- *  1 world px on the frame it lands; heavier shells punch harder (up to 3 px). */
+ *  1 world px on the frame it lands; heavier shells punch harder (up to 3 px). NUM-2: dmg / 40 or 50 (was 4 or 5). */
 export function hitKick(dmg: number, heavy: boolean): number {
-  return Math.max(1.1, Math.min(3, dmg / (heavy ? 4 : 5)));
+  return Math.max(1.1, Math.min(3, dmg / (heavy ? 40 : 50)));
 }
 
 /** Exact camera offset (world px) a hit shows on its landing frame, whatever the noise does:
- *  1 px for a light bolt, 2 px for any heavy shell or any hit of 6+ damage, 3 px from 10. */
+ *  1 px for a light bolt, 2 px for any heavy shell or any hit of 60+ damage, 3 px from 100 (NUM-2: x10, was 6 and 10). */
 export function hitPunch(dmg: number, heavy: boolean): number {
-  return dmg >= 10 ? 3 : heavy || dmg >= 6 ? 2 : 1;
+  return dmg >= 100 ? 3 : heavy || dmg >= 60 ? 2 : 1;
 }
 
 /** Camera response to a hit of `dmg` (as shown) from a shell travelling along (dx, dy):
@@ -202,7 +203,7 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       if (soak > 0) fx.sparks(x, y, 5, PLATED, 55);
       fx.popup(x + (fx.rnd() - 0.5) * 8, y - 6, String(dmg), soak > 0 ? C.rune3 : e.big ? C.yellow : e.heavy ? C.fire4 : C.white, e.big);
       // shake scales with the damage dealt: the landing frame shows exactly 1 px for a light
-      // bolt and 2+ px for a heavy shell or 6+ damage; big hits add their trauma on top
+      // bolt and 2+ px for a heavy shell or 60+ damage (NUM-2: x10); big hits add their trauma on top
       hitShake(fx, dmg, e.heavy, -dx, -dy);
       if (e.big) {
         fx.ring(x, y, 14, C.fire4);

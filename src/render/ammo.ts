@@ -26,11 +26,12 @@ const HEAT: [string, string, string, string][] = [
   [C.fire1, C.fire5, C.fire4, C.fire3],
 ];
 
+// NUM-2 (REQ-BFG-047; NUM-1's question 2, cap's answer): the damage keys x10 with NUM-1's damage (were 6 / 9 / 13 / 18)
 export function heatTier(dmg: number): number {
-  if (dmg < 6) return 0;
-  if (dmg < 9) return 1;
-  if (dmg < 13) return 2;
-  if (dmg < 18) return 3;
+  if (dmg < 60) return 0;
+  if (dmg < 90) return 1;
+  if (dmg < 130) return 2;
+  if (dmg < 180) return 3;
   return 4;
 }
 
@@ -99,7 +100,7 @@ export function ammoSprite(kind: string, tier: number): Cv {
 
 /**
  * 0.6.2 BELTSIDE (V2): what a payload carries shows on the belt, for every ammo. Damage per payload brightens
- * it at the heatTier thresholds (6, 9, 13, 18): cinder keeps its heat ramp; thread and plain slugs get a
+ * it at the heatTier thresholds (60, 90, 130, 180; NUM-2: x10): cinder keeps its heat ramp; thread and plain slugs get a
  * bright rim from tier 2 and a lit core at tier 4; from tier 3 every payload grows a halo (payloadHalo).
  */
 export function payloadSprite(kind: string, tier: number): Cv {

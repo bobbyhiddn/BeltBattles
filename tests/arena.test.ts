@@ -86,11 +86,13 @@ describe("effects do not change results", () => {
 
   it("camera shake scales with damage and the KO shakes hardest", () => {
     setReducedMotion(false);
-    const light = shakeAfter(hitTrauma(3), hitKick(3, false));
-    const heavy = shakeAfter(hitTrauma(7), hitKick(7, true));
-    const big = shakeAfter(hitTrauma(16), hitKick(16, true));
+    // NUM-2 (REQ-BFG-047; cap's answer to NUM-1's question 2): the shake keys x10 with NUM-1's damage, so the same three
+    // hits in num1 units: 30, 70, 160 (were 3, 7, 16)
+    const light = shakeAfter(hitTrauma(30), hitKick(30, false));
+    const heavy = shakeAfter(hitTrauma(70), hitKick(70, true));
+    const big = shakeAfter(hitTrauma(160), hitKick(160, true));
     const ko = shakeAfter(KO_TRAUMA, 0);
-    console.log(`shake (mean px-frames over 20 frames): light3 ${light.toFixed(2)} heavy7 ${heavy.toFixed(2)} big16 ${big.toFixed(2)} ko ${ko.toFixed(2)}`);
+    console.log(`shake (mean px-frames over 20 frames): light30 ${light.toFixed(2)} heavy70 ${heavy.toFixed(2)} big160 ${big.toFixed(2)} ko ${ko.toFixed(2)}`);
     expect(light).toBeGreaterThan(0);
     expect(heavy).toBeGreaterThan(light * 1.5);
     expect(big).toBeGreaterThan(heavy);
@@ -99,8 +101,8 @@ describe("effects do not change results", () => {
     for (let k = 0; k < 50; k++) {
       const fx = new Fx();
       for (let i = 0; i < k; i++) fx.rnd();
-      fx.addTrauma(hitTrauma(3));
-      fx.kick(hitKick(3, false), 0);
+      fx.addTrauma(hitTrauma(30)); // NUM-2: a 30-damage light bolt (was 3)
+      fx.kick(hitKick(30, false), 0);
       fx.update(1 / 60);
       expect(Math.abs(fx.shakeX) + Math.abs(fx.shakeY)).toBeGreaterThanOrEqual(1);
     }

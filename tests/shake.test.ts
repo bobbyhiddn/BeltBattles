@@ -8,6 +8,8 @@ import { KO_TRAUMA, hitKick, hitPunch, hitShake, hitTrauma } from "../src/game/a
 // 0.4.1: a hit's landing-frame camera offset is deterministic. Whatever the cosmetic RNG
 // (Fx.rnd) returns, a 3-damage light bolt shows exactly 1 world px and any heavy shell or
 // hit of 6+ damage shows 2+ px on the frame it lands. Big-hit and KO shake are unchanged.
+// NUM-2 (REQ-BFG-047; cap's answer to NUM-1's question 2): the shake keys x10 with NUM-1's damage, so every shown damage
+// here is x10 (the same hits in num1 units: a 30-damage light bolt, 60+, 100+; were 3, 6+, 10+)
 
 type Prep = (fx: Fx) => void;
 
@@ -61,40 +63,42 @@ describe("hit shake is deterministic on the landing frame", () => {
     expect(STATES.length).toBeGreaterThanOrEqual(200);
   });
 
-  it("a 3-damage light bolt shows exactly 1 px whatever the RNG returns", () => {
+  it("a 30-damage light bolt shows exactly 1 px whatever the RNG returns", () => {
     setReducedMotion(false);
-    expect(range(3, false)).toEqual([1, 1]);
+    expect(range(30, false)).toEqual([1, 1]);
   });
 
-  it("any hit of 6+ damage shows 2 or more px; heavy shells always beat light bolts", () => {
+  it("any hit of 60+ damage shows 2 or more px; heavy shells always beat light bolts", () => {
     setReducedMotion(false);
-    const light = range(3, false);
-    for (const [dmg, heavy] of [[6, false], [6, true], [7, true], [7, false], [9, true], [4, true], [5, true]] as [number, boolean][]) {
+    const light = range(30, false);
+    for (const [dmg, heavy] of [[60, false], [60, true], [70, true], [70, false], [90, true], [40, true], [50, true]] as [number, boolean][]) {
       const [lo] = range(dmg, heavy);
       expect(lo, `dmg ${dmg} heavy ${heavy}`).toBeGreaterThanOrEqual(2);
       expect(lo).toBeGreaterThan(light[1]);
     }
-    for (const dmg of [10, 13, 14, 20]) expect(range(dmg, true)[0]).toBeGreaterThanOrEqual(3);
+    for (const dmg of [100, 130, 140, 200]) expect(range(dmg, true)[0]).toBeGreaterThanOrEqual(3);
   });
 
   it("the punch mapping is monotonic and big-hit / KO constants are unchanged", () => {
-    expect(hitPunch(3, false)).toBe(1);
-    expect(hitPunch(5, false)).toBe(1);
-    expect(hitPunch(6, false)).toBe(2);
-    expect(hitPunch(4, true)).toBe(2);
-    expect(hitPunch(7, true)).toBe(2);
-    expect(hitPunch(12, true)).toBe(3);
-    // 0.4.0 big-hit and KO shake inputs, kept as they were
-    expect(hitTrauma(16)).toBeCloseTo(0.52, 10);
-    expect(hitKick(16, true)).toBe(3);
+    expect(hitPunch(30, false)).toBe(1);
+    expect(hitPunch(50, false)).toBe(1);
+    expect(hitPunch(59, false)).toBe(1); // NUM-2: the step sits at 60 (was 6)
+    expect(hitPunch(60, false)).toBe(2);
+    expect(hitPunch(40, true)).toBe(2);
+    expect(hitPunch(70, true)).toBe(2);
+    expect(hitPunch(99, true)).toBe(2); // NUM-2: the step sits at 100 (was 10)
+    expect(hitPunch(120, true)).toBe(3);
+    // 0.4.0 big-hit and KO shake inputs, kept as they were (NUM-2: a 160-damage hit in num1 units, was 16)
+    expect(hitTrauma(160)).toBeCloseTo(0.52, 10);
+    expect(hitKick(160, true)).toBe(3);
     expect(KO_TRAUMA).toBe(0.95);
   });
 
   it("reduced motion keeps every landing frame at 0", () => {
     setReducedMotion(true);
-    expect(range(3, false)).toEqual([0, 0]);
-    expect(range(7, true)).toEqual([0, 0]);
-    expect(range(16, true)).toEqual([0, 0]);
+    expect(range(30, false)).toEqual([0, 0]);
+    expect(range(70, true)).toEqual([0, 0]);
+    expect(range(160, true)).toEqual([0, 0]);
     setReducedMotion(false);
   });
 
