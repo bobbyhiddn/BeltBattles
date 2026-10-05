@@ -1281,7 +1281,8 @@ export const HEROES: Record<HeroId, HeroDef> = {
     id: "furnace", name: "FURNACE", faction: "orc", factionName: "ORC WARBAND",
     hull: 2000, factory: "kiln", ammo: "cinder", belt: 14,
     turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", speed: 30, window: 3, flight: 0.6 }],
-    blurb: ["KILN SLUGS HEAT UP ON", "LONG BELTS. AT 8+ TILES,", "BREECH FIRES EVERY 0.72S."],
+    // Y1 (STAR-D 4.2; display only): the stale "AT 8+ TILES, BREECH FIRES EVERY 0.72S." takes the hero face's second line
+    blurb: ["KILN SLUGS HEAT UP ON LONG", "BELTS. GUNS ON 8+ TILE", "BELTS FIRE 39% FASTER."],
     pattern: "DELAY TO COOK",
     core: "kilnbreech",
     slots: HULL_SLOTS.furnace,

@@ -39,6 +39,7 @@ import { GUARD_FREEZE, SHAPE_ARROWS, rigShape } from "../sim/content"; // U2b: t
 import { GUARD_SLOW, STUN_CAUSES } from "../sim/content"; // NUM-3: OVERDRIVE's chain guard; MANTLET's immunity
 import { factorySpeed } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED; NUM-4: the RATE pair prints it
 import { BURN_DPS } from "../sim/content"; // NUM-4: a Burn stack's damage a second (FACE_SIM.burnTick)
+import { FURNACE_LONG_BELT } from "../sim/battle"; // Y1: FURNACE's hero face, its long-belt rate % (E1)
 import { pct, roundHalfUp } from "../sim/pct"; // NUM-4: GRAPNEL's salvage as the sim rounds it
 import { FUSE_MULT } from "../sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
@@ -851,8 +852,21 @@ export function ruleSpans(text: string, label: string | undefined, base: string)
 // ------------------------------------------------------------------------------------------------------ the heroes
 
 /** C6: each TEXT hero's ability at hero select as its face (its signature factory's rule, said of the factory's slugs;
- *  cap's review call 5: WEAVER's is LOOM SLUGS HAVE FRAY 1). FURNACE's is a RULES change: it keeps heroTrick. */
+ *  cap's review call 5: WEAVER's is LOOM SLUGS HAVE FRAY 1). Y1: FURNACE's too, as two one-line abilities (it kept
+ *  heroTrick's two-clause sentence until Y1). */
 const HERO_FACES: Partial<Record<HeroId, () => Rules>> = {
+  // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D 4.2, REVIEW-STARD R5: the long-belt bonus stays in release Y): a hero takes up to
+  // 2 rule lines (CRUCIBLE's face has 2). Its KILN's cinder slugs' HEAT (AMMO rideScale), as WEAVER's line, and E1's long
+  // belt (battle.ts makeTurret: a FURNACE gun fed by a belt journey of SIM.furnaceLongTiles or more tiles fires
+  // FURNACE_LONG_BELT% faster). Was heroTrick's "ITS KILN'S CINDER SLUGS GAIN 12 DAMAGE FOR EACH SECOND THEY RIDE, AND A GUN
+  // FED BY A BELT OF 8 TILES OR MORE FIRES 39% FASTER." (692 px, two clauses)
+  furnace: () => {
+    const h = HEROES.furnace, heat = AMMO[h.ammo].rideScale;
+    return rules([
+      { text: `${ITEMS[h.factory].name} SLUGS HAVE {*HEAT} ${fmtDmg(heat ?? 0)}.` },
+      { text: `GUNS ON ${fmtCount(SIM.furnaceLongTiles)}+ TILE BELTS FIRE ${fmtPct(FURNACE_LONG_BELT / 100)} FASTER.` },
+    ], [], [REMINDER.HEAT(heat)]);
+  },
   weaver: () => {
     const h = HEROES.weaver;
     return rules([{ text: `${ITEMS[h.factory].name} SLUGS HAVE {*FRAY} ${fmtCount(AMMO[h.ammo].fray)}.` }], [], [REMINDER.FRAY()]);

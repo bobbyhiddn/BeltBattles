@@ -103,7 +103,8 @@ export class HeroScreen implements Screen {
     // 0.8.0 H1: the trick sentence (3x5 face, 7 px a line) replaces the catalogue blurb; the head is the portrait's height
     const trick = heroTrick(id);
     // U2a (REQ-BFG-046, R1 C6): a TEXT hero's ability is its face: the rule in 5x7 (9 px a line, its trigger label in
-    // brass) and the keyword's dim 3x5 reminder (7 px a line); FURNACE (a RULES change) keeps the trick sentence
+    // brass) and the keyword's dim 3x5 reminder (7 px a line); Y1: FURNACE's too, two lines (it kept the trick sentence;
+    // a hero without a face still does)
     const face = heroFace(id);
     const faceRule = face ? face.rules.flatMap((r) => wrapRich(ruleSpans(r.text, r.label, C.bone), infoW, "5")) : [];
     const faceRem = face ? face.reminders.flatMap((r) => wrapRich(colourize(r, C.slate4, C.slate4), infoW, "3")) : [];
