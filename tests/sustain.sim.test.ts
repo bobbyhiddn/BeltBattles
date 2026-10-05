@@ -122,9 +122,11 @@ describe("SUS-A: SHIELD", () => {
     expect(s.shield).toBe(3);
   });
 
-  it("WARD STONE is SHIELD now: its kind is startShield (a count), 3 at t = 0, the same text", () => {
+  // SUS-D (REQ-BFG-069): its SHIELD line moved into runes.ts (SUS-B drew it from runeText.ts RUNE_TEXT, whose row is gone),
+  // so the text pin follows it; the rule is the same (3 at t = 0)
+  it("WARD STONE is SHIELD now: its kind is startShield (a count), 3 at t = 0, its SHIELD line in runes.ts", () => {
     expect([RUNES.ward_stone.kind, RUNES.ward_stone.amount.n, KIND_UNIT.startShield]).toEqual(["startShield", 3, "count"]);
-    expect(RUNES.ward_stone.text).toBe("THE FOE'S FIRST {N} HITS: NO {DMG}.");
+    expect(RUNES.ward_stone.text).toBe("START: +{N} {*SHIELD}.");
     const bt = new Battle({ ...cloneBuild(FOE), runes: [{ id: "ward_stone" }] }, FOE, 1);
     expect([bt.sides[0].shield, bt.sides[1].shield]).toEqual([3, undefined]);
   });

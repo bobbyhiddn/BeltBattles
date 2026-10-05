@@ -17,8 +17,10 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, RARITIES, type HeroId, type Rarity } from "./content";
+import { sustainLive } from "./content"; // SUS-D (REQ-BFG-069): the sustain switch gates the sustain runes' offer
 
-export type RuneUnit = "dmg" | "hull" | "plate" | "gold" | "belt" | "pct" | "count";
+/** SUS-D: "sec" is a whole number of seconds (TICK GUARD's timer; runeText.ts writes it with the SEC icon, as `8{SEC}`). */
+export type RuneUnit = "dmg" | "hull" | "plate" | "gold" | "belt" | "pct" | "count" | "sec";
 /** One typed amount. NUM-1 multiplies `n` by 10 where `unit` is dmg, hull or plate (see the header). */
 export interface RuneAmount {
   unit: RuneUnit;
@@ -67,6 +69,15 @@ export const HERO_STYLE: Partial<Record<HeroId, RuneTheme>> = { furnace: "furnac
  * - your machines: lastStand: below half hull your turrets and factories n% faster; perTurretRate: your turrets n% faster
  *   per turret you have; stampPlate: n PLATE each time a factory stamps; pairPlate: n PLATE each time you PAIR;
  *   stallCut: a STALL on your machines lasts n% less; rigSoon: your rigs come online n% sooner.
+ * SUS-D (REQ-BFG-069; SUSTAIN-1 4.6): the sustain runes. Every heal goes through Battle.heal (never past max hull, nothing
+ * from the dark wind, half under BURN) and every SHIELD through Battle.gainShield (SHIELD_CAP holds); no RNG:
+ * - startShield (above) is BULWARK WARD's too: its SHIELD adds to WARD STONE's at the start (the cap holds).
+ * - shieldEvery: +1 SHIELD every n whole seconds, the first at t = n (TICK GUARD; the timer carries its remainder).
+ * - pairHeal: HEAL n each time a PAIR shot of yours lands (TWIN SALVE). halfHeal: HEAL n once, the first time your hull is
+ *   below half (SCRAP MEDIC, where LAST WALL fires). hitHeal: HEAL n each time a shot of yours lands, a SHIELD-stopped one
+ *   too (LEECH VOW). regen: REGEN n on your hull at each whole second, with the MENDING LOOMs' (GREEN THREAD).
+ * - the rule runes (RULE_KINDS: no amount to show, n is 1): burnNoHeal: a foe with BURN on its hull heals nothing
+ *   (SEARING); shieldPierce: your hit breaks one SHIELD and its damage still lands, on PLATE, then HULL (SHATTER SHOT).
  */
 export type RuneKind =
   | "hull" | "belt" | "dawnGold" | "shotDmg" | "firstShotDmg" | "pairDmg" | "turretRate" | "factoryRate"
@@ -79,7 +90,9 @@ export type RuneKind =
   | "priorPct" | "finisherDmg" | "volleyFirst" | "rideMul" | "winDmgPct"
   | "machineDmg" | "fullFrayDmg" | "otherFray" | "frayMul" | "volleyBurn" | "pairBurn" | "burnTime" | "burnPct"
   | "hitCut" | "startShield" | "plateOnHit" | "halfPlate" | "burnCut"
-  | "lastStand" | "perTurretRate" | "stampPlate" | "pairPlate" | "stallCut" | "rigSoon";
+  | "lastStand" | "perTurretRate" | "stampPlate" | "pairPlate" | "stallCut" | "rigSoon"
+  // SUS-D (REQ-BFG-069): the sustain runes' kinds (BULWARK WARD shares WARD STONE's startShield)
+  | "shieldEvery" | "pairHeal" | "halfHeal" | "hitHeal" | "regen" | "burnNoHeal" | "shieldPierce";
 
 /** The unit each kind's amount carries (a test pins every rune to it). */
 export const KIND_UNIT: Record<RuneKind, RuneUnit> = {
@@ -96,7 +109,12 @@ export const KIND_UNIT: Record<RuneKind, RuneUnit> = {
   hitCut: "dmg", startShield: "count", plateOnHit: "plate", halfPlate: "plate", burnCut: "pct",
   lastStand: "pct", perTurretRate: "pct", stampPlate: "plate", pairPlate: "plate",
   stallCut: "pct", rigSoon: "pct",
+  // SUS-D: HEAL and REGEN are the HULL family (x10 on the N1 scale, as RIVETER's); the rule runes' n is a flag (1)
+  shieldEvery: "sec", pairHeal: "hull", halfHeal: "hull", hitHeal: "hull", regen: "hull", burnNoHeal: "count", shieldPierce: "count",
 };
+
+/** SUS-D: the rule runes' kinds. They have no amount to show (SUSTAIN-1 4.6's N "none"): no {N} in the text, and n is 1. */
+export const RULE_KINDS: readonly RuneKind[] = ["burnNoHeal", "shieldPierce"];
 
 /** The kinds the run applies (run.ts takeRune, runeDawn), not the battle. */
 export const RUN_KINDS: readonly RuneKind[] = ["hull", "belt", "dawnGold", "runeTithe", "victorGold"];
@@ -175,8 +193,9 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // M5: +1 DMG per rig measured +18.0 (1 is the least flat amount): a whole % per rig instead (5% +11.1, 4% +9.1)
   r("toll_road", "TOLL ROAD", "rare", "belts", "priorPct", 4, "+{N} {DMG} PER RIG A LOAD PASSES."),
   // SUS-A (REQ-BFG-069): its kind is SHIELD's now (3 at the start: the foe's first 3 hits, as before, unless something else
-  // adds SHIELD); its text stays until SUS-B and SUS-D reword it
-  r("ward_stone", "WARD STONE", "rare", "armor", "startShield", 3, "THE FOE'S FIRST {N} HITS: NO {DMG}."),
+  // adds SHIELD). SUS-D: its SHIELD line is here now (SUS-B drew it from runeText.ts RUNE_TEXT; was "THE FOE'S FIRST {N}
+  // HITS: NO {DMG}.", the same rule)
+  r("ward_stone", "WARD STONE", "rare", "armor", "startShield", 3, "START: +{N} {*SHIELD}."),
   r("steady_iron", "STEADY IRON", "rare", "factories", "stallCut", 100, "{*STALL}S ON YOUR MACHINES: -{N}."), // M5: 50% +4.3, 93% +6.6
   // M5: an epic at -1 measured +8.8 and -2 +17.3: no whole amount lands in the epic band, +8.8 is a rare's
   r("iron_hide", "IRON HIDE", "rare", "armor", "hitCut", 10, "HITS ON YOU: -{N} {DMG}."),
@@ -217,10 +236,52 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("long_road", "THE LONG ROAD", "legendary", "furnace", "rideMul", 2, "YOUR {*RIDE} BONUS: x{N}."),
 ];
 
-export const RUNES: Readonly<Record<string, RuneDef>> = Object.fromEntries(RUNE_LIST.map((d) => [d.id, d]));
+/**
+ * SUS-D (REQ-BFG-069; SUSTAIN-1 4.6): the 8 sustain runes, N in N1 units. THE SWITCH: they are offered only while the
+ * sustain pieces are in the game (content.ts SUSTAIN_LIVE, or a withSustain call), so RUNE_LIST above stays the runes in
+ * play while it is off: every offer, pool, captain list and pin is as before. RUNES (below) resolves them at any time, so
+ * the battle, the cards and the bench read them, as ITEMS resolves SUS-A's pieces; runeProblem refuses one while the
+ * switch is off (both sides, as validate.ts refuses the pieces). RUNES-2b turns them on with SUSTAIN_LIVE (runeList).
+ * No rune lets sustain work in the dark wind, raises MAX 3 SHIELD or heals past max hull (battle.ts heal, gainShield).
+ */
+export const SUSTAIN_RUNE_LIST: readonly RuneDef[] = [
+  // The M5 bench (tools/runevalue.ts, RUNES-2a's method, the switch on; a style rune read on its own hero, a generic one on
+  // all four; NEW/output-susd/REPORT.md section 4). SHIELD (BASTION): a start SHIELD, with WARD STONE's (one kind:
+  // startShield; SHIELD_CAP holds), and a SHIELD timer.
+  // M5: the design's 1 measured BASTION +2.8 (par decks) and +1.8 (the design's bench: typ2 BASTION from day 5); 2 measured
+  // +5.2 (par) and +4.0 (typ2 from day 5, in the common band)
+  r("bulwark_ward", "BULWARK WARD", "common", "bastion", "startShield", 2, "START: +{N} {*SHIELD}."),
+  // WARD BELL ★1's timer (the design's 6 s) as a rune; "+1" can't stand in a rune text (no literal number), so the design's
+  // "A SHIELD" form. M5: BASTION +9.2 (par), +8.9 (typ2)
+  r("tick_guard", "TICK GUARD", "rare", "bastion", "shieldEvery", 6, "EVERY {N}: A {*SHIELD}."),
+  // HEAL (FOUNDRY, and any hero): on each PAIR shot that lands (HOT SEAM's hook), once below half (LAST WALL's), per shot.
+  // M5: TWIN SALVE 10 FOUNDRY +2.0, 20 +3.6, 30 +5.8; SCRAP MEDIC 150 +3.7 (a common's worth), 250 +6.1, 300 +7.1; LEECH
+  // VOW 5 +3.1 (the design's: LEECH NEEDLE ★1's number, a common's worth), 10 +6.2, 15 +8.6, 20 +11.6
+  r("twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", 20, "{PAIR}: {*HEAL} {N}."),
+  r("scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", 300, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}."),
+  r("leech_vow", "LEECH VOW", "epic", "turrets", "hitHeal", 20, "EACH SHOT THAT LANDS: {*HEAL} {N}."),
+  // REGEN (WEAVER): MENDING LOOM ★1's line, no label (YOUR HULL says whose, not when). M5: WEAVER +4.2 (par), +4.5 (typ2)
+  r("green_thread", "GREEN THREAD", "common", "weaver", "regen", 10, "YOUR HULL: {*REGEN} {N}."),
+  // the counters (FURNACE): BURN's rule taken to none; round B's PIERCE as a rune (each shot breaks a SHIELD and hits on).
+  // Rule runes: no amount to move. M5 (FURNACE): SEARING +0.1 (par), +0.4 (typ2), +0.8 against the typ2 decks that heal;
+  // SHATTER SHOT +0.0 (par: no SHIELD), +1.3 (typ2), +5.3 against the typ2 decks that hold SHIELD (BASTION's WARD BELL)
+  r("searing", "SEARING", "rare", "furnace", "burnNoHeal", 1, "FOE WITH YOUR {*BURN}: NO {*HEAL}."),
+  r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shieldPierce", 1, "YOUR SHOTS: BREAK A {*SHIELD} AND STILL HIT."),
+];
+
+/** SUS-D: every rune of this rules version, the sustain runes last (RUNES' order). */
+const ALL_RUNES: readonly RuneDef[] = [...RUNE_LIST, ...SUSTAIN_RUNE_LIST];
+
+export const RUNES: Readonly<Record<string, RuneDef>> = Object.fromEntries(ALL_RUNES.map((d) => [d.id, d]));
 
 /** A rune is in this rules version's catalogue. */
 export const isRune = (id: unknown): id is string => typeof id === "string" && Object.prototype.hasOwnProperty.call(RUNES, id);
+
+/** SUS-D: is `id` one of the sustain runes (whatever the switch)? */
+export const isSustainRune = (id: string): boolean => SUSTAIN_RUNE_LIST.some((d) => d.id === id);
+
+/** SUS-D: the runes the dawn offers now: RUNE_LIST, and the sustain runes after it while the sustain switch is on. */
+export const runeList = (): readonly RuneDef[] => (sustainLive() ? ALL_RUNES : RUNE_LIST);
 
 /** One held rune as the build carries it (snapshot v3 Build.runes[i]): its id. R1b-2's counter `n` belongs to GROW-1. */
 export interface RuneHeld {
@@ -278,7 +339,7 @@ export function runeOffer(seed: number, day: number, hero: HeroId, held: readonl
   const size = offerSize(day);
   const odds = tierOdds(day);
   const drawn = rng.weighted(RARITIES, (t) => odds[t]);
-  const left = (t: Rarity) => RUNE_LIST.filter((d) => d.tier === t && !held.includes(d.id));
+  const left = (t: Rarity) => runeList().filter((d) => d.tier === t && !held.includes(d.id)); // SUS-D: the switch
   const at = RARITIES.indexOf(drawn);
   const order = [...RARITIES.slice(0, at + 1).reverse(), ...RARITIES.slice(at + 1)];
   let tier = order.find((t) => left(t).length >= size);
@@ -327,6 +388,8 @@ export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: nu
     const extra = Object.keys(q).find((k) => k !== "id");
     if (extra !== undefined) return `runes[${i}].${extra}: not in this rules version`;
     if (!isRune(q.id)) return `runes[${i}]: unknown rune ${JSON.stringify(q.id)}`;
+    // SUS-D (REQ-BFG-069): a sustain rune only while the sustain switch is on (no dawn offers one before), seed or none
+    if (isSustainRune(q.id) && !sustainLive()) return `runes[${i}]: ${RUNES[q.id].name} is not in the game while sustain is off`;
     if (held.includes(q.id)) return `runes[${i}]: ${RUNES[q.id].name} is held twice`;
     if (seed !== undefined && !runeOffer(seed, i + 1, hero, held).ids.includes(q.id)) {
       return `runes[${i}]: ${RUNES[q.id].name} was not offered at the dawn of day ${i + 1}`;

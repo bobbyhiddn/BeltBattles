@@ -6,6 +6,7 @@
 // an effect line, no hand wrapping (richText.ts wrapRich breaks lines at draw time where a panel needs it).
 
 import { C, RARITY_COLOR } from "../render/palette";
+import { ICON } from "../render/font"; // SUS-D (REQ-BFG-069): the SEC icon after a whole number of seconds
 import type { Rarity } from "../sim/content";
 import type { RuneDef, RuneTheme, RuneUnit } from "../sim/runes";
 import { NUMBER_COLOUR, type Span } from "./richText";
@@ -24,6 +25,9 @@ export const RUNE_UNIT_TEXT: Readonly<Record<RuneUnit, (n: number) => string>> =
   belt: whole,
   count: whole,
   pct: (n) => `${whole(n)}%`,
+  // SUS-D (REQ-BFG-069): whole seconds, the SEC icon after the number, as the faces write a cadence ("6" then SEC: TICK
+  // GUARD's EVERY 6s, WARD BELL's line form)
+  sec: (n) => `${whole(n)}${ICON.SEC}`,
 };
 
 /** The keywords a rune's text may name, and the word each renders as on this base. */
@@ -40,13 +44,11 @@ export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
 
 /**
  * SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.2): a rune's effect line as the cards draw it, where it differs from
- * RuneDef.text (src/sim/runes.ts, which a display job leaves alone): WARD STONE is SHIELD now (SUS-A's kind startShield,
- * 3 at the start), so it reads as one: "START: +3 SHIELD." (was "THE FOE'S FIRST 3 HITS: NO DMG.", the same rule).
- * SUS-D moves the line into runes.ts with its 9 runes and deletes this row.
+ * RuneDef.text (src/sim/runes.ts, which a display job leaves alone). SUS-D moved its one row (WARD STONE's "START: +{N}
+ * {*SHIELD}.") into runes.ts with the sustain runes, so it is empty: every card reads RuneDef.text. Kept, with
+ * runeTextOf, as the place a later display job overrides a line without touching the rules file.
  */
-export const RUNE_TEXT: Readonly<Record<string, string>> = {
-  ward_stone: "START: +{N} {*SHIELD}.",
-};
+export const RUNE_TEXT: Readonly<Record<string, string>> = {};
 /** A rune's effect line in R1b-2's tokens: its RUNE_TEXT row, else RuneDef.text. */
 export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? def.text;
 /** Each keyword's colour (render/palette.ts C): the hull's red, gold's yellow, the belts' brass, damage white, speed's yellow
