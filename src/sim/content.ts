@@ -18,7 +18,10 @@ import { DORMANT_ITEMS, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, t
 // bb-0.9.0 (release X, job FLIP-X2; REQ-BFG-047, REQ-BFG-069, REQ-BFG-058): the whole numbers (NUM-1..4), R1's STUN fold
 // and whole-second durations, the sustain pieces and runes (SHIELD, HEAL, REGEN) and the bots' runes, every pool
 // regenerated once with them; an upload holds exactly one rune a dawn. Ghosts and records made under bb-0.8.7 don't mix.
-export const RULES_VERSION = "bb-0.9.0";
+// bb-0.9.1 (job BAL-2; REQ-BFG-069, REQ-BFG-047, REQ-BFG-058; cap's REVIEW-BAL1): 0.9.1's hero lines. FURNACE's four runes
+// are offered again in Y-FURN's forms (COAL CHUTE 15, HEAT SINK 25, SEARING 5, SHATTER SHOT 14), the KILN's HEAT 13, the
+// hulls WEAVER 1700 and FURNACE 2100; every pool regenerated once with them. Ghosts and records made under bb-0.9.0 don't mix.
+export const RULES_VERSION = "bb-0.9.1";
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player

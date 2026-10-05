@@ -15,6 +15,7 @@
 // RUNES-2a (REQ-BFG-058; RUNES-1 Q4): a second row, runes need bb-0.8.7 (RUNES_RULES), and the client's snapshot check
 // (src/game/ghostSnapshot.ts isSnapshot) asks this gate too, the rules row and the hero row, so both checks stay equal.
 // FLIP-X2 (REQ-BFG-069, release X's one bump to bb-0.9.0): a third row, the sustain pieces and runes need bb-0.9.0.
+// BAL-2 (REQ-BFG-058, 0.9.1's bump to bb-0.9.1): a fourth row, FURNACE's four revived runes need bb-0.9.1.
 
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
@@ -118,13 +119,35 @@ export function sustainFeatures(build: unknown): string[] {
   return out;
 }
 
+/** BAL-2 (REQ-BFG-058; 0.9.1's bump, cap's REVIEW-BAL1 row 2): the first rules version that offers FURNACE's four runes
+ *  in their release-Y forms (Y-FURN: COAL CHUTE and HEAT SINK read the KILN's HEAT; SEARING's searBurn, SHATTER SHOT's
+ *  shatterPct). Under bb-0.9.0 they were dormant (no dawn offered one; runeProblem refused one taken), and under
+ *  bb-0.8.7-0.8.9 the same ids carried other effects, so a build holding one under older rules is refused. */
+export const FURNACE_RUNES_RULES = "bb-0.9.1";
+/** The four runes FURNACE_RUNES_RULES brings back (runes.ts; DORMANT_RUNES at bb-0.9.0). */
+export const FURNACE_RUNE_IDS: readonly string[] = ["coal_chute", "heat_sink", "searing", "shatter_shot"];
+
+/** The bb-0.9.1 feature a build carries: one of FURNACE's four runes in build.runes. Reads a raw (undecoded) build
+ *  safely, like rulesFeatures. */
+export function furnaceRuneFeatures(build: unknown): string[] {
+  if (typeof build !== "object" || build === null) return [];
+  const runes = (build as { runes?: unknown }).runes;
+  if (!Array.isArray(runes)) return [];
+  const held = runes.some((q) => {
+    const id = typeof q === "object" && q !== null ? (q as Record<string, unknown>).id : undefined;
+    return typeof id === "string" && FURNACE_RUNE_IDS.includes(id);
+  });
+  return held ? ["FURNACE's runes (COAL CHUTE, HEAT SINK, SEARING, SHATTER SHOT)"] : [];
+}
+
 /** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the
- *  runes row, FLIP-X2 the sustain row (defence in depth: every accepting path also demands rules === RULES_VERSION, so
- *  no verdict changes today). */
+ *  runes row, FLIP-X2 the sustain row, BAL-2 the FURNACE runes row (defence in depth: every accepting path also demands
+ *  rules === RULES_VERSION, so no verdict changes today). */
 export const RULES_ROWS: readonly { from: string; features: (build: unknown) => string[] }[] = [
   { from: TURRETS_JOINS_RULES, features: rulesFeatures },
   { from: RUNES_RULES, features: runeFeatures },
   { from: SUSTAIN_RULES, features: sustainFeatures },
+  { from: FURNACE_RUNES_RULES, features: furnaceRuneFeatures },
 ];
 
 /** Why a build can't travel under `rules`, or null. It is refused when it carries a row's features (turret slots or belt

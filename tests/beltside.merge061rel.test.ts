@@ -427,7 +427,7 @@ describe("P17: offline ghosts carry stars and rotation (v2 snapshots)", () => {
 
 describe("P18: RULES_VERSION", () => {
   it("is bb-0.8.3, BELTS's bump (the 0.8.0 release step's was bb-0.8.0, BELTSIDE's own bb-0.6.2), and the stand-in pool was scored under it (since RUNES-1's bb-0.8.7: under POOL_RULES, the rules it carries the pool from)", () => {
-    expect(RULES_VERSION).toBe("bb-0.9.0") /* FLIP-X2: the one bump (was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.9.1") /* BAL-2: the bump (was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     expect(STAND_IN_DATA.rules).toBe(POOL_RULES); // RUNES-1: bb-0.8.7 carries bb-0.8.6's pool (content.ts POOL_RULES_CARRIED)
   });
 });

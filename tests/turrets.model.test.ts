@@ -22,7 +22,7 @@ const baseInterval = (id: string): number => BASE.get(`ITEMS.${id}.turret.fireIn
 
 describe("0.6.2s turret slots: the model (S1-S3, S7)", () => {
   it("runs under RULES_VERSION bb-0.8.3 (turret slots came with bb-0.6.2, the 0.6.2 release's bump)", () => {
-    expect(RULES_VERSION).toBe("bb-0.9.0") /* FLIP-X2: the one bump (was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.9.1") /* BAL-2: the bump (was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
   });
 
   it("S1: every hull has its starting slots at today's spans plus exactly one empty extra slot at the brief's col0", () => {

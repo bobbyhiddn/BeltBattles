@@ -39,7 +39,7 @@ const CASES: [string, Build, HeroId, number][] = [
 
 describe("pacing (rounds 1-3 at 1x)", () => {
   it("uses the bb-0.4.0 hull values (unchanged through bb-0.8.3)", () => {
-    expect(RULES_VERSION).toBe("bb-0.9.0") /* FLIP-X2: the one bump (was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.9.1") /* BAL-2: the bump (was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     expect(HEROES.furnace.hull).toBe(10 * 200); // NUM-1: hull x10 (was 200)
     expect(HEROES.weaver.hull).toBe(10 * 180); // NUM-1: hull x10 (was 180)
     expect([1, 2, 3].map(warlordHull)).toEqual([-27, -16, -5].map((h) => 10 * h)); // NUM-1: the warlord hull ramp x10 (was -27, -16, -5)

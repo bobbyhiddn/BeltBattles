@@ -25,6 +25,6 @@ describe("the 0.8.6 label", () => {
   it("is 0.8.6 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are RUNES-1's bb-0.8.7 (PACKS's were bb-0.8.6; the label stays 0.8.6 until the Prime stages 0.8.7)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
     expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.8.6", "0.8.6", "0.8.6", "0.8.6"]);
-    expect(RULES_VERSION).toBe("bb-0.9.0") /* FLIP-X2: the one bump (was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
+    expect(RULES_VERSION).toBe("bb-0.9.1") /* BAL-2: the bump (was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
   });
 });
