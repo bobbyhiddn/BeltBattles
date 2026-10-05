@@ -45,7 +45,7 @@ export const AMMO_SPACING = 7; // minimum distance between payloads on a belt (p
 export const WINDOW_TIME = 1.5; // chamber loading window closes this long after first load (s)
 export const JAM_THRESHOLD = 4; // payloads backed up at a busy chamber before it jams
 export const JAM_COOLDOWN = 3.0;
-export const DISRUPT_TIME = 1.6; // Shock disruption duration (s)
+export const DISRUPT_TIME = 2; // Shock disruption duration (s). NUM-3 (REQ-BFG-047, N1 2.2): a ★1 GALVANIC COIL or SPARK STUN, whole seconds (was 1.6)
 export const BURN_TIME = 3.0; // each Burn stack deals 1 dmg/s for this long
 /** NUM-1 (REQ-BFG-047, N1 2.1): the damage a Burn stack deals each second (x10 of 1), once a second (Battle.hullEffects):
  *  BURN_DPS x BURN_TIME a stack, the same total as before, in whole ticks. */
@@ -126,7 +126,9 @@ export interface GateEffect {
   poison?: number;
   overclockCooldown?: number;
   keg?: { fuse: number; flat: number; burn: number; wide?: boolean };
-  burnPerRide?: { seconds: number; max: number };
+  // NUM-3 (REQ-BFG-047, N1 2.2): BELLOWS, + `burn` BURN for each `per` s the payload has ridden, at most `max` (was 1 BURN
+  // every `seconds`: 2.5 / 1.15 / 0.7 s; now 4 / 9 / 14 BURN for each 10 s, exact at ★1, +3.5% at ★2, -2% at ★3)
+  burnPerRide?: { burn: number; per: number; max: number };
   // QUENCH TANK (0.6.2 FB-B): `flat` on every payload it hits, then up to `stacks` Burn stacks become `perBurn` each;
   // Burn past `stacks` stays Burn (Battle.applyHit, deck.ts walkRoute)
   quench?: { flat: number; perBurn: number; stacks: number };
@@ -406,9 +408,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "hotswap", name: "HOT SWAP", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "quartermaster",
     desc: ["ALTERNATES EMBER", "SLUGS (2 BURN) AND", "SPARK SLUGS (SHOCK)."], tags: ["FORGE", "HARASS"],
     factory: { ammo: "plain", speed: 20, cycle: [{ tint: "ember", burn: 2 }, { tint: "spark", shock: true }] },
-    levels: { // the spark tracks GALVANIC COIL: 1.8 s and 2.8 s with SPARK JUMP (0.6.1p's shockTime and jump)
-      2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 1.8, jump: 1 }] } },
-      3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 7 }, { tint: "spark", shock: true, shockTime: 2.8, jump: 1 }] } },
+    levels: { // NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8). The spark tracks GALVANIC COIL: 1.8 s and 2.8 s with SPARK JUMP (0.6.1p's shockTime and jump)
+      2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 4 }, { tint: "spark", shock: true, shockTime: 2, jump: 1 }] } },
+      3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 7 }, { tint: "spark", shock: true, shockTime: 3, jump: 1 }] } },
     },
   },
   slagpot: {
@@ -453,8 +455,9 @@ export const ITEMS: Record<string, ItemDef> = {
   frostbite: {
     id: "frostbite", name: "FROSTBITE FOUNDRY", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "arcane",
     desc: ["FROST ROUNDS STUN", "THE ENEMY PART", "THEY HIT."], tags: ["HARASS"], // NUM-3 (R1's STUN fold): FREEZE became STUN
-    factory: { ammo: "frost", speed: 11, round: { kind: "frost", seconds: 2.5, spread: 0 } },
-    levels: { 2: { factory: { round: { kind: "frost", seconds: 2.75, spread: 1 } }, perk: "HOARFROST" },
+    // NUM-3 (N1 2.2): STUN 2 / 3 / 3 s (was 2.5 / 2.75 / 3)
+    factory: { ammo: "frost", speed: 11, round: { kind: "frost", seconds: 2, spread: 0 } },
+    levels: { 2: { factory: { round: { kind: "frost", seconds: 3, spread: 1 } }, perk: "HOARFROST" },
       3: { factory: { round: { kind: "frost", seconds: 3, spread: 2 } }, perk: "HOARFROST" } },
   },
   dragchain: {
@@ -464,7 +467,7 @@ export const ITEMS: Record<string, ItemDef> = {
     // factory +0.8 s / turret +0.5 s delays became one STUN on the part it hits: R1's 1 / 1.5, and ★3 2 (today's slow
     // grows x6 / 4.4 from ★2 to ★3: 1.5 x 1.36 = 2.05)
     factory: { ammo: "drag", speed: 17, round: { kind: "drag", seconds: 1 } },
-    levels: { 2: { factory: { round: { kind: "drag", seconds: 1.5 } } },
+    levels: { 2: { factory: { round: { kind: "drag", seconds: 2 } } }, // NUM-3 (N1 2.2): R1's 1.5 s is 2
       3: { factory: { round: { kind: "drag", seconds: 2 } } } },
   },
   mimic: {
@@ -481,7 +484,7 @@ export const ITEMS: Record<string, ItemDef> = {
     desc: ["STICKY CHARGES BLOW", "3 SECONDS LATER FOR", "HULL DAMAGE."], tags: ["HARASS", "BURST"], // 0.6.2t 0b.1: no stall at 1 star
     factory: { ammo: "limpet", speed: 13, round: { kind: "limpet", delay: 3, blast: 80 } },
     levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 180, stall: 1 } } },
-      3: { factory: { round: { kind: "limpet", delay: 3, blast: 280, stall: 1.6 } } } },
+      3: { factory: { round: { kind: "limpet", delay: 3, blast: 280, stall: 2 } } } }, // NUM-3 (N1 2.2): the stall 1 / 2 s (was 1 / 1.6)
   },
   // --- processing gates ---
   temper: {
@@ -524,9 +527,9 @@ export const ITEMS: Record<string, ItemDef> = {
     id: "coil", name: "GALVANIC COIL", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist", shape: "L",
     desc: ["ADDS SHOCK. A SHOCK", "HIT STALLS THE ENEMY", "MACHINE IT STRIKES."], tags: ["HARASS"],
     gate: { shock: true }, // 1 star stalls DISRUPT_TIME (1.6 s, catalogue star1) exactly as in 0.6.0
-    levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied
-      2: { gate: { shockTime: 1.8, jump: 1 }, perk: "SPARK JUMP" },
-      3: { gate: { shockTime: 2.8, jump: 1 }, perk: "SPARK JUMP" },
+    levels: { // 0.6.1p: the stall in seconds and SPARK JUMP are applied. NUM-3 (N1 2.2): STUN 2 / 2 / 3 s (was 1.6 / 1.8 / 2.8)
+      2: { gate: { shockTime: 2, jump: 1 }, perk: "SPARK JUMP" },
+      3: { gate: { shockTime: 3, jump: 1 }, perk: "SPARK JUMP" },
     },
   },
   splitter: {
@@ -567,7 +570,8 @@ export const ITEMS: Record<string, ItemDef> = {
     // 0.6.2 FB-B (oracle 16085a6430e4cc6a): the per-pulse flat is 1/2/3 (was 0/1/2). At ★1 the pulse cut ride time on
     // ride-scaled ammo and added nothing when the turret was the bottleneck (Furnace's audit cell: 78.3 -> 71.5)
     gate: { pulse: { speed: 3, on: 1, period: 3, flat: 10 }, lockedFlat: 30 },
-    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 2.5, flat: 20 }, lockedFlat: 60 }, perk: "OVERPRESSURE" },
+    // NUM-3 (N1 2.2): the period 3 / 3 / 2 s (was 3 / 2.5 / 2)
+    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 3, flat: 20 }, lockedFlat: 60 }, perk: "OVERPRESSURE" },
       3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 30 }, lockedFlat: 100 }, perk: "HAMMER VALVE" } },
   },
   sorting: {
@@ -594,7 +598,7 @@ export const ITEMS: Record<string, ItemDef> = {
   overclocker: {
     id: "overclocker", name: "OVERCLOCKER", kind: "gate", rarity: "rare", price: 6, size: 1, merchant: "tinker",
     desc: ["DOUBLES THE NEXT", "BOOSTABLE RIG ONCE,", "THEN COOLS FOR 4S."], tags: ["FORGE", "BURST", "TEMPO"],
-    gate: { overclockCooldown: 4 }, levels: { 2: { gate: { overclockCooldown: 1.8 } }, 3: { gate: { overclockCooldown: 1.15 } } },
+    gate: { overclockCooldown: 4 }, levels: { 2: { gate: { overclockCooldown: 2 } }, 3: { gate: { overclockCooldown: 1 } } }, // NUM-3 (N1 2.2): the rest 4 / 2 / 1 s (was 4 / 1.8 / 1.15)
   },
   keg: {
     id: "keg", name: "POWDER KEG", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "scrapper",
@@ -605,8 +609,8 @@ export const ITEMS: Record<string, ItemDef> = {
   bellows: {
     id: "bellows", name: "BELLOWS", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
     desc: ["ADDS BURN FROM", "RIDE TIME SO FAR,", "UP TO 4 STACKS."], tags: ["FORGE"],
-    gate: { burnPerRide: { seconds: 2.5, max: 4 } }, levels: { 2: { gate: { burnPerRide: { seconds: 1.15, max: 9 } } },
-      3: { gate: { burnPerRide: { seconds: 0.7, max: 14 } } } },
+    gate: { burnPerRide: { burn: 4, per: 10, max: 4 } }, levels: { 2: { gate: { burnPerRide: { burn: 9, per: 10, max: 9 } } },
+      3: { gate: { burnPerRide: { burn: 14, per: 10, max: 14 } } } },
   },
   quench: {
     id: "quench", name: "QUENCH TANK", kind: "gate", rarity: "rare", price: 4, size: 1, merchant: "alchemist",
@@ -621,7 +625,7 @@ export const ITEMS: Record<string, ItemDef> = {
   staticbrush: {
     id: "staticbrush", name: "STATIC BRUSH", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
     desc: ["BARE-HULL HITS", "STALL A RANDOM", "ENEMY TURRET."], tags: ["HARASS"],
-    gate: { staticTime: 0.6 }, levels: { 2: { gate: { staticTime: 1.3 } }, 3: { gate: { staticTime: 2.1 } } },
+    gate: { staticTime: 1 }, levels: { 2: { gate: { staticTime: 2 } }, 3: { gate: { staticTime: 3 } } }, // NUM-3 (N1 2.2): STUN 1 / 2 / 3 s (was 0.6 / 1.3 / 2.1)
   },
   lodestone: {
     id: "lodestone", name: "LODESTONE", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "arcane",
@@ -721,7 +725,7 @@ export const ITEMS: Record<string, ItemDef> = {
     // 0.6.2m (REQ-BFG-033): sold by the GUNSMITH (was the TINKER; see MERCHANTS)
     id: "rotary", name: "ROTARY BREECH", kind: "core", rarity: "common", price: 3, size: 1, merchant: "gunsmith",
     desc: ["FIRES THE OLDEST", "LOAD FIRST. WINDOWS", "CLOSE IN 0.8S."], tags: ["TEMPO"],
-    core: { routine: "rotary", order: "FIFO", windowTime: 0.8 },
+    core: { routine: "rotary", order: "FIFO", windowTime: 0.75 }, // NUM-3 (N1 2.2): LOAD 50% SHORTER, WINDOW_TIME 1.5 s x 50% (was 0.8 s)
     levels: {
       2: { core: { fireRate: 18 }, perk: "GREASED RACE" },
       3: { core: { fireRate: 43, noJam: true }, perk: "CLEAN FEED" },
@@ -779,8 +783,8 @@ export const ITEMS: Record<string, ItemDef> = {
   tesla: {
     id: "tesla", name: "TESLA ARC", kind: "core", rarity: "epic", price: 8, size: 1, merchant: "arcane",
     desc: ["HITS ARC TO THE", "NEAREST MACHINE FOR", "25% PLUS 0.8S STALL."], tags: ["HARASS"],
-    core: { routine: "tesla", arcs: 1, stall: 0.8, share: 0.25 },
-    levels: { 2: { core: { arcs: 2, stall: 0.9 } }, 3: { core: { arcs: 3, stall: 0.93, share: 0.3 } } },
+    core: { routine: "tesla", arcs: 1, stall: 1, share: 0.25 }, // NUM-3 (N1 2.2): STUN 1 s at every star (was 0.8 / 0.9 / 0.93)
+    levels: { 2: { core: { arcs: 2, stall: 1 } }, 3: { core: { arcs: 3, stall: 1, share: 0.3 } } },
   },
   capacitor: {
     id: "capacitor", name: "CAPACITOR BANK", kind: "core", rarity: "epic", price: 7, size: 1, merchant: "arcane",

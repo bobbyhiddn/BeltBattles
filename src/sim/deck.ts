@@ -685,7 +685,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       }
       if (e.poison) th.poison = e.poison;
       if (e.burnPerRide) {
-        const amount = Math.min(e.burnPerRide.max, Math.floor(ride / e.burnPerRide.seconds));
+        const amount = Math.min(e.burnPerRide.max, Math.floor((ride * e.burnPerRide.burn) / e.burnPerRide.per)); // NUM-3: n per 10 s
         burn += amount;
         th.burn = (th.burn ?? 0) + amount;
       }

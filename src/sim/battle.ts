@@ -46,6 +46,12 @@ export interface HealCounts {
 const TICKS_PER_SEC = Math.round(1 / TICK);
 /** SUS-A: the tick from which nothing heals (WIND_START on the integer tick count: 1500, at 25 s exactly). */
 const WIND_TICKS = Math.round(WIND_START / TICK);
+/** NUM-3 (REQ-BFG-047): a STUN's seconds as a whole number of ticks (Battle.disrupt sets it; BRACE FRAME's and STEADY
+ *  IRON's cuts first), so a STUN of n ticks set on tick T reads 0 from tick T + n on, on the integer tick count. */
+const stunTicks = (secs: number): number => Math.round(secs * TICKS_PER_SEC);
+/** NUM-3: one tick off a STUN's timer. Below half a tick it is over: a whole-tick timer never ends a tick late on a float
+ *  residue of its 1/60 s steps (1.6 s used to run 96 or 97 ticks). */
+const stunLeft = (left: number, dt: number): number => (left - dt < TICK / 2 ? 0 : left - dt);
 
 export interface Payload {
   id: number;
@@ -839,7 +845,7 @@ export class Battle {
       for (let d = 0; d < 4; d++) if (g.arrowFlash[d] > 0) g.arrowFlash[d] = Math.max(0, g.arrowFlash[d] - dt);
       const stopped = g.disrupted > 0 || g.frozen > 0;
       if (g.disrupted > 0) {
-        g.disrupted = Math.max(0, g.disrupted - dt);
+        g.disrupted = stunLeft(g.disrupted, dt); // NUM-3: ends on its whole tick
       }
       if (g.frozen > 0) {
         g.frozen = Math.max(0, g.frozen - dt);
@@ -864,7 +870,7 @@ export class Battle {
       for (let i = 0; i < r.cellDisrupt.length; i++) {
         const stopped = r.cellDisrupt[i] > 0 || r.cellFrozen[i] > 0;
         if (r.cellDisrupt[i] > 0) {
-          r.cellDisrupt[i] = Math.max(0, r.cellDisrupt[i] - dt);
+          r.cellDisrupt[i] = stunLeft(r.cellDisrupt[i], dt); // NUM-3: ends on its whole tick
         }
         if (r.cellFrozen[i] > 0) {
           r.cellFrozen[i] = Math.max(0, r.cellFrozen[i] - dt);
@@ -887,7 +893,7 @@ export class Battle {
       if (f.flash > 0) f.flash -= dt;
       const stopped = f.disrupted > 0 || f.frozen > 0;
       if (f.disrupted > 0) {
-        f.disrupted = Math.max(0, f.disrupted - dt);
+        f.disrupted = stunLeft(f.disrupted, dt); // NUM-3: ends on its whole tick
       }
       if (f.frozen > 0) f.frozen = Math.max(0, f.frozen - dt);
       if (stopped) s.stats.disrupted += dt;
@@ -897,7 +903,7 @@ export class Battle {
       if (tu.jamFx > 0) tu.jamFx = Math.max(0, tu.jamFx - dt);
       const stopped = tu.disrupted > 0 || tu.frozen > 0;
       if (tu.disrupted > 0) {
-        tu.disrupted = Math.max(0, tu.disrupted - dt);
+        tu.disrupted = stunLeft(tu.disrupted, dt); // NUM-3: ends on its whole tick
       }
       if (tu.frozen > 0) tu.frozen = Math.max(0, tu.frozen - dt);
       if (stopped) s.stats.disrupted += dt;
@@ -1524,7 +1530,7 @@ export class Battle {
     if (e.poison) p.poison = (p.poison ?? 0) + e.poison;
     if (e.burnPerRide) {
       const original = g.def.gate!.burnPerRide!;
-      p.burn += (doubled ? 2 : 1) * Math.min(original.max, Math.floor(p.ride / original.seconds));
+      p.burn += (doubled ? 2 : 1) * Math.min(original.max, Math.floor((p.ride * original.burn) / original.per)); // NUM-3: n per 10 s
     }
     if (e.quench) { // 0.6.2 FB-B: + flat on every payload; up to `stacks` Burn stacks at perBurn each, the rest stays Burn
       const spent = Math.min(p.burn, e.quench.stacks);
@@ -2088,6 +2094,7 @@ export class Battle {
     if (secs <= 0 || !this.acceptHarassment(s, t, cause)) return false;
     if (s.braced) secs = this.braceCut(s, this.bracesAt(s, t), secs); // 0.8.0 P1: BRACE FRAME
     if (s.rune?.stallCut) secs *= Math.max(0, 1 - s.rune.stallCut / 100); // RUNES-2a: STEADY IRON, a STALL n% shorter
+    secs = stunTicks(secs) * TICK; // NUM-3 (REQ-BFG-047): a whole number of ticks, after the cuts (stunLeft ends it on its tick)
     if (t.kind === "gate") s.gates.find((g) => g.uid === t.ref)!.disrupted = Math.max(s.gates.find((g) => g.uid === t.ref)!.disrupted, secs);
     else if (t.kind === "factory") s.factories.find((f) => f.uid === t.ref)!.disrupted = Math.max(s.factories.find((f) => f.uid === t.ref)!.disrupted, secs);
     else if (t.kind === "turret") turretAt(s, t.ref)!.disrupted = Math.max(turretAt(s, t.ref)!.disrupted, secs);
