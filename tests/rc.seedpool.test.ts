@@ -18,7 +18,8 @@
 // normalised to POOL_RULES (bb-0.8.6), so they still pin PACKS's decks and records byte for byte.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { POOL_RULES, RULES_VERSION, type HeroId } from "../src/sim/content";
@@ -50,6 +51,15 @@ import { testIdentity } from "./netIdentity";
 const POOL = generateSamplePool();
 const STANDIN_PART = POOL.slice(0, 60);
 const RACE_PART = POOL.slice(60);
+/** NUM-2 (cap's oracle ec91a967c21f4c7b): the bb-0.8.6 decks the pool carried (runes.parity's fixture, pre-NUM-1 units),
+ *  the race decks SPEED changed, the exceptions' rules version (the tripwire) and num2's race-part digest. */
+const BASE_DECKS = (JSON.parse(readFileSync(new URL("./fixtures/runes.parity.base.json", import.meta.url), "utf8")) as { decks: Record<string, GhostSnapshot["build"]> }).decks;
+const NUM2_GHOSTS_DIFFER = [
+  "foundry-v0-d7", "bastion-v0-d3", "bastion-v0-d7", "bastion-v0-d9", "bastion-v1-d6", "bastion-v1-d7", "bastion-v1-d8",
+  "bastion-v1-d10", "bastion-v2-d5", "bastion-v2-d9", "bastion-v2-d10",
+];
+const EXCEPTIONS_RULES = "bb-0.8.7";
+const NUM2_RACE_PART_SHA256 = "572e7452fa0c7b8c2f0a29a8e0351bf78c3f82a13d0387c6ff0a257990337049";
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 /** RUNES-1: a part as the pool it carries forward (the rules string normalised to POOL_RULES), for its digest. */
 const carried = (part: GhostSnapshot[]): GhostSnapshot[] => part.map((s) => ({ ...s, rules: POOL_RULES }));
@@ -92,7 +102,19 @@ describe("the bb-0.8.7 seed pool (tools/samplePool.ts; bb-0.8.6's decks and reco
 
   it("each FOUNDRY and BASTION ghost is the par player's dusk deck of its day from a par-field run; three distinct decks per hero and day", () => {
     expect(RACE_PART).toEqual(raceGhosts());
-    expect(sha(samplePoolJson(carried(preNum1(RACE_PART))))).toBe(RACE_PART_SHA256);
+    // NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): the par player rates SPEED's whole speeds and
+    // steps, so 11 of the race part's 60 dusk decks come out differently (the same 11 as runes.parity's deck check). Each
+    // ghost is held deck for deck against the bb-0.8.6 deck it carried (runes.parity's fixture, read x10): exactly the
+    // listed ones differ, every other one is the same deck. The digest is re-pinned to num2's race part (was
+    // RACE_PART_SHA256), so any further change to the par player or the generator still moves it. R6 regenerates the seed
+    // pool, then deletes the list, the tripwire and NUM2_RACE_PART_SHA256.
+    const differ = RACE_PART.flatMap((s) => {
+      const k = `${s.hero}-v${variantOf(s)}-d${s.day}`, was = BASE_DECKS[k];
+      return was && isDeepStrictEqual(s.build, { ...was, hullBonus: was.hullBonus * 10 }) ? [] : [k];
+    });
+    expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
+    expect(differ, differ.join(", ")).toEqual(NUM2_GHOSTS_DIFFER);
+    expect(sha(samplePoolJson(carried(preNum1(RACE_PART))))).toBe(NUM2_RACE_PART_SHA256);
     const field = parSeeds(PAR_K);
     for (const hero of RACE_SEED_HEROES) for (let day = 1; day <= 10; day++) {
       const here = RACE_PART.filter((s) => s.hero === hero && s.day === day);

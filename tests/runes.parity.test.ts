@@ -54,6 +54,12 @@ interface Fixture {
 const F = JSON.parse(readFileSync(new URL("./fixtures/runes.parity.base.json", import.meta.url), "utf8")) as Fixture;
 /** NUM-1: a fixture deck in this build's units (hullBonus, the one damage-family field a Build holds, x10). */
 const num1 = (b: Build): Build => ({ ...b, hullBonus: b.hullBonus * 10 });
+/** NUM-2 (cap's oracle ec91a967c21f4c7b): the exceptions' rules version (the tripwire) and the decks SPEED changed. */
+const EXCEPTIONS_RULES = "bb-0.8.7";
+const NUM2_DECKS_DIFFER: string[] = [
+  "foundry-v0-d7", "bastion-v0-d3", "bastion-v0-d7", "bastion-v0-d9", "bastion-v1-d6", "bastion-v1-d7", "bastion-v1-d8",
+  "bastion-v1-d10", "bastion-v2-d5", "bastion-v2-d9", "bastion-v2-d10",
+]; // measured on num2: 11 of the pool's 120 decks; every FURNACE / WEAVER ghost and every dusk stand-in still the fixture's
 const MAX_TICKS = 200_000; // far past BATTLE_CAP; a battle that has not ended by then is a failure
 
 /** The generator's fight, verbatim: one battle stepped to its end. */
@@ -96,15 +102,21 @@ describe("RUNES-1 parity: the base's fixture and its decks", () => {
   it("its decks are this build's seed pool and dusk stand-ins, deck for deck, and none holds runes", () => {
     const pool = generateSamplePool();
     expect(pool).toHaveLength(120);
+    // NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): the par player rates SPEED's whole speeds and
+    // steps, so a few par-field dusk decks of the pool's FOUNDRY / BASTION runs come out differently; NUM2_DECKS_DIFFER pins
+    // exactly which, every other deck still equals the fixture's, and R6 re-records the fixture and deletes the list
+    const differ: string[] = [];
     for (const s of pool) {
       const k = `${s.hero}-v${s.playerId.slice(-1)}-d${s.day}`;
-      expect(s.build, k).toEqual(num1(F.decks[k])); // NUM-1: the fixture's deck in this build's units
+      if (!isDeepStrictEqual(s.build, num1(F.decks[k]))) differ.push(k); // NUM-1: the fixture's deck in this build's units
       expect((s as { runes?: unknown }).runes, k).toBeUndefined();
     }
     for (let day = 1; day <= 10; day++) {
       const id = standInGhost(F.standInRun, day);
-      expect(standInBuild(id, day), `${id} d${day}`).toEqual(num1(F.decks[`standin-${id}-d${day}`]));
+      if (!isDeepStrictEqual(standInBuild(id, day), num1(F.decks[`standin-${id}-d${day}`]))) differ.push(`standin-${id}-d${day}`);
     }
+    expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
+    expect(differ, differ.join(", ")).toEqual(NUM2_DECKS_DIFFER);
     for (const [k, b] of Object.entries(F.decks)) expect("runes" in b, k).toBe(false);
   }, 120_000);
 });
@@ -127,6 +139,10 @@ describe("RUNES-1 parity: the battles", () => {
       }
     }
     console.log(`runes parity (NUM-1): ${F.battles.length} battles replayed in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${flipped.length} winners flipped against the base c57de36, ${exact} rows exactly as the base\n${flipped.join("\n")}`);
-    expect(flipped.length, `${flipped.length} of ${F.battles.length} winners flipped (at most 7: 2%)`).toBeLessThanOrEqual(7);
+    // NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): the cap was NUM-1's 7 (2%); SPEED's whole
+    // speeds and carried timers flip 25 (the measured count: the seeds are fixed; NUM-2's parity bench 7.25%, W/output-num2
+    // /bench). Under this rules version only (the tripwire); R6 re-records the fixture and restores the exact check
+    expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
+    expect(flipped.length, `${flipped.length} of ${F.battles.length} winners flipped (at most 25 under NUM-2)`).toBeLessThanOrEqual(25);
   }, 120_000);
 });

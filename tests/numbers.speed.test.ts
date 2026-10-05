@@ -123,6 +123,58 @@ describe("NUM-2 SPEED: the timers carry their remainder (Battle.chambers, Battle
     console.log(`NUM-2 120 s shots: ${seen.join("; ")}`);
   });
 
+  // cap's oracle ec91a967c21f4c7b item 1: the carried remainder banks no time. A gun's shot timer stops within one tick
+  // below 0 and a stalled factory's stamp timer is reset to 0, so after 5 s starved (or stalled) each fires ONCE when fed,
+  // then once more one interval later (within a tick), with nothing in between: no burst
+  it("no burst: a turret starved for 5 s and a factory stalled for 5 s fire once when fed, then once more one interval later", () => {
+    const dt = 1 / 60;
+    // the turret: FURNACE's SCRAP CANNON (speed 30, 1 s), no loads for 5 s, then a full window at once
+    const bt = quietBattle(heroStartBuild("furnace", 1));
+    const s = bt.sides[0], tu = s.turrets[0];
+    let proto: unknown;
+    while (!proto && bt.t < 10) { bt.step(); bt.events.length = 0; proto = s.routes.flatMap((r) => r.ammo)[0]?.p; }
+    const startFed = bt.t + 5;
+    while (bt.t < startFed) { for (const r of s.routes) r.ammo.length = 0; tu.stack.length = 0; bt.step(); bt.events.length = 0; }
+    expect(tu.fireCd).toBeLessThanOrEqual(0);
+    expect(tu.fireCd).toBeGreaterThan(-dt - 1e-12); // the timer stopped within one tick below 0: nothing banked
+    for (let k = 0; k < tu.window; k++) tu.stack.push({ ...(proto as object), id: bt.newId() } as never);
+    const fedAt = bt.t, shots: number[] = [];
+    while (bt.t < fedAt + 1.5 * tu.interval) {
+      for (const r of s.routes) r.ammo.length = 0;
+      bt.step();
+      for (const e of bt.events) if (e.type === "fire" && e.side === 0 && e.turret === tu.index) shots.push(bt.t);
+      bt.events.length = 0;
+    }
+    expect(shots.length, `shots at ${shots.map((t) => (t - fedAt).toFixed(3)).join(", ")}`).toBe(2);
+    expect(shots[0] - fedAt).toBeLessThanOrEqual(dt + 1e-9); // once when fed (the next tick)
+    expect(Math.abs(shots[1] - shots[0] - tu.interval)).toBeLessThanOrEqual(dt + 1e-9); // once more an interval later
+    // the factory: FURNACE's KILN (speed 24, 1.25 s), its mouth blocked for 5 s (the stall path), then its belts clear
+    const bf = quietBattle(heroStartBuild("furnace", 1));
+    const sf = bf.sides[0], f = sf.factories.find((x) => x.def.id === "kiln")!;
+    let slug: unknown;
+    while (!slug && bf.t < 10) { bf.step(); bf.events.length = 0; slug = sf.routes.flatMap((r) => r.ammo)[0]?.p; }
+    const blockEnd = bf.t + 5;
+    const mine = sf.routes.filter((r) => r.factory === f.uid);
+    expect(mine.length).toBeGreaterThan(0);
+    while (bf.t < blockEnd) {
+      for (const r of mine) r.ammo.splice(0, r.ammo.length, { p: { ...(slug as object) }, s: 0, processed: -1, blocked: false } as never);
+      bf.step();
+      bf.events.length = 0;
+    }
+    expect(f.stalled).toBe(true);
+    const interval = secPer(f.def.factory!.speed), stamps: number[] = [], freedAt = bf.t;
+    let made = f.produced;
+    while (bf.t < freedAt + 1.5 * interval) {
+      for (const r of mine) r.ammo.length = 0;
+      bf.step();
+      if (f.produced !== made) { stamps.push(bf.t); made = f.produced; }
+      bf.events.length = 0;
+    }
+    expect(stamps.length, `stamps at ${stamps.map((t) => (t - freedAt).toFixed(3)).join(", ")}`).toBe(2);
+    expect(stamps[0] - freedAt).toBeLessThanOrEqual(dt + 1e-9); // once when its belts clear (the next tick)
+    expect(Math.abs(stamps[1] - stamps[0] - interval)).toBeLessThanOrEqual(dt + 1e-9);
+  });
+
   it("over 120 s a factory whose belts never back up stamps 120 x speed / 30 slugs, within one (KILN and LOOM, FACTORY 1-4)", () => {
     for (const hero of ["furnace", "weaver"] as HeroId[]) for (const level of [1, 2, 3, 4]) {
       const b = heroStartBuild(hero, 1);

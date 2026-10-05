@@ -62,14 +62,27 @@ export const REASONS: Record<Reason, string> = {
 // deadaudit/CLASSIFY.md): 31 rows sub-point and 5 kill edge take their physics reason in WHY (starved; GREASE WORKS on
 // BASTION the new stampPaced); 210 rows (38 pairs) are lost (damage, Burn and the foe's hull moved 0.1-1.97 base units
 // with the same shots) and keep num1Open. INERT itself is unchanged.
-// NUM-2 (REQ-BFG-047, SPEED; 3cf09080186f8f84's procedure applied again, provisionally: oracle ec91a967c21f4c7b): INERT
-// re-pinned from the audit's num2 rows (W/output-num2/deadaudit-num2). SPEED's whole speeds and carried timers move every
-// gun's and factory's cadence by up to 4%, so the audit moves both ways on every hero. NEW inert pairs take num2Open
-// (NUM2_OPEN below, read before WHY). Pairs that TURNED LIVE are dropped, each because SPEED moved its fight, not with a
-// kill-edge note: FOUNDRY calibrate 7-9, spikegun 9, twinneedle 2-4, railgun 4, escapement 9, steambreech 9; BASTION
-// deckgun 5-6 and 10, siegegun 2-3, grease 5-6; FURNACE calibrate, scrapcannon, rampart, swivel, deckgun and steambreech
-// 7-10; WEAVER railgun 1, 3-4, grease 2-6; METRONOME calibrate 5-6, rampart 1-2, siegegun 1-2; SIPHON scrapcannon,
-// rampart and bombard 1-10, railgun 5-10. Their WHY entries stay (unread on a live day) for the classification.
+// NUM-2 (REQ-BFG-047, SPEED; cap's oracles ec91a967c21f4c7b and 3cf09080186f8f84): INERT re-pinned from the audit's num2
+// rows (W/output-num2/deadaudit-num2). SPEED's whole speeds and carried timers move every gun's and factory's cadence by
+// up to 4%, so the audit moves both ways on every hero. NEW inert pairs take num2Open (NUM2_OPEN below, read before WHY);
+// classifying them against num1u (sub-point, kill edge, lost) is NUM-3's first item, and R6 may not bump with any num1Open
+// or num2Open left (tests/deadOffers.open.test.ts). Pairs that TURNED LIVE are dropped, one line each; their WHY entries
+// stay, unread on a live day:
+// - foundry calibrate 7-9: live under SPEED (whole speeds, carried timers)
+// - foundry spikegun 9: live under SPEED
+// - foundry twinneedle 2-4: live under SPEED
+// - foundry railgun 4: live under SPEED
+// - foundry escapement 9: live under SPEED
+// - foundry steambreech 9: live under SPEED
+// - bastion deckgun 5-6, 10: live under SPEED
+// - bastion siegegun 2-3: live under SPEED
+// - bastion grease 5-6: live under SPEED
+// - furnace calibrate, scrapcannon, rampart, swivel, deckgun, steambreech 7-10: each live under SPEED
+// - weaver railgun 1, 3-4: live under SPEED
+// - weaver grease 2-6: live under SPEED
+// - metronome calibrate 5-6, rampart 1-2, siegegun 1-2: each live under SPEED
+// - siphon scrapcannon, rampart, bombard 1-10: each live under SPEED
+// - siphon railgun 5-10: live under SPEED
 export const INERT: Record<HeroId, Record<string, number[]>> = {
   foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], scrapcannon: [1, 2, 3, 4, 5, 6], rampart: [1, 2, 3, 4, 5, 6], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6], twinneedle: [1, 5, 6], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], railgun: [1, 3, 6], bombard: [1, 2, 3, 4, 5, 6], siegegun: [1, 2, 3, 4, 5, 6], thunderer: [1, 2, 3, 4, 5, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 10], bellows: [6, 7, 8, 10] },
   bastion: { bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7], scrapcannon: [1, 2, 3], deckgun: [1, 2, 3, 4], siegegun: [1, 4], thunderer: [1, 2, 3, 4], longcase: [2, 3, 4], calibrate: [4], rampart: [4], swivel: [4], steambreech: [4], overclocker: [5, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10] },

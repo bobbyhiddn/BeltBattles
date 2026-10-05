@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { simulate } from "../src/sim/battle";
 import { startingBuild } from "../src/sim/ai";
 import type { Build } from "../src/sim/deck";
-import type { HeroId } from "../src/sim/content";
+import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import {
   DIFFICULTIES, MATRIARCH_DAY, RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, difficultyOf, rivalBuild,
   rivalDays, standInBuild, type Difficulty, type RivalId,
@@ -48,6 +48,24 @@ const B1_EXCEPTIONS: readonly { id: RivalId; day: number; gap: number; ceiling: 
 const NUM1_EXCEPTIONS: readonly { day: number; easy: RivalId; hard: RivalId; gap: number; ceiling: number }[] = [
   { day: 1, easy: "nettle", hard: "mothqueen", gap: -0.0003, ceiling: 0.01 },
 ];
+/**
+ * NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): open items of the Easy-above-Hard order and of
+ * "from day 2 a par deck loses to Hard", in NUM1_EXCEPTIONS' form and ceiling rule (the measured value; the ceiling the
+ * next 0.01 step at or above it). SPEED's whole speeds and carried timers moved them, with no rival or number changed
+ * (num1u -> num2 parity 7.25%). R6's balance bench restores the order, then deletes these entries and their pin tests.
+ */
+const NUM2_EXCEPTIONS: readonly { day: number; easy: RivalId; hard: RivalId; gap: number; ceiling: number }[] = [
+  { day: 1, easy: "nettle", hard: "karsk", gap: -0.0217, ceiling: 0.03 }, // num2: NETTLE +0.241, KARSK +0.263
+  { day: 8, easy: "nettle", hard: "karsk", gap: -0.0021, ceiling: 0.01 }, // num2: NETTLE +0.100, KARSK +0.102
+];
+/** NUM-2: Hard's mean margin against the par field on these days, measured on num2 (must be < 0 elsewhere from day 2). */
+const NUM2_HARD_EXCEPTIONS: readonly { day: number; margin: number; ceiling: number }[] = [
+  { day: 5, margin: 0.0150, ceiling: 0.02 },
+  { day: 6, margin: 0.0120, ceiling: 0.02 },
+];
+/** The rules version these exceptions were measured under: the tripwire (cap's ec91a967c21f4c7b) goes red at the next
+ *  bump, until R6 removes every exception above. */
+const EXCEPTIONS_RULES = "bb-0.8.7";
 const REFS = new Map<number, Build[]>();
 const refsOf = (day: number): Build[] => {
   if (!REFS.has(day)) REFS.set(day, parField("furnace", day, REF_K));
@@ -159,18 +177,29 @@ describe("warlord difficulty ladder, day by day (reference = the FURNACE par fie
       for (const a of slotOn("easy", day)) {
         for (const b of slotOn("hard", day)) {
           if (NUM1_EXCEPTIONS.some((x) => x.day === day && x.easy === a && x.hard === b)) continue; // NUM-1's open item
-          if (!(score(a, day).margin > score(b, day).margin)) violations.push(`day ${day}: ${a} ${fmt(score(a, day))} vs ${b} ${fmt(score(b, day))}`);
+          if (NUM2_EXCEPTIONS.some((x) => x.day === day && x.easy === a && x.hard === b)) continue; // NUM-2's open item
+          if (!(score(a, day).margin > score(b, day).margin)) violations.push(`day ${day}: ${a} ${fmt(score(a, day))} vs ${b} ${fmt(score(b, day))} gap ${(score(a, day).margin - score(b, day).margin).toFixed(4)}`);
         }
       }
     }
-    expect(violations).toEqual([]);
+    expect(violations, violations.join("; ")).toEqual([]);
   });
 
   it("NUM-1's open items (NUM1_EXCEPTIONS): each pinned pair's Easy margin minus Hard's stays at or above -ceiling", () => {
+    expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
     for (const x of NUM1_EXCEPTIONS) {
       const e = score(x.easy, x.day), h = score(x.hard, x.day);
       expect(e.margin - h.margin, `day ${x.day}: ${x.easy} ${fmt(e)} vs ${x.hard} ${fmt(h)}`).toBeGreaterThanOrEqual(-x.ceiling);
     }
+  });
+
+  it("NUM-2's open items (NUM2_EXCEPTIONS, NUM2_HARD_EXCEPTIONS): each stays within its ceiling; R6 removes them", () => {
+    expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
+    for (const x of NUM2_EXCEPTIONS) {
+      const e = score(x.easy, x.day), h = score(x.hard, x.day);
+      expect(e.margin - h.margin, `day ${x.day}: ${x.easy} ${fmt(e)} vs ${x.hard} ${fmt(h)}`).toBeGreaterThanOrEqual(-x.ceiling);
+    }
+    for (const x of NUM2_HARD_EXCEPTIONS) expect(slotMean("hard", x.day).margin, `day ${x.day} hard`).toBeLessThanOrEqual(x.ceiling);
   });
 
   // 0.6.2 TUNE-C: Hard from day 2. On day 1 the Hard warlords read 41% against the FURNACE par field (K 24;
@@ -180,7 +209,8 @@ describe("warlord difficulty ladder, day by day (reference = the FURNACE par fie
   it("every day: a par deck beats Easy on average (mean margin > 0); from day 2 it loses to Hard (< 0)", () => {
     for (const day of DAYS) {
       expect(slotMean("easy", day).margin, `day ${day} easy`).toBeGreaterThan(0);
-      if (day >= 2) expect(slotMean("hard", day).margin, `day ${day} hard`).toBeLessThan(0);
+      // NUM-2: days 5 and 6 are NUM2_HARD_EXCEPTIONS (measured +0.015 / +0.012), pinned by the open-item test above
+      if (day >= 2 && !NUM2_HARD_EXCEPTIONS.some((x) => x.day === day)) expect(slotMean("hard", day).margin, `day ${day} hard`).toBeLessThan(0);
     }
   });
 

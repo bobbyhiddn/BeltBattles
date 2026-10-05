@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { hashSeed } from "../src/core/rng";
 import { simulate } from "../src/sim/battle";
-import { POOL_RULES, type HeroId } from "../src/sim/content";
+import { POOL_RULES, RULES_VERSION, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { POOL_NATIVE, poolLoss, poolRaw } from "./beltside.helpers";
@@ -98,6 +98,18 @@ async function parVsPar(hero: HeroId, day: number): Promise<{ vsPar: number; sam
  * restores the exact toBe(stored). Don't widen it: a par that misses stays red.
  */
 const PAR_TOLERANCE = 0.02;
+/**
+ * NUM-2 (REQ-BFG-047, SPEED; cap's oracle ec91a967c21f4c7b, option B): the spread pars past PAR_TOLERANCE on num2, each
+ * with its stored and re-simulated vsPar. SPEED's whole speeds and carried timers changed the par field these pars are
+ * re-simulated against (no stand-in, par deck or number changed). The seeds are fixed, so the re-simulated value is
+ * pinned exactly; every other par keeps the tolerance. R6 regenerates the pool, then deletes these and the tripwire.
+ */
+const NUM2_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {
+  "weaver|4": { stored: 0.5917, resim: 0.3833 }, // the biggest band move NUM-2 measured (-0.2084)
+  "weaver|9": { stored: 0.5275, resim: 0.4917 }, // -0.0358 (furnace d2 -0.015 and d7 -0.0042 stay inside the tolerance)
+};
+/** The rules version the exceptions were measured under (the tripwire: red at the next bump until R6 removes them). */
+const EXCEPTIONS_RULES = "bb-0.8.7";
 
 /** Step 5 M5: test 2 for a caravan pool: the spread's pars re-simulated exactly, and every par at least parFloor and
  *  inside the header's --par-band, unless its hero/day is listed short. */
@@ -109,6 +121,12 @@ async function caravanPars(): Promise<void> {
     const diff = r4(r4(r.vsPar) - stored); // NUM-1 (oracle 03f2cc3c1884e806): stored, re-simulated and their difference, per par
     lines.push(`${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff} (10-seed sample ${r4(r.sample)}${r.idx === undefined ? "" : `, robust re-play of candidate #${r.idx}`}; ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
     console.log(`stand-in par ${hero} d${day}: stored ${stored}, re-simulated ${r4(r.vsPar)}, difference ${diff}`);
+    const ex = NUM2_PAR_EXCEPTIONS[`${hero}|${day}`];
+    if (ex) { // NUM-2's open item: pinned exactly, under this rules version only
+      expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
+      expect([stored, r4(r.vsPar)], `${hero} d${day}: NUM2_PAR_EXCEPTIONS`).toEqual([ex.stored, ex.resim]);
+      continue;
+    }
     expect(Math.abs(diff), `${hero} d${day}: its stored vsPar ${stored}, re-simulated against the par field ${r4(r.vsPar)}: within ${PAR_TOLERANCE}`).toBeLessThanOrEqual(PAR_TOLERANCE);
   }
   for (const hero of STAND_IN_POOL_HEROES) {
