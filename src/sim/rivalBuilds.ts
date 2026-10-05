@@ -242,7 +242,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // days 6-10 (the WEAVER par field's 3/4/5/5/7; a day-7 pack: her road deck's FACTORY level 2 would leave again)
       // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37): at ordinary luck the flak on day 5 (was 4; WEAVER's ordinary rare
       // cap is 2 on day 4); soon() keeps the warlord's day 4
-      soon(4, M(5, "flak", 0)), soon(5, G(6, "splitter", 2, 4, 2)), P(6), G(7, "staticbrush", 0, 1), soon(6, G(8, "riveter", 5, 1)),
+      soon(4, M(5, "flak", 0)), P(6),
+      // REDO-X (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the SPLITTER (synergy; captains.synergy
+      // still passes) on day 7 (was 6; WEAVER's ordinary epic+ cap is 0 on day 6); soon() keeps the warlord's day 5; right
+      // after P(6), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      soon(5, G(7, "splitter", 2, 4, 2)), G(7, "staticbrush", 0, 1), soon(6, G(8, "riveter", 5, 1)),
       P(8, 2), ...good(G(9, "counterweight", 2, 0)), soon(9, G(10, "venom", 0, 0)), ...good(G2(10, "temper", 3, 1)), P(10, 2),
     ],
     // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 46% on day 7 with 3 of the 4 packs: one PvE plate that day
@@ -279,13 +283,15 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // FLIP-X2 (REVIEW-NUM3 answer 2; oracle 77e35129477cb4ca): SIFTER dormant, its sifter removed (value -3 g from day 4)
       G(2, "coil", 3, 1, 1), G(2, "temper", 3, 0, 1), G(3, "lodestone", 5, 1), G(3, "whetstone", 1, 3, 1),
       // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37): at ordinary luck the surge valve on day 6 (was 5; FURNACE's
-      // ordinary rare cap is 3 on day 5) and the TESLA core (synergy; captains.synergy still passes) on day 8 (was 7;
-      // FURNACE's ordinary epic+ cap is 0 on day 7); soon() keeps the warlord's days 5 and 7
-      // ... re-placed in day order (cap's ruling 1cfdc5fff106d58f): right after the last entry with an earlier day
+      // ordinary rare cap is 3 on day 5); soon() keeps the warlord's day 5; right after P(5), the last entry with an
+      // earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
       G(3, "tollbooth", 5, 2, 3), P(3), G(4, "longhaul", 4, 3, 1), P(5), soon(5, G(6, "surge", 1, 5)),
       // bb-0.8.3 (job BELTS run 4): no DART GUN (was day 9): no ordinary FURNACE turret on any day under the regenerated caps
       // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/2/2/2/5/7 on days 3-10 (the FURNACE par field's 1/1/2/3/4/5/6/7: his day-7
       // TESLA core leaves no gold for more beside his gold upgrades until day 9)
+      // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37): at ordinary luck the TESLA core (synergy; captains.synergy still
+      // passes) on day 8 (was 7; FURNACE's ordinary epic+ cap is 0 on day 7); soon() keeps the warlord's day 7; right after
+      // G2(7, coil), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
       G2(7, "coil", 3, 1), soon(7, M(8, "tesla", 0)), G2(8, "temper", 3, 0), P(9, 3), P(10, 2),
     ],
   },
@@ -342,7 +348,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // days 7-10 (the FURNACE par field's count), as his stand-in's gold allows; his good-luck road deck pays for them
       // with its TURRET SPEED level 2 (day 8 before; no later day's gold holds it)
       soon(5, G(6, "longhaul", 5, 1)), soon(6, M(7, "flak", 0)), P(7), P(8), soon(7, G(9, "counterweight", 1, 2)),
-      soon(7, G(9, "grease", 1, 4, 1)), M2(9, "scatter", 0), ...good(G(9, "staticbrush", 5, 2)), P(9), P(10),
+      M2(9, "scatter", 0), ...good(G(9, "staticbrush", 5, 2)), P(9),
+      // REDO-X (cap's ruling 97e639e5813acb37): at ordinary luck the grease on day 10 (was 9; FURNACE's ordinary value cap
+      // is 103 on day 9, his stand-in 104 with it; the day's cheapest non-synergy part); soon() keeps the warlord's day 7;
+      // right after P(9), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      soon(7, G(10, "grease", 1, 4, 1)), P(10),
     ],
   },
   // ---------------------------------------------------------------- Hard (tier 3)
@@ -425,7 +435,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // rare cap is 2 on day 4); soon() keeps the warlord's day 3
       // ... re-placed in day order (cap's ruling 1cfdc5fff106d58f): right after the last entry with an earlier day
       G(4, "longhaul", 7, 3), G(4, "tollbooth", 9, 3, 3), G2(4, "longhaul", 7, 3), soon(3, G(5, "venom", 0, 0)),
-      soon(5, G(6, "splitter", 3, 4)), G2(6, "temper", 0, 2), soon(6, G(7, "barbed", 2, 0)), P(7),
+      G2(6, "temper", 0, 2),
+      // REDO-X (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the SPLITTER (synergy; captains.synergy
+      // still passes) on day 7 (was 6; WEAVER's ordinary epic+ cap is 0 on day 6); soon() keeps the warlord's day 5; right
+      // after G2(6, temper), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      soon(5, G(7, "splitter", 3, 4)), soon(6, G(7, "barbed", 2, 0)), P(7),
       // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 1/2/4/4 on days 7-10 (the WEAVER par field's
       // 4/5/5/7), as her stand-in's gold allows beside its gold upgrade; her good-luck road deck takes its FACTORY level 2
       // on day 8 (was 7) to pay for them
@@ -623,8 +637,15 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // the uniform rule's levels are 20 gold from day 8) the long haul on day 10 (was 8), and no RAMPART and DOUBLE STAMP
       // (were day 10: the stamp fed the rampart's slot)
       // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2 on days 8-10 (the FURNACE par field's 5/6/7: his deck spends the rest)
-      G(7, "counterweight", 4, 3), P(8), G(9, "quench", 4, 2), G2(9, "temper", 2, 2), G(9, "grease", 2, 4, 2),
-      G(9, "temper", 6, 4, 3), G(10, "longhaul", 4, 4), P(10),
+      G(7, "counterweight", 4, 3), P(8), G(9, "quench", 4, 2), G(9, "grease", 2, 4, 2),
+      // REDO-X (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the temper's second star on day 10 (was
+      // 9; FURNACE's ordinary star2 cap is 2 on day 9; a non-synergy part); soon() keeps day 9 at good luck; right after
+      // G(9, grease), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      soon(9, G2(10, "temper", 2, 2)),
+      // REDO-X (cap's ruling e778dc5d38efd5fd): at ordinary luck the second temper on day 10 with the temper's second star
+      // (was 9; alone on day 9 it would sit beside the first ★1 temper as an unfused pair); soon() keeps day 9 at good
+      // luck; right after soon(9, G2(10, "temper", 2, 2)); re-placed in day order (cap's ruling 1cfdc5fff106d58f)
+      soon(9, G(10, "temper", 6, 4, 3)), G(10, "longhaul", 4, 4), P(10),
     ],
   },
   // LEAF MAIL: a PLATE ROLLER on the loom's left belt plates her hull from day 1, and plated her guns fire faster.
