@@ -31,6 +31,7 @@ import { warlordHull } from "./ai";
 import { migrateDeck } from "./beltside";
 import { FUSE_MAX, starsOf, upgradeGold, valueOf } from "./stars";
 import type { RivalId } from "./rivals";
+import { runeGrants } from "./runes"; // BOTS-X (REQ-BFG-058): a captain's HULL and BELT runes (captainRunesOn)
 
 /** Belt cells from (x, y) following moves such as "L3U2" (U = toward the turrets, row 0). */
 export function walk(x: number, y: number, moves = ""): number[] {
@@ -625,6 +626,27 @@ export const CAPTAIN_LEVELS: Readonly<Record<HeroId, Partial<Record<UpgradeTrack
   bastion: { factory: [7], turret: [7] },
   metronome: {}, siphon: {},
 };
+
+/**
+ * BOTS-X (REQ-BFG-058; RUNES-2a 3 step 5's code, R1b-2 1.6): each captain's runes in pick order (entry i taken at the dawn
+ * of day i + 1), which rivals.ts rivalBuild holds up to its day (captainRunesOn). EMPTY until FLIP-X pins
+ * tools/genCaptainRunes.ts's output here (captainRunesText: every captain's 10 picks on its seed hashSeed("captain-runes",
+ * id), each prefix passing runeProblem with it) when it turns BOT_RUNES on: a captain with no list holds no runes, so
+ * every captain build is exactly as before (tests/botsx.runes.test.ts).
+ */
+export const CAPTAIN_RUNES: Readonly<Partial<Record<RivalId, readonly string[]>>> = {};
+
+/**
+ * BOTS-X: `build` holding a captain's runes up to `day`: Build.runes = the first `day` ids of `list` as { id } in pick
+ * order (the last key), the HULL runes' hull added to hullBonus and the BELT runes' belt to beltCap (runes.ts runeGrants,
+ * as botTakeRune and run.ts takeRune apply a pick). No list, an empty one or no rune by `day`: `build` itself, untouched.
+ */
+export function captainRunesOn(build: Build, list: readonly string[] | undefined, day: number): Build {
+  const ids = (list ?? []).slice(0, Math.max(0, Math.floor(day)));
+  if (!ids.length) return build;
+  const runes = ids.map((id) => ({ id })), grant = runeGrants(runes, day);
+  return { ...build, hullBonus: build.hullBonus + grant.hull, beltCap: build.beltCap + grant.belt, runes };
+}
 
 /** bb-0.8.3 (D7'): a captain's levels on `day` within `room` gold (FACTORY first, then TURRET SPEED); undefined: none. */
 export function captainLevels(hero: HeroId, day: number, room: number): Upgrades | undefined {

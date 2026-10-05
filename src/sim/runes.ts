@@ -568,12 +568,16 @@ export function boardThemeCount(theme: RuneTheme, board: Build): number {
  * 1. an offered rune of the hero's style (HERO_STYLE; the NPC races have none);
  * 2. else the offered rune whose theme matches the most pieces on `board` (boardThemeCount);
  * 3. else (no offered theme matches a piece) catalogue order.
- * Every tie goes by catalogue order (RUNE_LIST), so the pick never depends on the offer's card order. No RNG. Null for an
- * empty offer. Works for any catalogue: a theme boardThemeCount doesn't know counts 0.
+ * Every tie goes by catalogue order (runeList(): RUNE_LIST, then the sustain runes while the sustain switch is on), so the
+ * pick never depends on the offer's card order. No RNG. Null for an empty offer. Works for any catalogue: a theme
+ * boardThemeCount doesn't know counts 0. BOTS-X (REVIEW-SUSD F-c, SUS-D finding 7): the cards are the offered runes of
+ * runeList(), the list the dawn offers from, so with the switch on a bot sees an offered sustain rune and its style takes
+ * BULWARK WARD and TICK GUARD for BASTION, TWIN SALVE for FOUNDRY, GREEN THREAD for WEAVER, SEARING and SHATTER SHOT for
+ * FURNACE; with it off runeList() is RUNE_LIST itself, so every pick is as before.
  */
 export function botRunePick(offer: RuneOffer | readonly string[], hero: HeroId, board: Build): string | null {
   const ids: readonly string[] = "ids" in offer ? offer.ids : offer;
-  const cards = RUNE_LIST.filter((d) => ids.includes(d.id));
+  const cards = runeList().filter((d) => ids.includes(d.id));
   if (!cards.length) return null;
   const own = HERO_STYLE[hero];
   const mine = cards.find((d) => d.theme === own);

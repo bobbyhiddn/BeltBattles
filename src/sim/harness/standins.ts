@@ -35,6 +35,7 @@ import {
   CARAVAN_MIX, CARAVAN_POLICY, caravanCandidate, caravanGauntlet, caravanGauntletSeedOf, caravanSeedOf, type CaravanMeta, type StandInSource,
 } from "./caravan";
 import { BOT_RUNES } from "../runes"; // RUNES-2a (REQ-BFG-058): THE switch (standInCommand prints a departure from it)
+import { runeGrants } from "../runes"; // BOTS-X (REQ-BFG-058): the runes' HULL and BELT, out of a candidate's value
 import { fullPurseBuild, spendFloor, type FullPurse } from "./gen";
 import { parRefs, type ParSource } from "./par";
 import type { Cores, Factories, Stars } from "./shopper";
@@ -308,12 +309,22 @@ export interface GenHooks {
   save?: (day: number, r: DayResult) => void;
 }
 
-/** Step 5: a caravan candidate as the generator scores it: its deck normalised through the stored code (Build.turrets
- *  and joins pass through), its value as the cost, its run's gold (spend floor) and meta. */
+/** BOTS-X (REQ-BFG-058; RUNES-2a 3 step 2): the bought deck's value, as ./caravan.ts caravanDeck values a candidate and
+ *  validate.ts budgets a deck: buildCost with the HULL and BELT its runes gave taken out of hullBonus / beltCap (they
+ *  don't depend on the day). Without runes (or without a HULL or BELT rune) exactly buildCost(b).total. */
+export function boughtCost(b: Build): number {
+  const grant = runeGrants(b.runes, 0);
+  return (grant.hull || grant.belt ? buildCost({ ...b, hullBonus: b.hullBonus - grant.hull, beltCap: b.beltCap - grant.belt }) : buildCost(b)).total;
+}
+
+/** Step 5: a caravan candidate as the generator scores it: its deck normalised through the stored code (Build.turrets,
+ *  joins and, BOTS-X, Build.runes pass through), its value as the cost, its run's gold (spend floor) and meta. BOTS-X:
+ *  the value is the bought deck's (boughtCost), as caravanDeck's, so a rune's HULL or BELT is not charged as plating
+ *  or crates; a rune-less deck costs buildCost exactly as before. */
 export function caravanCand(idx: number, d: { build: Build; floorMet: boolean; meta: CaravanMeta }, stars: Stars = "on"): Cand {
   if (stars !== "on") throw new Error("the caravan source needs stars on: the par player merges its copies");
   const build = norm(d.build, stars);
-  return { idx, build, code: standInCodeOf(build, stars), cost: buildCost(build).total, tries: 1, floorMet: d.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0, caravan: { ...d.meta } };
+  return { idx, build, code: standInCodeOf(build, stars), cost: boughtCost(build), tries: 1, floorMet: d.floorMet, score: 0, pct: 0, vsRef: {}, vsPar: 0, caravan: { ...d.meta } };
 }
 
 export async function genStandIns(o: StandInOpts, run: Runner, log?: (m: string) => void, hooks?: GenHooks): Promise<{ days: HeroDay[]; battles: number }> {
@@ -545,6 +556,9 @@ export function writtenPicks(text: string): WrittenPick[] {
  * buildCost of that deck, and the deck passes validateBuild, has no unfused pair and fits the day's
  * gold. Step 5 M5: a caravan pool's tuple stores the scored candidate's gold spent (spentOf), a
  * full-purse pool's stores none. Returns one message per problem (empty: the module is what was scored).
+ * BOTS-X (REQ-BFG-058): the cost and the day's gold are the bought deck's, as caravanCand stores it (boughtCost: its
+ * runes' HULL and BELT out) against maxGoldByDay + its runes' dawn gold (runeGrants), as validate.ts budgets a deck;
+ * without runes both are exactly as before.
  */
 export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): string[] {
   const got = writtenPicks(text), problems: string[] = [];
@@ -557,7 +571,7 @@ export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): 
     let back: Build;
     try { back = decodeStandInCode(hd.hero, w.code, o.stars); } catch (e) { problems.push(`${at}: stored code does not decode (${String(e)})`); continue; }
     if (JSON.stringify(back) !== JSON.stringify(p.build)) problems.push(`${at}: stored code decodes to a different deck than the one scored (cost ${buildCost(back).total} vs ${buildCost(p.build).total})`);
-    if (buildCost(back).total !== w.cost) problems.push(`${at}: stored cost ${w.cost} != buildCost of the stored deck ${buildCost(back).total}`);
+    if (boughtCost(back) !== w.cost) problems.push(`${at}: stored cost ${w.cost} != boughtCost of the stored deck ${boughtCost(back)}`); // BOTS-X: boughtCost
     // step 5 M5: a caravan pool stores the gold spent the spend floor counted; a full-purse pool stores no sixth element
     const spent = sourceOf(o) === "caravan" ? spentOf(p) : undefined;
     if (w.spent !== spent) problems.push(`${at}: stored spent ${w.spent ?? "(none)"} != the scored candidate's gold spent ${spent ?? "(none: a full-purse pool stores five elements)"}`);
@@ -566,7 +580,8 @@ export function writtenProblems(o: StandInOpts, days: HeroDay[], text: string): 
     if (o.stars === "on") for (const u of unfusedPairs(back)) problems.push(`${at}: stored deck has an ${u}`);
     if (o.stars === "on" && maxStarsOf(back) > STANDIN_MAX_STARS) problems.push(`${at}: stored deck holds a ${maxStarsOf(back)}-star module (stand-ins stop at ${STANDIN_MAX_STARS})`);
     // fix pass: the deck + the candidate's cargo (a stored code holds the deck only; cargoGold is 0 unless cores on)
-    if (buildCost(back).total + (p.cargoGold ?? 0) > maxGoldByDay(hd.day)) problems.push(`${at}: stored deck${p.cargoGold ? ` + cargo ${p.cargoGold} g` : ""} costs more than maxGoldByDay`);
+    // BOTS-X: the bought deck against the day's gold plus its runes' dawn gold
+    if (boughtCost(back) + (p.cargoGold ?? 0) > maxGoldByDay(hd.day) + runeGrants(back.runes, hd.day).gold) problems.push(`${at}: stored deck${p.cargoGold ? ` + cargo ${p.cargoGold} g` : ""} costs more than maxGoldByDay`);
   }
   return problems;
 }

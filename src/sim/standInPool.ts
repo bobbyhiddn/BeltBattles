@@ -51,6 +51,16 @@
 // Step 5 M5 (REQ-BFG-033: honesty is gold spent): a caravan-bound pool's tuple carries a sixth element, spent (the gold
 // the pick's run spent: deck value + rerolls + sale losses); standInPool returns it as StandInEntry.spent, and the
 // cost for a pool whose tuples have five elements (the full-purse pools up to v2.1).
+// BOTS-X (REQ-BFG-058; RUNES-2a 3 step 2): every code (v1 and star-aware, and the harness codec) carries Build.runes as
+// the head's last word, after the levels' word (upgradeWord): "<beltCap> <hullBonus>[ u<t><f>][ r:<id>,<id>...]".
+//   runes:   "r:" then the held runes' ids in pick order (Build.runes[i], taken at the dawn of day i + 1), comma-separated;
+//            each id is a snapshot id (DEF_PATTERN's shape, [a-z0-9_]{1,32}; this file doesn't read the catalogue, the
+//            snapshot checks' runeProblem does). E.g. "14 0 r:iron_hide,coin_purse/kiln64/1:544434241404/" and
+//            "18 0 u23 r:iron_hide,coin_purse/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1".
+//   Written only when the deck holds a rune (absent or empty: no word), so a rune-less deck encodes byte for byte as
+//   before, and every older code (no head word starts "r:") decodes exactly as before, with no runes key. The runes
+//   key is the decoded build's last (after upgrades), as run.ts writes it. HULL and BELT runes stay inside
+//   hullBonus / beltCap (as run.ts takeRune and runes.ts botTakeRune put them), so the code writes those as they are.
 
 import { GRID, HEROES, ITEMS, type HeroId, type Upgrades } from "./content";
 import { TURRET_UID0, rotOf, setTurretList, startingTurrets, type Build, type BuildTurret, type ModPlacement, type Placed, type RouteDef } from "./deck";
@@ -109,7 +119,7 @@ export function encodeStandIn(b: Build): string {
     return `${f}:${r.cells.map((k) => cellCode(k % GRID, Math.floor(k / GRID))).join("")}`;
   });
   const mods = b.mods.map((m) => `${m.def}${m.turret}`);
-  return `${b.beltCap} ${b.hullBonus}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}`;
+  return `${b.beltCap} ${b.hullBonus}${runeWord(b)}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}`; // BOTS-X: runeWord
 }
 
 /**
@@ -146,6 +156,7 @@ export function decodeStandInRaw(hero: HeroId, code: string): Build {
   if (parts.length > 4) throw new Error(V1_NO_TURRETS);
   const [head, itemPart, routePart, modPart] = parts;
   const [beltCap, hullBonus] = head.split(" ").map(Number);
+  const [, rw] = headWords(head.split(" ").slice(2)); // BOTS-X: the runes' word (v1 reads no levels, as before)
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const items: Placed[] = words(itemPart).map((w, i) => {
     const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?$/.exec(w);
@@ -166,7 +177,7 @@ export function decodeStandInRaw(hero: HeroId, code: string): Build {
     return { uid: items.length + j + 1, def: m[1], turret: Number(m[2]) };
   });
   if (!HEROES[hero]) throw new Error(`stand-in code: unknown hero "${hero}"`);
-  return { hero, items, routes, mods, beltCap, hullBonus };
+  return { hero, items, routes, mods, beltCap, hullBonus, ...runesOf(rw) }; // BOTS-X: the runes, the last key
 }
 
 // 0.6.1g (REQ-BFG-019): the star-aware build code, ported unchanged from the harness v2 codec
@@ -243,7 +254,7 @@ export function encodeStarred(b: Build): string {
     return `${m.def}${m.turret}${suffix(m)}`;
   });
   const turrets = turretWords(b);
-  return `${b.beltCap} ${b.hullBonus}${upgradeWord(b)}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`;
+  return `${b.beltCap} ${b.hullBonus}${upgradeWord(b)}${runeWord(b)}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`; // BOTS-X: runeWord
 }
 
 /**
@@ -263,6 +274,46 @@ export function upgradesOf(word: string | undefined): { upgrades?: Upgrades } {
   if (!m) throw new Error(`stand-in code: bad upgrade word "${word}"`);
   const t = Number(m[1]), f = Number(m[2]);
   return t > 1 || f > 1 ? { upgrades: { ...(t > 1 ? { turret: t } : {}), ...(f > 1 ? { factory: f } : {}) } } : {};
+}
+
+/** BOTS-X: a rune id's shape (src/net/snapshot.ts DEF_PATTERN; the catalogue itself is runeProblem's to check). */
+const RUNE_ID = /^[a-z0-9_]{1,32}$/;
+/** BOTS-X: the runes' head word starts with this. */
+const RUNE_TAG = "r:";
+
+/**
+ * BOTS-X (REQ-BFG-058; RUNES-2a 3 step 2): a deck's runes as the code head's last word, " r:<id>,<id>..." in pick order
+ * (see the header); "" without runes (absent or empty), so a rune-less deck encodes byte for byte as before. Refuses an
+ * entry that is not exactly { id } with an id of DEF_PATTERN's shape, so nothing is dropped silently. Shared with the
+ * harness codec (harness/standinCode.ts), as upgradeWord is.
+ */
+export function runeWord(b: Pick<Build, "runes">): string {
+  if (!b.runes?.length) return "";
+  return ` ${RUNE_TAG}${b.runes.map((q) => {
+    if (!q || typeof q !== "object" || typeof q.id !== "string" || !RUNE_ID.test(q.id) || Object.keys(q).length !== 1) {
+      throw new Error(`stand-in code: rune ${JSON.stringify(q)} is not { id } with a snapshot id`);
+    }
+    return q.id;
+  }).join(",")}`;
+}
+
+/** BOTS-X: the runes a code's rune word writes ({} for none), each { id }, in pick order. */
+export function runesOf(word: string | undefined): { runes?: { id: string }[] } {
+  if (word === undefined) return {};
+  const ids = word.startsWith(RUNE_TAG) ? word.slice(RUNE_TAG.length).split(",") : [];
+  if (!ids.length || !ids.every((id) => RUNE_ID.test(id))) throw new Error(`stand-in code: bad rune word "${word}"`);
+  return { runes: ids.map((id) => ({ id })) };
+}
+
+/**
+ * BOTS-X: a code head's words after "<beltCap> <hullBonus>" as [the levels' word, the runes' word], each undefined when
+ * absent. The runes' word is the last word when it starts "r:"; the levels' word is the first of the others, as before
+ * (so every older head reads exactly as before, and a runes word before the levels' word is refused by upgradesOf).
+ */
+export function headWords(more: readonly string[]): [up: string | undefined, runes: string | undefined] {
+  const last = more.length - 1;
+  if (last < 0 || !more[last].startsWith(RUNE_TAG)) return [more[0], undefined];
+  return [last > 0 ? more[0] : undefined, more[last]];
 }
 
 /**
@@ -285,7 +336,8 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
   const parts = code.split("/");
   if (parts.length > 5) throw new Error(`stand-in code: more than five sections in "${code}"`);
   const [head, itemPart, routePart, modPart, turretPart] = parts;
-  const [bc, hb, up] = head.split(" "), beltCap = Number(bc), hullBonus = Number(hb); // bb-0.8.3: `up`, the levels
+  const [bc, hb, ...more] = head.split(" "), beltCap = Number(bc), hullBonus = Number(hb);
+  const [up, rw] = headWords(more); // bb-0.8.3: `up`, the levels; BOTS-X: `rw`, the runes (the head's last word)
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
   const items: Placed[] = words(itemPart).map((w, i) => {
@@ -309,7 +361,7 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
   if (!HEROES[hero]) throw new Error(`stand-in code: unknown hero "${hero}"`);
   const b: Build = { hero, items, routes, mods, beltCap, hullBonus };
   if (turretPart !== undefined) setTurretList(b, decodeTurrets(hero, turretPart, items.length + mods.length));
-  return Object.assign(b, upgradesOf(up)); // bb-0.8.3 (D10): the levels, the build's last key
+  return Object.assign(b, upgradesOf(up), runesOf(rw)); // bb-0.8.3 (D10): the levels; BOTS-X: then the runes, the last key
 }
 
 /** Clamp a day into 1..10. */
