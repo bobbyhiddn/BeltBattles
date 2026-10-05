@@ -32,7 +32,7 @@ import { SHIELD_CAP } from "./content"; // SUS-A (REQ-BFG-069): SHIELD's MAX
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
 /** SUS-A (REQ-BFG-069): what a heal came from (the `heal` event's `source`). */
-export type HealSource = "riveter" | "mendpress" | "regen";
+export type HealSource = "riveter" | "mendpress" | "regen" | "rune"; // SUS-D: "rune" (TWIN SALVE, SCRAP MEDIC, LEECH VOW)
 
 /** SUS-A: one side's sustain counters (made at its first SHIELD gain or heal; nothing in play reads them: the bench, the HUD). */
 export interface HealCounts {
@@ -354,6 +354,9 @@ export interface SideState {
   // SUS-A (REQ-BFG-069): SHIELD, whole hits it stops next (0..SHIELD_CAP; absent until its first gain), and the counters
   shield?: number;
   heals?: HealCounts;
+  // SUS-D (REQ-BFG-069), set only on a side whose runes need them:
+  guardTimer?: number; // TICK GUARD: seconds to its next SHIELD (carries its remainder)
+  halfHealed?: boolean; // SCRAP MEDIC: its HEAL has come
 }
 
 export interface Projectile {
@@ -491,6 +494,7 @@ export class Battle {
       if (s.rune.startBurn > 0) this.sides[s.side === 0 ? 1 : 0].hull.burns.push({ dps: s.rune.startBurn, t: this.burnTime(s, BURN_TIME) });
       // SUS-A (REQ-BFG-069): WARD STONE's SHIELD at t = 0 (its kind was blockHits: the foe's first n hits; SHIELD_CAP holds)
       if (s.rune.startShield > 0) this.gainShield(s, s.rune.startShield);
+      if (s.rune.shieldEvery > 0) s.guardTimer = s.rune.shieldEvery; // SUS-D: TICK GUARD, its first SHIELD at t = n
     }
   }
 
@@ -577,6 +581,44 @@ export class Battle {
     if (!s.rune?.halfPlate || s.halfPlated || s.hull.hp >= s.hull.max / 2) return;
     s.halfPlated = true;
     this.addPlate(s, s.rune.halfPlate);
+  }
+
+  // ---- SUS-D (REQ-BFG-069; SUSTAIN-1 4.6): the sustain runes' hooks. Each reads only a side holding runes, never the
+  // RNG; every heal goes through heal() (max hull, the dark wind, BURN, SEARING) and every SHIELD through gainShield
+  // (SHIELD_CAP), so a side without these runes battles exactly as before.
+
+  /** SCRAP MEDIC: HEAL n once a battle, the first time side s's hull is below half (where LAST WALL fires). Used up even
+   *  when heal() gives nothing (the dark wind, a dead hull). */
+  private runeHalfHeal(s: SideState): void {
+    if (!s.rune?.halfHeal || s.halfHealed || s.hull.hp >= s.hull.max / 2) return;
+    s.halfHealed = true;
+    this.heal(s, s.rune.halfHeal, "rune");
+  }
+
+  /** TICK GUARD: +1 SHIELD every n s through gainShield (the cap holds), the first at t = n; the timer carries its
+   *  remainder (+= n), as WARD BELL's does. No machine holds it, so nothing pauses it; it runs in the dark wind too, as
+   *  WARD BELL's timer does (SHIELD heals nothing; the wind goes past it). */
+  private runeGuard(s: SideState, dt: number): void {
+    s.guardTimer! -= dt;
+    if (s.guardTimer! > 1e-9) return;
+    this.gainShield(s, 1);
+    s.guardTimer! += s.rune!.shieldEvery;
+  }
+
+  /** SHATTER SHOT: side def's SHIELD breaks (a `shield` event) but the hit is not stopped: its damage goes on to PLATE,
+   *  then HULL. Not counted in SideState.blocked. */
+  private shieldShatter(def: SideState, total: number): number {
+    def.shield! -= 1;
+    this.events.push({ type: "shield", side: def.side, amount: -1, shield: def.shield! });
+    return total;
+  }
+
+  /** LEECH VOW: each shot of side atk that lands heals n (a SHIELD-stopped one too); TWIN SALVE: each PAIR shot that lands
+   *  heals n (HOT SEAM's PAIR test). Each through heal(), its own call. */
+  private runeHeal(atk: SideState, pr: Projectile): void {
+    const m = atk.rune!;
+    if (m.hitHeal) this.heal(atk, m.hitHeal, "rune");
+    if (m.pairHeal && (pr.payload.paired || pr.payload.compound?.paired)) this.heal(atk, m.pairHeal, "rune");
   }
 
   private makeSide(side: Side, b: Build): SideState {
@@ -783,6 +825,7 @@ export class Battle {
     // SYNC_WINDOW; a FOUNDRY fusion is a pair), so the side's turrets read pairs as E2's pair readers do (marks only).
     // RUNES-2a: every PAIR rune does (MOLTEN VOWS, TWIN SUNS, HOT SEAM, SEAM RIVETS)
     if (rune && (rune.pairDmg || rune.pairTwice || rune.pairPct || rune.pairBurn || rune.pairPlate)) for (const tu of turrets) tu.pairing = true;
+    if (rune?.pairHeal) for (const tu of turrets) tu.pairing = true; // SUS-D: TWIN SALVE reads PAIRs too
     return {
       side, build: b, hero: h, hull, factories, gates, routes, turrets, targets,
       flak: Math.max(0, ...turrets.map((tu) => tu.intercept)), harassAccepted: 0, wreckAccepted: 0,
@@ -830,7 +873,9 @@ export class Battle {
     this.flight(dt);
     this.hullEffects(dt);
     this.sustainTick(dt); // SUS-A (REQ-BFG-069): WARD BELL's SHIELD timers; REGEN at each whole second (after the hull effects)
+    for (const s of this.sides) if (s.guardTimer !== undefined) this.runeGuard(s, dt); // SUS-D: TICK GUARD
     for (const s of this.sides) if (s.rune?.halfPlate) this.runeHalf(s); // RUNES-2a: LAST WALL
+    for (const s of this.sides) if (s.rune?.halfHeal) this.runeHalfHeal(s); // SUS-D: SCRAP MEDIC
     this.checkEnd();
   }
 
@@ -1307,6 +1352,7 @@ export class Battle {
       c.windLost += n;
       return 0;
     }
+    if (s.hull.burns.length > 0 && this.sides[s.side === 0 ? 1 : 0].rune?.burnNoHeal) { c.burnLost += n; return 0; } // SUS-D: SEARING
     if (s.hull.burns.length > 0) { // BURN's rule: half, rounded down
       const half = Math.floor(n / 2);
       c.burnLost += n - half;
@@ -1340,7 +1386,7 @@ export class Battle {
   private sustainTick(dt: number): void {
     const whole = this.ticks % TICKS_PER_SEC === 0;
     for (const s of this.sides) {
-      let regen = 0;
+      let regen = s.rune?.regen ?? 0; // SUS-D: GREEN THREAD's REGEN adds to the MENDING LOOMs' (one heal a second)
       for (const tu of s.turrets) {
         if (!tu.bell && !tu.regen) continue;
         if (tu.disrupted > 0 || tu.frozen > 0) continue; // paused
@@ -1937,7 +1983,7 @@ export class Battle {
     if (atk.rune || def.rune) total = this.runeHit(atk, def, hit, total); // RUNES-2a: SCRAP BITER, SNARE KNOT, IRON HIDE, WARD STONE
     // SUS-A (REQ-BFG-069): SHIELD, then PLATE, then HULL. A SHIELD stops this whole hit (0, its FRAY bonus included), where
     // WARD STONE's blockHits stopped it: after IRON HIDE, on any impact; its BURN, FRAY, STUN and poison still land below
-    if (def.shield) total = this.shieldHit(def);
+    if (def.shield) total = atk.rune?.shieldPierce ? this.shieldShatter(def, total) : this.shieldHit(def); // SUS-D: SHATTER SHOT
     // races: bulwark plating soaks first. 0.8.0 P1 (E1): every hull's plating (0 without a source: the damage unchanged)
     const hullPart = absorb(def.plate, total);
     def.hull.hp -= hullPart;
@@ -1966,6 +2012,7 @@ export class Battle {
         burn += more;
       }
     }
+    if (atk.rune && (atk.rune.hitHeal || atk.rune.pairHeal)) this.runeHeal(atk, pr); // SUS-D: LEECH VOW, TWIN SALVE
     let shocked = false;
     if (pr.payload.shock && hit.kind !== "hull") {
       const secs = pr.payload.shockTime ?? DISRUPT_TIME; // 0.6.1p: GALVANIC COIL ★2/★3 stall longer
