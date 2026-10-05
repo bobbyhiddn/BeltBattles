@@ -90,7 +90,3 @@ export const pct = (x: number): number => Math.round(x * 100);
 /** At most one decimal (damage), at most two (seconds). */
 export const r1 = (x: number): number => +x.toFixed(1);
 export const r2 = (x: number): number => +x.toFixed(2);
-/** A speed or rate multiplier above 1 as the texts quote it: "60% FASTER" below 2 (60), else "2.3 TIMES AS FAST" (2.3). */
-export const fasterNum = (r: number): number => (r >= 2 - 1e-9 ? r1(r) : Math.round((r - 1) * 100));
-/** A fire interval multiplier as the rate the texts quote: x0.75 fires 33% faster. */
-export const rateNum = (intervalMul: number): number => fasterNum(1 / intervalMul);
