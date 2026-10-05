@@ -7,7 +7,7 @@ import {
   GENERIC_THEMES, HERO_STYLE, KIND_UNIT, RUNE_LIST, RUNES, TIER_ODDS, dawnGold, offerSize, runeFits, runeGrants, runeMods,
   runeOffer, runeProblem, tierOdds, type RuneDef,
 } from "../src/sim/runes";
-import { runeList } from "../src/sim/runes"; // FLIP-X2: the list the dawn offers from (the sustain runes on, the dormant out)
+import { runeList } from "../src/sim/runes"; // FLIP-X2: the list the dawn offers from (the sustain runes on, DORMANT_RUNES out; at bb-0.9.1 none is dormant: BAL-2 emptied it)
 import { HEROES, ITEMS, RARITIES, type HeroId } from "../src/sim/content";
 import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a whole rate % on the speed, 30 / speed
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts setSpeed)
@@ -143,7 +143,8 @@ describe("RUNES-1 M1: the odds and the offer", () => {
   it("with a tier too thin for the offer, the next lower tier with enough runes, then a higher one", () => {
     // FLIP-X2 (REQ-BFG-069; REVIEW-TUNEX): every rune of a tier the dawn offers from now: runeList() (from day 3 the sustain
     // runes too: TICK GUARD, SCRAP MEDIC and LEECH VOW are rares, so holding RUNE_LIST's rares but one left 4 and a rare dawn
-    // stood; the dormant ones are never offered). Was RUNE_LIST
+    // stood; a dormant rune is never offered, and at bb-0.9.1 none is: BAL-2 emptied DORMANT_RUNES, so SEARING and SHATTER
+    // SHOT are sustain rares the dawn offers too). Was RUNE_LIST
     const ids = (t: string) => runeList().filter((d) => d.tier === t).map((d) => d.id);
     let rare = 0, epic = 0, legend = 0;
     for (let seed = 1; seed <= 200; seed++) {

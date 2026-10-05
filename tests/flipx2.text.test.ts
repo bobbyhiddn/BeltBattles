@@ -131,7 +131,8 @@ describe("FLIP-X2 step 1b: the bar's and the tray's chips sized from the word (R
     // the tray, 9 held (4 SHIELD first): on the phone the first row holds 6 chips (4 at 26, 2 at 22; was 6 at 22) and the
     // second 3, so 2 rows as before. On the desk (the 300 px card) the row of 9 ends 3 px past the tray's edge, so the 9th
     // chip takes a second row: the tray 30 -> 55 tall, and the picker's block moves up 8 px (tray y 249 -> 241). With 3
-    // SHIELD runes (all the dawn offers once SHATTER SHOT is dormant, FLIP-X2 step 3b) the desk keeps one row, unchanged.
+    // SHIELD runes (all the dawn offered while SHATTER SHOT was dormant, FLIP-X2 step 3b; at bb-0.9.1 the dawn offers all 4,
+    // BAL-2) the desk keeps one row, unchanged.
     const cards = ["iron_skin", "tar_barrel", "coin_purse"];
     for (const v of [OP, DESK]) {
       const ids = held.slice(0, 9).map((d) => d.id);

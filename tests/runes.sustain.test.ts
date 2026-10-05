@@ -227,7 +227,7 @@ describe("SUS-D: the M5 bench (tools/runevalue.ts, RUNES-2a's method, the switch
 
   // Y-FURN (FURN-Y rows 3-4): the counters' rules alone read under the rare band (SUS-D's M5, kept as the record); their
   // baselines bring both into it (the BENCH rows above). Was: rule runes (RULE_KINDS) below the band, kept as designed
-  it("the counters' rules alone stay below the rare band even against the decks they counter; with FURN-Y's baselines both are in it", () => {
+  it("the counters' rules alone stay below the rare band even against the decks they counter; with their bb-0.9.1 baselines (BAL-2's amounts) both are in it", () => {
     // FURNACE (their own hero): SEARING +0.1 (par), +0.4 (typ2r), +0.8 (-0.1 to 1.6) against the typ2r decks that heal
     // (FOUNDRY's MEND PRESS, WEAVER's MENDING LOOM); SHATTER SHOT +0.0 (par: no SHIELD), +1.3 (typ2r), +5.3 (2.5 to 8.0)
     // against the typ2r decks that hold SHIELD (BASTION's WARD BELL). The report gives the reasons and asks cap
