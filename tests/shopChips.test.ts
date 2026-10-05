@@ -43,7 +43,12 @@ describe("U2c the shop chip: the pick and its numbers", () => {
     expect(shopChip("pressure", { k })).toMatch(/^\{DMG\}\+/);
     expect(shopChip("calibrate")).toMatch(/^\{RATE\}\+\d+%$/);
     // no face (RULES, STUN-fold), a supply, or a face whose numbers carry no icon: today's card
-    for (const def of ["drake", "scrapper", "tollbooth", "hopper", "beltcrate", "plating", "sorting", "spotter", "brake", "overdrive", "grapnel"]) expect(shopChip(def, { k }), def).toBeNull();
+    // NUM-3 (R1's STUN fold): SCRAPPER has a face, so its chip is its first stat pair, its cadence (it was faceless here);
+    // TOLLBOOTH, FLAK SCREEN and MANTLET have faces whose numbers carry no STUN count (a block count, a share, none): no chip
+    for (const def of ["drake", "tollbooth", "flak", "mantlet", "hopper", "beltcrate", "plating", "sorting", "spotter", "brake", "overdrive", "grapnel"]) expect(shopChip(def, { k }), def).toBeNull();
+    expect(shopChip("scrapper")).toBe(`${fmtSpeed(secPer(effectAt("scrapper", 1).factory!.speed))}{SEC}`);
+    // the STUN-fold rounds carry their STUN, a stat of the second row: {STUN} and the round's seconds
+    for (const def of ["sabot", "frostbite", "dragchain"]) expect(shopChip(def), def).toBe(`{STUN}${fmtSec((effectAt(def, 1).factory!.round as { seconds: number }).seconds)}`);
   });
 
   it("every chip's number is one its face printed through a formatter (the registry), for every buyable piece", () => {

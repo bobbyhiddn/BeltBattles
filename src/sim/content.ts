@@ -116,7 +116,7 @@ export interface GateEffect {
   guard?: number; // OVERDRIVE REDLINE/AFTERBURNER: GUARD_* flags on the tiles downstream (RouteState.guard)
   toll?: number; // future TOLLBOOTH: harassment hits absorbed on every route this rig reaches
   tollFactory?: boolean; // future TOLLBOOTH star 3: also protect the route's factory
-  sift?: number | "all"; // future SIFTER: debuffs removed from a passing payload, in CHILL/SNAG/SAP order
+  sift?: number | "all"; // SIFTER: marks removed from a passing payload (NUM-3: SAP only; CHILL and SNAG are gone)
   siftFlat?: number;
   siftClean?: number;
   pulse?: { speed: number; on: number; period: number; flat: number };
@@ -142,7 +142,7 @@ export interface GateEffect {
   plated?: { min: number; flat: number }; // SHIELD WALL: + flat on those payloads while your hull holds `min` plating or more
   gauge?: { flat: number; matched: number }; // TWIN GAUGE: + flat, or + matched on a matched belt (E6)
   pincer?: { flat: number; each: number; max: number }; // PINCER: + flat, + each for every other active rig on its tile (E5)
-  brace?: { mul: number; plated: number }; // BRACE FRAME: enemy stalls, freezes and chain slows on its tiles and itself x mul (x plated while plated)
+  brace?: { mul: number; plated: number }; // BRACE FRAME: enemy STUNs on its tiles and itself x mul (x plated while plated; NUM-3: every STUN)
   latch?: { hold: number; flat: number }; // TWIN LATCH: holds a payload at most `hold` s for its other belt (E4); + flat on each payload it hits
   stoke?: number; // STOKER: each factory its arrows point at works this share faster (E3); its arrows do nothing to belts
   breaker?: { flat: number; floor: number }; // PLATE BREAKER: 1 plating for + flat; with none, + floor
@@ -150,8 +150,8 @@ export interface GateEffect {
 
 /**
  * 0.6.1p: RouteState.guard flags. OVERDRIVE ★2 REDLINE sets GUARD_SLOW downstream and ★3 AFTERBURNER adds
- * GUARD_FREEZE; they act only once wave 2 adds enemy slow and freeze (nothing in wave 1 reads them). GUARD_SKIRT
- * marks a tile a MANTLET shields (★2 FULL PLATE: the last tile, 0.6.2 FB-B; ★3 BULWARK SKIRT: the last 3): the fed
+ * GUARD_FREEZE (NUM-3, R1's STUN fold: they keep enemy CHAIN and FROST rounds' STUNs off those tiles). GUARD_SKIRT
+ * marks a tile a MANTLET shields (★2 FULL GUARD, was FULL PLATE: the last tile, 0.6.2 FB-B; ★3 BULWARK SKIRT: the last 3): the fed
  * turret's immunities cover it (Battle.disrupt).
  */
 export const GUARD_SLOW = 1;
@@ -215,7 +215,7 @@ export interface ModSpec {
   store?: number; // HOPPER ★2/★3 (0.6.2 FB-B): loads taken off the belt while the gun fires, dropped into the next window
   noJam?: boolean; // HOPPER ★3 BOTTOMLESS: this turret never jams
   immune?: HarassCause[]; // MANTLET: stalls this turret ignores (Battle.disrupt)
-  intakeGuard?: number; // MANTLET ★2 FULL PLATE (1, 0.6.2 FB-B) and ★3 BULWARK SKIRT (3): the last n tiles of each route into this turret share its immunities
+  intakeGuard?: number; // MANTLET ★2 FULL GUARD (1, 0.6.2 FB-B; NUM-3: was FULL PLATE) and ★3 BULWARK SKIRT (3): the last n tiles of each route into this turret share its immunities
   finisher?: number; // FINISHER RAM: + this share of damage on the payload that empties a loading window
   intercept?: number; // future FLAK SCREEN: one side-wide intercept roll per incoming harassment projectile
   rerolls?: number;
@@ -558,7 +558,9 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   sifter: {
     id: "sifter", name: "SIFTER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    desc: ["REMOVES CHILL, SNAG", "OR SAP FROM PASSING", "PAYLOADS IN ORDER."], tags: ["HARASS", "FORGE", "PLATE"],
+    // NUM-3 (R1's STUN fold): CHILL and SNAG are gone; SAP is the one mark left, and no piece gives it yet (RUNES-2b decides
+    // whether SIFTER goes dormant): ★1 and ★2 POLISH do nothing in play, ★3 FINE MESH's siftClean lands on every payload
+    desc: ["REMOVES SAP FROM", "PASSING PAYLOADS."], tags: ["HARASS", "FORGE", "PLATE"],
     gate: { sift: 1 }, levels: { 2: { gate: { sift: "all", siftFlat: 10 }, perk: "POLISH" },
       3: { gate: { sift: "all", siftFlat: 20, siftClean: 10 }, perk: "FINE MESH" } },
   },

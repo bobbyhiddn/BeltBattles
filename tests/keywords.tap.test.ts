@@ -398,8 +398,12 @@ describe("U2f: the taller ⓘ view", () => {
     // panels' columns and ladders change height; the op band's histogram and U2f's own view (the next test) are unchanged
     const o = sheet.map((c) => infoOf(op, c)).filter((x) => !!x), k = sheet.map((c) => infoOf(desk, c)).filter((x) => !!x);
     expect(sheet.length).toBe(310);
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([118, 160, 27]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([72, 94, 84, 25, 20, 10]);
+    // NUM-3 (R1's STUN fold), measured on num3 with steps 1-3: op 118 / 160 / 27 -> 119 / 167 / 19 (the 7 STUN-fold pieces'
+    // faces: their LEVELS ladders and KEYWORDS replace a legacy NEXT STAR sentence, so their body-only views page otherwise)
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([119, 167, 19]);
+    // NUM-3: desk 72 / 94 / 84 / 25 / 20 / 10 -> 67 / 88 / 87 / 34 / 18 / 10 / 1, measured (U2e's body-only view, kept as a
+    // re-measure; U2f's view below is the one the game draws)
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([67, 88, 87, 34, 18, 10, 1]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -478,6 +482,8 @@ describe("U2f: the taller ⓘ view", () => {
 
 /** U2f: the pinned page distributions (panels on 1 / 2 / ... pages), measured by the test above (U2e's, the body alone:
  *  op 118 / 160 / 27, desk 70 / 96 / 88 / 26 / 15 / 10). With the worst one rune held, 310 panels have an ⓘ (5 gain one). */
+// NUM-3 (R1's STUN fold), measured on num3 with steps 1-3 (the 7 STUN-fold pieces' faces): op still 305 on 1 page; the
+// worst rune held 272 / 38 -> 276 / 34; desk 291 / 14 -> 299 / 6 (U2f's aims hold: none over 2, 3 with a rune held)
 const U2F_OP = [305];
-const U2F_OP_RUNE = [272, 38];
-const U2F_DESK = [291, 14];
+const U2F_OP_RUNE = [276, 34];
+const U2F_DESK = [299, 6];

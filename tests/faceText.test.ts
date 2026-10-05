@@ -34,6 +34,8 @@ import { livePerk } from "../src/ui/abilityText"; // U2d F1
 import { NEXT_LINE_W, type FaceLines } from "../src/ui/faces"; // U2d F1
 import { GLOSSARY_WRAP_W } from "../src/ui/glossary"; // U2d F1
 import { banned } from "./textRules"; // U2d step 1
+import { STUN_CAUSES } from "../src/sim/content"; // NUM-3 (R1's STUN fold): MANTLET's immunity
+import { SIM } from "../src/ui/abilityText"; // NUM-3: SCRAPPER's queue cap
 
 // U2a (REQ-BFG-046, REQ-BFG-047): the face kit (src/ui/statFormat.ts, src/ui/faces.ts, src/screens/build/faceBlocks.ts).
 // The faces are pinned through the formatter registry (value to string, N1 6.4), never through literal strings: at
@@ -73,15 +75,18 @@ describe("U2a the formatters: one per unit; the interim prints today's value wit
 });
 
 describe("U2a the faces: every number from sim data through one formatter", () => {
-  it("scope: 64 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies) and 3 heroes; the STUN-fold, crit and RULES pieces keep today's text", () => {
+  it("scope: 71 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies; NUM-3 the 7 STUN-fold pieces) and 3 heroes; the crit and RULES pieces keep today's text", () => {
     const kinds = FACE_IDS.map((d) => ITEMS[d].kind);
     const n = (k: string) => kinds.filter((x) => x === k).length;
-    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([14, 12, 13, 18, 5, 2]);
-    for (const keep of ["scrapper", "capacitor", "assembly", "sabot", "frostbite", "dragchain", "drake", "steambreech"]) expect(hasFace(keep), keep).toBe(false);
-    // U2b: TOLLBOOTH and FLAK SCREEN (STUN-fold faces), SHIELD WALL, LONGCASE and FINISHER RAM (N1 3.3's crit pieces) and
-    // the 11 RULES rigs and 4 RULES gear keep today's text
-    for (const keep of ["tollbooth", "flak", "shieldwall", "longcase", "ram", "sifter", "venom", "keg", "bellows", "quench", "lodestone",
-      "counterweight", "twingauge", "pincer", "braceframe", "twinlatch", "hopper", "mantlet", "twintrigger", "seamwelder"]) expect(hasFace(keep), keep).toBe(false);
+    // NUM-3 (R1's STUN fold): + SCRAPPER, SABOT, FROSTBITE and DRAG CHAIN FOUNDRY (factories), TOLLBOOTH (a rig), FLAK SCREEN
+    // and MANTLET (gear) have faces (was [14, 12, 13, 18, 5, 2], 64 pieces)
+    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([18, 12, 13, 19, 7, 2]);
+    for (const faced of ["scrapper", "sabot", "frostbite", "dragchain", "tollbooth", "flak", "mantlet"]) expect(hasFace(faced), faced).toBe(true);
+    for (const keep of ["capacitor", "assembly", "drake", "steambreech"]) expect(hasFace(keep), keep).toBe(false);
+    // U2b: SHIELD WALL, LONGCASE and FINISHER RAM (N1 3.3's crit pieces) and the 11 RULES rigs and 3 RULES gear keep today's
+    // text (NUM-3: TOLLBOOTH, FLAK SCREEN and MANTLET left this list: they have faces)
+    for (const keep of ["shieldwall", "longcase", "ram", "sifter", "venom", "keg", "bellows", "quench", "lodestone",
+      "counterweight", "twingauge", "pincer", "braceframe", "twinlatch", "hopper", "twintrigger", "seamwelder"]) expect(hasFace(keep), keep).toBe(false);
     expect(PLAYABLE_HEROES.filter((h) => heroFace(h))).toEqual(["weaver", "foundry", "bastion"]);
     expect(heroFace("furnace")).toBeNull();
   });
@@ -114,7 +119,8 @@ describe("U2a the faces: every number from sim data through one formatter", () =
     for (const def of FACE_IDS.filter((d) => ITEMS[d].kind === "factory" && d !== "mimic")) for (const s of starsOf(def)) {
       const fs = effectAt(def, s).factory!, row = factoryStats(def, s);
       expect(row[0], def).toEqual(["SEC", fmtSpeed(secPer(fs.speed))]); // the speed pair: SEC until NUMBERS (N1 2.6); NUM-2: 30 / speed (was fs.interval)
-      expect(row[1], def).toEqual(["DMG", fmtDmg(fs.base ?? AMMO[fs.ammo].base)]);
+      // NUM-3: a SCRAPPER's slug carries its scrapFlat on top (Battle.stamp: p.flat += scrapFlat), so its DMG is the sum
+      expect(row[1], def).toEqual(["DMG", fmtDmg((fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0))]);
       if (row[2]) expect(row[2], def).toEqual(["BELT", fmtCount(outputsAt(def, s))]);
     }
     for (const h of PLAYABLE_HEROES) {
@@ -302,6 +308,38 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
     expect(faceLines("rotary", 3, { k: 1 })!.clause!.text).toBe(`★3 CLEAN FEED: FIRES ${rate(3)} FASTER, NEVER JAMS.`);
     const jump = effectAt("hotswap", 2).factory!.cycle!.find((p) => p.tint === "spark")!.jump!;
     expect(stripIcons(faceLines("hotswap", 2)!.clause!.text)).toBe(`★2 SPARK JUMP: STUN HITS ${fmtCount(1 + jump)} PARTS.`);
+  });
+
+  it("NUM-3 (R1's STUN fold): the 7 STUN-fold faces never say less than the sim: a round's STUN is a stat; perks are clauses", () => {
+    // a SABOT, FROST or CHAIN round's STUN is its own payload's: {STUN} and round.seconds in the second stat row (carryStats)
+    for (const def of ["sabot", "frostbite", "dragchain"]) for (const s of STARS) {
+      const r = effectAt(def, s).factory!.round as { seconds: number };
+      expect(faceAt(def, s)!.stats2, `${def} ★${s}`).toContainEqual(["STUN", fmtSec(r.seconds)]);
+    }
+    // MANTLET: IMMUNE TO STUN only while its list holds every STUN source (content.ts STUN_CAUSES), at every star
+    for (const s of STARS) {
+      expect(STUN_CAUSES.every((c) => effectAt("mantlet", s).mod!.immune!.includes(c)), `★${s}`).toBe(true);
+      expect(stripIcons(faceLines("mantlet", s)!.rules[0].text), `★${s}`).toBe("IMMUNE TO STUN.");
+    }
+    // the clauses at the stars that have them, written from the sim
+    const at: Record<string, number[]> = { frostbite: [2, 3], sabot: [3], scrapper: [3], tollbooth: [3], mantlet: [2, 3], overdrive: [2, 3] };
+    for (const [def, stars] of Object.entries(at)) for (const s of STARS) expect(!!faceLines(def, s)!.clause, `${def} ★${s}`).toBe(stars.includes(s));
+    const spread = (s: number) => (effectAt("frostbite", s).factory!.round as { spread: number }).spread;
+    for (const s of [2, 3]) expect(stripIcons(faceLines("frostbite", s)!.clause!.text)).toBe(`★${s} HOARFROST: STUN HITS ${fmtCount(1 + spread(s))} PARTS.`);
+    // OVERDRIVE's guard names the rounds it keeps off, by its flags: no SLOW or FREEZE any more
+    expect(stripIcons(faceLines("overdrive", 2)!.clause!.text)).toBe("★2 REDLINE: ENEMY CHAIN ROUNDS CAN'T STUN ITS BELTS.");
+    expect(stripIcons(faceLines("overdrive", 3)!.clause!.text)).toBe("★3 AFTERBURNER: ENEMY CHAIN AND FROST ROUNDS CAN'T STUN ITS BELTS.");
+    // SCRAPPER: its slug's damage carries its scrapFlat; TOLLBOOTH and FLAK SCREEN: their numbers through the formatters
+    for (const s of STARS) {
+      const fs = effectAt("scrapper", s).factory!;
+      expect(factoryStats("scrapper", s)[1]).toEqual(["DMG", fmtDmg(AMMO[fs.ammo].base + fs.scrapFlat!)]);
+      expect(stripIcons(faceLines("tollbooth", s)!.rules[0].text)).toBe(`BLOCKS THE FIRST ${fmtCount(effectAt("tollbooth", s).gate!.toll!)} STUN HITS ON ITS BELT.`);
+      expect(stripIcons(faceLines("flak", s)!.rules[0].text)).toBe(`SHOOTS DOWN ${fmtPct(effectAt("flak", s).mod!.intercept!)} OF ENEMY STUN SHOTS.`);
+    }
+    // the interim caveats the sim needs: harassment is a STUN, a wreck or a rip; SCRAPPER's queue cap; FLAK's other shots
+    expect(faceLines("scrapper", 1)!.caveats!.map(stripIcons)).toEqual(["WRECKS AND RIPS COUNT TOO.", `MAX ${fmtCount(SIM.scrapQueue)} SLUGS WAITING.`]);
+    expect(faceLines("tollbooth", 1)!.caveats!.map(stripIcons)).toEqual(["IT GUARDS ITS BELT'S RIGS AND GUN TOO.", "WRECKS AND RIPS COUNT TOO."]);
+    expect(faceLines("flak", 1)!.caveats!.map(stripIcons)).toEqual(["ALSO GRAPNEL, LANCE AND LIMPET SHOTS.", "ONLY YOUR BEST FLAK SCREEN COUNTS."]);
   });
 
   it("F7: hero select's stats box joins the factory and its slug with a comma, never a middle dot", () => {

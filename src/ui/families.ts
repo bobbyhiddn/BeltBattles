@@ -28,7 +28,8 @@ export const FAMILY: Readonly<Record<ModuleTag, Family>> = {
   },
   HARASS: {
     tag: "HARASS", colour: C.ice, mark: ["xx.", ".x.", ".xx"], // a bolt
-    glossary: "STALLS, FREEZES, SLOWS, WRECKS OR RIPS ENEMY MACHINES; PAYS FOR DOING IT; OR STOPS THE ENEMY DOING IT TO YOU.",
+    // NUM-3 (R1's STUN fold): every stop is a STUN (was "STALLS, FREEZES, SLOWS, WRECKS OR RIPS ...")
+    glossary: "STUNS, WRECKS OR RIPS ENEMY MACHINES; PAYS FOR DOING IT; OR STOPS THE ENEMY DOING IT TO YOU.",
   },
   SWARM: {
     tag: "SWARM", colour: C.lime, mark: ["x.x", "...", "x.x"], // many

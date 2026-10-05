@@ -407,8 +407,10 @@ describe("0.6.2t T4: the panels' layout", () => {
         if (l.lines.some((line) => afterPerk(line) !== null)) drawn.add(`phone laid on ${kind}`);
       }
     }
+    // NUM-3 (R1's STUN fold): MANTLET has a face, so its ★2 FULL GUARD (was FULL PLATE) and ★3 BULWARK SKIRT draw as the face's
+    // perk clause (faceText F6); a faceless RULES rig's perks (SIFTER ★2 POLISH, ★3 FINE MESH) take their place here
     for (const band of ["desk", "phone"]) {
-      for (const perk of ["★2 FULL PLATE", "★3 BULWARK SKIRT", "★3 BOTTOMLESS"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(true);
+      for (const perk of ["★2 POLISH", "★3 FINE MESH", "★3 BOTTOMLESS"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(true);
     }
     // an installed turret's panel (the hero's turret with one module, or a slot's turret with its gear)
     expect(drawn.has("desk drawn on turret") || drawn.has("desk drawn on installed"), "desk: a perk on a turret's panel").toBe(true);
@@ -751,7 +753,9 @@ describe("0.6.2t2 F1: no flavour sentence repeats the ability text on its panel"
       ["grease", 1, "METRONOME'S LOCKED BELTS GAIN +1 DAMAGE."],
       ["temper", 1, "ADDS 1 BURN."], // the opening, cut short
       ["temper", 1, "EACH BURN STACK DEALS 1 DAMAGE A SECOND FOR 3 SECONDS AFTER THE HIT."],
-      ["frostbite", 1, "FROST ROUNDS FREEZE MACHINES AND PAUSE THEIR TIMERS."], // the effect in other words
+      // the effect in other words. NUM-3 (R1's STUN fold): a frost round STUNs now, so 881b38f's "FROST ROUNDS FREEZE MACHINES
+      // AND PAUSE THEIR TIMERS." restates nothing its text says; the same restatement in today's words
+      ["frostbite", 1, "FROST ROUNDS STUN THE MACHINE THEY HIT."],
       ["mimic", 3, "STAMPS YOUR HERO'S SIGNATURE AMMO INTO TWO MORE ROUTES."], // and TWO against FEEDS 2 BELTS
     ];
     for (const [def, s, f] of old) expect(faults(f, at(def, s)).length, `${def} ★${s}: ${f}`).toBeGreaterThan(0);
@@ -819,7 +823,10 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // blocks left no room for the hint (the hint gives way whole, nothing overflows: the next check keeps every missing one
     // of the allowed kinds). NUM-2's rebase onto the card head u2f: 63, measured with both (U2e's shorter faces leave the
     // x10 digit room, so no desk panel loses its hint to it)
-    expect([withHint, missing.length]).toEqual([1934, 63]);
+    // NUM-3 (R1's STUN fold): 64, measured on num3 with steps 1-3 (the 7 STUN-fold pieces' faces, step 2's whole seconds):
+    // "cargo mantlet ★2" (a face now) fits its hint; MANTLET ★2 and ★3 on a turret's panel and ROTARY BREECH's and STEAM
+    // BREECH's ★3 turret panels don't (all of the allowed kinds below)
+    expect([withHint, missing.length]).toEqual([1934, 64]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -849,7 +856,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // NUM-1 (REQ-BFG-047): 490 on u2d-gate's faces (was 491), the x10 numbers gain a digit, so one more phone panel's band
     // had no room left for the hint. NUM-2's rebase onto the card head u2f: 813, measured with both (no phone panel loses
     // its hint to the x10 digit on U2e's faces)
-    expect(hints).toBe(813);
+    // NUM-3 (R1's STUN fold): 844, measured on num3 with steps 1-3 (the 7 STUN-fold pieces' faces, a stat row and a short
+    // line where their sentences were, and step 2's whole seconds): 31 more phone panels have room for the hint
+    expect(hints).toBe(844);
   });
 });
 

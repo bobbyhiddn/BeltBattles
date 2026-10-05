@@ -472,7 +472,9 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // their fullest form: 390x660 [805, 864] to [838, 868], 390x664 [811, 864] to [846, 868]; the op view (402x690) and
         // the two tallest views are unchanged (the panels still left out there are installed turrets, whose panels U2e
         // leaves as they were); phoneBand is unchanged (its test above measures it at 11 widths)
-        "390x660": [104, 838, 868], "390x664": [106, 846, 868], "402x690": [122, 861, 881], "430x739": [148, 885, 885], "390x844": [148, 885, 885],
+        // NUM-3 (R1's STUN fold), measured on num3 with steps 1-3: the 7 STUN-fold pieces' faces are shorter than their
+        // sentences, so more of their panels fit the band in their fullest form: 390x660 838 -> 842
+        "390x660": [104, 842, 868], "390x664": [106, 846, 868], "402x690": [122, 861, 881], "430x739": [148, 885, 885], "390x844": [148, 885, 885],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

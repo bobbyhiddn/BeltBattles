@@ -67,7 +67,8 @@ describe("U2e step 5: the ⓘ view's LEVELS", () => {
   });
 
   it("a RULES piece shows its legacy next-star sentence; a piece without stars has no LEVELS", () => {
-    for (const def of ["assembly", "frostbite", "sabot"]) {
+    // NUM-3 (R1's STUN fold): FROSTBITE and SABOT FOUNDRY have faces now; KEG and LODESTONE are RULES pieces that keep theirs
+    for (const def of ["assembly", "keg", "lodestone"]) {
       expect(hasFace(def)).toBe(false);
       const ls = levelLines(def, 1)!;
       expect(ladders(ls), def).toEqual([]);

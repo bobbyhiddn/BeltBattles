@@ -169,7 +169,7 @@ export interface RouteState {
   phase: number[]; // render: belt animation phase per cell (px)
   pressure: number; // blocked payloads on this route
   // 0.6.1p: GUARD_* flags per cell (content.ts), set in makeSide: OVERDRIVE REDLINE/AFTERBURNER (read by wave 2's
-  // enemy slow and freeze; nothing in wave 1 does) and the tiles a MANTLET shields (★2 FULL PLATE, 0.6.2 FB-B, and ★3
+  // enemy CHAIN and FROST rounds' STUNs since NUM-3's STUN fold) and the tiles a MANTLET shields (★2 FULL GUARD, 0.6.2 FB-B, and ★3
   // BULWARK SKIRT; read by Battle.disrupt)
   guard: number[];
   // 0.6.2j: set only on a joining belt (legal join). Its payloads go to the main belt at the join tile (Battle.joins),
@@ -260,7 +260,7 @@ export interface TurretState {
   storeMax: number;
   noJam: boolean; // HOPPER ★3 BOTTOMLESS
   immune: HarassCause[]; // MANTLET: stalls Battle.disrupt ignores on this turret
-  intakeGuard: number; // MANTLET ★2 FULL PLATE (1, 0.6.2 FB-B), ★3 BULWARK SKIRT (3): the last n tiles of each route into it share `immune`
+  intakeGuard: number; // MANTLET ★2 FULL GUARD (1, 0.6.2 FB-B; NUM-3: was FULL PLATE), ★3 BULWARK SKIRT (3): the last n tiles of each route into it share `immune`
   finisher: number; // FINISHER RAM: + this share of damage on the payload that empties the window (never on a GATLING)
   intercept: number; // Flak mod's chance; the side takes the maximum across its turrets
   rerolls: number;
@@ -418,7 +418,7 @@ export type SimEvent =
   | { type: "plate"; side: Side; amount: number; plate: number } // E1: plating added (+) or spent (-); `plate`: the pool after
   | { type: "pair"; side: Side; turret: number } // E2: two loads paired in a pair-reading turret (a FOUNDRY fusion too)
   | { type: "hold" | "release"; side: Side; gate: number; route: number } // E4: a TWIN LATCH holds or lets go a payload
-  | { type: "brace"; side: Side; gate: number; saved: number } // BRACE FRAME: seconds it took off an enemy stall, freeze or slow
+  | { type: "brace"; side: Side; gate: number; saved: number } // BRACE FRAME: seconds it took off an enemy STUN (NUM-3: every STUN)
   | { type: "wind"; dmg: number }
   | { type: "windwarn" }
   | { type: "end"; winner: Side | -1 };
@@ -664,7 +664,7 @@ export class Battle {
       g.latch = { held: [null, null], since: [0, 0], at: [null, null], same: ends[0] >= 0 && ends[0] === ends[1] };
       for (const h of g.hits) (routes[h.route].holds ??= routes[h.route].cells.map(() => []))[h.tile].push(h);
     }
-    // 0.8.0 P1: BRACE FRAME: each tile it hits remembers it (Battle.braceCut shortens stalls, freezes and chain slows there)
+    // 0.8.0 P1: BRACE FRAME: each tile it hits remembers it (Battle.braceCut shortens STUNs there; NUM-3: every STUN source)
     for (const g of gates) {
       if (!g.def.gate?.brace) continue;
       for (const h of g.hits) (routes[h.route].braces ??= routes[h.route].cells.map(() => []))[h.tile].push(g);

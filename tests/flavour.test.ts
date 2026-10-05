@@ -21,7 +21,7 @@ import { STARS, SUPPLIES, banned, numbers, sentencesOf, starsOf } from "./textRu
 /** The kept table, pinned: the modules that keep a flavour sentence (the same at every star and class factor). */
 const KEPT: Record<string, string[]> = {
   press: ["NEEDS A FREE TURRET INTAKE."],
-  sabot: ["TELEGRAPHED ROUNDS WRECK RIGS OR STALL OTHER MACHINERY."],
+  sabot: ["THE ENEMY SEES EACH ROUND COMING."], // NUM-3: SABOT has a face (U2b F2: never its desc; was the desc's sentence)
   whetstone: ["BEFORE A SPLITTER, BOTH COPIES GAIN IT."],
   splitter: ["ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT."],
   beltcrate: ["LONGER ROUTES COOK HOTTER PAYLOADS."],

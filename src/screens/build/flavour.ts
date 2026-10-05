@@ -32,7 +32,10 @@ export const KEPT_FLAVOUR: Readonly<Record<string, readonly string[]>> = {
   assembly: [],
   gantry: [],
   scrapper: [],
-  sabot: ["TELEGRAPHED ROUNDS WRECK RIGS OR STALL OTHER MACHINERY."], // character: the enemy sees them coming
+  // character: the enemy sees them coming. NUM-3 (R1's STUN fold): SABOT has a face, which never draws its desc (U2b F2), and
+  // its face says the wreck and the STUN: only the character stays (was "TELEGRAPHED ROUNDS WRECK RIGS OR STALL OTHER
+  // MACHINERY.", the desc)
+  sabot: ["THE ENEMY SEES EACH ROUND COMING."],
   frostbite: [],
   dragchain: [],
   mimic: [],
