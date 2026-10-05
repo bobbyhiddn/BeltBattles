@@ -4,7 +4,7 @@
 // of font.ts textWidth, no caveat and no star clause, its perk's name never on the face: ruling R-1); and its ⓘ LEVELS
 // ladder. Every number comes from the sim's data through the formatters (the switch's own data where it changes).
 import { describe, expect, it } from "vitest";
-import { Battle, type Payload, type Projectile, type SideState, type Target } from "../src/sim/battle";
+import { Battle, gearStats, type Payload, type Projectile, type SideState, type Target, type TurretState } from "../src/sim/battle";
 import { AMMO, CELL, DISRUPT_TIME, TICK, withStarRules, type HarassCause } from "../src/sim/content";
 import { type Build } from "../src/sim/deck";
 import { type HarassRound } from "../src/sim/harassment";
@@ -55,6 +55,7 @@ type Probe = {
   rip(s: SideState, t: Target, count: number, reach: number): number;
   roundImpact(s: SideState, t: Target, round: HarassRound, from: 0 | 1): void;
   impact(pr: Projectile): void;
+  pickTarget(foe: SideState, special: boolean, turret?: TurretState): Target;
 };
 export const probe = (bt: Battle) => bt as unknown as Probe;
 /** Side 1 is `def` with its factories held; side 0 is `atk` (a WEAVER barge by default). */
@@ -356,6 +357,72 @@ describe("Y2 row 16: BRACE FRAME cuts enemy STUNs on its tiles 50%/70%/85%, plat
     oneLine("braceframe");
     expect(levels("braceframe", 1)).toEqual(["[50%]/70%/85% SHORTER", "NEXT ★2: 70% SHORTER"]);
     expect(levels("braceframe", 3)).toEqual(["50%/70%/[85%] SHORTER"]);
+  });
+});
+
+// ----------------------------------------------------------------------------------------------- row 17: SPOTTER
+describe("Y2 row 17: SPOTTER re-aims 1/2/3 times, no factory weighting, no sure part", () => {
+  it("sim: on, a ★3 SPOTTER's turret re-aims 3 times with no weighting (off: 2, factories x3, never bare hull)", () => {
+    const b = bench([], [["spotter", 3]]);
+    expect(on(() => { const g = gearStats(b, 0); return [g.rerolls, g.factoryWeight, g.alwaysMachine]; })).toEqual([3, 1, false]);
+    const g = gearStats(b, 0);
+    expect([g.rerolls, g.factoryWeight, g.alwaysMachine]).toEqual([2, 3, true]);
+  });
+
+  it("sim: on, 2,000 ★3 picks land on bare hull about 1 in 16 (0.5^4) and on parts by their weight; off, never on bare hull", () => {
+    const picks = (star: boolean): Record<string, number> => withStarRules(() => {
+      const bt = new Battle(bench([], [["spotter", 3]]), bench([["whetstone", 4, 3, 1]]), 5), tu = bt.sides[0].turrets[0];
+      const n: Record<string, number> = {};
+      for (let i = 0; i < 2000; i++) { const k = probe(bt).pickTarget(bt.sides[1], false, tu).kind; n[k] = (n[k] ?? 0) + 1; }
+      return n;
+    }, star);
+    const a = picks(true), b = picks(false);
+    expect((a.hull ?? 0) / 2000).toBeGreaterThan(0.04);
+    expect((a.hull ?? 0) / 2000).toBeLessThan(0.09);
+    expect(b.hull ?? 0).toBe(0);
+    // off, factories weigh 3 times: the factory's share of the part picks is higher than on
+    const share = (n: Record<string, number>) => (n.factory ?? 0) / (2000 - (n.hull ?? 0));
+    expect(share(b)).toBeGreaterThan(share(a) + 0.1);
+  });
+
+  it("face: SHOTS AT BARE HULL GET 1/2/3 MORE AIM(S), no clause; ladder 1/2/3 MORE AIMS", () => {
+    expect(lines("spotter")).toEqual([["SHOTS AT BARE HULL GET 1 MORE AIM."], ["SHOTS AT BARE HULL GET 2 MORE AIMS."], ["SHOTS AT BARE HULL GET 3 MORE AIMS."]]);
+    oneLine("spotter");
+    expect(levels("spotter", 1)).toEqual(["[1]/2/3 MORE AIMS", "★2 FACTORY SPOT", "★3 EAGLE EYE", "NEXT ★2: 2 MORE AIMS ★2 FACTORY SPOT"]);
+    expect(withStarRules(() => faceAt("spotter", 3)!.clause?.text, false)).toBe("★3 EAGLE EYE: ALWAYS AIMS AT A PART, AND PICKS FACTORIES 3 TIMES AS OFTEN.");
+  });
+});
+
+// --------------------------------------------------------------------------------------------- row 18: OVERDRIVE
+describe("Y2 row 18: OVERDRIVE ★2/★3 lose their flat and their guards", () => {
+  it("sim: on, a slug past a ★3 OVERDRIVE gains no damage (off: +30)", () => {
+    const flat = (star: boolean): number => withStarRules(() => {
+      const bt = new Battle(bench([["overdrive", 4, 3, 3]]), barge(), 8);
+      while (bt.t < 8) {
+        bt.step();
+        bt.events.length = 0;
+        const a = bt.t > 2.5 ? bt.sides[0].routes[0].ammo.find((x) => x.processed >= 2) : undefined;
+        if (a) return a.p.flat;
+      }
+      throw new Error("no slug passed the OVERDRIVE");
+    }, star);
+    expect([flat(true), flat(false)]).toEqual([0, 30]);
+  });
+
+  it("sim: on, enemy CHAIN and FROST rounds STUN the tiles after a ★3 OVERDRIVE (off: AFTERBURNER keeps both off)", () => {
+    for (const star of [true, false]) withStarRules(() => {
+      const bt = quiet(bench([["overdrive", 4, 3, 3]])), s = bt.sides[1];
+      s.gates[0].online = true;
+      const drag = probe(bt).disrupt(s, target(s, "belt", 0, 3), 1, "drag"), frost = probe(bt).disrupt(s, target(s, "belt", 0, 4), 2, "freeze");
+      expect([drag, frost], star ? "on" : "off").toEqual(star ? [true, true] : [false, false]);
+    }, star);
+  });
+
+  it("face: ITS BELTS RUN 3/4/5 TIMES AS FAST, one line (no HIT: +10 line, no guard clause); ladder 3/4/5 TIMES", () => {
+    expect(lines("overdrive")).toEqual([3, 4, 5].map((n) => [`ITS BELTS RUN ${n} TIMES AS FAST.`]));
+    oneLine("overdrive");
+    expect(levels("overdrive", 1)).toEqual(["[3]/4/5 TIMES", "★2 REDLINE", "★3 AFTERBURNER", "NEXT ★2: 4 TIMES ★2 REDLINE"]);
+    expect(lines("overdrive", false)[2]).toEqual(["ITS BELTS RUN 5 TIMES AS FAST.", "HIT: +30 {DMG}."]);
   });
 });
 

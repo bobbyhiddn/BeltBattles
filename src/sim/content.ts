@@ -1227,6 +1227,13 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
     gate: { perStalled: { each: 10, max: 60 } },
     levels: { 2: { gate: { perStalled: { each: 22, max: 130 } } }, 3: { gate: { perStalled: { each: 35, max: 210 } } } },
   },
+  // row 17, SPOTTER: ★2 FACTORY SPOT's factory weighting and ★3 EAGLE EYE's "always a part" go; it re-aims 1/2/3 times
+  spotter: { mod: { rerolls: 1 }, levels: { 2: { mod: { rerolls: 2 }, perk: "FACTORY SPOT" }, 3: { mod: { rerolls: 3 }, perk: "EAGLE EYE" } } },
+  // row 18, OVERDRIVE: ★2/★3 lose their +10/+30 flat and their guards (REDLINE's, AFTERBURNER's); 3/4/5 times as fast
+  overdrive: {
+    gate: { speed: 3, lockedFlat: 30 },
+    levels: { 2: { gate: { speed: 4, lockedFlat: 50 }, perk: "REDLINE" }, 3: { gate: { speed: 5, lockedFlat: 110 }, perk: "AFTERBURNER" } },
+  },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */
