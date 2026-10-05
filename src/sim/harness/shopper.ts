@@ -12,6 +12,7 @@
 
 import type { Rng } from "../../core/rng";
 import { AMMO, ITEMS, type ItemDef } from "../content";
+import { isSustain } from "../content"; // BOTS-X (REQ-BFG-069): the random builder buys no sustain piece
 import {
   arrowCell, cloneBuild, connectorClaims, hero, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
   type Build, type Dir, type Placed,
@@ -24,6 +25,8 @@ import { cargoValue, gainInto, previewMerge, type InvItem } from "./merge";
 import { blockedCells, freeConnectors, minTiles, randomPath, startCells } from "./path";
 
 export const CRATE = ITEMS.beltcrate, PLATE = ITEMS.plating, PRESS = ITEMS.press;
+/** BOTS-X (REQ-BFG-069): not one of SUS-A's sustain pieces (the random builder's stock, Shopper below). */
+const notSustain = (d: ItemDef): boolean => !isSustain(d.id);
 export const CRATE_BELT = CRATE.supply!.belt!, PLATE_HULL = PLATE.supply!.hull!;
 export const MAX_TILES = 40; // longest route the generator draws
 export const MAX_ROUTE_EDITS = 4; // reroute attempts per build (they cost no gold, so they are capped)
@@ -108,10 +111,14 @@ export class Shopper {
     this.stars = stars === "on";
     this.coresOn = this.stars && cores === "on";
     this.factoriesOn = this.stars && factories === "on";
-    this.gates = shopItems(b.hero, "gate");
-    this.mods = shopItems(b.hero, "mod");
+    // BOTS-X (REQ-BFG-069; SUSTAIN-1 4.8 rule 2): the random builder never buys a sustain piece. Rule 2 buys one only as
+    // the best value per gold in an offer row, judged by the deck rating; random levers have neither (the par player,
+    // player.ts, does: it is what the caravan stand-ins and the par field play). Switch off, the stock lists none, so
+    // these filters keep every list, and every RNG draw, exactly as before
+    this.gates = shopItems(b.hero, "gate").filter(notSustain);
+    this.mods = shopItems(b.hero, "mod").filter(notSustain);
     this.cores = shopItems(b.hero, "core");
-    this.factories = shopFactories(b.hero);
+    this.factories = shopFactories(b.hero).filter(notSustain);
     this.minGate = Math.min(...this.gates.map((g) => g.price));
     this.minMod = Math.min(...this.mods.map((m) => m.price));
     this.minCore = Math.min(...this.cores.map((c) => c.price));

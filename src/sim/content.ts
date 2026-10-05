@@ -1089,24 +1089,41 @@ setWave3(WAVE3_LIVE);
  */
 export const SUSTAIN_LIVE = false;
 
+/**
+ * BOTS-X (REQ-BFG-069; cap's answer 4 to SUSTAIN-1 and answer 4 in REVIEW-SUSD): THE FIRST SUSTAIN DAY. With the switch on,
+ * no sustain offer of any kind comes before the dawn of this day: WARD BELL, MEND PRESS and MENDING LOOM unlock on it in
+ * every draw that reads the catalogue (game/wares.ts unlockDay, the shop's wares and through them the par player, the
+ * caravan stand-ins and the road events; run.ts dayPool for a run without wares; harness/synergy.ts firstOfferDay), and the
+ * 8 sustain runes join the dawn offer on it (runes.ts runeOffer; runeProblem refuses one taken at an earlier dawn). Day
+ * 1-2 fights stay short and decisive. Read only while the switch is on: off, no draw holds a sustain piece or rune at all.
+ */
+export const SUSTAIN_FIRST_DAY = 3;
+
 /** SUS-A: the three new sustain pieces (SUSTAIN-1 4.6, on the N1 scale; ★1 / ★2 / ★3). Their words are SUS-B's. */
 export const SUSTAIN_ITEMS: Record<string, ItemDef> = {
   // SHIELD: EVERY 8 / 5 / 4 s: +1 SHIELD, the first at t = every (TurretState.bell). ★1 is the design's fallback (cap's
   // answer 3 to SUSTAIN-1; the design's 6 s): the acceptance bench's typ2r had FURNACE at 44.3% pooled (< 45%)
   wardbell: {
     id: "wardbell", name: "WARD BELL", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "tinker",
-    desc: ["RINGS A WARD THAT", "BLOCKS ONE HIT,", "AGAIN AND AGAIN."], tags: ["PLATE", "TEMPO"], // SUS-B: its desc
+    // BOTS-X tags: PLATE alone (a guard: each SHIELD stops a whole hit, PLATE's "guards"); not TEMPO, whose pieces make
+    // YOUR machines act sooner (belt speed, fire rate, load time): the bell's timer speeds nothing of yours
+    // x2 merge (cap): NUM-4's desc words ("BLOCKS ONE HIT,": a SHIELD blocks one hit's damage) with BOTS-X's tags
+    desc: ["RINGS A WARD THAT", "BLOCKS ONE HIT,", "AGAIN AND AGAIN."], tags: ["PLATE"], // SUS-B: its desc
     mod: { shield: { every: 8, amount: 1 } },
     levels: { 2: { mod: { shield: { every: 5, amount: 1 } } }, 3: { mod: { shield: { every: 4, amount: 1 } } } },
   },
   mendpress: { // HEAL: EVERY 3 s: HEAL 20 / 30 / 45; ARMOR PRESS's kind, timer, stall pause and stamping (FactoryState.healTimer)
     id: "mendpress", name: "MEND PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
+    // BOTS-X tags (kept, now with a reason): ARMOR PRESS's own pair. PLATE: it mends the hull (PLATE's "repair"); SWARM: it
+    // is a second factory stamping its own plain slugs down a belt (SWARM's "second factories"), so it adds a line
     desc: ["STAMPS PLAIN SLUGS", "AND MENDS YOUR HULL", "EVERY FEW SECONDS."], tags: ["PLATE", "SWARM"], // SUS-B: its desc
     factory: { ammo: "plain", speed: 19, heal: { every: 3, amount: 20 } }, // base 3: the plain slug's (ARMOR PRESS's speeds)
     levels: { 2: { factory: { speed: 21, heal: { every: 3, amount: 30 } } }, 3: { factory: { speed: 25, heal: { every: 3, amount: 45 } } } },
   },
   mendingloom: { // REGEN: YOUR HULL: REGEN 10 / 15 / 20 (TurretState.regen)
     id: "mendingloom", name: "MENDING LOOM", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
+    // BOTS-X tags (kept, now with a reason): PLATE alone. REGEN gives back hull each second (PLATE's "repair"); it adds no
+    // payload or hit (SWARM), changes no timing of yours (TEMPO) and no damage (FORGE, BURST)
     desc: ["WEAVES YOUR HULL", "WHOLE AGAIN, A", "LITTLE EACH SECOND."], tags: ["PLATE"], // SUS-B: its desc
     mod: { regen: 10 },
     levels: { 2: { mod: { regen: 15 } }, 3: { mod: { regen: 20 } } },

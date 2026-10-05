@@ -6,6 +6,7 @@
 
 import { hashSeed, Rng } from "../../core/rng";
 import { ITEMS, RUN_DAYS, rarityWeights, type ItemDef } from "../content";
+import { SUSTAIN_FIRST_DAY, isSustain } from "../content"; // BOTS-X (REQ-BFG-069): the day-3 hold
 import { canFitGear, cloneBuild, hitsOfRig, setRot, type Build } from "../deck";
 import { bestRot } from "../beltside";
 import { validateBuild } from "../../net/validate";
@@ -33,6 +34,7 @@ export function firstOfferDay(d: ItemDef): number {
   for (let day = 1; day <= RUN_DAYS; day++) {
     if (!(rarityWeights(day)[d.rarity] > 0)) continue;
     if (d.merchant === "arcane" && day <= 2) continue;
+    if (isSustain(d.id) && day < SUSTAIN_FIRST_DAY) continue; // BOTS-X (REQ-BFG-069): the day-3 hold (switch off: never listed)
     return day;
   }
   return Infinity;

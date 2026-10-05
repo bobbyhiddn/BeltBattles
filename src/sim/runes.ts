@@ -18,6 +18,7 @@
 import { hashSeed, Rng } from "../core/rng";
 import { HEROES, RARITIES, type HeroId, type Rarity } from "./content";
 import { sustainLive } from "./content"; // SUS-D (REQ-BFG-069): the sustain switch gates the sustain runes' offer
+import { SUSTAIN_FIRST_DAY } from "./content"; // BOTS-X (REQ-BFG-069): the day-3 hold (runeOffer, runeProblem)
 
 /** SUS-D: "sec" is a whole number of seconds (TICK GUARD's timer; runeText.ts writes it with the SEC icon, as `8{SEC}`). */
 export type RuneUnit = "dmg" | "hull" | "plate" | "gold" | "belt" | "pct" | "count" | "sec";
@@ -339,7 +340,10 @@ export function runeOffer(seed: number, day: number, hero: HeroId, held: readonl
   const size = offerSize(day);
   const odds = tierOdds(day);
   const drawn = rng.weighted(RARITIES, (t) => odds[t]);
-  const left = (t: Rarity) => runeList().filter((d) => d.tier === t && !held.includes(d.id)); // SUS-D: the switch
+  // BOTS-X (REQ-BFG-069; cap's answer 4 in REVIEW-SUSD): before the first sustain day the dawn draws from RUNE_LIST alone,
+  // so with the switch on the day 1-2 offers are exactly the switch-off offers (the same list, the same draws)
+  const list = day < SUSTAIN_FIRST_DAY ? RUNE_LIST : runeList();
+  const left = (t: Rarity) => list.filter((d) => d.tier === t && !held.includes(d.id)); // SUS-D: the switch
   const at = RARITIES.indexOf(drawn);
   const order = [...RARITIES.slice(0, at + 1).reverse(), ...RARITIES.slice(at + 1)];
   let tier = order.find((t) => left(t).length >= size);
@@ -390,6 +394,8 @@ export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: nu
     if (!isRune(q.id)) return `runes[${i}]: unknown rune ${JSON.stringify(q.id)}`;
     // SUS-D (REQ-BFG-069): a sustain rune only while the sustain switch is on (no dawn offers one before), seed or none
     if (isSustainRune(q.id) && !sustainLive()) return `runes[${i}]: ${RUNES[q.id].name} is not in the game while sustain is off`;
+    // BOTS-X (REQ-BFG-069): no dawn before the first sustain day offers one; with the seed the offer check below refuses it
+    if (seed === undefined && isSustainRune(q.id) && i + 1 < SUSTAIN_FIRST_DAY) return `runes[${i}]: ${RUNES[q.id].name} is not offered before the dawn of day ${SUSTAIN_FIRST_DAY}`;
     if (held.includes(q.id)) return `runes[${i}]: ${RUNES[q.id].name} is held twice`;
     if (seed !== undefined && !runeOffer(seed, i + 1, hero, held).ids.includes(q.id)) {
       return `runes[${i}]: ${RUNES[q.id].name} was not offered at the dawn of day ${i + 1}`;
@@ -562,12 +568,16 @@ export function boardThemeCount(theme: RuneTheme, board: Build): number {
  * 1. an offered rune of the hero's style (HERO_STYLE; the NPC races have none);
  * 2. else the offered rune whose theme matches the most pieces on `board` (boardThemeCount);
  * 3. else (no offered theme matches a piece) catalogue order.
- * Every tie goes by catalogue order (RUNE_LIST), so the pick never depends on the offer's card order. No RNG. Null for an
- * empty offer. Works for any catalogue: a theme boardThemeCount doesn't know counts 0.
+ * Every tie goes by catalogue order (runeList(): RUNE_LIST, then the sustain runes while the sustain switch is on), so the
+ * pick never depends on the offer's card order. No RNG. Null for an empty offer. Works for any catalogue: a theme
+ * boardThemeCount doesn't know counts 0. BOTS-X (REVIEW-SUSD F-c, SUS-D finding 7): the cards are the offered runes of
+ * runeList(), the list the dawn offers from, so with the switch on a bot sees an offered sustain rune and its style takes
+ * BULWARK WARD and TICK GUARD for BASTION, TWIN SALVE for FOUNDRY, GREEN THREAD for WEAVER, SEARING and SHATTER SHOT for
+ * FURNACE; with it off runeList() is RUNE_LIST itself, so every pick is as before.
  */
 export function botRunePick(offer: RuneOffer | readonly string[], hero: HeroId, board: Build): string | null {
   const ids: readonly string[] = "ids" in offer ? offer.ids : offer;
-  const cards = RUNE_LIST.filter((d) => ids.includes(d.id));
+  const cards = runeList().filter((d) => ids.includes(d.id));
   if (!cards.length) return null;
   const own = HERO_STYLE[hero];
   const mine = cards.find((d) => d.theme === own);

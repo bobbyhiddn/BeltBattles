@@ -18,6 +18,7 @@ import type { PendingBounty, PendingSabotage, RoadChoice, WarlordFight, WarlordR
 import { fusible, starField, starsOf, upgradeLevel } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
+import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold (dayPool)
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import { dawnGold, pickGold, runeOffer, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058)
 import {
@@ -282,7 +283,9 @@ function stockOf(run: Run, m: MerchantId, day: number): ItemDef[] {
 /** What `m` can sell on `day`: its stock without legendaries before day 4 (the shop's day gate). 0.8.0 I1 M3: the run's
  *  stock (stockOf: its unlocked wares under the per-run draw). */
 function dayPool(run: Run, m: MerchantId, day: number): ItemDef[] {
-  return stockOf(run, m, day).filter((d) => d.rarity !== "legendary" || day >= 4);
+  // BOTS-X (REQ-BFG-069): a run without wares holds the sustain pieces to the first sustain day too (wares.ts unlockDay
+  // holds them for every run with wares); switch off, itemsSoldBy lists none, so this filter keeps every part as before
+  return stockOf(run, m, day).filter((d) => (d.rarity !== "legendary" || day >= 4) && (!isSustain(d.id) || day >= SUSTAIN_FIRST_DAY));
 }
 
 /** ARSENAL.md §5.2 step 1: base weight, +1 per owned 1★ fusible part the merchant sells (max +3),

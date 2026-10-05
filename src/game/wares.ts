@@ -17,6 +17,7 @@
 
 import { hashSeed, Rng } from "../core/rng";
 import { ITEMS, RARITIES, buyableModules, type MerchantId } from "../sim/content";
+import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold
 
 /** The draw's rule: `active` wares a run, `late` of them held back for two restocks; the unlock ladder. */
 export interface DrawRule {
@@ -62,6 +63,8 @@ export function unlockDay(id: string, late: number | undefined, rule: DrawRule =
   const d = ITEMS[id];
   let u = d.rarity === "legendary" ? rule.legendaryDay : d.rarity === "epic" ? rule.epicDay : 1;
   if (d.merchant === "arcane") u = Math.max(u, rule.arcaneDay);
+  // BOTS-X (REQ-BFG-069): the sustain pieces from the first sustain day (switch off: no draw lists one, so never read)
+  if (isSustain(id)) u = Math.max(u, SUSTAIN_FIRST_DAY);
   if (late !== undefined) u = Math.max(u, late);
   return u;
 }

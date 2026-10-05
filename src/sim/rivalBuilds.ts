@@ -25,11 +25,13 @@
 import {
   HEROES, ITEMS, START_GOLD, UPGRADE_PRICE, incomeFor, type HeroId, type Upgrades, type UpgradeTrack,
 } from "./content";
+import { sustainLive } from "./content"; // BOTS-X (SUS-C, REQ-BFG-069): RivalPlan.sustain, only while the switch is on
 import { installTurret, key, rotField, setTurretList, turretList, turretsCost, type Build, type ModPlacement, type Placed } from "./deck";
 import { warlordHull } from "./ai";
 import { migrateDeck } from "./beltside";
 import { FUSE_MAX, starsOf, upgradeGold, valueOf } from "./stars";
 import type { RivalId } from "./rivals";
+import { runeGrants } from "./runes"; // BOTS-X (REQ-BFG-058): a captain's HULL and BELT runes (captainRunesOn)
 
 /** Belt cells from (x, y) following moves such as "L3U2" (U = toward the turrets, row 0). */
 export function walk(x: number, y: number, moves = ""): number[] {
@@ -88,6 +90,10 @@ export interface RivalPlan {
   factories: FactoryPlan[]; // the day-1 deck: the signature factory and its belts
   crates: number; // belt crates the day-1 deck needs
   upgrades: Upgrade[];
+  // BOTS-X (SUS-C, REQ-BFG-069; SUSTAIN-1 4.8 rule 7): the upgrades the plan adds while the sustain switch is on
+  // (content.ts sustainLive), taken after `upgrades` (their uids follow it, so every other part keeps its uid). Off, planBuild
+  // never reads them: every captain deck, and every test that walks `upgrades`, is exactly as before
+  sustain?: Upgrade[];
 }
 
 export interface RivalLoadout {
@@ -467,6 +473,12 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(2, G2(8, "temper", 5, 3)), ...good(G2(8, "pincer", 5, 4)), ...good(G(9, "shieldwall", 5, 0)),
       G(9, "venom", 5, 5),
     ],
+    // BOTS-X (SUS-C; SUSTAIN-1 4.8 rule 7: "THANE KARSK adds WARD BELL on day 5"), only while the sustain switch is on:
+    // BASTION's SHIELD beside his PLATE (PLATE eats the small hits, SHIELD the big ones). His one gun, the common RAMPART,
+    // has one gear slot and holds the SPALL CATCHER (a synergy part) from day 3, so on day 5 it takes a second copy (★2: a
+    // second gear slot) and the WARD BELL goes there (11 gold: day 5 is 47 of 50). No synergy part moves; the BOTS-X report
+    // lists what this does to his ordinary luck caps (measured with the switch off; FLIP-X regenerates them)
+    sustain: [T2(5, 0), M(5, "wardbell", 0)],
   },
   // ---------------------------------------------------------------- dusk stand-ins only (standInOnly), FURNACE and WEAVER
   // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
@@ -546,7 +558,9 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   };
   plan.factories.forEach((f, i) => { if ((f.at ?? 1) <= day) addFactory(f, U + 1 + i); }); // 0.8.0 I1: FactoryPlan.at
   let crates = plan.crates, plating = 0, fu = U + 1 + plan.factories.length;
-  for (const [i, u] of plan.upgrades.entries()) {
+  // BOTS-X (SUS-C): with the sustain switch on, the plan's sustain upgrades after its own (off: `upgrades` itself)
+  const ups = sustainLive() && plan.sustain?.length ? [...plan.upgrades, ...plan.sustain] : plan.upgrades;
+  for (const [i, u] of ups.entries()) {
     const uid = U + 10 + i, tu = TURRET_UID + i;
     const f = u.factory ? fu++ : 0; // factory uids follow the plan's factory order whether or not this luck owns them yet
     if (dayOwned(u, luck) > day) continue;
@@ -612,6 +626,27 @@ export const CAPTAIN_LEVELS: Readonly<Record<HeroId, Partial<Record<UpgradeTrack
   bastion: { factory: [7], turret: [7] },
   metronome: {}, siphon: {},
 };
+
+/**
+ * BOTS-X (REQ-BFG-058; RUNES-2a 3 step 5's code, R1b-2 1.6): each captain's runes in pick order (entry i taken at the dawn
+ * of day i + 1), which rivals.ts rivalBuild holds up to its day (captainRunesOn). EMPTY until FLIP-X pins
+ * tools/genCaptainRunes.ts's output here (captainRunesText: every captain's 10 picks on its seed hashSeed("captain-runes",
+ * id), each prefix passing runeProblem with it) when it turns BOT_RUNES on: a captain with no list holds no runes, so
+ * every captain build is exactly as before (tests/botsx.runes.test.ts).
+ */
+export const CAPTAIN_RUNES: Readonly<Partial<Record<RivalId, readonly string[]>>> = {};
+
+/**
+ * BOTS-X: `build` holding a captain's runes up to `day`: Build.runes = the first `day` ids of `list` as { id } in pick
+ * order (the last key), the HULL runes' hull added to hullBonus and the BELT runes' belt to beltCap (runes.ts runeGrants,
+ * as botTakeRune and run.ts takeRune apply a pick). No list, an empty one or no rune by `day`: `build` itself, untouched.
+ */
+export function captainRunesOn(build: Build, list: readonly string[] | undefined, day: number): Build {
+  const ids = (list ?? []).slice(0, Math.max(0, Math.floor(day)));
+  if (!ids.length) return build;
+  const runes = ids.map((id) => ({ id })), grant = runeGrants(runes, day);
+  return { ...build, hullBonus: build.hullBonus + grant.hull, beltCap: build.beltCap + grant.belt, runes };
+}
 
 /** bb-0.8.3 (D7'): a captain's levels on `day` within `room` gold (FACTORY first, then TURRET SPEED); undefined: none. */
 export function captainLevels(hero: HeroId, day: number, room: number): Upgrades | undefined {

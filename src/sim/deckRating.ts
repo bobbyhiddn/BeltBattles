@@ -7,6 +7,7 @@
 import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME, type FactorySpec, type HeroId } from "./content";
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
 import { factorySpeed, rateMul, secPer } from "./content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
+import { WIND_START, sustainLive } from "./content"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain value
 import { roundHalfUp } from "./pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
@@ -29,6 +30,51 @@ export const FIGHT_T = 25;
 export const FIGHT_BY_DAY: readonly number[] = [24.4, 19.9, 15.7, 14.2, 12.9, 11.6, 11.1, 10.5, 10.1, 9.5];
 /** The par-field fight length of `day` (FIGHT_BY_DAY; days past the table read its last entry). */
 export const fightTime = (day: number): number => FIGHT_BY_DAY[Math.max(1, Math.min(FIGHT_BY_DAY.length, Math.floor(day))) - 1];
+
+/**
+ * BOTS-X (SUS-C, REQ-BFG-069; SUSTAIN-1 4.8 rule 2): THE EXPECTED DUSK FOE by day 1..10, which the bots' sustain value
+ * reads (rateDeck's `day`, below). Built ONCE by tools/sustainFoe.ts on bx e1e1004 (rules bb-0.8.7) with the sustain switch
+ * on (content.ts setSustain(true) first), 2026-10-05 06:14:33Z (43 s wall): each day the par fields (par.ts parField, k 6)
+ * of the four playable heroes (FURNACE, WEAVER, FOUNDRY, BASTION) meet in every cross pair and every mirror, 4 seeds each
+ * (seed hashSeed("botsx-foe", day, hero x, hero y, i, j, s)), every fight from both sides: 2,208 battles a day, 22,080 in
+ * all. From the repo root, four shards under nice -n 19:
+ *   npx vite build --ssr tools/sustainFoe.ts --outDir tools/dist/botsx-foe --emptyOutDir --logLevel warn
+ *   nice -n 19 node tools/dist/botsx-foe/sustainFoe.js --days 1,2,3 --k 6 --seeds 4 --json foe-d1-3.json
+ *   (and --days 4,5,6, --days 7,8, --days 9,10, at once)
+ * fight: the mean fight length (s); burn: the share of sides whose foe landed BURN on them; hit: the mean size of a hit no
+ * SHIELD stopped (N1 units: what one SHIELD is worth). Data, not re-measured by any test (BOTS-X REPORT section 3).
+ */
+export interface FoeDay { fight: number; burn: number; hit: number }
+export const SUSTAIN_FOE: readonly FoeDay[] = [
+  { fight: 29.34, burn: 0.208, hit: 65.5 }, // day 1
+  { fight: 25.15, burn: 0.248, hit: 69.2 },
+  { fight: 23.69, burn: 0.315, hit: 71.8 },
+  { fight: 21.84, burn: 0.415, hit: 73.8 },
+  { fight: 20.79, burn: 0.415, hit: 80.7 }, // day 5
+  { fight: 19.44, burn: 0.419, hit: 78.9 },
+  { fight: 18.89, burn: 0.418, hit: 80.2 },
+  { fight: 18.73, burn: 0.418, hit: 83.4 },
+  { fight: 18.63, burn: 0.530, hit: 87.3 },
+  { fight: 17.91, burn: 0.527, hit: 95.5 }, // day 10
+];
+/** BOTS-X: the expected foe of `day` (SUSTAIN_FOE; days past the table read its last row). */
+export const foeOn = (day: number): FoeDay => SUSTAIN_FOE[Math.max(1, Math.min(SUSTAIN_FOE.length, Math.floor(day))) - 1];
+
+/** BOTS-X: a sustain keyword (SUSTAIN-1 4.6). */
+export type SustainKw = "SHIELD" | "HEAL" | "REGEN";
+/** BOTS-X: the sustain keyword piece `def` carries (its 1-star spec): WARD BELL SHIELD, RIVETER and MEND PRESS HEAL,
+ *  MENDING LOOM REGEN; undefined for any other piece. */
+export function sustainKeyword(def: string): SustainKw | undefined {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
+  if (d?.mod?.shield) return "SHIELD";
+  if (d?.mod?.regen) return "REGEN";
+  if (d?.factory?.heal || d?.gate?.heal) return "HEAL";
+  return undefined;
+}
+
+/** BOTS-X (SUSTAIN-1 4.8 rule 2): a deck's sustain as effective hull on a day (rateDeck with `day`, the switch on), by
+ *  keyword, and the total its defense gains. */
+export interface SustainHull { shield: number; heal: number; regen: number; total: number }
 
 /**
  * Damage-equivalents per payload of the effects the route walk doesn't turn into damage, read off the cards:
@@ -81,8 +127,8 @@ interface Feed {
 
 /** Per payload, the rig effects the walk leaves out (EQ), and the hull a RIVETER repairs per passing payload.
  *  `fight`: the fight's length; `time`: the route's first payload's ride to its turret (walkRoute's estimate). */
-function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time: number): { eq: number; repair: number } {
-  let eq = 0, repair = 0;
+function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time: number): { eq: number; repair: number; heal: number } {
+  let eq = 0, repair = 0, heal = 0; // BOTS-X: `heal`, RIVETER's part of `repair` (read only with the switch on)
   for (const tile of hits[ri] ?? []) {
     for (const h of tile) {
       const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate;
@@ -100,6 +146,7 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       if (e.toll) eq += EQ.toll * e.toll;
       if (e.sift) eq += EQ.sift;
       if (e.heal) repair += e.heal; // SUS-A (REQ-BFG-069): RIVETER's heal (was repair), rated as before (the valuation is SUS-C's)
+      if (e.heal) heal += e.heal; // BOTS-X (SUS-C): with the switch on, rateDeck values it as effective hull instead
       // 0.8.0 P1, wave 3 (D1's proxies, tools/wave3.ts): plating per payload rated as RIVETER's repair; SHIELD WALL's
       // damage at 12+ plating for half the fight; BRACE FRAME as a guard like TOLLBOOTH's (1, 1.4, 1.7 at its stars)
       if (e.plate) repair += e.plate;
@@ -107,7 +154,7 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       if (e.brace) eq += (EQ.toll * (1 - e.brace.mul)) / 0.25;
     }
   }
-  return { eq, repair };
+  return { eq, repair, heal };
 }
 
 /** 0.8.0 P1: the plating a plated deck's hull holds on average in a fight (ANVIL BREECH): P1 set half the cap (12) for
@@ -154,6 +201,14 @@ export interface RateOut {
   /** Factory uid -> the share of its stoke the STOKER cap lets through (below 1 only where a gun it feeds can't take the
    *  full stoke; the least over its guns). Absent: not capped. */
   stokeKeep: Map<number, number>;
+  /** BOTS-X (read only; filled when present): route index -> the payloads a second it delivers (after joins), for the
+   *  bots' RIVETER placement (the belt with the most payloads a second). */
+  arrival?: Map<number, number>;
+  /** BOTS-X (read only; filled when present): turret slot -> its rated damage a second, for the bots' sustain gear
+   *  placement (a turret that doesn't need damage gear). */
+  turretDmg?: Map<number, number>;
+  /** BOTS-X: the deck's sustain as effective hull (set only when rateDeck values it: a `day` and the switch on). */
+  sustain?: SustainHull;
 }
 
 /** 0.8.0 I1 M4 (VERIFIED-P1 H4): each STOKER-worked factory whose stoke the static estimate caps by its gun (rateDeck's
@@ -194,7 +249,13 @@ export interface DeckRating {
  * (deck.ts factoryPace), on every belt it feeds; a deck without joins rates exactly as before (x 1).
  */
 // 0.8.0 B1 M2: `breakerShare` (BREAKER_SHARE by default) lets a test read the rating's PLATE BREAKER term at other shares
-export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, fight = FIGHT_T, out?: RateOut, breakerShare = BREAKER_SHARE): DeckRating {
+// BOTS-X (SUS-C, REQ-BFG-069; SUSTAIN-1 4.8 rule 2): `day` (the par player's, player.ts rateOn) with the sustain switch on
+// (content.ts sustainLive) adds the deck's sustain to its defense as EFFECTIVE HULL against the day's expected foe
+// (SUSTAIN_FOE): HEAL and REGEN, the healing in the first min(25 s, the foe's fight) halved against a foe that carries BURN
+// (x (1 - burn / 2), the day's BURN share), and SHIELD, the SHIELDs gained over the foe's fight x the foe's mean hit; RIVETER's
+// heal moves out of the half-fight repair into that HEAL, and WARD BELL and MENDING LOOM take no NOMINAL credit. Without a
+// day, or with the switch off, every rating is exactly as before
+export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, fight = FIGHT_T, out?: RateOut, breakerShare = BREAKER_SHARE, day?: number): DeckRating {
   const h = HEROES[b.hero];
   const hits = rigHits(b), claims = connectorClaims(b), occ = occupancy(b);
   const outs = new Map<number, number>(), pace = new Map<number, number>();
@@ -202,6 +263,11 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
   for (const uid of outs.keys()) pace.set(uid, factoryPace(b, uid, occ));
   const feeds = new Map<number, Feed[]>(), longest = new Map<number, number>();
   const extras: number[] = [];
+  // BOTS-X: the expected foe when the sustain value applies (else undefined: nothing below reads it); MEND PRESS heal a
+  // second; RIVETER's heal per payload by route
+  const foe = day !== undefined && sustainLive() ? foeOn(day) : undefined;
+  let mend = 0;
+  const heals: number[] = [];
   // 0.8.0 P1 (E3): each factory's stoke from the STOKERs aimed at it (empty without one: every rate as before)
   const stoke = new Map<number, number>();
   for (const sh of stokeHits(b)) {
@@ -231,6 +297,10 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     if (spec.plate && b.routes.findIndex((q, qi) => q.factory === r.factory && routeInfo(b, qi, claims, occ, hits).connected) === ri) {
       plating += (spec.plate.amount * stoked * (pace.get(r.factory) ?? 1)) / spec.plate.every;
     }
+    // BOTS-X: a MEND PRESS with a belt to a turret heals every `every` s at its pace (ARMOR PRESS's rule), counted once
+    if (foe && spec.heal && b.routes.findIndex((q, qi) => q.factory === r.factory && routeInfo(b, qi, claims, occ, hits).connected) === ri) {
+      mend += (spec.heal.amount * stoked * (pace.get(r.factory) ?? 1)) / spec.heal.every;
+    }
     const arrival = (est.copies * (spec.batch ?? 1) * (pace.get(r.factory) ?? 1) * stoked) / (Math.max(0.1, interval) * shared);
     const eq = dmg + (spec.scrapFlat ?? 0) + BURN_TIME * BURN_DPS * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0); // NUM-1: BURN_DPS
     const list = feeds.get(info.turret) ?? [];
@@ -238,7 +308,8 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     feeds.set(info.turret, list);
     const tiles = info.join ? journeyTiles(b, ri, occ) : r.cells.length; // E1 (battle.ts makeTurret): its journey
     longest.set(info.turret, Math.max(longest.get(info.turret) ?? 0, tiles));
-    extras[ri] = x.repair;
+    extras[ri] = foe ? x.repair - x.heal : x.repair; // BOTS-X: with the sustain value, RIVETER's heal is HEAL (below)
+    if (foe) heals[ri] = x.heal;
   });
   // J5: a main belt takes its joiners' payloads into its gaps, its own first; along the belt, joiners in tile order
   // (ties: the battle's order, the lower last-cell key first). A joiner gets what is left of the belt's flow at its join
@@ -266,6 +337,9 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
   }
   let repair = 0;
   b.routes.forEach((_, ri) => { const f = byRoute.get(ri); if (f) repair += f.arrival * (extras[ri] ?? 0); });
+  if (out?.arrival) for (const [ri, f] of byRoute) out.arrival.set(ri, f.arrival); // BOTS-X: read only
+  let rivet = 0; // BOTS-X: RIVETER's heal a second (the switch on)
+  if (foe) b.routes.forEach((_, ri) => { const f = byRoute.get(ri); if (f) rivet += f.arrival * (heals[ri] ?? 0); });
   let offense = 0;
   for (const s of installedTurrets(b)) {
     const t = s.slot, td = s.td, fs = (feeds.get(t) ?? []).filter((f) => f.arrival > 0);
@@ -325,6 +399,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     for (const m of b.mods) {
       if (m.turret !== t || ITEMS[m.def]?.kind !== "mod") continue;
       const md = effectAt(m.def, starsOf(m)).mod ?? {};
+      if (foe && (md.shield || md.regen)) continue; // BOTS-X: WARD BELL and MENDING LOOM are valued as effective hull (below)
       // TUNE-M T3b (a rating bug): HOPPER's window and window time are modeled above (`start`: the loading window before
       // the first shot; the finisher's split; ★3's noJam in firedShare), so it takes no NOMINAL credit on top. It took
       // +12% / +24% / +48% of the turret's damage at ★1/★2/★3 (0.03 x 4/8/16 g), while its battle lift is negative
@@ -332,8 +407,26 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       if (!md.fireRate && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m));
     }
     offense += thr * eq * mult;
+    out?.turretDmg?.set(t, thr * eq * mult); // BOTS-X: read only
   }
   // 0.8.0 P1: ARMOR PRESS plating a second joins the repair rate (half a fight's worth, as RIVETER's)
-  const defense = h.hull + b.hullBonus + (repair + plating) * fight * 0.5;
+  let defense = h.hull + b.hullBonus + (repair + plating) * fight * 0.5;
+  if (foe) {
+    // BOTS-X (SUSTAIN-1 4.8 rule 2): the sustain as effective hull. WARD BELL and MENDING LOOM work on any installed turret,
+    // fed or not (a stalled one pauses: not modelled); a WARD BELL's SHIELDs come at every, 2 every, ... up to the fight's end
+    const installed = new Set(installedTurrets(b).map((v) => v.slot));
+    let shields = 0, regen = 0;
+    for (const m of b.mods) {
+      if (!installed.has(m.turret) || ITEMS[m.def]?.kind !== "mod") continue;
+      const md = effectAt(m.def, starsOf(m)).mod ?? {};
+      if (md.shield) shields += Math.floor(foe.fight / md.shield.every + 1e-9) * md.shield.amount;
+      if (md.regen) regen += md.regen;
+    }
+    const heal = Math.min(WIND_START, foe.fight) * (1 - foe.burn / 2); // the seconds that heal, BURN's half expected
+    const s: SustainHull = { shield: shields * foe.hit, heal: (mend + rivet) * heal, regen: regen * heal, total: 0 };
+    s.total = s.shield + s.heal + s.regen;
+    defense += s.total;
+    if (out) out.sustain = s;
+  }
   return { offense, defense, value: offense * defense };
 }

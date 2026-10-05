@@ -15,7 +15,7 @@ import { HEROES, ITEMS, RUN_DAYS, START_GOLD, incomeFor, type Faction, type Hero
 import { starsOf, upgradeGold, valueOf } from "./stars";
 import { turretsCost, type Build } from "./deck";
 import { warlordBuild, warlordHull } from "./ai";
-import { PLANS, planBuild, type Luck, type RivalLoadout } from "./rivalBuilds";
+import { CAPTAIN_RUNES, PLANS, captainRunesOn, planBuild, type Luck, type RivalLoadout } from "./rivalBuilds";
 
 export type RivalId =
   | "sootjaw" | "nettle" | "grubnose" | "mothqueen"
@@ -288,7 +288,7 @@ export function rivalLoadout(id: RivalId, day: number, luck: Luck = luckOf(id)):
  * fight never uses it: stand-ins fight with standInBuild(id, day).
  */
 export function rivalBuild(id: RivalId, day: number): Build {
-  return rivalLoadout(id, day).build;
+  return captainRunesOn(rivalLoadout(id, day).build, CAPTAIN_RUNES[id], day); // BOTS-X: its runes up to `day` (none while CAPTAIN_RUNES is empty)
 }
 
 // ------------------------------------------------------------ honest decks (rulings R1, R2)

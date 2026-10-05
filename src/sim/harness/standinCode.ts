@@ -23,11 +23,18 @@
 //            Uids: a free copy of def d takes the starting uid (TURRET_UID0 + slot) of d's starting slots in slot order;
 //            every other turret follows the mods (items 1..n, mods n+1..n+m, turrets n+m+1..). Decoding goes through
 //            setTurretList, so a list equal to the starting layout leaves no field.
+// BOTS-X (REQ-BFG-058; RUNES-2a 3 step 2): Build.runes, as the loader's codec writes it (src/sim/standInPool.ts header;
+// runeWord / runesOf / headWords are shared with it, as upgradeWord / upgradesOf are): the head's last word,
+//   "<beltCap> <hullBonus>[ u<t><f>][ r:<id>,<id>...]"
+//   runes:   "r:" then the held runes' ids in pick order, comma-separated, written only when the deck holds a rune, e.g.
+//            "14 0 r:iron_hide,coin_purse/kiln64/1:544434241404/". A rune-less deck encodes byte for byte as before;
+//            every older code decodes exactly as before (no runes key); the decoded runes are the build's last key.
 
 import { GRID, HEROES, ITEMS, type HeroId } from "../content";
 import { rotOf, setTurretList, startingTurrets, type Build, type BuildTurret, type ModPlacement, type Placed, type RouteDef } from "../deck";
 import { starsOf } from "../stars";
 import { upgradeWord, upgradesOf } from "../standInPool"; // bb-0.8.3 (REQ-BFG-043 D10): the levels' head word
+import { headWords, runeWord, runesOf } from "../standInPool"; // BOTS-X (REQ-BFG-058): the runes' head word
 
 const cellCode = (x: number, y: number): string => `${y}${x}`;
 const suffix = (p: { stars?: number }): string => (starsOf(p) > 1 ? `*${starsOf(p)}` : "");
@@ -71,8 +78,9 @@ export function encodeStarred(b: Build): string {
     return `${m.def}${m.turret}${suffix(m)}`;
   });
   const turrets = turretSection(b);
-  // bb-0.8.3 (REQ-BFG-043 D10): the levels as the head's third word (standInPool.ts upgradeWord, shared with the loader)
-  return `${b.beltCap} ${b.hullBonus}${upgradeWord(b)}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`;
+  // bb-0.8.3 (REQ-BFG-043 D10): the levels as the head's third word (standInPool.ts upgradeWord, shared with the loader);
+  // BOTS-X: then the runes, the head's last word (runeWord, shared too)
+  return `${b.beltCap} ${b.hullBonus}${upgradeWord(b)}${runeWord(b)}/${items.join(" ")}/${routes.join(" ")}/${mods.join(" ")}${turrets === undefined ? "" : `/${turrets}`}`;
 }
 
 /** Decode a star-aware (or v1) stand-in build code into a fresh Build for `hero`. */
@@ -80,7 +88,8 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   const parts = code.split("/");
   if (parts.length > 5) throw new Error(`stand-in code: more than five sections in "${code}"`);
   const [head, itemPart, routePart, modPart, turretPart] = parts;
-  const [bc, hb, up] = head.split(" "), beltCap = Number(bc), hullBonus = Number(hb); // bb-0.8.3: `up`, the levels
+  const [bc, hb, ...more] = head.split(" "), beltCap = Number(bc), hullBonus = Number(hb);
+  const [up, rw] = headWords(more); // bb-0.8.3: `up`, the levels; BOTS-X: `rw`, the runes (the head's last word)
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
   const items: Placed[] = words(itemPart).map((w, i) => {
@@ -103,7 +112,7 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   });
   if (!HEROES[hero]) throw new Error(`stand-in code: unknown hero "${hero}"`);
   const b: Build = { hero, items, routes, mods, beltCap, hullBonus };
-  if (turretPart === undefined) return Object.assign(b, upgradesOf(up)); // bb-0.8.3 (D10): the levels, the last key
+  if (turretPart === undefined) return Object.assign(b, upgradesOf(up), runesOf(rw)); // bb-0.8.3 (D10): the levels; BOTS-X: the runes, the last key
   // the turret section: free copies take their def's starting uids (TURRET_UID0 + slot) in slot order, the rest follow
   // the mods
   const own = new Map<string, number[]>();
@@ -116,5 +125,5 @@ export function decodeStarred(hero: HeroId, code: string): Build {
     return { slot: Number(m[2]), def: m[1], uid, ...star(m[3]), ...(m[4] ? { free: true } : {}) };
   });
   setTurretList(b, list);
-  return Object.assign(b, upgradesOf(up));
+  return Object.assign(b, upgradesOf(up), runesOf(rw));
 }
