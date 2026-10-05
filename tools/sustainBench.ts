@@ -223,7 +223,9 @@ function play(field: Build[], f: Fight): Out {
 }
 
 function pool(n: number, script: string) {
-  const ws = Array.from({ length: n }, () => new Worker(new URL(script)));
+  // TUNE-X: pass the command line to every worker (a worker's process.argv holds only node and the script otherwise), so
+  // --leechn reaches the battles; the first TUNE-X leech15 run (07:37-07:39Z) lacked it and played LEECH VOW at 20
+  const ws = Array.from({ length: n }, () => new Worker(new URL(script), { argv: process.argv.slice(2) }));
   const run = (field: Build[], fights: Fight[]) => new Promise<Out[]>((done, fail) => {
     const size = Math.max(8, Math.ceil(fights.length / (n * 8)));
     const chunks: Chunk[] = [];
