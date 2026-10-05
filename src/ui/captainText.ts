@@ -17,6 +17,10 @@ export const CAPTAIN_FORMS: Readonly<Record<KeywordName, readonly string[]>> = {
   FRAY: ["FRAY"],
   PLATE: ["PLATE", "PLATED"],
   PAIR: ["PAIR", "PAIRS"],
+  // SUS-B (REQ-BFG-069): the sustain keywords (no captain line names one today; THANE KARSK's plan is IRON WALL)
+  SHIELD: ["SHIELD", "SHIELDS"],
+  HEAL: ["HEAL", "HEALS"],
+  REGEN: ["REGEN"],
 };
 
 const COLOUR_OF: ReadonlyMap<string, string> = new Map(

@@ -53,15 +53,38 @@ describe("U2b F1: the DMG glyph is a sword (U1's burst read as an asterisk besid
 });
 
 describe("U1 icons: the set", () => {
-  it("16 icons: DMG .. PAIR at U+E000 .. U+E00D in the brief's order, one UTF-16 unit each, then HULL ♥ and STAR ★", () => {
-    expect(NAMES).toEqual(["DMG", "SEC", "RATE", "SLUG", "BELT", "GEAR", "GOLD", "UP", "BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "HULL", "STAR"]);
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): 19 names (was 16): SHIELD, HEAL and REGEN at U+E010 .. U+E012, past U+E00E and
+  // U+E00F (claimed by N1's and R1b's next icons), so the code points are pinned name by name, not as a run from U+E000
+  it("19 icons: DMG .. PAIR at U+E000 .. U+E00D in the brief's order, SHIELD, HEAL, REGEN at U+E010 .. U+E012, one UTF-16 unit each, then HULL ♥ and STAR ★", () => {
+    expect(NAMES).toEqual(["DMG", "SEC", "RATE", "SLUG", "BELT", "GEAR", "GOLD", "UP", "BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN", "HULL", "STAR"]);
+    const at: Record<string, number> = { SHIELD: 0xe010, HEAL: 0xe011, REGEN: 0xe012 };
     PUA.forEach((n, i) => {
       expect(ICON[n].length, n).toBe(1);
-      expect(ICON[n].charCodeAt(0), n).toBe(0xe000 + i);
+      expect(ICON[n].charCodeAt(0), n).toBe(at[n] ?? 0xe000 + i);
     });
-    expect(PUA.length).toBe(14);
+    expect(PUA.length).toBe(17);
     expect([ICON.HULL, ICON.STAR]).toEqual(["♥", "★"]);
-    expect(KEYWORDS).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR"]);
+    expect(KEYWORDS).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
+  });
+
+  it("SUS-B: SHIELD, HEAL and REGEN as drawn (SUSTAIN-1 4.4), with the two 3x5 steps the thresholds need; PLATE's glyph unchanged", () => {
+    expect(glyphRows(ICON.SHIELD, "5")).toEqual(["..#..", ".#.#.", "#...#", "#.#.#", "#...#", ".#.#.", "..#.."]);
+    expect(glyphRows(ICON.HEAL, "5")).toEqual([".###.", ".#.#.", "##.##", "#...#", "##.##", ".#.#.", ".###."]);
+    expect(glyphRows(ICON.REGEN, "5")).toEqual(["..#..", ".###.", "..#..", ".....", "..#..", ".###.", "..#.."]);
+    expect(glyphRows(ICON.REGEN, "3")).toEqual([".#.", "###", ".#.", "...", "#.#"]);
+    // the drawn 3x5 SHIELD "...|.#.|#.#|.#.|..." is 1 px from "+"; the drawn 3x5 HEAL ".#.|###|.#.|...|###" is 1 px from UP
+    // and 2 from "1": the thresholds below refuse both, so each is one step off the drawing
+    const drawnShield = ["...", ".#.", "#.#", ".#.", "..."], drawnHeal = [".#.", "###", ".#.", "...", "###"];
+    expect(dist(drawnShield, rows("+", "3"))).toBe(1);
+    expect(dist(drawnHeal, rows(ICON.UP, "3"))).toBe(1);
+    expect(dist(drawnHeal, rows("1", "3"))).toBe(2);
+    expect(glyphRows(ICON.SHIELD, "3")).toEqual(["...", ".#.", "#.#", "#.#", ".#."]); // the diamond one row taller
+    expect(glyphRows(ICON.HEAL, "3")).toEqual(["...", ".#.", "###", ".#.", "###"]); // the cross one row lower, on its bar
+    // T1's "SHIELD" glyph is PLATE's, unchanged (its name in font.ts is PLATE's now)
+    expect(glyphRows(ICON.PLATE, "5")).toEqual(["#####", "##.##", "#...#", "#...#", ".#.#.", ".#.#.", "..#.."]);
+    expect(glyphRows(ICON.PLATE, "3")).toEqual(["###", "###", "#.#", ".#.", ".#."]);
+    expect([ICON_COLOUR[ICON.SHIELD], ICON_COLOUR[ICON.HEAL], ICON_COLOUR[ICON.REGEN]]).toEqual([C.rune3, C.green, C.verd3]);
+    expect([C.rune3, C.green, C.verd3]).toEqual(["#9DB0FF", "#59DF67", "#3E9C83"]);
   });
 
   for (const f of FACES) {
@@ -158,7 +181,7 @@ describe("U1 icons: markup", () => {
     expect(icons("{*DMG} {*SEC} {*HULL}")).toBe("{*DMG} {*SEC} {*HULL}");
   });
 
-  it("isIcon and stripIcons know the 14 private-use icons; ♥ and ★ stay text", () => {
+  it("isIcon and stripIcons know the 17 private-use icons (SUS-B: was 14); ♥ and ★ stay text", () => {
     for (const n of PUA) expect(isIcon(ICON[n]), n).toBe(true);
     expect(isIcon("♥") || isIcon("★") || isIcon("A")).toBe(false);
     expect(stripIcons(icons("{DMG}4"))).toBe("4");
@@ -199,6 +222,7 @@ describe("U1 icons: colour", () => {
     expect(ICON_COLOUR).toEqual({
       [ICON.RATE]: KEYWORD_COLOUR.faster, [ICON.GOLD]: C.yellow, [ICON.BURN]: KEYWORD_COLOUR.burn, [ICON.STUN]: C.cyan,
       [ICON.HEAT]: C.amber, [ICON.FRAY]: C.plum4, [ICON.PLATE]: C.plate3, [ICON.PAIR]: C.blue,
+      [ICON.SHIELD]: C.rune3, [ICON.HEAL]: C.green, [ICON.REGEN]: C.verd3, // SUS-B (SUSTAIN-1 4.4)
     });
   });
 

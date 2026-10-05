@@ -31,6 +31,7 @@ import { livePerk, type TextOpts } from "./abilityText";
 import {
   AMMO, BURN_TIME, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId, type ItemDef, type PayloadPreset,
 } from "../sim/content";
+import { SHIELD_CAP } from "../sim/content"; // SUS-B (REQ-BFG-069): SHIELD's MAX 3
 import { GUARD_FREEZE, SHAPE_ARROWS, rigShape } from "../sim/content"; // U2b: the rigs' belts and OVERDRIVE's guards
 import { factorySpeed, secPer } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED (the faces keep SEC: 30 / speed)
 import { FUSE_MULT } from "../sim/races/foundry";
@@ -177,6 +178,10 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   FRAY: () => `EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
   PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`,
   PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET AT ONCE.",
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1 and 4.9): SHIELD a count (fmtCount; content.ts SHIELD_CAP), HEAL and REGEN on hull
+  SHIELD: () => `EACH {*SHIELD}: STOPS ONE WHOLE HIT. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
+  HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
+  REGEN: () => "{*REGEN}: HEALS THIS MUCH {HULL} EACH SEC.",
 };
 
 // ------------------------------------------------------------------------------------------------------ the faces
