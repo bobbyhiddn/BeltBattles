@@ -518,7 +518,7 @@ export class Battle {
   /** A load's ride for its damage (THE LONG ROAD: its ride bonus x n). */
   private rideOf(s: SideState, p: Payload): number {
     const ride = s.rune?.rideMul ? p.ride * s.rune.rideMul : p.ride;
-    // FURN-Y (release Y bench): COAL CHUTE / HEAT SINK's "YOUR HEAT: +n%" reads the KILN's HEAT too (its face's {HEAT}12, the
+    // FURN-Y (release Y; Y-FURN): COAL CHUTE / HEAT SINK's "YOUR HEAT: +n%" reads the KILN's HEAT too (its face's {HEAT}12, the
     // glossary's RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE"), not only a HEAT JACKET's: the ride the
     // slug's own rideScale reads, +n%. Only payloadDamage reads rideOf; a side without heatPct rides exactly as before
     return s.rune?.heatPct ? ride * (1 + s.rune.heatPct / 100) : ride;

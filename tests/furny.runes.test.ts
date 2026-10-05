@@ -1,4 +1,5 @@
-// FURN-Y (release Y bench, never merged; REQ-BFG-069, REQ-BFG-047): FURNACE's four style runes in their working forms.
+// FURN-Y (release Y, ported by Y-FURN; REQ-BFG-069, REQ-BFG-047): FURNACE's four style runes in their working forms. The
+// four stay dormant (DORMANT_RUNES) until Y7b; these tests hand them to a build directly.
 // - COAL CHUTE / HEAT SINK (heatPct, no new kind): "YOUR HEAT: +n%" reads the KILN's HEAT (the cinder slug's own
 //   rideScale x the seconds ridden, battle.ts rideOf) as well as a HEAT JACKET's; a deck with no ride-scaled slug and no
 //   HEAT JACKET battles exactly as before.

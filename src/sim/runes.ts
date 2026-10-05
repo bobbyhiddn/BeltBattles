@@ -94,9 +94,9 @@ export type RuneKind =
   | "lastStand" | "perTurretRate" | "stampPlate" | "pairPlate" | "stallCut" | "rigSoon"
   // SUS-D (REQ-BFG-069): the sustain runes' kinds (BULWARK WARD shares WARD STONE's startShield)
   | "shieldEvery" | "pairHeal" | "halfHeal" | "hitHeal" | "regen" | "burnNoHeal" | "shieldPierce"
-  // FURN-Y (release Y bench, never merged): the two counters with a baseline, one kind each. searBurn: n BURN on the foe's
-  // hull at the start, and a foe with your BURN heals nothing (SEARING). shatterPct: your shots +n% DMG, and a hit breaks
-  // one SHIELD and still lands (SHATTER SHOT)
+  // FURN-Y (release Y; Y-FURN ports it, REVIEW-FURNY rows 3-4): the two counters with a baseline, one kind each. searBurn:
+  // n BURN on the foe's hull at the start, and a foe with your BURN heals nothing (SEARING). shatterPct: your shots +n% DMG,
+  // and a hit breaks one SHIELD and still lands (SHATTER SHOT)
   | "searBurn" | "shatterPct";
 
 /** The unit each kind's amount carries (a test pins every rune to it). */
@@ -274,8 +274,8 @@ export const SUSTAIN_RUNE_LIST: readonly RuneDef[] = [
   // the counters (FURNACE): BURN's rule taken to none; round B's PIERCE as a rune (each shot breaks a SHIELD and hits on).
   // Rule runes: no amount to move. M5 (FURNACE): SEARING +0.1 (par), +0.4 (typ2), +0.8 against the typ2 decks that heal;
   // SHATTER SHOT +0.0 (par: no SHIELD), +1.3 (typ2), +5.3 against the typ2 decks that hold SHIELD (BASTION's WARD BELL)
-  // FURN-Y (release Y bench, never merged): each counter keeps its rule and gains a baseline (one new kind each); the
-  // amounts are the bench's (T/output-furny/REPORT.md)
+  // FURN-Y (release Y; Y-FURN ports it, REVIEW-FURNY rows 3-4): each counter keeps its rule and gains a baseline (one new
+  // kind each); the amounts are FURN-Y's bench (its REPORT.md section 4). Both stay dormant (DORMANT_RUNES) until Y7b
   r("searing", "SEARING", "rare", "furnace", "searBurn", 6, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}."),
   r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", 15,"YOUR SHOTS: +{N} {DMG}. A {*SHIELD} THEY BREAK STILL TAKES THE HIT."),
 ];
@@ -299,10 +299,7 @@ export const isSustainRune = (id: string): boolean => SUSTAIN_RUNE_LIST.some((d)
  * one taken at a dawn; their defs stay in RUNES, so an old snapshot decodes. Release Y's FURNACE rune pass gives them
  * baselines.
  */
-// FURN-Y (bench only, never merged): FURNY_POOL=full in the environment empties the set (the four back in the pool), for
-// sustainBench's full-pool run; unset, release X's set
-const FURNY_FULL = typeof process !== "undefined" && process.env?.FURNY_POOL === "full";
-export const DORMANT_RUNES: ReadonlySet<string> = new Set(FURNY_FULL ? [] : ["searing", "shatter_shot", "coal_chute", "heat_sink"]);
+export const DORMANT_RUNES: ReadonlySet<string> = new Set(["searing", "shatter_shot", "coal_chute", "heat_sink"]);
 
 /** SUS-D: the runes the dawn offers now: RUNE_LIST, and the sustain runes after it while the sustain switch is on.
  *  FLIP-X2: never a dormant one (DORMANT_RUNES). */
