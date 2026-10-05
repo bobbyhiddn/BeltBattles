@@ -6,6 +6,8 @@
 
 import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME, type FactorySpec, type HeroId } from "./content";
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
+import { factorySpeed, rateMul, secPer } from "./content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
+import { roundHalfUp } from "./pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
   walkRoute, type Build, type RigHit,
@@ -213,7 +215,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     const f = itemByUid(b, r.factory);
     const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, gradeOf(b, f)).factory : undefined; // bb-0.8.3: grade
     if (!f || !spec) return;
-    const interval = f.def === "mimic" ? (ITEMS[h.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
+    const interval = secPer(factorySpeed(f.def, spec, b.hero)); // NUM-2: 30 / its whole speed (MIMIC: x its rate %)
     const walk = walkRoute(b, ri, hits), est = walk.estimate;
     // 0.8.0 B1 M2 (G1's F1): on a deck that plates its hull the walk counts PLATE BREAKER's big number, which battles pay
     // only on BREAKER_SHARE of its blows: the rating reads floor + BREAKER_SHARE x (big - floor)
@@ -270,13 +272,15 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
     if (!fs.length) continue;
     const g = gearStats(b, t), core = resolveCore(b, t, td);
     // battle.ts makeTurret: E1's long belt scales whatever turret it feeds, at that turret's stars
-    let interval = td.fireInterval * (b.hero === "furnace" && (longest.get(t) ?? 0) >= 8 ? FURNACE_LONG_BELT : 1) * g.fireMul;
-    if (core.spec.intervalMul) interval *= core.spec.intervalMul;
+    // NUM-2 (REQ-BFG-047): as makeTurret, the speed x each whole rate % (gear, E1's long belt, ROTARY), rounded half up once
+    const raw = td.speed * g.speedMul * (b.hero === "furnace" && (longest.get(t) ?? 0) >= 8 ? rateMul(FURNACE_LONG_BELT) : 1) * rateMul(core.spec.fireRate);
+    const at = (x: number): number => secPer(Math.max(1, roundHalfUp(x))); // 30 / the whole speed
+    let interval = at(raw);
     // 0.8.0 P1: STEAM BREECH fires at its plated rate on a deck that plates its hull, else at its bare one (cores.ts). 0.8.0
     // B1 M2: a plated deck fires at the plated rate only on PLATED_SHARE of its shots (its hull holds plating), else bare
     if (core.routine === "steam") {
-      const plated = core.spec.steamPlated ?? 1, bare = core.spec.steamBare ?? 1;
-      interval *= platedDeck(b) ? PLATED_SHARE * plated + (1 - PLATED_SHARE) * bare : bare;
+      const plated = at(raw * rateMul(core.spec.steamPlated)), bare = at(raw * rateMul(core.spec.steamBare)); // NUM-2: cores.ts steamInterval
+      interval = platedDeck(b) ? PLATED_SHARE * plated + (1 - PLATED_SHARE) * bare : bare;
     }
     const cap = g.perShot / interval;
     // 0.8.0 P1 (STOKER's cap, as Battle.stokedPace): a stoke never feeds a turret past its pace (SHARED_HEADROOM of it
@@ -325,7 +329,7 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       // the first shot; the finisher's split; ★3's noJam in firedShare), so it takes no NOMINAL credit on top. It took
       // +12% / +24% / +48% of the turret's damage at ★1/★2/★3 (0.03 x 4/8/16 g), while its battle lift is negative
       // (flag 3: -2 to -9; its control -12 to -32), so the par player bought it where it costs damage
-      if (!md.fireMul && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m));
+      if (!md.fireRate && !md.perShot && !md.finisher && !md.longRideFlat && !md.window && !md.windowTime && !md.store) mult *= 1 + NOMINAL * valueOf(m.def, starsOf(m));
     }
     offense += thr * eq * mult;
   }

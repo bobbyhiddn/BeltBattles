@@ -2,7 +2,7 @@
 // destination (left gun DRAG, right gun ECHO, no gun DRAG). DRAG slows the struck enemy belt
 // segment; ECHO copies the added effects of the last enemy payload that struck Siphon.
 
-import { AMMO, AMMO_SPACING } from "../content";
+import { AMMO, AMMO_SPACING, secPer } from "../content";
 import type { RouteDef } from "../deck";
 import type { FactoryState, Payload, RouteState, SideState, Target } from "../battle";
 import { FUSE_MULT, type SimCtx } from "./foundry";
@@ -41,7 +41,7 @@ export function sumpProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: numb
     if (spec.base !== undefined) p.base = spec.base; // bb-0.8.3 (REQ-BFG-042 D2): a ★2-3 SUMP's level, as Battle.stamp
     r.ammo.push({ p, s: 0, processed: -1, blocked: false });
     f.rr = (f.rr + k + 1) % n;
-    f.timer = spec.interval;
+    f.timer += secPer(spec.speed); // NUM-2 (REQ-BFG-047): 30 / speed, carrying the remainder (was a reset to the interval)
     f.flash = 0.18;
     f.produced++;
     f.stalled = false;

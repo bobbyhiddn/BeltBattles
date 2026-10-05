@@ -7,9 +7,10 @@ import {
   AMMO, AMMO_SPACING, BATTLE_CAP, BELT_SPEED, BURN_TIME, CELL, COMMISSION_BASE, COMMISSION_STEP,
   DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, GUARD_FREEZE, GUARD_SKIRT, GUARD_SLOW, HEROES, ITEMS, JAM_COOLDOWN, JAM_THRESHOLD, JOIN_PACE, RULES_VERSION,
   TICK, WIND_START, WIND_WARN, WINDOW_TIME,
+  SPEED_K, rateMul, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type AmmoKind, type CoreRoutine, type FactorySpec, type HarassCause, type HeroDef, type ItemDef, type TurretDef,
 } from "./content";
-import { drakeConvert, pressureBonus, resolveCore, ROUTINES, type TurretCore } from "./cores"; // 0.6.1b
+import { drakeConvert, pressureBonus, resolveCore, ROUTINES, spinInterval, steamInterval, type TurretCore } from "./cores"; // 0.6.1b
 import {
   cloneBuild, connectorClaims, defOf, installedTurrets, kx, ky, occupancy, payloadDamage, rigHits,
   routeInfo, routePolyline, speedWinner, type Build, type Dir, type HitTier, type RigHit,
@@ -216,7 +217,9 @@ export interface TurretState {
   disrupted: number;
   frozen: number;
   perShot: number;
-  interval: number;
+  interval: number; // NUM-2 (REQ-BFG-047): 30 / speed, the seconds between shots the battle uses
+  speed: number; // NUM-2: the whole speed (shots per 30 s): speedRaw rounded half up once
+  speedRaw: number; // NUM-2: the turret's speed x each of its rates ((100 + X) / 100), unrounded (setSpeed)
   recoil: number; // render
   jamFx: number; // render
   waiting: number;
@@ -729,7 +732,7 @@ export class Battle {
     // adds its % per turret
     if (rune) {
       const pct = rune.turretRate + rune.allRate + rune.perTurretRate * turrets.length;
-      if (pct) for (const tu of turrets) tu.interval /= 1 + pct / 100;
+      if (pct) for (const tu of turrets) setSpeed(tu, tu.speedRaw * rateMul(pct)); // NUM-2: in the one rounding
       if (rune.factoryRate + rune.allRate) for (const f of factories) f.pace *= 1 + (rune.factoryRate + rune.allRate) / 100;
       // QUICK LATCH: every rig comes online a whole % sooner (an IDLE rig never does)
       if (rune.rigSoon) for (const g of gates) if (Number.isFinite(g.commissionAt)) g.commissionAt *= Math.max(0, 1 - rune.rigSoon / 100);
@@ -764,8 +767,9 @@ export class Battle {
     // bb-0.8.3 (REQ-BFG-042 D3): a ★3 MIMIC (TWIN SIGNET) pours only where it makes the hero's blanks (FOUNDRY; stars.ts
     // pourAt); on every other hero it stamps one slug a cycle, in turn
     const { pour, ...rest } = spec;
+    // NUM-2 (REQ-BFG-047): the hero factory's (level 1) speed x MIMIC's rate %, rounded half up once (content.ts factorySpeed)
     return { ...def, factory: { ...rest, ammo: hero.ammo, ...(pour && hero.ammo === "blank" ? { pour } : {}),
-      interval: (ITEMS[hero.factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) } };
+      speed: roundHalfUp((ITEMS[hero.factory].factory?.speed ?? SPEED_K) * rateMul(spec.rate)) } };
   }
 
   /** races: payload ids for payloads created by race hooks (src/sim/races). */
@@ -934,7 +938,7 @@ export class Battle {
         continue;
       }
       if (f.pending === 0 && this.stamp(s, f)) {
-        f.timer = spec.interval;
+        f.timer += secPer(spec.speed); // NUM-2 (REQ-BFG-047): 30 / speed, carrying the remainder (was a reset to the interval)
         if (spec.batch && spec.batch > 1) f.pending = spec.batch - 1; // 0.6.1c: the rest of the batch waits in the mouth
       } else { // no room on any route (0.6.1c: or the last batch still fills the mouth): the next cycle waits
         f.stalled = true;
@@ -1259,7 +1263,7 @@ export class Battle {
     const k = this.stokeOf(f);
     let pace = f.pace * (1 + k);
     if (k > 0 && f.stokeCap?.length) {
-      const i0 = f.def.factory!.interval / f.pace;
+      const i0 = secPer(f.def.factory!.speed) / f.pace; // NUM-2: 30 / speed
       let imin = 0;
       for (const c of f.stokeCap) {
         const tu = turretAt(s, c.turret);
@@ -1267,11 +1271,11 @@ export class Battle {
         // a turret fed by this factory alone takes its full pace (its loads come evenly); one other factories share keeps
         // SHARED_HEADROOM of its pace free, since loads from several factories drift in and out of step and bunch up
         let left = (c.others.length ? 1 - SHARED_HEADROOM : 1) / loadPace(tu);
-        for (const o of c.others) left -= ((o.f.stokers ? o.f.curPace ?? o.f.pace : o.f.pace) / o.f.def.factory!.interval) * o.perStamp;
+        for (const o of c.others) left -= ((o.f.stokers ? o.f.curPace ?? o.f.pace : o.f.pace) / secPer(o.f.def.factory!.speed)) * o.perStamp;
         imin = Math.max(imin, left > 1e-9 ? c.perStamp / left : Infinity);
       }
       const eff = Math.max(i0 / (1 + k), Math.min(i0, imin));
-      pace = f.def.factory!.interval / eff;
+      pace = secPer(f.def.factory!.speed) / eff;
     }
     f.curPace = pace;
     f.stoked = (f.stoked ?? 0) + dt * (pace - f.pace);
@@ -1515,7 +1519,9 @@ export class Battle {
       if (tu.disrupted > 0 || tu.frozen > 0) continue;
       if (tu.core.routine === "capacitor" && tu.stack.length === 0)
         tu.charge = Math.min(tu.core.spec.maxSeconds ?? 5, tu.charge + dt);
-      if (tu.fireCd > 0) tu.fireCd = Math.max(0, tu.fireCd - dt);
+      // NUM-2 (REQ-BFG-047, N1 2.2): the shot timer carries its remainder (it stops within a tick below 0, and a shot adds
+      // the next interval to it), so an over-fed turret's long-run rate is exactly speed / 30 a second (was a clamp at 0)
+      if (tu.fireCd > 0) tu.fireCd -= dt;
       if (tu.jamCd > 0) tu.jamCd = Math.max(0, tu.jamCd - dt);
       // 0.6.1b: the core's chamber hooks (src/sim/cores.ts ROUTINES); the identity hooks are the old rules
       const rt = ROUTINES[tu.core.routine];
@@ -1540,7 +1546,7 @@ export class Battle {
         if (tu.fireCd <= 0) {
           if (tu.jamSkip > 0) {
             tu.jamSkip--;
-            tu.fireCd = tu.interval;
+            tu.fireCd += tu.interval; // NUM-2: the remainder carried
           } else {
             const n = rt.count(tu); // identity: perShot
             for (let k = 0; k < n && tu.stack.length; k++) {
@@ -1555,7 +1561,7 @@ export class Battle {
               const fin = tu.finisher > 0 && tu.stack.length === 0 && tu.core.routine !== "gatling";
               this.fire(s, tu, p, k, queued, fin);
             }
-            tu.fireCd = rt.cadence(tu, this.t); // identity: interval
+            tu.fireCd += rt.cadence(tu, this.t); // identity: interval (NUM-2: 30 / speed, the remainder carried)
             // RUNES-2a: LAST STAND, below half hull the next shot comes a whole % sooner
             if (s.rune?.lastStand && s.hull.hp < s.hull.max / 2) tu.fireCd /= 1 + s.rune.lastStand / 100;
           }
@@ -2321,8 +2327,18 @@ export function turretAt(s: Pick<SideState, "turrets">, slot: number): TurretSta
 }
 
 /** E1 (FURNACE): a turret fed by a belt of 8+ tiles fires at this share of its interval (1.0 s x 0.72 = 0.72 s, the
- *  starting SCRAP CANNON's 0.6.1 cadence exactly). 0.6.2s: a share, so a bought or starred turret keeps its own pace. */
-export const FURNACE_LONG_BELT = 0.72;
+ *  starting SCRAP CANNON's 0.6.1 cadence exactly). 0.6.2s: a share, so a bought or starred turret keeps its own pace.
+ *  NUM-2 (REQ-BFG-047, N1 2.3): a whole rate %, 39% faster (the interval x 100 / 139 = 0.7194; was x0.72, the hero
+ *  select's "39%"), in the turret's one rounding (makeTurret). */
+export const FURNACE_LONG_BELT = 39;
+
+/** NUM-2 (REQ-BFG-047): set a turret's unrounded speed, and from it the whole speed (rounded half up once) and the
+ *  interval the battle uses (30 / speed). */
+export function setSpeed(tu: Pick<TurretState, "speed" | "speedRaw" | "interval">, raw: number): void {
+  tu.speedRaw = raw;
+  tu.speed = Math.max(1, roundHalfUp(raw));
+  tu.interval = secPer(tu.speed);
+}
 
 /**
  * 0.6.2j (J1-J6): write each joining belt's RouteJoin (makeSide's legal joins, `links` by route index): its main belt,
@@ -2391,17 +2407,20 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     const info = routeInfo(b, ri);
     return info.connected && info.turret === i;
   });
-  const interval = (longFurnaceBelt ? def.fireInterval * FURNACE_LONG_BELT : def.fireInterval) * g.fireMul;
+  // NUM-2 (REQ-BFG-047, N1 2.2-2.3): the turret's speed x each whole rate % it has (its gear: CALIBRATION, ESCAPEMENT; its
+  // core: ROTARY; E1's long belt), rounded half up once: the speed the battle uses; its interval is 30 / that speed
+  const speedRaw = def.speed * g.speedMul * (longFurnaceBelt ? rateMul(FURNACE_LONG_BELT) : 1) * rateMul(c.fireRate);
+  const speed = Math.max(1, roundHalfUp(speedRaw));
   const windowTime = c.windowTime ?? WINDOW_TIME;
   return {
     index: i, def, stack: [], phase: "load", loadTimer: 0, fireCd: 0, jamSkip: 0, jamRandom: false,
-    jamCd: 0, disrupted: 0, frozen: 0, perShot: g.perShot, interval: c.intervalMul ? interval * c.intervalMul : interval, recoil: 0, jamFx: 0,
+    jamCd: 0, disrupted: 0, frozen: 0, perShot: g.perShot, interval: secPer(speed), speed, speedRaw, recoil: 0, jamFx: 0,
     // 0.6.1p: EXT. CHAMBER ★2/★3 and HOPPER add window slots; HOPPER adds seconds to the core's window time (a
     // GATLING never reads windowTime, cores.ts gatlingReady, so there HOPPER's seconds do nothing; its slots count)
     // 0.8.0 P1: TWIN TRIGGER's load time is shorter (a negative windowTime), never below LOAD_FLOOR; HOPPER's longer one
     // is always above it, so every older turret's load time is unchanged
     waiting: 0, core, window: def.window + g.window, windowTime: g.windowTime ? Math.max(LOAD_FLOOR, windowTime + g.windowTime) : windowTime,
-    spin: c.start ?? 1, lastShot: -1,
+    spin: 1 / rateMul(c.start), lastShot: -1, // NUM-2: GATLING's first spin, its whole rate % as an interval share
     store: [], storeMax: g.store, // 0.6.2 FB-B: HOPPER ★2/★3
     noJam: g.noJam, immune: g.immune, intakeGuard: g.intakeGuard, finisher: g.finisher, intercept: g.intercept,
     rerolls: g.rerolls, factoryWeight: g.factoryWeight, alwaysMachine: g.alwaysMachine, charge: 0, salvage: 0,
@@ -2429,15 +2448,15 @@ export function loadPace(tu: TurretState): number {
   const c = tu.core.spec, routine = tu.core.routine;
   if (routine === "salvo") return (tu.interval * (c.reloadMul ?? 1)) / Math.max(1, tu.window);
   let cd = tu.interval;
-  if (routine === "steam") cd *= (tu.plated ? c.steamPlated : c.steamBare) ?? 1;
-  else if (routine === "gatling") cd *= tu.spin;
+  if (routine === "steam") cd = steamInterval(tu); // NUM-2: 30 / its whole speed now (cores.ts)
+  else if (routine === "gatling") cd = spinInterval(tu);
   return cd / Math.max(1, routine === "compound" ? 2 * tu.perShot : tu.perShot);
 }
 
 /** 0.6.1p: turret i's gear at its stars, folded (makeTurret; the inspector and the cruiser art read it too). */
 export interface GearStats {
   perShot: number; // payloads per firing opportunity (the most any gear gives, at least 1)
-  fireMul: number; // x the fire interval
+  speedMul: number; // NUM-2 (REQ-BFG-047): x the speed, the product of the gear's (100 + fireRate) / 100 (was fireMul, x the interval)
   window: number; // + window slots
   windowTime: number; // + window seconds
   store: number; // HOPPER ★2/★3 (0.6.2 FB-B): loads held while the gun fires
@@ -2458,12 +2477,12 @@ export interface GearStats {
 }
 
 export function gearStats(b: Build, i: number): GearStats {
-  const out: GearStats = { perShot: 1, fireMul: 1, window: 0, windowTime: 0, store: 0, noJam: false, immune: [], intakeGuard: 0,
+  const out: GearStats = { perShot: 1, speedMul: 1, window: 0, windowTime: 0, store: 0, noJam: false, immune: [], intakeGuard: 0,
     finisher: 0, intercept: 0, rerolls: 0, factoryWeight: 1, alwaysMachine: false, longRideFlat: 0, longRideMin: 0, pairBonus: 0 };
   for (const m of b.mods.filter((m) => m.turret === i)) {
     const md = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined; // 0.6.1a: mod spec at its stars (a core has none)
     if (md?.perShot) out.perShot = Math.max(out.perShot, md.perShot);
-    if (md?.fireMul) out.fireMul *= md.fireMul;
+    if (md?.fireRate) out.speedMul *= rateMul(md.fireRate); // NUM-2: a whole rate % (CALIBRATION, ESCAPEMENT)
     if (md?.window) out.window += md.window;
     if (md?.windowTime) out.windowTime += md.windowTime;
     if (md?.store) out.store = Math.max(out.store, md.store); // 0.6.2 FB-B: HOPPER ★2/★3

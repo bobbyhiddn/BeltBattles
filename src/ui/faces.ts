@@ -32,6 +32,7 @@ import {
   AMMO, BURN_TIME, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId, type ItemDef, type PayloadPreset,
 } from "../sim/content";
 import { GUARD_FREEZE, SHAPE_ARROWS, rigShape } from "../sim/content"; // U2b: the rigs' belts and OVERDRIVE's guards
+import { factorySpeed, secPer } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED (the faces keep SEC: 30 / speed)
 import { FUSE_MULT } from "../sim/races/foundry";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { scaleCore } from "../sim/cores";
@@ -93,12 +94,12 @@ const showsBelts = (def: string): boolean => !fusible(def) || [1, 2, 3].some((n)
  *  shows them, its belts. The slug damage is its dies' (FactorySpec.base), else its ammo's (Battle.stamp). */
 export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
   const fs = effectAt(def, stars).factory!;
-  let interval = fs.interval, dmg = fs.base ?? AMMO[fs.ammo].base;
+  let interval = secPer(fs.speed), dmg = fs.base ?? AMMO[fs.ammo].base; // NUM-2 (REQ-BFG-047): SEC stays, 30 / speed
   if (def === "mimic") {
     // Battle.factoryDef: the hero's ammo at its own factory's interval x intervalMul; no hero, no cadence to show
     const h = hero ? HEROES[hero] : undefined, sig = h ? ITEMS[h.factory]?.factory : undefined;
     if (!h || !sig) return [["BELT", fmtCount(outputsAt(def, stars))]];
-    interval = sig.interval * (fs.intervalMul ?? 1);
+    interval = secPer(factorySpeed(def, fs, hero!)); // NUM-2: the hero factory's speed x its rate %, rounded once
     dmg = AMMO[h.ammo].base;
   }
   return [speedPair(interval), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
@@ -134,7 +135,7 @@ export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null
 /** A turret's stat pairs at `stars`: how often it fires, the loads its chamber holds, its gear slots (deck.ts). */
 export function turretStats(def: string, stars = 1): Stat[] {
   const t = effectAt(def, stars).turret!;
-  return [speedPair(t.fireInterval), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars))]];
+  return [speedPair(secPer(t.speed)), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars))]]; // NUM-2: 30 / speed
 }
 
 /** U2b: a rig's stat pairs (R1 C4: "Rigs and gear: none"): a rig's numbers are its rule's. This is the rig kind's one
@@ -257,7 +258,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   gatling: (e, x) => {
     // rateText's rule: the spin's floor x0.6 of the interval fires 1 / 0.6 = 67% faster (N1 2.3: X% FASTER is the rate)
-    const up = fmtPct(1 / c(e, x).floor! - 1);
+    const up = fmtPct(c(e, x).top! / 100); // NUM-2 (REQ-BFG-047): the stored whole rate % (was 1 / floor - 1)
     return rules([{ text: `SPINS UP TO ${up} FASTER AS IT FIRES.` }], [["spin", `${up} FASTER`]]);
   },
   hullbreaker: (e, x) => {
@@ -406,7 +407,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `EACH SHOT FIRES ${n} {SLUG}.` }], [["shot", `FIRES ${n} {SLUG}`]]);
   },
   calibrate: (e) => {
-    const up = fmtPct(1 / md(e).fireMul! - 1); // rateText's rule: an interval x0.75 fires 33% faster (N1 2.3)
+    const up = fmtPct(md(e).fireRate! / 100); // rateText's rule: an interval x0.75 fires 33% faster (N1 2.3); NUM-2: stored
     return rules([{ text: `FIRES ${up} FASTER.` }], [["rate", `${up} FASTER`]]);
   },
   spotter: (e) => {
@@ -415,7 +416,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `SHOTS AT BARE HULL GET ${n} MORE AIM${s(r)}.` }], [["rerolls", `${n} MORE AIM${s(r)}`]]);
   },
   escapement: (e) => {
-    const up = fmtPct(1 / md(e).fireMul! - 1); // METRONOME's pendulum line: not playable (R1 dropped it)
+    const up = fmtPct(md(e).fireRate! / 100); // METRONOME's pendulum line: not playable (R1 dropped it); NUM-2: stored
     return rules([{ text: `FIRES ${up} FASTER.` }], [["rate", `${up} FASTER`]]);
   },
   spallcatcher: (e) => {
@@ -498,8 +499,8 @@ const INTERIM_CLAUSES: Record<string, (e: ItemDef, x: X) => Clause | null> = {
   rotary: (e, x) => {
     // cores.ts ROUTINES.rotary: ★2 GREASED RACE / ★3 CLEAN FEED: the interval x intervalMul (rateText), ★3 noJam
     const cs = c(e, x);
-    if (!cs.intervalMul) return null;
-    const up = fmtPct(1 / cs.intervalMul - 1);
+    if (!cs.fireRate) return null;
+    const up = fmtPct(cs.fireRate / 100); // NUM-2 (REQ-BFG-047): the stored whole rate %
     return { text: `FIRES ${up} FASTER${cs.noJam ? ", NEVER JAMS" : ""}.`, nums: [["rate", `${up} FASTER`]] }; // (NEVER JAMS is the clause's: NEXT★ stays one line)
   },
   grapnel: (e, x) => {

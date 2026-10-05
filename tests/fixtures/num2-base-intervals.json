@@ -1,0 +1,1294 @@
+{
+ "note": "NUM-2 (REQ-BFG-047): the base's intervals and interval multipliers, recorded by scripts/num2-speed.mjs before it converted them. K = 30; speed = roundHalfUp(30 / interval); a signature factory's levels 2-4 = L1 + (L - 1) x roundHalfUp(25% x L1); a multiplier m -> rate % roundHalfUp(100 / m - 100).",
+ "K": 30,
+ "FACTORY_STEP": 25,
+ "rows": [
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.kiln.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.25,
+   "value": 24
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.kiln.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.98,
+   "value": 30,
+   "track": true
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.kiln.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.83,
+   "value": 36,
+   "track": true
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.kiln.levels.4.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.7,
+   "value": 42,
+   "track": true
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.loom.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.72,
+   "value": 42
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.loom.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.57,
+   "value": 53,
+   "track": true
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.loom.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.48,
+   "value": 64,
+   "track": true
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.loom.levels.4.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.41,
+   "value": 75,
+   "track": true
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.press.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.4,
+   "value": 21
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.press.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.1,
+   "value": 27
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.press.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1,
+   "value": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.doublestamp.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 2.2,
+   "value": 14
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.doublestamp.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.6,
+   "value": 19
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.shottower.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.5,
+   "value": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.shottower.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.35,
+   "value": 22
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.shottower.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.3,
+   "value": 23
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.hotswap.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.5,
+   "value": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.hotswap.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.3,
+   "value": 23
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.hotswap.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.1,
+   "value": 27
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.slagpot.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 2.8,
+   "value": 11
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.slagpot.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 2.2,
+   "value": 14
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.slagpot.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.75,
+   "value": 17
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.assembly.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.8,
+   "value": 17
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.assembly.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.8,
+   "value": 17
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.assembly.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.8,
+   "value": 17
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.gantry.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.2,
+   "value": 25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.gantry.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.7,
+   "value": 43
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.scrapper.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 3,
+   "value": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.scrapper.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 2.5,
+   "value": 12
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.scrapper.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 2,
+   "value": 15
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.sabot.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 6,
+   "value": 5
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.sabot.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 2.8,
+   "value": 11
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.sabot.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.9,
+   "value": 16
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.frostbite.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 2.8,
+   "value": 11
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.dragchain.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.8,
+   "value": 17
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.mimic.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1,
+   "value": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.mimic.factory.intervalMul",
+   "field": "intervalMul",
+   "to": "rate",
+   "kind": "rate",
+   "base": 1.4,
+   "value": -29
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.mimic.levels.2.factory.intervalMul",
+   "field": "intervalMul",
+   "to": "rate",
+   "kind": "rate",
+   "base": 1,
+   "value": 0
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.mimic.levels.3.factory.intervalMul",
+   "field": "intervalMul",
+   "to": "rate",
+   "kind": "rate",
+   "base": 0.8,
+   "value": 25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.limpet.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 2.4,
+   "value": 13
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.calibrate.mod.fireMul",
+   "field": "fireMul",
+   "to": "fireRate",
+   "kind": "rate",
+   "base": 0.75,
+   "value": 33
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.calibrate.levels.2.mod.fireMul",
+   "field": "fireMul",
+   "to": "fireRate",
+   "kind": "rate",
+   "base": 0.58,
+   "value": 72
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.calibrate.levels.3.mod.fireMul",
+   "field": "fireMul",
+   "to": "fireRate",
+   "kind": "rate",
+   "base": 0.46,
+   "value": 117
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.rotary.levels.2.core.intervalMul",
+   "field": "intervalMul",
+   "to": "fireRate",
+   "kind": "rate",
+   "base": 0.85,
+   "value": 18
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.rotary.levels.3.core.intervalMul",
+   "field": "intervalMul",
+   "to": "fireRate",
+   "kind": "rate",
+   "base": 0.7,
+   "value": 43
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.gatling.core.start",
+   "field": "start",
+   "to": "start",
+   "kind": "rate",
+   "base": 1.2,
+   "value": -17
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.gatling.core.floor",
+   "field": "floor",
+   "to": "top",
+   "kind": "rate",
+   "base": 0.6,
+   "value": 67
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.gatling.levels.2.core.floor",
+   "field": "floor",
+   "to": "top",
+   "kind": "rate",
+   "base": 0.4,
+   "value": 150
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.gatling.levels.3.core.floor",
+   "field": "floor",
+   "to": "top",
+   "kind": "rate",
+   "base": 0.29,
+   "value": 245
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.scrapcannon.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1,
+   "value": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.scrapcannon.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.9,
+   "value": 33
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.scrapcannon.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.8,
+   "value": 38
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.rampart.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.75,
+   "value": 40
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.rampart.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.675,
+   "value": 44
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.rampart.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.6,
+   "value": 50
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.dartgun.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.55,
+   "value": 55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.dartgun.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.495,
+   "value": 61
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.dartgun.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.44,
+   "value": 68
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.spikegun.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.6,
+   "value": 50
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.spikegun.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.54,
+   "value": 56
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.spikegun.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.48,
+   "value": 63
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.carronade.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.8,
+   "value": 38
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.carronade.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.72,
+   "value": 42
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.carronade.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.64,
+   "value": 47
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.swivel.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.7,
+   "value": 43
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.swivel.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.63,
+   "value": 48
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.swivel.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.56,
+   "value": 54
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.twinneedle.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.55,
+   "value": 55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.twinneedle.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.495,
+   "value": 61
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.twinneedle.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.44,
+   "value": 68
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.hailgun.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.45,
+   "value": 67
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.hailgun.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.405,
+   "value": 74
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.hailgun.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.36,
+   "value": 83
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.deckgun.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.8,
+   "value": 38
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.deckgun.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.72,
+   "value": 42
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.deckgun.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.64,
+   "value": 47
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.railgun.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.7,
+   "value": 43
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.railgun.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.63,
+   "value": 48
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.railgun.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.56,
+   "value": 54
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.bombard.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1,
+   "value": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.bombard.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.9,
+   "value": 33
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.bombard.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.8,
+   "value": 38
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.siegegun.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.85,
+   "value": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.siegegun.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.765,
+   "value": 39
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.siegegun.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.68,
+   "value": 44
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.thunderer.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.8,
+   "value": 38
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.thunderer.levels.2.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.72,
+   "value": 42
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "ITEMS.thunderer.levels.3.turret.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.64,
+   "value": 47
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.twinmould.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.8,
+   "value": 17
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.twinmould.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.6,
+   "value": 19
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.twinmould.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.4,
+   "value": 21
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.armorpress.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.6,
+   "value": 19
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.armorpress.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.4,
+   "value": 21
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.armorpress.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.2,
+   "value": 25
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.steambreech.core.steamPlated",
+   "field": "steamPlated",
+   "to": "steamPlated",
+   "kind": "rate",
+   "base": 0.7407407407407407,
+   "value": 35
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.steambreech.core.steamBare",
+   "field": "steamBare",
+   "to": "steamBare",
+   "kind": "rate",
+   "base": 0.9090909090909091,
+   "value": 10
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.steambreech.levels.2.core.steamPlated",
+   "field": "steamPlated",
+   "to": "steamPlated",
+   "kind": "rate",
+   "base": 0.5882352941176471,
+   "value": 70
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.steambreech.levels.2.core.steamBare",
+   "field": "steamBare",
+   "to": "steamBare",
+   "kind": "rate",
+   "base": 0.8333333333333334,
+   "value": 20
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.steambreech.levels.3.core.steamPlated",
+   "field": "steamPlated",
+   "to": "steamPlated",
+   "kind": "rate",
+   "base": 0.47619047619047616,
+   "value": 110
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "WAVE3_ITEMS.steambreech.levels.3.core.steamBare",
+   "field": "steamBare",
+   "to": "steamBare",
+   "kind": "rate",
+   "base": 0.7692307692307692,
+   "value": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "HEROES.furnace.turrets.0.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1,
+   "value": 30
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "HEROES.weaver.turrets.0.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.55,
+   "value": 55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "HEROES.weaver.turrets.1.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.55,
+   "value": 55
+  },
+  {
+   "file": "src/sim/content.ts",
+   "path": "HEROES.weaver.turrets.2.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.55,
+   "value": 55
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.crucible.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.6,
+   "value": 19
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.crucible.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.26,
+   "value": 24,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.crucible.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.06,
+   "value": 29,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.crucible.levels.4.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.9,
+   "value": 34,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.wardworks.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.1,
+   "value": 27
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.wardworks.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.86,
+   "value": 34,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.wardworks.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.73,
+   "value": 41,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.wardworks.levels.4.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.62,
+   "value": 48,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.clockworks.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.3,
+   "value": 23
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.clockworks.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.02,
+   "value": 29,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.clockworks.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.86,
+   "value": 35,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.clockworks.levels.4.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.73,
+   "value": 41,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.sump.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.1,
+   "value": 27
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.sump.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.86,
+   "value": 34,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.sump.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.73,
+   "value": 41,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.sump.levels.4.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.62,
+   "value": 48,
+   "track": true
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.escapement.mod.fireMul",
+   "field": "fireMul",
+   "to": "fireRate",
+   "kind": "rate",
+   "base": 0.9,
+   "value": 11
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.escapement.levels.2.mod.fireMul",
+   "field": "fireMul",
+   "to": "fireRate",
+   "kind": "rate",
+   "base": 0.86,
+   "value": 16
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_ITEMS.escapement.levels.3.mod.fireMul",
+   "field": "fireMul",
+   "to": "fireRate",
+   "kind": "rate",
+   "base": 0.82,
+   "value": 22
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_HEROES.foundry.turrets.0.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.8,
+   "value": 38
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_HEROES.foundry.turrets.1.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.8,
+   "value": 38
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_HEROES.bastion.turrets.0.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.75,
+   "value": 40
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_HEROES.metronome.turrets.0.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.7,
+   "value": 43
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_HEROES.siphon.turrets.0.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.6,
+   "value": 50
+  },
+  {
+   "file": "src/sim/races/data.ts",
+   "path": "RACE_HEROES.siphon.turrets.1.fireInterval",
+   "field": "fireInterval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 0.6,
+   "value": 50
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.twinmould.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.8,
+   "value": 17
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.twinmould.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.6,
+   "value": 19
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.twinmould.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.4,
+   "value": 21
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.armorpress.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.6,
+   "value": 19
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.armorpress.levels.2.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.4,
+   "value": 21
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.armorpress.levels.3.factory.interval",
+   "field": "interval",
+   "to": "speed",
+   "kind": "speed",
+   "base": 1.2,
+   "value": 25
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.steambreech.core.steamPlated",
+   "field": "steamPlated",
+   "to": "steamPlated",
+   "kind": "rate",
+   "base": 0.7407407407407407,
+   "value": 35
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.steambreech.core.steamBare",
+   "field": "steamBare",
+   "to": "steamBare",
+   "kind": "rate",
+   "base": 0.9090909090909091,
+   "value": 10
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.steambreech.levels.2.core.steamPlated",
+   "field": "steamPlated",
+   "to": "steamPlated",
+   "kind": "rate",
+   "base": 0.5882352941176471,
+   "value": 70
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.steambreech.levels.2.core.steamBare",
+   "field": "steamBare",
+   "to": "steamBare",
+   "kind": "rate",
+   "base": 0.8333333333333334,
+   "value": 20
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.steambreech.levels.3.core.steamPlated",
+   "field": "steamPlated",
+   "to": "steamPlated",
+   "kind": "rate",
+   "base": 0.47619047619047616,
+   "value": 110
+  },
+  {
+   "file": "tools/wave3Defs.ts",
+   "path": "P1_WAVE3_ITEMS.steambreech.levels.3.core.steamBare",
+   "field": "steamBare",
+   "to": "steamBare",
+   "kind": "rate",
+   "base": 0.7692307692307692,
+   "value": 30
+  }
+ ]
+}

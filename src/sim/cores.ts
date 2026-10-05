@@ -7,7 +7,7 @@
 // number, and only a fitted core adds draws (§2.1 rule 8): SCATTER CHOKE aims each pellet anew, and
 // HULLBREAKER skips the target draw.
 
-import { HEROES, classFactor, type CoreRoutine, type CoreSpec, type TurretDef } from "./content";
+import { HEROES, classFactor, rateMul, secPer, type CoreRoutine, type CoreSpec, type TurretDef } from "./content";
 import { coreFor, turretSlots, type Build } from "./deck";
 import { effectAt, starsOf } from "./stars";
 import type { TurretState } from "./battle";
@@ -29,12 +29,14 @@ export const CORE_STACKS: readonly string[] = ["addBurn"];
  * A core spec with its absolute numbers x k (CORE_ABSOLUTE; CORE_STACKS round half up, at least 1). NUM-1 (REQ-BFG-047,
  * N1 2.1): the class factor is a whole %, round(100 x k) (k = clamp(fireInterval, 0.4, 1.2); NUM-2 makes it round(3000 /
  * SPEED)), and each scaled number rounds half up once, here at install, so the battle and the placed panel read one
+ * NUM-2 (REQ-BFG-047, N1 2.1): k = classFactor = clamp(30 / speed, 0.4, 1.2), so the class % below is exactly
+ * clamp(roundHalfUp(3000 / speed), 40, 120) (the clamp's bounds are whole; every x.5 case, speed 16 / 48 / 80, is exact)
  * integer. ANVIL's perPlate is a ratio of two damage-family numbers (damage per plating): it becomes a whole % of the
  * hull's plating (x 100, x the class %, rounded), kept as that % / 100; Battle.fireCore applies it with pct.
  */
 export function scaleCore(spec: CoreSpec, k: number): CoreSpec {
   const out: CoreSpec = { ...spec };
-  const kp = roundHalfUp(100 * k); // NUM-1: the class factor as a whole %
+  const kp = roundHalfUp(100 * k); // NUM-1: the class factor as a whole %; NUM-2: clamp(roundHalfUp(3000 / speed), 40, 120)
   for (const key of CORE_ABSOLUTE) {
     const v = spec[key];
     if (typeof v !== "number") continue;
@@ -104,13 +106,28 @@ const IDENTITY: Routine = {
  *  halves the spin (the multiplier moves halfway back to `start`). The first shot uses `start`. */
 function gatlingCadence(tu: TurretState, t: number): number {
   const c = tu.core.spec;
-  const start = c.start ?? 1;
+  // NUM-2 (REQ-BFG-047, N1 2.3): start and top are whole rate %s (-17; +67 / +150 / +245); the spin stays the interval
+  // share between them (100 / (100 + rate)), stepping by `step`
+  const start = 1 / rateMul(c.start);
   if (tu.lastShot >= 0) {
-    if (t - tu.lastShot <= (c.gap ?? Infinity)) tu.spin = Math.max(c.floor ?? start, tu.spin - (c.step ?? 0));
+    if (t - tu.lastShot <= (c.gap ?? Infinity)) tu.spin = Math.max(c.top !== undefined ? 1 / rateMul(c.top) : start, tu.spin - (c.step ?? 0));
     else tu.spin = start - (start - tu.spin) / 2;
   }
   tu.lastShot = t;
-  return tu.interval * tu.spin;
+  return spinInterval(tu);
+}
+
+/** NUM-2 (REQ-BFG-047): a GATLING's seconds per shot at its spin: 30 / its whole speed there (the turret's unrounded speed
+ *  over the spin, rounded half up once). */
+export function spinInterval(tu: Pick<TurretState, "speedRaw" | "spin">): number {
+  return secPer(Math.max(1, roundHalfUp(tu.speedRaw / tu.spin)));
+}
+
+/** NUM-2 (REQ-BFG-047): STEAM BREECH's seconds per shot: 30 / its whole speed, the turret's unrounded speed x its plated
+ *  (or bare) rate %, rounded half up once. */
+export function steamInterval(tu: Pick<TurretState, "speedRaw" | "plated" | "core">): number {
+  const c = tu.core.spec;
+  return secPer(Math.max(1, roundHalfUp(tu.speedRaw * rateMul(tu.plated ? c.steamPlated : c.steamBare))));
 }
 
 /**
@@ -126,7 +143,7 @@ function gatlingReady(tu: TurretState): boolean {
 export const ROUTINES: Record<CoreRoutine, Routine> = {
   identity: IDENTITY,
   scatter: IDENTITY, // shape: pellets (Battle.fireCore)
-  rotary: { ...IDENTITY, select: (tu) => (tu.core.spec.order === "FIFO" ? 0 : lifo(tu)) }, // + windowTime, intervalMul
+  rotary: { ...IDENTITY, select: (tu) => (tu.core.spec.order === "FIFO" ? 0 : lifo(tu)) }, // + windowTime, fireRate (NUM-2)
   pressure: IDENTITY, // noJam; shape: + perQueued x queued
   gatling: { ...IDENTITY, ready: gatlingReady, cadence: gatlingCadence },
   hullbreaker: IDENTITY, // shape: bare hull, x hullMul
@@ -147,7 +164,7 @@ export const ROUTINES: Record<CoreRoutine, Routine> = {
   // 0.8.0 P1, wave 3: ANVIL BREECH's flat and per-plating damage are its shape hook (Battle.fireCore); STEAM BREECH fires
   // at the interval x steamPlated while the hull holds plating (Battle.chambers sets tu.plated each tick), else x steamBare
   anvil: IDENTITY,
-  steam: { ...IDENTITY, cadence: (tu) => tu.interval * ((tu.plated ? tu.core.spec.steamPlated : tu.core.spec.steamBare) ?? 1) },
+  steam: { ...IDENTITY, cadence: (tu) => steamInterval(tu) }, // NUM-2: 30 / its whole speed, plated or bare
 };
 
 /** DRAKE NOZZLE: Burn stacks from a payload's flat bonus (1 per flatPerBurn, rounded down) and the flat it uses. */

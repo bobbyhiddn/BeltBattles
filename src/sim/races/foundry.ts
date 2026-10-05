@@ -2,7 +2,7 @@
 // attached route on the same tick; two blanks that reach one turret through different
 // connectors within SYNC_WINDOW fuse into an alloy slug before firing.
 
-import { AMMO_SPACING } from "../content";
+import { AMMO_SPACING, secPer } from "../content";
 import { payloadDamage } from "../deck";
 import type { FactoryState, Payload, SideState, SimEvent, TurretState } from "../battle";
 import { RACE_AMMO } from "./data";
@@ -86,7 +86,7 @@ export function pourAll(ctx: SimCtx, s: SideState, f: FactoryState, dt: number, 
     if (last >= 0) f.rr = (last + 1) % n;
   }
   if (poured > 0) {
-    f.timer = spec.interval;
+    f.timer += secPer(spec.speed); // NUM-2 (REQ-BFG-047): 30 / speed, carrying the remainder (was a reset to the interval)
     f.flash = 0.18;
     f.produced += poured;
     f.stalled = false;

@@ -62,15 +62,15 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
     id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "tinker",
     desc: ["CASTS PLAIN SLUGS", "SEVERAL AT A TIME,", "ONE BELT EACH."], tags: ["TWIN", "SWARM"], // bb-0.8.3 (M4), as content.ts
     // bb-0.8.3 (REQ-BFG-042): belt slots by stars (no outputs), its pour 2 / 2 / 3 (P1 wrote outputs 2 / 2 / 3)
-    factory: { ammo: "plain", interval: 1.8, twin: true, pour: 2 }, // base 3: the plain slug's
-    levels: { 2: { factory: { interval: 1.6, base: 50 } }, 3: { factory: { interval: 1.4, base: 60, pour: 3 }, perk: "THIRD SPRUE" } },
+    factory: { ammo: "plain", speed: 17, twin: true, pour: 2 }, // base 3: the plain slug's
+    levels: { 2: { factory: { speed: 19, base: 50 } }, 3: { factory: { speed: 21, base: 60, pour: 3 }, perk: "THIRD SPRUE" } },
   },
   armorpress: {
     id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
     desc: ["PRESSES PLATING ONTO", "YOUR HULL AND STAMPS", "PLAIN SLUGS."], tags: ["PLATE", "SWARM"],
     // bb-0.8.3 (REQ-BFG-042): belt slots by stars (P1 wrote outputs 1)
-    factory: { ammo: "plain", interval: 1.6, plate: { every: 3, amount: 30 } }, // base 3: the plain slug's
-    levels: { 2: { factory: { interval: 1.4, plate: { every: 3, amount: 66 } } }, 3: { factory: { interval: 1.2, plate: { every: 3, amount: 105 } } } },
+    factory: { ammo: "plain", speed: 19, plate: { every: 3, amount: 30 } }, // base 3: the plain slug's
+    levels: { 2: { factory: { speed: 21, plate: { every: 3, amount: 66 } } }, 3: { factory: { speed: 25, plate: { every: 3, amount: 105 } } } },
   },
   anvil: {
     id: "anvil", name: "ANVIL BREECH", kind: "core", rarity: "rare", price: 6, size: 1, merchant: "ironmonger",
@@ -81,8 +81,8 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
   steambreech: {
     id: "steambreech", name: "STEAM BREECH", kind: "core", rarity: "common", price: 4, size: 1, merchant: "gunsmith",
     desc: ["THE TURRET FIRES", "FASTER WHILE YOUR", "HULL IS PLATED."], tags: ["PLATE", "TEMPO"],
-    core: { routine: "steam", steamPlated: 1 / 1.35, steamBare: 1 / 1.1 },
-    levels: { 2: { core: { steamPlated: 1 / 1.7, steamBare: 1 / 1.2 } }, 3: { core: { steamPlated: 1 / 2.1, steamBare: 1 / 1.3 } } },
+    core: { routine: "steam", steamPlated: 35, steamBare: 10 },
+    levels: { 2: { core: { steamPlated: 70, steamBare: 20 } }, 3: { core: { steamPlated: 110, steamBare: 30 } } },
   },
   twintrigger: {
     id: "twintrigger", name: "TWIN TRIGGER", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",

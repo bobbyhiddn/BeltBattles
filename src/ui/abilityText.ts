@@ -62,6 +62,7 @@ import {
 } from "../sim/content";
 import { PEAK_SHIFT, PENDULUM } from "../sim/races/data";
 import { BURN_DPS } from "../sim/content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
+import { factorySpeed, rateMul, secPer } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED (the faces keep SEC: 30 / speed)
 // 0.8.0 I1 (the merge of H1 and P1): each name imported once; H1's signature text and P1's wave-3 entries both read them
 import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUNDRY's CRUCIBLE; P1: the pair window
 import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence; P1: TWIN TRIGGER's floor
@@ -104,7 +105,7 @@ export function heroTrick(hero: HeroId): string {
   const h = HEROES[hero], fs = ITEMS[h.factory].factory!;
   switch (hero) {
     case "furnace":
-      return `ITS KILN'S CINDER SLUGS GAIN ${damage(AMMO.cinder.rideScale)} FOR EACH SECOND THEY RIDE, AND A GUN FED BY A BELT OF ${SIM.furnaceLongTiles} TILES OR MORE FIRES ${faster(1 / FURNACE_LONG_BELT)}.`;
+      return `ITS KILN'S CINDER SLUGS GAIN ${damage(AMMO.cinder.rideScale)} FOR EACH SECOND THEY RIDE, AND A GUN FED BY A BELT OF ${SIM.furnaceLongTiles} TILES OR MORE FIRES ${faster(rateMul(FURNACE_LONG_BELT))}.`;
     case "weaver":
       return `ITS LOOM FEEDS UP TO ${plural(outputsAt(h.factory, 1), "BELT")} IN TURN, AND EACH THREAD SLUG THAT HITS FRAYS THE ENEMY HULL SO EVERY LATER HIT DEALS ${moreDamage(FRAY_BONUS)}, UP TO ${FRAY_MAX} FRAY.`;
     case "foundry":
@@ -152,6 +153,8 @@ export function rateText(intervalMul: number): string {
   const r = 1 / intervalMul;
   return r >= 1 ? faster(r) : `${Math.round((1 - r) * 100)}% SLOWER`;
 }
+/** NUM-2 (REQ-BFG-047): a whole rate % as the interval share rateText reads (100 / (100 + X)): +33 -> "33% FASTER". */
+const imul = (rate: number | undefined): number => 1 / rateMul(rate);
 /** "EVERY 1.4 SECONDS". */
 export const every = (secs: number): string => `EVERY ${seconds(secs)}`;
 /** Every nth: "OTHER" (every other), "THIRD", "FOURTH". */
@@ -315,7 +318,7 @@ export const peakTiles = (secs: number): number => Math.round((secs - CELL / 2 /
 
 /** MIMIC FORGE's rate against the hero's own factory (its interval x intervalMul). */
 function mimicRate(e: ItemDef): string {
-  const mul = f(e).intervalMul ?? 1;
+  const mul = imul(f(e).rate); // NUM-2: its whole rate % as the interval share rateText reads
   return Math.abs(mul - 1) < 1e-9 ? "AS OFTEN AS" : `${rateText(mul)} THAN`;
 }
 
@@ -547,22 +550,22 @@ const ENTRIES: Record<string, Entry> = {
   },
   // ------------------------------------------------------------------------------------------------------ factories
   press: {
-    text: (e) => [`STAMPS ${f(e).base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(f(e).interval)}.`],
-    gist: (e) => `${damage(slugBase(e))} SLUGS ${every(f(e).interval)}`,
-    card: (e) => `A SLUG ${every(f(e).interval)}`,
+    text: (e) => [`STAMPS ${f(e).base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(secPer(f(e).speed))}.`],
+    gist: (e) => `${damage(slugBase(e))} SLUGS ${every(secPer(f(e).speed))}`,
+    card: (e) => `A SLUG ${every(secPer(f(e).speed))}`,
   },
   doublestamp: {
     text: (e) => [
-      `STAMPS ${f(e).batch} ${f(e).base !== undefined ? "SLUGS" : "PLAIN SLUGS"} (${damage(slugBase(e))} EACH) ${every(f(e).interval)}.`,
+      `STAMPS ${f(e).batch} ${f(e).base !== undefined ? "SLUGS" : "PLAIN SLUGS"} (${damage(slugBase(e))} EACH) ${every(secPer(f(e).speed))}.`,
       "THEY LEAVE ONE BY ONE AS THE BELT MAKES ROOM.",
     ],
-    gist: (e) => `${f(e).batch} SLUGS OF ${damage(slugBase(e))} ${every(f(e).interval)}`,
-    card: (e) => `${f(e).batch} SLUGS ${every(f(e).interval)}`,
+    gist: (e) => `${f(e).batch} SLUGS OF ${damage(slugBase(e))} ${every(secPer(f(e).speed))}`,
+    card: (e) => `${f(e).batch} SLUGS ${every(secPer(f(e).speed))}`,
   },
   shottower: {
-    text: (e) => [`DROPS ${f(e).batch} BUCKSHOT (${damage(slugBase(e))} EACH) ${every(f(e).interval)}.`, "RIGS HIT EACH BUCKSHOT ON ITS OWN."],
-    gist: (e) => `${damage(slugBase(e))} BUCKSHOT ${every(f(e).interval)}`,
-    card: (e) => `${f(e).batch} BUCKSHOT ${every(f(e).interval)}`,
+    text: (e) => [`DROPS ${f(e).batch} BUCKSHOT (${damage(slugBase(e))} EACH) ${every(secPer(f(e).speed))}.`, "RIGS HIT EACH BUCKSHOT ON ITS OWN."],
+    gist: (e) => `${damage(slugBase(e))} BUCKSHOT ${every(secPer(f(e).speed))}`,
+    card: (e) => `${f(e).batch} BUCKSHOT ${every(secPer(f(e).speed))}`,
   },
   hotswap: {
     // Battle.stamp: each stamp writes the next preset of the cycle (EMBER: + burn; SPARK: shock, + shockTime and jump)
@@ -570,7 +573,7 @@ const ENTRIES: Record<string, Entry> = {
       const em = f(e).cycle!.find((p) => p.tint === "ember")!, sp = f(e).cycle!.find((p) => p.tint === "spark")!;
       return [
         `STAMPS EMBER SLUGS WITH ${em.burn ?? 0} BURN AND SPARK SLUGS WITH SHOCK, IN TURN.`,
-        S.stamps("ONE", f(e).interval),
+        S.stamps("ONE", secPer(f(e).speed)),
         `THE SPARK'S SHOCK ${S.stalls(sp.shockTime ?? DISRUPT_TIME, 1 + (sp.jump ?? 0))}.`,
         S.burn,
       ];
@@ -584,10 +587,10 @@ const ENTRIES: Record<string, Entry> = {
   slagpot: {
     // Battle.transport: slag keeps AMMO.slag.fixedSpeed whatever the speed rigs, the speed lock and slows
     text: (e) => [
-      `STAMPS A HEAVY SLAG SLUG (${damage(slugBase(e))}) ${every(f(e).interval)}.`,
+      `STAMPS A HEAVY SLAG SLUG (${damage(slugBase(e))}) ${every(secPer(f(e).speed))}.`,
       `SLAG ALWAYS RIDES AT ${percent(AMMO.slag.fixedSpeed!)} SPEED: SPEED RIGS AND ENEMY SLOWS CAN'T CHANGE IT.`,
     ],
-    gist: (e) => `${damage(slugBase(e))} SLAG ${every(f(e).interval)}`,
+    gist: (e) => `${damage(slugBase(e))} SLAG ${every(secPer(f(e).speed))}`,
     card: (e) => `HEAVY ${damage(slugBase(e))} SLAG SLUGS`,
   },
   assembly: {
@@ -598,7 +601,7 @@ const ENTRIES: Record<string, Entry> = {
       return [
         `WHILE IT FEEDS A TURRET, ${k <= 0 ? "ALL " : ""}YOUR RIGS COME ONLINE ${onlineIn(k)}.`,
         fs.hotStart ? `RIGS ON ITS OWN BELT HIT TWICE AS HARD FOR THE FIRST ${seconds(fs.hotStart)}.` : "RIGS ON ITS OWN BELT COME ONLINE AT ONCE.",
-        S.stamps(`A PLAIN SLUG (${damage(slugBase(e))})`, fs.interval),
+        S.stamps(`A PLAIN SLUG (${damage(slugBase(e))})`, secPer(fs.speed)),
         S.online,
       ];
     },
@@ -608,7 +611,7 @@ const ENTRIES: Record<string, Entry> = {
   },
   gantry: {
     text: (e, x) => [
-      `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN, STAMPING ${f(e).base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(f(e).interval)}.`,
+      `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN, STAMPING ${f(e).base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(secPer(f(e).speed))}.`,
     ],
     // bb-0.8.3 (REQ-BFG-042 M4): the next-star and MERGES WITH lines lead with a factory's belts at that star (nextStarText),
     // so the gist says the rest: FOURTH ARM's faster stamp, HEAVY GANTRY's slugs. T47 (REQ-BFG-047): no seconds, so ★1
@@ -616,7 +619,7 @@ const ENTRIES: Record<string, Entry> = {
     gist: (e, x) =>
       f(e).base !== undefined
         ? `${damage(slugBase(e))} SLUGS`
-        : f(e).interval < f(effectAt(e.id, 1)).interval
+        : secPer(f(e).speed) < secPer(f(effectAt(e.id, 1)).speed)
           ? "FASTER PLAIN SLUGS"
           : `FEEDS ${outputsAt(e.id, x.stars)} BELTS`,
     card: (e, x) => `FEEDS ${outputsAt(e.id, x.stars)} BELTS IN TURN`,
@@ -626,7 +629,7 @@ const ENTRIES: Record<string, Entry> = {
     // more stamp (up to 3 waiting); ★3 BIG HAUL: a rig its sabots wreck queues one more (Battle.acceptHarassment)
     text: (e) => [
       `STAMPS SCRAP SLUGS THAT DEAL ${moreDamage(f(e).scrapFlat!)} THAN PLAIN ONES.`,
-      `IT STAMPS ONE ${every(f(e).interval)}, AND ONE MORE EACH TIME YOUR HARASSMENT LANDS, UP TO ${SIM.scrapQueue} WAITING.`,
+      `IT STAMPS ONE ${every(secPer(f(e).speed))}, AND ONE MORE EACH TIME YOUR HARASSMENT LANDS, UP TO ${SIM.scrapQueue} WAITING.`,
       // ★3 BIG HAUL: a sabot wreck is harassment (one stamp) and a wreck (one more): self-contained, as the phone band
       // may show it without the sentence before it
       ...(f(e).bigHaul ? ["A RIG YOUR SABOTS WRECK EARNS 2 SCRAP SLUGS, NOT 1."] : []),
@@ -634,7 +637,7 @@ const ENTRIES: Record<string, Entry> = {
     ],
     perkAt: (e) => (f(e).bigHaul ? 2 : 0),
     // the numbers that change; ★3's BIG HAUL is named after this clause (newPerk), and its sentence says what it does
-    gist: (e) => `${moreDamage(f(e).scrapFlat!)}, ONE ${every(f(e).interval)}`,
+    gist: (e) => `${moreDamage(f(e).scrapFlat!)}, ONE ${every(secPer(f(e).speed))}`,
     card: (e) => `SCRAP SLUGS, ${moreDamage(f(e).scrapFlat!)}`,
   },
   sabot: {
@@ -644,7 +647,7 @@ const ENTRIES: Record<string, Entry> = {
       const shrapnel = round<{ shrapnel?: boolean }>(e).shrapnel;
       return [
         "STAMPS SABOTS THAT WRECK THE ENEMY RIG THEY HIT FOR THE REST OF THE BATTLE.",
-        S.stamps("ONE", f(e).interval),
+        S.stamps("ONE", secPer(f(e).speed)),
         ...(shrapnel ? [`ON A RIG OR BELT, IT ALSO STALLS THE TILES ON EITHER SIDE FOR ${seconds(SIM.shrapnel)}.`] : []),
         `A SABOT STALLS A BELT TILE FOR ${seconds(SIM.sabotBelt)}, A FACTORY FOR ${seconds(SIM.sabotFactory)} OR A TURRET FOR ${seconds(SIM.sabotTurret)}.`,
         `ON BARE HULL IT DEALS ${moreDamage(SIM.sabotHull)}.`,
@@ -652,7 +655,7 @@ const ENTRIES: Record<string, Entry> = {
     },
     perkAt: (e) => (round<{ shrapnel?: boolean }>(e).shrapnel ? 2 : 0),
     // ★3's SHRAPNEL is named after this clause (newPerk), so the clause doesn't name it too
-    gist: (e) => `A SABOT ${every(f(e).interval)}`,
+    gist: (e) => `A SABOT ${every(secPer(f(e).speed))}`,
     card: () => "SABOTS WRECK ENEMY RIGS",
   },
   frostbite: {
@@ -662,7 +665,7 @@ const ENTRIES: Record<string, Entry> = {
       return [
         `STAMPS ROUNDS THAT FREEZE ${r.spread ? `${r.spread + 1} MACHINES` : "THE MACHINE THEY HIT"} FOR ${seconds(r.seconds)}.`,
         ...(r.spread ? [S.spread("FREEZES", r.spread)] : []),
-        S.stamps("ONE", f(e).interval),
+        S.stamps("ONE", secPer(f(e).speed)),
         `A FROZEN MACHINE STOPS AND ITS TIMERS PAUSE; A FROZEN BELT TILE ALSO CHILLS ITS PAYLOADS (${percent(1 - SIM.chill)} LESS DAMAGE).`,
         "A ROUND THAT HITS BARE HULL FREEZES NOTHING.",
       ];
@@ -680,7 +683,7 @@ const ENTRIES: Record<string, Entry> = {
       return [
         `STAMPS CHAIN ROUNDS THAT MAKE THE ENEMY BELT THEY HIT ${speedText(r.mul)} FOR ${seconds(r.seconds)}.`,
         `PAYLOADS ON IT ARE SNAGGED AND RIDE ${percent(1 - SIM.snag)} SLOWER FROM THEN ON.`,
-        S.stamps("ONE", f(e).interval),
+        S.stamps("ONE", secPer(f(e).speed)),
         "THE SLOW COVERS THE STRETCH OF BELT BETWEEN TWO RIGS.",
         `A CHAIN ON A FACTORY DELAYS ITS NEXT SLUG BY ${seconds(SIM.chainFactory)}; ON A TURRET, ITS NEXT SHOT BY ${seconds(SIM.chainTurret)}.`,
       ];
@@ -763,20 +766,20 @@ const ENTRIES: Record<string, Entry> = {
     // Battle.factoryDef: the hero's ammo at the hero factory's interval x intervalMul; bb-0.8.3 (REQ-BFG-042 D3): its belt
     // slots grow with its stars as every bought factory's; ★3 TWIN SIGNET pours 2 where it makes FOUNDRY's blanks (pourAt)
     text: (e, x) => {
-      const fs = f(e), mul = fs.intervalMul ?? 1;
+      const fs = f(e);
       const hero = x.hero ? HEROES[x.hero] : undefined, sig = hero ? ITEMS[hero.factory]?.factory : undefined;
       const ammo = hero ? AMMO[hero.ammo].name.replace(/:.*$/, "") : "";
       const pour = hero ? pourAt(e.id, x.stars, hero.ammo) : 0;
       return [
         `STAMPS YOUR HERO'S SIGNATURE AMMO ${mimicRate(e)} ITS OWN FACTORY.`,
-        ...(hero && sig ? [`FOR ${hero.name}, THAT IS ${an(ammo)} ${every(sig.interval * mul)}${pour ? `, POURED ONTO ${pour} BELTS AT ONCE` : ""}.`] : []),
+        ...(hero && sig ? [`FOR ${hero.name}, THAT IS ${an(ammo)} ${every(secPer(factorySpeed(e.id, fs, x.hero!)))}${pour ? `, POURED ONTO ${pour} BELTS AT ONCE` : ""}.`] : []),
       ];
     },
     // 0.6.2t2 (F3): the hero's example belongs to the rate it spells out, so it sits before ★3 TWIN SIGNET and the perk
     // ends the text (after it, "FOR FURNACE, ..." read on from the name); without a hero there is no example
     perkAt: (_e, x) => (x.hero ? 1 : 0),
     gist: (e, x) => {
-      const mul = f(e).intervalMul ?? 1, pour = x.hero ? pourAt(e.id, x.stars, HEROES[x.hero].ammo) : 0;
+      const mul = imul(f(e).rate), pour = x.hero ? pourAt(e.id, x.stars, HEROES[x.hero].ammo) : 0;
       const more = pour ? `, POURS ${pour} AT ONCE` : "";
       return Math.abs(mul - 1) < 1e-9 ? `AS OFTEN AS YOUR HERO'S FACTORY${more}` : `${rateText(mul)}${more}`;
     },
@@ -790,7 +793,7 @@ const ENTRIES: Record<string, Entry> = {
       return [
         `STAMPS CHARGES THAT BLAST THE ENEMY HULL FOR ${damage(r.blast)}, ${seconds(r.delay)} AFTER THEY LAND.`,
         ...(r.stall ? [`THE BLAST ALSO STALLS THE MACHINE THE CHARGE STUCK TO FOR ${seconds(r.stall)}.`] : []),
-        S.stamps("ONE", f(e).interval),
+        S.stamps("ONE", secPer(f(e).speed)),
       ];
     },
     gist: (e) => {
@@ -816,14 +819,14 @@ const ENTRIES: Record<string, Entry> = {
       const s = c(e, x);
       return [
         `CUTS THE LOAD TIME TO ${seconds(s.windowTime ?? WINDOW_TIME)} AND FIRES THE OLDEST LOAD FIRST.`,
-        ...(s.intervalMul ? [`IT FIRES ${rateText(s.intervalMul)}${s.noJam ? " AND NEVER JAMS" : ""}.`] : []),
+        ...(s.fireRate ? [`IT FIRES ${rateText(imul(s.fireRate))}${s.noJam ? " AND NEVER JAMS" : ""}.`] : []),
         S.chamber,
       ];
     },
-    perkAt: (e, x) => (c(e, x).intervalMul ? 1 : 0),
+    perkAt: (e, x) => (c(e, x).fireRate ? 1 : 0),
     gist: (e, x) => {
       const s = c(e, x);
-      return s.intervalMul ? `FIRES ${rateText(s.intervalMul)}${s.noJam ? ", NEVER JAMS" : ""}` : `LOAD TIME ${seconds(s.windowTime ?? WINDOW_TIME)}`;
+      return s.fireRate ? `FIRES ${rateText(imul(s.fireRate))}${s.noJam ? ", NEVER JAMS" : ""}` : `LOAD TIME ${seconds(s.windowTime ?? WINDOW_TIME)}`;
     },
     card: (e, x) => `CUTS LOAD TIME TO ${seconds(c(e, x).windowTime ?? WINDOW_TIME)}`,
   },
@@ -843,12 +846,12 @@ const ENTRIES: Record<string, Entry> = {
     text: (e, x) => {
       const s = c(e, x);
       return [
-        `FIRES EACH LOAD AS SOON AS THE BARREL IS READY, SPINNING UP TO ${rateText(s.floor!)}.`,
-        `IT STARTS ${rateText(s.start!)}; EACH SHOT WITHIN ${seconds(s.gap!)} OF THE LAST TAKES ${percent(s.step!)} OFF THE RELOAD.`,
+        `FIRES EACH LOAD AS SOON AS THE BARREL IS READY, SPINNING UP TO ${rateText(imul(s.top))}.`,
+        `IT STARTS ${rateText(imul(s.start))}; EACH SHOT WITHIN ${seconds(s.gap!)} OF THE LAST TAKES ${percent(s.step!)} OFF THE RELOAD.`,
         "A LONGER PAUSE LOSES HALF THE SPIN.",
       ];
     },
-    gist: (e, x) => `SPINS UP TO ${rateText(c(e, x).floor!)}`,
+    gist: (e, x) => `SPINS UP TO ${rateText(imul(c(e, x).top))}`,
     card: () => "FIRES AT ONCE, SPINS UP",
   },
   hullbreaker: {
@@ -949,8 +952,8 @@ const ENTRIES: Record<string, Entry> = {
     card: (e) => `FIRES ${m(e).perShot} LOADS A SHOT`,
   },
   calibrate: {
-    text: (e) => [`THE TURRET FIRES ${rateText(m(e).fireMul!)}.`],
-    gist: (e) => `FIRES ${rateText(m(e).fireMul!)}`,
+    text: (e) => [`THE TURRET FIRES ${rateText(imul(m(e).fireRate))}.`],
+    gist: (e) => `FIRES ${rateText(imul(m(e).fireRate))}`,
   },
   flak: {
     // Battle.flight: one intercept roll per incoming harassing shot, at the side's best screen; a downed shot is gone
@@ -1020,10 +1023,10 @@ const ENTRIES: Record<string, Entry> = {
   escapement: {
     // races/data.ts PEAK_SHIFT: pendulum slugs fired from this turret peak 1.2 s earlier (races/metronome.ts)
     text: (e) => [
-      `THE TURRET FIRES ${rateText(m(e).fireMul!)}.`,
+      `THE TURRET FIRES ${rateText(imul(m(e).fireRate))}.`,
       `ON METRONOME, PENDULUM SLUGS FROM THIS TURRET PEAK ${seconds(-PEAK_SHIFT.escapement)} EARLIER, AFTER ${peakTiles(PENDULUM.peak + PEAK_SHIFT.escapement)} TILES.`,
     ],
-    gist: (e) => `FIRES ${rateText(m(e).fireMul!)}`,
+    gist: (e) => `FIRES ${rateText(imul(m(e).fireRate))}`,
   },
   longcase: {
     text: (e) => [
@@ -1128,14 +1131,14 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => {
       const fs = f(e), n = countWord(fs.pour ?? 0);
       return [
-        `CASTS ${n} ${fs.base !== undefined ? "SLUGS" : "PLAIN SLUGS"} (${damage(slugBase(e))} EACH) AT ONCE, ONE ONTO EACH OF ${n} BELTS, ${every(fs.interval)}.`,
+        `CASTS ${n} ${fs.base !== undefined ? "SLUGS" : "PLAIN SLUGS"} (${damage(slugBase(e))} EACH) AT ONCE, ONE ONTO EACH OF ${n} BELTS, ${every(secPer(fs.speed))}.`,
         `WITH MORE BELTS, EACH CAST TAKES THE NEXT ${n} IN TURN.`,
         "ON MATCHED BELTS INTO ONE TURRET, EACH CAST ARRIVES AS A PAIR.",
       ];
     },
     gist: (e) => ((f(e).pour ?? 0) > 2
-      ? `${f(e).pour} SLUGS OF ${damage(slugBase(e))}, ${every(f(e).interval)}`
-      : `${damage(slugBase(e))} EACH, ${every(f(e).interval)}`),
+      ? `${f(e).pour} SLUGS OF ${damage(slugBase(e))}, ${every(secPer(f(e).speed))}`
+      : `${damage(slugBase(e))} EACH, ${every(secPer(f(e).speed))}`),
     card: (e) => `CASTS ${countWord(f(e).pour ?? 0)} SLUGS AT ONCE`,
   },
   armorpress: {
@@ -1148,12 +1151,12 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => {
       const fs = f(e);
       return [
-        `PRESSES ${n1(fs.plate!.amount)} PLATING ONTO YOUR HULL ${every(fs.plate!.every)}, AND STAMPS ${fs.base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(fs.interval)}.`,
+        `PRESSES ${n1(fs.plate!.amount)} PLATING ONTO YOUR HULL ${every(fs.plate!.every)}, AND STAMPS ${fs.base !== undefined ? "A SLUG" : "A PLAIN SLUG"} (${damage(slugBase(e))}) ${every(secPer(fs.speed))}.`,
         "IT NEEDS A BELT TO A TURRET TO WORK.",
         S.plating,
       ];
     },
-    gist: (e) => `${n1(f(e).plate!.amount)} PLATING ${every(f(e).plate!.every)}, A SLUG ${every(f(e).interval)}`,
+    gist: (e) => `${n1(f(e).plate!.amount)} PLATING ${every(f(e).plate!.every)}, A SLUG ${every(secPer(f(e).speed))}`,
     card: (e) => `PLATES YOUR HULL ${every(f(e).plate!.every)}`,
   },
   anvil: {
@@ -1164,8 +1167,8 @@ const ENTRIES: Record<string, Entry> = {
   },
   steambreech: {
     // cores.ts ROUTINES.steam: the cadence x steamPlated while the hull holds plating, else x steamBare (rates: no k)
-    text: (e, x) => [`THE TURRET FIRES ${rateText(c(e, x).steamPlated!)} WHILE YOUR HULL HOLDS PLATING, AND ${rateText(c(e, x).steamBare!)} WITHOUT IT.`],
-    gist: (e, x) => `${rateText(c(e, x).steamPlated!)} PLATED, ${percent(1 / c(e, x).steamBare! - 1)} WITHOUT`,
+    text: (e, x) => [`THE TURRET FIRES ${rateText(imul(c(e, x).steamPlated))} WHILE YOUR HULL HOLDS PLATING, AND ${rateText(imul(c(e, x).steamBare))} WITHOUT IT.`],
+    gist: (e, x) => `${rateText(imul(c(e, x).steamPlated))} PLATED, ${percent(c(e, x).steamBare! / 100)} WITHOUT`,
     card: () => "FIRES FASTER WHILE PLATED",
   },
   twintrigger: {
@@ -1228,17 +1231,17 @@ const CLASS_WORD: Record<string, string> = { heavy: "HEAVY", medium: "MEDIUM", l
  */
 const TURRET: Entry = {
   text: (e, x) => {
-    const t = e.turret!, one = ITEMS[e.id].turret!.fireInterval;
+    const t = e.turret!, one = secPer(ITEMS[e.id].turret!.speed); // NUM-2: 30 / speed
     return [
-      `${an(CLASS_WORD[t.class] ?? t.class.toUpperCase())} TURRET THAT FIRES ${every(t.fireInterval)} AND HOLDS ${plural(t.window, "LOAD")}.`,
-      ...(t.fireInterval < one - 1e-9 ? [`IT FIRES ${faster(one / t.fireInterval)} THAN AT 1 STAR.`] : []),
+      `${an(CLASS_WORD[t.class] ?? t.class.toUpperCase())} TURRET THAT FIRES ${every(secPer(t.speed))} AND HOLDS ${plural(t.window, "LOAD")}.`,
+      ...(secPer(t.speed) < one - 1e-9 ? [`IT FIRES ${faster(one / secPer(t.speed))} THAN AT 1 STAR.`] : []),
       t.intake === "inner" ? "IT TAKES A BELT ON ITS INNER COLUMN ONLY." : "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.",
       `IT HAS ${plural(gearSlotsOf(e.id, x.stars), "GEAR SLOT")} AND 1 CORE SOCKET.`,
       `ITS SHOTS LAND ${seconds(t.flight)} AFTER IT FIRES.`,
     ];
   },
-  gist: (e, x) => `FIRES ${every(e.turret!.fireInterval)}, ${plural(gearSlotsOf(e.id, x.stars), "GEAR SLOT")}`,
-  card: (e) => `FIRES ${every(e.turret!.fireInterval)}`, // the landscape card's two lines hold the rate; the panel the rest
+  gist: (e, x) => `FIRES ${every(secPer(e.turret!.speed))}, ${plural(gearSlotsOf(e.id, x.stars), "GEAR SLOT")}`,
+  card: (e) => `FIRES ${every(secPer(e.turret!.speed))}`, // the landscape card's two lines hold the rate; the panel the rest
 };
 for (const d of Object.values(ITEMS)) if (d.kind === "turret") ENTRIES[d.id] = TURRET;
 

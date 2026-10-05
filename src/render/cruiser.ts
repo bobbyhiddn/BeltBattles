@@ -391,7 +391,7 @@ export const SYNC_U = -11, SYNC_V = -13;
 /** 0.6.2s (REQ-BFG-031 S9): the TurretDef in slot i of a build (or of a hull's starting layout, given a HeroId). */
 function slotTd(who: HeroId | Pick<Build, "hero" | "turrets">, i: number): TurretDef {
   const s = turretSlots(typeof who === "string" ? { hero: who } : who)[i];
-  return s?.td ?? { col0: s?.col0 ?? 4, width: s?.width ?? 2, connectors: [], kind: "light", fireInterval: 0, window: 0, flight: 0, empty: true };
+  return s?.td ?? { col0: s?.col0 ?? 4, width: s?.width ?? 2, connectors: [], kind: "light", speed: 0, window: 0, flight: 0, empty: true }; // NUM-2: speed (was fireInterval)
 }
 
 /** 0.8.0 H1: the barrel offset and tip of the turret a hull mounts: the race art's on a human or dwarf hull (one barrel

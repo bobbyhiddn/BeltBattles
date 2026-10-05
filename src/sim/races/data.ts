@@ -21,34 +21,34 @@ export const RACE_ITEMS: Record<string, ItemDef> = {
     // bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10, D4): FACTORY upgrade levels 1-4 (2 / 3 / 4 / 5 belt slots; content.ts's
     // signature note: the cycle on the house's curve, the base its level-1 one); a pour of 2 at every level (the fuse
     // needs a pair): with more belts each cast takes 2 of them in turn
-    factory: { ammo: "blank", interval: 1.6, pour: 2 }, // base 3.5: the blank's
-    levels: { 2: { factory: { interval: 1.26 } }, 3: { factory: { interval: 1.06 } }, 4: { factory: { interval: 0.9 } } },
+    factory: { ammo: "blank", speed: 19, pour: 2 }, // base 3.5: the blank's
+    levels: { 2: { factory: { speed: 24 } }, 3: { factory: { speed: 29 } }, 4: { factory: { speed: 34 } } },
   },
   wardworks: {
     id: "wardworks", name: "WARDWORKS", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["STAMPS BULWARK SLUGS.", "EACH ONE PLATES THE", "HULL AS IT ARRIVES."],
-    factory: { ammo: "bulwark", interval: 1.1 }, // base 5: the bulwark slug's; bb-0.8.3 (D10): its cycle on the house's curve
-    levels: { 2: { factory: { interval: 0.86 } }, 3: { factory: { interval: 0.73 } }, 4: { factory: { interval: 0.62 } } },
+    factory: { ammo: "bulwark", speed: 27 }, // base 5: the bulwark slug's; bb-0.8.3 (D10): its cycle on the house's curve
+    levels: { 2: { factory: { speed: 34 } }, 3: { factory: { speed: 41 } }, 4: { factory: { speed: 48 } } },
   },
   clockworks: {
     id: "clockworks", name: "CLOCKWORKS", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["STAMPS PENDULUM SLUGS.", "THEY PEAK AFTER 4.2S", "OF RIDE: 10 TILES."],
     // bb-0.8.3 (D10): FACTORY levels on the house's curve, interval only: the pendulum's curve replaces a slug's base
-    factory: { ammo: "pendulum", interval: 1.3 },
-    levels: { 2: { factory: { interval: 1.02 } }, 3: { factory: { interval: 0.86 } }, 4: { factory: { interval: 0.73 } } },
+    factory: { ammo: "pendulum", speed: 23 },
+    levels: { 2: { factory: { speed: 29 } }, 3: { factory: { speed: 35 } }, 4: { factory: { speed: 41 } } },
   },
   sump: {
     id: "sump", name: "SUMP", kind: "factory", rarity: "epic", price: 0, size: 2,
     desc: ["LEECH SLUGS: DRAG FOR", "THE LEFT GUN, ECHO", "FOR THE RIGHT GUN."],
-    factory: { ammo: "leechDrag", interval: 1.1 }, // base 5: the leech slug's; bb-0.8.3 (D10): its cycle on the house's curve
-    levels: { 2: { factory: { interval: 0.86 } }, 3: { factory: { interval: 0.73 } }, 4: { factory: { interval: 0.62 } } },
+    factory: { ammo: "leechDrag", speed: 27 }, // base 5: the leech slug's; bb-0.8.3 (D10): its cycle on the house's curve
+    levels: { 2: { factory: { speed: 34 } }, 3: { factory: { speed: 41 } }, 4: { factory: { speed: 48 } } },
   },
   // Timing gear joins the same merchant pool as every other module. Priced like CALIBRATION.
   escapement: {
     id: "escapement", name: "ESCAPEMENT", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
     desc: ["FIRES 10% FASTER.", "PENDULUM PEAK 1.2S", "EARLIER: 7 TILES."], tags: ["TEMPO"],
-    mod: { fireMul: 0.9 },
-    levels: { 2: { mod: { fireMul: 0.86 }, perk: "QUICK TICK" }, 3: { mod: { fireMul: 0.82 }, perk: "FAST TICK" } },
+    mod: { fireRate: 11 },
+    levels: { 2: { mod: { fireRate: 16 }, perk: "QUICK TICK" }, 3: { mod: { fireRate: 22 }, perk: "FAST TICK" } },
   },
   longcase: {
     id: "longcase", name: "LONGCASE", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "gunsmith",
@@ -75,8 +75,8 @@ export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
     id: "foundry", name: "FOUNDRY", faction: "human", factionName: "HUMAN GUILDS",
     hull: 2250, factory: "crucible", ammo: "blank", belt: 18,
     turrets: [
-      { col0: 2, width: 2, connectors: [2, 3], kind: "medium", fireInterval: 0.8, window: 2, flight: 0.45 },
-      { col0: 6, width: 2, connectors: [6, 7], kind: "medium", fireInterval: 0.8, window: 2, flight: 0.45 },
+      { col0: 2, width: 2, connectors: [2, 3], kind: "medium", speed: 38, window: 2, flight: 0.45 },
+      { col0: 6, width: 2, connectors: [6, 7], kind: "medium", speed: 38, window: 2, flight: 0.45 },
     ],
     blurb: ["TWIN BLANKS THAT REACH", "ONE GUN TOGETHER FUSE", "INTO ALLOY SLUGS."],
     pattern: "SYNC TO FUSE",
@@ -84,14 +84,14 @@ export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
   bastion: {
     id: "bastion", name: "BASTION", faction: "dwarf", factionName: "DWARVEN HOLDS",
     hull: 2150, factory: "wardworks", ammo: "bulwark", belt: 14,
-    turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", fireInterval: 0.75, window: 3, flight: 0.65 }],
+    turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", speed: 40, window: 3, flight: 0.65 }],
     blurb: ["BULWARK SLUGS PLATE", "THE HULL AS THEY", "REACH THE CHAMBER."],
     pattern: "PLATE AND ENDURE",
   },
   metronome: {
     id: "metronome", name: "METRONOME", faction: "beastfolk", factionName: "BEASTFOLK PACKS",
     hull: 2100, factory: "clockworks", ammo: "pendulum", belt: 20,
-    turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "adaptable", fireInterval: 0.7, window: 3, flight: 0.55 }],
+    turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "adaptable", speed: 43, window: 3, flight: 0.55 }],
     blurb: ["PENDULUM SLUGS HIT", "HARDEST AFTER 10 TILES.", "NOTHING SPEEDS ITS BELTS."],
     pattern: "HIT THE BEAT",
   },
@@ -99,8 +99,8 @@ export const RACE_HEROES: Record<RaceHeroId, HeroDef> = {
     id: "siphon", name: "SIPHON", faction: "unaligned", factionName: "SUMP DRIFTERS",
     hull: 2200, factory: "sump", ammo: "leechDrag", belt: 20,
     turrets: [
-      { col0: 1, width: 2, connectors: [2], kind: "light", fireInterval: 0.6, window: 2, flight: 0.34 },
-      { col0: 7, width: 2, connectors: [7], kind: "light", fireInterval: 0.6, window: 2, flight: 0.34 },
+      { col0: 1, width: 2, connectors: [2], kind: "light", speed: 50, window: 2, flight: 0.34 },
+      { col0: 7, width: 2, connectors: [7], kind: "light", speed: 50, window: 2, flight: 0.34 },
     ],
     blurb: ["DRAG SLOWS THEIR BELTS.", "ECHO COPIES THE LAST", "HIT THAT STRUCK YOU."],
     pattern: "BLEED THEIR LINE",

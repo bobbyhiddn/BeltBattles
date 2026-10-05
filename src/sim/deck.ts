@@ -5,6 +5,7 @@
 
 import {
   AMMO, BELT_SPEED, CELL, GEAR_SLOTS, GRID, HEROES, HULL_SLOTS, ITEMS, JOIN_LIMIT, JOIN_PACE, SHAPE_ARROWS, TURRET_SPEED, rigShape,
+  factorySpeed, levelSpeed, secPer, // NUM-2 (REQ-BFG-047): SPEED
   type GateEffect, type HeroDef, type HeroId, type ItemDef, type SlotDef, type TurretDef, type TurretIntake, type Upgrades,
 } from "./content";
 import { curveDamage, pendulumShift, speedLocked } from "./races/metronome"; // races:
@@ -1021,7 +1022,7 @@ export function turretDefIn(slot: Pick<SlotDef, "col0" | "width">, def: string, 
   if (!t) throw new Error(`${def} is not a turret`);
   return {
     col0: slot.col0, width: slot.width, connectors: slotIntakes(slot.col0, slot.width, t.intake),
-    kind: t.class, fireInterval: t.fireInterval, window: t.window, flight: t.flight,
+    kind: t.class, speed: t.speed, window: t.window, flight: t.flight,
   };
 }
 
@@ -1049,18 +1050,20 @@ export interface SlotView {
 /**
  * bb-0.8.3 (REQ-BFG-043 D10): TURRET SPEED's fire-interval share at the build's level (content.ts TURRET_SPEED), for the
  * starting turrets only: a turret holding the free starting copy (BuildTurret.free, merged or not). 1 at level 1.
+ * NUM-2 (REQ-BFG-047): the build's TURRET SPEED level (1-4); each level adds roundHalfUp(TURRET_SPEED % x the turret's
+ * level-1 speed) (content.ts levelSpeed: SCRAP CANNON 30 / 36 / 42 / 48).
  */
-export function turretSpeedMul(b: Pick<Build, "upgrades">): number {
-  return TURRET_SPEED[upgradeLevel(b, "turret")] ?? 1;
+export function turretSpeedLevel(b: Pick<Build, "upgrades">): number {
+  return upgradeLevel(b, "turret");
 }
 
-function resolveSlots(heroId: HeroId, list: readonly BuildTurret[], speed = 1): SlotView[] {
+function resolveSlots(heroId: HeroId, list: readonly BuildTurret[], level = 1): SlotView[] {
   return hullSlots(heroId).map((s, i) => {
     const t = list.find((x) => x.slot === i);
     if (!t) return { slot: i, col0: s.col0, width: s.width, ...(s.start ? { start: s.start } : {}), intakes: [], gearSlots: 0 };
     const td0 = turretDefIn(s, t.def, starsOf(t));
     // bb-0.8.3 (REQ-BFG-043 D10): TURRET SPEED: a starting turret (it holds the free copy) fires at its level's share
-    const td = t.free && speed !== 1 ? { ...td0, fireInterval: td0.fireInterval * speed } : td0;
+    const td = t.free && level > 1 ? { ...td0, speed: levelSpeed(td0.speed, level, TURRET_SPEED) } : td0; // NUM-2: whole steps
     return {
       slot: i, col0: s.col0, width: s.width, ...(s.start ? { start: s.start } : {}), turret: { ...t }, td,
       intakes: td.connectors, gearSlots: gearSlotsOf(t.def, starsOf(t)),
@@ -1074,14 +1077,14 @@ const startViews = new Map<string, SlotView[]>();
  * THE helper (S9): every slot of the build's hull, in slot order, with its installed turret or empty. Every reader of
  * a build's turrets goes through it (or installedTurrets / hero(b)). Pass { hero } alone for a hull with no build
  * (hero select): the starting layout plus the empty slot. The starting layout's views are cached: don't mutate.
- * bb-0.8.3 (REQ-BFG-043 D10): a starting turret's TurretDef carries the build's TURRET SPEED (turretSpeedMul).
+ * bb-0.8.3 (REQ-BFG-043 D10): a starting turret's TurretDef carries the build's TURRET SPEED (turretSpeedLevel).
  */
 export function turretSlots(b: Pick<Build, "hero" | "turrets" | "upgrades">): SlotView[] {
-  const speed = turretSpeedMul(b);
-  if (b.turrets) return resolveSlots(b.hero, b.turrets, speed);
-  const k = `${b.hero}:${speed}`;
+  const level = turretSpeedLevel(b);
+  if (b.turrets) return resolveSlots(b.hero, b.turrets, level);
+  const k = `${b.hero}:${level}`;
   let v = startViews.get(k);
-  if (!v) startViews.set(k, (v = resolveSlots(b.hero, startingTurrets(b.hero), speed)));
+  if (!v) startViews.set(k, (v = resolveSlots(b.hero, startingTurrets(b.hero), level)));
   return v;
 }
 
@@ -1092,7 +1095,7 @@ export function installedTurrets(b: Pick<Build, "hero" | "turrets" | "upgrades">
 
 /** An empty slot as a TurretDef: its span and no connectors (hero(b)'s `turrets`); nothing fights in it. */
 function emptyTurretDef(s: SlotView): TurretDef {
-  return { col0: s.col0, width: s.width, connectors: [], kind: "light", fireInterval: 0, window: 0, flight: 0, empty: true };
+  return { col0: s.col0, width: s.width, connectors: [], kind: "light", speed: 0, window: 0, flight: 0, empty: true };
 }
 
 const startHeroes = new Map<string, HeroDef>();
@@ -1101,7 +1104,7 @@ const startHeroes = new Map<string, HeroDef>();
 function slotHero(b: Pick<Build, "hero" | "turrets" | "upgrades">): HeroDef {
   const make = () => ({ ...HEROES[b.hero], turrets: turretSlots(b).map((s) => s.td ?? emptyTurretDef(s)) });
   if (b.turrets) return make();
-  const k = `${b.hero}:${turretSpeedMul(b)}`;
+  const k = `${b.hero}:${turretSpeedLevel(b)}`;
   let h = startHeroes.get(k);
   if (!h) startHeroes.set(k, (h = make()));
   return h;
@@ -1454,7 +1457,7 @@ export function loadEvery(b: Build, index: number, occ = occupancy(b)): number {
   const f = r ? itemByUid(b, r.factory) : undefined;
   const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, gradeOf(b, f)).factory : undefined;
   if (!r || !f || !spec) return Infinity;
-  const interval = f.def === "mimic" ? (ITEMS[HEROES[b.hero].factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
+  const interval = secPer(factorySpeed(f.def, spec, b.hero)); // NUM-2: 30 / its whole speed (MIMIC: the hero factory's x its rate %)
   const belts = b.routes.filter((q) => q.factory === r.factory).length, pour = pourAt(f.def, gradeOf(b, f), HEROES[b.hero].ammo);
   const shared = pour ? Math.max(1, belts / pour) : belts;
   return (interval * shared) / ((spec.batch ?? 1) * factoryPace(b, r.factory, occ));
@@ -1471,7 +1474,7 @@ export function cycleEvery(b: Build, index: number, occ = occupancy(b)): number 
   const f = r ? itemByUid(b, r.factory) : undefined;
   const spec = f && ITEMS[f.def]?.kind === "factory" ? effectAt(f.def, gradeOf(b, f)).factory : undefined;
   if (!r || !f || !spec) return Infinity;
-  const interval = f.def === "mimic" ? (ITEMS[HEROES[b.hero].factory].factory?.interval ?? 1) * (spec.intervalMul ?? 1) : spec.interval;
+  const interval = secPer(factorySpeed(f.def, spec, b.hero)); // NUM-2: 30 / its whole speed
   return interval / factoryPace(b, r.factory, occ);
 }
 
