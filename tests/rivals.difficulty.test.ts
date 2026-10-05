@@ -40,6 +40,21 @@ const GAP = 0.05;
 // open-item test that pinned the three is deleted, as its title asked.
 const B1_EXCEPTIONS: readonly { id: RivalId; day: number; gap: number; ceiling: number }[] = [];
 /**
+ * NUM-3 (REQ-BFG-046, REQ-BFG-047; the brief's step 5, as NUM-2's step 7g: a balance band's red is a measured exception
+ * under the RULES_VERSION tripwire, on R6's MUST-REMOVE list): open items of "days 8-10: the Iron Matriarch has the lowest
+ * margin of all". No rival or number changed; R1's STUN fold and the whole-second STUNs moved the FURNACE par field's
+ * fights. Measured on num3 (her margin, then its): day 8 SILKSHADE -0.412 (ref wins 21%) vs her -0.346 (25%); day 9
+ * MOTH QUEEN -0.275 (13%) and SILKSHADE -0.302 (33%) vs her -0.247 (33%); day 10 SILKSHADE -0.503 (4%) vs her -0.386
+ * (17%). `gap`: her margin minus its (B1's form); the ceiling is the next 0.01 step at or above it. The open-item test
+ * after the check pins them; R6's balance bench restores the order, then deletes these entries and that test.
+ */
+const NUM3_MATRIARCH_EXCEPTIONS: readonly { id: RivalId; day: number; gap: number; ceiling: number }[] = [
+  { id: "silkshade", day: 8, gap: 0.066, ceiling: 0.07 },
+  { id: "mothqueen", day: 9, gap: 0.028, ceiling: 0.03 },
+  { id: "silkshade", day: 9, gap: 0.055, ceiling: 0.06 },
+  { id: "silkshade", day: 10, gap: 0.117, ceiling: 0.12 },
+];
+/**
  * NUM-1 (REQ-BFG-047; cap's oracle 03f2cc3c1884e806): open items of the Easy-above-Hard order. On the base (u2d-gate) this
  * pair was already a tie (+0.0027 over 24 battles); NUM-1's integer pipeline moved it to -0.0003, with no rival or number
  * changed. Day-1 Hard captains sit near the day-1 good-luck value cap (REQ-BFG-033, the note above "a par deck beats
@@ -55,7 +70,10 @@ const NUM1_EXCEPTIONS: readonly { day: number; easy: RivalId; hard: RivalId; gap
  * (num1u -> num2 parity 7.25%). R6's balance bench restores the order, then deletes these entries and their pin tests.
  */
 const NUM2_EXCEPTIONS: readonly { day: number; easy: RivalId; hard: RivalId; gap: number; ceiling: number }[] = [
-  { day: 1, easy: "nettle", hard: "karsk", gap: -0.0217, ceiling: 0.03 }, // num2: NETTLE +0.241, KARSK +0.263
+  // NUM-3 (the brief's step 5: a balance band's red is a measured exception under the tripwire): re-measured on num3, gap
+  // -0.0369 (NETTLE +0.241, KARSK +0.278: R1's STUN fold and the whole-second STUNs), so its ceiling is the next 0.01 step,
+  // 0.04. Was, on num2: gap -0.0217 (NETTLE +0.241, KARSK +0.263), ceiling 0.03
+  { day: 1, easy: "nettle", hard: "karsk", gap: -0.0369, ceiling: 0.04 },
   { day: 8, easy: "nettle", hard: "karsk", gap: -0.0021, ceiling: 0.01 }, // num2: NETTLE +0.100, KARSK +0.102
 ];
 /** NUM-2: Hard's mean margin against the par field on these days, measured on num2 (must be < 0 elsewhere from day 2). */
@@ -223,12 +241,21 @@ describe("warlord difficulty ladder, day by day (reference = the FURNACE par fie
       for (const id of eligible(day)) {
         if (id === "matriarch") continue;
         if (B1_EXCEPTIONS.some((x) => x.id === id && x.day === day)) continue; // B1's open item (oracle 405facc95783b82c)
+        if (NUM3_MATRIARCH_EXCEPTIONS.some((x) => x.id === id && x.day === day)) continue; // NUM-3's open item, pinned below
         if (!(score(id, day).margin > score("matriarch", day).margin)) {
           violations.push(`day ${day}: ${id} ${fmt(score(id, day))} vs matriarch ${fmt(score("matriarch", day))}`);
         }
       }
     }
-    expect(violations).toEqual([]);
+    expect(violations, violations.join("\n")).toEqual([]); // NUM-3: the message names every violation (vitest truncates arrays)
+  });
+
+  it("NUM-3's open items (NUM3_MATRIARCH_EXCEPTIONS): each captain-day's gap to the Iron Matriarch stays within its ceiling; R6 removes them", () => {
+    expect(RULES_VERSION, "NUM-3 tripwire (as NUM-2's, cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
+    for (const x of NUM3_MATRIARCH_EXCEPTIONS) {
+      const m = score("matriarch", x.day), c = score(x.id, x.day);
+      expect(m.margin - c.margin, `day ${x.day}: ${x.id} ${fmt(c)} vs matriarch ${fmt(m)}`).toBeLessThanOrEqual(x.ceiling);
+    }
   });
 
   it("every day: the stand-in pool's mean margin is between -0.25 and +0.25", () => {

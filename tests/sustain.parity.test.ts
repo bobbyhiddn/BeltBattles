@@ -4,6 +4,12 @@
 // tools/susaWardGen.ts built in a num2 worktree; the decks are stored in it): the start build and the day-6 ref build of
 // FURNACE, WEAVER, FOUNDRY and BASTION, every ordered pair of different heroes, WARD STONE on side 0, side 1 or both,
 // seeds 1 and 2. Winner, ticks, time, both hulls, plating, hits stopped and every stat must match.
+// NUM-3 (REQ-BFG-046, REQ-BFG-047): SUS-A proved the identity with num2 at susa f4b611e. NUM-3's rules move 72 of these
+// battles, exactly WEAVER's day-6 ref deck's (6 foes x 2 orders x 3 placements x 2 seeds): it holds a GALVANIC COIL, whose
+// STUN is a whole 2 s now (was 1.6 s, N1 2.2); no winner flipped. So the record is re-made on num3 with the same decks,
+// pairs, placements and seeds:
+// tests/fixtures/num3-wardstone.json (W/output-num3/parity/num3WardGen.ts; was susa-wardstone-num2.json). The checks are
+// unchanged; from here the record pins WARD STONE's SHIELD battles as num3 fights them.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { Battle } from "../src/sim/battle";
@@ -11,11 +17,11 @@ import { SUSTAIN_IDS } from "../src/sim/content";
 import { cloneBuild, type Build } from "../src/sim/deck";
 
 interface Row { a: number; b: number; ward: [boolean, boolean]; seed: number; winner: number | null; ticks: number; t: number; sides: unknown[] }
-const fx = JSON.parse(readFileSync(new URL("./fixtures/susa-wardstone-num2.json", import.meta.url), "utf8")) as
+const fx = JSON.parse(readFileSync(new URL("./fixtures/num3-wardstone.json", import.meta.url), "utf8")) as
   { rules: string; decks: { hero: string; kind: string; build: Build }[]; rows: Row[] };
 const ward = (b: Build): Build => ({ ...cloneBuild(b), runes: [...(b.runes ?? []), { id: "ward_stone" }] });
 
-describe("SUS-A parity: WARD STONE as SHIELD battles as num2's blockHits", () => {
+describe("SUS-A parity: WARD STONE as SHIELD battles as recorded (num2's blockHits at susa; re-recorded on num3)", () => {
   it("the record: 288 battles under bb-0.8.7; no deck holds a RIVETER or any other SHIELD, HEAL or REGEN piece", () => {
     expect([fx.rules, fx.rows.length, fx.decks.length]).toEqual(["bb-0.8.7", 288, 8]);
     for (const d of fx.decks) for (const p of [...d.build.items, ...d.build.mods]) expect(["riveter", ...SUSTAIN_IDS], `${d.hero} ${d.kind}`).not.toContain(p.def);

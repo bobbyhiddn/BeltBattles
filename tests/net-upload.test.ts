@@ -449,4 +449,8 @@ const POOL_CARRIES = { turrets: 25, bought: 9, joined: 62, joins: 96, both: 17 }
 // SPEED's whole +20% step (RAMPART 40 -> 48 a 30 s; was the interval x0.85, +17.6%): BASTION par seed 3 buys TURRET SPEED
 // instead of a KEG on day 3 (scores 0.019774 v 0.019055; were 0.018692 v 0.018923), and its day-6 deck (BASTION d6 v1)
 // then feeds a DECK GUN in the extra slot, redrawing its joined WARDWORKS belt, so it carries no join
-const GHOST_POOL_CARRIES = [22, 61]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62
+// NUM-3 (REQ-BFG-046, REQ-BFG-047): re-measured, 59 joined (was 61). No src/net change: load.rejected stays [] and every
+// snapshot passes validateUpload. The par player generates the race ghosts, and R1's STUN fold and the whole-second
+// durations move its fights, so 9 more FOUNDRY / BASTION dusk decks come out differently (rc.seedpool's NUM3_GHOSTS_DIFFER);
+// two of them no longer carry a joined belt. The seed pool is not regenerated (R6 does)
+const GHOST_POOL_CARRIES = [22, 59]; // bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61

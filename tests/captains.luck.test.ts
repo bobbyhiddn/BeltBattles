@@ -6,7 +6,7 @@
 // merchant can first ride), and every deck but the Matriarch's against maxGoldByDay (R1).
 
 import { describe, expect, it } from "vitest";
-import { HEROES, ITEMS, rarityWeights, type ItemDef } from "../src/sim/content";
+import { HEROES, ITEMS, RULES_VERSION, rarityWeights, type ItemDef } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, difficultyOf, luckOf, maxGoldByDay, rivalBuild, rivalDays, rivalLoadout, standInBuild, type RivalId } from "../src/sim/rivals";
 import { LUCKS, PLANS, dayOwned, firstDay, type Luck, type Upgrade } from "../src/sim/rivalBuilds";
 import { LUCK_CAPS } from "../src/sim/harness/luckCapsData";
@@ -56,9 +56,26 @@ function boughtDefs(id: RivalId, u: Upgrade): string[] {
   return out;
 }
 
+/**
+ * NUM-3 (REQ-BFG-046, REQ-BFG-047; the brief's step 5, as NUM-2's step 7g: a balance band's red is a measured exception
+ * under the RULES_VERSION tripwire, on R6's MUST-REMOVE list; the luck caps are not regenerated): R1's STUN fold and the
+ * whole-second durations move the par player's seed-1 FOUNDRY run (its fights, so its buys), so its fingerprint is not the
+ * table's 8696874a. Measured on num3: f54f92c1. FURNACE, WEAVER and BASTION still fingerprint as the table says. The caps
+ * stay as measured; R6 regenerates them (`npm run luckcaps`), then deletes this map and its tripwire.
+ */
+const NUM3_FINGERPRINTS: Readonly<Record<string, string>> = { foundry: "f54f92c1" };
+/** The rules version NUM3_FINGERPRINTS was measured under: the tripwire goes red at the next bump. */
+const EXCEPTIONS_RULES = "bb-0.8.7";
+
 describe("the luck caps table (src/sim/harness/luckCapsData.ts)", () => {
   it("is the current par field's: seed 1's par runs still fingerprint as the table says (else run `npm run luckcaps`)", () => {
     for (const hero of LUCK_HEROES) {
+      const ex = NUM3_FINGERPRINTS[hero];
+      if (ex) { // NUM-3's open item: pinned exactly, under this rules version only
+        expect(RULES_VERSION, "NUM-3 tripwire (as NUM-2's, cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
+        expect(parRunFingerprint(hero), `${hero}: NUM3_FINGERPRINTS (the table says ${LUCK_CAPS.fingerprint[hero]})`).toBe(ex);
+        continue;
+      }
       expect(parRunFingerprint(hero), `${hero}: the par player moved since the caps were measured; regenerate with \`npm run luckcaps\``).toBe(LUCK_CAPS.fingerprint[hero]);
     }
   });

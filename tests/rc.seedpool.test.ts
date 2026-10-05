@@ -59,7 +59,15 @@ const NUM2_GHOSTS_DIFFER = [
   "bastion-v1-d10", "bastion-v2-d5", "bastion-v2-d9", "bastion-v2-d10",
 ];
 const EXCEPTIONS_RULES = "bb-0.8.7";
-const NUM2_RACE_PART_SHA256 = "572e7452fa0c7b8c2f0a29a8e0351bf78c3f82a13d0387c6ff0a257990337049";
+const NUM2_RACE_PART_SHA256 = "572e7452fa0c7b8c2f0a29a8e0351bf78c3f82a13d0387c6ff0a257990337049"; // num2's (and susa's) race part: kept for the record
+/** NUM-3 (REQ-BFG-046, REQ-BFG-047; as NUM-2's option B, under the same tripwire): the race decks NUM-3's rules changed
+ *  on top of NUM-2's (R1's STUN fold and the whole-second durations move the par player's fights, so its buys), and
+ *  num3's race-part digest (the test pins this one; was NUM2_RACE_PART_SHA256). R6 regenerates the seed pool, then
+ *  deletes both lists, both digests and the tripwire. */
+const NUM3_GHOSTS_DIFFER = [
+  "foundry-v0-d4", "foundry-v0-d9", "foundry-v1-d4", "foundry-v1-d9", "foundry-v2-d7", "foundry-v2-d9", "foundry-v2-d10", "bastion-v1-d3", "bastion-v1-d5",
+];
+const NUM3_RACE_PART_SHA256 = "b3c0ea319c3f7af46a7d2b9a85e606dbce553cb7b4d859e794c4d3dffca0751a";
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 /** RUNES-1: a part as the pool it carries forward (the rules string normalised to POOL_RULES), for its digest. */
 const carried = (part: GhostSnapshot[]): GhostSnapshot[] => part.map((s) => ({ ...s, rules: POOL_RULES }));
@@ -113,8 +121,10 @@ describe("the bb-0.8.7 seed pool (tools/samplePool.ts; bb-0.8.6's decks and reco
       return was && isDeepStrictEqual(s.build, { ...was, hullBonus: was.hullBonus * 10 }) ? [] : [k];
     });
     expect(RULES_VERSION, "NUM-2 tripwire (cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
-    expect(differ, differ.join(", ")).toEqual(NUM2_GHOSTS_DIFFER);
-    expect(sha(samplePoolJson(carried(preNum1(RACE_PART))))).toBe(NUM2_RACE_PART_SHA256);
+    // NUM-3: NUM-2's 11 and NUM-3's 9 (20 of 60), as a set; every other ghost is still the bb-0.8.6 deck it carried
+    expect([...differ].sort(), differ.join(", ")).toEqual([...NUM2_GHOSTS_DIFFER, ...NUM3_GHOSTS_DIFFER].sort());
+    expect(sha(samplePoolJson(carried(preNum1(RACE_PART))))).not.toBe(NUM2_RACE_PART_SHA256); // NUM-3: num2's moved
+    expect(sha(samplePoolJson(carried(preNum1(RACE_PART))))).toBe(NUM3_RACE_PART_SHA256);
     const field = parSeeds(PAR_K);
     for (const hero of RACE_SEED_HEROES) for (let day = 1; day <= 10; day++) {
       const here = RACE_PART.filter((s) => s.hero === hero && s.day === day);
