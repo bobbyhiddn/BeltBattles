@@ -195,8 +195,8 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
     // need bb-0.6.2, runes bb-0.8.7; and the heroes each rules version takes), so both checks stay equal
     && rulesGateProblem(q.rules, q.build) === null && heroGateProblem(q.rules, q.hero) === null
     // RUNES-1: the rune rule (validate.ts validateBuild's); FLIP-X2 (ruling 5d6d83ef57d1494c): at most `day` here (the
-    // local pool), exact only for uploads (validateUpload)
-    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost") === null;
+    // local pool), exact only for uploads (validateUpload); and a dormant rune kept (an old ghost holding one survives)
+    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost", true) === null;
 }
 
 /** Any string made safe for ID_PATTERN (invalid characters become "_", at most 64 long). */

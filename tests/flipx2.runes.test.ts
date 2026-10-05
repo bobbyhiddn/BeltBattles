@@ -11,7 +11,9 @@ import { describe, expect, it } from "vitest";
 import {
   POOL_RULES, POOL_RULES_CARRIED, RULES_VERSION, SUSTAIN_LIVE, sustainLive, type HeroId,
 } from "../src/sim/content";
-import { BOT_RUNES, botTakeRune, runeProblem } from "../src/sim/runes";
+import {
+  BOT_RUNES, DORMANT_RUNES, RUNES, RUNE_LIST, SUSTAIN_RUNE_LIST, botTakeRune, isRune, runeList, runeOffer, runeProblem,
+} from "../src/sim/runes";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import type { Build } from "../src/sim/deck";
@@ -32,6 +34,41 @@ class MemStore {
   getItem(k: string): string | null { return this.data.get(k) ?? null; }
   setItem(k: string, v: string): void { this.data.set(k, v); }
 }
+
+describe("FLIP-X2 step 3b: TUNE-X's rune lines and the dormant runes (REVIEW-TUNEX)", () => {
+  it("the six data lines: LEECH VOW rare 15, TWIN NAILS 10, LOOSE THREAD 2, GRAVE PLATES armor 240, MOLTEN BOND 20, TANGLE WIRE 5", () => {
+    const at = (id: string) => [RUNES[id].tier, RUNES[id].theme, RUNES[id].amount.n];
+    expect(at("leech_vow")).toEqual(["rare", "turrets", 15]); // was epic, 20
+    expect(at("twin_nails")).toEqual(["common", "foundry", 10]); // was 20
+    expect(at("loose_thread")).toEqual(["common", "weaver", 2]); // was 3
+    expect(at("grave_plates")).toEqual(["rare", "armor", 240]); // was bastion, 120
+    expect(at("molten_bond")).toEqual(["rare", "foundry", 20]); // was 40
+    expect(at("tangle_wire")).toEqual(["rare", "weaver", 5]); // was 6
+  });
+
+  it("SEARING, SHATTER SHOT, COAL CHUTE and HEAT SINK are dormant: never offered, not listed, refused at a dawn; their defs stay", () => {
+    expect([...DORMANT_RUNES].sort()).toEqual(["coal_chute", "heat_sink", "searing", "shatter_shot"]);
+    for (const id of DORMANT_RUNES) expect(isRune(id), id).toBe(true); // an old snapshot decodes
+    expect(runeList().some((d) => DORMANT_RUNES.has(d.id))).toBe(false);
+    expect(runeList().length).toBe(RUNE_LIST.length + SUSTAIN_RUNE_LIST.length - 4); // 57 + 8 - 4 = 61
+    const offered = new Set<string>();
+    for (const hero of HEROES4) for (let seed = 1; seed <= 150; seed++) {
+      const held: string[] = [];
+      for (let day = 1; day <= 10; day++) {
+        const o = runeOffer(seed, day, hero, held);
+        o.ids.forEach((id) => offered.add(id));
+        if (o.ids.length) held.push(o.ids[0]);
+      }
+    }
+    expect([...offered].filter((id) => DORMANT_RUNES.has(id))).toEqual([]);
+    for (const id of DORMANT_RUNES) {
+      const list = [{ id: "iron_skin" }, { id: "tar_barrel" }, { id }]; // taken at the dawn of day 3 (a sustain rune's first)
+      expect(runeProblem(list, 3, "furnace"), id).toBe(`runes[2]: ${RUNES[id].name} is dormant: no dawn offers it`);
+      expect(runeProblem(list, 3, "furnace", undefined, "exact"), id).toBe(`runes[2]: ${RUNES[id].name} is dormant: no dawn offers it`);
+      expect(runeProblem(list, 3, "furnace", undefined, "atMost", true), `${id}: the local pool keeps it`).toBeNull();
+    }
+  });
+});
 
 describe("FLIP-X2 step 2: the switches", () => {
   it("SUSTAIN_LIVE and BOT_RUNES are on together, and no rules version carries an older pool forward", () => {

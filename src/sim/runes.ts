@@ -148,9 +148,9 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("gun_oil", "GUN OIL", "common", "turrets", "turretRate", 15, "YOUR TURRETS: +{N} {RATE}."), // M5 bench: +10% measured +2.9
   r("oiled_cogs", "OILED COGS", "common", "factories", "factoryRate", 5, "YOUR FACTORIES: +{N} {RATE}."), // M5: +10% measured +7.2 (rare)
   r("rivet_hoard", "RIVET HOARD", "common", "bastion", "startPlate", 60, "START EACH BATTLE WITH {N} {*PLATE}."),
-  r("twin_nails", "TWIN NAILS", "common", "foundry", "pairDmg", 20, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
+  r("twin_nails", "TWIN NAILS", "common", "foundry", "pairDmg", 10, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FLIP-X2 (TUNE-X line 7, REVIEW-TUNEX): 20 -> 10
   r("coal_chute", "COAL CHUTE", "common", "furnace", "heatPct", 25, "YOUR {*HEAT}: +{N}."),
-  r("loose_thread", "LOOSE THREAD", "common", "weaver", "startFray", 3, "BATTLE START: THE FOE HAS {N} {*FRAY}."),
+  r("loose_thread", "LOOSE THREAD", "common", "weaver", "startFray", 2, "BATTLE START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 9): 3 -> 2
   // ---- rare
   r("spare_hull", "SPARE HULL", "rare", "armor", "hull", 300, "+{N} {HULL}."),
   r("pitch_wagon", "PITCH WAGON", "rare", "belts", "belt", 16, "+{N} {BELT}."),
@@ -160,11 +160,13 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // RATE measured +5.6, under the rare band: supply-bound); N benched into the rare band (+6 to +10)
   r("hair_trigger", "HAIR TRIGGER", "rare", "turrets", "allRate", 8, "YOUR TURRETS AND FACTORIES: +{N} {RATE}."),
   r("stoked_fires", "STOKED FIRES", "rare", "factories", "factoryRate", 15, "YOUR FACTORIES: +{N} {RATE}."), // M5: R1b's +25% measured +13.2 (epic)
-  r("grave_plates", "GRAVE PLATES", "rare", "bastion", "startPlate", 120, "START EACH BATTLE WITH {N} {*PLATE}."),
-  r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 40, "YOUR {*PAIR} SHOTS: +{N} {DMG}."),
+  // FLIP-X2 (TUNE-X line 10, REVIEW-TUNEX answer 4): theme bastion -> armor, 120 -> 240, judged on all heroes (+7.0, the
+  // rare band), as MANY HANDS and THREAD STORM were
+  r("grave_plates", "GRAVE PLATES", "rare", "armor", "startPlate", 240, "START EACH BATTLE WITH {N} {*PLATE}."),
+  r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 20, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FLIP-X2 (TUNE-X line 11): 40 -> 20
   r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 50, "YOUR {*HEAT}: +{N}."),
   r("double_knot", "DOUBLE KNOT", "rare", "weaver", "frayHit", 1, "YOUR {*FRAY} HITS: +{N} {*FRAY}."),
-  r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 6, "BATTLE START: THE FOE HAS {N} {*FRAY}."),
+  r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 5, "BATTLE START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 14): 6 -> 5
   // ---- RUNES-2a (REQ-BFG-058): 36 more, each a new idea on a new hook (no same-stat twin of a shipped rune), in today's
   // units. R1b's theme x tier grid: the epics and legendaries first (so epic and legendary dawns show their own tier),
   // then each hero style toward 3 common, 3 rare, 2 epic and 1 legendary, then the generic themes. 40 were built; the
@@ -260,7 +262,8 @@ export const SUSTAIN_RUNE_LIST: readonly RuneDef[] = [
   // VOW 5 +3.1 (the design's: LEECH NEEDLE ★1's number, a common's worth), 10 +6.2, 15 +8.6, 20 +11.6
   r("twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", 20, "{PAIR}: {*HEAL} {N}."),
   r("scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", 300, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}."),
-  r("leech_vow", "LEECH VOW", "epic", "turrets", "hitHeal", 20, "EACH SHOT THAT LANDS: {*HEAL} {N}."),
+  // FLIP-X2 (TUNE-X line 4, REVIEW-TUNEX): epic -> rare, 20 -> 15 (+8.1 on all heroes, the rare band; WEAVER +14.1)
+  r("leech_vow", "LEECH VOW", "rare", "turrets", "hitHeal", 15, "EACH SHOT THAT LANDS: {*HEAL} {N}."),
   // REGEN (WEAVER): MENDING LOOM ★1's line, no label (YOUR HULL says whose, not when). M5: WEAVER +4.2 (par), +4.5 (typ2)
   r("green_thread", "GREEN THREAD", "common", "weaver", "regen", 10, "YOUR HULL: {*REGEN} {N}."),
   // the counters (FURNACE): BURN's rule taken to none; round B's PIERCE as a rune (each shot breaks a SHIELD and hits on).
@@ -281,8 +284,19 @@ export const isRune = (id: unknown): id is string => typeof id === "string" && O
 /** SUS-D: is `id` one of the sustain runes (whatever the switch)? */
 export const isSustainRune = (id: string): boolean => SUSTAIN_RUNE_LIST.some((d) => d.id === id);
 
-/** SUS-D: the runes the dawn offers now: RUNE_LIST, and the sustain runes after it while the sustain switch is on. */
-export const runeList = (): readonly RuneDef[] => (sustainLive() ? ALL_RUNES : RUNE_LIST);
+/**
+ * FLIP-X2 (REQ-BFG-058; TUNE-X lines 5, 6, 8 and 12, REVIEW-TUNEX answers 2-4): the runes out of the offer pool for release
+ * X, as DORMANT_ITEMS does for pieces. SEARING and SHATTER SHOT (FURNACE's counters: under their band on the field
+ * players meet; the base rules keep both counters, BURN halves a heal and goes past SHIELD), COAL CHUTE and HEAT SINK (no
+ * effect at any amount on par FURNACE decks). runeOffer never offers one, runeList() leaves them out, runeProblem refuses
+ * one taken at a dawn; their defs stay in RUNES, so an old snapshot decodes. Release Y's FURNACE rune pass gives them
+ * baselines.
+ */
+export const DORMANT_RUNES: ReadonlySet<string> = new Set(["searing", "shatter_shot", "coal_chute", "heat_sink"]);
+
+/** SUS-D: the runes the dawn offers now: RUNE_LIST, and the sustain runes after it while the sustain switch is on.
+ *  FLIP-X2: never a dormant one (DORMANT_RUNES). */
+export const runeList = (): readonly RuneDef[] => (sustainLive() ? ALL_RUNES : RUNE_LIST).filter((d) => !DORMANT_RUNES.has(d.id));
 
 /** One held rune as the build carries it (snapshot v3 Build.runes[i]): its id. R1b-2's counter `n` belongs to GROW-1. */
 export interface RuneHeld {
@@ -342,7 +356,8 @@ export function runeOffer(seed: number, day: number, hero: HeroId, held: readonl
   const drawn = rng.weighted(RARITIES, (t) => odds[t]);
   // BOTS-X (REQ-BFG-069; cap's answer 4 in REVIEW-SUSD): before the first sustain day the dawn draws from RUNE_LIST alone,
   // so with the switch on the day 1-2 offers are exactly the switch-off offers (the same list, the same draws)
-  const list = day < SUSTAIN_FIRST_DAY ? RUNE_LIST : runeList();
+  // FLIP-X2: never a dormant rune (DORMANT_RUNES), on any day
+  const list = day < SUSTAIN_FIRST_DAY ? RUNE_LIST.filter((d) => !DORMANT_RUNES.has(d.id)) : runeList();
   const left = (t: Rarity) => list.filter((d) => d.tier === t && !held.includes(d.id)); // SUS-D: the switch
   const at = RARITIES.indexOf(drawn);
   const order = [...RARITIES.slice(0, at + 1).reverse(), ...RARITIES.slice(at + 1)];
@@ -389,7 +404,7 @@ export type RuneCount = "exact" | "atMost";
  * - when `seed` is known (the uploader's snapshot; served ghosts carry none, FIX-6): runes[i] was in
  *   runeOffer(seed, i + 1, hero, the runes before it).
  */
-export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost"): string | null {
+export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost", keepDormant = false): string | null {
   if (runes === undefined) return count === "exact" ? `runes: 0 held on day ${day}, one a dawn (${day})` : null;
   if (!Array.isArray(runes)) return "runes: expected a list";
   if (runes.length > day) return `runes: ${runes.length} held on day ${day}, at most one a dawn`;
@@ -401,6 +416,9 @@ export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: nu
     const extra = Object.keys(q).find((k) => k !== "id");
     if (extra !== undefined) return `runes[${i}].${extra}: not in this rules version`;
     if (!isRune(q.id)) return `runes[${i}]: unknown rune ${JSON.stringify(q.id)}`;
+    // FLIP-X2 (REVIEW-TUNEX answers 2-4): no dawn offers a dormant rune, seed or none; the device's local pool keeps an old
+    // ghost that holds one (`keepDormant`, ghostSnapshot.ts isSnapshot, as it keeps a short rune list)
+    if (DORMANT_RUNES.has(q.id) && !keepDormant) return `runes[${i}]: ${RUNES[q.id].name} is dormant: no dawn offers it`;
     // SUS-D (REQ-BFG-069): a sustain rune only while the sustain switch is on (no dawn offers one before), seed or none
     if (isSustainRune(q.id) && !sustainLive()) return `runes[${i}]: ${RUNES[q.id].name} is not in the game while sustain is off`;
     // BOTS-X (REQ-BFG-069): no dawn before the first sustain day offers one; with the seed the offer check below refuses it
