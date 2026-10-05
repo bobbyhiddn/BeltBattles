@@ -183,7 +183,10 @@ above are in their own clones), is 0.8.9's code plus release X and Y1's card fac
   foe's deck with its runes, as the unit tests do. src/main.ts gains window.bb.runeGrant (the runes' hull, belt and gold,
   read only), which those runs read; no player sees it, and no number, rule or text changes;
 - the release record: GAME_BUILD.txt records the 0.9.0 online page built at 2fc8308, sections 3 to 8 name it and the
-  rules bb-0.9.0, and section 18 is its launch. The Prime names the tip at launch.
+  rules bb-0.9.0, and section 18 is its launch (fbed404);
+- then a test-only commit (cap's ruling bce92765e6026e9b): the smoke's day-3 check (tools/smoke.ts) expects a v3 seed
+  ghost, as FLIP-X2 made every pool deck carry its dawn runes (was v2). The page and the server are the release
+  record's; this last commit is section 18's tip. The Prime names it at launch.
 
 **The page.** The image serves the ONLINE single-file page: `npm run build:online`
 (VITE_GHOST_SERVER=same-origin, into dist-online/), then `node scripts/singlefile.mjs <out.html> --dist dist-online`.
@@ -1399,8 +1402,10 @@ there: 0.8.9 is live as release v11 (image registry.fly.io/beltbattles:deploymen
 
 **What ships.** Branch release-090 at its tip, in this clone: y1x f0fe94c (FLIP-X2's 357cabc, FIX-ABE's two picks,
 REDO-X to 77d54b0 and Y1's 13 picks), the CARRY commit (e5a89b5), the 0.9.0 label (06c7a1a), the CHANGELOG commit
-(7937d58), the test-harness fix with its read-only tooling hook (2fc8308; cap's ruling eaf260a2a192acf6) and the release
-record (GAME_BUILD.txt and this section). A commit can't name its own hash, so the Prime names the tip at launch.
+(7937d58), the test-harness fix with its read-only tooling hook (2fc8308; cap's ruling eaf260a2a192acf6), the release
+record (GAME_BUILD.txt and this section, fbed404) and a test-only commit (the smoke's day-3 check expects a v3 seed
+ghost; cap's ruling bce92765e6026e9b), which is the tip. A commit can't name its own hash, so the Prime names the tip at
+launch.
 - The page is the 0.9.0 online page that GAME_BUILD.txt records (BeltBattles-0.9.0-2fc830882c86-online.html, 695,449
   bytes, sha256 `fd0b3f356c09c551…`), built at 2fc8308; it reads V0.9.0 on the title screen.
 - The rules move to bb-0.9.0 (RULES_VERSION, and the probe's PROBE_RULES), once, with nothing carried

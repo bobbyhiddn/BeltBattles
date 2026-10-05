@@ -25,7 +25,7 @@ import { dirname, join, resolve } from "node:path";
 import { FakeS3 } from "./fakeS3";
 import { generateSamplePool } from "./samplePool";
 import { KEY_HEADER, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
-import { encodeSnapshot, ghostId, SNAPSHOT_VERSION } from "../src/net/snapshot";
+import { encodeSnapshot, ghostId, SNAPSHOT_V3 } from "../src/net/snapshot";
 import { RULES_VERSION, START_LIVES } from "../src/sim/content";
 // 0.7.0a: the game's side of the server (section 6, and the closed upload in section 3)
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
@@ -289,7 +289,8 @@ async function main(): Promise<void> {
   const matchUrl = `${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=3&wins=1&lives=5&player=smoke-test&seen=&runs=0`;
   const beforeMatch = fake.requests.length;
   const m = await shell(`curl -sS -i -H 'Fly-Client-IP: 203.0.113.9' '${matchUrl}'`, "curl", ["-sS", "-i", "-H", "Fly-Client-IP: 203.0.113.9", matchUrl], undefined, 700);
-  check(/HTTP\/1\.1 200/.test(m.out) && new RegExp(`"snapshot":\\{"v":${SNAPSHOT_VERSION},"rules":"${RULES_VERSION.replace(/\./g, "\\.")}","hero":"(furnace|weaver|foundry|bastion)","day":3`).test(m.out), "match day 3: 200 with a day-3 pool ghost"); // 0.8.0 RC: the four-hero seed pool
+  // STAGE-090 (cap's ruling bce92765e6026e9b): FLIP-X2 1517125 gave every pool deck its dawn runes, so a seed ghost travels as v3 (was SNAPSHOT_VERSION, 2)
+  check(/HTTP\/1\.1 200/.test(m.out) && new RegExp(`"snapshot":\\{"v":${SNAPSHOT_V3},"rules":"${RULES_VERSION.replace(/\./g, "\\.")}","hero":"(furnace|weaver|foundry|bastion)","day":3`).test(m.out), "match day 3: 200 with a day-3 pool ghost"); // 0.8.0 RC: the four-hero seed pool
   const served = /"snapshot":\{"v":\d,"rules":"[^"]+","hero":"[a-z]+","day":3,"wins":(\d+),"lives":(\d+)/.exec(m.out);
   check(!!served && noBetterRecord({ wins: Number(served[1]), lives: Number(served[2]) }, { wins: 1, lives: 5 }),
     `0.7.0a D1: the match is no better a record than the request's 1W 5 lives (${served ? `${served[1]}W ${served[2]} lives` : "?"})`);
