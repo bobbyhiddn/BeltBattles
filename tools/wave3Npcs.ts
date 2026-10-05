@@ -51,7 +51,11 @@ export const NPCS: readonly NpcPlan[] = [
     synergy: ["twingauge", "twinmould", "twintrigger"], prize: "+2 gold, +3 from day 4 (the Easy rule)",
     buys: [
       B("twingauge", 1), B("whetstone", 2), B("twinmould", 3), B("twingauge", 4), B("twintrigger", 5), B("pincer", 6),
-      B("temper", 6), B("seamwelder", 7), B("twinmould", 8), B("twintrigger", 9), B("longhaul", 10),
+      B("temper", 6), B("seamwelder", 7), B("twinmould", 8),
+      // REDO-X I (cap's rulings 207816b18a9fbfdb, 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the second twin
+      // trigger on day 10 (was 9; the checker's ordinary star2 cap, the lower of FURNACE's and WEAVER's, is 2 on day 9; his
+      // three ★2 are all synergy parts, and the trigger is on his deck from day 5); good luck keeps day 9; in day order
+      B("twintrigger", 10, 9), B("longhaul", 10),
     ],
   },
   {
@@ -64,7 +68,11 @@ export const NPCS: readonly NpcPlan[] = [
       // bb-0.8.6 (job PACKS M4, the packs' regenerated caps): the COMPOUND BREECH at ordinary luck on day 7 (was 6; no
       // ordinary epic before day 7), the SEAM WELDER at good luck on day 6 (was 5; good rare+ cap 4 on day 5) and the
       // RAILGUN on day 9 (was 8; no good-luck turret before day 9)
-      B("twingauge", 1), B("whetstone", 1), B("twinlatch", 2), B("twintrigger", 3), B("twinmould", 4, 3), B("twingauge", 5),
+      B("twingauge", 1), B("whetstone", 1), B("twinlatch", 2), B("twintrigger", 3),
+      // REDO-X I (cap's rulings 207816b18a9fbfdb, 97e639e5813acb37): at ordinary luck the twin mould on day 5 (was 4; the
+      // checker's ordinary rare+ cap, the lower of FURNACE's and WEAVER's, is 2 on day 4; a non-synergy part); good luck
+      // keeps day 3; in day order
+      B("twinmould", 5, 3), B("twingauge", 5),
       B("compound", 7, 4), B("seamwelder", 7, 6), B("twintrigger", 8, 6), B("pincer", 7), B("twinlatch", null, 7),
       B("railgun", null, 9), B("twinmould", 10, 9), B("quench", null, 10),
     ],
@@ -76,13 +84,20 @@ export const NPCS: readonly NpcPlan[] = [
     palette: ["steel3", "rust2", "fire3", "bone"], families: ["PLATE", "BURST"],
     synergy: ["plateroller", "anvil", "spallcatcher"], prize: "+4 gold (the Medium rule)",
     buys: [
-      B("plateroller", 1), B("tollbooth", 1), B("anvil", 2), B("whetstone", 3), B("braceframe", 3), B("plateroller", 4),
+      B("plateroller", 1), B("tollbooth", 1), B("anvil", 2), B("whetstone", 3), B("plateroller", 4),
       // bb-0.8.3 (job BELTS run 4): the ARMOR PRESS on day 6 (was 5): the caps regenerated with the par player buying its
       // gold upgrades give no ordinary epic on day 5
       // bb-0.8.6 (job PACKS M4): the ARMOR PRESS on day 7 (was 6; no ordinary epic before day 7), the heat jacket on day 9
       // (was 8; rare+ cap 5 on day 8) and no PLATE BREAKER (was day 10: one ordinary epic+ on every day)
-      B("spallcatcher", 4), B("armorpress", 7), B("anvil", 6), B("quench", 7), B("temper", 7), B("heatjacket", 9),
-      B("spallcatcher", 9),
+      B("spallcatcher", 4),
+      // REDO-X I (cap's rulings 207816b18a9fbfdb, 97e639e5813acb37): at ordinary luck the brace frame on day 5 (was 3; the
+      // checker's ordinary rare+ cap, the lower of FURNACE's and WEAVER's, is 2 on day 4, 3 with it; a non-synergy part);
+      // good luck keeps day 3; right after the day-4 spall catcher, in day order
+      B("braceframe", 5, 3), B("armorpress", 7), B("anvil", 6), B("quench", 7), B("temper", 7), B("heatjacket", 9),
+      // REDO-X I (cap's rulings 207816b18a9fbfdb, 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the second spall
+      // catcher on day 10 (was 9; the checker's ordinary star2 cap is 2 on day 9; his three ★2 are all synergy parts, and
+      // the spall catcher is on his deck from day 4); good luck keeps day 9; in day order
+      B("spallcatcher", 10, 9),
     ],
   },
   {
@@ -115,7 +130,9 @@ export const NPCS: readonly NpcPlan[] = [
       // bb-0.8.6 (job PACKS M4): the COMPOUND BREECH on day 7 (was 6; no ordinary epic before day 7)
       B("twingauge", 1), B("whetstone", 1), B("twinmould", 2), B("twinlatch", 3), B("twingauge", 4), B("temper", 4),
       B("twintrigger", 5), B("compound", 7), B("pincer", 7), B("quench", 7), B("twinlatch", 8), B("longhaul", 9),
-      B("twintrigger", 9), B("bellows", 10),
+      // REDO-X I (cap's rulings 207816b18a9fbfdb, 97e639e5813acb37): at ordinary luck the second twin trigger on day 10
+      // (was 9; the checker's ordinary star2 cap is 2 on day 9; a non-synergy part); good luck keeps day 9; in day order
+      B("twintrigger", 10, 9), B("bellows", 10),
     ],
   },
   {
@@ -128,7 +145,11 @@ export const NPCS: readonly NpcPlan[] = [
       B("plateroller", 1), B("steambreech", 1), B("tollbooth", 2), B("whetstone", 2), B("braceframe", 3), B("plateroller", 4),
       // bb-0.8.6 (job PACKS M4): the PLATE BREAKER on day 9 (was 8; ordinary rare+ cap 5 on day 8)
       B("spallcatcher", 4), B("anvil", 5), B("seamwelder", 6), B("temper", 6), B("steambreech", 7), B("quench", 7),
-      B("platebreaker", 9), B("spallcatcher", 9), B("bellows", 10),
+      B("platebreaker", 9),
+      // REDO-X I (cap's rulings 207816b18a9fbfdb, 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the second spall
+      // catcher on day 10 (was 9; the checker's ordinary star2 cap is 2 on day 9; her three ★2 are all synergy parts, and
+      // the spall catcher is on her deck from day 4); good luck keeps day 9; in day order
+      B("spallcatcher", 10, 9), B("bellows", 10),
     ],
   },
 ];
