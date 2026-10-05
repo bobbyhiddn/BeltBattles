@@ -414,11 +414,11 @@ async function upgradeTouch(page, cdp, V, { what, where, track, title, key }) {
  * bb-0.8.6 (REQ-BFG-051, PACKS P5): the two fixed pack slots beside REROLL. Each is a UI region (pack-belt, pack-armor)
  * fully inside the visible viewport, clear of every shop card, REROLL and the other slot; on a touch view at least 44x44
  * CSS px. A tap (a click on desk) buys one: the gold drops by its price (2, 5), the belt capacity or the hull bonus rises
- * by its amount (4, 25) and the shop, cargo and the rest of the build stay as they were. With 1 gold the slot buys nothing
+ * by its amount (4, 250) and the shop, cargo and the rest of the build stay as they were. With 1 gold the slot buys nothing
  * and says why ("A BELT PACK COSTS 2G", "AN ARMOR PACK COSTS 5G"). The run is put back after, so later checks see their deck.
  */
 async function packChecks(page, cdp, V, how) {
-  const PACKS = [["belt", 2, "beltCap", 4, "A BELT PACK COSTS 2G"], ["armor", 5, "hullBonus", 25, "AN ARMOR PACK COSTS 5G"]];
+  const PACKS = [["belt", 2, "beltCap", 4, "A BELT PACK COSTS 2G"], ["armor", 5, "hullBonus", 250, "AN ARMOR PACK COSTS 5G"]]; // STAGE-090 (cap's ruling bc2ad14029210996): NUM-1's x10 hull, +250 (was 25)
   await page.keyboard.press("Escape").catch(() => {});
   const press = async (p) => { if (how === "touch") await tap(cdp, p, 3, 0); else { await page.mouse.click(p.x, p.y); await sleep(150); } };
   const regions = await Promise.all(PACKS.map(([id]) => region(page, `pack-${id}`)));
