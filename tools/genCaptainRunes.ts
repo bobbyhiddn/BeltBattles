@@ -52,11 +52,21 @@ export const runeInertFor = (rune: string, hero: HeroId): boolean => RUNES[rune]
  * - MASTER VOSS: TWIN SUNS (day 6; next-best SCRAP SAINT): day 6 12 / 48 -> 34 / 67, day 7 17 / 69 -> 19 / 78, day 8
  *   39 / 59 -> 45 / 81; MOLTEN VOWS (day 10; next-best LOOM OF WOE): day 10 17 / 25 -> 61 / 68.
  * - LONGTOOTH: SCRAP SAINT (day 8; next-best RUNE TITHE): day 8 27 / 47 -> 50 / 60.
+ * - the Iron Matriarch (cap's ruling 3c58471c74bdc4ed Q3: the walls outrank "the Matriarch the hardest" on days 8-10):
+ *   PYRE HEART not before day 10 (day 7; next-best EMBER SHOT, then WARLORD'S DUE, PITCH WAGON and WIDOW'S WEB). The
+ *   par field's top decile (P90) against her road deck: day 8 23 / 12 -> 48 / 57, day 9 35 / 68 -> 72 / 98, day 10 30 / 58
+ *   -> 80 / 89 (PYRE HEART is not in her day-10 offer once the earlier picks move, so her day-10 set is not the tip's).
+ * A skip is a rune id (never taken) or [rune, day]: not taken before that day.
  */
-export const CAPTAIN_RUNE_SKIP: Readonly<Partial<Record<RivalId, readonly string[]>>> = {
+export type RuneSkip = string | readonly [rune: string, from: number];
+export const CAPTAIN_RUNE_SKIP: Readonly<Partial<Record<RivalId, readonly RuneSkip[]>>> = {
   voss: ["twin_suns", "molten_vows"],
   longtooth: ["scrap_saint"],
+  matriarch: [["pyre_heart", 10]],
 };
+/** Whether a CAPTAIN_RUNE_SKIP list keeps `rune` out of the pick at the dawn of `day`. */
+export const runeSkipped = (skip: readonly RuneSkip[], rune: string, day: number): boolean =>
+  skip.some((s) => (typeof s === "string" ? s === rune : s[0] === rune && day < s[1]));
 
 /** Captain `id`'s picks at the dawns of days 1..days (RUN_DAYS by default), in pick order. */
 export function captainRunes(id: RivalId, days = RUN_DAYS): string[] {
@@ -66,7 +76,7 @@ export function captainRunes(id: RivalId, days = RUN_DAYS): string[] {
   const list: string[] = [];
   for (let day = 1; day <= days; day++) {
     const offer = runeOffer(seed, day, hero, list);
-    const cards = offer.ids.filter((q) => !runeInertFor(q, hero) && !skip.includes(q));
+    const cards = offer.ids.filter((q) => !runeInertFor(q, hero) && !runeSkipped(skip, q, day));
     const pick = botRunePick(cards.length ? cards : offer.ids, hero, rivalBuild(id, day));
     if (pick === null) break;
     list.push(pick);

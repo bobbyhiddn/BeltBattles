@@ -246,7 +246,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // REDO-X (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the SPLITTER (synergy; captains.synergy
       // still passes) on day 7 (was 6; WEAVER's ordinary epic+ cap is 0 on day 6); soon() keeps the warlord's day 5; right
       // after P(6), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
-      soon(5, G(7, "splitter", 2, 4, 2)), G(7, "staticbrush", 0, 1), soon(6, G(8, "riveter", 5, 1)),
+      // CATCHUP-091 (the walls; lever d, cap's ruling 3c58471c74bdc4ed Q2): the static brush on day 8 (was 7), at both
+      // lucks (it has no good-luck day of its own). With it on day 7 the par field's top quartile beat her day-7 road deck
+      // 21% of the time (FURNACE; 100% at 1210ee8); a day later 69%
+      soon(5, G(7, "splitter", 2, 4, 2)), G(8, "staticbrush", 0, 1), soon(6, G(8, "riveter", 5, 1)),
       P(8, 2), ...good(G(9, "counterweight", 2, 0)), soon(9, G(10, "venom", 0, 0)), ...good(G2(10, "temper", 3, 1)), P(10, 2),
     ],
     // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 46% on day 7 with 3 of the 4 packs: one PvE plate that day
@@ -377,15 +380,24 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(1, "temper", 5, 0, 3), soon(1, G(2, "coil", 3, 0)), M(2, "scatter", 1), soon(2, G(3, "whetstone", 3, 1, 1)),
       // bb-0.8.3 (job BELTS run 4): the bellows on day 7 at ordinary luck (was 6; the stand-in's day-6 rare cap is 5);
       // soon() keeps the warlord's day 5
-      G(3, "staticbrush", 3, 3), G2(4, "coil", 3, 0),
+      // CATCHUP-091 (the walls; lever d, cap's ruling 3c58471c74bdc4ed Q2): the static brush on day 4 (was 3), at both
+      // lucks (it has no good-luck day of its own). With it on day 3 the par field's top quartile beat her day-3 road deck
+      // 38% of the time (FURNACE; 95% at 1210ee8); a day later 95%
+      G(4, "staticbrush", 3, 3), G2(4, "coil", 3, 0),
       soon(5, G(6, "coil", 0, 0)), G(6, "lodestone", 4, 5, 1),
       // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 0/0/0/1/2/3/5/7 on days 3-10 (the WEAVER par
       // field's 1/1/2/3/4/5/5/7), as her stand-in's gold allows (days 5-6: the luck caps' value); her good-luck road deck
       // pays for them with its FACTORY level 2 (day 7 before; no later day's gold holds it). The walls (cap's ruling Q2
       // f77489ebe2e11698): her day-3 pack comes on day 6, so the par field's top quartile beats her day-5 road deck 44%
       // of the time again, as at 1210ee8
-      ...good(G(6, "grease", 4, 7)), P(6), soon(5, G(7, "bellows", 7, 1)), P(7), soon(7, M(8, "drake", 2)), ...good(G(8, "longhaul", 5, 1)),
-      P(8), soon(5, G2(9, "staticbrush", 3, 3)), P(9, 2),
+      // CATCHUP-091 (the walls; lever d, cap's ruling 3c58471c74bdc4ed Q2): the good-luck grease on day 7 (was 6), placed
+      // in day order after the day-6 pack. With it on day 6 the par field's top quartile beat her day-6 road deck 34% of
+      // the time (FURNACE, with fallback 2's day-6 plates gone; 70% at 1210ee8)
+      P(6), ...good(G(7, "grease", 4, 7)), soon(5, G(7, "bellows", 7, 1)), P(7), soon(7, M(8, "drake", 2)), ...good(G(8, "longhaul", 5, 1)),
+      // CATCHUP-091 (the walls; lever d, cap's ruling 3c58471c74bdc4ed Q1): the static brush's second star at good luck on
+      // day 6 (was 5; ordinary day 9 unchanged). With it on day 5 the par field's top quartile beat her day-5 road deck 3%
+      // of the time (FURNACE; 44% at 1210ee8); a day later 57%
+      P(8), soon(6, G2(9, "staticbrush", 3, 3)), P(9, 2),
       ...good(G(10, "venom", 3, 2)), ...good(M2(10, "drake", 2)), ...good(M(10, "flak", 0)), P(10, 2),
     ],
     // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 53/51/50% on days 6-8 with 1/2/3 of the 3/4/5 packs: two PvE
@@ -393,7 +405,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // CATCHUP-091 (the walls, cap's ruling Q2 f77489ebe2e11698 rule 4; Q1 e2ca295ce9dcd60a rule 5: fallback 2 is trimmed
     // first): the day-6 and day-7 plates go. With them the par field's top quartile beat her road deck 29% (day 6) and
     // 13% (day 7) of the time (FURNACE; 70 and 64% at 1210ee8); without them 34 and 20%
-    pve: { 8: 2 },
+    // CATCHUP-091 fallback 2 (Q1 rule 4; the brief's lever for Hard day 4 and ruling 3c58471c74bdc4ed Q1 and Q5 (2) for
+    // day 5, each only while every wall holds): her road deck read 38% on day 4 and 31% on day 5 with none of the WEAVER
+    // par field's 2 packs; one PvE plate each day (51% and 38%; day-4 FURNACE walls 59 -> 41, day 5 57 -> 43; two plates
+    // read 31 and 28)
+    pve: { 4: 1, 5: 1, 8: 2 },
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
   // (venom, a counterweight, a hullbreaker core) that a LONG HAUL cashes in from day 5 (+2 damage per hit already
@@ -409,7 +425,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // ordinary rare cap is 3 on day 5); soon() keeps the warlord's day 3
       // ... re-placed in day order (cap's ruling 1cfdc5fff106d58f): right after the last entry with an earlier day
       soon(1, G(2, "whetstone", 2, 2, 2)), soon(2, G(3, "venom", 3, 4, 1)),
-      ...good(soon(3, G(4, "riveter", 3, 1))), M(4, "hullbreaker", 0), G(5, "longhaul", 5, 3), P(5), soon(3, G(6, "counterweight", 4, 4, 1)), G(6, "temper", 1, 4, 1),
+      // CATCHUP-091 (the Hard band on day 4, cap's ruling 3c58471c74bdc4ed Q5 (1); FLIP-X2's candidate move, REDO-X section 4
+      // and BAL-2 section 7: it fits day 4 again): the counterweight back on day 4 at ordinary luck (was 6), re-placed in day
+      // order right after the hullbreaker; soon() keeps the warlord's day 3
+      ...good(soon(3, G(4, "riveter", 3, 1))), M(4, "hullbreaker", 0), soon(3, G(4, "counterweight", 4, 4, 1)), G(5, "longhaul", 5, 3), P(5), G(6, "temper", 1, 4, 1),
       // bb-0.8.3 (job BELTS run 4): the RAILGUN at good luck only (the warlord's day 9 kept): the regenerated caps give the
       // stand-in no bought turret on any day and one epic+ on day 9 (its OVERDRIVE)
       // 0.8.9 (CATCHUP-089; cap's ruling Q1 e2ca295ce9dcd60a (B)): ARMOR PACKs 0/0/1/3/3/3/3/5 on days 3-10 (the FURNACE
@@ -440,7 +459,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // rare cap is 2 on day 4); soon() keeps the warlord's day 3
       // ... re-placed in day order (cap's ruling 1cfdc5fff106d58f): right after the last entry with an earlier day
       G(4, "longhaul", 7, 3), G(4, "tollbooth", 9, 3, 3), G2(4, "longhaul", 7, 3), soon(3, G(5, "venom", 0, 0)),
-      G2(6, "temper", 0, 2),
+      // CATCHUP-091 (the Hard band on day 5; cap's ruling 3c58471c74bdc4ed Q5 (3): one part one day earlier at good luck
+      // only): the temper's second star at good luck on day 5 (ordinary day 6 unchanged). Her day-5 road deck 46 -> 61%,
+      // its walls 99 / 100 -> 79 / 53
+      soon(5, G2(6, "temper", 0, 2)),
       // REDO-X (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the SPLITTER (synergy; captains.synergy
       // still passes) on day 7 (was 6; WEAVER's ordinary epic+ cap is 0 on day 6); soon() keeps the warlord's day 5; right
       // after G2(6, temper), the last entry with an earlier day; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
@@ -453,7 +475,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     ],
     // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 40/30/29/30% on days 4-7 with 0/0/0/1 of the 1/2/3/4 packs: PvE
     // plates up to the count on those days
-    pve: { 4: 1, 5: 2, 6: 3, 7: 3 },
+    // CATCHUP-091 fallback 2 (Q1 rule 4: a Hard captain still under 0.55, up to the par count; the brief's lever for Hard day
+    // 4; the Hard band on day 8, which the walls' fixes took under 55): day 4 1 -> 2 plates (the WEAVER par field's count
+    // 2 at 0.9.1; 33 -> 52%), day 8 0 -> 3 (count 5, 2 paid; 36 -> 67%); her walls hold (day 4 100 / 100, day 8 50 / 81)
+    pve: { 4: 2, 5: 2, 6: 3, 7: 3, 8: 3 },
   },
   // ---------------------------------------------------------------- Hard, days 8-10 only
   // GRAND FOUNDRY (the stars-aligned deck; she arrives on day 8): the kiln and a STAMP PRESS, heavy armor (three
@@ -546,9 +571,16 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(5, M(7, "compound", 0)),
       // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37, item 2): the latch's second star at good luck only, day 9 (was
       // ordinary day 10; FOUNDRY's ordinary star2 cap is 2 on day 10 and no later day exists)
-      M2(7, "compound", 0), ...good(M(7, "flak", 1)), P(8, 4), ...good(G2(9, "twinlatch", 3, 2)),
+      // CATCHUP-091 (the walls; lever d, cap's ruling 3c58471c74bdc4ed Q1): the good-luck flak on day 8 (was 7, PACKS M4's
+      // ladder move). With it on day 7 the par field's top quartile beat his day-7 road deck 19% of the time (FURNACE; 72%
+      // at 1210ee8); a day later 49%
+      M2(7, "compound", 0), ...good(M(8, "flak", 1)), P(8, 4), ...good(G2(9, "twinlatch", 3, 2)),
       ...good(G(10, "whetstone", 5, 2, 3)), P(10),
     ],
+    // CATCHUP-091 fallback 2 (cap's ruling Q1 e2ca295ce9dcd60a rule 4; ruling 3c58471c74bdc4ed Q1: the Hard band on day 5,
+    // which the walls' fixes took under 55): his road deck read 51% on day 5 with none of the FOUNDRY par field's 2 packs
+    // (his day-3 pack is on day 8 now, the walls); one PvE plate (58%; the day-5 walls 69 / 68 -> 57 / 53; two read 39)
+    pve: { 5: 1 },
   },
   // ---------------------------------------------------------------- Medium (tier 2), BASTION
   // ANVIL WALL: the Wardworks' bulwark belt plates the hull as it fires, and plating makes every shot hit harder. Synergy:
@@ -630,7 +662,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // CATCHUP-091 (the walls, cap's ruling Q2 f77489ebe2e11698 rule 4; Q1 e2ca295ce9dcd60a rule 5: fallback 2 is trimmed
     // first): the day-5 plates go (2 -> 0). With them the par field's top quartile beat his day-5 road deck 25% of the time
     // (FURNACE; 91% at 1210ee8); without them 42%
-    pve: { 7: 1 },
+    // CATCHUP-091 fallback 2 (Q1 rule 4; the brief's lever for Hard day 4; ruling 3c58471c74bdc4ed Q5 (2)): one PvE plate on
+    // day 4 (the BASTION par field's count 1 at 0.9.1; none paid): 39 -> 49%, his day-4 walls 78 / 100 -> 71 / 99
+    pve: { 4: 1, 7: 1 },
   },
   // ---------------------------------------------------------------- dusk stand-ins only (standInOnly), FURNACE and WEAVER
   // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
@@ -835,7 +869,7 @@ export const CAPTAIN_RUNES: Readonly<Partial<Record<RivalId, readonly string[]>>
   silkshade: ["final_nail", "loose_thread", "twin_nails", "quick_latch", "toll_road", "barbed_silk", "oiled_cogs", "forge_ward", "loom_of_woe", "ember_shot"], // weaver: FINAL NAIL, LOOSE THREAD, TWIN NAILS, QUICK LATCH, TOLL ROAD, BARBED SILK, OILED COGS, FORGE WARD, LOOM OF WOE, EMBER SHOT
   longtooth: ["quick_latch", "coal_chute", "many_hands", "war_edge", "heat_sink", "scrap_medic", "shatter_shot", "rune_tithe", "forge_ward", "pyre_heart"], // furnace: QUICK LATCH, COAL CHUTE, MANY HANDS, WAR EDGE, HEAT SINK, SCRAP MEDIC, SHATTER SHOT, RUNE TITHE, FORGE WARD, PYRE HEART
   highspire: ["many_hands", "loose_thread", "quick_latch", "tangle_wire", "war_edge", "thread_storm", "snare_knot", "spare_hull", "pyre_heart", "last_stand"], // weaver: MANY HANDS, LOOSE THREAD, QUICK LATCH, TANGLE WIRE, WAR EDGE, THREAD STORM, SNARE KNOT, SPARE HULL, PYRE HEART, LAST STAND
-  matriarch: ["quick_latch", "stoked_fires", "heat_sink", "ash_kindle", "iron_skin", "scrap_biter", "pyre_heart", "ember_shot", "pitch_wagon", "forge_ward"], // furnace: QUICK LATCH, STOKED FIRES, HEAT SINK, ASH KINDLE, IRON SKIN, SCRAP BITER, PYRE HEART, EMBER SHOT, PITCH WAGON, FORGE WARD
+  matriarch: ["quick_latch", "stoked_fires", "heat_sink", "ash_kindle", "iron_skin", "scrap_biter", "ember_shot", "warlords_due", "pitch_wagon", "widows_web"], // furnace: QUICK LATCH, STOKED FIRES, HEAT SINK, ASH KINDLE, IRON SKIN, SCRAP BITER, EMBER SHOT, WARLORD'S DUE, PITCH WAGON, WIDOW'S WEB
   brasswick: ["sharp_scrap", "final_nail", "steady_iron", "twin_suns", "hot_seam", "seam_rivets", "warlords_due", "war_edge", "thread_storm", "scrap_medic"], // foundry: SHARP SCRAP, FINAL NAIL, STEADY IRON, TWIN SUNS, HOT SEAM, SEAM RIVETS, WARLORD'S DUE, WAR EDGE, THREAD STORM, SCRAP MEDIC
   voss: ["twin_nails", "scrap_biter", "twin_salve", "hot_seam", "grave_plates", "scrap_saint", "thread_storm", "seam_rivets", "pitch_wagon", "loom_of_woe"], // foundry: TWIN NAILS, SCRAP BITER, TWIN SALVE, HOT SEAM, GRAVE PLATES, SCRAP SAINT, THREAD STORM, SEAM RIVETS, PITCH WAGON, LOOM OF WOE
   grimhold: ["last_wall", "gun_oil", "rivet_hoard", "tar_barrel", "quick_latch", "coin_purse", "hair_trigger", "ember_shot", "scab_iron", "war_edge"], // bastion: LAST WALL, GUN OIL, RIVET HOARD, TAR BARREL, QUICK LATCH, COIN PURSE, HAIR TRIGGER, EMBER SHOT, SCAB IRON, WAR EDGE
