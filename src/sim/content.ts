@@ -1215,6 +1215,18 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
     factory: { ammo: "limpet", speed: 13, base: 0, round: { kind: "limpet", delay: 3, blast: 100 } },
     levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 230 } } }, 3: { factory: { round: { kind: "limpet", delay: 3, blast: 360 } } } },
   },
+  // row 14, MANTLET: its tile guard is 1/2/3 from ★1 (was none, then FULL GUARD's 1 and BULWARK SKIRT's 3); the guarded
+  // tiles' rigs no longer share it (battle.ts acceptHarassment)
+  mantlet: {
+    mod: { immune: [...STUN_CAUSES], intakeGuard: 1 },
+    levels: { 2: { mod: { intakeGuard: 2 }, perk: "FULL GUARD" }, 3: { mod: { intakeGuard: 3 }, perk: "BULWARK SKIRT" } },
+  },
+  // row 15, LODESTONE: the floor goes (no `flat`); +10/+22/+35 for each STUN on the foe, a stunned belt tile counted and a
+  // wrecked rig not, with no cap (battle.ts applyHit reads no `max` with the switch on)
+  lodestone: {
+    gate: { perStalled: { each: 10, max: 60 } },
+    levels: { 2: { gate: { perStalled: { each: 22, max: 130 } } }, 3: { gate: { perStalled: { each: 35, max: 210 } } } },
+  },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */

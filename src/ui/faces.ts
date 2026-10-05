@@ -777,6 +777,27 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const delay = fmtSec((f(e).round as { delay: number }).delay);
     return rules([{ text: `ITS {SLUG} BLAST THE HULL ${delay}{SEC} AFTER THEY HIT.` }], [["delay", `${delay}{SEC}`]]);
   },
+  mantlet: (e) => {
+    // DESIGN-Y row 14 (REVIEW-STARD rule 1: one zone, the gun end of its belts): Battle.acceptHarassment: its turret ignores
+    // every STUN source (content.ts STUN_CAUSES), and so do the last intakeGuard tiles of each belt into it (1/2/3 from ★1;
+    // their rigs no longer share it). Was "IMMUNE TO {*STUN}." and ★2 FULL GUARD's and ★3 BULWARK SKIRT's clauses
+    const n = md(e).intakeGuard ?? 0, tiles = `${fmtCount(n)} TILE${s(n)}`;
+    return rules([{ text: `{*STUN} CAN'T STOP ITS GUN OR LAST ${tiles}.` }], [["guard", `LAST ${tiles}`]]);
+  },
+  lodestone: (e) => {
+    // DESIGN-Y row 15: Battle.applyHit: + each for each enemy part a STUN holds when it hits (rigs, factories, turrets, belt
+    // tiles; a wrecked rig is no STUN), no floor, no cap. Was the RULES text "ADDS 10 DAMAGE, AND 10 FOR EACH ENEMY MACHINE
+    // STUNNED, UP TO 60 DAMAGE." with "WRECKED MACHINES COUNT TOO; BELT TILES DON'T."
+    const d = fmtDmg(gt(e).perStalled!.each);
+    return rules([hit(`+${d} {DMG} FOR EACH {*STUN} ON THE FOE.`)], [["each", `{DMG} +${d} EACH`]]);
+  },
+  braceframe: (e) => {
+    // DESIGN-Y row 16: Battle.braceCut: an enemy STUN on a belt tile its arrows hit lasts x brace.mul (the plated multiplier
+    // and its brace of itself are gone). Was the RULES text "ENEMY STUNS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST 50%
+    // SHORTER." with "WHILE YOUR HULL HOLDS PLATING THEY LAST 75% SHORTER."
+    const cut = fmtPct(1 - gt(e).brace!.mul);
+    return rules([{ text: `ENEMY {*STUN} ON ITS TILES: ${cut} SHORTER.` }], [["cut", `${cut} SHORTER`]]);
+  },
 };
 
 /** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the

@@ -9,7 +9,7 @@ import { AMMO, CELL, DISRUPT_TIME, TICK, withStarRules, type HarassCause } from 
 import { type Build } from "../src/sim/deck";
 import { type HarassRound } from "../src/sim/harassment";
 import { effectAt, starField } from "../src/sim/stars";
-import { faceAt } from "../src/ui/faces";
+import { faceAt, hasFace } from "../src/ui/faces";
 import { faceBlocks } from "../src/screens/build/faceBlocks";
 import { levelLines, levelText } from "../src/screens/build/levels";
 import { icons, textWidth } from "../src/render/font";
@@ -247,6 +247,115 @@ describe("Y2 row 13: LIMPET WORKS' DMG is its blast; its stall becomes blast dam
     expect(on(() => faceAt("limpet", 1)!.stats)).toEqual([["RATE", "13"], ["DMG", "100"], ["BELT", "2"]]);
     expect(levels("limpet", 2)).toEqual(["{DMG} 100/[230]/360", "{BELT} 2/[3]/4", `NEXT ★3: ${statRow([["DMG", "360"], ["BELT", "4"]])}`]);
     expect(lines("limpet", false)[0]).toEqual(["CHARGES BLAST THE HULL: 80 {DMG}, 3{SEC} LATER."]);
+  });
+});
+
+// ----------------------------------------------------------------------------------------------- row 14: MANTLET
+describe("Y2 row 14: MANTLET guards its gun and its belts' last 1/2/3 tiles from ★1, not their rigs", () => {
+  const lands = (stars: number, cell: number, star: boolean): boolean => withStarRules(() => {
+    const bt = quiet(bench([], [["mantlet", stars]])), s = bt.sides[1];
+    return probe(bt).disrupt(s, target(s, "belt", 0, cell), DISRUPT_TIME, "shock");
+  }, star);
+
+  it("sim: on, ★1 guards the last tile into its gun (off: none at ★1), ★3 the last 3; the gun itself as before", () => {
+    expect([lands(1, 5, true), lands(1, 4, true), lands(1, 5, false)]).toEqual([false, true, true]);
+    expect([lands(2, 4, true), lands(2, 3, true)]).toEqual([false, true]);
+    expect([lands(3, 3, true), lands(3, 2, true)]).toEqual([false, true]);
+    const bt = on(() => quiet(bench([], [["mantlet", 1]]))), s = bt.sides[1];
+    expect(on(() => probe(bt).disrupt(s, target(s, "turret", 0), DISRUPT_TIME, "shock"))).toBe(false);
+  });
+
+  it("sim: on, a rig working a guarded tile is STUNned (off: ★2 FULL GUARD's tile shares the immunity with its rigs)", () => {
+    const rig = (star: boolean): boolean => withStarRules(() => {
+      const bt = quiet(bench([["whetstone", 4, 0, 1]], [["mantlet", 2]])), s = bt.sides[1], g = s.gates[0];
+      g.online = true;
+      return probe(bt).disrupt(s, target(s, "gate", g.uid), DISRUPT_TIME, "shock");
+    }, star);
+    expect([rig(true), rig(false)]).toEqual([true, false]);
+  });
+
+  it("face: STUN CAN'T STOP ITS GUN OR LAST 1 TILE (2, 3 TILES), no clause; ladder LAST 1/2/3 TILES", () => {
+    expect(lines("mantlet")).toEqual([["{*STUN} CAN'T STOP ITS GUN OR LAST 1 TILE."], ["{*STUN} CAN'T STOP ITS GUN OR LAST 2 TILES."],
+      ["{*STUN} CAN'T STOP ITS GUN OR LAST 3 TILES."]]);
+    oneLine("mantlet");
+    // (the ⓘ view's NEXT★ line names the perk the next star brings, in brass after its numbers: R-1 keeps names there)
+    expect(levels("mantlet", 1)).toEqual(["LAST [1]/2/3 TILES", "★2 FULL GUARD", "★3 BULWARK SKIRT", "NEXT ★2: LAST 2 TILES ★2 FULL GUARD"]);
+    expect(lines("mantlet", false)[0]).toEqual(["IMMUNE TO {*STUN}."]);
+  });
+});
+
+// --------------------------------------------------------------------------------------------- row 15: LODESTONE
+describe("Y2 row 15: LODESTONE pays for each STUN on the foe, tiles too, wrecks not, no floor or cap", () => {
+  /** The flat a slug carries past side 0's LODESTONE (★1, tile 2 of the bench's belt) while side 1 holds STUNs on belt
+   *  tiles `tiles` and its factory, and (`wreck`) its WHETSTONE wrecked; read off a slug that passed it after it came online. */
+  const flat = (star: boolean, tiles: number[], wreck: boolean): number => withStarRules(() => {
+    const bt = new Battle(bench([["lodestone", 4, 3, 1]]), bench([["whetstone", 4, 3, 1]]), 8), foe = bt.sides[1];
+    for (const ci of tiles) foe.routes[0].cellDisrupt[ci] = 50;
+    foe.factories[0].disrupted = 50;
+    foe.gates[0].wrecked = wreck;
+    while (bt.t < 8) {
+      bt.step();
+      bt.events.length = 0;
+      const a = bt.t > 2.5 ? bt.sides[0].routes[0].ammo.find((x) => x.processed >= 2) : undefined;
+      if (a) return a.p.flat;
+    }
+    throw new Error("no slug passed the LODESTONE");
+  }, star);
+
+  it("sim: on, 3 stunned tiles and a stunned factory pay 40 and the wrecked rig nothing (off: floor 10 + 10 x 2, the wreck counted)", () => {
+    expect([flat(true, [1, 2, 3], true), flat(false, [1, 2, 3], true)]).toEqual([40, 30]);
+  });
+
+  it("sim: on, 7 STUNs pay 70, past the base's MAX 60; none pays 0 (off: the floor's 10)", () => {
+    expect(flat(true, [0, 1, 2, 3, 4, 5], false)).toBe(70);
+    expect(withStarRules(() => {
+      const bt = new Battle(bench([["lodestone", 4, 3, 1]]), bench(), 8);
+      while (bt.t < 8) {
+        bt.step();
+        bt.events.length = 0;
+        const a = bt.t > 2.5 ? bt.sides[0].routes[0].ammo.find((x) => x.processed >= 2) : undefined;
+        if (a) return a.p.flat;
+      }
+      return -1;
+    })).toBe(0);
+  });
+
+  it("face (new with the switch on): HIT: +10 DMG FOR EACH STUN ON THE FOE; ladder DMG +10/+22/+35 EACH", () => {
+    expect([hasFace("lodestone"), on(() => hasFace("lodestone"))]).toEqual([false, true]);
+    expect(lines("lodestone")).toEqual(["+10", "+22", "+35"].map((d) => [`HIT: ${d} {DMG} FOR EACH {*STUN} ON THE FOE.`]));
+    expect(on(() => faceAt("lodestone", 1)!.rules[0].label)).toBe("HIT:");
+    oneLine("lodestone");
+    expect(levels("lodestone", 1)).toEqual(["{DMG} [+10]/+22/+35 EACH", `NEXT ★2: ${icons("{DMG} +22 EACH", "alone")}`]);
+  });
+});
+
+// ------------------------------------------------------------------------------------------- row 16: BRACE FRAME
+describe("Y2 row 16: BRACE FRAME cuts enemy STUNs on its tiles 50%/70%/85%, plated or not, and not on itself", () => {
+  /** The STUN a 4 s shock leaves on the frame's tile (or `self`, on the frame), with the hull plated or not. */
+  const left = (star: boolean, plated: boolean, self: boolean, stars = 1): number => withStarRules(() => {
+    const bt = quiet(bench([["braceframe", 4, 3, stars]])), s = bt.sides[1], g = s.gates[0], h = g.hits[0];
+    g.online = true;
+    if (plated) s.plate.plate = 50;
+    probe(bt).disrupt(s, self ? target(s, "gate", g.uid) : target(s, "belt", h.route, h.tile), 4, "shock");
+    return self ? g.disrupted : s.routes[h.route].cellDisrupt[h.tile];
+  }, star);
+
+  it("sim: on, a plated hull's braced tile keeps 2 s of 4 (off: 1 s, 75% shorter); ★3 0.6 s", () => {
+    expect(left(true, true, false)).toBeCloseTo(2, 9);
+    expect(left(false, true, false)).toBeCloseTo(1, 9);
+    expect(left(true, false, false, 3)).toBeCloseTo(0.6, 9);
+  });
+
+  it("sim: on, a STUN on the frame itself is not cut (off: 50% shorter)", () => {
+    expect([left(true, false, true), left(false, false, true)].map((v) => Math.round(v * 60))).toEqual([240, 120]);
+  });
+
+  it("face (new with the switch on): ENEMY STUN ON ITS TILES: 50% SHORTER; ladder 50%/70%/85% SHORTER", () => {
+    expect([hasFace("braceframe"), on(() => hasFace("braceframe"))]).toEqual([false, true]);
+    expect(lines("braceframe")).toEqual(["50%", "70%", "85%"].map((p) => [`ENEMY {*STUN} ON ITS TILES: ${p} SHORTER.`]));
+    oneLine("braceframe");
+    expect(levels("braceframe", 1)).toEqual(["[50%]/70%/85% SHORTER", "NEXT ★2: 70% SHORTER"]);
+    expect(levels("braceframe", 3)).toEqual(["50%/70%/[85%] SHORTER"]);
   });
 });
 

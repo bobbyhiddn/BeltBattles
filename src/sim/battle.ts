@@ -1613,7 +1613,14 @@ export class Battle {
       p.burn -= spent;
     }
     if (e.staticTime) { p.static = true; p.staticTime = Math.max(p.staticTime ?? 0, e.staticTime); }
-    if (e.perStalled) {
+    if (e.perStalled && starRules()) {
+      // Y2 (DESIGN-Y row 15, LODESTONE): with the switch on, +each for each enemy part a STUN holds now: its rigs, factories,
+      // turrets and belt tiles; a wrecked rig is no STUN; no cap (its floor is gone from its data: content.ts STAR_DIFF)
+      const foe = this.sides[s.side === 0 ? 1 : 0];
+      const stunned = [...foe.gates.filter((g) => !g.wrecked), ...foe.factories, ...foe.turrets].filter((m) => m.disrupted > 0 || m.frozen > 0).length +
+        foe.routes.reduce((n, r) => n + r.cellDisrupt.filter((t) => t > 0).length, 0);
+      p.flat += stunned * e.perStalled.each;
+    } else if (e.perStalled) {
       const foe = this.sides[s.side === 0 ? 1 : 0];
       const stalled = [...foe.gates, ...foe.factories, ...foe.turrets]
         .filter((m) => m.disrupted > 0 || m.frozen > 0 || ("wrecked" in m && m.wrecked)).length;
@@ -2145,7 +2152,8 @@ export class Battle {
       if (cause === "drag" && this.routeGuardActive(r!, t.cell, GUARD_SLOW)) return false;
       if (cause === "freeze" && this.routeGuardActive(r!, t.cell, GUARD_FREEZE)) return false;
     }
-    if (g && g.hits.some((h) => this.skirted(s, s.routes[h.route], h.tile, cause))) return false;
+    // Y2 (DESIGN-Y row 14, MANTLET): with the switch on a guarded tile's rigs no longer share its turret's immunity
+    if (g && !starRules() && g.hits.some((h) => this.skirted(s, s.routes[h.route], h.tile, cause))) return false;
     if (stun) this.sides[s.side === 0 ? 1 : 0].harassAccepted++; // Y2: with the switch on, a STUN only
     if ((cause === "sabot" || cause === "wreck") && t.kind === "gate") this.sides[s.side === 0 ? 1 : 0].wreckAccepted++;
     this.events.push({ type: "harass", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell, cause });
@@ -2160,7 +2168,8 @@ export class Battle {
    */
   private braceCut(s: SideState, list: readonly GateState[] | undefined, secs: number): number {
     if (!list?.length) return secs;
-    const plated = s.plate.plate > 0;
+    // Y2 (DESIGN-Y row 16, BRACE FRAME): with the switch on the plated multiplier goes: its `mul` whatever the hull holds
+    const plated = s.plate.plate > 0 && !starRules();
     let best: GateState | undefined, mul = 1;
     for (const g of list) {
       if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
@@ -2176,6 +2185,7 @@ export class Battle {
   private bracesAt(s: SideState, t: Target): readonly GateState[] | undefined {
     if (t.kind === "belt") return s.routes[t.ref]?.braces?.[t.cell];
     if (t.kind === "gate") {
+      if (starRules()) return undefined; // Y2 (DESIGN-Y row 16): with the switch on a frame no longer braces itself
       const g = s.gates.find((x) => x.uid === t.ref);
       return g?.def.gate?.brace ? [g] : undefined;
     }
