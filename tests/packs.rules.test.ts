@@ -14,7 +14,8 @@ import { VERSION } from "../src/version";
 import type { Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { buildCost, maxGoldByDay, validateUpload } from "../src/net/validate";
-import { ghostId, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { withDawnRunes } from "./runeFill"; // FLIP-X2: an upload holds its day's runes
 import { playerRun } from "../src/sim/harness/player";
 import { PACK_POLICY, type PackPolicy } from "../src/sim/harness/belts";
 import type { Identity } from "../src/net/identity";
@@ -30,11 +31,19 @@ const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
  *  server's rules now): bb-0.8.6 itself in bb-0.8.7's place. */
 const NEAR = [OLD_RULES, "bb-0.8.5", "bb-0.8.6", "bb-0.8.6x", "BB-0.8.6", " bb-0.8.6", "bb-0.8.6 ", "bb-0.8.06", "bb-0.8.60", "bb-0.8.6.0", "bb-0.8", "bb_0.8.6"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.8.7`;
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.9.0`; // FLIP-X2: the server names bb-0.9.0 (was bb-0.8.7)
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. */
 function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, runId = `packs-${hero}-${day}`): GhostSnapshot {
   return { v: SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives: 5, build, runId, playerId: `p-${hero}`, createdAt: T0 };
+}
+
+/** FLIP-X2 (validateUpload's player mode wants exactly `day` runes; runes travel only in v3): dusk() as an upload under
+ *  this build's rules travels, its rune-less `build` holding its day's runes, neutral ones (tests/runeFill.ts: no hull,
+ *  belt or gold, so every budget and supply check means what it meant), in a v3 snapshot with no seed. Was
+ *  dusk(hero, day, build): v2 and rune-less, which the exact rune count now refuses. */
+function upDusk(hero: HeroId, day: number, build: Build, runId?: string): GhostSnapshot {
+  return { ...dusk(hero, day, withDawnRunes(build, day), RULES_VERSION, runId), v: SNAPSHOT_V3 };
 }
 
 /** Run `fn` with hero `h`'s pack policy set to `p`, then put "value" back. */
@@ -100,7 +109,7 @@ describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store 
     expect(backend.storedRecords()).toBe(before);
     for (const day of [1, 3, 10]) expect(await app.store.bucket(OLD_RULES, day, "all"), `day ${day}`).toEqual([]);
     for (const hero of HEROES4) {
-      const s = fresh(dusk(hero, 3, heroStartBuild(hero)));
+      const s = fresh(upDusk(hero, 3, heroStartBuild(hero))); // FLIP-X2: upDusk, its day's runes in v3 (was dusk(hero, 3, heroStartBuild(hero)))
       const r = await post(s);
       expect([r.status, r.body.id], hero).toEqual([201, ghostId(ownedBy(s, me))]);
     }
@@ -112,7 +121,8 @@ describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store 
       const days = withPacks(hero, p, () => playerRun(hero, 10, 1, { onDecide: () => {} }));
       for (const d of days) {
         packs += d.buys.filter((b) => b.def === "beltcrate" || b.def === "plating").length;
-        const r = await post(fresh(dusk(hero, d.day, d.build, RULES_VERSION, `packs-run-${hero}-${p}-${d.day}`)));
+        // FLIP-X2: the run's deck holds the runes it took at each dawn, and runes travel only in v3 (was v: SNAPSHOT_VERSION)
+        const r = await post(fresh({ ...dusk(hero, d.day, d.build, RULES_VERSION, `packs-run-${hero}-${p}-${d.day}`), v: SNAPSHOT_V3 }));
         expect(r.status, `${hero} ${p} day ${d.day}: ${JSON.stringify(r.body)}`).toBe(201);
         n++;
       }
@@ -125,22 +135,25 @@ describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store 
     const before = backend.storedRecords();
     for (const hero of ["furnace", "bastion"] as HeroId[]) for (const day of [1, 6]) {
       let n = 0;
-      while (validateUpload(packed(hero, n + 1), day).ok) n++;
+      // FLIP-X2: each deck holds its day's runes (withDawnRunes, upDusk; was packed(hero, k) and dusk(...) rune-less), so the
+      // budget is what refuses the pack too many, not the rune count
+      while (validateUpload(withDawnRunes(packed(hero, n + 1), day), day).ok) n++;
       expect(n, `${hero} d${day}`).toBeGreaterThanOrEqual(Math.floor((maxGoldByDay(day) - buildCost(packed(hero, 0)).total) / 5));
-      const ok = await post(fresh(dusk(hero, day, packed(hero, n))));
+      const ok = await post(fresh(upDusk(hero, day, packed(hero, n))));
       expect(ok.status, `${hero} d${day} ${n} packs`).toBe(201);
-      const over = await post(fresh(dusk(hero, day, packed(hero, n + 1))));
+      const over = await post(fresh(upDusk(hero, day, packed(hero, n + 1))));
       expect([over.status, over.body.error], `${hero} d${day} ${n + 1} packs`).toEqual([422, "deck failed validation"]);
       expect(over.body.errors?.join(" | "), `${hero} d${day}`).toMatch(/^budget: build costs \d+ gold \(.*\) but a player's day \d+ allows at most \d+/);
     }
     const hull = packed("weaver", 0);
     hull.hullBonus = 1;
-    const h = await post(fresh(dusk("weaver", 10, hull)));
+    // FLIP-X2: with its day's runes (upDusk; was dusk(...) rune-less), so the supply check alone refuses these two
+    const h = await post(fresh(upDusk("weaver", 10, hull)));
     expect([h.status, h.body.error]).toEqual([422, "deck failed validation"]);
     expect(h.body.errors?.join(" | ")).toMatch(/supply: hullBonus 1 is not a hull a player can reach by day 10/);
     const belt = packed("foundry", 0);
     belt.beltCap = HEROES.foundry.belt + 2;
-    const b = await post(fresh(dusk("foundry", 10, belt)));
+    const b = await post(fresh(upDusk("foundry", 10, belt)));
     expect([b.status, b.body.error]).toEqual([422, "deck failed validation"]);
     expect(b.body.errors?.join(" | ")).toMatch(/supply: beltCap \d+ is not \d+ \+ whole \+4 belt crates/);
     expect(backend.storedRecords()).toBe(before + 4);

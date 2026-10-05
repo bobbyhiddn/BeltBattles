@@ -19,11 +19,12 @@ import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { simulate, type SideStats } from "../src/sim/battle";
 import { heroRefBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
-import { HEROES_RULES, heroesFor, rulesAtLeast } from "../src/net/rulesGate";
-import { ghostId, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { HEROES_RULES, heroesFor, rulesAtLeast, sustainFeatures } from "../src/net/rulesGate"; // FLIP-X2: sustainFeatures
+import { ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { withDawnRunes } from "./runeFill"; // FLIP-X2: an upload holds its day's runes
 import { validateUpload } from "../src/net/validate";
 import { fetchGhost, submitGhost } from "../src/net/ghostClient";
-import { battleSeed, newRun, saveRun, SAVE_KEY } from "../src/game/run";
+import { battleSeed, newRun, pendingRune, saveRun, SAVE_KEY, takeRune } from "../src/game/run"; // FLIP-X2: pendingRune, takeRune
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe } from "../src/game/day";
 import { GHOST_KEY, loadPool, saveGhost, standInFoe } from "../src/game/ghosts";
 import { PLAYER_KEY } from "../src/game/ghostSnapshot";
@@ -61,12 +62,23 @@ async function until(cond: () => boolean, ms = 8000): Promise<void> {
   }
 }
 
+/** FLIP-X2: `s` as a client before bb-0.8.7 (runes) sends it, 0.7.0's among them: a rune-less v2 snapshot, no
+ *  build.runes and no run seed. Rules before bb-0.8.7 refuse a deck holding runes, and this build's decks hold them. */
+function runeless(s: GhostSnapshot): GhostSnapshot {
+  const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
+  delete out.seed;
+  delete out.build.runes;
+  return out;
+}
+
 /** A 0.7.0 client's deps: the game's own fetch and upload, with 0.7.0's rules string on the request and the snapshot. */
 function as070(identity: Identity, sent: GhostSnapshot[] = []): OnlineDeps {
   return {
     fetchGhost: (url, req, ms, o) => fetchGhost(url, { ...req, rules: OLD_RULES }, ms, o),
     submitGhost: (url, snap, id, ms) => {
-      const old = { ...snap, rules: OLD_RULES };
+      // FLIP-X2: the deck as a 0.7.0 client sends it, rune-less v2 (was { ...snap, rules: OLD_RULES }, which now holds the
+      // run's dawn rune in v3 with its seed: bb-0.6.2 refuses that at the encoder, so no 422 would come back)
+      const old = { ...runeless(snap), rules: OLD_RULES };
       sent.push(old);
       return submitGhost(url, old, id, ms);
     },
@@ -119,17 +131,22 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
     const before = backend.storedRecords();
     let stored = 0;
     for (const hero of PLAYABLE_HEROES) for (const day of DAYS) {
-      const deck = heroRefBuild(hero, day);
+      // FLIP-X2: an upload under RULES_VERSION holds exactly its day's runes (neutral ones, tests/runeFill.ts) and travels
+      // in v3 (was heroRefBuild(hero, day) rune-less in snapOf's v2); the bb-0.6.2 upload stays the rune-less v2 deck a
+      // 0.7.0 client sends (rules before bb-0.8.7 refuse runes)
+      const ref = heroRefBuild(hero, day);
+      const deck = withDawnRunes(ref, day);
+      const up = { ...snapOf(hero, day, RULES_VERSION, deck), v: SNAPSHOT_V3 };
       expect(validateUpload(deck, day).ok, `${hero} d${day}`).toBe(true);
-      const now = await post(snapOf(hero, day, RULES_VERSION, deck));
+      const now = await post(up);
       expect(now.status, `${hero} d${day} ${RULES_VERSION}`).toBe(201);
-      expect(now.body.id).toBe(ghostId(ownedBy(snapOf(hero, day, RULES_VERSION, deck), me)));
+      expect(now.body.id).toBe(ghostId(ownedBy(up, me)));
       stored++;
       expect((await app.store.bucket(RULES_VERSION, day)).map((e) => e.id)).toContain(now.body.id);
-      const old = await post(snapOf(hero, day, OLD_RULES, deck));
+      const old = await post(snapOf(hero, day, OLD_RULES, ref));
       if (hero === "furnace" || hero === "weaver") {
         expect(old.status, `${hero} d${day} ${OLD_RULES}`).toBe(422);
-        expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates bb-0.8.7`);
+        expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates bb-0.9.0`); // FLIP-X2: the server names bb-0.9.0 (was bb-0.8.7)
       } else {
         expect(old.status, `${hero} d${day} ${OLD_RULES}`).toBe(400);
         expect(old.body.error).toBe(`snapshot.hero: rules ${OLD_RULES} accept only FURNACE, WEAVER, not ${hero.toUpperCase()}`);
@@ -150,6 +167,10 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
       const s = new Online(base, as070(me, sent));
       await until(() => s.active);
       const run = newRun("furnace", 7070);
+      // FLIP-X2: the run takes its dawn rune, as the game makes it before the dusk: this build's online path uploads only
+      // a deck validateUpload takes, which holds exactly `day` runes (was no rune taken: nothing was sent, sent = [])
+      const offer = pendingRune(run);
+      if (offer) takeRune(run, offer.ids[0]);
       s.tick(run);
       await until(() => s.lastFetch !== null);
       s.tick(run);
@@ -183,7 +204,11 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
 
   it("where the store still holds 0.7.0's bb-0.6.2 seed pool, a 0.7.0 client is served one of those (never a bb-0.8.7 ghost), and its upload is still refused", async () => {
     // FURNACE and WEAVER's seed ghosts as a bb-0.6.2 pool (0.7.0's seed made its pool the same way, from its own decks)
-    const pool070 = [...sampleGhosts(), ...floorGhosts()].map((s) => ({ ...s, rules: OLD_RULES }));
+    // FLIP-X2: this build's pool decks hold their day's runes (v3, with a seed) and bb-0.6.2 predates runes, so 0.7.0's
+    // pool is them as 0.7.0 made them: rune-less v2, no seed, leaving out a deck holding a sustain piece (WARD BELL, MEND
+    // PRESS, MENDING LOOM need bb-0.9.0; 0.7.0 had none). Was [...].map((s) => ({ ...s, rules: OLD_RULES })).
+    const pool070 = [...sampleGhosts(), ...floorGhosts()].map((s) => ({ ...runeless(s), rules: OLD_RULES }))
+      .filter((s) => sustainFeatures(s.build).length === 0);
     await app.store.replacePool(OLD_RULES, pool070.map((s) => ({ id: ghostId(s), snapshot: s })));
     try {
       const ids = new Set(pool070.map(ghostId));

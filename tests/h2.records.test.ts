@@ -18,7 +18,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION } from "../src/sim/content";
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
-import { decodeSnapshot, encodeSnapshot, ghostId, MAX_DAY, type GhostSnapshot } from "../src/net/snapshot";
+import { decodeSnapshot, encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
@@ -34,6 +34,13 @@ const deckOf = (day: number): GhostSnapshot => {
   const ofDay = POOL.filter((s) => s.day === day && s.hero === "furnace");
   return ofDay.find((s) => !s.build.turrets?.length && !s.build.routes.some((r) => r.join !== undefined)) ?? ofDay[0];
 };
+/** FLIP-X2: `s` as a client before bb-0.8.7 (runes) sends it: a rune-less v2 snapshot, no build.runes and no run seed. */
+function runeless(s: GhostSnapshot): GhostSnapshot {
+  const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
+  delete out.seed;
+  delete out.build.runes;
+  return out;
+}
 const recordError = (day: number, wins: number, lives: number) => `record: ${wins}W ${lives} lives is no record a run carries into dusk ${day}`;
 
 /** The brief's unreachable records the decoder takes: [day, wins, lives]. The first is backlog 325's example. */
@@ -160,7 +167,9 @@ describe.each(storeBackends())("H2: POST /v1/ghosts and the record on the $name 
     // playerId: another player's id under my key
     expect((await post({ ...bad, playerId: other.playerId })).status).toBe(403);
     // rules: a bb-0.6.2 FURNACE snapshot with an unreachable record meets the rules 422 (what a 0.7.0 page meets)
-    const old = await post({ ...bad, rules: "bb-0.6.2" });
+    // FLIP-X2: the seed pool's decks now hold their day's runes (v3, with a seed) and bb-0.6.2 predates runes (bb-0.8.7),
+    // so the 0.7.0 page's snapshot is the deck as it sends it: rune-less v2, no seed (was { ...bad, rules: "bb-0.6.2" })
+    const old = await post({ ...runeless(bad), rules: "bb-0.6.2" });
     expect(old).toEqual({ status: 422, body: { error: `rules bb-0.6.2 not accepted: this server validates ${RULES_VERSION}` } });
     // deck: over the player ceiling with an unreachable record: the deck's 422 and its errors
     const rich = await post({ ...bad, build: { ...bad.build, hullBonus: bad.build.hullBonus + 5000 } }); // NUM-1: hull x10 (was + 500)

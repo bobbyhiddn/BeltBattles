@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
 import { isReachable } from "../src/net/records";
 import { validateUpload } from "../src/net/validate";
-import { ghostId, type GhostSnapshot } from "../src/net/snapshot";
+import { ghostId, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot"; // FLIP-X2: SNAPSHOT_VERSION (runeless)
 import { createGhostServer, type GhostServer } from "../server/app";
 import { runAdmin } from "../server/ghostAdmin";
 import { seedStore } from "../server/seed";
@@ -29,8 +29,17 @@ const own = (s: GhostSnapshot, playerId: string, runId = `run-${playerId}`): Gho
 // honest uploads (as POST stores them): 3 by 2 players
 const HONEST = [own(POOL[0], "honest-1"), own(POOL.find((s) => s.day === 4)!, "honest-1"), own(POOL.find((s) => s.day === 7)!, "honest-2")];
 // another rules version's pool ghost and upload
-const OLD_POOL: GhostSnapshot = { ...plain[0], rules: OLD };
-const OLD_UP: GhostSnapshot = { ...own(plain[1], "honest-1"), rules: OLD };
+// FLIP-X2: the pool decks now hold their day's runes (the seed pool is v3, with its run seed) and rules before bb-0.8.7
+// refuse a deck holding runes, so bb-0.6.1's ghosts are the pool decks as a pre-rune client sends them: rune-less v2, no
+// seed (was { ...plain[0], rules: OLD } and { ...own(plain[1], "honest-1"), rules: OLD }, the pool decks as they were).
+function runeless(s: GhostSnapshot): GhostSnapshot {
+  const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
+  delete out.seed;
+  delete out.build.runes;
+  return out;
+}
+const OLD_POOL: GhostSnapshot = { ...runeless(plain[0]), rules: OLD };
+const OLD_UP: GhostSnapshot = { ...runeless(own(plain[1], "honest-1")), rules: OLD };
 // bad uploads, planted straight into the store
 const D1 = POOL.find((s) => s.day === 1)!, D3 = POOL.find((s) => s.day === 3)!;
 const OVER: GhostSnapshot = own({ ...D1, build: { ...D1.build, hullBonus: D1.build.hullBonus + 500 } }, "cheater-1"); // 20 plates over budget

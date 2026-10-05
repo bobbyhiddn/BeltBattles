@@ -14,7 +14,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION } from "../src/sim/content";
 import { parseRules, rulesAtLeast } from "../src/net/rulesGate";
-import { encodeSnapshot, type GhostSnapshot } from "../src/net/snapshot";
+import { encodeSnapshot, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { isReachable } from "../src/net/records";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
@@ -44,7 +44,19 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
   if (deck === "turretsJoin" && !readable) return { status: 400, error: /^snapshot\.rules: rules ".*" is not a bb-MAJOR\.MINOR\.PATCH version: turret slots/ };
   // the hero gate's threshold: FOUNDRY travels from bb-0.8.0 on (rulesGate.ts HEROES_RULES), under BELTS's rules too
   if (deck === "foundry" && !rulesAtLeast(rules, "bb-0.8.0")) return { status: 400, error: /^snapshot\.hero: rules .* accept only FURNACE, WEAVER, not FOUNDRY$/ };
-  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.8\\.7$`) };
+  // FLIP-X2: the server names this build's rules, bb-0.9.0 (was bb-0\\.8\\.7)
+  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.9\\.0$`) };
+}
+
+/** FLIP-X2: the pool decks now hold their day's runes (v3, with a run seed), and rules before bb-0.8.7 (or unreadable)
+ *  refuse a deck holding runes at the decoder (400). A near miss is a pre-rune client's rules string on its deck, so the
+ *  deck goes up as that client sends it: rune-less v2, no seed (was the pool deck itself), and meets the gates and the
+ *  exact rules check as before. */
+function runeless(s: GhostSnapshot): GhostSnapshot {
+  const out: GhostSnapshot = { ...s, v: SNAPSHOT_VERSION, build: { ...s.build } };
+  delete out.seed;
+  delete out.build.runes;
+  return out;
 }
 
 describe("H2 M1b: the near-miss rules strings (pure)", () => {
@@ -86,7 +98,7 @@ describe.each(storeBackends())("H2 M1b: near-miss rules strings on the $name sto
     let k = 0;
     for (const rules of NEAR) {
       for (const deck of Object.keys(DECKS) as (keyof typeof DECKS)[]) {
-        const s = ownedBy({ ...DECKS[deck], rules, runId: `h2-near-${k}`, createdAt: 1_790_400_000_000 + k++ }, me);
+        const s = ownedBy({ ...runeless(DECKS[deck]), rules, runId: `h2-near-${k}`, createdAt: 1_790_400_000_000 + k++ }, me); // FLIP-X2: runeless (was DECKS[deck])
         const body = JSON.stringify(s); // raw: encodeSnapshot itself refuses what the decoder refuses
         const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
         const got = { status: r.status, error: ((await r.json()) as { error: string }).error };
