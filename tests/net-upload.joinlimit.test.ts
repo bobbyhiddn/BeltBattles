@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { JOIN_LIMIT, RULES_VERSION } from "../src/sim/content";
 import { JOIN_NOT_NEXT, JOIN_OVER_LIMIT, key as K, type Build, type RouteDef } from "../src/sim/deck";
 import { validateBuild, validateUpload } from "../src/net/validate";
-import type { GhostSnapshot } from "../src/net/snapshot";
+import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { withDawnRunes } from "./runeFill";
 
 // v070-rel M2 (a), REQ-BFG-027: the join limit in the player-upload check. A deck holds at most JOIN_LIMIT (2) joining
 // belts (0.6.2 TUNE-M, RULE JOIN LIMIT). rel-062-final's validateBuild already refuses the next one in route order with
@@ -24,15 +25,18 @@ const R3: RouteDef = { factory: 4, cells: [K(2, 2), K(3, 2)], join: K(4, 2) };
 /** R3 pointed at (4,3), a belt tile diagonal to its end: a join that is illegal by its shape (NOT NEXT TO ITS JOIN TILE). */
 const R3_BAD: RouteDef = { ...R3, join: K(4, 3) };
 
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes, so the deck holds DAY's neutral
+// runes (tests/runeFill.ts: no hull, belt or gold; both modes see the same deck, and strict takes it as before). It was
+// rune-less, which the player mode's exact count now refuses before the routes are read.
 function deck(routes: RouteDef[]): Build {
-  return {
+  return withDawnRunes({
     hero: "furnace", mods: [], beltCap: 30, hullBonus: 0, // 14 + four +4 belt crates
     items: [
       { uid: 1, def: "kiln", x: 4, y: 6 }, { uid: 2, def: "press", x: 0, y: 6 }, { uid: 3, def: "doublestamp", x: 7, y: 6 },
       { uid: 4, def: "shottower", x: 0, y: 2 },
     ],
     routes: [{ factory: 1, cells: [...M] }, ...routes.map((r) => ({ ...r, cells: [...r.cells] }))],
-  };
+  }, DAY);
 }
 
 const DAY = 5; // the deck costs 28 gold (20 in parts and 4 crates), within the strict budget from day 4
@@ -95,7 +99,8 @@ describe("v070-rel M2 (a) at the upload path", () => {
   it("POST /v1/ghosts stores a deck with 2 joins and refuses 3 with validateBuild's reason", async () => {
     const me = await testIdentity(0); // v070a: uploads are signed (async-062); the snapshot carries the key's playerId
     const post = async (b: Build, who: string) => {
-      const s: GhostSnapshot = { v: 2, rules: RULES_VERSION, hero: "furnace", day: DAY, wins: 0, lives: 3, build: b, runId: `joins-${who}`, playerId: `p-${who}`, createdAt: 1_790_000_000_000 };
+      // FLIP-X2: v3 (was 2): the deck holds its runes, which travel only in a v3 snapshot
+      const s: GhostSnapshot = { v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: DAY, wins: 0, lives: 3, build: b, runId: `joins-${who}`, playerId: `p-${who}`, createdAt: 1_790_000_000_000 };
       const body = JSON.stringify(ownedBy(s, me));
       const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
       return { status: r.status, body: (await r.json()) as { id?: string; errors?: string[] } };

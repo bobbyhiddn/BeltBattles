@@ -16,6 +16,9 @@ import { PACK_POLICY, type PackPolicy } from "../src/sim/harness/belts";
 import { RULES_VERSION } from "../src/sim/content";
 import { itemName } from "../src/screens/event/cards";
 import { cardName } from "../src/screens/build/shop";
+import type { Build } from "../src/sim/deck";
+import { withDawnRunes } from "./runeFill";
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the bots take runes (BOT_RUNES on)
 
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const J = (x: unknown): string => JSON.stringify(x);
@@ -187,11 +190,14 @@ describe("P3: validation stays bounded by gold, on the strict and the player che
   });
 
   it("player mode (the upload check): the ceiling is the day's gold plus the best road mix; one ARMOR PACK past it is refused with the budget message", () => {
+    // FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): each upload holds its day's runes, neutral ones (tests/runeFill.ts:
+    // no hull, belt or gold, so the ceiling is the same); the rune-less deck is refused by the exact count first
+    const upload = (b: Build, day: number) => validateUpload(withDawnRunes(b, day), day);
     for (const hero of HEROES4) for (const day of [1, 3, 6, 10]) {
       let n = 0;
-      while (validateUpload(withPacks0(hero, 0, n + 1), day).ok) n++;
+      while (upload(withPacks0(hero, 0, n + 1), day).ok) n++;
       expect(n, `${hero} d${day}`).toBeGreaterThanOrEqual(Math.floor((maxGoldByDay(day) - buildCost(withPacks0(hero, 0, 0)).total) / 5));
-      const errs = validateUpload(withPacks0(hero, 0, n + 1), day).errors;
+      const errs = upload(withPacks0(hero, 0, n + 1), day).errors;
       expect(errs.join(" | "), `${hero} d${day}`).toMatch(/^budget: build costs \d+ gold \(.*\) but a player's day \d+ allows at most \d+ \(maxGoldByDay \d+ \+ roadCap \d+\)$/);
       const f = playerFits(withPacks0(hero, 0, n + 1), day, buildCost(withPacks0(hero, 0, n + 1)));
       expect(f.fits[0].cost, `${hero} d${day}`).toBeGreaterThan(f.fits[0].allow);
@@ -203,11 +209,13 @@ describe("P3: validation stays bounded by gold, on the strict and the player che
       const odd = withPacks0(hero, 0, 0);
       odd.hullBonus = 1;
       expect(validateBuild(odd, 10).errors.join(" | ")).toMatch(new RegExp(`supply: hullBonus 1 is not a whole number of \\+${ARMOR} plating`)); // NUM-1: +250 (was +25)
-      expect(validateUpload(odd, 10).errors.join(" | ")).toMatch(/supply: hullBonus 1 is not a hull a player can reach by day 10/);
+      // FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): the upload holds day 10's runes (neutral: no hull or belt), so its
+      // supply is read, not refused first by the exact count as the rune-less deck is
+      expect(validateUpload(withDawnRunes(odd, 10), 10).errors.join(" | ")).toMatch(/supply: hullBonus 1 is not a hull a player can reach by day 10/);
       const belt = withPacks0(hero, 0, 0);
       belt.beltCap = HEROES[hero].belt + 1;
       expect(validateBuild(belt, 10).errors.join(" | ")).toMatch(/supply: beltCap \d+ is not \d+ \+ a whole number of \+4 belt crates/);
-      expect(validateUpload(belt, 10).errors.join(" | ")).toMatch(/supply: beltCap \d+ is not \d+ \+ whole \+4 belt crates/);
+      expect(validateUpload(withDawnRunes(belt, 10), 10).errors.join(" | ")).toMatch(/supply: beltCap \d+ is not \d+ \+ whole \+4 belt crates/); // FLIP-X2: with its runes
     }
   });
 
@@ -241,8 +249,11 @@ describe("P6: the bots buy packs on value", () => {
         if (buys.length) runs++;
         for (const b of buys) expect([b.price, b.merged, b.stars], `${hero} ${seed}`).toEqual([ITEMS[b.def].price, false, 1]);
         const last = days[days.length - 1].build, start = heroStartBuild(hero, 1);
-        expect(last.beltCap - start.beltCap, `${hero} ${seed} belt`).toBe(4 * buys.filter((b) => b.def === "beltcrate").length);
-        expect(last.hullBonus - start.hullBonus, `${hero} ${seed} hull`).toBe(ARMOR * buys.filter((b) => b.def === "plating").length); // NUM-1: 250 per pack (was 25)
+        // FLIP-X2 (BOT_RUNES on): the dusk deck also holds the bots' own HULL and BELT runes (IRON SKIN, TAR BARREL ...),
+        // so the packs are the deck as bought: the runes' grants out (runeGrants; was last.hullBonus / last.beltCap raw)
+        const rg = runeGrants(last.runes, days[days.length - 1].day);
+        expect(last.beltCap - rg.belt - start.beltCap, `${hero} ${seed} belt`).toBe(4 * buys.filter((b) => b.def === "beltcrate").length);
+        expect(last.hullBonus - rg.hull - start.hullBonus, `${hero} ${seed} hull`).toBe(ARMOR * buys.filter((b) => b.def === "plating").length); // NUM-1: 250 per pack (was 25)
       }
       expect(runs, hero).toBeGreaterThanOrEqual(4);
     }

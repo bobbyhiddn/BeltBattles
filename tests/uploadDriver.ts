@@ -17,6 +17,10 @@
 // allows (actions.ts), cores only on an installed turret (fitCore). BELT JOINS (REQ-BFG-027): some belts are drawn
 // to end by joining another belt (canJoin, then commitRoute with the join, as the editor does), and some existing
 // belts are rejoined (joinTiles, setJoin). Each run counts what it did (DriverRun.ops).
+//
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): every dawn starts with the day's rune pick, as the rune picker takes it
+// (run.ts pendingRune, takeRune; the first card, as src/tooling.ts playOut does), so each dusk deck holds one rune a dawn,
+// exactly what an upload needs (validateUpload's exact count). Before, the driver skipped the pick and its decks held none.
 
 import { Rng, hashSeed } from "../src/core/rng";
 import { GRID, HEROES, ITEMS, REROLL_COST, RUN_DAYS, type HeroId } from "../src/sim/content";
@@ -28,6 +32,7 @@ import { outputsAt, starField, starsOf } from "../src/sim/stars";
 import {
   buyOffer, fitCore, installFromCargo, moveInstalled, newRun, reroll, rotateRig, sellInstalled, sellInventory, storeMod,
   storePlaced, storeTurret, takeFromInventory, type Run,
+  pendingRune, takeRune, // FLIP-X2: the dawn's rune pick
 } from "../src/game/run";
 import { choicesFor, eventFor, pickChoice } from "../src/game/events";
 import { finishWarlord, leaveCaravan, pickPending, pickRoad, todaysWarlord, takePart } from "../src/game/road";
@@ -443,6 +448,10 @@ export function driveRun(seed: number, hero: HeroId, policy: RoadPolicy = "mixed
   const run = newRun(hero, hashSeed("v070-run", seed, hero), `drv-${seed}-${hero}`);
   const dusks: Dusk[] = [];
   for (let day = 1; day <= RUN_DAYS && !run.over; day++) {
+    // FLIP-X2: the dawn's rune first (the first card; it draws nothing from the driver's stream), as a run must before its
+    // dusk (run.ts fightRefusal); a dawn-gold rune's gold is in the purse for the caravan, a HULL or BELT rune on the deck
+    const offer = pendingRune(run);
+    if (offer) takeRune(run, offer.ids[0]);
     caravan(run, rng, reserveFor(run, rng, policy));
     const road = roadStop(run, rng, policy);
     refit(run, rng);

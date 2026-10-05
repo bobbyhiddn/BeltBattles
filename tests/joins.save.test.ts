@@ -19,6 +19,7 @@ import { simulate } from "../src/sim/battle";
 import { warlordBuild } from "../src/sim/ai";
 import { generateSamplePool } from "../tools/samplePool";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { withDawnRunes } from "./runeFill";
 
 const M = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
 const R = [K(2, 6), K(2, 5), K(2, 4), K(3, 4)];
@@ -34,6 +35,9 @@ function snap(build: Build, v: 1 | 2 = 2): net.GhostSnapshot {
   return { v, rules: RULES_VERSION, hero: build.hero, day: 1, wins: 0, lives: 5, build, runId: "run-1", playerId: "p-1", createdAt: 1 };
 }
 const netOk = (s: unknown) => { try { net.checkSnapshot(s); return true; } catch { return false; } };
+/** FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): `build` as a day-1 upload: holding day 1's rune (an upload holds
+ *  exactly `day` runes; a neutral one, tests/runeFill.ts), so in a v3 snapshot (build.runes travels only in v3). */
+const upload = (build: Build): net.GhostSnapshot => ({ ...snap(withDawnRunes(build, 1)), v: net.SNAPSHOT_V3 });
 
 describe("J12: validateBuild", () => {
   it("accepts a legal join: the joining belt claims no connector and is connected through the main belt", () => {
@@ -133,9 +137,11 @@ describe("J12: the ghost server (in-process) takes a legal join and refuses an i
     try {
       const base = `http://127.0.0.1:${await app.listen(0)}`;
       const me = await testIdentity(0); // uploads are signed: each snapshot under the key's playerId
-      const ok = await submitGhost(base, ownedBy(snap(joined()), me), me, 3000);
+      // FLIP-X2: both uploads hold day 1's rune, v3 (upload; were snap's rune-less v2 decks, which the exact count refuses
+      // before the routes are read)
+      const ok = await submitGhost(base, ownedBy(upload(joined()), me), me, 3000);
       expect(ok.ok).toBe(true);
-      const body = net.encodeSnapshot(ownedBy(snap(joined(K(3, 3))), me));
+      const body = net.encodeSnapshot(ownedBy(upload(joined(K(3, 3))), me));
       const post = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
       expect(post.status).toBe(422);
       expect(((await post.json()) as { errors: string[] }).errors).toContain("route: route 1 can't join cell 33: NOT A BELT TILE");

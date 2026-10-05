@@ -10,6 +10,11 @@
 // BELTS (REQ-BFG-043, REQ-BFG-044): RULES_VERSION moves on to bb-0.8.3, after HEROES_RULES, which stays bb-0.8.0 (the
 // first rules that carry the four). The server and the client run bb-0.8.3: where a POST here meant this server's rules
 // by HEROES_RULES it says RULES_VERSION now, and under HEROES_RULES itself the exact rules check refuses it (422).
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes, and runes need bb-0.8.7 (rulesGate
+// RUNES_RULES), so no deck passes validateUpload under HEROES_RULES (bb-0.8.0) any more: rune-less it fails the count, with
+// runes the rules gate. Where an upload here must pass, it holds its day's neutral runes (tests/runeFill.ts) under
+// RULES_VERSION (which carries the four heroes too) and travels as a v3 snapshot; the hero-gate refusals under bb-0.6.2 keep
+// their rune-less decks, as a bb-0.6.2 client's were. The game's own runs take their dawn rune first (pendingRune).
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -19,18 +24,19 @@ import { HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { setTurretList, type Build } from "../src/sim/deck";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { HEROES_RULES, RULES_HEROES, heroGateProblem, heroesFor } from "../src/net/rulesGate";
-import { SNAPSHOT_VERSION, checkSnapshot, decodeSnapshot, encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
+import { SNAPSHOT_V3, SNAPSHOT_VERSION, checkSnapshot, decodeSnapshot, encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { checkPool } from "../server/seed";
 import { generateSamplePool } from "../tools/samplePool";
-import { newRun } from "../src/game/run";
+import { newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { ghostOf } from "../src/game/day";
 import { Online, stopOnline, type OnlineDeps } from "../src/game/online";
 import type { Identity } from "../src/net/identity";
 import { driveRuns } from "./uploadDriver";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { withDawnRunes } from "./runeFill";
 
 const NEW: readonly HeroId[] = ["foundry", "bastion"];
 const OLD: readonly HeroId[] = ["furnace", "weaver"];
@@ -39,8 +45,17 @@ const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 const why = (rules: string, hero: string, list = "FURNACE, WEAVER") => `rules ${rules} accept only ${list}, not ${hero.toUpperCase()}`;
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
 
+/** FLIP-X2: a deck holding runes travels as v3 (build.runes is v3 only, as tools/samplePool.ts seedGhost writes them); a
+ *  rune-less one stays v2 as before. */
 function snap(hero: HeroId, day: number, rules: string, build: Build = heroRefBuild(hero, day)): GhostSnapshot {
-  return { v: SNAPSHOT_VERSION, rules, hero, day, wins: 0, lives: 5, build, runId: `h1-${hero}-${day}`, playerId: `p-${hero}`, createdAt: 1_790_000_000_000 };
+  return { v: build.runes ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules, hero, day, wins: 0, lives: 5, build, runId: `h1-${hero}-${day}`, playerId: `p-${hero}`, createdAt: 1_790_000_000_000 };
+}
+/** FLIP-X2: `hero`'s reference deck of `day` holding its day's neutral runes (an upload under RULES_VERSION). */
+const refUp = (hero: HeroId, day: number): Build => withDawnRunes(heroRefBuild(hero, day), day);
+/** FLIP-X2: a new run that took day 1's dawn rune, as the picker takes it (the first card, as tooling.ts playOut). */
+function dawned(run: Run): Run {
+  expect(takeRune(run, pendingRune(run)!.ids[0]).ok).toBe(true);
+  return run;
 }
 
 describe("the table: heroes by rules version", () => {
@@ -96,15 +111,19 @@ describe("the upload check (validateUpload, the player mode)", () => {
   it("accepts all 20 reference builds and both start decks (every day) under the next rules version, and refuses each under bb-0.6.2 with the one rules error", () => {
     for (const hero of NEW) for (const day of DAYS) {
       for (const [name, b] of [["ref", heroRefBuild(hero, day)], ["start", heroStartBuild(hero, 1)]] as const) {
-        expect(validateUpload(b, day, HEROES_RULES), `${hero} ${name} d${day}`).toEqual({ ok: true, errors: [] });
+        // FLIP-X2: under HEROES_RULES the hero gate takes FOUNDRY and BASTION (no "rules:" error), and the one error left is
+        // the exact rune count (was { ok: true, errors: [] }): a bb-0.8.0 deck holds no runes, and with its day's runes
+        // the rules gate refuses it (runes need bb-0.8.7), so no upload passes under bb-0.8.0 any more
+        expect(validateUpload(b, day, HEROES_RULES), `${hero} ${name} d${day}`).toEqual({ ok: false, errors: [`rune: runes: 0 held on day ${day}, one a dawn (${day})`] });
+        expect(validateUpload(withDawnRunes(b, day), day, HEROES_RULES), `${hero} ${name} d${day} with runes`).toEqual({ ok: false, errors: ["rules: rules bb-0.8.0 predate bb-0.8.7: runes (build.runes) need bb-0.8.7 or later"] });
         expect(validateBuild(b, day).ok, `${hero} ${name} d${day} (strict)`).toBe(true);
         expect(validateUpload(b, day, OLD_RULES), `${hero} ${name} d${day}`).toEqual({ ok: false, errors: [`rules: ${why(OLD_RULES, hero)}`] });
         // 0.8.0 RC: the default rules are this build's, bb-0.8.0 = HEROES_RULES (before the bump: refused like bb-0.6.2);
-        // since BELTS bb-0.8.3, after HEROES_RULES, so the same answer
-        expect(validateUpload(b, day), `${hero} ${name} d${day} (default rules)`).toEqual({ ok: true, errors: [] });
+        // since BELTS bb-0.8.3, after HEROES_RULES, so the same answer. FLIP-X2: the deck holds its day's runes
+        expect(validateUpload(withDawnRunes(b, day), day), `${hero} ${name} d${day} (default rules)`).toEqual({ ok: true, errors: [] });
       }
     }
-    for (const hero of OLD) for (const day of DAYS) expect(validateUpload(heroRefBuild(hero, day), day).ok, `${hero} d${day}`).toBe(true);
+    for (const hero of OLD) for (const day of DAYS) expect(validateUpload(refUp(hero, day), day).ok, `${hero} d${day}`).toBe(true); // FLIP-X2: with its runes
   });
 
   it("honest mid-run decks from the upload driver (turrets, joins, stars, cores): every one accepted under the next rules version", () => {
@@ -112,8 +131,11 @@ describe("the upload check (validateUpload, the player mode)", () => {
     let n = 0;
     for (const r of runs) for (const d of r.dusks) {
       n++;
-      expect(validateUpload(d.build, d.day, HEROES_RULES), `${d.hero} #${d.seed} d${d.day}`).toEqual({ ok: true, errors: [] });
-      const s = snap(d.hero, d.day, HEROES_RULES, d.build);
+      // FLIP-X2: the driver's decks hold their dawns' runes (tests/uploadDriver.ts), which need bb-0.8.7: checked and
+      // encoded under RULES_VERSION, the rules after HEROES_RULES that carry the four heroes and the runes (was
+      // HEROES_RULES, bb-0.8.0, which now refuses any deck with runes at the rules gate)
+      expect(validateUpload(d.build, d.day, RULES_VERSION), `${d.hero} #${d.seed} d${d.day}`).toEqual({ ok: true, errors: [] });
+      const s = snap(d.hero, d.day, RULES_VERSION, d.build);
       expect(decodeSnapshot(encodeSnapshot(s))).toEqual(checkSnapshot(s));
     }
     expect(n).toBe(600);
@@ -133,9 +155,11 @@ describe("the upload check (validateUpload, the player mode)", () => {
       ["an unfused pair", (b) => { b.items.push({ uid: 777, def: "whetstone", x: 0, y: 9 }, { uid: 779, def: "whetstone", x: 9, y: 9 }); }, /UNFUSED PAIR: WHETSTONE ★1 x/],
     ];
     for (const hero of NEW) for (const day of [1, 4, 10]) for (const [what, change, want] of cases) {
-      const b = clone(heroRefBuild(hero, day));
+      // FLIP-X2: the deck holds its day's runes and is checked under RULES_VERSION, which carries the four heroes and the
+      // runes (was the rune-less deck under HEROES_RULES: the count, or with runes the rules gate, refused it first)
+      const b = clone(refUp(hero, day));
       change(b, hero);
-      const v = validateUpload(b, day, HEROES_RULES);
+      const v = validateUpload(b, day, RULES_VERSION);
       expect(v.ok, `${hero} d${day}: ${what}`).toBe(false);
       expect(v.errors.some((e) => want.test(e)), `${hero} d${day}: ${what}: ${v.errors.join(" | ")}`).toBe(true);
     }
@@ -171,16 +195,17 @@ describe("the server and the client, both ways", () => {
       const was = await post(snap(hero, day, HEROES_RULES));
       expect(was.status, `${hero} d${day} ${HEROES_RULES}`).toBe(422);
       expect(was.body.error).toBe(`rules ${HEROES_RULES} not accepted: this server validates ${RULES_VERSION}`);
-      const now = await post(snap(hero, day, RULES_VERSION));
+      // FLIP-X2: under this server's rules the upload holds its day's runes, as a v3 snapshot (was the rune-less v2 deck)
+      const now = await post(snap(hero, day, RULES_VERSION, refUp(hero, day)));
       expect(now.status, `${hero} d${day} ${RULES_VERSION}`).toBe(201);
-      expect(now.body.id).toBe(ghostId(ownedBy(snap(hero, day, RULES_VERSION), me)));
+      expect(now.body.id).toBe(ghostId(ownedBy(snap(hero, day, RULES_VERSION, refUp(hero, day)), me)));
     }
     expect(app.store.size).toBe(6);
     const old = await post(snap("furnace", 3, OLD_RULES)); // a 0.7.0 client's upload: decodes, then the exact rules check
     expect(old.status).toBe(422);
     expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates ${RULES_VERSION}`);
     expect(app.store.size).toBe(6);
-    const ok = await submitGhost(base, ownedBy(snap("furnace", 3, RULES_VERSION), me), me, 3000);
+    const ok = await submitGhost(base, ownedBy(snap("furnace", 3, RULES_VERSION, refUp("furnace", 3)), me), me, 3000); // FLIP-X2: with its runes
     expect(ok).toMatchObject({ ok: true });
     expect(app.store.size).toBe(7);
   });
@@ -190,7 +215,10 @@ describe("the server and the client, both ways", () => {
       s.setHeader("content-type", "application/json");
       const u = q.url ?? "";
       const [hero, rules]: [HeroId, string] = u.includes("wins=1") ? ["foundry", OLD_RULES] : u.includes("wins=2") ? ["foundry", RULES_VERSION] : ["furnace", RULES_VERSION];
-      s.end(JSON.stringify({ id: `g-${hero}-${rules}`, snapshot: { ...snap(hero, 4, rules), wins: 0, playerId: `served-${hero}` } }));
+      // FLIP-X2: a ghost served under this build's rules holds its day's runes (v3), as every upload it passed did; the
+      // bb-0.6.2 one stays rune-less (was rune-less under both)
+      const build = rules === RULES_VERSION ? refUp(hero, 4) : heroRefBuild(hero, 4);
+      s.end(JSON.stringify({ id: `g-${hero}-${rules}`, snapshot: { ...snap(hero, 4, rules, build), wins: 0, playerId: `served-${hero}` } }));
     });
     await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));
     const a = srv.address();
@@ -222,12 +250,14 @@ describe("the server and the client, both ways", () => {
     const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     // 0.8.0 RC: before the bump each FOUNDRY or BASTION dusk was refused here (not sent, one console.debug line)
+    // FLIP-X2: each run takes day 1's dawn rune first (dawned), as a run must before its dusk; without it the client's own
+    // check (validateUpload, the exact count) refuses the dusk (not sent, one console.debug line)
     NEW.forEach((hero, i) => {
-      s.submitDusk(newRun(hero, 11));
+      s.submitDusk(dawned(newRun(hero, 11)));
       expect(sent, hero).toHaveLength(i + 1);
       expect((sent[i] as [string, { hero: string; rules: string }])[1]).toMatchObject({ hero, rules: RULES_VERSION });
     });
-    s.submitDusk(newRun("furnace", 11));
+    s.submitDusk(dawned(newRun("furnace", 11)));
     expect(sent).toHaveLength(3);
     expect(debug).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();

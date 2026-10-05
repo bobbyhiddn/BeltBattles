@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { RUN_DAYS } from "../src/sim/content";
 import { playerFits, roadCap } from "../src/net/roadCap";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
+import { runeGrants } from "../src/sim/runes";
 import { AUDIT_PATHS, DRIVER_HEROES, driveRuns, errorKind, type DriverRun } from "./uploadDriver";
 import { playerCheck } from "./netHelpers";
 
@@ -9,6 +10,10 @@ import { playerCheck } from "./netHelpers";
 // only plays legal actions through the real game functions), so the player mode must refuse none of them; the
 // strict mode must still refuse today's (the hull off the plating grid, road value over maxGoldByDay), which
 // shows the driver really reaches the road.
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): the driver now takes each dawn's rune (tests/uploadDriver.ts), so its
+// decks hold one rune a dawn, as an upload must. The tally's own readings of a deck (the cost parity, the room under the
+// ceiling, the road value) read it as validate.ts does: its runes' HULL and BELT out of hullBonus / beltCap (the bought
+// deck) and their dawn gold added to the ceiling (runes.ts runeGrants). A rune-less deck reads exactly as before.
 
 const RUNS = Number(process.env.V070_DRIVER_RUNS ?? 2400); // 400 per hero
 const PATH_RUNS = Number(process.env.V070_DRIVER_PATH_RUNS ?? 36);
@@ -35,9 +40,13 @@ function tally(runs: DriverRun[]): Tally {
       const j = d.build.routes.filter((x) => x.join !== undefined).length;
       if (j) t.joined++;
       t.joins += j;
+      // FLIP-X2: the deck as validate.ts reads it (validateBuild's `bought` and `grant`): the runes' HULL and BELT out, their
+      // dawn gold on the ceiling. Was the deck as it stands, which costs a HULL or BELT rune as plating or crates
+      const g = runeGrants(d.build.runes, d.day);
+      const bought = g.hull || g.belt ? { ...d.build, hullBonus: d.build.hullBonus - g.hull, beltCap: d.build.beltCap - g.belt } : d.build;
       // recheck 1 on every deck: on the shop's grid the player mode costs the deck exactly as buildCost does
-      const plain = playerFits(d.build, d.day, buildCost(d.build)).fits.find((f) => f.mix.key === "");
-      if (plain && plain.cost !== buildCost(d.build).total) t.parity.push(`${r.hero} #${r.seed} d${d.day}: player ${plain.cost} vs buildCost ${buildCost(d.build).total}`);
+      const plain = playerFits(bought, d.day, buildCost(bought)).fits.find((f) => f.mix.key === "");
+      if (plain && plain.cost !== buildCost(bought).total) t.parity.push(`${r.hero} #${r.seed} d${d.day}: player ${plain.cost} vs buildCost ${buildCost(bought).total}`);
       const s = validateBuild(d.build, d.day);
       if (!s.ok) {
         t.strict++;
@@ -46,11 +55,12 @@ function tally(runs: DriverRun[]): Tally {
       const p = playerCheck(d.build, d.day); // 0.8.0 H1: the upload check of rules that accept the deck's hero
       if (!p.ok) t.player.push(`${r.hero} #${r.seed} d${d.day} (${d.road}): ${p.errors.join(" | ")}`);
       // how close the driver came to the ceiling (REPORT.md §2 slack): road value used beyond the shop's gold
-      const c = buildCost(d.build);
-      const best = playerFits(d.build, d.day, c).fits[0];
+      // (FLIP-X2: the ceiling and the shop's gold each with the runes' dawn gold, as playerSupplyBudget's runeGold)
+      const c = buildCost(bought);
+      const best = playerFits(bought, d.day, c).fits[0];
       if (best) {
-        t.room[d.day] = Math.min(t.room[d.day], best.allow - best.cost);
-        if (!best.mix.labels.length) t.extra[d.day] = Math.max(t.extra[d.day], best.cost - maxGoldByDay(d.day));
+        t.room[d.day] = Math.min(t.room[d.day], best.allow + g.gold - best.cost);
+        if (!best.mix.labels.length) t.extra[d.day] = Math.max(t.extra[d.day], best.cost - maxGoldByDay(d.day) - g.gold);
       }
     }
   }

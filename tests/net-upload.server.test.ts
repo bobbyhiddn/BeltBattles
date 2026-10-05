@@ -10,13 +10,15 @@ import { roadOptions } from "../src/net/roadCap";
 import { floorRecord } from "../src/net/records";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { driveRun } from "./uploadDriver";
-import { snap } from "./netHelpers";
+import { snap, upSnap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
-import type { GhostSnapshot } from "../src/net/snapshot";
+import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 
 // v070-validate M2: the two call sites that now use the player mode, end to end. POST /v1/ghosts
 // (server/app.ts) and fetchGhost's check of a served ghost (ghostClient.ts) accept an honest player deck the
 // strict check refuses (dock PLATING, RIDE THROUGH, road value), and still refuse one over the player ceiling.
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes. The driver's decks take each dawn's
+// rune (tests/uploadDriver.ts) and travel as v3; the hand-built decks below hold their day's neutral runes (upSnap).
 
 let dir: string;
 let app: GhostServer;
@@ -42,7 +44,8 @@ const DOCK_PLATING = roadOptions().get("dock")!.find((o) => o.label === "PLATING
 const RIDE_THROUGH = roadOptions().get("storm")!.find((o) => o.label === "RIDE THROUGH")!.hull; // -100 (was -10)
 const PLATE = ITEMS.plating.supply!.hull!; // +250 (was +25)
 
-/** Honest dusk decks from the driver that the strict check refuses (road hull, road value), as v2 snapshots. */
+/** Honest dusk decks from the driver that the strict check refuses (road hull, road value), as v3 snapshots (FLIP-X2: the
+ *  decks hold their dawns' runes, which travel only in v3; was v2). */
 function honestRefusedByStrict(n: number): GhostSnapshot[] {
   const out: GhostSnapshot[] = [];
   for (let seed = 1; out.length < n && seed < 400; seed++) {
@@ -50,7 +53,7 @@ function honestRefusedByStrict(n: number): GhostSnapshot[] {
     for (const d of r.dusks) {
       if (out.length >= n || validateBuild(d.build, d.day).ok) continue;
       // 0.8.0 H2 (a): 3 lives, or the fewest a run carries into that dusk where 3 is out of reach (day 1: 5, day 2: 4)
-      out.push({ v: 2, rules: RULES_VERSION, hero: r.hero, day: d.day, wins: 0, lives: Math.max(3, floorRecord(d.day).lives), build: d.build, runId: `drv-${seed}`, playerId: `p${seed}`, createdAt: 1_790_000_000_000 });
+      out.push({ v: SNAPSHOT_V3, rules: RULES_VERSION, hero: r.hero, day: d.day, wins: 0, lives: Math.max(3, floorRecord(d.day).lives), build: d.build, runId: `drv-${seed}`, playerId: `p${seed}`, createdAt: 1_790_000_000_000 });
     }
   }
   return out;
@@ -69,11 +72,12 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     expect(app.store.size).toBe(12);
     // a day-1 deck with the dock's +200 hull (NUM-1: x10, was +20): strict refuses it (off the plating grid), the server stores it
     expect([DOCK_PLATING, RIDE_THROUGH, PLATE]).toEqual([200, -100, 250]); // NUM-1: x10 (was 20, -10, 25)
-    const dock = snap({ lives: 5, build: { ...snap().build, hullBonus: DOCK_PLATING } }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
+    // FLIP-X2: upSnap: day 1's rune, v3 (was snap's rune-less v1 deck)
+    const dock = upSnap({ lives: 5, build: { ...snap().build, hullBonus: DOCK_PLATING } }); // 0.8.0 H2 (a): day 1's one reachable record, 0W 5 lives
     expect(validateBuild(dock.build, 1).ok).toBe(false);
     expect(await submitGhost(base, ownedBy(dock, me), me, 3000)).toMatchObject({ ok: true });
     // over the player ceiling: refused on budget (day 1 allows maxHonestSpend(1) = 13 on 40d2b2c, was 15; 4 plates cost 20)
-    const rich = snap({ build: { ...snap().build, hullBonus: 4 * PLATE } }); // NUM-1: 4 plates are 1000 hull (was 100)
+    const rich = upSnap({ build: { ...snap().build, hullBonus: 4 * PLATE } }); // NUM-1: 4 plates are 1000 hull (was 100). FLIP-X2: upSnap
     expect(maxHonestSpend(1)).toBeLessThan(20);
     const richBody = JSON.stringify(ownedBy(rich, me));
     const r = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, richBody), body: richBody });
@@ -82,8 +86,9 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
   });
 
   it("fetchGhost fights a served player ghost with a road hull; it still falls back on one the player mode refuses", async () => {
-    const ride = { ...snap({ day: 3, wins: 1 }), build: { ...snap().build, hullBonus: RIDE_THROUGH } }; // NUM-1: -100 (was -10)
-    const off = { ...snap({ day: 4, wins: 0 }), build: { ...snap().build, hullBonus: 300 } }; // NUM-1: x10 (was 30)
+    // FLIP-X2: served ghosts hold their day's runes, v3 (upSnap; were snap's rune-less v1 decks)
+    const ride = upSnap({ day: 3, wins: 1, build: { ...snap().build, hullBonus: RIDE_THROUGH } }); // NUM-1: -100 (was -10)
+    const off = upSnap({ day: 4, wins: 0, build: { ...snap().build, hullBonus: 300 } }); // NUM-1: x10 (was 30)
     const srv = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
       s.end(JSON.stringify(q.url?.includes("day=3") ? { id: "gride", snapshot: ride } : { id: "goff", snapshot: off }));

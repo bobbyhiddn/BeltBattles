@@ -17,17 +17,21 @@ import { gainModule } from "../src/game/fuse";
 import { MODELLED_EVENTS, MODELLED_PICKS, playerFits, roadOptions } from "../src/net/roadCap";
 import { buildCost, maxHonestSpend, validateBuild, validateUpload } from "../src/net/validate";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
-import type { GhostSnapshot } from "../src/net/snapshot";
+import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { floorRecord } from "../src/net/records";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { furnaceDeck, playerCheck } from "./netHelpers";
 import { heroesFor } from "../src/net/rulesGate";
 import { driveRuns, type Dusk } from "./uploadDriver";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { withDawnRunes } from "./runeFill";
 
 // v070-validate-062m (M5, brief 0c): the player mode on the 0.6.2 mechanics head 7bcde98 (turret slots REQ-BFG-031,
 // belt joins REQ-BFG-027, the REQ-BFG-033 offer mix). Recheck 1: the player mode costs turrets exactly as the strict
 // mode's buildCost does: bought copies at their value, a free starting copy at 0 (turretValue), only installed ones.
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes. The hand-built turret decks below
+// hold their day's neutral runes in the player mode (tests/runeFill.ts: no hull, belt or gold, so every cost is as
+// before); the driver's honest decks take each dawn's rune (tests/uploadDriver.ts), so they travel as v3 snapshots.
 
 const FREE = startingTurrets("furnace"); // slot 0: the free SCRAP CANNON; slot 1 (columns 9-10) is the empty extra slot
 
@@ -64,7 +68,8 @@ describe("062m recheck 1: turrets in the player budget", () => {
         for (let d = 1; d <= RUN_DAYS; d++) {
           const plain = playerFits(b, d, cost).fits.find((f) => f.mix.key === "")!;
           expect(plain.cost, `${what}, ${plates} plates, day ${d}`).toBe(cost.total);
-          expect(validateUpload(b, d).ok, `${what}, ${plates} plates, day ${d}`).toBe(cost.total <= maxHonestSpend(d));
+          // FLIP-X2: the upload holds its day's runes (was the rune-less deck)
+          expect(validateUpload(withDawnRunes(b, d), d).ok, `${what}, ${plates} plates, day ${d}`).toBe(cost.total <= maxHonestSpend(d));
         }
       }
     }
@@ -75,12 +80,12 @@ describe("062m recheck 1: turrets in the player budget", () => {
     // with three crates instead of the plate it is one gold over
     const at = turreted([...FREE, { slot: 1, def: "twinneedle", uid: 60 }], 1, 0);
     expect(buildCost(at).total).toBe(maxHonestSpend(1));
-    expect(validateUpload(at, 1)).toEqual({ ok: true, errors: [] });
+    expect(validateUpload(withDawnRunes(at, 1), 1)).toEqual({ ok: true, errors: [] }); // FLIP-X2: with day 1's rune
     const one = turreted([...FREE, { slot: 1, def: "twinneedle", uid: 60 }], 0, 3); // 8 + 3 crates: 14, one gold over
     const over = turreted([{ slot: 0, def: "twinneedle", uid: 61 }, { slot: 1, def: "thunderer", uid: 62 }], 0, 1); // 8 + 13 + 2
     for (const [b, turrets, crates] of [[one, 8, 3], [over, 21, 1]] as const) {
       expect(buildCost(b).total).toBe(turrets + 2 * crates);
-      const e = validateUpload(b, 1).errors;
+      const e = validateUpload(withDawnRunes(b, 1), 1).errors; // FLIP-X2: with day 1's rune
       expect(e).toHaveLength(1);
       expect(e[0]).toBe(`budget: build costs ${turrets + 2 * crates} gold (items 0, mods 0, ${crates} crates, 0 plating, turrets ${turrets}) but a player's day 1 allows at most 13 (maxGoldByDay 8 + roadCap 5)`);
       expect(validateBuild(b, 1).errors.some((x) => x.startsWith("budget:"))).toBe(true);
@@ -286,8 +291,10 @@ afterAll(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+// FLIP-X2: v3 (was 2): the driver's decks hold their dawns' runes, and build.runes travels only in a v3 snapshot (no seed:
+// the server then checks the count and the catalogue, not the offers)
 const snapOf = (d: Dusk, over: Partial<GhostSnapshot> = {}): GhostSnapshot => ({
-  v: 2, rules: RULES_VERSION, hero: d.hero, day: d.day, wins: 0, lives: 3, build: d.build, runId: `drv-${d.seed}`, playerId: `p${d.seed}-${d.day}`,
+  v: SNAPSHOT_V3, rules: RULES_VERSION, hero: d.hero, day: d.day, wins: 0, lives: 3, build: d.build, runId: `drv-${d.seed}`, playerId: `p${d.seed}-${d.day}`,
   createdAt: 1_790_000_000_000, ...over,
 });
 

@@ -1,5 +1,8 @@
 // 0.8.0 H2 M1 (REQ-BFG-009, REQ-BFG-016; backlog 325): the game's own uploads always carry a record POST /v1/ghosts
 // takes. Real runs through the run code, to day 10 or the run's end, for each of the four PLAYABLE_HEROES:
+//  - the dawn: today's rune (FLIP-X2, cap's ruling 5d6d83ef57d1494c: an upload holds exactly one rune a dawn), taken as
+//    the picker takes it (pendingRune, takeRune; the first card, as src/tooling.ts playOut). The runs skipped it before,
+//    so every dusk deck held none, which validateUpload's exact count now refuses;
 //  - the caravan: a few buys of offers the purse affords (buyOffer: supplies on the spot, parts to cargo, a twin merges);
 //  - the fork: a random road pick (the event or one of the three warlords; none is blocked while the road is open);
 //  - the event: a random choice among the unblocked ones (choicesFor / pickChoice), the DOCK's PATCH UP included;
@@ -16,7 +19,7 @@ import { Rng, hashSeed } from "../src/core/rng";
 import { RULES_VERSION, START_LIVES, type HeroId } from "../src/sim/content";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import type { SideStats } from "../src/sim/battle";
-import { buyOffer, newRun, type Run } from "../src/game/run";
+import { buyOffer, newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { finishWarlord, leaveCaravan, pickPending, pickRoad, ROAD_PICKS, takePart, todaysWarlord } from "../src/game/road";
 import { choicesFor, eventFor, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf, startDusk } from "../src/game/day";
@@ -57,6 +60,10 @@ function playRun(hero: HeroId, i: number, player: string): Played {
   if (odds.every((o) => o === 0)) odds[0] = 1;
   const out: Played = { snaps: [], unreachable: [], refused: [], patchUps: 0, dockMet: 0, refunds: 0, lastDay: 1, over: null };
   while (!run.over) {
+    // FLIP-X2: the dawn's rune first (the first card: it draws nothing from this run's stream), as a run must before its
+    // dusk (run.ts fightRefusal); a dawn-gold rune's gold is the caravan's
+    const offer = pendingRune(run);
+    if (offer) expect(takeRune(run, offer.ids[0]).ok, `${hero} #${i} dawn ${run.day}`).toBe(true);
     // the caravan: up to three buys the purse affords
     for (let t = rng.int(4); t > 0; t--) {
       const open = run.shop.wagons.flatMap((w, wi) => w.offers.map((o, si) => ({ o, wi, si }))).filter(({ o }) => !o.sold && o.price <= run.gold);

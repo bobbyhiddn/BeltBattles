@@ -3,9 +3,10 @@
 import { startingBuild } from "../src/sim/ai";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { key, type Build } from "../src/sim/deck";
-import type { GhostSnapshot, PoolEntry } from "../src/net/snapshot";
+import { SNAPSHOT_V3, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
 import { HEROES_RULES, heroesFor } from "../src/net/rulesGate";
 import { validateBuild, validateUpload, type Validation } from "../src/net/validate";
+import { withDawnRunes } from "./runeFill";
 
 /**
  * 0.8.0 H1 (REQ-BFG-009): the first rules version whose upload check accepts `hero` (rulesGate.ts RULES_HEROES): this
@@ -34,6 +35,17 @@ export function snap(over: Partial<GhostSnapshot> = {}, hero: HeroId = "furnace"
     v: 1, rules: RULES_VERSION, hero, day: 1, wins: 0, lives: 3, build: startingBuild(hero, 1),
     runId: "run-test-1", playerId: "player-a", createdAt: 1_790_000_000_000, ...over,
   };
+}
+
+/**
+ * FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): snap() as an upload under this build's rules travels: its build (the
+ * rune-less deck in `over.build`, or the starting deck) holding exactly its day's runes, neutral ones (tests/runeFill.ts:
+ * no hull, belt or gold), in a v3 snapshot (build.runes is v3 only) with no seed (so the count and the catalogue are
+ * checked, not the offers). validateUpload's exact count refuses snap()'s rune-less deck.
+ */
+export function upSnap(over: Partial<GhostSnapshot> = {}, hero: HeroId = "furnace"): GhostSnapshot {
+  const s = snap(over, hero);
+  return { ...s, v: SNAPSHOT_V3, build: withDawnRunes(s.build, s.day) };
 }
 
 export function entry(id: string, over: Partial<GhostSnapshot> = {}): PoolEntry {

@@ -19,6 +19,10 @@
 //    own client (201, stored with build.upgrades). Nothing refused is stored.
 //  - Offline (no server URL) a run of each of the four heroes through day 3, buying the levels it can afford, makes no
 //    request and opens no IndexedDB.
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes. An upload under this build's rules
+// holds its day's neutral runes (tests/runeFill.ts: no hull, belt or gold, so each deck is the same honest deck) and
+// travels as v3; an upload under any other rules is the rune-less v2 deck an older client sent (runes need bb-0.8.7). The
+// game's own runs take each dawn's rune (pendingRune, takeRune), and a 0.8.4 page's dusk carries neither runes nor a seed.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { HEROES, ITEMS, RULES_VERSION, UPGRADE_TRACKS, type HeroId } from "../src/sim/content";
 import { hullSlots, key as K, setTurretList, startingTurrets, type Build, type BuildTurret } from "../src/sim/deck";
@@ -27,10 +31,10 @@ import { heroRefBuild, heroStartBuild, PLAYABLE_HEROES } from "../src/sim/heroBu
 import { gradeOf, outputsAt, upgradeGold } from "../src/sim/stars";
 import { HEROES_RULES, heroesFor, parseRules, rulesAtLeast } from "../src/net/rulesGate";
 import { isReachable } from "../src/net/records";
-import { encodeSnapshot, ghostId, SnapshotError, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { encodeSnapshot, ghostId, SnapshotError, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { buildCost, maxGoldByDay, maxHonestSpend, validateBuild, validateUpload } from "../src/net/validate";
 import { fetchGhost, submitGhost } from "../src/net/ghostClient";
-import { battleSeed, buyUpgrade, newRun, saveRun, SAVE_KEY, type Run } from "../src/game/run";
+import { battleSeed, buyUpgrade, newRun, pendingRune, saveRun, SAVE_KEY, takeRune, type Run } from "../src/game/run";
 import { duskFoe, finishDay, ghostOf, startDusk, storedFoe } from "../src/game/day";
 import { GHOST_KEY, loadPool, saveGhost, standInFoe } from "../src/game/ghosts";
 import { PLAYER_KEY, setPlayerName } from "../src/game/ghostSnapshot";
@@ -42,6 +46,7 @@ import { seedStore } from "../server/seed";
 import { floorGhosts, sampleGhosts } from "../tools/samplePool";
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
+import { withDawnRunes } from "./runeFill";
 
 const OLD_RULES = "bb-0.8.0"; // 0.8.0 to 0.8.4's rules (HEROES_RULES): the live pool's
 const NOSTATS = {} as SideStats;
@@ -50,12 +55,25 @@ const DAYS = [1, 5, 9];
 /** bb-0.8.3's near misses: the rules it replaces first, then its neighbours and garbled forms. */
 const NEAR = [OLD_RULES, "bb-0.8.2", "bb-0.8.4", "bb-0.8.3x", "BB-0.8.3", " bb-0.8.3", "bb-0.8.3 ", "bb-0.8.03", "bb-0.8.30", "bb-0.8.3.0", "bb-0.8", "bb_0.8.3"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.8.7`;
+// FLIP-X2: the one bump (was bb-0.8.7; the tests that read it were skipped while the seed pool failed its checks)
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.9.0`;
 const slotError = (name: string, routes: number, outs: number) => `route: ${name} uid 1 feeds ${routes} routes but has ${outs} output(s)`;
 
-/** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. */
+/** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. FLIP-X2: under this build's rules the
+ *  deck (rune-less, as given) holds its day's runes in a v3 snapshot, as an upload must; under any other rules it is the
+ *  rune-less v2 deck an older client sent (with runes the decoder's rules gate would refuse it first, a 400). */
 function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, runId = `belts-${hero}-${day}`): GhostSnapshot {
-  return { v: SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives: 5, build, runId, playerId: `p-${hero}`, createdAt: T0 };
+  const now = rules === RULES_VERSION;
+  return { v: now ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules, hero, day, wins: day - 1, lives: 5, build: now ? withDawnRunes(build, day) : build, runId, playerId: `p-${hero}`, createdAt: T0 };
+}
+
+/** FLIP-X2: the upload check of `b` holding its day's runes (the rune-less deck fails the exact count first). */
+const uploadCheck = (b: Build, day: number) => validateUpload(withDawnRunes(b, day), day);
+
+/** FLIP-X2: the dawn's rune, as the picker takes it (pendingRune, takeRune; the first card, as tooling.ts playOut): a run
+ *  takes it before its dusk (run.ts fightRefusal), so its upload holds one rune a dawn. */
+function takeDawnRune(run: Run): void {
+  expect(takeRune(run, pendingRune(run)!.ids[0]).ok, `dawn ${run.day}`).toBe(true);
 }
 
 /** `b` with the fewest whole belt crates its belt tiles need, as the shop sells them. */
@@ -111,12 +129,16 @@ async function until(cond: () => boolean, ms = 8000): Promise<void> {
   }
 }
 
-/** A 0.8.4 page's deps: the game's own fetch and upload, with 0.8.0's rules string on the request and the snapshot. */
+/** A 0.8.4 page's deps: the game's own fetch and upload, with 0.8.0's rules string on the request and the snapshot.
+ *  FLIP-X2: and its snapshot as a 0.8.4 page writes it: v2, no runes and no seed (bb-0.8.0 had neither; this build's v3
+ *  dusk with runes under bb-0.8.0 is refused by the encoder's rules gate before any request). */
 function as080(identity: Identity, sent: GhostSnapshot[] = []): OnlineDeps {
   return {
     fetchGhost: (url, req, ms, o) => fetchGhost(url, { ...req, rules: OLD_RULES }, ms, o),
     submitGhost: (url, snap, id, ms) => {
-      const old = { ...snap, rules: OLD_RULES };
+      const { seed: _seed, ...rest } = snap;
+      const { runes: _runes, ...build } = snap.build;
+      const old = { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build };
       sent.push(old);
       return submitGhost(url, old, id, ms);
     },
@@ -146,20 +168,21 @@ describe("rules bb-0.8.7: the version and its decks", () => {
   it("the upload decks are what they say: honest but for the one rule each breaks (strict and player mode)", () => {
     // FURNACE, day 5 (50 gold): the KILN's slots at its FACTORY level are 2 / 3 / 4
     expect([1, 2, 3].map((l) => outputsAt("kiln", gradeOf(kilnDeck(1, l), { def: "kiln" })))).toEqual([2, 3, 4]);
+    // FLIP-X2: each player-mode check below is of the deck holding its day's runes (uploadCheck; was the rune-less deck)
     for (const [n, level] of [[3, 2], [4, 3]]) {
       const b = kilnDeck(n, level);
-      expect([b.routes.length, upgradeGold(b), validateBuild(b, 5).errors, validateUpload(b, 5).errors], `${n} belts L${level}`).toEqual([n, level === 2 ? 10 : 30, [], []]);
+      expect([b.routes.length, upgradeGold(b), validateBuild(b, 5).errors, uploadCheck(b, 5).errors], `${n} belts L${level}`).toEqual([n, level === 2 ? 10 : 30, [], []]);
       expect(buildCost(b).total, `${n} belts L${level}`).toBeLessThanOrEqual(maxGoldByDay(5));
     }
-    expect(validateUpload(kilnDeck(4, 2), 5).errors).toEqual([slotError("KILN", 4, 3)]);
-    expect(validateUpload(kilnDeck(3, 1), 5).errors).toEqual([slotError("KILN", 3, 2)]);
+    expect(uploadCheck(kilnDeck(4, 2), 5).errors).toEqual([slotError("KILN", 4, 3)]);
+    expect(uploadCheck(kilnDeck(3, 1), 5).errors).toEqual([slotError("KILN", 3, 2)]);
     expect(buildCost(kilnDeck(4, 2)).total).toBeLessThanOrEqual(maxGoldByDay(5)); // only the slots refuse it
     // WEAVER, day 4 (38 gold): the LOOM's lead, 3 / 4 at levels 1 / 2; TURRET SPEED level 2 on the starting DART GUNs
     for (const b of [loomDeck(3, { turret: 2 }), loomDeck(4, { turret: 2, factory: 2 })]) {
-      expect([validateBuild(b, 4).errors, validateUpload(b, 4).errors], `${b.routes.length} belts`).toEqual([[], []]);
+      expect([validateBuild(b, 4).errors, uploadCheck(b, 4).errors], `${b.routes.length} belts`).toEqual([[], []]);
       expect(buildCost(b).total).toBeLessThanOrEqual(maxGoldByDay(4));
     }
-    expect(validateUpload(loomDeck(4, { turret: 2 }), 4).errors).toEqual([slotError("LOOM", 4, 3)]);
+    expect(uploadCheck(loomDeck(4, { turret: 2 }), 4).errors).toEqual([slotError("LOOM", 4, 3)]);
     // day 1: 8 gold (a player's 8 + roadCap's 5); level 4 of either track costs 60
     expect([maxGoldByDay(1), maxHonestSpend(1), maxGoldByDay(6)]).toEqual([8, 13, 63]);
     for (const upgrades of [{ factory: 4 }, { turret: 4 }]) {
@@ -280,7 +303,7 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
       const b = { ...heroStartBuild("furnace"), upgrades };
       const r = await post(fresh(dusk("furnace", 1, b)));
       expect([r.status, r.body.error], JSON.stringify(upgrades)).toEqual([422, "deck failed validation"]);
-      expect(r.body.errors, JSON.stringify(upgrades)).toEqual(validateUpload(b, 1).errors);
+      expect(r.body.errors, JSON.stringify(upgrades)).toEqual(uploadCheck(b, 1).errors); // FLIP-X2: the posted deck, with day 1's rune
       expect(r.body.errors).toHaveLength(1);
       expect(r.body.errors![0]).toMatch(new RegExp(`^budget: build costs 60 gold \\(.*\\) but a player's day 1 allows at most ${maxHonestSpend(1)} `));
       await stored(fresh(dusk("furnace", 6, b)), `${JSON.stringify(upgrades)} day 6`);
@@ -315,9 +338,11 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
     await until(() => s.active);
     const run = newRun("furnace", 8383);
     while (run.day < 3) {
+      takeDawnRune(run); // FLIP-X2: each dawn's rune first, as a run must before its dusk
       for (const t of UPGRADE_TRACKS) buyUpgrade(run, t); // what the day's gold allows (none on day 1: 8 gold)
       playDusk(run);
     }
+    takeDawnRune(run); // FLIP-X2: day 3's
     while (buyUpgrade(run, "factory").ok || buyUpgrade(run, "turret").ok) { /* spend what is left on the levels */ }
     expect(run.build.upgrades).toEqual({ turret: 2, factory: 2 }); // day 2's 15+ gold, then day 3's 13+
     expect(upgradeGold(run.build)).toBe(20);
@@ -341,6 +366,7 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
       const s = new Online(base, as080(me, sent));
       await until(() => s.active);
       const run = newRun("furnace", 8080);
+      takeDawnRune(run); // FLIP-X2: day 1's rune, so this build's own pre-upload check sends the dusk
       s.tick(run);
       await until(() => s.lastFetch !== null);
       s.tick(run);

@@ -4,17 +4,20 @@
 // own client: the stored name goes up with every dusk, a NAME change reaches later uploads only, and a second device
 // meets the named ghost as NAME#TAG · W-L; a seed ghost is a WANDERER; a stand-in captain keeps its name. The seed pool
 // carries no names and still seeds.
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes. The day-1 dusk posted here holds
+// day 1's neutral rune (tests/runeFill.ts) in a v3 snapshot, and the game's own runs take each dawn's rune (pendingRune,
+// takeRune), so every upload is refused or stored for its name alone, as before.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION } from "../src/sim/content";
 import { heroStartBuild } from "../src/sim/heroBuilds";
-import { ghostId, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { nameTag, WANDERER } from "../src/net/names";
 import { fetchGhost, submitGhost } from "../src/net/ghostClient";
 import { isSnapshot, setPlayerName } from "../src/game/ghostSnapshot";
 import { foeTitle, onlineFoe, startDusk, storedFoe } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
 import { Online, RUNS_KEY, type OnlineDeps } from "../src/game/online";
-import { newRun, type Run } from "../src/game/run";
+import { newRun, pendingRune, runeDawn, takeRune, type Run } from "../src/game/run";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
@@ -22,6 +25,7 @@ import { uploadProblems, type StoredRecord } from "../server/ghostAdmin";
 import { floorGhosts, generateSamplePool, sampleGhosts } from "../tools/samplePool";
 import { storeBackends } from "./netStores";
 import { signedHeaders, testIdentity } from "./netIdentity";
+import { withDawnRunes } from "./runeFill";
 
 const T0 = 1_790_000_000_000;
 const rot13 = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 65 + 13) % 26) + 65));
@@ -40,10 +44,19 @@ async function until(cond: () => boolean, ms = 8000): Promise<void> {
   }
 }
 
-/** A run at the dusk of `day` carrying `wins` wins and `lives` lives (a record a run reaches: losses = START_LIVES - lives). */
+/** FLIP-X2: the dawn of `day`: the held dawn-gold runes pay and the day's pick is owed (run.ts runeDawn, as day.ts finishDay
+ *  calls it), then the run takes it as the picker does (takeRune; the first card, as tooling.ts playOut). */
+function dawn(run: Run, day: number): void {
+  run.day = day;
+  runeDawn(run);
+  expect(takeRune(run, pendingRune(run)!.ids[0]).ok, `dawn ${day}`).toBe(true);
+}
+
+/** A run at the dusk of `day` carrying `wins` wins and `lives` lives (a record a run reaches: losses = START_LIVES - lives).
+ *  FLIP-X2: with the rune of each dawn up to `day` (dawn), as a run carries them into its dusk (it held none). */
 function runAt(hero: "furnace" | "weaver", seed: number, day: number, wins: number, lives: number): Run {
   const run = newRun(hero, seed);
-  run.day = day;
+  for (let d = 1; d <= day; d++) dawn(run, d);
   run.wins = wins;
   run.losses = day - 1 - wins;
   run.lives = lives;
@@ -65,9 +78,10 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
     await backend.teardown();
   });
 
-  /** A day-1 dusk of `me` (0W, 5 lives), its own runId each time, with `name` (absent when undefined). */
+  /** A day-1 dusk of `me` (0W, 5 lives), its own runId each time, with `name` (absent when undefined). FLIP-X2: its deck
+   *  holds day 1's rune, so it travels as v3 (was the rune-less v2 deck, which the exact count now refuses). */
   const dusk = (name?: unknown): Record<string, unknown> => ({
-    v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: 5, build: heroStartBuild("furnace"),
+    v: SNAPSHOT_V3, rules: RULES_VERSION, hero: "furnace", day: 1, wins: 0, lives: 5, build: withDawnRunes(heroStartBuild("furnace"), 1),
     runId: `names-${k++}`, playerId: me.playerId, createdAt: T0, ...(name === undefined ? {} : { name }),
   });
   /** POST exactly this JSON, signed by `me`. */
@@ -119,7 +133,9 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
     const body = JSON.stringify({ ...s, playerId: other.playerId });
     const r403 = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, body), body });
     expect(r403.status).toBe(403);
-    const old = JSON.stringify({ ...s, rules: "bb-0.8.3" });
+    // FLIP-X2: foreign rules as an older client sends them: bb-0.8.3 had no runes, so its dusk is the rune-less v2 deck
+    // (this build's dusk holds a rune, which the decoder's rules gate refuses under bb-0.8.3 with a 400, before this check)
+    const old = JSON.stringify({ ...s, v: SNAPSHOT_VERSION, build: heroStartBuild("furnace"), rules: "bb-0.8.3" });
     const r422 = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, old), body: old });
     expect([r422.status, ((await r422.json()) as { error: string }).error]).toEqual([422, `rules bb-0.8.3 not accepted: this server validates ${RULES_VERSION}`]);
   });
@@ -151,7 +167,7 @@ describe.each(storeBackends())("player names at POST /v1/ghosts on the $name sto
       const first = (s1.lastUpload as { id: string }).id;
       // the options card's NAME entry: a new name, then the next dusk
       setPlayerName("BOB-7");
-      run.day = 5;
+      dawn(run, 5); // FLIP-X2: day 5's dawn and its rune (was run.day = 5)
       run.wins = 3;
       run.dusk = null;
       startDusk(run, [], { ghost: null });

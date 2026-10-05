@@ -11,7 +11,7 @@ import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
 import { blockReason } from "../src/game/events";
 import { MATRIARCH_GOLD, ROAD_PICKS, rewardGold, warlordDeck, warlordDeckDay, warlordReward } from "../src/game/road";
-import { newRun, storePlaced } from "../src/game/run";
+import { newRun, pendingRune, storePlaced, takeRune } from "../src/game/run";
 import { gainModule } from "../src/game/fuse";
 import {
   HULL_FLOOR, MODELLED_DELTAS, MODELLED_EVENTS, MODELLED_PICKS, MODELLED_REWARD_FIELDS, RoadModelError,
@@ -20,12 +20,18 @@ import {
 } from "../src/net/roadCap";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate";
 import { furnaceDeck, playerCheck } from "./netHelpers";
+import { withDawnRunes } from "./runeFill";
 
 // v070-validate M3: the player mode (validateUpload) and its road ceiling (src/net/roadCap.ts).
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes, so every deck these tests check in
+// the player mode about something else (hull, belt, budget, items) holds its day's neutral runes (tests/runeFill.ts:
+// they give no hull, belt or gold, so each assertion means what it meant); before the flip these decks held none.
 
 const price = (id: string) => ITEMS[id].price;
 const max = (xs: number[]) => Math.max(...xs);
-const cats = (b: Build, day: number) => validateUpload(b, day).errors.map((e) => e.split(":")[0]);
+/** FLIP-X2: the player mode on `b` holding its day's neutral runes (was validateUpload(b, day) on the rune-less deck). */
+const up = (b: Build, day: number) => validateUpload(withDawnRunes(b, day), day);
+const cats = (b: Build, day: number) => up(b, day).errors.map((e) => e.split(":")[0]); // FLIP-X2: with its day's runes
 // NUM-1 (REQ-BFG-047): hull x10: a plate (ARMOR PACK) is ITEMS.plating.supply.hull, 250 (was 25); the dock's PLATING
 // +200 (was +20) and RIDE THROUGH -100 (was -10) are eventDefs.ts's values
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -178,7 +184,7 @@ describe("player hull and belt rules (D3)", () => {
   it("accepts exactly the hullBonus values an honest run can reach by the day (plates, dock +200, ride-through -100)", () => {
     for (const day of [1, 2, 10]) {
       for (let h = -400; h <= 1600; h += 50) { // NUM-1: x10 (was -40..160 step 5)
-        const e = validateUpload(deck([], 0, 0, h), day).errors;
+        const e = up(deck([], 0, 0, h), day).errors; // FLIP-X2: with its day's runes
         expect(e.some((x) => x.startsWith("supply: hullBonus")), `day ${day} hull ${h}: ${e.join(" | ")}`).toBe(!reachable(h, day));
       }
     }
@@ -198,22 +204,24 @@ describe("player hull and belt rules (D3)", () => {
   it("costs the hull at its cheapest honest mix: the dock's plating costs 2 gold and the day's road stop", () => {
     // NUM-1: hull x10: the dock's +200 (was 20), RIDE THROUGH's -100 (was -10), both 100 (was 10), a plate + the dock 450 (was 45)
     expect(validateBuild(deck(["temper", "whetstone"], 0, 0, DOCK), 1).errors.join()).toMatch(/supply: hullBonus 200/); // strict
-    expect(validateUpload(deck(["temper", "whetstone"], 0, 0, DOCK), 1)).toEqual({ ok: true, errors: [] }); // 6 + dock 2 = 8
-    expect(validateUpload(deck(["temper", "quench"], 0, 0, DOCK), 1).errors.join()).toMatch(/^budget: build costs 7 gold .*road dock PLATING.* allows at most 6/);
-    expect(validateUpload(deck(["temper", "whetstone"], 0, 0, RIDE), 1).ok).toBe(true); // RIDE THROUGH: its 5 g come after dusk
-    expect(validateUpload(deck([], 0, 0, DOCK + RIDE), 1).errors.join()).toMatch(/^supply: hullBonus 100 is not a hull a player can reach by day 1/);
-    expect(validateUpload(deck([], 0, 0, DOCK + RIDE), 2).ok).toBe(true); // dock + ride-through on two days
-    expect(validateUpload(deck([], 1, 0, DOCK), 3).ok).toBe(true); // 450 = a plate + the dock
+    // FLIP-X2: each upload below holds its day's runes (up)
+    expect(up(deck(["temper", "whetstone"], 0, 0, DOCK), 1)).toEqual({ ok: true, errors: [] }); // 6 + dock 2 = 8
+    expect(up(deck(["temper", "quench"], 0, 0, DOCK), 1).errors.join()).toMatch(/^budget: build costs 7 gold .*road dock PLATING.* allows at most 6/);
+    expect(up(deck(["temper", "whetstone"], 0, 0, RIDE), 1).ok).toBe(true); // RIDE THROUGH: its 5 g come after dusk
+    expect(up(deck([], 0, 0, DOCK + RIDE), 1).errors.join()).toMatch(/^supply: hullBonus 100 is not a hull a player can reach by day 1/);
+    expect(up(deck([], 0, 0, DOCK + RIDE), 2).ok).toBe(true); // dock + ride-through on two days
+    expect(up(deck([], 1, 0, DOCK), 3).ok).toBe(true); // 450 = a plate + the dock
   });
 
   it("accepts the belt as the hero's base plus crates and the BELT SPOOL; nothing off the +4 grid", () => {
-    expect(validateUpload(deck([], 0, 1), 1).ok).toBe(true);
-    expect(validateUpload(furnaceDeck({ beltCap: HEROES.furnace.belt + 2 }), 5).errors.join()).toMatch(/^supply: beltCap 16 is not 14 \+ whole \+4 belt crates/);
-    expect(validateUpload(furnaceDeck({ beltCap: HEROES.furnace.belt - 4 }), 5).errors.join()).toMatch(/^supply: beltCap 10/);
+    // FLIP-X2: each upload below holds its day's runes (up)
+    expect(up(deck([], 0, 1), 1).ok).toBe(true);
+    expect(up(furnaceDeck({ beltCap: HEROES.furnace.belt + 2 }), 5).errors.join()).toMatch(/^supply: beltCap 16 is not 14 \+ whole \+4 belt crates/);
+    expect(up(furnaceDeck({ beltCap: HEROES.furnace.belt - 4 }), 5).errors.join()).toMatch(/^supply: beltCap 10/);
     // the spool is free but takes a road stop: the cheapest mix wins (here the crate). v070-rel: day 1 allows 13 (was 15)
     const b = deck(["temper", "quench", "venom"], 0, 1); // 11 + a crate (2) = 13 <= 13; as a spool, 11 > 8 + roadCapFor(1, spool) 0
-    expect(validateUpload(b, 1).ok).toBe(true);
-    expect(validateUpload(deck(["temper", "quench", "coil"], 0, 1), 1).errors.join()).toMatch(/^budget: build costs 14 gold .* allows at most 13 /); // 1 gold more
+    expect(up(b, 1).ok).toBe(true);
+    expect(up(deck(["temper", "quench", "coil"], 0, 1), 1).errors.join()).toMatch(/^budget: build costs 14 gold .* allows at most 13 /); // 1 gold more
   });
 
   it("the mixes: every combination of the road's hull and belt choices, costed by the plans that take them", () => {
@@ -235,7 +243,7 @@ describe("adversarial decks (M3): each refused by the player mode with the right
     for (let d = 1; d <= RUN_DAYS; d++) {
       const at = deckCosting(maxHonestSpend(d)), over = deckCosting(maxHonestSpend(d) + 1);
       expect(buildCost(at).total).toBe(maxHonestSpend(d));
-      expect(validateUpload(at, d), `day ${d}`).toEqual({ ok: true, errors: [] });
+      expect(up(at, d), `day ${d}`).toEqual({ ok: true, errors: [] }); // FLIP-X2: with its day's runes
       expect(cats(over, d), `day ${d}`).toEqual(["budget"]);
     }
   });
@@ -250,19 +258,19 @@ describe("adversarial decks (M3): each refused by the player mode with the right
 
   it("an unfused pair is refused (item)", () => {
     const b = deck(["temper", "temper"]);
-    expect(validateUpload(b, 5).errors.join()).toMatch(/^item: UNFUSED PAIR: TEMPER ★1 x2/);
+    expect(up(b, 5).errors.join()).toMatch(/^item: UNFUSED PAIR: TEMPER ★1 x2/); // FLIP-X2: with its day's runes
   });
 
   it("another hero's signature factory is refused (item)", () => {
     const b = furnaceDeck({ items: [...furnaceDeck().items, { uid: 2, def: "loom", x: 0, y: 8 }] });
-    expect(validateUpload(b, 5).errors.join()).toMatch(/item: uid 2 LOOM is another hero's signature factory/);
+    expect(up(b, 5).errors.join()).toMatch(/item: uid 2 LOOM is another hero's signature factory/); // FLIP-X2: with its day's runes
   });
 
   it("a part no merchant sells is refused (item)", () => {
     const proto: ItemDef = { id: "zz_proto", name: "PROTOTYPE", kind: "gate", rarity: "common", price: 3, size: 1, desc: [] };
     ITEMS.zz_proto = proto;
     try {
-      expect(validateUpload(deck(["zz_proto"]), 5).errors.join()).toMatch(/^item: uid 10 PROTOTYPE is not sold by any merchant/);
+      expect(up(deck(["zz_proto"]), 5).errors.join()).toMatch(/^item: uid 10 PROTOTYPE is not sold by any merchant/); // FLIP-X2: with its day's runes
     } finally {
       delete ITEMS.zz_proto;
     }
@@ -314,7 +322,9 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
     for (const hero of HARNESS_HEROES as readonly HeroId[]) {
       for (let day = 1; day <= RUN_DAYS; day++) {
         for (let i = 0; i < 2; i++) {
-          const b = randomBuild(hero, day, new Rng(hashSeed("v070-superset", hero, day, i)), "on", 3, "on", "on");
+          // FLIP-X2: the harness deck with its day's runes (neutral: strict takes the same decks as before; was rune-less,
+          // which strict still takes and the player mode's exact count now refuses)
+          const b = withDawnRunes(randomBuild(hero, day, new Rng(hashSeed("v070-superset", hero, day, i)), "on", 3, "on", "on"), day);
           n++;
           if (!validateBuild(b, day).ok) continue;
           strict++;
@@ -329,7 +339,8 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
     const decks: [Build, number][] = [
       [deck(["temper", "temper"], 2), 3], [furnaceDeck({ items: [] , routes: [] }), 2], [deck([], 0, 0, DOCK), 1], [deckCosting(200), 4], // NUM-1: DOCK (was 20)
     ];
-    for (const [b, d] of decks) {
+    for (const [b0, d] of decks) {
+      const b = withDawnRunes(b0, d); // FLIP-X2: the deck holds its day's runes, through both modes
       const s = validateBuild(b, d).errors.filter((e) => !/^(supply|budget):/.test(e));
       const p = validateUpload(b, d).errors.filter((e) => !/^(supply|budget):/.test(e));
       expect(p).toEqual(s);
@@ -346,6 +357,9 @@ describe("game bugs found on the way (REPORT.md §7)", () => {
   it("storePlaced keeps every hero's signature factory aboard (the race heroes too)", () => {
     for (const hero of ["foundry", "bastion", "metronome", "siphon"] as HeroId[]) {
       const run = newRun(hero, 5);
+      // FLIP-X2: the run takes day 1's dawn rune first, as the picker does (pendingRune, takeRune: the first card, as
+      // tooling.ts playOut), so its deck holds the one rune an upload of day 1 needs (it held none)
+      expect(takeRune(run, pendingRune(run)!.ids[0]).ok, hero).toBe(true);
       const sig = run.build.items.find((p) => p.def === HEROES[hero].factory)!;
       expect(storePlaced(run, sig.uid)).toBe(false);
       expect(playerCheck(run.build, 1)).toEqual({ ok: true, errors: [] }); // 0.8.0 H1: under rules that accept the hero
@@ -396,14 +410,14 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
     resetRoadCapMemo();
     try {
       expect(() => roadOptions()).toThrow(RoadModelError);
-      const v = validateUpload(deck(), 3);
+      const v = up(deck(), 3); // FLIP-X2: with its day's runes
       expect(v.ok).toBe(false);
       expect(v.errors.join()).toMatch(/^budget: the player ceiling is unavailable: roadCap: a "chest" gain/);
     } finally {
       EVENTS.dice.choices = dice;
       resetRoadCapMemo();
     }
-    expect(validateUpload(deck(), 3).ok).toBe(true);
+    expect(up(deck(), 3).ok).toBe(true);
   });
 
   it("an unreviewed road event stops the ceiling", () => {
@@ -412,13 +426,13 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
     resetRoadCapMemo();
     try {
       expect(() => checkRoadModel()).toThrow(/road event "zz_fair" is not modelled/);
-      expect(validateUpload(deck(), 3).errors.join()).toMatch(/player ceiling is unavailable/);
+      expect(up(deck(), 3).errors.join()).toMatch(/player ceiling is unavailable/); // FLIP-X2: with its day's runes
     } finally {
       (EVENT_IDS as string[]).pop();
       delete (EVENTS as Record<string, unknown>).zz_fair;
       resetRoadCapMemo();
     }
-    expect(validateUpload(deck(), 3).ok).toBe(true);
+    expect(up(deck(), 3).ok).toBe(true);
   });
 });
 

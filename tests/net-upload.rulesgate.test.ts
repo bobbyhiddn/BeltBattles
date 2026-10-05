@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { RULES_VERSION, RUN_DAYS, type HeroId } from "../src/sim/content";
 import type { Build } from "../src/sim/deck";
 import { STAND_IN_POOL_HEROES, standInPool } from "../src/sim/standInPool";
-import { TURRETS_JOINS_RULES, parseRules, rulesAtLeast, rulesFeatures, rulesGateProblem } from "../src/net/rulesGate";
-import { checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
+import { TURRETS_JOINS_RULES, parseRules, rulesAtLeast, rulesFeatures, rulesGateProblem, sustainFeatures } from "../src/net/rulesGate";
+import { SNAPSHOT_V3, checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { loadGhostPool } from "../src/net/fallback";
@@ -15,21 +15,38 @@ import { battleRecordFor, replay, RulesMismatchError } from "../src/net/replay";
 import type { BattleRecord } from "../src/sim/battle";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
+import { withDawnRunes } from "./runeFill";
 
 // v070-rel M2 (b), REQ-BFG-009, REQ-BFG-027, REQ-BFG-031: turret slots and belt joins are bb-0.6.2 rules. One helper in
 // src/net (rulesGate.ts) reads `bb-MAJOR.MINOR.PATCH` and refuses what it can't read. Every accepting path refuses a
 // build that carries turrets or a join under rules before bb-0.6.2, naming the rules version and the feature: player
 // uploads (validateUpload; POST /v1/ghosts through the strict decoder), ghosts the client accepts (ghostClient), the
 // bundled pool loader (fallback) and battle records (replay). Each path keeps its exact RULES_VERSION check after it.
+// FLIP-X2 (cap's ruling 5d6d83ef57d1494c, item 5): an upload holds exactly `day` runes, and runes need bb-0.8.7 (the gate's
+// second row). So each pool deck has two forms here: old(d), rune-less, as a client of bb-0.6.x rules carried it (every
+// case under older, bb-0.6.2 or unreadable rules: only the turret and join row speaks), and up(d), holding its dawns'
+// runes, as an upload under RULES_VERSION (v3: runes travel only in a v3 snapshot). The stand-in pool holds rune-less decks
+// until FLIP-X2's regeneration, after which its decks carry their own runes: old(d) leaves them out, up(d) keeps them.
 
 interface Deck { hero: HeroId; day: number; build: Build }
 const hasTurrets = (b: Build) => (b.turrets ?? []).length > 0;
 const hasJoin = (b: Build) => b.routes.some((r) => r.join !== undefined);
-/** The first honest stand-in pool deck (both modes accept it) with or without turrets and joins. */
+/** FLIP-X2: the deck without runes, as rules before bb-0.8.7 carry it (a no-op on a rune-less pool deck). */
+function old(d: Deck): Build {
+  const { runes: _runes, ...rest } = d.build;
+  return rest;
+}
+/** FLIP-X2: the deck as an upload under RULES_VERSION holds it: its own runes, or (a rune-less pool deck) its day's
+ *  neutral runes (tests/runeFill.ts: no hull, belt or gold, so it stays the same honest deck). */
+const up = (d: Deck): Build => (d.build.runes === undefined ? withDawnRunes(d.build, d.day) : d.build);
+/** The first honest stand-in pool deck (both modes accept it) with or without turrets and joins. FLIP-X2: and no sustain
+ *  piece, which the gate's bb-0.9.0 row would refuse under these older rules (the pool held none before the flip). */
 function poolDeck(turrets: boolean, joins: boolean): Deck {
   for (const hero of STAND_IN_POOL_HEROES) {
     for (let day = 1; day <= RUN_DAYS; day++) {
-      for (const e of standInPool(hero, day)) if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins) return { hero, day, build: e.build };
+      for (const e of standInPool(hero, day)) {
+        if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins && !sustainFeatures({ ...e.build, runes: undefined }).length) return { hero, day, build: e.build };
+      }
     }
   }
   throw new Error(`no pool deck with turrets ${turrets} and joins ${joins}`);
@@ -45,8 +62,11 @@ const GARBLED: [string, Deck][] = [["bb-0.6", TURRETS], ["0.6.2", JOINS], ["", B
 const garbledWhy = (rules: string, d: Deck) => `rules ${JSON.stringify(rules)} is not a bb-MAJOR.MINOR.PATCH version: ${rulesFeatures(d.build).join(" and ")} need bb-0.6.2 or later`;
 const PATTERN = "snapshot.rules: expected a string matching /^[A-Za-z0-9._-]{1,32}$/";
 
+/** FLIP-X2: under RULES_VERSION the deck holds its dawns' runes and travels as v3 (up); under any other rules it is the
+ *  rune-less deck in v2, as before (old). */
 function snapOf(d: Deck, rules: string, who = "x"): GhostSnapshot {
-  return { v: 2, rules, hero: d.hero, day: d.day, wins: 0, lives: 3, build: d.build, runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
+  const now = rules === RULES_VERSION;
+  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: 0, lives: 3, build: now ? up(d) : old(d), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
 }
 
 describe("v070-rel M2 (b): the helper", () => {
@@ -72,35 +92,41 @@ describe("v070-rel M2 (b): the helper", () => {
     expect(rulesFeatures(TURRETS.build)).toEqual(["turret slots (build.turrets)"]);
     expect(rulesFeatures(JOINS.build)).toEqual([`belt joins (build.routes[${joinAt(JOINS.build)}].join)`]);
     expect(rulesFeatures(NEITHER.build)).toEqual([]);
-    expect(rulesGateProblem(OLD, TURRETS.build)).toBe(TURRET_WHY);
-    expect(rulesGateProblem(OLD, JOINS.build)).toBe(JOIN_WHY);
-    expect(rulesGateProblem(OLD, BOTH.build)).toBe(`rules ${OLD} predate bb-0.6.2: turret slots (build.turrets) and belt joins (build.routes[${joinAt(BOTH.build)}].join) need bb-0.6.2 or later`);
-    expect(rulesGateProblem(OLD, NEITHER.build)).toBeNull(); // neither: the gate passes
-    expect(rulesGateProblem("bb-0.6.2", BOTH.build)).toBeNull();
-    for (const [rules, d] of GARBLED) expect(rulesGateProblem(rules, d.build)).toBe(garbledWhy(rules, d));
+    // FLIP-X2: under these older rules, the rune-less decks (old: no runes before bb-0.8.7)
+    expect(rulesGateProblem(OLD, old(TURRETS))).toBe(TURRET_WHY);
+    expect(rulesGateProblem(OLD, old(JOINS))).toBe(JOIN_WHY);
+    expect(rulesGateProblem(OLD, old(BOTH))).toBe(`rules ${OLD} predate bb-0.6.2: turret slots (build.turrets) and belt joins (build.routes[${joinAt(BOTH.build)}].join) need bb-0.6.2 or later`);
+    expect(rulesGateProblem(OLD, old(NEITHER))).toBeNull(); // neither: the gate passes
+    expect(rulesGateProblem("bb-0.6.2", old(BOTH))).toBeNull();
+    for (const [rules, d] of GARBLED) expect(rulesGateProblem(rules, old(d))).toBe(garbledWhy(rules, d));
     expect(garbledWhy("bb-0.6", TURRETS)).toBe('rules "bb-0.6" is not a bb-MAJOR.MINOR.PATCH version: turret slots (build.turrets) need bb-0.6.2 or later');
     // a non-empty turret list counts; an explicitly empty one installs no turret
-    expect(rulesGateProblem(OLD, { ...NEITHER.build, turrets: [] })).toBeNull();
+    expect(rulesGateProblem(OLD, { ...old(NEITHER), turrets: [] })).toBeNull();
     for (const g of [null, 7, "x", [], { routes: "x", turrets: "y" }]) expect(rulesFeatures(g)).toEqual([]);
   });
 });
 
 describe("v070-rel M2 (b): every accepting path", () => {
   it("validateUpload: refused under older or unreadable rules; bb-0.6.1 with neither passes; bb-0.6.2 with both, legal, passes", () => {
-    expect(validateUpload(TURRETS.build, TURRETS.day, OLD)).toEqual({ ok: false, errors: [`rules: ${TURRET_WHY}`] });
-    expect(validateUpload(JOINS.build, JOINS.day, OLD)).toEqual({ ok: false, errors: [`rules: ${JOIN_WHY}`] });
-    for (const [rules, d] of GARBLED) expect(validateUpload(d.build, d.day, rules), JSON.stringify(rules)).toEqual({ ok: false, errors: [`rules: ${garbledWhy(rules, d)}`] });
-    // the gate passes; validateUpload holds no exact-version check of its own (its callers do: the tests below)
-    expect(validateUpload(NEITHER.build, NEITHER.day, OLD)).toEqual({ ok: true, errors: [] });
-    expect(validateUpload(BOTH.build, BOTH.day, "bb-0.6.2")).toEqual({ ok: true, errors: [] });
-    expect(validateUpload(BOTH.build, BOTH.day)).toEqual({ ok: true, errors: [] }); // default: this build's RULES_VERSION
+    expect(validateUpload(old(TURRETS), TURRETS.day, OLD)).toEqual({ ok: false, errors: [`rules: ${TURRET_WHY}`] });
+    expect(validateUpload(old(JOINS), JOINS.day, OLD)).toEqual({ ok: false, errors: [`rules: ${JOIN_WHY}`] });
+    for (const [rules, d] of GARBLED) expect(validateUpload(old(d), d.day, rules), JSON.stringify(rules)).toEqual({ ok: false, errors: [`rules: ${garbledWhy(rules, d)}`] });
+    // the gate passes; validateUpload holds no exact-version check of its own (its callers do: the tests below).
+    // FLIP-X2: what refuses these two now is the exact rune count, not the gate and not a rules check (each was
+    // { ok: true, errors: [] }): a deck under rules before bb-0.8.7 holds no runes, and the same deck with its day's runes
+    // meets the gate's runes row, so no upload passes under bb-0.6.1 or bb-0.6.2 any more
+    const none = (d: Deck) => ({ ok: false, errors: [`rune: runes: 0 held on day ${d.day}, one a dawn (${d.day})`] });
+    expect(validateUpload(old(NEITHER), NEITHER.day, OLD)).toEqual(none(NEITHER));
+    expect(validateUpload(old(BOTH), BOTH.day, "bb-0.6.2")).toEqual(none(BOTH));
+    expect(validateUpload(up(BOTH), BOTH.day, "bb-0.6.2")).toEqual({ ok: false, errors: ["rules: rules bb-0.6.2 predate bb-0.8.7: runes (build.runes) need bb-0.8.7 or later"] });
+    expect(validateUpload(up(BOTH), BOTH.day)).toEqual({ ok: true, errors: [] }); // default: this build's RULES_VERSION (FLIP-X2: with its runes)
   });
 
   it("the strict snapshot decoder (every path below decodes with it) refuses them the same way", () => {
     expect(() => checkSnapshot(snapOf(TURRETS, OLD))).toThrow(`snapshot.rules: ${TURRET_WHY}`);
     expect(() => checkSnapshot(snapOf(JOINS, OLD))).toThrow(`snapshot.rules: ${JOIN_WHY}`);
     expect(checkSnapshot(snapOf(NEITHER, OLD)).rules).toBe(OLD); // the gate passes; the callers' exact checks follow
-    expect(checkSnapshot(snapOf(BOTH, RULES_VERSION)).build).toEqual(BOTH.build);
+    expect(checkSnapshot(snapOf(BOTH, RULES_VERSION)).build).toEqual(up(BOTH)); // FLIP-X2: the upload's deck, with its runes (was BOTH.build)
   });
 
   it("POST /v1/ghosts: 400 before the exact check; bb-0.6.1 with neither gets the exact check (422); bb-0.6.2 with both is stored", async () => {
@@ -153,7 +179,7 @@ describe("v070-rel M2 (b): every accepting path", () => {
       }
       const both = await ask("both");
       expect(both).toMatchObject({ source: "server", id: "g-both" });
-      expect(both.snapshot.build).toEqual(BOTH.build);
+      expect(both.snapshot.build).toEqual(up(BOTH)); // FLIP-X2: served with its runes (was BOTH.build)
     } finally {
       srv.closeAllConnections();
       await new Promise<void>((r) => srv.close(() => r()));
@@ -163,7 +189,7 @@ describe("v070-rel M2 (b): every accepting path", () => {
   it("the bundled pool loader rejects them under older or unreadable rules and loads bb-0.6.2 with both", () => {
     const raw = [snapOf(TURRETS, OLD), snapOf(JOINS, OLD), snapOf(NEITHER, OLD), snapOf(BOTH, RULES_VERSION), ...GARBLED.map(([rules, d]) => snapOf(d, rules))];
     const load = loadGhostPool(JSON.stringify(raw));
-    expect(load.entries.map((e) => [e.snapshot.rules, e.snapshot.build])).toEqual([[RULES_VERSION, BOTH.build]]);
+    expect(load.entries.map((e) => [e.snapshot.rules, e.snapshot.build])).toEqual([[RULES_VERSION, up(BOTH)]]); // FLIP-X2: with its runes (was BOTH.build)
     expect(load.rejected).toEqual([
       { index: 0, error: `snapshot.rules: ${TURRET_WHY}` },
       { index: 1, error: `snapshot.rules: ${JOIN_WHY}` },
@@ -173,7 +199,8 @@ describe("v070-rel M2 (b): every accepting path", () => {
   });
 
   it("replay refuses a battle record whose builds carry them under older or unreadable rules; bb-0.6.2 with both replays", () => {
-    const rec = (rules: string, a: Deck, b: Deck): BattleRecord => ({ ...battleRecordFor(a.build, b.build, 7), rules });
+    // FLIP-X2: under older or unreadable rules the rune-less decks (old), as a record of those rules held them
+    const rec = (rules: string, a: Deck, b: Deck): BattleRecord => ({ ...(rules === RULES_VERSION ? battleRecordFor(a.build, b.build, 7) : battleRecordFor(old(a), old(b), 7)), rules });
     const refusal = (r: BattleRecord): RulesMismatchError => {
       try {
         replay(r);
