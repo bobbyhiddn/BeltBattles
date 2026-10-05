@@ -26,7 +26,9 @@ import { buildLayout, FOE_H, phoneScreen, type BuildLayout } from "../screens/bu
 import { OFFERS } from "../sim/content";
 import type { BuildScreen } from "../screens/build/build";
 
-/** The smallest chip, art px (its initials over its keyword word, "PLATE" the widest, 19 px in the 3x5 face). */
+/** The smallest chip, art px (its initials over its keyword word: a word up to 19 px of the 3x5 face, PLATE's, fits it;
+ *  SUS-B's SHIELD, 23 px, is wider, so its chip widens to 26: runeChipW). FLIP-X2 (REVIEW-FLIPX1 answer 3): the comment
+ *  said "PLATE the widest, 19 px", stale since SHIELD. */
 export const RUNE_CHIP_MIN = 22;
 /** The bar's label column ("RUNES" over the count). */
 const LABEL_W = 26;
@@ -47,14 +49,23 @@ export interface RuneBarLayout {
   more: Rect | null;
 }
 
-/** The bar for `n` runes on a screen `W` wide, its row's top at `top`, chips `chip` art px. Pure (tests). */
-export function runeBarLayout(W: number, top: number, n: number, chip: number): RuneBarLayout {
+/** The bar for `n` runes on a screen `W` wide, its row's top at `top`, chips `chip` art px tall. Pure (tests).
+ *  FLIP-X2 (REVIEW-FLIPX1 answer 3): `ws[i]`, rune i's chip width (runeChipW: at least `chip`, wider when its keyword word
+ *  needs it, SHIELD's 26 on the desk's 22 px chips); absent, every chip is `chip` wide and the row is exactly as before
+ *  (the same fit: chips while the last one ends inside W - 3, else a "+k" chip, `chip` wide, in the last place that fits). */
+export function runeBarLayout(W: number, top: number, n: number, chip: number, ws: readonly number[] = []): RuneBarLayout {
   const bar = { x: 0, y: top, w: W, h: chip + 6 };
-  const pitch = chip + PITCH_GAP, x0 = LABEL_W + 2;
-  const fit = Math.max(1, Math.floor((W - 3 - x0 + PITCH_GAP) / pitch));
-  const shown = n <= fit ? n : fit - 1;
-  const at = (i: number): Rect => ({ x: x0 + i * pitch, y: top + 3, w: chip, h: chip });
-  return { bar, chip, chips: Array.from({ length: shown }, (_, i) => at(i)), shown, more: n > shown ? at(shown) : null };
+  const x0 = LABEL_W + 2, right = W - 3;
+  const wOf = (i: number): number => Math.max(chip, ws[i] ?? chip);
+  const xs: number[] = [];
+  for (let i = 0, x = x0; i < n; x += wOf(i) + PITCH_GAP, i++) xs.push(x);
+  let shown = n;
+  if (n > 1 && xs[n - 1] + wOf(n - 1) > right) {
+    shown = 0; // the "+k" chip goes in the last place it fits (the chips before it end left of it)
+    for (let s = n - 1; s >= 0; s--) if (xs[s] + chip <= right) { shown = s; break; }
+  }
+  const at = (i: number, w: number): Rect => ({ x: xs[i], y: top + 3, w, h: chip });
+  return { bar, chip, chips: Array.from({ length: shown }, (_, i) => at(i, wOf(i))), shown, more: n > shown ? at(shown, chip) : null };
 }
 
 /** The build layout moved down by `dy` (the bar's row), the top bar where it was, H the whole screen's. Pure. */
@@ -130,8 +141,16 @@ const CARD_CHIP = 22;
  *  the word needs it. SHIELD's six letters (23 px) ran about 1 px past each side of the 22 px box; at 26 the word sits
  *  inside the box's ink edge as PLATE's 19 px sits in 22. Every other word fits 22, so its card is as before. Pure. */
 export function runeCardChipW(def: RuneDef): number {
+  return runeChipW(def, CARD_CHIP);
+}
+
+/** FLIP-X2 (REVIEW-FLIPX1 answer 3): any rune chip's width for a chip `side` art px tall (the bar's runeChip, the picker
+ *  tray's RUNE_CHIP_MIN, the card's 22), sized from its keyword word as the card's is: max(side, textWidth(word, 3x5) + 3).
+ *  Only SHIELD (23 px) needs more than 22, so a SHIELD chip on the desk's bar and in the tray is 26 wide; the phone's bar
+ *  chips (27) already hold it. Pure. */
+export function runeChipW(def: RuneDef, side: number): number {
   const k = runeKeyword(def);
-  return Math.max(CARD_CHIP, k ? textWidth(KEYWORD_WORD[k], "3") + 3 : 0);
+  return Math.max(side, k ? textWidth(KEYWORD_WORD[k], "3") + 3 : 0);
 }
 
 /** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
@@ -193,7 +212,10 @@ export class RuneBar {
   layout(s: BuildScreen): RuneBarLayout | null {
     const n = s.run.build.runes?.length ?? 0;
     if (!n) return null;
-    return runeBarLayout(s.game.W, s.L.bar.y + s.L.bar.h, n, runeChip(s.game.view));
+    const side = runeChip(s.game.view);
+    // FLIP-X2 (REVIEW-FLIPX1 answer 3): each chip sized from its word (runeChipW; SHIELD's 26 on the desk's 22 px chips)
+    const ws = (s.run.build.runes ?? []).map((q) => (q && isRune(q.id) ? runeChipW(RUNES[q.id], side) : side));
+    return runeBarLayout(s.game.W, s.L.bar.y + s.L.bar.h, n, side, ws);
   }
 
   /** Under the chrome (a grown details panel, the options card and a drag draw over it): the strip and its chips. */

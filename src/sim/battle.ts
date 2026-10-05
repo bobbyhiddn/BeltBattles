@@ -127,6 +127,7 @@ export interface GateState {
   commissionAt: number;
   online: boolean;
   disrupted: number;
+  /** Always 0 in play; tests set it to pause a machine. (FLIP-X2, REVIEW-FLIPX1 answer 1: kept as the test stop hook.) */
   frozen: number;
   wrecked: boolean;
   tolls: number;
@@ -198,6 +199,7 @@ export interface FactoryState {
   timer: number;
   rr: number;
   disrupted: number;
+  /** Always 0 in play; tests set it to pause a machine. (FLIP-X2, REVIEW-FLIPX1 answer 1: kept as the test stop hook.) */
   frozen: number;
   flash: number; // render
   stalled: boolean;
@@ -238,6 +240,7 @@ export interface TurretState {
   jamRandom: boolean;
   jamCd: number;
   disrupted: number;
+  /** Always 0 in play; tests set it to pause a machine. (FLIP-X2, REVIEW-FLIPX1 answer 1: kept as the test stop hook.) */
   frozen: number;
   perShot: number;
   interval: number; // NUM-2 (REQ-BFG-047): 30 / speed, the seconds between shots the battle uses

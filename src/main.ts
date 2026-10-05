@@ -102,6 +102,9 @@ game.start();
     const now = runeGrants(run.build.runes, run.day);
     run.build.hullBonus += now.hull;
     run.build.beltCap += now.belt;
+    // FLIP-X2 (REVIEW-FLIPX1 answer 4): as runePicker's pick does, so a shot frames the game's own layout (the rune row
+    // may step the build screen's scale: BuildScreen.pickScale, runeRowFits)
+    game.resize();
   },
   openDawn(o: RunSpec = {}, ghosts: GhostSpec[] = []): void {
     clearPool();

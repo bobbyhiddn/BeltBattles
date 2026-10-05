@@ -14,7 +14,7 @@ import { panel, type Rect } from "../ui/ui";
 import { drawRich } from "../ui/richText";
 import { pendingRune, takeRune, type Run } from "../game/run";
 import { RUNES, isRune, type RuneDef } from "../sim/runes";
-import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH } from "../ui/runeBar";
+import { drawRuneCard, drawRuneChip, RUNE_CHIP_MIN, runeCardH, runeChipW } from "../ui/runeBar";
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
 import type { BuildScreen } from "./build/build";
 
@@ -40,15 +40,25 @@ export interface PickLayout {
   bottom: number;
 }
 
-/** The picker on a screen W x H: `ids` the cards, `open` the opened one (-1 none), `held` the runes held. Pure (tests). */
-export function pickLayout(W: number, H: number, ids: readonly string[], open: number, held: number): PickLayout {
+/** The picker on a screen W x H: `ids` the cards, `open` the opened one (-1 none), `held` the runes held. Pure (tests).
+ *  FLIP-X2 (REVIEW-FLIPX1 answer 3): `heldIds`, the held runes' ids in pick order, sizes each tray chip from its keyword
+ *  word (runeChipW: SHIELD's 26, every other word's 22); absent, every chip is 22 wide and the tray is exactly as before. */
+export function pickLayout(W: number, H: number, ids: readonly string[], open: number, held: number, heldIds?: readonly string[]): PickLayout {
   const cardW = Math.min(W - 8, 300), x = Math.round(W / 2 - cardW / 2);
   const hs = ids.map((id, i) => runeCardH(RUNES[id], cardW, i === open ? { reminder: true, hint: PICK_TAKE } : {}));
   // the tray: "YOUR RUNES n" then the chips in rows (display only: RUNE_CHIP_MIN, not a finger's size)
   const chip = RUNE_CHIP_MIN, pitch = chip + 3;
-  const x0 = x + 5 + textWidth(`${TRAY_LABEL} 10`, "3") + 5;
-  const perRow = Math.max(1, Math.floor((x + cardW - 4 - x0 + 3) / pitch));
-  const rows = Math.ceil(held / perRow);
+  const x0 = x + 5 + textWidth(`${TRAY_LABEL} 10`, "3") + 5, right = x + cardW - 4;
+  const cw = (i: number): number => (heldIds && isRune(heldIds[i]) ? runeChipW(RUNES[heldIds[i]], chip) : chip);
+  // left to right, a new row when the next chip would end past the tray's right edge (a row holds at least one chip): with
+  // every chip 22 wide this is the old perRow = max(1, floor((right - x0 + 3) / pitch)) exactly
+  const at: [number, number][] = [];
+  for (let i = 0, cx = x0, row = 0; i < held; i++) {
+    if (cx > x0 && cx + cw(i) > right) { cx = x0; row++; }
+    at.push([cx, row]);
+    cx += cw(i) + 3;
+  }
+  const rows = held ? at[held - 1][1] + 1 : 0;
   const trayH = held ? rows * pitch + 5 : 0;
   const total = 33 + hs.reduce((s, h) => s + h, 0) + GAP * Math.max(0, ids.length - 1) + (held ? 9 + trayH : 0);
   const top = Math.max(4, Math.min(40, Math.floor((H - total) / 3)));
@@ -62,7 +72,7 @@ export function pickLayout(W: number, H: number, ids: readonly string[], open: n
   const trayChips: Rect[] = [];
   if (held) {
     tray = { x, y: y + 9, w: cardW, h: trayH };
-    for (let i = 0; i < held; i++) trayChips.push({ x: x0 + (i % perRow) * pitch, y: tray.y + 3 + Math.floor(i / perRow) * pitch, w: chip, h: chip });
+    for (let i = 0; i < held; i++) trayChips.push({ x: at[i][0], y: tray.y + 3 + at[i][1] * pitch, w: cw(i), h: chip });
     y = tray.y + tray.h;
   }
   return { top, cardW, cards, tray, trayChips, bottom: y };
@@ -115,7 +125,7 @@ export class RunePicker {
     }
     const { W, H, ui } = s.game;
     const held = (s.run.build.runes ?? []).map((q) => q.id).filter(isRune);
-    const L = pickLayout(W, H, o.ids, this.open, held.length);
+    const L = pickLayout(W, H, o.ids, this.open, held.length, held); // FLIP-X2: the tray's chips sized from their words
     g.globalAlpha = 0.86;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;

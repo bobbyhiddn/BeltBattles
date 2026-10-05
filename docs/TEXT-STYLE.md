@@ -162,7 +162,10 @@ At ★2 the `+2` is yellow and the line reads `NEXT ★3: +4 {BURN}`; at ★3 th
 4. Name a keyword; never define it inline. Its reminder (faces.ts `REMINDER`, at most 10 words, MEMO C1), with the piece's own number,
    shows on a tap, in the desk's hover tooltip and in the ⓘ KEYWORDS list; never on the face (MEMO C4's dim reminder line is gone).
 5. Other colours: numbers white; trigger labels, `★n` and perk names brass (a perk name never splits); the RATE and GOLD icons yellow; the kept
-   texts' FREEZE ice, POISON lime, FASTER yellow, SLOWER blue (richText.ts `KEYWORD_COLOUR`). Each tappable word has a dotted underline in its colour.
+   texts' POISON lime, FASTER yellow, SLOWER blue (richText.ts `KEYWORD_COLOUR`). Each tappable word has a dotted underline in its colour.
+   FLIP-X2: FREEZE's ice is gone with the mechanic (NUM-3: frost rounds STUN). FROST names a round, as CHAIN does, so both draw in the
+   text's own colour (bone); the clause's own `{*STUN}` carries STUN's cyan: OVERDRIVE ★3's `ENEMY CHAIN AND FROST ROUNDS CAN'T {*STUN} ITS
+   BELTS.` (tests/flipx2.text.test.ts pins it).
 6. A glossary row (glossary.ts, in T1 2.4's form) is `{ word, aliases, colour, def, kw?, extra?, scope }`. Its definition leads with its word
    (`{*BURN}: ...`, `JAM: ...`) and fits 2 lines of 5x7 at `GLOSSARY_WRAP_W`; a keyword's is its reminder plus at most one sentence the face
    dropped. `TAP_NOTES` hold what only a piece's own panel can say: PRESSURE BREECH's `SHOT: IT COUNTS UP TO 5 WAITING LOADS, AND IT NEVER JAMS.`
