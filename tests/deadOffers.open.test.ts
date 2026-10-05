@@ -7,11 +7,14 @@ import { describe, expect, it } from "vitest";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { INERT, reasonOf } from "./deadOffers.inert";
 
-/** The rules version the open reasons were pinned under. */
-const OPEN_RULES = "bb-0.8.7";
+/** The rules version the open reasons were pinned under. FLIP-X2 step 7 (the brief: carry the rows not classified under a
+ *  re-keyed tripwire, reported, for ACCEPT-X): re-keyed to bb-0.9.0 (was bb-0.8.7). The audit re-run on release X's rules
+ *  (W/output-flipx2/deadaudit) finds every num1Open and num2Open pair still inert, none live; classifying them needs the
+ *  base comparison (3cf09080186f8f84's procedure), which is ACCEPT-X's / R6-X's. */
+const OPEN_RULES = "bb-0.9.0";
 
 describe("REQ-BFG-021: the dead-offer audit's open reasons (num1Open, num2Open) end at the next rules version", () => {
-  it("no num1Open or num2Open reason remains once RULES_VERSION differs from bb-0.8.7", () => {
+  it("no num1Open or num2Open reason remains once RULES_VERSION differs from bb-0.9.0 (FLIP-X2: re-keyed, was bb-0.8.7)", () => {
     const open: string[] = [];
     for (const [hero, mods] of Object.entries(INERT) as [HeroId, Record<string, number[]>][]) {
       for (const [id, days] of Object.entries(mods)) for (const day of days) {
