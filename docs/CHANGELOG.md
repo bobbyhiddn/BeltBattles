@@ -3,6 +3,31 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.0: whole numbers, sustain, rivals with runes, clearer cards
+
+New battle rules: bb-0.9.0. Ghosts and uploads from 0.8.x no longer meet 0.9.0 players. You'll fight a fresh pool of 120
+ghosts at first, then other players' 0.9.0 runs as they come in.
+- **Whole numbers:** every number on a card and in a fight is a whole number. Damage and hull use a scale ten times
+  larger, speeds are whole numbers, and every time is in whole seconds.
+- **Sustain:** parts and runes that SHIELD, HEAL or REGEN your hull during a fight join the game, from day 3. WARD BELL
+  shields your hull every 8 seconds.
+- **Rivals use runes:** the starting ghosts, the caravan's stand-ins and the captains now take a rune at each dawn, as
+  you do.
+- **Four runes leave the dawn offer for now:** SEARING, SHATTER SHOT, COAL CHUTE and HEAT SINK. SIFTER leaves the shop
+  for now.
+- **DRAG CHAIN FOUNDRY** stuns for 3 seconds at ★3, and STALL is now called STUN.
+- **The caravan always shows its full set of offers:** a part that only opens on a later day never takes a merchant's
+  slot before then.
+- **Uploads:** an uploaded run must hold one rune for each dawn it reached. The server refuses one that doesn't.
+- **Captains and warlords** were refitted to the new numbers, so a few of their parts now arrive a day or more later.
+- **Clearer cards:** GALVANIC COIL, FROSTBITE FOUNDRY, HULLBREAKER, SALVO RACK, COMPOUND BREECH and TWIN MOULD each say
+  what they do in one line. SALVO RACK's turret shows its volley pace as its RATE. TWIN MOULD shows a SLUG row, and so
+  does MIMIC FORGE on FOUNDRY.
+- **TESLA ARC** shows its arc damage as a stat, and GATLING SPOOL's spin step is in its ⓘ levels view.
+- **FURNACE's hero card** shows its two abilities as two short lines.
+- **START:** runes that act at the start of a battle now begin with START: (RIVET HOARD, GRAVE PLATES, LOOSE THREAD,
+  TANGLE WIRE and ASH KINDLE).
+
 ## 0.8.9: tougher captains, cleaner shop cards
 
 No battle rule changes: the rules stay bb-0.8.7, so 0.8.7, 0.8.8 and 0.8.9 players meet each other's ghosts, and their
