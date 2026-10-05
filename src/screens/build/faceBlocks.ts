@@ -17,14 +17,20 @@ export const REMINDER_RANK = 3;
  *  later (3, 3.1, ...), so a short band keeps the first that fits and lets the others give way one at a time. */
 export const REMINDER_STEP = 0.1;
 
+/** Y1 (REQ-BFG-070; cap's ruling R-1 on STAR-D's design): the pieces whose star perk is a number on the face, so the
+ *  perk's name shows in the ⓘ LEVELS view only (levels.ts levelLines: "★2 SPARK JUMP"), never on the face line (the
+ *  mock's "★2 SPARK JUMP" after COIL's line ran past the 225 px band): GALVANIC COIL's SPARK JUMP, FROSTBITE FOUNDRY's
+ *  HOARFROST, MIMIC FORGE's TWIN SIGNET and TWIN MOULD's THIRD SPRUE. */
+export const PERK_INFO_ONLY: readonly string[] = ["coil", "frostbite", "mimic", "twinmould"];
+
 /** The face's blocks at `stars`, or null for a piece that keeps today's text. A star's perk name follows the last rule
- *  line (or the stat row, on a face without one), as today's perk follows the sentence it names. U2b: then the star's
- *  interim perk clause (F6, kept; it names its perk itself) and the interim caveats (F5, kept, 3x5). U2e step 4: no
- *  reminders (they were F4's optional blocks). */
+ *  line (or the stat row, on a face without one), as today's perk follows the sentence it names (not for PERK_INFO_ONLY's
+ *  pieces). U2b: then the star's interim perk clause (F6, kept; it names its perk itself) and the interim caveats (F5,
+ *  kept, 3x5). U2e step 4: no reminders (they were F4's optional blocks). */
 export function faceBlocks(def: string, stars: number, o: TextOpts): Block[] | null {
   const fl = faceLines(def, stars, o);
   if (!fl) return null;
-  const perkName = stars > 1 ? livePerk(def, stars) : undefined;
+  const perkName = stars > 1 && !PERK_INFO_ONLY.includes(def) ? livePerk(def, stars) : undefined;
   const perk = perkName && !fl.clause ? `★${stars} ${perkName}` : undefined;
   const out: Block[] = [];
   if (fl.stats) out.push({ role: "ability", text: fl.stats, keep: true });
