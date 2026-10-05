@@ -66,10 +66,15 @@ const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
  *  regenerated the stand-in pool they are drawn from (44ee031, the gold upgrades), so they are pinned by their own
  *  digest now (W/output-belts/ghosts). A change to the stand-in pool or to this generator moves it. PACKS (bb-0.8.6): the
  *  stand-in pool regenerated with the packs (23bb3d2). */
-const STANDIN_PART_SHA256 = "4de26dafb7ca9c3c2b9017ff1774ecc1a3a9973c09025755b99ed8f18f074a3f"; // FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
+// REDO-X step 2 (4.1-4.2): the stand-in pool regenerated once more on FIX-ABE's offers (09ce97c; the pools changed, the
+// regeneration) (was 4de26dafb7ca9c3c2b9017ff1774ecc1a3a9973c09025755b99ed8f18f074a3f at FLIP-X2)
+const STANDIN_PART_SHA256 = "a7ba169fcadaed6a6ac9787ac14856c1970f6fc2eace1d5c0021306e7a8f2b13"; // FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
 /** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it.
  *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). PACKS (bb-0.8.6): it buys BELT and ARMOR PACKs. */
-const RACE_PART_SHA256 = "f60d1921aecdd0023a5284add12e331ed86bd10b2b93118f5af34be5a3eb8ac3"; // FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
+// REDO-X (cap's ruling on FIX-ABE, REVIEW-FIXABE: rc.seedpool :98 re-pinned after the regeneration): the race ghosts are
+// the par player's dusk decks, which moved with the offers (74e14a1) (was
+// f60d1921aecdd0023a5284add12e331ed86bd10b2b93118f5af34be5a3eb8ac3 at FLIP-X2)
+const RACE_PART_SHA256 = "a232005b6300c4c6c0e661ebea350d0de9bd660ab34b049ff32864ae4b118eee"; // FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
 
 describe("the bb-0.9.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, v3 snapshots holding their runes)", () => {
   it("holds every playable hero on every day 1-10, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 120 in all", () => {

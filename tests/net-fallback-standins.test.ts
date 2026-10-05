@@ -63,7 +63,10 @@ describe("fallback stand-ins", () => {
   });
 
   it("offlineGhost spends the full purse from day 1 (8 of 8 gold)", () => {
-    for (const hero of ["furnace", "weaver"] as const) expect(buildCost(offlineGhost(hero, 1, 3).snapshot.build).total).toBe(8);
+    // REDO-X step 2 (4.1; the pools changed, the regeneration): WEAVER's seed-3 offline ghost is now a FURNACE day-1 pick
+    // holding TAR BARREL (+8 belt), so the deck is valued as bought (boughtCost: the rune's BELT is not crates), as this
+    // file's other checks since FLIP-X2: 8 of 8 gold (was buildCost(...).total: 12 with the rune's belt charged as crates)
+    for (const hero of ["furnace", "weaver"] as const) expect(boughtCost(offlineGhost(hero, 1, 3).snapshot.build)).toBe(8);
   });
 
   it("the two sample-pool variants differ for every hero and day", () => {
