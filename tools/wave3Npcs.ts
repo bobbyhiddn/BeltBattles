@@ -116,7 +116,12 @@ export const NPCS: readonly NpcPlan[] = [
       // cap never holds it, and at good luck it can't fit on days 9-10 beside the SHIELD WALL and the PLATE BREAKER (GOOD
       // epic+ cap 2), so it left his plan and his synergy list
       B("plateroller", 1), B("pincer", 1), B("braceframe", 2), B("steambreech", 3), B("temper", 3), B("shieldwall", null, 4),
-      B("plateroller", 4), B("spallcatcher", 5), B("platebreaker", 7), B("braceframe", 7), B("quench", 7),
+      B("plateroller", 4), B("spallcatcher", 5), B("braceframe", 7), B("quench", 7),
+      // BAL-2 I (cap's rulings 97e639e5813acb37, e778dc5d38efd5fd): the PLATE BREAKER on day 8 at both lucks (was 7; the
+      // checker's good epic+ cap, the lower of FURNACE's and WEAVER's, fell 2 -> 1 on day 7, where his good-luck SHIELD WALL
+      // already holds it; both epics are synergy parts, and good luck's day may not come after ordinary luck's); right
+      // after the day-7 quench, the last entry with an earlier day; in day order
+      B("platebreaker", 8),
       B("platebreaker", null, 9), B("shieldwall", null, 10),
     ],
   },
