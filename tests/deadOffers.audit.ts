@@ -33,7 +33,9 @@ export function auditHeroes(heroes: HeroId[]): void {
         }
         // every placement legal (a bought part on a full purse may go over the day's gold: the audit doesn't buy it)
         expect(rows.length).toBe(10 * buyableModules().length);
-      });
+      }, 180_000); // NUM-3: an inert pair tries every sensible placement before it gives up, and SIFTER is inert on every hero's
+      // days 1-10 now (num3Open), so a hero's audit takes 2-3.5 times as long: under the full suite's 8 workers 19-53 s on num3
+      // (susa: 8-15 s), past vitest's 30 s default (weaver 52.7 s, siphon 44.5 s, furnace 30.3 s in NUM-3's first gate)
     }
   });
 }
