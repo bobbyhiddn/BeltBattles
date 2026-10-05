@@ -167,6 +167,14 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   REGEN: "REGEN: GIVES BACK HULL EACH SEC.",
 };
 
+/** Y-FURN (REQ-BFG-070; release Y): a rune's own reminder, where its keyword's would say the opposite of its rule (runeText.ts
+ *  runeReminder reads it first). SHATTER SHOT's hits shatter a SHIELD: SHIELD's reminder says a SHIELD blocks the hit, so
+ *  its card says the SHIELD breaks and the hit still lands (battle.ts impact: shieldShatter), with no new keyword (no
+ *  PIERCE: it would serve one rune). Number-free, its keyword's word first, one line of 3x5 on the card. */
+export const RUNE_NOTE: Readonly<Record<string, string>> = {
+  shatter_shot: "SHIELD: IT BREAKS; THE HIT STILL LANDS.",
+};
+
 /** Every form (word and aliases) with its row, longest first (so a two-word form wins over its first word). */
 const FORMS: readonly [string, GlossaryRow][] = GLOSSARY
   .flatMap((r): [string, GlossaryRow][] => [r.word, ...r.aliases].map((w) => [w, r]))

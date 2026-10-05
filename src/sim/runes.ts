@@ -275,9 +275,12 @@ export const SUSTAIN_RUNE_LIST: readonly RuneDef[] = [
   // Rule runes: no amount to move. M5 (FURNACE): SEARING +0.1 (par), +0.4 (typ2), +0.8 against the typ2 decks that heal;
   // SHATTER SHOT +0.0 (par: no SHIELD), +1.3 (typ2), +5.3 against the typ2 decks that hold SHIELD (BASTION's WARD BELL)
   // FURN-Y (release Y; Y-FURN ports it, REVIEW-FURNY rows 3-4): each counter keeps its rule and gains a baseline (one new
-  // kind each); the amounts are FURN-Y's bench (its REPORT.md section 4). Both stay dormant (DORMANT_RUNES) until Y7b
+  // kind each); the amounts are FURN-Y's bench (its REPORT.md section 4). Both stay dormant (DORMANT_RUNES) until Y7b.
+  // Y-FURN text (REVIEW-STARD's amendment): two lines each, one trigger and one effect a line (a card starts each sentence
+  // on its own line: runeBar.ts runeTextLines). SHATTER SHOT names no new keyword (PIERCE would serve one rune); its
+  // card's reminder (glossary.ts RUNE_NOTE) says the SHIELD breaks and the hit still lands
   r("searing", "SEARING", "rare", "furnace", "searBurn", 6, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}."),
-  r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", 15,"YOUR SHOTS: +{N} {DMG}. A {*SHIELD} THEY BREAK STILL TAKES THE HIT."),
+  r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", 15, "YOUR SHOTS: +{N} {DMG}. YOUR HITS SHATTER {*SHIELD}."),
 ];
 
 /** SUS-D: every rune of this rules version, the sustain runes last (RUNES' order). */

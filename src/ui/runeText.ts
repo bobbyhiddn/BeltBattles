@@ -11,6 +11,7 @@ import type { Rarity } from "../sim/content";
 import type { RuneDef, RuneTheme, RuneUnit } from "../sim/runes";
 import { NUMBER_COLOUR, type Span } from "./richText";
 import { RUNE_REMINDER, glossaryEntry } from "./glossary"; // U2c: the keyword colours and reminders, one source
+import { RUNE_NOTE } from "./glossary"; // Y-FURN: a rune's own reminder (SHATTER SHOT's)
 
 /** A whole number as the game writes it. No rounding here: a rune whose amount is not whole shows it, and
  *  tests/runes.ui.test.ts (every number in every rune text is whole) catches it. */
@@ -145,16 +146,19 @@ export function runeKeyword(def: RuneDef): RuneKeyword | null {
 const REMINDER: Partial<Record<RuneKeyword, string>> = RUNE_REMINDER;
 export const PLAIN_REMINDER = "KEPT ALL RUN.";
 
-/** One short reminder line for an opened card: its keyword's (PLATE, PAIR, HEAT, FRAY, RATE), else PLAIN_REMINDER. */
+/** One short reminder line for an opened card: its keyword's (PLATE, PAIR, HEAT, FRAY, RATE), else PLAIN_REMINDER.
+ *  Y-FURN: a rune's own reminder (glossary.ts RUNE_NOTE: SHATTER SHOT's) comes first. */
 export function runeReminder(def: RuneDef): string {
+  if (RUNE_NOTE[def.id]) return RUNE_NOTE[def.id];
   for (const k of runeKeywords(def)) if (REMINDER[k]) return REMINDER[k]!;
   return PLAIN_REMINDER;
 }
 
-/** The reminder as spans: its keyword word in the keyword's colour, the rest in `base` (dim). */
+/** The reminder as spans: its keyword word in the keyword's colour, the rest in `base` (dim). Y-FURN: a rune's own
+ *  reminder colours the keyword it leads with, as a keyword's reminder does. */
 export function runeReminderSpans(def: RuneDef, base: string = C.slate4): Span[] {
-  const s = runeReminder(def);
-  const k = runeKeywords(def).find((q) => REMINDER[q] === s);
+  const s = runeReminder(def), note = RUNE_NOTE[def.id];
+  const k = runeKeywords(def).find((q) => (note ? s.startsWith(`${KEYWORD_WORD[q]}: `) : REMINDER[q] === s));
   if (!k || !s.startsWith(KEYWORD_WORD[k])) return [{ t: s, c: base }];
   return [{ t: KEYWORD_WORD[k], c: RUNE_KEYWORD_COLOUR[k] }, { t: s.slice(KEYWORD_WORD[k].length), c: base }];
 }
