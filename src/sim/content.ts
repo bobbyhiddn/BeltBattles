@@ -156,8 +156,12 @@ export const GUARD_SLOW = 1;
 export const GUARD_FREEZE = 2;
 export const GUARD_SKIRT = 4;
 
-/** 0.6.1p: what stalls a machine (MANTLET immunities). Only "shock" exists in wave 1; wave 2 adds the rest. */
+/** 0.6.1p: what stalls a machine (MANTLET immunities). Only "shock" exists in wave 1; wave 2 adds the rest.
+ *  NUM-3 (R1's STUN fold, REQ-BFG-046): a cause names the SOURCE; every one but "rip" and "sap" is a STUN now (Battle.disrupt):
+ *  "freeze" is a FROSTBITE round, "drag" a DRAG CHAIN round, "sabot" a SABOT's STUN on a part that isn't a rig. */
 export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabot" | "rip" | "limpet" | "sap";
+/** NUM-3 (R1's STUN fold): every source of a STUN. MANTLET is immune to all of them from ★1 (R1: "IMMUNE TO STUN"). */
+export const STUN_CAUSES: readonly HarassCause[] = ["shock", "static", "arc", "drag", "freeze", "sabot", "limpet"];
 
 export interface FactorySpec {
   ammo: AmmoKind;
@@ -179,8 +183,9 @@ export interface FactorySpec {
   trigger?: "harass";
   scrapFlat?: number;
   bigHaul?: boolean;
-  round?: { kind: "sabot"; shrapnel?: boolean } | { kind: "frost"; seconds: number; spread: number } |
-    { kind: "drag"; mul: number; seconds: number } | { kind: "limpet"; delay: number; blast: number; stall?: number };
+  // NUM-3 (R1's STUN fold): a sabot, frost or chain round STUNs the part it hits for `seconds` (Battle.roundImpact)
+  round?: { kind: "sabot"; seconds: number; shrapnel?: boolean } | { kind: "frost"; seconds: number; spread: number } |
+    { kind: "drag"; seconds: number } | { kind: "limpet"; delay: number; blast: number; stall?: number };
   rate?: number; // MIMIC (NUM-2): a whole rate % on the hero signature factory's speed (was intervalMul, the interval x)
   // 0.8.0 P1, wave 3 (absent on every older factory):
   twin?: boolean; // TWIN MOULD: each cast pours one slug onto up to `pour` belts with room on the same tick (pourAll)
@@ -441,22 +446,26 @@ export const ITEMS: Record<string, ItemDef> = {
   sabot: {
     id: "sabot", name: "SABOT FOUNDRY", kind: "factory", rarity: "epic", price: 9, size: 2, merchant: "quartermaster",
     desc: ["TELEGRAPHED ROUNDS", "WRECK RIGS OR STALL", "OTHER MACHINERY."], tags: ["HARASS", "BURST"],
-    factory: { ammo: "sabot", speed: 5, round: { kind: "sabot" } },
-    levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 16, round: { kind: "sabot", shrapnel: true } }, perk: "SHRAPNEL" } },
+    // NUM-3 (R1's STUN fold): the stalls 5 / 4 / 3 s (belt tile / factory / turret) became one STUN 4 s; the bare-hull +60 is gone
+    factory: { ammo: "sabot", speed: 5, round: { kind: "sabot", seconds: 4 } },
+    levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 16, round: { kind: "sabot", seconds: 4, shrapnel: true } }, perk: "SHRAPNEL" } },
   },
   frostbite: {
     id: "frostbite", name: "FROSTBITE FOUNDRY", kind: "factory", rarity: "rare", price: 7, size: 2, merchant: "arcane",
-    desc: ["FROST ROUNDS FREEZE", "MACHINES AND PAUSE", "THEIR TIMERS."], tags: ["HARASS"],
+    desc: ["FROST ROUNDS STUN", "THE ENEMY PART", "THEY HIT."], tags: ["HARASS"], // NUM-3 (R1's STUN fold): FREEZE became STUN
     factory: { ammo: "frost", speed: 11, round: { kind: "frost", seconds: 2.5, spread: 0 } },
     levels: { 2: { factory: { round: { kind: "frost", seconds: 2.75, spread: 1 } }, perk: "HOARFROST" },
       3: { factory: { round: { kind: "frost", seconds: 3, spread: 2 } }, perk: "HOARFROST" } },
   },
   dragchain: {
     id: "dragchain", name: "DRAG CHAIN FOUNDRY", kind: "factory", rarity: "common", price: 5, size: 2, merchant: "scrapper",
-    desc: ["CHAIN ROUNDS SLOW", "A BELT SEGMENT AND", "SNAG ITS PAYLOADS."], tags: ["HARASS", "TEMPO"],
-    factory: { ammo: "drag", speed: 17, round: { kind: "drag", mul: 0.6, seconds: 3 } },
-    levels: { 2: { factory: { round: { kind: "drag", mul: 0.4, seconds: 4.4 } } },
-      3: { factory: { round: { kind: "drag", mul: 0.3, seconds: 6 } } } },
+    desc: ["CHAIN ROUNDS STUN", "THE ENEMY PART", "THEY HIT."], tags: ["HARASS", "TEMPO"],
+    // NUM-3 (R1's STUN fold): the belt slow (x0.6 / x0.4 / x0.3 for 3 / 4.4 / 6 s over a rig-to-rig stretch), SNAG and the
+    // factory +0.8 s / turret +0.5 s delays became one STUN on the part it hits: R1's 1 / 1.5, and ★3 2 (today's slow
+    // grows x6 / 4.4 from ★2 to ★3: 1.5 x 1.36 = 2.05)
+    factory: { ammo: "drag", speed: 17, round: { kind: "drag", seconds: 1 } },
+    levels: { 2: { factory: { round: { kind: "drag", seconds: 1.5 } } },
+      3: { factory: { round: { kind: "drag", seconds: 2 } } } },
   },
   mimic: {
     id: "mimic", name: "MIMIC FORGE", kind: "factory", rarity: "legendary", price: 11, size: 2, merchant: "arcane",
@@ -682,13 +691,16 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   mantlet: {
     id: "mantlet", name: "MANTLET", kind: "mod", rarity: "common", price: 4, size: 1, merchant: "ironmonger",
-    desc: ["ARMORED TURRET:", "SHOCK AND CHAIN SLOWS", "CAN'T STALL IT."], tags: ["HARASS", "PLATE"],
-    mod: { immune: ["shock", "static", "arc", "drag"] },
+    desc: ["ARMORED TURRET:", "NO STUN CAN", "STOP IT."], tags: ["HARASS", "PLATE"],
+    // NUM-3 (R1's STUN fold): immune to every STUN source from ★1 (was shock, static, arc and chain; ★2 added frost and
+    // sabot; LIMPET's stall was in no star's list)
+    mod: { immune: [...STUN_CAUSES] },
     levels: {
       // 0.6.2 FB-B (oracle 16085a6430e4cc6a): FULL PLATE also shields the belt tile feeding its turret (intakeGuard 1),
       // and the rigs working it (DESIGN §11 P6), against the same stalls. Freeze and sabot rounds almost never strike
       // the turret itself, so FULL PLATE alone changed no star-bench fight (the MANTLET ★2 NO EFFECT rows).
-      2: { mod: { immune: ["shock", "static", "arc", "drag", "freeze", "sabot"], intakeGuard: 1 }, perk: "FULL PLATE" },
+      // NUM-3: the perk is FULL GUARD (the sustain design's rename; was FULL PLATE); ★2 and ★3 keep only the tile shield
+      2: { mod: { intakeGuard: 1 }, perk: "FULL GUARD" },
       3: { mod: { intakeGuard: 3 }, perk: "BULWARK SKIRT" },
     },
   },
