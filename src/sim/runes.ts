@@ -369,22 +369,31 @@ export function runeOffer(seed: number, day: number, hero: HeroId, held: readonl
   return { day, tier, drawn, ids: cards.map((c) => c.id) };
 }
 
-// ---- the check (both sides: src/game/ghostSnapshot.ts isSnapshot and src/net/validate.ts validateBuild) --------------
+// ---- the check (src/net/validate.ts validateBuild, both modes; src/game/ghostSnapshot.ts isSnapshot) ------------------
+
+/** FLIP-X2 (REQ-BFG-058; cap's ruling 5d6d83ef57d1494c): how many runes a deck must hold on `day`. "exact": one a dawn,
+ *  `runes.length === day`, an absent field counting as 0, so a client can't skip a pick by leaving the field out; only
+ *  uploads (validateUpload's player mode, on the server and the client). "atMost": at most `day`, an absent field allowed:
+ *  the strict content checks (stand-ins, the bundled pools, captains, generators, hand-built decks) and the device's local
+ *  ghost pool (isSnapshot, where an exact rule would delete every pre-rune ghost). */
+export type RuneCount = "exact" | "atMost";
 
 /**
- * Why a build's runes are illegal at `day` for `hero`, or null. Shared by the client's snapshot check and the server's
- * validateBuild (R1b-2 4.2), so both refuse exactly the same runes:
- * - at most `day` runes. Not `=== day` yet: bots, stand-ins and captains hold no runes until RUNES-2 regenerates the
- *   pool, and a run saved before runes takes none. RUNES-2 tightens it to one rune per dawn exactly.
+ * Why a build's runes are illegal at `day` for `hero`, or null. One rule for the client's checks and the server's
+ * validateBuild (R1b-2 4.2); `count` says how many it takes (RuneCount):
+ * - exact for uploads (validateUpload, on both client and server): one rune a dawn, `day` runes, none missing (FLIP-X2;
+ *   was "at most `day`" everywhere until the pools were regenerated with runes);
+ * - at most `day` for strict content checks and the local pool;
  * - each entry is exactly { id } (GROW-1's counter `n` is not in this rules version yet), each id is in the catalogue,
  *   and no id appears twice;
  * - when `seed` is known (the uploader's snapshot; served ghosts carry none, FIX-6): runes[i] was in
  *   runeOffer(seed, i + 1, hero, the runes before it).
  */
-export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number): string | null {
-  if (runes === undefined) return null;
+export function runeProblem(runes: unknown, day: number, hero: HeroId, seed?: number, count: RuneCount = "atMost"): string | null {
+  if (runes === undefined) return count === "exact" ? `runes: 0 held on day ${day}, one a dawn (${day})` : null;
   if (!Array.isArray(runes)) return "runes: expected a list";
   if (runes.length > day) return `runes: ${runes.length} held on day ${day}, at most one a dawn`;
+  if (count === "exact" && runes.length !== day) return `runes: ${runes.length} held on day ${day}, one a dawn (${day})`;
   const held: string[] = [];
   for (let i = 0; i < runes.length; i++) {
     const q = runes[i] as Record<string, unknown> | null;
@@ -498,8 +507,9 @@ import { AMMO, ITEMS, type ItemLevel } from "./content";
 import { turretList, type Build } from "./deck";
 
 /** THE switch for the bots' runes (RUNES-2a decision 5). Every bot call site reads `opts.botRunes ?? BOT_RUNES`, so a
- *  test turns it on without editing it. Off: no bot takes a rune, and nothing a bot plays moves. */
-export const BOT_RUNES: boolean = false;
+ *  test turns it on without editing it. Off: no bot takes a rune, and nothing a bot plays moves. FLIP-X2 (REQ-BFG-058,
+ *  release X): ON, together with content.ts SUSTAIN_LIVE, before the one regeneration. */
+export const BOT_RUNES: boolean = true;
 
 type Spec = Pick<ItemLevel, "gate" | "factory" | "mod" | "core">;
 

@@ -26,8 +26,11 @@ import { MAX_RUNES, MAX_SEED, SNAPSHOT_V3, V3_LIVE, V3_PIECE_FIELD, V3_RUNE_COUN
 export const SNAPSHOT_VERSION = 2;
 // RUNES-1 (REQ-BFG-058, FIX-3): snapshot v3 (src/net/snapshot.ts: the format, V3_LIVE). This check takes exactly what
 // the strict decoder takes: v 1..3; the v3 fields only in v3, only while live (`seed` 1..MAX_SEED and the build's
-// `runes`), every other v3 field refused when present; then runes.ts runeProblem (the server's own rune rule), with the
-// offer rule only when `seed` is present (served ghosts carry none, FIX-6). day.ts ghostOf writes v3 (it carries the seed).
+// `runes`), every other v3 field refused when present; then runes.ts runeProblem, with the offer rule only when `seed` is
+// present (served ghosts carry none, FIX-6). day.ts ghostOf writes v3 (it carries the seed). FLIP-X2 (cap's ruling
+// 5d6d83ef57d1494c): this is the device's local pool's check (ghosts.ts loadPool), not an upload gate, so it takes AT
+// MOST `day` runes, an absent field allowed: an exact rule here would delete every pre-rune ghost at the first dusk after
+// the update (battle.ts saveGhost writes the filtered pool back). Uploads are exact: validateUpload (online.ts, the server).
 export { SNAPSHOT_V3 };
 const MAX_STARS = 3; // = stars.ts FUSE_MAX
 const MAX_ROT = 3; // 0.6.2: a rig's rotation, 0..3 quarter turns
@@ -191,7 +194,9 @@ export function isSnapshot(v: unknown): v is GhostSnapshot {
     // RUNES-2a (RUNES-1 Q4): the rules gate, as src/net/snapshot.ts checkSnapshot asks it (its rows: turrets and joins
     // need bb-0.6.2, runes bb-0.8.7; and the heroes each rules version takes), so both checks stay equal
     && rulesGateProblem(q.rules, q.build) === null && heroGateProblem(q.rules, q.hero) === null
-    && runeProblem(q.build.runes, q.day, q.hero, q.seed) === null; // RUNES-1: the server's rune rule (validate.ts validateBuild)
+    // RUNES-1: the rune rule (validate.ts validateBuild's); FLIP-X2 (ruling 5d6d83ef57d1494c): at most `day` here (the
+    // local pool), exact only for uploads (validateUpload)
+    && runeProblem(q.build.runes, q.day, q.hero, q.seed, "atMost") === null;
 }
 
 /** Any string made safe for ID_PATTERN (invalid characters become "_", at most 64 long). */

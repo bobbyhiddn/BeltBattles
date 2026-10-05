@@ -361,7 +361,10 @@ export function deckCost(b: Build): DeckCost {
 export function standInBuild(id: RivalId, day: number): Build {
   // TUNE-C (REQ-BFG-033): a stand-in is assembled at ordinary luck, whatever its warlord slot
   const l = rivalLoadout(id, day, "ordinary");
-  return { ...l.build, hullBonus: PLATE_HULL * (l.plating + rampPlates(day)) };
+  // FLIP-X2 (REVIEW-BOTSX section 5): the fought deck holds the captain's runes, as rivalBuild does (captainRunesOn: the
+  // first `day` ids of CAPTAIN_RUNES[id], their HULL and BELT on the build). What a captain is said to hold is what he
+  // fights with; a value or cap check on this deck values it as bought (standins.ts boughtCost: the runes' grants out)
+  return captainRunesOn({ ...l.build, hullBonus: PLATE_HULL * (l.plating + rampPlates(day)) }, CAPTAIN_RUNES[id], day);
 }
 
 /**

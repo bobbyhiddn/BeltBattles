@@ -11,6 +11,7 @@ import { HEROES, ITEMS, type HeroId, type Rarity } from "../content";
 import { installedTurrets, type Build } from "../deck";
 import { starsOf } from "../stars";
 import { buildCost } from "../../net/validate";
+import { runeGrants } from "../runes"; // FLIP-X2: a deck's value as bought (the runes' HULL and BELT out)
 import { PLAYER_DAYS, playerRun } from "./player";
 
 /** A captain deck's luck: ordinary (untagged plan upgrades), good (+ "good"), stars (every upgrade). */
@@ -57,8 +58,13 @@ export function luckParts(b: Build): { def: string; stars: number; bought: boole
 export function luckMeasures(b: Build): LuckMeasures {
   const parts = luckParts(b);
   const rank = (def: string) => RANK[ITEMS[def].rarity];
+  // FLIP-X2 (REVIEW-BOTSX section 5): the value of the deck as bought, the runes' HULL and BELT taken out (standins.ts
+  // boughtCost's rule), so a rune's hull never counts as plating value: for the par field the caps are measured on and
+  // for every captain deck checked against them alike. A rune-less deck is buildCost exactly as before.
+  const g = runeGrants(b.runes, 0);
+  const bought = g.hull || g.belt ? { ...b, hullBonus: b.hullBonus - g.hull, beltCap: b.beltCap - g.belt } : b;
   return {
-    value: buildCost(b).total,
+    value: buildCost(bought).total,
     star2: parts.filter((p) => p.stars === 2).length,
     star3: parts.filter((p) => p.stars >= 3).length,
     rare: parts.filter((p) => rank(p.def) >= RANK.rare).length,

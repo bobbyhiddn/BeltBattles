@@ -22,8 +22,10 @@ export const RULES_VERSION = "bb-0.8.7";
  * (tools/samplePool.ts; they travel under RULES_VERSION). bb-0.8.7 carries bb-0.8.6's: bots hold no runes until RUNES-2
  * regenerates the pools, and a rune-less build battles exactly as under bb-0.8.6 (tests/runes.parity.test.ts). A release
  * with no entry here runs on pools generated under its own rules.
+ * FLIP-X2 (RUNES-2a section 3 step 6): bb-0.8.7's entry is removed. Release X regenerates every pool under its own rules
+ * with the bots' runes, so no release carries an older pool forward now.
  */
-export const POOL_RULES_CARRIED: Readonly<Record<string, string>> = { "bb-0.8.7": "bb-0.8.6" };
+export const POOL_RULES_CARRIED: Readonly<Record<string, string>> = {};
 /** The rules this build's bot pools were generated under: RULES_VERSION's entry in POOL_RULES_CARRIED, else RULES_VERSION. */
 export const POOL_RULES: string = POOL_RULES_CARRIED[RULES_VERSION] ?? RULES_VERSION;
 
@@ -1087,8 +1089,9 @@ setWave3(WAVE3_LIVE);
  * the par player never see one, so every seeded shop, bot and pool stays identical; validate.ts refuses a deck that holds
  * one. RUNES-2b turns them on with this one line and the one pool regeneration. When it does, cap's answer 4 to SUSTAIN-1
  * holds: they are rare or better and first offered on day 3 (RUNES-2b's draw must hold them back until then).
+ * FLIP-X2 (REQ-BFG-069, release X): ON, together with runes.ts BOT_RUNES, before the one regeneration.
  */
-export const SUSTAIN_LIVE = false;
+export const SUSTAIN_LIVE: boolean = true;
 
 /**
  * BOTS-X (REQ-BFG-069; cap's answer 4 to SUSTAIN-1 and answer 4 in REVIEW-SUSD): THE FIRST SUSTAIN DAY. With the switch on,

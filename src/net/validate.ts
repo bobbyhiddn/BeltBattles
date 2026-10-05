@@ -182,9 +182,11 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     return { ok: false, errors: [`shape: ${e instanceof SnapshotError ? e.message : String(e)}`] };
   }
   if (!Number.isInteger(day) || day < 1 || day > MAX_DAY) return { ok: false, errors: [`shape: day ${day} is not in 1..${MAX_DAY}`] };
-  // RUNES-1 (REQ-BFG-058): the runes, by runes.ts runeProblem (the client's snapshot check runs the same rule): at most
-  // one a dawn, catalogue ids, no repeats and, with the uploader's seed, each in its dawn's re-derived offer
-  const rp = runeProblem(b.runes, day, b.hero, ctx.seed);
+  // RUNES-1 (REQ-BFG-058): the runes, by runes.ts runeProblem: catalogue ids, no repeats and, with the uploader's seed,
+  // each in its dawn's re-derived offer. FLIP-X2 (cap's ruling 5d6d83ef57d1494c): the count comes from the mode, so no
+  // upload caller can forget it: exact for uploads (validateUpload's player mode, client and server: one a dawn, `day`
+  // runes, an absent field counting as 0); at most `day` for strict content checks (and the client's local pool)
+  const rp = runeProblem(b.runes, day, b.hero, ctx.seed, mode === "player" ? "exact" : "atMost");
   if (rp) return { ok: false, errors: [`rune: ${rp}`] };
   // what the runes gave: HULL and BELT runes sit in hullBonus / beltCap (run.ts takeRune), so the supply and budget
   // blocks below read the bought hull and belt (`bought`); dawn-gold runes add their gold to the day's budget
