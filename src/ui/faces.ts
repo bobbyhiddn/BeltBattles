@@ -45,6 +45,7 @@ import { PLATE_CAP, PLATE_PER_SLUG } from "../sim/races/bastion";
 import { scaleCore } from "../sim/cores";
 import { effectAt, FUSE_MAX, fusible, outputsAt } from "../sim/stars";
 import { perkAt } from "../sim/stars"; // U2b F6: HOT SWAP's spark carries GALVANIC COIL's SPARK JUMP (content.ts hotswap)
+import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat (carryStats)
 import { gearSlotsOf } from "../sim/deck";
 
 /**
@@ -140,6 +141,10 @@ export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null
   const out: Stat[] = [];
   // Battle.stamp: a batch's slugs leave one by one (DOUBLE STAMP, SHOT TOWER)
   if (fs.batch && fs.batch > 1) out.push(["SLUG", fmtCount(fs.batch)]);
+  // Y1 (REQ-BFG-070; STAR-D row 6): where a MIMIC FORGE makes the hero's blanks (FOUNDRY), the slugs one cycle puts onto
+  // its belts are its own output, a stat: 1, and 2 at ★3 TWIN SIGNET (stars.ts pourAt; Battle.factoryDef keeps `pour`
+  // only for a blank-ammo hero). On every other hero it stamps one slug a cycle, in turn, as before: no row
+  if (h && h.ammo === "blank") out.push(["SLUG", fmtCount(Math.max(1, pourAt(def, stars, h.ammo)))]);
   // Battle.stamp: HOT SWAP's EMBER slugs carry its burn, its SPARK slugs a shock (DISRUPT_TIME, or the star's shockTime)
   const ember = fs.cycle?.find((p) => p.tint === "ember"), spark = fs.cycle?.find((p) => p.tint === "spark");
   if (ember?.burn) out.push(["BURN", fmtCount(ember.burn)]);
