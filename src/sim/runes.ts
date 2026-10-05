@@ -282,9 +282,11 @@ export const SUSTAIN_RUNE_LIST: readonly RuneDef[] = [
   // on its own line: runeBar.ts runeTextLines). SHATTER SHOT names no new keyword (PIERCE would serve one rune); its
   // card's reminder (glossary.ts RUNE_NOTE) says the SHIELD breaks and the hit still lands
   // BAL-2 (cap's REVIEW-BAL1, rows 2, 5 and 6): both are offered in 0.9.1 (DORMANT_RUNES empty). SEARING 6 -> 5 (BAL-1,
-  // every line on: +6.8 [5.0, 8.6], the rare band; 6 read +10.4); SHATTER SHOT stays 15 (+9.7 [6.9, 12.5], in band)
+  // every line on: +6.8 [5.0, 8.6], the rare band; 6 read +10.4).
+  // BAL-2 3a (REVIEW-BAL1 row 6; cap's ruling f894080daebfa8c0): SHATTER SHOT 15 -> 14. With the 0.9.1 hulls (FURNACE
+  // 2100), the four-together runevalue read 15 at +10.2 [7.0, 13.3], over the rare band; alone 15 +9.7, 14 +8.8, 13 +8.4
   r("searing", "SEARING", "rare", "furnace", "searBurn", 5, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}."),
-  r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", 15, "YOUR SHOTS: +{N} {DMG}. YOUR HITS SHATTER {*SHIELD}."),
+  r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", 14, "YOUR SHOTS: +{N} {DMG}. YOUR HITS SHATTER {*SHIELD}."),
 ];
 
 /** SUS-D: every rune of this rules version, the sustain runes last (RUNES' order). */
