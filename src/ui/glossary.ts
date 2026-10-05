@@ -12,8 +12,8 @@
 // - the words the kept texts still name (RULES and STUN-fold pieces, the notices): T2a's rows, in the style guide's form;
 //   one mechanic one word: SHOCK and STALL are STUN's (battle.ts disrupt: one timer), PLATING is PLATE's, FIRE RATE and
 //   WORKS FASTER are RATE's (a gun's or a factory's pace), MACHINE is PART's (C1: "MACHINE becomes enemy part");
-// - the rune keywords (runeText.ts RuneKeyword): BURN (battle.ts hull.burns: HOT SWAP's ticks and BURN_TIME), STALL (STUN's
-//   disrupt timer: STEADY IRON's stallCut shortens it), RIDE (rideOf: the ammo's own ride bonus, rideScale: only the
+// - the rune keywords (runeText.ts RuneKeyword): BURN (battle.ts hull.burns: HOT SWAP's ticks and BURN_TIME), STUN (the
+//   disrupt timer: STEADY IRON's stallCut shortens it; FLIP-X2 N4-d, was the STALL token), RIDE (rideOf: the ammo's own ride bonus, rideScale: only the
 //   CINDER SLUG has one, the KILN's HEAT), RATE, HULL, BELT, GOLD, DMG; each with a number-free reminder (RUNE_REMINDER)
 //   that says what its row says;
 // - the brass trigger labels (T1 2.3: HIT:, SHOT:, LOAD:, EVERY n SEC:) and TAP_NOTES: the one thing a piece's face dropped
@@ -160,7 +160,7 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   RATE: "RATE: HOW OFTEN A GUN FIRES OR A FACTORY WORKS.",
   BURN: "BURN: EACH ONE DEALS HULL DAMAGE EVERY SEC FOR A WHILE.",
   RIDE: "RIDE: THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE.", // U2d F4: its row's first sentence (was A CINDER SLUG'S OWN HEAT FOR EACH SEC IT RIDES.)
-  STALL: "STUN: A STUNNED PART STOPS FOR A WHILE.", // NUM-4 (REVIEW-NUM3 F2): the rune token STALL reads STUN
+  STUN: "STUN: A STUNNED PART STOPS FOR A WHILE.", // FLIP-X2 (N4-d): the rune token is STUN (was STALL, which read STUN)
   // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1's rune reminders; REGEN's says GIVES BACK, as its row does)
   SHIELD: "SHIELD: BLOCKS ONE HIT'S DAMAGE, THEN BREAKS.", // NUM-4 (REVIEW-SUSB F1; was "STOPS ONE WHOLE HIT")
   HEAL: "HEAL: GIVES BACK HULL, NEVER PAST FULL.",

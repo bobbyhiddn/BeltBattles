@@ -126,7 +126,10 @@ export function heroRules(hero: HeroId): HeroRules {
 }
 
 /** Prototypes without a useful cross-hero effect are excluded from every source of offers. */
-export const DORMANT_ITEMS: ReadonlySet<string> = new Set();
+// FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant. R1's STUN fold removed CHILL and SNAG, and no piece gives SAP, the one
+// mark left, so its ★1 and ★2 do nothing in play (the dead-offer audit found it inert on every hero, days 1-10). A new job
+// for it is a release-Y design idea. Its ITEMS entry stays (old decks and the captains' fixed plans may hold it).
+export const DORMANT_ITEMS: ReadonlySet<string> = new Set(["sifter"]);
 
 /** Pendulum sweet-spot shift (s) per turret module. It moves pendulum slugs only. */
 export const PEAK_SHIFT: Record<string, number> = { escapement: -1.2, longcase: 1.2 };

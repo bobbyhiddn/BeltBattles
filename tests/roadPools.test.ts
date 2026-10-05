@@ -64,7 +64,7 @@ const salvageOf = (run: Run) => gainOf(choicesFor(run)[0])!;
 describe("road-item pools read off the catalogue (ARSENAL.md §5.2)", () => {
   it("SALVAGE's pool is every buyable common gate: 0.6.1's TEMPER, WHETSTONE, GREASE WORKS and BRAKE SHOE", () => {
     expect(salvagePool()).toEqual(ids(buyable().filter((d) => d.kind === "gate" && d.rarity === "common")));
-    expect(salvagePool()).toContain("sifter");
+    expect(salvagePool()).not.toContain("sifter"); // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER dormant, no road offers it (was toContain)
     expect(salvagePool()).toContain("tollbooth");
   });
 

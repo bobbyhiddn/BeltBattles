@@ -102,7 +102,7 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     expect(keywordRow("STUN").colour).toBe(ICON_COLOUR[ICON.STUN]);
   });
 
-  it("the rune keywords have rows (BURN, RIDE and STALL too), and the rune cards' colours and reminders come from them", () => {
+  it("the rune keywords have rows (BURN, RIDE and STUN too), and the rune cards' colours and reminders come from them", () => {
     for (const k of Object.keys(KEYWORD_WORD) as RuneKeyword[]) {
       const row = glossaryEntry(KEYWORD_WORD[k]);
       expect(row, k).toBeDefined();
@@ -112,7 +112,7 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     const same: Record<string, string> = {
       PLATE: "BEFORE YOUR HULL", PAIR: "TWO LOADS REACH ONE TURRET AT ONCE", HEAT: "FOR EACH SEC IT RIDES", FRAY: "LATER HIT",
       // U2d F4: RIDE's row reworded (cap), its reminder its first sentence; was "CINDER SLUG'S OWN"
-      RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE", STALL: "STOPS FOR A WHILE",
+      RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE", STUN: "STOPS FOR A WHILE", // FLIP-X2 N4-d: STUN (was STALL)
       // SUS-B (REQ-BFG-069): the sustain keywords' rune reminders (SUSTAIN-1 4.1)
       // NUM-4 (REVIEW-SUSB F1): a SHIELD blocks one hit's DAMAGE (was "STOPS ONE WHOLE HIT")
       SHIELD: "BLOCKS ONE HIT'S DAMAGE", HEAL: "NEVER PAST FULL", REGEN: "EACH SEC",
@@ -122,9 +122,10 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     expect(Object.keys(RUNE_REMINDER).sort()).toEqual(Object.keys(same).sort());
     for (const [k, phrase] of Object.entries(same)) {
       const rem = RUNE_REMINDER[k];
-      // NUM-4 (REVIEW-NUM3 F2): its word first, the word the rune card draws (runeText KEYWORD_WORD): the STALL token reads
-      // STUN now, so its reminder leads with STUN (an EQUIVALENT check; every other keyword's word is its own name)
-      expect(rem.startsWith(`${KEYWORD_WORD[k as RuneKeyword]}: `), rem).toBe(true);
+      // FLIP-X2 (N4-d): its word first, the keyword's own name again (the STALL token is STUN now, so NUM-4's "the word the
+      // rune card draws" form, KEYWORD_WORD[k], is no longer needed: every rune keyword's word is its name)
+      expect(rem.startsWith(`${k}: `), rem).toBe(true);
+      expect(KEYWORD_WORD[k as RuneKeyword], k).toBe(k);
       expect(rem, k).not.toMatch(/\d/);
       expect(rem, k).toContain(phrase);
       expect(stripIcons(icons(glossaryEntry(k)!.def)).replace(/  +/g, " "), k).toContain(phrase);

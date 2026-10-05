@@ -259,7 +259,7 @@ export function keywordTargets(lines: readonly { line: PLine | "rule"; y: number
 }
 
 /** The keywords of the runes the run holds (runeText.ts runeKeywords), in pick order, each with its glossary row's
- *  definition: the KEYWORDS view lists them after the panel's own words (BURN, RIDE, STALL, ...). */
+ *  definition: the KEYWORDS view lists them after the panel's own words (BURN, RIDE, STUN, ...). */
 export function runeWords(run: Run): KwWord[] {
   const out: KwWord[] = [];
   for (const h of run.build.runes ?? []) {

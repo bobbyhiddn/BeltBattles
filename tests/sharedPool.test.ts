@@ -55,9 +55,14 @@ describe("REQ-BFG-021: one hero-blind salvage catalogue", () => {
     expect([...new Set(RARITIES.flatMap((rarity) => UPGRADE[rarity]))].sort()).toEqual(parts);
     for (const id of ["escapement", "longcase"]) expect(DORMANT_ITEMS.has(id)).toBe(false);
     expect(ids(itemsSoldBy("gunsmith"))).toEqual(expect.arrayContaining(["escapement", "longcase"]));
+    // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant but keeps its merchant (validate.ts refuses a part no merchant
+    // sells, and the captains' fixed plans and old decks hold one), so the check is that no merchant STOCKS a dormant
+    // part (was `ITEMS[id].merchant` undefined, true of 0.6.1f's ESCAPEMENT and LONGCASE)
+    expect([...DORMANT_ITEMS]).toEqual(["sifter"]);
     for (const id of DORMANT_ITEMS) {
       expect(all).not.toContain(id);
-      expect(ITEMS[id].merchant).toBeUndefined();
+      expect(stocked).not.toContain(id);
+      if (ITEMS[id].merchant) expect(ids(itemsSoldBy(ITEMS[id].merchant!))).not.toContain(id);
     }
   });
 

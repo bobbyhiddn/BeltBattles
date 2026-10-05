@@ -311,8 +311,9 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
     expect(KNOWN_PHONE_CUTS.size).toBe(0);
     expect(counts.cut).toBe(0);
     // the case counts (the REPORT quotes them): 396 rig cases as 0.6.2p's, then every other buyable module and supply;
-    // 0.8.0 I1 M2: 534 with wave 3's 8 rigs (was 396)
-    expect([counts.rig, counts.cases]).toEqual([534, PANELS.length]);
+    // 0.8.0 I1 M2: 534 with wave 3's 8 rigs (was 396). FLIP-X2 (REVIEW-NUM3 answer 2): 522, SIFTER dormant leaves the
+    // buyable rigs (its 12 rig cases)
+    expect([counts.rig, counts.cases]).toEqual([522, PANELS.length]);
     expect(counts.flavourWhole + counts.flavourAbsent).toBe(counts.cases);
     console.log(`T6 phone fit: ${JSON.stringify(counts)}`);
   });
@@ -408,9 +409,12 @@ describe("0.6.2t T4: the panels' layout", () => {
       }
     }
     // NUM-3 (R1's STUN fold): MANTLET has a face, so its ★2 FULL GUARD (was FULL PLATE) and ★3 BULWARK SKIRT draw as the face's
-    // perk clause (faceText F6); a faceless RULES rig's perks (SIFTER ★2 POLISH, ★3 FINE MESH) take their place here
+    // perk clause (faceText F6); a faceless RULES rig's perks (SIFTER ★2 POLISH, ★3 FINE MESH) take their place here.
+    // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant, so it is no buyable module and its panels leave this walk (was
+    // ["★2 POLISH", "★3 FINE MESH", "★3 BOTTOMLESS"])
     for (const band of ["desk", "phone"]) {
-      for (const perk of ["★2 POLISH", "★3 FINE MESH", "★3 BOTTOMLESS"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(true);
+      for (const perk of ["★3 BOTTOMLESS"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(true);
+      for (const perk of ["★2 POLISH", "★3 FINE MESH"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(false);
     }
     // an installed turret's panel (the hero's turret with one module, or a slot's turret with its gear)
     expect(drawn.has("desk drawn on turret") || drawn.has("desk drawn on installed"), "desk: a perk on a turret's panel").toBe(true);
@@ -826,7 +830,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // NUM-3 (R1's STUN fold): 64, measured on num3 with steps 1-3 (the 7 STUN-fold pieces' faces, step 2's whole seconds):
     // "cargo mantlet ★2" (a face now) fits its hint; MANTLET ★2 and ★3 on a turret's panel and ROTARY BREECH's and STEAM
     // BREECH's ★3 turret panels don't (all of the allowed kinds below)
-    expect([withHint, missing.length]).toEqual([1934, 64]);
+    // FLIP-X2 (REVIEW-NUM3 answer 2): 1913, SIFTER dormant leaves the buyable modules (its 21 desk panels, each with its
+    // hint); the 64 missing are unchanged
+    expect([withHint, missing.length]).toEqual([1913, 64]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 

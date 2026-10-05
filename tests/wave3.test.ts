@@ -25,11 +25,15 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     expect(c.modules).toBe(58);
     expect(c.turrets).toBe(13);
     expect(c.byKind).toEqual({ rig: 23, factory: 13, core: 13, mod: 9, turret: 13 });
-    expect(c.sameAsBuyable).toBe(true);
+    // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant (still in ITEMS, no longer stocked), so the count differs from
+    // buyableModules() by exactly the dormant set (was sameAsBuyable true)
+    expect(c.sameAsBuyable).toBe(false);
+    expect(withCatalogue("today", () => counted().filter((id) => !buyableModules().some((d) => d.id === id)))).toEqual([...DORMANT_ITEMS]);
     expect(c.supplies.sort()).toEqual(["beltcrate", "plating"]);
     expect(c.signatures.sort()).toEqual(["clockworks", "crucible", "kiln", "loom", "sump", "wardworks"]);
     const live = catalogueCount();
-    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([86, 73, 13, true]);
+    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([86, 73, 13, false]); // FLIP-X2: SIFTER dormant (was true)
+    expect(buyableModules().length).toBe(85); // FLIP-X2: 86 counted less the dormant SIFTER
     expect(live.byKind).toEqual({ rig: 31, factory: 15, core: 15, mod: 12, turret: 13 });
   });
 
@@ -37,7 +41,7 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     const before = JSON.stringify(ITEMS);
     install("p100");
     expect(counted().length).toBe(100);
-    expect(buyableModules().length).toBe(100);
+    expect(buyableModules().length).toBe(99); // FLIP-X2: the dormant SIFTER is counted, not stocked (was 100)
     expect(() => install("wave3")).toThrow();
     uninstall();
     expect(JSON.stringify(ITEMS)).toBe(before);
@@ -127,7 +131,7 @@ describe("wave3: the per-run draw (REQ-BFG-022 part 2)", () => {
         expect(wares(s)).toEqual(w);
         for (const id of w.keys()) seen.add(id);
       }
-      expect(seen.size).toBe(counted().length);
+      expect(seen.size).toBe(counted().filter((id) => !DORMANT_ITEMS.has(id)).length); // FLIP-X2: every module but the dormant SIFTER
     });
     // the run seed decides, never the hero: each hero's par run seed draws by that seed alone
     for (const h of HEROES) expect(wares(runSeed(h, 3))).toEqual(wares(runSeed(h, 3)));
@@ -164,9 +168,10 @@ describe("wave3: the per-run draw (REQ-BFG-022 part 2)", () => {
     expect(Object.prototype.hasOwnProperty.call(DORMANT_ITEMS, "has")).toBe(false);
   });
 
-  it("today's rule as a ware map: all 71, the ARCANE DEALER from day 3, legendaries from day 4 (two steps)", () => {
+  it("today's rule as a ware map: all 70, the ARCANE DEALER from day 3, legendaries from day 4 (two steps)", () => {
     const p = withCatalogue("today", () => poolOf(todayWares())); // 0.8.0 I1 M2: v070-rc's catalogue, wave 3 off
-    expect(p).toEqual({ active: 71, day1: 62, steps: [3, 4] });
+    // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER dormant, a day-1 common: 71 -> 70 active, 62 -> 61 on day 1
+    expect(p).toEqual({ active: 70, day1: 61, steps: [3, 4] });
   });
 });
 

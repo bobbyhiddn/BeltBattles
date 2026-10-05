@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS, buyableModules, classFactor } from "../src/sim/content"; // U2c (U2b's faces): classFactor
+import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant keeps its flavour row
 import { effectAt } from "../src/sim/stars";
 import { startingTurrets } from "../src/sim/deck"; // U2c (U2b's faces): the WEAVER's class factor
 import { faceLines } from "../src/ui/faces"; // U2c (U2b's faces)
@@ -37,12 +38,15 @@ const WIDTHS: [number, "5" | "3"][] = [[102, "5"], [109, "5"], [116, "5"], [102,
 describe("0.6.2t2 F1: the kept-flavour table", () => {
   it("has a row for every module and supply the catalogue sells (each has ability text), and for nothing else", () => {
     expect(SOLD.filter((d) => !hasAbilityText(d.id)).map((d) => d.id)).toEqual([]);
-    expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual(SOLD.map((d) => d.id).sort());
+    // FLIP-X2 (REVIEW-NUM3 answer 2): a dormant piece (SIFTER) is no longer sold but keeps its row: the captains' fixed plans
+    // and old decks still hold one, and its panel must still draw no desc (flavour() falls back to the desc without a row)
+    expect(Object.keys(KEPT_FLAVOUR).sort()).toEqual([...SOLD.map((d) => d.id), ...DORMANT_ITEMS].sort());
     // 0.6.2rel2 (the 0.6.2 candidate): 23 rigs, 13 factories, 13 cores, 9 gear, 13 turrets and 2 supplies
     // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3 is live: +8 rigs, +2 factories, +2 cores, +3 gear
+    // FLIP-X2: SIFTER dormant, 31 -> 30 rigs sold
     const byKind: Record<string, number> = {};
     for (const d of SOLD) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
-    expect(byKind).toEqual({ gate: 31, factory: 15, core: 15, mod: 12, turret: 13, supply: 2 });
+    expect(byKind).toEqual({ gate: 30, factory: 15, core: 15, mod: 12, turret: 13, supply: 2 });
   });
 
   it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
@@ -75,8 +79,9 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     }
     // before and after (the REPORT): 881b38f showed 243 flavour sentences, some flavour at all 176 module-stars; 0.6.2rel2
     // adds the 13 turrets' 39 module-stars, 6 of them with flavour (RAMPART CANNON and HAIL GUN). 0.8.0 I1 M2: wave 3's
-    // 15 modules add 45 module-stars, none with flavour (was 215)
-    expect(counts).toEqual({ moduleStars: 260, withFlavour: 19, sentences: 19 });
+    // 15 modules add 45 module-stars, none with flavour (was 215). FLIP-X2: SIFTER dormant, its 3 module-stars (no
+    // flavour) leave the sold list: 260 -> 257
+    expect(counts).toEqual({ moduleStars: 257, withFlavour: 19, sentences: 19 });
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {

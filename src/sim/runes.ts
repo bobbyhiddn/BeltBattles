@@ -197,7 +197,7 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // adds SHIELD). SUS-D: its SHIELD line is here now (SUS-B drew it from runeText.ts RUNE_TEXT; was "THE FOE'S FIRST {N}
   // HITS: NO {DMG}.", the same rule)
   r("ward_stone", "WARD STONE", "rare", "armor", "startShield", 3, "START: +{N} {*SHIELD}."),
-  r("steady_iron", "STEADY IRON", "rare", "factories", "stallCut", 100, "{*STALL}S ON YOUR MACHINES: -{N}."), // M5: 50% +4.3, 93% +6.6
+  r("steady_iron", "STEADY IRON", "rare", "factories", "stallCut", 100, "{*STUN}S ON YOUR MACHINES: -{N}."), // M5: 50% +4.3, 93% +6.6; FLIP-X2 (N4-d): the token is STUN (was {*STALL}, which drew STUN)
   // M5: an epic at -1 measured +8.8 and -2 +17.3: no whole amount lands in the epic band, +8.8 is a rare's
   r("iron_hide", "IRON HIDE", "rare", "armor", "hitCut", 10, "HITS ON YOU: -{N} {DMG}."),
   // ---- epic (R1b 1.3: an epic changes a rule or scales)

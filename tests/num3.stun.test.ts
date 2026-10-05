@@ -204,7 +204,8 @@ describe("NUM-3 step 2: whole-second durations", () => {
     expect(at((e) => e.gate!.staticTime, "staticbrush")).toEqual([1, 2, 3]);
     expect(at((e) => e.core!.stall, "tesla")).toEqual([1, 1, 1]);
     expect(at((e) => (e.factory!.round as { seconds: number }).seconds, "frostbite")).toEqual([2, 3, 3]);
-    expect(at((e) => (e.factory!.round as { seconds: number }).seconds, "dragchain")).toEqual([1, 2, 2]);
+    // FLIP-X2 (REVIEW-NUM3 F1): ★3 STUNs 3 s (was [1, 2, 2]: ★3 the same as ★2)
+    expect(at((e) => (e.factory!.round as { seconds: number }).seconds, "dragchain")).toEqual([1, 2, 3]);
     expect(at((e) => (e.factory!.round as { seconds: number }).seconds, "sabot")).toEqual([4, 4, 4]);
     expect(at((e) => (e.factory!.round as { stall?: number }).stall, "limpet")).toEqual([undefined, 1, 2]);
     expect(at((e) => e.gate!.overclockCooldown, "overclocker")).toEqual([4, 2, 1]);

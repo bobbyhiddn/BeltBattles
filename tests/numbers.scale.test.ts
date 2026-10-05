@@ -66,7 +66,7 @@ const NUM3_MOVED: Record<string, Num3Row> = {
   "ITEMS.dragchain.levels.2.factory.round.mul": { was: 0.4, kind: "gone" },
   "ITEMS.dragchain.levels.2.factory.round.seconds": { was: 4.4, kind: "time", now: 2 },
   "ITEMS.dragchain.levels.3.factory.round.mul": { was: 0.3, kind: "gone" },
-  "ITEMS.dragchain.levels.3.factory.round.seconds": { was: 6, kind: "time", now: 2 },
+  "ITEMS.dragchain.levels.3.factory.round.seconds": { was: 6, kind: "time", now: 3 }, // FLIP-X2 (REVIEW-NUM3 F1): 2 -> 3
   "ITEMS.limpet.levels.3.factory.round.stall": { was: 1.6, kind: "time", now: 2 },
   "ITEMS.coil.levels.2.gate.shockTime": { was: 1.8, kind: "time", now: 2 },
   "ITEMS.coil.levels.3.gate.shockTime": { was: 2.8, kind: "time", now: 3 },

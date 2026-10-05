@@ -33,13 +33,13 @@ export const RUNE_UNIT_TEXT: Readonly<Record<RuneUnit, (n: number) => string>> =
 /** The keywords a rune's text may name, and the word each renders as on this base. */
 // RUNES-2a: BURN, RIDE and STALL join (the new runes name them), each in the colour the game's text already gives it
 // SUS-B (REQ-BFG-069): SHIELD, HEAL and REGEN join (WARD STONE names SHIELD now; SUS-D's runes name all three)
-export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | "PAIR" | "HEAT" | "FRAY" | "BURN" | "RIDE" | "STALL"
+// FLIP-X2 (N4-d, REVIEW-NUM4 section 4): the STALL token is STUN now (STEADY IRON's {*STUN}), one word for one stop; STALL
+// stays only as a glossary alias of STUN
+export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | "PAIR" | "HEAT" | "FRAY" | "BURN" | "RIDE" | "STUN"
   | "SHIELD" | "HEAL" | "REGEN";
 export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
   HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "PLATE", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
-  // NUM-4 (REVIEW-NUM3 F2, one word for one stop): a rune's {*STALL} renders as STUN (STEADY IRON: "STUNS ON YOUR
-  // MACHINES"); runes.ts keeps its token (a display job leaves it), and STALL stays a glossary alias of STUN
-  BURN: "BURN", RIDE: "RIDE", STALL: "STUN", SHIELD: "SHIELD", HEAL: "HEAL", REGEN: "REGEN",
+  BURN: "BURN", RIDE: "RIDE", STUN: "STUN", SHIELD: "SHIELD", HEAL: "HEAL", REGEN: "REGEN",
 };
 
 /**
@@ -53,9 +53,9 @@ export const RUNE_TEXT: Readonly<Record<string, string>> = {};
 export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? def.text;
 /** Each keyword's colour (render/palette.ts C): the hull's red, gold's yellow, the belts' brass, damage white, speed's yellow
  *  (richText.ts KEYWORD_COLOUR.faster), BASTION's plating, FOUNDRY's pair cyan, FURNACE's fire, WEAVER's plum. RUNES-2a:
- *  BURN in richText's burn colour (fire, as HEAT), RIDE in the belts' wood, STALL in shock's cyan (a shock stalls).
+ *  BURN in richText's burn colour (fire, as HEAT), RIDE in the belts' wood, STUN in shock's cyan (was the STALL token).
  *  U2c (REQ-BFG-046; REQ-BFG-032 rule 3): one source, the glossary's row for the word (src/ui/glossary.ts): a face keyword in
- *  its icon's colour (font.ts ICON_COLOUR: PAIR the TWIN family's blue, HEAT amber, as the faces draw them), STALL in STUN's. */
+ *  its icon's colour (font.ts ICON_COLOUR: PAIR the TWIN family's blue, HEAT amber, as the faces draw them), STUN in STUN's. */
 export const RUNE_KEYWORD_COLOUR: Readonly<Record<RuneKeyword, string>> = Object.fromEntries(
   (Object.keys(KEYWORD_WORD) as RuneKeyword[]).map((k) => [k, glossaryEntry(KEYWORD_WORD[k])?.colour ?? C.bone]),
 ) as Record<RuneKeyword, string>;

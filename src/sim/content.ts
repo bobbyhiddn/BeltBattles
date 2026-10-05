@@ -468,7 +468,8 @@ export const ITEMS: Record<string, ItemDef> = {
     // grows x6 / 4.4 from ★2 to ★3: 1.5 x 1.36 = 2.05)
     factory: { ammo: "drag", speed: 17, round: { kind: "drag", seconds: 1 } },
     levels: { 2: { factory: { round: { kind: "drag", seconds: 2 } } }, // NUM-3 (N1 2.2): R1's 1.5 s is 2
-      3: { factory: { round: { kind: "drag", seconds: 2 } } } },
+      // FLIP-X2 (REVIEW-NUM3 F1): ★3 STUNs 3 s (was 2, the same as ★2), so the ladder reads 1 / 2 / 3 like STATIC BRUSH's
+      3: { factory: { round: { kind: "drag", seconds: 3 } } } },
   },
   mimic: {
     id: "mimic", name: "MIMIC FORGE", kind: "factory", rarity: "legendary", price: 11, size: 2, merchant: "arcane",
@@ -558,8 +559,8 @@ export const ITEMS: Record<string, ItemDef> = {
   },
   sifter: {
     id: "sifter", name: "SIFTER", kind: "gate", rarity: "common", price: 3, size: 1, merchant: "alchemist",
-    // NUM-3 (R1's STUN fold): CHILL and SNAG are gone; SAP is the one mark left, and no piece gives it yet (RUNES-2b decides
-    // whether SIFTER goes dormant): ★1 and ★2 POLISH do nothing in play, ★3 FINE MESH's siftClean lands on every payload
+    // NUM-3 (R1's STUN fold): CHILL and SNAG are gone; SAP is the one mark left, and no piece gives it yet: ★1 and ★2 POLISH
+    // do nothing in play, ★3 FINE MESH's siftClean lands on every payload. FLIP-X2: dormant (races/data.ts DORMANT_ITEMS)
     desc: ["REMOVES SAP FROM", "PASSING PAYLOADS."], tags: ["HARASS", "FORGE", "PLATE"],
     gate: { sift: 1 }, levels: { 2: { gate: { sift: "all", siftFlat: 10 }, perk: "POLISH" },
       3: { gate: { sift: "all", siftFlat: 20, siftClean: 10 }, perk: "FINE MESH" } },

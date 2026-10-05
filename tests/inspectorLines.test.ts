@@ -378,7 +378,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
 
   it("phone: every buyable rig's hits (or IDLE), ability text, perk, next star and merge progress show whole", () => {
     const rigs = buyableModules().filter((d) => d.kind === "gate").map((d) => d.id);
-    expect(rigs).toHaveLength(31); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23)
+    expect(rigs).toHaveLength(30); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23); FLIP-X2: SIFTER dormant, 31 -> 30
     const band = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
     let cases = 0, nextCases = 0;
     for (const def of rigs) {
@@ -398,7 +398,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
     expect(KNOWN_PHONE_CUTS.size).toBe(0);
     // 0.8.0 I1 M2: + wave 3's 8 rigs (was [396, 264]); U2e step 4 (REQ-BFG-070): no rig panel draws a next-star line (the ⓘ
     // view's LEVELS hold it), so none of the 534 has one (was 356, the ★1 and ★2 cases)
-    expect([cases, nextCases]).toEqual([534, 0]);
+    expect([cases, nextCases]).toEqual([522, 0]); // FLIP-X2: SIFTER dormant, its 12 rig cases leave (was 534)
   });
 
   it("the desktop column keeps the full text in the 5x7 face: the laptop's column (1366x768: text 109 px)", () => {

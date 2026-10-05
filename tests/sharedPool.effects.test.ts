@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
-import { HEROES, ITEMS, RULES_VERSION, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
+import { HEROES, ITEMS, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
 import {
   cloneBuild, deadEndsAt, installTurret, key, rigHits, routeInfo, setTurretList, turretList, turretSlots, type Build,
 } from "../src/sim/deck";
@@ -305,17 +305,8 @@ function useful(id: string, hero: HeroId): ((m: Metrics) => number) | undefined 
   return ["escapement", "longcase", "heatjacket", "overclocker", "lodestone"].includes(id) ? (m) => m.damage : undefined;
 }
 
-/**
- * NUM-3 (REQ-BFG-046, REQ-BFG-047; the brief: "SIFTER stays; report what it still does"; RUNES-2b decides whether it goes
- * dormant, with the regeneration): R1's STUN fold removed CHILL and SNAG, the marks SIFTER removed, and no piece gives SAP,
- * the one mark left. So a SIFTER changes no battle metric for any hero, against its mark foe on every seed (measured; the
- * dead-offer audit's num3Open rows say the same on every reference deck, days 1-10). Its row is pinned to that measured
- * state, under the RULES_VERSION tripwire (on R6's MUST-REMOVE list): RUNES-2b either makes SIFTER dormant (it leaves
- * buyableModules, and this row with it) or gives it a job, then deletes this set.
- */
-const NUM3_INERT = new Set(["sifter"]);
-/** The rules version NUM3_INERT was measured under: the tripwire goes red at the next bump. */
-const NUM3_RULES = "bb-0.8.7";
+// FLIP-X2 (REVIEW-NUM3 answer 2): NUM-3's NUM3_INERT {sifter} and its tripwire are gone: SIFTER is dormant
+// (races/data.ts DORMANT_ITEMS), so it left buyableModules, and its row with it.
 
 describe("REQ-BFG-021: every buyable module changes a battle metric for every hero", () => {
   const rows = buyableModules();
@@ -343,11 +334,6 @@ describe("REQ-BFG-021: every buyable module changes a battle metric for every he
         const changed = delta(base, bought, sc.metrics ?? offense);
         if (!chosen && changed.length && (!sc.proof || bought[sc.proof] > 0)) chosen = { seed, base, bought, changed };
         if (chosen && !sc.more) break;
-      }
-      if (NUM3_INERT.has(d.id)) { // NUM-3's open item: measured inert on every seed, under this rules version only
-        expect(RULES_VERSION, "NUM-3 tripwire: a rules bump with SIFTER's open item left").toBe(NUM3_RULES);
-        expect(chosen, `${hero} ${d.id}: NUM3_INERT, yet a metric changed`).toBeUndefined();
-        return;
       }
       expect(chosen, `${hero} ${d.id}: no battle metric changed ${JSON.stringify(last)}`).toBeDefined();
       if (sc.proof) expect(chosen!.base[sc.proof], `${hero} ${d.id}: ${sc.proof} without the part`).toBe(0);

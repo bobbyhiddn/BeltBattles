@@ -20,6 +20,7 @@ import { MODULES, STARS, SUPPLIES, banned, kOf, numbers, pct, r1, r2, starsOf } 
 // 0.8.0 P1: wave 3's rows (the block at the end)
 import { WAVE3_IDS, buyableModules, withWave3 } from "../src/sim/content";
 import { BURN_DPS } from "../src/sim/content"; // NUM-1: a Burn stack's damage a second
+import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant keeps its NUMBERS row
 import { PLATE_CAP } from "../src/sim/races/bastion";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { LOAD_FLOOR } from "../src/sim/battle";
@@ -267,12 +268,15 @@ const FUNCTION_WORDS = new Set(["A", "AN", "THE", "OF", "AT", "TO", "IN", "ON", 
 
 describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
   // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3 is live: +8 rigs, +2 factories, +2 cores, +3 mods (was 23, 13, 13, 9; 71)
-  it("31 rigs, 15 factories, 15 cores, 12 mods, 13 turrets and 2 supplies; each has ability text and an audit row", () => {
+  it("30 rigs, 15 factories, 15 cores, 12 mods, 13 turrets and 2 supplies; each has ability text and an audit row", () => {
     const by = (kind: string) => MODULES.filter((d) => d.kind === kind).length;
-    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([31, 15, 15, 12, 13, 2]);
+    // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER dormant leaves the buyable rigs, 31 -> 30
+    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([30, 15, 15, 12, 13, 2]);
     for (const d of ALL) expect(hasAbilityText(d.id), d.id).toBe(true);
-    expect(Object.keys(NUMBERS).sort()).toEqual(ALL.map((d) => d.id).sort());
-    expect(CASES).toHaveLength((86 + 15) * 3 + 2); // 86 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
+    // FLIP-X2 (REVIEW-NUM3 answer 2): the dormant SIFTER keeps its NUMBERS row (captains' plans and old decks hold it) but
+    // leaves the buyable modules: 86 -> 85 modules, (86 + 15) * 3 + 2 -> (85 + 15) * 3 + 2 cases
+    expect(Object.keys(NUMBERS).sort()).toEqual([...ALL.map((d) => d.id), ...DORMANT_ITEMS].sort());
+    expect(CASES).toHaveLength((85 + 15) * 3 + 2); // 85 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
   });
 
   it("the numbers every sentence quotes are that star's values (effectAt; a core's x k)", () => {
