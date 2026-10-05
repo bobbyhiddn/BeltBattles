@@ -73,10 +73,13 @@ describe("U2a the formatters: one per unit; the interim prints today's value wit
 });
 
 describe("U2a the faces: every number from sim data through one formatter", () => {
-  it("scope: 64 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies) and 3 heroes; the STUN-fold, crit and RULES pieces keep today's text", () => {
+  // SUS-B (REQ-BFG-069): + MEND PRESS (a factory), WARD BELL and MENDING LOOM (gear): 67. Their faces exist while the
+  // sustain switch is off (ITEMS resolves them; no listing shows them), so every face rule below runs on them already
+  it("scope: 67 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies; SUS-B 1 factory, 2 gear) and 3 heroes; the STUN-fold, crit and RULES pieces keep today's text", () => {
     const kinds = FACE_IDS.map((d) => ITEMS[d].kind);
     const n = (k: string) => kinds.filter((x) => x === k).length;
-    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([14, 12, 13, 18, 5, 2]);
+    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([15, 12, 13, 18, 7, 2]);
+    for (const id of ["mendpress", "wardbell", "mendingloom"]) expect(hasFace(id), id).toBe(true);
     for (const keep of ["scrapper", "capacitor", "assembly", "sabot", "frostbite", "dragchain", "drake", "steambreech"]) expect(hasFace(keep), keep).toBe(false);
     // U2b: TOLLBOOTH and FLAK SCREEN (STUN-fold faces), SHIELD WALL, LONGCASE and FINISHER RAM (N1 3.3's crit pieces) and
     // the 11 RULES rigs and 4 RULES gear keep today's text

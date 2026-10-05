@@ -1077,19 +1077,19 @@ export const SUSTAIN_ITEMS: Record<string, ItemDef> = {
   // answer 3 to SUSTAIN-1; the design's 6 s): the acceptance bench's typ2r had FURNACE at 44.3% pooled (< 45%)
   wardbell: {
     id: "wardbell", name: "WARD BELL", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "tinker",
-    desc: ["EVERY FEW SECONDS", "YOUR HULL STOPS ONE", "MORE WHOLE HIT."], tags: ["PLATE", "TEMPO"],
+    desc: ["RINGS A WARD THAT", "STOPS ONE WHOLE HIT,", "AGAIN AND AGAIN."], tags: ["PLATE", "TEMPO"], // SUS-B: its desc
     mod: { shield: { every: 8, amount: 1 } },
     levels: { 2: { mod: { shield: { every: 5, amount: 1 } } }, 3: { mod: { shield: { every: 4, amount: 1 } } } },
   },
   mendpress: { // HEAL: EVERY 3 s: HEAL 20 / 30 / 45; ARMOR PRESS's kind, timer, stall pause and stamping (FactoryState.healTimer)
     id: "mendpress", name: "MEND PRESS", kind: "factory", rarity: "epic", price: 8, size: 2, merchant: "ironmonger",
-    desc: ["MENDS YOUR HULL", "EVERY FEW SECONDS AND", "STAMPS PLAIN SLUGS."], tags: ["PLATE", "SWARM"],
+    desc: ["STAMPS PLAIN SLUGS", "AND MENDS YOUR HULL", "EVERY FEW SECONDS."], tags: ["PLATE", "SWARM"], // SUS-B: its desc
     factory: { ammo: "plain", speed: 19, heal: { every: 3, amount: 20 } }, // base 3: the plain slug's (ARMOR PRESS's speeds)
     levels: { 2: { factory: { speed: 21, heal: { every: 3, amount: 30 } } }, 3: { factory: { speed: 25, heal: { every: 3, amount: 45 } } } },
   },
   mendingloom: { // REGEN: YOUR HULL: REGEN 10 / 15 / 20 (TurretState.regen)
     id: "mendingloom", name: "MENDING LOOM", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "alchemist",
-    desc: ["MENDS YOUR HULL A", "LITTLE EVERY", "SECOND."], tags: ["PLATE"],
+    desc: ["WEAVES YOUR HULL", "WHOLE AGAIN, A", "LITTLE EACH SECOND."], tags: ["PLATE"], // SUS-B: its desc
     mod: { regen: 10 },
     levels: { 2: { mod: { regen: 15 } }, 3: { mod: { regen: 20 } } },
   },

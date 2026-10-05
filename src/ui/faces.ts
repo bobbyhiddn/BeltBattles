@@ -238,6 +238,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // U2d F1: the period's NEXT★ form is SURGE's, without the label's colon (its period is one at every star today)
     return rules([{ text: `${label} +${amount} {*PLATE}.`, label }], [["every", `EVERY ${every}{SEC}`], ["plate", `+${amount} {*PLATE}`]], [REMINDER.PLATE()]);
   },
+  mendpress: (e) => {
+    // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): ARMOR PRESS's face with HEAL, its stat row ARMOR PRESS's (factoryStats).
+    // Battle.pressHeal: heal.amount every heal.every s through heal(), at the stamping pace, while it feeds a turret (the
+    // belt rule stays off the face, as ARMOR PRESS's: cap's answer 5 to SUS-A)
+    const h = f(e).heal!, every = fmtSec(h.every), amount = fmtDmg(h.amount);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} {*HEAL} ${amount}.`, label }], [["every", `EVERY ${every}{SEC}`], ["heal", `{*HEAL} ${amount}`]], [REMINDER.HEAL()]);
+  },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
   // sentence (were "ITS SLUGS HAVE {*HEAT} 1.2." and "ITS SLUGS HAVE {*FRAY} 1."); the reminder stays for the tap
@@ -366,8 +374,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([hit(`OF EVERY ${every} {SLUG}, ONE BECOMES ${n}.`)], [["every", `OF EVERY ${every}`], ["copies", `BECOMES ${n}`]]);
   },
   riveter: (e) => {
-    const d = fmtDmg(gt(e).heal!); // never past your full hull (the sim; the hull bar shows it). SUS-A: the field is `heal`
-    return rules([hit(`+${d} {HULL}.`)], [["repair", `+${d} {HULL}`]]);
+    // SUS-B (REQ-BFG-069; SUSTAIN-1 4.9): its repair is HEAL, the same numbers (battle.ts heal(): never past your full hull,
+    // half with BURN, none in the dark wind; the HEAL row says so); was "HIT: +6 {HULL}." keyed "repair"
+    const d = fmtDmg(gt(e).heal!);
+    return rules([hit(`{*HEAL} ${d}.`)], [["heal", `{*HEAL} ${d}`]], [REMINDER.HEAL()]);
   },
   heatjacket: (e) => {
     const h = gt(e).heat!, d = fmtDmg(h); // + heat damage a second ridden after it (as KILN's cinder: HEAT)
@@ -431,6 +441,20 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
     // U2d F1: its cap (the interim caveat's MAX, INTERIM_CAVEATS spallcatcher) changes with its stars: keyed, so NEXT★ shows it
     return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`], ["max", `MAX ${fmtDmg(sp.max)} {DMG}`]]);
+  },
+  // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): the sustain gear. Each gives your hull its effect: an ability line
+  wardbell: (e) => {
+    // TurretState.bell: + amount SHIELD every `every` s (★1 8 s, SUS-A's measured fallback; ★2 5 s, ★3 4 s), the first at
+    // t = every, never past SHIELD_CAP; its turret's STUN or freeze pauses it. Its count is keyed too, for the shop chip
+    const sh = md(e).shield!, every = fmtSec(sh.every), n = fmtCount(sh.amount);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} +${n} {*SHIELD}.`, label }], [["every", `EVERY ${every}{SEC}`], ["shield", `+${n} {*SHIELD}`]], [REMINDER.SHIELD()]);
+  },
+  mendingloom: (e) => {
+    // TurretState.regen: your hull heals this much at each whole second (Battle.sustainTick). "YOUR HULL:" says whose it
+    // is, not when: no trigger, so no brass label (TEXT-STYLE 3.2, 3.3)
+    const r = fmtDmg(md(e).regen!);
+    return rules([{ text: `YOUR HULL: {*REGEN} ${r}.` }], [["regen", `{*REGEN} ${r}`]], [REMINDER.REGEN()]);
   },
   // ------------------------------------------------------------------------------------------ U2b: the supplies
   // U2c group 0 fix 2: {BELT} means belts, a count (a factory's {BELT}3); belt capacity is tiles, in words (hero select's
