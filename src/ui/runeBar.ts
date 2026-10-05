@@ -124,6 +124,16 @@ const CARD_TEXT_Y = 31;
 /** A card's text width: its width less the 5 px insets. */
 export const runeCardTextW = (w: number): number => w - 10;
 
+/** The card chip's height, and its least width (art px). */
+const CARD_CHIP = 22;
+/** FLIP-X1 (F-a, REQ-BFG-069): the card chip's width, sized from its keyword word (3x5 textWidth): 22 art px, wider when
+ *  the word needs it. SHIELD's six letters (23 px) ran about 1 px past each side of the 22 px box; at 26 the word sits
+ *  inside the box's ink edge as PLATE's 19 px sits in 22. Every other word fits 22, so its card is as before. Pure. */
+export function runeCardChipW(def: RuneDef): number {
+  const k = runeKeyword(def);
+  return Math.max(CARD_CHIP, k ? textWidth(KEYWORD_WORD[k], "3") + 3 : 0);
+}
+
 /** A rune card's height at width `w` (R1b-2's mock: a 31 px head, 9 px per effect line, 7 per reminder line, the hint
  *  bar 13, 4 at the foot). Pure (tests). */
 export function runeCardH(def: RuneDef, w: number, o: Omit<RuneCardOpts, "sub">): number {
@@ -142,9 +152,10 @@ export function drawRuneCard(g: G, r: Rect, def: RuneDef, o: RuneCardOpts): void
   rect(g, r.x + 1, r.y + r.h - 3, r.w - 2, 2, edge);
   // RUNES-2a: a legendary card's own frame is yellow, so its open ring is white (every other tier's stays yellow)
   if (o.open) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, def.tier === "legendary" ? C.white : C.yellow);
-  drawRuneChip(g, { x: r.x + 5, y: r.y + 6, w: 22, h: 22 }, def);
-  drawText(g, def.name, r.x + 31, r.y + 7, edge, { outline: C.ink });
-  drawText(g, o.sub, r.x + 31, r.y + 18, C.slate4, { font: "3" });
+  const cw = runeCardChipW(def), tx = r.x + 9 + cw; // F-a: the name and sub line 4 px right of the chip (x + 31 at 22)
+  drawRuneChip(g, { x: r.x + 5, y: r.y + 6, w: cw, h: CARD_CHIP }, def);
+  drawText(g, def.name, tx, r.y + 7, edge, { outline: C.ink });
+  drawText(g, o.sub, tx, r.y + 18, C.slate4, { font: "3" });
   const tw = runeCardTextW(r.w);
   let y = r.y + CARD_TEXT_Y;
   for (const l of wrapRich(runeSpans(def), tw, "5")) {
