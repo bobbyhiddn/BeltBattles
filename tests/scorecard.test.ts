@@ -52,11 +52,17 @@ describe("scorecard: merge ratio math", () => {
     expect(kindOf("gate.speed")).toBe("mult");
     expect(kindOf("factory.commission")).toBe("cut");
     expect(kindOf("gate.burn")).toBe("amount");
+    // NUM-2 (REQ-BFG-047): a speed (shots or slugs per 30 s) is already a rate and a whole rate % already its bonus, so
+    // both are amounts; the old interval names above keep their kinds for any older spec
+    for (const p of ["factory.speed", "turret.speed", "mod.fireRate", "core.fireRate", "factory.rate", "core.top", "core.start", "core.steamPlated", "core.steamBare"]) {
+      expect(kindOf(p), p).toBe("amount");
+    }
   });
   it("fills a 1-star spec's missing numbers with the sim's own defaults", () => {
     const press = specAt("press", 1);
     expect(press.get("factory.base")).toBe(AMMO[ITEMS.press.factory!.ammo].base);
     expect(press.get("factory.batch")).toBe(1);
+    expect([press.get("factory.speed"), press.get("factory.rate")]).toEqual([ITEMS.press.factory!.speed, 0]); // NUM-2
     expect(specAt("coil", 1).get("gate.shockTime")).toBe(DISRUPT_TIME);
   });
 });

@@ -39,13 +39,13 @@ export function specAt(def: string, stars: number): Spec {
   if (d.factory) {
     if (!out.has("factory.base")) out.set("factory.base", AMMO[d.factory.ammo].base); // Payload.base absent: the ammo's
     if (!out.has("factory.batch")) out.set("factory.batch", 1);
-    if (!out.has("factory.intervalMul")) out.set("factory.intervalMul", 1);
+    if (!out.has("factory.rate")) out.set("factory.rate", 0); // NUM-2: MIMIC's whole rate % (was factory.intervalMul, 1)
     (d.factory.cycle ?? []).forEach((p, i) => {
       if (p.shock && !out.has(`factory.cycle.${i}.shockTime`)) out.set(`factory.cycle.${i}.shockTime`, DISRUPT_TIME);
     });
   }
   if (d.gate?.shock && !out.has("gate.shockTime")) out.set("gate.shockTime", DISRUPT_TIME); // 1 star: DISRUPT_TIME
-  if (d.core && !out.has("core.intervalMul")) out.set("core.intervalMul", 1);
+  if (d.core && !out.has("core.fireRate")) out.set("core.fireRate", 0); // NUM-2: a whole rate % (was core.intervalMul, 1)
   if (d.kind === "turret") out.set("gearSlots", gearSlotsOf(def, stars));
   return out;
 }
@@ -53,6 +53,9 @@ export function specAt(def: string, stars: number): Spec {
 /** How a field turns into an effect (targets.ts EffectKind). Anything not named is an amount. */
 export function kindOf(path: string): EffectKind {
   if (path === "factory.commission" || path === "factory.round.mul") return "cut";
+  // NUM-2 (REQ-BFG-047): a turret's or factory's speed (shots or slugs per 30 s) is already a rate, and a whole rate %
+  // (fireRate, MIMIC's rate, STEAM BREECH's, GATLING's start and top) is already its bonus: both amounts
+  if (path === "factory.speed" || path === "turret.speed" || /(^|\.)(fireRate|rate|top|steamPlated|steamBare)$/.test(path) || path === "core.start") return "amount";
   if (path === "factory.intervalMul" || path === "gate.burnPerRide.seconds") return "rate";
   if (/(^|\.)(interval|fireInterval|overclockCooldown|period|every|fuse|flatPerBurn)$/.test(path)) return "rate";
   if (path === "core.intervalMul" || /(^|\.)(fireMul|floor|start|reloadMul|flightMul)$/.test(path)) return "imult";
@@ -88,9 +91,10 @@ const prod = (label: string, f: (g: (p: string) => number) => number): MainDef =
   },
 });
 
-/** A stamping factory's job: damage stamped per second, its slug's base x slugs per cycle / (interval x intervalMul). */
-const DPS = prod("stamped damage per second (base x batch / (interval x intervalMul))",
-  (g) => (g("factory.base") * g("factory.batch")) / (g("factory.interval") * g("factory.intervalMul")));
+/** A stamping factory's job: damage stamped per second, its slug's base x slugs per cycle / (interval x intervalMul).
+ *  NUM-2 (REQ-BFG-047): base x batch x speed / 30 x (100 + rate) / 100 (the speed's slugs per 30 s; MIMIC's rate %). */
+const DPS = prod("stamped damage per second (base x batch x speed / 30 x (100 + rate) / 100)",
+  (g) => (g("factory.base") * g("factory.batch") * g("factory.speed") * (100 + g("factory.rate"))) / (30 * 100));
 
 /** Each part's main effect: the number its card leads with, or the one its stars are named for (judgement; README). */
 export const MAIN: Record<string, MainDef> = {
@@ -98,7 +102,7 @@ export const MAIN: Record<string, MainDef> = {
   assembly: one("factory.commission", "rig commissioning time saved (1 - x)"),
   hotswap: one("factory.cycle.0.burn", "EMBER slug Burn"),
   scrapper: one("factory.scrapFlat", "scrap slug damage"),
-  sabot: one("factory.interval", "rounds per second (1 / interval)"),
+  sabot: one("factory.speed", "rounds per 30 s (SPEED)"), // NUM-2: was factory.interval, 1 / interval
   frostbite: one("factory.round.seconds", "freeze seconds"),
   dragchain: one("factory.round.mul", "slow strength (1 - belt speed x)"),
   limpet: one("factory.round.blast", "blast damage"),
@@ -126,18 +130,18 @@ export const MAIN: Record<string, MainDef> = {
   barbed: one("gate.fray", "Fray per hit"),
   counterweight: one("gate.perTile.each", "damage per tile ridden"),
   chamber: one("mod.perShot", "payloads per shot"),
-  calibrate: one("mod.fireMul", "fire-rate bonus (1 / x - 1)"),
+  calibrate: one("mod.fireRate", "fire-rate bonus (a whole %)"), // NUM-2: was mod.fireMul, 1 / x - 1
   flak: one("mod.intercept", "share of harassment intercepted"),
   spotter: one("mod.rerolls", "target rerolls"),
   hopper: one("mod.store", "loads stored while firing"),
   mantlet: one("mod.intakeGuard", "intake tiles shielded"),
   ram: one("mod.finisher", "finisher bonus"),
-  escapement: one("mod.fireMul", "fire-rate bonus (1 / x - 1)"),
+  escapement: one("mod.fireRate", "fire-rate bonus (a whole %)"), // NUM-2: was mod.fireMul
   longcase: one("mod.longRideFlat", "long-ride damage"),
   scatter: prod("shot damage bonus (pellets x share - 1) [core]", (g) => g("core.pellets") * g("core.share") - 1),
-  rotary: one("core.intervalMul", "fire-rate bonus (1 / x - 1)"),
+  rotary: one("core.fireRate", "fire-rate bonus (a whole %)"), // NUM-2: was core.intervalMul
   pressure: one("core.perQueued", "damage per queued payload"),
-  gatling: one("core.floor", "top fire-rate bonus (1 / floor - 1)"),
+  gatling: one("core.top", "top fire-rate bonus (a whole %)"), // NUM-2: was core.floor, 1 / floor - 1
   hullbreaker: one("core.hullMul", "hull damage bonus (x - 1)"),
   drake: one("core.addBurn", "Burn stacks per shot"),
   salvo: one("core.volleyFlat", "damage per volley shell"),
@@ -148,7 +152,7 @@ export const MAIN: Record<string, MainDef> = {
   compound: one("core.mult", "shell damage bonus (x - 1)"),
   lance: prod("column damage (columns x share) [core]", (g) => g("core.columns") * g("core.share")),
 };
-const TURRET_MAIN = one("turret.fireInterval", "shots per second (1 / fire interval)");
+const TURRET_MAIN = one("turret.speed", "shots per 30 s (SPEED)"); // NUM-2: was turret.fireInterval, 1 / fire interval
 
 export interface FieldRatio {
   path: string;
