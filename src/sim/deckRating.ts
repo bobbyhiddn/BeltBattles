@@ -8,6 +8,7 @@ import { AMMO_SPACING, BELT_SPEED, BURN_TIME, HEROES, ITEMS, WINDOW_TIME, type F
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
 import { factorySpeed, rateMul, secPer } from "./content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
 import { WIND_START, sustainLive } from "./content"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain value
+import { AMMO, SHAPE_ARROWS, rigShape, starRules } from "./content"; // Y2 (release Y): the star switch's prices (STAR_EQ)
 import { roundHalfUp } from "./pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import {
   beltStateAt, connectorClaims, factoryPace, installedTurrets, itemByUid, joinOf, journeyTiles, occupancy, rigHits, routeInfo,
@@ -96,6 +97,42 @@ export interface SustainHull { shield: number; heal: number; regen: number; tota
 export const EQ = { poison: 30, fray: 30, shock: 30, static: 40, perStalled: 1.5, overclock: 80, toll: 5, sift: 5 } as const;
 /** A harassment round's damage-equivalent per payload (content.ts FactorySpec.round), from its card. */
 export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40, drag: 30, limpet: 80 };
+
+/**
+ * Y2 (release Y; DESIGN-Y rows 8, 13, 15, 16; REVIEW-STARD: "each job prices its own rule, behind STAR_RULES"): the
+ * rating's prices of the STUN pieces' new rules, read only with the star switch on (content.ts starRules); off, every
+ * rating is exactly as before. Each is read off the cards, as EQ's are (Y7a benches them):
+ * - perStun: LODESTONE pays for each STUN on the foe, its floor and cap gone, so it is rated by your own STUN pieces
+ *   (stunSources): each holds 0.75 enemy parts stunned as it hits (two of them: EQ.perStalled's 1.5 machines); none, 0.
+ * - tollFactory: TOLLBOOTH's tolls guard its belt's factory from ★1 and spend on STUNs only: x1.25 its EQ.toll guard.
+ * - LIMPET WORKS' 20 on impact joined its blast, so the walk counts no base: its round takes AMMO.limpet.base back (the
+ *   same power, the same rating at every star).
+ * - BRACE FRAME guards the tiles its arrows hit, no longer itself: its guard x arrows / (arrows + 1) (2/3 for its L).
+ * The rest comes from the switch's own data: the walk drops LODESTONE's floor and OVERDRIVE's flats and counts HOT SWAP's
+ * BURN 5 / 9; the cadence reads SABOT ★3's RATE 20. MANTLET, FLAK SCREEN, SPOTTER and GRAPNEL GUN stay rated by price
+ * (NOMINAL), and SCRAPPER's trigger stamps were never rated: unchanged.
+ */
+export const STAR_EQ = { perStun: 0.75, tollFactory: 1.25 } as const;
+
+/** Y2: the pieces of `b` that land a STUN (the star switch's LODESTONE price): a shock or static rig (GALVANIC COIL,
+ *  STATIC BRUSH), a factory stamping shock slugs (HOT SWAP) or STUN rounds (SABOT, FROSTBITE, DRAG CHAIN; a LIMPET WORKS
+ *  only with a stall, none with the switch on), and a TESLA ARC core; each at its own stars. */
+export function stunSources(b: Build): number {
+  let n = 0;
+  for (const p of b.items) {
+    if (!Object.prototype.hasOwnProperty.call(ITEMS, p.def)) continue;
+    const e = effectAt(p.def, gradeOf(b, p)), r = e.factory?.round;
+    if (e.gate?.shock || e.gate?.staticTime || e.factory?.cycle?.some((c) => c.shock) || (r && (r.kind !== "limpet" || (r.stall ?? 0) > 0))) n++;
+  }
+  for (const m of b.mods) if (ITEMS[m.def]?.kind === "core" && effectAt(m.def, starsOf(m)).core?.routine === "tesla") n++;
+  return n;
+}
+
+/** Y2: BRACE FRAME's share of its old guard with the star switch on: the tiles its arrows hit, not itself. */
+const braceShare = (def: string): number => {
+  const arrows = SHAPE_ARROWS[rigShape(ITEMS[def]) ?? "I"]?.length ?? 1;
+  return arrows / (arrows + 1);
+};
 /** Gear and cores whose effect the rating doesn't compute (MANTLET, FLAK, SPOTTER, every bought core): the turret's
  *  damage x (1 + NOMINAL x the part's value in gold), the typical player's "pricier is better". TUNE-M: not HOPPER, whose
  *  window and window time the turret model reads (rateDeck `start`). */
@@ -147,14 +184,15 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       if (e.poison) eq += EQ.poison * e.poison;
       if (e.fray) eq += EQ.fray * e.fray;
       if (e.staticTime) eq += EQ.static * e.staticTime;
-      if (e.perStalled) eq += EQ.perStalled * e.perStalled.each;
+      // Y2 (release Y): with the star switch on, LODESTONE by your STUN pieces (STAR_EQ.perStun)
+      if (e.perStalled) eq += starRules() ? STAR_EQ.perStun * stunSources(b) * e.perStalled.each : EQ.perStalled * e.perStalled.each;
       // POWDER KEG (battle.ts detonateKeg): `fuse` seconds into the fight it buffs the payloads then on its belt, once:
       // about `time` seconds of the route's payloads, of the (fight - time) it fires, and none when the fight is over
       // first. CAND-A (the skill-ladder fix): the rating read half the buff on every payload, whatever the fight; its
       // ablation lift on the par field was +0.1 points on day 10 (fights of 9.5 s; fuses 12/10/8 s at 1/2/3 stars).
       if (e.keg) eq += ((e.keg.flat + BURN_TIME * BURN_DPS * e.keg.burn) * Math.max(0, Math.min(fight, e.keg.fuse + time) - e.keg.fuse)) / Math.max(1, fight - time); // NUM-1: a Burn stack's BURN_DPS a second
       if (e.overclockCooldown) eq += EQ.overclock / e.overclockCooldown;
-      if (e.toll) eq += EQ.toll * e.toll;
+      if (e.toll) eq += starRules() ? EQ.toll * e.toll * STAR_EQ.tollFactory : EQ.toll * e.toll; // Y2: its factory from ★1
       if (e.sift) eq += EQ.sift;
       if (e.heal) repair += e.heal; // SUS-A (REQ-BFG-069): RIVETER's heal (was repair), rated as before (the valuation is SUS-C's)
       if (e.heal) heal += e.heal; // BOTS-X (SUS-C): with the switch on, rateDeck values it as effective hull instead
@@ -162,7 +200,8 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       // damage at 12+ plating for half the fight; BRACE FRAME as a guard like TOLLBOOTH's (1, 1.4, 1.7 at its stars)
       if (e.plate) repair += e.plate;
       if (e.plated) eq += e.plated.flat * 0.5;
-      if (e.brace) eq += (EQ.toll * (1 - e.brace.mul)) / 0.25;
+      // Y2 (release Y): with the star switch on, BRACE FRAME guards its arrows' tiles only (braceShare)
+      if (e.brace) eq += starRules() ? ((EQ.toll * (1 - e.brace.mul)) / 0.25) * braceShare(h.def) : (EQ.toll * (1 - e.brace.mul)) / 0.25;
     }
   }
   return { eq, repair, heal };
@@ -313,7 +352,8 @@ export function rateDeck(b: Build, model: Readonly<RatingModel> = RATING_CURVE, 
       mend += (spec.heal.amount * stoked * (pace.get(r.factory) ?? 1)) / spec.heal.every;
     }
     const arrival = (est.copies * (spec.batch ?? 1) * (pace.get(r.factory) ?? 1) * stoked) / (Math.max(0.1, interval) * shared);
-    const eq = dmg + (spec.scrapFlat ?? 0) + BURN_TIME * BURN_DPS * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0); // NUM-1: BURN_DPS
+    const eq = dmg + (spec.scrapFlat ?? 0) + BURN_TIME * BURN_DPS * est.burn + (est.shock ? EQ.shock : 0) + x.eq + (spec.round ? ROUND_EQ[spec.round.kind] ?? 0 : 0) + // NUM-1: BURN_DPS
+      (starRules() && spec.round?.kind === "limpet" ? AMMO.limpet.base : 0); // Y2: LIMPET's 20 on impact is in its blast now
     const list = feeds.get(info.turret) ?? [];
     list.push({ route: ri, arrival, eq, first: est.time, ride: est.ride, ...(stoked > 1 ? { factory: r.factory, base: arrival / stoked } : stoke.size ? { factory: r.factory } : {}) });
     feeds.set(info.turret, list);

@@ -79,7 +79,7 @@ export function glossaryRows(): GlossaryRow[] {
   const shieldExtra = "{*BURN} GOES PAST IT.";
   const healExtra = "A HULL WITH {*BURN} GETS HALF.";
   const regenExtra = "IT STOPS IN THE DARK WIND.";
-  return [
+  const rows: GlossaryRow[] = [
     // ------------------------------------------------------------------------------- the 6 face keywords (C1)
     { word: "BURN", aliases: ["BURNS", "BURNING"], colour: kwColour("BURN"), kw: "BURN", extra: burnExtra, def: withExtra(REMINDER.BURN(), burnExtra), scope: "text" },
     {
@@ -146,7 +146,18 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "LOAD", aliases: [], colour: C.brass3, def: "LOAD: A SLUG ENTERS THIS TURRET'S CHAMBER.", scope: "label" },
     { word: "EVERY", aliases: [], colour: C.brass3, def: "EVERY: A TIMER, AGAIN AND AGAIN FOR THE WHOLE FIGHT.", scope: "label" },
   ];
+  // Y2 (release Y): with the star switch on, the rows it retires are gone (STAR_RETIRED); off, every row as before
+  return starRules() ? rows.filter((r) => !retired(r)) : rows;
 }
+
+/**
+ * Y2 (release Y; DESIGN-Y 1.2, REVIEW-STARD rule 6): the rows the star switch (content.ts starRules) retires. HARASSMENT:
+ * with the switch on harassment is a STUN (battle.ts acceptHarassment), so no face or kept text names it (the STUN row
+ * says it). PART stays a glossary word, no colour of its own and no token: TOLLBOOTH's face names it. No new keyword.
+ */
+export const STAR_RETIRED: readonly string[] = ["HARASSMENT"];
+/** Y2: is `r` a row the star switch retires, while it is on? */
+const retired = (r: GlossaryRow): boolean => starRules() && STAR_RETIRED.includes(r.word);
 
 /** The table, in order: the face keywords, the rune keywords, the kept texts' words, the trigger labels. */
 export const GLOSSARY: readonly GlossaryRow[] = glossaryRows();
@@ -184,7 +195,7 @@ const FORMS: readonly [string, GlossaryRow][] = GLOSSARY
 /** The row for a word or an alias (case-blind), else undefined. */
 export function glossaryEntry(word: string): GlossaryRow | undefined {
   const w = word.trim().toUpperCase();
-  return FORMS.find(([f]) => f === w)?.[1];
+  return FORMS.find(([f, r]) => f === w && !retired(r))?.[1]; // Y2: a row the star switch retires names nothing
 }
 
 /** A form as a pattern over a cleaned text: its words with single spaces, and a two-word form may hold a value between
@@ -198,7 +209,7 @@ export function glossaryHits(text: string): { at: number; end: number; row: Glos
   const t = ` ${text.toUpperCase().replace(/[^A-Z0-9'%+\-.-]/g, " ").replace(/\.(?=\s|$)/g, " ")} `;
   const hits: { at: number; end: number; row: GlossaryRow }[] = [];
   for (const [form, row] of FORMS) {
-    if (row.scope !== "text") continue;
+    if (row.scope !== "text" || retired(row)) continue; // Y2: a row the star switch retires is no tap
     for (const m of t.matchAll(formPattern(form))) {
       const at = m.index!, end = at + m[1].length; // in `text` (t has one leading space; m.index is the space before)
       if (!hits.some((h) => at < h.end && h.at < end)) hits.push({ at, end, row });

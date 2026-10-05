@@ -68,6 +68,7 @@ import { BURN_DPS } from "../sim/content"; // NUM-1 (REQ-BFG-047): a Burn stack'
 import { factorySpeed, rateMul } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED; NUM-4: printed as it is (rate())
 import { SHIELD_CAP } from "../sim/content"; // SUS-B (REQ-BFG-069): WARD BELL's UP TO 3
 import { SPEED_K } from "../sim/content"; // NUM-4 (REQ-BFG-047): a SPEED in words, "19 TIMES IN 30 SECONDS"
+import { starRules } from "../sim/content"; // Y2 (release Y): the star switch (the STUN pieces' kept sentences, cards, timeline)
 import { pct, roundHalfUp } from "../sim/pct"; // NUM-4: GRAPNEL's salvage as the sim rounds it
 import { fmtCount, fmtDmg, fmtPct, fmtSec, fmtSpeed } from "./statFormat"; // NUM-4: every number through a formatter
 // 0.8.0 I1 (the merge of H1 and P1): each name imported once; H1's signature text and P1's wave-3 entries both read them
@@ -283,9 +284,11 @@ const immunities = (e: ItemDef): string => {
 /** 0.6.2 FB-B: MANTLET ★2 FULL GUARD (NUM-3: was FULL PLATE) shields the last tile of each belt into its turret, ★3 BULWARK SKIRT the last 3
  *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it); a rig with an arrow on a shielded
  *  tile is shielded too (Battle.skirted), against the turret's own list. */
-const shielded = (n: number): string => (n === 1
-  ? "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT."
-  : `SO DO THE LAST ${n} TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.`);
+const shielded = (n: number): string => (starRules() // Y2 (release Y; DESIGN-Y row 14): with the star switch on, not their rigs
+  ? (n === 1 ? "SO DOES THE LAST TILE OF EACH BELT IN." : `SO DO THE LAST ${n} TILES OF EACH BELT IN.`)
+  : n === 1
+    ? "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT."
+    : `SO DO THE LAST ${n} TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.`);
 /** MANTLET's clause at a star: at ★1 the stalls it ignores; above, the stalls that star adds and the tiles it shields. */
 function mantletGist(e: ItemDef, stars: number): string {
   const was = stars > 1 ? effectAt("mantlet", stars - 1).mod?.immune ?? [] : [];
@@ -428,13 +431,18 @@ const ENTRIES: Record<string, Entry> = {
   tollbooth: {
     // Battle.acceptHarassment: while online, the toll covers the belts it hits, the rigs hitting them and the turrets
     // they feed; ★3 FACTORY GUARD (tollFactory) their factories too. g.tolls is set once a battle
-    text: (e) => [
+    // Y2 (release Y; DESIGN-Y row 8): with the star switch on it blocks STUNs only (no HARASSMENT, the word retires), its
+    // belts' factories from ★1
+    text: (e) => (starRules() ? [
+      `BLOCKS THE FIRST ${g(e).toll} ENEMY STUNS ON ITS BELTS AND THEIR FACTORIES EACH BATTLE.`,
+      "IT ALSO GUARDS THE RIGS ON THOSE BELTS AND THE TURRETS THEY FEED.",
+    ] : [
       `BLOCKS THE FIRST ${g(e).toll} ENEMY HARASSMENT HITS ON ITS BELTS${g(e).tollFactory ? " AND THEIR FACTORIES" : ""} EACH BATTLE.`,
       "IT ALSO GUARDS THE RIGS ON THOSE BELTS AND THE TURRETS THEY FEED.",
       S.harassment,
-    ],
-    gist: (e) => `BLOCKS ${g(e).toll} HITS${g(e).tollFactory ? ", FACTORIES TOO" : ""}`,
-    card: (e) => `BLOCKS ${g(e).toll} HITS OF HARASSMENT`,
+    ]),
+    gist: (e) => (starRules() ? `BLOCKS ${g(e).toll} STUNS` : `BLOCKS ${g(e).toll} HITS${g(e).tollFactory ? ", FACTORIES TOO" : ""}`),
+    card: (e) => (starRules() ? `BLOCKS ${g(e).toll} STUNS` : `BLOCKS ${g(e).toll} HITS OF HARASSMENT`),
   },
   sifter: {
     // harassment.ts siftDebuffs: NUM-3 (R1's STUN fold): SAP only (CHILL and SNAG are gone; no piece gives SAP yet, S.marks);
@@ -561,12 +569,18 @@ const ENTRIES: Record<string, Entry> = {
     // 0.6.2rel3 (TUNE-M T2, adf77b2): the floor (gate.flat, +1/+2/+3) on every payload it hits, then the per-stalled
     // bonus on top, capped by perStalled.max; one sentence, so the floor never shows without the bonus or the other way.
     // As short as the sentence it replaces (it must still fit the phone band and the desk column whole)
-    text: (e) => [
+    // Y2 (release Y; DESIGN-Y row 15): with the star switch on, no floor and no cap; a stunned belt tile counts, a wrecked
+    // rig doesn't (Battle.applyHit)
+    text: (e) => (starRules() ? [
+      `ADDS ${damage(g(e).perStalled!.each)} FOR EACH ENEMY MACHINE STUNNED, BELT TILES TOO.`,
+      "WRECKED RIGS DON'T COUNT.",
+    ] : [
       `ADDS ${damage(g(e).flat ?? 0)}, AND ${fmtDmg(g(e).perStalled!.each)} FOR EACH ENEMY MACHINE STUNNED, UP TO ${damage(g(e).perStalled!.max)}.`,
       "WRECKED MACHINES COUNT TOO; BELT TILES DON'T.", // NUM-3 (R1's STUN fold): nothing freezes any more
-    ],
-    gist: (e) => `ADDS ${damage(g(e).flat ?? 0)}, AND ${fmtDmg(g(e).perStalled!.each)} FOR EACH STUNNED MACHINE`,
-    card: (e) => `${damage(g(e).flat ?? 0)}, MORE FOR EACH STUN`,
+    ]),
+    gist: (e) => (starRules() ? `ADDS ${damage(g(e).perStalled!.each)} FOR EACH STUN ON THE FOE`
+      : `ADDS ${damage(g(e).flat ?? 0)}, AND ${fmtDmg(g(e).perStalled!.each)} FOR EACH STUNNED MACHINE`),
+    card: (e) => (starRules() ? `${damage(g(e).perStalled!.each)} FOR EACH STUN` : `${damage(g(e).flat ?? 0)}, MORE FOR EACH STUN`),
   },
   barbed: {
     // Battle.impact: the hull's fray limit rises to FRAY_MAX + frayCap (★2/★3 RAZOR WIRE)
@@ -662,15 +676,19 @@ const ENTRIES: Record<string, Entry> = {
   scrapper: {
     // Battle.produce: the timer stamps every interval whatever happens, and each harassment the side lands queues one
     // more stamp (up to 3 waiting); ★3 BIG HAUL: a rig its sabots wreck queues one more (Battle.acceptHarassment)
-    text: (e) => [
+    // Y2 (release Y; DESIGN-Y row 9): with the star switch on it counts your STUNs only, with no cap, and BIG HAUL goes
+    text: (e) => (starRules() ? [
+      `STAMPS SCRAP SLUGS THAT DEAL ${moreDamage(f(e).scrapFlat!)} THAN PLAIN ONES.`,
+      `IT STAMPS ONE ${rate(f(e).speed)}, AND ONE MORE EACH TIME YOUR STUN LANDS.`,
+    ] : [
       `STAMPS SCRAP SLUGS THAT DEAL ${moreDamage(f(e).scrapFlat!)} THAN PLAIN ONES.`,
       `IT STAMPS ONE ${rate(f(e).speed)}, AND ONE MORE EACH TIME YOUR HARASSMENT LANDS, UP TO ${SIM.scrapQueue} WAITING.`,
       // ★3 BIG HAUL: a sabot wreck is harassment (one stamp) and a wreck (one more): self-contained, as the phone band
       // may show it without the sentence before it
       ...(f(e).bigHaul ? ["A RIG YOUR SABOTS WRECK EARNS 2 SCRAP SLUGS, NOT 1."] : []),
       S.harassment,
-    ],
-    perkAt: (e) => (f(e).bigHaul ? 2 : 0),
+    ]),
+    perkAt: (e) => (f(e).bigHaul && !starRules() ? 2 : 0),
     // the numbers that change; ★3's BIG HAUL is named after this clause (newPerk), and its sentence says what it does
     gist: (e) => `${moreDamage(f(e).scrapFlat!)}, ONE ${rate(f(e).speed)}`,
     card: (e) => `SCRAP SLUGS, ${moreDamage(f(e).scrapFlat!)}`,
@@ -932,11 +950,12 @@ const ENTRIES: Record<string, Entry> = {
       return [
         `SHOTS THAT HIT AN ENEMY BELT OR RIG RIP OFF THE ${s.rip === 1 ? "NEAREST PAYLOAD" : `${s.rip} NEAREST PAYLOADS`} WITHIN ${plural(s.reach!, "TILE")}.`,
         // NUM-4 (REQ-BFG-047): the sim's pct(10, k%) a rip (battle.ts impact; was damage(k), the x1 scale's 1 x k)
-        ...(x.stars >= 3 ? [`EACH PAYLOAD IT RIPS ADDS ${damage(pct(10, roundHalfUp(100 * x.k)))} TO THIS TURRET'S NEXT SHOT.`] : []),
-        "A HIT ON A POWDER KEG DISARMS IT.",
+        // Y2 (release Y; DESIGN-Y row 19): with the star switch on, no salvage and no keg disarm
+        ...(x.stars >= 3 && !starRules() ? [`EACH PAYLOAD IT RIPS ADDS ${damage(pct(10, roundHalfUp(100 * x.k)))} TO THIS TURRET'S NEXT SHOT.`] : []),
+        ...(starRules() ? [] : ["A HIT ON A POWDER KEG DISARMS IT."]),
       ];
     },
-    perkAt: (e, x) => (x.stars >= 3 ? 1 : 0),
+    perkAt: (e, x) => (x.stars >= 3 && !starRules() ? 1 : 0),
     gist: (e, x) => `RIPS ${plural(c(e, x).rip!, "PAYLOAD")} WITHIN ${plural(c(e, x).reach!, "TILE")}`,
     card: () => "SHOTS RIP ENEMY PAYLOADS",
   },
@@ -991,13 +1010,18 @@ const ENTRIES: Record<string, Entry> = {
   },
   flak: {
     // Battle.flight: one intercept roll per incoming harassing shot, at the side's best screen; a downed shot is gone
-    text: (e) => [
+    // Y2 (release Y; DESIGN-Y row 10): with the star switch on it rolls for shots that carry a STUN only, each screen on
+    // its own (Battle.flight)
+    text: (e) => (starRules() ? [
+      `SHOOTS DOWN ${percent(m(e).intercept!)} OF THE ENEMY'S STUN SHOTS BEFORE THEY LAND.`,
+      "IT GUARDS YOUR WHOLE SHIP; EACH FLAK SCREEN ROLLS ON ITS OWN.",
+    ] : [
       `SHOOTS DOWN ${percent(m(e).intercept!)} OF THE ENEMY'S HARASSMENT SHOTS BEFORE THEY LAND.`,
       "IT GUARDS YOUR WHOLE SHIP; ONLY YOUR BEST FLAK SCREEN COUNTS.",
       "HARASSMENT SHOTS ARE SHOCK, STATIC, ARC, GRAPNEL AND LANCE SHOTS, AND SABOT, FROST, CHAIN AND LIMPET ROUNDS.",
-    ],
+    ]),
     gist: (e) => `SHOOTS DOWN ${percent(m(e).intercept!)}`,
-    card: (e) => `SHOOTS DOWN ${percent(m(e).intercept!)} OF HARASSMENT`,
+    card: (e) => (starRules() ? `SHOOTS DOWN ${percent(m(e).intercept!)} OF STUN SHOTS` : `SHOOTS DOWN ${percent(m(e).intercept!)} OF HARASSMENT`),
   },
   spotter: {
     // Battle.pickTarget: rerolls a bare-hull pick; ★2 FACTORY SPOT weighs factories; ★3 EAGLE EYE machines only
@@ -1107,11 +1131,12 @@ const ENTRIES: Record<string, Entry> = {
   braceframe: {
     // Battle.braceCut: an enemy STUN on a tile it hits, or on the brace itself, lasts x mul while it works, x plated while
     // the hull holds plating (E1). NUM-3 (R1's STUN fold): no freeze or chain slow any more (Battle.disrupt cuts every STUN)
-    text: (e) => [
+    // Y2 (release Y; DESIGN-Y row 16): with the star switch on, no plated multiplier and no brace of itself
+    text: (e) => (starRules() ? [`ENEMY STUNS ON THE BELT TILES IT HITS LAST ${percent(1 - g(e).brace!.mul)} SHORTER.`] : [
       `ENEMY STUNS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST ${percent(1 - g(e).brace!.mul)} SHORTER.`,
       `WHILE YOUR HULL HOLDS PLATING THEY LAST ${percent(1 - g(e).brace!.plated)} SHORTER.`,
-    ],
-    gist: (e) => `${percent(1 - g(e).brace!.mul)} SHORTER, ${percent(1 - g(e).brace!.plated)} WHILE PLATED`,
+    ]),
+    gist: (e) => (starRules() ? `${percent(1 - g(e).brace!.mul)} SHORTER` : `${percent(1 - g(e).brace!.mul)} SHORTER, ${percent(1 - g(e).brace!.plated)} WHILE PLATED`),
     card: () => "SHORTER STUNS ON ITS TILES",
   },
   twinlatch: {
@@ -1432,8 +1457,10 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.overclockCooldown) return `${name} DOUBLES THE NEXT RIG, THEN WAITS ${fmtSec(e.overclockCooldown)} SEC`;
   if (e.keg) return `${name} +${damage(e.keg.flat)} AND ${e.keg.burn} BURN AFTER ${fmtSec(e.keg.fuse)} SEC`;
   // 0.6.2rel3 (TUNE-M T2): LODESTONE's floor is the hit's flat (walkRoute); its stall bonus waits for the battle
+  // Y2 (release Y; DESIGN-Y rows 15, 8): with the star switch on, LODESTONE has no floor or cap and TOLLBOOTH blocks STUNs
+  if (e.perStalled && starRules()) return `${name} +${damage(e.perStalled.each)} FOR EACH STUNNED MACHINE`;
   if (e.perStalled) return `${name} ${h.flat ? `+${damage(h.flat)}, ` : ""}+${damage(e.perStalled.each)} FOR EACH STUNNED MACHINE, UP TO ${damage(e.perStalled.max)}`;
-  if (e.toll) return `${name} BLOCKS ${e.toll} HARASSMENT HITS`;
+  if (e.toll) return starRules() ? `${name} BLOCKS ${e.toll} STUNS` : `${name} BLOCKS ${e.toll} HARASSMENT HITS`;
   if (e.sift) return `${name} REMOVES ${e.sift === "all" ? "EVERY MARK" : "ONE MARK"}${h.flat ? `, +${damage(h.flat)} IF CLEAN` : ""}`;
   if (e.heal) return `${name} ${SW.heals} ${fmtDmg(e.heal)} HULL`; // SUS-A: the field is `heal`; SUS-B: HEAL's word (was REPAIRS)
   if (e.heat) return `${name} +${damage(e.heat)} FOR EACH SECOND AFTER`;
@@ -1447,7 +1474,8 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.pincer) return `${name} +${damage(h.flat ?? 0)}${h.others ? `, CROSSFIRE WITH ${plural(h.others, "RIG")}` : ""}`;
   if (e.latch) return `${name} +${damage(h.flat ?? 0)}, HOLDS UP TO ${fmtSec(e.latch.hold)} SEC`;
   if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING, ELSE +${damage(e.breaker.floor)}`; // NUM-1: 10 plating
-  if (e.brace) return `${name} ENEMY STUNS ${percent(1 - e.brace.mul)} SHORTER (${percent(1 - e.brace.plated)} SHORTER PLATED)`;
+  if (e.brace) return starRules() ? `${name} ENEMY STUNS ${percent(1 - e.brace.mul)} SHORTER` // Y2 (DESIGN-Y row 16): no plated cut
+    : `${name} ENEMY STUNS ${percent(1 - e.brace.mul)} SHORTER (${percent(1 - e.brace.plated)} SHORTER PLATED)`;
   if (e.plate) return `${name} +${fmtDmg(e.plate)} PLATING${e.plated ? `, +${damage(e.plated.flat)} AT ${e.plated.min} PLATING` : ""}`;
   const parts = [
     ...(h.flat ? [`+${damage(h.flat)}`] : []),
