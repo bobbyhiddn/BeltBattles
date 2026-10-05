@@ -31,6 +31,7 @@ export function boostable(e: GateEffect): boolean {
   return e.speed === undefined && !e.pulse && !e.toll && !e.sift && !e.heal && !e.keg && !e.overclockCooldown && // SUS-A: heal (was repair) never doubles
     !!(e.burn || e.flat || e.perPriorGate || e.shock || e.split || e.poison || e.burnPerRide || e.quench ||
       e.staticTime || e.perStalled || e.fray || e.perTile || e.heat || e.sort ||
+      e.burnPlus || // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP's BURN seconds with the star switch on (absent off), as its poison was
       // 0.8.0 P1, wave 3 (DESIGN-wave3.md 3.2): plating, the gauge, the pincer, the latch's damage and the breaker.
       // STOKER and BRACE FRAME act on no payload, so they stay unboostable.
       e.plate || e.gauge || e.pincer || e.latch || e.breaker);
@@ -53,6 +54,10 @@ export function overclocked(e: GateEffect): GateEffect {
   if (e.perPriorGate) o.perPriorGate = e.perPriorGate * 2;
   if (e.split) o.split = { copies: e.split.copies + 1, mult: e.split.mult };
   if (e.poison) o.poison = e.poison * 2;
+  // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP's burnPlus doubles, as its poison did. The cache needs no switch in its key: a
+  // switch-on def is its own object (content.ts STAR_ITEMS) and stars.ts effectAt caches its stars apart, so the effect that
+  // holds burnPlus never meets the base's poison effect here
+  if (e.burnPlus) o.burnPlus = e.burnPlus * 2;
   if (e.burnPerRide) o.burnPerRide = { ...e.burnPerRide, burn: e.burnPerRide.burn * 2 }; // NUM-3: twice the BURN a 10 s (was half the seconds)
   if (e.quench) o.quench = { ...e.quench, flat: e.quench.flat * 2, perBurn: e.quench.perBurn * 2 }; // flat doubles; same stacks
   if (e.staticTime) o.staticTime = e.staticTime * 2;

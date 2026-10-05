@@ -84,6 +84,9 @@ export interface Payload {
   pulseSeen?: Record<number, number>;
   compound?: Payload;
   poison?: number;
+  // Y6 (release Y; DESIGN-Y section 4.1): with the star switch on, the seconds VENOM DRIPs add to each BURN stack of this
+  // payload's hit (Battle.impact); copies keep it (the spread), a COMPOUND shell adds both loads'. Absent with the switch off
+  burnPlus?: number;
   fray?: number;
   frayCap?: number;
   staticTime?: number;
@@ -1673,6 +1676,9 @@ export class Battle {
     if (e.perPriorGate) p.flat += e.perPriorGate * (e.priorCap !== undefined ? Math.min(p.prior, e.priorCap) : p.prior);
     if (e.burn) p.burn += e.burn;
     if (e.poison) p.poison = (p.poison ?? 0) + e.poison;
+    // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP with the star switch on (its only source: content.ts STAR_DIFF), on
+    // poison's path: two add up, and a doubled hit (overclocked) adds twice
+    if (e.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + e.burnPlus;
     if (e.burnPerRide) {
       const original = g.def.gate!.burnPerRide!;
       // Y3 (release Y; DESIGN-Y row 22): with the star switch on, + burn for each whole `per` s ridden (1/2/3 for each 2 s),
@@ -1968,6 +1974,7 @@ export class Battle {
       p.burn += q.burn;
       burn += q.burn;
       p.poison = (p.poison ?? 0) + (q.poison ?? 0);
+      if (q.burnPlus) p.burnPlus = (p.burnPlus ?? 0) + q.burnPlus; // Y6 (DESIGN-Y 4.1): the shell keeps both loads' (switch on only)
       p.shock ||= q.shock;
       p.static ||= q.static;
       p.staticTime = Math.max(p.staticTime ?? 0, q.staticTime ?? 0) || undefined;
@@ -2124,12 +2131,16 @@ export class Battle {
       def.hull.poison.t = 6;
     }
     let burn = pr.burn ?? pr.payload.burn; // 0.6.1b: a core's Burn (SCATTER split, DRAKE added), else the payload's
+    // Y6 (release Y; DESIGN-Y section 4.1): with the star switch on, VENOM DRIP's seconds: each BURN stack of this hit lasts
+    // BURN_TIME + plus, and only then SLOW EMBERS' % applies (burnTime). 0 without a VENOM (every stack as before); a slug
+    // with plus and no BURN adds nothing
+    const plus = pr.payload.burnPlus ?? 0;
     // RUNES-2a: SLOW EMBERS (your BURN lasts longer)
-    if (burn > 0) def.hull.burns.push({ dps: burn, t: this.burnTime(atk, pr.burnTime ?? BURN_TIME) });
+    if (burn > 0) def.hull.burns.push({ dps: burn, t: this.burnTime(atk, (pr.burnTime ?? BURN_TIME) + plus) });
     if (atk.rune) { // RUNES-2a: EMBER SHOT on a volley's first shot, HOT SEAM on a PAIR shot: BURN stacks on this hit
       const more = (pr.runeBurn ?? 0) + (atk.rune.pairBurn && (pr.payload.paired || pr.payload.compound?.paired) ? atk.rune.pairBurn : 0);
       if (more > 0) {
-        def.hull.burns.push({ dps: more, t: this.burnTime(atk, BURN_TIME) });
+        def.hull.burns.push({ dps: more, t: this.burnTime(atk, BURN_TIME + plus) });
         burn += more;
       }
     }

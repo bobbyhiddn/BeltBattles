@@ -536,6 +536,7 @@ export interface TimelineHit {
   burn?: number;
   quenched?: number; // 0.6.2 FB-B QUENCH TANK: the Burn stacks this hit spent (its flat above includes their value)
   poison?: number;
+  burnPlus?: number; // Y6 (release Y; DESIGN-Y 4.1): VENOM DRIP with the star switch on, the seconds it adds to each BURN stack
   fray?: number;
   staticTime?: number;
   timed?: string;
@@ -699,6 +700,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         th.burn = e.burn;
       }
       if (e.poison) th.poison = e.poison;
+      if (e.burnPlus) th.burnPlus = e.burnPlus; // Y6: VENOM DRIP with the star switch on (no damage; the rating prices it)
       if (e.burnPerRide) {
         // Y3 (release Y; DESIGN-Y row 22): as Battle.applyHit, with the star switch on + burn for each whole `per` s, no cap
         const br = e.burnPerRide;

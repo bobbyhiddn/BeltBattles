@@ -132,6 +132,11 @@ export interface GateEffect {
   heal?: number; // SUS-A (REQ-BFG-069; was `repair`): RIVETER, HEAL this much for each payload it hits (Battle.heal)
   heat?: number;
   poison?: number;
+  // Y6 (release Y; DESIGN-Y section 4.1): VENOM DRIP with the star switch on (STAR_DIFF), in place of its poison: each BURN
+  // stack of the hits of the payloads it hits lasts this many seconds longer (Battle.impact: BURN_TIME + burnPlus, then
+  // SLOW EMBERS' %); it rides the payload as poison does (two add up, an OVERCLOCKER doubles it, copies keep it, a COMPOUND
+  // shell adds both loads'). Absent on every def with the switch off
+  burnPlus?: number;
   overclockCooldown?: number;
   // POWDER KEG: once, `fuse` s after it comes online, + flat and burn to every payload on its belts (★3 WIDE BLAST: every
   // belt beside it). Y5 (release Y; DESIGN-Y row 46): with the star switch on no `burn` and no `wide`: every `fuse` s from
@@ -1349,6 +1354,12 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
     mod: { spall: { every: 40, add: 10 } },
     levels: { 2: { mod: { spall: { every: 40, add: 22 } } }, 3: { mod: { spall: { every: 40, add: 35 } } } },
   },
+  // ---- Y6 (DESIGN-Y section 3 row 48 and section 4.1, R1's R2; REVIEW-STARD point 4: VENOM feeds BURN length)
+  // row 48, VENOM DRIP: its poison (2/4/7) goes, so POISON leaves the switch-on game (no payload or hull pool, no tick, no
+  // event: Battle.impact adds none); each slug it hits gains burnPlus +3/+6/+9 s instead, and each BURN stack of that slug's
+  // hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %). Alone it deals nothing. Its catalogue desc stays (no panel draws
+  // it: flavour.ts KEPT_FLAVOUR venom [])
+  venom: { gate: { burnPlus: 3 }, levels: { 2: { gate: { burnPlus: 6 } }, 3: { gate: { burnPlus: 9 } } } },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */
