@@ -14,6 +14,10 @@
 //
 // A run without wares (a save from before 0.8.0) plays today's rule: every buyable module, legendaries from day 4, the
 // ARCANE DEALER from day 3 (run.ts dayPool), so a run in progress never changes.
+//
+// FIX-ABE (REQ-BFG-069; cap's ruling 207816b18a9fbfdb): a ware held past its slot's day by a hold of its own (a sustain
+// piece before SUSTAIN_FIRST_DAY) never holds a merchant's ware slot: the slot goes to a stand-in from the same shuffle,
+// open with the slot, and the held ware joins on its own day, so a run holds DRAW.active wares plus one per such slot.
 
 import { hashSeed, Rng } from "../core/rng";
 import { ITEMS, RARITIES, buyableModules, type MerchantId } from "../sim/content";
@@ -57,17 +61,27 @@ export function quotas(sizes: readonly number[], total: number, rng: Rng): numbe
   return q;
 }
 
-/** The day a ware unlocks: its rarity's (epic from epicDay, legendary from legendaryDay), the ARCANE DEALER's from
- *  arcaneDay, and a late restock day when it waits for one. */
-export function unlockDay(id: string, late: number | undefined, rule: DrawRule = DRAW): number {
+/** FIX-ABE (cap's ruling 207816b18a9fbfdb): the day a ware's seat opens, the draw's own ladder: its rarity's (epic from
+ *  epicDay, legendary from legendaryDay) and the ARCANE DEALER's from arcaneDay, before any hold of the ware's own. */
+export function seatDay(id: string, rule: DrawRule = DRAW): number {
   const d = ITEMS[id];
-  let u = d.rarity === "legendary" ? rule.legendaryDay : d.rarity === "epic" ? rule.epicDay : 1;
-  if (d.merchant === "arcane") u = Math.max(u, rule.arcaneDay);
+  const u = d.rarity === "legendary" ? rule.legendaryDay : d.rarity === "epic" ? rule.epicDay : 1;
+  return d.merchant === "arcane" ? Math.max(u, rule.arcaneDay) : u;
+}
+
+/** The day a ware unlocks: its seat's (seatDay), a hold of its own (a sustain piece's first day), and a late restock day
+ *  when it waits for one. */
+export function unlockDay(id: string, late: number | undefined, rule: DrawRule = DRAW): number {
+  let u = seatDay(id, rule);
   // BOTS-X (REQ-BFG-069): the sustain pieces from the first sustain day (switch off: no draw lists one, so never read)
   if (isSustain(id)) u = Math.max(u, SUSTAIN_FIRST_DAY);
   if (late !== undefined) u = Math.max(u, late);
   return u;
 }
+
+/** FIX-ABE (cap's ruling 207816b18a9fbfdb): is `id` held past its seat's day by a hold of its own (today a sustain piece
+ *  before SUSTAIN_FIRST_DAY)? Such a ware never holds a merchant's ware slot (drawWares). */
+export const heldPast = (id: string, rule: DrawRule = DRAW): boolean => unlockDay(id, undefined, rule) > seatDay(id, rule);
 
 /**
  * The run's wares, drawn from the run seed alone (in catalogue order). Each merchant carries its share of `active`, spread
@@ -80,6 +94,7 @@ export function drawWares(seed: number, rule: DrawRule = DRAW): Wares {
   const stockOf = (m: MerchantId) => all.filter((id) => ITEMS[id].merchant === m);
   const qm = quotas(merchants.map((m) => stockOf(m).length), Math.min(rule.active, all.length), new Rng(hashSeed(seed, "wares-merchant")));
   const picked = new Set<string>();
+  const standIns = new Set<string>(); // FIX-ABE: the wares that hold a held ware's slot
   merchants.forEach((m, i) => {
     const stock = stockOf(m);
     const tiers = RARITIES.filter((r) => stock.some((id) => ITEMS[id].rarity === r));
@@ -87,6 +102,15 @@ export function drawWares(seed: number, rule: DrawRule = DRAW): Wares {
     tiers.forEach((r, j) => {
       const ids = new Rng(hashSeed(seed, "wares", m, r)).shuffle(stock.filter((id) => ITEMS[id].rarity === r));
       for (const id of ids.slice(0, qr[j])) picked.add(id);
+      // FIX-ABE (cap's ruling 207816b18a9fbfdb): a ware held past its seat's day never holds a merchant's ware slot, so the
+      // merchant's slots fill only from wares open that day: each slot such a ware drew goes to the tier's next ware in
+      // this same shuffle that opens with the seat (no new draw: the stream holds), open from the seat's day; the held
+      // ware still joins the run on its own day. A tier that drew no held ware draws exactly as before.
+      let owed = ids.slice(0, qr[j]).filter((id) => heldPast(id, rule)).length;
+      for (const id of ids.slice(qr[j])) {
+        if (owed <= 0) break;
+        if (!heldPast(id, rule)) { standIns.add(id); owed--; }
+      }
     });
   });
   const eligible = all.filter((id) => picked.has(id) && ITEMS[id].rarity !== "legendary" && ITEMS[id].merchant !== "arcane");
@@ -98,7 +122,12 @@ export function drawWares(seed: number, rule: DrawRule = DRAW): Wares {
     order.slice(0, lq[i]).forEach((id, j) => late.set(id, rule.lateDays[j % 2]));
   });
   const out: Wares = {};
-  for (const id of all) if (picked.has(id)) out[id] = unlockDay(id, late.get(id), rule);
+  // FIX-ABE: the restocks above read the slots' draw as before (a held ware may wait for one; a stand-in never does, it
+  // opens with the slot it holds), so a run's every other ware keeps its day and the stand-ins only add
+  for (const id of all) {
+    if (picked.has(id)) out[id] = unlockDay(id, late.get(id), rule);
+    else if (standIns.has(id)) out[id] = seatDay(id, rule);
+  }
   return out;
 }
 
