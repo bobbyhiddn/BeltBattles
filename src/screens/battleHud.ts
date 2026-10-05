@@ -13,6 +13,9 @@ import type { Side } from "../sim/battle";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, textWidth } from "../render/font";
+import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): SHIELD's pips and REGEN's badge, one source
+import { SHIELD_CAP } from "../sim/content"; // SUS-B: the pips' count
+import { fmtDmg } from "../ui/statFormat"; // SUS-B: the REGEN badge prints as the faces print REGEN
 import { heartIcon } from "../render/sprites";
 import { button, panel, type Rect } from "../ui/ui";
 import { hullBar } from "../ui/hud";
@@ -75,7 +78,21 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
   const hpW = textWidth(hpText, "3");
   drawText(g, name, tx, ty, side === 0 ? C.white : C.red, { font: "3" });
   drawText(g, hpText, r.x + r.w - 3, ty, C.bone, { font: "3", align: "right" });
-  const bx = tx + nameW + 3, bw = r.x + r.w - 3 - hpW - 3 - bx;
+  let bx = tx + nameW + 3, bw = r.x + r.w - 3 - hpW - 3 - bx;
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): a side that can hold SHIELD shows its pips before its bar (lit up to its count, the
+  // rest of SHIELD_CAP dim; a broken one flashes out), and a side with MENDING LOOMs its REGEN badge before its HP. Their
+  // room is kept from the start, so the bar never moves; a plate without either draws exactly as before
+  if (bw > 8 + SHIELD_PIPS_W && showsShield(a, side)) {
+    drawShieldPips(g, bx, ty, s.shield ?? 0, f.shieldBreak > 0 ? f.shieldAt : -1, game.t);
+    bx += SHIELD_PIPS_W + 3;
+    bw -= SHIELD_PIPS_W + 3;
+  }
+  const rmax = regenMax(a, side), room = rmax > 0 ? textWidth(`+${fmtDmg(rmax)}`, "3") + 3 : 0;
+  if (room && bw > 8 + room) {
+    const now = regenNow(a, side);
+    if (now > 0) drawText(g, `+${fmtDmg(now)}`, r.x + r.w - 3 - hpW - 3, ty, ICON_COLOUR[ICON.REGEN], { font: "3", align: "right" });
+    bw -= room;
+  }
   if (bw > 8 && plated(a, side)) {
     // 0.8.0 H1 M3: BASTION's plating strip on top of the hull bar, in the bar's 7 rows: plating takes hits before HP, so
     // the strip drains (white where just lost) while the bar below holds; the dark wind goes straight to the bar
@@ -90,6 +107,43 @@ export function drawPlate(g: G, game: Game, a: Arena, r: Rect, side: Side, name:
     const px = r.x + r.w - 3;
     if (s.hull.fray > 0) rect(g, px - 2, r.y - 2, 2, 2, C.ice);
     if (burn > 0) rect(g, px - 5, r.y - 2, 2, 2, C.fire3);
+  }
+}
+
+/** SUS-B (REQ-BFG-069): the SHIELD pips' room on a plate: SHIELD_CAP 3x5 glyphs at a 4 px pitch. */
+export const SHIELD_PIPS_W = SHIELD_CAP * 4 - 1;
+
+/** SUS-B (REQ-BFG-069): the side can hold SHIELD (SideState.shield: WARD STONE's start gain, or any gain; a WARD BELL's
+ *  turret, TurretState.bell), so its plate shows its pips from the start. */
+export function showsShield(a: Pick<Arena, "b">, side: Side): boolean {
+  const s = a.b.sides[side];
+  return s.shield !== undefined || s.turrets.some((tu) => !!tu.bell);
+}
+
+/** SUS-B (REQ-BFG-069): the REGEN the side's working MENDING LOOMs (TurretState.regen; a STUN or freeze on the turret
+ *  pauses one, Battle.sustainTick) give its living hull now; 0 in the dark wind, where nothing heals. */
+export function regenNow(a: Pick<Arena, "b">, side: Side): number {
+  const s = a.b.sides[side];
+  if (a.b.t >= WIND_START || s.hull.hp <= 0) return 0;
+  let n = 0;
+  for (const tu of s.turrets) if (tu.regen && !(tu.disrupted > 0) && !(tu.frozen > 0)) n += tu.regen;
+  return n;
+}
+
+/** SUS-B: the most REGEN the side's looms give (its badge's room, kept from the start). */
+export function regenMax(a: Pick<Arena, "b">, side: Side): number {
+  let n = 0;
+  for (const tu of a.b.sides[side].turrets) if (tu.regen) n += tu.regen;
+  return n;
+}
+
+/** SUS-B: SHIELD_CAP pips in the 3x5 SHIELD glyph from (x, y): the first `n` lit (SHIELD's rune glow), the rest dim; the
+ *  pip at `broke` (a SHIELD just broken, its index the count after the break) flashes white, steady with Reduced Motion. */
+export function drawShieldPips(g: G, x: number, y: number, n: number, broke: number, t: number): void {
+  for (let i = 0; i < SHIELD_CAP; i++) {
+    const flash = i === broke && i >= n;
+    const col = i < n ? ICON_COLOUR[ICON.SHIELD] : flash && (settings.reducedMotion || Math.floor(t * 12) % 2 === 0) ? C.white : C.slate2;
+    drawText(g, ICON.SHIELD, x + i * 4, y, col, { font: "3", mono: true });
   }
 }
 

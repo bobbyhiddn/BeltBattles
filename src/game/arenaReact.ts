@@ -13,8 +13,10 @@ import { CLANK_TIME, FUSE_TIME } from "../render/raceFx"; // 0.8.0 H1 M3: FOUNDR
 import type { Fx } from "../render/fx";
 import { RELEASE_TIME, SHRUG_TIME } from "../render/wave3Moments"; // 0.8.0 I1 M4: A1's battle moments
 import type { Arena } from "./arena";
+import { ICON, ICON_COLOUR } from "../render/font"; // SUS-B (REQ-BFG-069): HEAL's and SHIELD's colours, one source
+import { fmtDmg } from "../ui/statFormat"; // SUS-B: a heal's float prints as the faces print HEAL
 
-const HOT = [C.fire5, C.fire4, C.fire3, C.white] as const;
+const HOT =[C.fire5, C.fire4, C.fire3, C.white] as const;
 const COLD = [C.white, C.ice, C.cyan] as const;
 const STEEL = [C.steel3, C.steel2, C.white] as const;
 const DEBRIS_ORC = [C.rust3, C.steel2, C.rust4, C.steel1] as const;
@@ -28,6 +30,26 @@ const KO_DEBRIS = [C.steel2, C.rust3, C.steel1, C.fire3, C.bone] as const;
 const SHOCK = [C.ice, C.white, C.cyan] as const;
 // 0.8.0 H1 M3: a hit that BASTION's plating took throws plate chips, and its number shows in the plating strip's rune blue
 const PLATED = [C.rune3, C.plate3, C.rune4] as const;
+
+/** SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): HEAL's colour (font.ts ICON_COLOUR, the one source: green) for its floats. */
+export const HEAL_COLOUR = ICON_COLOUR[ICON.HEAL];
+/** SUS-B: how long a broken SHIELD's pip flashes on the plate (s, real time). */
+export const SHIELD_BREAK_TIME = 0.5;
+/** SUS-B: a broken SHIELD's sparks, in SHIELD's rune glow (ICON_COLOUR) and white. */
+const SHIELD_SPARKS = [ICON_COLOUR[ICON.SHIELD], C.white, C.rune4] as const;
+
+/** SUS-B: where a heal's float rises: RIVETER's rig, MEND PRESS's factory, else (REGEN) the hull a little above centre. */
+export function healPoint(a: Arena, e: Extract<SimEvent, { type: "heal" }>): [number, number] {
+  const fr = a.drawn[e.side], s = a.b.sides[e.side];
+  const g = e.gate !== undefined ? s.gates.find((v) => v.uid === e.gate) : undefined;
+  if (g) return [sx(fr, (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), sy(fr, (g.x + 0.5) * CELL, (g.y + 0.5) * CELL)];
+  const f = e.factory !== undefined ? s.factories.find((q) => q.uid === e.factory) : undefined;
+  if (f) {
+    const lx = (f.x + f.def.size / 2) * CELL, ly = (f.y + f.def.size / 2) * CELL;
+    return [sx(fr, lx, ly), sy(fr, lx, ly)];
+  }
+  return [hullCx(a, e.side), hullCy(a, e.side) - 10];
+}
 
 function hullCx(a: Arena, side: Side): number {
   const b = hullBox(a.drawn[side]);
@@ -243,11 +265,23 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
         sy(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), 10, C.brass4);
       return;
     }
-    case "heal": { // SUS-A (REQ-BFG-069): was "repair"; RIVETER's heals only, as before (SUS-B draws the rest)
-      if (e.gate === undefined) return;
-      const g = a.b.sides[e.side].gates.find((v) => v.uid === e.gate);
-      if (g && !fast) fx.popup(sx(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL),
-        sy(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), `+${e.amount.toFixed(1)}`, C.lime);
+    case "heal": {
+      // SUS-A (REQ-BFG-069): was "repair". SUS-B: every heal floats a green "+n" (fmtDmg, the faces' damage-family number;
+      // was RIVETER's only, toFixed(1) in lime): RIVETER's at its rig, MEND PRESS's at its factory, REGEN's at the hull.
+      // Fast mode skips floats, as before
+      if (fast) return;
+      const [x, y] = healPoint(a, e);
+      fx.popup(x, y, `+${fmtDmg(e.amount)}`, HEAL_COLOUR);
+      return;
+    }
+    case "shield": {
+      // SUS-B (REQ-BFG-069): a hit broke a SHIELD (-1): its pip on the plate flashes out (battleHud.ts drawPlate) and a few
+      // rune sparks fly off the hull; a gain needs no cue (its pip lights)
+      if (e.amount >= 0) return;
+      const f = a.sfx[e.side];
+      f.shieldBreak = SHIELD_BREAK_TIME;
+      f.shieldAt = e.shield;
+      if (!fast) fx.sparks(hullCx(a, e.side), hullCy(a, e.side), 5, SHIELD_SPARKS, 45);
       return;
     }
     case "keg": {
