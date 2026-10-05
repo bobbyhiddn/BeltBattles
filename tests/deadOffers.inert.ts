@@ -14,7 +14,10 @@ export type Reason =
   // NUM-1 (REQ-BFG-047; cap's oracle 3cf09080186f8f84): a pair the whole numbers made inert, open until classified
   | "num1Open"
   // NUM-2 (cap's oracle 3cf09080186f8f84): BASTION's GREASE WORKS days 5-6, classified SUB-POINT; no older reason fits
-  | "stampPaced";
+  | "stampPaced"
+  // NUM-2 (REQ-BFG-047; 3cf09080186f8f84's procedure applied to SPEED, provisionally: oracle ec91a967c21f4c7b): a pair
+  // SPEED's whole speeds and carried timers made inert, open until classified against num1u
+  | "num2Open";
 // 0.8.0 B1 M1 (oracle 60ce2081b6171361): echoBelt and laterGun described reference-deck defects B1 fixed (SIPHON's merged
 // ECHO WHETSTONE; its CALIBRATION in starved gun 0's only gear slot), so no pair has either reason any more
 
@@ -37,6 +40,7 @@ export const REASONS: Record<Reason, string> = {
   // NUM-2 (cap's oracle 3cf09080186f8f84), from the base 11fbc6a's rows (W/output-num2/deadaudit): produced, shots and
   // firstShot equal; gun 0's fourth shot 19 ticks sooner; 0.033 of Burn by the clock (under one num1 point)
   stampPaced: "The copy merges into BASTION's GREASE WORKS (2 stars: its belt runs 2.3 times as fast from its hit, not 1.6); the bulwark slugs reach gun 0 sooner, but the factories' stamp pace sets how many loads the gun gets: the same slugs and shots, one shot a moment sooner.",
+  num2Open: "NUM-2's SPEED: on num1u's rules (intervals, reset timers) this part moved a battle metric on this deck, on num2's (whole speeds, timers that carry their remainder) it moves none. Open until it is classified against num1u (3cf09080186f8f84's procedure).",
 };
 
 /** The inert pairs: hero, module, its days (ascending), as the audit finds them on the reference decks. */
@@ -58,13 +62,30 @@ export const REASONS: Record<Reason, string> = {
 // deadaudit/CLASSIFY.md): 31 rows sub-point and 5 kill edge take their physics reason in WHY (starved; GREASE WORKS on
 // BASTION the new stampPaced); 210 rows (38 pairs) are lost (damage, Burn and the foe's hull moved 0.1-1.97 base units
 // with the same shots) and keep num1Open. INERT itself is unchanged.
+// NUM-2 (REQ-BFG-047, SPEED; 3cf09080186f8f84's procedure applied again, provisionally: oracle ec91a967c21f4c7b): INERT
+// re-pinned from the audit's num2 rows (W/output-num2/deadaudit-num2). SPEED's whole speeds and carried timers move every
+// gun's and factory's cadence by up to 4%, so the audit moves both ways on every hero. NEW inert pairs take num2Open
+// (NUM2_OPEN below, read before WHY). Pairs that TURNED LIVE are dropped, each because SPEED moved its fight, not with a
+// kill-edge note: FOUNDRY calibrate 7-9, spikegun 9, twinneedle 2-4, railgun 4, escapement 9, steambreech 9; BASTION
+// deckgun 5-6 and 10, siegegun 2-3, grease 5-6; FURNACE calibrate, scrapcannon, rampart, swivel, deckgun and steambreech
+// 7-10; WEAVER railgun 1, 3-4, grease 2-6; METRONOME calibrate 5-6, rampart 1-2, siegegun 1-2; SIPHON scrapcannon,
+// rampart and bombard 1-10, railgun 5-10. Their WHY entries stay (unread on a live day) for the classification.
 export const INERT: Record<HeroId, Record<string, number[]>> = {
-  foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], railgun: [1, 3, 4, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9], bellows: [6, 7, 8, 10] },
-  bastion: { bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7], scrapcannon: [1, 2, 3], deckgun: [1, 5, 6, 10], thunderer: [1], siegegun: [2, 3, 4], longcase: [2, 3, 4], rampart: [4], grease: [5, 6], overclocker: [5, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10] },
-  furnace: { longhaul: [1], overclocker: [1], bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5], calibrate: [4, 5, 6, 7, 8, 9, 10], scrapcannon: [4, 5, 6, 7, 8, 9, 10], rampart: [4, 5, 6, 7, 8, 9, 10], swivel: [4, 5, 6, 7, 8, 9, 10], deckgun: [4, 5, 7, 8, 9, 10], siegegun: [4, 5], thunderer: [4, 5], escapement: [4, 5], steambreech: [4, 5, 6, 7, 8, 9, 10], dartgun: [6, 7, 8, 9, 10], spikegun: [6, 7, 8, 9, 10], hailgun: [6, 7, 8, 9, 10] },
-  weaver: { longhaul: [1], overclocker: [1, 2], chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2, 3], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [1, 2, 3, 4], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], grease: [2, 3, 4, 5, 6] },
-  metronome: { calibrate: [1, 2, 5, 6], spotter: [1, 2, 3], rampart: [1, 2, 3, 4, 5, 6, 7], swivel: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6, 7], siegegun: [1, 2, 3, 4], thunderer: [1, 2, 3, 4], steambreech: [1, 2, 3, 4, 5, 6], scrapcannon: [3, 4], bombard: [3, 4], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10] },
-  siphon: { chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2], scrapcannon: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], rampart: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [1, 2, 3, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+  foundry: { chamber: [1, 2, 3, 4, 5, 6], calibrate: [1, 2, 3, 4, 5, 6], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], scrapcannon: [1, 2, 3, 4, 5, 6], rampart: [1, 2, 3, 4, 5, 6], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6], twinneedle: [1, 5, 6], hailgun: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6], railgun: [1, 3, 6], bombard: [1, 2, 3, 4, 5, 6], siegegun: [1, 2, 3, 4, 5, 6], thunderer: [1, 2, 3, 4, 5, 6], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 10], bellows: [6, 7, 8, 10] },
+  bastion: { bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7], scrapcannon: [1, 2, 3], deckgun: [1, 2, 3, 4], siegegun: [1, 4], thunderer: [1, 2, 3, 4], longcase: [2, 3, 4], calibrate: [4], rampart: [4], swivel: [4], steambreech: [4], overclocker: [5, 10], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10], stoker: [5, 6, 7, 8, 9, 10] },
+  furnace: { longhaul: [1], overclocker: [1], bellows: [1], spotter: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5], calibrate: [3, 4, 5, 6], scrapcannon: [3, 4, 5, 6], rampart: [3, 4, 5, 6], swivel: [3, 4, 5, 6], deckgun: [3, 4, 5], siegegun: [3, 4, 5], thunderer: [3, 4, 5], escapement: [3, 4, 5], steambreech: [3, 4, 5, 6], dartgun: [6, 7, 8, 9, 10], spikegun: [6, 7, 8, 9, 10], hailgun: [6, 7, 8, 9, 10] },
+  weaver: { longhaul: [1], overclocker: [1, 2], chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2, 3], scrapcannon: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [2, 5], twintrigger: [8, 9, 10] },
+  metronome: { calibrate: [1, 2], spotter: [1, 2, 3], swivel: [1, 2, 3, 4, 5, 6], deckgun: [1, 2, 3, 4, 5, 6, 7], thunderer: [1, 2, 3, 4], steambreech: [1, 2, 3, 4, 5, 6], scrapcannon: [3, 4], rampart: [3, 4, 5, 6, 7], bombard: [3, 4], siegegun: [3, 4], dartgun: [5, 6, 7, 8, 9, 10], spikegun: [5, 6, 7, 8, 9, 10], hailgun: [5, 6, 7, 8, 9, 10] },
+  siphon: { chamber: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], calibrate: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spotter: [1, 2], dartgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], spikegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], carronade: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], swivel: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], twinneedle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], deckgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [1, 2, 3], siegegun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], thunderer: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], escapement: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], steambreech: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+};
+
+/** NUM-2 (REQ-BFG-047): the (hero, module, days) SPEED made inert (the audit's num2 rows against num1u's INERT), each
+ *  num2Open until classified against num1u; reasonOf reads this before WHY. */
+const NUM2_OPEN: Partial<Record<HeroId, Record<string, number[]>>> = {
+  foundry: { scrapcannon: [1, 2, 3, 4, 5, 6], rampart: [1, 2, 3, 4, 5, 6], dartgun: [10], spikegun: [10], swivel: [1, 2, 3, 4, 5, 6], bombard: [1, 2, 3, 4, 5, 6], siegegun: [1, 2, 3, 4, 5, 6], thunderer: [1, 2, 3, 4, 5, 6], escapement: [10], steambreech: [10] },
+  bastion: { deckgun: [2, 3, 4], siegegun: [1], thunderer: [2, 3, 4], calibrate: [4], swivel: [4], steambreech: [4] },
+  furnace: { calibrate: [3], scrapcannon: [3], rampart: [3], swivel: [3], deckgun: [3], siegegun: [3], thunderer: [3], escapement: [3], steambreech: [3] },
+  weaver: { scrapcannon: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], hailgun: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], bombard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], railgun: [5], twintrigger: [8, 9, 10] },
 };
 
 /** The reason for each inert pair: by module, or by module and day range ([first, last, reason]) where it changes. */
@@ -120,6 +141,7 @@ export const WHY: Partial<Record<HeroId, Record<string, Why>>> = {
 
 /** The reason an inert pair has (undefined: none recorded, which the test treats as a failure). */
 export function reasonOf(hero: HeroId, id: string, day: number): Reason | undefined {
+  if (NUM2_OPEN[hero]?.[id]?.includes(day)) return "num2Open"; // NUM-2: SPEED's open pairs first
   const w = WHY[hero]?.[id];
   if (typeof w === "string") return w;
   if (Array.isArray(w)) return w.find(([a, b]) => day >= a && day <= b)?.[2];
