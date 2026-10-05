@@ -250,7 +250,9 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       P(8, 2), ...good(G(9, "counterweight", 2, 0)), soon(9, G(10, "venom", 0, 0)), ...good(G2(10, "temper", 3, 1)), P(10, 2),
     ],
     // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 46% on day 7 with 3 of the 4 packs: one PvE plate that day
-    pve: { 7: 1 },
+    // CATCHUP-091 (the walls, cap's ruling Q2 f77489ebe2e11698 rule 4; Q1 e2ca295ce9dcd60a rule 5: fallback 2 is trimmed
+    // first): the day-7 plate goes. With it the par field's top quartile beat her day-7 road deck 21% of the time
+    // (FURNACE; 100% at 1210ee8); without it 26%
   },
   // ---------------------------------------------------------------- Medium (tier 2)
   // SLOW COOKER: the kiln at the back, one 13-tile serpentine so every slug cooks on the way. Synergy: the ride-time
@@ -388,7 +390,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     ],
     // 0.8.9 (CATCHUP-089 fallback 2): her road deck read 53/51/50% on days 6-8 with 1/2/3 of the 3/4/5 packs: two PvE
     // plates on each of those days
-    pve: { 6: 2, 7: 2, 8: 2 },
+    // CATCHUP-091 (the walls, cap's ruling Q2 f77489ebe2e11698 rule 4; Q1 e2ca295ce9dcd60a rule 5: fallback 2 is trimmed
+    // first): the day-6 and day-7 plates go. With them the par field's top quartile beat her road deck 29% (day 6) and
+    // 13% (day 7) of the time (FURNACE; 70 and 64% at 1210ee8); without them 34 and 20%
+    pve: { 8: 2 },
   },
   // RIG CHAIN: one long cinder belt. Synergy: a WHETSTONE from day 1 (2 stars from day 7) heads a chain of rigs
   // (venom, a counterweight, a hullbreaker core) that a LONG HAUL cashes in from day 5 (+2 damage per hit already
@@ -529,7 +534,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // deck pays for them with its TURRET SPEED level 2 (day 7 before; no later day's gold holds it). The walls (cap's
       // ruling Q2 f77489ebe2e11698): with the 6/7 the gold allowed on days 9-10 the par field's top quartile beat his road
       // deck only 32-34% of the time (79-86% at 1210ee8); 4/5 packs read 41% on both days
-      P(3), soon(2, G(4, "twinlatch", 3, 2)), M2(4, "twintrigger", 0),
+      // CATCHUP-091 (the walls, cap's ruling Q2 f77489ebe2e11698 rule 4; BRIEF-CATCHUP-091 lever c): his day-3 ARMOR PACK
+      // on day 8 instead (P(8, 3) -> P(8, 4); 1210ee8, the floor, had none on days 3-7). With it the par field's top
+      // quartile beat his road deck only 31 / 23% (FURNACE / WEAVER) on day 3 and 36 / 27% on day 4; without it 69 / 43
+      // and 49 / 68, and day 6 FURNACE 42 (with the rune rule's TWIN SUNS skip)
+      soon(2, G(4, "twinlatch", 3, 2)), M2(4, "twintrigger", 0),
       // BAL-2 step 6 (cap's ruling 97e639e5813acb37): the counterweight (rare, non-synergy) on day 5 at ordinary luck (was
       // 3; FOUNDRY's ordinary rare+ cap fell 3 -> 2 on day 4, where the TWIN LATCH and TWIN TRIGGER hold both); soon()
       // keeps the warlord's day 3; re-placed in day order (cap's ruling 1cfdc5fff106d58f)
@@ -537,7 +546,7 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       soon(5, M(7, "compound", 0)),
       // FLIP-X2 step 4.4 (cap's ruling 97e639e5813acb37, item 2): the latch's second star at good luck only, day 9 (was
       // ordinary day 10; FOUNDRY's ordinary star2 cap is 2 on day 10 and no later day exists)
-      M2(7, "compound", 0), ...good(M(7, "flak", 1)), P(8, 3), ...good(G2(9, "twinlatch", 3, 2)),
+      M2(7, "compound", 0), ...good(M(7, "flak", 1)), P(8, 4), ...good(G2(9, "twinlatch", 3, 2)),
       ...good(G(10, "whetstone", 5, 2, 3)), P(10),
     ],
   },
@@ -618,7 +627,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     sustainDrop: [["coil", 5, 2]],
     // 0.8.9 (CATCHUP-089 fallback 2): his road deck read 51% on day 5 with none of the 2 packs (R1 holds them off) and 37%
     // on day 7 with 3 of the 4: PvE plates up to the count on those days
-    pve: { 5: 2, 7: 1 },
+    // CATCHUP-091 (the walls, cap's ruling Q2 f77489ebe2e11698 rule 4; Q1 e2ca295ce9dcd60a rule 5: fallback 2 is trimmed
+    // first): the day-5 plates go (2 -> 0). With them the par field's top quartile beat his day-5 road deck 25% of the time
+    // (FURNACE; 91% at 1210ee8); without them 42%
+    pve: { 7: 1 },
   },
   // ---------------------------------------------------------------- dusk stand-ins only (standInOnly), FURNACE and WEAVER
   // TWIN BITE: an 8-tile Kiln belt into connector 4 and a TWIN MOULD's 8-tile belt into connector 5 (day 2, 2 stars from
@@ -804,6 +816,11 @@ export const CAPTAIN_LEVELS: Readonly<Record<HeroId, Partial<Record<UpgradeTrack
  * 1e55cb8 (bb-0.9.1, 65 runes offered: DORMANT_RUNES empty, so FURNACE's four runes are in every dawn's draw),
  * 2026-10-05 16:06:49Z, W/output-bal2/captain-runes/captain-runes.ts.txt, pasted as written. 16 of the 19 lists moved
  * (each offer draws from the larger catalogue); MOTH QUEEN's, VOSS's and GRIMHOLD's did not.
+ * CATCHUP-091 (REQ-BFG-058, REQ-BFG-024): RE-PINNED from tools/genCaptainRunes.ts with its own two rules (its header:
+ * runeInertFor, the dead rune, and CAPTAIN_RUNE_SKIP, the walls), each the picker's next-best card of the same offer,
+ * pasted as written (W/output-c091/captain-runes/). Three lists moved: EMBERLYN (day 2 COAL CHUTE -> SEAM RIVETS: COAL
+ * CHUTE reads the KILN's HEAT, which a WEAVER captain lacks), MASTER VOSS (day 6 TWIN SUNS -> SCRAP SAINT, day 10 MOLTEN
+ * VOWS -> LOOM OF WOE) and LONGTOOTH (day 8 SCRAP SAINT -> RUNE TITHE, then FORGE WARD and PYRE HEART on days 9-10).
  */
 export const CAPTAIN_RUNES: Readonly<Partial<Record<RivalId, readonly string[]>>> = {
   sootjaw: ["scrap_biter", "toll_road", "slow_embers", "war_edge", "searing", "heat_sink", "spare_hull", "pyre_heart", "scrap_medic", "last_stand"], // furnace: SCRAP BITER, TOLL ROAD, SLOW EMBERS, WAR EDGE, SEARING, HEAT SINK, SPARE HULL, PYRE HEART, SCRAP MEDIC, LAST STAND
@@ -813,14 +830,14 @@ export const CAPTAIN_RUNES: Readonly<Partial<Record<RivalId, readonly string[]>>
   sparkfang: ["coal_chute", "ash_kindle", "slow_embers", "heat_sink", "iron_skin", "shatter_shot", "thread_storm", "gun_oil", "twin_suns", "scrap_saint"], // furnace: COAL CHUTE, ASH KINDLE, SLOW EMBERS, HEAT SINK, IRON SKIN, SHATTER SHOT, THREAD STORM, GUN OIL, TWIN SUNS, SCRAP SAINT
   lacewing: ["loose_thread", "quick_latch", "tar_barrel", "tangle_wire", "barbed_silk", "steady_iron", "warlords_due", "last_stand", "first_blood", "ward_stone"], // weaver: LOOSE THREAD, QUICK LATCH, TAR BARREL, TANGLE WIRE, BARBED SILK, STEADY IRON, WARLORD'S DUE, LAST STAND, FIRST BLOOD, WARD STONE
   ratchet: ["coal_chute", "slow_embers", "searing", "heat_sink", "pyre_heart", "steady_iron", "scrap_biter", "last_stand", "hair_trigger", "first_blood"], // furnace: COAL CHUTE, SLOW EMBERS, SEARING, HEAT SINK, PYRE HEART, STEADY IRON, SCRAP BITER, LAST STAND, HAIR TRIGGER, FIRST BLOOD
-  emberlyn: ["final_nail", "coal_chute", "loose_thread", "leech_vow", "scrap_biter", "last_stand", "ember_shot", "widows_web", "scrap_saint", "thread_storm"], // weaver: FINAL NAIL, COAL CHUTE, LOOSE THREAD, LEECH VOW, SCRAP BITER, LAST STAND, EMBER SHOT, WIDOW'S WEB, SCRAP SAINT, THREAD STORM
+  emberlyn: ["final_nail", "seam_rivets", "loose_thread", "leech_vow", "scrap_biter", "last_stand", "ember_shot", "widows_web", "scrap_saint", "thread_storm"], // weaver: FINAL NAIL, SEAM RIVETS, LOOSE THREAD, LEECH VOW, SCRAP BITER, LAST STAND, EMBER SHOT, WIDOW'S WEB, SCRAP SAINT, THREAD STORM
   bulwark: ["coal_chute", "quick_latch", "tar_barrel", "heat_sink", "warlords_due", "fat_purse", "searing", "pyre_heart", "ward_stone", "shatter_shot"], // furnace: COAL CHUTE, QUICK LATCH, TAR BARREL, HEAT SINK, WARLORD'S DUE, FAT PURSE, SEARING, PYRE HEART, WARD STONE, SHATTER SHOT
   silkshade: ["final_nail", "loose_thread", "twin_nails", "quick_latch", "toll_road", "barbed_silk", "oiled_cogs", "forge_ward", "loom_of_woe", "ember_shot"], // weaver: FINAL NAIL, LOOSE THREAD, TWIN NAILS, QUICK LATCH, TOLL ROAD, BARBED SILK, OILED COGS, FORGE WARD, LOOM OF WOE, EMBER SHOT
-  longtooth: ["quick_latch", "coal_chute", "many_hands", "war_edge", "heat_sink", "scrap_medic", "shatter_shot", "scrap_saint", "thread_storm", "ember_shot"], // furnace: QUICK LATCH, COAL CHUTE, MANY HANDS, WAR EDGE, HEAT SINK, SCRAP MEDIC, SHATTER SHOT, SCRAP SAINT, THREAD STORM, EMBER SHOT
+  longtooth: ["quick_latch", "coal_chute", "many_hands", "war_edge", "heat_sink", "scrap_medic", "shatter_shot", "rune_tithe", "forge_ward", "pyre_heart"], // furnace: QUICK LATCH, COAL CHUTE, MANY HANDS, WAR EDGE, HEAT SINK, SCRAP MEDIC, SHATTER SHOT, RUNE TITHE, FORGE WARD, PYRE HEART
   highspire: ["many_hands", "loose_thread", "quick_latch", "tangle_wire", "war_edge", "thread_storm", "snare_knot", "spare_hull", "pyre_heart", "last_stand"], // weaver: MANY HANDS, LOOSE THREAD, QUICK LATCH, TANGLE WIRE, WAR EDGE, THREAD STORM, SNARE KNOT, SPARE HULL, PYRE HEART, LAST STAND
   matriarch: ["quick_latch", "stoked_fires", "heat_sink", "ash_kindle", "iron_skin", "scrap_biter", "pyre_heart", "ember_shot", "pitch_wagon", "forge_ward"], // furnace: QUICK LATCH, STOKED FIRES, HEAT SINK, ASH KINDLE, IRON SKIN, SCRAP BITER, PYRE HEART, EMBER SHOT, PITCH WAGON, FORGE WARD
   brasswick: ["sharp_scrap", "final_nail", "steady_iron", "twin_suns", "hot_seam", "seam_rivets", "warlords_due", "war_edge", "thread_storm", "scrap_medic"], // foundry: SHARP SCRAP, FINAL NAIL, STEADY IRON, TWIN SUNS, HOT SEAM, SEAM RIVETS, WARLORD'S DUE, WAR EDGE, THREAD STORM, SCRAP MEDIC
-  voss: ["twin_nails", "scrap_biter", "twin_salve", "hot_seam", "grave_plates", "twin_suns", "thread_storm", "seam_rivets", "pitch_wagon", "molten_vows"], // foundry: TWIN NAILS, SCRAP BITER, TWIN SALVE, HOT SEAM, GRAVE PLATES, TWIN SUNS, THREAD STORM, SEAM RIVETS, PITCH WAGON, MOLTEN VOWS
+  voss: ["twin_nails", "scrap_biter", "twin_salve", "hot_seam", "grave_plates", "scrap_saint", "thread_storm", "seam_rivets", "pitch_wagon", "loom_of_woe"], // foundry: TWIN NAILS, SCRAP BITER, TWIN SALVE, HOT SEAM, GRAVE PLATES, SCRAP SAINT, THREAD STORM, SEAM RIVETS, PITCH WAGON, LOOM OF WOE
   grimhold: ["last_wall", "gun_oil", "rivet_hoard", "tar_barrel", "quick_latch", "coin_purse", "hair_trigger", "ember_shot", "scab_iron", "war_edge"], // bastion: LAST WALL, GUN OIL, RIVET HOARD, TAR BARREL, QUICK LATCH, COIN PURSE, HAIR TRIGGER, EMBER SHOT, SCAB IRON, WAR EDGE
   karsk: ["last_wall", "rivet_hoard", "leech_vow", "iron_temper", "stoked_fires", "scab_iron", "scrap_medic", "last_stand", "steady_iron", "ember_shot"], // bastion: LAST WALL, RIVET HOARD, LEECH VOW, IRON TEMPER, STOKED FIRES, SCAB IRON, SCRAP MEDIC, LAST STAND, STEADY IRON, EMBER SHOT
   lockjaw: ["oiled_cogs", "slow_embers", "loose_thread", "coal_chute", "pyre_heart", "sharp_scrap", "heat_sink", "last_stand", "scrap_saint", "forge_ward"], // furnace: OILED COGS, SLOW EMBERS, LOOSE THREAD, COAL CHUTE, PYRE HEART, SHARP SCRAP, HEAT SINK, LAST STAND, SCRAP SAINT, FORGE WARD
