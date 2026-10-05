@@ -169,7 +169,10 @@ export const GUARD_SKIRT = 4;
 /** 0.6.1p: what stalls a machine (MANTLET immunities). Only "shock" exists in wave 1; wave 2 adds the rest.
  *  NUM-3 (R1's STUN fold, REQ-BFG-046): a cause names the SOURCE; every one but "rip" and "sap" is a STUN now (Battle.disrupt):
  *  "freeze" is a FROSTBITE round, "drag" a DRAG CHAIN round, "sabot" a SABOT's STUN on a part that isn't a rig. */
-export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabot" | "rip" | "limpet" | "sap";
+/** Y2 (release Y; DESIGN-Y section 3, the shared rule): "wreck" is a SABOT round's wreck of a rig while the star switch is
+ *  on (starRules; off, a wreck's cause stays "sabot"). Like "rip" and "sap" it is no STUN, so with the switch on it isn't
+ *  harassment: TOLLBOOTH doesn't block it and an enemy SCRAPPER doesn't count it. */
+export type HarassCause = "shock" | "static" | "arc" | "drag" | "freeze" | "sabot" | "rip" | "limpet" | "sap" | "wreck";
 /** NUM-3 (R1's STUN fold): every source of a STUN. MANTLET is immune to all of them from ★1 (R1: "IMMUNE TO STUN"). */
 export const STUN_CAUSES: readonly HarassCause[] = ["shock", "static", "arc", "drag", "freeze", "sabot", "limpet"];
 

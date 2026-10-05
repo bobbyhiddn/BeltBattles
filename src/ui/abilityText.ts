@@ -269,6 +269,7 @@ const countWord = (n: number): string => COUNT[n] ?? String(n);
  *  FOUNDRY, rip: GRAPNEL GUN); the spec's own list, in its order. */
 export const STALL_WORD: Record<HarassCause, string> = {
   shock: "SHOCK", static: "STATIC", arc: "ARC", drag: "CHAIN", freeze: "FROST", sabot: "SABOT", rip: "GRAPNEL", limpet: "LIMPET", sap: "SAP",
+  wreck: "SABOT", // Y2 (release Y): a SABOT wreck's own cause with the star switch on (no MANTLET list holds it: a turret is never wrecked)
 };
 function list(words: string[]): string {
   return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} AND ${words[words.length - 1]}`;

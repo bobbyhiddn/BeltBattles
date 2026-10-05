@@ -28,6 +28,7 @@ import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack each second
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047, N1 2.1): the integer damage pipeline's one rounding
 import { SHIELD_CAP } from "./content"; // SUS-A (REQ-BFG-069): SHIELD's MAX
+import { STUN_CAUSES, starRules } from "./content"; // Y2 (release Y; REQ-BFG-070, REQ-BFG-046): the star switch; harassment is a STUN
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
 
@@ -1964,6 +1965,14 @@ export class Battle {
 
   private isHarassingProjectile(pr: Projectile): boolean {
     const p = pr.payload;
+    // Y2 (release Y; DESIGN-Y section 3, the shared rule): with the switch on, harassment is a STUN, so FLAK SCREEN rolls
+    // only for a shot that carries one: a shock, a static or arc slug, a TESLA shot, a SABOT, FROST or CHAIN round, a
+    // LIMPET charge with a stall. A GRAPNEL rip, a LANCE shot and a stall-less LIMPET charge carry none
+    if (starRules()) {
+      const h = p.harass;
+      return !!(p.shock || p.static || p.arc || pr.tesla ||
+        (h && (h.kind === "sabot" || h.kind === "frost" || h.kind === "drag" || (h.kind === "limpet" && (h.stall ?? 0) > 0))));
+    }
     return !!(p.harass || p.shock || p.static || p.arc || p.rip || pr.tesla || pr.lance);
   }
 
@@ -2101,12 +2110,16 @@ export class Battle {
     if (t.kind === "belt" && (!r || t.cell < 0 || t.cell >= r.cells.length)) return false;
     if (t.kind === "gate" && !g || t.kind === "factory" && !f || t.kind === "turret" && !tu) return false;
     if (g?.wrecked && cause !== "rip") return false;
+    // Y2 (release Y; DESIGN-Y section 3, the shared rule): with the switch on, harassment is a STUN. A SABOT wreck (cause
+    // "wreck") and a GRAPNEL rip ("rip") still land, but TOLLBOOTH spends no toll on them and an enemy SCRAPPER doesn't
+    // count them. With it off every cause is harassment, as before
+    const stun = !starRules() || STUN_CAUSES.includes(cause);
 
     const routeIds = t.kind === "belt" ? [t.ref]
       : t.kind === "gate" ? [...new Set(g!.hits.map((h) => h.route))]
       : t.kind === "factory" ? f!.routes
       : t.kind === "turret" ? s.routes.filter((route) => route.connected && route.turret === t.ref).map((route) => route.index) : [];
-    const toll = s.gates.find((gate) => gate.online && !gate.wrecked && gate.disrupted <= 0 && gate.frozen <= 0 && gate.tolls > 0 &&
+    const toll = stun && s.gates.find((gate) => gate.online && !gate.wrecked && gate.disrupted <= 0 && gate.frozen <= 0 && gate.tolls > 0 &&
       gate.hits.some((h) => routeIds.includes(h.route)) &&
       (t.kind !== "factory" || gate.def.gate?.tollFactory));
     if (toll) {
@@ -2121,8 +2134,8 @@ export class Battle {
       if (cause === "freeze" && this.routeGuardActive(r!, t.cell, GUARD_FREEZE)) return false;
     }
     if (g && g.hits.some((h) => this.skirted(s, s.routes[h.route], h.tile, cause))) return false;
-    this.sides[s.side === 0 ? 1 : 0].harassAccepted++;
-    if (cause === "sabot" && t.kind === "gate") this.sides[s.side === 0 ? 1 : 0].wreckAccepted++;
+    if (stun) this.sides[s.side === 0 ? 1 : 0].harassAccepted++; // Y2: with the switch on, a STUN only
+    if ((cause === "sabot" || cause === "wreck") && t.kind === "gate") this.sides[s.side === 0 ? 1 : 0].wreckAccepted++;
     this.events.push({ type: "harass", side: s.side, kind: t.kind, ref: t.ref, cell: t.cell, cause });
     return true;
   }
@@ -2181,7 +2194,8 @@ export class Battle {
     if (round.kind === "sabot") {
       let landed = false;
       if (t.kind === "gate") {
-        if (!this.acceptHarassment(s, t, "sabot")) return;
+        // Y2 (release Y; the shared rule): with the switch on, a wreck is its own cause, "wreck", never a STUN
+        if (!this.acceptHarassment(s, t, starRules() ? "wreck" : "sabot")) return;
         s.gates.find((g) => g.uid === t.ref)!.wrecked = true;
         landed = true;
       } else if (t.kind === "belt") {
