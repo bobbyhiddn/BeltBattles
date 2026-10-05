@@ -178,10 +178,11 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   FRAY: () => `EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
   PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`,
   PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET AT ONCE.",
-  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1 and 4.9): SHIELD a count (fmtCount; content.ts SHIELD_CAP), HEAL and REGEN on hull
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1 and 4.9): SHIELD a count (fmtCount; content.ts SHIELD_CAP), HEAL and REGEN on hull.
+  // REGEN's verb is HEAL's (GIVES BACK; 4.9 wrote HEALS, which would stand as a bare keyword: REQ-BFG-032 rule 3)
   SHIELD: () => `EACH {*SHIELD}: STOPS ONE WHOLE HIT. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
   HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
-  REGEN: () => "{*REGEN}: HEALS THIS MUCH {HULL} EACH SEC.",
+  REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC.",
 };
 
 // ------------------------------------------------------------------------------------------------------ the faces

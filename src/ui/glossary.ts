@@ -23,6 +23,7 @@
 // glossary.test.ts scans it, as faceText scans faces.ts).
 
 import { COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, WINDOW_TIME, type ItemDef } from "../sim/content";
+import { WIND_START } from "../sim/content"; // SUS-B (REQ-BFG-069): the DARK WIND row
 import { SYNC_WINDOW } from "../sim/races/foundry";
 import { scaleCore } from "../sim/cores";
 import { effectAt } from "../sim/stars";
@@ -68,6 +69,12 @@ export function glossaryRows(): GlossaryRow[] {
   const heatExtra = "JACKETS ADD UP, FROM THEIR TILE ON.";
   const plateExtra = "THE DARK WIND GOES PAST IT.";
   const pairExtra = `BY TWO INTAKES, WITHIN ${fmtSec(SYNC_WINDOW)}{SEC}.`;
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1): the sustain keywords' one extra sentence each. A face keyword never stands as a
+  // bare word in a text a tap shows (REQ-BFG-032 rule 3; tests/glossary.test.ts), so 4.1's verb HEALS is said another way:
+  // HEAL's "A HULL WITH BURN HEALS HALF." is "GETS HALF", REGEN's "NOTHING HEALS IN THE DARK WIND." is "IT STOPS"
+  const shieldExtra = "{*BURN} GOES PAST IT.";
+  const healExtra = "A HULL WITH {*BURN} GETS HALF.";
+  const regenExtra = "IT STOPS IN THE DARK WIND.";
   return [
     // ------------------------------------------------------------------------------- the 6 face keywords (C1)
     { word: "BURN", aliases: ["BURNS", "BURNING"], colour: kwColour("BURN"), kw: "BURN", extra: burnExtra, def: withExtra(REMINDER.BURN(), burnExtra), scope: "text" },
@@ -79,6 +86,14 @@ export function glossaryRows(): GlossaryRow[] {
     { word: "FRAY", aliases: ["FRAYS"], colour: kwColour("FRAY"), kw: "FRAY", def: REMINDER.FRAY(), scope: "text" },
     { word: "PLATE", aliases: ["PLATES", "PLATED", "PLATING"], colour: kwColour("PLATE"), kw: "PLATE", extra: plateExtra, def: withExtra(REMINDER.PLATE(), plateExtra), scope: "text" },
     { word: "PAIR", aliases: ["PAIRS", "PAIRED"], colour: kwColour("PAIR"), kw: "PAIR", extra: pairExtra, def: withExtra(REMINDER.PAIR(), pairExtra), scope: "text" },
+    // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1, 4.9): SHIELD a count (MAX 3), HEAL never past full hull (RIVETER's old REPAIR is
+    // HEAL's: one mechanic, one word), REGEN at each whole second (battle.ts sustainTick)
+    { word: "SHIELD", aliases: ["SHIELDS"], colour: kwColour("SHIELD"), kw: "SHIELD", extra: shieldExtra, def: withExtra(REMINDER.SHIELD(), shieldExtra), scope: "text" },
+    {
+      word: "HEAL", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: kwColour("HEAL"), kw: "HEAL", extra: healExtra,
+      def: withExtra(REMINDER.HEAL(), healExtra), scope: "text",
+    },
+    { word: "REGEN", aliases: [], colour: kwColour("REGEN"), kw: "REGEN", extra: regenExtra, def: withExtra(REMINDER.REGEN(), regenExtra), scope: "text" },
     // --------------------------------------------------------------------- the rune keywords that have no row above
     // U2d F4: was "RIDE: A CINDER SLUG'S OWN {*HEAT}, FOR EACH SEC IT RIDES. A HEAT JACKET'S IS APART." (cap: unclear)
     { word: "RIDE", aliases: [], colour: C.wood4, def: "RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.", scope: "rune" },
@@ -114,6 +129,9 @@ export function glossaryRows(): GlossaryRow[] {
       def: `ONLINE: A RIG WORKS FROM ${fmtSec(COMMISSION_BASE)}{SEC} IN, +${fmtSec(COMMISSION_STEP)}{SEC} FOR EACH EARLIER RIG ON ITS BELT.`, scope: "text",
     },
     { word: "BONUS DAMAGE", aliases: [], colour: PLAIN, def: "BONUS DAMAGE: WHAT RIGS AND SCRAP ADD TO A SLUG.", scope: "text" },
+    // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1): the dark wind's text row, no icon (battle.ts: WIND_START, nothing heals from then;
+    // 4.1's "NOTHING HEALS IN IT." names HEAL in panel style, as every text a tap shows does)
+    { word: "DARK WIND", aliases: [], colour: PLAIN, def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`, scope: "text" },
     // ------------------------------------------------------------------------- the trigger labels (T1 2.3), brass
     { word: "HIT", aliases: [], colour: C.brass3, def: "HIT: EACH SLUG ON A TILE ITS ARROWS POINT AT, WHILE IT WORKS.", scope: "label" },
     { word: "SHOT", aliases: [], colour: C.brass3, def: "SHOT: EACH SHOT THIS TURRET FIRES.", scope: "label" },
@@ -136,6 +154,10 @@ export const RUNE_REMINDER: Readonly<Record<string, string>> = {
   BURN: "BURN: EACH ONE DEALS HULL DAMAGE EVERY SEC FOR A WHILE.",
   RIDE: "RIDE: THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE.", // U2d F4: its row's first sentence (was A CINDER SLUG'S OWN HEAT FOR EACH SEC IT RIDES.)
   STALL: "STALL: A STALLED PART STOPS FOR A WHILE.",
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1's rune reminders; REGEN's says GIVES BACK, as its row does)
+  SHIELD: "SHIELD: STOPS ONE WHOLE HIT, THEN BREAKS.",
+  HEAL: "HEAL: GIVES BACK HULL, NEVER PAST FULL.",
+  REGEN: "REGEN: GIVES BACK HULL EACH SEC.",
 };
 
 /** Every form (word and aliases) with its row, longest first (so a two-word form wins over its first word). */

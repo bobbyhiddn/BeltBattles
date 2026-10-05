@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { COMMISSION_BASE, COMMISSION_STEP, ITEMS, JAM_THRESHOLD, WINDOW_TIME, type HeroId } from "../src/sim/content";
+import { SHIELD_CAP, WIND_START } from "../src/sim/content"; // SUS-B (REQ-BFG-069)
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { effectAt, fusible } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
@@ -107,6 +108,8 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
       PLATE: "BEFORE YOUR HULL", PAIR: "TWO LOADS REACH ONE TURRET AT ONCE", HEAT: "FOR EACH SEC IT RIDES", FRAY: "LATER HIT",
       // U2d F4: RIDE's row reworded (cap), its reminder its first sentence; was "CINDER SLUG'S OWN"
       RATE: "HOW OFTEN A GUN FIRES OR A FACTORY WORKS", BURN: "HULL DAMAGE", RIDE: "THE HEAT A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE", STALL: "STOPS FOR A WHILE",
+      // SUS-B (REQ-BFG-069): the sustain keywords' rune reminders (SUSTAIN-1 4.1)
+      SHIELD: "STOPS ONE WHOLE HIT", HEAL: "NEVER PAST FULL", REGEN: "EACH SEC",
     };
     // U2d F4 (cap, seen in crop-keywords-rune-op): RIDE's row in cap's words, whole (2 lines of 5x7 at 225 px: the fit test below)
     expect(glossaryEntry("RIDE")!.def).toBe("RIDE: THE {*HEAT} A KILN'S SLUGS GAIN FOR EACH SEC THEY RIDE. NOT A HEAT JACKET'S.");
@@ -179,6 +182,56 @@ describe("U2c the glossary: numbers, digits and fit", () => {
       for (const m of t.matchAll(new RegExp(`${k}`, "g"))) expect(t[m.index! - 1], `${id}: ${k} in ${stripIcons(t)}`).toBe(ICON[k]);
     }
     console.log(`U2c glossary fit: ${n} texts, each 2 lines or fewer at ${GLOSSARY_WRAP_W} px (the longest ${widest} px unwrapped)`);
+  });
+});
+
+describe("SUS-B (REQ-BFG-069): the SHIELD, HEAL and REGEN rows and the DARK WIND text row", () => {
+  // SUSTAIN-1 4.1 as cap accepted it; where 4.1's verb HEALS would stand as a bare keyword (REQ-BFG-032 rule 3, the fit
+  // test above), the row says it another way: REGEN GIVES BACK, a hull with BURN GETS HALF, IT STOPS, NO HEAL IN IT
+  const want: Record<string, { def: string; aliases: string[]; colour: string }> = {
+    SHIELD: { def: `EACH {*SHIELD}: STOPS ONE WHOLE HIT. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}. {*BURN} GOES PAST IT.`, aliases: ["SHIELDS"], colour: ICON_COLOUR[ICON.SHIELD] },
+    HEAL: { def: "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL. A HULL WITH {*BURN} GETS HALF.", aliases: ["HEALS", "HEALED", "HEALING", "REPAIR", "REPAIRS"], colour: ICON_COLOUR[ICON.HEAL] },
+    REGEN: { def: "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC. IT STOPS IN THE DARK WIND.", aliases: [], colour: ICON_COLOUR[ICON.REGEN] },
+    "DARK WIND": { def: `DARK WIND: FROM ${fmtSec(WIND_START)}{SEC}, HULL DAMAGE THAT GROWS. NO {*HEAL} IN IT.`, aliases: [], colour: C.bone },
+  };
+
+  it("each row: its word first, its aliases, its colour (the icon's; DARK WIND none), its definition in markup", () => {
+    for (const [word, w] of Object.entries(want)) {
+      const row = glossaryEntry(word)!;
+      expect(row.word, word).toBe(word);
+      expect([row.def, [...row.aliases], row.colour, row.scope], word).toEqual([w.def, w.aliases, w.colour, "text"]);
+      for (const a of w.aliases) expect(glossaryEntry(a)!.word, a).toBe(word); // REPAIR and REPAIRS are HEAL's: one mechanic, one word
+    }
+    expect(glossaryEntry("DARK WIND")!.kw).toBeUndefined();
+    expect([keywordRow("SHIELD").kw, keywordRow("HEAL").kw, keywordRow("REGEN").kw]).toEqual(["SHIELD", "HEAL", "REGEN"]);
+    expect([SHIELD_CAP, WIND_START]).toEqual([3, 25]); // the sim's numbers the rows print (fmtCount, fmtSec)
+  });
+
+  it("each fits 2 lines of 5x7 at 225 px (textWidth, wrapRich), number-free in glossary.ts (the formatters print them)", () => {
+    const report: string[] = [];
+    for (const [word, w] of Object.entries(want)) {
+      const glyphs = icons(w.def), lines = wrapRich(colourize(glyphs, C.bone), GLOSSARY_WRAP_W, "5");
+      expect(lines.length, `${word}: ${stripIcons(glyphs)}`).toBeLessThanOrEqual(2);
+      for (const l of lines) expect(textWidth(l.map((s) => s.t).join(""), "5"), word).toBeLessThanOrEqual(GLOSSARY_WRAP_W);
+      report.push(`${word} ${textWidth(glyphs, "5")} px unwrapped, ${lines.length} lines (${lines.map((l) => textWidth(l.map((s) => s.t).join(""), "5")).join(" + ")} px)`);
+    }
+    // the rune reminders the cards draw are number-free, each its word first (the rune-keywords test above pins the phrase)
+    for (const k of ["SHIELD", "HEAL", "REGEN"]) expect(RUNE_REMINDER[k].startsWith(`${k}: `) && !/\d/.test(RUNE_REMINDER[k]), k).toBe(true);
+    console.log(`SUS-B rows: ${report.join("; ")}`);
+  });
+
+  it("a tap on each label shows its LABEL: EFFECT text: the row's, an alias's, and a kept text's word (RIVETER's old REPAIRS)", () => {
+    expect(glossaryText("SHIELD")).toBe(want.SHIELD.def);
+    expect(glossaryText("SHIELDS")).toBe(want.SHIELD.def);
+    expect(glossaryText("HEALING")).toBe(want.HEAL.def);
+    expect(glossaryText("REPAIRS")).toBe(want.HEAL.def);
+    expect(glossaryText("REGEN")).toBe(want.REGEN.def);
+    expect(glossaryText("DARK WIND")).toBe(want["DARK WIND"].def);
+    // a kept text names them as words: each is a tap there, the longest form first
+    const t = "IT REPAIRS YOUR HULL. NOTHING HEALS IN THE DARK WIND. TWO SHIELDS AND REGEN.";
+    expect(glossaryHits(t).map((h) => [t.slice(h.at, h.end), h.row.word])).toEqual([
+      ["REPAIRS", "HEAL"], ["HEALS", "HEAL"], ["DARK WIND", "DARK WIND"], ["SHIELDS", "SHIELD"], ["REGEN", "REGEN"],
+    ]);
   });
 });
 
