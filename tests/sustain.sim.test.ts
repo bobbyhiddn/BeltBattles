@@ -197,8 +197,9 @@ describe("SUS-A: the pieces in battle", () => {
     expect(at).toEqual([60, 180, 240]);
   });
 
-  it("WARD BELL: +1 SHIELD EVERY 6 / 5 / 4 s, the first at t = every; its timer carries (+= every)", () => {
-    for (const [stars, every] of [[1, 6], [2, 5], [3, 4]] as const) {
+  // ★1 is the fallback's 8 s (the design's 6 s; the acceptance bench's typ2r had FURNACE < 45% pooled)
+  it("WARD BELL: +1 SHIELD EVERY 8 / 5 / 4 s, the first at t = every; its timer carries (+= every)", () => {
+    for (const [stars, every] of [[1, 8], [2, 5], [3, 4]] as const) {
       expect(effectAt("wardbell", stars).mod!.shield).toEqual({ every, amount: 1 });
       const bt = new Battle(withGear(heroStartBuild("bastion"), "wardbell", stars), FOE, 3);
       const tu = bt.sides[0].turrets.find((t) => t.bell)!;
@@ -237,7 +238,7 @@ describe("SUS-A: the pieces in battle", () => {
       if (tu.bell!.timer > was) first = bt.ticks;
     }
     expect(paused).toBeGreaterThanOrEqual(59);
-    expect(first).toBe(360 + paused);
+    expect(first).toBe(60 * effectAt("wardbell", 1).mod!.shield!.every + paused); // ★1: 480 ticks + the paused ones
   });
 
   it("MEND PRESS: HEAL 20 / 30 / 45 EVERY 3 s through heal(), ARMOR PRESS's timer and kind; it carries its remainder", () => {

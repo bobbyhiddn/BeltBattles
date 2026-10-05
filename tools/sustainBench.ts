@@ -7,7 +7,9 @@
 //           days 5-8, ★3 on days 9-10; the other heroes nothing new; RIVETER wherever a par deck already holds it.
 //   heavy2r the stress mirror: every deck on both sides holds WARD BELL ★3, MENDING LOOM ★3, MEND PRESS ★3 and RIVETER ★3
 //           (a held RIVETER goes to ★3), plus WARD STONE (3 SHIELD at the start).
-//   typ2r8  typ2r with WARD BELL ★1 every 8 s (the one allowed number change, cap's answer 3; only if the bar asks).
+// The one allowed number change (cap's answer 3): the first full run (at eff8968, WARD BELL ★1 every 6 s) had FURNACE at
+// 44.3% pooled under typ2r (< 45%), so content.ts's WARD BELL ★1 is every 8 s now and typ2r reads it (the run's
+// typ2r8 setting, a bench-only ★1 def at 8 s, is gone with it).
 // ONE placement rule for every deck (placeAll below): a free gear slot or grid cell, else replace the cheapest
 // non-damage piece of the same kind; a deck where neither exists goes without (counted in the output).
 //   gear (WARD BELL, MENDING LOOM): the first installed turret, in slot order, with a free gear slot that doesn't hold the
@@ -167,8 +169,8 @@ export function transform(setting: string, day: number, src: Build, seed: number
   const b = cloneBuild(src);
   const how: Record<string, How> = {};
   const s = starOf(day);
-  if (setting === "typ2r" || setting === "typ2r8") {
-    if (b.hero === "bastion") how.wardbell = placeGear(b, setting === "typ2r8" && s === 1 ? "wardbell8" : "wardbell", s);
+  if (setting === "typ2r") {
+    if (b.hero === "bastion") how.wardbell = placeGear(b, "wardbell", s);
     if (b.hero === "foundry") how.mendpress = placePress(b, s, seed);
     if (b.hero === "weaver") how.mendingloom = placeGear(b, "mendingloom", s);
   } else if (setting === "heavy2r") {
@@ -179,13 +181,6 @@ export function transform(setting: string, day: number, src: Build, seed: number
     b.runes = [...(b.runes ?? []), { id: "ward_stone" }];
   } else if (setting !== "off") throw new Error(`unknown setting ${setting}`);
   return { b, how };
-}
-
-/** typ2r8's WARD BELL ★1: every 8 s instead of 6 (a bench-only def; the ★2 and ★3 values are WARD BELL's). */
-function defineBell8(): void {
-  if (Object.prototype.hasOwnProperty.call(ITEMS, "wardbell8")) return;
-  const w = ITEMS.wardbell;
-  Object.defineProperty(ITEMS, "wardbell8", { value: { ...w, id: "wardbell8", mod: { shield: { every: 8, amount: 1 } } }, enumerable: false });
 }
 
 function play(field: Build[], f: Fight): Out {
@@ -232,7 +227,6 @@ async function main(): Promise<void> {
   const days = (flag("days") ?? "1,3,6,10").split(",").map(Number);
   const k = num("k", 6), S = num("seeds", 4), nw = num("workers", 2);
   const settings = (flag("settings") ?? "off,typ2r,heavy2r").split(",");
-  if (settings.includes("typ2r8")) defineBell8();
   const heroes = (flag("heroes")?.split(",") as HeroId[] | undefined) ?? (["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"] as HeroId[]);
   const H = heroes.length;
   const workers = pool(nw, import.meta.url);
@@ -350,7 +344,6 @@ async function main(): Promise<void> {
 // transform), it does nothing
 if (!isMainThread && (workerData as { susaBench?: boolean } | null)?.susaBench) {
   parentPort!.on("message", (c: Chunk) => {
-    if (c.field.some((b) => b.mods.some((m) => m.def === "wardbell8"))) defineBell8();
     parentPort!.postMessage({ id: c.id, out: c.fights.map((f) => play(c.field, f)) });
   });
 } else if (isMainThread && !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) void main();

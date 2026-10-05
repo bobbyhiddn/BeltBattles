@@ -1073,10 +1073,12 @@ export const SUSTAIN_LIVE = false;
 
 /** SUS-A: the three new sustain pieces (SUSTAIN-1 4.6, on the N1 scale; ★1 / ★2 / ★3). Their words are SUS-B's. */
 export const SUSTAIN_ITEMS: Record<string, ItemDef> = {
-  wardbell: { // SHIELD: EVERY 6 / 5 / 4 s: +1 SHIELD, the first at t = every (TurretState.bell)
+  // SHIELD: EVERY 8 / 5 / 4 s: +1 SHIELD, the first at t = every (TurretState.bell). ★1 is the design's fallback (cap's
+  // answer 3 to SUSTAIN-1; the design's 6 s): the acceptance bench's typ2r had FURNACE at 44.3% pooled (< 45%)
+  wardbell: {
     id: "wardbell", name: "WARD BELL", kind: "mod", rarity: "rare", price: 5, size: 1, merchant: "tinker",
     desc: ["EVERY FEW SECONDS", "YOUR HULL STOPS ONE", "MORE WHOLE HIT."], tags: ["PLATE", "TEMPO"],
-    mod: { shield: { every: 6, amount: 1 } },
+    mod: { shield: { every: 8, amount: 1 } },
     levels: { 2: { mod: { shield: { every: 5, amount: 1 } } }, 3: { mod: { shield: { every: 4, amount: 1 } } } },
   },
   mendpress: { // HEAL: EVERY 3 s: HEAL 20 / 30 / 45; ARMOR PRESS's kind, timer, stall pause and stamping (FactoryState.healTimer)
