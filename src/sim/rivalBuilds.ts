@@ -724,8 +724,32 @@ export const CAPTAIN_LEVELS: Readonly<Record<HeroId, Partial<Record<UpgradeTrack
  * tools/genCaptainRunes.ts's output here (captainRunesText: every captain's 10 picks on its seed hashSeed("captain-runes",
  * id), each prefix passing runeProblem with it) when it turns BOT_RUNES on: a captain with no list holds no runes, so
  * every captain build is exactly as before (tests/botsx.runes.test.ts).
+ * FLIP-X2 step 4.3 (REQ-BFG-058): PINNED from tools/genCaptainRunes.ts run once on flipx2 (bb-0.9.0, BOT_RUNES and
+ * SUSTAIN_LIVE on, 61 runes offered: DORMANT_RUNES out; the captains' plans with CATCHUP-089's packs and no SIFTER),
+ * 2026-10-05 09:02:40Z, W/output-flipx2/captain-runes/captain-runes.ts.txt, pasted as written. rivalBuild and (FLIP-X2)
+ * standInBuild hold the first `day` of each list. A re-run reads rivalBuild with these held and must give the same lists.
  */
-export const CAPTAIN_RUNES: Readonly<Partial<Record<RivalId, readonly string[]>>> = {};
+export const CAPTAIN_RUNES: Readonly<Partial<Record<RivalId, readonly string[]>>> = {
+  sootjaw: ["ash_kindle", "steady_iron", "slow_embers", "toll_road", "iron_hide", "stoked_fires", "spare_hull", "pyre_heart", "grave_plates", "last_stand"], // furnace: ASH KINDLE, STEADY IRON, SLOW EMBERS, TOLL ROAD, IRON HIDE, STOKED FIRES, SPARE HULL, PYRE HEART, GRAVE PLATES, LAST STAND
+  nettle: ["loose_thread", "sharp_scrap", "scrap_biter", "green_thread", "toll_road", "bulkheads", "ember_shot", "snare_knot", "tangle_wire", "grave_plates"], // weaver: LOOSE THREAD, SHARP SCRAP, SCRAP BITER, GREEN THREAD, TOLL ROAD, BULKHEADS, EMBER SHOT, SNARE KNOT, TANGLE WIRE, GRAVE PLATES
+  grubnose: ["oiled_cogs", "tar_barrel", "ash_kindle", "toll_road", "pyre_heart", "bulkheads", "last_stand", "forge_ward", "long_road", "grave_plates"], // furnace: OILED COGS, TAR BARREL, ASH KINDLE, TOLL ROAD, PYRE HEART, BULKHEADS, LAST STAND, FORGE WARD, THE LONG ROAD, GRAVE PLATES
+  mothqueen: ["coin_purse", "loose_thread", "tar_barrel", "sharp_scrap", "loom_of_woe", "thread_storm", "ember_shot", "last_stand", "widows_web", "warlords_due"], // weaver: COIN PURSE, LOOSE THREAD, TAR BARREL, SHARP SCRAP, LOOM OF WOE, THREAD STORM, EMBER SHOT, LAST STAND, WIDOW'S WEB, WARLORD'S DUE
+  sparkfang: ["iron_skin", "ash_kindle", "slow_embers", "stoked_fires", "quick_latch", "scrap_medic", "thread_storm", "gun_oil", "twin_suns", "scrap_saint"], // furnace: IRON SKIN, ASH KINDLE, SLOW EMBERS, STOKED FIRES, QUICK LATCH, SCRAP MEDIC, THREAD STORM, GUN OIL, TWIN SUNS, SCRAP SAINT
+  lacewing: ["loose_thread", "quick_latch", "tar_barrel", "tangle_wire", "barbed_silk", "ward_stone", "warlords_due", "last_stand", "first_blood", "toll_road"], // weaver: LOOSE THREAD, QUICK LATCH, TAR BARREL, TANGLE WIRE, BARBED SILK, WARD STONE, WARLORD'S DUE, LAST STAND, FIRST BLOOD, TOLL ROAD
+  ratchet: ["ash_kindle", "slow_embers", "hair_trigger", "stoked_fires", "pyre_heart", "toll_road", "scrap_biter", "last_stand", "iron_hide", "first_blood"], // furnace: ASH KINDLE, SLOW EMBERS, HAIR TRIGGER, STOKED FIRES, PYRE HEART, TOLL ROAD, SCRAP BITER, LAST STAND, IRON HIDE, FIRST BLOOD
+  emberlyn: ["final_nail", "loose_thread", "quick_latch", "iron_hide", "scrap_biter", "last_stand", "ember_shot", "widows_web", "scrap_saint", "thread_storm"], // weaver: FINAL NAIL, LOOSE THREAD, QUICK LATCH, IRON HIDE, SCRAP BITER, LAST STAND, EMBER SHOT, WIDOW'S WEB, SCRAP SAINT, THREAD STORM
+  bulwark: ["ash_kindle", "scrap_halo", "tar_barrel", "slow_embers", "warlords_due", "stoked_fires", "hair_trigger", "pyre_heart", "ward_stone", "leech_vow"], // furnace: ASH KINDLE, SCRAP HALO, TAR BARREL, SLOW EMBERS, WARLORD'S DUE, STOKED FIRES, HAIR TRIGGER, PYRE HEART, WARD STONE, LEECH VOW
+  silkshade: ["quick_latch", "loose_thread", "oiled_cogs", "scrap_biter", "war_edge", "stoked_fires", "tar_barrel", "forge_ward", "loom_of_woe", "ember_shot"], // weaver: QUICK LATCH, LOOSE THREAD, OILED COGS, SCRAP BITER, WAR EDGE, STOKED FIRES, TAR BARREL, FORGE WARD, LOOM OF WOE, EMBER SHOT
+  longtooth: ["quick_latch", "final_nail", "many_hands", "toll_road", "grave_plates", "slow_embers", "scrap_medic", "scrap_saint", "thread_storm", "ember_shot"], // furnace: QUICK LATCH, FINAL NAIL, MANY HANDS, TOLL ROAD, GRAVE PLATES, SLOW EMBERS, SCRAP MEDIC, SCRAP SAINT, THREAD STORM, EMBER SHOT
+  highspire: ["sharp_scrap", "gun_oil", "loose_thread", "tangle_wire", "grave_plates", "thread_storm", "barbed_silk", "spare_hull", "pyre_heart", "last_stand"], // weaver: SHARP SCRAP, GUN OIL, LOOSE THREAD, TANGLE WIRE, GRAVE PLATES, THREAD STORM, BARBED SILK, SPARE HULL, PYRE HEART, LAST STAND
+  matriarch: ["scrap_biter", "stoked_fires", "slow_embers", "oiled_cogs", "iron_skin", "quick_latch", "pyre_heart", "ember_shot", "pitch_wagon", "forge_ward"], // furnace: SCRAP BITER, STOKED FIRES, SLOW EMBERS, OILED COGS, IRON SKIN, QUICK LATCH, PYRE HEART, EMBER SHOT, PITCH WAGON, FORGE WARD
+  brasswick: ["sharp_scrap", "final_nail", "toll_road", "twin_suns", "hot_seam", "seam_rivets", "warlords_due", "war_edge", "thread_storm", "ward_stone"], // foundry: SHARP SCRAP, FINAL NAIL, TOLL ROAD, TWIN SUNS, HOT SEAM, SEAM RIVETS, WARLORD'S DUE, WAR EDGE, THREAD STORM, WARD STONE
+  voss: ["twin_nails", "scrap_biter", "twin_salve", "hot_seam", "grave_plates", "twin_suns", "thread_storm", "seam_rivets", "pitch_wagon", "molten_vows"], // foundry: TWIN NAILS, SCRAP BITER, TWIN SALVE, HOT SEAM, GRAVE PLATES, TWIN SUNS, THREAD STORM, SEAM RIVETS, PITCH WAGON, MOLTEN VOWS
+  grimhold: ["last_wall", "gun_oil", "rivet_hoard", "tar_barrel", "quick_latch", "coin_purse", "hair_trigger", "ember_shot", "scab_iron", "war_edge"], // bastion: LAST WALL, GUN OIL, RIVET HOARD, TAR BARREL, QUICK LATCH, COIN PURSE, HAIR TRIGGER, EMBER SHOT, SCAB IRON, WAR EDGE
+  karsk: ["last_wall", "rivet_hoard", "leech_vow", "iron_temper", "stoked_fires", "scab_iron", "tick_guard", "last_stand", "ward_stone", "ember_shot"], // bastion: LAST WALL, RIVET HOARD, LEECH VOW, IRON TEMPER, STOKED FIRES, SCAB IRON, TICK GUARD, LAST STAND, WARD STONE, EMBER SHOT
+  lockjaw: ["gun_oil", "slow_embers", "ash_kindle", "iron_skin", "pyre_heart", "oiled_cogs", "steady_iron", "last_stand", "scrap_saint", "forge_ward"], // furnace: GUN OIL, SLOW EMBERS, ASH KINDLE, IRON SKIN, PYRE HEART, OILED COGS, STEADY IRON, LAST STAND, SCRAP SAINT, FORGE WARD
+  thistlemail: ["tar_barrel", "snare_knot", "double_knot", "gun_oil", "toll_road", "spare_hull", "war_edge", "first_blood", "thread_storm", "scrap_saint"], // weaver: TAR BARREL, SNARE KNOT, DOUBLE KNOT, GUN OIL, TOLL ROAD, SPARE HULL, WAR EDGE, FIRST BLOOD, THREAD STORM, SCRAP SAINT
+};
 
 /**
  * BOTS-X: `build` holding a captain's runes up to `day`: Build.runes = the first `day` ids of `list` as { id } in pick
