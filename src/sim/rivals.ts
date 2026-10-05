@@ -122,7 +122,7 @@ export const RIVALS: Record<RivalId, RivalDef> = {
   grimhold: rival("grimhold", "GRIMHOLD", "bastion", 2, "regular", "ANVIL WALL",
     "THICK PLATE MAKES EVERY SHOT HIT HARDER.",
     ["steel3", "rust2", "fire3", "bone"], "a broad dwarf in an anvil-shaped iron helm, his beard braided through hot rivets"),
-  karsk: rival("karsk", "THANE KARSK", "bastion", 3, "regular", "SHIELD WALL",
+  karsk: rival("karsk", "THANE KARSK", "bastion", 3, "regular", "IRON WALL", // SUS-B (cap's answer 3): was SHIELD WALL
     "A WALL OF PLATE. HE BREAKS IT ON YOU.",
     ["steel1", "steel3", "brass1", "rust3"], "a grey-bearded thane behind a riveted tower shield, a plate-breaking hammer on one shoulder"),
   lockjaw: rival("lockjaw", "LOCKJAW", "furnace", 2, "regular", "TWIN BITE",

@@ -117,7 +117,8 @@ export const WAVE3_DESIGN: readonly Omit<Hypo, "proxy" | "why">[] = [
   { id: "twinlatch", name: "TWIN LATCH", kind: "gate", rarity: "rare", price: 6, merchant: "tinker", shape: "II", tags: ["TWIN", "TEMPO"] },
   { id: "stoker", name: "STOKER", kind: "gate", rarity: "rare", price: 5, merchant: "scrapper", shape: "II", tags: ["TEMPO", "SWARM"] },
   { id: "platebreaker", name: "PLATE BREAKER", kind: "gate", rarity: "epic", price: 7, merchant: "scrapper", shape: "T", tags: ["PLATE", "FORGE"] },
-  { id: "shieldwall", name: "SHIELD WALL", kind: "gate", rarity: "legendary", price: 10, merchant: "ironmonger", shape: "X", tags: ["PLATE", "FORGE"] },
+  // SUS-B (cap's answer 3 to SUSTAIN-1): D1's SHIELD WALL is IRON WALL in the game (the id stays); the copy follows the name
+  { id: "shieldwall", name: "IRON WALL", kind: "gate", rarity: "legendary", price: 10, merchant: "ironmonger", shape: "X", tags: ["PLATE", "FORGE"] },
   { id: "twinmould", name: "TWIN MOULD", kind: "factory", rarity: "rare", price: 7, merchant: "tinker", tags: ["TWIN", "SWARM"] },
   { id: "armorpress", name: "ARMOR PRESS", kind: "factory", rarity: "epic", price: 8, merchant: "ironmonger", tags: ["PLATE", "SWARM"] },
   { id: "anvil", name: "ANVIL BREECH", kind: "core", rarity: "rare", price: 6, merchant: "ironmonger", tags: ["PLATE", "BURST"] },

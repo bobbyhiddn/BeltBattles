@@ -66,6 +66,7 @@ import { STUN_CAUSES } from "../sim/content"; // NUM-3 (R1's STUN fold): MANTLET
 import { PEAK_SHIFT, PENDULUM } from "../sim/races/data";
 import { BURN_DPS } from "../sim/content"; // NUM-1 (REQ-BFG-047): a Burn stack's damage a second
 import { factorySpeed, rateMul, secPer } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED (the faces keep SEC: 30 / speed)
+import { SHIELD_CAP } from "../sim/content"; // SUS-B (REQ-BFG-069): WARD BELL's UP TO 3
 // 0.8.0 I1 (the merge of H1 and P1): each name imported once; H1's signature text and P1's wave-3 entries both read them
 import { FUSE_MULT, SYNC_WINDOW } from "../sim/races/foundry"; // 0.8.0 H1: FOUNDRY's CRUCIBLE; P1: the pair window
 import { FURNACE_LONG_BELT, LOAD_FLOOR } from "../sim/battle"; // 0.8.0 H1: hero select's FURNACE sentence; P1: TWIN TRIGGER's floor
@@ -210,6 +211,10 @@ const belts = (e: ItemDef): string => ((SHAPE_ARROWS[rigShape(e) ?? "I"]?.length
 /** The round spec of a harassment factory. */
 const round = <T>(e: ItemDef) => f(e).round as unknown as T;
 
+/** SUS-B (REQ-BFG-069): the sustain words these sentences use, in one place, as the keyword data holds them (font.ts
+ *  KEYWORDS, glossary.ts): a later swap of a word (the operator may yet rename PLATE to SHIELD) changes them here. */
+const SW = { shield: "SHIELD", heals: "HEALS" } as const;
+
 /** The shared sentences: the same effect reads the same everywhere (T5). */
 export const S = {
   burn: `EACH BURN DEALS THE ENEMY HULL ${BURN_DPS} DAMAGE A SECOND FOR ${seconds(BURN_TIME)}.`, // NUM-1: the sim's BURN_DPS (was a literal 1)
@@ -241,6 +246,9 @@ export const S = {
   pair: `A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN ${seconds(SYNC_WINDOW)}; A FOUNDRY FUSION IS A PAIR.`,
   matched: "A MATCHED BELT HAS AS MANY TILES AS ANOTHER BELT INTO THE SAME TURRET.",
   worksFaster: "A FACTORY THAT WORKS FASTER STAMPS AND POURS SOONER, AND ITS OTHER TIMERS RUN FASTER TOO.",
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.3): heal()'s two rules, the same for every heal (battle.ts heal: BURN halves it; from the
+  // dark wind's start nothing heals)
+  heal: `A HULL WITH BURN ${SW.heals} HALF, AND NOTHING ${SW.heals} IN THE DARK WIND.`,
 };
 
 /** 0.8.0 P1: a small count as a word ("TWO PLAIN SLUGS"), as DESIGN-wave3.md 3.3 writes TWIN MOULD's. */
@@ -462,10 +470,11 @@ const ENTRIES: Record<string, Entry> = {
     gist: (e) => `COPIES EVERY ${nth(g(e).sort!.every)} PAYLOAD${g(e).sort!.copies > 2 ? ` ${times(g(e).sort!.copies - 1)}` : ""}`,
   },
   riveter: {
-    // SUS-A (REQ-BFG-069): the field is `heal` now (compile-driven); the words are SUS-B's
-    text: (e) => [`REPAIRS YOUR HULL BY ${n1(g(e).heal!)} FOR EACH PAYLOAD IT HITS.`, "IT NEVER REPAIRS PAST YOUR FULL HULL."],
-    gist: (e) => `REPAIRS ${n1(g(e).heal!)} FOR EACH PAYLOAD`,
-    card: (e) => `REPAIRS ${n1(g(e).heal!)} HULL EACH HIT`,
+    // SUS-A (REQ-BFG-069): the field is `heal` now (compile-driven). SUS-B: its words are HEAL's (battle.ts heal(): never
+    // past your full hull, half with BURN, none in the dark wind); was REPAIRS
+    text: (e) => [`${SW.heals} YOUR HULL BY ${n1(g(e).heal!)} FOR EACH PAYLOAD IT HITS.`, `IT NEVER ${SW.heals} PAST YOUR FULL HULL.`, S.heal],
+    gist: (e) => `${SW.heals} ${n1(g(e).heal!)} FOR EACH PAYLOAD`,
+    card: (e) => `${SW.heals} ${n1(g(e).heal!)} HULL EACH HIT`,
   },
   heatjacket: {
     // transport: heatBonus += heat x ride, from the hit on; two jackets add up
@@ -1230,6 +1239,39 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => [`ADDS ${e.supply!.hull} TO YOUR HULL FOR THE REST OF THE RUN.`],
     gist: (e) => `ADDS ${e.supply!.hull} HULL`,
   },
+  // ------------------------------------------------------------- SUS-B (REQ-BFG-069): the sustain pieces (SUS-A's rules)
+  wardbell: {
+    // TurretState.bell: + amount SHIELD every `every` s, the first at t = every, never past SHIELD_CAP; a STUN or freeze on
+    // its turret pauses it (Battle.sustainTick); Battle.shieldHit: a SHIELD stops one whole hit
+    text: (e) => [
+      `YOUR HULL GAINS ${countWord(m(e).shield!.amount)} ${SW.shield} ${every(m(e).shield!.every)}, UP TO ${SHIELD_CAP}.`,
+      `EACH ${SW.shield} STOPS ONE WHOLE HIT, THEN BREAKS; BURN, POISON AND THE DARK WIND GO PAST IT.`,
+      "A STALL OR FREEZE ON ITS TURRET PAUSES IT.",
+    ],
+    gist: (e) => `${countWord(m(e).shield!.amount)} ${SW.shield} ${every(m(e).shield!.every)}`,
+    card: (e) => `+${m(e).shield!.amount} ${SW.shield} ${every(m(e).shield!.every)}`,
+  },
+  mendpress: {
+    // Battle.pressHeal: heal.amount every heal.every s through heal() while it feeds a turret and isn't stalled or frozen
+    // (ARMOR PRESS's timer and pace); its slugs stamp as ARMOR PRESS's do
+    text: (e) => {
+      const fs = f(e);
+      return [
+        `${SW.heals} YOUR HULL BY ${n1(fs.heal!.amount)} ${every(fs.heal!.every)}, AND STAMPS A PLAIN SLUG (${damage(slugBase(e))}) ${every(secPer(fs.speed))}.`,
+        "IT NEEDS A BELT TO A TURRET TO WORK.",
+        S.heal,
+      ];
+    },
+    gist: (e) => `${SW.heals} ${n1(f(e).heal!.amount)} ${every(f(e).heal!.every)}, A SLUG ${every(secPer(f(e).speed))}`,
+    card: (e) => `${SW.heals} YOUR HULL ${every(f(e).heal!.every)}`,
+  },
+  mendingloom: {
+    // TurretState.regen: at each whole second your living hull heals its working looms' REGEN through heal() (Battle.
+    // sustainTick); a STUN or freeze on its turret pauses it
+    text: (e) => [`${SW.heals} YOUR HULL BY ${n1(m(e).regen!)} EVERY SECOND.`, "A STALL OR FREEZE ON ITS TURRET PAUSES IT.", S.heal],
+    gist: (e) => `${SW.heals} ${n1(m(e).regen!)} EVERY SECOND`,
+    card: (e) => `${SW.heals} ${n1(m(e).regen!)} HULL EVERY SECOND`,
+  },
 };
 
 /** 0.6.2rel: a turret class as a word ("AN ADAPTABLE TURRET"). */
@@ -1372,7 +1414,7 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
   if (e.perStalled) return `${name} ${h.flat ? `+${damage(h.flat)}, ` : ""}+${damage(e.perStalled.each)} FOR EACH STALLED MACHINE, UP TO ${damage(e.perStalled.max)}`;
   if (e.toll) return `${name} BLOCKS ${e.toll} HARASSMENT HITS`;
   if (e.sift) return `${name} REMOVES ${e.sift === "all" ? "EVERY MARK" : "ONE MARK"}${h.flat ? `, +${damage(h.flat)} IF CLEAN` : ""}`;
-  if (e.heal) return `${name} REPAIRS ${n1(e.heal)} HULL`; // SUS-A: the field is `heal` (compile-driven)
+  if (e.heal) return `${name} ${SW.heals} ${n1(e.heal)} HULL`; // SUS-A: the field is `heal`; SUS-B: HEAL's word (was REPAIRS)
   if (e.heat) return `${name} +${damage(e.heat)} FOR EACH SECOND AFTER`;
   if (e.staticTime) return `${name} STALLS A TURRET ${n2(e.staticTime)} SEC ON BARE HULL`;
   if (e.poison) return `${name} +${e.poison} POISON`;

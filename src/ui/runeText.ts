@@ -28,11 +28,25 @@ export const RUNE_UNIT_TEXT: Readonly<Record<RuneUnit, (n: number) => string>> =
 
 /** The keywords a rune's text may name, and the word each renders as on this base. */
 // RUNES-2a: BURN, RIDE and STALL join (the new runes name them), each in the colour the game's text already gives it
-export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | "PAIR" | "HEAT" | "FRAY" | "BURN" | "RIDE" | "STALL";
+// SUS-B (REQ-BFG-069): SHIELD, HEAL and REGEN join (WARD STONE names SHIELD now; SUS-D's runes name all three)
+export type RuneKeyword = "HULL" | "BELT" | "GOLD" | "DMG" | "RATE" | "PLATE" | "PAIR" | "HEAT" | "FRAY" | "BURN" | "RIDE" | "STALL"
+  | "SHIELD" | "HEAL" | "REGEN";
 export const KEYWORD_WORD: Readonly<Record<RuneKeyword, string>> = {
   HULL: "HULL", BELT: "BELT", GOLD: "GOLD", DMG: "DMG", RATE: "RATE", PLATE: "PLATE", PAIR: "PAIR", HEAT: "HEAT", FRAY: "FRAY",
-  BURN: "BURN", RIDE: "RIDE", STALL: "STALL",
+  BURN: "BURN", RIDE: "RIDE", STALL: "STALL", SHIELD: "SHIELD", HEAL: "HEAL", REGEN: "REGEN",
 };
+
+/**
+ * SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.2): a rune's effect line as the cards draw it, where it differs from
+ * RuneDef.text (src/sim/runes.ts, which a display job leaves alone): WARD STONE is SHIELD now (SUS-A's kind startShield,
+ * 3 at the start), so it reads as one: "START: +3 SHIELD." (was "THE FOE'S FIRST 3 HITS: NO DMG.", the same rule).
+ * SUS-D moves the line into runes.ts with its 9 runes and deletes this row.
+ */
+export const RUNE_TEXT: Readonly<Record<string, string>> = {
+  ward_stone: "START: +{N} {*SHIELD}.",
+};
+/** A rune's effect line in R1b-2's tokens: its RUNE_TEXT row, else RuneDef.text. */
+export const runeTextOf = (def: RuneDef): string => RUNE_TEXT[def.id] ?? def.text;
 /** Each keyword's colour (render/palette.ts C): the hull's red, gold's yellow, the belts' brass, damage white, speed's yellow
  *  (richText.ts KEYWORD_COLOUR.faster), BASTION's plating, FOUNDRY's pair cyan, FURNACE's fire, WEAVER's plum. RUNES-2a:
  *  BURN in richText's burn colour (fire, as HEAT), RIDE in the belts' wood, STALL in shock's cyan (a shock stalls).
@@ -64,8 +78,9 @@ export function runeSpans(def: RuneDef, base: string = RUNE_TEXT_COLOUR): Span[]
     else out.push({ t, c });
   };
   let at = 0;
-  for (const m of def.text.matchAll(TOKEN)) {
-    let plain = def.text.slice(at, m.index);
+  const text = runeTextOf(def); // SUS-B: WARD STONE's SHIELD line (RUNE_TEXT)
+  for (const m of text.matchAll(TOKEN)) {
+    let plain = text.slice(at, m.index);
     at = (m.index ?? 0) + m[0].length;
     const name = m[2];
     if (name === "N") {
@@ -78,7 +93,7 @@ export function runeSpans(def: RuneDef, base: string = RUNE_TEXT_COLOUR): Span[]
       push(isKeyword(name) ? KEYWORD_WORD[name] : name, isKeyword(name) ? RUNE_KEYWORD_COLOUR[name] : base);
     }
   }
-  push(def.text.slice(at), base);
+  push(text.slice(at), base);
   return out;
 }
 
@@ -88,7 +103,7 @@ export const runeLine = (def: RuneDef): string => runeSpans(def).map((s) => s.t)
 /** The keywords a rune's text names, in order (the starred ones first: they carry a reminder). */
 export function runeKeywords(def: RuneDef): RuneKeyword[] {
   const starred: RuneKeyword[] = [], plain: RuneKeyword[] = [];
-  for (const m of def.text.matchAll(TOKEN)) {
+  for (const m of runeTextOf(def).matchAll(TOKEN)) {
     const k = m[2];
     if (!isKeyword(k)) continue;
     const list = m[1] ? starred : plain;
@@ -100,9 +115,10 @@ export function runeKeywords(def: RuneDef): RuneKeyword[] {
 /** The keyword a rune's chip shows: its first starred keyword (the one with a reminder), else the last one named
  *  ("+{N} {HULL}." -> HULL; "EACH TURRET'S FIRST SHOT: +{N} {DMG}." -> DMG). */
 export function runeKeyword(def: RuneDef): RuneKeyword | null {
-  const starred = /\{\*([A-Z]+)\}/.exec(def.text)?.[1];
+  const text = runeTextOf(def); // SUS-B: WARD STONE's SHIELD line (RUNE_TEXT)
+  const starred = /\{\*([A-Z]+)\}/.exec(text)?.[1];
   if (starred && isKeyword(starred)) return starred;
-  const all = [...def.text.matchAll(TOKEN)].map((m) => m[2]).filter(isKeyword);
+  const all = [...text.matchAll(TOKEN)].map((m) => m[2]).filter(isKeyword);
   return all.length ? all[all.length - 1] : null;
 }
 

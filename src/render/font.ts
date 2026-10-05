@@ -22,7 +22,8 @@ type GlyphMap = Record<string, string>;
 export const ICON_BASE = 0xe000;
 const pua = (n: number): string => String.fromCharCode(ICON_BASE + n);
 /** U1 (MEMO C2): the 16 icons. DMG U+E000 .. PAIR U+E00D are private-use code points, one UTF-16 unit each; HULL and STAR
- *  are today's ♥ and ★, so "{HULL}" and "{STAR}" work in the markup. */
+ *  are today's ♥ and ★, so "{HULL}" and "{STAR}" work in the markup. SUS-B (REQ-BFG-069): + SHIELD, HEAL and REGEN at
+ *  U+E010 .. U+E012, 19 icons (17 private-use). */
 export const ICON = {
   DMG: pua(0), // damage
   SEC: pua(1), // seconds: a unit after its number, "1.25" then SEC (a small s)
@@ -38,12 +39,17 @@ export const ICON = {
   FRAY: pua(11), // keyword (WEAVER)
   PLATE: pua(12), // keyword (BASTION)
   PAIR: pua(13), // keyword (FOUNDRY)
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): the sustain keywords at U+E010 .. U+E012 (N1 and R1b both claim U+E00E)
+  SHIELD: pua(16), // keyword: a count, each stops one whole hit
+  HEAL: pua(17), // keyword: gives back hull, never past full
+  REGEN: pua(18), // keyword: heals at each whole second
   HULL: "♥",
   STAR: "★",
 } as const;
 export type IconName = keyof typeof ICON;
-/** U1 (MEMO C1): the 6 keywords. "{*NAME}" draws one as its icon then its word, both in the keyword's colour. */
-export const KEYWORDS = ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR"] as const;
+/** U1 (MEMO C1): the keywords. "{*NAME}" draws one as its icon then its word, both in the keyword's colour. SUS-B
+ *  (REQ-BFG-069; cap's answer 1 to SUSTAIN-1: a budget of 12): + SHIELD, HEAL and REGEN, 9 in all. */
+export const KEYWORDS = ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"] as const;
 export type KeywordName = (typeof KEYWORDS)[number];
 
 // 5x7: rows joined with "|"
@@ -133,8 +139,12 @@ const F5: GlyphMap = {
   [ICON.STUN]: "...##|..##.|.##..|#####|..##.|.##..|##...", // a bolt
   [ICON.HEAT]: "..#..|.##..|..#..|.##..|.###.|#####|.###.", // a thermometer: a stem with 2 ticks, a bulb
   [ICON.FRAY]: "#...#|.#.#.|..#..|.....|#...#|.#.#.|..#..", // a shred mark
-  [ICON.PLATE]: "#####|##.##|#...#|#...#|.#.#.|.#.#.|..#..", // a riveted shield
+  [ICON.PLATE]: "#####|##.##|#...#|#...#|.#.#.|.#.#.|..#..", // a riveted plate (SUS-B: T1 named it SHIELD; the glyph is PLATE's)
   [ICON.PAIR]: ".....|.....|##.##|#####|##.##|.....|.....", // a linked pair
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4's bitmaps, as drawn)
+  [ICON.SHIELD]: "..#..|.#.#.|#...#|#.#.#|#...#|.#.#.|..#..", // a ward diamond with a core
+  [ICON.HEAL]: ".###.|.#.#.|##.##|#...#|##.##|.#.#.|.###.", // an outlined cross
+  [ICON.REGEN]: "..#..|.###.|..#..|.....|..#..|.###.|..#..", // two stacked small crosses: again and again
 };
 
 // 3x5
@@ -217,8 +227,15 @@ const F3: GlyphMap = {
   [ICON.STUN]: "..#|.#.|###|.#.|#..", // a bolt
   [ICON.HEAT]: ".#.|##.|.#.|###|.#.", // a thermometer: a stem with a tick, a bulb
   [ICON.FRAY]: "#.#|.#.|...|#.#|.#.", // a shred mark
-  [ICON.PLATE]: "###|###|#.#|.#.|.#.", // a shield
+  [ICON.PLATE]: "###|###|#.#|.#.|.#.", // a plate (SUS-B: T1 named it SHIELD; the glyph is PLATE's)
   [ICON.PAIR]: "...|#.#|###|#.#|...", // a linked pair
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): REGEN as drawn; SHIELD and HEAL one step off the drawing, because the icon test's
+  // 3x5 thresholds refuse it: the drawn diamond "...|.#.|#.#|.#.|..." is 1 px from "+" (punctuation needs 2), so the
+  // diamond is one row taller; the drawn HEAL ".#.|###|.#.|...|###" is 1 px from UP (icons need 2) and 2 from "1" (letters
+  // and digits need 3), so its cross sits one row lower, on the bar
+  [ICON.SHIELD]: "...|.#.|#.#|#.#|.#.", // a ward diamond
+  [ICON.HEAL]: "...|.#.|###|.#.|###", // a cross on a bar
+  [ICON.REGEN]: ".#.|###|.#.|...|#.#", // a cross with two tick dots
 };
 
 /** U1: an icon's own colour, where it has one. RATE is KEYWORD_COLOUR's FASTER (richText.ts), GOLD the shop's price colour
@@ -234,6 +251,11 @@ export const ICON_COLOUR: Readonly<Record<string, string>> = {
   [ICON.FRAY]: C.plum4,
   [ICON.PLATE]: C.plate3,
   [ICON.PAIR]: C.blue,
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.4): SHIELD the dwarf rune glow (rune3, clear of PLATE's plate3 and FREEZE's ice),
+  // HEAL the genre's green, REGEN the darker teal of the same family (verd3)
+  [ICON.SHIELD]: C.rune3,
+  [ICON.HEAL]: C.green,
+  [ICON.REGEN]: C.verd3,
 };
 
 /** The private-use icons (HULL ♥ and STAR ★ are ordinary text: "★2" stays a star mark, as today). */

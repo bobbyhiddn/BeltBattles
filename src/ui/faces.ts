@@ -34,6 +34,7 @@ import { SIM } from "./abilityText"; // NUM-3: SCRAPPER's queue cap and SABOT's 
 import {
   AMMO, BURN_TIME, DISRUPT_TIME, FRAY_BONUS, FRAY_MAX, HEROES, ITEMS, type HeroId, type ItemDef, type PayloadPreset,
 } from "../sim/content";
+import { SHIELD_CAP } from "../sim/content"; // SUS-B (REQ-BFG-069): SHIELD's MAX 3
 import { GUARD_FREEZE, SHAPE_ARROWS, rigShape } from "../sim/content"; // U2b: the rigs' belts and OVERDRIVE's guards
 import { GUARD_SLOW, STUN_CAUSES } from "../sim/content"; // NUM-3: OVERDRIVE's chain guard; MANTLET's immunity
 import { factorySpeed, secPer } from "../sim/content"; // NUM-2 (REQ-BFG-047): SPEED (the faces keep SEC: 30 / speed)
@@ -189,6 +190,11 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   FRAY: () => `EACH {*FRAY}: EVERY LATER HIT +${fmtDmg(FRAY_BONUS)} DAMAGE. MAX ${fmtCount(FRAY_MAX)} {FRAY}.`,
   PLATE: () => `{*PLATE}: SOAKS DAMAGE BEFORE YOUR HULL. MAX ${fmtDmg(PLATE_CAP)} {PLATE}.`,
   PAIR: () => "{*PAIR}: TWO LOADS REACH ONE TURRET AT ONCE.",
+  // SUS-B (REQ-BFG-069; SUSTAIN-1 4.1 and 4.9): SHIELD a count (fmtCount; content.ts SHIELD_CAP), HEAL and REGEN on hull.
+  // REGEN's verb is HEAL's (GIVES BACK; 4.9 wrote HEALS, which would stand as a bare keyword: REQ-BFG-032 rule 3)
+  SHIELD: () => `EACH {*SHIELD}: STOPS ONE WHOLE HIT. MAX ${fmtCount(SHIELD_CAP)} {SHIELD}.`,
+  HEAL: () => "{*HEAL}: GIVES BACK {HULL}, NEVER PAST FULL.",
+  REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH {HULL} EACH SEC.",
 };
 
 // ------------------------------------------------------------------------------------------------------ the faces
@@ -262,6 +268,14 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // Battle.roundImpact: a frost or chain round STUNs the part it hits (its stat); ★2/★3 HOARFROST's spread is a clause
   frostbite: (e) => rules([], [], [REMINDER.STUN(rnd(e).seconds)]),
   dragchain: (e) => rules([], [], [REMINDER.STUN(rnd(e).seconds)]),
+  mendpress: (e) => {
+    // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): ARMOR PRESS's face with HEAL, its stat row ARMOR PRESS's (factoryStats).
+    // Battle.pressHeal: heal.amount every heal.every s through heal(), at the stamping pace, while it feeds a turret (the
+    // belt rule stays off the face, as ARMOR PRESS's: cap's answer 5 to SUS-A)
+    const h = f(e).heal!, every = fmtSec(h.every), amount = fmtDmg(h.amount);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} {*HEAL} ${amount}.`, label }], [["every", `EVERY ${every}{SEC}`], ["heal", `{*HEAL} ${amount}`]], [REMINDER.HEAL()]);
+  },
   // the heroes' signature factories (never sold: no stars, no NEXT★)
   // U2e step 2 (REQ-BFG-070): a slug's HEAT or FRAY is its own, a stat ({HEAT}1.2, {FRAY}1: carryStats), never a
   // sentence (were "ITS SLUGS HAVE {*HEAT} 1.2." and "ITS SLUGS HAVE {*FRAY} 1."); the reminder stays for the tap
@@ -330,8 +344,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
       [REMINDER.PLATE()]);
   },
   // ------------------------------------------------------------------- U2b: the TEXT rigs (HIT: in brass; no stat row)
-  // SHIELD WALL (N1 3.3's crit piece) keeps today's text, as every RULES rig does. NUM-3: TOLLBOOTH (a STUN-fold face)
-  // has its face (below SORTING ARM).
+  // IRON WALL (SHIELD WALL until SUS-B; N1 3.3's crit piece) keeps today's text, as every RULES rig does. NUM-3: TOLLBOOTH
+  // (a STUN-fold face) has its face (below SORTING ARM).
   temper: (e) => {
     const n = fmtCount(gt(e).burn!); // Battle.applyHit: + burn stacks on each payload it hits
     return rules([hit(`+${n} {*BURN}.`)], [["burn", `+${n} {*BURN}`]], [REMINDER.BURN()]);
@@ -398,8 +412,10 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([{ text: `BLOCKS THE FIRST ${n} {*STUN} HITS ON ${itsBelts(e)}.` }], [["toll", `BLOCKS ${n}`]]);
   },
   riveter: (e) => {
-    const d = fmtDmg(gt(e).heal!); // never past your full hull (the sim; the hull bar shows it). SUS-A: the field is `heal`
-    return rules([hit(`+${d} {HULL}.`)], [["repair", `+${d} {HULL}`]]);
+    // SUS-B (REQ-BFG-069; SUSTAIN-1 4.9): its repair is HEAL, the same numbers (battle.ts heal(): never past your full hull,
+    // half with BURN, none in the dark wind; the HEAL row says so); was "HIT: +6 {HULL}." keyed "repair"
+    const d = fmtDmg(gt(e).heal!);
+    return rules([hit(`{*HEAL} ${d}.`)], [["heal", `{*HEAL} ${d}`]], [REMINDER.HEAL()]);
   },
   heatjacket: (e) => {
     const h = gt(e).heat!, d = fmtDmg(h); // + heat damage a second ridden after it (as KILN's cinder: HEAT)
@@ -476,6 +492,20 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // source (content.ts STUN_CAUSES); ★2 FULL GUARD and ★3 BULWARK SKIRT's tiles are a clause
     const all = STUN_CAUSES.every((cause) => (md(e).immune ?? []).includes(cause));
     return rules([{ text: all ? "IMMUNE TO {*STUN}." : "IMMUNE TO SOME {*STUN}." }]);
+  },
+  // SUS-B (REQ-BFG-069, REQ-BFG-070; SUSTAIN-1 4.9): the sustain gear. Each gives your hull its effect: an ability line
+  wardbell: (e) => {
+    // TurretState.bell: + amount SHIELD every `every` s (★1 8 s, SUS-A's measured fallback; ★2 5 s, ★3 4 s), the first at
+    // t = every, never past SHIELD_CAP; its turret's STUN or freeze pauses it. Its count is keyed too, for the shop chip
+    const sh = md(e).shield!, every = fmtSec(sh.every), n = fmtCount(sh.amount);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} +${n} {*SHIELD}.`, label }], [["every", `EVERY ${every}{SEC}`], ["shield", `+${n} {*SHIELD}`]], [REMINDER.SHIELD()]);
+  },
+  mendingloom: (e) => {
+    // TurretState.regen: your hull heals this much at each whole second (Battle.sustainTick). "YOUR HULL:" says whose it
+    // is, not when: no trigger, so no brass label (TEXT-STYLE 3.2, 3.3)
+    const r = fmtDmg(md(e).regen!);
+    return rules([{ text: `YOUR HULL: {*REGEN} ${r}.` }], [["regen", `{*REGEN} ${r}`]], [REMINDER.REGEN()]);
   },
   // ------------------------------------------------------------------------------------------ U2b: the supplies
   // U2c group 0 fix 2: {BELT} means belts, a count (a factory's {BELT}3); belt capacity is tiles, in words (hero select's

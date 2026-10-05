@@ -75,16 +75,19 @@ describe("U2a the formatters: one per unit; the interim prints today's value wit
 });
 
 describe("U2a the faces: every number from sim data through one formatter", () => {
-  it("scope: 71 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies; NUM-3 the 7 STUN-fold pieces) and 3 heroes; the crit and RULES pieces keep today's text", () => {
+  // SUS-B (REQ-BFG-069): + MEND PRESS (a factory), WARD BELL and MENDING LOOM (gear). Their faces exist while the
+  // sustain switch is off (ITEMS resolves them; no listing shows them), so every face rule below runs on them already
+  it("scope: 74 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies; NUM-3 the 7 STUN-fold pieces; SUS-B 1 factory, 2 gear) and 3 heroes; the crit and RULES pieces keep today's text", () => {
     const kinds = FACE_IDS.map((d) => ITEMS[d].kind);
     const n = (k: string) => kinds.filter((x) => x === k).length;
     // NUM-3 (R1's STUN fold): + SCRAPPER, SABOT, FROSTBITE and DRAG CHAIN FOUNDRY (factories), TOLLBOOTH (a rig), FLAK SCREEN
-    // and MANTLET (gear) have faces (was [14, 12, 13, 18, 5, 2], 64 pieces)
-    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([18, 12, 13, 19, 7, 2]);
-    for (const faced of ["scrapper", "sabot", "frostbite", "dragchain", "tollbooth", "flak", "mantlet"]) expect(hasFace(faced), faced).toBe(true);
+    // and MANTLET (gear); SUS-B: + MEND PRESS (a factory), WARD BELL and MENDING LOOM (gear). Was [14, 12, 13, 18, 5, 2], 64
+    // pieces; num3 [18, 12, 13, 19, 7, 2], susb [15, 12, 13, 18, 7, 2]; x1 (cap's merge of the two) holds both
+    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([19, 12, 13, 19, 9, 2]);
+    for (const faced of ["scrapper", "sabot", "frostbite", "dragchain", "tollbooth", "flak", "mantlet", "mendpress", "wardbell", "mendingloom"]) expect(hasFace(faced), faced).toBe(true);
     for (const keep of ["capacitor", "assembly", "drake", "steambreech"]) expect(hasFace(keep), keep).toBe(false);
-    // U2b: SHIELD WALL, LONGCASE and FINISHER RAM (N1 3.3's crit pieces) and the 11 RULES rigs and 3 RULES gear keep today's
-    // text (NUM-3: TOLLBOOTH, FLAK SCREEN and MANTLET left this list: they have faces)
+    // U2b: SHIELD WALL (IRON WALL since SUS-B), LONGCASE and FINISHER RAM (N1 3.3's crit pieces) and the 11 RULES rigs and
+    // 3 RULES gear keep today's text (NUM-3: TOLLBOOTH, FLAK SCREEN and MANTLET left this list: they have faces)
     for (const keep of ["shieldwall", "longcase", "ram", "sifter", "venom", "keg", "bellows", "quench", "lodestone",
       "counterweight", "twingauge", "pincer", "braceframe", "twinlatch", "hopper", "twintrigger", "seamwelder"]) expect(hasFace(keep), keep).toBe(false);
     expect(PLAYABLE_HEROES.filter((h) => heroFace(h))).toEqual(["weaver", "foundry", "bastion"]);
