@@ -27,8 +27,25 @@ import { debuffedDamage, segmentBounds, siftDebuffs, type HarassRound, type Payl
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack each second
 import { pct, roundHalfUp } from "./pct"; // NUM-1 (REQ-BFG-047, N1 2.1): the integer damage pipeline's one rounding
+import { SHIELD_CAP } from "./content"; // SUS-A (REQ-BFG-069): SHIELD's MAX
 
 export type Side = 0 | 1; // 0 = player (south), 1 = enemy (north)
+
+/** SUS-A (REQ-BFG-069): what a heal came from (the `heal` event's `source`). */
+export type HealSource = "riveter" | "mendpress" | "regen";
+
+/** SUS-A: one side's sustain counters (made at its first SHIELD gain or heal; nothing in play reads them: the bench, the HUD). */
+export interface HealCounts {
+  gained: number; // SHIELD gained
+  healed: number; // hull heal() gave back
+  burnLost: number; // healing BURN's rule took away (a hull with BURN heals half)
+  windLost: number; // healing the dark wind's rule took away (nothing heals from WIND_START)
+}
+
+/** SUS-A: ticks a second, on the battle's integer tick count (REGEN's whole seconds, the wind's rule for heals). */
+const TICKS_PER_SEC = Math.round(1 / TICK);
+/** SUS-A: the tick from which nothing heals (WIND_START on the integer tick count: 1500, at 25 s exactly). */
+const WIND_TICKS = Math.round(WIND_START / TICK);
 
 export interface Payload {
   id: number;
@@ -202,6 +219,8 @@ export interface FactoryState {
   curPace?: number; // a stoked factory's stamp pace this tick (what another stoked factory sharing its turret reads)
   // 0.8.0 P1, ARMOR PRESS: seconds to its next plating (set only on a press with a belt that reaches a turret)
   plateTimer?: number;
+  // SUS-A (REQ-BFG-069), MEND PRESS: seconds to its next HEAL (ARMOR PRESS's timer: set only with a belt that reaches a turret)
+  healTimer?: number;
 }
 
 export interface TurretState {
@@ -255,6 +274,9 @@ export interface TurretState {
   plated?: boolean; // STEAM BREECH: your hull holds plating this tick (Battle.chambers)
   runeFired?: boolean; // RUNES-1: it has fired this battle (SHARP SCRAP's first shot); set only on a side with runes
   runeVolley?: boolean; // RUNES-2a: its volley's first shot is next (FIRST BLOOD); set only on a side holding it
+  // SUS-A (REQ-BFG-069), from its gear (absent without it). A STUN, freeze or disruption on the turret pauses both.
+  bell?: { every: number; amount: number; timer: number }; // WARD BELL: + amount SHIELD when `timer` runs out (it then adds `every`)
+  regen?: number; // MENDING LOOM: REGEN on your hull at each whole second (Battle.sustainTick)
 }
 
 export interface HullState {
@@ -327,8 +349,11 @@ export interface SideState {
   // RUNES-2a, set only on a side whose runes need them:
   merged?: number; // SCRAP SAINT: the build's merged pieces (runes.ts mergedPieces)
   wins?: number; // WARLORD'S DUE: the wins this side carried into the fight (Battle's `wins`; its snapshot's or run's)
-  blocked?: number; // WARD STONE: the foe's hits it has stopped so far
+  blocked?: number; // SHIELD (SUS-A; WARD STONE's before): the foe's hits it has stopped so far
   halfPlated?: boolean; // LAST WALL: its PLATE has come
+  // SUS-A (REQ-BFG-069): SHIELD, whole hits it stops next (0..SHIELD_CAP; absent until its first gain), and the counters
+  shield?: number;
+  heals?: HealCounts;
 }
 
 export interface Projectile {
@@ -375,7 +400,10 @@ export type SimEvent =
   | { type: "flak"; side: Side; proj: number }
   | { type: "toll"; side: Side; gate: number; remaining: number; cause: HarassCause }
   | { type: "harass"; side: Side; kind: TargetKind; ref: number; cell: number; cause: HarassCause }
-  | { type: "repair"; side: Side; amount: number; gate: number }
+  // SUS-A (REQ-BFG-069): was RIVETER's "repair". `amount`: the hull it actually gave back; `gate` (RIVETER) or `factory`
+  // (MEND PRESS): the piece; REGEN has neither
+  | { type: "heal"; side: Side; amount: number; source: HealSource; gate?: number; factory?: number }
+  | { type: "shield"; side: Side; amount: number; shield: number } // SUS-A: SHIELD gained (+) or broken by a hit (-); `shield`: the count after
   | { type: "arc" | "lance" | "splash"; side: Side; x: number; y: number }
   | { type: "freeze" | "slow" | "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
   | { type: "burn"; side: Side; dmg: number }
@@ -528,6 +556,16 @@ export class Battle {
     return total;
   }
 
+  /** SUS-A (REQ-BFG-069): side def holds a SHIELD, so this hit is stopped whole: one SHIELD breaks (a `shield` event), the
+   *  hit counts as stopped (SideState.blocked) and deals 0, so it costs no PLATE. WARD STONE's identity: any impact breaks
+   *  one, whatever its damage (one IRON HIDE cut to 0 too). */
+  private shieldHit(def: SideState): number {
+    def.shield! -= 1;
+    def.blocked = (def.blocked ?? 0) + 1;
+    this.events.push({ type: "shield", side: def.side, amount: -1, shield: def.shield! });
+    return 0;
+  }
+
   /** BULWARK OATH: a race hook's own plating (BASTION's bulwark slugs: races/bastion.ts plateOnLoad) x n too: the extra
    *  (n - 1) x what it added, through addPlate (PLATE_CAP holds). Without the rune it just runs the hook. */
   private racePlate(s: SideState, hook: () => void): void {
@@ -659,6 +697,9 @@ export class Battle {
     for (const f of factories) {
       const pl = f.def.factory?.plate;
       if (pl && routes.some((r) => r.factory === f.uid && (r.connected || (r.join?.feeds ?? -1) >= 0))) f.plateTimer = pl.every;
+      // SUS-A (REQ-BFG-069): MEND PRESS, modelled on ARMOR PRESS: its HEAL timer runs only with such a belt
+      const hl = f.def.factory?.heal;
+      if (hl && routes.some((r) => r.factory === f.uid && (r.connected || (r.join?.feeds ?? -1) >= 0))) f.healTimer = hl.every;
     }
     // 0.8.0 P1 (E3, the Prime's guard): a STOKER's arrows that point into a factory. Only a stoking rig counts such hits:
     // they bring it online (at COMMISSION_BASE, x a running ASSEMBLY LINE's factor) and stoke that factory's timers.
@@ -790,6 +831,7 @@ export class Battle {
     for (const s of this.sides) this.chambers(s, dt);
     this.flight(dt);
     this.hullEffects(dt);
+    this.sustainTick(dt); // SUS-A (REQ-BFG-069): WARD BELL's SHIELD timers; REGEN at each whole second (after the hull effects)
     for (const s of this.sides) if (s.rune?.halfPlate) this.runeHalf(s); // RUNES-2a: LAST WALL
     this.checkEnd();
   }
@@ -919,6 +961,8 @@ export class Battle {
       if (s.rune?.lastStand && s.hull.hp < s.hull.max / 2) pace *= 1 + s.rune.lastStand / 100;
       // 0.8.0 P1: ARMOR PRESS's plating timer at the stamping pace, with the full stoke (it puts no payload on a belt)
       if (f.plateTimer !== undefined) this.pressPlate(s, f, dt * (f.stokers ? f.pace * (1 + this.stokeOf(f)) : f.pace));
+      // SUS-A (REQ-BFG-069): MEND PRESS's HEAL timer, as ARMOR PRESS's (the same pace; stalled or frozen it pauses above)
+      if (f.healTimer !== undefined) this.pressHeal(s, f, dt * (f.stokers ? f.pace * (1 + this.stokeOf(f)) : f.pace));
       // 0.6.2 TUNE-M, RULE JOIN PACE: a joined factory's timers run at f.pace (1 for every other factory: dt as before)
       if (f.triggerCooldown > 0) f.triggerCooldown = Math.max(0, f.triggerCooldown - dt * pace);
       if (f.triggerQueue > 0 && f.triggerCooldown <= 0 && this.stamp(s, f)) {
@@ -1242,6 +1286,79 @@ export class Battle {
     f.plateTimer! += pl.every;
   }
 
+  /** SUS-A (REQ-BFG-069), MEND PRESS: ARMOR PRESS's timer (pressPlate), but each time it ends, HEAL `amount` (Battle.heal).
+   *  It carries its remainder (+= every); in the dark wind it still runs, and heal() gives nothing. */
+  private pressHeal(s: SideState, f: FactoryState, step: number): void {
+    const hl = f.def.factory!.heal!;
+    f.healTimer! -= step;
+    if (f.healTimer! > 1e-9) return;
+    this.heal(s, hl.amount, "mendpress", f.uid);
+    f.healTimer! += hl.every;
+  }
+
+  /**
+   * SUS-A (REQ-BFG-069; SUSTAIN-1 4.3, 4.5): every hull gain in battle (RIVETER, MEND PRESS, REGEN) comes through here.
+   * Three rules: never past max hull; nothing heals from WIND_START (25 s, on the integer tick count); a hull with any
+   * BURN on it heals half, rounded down. No crit, OVERCLOCKER or FRAY touches a heal; max-hull gains (ARMOR PACK, the HULL
+   * runes) are not heals. A dead hull heals nothing. Returns the hull it gave back; a `heal` event when any.
+   */
+  heal(s: SideState, n: number, source: HealSource, from?: number): number {
+    if (!(n > 0) || s.hull.hp <= 0) return 0;
+    const c = (s.heals ??= { gained: 0, healed: 0, burnLost: 0, windLost: 0 });
+    if (this.ticks >= WIND_TICKS) { // the dark wind's rule
+      c.windLost += n;
+      return 0;
+    }
+    if (s.hull.burns.length > 0) { // BURN's rule: half, rounded down
+      const half = Math.floor(n / 2);
+      c.burnLost += n - half;
+      n = half;
+    }
+    const add = Math.min(n, s.hull.max - s.hull.hp);
+    if (!(add > 0)) return 0;
+    s.hull.hp += add;
+    c.healed += add;
+    this.events.push({ type: "heal", side: s.side, amount: add, source,
+      ...(from === undefined ? {} : source === "riveter" ? { gate: from } : { factory: from }) });
+    return add;
+  }
+
+  /** SUS-A: + n SHIELD on side s, never above SHIELD_CAP (a gain at the cap is lost); a `shield` event when any lands. */
+  gainShield(s: SideState, n: number): number {
+    const now = s.shield ?? 0, add = Math.min(n, SHIELD_CAP - now);
+    if (!(add > 0)) return 0;
+    s.shield = now + add;
+    (s.heals ??= { gained: 0, healed: 0, burnLost: 0, windLost: 0 }).gained += add;
+    this.events.push({ type: "shield", side: s.side, amount: add, shield: s.shield });
+    return add;
+  }
+
+  /**
+   * SUS-A, each tick after the hull effects: each WARD BELL's timer runs while its turret works (a STUN, freeze or
+   * disruption on the turret pauses it: it doesn't advance and banks nothing) and carries its remainder (+= every);
+   * then, at each whole second of battle time (every TICKS_PER_SEC ticks on the integer tick count), each living hull's
+   * REGEN (its working MENDING LOOMs') heals through heal(). No RNG; a side without these pieces does nothing here.
+   */
+  private sustainTick(dt: number): void {
+    const whole = this.ticks % TICKS_PER_SEC === 0;
+    for (const s of this.sides) {
+      let regen = 0;
+      for (const tu of s.turrets) {
+        if (!tu.bell && !tu.regen) continue;
+        if (tu.disrupted > 0 || tu.frozen > 0) continue; // paused
+        if (tu.bell) {
+          tu.bell.timer -= dt;
+          if (tu.bell.timer <= 1e-9) {
+            this.gainShield(s, tu.bell.amount);
+            tu.bell.timer += tu.bell.every;
+          }
+        }
+        if (tu.regen) regen += tu.regen;
+      }
+      if (whole && regen > 0 && s.hull.hp > 0) this.heal(s, regen, "regen");
+    }
+  }
+
   /** E3: the stoke of a factory's working STOKERs (online, not stalled, frozen or wrecked). */
   private stokeOf(f: FactoryState): number {
     let k = 0;
@@ -1445,10 +1562,7 @@ export class Battle {
       p.flat += removed * (e.siftFlat ?? 0) + (removed === 0 ? e.siftClean ?? 0 : 0);
     }
     if (e.heat) p.heat = (p.heat ?? 0) + e.heat;
-    if (e.repair) {
-      const repair = Math.min(e.repair, s.hull.max - s.hull.hp);
-      if (repair > 0) { s.hull.hp += repair; this.events.push({ type: "repair", side: s.side, amount: repair, gate: g.uid }); }
-    }
+    if (e.repair) this.heal(s, e.repair, "riveter", g.uid); // SUS-A (REQ-BFG-069): RIVETER heals through heal() (its rules)
     if (e.sort) {
       g.sorted++;
       if (g.sorted % e.sort.every === 0) for (let c = 1; c < e.sort.copies; c++) {
@@ -1823,6 +1937,9 @@ export class Battle {
     if (atk.rune?.frayMul) bonus *= atk.rune.frayMul; // RUNES-2a: LOOM OF WOE, your FRAY bonus x n
     let total = pr.dmg + bonus + (pr.payload.harass?.kind === "sabot" && hit.kind === "hull" ? 60 : 0); // NUM-1: SABOT's x10
     if (atk.rune || def.rune) total = this.runeHit(atk, def, hit, total); // RUNES-2a: SCRAP BITER, SNARE KNOT, IRON HIDE, WARD STONE
+    // SUS-A (REQ-BFG-069): SHIELD, then PLATE, then HULL. A SHIELD stops this whole hit (0, its FRAY bonus included), where
+    // WARD STONE's blockHits stopped it: after IRON HIDE, on any impact; its BURN, FRAY, STUN and poison still land below
+    if (def.shield) total = this.shieldHit(def);
     // races: bulwark plating soaks first. 0.8.0 P1 (E1): every hull's plating (0 without a source: the damage unchanged)
     const hullPart = absorb(def.plate, total);
     def.hull.hp -= hullPart;
@@ -2430,6 +2547,9 @@ export function makeTurret(b: Build, i: number, def: TurretDef): TurretState {
     ...(g.pairBonus ? { pairBonus: g.pairBonus } : {}),
     ...(g.seam ? { seam: g.seam } : {}),
     ...(g.spall ? { spall: g.spall, spallCharge: 0 } : {}),
+    // SUS-A (REQ-BFG-069): WARD BELL (its first SHIELD at t = every) and MENDING LOOM (absent without them)
+    ...(g.shield ? { bell: { every: g.shield.every, amount: g.shield.amount, timer: g.shield.every } } : {}),
+    ...(g.regen ? { regen: g.regen } : {}),
   };
 }
 
@@ -2474,6 +2594,9 @@ export interface GearStats {
   pairBonus: number; // TWIN TRIGGER
   seam?: { pair: number; lone: number }; // SEAM WELDER
   spall?: { every: number; add: number; max: number }; // SPALL CATCHER
+  // SUS-A (REQ-BFG-069; absent without them):
+  shield?: { every: number; amount: number }; // WARD BELL
+  regen?: number; // MENDING LOOM
 }
 
 export function gearStats(b: Build, i: number): GearStats {
@@ -2501,6 +2624,8 @@ export function gearStats(b: Build, i: number): GearStats {
     if (md?.pairBonus) out.pairBonus = Math.max(out.pairBonus, md.pairBonus); // 0.8.0 P1: TWIN TRIGGER
     if (md?.seam) out.seam = md.seam; // SEAM WELDER (a turret holds one copy of a def)
     if (md?.spall) out.spall = md.spall; // SPALL CATCHER
+    if (md?.shield) out.shield = md.shield; // SUS-A: WARD BELL (a turret holds one copy of a def)
+    if (md?.regen) out.regen = md.regen; // SUS-A: MENDING LOOM
   }
   return out;
 }

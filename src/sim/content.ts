@@ -55,6 +55,9 @@ export const FRAY_MAX = 15;
 export const WIND_WARN = 20; // dark wind warning (s)
 export const WIND_START = 25; // dark wind damage begins (s)
 export const BATTLE_CAP = 120; // hard stop (s)
+/** SUS-A (REQ-BFG-069; SUSTAIN-1 4.2-4.3): SHIELD is a whole count on each side, never above this. Each SHIELD stops one
+ *  whole hit (Battle.impact: SHIELD, then PLATE, then HULL); a gain at the cap is lost. Never scaled (a count). */
+export const SHIELD_CAP = 3;
 export const COMMISSION_BASE = 1.2; // first gate on a route comes online at this time (s)
 export const COMMISSION_STEP = 0.6; // each further gate on the route adds this delay (s)
 // 0.6.2 TUNE-M, RULE JOIN PACE (the Prime's design decision): a factory whose belt joins another belt makes its loads
@@ -182,6 +185,7 @@ export interface FactorySpec {
   // 0.8.0 P1, wave 3 (absent on every older factory):
   twin?: boolean; // TWIN MOULD: each cast pours one slug onto up to `pour` belts with room on the same tick (pourAll)
   plate?: { every: number; amount: number }; // ARMOR PRESS: `amount` plating onto your hull every `every` s (FactoryState.plateTimer)
+  heal?: { every: number; amount: number }; // SUS-A (REQ-BFG-069), MEND PRESS: HEAL `amount` every `every` s (FactoryState.healTimer; Battle.heal)
 }
 
 /** 0.6.1c HOT SWAP: what one step of the cycle writes on the slug at stamp time (catalogue.json hotswap). */
@@ -214,6 +218,9 @@ export interface ModSpec {
   pairBonus?: number; // TWIN TRIGGER: paired loads (E2) deal this share more damage
   spall?: { every: number; add: number; max: number }; // SPALL CATCHER: every `every` damage taken adds `add` to the next shot, up to `max`
   seam?: { pair: number; lone: number }; // SEAM WELDER: plating for each pair this turret takes, and for each other load
+  // SUS-A (REQ-BFG-069; absent on every older mod):
+  shield?: { every: number; amount: number }; // WARD BELL: + `amount` SHIELD every `every` s (TurretState.bell), the first at t = every
+  regen?: number; // MENDING LOOM: REGEN, this much hull healed at each whole second (Battle.sustainTick; Battle.heal)
 }
 
 /** 0.6.1b: how a turret fires (ARSENAL.md §2). "identity" is today's firing: every hero's signature core. */

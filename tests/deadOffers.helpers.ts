@@ -324,7 +324,7 @@ export function fight(b: Build, foe: Build, seed: number, seconds: number): Metr
       if (e.type === "disrupt" && e.side === 1) enemyDisrupt++;
       if (e.type === "toll" && e.side === 0) tolls++;
       if (e.type === "flak" && e.side === 0) flaks++;
-      if (e.type === "repair" && e.side === 0) repairs++;
+      if (e.type === "heal" && e.source === "riveter" && e.side === 0) repairs++; // SUS-A: RIVETER's "repair" event is a heal
       if (e.type === "rip" && e.side === 1) rips++;
       if (e.type === "brace" && e.side === 0) braced += e.saved; // 0.8.0 I1
       if (e.type === "plate" && e.side === 0 && !("turret" in e) && e.amount > 0) plated += e.amount; // 0.8.0 I1: E1 only

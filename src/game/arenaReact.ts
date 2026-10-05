@@ -243,7 +243,8 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
         sy(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), 10, C.brass4);
       return;
     }
-    case "repair": {
+    case "heal": { // SUS-A (REQ-BFG-069): was "repair"; RIVETER's heals only, as before (SUS-B draws the rest)
+      if (e.gate === undefined) return;
       const g = a.b.sides[e.side].gates.find((v) => v.uid === e.gate);
       if (g && !fast) fx.popup(sx(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL),
         sy(a.drawn[e.side], (g.x + 0.5) * CELL, (g.y + 0.5) * CELL), `+${e.amount.toFixed(1)}`, C.lime);
