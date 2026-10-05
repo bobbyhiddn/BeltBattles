@@ -8,7 +8,8 @@ declare module "node:worker_threads" {
     postMessage(msg: unknown): void;
   } | null;
   export class Worker {
-    constructor(filename: string | URL);
+    // FLIP-X2: the options argument (argv) that TUNE-X's sustainBench passes (cherry-picked at step 3b, 16f2486)
+    constructor(filename: string | URL, options?: { argv?: readonly unknown[] });
     on(event: "message", cb: (msg: any) => void): this;
     on(event: "error", cb: (err: Error) => void): this;
     removeAllListeners(): this;
