@@ -118,8 +118,18 @@ const TUNEX_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: numb
 // Y-FURN (release Y; FURN-Y rows 1-2, REVIEW-FURNY): two more RUNE_LIST amounts moved after NUM-1's record, both "same"
 // rows (a whole %), the fixture untouched. Each is checked at its release-Y value, as TUNEX_MOVED's are
 const YFURN_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: number }> = {
-  "RUNE_LIST.coal_chute.amount.n": { rule: "same", was: 25, now: 20 }, // COAL CHUTE (row 1; it reads the KILN's HEAT too)
-  "RUNE_LIST.heat_sink.amount.n": { rule: "same", was: 50, now: 40 }, // HEAT SINK (row 2)
+  // BAL-2 (cap's REVIEW-BAL1 rows 3-4): each is live at 0.9.1's amount (was now: 20 and 40)
+  "RUNE_LIST.coal_chute.amount.n": { rule: "same", was: 25, now: 15 }, // COAL CHUTE (row 1; it reads the KILN's HEAT too)
+  "RUNE_LIST.heat_sink.amount.n": { rule: "same", was: 50, now: 25 }, // HEAT SINK (row 2)
+};
+
+// BAL-2 (REQ-BFG-069; cap's REVIEW-BAL1 rows 1, 7 and 8): three content.ts rows moved after NUM-1's record, all "x10"
+// rows (the fixture untouched): the KILN's HEAT 12 -> 13 and the two hulls. No rule moved: each stays a whole value on
+// the N1 scale. Each is checked at its 0.9.1 value, as TUNEX_MOVED's and YFURN_MOVED's are; every other row keeps its check
+const BAL2_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: number }> = {
+  "AMMO.cinder.rideScale": { rule: "x10", was: 12, now: 13 }, // the KILN's HEAT (row 7)
+  "HEROES.furnace.hull": { rule: "x10", was: 2000, now: 2100 }, // FURNACE's hull (row 8)
+  "HEROES.weaver.hull": { rule: "x10", was: 1800, now: 1700 }, // WEAVER's hull (row 1)
 };
 
 // FLIP-X2 (REQ-BFG-069, the sustain switch on): ITEMS lists WARD BELL, MEND PRESS and MENDING LOOM now, so the walk meets
@@ -218,8 +228,18 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // FLIP-X2: and a row TUNE-X moved (TUNEX_MOVED, the 5 rune amounts) at its FLIP-X2 value below
     // Y-FURN: and a row FURN-Y moved (YFURN_MOVED, COAL CHUTE and HEAT SINK) at its release-Y value below (was each live at
     // its recorded value, 25 and 50)
-    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    // BAL-2: and a row BAL-2 moved (BAL2_MOVED: the KILN's HEAT and the two hulls) at its 0.9.1 value below
+    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && !(r.id in YFURN_MOVED) && !(r.id in BAL2_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    // BAL-2: the 3 moved content.ts rows, every one a fixture row recorded at the map's `was` under the map's rule, each
+    // live at its 0.9.1 value (was each live at its recorded value)
+    const bal2 = rows.filter((r) => r.id in BAL2_MOVED);
+    expect(bal2.map((r) => r.id).sort()).toEqual(Object.keys(BAL2_MOVED).sort());
+    for (const r of bal2) {
+      const m = BAL2_MOVED[r.id];
+      expect([r.file, r.rule, r.now], r.id).toEqual(["src/sim/content.ts", m.rule, m.was]);
+      expect(live(r.id), r.id).toBe(m.now);
+    }
     const yfurn = rows.filter((r) => r.id in YFURN_MOVED);
     expect(yfurn.map((r) => r.id).sort()).toEqual(Object.keys(YFURN_MOVED).sort());
     for (const r of yfurn) {
@@ -332,12 +352,13 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     for (const [id, of] of Object.entries(derived)) expect(live(id), id).toBe(live(of));
   });
 
-  it("the damage family is whole at x10 and its sizes are N1's (hulls 1800-2250, plating cap 240, FRAY 2 a stack)", () => {
+  it("the damage family is whole at x10 and its sizes are N1's (hulls 1700-2250, plating cap 240, FRAY 2 a stack)", () => {
     for (const r of rows) if (r.rule === "x10") expect(Number.isInteger(live(susaNew(r.id))), r.id).toBe(true); // SUS-A: at its new path
     expect(FRAY_BONUS).toBe(2);
     expect(PLATE_CAP).toBe(240);
     expect(PLATE_PER_SLUG).toBe(20);
-    expect(Object.values(HEROES).map((h) => h.hull).sort((a, b) => a - b)).toEqual([1800, 2000, 2100, 2150, 2200, 2250]);
+    // BAL-2 (REVIEW-BAL1 rows 1 and 8): WEAVER 1800 -> 1700, FURNACE 2000 -> 2100 (was [1800, 2000, 2100, 2150, 2200, 2250])
+    expect(Object.values(HEROES).map((h) => h.hull).sort((a, b) => a - b)).toEqual([1700, 2100, 2100, 2150, 2200, 2250]);
     // the rune amounts: x10 exactly where the unit is dmg, hull or plate (runes.ts header), the rest as they were
     for (const d of RUNE_LIST) {
       const r = byId.get(`RUNE_LIST.${d.id}.amount.n`)!;
@@ -348,9 +369,11 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // FLIP-X2 (TUNE-X line 4, REVIEW-TUNEX): LEECH VOW is rare at 15 (was "hull 20", epic)
     // Y-FURN (FURN-Y rows 3-4): SEARING searBurn 6 BURN stacks, "count 6", and SHATTER SHOT shatterPct 15, "pct 15" (were
     // both rule runes, "count 1")
+    // BAL-2 (REVIEW-BAL1 row 5; 3a, cap's ruling f894080daebfa8c0): SEARING "count 6" -> "count 5", SHATTER SHOT "pct 15"
+    // -> "pct 14"
     expect(Object.fromEntries(SUSTAIN_RUNES.map((d) => [d.id, `${d.amount.unit} ${live(`SUSTAIN_RUNES.${d.id}.amount.n`)}`]))).toEqual({
       bulwark_ward: "count 2", tick_guard: "sec 6", twin_salve: "hull 20", scrap_medic: "hull 300", leech_vow: "hull 15",
-      green_thread: "hull 10", searing: "count 6", shatter_shot: "pct 15",
+      green_thread: "hull 10", searing: "count 5", shatter_shot: "pct 14",
     });
     for (const d of SUSTAIN_RUNES) expect(Number.isInteger(d.amount.n), d.id).toBe(true);
   });

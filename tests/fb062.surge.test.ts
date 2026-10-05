@@ -154,7 +154,8 @@ describe("FB-B SURGE VALVE: the shared-pool audit cells", () => {
   it("Furnace (ride-scaled cinder, turret-bound): ★1 no longer lowers total damage (was 78.3 -> 71.5)", () => {
     const [none, one] = cell("furnace");
     // NUM-1: whole, 11 shots of roundHalfUp(40 + 12 x 2.6 s ridden) = 11 x 71 (was 78.32 = 11 x 7.12)
-    expect(none).toBe(781);
+    // BAL-2 (REVIEW-BAL1 row 7, the KILN's HEAT 12 -> 13): 814 (was 781); ★1 still above it
+    expect(none).toBe(814);
     expect(one).toBeGreaterThan(none);
   });
   for (const hero of HARNESS_HEROES) {
