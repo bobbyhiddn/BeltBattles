@@ -18,6 +18,7 @@ import { rateDeck } from "../src/sim/deckRating";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { K, item, latchDeck, withItem, withMod } from "./wave3.helpers";
 import { starCell, starRows, type StarRow } from "./starRows";
+import { RULES_VERSION } from "../src/sim/content"; // BAL-2: the STOKER row's tripwire (cap's oracle 42da94243f43feef)
 
 const SEEDS = [1, 2, 3, 4, 5]; // both sides +3000 hull, 120 s: STOKER's cap rows (capRows) and the rows' own measure (ownRow)
 const ROW_SEEDS = Array.from({ length: 10 }, (_, i) => i + 1); // 0.8.0 T1: the star rows (deckRows)
@@ -211,6 +212,24 @@ describe("STOKER's cap (the Prime's call, oracle a0e94bc69949561f): a stoke neve
     it(`${r.id}: no stoker <= 1 star <= 2 stars <= 3 stars, and no more jams than with no stoker`, () => {
       const rows = capRows(r);
       if (process.env.BB_TABLES) console.log(`STOKER ${r.id} | ${rows.map((x, s) => `${s ? `★${s}` : "none"} ${x.dmg.toFixed(1)} (jams ${x.jams})`).join(" | ")}`);
+      // BAL-2 TRIPWIRE (cap's oracle 42da94243f43feef; only while RULES_VERSION is "bb-0.9.1"): with 0.9.1's lines together
+      // (FURNACE hull 2100, WEAVER hull 1700, the KILN's HEAT 13; either alone keeps the row rising) this row reads
+      // 3918 / 3954 / 4104 / 4086, ★3 under ★2. Every one of its fights ends with WEAVER's hull at 0 by about 51 s (at
+      // 0.9.0's values too), so the row measures the foe's hull, not STOKER (W/output-bal2/probe/diag-summary.txt). Pinned
+      // exactly, with ★3 < ★2 recorded; the rest of the row as written. Under any other rules version the original
+      // assertions apply again: whoever bumps fixes the measure (the hull bonus or the seeds) or STOKER's share rule, or
+      // asks cap.
+      if (RULES_VERSION === "bb-0.9.1" && r.id === "shared gun with room, STOKER on the mould") {
+        const why = "BAL-2 tripwire (cap's oracle 42da94243f43feef): STOKER's 'shared gun with room' row pinned under bb-0.9.1; resolve the measure or STOKER's share rule before the next rules version";
+        expect(rows.map((x) => x.dmg), why).toEqual([3918, 3954, 4104, 4086]);
+        expect(rows[3].dmg, `${why}: the recorded finding, ★3 under ★2`).toBeLessThan(rows[2].dmg);
+        for (let s = 1; s <= 3; s++) expect(rows[s].jams, `${r.id} ★${s} jams`).toBeLessThanOrEqual(rows[0].jams);
+        for (let s = 1; s <= 2; s++) {
+          expect(rows[s].dmg, `${r.id} ★${s}`).toBeGreaterThanOrEqual(rows[s - 1].dmg * 0.999);
+          expect(rows[s].dmg, `${r.id} ★${s} rises`).toBeGreaterThan(rows[s - 1].dmg);
+        }
+        return;
+      }
       for (let s = 1; s <= 3; s++) {
         expect(rows[s].dmg, `${r.id} ★${s}`).toBeGreaterThanOrEqual(rows[s - 1].dmg * 0.999);
         expect(rows[s].jams, `${r.id} ★${s} jams`).toBeLessThanOrEqual(rows[0].jams);

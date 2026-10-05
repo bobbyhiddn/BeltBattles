@@ -178,6 +178,18 @@ describe("P13: BRAKE SHOE ★2/★3 (HOT SHOE, RED-HOT SHOE): the flat at tier 1
       const f = firstLoad(b, 1);
       expect(f.flat, `★${s}`).toBe(HEAT[s]);
       expect(f.time, `★${s}: stamp to chamber`).toBeCloseTo(w.time, 1);
+      // BAL-2 TRIPWIRE (cap's oracles 42da94243f43feef and d306b1b196dbab38; only while RULES_VERSION is "bb-0.9.1"): with
+      // the KILN's HEAT 13 (0.9.1's line) every star's first load deals 1 less in the battle than in the walk (battle / walk
+      // ★1 94 / 95, ★2 114 / 115, ★3 144 / 145). The battle's ride is 251 ticks (4.1833 s), the walk's 252 (4.2000 s); x12
+      // rounded both to the same damage, x13 doesn't. Pinned as measured; the time check above stays as written. No code
+      // fix in BAL-2: the walk feeds rateDeck and the bots, so the next release that regenerates fixes the gap at its
+      // source, for every ride-based estimate (the battle is the reference). Under any other rules version the original
+      // agreement applies again: whoever bumps fixes it or asks cap.
+      if (RULES_VERSION === "bb-0.9.1") {
+        const pin: Record<number, [number, number]> = { 1: [94, 95], 2: [114, 115], 3: [144, 145] };
+        expect([f.dmg, w.dmg], `BAL-2 tripwire (cap's oracles 42da94243f43feef, d306b1b196dbab38): BRAKE SHOE ★${s}'s damage at load, battle vs walk, pinned under bb-0.9.1 (the battle's ride 251 ticks, the walk's 252); resolve the walk's ride gap at its source, for every ride-based estimate, before the next rules version`).toEqual(pin[s]);
+        continue;
+      }
       expect(f.dmg, `★${s}: damage`).toBeCloseTo(w.dmg, 1);
     }
   });

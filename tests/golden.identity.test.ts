@@ -34,6 +34,17 @@ const groups: [string, Entry[]][] = [
 ];
 
 const rigFree = (b: Build) => !b.items.some((p) => ITEMS[p.def]?.kind === "gate");
+/** BAL-2 (REQ-BFG-069; cap's oracle d306b1b196dbab38): the historical drift each group shows, exactly (see the BAL-2
+ *  paragraph in the test below); a group not named here shows none. */
+const HISTORICAL_DRIFT: Record<string, string[]> = {
+  "rival captains (planBuild, days 1-10)": [
+    "rival/sootjaw/1: 0@1678 -> 0@1568",
+    "rival/nettle/1: 0@1788 -> 1@1680",
+    "rival/sparkfang/1: 1@1719 -> 0@1644",
+    "rival/lacewing/1: 1@1819 -> 1@1680",
+    "rival/emberlyn/1: 1@1813 -> 1@1680",
+  ],
+};
 const beltside = JSON.parse(readFileSync(resolve(fileURLToPath(new URL("./fixtures/beltside-062-e1/", import.meta.url)), "golden.json"), "utf8")) as { decks: Record<string, number[]> };
 
 describe("golden-060 decks: current E1 battles match their separate fixture", () => {
@@ -46,7 +57,7 @@ describe("golden-060 decks: current E1 battles match their separate fixture", ()
     for (const [, es] of groups) for (const e of es) expect(beltside.decks[e.key], e.key).toBeTruthy();
   });
   for (const [name, entries] of groups) {
-    it(`${name}: E1 fixture holds and historical rig-free drift is limited to Furnace cadence`, () => {
+    it(`${name}: E1 fixture holds and the historical rig-free drift is exactly as measured (E1's Furnace cadence, BAL-2's hero lines)`, () => {
       const diffs: string[] = [];
       const historicalDrift: string[] = [];
       for (const e of entries) {
@@ -67,10 +78,16 @@ describe("golden-060 decks: current E1 battles match their separate fixture", ()
         // a little (the exact 30 / speed, where the old reset ran each cycle up to whole ticks), so 0.6.0's end tick can't
         // recur exactly (it held for all but sootjaw on num1u). The equivalent, measured on the 11 rig-free battles: every
         // one keeps its 0.6.0 winner exactly, and ends within 60 ticks (1 s) of its 0.6.0 end tick (now -41 to +3 ticks)
+        // BAL-2 (REQ-BFG-069; cap's oracle d306b1b196dbab38): 0.9.1's hero lines (FURNACE's hull 2000 -> 2100, WEAVER's 1800
+        // -> 1700, the KILN's HEAT 12 -> 13) move 5 of the 11 rig-free battles past that bound, all rival captains on day 1:
+        // SOOTJAW, LACEWING and EMBERLYN end 110-139 ticks sooner with their 0.6.0 winner, NETTLE's and SPARKFANG's winners
+        // flip. Cause check: with the three lines put back, all 11 keep their 0.6.0 winner within 60 ticks. So the check is
+        // restated as what holds: the rival captains' drift is exactly those five (HISTORICAL_DRIFT), and every other group's
+        // battles keep the 0.6.0 winner within 60 ticks, as NUM-2 wrote it. Any later move of these battles needs a ruling.
         if (b.winner !== e.winner || Math.abs(b.ticks - e.ticks) > 60) historicalDrift.push(`${e.key}: ${e.winner}@${e.ticks} -> ${b.winner}@${b.ticks}`);
       }
       expect(diffs).toEqual([]);
-      expect(historicalDrift).toEqual([]);
+      expect(historicalDrift).toEqual(HISTORICAL_DRIFT[name] ?? []);
     });
   }
 });

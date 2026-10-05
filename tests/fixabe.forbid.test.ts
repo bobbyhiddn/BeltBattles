@@ -25,8 +25,12 @@ function alignment(hero: "furnace" | "weaver", def: string, seed: number): { fir
 }
 
 describe("FIX-ABE E: a forbidden part is refused only when it would be taken", () => {
-  it("FURNACE, TEMPER forbidden, seed 6: the run without the knob never takes TEMPER, so all 10 decks are identical (drifted on day 9)", () => {
-    const { first, drift } = alignment("furnace", "temper", 6);
+  // BAL-2 (cap's oracle 42da94243f43feef, item 3): seed 6 -> 3. With FURNACE's four runes revived (0.9.1's lines) seed 6's
+  // dawns change its picks, so its run now takes TEMPER on day 5 (first 4, not 10). Seed 3 is the first FURNACE seed,
+  // counting up from 1, whose run never takes TEMPER (seed 1 takes it on day 1, seed 2 on day 6); both checks exact.
+  // (Seed 6 is the one that drifted on day 9 before FIX-ABE E.)
+  it("FURNACE, TEMPER forbidden, seed 3: the run without the knob never takes TEMPER, so all 10 decks are identical (seed 6 drifted on day 9)", () => {
+    const { first, drift } = alignment("furnace", "temper", 3);
     expect(first).toBe(PLAYER_DAYS);
     expect(drift).toBe(PLAYER_DAYS);
   }, 120_000);
