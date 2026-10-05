@@ -319,7 +319,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   hullbreaker: (e, x) => {
     const more = fmtPct(c(e, x).hullMul! - 1);
-    return rules([{ text: `SHOTS ALWAYS HIT THE HULL, +${more} {DMG}.` }], [["more", `+${more} {DMG}`]]);
+    // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 3): one verb with its own amount, its trigger SHOT: in brass (was "SHOTS
+    // ALWAYS HIT THE HULL, +30% {DMG}.", two clauses); the rule is as before (content.ts hullbreaker hullMul)
+    return rules([shot(`HITS THE HULL FOR +${more} {DMG}.`)], [["more", `+${more} {DMG}`]]);
   },
   salvo: (e, x) => {
     const flat = fmtDmg(c(e, x).volleyFlat!);
