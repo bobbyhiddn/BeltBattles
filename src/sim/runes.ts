@@ -154,7 +154,8 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("oiled_cogs", "OILED COGS", "common", "factories", "factoryRate", 5, "YOUR FACTORIES: +{N} {RATE}."), // M5: +10% measured +7.2 (rare)
   r("rivet_hoard", "RIVET HOARD", "common", "bastion", "startPlate", 60, "START: +{N} {*PLATE}."), // Y1: TEXT-STYLE 3.2's START: label (was "START EACH BATTLE WITH {N} {*PLATE}.")
   r("twin_nails", "TWIN NAILS", "common", "foundry", "pairDmg", 10, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FLIP-X2 (TUNE-X line 7, REVIEW-TUNEX): 20 -> 10
-  r("coal_chute", "COAL CHUTE", "common", "furnace", "heatPct", 20, "YOUR {*HEAT}: +{N}."), // FURN-Y: 25 -> 20 (reads the KILN's HEAT: FURNACE +4.4)
+  // BAL-2 (cap's REVIEW-BAL1, row 3): 20 -> 15 (BAL-1, every line on: +3.9 [2.6, 5.2], the common band; 20 read +5.5)
+  r("coal_chute", "COAL CHUTE", "common", "furnace", "heatPct", 15, "YOUR {*HEAT}: +{N}."), // FURN-Y: 25 -> 20 (reads the KILN's HEAT: FURNACE +4.4)
   r("loose_thread", "LOOSE THREAD", "common", "weaver", "startFray", 2, "START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 9): 3 -> 2. Y1: the START: label (was "BATTLE START:")
   // ---- rare
   r("spare_hull", "SPARE HULL", "rare", "armor", "hull", 300, "+{N} {HULL}."),
@@ -169,7 +170,8 @@ export const RUNE_LIST: readonly RuneDef[] = [
   // rare band), as MANY HANDS and THREAD STORM were
   r("grave_plates", "GRAVE PLATES", "rare", "armor", "startPlate", 240, "START: +{N} {*PLATE}."), // Y1: the START: label (was "START EACH BATTLE WITH {N} {*PLATE}.")
   r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 20, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FLIP-X2 (TUNE-X line 11): 40 -> 20
-  r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 40, "YOUR {*HEAT}: +{N}."), // FURN-Y: 50 -> 40 (FURNACE +8.0)
+  // BAL-2 (cap's REVIEW-BAL1, row 4): 40 -> 25 (BAL-1, every line on: +6.6 [4.0, 9.1], the rare band; 40 read +11.3)
+  r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 25, "YOUR {*HEAT}: +{N}."), // FURN-Y: 50 -> 40 (FURNACE +8.0)
   r("double_knot", "DOUBLE KNOT", "rare", "weaver", "frayHit", 1, "YOUR {*FRAY} HITS: +{N} {*FRAY}."),
   r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 5, "START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 14): 6 -> 5. Y1: the START: label (was "BATTLE START:")
   // ---- RUNES-2a (REQ-BFG-058): 36 more, each a new idea on a new hook (no same-stat twin of a shipped rune), in today's
@@ -279,7 +281,9 @@ export const SUSTAIN_RUNE_LIST: readonly RuneDef[] = [
   // Y-FURN text (REVIEW-STARD's amendment): two lines each, one trigger and one effect a line (a card starts each sentence
   // on its own line: runeBar.ts runeTextLines). SHATTER SHOT names no new keyword (PIERCE would serve one rune); its
   // card's reminder (glossary.ts RUNE_NOTE) says the SHIELD breaks and the hit still lands
-  r("searing", "SEARING", "rare", "furnace", "searBurn", 6, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}."),
+  // BAL-2 (cap's REVIEW-BAL1, rows 2, 5 and 6): both are offered in 0.9.1 (DORMANT_RUNES empty). SEARING 6 -> 5 (BAL-1,
+  // every line on: +6.8 [5.0, 8.6], the rare band; 6 read +10.4); SHATTER SHOT stays 15 (+9.7 [6.9, 12.5], in band)
+  r("searing", "SEARING", "rare", "furnace", "searBurn", 5, "START: THE FOE HAS {N} {*BURN}. FOE WITH YOUR {*BURN}: NO {*HEAL}."),
   r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shatterPct", 15, "YOUR SHOTS: +{N} {DMG}. YOUR HITS SHATTER {*SHIELD}."),
 ];
 
@@ -301,8 +305,10 @@ export const isSustainRune = (id: string): boolean => SUSTAIN_RUNE_LIST.some((d)
  * effect at any amount on par FURNACE decks). runeOffer never offers one, runeList() leaves them out, runeProblem refuses
  * one taken at a dawn; their defs stay in RUNES, so an old snapshot decodes. Release Y's FURNACE rune pass gives them
  * baselines.
+ * BAL-2 (REQ-BFG-058; cap's REVIEW-BAL1, row 2): empty. Y-FURN gave the four their baselines, BAL-1 measured each in its
+ * band with every 0.9.1 line on, and all four are offered in 0.9.1 (was: searing, shatter_shot, coal_chute, heat_sink).
  */
-export const DORMANT_RUNES: ReadonlySet<string> = new Set(["searing", "shatter_shot", "coal_chute", "heat_sink"]);
+export const DORMANT_RUNES: ReadonlySet<string> = new Set<string>();
 
 /** SUS-D: the runes the dawn offers now: RUNE_LIST, and the sustain runes after it while the sustain switch is on.
  *  FLIP-X2: never a dormant one (DORMANT_RUNES). */

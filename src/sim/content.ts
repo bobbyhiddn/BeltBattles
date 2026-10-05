@@ -1184,7 +1184,8 @@ export interface AmmoDef {
 }
 
 export const AMMO: Record<AmmoKind, AmmoDef> = {
-  cinder: { name: "CINDER SLUG", base: 40, rideScale: 12, fray: 0 },
+  // BAL-2 (cap's REVIEW-BAL1, row 7): the KILN's HEAT 12 -> 13, PLAN-Y's KILN line, the least (BAL-1: 13 and 14 read alike)
+  cinder: { name: "CINDER SLUG", base: 40, rideScale: 13, fray: 0 },
   thread: { name: "THREAD SLUG", base: 30, rideScale: 0, fray: 1 },
   plain: { name: "PLAIN SLUG", base: 30, rideScale: 0, fray: 0 },
   shot: { name: "BUCKSHOT", base: 10, rideScale: 0, fray: 0 }, // 0.6.1c SHOT TOWER: every per-payload gate hits each shot
@@ -1279,7 +1280,9 @@ export const HULL_SLOTS: Record<HeroId, SlotDef[]> = {
 export const HEROES: Record<HeroId, HeroDef> = {
   furnace: {
     id: "furnace", name: "FURNACE", faction: "orc", factionName: "ORC WARBAND",
-    hull: 2000, factory: "kiln", ammo: "cinder", belt: 14,
+    // BAL-2 (cap's REVIEW-BAL1, row 8): hull 2000 -> 2100, the lowest of 2000 / 2100 / 2150 that holds all four playable
+    // heroes at 40-60 bought with every other line on and WEAVER at 1700 (2000: FURNACE 39.3, WEAVER 60.9)
+    hull: 2100, factory: "kiln", ammo: "cinder", belt: 14,
     turrets: [{ col0: 4, width: 2, connectors: [4, 5], kind: "heavy", speed: 30, window: 3, flight: 0.6 }],
     // Y1 (STAR-D 4.2; display only): the stale "AT 8+ TILES, BREECH FIRES EVERY 0.72S." takes the hero face's second line
     blurb: ["KILN SLUGS HEAT UP ON LONG", "BELTS. GUNS ON 8+ TILE", "BELTS FIRE 39% FASTER."],
@@ -1289,7 +1292,9 @@ export const HEROES: Record<HeroId, HeroDef> = {
   },
   weaver: {
     id: "weaver", name: "WEAVER", faction: "elf", factionName: "ELVEN SKYWRIGHTS",
-    hull: 1800, factory: "loom", ammo: "thread", belt: 24,
+    // BAL-2 (cap's REVIEW-BAL1, row 1): hull 1800 -> 1700, the highest of 1700 / 1650 / 1600 that holds all four playable
+    // heroes at 40-60 bought with every other line on (FURNACE at 2150: WEAVER 59.4; at 2100: 59.6)
+    hull: 1700, factory: "loom", ammo: "thread", belt: 24,
     turrets: [
       { col0: 0, width: 2, connectors: [1], kind: "light", speed: 55, window: 2, flight: 0.34 },
       { col0: 4, width: 2, connectors: [4], kind: "light", speed: 55, window: 2, flight: 0.34 },
