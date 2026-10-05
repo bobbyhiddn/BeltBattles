@@ -46,7 +46,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // REDO-X step 2 (4.1): the stand-in pool regenerated once more on FIX-ABE's offers (09ce97c; the pools changed, the
 // regeneration), so POOL_DIGEST is that pool's reads, taken on redox 9e62dd4 (was
 // ef36014376cc240c66c424d5e1450efa94e3a830c77cdd0829f305a0c64128e6 on flipx2 4c50574)
-const POOL_DIGEST = "ff8fb68494a75e02959db00fa37194612fa53f807946c7d232b38d17312c603a";
+// BAL-2 step 5 (4.1): the stand-in pool regenerated once on bb-0.9.1 (c5e4780; the pools changed, the regeneration), so
+// POOL_DIGEST is that pool's reads, taken on bal2 dc73c60 (was
+// ff8fb68494a75e02959db00fa37194612fa53f807946c7d232b38d17312c603a on redox 9e62dd4)
+const POOL_DIGEST = "c4dc69bfa66141ab71fce66a20bd762ec111db1cc0b5f720699f2a3dc3137578";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";
@@ -347,7 +350,7 @@ describe("BOTS-X botRunePick reads runeList() (REVIEW-SUSD F-c, SUS-D finding 7)
     // FLIP-X2 (REVIEW-TUNEX): runeList() never holds a dormant rune, so off it is RUNE_LIST without COAL CHUTE and HEAT SINK,
     // 55 (was RUNE_LIST itself, 57); no dawn offers a dormant rune, so every real offer's pick is still bx's
     expect(runeList().map((d) => d.id)).toEqual(RUNE_LIST.filter((d) => !DORMANT_RUNES.has(d.id)).map((d) => d.id));
-    expect(runeList()).toHaveLength(55);
+    expect(runeList()).toHaveLength(57); // BAL-2 (REVIEW-BAL1 row 2): DORMANT_RUNES is empty, so off it is RUNE_LIST, 57 (was 55)
     let n = 0;
     for (const hero of RUNE_HEROES) {
       const captain = RIVAL_IDS.find((id) => RIVALS[id].hero === hero);
@@ -375,12 +378,14 @@ describe("BOTS-X botRunePick reads runeList() (REVIEW-SUSD F-c, SUS-D finding 7)
     // FLIP-X2 (REVIEW-TUNEX): SEARING and SHATTER SHOT are dormant (DORMANT_RUNES): runeList() leaves them out, so the picker
     // never takes one, even handed it (no dawn offers it), and FURNACE has no sustain rune of its style to take (was its pick)
     const dormant = (id: string) => DORMANT_RUNES.has(id);
-    expect(style.filter(([, id]) => dormant(id)).map(([, id]) => id)).toEqual(["searing", "shatter_shot"]);
+    // BAL-2 (REVIEW-BAL1 row 2): DORMANT_RUNES is empty, so SEARING and SHATTER SHOT are FURNACE's picks again (was
+    // ["searing", "shatter_shot"], dormant)
+    expect(style.filter(([, id]) => dormant(id)).map(([, id]) => id)).toEqual([]);
     withSustain(() => {
-      // FLIP-X2: the 65 less the 4 dormant, 61 (was RUNE_LIST and the 8 sustain runes, 65)
+      // FLIP-X2: the 65 less the 4 dormant, 61 (was RUNE_LIST and the 8 sustain runes, 65). BAL-2: none dormant, 65 (was 61)
       const live = (l: readonly RuneDef[]) => l.filter((d) => !dormant(d.id));
       expect(runeList()).toEqual(live([...RUNE_LIST, ...SUSTAIN_RUNE_LIST]));
-      expect(runeList()).toHaveLength(61);
+      expect(runeList()).toHaveLength(65);
       for (const [hero, id] of style) {
         const b = heroStartBuild(hero);
         if (dormant(id)) { // FLIP-X2: the dormant one is no card: the pick is as if it weren't there (was id)
@@ -441,8 +446,9 @@ describe("BOTS-X tools/genCaptainRunes.ts counts runeList() (REVIEW-SUSD F-d)", 
     // FLIP-X2 (REQ-BFG-069; REVIEW-TUNEX): the switch is on by default, so off is withSustain(head, false); runeList() leaves
     // the dormant runes out (COAL CHUTE and HEAT SINK off; SEARING and SHATTER SHOT too on): 55 off and 61 on (was 57 off,
     // the default, and 65 on)
-    expect(withSustain(head, false)).toContain(", 55 runes in the catalogue.");
-    expect(head()).toContain(", 61 runes in the catalogue.");
-    expect(withSustain(head)).toContain(", 61 runes in the catalogue.");
+    // BAL-2 (REVIEW-BAL1 row 2): DORMANT_RUNES is empty: 57 off and 65 on (was 55 and 61)
+    expect(withSustain(head, false)).toContain(", 57 runes in the catalogue.");
+    expect(head()).toContain(", 65 runes in the catalogue.");
+    expect(withSustain(head)).toContain(", 65 runes in the catalogue.");
   });
 });

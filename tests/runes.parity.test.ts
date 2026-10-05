@@ -98,7 +98,7 @@ if (process.env.BB_RUNES_PARITY_WRITE) {
     expect(Object.keys(decks).sort()).toEqual(Object.keys(old.decks).sort());
     const battles = old.battles.map((p) => asRow(fight(decks[p.a], decks[p.b], p.seed), p));
     const F: Fixture = {
-      about: "FLIP-X2 (REQ-BFG-058; RUNES-2a section 3 step 6): release X's parity record, re-based on flipx2 under bb-0.9.0 from the regenerated seed pool and the dusk stand-ins (with their runes); RUNES-1's battle plan (kinds, pairs, seeds). tests/runes.parity.test.ts replays it exactly.",
+      about: "BAL-2 (REQ-BFG-058; the one regeneration of 0.9.1): the parity record re-written on bal2 under bb-0.9.1 from the regenerated seed pool and the dusk stand-ins (with their runes); RUNES-1's battle plan (kinds, pairs, seeds), as FLIP-X2 re-based it on release X under bb-0.9.0. tests/runes.parity.test.ts replays it exactly.",
       base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
       decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
     };
@@ -110,7 +110,7 @@ describe("release X parity: the record and its decks", () => {
   it("was written on flipx2 under this build's rules, the rules its pools were generated under (POOL_RULES; nothing carried)", () => {
     const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
     expect(F.rules).toBe(RULES_VERSION);
-    expect(RULES_VERSION).toBe("bb-0.9.0");
+    expect(RULES_VERSION).toBe("bb-0.9.1"); // BAL-2: the bump and the fixture re-written under it (was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(F.rules);
     expect([Object.keys(F.decks).length, F.battles.length]).toEqual([F.decksCount, F.battlesCount]);
