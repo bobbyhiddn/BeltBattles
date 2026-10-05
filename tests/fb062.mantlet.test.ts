@@ -214,14 +214,16 @@ describe("FB-B MANTLET: FULL GUARD (NUM-3: was FULL PLATE) shields the belt tile
       [every, "SO DO THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM."],
     ]);
     expect([2, 3].map((s) => abilityText("mantlet", s).perk)).toEqual([{ name: "FULL GUARD", stars: 2, after: 1 }, { name: "BULWARK SKIRT", stars: 3, after: 1 }]);
+    // NUM-4 (REQ-BFG-047; SUS-B F3): MANTLET's verb is FULL GUARD's, GUARDS / GUARDED: (was SHIELDS / SHIELDED:); the
+    // tile counts unchanged
     expect(STARS.map((s) => gist("mantlet", s))).toEqual([
       "IGNORES EVERY STUN",
-      "SHIELDS THE LAST TILE OF EACH BELT IN",
-      "SHIELDS THE LAST 3 TILES OF EACH BELT IN",
+      "GUARDS THE LAST TILE OF EACH BELT IN",
+      "GUARDS THE LAST 3 TILES OF EACH BELT IN",
     ]);
     expect([shieldLine(1), shieldLine(3)]).toEqual([
-      "SHIELDED: THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
-      "SHIELDED: THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.",
+      "GUARDED: THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
+      "GUARDED: THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.",
     ]);
   });
 });

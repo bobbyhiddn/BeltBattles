@@ -89,9 +89,13 @@ describe("METRONOME pendulum curve", () => {
     expect([1, 2, 3].map((s) => effectAt("escapement", s).mod?.fireRate)).toEqual([11, 16, 22]); // NUM-2: the literals
     expect(ITEMS.longcase.levels?.[2]?.mod?.longRideFlat).toBe(25); // NUM-1: x10 (was 2.5)
     expect(ITEMS.longcase.levels?.[3]?.mod?.longRideFlat).toBe(40); // NUM-1: x10 (was 4)
-    expect(ITEMS.escapement.desc.join(" ")).toContain("FIRES 10% FASTER");
-    expect(ITEMS.longcase.desc.join(" ")).toContain("OTHER SLUGS: +1.5");
-    expect(ITEMS.longcase.desc.join(" ")).toContain("PENDULUM PEAK +1.2S");
+    // NUM-4 (REQ-BFG-047): the descs quote the data: ESCAPEMENT's ★1 fireRate (11, NUM-2's whole rate %; was "FIRES 10%
+    // FASTER", the old fireMul 0.9 read as 10%) and LONGCASE's flat (15, NUM-1; was "+1.5"); LONGCASE's 1.2 s peak shift
+    // is a hidden sub-second timer (N1 2.2), so the desc says the way it moves, PEAK_SHIFT's sign (was "PENDULUM PEAK +1.2S")
+    expect(ITEMS.escapement.desc.join(" ")).toContain(`FIRES ${effectAt("escapement", 1).mod!.fireRate}% FASTER`);
+    expect(ITEMS.longcase.desc.join(" ")).toContain(`OTHER SLUGS: +${ITEMS.longcase.mod!.longRideFlat}`);
+    expect(PEAK_SHIFT.longcase).toBeGreaterThan(0);
+    expect(ITEMS.longcase.desc.join(" ")).toContain("PENDULUMS PEAK LATER");
     for (const [id, tiles] of [["escapement", 7], ["longcase", 13]] as const) {
       const b = metro(tiles, [], id);
       b.mods[0].stars = 3;

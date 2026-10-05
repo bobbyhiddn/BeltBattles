@@ -9,6 +9,9 @@ import { describe, expect, it } from "vitest";
 import { SIGNATURE_FACTORIES } from "../src/sim/stars";
 import { abilityText, cardText, gist, mergesWithText, nextStarText } from "../src/ui/abilityText";
 import { factoryNext, levelLine, turretNext, turretSpeedRow, upgradeLabel } from "../src/ui/upgradeText";
+import { turretSlots } from "../src/sim/deck"; // NUM-4 (REQ-BFG-047): a starting turret's SPEED at a TURRET SPEED level
+import { PLAYABLE_HEROES, heroStartBuild } from "../src/sim/heroBuilds"; // NUM-4: the starting turrets
+import { ICON } from "../src/render/font"; // NUM-4: the RATE icon (folds WORKS FASTER)
 
 const DECIMAL = /\d\.\d/;
 const LEVELS = [1, 2, 3, 4];
@@ -19,14 +22,25 @@ describe("T47: no decimal in the texts BELTS added (REQ-BFG-047)", () => {
   });
 
   it("the upgrade lines: the price, the level, the factory's next belts and FASTER", () => {
+    // NUM-4 (REQ-BFG-047): turretSpeedRow / turretNext take the next level's SPEED (the turret panel passes makeTurret's
+    // speed at the next TURRET SPEED level), no longer an interval (was `every` of [1, 1.25, 0.45, 0.72, 2.2] seconds):
+    // the speeds here are every playable hero's starting turrets' at the next level, the data's (deck.ts turretSlots:
+    // content.ts levelSpeed, SCRAP CANNON 30 / 36 / 42 / 48); still no decimal in any line
+    const nextSpeeds = (l: number): number[] => PLAYABLE_HEROES.flatMap((h) => {
+      const b = heroStartBuild(h, 1);
+      return turretSlots({ ...b, upgrades: { ...(b.upgrades ?? {}), turret: Math.min(l + 1, 4) } }).flatMap((s) => (s.turret?.free && s.td ? [s.td.speed] : []));
+    });
+    expect(nextSpeeds(1).length).toBeGreaterThan(0);
     const lines: string[] = [];
     for (const l of LEVELS) {
       lines.push(upgradeLabel(l) ?? "", levelLine("factory", l), levelLine("turret", l));
-      for (const every of [1, 1.25, 0.45, 0.72, 2.2]) lines.push(turretSpeedRow(every, l), turretNext(every, l) ?? "");
+      for (const speed of nextSpeeds(l)) lines.push(turretSpeedRow(speed, l), turretNext(speed, l) ?? "");
       for (const def of SIGNATURE_FACTORIES) lines.push(factoryNext(def, l) ?? "");
     }
     for (const t of lines) expect(t).not.toMatch(DECIMAL);
-    expect(lines.filter((t) => t.includes("FASTER")).length).toBeGreaterThan(0);
+    // NUM-4 (REQ-BFG-047): the speed-up is the RATE icon before the next level's SPEED, the icon that folds WORKS FASTER
+    // (font.ts ICON.RATE) (was the word FASTER in the lines)
+    expect(lines.filter((t) => t.includes(ICON.RATE)).length).toBeGreaterThan(0);
   });
 
   it("the signature factories' bodies, gists and cards at every FACTORY level", () => {

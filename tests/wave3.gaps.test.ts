@@ -20,6 +20,7 @@ import { effectAt } from "../src/sim/stars";
 import { validateBuild } from "../src/net/validate";
 import { newRun } from "../src/game/run";
 import { beltPanel } from "../src/screens/build/inspector";
+import { fmtDmg } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): the belt panel's DMG, whole, as it is
 import { K, SEED, barge, events, item, latchDeck, run, withItem, withMod } from "./wave3.helpers";
 
 // ------------------------------------------------------------------------------------------------------------ decks
@@ -394,7 +395,9 @@ describe("PLATE BREAKER", () => {
       // the build screen's belt readout reads the walk: DMG with the floor
       const rn = newRun("furnace", 5, "g1-walk");
       rn.build = bare;
-      expect(beltPanel(rn, 0)!.headerOnly!.texts[2].split(",")[0], `★${s}`).toBe(`DMG ${(plain + floor).toFixed(1)}`);
+      // NUM-4 (REQ-BFG-047; N1 2.5): DMG prints the walk's whole number through fmtDmg, as it is (was toFixed(1): "DMG 81.0")
+      expect(Number.isInteger(plain + floor), `★${s}`).toBe(true);
+      expect(beltPanel(rn, 0)!.headerOnly!.texts[2].split(",")[0], `★${s}`).toBe(`DMG ${fmtDmg(plain + floor)}`);
       // a deck with any plating source plates its hull: PLATE ROLLER, SHIELD WALL, ARMOR PRESS, SEAM WELDER, or BASTION
       const plated: [string, Build][] = [
         ["plateroller", rolled(s)],
@@ -412,7 +415,9 @@ describe("PLATE BREAKER", () => {
         expect(hi - lo, `${what} ★${s}`).toBe(big - floor); // NUM-1: whole (was toBeCloseTo(big - floor, 9))
         const rp = newRun(b.hero, 5, "b1-walk");
         rp.build = b;
-        expect(beltPanel(rp, 0)!.headerOnly!.texts[2].split(",")[0], `${what} ★${s}`).toBe(`DMG ${lo.toFixed(1)}-${hi.toFixed(1)}`);
+        // NUM-4 (REQ-BFG-047): both walks' whole numbers through fmtDmg (was lo.toFixed(1)-hi.toFixed(1))
+        expect([Number.isInteger(lo), Number.isInteger(hi)], `${what} ★${s}`).toEqual([true, true]);
+        expect(beltPanel(rp, 0)!.headerOnly!.texts[2].split(",")[0], `${what} ★${s}`).toBe(`DMG ${fmtDmg(lo)}-${fmtDmg(hi)}`);
       }
       note(`walk-breaker | ★${s}: bare FURNACE walk +${hit(bare).flat}, DMG ${(plain + floor).toFixed(2)} (the belt panel: ${beltPanel(rn, 0)!.headerOnly!.texts[2].split(",")[0]}); with any plating source +${big}`);
     }

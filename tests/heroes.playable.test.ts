@@ -23,6 +23,7 @@ import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { STAND_IN_HEROES } from "../src/net/fallback";
 import { generateSamplePool } from "../tools/samplePool";
 import { FUSE_MULT, SYNC_WINDOW } from "../src/sim/races/foundry";
+import { fmtPct } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): FUSE_MULT as a whole %
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { validateBuild } from "../src/net/validate";
 import { outputsAt } from "../src/sim/stars"; // bb-0.8.3 (REQ-BFG-042): belt slots by stars
@@ -72,9 +73,13 @@ describe("each hero's trick in one plain sentence (REQ-BFG-032)", () => {
     expect(num(T.furnace)).toEqual([AMMO.cinder.rideScale, SIM.furnaceLongTiles, Math.round((rateMul(FURNACE_LONG_BELT) - 1) * 100)]);
     // bb-0.8.3 (REQ-BFG-042 D2): FactorySpec.outputs is gone; the LOOM's belt slots at ★1 are outputsAt's (3, as before)
     expect(num(T.weaver)).toEqual([outputsAt("loom", 1), FRAY_BONUS, FRAY_MAX]);
-    expect(num(T.foundry)).toEqual([SYNC_WINDOW, FUSE_MULT]);
+    // NUM-4 (REQ-BFG-047, N1 2.2): FOUNDRY's trick quotes FUSE_MULT as a whole % (15, fmtPct); the pair window
+    // (SYNC_WINDOW 0.25 s) is a hidden sub-second timer, so the sentence names it AT ONCE instead of quoting it (was
+    // [SYNC_WINDOW, FUSE_MULT] = [0.25, 1.15], "... WITHIN 0.25 SECONDS FUSE INTO ONE SLUG WITH 1.15 TIMES THEIR DAMAGE.")
+    expect(SYNC_WINDOW).toBeLessThan(1);
+    expect(num(T.foundry)).toEqual([parseFloat(fmtPct(FUSE_MULT - 1))]);
     expect(num(T.bastion)).toEqual([PLATE_PER_SLUG, PLATE_CAP]);
-    expect(T.foundry).toBe("ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN WITHIN 0.25 SECONDS FUSE INTO ONE SLUG WITH 1.15 TIMES THEIR DAMAGE.");
+    expect(T.foundry).toBe(`ITS CRUCIBLE POURS A BLANK ONTO BOTH ITS BELTS AT ONCE, AND TWO BLANKS THAT REACH ONE GUN AT ONCE FUSE INTO ONE SLUG THAT DEALS THEIR DAMAGE AND ${fmtPct(FUSE_MULT - 1)} MORE.`);
     // NUM-1 (REQ-BFG-047): PLATE_PER_SLUG and PLATE_CAP x10 (were 2 and 24)
     expect(T.bastion).toBe("ITS BULWARK SLUGS PLATE YOUR HULL AS THEY LOAD, 20 EACH UP TO 240 PLATING, AND PLATING TAKES HITS AND BURN BEFORE YOUR HULL DOES.");
     // the FURNACE breech's 8 tiles are battle.ts's own threshold (makeTurret: `< 8` means no long belt)

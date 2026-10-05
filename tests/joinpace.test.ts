@@ -109,9 +109,14 @@ describe("RULE JOIN PACE: the player reads it", () => {
     expect(JOIN_PACE_PCT).toBe(Math.round(JOIN_PACE * 100));
     expect(JOIN_PACE_LINE).toBe(`JOINED: THIS FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
     // the joined factory's panel (and each of its belts') leads with it; an unjoined factory's reads as before
+    // NUM-4 (REQ-BFG-047, N1 2.2): a joined belt's load cadence (PRESS / JOIN_PACE = 2.04 s, unjoined PRESS = 1.43 s) is
+    // no whole second, so the line says it in loads: the joined belt gets JOIN_PACE_PCT% as many as the same belt unjoined
+    // (was `A LOAD EVERY ${seconds(PRESS / JOIN_PACE)} ON THIS BELT, NOT ${seconds(PRESS)}.`); the share it states is the
+    // ratio of the two cadences the estimate uses (loadEvery, joined and unjoined)
+    expect(Math.round((loadEvery(deck(false), 1) / loadEvery(deck(), 1)) * 100)).toBe(JOIN_PACE_PCT);
     expect(joinPaceLines(deck(), 2)).toEqual([
       [JOIN_PACE_LINE, C.cyan],
-      [`A LOAD EVERY ${seconds(PRESS / JOIN_PACE)} ON THIS BELT, NOT ${seconds(PRESS)}.`, C.cyan], // 0.6.2rel3: "2 SECONDS", not "2.0S" (NUM-2: PRESS 30 / 21 s: "2.04 SECONDS", "1.43 SECONDS")
+      [`FEWER LOADS REACH THIS BELT: ${JOIN_PACE_PCT}% AS MANY.`, C.cyan],
     ]);
     expect(joinPaceLines(deck(), 1)).toEqual([]);
     expect(joinPaceLines(deck(false), 2)).toEqual([]);

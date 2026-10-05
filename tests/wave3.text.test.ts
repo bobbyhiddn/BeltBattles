@@ -256,7 +256,8 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
       .toEqual(["TWIN GAUGE +30 DAMAGE ON A MATCHED BELT", "TWIN GAUGE +10 DAMAGE"]);
     expect([h("pincer", 1, { flat: 10, others: 0 }), h("pincer", 1, { flat: 50, others: 2 }), h("pincer", 1, { flat: 30, others: 1 })])
       .toEqual(["PINCER +10 DAMAGE", "PINCER +50 DAMAGE, CROSSFIRE WITH 2 RIGS", "PINCER +30 DAMAGE, CROSSFIRE WITH 1 RIG"]);
-    expect(h("braceframe", 3)).toBe("BRACE FRAME ENEMY STALLS 85% SHORTER (95% SHORTER PLATED)");
+    // NUM-4 (REQ-BFG-047, NUM-3 F2): STALL -> STUN (was "BRACE FRAME ENEMY STALLS ..."); the numbers unchanged
+    expect(h("braceframe", 3)).toBe("BRACE FRAME ENEMY STUNS 85% SHORTER (95% SHORTER PLATED)");
     expect(h("twinlatch", 2, { flat: 22, hold: 1 })).toBe("TWIN LATCH +22 DAMAGE, HOLDS UP TO 1 SEC");
     expect(h("platebreaker", 1, { flat: 40 })).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING, ELSE +10 DAMAGE"); // NUM-1: battle.ts spends 10 plating (was 1)
     // each row's numbers are the spec's at that star

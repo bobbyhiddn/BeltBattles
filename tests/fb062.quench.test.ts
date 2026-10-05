@@ -137,7 +137,10 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
 
   it("player text: the description and every star line state the floor and the conversion in plain words", () => {
     const d = ITEMS.quench;
-    expect(d.desc.join(" ")).toBe("+1 DAMAGE TO EVERY PAYLOAD. TURNS UP TO 4 BURN INTO +3 EACH.");
+    // NUM-4 (REQ-BFG-047): the desc still states the floor and the conversion, in words; its +1 and +3 left it
+    // because they were the x1 scale (★1 is RULE[1]: +10, 30 a Burn); the Burn cap is the data's (was
+    // "+1 DAMAGE TO EVERY PAYLOAD. TURNS UP TO 4 BURN INTO +3 EACH.")
+    expect(d.desc.join(" ")).toBe(`MORE DAMAGE TO EVERY PAYLOAD; TURNS UP TO ${RULE[1].stacks} BURN INTO DAMAGE.`);
     expect(d.desc.every((l) => l.length <= 20)).toBe(true);
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's opening sentence (abilityText) and clause (gist)
     expect(STARS.map((s) => abilityText("quench", s).sentences[0])).toEqual(STARS.map((s) =>

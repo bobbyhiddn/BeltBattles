@@ -28,9 +28,9 @@ export const P1_WAVE3_ITEMS: Record<string, Def> = {
     gate: { pincer: { flat: 10, each: 20, max: 3 } },
     levels: { 2: { gate: { pincer: { flat: 22, each: 44, max: 3 } } }, 3: { gate: { pincer: { flat: 35, each: 70, max: 3 } } } },
   },
-  braceframe: {
+  braceframe: { // NUM-4 (REQ-BFG-047, NUM-3 F2): STUNS in the game's desc (was STALLS); the copy follows the desc
     id: "braceframe", name: "BRACE FRAME", kind: "gate", rarity: "rare", price: 5, size: 1, merchant: "ironmonger", shape: "L",
-    desc: ["ENEMY STALLS ON ITS", "TILES END SOONER,", "SOONER STILL PLATED."], tags: ["PLATE", "HARASS"],
+    desc: ["ENEMY STUNS ON ITS", "TILES END SOONER,", "SOONER STILL PLATED."], tags: ["PLATE", "HARASS"],
     gate: { brace: { mul: 0.5, plated: 0.25 } },
     levels: { 2: { gate: { brace: { mul: 0.3, plated: 0.15 } } }, 3: { gate: { brace: { mul: 0.15, plated: 0.05 } } } },
   },

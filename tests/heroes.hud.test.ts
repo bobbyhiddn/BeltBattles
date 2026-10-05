@@ -14,6 +14,7 @@ import { drawPlate } from "../src/screens/battleHud";
 import { C } from "../src/render/palette";
 import { heroTrick } from "../src/ui/abilityText";
 import { FUSE_MULT, SYNC_WINDOW } from "../src/sim/races/foundry";
+import { fmtPct } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): FUSE_MULT as a whole %
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 
 type Fill = { x: number; y: number; w: number; h: number; c: string };
@@ -44,8 +45,12 @@ const SEGMENTS = PLATE_CAP / PLATE_PER_SLUG;
 describe("FOUNDRY's and BASTION's hero-select tricks state the sim's own numbers", () => {
   it("the fusion window and multiplier (FOUNDRY), the plating per slug and its cap (BASTION)", () => {
     const f = heroTrick("foundry");
-    expect(f).toContain(`WITHIN ${SYNC_WINDOW} SECONDS FUSE`);
-    expect(f).toContain(`WITH ${FUSE_MULT} TIMES THEIR DAMAGE`);
+    // NUM-4 (REQ-BFG-047, N1 2.2): the fusion window (SYNC_WINDOW 0.25 s) is a hidden sub-second timer, so the trick
+    // names it by the PAIR word AT ONCE (was `WITHIN ${SYNC_WINDOW} SECONDS FUSE`); the multiplier is FUSE_MULT as a
+    // whole % through fmtPct, "15% MORE" (was `WITH ${FUSE_MULT} TIMES THEIR DAMAGE`)
+    expect(SYNC_WINDOW).toBeLessThan(1);
+    expect(f).toContain("REACH ONE GUN AT ONCE FUSE");
+    expect(f).toContain(`DEALS THEIR DAMAGE AND ${fmtPct(FUSE_MULT - 1)} MORE`);
     const b = heroTrick("bastion");
     expect(b).toContain(`${PLATE_PER_SLUG} EACH UP TO ${PLATE_CAP} PLATING`);
   });

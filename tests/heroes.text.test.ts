@@ -13,6 +13,7 @@ import { textWidth } from "../src/render/font";
 import { AMMO, ITEMS, MERCHANTS, buyableModules, itemsSoldBy, type MerchantId } from "../src/sim/content";
 import { fusible, outputsAt } from "../src/sim/stars";
 import { FUSE_MULT, SYNC_WINDOW } from "../src/sim/races/foundry";
+import { fmtPct } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): FUSE_MULT as a whole %
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { newRun } from "../src/game/run";
 import { banned, numbers, repeats } from "./textRules";
@@ -27,12 +28,18 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
       // 0.8.4's numbers until the numbers release)
       "POURS AN ALLOY BLANK ONTO EACH OF ITS 2 BELTS AT THE SAME MOMENT.",
       "AN ALLOY BLANK DEALS 35 DAMAGE.", // NUM-1 (REQ-BFG-047), the numbers release: AMMO.blank.base x10 (was 3.5)
-      "TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES WITHIN 0.25 SECONDS OF EACH OTHER FUSE INTO AN ALLOY SLUG WITH 1.15 TIMES THEIR DAMAGE.",
+      // NUM-4 (REQ-BFG-047, N1 2.2): the window (SYNC_WINDOW 0.25 s) is a hidden sub-second timer, named by the PAIR word
+      // AT ONCE; FUSE_MULT reads as a whole % through fmtPct (was "... WITHIN 0.25 SECONDS OF EACH OTHER FUSE INTO AN
+      // ALLOY SLUG WITH 1.15 TIMES THEIR DAMAGE.")
+      `TWO BLANKS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES AT ONCE FUSE INTO AN ALLOY SLUG THAT DEALS THEIR DAMAGE AND ${fmtPct(FUSE_MULT - 1)} MORE.`,
       "A BLANK WITH NO PARTNER FIRES ON ITS OWN.",
     ]);
     // "TWO BLANKS ... ONE TURRET": a pair, at one gun (the sync rule's own words)
     // bb-0.8.3 (REQ-BFG-042 D2): FactorySpec.outputs is gone; the belt slots at ★1 are outputsAt's (2, as before)
-    expect(numbers(t.join(" "))).toEqual([outputsAt("crucible", 1), AMMO.blank.base, 2, 1, SYNC_WINDOW, FUSE_MULT]);
+    // NUM-4 (REQ-BFG-047): the fusion's number is FUSE_MULT as a whole % (15), and the window is not quoted: it is under a
+    // second, so AT ONCE names it (was [..., SYNC_WINDOW, FUSE_MULT], 0.25 and 1.15)
+    expect(SYNC_WINDOW).toBeLessThan(1);
+    expect(numbers(t.join(" "))).toEqual([outputsAt("crucible", 1), AMMO.blank.base, 2, 1, parseFloat(fmtPct(FUSE_MULT - 1))]);
   });
 
   it("the WARDWORKS: its stamp, the bulwark slug, the plating, the cap, what plating soaks and the dark wind", () => {

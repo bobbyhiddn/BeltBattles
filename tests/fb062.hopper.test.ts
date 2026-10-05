@@ -140,16 +140,23 @@ describe("FB-B HOPPER: ★1's window at every star, plus a store for loads that 
   });
 
   it("player text: the star lines name the store; ★1's description is unchanged", () => {
-    expect(ITEMS.hopper.desc).toEqual(["CHAMBER HOLDS 1 MORE", "LOAD; WINDOWS STAY", "OPEN 0.5S LONGER."]);
+    // NUM-4 (REQ-BFG-047, N1 2.2): ★1's +0.5 s load time is a hidden sub-second timer, so it left the desc, the chamber
+    // sentence and ★1's gist, which say the load time is LONGER (still true: the data's windowTime > 0); the extra slot
+    // is the data's; FB-B's store is still not in the desc (was ["CHAMBER HOLDS 1 MORE", "LOAD; WINDOWS STAY",
+    // "OPEN 0.5S LONGER."], "... THE LOAD TIME IS 0.5 SECONDS LONGER.", "HOLDS 1 MORE LOAD, LOAD TIME 0.5 SECONDS LONGER";
+    // ★1's gist now "HOLDS 1 MORE LOAD, LONGER LOAD TIME")
+    const m1 = effectAt("hopper", 1).mod!;
+    expect(m1.windowTime).toBeGreaterThan(0);
+    expect(ITEMS.hopper.desc).toEqual([`CHAMBER HOLDS ${m1.window} MORE`, "LOAD; ITS LOAD TIME", "RUNS LONGER."]);
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's sentences (abilityText) and clauses (gist, NEXT STAR)
-    const chamber = "THE CHAMBER HOLDS 1 MORE LOAD, AND THE LOAD TIME IS 0.5 SECONDS LONGER.";
+    const chamber = `THE CHAMBER HOLDS ${m1.window} MORE LOAD, AND THE LOAD TIME IS LONGER.`;
     const store = (n: number) => `WHILE THE TURRET FIRES, IT STORES ${n} LOAD${n === 1 ? "" : "S"} FROM THE BELT FOR ITS NEXT CHAMBER.`;
     expect(STARS.map((s) => abilityText("hopper", s).sentences.slice(0, s))).toEqual([
       [chamber], [chamber, store(1)], [chamber, store(2), "THE TURRET NEVER JAMS."],
     ]);
     expect(abilityText("hopper", 3).perk).toEqual({ name: "BOTTOMLESS", stars: 3, after: 2 });
     expect(STARS.map((s) => gist("hopper", s))).toEqual([
-      "HOLDS 1 MORE LOAD, LOAD TIME 0.5 SECONDS LONGER", "STORES 1 LOAD WHILE IT FIRES", "STORES 2 LOADS WHILE IT FIRES, NEVER JAMS",
+      `HOLDS ${m1.window} MORE LOAD, LONGER LOAD TIME`, "STORES 1 LOAD WHILE IT FIRES", "STORES 2 LOADS WHILE IT FIRES, NEVER JAMS",
     ]);
     expect(nextStarText("hopper", 1)).toBe("NEXT STAR: STORES 1 LOAD WHILE IT FIRES.");
   });

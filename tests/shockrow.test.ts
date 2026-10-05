@@ -54,13 +54,17 @@ describe("0.6.2 RULE SHOCK ROW", () => {
     }
   });
 
-  it("the card's SHOCK STALLS row sits beside the damage and Burn rows; a result saved before 0.6.2 reads -", () => {
-    const s = { damage: 120.4, shots: 30, firstShot: 2.25, idle: 3, turretTime: 30, jams: 1, burnDealt: 17.6, disrupted: 0 } as unknown as SideStats;
+  it("the card's SHOCK STUNS row (was SHOCK STALLS; NUM-4, REVIEW-NUM3 F2) sits beside the damage and Burn rows; a result saved before 0.6.2 reads -", () => {
+    // NUM-4 (REQ-BFG-047): the fixture's totals are whole, as a battle produces them since NUM-1 (its 120.4 and 17.6
+    // were the x1 scale: now 1204 and 176), and the card prints a total as it is (fmtDmg, no rounding): the Burn row
+    // reads the fixture's 176 (was 17.6 rounded to "18")
+    const BURN = 176;
+    const s = { damage: 1204, shots: 30, firstShot: 2.25, idle: 3, turretTime: 30, jams: 1, burnDealt: BURN, disrupted: 0 } as unknown as SideStats;
     const rows = resultRows({ player: s, enemy: s, shocks: [7, 2] });
     const labels = rows.map((r) => r[0]);
-    expect(labels).toEqual(["DAMAGE DEALT", "SHOTS", "FIRST SHOT", "GUNS IDLE", "JAMS", "BURN DAMAGE", "SHOCK STALLS"]);
-    expect(rows[6]).toEqual(["SHOCK STALLS", "7", "2"]);
-    expect(rows[5]).toEqual(["BURN DAMAGE", "18", "18"]);
-    expect(resultRows({ player: s, enemy: s })[6]).toEqual(["SHOCK STALLS", "-", "-"]);
+    expect(labels).toEqual(["DAMAGE DEALT", "SHOTS", "FIRST SHOT", "GUNS IDLE", "JAMS", "BURN DAMAGE", "SHOCK STUNS"]); // NUM-4 (REVIEW-NUM3 F2): was SHOCK STALLS
+    expect(rows[6]).toEqual(["SHOCK STUNS", "7", "2"]);
+    expect(rows[5]).toEqual(["BURN DAMAGE", String(BURN), String(BURN)]);
+    expect(resultRows({ player: s, enemy: s })[6]).toEqual(["SHOCK STUNS", "-", "-"]);
   });
 });

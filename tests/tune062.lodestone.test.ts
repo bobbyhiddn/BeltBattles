@@ -94,21 +94,22 @@ describe("TUNE-M T2: LODESTONE's floor", () => {
   });
 
   it("player text: the description, each star's ability text and gist, the shop card and the belt's timeline state the floor", () => {
-    expect(ITEMS.lodestone.desc).toEqual(["+1 DAMAGE ALWAYS,", "+1 PER ENEMY", "MACHINE STALLED."]);
+    // NUM-4 (REQ-BFG-047): the desc still states the floor and the per-stun damage, in words; its +1 / +1 left it because
+    // they were the x1 scale (★1 is FLOOR[0] / EACH[0], stated by the ability text below); STALLED reads STUNNED (NUM-3
+    // F2) (was ["+1 DAMAGE ALWAYS,", "+1 PER ENEMY", "MACHINE STALLED."])
+    expect(ITEMS.lodestone.desc).toEqual(["MORE DAMAGE ALWAYS,", "MORE FOR EACH ENEMY", "MACHINE STUNNED."]);
     // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand; the floor leads the opening sentence
     // NUM-1: the numbers x10 (was 1, 1, 6 / 2, 2.2, 13 / 3, 3.5, 21)
-    expect(STARS.map((s) => abilityText("lodestone", s).sentences[0])).toEqual([
-      "ADDS 10 DAMAGE, AND 10 FOR EACH ENEMY MACHINE STALLED, UP TO 60 DAMAGE.",
-      "ADDS 20 DAMAGE, AND 22 FOR EACH ENEMY MACHINE STALLED, UP TO 130 DAMAGE.",
-      "ADDS 30 DAMAGE, AND 35 FOR EACH ENEMY MACHINE STALLED, UP TO 210 DAMAGE.",
-    ]);
-    expect(STARS.map((s) => gist("lodestone", s))).toEqual([
-      "ADDS 10 DAMAGE, AND 10 FOR EACH STALLED MACHINE", "ADDS 20 DAMAGE, AND 22 FOR EACH STALLED MACHINE", "ADDS 30 DAMAGE, AND 35 FOR EACH STALLED MACHINE",
-    ]);
-    expect([nextStarText("lodestone", 1), cardText("lodestone")]).toEqual(["NEXT STAR: ADDS 20 DAMAGE, AND 22 FOR EACH STALLED MACHINE.", "10 DAMAGE, MORE FOR EACH STALL."]);
+    // NUM-4 (REQ-BFG-047, NUM-3 F2): STALL -> STUN in the sentences, gists, next star, card and hit text (was STALLED /
+    // STALL); the numbers are FLOOR / EACH / MAX, unchanged
+    expect(STARS.map((s) => abilityText("lodestone", s).sentences[0])).toEqual(STARS.map((s) =>
+      `ADDS ${FLOOR[s - 1]} DAMAGE, AND ${EACH[s - 1]} FOR EACH ENEMY MACHINE STUNNED, UP TO ${MAX[s - 1]} DAMAGE.`));
+    expect(STARS.map((s) => gist("lodestone", s))).toEqual(STARS.map((s) => `ADDS ${FLOOR[s - 1]} DAMAGE, AND ${EACH[s - 1]} FOR EACH STUNNED MACHINE`));
+    expect([nextStarText("lodestone", 1), cardText("lodestone")]).toEqual([`NEXT STAR: ADDS ${FLOOR[1]} DAMAGE, AND ${EACH[1]} FOR EACH STUNNED MACHINE.`, `${FLOOR[0]} DAMAGE, MORE FOR EACH STUN.`]);
     for (const s of STARS) expect(wrap(gist("lodestone", s), 151, "3").length, `★${s} on a phone`).toBeLessThanOrEqual(2);
     const hit = walkRoute(bench([["lodestone", 4, 3, 2]]), 0).timeline.flatMap((row) => row.hits).find((h) => h.def === "lodestone")!;
     expect(hit.flat).toBe(FLOOR[1]); // NUM-1: the ★2 floor, 20 (was 2)
-    expect(hitText(hit, "free")).toBe("LODESTONE +20 DAMAGE, +22 DAMAGE FOR EACH STALLED MACHINE, UP TO 130 DAMAGE"); // NUM-1: x10 (was +2, +2.2, 13)
+    // NUM-1: x10 (was +2, +2.2, 13); NUM-4 (NUM-3 F2): STUNNED (was STALLED)
+    expect(hitText(hit, "free")).toBe(`LODESTONE +${FLOOR[1]} DAMAGE, +${EACH[1]} DAMAGE FOR EACH STUNNED MACHINE, UP TO ${MAX[1]} DAMAGE`);
   });
 });

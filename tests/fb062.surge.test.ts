@@ -93,7 +93,12 @@ describe("FB-B SURGE VALVE: every star pays for a pulse ridden", () => {
 
   it("player text: the description and the star lines name the per-pulse damage", () => {
     const d = ITEMS.surge;
-    expect(d.desc.join(" ")).toBe("PULSES 3X SPEED FOR 1S EVERY 3S, +1 DMG PER PULSE RIDDEN. LOCKED BELTS +3 DMG.");
+    // NUM-4 (REQ-BFG-047): the desc still names the per-pulse damage, in words ("EACH PULSE RIDDEN ADDS DAMAGE"); its
+    // +1 and the locked belts' +3 left it because they were the x1 scale (★1: 10 a pulse, 30 locked); "3X" reads
+    // "3 TIMES"; the pulse's speed, on-time and period are ★1's data (was "PULSES 3X SPEED FOR 1S EVERY 3S, +1 DMG
+    // PER PULSE RIDDEN. LOCKED BELTS +3 DMG.")
+    const p1 = effectAt("surge", 1).gate!.pulse!;
+    expect(d.desc.join(" ")).toBe(`PULSES ${p1.speed} TIMES SPEED FOR ${p1.on}S EVERY ${p1.period}S, AND EACH PULSE RIDDEN ADDS DAMAGE.`);
     expect(d.desc.every((l) => l.length <= 20)).toBe(true);
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's opening sentence (abilityText) and clause (gist)
     // NUM-1: the per-pulse damage x10 (was 1/2/3 DAMAGE)

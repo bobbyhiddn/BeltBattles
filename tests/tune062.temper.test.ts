@@ -5,7 +5,7 @@
 // Price (3 g), rarity, shape (I) and Burn's own rule (1 dmg/s for 3 s a stack) are unchanged. After: +12.5; still
 // DOMINANT on FURNACE (d5 +19.7, d7 +15.9): a residual for 0.6.3 (TUNE-REPORT.md).
 import { describe, expect, it } from "vitest";
-import { BURN_TIME, ITEMS, rigShape } from "../src/sim/content";
+import { BURN_DPS, BURN_TIME, ITEMS, rigShape } from "../src/sim/content";
 import { walkRoute, type Build } from "../src/sim/deck";
 import { overclocked } from "../src/sim/overclock";
 import { effectAt } from "../src/sim/stars";
@@ -55,7 +55,10 @@ describe("TUNE TEMPER: Burn 1 / 2 / 4 at 1 / 2 / 3 stars (was 2 / 4 / 7)", () =>
   });
 
   it("player text: the description, each star's ability text, gist and next star, and the belt timeline state the new Burn", () => {
-    expect(ITEMS.temper.desc).toEqual(["ADDS 1 BURN.", "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."]);
+    // NUM-4 (REQ-BFG-047): the desc states the Burn and what a Burn deals, each number the sim's (★1's Burn, the rule's
+    // first test reads it from effectAt; BURN_DPS; BURN_TIME); "1 DMG/S" was the x1 scale (was ["ADDS 1 BURN.",
+    // "BURN: 1 DMG/S FOR 3S", "PER STACK ON HIT."])
+    expect(ITEMS.temper.desc).toEqual([`ADDS ${BURN[0]} BURN.`, `EACH BURN DEALS ${BURN_DPS}`, `A SECOND FOR ${BURN_TIME}S.`]);
     // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand
     expect(STARS.map((s) => abilityText("temper", s).sentences[0])).toEqual(["ADDS 1 BURN TO EACH PAYLOAD IT HITS.", "ADDS 2 BURN TO EACH PAYLOAD IT HITS.", "ADDS 4 BURN TO EACH PAYLOAD IT HITS."]);
     expect(STARS.map((s) => gist("temper", s))).toEqual(["ADDS 1 BURN", "ADDS 2 BURN", "ADDS 4 BURN"]);

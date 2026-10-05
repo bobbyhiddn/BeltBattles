@@ -56,7 +56,9 @@ describe("TUNE LONGHAUL: +1 / +2 / +3.5 damage per earlier hit (was +2 / +4 / +7
   });
 
   it("player text: the description, each star's ability text, gist and next star, and the belt timeline state the new numbers", () => {
-    expect(ITEMS.longhaul.desc).toEqual(["+1 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."]);
+    // NUM-4 (REQ-BFG-047): the desc still names the per-hit damage, in words; its +1 left it because it was the x1 scale
+    // (★1 is PER_HIT[0], 10, stated by the ability text below) (was ["+1 DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."])
+    expect(ITEMS.longhaul.desc).toEqual(["MORE DAMAGE FOR EACH", "HIT THE PAYLOAD", "ALREADY TOOK."]);
     // 0.6.2rel3: REQ-BFG-032's glossary (src/ui/abilityText.ts) replaced the star flavour and the level shorthand (and the star flavour's ★3 re-flow: the glossary wraps whole words)
     // NUM-1: the damage numbers x10 (was 1 / 2 / 3.5); the 6 hits are a count, unchanged
     expect(STARS.map((s) => abilityText("longhaul", s).sentences[0])).toEqual([

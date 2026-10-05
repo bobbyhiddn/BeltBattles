@@ -14,6 +14,7 @@ import { AMMO, FRAY_BONUS, FRAY_MAX, ITEMS, TURRET_SPEED, UPGRADE_PRICE, type He
 import { levelSpeed, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED (K = 30), TURRET SPEED's whole steps
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts makeTurret)
 import { fmtSpeed } from "../src/ui/statFormat"; // NUM-2: the faces keep SEC, 30 / speed in two decimals
+import { icons } from "../src/render/font"; // NUM-4 (REQ-BFG-047): the UPGRADE lines' RATE icon
 import { PENDULUM } from "../src/sim/races/data";
 import { effectAt, outputsAt, SIGNATURE_FACTORIES } from "../src/sim/stars";
 import { Battle } from "../src/sim/battle";
@@ -74,13 +75,17 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
       for (const l of [1, 2, 3]) {
         const next = factoryNext(def, l)!;
         // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): what its UPGRADE button does (was `NEXT: ${n} BELTS, FASTER`); T47: no seconds
-        expect(next, `${def} L${l}`).toBe(`UPGRADE: ${outputsAt(def, l + 1)} BELTS, WORKS FASTER.`);
-        expect(numbers(next)).toEqual([outputsAt(def, l + 1)]);
+        // NUM-4 (REQ-BFG-047; N1 2.2): the line names the next level's SPEED, the data's (effectAt at l + 1), after the RATE
+        // icon, through fmtSpeed (was `UPGRADE: ${n} BELTS, WORKS FASTER.`); its numbers are the belts and that SPEED
+        const speed = effectAt(def, l + 1).factory!.speed;
+        expect(next, `${def} L${l}`).toBe(icons(`UPGRADE: ${outputsAt(def, l + 1)} BELTS, {RATE}${fmtSpeed(speed)}.`));
+        expect(numbers(next)).toEqual([outputsAt(def, l + 1), speed]);
         expect(secPer(effectAt(def, l + 1).factory!.speed), `${def} L${l}`).toBeLessThan(secPer(effectAt(def, l).factory!.speed)); // NUM-2: 30 / speed (was .interval)
       }
       expect(factoryNext(def, 4)).toBeNull();
     }
-    expect(factoryNext("kiln", 1)).toBe("UPGRADE: 3 BELTS, WORKS FASTER.");
+    // NUM-4 (REQ-BFG-047): the KILN's level-2 SPEED after the RATE icon (was "UPGRADE: 3 BELTS, WORKS FASTER.")
+    expect(factoryNext("kiln", 1)).toBe(icons(`UPGRADE: 3 BELTS, {RATE}${fmtSpeed(effectAt("kiln", 2).factory!.speed)}.`));
     expect([1, 2, 3, 4].map(upgradeLabel)).toEqual(["UPGRADE 10G", "UPGRADE 20G", "UPGRADE 30G", null]);
     expect([1, 2, 3].map((l) => numbers(upgradeLabel(l)!)[0])).toEqual([UPGRADE_PRICE[2], UPGRADE_PRICE[3], UPGRADE_PRICE[4]]);
     // FURNACE's KILN panel at levels 1-4: the level line, the next line (none at 4), the button (none at 4), no copy text
@@ -108,13 +113,22 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
     for (const l of LEVELS) {
       const t = turretPanel(run, 0)!;
       const fires = new Battle(run.build, barge(), SEED).sides[0].turrets[0].interval;
-      const line = `SPEED: ${turretSpeedRow(fires, l)}`; // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was `SPEED ${turretSpeedRow(fires, l)}.`
+      // NUM-4 (REQ-BFG-047; N1 2.2): turretSpeedRow / turretNext take the next level's SPEED (was this level's interval,
+      // `fires`): the data's, levelSpeed(s1, l + 1, TURRET_SPEED) x the turret's rates rounded half up once (the rule the
+      // NUM-2 check below ties to the battle; SCRAP CANNON 30 / 36 / 42 / 48); at the top level no UPGRADE
+      const nextSpeed = l < 4 ? Math.max(1, roundHalfUp(levelSpeed(s1, l + 1, TURRET_SPEED) * rates)) : t1.speed;
+      const line = `SPEED: ${turretSpeedRow(nextSpeed, l)}`; // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was `SPEED ${turretSpeedRow(fires, l)}.`
       expect(t.body.map((b) => b.text), `L${l}`).toContain(line);
       if (l < 4) {
-        expect(turretNext(fires, l)).toBe("UPGRADE: FIRES FASTER."); // T47: no seconds
-        expect(line).toBe(`SPEED: LEVEL ${l}/4. UPGRADE: FASTER.`);
+        // NUM-4 (REQ-BFG-047): the UPGRADE names the next level's SPEED after the RATE icon (was "UPGRADE: FIRES FASTER."
+        // and "SPEED: LEVEL l/4. UPGRADE: FASTER."); T47: no decimal
+        expect(turretNext(nextSpeed, l)).toBe(icons(`UPGRADE: {RATE}${fmtSpeed(nextSpeed)}.`));
+        expect(line).toBe(`SPEED: LEVEL ${l}/4. ${icons(`UPGRADE: {RATE}${fmtSpeed(nextSpeed)}.`)}`);
+        expect(line).not.toMatch(/\d\.\d/);
         expect(t.labels[0], `L${l}`).toBe(upgradeLabel(l));
         buyUpgrade(run, "turret");
+        // NUM-4: the SPEED the line named is the battle's once that level is bought
+        expect(new Battle(run.build, barge(), SEED).sides[0].turrets[0].speed, `L${l + 1}`).toBe(nextSpeed);
         // FASTER is the battle's: the next level's interval is this one scaled by TURRET_SPEED, and shorter
         // NUM-2 (REQ-BFG-047; was +after.toFixed(2) = +(fires x TURRET_SPEED[l + 1] / TURRET_SPEED[l]).toFixed(2), x0.85 a
         // level): an EQUIVALENT check of the new rule: the next level's speed is levelSpeed(s1, l + 1, TURRET_SPEED) (+
@@ -122,7 +136,9 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
         // fires every 30 / that: the panel's SEC (fmtSpeed, two decimals) and the battle's interval exactly
         const after = new Battle(run.build, barge(), SEED).sides[0].turrets[0].interval;
         const want = secPer(Math.max(1, roundHalfUp(levelSpeed(s1, l + 1, TURRET_SPEED) * rates)));
-        expect(fmtSpeed(after), `L${l + 1}`).toBe(fmtSpeed(want));
+        // NUM-4: fmtSpeed prints a SPEED now (the line above checks the panel's {RATE}n against the battle's); the interval is
+        // compared exactly as a number (was fmtSpeed(after) vs fmtSpeed(want), NUM-2's two-decimal SEC)
+        expect(String(after), `L${l + 1}`).toBe(String(want));
         expect(after, `L${l + 1}`).toBeCloseTo(want, 9);
         expect(after).toBeLessThan(fires);
       } else {

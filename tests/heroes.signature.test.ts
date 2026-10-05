@@ -198,14 +198,19 @@ describe("the Arena: display only", () => {
 });
 
 describe("the result card", () => {
-  const s = { damage: 120.4, shots: 30, firstShot: 2.25, idle: 3, turretTime: 30, jams: 1, burnDealt: 17.6, disrupted: 0 } as unknown as SideStats;
+  // NUM-4 (REQ-BFG-047): the fixture's totals are whole, as a battle produces them since NUM-1 (its 120.4 and 17.6 were
+  // the x1 scale: now 1204 and 176); FIRST SHOT stays 2.25 s, a clock reading
+  const s = { damage: 1204, shots: 30, firstShot: 2.25, idle: 3, turretTime: 30, jams: 1, burnDealt: 176, disrupted: 0 } as unknown as SideStats;
 
   it("FOUNDRY's and BASTION's rows follow 0.6.2's seven; a Furnace or Weaver card keeps the seven", () => {
     const base = resultRows({ player: s, enemy: s, shocks: [1, 2] });
     expect(base).toHaveLength(CARD_ROWS);
-    const rows = resultRows({ player: s, enemy: s, shocks: [1, 2], race: { fused: [12, null], plated: [null, 41.6], spent: [null, 39.99] } });
+    // NUM-4 (REQ-BFG-047): the race rows' plating is a whole sum, as a battle produces it (was the x1 fixture's 41.6 and
+    // 39.99, rounded to "42" and "40"), printed as it is (fmtDmg; FUSED SLUGS a count, fmtCount)
+    const GAINED = 416, SPENT = 400;
+    const rows = resultRows({ player: s, enemy: s, shocks: [1, 2], race: { fused: [12, null], plated: [null, GAINED], spent: [null, SPENT] } });
     expect(rows.slice(0, CARD_ROWS)).toEqual(base);
-    expect(rows.slice(CARD_ROWS)).toEqual([["FUSED SLUGS", "12", "-"], ["PLATING GAINED", "-", "42"], ["PLATING SPENT", "-", "40"]]);
+    expect(rows.slice(CARD_ROWS)).toEqual([["FUSED SLUGS", "12", "-"], ["PLATING GAINED", "-", String(GAINED)], ["PLATING SPENT", "-", String(SPENT)]]);
     expect(resultRows({ player: s, enemy: s, race: { plated: [30, 32], spent: [28, 30] } }).slice(CARD_ROWS).map((r) => r[0])).toEqual(["PLATING GAINED", "PLATING SPENT"]);
   });
 
@@ -288,13 +293,23 @@ describe("SYNC", () => {
     // NUM-2 (REQ-BFG-047; was "AT THE SAME MOMENT"): the delay deck's +4 tiles ride 4 x 0.4 = 1.6 s, the old CRUCIBLE pour
     // interval exactly; its ★1 speed 19 pours every 30 / 19 = 1.579 s, so the blanks arrive 0.021 s apart, well inside
     // SYNC_WINDOW 0.25 (the first SYNC test: still in sync, one pour, and the battle still fuses them)
-    expect(syncLine(d.delay, 1)).toEqual({ text: "IN SYNC WITH BELT 1, ONE POUR APART: THEIR BLANKS REACH TURRET 1 0.02 SECONDS APART AND FUSE.", state: "sync" });
+    // NUM-4 (REQ-BFG-047, N1 2.2): the arrival gap and SYNC_WINDOW are hidden sub-second timers, so the line says AT ONCE
+    // for a gap inside the window (was "0.02 SECONDS APART"); the gap itself is checked against the window here instead
+    expect(syncOf(d.delay, 1)!.partners[0].offset).toBeGreaterThan(0);
+    expect(syncOf(d.delay, 1)!.partners[0].offset).toBeLessThanOrEqual(SYNC_WINDOW);
+    expect(syncLine(d.delay, 1)).toEqual({ text: "IN SYNC WITH BELT 1, ONE POUR APART: THEIR BLANKS REACH TURRET 1 AT ONCE AND FUSE.", state: "sync" });
     // NUM-2 (REQ-BFG-047; was 0.8 SECONDS): the off deck's +2 tiles ride 0.8 s, and the nearer pour is now 30 / 19 - 0.8 =
     // 0.779 s away (was 1.6 - 0.8 = 0.8), still more than SYNC_WINDOW, and the battle fuses none (the first SYNC test)
+    // NUM-4 (REQ-BFG-047, N1 2.2): a gap past the window reads TOO FAR APART (was "0.78 SECONDS APART, MORE THAN 0.25
+    // SECONDS"); the first SYNC test checks this gap is more than SYNC_WINDOW
     expect(syncLine(d.off, 0)).toEqual({
-      text: "OUT OF SYNC WITH BELT 2: THEIR BLANKS REACH TURRET 1 0.78 SECONDS APART, MORE THAN 0.25 SECONDS, SO THEY FIRE UNFUSED.", state: "apart",
+      text: "OUT OF SYNC WITH BELT 2: THEIR BLANKS REACH TURRET 1 TOO FAR APART, SO THEY FIRE UNFUSED.", state: "apart",
     });
-    expect(numbers(syncLine(d.over, 0)!.text)).toEqual([2, 1, +syncOf(d.over, 0)!.partners[0].offset.toFixed(2), SYNC_WINDOW]);
+    // NUM-4 (REQ-BFG-047): the over deck's line quotes the belt and the gun, and says TOO FAR APART for its gap, which is
+    // past SYNC_WINDOW (was [2, 1, the gap to 0.01 s, SYNC_WINDOW] among its numbers)
+    expect(syncOf(d.over, 0)!.partners[0].offset).toBeGreaterThan(SYNC_WINDOW);
+    expect(numbers(syncLine(d.over, 0)!.text)).toEqual([2, 1]);
+    expect(syncLine(d.over, 0)!.text).toContain("TOO FAR APART");
     const lone = clone(d.start);
     lone.routes[1].cells = [K(3, 5), K(4, 5), K(5, 5), K(6, 5), K(6, 4), K(6, 3), K(6, 2), K(6, 1), K(6, 0)]; // into gun 2
     expect(syncLine(lone, 0)).toEqual({ text: "NO OTHER CRUCIBLE BELT REACHES TURRET 1, SO ITS BLANKS FIRE UNFUSED.", state: "alone" });

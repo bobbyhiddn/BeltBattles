@@ -119,8 +119,10 @@ describe("0b.1: LIMPET WORKS promises no stall at 1 star", () => {
     expect(STARS.map((s) => flavourText("limpet", s))).toEqual(["", "", ""]);
     // NUM-3 step 2 (REQ-BFG-047, N1 2.2): the stall is - / 1 / 2 s, whole seconds (was - / 1 / 1.6); still none at ★1
     expect(STARS.map((s) => (effectAt("limpet", s).factory!.round as { stall?: number }).stall ?? 0)).toEqual([0, 1, 2]);
-    expect(abilityText("limpet", 1).sentences.join(" ")).not.toMatch(/STALL/);
-    expect(abilityText("limpet", 2).sentences).toContain("THE BLAST ALSO STALLS THE MACHINE THE CHARGE STUCK TO FOR 1 SECOND.");
+    // NUM-4 (REQ-BFG-047, NUM-3 F2): the stall's word is STUN (was STALL / "THE BLAST ALSO STALLS ..."); ★2's seconds the data's
+    expect(abilityText("limpet", 1).sentences.join(" ")).not.toMatch(/STUN|STALL/);
+    const stun2 = (effectAt("limpet", 2).factory!.round as { stall?: number }).stall;
+    expect(abilityText("limpet", 2).sentences).toContain(`THE BLAST ALSO STUNS THE MACHINE THE CHARGE STUCK TO FOR ${stun2} SECOND.`);
   });
 });
 

@@ -16,6 +16,7 @@ import { ITEMS, buyableModules, withWave3 } from "../src/sim/content";
 import { newRun, type DuskFoe, type Run } from "../src/game/run";
 import { key as K, stokeHits, type Build, type Placed } from "../src/sim/deck";
 import { stokeKeep } from "../src/sim/deckRating";
+import { effectAt } from "../src/sim/stars"; // NUM-4 (REQ-BFG-047): GUN IS FULL's threshold from the data
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { validateBuild } from "../src/net/validate";
 import { buildLayout } from "../src/screens/build/layout";
@@ -345,31 +346,58 @@ describe("G1's F2: a stoke speeds ARMOR PRESS's plating in full while the gun ho
     expect(fasterThan(off.plates, 3)).toBeCloseTo(0, 6);
   });
 
-  it("room for part of the stoke: \"SO IT STAMPS ONLY 60% FASTER, BUT PLATES 70% FASTER\", both numbers the battle's", () => {
-    const want: [number, number, string][] = [
+  // NUM-4 (REQ-BFG-047): retitled, the title quoted the line before NUM-2 (was "room for part of the stoke: \"SO IT STAMPS
+  // ONLY 60% FASTER, BUT PLATES 70% FASTER\", both numbers the battle's"); the checks kept, and the [2, 2] row re-pinned
+  it("room for part of the stoke: \"IT STAMPS ONLY 58% FASTER, BUT PLATES 70% FASTER\", both numbers the battle's; under one SPEED point held back, no line", () => {
+    // NUM-4 (REQ-BFG-047; REVIEW-NUM2 answer 2): GUN IS FULL shows only when the cap holds back at least one whole SPEED
+    // point of the stoke (inspector.ts stokeCapBlocks): the press's SPEED x the STOKER's stoke x (1 - the rating's keep)
+    const heldBack = (s: number, press: number): number =>
+      effectAt("armorpress", press).factory!.speed * effectAt("stoker", s).gate!.stoke! * (1 - stokeKeep(lonePress(s, press)).get(7)!);
+    const want: [number, number, string | null][] = [
       // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): was ", SO IT STAMPS ONLY ..."
       // NUM-2 (REQ-BFG-047; was 60%): the ★1 press stamps every 30 / 19 = 1.58 s (was 1.6), so the full gun leaves it 58%
       [3, 1, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 58% FASTER, BUT PLATES 70% FASTER."],
       // NUM-2 (was 40%, 40%): the ★2 press stamps every 30 / 21 = 1.43 s (was 1.4), so the full gun leaves it 43%
-      [2, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT PLATES 44% FASTER."],
+      // NUM-4 (REQ-BFG-047): the named rule change, GUN IS FULL's threshold from the data: the cap holds back 21 x 0.44 x
+      // (1 - 43/44) = 0.21 of a SPEED point, under one, so no line (was "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43%
+      // FASTER, BUT PLATES 44% FASTER."); the STOKER's panel opens with its face's own line, as the room cases below, and
+      // the battle checks stay, their numbers now the data's (the rating's keep x the stoke, and the stoke)
+      [2, 2, null],
       [3, 2, "THE ARMOR PRESS'S GUN IS FULL: IT STAMPS ONLY 43% FASTER, BUT PLATES 70% FASTER."],
     ];
     for (const [s, press, text] of want) {
       const b = lonePress(s, press);
-      expect(capLine(b)).toBe(text);
+      const stoke = effectAt("stoker", s).gate!.stoke!, keep = stokeKeep(b).get(7)!;
+      if (text) {
+        expect(heldBack(s, press), text).toBeGreaterThanOrEqual(1);
+        expect(capLine(b)).toBe(text);
+        expect(pcts(text)).toEqual([Math.round(stoke * keep * 100) / 100, stoke]); // the line's two numbers are the data's
+      } else {
+        expect(heldBack(s, press), `★${s} on the ★${press} press`).toBeLessThan(1);
+        expect(capLine(b), `★${s} on the ★${press} press`).toBe("");
+        expect(rigPanel(pressRun(b), STOKER)!.body.find((x) => x.role === "ability")!.text).toBe(faceLines("stoker", s)!.rules[0].text);
+      }
       // against the same press unstoked in the battle (its stamps land on the tick after each 1.6 s: every 1.617 s). NUM-2:
       // every 30 / speed s, the timer carrying its remainder: measured 1.579 s at ★1 (30 / 19), 1.430 s at ★2 (30 / 21)
-      const off = pressLog(lonePress(0, press)), on = pressLog(b), [stamp, plate] = pcts(text);
+      // NUM-4: a row without a line takes its two numbers from the data the line would have read (stoke x keep, stoke)
+      const off = pressLog(lonePress(0, press)), on = pressLog(b);
+      const [stamp, plate] = text ? pcts(text) : [Math.round(stoke * keep * 100) / 100, stoke];
+      const label = text ?? `★${s} on the ★${press} press, no line`;
       const stamped = fasterThan(on.stamps.filter((t) => t > 3), meanGap(off.stamps)), plated = fasterThan(on.plates, meanGap(off.plates));
-      expect(Math.abs(stamped - stamp), `${text}: the stamping ${stamped.toFixed(3)} faster`).toBeLessThan(0.015);
-      expect(Math.abs(plated - plate), `${text}: the plating ${plated.toFixed(3)} faster`).toBeLessThan(0.01);
+      expect(Math.abs(stamped - stamp), `${label}: the stamping ${stamped.toFixed(3)} faster`).toBeLessThan(0.015);
+      expect(Math.abs(plated - plate), `${label}: the plating ${plated.toFixed(3)} faster`).toBeLessThan(0.01);
       // the plating outpaces the stamping, as the line says. NUM-2 (REQ-BFG-047): an EQUIVALENT replacement of `plated -
       // stamped > 0.02`, the fixed margin that was half the smallest gap a line claimed (0.44 - 0.40): the battle's gap is
       // above 0 and is the line's own gap (plate - stamp) within 0.005 either way. NUM-2's ★2 press stamps every 30 / 21 =
       // 1.43 s (was 1.4), so the full gun leaves it 43% of STOKER ★2's 44% and that line claims a 1-point gap; the battle
       // measures 0.0105 (the other two lines: 0.119 of 0.12, 0.269 of 0.27)
-      expect(plated - stamped, text).toBeGreaterThan(0);
-      expect(Math.abs(plated - stamped - (plate - stamp)), text).toBeLessThan(0.005);
+      expect(plated - stamped, label).toBeGreaterThan(0);
+      expect(Math.abs(plated - stamped - (plate - stamp)), label).toBeLessThan(0.005);
+      // NUM-4 (REQ-BFG-047): the threshold in the battle's own numbers: the SPEED points the cap holds back, the press's
+      // SPEED x (plated - stamped), are at least one where a line shows and under one where none does (★2 on ★2: 0.22)
+      const speed = effectAt("armorpress", press).factory!.speed;
+      if (text) expect(speed * (plated - stamped), label).toBeGreaterThanOrEqual(1);
+      else expect(speed * (plated - stamped), label).toBeLessThan(1);
     }
     // where the gun has room for the whole stoke (1 and 2 stars on the 1-star press) the opening sentence stays the
     // glossary's: the press works 20 / 44% faster, its plating with it

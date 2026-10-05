@@ -220,7 +220,7 @@ export function drawHearts(g: G, x: number, y: number, lives: number, t = 0, los
   return START_LIVES * 6 - 1;
 }
 
-/** The dusk result card's rows: [label, you, foe]. 0.6.2 RULE SHOCK ROW: SHOCK STALLS, beside the damage and Burn rows:
+/** The dusk result card's rows: [label, you, foe]. 0.6.2 RULE SHOCK ROW: SHOCK STUNS (NUM-4; was SHOCK STALLS), beside the damage and Burn rows:
  *  the enemy machines each side's Shock stalled (DayResult.shocks, counted by the Arena; "-" in a result saved before
  *  0.6.2). Display only. 0.8.0 H1 M3: then FOUNDRY's and BASTION's rows (DayResult.race, raceReadout): FUSED SLUGS
  *  when either side is FOUNDRY, PLATING GAINED and PLATING SPENT when either is BASTION; "-" for the other side. A
@@ -238,7 +238,8 @@ export function resultRows(r: Pick<DayResult, "player" | "enemy" | "shocks" | "r
     ["GUNS IDLE", idle(p), idle(e)],
     ["JAMS", String(p.jams), String(e.jams)],
     ["BURN DAMAGE", fmtDmg(p.burnDealt), fmtDmg(e.burnDealt)],
-    ["SHOCK STALLS", r.shocks ? String(r.shocks[0]) : "-", r.shocks ? String(r.shocks[1]) : "-"],
+    // NUM-4 (REVIEW-NUM3 F2): one word for one stop, SHOCK STUNS (was SHOCK STALLS); the counts as before
+    ["SHOCK STUNS", r.shocks ? String(r.shocks[0]) : "-", r.shocks ? String(r.shocks[1]) : "-"],
   ];
   // NUM-4: whole sums printed as they are (a count, or plating through fmtDmg; was Math.round)
   const v = (x: number | null, f: (n: number) => string = fmtDmg): string => (x === null ? "-" : f(x));
