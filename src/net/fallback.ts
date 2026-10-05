@@ -9,7 +9,7 @@ import { HEROES, RULES_VERSION, START_LIVES, type HeroId } from "../sim/content"
 import { cloneBuild } from "../sim/deck";
 import { standInPick } from "../sim/standInPool";
 import { pickGhost, type MatchRequest } from "./matchmaking";
-import { checkSnapshot, MAX_DAY, MAX_LIVES, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
+import { checkSnapshot, MAX_DAY, MAX_LIVES, SNAPSHOT_V3, SNAPSHOT_VERSION, SnapshotError, ghostId, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateBuild } from "./validate";
 
 /**
@@ -35,7 +35,9 @@ export function rivalHero(hero: HeroId, seed = 0): HeroId {
  * validateBuild for its day (tests/standInPool.test.ts). Its record mirrors the requester's
  * so the pre-fight card reads sensibly. The playerId string is unchanged for compatibility.
  * Since the 0.6.1 flip a pool deck may carry merge stars, which only a v2 snapshot may hold,
- * so the ghost travels as SNAPSHOT_VERSION.
+ * so the ghost travels as SNAPSHOT_VERSION. FLIP-X2 (bb-0.9.0): the regenerated pool's decks hold their dawn runes,
+ * which travel only in v3, so a deck holding runes travels as SNAPSHOT_V3 (as tools/samplePool.ts and server/ghostProbe.ts
+ * write theirs); a rune-less deck still travels as SNAPSHOT_VERSION.
  */
 export function offlineGhost(hero: HeroId, day: number, seed: number, record?: { wins: number; lives: number }): PoolEntry {
   const d = Math.min(MAX_DAY, Math.max(1, Math.floor(day)));
@@ -46,7 +48,7 @@ export function offlineGhost(hero: HeroId, day: number, seed: number, record?: {
   const snapshot = checkSnapshot({
     // the 0.6.1 flip: a pool deck may carry merge stars, and (0.6.2 BELTSIDE, DESIGN-beltside D1) its rigs `rot`; only
     // a v2 snapshot holds either, so the ghost travels as SNAPSHOT_VERSION (2)
-    v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build,
+    v: build.runes?.length ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero: foe, day: d, wins, lives, build,
     runId: `offline-${(seed >>> 0).toString(16)}`, playerId: "offline-warlord", createdAt: 0,
   });
   return { id: `offline-${foe}-d${d}`, snapshot };
