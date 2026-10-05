@@ -94,6 +94,11 @@ export interface RivalPlan {
   // (content.ts sustainLive), taken after `upgrades` (their uids follow it, so every other part keeps its uid). Off, planBuild
   // never reads them: every captain deck, and every test that walks `upgrades`, is exactly as before
   sustain?: Upgrade[];
+  // FLIP-X2 (REVIEW-BOTSX answer 1): sustain's drop list. While the sustain switch is on, each listed rig (def at x, y) is
+  // left out of `upgrades`, so a sustain piece replaces a part instead of adding to the deck (THANE KARSK: his WARD BELL
+  // takes his GALVANIC COIL's place, keeping his rare count and value inside the luck caps). Skipped by index, so every
+  // other part keeps its uid. Off: never read.
+  sustainDrop?: readonly (readonly [def: string, x: number, y: number])[];
   // 0.8.9 (CATCHUP-089 fallback 2; cap's ruling Q1 e2ca295ce9dcd60a): PvE plates by day (day -> plates), armor the road
   // warlord carries free on that day, like the hull ramp (+250 hull each, the ARMOR PACK's), on the days a Hard captain
   // was still under 0.55 against the par fields after its packs and its gold ran short of the par field's pack count:
@@ -561,6 +566,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // second gear slot) and the WARD BELL goes there (11 gold: day 5 is 47 of 50). No synergy part moves; the BOTS-X report
     // lists what this does to his ordinary luck caps (measured with the switch off; FLIP-X regenerates them)
     sustain: [T2(5, 0), M(5, "wardbell", 0)],
+    // FLIP-X2 step 4.4 (REVIEW-BOTSX answer 1): over the regenerated caps with the bell (stand-in d6 rare 5 > 4, d7 value
+    // 77 > 76, d8 rare 6 > 5, d9 rare 7 > 6), so while sustain is on the bell replaces his GALVANIC COIL (a non-synergy
+    // rare, 5 g; warlord day 5, stand-in day 6)
+    sustainDrop: [["coil", 5, 2]],
     // 0.8.9 (CATCHUP-089 fallback 2): his road deck read 51% on day 5 with none of the 2 packs (R1 holds them off) and 37%
     // on day 7 with 3 of the 4: PvE plates up to the count on those days
     pve: { 5: 2, 7: 1 },
@@ -650,10 +659,14 @@ export function planBuild(plan: RivalPlan, day: number, luck: Luck = "ordinary")
   const pvePlates = luck === "ordinary" ? 0 : plan.pve?.[day] ?? 0;
   // BOTS-X (SUS-C): with the sustain switch on, the plan's sustain upgrades after its own (off: `upgrades` itself)
   const ups = sustainLive() && plan.sustain?.length ? [...plan.upgrades, ...plan.sustain] : plan.upgrades;
+  // FLIP-X2 (REVIEW-BOTSX answer 1): with the switch on, the plan's sustainDrop rigs are left out (their index still
+  // counts, so every other uid stays)
+  const drop = sustainLive() ? plan.sustainDrop ?? [] : [];
+  const dropped = (u: Upgrade): boolean => !!u.gate && drop.some(([d, x, y]) => u.gate![0] === d && u.gate![1] === x && u.gate![2] === y);
   for (const [i, u] of ups.entries()) {
     const uid = U + 10 + i, tu = TURRET_UID + i;
     const f = u.factory ? fu++ : 0; // factory uids follow the plan's factory order whether or not this luck owns them yet
-    if (dayOwned(u, luck) > day) continue;
+    if (dayOwned(u, luck) > day || dropped(u)) continue;
     if (u.factory) addFactory(u.factory, f);
     if (u.gate) b.items.push({ uid, def: u.gate[0], x: u.gate[1], y: u.gate[2], ...rotField(u.gate[0], u.gate[3] ?? 0) });
     if (u.mod) b.mods.push({ uid, def: u.mod[0], turret: u.mod[1] });
