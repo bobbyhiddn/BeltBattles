@@ -100,6 +100,7 @@ import { tapPx } from "../../ui/tap"; // shoptap (D5)
 import { faceBlocks, faceMergeBlock, faceNextBlock, hasFace } from "./faceBlocks"; // U2a (REQ-BFG-046): the new faces
 import { faceGist, heroPlaystyle, ruleSpans } from "../../ui/faces"; // U2a
 import { speedPair } from "../../ui/faces"; // U2c step 4: the installed turret's stat row
+import { roundHalfUp } from "../../sim/pct"; // Y1: SALVO RACK's volley pace, in a SPEED's one rounding
 import { statRow } from "../../ui/icons"; // U2c step 4
 import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
 import { icons } from "../../render/font"; // U2c step 4
@@ -834,10 +835,16 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     ...(tu.storeMax ? [`STORES +${fmtCount(tu.storeMax)} {SLUG} WHILE IT FIRES.`] : []),
     ...(capped ? [`COUNTS UP TO ${fmtCount(capped)} WAITING {SLUG}.`] : []), // U2d F5: was MAX 5 {SLUG} WAITING COUNT.
   ].join(" ");
+  // Y1 (REQ-BFG-070; STAR-D rule 7's cue, ships with SALVO RACK's face 'SHOT: FIRES THE CHAMBER AT +20 {DMG} EACH.'): a
+  // SALVO RACK fires its whole chamber, then reloads for its interval x reloadMul (cores.ts ROUTINES.salvo cadence; the
+  // `every` above), so its turret's RATE is its volley pace: the SPEED over reloadMul, rounded half up once as makeTurret
+  // rounds a SPEED (30 / 1.6 = 18.75 is 19). Every other turret's RATE is its SPEED, as before
+  const salvo = tc.bought && tc.routine === "salvo" && !!tc.spec.reloadMul;
+  const rate = salvo ? Math.max(1, roundHalfUp(tu.speed / tc.spec.reloadMul!)) : tu.speed;
   const stats: Block[] = [
     // NUM-4 (REQ-BFG-047): the RATE pair is the SPEED the battle uses (TurretState.speed: every gear piece, the core, the
-    // long belt and the TURRET SPEED level, rounded once); SALVO's longer reload is its own rule line, not the row's
-    { role: "ability", text: statRow([speedPair(tu.speed), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true },
+    // long belt and the TURRET SPEED level, rounded once); Y1: a SALVO RACK's, its volley pace (above)
+    { role: "ability", text: statRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true },
     ...(note ? [{ role: "note", text: icons(note), keep: true } as Block] : []),
   ];
   // a clash (a piece of gear that does nothing here) and the shield. 0.6.2rel2 (the rehearsal's nit 1): the desk column

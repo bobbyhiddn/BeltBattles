@@ -325,7 +325,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   },
   salvo: (e, x) => {
     const flat = fmtDmg(c(e, x).volleyFlat!);
-    return rules([shot(`EMPTIES THE CHAMBER AT ONCE, +${flat} {DMG} EACH.`)], [["flat", `+${flat} {DMG}`]]);
+    // Y1 (REQ-BFG-070, REQ-BFG-046; STAR-D row 4): one verb with its own amount (was "EMPTIES THE CHAMBER AT ONCE, +20 {DMG}
+    // EACH."); its wait and longer reload are its installed turret's RATE, the volley pace (inspector.ts turretPanel)
+    return rules([shot(`FIRES THE CHAMBER AT +${flat} {DMG} EACH.`)], [["flat", `+${flat} {DMG}`]]);
   },
   mortar: (e, x) => {
     const n = c(e, x).splash!, more = fmtCount(n), share = fmtPct(c(e, x).share!);
