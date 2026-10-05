@@ -5,11 +5,14 @@ import { describe, expect, it } from "vitest";
 import { Battle, simulate } from "../src/sim/battle";
 import { startingBuild } from "../src/sim/ai";
 import { HEROES, type TurretDef } from "../src/sim/content";
+import { ITEMS, rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED, 30 / speed; a whole rate %
 import { key as K, type Build } from "../src/sim/deck";
 import { resolveCore } from "../src/sim/cores";
+import { effectAt } from "../src/sim/stars";
 
 const CORES = ["scatter", "rotary", "pressure", "gatling", "hullbreaker", "drake", "salvo"];
-const MEDIUM: TurretDef = { col0: 4, width: 2, connectors: [4, 5], kind: "medium", fireInterval: 0.75, window: 2, flight: 0.45 };
+// NUM-2 (REQ-BFG-047; was fireInterval: 0.75): speed 40, the converter's roundHalfUp(30 / 0.75), exactly 0.75 s again
+const MEDIUM: TurretDef = { col0: 4, width: 2, connectors: [4, 5], kind: "medium", speed: 40, window: 2, flight: 0.45 };
 const SHORT = [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)];
 // 0.6.2 BELTSIDE: the SPLITTERs stand beside the belts they split, west of (4,4) and east of (5,3)
 const busy = (): Build => ({
@@ -44,9 +47,11 @@ describe("core benches", () => {
   it("each core's headline metric rises 1 < 2 < 3 stars on heavy, medium and light turrets", () => {
     const headline: Record<string, (s: ReturnType<typeof resolveCore>["spec"]) => number> = {
       scatter: (c) => c.pellets! * c.share!, // total damage per shot
-      rotary: (c) => 1 / (c.intervalMul ?? 1), // fire rate
+      // NUM-2 (REQ-BFG-047): EQUIVALENT of 1 / intervalMul and 1 / floor, the fire-rate factors in the new form: the whole
+      // rate %s fireRate (ROTARY ★2 18, ★3 43) and top (GATLING 67 / 150 / 245) as (100 + X) / 100
+      rotary: (c) => rateMul(c.fireRate), // fire rate
       pressure: (c) => c.perQueued!, // flat per queued payload
-      gatling: (c) => 1 / c.floor!, // spun-up fire rate
+      gatling: (c) => rateMul(c.top), // spun-up fire rate
       hullbreaker: (c) => c.hullMul!,
       drake: (c) => c.addBurn! * c.burnTime!, // Burn damage it adds per shot
       salvo: (c) => c.volleyFlat!, // flat per volley shell
@@ -88,7 +93,10 @@ describe("core benches", () => {
     const b = fit(fit(startingBuild("furnace", 1), "rotary", [0], 2), "calibrate", [0]);
     b.mods[1].uid = 950;
     const bt = new Battle(b, barge(), 1);
-    expect(bt.sides[0].turrets[0].interval).toBeCloseTo(1.0 * 0.75 * 0.85, 12);
+    // NUM-2 (REQ-BFG-047; was 1.0 x 0.75 x 0.85 = 0.6375 s): both rates still apply, multiplied, in the turret's one
+    // rounding (battle.ts makeTurret): 30 x 1.33 x 1.18 = 47.08 -> 47, so 30 / 47 = 0.638 s
+    const raw = HEROES.furnace.turrets[0].speed * rateMul(ITEMS.calibrate.mod!.fireRate) * rateMul(effectAt("rotary", 2).core!.fireRate);
+    expect(bt.sides[0].turrets[0].interval).toBeCloseTo(secPer(Math.floor(raw + 0.5 + 1e-9)), 12);
     const sc = fit(startingBuild("furnace", 1), "scatter", [0]);
     sc.mods.push({ uid: 951, def: "chamber", turret: 0 });
     const t1 = new Battle(sc, barge(), 1);

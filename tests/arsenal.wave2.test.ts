@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload, type SideState, type Target } from "../src/sim/battle";
-import { AMMO, CELL, ITEMS, itemsSoldBy } from "../src/sim/content";
+import { AMMO, CELL, ITEMS, itemsSoldBy, rateMul } from "../src/sim/content";
+import { roundHalfUp } from "../src/sim/pct"; // NUM-2 (REQ-BFG-047): MIMIC's speed, rounded half up once
 import { estimateRoute, type Build } from "../src/sim/deck";
 import { resolveCore } from "../src/sim/cores";
 import { effectAt, outputsAt, valueOf } from "../src/sim/stars";
@@ -104,12 +105,14 @@ describe("wave-2 stock and live star data", () => {
     expect(read("riveter", (s) => effectAt("riveter", s).gate?.repair)).toEqual([6, 13, 21]); // NUM-1: x10 (was [0.6, 1.3, 2.1])
     expect(read("heatjacket", (s) => effectAt("heatjacket", s).gate?.heat)).toEqual([4, 9, 14]); // NUM-1: x10 (was [0.4, 0.9, 1.4])
     expect(read("scrapper", (s) => effectAt("scrapper", s).factory?.scrapFlat)).toEqual([30, 65, 105]); // NUM-1: x10 (was [3, 6.5, 10.5])
-    expect(read("sabot", (s) => effectAt("sabot", s).factory?.interval)).toEqual([6, 2.8, 1.9]);
+    // NUM-2 (REQ-BFG-047): slugs per 30 s, roundHalfUp(30 / interval) (was interval [6, 2.8, 1.9]; the fixture's rows)
+    expect(read("sabot", (s) => effectAt("sabot", s).factory?.speed)).toEqual([5, 11, 16]);
     expect(read("frostbite", (s) => effectAt("frostbite", s).factory?.round)).toEqual([
       { kind: "frost", seconds: 2.5, spread: 0 }, { kind: "frost", seconds: 2.75, spread: 1 }, { kind: "frost", seconds: 3, spread: 2 }]);
     expect(read("dragchain", (s) => effectAt("dragchain", s).factory?.round)).toEqual([
       { kind: "drag", mul: 0.6, seconds: 3 }, { kind: "drag", mul: 0.4, seconds: 4.4 }, { kind: "drag", mul: 0.3, seconds: 6 }]);
-    expect(read("mimic", (s) => effectAt("mimic", s).factory?.intervalMul)).toEqual([1.4, 1, 0.8]);
+    // NUM-2 (REQ-BFG-047): a whole rate %, roundHalfUp(100 / mul - 100) (was intervalMul [1.4, 1, 0.8]: -28.6 -> -29, 0, 25)
+    expect(read("mimic", (s) => effectAt("mimic", s).factory?.rate)).toEqual([-29, 0, 25]);
     expect(read("limpet", (s) => effectAt("limpet", s).factory?.round?.kind === "limpet" ? effectAt("limpet", s).factory!.round!.blast : 0)).toEqual([80, 180, 280]); // NUM-1: x10 (was [8, 18, 28])
     expect(read("mortar", (s) => effectAt("mortar", s).core?.splash)).toEqual([1, 2, 3]);
     expect(read("grapnel", (s) => effectAt("grapnel", s).core?.rip)).toEqual([1, 2, 3]);
@@ -201,7 +204,9 @@ describe("wave-2 factories and cores", () => {
       if (["sabot", "frostbite", "dragchain", "limpet"].includes(id)) expect(slug!.harass?.kind).toBe(slug!.ammo === "frost" ? "frost" : slug!.ammo === "drag" ? "drag" : slug!.ammo);
       if (id === "scrapper") expect(slug!.flat).toBe([30, 65, 105][stars - 1]); // NUM-1: x10 (was [3, 6.5, 10.5])
       if (id === "mimic") {
-        expect(f.def.factory!.interval).toBeCloseTo(1.25 * [1.4, 1, 0.8][stars - 1]);
+        // NUM-2 (REQ-BFG-047): the hero factory's level-1 speed (KILN 24; was interval 1.25) x MIMIC's rate %, rounded half up
+        // once: 17 / 24 / 30, whole, so exact (was interval toBeCloseTo(1.25 * [1.4, 1, 0.8]))
+        expect(f.def.factory!.speed).toBe(roundHalfUp(ITEMS.kiln.factory!.speed * rateMul([-29, 0, 25][stars - 1])));
         expect(outputsAt("mimic", stars)).toBe(stars + 1); // bb-0.8.3 (REQ-BFG-042 D1, D3): 2 / 3 / 4 (was 1 / 1 / 2)
       }
     }
@@ -211,7 +216,9 @@ describe("wave-2 factories and cores", () => {
       const f = bt.sides[0].factories.find((x) => x.def.id === "mimic")!;
       expect(f.def.factory!.ammo).toBe("thread");
       expect(bt.sides[0].routes[0].ammo[0].p.ammo).toBe("thread");
-      expect(f.def.factory!.interval).toBeCloseTo(ITEMS.loom.factory!.interval * [1.4, 1, 0.8][stars - 1]);
+      // NUM-2 (REQ-BFG-047): LOOM's level-1 speed x MIMIC's rate %, rounded half up once: 42 -> 30 / 42 / 53, exact (was
+      // interval toBeCloseTo(ITEMS.loom.factory!.interval * [1.4, 1, 0.8]))
+      expect(f.def.factory!.speed).toBe(roundHalfUp(ITEMS.loom.factory!.speed * rateMul([-29, 0, 25][stars - 1])));
     }
     const twin = gantryWeaver(3, 2); twin.items[1].def = "mimic";
     const bt = new Battle(twin, barge(), 21);

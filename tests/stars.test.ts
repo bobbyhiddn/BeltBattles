@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { ITEMS, sellValue } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
 import { estimateRoute, key, rotField, type Build } from "../src/sim/deck";
 import { rotFacing } from "../src/sim/beltside";
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, starsOf, valueOf } from "../src/sim/stars";
@@ -35,6 +36,8 @@ const est = (b: Build) => estimateRoute(b, 0);
 const at3 = <T>(f: (s: number) => T): T[] => [1, 2, 3].map(f);
 const up = (xs: number[]) => xs[0] < xs[1] && xs[1] < xs[2];
 const down = (xs: number[]) => xs[0] > xs[1] && xs[1] > xs[2];
+/** NUM-2 (REQ-BFG-047): the sim's one rounding (src/sim/pct.ts), as the NUM-2 checkers write it. */
+const roundHalfUp = (x: number): number => Math.floor(x + 0.5 + 1e-9);
 
 describe("stars.ts", () => {
   it("FUSE_MAX, starsOf and fusible", () => {
@@ -49,7 +52,8 @@ describe("stars.ts", () => {
     expect(effectAt("temper", 3).gate).toEqual({ burn: 4 });
     // 0.6.1p: the pending perks are applied, so the dies and WIDE BREECH merge in; 0.6.1f: PERFECT CUT replaced THREE-WAY
     // bb-0.8.3 (REQ-BFG-042 D1): a bought factory states no outputs; its belt slots grow with its stars (outputsAt)
-    expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", interval: 1, base: 10 * 7.5 }); // NUM-1: x10 (was 7.5)
+    // NUM-2 (REQ-BFG-047): speed 30 = roundHalfUp(30 / 1 s), the ★3 level's stored speed merged over the ★1 spec's 21 (was interval: 1)
+    expect(effectAt("press", 3).factory).toEqual({ ammo: "plain", speed: 30, base: 10 * 7.5 }); // NUM-1: x10 (was 7.5)
     expect(effectAt("chamber", 3).mod).toEqual({ perShot: 3, window: 1 });
     expect(effectAt("splitter", 3).gate).toEqual({ split: { copies: 2, mult: 0.85 } });
     // NUM-1: flat and lockedFlat x10 (was 2 / 4 and 5 / 7); the speed is unchanged
@@ -138,8 +142,14 @@ describe("per-star benches: 1 star < 2 < 3 where 0.6.1a applies the number", () 
     expect(per).toEqual([2, 2, 3]);
   });
   it("CALIBRATION fire interval x0.75/x0.58/x0.46", () => {
-    const iv = at3((s) => new Battle(bench([], [["calibrate", s]]), barge(), 1).sides[0].turrets[0].interval);
-    expect(iv.map((v) => +v.toFixed(4))).toEqual([0.75, 0.58, 0.46]);
+    // NUM-2 (REQ-BFG-047, N1 2.3): CALIBRATION is a whole rate % (+33 / +72 / +117; was the interval x0.75 / x0.58 / x0.46),
+    // so the check is of that form (EQUIVALENT): the SCRAP CANNON's speed 30 x rateMul(fireRate), rounded half up once
+    // (40 / 52 / 65), fires every secPer(speed) = 0.75 / 0.5769 / 0.4615 s (was 0.75 / 0.58 / 0.46: the rounded speed)
+    const tu = at3((s) => new Battle(bench([], [["calibrate", s]]), barge(), 1).sides[0].turrets[0]);
+    const speed = at3((s) => roundHalfUp(ITEMS.scrapcannon.turret!.speed * rateMul(effectAt("calibrate", s).mod!.fireRate)));
+    expect(tu.map((t) => t.speed)).toEqual(speed);
+    expect(tu.map((t) => t.interval)).toEqual(speed.map(secPer));
+    expect(tu.map((t) => +t.interval.toFixed(4))).toEqual([0.75, 0.5769, 0.4615]); // NUM-2 (was [0.75, 0.58, 0.46])
   });
   it("no stars draw from the battle RNG: a 1-star deck with the field absent fights like 0.6.0", () => {
     const a = run(bench([["temper", 4, 3, 1]]));

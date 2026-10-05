@@ -1,23 +1,26 @@
 // 0.6.1b M2: the turret core routines (ARSENAL.md §2 and §10 item 1; brief 0.6.1b "Tests"). Every core at
-// 1-3 stars on a heavy turret (FURNACE), a medium one (a stand-in TurretDef, fireInterval 0.75) and a light
-// one (WEAVER). A bench side keeps its factory but has no belts, so only the loads a test puts in the
+// 1-3 stars on a heavy turret (FURNACE), a medium one (a stand-in TurretDef, speed 40: 30 / 40 = 0.75 s; NUM-2, was
+// fireInterval 0.75) and a light one (WEAVER). A bench side keeps its factory but has no belts, so only the loads a test puts in the
 // chamber fire; the foe is a passive barge (no belts, +2000 hull). Plain slugs deal 3 (NUM-1: 30, AMMO.plain.base).
 import { describe, expect, it } from "vitest";
 import { Battle, makeTurret, type Payload, type Projectile, type TurretState } from "../src/sim/battle";
 import { startingBuild } from "../src/sim/ai";
 import { AMMO, HEROES, ITEMS, SIGNATURE_CORES, WINDOW_TIME, classFactor, type HeroId, type TurretDef } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED, 30 / speed; a whole rate %
 import type { Build } from "../src/sim/deck";
 import { CORE_ABSOLUTE, ROUTINES, pressureBonus, resolveCore } from "../src/sim/cores";
 import { effectAt } from "../src/sim/stars";
 
 const CORES = ["scatter", "rotary", "pressure", "gatling", "hullbreaker", "drake", "salvo"];
 const STARS = [1, 2, 3];
-const MEDIUM: TurretDef = { col0: 4, width: 2, connectors: [4, 5], kind: "medium", fireInterval: 0.75, window: 2, flight: 0.45 };
+// NUM-2 (REQ-BFG-047; was fireInterval: 0.75): speed 40, the converter's roundHalfUp(30 / 0.75), exactly 0.75 s again
+const MEDIUM: TurretDef = { col0: 4, width: 2, connectors: [4, 5], kind: "medium", speed: 40, window: 2, flight: 0.45 };
 interface Cls { name: string; hero: "furnace" | "weaver"; t: number; td?: TurretDef; k: number }
 const CLASSES: Cls[] = [
   { name: "heavy FURNACE", hero: "furnace", t: 0, k: 1 },
   { name: "medium stand-in (0.75 s)", hero: "furnace", t: 0, td: MEDIUM, k: 0.75 },
-  { name: "light WEAVER", hero: "weaver", t: 1, k: 0.55 },
+  // NUM-2 (was 0.55): k = classFactor = 30 / speed 55 = 0.5454..; its whole class % roundHalfUp(3000 / 55) = 55, as before
+  { name: "light WEAVER", hero: "weaver", t: 1, k: secPer(HEROES.weaver.turrets[0].speed) },
 ];
 const TICK = 1 / 60;
 
@@ -63,9 +66,12 @@ describe("the core resolver and the class factor", () => {
   it("classFactor = clamp(fireInterval / 1 s, 0.4, 1.2): heavy 1, medium 0.75, light 0.55", () => {
     expect(classFactor(HEROES.furnace.turrets[0])).toBe(1);
     expect(classFactor(MEDIUM)).toBe(0.75);
-    expect(classFactor(HEROES.weaver.turrets[0])).toBe(0.55);
-    expect(classFactor({ fireInterval: 0.1 })).toBe(0.4);
-    expect(classFactor({ fireInterval: 3 })).toBe(1.2);
+    // NUM-2 (REQ-BFG-047; was 0.55): the interval is 30 / speed, 30 / 55 = 0.5454..; the class % it scales by stays 55
+    expect(classFactor(HEROES.weaver.turrets[0])).toBe(30 / 55);
+    expect(half(100 * classFactor(HEROES.weaver.turrets[0]))).toBe(55);
+    // NUM-2 (was { fireInterval: 0.1 } and { fireInterval: 3 }): the same intervals as speeds, 30 / 0.1 = 300, 30 / 3 = 10
+    expect(classFactor({ speed: 300 })).toBe(0.4);
+    expect(classFactor({ speed: 10 })).toBe(1.2);
   });
 
   it("without a bought core every hero's turrets run its signature core, the identity routine", () => {
@@ -114,7 +120,8 @@ describe("the identity routine (no bought core) is today's firing", () => {
   for (const c of CLASSES) {
     it(`${c.name}: LIFO, the window closes after WINDOW_TIME, one load per interval`, () => {
       const { bt, tu } = bench(c, null);
-      expect([tu.window, tu.windowTime, tu.interval]).toEqual([tu.def.window, WINDOW_TIME, tu.def.fireInterval]);
+      // NUM-2 (REQ-BFG-047; was tu.def.fireInterval): the interval is 30 / the turret's speed
+      expect([tu.window, tu.windowTime, tu.interval]).toEqual([tu.def.window, WINDOW_TIME, secPer(tu.def.speed)]);
       const ps = loads(tu.window);
       chamber(tu, ps, "fire");
       const shots = run(bt, 5);
@@ -155,7 +162,9 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         const lv = effectAt("rotary", s).core!;
         const { bt, tu } = bench(c, "rotary", s);
         expect(tu.windowTime).toBe(0.8);
-        expect(tu.interval).toBe(tu.def.fireInterval * (lv.intervalMul ?? 1));
+        // NUM-2 (REQ-BFG-047; was the interval x intervalMul 0.85 / 0.7): ★2 / ★3 fire a whole 18% / 43% faster, the
+        // speed x (100 + fireRate) / 100 rounded half up once (battle.ts makeTurret), and the interval is 30 / that speed
+        expect(tu.interval).toBe(secPer(Math.max(1, half(tu.def.speed * rateMul(lv.fireRate)))));
         expect(ROUTINES.rotary.noJam(tu)).toBe(s === 3);
         const ps = loads(tu.window);
         chamber(tu, ps, "fire");
@@ -188,16 +197,26 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
       for (const s of STARS) {
         const lv = effectAt("gatling", s).core!;
         const { tu } = bench(c, "gatling", s);
-        expect(tu.spin).toBe(1.2);
+        // NUM-2 (REQ-BFG-047, N1 2.3): start and top are whole rate %s (-17; +67 / +150 / +245); the spin stays the interval
+        // share between them, 100 / (100 + rate) (was the multipliers start 1.2 and floor 0.6 / 0.4 / 0.29), stepping by
+        // `step`. EQUIVALENT check of the new form: the spin walks start -> top as the multiplier did, and each cadence is
+        // 30 / the whole speed at that spin (the turret's speed / spin rounded half up once; was interval x spin exactly)
+        const start = 1 / rateMul(lv.start), top = 1 / rateMul(lv.top);
+        const at = (speed: number, spin: number) => secPer(Math.max(1, half(speed / spin)));
+        expect(tu.spin).toBe(start); // NUM-2 (was 1.2): -17% as an interval share, 100 / 83 = 1.2048..
         let t = 10;
         const muls: number[] = [];
-        for (let i = 0; i < 40; i++, t += 2.4) muls.push(round(ROUTINES.gatling.cadence(tu, t) / tu.interval));
-        expect(muls[0]).toBe(1.2);
-        expect(muls[1]).toBe(round(1.2 - lv.step!));
-        expect(muls.at(-1)).toBe(round(lv.floor!)); // the spin floor
-        expect(Math.min(...muls)).toBe(round(lv.floor!));
-        const next = round(ROUTINES.gatling.cadence(tu, t - 2.4 + 2.6) / tu.interval); // a 2.6 s gap
-        expect(next).toBe(round(1.2 - (1.2 - lv.floor!) / 2));
+        for (let i = 0; i < 40; i++, t += 2.4) {
+          expect(ROUTINES.gatling.cadence(tu, t)).toBe(at(tu.def.speed, tu.spin));
+          muls.push(round(tu.spin));
+        }
+        expect(muls[0]).toBe(round(start));
+        expect(muls[1]).toBe(round(start - lv.step!));
+        expect(muls.at(-1)).toBe(round(top)); // the spin's top (NUM-2: was the floor)
+        expect(Math.min(...muls)).toBe(round(top));
+        const next = ROUTINES.gatling.cadence(tu, t - 2.4 + 2.6); // a 2.6 s gap
+        expect(round(tu.spin)).toBe(round(start - (start - top) / 2));
+        expect(next).toBe(at(tu.def.speed, tu.spin));
         // no loading window (oracle 5624d721a73a6282): a lone load on an idle barrel fires at once,
         // where the signature core waits out its window
         const g = bench(c, "gatling", s), id = bench(c, null);
@@ -205,11 +224,12 @@ describe("each core at 1-3 stars on heavy, medium and light turrets", () => {
         chamber(id.tu, [load()], "load");
         expect(run(g.bt, 3, 1)[0].t).toBeLessThanOrEqual(TICK + 1e-9);
         expect(run(id.bt, 3, 1)[0].t).toBeCloseTo(WINDOW_TIME, 1);
-        // the next load waits only for the barrel: interval x spin after the last shot
+        // the next load waits only for the barrel: interval x spin after the last shot (NUM-2: 30 / the whole speed at the
+        // first spin, -17%: heavy 25 -> 1.2 s, medium 33 -> 0.91 s, light 46 -> 0.65 s; was interval x 1.2)
         const p2 = load();
         chamber(g.tu, [p2], "load");
         const second = run(g.bt, 3).find((x) => x.pr.payload.id === p2.id)!;
-        expect(second.t - TICK).toBeCloseTo(g.tu.interval * 1.2, 1);
+        expect(second.t - TICK).toBeCloseTo(at(g.tu.def.speed, start), 1);
       }
     });
 

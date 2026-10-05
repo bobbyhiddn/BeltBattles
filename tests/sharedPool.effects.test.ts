@@ -136,7 +136,15 @@ function decks(hero: HeroId, d: ItemDef): [Build, Build] {
   }
   if (d.id === "sifter") tiles = later(before, 0); // marks picked up anywhere upstream reach it
   if (d.id === "lodestone" || d.id === "spotter") rig(before, "coil", 900);
-  if (d.kind === "mod" && ["chamber", "calibrate", "escapement"].includes(d.id) && hero !== "metronome") {
+  // NUM-2 (REQ-BFG-047; was `hero !== "metronome"` for all three): METRONOME's CALIBRATION is audited on the busy gun
+  // too. Its starting gun waits for its loads (CLOCKWORKS 23 = a slug every 30 / 23 = 1.30 s; the gun 30 / 43 = 0.70 s,
+  // 30 / 57 = 0.53 s with CALIBRATION ★1), so CALIBRATION only brings each two-slug volley's second shot 0.17 s sooner.
+  // The base passed on the 18 s cutoff splitting the 6th volley (the bought gun's 12th shot at 17.983 s, the base's at
+  // 18.150 s: shots 11 -> 12, payloadSum 704 -> 768); CLOCKWORKS's rounded speed with its carried stamp timer (a 79-tick
+  // cycle every 4th slug, was 78 ticks every one) brings those shots 2 ticks later (18.017 / 18.183 s), so in 18 s
+  // nothing changed (11 shots, 640 damage both). The equivalent check is the other heroes' (and STEAM BREECH's, oracle
+  // f77882b58164404e): a SHOT TOWER keeps the gun busy (shots 17 -> 28 in 18 s)
+  if (d.kind === "mod" && ["chamber", "calibrate", "escapement"].includes(d.id) && (hero !== "metronome" || d.id === "calibrate")) {
     before = boughtFactory(hero, "shottower");
   }
   if (d.kind === "mod" && d.id === "hopper") {

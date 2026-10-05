@@ -308,10 +308,14 @@ describe("0.6.2 CAND-A: the rating reads turrets and joins as the battle fights 
   });
 
   it("an installed turret at its stars, in any slot, the extra slot's gun and E1 over a joined journey", () => {
-    // a saturated FURNACE deck (F0, no long belt): a 2-star SCRAP CANNON fires every 0.9 s, so the deck rates higher
+    // a saturated FURNACE deck (F0, no long belt): a 2-star SCRAP CANNON fires 33 shots a 30 s (every 30 / 33 = 0.91 s;
+    // NUM-2, was every 0.9 s), so the deck rates higher
     const f0 = JOIN_LAYOUTS.F0(5), two = cloneBuild(f0);
     setTurretList(two, [{ slot: 0, def: "scrapcannon", uid: 90, stars: 2, free: true }]); // the starting copy merged once
-    expect(installedTurrets(two)[0].td.fireInterval).toBeCloseTo(0.9, 9);
+    // NUM-2 (REQ-BFG-047; was td.fireInterval close to 0.9): the TurretDef carries the ★2 speed from the data, 33 =
+    // roundHalfUp(30 / 0.9) (the ★2 base interval, tests/fixtures/num2-base-intervals.json), not ★1's 30
+    expect(installedTurrets(two)[0].td.speed).toBe(ITEMS.scrapcannon.levels?.[2]?.turret?.speed);
+    expect(installedTurrets(two)[0].td.speed).toBe(Math.floor(30 / 0.9 + 0.5)); // NUM-2: 33 (was 0.9 s)
     expect(rateDeck(two).value).toBeGreaterThan(rateDeck(f0).value);
     // the PRESS's belt into a gun in the extra slot instead of the saturated SCRAP CANNON: two guns rate higher
     const extra = cloneBuild(f0);
@@ -320,7 +324,8 @@ describe("0.6.2 CAND-A: the rating reads turrets and joins as the battle fights 
     expect(validateBuild(extra, 10).errors).toEqual([]);
     expect(fed(extra)).toEqual(new Set([0, 1]));
     expect(rateDeck(extra).value).toBeGreaterThan(rateDeck(f0).value);
-    // E1: F1's joined journey (2 + 6 = 8 tiles) is a long belt, so its breech fires every 0.72 s like F0L's 8-tile belt
+    // E1: F1's joined journey (2 + 6 = 8 tiles) is a long belt, so its breech fires every 0.71 s like F0L's 8-tile belt
+    // (NUM-2: +39% rate, 30 x 1.39 = 41.7 -> 42 shots a 30 s; was x0.72 = 0.72 s)
     const noE1 = cloneBuild(JOIN_LAYOUTS.F1(5));
     noE1.routes[0] = { factory: 1, cells: FM };
     expect(HERO_DEFS.furnace.factory).toBe("kiln");

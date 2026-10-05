@@ -79,10 +79,14 @@ describe("METRONOME pendulum curve", () => {
   });
 
   it("the timing mods have useful effects on other ammo without changing the pendulum curve", () => {
-    expect(ITEMS.escapement.mod).toEqual({ fireMul: 0.9 });
+    // NUM-2 (REQ-BFG-047): ESCAPEMENT's interval share is a whole rate % (fireMul -> fireRate, the base's m converted as
+    // roundHalfUp(100 / m - 100), tests/fixtures/num2-base-intervals.json): 11 / 16 / 22 (was fireMul 0.9 / 0.86 / 0.82)
+    const rate = (m: number) => roundHalfUp(100 / m - 100);
+    expect(ITEMS.escapement.mod).toEqual({ fireRate: rate(0.9) }); // NUM-2 (was { fireMul: 0.9 })
     expect(ITEMS.longcase.mod).toEqual({ longRideFlat: 15, longRideMin: 2 }); // NUM-1: the flat x10 (was 1.5); 2 s of ride is a time
-    expect(ITEMS.escapement.levels?.[2]?.mod?.fireMul).toBe(0.86);
-    expect(ITEMS.escapement.levels?.[3]?.mod?.fireMul).toBe(0.82);
+    expect(ITEMS.escapement.levels?.[2]?.mod?.fireRate).toBe(rate(0.86)); // NUM-2: 16 (was fireMul 0.86)
+    expect(ITEMS.escapement.levels?.[3]?.mod?.fireRate).toBe(rate(0.82)); // NUM-2: 22 (was fireMul 0.82)
+    expect([1, 2, 3].map((s) => effectAt("escapement", s).mod?.fireRate)).toEqual([11, 16, 22]); // NUM-2: the literals
     expect(ITEMS.longcase.levels?.[2]?.mod?.longRideFlat).toBe(25); // NUM-1: x10 (was 2.5)
     expect(ITEMS.longcase.levels?.[3]?.mod?.longRideFlat).toBe(40); // NUM-1: x10 (was 4)
     expect(ITEMS.escapement.desc.join(" ")).toContain("FIRES 10% FASTER");

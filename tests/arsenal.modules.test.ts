@@ -12,7 +12,7 @@ import { barge, bench, busy, coilStall, est, finishers, pressDps, pressOnly, raw
 import { pct } from "../src/sim/pct"; // NUM-1 (REQ-BFG-047): the sim's one % rule (FINISHER RAM below)
 import { batchGaps, factoryBench, factoryLight, factoryOut, gantryBench, gantryWeaver, stamps } from "./arsenal.bench"; // 0.6.1c
 import type { Payload } from "../src/sim/battle";
-import { AMMO_SPACING, BELT_SPEED } from "../src/sim/content";
+import { AMMO_SPACING, BELT_SPEED, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): secPer, a factory's cycle 30 / speed
 import { effectAt, outputsAt, starsOf } from "../src/sim/stars";
 import { overclocked } from "../src/sim/overclock";
 import { routeProblems } from "../src/game/routeCheck";
@@ -369,7 +369,8 @@ describe("0.6.1c: the six factories' special rules", () => {
       while (bt.t < 1 && !first) { bt.step(); first = bt.drainEvents().some((e) => e.type === "produce" && e.side === 0); }
       expect(bt.sides[0].factories.find((f) => f.uid === 7)!.pending, `${s}: queued in the mouth`).toBe(batch - 1);
       const o = factoryOut("doublestamp", s);
-      const gaps = batchGaps(o, effectAt("doublestamp", s).factory!.interval);
+      // NUM-2 (REQ-BFG-047): the cycle is secPer(speed) = 30 / speed (14 / 19 / 19: 2.14 / 1.58 / 1.58 s; was .interval 2.2 / 1.6 / 1.6)
+      const gaps = batchGaps(o, secPer(effectAt("doublestamp", s).factory!.speed));
       const cycles = o.produced - gaps.length;
       expect(gaps.length, `${s} gaps`).toBeGreaterThanOrEqual((batch - 1) * (cycles - 1));
       for (const g of gaps) expect(Math.abs(g - SPACING_S), `${s} gap ${g}`).toBeLessThan(1.5 / 60);
@@ -381,7 +382,8 @@ describe("0.6.1c: the six factories' special rules", () => {
     expect([1, 2, 3].map((s) => factoryOut("shottower", s).bases)).toEqual([1, 2, 3].map((v) => [10 * v])); // NUM-1: x10 (was 1 / 2 / 3)
     for (const s of [1, 2, 3]) {
       const o = factoryOut("shottower", s);
-      expect(o.produced - batchGaps(o, effectAt("shottower", s).factory!.interval).length, `${s}: cycles`).toBe(Math.ceil(o.produced / 3));
+      // NUM-2 (REQ-BFG-047): the cycle is secPer(speed) = 30 / speed (20 / 22 / 23; was .interval 1.5 / 1.35 / 1.3)
+      expect(o.produced - batchGaps(o, secPer(effectAt("shottower", s).factory!.speed)).length, `${s}: cycles`).toBe(Math.ceil(o.produced / 3));
     }
     let processed = 0, fired = 0;
     const burns = new Set<number>(), seen = new Set<number>();
@@ -409,7 +411,9 @@ describe("0.6.1c: the six factories' special rules", () => {
         expect(p.preset, `${s} #${i}`).toBe(ember ? "ember" : "spark");
         expect([p.burn, p.shock, p.shockTime, p.jump]).toEqual(ember ? [burn[s - 1], false, undefined, undefined] : [0, true, stall[s - 1], jump[s - 1]]);
       });
-      const t = factoryOut("hotswap", s).times, iv = effectAt("hotswap", s).factory!.interval;
+      // NUM-2 (REQ-BFG-047): the cycle is secPer(speed) = 30 / speed (20 / 23 / 27: 1.5 / 1.304 / 1.111 s; was .interval
+      // 1.5 / 1.3 / 1.1). The stamp timer carries its remainder, so a gap is the whole ticks either side of it (within 1 tick)
+      const t = factoryOut("hotswap", s).times, iv = secPer(effectAt("hotswap", s).factory!.speed);
       for (let i = 1; i < t.length; i++) expect(Math.abs(t[i] - t[i - 1] - iv)).toBeLessThan(1.5 / 60);
     }
     expect(DISRUPT_TIME).toBe(1.6);

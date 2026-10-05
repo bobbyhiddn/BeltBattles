@@ -112,17 +112,19 @@ describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
     // 0.6.2rel (REQ-BFG-032): the glossary's turret block (abilityText.ts); the seconds as words at most two decimals
     // (0.495 reads 0.49); merge progress is its own sentence on the panel ("1 MORE COPY TO MERGE."), not in the
     // next-star line; the catalogue's reason line isn't shown (it repeats these facts at 1 star)
+    // NUM-2 (REQ-BFG-047): the seconds are 30 / speed (the faces keep SEC): ★2 BOMBARD speed 33, 30 / 33 = 0.909 reads 0.91
+    // (was 0.9); ★3 THUNDERER speed 47 against ★1 38, 47 / 38 = 1.237: 24% FASTER (was 0.8 / 0.64 = 1.25, 25%)
     expect(turretFacts("bombard", 1)).toEqual([
       "A HEAVY TURRET THAT FIRES EVERY 1 SECOND AND HOLDS 4 LOADS.",
       "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.",
       "IT HAS 2 GEAR SLOTS AND 1 CORE SOCKET.",
       "ITS SHOTS LAND 0.6 SECONDS AFTER IT FIRES.",
-      "NEXT STAR: FIRES EVERY 0.9 SECONDS, 3 GEAR SLOTS.",
+      "NEXT STAR: FIRES EVERY 0.91 SECONDS, 3 GEAR SLOTS.", // NUM-2 (was "0.9 SECONDS")
     ]);
     expect(turretFacts("dartgun", 2).slice(0, 2)).toEqual(["A LIGHT TURRET THAT FIRES EVERY 0.49 SECONDS AND HOLDS 2 LOADS.", "IT FIRES 11% FASTER THAN AT 1 STAR."]);
     expect(turretFacts("dartgun", 2)).toContain("NEXT STAR: FIRES EVERY 0.44 SECONDS, 3 GEAR SLOTS.");
     expect(turretFacts("thunderer", 3)).toEqual([
-      "A HEAVY TURRET THAT FIRES EVERY 0.64 SECONDS AND HOLDS 4 LOADS.", "IT FIRES 25% FASTER THAN AT 1 STAR.",
+      "A HEAVY TURRET THAT FIRES EVERY 0.64 SECONDS AND HOLDS 4 LOADS.", "IT FIRES 24% FASTER THAN AT 1 STAR.", // NUM-2 (was 25%)
       "IT TAKES A BELT ON EACH OF ITS TWO COLUMNS.", "IT HAS 6 GEAR SLOTS AND 1 CORE SOCKET.", "ITS SHOTS LAND 0.5 SECONDS AFTER IT FIRES.",
     ]);
     expect(turretFacts("spikegun", 1)).toContain("IT TAKES A BELT ON ITS INNER COLUMN ONLY.");

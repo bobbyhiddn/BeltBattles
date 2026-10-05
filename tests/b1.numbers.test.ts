@@ -2,7 +2,7 @@
 // in a battle or on the card. The before -> after and the measurements are in output-B1/REPORT.md (the number table).
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
-import { ITEMS } from "../src/sim/content";
+import { ITEMS, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): secPer, a factory's cycle 30 / speed
 import { key as K, walkRoute, type Build } from "../src/sim/deck";
 import { effectAt } from "../src/sim/stars";
 import { abilityText, gist, nextStarText } from "../src/ui/abilityText";
@@ -51,11 +51,13 @@ describe("B1 M2: OVERDRIVE ★2 REDLINE (oracle 1cd5224fab866da2 (A))", () => {
 
 describe("B1 M2: ASSEMBLY LINE ★2/★3 pour heavier slugs at the 1-star pace (KNOWN_FALLS emptied)", () => {
   it("stamps every 1.8 s at every star, with base 3 / 4.5 / 6, so a busy gun's chamber never gets more loads than at ★1", () => {
-    expect([1, 2, 3].map((s) => effectAt("assembly", s).factory!.interval)).toEqual([1.8, 1.8, 1.8]);
+    // NUM-2 (REQ-BFG-047): one speed at every star, roundHalfUp(30 / 1.8 = 16.67) = 17 (was interval [1.8, 1.8, 1.8])
+    expect([1, 2, 3].map((s) => effectAt("assembly", s).factory!.speed)).toEqual([17, 17, 17]);
     // NUM-1: x10 (was ?? 3 and 3 / 4.5 / 6; the ★1 line pours plain slugs at AMMO.plain.base, 3 -> 30)
     expect([1, 2, 3].map((s) => effectAt("assembly", s).factory!.base ?? 30)).toEqual([30, 45, 60]);
     expect([1, 2, 3].map((s) => effectAt("assembly", s).factory!.commission)).toEqual([0.5, 0.25, 0]);
-    // in a battle: the ★3 line's slugs are base 60 plain slugs (NUM-1: x10, was 6), one every 1.8 s once it runs
+    // in a battle: the ★3 line's slugs are base 60 plain slugs (NUM-1: x10, was 6), one every 30 / 17 = 1.76 s once it runs
+    // (NUM-2: was 1.8 s)
     const b: Build = { ...bench(), items: [{ uid: 1, def: "kiln", x: 0, y: 8 }, { uid: 2, def: "assembly", x: 4, y: 6, stars: 3 }], routes: [{ factory: 2, cells: [K(4, 5), K(4, 4), K(4, 3), K(4, 2), K(4, 1), K(4, 0)] }] };
     const bt = new Battle(b, barge(), SEED);
     const t: number[] = [];
@@ -64,7 +66,10 @@ describe("B1 M2: ASSEMBLY LINE ★2/★3 pour heavier slugs at the 1-star pace (
       for (const e of bt.drainEvents()) if (e.type === "produce" && e.side === 0 && e.factory === 2) t.push(bt.t);
     }
     expect(t.length).toBeGreaterThan(4);
-    t.slice(1).forEach((x, i) => expect(Math.abs(x - t[i] - 1.8)).toBeLessThan(2 / 60));
+    // NUM-2 (REQ-BFG-047): the cycle is secPer(17) = 1.765 s (was 1.8); the carried stamp timer stamps on the tick at or after
+    // each 30 / 17 s, so a gap is 105 or 106 ticks (1.75 / 1.767 s), within the same 2 ticks
+    const cycle = secPer(effectAt("assembly", 3).factory!.speed);
+    t.slice(1).forEach((x, i) => expect(Math.abs(x - t[i] - cycle)).toBeLessThan(2 / 60));
     const slugs = bt.sides[0].routes[0].ammo.map((a) => a.p);
     expect(slugs.length).toBeGreaterThan(0);
     for (const p of slugs) expect(p.base).toBe(60); // NUM-1: x10 (was 6)

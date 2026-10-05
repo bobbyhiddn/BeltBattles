@@ -161,7 +161,13 @@ describe("FOUNDRY on today's rules", () => {
     const fired = shots(bt, 30);
     expect(bt.sides[0].race!.foundry.fusions).toBeGreaterThan(5);
     expect(fired.some((s) => s.ammo === "plain")).toBe(true);
-    expect(fired.filter((s) => s.ammo === "alloy").length).toBe(bt.sides[0].race!.foundry.fusions);
+    // NUM-2 (REQ-BFG-047): EQUIVALENT check of the same 1:1 (was: alloy fired toBe(fusions), 17 = 17 at 30 s). The Crucible
+    // pours every 30 / 19 = 1.58 s now (94 / 95 ticks, its stamp timer carried; was 1.6 s, reset to 97 ticks), so the 18th
+    // fusion lands at 29.78 s (was 30.43 s), inside the 30 s, and its alloy still waits in gun 1's loading window at 30 s (it
+    // fires at 31.2 s). Every fusion is one alloy slug, fired or held in a chamber: measured 17 fired + 1 held = 18 fusions
+    const held = bt.sides[0].turrets.flatMap((tu) => [...tu.stack, ...tu.store]).filter((p) => p.ammo === "alloy").length;
+    expect(held).toBe(1); // NUM-2: measured (was 0: every fusion's alloy fired by 30 s)
+    expect(fired.filter((s) => s.ammo === "alloy").length + held).toBe(bt.sides[0].race!.foundry.fusions);
   });
 });
 

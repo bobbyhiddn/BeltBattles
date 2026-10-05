@@ -48,17 +48,19 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
   it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
     const guns = SOLD.filter((d) => d.kind === "turret");
     const at = (id: string, s: number) => effectAt(id, s).turret!;
+    // NUM-2 (REQ-BFG-047, EQUIVALENT): "fires more often" is the greater speed, shots per 30 s (its interval 30 / speed is
+    // the shorter); was the shorter fireInterval (toBeLessThan)
     for (const s of STARS) {
       // RAMPART CANNON: the quickest heavy gun at its star, and the slowest shell of any gun
       const heavy = guns.filter((d) => d.id !== "rampart" && at(d.id, s).class === "heavy");
       expect(heavy.length, `★${s}`).toBe(4);
-      for (const d of heavy) expect(at("rampart", s).fireInterval, `★${s} ${d.id}`).toBeLessThan(at(d.id, s).fireInterval);
+      for (const d of heavy) expect(at("rampart", s).speed, `★${s} ${d.id}`).toBeGreaterThan(at(d.id, s).speed);
       for (const d of guns.filter((x) => x.id !== "rampart")) expect(at("rampart", s).flight, `★${s} ${d.id}`).toBeGreaterThan(at(d.id, s).flight);
       // HAIL GUN: no gun at the same star fires as often
-      for (const d of guns.filter((x) => x.id !== "hailgun")) expect(at("hailgun", s).fireInterval, `★${s} ${d.id}`).toBeLessThan(at(d.id, s).fireInterval);
+      for (const d of guns.filter((x) => x.id !== "hailgun")) expect(at("hailgun", s).speed, `★${s} ${d.id}`).toBeGreaterThan(at(d.id, s).speed);
     }
-    // ...but not across stars: a ★3 DART GUN fires more often than a ★1 HAIL GUN, so the claim names the star
-    expect(at("dartgun", 3).fireInterval).toBeLessThan(at("hailgun", 1).fireInterval);
+    // ...but not across stars: a ★3 DART GUN fires more often than a ★1 HAIL GUN, so the claim names the star (NUM-2: 68 > 67)
+    expect(at("dartgun", 3).speed).toBeGreaterThan(at("hailgun", 1).speed);
     for (const id of ["quench", "surge", "hopper", "mantlet"]) expect(KEPT_FLAVOUR[id], id).toEqual([]);
   });
 

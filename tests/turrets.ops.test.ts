@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle, gearStats, simulate, turretAt, FURNACE_LONG_BELT } from "../src/sim/battle";
 import { ITEMS } from "../src/sim/content";
+import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): SPEED, whole rate %s
 import {
   canFitGear, cloneBuild, deadEndsAt, gearOn, gearSlotsAt, installTurret, installedTurrets, moveTurret, removeTurret,
   routeInfo, setTurretList, startingTurrets, turretSlots, type Build,
@@ -57,7 +58,8 @@ describe("0.6.2s turret slots: battle (S9)", () => {
     expect(deadEndsAt(b, 1)).toEqual([]);
     const bt = new Battle(b, heroStartBuild("weaver"), 3);
     expect(bt.sides[0].turrets.map((t) => t.index)).toEqual([0, 1]);
-    expect(turretAt(bt.sides[0], 1)!.def.fireInterval).toBe(ITEMS.carronade.turret!.fireInterval);
+    // NUM-2 (REQ-BFG-047): speed (was fireInterval, undefined on both sides since 4db2ed0, so it passed vacuously)
+    expect(turretAt(bt.sides[0], 1)!.def.speed).toBe(ITEMS.carronade.turret!.speed);
     const n = fires(b, heroStartBuild("weaver"), 3);
     expect(n.get(1) ?? 0).toBeGreaterThan(0);
     expect(n.get(0) ?? 0).toBeGreaterThan(0);
@@ -78,13 +80,24 @@ describe("0.6.2s turret slots: battle (S9)", () => {
     const ref = heroRefBuild7();
     const bt = new Battle(ref, heroStartBuild("weaver"), 1);
     const t0 = turretAt(bt.sides[0], 0)!;
-    expect(FURNACE_LONG_BELT).toBe(0.72);
+    // NUM-2 (REQ-BFG-047, N1 2.3): the long belt is a whole rate % on the speed, +39 (was 0.72, the interval x), in the
+    // turret's one rounding (Battle.makeTurret). EQUIVALENT check of that form: ANY turret's unrounded speed is its speed x
+    // rateMul(39) x its gear's speedMul (12 digits, as the interval was), its whole speed that rounded half up once, its
+    // interval 30 / speed: SCRAP CANNON 30 x 1.39 = 41.7 -> 42, every 0.714 s (was 0.72 s); RAMPART 40 x 1.39 = 55.6 -> 56,
+    // every 0.536 s (was 0.75 x 0.72 = 0.54 s)
+    expect(FURNACE_LONG_BELT).toBe(39); // NUM-2 (was 0.72)
+    const roundHalfUp = (x: number): number => Math.floor(x + 0.5 + 1e-9); // the sim's one rounding (src/sim/pct.ts)
     const g = gearStats(ref, 0);
-    expect(t0.interval).toBeCloseTo(1.0 * 0.72 * g.fireMul, 12);
+    expect(t0.speedRaw).toBeCloseTo(ITEMS.scrapcannon.turret!.speed * rateMul(FURNACE_LONG_BELT) * g.speedMul, 12); // NUM-2 (was t0.interval, 1.0 x 0.72 x g.fireMul)
+    const s0 = roundHalfUp(ITEMS.scrapcannon.turret!.speed * rateMul(FURNACE_LONG_BELT) * g.speedMul);
+    expect([t0.speed, t0.interval]).toEqual([s0, secPer(s0)]);
     const swapped = cloneBuild(ref);
     installTurret(swapped, { uid: 600, def: "rampart" }, 0);
     const bt2 = new Battle(swapped, heroStartBuild("weaver"), 1);
-    expect(turretAt(bt2.sides[0], 0)!.interval).toBeCloseTo(0.75 * 0.72 * gearStats(swapped, 0).fireMul, 12);
+    const t2 = turretAt(bt2.sides[0], 0)!, g2 = gearStats(swapped, 0);
+    expect(t2.speedRaw).toBeCloseTo(ITEMS.rampart.turret!.speed * rateMul(FURNACE_LONG_BELT) * g2.speedMul, 12); // NUM-2 (was the interval, 0.75 x 0.72 x fireMul)
+    const s2 = roundHalfUp(ITEMS.rampart.turret!.speed * rateMul(FURNACE_LONG_BELT) * g2.speedMul);
+    expect([t2.speed, t2.interval]).toEqual([s2, secPer(s2)]);
   });
 });
 
