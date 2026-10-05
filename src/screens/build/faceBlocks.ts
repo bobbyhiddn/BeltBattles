@@ -12,6 +12,7 @@ import { livePerk } from "../../ui/abilityText";
 import { Y2_PIECES } from "../../ui/faces"; // Y2 (release Y): the STUN pieces whose perk names go to the ⓘ view
 import { Y3_PIECES } from "../../ui/faces"; // Y3 (release Y): the 13 rigs whose perk names go to the ⓘ view
 import { Y4_PIECES } from "../../ui/faces"; // Y4 (release Y): the 4 gear and 4 cores whose perk names go to the ⓘ view
+import { Y5_PIECES } from "../../ui/faces"; // Y5 (release Y): the crit-free one-liners whose perk names go to the ⓘ view
 import { starRules } from "../../sim/content"; // Y2: the star switch
 
 /** The reminder's rank among a panel's optional blocks: after an ability's later sentences (2) and a turret's notes'
@@ -33,8 +34,10 @@ export const PERK_INFO_ONLY: readonly string[] = ["coil", "frostbite", "mimic", 
 export function perkInfoOnly(def: string): boolean {
   // Y3 (release Y; ruling R-1, DESIGN-Y rows 20-32): and the 13 rigs (faces.ts Y3_PIECES: HOT SHOE, RED-HOT SHOE, RAZOR
   // WIRE, OVERPRESSURE, HAMMER VALVE, HOT START). Y4 (DESIGN-Y rows 33-40): and the 4 gear and 4 cores (faces.ts Y4_PIECES:
-  // BOTTOMLESS, WIDE BREECH, TRIPLE BREECH, GREASED RACE, CLEAN FEED)
-  return PERK_INFO_ONLY.includes(def) || (starRules() && (Y2_PIECES.includes(def) || Y3_PIECES.includes(def) || Y4_PIECES.includes(def)));
+  // BOTTOMLESS, WIDE BREECH, TRIPLE BREECH, GREASED RACE, CLEAN FEED). Y5 (DESIGN-Y rows 41-47): and the crit-free
+  // one-liners (faces.ts Y5_PIECES: LONGCASE's DEEP WIND and FULL WIND, POWDER KEG's WIDE BLAST)
+  return PERK_INFO_ONLY.includes(def) ||
+    (starRules() && (Y2_PIECES.includes(def) || Y3_PIECES.includes(def) || Y4_PIECES.includes(def) || Y5_PIECES.includes(def)));
 }
 
 /** The face's blocks at `stars`, or null for a piece that keeps today's text. A star's perk name follows the last rule

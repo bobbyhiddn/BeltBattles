@@ -282,7 +282,7 @@ export interface TurretState {
   pairing?: boolean; // E2: it holds a pair reader (TWIN TRIGGER, SEAM WELDER), so its loads are marked as pairs
   pairBonus?: number; // TWIN TRIGGER: a paired load deals this share more damage
   seam?: { pair: number; lone: number }; // SEAM WELDER: plating for each pairing load, and for each other load
-  spall?: { every: number; add: number; max: number }; // SPALL CATCHER
+  spall?: { every: number; add: number; max?: number }; // SPALL CATCHER (Y5: no max with the star switch on)
   spallCharge?: number; // SPALL CATCHER: damage waiting for its next shot
   plated?: boolean; // STEAM BREECH: your hull holds plating this tick (Battle.chambers)
   runeFired?: boolean; // RUNES-1: it has fired this battle (SHARP SCRAP's first shot); set only on a side with runes
@@ -1557,13 +1557,15 @@ export class Battle {
   }
 
   /** SPALL CATCHER: damage that lands on side s charges each of its turrets carrying one: add x (the hull's part + twice
-   *  what plating soaked) / every, up to max. The dark wind never comes through here (hullEffects' wind line). */
+   *  what plating soaked) / every, up to max. The dark wind never comes through here (hullEffects' wind line).
+   *  Y5 (release Y; DESIGN-Y row 47): with the star switch on a PLATE soak counts once, and there is no cap (its def holds no
+   *  max: content.ts STAR_DIFF); off, as before. */
   private spallCharge(s: SideState, hull: number, plate: number): void {
-    const taken = hull + 2 * plate;
+    const taken = hull + (starRules() ? 1 : 2) * plate;
     if (!(taken > 0)) return;
     for (const tu of s.spall!) {
       const sp = tu.spall!;
-      tu.spallCharge = Math.min(sp.max, (tu.spallCharge ?? 0) + (sp.add * taken) / sp.every);
+      tu.spallCharge = Math.min(sp.max ?? Infinity, (tu.spallCharge ?? 0) + (sp.add * taken) / sp.every);
     }
   }
 
@@ -1670,8 +1672,9 @@ export class Battle {
       p.flat += Math.min(e.perStalled.max, stalled * e.perStalled.each);
     }
     if (e.fray) { p.fray = (p.fray ?? 0) + e.fray; p.frayCap = Math.max(p.frayCap ?? 0, e.frayCap ?? 0); }
-    // 0.6.2j (J14 (a)): COUNTERWEIGHT counts the tiles ridden on the payload's own journey
-    if (e.perTile) p.flat += Math.min(e.perTile.max, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each);
+    // 0.6.2j (J14 (a)): COUNTERWEIGHT counts the tiles ridden on the payload's own journey. Y5 (release Y; DESIGN-Y row 41):
+    // with the star switch on its def has no `max` (content.ts STAR_DIFF), so every tile counts; off, its cap, as before
+    if (e.perTile) p.flat += Math.min(e.perTile.max ?? Infinity, (p.journeyOffset === undefined ? a.processed : a.processed + p.journeyOffset) * e.perTile.each);
     if (e.shock) {
       p.shock = true;
       // 0.6.1p: GALVANIC COIL ★2/★3: the longest stall and jump passed wins (a 1-star coil sets neither)
@@ -1752,8 +1755,10 @@ export class Battle {
       tu.waiting = waiting;
       if (waiting > s.stats.maxQueue) s.stats.maxQueue = waiting;
       if (tu.disrupted > 0 || tu.frozen > 0) continue;
+      // Y5 (release Y; DESIGN-Y row 42): with the star switch on CAPACITOR BANK's def has no maxSeconds (content.ts STAR_DIFF):
+      // it charges for as long as its chamber sits empty; off, up to maxSeconds (5 s), as before
       if (tu.core.routine === "capacitor" && tu.stack.length === 0)
-        tu.charge = Math.min(tu.core.spec.maxSeconds ?? 5, tu.charge + dt);
+        tu.charge = Math.min(tu.core.spec.maxSeconds ?? (starRules() ? Infinity : 5), tu.charge + dt);
       // NUM-2 (REQ-BFG-047, N1 2.2): the shot timer carries its remainder (it stops within a tick below 0, and a shot adds
       // the next interval to it), so an over-fed turret's long-run rate is exactly speed / 30 a second (was a clamp at 0)
       if (tu.fireCd > 0) tu.fireCd -= dt;
@@ -2684,7 +2689,7 @@ export interface GearStats {
   // 0.8.0 P1, wave 3's gear (pairBonus 0 and the rest absent without it):
   pairBonus: number; // TWIN TRIGGER
   seam?: { pair: number; lone: number }; // SEAM WELDER
-  spall?: { every: number; add: number; max: number }; // SPALL CATCHER
+  spall?: { every: number; add: number; max?: number }; // SPALL CATCHER (Y5: no max with the star switch on)
   // SUS-A (REQ-BFG-069; absent without them):
   shield?: { every: number; amount: number }; // WARD BELL
   regen?: number; // MENDING LOOM

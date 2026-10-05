@@ -146,7 +146,9 @@ export interface GateEffect {
   perStalled?: { each: number; max: number };
   fray?: number;
   frayCap?: number;
-  perTile?: { each: number; max: number };
+  // COUNTERWEIGHT: + each for each tile the payload has ridden, at most max. Y5 (release Y; DESIGN-Y row 41): with the star
+  // switch on no `max` (STAR_DIFF): the cap goes
+  perTile?: { each: number; max?: number };
   // 0.8.0 P1, wave 3 (output-D1/DESIGN-wave3.md 3.3; absent on every older rig, so they fight exactly as before):
   plate?: number; // PLATE ROLLER, SHIELD WALL: plating onto your hull for each payload it hits (E1, Battle.addPlate)
   plated?: { min: number; flat: number }; // SHIELD WALL: + flat on those payloads while your hull holds `min` plating or more
@@ -237,7 +239,7 @@ export interface ModSpec {
   alwaysMachine?: boolean;
   // 0.8.0 P1, wave 3 (absent on every older mod; TWIN TRIGGER's shorter load time is a negative windowTime above):
   pairBonus?: number; // TWIN TRIGGER: paired loads (E2) deal this share more damage
-  spall?: { every: number; add: number; max: number }; // SPALL CATCHER: every `every` damage taken adds `add` to the next shot, up to `max`
+  spall?: { every: number; add: number; max?: number }; // SPALL CATCHER: every `every` damage taken adds `add` to the next shot, up to `max` (Y5, DESIGN-Y row 47: no `max` with the star switch on)
   seam?: { pair: number; lone: number }; // SEAM WELDER: plating for each pair this turret takes, and for each other load
   // SUS-A (REQ-BFG-069; absent on every older mod):
   shield?: { every: number; amount: number }; // WARD BELL: + `amount` SHIELD every `every` s (TurretState.bell), the first at t = every
@@ -280,7 +282,7 @@ export interface CoreSpec {
   arcs?: number; // TESLA nearest machine targets
   stall?: number; // TESLA stall seconds
   perSecond?: number; // CAPACITOR flat per idle second
-  maxSeconds?: number;
+  maxSeconds?: number; // CAPACITOR: it charges for at most this long (Y5, DESIGN-Y row 42: absent with the star switch on, no cap)
   mult?: number; // COMPOUND combined shell multiplier
   hold?: number; // COMPOUND maximum window seconds
   columns?: number; // LANCE struck deck columns
@@ -1319,6 +1321,18 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   // row 40, DRAKE NOZZLE: addBurn, burnTime and flightMul go (no free BURN, the BURN lasts BURN_TIME, the shot flies as any);
   // each 10/7/5 of a shot's bonus damage is 1 BURN (flatPerBurn)
   drake: { core: { routine: "drake", flatPerBurn: 10 }, levels: { 2: { core: { flatPerBurn: 7 } }, 3: { core: { flatPerBurn: 5 } } } },
+  // ---- Y5 (DESIGN-Y section 3, rows 41-47: the crit-free one-liners, one number each; REVIEW-STARD answer 2: no crit or
+  // ramp; answer 4: the caps go). LONGCASE (row 43) and FINISHER RAM (row 44) change no data
+  // row 41, COUNTERWEIGHT: the cap goes (no `max`; was 60/130/210); +5/+11/+18 for each tile the slug has ridden
+  counterweight: { gate: { perTile: { each: 5 } }, levels: { 2: { gate: { perTile: { each: 11 } } }, 3: { gate: { perTile: { each: 18 } } } } },
+  // row 42, CAPACITOR BANK: the 5 s cap goes (no `maxSeconds`; battle.ts chambers charges for as long as the chamber sits
+  // empty); +20/+44/+70 for each second
+  capacitor: { core: { routine: "capacitor", perSecond: 20 } },
+  // row 47, SPALL CATCHER: the cap goes (no `max`; was 80/176/280); a PLATE soak counts once (battle.ts spallCharge)
+  spallcatcher: {
+    mod: { spall: { every: 40, add: 10 } },
+    levels: { 2: { mod: { spall: { every: 40, add: 22 } } }, 3: { mod: { spall: { every: 40, add: 35 } } } },
+  },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */

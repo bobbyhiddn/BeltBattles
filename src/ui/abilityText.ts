@@ -621,8 +621,9 @@ const ENTRIES: Record<string, Entry> = {
     gist: (e) => `ADDS ${g(e).fray} FRAY${g(e).frayCap ? `, UP TO ${FRAY_MAX + g(e).frayCap!} FRAY` : ""}`,
   },
   counterweight: {
-    text: (e) => [`ADDS ${damage(g(e).perTile!.each)} FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN, UP TO ${damage(g(e).perTile!.max)}.`],
-    gist: (e) => `${damage(g(e).perTile!.each)} FOR EACH TILE, UP TO ${damage(g(e).perTile!.max)}`,
+    // Y5 (release Y; DESIGN-Y row 41): with the star switch on there is no cap (its def has no max: content.ts STAR_DIFF)
+    text: (e) => [`ADDS ${damage(g(e).perTile!.each)} FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN${starRules() ? "" : `, UP TO ${damage(g(e).perTile!.max!)}`}.`],
+    gist: (e) => `${damage(g(e).perTile!.each)} FOR EACH TILE${starRules() ? "" : `, UP TO ${damage(g(e).perTile!.max!)}`}`,
     card: (e) => `${damage(g(e).perTile!.each)} FOR EACH TILE RIDDEN`,
   },
   // ------------------------------------------------------------------------------------------------------ factories
@@ -1017,10 +1018,11 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "SHOTS ARC AND STUN MACHINES",
   },
   capacitor: {
-    // Battle.chambers: charge while the chamber is empty (up to maxSeconds), spent on the next shot
+    // Battle.chambers: charge while the chamber is empty (up to maxSeconds), spent on the next shot. Y5 (release Y; DESIGN-Y
+    // row 42): with the star switch on there is no cap, so the cap's sentence goes
     text: (e, x) => [
       `CHARGES ITS NEXT SHOT ${damage(c(e, x).perSecond!)} FOR EACH SECOND ITS CHAMBER SITS EMPTY.`,
-      `IT CHARGES FOR UP TO ${seconds(c(e, x).maxSeconds!)}.`,
+      ...(starRules() ? [] : [`IT CHARGES FOR UP TO ${seconds(c(e, x).maxSeconds!)}.`]),
     ],
     gist: (e, x) => `${damage(c(e, x).perSecond!)} FOR EACH EMPTY SECOND`,
     card: () => "CHARGES UP WHILE EMPTY",
@@ -1320,12 +1322,19 @@ const ENTRIES: Record<string, Entry> = {
     // burn and poison (never the dark wind); Battle.fire / fireCore add it to this turret's next shot
     text: (e) => {
       const sp = m(e).spall!;
+      // Y5 (release Y; DESIGN-Y row 47): with the star switch on there is no cap, and what plating soaks counts once
+      if (starRules()) {
+        return [
+          `EVERY ${damage(sp.every)} YOUR SHIP TAKES ADDS ${damage(sp.add)} TO THIS TURRET'S NEXT SHOT.`,
+          "DAMAGE YOUR PLATING SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
+        ];
+      }
       return [
-        `EVERY ${damage(sp.every)} YOUR SHIP TAKES ADDS ${damage(sp.add)} TO THIS TURRET'S NEXT SHOT, UP TO ${damage(sp.max)}.`,
+        `EVERY ${damage(sp.every)} YOUR SHIP TAKES ADDS ${damage(sp.add)} TO THIS TURRET'S NEXT SHOT, UP TO ${damage(sp.max!)}.`,
         "DAMAGE YOUR PLATING SOAKS COUNTS TWICE; THE DARK WIND DOESN'T COUNT.",
       ];
     },
-    gist: (e) => `${damage(m(e).spall!.add)} FOR EVERY ${m(e).spall!.every}, UP TO ${fmtDmg(m(e).spall!.max)}`, // DESIGN 3.3's words
+    gist: (e) => `${damage(m(e).spall!.add)} FOR EVERY ${m(e).spall!.every}${starRules() ? "" : `, UP TO ${fmtDmg(m(e).spall!.max!)}`}`, // DESIGN 3.3's words
     card: () => "HITS YOU TAKE CHARGE ITS SHOT", // DESIGN 3.3's "... ITS NEXT SHOT" takes three card lines
   },
   seamwelder: {

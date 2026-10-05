@@ -137,9 +137,18 @@ export function factoryMoment(def: string, fs: FactoryState | null, w3: Wave3Fx 
 export function gearMoment(def: string, slot: number, ts: TurretState | undefined, w3: Wave3Fx | undefined): Wave3GearState {
   if (!ts) return {};
   if ((def === "twintrigger" || def === "seamwelder") && w3 && Number.isFinite(w3.pairAge[slot])) return { pair: w3.pairAge[slot] };
-  if (def === "spallcatcher" && ts.spall) return { charge: (ts.spallCharge ?? 0) / ts.spall.max };
+  if (def === "spallcatcher" && ts.spall) {
+    // Y5 (release Y; DESIGN-Y row 47): with the star switch on it has no cap (no max), so its gauge fills where the base's cap
+    // was (SPALL_GAUGE_ADDS charges: 80 / 176 / 280 at ★1-★3) and stays full past it; off, its charge over its cap, as before
+    if (ts.spall.max === undefined) return { charge: Math.min(1, (ts.spallCharge ?? 0) / (SPALL_GAUGE_ADDS * ts.spall.add)) };
+    return { charge: (ts.spallCharge ?? 0) / ts.spall.max };
+  }
   return {};
 }
+
+/** Y5: SPALL CATCHER's base cap in charges (content.ts spallcatcher: max = 8 x add at every star), its gauge's full mark
+ *  with the star switch on. */
+export const SPALL_GAUGE_ADDS = 8;
 
 /** STEAM BREECH's gauge: in the red while the turret's hull is plated (TurretState.plated, Battle.chambers). */
 export const steamPlated = (ts: TurretState | undefined): boolean => !!ts?.plated;

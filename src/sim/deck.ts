@@ -716,8 +716,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       }
       if (e.staticTime) th.staticTime = e.staticTime;
       if (e.fray) th.fray = e.fray;
-      if (e.perTile) {
-        const amount = Math.min(e.perTile.max, i * e.perTile.each);
+      if (e.perTile) { // Y5 (release Y; DESIGN-Y row 41): as Battle.applyHit, no cap with the star switch on (its def has no max)
+        const amount = Math.min(e.perTile.max ?? Infinity, i * e.perTile.each);
         flat += amount;
         th.flat = (th.flat ?? 0) + amount;
       }

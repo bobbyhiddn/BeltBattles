@@ -537,7 +537,7 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // plating's double count are an interim caveat, call 7)
     const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
     // U2d F1: its cap (the interim caveat's MAX, INTERIM_CAVEATS spallcatcher) changes with its stars: keyed, so NEXT★ shows it
-    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`], ["max", `MAX ${fmtDmg(sp.max)} {DMG}`]]);
+    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`], ["max", `MAX ${fmtDmg(sp.max!)} {DMG}`]]);
   },
   flak: (e) => {
     // NUM-3 (R1's STUN fold): Battle.flight: one roll at mid-flight for each enemy harassing shot (isHarassingProjectile),
@@ -597,7 +597,7 @@ export const INTERIM_CAVEATS: readonly InterimCaveat[] = [
   // Battle.spallCharge: taken = hull + 2 x plating's part; the charge is capped at spall.max
   {
     id: "spallcatcher", until: "the board cues job: the turret's charge gauge", applies: (e) => !!e.mod?.spall,
-    text: (e) => `{*PLATE} SOAKS COUNT TWICE. MAX ${fmtDmg(e.mod!.spall!.max)} {DMG}.`,
+    text: (e) => `{*PLATE} SOAKS COUNT TWICE. MAX ${fmtDmg(e.mod!.spall!.max!)} {DMG}.`,
   },
   // overclock.ts boostable: no speed rig (speed, pulse), TOLLBOOTH, SIFTER, RIVETER, POWDER KEG, OVERCLOCKER, nor a rig
   // that acts on no payload (STOKER, BRACE FRAME); U2c's tap text can list them
@@ -785,6 +785,18 @@ export const Y4_PIECES: readonly string[] = [
   "hopper", "twintrigger", "seamwelder", "chamber", "rotary", "anvil", "steambreech", "drake",
 ];
 
+/**
+ * Y5 (release Y; REQ-BFG-070, REQ-BFG-046; DESIGN-Y section 3, rows 41-47; ruling R-2; REVIEW-STARD answer 2): THE
+ * CRIT-FREE ONE-LINERS, one number each (no crit or ramp: a later CRIT/RAMP job replaces these faces wholesale). With the
+ * star switch on each shows one ability line, its RULES sentences, caps, caveats and star clauses gone (STAR_GONE_CAVEATS:
+ * SPALL CATCHER's), every ★2/★3 change a number on its ⓘ ladder, its perk's name in the ⓘ view only (ruling R-1:
+ * faceBlocks.ts perkInfoOnly). The RULES pieces among them get their first face here; off, each keeps today's text, and
+ * every face is as before.
+ */
+export const Y5_PIECES: readonly string[] = [
+  "counterweight", "capacitor", "longcase", "spallcatcher",
+];
+
 /** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
  *  (LODESTONE, BRACE FRAME); the other seven keep today's line, every number from the switch's data. */
 const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
@@ -941,6 +953,35 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const d = fmtDmg(c(e, x).flatPerBurn!), n = fmtCount(FACE_SIM.drakeStacks);
     return rules([shot(`EACH ${d} BONUS DAMAGE IS ${n} {*BURN}.`)], [["per", `EACH ${d}`]], [REMINDER.BURN()]);
   },
+  // ---- Y5 (DESIGN-Y rows 41-47): the crit-free one-liners (REVIEW-STARD answer 2); SPALL CATCHER keeps today's line, its
+  // cap's number gone with the cap
+  counterweight: (e) => {
+    // DESIGN-Y row 41: Battle.applyHit: + each for each tile the slug has ridden on its journey, no cap (content.ts
+    // STAR_DIFF). Was the RULES text "ADDS 5 DAMAGE FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN, UP TO 60 DAMAGE."
+    const d = fmtDmg(gt(e).perTile!.each);
+    return rules([hit(`+${d} {DMG} FOR EACH TILE RIDDEN.`)], [["each", `+${d} {DMG} EACH`]]);
+  },
+  capacitor: (e, x) => {
+    // DESIGN-Y row 42: Battle.chambers / fireCore: + perSecond (x the class %: cores.ts scaleCore) for each second the chamber
+    // sat empty before the shot, no cap (content.ts STAR_DIFF). Was the RULES text "CHARGES ITS NEXT SHOT 20 DAMAGE FOR EACH
+    // SECOND ITS CHAMBER SITS EMPTY." with "IT CHARGES FOR UP TO 5 SECONDS."
+    const d = fmtDmg(c(e, x).perSecond!);
+    return rules([shot(`+${d} {DMG} FOR EACH SEC IT SAT EMPTY.`)], [["per", `+${d} {DMG}`]]);
+  },
+  longcase: (e) => {
+    // DESIGN-Y row 43: Battle.fire / fireCore: a shot from a slug that rode longRideMin s or more deals + longRideFlat (no
+    // sim change). The METRONOME sentence leaves the face: a pendulum slug is an unplayable hero's, and races/data.ts
+    // PEAK_SHIFT stays for METRONOME's bots. Was the RULES text "SHOTS FROM PAYLOADS THAT RODE 2 SECONDS OR MORE DEAL 15 MORE
+    // DAMAGE." with "PENDULUM SLUGS DON'T GET IT; ON METRONOME THEY PEAK LATER ON THIS TURRET, AFTER 13 TILES."
+    const d = fmtDmg(md(e).longRideFlat!), t = fmtSec(md(e).longRideMin!);
+    return rules([shot(`+${d} {DMG} IF ITS {SLUG} RODE ${t}{SEC}.`)], [["flat", `+${d} {DMG}`]]);
+  },
+  spallcatcher: (e) => {
+    // DESIGN-Y row 47: Battle.spallCharge: + add for every `every` damage your ship takes (a PLATE soak counted once, not
+    // twice), on this turret's next shot, no cap. Today's line; its cap's number (NEXT★'s MAX) and its caveat go
+    const sp = md(e).spall!, every = fmtDmg(sp.every), add = fmtDmg(sp.add);
+    return rules([{ text: `EVERY ${every} {DMG} YOU TAKE: NEXT SHOT +${add} {DMG}.` }], [["add", `+${add} {DMG}`]]);
+  },
 };
 
 /** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the
@@ -958,7 +999,9 @@ const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "gr
 const STAR_GONE_CAVEATS: ReadonlySet<string> = new Set(["tollreach", "harass", "scrapqueue", "flakshots", "flakbest",
   // Y3 (DESIGN-Y rows 29, 31): the OVERCLOCKER skips no rig any more (it charges the next one, whatever it is), and STOKER's
   // cap is gone from the sim (a stoked factory may overfeed its gun)
-  "overclocker", "stoker"]);
+  "overclocker", "stoker",
+  // Y5 (DESIGN-Y row 47): SPALL CATCHER's plating counts once and its cap is gone from the sim
+  "spallcatcher"]);
 
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [
