@@ -135,9 +135,9 @@ describe("machine and route effects", () => {
     const bt = quiet(), s = bt.sides[1], r = s.routes[0], a = { p: payload(), s: 2 * CELL + 6, processed: 2, blocked: false };
     r.ammo.push(a);
     // NUM-3 (R1's STUN fold): was p.freeze(tile 2, 1 s) true and a CHILL mark on the payload; now the ★1 frost round STUNs
-    // the tile for its seconds (cellDisrupt; cellFrozen stays 0) and the payload carries no mark (CHILL is gone)
+    // the tile for its seconds (cellDisrupt; FLIP-X1 F4: cellFrozen is deleted) and the payload carries no mark (CHILL is gone)
     probe(bt).roundImpact(s, target(s, "belt", 0, 2), FROST, 0);
-    expect([r.cellDisrupt[2], r.cellFrozen[2]]).toEqual([expect.closeTo(FROST.seconds, 9), 0]);
+    expect(r.cellDisrupt[2]).toEqual(expect.closeTo(FROST.seconds, 9));
     expect(a.p.debuffs).toBeUndefined();
     const at = a.s;
     bt.step();
@@ -356,8 +356,7 @@ describe("carried debuffs and guard order", () => {
     // NUM-3 (R1's STUN fold): was p.freeze(s, t, 2) false; now the frost round's STUN (cause "freeze", its 2 s) is tolled
     expect(p.disrupt(s, t, FROST.seconds, "freeze")).toBe(false);
     expect(g.tolls).toBe(0);
-    expect(s.routes[0].cellDisrupt[2]).toBe(0);
-    expect(s.routes[0].cellFrozen[2]).toBe(0);
+    expect(s.routes[0].cellDisrupt[2]).toBe(0); // FLIP-X1 (F4): cellFrozen is deleted
     expect(bt.sides[0].harassAccepted).toBe(0);
     expect(p.disrupt(s, t, DISRUPT_TIME, "shock")).toBe(true);
     expect(s.routes[0].cellDisrupt[2]).toBe(DISRUPT_TIME);

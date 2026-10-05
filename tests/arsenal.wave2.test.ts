@@ -279,7 +279,6 @@ describe("wave-2 factories and cores", () => {
       const fr = effectAt("frostbite", stars).factory!.round! as { seconds: number };
       (frost as any).roundImpact(fs, ft, fr, 0);
       expect(fs.routes[0].cellDisrupt[2]).toBeCloseTo(fr.seconds); // NUM-3: was cellFrozen[2] toBe [2.5, 2.75, 3][stars - 1]
-      expect(fs.routes[0].cellFrozen[2]).toBe(0); // nothing freezes
       // NUM-3: was `stars` "freeze" events; now `stars` STUNs (cause "freeze"): the tile and HOARFROST's spread
       expect(frost.events.filter((e) => e.type === "disrupt" && e.side === 1)).toHaveLength(stars);
       expect(frost.events.filter((e) => e.type === "harass" && e.cause === "freeze")).toHaveLength(stars);
@@ -333,7 +332,7 @@ describe("wave-2 factories and cores", () => {
       until(bt, shot.flight + 0.05);
       const foe = bt.sides[1];
       if (id === "sabot") expect(foe.routes[0].cellDisrupt[2]).toBeGreaterThan(0);
-      if (id === "frostbite") { expect(foe.routes[0].cellDisrupt[2]).toBeGreaterThan(0); expect(foe.routes[0].cellFrozen[2]).toBe(0); } // NUM-3: was cellFrozen[2] > 0
+      if (id === "frostbite") expect(foe.routes[0].cellDisrupt[2]).toBeGreaterThan(0); // NUM-3: was cellFrozen[2] > 0 (FLIP-X1 F4: deleted)
       if (id === "dragchain") expect(foe.routes[0].cellDisrupt[2]).toBeGreaterThan(0); // NUM-3: was cellSlow[2].t > 0
       if (id === "limpet") { expect(foe.limpets).toHaveLength(1); until(bt, shot.flight + 3.1); expect(foe.limpets).toHaveLength(0); }
     }

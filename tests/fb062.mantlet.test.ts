@@ -105,8 +105,7 @@ describe("FB-B MANTLET: FULL GUARD (NUM-3: was FULL PLATE) shields the belt tile
       const frost = new Battle(deck(s), barge(), 3), fs = frost.sides[0];
       sim(frost).roundImpact(fs, target(fs, "belt", 0, 5), FROST, 1);
       // NUM-3 (R1's STUN fold): was cellFrozen[5] > 0 (a freeze); now the frost round STUNs the tile, and nothing freezes
-      expect(fs.routes[0].cellDisrupt[5] > 0, `★${s} frost`).toBe(s === 1);
-      expect(fs.routes[0].cellFrozen[5], `★${s} frost: nothing freezes`).toBe(0);
+      expect(fs.routes[0].cellDisrupt[5] > 0, `★${s} frost`).toBe(s === 1); // FLIP-X1 (F4): cellFrozen is deleted
       const sabot = new Battle(deck(s), barge(), 3), ss = sabot.sides[0];
       sim(sabot).roundImpact(ss, target(ss, "belt", 1, 6), SABOT, 1);
       expect(ss.routes[1].cellDisrupt[6] > 0, `★${s} sabot`).toBe(s === 1);

@@ -163,7 +163,6 @@ export interface RouteState {
   gateAt: TileHit[][]; // 0.6.2: per tile, the hits landing on it in R7 order (was one gate or null)
   ammo: BeltAmmo[]; // front (largest s) first
   cellDisrupt: number[];
-  cellFrozen: number[]; // NUM-3 (R1's STUN fold): nothing freezes any more (frost rounds STUN); always 0, kept for its readers
   speedAt: number[]; // render: speed state per cell
   pts: { x: number; y: number }[];
   phase: number[]; // render: belt animation phase per cell (px)
@@ -413,7 +412,7 @@ export type SimEvent =
   | { type: "heal"; side: Side; amount: number; source: HealSource; gate?: number; factory?: number }
   | { type: "shield"; side: Side; amount: number; shield: number } // SUS-A: SHIELD gained (+) or broken by a hit (-); `shield`: the count after
   | { type: "arc" | "lance" | "splash"; side: Side; x: number; y: number }
-  | { type: "freeze" | "slow" | "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
+  | { type: "wreck" | "rip" | "limpet"; side: Side; kind: TargetKind; ref: number; cell: number; payload?: number }
   | { type: "burn"; side: Side; dmg: number }
   | { type: "poison"; side: Side; dmg: number }
   | { type: "keg"; side: Side; gate: number }
@@ -691,7 +690,6 @@ export class Battle {
         // 0.6.2j: a joining belt feeds no turret intake itself (connected false, turret -1; its join below)
         index: i, factory: r.factory, cells: [...r.cells], connected: info.connected && !info.join, turret: info.join ? -1 : info.turret,
         L: info.length, gateAt, ammo: [], cellDisrupt: r.cells.map(() => 0),
-        cellFrozen: r.cells.map(() => 0),
         speedAt: r.cells.map(() => 1),
         pts: routePolyline(b, r, info.connected, info.join), phase: r.cells.map(() => 0), pressure: 0,
         guard: r.cells.map(() => 0), // 0.6.1p
@@ -913,12 +911,9 @@ export class Battle {
     if (s.latches) for (const g of s.latches) this.latchTick(s, g); // 0.8.0 P1 (E4): releases, before this tick's transport
     for (const r of s.routes) {
       for (let i = 0; i < r.cellDisrupt.length; i++) {
-        const stopped = r.cellDisrupt[i] > 0 || r.cellFrozen[i] > 0;
+        const stopped = r.cellDisrupt[i] > 0;
         if (r.cellDisrupt[i] > 0) {
           r.cellDisrupt[i] = stunLeft(r.cellDisrupt[i], dt); // NUM-3: ends on its whole tick
-        }
-        if (r.cellFrozen[i] > 0) {
-          r.cellFrozen[i] = Math.max(0, r.cellFrozen[i] - dt);
         }
         if (stopped) s.stats.disrupted += dt;
       }
@@ -930,7 +925,7 @@ export class Battle {
         if (won !== undefined) state = won;
         const shown = s.race ? raceBeltSpeed(this, s, r.index, i, state) : state; // races: speed lock, Drag
         r.speedAt[i] = shown; // NUM-3 (R1's STUN fold): no chain slow any more (its rounds STUN)
-        const v = r.cellDisrupt[i] > 0 || r.cellFrozen[i] > 0 ? 0 : BELT_SPEED * r.speedAt[i];
+        const v = r.cellDisrupt[i] > 0 ? 0 : BELT_SPEED * r.speedAt[i];
         r.phase[i] += v * dt;
       }
     }
@@ -1146,7 +1141,7 @@ export class Battle {
         // 0.6.1c SLAG: a fixed belt speed that speed gates, the speed lock and slows never change (a stalled tile still stops it)
         const fixed = AMMO[a.p.ammo]?.fixedSpeed;
         let v = BELT_SPEED * (fixed ?? (s.race?.speedLock ? 1 : this.speedStateAt(r, a.s))); // races: METRONOME speed lock
-        if (ci >= 0 && (r.cellDisrupt[ci] > 0 || r.cellFrozen[ci] > 0)) v = 0;
+        if (ci >= 0 && r.cellDisrupt[ci] > 0) v = 0;
         const drag = s.race && fixed === undefined ? raceDrag(this, s, r.index, ci) : 1; // races: SIPHON Drag
         if (drag !== 1) v *= drag; // races:
         // NUM-3 (R1's STUN fold): no CHILL (a frozen tile's mark) and no SNAG (a chain slow's mark and x0.8 ride) any more

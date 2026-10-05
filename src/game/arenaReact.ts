@@ -296,10 +296,9 @@ export function react(a: Arena, e: SimEvent, prev: SimEvent | null = null): void
       }
       return;
     }
-    case "freeze": case "slow": case "wreck": case "rip": case "limpet": {
+    case "wreck": case "rip": case "limpet": {
       const [x, y] = machinePoint(a, e.side, e.kind, e.ref, e.cell);
-      const col = e.type === "freeze" ? C.ice : e.type === "slow" ? C.amber : C.red;
-      fx.sparks(x, y, e.type === "wreck" || e.type === "limpet" ? 8 : 4, [col, C.white], 55);
+      fx.sparks(x, y, e.type === "wreck" || e.type === "limpet" ? 8 : 4, [C.red, C.white], 55);
       return;
     }
     case "arc": case "lance": case "splash": {
