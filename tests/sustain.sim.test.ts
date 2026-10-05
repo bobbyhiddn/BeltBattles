@@ -313,16 +313,21 @@ describe("SUS-A: the pieces in battle", () => {
 
 describe("SUS-A: the switch and the readers", () => {
   it("the three pieces resolve in ITEMS but are in no listing while SUSTAIN_LIVE is off; withSustain shows them and puts the switch back", () => {
-    expect([SUSTAIN_LIVE, sustainLive()]).toEqual([false, false]);
+    // FLIP-X2 (REQ-BFG-069, release X): SUSTAIN_LIVE is on (was [false, false]), so every listing shows them by default; the
+    // off world is withSustain(fn, false), and the switch comes back on after it
+    expect([SUSTAIN_LIVE, sustainLive()]).toEqual([true, true]);
     expect(SUSTAIN_IDS).toEqual(["wardbell", "mendpress", "mendingloom"]);
     const listed = () => [...Object.keys(ITEMS), ...buyableModules().map((d) => d.id),
       ...(["tinker", "ironmonger", "alchemist"] as const).flatMap((m) => itemsSoldBy(m).map((d) => d.id))];
-    for (const id of SUSTAIN_IDS) {
-      expect(ITEMS[id].id).toBe(id);
-      expect(listed()).not.toContain(id);
-    }
+    withSustain(() => {
+      for (const id of SUSTAIN_IDS) {
+        expect(ITEMS[id].id).toBe(id);
+        expect(listed()).not.toContain(id);
+      }
+    }, false);
+    for (const id of SUSTAIN_IDS) expect(listed()).toContain(id); // the switch is back on
     withSustain(() => { for (const id of SUSTAIN_IDS) expect(listed()).toContain(id); });
-    for (const id of SUSTAIN_IDS) expect(listed()).not.toContain(id);
+    for (const id of SUSTAIN_IDS) expect(listed()).toContain(id);
     expect([ITEMS.wardbell, ITEMS.mendingloom].map((d) => [d.kind, d.rarity, d.price, d.merchant])).toEqual([["mod", "rare", 5, "tinker"], ["mod", "rare", 5, "alchemist"]]);
     expect(ITEMS.mendingloom.mod!.regen).toBe(10);
     expect([2, 3].map((s) => effectAt("mendingloom", s).mod!.regen)).toEqual([15, 20]);
@@ -330,7 +335,10 @@ describe("SUS-A: the switch and the readers", () => {
 
   it("validate refuses a deck that holds one while the switch is off", () => {
     const b = withGear(heroStartBuild("bastion"), "wardbell");
-    expect(validateBuild(b, 3, "lenient").errors.join("\n")).toMatch(/WARD BELL is not in the game yet/);
+    // FLIP-X2 (REQ-BFG-069): the switch is on by default, so off is withSustain(fn, false) (was the default); on, the same
+    // deck has no WARD BELL error on day 3 (its first day)
+    expect(withSustain(() => validateBuild(b, 3, "lenient"), false).errors.join("\n")).toMatch(/WARD BELL is not in the game yet/);
+    expect(validateBuild(b, 3, "lenient").errors.filter((e) => /WARD BELL/.test(e))).toEqual([]);
   });
 
   it("deckRating reads decks holding each new piece: finite, never NaN", () => {

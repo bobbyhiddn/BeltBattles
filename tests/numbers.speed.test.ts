@@ -64,6 +64,11 @@ describe("NUM-2 SPEED: the stored value (scripts/num2-speed.mjs, K = 30)", () =>
 
   it("no turret or factory in the tables keeps an interval: every one is recorded", () => {
     const recorded = new Set(FIX.rows.map((r) => r.path.replace(/\.(fireInterval|interval)$/, ".speed")));
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): ITEMS lists MEND PRESS now. SUS-A wrote it after this script, with
+    // whole speeds (ARMOR PRESS's 19 / 21 / 25, content.ts SUSTAIN_ITEMS), so its 3 speeds are NUM-2-native: never recorded,
+    // each whole and pinned here; every other speed must be recorded, as before (was: every one recorded)
+    const NATIVE: Record<string, number> = { "ITEMS.mendpress.factory.speed": 19, "ITEMS.mendpress.levels.2.factory.speed": 21, "ITEMS.mendpress.levels.3.factory.speed": 25 };
+    const met: string[] = [];
     for (const [name, table] of Object.entries({ ITEMS, WAVE3_ITEMS, RACE_ITEMS })) {
       for (const [id, d] of Object.entries(table)) {
         // ITEMS holds the race and wave-3 tables too (content.ts): each is recorded under its own table's name
@@ -72,12 +77,19 @@ describe("NUM-2 SPEED: the stored value (scripts/num2-speed.mjs, K = 30)", () =>
         for (const [lv, spec] of [["", d], ...Object.entries(levels)] as [string, typeof d][]) {
           const at = lv ? `${name}.${id}.levels.${lv}` : `${name}.${id}`;
           if (spec.turret && "speed" in spec.turret) expect(recorded.has(`${at}.turret.speed`), at).toBe(true);
-          if (spec.factory && "speed" in spec.factory) expect(recorded.has(`${at}.factory.speed`), at).toBe(true);
+          if (spec.factory && "speed" in spec.factory) {
+            const path = `${at}.factory.speed`;
+            if (path in NATIVE) {
+              met.push(path);
+              expect([recorded.has(path), spec.factory.speed], at).toEqual([false, NATIVE[path]]);
+            } else expect(recorded.has(path), at).toBe(true);
+          }
           expect(spec.turret && "fireInterval" in spec.turret, at).toBeFalsy();
           expect(spec.factory && "interval" in spec.factory, at).toBeFalsy();
         }
       }
     }
+    expect(met.sort()).toEqual(Object.keys(NATIVE).sort()); // FLIP-X2: the walk meets all 3
   });
 });
 

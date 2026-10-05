@@ -242,7 +242,10 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
       expect(tally.blockedS[d]).toBeLessThanOrEqual(tally.emptyS[d]);
     }
     // I1 measured SHOCK with no unlocked ware in 17.45% of runs on days 1-2 (BURN 6.65%); these seeds read the same
-    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([133, 349]);
+    // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): the per-run draw reads buyableModules(), so SIFTER's dormancy (-1) and
+    // the 3 sustain pieces (+3, held to day 3) redraw every run's wares: SHOCK with no unlocked ware on day 1 349 -> 335
+    // (16.75%), BURN 133 (6.65%) as before (SIFTER alone gave [121, 324] at step 1b) (was [133, 349])
+    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([133, 335]);
     // about 2% expected (VERIFIED-I1's call 4): a run drew none of an effect's three rigs
     expect(noneS / n).toBeLessThan(0.04);
     expect(noneB / n).toBeLessThan(0.04);

@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { maxGoldByDay, validateBuild } from "../src/net/validate";
 import { PLAYER_DAYS, PLAYER_POLICY, playerRun } from "../src/sim/harness/player";
 import type { Build } from "../src/sim/deck";
+import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: the bought deck's value (the runes' HULL and BELT out)
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold in the day's budget
 
 const holds = (b: Build, def: string): boolean => b.items.some((p) => p.def === def) || b.mods.some((m) => m.def === def);
 const CASES: [("furnace" | "weaver"), string][] = [["furnace", "temper"], ["weaver", "temper"], ["weaver", "dragchain"], ["furnace", "flak"]];
@@ -30,7 +32,13 @@ describe("TUNE-M T1: the par player's forbid knob", () => {
           expect(d.buys.some((x) => x.def === def), `${hero} s${seed} d${d.day}: bought ${def}`).toBe(false);
           expect(holds(d.build, def), `${hero} s${seed} d${d.day}: holds ${def}`).toBe(false);
           expect(validateBuild(d.build, d.day).errors, `${hero} s${seed} d${d.day}`).toEqual([]);
-          expect(d.value + d.rerollGold + d.gold + d.soldLoss).toBe(maxGoldByDay(d.day));
+          // FLIP-X2 (REQ-BFG-058, BOT_RUNES on): the par player takes a rune each dawn. d.value (buildCost) charges a HULL or
+          // BELT rune's grant as ARMOR / BELT PACKs, and its dawn-gold runes add to the day's gold, so the gold adds up as the
+          // bought deck (boughtCost, as caravanCand and validate.ts cost it) + rerolls + purse + sold loss = d.budget, the
+          // day's maxGoldByDay + its runes' dawn gold (runeGrants); without runes both are as before (was
+          // d.value + d.rerollGold + d.gold + d.soldLoss = maxGoldByDay(d.day): 32 = 27 on furnace s1 d3, IRON SKIN's 150 hull)
+          expect(d.budget, `${hero} s${seed} d${d.day}`).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold);
+          expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss, `${hero} s${seed} d${d.day}`).toBe(d.budget);
         }
       }
     }

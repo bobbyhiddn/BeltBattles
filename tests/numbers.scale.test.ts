@@ -7,11 +7,12 @@
 // purpose: they are handed off, row for row, to NUM-2's record tests/fixtures/num2-base-intervals.json and its checkers.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { AMMO, FRAY_BONUS, HEROES, ITEMS, WAVE3_IDS, WAVE3_ITEMS, withSustain } from "../src/sim/content";
+import { AMMO, FRAY_BONUS, HEROES, ITEMS, WAVE3_IDS, WAVE3_ITEMS } from "../src/sim/content"; // FLIP-X2: withSustain no longer read
 import { PENDULUM, RACE_AMMO, RACE_HEROES, RACE_ITEMS } from "../src/sim/races/data";
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";
 import { ECHO_CAP } from "../src/sim/races/siphon";
-import { RUNE_LIST, runeList } from "../src/sim/runes";
+import { RUNE_LIST } from "../src/sim/runes"; // FLIP-X2: runeList no longer read
+import { SUSTAIN_RUNE_LIST } from "../src/sim/runes"; // FLIP-X2: the 8 sustain runes' defs (2 dormant, out of runeList())
 import { SABOTAGE_HULL } from "../src/game/road";
 import { HULL_FLOOR } from "../src/net/roadCap";
 import { EQ, MEAN_PLATE, MEAN_PLATE_OTHER, ROUND_EQ } from "../src/sim/deckRating";
@@ -97,8 +98,37 @@ const num3New = new Map<string, number>([
 // FLIP-X1 (F-d, SUS-D §9): the 8 sustain runes runeList() adds with the switch on (SUS-D) were born in N1 units, after
 // NUM-1's script ran: no fixture row and no x10. The walk meets them as SUSTAIN_RUNES.<id>.amount.n, classified here as
 // N1-native (n1Native), each checked live below with its own pins. RUNE_LIST's rows and counts are as before.
-const SUSTAIN_RUNES = withSustain(() => runeList().filter((d) => !RUNE_LIST.includes(d)));
+// FLIP-X2 (REVIEW-TUNEX): runeList() never holds a dormant rune (DORMANT_RUNES), so with the switch on it adds 6 of the 8
+// (SEARING and SHATTER SHOT dormant; tests/numbers.hull.test.ts pins that). Their defs and amounts stay, so the walk keeps
+// all 8: runes.ts SUSTAIN_RUNE_LIST (was the runeList() difference, the same 8 before DORMANT_RUNES)
+const SUSTAIN_RUNES = SUSTAIN_RUNE_LIST;
 const n1Native = new Map(SUSTAIN_RUNES.map((d): [string, number] => [`SUSTAIN_RUNES.${d.id}.amount.n`, d.amount.n]));
+
+// FLIP-X2 (REQ-BFG-058; TUNE-X lines 7, 9, 10, 11 and 14, REVIEW-TUNEX; flipx2 step 3b 8d714af): five RUNE_LIST amounts
+// moved after NUM-1's record. No rule moved: an x10 row stays a whole x10-scale value, a "same" row a count. As NUM-3's
+// rows, each is checked at its FLIP-X2 value instead of its recorded one; every other row keeps its check.
+const TUNEX_MOVED: Record<string, { rule: "x10" | "same"; was: number; now: number }> = {
+  "RUNE_LIST.twin_nails.amount.n": { rule: "x10", was: 20, now: 10 }, // TWIN NAILS (line 7)
+  "RUNE_LIST.loose_thread.amount.n": { rule: "same", was: 3, now: 2 }, // LOOSE THREAD (line 9)
+  "RUNE_LIST.grave_plates.amount.n": { rule: "x10", was: 120, now: 240 }, // GRAVE PLATES, theme bastion -> armor (line 10)
+  "RUNE_LIST.molten_bond.amount.n": { rule: "x10", was: 40, now: 20 }, // MOLTEN BOND (line 11)
+  "RUNE_LIST.tangle_wire.amount.n": { rule: "same", was: 6, now: 5 }, // TANGLE WIRE (line 14)
+};
+
+// FLIP-X2 (REQ-BFG-069, the sustain switch on): ITEMS lists WARD BELL, MEND PRESS and MENDING LOOM now, so the walk meets
+// their numeric fields. SUS-A wrote them after NUM-1's script and NUM-2's (content.ts SUSTAIN_ITEMS: "on the N1 scale",
+// MEND PRESS's speeds ARMOR PRESS's whole ones), so, as the sustain runes, no fixture row and no x10: N1-native, each
+// classified here and checked live below (their price and size are "same" fields, checked as every other one)
+const SUSTAIN_N1: Record<string, number> = {
+  "ITEMS.wardbell.mod.shield.every": 8, "ITEMS.wardbell.mod.shield.amount": 1,
+  "ITEMS.wardbell.levels.2.mod.shield.every": 5, "ITEMS.wardbell.levels.2.mod.shield.amount": 1,
+  "ITEMS.wardbell.levels.3.mod.shield.every": 4, "ITEMS.wardbell.levels.3.mod.shield.amount": 1,
+  "ITEMS.mendpress.factory.speed": 19, "ITEMS.mendpress.factory.heal.every": 3, "ITEMS.mendpress.factory.heal.amount": 20,
+  "ITEMS.mendpress.levels.2.factory.speed": 21, "ITEMS.mendpress.levels.2.factory.heal.every": 3, "ITEMS.mendpress.levels.2.factory.heal.amount": 30,
+  "ITEMS.mendpress.levels.3.factory.speed": 25, "ITEMS.mendpress.levels.3.factory.heal.every": 3, "ITEMS.mendpress.levels.3.factory.heal.amount": 45,
+  "ITEMS.mendingloom.mod.regen": 10, "ITEMS.mendingloom.levels.2.mod.regen": 15, "ITEMS.mendingloom.levels.3.mod.regen": 20,
+};
+const sustainNative = new Map(Object.entries(SUSTAIN_N1));
 
 const TABLES: Record<string, unknown> = {
   FRAY_BONUS, ITEMS, WAVE3_ITEMS, AMMO, HEROES, RACE_ITEMS, RACE_AMMO, RACE_HEROES, PENDULUM, PLATE_PER_SLUG, PLATE_CAP, ECHO_CAP,
@@ -178,8 +208,18 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // STEAM BREECH's steamPlated / steamBare, were never NUM-1 rows: 1 / 1.35 is not a literal; the scan below)
     expect([handed.length, handed.filter((r) => num2At.get(r.id)!.kind === "speed").length]).toEqual([129, 114]);
     // NUM-3: a row NUM-3 moved (NUM3_MOVED) is checked at its NUM-3 value below instead of its recorded one
-    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
+    // FLIP-X2: and a row TUNE-X moved (TUNEX_MOVED, the 5 rune amounts) at its FLIP-X2 value below
+    const bad = rows.filter((r) => !num2At.has(r.id) && !(r.id in NUM3_MOVED) && !(r.id in TUNEX_MOVED) && live(susaNew(r.id)) !== r.now).map((r) => `${r.id}: live ${String(live(susaNew(r.id)))}, want ${r.now} (base ${r.base}, ${r.rule})`);
     expect(bad).toEqual([]);
+    // FLIP-X2 (TUNE-X, REVIEW-TUNEX): the 5 moved rune amounts, every one a fixture row of runes.ts recorded at the map's
+    // `was` under the map's rule, each live at its FLIP-X2 value (was each live at its recorded value)
+    const tunex = rows.filter((r) => r.id in TUNEX_MOVED);
+    expect(tunex.map((r) => r.id).sort()).toEqual(Object.keys(TUNEX_MOVED).sort());
+    for (const r of tunex) {
+      const m = TUNEX_MOVED[r.id];
+      expect([r.file, r.rule, r.now], r.id).toEqual(["src/sim/runes.ts", m.rule, m.was]);
+      expect(live(r.id), r.id).toBe(m.now);
+    }
     // NUM-3 (R1's STUN fold, N1 2.2): the moved rows, measured: 26 (20 "time", 3 "gone", 3 "reshaped"), every one a fixture
     // row of content.ts, "same" (no damage-family value moved) and recorded at the map's `was`; each live at its NUM-3 value
     // ("gone": no field; "reshaped": no field at the old name, its new fields live)
@@ -246,11 +286,18 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     const missing = ids.filter((id) => !byId.has(susaOld(id)) && !(id in derived) // SUS-A: a renamed field counts as its row
       && !num3New.has(id) // NUM-3: a field NUM-3 added (num3New, classified above) counts as NUM-3's, checked below
       && !n1Native.has(id) // FLIP-X1 (F-d): a sustain rune's amount is N1-native (n1Native), checked below
+      && !sustainNative.has(id) // FLIP-X2: a sustain piece's field is N1-native (SUSTAIN_N1), checked below
       && (ruleOf(id, NUM2_RULES) === N2 ? !num2To.has(id) : ruleOf(id) !== "same"));
     expect(missing).toEqual([]);
     // FLIP-X1 (F-d), the sustain-on pins: two-sided, the scan meets the 8 and none is a fixture row (under either name)
     expect(ids.filter((id) => n1Native.has(id)).sort()).toEqual([...n1Native.keys()].sort());
     expect([n1Native.size, [...n1Native.keys()].filter((id) => byId.has(id) || byId.has(id.replace(/^SUSTAIN_RUNES\./, "RUNE_LIST."))).length]).toEqual([8, 0]);
+    // FLIP-X2 (REQ-BFG-069), the sustain pieces' pins: two-sided, the scan meets the 18 (the 18 the walk missed with the
+    // switch on: WARD BELL's SHIELD cadence and count, MEND PRESS's speed and HEAL, MENDING LOOM's REGEN, at ★1-★3), none
+    // is a NUM-1 or a NUM-2 row, and each is live at its value
+    expect(ids.filter((id) => sustainNative.has(id)).sort()).toEqual([...sustainNative.keys()].sort());
+    expect([sustainNative.size, [...sustainNative.keys()].filter((id) => byId.has(id) || num2To.has(id)).length]).toEqual([18, 0]);
+    for (const [id, v] of sustainNative) expect(live(id), id).toBe(v);
     // NUM-3 (R1's STUN fold, N1 2.2): two-sided: the scan meets every field of num3New and none is a fixture row; measured
     // 8 (BELLOWS' burn and per at ★1-★3, SABOT's round.seconds at ★1 and ★3), each live at its value. Unclassified, SABOT's
     // two would pass the line above as "same" (factory.round.seconds is FROSTBITE's and DRAG CHAIN's rule).
@@ -261,7 +308,8 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     // row is a live numeric field the scan meets; measured 141 (114 speeds, 27 rate %s), 140 of them not in this fixture
     // (128 renamed, STEAM BREECH's 12) and 1 in it (GATLING's core.start, handed off above). And every field NUM-2
     // converted was a NUM-1 "same" one at its old path: NUM-2 converted no damage-family value.
-    const met = ids.filter((id) => ruleOf(id, NUM2_RULES) === N2);
+    // FLIP-X2: MEND PRESS's 3 speeds are NUM-2-native too (SUSTAIN_N1, born whole after NUM-2's script), so not NUM-2's rows
+    const met = ids.filter((id) => ruleOf(id, NUM2_RULES) === N2 && !sustainNative.has(id));
     expect([...met].sort()).toEqual([...num2To.keys()].sort());
     expect([met.length, met.filter((id) => !byId.has(id)).length]).toEqual([141, 140]);
     for (const q of num2) expect(ruleOf(q.path), q.path).toBe("same");
@@ -281,8 +329,9 @@ describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
     }
     // FLIP-X1 (F-d): the 8 sustain runes are N1-native: SUS-D measured them in N1 units (a hull amount is already x10's
     // size), so no x10 applies. Each is whole and live as built (unit, n)
+    // FLIP-X2 (TUNE-X line 4, REVIEW-TUNEX): LEECH VOW is rare at 15 (was "hull 20", epic)
     expect(Object.fromEntries(SUSTAIN_RUNES.map((d) => [d.id, `${d.amount.unit} ${live(`SUSTAIN_RUNES.${d.id}.amount.n`)}`]))).toEqual({
-      bulwark_ward: "count 2", tick_guard: "sec 6", twin_salve: "hull 20", scrap_medic: "hull 300", leech_vow: "hull 20",
+      bulwark_ward: "count 2", tick_guard: "sec 6", twin_salve: "hull 20", scrap_medic: "hull 300", leech_vow: "hull 15",
       green_thread: "hull 10", searing: "count 1", shatter_shot: "count 1",
     });
     for (const d of SUSTAIN_RUNES) expect(Number.isInteger(d.amount.n), d.id).toBe(true);

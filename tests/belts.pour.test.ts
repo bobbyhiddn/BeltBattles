@@ -38,7 +38,7 @@ function foundry(def: string, stars: number, belts: number[][]): Build {
 
 describe("D4: round-robin factories: the same deck at 1, 2, 3 and 4 belts stamps the same slugs", () => {
   it("every factory that doesn't pour, at ★3 (4 belt slots; GANTRY PRESS, the LOOM 5): bought ones on the WEAVER, signatures on their hero", () => {
-    expect(ROUND_ROBIN).toHaveLength(14);
+    expect(ROUND_ROBIN).toHaveLength(15); // FLIP-X2 (REQ-BFG-069, the sustain switch on): + MEND PRESS, a round-robin factory (was 14)
     const report: string[] = [];
     const cases: (readonly [HeroId, string])[] = [...ROUND_ROBIN.map((def) => ["weaver", def] as const), ...SIG_ROUND_ROBIN];
     for (const [hero, def] of cases) {

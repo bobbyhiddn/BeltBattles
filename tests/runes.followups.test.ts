@@ -4,6 +4,7 @@
 // form, YOUR TURRETS AND FACTORIES: +N% RATE.
 import { describe, expect, it } from "vitest";
 import { RULES_ROWS, RUNES_RULES, TURRETS_JOINS_RULES, rulesGateProblem, runeFeatures } from "../src/net/rulesGate";
+import { SUSTAIN_RULES } from "../src/net/rulesGate"; // FLIP-X2: the third row, bb-0.9.0
 import { checkSnapshot } from "../src/net/snapshot";
 import { isSnapshot } from "../src/game/ghostSnapshot";
 import { ghostOf, finishDay } from "../src/game/day";
@@ -31,8 +32,11 @@ const refused = (s: unknown): string | null => { try { checkSnapshot(s); return 
 describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
   it("runes need bb-0.8.7 (RUNES_RULES), the second row after turrets and joins (bb-0.6.2), and this build's rules are it", () => {
     expect(RUNES_RULES).toBe("bb-0.8.7");
-    expect(RULES_VERSION).toBe(RUNES_RULES);
-    expect(RULES_ROWS.map((r) => r.from)).toEqual([TURRETS_JOINS_RULES, RUNES_RULES]);
+    // FLIP-X2 (REQ-BFG-069, step 3's one bump): this build's rules are bb-0.9.0, SUSTAIN_RULES, the third row after the runes
+    // row (was RULES_VERSION === RUNES_RULES and two rows); the runes row is unchanged
+    expect(RULES_VERSION).toBe(SUSTAIN_RULES);
+    expect(SUSTAIN_RULES).toBe("bb-0.9.0");
+    expect(RULES_ROWS.map((r) => r.from)).toEqual([TURRETS_JOINS_RULES, RUNES_RULES, SUSTAIN_RULES]);
     const b: Build = { ...heroStartBuild("weaver"), runes: [{ id: "iron_skin" }] };
     expect(runeFeatures(b)).toEqual(["runes (build.runes)"]);
     for (const none of [heroStartBuild("weaver"), { ...heroStartBuild("weaver"), runes: [] }, null, 7, "x", { runes: "x" }]) expect(runeFeatures(none)).toEqual([]);

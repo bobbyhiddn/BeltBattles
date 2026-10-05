@@ -5,6 +5,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { AMMO, BELT_SPEED, GUARD_FREEZE, GUARD_SLOW, ITEMS, RULES_VERSION, TICK, withWave3 } from "../src/sim/content";
+import { withSustain } from "../src/sim/content"; // FLIP-X2: the 062b history check runs with the sustain pieces out
+import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: ... and with SIFTER not dormant (in062b below)
 import { hitsOfRig, key as K, payloadDamage, rigHits, rotField, walkRoute, type Build, type Placed } from "../src/sim/deck";
 import { migrateInlineGates, rotFacing } from "../src/sim/beltside";
 import { effectAt } from "../src/sim/stars";
@@ -364,11 +366,30 @@ function refuse062b(say: (msg: string) => void = console.warn): boolean {
   return true;
 }
 
+/**
+ * FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): run `fn` in the catalogue arsenal-062b's capture pinned, for one call: wave 3
+ * off (as I1 M3 did), the sustain pieces off (withSustain(fn, false)) and SIFTER not dormant (out of DORMANT_ITEMS for the
+ * call, put back after it, also on a throw). Release X's SIFTER dormancy empties it from SALVAGE and the wreck's draws, and
+ * the sustain switch adds 3 parts to the trader's swaps; neither is the 0.6.1c -> 0.6.2b history this check pins.
+ */
+function in062b<T>(fn: () => T): T {
+  const dormant = DORMANT_ITEMS as Set<string>, was = [...dormant];
+  dormant.delete("sifter");
+  try {
+    return withSustain(() => withWave3(fn, false), false);
+  } finally {
+    dormant.clear();
+    for (const id of was) dormant.add(id);
+  }
+}
+
 describe("P10: expanded road rig draws and shared timing gear", () => {
   // 0.8.0 I1 M3 (the brief's M2 list: "the beltside.merge061c road pools"; VERIFIED-D1 Q8): this history check (0.6.1c
   // -> 0.6.2b: timing gear joined the trader's swaps) runs in the world the 062b fixture pinned, wave 3 off for one call
   // and old saves (no per-run draw), so every assertion keeps its meaning; the live draws are pinned in the next test
-  it("keeps wreck and smuggler draws stable while timing gear enters trader swaps (0.6.2's catalogue, old saves)", () => withWave3(() => {
+  // FLIP-X2: and with the sustain pieces off and SIFTER not dormant for the call (in062b; was withWave3(fn, false) alone:
+  // with release X's catalogue 57 draws differed from the capture where 24 are pinned)
+  it("keeps wreck and smuggler draws stable while timing gear enters trader swaps (0.6.2's catalogue, old saves)", () => in062b(() => {
     const archive = JSON.parse(readFileSync(new URL("./fixtures/beltside-062c/roadDraws-061c.json", import.meta.url), "utf8")) as RoadDraws & { source: string };
     expect(archive.source).toBe("4ecf202");
     const now = roadDraws(true);
@@ -392,7 +413,7 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
       ["temper", "bellows", "quench"], ["coil", "staticbrush", "lodestone"],
     ]);
     for (const d of Object.values(ITEMS).filter((x) => x.kind === "gate")) expect(d.tags?.length, d.id).toBeGreaterThan(0);
-  }, false));
+  }));
 
   // 0.8.0 T1 (VERIFIED-I1 call 3): the 062b write switch refuses and says why; the capture's bytes stay as committed
   it("BB_WRITE_ROAD_DRAWS never rewrites the 062b capture: it writes nothing and says why", () => {
@@ -423,7 +444,9 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     expect(live).toEqual({ choices: fixture.choices, salvage: fixture.salvage, smuggler: fixture.smuggler, swap: fixture.swap });
     expect(Object.keys(live.choices)).toHaveLength(108);
     // the pools: wave 3's three common rigs join SALVAGE; the SMUGGLER keeps the same six (keyed by effect)
-    expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake", "tollbooth", "sifter", "plateroller", "twingauge", "pincer"]);
+    // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant, so SALVAGE never draws it (was [..., "tollbooth", "sifter", ...]);
+    // the live fixture above was regenerated with BB_WRITE_ROAD_DRAWS_080=1 on flipx2 (release X's catalogue)
+    expect(salvagePool()).toEqual(["temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer"]);
     expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([
       ["temper", "bellows", "quench"], ["coil", "staticbrush", "lodestone"],
     ]);

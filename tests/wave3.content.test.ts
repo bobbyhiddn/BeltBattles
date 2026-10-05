@@ -13,6 +13,7 @@ import {
   ITEMS, MERCHANTS, RARITY_ARROWS, SHAPE_ARROWS, WAVE3_IDS, WAVE3_ITEMS, WAVE3_LIVE, buyableModules, isWave3, itemsSoldBy,
   rigShape, wave3Live, withWave3, type MerchantId, type ModuleTag,
 } from "../src/sim/content";
+import { SUSTAIN_IDS, isSustain, withSustain } from "../src/sim/content"; // FLIP-X2: the sustain pieces follow wave 3
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { EVENTS, SMUGGLER_EFFECT, UPGRADE, salvagePool, smugglerParts, smugglerPool, swapPart } from "../src/game/eventDefs";
 import { newRun, rollShop } from "../src/game/run";
@@ -55,37 +56,45 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
       expect(DORMANT_ITEMS.has(id)).toBe(false); // the switch is enumerability, not DORMANT_ITEMS (PLAN-P1.md)
     }
     expect(Object.keys(ITEMS).filter(isWave3)).toEqual([...WAVE3_IDS]);
-    expect(Object.keys(ITEMS).slice(-15)).toEqual([...WAVE3_IDS]); // after every older entry
+    // after every older entry. FLIP-X2 (REQ-BFG-069, the sustain switch on): the 3 sustain pieces, newer still, follow wave 3
+    // (content.ts: "its place in ITEMS order (after wave 3) never moves"), so wave 3 is the 15 before the last 3 (was the
+    // last 15)
+    expect(Object.keys(ITEMS).slice(-15 - SUSTAIN_IDS.length, -SUSTAIN_IDS.length)).toEqual([...WAVE3_IDS]);
+    expect(Object.keys(ITEMS).slice(-SUSTAIN_IDS.length)).toEqual([...SUSTAIN_IDS]);
     expect(Object.values(ITEMS).filter((d) => isWave3(d.id)).map((d) => d.id)).toEqual([...WAVE3_IDS]);
     expect(JSON.stringify(ITEMS)).toMatch(/plateroller/);
     expect(JSON.stringify(ITEMS)).toMatch(/seamwelder/);
     expect(ids(buyableModules()).filter(isWave3)).toEqual([...WAVE3_IDS]);
     for (const m of MERCHANT_IDS) expect(ids(itemsSoldBy(m)).filter(isWave3), m).toEqual(WAVE3_IDS.filter((id) => ITEMS[id].merchant === m));
-    expect(buyableModules()).toHaveLength(86);
+    // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): SIFTER dormant (-1), the 3 sustain pieces in (+3): 86 -> 88, and 71 -> 73
+    // with wave 3 off
+    expect(buyableModules()).toHaveLength(88);
     withWave3(() => {
       expect(Object.keys(ITEMS).filter(isWave3)).toEqual([]);
       expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
-      expect(buyableModules()).toHaveLength(71);
+      expect(buyableModules()).toHaveLength(73);
     }, false);
   });
 
   it("withWave3(fn, false) takes all 15 out of the catalogue for one call, the older entries in order, and puts the switch back (also on a throw)", () => {
-    const all = Object.keys(ITEMS), before = all.filter((id) => !isWave3(id));
-    expect(all).toEqual([...before, ...WAVE3_IDS]); // ITEMS order: the older entries first, unchanged
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): the older entries, then wave 3, then the 3 sustain pieces (newer still);
+    // wave 3 off for a call leaves the older entries and the sustain pieces, in order (was [...before, ...WAVE3_IDS])
+    const all = Object.keys(ITEMS), before = all.filter((id) => !isWave3(id) && !isSustain(id));
+    expect(all).toEqual([...before, ...WAVE3_IDS, ...SUSTAIN_IDS]); // ITEMS order: the older entries first, unchanged
     withWave3(() => {
       expect(wave3Live()).toBe(false);
-      expect(Object.keys(ITEMS)).toEqual(before);
-      expect(buyableModules()).toHaveLength(71);
+      expect(Object.keys(ITEMS)).toEqual([...before, ...SUSTAIN_IDS]);
+      expect(buyableModules()).toHaveLength(73); // FLIP-X2: 71 - SIFTER + the 3 sustain pieces (was 71)
       expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
       for (const id of WAVE3_IDS) expect(ids(itemsSoldBy(ITEMS[id].merchant!)), id).not.toContain(id);
-      withWave3(() => expect(buyableModules()).toHaveLength(86)); // nested: on for one call, back off after
-      expect(buyableModules()).toHaveLength(71);
+      withWave3(() => expect(buyableModules()).toHaveLength(88)); // nested: on for one call, back off after (FLIP-X2: was 86)
+      expect(buyableModules()).toHaveLength(73);
     }, false);
     expect(wave3Live()).toBe(true);
     expect(Object.keys(ITEMS)).toEqual(all);
     expect(() => withWave3(() => { throw new Error("boom"); }, false)).toThrow("boom");
     expect(wave3Live()).toBe(true);
-    expect(buyableModules()).toHaveLength(86);
+    expect(buyableModules()).toHaveLength(88); // FLIP-X2: was 86
   });
 
   it("the upload check takes a wave-3 part with the switch on, and refuses it while the switch is off", () => {
@@ -120,23 +129,33 @@ describe("the 15 entries are D1's (DESIGN-wave3.md 3.1)", () => {
     const off = withWave3(count, false), on = count(); // 0.8.0 I1 M2: flipped (the switch is on)
     expect(Object.fromEntries(MERCHANT_IDS.map((m) => [m, on[m] - off[m]])))
       .toEqual({ ironmonger: 5, tinker: 3, alchemist: 1, gunsmith: 2, scrapper: 2, quartermaster: 1, arcane: 1 });
-    expect(on).toEqual({ ironmonger: 13, tinker: 13, alchemist: 9, gunsmith: 27, scrapper: 8, quartermaster: 7, arcane: 9 });
+    // FLIP-X2 (REQ-BFG-069; REVIEW-NUM3 answer 2): + MEND PRESS (IRONMONGER) and WARD BELL (TINKER); ALCHEMIST + MENDING LOOM
+    // - the dormant SIFTER (was ironmonger 13, tinker 13); wave 3's own adds above are unchanged
+    expect(on).toEqual({ ironmonger: 14, tinker: 14, alchemist: 9, gunsmith: 27, scrapper: 8, quartermaster: 7, arcane: 9 });
   });
 });
 
 describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)", () => {
   it("every buyable module carries 1-3 distinct families, exactly D1's map, with the switch off and on", () => {
     const map = tagsFor("wave3");
-    for (const on of [false, true]) withWave3(() => {
+    // FLIP-X2 (REQ-BFG-069): D1's map (tools/wave3.ts) is the catalogue D1 designed, which has no sustain piece, so the map
+    // check runs in that catalogue, the sustain switch off for the call; SIFTER is dormant (85 / 70, was 86 / 71). The 3
+    // sustain pieces' own families (BOTS-X's tags in content.ts) are checked after, with the switch on
+    for (const on of [false, true]) withSustain(() => withWave3(() => {
       const all = buyableModules();
-      expect(all).toHaveLength(on ? 86 : 71);
+      expect(all).toHaveLength(on ? 85 : 70);
       for (const d of all) {
         const t = d.tags ?? [];
         expect(t.length >= 1 && t.length <= 3 && new Set(t).size === t.length, d.id).toBe(true);
         for (const f of t) expect(FAMS).toContain(f);
         expect([...t].sort(), d.id).toEqual([...map[d.id]].sort());
       }
-    }, on);
+    }, on), false);
+    // FLIP-X2: with the switch on (the default now) the buyable modules are D1's and the 3 sustain pieces, each with 1-3
+    // distinct families of the seven: WARD BELL and MENDING LOOM PLATE, MEND PRESS PLATE and SWARM
+    expect(buyableModules().filter((d) => !(d.id in map)).map((d) => [d.id, d.tags])).toEqual([
+      ["wardbell", ["PLATE"]], ["mendpress", ["PLATE", "SWARM"]], ["mendingloom", ["PLATE"]],
+    ]);
     // nothing else carries a tag: the signatures and supplies
     for (const d of Object.values(ITEMS)) if (!d.merchant || d.price <= 0 || d.kind === "supply") expect(d.tags, d.id).toBeUndefined();
   });
@@ -146,12 +165,15 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
     expect(t.families.map((f) => f.tag).sort()).toEqual([...FAMS].sort());
     expect(t.generalists).toEqual([]);
     const size = Object.fromEntries(t.families.map((f) => [f.tag, f.members.length]));
-    expect(size).toEqual({ FORGE: 23, HARASS: 19, SWARM: 24, BURST: 25, TEMPO: 23, TWIN: 18, PLATE: 14 });
+    // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): SIFTER (FORGE, HARASS, PLATE) out, WARD BELL and MENDING LOOM (PLATE) and
+    // MEND PRESS (PLATE, SWARM) in: FORGE 23 -> 22, HARASS 19 -> 18, SWARM 24 -> 25, PLATE 14 -> 16 (still 14-25)
+    expect(size).toEqual({ FORGE: 22, HARASS: 18, SWARM: 25, BURST: 25, TEMPO: 23, TWIN: 18, PLATE: 16 });
     for (const f of t.families) expect(f.kinds.length, f.tag).toBeGreaterThanOrEqual(4);
     // with the switch off the same tags read 7 families too (TWIN and PLATE on the older modules: 13 and 5)
+    // FLIP-X2: the same moves with wave 3 off: FORGE 19 -> 18, HARASS 18 -> 17, SWARM 20 -> 21, PLATE 5 -> 7
     const off = withWave3(() => familyTable(), false);
     expect(Object.fromEntries(off.families.map((f) => [f.tag, f.members.length])))
-      .toEqual({ FORGE: 19, HARASS: 18, SWARM: 20, BURST: 23, TEMPO: 19, TWIN: 13, PLATE: 5 });
+      .toEqual({ FORGE: 18, HARASS: 17, SWARM: 21, BURST: 23, TEMPO: 19, TWIN: 13, PLATE: 7 });
   });
 });
 

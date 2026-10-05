@@ -7,6 +7,7 @@ import {
   GENERIC_THEMES, HERO_STYLE, KIND_UNIT, RUNE_LIST, RUNES, TIER_ODDS, dawnGold, offerSize, runeFits, runeGrants, runeMods,
   runeOffer, runeProblem, tierOdds, type RuneDef,
 } from "../src/sim/runes";
+import { runeList } from "../src/sim/runes"; // FLIP-X2: the list the dawn offers from (the sustain runes on, the dormant out)
 import { HEROES, ITEMS, RARITIES, type HeroId } from "../src/sim/content";
 import { rateMul, secPer } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): a whole rate % on the speed, 30 / speed
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: a turret's speed rounds half up once (battle.ts setSpeed)
@@ -140,7 +141,10 @@ describe("RUNES-1 M1: the odds and the offer", () => {
   });
 
   it("with a tier too thin for the offer, the next lower tier with enough runes, then a higher one", () => {
-    const ids = (t: string) => RUNE_LIST.filter((d) => d.tier === t).map((d) => d.id);
+    // FLIP-X2 (REQ-BFG-069; REVIEW-TUNEX): every rune of a tier the dawn offers from now: runeList() (from day 3 the sustain
+    // runes too: TICK GUARD, SCRAP MEDIC and LEECH VOW are rares, so holding RUNE_LIST's rares but one left 4 and a rare dawn
+    // stood; the dormant ones are never offered). Was RUNE_LIST
+    const ids = (t: string) => runeList().filter((d) => d.tier === t).map((d) => d.id);
     let rare = 0, epic = 0, legend = 0;
     for (let seed = 1; seed <= 200; seed++) {
       // every rare but one held: a rare dawn falls to common (the next lower tier); the other tiers stand
@@ -323,10 +327,13 @@ describe("RUNES-1 M1: the effects in battle (both sides; no RNG; nothing without
   it("RIVET HOARD / GRAVE PLATES: PLATE at the start (PLATE_CAP holds); LOOSE THREAD / TANGLE WIRE: FRAY on the foe's hull", () => {
     const b = heroStartBuild("bastion");
     const bt = new Battle(withRunes(b, "rivet_hoard", "grave_plates", "loose_thread"), withRunes(foe, "tangle_wire"), 1);
-    expect(bt.sides[0].plate.plate).toBe(RUNES.rivet_hoard.amount.n + RUNES.grave_plates.amount.n); // NUM-1: 60 + 120 (was 18), under PLATE_CAP
+    // NUM-1: 60 + 120 (was 18), under PLATE_CAP. FLIP-X2 (TUNE-X line 10): GRAVE PLATES 240 (was 120), so 60 + 240 = 300 is
+    // over PLATE_CAP and the start's PLATE is capped at 240 (was the sum, 180)
+    expect(RUNES.rivet_hoard.amount.n + RUNES.grave_plates.amount.n).toBe(300);
+    expect(bt.sides[0].plate.plate).toBe(PLATE_CAP);
     expect(bt.sides[1].plate.plate).toBe(0);
-    expect(bt.sides[1].hull.fray).toBe(3);
-    expect(bt.sides[0].hull.fray).toBe(6); // the ghost's runes act on its side too
+    expect(bt.sides[1].hull.fray).toBe(2); // FLIP-X2 (TUNE-X line 9): LOOSE THREAD 2 (was 3)
+    expect(bt.sides[0].hull.fray).toBe(5); // the ghost's runes act on its side too; FLIP-X2 (TUNE-X line 14): TANGLE WIRE 5 (was 6)
     const capped = new Battle(withRunes(b, "rivet_hoard", "grave_plates", ...[]), foe, 1);
     expect(capped.sides[0].plate.plate).toBeLessThanOrEqual(PLATE_CAP); // NUM-1: 240 (was a bare 24)
   });

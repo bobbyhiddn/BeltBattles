@@ -131,8 +131,12 @@ describe("harness cores (0.6.1b): legality", () => {
     // NUM-1 (REQ-BFG-047): ARMOR PACK's hull x10 (supply.hull 25 -> 250), so every build's hullBonus is x10 (0..250 ->
     // 0..2500): 1899419253 -> 779366749 and 910760556 -> 2993301734. With each build's hullBonus read back / 10, both
     // hashes read 1899419253 and 910760556 again (measured on num1), so no purchase or placement moved.
-    expect(hash32(a.join("|"))).toBe(779366749);
-    expect(hash32(b.join("|"))).toBe(2993301734);
+    // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant, so the random builds' shared pool (buyableModules()) loses it:
+    // 779366749 -> 2599201197 and 2993301734 -> 1712223641. With SIFTER taken out of DORMANT_ITEMS for the call both read
+    // their old values again; the sustain switch moves neither (the random builder buys no sustain piece; measured both
+    // ways on flipx2 94cc87d)
+    expect(hash32(a.join("|"))).toBe(2599201197);
+    expect(hash32(b.join("|"))).toBe(1712223641);
   }, 60_000);
 });
 

@@ -31,7 +31,11 @@ const PACK = ITEMS.plating.supply!.hull!;
 describe("RUNES-2a botRunePick: style, then the board's themes, then catalogue order", () => {
   it("takes the hero's own style first, whatever the board holds", () => {
     const b = board("furnace", { hullBonus: 500, items: [at("press", 1), at("doublestamp", 2)] });
-    expect(botRunePick(["iron_skin", "coal_chute", "oiled_cogs"], "furnace", b)).toBe("coal_chute");
+    // FLIP-X2 (REVIEW-TUNEX): COAL CHUTE is dormant (DORMANT_RUNES): runeList() leaves it out, so the picker never takes it
+    // even when handed one (no dawn offers it): the board's armor (500 hull, 2 packs) wins (was coal_chute). FURNACE's live
+    // style rune ASH KINDLE is its first pick, whatever the board holds
+    expect(botRunePick(["iron_skin", "coal_chute", "oiled_cogs"], "furnace", b)).toBe("iron_skin");
+    expect(botRunePick(["iron_skin", "ash_kindle", "oiled_cogs"], "furnace", b)).toBe("ash_kindle");
     expect(botRunePick(["loose_thread", "war_edge"], "weaver", b)).toBe("loose_thread");
     expect(botRunePick(["twin_nails", "iron_skin"], "foundry", b)).toBe("twin_nails");
     expect(botRunePick({ day: 1, tier: "common", drawn: "common", ids: ["tar_barrel", "rivet_hoard"] }, "bastion", b)).toBe("rivet_hoard");
@@ -55,7 +59,10 @@ describe("RUNES-2a botRunePick: style, then the board's themes, then catalogue o
     expect(boardThemeCount("furnace", b)).toBe(3);
     expect(boardThemeCount("belts", b)).toBe(2);
     expect(boardThemeCount("factories", b)).toBe(1);
-    expect(botRunePick(["tar_barrel", "coal_chute"], "metronome", b)).toBe("coal_chute");
+    // FLIP-X2 (REVIEW-TUNEX): COAL CHUTE is dormant, so the picker never takes it: TAR BARREL (belts 2) is the only card
+    // left (was coal_chute); ASH KINDLE, FURNACE's live style rune, reads the same 3 HEAT pieces and wins over the belts
+    expect(botRunePick(["tar_barrel", "coal_chute"], "metronome", b)).toBe("tar_barrel");
+    expect(botRunePick(["tar_barrel", "ash_kindle"], "metronome", b)).toBe("ash_kindle");
     // the LOOM frays (weaver), TWIN MOULD pours (foundry), PLATE ROLLER plates (bastion)
     const w = board("siphon", { items: [at("loom", 1), at("twinmould", 2), at("plateroller", 3)] });
     expect(["weaver", "foundry", "bastion"].map((t) => boardThemeCount(t as RuneTheme, w))).toEqual([1, 1, 1]);
@@ -97,18 +104,26 @@ describe("RUNES-2a botTakeRune: applied as run.ts takeRune applies a pick", () =
   });
 
   it("is off by default: the switch is off, and off leaves the build untouched", () => {
-    expect(BOT_RUNES).toBe(false);
+    // FLIP-X2 (REQ-BFG-058, release X): BOT_RUNES is on (was false), so the default takes the pick, as an explicit true does;
+    // off (false) still leaves the build untouched
+    expect(BOT_RUNES).toBe(true);
     const b = heroStartBuild("furnace", 1), before = JSON.stringify(b);
-    expect(botTakeRune(b, 1, 1)).toBeNull();
     expect(botTakeRune(b, 1, 1, "furnace", false)).toBeNull();
     expect(JSON.stringify(b)).toBe(before);
     expect(botTakeRune(b, 1, 2, "furnace", true)).toBeNull(); // missed day 1's dawn: no pick owed
+    expect(JSON.stringify(b)).toBe(before);
+    const on = heroStartBuild("furnace", 1), got = botTakeRune(on, 1, 1, "furnace", true);
+    expect(got).not.toBeNull();
+    expect(botTakeRune(b, 1, 1)).toEqual(got); // FLIP-X2: the default is the switch, on (was null)
+    expect(b).toEqual(on);
   });
 });
 
 describe("RUNES-2a the par player behind the switch", () => {
   it("switch off: the run holds no runes and plays exactly as with botRunes false", () => {
-    const traced = playerRun("bastion", 10, 3, { onReroll: () => {} }); // traced: never the cache
+    // FLIP-X2 (REQ-BFG-058): BOT_RUNES is on, so the switch-off run is botRunes: false on the traced run too (was its
+    // default); the default, traced or cached, is the botRunes: true run
+    const traced = playerRun("bastion", 10, 3, { onReroll: () => {}, botRunes: false }); // traced: never the cache
     const off = playerRun("bastion", 10, 3, { botRunes: false });
     expect(off).toEqual(traced);
     for (const d of off) {
@@ -116,6 +131,10 @@ describe("RUNES-2a the par player behind the switch", () => {
       expect(JSON.stringify(d.build)).not.toContain("runes");
       expect(d.budget).toBe(traced[d.day - 1].budget);
     }
+    const on = playerRun("bastion", 10, 3, { botRunes: true });
+    expect(playerRun("bastion", 10, 3, { onReroll: () => {} })).toEqual(on);
+    expect(playerRun("bastion", 10, 3)).toEqual(on);
+    expect(on.map((d) => d.build.runes?.length)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
   it("switch on: every dawn takes one offered rune (runeProblem passes with the run seed) and every deck validates", () => {
@@ -140,9 +159,11 @@ describe("RUNES-2a the par player behind the switch", () => {
 describe("RUNES-2a the caravan stand-ins inherit the par player's switch", () => {
   it("a caravan candidate holds a rune a dawn with botRunes on, none off, and its gold adds up either way", () => {
     for (let idx = 0; idx < 4; idx++) { // the policy mix: typical, typical, sharp, loose
-      const off = caravanCandidate("weaver", 6, 1, idx, 2), on = caravanCandidate("weaver", 6, 1, idx, 2, true);
+      // FLIP-X2 (REQ-BFG-058): BOT_RUNES is on, so the switch-off candidate is an explicit false (was the default) and the
+      // default is the botRunes-on candidate
+      const off = caravanCandidate("weaver", 6, 1, idx, 2, false), on = caravanCandidate("weaver", 6, 1, idx, 2, true);
       expect(off.build.runes).toBeUndefined();
-      expect(off).toEqual(caravanCandidate("weaver", 6, 1, idx, 2, false));
+      expect(caravanCandidate("weaver", 6, 1, idx, 2)).toEqual(on);
       expect(on.build.runes).toHaveLength(6);
       expect(runeProblem(on.build.runes, 6, "weaver", runSeed("weaver", on.meta.seed))).toBeNull();
       expect(on.meta.cargoGold).toBe(off.meta.cargoGold); // the dawn-gold runes' gold is in the day's gold (runeGrants)

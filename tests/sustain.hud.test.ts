@@ -70,11 +70,25 @@ describe("SUS-B the HUD: SHIELD pips, the REGEN badge, HEAL floats", () => {
         a.update(1 / 60);
         const broke = events.slice(before).filter((e): e is Extract<SimEvent, { type: "shield" }> => e.type === "shield" && e.amount < 0);
         if (broke.length) {
-          const last = broke[broke.length - 1];
+          let last = broke[broke.length - 1];
           expect(a.sfx[last.side].shieldAt).toBe(last.shield);
           expect(a.sfx[last.side].shieldBreak).toBeGreaterThan(SHIELD_BREAK_TIME - 0.05);
           cued = true;
-          for (let k = 0; k < 60; k++) a.update(1 / 60);
+          // FLIP-X2 (REQ-BFG-058, REQ-BFG-069): on release X's decks (the bots' runes on both par decks) the foe's second hit
+          // lands 0.73 s after the first (frames 683 and 727 here), inside the 60 frames, and breaks a second SHIELD: that
+          // break restarts the cue on its pip (checked as the first), and the cue plays out 60 frames after the last break
+          // (was 60 frames after the first, with no break between)
+          for (let k = 0; k < 60; k++) {
+            const at = events.length;
+            a.update(1 / 60);
+            const again = events.slice(at).filter((e): e is Extract<SimEvent, { type: "shield" }> => e.type === "shield" && e.amount < 0 && e.side === last.side);
+            if (again.length) {
+              last = again[again.length - 1];
+              expect(a.sfx[last.side].shieldAt).toBe(last.shield);
+              expect(a.sfx[last.side].shieldBreak).toBeGreaterThan(SHIELD_BREAK_TIME - 0.05);
+              k = -1; // 60 more frames from this break
+            }
+          }
           expect(a.sfx[last.side].shieldBreak).toBe(0);
         }
       }

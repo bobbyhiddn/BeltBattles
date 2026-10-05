@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Rng, hashSeed } from "../src/core/rng";
 import { AMMO, ITEMS, type HeroId, type ItemDef } from "../src/sim/content";
+import { isSustain } from "../src/sim/content"; // FLIP-X2: the random builder buys no sustain piece
 import { rigHits, routesOf, type Build } from "../src/sim/deck";
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
 import { FUSE_MAX, effectAt, outputsAt, starsOf } from "../src/sim/stars";
@@ -127,8 +128,11 @@ describe("harness factories (0.6.1c): legality", () => {
     }
     console.log(`factories property scan: levers ${levers}, merge levers ${merges} (factory merges ${factoryMerges}), 2-star factories ${twoStar}, GANTRY on 2 routes ${gantry2}, slag skipped+steered ${slagHit}, THIRD ARM routes ${third}, bought ${[...seen].sort().join(",")}`);
     expect(levers).toBeGreaterThan(2000);
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): MEND PRESS is a sold factory now, but the random builder never buys a
+    // sustain piece (harness/shopper.ts notSustain; tests/botsx.sustain.test.ts), so the six bought are every sold factory
+    // but the sustain ones (was every sold factory)
     expect([...seen].sort()).toEqual(Object.values(ITEMS)
-      .filter((d) => d.kind === "factory" && d.merchant && d.price > 0).map((d) => d.id).sort());
+      .filter((d) => d.kind === "factory" && d.merchant && d.price > 0 && !isSustain(d.id)).map((d) => d.id).sort());
     expect(twoStar).toBeGreaterThan(5);
     expect(merges).toBeGreaterThan(50);
     expect(factoryMerges).toBeGreaterThan(0); // the merge lever does merge factory copies

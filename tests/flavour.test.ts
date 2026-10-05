@@ -44,9 +44,10 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // 0.6.2rel2 (the 0.6.2 candidate): 23 rigs, 13 factories, 13 cores, 9 gear, 13 turrets and 2 supplies
     // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3 is live: +8 rigs, +2 factories, +2 cores, +3 gear
     // FLIP-X2: SIFTER dormant, 31 -> 30 rigs sold
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): + MEND PRESS (factories 15 -> 16), WARD BELL and MENDING LOOM (gear 12 -> 14)
     const byKind: Record<string, number> = {};
     for (const d of SOLD) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
-    expect(byKind).toEqual({ gate: 30, factory: 15, core: 15, mod: 12, turret: 13, supply: 2 });
+    expect(byKind).toEqual({ gate: 30, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
   });
 
   it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
@@ -81,7 +82,9 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // adds the 13 turrets' 39 module-stars, 6 of them with flavour (RAMPART CANNON and HAIL GUN). 0.8.0 I1 M2: wave 3's
     // 15 modules add 45 module-stars, none with flavour (was 215). FLIP-X2: SIFTER dormant, its 3 module-stars (no
     // flavour) leave the sold list: 260 -> 257
-    expect(counts).toEqual({ moduleStars: 257, withFlavour: 19, sentences: 19 });
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): the 3 sustain pieces' 9 module-stars join, none with flavour (each has
+    // a face, so flavour() shows none): 257 -> 266
+    expect(counts).toEqual({ moduleStars: 266, withFlavour: 19, sentences: 19 });
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {

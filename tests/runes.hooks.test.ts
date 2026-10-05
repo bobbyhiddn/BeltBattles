@@ -12,6 +12,7 @@ import { rateMul, secPer } from "../src/sim/content"; // NUM-2: a whole rate % o
 import { PLATE_CAP } from "../src/sim/races/bastion";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
 import { RUNE_LIST, RUNES, dawnGold, mergedPieces, pickGold, runeGrants, runeMods, runeOffer } from "../src/sim/runes";
+import { DORMANT_RUNES } from "../src/sim/runes"; // FLIP-X2: no dawn offers a dormant rune
 import { newRun, pendingRune, takeRune } from "../src/game/run";
 import { finishDay } from "../src/game/day";
 import { battleRecordFor, replay } from "../src/net/replay";
@@ -439,7 +440,10 @@ describe("RUNES-2a: what a pick of each tier looks like now", () => {
       const held: string[] = [];
       for (let day = 1; day <= 10; day++) { const o = runeOffer(seed * 31, day, hero, held); o.ids.forEach((id) => seen.add(id)); held.push(o.ids[seed % o.ids.length]); }
     }
-    for (const d of RUNE_LIST) expect(seen.has(d.id), d.id).toBe(true);
+    // FLIP-X2 (REVIEW-TUNEX): RUNE_LIST's two dormant runes (DORMANT_RUNES: COAL CHUTE, HEAT SINK) are offered nowhere, every
+    // other one somewhere (was every RUNE_LIST rune offered); and no dormant rune at all (SEARING and SHATTER SHOT neither)
+    for (const d of RUNE_LIST) expect(seen.has(d.id), d.id).toBe(!DORMANT_RUNES.has(d.id));
+    expect([...seen].filter((id) => DORMANT_RUNES.has(id))).toEqual([]);
     void runeMods;
   });
 });

@@ -134,7 +134,10 @@ describe("luck report: the TYPICAL buyer and the whole report", () => {
     // draw no family is flagged (the CHASER never completes PLATE), so a live report runs no what-if at all.
     const r = await luckReport({ runs: 2, seed: 1, heroes: ["furnace"], typical: false, families: ["PLATE"], whatif: 2, wave3: false });
     expect(r.whatif?.rows.map((w) => w.tag)).toEqual(["PLATE"]);
-    expect(r.whatif?.rows[0].changes.length).toBe(10); // was 2: VENOM DRIP rare to epic, and the ARCANE DEALER as merchant
+    // was 2: VENOM DRIP rare to epic, and the ARCANE DEALER as merchant. FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): PLATE
+    // with wave 3 off is 7 members now, SIFTER out (dormant) and WARD BELL, MEND PRESS and MENDING LOOM in (the sustain
+    // switch on; all three are PLATE), two changes each: 14 (was 10)
+    expect(r.whatif?.rows[0].changes.length).toBe(14);
     expect(JSON.stringify(ITEMS)).toBe(before);
   });
 
@@ -146,12 +149,16 @@ describe("luck report: the TYPICAL buyer and the whole report", () => {
     const plate = withWave3(() => familyTable().families.findIndex((f) => f.tag === "PLATE"), false);
     const job = { id: 0, kind: "chaser" as const, hero: "furnace" as HeroId, seeds: [1], family: plate };
     const off = runJob({ ...job, wave3: false }) as ChaserOut[];
-    expect(off[0].missing.length).toBe(5); // PLATE with wave 3 off: TOLLBOOTH, SIFTER, RIVETER, FLAK SCREEN, MANTLET
+    // PLATE with wave 3 off: TOLLBOOTH, SIFTER, RIVETER, FLAK SCREEN, MANTLET. FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069):
+    // TOLLBOOTH, RIVETER, FLAK SCREEN, MANTLET, WARD BELL, MEND PRESS, MENDING LOOM (SIFTER dormant; the sustain switch on): 7
+    // (was 5)
+    expect(off[0].missing.length).toBe(7);
     expect(JSON.stringify(off)).toBe(JSON.stringify(withWave3(() => runJob(job), false)));
     expect(wave3Live()).toBe(true); // put back after the job
     const live = runJob(job) as ChaserOut[];
     expect(live[0].missing.length).toBe(familyTable().families.find((f) => f.tag === "PLATE")!.members.length);
-    expect(live[0].missing.length).toBe(14);
+    // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): live PLATE is 16, SIFTER out and the 3 sustain pieces in (was 14)
+    expect(live[0].missing.length).toBe(16);
   });
 
   it("the same seeds give the same output", async () => {

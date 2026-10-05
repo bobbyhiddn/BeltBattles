@@ -4,6 +4,7 @@
 // 62 parts with five unlock steps, and the real caravan offers only its unlocked wares.
 import { describe, expect, it } from "vitest";
 import { ITEMS, RARITY_ARROWS, SHAPE_ARROWS, buyableModules, itemsSoldBy, rigShape, type HeroId } from "../src/sim/content";
+import { withSustain } from "../src/sim/content"; // FLIP-X2: D1's catalogue has no sustain piece (inD1 below)
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { newRun, rollShop, type Run } from "../src/game/run";
 import { Rng } from "../src/core/rng";
@@ -16,11 +17,19 @@ import { NPCS, npcDeck, problems } from "../tools/wave3Npcs";
 
 const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
 
+/**
+ * FLIP-X2 (REQ-BFG-069): D1's variants (tools/wave3.ts: today, wave3, p100) are the catalogues D1 designed, which hold no
+ * sustain piece: D1's tag map (TAGS_TODAY, tagsFor) has no row for one, and its counts are D1's. With the sustain switch on
+ * (the default now) every variant also counts WARD BELL, MEND PRESS and MENDING LOOM, so D1's checks run in D1's world: the
+ * sustain switch off for the call (withSustain(fn, false)). The live catalogue is pinned with the switch on below.
+ */
+const inD1 = <T>(fn: () => T): T => withSustain(fn, false);
+
 describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
   // 0.8.0 I1 M2 (REPORT-P1 section 13, "D1's 71-module counts"): wave 3 is live, so v070-rc's catalogue is the `today`
   // variant (wave 3 off for one call); the live catalogue counts 86
-  it("counts ITEMS without supplies and hero signatures: 71 at v070-rc, 58 without turrets, equal to buyableModules(); 86 live", () => {
-    const c = withCatalogue("today", () => catalogueCount());
+  it("counts ITEMS without supplies and hero signatures: 71 at v070-rc, 58 without turrets, equal to buyableModules(); 89 live", () => {
+    const c = inD1(() => withCatalogue("today", () => catalogueCount())); // FLIP-X2: in D1's world (was 74 with the switch on)
     expect(c.total).toBe(71);
     expect(c.modules).toBe(58);
     expect(c.turrets).toBe(13);
@@ -28,16 +37,20 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant (still in ITEMS, no longer stocked), so the count differs from
     // buyableModules() by exactly the dormant set (was sameAsBuyable true)
     expect(c.sameAsBuyable).toBe(false);
-    expect(withCatalogue("today", () => counted().filter((id) => !buyableModules().some((d) => d.id === id)))).toEqual([...DORMANT_ITEMS]);
+    expect(inD1(() => withCatalogue("today", () => counted().filter((id) => !buyableModules().some((d) => d.id === id))))).toEqual([...DORMANT_ITEMS]);
     expect(c.supplies.sort()).toEqual(["beltcrate", "plating"]);
     expect(c.signatures.sort()).toEqual(["clockworks", "crucible", "kiln", "loom", "sump", "wardworks"]);
     const live = catalogueCount();
-    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([86, 73, 13, false]); // FLIP-X2: SIFTER dormant (was true)
-    expect(buyableModules().length).toBe(85); // FLIP-X2: 86 counted less the dormant SIFTER
-    expect(live.byKind).toEqual({ rig: 31, factory: 15, core: 15, mod: 12, turret: 13 });
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): + WARD BELL, MEND PRESS, MENDING LOOM: 86 -> 89 counted, 73 -> 76
+    // without turrets; buyableModules() 85 -> 88 (the dormant SIFTER is counted, not stocked: sameAsBuyable stays false)
+    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([89, 76, 13, false]); // FLIP-X2: SIFTER dormant (was true)
+    expect(buyableModules().length).toBe(88); // FLIP-X2: 89 counted less the dormant SIFTER (was 85)
+    expect(live.byKind).toEqual({ rig: 31, factory: 16, core: 15, mod: 14, turret: 13 }); // FLIP-X2: factory 15 -> 16, mod 12 -> 14
+    expect(inD1(() => catalogueCount()).total).toBe(86); // FLIP-X2: D1's wave-3 catalogue, the switch off
   });
 
-  it("install adds the hypothetical modules and uninstall restores ITEMS exactly", () => {
+  // FLIP-X2: in D1's world (the counts are D1's variants'; with the switch on each reads 3 more: 103, 102, 89)
+  it("install adds the hypothetical modules and uninstall restores ITEMS exactly", () => inD1(() => {
     const before = JSON.stringify(ITEMS);
     install("p100");
     expect(counted().length).toBe(100);
@@ -49,12 +62,14 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     expect(JSON.stringify(ITEMS)).toBe(before);
     expect(() => withCatalogue("wave3", () => { throw new Error("boom"); })).toThrow("boom");
     expect(JSON.stringify(ITEMS)).toBe(before);
-  });
+  }));
 });
 
 describe("wave3: family map v2", () => {
   it("today: every buyable module carries 1-3 tags, and each of the 5 families has 12+ members across 2+ kinds", () => {
-    const t = withCatalogue("today", () => familyTableV2("today")); // 0.8.0 I1 M2: v070-rc's catalogue, wave 3 off
+    // 0.8.0 I1 M2: v070-rc's catalogue, wave 3 off. FLIP-X2: in D1's world (inD1: with the switch on the table counts 74 and
+    // the 3 sustain pieces, which D1's TAGS_TODAY never tags)
+    const t = inD1(() => withCatalogue("today", () => familyTableV2("today")));
     expect(t.buyable.length).toBe(71);
     expect(t.untagged).toEqual([]);
     expect(t.unknown).toEqual([]);
@@ -69,7 +84,8 @@ describe("wave3: family map v2", () => {
   });
 
   it("wave 3 and the 1.0 projection: TWIN and PLATE join, every module tagged 1-3 times, every family 12+ across 2+ kinds", () => {
-    for (const v of ["wave3", "p100"] as const) withCatalogue(v, () => {
+    // FLIP-X2: in D1's world (inD1: with the switch on each variant counts the 3 sustain pieces too, 89 and 103)
+    for (const v of ["wave3", "p100"] as const) inD1(() => withCatalogue(v, () => {
       const t = familyTableV2(v);
       expect(t.buyable.length).toBe(v === "wave3" ? 86 : 100);
       expect(t.untagged).toEqual([]);
@@ -78,7 +94,7 @@ describe("wave3: family map v2", () => {
       for (const f of t.families) expect(f.flag, `${v} ${f.fam}`).toBeNull();
       const tags = tagsFor(v);
       for (const id of t.buyable) expect(new Set(tags[id]).size === tags[id].length && tags[id].length >= 1 && tags[id].length <= 3, id).toBe(true);
-    });
+    }));
     // ADD_WAVE3 only adds tags to existing modules, never a tag they already carry
     for (const [id, t] of Object.entries(ADD_WAVE3)) for (const fam of t) expect(TAGS_TODAY[id], id).not.toContain(fam);
   });
@@ -169,7 +185,9 @@ describe("wave3: the per-run draw (REQ-BFG-022 part 2)", () => {
   });
 
   it("today's rule as a ware map: all 70, the ARCANE DEALER from day 3, legendaries from day 4 (two steps)", () => {
-    const p = withCatalogue("today", () => poolOf(todayWares())); // 0.8.0 I1 M2: v070-rc's catalogue, wave 3 off
+    // 0.8.0 I1 M2: v070-rc's catalogue, wave 3 off. FLIP-X2: in D1's world (inD1: with the switch on the map also holds the
+    // 3 sustain pieces, { active: 73, day1: 64, steps: [3, 4] }: tools/wave3.ts's rule doesn't know their day-3 hold)
+    const p = inD1(() => withCatalogue("today", () => poolOf(todayWares())));
     // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER dormant, a day-1 common: 71 -> 70 active, 62 -> 61 on day 1
     expect(p).toEqual({ active: 70, day1: 61, steps: [3, 4] });
   });

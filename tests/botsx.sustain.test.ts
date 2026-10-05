@@ -69,11 +69,14 @@ describe("BOTS-X step 1: the one day-3 hold for every sustain offer (the switch 
   });
 
   it("off: no wares, offer or random deck holds a sustain piece (the random builder never buys one, on or off)", () => {
-    for (const hero of HEROES4) for (let seed = 1; seed <= 10; seed++) {
-      const run = newRun(hero, hashSeed("botsx-hold", hero, seed), `botsx-${hero}-${seed}`);
-      expect(Object.keys(run.wares ?? {}).filter(isSustain)).toEqual([]);
-      expect(offeredDefs(run).filter(isSustain)).toEqual([]);
-    }
+    // FLIP-X2 (REQ-BFG-069): the switch is on by default, so off is withSustain(fn, false) (was the default)
+    withSustain(() => {
+      for (const hero of HEROES4) for (let seed = 1; seed <= 10; seed++) {
+        const run = newRun(hero, hashSeed("botsx-hold", hero, seed), `botsx-${hero}-${seed}`);
+        expect(Object.keys(run.wares ?? {}).filter(isSustain)).toEqual([]);
+        expect(offeredDefs(run).filter(isSustain)).toEqual([]);
+      }
+    }, false);
     withSustain(() => {
       for (const hero of HEROES4) for (let day = 3; day <= 10; day += 3) for (let seed = 1; seed <= 4; seed++) {
         const b = randomBuild(hero, day, new Rng(hashSeed("botsx-random", hero, day, seed)), "on", 3, "on", "on");
@@ -110,8 +113,10 @@ describe("BOTS-X step 1: the one day-3 hold for every sustain offer (the switch 
         expect(runeProblem([{ id: d1 }, { id: "green_thread" }], 2, "weaver", seed)).toMatch(/GREEN THREAD was not offered at the dawn of day 2/);
       }
     });
-    // off: the switch's own refusal comes first, as before
-    expect(runeProblem([{ id: "tick_guard" }], 1, "bastion")).toMatch(/TICK GUARD is not in the game while sustain is off/);
+    // off: the switch's own refusal comes first, as before (FLIP-X2: off is withSustain(fn, false), the switch being on by
+    // default; the default gives the day-3 hold's refusal above)
+    expect(withSustain(() => runeProblem([{ id: "tick_guard" }], 1, "bastion"), false)).toMatch(/TICK GUARD is not in the game while sustain is off/);
+    expect(runeProblem([{ id: "tick_guard" }], 1, "bastion")).toMatch(/runes\[0\]: TICK GUARD is not offered before the dawn of day 3/);
     expect(RUNE_LIST.some((d) => isSustainRune(d.id))).toBe(false);
   });
 });
@@ -119,13 +124,18 @@ describe("BOTS-X step 1: the one day-3 hold for every sustain offer (the switch 
 describe("BOTS-X step 2: the bots' sustain value (deckRating.ts, SUSTAIN-1 4.8 rule 2)", () => {
   it("the value table is the bench's: tools/sustainFoe.ts on bx with the switch on, its command, seeds and date named beside it", () => {
     expect(SUSTAIN_FOE.length).toBe(10);
-    expect(SUSTAIN_FOE[0]).toEqual({ fight: 29.34, burn: 0.208, hit: 65.5 });
-    expect(SUSTAIN_FOE[4]).toEqual({ fight: 20.79, burn: 0.415, hit: 80.7 });
-    expect(SUSTAIN_FOE[9]).toEqual({ fight: 17.91, burn: 0.527, hit: 95.5 });
+    // FLIP-X2 step 3c (d3981f8; REVIEW-TUNEX's re-run after the rune lines): the table is tools/sustainFoe.ts re-run on
+    // flipx2 8d714af with both switches on, the same command and shards (was bx e1e1004's: day 1 29.34 / 0.208 / 65.5, day 5
+    // 20.79 / 0.415 / 80.7, day 10 17.91 / 0.527 / 95.5); bx's run stays named beside it as the table's first build
+    expect(SUSTAIN_FOE[0]).toEqual({ fight: 29.25, burn: 0.25, hit: 74.5 });
+    expect(SUSTAIN_FOE[4]).toEqual({ fight: 18.56, burn: 0.49, hit: 88.0 });
+    expect(SUSTAIN_FOE[9]).toEqual({ fight: 13.41, burn: 0.719, hit: 113.1 });
     expect(foeOn(0)).toBe(SUSTAIN_FOE[0]);
     expect(foeOn(14)).toBe(SUSTAIN_FOE[9]);
     const src = readFileSync(new URL("../src/sim/deckRating.ts", import.meta.url), "utf8");
     for (const s of ["tools/sustainFoe.ts", "bx e1e1004", 'hashSeed("botsx-foe"', "2026-10-05 06:14:33Z", "--k 6 --seeds 4", "nice -n 19"]) expect(src, s).toContain(s);
+    // FLIP-X2: and the re-run that wrote today's table, its branch, commit and times
+    for (const s of ["flipx2 8d714af", "2026-10-05 08:48:43-08:49:28Z", "W/output-flipx2/bench/foe-*.json"]) expect(src, s).toContain(s);
     const tool = readFileSync(new URL("../tools/sustainFoe.ts", import.meta.url), "utf8");
     expect(tool).toContain('hashSeed("botsx-foe", day, heroes[x], heroes[y], i, j, s)');
     expect(tool).toContain("setSustain(true)");
@@ -156,13 +166,16 @@ describe("BOTS-X step 2: the bots' sustain value (deckRating.ts, SUSTAIN-1 4.8 r
       // without a day: the rating as before, NOMINAL credit and all
       expect(rateDeck(withGear("wardbell"), RATING_CURVE, fightTime(5)).offense).toBeGreaterThan(r0.offense);
     });
-    // off: the day changes nothing (every par rating, so every par run, as before)
-    for (const b of [base, withGear("wardbell"), withGear("mendingloom"), playerBuild("foundry", 7, 2), playerBuild("furnace", 9, 3)]) {
-      expect(rateDeck(b, RATING_CURVE, fightTime(5), undefined, undefined, 5)).toEqual(rateDeck(b, RATING_CURVE, fightTime(5)));
-      const o: RateOut = { stokeKeep: new Map() };
-      rateDeck(b, RATING_CURVE, fightTime(5), o, undefined, 5);
-      expect(o.sustain).toBeUndefined();
-    }
+    // off: the day changes nothing (every par rating, so every par run, as before). FLIP-X2 (REQ-BFG-069): the switch is on
+    // by default, so off is withSustain(fn, false) (was the default)
+    withSustain(() => {
+      for (const b of [base, withGear("wardbell"), withGear("mendingloom"), playerBuild("foundry", 7, 2), playerBuild("furnace", 9, 3)]) {
+        expect(rateDeck(b, RATING_CURVE, fightTime(5), undefined, undefined, 5)).toEqual(rateDeck(b, RATING_CURVE, fightTime(5)));
+        const o: RateOut = { stokeKeep: new Map() };
+        rateDeck(b, RATING_CURVE, fightTime(5), o, undefined, 5);
+        expect(o.sustain).toBeUndefined();
+      }
+    }, false);
   });
 });
 
@@ -255,7 +268,9 @@ describe("BOTS-X step 2: the bots' rules (player.ts, SUSTAIN-1 4.8 rules 2-6; th
       expect(picks).toBeGreaterThan(0);
       expect(held).toBeGreaterThan(0);
     });
-  });
+  }, 120_000); // FLIP-X2: heavier with the switches on (every par dawn takes a rune too): the whole-suite runs read 16.7 s at
+  // step 1b, 21.9 s at step 2, 25.4 s at 3c; 26 s at host load 4 and 42-47 s at 11-15 here, against the global 30 s
+  // (vite.config.ts). Its own limit, as 0.8.8 (bccf33f) gave two heavy tests: no assertion, input or check changed
 
   it("placement: RIVETER's belt is the one with the most payloads a second; WARD BELL and MENDING LOOM take an unfed turret first, else the least-damage one", () => {
     withSustain(() => {
@@ -285,10 +300,13 @@ describe("BOTS-X step 2: the bots' rules (player.ts, SUSTAIN-1 4.8 rules 2-6; th
   });
 
   it("off: the par runs hold no sustain piece and the cache keeps the two worlds apart", () => {
-    const off = playerRun("bastion", 10, 1);
-    const on = withSustain(() => playerRun("bastion", 10, 1));
+    // FLIP-X2 (REQ-BFG-069): the switch is on by default, so off is withSustain(fn, false) and the default run is the on run
+    // (was off the default and on withSustain)
+    const off = withSustain(() => playerRun("bastion", 10, 1), false);
+    const on = playerRun("bastion", 10, 1);
     expect(off.flatMap((d) => sustainPieces(d.build)).filter((p) => isSustain(p.def))).toEqual([]);
-    expect(playerRun("bastion", 10, 1)).toEqual(off); // the switch-off run, not the cached switch-on one
+    expect(withSustain(() => playerRun("bastion", 10, 1), false)).toEqual(off); // the switch-off run, not the cached switch-on one
+    expect(playerRun("bastion", 10, 1)).toEqual(on); // the switch-on run, not the cached switch-off one
     expect(withSustain(() => playerRun("bastion", 10, 1))).toEqual(on);
   });
 });
@@ -311,8 +329,12 @@ describe("BOTS-X step 3: the captains (rivalBuilds.ts RivalPlan.sustain; SUSTAIN
       }
       for (const def of PLANS.karsk.synergy!.filter((x) => x !== "shieldwall")) expect(standInBuild("karsk", 9).items.some((p) => p.def === def) || standInBuild("karsk", 9).mods.some((m) => m.def === def), def).toBe(true);
     });
-    // off: no WARD BELL on any day, and the plan's own upgrades never name it
-    for (let d = 1; d <= RUN_DAYS; d++) expect(rivalBuild("karsk", d).mods.some((m) => m.def === "wardbell"), `karsk d${d}`).toBe(false);
+    // off: no WARD BELL on any day, and the plan's own upgrades never name it. FLIP-X2 (REQ-BFG-069): the switch is on by
+    // default, so off is withSustain(fn, false) (was the default); the default holds the bell from day 5, as checked above
+    withSustain(() => {
+      for (let d = 1; d <= RUN_DAYS; d++) expect(rivalBuild("karsk", d).mods.some((m) => m.def === "wardbell"), `karsk d${d}`).toBe(false);
+    }, false);
+    for (let d = 1; d <= RUN_DAYS; d++) expect(rivalBuild("karsk", d).mods.some((m) => m.def === "wardbell"), `karsk d${d}`).toBe(d >= 5);
     expect(PLANS.karsk.upgrades.some((u) => u.mod?.[0] === "wardbell")).toBe(false);
   });
 

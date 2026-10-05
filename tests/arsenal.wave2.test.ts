@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle, type BeltAmmo, type Payload, type SideState, type Target } from "../src/sim/battle";
 import { AMMO, CELL, ITEMS, itemsSoldBy, rateMul } from "../src/sim/content";
+import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant (REVIEW-NUM3 answer 2)
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2 (REQ-BFG-047): MIMIC's speed, rounded half up once
 import { estimateRoute, type Build } from "../src/sim/deck";
 import { resolveCore } from "../src/sim/cores";
@@ -60,13 +61,17 @@ describe("wave-2 stock and live star data", () => {
       Object.values(ITEMS).filter((d) => d.kind === kind && d.merchant).length);
     // REQ-BFG-021: ESCAPEMENT and LONGCASE are sold to every hero (7 -> 9 mods); 0.8.0 I1 M2 (REPORT-P1 section 13): + wave
     // 3's 8 rigs, 2 factories, 2 cores and 3 mods (was 23, 13, 13, 9)
-    expect(counts).toEqual([31, 15, 15, 12]);
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): + MEND PRESS (factory), WARD BELL and MENDING LOOM (mods), 15 -> 16 and
+    // 12 -> 14; the dormant SIFTER keeps its merchant, so the rigs stay 31 (was [31, 15, 15, 12])
+    expect(counts).toEqual([31, 16, 15, 14]);
     for (const id of WAVE) {
       const d = ITEMS[id];
       expect([d.merchant, d.rarity, d.price], id).toEqual(WAVE_STOCK[id]);
       expect(d.merchant, id).toBeTruthy();
       expect(d.price, id).toBeGreaterThan(0);
-      expect(itemsSoldBy(d.merchant!).some((stock) => stock.id === id), id).toBe(true);
+      // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant (DORMANT_ITEMS): it keeps its merchant, price and star data, but
+      // its merchant no longer stocks it (was true for all 20)
+      expect(itemsSoldBy(d.merchant!).some((stock) => stock.id === id), id).toBe(!DORMANT_ITEMS.has(id));
       expect(d.desc.every((line) => line.length <= 20), id).toBe(true);
       expect([1, 2, 3].map((s) => valueOf(id, s)), id).toEqual([d.price, d.price * 2, d.price * 4]);
       // 0.6.2t: the glossary's text at every star (it replaced starEffectLine's shorthand headline)
@@ -78,12 +83,15 @@ describe("wave-2 stock and live star data", () => {
   });
 
   it("puts each wave-2 part in an actual caravan offer that can be bought", () => {
-    const missing = new Set(WAVE);
+    // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant, so no caravan offers it (checked on every offer walked below); the
+    // walk looks for the other 19 (was all 20)
+    const missing = new Set(WAVE.filter((id) => !DORMANT_ITEMS.has(id)));
     for (let seed = 1; seed <= 4000 && missing.size; seed++) {
       const run = newRun("furnace", seed);
       run.day = 10;
       rollShop(run);
       for (const [wi, wagon] of run.shop.wagons.entries()) for (const [oi, offer] of wagon.offers.entries()) {
+        expect(DORMANT_ITEMS.has(offer.def), `seed ${seed}: ${offer.def} offered`).toBe(false); // FLIP-X2
         if (!missing.has(offer.def)) continue;
         expect(wagon.merchant).toBe(ITEMS[offer.def].merchant);
         expect(offer.price).toBe(ITEMS[offer.def].price);
@@ -112,8 +120,9 @@ describe("wave-2 stock and live star data", () => {
       { kind: "frost", seconds: 2, spread: 0 }, { kind: "frost", seconds: 3, spread: 1 }, { kind: "frost", seconds: 3, spread: 2 }]);
     // NUM-3 (R1's STUN fold, N1 2.2): a DRAG CHAIN round STUNs the part it hits for 1 / 2 / 2 s and has no slow `mul` (was
     // a belt slow x0.6 / x0.4 / x0.3 for 3 / 4.4 / 6 s: { kind: "drag", mul, seconds })
+    // FLIP-X2 (REVIEW-NUM3 F1): ★3 STUNs 3 s (was 2 s, the same as ★2)
     expect(read("dragchain", (s) => effectAt("dragchain", s).factory?.round)).toEqual([
-      { kind: "drag", seconds: 1 }, { kind: "drag", seconds: 2 }, { kind: "drag", seconds: 2 }]);
+      { kind: "drag", seconds: 1 }, { kind: "drag", seconds: 2 }, { kind: "drag", seconds: 3 }]);
     // NUM-2 (REQ-BFG-047): a whole rate %, roundHalfUp(100 / mul - 100) (was intervalMul [1.4, 1, 0.8]: -28.6 -> -29, 0, 25)
     expect(read("mimic", (s) => effectAt("mimic", s).factory?.rate)).toEqual([-29, 0, 25]);
     expect(read("limpet", (s) => effectAt("limpet", s).factory?.round?.kind === "limpet" ? effectAt("limpet", s).factory!.round!.blast : 0)).toEqual([80, 180, 280]); // NUM-1: x10 (was [8, 18, 28])

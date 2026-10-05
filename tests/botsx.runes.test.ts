@@ -25,6 +25,7 @@ import {
   HERO_STYLE, RUNES, RUNE_HEROES, RUNE_LIST, SUSTAIN_RUNE_LIST, boardThemeCount, botRuneList, botRunePick, runeGrants, runeList,
   runeOffer, runeProblem, type RuneOffer,
 } from "../src/sim/runes";
+import { DORMANT_RUNES, type RuneDef } from "../src/sim/runes"; // FLIP-X2: the dormant runes (REVIEW-TUNEX)
 import { captainRunesText } from "../tools/genCaptainRunes";
 
 // ---------------------------------------------------------------- oracles pinned on bx e1e1004 (before this change)
@@ -211,12 +212,14 @@ describe("BOTS-X the stand-in codecs carry Build.runes (RUNES-2a 3 step 2)", () 
 // ---------------------------------------------------------------- 2. caravanCand's cost
 
 describe("BOTS-X caravanCand costs the bought deck, as caravanDeck does (RUNES-2a 3 step 2)", () => {
-  it("switch off: every candidate costs buildCost of its deck and caravanDeck's value, as before; the same deck holding a HULL and a BELT rune is costed without them", () => {
+  it("switch off: every candidate costs buildCost of its deck and caravanDeck's value, as before; the same deck holding a HULL and a BELT rune is costed without them", () => withSustain(() => {
+    // FLIP-X2 (REQ-BFG-058, REQ-BFG-069): both switches are on by default now, so the switch-off world is botRunes false on
+    // the candidate and the sustain switch off for the call (was the default for both)
     let n = 0;
     for (const hero of HEROES4) {
       for (let idx = 0; idx < 4; idx++) { // the policy mix: typical, typical, sharp, loose
         for (const day of [3, 7]) {
-          const d = caravanCandidate(hero, day, 1, idx, STANDIN_MAX_STARS), at = `${hero} #${idx} d${day}`;
+          const d = caravanCandidate(hero, day, 1, idx, STANDIN_MAX_STARS, false), at = `${hero} #${idx} d${day}`;
           const c = caravanCand(idx, d);
           expect(c.build.runes, at).toBeUndefined();
           expect(c.cost, at).toBe(buildCost(c.build).total); // bx's formula
@@ -238,7 +241,7 @@ describe("BOTS-X caravanCand costs the bought deck, as caravanDeck does (RUNES-2
       }
     }
     expect(n).toBe(32);
-  });
+  }, false));
 
   it("botRunes on (the switch's test path): the candidate keeps its runes and costs caravanDeck's value", () => {
     for (let idx = 0; idx < 4; idx++) {
@@ -317,9 +320,12 @@ describe("BOTS-X CAPTAIN_RUNES and rivalBuild (RUNES-2a 3 step 5's code)", () =>
 describe("BOTS-X botRunePick reads runeList() (REVIEW-SUSD F-c, SUS-D finding 7)", () => {
   const empty = (hero: HeroId): Build => ({ hero, items: [], routes: [], mods: [], beltCap: 0, hullBonus: 0 });
 
-  it("switch off: runeList() is RUNE_LIST and every pick is bx's (real offers of every hero, seeds 1-40, days 1-10, on three boards)", () => {
-    expect(runeList()).toBe(RUNE_LIST);
-    expect(runeList()).toHaveLength(57);
+  it("switch off: runeList() is RUNE_LIST and every pick is bx's (real offers of every hero, seeds 1-40, days 1-10, on three boards)", () => withSustain(() => {
+    // FLIP-X2 (REQ-BFG-069): the switch is on by default, so the switch-off world is withSustain(fn, false) (was the default).
+    // FLIP-X2 (REVIEW-TUNEX): runeList() never holds a dormant rune, so off it is RUNE_LIST without COAL CHUTE and HEAT SINK,
+    // 55 (was RUNE_LIST itself, 57); no dawn offers a dormant rune, so every real offer's pick is still bx's
+    expect(runeList().map((d) => d.id)).toEqual(RUNE_LIST.filter((d) => !DORMANT_RUNES.has(d.id)).map((d) => d.id));
+    expect(runeList()).toHaveLength(55);
     let n = 0;
     for (const hero of RUNE_HEROES) {
       const captain = RIVAL_IDS.find((id) => RIVALS[id].hero === hero);
@@ -339,16 +345,28 @@ describe("BOTS-X botRunePick reads runeList() (REVIEW-SUSD F-c, SUS-D finding 7)
     // a sustain rune is no card while the switch is off, as on bx
     expect(botRunePick(["bulwark_ward", "iron_skin", "coin_purse"], "bastion", empty("bastion"))).toBe("iron_skin");
     expect(botRunePick(["green_thread"], "weaver", empty("weaver"))).toBeNull();
-  });
+  }, false));
 
   it("switch on (withSustain): an offered sustain rune of the hero's style is its pick, BULWARK WARD and TICK GUARD for BASTION, TWIN SALVE for FOUNDRY, GREEN THREAD for WEAVER, SEARING and SHATTER SHOT for FURNACE", () => {
     const style: [HeroId, string][] = [["bastion", "bulwark_ward"], ["bastion", "tick_guard"], ["foundry", "twin_salve"], ["weaver", "green_thread"], ["furnace", "searing"], ["furnace", "shatter_shot"]];
     for (const [hero, id] of style) expect(RUNES[id].theme).toBe(HERO_STYLE[hero]);
+    // FLIP-X2 (REVIEW-TUNEX): SEARING and SHATTER SHOT are dormant (DORMANT_RUNES): runeList() leaves them out, so the picker
+    // never takes one, even handed it (no dawn offers it), and FURNACE has no sustain rune of its style to take (was its pick)
+    const dormant = (id: string) => DORMANT_RUNES.has(id);
+    expect(style.filter(([, id]) => dormant(id)).map(([, id]) => id)).toEqual(["searing", "shatter_shot"]);
     withSustain(() => {
-      expect(runeList()).toEqual([...RUNE_LIST, ...SUSTAIN_RUNE_LIST]);
-      expect(runeList()).toHaveLength(65);
+      // FLIP-X2: the 65 less the 4 dormant, 61 (was RUNE_LIST and the 8 sustain runes, 65)
+      const live = (l: readonly RuneDef[]) => l.filter((d) => !dormant(d.id));
+      expect(runeList()).toEqual(live([...RUNE_LIST, ...SUSTAIN_RUNE_LIST]));
+      expect(runeList()).toHaveLength(61);
       for (const [hero, id] of style) {
         const b = heroStartBuild(hero);
+        if (dormant(id)) { // FLIP-X2: the dormant one is no card: the pick is as if it weren't there (was id)
+          expect(botRunePick(["iron_skin", id, "coin_purse"], hero, b), `${hero} ${id}`).toBe(botRunePick(["iron_skin", "coin_purse"], hero, b));
+          expect(botRunePick([id, "war_edge"], hero, b), `${hero} ${id}`).toBe("war_edge");
+          expect(botRunePick({ day: 5, tier: "rare", drawn: "rare", ids: ["scrap_medic", id] }, hero, b), `${hero} ${id}`).toBe("scrap_medic");
+          continue;
+        }
         expect(botRunePick(["iron_skin", id, "coin_purse"], hero, b), `${hero} ${id}`).toBe(id);
         expect(botRunePick([id, "war_edge"], hero, b), `${hero} ${id}`).toBe(id);
         expect(botRunePick({ day: 5, tier: "rare", drawn: "rare", ids: ["scrap_medic", id] }, hero, b), `${hero} ${id}`).toBe(id);
@@ -381,21 +399,28 @@ describe("BOTS-X botRunePick reads runeList() (REVIEW-SUSD F-c, SUS-D finding 7)
           }
         }
         const want = style.filter(([h]) => h === hero).map(([, id]) => id);
-        expect([...took].filter((id) => want.includes(id)).length, `${hero} took ${[...took].join(", ")}`).toBeGreaterThan(0);
+        // FLIP-X2 (REVIEW-TUNEX): FURNACE's two are dormant, so it takes none of them (was > 0 for every hero)
+        if (want.every(dormant)) expect([...took].filter((id) => want.includes(id)), `${hero} took ${[...took].join(", ")}`).toEqual([]);
+        else expect([...took].filter((id) => want.includes(id)).length, `${hero} took ${[...took].join(", ")}`).toBeGreaterThan(0);
       }
     });
-    expect(runeList()).toBe(RUNE_LIST); // the switch is back off
+    // the switch is back (FLIP-X2: on, the default now; was "back off", runeList() RUNE_LIST)
+    expect(runeList().map((d) => d.id)).toEqual([...RUNE_LIST, ...SUSTAIN_RUNE_LIST].filter((d) => !dormant(d.id)).map((d) => d.id));
   });
 });
 
 // ---------------------------------------------------------------- 5. the captains' generator counts runeList()
 
 describe("BOTS-X tools/genCaptainRunes.ts counts runeList() (REVIEW-SUSD F-d)", () => {
-  it("its header counts runeList(): 57 with the switch off, 65 with it on (importing it writes nothing; no list is computed)", () => {
+  it("its header counts runeList(): 55 with the switch off, 61 with it on (importing it writes nothing; no list is computed)", () => {
     const none = Object.fromEntries(RIVAL_IDS.map((id) => [id, []])) as unknown as Record<RivalId, string[]>;
     const head = () => captainRunesText(none).split("\n")[0];
     expect(head()).toContain(`, ${runeList().length} runes in the catalogue.`);
-    expect(head()).toContain(", 57 runes in the catalogue.");
-    expect(withSustain(head)).toContain(", 65 runes in the catalogue.");
+    // FLIP-X2 (REQ-BFG-069; REVIEW-TUNEX): the switch is on by default, so off is withSustain(head, false); runeList() leaves
+    // the dormant runes out (COAL CHUTE and HEAT SINK off; SEARING and SHATTER SHOT too on): 55 off and 61 on (was 57 off,
+    // the default, and 65 on)
+    expect(withSustain(head, false)).toContain(", 55 runes in the catalogue.");
+    expect(head()).toContain(", 61 runes in the catalogue.");
+    expect(withSustain(head)).toContain(", 61 runes in the catalogue.");
   });
 });

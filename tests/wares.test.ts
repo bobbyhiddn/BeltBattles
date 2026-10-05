@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { hashSeed } from "../src/core/rng";
 import { ITEMS, RUN_DAYS, buyableModules, withWave3, type HeroId } from "../src/sim/content";
+import { SUSTAIN_FIRST_DAY, isSustain } from "../src/sim/content"; // FLIP-X2: the sustain pieces' day-3 hold
 import { DRAW, drawWares, quotas, unlocked, unlockDay, waresOk, type Wares } from "../src/game/wares";
 import { migrateRun, newRun, rollShop, type Run } from "../src/game/run";
 import { EVENTS, SALVAGE_OWNED, UPGRADE, salvagePart, salvagePool, smugglerParts, smugglerPool, swapPart, type EventState } from "../src/game/eventDefs";
@@ -71,15 +72,22 @@ describe("the per-run draw: a run's wares (DESIGN-wave3.md 4.1)", () => {
       day1.push(p.day1);
       for (const id of Object.keys(w)) seen.add(id);
     }
-    expect(seen.size).toBe(buyableModules().length); // 86: every module is a ware in some run (REQ-BFG-022 acceptance 3)
+    expect(seen.size).toBe(buyableModules().length); // 86: every module is a ware in some run (REQ-BFG-022 acceptance 3); FLIP-X2: 88
     expect([Math.min(...day1), Math.max(...day1)]).toEqual([expect.any(Number), expect.any(Number)]);
-    expect(Math.min(...day1)).toBeGreaterThanOrEqual(30); // D1 section 4.3: never below 30 at 86 modules
+    // D1 section 4.3: never below 30 at 86 modules. FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): 88 buyable modules, SIFTER
+    // (a day-1 common) out and the 3 sustain pieces in, held to day 3 (each takes a merchant's ware slot that unlocks no
+    // earlier than day 3): these 300 seeds' day-1 pools are 29-38 (2 seeds at 29: 372194, 1765938); 31-39 with the switch
+    // off, 30-38 with SIFTER live (measured on flipx2 94cc87d). The floor of 17 above holds (was >= 30)
+    expect(Math.min(...day1)).toBeGreaterThanOrEqual(29);
   });
 
   it("the unlock ladder: epics from day 2, the ARCANE DEALER from day 3, legendaries from day 4, late restocks 6 and 8", () => {
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): WARD BELL, MEND PRESS and MENDING LOOM are wares now, each held to the
+    // first sustain day, 3 (content.ts SUSTAIN_FIRST_DAY, BOTS-X's hold; was absent from the ladder)
+    expect(SUSTAIN_FIRST_DAY).toBe(3);
     for (const id of buyableModules().map((d) => d.id)) {
       const d = ITEMS[id], u = unlockDay(id, undefined);
-      const want = Math.max(d.rarity === "legendary" ? 4 : d.rarity === "epic" ? 2 : 1, d.merchant === "arcane" ? 3 : 1);
+      const want = Math.max(d.rarity === "legendary" ? 4 : d.rarity === "epic" ? 2 : 1, d.merchant === "arcane" ? 3 : 1, isSustain(id) ? 3 : 1);
       expect(u, id).toBe(want);
     }
     for (const s of SEEDS.slice(0, 60)) {

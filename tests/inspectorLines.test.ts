@@ -81,8 +81,9 @@ describe("U2e step 1 (was N2 / T5): no panel draws merge progress", () => {
     const COPIES = /TO MERGE|MORE COP(Y|IES)|NEEDS \d MORE|\bCOPIES? (LEFT|NEEDED)\b/;
     const fus = Object.keys(ITEMS).filter(fusible);
     // 23 rigs, 13 factories, 13 cores and 9 mods at 65a36b7; + 13 turrets (0.6.2s); 0.8.0 I1 M2 (REPORT-P1 section 13):
-    // + wave 3's 15 (was 71)
-    expect(fus).toHaveLength(86);
+    // + wave 3's 15 (was 71). FLIP-X2 (REQ-BFG-069, the sustain switch on): + WARD BELL, MEND PRESS and MENDING LOOM (ITEMS
+    // lists them now); the dormant SIFTER stays an ITEMS entry, fusible (old decks hold it): 86 -> 89
+    expect(fus).toHaveLength(89);
     let panels = 0, lines = 0;
     for (const def of fus) {
       const d = ITEMS[def];

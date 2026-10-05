@@ -22,6 +22,7 @@ import { infoDrawn } from "../src/screens/build/keywords"; // FLIP-X1 (N4-b): th
 import { phoneScreen } from "../src/screens/build/layout"; // U2f
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar"; // U2f: the text sheet's view
 import { RUNE_LIST, runeList } from "../src/sim/runes"; // U2f; FLIP-X1 (F-d): runeList
+import { SUSTAIN_RUNE_LIST } from "../src/sim/runes"; // FLIP-X2: the 8 sustain runes' defs (SEARING, SHATTER SHOT dormant)
 import { withSustain } from "../src/sim/content"; // FLIP-X1 (F-d)
 import { TAP_CSS } from "../src/ui/tap"; // U2f
 import { glossaryEntry } from "../src/ui/glossary";
@@ -392,11 +393,12 @@ describe("U2f: the taller ⓘ view", () => {
   /** Each rune's keywords (runeWords for a run holding it alone), for the "a rune held" measure. */
   const runeSets = RUNE_LIST.map((r) => runeWords({ build: { runes: [{ id: r.id, day: 1 }] } } as unknown as Run)).filter((ws) => ws.length);
   /** FLIP-X1 (F-d, SUS-D §9): the 8 sustain runes runeList() adds with the switch on, for the sustain-on measure (its own
-   *  pin, U2F_OP_RUNE_ON; the switch-off one stays RUNE_LIST's). */
-  const sustainSets = withSustain(() => runeList().filter((r) => !RUNE_LIST.includes(r))
+   *  pin, U2F_OP_RUNE_ON; the switch-off one stays RUNE_LIST's). FLIP-X2 (REVIEW-TUNEX): runeList() adds 6 now (SEARING and
+   *  SHATTER SHOT are dormant), so the measure takes the 8 defs, SUSTAIN_RUNE_LIST, as RUNE_LIST's keeps its dormant two */
+  const sustainSets = withSustain(() => SUSTAIN_RUNE_LIST.filter((r) => !RUNE_LIST.includes(r))
     .map((r) => runeWords({ build: { runes: [{ id: r.id, day: 1 }] } } as unknown as Run)).filter((ws) => ws.length));
 
-  it("U2e's view (the body alone), re-measured: op 119 / 166 / 18 / 2, desk 65 / 91 / 86 / 34 / 18 / 10 / 1 (NUM-4 on x1)", () => {
+  it("U2e's view (the body alone), re-measured: op 120 / 171 / 18 / 2, desk 64 / 90 / 89 / 36 / 19 / 12 / 1 (FLIP-X2 on flipx2)", () => {
     // on u2e's text (U2f step 2, b8b4262) this measure gave U2e's own numbers exactly: op 118 / 160 / 27, desk
     // 70 / 96 / 88 / 26 / 15 / 10. Step 3's shorter lines make 4 desk column panels shorter (it sizes to its text), so
     // U2e's body-only view would page them more; the op band's panels keep their height
@@ -408,7 +410,9 @@ describe("U2f: the taller ⓘ view", () => {
     // few views hold one more definition: op 118 / 160 / 27 -> 117 / 160 / 26 / 2, desk 72 / 94 / 84 / 25 / 20 / 10 ->
     // 71 / 92 / 87 / 25 / 20 / 10 (the same 310 panels)
     const o = sheet.map((c) => infoOf(op, c)).filter((x) => !!x), k = sheet.map((c) => infoOf(desk, c)).filter((x) => !!x);
-    expect(sheet.length).toBe(310);
+    // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): the text sheet walks buyableModules(): SIFTER's 3 panels leave (dormant),
+    // the 3 sustain pieces' 9 join (the switch on): 310 - 3 + 9 = 316 (was 310)
+    expect(sheet.length).toBe(316);
     // NUM-3 (R1's STUN fold), measured on num3 with steps 1-3: op 118 / 160 / 27 -> 119 / 167 / 19, desk 72 / 94 / 84 / 25 /
     // 20 / 10 -> 67 / 88 / 87 / 34 / 18 / 10 / 1 (the 7 STUN-fold pieces' faces: their LEVELS ladders and KEYWORDS replace a
     // legacy NEXT STAR sentence, so their body-only views page otherwise; U2f's view below is the one the game draws)
@@ -417,8 +421,10 @@ describe("U2f: the taller ⓘ view", () => {
     // sentences' AT RATE n, the hidden timers gone and F1's longer SHIELD lines move a few body-only views: op 118 / 167 /
     // 18 / 2 -> 119 / 166 / 18 / 2, desk 66 / 86 / 90 / 34 / 18 / 10 / 1 -> 65 / 91 / 86 / 34 / 18 / 10 / 1
     console.log(`U2e ⓘ pages (body alone): op ${histogram(o.map((x) => x!.u2e)).join(" / ")}; desk ${histogram(k.map((x) => x!.u2e)).join(" / ")}`);
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([119, 166, 18, 2]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([65, 91, 86, 34, 18, 10, 1]);
+    // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069), re-measured on flipx2 (316 panels: SIFTER's 3 out, the sustain pieces' 9
+    // in): op 119 / 166 / 18 / 2 -> 120 / 171 / 18 / 2, desk 65 / 91 / 86 / 34 / 18 / 10 / 1 -> 64 / 90 / 89 / 36 / 19 / 12 / 1
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([120, 171, 18, 2]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([64, 90, 89, 36, 19, 12, 1]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -518,13 +524,16 @@ describe("U2f: the taller ⓘ view", () => {
 // x1 (cap's merge of num3 + susb), re-measured on x1 (U2f's aims hold: none over 2, 3 with a rune held, desk none over 3)
 // NUM-4 (REQ-BFG-047), re-measured on num4: op [303, 2] unchanged; the worst rune held [275, 35] -> [276, 34]; desk
 // [297, 8] -> [296, 9]. U2f's aims hold: op none over 2 pages, a rune held none over 2 (3 allowed), desk none over 3.
-const U2F_OP = [303, 2];
-const U2F_OP_RUNE = [276, 34];
+// FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069), re-measured on flipx2 (the sheet's 316 panels: SIFTER's 3 out, the sustain
+// pieces' 9 in; at step 1b, SIFTER alone, op read [300, 2]): op [303, 2] -> [309, 2]; the worst rune held [276, 34] ->
+// [280, 36], the same with the switch on; desk [296, 9] -> [302, 9]. U2f's aims hold as above.
+const U2F_OP = [309, 2];
+const U2F_OP_RUNE = [280, 36];
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
- *  pin above is RUNE_LIST's, unchanged. */
-const U2F_OP_RUNE_ON = [276, 34];
-const U2F_DESK = [296, 9];
+ *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). */
+const U2F_OP_RUNE_ON = [280, 36];
+const U2F_DESK = [302, 9];
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
 // the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly
@@ -586,7 +595,9 @@ describe("FLIP-X1 N4-b: every line of every panel's ⓘ view is on screen", () =
       expect(n).toBeGreaterThan(18000);
       expect(out, `the switch ${on ? "on" : "off"}`).toEqual([]);
     }
-  });
+  }, 120_000); // FLIP-X2 (a load timeout, not the flip): 17-19 s in flipx2's whole-suite runs, but 33-39 s in 3 of 4 runs of
+  // this job at host load 11-15, against the global 30 s; its own limit, as 0.8.8 (bccf33f) gave two heavy tests: no check
+  // changed
 
   it("NUM-4's shot (the desk at 480x270 with a rune row: the shot tooling's bb.holdRunes skips the pick's game.resize()): WARD BELL's view pages on the screen, and every panel's does", () => {
     // the game steps the 1920x1080 desk from x4 (480x270) to x3 (640x360) when a rune is held (runeRowFits); this is the

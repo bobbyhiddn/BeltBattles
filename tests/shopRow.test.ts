@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS, MERCHANTS, OFFERS, buyableModules } from "../src/sim/content";
+import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant keeps its merchant and price
 import { computeView } from "../src/core/io";
 import { buildLayout, buildScale, CARD_W, Caravan } from "../src/screens/build/layout";
 import { cardName, describe as kindLine } from "../src/screens/build/shop";
@@ -68,7 +69,11 @@ describe("0.6.2p item 4: a card's contents fit the card", () => {
   const shopDefs = Object.values(ITEMS).filter((d) => d.merchant && d.price > 0);
 
   it("every name a caravan can offer fits the card in at most two lines (3x5 face, CARD_W - 4 = 42 px)", () => {
-    expect(shopDefs.length).toBe(buyableModules().length + 2); // + BELT CRATE and ARMOR PLATING
+    // + BELT CRATE and ARMOR PLATING. FLIP-X2 (REVIEW-NUM3 answer 2): + the dormant SIFTER, which keeps its merchant and price
+    // (validate.ts refuses a part no merchant sells; old decks hold one) but left buyableModules(); its name still fits
+    // below (was + 2)
+    expect(shopDefs.length).toBe(buyableModules().length + 2 + DORMANT_ITEMS.size);
+    expect(shopDefs.filter((d) => DORMANT_ITEMS.has(d.id)).map((d) => d.id)).toEqual([...DORMANT_ITEMS]);
     for (const d of shopDefs) {
       const lines = cardName(d, CARD_W - 4);
       expect(lines.length, d.id).toBeLessThanOrEqual(2);

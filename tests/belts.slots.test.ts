@@ -68,9 +68,10 @@ const stub = (hero: HeroId, def: string, level: number, k: number): Build => ({
 describe("D1-D3, D10: belt slots by level, the one rule (stars.ts outputsAt)", () => {
   it("every bought factory has 2 / 3 / 4 belt slots at ★1 / ★2 / ★3; GANTRY PRESS 3 / 4 / 5 (its lead)", () => {
     expect(BELT_SLOTS.slice(1)).toEqual([2, 3, 4, 5]); // ★1-3, and a hero factory's level 4
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): + MEND PRESS, a bought factory (2 / 3 / 4 slots, checked below)
     expect(BOUGHT.map((d) => d.id).sort()).toEqual([
-      "armorpress", "assembly", "doublestamp", "dragchain", "frostbite", "gantry", "hotswap", "limpet", "mimic", "press", "sabot",
-      "scrapper", "shottower", "slagpot", "twinmould",
+      "armorpress", "assembly", "doublestamp", "dragchain", "frostbite", "gantry", "hotswap", "limpet", "mendpress", "mimic", "press",
+      "sabot", "scrapper", "shottower", "slagpot", "twinmould",
     ]);
     for (const d of BOUGHT) {
       const lead = d.id === "gantry" ? 1 : 0;

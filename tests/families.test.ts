@@ -58,7 +58,9 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
   });
 
   it("every buyable module shows 1-3 families: its v2 tags in DESIGN 2.1's order; no other tag is left in the catalogue", () => {
-    expect(MODULES.length).toBe(86);
+    // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): SIFTER dormant leaves the buyable modules, the 3 sustain pieces join them
+    // (the switch on): 86 - 1 + 3 = 88 (was 86)
+    expect(MODULES.length).toBe(88);
     const counts = [0, 0, 0, 0];
     for (const d of MODULES) {
       const f = familiesOf(d.id);
@@ -68,7 +70,9 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
       counts[f.length]++;
       expect(familiesText(d.id), d.id).toBe(f.join(", "));
     }
-    expect(counts).toEqual([0, 31, 50, 5]);
+    // FLIP-X2: SIFTER (FORGE, HARASS, PLATE: 3 families) leaves; WARD BELL and MENDING LOOM (PLATE) and MEND PRESS (PLATE,
+    // SWARM) join: [0, 31, 50, 5] -> [0, 33, 51, 4]
+    expect(counts).toEqual([0, 33, 51, 4]);
     for (const d of Object.values(ITEMS)) for (const t of d.tags ?? []) expect(V2, `${d.id}: ${t}`).toContain(t);
     for (const id of ["zz-none", "constructor", "toString", "__proto__", "hasOwnProperty", ""]) {
       expect(familiesOf(id), id).toEqual([]);

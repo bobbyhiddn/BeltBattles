@@ -21,6 +21,7 @@ import { MODULES, STARS, SUPPLIES, banned, kOf, numbers, pct, r1, r2, starsOf } 
 import { WAVE3_IDS, buyableModules, withWave3 } from "../src/sim/content";
 import { BURN_DPS } from "../src/sim/content"; // NUM-1: a Burn stack's damage a second
 import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant keeps its NUMBERS row
+import { SHIELD_CAP } from "../src/sim/content"; // FLIP-X2: WARD BELL's row (UP TO 3)
 import { PLATE_CAP } from "../src/sim/races/bastion";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { LOAD_FLOOR } from "../src/sim/battle";
@@ -240,6 +241,11 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   twintrigger: (e) => [pct(m(e).pairBonus!), 2, 1], // A PAIR IS TWO LOADS ... ONE TURRET
   spallcatcher: (e) => [m(e).spall!.every, m(e).spall!.add, m(e).spall!.max, 2], // ... COUNTS TWICE
   seamwelder: (e) => [m(e).seam!.pair, m(e).seam!.lone, 2, 1, PLATE_CAP], // NUM-4: S.pair's AT ONCE (was SYNC_WINDOW)
+  // FLIP-X2 (REQ-BFG-069, the sustain switch on): the 3 sustain pieces are buyable modules now, so their rows move here
+  // from tests/sustain.text.test.ts's NUMBERS ("for RUNES-2b to move there"), the same numbers in the same order
+  wardbell: (e) => [m(e).shield!.amount, m(e).shield!.every, SHIELD_CAP, 1], // GAINS ONE ... UP TO 3; BLOCKS ONE HIT'S DAMAGE
+  mendpress: (e) => [f(e).heal!.amount, f(e).heal!.every, base(e), spd(e)], // HEAL n EVERY 3 SECONDS; its plain slug AT RATE n
+  mendingloom: (e) => [m(e).regen!],
   // supplies
   beltcrate: (e) => [e.supply!.belt!],
   plating: (e) => [e.supply!.hull!],
@@ -268,15 +274,19 @@ const FUNCTION_WORDS = new Set(["A", "AN", "THE", "OF", "AT", "TO", "IN", "ON", 
 
 describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
   // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3 is live: +8 rigs, +2 factories, +2 cores, +3 mods (was 23, 13, 13, 9; 71)
-  it("30 rigs, 15 factories, 15 cores, 12 mods, 13 turrets and 2 supplies; each has ability text and an audit row", () => {
+  it("30 rigs, 16 factories, 15 cores, 14 mods, 13 turrets and 2 supplies; each has ability text and an audit row", () => {
     const by = (kind: string) => MODULES.filter((d) => d.kind === kind).length;
     // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER dormant leaves the buyable rigs, 31 -> 30
-    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([30, 15, 15, 12, 13, 2]);
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): MEND PRESS joins the factories (15 -> 16), WARD BELL and MENDING LOOM the
+    // mods (12 -> 14)
+    expect([by("gate"), by("factory"), by("core"), by("mod"), by("turret"), SUPPLIES.length]).toEqual([30, 16, 15, 14, 13, 2]);
     for (const d of ALL) expect(hasAbilityText(d.id), d.id).toBe(true);
     // FLIP-X2 (REVIEW-NUM3 answer 2): the dormant SIFTER keeps its NUMBERS row (captains' plans and old decks hold it) but
     // leaves the buyable modules: 86 -> 85 modules, (86 + 15) * 3 + 2 -> (85 + 15) * 3 + 2 cases
     expect(Object.keys(NUMBERS).sort()).toEqual([...ALL.map((d) => d.id), ...DORMANT_ITEMS].sort());
-    expect(CASES).toHaveLength((85 + 15) * 3 + 2); // 85 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): + the 3 sustain pieces, 85 -> 88 modules, (88 + 15) * 3 + 2 cases (was
+    // (85 + 15) * 3 + 2)
+    expect(CASES).toHaveLength((88 + 15) * 3 + 2); // 88 modules (0.6.2rel: the 13 turrets too); cores twice (k 1 and 0.55)
   });
 
   it("the numbers every sentence quotes are that star's values (effectAt; a core's x k)", () => {

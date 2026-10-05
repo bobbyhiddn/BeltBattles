@@ -8,6 +8,7 @@ import { G, fresh, installRaster } from "./raster.helpers";
 import { textWidth } from "../src/render/font";
 import { withSustain } from "../src/sim/content";
 import { RUNE_LIST, runeList, type RuneDef } from "../src/sim/runes";
+import { DORMANT_RUNES, RUNES } from "../src/sim/runes"; // FLIP-X2: the 4 dormant runes (out of runeList(), their cards kept)
 import { KEYWORD_WORD, RUNE_KEYWORD_COLOUR, runeKeyword, runeTag, runeTaken } from "../src/ui/runeText";
 import { drawRuneCard, readoutW, runeCardChipW, runeCardH } from "../src/ui/runeBar";
 import { pickLayout } from "../src/screens/runePicker";
@@ -52,12 +53,18 @@ describe("FLIP-X1 F-a: the rune card's chip word fits its box", () => {
 
   it("every chip word of every rune in runeList() with sustain on sits inside its box, on the phone and the desk", () => {
     withSustain(() => {
+      // FLIP-X2 (REVIEW-TUNEX): runeList() leaves the 4 dormant runes out (DORMANT_RUNES: SEARING, SHATTER SHOT, COAL CHUTE,
+      // HEAT SINK), 65 -> 61. Their cards still draw (a ghost in the device's local pool may hold one), so the sweep draws
+      // them too: the 61 and the 4, all 65 cards as before (was runeList() alone, 65)
       const list = runeList();
-      expect(list.length).toBe(RUNE_LIST.length + 8);
+      expect(list.length).toBe(RUNE_LIST.length + 8 - 4);
+      expect(list.filter((d) => DORMANT_RUNES.has(d.id))).toEqual([]);
+      const cards = [...list, ...[...DORMANT_RUNES].map((id) => RUNES[id])];
+      expect(cards.length).toBe(RUNE_LIST.length + 8);
       for (const [name, v] of Object.entries(VIEWS)) {
         const w = pickLayout(v.W, v.H, [list[0].id], 0, 0).cardW;
         expect(readoutW(v.W), name).toBe(w); // the bar's read-out is the picker card's width
-        for (const d of list) {
+        for (const d of cards) {
           const k = runeKeyword(d)!;
           const word = KEYWORD_WORD[k];
           for (const sub of [runeTag(d), runeTaken(d, 10)]) {
@@ -78,9 +85,9 @@ describe("FLIP-X1 F-a: the rune card's chip word fits its box", () => {
     expect(textWidth(KEYWORD_WORD.SHIELD, "3")).toBe(23); // wider than the 22 px box: the flaw
     const wide = (list: readonly RuneDef[]) => list.filter((d) => runeCardChipW(d) !== 22).map((d) => [d.id, runeCardChipW(d)]);
     expect(wide(RUNE_LIST)).toEqual([["ward_stone", 26]]); // switch off: WARD STONE, x2a's one SHIELD rune
-    expect(withSustain(() => wide(runeList()))).toEqual(
-      [["ward_stone", 26], ["bulwark_ward", 26], ["tick_guard", 26], ["shatter_shot", 26]].sort((a, b) =>
-        withSustain(() => runeList().findIndex((d) => d.id === a[0]) - runeList().findIndex((d) => d.id === b[0]))),
-    );
+    // FLIP-X2 (REVIEW-TUNEX): SHATTER SHOT is dormant, so runeList() leaves it out: the three SHIELD runes the dawn offers, in
+    // runeList() order (was the four, SHATTER SHOT last); its own card still widens
+    expect(withSustain(() => wide(runeList()))).toEqual([["ward_stone", 26], ["bulwark_ward", 26], ["tick_guard", 26]]);
+    expect(wide([RUNES.shatter_shot])).toEqual([["shatter_shot", 26]]);
   });
 });

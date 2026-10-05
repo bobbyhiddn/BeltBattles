@@ -3,6 +3,7 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
 import { HEROES, ITEMS, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
+import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant keeps its merchant and price, unsold
 import {
   cloneBuild, deadEndsAt, installTurret, key, rigHits, routeInfo, setTurretList, turretList, turretSlots, type Build,
 } from "../src/sim/deck";
@@ -179,6 +180,9 @@ type Metrics = {
   // 0.8.0 I1: BRACE FRAME's seconds off enemy stalls (brace events), SPALL CATCHER's largest charge, and the plating wave-3
   // parts added (P1's E1 `plate` events, which name no gun; BASTION's own slugs fire H1's CLANK, which does)
   braced: number; spall: number; plated: number;
+  // FLIP-X2 (REQ-BFG-069, the sustain switch on): WARD BELL's foe hits its SHIELDs stopped (SideState.blocked, Battle.shieldHit)
+  // and MENDING LOOM's REGEN, the hull its `heal` events (source "regen") gave back
+  blocked: number; regen: number;
 };
 
 const marks = (p: Payload): number => Object.values(p.debuffs ?? {}).filter(Boolean).length;
@@ -187,6 +191,7 @@ const marks = (p: Payload): number => Object.values(p.debuffs ?? {}).filter(Bool
 function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
   const battle = new Battle(b, foe, seed);
   let enemyDisrupt = 0, tolls = 0, flaks = 0, repairs = 0, rips = 0, sifted = 0, machineShots = 0, braced = 0, spall = 0, plated = 0;
+  let regen = 0; // FLIP-X2
   // SIFTER leaves no event: count the payloads a rig of ours hits that lose a CHILL, SNAG or SAP mark on that hit
   const sim = battle as unknown as { applyHit: (s: { side: number }, a: BeltAmmo, h: { g: { def: ItemDef } }) => BeltAmmo[] };
   const applyHit = sim.applyHit.bind(battle);
@@ -207,6 +212,7 @@ function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
       if (e.type === "rip" && e.side === 1) rips++;
       if (e.type === "brace" && e.side === 0) braced += e.saved; // 0.8.0 I1
       if (e.type === "plate" && e.side === 0 && !("turret" in e) && e.amount > 0) plated += e.amount; // 0.8.0 I1: E1 only
+      if (e.type === "heal" && e.source === "regen" && e.side === 0) regen += e.amount; // FLIP-X2: MENDING LOOM's REGEN
     }
     for (const tu of battle.sides[0].turrets) spall = Math.max(spall, tu.spallCharge ?? 0); // 0.8.0 I1
     for (const pr of battle.projectiles) {
@@ -223,6 +229,7 @@ function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
     enemyHull: enemy.hull.hp, enemyFray: enemy.hull.fray, enemyDisrupt,
     ownDisrupt: own.stats.disrupted, ownHull: own.hull.hp,
     tolls, flaks, repairs, rips, sifted, machineShots, braced, spall, plated,
+    blocked: own.blocked ?? 0, regen, // FLIP-X2
   };
 }
 
@@ -292,6 +299,12 @@ const SCENARIOS: Record<string, Scenario> = {
   seamwelder: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
   shieldwall: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
   spallcatcher: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "spall" },
+  // FLIP-X2 (REQ-BFG-069, the sustain switch on): the 3 sustain pieces join the audit. MEND PRESS stamps plain slugs down
+  // its belt, so the default fight's offence shows it. WARD BELL and MENDING LOOM change nothing the deck deals: as RIVETER,
+  // each is judged on the hull the deck keeps against an armed foe (the hull damage it takes), with its own act as the
+  // proof: the foe hits its SHIELDs stopped (`blocked`), the hull its REGEN gave back (`regen`)
+  wardbell: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "blocked" },
+  mendingloom: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "regen" },
 };
 
 /**
@@ -311,8 +324,12 @@ function useful(id: string, hero: HeroId): ((m: Metrics) => number) | undefined 
 describe("REQ-BFG-021: every buyable module changes a battle metric for every hero", () => {
   const rows = buyableModules();
   it("audits exactly the sold, priced, non-supply catalogue", () => {
-    expect(rows.map((d) => d.id).sort()).toEqual(Object.values(ITEMS)
-      .filter((d) => !!d.merchant && d.price > 0 && d.kind !== "supply").map((d) => d.id).sort());
+    // FLIP-X2 (REVIEW-NUM3 answer 2): the dormant SIFTER keeps its merchant and price (validate.ts refuses a part no merchant
+    // sells) but is not sold, so the merchant-and-price entries are the audit's rows and DORMANT_ITEMS exactly (was the rows
+    // alone); the 3 sustain pieces are rows (the sustain switch on)
+    const priced = Object.values(ITEMS).filter((d) => !!d.merchant && d.price > 0 && d.kind !== "supply").map((d) => d.id);
+    expect(priced.filter((id) => !rows.some((d) => d.id === id))).toEqual([...DORMANT_ITEMS]);
+    expect(rows.map((d) => d.id).sort()).toEqual(priced.filter((id) => !DORMANT_ITEMS.has(id)).sort());
     expect(rows.length).toBeGreaterThanOrEqual(58); // 0.6.2: wave 2 and the nine missing wave-1 rigs joined the audit
   });
   for (const d of rows) for (const hero of HARNESS_HEROES) {

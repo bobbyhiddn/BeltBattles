@@ -832,7 +832,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // BREECH's ★3 turret panels don't (all of the allowed kinds below)
     // FLIP-X2 (REVIEW-NUM3 answer 2): 1913, SIFTER dormant leaves the buyable modules (its 21 desk panels, each with its
     // hint); the 64 missing are unchanged
-    expect([withHint, missing.length]).toEqual([1913, 64]);
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): 1952, WARD BELL, MEND PRESS and MENDING LOOM join the buyable modules
+    // (their 39 desk panels with a hint, each showing it); the 64 missing are unchanged (was 1913)
+    expect([withHint, missing.length]).toEqual([1952, 64]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -864,7 +866,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // its hint to the x10 digit on U2e's faces)
     // NUM-3 (R1's STUN fold): 844, measured on num3 with steps 1-3 (the 7 STUN-fold pieces' faces, a stat row and a short
     // line where their sentences were, and step 2's whole seconds): 31 more phone panels have room for the hint
-    expect(hints).toBe(844);
+    // FLIP-X2 (REQ-BFG-069, the sustain switch on): 877, the 3 sustain pieces' panels join (33 phone panels with room for
+    // the hint); SIFTER's left at step 1 with no change here (was 844)
+    expect(hints).toBe(877);
   });
 });
 
@@ -980,7 +984,9 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       n++;
     }
     expect(GUNS.map(([d, s]) => gearSlotsOf(d, s))).toEqual([1, 1, 6, 5]);
-    expect(n).toBe(4 * 16 * 13 * 3); // 0.8.0 I1 M2: 15 cores and the signature, 12 gear and none (was 4 * 14 * 10 * 3)
+    // 0.8.0 I1 M2: 15 cores and the signature, 12 gear and none (was 4 * 14 * 10 * 3). FLIP-X2 (REQ-BFG-069, the sustain
+    // switch on): WARD BELL and MENDING LOOM are gear now, 14 gear and none (was 4 * 16 * 13 * 3)
+    expect(n).toBe(4 * 16 * 15 * 3);
   });
 
   it("every rig's belt timeline row at every star (free, slag, METRONOME and joined belts) and the header strip: no bare number", () => {

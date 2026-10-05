@@ -457,7 +457,9 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         if (c.part === "offer") expect(area, `${tag}: a shop card's panel sits in the band`).toBe(L.info);
       }
       EXPECT[`${w}x${h}`] = { band: L.info.h, fullest: fullestN, inBand, grown };
-      expect(all.length).toBe(885);
+      // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069): the sweep walks the buyable modules: SIFTER's 13 panels leave (dormant;
+      // 872 at step 1b) and the 3 sustain pieces' 27 join (the switch on): 885 -> 899
+      expect(all.length).toBe(899);
       // the band at 390x844 holds every panel in its fullest form; at 430x739 every one in the band; the shortest views'
       // band can't hold the longest turret panels (a THUNDERER ★3's full text needs 144 px): they take the fallback
       // (grown at 390x660 and 390x664: 30 installed turrets with a core and gear and 8 ★2 rigs and factories, 38 of 885; at
@@ -482,7 +484,10 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // NUM-4 (REQ-BFG-047), measured on num4: the turret panels' whole RATE numbers make more of them fit the op band in
         // their fullest form: 402x690 [861, 881] -> [873, 884] (grown: the THUNDERER ★3 with a core and gear, 1 of 885; was
         // 4); 430x739's band 148 -> 141 (phoneBand above), still all 885 in their fullest form; the rest unchanged
-        "390x660": [104, 842, 868], "390x664": [106, 846, 868], "402x690": [122, 873, 884], "430x739": [141, 885, 885], "390x844": [148, 885, 885],
+        // FLIP-X2 (REVIEW-NUM3 answer 2; REQ-BFG-069), measured on flipx2: 899 panels (SIFTER's 13 out, the sustain pieces'
+        // 27 in), the 14 more all in the band in their fullest form at every view; the bands and the grown panels unchanged
+        // (was 390x660 [104, 842, 868], 390x664 [106, 846, 868], 402x690 [122, 873, 884], 430x739 and 390x844 [.., 885, 885])
+        "390x660": [104, 856, 882], "390x664": [106, 860, 882], "402x690": [122, 887, 898], "430x739": [141, 899, 899], "390x844": [148, 899, 899],
       };
       expect([L.info.h, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
     }, 120_000);

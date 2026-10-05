@@ -9,6 +9,7 @@ import {
   BOT_RUNES, KIND_UNIT, RULE_KINDS, RUNE_LIST, RUNES, STYLE_THEMES, SUSTAIN_RUNE_LIST, isRune, isSustainRune, runeList, runeOffer,
   runeProblem, type RuneDef,
 } from "../src/sim/runes";
+import { DORMANT_RUNES } from "../src/sim/runes"; // FLIP-X2: SEARING and SHATTER SHOT dormant (REVIEW-TUNEX)
 import { SUSTAIN_LIVE, sustainLive, withSustain, type HeroId } from "../src/sim/content";
 import { KEYWORD_WORD, RUNE_TEXT, RUNE_UNIT_TEXT, runeKeyword, runeLine, runeReminder, runeSpans, runeTag } from "../src/ui/runeText";
 import { RUNE_REMINDER } from "../src/ui/glossary";
@@ -27,14 +28,16 @@ const TABLE: readonly [string, string, string, string, string, string, number, s
   ["tick_guard", "TICK GUARD", "rare", "bastion", "shieldEvery", "sec", 6, "EVERY {N}: A {*SHIELD}.", `EVERY 6${S}: A SHIELD.`, 99],
   ["twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", "hull", 20, "{PAIR}: {*HEAL} {N}.", "PAIR: HEAL 20.", 71],
   ["scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", "hull", 300, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}.", "FIRST TIME BELOW HALF HULL: HEAL 300.", 201],
-  ["leech_vow", "LEECH VOW", "epic", "turrets", "hitHeal", "hull", 20, "EACH SHOT THAT LANDS: {*HEAL} {N}.", "EACH SHOT THAT LANDS: HEAL 20.", 161],
+  // FLIP-X2 (TUNE-X line 4, REVIEW-SUSD answer 3): rare at 15 (was "epic", 20, "... HEAL 20."); the line's width is the same
+  ["leech_vow", "LEECH VOW", "rare", "turrets", "hitHeal", "hull", 15, "EACH SHOT THAT LANDS: {*HEAL} {N}.", "EACH SHOT THAT LANDS: HEAL 15.", 161],
   ["green_thread", "GREEN THREAD", "common", "weaver", "regen", "hull", 10, "YOUR HULL: {*REGEN} {N}.", "YOUR HULL: REGEN 10.", 105],
   ["searing", "SEARING", "rare", "furnace", "burnNoHeal", "count", 1, "FOE WITH YOUR {*BURN}: NO {*HEAL}.", "FOE WITH YOUR BURN: NO HEAL.", 149],
   ["shatter_shot", "SHATTER SHOT", "rare", "furnace", "shieldPierce", "count", 1, "YOUR SHOTS: BREAK A {*SHIELD} AND STILL HIT.", "YOUR SHOTS: BREAK A SHIELD AND STILL HIT.", 223],
 ];
 
 describe("SUS-D: the sustain runes in the catalogue", () => {
-  it("8 runes (3 common, 4 rare, 1 epic): ids, names, tiers, themes, kinds, units, amounts and texts", () => {
+  // FLIP-X2 (TUNE-X line 4): LEECH VOW is rare now, 5 rare and no epic (was "3 common, 4 rare, 1 epic")
+  it("8 runes (3 common, 5 rare): ids, names, tiers, themes, kinds, units, amounts and texts", () => {
     expect(SUSTAIN_RUNE_LIST.map((d) => [d.id, d.name, d.tier, d.theme, d.kind, d.amount.unit, d.amount.n, d.text])).toEqual(TABLE.map((r) => r.slice(0, 8)));
     for (const d of SUSTAIN_RUNE_LIST) {
       expect(RUNES[d.id], d.id).toBe(d);
@@ -73,16 +76,25 @@ describe("SUS-D: the sustain runes in the catalogue", () => {
 
 describe("SUS-D: the switch (offered only while sustain is on)", () => {
   it("off: RUNE_LIST is the 57 runes in play and holds none of them; RUNES resolves them; runeList() is RUNE_LIST", () => {
-    expect([SUSTAIN_LIVE, sustainLive(), BOT_RUNES]).toEqual([false, false, false]);
+    // FLIP-X2 (REQ-BFG-069, REQ-BFG-058; release X): both switches are on (was [false, false, false]); the off world is
+    // withSustain(fn, false) below
+    expect([SUSTAIN_LIVE, sustainLive(), BOT_RUNES]).toEqual([true, true, true]);
     expect(RUNE_LIST.length).toBe(57);
     for (const d of SUSTAIN_RUNE_LIST) {
       expect(RUNE_LIST, d.id).not.toContain(d);
       expect([isRune(d.id), isSustainRune(d.id)], d.id).toEqual([true, true]);
     }
     for (const d of RUNE_LIST) expect(isSustainRune(d.id), d.id).toBe(false);
-    expect(runeList()).toBe(RUNE_LIST);
-    withSustain(() => expect(runeList().map((d) => d.id)).toEqual([...RUNE_LIST, ...SUSTAIN_RUNE_LIST].map((d) => d.id)));
-    expect(runeList()).toBe(RUNE_LIST); // the switch is back
+    // FLIP-X2 (REVIEW-TUNEX): runeList() never holds a dormant rune (DORMANT_RUNES), so the switch off it is RUNE_LIST
+    // without COAL CHUTE and HEAT SINK, 55 (was RUNE_LIST itself), and on it is that and the sustain runes without SEARING
+    // and SHATTER SHOT, 61 (was the 65)
+    const live = (l: readonly RuneDef[]) => l.filter((d) => !DORMANT_RUNES.has(d.id)).map((d) => d.id);
+    withSustain(() => expect(runeList().map((d) => d.id)).toEqual(live(RUNE_LIST)), false);
+    expect(withSustain(() => runeList().length, false)).toBe(55);
+    expect(runeList().map((d) => d.id)).toEqual(live([...RUNE_LIST, ...SUSTAIN_RUNE_LIST]));
+    expect(runeList().length).toBe(61);
+    withSustain(() => expect(runeList().map((d) => d.id)).toEqual(live([...RUNE_LIST, ...SUSTAIN_RUNE_LIST])));
+    expect(sustainLive()).toBe(true); // the switch is back (on)
   });
 
   it("off, no dawn offers one (600 runs' first 10 dawns); on (withSustain), each is offered somewhere, at its own tier", () => {
@@ -98,14 +110,17 @@ describe("SUS-D: the switch (offered only while sustain is on)", () => {
           }
         }
       };
-      if (on) withSustain(go); else go();
+      // FLIP-X2 (REQ-BFG-069): the switch is on by default, so off is withSustain(go, false) (was go() itself)
+      if (on) withSustain(go); else withSustain(go, false);
       return out;
     };
     const off = seen(false), on = seen(true);
     for (const d of SUSTAIN_RUNE_LIST) {
       expect(off.has(d.id), d.id).toBe(false);
-      expect([...(on.get(d.id) ?? [])], d.id).toEqual([d.tier]);
+      // FLIP-X2 (REVIEW-TUNEX): SEARING and SHATTER SHOT are dormant: no dawn offers them, on or off (was each at its tier)
+      expect([...(on.get(d.id) ?? [])], d.id).toEqual(DORMANT_RUNES.has(d.id) ? [] : [d.tier]);
     }
+    expect(SUSTAIN_RUNE_LIST.filter((d) => DORMANT_RUNES.has(d.id)).map((d) => d.id)).toEqual(["searing", "shatter_shot"]);
   });
 
   it("runeProblem refuses a sustain rune while the switch is off (with the seed or without); on, an offered one passes", () => {
@@ -125,13 +140,16 @@ describe("SUS-D: the switch (offered only while sustain is on)", () => {
     const runes = [...held, id].map((q) => ({ id: q }));
     expect(withSustain(() => runeProblem(runes, 3, "bastion", seed))).toBeNull();
     expect(withSustain(() => runeProblem(runes, 3, "bastion"))).toBeNull();
-    expect(runeProblem(runes, 3, "bastion", seed)).toMatch(/is not in the game while sustain is off/);
-    expect(runeProblem(runes, 3, "bastion")).toMatch(/is not in the game while sustain is off/);
+    // FLIP-X2 (REQ-BFG-069): the switch is on by default (the default passes too), so off is withSustain(fn, false) (was the
+    // default)
+    expect([runeProblem(runes, 3, "bastion", seed), runeProblem(runes, 3, "bastion")]).toEqual([null, null]);
+    expect(withSustain(() => runeProblem(runes, 3, "bastion", seed), false)).toMatch(/is not in the game while sustain is off/);
+    expect(withSustain(() => runeProblem(runes, 3, "bastion"), false)).toMatch(/is not in the game while sustain is off/);
     // the other runes as before
     expect(runeProblem([{ id: runeOffer(seed, 1, "bastion", []).ids[0] }], 1, "bastion", seed)).toBeNull();
     // the server's check reads the same rule (validate.ts validateBuild -> runeProblem): no server edit needed
     const b = { ...cloneBuild(heroStartBuild("bastion")), runes: [{ id: "tick_guard" }] };
-    expect(validateBuild(b, 3, "lenient").errors.join("\n")).toMatch(/TICK GUARD is not in the game while sustain is off/);
+    expect(withSustain(() => validateBuild(b, 3, "lenient"), false).errors.join("\n")).toMatch(/TICK GUARD is not in the game while sustain is off/);
   });
 });
 
@@ -147,7 +165,10 @@ describe("SUS-D: the M5 bench (tools/runevalue.ts, RUNES-2a's method, the switch
     ward_stone: { n: 3, on: "all", run: "A par", gain: 7.4, lo: 6.6, hi: 8.2 }, // RUNES-2a: +8.8 (7.9-9.8) on bb-0.8.7 before NUM-1
     twin_salve: { n: 20, on: "foundry", run: "C1 par", gain: 3.6, lo: 2.1, hi: 5.1 }, // @10 +2.0, @30 +5.8
     scrap_medic: { n: 300, on: "all", run: "C1 par", gain: 7.1, lo: 6.2, hi: 8.0 }, // @150 +3.7, @250 +6.1
-    leech_vow: { n: 20, on: "all", run: "C1 par", gain: 11.6, lo: 10.0, hi: 13.3 }, // @5 +3.1, @10 +6.2, @15 +8.6; WEAVER +16.1
+    // @5 +3.1, @10 +6.2, @15 +8.6; WEAVER +16.1. FLIP-X2 (TUNE-X line 4, REVIEW-SUSD answer 3): rare at 15, its C1 reading
+    // +8.6 (7.4-9.9), in the rare band (SUSD-REPORT's C1 table; TUNE-X on release X's field +8.1 (6.3-9.8)); was epic at 20,
+    // +11.6 (10.0-13.3)
+    leech_vow: { n: 15, on: "all", run: "C1 par", gain: 8.6, lo: 7.4, hi: 9.9 },
     green_thread: { n: 10, on: "weaver", run: "A par", gain: 4.2, lo: 3.1, hi: 5.3 }, // typ2r (B1): +4.5 (2.6-6.4)
   };
 
@@ -220,6 +241,6 @@ describe("SUS-D: the words on the rune cards (measured: phone 402x690 @3 and the
     // x2a (cap, REVIEW-SUSD F-e): SHIELD re-measured after NUM-4's RUNE_REMINDER.SHIELD reword (REVIEW-SUSB F1,
     // "BLOCKS ONE HIT'S DAMAGE, THEN BREAKS."): 152 -> 166, still one line under opW 223
     expect(widths).toEqual({ SHIELD: 166, HEAL: 144, REGEN: 118, BURN: 205 });
-    expect(runeTag(byId("leech_vow"))).toBe("EPIC · TURRETS");
+    expect(runeTag(byId("leech_vow"))).toBe("RARE · TURRETS"); // FLIP-X2 (TUNE-X line 4): rare (was "EPIC · TURRETS")
   });
 });

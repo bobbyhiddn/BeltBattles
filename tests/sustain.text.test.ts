@@ -39,10 +39,13 @@ const g = (id: string, s: number) => effectAt(id, s);
 
 describe("SUS-B the faces (REQ-BFG-070: stats apart from abilities, one line, levels behind ⓘ)", () => {
   it("the switch is off on this base: the three new pieces resolve but no listing shows them; their faces exist", () => {
-    expect(SUSTAIN_LIVE).toBe(false);
+    // FLIP-X2 (REQ-BFG-069, release X): the switch is on (was false): every listing shows them; off (withSustain(fn,
+    // false)) none does, as on SUS-B's base
+    expect(SUSTAIN_LIVE).toBe(true);
     expect(SUSTAIN_IDS).toEqual(["wardbell", "mendpress", "mendingloom"]);
     for (const id of SUSTAIN_IDS) {
-      expect(buyableModules().some((d) => d.id === id), id).toBe(false);
+      expect(withSustain(() => buyableModules().some((d) => d.id === id), false), id).toBe(false);
+      expect(buyableModules().some((d) => d.id === id), id).toBe(true);
       expect([hasFace(id), hasAbilityText(id), FACE_IDS.includes(id)], id).toEqual([true, true, true]);
     }
   });
