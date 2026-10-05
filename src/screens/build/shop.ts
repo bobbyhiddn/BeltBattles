@@ -6,7 +6,7 @@ import { ITEMS, MERCHANTS, PACK_ITEM, REROLL_COST, type ItemDef, type MerchantId
 import type { ShopBadge } from "../../game/run";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
-import { drawText, textWidth, wrap } from "../../render/font";
+import { ICON, drawText, textWidth, wrap } from "../../render/font";
 import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
@@ -278,10 +278,13 @@ export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pres
   if (hover && enabled) frame(g, r.x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
 }
 
-/** bb-0.8.6 (REQ-BFG-051, PACKS P5): a pack's amount as its slot shows it: "+4 BELT", "+25 HULL" (the ITEMS entry's). */
+/** bb-0.8.6 (REQ-BFG-051, PACKS P5): a pack's amount as its slot shows it: "+4 BELT", "+25 HULL" (the ITEMS entry's).
+ *  NUM-2 (REQ-BFG-047; NUM-1's question 1, cap's answer): the ARMOR PACK's is its number and the hull icon, "+250 ♥" (the
+ *  stat form of docs/TEXT-STYLE.md; RIVETER's face draws the same icon): NUM-1's "+250 HULL" (34 px of the 3x5 font)
+ *  overflowed the narrowest slots (32 and 34 px). No layout change. */
 export function packAmount(id: PackId): string {
   const s = ITEMS[PACK_ITEM[id]].supply!;
-  return s.belt ? `+${s.belt} BELT` : `+${s.hull} HULL`;
+  return s.belt ? `+${s.belt} BELT` : `+${s.hull} ${ICON.HULL}`;
 }
 
 /** bb-0.8.6 (PACKS P5): a slot this tall or taller shows the tall face (icon, two short amount lines, price inside REROLL's

@@ -6,13 +6,13 @@
 // Portrait: a column in the margin right of the grid (no card moves), else a pack row under REROLL's row. Each slot shows
 // the pack's icon, its amount and its price ("+4 BELT" / "2G", "+250 HULL" / "5G" since NUM-1's x10 hull), inside its frame.
 import { describe, expect, it } from "vitest";
-import { PACK_IDS } from "../src/sim/content";
+import { ITEMS, PACK_IDS, PACK_ITEM } from "../src/sim/content";
 import {
   CARD_H, CARD_TEXT_MIN_W, CARD_W, PACK_LAND_MIN_W, PACK_MIN_W, PACK_W, REROLL_MIN_W, WIDE_CARD_H, buildLayout, buildScale, landscapeRow,
   packRects, phoneScreen, wideCardW, type BuildLayout,
 } from "../src/screens/build/layout";
 import { PACK_TALL_H, packAmount, packPriceText } from "../src/screens/build/shop";
-import { textWidth } from "../src/render/font";
+import { ICON, textWidth } from "../src/render/font";
 import { TAP_CSS } from "../src/ui/tap";
 import type { Rect } from "../src/ui/ui";
 
@@ -233,9 +233,12 @@ describe("P5 (oracle b24d14b979bbded9): buildScale holds the pack row; nothing g
 });
 
 describe("P5: what a slot shows", () => {
-  it("the amount and the price: +4 BELT and 2G, +250 HULL and 5G (whole numbers, no decimal)", () => {
+  it("the amount and the price: +4 BELT and 2G, +250 and the hull icon and 5G (whole numbers, no decimal)", () => {
     // NUM-1 (REQ-BFG-047): ARMOR PACK's hull is x10 (+250 HULL; was +25 HULL); BELT and the prices are unchanged
-    expect(PACK_IDS.map((id) => [packAmount(id), packPriceText(id)])).toEqual([["+4 BELT", "2G"], ["+250 HULL", "5G"]]);
+    // NUM-2 (cap's answer to NUM-1's question 1): the ARMOR PACK shows its number and the hull icon, the stat form
+    // (+250 ♥, through ICON.HULL; was "+250 HULL", which overflowed the narrowest slots); the hull from the data
+    expect(PACK_IDS.map((id) => [packAmount(id), packPriceText(id)])).toEqual([["+4 BELT", "2G"], [`+${ITEMS[PACK_ITEM.armor].supply!.hull} ${ICON.HULL}`, "5G"]]);
+    expect(ITEMS[PACK_ITEM.armor].supply!.hull).toBe(250);
     for (const id of PACK_IDS) expect(`${packAmount(id)} ${packPriceText(id)}`).not.toMatch(/\d\.\d/);
   });
 });
