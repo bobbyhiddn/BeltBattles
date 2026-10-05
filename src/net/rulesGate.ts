@@ -14,8 +14,10 @@
 // accepts more than one rules version still keeps the 0.6.2 features out of the older ones.
 // RUNES-2a (REQ-BFG-058; RUNES-1 Q4): a second row, runes need bb-0.8.7 (RUNES_RULES), and the client's snapshot check
 // (src/game/ghostSnapshot.ts isSnapshot) asks this gate too, the rules row and the hero row, so both checks stay equal.
+// FLIP-X2 (REQ-BFG-069, release X's one bump to bb-0.9.0): a third row, the sustain pieces and runes need bb-0.9.0.
 
-import type { HeroId } from "../sim/content";
+import { isSustain, type HeroId } from "../sim/content";
+import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -94,11 +96,35 @@ export function runeFeatures(build: unknown): string[] {
   return Array.isArray(runes) && runes.length > 0 ? ["runes (build.runes)"] : [];
 }
 
+/** FLIP-X2 (REQ-BFG-069; release X, SUSTAIN-1's "one row for the new rules version"): the first rules version with the
+ *  sustain pieces (WARD BELL, MEND PRESS, MENDING LOOM) and the sustain runes, turned on with the bots' runes. */
+export const SUSTAIN_RULES = "bb-0.9.0";
+
+/** The bb-0.9.0 features a build carries: a sustain piece (items or mods) and a sustain rune. Reads a raw (undecoded)
+ *  build safely, like rulesFeatures. */
+export function sustainFeatures(build: unknown): string[] {
+  if (typeof build !== "object" || build === null) return [];
+  const b = build as { items?: unknown; mods?: unknown; runes?: unknown };
+  const idOf = (p: unknown, k: "def" | "id"): string | undefined => {
+    const v = typeof p === "object" && p !== null ? (p as Record<string, unknown>)[k] : undefined;
+    return typeof v === "string" ? v : undefined;
+  };
+  const list = (l: unknown): unknown[] => (Array.isArray(l) ? l : []);
+  const out: string[] = [];
+  if ([...list(b.items), ...list(b.mods)].some((p) => { const d = idOf(p, "def"); return d !== undefined && isSustain(d); })) {
+    out.push("sustain pieces (WARD BELL, MEND PRESS, MENDING LOOM)");
+  }
+  if (list(b.runes).some((q) => { const id = idOf(q, "id"); return id !== undefined && isSustainRune(id); })) out.push("sustain runes (build.runes)");
+  return out;
+}
+
 /** The gate's rows: what a build may carry and the first rules version that takes it, oldest first. RUNES-2a adds the
- *  runes row (defence in depth: every accepting path also demands rules === RULES_VERSION, so no verdict changes today). */
+ *  runes row, FLIP-X2 the sustain row (defence in depth: every accepting path also demands rules === RULES_VERSION, so
+ *  no verdict changes today). */
 export const RULES_ROWS: readonly { from: string; features: (build: unknown) => string[] }[] = [
   { from: TURRETS_JOINS_RULES, features: rulesFeatures },
   { from: RUNES_RULES, features: runeFeatures },
+  { from: SUSTAIN_RULES, features: sustainFeatures },
 ];
 
 /** Why a build can't travel under `rules`, or null. It is refused when it carries a row's features (turret slots or belt

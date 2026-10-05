@@ -54,7 +54,7 @@ function packed(hero: HeroId, armors: number, belts = 0): Build {
 
 describe("rules bb-0.8.7: the version", () => {
   it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.8.6 until the Prime stages 0.8.7", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.7");
+    expect(RULES_VERSION).toBe("bb-0.9.0") /* FLIP-X2: the one bump (was bb-0.8.7) */;
     expect(VERSION).toBe("0.8.6");
   });
 });
@@ -82,7 +82,7 @@ describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store 
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
   it("/v1/health names bb-0.8.7; an honest deck under bb-0.8.3 (0.8.5's rules) and every near miss of bb-0.8.6 (bb-0.8.6 itself too) is refused, and nothing is stored", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.8.7");
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.9.0") /* FLIP-X2: the one bump (was bb-0.8.7) */;
     const before = backend.storedRecords();
     const seen: Record<string, number> = {};
     for (const rules of NEAR) {

@@ -15,7 +15,10 @@ import { DORMANT_ITEMS, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, t
 // (TURRET SPEED, FACTORY; Build.upgrades). Ghosts and records made under bb-0.8.0 don't mix with these.
 // bb-0.8.6 (job PACKS, REQ-BFG-051): the caravan's two fixed packs (BELT PACK, ARMOR PACK). bb-0.8.7 (job RUNES-1,
 // REQ-BFG-058): runes, one pick at every dawn. Ghosts and records made under bb-0.8.6 don't mix with these.
-export const RULES_VERSION = "bb-0.8.7";
+// bb-0.9.0 (release X, job FLIP-X2; REQ-BFG-047, REQ-BFG-069, REQ-BFG-058): the whole numbers (NUM-1..4), R1's STUN fold
+// and whole-second durations, the sustain pieces and runes (SHIELD, HEAL, REGEN) and the bots' runes, every pool
+// regenerated once with them; an upload holds exactly one rune a dawn. Ghosts and records made under bb-0.8.7 don't mix.
+export const RULES_VERSION = "bb-0.9.0";
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player

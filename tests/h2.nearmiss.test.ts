@@ -49,7 +49,7 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
 
 describe("H2 M1b: the near-miss rules strings (pure)", () => {
   it("are all different from RULES_VERSION, and the three decks are honest bb-0.8.3 seed decks with a reachable record", () => {
-    expect(RULES_VERSION).toBe("bb-0.8.7");
+    expect(RULES_VERSION).toBe("bb-0.9.0") /* FLIP-X2: the one bump (was bb-0.8.7) */;
     for (const r of NEAR) expect(r).not.toBe(RULES_VERSION);
     expect(new Set(NEAR).size).toBe(NEAR.length);
     for (const s of Object.values(DECKS)) expect([s.rules, isReachable(s.day, s.wins, s.lives)]).toEqual([RULES_VERSION, true]);

@@ -11,7 +11,7 @@
 //   unreachable-signed  that honest deck with a record no run carries: day 1, 0 wins, 1 life   -> 422, H2's record error
 //   hero-WEAVER, hero-FOUNDRY, hero-BASTION: each hero's honest day-3 reference deck (heroRefBuild) at 1 win and 5 lives,
 //                       a record a run carries into dusk 3 (records.ts isReachable)            -> 201 each
-//   hero-METRONOME, hero-SIPHON: the same, for the two heroes bb-0.8.3 does not take (0.9.0 adds them). The game's encoder
+//   hero-METRONOME, hero-SIPHON: the same, for the two heroes bb-0.9.0 does not take (FLIP-X2: release X adds no hero). The game's encoder
 //                       refuses them, so their bytes are the canonical text built by hand     -> 400, the strict decode's
 //                       hero gate naming bb-0.8.3 and the hero
 // Exactly four decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY and BASTION.
@@ -20,21 +20,35 @@
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
 // It prints one line per check (PASS or FAIL, name, expected, got), then the player id, then a summary with the number of
 // decks the server stored for this player. Exit 0 only if every check matched; 1 if a check failed or got no answer; 2
-// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.8.7. There is no secret
+// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.9.0. There is no secret
 // to print: the key is non-extractable, and neither the public key nor a signature is printed. No network but the base
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { KEY_HEADER, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
-import { checkBuildShape, encodeSnapshot, ghostId, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
+import { checkBuildShape, encodeSnapshot, ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { heroRefBuild, heroStartBuild } from "../src/sim/heroBuilds";
+import { botTakeRune } from "../src/sim/runes"; // FLIP-X2 (cap's ruling 5d6d83ef57d1494c): the honest decks' dawn runes
 
-/** The rules this probe's expectations are written for: RUNES-1's (bb-0.8.7; PACKS's bb-0.8.6, BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
-export const PROBE_RULES = "bb-0.8.7";
-/** The heroes bb-0.8.7 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
+/** The rules this probe's expectations are written for: release X's (bb-0.9.0; RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
+export const PROBE_RULES = "bb-0.9.0";
+/** FLIP-X2 (cap's ruling 5d6d83ef57d1494c): under bb-0.9.0 an upload holds exactly one rune a dawn (validateUpload's
+ *  player mode). The probe's honest decks take theirs as the bots do (runes.ts botTakeRune at each dawn on this run seed:
+ *  the grants on the build, every pick in its dawn's offer), and the snapshot carries the seed (v3), so the server
+ *  re-derives each offer. */
+export const PROBE_SEED = 20261005;
+/** `build` holding the bots' picks at the dawns of days 1..day on PROBE_SEED. */
+export function probeRunes(build: GhostSnapshot["build"], day: number): GhostSnapshot["build"] {
+  const b: GhostSnapshot["build"] = JSON.parse(JSON.stringify(build));
+  for (let d = 1; d <= day; d++) {
+    if (!botTakeRune(b, PROBE_SEED, d, b.hero, true)) throw new Error(`ghost-probe: no rune for ${b.hero} at the dawn of day ${d}`);
+  }
+  return b;
+}
+/** The heroes bb-0.9.0 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
 export const PROBE_ACCEPTED = "FURNACE, WEAVER, FOUNDRY, BASTION";
-/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.8.7 refuses (400), in posting order. */
+/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.9.0 refuses (400), in posting order. */
 export const STORED_HEROES: readonly HeroId[] = ["weaver", "foundry", "bastion"];
 export const REFUSED_HEROES: readonly HeroId[] = ["metronome", "siphon"];
 /** The hero rows' dusk: day 3 at 1 win and 5 lives, a record a run carries into dusk 3. */
@@ -50,7 +64,7 @@ export const UNSIGNED_ERROR = `unsigned upload: the ${KEY_HEADER} and ${SIG_HEAD
 /** H2's answer to a record no run can carry into that dusk (server/app.ts, POST step 6). */
 export const recordError = (d: { day: number; wins: number; lives: number }): string =>
   `record: ${d.wins}W ${d.lives} lives is no record a run carries into dusk ${d.day}`;
-/** The strict decode's answer to a hero bb-0.8.7 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
+/** The strict decode's answer to a hero bb-0.9.0 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
 export const heroError = (hero: HeroId): string => `snapshot.hero: rules ${PROBE_RULES} accept only ${PROBE_ACCEPTED}, not ${hero.toUpperCase()}`;
 
 export interface ProbeAnswer {
@@ -122,7 +136,8 @@ export function canonicalText(s: GhostSnapshot): string {
   return JSON.stringify({
     v: s.v, rules: s.rules, hero: s.hero, day: s.day, wins: s.wins, lives: s.lives,
     build: checkBuildShape(s.build, "snapshot.build", s.v), runId: s.runId, playerId: s.playerId, createdAt: s.createdAt,
-    ...(s.name !== undefined ? { name: s.name } : {}), // PACKS M2: the player's name, last
+    ...(s.name !== undefined ? { name: s.name } : {}), // PACKS M2: the player's name
+    ...(s.seed !== undefined ? { seed: s.seed } : {}), // FLIP-X2: the v3 run seed, after the name (snapshot.ts V3_SNAPSHOT_FIELDS)
   });
 }
 
@@ -130,9 +145,14 @@ export function canonicalText(s: GhostSnapshot): string {
  *  carries one (POST /v1/ghosts refuses one without it, 422 "name: missing"). */
 export const PROBE_NAME = "PROBE";
 
-/** The snapshot `playerId` uploads at the dusk of `d.day` with `build`, under this build's rules. */
+/** The snapshot `playerId` uploads at the dusk of `d.day` with `build`, under this build's rules. FLIP-X2: a build that
+ *  holds runes travels as v3 with the run seed (PROBE_SEED), as the game's ghostOf writes it; a rune-less one as before. */
 function dusk(playerId: string, hero: HeroId, d: { day: number; wins: number; lives: number }, build: GhostSnapshot["build"], runId: string, now: number): GhostSnapshot {
-  return { v: SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day: d.day, wins: d.wins, lives: d.lives, build, runId, playerId, createdAt: now, name: PROBE_NAME };
+  const runes = (build.runes?.length ?? 0) > 0;
+  return {
+    v: runes ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day: d.day, wins: d.wins, lives: d.lives, build, runId, playerId, createdAt: now,
+    name: PROBE_NAME, ...(runes ? { seed: PROBE_SEED } : {}),
+  };
 }
 
 /** The nine POSTs, in order, for `playerId` at time `now`. Pure: no key, no network. */
@@ -140,7 +160,9 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   const run = `probe-${now}`;
   const plan: PlannedPost[] = [];
   // 1-2. an honest FURNACE deck, as the game's submitGhost sends it (the canonical bytes), signed and then unsigned
-  const honest = dusk(playerId, "furnace", { day: 1, wins: 0, lives: 5 }, heroStartBuild("furnace"), run, now);
+  // FLIP-X2: the start deck with its day-1 rune (probeRunes), so the exact count passes and each later row fails on the
+  // one rule it exists to test (the budget, the record)
+  const honest = dusk(playerId, "furnace", { day: 1, wins: 0, lives: 5 }, probeRunes(heroStartBuild("furnace"), 1), run, now);
   const honestText = encodeSnapshot(honest);
   const id = ghostId(honest);
   plan.push({ name: "furnace-signed", snapshot: honest, text: honestText, signed: true, expected: `201 {"id":"${id}"}`, pass: (a) => a.status === 201 && a.id === id });
@@ -155,15 +177,15 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   const far = dusk(playerId, "furnace", UNREACHABLE_DUSK, honest.build, `${run}-unreachable`, now);
   const farError = recordError(UNREACHABLE_DUSK);
   plan.push({ name: "unreachable-signed", snapshot: far, text: encodeSnapshot(far), signed: true, expected: `422 ${farError}`, pass: (a) => a.status === 422 && a.error === farError });
-  // 5-7. the other heroes bb-0.8.7 takes: their honest day-3 reference decks, each stored as its own record
+  // 5-7. the other heroes bb-0.9.0 takes: their honest day-3 reference decks, each stored as its own record
   for (const hero of STORED_HEROES) {
-    const s = dusk(playerId, hero, HERO_DUSK, heroRefBuild(hero, HERO_DUSK.day), `${run}-${hero}`, now);
+    const s = dusk(playerId, hero, HERO_DUSK, probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes
     const hid = ghostId(s);
     plan.push({ name: `hero-${hero.toUpperCase()}`, snapshot: s, text: encodeSnapshot(s), signed: true, expected: `201 {"id":"${hid}"}`, pass: (a) => a.status === 201 && a.id === hid });
   }
-  // 8-9. the heroes bb-0.8.7 refuses: the same honest reference decks, as the canonical text built by hand
+  // 8-9. the heroes bb-0.9.0 refuses: the same honest reference decks, as the canonical text built by hand
   for (const hero of REFUSED_HEROES) {
-    const s = dusk(playerId, hero, HERO_DUSK, heroRefBuild(hero, HERO_DUSK.day), `${run}-${hero}`, now);
+    const s = dusk(playerId, hero, HERO_DUSK, probeRunes(heroRefBuild(hero, HERO_DUSK.day), HERO_DUSK.day), `${run}-${hero}`, now); // FLIP-X2: 3 dawn runes
     const want = heroError(hero);
     plan.push({ name: `hero-${hero.toUpperCase()}`, snapshot: s, text: canonicalText(s), signed: true, expected: `400 ${want}`, pass: (a) => a.status === 400 && a.error === want });
   }

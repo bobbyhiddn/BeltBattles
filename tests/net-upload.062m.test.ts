@@ -320,7 +320,7 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     const plain = await post(snapOf(d, { rules: "bb-0.6.1", hero: "furnace", build: furnaceDeck() }));
     expect(plain.status).toBe(422);
     expect(plain.body.error).toBe(`rules bb-0.6.1 not accepted: this server validates ${RULES_VERSION}`);
-    expect(RULES_VERSION).toBe("bb-0.8.7");
+    expect(RULES_VERSION).toBe("bb-0.9.0") /* FLIP-X2: the one bump (was bb-0.8.7) */;
   });
 
   it("fetchGhost fights a served ghost with turrets and joins; it falls back on an illegal one and on other rules", async () => {
