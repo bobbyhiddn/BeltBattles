@@ -770,6 +770,17 @@ export const Y3_PIECES: readonly string[] = [
   "pincer", "twingauge", "bellows", "quench", "longhaul", "barbed", "platebreaker", "brake", "surge", "overclocker", "twinlatch", "stoker", "assembly",
 ];
 
+/**
+ * Y4 (release Y; REQ-BFG-070, REQ-BFG-046; DESIGN-Y section 3, rows 33-40; ruling R-2): THE 4 GEAR AND 4 CORES, one number
+ * each. With the star switch on each shows one ability line, its RULES sentences, floors, caveats and star clauses gone
+ * (STAR_GONE_CLAUSES: ROTARY's fire rate, EXT. CHAMBER's slot), every ★2/★3 change a number on its ⓘ ladder, its perk's
+ * name in the ⓘ view only (ruling R-1: faceBlocks.ts perkInfoOnly). The five RULES pieces (HOPPER, TWIN TRIGGER, SEAM
+ * WELDER, STEAM BREECH, DRAKE NOZZLE) get their first face here; off, each keeps today's text, and every face is as before.
+ */
+export const Y4_PIECES: readonly string[] = [
+  "hopper", "twintrigger", "seamwelder", "chamber",
+];
+
 /** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
  *  (LODESTONE, BRACE FRAME); the other seven keep today's line, every number from the switch's data. */
 const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
@@ -874,6 +885,29 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const soon = fmtPct(1 - f(e).commission!);
     return rules([{ text: `YOUR RIGS START ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
   },
+  // ---- Y4 (DESIGN-Y rows 33-40): the gear and cores whose line changes; EXT. CHAMBER keeps today's line (FACES), its
+  // number from the switch's data (FIRES 2/3/4), its WIDE BREECH clause gone
+  hopper: (e) => {
+    // DESIGN-Y row 33: makeTurret: its turret's chamber holds `window` more loads (+1/+2/+3); the +0.5 s load time, the
+    // store and ★3's no-jam are gone (content.ts STAR_DIFF). Was the RULES text "THE CHAMBER HOLDS 1 MORE LOAD, AND THE LOAD
+    // TIME IS LONGER." with the chamber's rule, the GATLING/COMPOUND line, ★2/★3's store and ★3's "THE TURRET NEVER JAMS."
+    const n = fmtCount(md(e).window!);
+    return rules([{ text: `ITS CHAMBER HOLDS +${n} {SLUG}.` }], [["window", `+${n} {SLUG}`]]);
+  },
+  twintrigger: (e) => {
+    // DESIGN-Y row 34: Battle.fire / fireCore: a paired load (E2; a COMPOUND shell packing one) deals x (1 + pairBonus); its
+    // shorter load time is gone. Was the RULES text "PAIRED LOADS IN THIS TURRET DEAL 25% MORE DAMAGE." with PAIR's
+    // definition, "ITS LOAD TIME IS SHORTER, DOWN TO A FLOOR." and the GATLING/COMPOUND line
+    const more = fmtPct(md(e).pairBonus!), label = "{*PAIR}:";
+    return rules([{ text: `${label} +${more} {DMG}.`, label }], [["bonus", `+${more} {DMG}`]], [REMINDER.PAIR()]);
+  },
+  seamwelder: (e) => {
+    // DESIGN-Y row 35: Battle.loaded / fusionPair: each pair this turret takes rolls seam.pair plating onto your hull; a lone
+    // load's is gone (lone 0). Was the RULES text "EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL, AND ANY OTHER
+    // LOAD ROLLS 2." with PAIR's and PLATING's definitions
+    const d = fmtDmg(md(e).seam!.pair), label = "{*PAIR}:";
+    return rules([{ text: `${label} +${d} {*PLATE}.`, label }], [["plate", `+${d} {*PLATE}`]], [REMINDER.PAIR(), REMINDER.PLATE()]);
+  },
 };
 
 /** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the
@@ -881,7 +915,10 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
 const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "grapnel", "overdrive", "sabot", "scrapper", "tollbooth", "spotter", "mantlet",
   // Y3 (DESIGN-Y rows 24, 25, 27): LONG HAUL's MAX 6 RIGS, BARBED SPOOL's RAZOR WIRE MAX and BRAKE SHOE's HOT SHOE flats are
   // gone from the sim (their data hold none with the switch on, so the clauses would say nothing; listed so none returns)
-  "longhaul", "barbed", "brake"]);
+  "longhaul", "barbed", "brake",
+  // Y4 (DESIGN-Y row 36): EXT. CHAMBER's WIDE BREECH / TRIPLE BREECH slot is gone from the sim (the same: its data hold none
+  // with the switch on; listed so none returns)
+  "chamber"]);
 /** Y2: the interim caveats (INTERIM_CAVEATS ids) that leave with the switch on: each rule left the sim (the shared rule,
  *  SCRAPPER's uncapped queue, FLAK SCREEN's screens rolling on their own) or is the face's own words now (TOLLBOOTH's
  *  PARTS). */

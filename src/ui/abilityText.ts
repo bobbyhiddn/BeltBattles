@@ -326,6 +326,9 @@ export function shieldText(n: number): string {
 export function gatlingClashText(def: string, stars: number, routine = "gatling"): string | null {
   const core = routine === "gatling" ? "GATLING SPOOL" : routine === "compound" ? "COMPOUND BREECH" : null;
   if (!core) return null;
+  // Y4 (release Y; DESIGN-Y rows 33-34): with the star switch on HOPPER holds no load time (its slots count on every core)
+  // and TWIN TRIGGER has no shorter one (its pairs hit harder on every core): no clash
+  if (starRules() && (def === "hopper" || def === "twintrigger")) return null;
   if (def === "hopper") return `${core}: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${effectAt(def, stars).mod?.store ? ", BUT ITS STORE STILL WORKS" : ""}.`;
   if (def === "ram" && routine === "gatling") return "GATLING SPOOL: NO FULL CHAMBER, SO THE FINISHER RAM DOES NOTHING.";
   // 0.8.0 P1 (DESIGN-wave3.md 3.3 module 13): TWIN TRIGGER's shorter load time, as HOPPER's longer one; its pair bonus
@@ -342,6 +345,7 @@ export function gatlingClashText(def: string, stars: number, routine = "gatling"
  */
 export function clashShortText(def: string, routine = "gatling"): string | null {
   if (routine !== "gatling" && routine !== "compound") return null;
+  if (starRules() && (def === "hopper" || def === "twintrigger")) return null; // Y4: no clash with the star switch on (above)
   if (def === "hopper") return "HOPPER: ITS LONGER LOAD TIME DOES NOTHING HERE.";
   if (def === "ram" && routine === "gatling") return "FINISHER RAM: DOES NOTHING HERE.";
   if (def === "twintrigger") return "TWIN TRIGGER: ITS SHORTER LOAD TIME DOES NOTHING HERE."; // 0.8.0 P1
@@ -1035,7 +1039,9 @@ const ENTRIES: Record<string, Entry> = {
   // --------------------------------------------------------------------------------------------------- turret gear
   chamber: {
     text: (e) => [`THE TURRET FIRES ${m(e).perShot} LOADS EACH SHOT${m(e).window ? `, AND ITS CHAMBER HOLDS ${plural(m(e).window!, "MORE LOAD")}` : ""}.`],
-    gist: (e, x) => (x.stars >= 3 ? `FIRES ${m(e).perShot} LOADS EACH SHOT` : m(e).window ? `HOLDS ${plural(m(e).window!, "MORE LOAD")}` : `FIRES ${m(e).perShot} LOADS`),
+    // Y4 (release Y; DESIGN-Y row 36): with the star switch on, its one number at every star (no slot)
+    gist: (e, x) => (starRules() ? `FIRES ${m(e).perShot} LOADS A SHOT`
+      : x.stars >= 3 ? `FIRES ${m(e).perShot} LOADS EACH SHOT` : m(e).window ? `HOLDS ${plural(m(e).window!, "MORE LOAD")}` : `FIRES ${m(e).perShot} LOADS`),
     card: (e) => `FIRES ${m(e).perShot} LOADS A SHOT`,
   },
   calibrate: {
@@ -1079,6 +1085,9 @@ const ENTRIES: Record<string, Entry> = {
     // fires, dropped into the next chamber, Battle.chambers); ★3 BOTTOMLESS never jams
     text: (e) => {
       const md = m(e), store = md.store ?? 0;
+      // Y4 (release Y; DESIGN-Y row 33): with the star switch on, its one rule (window +1 / +2 / +3); no load time, store
+      // or NEVER JAMS, and no chamber rule naming LOAD TIME
+      if (starRules()) return [`THE TURRET'S CHAMBER HOLDS ${plural(md.window!, "MORE LOAD")}.`];
       return [
         `THE CHAMBER HOLDS ${plural(md.window!, "MORE LOAD")}, AND THE LOAD TIME IS LONGER.`, // NUM-4: HOPPER's +0.5 s is a hidden timer (N1 2.2)
         ...(store ? [`WHILE THE TURRET FIRES, IT STORES ${plural(store, "LOAD")} FROM THE BELT FOR ITS NEXT CHAMBER.`] : []),
@@ -1091,6 +1100,7 @@ const ENTRIES: Record<string, Entry> = {
     perkAt: (e) => (m(e).noJam ? (m(e).store ? 2 : 1) : 0),
     gist: (e) => {
       const md = m(e);
+      if (starRules()) return `HOLDS ${plural(md.window!, "MORE LOAD")}`; // Y4 (DESIGN-Y row 33)
       return md.store ? `STORES ${plural(md.store, "LOAD")} WHILE IT FIRES${md.noJam ? ", NEVER JAMS" : ""}`
         : `HOLDS ${plural(md.window!, "MORE LOAD")}, LONGER LOAD TIME`;
     },
@@ -1279,13 +1289,14 @@ const ENTRIES: Record<string, Entry> = {
     // Battle.fire / fireCore: a paired load (E2; a COMPOUND shell packing one) x (1 + pairBonus), before FINISHER RAM.
     // makeTurret: the load time + windowTime (negative), never under LOAD_FLOOR; a GATLING SPOOL or a COMPOUND BREECH never
     // reads it (gatlingClashText)
-    text: (e) => [
+    // Y4 (release Y; DESIGN-Y row 34): with the star switch on there is no shorter load time (pairBonus 30 / 60 / 95)
+    text: (e) => (starRules() ? [`PAIRED LOADS IN THIS TURRET DEAL ${percent(m(e).pairBonus!)} MORE DAMAGE.`, S.pair] : [
       `PAIRED LOADS IN THIS TURRET DEAL ${percent(m(e).pairBonus!)} MORE DAMAGE.`,
       S.pair,
       "ITS LOAD TIME IS SHORTER, DOWN TO A FLOOR.", // NUM-4: its -0.25 / -0.4 / -0.55 s and the 0.3 s floor are hidden timers (N1 2.2)
       "ON A GATLING SPOOL OR A COMPOUND BREECH THE SHORTER LOAD TIME DOES NOTHING.",
-    ],
-    gist: (e) => `PAIRS DEAL ${percent(m(e).pairBonus!)} MORE, SHORTER LOAD TIME`,
+    ]),
+    gist: (e) => (starRules() ? `PAIRS DEAL ${percent(m(e).pairBonus!)} MORE` : `PAIRS DEAL ${percent(m(e).pairBonus!)} MORE, SHORTER LOAD TIME`),
     card: (e) => `PAIRS HIT ${percent(m(e).pairBonus!)} HARDER`,
   },
   spallcatcher: {
@@ -1304,12 +1315,14 @@ const ENTRIES: Record<string, Entry> = {
   seamwelder: {
     // Battle.loaded (E2): the load that makes a pair rolls seam.pair, any other load seam.lone (addPlate); a FOUNDRY fusion
     // is a pair (Battle.fusionPair)
+    // Y4 (release Y; DESIGN-Y row 35): with the star switch on a lone load rolls none (seam.lone 0): pairs only
     text: (e) => [
-      `EACH PAIR THIS TURRET TAKES ROLLS ${fmtDmg(m(e).seam!.pair)} PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS ${fmtDmg(m(e).seam!.lone)}.`,
+      starRules() ? `EACH PAIR THIS TURRET TAKES ROLLS ${fmtDmg(m(e).seam!.pair)} PLATING ONTO YOUR HULL.`
+        : `EACH PAIR THIS TURRET TAKES ROLLS ${fmtDmg(m(e).seam!.pair)} PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS ${fmtDmg(m(e).seam!.lone)}.`,
       S.pair,
       S.plating,
     ],
-    gist: (e) => `${fmtDmg(m(e).seam!.pair)} PLATING A PAIR, ${fmtDmg(m(e).seam!.lone)} FOR ANY OTHER LOAD`,
+    gist: (e) => (starRules() ? `${fmtDmg(m(e).seam!.pair)} PLATING A PAIR` : `${fmtDmg(m(e).seam!.pair)} PLATING A PAIR, ${fmtDmg(m(e).seam!.lone)} FOR ANY OTHER LOAD`),
     card: () => "PAIRS PLATE YOUR HULL",
   },
   // ------------------------------------------------------------------------------------------------------ supplies

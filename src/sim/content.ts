@@ -1287,6 +1287,22 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
       3: { factory: { speed: 17, commission: 0, base: 60 }, perk: "HOT START" },
     },
   },
+  // ---- Y4 (DESIGN-Y section 3, rows 33-40: gear and cores, one number each; REVIEW-STARD rule 3: no star adds a rule). No
+  // gear holds a load time any more (HOPPER's +0.5 s and TWIN TRIGGER's cut go), so makeTurret never reaches LOAD_FLOOR
+  // row 33, HOPPER: the +0.5 s load time, the ★2/★3 store and ★3's no-jam go; its chamber holds +1/+2/+3 (window). The
+  // perk's name (★3 BOTTOMLESS) stays (ⓘ only)
+  hopper: { mod: { window: 1 }, levels: { 2: { mod: { window: 2 } }, 3: { mod: { window: 3 }, perk: "BOTTOMLESS" } } },
+  // row 34, TWIN TRIGGER: the shorter load time goes (no windowTime, so no LOAD_FLOOR); pairBonus 30/60/95 (was 25/55/88:
+  // +5/+5/+7, the ladder's numbers, cap's ruling e91c08dd12466357)
+  twintrigger: { mod: { pairBonus: 0.3 }, levels: { 2: { mod: { pairBonus: 0.6 } }, 3: { mod: { pairBonus: 0.95 } } } },
+  // row 35, SEAM WELDER: a lone load's plating goes (lone 0; Battle.loaded's addPlate of 0 does nothing); +10/+22/+35 a pair
+  seamwelder: {
+    mod: { seam: { pair: 10, lone: 0 } },
+    levels: { 2: { mod: { seam: { pair: 22, lone: 0 } } }, 3: { mod: { seam: { pair: 35, lone: 0 } } } },
+  },
+  // row 36, EXT. CHAMBER: the +1 slot goes (★2 WIDE BREECH's, ★3 TRIPLE BREECH's window); it fires 2/3/4 loads a shot (at
+  // most what the chamber holds: Battle.chambers). The perks' names stay (ⓘ only)
+  chamber: { mod: { perShot: 2 }, levels: { 2: { mod: { perShot: 3 }, perk: "WIDE BREECH" }, 3: { mod: { perShot: 4 }, perk: "TRIPLE BREECH" } } },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */
