@@ -1177,6 +1177,66 @@ export function withSustain<T>(fn: () => T, on = true): T {
 
 setSustain(SUSTAIN_LIVE);
 
+// ------------------------------------------------------------------------------------ Y2 (release Y): the star switch
+
+/**
+ * Y2 (release Y; REQ-BFG-070, REQ-BFG-046; REVIEW-STARD ruling R-2): THE STAR SWITCH. Release Y's one-line rules (STAR-D's
+ * DESIGN-Y; jobs Y2-Y6) ship behind it, the way release X's sustain pieces shipped behind SUSTAIN_LIVE: every sim change
+ * (battle.ts, the content numbers, harassment, overclock.ts, cores.ts, the bots' deckRating) and every face and ladder
+ * change reads starRules(). While it is false, every pool, offer, par run, captain, digest, face and text is the base's
+ * (bb-0.9.0), so each job's gate equals the base; each job's own tests run with it on (withStarRules). Y7b flips it once,
+ * deletes the off paths and regenerates the pools.
+ * The content numbers: STAR_DIFF holds the fields each piece's def changes under the switch; setStarRules puts the piece's
+ * switch-on def (STAR_ITEMS: its base def with those fields over it) into ITEMS[id] in place (its base def back when off),
+ * so ITEMS keeps its order and every reader (the sim, stars.ts effectAt, the faces, the rating) sees the switch's numbers.
+ */
+export const STAR_RULES: boolean = false;
+
+/** Y2: the ItemDef fields each piece takes with the switch on, over its base def (a top-level field replaces the base's
+ *  whole field: `levels`, `factory`, `gate`, `mod`). Each job adds its own pieces' rows. */
+const STAR_DIFF: Record<string, Partial<ItemDef>> = {};
+
+/** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */
+const STAR_BASE: Readonly<Record<string, ItemDef>> = Object.fromEntries(Object.keys(STAR_DIFF).map((id) => [id, ITEMS[id]]));
+
+/** Y2: those pieces' defs with the switch on (built once, from the base defs). */
+export const STAR_ITEMS: Readonly<Record<string, ItemDef>> = Object.fromEntries(
+  Object.keys(STAR_DIFF).map((id) => [id, { ...ITEMS[id], ...STAR_DIFF[id] } as ItemDef]),
+);
+
+let starOn = false;
+
+/** Y2: are release Y's one-line rules on now (STAR_RULES, or a withStarRules call)? */
+export function starRules(): boolean {
+  return starOn;
+}
+
+/** Y2: turn release Y's rules on or off: each STAR_ITEMS def into ITEMS (or its base def back), in place; each keeps its
+ *  enumerability (setSustain's and setWave3's switches own that) and its place in ITEMS order. */
+export function setStarRules(on: boolean): void {
+  if (on !== starOn) {
+    for (const id of Object.keys(STAR_ITEMS)) {
+      const enumerable = Object.getOwnPropertyDescriptor(ITEMS, id)?.enumerable ?? true;
+      Object.defineProperty(ITEMS, id, { value: on ? STAR_ITEMS[id] : STAR_BASE[id], enumerable, writable: true, configurable: true });
+    }
+  }
+  starOn = on;
+}
+
+/** Y2: run `fn` with release Y's rules on (or off), then put the switch back as it was, even if `fn` throws (withSustain's
+ *  form). */
+export function withStarRules<T>(fn: () => T, on = true): T {
+  const was = starOn;
+  setStarRules(on);
+  try {
+    return fn();
+  } finally {
+    setStarRules(was);
+  }
+}
+
+setStarRules(STAR_RULES);
+
 export interface AmmoDef {
   name: string;
   base: number; // base damage

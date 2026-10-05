@@ -6,6 +6,7 @@
 import {
   HEROES, ITEMS, UPGRADE_MAX, UPGRADE_PRICE, UPGRADE_TRACKS, type HeroId, type ItemDef, type Upgrades, type UpgradeTrack,
 } from "./content";
+import { starRules } from "./content"; // Y2 (release Y): the star switch (effectAt's cache)
 
 /** The highest star level: 1+1 make 2, 2+2 make 3, and 3 never fuses further. */
 export const FUSE_MAX = 3;
@@ -101,7 +102,9 @@ export function effectAt(def: string, stars: number): ItemDef {
   if (!base) throw new Error(`unknown item ${def}`);
   const s = gradeFor(def, stars);
   if (s <= 1 || !base.levels) return base;
-  const k = `${def}*${s}`;
+  // Y2 (release Y; ruling R-2): a piece's switch-on def is its own ITEMS entry (content.ts setStarRules), so its merged
+  // stars are cached apart; with the switch off the key is as before
+  const k = starRules() ? `${def}*${s}*Y` : `${def}*${s}`;
   const hit = cache.get(k);
   if (hit) return hit;
   const out: ItemDef = { ...base };
