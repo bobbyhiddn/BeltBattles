@@ -6,9 +6,11 @@
 // merchant can first ride), and every deck but the Matriarch's against maxGoldByDay (R1).
 
 import { describe, expect, it } from "vitest";
-import { HEROES, ITEMS, RULES_VERSION, rarityWeights, type ItemDef } from "../src/sim/content";
+import { HEROES, ITEMS, rarityWeights, type ItemDef } from "../src/sim/content";
 import { RIVALS, RIVAL_IDS, RUN_DAYS, deckCost, difficultyOf, luckOf, maxGoldByDay, rivalBuild, rivalDays, rivalLoadout, standInBuild, type RivalId } from "../src/sim/rivals";
-import { LUCKS, PLANS, dayOwned, firstDay, type Luck, type Upgrade } from "../src/sim/rivalBuilds";
+import { CAPTAIN_RUNES, LUCKS, PLANS, captainRunesOn, dayOwned, firstDay, type Luck, type Upgrade } from "../src/sim/rivalBuilds";
+import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck valued as bought
+import { maxDawnGold, runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold
 import { LUCK_CAPS } from "../src/sim/harness/luckCapsData";
 import { LUCK_HEROES, luckMeasures, overCaps, parRunFingerprint, type LuckMeasures } from "../src/sim/harness/luck";
 import { buildCost } from "../src/net/validate";
@@ -56,26 +58,12 @@ function boughtDefs(id: RivalId, u: Upgrade): string[] {
   return out;
 }
 
-/**
- * NUM-3 (REQ-BFG-046, REQ-BFG-047; the brief's step 5, as NUM-2's step 7g: a balance band's red is a measured exception
- * under the RULES_VERSION tripwire, on R6's MUST-REMOVE list; the luck caps are not regenerated): R1's STUN fold and the
- * whole-second durations move the par player's seed-1 FOUNDRY run (its fights, so its buys), so its fingerprint is not the
- * table's 8696874a. Measured on num3: f54f92c1. FURNACE, WEAVER and BASTION still fingerprint as the table says. The caps
- * stay as measured; R6 regenerates them (`npm run luckcaps`), then deletes this map and its tripwire.
- */
-const NUM3_FINGERPRINTS: Readonly<Record<string, string>> = { foundry: "f54f92c1" };
-/** The rules version NUM3_FINGERPRINTS was measured under: the tripwire goes red at the next bump. */
-const EXCEPTIONS_RULES = "bb-0.8.7";
+// FLIP-X2 step 6: NUM-3's NUM3_FINGERPRINTS { foundry: f54f92c1 } and its tripwire are removed: the caps are regenerated
+// on release X's par field (step 4.4), so every hero's seed-1 run fingerprints as the table says again.
 
 describe("the luck caps table (src/sim/harness/luckCapsData.ts)", () => {
   it("is the current par field's: seed 1's par runs still fingerprint as the table says (else run `npm run luckcaps`)", () => {
     for (const hero of LUCK_HEROES) {
-      const ex = NUM3_FINGERPRINTS[hero];
-      if (ex) { // NUM-3's open item: pinned exactly, under this rules version only
-        expect(RULES_VERSION, "NUM-3 tripwire (as NUM-2's, cap's ec91a967c21f4c7b): a rules bump with exceptions left").toBe(EXCEPTIONS_RULES);
-        expect(parRunFingerprint(hero), `${hero}: NUM3_FINGERPRINTS (the table says ${LUCK_CAPS.fingerprint[hero]})`).toBe(ex);
-        continue;
-      }
       expect(parRunFingerprint(hero), `${hero}: the par player moved since the caps were measured; regenerate with \`npm run luckcaps\``).toBe(LUCK_CAPS.fingerprint[hero]);
     }
   });
@@ -86,7 +74,10 @@ describe("the luck caps table (src/sim/harness/luckCapsData.ts)", () => {
       expect(caps).toHaveLength(RUN_DAYS);
       caps.forEach((c, i) => {
         for (const k of Object.keys(c.ordinary) as (keyof LuckMeasures)[]) expect(c.good[k], `${hero} d${i + 1} ${k}`).toBeGreaterThanOrEqual(c.ordinary[k]);
-        expect(c.good.value, `${hero} d${i + 1}`).toBeLessThanOrEqual(maxGoldByDay(i + 1));
+        // FLIP-X2 (cap's ruling 97e639e5813acb37, item 4): the par field's decks hold their runes, so the most gold a run can
+        // hold at that dusk is maxGoldByDay plus the most dawn gold a legal one-rune-a-dawn list pays by then (runes.ts
+        // maxDawnGold; was maxGoldByDay alone)
+        expect(c.good.value, `${hero} d${i + 1}`).toBeLessThanOrEqual(maxGoldByDay(i + 1) + maxDawnGold(i + 1));
       });
     }
   });
@@ -97,7 +88,8 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
     for (const id of RIVAL_IDS) {
       const want: Luck = id === "matriarch" ? "stars" : difficultyOf(id) === "hard" ? "good" : "ordinary";
       expect(luckOf(id), id).toBe(want);
-      for (const day of DAYS) expect(rivalBuild(id, day), `${id} d${day}`).toEqual(rivalLoadout(id, day, want).build);
+      // FLIP-X2 step 5: the road deck holds the captain's pinned runes up to its day (was the loadout's build alone)
+      for (const day of DAYS) expect(rivalBuild(id, day), `${id} d${day}`).toEqual(captainRunesOn(rivalLoadout(id, day, want).build, CAPTAIN_RUNES[id], day));
     }
   });
 
@@ -188,8 +180,14 @@ describe("captain decks fit their luck tier's caps (REQ-BFG-033)", () => {
 
   it("R1: every deck but the Iron Matriarch's costs at most maxGoldByDay(day)", () => {
     for (const id of STAND_INS) for (const day of DAYS) {
-      expect(deckCost(standInBuild(id, day)).total, `${id} d${day} stand-in`).toBeLessThanOrEqual(maxGoldByDay(day));
-      expect(rivalLoadout(id, day).value, `${id} d${day} warlord`).toBeLessThanOrEqual(maxGoldByDay(day));
+      // FLIP-X2 (REVIEW-BOTSX section 5): the stand-in holds its runes now, so it is valued as bought (boughtCost: the runes'
+      // HULL and BELT out) against the day's gold plus its runes' dawn gold, as validate.ts budgets a deck (was deckCost)
+      const s = standInBuild(id, day);
+      expect(boughtCost(s), `${id} d${day} stand-in`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(s.runes, day).gold);
+      // FLIP-X2 (cap's ruling 97e639e5813acb37, item 4): the warlord deck (its plan's value) against the day's gold plus
+      // the dawn gold of its own runes (CAPTAIN_RUNES up to the day; was maxGoldByDay alone)
+      const held = (CAPTAIN_RUNES[id] ?? []).slice(0, day).map((q) => ({ id: q }));
+      expect(rivalLoadout(id, day).value, `${id} d${day} warlord`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(held, day).gold);
     }
   });
 

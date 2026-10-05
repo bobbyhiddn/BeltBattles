@@ -469,6 +469,27 @@ export function runeGrants(runes: readonly RuneHeld[] | undefined, day: number):
   return g;
 }
 
+/**
+ * FLIP-X2 (cap's ruling 97e639e5813acb37, item 4): the most dawn gold a legal one-rune-a-dawn list can have paid by the dusk
+ * of `day` (runeGrants' gold; every dusk won, SPOILS SACK's bound): the offerable gold runes (dawn gold, RUNE TITHE, SPOILS
+ * SACK) taken at the first dawns in their best order, every other dawn a rune that pays nothing. The most gold a run can
+ * hold at that dusk is maxGoldByDay(day) + this (the luck caps' value bound, tests/captains.luck). Pure; no regeneration.
+ */
+export function maxDawnGold(day: number): number {
+  const pays = (d: RuneDef) => d.kind === "dawnGold" || d.kind === "runeTithe" || d.kind === "victorGold";
+  const gold = RUNE_LIST.filter((d) => pays(d) && !DORMANT_RUNES.has(d.id));
+  const filler = RUNE_LIST.filter((d) => !pays(d) && !DORMANT_RUNES.has(d.id)).map((d) => ({ id: d.id }));
+  let best = 0;
+  const walk = (picked: readonly RuneDef[], rest: readonly RuneDef[]): void => {
+    if (picked.length > day) return;
+    const list = [...picked.map((d) => ({ id: d.id })), ...filler.slice(0, day - picked.length)];
+    best = Math.max(best, runeGrants(list, day).gold);
+    for (const d of rest) walk([...picked, d], rest.filter((x) => x !== d));
+  };
+  walk([], gold);
+  return best;
+}
+
 /** The gold the held runes pay at one dawn (before that dawn's pick): each dawn-gold rune its amount; RUNES-2a: RUNE
  *  TITHE its amount per rune held; SPOILS SACK its amount when the dusk before this dawn was won (`won`). */
 export const dawnGold = (runes: readonly RuneHeld[] | undefined, won = false): number =>

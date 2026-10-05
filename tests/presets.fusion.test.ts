@@ -5,7 +5,9 @@ import { ITEMS, type HeroId } from "../src/sim/content";
 import { heroRefBuild } from "../src/sim/heroBuilds";
 import { buildCost, unfusedPairs, validateBuild } from "../src/net/validate";
 import { RIVAL_IDS, deckCost, honestReference, luckOf, maxGoldByDay, rivalBuild, rivalLoadout, standInBuild } from "../src/sim/rivals";
-import { PLANS, dayOwned } from "../src/sim/rivalBuilds";
+import { CAPTAIN_RUNES, PLANS, dayOwned } from "../src/sim/rivalBuilds";
+import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain deck valued as bought
+import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' dawn gold
 import { starsOf, upgradeGold } from "../src/sim/stars";
 import { legalityProblems } from "./rivals.legality";
 
@@ -44,7 +46,9 @@ describe("live preset purchases obey automatic merging", () => {
       expect(deckCost(standIn).total, label).toBe(buildCost(standIn).total);
       if (id !== "matriarch" || day >= 8) {
         expect(validateBuild(standIn, day), label).toMatchObject({ ok: true, errors: [] });
-        expect(deckCost(standIn).total, label).toBeLessThanOrEqual(maxGoldByDay(day));
+        // FLIP-X2 (REVIEW-BOTSX section 5): the stand-in holds its runes, so it is valued as bought against the day's gold
+        // plus its runes' dawn gold (was deckCost against maxGoldByDay)
+        expect(boughtCost(standIn), label).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(standIn.runes, day).gold);
       }
       // Road decks carry the existing fractional PvE hull ramp; only supply and budget
       // may prevent a road deck from being sent as a player ghost.
@@ -58,8 +62,13 @@ describe("live preset purchases obey automatic merging", () => {
       // 0.8.0 I1 M3 (oracle 983d875df9706e1c): a base factory is paid for from the day it is owned (rivalBuilds.ts FactoryPlan.at)
       let paid = plan.factories.filter((f) => (f.at ?? 1) <= day).reduce((n, f) => n + ITEMS[f.def].price, 0) + plan.crates * ITEMS.beltcrate.price;
       // 0.6.2 TUNE-C: the upgrades the warlord deck's luck owns by that day (rivals.ts luckOf; rivalBuilds.ts dayOwned)
+      // FLIP-X2: the list planBuild walks with the sustain switch on: the plan's upgrades, then its sustain upgrades
+      // (BOTS-X), less the sustainDrop rigs (THANE KARSK's GALVANIC COIL for his WARD BELL; was plan.upgrades alone)
       const turretDef = new Map<number, string>();
-      for (const u of plan.upgrades.filter((u) => dayOwned(u, luckOf(id)) <= day)) {
+      const drop = plan.sustainDrop ?? [];
+      const ups = [...plan.upgrades, ...(plan.sustain ?? [])]
+        .filter((u) => !(u.gate && drop.some(([d, x, y]) => u.gate![0] === d && u.gate![1] === x && u.gate![2] === y)));
+      for (const u of ups.filter((u) => dayOwned(u, luckOf(id)) <= day)) {
         if (u.gate) paid += ITEMS[u.gate[0]].price;
         if (u.mod) paid += ITEMS[u.mod[0]].price;
         if (u.fuseGate) paid += ITEMS[u.fuseGate[0]].price;
@@ -77,7 +86,9 @@ describe("live preset purchases obey automatic merging", () => {
       // rule), as every sum of value does (stars.ts upgradeGold)
       paid += upgradeGold(l.build);
       expect(l.value, `${id} day ${day} purchases`).toBe(paid);
-      if (id !== "matriarch") expect(l.value, `${id} day ${day} budget`).toBeLessThanOrEqual(maxGoldByDay(day));
+      // FLIP-X2 (cap's ruling 97e639e5813acb37, item 4): plus the dawn gold of the captain's own runes by that day
+      const held = (CAPTAIN_RUNES[id] ?? []).slice(0, day).map((q) => ({ id: q }));
+      if (id !== "matriarch") expect(l.value, `${id} day ${day} budget`).toBeLessThanOrEqual(maxGoldByDay(day) + runeGrants(held, day).gold);
     }
     // 0.6.2 TUNE-C plans: SILKSHADE's coils (a ★2 from day 4, a ★1 on another belt from day 5) both work a belt
     const coil = rivalBuild("silkshade", 5).items.filter((p) => p.def === "coil");
