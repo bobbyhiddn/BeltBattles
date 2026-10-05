@@ -3,6 +3,18 @@
 // during the first seconds), so it is inert unless a 3-star Assembly Line is on the deck. Pure: no RNG, no state.
 
 import type { GateEffect } from "./content";
+import { starRules } from "./content"; // Y3 (release Y): the star switch (the OVERCLOCKER's target)
+
+/**
+ * Y3 (release Y; DESIGN-Y row 29): may an OVERCLOCKER charge a rig of effect `e` (Battle.makeSide: it charges the first
+ * later rig on its belt that may take one)? With the star switch on, every rig: "it charges the first later rig on its
+ * belt, whatever it is", and a rig with nothing to double spends the charge (overclocked hands its effect back unchanged).
+ * Off, the boostable ones only, as before (its rule then skips the rest). Reads no cache: overclocked's WeakMap keys the
+ * effect object, and a switch-on def is its own object (content.ts STAR_ITEMS), so it needs no switch in its key.
+ */
+export function chargeable(e: GateEffect): boolean {
+  return starRules() || boostable(e);
+}
 
 /**
  * §3.4: speed gates are skipped (they set a belt state, not a payload effect). Wave 2 adds TOLLBOOTH, SIFTER,

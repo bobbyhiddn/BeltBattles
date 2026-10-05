@@ -251,3 +251,91 @@ describe("Y3 row 27: BRAKE SHOE ★2/★3 slow the belt to 40% / 30% and lose th
     expect(lines("brake", false)[2]).toEqual(["ITS BELT RUNS AT 50% SPEED."]);
   });
 });
+
+// ------------------------------------------------------------------------------------------- row 28: SURGE VALVE
+describe("Y3 row 28: SURGE VALVE: every 3/3/2 s, +10/+20/+30 to every slug on its belts; no speed pulse", () => {
+  /** The bench with a ★`s` SURGE VALVE on tile 2 ((4,3)), every rig online from the start: each slug's flat just before
+   *  and just after the pulse of 3 s (ticks 170 and 190), for the slugs on the belt both times, with where it was. */
+  const aroundPulse = (s: number, star: boolean, stun = false) => withStarRules(() => {
+    const bt = new Battle(rigBench([["surge", 4, 3, s]]), barge(), 8), side = bt.sides[0], r = side.routes[0];
+    for (const g of side.gates) { g.online = true; g.commissionAt = 0; }
+    side.factories[0].pace = 4; // the KILN stamps 4 times as often, so several slugs ride the short belt at once
+    const snap = () => new Map(r.ammo.map((a) => [a.p.id, { flat: a.p.flat, tile: a.processed }]));
+    while (bt.ticks < 170) { bt.step(); bt.events.length = 0; }
+    if (stun) side.gates[0].disrupted = 2;
+    const before = snap();
+    while (bt.ticks < 190) { bt.step(); bt.events.length = 0; }
+    const after = snap();
+    return [...before].filter(([id]) => after.has(id)).map(([id, b]) => ({ tile: b.tile, gained: after.get(id)!.flat - b.flat }));
+  }, star);
+
+  it("battle: on, at the 3 s pulse every slug on its belt gains +10 once, before its tile too (off: only those it speeds past it)", () => {
+    const a = aroundPulse(1, true);
+    expect(a.length).toBeGreaterThan(1);
+    expect(a.map((x) => x.gained)).toEqual(a.map(() => 10));
+    expect(a.some((x) => x.tile < 2)).toBe(true); // a slug before the valve's tile gained it
+    const o = aroundPulse(1, false);
+    expect(o.filter((x) => x.tile < 1).map((x) => x.gained)).toEqual(o.filter((x) => x.tile < 1).map(() => 0));
+  });
+
+  it("battle: on, a STUNned valve misses that pulse", () => {
+    expect(aroundPulse(1, true, true).map((x) => x.gained).every((g) => g === 0)).toBe(true);
+  });
+
+  it("battle: on, its belt never speeds up (off: 3 times as fast for 1 s of every 3)", () => {
+    const top = (star: boolean) => withStarRules(() => {
+      const bt = new Battle(rigBench([["surge", 4, 3, 1]]), barge(), 8);
+      let m = 0;
+      while (bt.t < 8) { bt.step(); bt.events.length = 0; m = Math.max(m, ...bt.sides[0].routes[0].speedAt); }
+      return m;
+    }, star);
+    expect([top(true), top(false)]).toEqual([1, 3]);
+  });
+
+  it("walk: on, no speed, and +10 x the seconds the slug rides its belt / 3 (off: +10 once, 1 + 2/3 speed)", () => {
+    const b = rigBench([["surge", 4, 3, 1]]);
+    const w = on(() => walkRoute(b, 0)), th = w.timeline.flatMap((r) => r.hits).find((h) => h.def === "surge")!;
+    expect(th.speed).toBeUndefined();
+    expect(th.flat!).toBeCloseTo((10 * w.estimate.time) / 3, 9);
+    const wo = walkRoute(b, 0), tho = wo.timeline.flatMap((r) => r.hits).find((h) => h.def === "surge")!;
+    expect([tho.flat, tho.speed]).toEqual([10, 1 + 2 / 3]);
+  });
+
+  it("data: on, no lockedFlat (the damage pulse lands on a locked belt too; off 30/60/100)", () => {
+    expect(STARS.map((s) => on(() => effectAt("surge", s).gate!.lockedFlat))).toEqual([undefined, undefined, undefined]);
+    expect(STARS.map((s) => effectAt("surge", s).gate!.lockedFlat)).toEqual([30, 60, 100]);
+  });
+
+  it("face: EVERY 3/3/2 SEC: +10/+20/+30 DMG TO SLUGS ON ITS BELTS, one line (was 2 effects, 300 px at ★2); ladders EVERY 3/3/2 SEC, DMG +10/+20/+30", () => {
+    expect(lines("surge")).toEqual([[3, 10], [3, 20], [2, 30]].map(([t, d]) => [`EVERY ${t}{SEC}: +${d} {DMG} TO SLUGS ON ITS BELTS.`]));
+    oneLine("surge");
+    expect(levels("surge", 1)).toEqual(["EVERY [3]/3/2{SEC}", "{DMG} [+10]/+20/+30", "★2 OVERPRESSURE", "★3 HAMMER VALVE",
+      `${next(2, "+20 {DMG}")} ★2 OVERPRESSURE`]);
+    expect(lines("surge", false)[1]).toEqual(["EVERY 3{SEC}: ITS BELTS SURGE 4 TIMES AS FAST FOR 1{SEC}, +20 {DMG}."]);
+  });
+});
+
+// ------------------------------------------------------------------------------------------- row 29: OVERCLOCKER
+describe("Y3 row 29: OVERCLOCKER charges the next rig, whatever it is", () => {
+  // the bench: an OVERCLOCKER on tile 1, a GREASE WORKS (a speed rig) on tile 2, a WHETSTONE (+20) on tile 3
+  const b = () => rigBench([["overclocker", 4, 4, 1], ["grease", 4, 3, 1], ["whetstone", 4, 2, 1]]);
+
+  it("sim: on, its target is the GREASE WORKS, the first later rig (off: the WHETSTONE, the first it can double)", () => {
+    const targets = (star: boolean) => withStarRules(() => new Battle(b(), barge(), 8).sides[0].gates.map((g) => g.boostedBy.length), star);
+    expect([targets(true), targets(false)]).toEqual([[0, 1, 0], [0, 0, 1]]);
+  });
+
+  it("battle: on, the charge is spent on the GREASE WORKS and the WHETSTONE adds 20 (off: doubled, 40); before a damage rig, doubled either way", () => {
+    expect([slugPast(b(), 3, true).flat, slugPast(b(), 3, false).flat]).toEqual([20, 40]);
+    const d = rigBench([["overclocker", 4, 4, 1], ["whetstone", 4, 3, 1]]);
+    expect([slugPast(d, 2, true).flat, slugPast(d, 2, false).flat]).toEqual([40, 40]);
+  });
+
+  it("face: EVERY 4/2/1 SEC: DOUBLES THE NEXT RIG'S HIT, no caveat; ladder EVERY 4/2/1 SEC", () => {
+    expect(lines("overclocker")).toEqual([4, 2, 1].map((t) => [`EVERY ${t}{SEC}: DOUBLES THE NEXT RIG'S HIT.`]));
+    oneLine("overclocker");
+    expect(levels("overclocker", 1)).toEqual(["EVERY [4]/2/1{SEC}", next(2, "EVERY 2{SEC}")]);
+    expect(withStarRules(() => faceAt("overclocker", 1)!.caveats, false)).toEqual(["IT SKIPS RIGS IT CAN'T DOUBLE."]);
+    expect(lines("overclocker", false)[0]).toEqual(["DOUBLES THE NEXT RIG'S HIT, RESTS 4{SEC}."]);
+  });
+});

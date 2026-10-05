@@ -843,6 +843,22 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const spend = fmtDmg(FACE_SIM.breakerPlate), flat = fmtDmg(gt(e).breaker!.flat);
     return rules([hit(`SPENDS ${spend} {*PLATE} FOR +${flat} {DMG}.`)], [["flat", `+${flat} {DMG}`]], [REMINDER.PLATE()]);
   },
+  surge: (e) => {
+    // DESIGN-Y row 28 (REVIEW-STARD answer 5: the damage pulse): Battle.surgeTick: once each pulse period every slug on its
+    // belts gains pulse.flat; the speed pulse is gone. Was "EVERY 3{SEC}: ITS BELTS SURGE 3 TIMES AS FAST FOR 1{SEC}, +10
+    // {DMG}." (two effects; it wrapped at ★2)
+    const p = gt(e).pulse!, every = fmtSec(p.period), d = fmtDmg(p.flat);
+    const label = `EVERY ${every}{SEC}:`;
+    return rules([{ text: `${label} +${d} {DMG} TO SLUGS ON ${itsBelts(e)}.`, label }], [["every", `EVERY ${every}{SEC}`], ["flat", `+${d} {DMG}`]]);
+  },
+  overclocker: (e) => {
+    // DESIGN-Y row 29: Battle.makeSide / applyHit: it charges the first later rig on its belt, whatever it is (overclock.ts
+    // chargeable), which doubles its hit, then rests overclockCooldown; a rig with nothing to double spends the charge. Was
+    // "DOUBLES THE NEXT RIG'S HIT, RESTS 4{SEC}." with the caveat "IT SKIPS RIGS IT CAN'T DOUBLE."
+    const t = fmtSec(gt(e).overclockCooldown!);
+    const label = `EVERY ${t}{SEC}:`;
+    return rules([{ text: `${label} DOUBLES THE NEXT RIG'S HIT.`, label }], [["every", `EVERY ${t}{SEC}`]]);
+  },
 };
 
 /** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the
@@ -854,7 +870,9 @@ const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "gr
 /** Y2: the interim caveats (INTERIM_CAVEATS ids) that leave with the switch on: each rule left the sim (the shared rule,
  *  SCRAPPER's uncapped queue, FLAK SCREEN's screens rolling on their own) or is the face's own words now (TOLLBOOTH's
  *  PARTS). */
-const STAR_GONE_CAVEATS: ReadonlySet<string> = new Set(["tollreach", "harass", "scrapqueue", "flakshots", "flakbest"]);
+const STAR_GONE_CAVEATS: ReadonlySet<string> = new Set(["tollreach", "harass", "scrapqueue", "flakshots", "flakbest",
+  // Y3 (DESIGN-Y row 29): the OVERCLOCKER skips no rig any more (it charges the next one, whatever it is)
+  "overclocker"]);
 
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [

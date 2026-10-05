@@ -1265,6 +1265,15 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   // row 27, BRAKE SHOE: ★2/★3 lose their flats (HOT SHOE +20, RED-HOT SHOE +50) and slow the belt to 40% / 30% (was 50% at
   // every star); METRONOME's locked-belt flat (lockedFlat) stays, as OVERDRIVE's did in Y2. The perks' names stay (ⓘ only)
   brake: { levels: { 2: { gate: { speed: 0.4, lockedFlat: 40 }, perk: "HOT SHOE" }, 3: { gate: { speed: 0.3, lockedFlat: 70 }, perk: "RED-HOT SHOE" } } },
+  // row 28, SURGE VALVE (REVIEW-STARD answer 5: the damage pulse): its period 3/3/2 s and flat +10/+20/+30 stay; the speed
+  // pulse goes (battle.ts tileSpeedAt reads no pulse speed with the switch on, so its `speed` and `on` set no belt state;
+  // surgeTick pays every slug on its belts once a period). lockedFlat goes too: it paid METRONOME's locked belts instead of
+  // the pulse they ignored, and the damage pulse lands on them now. The perks' names stay (ⓘ only)
+  surge: {
+    gate: { pulse: { speed: 3, on: 1, period: 3, flat: 10 } },
+    levels: { 2: { gate: { pulse: { speed: 4, on: 1, period: 3, flat: 20 } }, perk: "OVERPRESSURE" },
+      3: { gate: { pulse: { speed: 5, on: 1, period: 2, flat: 30 } }, perk: "HAMMER VALVE" } },
+  },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */

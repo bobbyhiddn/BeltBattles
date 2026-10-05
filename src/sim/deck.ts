@@ -645,6 +645,12 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   // plates its hull, read only when a PLATE BREAKER does
   let matched: boolean[] | undefined;
   let plates: boolean | undefined = o.unplated ? false : undefined; // 0.8.0 B1 M2: WalkOpts.unplated
+  // Y3 (release Y; DESIGN-Y row 28): with the star switch on a SURGE VALVE pays every slug on its belts once a period
+  // (Battle.surgeTick), so the walk counts the seconds the slug spends on each belt (timeOn) and, after it, each valve's
+  // flat x those seconds / its period on every belt it hits: the pulses the slug rides through, as an expected count
+  // (surgeHits: its timeline hit, which shows that damage). Off, none of this runs.
+  const star = starRules();
+  const timeOn = new Map<number, number>(), surgeHits = new Map<number, TimelineHit>();
   const n = path.length;
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];
@@ -662,6 +668,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     time += inHalf;
     ride += inHalf;
     heatBonus += heat * inHalf;
+    if (star) timeOn.set(ri, (timeOn.get(ri) ?? 0) + inHalf); // Y3: the seconds on belt ri (SURGE's pulses)
     const speeds: number[] = [];
     const row: TimelineHit[] = [];
     for (const h of hits[ri]?.[tile] ?? []) {
@@ -754,7 +761,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       if (e.brace) th.brace = { ...e.brace };
       if (e.heat) heat += e.heat;
       if (e.sort) copies *= 1 + (e.sort.copies - 1) / e.sort.every;
-      if (e.pulse) {
+      if (e.pulse && star) surgeHits.set(h.uid, th); // Y3 (DESIGN-Y row 28): no speed; its pulses are counted after the walk
+      else if (e.pulse) {
         speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
         th.speed = 1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period;
         // 0.6.2: a tempo-locked belt ignores the pulse and its per-pulse flat, as Battle.transport does (lockedFlat pays)
@@ -785,6 +793,23 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     time += outT;
     ride += outT;
     heatBonus += heat * outT;
+    if (star) timeOn.set(ri, (timeOn.get(ri) ?? 0) + outT);
+  }
+  // Y3 (DESIGN-Y row 28): with the star switch on, each SURGE VALVE with an arrow on a belt the slug rides (any tile, before
+  // or after the slug's own way onto it) pays flat x the seconds it rides there / the period, once for each such belt
+  if (star) {
+    for (const [ri, secs] of timeOn) {
+      const seen = new Set<number>();
+      for (const tileHits of hits[ri] ?? []) for (const h of tileHits) {
+        const pulse = seen.has(h.uid) ? undefined : effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate?.pulse;
+        if (!pulse) continue;
+        seen.add(h.uid);
+        const amount = (pulse.flat * secs) / pulse.period;
+        flat += amount;
+        const th = surgeHits.get(h.uid);
+        if (th) th.flat = (th.flat ?? 0) + amount;
+      }
+    }
   }
   const total = ammo.rideCurve // races: PENDULUM curve, with the turret module's sweet-spot shift
     ? curveDamage(ammo, ride, mult, flat + heatBonus, pendulumShift(b, info.turret)) // 0.6.2: HEAT JACKET on the curve too
@@ -1515,7 +1540,9 @@ export function beltStateAt(b: Build, m: number, j: number, hits = rigHits(b)): 
       const e = effectAt(h.def, starsOf(itemByUid(b, h.uid))).gate;
       if (!e) continue;
       if (e.speed !== undefined) { pulseFlat = 0; pulseUid = -1; }
-      if (e.pulse) {
+      // Y3 (release Y; DESIGN-Y row 28): with the star switch on a SURGE pulse sets no speed and holds no per-ride flat (the
+      // walk counts its pulses by the seconds on its belts)
+      if (e.pulse && !starRules()) {
         speeds.push(1 + (e.pulse.speed - 1) * e.pulse.on / e.pulse.period);
         pulseFlat = e.pulse.flat;
         pulseUid = h.uid;

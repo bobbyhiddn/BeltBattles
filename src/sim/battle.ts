@@ -23,7 +23,8 @@ import { PLATE_CAP, absorb, newPlateState, type PlateState } from "./races/basti
 import { mergedPieces, runeMods, type RuneMods } from "./runes"; // RUNES-1 (REQ-BFG-058); RUNES-2a: merged pieces
 import { inSync, pourAll } from "./races/foundry"; // 0.8.0 P1: E2's pair rule (Foundry's sync rule); TWIN MOULD's pour
 import { effectAt, gradeOf, starsOf } from "./stars";
-import { boostable, overclocked } from "./overclock";
+// Y3 (release Y): chargeable (was boostable), the OVERCLOCKER's target: with the star switch off it is boostable itself
+import { chargeable, overclocked } from "./overclock";
 import { debuffedDamage, siftDebuffs, type HarassRound, type PayloadDebuffs } from "./harassment";
 import { raceBeltSpeed, raceCurveDamage, raceDrag, raceImpact, raceLink } from "./races"; // races: METRONOME, SIPHON
 import { BURN_DPS } from "./content"; // NUM-1 (REQ-BFG-047): BURN per stack each second
@@ -146,6 +147,8 @@ export interface GateState {
   // 0.8.0 P1, wave 3 (set only on the wave-3 rig that needs it):
   factoryHits?: number[]; // E3 STOKER: the factories its arrows point at (one uid per arrow); they count for its online test
   latch?: LatchState; // E4 TWIN LATCH, when both its arrows hit belts: the payload each arrow holds and since when
+  // Y3 (release Y; DESIGN-Y row 28): a SURGE VALVE's last pulse (its pulsePhase cycle), set only with the star switch on
+  surged?: number;
 }
 
 /** 0.8.0 P1 (E4): a TWIN LATCH whose two arrows hit belts. Arrow i is the latch's hits[i]. */
@@ -355,6 +358,7 @@ export interface SideState {
   // 0.8.0 P1, wave 3 (set only when the side holds the part that needs it):
   pairs?: WeakMap<Payload, { at: number; route: number }>; // E2: when and through which route each chamber load entered
   latches?: GateState[]; // E4: its TWIN LATCHes whose two arrows hit belts
+  surges?: GateState[]; // Y3 (DESIGN-Y row 28): with the star switch on, its SURGE VALVEs with an arrow on a belt (surgeTick)
   spall?: TurretState[]; // SPALL CATCHER: its turrets carrying one
   braced?: boolean; // BRACE FRAME: the side holds one
   rune?: RuneMods; // RUNES-1 (REQ-BFG-058): what this side's runes do (runes.ts runeMods); absent without runes
@@ -733,7 +737,9 @@ export class Battle {
       for (let i = 0; i < own.length; i++) {
         const booster = ordered[i].g;
         if (!booster.def.gate?.overclockCooldown) continue;
-        const target = ordered.slice(i + 1).find((h) => h.g !== booster && boostable(h.g.def.gate!));
+        // Y3 (release Y; DESIGN-Y row 29): with the star switch on the first later rig, whatever it is (overclock.ts
+        // chargeable); off, the first boostable one, as before
+        const target = ordered.slice(i + 1).find((h) => h.g !== booster && chargeable(h.g.def.gate!));
         if (target && (target.route === r.index || !booster.hits.some((h) => mains.includes(h.route)))) {
           target.g.boostedBy.push({ booster, route: target.route });
         }
@@ -855,6 +861,8 @@ export class Battle {
       // 0.8.0 P1, wave 3: E2's pair record only with a pair reader on board; E4's latches; SPALL CATCHER's turrets
       ...(turrets.some((tu) => tu.pairing) ? { pairs: new WeakMap<Payload, { at: number; route: number }>() } : {}),
       ...(latches.length ? { latches } : {}),
+      // Y3 (DESIGN-Y row 28): with the star switch on, the SURGE VALVEs whose damage pulse surgeTick runs (absent off)
+      ...(starRules() && gates.some((g) => g.def.gate?.pulse && g.hits.length) ? { surges: gates.filter((g) => g.def.gate?.pulse && g.hits.length) } : {}),
       ...(spall.length ? { spall } : {}),
       ...(gates.some((g) => g.def.gate?.brace) ? { braced: true } : {}),
       ...(rune ? { rune } : {}), // RUNES-1
@@ -925,6 +933,7 @@ export class Battle {
       }
     }
     if (s.latches) for (const g of s.latches) this.latchTick(s, g); // 0.8.0 P1 (E4): releases, before this tick's transport
+    if (s.surges) for (const g of s.surges) this.surgeTick(s, g); // Y3 (DESIGN-Y row 28): the damage pulses (star switch on)
     for (const r of s.routes) {
       for (let i = 0; i < r.cellDisrupt.length; i++) {
         const stopped = r.cellDisrupt[i] > 0;
@@ -1113,9 +1122,28 @@ export class Battle {
       if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) continue;
       const e = g.def.gate!;
       if (e.speed !== undefined) speeds.push(e.speed);
-      if (e.pulse) speeds.push(this.pulsePhase(e.pulse).on ? e.pulse.speed : 1);
+      // Y3 (release Y; DESIGN-Y row 28; REVIEW-STARD answer 5): with the star switch on SURGE VALVE's speed pulse is gone
+      // (its damage pulse is surgeTick's), so it sets no speed state; off, as before
+      if (e.pulse && !starRules()) speeds.push(this.pulsePhase(e.pulse).on ? e.pulse.speed : 1);
     }
     return speedWinner(speeds);
+  }
+
+  /**
+   * Y3 (release Y; DESIGN-Y row 28; REVIEW-STARD answer 5: the damage pulse), each tick with the star switch on: once each
+   * pulse period (pulsePhase's cycle on the battle's tick count, the speed pulse's own timing), in the first tick of its
+   * `on` window that the valve works (online, not STUNned, frozen or wrecked), every slug on each belt its arrows hit gains
+   * pulse.flat once: before or after its tile, on slag and on a locked belt alike (no speed in it any more). A valve that
+   * doesn't work through the window misses that pulse.
+   */
+  private surgeTick(s: SideState, g: GateState): void {
+    if (!g.online || g.wrecked || g.disrupted > 0 || g.frozen > 0) return;
+    const p = g.def.gate!.pulse!, phase = this.pulsePhase(p);
+    if (!phase.on || g.surged === phase.cycle) return;
+    g.surged = phase.cycle;
+    for (const ri of new Set(g.hits.map((h) => h.route))) for (const a of s.routes[ri].ammo) a.p.flat += p.flat;
+    g.flash = 0.22;
+    for (const h of g.hits) g.arrowFlash[h.dir] = 0.22;
   }
 
   /**
@@ -1133,6 +1161,7 @@ export class Battle {
   }
 
   private pulseAt(r: RouteState, pos: number): GateState | undefined {
+    if (starRules()) return undefined; // Y3 (release Y; DESIGN-Y row 28): no per-ride pulse with the star switch on (surgeTick)
     let pulse: GateState | undefined;
     for (let i = 0; i < r.cells.length && i * CELL + CELL / 2 < pos; i++) {
       for (const h of r.gateAt[i]) {
@@ -1176,6 +1205,8 @@ export class Battle {
             // RUNES-1: COAL CHUTE / HEAT SINK, +pct% HEAT (a side without them gains exactly as before)
             a.p.heatBonus = (a.p.heatBonus ?? 0) + (s.rune?.heatPct ? a.p.heat * ride * (1 + s.rune.heatPct / 100) : a.p.heat * ride);
           }
+          // Y3 (DESIGN-Y row 28): with the star switch on pulseAt finds no valve, so no per-ride pulse flat (surgeTick pays
+          // every slug on the belt instead)
           const surge = fixed === undefined && !s.race?.speedLock ? this.pulseAt(r, a.s) : undefined;
           const pulse = surge?.def.gate?.pulse;
           const phase = surge && pulse && pulse.flat > 0 ? this.pulsePhase(pulse) : undefined; // NUM-3: the integer tick count
