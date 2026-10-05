@@ -147,10 +147,10 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("sharp_scrap", "SHARP SCRAP", "common", "turrets", "firstShotDmg", 50, "EACH TURRET'S FIRST SHOT: +{N} {DMG}."),
   r("gun_oil", "GUN OIL", "common", "turrets", "turretRate", 15, "YOUR TURRETS: +{N} {RATE}."), // M5 bench: +10% measured +2.9
   r("oiled_cogs", "OILED COGS", "common", "factories", "factoryRate", 5, "YOUR FACTORIES: +{N} {RATE}."), // M5: +10% measured +7.2 (rare)
-  r("rivet_hoard", "RIVET HOARD", "common", "bastion", "startPlate", 60, "START EACH BATTLE WITH {N} {*PLATE}."),
+  r("rivet_hoard", "RIVET HOARD", "common", "bastion", "startPlate", 60, "START: +{N} {*PLATE}."), // Y1: TEXT-STYLE 3.2's START: label (was "START EACH BATTLE WITH {N} {*PLATE}.")
   r("twin_nails", "TWIN NAILS", "common", "foundry", "pairDmg", 10, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FLIP-X2 (TUNE-X line 7, REVIEW-TUNEX): 20 -> 10
   r("coal_chute", "COAL CHUTE", "common", "furnace", "heatPct", 25, "YOUR {*HEAT}: +{N}."),
-  r("loose_thread", "LOOSE THREAD", "common", "weaver", "startFray", 2, "BATTLE START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 9): 3 -> 2
+  r("loose_thread", "LOOSE THREAD", "common", "weaver", "startFray", 2, "START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 9): 3 -> 2. Y1: the START: label (was "BATTLE START:")
   // ---- rare
   r("spare_hull", "SPARE HULL", "rare", "armor", "hull", 300, "+{N} {HULL}."),
   r("pitch_wagon", "PITCH WAGON", "rare", "belts", "belt", 16, "+{N} {BELT}."),
@@ -162,17 +162,17 @@ export const RUNE_LIST: readonly RuneDef[] = [
   r("stoked_fires", "STOKED FIRES", "rare", "factories", "factoryRate", 15, "YOUR FACTORIES: +{N} {RATE}."), // M5: R1b's +25% measured +13.2 (epic)
   // FLIP-X2 (TUNE-X line 10, REVIEW-TUNEX answer 4): theme bastion -> armor, 120 -> 240, judged on all heroes (+7.0, the
   // rare band), as MANY HANDS and THREAD STORM were
-  r("grave_plates", "GRAVE PLATES", "rare", "armor", "startPlate", 240, "START EACH BATTLE WITH {N} {*PLATE}."),
+  r("grave_plates", "GRAVE PLATES", "rare", "armor", "startPlate", 240, "START: +{N} {*PLATE}."), // Y1: the START: label (was "START EACH BATTLE WITH {N} {*PLATE}.")
   r("molten_bond", "MOLTEN BOND", "rare", "foundry", "pairDmg", 20, "YOUR {*PAIR} SHOTS: +{N} {DMG}."), // FLIP-X2 (TUNE-X line 11): 40 -> 20
   r("heat_sink", "HEAT SINK", "rare", "furnace", "heatPct", 50, "YOUR {*HEAT}: +{N}."),
   r("double_knot", "DOUBLE KNOT", "rare", "weaver", "frayHit", 1, "YOUR {*FRAY} HITS: +{N} {*FRAY}."),
-  r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 5, "BATTLE START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 14): 6 -> 5
+  r("tangle_wire", "TANGLE WIRE", "rare", "weaver", "startFray", 5, "START: THE FOE HAS {N} {*FRAY}."), // FLIP-X2 (TUNE-X line 14): 6 -> 5. Y1: the START: label (was "BATTLE START:")
   // ---- RUNES-2a (REQ-BFG-058): 36 more, each a new idea on a new hook (no same-stat twin of a shipped rune), in today's
   // units. R1b's theme x tier grid: the epics and legendaries first (so epic and legendary dawns show their own tier),
   // then each hero style toward 3 common, 3 rare, 2 epic and 1 legendary, then the generic themes. 40 were built; the
   // M5 bench left out 4 that do almost nothing on par decks (HOT IRON, WIND VEIL, LOOSE MOLDS, SAINT'S OIL: the report)
   // ---- common
-  r("ash_kindle", "ASH KINDLE", "common", "furnace", "startBurn", 4, "BATTLE START: THE FOE HAS {N} {BURN}."),
+  r("ash_kindle", "ASH KINDLE", "common", "furnace", "startBurn", 4, "START: THE FOE HAS {N} {BURN}."), // Y1: the START: label (was "BATTLE START:"); {BURN} kept
   // M5: 3% +1.4, 12% +3.6. RUNES-087F (cap's Q2): judged on its own hero it was under its band (WEAVER +1.3; the other
   // three +4.4): like THREAD STORM it helps every hero but WEAVER, so it is a generic rune (turrets), judged on all heroes
   r("many_hands", "MANY HANDS", "common", "turrets", "perTurretRate", 12, "YOUR TURRETS: +{N} {RATE} PER TURRET."),
