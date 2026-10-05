@@ -6,25 +6,28 @@ import { describe, expect, it } from "vitest";
 import { textWidth, ICON } from "../src/render/font";
 import { wrapRich } from "../src/ui/richText";
 import {
-  BOT_RUNES, KIND_UNIT, RULE_KINDS, RUNE_LIST, RUNES, SUSTAIN_RUNE_LIST, isRune, isSustainRune, runeList, runeOffer, runeProblem,
-  type RuneDef,
+  BOT_RUNES, KIND_UNIT, RULE_KINDS, RUNE_LIST, RUNES, STYLE_THEMES, SUSTAIN_RUNE_LIST, isRune, isSustainRune, runeList, runeOffer,
+  runeProblem, type RuneDef,
 } from "../src/sim/runes";
 import { SUSTAIN_LIVE, sustainLive, withSustain, type HeroId } from "../src/sim/content";
 import { KEYWORD_WORD, RUNE_TEXT, RUNE_UNIT_TEXT, runeKeyword, runeLine, runeReminder, runeSpans, runeTag } from "../src/ui/runeText";
 import { RUNE_REMINDER } from "../src/ui/glossary";
 import { runeCardTextW } from "../src/ui/runeBar";
 import { pickLayout } from "../src/screens/runePicker";
+import { cloneBuild } from "../src/sim/deck";
+import { heroStartBuild } from "../src/sim/heroBuilds";
+import { validateBuild } from "../src/net/validate";
 
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const S = ICON.SEC;
 
 /** id, name, tier, theme, kind, unit, N (N1 units), RuneDef.text, the line as the card draws it, its 5x7 width (px). */
 const TABLE: readonly [string, string, string, string, string, string, number, string, string, number][] = [
-  ["bulwark_ward", "BULWARK WARD", "common", "bastion", "startShield", "count", 1, "START: +{N} {*SHIELD}.", "START: +1 SHIELD.", 89],
+  ["bulwark_ward", "BULWARK WARD", "common", "bastion", "startShield", "count", 2, "START: +{N} {*SHIELD}.", "START: +2 SHIELD.", 89],
   ["tick_guard", "TICK GUARD", "rare", "bastion", "shieldEvery", "sec", 6, "EVERY {N}: A {*SHIELD}.", `EVERY 6${S}: A SHIELD.`, 99],
-  ["twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", "hull", 10, "{PAIR}: {*HEAL} {N}.", "PAIR: HEAL 10.", 71],
-  ["scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", "hull", 150, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}.", "FIRST TIME BELOW HALF HULL: HEAL 150.", 201],
-  ["leech_vow", "LEECH VOW", "epic", "turrets", "hitHeal", "hull", 5, "EACH SHOT THAT LANDS: {*HEAL} {N}.", "EACH SHOT THAT LANDS: HEAL 5.", 155],
+  ["twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", "hull", 20, "{PAIR}: {*HEAL} {N}.", "PAIR: HEAL 20.", 71],
+  ["scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", "hull", 300, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}.", "FIRST TIME BELOW HALF HULL: HEAL 300.", 201],
+  ["leech_vow", "LEECH VOW", "epic", "turrets", "hitHeal", "hull", 20, "EACH SHOT THAT LANDS: {*HEAL} {N}.", "EACH SHOT THAT LANDS: HEAL 20.", 161],
   ["green_thread", "GREEN THREAD", "common", "weaver", "regen", "hull", 10, "YOUR HULL: {*REGEN} {N}.", "YOUR HULL: REGEN 10.", 105],
   ["searing", "SEARING", "rare", "furnace", "burnNoHeal", "count", 1, "FOE WITH YOUR {*BURN}: NO {*HEAL}.", "FOE WITH YOUR BURN: NO HEAL.", 149],
   ["shatter_shot", "SHATTER SHOT", "rare", "furnace", "shieldPierce", "count", 1, "YOUR SHOTS: BREAK A {*SHIELD} AND STILL HIT.", "YOUR SHOTS: BREAK A SHIELD AND STILL HIT.", 223],
@@ -122,6 +125,48 @@ describe("SUS-D: the switch (offered only while sustain is on)", () => {
     expect(runeProblem(runes, 1, "bastion")).toMatch(/is not in the game while sustain is off/);
     // the other runes as before
     expect(runeProblem([{ id: runeOffer(seed, 1, "bastion", []).ids[0] }], 1, "bastion", seed)).toBeNull();
+    // the server's check reads the same rule (validate.ts validateBuild -> runeProblem): no server edit needed
+    const b = { ...cloneBuild(heroStartBuild("bastion")), runes: [{ id: "tick_guard" }] };
+    expect(validateBuild(b, 3, "lenient").errors.join("\n")).toMatch(/TICK GUARD is not in the game while sustain is off/);
+  });
+});
+
+describe("SUS-D: the M5 bench (tools/runevalue.ts, RUNES-2a's method, the switch on; NEW/output-susd/bench, REPORT section 4)", () => {
+  /** R1b-2 1.5's bands, as RUNES-2a applied them. */
+  const BAND: Record<string, [number, number]> = { common: [3, 5], rare: [6, 10], epic: [10, 16], legendary: [16, 25] };
+  /** Each benched rune's gain at its catalogue amount (win-rate points, 95% interval), read as RUNES-2a reads it: a style
+   *  rune on its own hero, a generic one on all four. `run`: A par decks; B2/C2 SUSTAIN-1 5's typ2 decks (typ2r); C1 the
+   *  re-amounts on par decks. BULWARK WARD's verdict is on the design's bench (typ2 BASTION, from day 5). */
+  const BENCH: Record<string, { n: number; on: string; run: string; gain: number; lo: number; hi: number }> = {
+    bulwark_ward: { n: 2, on: "bastion", run: "C2 typ2r days 5-10", gain: 4.0, lo: 2.9, hi: 5.2 }, // par (C1): +5.2 (3.4-7.0); @1 +2.8 / +1.8
+    tick_guard: { n: 6, on: "bastion", run: "A par", gain: 9.2, lo: 6.7, hi: 11.8 }, // typ2r (B1): +8.9 (6.9-11.0)
+    ward_stone: { n: 3, on: "all", run: "A par", gain: 7.4, lo: 6.6, hi: 8.2 }, // RUNES-2a: +8.8 (7.9-9.8) on bb-0.8.7 before NUM-1
+    twin_salve: { n: 20, on: "foundry", run: "C1 par", gain: 3.6, lo: 2.1, hi: 5.1 }, // @10 +2.0, @30 +5.8
+    scrap_medic: { n: 300, on: "all", run: "C1 par", gain: 7.1, lo: 6.2, hi: 8.0 }, // @150 +3.7, @250 +6.1
+    leech_vow: { n: 20, on: "all", run: "C1 par", gain: 11.6, lo: 10.0, hi: 13.3 }, // @5 +3.1, @10 +6.2, @15 +8.6; WEAVER +16.1
+    green_thread: { n: 10, on: "weaver", run: "A par", gain: 4.2, lo: 3.1, hi: 5.3 }, // typ2r (B1): +4.5 (2.6-6.4)
+  };
+
+  it("each benched rune at its catalogue amount is in its tier band (a style rune on its own hero, a generic one on all)", () => {
+    expect(Object.keys(BENCH).sort()).toEqual([...SUSTAIN_RUNE_LIST.filter((d) => !RULE_KINDS.includes(d.kind)).map((d) => d.id), "ward_stone"].sort());
+    for (const [id, b] of Object.entries(BENCH)) {
+      const d = RUNES[id], [lo, hi] = BAND[d.tier];
+      expect(d.amount.n, `${id}: benched at ${b.n}`).toBe(b.n);
+      expect(b.on, id).toBe((STYLE_THEMES as readonly string[]).includes(d.theme) ? d.theme : "all");
+      expect(b.gain >= lo && b.gain <= hi, `${id}: +${b.gain} in +${lo} to +${hi}`).toBe(true);
+      expect(b.lo <= b.gain && b.gain <= b.hi && b.hi >= lo && b.lo <= hi, id).toBe(true); // the interval overlaps the band
+    }
+  });
+
+  it("the counters (rule runes, no amount to move) stay below the rare band even against the decks they counter: kept as designed", () => {
+    // FURNACE (their own hero): SEARING +0.1 (par), +0.4 (typ2r), +0.8 (-0.1 to 1.6) against the typ2r decks that heal
+    // (FOUNDRY's MEND PRESS, WEAVER's MENDING LOOM); SHATTER SHOT +0.0 (par: no SHIELD), +1.3 (typ2r), +5.3 (2.5 to 8.0)
+    // against the typ2r decks that hold SHIELD (BASTION's WARD BELL). The report gives the reasons and asks cap
+    const COUNTER: Record<string, { best: number; lo: number; hi: number }> = { searing: { best: 0.8, lo: -0.1, hi: 1.6 }, shatter_shot: { best: 5.3, lo: 2.5, hi: 8.0 } };
+    for (const [id, c] of Object.entries(COUNTER)) {
+      expect([RUNES[id].tier, RUNES[id].theme, RULE_KINDS.includes(RUNES[id].kind)], id).toEqual(["rare", "furnace", true]);
+      expect(c.best, id).toBeLessThan(BAND.rare[0]);
+    }
   });
 });
 

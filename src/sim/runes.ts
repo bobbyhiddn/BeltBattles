@@ -245,18 +245,26 @@ export const RUNE_LIST: readonly RuneDef[] = [
  * No rune lets sustain work in the dark wind, raises MAX 3 SHIELD or heals past max hull (battle.ts heal, gainShield).
  */
 export const SUSTAIN_RUNE_LIST: readonly RuneDef[] = [
-  // SHIELD (BASTION): a start SHIELD, with WARD STONE's (one kind: startShield; SHIELD_CAP holds), and a SHIELD timer
-  r("bulwark_ward", "BULWARK WARD", "common", "bastion", "startShield", 1, "START: +{N} {*SHIELD}."),
+  // The M5 bench (tools/runevalue.ts, RUNES-2a's method, the switch on; a style rune read on its own hero, a generic one on
+  // all four; NEW/output-susd/REPORT.md section 4). SHIELD (BASTION): a start SHIELD, with WARD STONE's (one kind:
+  // startShield; SHIELD_CAP holds), and a SHIELD timer.
+  // M5: the design's 1 measured BASTION +2.8 (par decks) and +1.8 (the design's bench: typ2 BASTION from day 5); 2 measured
+  // +5.2 (par) and +4.0 (typ2 from day 5, in the common band)
+  r("bulwark_ward", "BULWARK WARD", "common", "bastion", "startShield", 2, "START: +{N} {*SHIELD}."),
   // WARD BELL ★1's timer (the design's 6 s) as a rune; "+1" can't stand in a rune text (no literal number), so the design's
-  // "A SHIELD" form
+  // "A SHIELD" form. M5: BASTION +9.2 (par), +8.9 (typ2)
   r("tick_guard", "TICK GUARD", "rare", "bastion", "shieldEvery", 6, "EVERY {N}: A {*SHIELD}."),
-  // HEAL (FOUNDRY, and any hero): on each PAIR shot that lands (HOT SEAM's hook), once below half (LAST WALL's), per shot
-  r("twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", 10, "{PAIR}: {*HEAL} {N}."),
-  r("scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", 150, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}."),
-  r("leech_vow", "LEECH VOW", "epic", "turrets", "hitHeal", 5, "EACH SHOT THAT LANDS: {*HEAL} {N}."),
-  // REGEN (WEAVER): MENDING LOOM ★1's line, no label (YOUR HULL says whose, not when)
+  // HEAL (FOUNDRY, and any hero): on each PAIR shot that lands (HOT SEAM's hook), once below half (LAST WALL's), per shot.
+  // M5: TWIN SALVE 10 FOUNDRY +2.0, 20 +3.6, 30 +5.8; SCRAP MEDIC 150 +3.7 (a common's worth), 250 +6.1, 300 +7.1; LEECH
+  // VOW 5 +3.1 (the design's: LEECH NEEDLE ★1's number, a common's worth), 10 +6.2, 15 +8.6, 20 +11.6
+  r("twin_salve", "TWIN SALVE", "common", "foundry", "pairHeal", 20, "{PAIR}: {*HEAL} {N}."),
+  r("scrap_medic", "SCRAP MEDIC", "rare", "armor", "halfHeal", 300, "FIRST TIME BELOW HALF {HULL}: {*HEAL} {N}."),
+  r("leech_vow", "LEECH VOW", "epic", "turrets", "hitHeal", 20, "EACH SHOT THAT LANDS: {*HEAL} {N}."),
+  // REGEN (WEAVER): MENDING LOOM ★1's line, no label (YOUR HULL says whose, not when). M5: WEAVER +4.2 (par), +4.5 (typ2)
   r("green_thread", "GREEN THREAD", "common", "weaver", "regen", 10, "YOUR HULL: {*REGEN} {N}."),
-  // the counters (FURNACE): BURN's rule taken to none; round B's PIERCE as a rune (each shot breaks a SHIELD and hits on)
+  // the counters (FURNACE): BURN's rule taken to none; round B's PIERCE as a rune (each shot breaks a SHIELD and hits on).
+  // Rule runes: no amount to move. M5 (FURNACE): SEARING +0.1 (par), +0.4 (typ2), +0.8 against the typ2 decks that heal;
+  // SHATTER SHOT +0.0 (par: no SHIELD), +1.3 (typ2), +5.3 against the typ2 decks that hold SHIELD (BASTION's WARD BELL)
   r("searing", "SEARING", "rare", "furnace", "burnNoHeal", 1, "FOE WITH YOUR {*BURN}: NO {*HEAL}."),
   r("shatter_shot", "SHATTER SHOT", "rare", "furnace", "shieldPierce", 1, "YOUR SHOTS: BREAK A {*SHIELD} AND STILL HIT."),
 ];
