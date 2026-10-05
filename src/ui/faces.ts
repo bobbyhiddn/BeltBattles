@@ -49,6 +49,7 @@ import { perkAt } from "../sim/stars"; // U2b F6: HOT SWAP's spark carries GALVA
 import { pourAt } from "../sim/stars"; // Y1: a factory's pour as a {SLUG} stat (carryStats)
 import { gearSlotsOf } from "../sim/deck";
 import { starRules } from "../sim/content"; // Y2 (release Y): the star switch (STAR_FACES, the interim lines it retires)
+import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 
 /**
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
@@ -70,6 +71,9 @@ export const FACE_SIM = {
   // shell (the second load rides in the first, p.compound): COMPOUND BREECH's "FUSES 2 {SLUG} INTO 1"
   compoundLoads: 2,
   compoundShells: 1,
+  // Y4 (release Y; DESIGN-Y row 40): cores.ts drakeConvert: a DRAKE NOZZLE turns each flatPerBurn of a shot's bonus damage
+  // into one BURN stack (floor(flat / flatPerBurn) stacks): "EACH 10 BONUS DAMAGE IS 1 {BURN}"
+  drakeStacks: 1,
 } as const;
 
 /** One rule line: markup ({NAME}, {*NAME}); `label`, its brass trigger label, a part of `text` ("SHOT:"). */
@@ -778,7 +782,7 @@ export const Y3_PIECES: readonly string[] = [
  * WELDER, STEAM BREECH, DRAKE NOZZLE) get their first face here; off, each keeps today's text, and every face is as before.
  */
 export const Y4_PIECES: readonly string[] = [
-  "hopper", "twintrigger", "seamwelder", "chamber",
+  "hopper", "twintrigger", "seamwelder", "chamber", "rotary", "anvil", "steambreech", "drake",
 ];
 
 /** Y2: the faces the star switch puts in place of today's line (TOLLBOOTH, LIMPET WORKS, MANTLET) or gives a RULES piece
@@ -908,6 +912,35 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     const d = fmtDmg(md(e).seam!.pair), label = "{*PAIR}:";
     return rules([{ text: `${label} +${d} {*PLATE}.`, label }], [["plate", `+${d} {*PLATE}`]], [REMINDER.PAIR(), REMINDER.PLATE()]);
   },
+  rotary: (e, x) => {
+    // DESIGN-Y row 37: cores.ts ROUTINES.rotary: its chamber's load time is windowTime (0.75 / 0.525 / 0.3 s), so a part-full
+    // chamber fires that much sooner than WINDOW_TIME's (50% / 65% / 80%); ★2/★3's fire rate and ★3's no-jam are gone. Was
+    // "FIRES PART-FULL CHAMBERS SOONER." and the clauses "★2 GREASED RACE: FIRES 18% FASTER." and "★3 CLEAN FEED: FIRES 43%
+    // FASTER, NEVER JAMS."
+    const soon = fmtPct(1 - (c(e, x).windowTime ?? WINDOW_TIME) / WINDOW_TIME);
+    return rules([{ text: `FIRES PART-FULL CHAMBERS ${soon} SOONER.` }], [["soon", `${soon} SOONER`]]);
+  },
+  anvil: (e, x) => {
+    // DESIGN-Y row 38 (REVIEW-STARD's spot-check): Battle.fireCore: + pct(plate, 100 x perPlate), the flat folded in (125% /
+    // 275% / 438% at k 1, a whole % of the hull's plating x the class %: cores.ts scaleCore). Was "SHOT: +25 {DMG}, +100% OF
+    // YOUR {*PLATE}."
+    const per = fmtPct(c(e, x).perPlate!);
+    return rules([shot(`+${per} OF YOUR {*PLATE} AS {DMG}.`)], [["per", `+${per} OF {PLATE}`]], [REMINDER.PLATE()]);
+  },
+  steambreech: (e, x) => {
+    // DESIGN-Y row 39: cores.ts steamInterval: while your hull holds plating it fires steamPlated% faster, without it at its
+    // own rate (steamBare is gone). Was the RULES text "THE TURRET FIRES 35% FASTER WHILE YOUR HULL HOLDS PLATING, AND 10%
+    // FASTER WITHOUT IT."
+    const up = fmtPct(c(e, x).steamPlated! / 100);
+    return rules([{ text: `FIRES ${up} FASTER IF YOU HAVE {*PLATE}.` }], [["rate", `${up} FASTER`]], [REMINDER.PLATE()]);
+  },
+  drake: (e, x) => {
+    // DESIGN-Y row 40: Battle.fireCore (cores.ts drakeConvert): each flatPerBurn of the shot's bonus damage (BONUS DAMAGE: its
+    // glossary tap) becomes FACE_SIM.drakeStacks BURN; the free BURN, its longer BURN and its quicker flight are gone. Was the
+    // RULES text "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 20 DAMAGE." and 3 more sentences
+    const d = fmtDmg(c(e, x).flatPerBurn!), n = fmtCount(FACE_SIM.drakeStacks);
+    return rules([shot(`EACH ${d} BONUS DAMAGE IS ${n} {*BURN}.`)], [["per", `EACH ${d}`]], [REMINDER.BURN()]);
+  },
 };
 
 /** Y2: the interim perk clauses (INTERIM_CLAUSES) that leave the face with the switch on: their perks are numbers on the
@@ -916,9 +949,9 @@ const STAR_GONE_CLAUSES: ReadonlySet<string> = new Set(["hotswap", "limpet", "gr
   // Y3 (DESIGN-Y rows 24, 25, 27): LONG HAUL's MAX 6 RIGS, BARBED SPOOL's RAZOR WIRE MAX and BRAKE SHOE's HOT SHOE flats are
   // gone from the sim (their data hold none with the switch on, so the clauses would say nothing; listed so none returns)
   "longhaul", "barbed", "brake",
-  // Y4 (DESIGN-Y row 36): EXT. CHAMBER's WIDE BREECH / TRIPLE BREECH slot is gone from the sim (the same: its data hold none
-  // with the switch on; listed so none returns)
-  "chamber"]);
+  // Y4 (DESIGN-Y rows 36, 37): EXT. CHAMBER's WIDE BREECH slot and ROTARY BREECH's GREASED RACE / CLEAN FEED fire rate are
+  // gone from the sim (the same: their data hold none with the switch on; listed so none returns)
+  "chamber", "rotary"]);
 /** Y2: the interim caveats (INTERIM_CAVEATS ids) that leave with the switch on: each rule left the sim (the shared rule,
  *  SCRAPPER's uncapped queue, FLAK SCREEN's screens rolling on their own) or is the face's own words now (TOLLBOOTH's
  *  PARTS). */

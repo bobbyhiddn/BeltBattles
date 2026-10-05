@@ -1303,6 +1303,22 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   // row 36, EXT. CHAMBER: the +1 slot goes (★2 WIDE BREECH's, ★3 TRIPLE BREECH's window); it fires 2/3/4 loads a shot (at
   // most what the chamber holds: Battle.chambers). The perks' names stay (ⓘ only)
   chamber: { mod: { perShot: 2 }, levels: { 2: { mod: { perShot: 3 }, perk: "WIDE BREECH" }, 3: { mod: { perShot: 4 }, perk: "TRIPLE BREECH" } } },
+  // row 37, ROTARY BREECH: ★2 GREASED RACE's and ★3 CLEAN FEED's fire rate and ★3's no-jam go; its load time is 0.75 /
+  // 0.525 / 0.3 s, 50% / 65% / 80% sooner than WINDOW_TIME's 1.5 s (DESIGN-Y's 0.53 is 0.525 rounded: cap's ruling
+  // e91c08dd12466357). The perks' names stay (ⓘ only)
+  rotary: {
+    core: { routine: "rotary", order: "FIFO", windowTime: 0.75 },
+    levels: { 2: { core: { windowTime: 0.525 }, perk: "GREASED RACE" }, 3: { core: { windowTime: 0.3 }, perk: "CLEAN FEED" } },
+  },
+  // row 38, ANVIL BREECH: anvilFlat folds into perPlate (+ flat / 100): 1 + 25 / 100 = 1.25, 2.2 + 0.55 = 2.75, 3.5 + 0.88 =
+  // 4.38 (125% / 275% / 438% of your PLATE, REVIEW-STARD's spot-check), equal to the base at 100 PLATE; no flat
+  anvil: { core: { routine: "anvil", perPlate: 1.25 }, levels: { 2: { core: { perPlate: 2.75 } }, 3: { core: { perPlate: 4.38 } } } },
+  // row 39, STEAM BREECH: steamBare goes (no plating, no speed-up); steamPlated gains 5/10/10 points: 40/80/120% faster. It
+  // stays common (DESIGN-Y's note under the Y4 table)
+  steambreech: { core: { routine: "steam", steamPlated: 40 }, levels: { 2: { core: { steamPlated: 80 } }, 3: { core: { steamPlated: 120 } } } },
+  // row 40, DRAKE NOZZLE: addBurn, burnTime and flightMul go (no free BURN, the BURN lasts BURN_TIME, the shot flies as any);
+  // each 10/7/5 of a shot's bonus damage is 1 BURN (flatPerBurn)
+  drake: { core: { routine: "drake", flatPerBurn: 10 }, levels: { 2: { core: { flatPerBurn: 7 } }, 3: { core: { flatPerBurn: 5 } } } },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */

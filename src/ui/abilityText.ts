@@ -906,6 +906,9 @@ const ENTRIES: Record<string, Entry> = {
     // 1.5 s, 50%); was CUTS THE LOAD TIME TO 0.8 SECONDS, gist LOAD TIME 0.8 SECONDS, card CUTS LOAD TIME TO 0.8 SECONDS
     text: (e, x) => {
       const s = c(e, x);
+      // Y4 (release Y; DESIGN-Y row 37): with the star switch on, its one rule: a part-full chamber fires loadCut sooner
+      // (its windowTime 0.75 / 0.525 / 0.3 s of WINDOW_TIME's 1.5 s); no fire rate, no NEVER JAMS, no LOAD TIME
+      if (starRules()) return [`IT FIRES A PART-FULL CHAMBER ${loadCut(s)} SOONER, THE OLDEST LOAD FIRST.`];
       return [
         `ITS LOAD TIME IS ${loadCut(s)} SHORTER, AND IT FIRES THE OLDEST LOAD FIRST.`,
         ...(s.fireRate ? [`IT FIRES ${rateText(imul(s.fireRate))}${s.noJam ? " AND NEVER JAMS" : ""}.`] : []),
@@ -915,9 +918,10 @@ const ENTRIES: Record<string, Entry> = {
     perkAt: (e, x) => (c(e, x).fireRate ? 1 : 0),
     gist: (e, x) => {
       const s = c(e, x);
+      if (starRules()) return `PART-FULL CHAMBERS ${loadCut(s)} SOONER`; // Y4
       return s.fireRate ? `FIRES ${rateText(imul(s.fireRate))}${s.noJam ? ", NEVER JAMS" : ""}` : `LOAD ${loadCut(s)} SHORTER`;
     },
-    card: (e, x) => `LOAD TIME ${loadCut(c(e, x))} SHORTER`,
+    card: (e, x) => (starRules() ? `PART-FULL CHAMBERS ${loadCut(c(e, x))} SOONER` : `LOAD TIME ${loadCut(c(e, x))} SHORTER`), // Y4
   },
   pressure: {
     // cores.ts pressureBonus: waiting at its intakes plus in its chamber, this load included, up to maxCount
@@ -952,6 +956,9 @@ const ENTRIES: Record<string, Entry> = {
     // flight x flightMul
     text: (e, x) => {
       const s = c(e, x);
+      // Y4 (release Y; DESIGN-Y row 40): with the star switch on, its one rule (flatPerBurn 10 / 7 / 5) and what BONUS
+      // DAMAGE is; the free BURN, the longer BURN and the quicker shot are gone
+      if (starRules()) return [`TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY ${damage(s.flatPerBurn!)}.`, S.bonus];
       return [
         `TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY ${damage(s.flatPerBurn!)}.`,
         `EACH SHOT GETS ${s.addBurn} MORE BURN, AND ITS BURN LASTS ${seconds(s.burnTime!)} INSTEAD OF ${seconds(BURN_TIME)}.`,
@@ -1275,14 +1282,23 @@ const ENTRIES: Record<string, Entry> = {
   anvil: {
     // Battle.fireCore (anvil): + anvilFlat + perPlate x the hull's plating at fire time, both x k (cores.ts CORE_ABSOLUTE)
     // NUM-4: perPlate as the sim keeps it, a whole % of the hull's plating (was "2.2 MORE FOR EACH PLATING")
-    text: (e, x) => [`EACH SHOT DEALS ${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL.`, S.plating],
-    gist: (e, x) => `${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF YOUR PLATING`,
+    // Y4 (release Y; DESIGN-Y row 38): with the star switch on the flat folds into the share (no anvilFlat): its share of
+    // your plating alone, as damage
+    text: (e, x) => (starRules()
+      ? [`EACH SHOT DEALS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL AS MORE DAMAGE.`, S.plating]
+      : [`EACH SHOT DEALS ${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF THE PLATING ON YOUR HULL.`, S.plating]),
+    gist: (e, x) => (starRules() ? `${percent(c(e, x).perPlate!)} OF YOUR PLATING AS DAMAGE`
+      : `${moreDamage(c(e, x).anvilFlat!)}, PLUS ${percent(c(e, x).perPlate!)} OF YOUR PLATING`),
     card: () => "MORE DAMAGE THE MORE PLATING",
   },
   steambreech: {
     // cores.ts ROUTINES.steam: the cadence x steamPlated while the hull holds plating, else x steamBare (rates: no k)
-    text: (e, x) => [`THE TURRET FIRES ${rateText(imul(c(e, x).steamPlated))} WHILE YOUR HULL HOLDS PLATING, AND ${rateText(imul(c(e, x).steamBare))} WITHOUT IT.`],
-    gist: (e, x) => `${rateText(imul(c(e, x).steamPlated))} PLATED, ${percent(c(e, x).steamBare! / 100)} WITHOUT`,
+    // Y4 (release Y; DESIGN-Y row 39): with the star switch on there is no bare rate (no steamBare): at its own rate
+    text: (e, x) => (starRules()
+      ? [`THE TURRET FIRES ${rateText(imul(c(e, x).steamPlated))} WHILE YOUR HULL HOLDS PLATING.`]
+      : [`THE TURRET FIRES ${rateText(imul(c(e, x).steamPlated))} WHILE YOUR HULL HOLDS PLATING, AND ${rateText(imul(c(e, x).steamBare))} WITHOUT IT.`]),
+    gist: (e, x) => (starRules() ? `${rateText(imul(c(e, x).steamPlated))} PLATED`
+      : `${rateText(imul(c(e, x).steamPlated))} PLATED, ${percent(c(e, x).steamBare! / 100)} WITHOUT`),
     card: () => "FIRES FASTER WHILE PLATED",
   },
   twintrigger: {

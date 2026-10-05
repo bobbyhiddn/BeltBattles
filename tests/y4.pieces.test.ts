@@ -209,3 +209,165 @@ describe("Y4 row 36: EXT. CHAMBER: it fires 2/3/4 loads a shot; the +1 slot goes
       .toEqual(["★2 WIDE BREECH: HOLDS +1 {SLUG}.", undefined]);
   });
 });
+
+// -------------------------------------------------------------------------------------------- row 37: ROTARY BREECH
+describe("Y4 row 37: ROTARY BREECH: part-full chambers fire 50/65/80% sooner; no fire rate, no no-jam", () => {
+  it("data: on, core { routine rotary, FIFO, windowTime 0.75 / 0.525 / 0.3 } (off: 0.75 at every star, fireRate 18/43, ★3 noJam)", () => {
+    for (const s of STARS) {
+      expect(on(() => effectAt("rotary", s).core), `★${s}`).toEqual({ routine: "rotary", order: "FIFO", windowTime: [0.75, 0.525, 0.3][s - 1] });
+      expect(effectAt("rotary", s).core).toEqual({ routine: "rotary", order: "FIFO", windowTime: 0.75, ...(s > 1 ? { fireRate: [18, 43][s - 2] } : {}), ...(s === 3 ? { noJam: true } : {}) });
+    }
+    // 0.525 s is exactly 65% sooner than WINDOW_TIME (cap's ruling e91c08dd12466357; DESIGN-Y's 0.53, rounded)
+    expect(WINDOW_TIME * (1 - 0.65)).toBeCloseTo(0.525, 12);
+  });
+
+  it("turret: on, a SCRAP CANNON keeps its SPEED 30 and loads for 0.75 / 0.525 / 0.3 s, and can jam (off: SPEED 30/35/43, 0.75 s, ★3 never jams)", () => {
+    for (const s of STARS) {
+      const b = withMod(furnaceBench(), 60, "rotary", 0, s);
+      const pick = (tu: TurretState) => [tu.speed, tu.windowTime, tu.core.spec.noJam === true];
+      expect(pick(turret(b, true)), `on ★${s}`).toEqual([30, [0.75, 0.525, 0.3][s - 1], false]);
+      expect(pick(turret(b, false)), `off ★${s}`).toEqual([[30, 35, 43][s - 1], 0.75, s === 3]);
+    }
+  });
+
+  it("battle: on, a sparse gun's first shot leaves its load time after its first load: ★2 0.525 s, ★3 0.3 s (off 0.75 s)", () => {
+    for (const s of [2, 3]) {
+      const b = withMod(furnaceBench(), 60, "rotary", 0, s);
+      expect(Math.abs(firstWait(b, true) - [0.525, 0.3][s - 2]), `on ★${s}`).toBeLessThanOrEqual(2 * TICK_S);
+      expect(Math.abs(firstWait(b, false) - 0.75), `off ★${s}`).toBeLessThanOrEqual(2 * TICK_S);
+    }
+  });
+
+  it("face: FIRES PART-FULL CHAMBERS 50/65/80% SOONER, no clause; ladder 50%/65%/80% SOONER; GREASED RACE and CLEAN FEED in the ⓘ view only", () => {
+    expect(lines("rotary")).toEqual([50, 65, 80].map((p) => [`FIRES PART-FULL CHAMBERS ${p}% SOONER.`]));
+    oneLine("rotary");
+    expect(levels("rotary", 1)).toEqual(["[50%]/65%/80% SOONER", "★2 GREASED RACE", "★3 CLEAN FEED", `${next(2, "65% SOONER")} ★2 GREASED RACE`]);
+  });
+});
+
+// --------------------------------------------------------------------------------------------- row 38: ANVIL BREECH
+describe("Y4 row 38: ANVIL BREECH: +125/+275/+438% of your PLATE as damage; the flat folds in", () => {
+  it("data: on, perPlate 1.25 / 2.75 / 4.38 and no anvilFlat: the base's perPlate + anvilFlat / 100 (REVIEW-STARD's spot-check)", () => {
+    for (const s of STARS) {
+      const off = effectAt("anvil", s).core!;
+      expect(on(() => effectAt("anvil", s).core), `★${s}`).toEqual({ routine: "anvil", perPlate: [1.25, 2.75, 4.38][s - 1] });
+      expect(off.perPlate! + off.anvilFlat! / 100).toBeCloseTo([1.25, 2.75, 4.38][s - 1], 12);
+    }
+  });
+
+  it("battle: on, the first shot gains pct(PLATE, 125/275/438%) (off: 25/55/88 + 100/220/350%): equal at 100 PLATE, nothing at 0", () => {
+    // the shot's gain over the same shot without a core (the barge never fires, so the hull keeps the plating it starts with)
+    const gain = (s: number, plate: number, star: boolean): number => {
+      const first = (b: Build) => typed(fight(b, star, 6, (bt) => { bt.sides[0].plate.plate = plate; }).ev, "fire")[0].e.dmg;
+      return first(withMod(furnaceBench(), 60, "anvil", 0, s)) - first(furnaceBench());
+    };
+    expect(STARS.map((s) => [gain(s, 100, true), gain(s, 100, false)])).toEqual([[125, 125], [275, 275], [438, 438]]);
+    expect(STARS.map((s) => [gain(s, 0, true), gain(s, 0, false)])).toEqual([[0, 25], [0, 55], [0, 88]]);
+    expect([gain(1, 40, true), gain(1, 40, false)]).toEqual([50, 65]); // below 100: DOWN
+    expect([gain(1, 200, true), gain(1, 200, false)]).toEqual([250, 225]); // above: UP
+  });
+
+  it("face: SHOT: +125/+275/+438% OF YOUR PLATE AS DMG; ladder +125%/+275%/+438% OF PLATE", () => {
+    expect(lines("anvil")).toEqual([125, 275, 438].map((p) => [`SHOT: +${p}% OF YOUR {*PLATE} AS {DMG}.`]));
+    oneLine("anvil");
+    expect(levels("anvil", 1)).toEqual(["[+125%]/+275%/+438% OF {PLATE}", next(2, "+275% OF {PLATE}")]);
+  });
+});
+
+// --------------------------------------------------------------------------------------------- row 39: STEAM BREECH
+describe("Y4 row 39: STEAM BREECH: 40/80/120% faster if you have PLATE; nothing bare", () => {
+  it("data: on, steamPlated 40/80/120 and no steamBare (off: 35/70/110 and 10/20/30); it stays common", () => {
+    for (const s of STARS) {
+      expect(on(() => effectAt("steambreech", s).core), `★${s}`).toEqual({ routine: "steam", steamPlated: [40, 80, 120][s - 1] });
+      expect(effectAt("steambreech", s).core).toEqual({ routine: "steam", steamPlated: [35, 70, 110][s - 1], steamBare: [10, 20, 30][s - 1] });
+    }
+    expect(on(() => ITEMS.steambreech.rarity)).toBe("common");
+  });
+
+  it("cadence: on, a SCRAP CANNON (30) fires at SPEED 42/54/66 plated and 30 bare (off: 41/51/63 plated, 33/36/39 bare)", () => {
+    for (const s of STARS) {
+      const b = withMod(furnaceBench(), 60, "steambreech", 0, s);
+      const at = (star: boolean, plated: boolean) => withStarRules(() => steamInterval({ ...turret(b, star), plated }), star);
+      expect([at(true, true), at(true, false)], `on ★${s}`).toEqual([secPer([42, 54, 66][s - 1]), secPer(30)]);
+      expect([at(false, true), at(false, false)], `off ★${s}`).toEqual([secPer([41, 51, 63][s - 1]), secPer([33, 36, 39][s - 1])]);
+    }
+  });
+
+  it("battle: on, a bare busy gun fires as one without the core (off: 10% faster)", () => {
+    const shots = (b: Build, star: boolean) => typed(fight(b, star, 20).ev, "fire").length;
+    const steam = withMod(twoPress(), 60, "steambreech", 0, 1);
+    expect(shots(steam, true)).toBe(shots(twoPress(), true));
+    expect(shots(steam, false)).toBeGreaterThan(shots(twoPress(), false));
+  });
+
+  it("face: FIRES 40/80/120% FASTER IF YOU HAVE PLATE; ladder 40%/80%/120% FASTER", () => {
+    expect(lines("steambreech")).toEqual([40, 80, 120].map((p) => [`FIRES ${p}% FASTER IF YOU HAVE {*PLATE}.`]));
+    oneLine("steambreech");
+    expect(levels("steambreech", 1)).toEqual(["[40%]/80%/120% FASTER", next(2, "80% FASTER")]);
+    expect([hasFace("steambreech"), on(() => hasFace("steambreech"))]).toEqual([false, true]);
+  });
+});
+
+// --------------------------------------------------------------------------------------------- row 40: DRAKE NOZZLE
+describe("Y4 row 40: DRAKE NOZZLE: each 10/7/5 bonus damage is 1 BURN; no free BURN, longer BURN or quicker shot", () => {
+  it("data: on, flatPerBurn 10/7/5 only (off: 20/15/10, addBurn 1/2/3, burnTime 4/5/6 s, flightMul 0.7)", () => {
+    for (const s of STARS) {
+      expect(on(() => effectAt("drake", s).core), `★${s}`).toEqual({ routine: "drake", flatPerBurn: [10, 7, 5][s - 1] });
+      expect(effectAt("drake", s).core).toEqual({ routine: "drake", flatPerBurn: [20, 15, 10][s - 1], addBurn: s, burnTime: 3 + s, flightMul: 0.7 });
+    }
+  });
+
+  it("battle: on, a slug past a WHETSTONE (+20) shoots 2 / 2 / 4 BURN of BURN_TIME (off: 1 + 1, 1 + 2, 2 + 3 BURN lasting 4/5/6 s)", () => {
+    const first = (b: Build, star: boolean) => withStarRules(() => {
+      const bt = new Battle(b, barge(), SEED), s = bt.sides[0];
+      for (const g of s.gates) { g.online = true; g.commissionAt = 0; }
+      for (let i = 0; i < 60 * 10; i++) {
+        bt.step();
+        bt.events.length = 0;
+        const p = bt.projectiles.find((q) => q.from === 0);
+        if (p) return { burn: p.burn ?? 0, burnTime: p.burnTime, flight: p.flight };
+      }
+      throw new Error("no shot");
+    }, star);
+    const plain = (star: boolean) => first(rigBench([["whetstone", 4, 3, 1]]), star);
+    for (const s of STARS) {
+      const b = withMod(rigBench([["whetstone", 4, 3, 1]]), 60, "drake", 0, s);
+      const a = first(b, true), o = first(b, false);
+      expect([a.burn, a.burnTime], `on ★${s}`).toEqual([[2, 2, 4][s - 1], undefined]);
+      expect([o.burn, o.burnTime], `off ★${s}`).toEqual([[2, 3, 5][s - 1], 3 + s]);
+      expect(a.flight, `on ★${s}: no quicker shot`).toBeCloseTo(plain(true).flight, 9);
+      expect(o.flight, `off ★${s}: x0.7`).toBeLessThan(plain(false).flight);
+    }
+    // no bonus damage: no BURN at all (off: the free 1/2/3)
+    for (const s of STARS) {
+      const b = withMod(furnaceBench(), 60, "drake", 0, s);
+      expect([first(b, true).burn, first(b, false).burn], `bare ★${s}`).toEqual([0, s]);
+    }
+  });
+
+  it("face: SHOT: EACH 10/7/5 BONUS DAMAGE IS 1 BURN; ladder EACH 10/7/5", () => {
+    expect(lines("drake")).toEqual([10, 7, 5].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
+    oneLine("drake");
+    expect(levels("drake", 1)).toEqual(["EACH [10]/7/5", next(2, "EACH 7")]);
+    expect([hasFace("drake"), on(() => hasFace("drake"))]).toEqual([false, true]);
+  });
+});
+
+// ------------------------------------------------------------------------------------------- the 8 together (R-1, R-2)
+describe("Y4: the 8 with the switch on and off", () => {
+  it("off: every def is the base's object (STAR_DIFF puts it back), and the 8 that have no face keep none", () => {
+    const ids = ["hopper", "twintrigger", "seamwelder", "chamber", "rotary", "anvil", "steambreech", "drake"];
+    const before = ids.map((id) => ITEMS[id]);
+    on(() => expect(ids.map((id) => ITEMS[id])).not.toEqual(before));
+    expect(ids.map((id) => ITEMS[id])).toEqual(before);
+    for (const [i, id] of ids.entries()) expect(ITEMS[id], id).toBe(before[i]);
+    expect(["hopper", "twintrigger", "seamwelder", "steambreech", "drake"].map(hasFace)).toEqual([false, false, false, false, false]);
+  });
+
+  it("a FURNACE long belt and K: the 8 cores' and gear's switch-on numbers don't depend on the turret's cells", () => {
+    // the long belt (8 tiles, tests/furnace.cadence's) changes only the SPEED; ROTARY's load time stays its own
+    const long = withMod(furnaceBench(), 60, "rotary", 0, 3);
+    long.routes[0].cells = [key(4, 5), key(3, 5), key(3, 4), key(3, 3), key(3, 2), key(4, 2), key(4, 1), key(4, 0)];
+    expect([turret(long, true).speed, turret(long, true).windowTime]).toEqual([42, 0.3]);
+  });
+});
