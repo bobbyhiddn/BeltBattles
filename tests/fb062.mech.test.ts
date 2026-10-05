@@ -3,6 +3,8 @@
 // before turret slots (0.6.2s, REQ-BFG-031) and belt joins (0.6.2j, REQ-BFG-027). These tests pin where they meet:
 // 1. MANTLET ★2 FULL PLATE's shield (the belt tile feeding its turret) with a turret in the extra slot, through turret
 //    swaps, and with a joining belt (a joining belt feeds no intake itself: its last tile is not shielded).
+//    NUM-3 (R1's STUN fold): the perk is FULL GUARD (was FULL PLATE), and MANTLET ignores every STUN source from ★1
+//    (STUN_CAUSES: the six below and LIMPET's stall); the shield checks run every one.
 // 2. HOPPER's store on a turret with two or more gear slots (never two HOPPERs on one turret), and on a GATLING, whose
 //    clash line names HOPPER's seconds wherever the HOPPER sits.
 // 3. QUENCH and SURGE on a joined payload: it takes the join tile's hits and every hit after it, and rides the main
@@ -10,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { Battle, turretAt, type SideState, type Target } from "../src/sim/battle";
 import { rotFacing } from "../src/sim/beltside";
-import { GUARD_SKIRT, HEROES, ITEMS, WINDOW_TIME, type HarassCause } from "../src/sim/content";
+import { GUARD_SKIRT, HEROES, ITEMS, STUN_CAUSES, WINDOW_TIME, type HarassCause } from "../src/sim/content";
 import {
   canFitGear, cloneBuild, deadEndsAt, gearOn, installTurret, key as K, moveTurret, rigHits, rotField, routeInfo, walkRoute,
   type Build, type Placed,
@@ -21,7 +23,8 @@ import { gatlingClash } from "../src/screens/build/inspector";
 import { barge, busy, run, SEED } from "./arsenal.bench";
 
 const STARS = [1, 2, 3] as const;
-const SIX: HarassCause[] = ["shock", "static", "arc", "drag", "freeze", "sabot"];
+// NUM-3 (R1's STUN fold): every STUN source (was SIX: shock, static, arc, drag, freeze, sabot; LIMPET's stall joins them)
+const STUN: readonly HarassCause[] = STUN_CAUSES;
 const CAP = HEROES.furnace.belt + 2 * ITEMS.beltcrate.supply!.belt!; // two belt crates
 const st = (s: number) => (s > 1 ? { stars: s } : {});
 const rig = (uid: number, def: string, x: number, y: number, facing: 0 | 1 | 2 | 3, stars = 1): Placed =>
@@ -72,7 +75,7 @@ function chain(extra: Placed[] = [], mods: Build["mods"] = []): Build {
   };
 }
 
-describe("1. MANTLET ★2 FULL PLATE on the mechanics head: each turret shields the belt tile feeding it", () => {
+describe("1. MANTLET ★2 FULL GUARD (NUM-3: was FULL PLATE) on the mechanics head: each turret shields the belt tile feeding it", () => {
   it("(a) a turret in the extra slot: each MANTLET shields only its own turret's intake tile (and the rigs working it)", () => {
     // WHETSTONE uid 20 at (7,0) works P's intake tile (8,0); TEMPER uid 21 at (3,0) works M's intake tile (4,0)
     const rigs = [rig(20, "whetstone", 7, 0, 1), rig(21, "temper", 3, 0, 1)];
@@ -87,7 +90,7 @@ describe("1. MANTLET ★2 FULL PLATE on the mechanics head: each turret shields 
       expect(validateBuild(b, 10).errors, id).toEqual([]);
       expect(routeInfo(b, 1).turret).toBe(1);
       expect(shield(b), id).toEqual(want);
-      for (const cause of SIX) {
+      for (const cause of STUN) { // NUM-3: was SIX (LIMPET's stall added)
         expect(stalls(b, 0, 5, cause), `${id} ${cause}: M's intake tile`).toBe(!on(0));
         expect(stalls(b, 1, 6, cause), `${id} ${cause}: P's intake tile`).toBe(!on(1));
         expect(stalls(b, 1, 5, cause), `${id} ${cause}: P's tile 5`).toBe(!ms.some((m) => m.slot === 1 && m.stars === 3));
@@ -147,7 +150,7 @@ describe("1. MANTLET ★2 FULL PLATE on the mechanics head: each turret shields 
       expect(validateBuild(b, 10).errors).toEqual([]);
       expect(routeInfo(b, 1).join?.route).toBe(0);
       expect(shield(b), `★${s}`).toEqual([ones(6, s === 2 ? 1 : 3), ones(4, 0)]);
-      for (const cause of SIX) {
+      for (const cause of STUN) { // NUM-3: was SIX (LIMPET's stall added)
         expect(stalls(b, 0, 5, cause), `★${s} ${cause}: M's intake tile`).toBe(false);
         expect(stalls(b, 1, 3, cause), `★${s} ${cause}: R's last tile`).toBe(true);
         expect(rigStalls(b, 31, cause), `★${s} ${cause}: the rig on M's intake tile`).toBe(false);
@@ -329,13 +332,18 @@ describe("3. QUENCH and SURGE on a joined payload: the join tile's hits and ever
       const p = effectAt("surge", s).gate!.pulse!;
       const bt = new Battle(b, barge(), SEED), me = bt.sides[0];
       const last = new Map<number, number>(), paid = new Map<number, number[]>();
+      // NUM-3 (step 3, Battle.pulsePhase): was the pulse bucket Math.floor(bt.t / p.period) on the float clock; now the same
+      // bucket on the integer tick count, Math.floor(bt.ticks / ticks a period), the cycle the sim pays by (pulse `cycle`
+      // starts on the first tick >= cycle x period). EQUIVALENT check: bt.t is 2.9999999 on tick 180, so the float bucket
+      // put the first tick of pulse 1 in pulse 0 and read a pay per pulse as two pays in one.
+      const perTicks = p.period * 60; // 60 ticks a second: 180 / 180 / 120 for the whole-second periods 3 / 3 / 2 s
       let joined = 0;
       while (bt.t < 30 && !bt.over) {
         bt.step();
         bt.drainEvents();
         for (const r of me.routes) for (const a of r.ammo) {
           const was = last.get(a.p.id) ?? 0;
-          if (a.p.flat > was + 1e-9) paid.set(a.p.id, [...(paid.get(a.p.id) ?? []), Math.floor(bt.t / p.period)]);
+          if (a.p.flat > was + 1e-9) paid.set(a.p.id, [...(paid.get(a.p.id) ?? []), Math.floor((bt.ticks + 1e-9) / perTicks)]);
           last.set(a.p.id, a.p.flat);
           if (r.index === 0 && a.p.factory === 2) joined++;
         }

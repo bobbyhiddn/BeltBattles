@@ -3,11 +3,15 @@
 // those rounds almost never strike a turret. FULL PLATE now also shields the belt tile feeding its turret (intakeGuard
 // 1, on every belt into it) and the rigs working that tile (DESIGN §11 P6), against all six stalls it ignores; ★3
 // BULWARK SKIRT keeps the last 3 tiles. The player text names the tile.
+// NUM-3 (R1's STUN fold, REQ-BFG-046): MANTLET is immune to every STUN source from ★1 (content.ts STUN_CAUSES: the six
+// above and LIMPET's stall); ★2's perk is FULL GUARD (was FULL PLATE) and adds the tile shield only. The frost, sabot
+// and chain rounds STUN the part they hit through Battle.disrupt (no freeze, no chain segment slow).
 import { describe, expect, it } from "vitest";
 import { Battle, type SideState, type Target } from "../src/sim/battle";
 import { spotForTile } from "../src/sim/beltside";
-import { GUARD_SKIRT, type HarassCause } from "../src/sim/content";
+import { GUARD_SKIRT, STUN_CAUSES, type HarassCause } from "../src/sim/content";
 import { hitsOfRig, key, rigHits, rotField, type Build } from "../src/sim/deck";
+import type { HarassRound } from "../src/sim/harassment";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { rotFacing } from "../src/sim/beltside";
 import { effectAt } from "../src/sim/stars";
@@ -16,14 +20,16 @@ import { abilityText, gist } from "../src/ui/abilityText"; // 0.6.2rel: the glos
 import { barge, bench, busy } from "./arsenal.bench";
 
 const STARS = [1, 2, 3];
-const SIX: HarassCause[] = ["shock", "static", "arc", "drag", "freeze", "sabot"];
+// NUM-3 (R1's STUN fold): every STUN source (was SIX: shock, static, arc, drag, freeze, sabot; LIMPET's stall joins them)
+const STUN: readonly HarassCause[] = STUN_CAUSES;
 const K = key;
 const st = (s: number) => (s > 1 ? { stars: s } : {});
+// NUM-3: the ★1 rounds as the data has them (FROSTBITE 2 s, SABOT 4 s, DRAG CHAIN 1 s)
+const ROUND = (def: string) => effectAt(def, 1).factory!.round as HarassRound;
+const FROST = ROUND("frostbite"), SABOT = ROUND("sabot"), CHAIN = ROUND("dragchain");
 
-type Sim = {
+type Sim = { // NUM-3: freeze and slowSegment are gone (the frost and chain rounds STUN through disrupt)
   disrupt(s: SideState, t: Target, secs: number, cause: HarassCause): boolean;
-  freeze(s: SideState, t: Target, secs: number): boolean;
-  slowSegment(s: SideState, t: Target, mul: number, secs: number): boolean;
   roundImpact(s: SideState, t: Target, round: unknown, from: number): void;
 };
 const sim = (bt: Battle) => bt as unknown as Sim;
@@ -51,9 +57,11 @@ function deck(stars: number): Build {
   return b;
 }
 
-describe("FB-B MANTLET: FULL PLATE shields the belt tile feeding its turret", () => {
-  it("the rule: shock/static/arc/drag; FULL PLATE + freeze, sabot and 1 shielded tile; BULWARK SKIRT 3 tiles", () => {
-    expect(STARS.map((s) => effectAt("mantlet", s).mod?.immune)).toEqual([SIX.slice(0, 4), SIX, SIX]);
+describe("FB-B MANTLET: FULL GUARD (NUM-3: was FULL PLATE) shields the belt tile feeding its turret", () => {
+  it("the rule: every STUN source from ★1 (NUM-3); FULL GUARD 1 shielded tile; BULWARK SKIRT 3 tiles", () => {
+    // NUM-3 (R1's STUN fold): was [SIX.slice(0, 4), SIX, SIX] (shock/static/arc/drag, + freeze and sabot at ★2 FULL
+    // PLATE); now STUN_CAUSES at every star, and ★2 FULL GUARD adds the shielded tile only
+    expect(STARS.map((s) => effectAt("mantlet", s).mod?.immune)).toEqual([[...STUN], [...STUN], [...STUN]]);
     expect(STARS.map((s) => effectAt("mantlet", s).mod?.intakeGuard ?? 0)).toEqual([0, 1, 3]);
     const b = deck(1);
     const hits = rigHits(b);
@@ -81,8 +89,8 @@ describe("FB-B MANTLET: FULL PLATE shields the belt tile feeding its turret", ()
     expect(ws.routes.map((r) => r.guard.filter((g) => g & GUARD_SKIRT).length)).toEqual([1, 0]);
   });
 
-  it("all six stalls: the intake tile of either belt ignores them from ★2 (it took them at ★1); tile 4 only from ★3", () => {
-    for (const s of STARS) for (const cause of SIX) {
+  it("every STUN source (NUM-3: was all six stalls): the intake tile of either belt ignores them from ★2 (it took them at ★1); tile 4 only from ★3", () => {
+    for (const s of STARS) for (const cause of STUN) { // NUM-3: was SIX (LIMPET's stall added)
       const bt = new Battle(deck(s), barge(), 3), me = bt.sides[0];
       for (const [ri, last] of [[0, 5], [1, 6]]) {
         expect(sim(bt).disrupt(me, target(me, "belt", ri, last), 2, cause), `★${s} ${cause}: belt ${ri} intake tile`).toBe(s === 1);
@@ -92,32 +100,41 @@ describe("FB-B MANTLET: FULL PLATE shields the belt tile feeding its turret", ()
     }
   });
 
-  it("the real rounds: a frost, a sabot and a chain slow on the intake tile land at ★1 and do nothing at ★2 and ★3", () => {
+  it("the real rounds: a frost, a sabot and a chain round on the intake tile STUN it at ★1 and do nothing at ★2 and ★3", () => {
     for (const s of STARS) {
       const frost = new Battle(deck(s), barge(), 3), fs = frost.sides[0];
-      sim(frost).roundImpact(fs, target(fs, "belt", 0, 5), { kind: "frost", seconds: 2.5, spread: 0 }, 1);
-      expect(fs.routes[0].cellFrozen[5] > 0, `★${s} frost`).toBe(s === 1);
+      sim(frost).roundImpact(fs, target(fs, "belt", 0, 5), FROST, 1);
+      // NUM-3 (R1's STUN fold): was cellFrozen[5] > 0 (a freeze); now the frost round STUNs the tile, and nothing freezes
+      expect(fs.routes[0].cellDisrupt[5] > 0, `★${s} frost`).toBe(s === 1);
+      expect(fs.routes[0].cellFrozen[5], `★${s} frost: nothing freezes`).toBe(0);
       const sabot = new Battle(deck(s), barge(), 3), ss = sabot.sides[0];
-      sim(sabot).roundImpact(ss, target(ss, "belt", 1, 6), { kind: "sabot" }, 1);
+      sim(sabot).roundImpact(ss, target(ss, "belt", 1, 6), SABOT, 1);
       expect(ss.routes[1].cellDisrupt[6] > 0, `★${s} sabot`).toBe(s === 1);
       const chain = new Battle(deck(s), barge(), 3), cs = chain.sides[0];
-      const hit = sim(chain).slowSegment(cs, target(cs, "belt", 0, 5), 0.6, 3); // aimed at the Kiln belt's intake tile
-      expect([hit, cs.routes[0].cellSlow[5].t > 0], `★${s} chain`).toEqual([s === 1, s === 1]);
+      sim(chain).roundImpact(cs, target(cs, "belt", 0, 5), CHAIN, 1); // aimed at the Kiln belt's intake tile
+      // NUM-3: was [slowSegment's hit, cellSlow[5].t > 0]; now [the STUN accepted (the foe's harassAccepted), the tile
+      // STUNned (cellDisrupt[5] > 0)]
+      expect([chain.sides[1].harassAccepted === 1, cs.routes[0].cellDisrupt[5] > 0], `★${s} chain`).toEqual([s === 1, s === 1]);
     }
   });
 
-  it("a chain round landing upstream slows its whole segment except the shielded tiles (as it skips REDLINE tiles)", () => {
+  it("a chain round STUNs only the tile it lands on, upstream or not, and never a shielded tile (NUM-3: was a segment slow that skipped the shielded tiles, as it skips REDLINE tiles)", () => {
     for (const s of STARS) {
-      const bt = new Battle(deck(s), barge(), 3), me = bt.sides[0];
-      // the press belt has no worked tile, so a round on its tile 2 slows the whole belt, 0-6
-      expect(sim(bt).slowSegment(me, target(me, "belt", 1, 2), 0.6, 3), `★${s}`).toBe(true);
       const n = [0, 1, 3][s - 1];
-      expect(me.routes[1].cellSlow.map((c) => (c.t > 0 ? 1 : 0)), `★${s}`).toEqual([0, 1, 2, 3, 4, 5, 6].map((i) => (i >= 7 - n ? 0 : 1)));
+      // NUM-3 (R1's STUN fold): was slowSegment(belt 1, tile 2) true slowing the whole press belt (it has no worked tile),
+      // 0-6, but its shielded tiles; now a chain round STUNs the one tile it lands on (each tile of the press belt in
+      // turn), and a shielded tile refuses it
+      for (let tile = 0; tile < 7; tile++) {
+        const bt = new Battle(deck(s), barge(), 3), me = bt.sides[0];
+        sim(bt).roundImpact(me, target(me, "belt", 1, tile), CHAIN, 1);
+        expect(me.routes[1].cellDisrupt.map((c) => (c > 0 ? 1 : 0)), `★${s} tile ${tile}`)
+          .toEqual([0, 1, 2, 3, 4, 5, 6].map((i) => (i === tile && tile < 7 - n ? 1 : 0)));
+      }
     }
   });
 
   it("rigs beside the belt (P6): shielded when an arrow works a shielded tile; an IDLE rig beside the intake never is", () => {
-    for (const s of STARS) for (const cause of SIX) {
+    for (const s of STARS) for (const cause of STUN) { // NUM-3: was SIX (LIMPET's stall added)
       const bt = new Battle(deck(s), barge(), 3), me = bt.sides[0];
       const hit = (uid: number) => sim(bt).disrupt(me, target(me, "gate", uid), 2, cause);
       expect(hit(20), `★${s} ${cause}: the rig working the intake tile`).toBe(s === 1);
@@ -184,19 +201,22 @@ describe("FB-B MANTLET: FULL PLATE shields the belt tile feeding its turret", ()
     expect(three.intake + three.skirt, "★3: no skirt tile is stalled").toBe(0);
   });
 
-  it("player text: each star line names the stalls and the shielded tile; the turret panel says rigs share it", () => {
+  it("player text: each star line names the STUN immunity and the shielded tile; the turret panel says rigs share it", () => {
     // 0.6.2rel (REQ-BFG-032): the star lines are the glossary's sentences (abilityText) and clauses (gist); the perk's
     // name follows the shield sentence it names
-    const six = "THE TURRET IGNORES SHOCK, STATIC, ARC, CHAIN, FROST AND SABOT STALLS.";
+    // NUM-3 (R1's STUN fold; step 1b's words): was "...IGNORES SHOCK, STATIC, ARC AND CHAIN STALLS." at ★1 and "...SHOCK,
+    // STATIC, ARC, CHAIN, FROST AND SABOT STALLS." from ★2; now every STUN from ★1, and ★2's perk is FULL GUARD (was FULL
+    // PLATE); ★2's gist lost "IGNORES FROST AND SABOT TOO, " (★2 adds no cause any more)
+    const every = "THE TURRET IGNORES EVERY STUN.";
     expect(STARS.map((s) => abilityText("mantlet", s).sentences)).toEqual([
-      ["THE TURRET IGNORES SHOCK, STATIC, ARC AND CHAIN STALLS."],
-      [six, "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT."],
-      [six, "SO DO THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM."],
+      [every],
+      [every, "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT."],
+      [every, "SO DO THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM."],
     ]);
-    expect([2, 3].map((s) => abilityText("mantlet", s).perk)).toEqual([{ name: "FULL PLATE", stars: 2, after: 1 }, { name: "BULWARK SKIRT", stars: 3, after: 1 }]);
+    expect([2, 3].map((s) => abilityText("mantlet", s).perk)).toEqual([{ name: "FULL GUARD", stars: 2, after: 1 }, { name: "BULWARK SKIRT", stars: 3, after: 1 }]);
     expect(STARS.map((s) => gist("mantlet", s))).toEqual([
-      "IGNORES SHOCK, STATIC, ARC AND CHAIN STALLS",
-      "IGNORES FROST AND SABOT TOO, SHIELDS THE LAST TILE OF EACH BELT IN",
+      "IGNORES EVERY STUN",
+      "SHIELDS THE LAST TILE OF EACH BELT IN",
       "SHIELDS THE LAST 3 TILES OF EACH BELT IN",
     ]);
     expect([shieldLine(1), shieldLine(3)]).toEqual([
