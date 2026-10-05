@@ -124,6 +124,9 @@ export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
     speed = factorySpeed(def, fs, hero!); // NUM-2: the hero factory's speed x its rate %, rounded once
     dmg = AMMO[h.ammo].base;
   }
+  // Y2 (release Y; DESIGN-Y row 13): with the star switch on a LIMPET WORKS' DMG is its charge's blast (its base is 0: the
+  // 20 on impact joined the blast)
+  if (starRules() && fs.round?.kind === "limpet") dmg += fs.round.blast;
   return [speedPair(speed), ["DMG", fmtDmg(dmg)], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
 }
 
@@ -766,6 +769,13 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // caveats and ★3 FACTORY GUARD's clause
     const n = fmtCount(gt(e).toll!);
     return rules([{ text: `BLOCKS ${n} {*STUN} ON ${oneBelt(e) ? "ITS BELT'S" : "ITS BELTS'"} PARTS.` }], [["toll", `BLOCKS ${n}`]]);
+  },
+  limpet: (e) => {
+    // DESIGN-Y row 13: its charges' blast is its DMG stat (factoryStats: the charge's 20 joined it, content.ts STAR_DIFF);
+    // Battle.hullEffects: each charge blasts the enemy hull round.delay s after it hits. Was "CHARGES BLAST THE HULL: 80
+    // {DMG}, 3{SEC} LATER." and ★2/★3's clause "ITS BLAST GIVES THE PART {*STUN} 1."
+    const delay = fmtSec((f(e).round as { delay: number }).delay);
+    return rules([{ text: `ITS {SLUG} BLAST THE HULL ${delay}{SEC} AFTER THEY HIT.` }], [["delay", `${delay}{SEC}`]]);
   },
 };
 

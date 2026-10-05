@@ -5,10 +5,10 @@
 // ladder. Every number comes from the sim's data through the formatters (the switch's own data where it changes).
 import { describe, expect, it } from "vitest";
 import { Battle, type Payload, type Projectile, type SideState, type Target } from "../src/sim/battle";
-import { CELL, DISRUPT_TIME, withStarRules, type HarassCause } from "../src/sim/content";
+import { AMMO, CELL, DISRUPT_TIME, TICK, withStarRules, type HarassCause } from "../src/sim/content";
 import { type Build } from "../src/sim/deck";
 import { type HarassRound } from "../src/sim/harassment";
-import { starField } from "../src/sim/stars";
+import { effectAt, starField } from "../src/sim/stars";
 import { faceAt } from "../src/ui/faces";
 import { faceBlocks } from "../src/screens/build/faceBlocks";
 import { levelLines, levelText } from "../src/screens/build/levels";
@@ -157,6 +157,96 @@ describe("Y2 row 10: FLAK SCREEN downs STUN shots only, each screen rolling on i
     oneLine("flak");
     expect(levels("flak", 2)).toEqual(["SHOOTS DOWN 25%/[55%]/85%", "NEXT ★3: SHOOTS DOWN 85%"]);
     expect(withStarRules(() => faceAt("flak", 1)!.caveats, false)).toEqual(["ALSO GRAPNEL, LANCE AND LIMPET SHOTS.", "ONLY YOUR BEST FLAK SCREEN COUNTS."]);
+  });
+});
+
+// ------------------------------------------------------------------------------------------ row 11: SABOT FOUNDRY
+describe("Y2 row 11: SABOT FOUNDRY ★3 drops SHRAPNEL and works at RATE 20", () => {
+  const round3 = (star: boolean) => withStarRules(() => effectAt("sabot", 3).factory!.round as Extract<HarassRound, { kind: "sabot" }>, star);
+
+  it("sim: on, a ★3 SABOT stamps at RATE 20 (off 16) and its round on a belt tile STUNs that tile only (off: 2 s either side)", () => {
+    expect(withStarRules(() => new Battle(factoryBench("sabot", 3), barge(), 8).sides[0].factories[0].def.factory!.speed)).toBe(20);
+    expect(new Battle(factoryBench("sabot", 3), barge(), 8).sides[0].factories[0].def.factory!.speed).toBe(16);
+    for (const star of [true, false]) withStarRules(() => {
+      const bt = quiet(), s = bt.sides[1], r = s.routes[0];
+      probe(bt).roundImpact(s, target(s, "belt", 0, 3), round3(star), 0);
+      expect(r.cellDisrupt[3]).toBeCloseTo(4, 9);
+      expect([r.cellDisrupt[2] > 0, r.cellDisrupt[4] > 0], star ? "on" : "off").toEqual(star ? [false, false] : [true, true]);
+    }, star);
+  });
+
+  it("face: ITS ROUNDS WRECK RIGS FOR THE FIGHT at every star, no SHRAPNEL clause; ladder RATE 5/11/20", () => {
+    expect(lines("sabot")).toEqual(STARS.map(() => ["ITS ROUNDS WRECK RIGS FOR THE FIGHT."]));
+    oneLine("sabot");
+    expect(levels("sabot", 3)).toEqual(["{RATE} 5/11/[20]", "{BELT} 2/3/[4]", "★3 SHRAPNEL"]);
+    expect(on(() => faceAt("sabot", 3)!.stats2)).toEqual([["STUN", "4"]]);
+    expect(levels("sabot", 3, false)[0]).toBe("{RATE} 5/11/[16]");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------- row 12: HOT SWAP
+describe("Y2 row 12: HOT SWAP's spark jump goes, its STUN and BURN numbers grow", () => {
+  /** The slugs a HOT SWAP at ★`stars` has stamped onto the bench's belt after 4 s. */
+  const stamped = (stars: number, star: boolean): Payload[] => withStarRules(() => {
+    const bt = new Battle(factoryBench("hotswap", stars), barge(), 8);
+    while (bt.t < 4) { bt.step(); bt.events.length = 0; }
+    return [...bt.sides[0].routes[0].ammo.map((a) => a.p), ...bt.sides[0].turrets[0].stack];
+  }, star);
+
+  it("sim: on, its ★2 spark slugs STUN 3 s and jump to no other part, its ember slugs carry 5 BURN (off: 2 s + a jump, 4)", () => {
+    for (const [stars, stun, burn] of [[2, 3, 5], [3, 4, 9]] as const) {
+      const ps = stamped(stars, true), spark = ps.find((p) => p.preset === "spark")!, ember = ps.find((p) => p.preset === "ember")!;
+      expect([spark.shockTime, spark.jump, ember.burn], `★${stars}`).toEqual([stun, undefined, burn]);
+    }
+    const off = stamped(2, false), spark = off.find((p) => p.preset === "spark")!, ember = off.find((p) => p.preset === "ember")!;
+    expect([spark.shockTime, spark.jump, ember.burn]).toEqual([2, 1, 4]);
+  });
+
+  it("face: ALTERNATES BURN AND STUN SLUGS, no SPARK JUMP clause; ladders BURN 2/5/9, STUN 2/3/4", () => {
+    expect(lines("hotswap")).toEqual(STARS.map(() => ["ALTERNATES {*BURN} AND {*STUN} SLUGS."]));
+    oneLine("hotswap");
+    expect(levels("hotswap", 1)).toEqual(["{RATE} [20]/23/27", "{BELT} [2]/3/4", "{BURN} [2]/5/9", "{STUN} [2]/3/4",
+      `NEXT ★2: ${statRow([["RATE", "23"], ["BELT", "3"]])}, ${statRow([["BURN", "5"], ["STUN", "3"]])}`]);
+    expect(withStarRules(() => faceAt("hotswap", 2)!.clause?.text, false)).toBe("★2 SPARK JUMP: {*STUN} HITS 2 PARTS.");
+  });
+});
+
+// ------------------------------------------------------------------------------------------ row 13: LIMPET WORKS
+describe("Y2 row 13: LIMPET WORKS' DMG is its blast; its stall becomes blast damage", () => {
+  it("data: on, the blast is the base's blast + its 20 on impact + 30 for each STUN second it gave (100/230/360), no stall", () => {
+    for (const s of STARS) {
+      const base = effectAt("limpet", s).factory!, r = base.round as Extract<HarassRound, { kind: "limpet" }>;
+      const star = withStarRules(() => effectAt("limpet", s).factory!), sr = star.round as Extract<HarassRound, { kind: "limpet" }>;
+      expect(sr.blast, `★${s}`).toBe(r.blast + AMMO.limpet.base + 30 * (r.stall ?? 0));
+      expect([sr.stall, star.base, sr.delay]).toEqual([undefined, 0, r.delay]);
+    }
+  });
+
+  it("sim: on, a ★2 charge stuck to a factory blasts the hull for 230 three seconds later and STUNs nothing (off: 180 and a 1 s STUN)", () => {
+    for (const star of [true, false]) withStarRules(() => {
+      const bt = quiet(), s = bt.sides[1], f = s.factories[0], hp = s.hull.hp;
+      const round = effectAt("limpet", 2).factory!.round as HarassRound;
+      probe(bt).roundImpact(s, target(s, "factory", f.uid), round, 0);
+      while (bt.t < 3 + 2 * TICK) bt.step();
+      expect([hp - s.hull.hp, f.disrupted > 0], star ? "on" : "off").toEqual(star ? [230, false] : [180, true]);
+    }, star);
+  });
+
+  it("sim: on, its stamped charges carry no base damage (the blast holds it)", () => {
+    const p = on(() => {
+      const bt = new Battle(factoryBench("limpet", 1), barge(), 8);
+      while (!bt.sides[0].routes[0].ammo.length) bt.step();
+      return bt.sides[0].routes[0].ammo[0].p;
+    });
+    expect([p.ammo, p.base]).toEqual(["limpet", 0]);
+  });
+
+  it("face: RATE 13, DMG 100, BELT 2; ITS SLUG BLAST THE HULL 3 SEC AFTER THEY HIT; ladder DMG 100/230/360", () => {
+    expect(lines("limpet")).toEqual(STARS.map(() => ["ITS {SLUG} BLAST THE HULL 3{SEC} AFTER THEY HIT."]));
+    oneLine("limpet");
+    expect(on(() => faceAt("limpet", 1)!.stats)).toEqual([["RATE", "13"], ["DMG", "100"], ["BELT", "2"]]);
+    expect(levels("limpet", 2)).toEqual(["{DMG} 100/[230]/360", "{BELT} 2/[3]/4", `NEXT ★3: ${statRow([["DMG", "360"], ["BELT", "4"]])}`]);
+    expect(lines("limpet", false)[0]).toEqual(["CHARGES BLAST THE HULL: 80 {DMG}, 3{SEC} LATER."]);
   });
 });
 

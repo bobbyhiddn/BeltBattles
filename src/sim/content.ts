@@ -1197,7 +1197,25 @@ export const STAR_RULES: boolean = false;
 
 /** Y2: the ItemDef fields each piece takes with the switch on, over its base def (a top-level field replaces the base's
  *  whole field: `levels`, `factory`, `gate`, `mod`). Each job adds its own pieces' rows. */
-const STAR_DIFF: Record<string, Partial<ItemDef>> = {};
+const STAR_DIFF: Record<string, Partial<ItemDef>> = {
+  // ---- Y2 (DESIGN-Y section 3, rows 8-19: the STUN pieces; their perks' names stay, shown in the ⓘ view only, ruling R-1)
+  // row 11, SABOT FOUNDRY: ★3 SHRAPNEL's tile STUNs go (no `shrapnel`), and its RATE goes 16 -> 20
+  sabot: { levels: { 2: { factory: { speed: 11 } }, 3: { factory: { speed: 20 }, perk: "SHRAPNEL" } } },
+  // row 12, HOT SWAP: the spark's SPARK JUMP goes (no `jump`); ★2 STUN 3 and BURN 5, ★3 STUN 4 and BURN 9 (was 2 + a jump
+  // and 4; 3 + a jump and 7)
+  hotswap: {
+    levels: {
+      2: { factory: { speed: 23, cycle: [{ tint: "ember", burn: 5 }, { tint: "spark", shock: true, shockTime: 3 }] } },
+      3: { factory: { speed: 27, cycle: [{ tint: "ember", burn: 9 }, { tint: "spark", shock: true, shockTime: 4 }] } },
+    },
+  },
+  // row 13, LIMPET WORKS: the charge's 20 on impact (AMMO.limpet's base) joins its blast (`base` 0), and the ★2/★3 stall
+  // becomes +30 for each STUN second: blast 80 + 20 = 100, 180 + 20 + 30 x 1 = 230, 280 + 20 + 30 x 2 = 360; no stall
+  limpet: {
+    factory: { ammo: "limpet", speed: 13, base: 0, round: { kind: "limpet", delay: 3, blast: 100 } },
+    levels: { 2: { factory: { round: { kind: "limpet", delay: 3, blast: 230 } } }, 3: { factory: { round: { kind: "limpet", delay: 3, blast: 360 } } } },
+  },
+};
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */
 const STAR_BASE: Readonly<Record<string, ItemDef>> = Object.fromEntries(Object.keys(STAR_DIFF).map((id) => [id, ITEMS[id]]));
