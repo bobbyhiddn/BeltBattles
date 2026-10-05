@@ -3,6 +3,22 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.1: the hero balance pass
+
+New battle rules: bb-0.9.1. Ghosts and uploads from 0.9.0 no longer meet 0.9.1 players. You'll fight a fresh pool of 120
+ghosts at first, then other players' 0.9.1 runs as they come in.
+- **The heroes are closer to even:** WEAVER starts with 1700 hull (was 1800), and FURNACE with 2100 (was 2000).
+- **FURNACE's four runes are back in the dawn offer:**
+  - COAL CHUTE (common): your HEAT +15%.
+  - HEAT SINK (rare): your HEAT +25%.
+  - SEARING (rare): the foe starts with 5 BURN, and a foe with your BURN can't heal.
+  - SHATTER SHOT (rare): your shots deal 14% more damage, and your hits break a SHIELD and still land.
+- **The KILN's HEAT** is 13 (was 12): FURNACE's slugs gain 13 damage for each second they ride.
+- **Rune cards:** a rune card shows each trigger and its effect on a line of its own.
+- **Rivals were rebuilt for the new numbers:** the caravan's stand-ins and the starting ghosts were made again, and the
+  captains' runes were drawn again from the larger rune offer. MASTER VOSS's stand-in now gets its COUNTERWEIGHT on
+  day 5 (was day 3). As a Hard warlord he still has it from day 3.
+
 ## 0.9.0: whole numbers, sustain, rivals with runes, clearer cards
 
 New battle rules: bb-0.9.0. Ghosts and uploads from 0.8.x no longer meet 0.9.0 players. You'll fight a fresh pool of 120
