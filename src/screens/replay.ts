@@ -6,6 +6,7 @@
 // MOTION-2 (REQ-BFG-071, REVIEW-MOTION1 Q5): a replay sails in motion as the dusk did, on its day's sea (display only:
 // the display clock and PRNG, seeded from the record's seed; the fight itself is the record's, bit for bit).
 
+import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
@@ -72,6 +73,7 @@ export class ReplayScreen implements Screen {
     const [mine, theirs] = battle.record.builds;
     this.seed = battle.record.seed;
     this.arena = new Arena(mine, theirs, battle.record.seed, game.audio, battle);
+    this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): your side wears your styles; the foe's the defaults
     this.arena.off = [0, 0];
     this.heroName = HEROES[mine.hero].name;
     this.motion = new ArenaMotion(this.seed, label.day, MOTION, settings.reducedMotion);

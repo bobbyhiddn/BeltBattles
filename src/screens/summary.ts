@@ -2,6 +2,7 @@
 // (the dark wind catches you, on day n). The card lists each day: the road event taken, the
 // dusk opponent and the result, beside the cruiser (rolling victor or smoking wreck).
 
+import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { saveRun, type Run } from "../game/run";
 import { flawless, record } from "../game/day";
@@ -148,6 +149,7 @@ export class SummaryScreen implements Screen {
     this.run = game.run!;
     this.view = {
       side: 0, build: this.run.build, model: cruiserModel(this.run.build), frame: frameForHull(0, 0, 0), t: 0, tread: 0,
+      skin: playerSkin(), // CUSTOM-2a (R11): your deck in your styles
     };
     this.run.history.forEach((d, i) => {
       if (!d.record) return;
@@ -235,7 +237,7 @@ export class SummaryScreen implements Screen {
     // MOTION-2 (REQ-BFG-071): one world on every screen. The run's last day's sea, held still, and the player's own
     // ship, held still under its board (a lost run's wreck dimmed as before). CUSTOM-2a (REVIEW-MOTION2 Q2): the only look.
     this.sea.drawStill(g, { W, H, kind: seaForDay(run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
-    drawStillCarrier(g, v.model.hero, v.frame, won ? 0 : 0.55);
+    drawStillCarrier(g, v.model.hero, v.frame, won ? 0 : 0.55, v.skin?.floor);
     drawMachinery(g, v);
     drawTurrets(g, v);
     if (!won) dimStillPlate(g, v.frame, 0.55);

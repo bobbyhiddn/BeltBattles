@@ -1,6 +1,8 @@
 // Build phase: shop cards -> the cruiser at centre stage -> cargo tray, FIGHT beside the
 // bow. Drag and drop or tap-to-place; contextual cues replace the old instruction text.
 
+import { playerSkin } from "../../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
+import type { Skin } from "../../render/styles"; // CUSTOM-2a
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
 import { buyPack } from "../../game/run"; // bb-0.8.6 (REQ-BFG-051 P5)
@@ -97,6 +99,9 @@ export class BuildScreen implements Screen, EditHost {
   foe: DuskFoe;
   private model: CruiserModel;
   private view: CruiserView;
+  /** CUSTOM-2a (REQ-BFG-072, R11): the player's styles, read once: the board (floor, belts) and the part panel with its
+   *  idle forms (Ctx.skin) wear them. */
+  readonly skin: Skin = playerSkin();
   /** MOTION-2 (REQ-BFG-071): the day's sea, held still (one cached blit a frame). */
   private sea = new SeaBackdrop();
   /** MOTION-2 (?perf=1, test builds only): the frame-time split (backdrop, hulls: the ship and plate, boards: machinery,
@@ -114,7 +119,7 @@ export class BuildScreen implements Screen, EditHost {
     this.L = this.layout();
     this.ed = new Editor(this);
     this.model = cruiserModel(this.run.build);
-    this.view = { side: 0, build: this.run.build, model: this.model, frame: this.L.frame, t: 0, tread: 0 };
+    this.view = { side: 0, build: this.run.build, model: this.model, frame: this.L.frame, t: 0, tread: 0, skin: this.skin };
   }
 
   /** zoom (REQ-BFG-040): a portrait phone's layout (layout.ts phoneScreen, told by the view pickScale last framed). */
@@ -439,7 +444,7 @@ export class BuildScreen implements Screen, EditHost {
     const bump = this.thunkT > 0.07 ? 1 : 0;
     if (bump) g.translate(0, bump);
     if (P) t0 = performance.now();
-    drawStillCarrier(g, v.model.hero, L.frame);
+    drawStillCarrier(g, v.model.hero, L.frame, 0, this.skin.floor);
     if (P) { const t1 = performance.now(); P.add(1, t1 - t0); t0 = t1; }
     drawMachinery(g, v);
     this.drawBroken(g);

@@ -4,6 +4,7 @@
 // once, stored in the run and saved, so a reload fights the same one. After the fight the
 // player's own snapshot joins the local ghost pool. The battle frames itself (battleLayout).
 
+import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
@@ -109,6 +110,7 @@ export class BattleScreen implements Screen {
       fight: () => this.toDusk(),
     };
     this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins);
+    this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): the player's board and plate; the foe's stay the defaults
     this.arena.off = [60, 260];
     this.motion = new ArenaMotion(this.seed, this.foe.day, MOTION, settings.reducedMotion);
     this.bar = {

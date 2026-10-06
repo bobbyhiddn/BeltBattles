@@ -3,6 +3,7 @@
 // 0.8.0 H1 (REQ-BFG-011, REQ-BFG-032): every playable hero (PLAYABLE_HEROES: FURNACE, WEAVER, FOUNDRY, BASTION), each with
 // its portrait beside its name and its trick in one plain sentence built from the real values (abilityText.ts heroTrick).
 
+import { playerSkin } from "../game/profile"; // CUSTOM-2a (REQ-BFG-072, R11): the player's side wears the chosen styles
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { newRun, saveRun } from "../game/run";
@@ -52,6 +53,7 @@ export class HeroScreen implements Screen {
     this.arena = new Arena(heroStartBuild(id, 1), dummy, 77 + this.i, null);
     this.arena.quiet = true;
     this.arena.show = [true, false];
+    this.arena.views[0].skin = playerSkin(); // CUSTOM-2a (R11): the hero preview wears your styles
     // MOTION-2: a run starts on day 1, so the preview's sea is day 1's (CALM SEA); the ship is held still
     this.motion = new ArenaMotion(stillSeaSeed(1), 1, MOTION, settings.reducedMotion, true);
   }
