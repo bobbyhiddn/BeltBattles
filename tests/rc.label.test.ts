@@ -35,6 +35,9 @@
 // 0.9.5 is 0.9.4 with two small fixes on the same rules: SALVO RACK's info note and the shop card's hover text
 // (REQ-BFG-070, REQ-BFG-046), and a factory or turret hold that takes its full time (REQ-BFG-040). No battle changes,
 // so the rules stay bb-0.9.3 and the label moves to 0.9.5.
+// 0.9.6 is 0.9.5 with battles in motion on the same rules: both ships sail over the day's sea while their boards stay
+// level, and the same ship shows on every screen (REQ-BFG-071). No battle changes, so the rules stay bb-0.9.3 and the
+// label moves to 0.9.6.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -42,10 +45,10 @@ import { RULES_VERSION } from "../src/sim/content";
 
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
-describe("the 0.9.5 label", () => {
-  it("is 0.9.5 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are Y7b2's bb-0.9.3 (BAL-2's were bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
+describe("the 0.9.6 label", () => {
+  it("is 0.9.6 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are Y7b2's bb-0.9.3 (BAL-2's were bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
-    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.5", "0.9.5", "0.9.5", "0.9.5"]);
+    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.6", "0.9.6", "0.9.6", "0.9.6"]);
     expect(RULES_VERSION).toBe("bb-0.9.3") /* Y7b2: the bump (was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
   });
 });
