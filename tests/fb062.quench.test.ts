@@ -110,8 +110,10 @@ describe("FB-B QUENCH TANK: a hardening floor, and Burn converted at least at it
       const d = STARS.map((s) => dealt(quenched(s, payload(k)))), none = dealt(payload(k));
       expect(d[1], `${k} Burn: ★1 < ★2`).toBeGreaterThan(d[0]);
       expect(d[2], `${k} Burn: ★2 < ★3`).toBeGreaterThan(d[1]);
-      if (RULES_VERSION === "bb-0.9.3") {
-        const why = `Y7b2 tripwire (cap's ruling e66379fbf3184e56): no QUENCH = QUENCH ★1 pinned under bb-0.9.3 at ${k} Burn; ★1 pays 30 per BURN, which only equals the BURN it spends (BURN_DPS x BURN_TIME = 30), so ★1 adds nothing; decide ★1's pay before the next rules version`;
+      // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none): re-keyed bb-0.9.3 -> bb-0.9.7,
+      // measured at Z-BUMP's tip at every Burn count. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
+      if (RULES_VERSION === "bb-0.9.7") {
+        const why = `Y7b2 tripwire (cap's ruling e66379fbf3184e56): no QUENCH = QUENCH ★1 pinned under bb-0.9.7 (re-ruled at Z-BUMP) at ${k} Burn; ★1 pays 30 per BURN, which only equals the BURN it spends (BURN_DPS x BURN_TIME = 30), so ★1 adds nothing; accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)`;
         expect([none, d[0]], why).toEqual([TRIP_Q1[k], TRIP_Q1[k]]);
         expect([effectAt("quench", 1).gate?.quench?.perBurn, BURN_DPS * BURN_TIME], `${why}: the recorded finding, ★1's pay per BURN is a BURN's own damage`).toEqual([30, 30]);
         continue;

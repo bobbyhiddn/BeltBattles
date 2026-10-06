@@ -186,9 +186,11 @@ describe("P13: BRAKE SHOE (Y7b2, the flip: a pure speed rig at every star, no fl
       // that regenerates, but Y7b2's brief allows no rule or number change beyond the flip and the fuse rule (the walk feeds the
       // bots' rating), so it stays a tripwire and goes to cap. With the flip's 30% belt at ★3 it now shows in the time too
       // (battle 6.2833 s, walk 6.3333 s: 3 ticks, just past the time check's 0.05), so the pin holds both, at every star
-      if (RULES_VERSION === "bb-0.9.3") {
+      // Z-BUMP (REQ-BFG-073; the bump to bb-0.9.7, cap's call on Y7B2-Q3: re-rule, fix none): re-keyed bb-0.9.3 -> bb-0.9.7,
+      // the pairs measured at Z-BUMP's tip. accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)
+      if (RULES_VERSION === "bb-0.9.7") {
         const pin: Record<number, [number, number, number, number]> = { 1: [94, 95, 4.1667, 4.2], 2: [105, 105, 4.9667, 5], 3: [122, 122, 6.2833, 6.3333] };
-        expect([f.dmg, w.dmg, +f.time.toFixed(4), +w.time.toFixed(4)], `BAL-2 tripwire (cap's oracles 42da94243f43feef, d306b1b196dbab38), re-keyed at Y7b2: BRAKE SHOE ★${s}'s damage at load and stamp-to-chamber time, battle vs walk, pinned under bb-0.9.3; resolve the walk's ride gap at its source, for every ride-based estimate, before the next rules version`).toEqual(pin[s]);
+        expect([f.dmg, w.dmg, +f.time.toFixed(4), +w.time.toFixed(4)], `BAL-2 tripwire (cap's oracles 42da94243f43feef, d306b1b196dbab38), re-keyed at Y7b2: BRAKE SHOE ★${s}'s damage at load and stamp-to-chamber time, battle vs walk, pinned under bb-0.9.7 (re-ruled at Z-BUMP); accepted for bb-0.9.7; the star-ladder pass fixes it (cap, Z-BUMP)`).toEqual(pin[s]);
         continue;
       }
       expect(f.time, `★${s}: stamp to chamber`).toBeCloseTo(w.time, 1);
