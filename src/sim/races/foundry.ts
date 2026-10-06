@@ -48,6 +48,10 @@ export function fuse(a: Payload, b: Payload): void {
   a.mult = 1;
   a.ride = Math.max(a.ride, b.ride);
   a.burn += b.burn;
+  // Y7b2 (release Y; REVIEW-Y6 section 4; BRIEF-Y7B2 step 2): VENOM DRIP's seconds add up, as on one belt (Battle.applyHit:
+  // two VENOMs on one slug sum), so every VENOM that hit either blank counts, whichever fuses first. Was: `a` kept its own
+  // and `b`'s was dropped, so belt B's VENOM counted only when belt A's blank fused second
+  if (b.burnPlus) a.burnPlus = (a.burnPlus ?? 0) + b.burnPlus;
   a.shock = a.shock || b.shock;
   a.prior = Math.max(a.prior, b.prior);
   a.copy = a.copy || b.copy;
