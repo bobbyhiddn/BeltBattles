@@ -7,7 +7,8 @@
 //   def (the same object as off): the sim, the rating, the ⓘ sentences and the timeline as off; each face states both parts
 //   on one line.
 // - Y7A-R4 / R5, the numbers on: DRAKE NOZZLE flatPerBurn 38 / 27 / 19, COUNTERWEIGHT perTile.each 2 / 5 / 7, VENOM DRIP
-//   burnPlus 2 / 3 / 5 s (guarded).
+//   burnPlus 2 / 3 / 5 s (guarded). The bench's guards (BRIEF-Y7B1 B1): VENOM's uptake on read 9.0% (< 12.0%), so it is back
+//   at Y6's 3 / 6 / 9 s.
 // - Y7A-R2, EXT. CHAMBER (text only): the rule stays (perShot 2 / 3 / 4, a shot fires at most what the chamber holds); with
 //   the switch on its face is true for every gun and star: ★1 FIRES 2 (exact), ★2/★3 UP TO 3 / UP TO 4; its ⓘ says why.
 import { describe, expect, it } from "vitest";
@@ -140,13 +141,15 @@ describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read thei
     expect(levels("counterweight", 2)).toEqual(["+2/[+5]/+7 {DMG} EACH", next(3, "+7 {DMG} EACH")]);
     expect(on(() => gist("counterweight", 1))).toBe("2 DAMAGE FOR EACH TILE");
   });
-  it("VENOM DRIP (Y7A-R5, guarded): burnPlus 2 / 3 / 5 s on (Y6's 3 / 6 / 9); its face, ⓘ ladder, sentences and timeline say them; off, 0.9.2's poison 2 / 4 / 7", () => {
-    expect(on(() => STARS.map((s) => effectAt("venom", s).gate))).toEqual([2, 3, 5].map((burnPlus) => ({ burnPlus })));
+  // the guard (BRIEF-Y7B1 B1): at 2 / 3 / 5 s VENOM's uptake on read 9.0% (43 of 480 deck-days), under 12.0% (a third of
+  // Y7a's off 36.0%), so it is back at Y6's 3 / 6 / 9 s (the 2 / 3 / 5 commit's re-pins reverted with it)
+  it("VENOM DRIP (Y7A-R5, its uptake guard): burnPlus back at 3 / 6 / 9 s on; its face, ⓘ ladder, sentences and timeline say them; off, 0.9.2's poison 2 / 4 / 7", () => {
+    expect(on(() => STARS.map((s) => effectAt("venom", s).gate))).toEqual([3, 6, 9].map((burnPlus) => ({ burnPlus })));
     expect(STARS.map((s) => effectAt("venom", s).gate)).toEqual([2, 4, 7].map((poison) => ({ poison })));
-    expect(lines("venom")).toEqual([2, 3, 5].map((n) => [`HIT: ITS {*BURN} LASTS +${n}{SEC}.`]));
-    expect(levels("venom", 1)).toEqual(["[+2]/+3/+5{SEC}", next(2, "+3{SEC}")]);
-    expect(on(() => abilityText("venom", 3).sentences[0])).toBe("EACH BURN ON THE PAYLOADS IT HITS LASTS 5 SECONDS LONGER.");
-    expect(on(() => hitText({ def: "venom", stars: 2 } as TimelineHit, "free"))).toBe("VENOM DRIP: ITS BURN LASTS +3 SEC");
+    expect(lines("venom")).toEqual([3, 6, 9].map((n) => [`HIT: ITS {*BURN} LASTS +${n}{SEC}.`]));
+    expect(levels("venom", 1)).toEqual(["[+3]/+6/+9{SEC}", next(2, "+6{SEC}")]);
+    expect(on(() => abilityText("venom", 3).sentences[0])).toBe("EACH BURN ON THE PAYLOADS IT HITS LASTS 9 SECONDS LONGER.");
+    expect(on(() => hitText({ def: "venom", stars: 2 } as TimelineHit, "free"))).toBe("VENOM DRIP: ITS BURN LASTS +6 SEC");
   });
 });
 
