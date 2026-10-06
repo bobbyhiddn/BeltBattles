@@ -6,6 +6,7 @@ import type { Arena } from "../game/arena";
 import type { BattleLayout } from "../game/battleLayout";
 import type { DayResult } from "../game/run";
 import { record, refundCardLine } from "../game/day";
+import { lastChanceCardLine } from "../game/day"; // LC-1 (REQ-BFG-073)
 import { SOURCE_OFFLINE, SOURCE_ONLINE } from "../game/session";
 import { settings } from "../core/settings";
 import { START_LIVES, WIND_START } from "../sim/content";
@@ -210,12 +211,17 @@ export function hudRects(L: BattleLayout): { plates: [Rect, Rect]; bar: Rect } {
 
 /** Lives as hearts at a 6 px pitch; `lost` (>= 0) marks the heart just lost: it stays empty and
  *  flashes a white rim for a moment (no flash with Reduced Motion). */
-export function drawHearts(g: G, x: number, y: number, lives: number, t = 0, lost = -1): number {
+export function drawHearts(g: G, x: number, y: number, lives: number, t = 0, lost = -1, gained = -1): number {
   for (let i = 0; i < START_LIVES; i++) {
     const hx = x + i * 6;
     if (i === lost) {
       rect(g, hx - 1, y - 1, 7, 7, C.red);
       if (!settings.reducedMotion && t < 1.4 && Math.floor(t * 6) % 2 === 0) rect(g, hx - 1, y - 1, 7, 7, C.white);
+    }
+    // LC-1 (REQ-BFG-073): the heart LAST CHANCE gave back, lit lime (blinking white at first, as a lost one blinks)
+    if (i === gained) {
+      rect(g, hx - 1, y - 1, 7, 7, C.lime);
+      if (!settings.reducedMotion && t < 1.4 && Math.floor(t * 6) % 2 === 1) rect(g, hx - 1, y - 1, 7, 7, C.white);
     }
     g.drawImage(heartIcon(i < lives), hx, y);
   }
@@ -270,6 +276,9 @@ export function resultCard(n: number, H: number): { h: number; pitch: number } {
   return { h, pitch: 6 };
 }
 
+/** LC-1 (REQ-BFG-073): how long the build screen's bar lights the heart LAST CHANCE gave back (seconds). */
+export const LC_HEART_S = 4;
+
 /** Dusk result card: WIN, LOSS (-1 LIFE) or DRAW; the fight's numbers; income; then the next DAWN. */
 export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: string, onNext: () => void): void {
   const { W, H, ui } = game;
@@ -295,7 +304,9 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   // EARLY-LOSS REFUND: the hearts are the lives after this dusk (the refund comes at the dawn the card leads to)
   const hx = x + 10;
   const after = run.lives - (r.refund ?? 0);
-  drawHearts(g, hx, yy + 42, after, pt, loss ? after : -1);
+  // LC-1 (REQ-BFG-073): a LAST CHANCE dusk's heart came straight back: lit lime, not lost (the line below says why)
+  const lc = !!r.lastChance;
+  drawHearts(g, hx, yy + 42, after, pt, loss && !lc ? after : -1, lc ? after - 1 : -1);
   if (loss) drawText(g, "-1 LIFE", hx + START_LIVES * 6 + 4, yy + 42, C.red, { font: "3", outline: C.ink });
   drawText(g, `W-L ${record(run)}`, x + w - 10, yy + 42, C.white, { font: "3", align: "right" });
   let ry = yy + 53;
@@ -310,7 +321,7 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   }
   drawText(g, `INCOME +${r.income}G`, x + 10, ry + 3, C.yellow);
   // 0.6.2 RULE EARLY-LOSS REFUND: said here too, on the card that leads to that dawn
-  const back = refundCardLine(r);
+  const back = refundCardLine(r) ?? lastChanceCardLine(r); // LC-1: "LAST CHANCE: +1 LIFE" (never both: day 2 v 5-9)
   if (back) drawText(g, back, x + w - 10, ry + 3, C.lime, { align: "right" });
   if (pt > 0.35) button(ui, g, "next", { x: x + 10, y: yy + h - 27, w: w - 20, h: 21 }, label, { primary: true, onTap: onNext });
 }

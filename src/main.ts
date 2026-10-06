@@ -28,6 +28,9 @@ import { onlineSession, resolveServerUrl, startOnline } from "./game/online";
 import { ReplayScreen } from "./screens/replay";
 import { currentName } from "./game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063) tooling
 import { runeGrants } from "./sim/runes"; // RUNES-1 (REQ-BFG-058) tooling
+import { setLastChance, type Boon } from "./sim/lastChance"; // LC-1 (REQ-BFG-073) tooling (shots): the switch, page-wide
+import { pendingLastChance, pendingRune, takeLastChance, takeRune, type Run } from "./game/run"; // LC-1 tooling
+import { finishDay, startDusk } from "./game/day"; // LC-1 tooling: the game's own day loop
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -133,6 +136,40 @@ game.start();
     addGhosts(ghosts);
     game.run = playOut(o);
     game.go(new SummaryScreen(game));
+  },
+  /** LC-1 (REQ-BFG-073) tooling (shots; scripts never call it in a default game): turns LAST CHANCE on for this page
+   *  (lastChance.ts setLastChance, the dev knob) and plays a run of `hero` through the game's own day loop (startDusk with no
+   *  ghost pool, finishDay with the scripted `results`; each dawn's rune is the first card, a LAST CHANCE before the last
+   *  one takes HULL), so LAST CHANCE fires on the last dusk ("LLLLL": day 5). Then: the build screen with the pick pending;
+   *  with `pick`, that card taken (and the next dawn's rune) and the regained heart lit; with `rest` too, those dusks played
+   *  and the run summary shown. `open`: the picker's opened card. */
+  openLastChance(o: { hero?: HeroId; seed?: number; results?: string; pick?: Boon; rest?: string; open?: number; heartT?: number } = {}): void {
+    setLastChance(true);
+    clearPool();
+    const run: Run = newRun(o.hero ?? "furnace", o.seed ?? 12345);
+    const zero = { shots: 0, damage: 0, firstShot: 0, idle: 0, turretTime: 0, maxQueue: 0, jams: 0, disrupted: 0, windTaken: 0, burnDealt: 0, payloadSum: 0, produced: 0, stalled: 0 };
+    const dawn = (pick: Boon): void => {
+      if (pendingLastChance(run)) takeLastChance(run, pick);
+      const r = pendingRune(run);
+      if (r) takeRune(run, r.ids[0]);
+    };
+    const dusk = (c: string): void => {
+      dawn("hull");
+      startDusk(run, []);
+      finishDay(run, c === "W" ? 0 : c === "L" ? 1 : -1, 20 + run.day, { ...zero }, { ...zero });
+    };
+    for (const c of o.results ?? "LLLLL") if (!run.over) dusk(c);
+    game.run = run;
+    if (o.pick) dawn(o.pick);
+    if (o.rest) {
+      for (const c of o.rest) if (!run.over) dusk(c);
+      game.go(new SummaryScreen(game));
+      return;
+    }
+    const s = new BuildScreen(game);
+    if (o.pick) s.lcHeartT = o.heartT ?? 0;
+    if (o.open !== undefined) s.lastChancePicker.open = o.open;
+    game.go(s);
   },
   /** 0.6.0b: the road fork at a day's dawn (matriarchBeatenOn for R3). */
   openFork(o: RunSpec & { matriarchBeatenOn?: number; bounty?: boolean; sabotage?: boolean } = {}, ghosts: GhostSpec[] = []): void {
