@@ -4,8 +4,12 @@
 // it held still at the board's own deck frame, so the board's tiles, taps and drags stay exactly where they were.
 // One deck sprite feeds the plate everywhere, and every canvas stays cached per hero (and facing, and heading): CUSTOM-2's
 // deck styles (REQ-BFG-072) key the same caches. Imports render modules and sim types only.
+// CUSTOM-2a (REQ-BFG-072): the plate takes a floor style. The default ("plate") keeps today's cache keys and pixels (the
+// deck sprite `hull:<hero>:<facing>`, the plate `plate:<hero>:<facing>`); a styled floor keys both with its id
+// (`hull:<hero>:<facing>:<floor>`, `plate:<hero>:<floor>:<facing>`), so a style never reuses the default's canvas.
 
 import type { HeroId } from "../sim/content";
+import type { FloorId } from "./styles";
 import type { G } from "./pixel";
 import { HULL_L, hullBox, type Box, type DeckFrame, type Facing } from "./frame";
 import { HULL_M, HullPainter, heroPalette, hullSprite } from "./hull";
@@ -25,10 +29,12 @@ export function plateBox(g: G, f: DeckFrame, out: Box = { x: 0, y: 0, w: 0, h: 0
   return out;
 }
 
-/** A hero's board plate for a facing: cut from its deck sprite (cached per hero and facing). */
-export function heroPlate(g: G, hero: HeroId, facing: Facing): Cv {
+/** A hero's board plate for a facing: cut from its deck sprite in floor style `floor` (cached per hero, floor and
+ *  facing; the default floor keeps today's keys). */
+export function heroPlate(g: G, hero: HeroId, facing: Facing, floor: FloorId = "plate"): Cv {
   const hp = new HullPainter(g, facing);
-  return boardPlate(hero, hullSprite(hero, facing), facing, (hx, hy, w, h) => hp.map(hx, hy, w, h), HULL_L);
+  const key = floor === "plate" ? hero : `${hero}:${floor}`;
+  return boardPlate(key, hullSprite(hero, facing, floor), facing, (hx, hy, w, h) => hp.map(hx, hy, w, h), HULL_L);
 }
 
 /** The carrier's pivot for deck frame `f` at rest: the hull box's centre (the board's centre). */
@@ -55,12 +61,12 @@ export function dimShip(g: G, hero: HeroId, px: number, py: number, deg: number,
   g.globalAlpha = 1;
 }
 
-/** A board plate with its shadow at `r` (rest-screen px; callers set any transform). */
-export function drawPlate(g: G, hero: HeroId, facing: Facing, r: Box): void {
+/** A board plate with its shadow at `r` (rest-screen px; callers set any transform), in floor style `floor`. */
+export function drawPlate(g: G, hero: HeroId, facing: Facing, r: Box, floor: FloorId = "plate"): void {
   g.globalAlpha = 0.3;
   g.drawImage(plateShade(r.w, r.h), r.x + 2, r.y + 3);
   g.globalAlpha = 1;
-  g.drawImage(heroPlate(g, hero, facing), r.x, r.y);
+  g.drawImage(heroPlate(g, hero, facing, floor), r.x, r.y);
 }
 
 /** Darken a board plate (a KO'd or lost carrier's). */
@@ -76,11 +82,11 @@ const still: Box = { x: 0, y: 0, w: 0, h: 0 };
 /** The still screens' carrier (build screen, summary): the ship at heading 0 under the board plate at deck frame `f`.
  *  The caller draws the machinery and turrets on top at the same frame, as it drew them on the tracked hull. `dim`
  *  darkens the ship (a lost run's wreck; dimStillPlate darkens the board over its machinery afterwards). */
-export function drawStillCarrier(g: G, hero: HeroId, f: DeckFrame, dim = 0): void {
+export function drawStillCarrier(g: G, hero: HeroId, f: DeckFrame, dim = 0, floor: FloorId = "plate"): void {
   const [px, py] = pivotOf(f);
   drawShip(g, hero, Math.round(px), Math.round(py), 0, 0);
   dimShip(g, hero, Math.round(px), Math.round(py), 0, dim);
-  drawPlate(g, hero, f.facing, plateBox(g, f, still));
+  drawPlate(g, hero, f.facing, plateBox(g, f, still), floor);
 }
 
 /** Darken the still carrier's board (the summary's lost run), over its machinery and turrets. */

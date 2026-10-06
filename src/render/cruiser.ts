@@ -13,6 +13,7 @@ import { speedLocked } from "../sim/races/metronome"; // races: METRONOME belts 
 import { C } from "./palette";
 import type { G } from "./pixel";
 import { TURRET_LY, sx, sy, turnX, turnY, type DeckFrame } from "./frame";
+import type { Skin } from "./styles"; // CUSTOM-2a (REQ-BFG-072): a board's styles (CruiserView.skin)
 import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./turret";
 import { RACE_PIP, isArtRace, isRaceAmmo, pipColumn, raceTurretLook } from "./raceArt"; // 0.8.0 H1: FOUNDRY's and BASTION's art
 import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): TURRET SPEED on the starting turrets
@@ -153,6 +154,9 @@ export interface CruiserView {
   ghost?: { factory: number; cells: number[]; connected: boolean; join?: number; refused?: { cell: number; reason: string } } | null;
   hideRoute?: number;
   hideItem?: number;
+  /** CUSTOM-2a (REQ-BFG-072, R11): this board's styles, set explicitly by the screen (the player's side: the profile's
+   *  chosen styles); absent: the defaults (today's look: the title's attract fight, every foe). */
+  skin?: Skin;
 }
 
 // CUSTOM-2a (REVIEW-MOTION2 Q2): drawHull (the tracked hull with its treads, sprockets, hit rim and flash) and drawDim

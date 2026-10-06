@@ -18,6 +18,7 @@ import { drawText } from "../render/font";
 import { PIVOT_X, PLATE_HX, PLATE_W, foam } from "../render/carrier";
 import { dimPlate, dimShip, drawPlate, drawShip, plateBox } from "../render/ship";
 import { SEAS, SeaBackdrop } from "../render/backdrop";
+import { skinOf } from "../render/styles"; // CUSTOM-2a (REQ-BFG-072): each board's floor style (its view's skin)
 import {
   BANK_MAX_DEG, MOTION_KNOBS, MotionModel, MotionPerf, applyAffine, boardAffine, invertAffine, seaForDay,
   type Affine, type MotionOpts, type Pose, type SeaKind,
@@ -175,7 +176,7 @@ export class ArenaMotion implements ShotMap {
       g.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
       const f = a.drawn[s];
       const r = plateBox(g, f, this.pr);
-      drawPlate(g, v.model.hero, f.facing, r);
+      drawPlate(g, v.model.hero, f.facing, r, skinOf(v.skin).floor); // CUSTOM-2a: the plate cut with this board's floor
       if (v.flash && v.flash > 0.05 && !reduced) {
         rect(g, r.x, r.y, r.w, 1, C.white); rect(g, r.x, r.y + r.h - 1, r.w, 1, C.white);
         rect(g, r.x, r.y, 1, r.h, C.white); rect(g, r.x + r.w - 1, r.y, 1, r.h, C.white);

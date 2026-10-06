@@ -1,6 +1,7 @@
 // Build-phase commands shared by drag-and-drop, tap-to-place and the inspector buttons.
 // Every command validates first and only mutates the run when it succeeds.
 
+import type { Skin } from "../../render/styles"; // CUSTOM-2a (REQ-BFG-072)
 import type { Game } from "../../game/game";
 import {
   buyOffer, buyUpgrade, rotateRig, storeMod, storePlaced, sellInventory, takeFromInventory, type InvItem, type Run,
@@ -43,6 +44,9 @@ export interface Ctx {
   /** shoptap (D2): the last press was a finger or a pen: the panels offer SELL on the carrier's parts and say how to drag,
    *  and their buttons are a finger's targets. Absent or false: a mouse, the panels as before. */
   readonly touch?: boolean;
+  /** CUSTOM-2a (REQ-BFG-072, R11): the player's styles, which the build screen's part panel and its idle forms wear.
+   *  Absent: the defaults. */
+  readonly skin?: Skin;
 }
 
 export type Src =
