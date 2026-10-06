@@ -30,7 +30,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
  * switch off (its shipped value: the nine rows); with it on there, the first nine rows gave the same digest. Every row
  * carries this build's rules (bb-0.9.3) and the 201 rows their ghost ids, so the bump moves it (re-pinned there).
  */
-const PRE_FLIP_NINE = "c39396ca11cea614d66cd351b9305466d4055974e60f71997cd6dbb45c76ad18";
+// Z-BUMP (the bump): each of the nine rows' bytes carries this build's rules (now bb-0.9.7) and the 201 rows their
+// ghost ids, so the digest moved with the rules string; was c39396ca... under bb-0.9.3 (the flip commit, where it equals the
+// pre-flip build's own nine rows, flip-T3.md)
+const PRE_FLIP_NINE = "bb8341cb5d8178ecabb1c04d02ffefed8e21dcb7cd39ce5419fed0d237c8f080";
 
 describe("Z-PREP: the probe's LAST CHANCE rows", () => {
   it("the plan: the nine rows it had before the flip first (in order, byte for byte, none carries a lastChance), then the two LAST CHANCE rows; 5 decks are expected", () => {

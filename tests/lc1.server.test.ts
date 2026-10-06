@@ -78,7 +78,8 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
     expect(isSnapshot(s)).toBe(true);
     // written last, after the seed; a snapshot without one encodes as before
     expect(encodeSnapshot(s).endsWith(`"seed":${s.seed},"lastChance":{"day":5,"boon":"hull"}}`)).toBe(true);
-    expect(lastChanceGateProblem("bb-0.9.1")).toMatch(/^rules bb-0\.9\.1 predate bb-0\.9\.3: LAST CHANCE \(snapshot\.lastChance\) needs bb-0\.9\.3 or later$/);
+    expect(lastChanceGateProblem("bb-0.9.1")).toMatch(/^rules bb-0\.9\.1 predate bb-0\.9\.7: LAST CHANCE \(snapshot\.lastChance\) needs bb-0\.9\.7 or later$/); // Z-BUMP: the bump (LAST_CHANCE_RULES was RULES_VERSION, bb-0.9.3)
+    expect(lastChanceGateProblem("bb-0.9.3")).toMatch(/^rules bb-0\.9\.3 predate bb-0\.9\.7: LAST CHANCE \(snapshot\.lastChance\) needs bb-0\.9\.7 or later$/); // Z-BUMP: release Y's rules predate LAST CHANCE
     expect(lastChanceGateProblem("nope")).toMatch(/is not a bb-MAJOR\.MINOR\.PATCH version/);
     expect(() => checkSnapshot({ ...s, rules: "bb-0.9.1" })).toThrow(/snapshot\.(rules|lastChance)/);
     expect(() => checkSnapshot({ ...s, v: 2 })).toThrow(/not allowed in a v2 snapshot/);

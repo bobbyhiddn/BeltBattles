@@ -11,7 +11,7 @@
 //   unreachable-signed  that honest deck with a record no run carries: day 1, 0 wins, 1 life   -> 422, H2's record error
 //   hero-WEAVER, hero-FOUNDRY, hero-BASTION: each hero's honest day-3 reference deck (heroRefBuild) at 1 win and 5 lives,
 //                       a record a run carries into dusk 3 (records.ts isReachable)            -> 201 each
-//   hero-METRONOME, hero-SIPHON: the same, for the two heroes bb-0.9.3 does not take (FLIP-X2: release X adds no hero; BAL-2: nor does 0.9.1; Y7b2: nor does release Y). The game's encoder
+//   hero-METRONOME, hero-SIPHON: the same, for the two heroes bb-0.9.7 does not take (FLIP-X2: release X adds no hero; BAL-2: nor does 0.9.1; Y7b2: nor does release Y; Z-BUMP: nor does release Z). The game's encoder
 //                       refuses them, so their bytes are the canonical text built by hand     -> 400, the strict decode's
 //                       hero gate naming bb-0.8.3 and the hero
 // Z-PREP (REQ-BFG-073; LC-1 REPORT 9.3), two more rows, under PROBE_RULES with LAST CHANCE (Z-BUMP: the switch is gone;
@@ -27,7 +27,7 @@
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
 // It prints one line per check (PASS or FAIL, name, expected, got), then the player id, then a summary with the number of
 // decks the server stored for this player. Exit 0 only if every check matched; 1 if a check failed or got no answer; 2
-// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.9.3. There is no secret
+// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is bb-0.9.7. There is no secret
 // to print: the key is non-extractable, and neither the public key nor a signature is printed. No network but the base
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
@@ -40,8 +40,10 @@ import { botTakeRune } from "../src/sim/runes"; // FLIP-X2 (cap's ruling 5d6d83e
 import { LAST_CHANCE_HULL } from "../src/sim/lastChance"; // Z-PREP (REQ-BFG-073): the flip's two rows
 import { lastChanceGateProblem } from "../src/net/rulesGate"; // Z-BUMP (REQ-BFG-073): the two rows by PROBE_RULES, through the rules gate
 
-/** The rules this probe's expectations are written for: release Y's (bb-0.9.3, Y7b2's bump; BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
-export const PROBE_RULES = "bb-0.9.3"; // Y7b2: the bump (was bb-0.9.1; BAL-2: was bb-0.9.0)
+/** The rules this probe's expectations are written for: release Z's (bb-0.9.7, Z-BUMP's bump, with LAST CHANCE's two rows;
+ *  release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and
+ *  0.8.0's bb-0.8.0 before, the same heroes). */
+export const PROBE_RULES = "bb-0.9.7"; // Z-BUMP (REQ-BFG-073): the bump (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 /** FLIP-X2 (cap's ruling 5d6d83ef57d1494c): under bb-0.9.0 an upload holds exactly one rune a dawn (validateUpload's
  *  player mode). The probe's honest decks take theirs as the bots do (runes.ts botTakeRune at each dawn on this run seed:
  *  the grants on the build, every pick in its dawn's offer), and the snapshot carries the seed (v3), so the server
@@ -55,9 +57,9 @@ export function probeRunes(build: GhostSnapshot["build"], day: number): GhostSna
   }
   return b;
 }
-/** The heroes bb-0.9.3 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
+/** The heroes bb-0.9.7 takes, as its hero gate names them (rulesGate.ts RULES_HEROES), written out. */
 export const PROBE_ACCEPTED = "FURNACE, WEAVER, FOUNDRY, BASTION";
-/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.9.3 refuses (400), in posting order. */
+/** After FURNACE: the heroes whose honest decks must be stored (201), then those bb-0.9.7 refuses (400), in posting order. */
 export const STORED_HEROES: readonly HeroId[] = ["weaver", "foundry", "bastion"];
 export const REFUSED_HEROES: readonly HeroId[] = ["metronome", "siphon"];
 /** The hero rows' dusk: day 3 at 1 win and 5 lives, a record a run carries into dusk 3. */
@@ -86,7 +88,7 @@ export const recordError = (d: { day: number; wins: number; lives: number }): st
 /** Z-PREP (REQ-BFG-073): the same answer for an upload that carries a LAST CHANCE (server/app.ts, POST step 6). */
 export const lcRecordError = (d: { day: number; wins: number; lives: number }, lcDay: number): string =>
   `${recordError(d)} after a LAST CHANCE on day ${lcDay}`;
-/** The strict decode's answer to a hero bb-0.9.3 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
+/** The strict decode's answer to a hero bb-0.9.7 does not take (snapshot.ts checkSnapshot, rulesGate.ts heroGateProblem). */
 export const heroError = (hero: HeroId): string => `snapshot.hero: rules ${PROBE_RULES} accept only ${PROBE_ACCEPTED}, not ${hero.toUpperCase()}`;
 
 export interface ProbeAnswer {

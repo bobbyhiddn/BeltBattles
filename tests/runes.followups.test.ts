@@ -4,6 +4,7 @@
 // form, YOUR TURRETS AND FACTORIES: +N% RATE.
 import { describe, expect, it } from "vitest";
 import { RULES_ROWS, RUNES_RULES, TURRETS_JOINS_RULES, rulesGateProblem, runeFeatures } from "../src/net/rulesGate";
+import { LAST_CHANCE_RULES, lastChanceGateProblem } from "../src/net/rulesGate"; // Z-BUMP: LAST CHANCE's row
 import { SUSTAIN_RULES } from "../src/net/rulesGate"; // FLIP-X2: the third row, bb-0.9.0
 import { FURNACE_RUNES_RULES, furnaceRuneFeatures } from "../src/net/rulesGate"; // BAL-2: the fourth row, bb-0.9.1
 import { rulesAtLeast } from "../src/net/rulesGate"; // Y7b2: bb-0.9.3 adds no row, so this build's rules are at or after every row
@@ -39,8 +40,14 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     // BAL-2 (the bump to bb-0.9.1): this build's rules are FURNACE_RUNES_RULES, the fourth row after the sustain row (was
     // RULES_VERSION === SUSTAIN_RULES and three rows); the runes and sustain rows are unchanged.
     // Y7b2 (the bump to bb-0.9.3): release Y adds no id (it changes the rules of pieces bb-0.9.1 already carries), so the
-    // gate gains no row: this build's rules are bb-0.9.3, at or after every row (was RULES_VERSION === FURNACE_RUNES_RULES)
-    expect(RULES_VERSION).toBe("bb-0.9.3");
+    // gate gains no row: this build's rules are bb-0.9.3, at or after every row (was RULES_VERSION === FURNACE_RUNES_RULES).
+    // Z-BUMP (the bump to bb-0.9.7; REQ-BFG-073): RULES_ROWS gains no row either. LAST CHANCE's row gates a snapshot field
+    // (snapshot.lastChance), not a build feature, so it is rulesGate.ts lastChanceGateProblem with LAST_CHANCE_RULES, beside
+    // RULES_ROWS (checked below); this build's rules are bb-0.9.7, at or after every row and LAST_CHANCE_RULES
+    expect(RULES_VERSION).toBe("bb-0.9.7"); // Z-BUMP: the bump (was bb-0.9.3)
+    expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // Z-BUMP: LAST CHANCE's row, a literal
+    expect(lastChanceGateProblem(RULES_VERSION)).toBeNull();
+    expect(lastChanceGateProblem("bb-0.9.3")).toBe("rules bb-0.9.3 predate bb-0.9.7: LAST CHANCE (snapshot.lastChance) needs bb-0.9.7 or later");
     expect(RULES_ROWS.every((r) => rulesAtLeast(RULES_VERSION, r.from))).toBe(true);
     expect(FURNACE_RUNES_RULES).toBe("bb-0.9.1");
     expect(SUSTAIN_RULES).toBe("bb-0.9.0");
@@ -51,13 +58,15 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     expect(rulesGateProblem("bb-0.8.7", b)).toBeNull();
     expect(rulesGateProblem("bb-0.9.0", b)).toBeNull();
     expect(rulesGateProblem("bb-0.9.1", b)).toBeNull();
-    expect(rulesGateProblem("bb-0.9.3", b)).toBeNull(); // Y7b2: this build's rules
+    expect(rulesGateProblem("bb-0.9.3", b)).toBeNull(); // Y7b2: release Y's rules
+    expect(rulesGateProblem("bb-0.9.7", b)).toBeNull(); // Z-BUMP: this build's rules
     // BAL-2: the fourth row. A FURNACE rune needs bb-0.9.1 (dormant under bb-0.9.0, other effects before it); others don't
     for (const id of ["coal_chute", "heat_sink", "searing", "shatter_shot"]) {
       const f: Build = { ...heroStartBuild("furnace"), runes: [{ id: "iron_skin" }, { id }] };
       expect(furnaceRuneFeatures(f), id).toEqual(["FURNACE's runes (COAL CHUTE, HEAT SINK, SEARING, SHATTER SHOT)"]);
       expect(rulesGateProblem("bb-0.9.1", f), id).toBeNull();
-      expect(rulesGateProblem("bb-0.9.3", f), id).toBeNull(); // Y7b2: this build's rules
+      expect(rulesGateProblem("bb-0.9.3", f), id).toBeNull(); // Y7b2: release Y's rules
+      expect(rulesGateProblem("bb-0.9.7", f), id).toBeNull(); // Z-BUMP: this build's rules
       expect(rulesGateProblem("bb-0.9.0", f), id).toBe("rules bb-0.9.0 predate bb-0.9.1: FURNACE's runes (COAL CHUTE, HEAT SINK, SEARING, SHATTER SHOT) need bb-0.9.1 or later");
     }
     for (const none of [b, heroStartBuild("furnace"), null, 7, "x", { runes: "x" }, { runes: [{ id: 7 }] }]) expect(furnaceRuneFeatures(none)).toEqual([]);

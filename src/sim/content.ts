@@ -25,7 +25,12 @@ import { DORMANT_ITEMS, RACE_AMMO, RACE_HEROES, RACE_ITEMS, type RaceAmmoKind, t
 // Y7b1) are the game: the star switch is flipped for good, POISON is gone (VENOM DRIP lengthens BURN), FOUNDRY's fuse sums
 // burnPlus; every pool regenerated once with them. 0.9.2 shipped on bb-0.9.1, so the rules skip bb-0.9.2. Ghosts and records
 // made under bb-0.9.1 don't mix.
-export const RULES_VERSION = "bb-0.9.3";
+// bb-0.9.7 (release Z, job Z-BUMP; REQ-BFG-073): LAST CHANCE is the game (LC-1, Z-PREP; its switch deleted): once a run, a
+// dusk loss that leaves 1 life on days 1-9 gives the life back and one free pick of an epic rune, an epic rig, turret or
+// gear, or +500 max hull; and the bots' rating prices an overfed gun's jams (the overfeed patch, OVF-1); every pool
+// regenerated once with them. 0.9.4 and 0.9.5 shipped on bb-0.9.3, and the motion release takes 0.9.6 on bb-0.9.3, so the
+// rules skip to the release that first ships them (cap's call). Ghosts and records made under bb-0.9.3 don't mix.
+export const RULES_VERSION = "bb-0.9.7";
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player

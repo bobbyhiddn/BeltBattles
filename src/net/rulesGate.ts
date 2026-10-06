@@ -20,10 +20,14 @@
 // pieces bb-0.9.1 already carries (the star switch flipped, POISON gone, FOUNDRY's fuse), so there is no feature an older
 // rules version must refuse; the exact check (rules === RULES_VERSION) on every accepting path keeps bb-0.9.1's ghosts and
 // records out of bb-0.9.3's pools.
+// Z-BUMP (REQ-BFG-073, release Z's bump to bb-0.9.7): a fifth row, LAST CHANCE needs bb-0.9.7 (LAST_CHANCE_RULES): a
+// snapshot's `lastChance` (the run's taken card) is refused under older rules. It gates a snapshot field, not a build
+// feature, so its row is lastChanceGateProblem beside RULES_ROWS (LC-1 wrote it): the strict decoder, the client's snapshot
+// check, validateUpload given a snapshot's rules, the record model (records.ts: an older record has no LAST CHANCE) and the
+// ghost probe ask it. The switch it also read until the flip is gone.
 
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)
-import { RULES_VERSION } from "../sim/content"; // LC-1 (REQ-BFG-073): LAST_CHANCE_RULES until the bump writes it
 
 /** The first rules version with turret slots (Build.turrets, REQ-BFG-031) and belt joins (RouteDef.join, REQ-BFG-027). */
 export const TURRETS_JOINS_RULES = "bb-0.6.2";
@@ -146,13 +150,13 @@ export function furnaceRuneFeatures(build: unknown): string[] {
 }
 
 /**
- * LC-1 (REQ-BFG-073): the first rules version with LAST CHANCE (a snapshot's `lastChance`). THE ONE CONSTANT the bump sets:
- * until then it reads RULES_VERSION, so an honest snapshot under this build's rules passes; the bump writes its new version
- * here as a literal, after which every older rules version (bb-0.9.3 among them) is refused the field. Z-BUMP (the flip):
- * the switch is gone; every reader of a stored record asks this gate for the record's rules (the decoder, validateUpload,
- * the record model records.ts, ghosts:admin revalidate, the ghost probe).
+ * LC-1 (REQ-BFG-073): the first rules version with LAST CHANCE (a snapshot's `lastChance`): LAST CHANCE's row (Z-BUMP).
+ * Z-BUMP wrote it as a literal at the bump (it read RULES_VERSION until then), so it stays put at later bumps: every older
+ * rules version (bb-0.9.3 among them) is refused the field, and its records are read without LAST CHANCE. The switch is
+ * gone (the flip); every reader of a stored record asks this gate for the record's rules (the decoder, validateUpload, the
+ * record model records.ts, ghosts:admin revalidate, the ghost probe).
  */
-export const LAST_CHANCE_RULES: string = RULES_VERSION;
+export const LAST_CHANCE_RULES = "bb-0.9.7";
 
 /** Why a snapshot under `rules` can't carry a LAST CHANCE, or null: rules before LAST_CHANCE_RULES (or unreadable). The
  *  reason names both, as rulesGateProblem's do. (Z-BUMP: the switch-off line is gone with the switch.) */

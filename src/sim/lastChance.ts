@@ -75,7 +75,8 @@ export const LAST_CHANCE_PART_KINDS: readonly ItemKind[] = ["gate", "turret", "m
 
 /** The PART card's catalogue: the buyable catalogue's epic parts (content.ts buyableModules: sold by a merchant, priced,
  *  no supply, nothing dormant; switch-off pieces are not enumerable) of LAST_CHANCE_PART_KINDS, never a hero's own
- *  factory. ITEMS order. At bb-0.9.3: SPLITTER, SORTING ARM, EXT. CHAMBER, HAIL GUN, RAIL GUN, SIEGE GUN, PLATE BREAKER. */
+ *  factory. ITEMS order. At bb-0.9.7 (as at bb-0.9.3): SPLITTER, SORTING ARM, EXT. CHAMBER, HAIL GUN, RAIL GUN, SIEGE GUN,
+ *  PLATE BREAKER. */
 export function lastChanceParts(): ItemDef[] {
   return buyableModules().filter((d) => d.rarity === LAST_CHANCE_TIER && LAST_CHANCE_PART_KINDS.includes(d.kind) && !SIGNATURES.has(d.id));
 }
