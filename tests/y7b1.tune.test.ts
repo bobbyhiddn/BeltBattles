@@ -128,4 +128,11 @@ describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read thei
     expect(levels("drake", 2)).toEqual(["EACH 38/[27]/19", next(3, "EACH 19")]);
     expect(on(() => gist("drake", 3, { k: 1 }))).toBe("1 BURN FOR EVERY 19 DAMAGE");
   });
+  it("COUNTERWEIGHT (Y7A-R5): perTile.each 2 / 5 / 7 on, no cap (Y5's 5 / 11 / 18); its face and ⓘ ladder say them; off, 0.9.2's 5 / 11 / 18 up to 60 / 130 / 210", () => {
+    expect(on(() => STARS.map((s) => effectAt("counterweight", s).gate!.perTile))).toEqual([2, 5, 7].map((each) => ({ each })));
+    expect(STARS.map((s) => effectAt("counterweight", s).gate!.perTile)).toEqual([[5, 60], [11, 130], [18, 210]].map(([each, max]) => ({ each, max })));
+    expect(lines("counterweight")).toEqual([2, 5, 7].map((d) => [`HIT: +${d} {DMG} FOR EACH TILE RIDDEN.`]));
+    expect(levels("counterweight", 2)).toEqual(["+2/[+5]/+7 {DMG} EACH", next(3, "+7 {DMG} EACH")]);
+    expect(on(() => gist("counterweight", 1))).toBe("2 DAMAGE FOR EACH TILE");
+  });
 });
