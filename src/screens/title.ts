@@ -2,6 +2,8 @@
 // as the real fight, with New Run, Continue, a how-to-play card and the options menu.
 // intro (REQ-BFG-038): the title frames itself (titleLayout.ts): its own integer scale, so the two cruisers keep an
 // open floor of 17-20% of the firing axis between them on a portrait phone too, clear of the logo and the panel.
+// MOTION-2 (REQ-BFG-071, REVIEW-MOTION1 Q5): the attract fight sails in motion, as a battle does, over the three seas
+// in turn (CALM SEA, STORM, EMBER SEA, one per round).
 
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
@@ -26,8 +28,14 @@ import { EventScreen } from "./event/event";
 import { ForkScreen } from "./fork/fork";
 import { BattleScreen } from "./battle";
 import { VERSION } from "../version";
-import { MOTION, MOTION_BUILD } from "../render/motion"; // MOTION-1 (REQ-BFG-071): the prototype's tag
+import { MOTION, MOTION_KNOBS } from "../render/motion"; // MOTION-2 (REQ-BFG-071): the attract fight in motion
+import { ArenaMotion } from "../game/arenaMotion";
+import { minGap } from "../game/battleLayout";
+import { settings } from "../core/settings";
 import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
+
+/** MOTION-2: the attract fight's sea, round by round: a day of each setting (render/motion.ts seaForDay). */
+const ATTRACT_DAYS = [2, 5, 9];
 
 export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE)
   "1  SURVIVE 10 DAYS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.",
@@ -52,6 +60,8 @@ export class TitleScreen implements Screen {
   /** intro: the frame (titleLayout) and the buttons' size factor, the menu scale over this screen's (pickScale). */
   private L!: TitleLayout;
   private k = 1;
+  /** MOTION-2 (REQ-BFG-071): the attract fight in motion (null only with the test builds' ?motion=0 knob). */
+  motion: ArenaMotion | null = null;
 
   constructor(private game: Game) {
     this.newArena();
@@ -68,9 +78,12 @@ export class TitleScreen implements Screen {
   private newArena(): void {
     const heroes: HeroId[] = ["furnace", "weaver"];
     const me = heroes[this.n % 2], foe = heroes[(this.n + 1) % 2];
-    this.arena = new Arena(startingBuild(me, 1), warlordBuild(foe, 2 + (this.n % 4)), 1000 + this.n * 7919, null);
+    const seed = 1000 + this.n * 7919;
+    this.arena = new Arena(startingBuild(me, 1), warlordBuild(foe, 2 + (this.n % 4)), seed, null);
     this.arena.quiet = true;
     this.arena.b.sides[0].hull.hp += 60; // keep the attract fight going a while
+    // MOTION-2: the round's carriers and sea (display only: the display clock and PRNG, seeded like the round)
+    this.motion = !MOTION_KNOBS || MOTION.on ? new ArenaMotion(seed, ATTRACT_DAYS[this.n % ATTRACT_DAYS.length], MOTION, settings.reducedMotion) : null;
     this.n++;
     this.overT = 0;
     this.layoutKey = "";
@@ -92,6 +105,8 @@ export class TitleScreen implements Screen {
     this.L = titleLayout(W, H, portrait, !!this.save, this.k);
     this.arena.setFrames(this.L.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
     this.hulls = this.L.hulls;
+    // MOTION-2: the drifts never close the open floor below the battle's minimum (as in a battle)
+    this.motion?.setLanes({ portrait, gap: this.L.gap }, minGap(portrait ? H : W));
   }
 
   /** intro tooling (read only; scripts/introcheck.mjs): the title's frame as drawn, in logical px: its scale and the
@@ -110,6 +125,7 @@ export class TitleScreen implements Screen {
   update(dt: number): void {
     this.t += dt;
     this.place();
+    this.motion?.update(dt, settings.reducedMotion); // MOTION-2: the display clock (frame time; never the sim's)
     this.arena.update(dt);
     if (this.arena.b.over && (this.overT += dt) > 3.2) this.newArena();
   }
@@ -118,8 +134,16 @@ export class TitleScreen implements Screen {
     const { W, H, portrait, ui } = this.game;
     const game = this.game;
     this.place();
-    this.bg.draw(g, W, H, { hulls: this.hulls, vertical: portrait, gapLine: true }, this.t, this.arena.fx.shakeX, this.arena.fx.shakeY);
-    drawArena(g, this.arena, W, H);
+    const m = this.motion, a = this.arena;
+    if (m) {
+      // MOTION-2 (REQ-BFG-071): the round's sea, then the carriers, boards, shots and effects in motion
+      m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, game.view.scale, game.view.dpr, m.model.seed);
+      m.draw(g, a, W, H, settings.reducedMotion);
+    } else if (MOTION_KNOBS) {
+      // ?motion=0 (test builds only): 0.9.4's floor and tracked hulls
+      this.bg.draw(g, W, H, { hulls: this.hulls, vertical: portrait, gapLine: true }, this.t, a.fx.shakeX, a.fx.shakeY);
+      drawArena(g, a, W, H);
+    }
     g.globalAlpha = 0.45;
     rect(g, 0, 0, W, H, C.ink);
     g.globalAlpha = 1;
@@ -157,12 +181,6 @@ export class TitleScreen implements Screen {
     button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => this.gate(() => { this.menu = true; }) });
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
-    if (MOTION_BUILD) {
-      // MOTION-1 (REQ-BFG-071): the prototype page says so, so nobody mistakes it for the live game
-      const tag = MOTION.on ? "MOTION PROTOTYPE" : "MOTION PROTOTYPE · OFF";
-      rect(g, 2, H - 10, textWidth(tag, "3") + 5, 9, C.ink);
-      drawText(g, tag, 4, H - 8, C.amber, { font: "3" });
-    }
     if (this.help) this.drawHelp(g);
     if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k);
   }

@@ -8,8 +8,8 @@ import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
 import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
-import { ArenaMotion } from "../game/arenaMotion"; // MOTION-1 (REQ-BFG-071): battles in motion (VITE_MOTION builds)
-import { MOTION, MOTION_BUILD, MotionPerf } from "../render/motion";
+import { ArenaMotion, drawMotionPerf } from "../game/arenaMotion"; // MOTION-1 (REQ-BFG-071); MOTION-2: in every build
+import { MOTION, MOTION_KNOBS, MotionPerf } from "../render/motion";
 import { settings } from "../core/settings";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
@@ -41,6 +41,9 @@ export type SourceLine =
 
 type Phase = "intro" | "fight" | "outro" | "result";
 const INTRO = 1.2; // drive-in seconds
+/** MOTION-2 (REQ-BFG-071): how far past its hull box a carrier starts its sail-in (its bow reaches 18 px past the box, its
+ *  bow wave 3 more). */
+const SAIL_IN_PAD = 24;
 
 export class BattleScreen implements Screen {
   readonly arena: Arena;
@@ -71,13 +74,13 @@ export class BattleScreen implements Screen {
   private readonly note: string | null;
   readonly warlord: WarlordFight | null = null;
   private readonly wact: WarlordActions;
-  /** MOTION-1 (REQ-BFG-071; display only): the carriers in motion and the day's sea, in a VITE_MOTION=1 build unless
-   *  ?motion=0; null otherwise (the battle draws exactly as before). */
+  /** MOTION-1 (REQ-BFG-071; display only): the carriers in motion and the day's sea. MOTION-2: in every build; null only
+   *  with the test builds' ?motion=0 knob (the 0.9.4 floor and tracked hulls, for comparisons). */
   readonly motion: ArenaMotion | null = null;
-  /** The drive-in distances (px) each side starts at: today's, or (motion) far enough left to sail in from off screen. */
+  /** The drive-in distances (px) each side starts at: 0.9.4's, or (motion) far enough left to sail in from off screen. */
   private driveIn: [number, number] = [60, 260];
-  /** MOTION-1: the frame-time split with motion off (?motion=0&perf=1 in a motion build only; null otherwise). */
-  readonly offPerf: MotionPerf | null = MOTION_BUILD && !MOTION.on && MOTION.perf ? new MotionPerf() : null;
+  /** MOTION-1: the frame-time split with motion off (?motion=0&perf=1, test builds only; null otherwise). */
+  readonly offPerf: MotionPerf | null = MOTION_KNOBS && !MOTION.on && MOTION.perf ? new MotionPerf() : null;
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -111,7 +114,7 @@ export class BattleScreen implements Screen {
     };
     this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins);
     this.arena.off = [60, 260];
-    if (MOTION_BUILD && MOTION.on) this.motion = new ArenaMotion(this.seed, this.foe.day, MOTION, settings.reducedMotion);
+    if (!MOTION_KNOBS || MOTION.on) this.motion = new ArenaMotion(this.seed, this.foe.day, MOTION, settings.reducedMotion);
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -222,7 +225,8 @@ export class BattleScreen implements Screen {
       // left, and the curves fitted so the gap never closes below the layout's minimum
       this.L = laneLayout(this.L);
       this.motion.setLanes(this.L, minGap(portrait ? H : W));
-      this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + 12, this.L.hulls[1].x + this.L.hulls[1].w + 40];
+      // MOTION-2: + SAIL_IN_PAD, so the longer bow (render/carrier.ts) starts off screen too
+      this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + SAIL_IN_PAD, this.L.hulls[1].x + this.L.hulls[1].w + SAIL_IN_PAD + 28];
     }
     this.src = this.placeSource();
     this.arena.setFrames(this.L.frames, this.L.enter);
@@ -349,8 +353,8 @@ export class BattleScreen implements Screen {
       // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion
       m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
       m.draw(g, a, W, H, settings.reducedMotion);
-    } else if (this.offPerf) {
-      // MOTION-1 (?motion=0&perf=1 in a motion build): the motion-base look, timed (the floor, then all of drawArena)
+    } else if (MOTION_KNOBS && this.offPerf) {
+      // MOTION-1 (?motion=0&perf=1, test builds): the motion-base look, timed (the floor, then all of drawArena)
       const P = this.offPerf;
       const t0 = performance.now();
       this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
@@ -359,12 +363,13 @@ export class BattleScreen implements Screen {
       P.add(0, t1 - t0);
       P.add(5, performance.now() - t1);
       P.frame();
-    } else {
+    } else if (MOTION_KNOBS) {
+      // ?motion=0 (test builds only): 0.9.4's floor and tracked hulls, for comparisons; a player build never gets here
       this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
       drawArena(g, a, W, H);
     }
     this.drawHud(g);
-    if (m?.perf) m.drawPerf(g, this.game);
+    if (MOTION_KNOBS && m?.perf) drawMotionPerf(g, m, this.game); // ?perf=1 (test builds only)
     const run = this.game.run!;
     const cy = Math.round(H / 2);
     if (this.phase === "intro") {
@@ -486,9 +491,9 @@ export class BattleScreen implements Screen {
     };
   }
 
-  /** MOTION-1 (REQ-BFG-071; motion builds only, display only): a tap on a board tile lights it, through the inverse of
-   *  (carrier x board), and is remembered for the probe (scripts/motiontap.mjs). Without motion a battle has no taps
-   *  off the HUD, as before. */
+  /** MOTION-1 (REQ-BFG-071; display only): a tap on a board tile is hit-tested through the inverse of (carrier x board)
+   *  and remembered for the probe (scripts/motiontap.mjs). MOTION-2 (REVIEW-MOTION1 Q4): nothing is drawn for it, so a
+   *  player sees no change: a battle still does nothing on a tap off the HUD, as at 0.9.4. */
   down(x: number, y: number): void {
     if (!this.motion || this.menu || this.phase === "result") return;
     this.motion.tap(this.arena, x, y);

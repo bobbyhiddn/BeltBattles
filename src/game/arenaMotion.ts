@@ -1,23 +1,25 @@
-// MOTION-1 (REQ-BFG-071; a display-only prototype, VITE_MOTION builds only): the battle drawn in motion. The sea
-// (render/backdrop.ts) scrolls behind; each carrier (render/carrier.ts) sails right in its lane on its own clock
+// MOTION-1 (REQ-BFG-071) drew the battle in motion as a prototype; MOTION-2 ships it: the battle, the title's attract
+// fight and replays draw an Arena this way, and the hero preview draws one held still. The sea (render/backdrop.ts)
+// scrolls behind; each carrier (render/carrier.ts, drawn by render/ship.ts) sails right in its lane on its own clock
 // (render/motion.ts); each board rides on its carrier's gimbal: today's drawing code draws it at rest (its deck frame,
-// a.drawn), under the board's transform. Shots fly between the boards' current transforms; the arena's effects ride
-// with the board they belong to (Fx.anchor); taps hit-test through the inverse transform. The sim is never touched:
-// this reads the battle and the arena (as drawArena does) and writes nothing they read. docs/MOTION.md.
+// a.drawn), under the board's transform. Shots fly between the boards' current transforms; the arena's effects ride with
+// the board they belong to (Fx.anchor); a tap is hit-tested through the inverse transform (MOTION-2: nothing is drawn for
+// it; scripts/motiontap.mjs reads it). The sim is never touched: this reads the battle and the arena (as drawArena does)
+// and writes nothing they read. docs/MOTION.md.
 
 import type { Side } from "../sim/battle";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
-import { HULL_L, TILE, TILES, hullBox, localX, localY, sx, sy } from "../render/frame";
-import { HULL_M, HullPainter, heroPalette, hullSprite } from "../render/hull";
+import { TILE, TILES, hullBox, localX, localY, sx, sy, type Box } from "../render/frame";
 import { drawTurrets } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
 import { drawWind } from "../render/world";
 import { drawText } from "../render/font";
-import { PLATE_HX, PLATE_W, ROT_H, ROT_W, SHIP_L, boardPlate, foam, plateShade, shipShadow, shipSprite } from "../render/carrier";
+import { PIVOT_X, PLATE_HX, PLATE_W, foam } from "../render/carrier";
+import { dimPlate, dimShip, drawPlate, drawShip, plateBox } from "../render/ship";
 import { SEAS, SeaBackdrop } from "../render/backdrop";
 import {
-  BANK_MAX_DEG, MotionModel, MotionPerf, applyAffine, boardAffine, invertAffine, seaForDay,
+  BANK_MAX_DEG, MOTION_KNOBS, MotionModel, MotionPerf, applyAffine, boardAffine, invertAffine, seaForDay,
   type Affine, type MotionOpts, type Pose, type SeaKind,
 } from "../render/motion";
 import { CRACKS_25, CRACKS_50, cracks, drawShells, type ShotMap } from "./arenaDraw";
@@ -27,15 +29,13 @@ import type { BattleLayout } from "./battleLayout";
 const DEG = Math.PI / 180;
 /** The wake: samples (one every WAKE_DT s back in time) of where the stern was, carried off by the water. */
 const WAKE_N = 34, WAKE_DT = 0.1;
-/** A tile tapped on a board lights for this long (s), riding with its board. */
-export const PING_TIME = 0.6;
 
 export interface TileHit { side: Side; cx: number; cy: number }
 
 const now = (): number => (typeof performance !== "undefined" ? performance.now() : 0);
 
-/** The ?perf=1 overlay's ms readings (a dev tool, never player text): a non-negative number with 1 or 2 decimals.
- *  numbers.lint (NUM-4) keeps decimal formatting out of render code, so this is spelled out. */
+/** The ?perf=1 overlay's ms readings (a dev tool in test builds, never player text): a non-negative number with 1 or 2
+ *  decimals. numbers.lint (NUM-4) keeps decimal formatting out of render code, so this is spelled out. */
 function decimals(x: number, d: 1 | 2): string {
   const k = d === 1 ? 10 : 100;
   const r = Math.round(Math.max(0, x) * k);
@@ -59,26 +59,27 @@ export class ArenaMotion implements ShotMap {
   private readonly pose: Pose = { x: 0, y: 0, bank: 0, board: 0, gimbal: 0, bob: 0 };
   private readonly past: Pose = { x: 0, y: 0, bank: 0, board: 0, gimbal: 0, bob: 0 };
   private readonly tmp = [0, 0];
-  ping: (TileHit & { t: number }) | null = null;
-  /** Tooling (scripts/motiontap.mjs): the last tap that hit a board tile, with the clock then. */
+  private readonly pr: Box = { x: 0, y: 0, w: 0, h: 0 };
+  /** Tooling (scripts/motiontap.mjs, a test-only probe): the last tap that hit a board tile, with the clock then. MOTION-2
+   *  (REVIEW-MOTION1 Q4): a tap draws nothing; the hit test stays for the probe. */
   lastTap: (TileHit & { t: number; n: number }) | null = null;
   taps = 0;
 
-  constructor(seed: number, day: number, opts: MotionOpts, reduced: boolean) {
-    this.model = new MotionModel(seed, { sway: opts.sway, reduced });
+  /** `held` (MOTION-2, the hero preview): the ships stay still on a still sea. */
+  constructor(seed: number, day: number, opts: MotionOpts, reduced: boolean, held = false) {
+    this.model = new MotionModel(seed, { sway: opts.sway, reduced, held });
     this.kind = opts.sea ?? seaForDay(day);
-    this.perf = opts.perf ? new MotionPerf() : null;
+    this.perf = MOTION_KNOBS && opts.perf ? new MotionPerf() : null; // ?perf=1: test builds only
   }
 
   /** The lanes from the battle layout: the rest gap along the firing axis and its least. */
-  setLanes(L: BattleLayout, gapMin: number): void {
+  setLanes(L: Pick<BattleLayout, "portrait" | "gap">, gapMin: number): void {
     this.model.setLanes({ portrait: L.portrait, gapRest: L.gap, gapMin });
   }
 
   update(dt: number, reduced: boolean): void {
     this.model.reduced = reduced;
     this.model.advance(dt);
-    if (this.ping && (this.ping.t -= dt) <= 0) this.ping = null;
   }
 
   // ------------------------------------------------------------ transforms
@@ -125,22 +126,23 @@ export class ArenaMotion implements ShotMap {
     return [this.tmp[0], this.tmp[1]];
   }
 
-  /** A tap at (x, y): a board tile lights and is remembered (display only). */
+  /** A tap at (x, y): hit-tested and remembered for the probe. Display only, and nothing is drawn (REVIEW-MOTION1 Q4). */
   tap(a: Arena, x: number, y: number): TileHit | null {
     const h = this.hit(a, x, y);
     if (!h) return null;
-    this.ping = { ...h, t: PING_TIME };
     this.lastTap = { ...h, t: this.model.t, n: ++this.taps };
     return h;
   }
 
   // ------------------------------------------------------------ drawing
 
-  /** The sea, at the camera shake (as the floor was). */
+  /** The sea, at the camera shake (as the floor was); held still in a preview. */
   drawSea(g: G, W: number, H: number, ox: number, oy: number, scale: number, dpr: number, seed: number): void {
     const t0 = this.perf ? now() : 0;
     const m = this.model;
-    this.sea.draw(g, { W, H, kind: this.kind, dist: m.dist, t: m.t, reduced: m.reduced, seed, scale, dpr }, ox, oy);
+    const f = { W, H, kind: this.kind, dist: m.dist, t: m.t, reduced: m.reduced, seed, scale, dpr };
+    if (m.held) this.sea.drawStill(g, f);
+    else this.sea.draw(g, f, ox, oy);
     if (this.perf) this.perf.add(0, now() - t0);
   }
 
@@ -153,20 +155,12 @@ export class ArenaMotion implements ShotMap {
     // carriers: wake, shadow, hull (screen space; the pivot carries the shake)
     for (const s of [0, 1] as Side[]) {
       if (!a.show[s]) continue;
-      this.drawWake(g, s);
-      const key = a.views[s].model.hero, pal = heroPalette(key);
+      if (!this.model.held) this.drawWake(g, s);
+      const hero = a.views[s].model.hero;
       const deg = this.bankDrawn[s];
-      const px = this.pivot[s][0] - ROT_W / 2, py = this.pivot[s][1] - ROT_H / 2;
-      const bob = Math.round(this.model.pose(s, this.model.t, this.pose).bob);
-      g.globalAlpha = 0.35;
-      g.drawImage(shipShadow(key, pal, deg), px + 2, py + 3 + bob);
-      g.globalAlpha = 1;
-      g.drawImage(shipSprite(key, pal, deg), px, py);
-      if (a.loser === s && a.koT > 0.35) {
-        g.globalAlpha = Math.min(0.62, (a.koT - 0.35) * 1.1);
-        g.drawImage(shipShadow(key, pal, deg), px, py);
-        g.globalAlpha = 1;
-      }
+      const px = this.pivot[s][0], py = this.pivot[s][1];
+      drawShip(g, hero, px, py, deg, Math.round(this.model.pose(s, this.model.t, this.pose).bob));
+      if (a.loser === s && a.koT > 0.35) dimShip(g, hero, px, py, deg, Math.min(0.62, (a.koT - 0.35) * 1.1));
     }
     if (P) { const t1 = now(); P.add(1, t1 - t0); t0 = t1; }
     // boards, each under its gimbal's transform: today's drawing code, at rest
@@ -180,17 +174,11 @@ export class ArenaMotion implements ShotMap {
       g.save();
       g.setTransform(A.a, A.b, A.c, A.d, A.e, A.f);
       const f = a.drawn[s];
-      const hb = hullBox(f);
-      const hp = new HullPainter(g, f.facing);
-      const [mx, my, pw, ph] = hp.map(PLATE_HX, 0, PLATE_W, HULL_L);
-      const plx = hb.x + mx - HULL_M, ply = hb.y + my - HULL_M;
-      g.globalAlpha = 0.3;
-      g.drawImage(plateShade(pw, ph), plx + 2, ply + 3);
-      g.globalAlpha = 1;
-      g.drawImage(boardPlate(v.model.hero, hullSprite(v.model.hero, f.facing), f.facing, (hx, hy, w, h) => hp.map(hx, hy, w, h), HULL_L), plx, ply);
+      const r = plateBox(g, f, this.pr);
+      drawPlate(g, v.model.hero, f.facing, r);
       if (v.flash && v.flash > 0.05 && !reduced) {
-        rect(g, plx, ply, pw, 1, C.white); rect(g, plx, ply + ph - 1, pw, 1, C.white);
-        rect(g, plx, ply, 1, ph, C.white); rect(g, plx + pw - 1, ply, 1, ph, C.white);
+        rect(g, r.x, r.y, r.w, 1, C.white); rect(g, r.x, r.y + r.h - 1, r.w, 1, C.white);
+        rect(g, r.x, r.y, 1, r.h, C.white); rect(g, r.x + r.w - 1, r.y, 1, r.h, C.white);
       }
       a.fx.drawDecals(g, 0, 0, s);
       const hpct = b.sides[s].hull.hp / b.sides[s].hull.max;
@@ -198,23 +186,11 @@ export class ArenaMotion implements ShotMap {
       if (hpct < 0.25) cracks(g, f, CRACKS_25, PLATE_HX, PLATE_HX + PLATE_W);
       drawMachinery(g, v);
       drawTurrets(g, v);
-      if (a.loser === v.side && a.koT > 0.35) {
-        g.globalAlpha = Math.min(0.62, (a.koT - 0.35) * 1.1);
-        g.drawImage(plateShade(pw, ph), plx, ply);
-        g.globalAlpha = 1;
-      }
+      if (a.loser === v.side && a.koT > 0.35) dimPlate(g, r, Math.min(0.62, (a.koT - 0.35) * 1.1));
       for (const charge of b.sides[s].limpets) {
         const x = Math.round(sx(f, charge.target.x, charge.target.y)), y = Math.round(sy(f, charge.target.x, charge.target.y));
         const blink = Math.floor(a.clock * 8) % 2 === 0 ? C.fire4 : C.red;
         rect(g, x - 2, y - 2, 5, 5, C.ink); rect(g, x - 1, y - 1, 3, 3, blink);
-      }
-      const pg = this.ping;
-      if (pg && pg.side === s) {
-        const lx = pg.cx * TILE, ly = pg.cy * TILE;
-        const x0 = Math.min(sx(f, lx, ly), sx(f, lx + TILE, ly + TILE)), y0 = Math.min(sy(f, lx, ly), sy(f, lx + TILE, ly + TILE));
-        const col = Math.floor(pg.t * 10) % 2 && !reduced ? C.white : C.yellow;
-        rect(g, x0, y0, TILE, 1, col); rect(g, x0, y0 + TILE - 1, TILE, 1, col);
-        rect(g, x0, y0, 1, TILE, col); rect(g, x0 + TILE - 1, y0, 1, TILE, col);
       }
       g.restore();
     }
@@ -250,34 +226,12 @@ export class ArenaMotion implements ShotMap {
     if (P) { P.add(4, now() - t0); P.frame(); }
   }
 
-  /** ?perf=1: the frame-time overlay (the rAF interval's median and p95 over the last 120 frames, and this layer split). */
-  drawPerf(g: G, game: { perfGap: Float32Array; perfN: number }): void {
-    const P = this.perf;
-    if (!P) return;
-    const n = Math.min(120, game.perfN, game.perfGap.length);
-    const a: number[] = [];
-    for (let k = 1; k <= n; k++) a.push(game.perfGap[(game.perfN - k) % game.perfGap.length]);
-    a.sort((x, y) => x - y);
-    const q = (p: number) => (a.length ? a[Math.min(a.length - 1, Math.ceil(p * a.length) - 1)] : 0);
-    const s = P.mean(120);
-    const f = (x: number) => decimals(x, 2);
-    const lines = [
-      `FRAME P50 ${decimals(q(0.5), 1)} P95 ${decimals(q(0.95), 1)} MS`,
-      `BG ${f(s.backdrop)} HULL ${f(s.hulls)} BOARD ${f(s.boards)}`,
-      `SHOT ${f(s.shots)} FX ${f(s.effects)} SEA ${this.kind.toUpperCase()}`,
-    ];
-    g.globalAlpha = 0.8;
-    rect(g, 1, 1, 128, 22, C.ink);
-    g.globalAlpha = 1;
-    lines.forEach((ln, i) => drawText(g, ln, 3, 3 + i * 7, i ? C.bone : C.yellow, { font: "3" }));
-  }
-
   /** The wake: where the stern was over the last few seconds, carried off left by the water, spreading and fading. */
   private drawWake(g: G, s: Side): void {
     const m = this.model;
     const look = SEAS[this.kind];
     const v = look.speeds[2] * m.scrollFactor(); // the water's speed past the hull (the near layer's)
-    const sternX = -SHIP_L / 2 + 3;
+    const sternX = -PIVOT_X + 3;
     const cx = this.pivot[s][0] - Math.round(m.pose(s, m.t, this.past).x), cy = this.pivot[s][1] - Math.round(this.past.y);
     for (let k = 1; k <= WAKE_N; k++) {
       const tau = k * WAKE_DT;
@@ -296,4 +250,27 @@ export class ArenaMotion implements ShotMap {
       }
     }
   }
+}
+
+/** ?perf=1 (test builds only; MOTION-2 keeps it out of the player bundle): the frame-time overlay (the rAF interval's
+ *  median and p95 over the last 120 frames, and the motion's layer split). */
+export function drawMotionPerf(g: G, m: ArenaMotion, game: { perfGap: Float32Array; perfN: number }): void {
+  const P = m.perf;
+  if (!P) return;
+  const n = Math.min(120, game.perfN, game.perfGap.length);
+  const a: number[] = [];
+  for (let k = 1; k <= n; k++) a.push(game.perfGap[(game.perfN - k) % game.perfGap.length]);
+  a.sort((x, y) => x - y);
+  const q = (p: number) => (a.length ? a[Math.min(a.length - 1, Math.ceil(p * a.length) - 1)] : 0);
+  const s = P.mean(120);
+  const f = (x: number) => decimals(x, 2);
+  const lines = [
+    `FRAME P50 ${decimals(q(0.5), 1)} P95 ${decimals(q(0.95), 1)} MS`,
+    `BG ${f(s.backdrop)} HULL ${f(s.hulls)} BOARD ${f(s.boards)}`,
+    `SHOT ${f(s.shots)} FX ${f(s.effects)} SEA ${m.kind.toUpperCase()}`,
+  ];
+  g.globalAlpha = 0.8;
+  rect(g, 1, 1, 128, 22, C.ink);
+  g.globalAlpha = 1;
+  lines.forEach((ln, i) => drawText(g, ln, 3, 3 + i * 7, i ? C.bone : C.yellow, { font: "3" }));
 }

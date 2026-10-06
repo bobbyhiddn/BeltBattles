@@ -1,4 +1,4 @@
-// MOTION-1 (REQ-BFG-071; prototype, VITE_MOTION builds only): three code-drawn seas in the game's pixel style, chosen
+// MOTION-1 (REQ-BFG-071; MOTION-2 ships it in every build): three code-drawn seas in the game's pixel style, chosen
 // by day (motion.ts seaForDay): CALM SEA (days 1-3), STORM (4-7) and EMBER SEA (8-10). Each is a stack of parallax
 // layers that scroll right to left, far layers slow and near layers fast: the scroll is what shows the carriers' speed
 // (they stay roughly in place). Every layer is pre-rendered once into a cached canvas as wide as the screen and blitted
@@ -133,11 +133,14 @@ export interface SeaFrame {
   dpr: number;
 }
 
-/** The sea behind a battle: three cached parallax layers and a vignette, plus STORM's rain. */
+/** The sea behind a battle: three cached parallax layers and a vignette, plus STORM's rain. MOTION-2: the still screens
+ *  (build, summary, hero preview) draw it held still, flattened into one cached canvas: one blit a frame. */
 export class SeaBackdrop {
   private key = "";
   private layers: Cv[] = [];
   private vig: Cv | null = null;
+  private flat: Cv | null = null;
+  private flatKey = "";
   /** Cache rebuilds so far (tooling: a resize, a setting change or a DPR change makes one). */
   builds = 0;
 
@@ -150,6 +153,20 @@ export class SeaBackdrop {
     this.layers = [farLayer(f.W, f.H, s, rnd), midLayer(f.W, f.H, s, rnd), nearLayer(f.W, f.H, s, rnd)];
     this.vig = vignette(f.W, f.H);
     this.builds++;
+  }
+
+  /** MOTION-2: the sea held still (no scroll, no rain, no brightening), flattened once per key into one canvas and
+   *  blitted once a frame: the still screens' backdrop costs one blit. */
+  drawStill(g: G, f: SeaFrame): void {
+    this.build(f);
+    if (this.flatKey !== this.key || !this.flat) {
+      const [c, cg] = makeCanvas(f.W, f.H);
+      for (const l of this.layers) cg.drawImage(l, 0, 0);
+      cg.drawImage(this.vig!, 0, 0);
+      this.flat = c;
+      this.flatKey = this.key;
+    }
+    g.drawImage(this.flat, 0, 0);
   }
 
   /** Draw the sea at the camera offset (ox, oy) (the arena's shake, as the floor had). */

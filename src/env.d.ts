@@ -3,8 +3,11 @@
 // game plays offline exactly as 0.6.2. "same-origin" means the page's own origin (a later Fly page build).
 interface ImportMetaEnv {
   readonly VITE_GHOST_SERVER?: string;
-  /** MOTION-1 (REQ-BFG-071): "1" builds the battles-in-motion prototype (src/render/motion.ts); unset, the game as before. */
-  readonly VITE_MOTION?: string;
+  /** MOTION-2 (REQ-BFG-071): "1" makes a test build with the motion dev knobs (?motion, ?sway, ?sea, ?perf; src/render/
+   *  motion.ts MOTION_KNOBS) for the scripts' pages. Unset (every player build), the knobs are not in the bundle. */
+  readonly VITE_MOTION_KNOBS?: string;
+  /** Vite's own: true under the dev server and vitest, false in a build. */
+  readonly DEV: boolean;
 }
 
 interface ImportMeta {

@@ -1,24 +1,29 @@
-// MOTION-1 (REQ-BFG-071; a display-only prototype behind the compile-time flag VITE_MOTION): "battles in motion".
+// MOTION-1 (REQ-BFG-071) made "battles in motion" as a prototype; MOTION-2 ships it: every build draws battles in motion.
 // Both carriers sail left to right in parallel lanes, bows pointing right, and drift, turn (at most 12 degrees), surge
 // and bob on smooth slow curves. Each board sits on a gimbal that counter-rotates its carrier's heading, so the two
-// boards stay exactly parallel: screen-aligned by default, or both turned together by the dev knob ?sway=N (at most 3).
+// boards stay exactly parallel: screen-aligned (the dev knob ?sway=N turns both together, at most 3, in test builds).
 // Display only: this module imports nothing (no sim, no DOM), uses no sim RNG and no Math.random (its own small PRNG,
 // seeded per battle), and runs on its own clock (frame time). The sim never reads anything here. docs/MOTION.md.
 
 /** The three code-drawn seas, chosen by day (seaForDay). */
 export type SeaKind = "calm" | "storm" | "ember";
 
-/** The flag: a VITE_MOTION=1 build. Vite replaces it at build time, so the default build drops the motion paths. */
-export const MOTION_BUILD: boolean = import.meta.env.VITE_MOTION === "1";
+/**
+ * MOTION-2: the dev knobs (?motion, ?sway, ?sea, ?perf) exist only in test and dev builds: vite's dev server and vitest
+ * (import.meta.env.DEV), or a build made with VITE_MOTION_KNOBS=1 (the scripts' pages: motionshots, motionperf,
+ * motiontap). Vite replaces both at build time, so a player build (npm run build, build:online) never reads the URL for
+ * them: the parser below is not in its bundle.
+ */
+export const MOTION_KNOBS: boolean = import.meta.env.DEV || import.meta.env.VITE_MOTION_KNOBS === "1";
 
 export interface MotionOpts {
-  /** Motion and the new backdrops (a VITE_MOTION=1 build; ?motion=0 turns them off, ?motion=1 back on). */
+  /** Motion and the seas: on in every build; ?motion=0 (test builds) draws the 0.9.4 floor and tracked hulls instead. */
   on: boolean;
-  /** ?sway=N: the shared board sway, in degrees (|N| <= SWAY_MAX_DEG); 0, off, by default. */
+  /** ?sway=N (test builds): the shared board sway, in degrees (|N| <= SWAY_MAX_DEG); 0, off, otherwise. */
   sway: number;
-  /** ?sea=calm|storm|ember: force a setting (else the day decides). */
+  /** ?sea=calm|storm|ember (test builds): force a setting (else the day decides). */
   sea: SeaKind | null;
-  /** ?perf=1: the frame-time overlay with the per-layer ms split. */
+  /** ?perf=1 (test builds): the frame-time overlay with the per-layer ms split. */
   perf: boolean;
 }
 
@@ -36,10 +41,14 @@ export const REDUCED_SCROLL = 0.25;
 
 const DEG = Math.PI / 180;
 
-/** The URL options of a VITE_MOTION=1 build. Without the flag every option is off and the URL is ignored. */
-export function parseMotionOpts(search: string, build: boolean): MotionOpts {
-  const off: MotionOpts = { on: false, sway: 0, sea: null, perf: false };
-  if (!build) return off;
+/** What every player build uses: motion on, no sway, the day's sea, no overlay. */
+export function motionDefaults(): MotionOpts {
+  return { on: true, sway: 0, sea: null, perf: false };
+}
+
+/** The URL's dev knobs when `knobs` (a test build); otherwise the defaults, whatever the URL says. */
+export function parseMotionOpts(search: string, knobs: boolean): MotionOpts {
+  if (!knobs) return motionDefaults();
   const q = new URLSearchParams(search);
   const sway = Number(q.get("sway") ?? 0);
   const sea = q.get("sea");
@@ -51,12 +60,18 @@ export function parseMotionOpts(search: string, build: boolean): MotionOpts {
   };
 }
 
-/** The page's options, read once. In the default build: all off, whatever the URL says. */
-export const MOTION: MotionOpts = parseMotionOpts(typeof location === "undefined" ? "" : location.search, MOTION_BUILD);
+/** The page's options, read once. In a player build the defaults: the parser isn't called (or bundled) at all. */
+export const MOTION: MotionOpts = MOTION_KNOBS && typeof location !== "undefined" ? parseMotionOpts(location.search, true) : motionDefaults();
 
 /** CALM SEA on days 1-3, STORM on days 4-7, EMBER SEA on days 8-10 (and after). */
 export function seaForDay(day: number): SeaKind {
   return day <= 3 ? "calm" : day <= 7 ? "storm" : "ember";
+}
+
+/** MOTION-2: the display PRNG's seed for the still screens' sea (build screen, summary, hero preview): one per day, so a
+ *  day's still sea looks the same each time it is shown. */
+export function stillSeaSeed(day: number): number {
+  return (day * 7919 + 17) >>> 0;
 }
 
 /** A small display-only PRNG (mulberry32), seeded per battle: wave crests, embers, rain and the curves' phases. */
@@ -121,6 +136,8 @@ export class MotionModel {
   /** Water travelled (s at full speed): the backdrop's scroll and the wake read it (a quarter speed with reduce motion). */
   dist = 0;
   reduced = false;
+  /** MOTION-2: a ship held still (the hero preview): no bank, drift, surge, bob or sway, and the water doesn't move. */
+  readonly held: boolean;
   /** The shared sway's amplitude (degrees, |s| <= 3); 0 = both boards screen-aligned. */
   readonly sway: number;
   private readonly cv: [Curves, Curves];
@@ -129,11 +146,12 @@ export class MotionModel {
   private bankMax = BANK_MAX_DEG;
   private lanes: LaneSpec = { portrait: true, gapRest: 100, gapMin: 22 };
 
-  constructor(readonly seed: number, o: { sway?: number; reduced?: boolean } = {}) {
+  constructor(readonly seed: number, o: { sway?: number; reduced?: boolean; held?: boolean } = {}) {
     const rnd = displayRng(seed);
     this.cv = [curves(rnd), curves(rnd)];
     this.sway = Math.max(-SWAY_MAX_DEG, Math.min(SWAY_MAX_DEG, o.sway ?? 0));
     this.reduced = !!o.reduced;
+    this.held = !!o.held;
   }
 
   /** Fit the curves to a layout: the drift (portrait) or the surge (landscape) may only close the gap down to its
@@ -163,20 +181,21 @@ export class MotionModel {
     this.dist += d * this.scrollFactor();
   }
 
-  /** The backdrop's speed factor: 1, or a quarter with reduce motion. */
+  /** The backdrop's speed factor: 1, a quarter with reduce motion, 0 for a ship held still. */
   scrollFactor(): number {
-    return this.reduced ? REDUCED_SCROLL : 1;
+    return this.held ? 0 : this.reduced ? REDUCED_SCROLL : 1;
   }
 
   /** The shared board angle at time t (degrees): the same for both boards, always. */
   swayAt(t = this.t): number {
-    return this.reduced || this.sway === 0 ? 0 : this.sway * Math.sin((TAU * t) / SWAY_PERIOD);
+    return this.reduced || this.held || this.sway === 0 ? 0 : this.sway * Math.sin((TAU * t) / SWAY_PERIOD);
   }
 
-  /** Side `s`'s pose at time t (0 the player, 1 the enemy). Reduce motion: straight sailing (no bank, drift, surge or bob). */
+  /** Side `s`'s pose at time t (0 the player, 1 the enemy). Reduce motion (and a ship held still): straight sailing, no
+   *  bank, drift, surge or bob. */
   pose(s: 0 | 1, t = this.t, out: Pose = { x: 0, y: 0, bank: 0, board: 0, gimbal: 0, bob: 0 }): Pose {
     const board = this.swayAt(t);
-    if (this.reduced) {
+    if (this.reduced || this.held) {
       out.x = out.y = out.bank = out.bob = 0;
       out.board = board;
       out.gimbal = board;

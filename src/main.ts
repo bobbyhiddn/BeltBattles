@@ -28,7 +28,10 @@ import { onlineSession, resolveServerUrl, startOnline } from "./game/online";
 import { ReplayScreen } from "./screens/replay";
 import { currentName } from "./game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063) tooling
 import { runeGrants } from "./sim/runes"; // RUNES-1 (REQ-BFG-058) tooling
-import { MOTION, MOTION_BUILD } from "./render/motion"; // MOTION-1 (REQ-BFG-071) tooling
+import { MOTION, MOTION_KNOBS } from "./render/motion"; // MOTION-1 (REQ-BFG-071) tooling
+import { openReplay } from "./game/replays"; // MOTION-2 (REQ-BFG-071) tooling: a replay still
+import { battleRecordFor } from "./net/replay";
+import { battleSeed } from "./game/run";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("#game canvas missing");
@@ -128,6 +131,18 @@ game.start();
     addGhosts(ghosts);
     game.run = setupRun(o);
     game.go(new BattleScreen(game));
+  },
+  /** MOTION-2 (REQ-BFG-071) tooling (stills): the set-up run's dusk against its stand-in, as a stored record replayed
+   *  (openReplay: a fresh Battle under this build's rules, as the summary's REPLAY plays one), BACK to the title. Changes
+   *  no run state but the set-up run itself. */
+  openReplay(o: RunSpec = {}): boolean {
+    clearPool();
+    const run = (game.run = setupRun(o));
+    const foe = standInFoe(run.seed, run.day);
+    const r = openReplay(battleRecordFor(run.build, foe.build, battleSeed(run)));
+    if (!r.ok) return false;
+    game.go(new ReplayScreen(game, new TitleScreen(game), r.battle, { day: run.day, foe: foe.name }));
+    return true;
   },
   openEnd(o: RunSpec & { results: string; roads?: string }, ghosts: GhostSpec[] = []): void {
     clearPool();
@@ -230,15 +245,18 @@ game.start();
   nameEntry() {
     return game.nameEntry ? game.nameEntry.info() : null;
   },
-  /** MOTION-1 (REQ-BFG-071) tooling (read only): the flag, the URL options and, in a battle in motion, its display clock,
-   *  sea, poses, gap, the last board tap, the per-layer ms split (?perf=1) and the shots in flight. */
+  /** MOTION-1 (REQ-BFG-071) tooling (read only): the knobs (MOTION-2: a test build's only), the options and, in a battle in
+   *  motion, its display clock, sea, poses, gap, the last board tap, the per-layer ms split (?perf=1) and the shots in
+   *  flight. MOTION-2: on the title and in a replay, its sea, clock and poses too. */
   motion() {
     const s = game.screen;
     const m = s instanceof BattleScreen ? s.motion : null;
     const base = {
-      build: MOTION_BUILD, opts: { ...MOTION }, on: !!m, phase: s instanceof BattleScreen ? s.phase : null,
+      knobs: MOTION_KNOBS, opts: { ...MOTION }, on: !!m, phase: s instanceof BattleScreen ? s.phase : null,
       offPerf: s instanceof BattleScreen && s.offPerf ? s.offPerf.totals() : null,
     };
+    const om = s instanceof TitleScreen || s instanceof ReplayScreen ? s.motion : null;
+    if (om) return { ...base, on: true, t: om.model.t, sea: om.kind, reduced: om.model.reduced, poses: [om.model.pose(0), om.model.pose(1)], drawnBank: [...om.bankDrawn], perf: om.perf ? om.perf.mean() : null, perfTotals: om.perf ? om.perf.totals() : null };
     if (!m || !(s instanceof BattleScreen)) return base;
     return {
       ...base, t: m.model.t, sea: m.kind, reduced: m.model.reduced, spec: m.model.spec, gap: m.model.gapAt(),
