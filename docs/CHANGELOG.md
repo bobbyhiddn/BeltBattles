@@ -3,6 +3,18 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.5: small fixes
+
+Same battle rules as 0.9.4 (bb-0.9.3), so 0.9.4's ghosts and uploads still meet 0.9.5 players.
+- **SALVO RACK's SHOT note**, in its ⓘ view or when you tap SHOT on its card, now gives the fallback its card already
+  states: it fires at a full chamber, or 3 seconds after its first load.
+- **On desktop, hovering a shop card** now shows the card's own ability line, as hovering a pack does. This fixes
+  out-of-date hover text on MANTLET, TWIN LATCH, STOKER and IRON WALL. Guns and the few factories whose cards show only
+  stats keep their old hover text.
+- **Holding a factory or turret to lift it** now takes the time it should, a little under half a second (it used to
+  lift in about half that). So a finger that rests briefly on a factory before drawing a belt now draws the belt
+  instead of lifting the factory.
+
 ## 0.9.4: the captains' pass
 
 Same battle rules as 0.9.3 (bb-0.9.3), so 0.9.3's ghosts and uploads still meet 0.9.4 players.
