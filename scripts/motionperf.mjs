@@ -16,8 +16,10 @@ import { loadavg } from "node:os";
 const argv = process.argv.slice(2);
 const PAGE = resolve(argv[0] ?? "dist-motion/index.html");
 const OUT = resolve(argv[1] ?? "motionperf.json");
-const si = argv.indexOf("--secs");
-const SECS = si >= 0 ? Number(argv[si + 1]) : 20;
+const opt = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
+const SECS = Number(opt("secs", "20"));
+// the battle (scripts/motionpick.mjs finds a STORM fight that lasts the 20 s)
+const HERO = opt("hero", "furnace"), DAY = Number(opt("day", "5")), SEED = Number(opt("seed", "7"));
 
 const MODES = [["off", "?motion=0&perf=1", false], ["on", "?perf=1", false], ["reduced", "?perf=1", true]];
 const pct = (a, p) => a[Math.min(a.length - 1, Math.max(0, Math.ceil(p * a.length) - 1))];
@@ -31,7 +33,7 @@ async function one(browser, mode, query, reduced, rate) {
   await page.goto(pathToFileURL(PAGE).href + query);
   await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title");
   await cdp.send("Emulation.setCPUThrottlingRate", { rate });
-  await page.evaluate((r) => { if (r) window.bb.setReducedMotion(true); window.bb.openDusk({ hero: "furnace", day: 5, seed: 7 }, []); }, reduced);
+  await page.evaluate(([r, hero, day, seed]) => { if (r) window.bb.setReducedMotion(true); window.bb.openDusk({ hero, day, seed }, []); }, [reduced, HERO, DAY, SEED]);
   await page.waitForFunction(() => window.bb.motion().phase === "fight", null, { timeout: 60000, polling: 100 });
   const load0 = loadavg()[0];
   const res = await page.evaluate(async (secs) => {
@@ -68,11 +70,11 @@ async function one(browser, mode, query, reduced, rate) {
 
 const browser = await chromium.launch({ args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
 const rows = [];
-console.log(`motionperf on ${PAGE}, ${SECS} s per run, ${new Date().toISOString()}, load ${loadavg()[0].toFixed(2)}`);
+console.log(`motionperf on ${PAGE}, ${SECS} s per run, battle ${HERO} dusk day ${DAY} seed ${SEED}, ${new Date().toISOString()}, load ${loadavg()[0].toFixed(2)}`);
 for (const rate of [4, 1]) for (const [mode, query, reduced] of MODES) {
   const r = await one(browser, mode, query, reduced, rate);
   rows.push(r);
   console.log(`${mode.padEnd(8)} cpu x${rate}: ${r.frames} frames (${r.fps} fps) p50 ${r.p50} p95 ${r.p95} p99 ${r.p99} max ${r.max} ms; >16.7 ${r.over16}% >20 ${r.over20}% >33.4 ${r.over33}%; split ${JSON.stringify(r.split)} over ${r.splitFrames} frames; game work ${r.workMs} ms/frame (max ${r.maxWorkMs}); end ${r.endPhase}; load ${r.load}; errors ${r.errors.length}`);
 }
 await browser.close();
-await writeFile(OUT, JSON.stringify({ page: PAGE, secs: SECS, date: new Date().toISOString(), rows }, null, 1) + "\n");
+await writeFile(OUT, JSON.stringify({ page: PAGE, secs: SECS, battle: { hero: HERO, day: DAY, seed: SEED }, date: new Date().toISOString(), rows }, null, 1) + "\n");

@@ -21,6 +21,7 @@ const OUT = resolve(pos[1] ?? "shots/motion");
 const MODE = pos[2] ?? "all";
 const SEED = Number(opt("seed", "7"));
 const HERO = opt("hero", "furnace");
+const DAY = Number(opt("day", "5")); // the video's day (STORM: 4-7); scripts/motionpick.mjs finds a long fight with early shots
 const lines = [];
 const log = (s) => { lines.push(s); console.log(s); };
 const url = (q = "") => pathToFileURL(PAGE).href + q;
@@ -86,7 +87,8 @@ async function video(browser) {
   await page.goto(url());
   await page.waitForFunction(() => !!window.bb && window.bb.screen() === "title");
   const start = (Date.now() - t0) / 1000;
-  await page.evaluate(({ seed, hero }) => window.bb.openDusk({ hero, day: 5, seed }, []), { seed: SEED, hero: HERO });
+  await page.evaluate(({ seed, hero, day }) => window.bb.openDusk({ hero, day, seed }, []), { seed: SEED, hero: HERO, day: DAY });
+  log(`video battle: ${HERO} dusk, day ${DAY}, seed ${SEED}`);
   const samples = [];
   for (let i = 0; i < 22; i++) {
     await page.waitForTimeout(1000);
