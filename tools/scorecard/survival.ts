@@ -40,6 +40,7 @@ import { meanCI, wilson, type Rate } from "../../src/sim/harness/stats";
 import { mdTable, type Row, type Section } from "./report";
 import { fmt } from "./targets";
 import { runJobs } from "./pool";
+import { LAST_CHANCE_LIVES, lastChanceRules } from "../../src/sim/lastChance"; // LC-1 (REQ-BFG-073)
 
 // ---------------------------------------------------------------- the model (pure: tests check it by hand)
 
@@ -51,6 +52,9 @@ export interface LifeRules {
   refundDay: number; // the early-loss refund comes at this dawn, for a loss on an earlier day, once per run
   refundLives: number; // ... this many lives, never above startLives (0: no refund)
   dockLives: number; // the DOCK's PATCH UP: lives it gives, bought only while lives + dockLives <= startLives
+  // LC-1 (REQ-BFG-073): LAST CHANCE (lastChance.ts, only with its switch on): lives a dusk loss that leaves exactly 1 life
+  // before the last day gives back at once, once a run. Absent (the switch off): no such rule, the model as before.
+  lastChance?: number;
 }
 
 /** REQ-BFG-026 item 7's band, in whole percent: survival at a 50% and a 55% dusk win rate rounds into 57-69%. */
@@ -76,12 +80,17 @@ export const lostOf = (mask: number, days: number): boolean[] => Array.from({ le
  * player buys PATCH UP on the road, before that day's dusk (0: never).
  */
 export function modelCompletes(r: LifeRules, lost: readonly boolean[], dockDay = 0): boolean {
-  let lives = r.startLives, early = false;
+  let lives = r.startLives, early = false, lc = false;
   for (let d = 1; d <= r.days; d++) {
     if (d === dockDay && lives + r.dockLives <= r.startLives) lives += r.dockLives;
     if (lost[d - 1]) {
       lives = Math.max(0, lives - r.lossLives);
       if (d < r.refundDay) early = true;
+      // LC-1: LAST CHANCE (r.lastChance absent or 0: never)
+      if (r.lastChance && !lc && lives === 1 && d < r.days) {
+        lives += r.lastChance;
+        lc = true;
+      }
     }
     if (lives <= 0) return false;
     if (d + 1 === r.refundDay && early) lives += Math.max(0, Math.min(r.refundLives, r.startLives - lives));
@@ -218,6 +227,11 @@ export function lifeAudit(hero: HeroId, seed: number): Audit {
     }
   }
   const gains = choices.filter((c) => c.gainLives > 0);
+  // LC-1 (REQ-BFG-073): read LAST CHANCE off the run code: five losses (the refund lifts day 3) leave 1 life at dusk 5,
+  // and with the switch on the life comes straight back; the model takes LAST_CHANCE_LIVES only then
+  const lcRun = fresh();
+  for (let i = 0; i < 5; i++) dusk(lcRun, LOSS);
+  const lcBack = lcRun.lives - 1;
   const problems = [
     ...(d.win !== 0 || d.draw !== 0 ? [`a dusk win or draw moves lives (${d.win}, ${d.draw})`] : []),
     ...(d.loss >= 0 ? [`a dusk loss costs no life (${d.loss})`] : []),
@@ -225,10 +239,11 @@ export function lifeAudit(hero: HeroId, seed: number): Audit {
     ...(gains.length > 1 ? [`more than one choice gives lives: ${gains.map((c) => `${c.event} ${c.choice}`).join(", ")}`] : []),
     ...gains.filter((c) => c.gamble).map((c) => `${c.event} ${c.choice} gives lives on a gamble`),
     ...warlords.filter((w) => w.delta !== 0).map((w) => `a ${w.tier} warlord ${w.outcome} moves lives by ${w.delta}`),
+    ...(lcBack !== (lastChanceRules() ? LAST_CHANCE_LIVES : 0) ? [`a loss to 1 life gives ${lcBack} back (LAST CHANCE ${lastChanceRules() ? "on" : "off"})`] : []),
   ];
   if (problems.length) throw new Error(`--survival: the model doesn't cover these rules: ${problems.join("; ")}`);
   return {
-    rules: { startLives: START_LIVES, days: RUN_DAYS, lossLives: -d.loss, refundDay: REFUND_DAY, refundLives: REFUND_LIVES, dockLives: gains[0]?.gainLives ?? 0 },
+    rules: { startLives: START_LIVES, days: RUN_DAYS, lossLives: -d.loss, refundDay: REFUND_DAY, refundLives: REFUND_LIVES, dockLives: gains[0]?.gainLives ?? 0, ...(lastChanceRules() ? { lastChance: LAST_CHANCE_LIVES } : {}) },
     dusk: d, refund: { day: REFUND_DAY, lives: REFUND_LIVES, dawns }, choices, dock: gains[0]?.event ?? null, warlords, throwing,
   };
 }

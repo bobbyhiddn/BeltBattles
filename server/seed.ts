@@ -41,9 +41,12 @@ export function checkPool(snapshots: readonly unknown[], rules = RULES_VERSION):
       const snapshot = checkSnapshot(raw);
       if (snapshot.rules !== rules) throw new Error(`rules ${snapshot.rules} is not ${rules}`);
       // D5: the player (honest) mode, as an upload is checked; it also runs the rules gate on the snapshot's rules
-      const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules);
+      // LC-1 (REQ-BFG-073): a pool ghost that carries a LAST CHANCE (none today: the decoder refuses the field while the
+      // switch is off) is checked with it, as an upload is (server/app.ts): its rune's place, its card, its record
+      const lc = snapshot.lastChance;
+      const v = validateUpload(snapshot.build, snapshot.day, snapshot.rules, lc ? { lastChance: lc } : {});
       if (!v.ok) throw new Error(`validateUpload: ${v.errors.join("; ")}`);
-      if (!isReachable(snapshot.day, snapshot.wins, snapshot.lives)) {
+      if (!isReachable(snapshot.day, snapshot.wins, snapshot.lives, lc ? { lastChance: lc.day } : {})) {
         throw new Error(`record ${snapshot.wins}W ${snapshot.lives} lives: no run carries it into dusk ${snapshot.day}`);
       }
       const id = ghostId(snapshot);

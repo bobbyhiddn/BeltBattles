@@ -12,6 +12,7 @@ import { finishWarlord, pickPending, pickRoad, takePart } from "./game/road";
 import { gainModule } from "./game/fuse";
 import type { Difficulty } from "./sim/rivals";
 import { key as K, rotField, type Build, type Placed } from "./sim/deck";
+import { LAST_CHANCE_AT, LAST_CHANCE_LIVES, lastChanceRules } from "./sim/lastChance"; // LC-1 (REQ-BFG-073): a tooling ghost's lives
 
 // ------------------------------------------------------------------ 0.6.2 BELTSIDE showcase decks (shots)
 
@@ -129,7 +130,8 @@ export function makeGhost(s: GhostSpec): GhostSnapshot {
   const losses = s.losses ?? 0;
   return {
     // 0.6.2 BELTSIDE: rigs carrying `rot` need v2 (DESIGN-beltside D1)
-    v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, lives: Math.max(1, START_LIVES - losses),
+    // LC-1 (REQ-BFG-073): with LAST CHANCE on, a ghost whose losses brought it to 1 life (or past it) had its life back
+    v: build.items.some((p) => p.rot !== undefined) ? 2 : 1, rules: RULES_VERSION, hero, day: s.day, wins: s.wins ?? 0, lives: Math.max(1, START_LIVES - losses + (lastChanceRules() && START_LIVES - losses <= LAST_CHANCE_AT ? LAST_CHANCE_LIVES : 0)),
     build, runId: s.runId ?? "tool-pool", playerId: "tool-player", createdAt: Date.now(),
   };
 }
