@@ -1,13 +1,23 @@
 // MOTION-1 (REQ-BFG-071): the battles-in-motion prototype's display math (src/render/motion.ts) and lanes
 // (src/game/battleLayout.ts laneLayout). Display only: none of this touches the sim.
+// MOTION-2 (REQ-BFG-071): motion ships in every build. The dev knobs are a test build's only; REDUCED MOTION sails straight
+// and leaves the battle's pace alone; the still screens (build, summary, hero preview) draw no bank or drift; the ship's
+// longer bow and taller stern reach past the board (REVIEW-MOTION1 Q2).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  BANK_MAX_DEG, MOTION, MOTION_BUILD, MotionModel, REDUCED_SCROLL, SWAY_MAX_DEG, affineAngle, applyAffine, boardAffine,
-  displayRng, invertAffine, parseMotionOpts, seaForDay, type Affine,
+  BANK_MAX_DEG, MOTION, MOTION_KNOBS, MotionModel, REDUCED_SCROLL, SWAY_MAX_DEG, affineAngle, applyAffine, boardAffine,
+  displayRng, invertAffine, motionDefaults, parseMotionOpts, seaForDay, stillSeaSeed, type Affine,
 } from "../src/render/motion";
 import { battleLayout, battleScale, laneLayout, minGap } from "../src/game/battleLayout";
 import { computeView } from "../src/core/io";
+import { PIVOT_X, PLATE_W, ROT_H, ROT_W, ROT_X, ROT_Y, SHIP_L, STERN_B, halfBeam } from "../src/render/carrier";
+import { HULL_L, frameForHull, hullBox } from "../src/render/frame";
+import { Arena } from "../src/game/arena";
+import { ArenaMotion } from "../src/game/arenaMotion";
+import { setReducedMotion } from "../src/core/settings";
+import { startingBuild, warlordBuild } from "../src/sim/ai";
+import { simulate } from "../src/sim/battle";
 
 const SEEDS = [1, 7, 12345, 0x7fffffff];
 const TIMES = [0, 0.5, 3.3, 7.77, 12.5, 29.9, 61.2, 180.04];
@@ -183,10 +193,20 @@ describe("MOTION-1 display math (REQ-BFG-071)", () => {
     expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(seaForDay)).toEqual(["calm", "calm", "calm", "storm", "storm", "storm", "storm", "ember", "ember", "ember"]);
   });
 
-  it("the flag: without VITE_MOTION every option is off and the URL is ignored; with it, the dev knobs", () => {
-    expect(MOTION_BUILD).toBe(false); // the suite runs the default build
-    expect(MOTION).toEqual({ on: false, sway: 0, sea: null, perf: false });
-    expect(parseMotionOpts("?motion=1&sway=3&sea=storm&perf=1", false)).toEqual({ on: false, sway: 0, sea: null, perf: false });
+  it("MOTION-2: motion is the game; the player build ignores the knobs; a test build reads them", () => {
+    // vitest is a dev build (import.meta.env.DEV), so the knobs exist here; a player build has neither DEV nor
+    // VITE_MOTION_KNOBS=1, so MOTION_KNOBS is false there and MOTION is the defaults (the bundle grep is in the REPORT)
+    expect(MOTION_KNOBS).toBe(true);
+    expect(MOTION).toEqual({ on: true, sway: 0, sea: null, perf: false }); // no location in node: the defaults
+    expect(motionDefaults()).toEqual({ on: true, sway: 0, sea: null, perf: false });
+    for (const q of ["?motion=0&sway=3&sea=storm&perf=1", "?motion=0", "?sway=-3", "?sea=ember", "?perf=1", ""]) {
+      expect(parseMotionOpts(q, false), q).toEqual(motionDefaults()); // the player build: the URL changes nothing
+    }
+    const src = readFileSync(new URL("../src/render/motion.ts", import.meta.url), "utf8");
+    // the switch is the build's: vite's DEV (dev server, vitest) or VITE_MOTION_KNOBS=1, both replaced at build time
+    expect(src).toMatch(/export const MOTION_KNOBS: boolean = import\.meta\.env\.DEV \|\| import\.meta\.env\.VITE_MOTION_KNOBS === "1";/);
+    // the page's options call the parser only behind MOTION_KNOBS, so a player bundle drops it
+    expect(src).toMatch(/export const MOTION: MotionOpts = MOTION_KNOBS && [^\n]*\? parseMotionOpts\(location\.search, true\) : motionDefaults\(\);/);
     expect(parseMotionOpts("", true)).toEqual({ on: true, sway: 0, sea: null, perf: false });
     expect(parseMotionOpts("?motion=0", true).on).toBe(false);
     expect(parseMotionOpts("?motion=1", true).on).toBe(true);
@@ -205,8 +225,105 @@ describe("MOTION-1 display math (REQ-BFG-071)", () => {
     for (const x of xa) expect(x >= 0 && x < 1).toBe(true);
   });
 
+  it("MOTION-2: REDUCED MOTION leaves the battle's pace alone (the same frames to the end, the same result as simulate())", () => {
+    const p = startingBuild("furnace", 1), e = warlordBuild("weaver", 3);
+    const ref = simulate(p, e, 7);
+    const runs: number[][] = [];
+    for (const rm of [false, true]) {
+      setReducedMotion(rm);
+      const a = new Arena(p, e, 7, null);
+      a.quiet = true;
+      const m = new ArenaMotion(7, 5, motionDefaults(), rm);
+      let frames = 0;
+      while (!a.b.over && frames < 60 * 400) {
+        m.update(1 / 60, rm); // the display clock, as the battle screen runs it (before the arena)
+        a.update(1 / 60);
+        frames++;
+      }
+      expect(a.b.over).toBe(true);
+      expect([a.b.ticks, a.b.winner, a.b.sides[0].hull.hp, a.b.sides[1].hull.hp]).toEqual([ref.ticks, ref.winner, ref.sides[0].hull.hp, ref.sides[1].hull.hp]);
+      expect(m.model.reduced).toBe(rm);
+      expect(m.model.dist).toBeCloseTo(m.model.t * (rm ? REDUCED_SCROLL : 1), 6);
+      runs.push([frames, a.b.ticks]);
+    }
+    setReducedMotion(false);
+    expect(runs[1]).toEqual(runs[0]);
+  });
+
+  it("MOTION-2: a ship held still (the hero preview) has no bank, drift, surge, bob or sway, and still water", () => {
+    const m = new MotionModel(stillSeaSeed(1), { sway: 3, held: true });
+    m.setLanes({ portrait: true, gapRest: 102, gapMin: 72 });
+    for (const t of TIMES) for (const s of [0, 1] as const) {
+      const p = m.pose(s, t);
+      expect([p.bank, p.x, p.y, p.bob, p.board, p.gimbal]).toEqual([0, 0, 0, 0, 0, 0]);
+    }
+    for (let i = 0; i < 120; i++) m.advance(1 / 60);
+    expect(m.scrollFactor()).toBe(0);
+    expect(m.dist).toBe(0);
+    // the preview's arena: every frame the board map is the identity and the ship sits at the board's rest pivot
+    const a = new Arena(startingBuild("weaver", 1), { ...startingBuild("furnace", 1), routes: [] }, 78, null);
+    a.quiet = true;
+    a.show = [true, false];
+    const f0 = frameForHull(0, 20, 30);
+    a.setFrames([f0, frameForHull(2, 20, -370)], [[0, 1], [0, -1]]);
+    const am = new ArenaMotion(stillSeaSeed(1), 1, { ...motionDefaults(), sway: 3 }, false, true);
+    const hb = hullBox(f0);
+    for (let k = 0; k < 40; k++) {
+      am.update(0.29, false);
+      a.update(0.29);
+      am.frame(a);
+      expect([am.hitAff[0].a, am.hitAff[0].b, am.hitAff[0].c, am.hitAff[0].d, am.hitAff[0].e, am.hitAff[0].f]).toEqual([1, 0, 0, 1, 0, 0]);
+      expect(am.bankDrawn).toEqual([0, 0]);
+      expect([am.pivot[0][0] - a.fx.shakeX, am.pivot[0][1] - a.fx.shakeY]).toEqual([hb.x + hb.w / 2, hb.y + hb.h / 2]);
+    }
+  });
+
+  it("MOTION-2: the still screens' carrier is drawn at heading 0 at the board's own rest place (no bank, no drift)", async () => {
+    const { calls, restore } = fakeDom();
+    try {
+      const { drawStillCarrier, plateBox } = await import("../src/render/ship");
+      const screen = fakeCtx(0, calls);
+      for (const [facing, x, y] of [[0, 20, 30], [1, 64, 12], [0, 17, 211]] as const) {
+        calls.length = 0;
+        const f = frameForHull(facing, x, y);
+        drawStillCarrier(screen as unknown as CanvasRenderingContext2D, "furnace", f);
+        const hb = hullBox(f), px = hb.x + hb.w / 2, py = hb.y + hb.h / 2;
+        // heading 0: no sprite is turned (pixel.ts rot90's lossless quarter turns aside)
+        expect(calls.filter((c) => c[1] === "rotate" && Math.abs(Math.sin(2 * (c[2] as number))) > 1e-9), `facing ${facing}`).toEqual([]);
+        const blits = calls.filter((c) => c[0] === 0 && c[1] === "drawImage").map((c) => [(c[2] as { width: number }).width, c[3], c[4]]);
+        expect(blits, `facing ${facing}`).toContainEqual([ROT_W, px - ROT_X, py - ROT_Y]); // the ship, at the rest pivot
+        const r = plateBox(screen as unknown as CanvasRenderingContext2D, f);
+        expect(blits, `facing ${facing}`).toContainEqual([r.w, r.x, r.y]); // the board plate, over the deck frame
+        expect(calls.filter((c) => c[0] === 0 && (c[1] === "setTransform" || c[1] === "translate")), `facing ${facing}`).toEqual([]);
+      }
+    } finally {
+      restore();
+    }
+  });
+
+  it("MOTION-2 (REVIEW-MOTION1 Q2): the longer bow and the taller stern reach past the board; the turned ship fits its canvas", () => {
+    // portrait: a board plate is PLATE_W (130) across and HULL_L (140) along; the ship's pivot is the board's centre
+    const bowPast = SHIP_L - PIVOT_X - PLATE_W / 2, sternPast = PIVOT_X - PLATE_W / 2;
+    expect(bowPast).toBeGreaterThanOrEqual(31); // MOTION-1's bow showed 23 px
+    expect(sternPast).toBeGreaterThanOrEqual(23);
+    expect(halfBeam(0.5) * 2).toBeGreaterThan(HULL_L); // the stern stands taller than a portrait board ...
+    expect(STERN_B).toBeGreaterThan(HULL_L);
+    expect(halfBeam(PIVOT_X)).toBeLessThan(HULL_L / 2); // ... while the hull under the board stays inside it
+    // every hull pixel, turned by up to 12 degrees about the pivot, lands inside the ROT_W x ROT_H canvas (4 px margin)
+    for (const deg of [-12, -7, 0, 5, 12]) {
+      const r = (deg * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
+      for (let x = 0; x < SHIP_L; x += 1) for (const side of [-1, 1]) {
+        const h = halfBeam(x + 0.5);
+        if (h < 0) continue;
+        const u = x - PIVOT_X, v = side * h;
+        const X = ROT_X + u * c + v * s, Y = ROT_Y - u * s + v * c;
+        expect(X >= 3 && X <= ROT_W - 3 && Y >= 3 && Y <= ROT_H - 3, `${deg} deg at x ${x}`).toBe(true);
+      }
+    }
+  });
+
   it("the motion modules import nothing from src/sim except types, and use no Math.random", () => {
-    const files = ["src/render/motion.ts", "src/render/backdrop.ts", "src/render/carrier.ts", "src/game/arenaMotion.ts"];
+    const files = ["src/render/motion.ts", "src/render/backdrop.ts", "src/render/carrier.ts", "src/render/ship.ts", "src/game/arenaMotion.ts"];
     for (const f of files) {
       const raw = readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
       const src = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""); // code only (the comments may name what they avoid)
@@ -219,3 +336,44 @@ describe("MOTION-1 display math (REQ-BFG-071)", () => {
     }
   });
 });
+
+type Call = unknown[];
+
+/** MOTION-2's still-carrier test: a recording 2D context. drawImage, rotate, setTransform and translate are recorded as
+ *  [context id, method, ...args]; every other call is a no-op (node has no canvas). */
+function fakeCtx(id: number, calls: Call[], canvas: object = { width: 0, height: 0 }): Record<string, unknown> {
+  const rec = new Set(["drawImage", "rotate", "setTransform", "translate"]);
+  const state: Record<string, unknown> = { canvas };
+  return new Proxy(state, {
+    get(t, k) {
+      if (typeof k !== "string") return undefined;
+      if (k in t) return t[k];
+      if (k === "getImageData" || k === "createImageData") return (_x: number, _y: number, w = 1, h = 1) => ({ data: new Uint8ClampedArray(Math.max(4, w * h * 4)), width: w, height: h });
+      if (k === "measureText") return () => ({ width: 0 });
+      return (...args: unknown[]) => {
+        if (rec.has(k)) calls.push([id, k, ...args]);
+      };
+    },
+    set(t, k, v) {
+      if (typeof k === "string") t[k] = v;
+      return true;
+    },
+  });
+}
+
+/** A stand-in `document` whose canvases get recording contexts (ids from 1; the test's screen context is 0). */
+function fakeDom(): { calls: Call[]; restore: () => void } {
+  const calls: Call[] = [];
+  const g = globalThis as { document?: unknown };
+  const prev = g.document;
+  let n = 0;
+  g.document = {
+    createElement: () => {
+      const c: Record<string, unknown> = { width: 0, height: 0 };
+      const ctx = fakeCtx(++n, calls, c);
+      c.getContext = () => ctx;
+      return c;
+    },
+  };
+  return { calls, restore: () => { g.document = prev; } };
+}
