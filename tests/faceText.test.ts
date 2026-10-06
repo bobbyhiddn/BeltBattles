@@ -114,19 +114,28 @@ describe("U2a the formatters: one per unit; NUM-4: each prints the sim's whole v
 describe("U2a the faces: every number from sim data through one formatter", () => {
   // SUS-B (REQ-BFG-069): + MEND PRESS (a factory), WARD BELL and MENDING LOOM (gear). Their faces exist while the
   // sustain switch is off (ITEMS resolves them; no listing shows them), so every face rule below runs on them already
-  it("scope: 74 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies; NUM-3 the 7 STUN-fold pieces; SUS-B 1 factory, 2 gear) and 4 heroes (Y1: FURNACE); the crit and RULES pieces keep today's text", () => {
+  // Y7b2 (the flip): retitled, was "scope: 74 pieces (...; SUS-B 1 factory, 2 gear) and 4 heroes (Y1: FURNACE); the crit and
+  // RULES pieces keep today's text". STAR_FACES folded into FACES: 20 pieces' first faces joined (faces.ts, "folded at the
+  // flip"), so SIFTER (dormant) is the one buyable-kind piece left with today's text (the signature CLOCKWORKS and SUMP
+  // have none either)
+  it("scope: 94 pieces (U2a 14 factories, 12 cores, 13 turrets; U2b 18 rigs, 5 gear, 2 supplies; NUM-3 the 7 STUN-fold pieces; SUS-B 1 factory, 2 gear; Y7b2 the 20 folded faces) and 4 heroes (Y1: FURNACE); SIFTER keeps today's text", () => {
     const kinds = FACE_IDS.map((d) => ITEMS[d].kind);
     const n = (k: string) => kinds.filter((x) => x === k).length;
     // NUM-3 (R1's STUN fold): + SCRAPPER, SABOT, FROSTBITE and DRAG CHAIN FOUNDRY (factories), TOLLBOOTH (a rig), FLAK SCREEN
     // and MANTLET (gear); SUS-B: + MEND PRESS (a factory), WARD BELL and MENDING LOOM (gear). Was [14, 12, 13, 18, 5, 2], 64
     // pieces; num3 [18, 12, 13, 19, 7, 2], susb [15, 12, 13, 18, 7, 2]; x1 (cap's merge of the two) holds both
-    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([19, 12, 13, 19, 9, 2]);
+    // Y7b2 (the flip): + ASSEMBLY LINE (a factory), CAPACITOR, DRAKE NOZZLE and STEAM BREECH (cores), the 11 rigs and the 5
+    // gear below (was [19, 12, 13, 19, 9, 2], 74 pieces)
+    expect([n("factory"), n("core"), n("turret"), n("gate"), n("mod"), n("supply")]).toEqual([20, 15, 13, 30, 14, 2]);
     for (const faced of ["scrapper", "sabot", "frostbite", "dragchain", "tollbooth", "flak", "mantlet", "mendpress", "wardbell", "mendingloom"]) expect(hasFace(faced), faced).toBe(true);
-    for (const keep of ["capacitor", "assembly", "drake", "steambreech"]) expect(hasFace(keep), keep).toBe(false);
+    // Y7b2 (the flip): they have faces now (were toBe(false))
+    for (const keep of ["capacitor", "assembly", "drake", "steambreech"]) expect(hasFace(keep), keep).toBe(true);
     // U2b: SHIELD WALL (IRON WALL since SUS-B), LONGCASE and FINISHER RAM (N1 3.3's crit pieces) and the 11 RULES rigs and
-    // 3 RULES gear keep today's text (NUM-3: TOLLBOOTH, FLAK SCREEN and MANTLET left this list: they have faces)
-    for (const keep of ["shieldwall", "longcase", "ram", "sifter", "venom", "keg", "bellows", "quench", "lodestone",
-      "counterweight", "twingauge", "pincer", "braceframe", "twinlatch", "hopper", "twintrigger", "seamwelder"]) expect(hasFace(keep), keep).toBe(false);
+    // 3 RULES gear keep today's text (NUM-3: TOLLBOOTH, FLAK SCREEN and MANTLET left this list: they have faces). Y7b2 (the
+    // flip): all but SIFTER have faces now (each was toBe(false)); SIFTER keeps today's text
+    for (const keep of ["shieldwall", "longcase", "ram", "venom", "keg", "bellows", "quench", "lodestone",
+      "counterweight", "twingauge", "pincer", "braceframe", "twinlatch", "hopper", "twintrigger", "seamwelder"]) expect(hasFace(keep), keep).toBe(true);
+    expect(hasFace("sifter")).toBe(false);
     // Y1 (STAR-D 4.2, REVIEW-STARD R5): FURNACE's hero face, two one-line abilities (was ["weaver", "foundry", "bastion"]
     // and heroFace("furnace") null: it drew heroTrick's two-clause sentence)
     expect(PLAYABLE_HEROES.filter((h) => heroFace(h))).toEqual(["furnace", "weaver", "foundry", "bastion"]);
@@ -167,7 +176,10 @@ describe("U2a the faces: every number from sim data through one formatter", () =
       // ["SEC", 30 / speed], SEC until NUMBERS (N1 2.6; NUM-2: 30 / speed, fs.interval before)
       expect(row[0], def).toEqual(["RATE", fmtSpeed(fs.speed)]);
       // NUM-3: a SCRAPPER's slug carries its scrapFlat on top (Battle.stamp: p.flat += scrapFlat), so its DMG is the sum
-      expect(row[1], def).toEqual(["DMG", fmtDmg((fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0))]);
+      // Y7b2 (the flip; Y2, DESIGN-Y row 13): a LIMPET WORKS' DMG is its charge's blast, 100 / 230 / 360 (its base is 0: the
+      // 20 on impact joined the blast; was its base alone, DMG 0)
+      const blast = fs.round?.kind === "limpet" ? (fs.round as { blast: number }).blast : 0;
+      expect(row[1], def).toEqual(["DMG", fmtDmg((fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0) + blast)]);
       if (row[2]) expect(row[2], def).toEqual(["BELT", fmtCount(outputsAt(def, s))]);
     }
     for (const h of PLAYABLE_HEROES) {
@@ -329,7 +341,9 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
     }
   });
 
-  it("F5: one table of interim caveats, kept, 3x5, the reminder's colour: INNER COLUMN ONLY on every inner-intake turret (data), and call 7's three", () => {
+  // Y7b2 (the flip): retitled, was "...: INNER COLUMN ONLY on every inner-intake turret (data), and call 7's three". The
+  // interim caveats left with the flip but INNER COLUMN ONLY (faces.ts INTERIM_CAVEATS holds it alone)
+  it("F5: one table of interim caveats, kept, 3x5, the reminder's colour: INNER COLUMN ONLY on every inner-intake turret (data), the one left", () => {
     const inner = FACE_IDS.filter((d) => ITEMS[d].turret?.intake === "inner");
     expect([...inner].sort()).toEqual(["dartgun", "hailgun", "spikegun"]);
     for (const def of FACE_IDS) for (const s of starsOf(def)) {
@@ -338,12 +352,19 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
       expect(cv.every((b) => b.keep), def).toBe(true);
     }
     for (const def of inner) expect(stripIcons(faceLines(def, 1)!.caveats!.join(" ")), def).toBe("INNER COLUMN ONLY.");
-    for (const def of ["stoker", "spallcatcher", "overclocker"]) expect(faceLines(def, 1)!.caveats!.length, def).toBe(1);
+    // Y7b2 (the flip): call 7's three caveats left (STOKER's, SPALL CATCHER's and OVERCLOCKER's: each was
+    // caveats!.length 1), so the table is INNER COLUMN ONLY's row alone
+    for (const def of ["stoker", "spallcatcher", "overclocker"]) expect(faceLines(def, 1)!.caveats, def).toBeUndefined();
+    expect(INTERIM_CAVEATS.map((c) => c.id)).toEqual(["inner"]);
     expect(ROLE.caveat).toEqual(ROLE.reminder);
   });
 
-  it("F6: a face never says less than the sim: the 4 STAR-batch gaps carry a clause at the star that has it, after its perk name, kept", () => {
-    const at: Record<string, number[]> = { hotswap: [2, 3], limpet: [2, 3], rotary: [2, 3], grapnel: [3] };
+  // Y7b2 (the flip): retitled, was "F6: a face never says less than the sim: the 4 STAR-batch gaps carry a clause at the star
+  // that has it, after its perk name, kept". Each gap's rule left with the flip (HOT SWAP's SPARK JUMP, LIMPET's stall,
+  // ROTARY's fire rate and CLEAN FEED's no-jam, GRAPNEL's salvage) and every interim clause with them, so no face says less
+  it("F6: a face never says less than the sim: the 4 STAR-batch gaps' rules left with the flip, so none carries a clause at any star", () => {
+    // Y7b2 (the flip): no clause at any star (was { hotswap: [2, 3], limpet: [2, 3], rotary: [2, 3], grapnel: [3] })
+    const at: Record<string, number[]> = { hotswap: [], limpet: [], rotary: [], grapnel: [] };
     for (const [def, stars] of Object.entries(at)) for (const s of STARS) {
       const fl = faceLines(def, s, { k: 1 })!;
       expect(!!fl.clause, `${def} ★${s}`).toBe(stars.includes(s));
@@ -354,11 +375,10 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
     }
     // written from the sim: ROTARY's rate (N1 2.3: X% FASTER is the rate up X%) and CLEAN FEED's never-jam; the spark's jump
     // NUM-2 (REQ-BFG-047): the rate up is rateMul(fireRate) - 1, the whole % stored (+18 / +43; was 1 / intervalMul - 1)
-    const rate = (s: number) => fmtPct(rateMul(effectAt("rotary", s).core!.fireRate) - 1);
-    expect(faceLines("rotary", 2, { k: 1 })!.clause!.text).toBe(`★2 GREASED RACE: FIRES ${rate(2)} FASTER.`);
-    expect(faceLines("rotary", 3, { k: 1 })!.clause!.text).toBe(`★3 CLEAN FEED: FIRES ${rate(3)} FASTER, NEVER JAMS.`);
-    const jump = effectAt("hotswap", 2).factory!.cycle!.find((p) => p.tint === "spark")!.jump!;
-    expect(stripIcons(faceLines("hotswap", 2)!.clause!.text)).toBe(`★2 SPARK JUMP: STUN HITS ${fmtCount(1 + jump)} PARTS.`);
+    // Y7b2 (the flip): the three clause texts are deleted with their rules (switch-off only; were `★2 GREASED RACE: FIRES
+    // ${rate(2)} FASTER.`, `★3 CLEAN FEED: FIRES ${rate(3)} FASTER, NEVER JAMS.` and `★2 SPARK JUMP: STUN HITS
+    // ${fmtCount(1 + jump)} PARTS.`); no data holds ROTARY's fireRate or the spark's jump now
+    expect([effectAt("rotary", 3).core!.fireRate, effectAt("hotswap", 2).factory!.cycle!.find((p) => p.tint === "spark")!.jump]).toEqual([undefined, undefined]);
   });
 
   it("NUM-3 (R1's STUN fold): the 7 STUN-fold faces never say less than the sim: a round's STUN is a stat; perks are clauses", () => {
@@ -367,15 +387,20 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
       const r = effectAt(def, s).factory!.round as { seconds: number };
       expect(faceAt(def, s)!.stats2, `${def} ★${s}`).toContainEqual(["STUN", fmtSec(r.seconds)]);
     }
-    // MANTLET: IMMUNE TO STUN only while its list holds every STUN source (content.ts STUN_CAUSES), at every star
+    // MANTLET: IMMUNE TO STUN only while its list holds every STUN source (content.ts STUN_CAUSES), at every star. Y7b2 (the
+    // flip): release Y's face, the gun and its last 1 / 2 / 3 tiles in one line (intakeGuard 1/2/3 from ★1; was "IMMUNE TO
+    // STUN." at every star)
     for (const s of STARS) {
       expect(STUN_CAUSES.every((c) => effectAt("mantlet", s).mod!.immune!.includes(c)), `★${s}`).toBe(true);
-      expect(stripIcons(faceLines("mantlet", s)!.rules[0].text), `★${s}`).toBe("IMMUNE TO STUN.");
+      expect(stripIcons(faceLines("mantlet", s)!.rules[0].text), `★${s}`).toBe(`STUN CAN'T STOP ITS GUN OR LAST ${s === 1 ? "1 TILE" : `${s} TILES`}.`);
     }
     // the clauses at the stars that have them, written from the sim. Y1 (STAR-D row 2): FROSTBITE's HOARFROST is a number on
     // its line at every star, so it has no clause (was frostbite: [2, 3] here, and the clause "★2 HOARFROST: STUN HITS 2
     // PARTS.")
-    const at: Record<string, number[]> = { frostbite: [], sabot: [3], scrapper: [3], tollbooth: [3], mantlet: [2, 3], overdrive: [2, 3] };
+    // Y7b2 (the flip): every interim clause left (SHRAPNEL, BIG HAUL, FACTORY GUARD, FULL GUARD / BULWARK SKIRT's rig guard,
+    // REDLINE / AFTERBURNER's guard), so none at any star (was { frostbite: [], sabot: [3], scrapper: [3], tollbooth: [3],
+    // mantlet: [2, 3], overdrive: [2, 3] })
+    const at: Record<string, number[]> = { frostbite: [], sabot: [], scrapper: [], tollbooth: [], mantlet: [], overdrive: [] };
     for (const [def, stars] of Object.entries(at)) for (const s of STARS) expect(!!faceLines(def, s)!.clause, `${def} ★${s}`).toBe(stars.includes(s));
     const spread = (s: number) => (effectAt("frostbite", s).factory!.round as { spread: number }).spread;
     expect(STARS.map((s) => 1 + spread(s))).toEqual([1, 2, 3]);
@@ -383,20 +408,24 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
       const n = 1 + spread(s);
       expect(stripIcons(faceLines("frostbite", s)!.rules[0].text)).toBe(`ITS STUN HITS ${fmtCount(n)} PART${n === 1 ? "" : "S"}.`);
     }
-    // OVERDRIVE's guard names the rounds it keeps off, by its flags: no SLOW or FREEZE any more
-    expect(stripIcons(faceLines("overdrive", 2)!.clause!.text)).toBe("★2 REDLINE: ENEMY CHAIN ROUNDS CAN'T STUN ITS BELTS.");
-    expect(stripIcons(faceLines("overdrive", 3)!.clause!.text)).toBe("★3 AFTERBURNER: ENEMY CHAIN AND FROST ROUNDS CAN'T STUN ITS BELTS.");
+    // OVERDRIVE's guard names the rounds it keeps off, by its flags: no SLOW or FREEZE any more. Y7b2 (the flip): REDLINE's
+    // and AFTERBURNER's guard left (no data holds `guard`), with their clauses (switch-off only; were "★2 REDLINE: ENEMY
+    // CHAIN ROUNDS CAN'T STUN ITS BELTS." and "★3 AFTERBURNER: ENEMY CHAIN AND FROST ROUNDS CAN'T STUN ITS BELTS.")
+    expect(STARS.map((s) => effectAt("overdrive", s).gate!.guard)).toEqual([undefined, undefined, undefined]);
     // SCRAPPER: its slug's damage carries its scrapFlat; TOLLBOOTH and FLAK SCREEN: their numbers through the formatters
     for (const s of STARS) {
       const fs = effectAt("scrapper", s).factory!;
       expect(factoryStats("scrapper", s)[1]).toEqual(["DMG", fmtDmg(AMMO[fs.ammo].base + fs.scrapFlat!)]);
-      expect(stripIcons(faceLines("tollbooth", s)!.rules[0].text)).toBe(`BLOCKS THE FIRST ${fmtCount(effectAt("tollbooth", s).gate!.toll!)} STUN HITS ON ITS BELT.`);
+      // Y7b2 (the flip): release Y's TOLLBOOTH face, its belt's parts (was `BLOCKS THE FIRST ${toll} STUN HITS ON ITS BELT.`)
+      expect(stripIcons(faceLines("tollbooth", s)!.rules[0].text)).toBe(`BLOCKS ${fmtCount(effectAt("tollbooth", s).gate!.toll!)} STUN ON ITS BELT'S PARTS.`);
       expect(stripIcons(faceLines("flak", s)!.rules[0].text)).toBe(`SHOOTS DOWN ${fmtPct(effectAt("flak", s).mod!.intercept!)} OF ENEMY STUN SHOTS.`);
     }
-    // the interim caveats the sim needs: harassment is a STUN, a wreck or a rip; SCRAPPER's queue cap; FLAK's other shots
-    expect(faceLines("scrapper", 1)!.caveats!.map(stripIcons)).toEqual(["WRECKS AND RIPS COUNT TOO.", `MAX ${fmtCount(SIM.scrapQueue)} SLUGS WAITING.`]);
-    expect(faceLines("tollbooth", 1)!.caveats!.map(stripIcons)).toEqual(["IT GUARDS ITS BELT'S RIGS AND GUN TOO.", "WRECKS AND RIPS COUNT TOO."]);
-    expect(faceLines("flak", 1)!.caveats!.map(stripIcons)).toEqual(["ALSO GRAPNEL, LANCE AND LIMPET SHOTS.", "ONLY YOUR BEST FLAK SCREEN COUNTS."]);
+    // the interim caveats the sim needs: harassment is a STUN, a wreck or a rip; SCRAPPER's queue cap; FLAK's other shots.
+    // Y7b2 (the flip): harassment is a STUN alone, SCRAPPER's cap and FLAK's single best-screen roll left, so none of the
+    // three keeps a caveat (were ["WRECKS AND RIPS COUNT TOO.", `MAX ${fmtCount(SIM.scrapQueue)} SLUGS WAITING.`], ["IT
+    // GUARDS ITS BELT'S RIGS AND GUN TOO.", "WRECKS AND RIPS COUNT TOO."] and ["ALSO GRAPNEL, LANCE AND LIMPET SHOTS.",
+    // "ONLY YOUR BEST FLAK SCREEN COUNTS."])
+    expect(["scrapper", "tollbooth", "flak"].map((def) => faceLines(def, 1)!.caveats)).toEqual([undefined, undefined, undefined]);
   });
 
   it("F7: hero select's stats box joins the factory and its slug with a comma, never a middle dot", () => {
@@ -407,14 +436,20 @@ describe("U2b group 0: cap's fixes F2-F7 on U2a's pieces (F1, the DMG glyph, is 
 });
 
 describe("U2c group 0: cap's fixes 1-5 on the 0.8.7 rune build", () => {
-  it("fix 1: SURGE VALVE's rule says its pulse, the speed and the length through the formatters; NEXT★ shows the next speed", () => {
+  // Y7b2 (the flip): retitled, was "fix 1: SURGE VALVE's rule says its pulse, the speed and the length through the formatters;
+  // NEXT★ shows the next speed". Its speed pulse left (Y3, DESIGN-Y row 28): the damage pulse alone, its period and damage
+  it("fix 1: SURGE VALVE's rule says its pulse, the period and the damage through the formatters; NEXT★ shows the next damage", () => {
     for (const s of STARS) {
       const p = effectAt("surge", s).gate!.pulse!;
       const { value: fl, records } = captureFormats(() => faceLines("surge", s)!);
       const rule = stripIcons(fl.rules[0].text);
-      expect(rule, `★${s}`).toContain(`${fmtCount(p.speed)} TIMES AS FAST FOR ${fmtSec(p.on)}`);
-      expect(records.map((r) => [r.unit, r.value]), `★${s}`).toEqual(expect.arrayContaining([["count", p.speed], ["sec", p.on], ["sec", p.period], ["dmg", p.flat]]));
-      if (s < FUSE_MAX) expect(stripIcons(faceNext("surge", s)!.text), `★${s}`).toContain(`${fmtCount(effectAt("surge", s + 1).gate!.pulse!.speed)} TIMES`);
+      // Y7b2 (the flip): "EVERY 3{SEC}: +10 {DMG} TO SLUGS ON ITS BELTS." (was toContain(`${fmtCount(p.speed)} TIMES AS FAST
+      // FOR ${fmtSec(p.on)}`); its records were arrayContaining [["count", p.speed], ["sec", p.on], ["sec", p.period],
+      // ["dmg", p.flat]], now exactly the period and the damage)
+      expect(rule, `★${s}`).toBe(stripIcons(icons(`EVERY ${fmtSec(p.period)}{SEC}: +${fmtDmg(p.flat)} {DMG} TO SLUGS ON ITS BELTS.`)));
+      expect(records.map((r) => [r.unit, r.value]), `★${s}`).toEqual([["sec", p.period], ["dmg", p.flat]]);
+      // Y7b2 (the flip): the next damage (was toContain(`${fmtCount(next speed)} TIMES`))
+      if (s < FUSE_MAX) expect(stripIcons(faceNext("surge", s)!.text), `★${s}`).toContain(`+${fmtDmg(effectAt("surge", s + 1).gate!.pulse!.flat)} `);
     }
   });
 
@@ -483,13 +518,16 @@ describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number th
       const p = effectAt("surge", s + 1).gate!.pulse!, moved = p.period !== effectAt("surge", s).gate!.pulse!.period;
       if (moved) keyed++;
       const nx = faceNext("surge", s)!;
-      expect(nx.text, `★${s}`).toBe(icons(`NEXT ★${s + 1}: ${moved ? `EVERY ${fmtSec(p.period)}{SEC}, ` : ""}${fmtCount(p.speed)} TIMES, +${fmtDmg(p.flat)} {DMG}`));
+      // Y7b2 (the flip): no TIMES (its speed pulse left; was `...${fmtCount(p.speed)} TIMES, +${fmtDmg(p.flat)} {DMG}`)
+      expect(nx.text, `★${s}`).toBe(icons(`NEXT ★${s + 1}: ${moved ? `EVERY ${fmtSec(p.period)}{SEC}, ` : ""}+${fmtDmg(p.flat)} {DMG}`));
       // its perk's name (OVERPRESSURE, HAMMER VALVE) gives way where it would take the line past the band: the numbers say
       // what the star brings. NUM-3 step 2: the line with the period still passes it (HAMMER VALVE gives way at ★2); ★1's
       // line, without the period, now fits its name (OVERPRESSURE shows), as the band rule below says for every piece
+      // Y7b2 (the flip): without TIMES the line with the period fits too, 216 px of 225 with HAMMER VALVE, so the name shows
+      // at ★2 as well (was toBeGreaterThan(NEXT_LINE_W))
       const whole = textWidth(`${nx.text} ★${s + 1} ${livePerk("surge", s + 1)}`, "5");
       expect(nx.perk, `★${s}`).toBe(whole > NEXT_LINE_W ? undefined : livePerk("surge", s + 1));
-      if (moved) expect(whole, `★${s}`).toBeGreaterThan(NEXT_LINE_W);
+      if (moved) expect(whole, `★${s}`).toBe(216);
     }
     expect(keyed, "its period changes with its stars").toBeGreaterThan(0);
     expect(NEXT_LINE_W).toBe(GLOSSARY_WRAP_W); // the op view's band in 5x7 (T1 2.6), the definitions' width
@@ -507,9 +545,12 @@ describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number th
     }
     expect(missing).toEqual([]);
     // the ones F1 keyed: ARMOR PRESS's period (one at every star today), SPALL CATCHER's MAX, SALVAGE LINE's damage, SPOTTER's weight
-    expect(stripIcons(faceNext("spallcatcher", 1)!.text)).toContain(`MAX ${fmtDmg(effectAt("spallcatcher", 2).mod!.spall!.max)} `);
-    expect(stripIcons(faceNext("spotter", 1)!.text)).toContain(`FACTORIES ${fmtCount(effectAt("spotter", 2).mod!.factoryWeight!)} TIMES`);
-    expect(stripIcons(faceNext("grapnel", 2, { k: 1 })!.text)).toContain(" EACH");
+    // Y7b2 (the flip): SPALL CATCHER's cap, SALVAGE LINE and SPOTTER's factory weight left, so their NEXT★ lines are the
+    // numbers left: the damage, the rips and the aims (were toContain(`MAX ${fmtDmg(spall.max)} `), toContain(" EACH") and
+    // toContain(`FACTORIES ${fmtCount(factoryWeight)} TIMES`))
+    expect(stripIcons(faceNext("spallcatcher", 1)!.text)).toBe(`NEXT ★2: +${fmtDmg(effectAt("spallcatcher", 2).mod!.spall!.add)} `);
+    expect(stripIcons(faceNext("spotter", 1)!.text)).toBe(`NEXT ★2: ${fmtCount(effectAt("spotter", 2).mod!.rerolls!)} MORE AIMS`);
+    expect(stripIcons(faceNext("grapnel", 2, { k: 1 })!.text)).toBe(`NEXT ★3: RIPS ${fmtCount(effectAt("grapnel", 3).core!.rip!)}`);
     expect(faceAt("armorpress", 1)!.nums.find(([key]) => key === "every")![1]).toBe(`EVERY ${fmtSec(effectAt("armorpress", 1).factory!.plate!.every)}{SEC}`);
   });
 
@@ -527,7 +568,12 @@ describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number th
       }
     }
     console.log(`U2d F1: the perk's name gave way on ${gaveWay.length} NEXT★ lines:\n${gaveWay.join("\n")}`);
-    expect(gaveWay.length).toBeGreaterThan(0);
+    // Y7b2 (the flip): none gives way now, measured (was 9 lines, toBeGreaterThan(0)): the 9 lines that passed the band lost
+    // the numbers of rules the flip removed (SCRAPPER ★2's wreck, SABOT ★2's SHRAPNEL tiles, GRAPNEL ★2's salvage at all 5
+    // class factors, SURGE ★2's TIMES, SPOTTER ★1's factory weight), and their perks BIG HAUL, SHRAPNEL, SALVAGE LINE and
+    // FACTORY SPOT left with the words; the 26 NEXT★ lines with a new perk all fit the band with it (the widest SURGE ★2's
+    // HAMMER VALVE, 216 px of 225)
+    expect(gaveWay).toEqual([]);
   });
 });
 

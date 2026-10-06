@@ -395,7 +395,10 @@ describe("0.6.2t T4: the panels' layout", () => {
         for (const l of lay(v.body, w, font, !!v.tight)) for (const line of l.lines) check(`${id} at ${w} (${font})`, line);
       }
     }
-    expect(perks).toBeGreaterThan(1000);
+    // Y7b2 (the words; ruling R-1 for every piece): no panel draws a perk's name now (faceBlocks.ts perkInfoOnly holds for
+    // every piece; inspector.ts abilityBlocks and the turret panel's socket sentence draw none): the ⓘ LEVELS view shows
+    // them. Was expect(perks).toBeGreaterThan(1000)
+    expect(perks).toBe(0);
     // 0.6.2rel2: that covers FB-B's perks (MANTLET ★2 FULL PLATE and ★3 BULWARK SKIRT, HOPPER ★3 BOTTOMLESS) and the perks a
     // turret's own panels draw (its core's and gear's), on desk and phone. A turret itself has no star perk (content.ts)
     const drawn = new Set<string>();
@@ -414,12 +417,15 @@ describe("0.6.2t T4: the panels' layout", () => {
     // FLIP-X2 (REVIEW-NUM3 answer 2): SIFTER is dormant, so it is no buyable module and its panels leave this walk (was
     // ["★2 POLISH", "★3 FINE MESH", "★3 BOTTOMLESS"])
     for (const band of ["desk", "phone"]) {
-      for (const perk of ["★3 BOTTOMLESS"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(true);
+      // Y7b2 (the words): HOPPER ★3's BOTTOMLESS left with its rule, and no panel draws a perk's name (was toBe(true))
+      for (const perk of ["★3 BOTTOMLESS"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(false);
       for (const perk of ["★2 POLISH", "★3 FINE MESH"]) expect(drawn.has(`${band} ${perk}`), `${band} ${perk}`).toBe(false);
     }
-    // an installed turret's panel (the hero's turret with one module, or a slot's turret with its gear)
-    expect(drawn.has("desk drawn on turret") || drawn.has("desk drawn on installed"), "desk: a perk on a turret's panel").toBe(true);
-    expect(drawn.has("phone laid on turret") || drawn.has("phone laid on installed"), "phone: a perk on a turret's panel").toBe(true);
+    // an installed turret's panel (the hero's turret with one module, or a slot's turret with its gear). Y7b2 (the words;
+    // R-1 for every piece): none draws a perk, desk or phone (both were toBe(true)); nothing is drawn anywhere
+    expect(drawn.has("desk drawn on turret") || drawn.has("desk drawn on installed"), "desk: a perk on a turret's panel").toBe(false);
+    expect(drawn.has("phone laid on turret") || drawn.has("phone laid on installed"), "phone: a perk on a turret's panel").toBe(false);
+    expect([...drawn]).toEqual([]);
     expect(MODULES.filter((d) => d.kind === "turret").flatMap((d) => STARS.map((s) => abilityText(d.id, s).perk)).filter(Boolean)).toEqual([]);
     // MIMIC FORGE ★3 (the brief's case): the hero's example sits before ★3 TWIN SIGNET, so the name ends the text and
     // nothing reads on from it ("TWIN SIGNET FOR FURNACE" at 881b38f)
@@ -518,15 +524,24 @@ describe("0b.4: a SLAG belt's readout says what the sim does there; METRONOME's 
     }
   });
 
-  it("SLAG: SURGE VALVE's pulse damage isn't counted there (the sim never pays it to fixed-speed ammo)", () => {
+  // Y7b2 (the flip): retitled, was "SLAG: SURGE VALVE's pulse damage isn't counted there (the sim never pays it to
+  // fixed-speed ammo)". SURGE VALVE's per-ride speed pulse left with the flip; its damage pulse (Battle.surgeTick) pays every
+  // slug on its belts, slag too, so the slag belt's readout counts it (deck.ts walkRoute: flat x the seconds on the belt /
+  // the period), as the sim does
+  it("SLAG: SURGE VALVE's pulse damage is counted there too (the sim pays it to every slug on its belts, slag too)", () => {
     for (const s of STARS) {
       const run = slagRun(s, "surge"), i = run.build.routes.length - 1;
-      const text = readout(run, i), flat = effectAt("brake", s).gate!.flat ?? 0;
-      expect(text, `★${s}`).toContain("SURGE VALVE: NO EFFECT ON SLAG");
-      expect(text, `★${s}`).toContain(`DMG ${AMMO.slag.base + flat}, BURN 0`); // NUM-1: AMMO.slag.base (70; was 7); NUM-4: the walk's whole number (was toFixed(1), "70.0")
+      const text = readout(run, i), p = effectAt("surge", s).gate!.pulse!;
+      // Y7b2 (the flip): its row, the same on every belt (was "SURGE VALVE: NO EFFECT ON SLAG")
+      expect(text, `★${s}`).toContain(`SURGE VALVE +${p.flat} DAMAGE EVERY ${p.period} SEC`);
+      // Y7b2 (the flip): slag's base plus the pulses the slug rides through (TIME 4 SEC), measured 83 / 97 / 130 (was
+      // `DMG ${AMMO.slag.base + flat}, BURN 0`, 70: the brake's flat, none at every star now)
+      expect(text, `★${s}`).toContain(`DMG ${[83, 97, 130][s - 1]}, BURN 0`); // NUM-1: AMMO.slag.base (70; was 7); NUM-4: the walk's whole number (was toFixed(1), "70.0")
     }
-    // the sim's own rule (battle.ts transport): no pulse on fixed-speed ammo or a speed-locked side
-    expect(readFileSync(new URL("../src/sim/battle.ts", import.meta.url), "utf8")).toContain("const surge = fixed === undefined && !s.race?.speedLock ? this.pulseAt(r, a.s) : undefined;");
+    // the sim's own rule. Y7b2 (the flip): Battle.beltPulse (surgeTick's walk) pays every slug on the valve's belts, fixed
+    // speed or not (was the per-ride pulse's guard, "const surge = fixed === undefined && !s.race?.speedLock ?
+    // this.pulseAt(r, a.s) : undefined;", which finds no valve since Y3)
+    expect(readFileSync(new URL("../src/sim/battle.ts", import.meta.url), "utf8")).toContain("for (const ri of new Set(g.hits.map((h) => h.route))) for (const a of s.routes[ri].ammo) a.p.flat += flat;");
   });
 
   it("METRONOME: the same rigs keep (LOCKED) and pay the locked bonus (a heat shoe its heat too)", () => {
@@ -633,7 +648,8 @@ describe("0.6.2rel: the join rows and the turret panels read by the text rules",
 });
 
 describe("0b.1-0b.3: the other carry-overs", () => {
-  it("0b.1: LIMPET WORKS at 1 star promises no stall in any panel, card, tooltip or cargo; from ★2 it does", () => {
+  // Y7b2 (the flip): retitled, was "...; from ★2 it does" (LIMPET's stall left with the flip)
+  it("0b.1: LIMPET WORKS at 1 star promises no stall in any panel, card, tooltip or cargo; ★2's text names none either", () => {
     const one = [
       ...abilityText("limpet", 1).sentences, gist("limpet", 1), cardText("limpet"), flavourText("limpet", 1), ITEMS.limpet.desc.join(" "),
       ...PANELS.filter((p) => p.id.startsWith("offer limpet held[]") || p.id.startsWith("cargo limpet ★1") || p.id.startsWith("placed limpet ★1"))
@@ -641,7 +657,10 @@ describe("0b.1-0b.3: the other carry-overs", () => {
     ];
     expect(one.length).toBeGreaterThan(8);
     for (const t of one) expect(t).not.toMatch(/STALL/);
-    expect(abilityText("limpet", 2).sentences).toContain("THE BLAST ALSO STUNS THE MACHINE THE CHARGE STUCK TO FOR 1 SECOND."); // NUM-4 (REVIEW-NUM3 F2): STUNS (was STALLS)
+    // Y7b2 (the flip): LIMPET's stall left (its blast is 100 / 230 / 360 DAMAGE, no STUN at any star), so ★2's sentences
+    // name no stun; was toContain("THE BLAST ALSO STUNS THE MACHINE THE CHARGE STUCK TO FOR 1 SECOND.") (NUM-4: STUNS, was
+    // STALLS)
+    expect(abilityText("limpet", 2).sentences).toEqual(["STAMPS CHARGES THAT BLAST THE ENEMY HULL FOR 230 DAMAGE, 3 SECONDS AFTER THEY LAND.", "IT STAMPS ONE AT RATE 13."]);
   });
 
   it("0b.2: the wrap never ends a paragraph on a stub line when pulling one more word down still fits", () => {
@@ -839,7 +858,11 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // hint); the 64 missing are unchanged
     // FLIP-X2 (REQ-BFG-069, the sustain switch on): 1952, WARD BELL, MEND PRESS and MENDING LOOM join the buyable modules
     // (their 39 desk panels with a hint, each showing it); the 64 missing are unchanged (was 1913)
-    expect([withHint, missing.length]).toEqual([1952, 64]);
+    // Y7b2 (the flip): 53 missing, measured (was 64): 12 desk panels now show the hint ("turret mantlet ★2/★3", "turret
+    // rotary ★3" and "turret steambreech ★3" with release Y's faces; seven "installed ... gear3" turrets and
+    // "installed compound-hopper1-ram", HOPPER's load-time clash gone) and "installed gatling-hopper1" no longer does (the
+    // words move none)
+    expect([withHint, missing.length]).toEqual([1952, 53]);
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -875,7 +898,10 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // the hint); SIFTER's left at step 1 with no change here (was 844)
     // Y1 (REQ-BFG-070): 881, measured: COIL's and FROSTBITE's perk clauses and the perk names on COIL, FROSTBITE, MIMIC and
     // TWIN MOULD faces are gone (their numbers are on the line), so 4 more phone panels have room for the hint (was 877)
-    expect(hints).toBe(881);
+    // Y7b2 (the flip): 1223, measured: release Y's faces for the 30 folded pieces (a stat row and one line, no interim
+    // clause or caveat) leave 342 more phone panels room for the hint. Y7b2 (the words): 1231, measured: no panel draws a
+    // perk's name (R-1 for every piece), 8 more (was 881)
+    expect(hints).toBe(1231);
   });
 });
 
@@ -884,13 +910,15 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
   /** The numbers in a row's value that no unit or noun follows ("CHAMBER 3 LOADS, 1.5 SEC" at 881b38f: the 1.5). */
   // 0.8.0 I1 M2 (REPORT-P1 section 13): wave 3's units join, as tests/wave3.text.test.ts has them: PLATING, a RIG count
   // (PINCER's CROSSFIRE WITH 2 RIGS) and SHORTER (BRACE FRAME's 85% SHORTER)
+  // Y7b2: STUNS joins (the flip: TOLLBOOTH's row "TOLLBOOTH BLOCKS 2 STUNS", was "... BLOCKS 2 HARASSMENT HITS") and SPEED
+  // after a % (the words: BRAKE SHOE's row "BRAKE SHOE AT 40% SPEED", was "BRAKE SHOE 60% SLOWER")
   const bare = (text: string): string[] => {
     const ws = text.replace(/[,():]/g, " ").split(/\s+/).filter(Boolean);
     return ws.flatMap((w, i) => {
       if (!/^[+-]?\d+(\.\d+)?%?$/.test(w)) return [];
       const next = ws[i + 1] ?? "";
-      if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER|SHORTER)$/.test(next) ? [] : [w];
-      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|RIGS?)$/.test(next) ? [] : [w];
+      if (w.endsWith("%")) return /^(DAMAGE|FASTER|SLOWER|SHORTER|SPEED)$/.test(next) ? [] : [w];
+      return /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|RIGS?|STUNS)$/.test(next) ? [] : [w];
     });
   };
   /** 0.6.2rel2: turret `def` (★ts) in a FURNACE's slot 1 with `core` (★cs) and `gear` in its hardpoints, in order. */
@@ -919,10 +947,13 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     expect(S).toBe(30);
     expect(face(null, 1)).toEqual([row(S, 3), undefined]); // the KILN BREECH
     expect(face("rotary", 1)).toEqual([row(S, 3), undefined]);
-    // 0.6.2 FB-B: every HOPPER star adds 1 slot; ★2 and ★3 store 1 and 2 loads while firing; ★3 never jams
-    expect(face("rotary", 1, [["hopper", 3]])).toEqual([row(S, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
+    // 0.6.2 FB-B: every HOPPER star adds 1 slot; ★2 and ★3 store 1 and 2 loads while firing; ★3 never jams. Y7b2 (the
+    // flip): HOPPER's chamber holds +1/+2/+3 (window), with no store and no no-jam, so ★2 and ★3 read 5 and 6 loads and no
+    // note (were [row(S, 4), icons(`STORES +${fmtCount(1)} {SLUG} WHILE IT FIRES.`)] at ★2 and [row(S, 4),
+    // icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)] at ★3)
+    expect(face("rotary", 1, [["hopper", 3]])).toEqual([row(S, 6), undefined]);
     expect(face(null, 1, [["hopper", 1]])).toEqual([row(S, 4), undefined]);
-    expect(face(null, 1, [["hopper", 2]])).toEqual([row(S, 4), icons(`STORES +${fmtCount(1)} {SLUG} WHILE IT FIRES.`)]);
+    expect(face(null, 1, [["hopper", 2]])).toEqual([row(S, 5), undefined]);
     // PRESSURE BREECH never jams and counts at most 5 loads waiting (U2b's ledger: its cap in the turret's stat rows)
     // U2d F5: the note reads forwards (was `NEVER JAMS. MAX 5 {SLUG} WAITING COUNT.`)
     expect(face("pressure", 2)).toEqual([row(S, 3), icons(`NEVER JAMS. COUNTS UP TO ${fmtCount(ITEMS.pressure.core!.maxCount!)} WAITING {SLUG}.`)]);
@@ -933,10 +964,15 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     const V = Math.max(1, roundHalfUp(S / ITEMS.salvo.core!.reloadMul!));
     expect(V).toBe(19);
     expect(face("salvo", 1)).toEqual([row(V, 3), undefined]);
-    expect(face("compound", 1, [["hopper", 3]])).toEqual([row(S, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)} {SLUG} WHILE IT FIRES.`)]);
+    // Y7b2 (the flip): HOPPER ★3 holds +3, no store, no no-jam (was [row(S, 4), icons(`NEVER JAMS. STORES +${fmtCount(2)}
+    // {SLUG} WHILE IT FIRES.`)])
+    expect(face("compound", 1, [["hopper", 3]])).toEqual([row(S, 6), undefined]);
     expect(face("gatling", 1, [["hopper", 1]])).toEqual([row(S, 4), undefined]);
-    expect(face(null, 1, [["chamber", 2]])).toEqual([row(S, 4), undefined]); // 2 LOADS EACH SHOT: EXT. CHAMBER's own rule, under its GEAR row
-    expect(stripIcons(faceLines("chamber", 2)!.rules[0].text)).toBe(`EACH SHOT FIRES ${fmtCount(effectAt("chamber", 2).mod!.perShot!)} .`);
+    // Y7b2 (the flip): EXT. CHAMBER ★2's +1 slot (WIDE BREECH's window) left, so its turret holds 3 (was row(S, 4)); it fires
+    // up to 3 loads a shot (perShot 3, was 2), at most what the chamber holds (Y7A-R2's face: "UP TO", was
+    // `EACH SHOT FIRES ${fmtCount(perShot)} .`, "EACH SHOT FIRES 2 .")
+    expect(face(null, 1, [["chamber", 2]])).toEqual([row(S, 3), undefined]); // EXT. CHAMBER's own rule, under its GEAR row
+    expect(stripIcons(faceLines("chamber", 2)!.rules[0].text)).toBe(`EACH SHOT FIRES UP TO ${fmtCount(effectAt("chamber", 2).mod!.perShot!)} .`);
   });
 
   it("0.6.2rel2: the load time is what the battle waits (U2c: a hidden timer, on no turret panel), every core at every star, no HOPPER and HOPPER ★1-★3, heavy and light", () => {
@@ -965,12 +1001,20 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
       // says, so the glossary's LOAD TIME row names no number (it said n2(lt)); COMPOUND's hold is whole and its tap text
       // says it exactly through fmtSec. EQUIVALENT of "say it exactly": what a text says of the wait is exact or absent
       if (tu.core.routine === "compound") expect([Number.isInteger(lt), fmtSec(lt)], id).toEqual([true, String(lt)]);
-      else expect(glossaryEntry("LOAD TIME")!.def, id).not.toMatch(/\d/);
+      // Y7b2 (the words; LOAD TIME retires): the glossary has no LOAD TIME row (no text names it), so none says the window
+      // (was expect(glossaryEntry("LOAD TIME")!.def, id).not.toMatch(/\d/), its def "LOAD TIME: A GUN FIRES A FULL
+      // CHAMBER, OR SOON AFTER ITS FIRST LOAD.")
+      else expect(glossaryEntry("LOAD TIME"), id).toBeUndefined();
       const wait = tu.core.routine === "salvo" ? 2 * lt : lt; // SALVO RACK waits twice its load time, as its text says
       expect([ready(wait - 0.01), ready(wait)], id).toEqual([false, true]);
-      // HOPPER adds 0.5 SECONDS for every star it has, except on a COMPOUND BREECH
+      // Y7b2 (the words): SALVO RACK's kept sentence says that wait exactly, in seconds (was "IT WAITS FOR A FULL CHAMBER, OR
+      // TWICE ITS LOAD TIME.")
+      if (tu.core.routine === "salvo") expect(abilityText("salvo", s).sentences[1], id).toBe(`IT WAITS FOR A FULL CHAMBER, OR ${fmtSec(wait)} SECONDS AFTER ITS FIRST LOAD.`);
+      // HOPPER adds 0.5 SECONDS for every star it has, except on a COMPOUND BREECH. Y7b2 (the flip): HOPPER's load time left
+      // (its chamber holds +1/+2/+3, no windowTime), so no HOPPER moves a core's wait (was
+      // toBeCloseTo(hs ? effectAt("hopper", hs).mod!.windowTime! : 0, 9), +0.5 s a star)
       const base = makeTurret(fitted(def, 1, core, s).build, 0, turretSlots(run.build)[0].td!);
-      expect(tu.windowTime - base.windowTime, id).toBeCloseTo(hs ? effectAt("hopper", hs).mod!.windowTime! : 0, 9);
+      expect(tu.windowTime - base.windowTime, id).toBeCloseTo(0, 9);
     }
     expect(n).toBe(2 * 16 * 3 * 4); // 0.8.0 I1 M2: 15 cores and the signature (was 2 * 14 * 3 * 4)
   });
@@ -1035,9 +1079,12 @@ describe("0.6.2t2 F2: every number in a stat row says what it is", () => {
     const row = (def: string, s: number) => routePanel(rigRun(def, s, 3, 3, rotFacing(def, 1), 0), 0)!.body.find((b) => b.role === "row")!.text;
     expect(row("splitter", 1)).toBe("SPLITTER 2 COPIES AT 60% DAMAGE");
     // NUM-1: LODESTONE ★2's numbers from the data through the formatter (x10: +20, +22, UP TO 130; were +2, +2.2, 13)
+    // Y7b2 (the flip): LODESTONE's floor left (no flat) and the battle reads no cap (perStalled.max stays in the data), so
+    // its row is +22 for each STUNNED MACHINE alone (was [20, 22, 130] and "LODESTONE +20 DAMAGE, +22 DAMAGE FOR EACH
+    // STUNNED MACHINE, UP TO 130 DAMAGE")
     const ls = effectAt("lodestone", 2).gate!;
-    expect([ls.flat, ls.perStalled!.each, ls.perStalled!.max]).toEqual([20, 22, 130]);
-    expect(row("lodestone", 2)).toBe(`LODESTONE +${fmtDmg(ls.flat!)} DAMAGE, +${fmtDmg(ls.perStalled!.each)} DAMAGE FOR EACH STUNNED MACHINE, UP TO ${fmtDmg(ls.perStalled!.max)} DAMAGE`); // NUM-4 (REVIEW-NUM3 F2): STUNNED (was STALLED)
+    expect([ls.flat, ls.perStalled!.each, ls.perStalled!.max]).toEqual([undefined, 22, 130]);
+    expect(row("lodestone", 2)).toBe(`LODESTONE +${fmtDmg(ls.perStalled!.each)} DAMAGE FOR EACH STUNNED MACHINE`); // NUM-4 (REVIEW-NUM3 F2): STUNNED (was STALLED)
   });
 });
 
@@ -1053,9 +1100,13 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
   };
 
   it("nit 1: the desk keeps a turret's clashes and MANTLET's shield, the gear list taking its compact form first", () => {
-    // the clash of a GATLING SPOOL's and a COMPOUND BREECH's HOPPER, and MANTLET's shield at ★2 and ★3, on the desk
-    for (const [id, text] of [["gatling-hopper1", gatlingClashText("hopper", 1, "gatling")!], ["compound-hopper3", gatlingClashText("hopper", 3, "compound")!],
-      ["mantlet2", shieldLine(1)], ["mantlet3-hopper3", shieldLine(3)]]) {
+    // the clash of a GATLING SPOOL's and a COMPOUND BREECH's HOPPER, and MANTLET's shield at ★2 and ★3, on the desk. Y7b2 (the
+    // flip): HOPPER's load time left, so it has no clash on either (the GATLING's was "GATLING SPOOL: THE HOPPER'S LONGER
+    // LOAD TIME DOES NOTHING HERE.", the COMPOUND's "COMPOUND BREECH: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE, BUT
+    // ITS STORE STILL WORKS."); the gatling-hopper1 and compound-hopper3 rows of the loop went with them
+    expect([gatlingClashText("hopper", 1, "gatling"), gatlingClashText("hopper", 3, "compound")]).toEqual([null, null]);
+    // Y7b2 (the flip): MANTLET guards 1/2/3 tiles from ★1 (intakeGuard), so ★2's shield is shieldLine(2) (was shieldLine(1))
+    for (const [id, text] of [["mantlet2", shieldLine(2)], ["mantlet3-hopper3", shieldLine(3)]]) {
       const plan = planPanel(installed(id), DESK);
       expect([shown(installed(id), DESK).includes(text), plan.body.font], id).toEqual([true, "5"]);
     }
@@ -1088,7 +1139,11 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
       if (r >= 4) expect(need.every((s) => shorts.has(s)), id).toBe(true);
       if (r === 5) { // the names gave way only because rung 4 didn't fit: without rung 5 the panel falls to the net
         const no5 = { ...t, variants: t.variants!.filter((v) => !v.body.some(isCount)) };
-        expect(rungOf(no5), id).toBe(6);
+        // Y7b2 (the flip): FINISHER RAM's socket row reads "FINISHER RAM (IDLE)" on a GATLING SPOOL (Y5's idle gear), so the
+        // six-gear THUNDERER ★3's one-row list is a line longer and even the net misses the 5x7 face: without rung 5 its
+        // panel falls to rung 3 in the 3x5 face, measured (was 6 for it too, the net); every other rung-5 panel still falls
+        // to the net in the 5x7 face
+        expect([rungOf(no5), planPanel(no5, DESK).body.font], id).toEqual(id === "installed thunderer3-six-gatling" ? [3, "3"] : [6, "5"]);
       }
       // b94077d's plan (both optional) dropped one of them here: the stat rows or a gear sentence took the room
       if (r <= 3 && !kept.every((s) => shown(optional(t), DESK).includes(s))) rescued.push(id);
@@ -1098,16 +1153,21 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
     // the rehearsal REPORT's 8c item 6: SCRAP CANNON with MANTLET ★2 shows its shield on the desk. U2c step 4: its stat row
     // (one line, was three rows) leaves b94077d's plan room for the shield too, so it no longer needs rescuing (was
     // expect(rescued).toContain("turret mantlet ★2")); the shield shows whole either way
+    // Y7b2 (the flip): MANTLET ★2 guards 2 tiles, shieldLine(2) (was shieldLine(1))
     const mantlet = PANELS.find((p) => p.id === "turret mantlet ★2")!.t;
-    expect([shown(mantlet, DESK).includes(shieldLine(1)), shown(optional(mantlet), DESK).includes(shieldLine(1))]).toEqual([true, true]);
-    // the six-gear THUNDERER of text-turret-six-desk.png shows both short lines, whole in the 5x7 face
+    expect([shown(mantlet, DESK).includes(shieldLine(2)), shown(optional(mantlet), DESK).includes(shieldLine(2))]).toEqual([true, true]);
+    // the six-gear THUNDERER of text-turret-six-desk.png shows both short lines, whole in the 5x7 face. Y7b2 (the flip): its
+    // one short line, FINISHER RAM's (HOPPER's clash left with its load time; was arrayContaining(["HOPPER: ITS LONGER LOAD
+    // TIME DOES NOTHING HERE.", "FINISHER RAM: DOES NOTHING HERE."]))
     const shot = installed("thunderer-shot"), shotPlan = planPanel(shot, DESK);
     expect([shotPlan.body.fits, shotPlan.body.font]).toEqual([true, "5"]);
-    expect(shown(shot, DESK)).toEqual(expect.arrayContaining(["HOPPER: ITS LONGER LOAD TIME DOES NOTHING HERE.", "FINISHER RAM: DOES NOTHING HERE."]));
-    // a two-piece GATLING turret with HOPPER and FINISHER RAM keeps its gear's names (rung 4 or better)
+    expect(shown(shot, DESK).filter((s) => s.endsWith("DOES NOTHING HERE."))).toEqual(["FINISHER RAM: DOES NOTHING HERE."]);
+    // a two-piece GATLING turret with HOPPER and FINISHER RAM keeps its gear's names (rung 4 or better). Y7b2 (the flip): the
+    // idle FINISHER RAM's name reads "(IDLE)" in the list (Y5's idle gear; was "HOPPER AND FINISHER RAM"), and with HOPPER's
+    // clash gone it keeps the whole clash sentence (rung 3)
     const two = installed("gatling-hopper-ram");
     expect(rungOf(two)).toBeLessThanOrEqual(4);
-    expect(planPanel(two, DESK).body.shown.some((l) => l.b.label === "GEAR" && l.b.text === "HOPPER AND FINISHER RAM")).toBe(true);
+    expect(planPanel(two, DESK).body.shown.some((l) => l.b.label === "GEAR" && l.b.text === "HOPPER AND FINISHER RAM (IDLE)")).toBe(true);
   });
 
   it("nit 2: the phone's one-row gear list counts its empty hardpoints as slots: 3 EMPTY SLOTS, 1 EMPTY SLOT", () => {
@@ -1129,34 +1189,40 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
     for (const { id, t } of PANELS.filter((p) => p.kind === "belt")) expect(t.sub, id).toMatch(/^([A-Z0-9% ]+\. )*[A-Z0-9% ]+\.$/);
   });
 
-  it("HOPPER on a COMPOUND BREECH: the sim ignores its seconds there (its slot and store still count); its clash says so", () => {
+  // Y7b2 (the flip): retitled, was "HOPPER on a COMPOUND BREECH: the sim ignores its seconds there (its slot and store still
+  // count); its clash says so". HOPPER's load time, store and no-jam left with the flip (its chamber holds +1/+2/+3), so it
+  // has no seconds to ignore and no clash; its slots count on a COMPOUND BREECH as on every core
+  it("HOPPER on a COMPOUND BREECH: its slots count, the lone load still waits the hold, and no clash (no seconds, no store)", () => {
     const load = {} as TurretState["stack"][number];
     for (const cs of STARS) for (const hs of STARS) {
       const id = `COMPOUND ★${cs}, HOPPER ★${hs}`;
       const run = turretRun("bombard", 1, [["hopper", hs]], ["compound", cs]), plain = turretRun("bombard", 1, [], ["compound", cs]);
       const [tu, bare] = [run, plain].map((r) => makeTurret(r.build, 0, turretSlots(r.build)[0].td!));
       const hold = tu.core.spec.hold ?? 3;
-      // the window time grows by HOPPER's 0.5 SECONDS, but a lone load fires at the hold either way (cores.ts compound)
-      expect(tu.windowTime - bare.windowTime, id).toBeCloseTo(0.5, 9);
+      // the window time grows by HOPPER's 0.5 SECONDS, but a lone load fires at the hold either way (cores.ts compound).
+      // Y7b2 (the flip): HOPPER adds no seconds (was toBeCloseTo(0.5, 9))
+      expect(tu.windowTime - bare.windowTime, id).toBeCloseTo(0, 9);
       for (const t of [tu, bare]) {
         const ready = (timer: number) => ROUTINES.compound.ready({ ...t, stack: [load], loadTimer: timer });
         expect([ready(hold - 0.01), ready(hold)], id).toEqual([false, true]);
       }
       // what still counts: the extra chamber slot (makeTurret's window caps the loads a chamber takes, on every core) and
-      // the ★2/★3 store (the loads taken while the gun fires)
-      expect([tu.window - bare.window, tu.storeMax], id).toEqual([1, effectAt("hopper", hs).mod!.store ?? 0]);
-      // the clash, through the GATLING's mechanism: only the seconds do nothing; FINISHER RAM does fire there
-      expect(gatlingClash(run.build, 0, "compound"), id).toEqual([
-        `COMPOUND BREECH: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${hs > 1 ? ", BUT ITS STORE STILL WORKS" : ""}.`,
-      ]);
+      // the ★2/★3 store (the loads taken while the gun fires). Y7b2 (the flip): +1/+2/+3 slots and no store (was [1,
+      // effectAt("hopper", hs).mod!.store ?? 0], the store 0/1/2)
+      expect([tu.window - bare.window, tu.storeMax], id).toEqual([hs, 0]);
+      // the clash, through the GATLING's mechanism: only the seconds do nothing; FINISHER RAM does fire there. Y7b2 (the
+      // flip): none (was [`COMPOUND BREECH: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE${hs > 1 ? ", BUT ITS STORE STILL
+      // WORKS" : ""}.`])
+      expect(gatlingClash(run.build, 0, "compound"), id).toEqual([]);
       // U2c step 4 (N1 6.6): no LOAD TIME row (was `${n2(hold)} SEC`); COMPOUND's tap text says its hold (U2b's ledger)
       expect(rows(turretPanel(run, 0)!)["LOAD TIME"], id).toBeUndefined();
       expect(glossaryText("SHOT", { def: "compound", stars: cs, o: { k: 1 } }), id).toContain(`AFTER ${fmtSec(hold)}{SEC}`);
     }
     expect(gatlingClash(turretRun("bombard", 1, [["ram", 2]], ["compound", 1]).build, 0, "compound")).toEqual([]);
     expect(gatlingClash(turretRun("bombard", 1, [["hopper", 1]], ["rotary", 1]).build, 0, "rotary")).toEqual([]);
-    // HOPPER's own text names both cores where its longer load time does nothing
-    for (const s of STARS) expect(abilityText("hopper", s).sentences.at(-1)).toBe("ON A GATLING SPOOL OR A COMPOUND BREECH THE LONGER LOAD TIME DOES NOTHING.");
+    // HOPPER's own text names both cores where its longer load time does nothing. Y7b2 (the flip): its one sentence, the
+    // slots (was its last sentence "ON A GATLING SPOOL OR A COMPOUND BREECH THE LONGER LOAD TIME DOES NOTHING.")
+    for (const s of STARS) expect(abilityText("hopper", s).sentences).toEqual([`THE TURRET'S CHAMBER HOLDS ${s} MORE LOAD${s > 1 ? "S" : ""}.`]);
   });
 });
 

@@ -45,8 +45,10 @@ const BANDS = [
 ] as const;
 const STOKER = 70;
 const OPENING = /^EACH FACTORY ITS ARROWS POINT AT WORKS \d+% FASTER\.$/;
-/** U2b (REQ-BFG-046): STOKER's face opens with its rule, the N% line in the face's words (faceLines, the registry's numbers). */
-const FACE_OPENING = /^ITS FACTORIES WORK \d+% FASTER\.$/;
+/** U2b (REQ-BFG-046): STOKER's face opens with its rule, the N% line in the face's words (faceLines, the registry's numbers).
+ *  Y7b2 (the flip): release Y's face says the cap in its one line, "ITS FACTORIES WORK UP TO 20% FASTER." (Y7b1 Y7A-R1;
+ *  was /^ITS FACTORIES WORK \d+% FASTER\.$/) */
+const FACE_OPENING = /^ITS FACTORIES WORK UP TO \d+% FASTER\.$/;
 // U2c step 5 (REQ-BFG-046; T1 2.2's notice form, LABEL: TEXT.): the capped line reads "THE KILN'S GUN IS FULL: IT WORKS ..." (was ", SO IT WORKS ..."), the same meaning
 const CAPPED = /^THE .+'S GUN IS FULL: /;
 
@@ -164,7 +166,10 @@ describe("STOKER's capped line takes the opening sentence's place (0.8.0 B1 M4, 
       // U2b (REQ-BFG-046): the face's later rule lines follow (none: one rule), then its interim caveat (F5, call 7), kept
       expect(t.body.filter((b) => b.role === "ability" && !b.colour && !/ WORKS \d+% FASTER\.$/.test(b.text)).map((b) => b.text), what)
         .toEqual(faceLines("stoker", c.stars)!.rules.slice(1).map((r) => r.text));
-      expect(t.body.filter((b) => b.role === "caveat").map((b) => [b.text, b.keep]), what).toEqual(faceLines("stoker", c.stars)!.caveats!.map((x) => [x, true]));
+      // Y7b2 (the flip): the interim caveats left (all but INNER COLUMN ONLY), so STOKER's face has none and no caveat block
+      // shows (was toEqual(faceLines("stoker", c.stars)!.caveats!.map((x) => [x, true])), its interim caveat, kept)
+      expect(faceLines("stoker", c.stars)!.caveats, what).toBeUndefined();
+      expect(t.body.filter((b) => b.role === "caveat").map((b) => [b.text, b.keep]), what).toEqual([]);
     }
   });
 

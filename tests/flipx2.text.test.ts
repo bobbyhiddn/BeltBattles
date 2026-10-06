@@ -1,7 +1,8 @@
 // FLIP-X2 (REQ-BFG-069, REQ-BFG-047; REVIEW-FLIPX1.md section 5): step 1b's display pins, switch-independent.
 // - Answer 2: KEYWORD_COLOUR.freeze and WORD_KEYWORDS' FREEZE / FREEZES / FROZEN / FROST are gone (freeze is no mechanic
 //   since NUM-3). OVERDRIVE ★3's AFTERBURNER clause draws FROST and CHAIN in the text's bone and its {*STUN} in STUN's
-//   colour (no test caught the FROST colour before: FLIP-X1 finding 3).
+//   colour (no test caught the FROST colour before: FLIP-X1 finding 3). Y7b2 (the flip): that clause left with
+//   AFTERBURNER's guard, so its test is deleted (its helper colourOf and the faceLines / ruleSpans / ICON imports with it).
 // - Answer 3: the rune bar's chips and the picker tray's chips are sized from their keyword word, as the card's chip is
 //   (runeChipW = max(side, textWidth(word, 3x5) + 3)): SHIELD's 23 px word takes a 26 px chip on the desk's 22 px bar and
 //   in the 22 px tray; the phone's bar chips (27) already hold it. Every other chip, and every layout without a SHIELD
@@ -10,11 +11,10 @@
 import { describe, expect, it } from "vitest";
 import { G, fresh, installRaster } from "./raster.helpers";
 import { C } from "../src/render/palette";
-import { ICON, ICON_COLOUR, textWidth } from "../src/render/font";
+import { textWidth } from "../src/render/font";
 import { ITEMS, withSustain } from "../src/sim/content";
 import { RUNES, runeList, type RuneDef } from "../src/sim/runes";
 import { KEYWORD_COLOUR, colourize } from "../src/ui/richText";
-import { faceLines, ruleSpans } from "../src/ui/faces";
 import { KEYWORD_WORD, RUNE_KEYWORD_COLOUR, runeKeyword } from "../src/ui/runeText";
 import { RUNE_CHIP_MIN, drawRuneChip, runeBarLayout, runeChip, runeChipW, type RuneBarLayout } from "../src/ui/runeBar";
 import { pickLayout } from "../src/screens/runePicker";
@@ -30,26 +30,15 @@ const OP = view(402, 690, 3);
 /** The 1920x1080 desk with a rune held: pickScale steps it to x3 (640x360; FLIP-X1 finding 1). */
 const DESK = { W: 640, H: 360, scale: 3, dpr: 1 };
 
-/** The colour of each character of `word` in `spans`' text (the first place it appears). */
-function colourOf(spans: readonly { t: string; c: string }[], word: string): string[] {
-  const chars = spans.flatMap((s) => [...s.t].map((ch) => [ch, s.c] as const));
-  const at = chars.map(([ch]) => ch).join("").indexOf(word);
-  expect(at, word).toBeGreaterThanOrEqual(0);
-  return [...new Set(chars.slice(at, at + word.length).map(([, c]) => c))];
-}
-
 describe("FLIP-X2 step 1b: FROST is a round's name, not a keyword (REVIEW-FLIPX1 answer 2)", () => {
-  it("OVERDRIVE ★3's AFTERBURNER clause draws FROST and CHAIN in bone and STUN in STUN's colour", () => {
-    const cl = faceLines("overdrive", 3)!.clause!;
-    const spans = ruleSpans(cl.text, cl.label, C.bone);
-    expect(colourOf(spans, "FROST")).toEqual([C.bone]);
-    expect(colourOf(spans, "CHAIN")).toEqual([C.bone]);
-    expect(colourOf(spans, "STUN")).toEqual([ICON_COLOUR[ICON.STUN]]);
-    expect(C.bone).not.toBe(C.ice); // the colour FROST drew before
-  });
+  // Y7b2 (the flip): "OVERDRIVE ★3's AFTERBURNER clause draws FROST and CHAIN in bone and STUN in STUN's colour" is deleted:
+  // switch-off only. AFTERBURNER's guard and every interim clause left with the flip, so no face line names FROST rounds
+  // (faceLines("overdrive", 3).clause is undefined); the next test keeps FROST in the text's own colour
 
   it("KEYWORD_COLOUR has no freeze, and FREEZE, FREEZES, FROZEN and FROST draw in the text's own colour", () => {
-    expect(Object.keys(KEYWORD_COLOUR).sort()).toEqual(["burn", "faster", "poison", "shock", "slower"]);
+    // Y7b2 (the flip): no poison either (KEYWORD_COLOUR.poison left with POISON; was ["burn", "faster", "poison", "shock",
+    // "slower"])
+    expect(Object.keys(KEYWORD_COLOUR).sort()).toEqual(["burn", "faster", "shock", "slower"]);
     for (const w of ["FREEZE", "FREEZES", "FROZEN", "FROST"]) expect(colourize(w, C.bone), w).toEqual([{ t: w, c: C.bone }]);
     expect(colourize("SHOCK", C.bone)).toEqual([{ t: "SHOCK", c: KEYWORD_COLOUR.shock }]); // the others keep theirs
   });

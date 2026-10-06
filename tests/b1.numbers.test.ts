@@ -19,35 +19,50 @@ const bench = (items: Build["items"] = []): Build => ({
 const barge = (): Build => ({ hero: "weaver", items: [], routes: [], mods: [], beltCap: 0, hullBonus: 5000 });
 
 describe("B1 M2: OVERDRIVE ★2 REDLINE (oracle 1cd5224fab866da2 (A))", () => {
-  it("adds +1 to each payload past it (flat 0 / 1 / 3), and a locked belt still gains 6 in all at ★2 (1 + 5)", () => {
-    expect([1, 2, 3].map((s) => effectAt("overdrive", s).gate!.flat ?? 0)).toEqual([0, 10, 30]); // NUM-1: x10 (was 0 / 1 / 3)
+  // Y7b2 (the flip): retitled, was "adds +1 to each payload past it (flat 0 / 1 / 3), and a locked belt still gains 6 in all
+  // at ★2 (1 + 5)". OVERDRIVE ★2/★3's flats and REDLINE's chain guard left with the flip (Y2, DESIGN-Y row 18), so no star
+  // adds a flat (data, battle and walk agree) and a locked belt gains its lockedFlat alone
+  it("adds no flat at any star (flat 0 / 0 / 0), and a locked belt gains its lockedFlat alone (30 / 50 / 110)", () => {
+    // NUM-1: x10 (was 0 / 1 / 3). Y7b2 (the flip): was [0, 10, 30]
+    expect([1, 2, 3].map((s) => effectAt("overdrive", s).gate!.flat ?? 0)).toEqual([0, 0, 0]);
     expect([1, 2, 3].map((s) => effectAt("overdrive", s).gate!.speed)).toEqual([3, 4, 5]);
     // the locked-belt total (METRONOME: battle.ts adds lockedFlat on top of the rig's own flat): 30 / 60 / 140 (NUM-1: x10, was 3 / 6 / 14)
-    expect([1, 2, 3].map((s) => (effectAt("overdrive", s).gate!.flat ?? 0) + effectAt("overdrive", s).gate!.lockedFlat!)).toEqual([30, 60, 140]);
+    // Y7b2 (the flip): 30 / 50 / 110, the lockedFlat alone (was [30, 60, 140])
+    expect([1, 2, 3].map((s) => (effectAt("overdrive", s).gate!.flat ?? 0) + effectAt("overdrive", s).gate!.lockedFlat!)).toEqual([30, 50, 110]);
     // in a battle: a cinder slug past the ★2 OVERDRIVE at (3,3) (X: it hits the belt at (4,3)) carries +10 flat (NUM-1: x10, was +1)
+    // Y7b2 (the flip): carries none (was [10])
     const deck = bench([{ uid: 10, def: "overdrive", x: 3, y: 3, stars: 2 }]);
     const bt = new Battle(deck, barge(), SEED), flats = new Set<number>();
     for (let i = 0; i < 60 * 8; i++) {
       bt.step();
       for (const a of bt.sides[0].routes[0].ammo) if (a.processed >= 2) flats.add(a.p.flat); // past (4,3), the tile it works
     }
-    expect([...flats]).toEqual([10]); // NUM-1: x10 (was [1])
-    // and the build screen's walk shows it: the OVERDRIVE's hit adds 10 (NUM-1: x10, was 1)
+    expect([...flats]).toEqual([0]);
+    // and the build screen's walk shows it: the OVERDRIVE's hit adds 10 (NUM-1: x10, was 1). Y7b2 (the flip): adds none,
+    // 4 TIMES AS FAST (was [10, 4])
     const od = walkRoute(deck, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 10)!;
-    expect([od.flat ?? 0, od.speed]).toEqual([10, 4]);
+    expect([od.flat ?? 0, od.speed]).toEqual([0, 4]);
   });
 
-  it("its card names its perk: the gist and the highlight follow REDLINE's chain guard, AFTERBURNER's damage", () => {
-    expect(gist("overdrive", 2)).toBe("4 TIMES AS FAST, SAFE FROM CHAINS");
-    expect(nextStarText("overdrive", 1)).toBe("NEXT STAR: 4 TIMES AS FAST, SAFE FROM CHAINS.");
+  // Y7b2 (the words): retitled, was "its card names its perk: the gist and the highlight follow REDLINE's chain guard,
+  // AFTERBURNER's damage". The guard and both flats left with the flip, so the gist reads the data (its speed) and both
+  // perks name the opening sentence
+  it("its card reads the data: the gist and the highlight name the speed at ★2 and ★3 (no chain guard, no flat)", () => {
+    // Y7b2 (the words): from the data (was "4 TIMES AS FAST, SAFE FROM CHAINS" and "NEXT STAR: 4 TIMES AS FAST, SAFE FROM
+    // CHAINS.")
+    expect(gist("overdrive", 2)).toBe("4 TIMES AS FAST");
+    expect(nextStarText("overdrive", 1)).toBe("NEXT STAR: 4 TIMES AS FAST.");
     const t2 = abilityText("overdrive", 2);
-    expect(t2.perk).toEqual({ name: "REDLINE", stars: 2, after: 1 });
-    expect(t2.sentences[0]).toContain("AND ADDS 10 DAMAGE TO EACH PAYLOAD"); // NUM-1: x10 (was ADDS 1)
+    // Y7b2 (the words): REDLINE names the opening sentence (was after 1, the chain guard's)
+    expect(t2.perk).toEqual({ name: "REDLINE", stars: 2, after: 0 });
+    // NUM-1: x10 (was ADDS 1). Y7b2 (the flip): no flat and no chain guard, so the sentences are its speed and its locked
+    // bonus (were toContain("AND ADDS 10 DAMAGE TO EACH PAYLOAD") and, NUM-3 step 1b, sentences[1] toContain("ENEMY CHAIN
+    // ROUNDS CAN'T STUN"))
     // NUM-3 (R1's STUN fold): was toContain("ENEMY CHAINS CAN'T SLOW") (a chain round slowed a belt stretch); now REDLINE's
     // chain guard keeps enemy CHAIN rounds' STUNs off its belts, and abilityText's sentence says so (step 1b: "ENEMY CHAIN
     // [AND FROST] ROUNDS CAN'T STUN ..."); at ★2 the chain alone, as before (★3 AFTERBURNER adds AND FROST)
-    expect(t2.sentences[1]).toContain("ENEMY CHAIN ROUNDS CAN'T STUN");
-    expect(gist("overdrive", 3)).toBe("5 TIMES AS FAST, ADDS 30 DAMAGE"); // NUM-1: x10 (was ADDS 3)
+    expect(t2.sentences).toEqual(["MAKES THE BELTS PAST IT 4 TIMES AS FAST.", "ON METRONOME'S LOCKED BELTS IT ADDS 50 DAMAGE INSTEAD."]);
+    expect(gist("overdrive", 3)).toBe("5 TIMES AS FAST"); // NUM-1: x10 (was ADDS 3). Y7b2 (the flip): was "5 TIMES AS FAST, ADDS 30 DAMAGE"
     expect(abilityText("overdrive", 3).perk).toEqual({ name: "AFTERBURNER", stars: 3, after: 0 });
   });
 });
@@ -76,7 +91,9 @@ describe("B1 M2: ASSEMBLY LINE ★2/★3 pour heavier slugs at the 1-star pace (
     const slugs = bt.sides[0].routes[0].ammo.map((a) => a.p);
     expect(slugs.length).toBeGreaterThan(0);
     for (const p of slugs) expect(p.base).toBe(60); // NUM-1: x10 (was 6)
-    expect(ITEMS.assembly.levels![3]!.perk).toBe("HOT START");
+    // Y7b2 (the words): ★3's perk name left with its rule (HOT START, folded away at the flip), with no rename (was
+    // toBe("HOT START"))
+    expect(ITEMS.assembly.levels![3]!.perk).toBeUndefined();
   });
 });
 

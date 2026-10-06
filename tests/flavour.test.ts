@@ -122,15 +122,19 @@ describe("0.6.2t2: a module without ability text keeps its only description", ()
 });
 
 describe("0b.1: LIMPET WORKS promises no stall at 1 star", () => {
-  it("not in its catalogue desc nor its flavour (it keeps none); from ★2 its ability text names the stall", () => {
+  // Y7b2 (the flip): retitled, was "...; from ★2 its ability text names the stall". LIMPET's stall left with the flip (Y2,
+  // DESIGN-Y row 13: its blast is 100 / 230 / 360 DAMAGE, base 0), so no star stalls and no text names one
+  it("not in its catalogue desc nor its flavour (it keeps none); nor from ★2: no star stalls (the flip)", () => {
     expect(ITEMS.limpet.desc.join(" ")).toBe("STICKY CHARGES BLOW 3 SECONDS LATER FOR HULL DAMAGE.");
     expect(STARS.map((s) => flavourText("limpet", s))).toEqual(["", "", ""]);
     // NUM-3 step 2 (REQ-BFG-047, N1 2.2): the stall is - / 1 / 2 s, whole seconds (was - / 1 / 1.6); still none at ★1
-    expect(STARS.map((s) => (effectAt("limpet", s).factory!.round as { stall?: number }).stall ?? 0)).toEqual([0, 1, 2]);
+    // Y7b2 (the flip): none at any star (was [0, 1, 2])
+    expect(STARS.map((s) => (effectAt("limpet", s).factory!.round as { stall?: number }).stall ?? 0)).toEqual([0, 0, 0]);
     // NUM-4 (REQ-BFG-047, NUM-3 F2): the stall's word is STUN (was STALL / "THE BLAST ALSO STALLS ..."); ★2's seconds the data's
     expect(abilityText("limpet", 1).sentences.join(" ")).not.toMatch(/STUN|STALL/);
-    const stun2 = (effectAt("limpet", 2).factory!.round as { stall?: number }).stall;
-    expect(abilityText("limpet", 2).sentences).toContain(`THE BLAST ALSO STUNS THE MACHINE THE CHARGE STUCK TO FOR ${stun2} SECOND.`);
+    // Y7b2 (the flip): ★2's sentences are its blast and its rate (was toContain(`THE BLAST ALSO STUNS THE MACHINE THE CHARGE
+    // STUCK TO FOR ${stun2} SECOND.`), stun2 the data's 1)
+    expect(abilityText("limpet", 2).sentences).toEqual(["STAMPS CHARGES THAT BLAST THE ENEMY HULL FOR 230 DAMAGE, 3 SECONDS AFTER THEY LAND.", "IT STAMPS ONE AT RATE 13."]);
   });
 });
 

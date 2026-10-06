@@ -12,6 +12,9 @@ import {
 import { KEPT_FLAVOUR, flavourText } from "../src/screens/build/flavour"; // 0.8.0 I1 M2: WAVE3_FLAVOUR's rows are in KEPT_FLAVOUR
 import { hitText } from "../src/ui/abilityText";
 import { STARS, banned, numbers } from "./textRules";
+import { faceLines } from "../src/ui/faces"; // Y7b2 (the flip): PINCER's face
+import { stripIcons } from "../src/render/font"; // Y7b2 (the flip): its line, read as text
+import { fmtDmg } from "../src/ui/statFormat"; // Y7b2 (the flip): its number through the face's formatter
 
 // 0.8.0 P1 (REQ-BFG-032): wave 3's text in the game's panels, with wave 3 turned on (withWave3): T6's phone fit and the
 // desk column for every wave-3 module at every star (placed, in cargo, fitted and on offer), the flavour (none kept), T2
@@ -207,13 +210,20 @@ describe("0.8.0 P1: STOKER's panel and TWIN TRIGGER's clash", () => {
     expect(panel("offer pincer held[]").body.at(-1)!.text).toBe("TAP A CELL BESIDE A BELT: ITS ARROWS WORK THE BELT TILES THEY POINT AT, OR DRAG IT THERE.");
   });
 
-  it("TWIN TRIGGER on a GATLING SPOOL or a COMPOUND BREECH: the turret panel says its load time does nothing there", () => {
+  // Y7b2 (the flip): retitled, was "TWIN TRIGGER on a GATLING SPOOL or a COMPOUND BREECH: the turret panel says its load
+  // time does nothing there". Its load-time cut left with the flip (Y4, DESIGN-Y row 34: pairBonus 30/60/95, no
+  // windowTime), so there is nothing that does nothing: no core shows a clash for it
+  it("TWIN TRIGGER on a GATLING SPOOL or a COMPOUND BREECH: the turret panel shows no clash for it (no load-time cut since release Y)", () => {
     const warns = (core: string) => panel(`installed twintrigger on ${core}`).body.filter((b) => b.role === "warn").map((b) => b.text);
-    expect(warns("gatling")).toContain("GATLING SPOOL: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS STILL HIT HARDER.");
-    expect(warns("compound")).toContain("COMPOUND BREECH: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS STILL HIT HARDER.");
+    // Y7b2 (the flip): none (were toContain("GATLING SPOOL: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS
+    // STILL HIT HARDER.") and toContain("COMPOUND BREECH: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS
+    // STILL HIT HARDER."))
+    expect(warns("gatling").filter((t) => t.includes("TWIN TRIGGER"))).toEqual([]);
+    expect(warns("compound").filter((t) => t.includes("TWIN TRIGGER"))).toEqual([]);
     expect(warns("rotary").filter((t) => t.includes("TWIN TRIGGER"))).toEqual([]);
+    // Y7b2 (the flip): no short line either (was ["TWIN TRIGGER: ITS SHORTER LOAD TIME DOES NOTHING HERE."])
     withWave3(() => expect(gatlingClash(turretRun("bombard", 1, [["twintrigger", 1]], ["gatling", 1]).build, 0, "gatling", true))
-      .toEqual(["TWIN TRIGGER: ITS SHORTER LOAD TIME DOES NOTHING HERE."]));
+      .toEqual([]));
   });
 });
 
@@ -252,16 +262,26 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
     expect(h("plateroller", 2, { plate: 11 })).toBe("PLATE ROLLER +11 PLATING");
     // SUS-B (cap's answer 3 to SUSTAIN-1): SHIELD WALL is IRON WALL (the name; the id and the row stay)
     expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 PLATING, +30 DAMAGE AT 120 PLATING");
-    expect([h("twingauge", 1, { flat: 30, matched: true }), h("twingauge", 1, { flat: 10, matched: false })])
-      .toEqual(["TWIN GAUGE +30 DAMAGE ON A MATCHED BELT", "TWIN GAUGE +10 DAMAGE"]);
-    expect([h("pincer", 1, { flat: 10, others: 0 }), h("pincer", 1, { flat: 50, others: 2 }), h("pincer", 1, { flat: 30, others: 1 })])
-      .toEqual(["PINCER +10 DAMAGE", "PINCER +50 DAMAGE, CROSSFIRE WITH 2 RIGS", "PINCER +30 DAMAGE, CROSSFIRE WITH 1 RIG"]);
+    // Y7b2 (the flip): TWIN GAUGE's floor left, so the walk gives an unmatched belt flat 0 and its row says it does nothing
+    // there (was the hit { flat: 10, matched: false } and "TWIN GAUGE +10 DAMAGE")
+    expect([h("twingauge", 1, { flat: 30, matched: true }), h("twingauge", 1, { flat: 0, matched: false })])
+      .toEqual(["TWIN GAUGE +30 DAMAGE ON A MATCHED BELT", "TWIN GAUGE: NO EFFECT ON AN UNMATCHED BELT"]);
+    // Y7b2 (the flip): PINCER's floor left, so the walk gives 20 for each other rig alone (were the hits { flat: 10, others:
+    // 0 }, { flat: 50, others: 2 } and { flat: 30, others: 1 }, and "PINCER +10 DAMAGE", "PINCER +50 DAMAGE, CROSSFIRE WITH
+    // 2 RIGS", "PINCER +30 DAMAGE, CROSSFIRE WITH 1 RIG")
+    expect([h("pincer", 1, { flat: 0, others: 0 }), h("pincer", 1, { flat: 40, others: 2 }), h("pincer", 1, { flat: 20, others: 1 })])
+      .toEqual(["PINCER: NO OTHER RIG ON ITS TILE", "PINCER +40 DAMAGE, CROSSFIRE WITH 2 RIGS", "PINCER +20 DAMAGE, CROSSFIRE WITH 1 RIG"]);
     // NUM-4 (REQ-BFG-047, NUM-3 F2): STALL -> STUN (was "BRACE FRAME ENEMY STALLS ..."); the numbers unchanged
-    expect(h("braceframe", 3)).toBe("BRACE FRAME ENEMY STUNS 85% SHORTER (95% SHORTER PLATED)");
-    expect(h("twinlatch", 2, { flat: 22, hold: 1 })).toBe("TWIN LATCH +22 DAMAGE, HOLDS UP TO 1 SEC");
-    expect(h("platebreaker", 1, { flat: 40 })).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING, ELSE +10 DAMAGE"); // NUM-1: battle.ts spends 10 plating (was 1)
-    // each row's numbers are the spec's at that star
-    for (const s of STARS) expect(numbers(h("braceframe", s)).length).toBe(2);
+    // Y7b2 (the flip; Y2's): no plated multiplier (was "BRACE FRAME ENEMY STUNS 85% SHORTER (95% SHORTER PLATED)")
+    expect(h("braceframe", 3)).toBe("BRACE FRAME ENEMY STUNS 85% SHORTER");
+    // Y7b2 (the flip): TWIN LATCH's flat left and its ★2 hold is 2 s, so the walk's ★2 hit is { flat: 0, hold: 2 } (was the
+    // hit { flat: 22, hold: 1 } and "TWIN LATCH +22 DAMAGE, HOLDS UP TO 1 SEC")
+    expect(h("twinlatch", 2, { flat: 0, hold: 2 })).toBe("TWIN LATCH HOLDS UP TO 2 SEC");
+    // NUM-1: battle.ts spends 10 plating (was 1). Y7b2 (the flip): no floor (was "PLATE BREAKER +40 DAMAGE FOR 10 PLATING,
+    // ELSE +10 DAMAGE")
+    expect(h("platebreaker", 1, { flat: 40 })).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING");
+    // each row's numbers are the spec's at that star. Y7b2 (the flip): one, its STUNs' cut (was 2, with the plated cut)
+    for (const s of STARS) expect(numbers(h("braceframe", s)).length).toBe(1);
   });
 });
 
@@ -273,8 +293,11 @@ describe("0.8.0 P1: the switch keeps wave 3's text out of the game while it is o
     withWave3(() => { for (const d of W3) expect(Object.keys(ITEMS).includes(d.id), d.id).toBe(false); }, false);
     // a wave-3 rig placed on a deck reads its text either way (the panels are pure)
     const t = rigPanel(rigRun("pincer", 1, 3, 3, rotFacing("pincer", 1), 0), 10)!;
-    // NUM-1: x10 (was ADDS 1 ... AND 2 MORE)
-    expect(t.body.find((b) => b.role === "ability")!.text).toBe("ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE.");
+    // NUM-1: x10 (was ADDS 1 ... AND 2 MORE). Y7b2 (the flip): PINCER has a face now (release Y's, folded from STAR_FACES;
+    // no floor), so its panel draws the face's line, "HIT: +20 {DMG} FOR EACH OTHER RIG ON ITS TILE." (was "ADDS 10 DAMAGE TO
+    // EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE.")
+    expect(t.body.find((b) => b.role === "ability")!.text).toBe(faceLines("pincer", 1)!.rules[0].text);
+    expect(stripIcons(faceLines("pincer", 1)!.rules[0].text)).toBe(`HIT: +${fmtDmg(ITEMS.pincer.gate!.pincer!.each)}  FOR EACH OTHER RIG ON ITS TILE.`);
     const placed: Placed = { uid: 10, def: "pincer", x: 3, y: 3 };
     expect(placed.def in ITEMS).toBe(true);
   });

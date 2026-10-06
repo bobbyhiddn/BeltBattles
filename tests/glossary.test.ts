@@ -8,9 +8,9 @@ import { scaleCore } from "../src/sim/cores";
 import { C } from "../src/render/palette";
 import { ICON, ICON_COLOUR, KEYWORDS, icons, stripIcons, textWidth } from "../src/render/font";
 import { KEYWORD_COLOUR, colourize, wrapRich } from "../src/ui/richText";
-import { SIM } from "../src/ui/abilityText";
-import { FACE_IDS, faceAt, faceLines } from "../src/ui/faces";
+import { FACE_IDS, faceAt, faceLines } from "../src/ui/faces"; // Y7b2 (the flip): SIM's import went with its poison constants
 import { captureFormats, FORMATTERS, fmtCount, fmtSec } from "../src/ui/statFormat";
+import { fmtDmg } from "../src/ui/statFormat"; // Y7b2 (the flip): SURGE VALVE's damage pulse on its face
 import {
   GLOSSARY, GLOSSARY_WRAP_W, RUNE_REMINDER, TAP_NOTES, glossaryEntry, glossaryHits, glossaryRows, glossaryText, glossaryWordsIn, keywordRow,
 } from "../src/ui/glossary";
@@ -64,7 +64,9 @@ describe("U2c the glossary: the table and its API (T2a's, ported)", () => {
   it("glossaryWordsIn: the rows a line names, each once, in order; whole words, the longest form first", () => {
     const words = (t: string) => glossaryWordsIn(t).map((r) => r.word);
     expect(words("PAIR: +25% DAMAGE.")).toEqual(["PAIR"]);
-    expect(words("LOAD TIME -0.25 SEC, NOT UNDER 0.3 SEC.")).toEqual(["LOAD TIME"]);
+    // Y7b2 (the words; LOAD TIME retires): its row is gone (no text names it; glossary.ts RETIRED), so the line names none
+    // (was ["LOAD TIME"]); BONUS DAMAGE below keeps a two-word form
+    expect(words("LOAD TIME -0.25 SEC, NOT UNDER 0.3 SEC.")).toEqual([]);
     expect(words("SHOT: EVERY 2 BONUS DAMAGE BECOMES 1 BURN.")).toEqual(["BONUS DAMAGE", "BURN"]);
     expect(words("EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.")).toEqual(["RATE"]);
     expect(words("HIT: +1 BURN. HIT: +2 BURN.")).toEqual(["BURN"]);
@@ -98,7 +100,9 @@ describe("U2c the glossary: one mechanic, one word, one definition", () => {
     expect(stripIcons(keywordRow("STUN").def)).toContain("THE ENEMY PART IT HITS STOPS");
     // colours: battle colours where the game has them
     // NUM-3 (R1's STUN fold): FREEZE has no row (it is STUN's, in STUN's colour); POISON and SPEED keep their battle colours
-    expect([glossaryEntry("FREEZE"), glossaryEntry("POISON")!.colour, glossaryEntry("SPEED")!.colour]).toEqual([undefined, KEYWORD_COLOUR.poison, KEYWORD_COLOUR.faster]);
+    // Y7b2 (the flip): the POISON row left with POISON (STAR_RETIRED's rows left the table; KEYWORD_COLOUR.poison is gone),
+    // so it has none either (was glossaryEntry("POISON")!.colour, KEYWORD_COLOUR.poison)
+    expect([glossaryEntry("FREEZE"), glossaryEntry("POISON"), glossaryEntry("SPEED")!.colour]).toEqual([undefined, undefined, KEYWORD_COLOUR.faster]);
     expect(keywordRow("STUN").colour).toBe(ICON_COLOUR[ICON.STUN]);
   });
 
@@ -163,8 +167,9 @@ describe("U2c the glossary: numbers, digits and fit", () => {
       }
     }
     expect(checked).toBeGreaterThan(100);
-    // the constants the rows quote, as T2a's sentences quoted them
-    expect([WINDOW_TIME, COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, SYNC_WINDOW, SIM.poisonTick, SIM.poisonMax, SIM.poisonTime]).toEqual([1.5, 1.2, 0.6, 4, 0.25, 4, 24, 6]); // NUM-1: poison 4 a stack each second (was 0.4)
+    // the constants the rows quote, as T2a's sentences quoted them. Y7b2 (the flip): SIM.poisonTick, SIM.poisonMax and
+    // SIM.poisonTime left with POISON (deleted symbols; were 4, 24 and 6, NUM-1: poison 4 a stack each second)
+    expect([WINDOW_TIME, COMMISSION_BASE, COMMISSION_STEP, JAM_THRESHOLD, SYNC_WINDOW]).toEqual([1.5, 1.2, 0.6, 4, 0.25]);
   });
 
   it("no digit in glossary.ts's strings: every number is a formatter's", () => {
@@ -264,16 +269,24 @@ describe("U2c U2b's ledger: every NEEDED: U2c row now has a home", () => {
     expect(pair).toContain("BY TWO INTAKES AT ONCE");
     expect(pair).toContain("A LONE ONE FIRES ON ITS OWN");
     expect(stripIcons(icons(glossaryText("PAIR")!))).toContain("TWO LOADS REACH ONE TURRET AT ONCE. BY TWO INTAKES."); // every other PAIR
-    // SURGE VALVE: its face says the pulse's speed and length (group 0 fix 1), its EVERY label's tap explains it
+    // SURGE VALVE: its face says the pulse's speed and length (group 0 fix 1), its EVERY label's tap explains it. Y7b2 (the
+    // flip): the speed pulse left (Y3), so the face says the damage pulse, its period and damage, and the tap who gets it
+    // (were toContain(`${fmtCount(p.speed)} TIMES AS FAST FOR ${fmtSec(p.on)}`) and toContain(`RUNS FAST FOR
+    // ${fmtSec(p.on)}{SEC}, THEN AS BEFORE`))
     const p = effectAt("surge", 1).gate!.pulse!;
-    expect(stripIcons(faceLines("surge", 1)!.rules[0].text)).toContain(`${fmtCount(p.speed)} TIMES AS FAST FOR ${fmtSec(p.on)}`);
-    expect(glossaryText("EVERY", { def: "surge", stars: 1 })).toContain(`RUNS FAST FOR ${fmtSec(p.on)}{SEC}, THEN AS BEFORE`);
-    // every tap note sits on a word its piece's face draws (a trigger label or a word of its rule)
-    for (const [def, n] of Object.entries(TAP_NOTES)) {
-      const fl = faceLines(def, 1, { k: 1 })!;
-      const said = [...fl.rules.map((r) => `${r.label ?? ""} ${r.text}`)].join(" ");
-      expect(new RegExp(`\\b${n.word}\\b`).test(stripIcons(said).replace(/\d+(?:\.\d+)?/g, "")), `${def}: ${n.word}`).toBe(true);
+    expect(stripIcons(faceLines("surge", 1)!.rules[0].text)).toBe(stripIcons(icons(`EVERY ${fmtSec(p.period)}{SEC}: +${fmtDmg(p.flat)} {DMG} TO SLUGS ON ITS BELTS.`)));
+    expect(glossaryText("EVERY", { def: "surge", stars: 1 })).toBe(`EVERY ${fmtSec(p.period)}{SEC}: EACH SLUG ON ITS BELTS GETS IT, BEFORE ITS TILE TOO.`);
+    // every tap note sits on a word its piece's face draws (a trigger label or a word of its rule). Y7b2 (the flip):
+    // STAR_TAP_NOTES folded into TAP_NOTES, so EXT. CHAMBER's UP TO note joins (Y7b1 Y7A-R2): its ★1 face fires exactly 2,
+    // no UP TO, and its ★2/★3 faces say UP TO, so that note sits on its faces from ★2 (the others on ★1's, as before)
+    const said = (def: string, s: number) => {
+      const fl = faceLines(def, s, { k: 1 })!;
+      return stripIcons([...fl.rules.map((r) => `${r.label ?? ""} ${r.text}`)].join(" ")).replace(/\d+(?:\.\d+)?/g, "");
+    };
+    for (const [def, n] of Object.entries(TAP_NOTES)) for (const s of def === "chamber" ? [2, 3] : [1]) {
+      expect(new RegExp(`\\b${n.word}\\b`).test(said(def, s)), `${def} ★${s}: ${n.word}`).toBe(true);
     }
+    expect([TAP_NOTES.chamber?.word, /\bUP TO\b/.test(said("chamber", 1))]).toEqual(["UP TO", false]);
   });
 });
 

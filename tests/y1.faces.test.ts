@@ -105,8 +105,11 @@ describe("Y1: faces only, rules unchanged", () => {
     expect(perks("frostbite")).toEqual(["★2 HOARFROST"]);
     expect(perks("mimic", { hero: "foundry" })).toEqual(["★3 TWIN SIGNET"]);
     expect(perks("twinmould")).toEqual(["★3 THIRD SPRUE"]);
-    // a piece outside the ruling keeps its perk's name after its line (PRESS ★2 HARDENED DIES)
-    expect(faceBlocks("press", 2, {})!.some((b) => b.perk === "★2 HARDENED DIES")).toBe(true);
+    // a piece outside the ruling keeps its perk's name after its line (PRESS ★2 HARDENED DIES). Y7b2 (the words): R-1 holds
+    // for every piece (faceBlocks.ts perkInfoOnly is true for all; PERK_INFO_ONLY stays Y1's four), so no face draws a perk's
+    // name: PRESS ★2's HARDENED DIES shows in the ⓘ LEVELS only (was toBe(true) after its line)
+    expect(faceBlocks("press", 2, {})!.some((b) => b.perk === "★2 HARDENED DIES")).toBe(false);
+    expect(perks("press")).toEqual(["★2 HARDENED DIES", "★3 MASTER DIES"]);
   });
 
   it("12: the START: label on the five live battle-start runes; the tokens and amounts kept", () => {

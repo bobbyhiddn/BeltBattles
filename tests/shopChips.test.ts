@@ -52,7 +52,10 @@ describe("U2c the shop chip: the pick and its numbers", () => {
     // no face (RULES, STUN-fold), a supply, or a face whose numbers carry no icon: today's card
     // NUM-3 (R1's STUN fold): SCRAPPER has a face, so its chip is its first stat pair, its cadence (it was faceless here);
     // TOLLBOOTH, FLAK SCREEN and MANTLET have faces whose numbers carry no STUN count (a block count, a share, none): no chip
-    for (const def of ["drake", "tollbooth", "flak", "mantlet", "hopper", "beltcrate", "plating", "sorting", "spotter", "brake", "overdrive", "grapnel"]) expect(shopChip(def, { k }), def).toBeNull();
+    // Y7b2 (the flip): HOPPER has a face now (release Y's, folded from STAR_FACES), its rule's number the slot it adds,
+    // {SLUG}+1, so it left the list (was null); DRAKE's face ("EACH 25") carries no icon: still none
+    for (const def of ["drake", "tollbooth", "flak", "mantlet", "beltcrate", "plating", "sorting", "spotter", "brake", "overdrive", "grapnel"]) expect(shopChip(def, { k }), def).toBeNull();
+    expect(shopChip("hopper", { k })).toBe(`{SLUG}+${fmtCount(effectAt("hopper", 1).mod!.window!)}`);
     // NUM-4 (REQ-BFG-047): its cadence is its RATE pair (factoryStats' first pair), its SPEED, unsigned (was 30 / speed{SEC})
     expect(factoryStats("scrapper", 1)[0]).toEqual(["RATE", fmtSpeed(effectAt("scrapper", 1).factory!.speed)]);
     expect(shopChip("scrapper")).toBe(`{RATE}${fmtSpeed(effectAt("scrapper", 1).factory!.speed)}`);
@@ -120,7 +123,9 @@ describe("U2d F2 (cap's answer to U2c question 3): the chip rule, a chip's icon 
         expect(chip, def).not.toMatch(/\{SEC\}/);
       }
     }
-    expect(rate.sort()).toEqual(["calibrate", "escapement", "gatling", "stoker"]);
+    // Y7b2 (the flip): STEAM BREECH has a face now, "FIRES 40% FASTER IF YOU HAVE {*PLATE}." (its key `rate`), so its chip is
+    // {RATE}+40% (was ["calibrate", "escapement", "gatling", "stoker"])
+    expect(rate.sort()).toEqual(["calibrate", "escapement", "gatling", "steambreech", "stoker"]);
     // NUM-4: every buyable gun's chip is its cadence (its face has no keyword to show first), and some factories' too
     expect(cadence).toEqual(expect.arrayContaining(BUYABLE.filter((d) => ITEMS[d].kind === "turret")));
     expect(cadence.filter((d) => ITEMS[d].kind === "factory")).toEqual(expect.arrayContaining(["press", "scrapper", "mimic"]));

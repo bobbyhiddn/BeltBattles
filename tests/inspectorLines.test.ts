@@ -156,20 +156,29 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
     expect(resolveCore(run.build, 0).spec.perQueued).toBe(14);
   });
 
-  it("ROTARY BREECH: its stars make the turret fire faster, then never jam (the perk named after that sentence)", () => {
+  // Y7b2 (the flip): retitled, was "ROTARY BREECH: its stars make the turret fire faster, then never jam (the perk named
+  // after that sentence)". Its fire rate and no-jam left with the flip (Y4, DESIGN-Y row 37), and with them the perk names
+  // GREASED RACE and CLEAN FEED (the words): each star fires a part-full chamber sooner, 50% / 65% / 80%
+  it("ROTARY BREECH: each star fires a part-full chamber sooner (no fire rate, no no-jam, no perk name since release Y)", () => {
     // NUM-4 (REQ-BFG-047; N1 2.2): the load window (WINDOW_TIME, 1.5 s) is a hidden timer no whole second can say, so the
     // sentence keeps the rule, not the number: "..., SOON AFTER THE FIRST LOAD." (was "..., 1.5 SECONDS AFTER THE FIRST
     // LOAD."); that the clause is gone is checked below
-    const CHAMBER = "A TURRET FIRES WHEN ITS CHAMBER IS FULL OR ITS LOAD TIME ENDS, SOON AFTER THE FIRST LOAD.";
+    // Y7b2 (the flip): S.chamber's sentence left ("A TURRET FIRES WHEN ITS CHAMBER IS FULL OR ITS LOAD TIME ENDS, SOON AFTER
+    // THE FIRST LOAD."), so ROTARY's text is its one sentence at every star
     // NUM-3 step 2 (REQ-BFG-047, N1 2.2's LOAD 50% SHORTER): its load time as the whole % it is shorter than WINDOW_TIME,
     // from that star's windowTime (0.75 of 1.5 s) through fmtPct (50%); was the literal CUTS THE LOAD TIME TO 0.8 SECONDS AND
     // FIRES THE OLDEST LOAD FIRST.
     const cut = (s: number): string => fmtPct(1 - effectAt("rotary", s).core!.windowTime! / WINDOW_TIME);
-    const OPEN = (s: number): string => `ITS LOAD TIME IS ${cut(s)} SHORTER, AND IT FIRES THE OLDEST LOAD FIRST.`;
-    expect(abilityText("rotary", 1)).toEqual({ sentences: [OPEN(1), CHAMBER] });
-    expect(abilityText("rotary", 2)).toEqual({ sentences: [OPEN(2), "IT FIRES 18% FASTER.", CHAMBER], perk: { name: "GREASED RACE", stars: 2, after: 1 } });
-    expect(abilityText("rotary", 3)).toEqual({ sentences: [OPEN(3), "IT FIRES 43% FASTER AND NEVER JAMS.", CHAMBER], perk: { name: "CLEAN FEED", stars: 3, after: 1 } });
-    expect(gist("rotary", 1)).toBe(`LOAD ${cut(1)} SHORTER`); // NUM-3 step 2: was LOAD TIME 0.8 SECONDS
+    // Y7b2 (the flip): release Y's sentence (was `ITS LOAD TIME IS ${cut(s)} SHORTER, AND IT FIRES THE OLDEST LOAD FIRST.`)
+    const OPEN = (s: number): string => `IT FIRES A PART-FULL CHAMBER ${cut(s)} SOONER, THE OLDEST LOAD FIRST.`;
+    // Y7b2 (the flip, the words): were { sentences: [OPEN(1), CHAMBER] }, { sentences: [OPEN(2), "IT FIRES 18% FASTER.",
+    // CHAMBER], perk: { name: "GREASED RACE", stars: 2, after: 1 } } and { sentences: [OPEN(3), "IT FIRES 43% FASTER AND NEVER
+    // JAMS.", CHAMBER], perk: { name: "CLEAN FEED", stars: 3, after: 1 } }
+    expect(abilityText("rotary", 1)).toEqual({ sentences: [OPEN(1)] });
+    expect(abilityText("rotary", 2)).toEqual({ sentences: [OPEN(2)] });
+    expect(abilityText("rotary", 3)).toEqual({ sentences: [OPEN(3)] });
+    // NUM-3 step 2: was LOAD TIME 0.8 SECONDS. Y7b2 (the flip): was `LOAD ${cut(1)} SHORTER`
+    expect(gist("rotary", 1)).toBe(`PART-FULL CHAMBERS ${cut(1)} SOONER`);
     // NUM-4 (REQ-BFG-047): the load window's clause is gone at every star: no sentence quotes its seconds (WINDOW_TIME)
     for (const s of [1, 2, 3]) {
       const said = abilityText("rotary", s).sentences.join(" ");
@@ -232,16 +241,22 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
     // NUM-3 step 2 (REQ-BFG-047, N1 2.2): the spark's STUN through the data (DISRUPT_TIME 2 at ★1, shockTime 2 / 3) and
     // fmtSec; was the literal 1.6 / 1.8 / 2.8
     // NUM-4 (REQ-BFG-047; REVIEW-NUM3 F2): a stop's one word is STUN, SHOCK STUNS (was SHOCK STALLS); its numbers as before
-    hotswap: [`2 BURN, SHOCK STUNS A MACHINE FOR ${spark(1)} SECONDS`, `4 BURN, SHOCK STUNS 2 MACHINES FOR ${spark(2)} SECONDS`, `7 BURN, SHOCK STUNS 2 MACHINES FOR ${spark(3)} SECONDS`],
+    // Y7b2 (the flip): HOT SWAP's SPARK JUMP left and its ember BURN is 2 / 5 / 9 (Y2, DESIGN-Y row 12), so every star's
+    // shock STUNS A MACHINE (were `4 BURN, SHOCK STUNS 2 MACHINES FOR ${spark(2)} SECONDS` and `7 BURN, SHOCK STUNS 2
+    // MACHINES FOR ${spark(3)} SECONDS`)
+    hotswap: [`2 BURN, SHOCK STUNS A MACHINE FOR ${spark(1)} SECONDS`, `5 BURN, SHOCK STUNS A MACHINE FOR ${spark(2)} SECONDS`, `9 BURN, SHOCK STUNS A MACHINE FOR ${spark(3)} SECONDS`],
     slagpot: [`70 DAMAGE SLAG AT RATE ${rateAt("slagpot", 1)}`, `120 DAMAGE SLAG AT RATE ${rateAt("slagpot", 2)}`, `150 DAMAGE SLAG AT RATE ${rateAt("slagpot", 3)}`], // NUM-2 and NUM-4: above
-    assembly: ["RIGS ONLINE IN HALF THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME", "ALL RIGS ONLINE AT ONCE"],
+    // Y7b2 (the flip): START's words, ONLINE retired (Y3: its rigs start 50% / 75% / 100% sooner; were "RIGS ONLINE IN HALF
+    // THE TIME", "RIGS ONLINE IN A QUARTER OF THE TIME" and "ALL RIGS ONLINE AT ONCE")
+    assembly: ["RIGS START 50% SOONER", "RIGS START 75% SOONER", "ALL RIGS START AT ONCE"],
     // bb-0.8.3 (REQ-BFG-042 D3, M4): its belts (3 / 4 / 5, were 2 / 3 / 3) close the next-star line, so the clause is
     // FOURTH ARM's stamp (0.8.0: "FEEDS 2 BELTS", "FEEDS 3 BELTS", "6 DAMAGE SLUGS"). T47 (REQ-BFG-047): no seconds, so
     // ★1 says its belts (as 0.8.4 did) and FOURTH ARM says FASTER
     gantry: ["FEEDS 3 BELTS", "FASTER PLAIN SLUGS", "60 DAMAGE SLUGS"], // NUM-1: x10 (was 6)
   };
-  // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS ★2 is FOURTH ARM (was THIRD ARM)
-  const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", "HOT START"], gantry: ["FOURTH ARM", "HEAVY GANTRY"] };
+  // bb-0.8.3 (REQ-BFG-042 D3): GANTRY PRESS ★2 is FOURTH ARM (was THIRD ARM). Y7b2 (the words): ASSEMBLY LINE ★3's HOT
+  // START left with its rule (was assembly: ["", "HOT START"])
+  const PERK: Record<string, [string, string]> = { doublestamp: ["", "TRIPLE DIES"], shottower: ["", ""], hotswap: ["", ""], slagpot: ["", ""], assembly: ["", ""], gantry: ["FOURTH ARM", "HEAVY GANTRY"] };
 
   it("gist, the next-star sentence and MERGES WITH (STAMP PRESS keeps its stamp rate and slug damage)", () => {
     // NUM-1 (REQ-BFG-047): x10, STAMP PRESS ★2's factory base through fmtDmg ("50"; was the literal "5")
@@ -257,7 +272,8 @@ describe("0.6.1c: each factory's clause at each star, its perks named, and the p
       // U2c (U2b's faces): a factory with a face (all but ASSEMBLY LINE, a RULES piece that keeps its sentences) draws
       // NEXT★ and MERGES INTO from its face (faceNext, faceMerge: the next star's numbers that differ, as icon pairs, at
       // the run's options), where it drew "NEXT STAR: <its clause>, n BELTS." and "MERGES WITH YOUR <name> INTO ★2: <its
-      // clause>, n BELTS."; the perk and merge progress follow as before
+      // clause>, n BELTS."; the perk and merge progress follow as before. Y7b2 (the flip): ASSEMBLY LINE has a face too
+      // (release Y's, folded from STAR_FACES), so all six draw their faces' lines
       const face = hasFace(def);
       const next2 = face ? faceNext(def, 1, FURNACE)!.text : `NEXT STAR: ${h[1]}, ${outputsAt(def, 2)} BELTS.`;
       const next3 = face ? faceNext(def, 2, FURNACE)!.text : `NEXT STAR: ${h[2]}, ${outputsAt(def, 3)} BELTS.`;
@@ -303,8 +319,10 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // "SPLITS EACH PAYLOAD INTO 2 COPIES AT 72% DAMAGE. ★2 CLEAN CUT", "EACH COPY KEEPS ALL OF THE BURN, POISON AND
     // SHOCK.", "NEXT STAR: 2 COPIES AT 85% DAMAGE. ★3 PERFECT CUT"; hits, merge progress, flavour and hint as before
     // U2e step 4 (REQ-BFG-070): no NEXT★ on the face (the ⓘ view's LEVELS show it: nextLine below), no merge progress
+    // Y7b2 (the words; ruling R-1 for every piece): no perk name after the face line, CLEAN CUT is in the ⓘ LEVELS only (was
+    // `${faceLines("splitter", 2)!.rules[0].text} ★2 CLEAN CUT`); the ⓘ view's NEXT★ (nextLine) keeps PERFECT CUT
     expect(text(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1))).toEqual([
-      "→ BELT 1, TILE 3", `${faceLines("splitter", 2)!.rules[0].text} ★2 CLEAN CUT`,
+      "→ BELT 1, TILE 3", faceLines("splitter", 2)!.rules[0].text,
       "ITS COPIES CAN BACK UP AT THE TURRET AND JAM IT.", TURN,
     ]);
     expect(nextLine(rigRun("splitter", 2, 3, 3, rotFacing("splitter", 1), 1), "splitter", 2)).toBe(`${faceNext("splitter", 2)!.text} ★3 PERFECT CUT`);
@@ -329,13 +347,16 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // "MAKES THE BELTS PAST IT 5 TIMES AS FAST AND ADDS 3 DAMAGE TO EACH PAYLOAD. ★3 AFTERBURNER", "ENEMY CHAINS AND FROST
     // CAN'T SLOW OR FREEZE THE BELTS PAST IT.", "ON METRONOME'S LOCKED BELTS IT ADDS 11 MORE DAMAGE INSTEAD OF THE SPEED
     // CHANGE." (R1 dropped the METRONOME line)
+    // Y7b2 (the flip): release Y's OVERDRIVE face is one line, "ITS BELTS RUN 5 TIMES AS FAST." (no flat, no guard, so no
+    // ★3 clause; was od.rules[0].text, od.rules[1].text, od.clause!.text), and the words keep its perk's name in the ⓘ view
+    // (was expect(od.clause!.label).toBe("★3 AFTERBURNER:"), the perk named by its clause's brass label)
     const x = rigPanel(rigRun("overdrive", 3, 5, 3, 0, 0), 10)!;
     const od = faceLines("overdrive", 3)!;
     expect(text(rigRun("overdrive", 3, 5, 3, 0, 0))).toEqual([
-      "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", od.rules[0].text, od.rules[1].text, od.clause!.text,
+      "→ BELT 1, TILE 3", "→ BELT 2, TILE 3", od.rules[0].text,
       "FACES EVERY SIDE. DRAG TO MOVE.",
     ]);
-    expect(od.clause!.label).toBe("★3 AFTERBURNER:"); // U2c (U2b's faces): the perk, named by its clause's brass label
+    expect([od.rules.length, od.clause]).toEqual([1, undefined]);
     expect([x.sub, x.subShort, x.labels]).toEqual(["RIG · 2/4 ARROWS ON BELTS", "RIG · 2/4 HIT", ["TO CARGO"]]);
   });
 
@@ -351,9 +372,11 @@ describe("P11: a rig's panel order, and the phone band", () => {
     const coil = rigPanel(rigRun("coil", 2, 0, 9, 0, 1), 10)!;
     expect([...new Set(coil.variants!.map((v) => v.sub).filter(Boolean))]).toEqual([IDLE_SHORT, IDLE_HEAD]);
     expect(coil.variants!.filter((v) => v.sub).every((v) => v.subColor === C.amber)).toBe(true);
-    // the headline: the next star's first clause, where it has more than one
+    // the headline: the next star's first clause, where it has more than one. Y7b2: SURGE VALVE's next star is its damage pulse
+    // alone (the flip: no speed; was "NEXT STAR: 5 TIMES AS FAST.") and OVERDRIVE's its speed alone (the words: its gist reads
+    // the data, no SAFE FROM CHAINS; was "NEXT STAR: 4 TIMES AS FAST."), one clause each, so none of the four has a headline
     expect([nextStarHeadline("coil", 2), nextStarHeadline("surge", 2), nextStarHeadline("brake", 1), nextStarHeadline("overdrive", 1)])
-      .toEqual([null, "NEXT STAR: 5 TIMES AS FAST.", null, "NEXT STAR: 4 TIMES AS FAST."]);
+      .toEqual([null, null, null, null]);
   });
 
   /** The layouts a rig's shape allows on this deck: 1 hit beside the Kiln's belt, 2 hits (II, L, T, X), 3 hits in the
@@ -455,23 +478,31 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     return run;
   };
 
-  it("BRAKE SHOE: HALF SPEED at every star, and 2 / 5 DAMAGE from the heat", () => {
+  // Y7b2 (the flip): retitled, was "BRAKE SHOE: HALF SPEED at every star, and 2 / 5 DAMAGE from the heat". Its ★2/★3 flats
+  // left (Y3, DESIGN-Y row 27): it slows the belt to 50% / 40% / 30% and adds no damage; the perk names HOT SHOE and RED-HOT
+  // SHOE left with the flats (the words)
+  it("BRAKE SHOE: HALF SPEED, then 40% / 30% SPEED, and no heat or perk name since release Y", () => {
     // NUM-1 (REQ-BFG-047): the heat's damage x10, each star's flat through fmtDmg (20, 50; was the literals 2, 5)
-    const flat = (s: number): string => fmtDmg(effectAt("brake", s).gate!.flat!);
+    // Y7b2 (the flip): the speed alone, from the data (were `SLOWS THE BELT PAST IT TO HALF SPEED AND ADDS ${flat(2)} DAMAGE TO
+    // EACH PAYLOAD.` and the same with flat(3), flat 20 / 50)
+    const speed = (s: number): string => fmtPct(effectAt("brake", s).gate!.speed!);
     expect([1, 2, 3].map((s) => abilityText("brake", s).sentences[0])).toEqual([
-      "SLOWS THE BELT PAST IT TO HALF SPEED.", `SLOWS THE BELT PAST IT TO HALF SPEED AND ADDS ${flat(2)} DAMAGE TO EACH PAYLOAD.`,
-      `SLOWS THE BELT PAST IT TO HALF SPEED AND ADDS ${flat(3)} DAMAGE TO EACH PAYLOAD.`,
+      "SLOWS THE BELT PAST IT TO HALF SPEED.", `SLOWS THE BELT PAST IT TO ${speed(2)} SPEED.`, `SLOWS THE BELT PAST IT TO ${speed(3)} SPEED.`,
     ]);
-    expect([abilityText("brake", 2).perk, abilityText("brake", 3).perk]).toEqual([{ name: "HOT SHOE", stars: 2, after: 0 }, { name: "RED-HOT SHOE", stars: 3, after: 0 }]);
+    // Y7b2 (the words): no perk names (were { name: "HOT SHOE", stars: 2, after: 0 } and { name: "RED-HOT SHOE", stars: 3,
+    // after: 0 })
+    expect([abilityText("brake", 2).perk, abilityText("brake", 3).perk]).toEqual([undefined, undefined]);
     // U2c (U2b's faces): NEXT★ and MERGES INTO show the damage the heat adds at that star, "+20 {DMG}" / "+50 {DMG}"
     // (NUM-1: x10, were "+2 {DMG}" / "+5 {DMG}"; the
     // star's flat through fmtDmg), its perk named after it; were "NEXT STAR: ADDS 2 DAMAGE. ★2 HOT SHOE ..." and
     // "MERGES WITH YOUR BRAKE SHOE INTO ★2: ADDS 2 DAMAGE. ★2 HOT SHOE"
-    const heat = (s: number): string => `+${fmtDmg(effectAt("brake", s).gate!.flat!)} ${ICON.DMG}`;
-    expect(nextLine(holding("brake", [1]), "brake", 1)).toBe(`NEXT ★2: ${heat(2)} ★2 HOT SHOE`);
-    expect(nextLine(holding("brake", [2]), "brake", 2)).toBe(`NEXT ★3: ${heat(3)} ★3 RED-HOT SHOE`);
-    expect(mergeLine(holding("brake", [1]), "brake")).toBe(`MERGES INTO ★2: ${heat(2)}. ★2 HOT SHOE`);
-    expect(mergeLine(holding("brake", [2, 1]), "brake")).toBe(`MERGES INTO ★3: ${heat(3)}. ★3 RED-HOT SHOE`);
+    // Y7b2 (the flip, the words): they show the next star's speed and no perk (were `NEXT ★2: ${heat(2)} ★2 HOT SHOE`,
+    // `NEXT ★3: ${heat(3)} ★3 RED-HOT SHOE`, `MERGES INTO ★2: ${heat(2)}. ★2 HOT SHOE` and `MERGES INTO ★3: ${heat(3)}. ★3
+    // RED-HOT SHOE`, heat(s) = `+${fmtDmg(flat)} ${ICON.DMG}`)
+    expect(nextLine(holding("brake", [1]), "brake", 1)).toBe(`NEXT ★2: ${speed(2)} SPEED`);
+    expect(nextLine(holding("brake", [2]), "brake", 2)).toBe(`NEXT ★3: ${speed(3)} SPEED`);
+    expect(mergeLine(holding("brake", [1]), "brake")).toBe(`MERGES INTO ★2: ${speed(2)} SPEED.`);
+    expect(mergeLine(holding("brake", [2, 1]), "brake")).toBe(`MERGES INTO ★3: ${speed(3)} SPEED.`);
   });
 
   it("SPLITTER: 2 COPIES AT 60% / 72% CLEAN CUT / 85% PERFECT CUT", () => {
@@ -493,14 +524,17 @@ describe("0.6.1f: BRAKE SHOE and SPLITTER name each merge's perk and value", () 
     const up = (s: number): string => `${fmtPct(effectAt("grease", s).gate!.speed! - 1)} FASTER`;
     for (const s of [2, 3]) expect(up(s), `grease ★${s}`).toMatch(/^\d+% FASTER$/);
     expect([1, 2, 3].map((s) => gist("grease", s))).toEqual(["60% FASTER", up(2), up(3)]);
-    // NUM-1 (REQ-BFG-047): x10, OVERDRIVE ★3's flat through fmtDmg ("30"; was the literal "3")
-    expect(gist("overdrive", 3)).toBe(`5 TIMES AS FAST, ADDS ${fmtDmg(effectAt("overdrive", 3).gate!.flat!)} DAMAGE`);
+    // NUM-1 (REQ-BFG-047): x10, OVERDRIVE ★3's flat through fmtDmg ("30"; was the literal "3"). Y7b2 (the flip): ★3's flat
+    // left, so its gist is its speed (was `5 TIMES AS FAST, ADDS ${fmtDmg(flat)} DAMAGE`, "..., ADDS 30 DAMAGE")
+    expect(gist("overdrive", 3)).toBe("5 TIMES AS FAST");
     // U2c (U2b's faces): NEXT★ shows the next star's changed numbers, each the ★3 value through its formatter: OVERDRIVE's
     // "5 TIMES" (fmtCount) and "+30 {DMG}" (fmtDmg; NUM-1: x10, was "+3 {DMG}"), then AFTERBURNER once; GALVANIC COIL's "{STUN} 2.8" (fmtSec; its 2 parts
     // are ★2's too, so the diff leaves them out), no perk. Were "NEXT STAR: 5 TIMES AS FAST, ADDS 3 DAMAGE. ★3 AFTERBURNER
     // ..." and "NEXT STAR: STALLS 2 MACHINES FOR 2.8 SECONDS. ..."
+    // Y7b2 (the flip): no flat, so the speed alone, then AFTERBURNER once (was `NEXT ★3: ${fmtCount(od3.speed!)} TIMES,
+    // +${fmtDmg(od3.flat!)} ${ICON.DMG} ★3 AFTERBURNER`)
     const od3 = effectAt("overdrive", 3).gate!;
-    expect(nextLine(holding("overdrive", [2]), "overdrive", 2)).toBe(`NEXT ★3: ${fmtCount(od3.speed!)} TIMES, +${fmtDmg(od3.flat!)} ${ICON.DMG} ★3 AFTERBURNER`);
+    expect(nextLine(holding("overdrive", [2]), "overdrive", 2)).toBe(`NEXT ★3: ${fmtCount(od3.speed!)} TIMES ★3 AFTERBURNER`);
     expect(nextLine(holding("coil", [2]), "coil", 2)).toBe(`NEXT ★3: ${ICON.STUN} ${fmtSec(effectAt("coil", 3).gate!.shockTime!)}`); // SPARK JUMP already
   });
 

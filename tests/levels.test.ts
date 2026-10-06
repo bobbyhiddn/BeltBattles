@@ -56,8 +56,10 @@ describe("U2e step 5: the ⓘ view's LEVELS", () => {
     expect(ladders(levelLines("pressure", 1, { k: 0.55 })!)).toContainEqual({ lead: "{DMG} ", values: per, tail: "", current: 0 });
     const burn = [1, 2, 3].map((s) => fmtCount(effectAt("hotswap", s).factory!.cycle!.find((p) => p.tint === "ember")!.burn!));
     expect(ladders(levelLines("hotswap", 3)!)).toContainEqual({ lead: "{BURN} ", values: burn, tail: "", current: 2 });
-    // a number a star brings that the one before lacks reads "-" there (HOT SWAP's SPARK JUMP parts)
-    expect(ladders(levelLines("hotswap", 1)!).some((l) => l.values[0] === "-")).toBe(true);
+    // a number a star brings that the one before lacks reads "-" there (HOT SWAP's SPARK JUMP parts). Y7b2 (the flip):
+    // SPARK JUMP left, so no HOT SWAP ladder starts "-" (was toBe(true)); measured, no fusible piece's ladder holds a "-"
+    // since the flip (the 13 that did, "-/2/2 PARTS" and the like, lost those numbers with their rules)
+    expect(ladders(levelLines("hotswap", 1)!).some((l) => l.values[0] === "-")).toBe(false);
     // SPLITTER's share, a percentage through fmtPct
     const cut = [1, 2, 3].map((s) => fmtPct(effectAt("splitter", s).gate!.split!.mult));
     expect(ladders(levelLines("splitter", 2)!)).toContainEqual({ lead: "{DMG} ", values: cut, tail: "", current: 1 });
@@ -74,15 +76,19 @@ describe("U2e step 5: the ⓘ view's LEVELS", () => {
       `${g.map((x) => fmtCount(1 + (x.jump ?? 0))).join(LADDER_SEP)} PARTS`,
     ]);
     // a piece that keeps an interim clause shows it (HOT SWAP's spark, GALVANIC COIL's SPARK JUMP on its EMBER/SPARK cycle)
+    // Y7b2 (the flip): HOT SWAP's SPARK JUMP and every interim clause left, so it has no perk line (was hot[0]
+    // toMatch(/^★2 SPARK JUMP: \{\*STUN\} HITS \d+ PARTS\.$/))
     const hot = levelLines("hotswap", 1)!.filter((l) => l.kind === "perk").map((l) => levelText(l));
-    expect(hot[0]).toMatch(/^★2 SPARK JUMP: \{\*STUN\} HITS \d+ PARTS\.$/);
+    expect(hot).toEqual([]);
     const split = levelLines("splitter", 1)!.filter((l) => l.kind === "perk").map((l) => levelText(l));
     expect(split).toEqual(["★2 CLEAN CUT", "★3 PERFECT CUT"]);
   });
 
   it("a RULES piece shows its legacy next-star sentence; a piece without stars has no LEVELS", () => {
     // NUM-3 (R1's STUN fold): FROSTBITE and SABOT FOUNDRY have faces now; KEG and LODESTONE are RULES pieces that keep theirs
-    for (const def of ["assembly", "keg", "lodestone"]) {
+    // Y7b2 (the flip): ASSEMBLY LINE, POWDER KEG and LODESTONE have faces now (STAR_FACES folded into FACES), so the one
+    // fusible RULES piece left, SIFTER (dormant), carries the check (was ["assembly", "keg", "lodestone"])
+    for (const def of ["sifter"]) {
       expect(hasFace(def)).toBe(false);
       const ls = levelLines(def, 1)!;
       expect(ladders(ls), def).toEqual([]);

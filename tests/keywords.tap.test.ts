@@ -428,8 +428,13 @@ describe("U2f: the taller ⓘ view", () => {
     // MIMIC's and TWIN MOULD's SLUG, TESLA's DMG and GATLING's step, lengthen those LEVELS, and the faces that lost a clause
     // or a perk name are shorter, which the desk column sizes to). U2f's view, the one the game draws, is the next test's:
     // unchanged on op and desk
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([119, 172, 18, 2]);
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([56, 88, 102, 35, 18, 12]);
+    // Y7b2, re-measured (the same 316 panels): the flip, op 119 / 172 / 18 / 2 -> 126 / 185 / 5, desk 56 / 88 / 102 / 35 /
+    // 18 / 12 -> 15 / 97 / 131 / 48 / 16 / 9 (release Y's faces and ladders for the 30 folded pieces, no interim clause or
+    // caveat, POISON's and the retired rows gone); the words, op -> 132 / 179 / 5, desk -> 21 / 105 / 133 / 32 / 15 / 10 (no
+    // panel draws a perk's name, the 16 retired perk names leave the LEVELS, LOAD TIME's row is gone). U2f's view: the next
+    // test
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([132, 179, 5]);
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([21, 105, 133, 32, 15, 10]);
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -535,14 +540,18 @@ describe("U2f: the taller ⓘ view", () => {
 // Y1 (REQ-BFG-070), re-measured on y1 (the same 316 panels): op [309, 2] unchanged; desk [302, 9] unchanged; the worst rune
 // held [280, 36] -> [282, 34], the same with the switch on (COIL's and FROSTBITE's clauses left their faces, so two more
 // views fit one page with a rune held). U2f's aims hold as above.
-const U2F_OP = [309, 2];
-const U2F_OP_RUNE = [282, 34];
+// Y7b2 (the flip), re-measured (the same 316 panels): op [309, 2] -> [316], every op view on one page; the worst rune held
+// [282, 34] -> [304, 12], the same with the switch on; desk [302, 9] -> [316] (release Y's shorter faces and LEVELS for the
+// 30 folded pieces: no interim clause or caveat, POISON's row gone). The words move none of the four. U2f's aims hold as
+// above.
+const U2F_OP = [316]; // Y7b2 (the flip): was [309, 2]
+const U2F_OP_RUNE = [304, 12]; // Y7b2 (the flip): was [282, 34]
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
- *  [280, 36]). */
-const U2F_OP_RUNE_ON = [282, 34];
-const U2F_DESK = [302, 9];
+ *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). */
+const U2F_OP_RUNE_ON = [304, 12];
+const U2F_DESK = [316]; // Y7b2 (the flip): was [302, 9]
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
 // the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly

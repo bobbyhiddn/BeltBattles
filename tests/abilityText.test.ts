@@ -26,9 +26,10 @@ import { PLATE_CAP } from "../src/sim/races/bastion";
 import { SYNC_WINDOW } from "../src/sim/races/foundry";
 import { LOAD_FLOOR } from "../src/sim/battle";
 import { S, clashShortText, gatlingClashText } from "../src/ui/abilityText";
+import { S_STARTS } from "../src/ui/abilityText"; // Y7b2 (the flip): S.online's sentence (Y3: START's words)
 import { rateMul } from "../src/sim/content"; // NUM-2 (REQ-BFG-047): the whole rate %; NUM-4: SPEED quoted as it is (no secPer)
 import { roundHalfUp } from "../src/sim/pct"; // NUM-2: MIMIC's speed rounds half up once (battle.ts factoryDef)
-import { pct as simPct } from "../src/sim/pct"; // NUM-4: GRAPNEL's salvage as the sim rounds it (battle.ts impact)
+// Y7b2 (the flip): `pct as simPct` (NUM-4: GRAPNEL's salvage as the sim rounds it) left with that salvage, its one reader
 import { PEAK_SHIFT } from "../src/sim/races/data"; // NUM-4: METRONOME's peak shift, a hidden timer no sentence quotes
 
 // 0.6.2t (REQ-BFG-032): the ability text of every buyable module (0.8.0: 31 rigs, 15 factories, 15 cores, 12 mods) at 1, 2
@@ -42,12 +43,12 @@ const SRC = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "ut
 describe("the glossary's engine numbers (SIM) are the sim's", () => {
   it("each is quoted from its source; the test fails if one moves", () => {
     const battle = SRC("src/sim/battle.ts"), harass = SRC("src/sim/harassment.ts"), cores = SRC("src/sim/cores.ts");
-    expect(battle).toContain(`Math.min(${SIM.poisonMax}, def.hull.poison.stacks + pr.payload.poison)`);
-    expect(battle).toContain(`def.hull.poison.t = ${SIM.poisonTime};`);
-    // NUM-1 (REQ-BFG-047): poison ticks once a second, and the part-second left when it runs out rounds half up once
-    // (re-quoted: was `s.hull.poison.stacks * ${SIM.poisonTick} *`, x dt every tick)
-    expect(battle).toContain(`damage = po.stacks * ${SIM.poisonTick};`);
-    expect(battle).toContain(`damage = roundHalfUp(po.stacks * ${SIM.poisonTick} * po.acc);`);
+    // Y7b2 (the flip): POISON's hull pool, tick and SIM.poisonMax / poisonTime / poisonTick left the sim and SIM, so their
+    // four quotes are deleted (switch-off only; were `Math.min(${SIM.poisonMax}, def.hull.poison.stacks +
+    // pr.payload.poison)`, `def.hull.poison.t = ${SIM.poisonTime};`, `damage = po.stacks * ${SIM.poisonTick};` and
+    // `damage = roundHalfUp(po.stacks * ${SIM.poisonTick} * po.acc);`)
+    for (const gone of ["poisonMax", "poisonTime", "poisonTick", "scrapQueue"]) expect(SIM, gone).not.toHaveProperty(gone);
+    expect(battle).not.toMatch(/hull\.poison/);
     // NUM-3 (R1's STUN fold): SABOT's 5 / 4 / 3 s stalls and bare-hull +60, DRAG CHAIN's factory +0.8 s and turret +0.5 s
     // delays, SNAG's x0.8 and CHILL's x0.75 left the sim and SIM (sabotBelt, sabotFactory, sabotTurret, sabotHull,
     // chainFactory, chainTurret, snag, chill). Their checks become: a sabot, frost or chain round STUNs for its own data's
@@ -60,7 +61,8 @@ describe("the glossary's engine numbers (SIM) are the sim's", () => {
     expect(battle).toContain(`this.disrupt(s, target, ${SIM.shrapnel}, "sabot")`);
     expect(harass).toContain(`damage - (debuffs.sap ? ${SIM.sap} : 0)`); // NUM-3: SAP, the one mark left
     for (const gone of ["sabotBelt", "sabotFactory", "sabotTurret", "sabotHull", "chainFactory", "chainTurret", "snag", "chill"]) expect(SIM, gone).not.toHaveProperty(gone);
-    expect(battle).toContain(`Math.min(${SIM.scrapQueue}, f.triggerQueue + gained)`);
+    // Y7b2 (the flip): SCRAPPER's 3-waiting cap (SIM.scrapQueue) left the sim and SIM (checked gone above; was
+    // expect(battle).toContain(`Math.min(${SIM.scrapQueue}, f.triggerQueue + gained)`))
     expect(battle).toContain(`if (count >= ${SIM.lanceMax}) break;`);
     expect(cores).toContain(`tu.loadTimer >= ${SIM.salvoWait} * tu.windowTime`);
     // and the constants the sim exports, as the texts quote them
@@ -103,7 +105,9 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   temper: (e) => [g(e).burn!, ...BURN],
   whetstone: (e) => [g(e).flat!],
   grease: (e) => [fasterNum(g(e).speed!), g(e).lockedFlat!],
-  brake: (e) => [...(g(e).flat ? [g(e).flat] : []), g(e).lockedFlat!], // HALF SPEED at every star
+  // Y7b2 (the flip): ★2/★3 slow the belt TO 40% / 30% SPEED with no flat (★1 HALF SPEED, in words); was [...(g(e).flat ?
+  // [g(e).flat] : []), g(e).lockedFlat!], HALF SPEED at every star
+  brake: (e) => [...(g(e).speed === 0.5 ? [] : [pct(g(e).speed!)]), g(e).lockedFlat!],
   longhaul: (e) => [g(e).perPriorGate!, ...(g(e).priorCap !== undefined ? [g(e).priorCap] : [])],
   coil: (e) => {
     const j = g(e).jump ?? 0, t = g(e).shockTime ?? DISRUPT_TIME;
@@ -114,24 +118,32 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   tollbooth: (e) => [g(e).toll!],
   // NUM-3 (R1's STUN fold): S.marks names SAP, the one mark left, and its cut (SIM.sap; was CHILL's 25% and SNAG's 20%)
   sifter: (e) => (g(e).sift === "all" ? [g(e).siftFlat!, ...(g(e).siftClean ? [g(e).siftClean] : []), SIM.sap] : [1, SIM.sap]),
-  surge: (e) => {
-    const p = g(e).pulse!;
-    return [fasterNum(p.speed), p.on, p.period, ...(p.flat ? [p.flat] : []), g(e).lockedFlat!];
-  },
+  // Y7b2 (the flip): the damage pulse only, EVERY n SECONDS ... GAINS m DAMAGE (its speed pulse and lockedFlat left); was
+  // [fasterNum(p.speed), p.on, p.period, ...(p.flat ? [p.flat] : []), g(e).lockedFlat!]
+  surge: (e) => [g(e).pulse!.period, g(e).pulse!.flat],
   sorting: (e) => (g(e).sort!.copies > 2 ? [2] : []), // EVERY THIRD / OTHER PAYLOAD (words), TWICE from ★3
   riveter: (e) => [g(e).heal!], // SUS-A (REQ-BFG-069): the field is `heal` (was repair)
   heatjacket: (e) => [g(e).heat!, 2], // TWO JACKETS ADD UP.
-  venom: (e) => [g(e).poison!, SIM.poisonTick, SIM.poisonMax, SIM.poisonTime],
+  // Y7b2 (the flip): each BURN lasts burnPlus seconds longer, then BURN's own sentence (POISON left: was [g(e).poison!,
+  // SIM.poisonTick, SIM.poisonMax, SIM.poisonTime])
+  venom: (e) => [g(e).burnPlus!, ...BURN],
   overclocker: (e) => [g(e).overclockCooldown!],
-  keg: (e) => [g(e).keg!.flat, g(e).keg!.burn, g(e).keg!.fuse, ...BURN],
+  // Y7b2 (the flip): EVERY fuse SECONDS ... flat DAMAGE, no BURN (was [g(e).keg!.flat, g(e).keg!.burn, g(e).keg!.fuse, ...BURN])
+  keg: (e) => [g(e).keg!.fuse, g(e).keg!.flat],
   // NUM-3 step 2: burnPerRide { burn, per, max } (BURN for each `per` s ridden; was 1 BURN every `seconds`)
-  bellows: (e) => [g(e).burnPerRide!.burn, g(e).burnPerRide!.per, g(e).burnPerRide!.max, ...BURN],
+  // Y7b2 (the flip): no cap (was [g(e).burnPerRide!.burn, g(e).burnPerRide!.per, g(e).burnPerRide!.max, ...BURN])
+  bellows: (e) => [g(e).burnPerRide!.burn, g(e).burnPerRide!.per, ...BURN],
   // 0.6.2 FB-B: + flat on every payload, then up to `stacks` of its Burn at perBurn more each (the rest stays Burn)
-  quench: (e) => [g(e).quench!.flat, g(e).quench!.stacks, g(e).quench!.perBurn, ...BURN],
+  // Y7b2 (the flip): every BURN turns into perBurn DAMAGE, no flat and no stack cap (was [g(e).quench!.flat,
+  // g(e).quench!.stacks, g(e).quench!.perBurn, ...BURN])
+  quench: (e) => [g(e).quench!.perBurn, ...BURN],
   staticbrush: (e) => [g(e).staticTime!],
-  lodestone: (e) => [g(e).flat!, g(e).perStalled!.each, g(e).perStalled!.max], // 0.6.2rel3 (TUNE-M T2): the floor first
+  // Y7b2 (the flip): no floor and no cap, the bonus for each STUN alone (was [g(e).flat!, g(e).perStalled!.each,
+  // g(e).perStalled!.max], 0.6.2rel3's floor first)
+  lodestone: (e) => [g(e).perStalled!.each],
   barbed: (e) => (g(e).frayCap ? [g(e).fray!, FRAY_MAX + g(e).frayCap, FRAY_BONUS] : [g(e).fray!, FRAY_BONUS, FRAY_MAX]),
-  counterweight: (e) => [r1(g(e).perTile!.each), g(e).perTile!.max],
+  // Y7b2 (the flip): no cap (Y7b1's 3/7/11 a tile; was [r1(g(e).perTile!.each), g(e).perTile!.max])
+  counterweight: (e) => [r1(g(e).perTile!.each)],
   // factories (NUM-4, REQ-BFG-047: each stamp cadence is spd(e), the factory's SPEED, "AT RATE n"; was sec(e), 30 / speed
   // at two decimals, NUM-2's; before that f(e).interval)
   press: (e) => [base(e), spd(e)],
@@ -144,9 +156,13 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   slagpot: (e) => [base(e), spd(e), pct(AMMO.slag.fixedSpeed!)],
   // NUM-4 (REQ-BFG-047; N1 2.2): S.online says the commission timers in words, SOON AFTER ... A LITTLE LATER (was
   // COMMISSION_BASE 1.2 and COMMISSION_STEP 0.6 quoted in seconds; the hidden timers are checked after the loop below)
-  assembly: (e) => [...(f(e).hotStart ? [2, f(e).hotStart] : []), base(e), spd(e)],
+  // Y7b2 (the flip): RIGS START WORKING n% SOONER (1 - commission), ALL ... AT ONCE at commission 0, and no ★3 HOT START
+  // (was [...(f(e).hotStart ? [2, f(e).hotStart] : []), base(e), spd(e)])
+  assembly: (e) => [...(f(e).commission ? [pct(1 - f(e).commission!)] : []), base(e), spd(e)],
   gantry: (e, _k, s) => [outputsAt("gantry", s), base(e), spd(e)], // bb-0.8.3: its slots by stars (outputsAt)
-  scrapper: (e) => [f(e).scrapFlat!, 1, spd(e), 1, SIM.scrapQueue, ...(f(e).bigHaul ? [2, 1] : [])], // BIG HAUL: 2 SLUGS, NOT 1
+  // Y7b2 (the flip): no 3-waiting cap and no BIG HAUL (the sim reads neither; was [f(e).scrapFlat!, 1, spd(e), 1,
+  // SIM.scrapQueue, ...(f(e).bigHaul ? [2, 1] : [])], BIG HAUL: 2 SLUGS, NOT 1)
+  scrapper: (e) => [f(e).scrapFlat!, 1, spd(e), 1],
   // NUM-3 (R1's STUN fold): a SABOT STUNs any other part for round.seconds (was 5 / 4 / 3 s by target, + 60 on bare hull)
   sabot: (e) => [1, spd(e), ...(round<{ shrapnel?: boolean }>(e).shrapnel ? [SIM.shrapnel] : []), round<{ seconds: number }>(e).seconds],
   // NUM-3: a frost round STUNs (was a freeze, with CHILL's 25%)
@@ -181,32 +197,37 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
     return [rateNum(imul(c.top)), speedNum(1 / imul(c.start)), pct(c.step!)];
   },
   hullbreaker: (e, k) => [pct(scaleCore(e.core!, k).hullMul! - 1)],
-  drake: (e, k) => {
-    const c = scaleCore(e.core!, k);
-    return [1, c.flatPerBurn!, c.addBurn!, c.burnTime!, BURN_TIME, pct(1 - c.flightMul!)];
-  },
-  salvo: (e, k) => [r1(scaleCore(e.core!, k).volleyFlat!), 2, pct(scaleCore(e.core!, k).reloadMul! - 1)], // OR TWICE ITS LOAD TIME
+  // Y7b2 (the flip): 1 BURN FOR EVERY flatPerBurn DAMAGE alone (addBurn, burnTime and flightMul left; was [1,
+  // c.flatPerBurn!, c.addBurn!, c.burnTime!, BURN_TIME, pct(1 - c.flightMul!)])
+  drake: (e, k) => [1, scaleCore(e.core!, k).flatPerBurn!],
+  // Y7b2 (the words; LOAD TIME retires): OR 3 SECONDS AFTER ITS FIRST LOAD, SIM.salvoWait x WINDOW_TIME (was 2, "OR TWICE
+  // ITS LOAD TIME")
+  salvo: (e, k) => [r1(scaleCore(e.core!, k).volleyFlat!), SIM.salvoWait * WINDOW_TIME, pct(scaleCore(e.core!, k).reloadMul! - 1)],
   // NUM-4 (REQ-BFG-047; N1 2.2): ITS SHOTS TAKE LONGER TO LAND (was its flightMul, 2.2 TIMES AS LONG; a hidden timer's
   // multiplier, checked after the loop below)
   mortar: (e, k) => [scaleCore(e.core!, k).splash!, pct(scaleCore(e.core!, k).share!)],
-  grapnel: (e, k, s) => {
+  grapnel: (e, k) => {
     const c = scaleCore(e.core!, k);
     // NUM-4 (REQ-BFG-047): a ★3 rip's salvage is the sim's pct(10, k%) (battle.ts impact: gun.salvage += pct(10 x ripped,
-    // roundHalfUp(100 x k)); was r1(k), the x1 scale's 1 x k: 1 and 0.6)
-    return [...(c.rip! > 1 ? [c.rip!] : []), c.reach!, ...(s >= 3 ? [simPct(10, roundHalfUp(100 * k))] : [])];
+    // roundHalfUp(100 x k)); was r1(k), the x1 scale's 1 x k: 1 and 0.6). Y7b2 (the flip): ★3's salvage left (TurretState
+    // .salvage is gone; was ...(s >= 3 ? [simPct(10, roundHalfUp(100 * k))] : []))
+    return [...(c.rip! > 1 ? [c.rip!] : []), c.reach!];
   },
   tesla: (e, k) => {
     const c = scaleCore(e.core!, k);
     return [...(c.arcs! > 1 ? [c.arcs!] : []), r2(c.stall!), pct(c.share!)];
   },
-  capacitor: (e, k) => [r1(scaleCore(e.core!, k).perSecond!), scaleCore(e.core!, k).maxSeconds!],
+  // Y7b2 (the flip): no 5 s cap (was [r1(scaleCore(e.core!, k).perSecond!), scaleCore(e.core!, k).maxSeconds!])
+  capacitor: (e, k) => [r1(scaleCore(e.core!, k).perSecond!)],
   compound: (e, k) => [2, 1, pct(scaleCore(e.core!, k).mult!), scaleCore(e.core!, k).hold!], // PACKS 2 LOADS INTO ONE SHELL
   lance: (e, k) => [scaleCore(e.core!, k).columns!, pct(scaleCore(e.core!, k).share!), SIM.lanceMax],
   // turret gear
   chamber: (e) => [m(e).perShot!, ...(m(e).window ? [m(e).window] : [])],
   calibrate: (e) => [rateNum(imul(m(e).fireRate))], // NUM-2: fireRate +33 / +72 / +117 (was fireMul 0.75 / 0.58 / 0.46)
   flak: (e) => [pct(m(e).intercept!)],
-  spotter: (e) => (m(e).alwaysMachine ? [m(e).factoryWeight!] : m(e).factoryWeight ? [2, 2] : []), // UP TO TWICE, TWICE AS OFTEN
+  // Y7b2 (the flip): it aims again ONCE / UP TO TWICE / UP TO 3 TIMES (rerolls 1/2/3; the factory weight and "always a part"
+  // left; was (m(e).alwaysMachine ? [m(e).factoryWeight!] : m(e).factoryWeight ? [2, 2] : []), UP TO TWICE, TWICE AS OFTEN)
+  spotter: (e) => (m(e).rerolls! > 1 ? [m(e).rerolls!] : []),
   // 0.6.2 FB-B: ★1's slot and seconds at every star; ★2/★3 store 1/2 loads while the turret fires (ModSpec.store)
   // NUM-4 (REQ-BFG-047; N1 2.2): THE LOAD TIME IS LONGER, and S.chamber's SOON AFTER THE FIRST LOAD (was its windowTime,
   // 0.5 SECONDS, and WINDOW_TIME, 1.5; hidden timers, checked after the loop below)
@@ -220,12 +241,21 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   longcase: (e) => [m(e).longRideMin!, m(e).longRideFlat!, 13], // PEAK_SHIFT +1.2 s: 13 tiles
   // wave 3 (0.8.0 P1's WAVE3_NUMBERS, moved here by I1 M2 when the switch went on; REPORT-P1 section 13)
   plateroller: (e) => [g(e).plate!, PLATE_CAP], // + the plating sentence: UP TO 24 PLATING
-  twingauge: (e) => [g(e).gauge!.flat, g(e).gauge!.matched],
-  pincer: (e) => [g(e).pincer!.flat, g(e).pincer!.each], // 0.8.0 I1 (VERIFIED-P1 H5): no "UP TO 3 OTHERS" (it never binds)
-  braceframe: (e) => [pct(1 - g(e).brace!.mul), pct(1 - g(e).brace!.plated)],
-  twinlatch: (e) => [1, g(e).latch!.hold, g(e).latch!.flat, 2], // BRINGS ONE TOO; ... INTO TWO GUNS
+  // Y7b2 (the flip): the matched bonus alone, no floor (flat 0; was [g(e).gauge!.flat, g(e).gauge!.matched])
+  twingauge: (e) => [g(e).gauge!.matched],
+  // 0.8.0 I1 (VERIFIED-P1 H5): no "UP TO 3 OTHERS" (it never binds). Y7b2 (the flip): no floor (flat 0; was
+  // [g(e).pincer!.flat, g(e).pincer!.each])
+  pincer: (e) => [g(e).pincer!.each],
+  // Y7b2 (the flip): one sentence, its STUNs n% shorter (Y2's: the plated multiplier left, so no plated sentence; was
+  // [pct(1 - g(e).brace!.mul), pct(1 - g(e).brace!.plated)])
+  braceframe: (e) => [pct(1 - g(e).brace!.mul)],
+  // BRINGS ONE TOO; ... INTO TWO GUNS. Y7b2 (the flip): no flat sentence (flat 0; was [1, g(e).latch!.hold,
+  // g(e).latch!.flat, 2])
+  twinlatch: (e) => [1, g(e).latch!.hold, 2],
   stoker: (e) => [pct(g(e).stoke!)],
-  platebreaker: (e) => [10, g(e).breaker!.flat, g(e).breaker!.floor], // TAKES 10 PLATING (NUM-1: battle.ts spends 10; was 1)
+  // TAKES 10 PLATING (NUM-1: battle.ts spends 10; was 1). Y7b2 (the flip): no floor, WITH LESS PLATING ... IT ADDS NOTHING
+  // (was [10, g(e).breaker!.flat, g(e).breaker!.floor])
+  platebreaker: (e) => [10, g(e).breaker!.flat],
   shieldwall: (e) => [g(e).plate!, g(e).plated!.min, g(e).plated!.flat, PLATE_CAP],
   // CASTS TWO PLAIN SLUGS (3 DAMAGE EACH) AT ONCE, ONE ONTO EACH OF TWO BELTS ... THE NEXT TWO IN TURN ... INTO ONE TURRET
   // (bb-0.8.3, REQ-BFG-042 D3: the pour size, FactorySpec.pour, where 0.8.0 quoted its outputs)
@@ -235,12 +265,18 @@ const NUMBERS: Record<string, (e: ItemDef, k: number, s: number) => number[]> = 
   // PLATING (cores.ts scaleCore; was r1(perPlate), "2.2 MORE FOR EACH PLATING")
   anvil: (e, k) => [r1(scaleCore(e.core!, k).anvilFlat!), pct(scaleCore(e.core!, k).perPlate!), PLATE_CAP],
   // rates: no k. NUM-2: +35 / +70 / +110 and +10 / +20 / +30, whole rate % (was 1 / 1.35 ... the interval x)
-  steambreech: (e, k) => [rateNum(imul(scaleCore(e.core!, k).steamPlated)), rateNum(imul(scaleCore(e.core!, k).steamBare))],
+  // Y7b2 (the flip): plated only, 40/80/120% FASTER (the bare speed-up left; was [rateNum(imul(scaleCore(e.core!,
+  // k).steamPlated)), rateNum(imul(scaleCore(e.core!, k).steamBare))])
+  steambreech: (e, k) => [rateNum(imul(scaleCore(e.core!, k).steamPlated))],
   // NUM-4 (REQ-BFG-047; N1 2.2): S.pair's AT ONCE and ITS LOAD TIME IS SHORTER, DOWN TO A FLOOR (was SYNC_WINDOW, its
   // -windowTime and LOAD_FLOOR in seconds; hidden timers, checked after the loop below)
   twintrigger: (e) => [pct(m(e).pairBonus!), 2, 1], // A PAIR IS TWO LOADS ... ONE TURRET
-  spallcatcher: (e) => [m(e).spall!.every, m(e).spall!.add, m(e).spall!.max, 2], // ... COUNTS TWICE
-  seamwelder: (e) => [m(e).seam!.pair, m(e).seam!.lone, 2, 1, PLATE_CAP], // NUM-4: S.pair's AT ONCE (was SYNC_WINDOW)
+  // Y7b2 (the flip): no cap and PLATING's soak counts once (was [m(e).spall!.every, m(e).spall!.add, m(e).spall!.max, 2],
+  // ... COUNTS TWICE)
+  spallcatcher: (e) => [m(e).spall!.every, m(e).spall!.add],
+  // NUM-4: S.pair's AT ONCE (was SYNC_WINDOW). Y7b2 (the flip): a lone load rolls none, so no lone clause (was
+  // [m(e).seam!.pair, m(e).seam!.lone, 2, 1, PLATE_CAP])
+  seamwelder: (e) => [m(e).seam!.pair, 2, 1, PLATE_CAP],
   // FLIP-X2 (REQ-BFG-069, the sustain switch on): the 3 sustain pieces are buyable modules now, so their rows move here
   // from tests/sustain.text.test.ts's NUMBERS ("for RUNES-2b to move there"), the same numbers in the same order
   wardbell: (e) => [m(e).shield!.amount, m(e).shield!.every, SHIELD_CAP, 1], // GAINS ONE ... UP TO 3; BLOCKS ONE HIT'S DAMAGE
@@ -297,13 +333,19 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     // none is a whole second, so the sentences say them in words (SOON AFTER, AT ONCE, LONGER, SHORTER, EARLIER, LATER) and
     // the three shared sentences that carried them quote none of them (S.pair keeps its TWO LOADS and ONE TURRET); the sim
     // keeps every one
-    expect([S.online, S.chamber, S.pair].map(numbers)).toEqual([[], [], [2, 1]]);
+    // Y7b2 (the flip): S.online and S.chamber left abilityText.ts (deleted symbols): S.online's sentence is S_STARTS (Y3:
+    // START's words, ONLINE retired); S.chamber's load window went with HOPPER's and TWIN TRIGGER's load times (was
+    // [S.online, S.chamber, S.pair] -> [[], [], [2, 1]])
+    expect([S_STARTS, S.pair].map(numbers)).toEqual([[], [2, 1]]);
+    // Y7b2 (the flip): HOPPER's +0.5 s and TWIN TRIGGER's -0.3/-0.4/-0.55 s load times left (no windowTime in their data),
+    // so their six entries went from the list (were ...STARS.map((s) => effectAt("hopper", s).mod!.windowTime!) and
+    // ...STARS.map((s) => -effectAt("twintrigger", s).mod!.windowTime!))
     const hidden = [
       COMMISSION_BASE, COMMISSION_STEP, WINDOW_TIME, SYNC_WINDOW, LOAD_FLOOR, -PEAK_SHIFT.escapement, PEAK_SHIFT.longcase,
-      ...STARS.map((s) => effectAt("hopper", s).mod!.windowTime!), ...STARS.map((s) => -effectAt("twintrigger", s).mod!.windowTime!),
       ...STARS.map((s) => scaleCore(effectAt("gatling", s).core!, 1).gap!), ...STARS.map((s) => scaleCore(effectAt("mortar", s).core!, 1).flightMul!),
       ...MODULES.filter((d) => d.kind === "turret").flatMap((d) => STARS.map((s) => effectAt(d.id, s).turret!.flight)),
     ];
+    expect(STARS.map((s) => [effectAt("hopper", s).mod!.windowTime, effectAt("twintrigger", s).mod!.windowTime])).toEqual([[undefined, undefined], [undefined, undefined], [undefined, undefined]]);
     expect(hidden.filter((t) => !(t > 0) || Number.isInteger(t)), "a hidden timer a whole second could say").toEqual([]);
   });
 
@@ -321,19 +363,23 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
 
   it("the brief's cases, written out", () => {
     const at = (def: string, s: number) => abilityText(def, s);
-    expect(at("longhaul", 2).sentences[0]).toBe("ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS."); // NUM-1: x10 (was 2)
+    // NUM-1: x10 (was 2). Y7b2 (the flip): LONG HAUL's cap left (was "ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT, UP TO 6 HITS.")
+    expect(at("longhaul", 2).sentences[0]).toBe("ADDS 20 DAMAGE FOR EACH EARLIER RIG HIT.");
     expect(at("overclocker", 1).sentences[0]).toBe("DOUBLES THE NEXT RIG'S HIT, THEN RECHARGES FOR 4 SECONDS.");
     expect(at("mimic", 3)).toEqual({ // bb-0.8.3 (REQ-BFG-042 D3): its belts follow its stars; no "AND FEEDS 2 BELTS"
       sentences: ["STAMPS YOUR HERO'S SIGNATURE AMMO 25% FASTER THAN ITS OWN FACTORY."],
       perk: { name: "TWIN SIGNET", stars: 3, after: 0 },
     });
-    expect(at("scrapper", 3).sentences.slice(0, 3)).toEqual([
+    // Y7b2 (the flip): harassment is a STUN, no 3-waiting cap and no BIG HAUL wreck sentence (were "IT STAMPS ONE AT RATE
+    // 15, AND ONE MORE EACH TIME YOUR HARASSMENT LANDS, UP TO 3 WAITING." and "A RIG YOUR SABOTS WRECK EARNS 2 SCRAP SLUGS,
+    // NOT 1."), so ★3 has two sentences
+    expect(at("scrapper", 3).sentences).toEqual([
       "STAMPS SCRAP SLUGS THAT DEAL 105 MORE DAMAGE THAN PLAIN ONES.", // NUM-1: x10 (was 10.5)
       // NUM-4 (REQ-BFG-047): its SPEED (★3 15), AT RATE 15 (was EVERY 2 SECONDS, 30 / 15)
-      `IT STAMPS ONE AT RATE ${effectAt("scrapper", 3).factory!.speed}, AND ONE MORE EACH TIME YOUR HARASSMENT LANDS, UP TO 3 WAITING.`,
-      "A RIG YOUR SABOTS WRECK EARNS 2 SCRAP SLUGS, NOT 1.",
+      `IT STAMPS ONE AT RATE ${effectAt("scrapper", 3).factory!.speed}, AND ONE MORE EACH TIME YOUR STUN LANDS.`,
     ]);
-    expect(at("scrapper", 3).perk).toEqual({ name: "BIG HAUL", stars: 3, after: 2 });
+    // Y7b2 (the words): ★3's perk name left with its rule (was { name: "BIG HAUL", stars: 3, after: 2 })
+    expect(at("scrapper", 3).perk).toBeUndefined();
     // NUM-3 (R1's STUN fold): a frost round STUNs (was "STAMPS ROUNDS THAT FREEZE 2 MACHINES FOR 2.75 SECONDS."); its
     // seconds through the data (step 2's whole seconds)
     const frost2 = effectAt("frostbite", 2).factory!.round as { seconds: number; spread: number };
@@ -343,14 +389,20 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
 
   it("0.6.2rel: FB-B's four modules and the turrets, written out", () => {
     const at = (def: string, s: number) => abilityText(def, s);
-    // NUM-1: x10 (was 1 and 3; 4 Burn is a count)
-    expect(at("quench", 1).sentences[0]).toBe("ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH.");
-    expect(at("surge", 1).sentences[0]).toBe("PULSES ITS BELTS 3 TIMES AS FAST FOR 1 SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE."); // NUM-1: x10 (was 1)
-    expect(at("hopper", 2).sentences[1]).toBe("WHILE THE TURRET FIRES, IT STORES 1 LOAD FROM THE BELT FOR ITS NEXT CHAMBER.");
+    // NUM-1: x10 (was 1 and 3; 4 Burn is a count). Y7b2 (the flip): QUENCH has no floor and no stack cap (was "ADDS 10
+    // DAMAGE TO EACH PAYLOAD IT HITS, THEN TURNS UP TO 4 OF ITS BURN INTO 30 MORE DAMAGE EACH.")
+    expect(at("quench", 1).sentences[0]).toBe("TURNS EACH BURN ON THE PAYLOADS IT HITS INTO 30 DAMAGE.");
+    // NUM-1: x10 (was 1). Y7b2 (the flip): SURGE VALVE's damage pulse alone (was "PULSES ITS BELTS 3 TIMES AS FAST FOR 1
+    // SECOND EVERY 3 SECONDS, EACH PULSE ADDING 10 DAMAGE.")
+    expect(at("surge", 1).sentences[0]).toBe("EVERY 3 SECONDS, EACH PAYLOAD ON THE BELTS IT HITS GAINS 10 DAMAGE.");
+    // Y7b2 (the flip): HOPPER ★2 holds 2 more loads and stores none (was sentences[1] "WHILE THE TURRET FIRES, IT STORES 1
+    // LOAD FROM THE BELT FOR ITS NEXT CHAMBER.")
+    expect(at("hopper", 2).sentences).toEqual(["THE TURRET'S CHAMBER HOLDS 2 MORE LOADS."]);
     // NUM-3 (R1's STUN fold): MANTLET ignores every STUN source from ★1 (was "THE TURRET IGNORES SHOCK, STATIC, ARC, CHAIN,
-    // FROST AND SABOT STALLS." at ★2, FULL PLATE's list); ★2 FULL GUARD keeps its tile
+    // FROST AND SABOT STALLS." at ★2, FULL PLATE's list); ★2 FULL GUARD keeps its tile. Y7b2 (the flip): ★2 guards 2 tiles
+    // and no rigs (the shared rig guard left; was "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.")
     expect(at("mantlet", 2).sentences).toEqual([
-      "THE TURRET IGNORES EVERY STUN.", "SO DO THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT.",
+      "THE TURRET IGNORES EVERY STUN.", "SO DO THE LAST 2 TILES OF EACH BELT IN.",
     ]);
     expect([at("mantlet", 1).sentences[0], cardText("mantlet")]).toEqual(["THE TURRET IGNORES EVERY STUN.", "IGNORES EVERY STUN."]);
     // NUM-2 (REQ-BFG-047; was EVERY 0.9 SECONDS and 11% FASTER): BOMBARD ★2's speed is 33 (30 / 0.9 = 33.3 rounded), so it
@@ -498,7 +550,10 @@ describe("0.6.2t T4: numbers and keywords in their battle colours, the same ever
     expect(colourOf("ADDS 2 BURN TO EACH", "2")).toBe(NUMBER_COLOUR);
     expect(colourOf("ADDS SHOCK, WHICH", "SHOCK")).toBe(KEYWORD_COLOUR.shock);
     expect(colourOf("ROUNDS THAT FREEZE 2", "FREEZE")).toBe(KEYWORD_COLOUR.freeze);
-    expect(colourOf("ADDS 2 POISON TO", "POISON")).toBe(KEYWORD_COLOUR.poison);
+    // Y7b2 (the flip): KEYWORD_COLOUR.poison left with POISON (a deleted symbol), so POISON draws in the text's own colour,
+    // as FROST does since FLIP-X2 (was expect(colourOf("ADDS 2 POISON TO", "POISON")).toBe(KEYWORD_COLOUR.poison))
+    expect(Object.keys(KEYWORD_COLOUR)).not.toContain("poison");
+    expect(colourize("POISON", C.bone)).toEqual([{ t: "POISON", c: C.bone }]);
     expect(colourOf("MAKES IT 60% FASTER.", "FASTER")).toBe(KEYWORD_COLOUR.faster);
     expect(colourOf("MAKES IT 40% SLOWER.", "SLOWER")).toBe(KEYWORD_COLOUR.slower);
     // a speed phrase takes the speed colour word by word (the spaces between are blank either way)
@@ -537,7 +592,9 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
 
   it("the four glossary sentences, word for word (DESIGN-wave3.md 3.2), with the sim's numbers", () => {
     expect([S.plating, S.pair, S.matched, S.worksFaster]).toEqual([
-      "PLATING TAKES DAMAGE, BURN AND POISON BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.", // NUM-1: x10 (was 24)
+      // NUM-1: x10 (was 24). Y7b2 (the flip): no POISON (S_PLATING became S.plating; was "PLATING TAKES DAMAGE, BURN AND
+      // POISON BEFORE YOUR HULL, ...")
+      "PLATING TAKES DAMAGE AND BURN BEFORE YOUR HULL, UP TO 240 PLATING; THE DARK WIND GOES STRAIGHT THROUGH IT.",
       // NUM-4 (REQ-BFG-047; N1 2.2): the pair window, SYNC_WINDOW 0.25 s (pinned below), is a hidden timer said AT ONCE
       // (was "WITHIN 0.25 SECONDS")
       "A PAIR IS TWO LOADS THAT REACH ONE TURRET THROUGH DIFFERENT INTAKES AT ONCE; A FOUNDRY FUSION IS A PAIR.",
@@ -565,28 +622,36 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // NUM-1 (REQ-BFG-047): every damage and plating number below is x10 (fixtures/num1-base-values.json); %, times,
     // counts and ANVIL's perPlate (damage per plating, a ratio) as they were
     expect(at("plateroller", 3)[0]).toBe("ROLLS 17 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS."); // was 1.7
-    expect(at("twingauge", 2)[0]).toBe("ADDS 22 DAMAGE TO EACH PAYLOAD IT HITS, OR 66 DAMAGE ON A MATCHED BELT."); // was 2.2, 6.6
+    // was 2.2, 6.6. Y7b2 (the flip): TWIN GAUGE's floor left, the matched bonus alone (was "ADDS 22 DAMAGE TO EACH PAYLOAD
+    // IT HITS, OR 66 DAMAGE ON A MATCHED BELT.")
+    expect(at("twingauge", 2)[0]).toBe("ADDS 66 DAMAGE TO EACH PAYLOAD IT HITS ON A MATCHED BELT.");
     expect(at("pincer")).toEqual([ // 0.8.0 I1 (VERIFIED-P1 H5): no "UP TO 3 OTHERS" (it never binds; the code keeps the cap)
-      "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH OTHER RIG HITTING THAT TILE.", // was 1, 2
+      // was 1, 2. Y7b2 (the flip): PINCER's floor left (was "ADDS 10 DAMAGE TO EACH PAYLOAD IT HITS, AND 20 MORE FOR EACH
+      // OTHER RIG HITTING THAT TILE.")
+      "ADDS 20 DAMAGE TO EACH PAYLOAD IT HITS FOR EACH OTHER RIG HITTING THAT TILE.",
       "STUNNED AND WRECKED RIGS DON'T COUNT.", // NUM-3 (R1's STUN fold): was "STALLED, FROZEN AND WRECKED ..."
     ]);
+    // Y7b2 (the flip; Y2's BRACE FRAME): it guards its arrows' tiles only and the plated multiplier left (were "ENEMY STUNS ON
+    // THE BELT TILES IT HITS, AND ON ITSELF, LAST 85% SHORTER." and "WHILE YOUR HULL HOLDS PLATING THEY LAST 95% SHORTER.")
     expect(at("braceframe", 3)).toEqual([
-      "ENEMY STUNS ON THE BELT TILES IT HITS, AND ON ITSELF, LAST 85% SHORTER.", // NUM-3: was "STALLS, FREEZES AND CHAIN SLOWS"
-      "WHILE YOUR HULL HOLDS PLATING THEY LAST 95% SHORTER.",
+      "ENEMY STUNS ON THE BELT TILES IT HITS LAST 85% SHORTER.", // NUM-3: was "STALLS, FREEZES AND CHAIN SLOWS"
     ]);
-    // T6: DESIGN's "AT THE TILE IT HITS" moves to the second sentence, so the opening fits the phone band whole
+    // T6: DESIGN's "AT THE TILE IT HITS" moves to the second sentence, so the opening fits the phone band whole. Y7b2 (the
+    // flip): TWIN LATCH's flat left (was its third sentence "EACH PAYLOAD IT LETS GO GAINS 10 DAMAGE.")
     expect(at("twinlatch")).toEqual([
       "HOLDS EACH PAYLOAD UNTIL ITS OTHER BELT BRINGS ONE, THEN LETS THEM GO SO THEY REACH THE GUN TOGETHER.",
       "IT HOLDS A PAYLOAD AT THE TILE IT HITS, AT MOST 1 SECOND, AND ONLY WHEN BOTH ITS ARROWS HIT BELTS.",
-      "EACH PAYLOAD IT LETS GO GAINS 10 DAMAGE.", // was 1
       "ON BELTS INTO TWO GUNS, IT LETS BOTH GO AT ONCE.",
     ]);
-    expect(nextStarText("twinlatch", 1)).toBe("NEXT STAR: ADDS 22 DAMAGE."); // was 2.2
-    expect(nextStarText("spallcatcher", 1)).toBe("NEXT STAR: 22 DAMAGE FOR EVERY 40, UP TO 176."); // was 2.2, 4, 17.6
+    // Y7b2 (the flip): ★2 holds 2 seconds (hold 1/2/3), no flat (was "NEXT STAR: ADDS 22 DAMAGE.")
+    expect(nextStarText("twinlatch", 1)).toBe("NEXT STAR: HOLDS UP TO 2 SECONDS.");
+    // was 2.2, 4, 17.6. Y7b2 (the flip): SPALL CATCHER's cap left (was "NEXT STAR: 22 DAMAGE FOR EVERY 40, UP TO 176.")
+    expect(nextStarText("spallcatcher", 1)).toBe("NEXT STAR: 22 DAMAGE FOR EVERY 40.");
     expect(at("stoker").slice(0, 2)).toEqual(["EACH FACTORY ITS ARROWS POINT AT WORKS 20% FASTER.", "IT NEVER MAKES A FACTORY OUTRUN ITS GUN."]);
     // NUM-1: was 1 PLATING, 14, 3.5. The battle spends 10 plating (battle.ts: `if (s.plate.plate >= 10) { // NUM-1: 10
     // plating (x10 of 1)`), so the text's "TAKES 1 PLATING" (abilityText.ts platebreaker) disagrees: a text bug, left red
-    expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 140 DAMAGE.", "WITH NO PLATING TO TAKE, IT ADDS 35 DAMAGE."]);
+    // Y7b2 (the flip): PLATE BREAKER's floor left (was its second sentence "WITH NO PLATING TO TAKE, IT ADDS 35 DAMAGE.")
+    expect(at("platebreaker", 3)).toEqual(["EACH PAYLOAD IT HITS TAKES 10 PLATING FROM YOUR HULL AND GAINS 140 DAMAGE.", "WITH LESS PLATING THAN THAT, IT ADDS NOTHING."]);
     expect(at("shieldwall")[1]).toBe("WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE."); // was 12, 3
     // bb-0.8.3 (REQ-BFG-042 D3): the pour, not its belts: TWO (★3 THIRD SPRUE: THREE) at once, the next ones in turn
     // NUM-2 (REQ-BFG-047): the casts every 30 / speed s: ★1 speed 17, 30 / 17 = 1.76 (was 1.8); ★3 speed 21, 1.43 (was 1.4)
@@ -613,32 +678,44 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     // NUM-4: printed as the sim keeps it, 193% (was "AND 1.9 MORE FOR EACH PLATING ON YOUR HULL.")
     expect(at("anvil", 3, 0.55)[0]).toBe(`EACH SHOT DEALS 48 MORE DAMAGE, PLUS ${perPlate(3, 0.55)}% OF THE PLATING ON YOUR HULL.`);
     expect(perPlate(3, 0.55)).toBe(193);
-    expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 70% FASTER WHILE YOUR HULL HOLDS PLATING, AND 20% FASTER WITHOUT IT."]); // 0.8.0 B1 M2: was 44% and 10%
+    // 0.8.0 B1 M2: was 44% and 10%. Y7b2 (the flip): STEAM BREECH's bare speed-up left, plated 40/80/120% (was "THE TURRET
+    // FIRES 70% FASTER WHILE YOUR HULL HOLDS PLATING, AND 20% FASTER WITHOUT IT.")
+    expect(at("steambreech", 2)).toEqual(["THE TURRET FIRES 80% FASTER WHILE YOUR HULL HOLDS PLATING."]);
     // NUM-4 (REQ-BFG-047; N1 2.2): its -0.55 s and the 0.3 s floor are hidden timers no whole second says, so the sentence
     // says SHORTER, DOWN TO A FLOOR (was "ITS LOAD TIME IS 0.55 SECONDS SHORTER, BUT NEVER UNDER 0.3 SECONDS."); the sim
-    // keeps both (pinned here)
-    expect(at("twintrigger", 3)[2]).toBe("ITS LOAD TIME IS SHORTER, DOWN TO A FLOOR.");
-    expect([-effectAt("twintrigger", 3).mod!.windowTime!, LOAD_FLOOR]).toEqual([0.55, 0.3]);
-    expect(at("spallcatcher", 2)[0]).toBe("EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 22 DAMAGE TO THIS TURRET'S NEXT SHOT, UP TO 176 DAMAGE."); // NUM-1: was 4, 2.2, 17.6
-    expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL, AND ANY OTHER LOAD ROLLS 2."); // NUM-1: was 1, 0.2
+    // keeps both (pinned here). Y7b2 (the flip): TWIN TRIGGER's load-time cut left (no windowTime; pairBonus 30/60/95), so
+    // ★3's sentences are its pair bonus and PAIR's (was at("twintrigger", 3)[2] "ITS LOAD TIME IS SHORTER, DOWN TO A
+    // FLOOR." and [0.55, 0.3]); LOAD_FLOOR stays exported
+    expect(at("twintrigger", 3)).toEqual(["PAIRED LOADS IN THIS TURRET DEAL 95% MORE DAMAGE.", S.pair]);
+    expect([effectAt("twintrigger", 3).mod!.windowTime, LOAD_FLOOR]).toEqual([undefined, 0.3]);
+    // NUM-1: was 4, 2.2, 17.6. Y7b2 (the flip): no cap (was "..., UP TO 176 DAMAGE.")
+    expect(at("spallcatcher", 2)[0]).toBe("EVERY 40 DAMAGE YOUR SHIP TAKES ADDS 22 DAMAGE TO THIS TURRET'S NEXT SHOT.");
+    // NUM-1: was 1, 0.2. Y7b2 (the flip): a lone load rolls none (was "..., AND ANY OTHER LOAD ROLLS 2.")
+    expect(at("seamwelder")[0]).toBe("EACH PAIR THIS TURRET TAKES ROLLS 10 PLATING ONTO YOUR HULL.");
     // the next-star lines DESIGN 3.3 gives
     expect([1, 2].map((s) => nextStarText("plateroller", s))).toEqual(["NEXT STAR: ROLLS 11 PLATING FOR EACH PAYLOAD.", "NEXT STAR: ROLLS 17 PLATING FOR EACH PAYLOAD."]); // NUM-1: was 1.1, 1.7
-    expect(nextStarText("twingauge", 2)).toBe("NEXT STAR: ADDS 35 DAMAGE, OR 105 ON A MATCHED BELT."); // NUM-1: was 3.5, 10.5
-    expect(nextStarText("braceframe", 1)).toBe("NEXT STAR: 70% SHORTER, 85% WHILE PLATED.");
+    // NUM-1: was 3.5, 10.5. Y7b2 (the flip): no floor (was "NEXT STAR: ADDS 35 DAMAGE, OR 105 ON A MATCHED BELT.")
+    expect(nextStarText("twingauge", 2)).toBe("NEXT STAR: 105 DAMAGE ON A MATCHED BELT.");
+    // Y7b2 (the flip): no plated multiplier (was "NEXT STAR: 70% SHORTER, 85% WHILE PLATED.")
+    expect(nextStarText("braceframe", 1)).toBe("NEXT STAR: 70% SHORTER.");
     expect(nextStarText("stoker", 1)).toBe("NEXT STAR: ITS FACTORIES WORK 44% FASTER.");
-    // NUM-1: was 8.8, 1 PLATING, 2.2; the battle spends 10 plating, the text still says 1 (a text bug, as above)
-    expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 88 DAMAGE FOR 10 PLATING, 22 WITHOUT.");
+    // NUM-1: was 8.8, 1 PLATING, 2.2; the battle spends 10 plating, the text still says 1 (a text bug, as above). Y7b2 (the
+    // flip): no floor (was "NEXT STAR: 88 DAMAGE FOR 10 PLATING, 22 WITHOUT.")
+    expect(nextStarText("platebreaker", 1)).toBe("NEXT STAR: 88 DAMAGE FOR 10 PLATING.");
     expect(nextStarText("shieldwall", 1)).toBe("NEXT STAR: 22 PLATING A PAYLOAD, 66 DAMAGE AT 120 PLATING."); // NUM-1: was 2.2, 6.6, 12
     // NUM-2 (REQ-BFG-047): ★2 TWIN MOULD speed 19, 30 / 19 = 1.58 (was 1.6); ★2 ARMOR PRESS speed 21, 1.43 (was 1.4)
     // NUM-4 (REQ-BFG-047): AT RATE 19 and AT RATE 21, the ★2 SPEEDs (was EVERY 1.58 / 1.43 SECONDS)
     expect(nextStarText("twinmould", 1)).toBe(`NEXT STAR: 50 DAMAGE EACH, AT RATE ${spdAt("twinmould", 2)}, 3 BELTS.`); // bb-0.8.3 (M4); NUM-1: was 5
     expect(nextStarText("armorpress", 1)).toBe(`NEXT STAR: 66 PLATING EVERY 3 SECONDS, A SLUG AT RATE ${spdAt("armorpress", 2)}, 3 BELTS.`); // 0.8.0 B1 M2; bb-0.8.3 (M4); NUM-1: was 6.6
-    expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 70% FASTER PLATED, 20% WITHOUT."); // 0.8.0 B1 M2
+    // 0.8.0 B1 M2. Y7b2 (the flip): plated 80% at ★2, no bare speed-up (was "NEXT STAR: 70% FASTER PLATED, 20% WITHOUT.")
+    expect(nextStarText("steambreech", 1)).toBe("NEXT STAR: 80% FASTER PLATED.");
     // NUM-4 (REQ-BFG-047; N1 2.2): ★2's -0.4 s is a hidden timer (pinned here), SHORTER LOAD TIME (was "LOAD TIME 0.4
-    // SECONDS SHORTER")
-    expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 55% MORE, SHORTER LOAD TIME.");
-    expect(-effectAt("twintrigger", 2).mod!.windowTime!).toBe(0.4);
-    expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 22 PLATING A PAIR, 4 FOR ANY OTHER LOAD."); // NUM-1: was 2.2, 0.4
+    // SECONDS SHORTER"). Y7b2 (the flip): pairBonus 60% at ★2 and no load-time cut (was "NEXT STAR: PAIRS DEAL 55% MORE,
+    // SHORTER LOAD TIME." and -windowTime 0.4)
+    expect(nextStarText("twintrigger", 1)).toBe("NEXT STAR: PAIRS DEAL 60% MORE.");
+    expect(effectAt("twintrigger", 2).mod!.windowTime).toBeUndefined();
+    // NUM-1: was 2.2, 0.4. Y7b2 (the flip): no lone load's plating (was "NEXT STAR: 22 PLATING A PAIR, 4 FOR ANY OTHER LOAD.")
+    expect(nextStarText("seamwelder", 1)).toBe("NEXT STAR: 22 PLATING A PAIR.");
   });
 
   it("T1: each opens with one plain sentence; T4: every entry a whole sentence, the perk this star's", () => {
@@ -702,13 +779,15 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
 
   it("each offer's one-line effect: a whole sentence, its numbers from the 1-star text, two lines on the wide card", () => {
     const cards = Object.fromEntries(W3.map((d) => [d.id, cardText(d.id)]));
+    // Y7b2 (the flip): TWIN GAUGE's and PINCER's floors left (were "MORE DAMAGE ON A MATCHED BELT." and "MORE DAMAGE WITH
+    // RIGS ON ITS TILE."); TWIN TRIGGER's pair bonus is 30% at ★1 (was "PAIRS HIT 25% HARDER.")
     expect(cards).toEqual({
-      plateroller: "PLATES YOUR HULL AS SLUGS PASS.", twingauge: "MORE DAMAGE ON A MATCHED BELT.", pincer: "MORE DAMAGE WITH RIGS ON ITS TILE.",
+      plateroller: "PLATES YOUR HULL AS SLUGS PASS.", twingauge: "DAMAGE ON A MATCHED BELT.", pincer: "DAMAGE FOR EACH RIG ON ITS TILE.",
       // NUM-4 (REVIEW-NUM3 F2): one word for one stop, STUNS (was "SHORTER STALLS ON ITS TILES.")
       braceframe: "SHORTER STUNS ON ITS TILES.", twinlatch: "LETS TWO BELTS GO TOGETHER.", stoker: "MAKES FACTORIES WORK FASTER.",
       platebreaker: "TURNS PLATING INTO DAMAGE.", shieldwall: "PLATES YOUR HULL, HITS HARDER.", twinmould: "CASTS TWO SLUGS AT ONCE.",
       armorpress: "PLATES YOUR HULL EVERY 3 SECONDS.", anvil: "MORE DAMAGE THE MORE PLATING.", steambreech: "FIRES FASTER WHILE PLATED.",
-      twintrigger: "PAIRS HIT 25% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS PLATE YOUR HULL.",
+      twintrigger: "PAIRS HIT 30% HARDER.", spallcatcher: "HITS YOU TAKE CHARGE ITS SHOT.", seamwelder: "PAIRS PLATE YOUR HULL.",
     });
     for (const d of W3) for (const k of kOf(d)) {
       const card = cardText(d.id, { k }), id = `${d.id} k${k}: ${card}`;
@@ -728,13 +807,19 @@ describe("0.8.0 P1: wave 3's text at every star (REQ-BFG-032, the 0.6.2 standard
     }
   });
 
-  it("TWIN TRIGGER on a GATLING SPOOL or a COMPOUND BREECH: its shorter load time does nothing there, its pair bonus still works", () => {
-    expect(gatlingClashText("twintrigger", 2, "gatling")).toBe("GATLING SPOOL: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS STILL HIT HARDER.");
-    expect(gatlingClashText("twintrigger", 1, "compound")).toBe("COMPOUND BREECH: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS STILL HIT HARDER.");
+  // Y7b2 (the flip): retitled, was "TWIN TRIGGER on a GATLING SPOOL or a COMPOUND BREECH: its shorter load time does nothing
+  // there, its pair bonus still works". TWIN TRIGGER's load-time cut and HOPPER's load time left, so neither has a clash
+  it("TWIN TRIGGER on a GATLING SPOOL or a COMPOUND BREECH: no clash (its load-time cut left; its pair bonus works there)", () => {
+    // Y7b2 (the flip): null, each (were "GATLING SPOOL: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS
+    // STILL HIT HARDER." and "COMPOUND BREECH: THE TWIN TRIGGER'S SHORTER LOAD TIME DOES NOTHING HERE, BUT PAIRS STILL HIT
+    // HARDER.")
+    expect([gatlingClashText("twintrigger", 2, "gatling"), gatlingClashText("twintrigger", 1, "compound")]).toEqual([null, null]);
     expect([gatlingClashText("twintrigger", 1, "rotary"), clashShortText("twintrigger", "rotary")]).toEqual([null, null]);
-    expect(clashShortText("twintrigger")).toBe("TWIN TRIGGER: ITS SHORTER LOAD TIME DOES NOTHING HERE.");
-    // and the older gear's lines are as they were
-    expect(gatlingClashText("hopper", 1)).toBe("GATLING SPOOL: THE HOPPER'S LONGER LOAD TIME DOES NOTHING HERE.");
+    // Y7b2 (the flip): null (was "TWIN TRIGGER: ITS SHORTER LOAD TIME DOES NOTHING HERE.")
+    expect(clashShortText("twintrigger")).toBeNull();
+    // and the older gear's lines are as they were. Y7b2 (the flip): HOPPER's too is gone (was "GATLING SPOOL: THE HOPPER'S
+    // LONGER LOAD TIME DOES NOTHING HERE.")
+    expect(gatlingClashText("hopper", 1)).toBeNull();
     for (const d of W3.filter((x) => x.id !== "twintrigger")) expect([gatlingClashText(d.id, 3), clashShortText(d.id)], d.id).toEqual([null, null]);
   });
 });

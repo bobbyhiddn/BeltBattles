@@ -99,16 +99,20 @@ describe("a turret core's numbers on every playable hero's own gun (the text she
     expect(seen.size).toBeGreaterThanOrEqual(9); // the class factor moves the numbers: not one text for every hero
   }, 120_000);
 
-  it("TWIN LATCH: the damage its text says each payload it lets go gains, at 1, 2 and 3 stars, is the battle's", () => {
+  // Y7b2 (the flip): retitled, was "TWIN LATCH: the damage its text says each payload it lets go gains, at 1, 2 and 3 stars,
+  // is the battle's". Its flat left with the flip (Y3, DESIGN-Y row 30: flat 0, hold 1/2/3 s), so its text names no gain
+  // and the battle gives none: the panel still says what the battle does
+  it("TWIN LATCH: its text names no gain for a payload it lets go, at 1, 2 and 3 stars, and the battle gives none", () => {
     // wave3.modules' headline row reads this damage in battle only as rising (1 star < 2 < 3, inside the band); here every
     // payload past the latch on the two-press deck carries exactly the panel's number
     for (const s of [1, 2, 3]) {
-      const said = abilityText("twinlatch", s).sentences.find((x) => x.startsWith("EACH PAYLOAD IT LETS GO GAINS "))!;
-      const m = /^EACH PAYLOAD IT LETS GO GAINS ([\d.]+) DAMAGE\.$/.exec(said);
-      expect(m, `★${s}: ${said}`).not.toBeNull();
+      // Y7b2 (the flip): no "EACH PAYLOAD IT LETS GO GAINS n DAMAGE." sentence at any star (was its match, n 10 / 22 / 35)
+      const said = abilityText("twinlatch", s).sentences.find((x) => x.startsWith("EACH PAYLOAD IT LETS GO GAINS "));
+      expect(said, `★${s}`).toBeUndefined();
       const flats = pastTile(withItem(latchDeck(), item(40, "twinlatch", 4, 3, 0, s)), 0, 2).map((x) => x.flat);
       expect(flats.length, `★${s}: payloads past the latch`).toBeGreaterThan(3);
-      for (const f of flats) expect(f, `★${s}`).toBeCloseTo(Number(m![1]), 9);
+      // Y7b2 (the flip): each carries no flat (was toBeCloseTo(Number(m![1]), 9), the sentence's n)
+      for (const f of flats) expect(f, `★${s}`).toBe(0);
     }
   });
 
@@ -140,6 +144,8 @@ describe("a turret core's numbers on every playable hero's own gun (the text she
       const texts = PLAYABLE_HEROES.map((hero) => abilityText("steambreech", stars, textOpts(newRun(hero, 1))).sentences.join(" "));
       expect(new Set(texts).size, `★${stars}: ${texts[0]}`).toBe(1);
     }
-    expect(abilityText("steambreech", 1).sentences[0]).toBe("THE TURRET FIRES 35% FASTER WHILE YOUR HULL HOLDS PLATING, AND 10% FASTER WITHOUT IT.");
+    // Y7b2 (the flip): plated 40% at ★1 and no bare speed-up (Y4, DESIGN-Y row 39; was "THE TURRET FIRES 35% FASTER WHILE
+    // YOUR HULL HOLDS PLATING, AND 10% FASTER WITHOUT IT.")
+    expect(abilityText("steambreech", 1).sentences[0]).toBe("THE TURRET FIRES 40% FASTER WHILE YOUR HULL HOLDS PLATING.");
   });
 });
