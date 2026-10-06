@@ -138,8 +138,9 @@ export interface PlayerOpts {
   // LC-1 (REQ-BFG-073): the run's LAST CHANCE (the bench, the stand-ins' and captains' modeled runs): at the dawn after
   // `day`, before that dawn's rune, the player takes card `boon` of lastChance.ts lastChanceOffer on its own seed (a part
   // where the bots would put it: placeFreePart). The par run pays a win every day, so it never fires one itself. Absent:
-  // none (every run and cache key exactly as before).
-  lastChance?: { day: number; boon: Boon };
+  // none (every run and cache key exactly as before). `hull` (the bench's sweep only): the HULL card's amount instead of
+  // LAST_CHANCE_HULL.
+  lastChance?: { day: number; boon: Boon; hull?: number };
 }
 
 /** An offer as the player judged it (diagnostics): its def, price, kind and the rating change it would make; a turret's
@@ -1606,7 +1607,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   const runes = opts.botRunes ?? BOT_RUNES; // RUNES-2a: THE switch (off: the cache key and the run exactly as before)
   // BOTS-X: the sustain switch too (on: another run; off: the key exactly as before)
   const lc = opts.lastChance; // LC-1 (REQ-BFG-073): absent, the key exactly as before
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}` : ""}`;
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}`;
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -1618,7 +1619,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
     if (persona.beltTiles > 0) drawKilnBelt(run, rng, persona.beltTiles);
     for (let day = 1; day <= PLAYER_DAYS; day++) {
       if (day > 1) nextDawn(run);
-      if (lc && day === lc.day + 1) lastChanceCard(run, lc.day, lc.boon, pol); // LC-1: before the dawn's rune, as the game
+      if (lc && day === lc.day + 1) lastChanceCard(run, lc.day, lc.boon, pol, lc.hull); // LC-1: before the dawn's rune, as the game
       if (runes && day > 1) dawnRune(run);
       const { buys, rolls } = shopDay(run, pol, maxStars, rng, spent, opts);
       full.push({ day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: maxGoldByDay(day) + runeGrants(run.build.runes, day, lastChanceRuneAt(run.lastChance)).gold, gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys });
@@ -1667,8 +1668,13 @@ export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs 
 
 /** LC-1: the par run's LAST CHANCE card at the dawn after `day` (playerRun's opts.lastChance): the game's takeLastChance
  *  for the rune and the hull; the part placed by placeFreePart (on its own stream), recorded as the game records it. */
-function lastChanceCard(run: Run, day: number, boon: Boon, pol: PolicyKnobs): void {
+function lastChanceCard(run: Run, day: number, boon: Boon, pol: PolicyKnobs, hull?: number): void {
   run.lastChance = { day };
+  if (boon === "hull" && hull !== undefined) { // the bench's sweep: another HULL amount
+    run.build.hullBonus += hull;
+    run.lastChance = { day, boon };
+    return;
+  }
   if (boon !== "part") {
     if (!takeLastChance(run, boon).ok) throw new Error(`par player: LAST CHANCE ${boon} on day ${day} was refused`);
     return;
