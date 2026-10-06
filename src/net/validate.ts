@@ -391,7 +391,8 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
 
   // 0.7.0 player mode: the road's reachable hull and belt, and maxHonestSpend, replace the two blocks below
   if (mode === "player") {
-    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), grant.gold)); // RUNES-1: the bought hull and belt, + rune gold
+    // RUNES-1: the bought hull and belt, + rune gold; Z-PREP (REQ-BFG-073): + a free LAST CHANCE part's price, named apart
+    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), runeGrant.gold, freeGold));
     return { ok: errors.length === 0, errors };
   }
 
