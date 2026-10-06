@@ -5,7 +5,7 @@ import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
 import { HEROES, ITEMS, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
 import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant keeps its merchant and price, unsold
 import {
-  cloneBuild, deadEndsAt, installTurret, key, rigHits, routeInfo, setTurretList, turretList, turretSlots, type Build,
+  cloneBuild, deadEndsAt, hullSlots, installTurret, key, rigHits, routeInfo, setTurretList, turretList, turretSlots, type Build,
 } from "../src/sim/deck";
 import { Rng } from "../src/core/rng";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
@@ -115,10 +115,44 @@ function metroPeakRoute(b: Build, id: string): void {
 }
 
 /**
+ * Y7b2 (the flip; DESIGN-Y: no floors): the TWIN pieces' engine, two belts of equal tiles (a matched pair) into the two
+ * intakes of one gun, with a free cell between them. The gun is the one in the slot at the hero's factory's columns:
+ * FURNACE's, BASTION's and METRONOME's own, FOUNDRY's left gun; WEAVER's gun there takes one belt and SIPHON's slot there
+ * is empty, so each buys a TWIN NEEDLE for it. Belt A leaves the factory's top-left corner, steps one column out, runs up
+ * and steps back into the left intake at row 1; belt B leaves the factory's right side, steps up and back over its
+ * top-right corner, then runs up into the right intake. A II rig in the cell between them at row 3 hits both (a TWIN
+ * LATCH). Every other belt goes (the factory's belt slots), and a BELT PACK is bought where the belt runs short.
+ * `pour`: the factory puts a slug on both belts at once, so the gun takes them as a PAIR (two loads by two intakes):
+ * FOUNDRY's CRUCIBLE pours already; any other signature factory parks off the belts for a TWIN MOULD.
+ */
+function twinBelts(b: Build, pour = false): void {
+  const sig = b.items.find((p) => p.def === HEROES[b.hero].factory)!;
+  const { x, y } = sig;
+  const up = (col: number, from: number, to: number) => Array.from({ length: from - to + 1 }, (_, i) => key(col, from - i));
+  const a = [key(x, y - 1), ...up(x - 1, y - 1, 1), key(x, 1), key(x, 0)];
+  const c = [key(x + 2, y), key(x + 2, y - 1), ...up(x + 1, y - 1, 0)];
+  let factory = sig.uid;
+  if (pour && !ITEMS[sig.def].factory!.pour) {
+    sig.x = 0;
+    sig.y = 8;
+    b.items.push({ uid: 906, def: "twinmould", x, y });
+    factory = 906;
+  }
+  b.routes = [{ factory, cells: a }, { factory, cells: c }];
+  const slot = hullSlots(b.hero).findIndex((s) => s.col0 === x);
+  const gun = turretList(b).find((t) => t.slot === slot);
+  if (!gun || ITEMS[gun.def].turret!.intake !== "both") installTurret(b, { uid: 905, def: "twinneedle" }, slot);
+  while (b.beltCap < a.length + c.length) b.beltCap += ITEMS.beltcrate.supply!.belt!;
+}
+
+/**
  * Both decks are legal on day 10; only the named purchase differs. Parts whose effect needs something already on
  * the belt get it in both decks, the way a player would build them: LONG HAUL and OVERCLOCKER a WHETSTONE to count
  * or boost, QUENCH a TEMPER's Burn to spend, BELLOWS a slow belt (Metronome's tempo lock ignores BRAKE SHOE, so it
  * rides the long route instead), LODESTONE and SPOTTER a GALVANIC COIL whose stalls they price or aim.
+ * Y7b2 (the flip; DESIGN-Y: no floors): so do the payoff pieces that lost their floor: VENOM DRIP a TEMPER's BURN to
+ * lengthen, DRAKE NOZZLE a ★2 WHETSTONE's bonus to turn into BURN, PINCER a WHETSTONE on its tile, PLATE BREAKER and
+ * STEAM BREECH a PLATE ROLLER's PLATE, and the TWIN pieces two matched belts into one gun (twinBelts).
  */
 function decks(hero: HeroId, d: ItemDef): [Build, Build] {
   if (d.kind === "turret") return boughtTurret(hero, d.id);
@@ -158,6 +192,39 @@ function decks(hero: HeroId, d: ItemDef): [Build, Build] {
   // beside CALIBRATION on a gun a SHOT TOWER keeps busy (every hero: a starting gun waits for its loads, oracle
   // f77882b58164404e)
   if (d.id === "steambreech") before = boughtFactory(hero, "shottower");
+  // Y7b2 (the flip; DESIGN-Y: no floors): STEAM BREECH needs PLATE on the hull to act (it fires faster only while plated):
+  // a PLATE ROLLER on the tower's belt; was audited on the bare deck (it had a floor: 10% faster without PLATE)
+  if (d.id === "steambreech") rig(before, "plateroller", 903);
+  // Y7b2 (the flip; DESIGN-Y: no floors): VENOM DRIP needs BURN on the slugs it hits to act (each of their BURN stacks
+  // lasts 3 s longer): a TEMPER before it, as for QUENCH; was audited on the bare deck (it had poison)
+  if (d.id === "venom") tiles = later(before, rigAt(before, "temper", 900, [1, 2, 0]));
+  // Y7b2 (the flip; DESIGN-Y: no floors): DRAKE NOZZLE needs 25 bonus damage a shot to act (1 BURN for each 25): a ★2
+  // WHETSTONE (+40) on the gun's belt; was audited on the bare deck (it had a floor: a free BURN a shot)
+  if (d.id === "drake") {
+    rig(before, "whetstone", 900);
+    before.items.find((p) => p.uid === 900)!.stars = 2;
+  }
+  // Y7b2 (the flip; DESIGN-Y: no floors): PINCER needs another working rig hitting its tile to act: a WHETSTONE, the
+  // PINCER on the tile's other free side (FOUNDRY's two belts run side by side, leaving each tile one free side, so they
+  // are laid apart: twinBelts); was audited on the bare deck (it had a floor: +10)
+  if (d.id === "pincer") {
+    if (hero === "foundry") twinBelts(before);
+    tiles = [rigAt(before, "whetstone", 900, [2, 3, 1])];
+  }
+  // Y7b2 (the flip; DESIGN-Y: no floors): PLATE BREAKER needs 10 PLATE on the hull to act: a PLATE ROLLER before it
+  // (BASTION's slugs plate too); was audited on the bare deck (it had a floor: +10 without PLATE)
+  if (d.id === "platebreaker") tiles = later(before, rigAt(before, "plateroller", 900, [1, 2, 0]));
+  // Y7b2 (the flip; DESIGN-Y: no floors): TWIN GAUGE needs a matched belt to act (another belt of as many tiles into
+  // its gun): twinBelts; was audited on the bare deck (it had a floor: +10 off a matched belt)
+  if (d.id === "twingauge") twinBelts(before);
+  // Y7b2 (the flip; DESIGN-Y: no floors): TWIN LATCH needs a second belt into its gun to act (it holds only with both
+  // arrows on belts, to make a PAIR): twinBelts, the latch in the cell between them; was audited on the bare deck (it
+  // had a flat: +10 on each payload it hits)
+  if (d.id === "twinlatch") twinBelts(before);
+  // Y7b2 (the flip; DESIGN-Y: no floors): TWIN TRIGGER and SEAM WELDER need PAIRs to act (two loads by two intakes at
+  // once): twinBelts fed by a factory that pours both at once (FOUNDRY's CRUCIBLE, else a TWIN MOULD); were audited on
+  // the bare deck (they had a floor: TWIN TRIGGER a shorter load time, SEAM WELDER 2 PLATE a lone load)
+  if (d.id === "twintrigger" || d.id === "seamwelder") twinBelts(before, true);
   const after = cloneBuild(before);
   if (d.kind === "gate" && d.gate?.stoke) {
     // 0.8.0 I1 M2: a STOKER works factories, never belts (P1's E3): it stands at its best stokeSpots spot
