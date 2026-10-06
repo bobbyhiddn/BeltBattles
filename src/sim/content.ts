@@ -1329,9 +1329,11 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   // stays common (DESIGN-Y's note under the Y4 table)
   steambreech: { core: { routine: "steam", steamPlated: 40 }, levels: { 2: { core: { steamPlated: 80 } }, 3: { core: { steamPlated: 120 } } } },
   // row 40, DRAKE NOZZLE: addBurn, burnTime and flightMul go (no free BURN, the BURN lasts BURN_TIME, the shot flies as any);
-  // each 38/27/19 of a shot's bonus damage is 1 BURN (flatPerBurn). Y7b1 (ruling Y7A-R4, linear first): was 10/7/5, 3.8x the
-  // rare median lift per gold on (REVIEW-Y7A F1/F4); the bench's fallback, under 0.5x, is 25/18/13 (no third point)
-  drake: { core: { routine: "drake", flatPerBurn: 38 }, levels: { 2: { core: { flatPerBurn: 27 } }, 3: { core: { flatPerBurn: 19 } } } },
+  // each 25/18/13 of a shot's bonus damage is 1 BURN (flatPerBurn). Y7b1 (ruling Y7A-R4): was 10/7/5, 3.8x the rare median
+  // lift per gold on (REVIEW-Y7A F1/F4). Linear first, 38/27/19, was tried and gave no reading in 0.5-1.5x: no par deck took
+  // it (uptake on 0 of 480 deck-days, so no lift; BRIEF-Y7B1 B1), its ★1 turning each 38 bonus damage into one BURN worth 30
+  // (BURN_TIME x BURN_DPS), so the ruling's fallback 25/18/13 (no third point)
+  drake: { core: { routine: "drake", flatPerBurn: 25 }, levels: { 2: { core: { flatPerBurn: 18 } }, 3: { core: { flatPerBurn: 13 } } } },
   // ---- Y5 (DESIGN-Y section 3, rows 41-47: the crit-free one-liners, one number each; REVIEW-STARD answer 2: no crit or
   // ramp; answer 4: the caps go). LONGCASE (row 43) and FINISHER RAM (row 44) change no data
   // row 41, COUNTERWEIGHT: the cap goes (no `max`; was 60/130/210); +3/+7/+11 for each tile the slug has ridden. Y7b1 (ruling

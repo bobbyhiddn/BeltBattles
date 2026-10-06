@@ -318,17 +318,18 @@ describe("Y4 row 39: STEAM BREECH: 40/80/120% faster if you have PLATE; nothing 
 });
 
 // --------------------------------------------------------------------------------------------- row 40: DRAKE NOZZLE
-// Y7b1 (ruling Y7A-R4): flatPerBurn 10/7/5 -> 38/27/19 with the switch on. Was "Y4 row 40: DRAKE NOZZLE: each 10/7/5 bonus
-// damage is 1 BURN; ...", the data 10/7/5, the battle's BURN past a WHETSTONE (+20) 2 / 2 / 4 and the face's EACH 10/7/5
-describe("Y4 row 40: DRAKE NOZZLE: each 38/27/19 bonus damage is 1 BURN (Y7A-R4); no free BURN, longer BURN or quicker shot", () => {
-  it("data: on, flatPerBurn 38/27/19 only (off: 20/15/10, addBurn 1/2/3, burnTime 4/5/6 s, flightMul 0.7)", () => {
+// Y7b1 (ruling Y7A-R4, its fallback): flatPerBurn 10/7/5 -> 25/18/13 with the switch on (linear first, 38/27/19, drew no
+// par deck: BRIEF-Y7B1 B1). Was "Y4 row 40: DRAKE NOZZLE: each 10/7/5 bonus damage is 1 BURN; ...", the data 10/7/5, the
+// battle's BURN past a WHETSTONE (+20) 2 / 2 / 4 and the face's EACH 10/7/5
+describe("Y4 row 40: DRAKE NOZZLE: each 25/18/13 bonus damage is 1 BURN (Y7A-R4's fallback); no free BURN, longer BURN or quicker shot", () => {
+  it("data: on, flatPerBurn 25/18/13 only (off: 20/15/10, addBurn 1/2/3, burnTime 4/5/6 s, flightMul 0.7)", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("drake", s).core), `★${s}`).toEqual({ routine: "drake", flatPerBurn: [38, 27, 19][s - 1] });
+      expect(on(() => effectAt("drake", s).core), `★${s}`).toEqual({ routine: "drake", flatPerBurn: [25, 18, 13][s - 1] });
       expect(effectAt("drake", s).core).toEqual({ routine: "drake", flatPerBurn: [20, 15, 10][s - 1], addBurn: s, burnTime: 3 + s, flightMul: 0.7 });
     }
   });
 
-  it("battle: on, a slug past a WHETSTONE (+20) shoots 0 / 0 / 1 BURN of BURN_TIME (Y7A-R4: 20 < 38, 27; 20 >= 19) (off: 1 + 1, 1 + 2, 2 + 3 BURN lasting 4/5/6 s)", () => {
+  it("battle: on, a slug past a WHETSTONE (+20) shoots 0 / 1 / 1 BURN of BURN_TIME (Y7A-R4's fallback: 20 < 25; 20 >= 18, 13) (off: 1 + 1, 1 + 2, 2 + 3 BURN lasting 4/5/6 s)", () => {
     const first = (b: Build, star: boolean) => withStarRules(() => {
       const bt = new Battle(b, barge(), SEED), s = bt.sides[0];
       for (const g of s.gates) { g.online = true; g.commissionAt = 0; }
@@ -344,7 +345,7 @@ describe("Y4 row 40: DRAKE NOZZLE: each 38/27/19 bonus damage is 1 BURN (Y7A-R4)
     for (const s of STARS) {
       const b = withMod(rigBench([["whetstone", 4, 3, 1]]), 60, "drake", 0, s);
       const a = first(b, true), o = first(b, false);
-      expect([a.burn, a.burnTime], `on ★${s}`).toEqual([[0, 0, 1][s - 1], undefined]); // Y7b1 (Y7A-R4): was [2, 2, 4]
+      expect([a.burn, a.burnTime], `on ★${s}`).toEqual([[0, 1, 1][s - 1], undefined]); // Y7b1 (Y7A-R4's fallback): was [2, 2, 4]
       expect([o.burn, o.burnTime], `off ★${s}`).toEqual([[2, 3, 5][s - 1], 3 + s]);
       expect(a.flight, `on ★${s}: no quicker shot`).toBeCloseTo(plain(true).flight, 9);
       expect(o.flight, `off ★${s}: x0.7`).toBeLessThan(plain(false).flight);
@@ -356,10 +357,10 @@ describe("Y4 row 40: DRAKE NOZZLE: each 38/27/19 bonus damage is 1 BURN (Y7A-R4)
     }
   });
 
-  it("face: SHOT: EACH 38/27/19 BONUS DAMAGE IS 1 BURN; ladder EACH 38/27/19 (Y7A-R4; was 10/7/5)", () => {
-    expect(lines("drake")).toEqual([38, 27, 19].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
+  it("face: SHOT: EACH 25/18/13 BONUS DAMAGE IS 1 BURN; ladder EACH 25/18/13 (Y7A-R4's fallback; was 10/7/5)", () => {
+    expect(lines("drake")).toEqual([25, 18, 13].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
     oneLine("drake");
-    expect(levels("drake", 1)).toEqual(["EACH [38]/27/19", next(2, "EACH 27")]);
+    expect(levels("drake", 1)).toEqual(["EACH [25]/18/13", next(2, "EACH 18")]);
     expect([hasFace("drake"), on(() => hasFace("drake"))]).toEqual([false, true]);
   });
 });

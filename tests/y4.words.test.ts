@@ -99,7 +99,7 @@ describe("Y4 words: no new keyword; LOAD TIME and BONUS DAMAGE stay", () => {
       expect(abilityText("steambreech", 1, { k: 1 }).sentences).toEqual(["THE TURRET FIRES 40% FASTER WHILE YOUR HULL HOLDS PLATING."]);
       expect(gist("steambreech", 3, { k: 1 })).toBe("120% FASTER PLATED");
       expect(abilityText("drake", 2, { k: 1 }).sentences).toEqual([
-        "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 27 DAMAGE.", "BONUS DAMAGE IS WHAT RIGS AND SCRAP ADD TO A PAYLOAD."]); // Y7b1 (Y7A-R4): was EVERY 7 DAMAGE
+        "TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY 18 DAMAGE.", "BONUS DAMAGE IS WHAT RIGS AND SCRAP ADD TO A PAYLOAD."]); // Y7b1 (Y7A-R4's fallback): was EVERY 7 DAMAGE
     });
     // off: as before
     expect(abilityText("drake", 1, { k: 1 }).sentences).toHaveLength(4);
@@ -173,14 +173,14 @@ describe("Y4: the bots' deck rating prices each new rule (behind the switch)", (
 
   it("DRAKE NOZZLE: on, its BURN for each flatPerBurn of bonus damage (drakeGain), no NOMINAL: nothing without bonus damage", () => {
     const spec = (s: number) => on(() => effectAt("drake", s).core!);
-    // Y7b1 (Y7A-R4: 38/27/19): was [2 * 30 - 20, 2 * 30 - 14, 4 * 30 - 20] at 10/7/5. A BURN stack is worth BURN_TIME x
-    // BURN_DPS = 30, so at ★1 each stack costs 38 for 30 (drakeGain 30 - 38 = -8 on 38 bonus damage)
-    expect(STARS.map((s) => drakeGain(spec(s), 20))).toEqual([0, 0, 30 - 19]);
-    expect(STARS.map((s) => drakeGain(spec(s), 76))).toEqual([2 * 30 - 76, 2 * 30 - 54, 4 * 30 - 76]);
+    // Y7b1 (Y7A-R4's fallback: 25/18/13): was [2 * 30 - 20, 2 * 30 - 14, 4 * 30 - 20] at 10/7/5. A BURN stack is worth
+    // BURN_TIME x BURN_DPS = 30, so each stack gains 30 - 25 / 30 - 18 / 30 - 13 (at 38/27/19, tried first, ★1 lost 8 a stack)
+    expect(STARS.map((s) => drakeGain(spec(s), 20))).toEqual([0, 30 - 18, 30 - 13]);
+    expect(STARS.map((s) => drakeGain(spec(s), 76))).toEqual([3 * 30 - 75, 4 * 30 - 72, 5 * 30 - 65]);
     const bare = (core: boolean) => (core ? withMod(furnaceBench(), 60, "drake") : furnaceBench());
     expect(rate(bare(true), true)).toBe(rate(bare(false), true));
     expect(rate(bare(true), false)).toBeGreaterThan(rate(bare(false), false)); // off: NOMINAL
-    // Y7b1 (Y7A-R4): a ★3 DRAKE (19) past the +20 WHETSTONE (was ★1 at 10, whose 38 now turns none of the 20 into BURN)
+    // Y7b1 (Y7A-R4's fallback): a ★3 DRAKE (13) past the +20 WHETSTONE (was ★1 at 10, whose 25 now turns none of the 20 into BURN)
     const whet = (core: boolean, s = 3) => (core ? withMod(rigBench([["whetstone", 4, 3, 1]]), 60, "drake", 0, s) : rigBench([["whetstone", 4, 3, 1]]));
     expect(rate(whet(true), true)).toBeGreaterThan(rate(whet(false), true));
     expect(rate(whet(true, 1), true)).toBe(rate(whet(false), true));

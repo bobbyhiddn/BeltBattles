@@ -8,7 +8,8 @@
 //   on one line.
 // - Y7A-R4 / R5, the numbers on: DRAKE NOZZLE flatPerBurn 38 / 27 / 19, COUNTERWEIGHT perTile.each 2 / 5 / 7, VENOM DRIP
 //   burnPlus 2 / 3 / 5 s (guarded). The bench's guards (BRIEF-Y7B1 B1): VENOM's uptake on read 9.0% (< 12.0%), so it is back
-//   at Y6's 3 / 6 / 9 s; COUNTERWEIGHT read x0.28 of the rare median (< 0.5x), so its fallback 3 / 7 / 11.
+//   at Y6's 3 / 6 / 9 s; COUNTERWEIGHT read x0.28 of the rare median (< 0.5x), so its fallback 3 / 7 / 11; DRAKE drew no par
+//   deck (uptake 0 of 480, no lift to read, no reading in 0.5-1.5x), so its fallback 25 / 18 / 13.
 // - Y7A-R2, EXT. CHAMBER (text only): the rule stays (perShot 2 / 3 / 4, a shot fires at most what the chamber holds); with
 //   the switch on its face is true for every gun and star: ★1 FIRES 2 (exact), ★2/★3 UP TO 3 / UP TO 4; its ⓘ says why.
 import { describe, expect, it } from "vitest";
@@ -127,12 +128,14 @@ describe("Y7b1 Y7A-R3c / R3d: ANVIL BREECH and IRON WALL read their base defs wi
 
 // ------------------------------------------------------------------- Y7A-R4 / R5: the new numbers, with the switch on
 describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read their new numbers with the switch on", () => {
-  it("DRAKE NOZZLE (Y7A-R4): flatPerBurn 38 / 27 / 19 on (Y4's 10 / 7 / 5); its face and ⓘ ladder say them; off, 0.9.2's 20 / 15 / 10", () => {
-    expect(on(() => STARS.map((s) => effectAt("drake", s).core!.flatPerBurn))).toEqual([38, 27, 19]);
+  // the guard (BRIEF-Y7B1 B1): at 38 / 27 / 19 no par deck took it (uptake on 0 of 480 deck-days), so no lift per gold could be
+  // read in 0.5-1.5x of the rare median: the ruling's fallback 25 / 18 / 13 (no third point)
+  it("DRAKE NOZZLE (Y7A-R4, its fallback): flatPerBurn 25 / 18 / 13 on (Y4's 10 / 7 / 5); its face and ⓘ ladder say them; off, 0.9.2's 20 / 15 / 10", () => {
+    expect(on(() => STARS.map((s) => effectAt("drake", s).core!.flatPerBurn))).toEqual([25, 18, 13]);
     expect(STARS.map((s) => effectAt("drake", s).core!.flatPerBurn)).toEqual([20, 15, 10]);
-    expect(lines("drake")).toEqual([38, 27, 19].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
-    expect(levels("drake", 2)).toEqual(["EACH 38/[27]/19", next(3, "EACH 19")]);
-    expect(on(() => gist("drake", 3, { k: 1 }))).toBe("1 BURN FOR EVERY 19 DAMAGE");
+    expect(lines("drake")).toEqual([25, 18, 13].map((d) => [`SHOT: EACH ${d} BONUS DAMAGE IS 1 {*BURN}.`]));
+    expect(levels("drake", 2)).toEqual(["EACH 25/[18]/13", next(3, "EACH 13")]);
+    expect(on(() => gist("drake", 3, { k: 1 }))).toBe("1 BURN FOR EVERY 13 DAMAGE");
   });
   // the guard (BRIEF-Y7B1 B1): at 2 / 5 / 7 its lift on read +1.7 [-5.7, +9.2] n 3 at 4.0 G (0.43/G, x0.28 of the rare median
   // 1.58), under 0.5x, so the ruling's fallback 3 / 7 / 11

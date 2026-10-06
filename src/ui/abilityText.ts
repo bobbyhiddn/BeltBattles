@@ -1002,7 +1002,7 @@ const ENTRIES: Record<string, Entry> = {
     // flight x flightMul
     text: (e, x) => {
       const s = c(e, x);
-      // Y4 (release Y; DESIGN-Y row 40): with the star switch on, its one rule (flatPerBurn 38 / 27 / 19: Y7b1, ruling Y7A-R4;
+      // Y4 (release Y; DESIGN-Y row 40): with the star switch on, its one rule (flatPerBurn 25 / 18 / 13: Y7b1, ruling Y7A-R4's fallback;
       // Y4's 10 / 7 / 5) and what BONUS
       // DAMAGE is; the free BURN, the longer BURN and the quicker shot are gone
       if (starRules()) return [`TURNS EACH SHOT'S BONUS DAMAGE INTO BURN: 1 BURN FOR EVERY ${damage(s.flatPerBurn!)}.`, S.bonus];

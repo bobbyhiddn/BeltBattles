@@ -73,7 +73,7 @@ export const FACE_SIM = {
   compoundLoads: 2,
   compoundShells: 1,
   // Y4 (release Y; DESIGN-Y row 40): cores.ts drakeConvert: a DRAKE NOZZLE turns each flatPerBurn of a shot's bonus damage
-  // into one BURN stack (floor(flat / flatPerBurn) stacks): "EACH 38 BONUS DAMAGE IS 1 {BURN}" (Y7b1, ruling Y7A-R4; Y4: 10)
+  // into one BURN stack (floor(flat / flatPerBurn) stacks): "EACH 25 BONUS DAMAGE IS 1 {BURN}" (Y7b1, ruling Y7A-R4's fallback; Y4: 10)
   drakeStacks: 1,
 } as const;
 
