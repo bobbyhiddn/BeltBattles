@@ -255,6 +255,7 @@ game.start();
       knobs: MOTION_KNOBS, opts: { ...MOTION }, on: !!m, phase: s instanceof BattleScreen ? s.phase : null,
       offPerf: s instanceof BattleScreen && s.offPerf ? s.offPerf.totals() : null,
     };
+    if (s instanceof BuildScreen && s.perf) return { ...base, perf: s.perf.mean(), perfTotals: s.perf.totals() };
     const om = s instanceof TitleScreen || s instanceof ReplayScreen ? s.motion : null;
     if (om) return { ...base, on: true, t: om.model.t, sea: om.kind, reduced: om.model.reduced, poses: [om.model.pose(0), om.model.pose(1)], drawnBank: [...om.bankDrawn], perf: om.perf ? om.perf.mean() : null, perfTotals: om.perf ? om.perf.totals() : null };
     if (!m || !(s instanceof BattleScreen)) return base;

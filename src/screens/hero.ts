@@ -22,6 +22,9 @@ import { colourize, drawRich, wrapRich } from "../ui/richText"; // U2a: the face
 import { button, panel, para } from "../ui/ui";
 import { BuildScreen } from "./build/build";
 import { TitleScreen } from "./title";
+import { ArenaMotion } from "../game/arenaMotion"; // MOTION-2 (REQ-BFG-071): the hero's ship, held still on the sea
+import { MOTION, MOTION_KNOBS, stillSeaSeed } from "../render/motion";
+import { settings } from "../core/settings";
 
 /** The carousel's heroes, in roster order (tests and tooling read it). */
 export const ORDER: readonly HeroId[] = PLAYABLE_HEROES;
@@ -37,6 +40,8 @@ export class HeroScreen implements Screen {
   private swipe: { x: number; y: number } | null = null;
   private slide = 0; // carousel slide-in offset
   private bg = new ArenaBg();
+  /** MOTION-2 (REQ-BFG-071): the preview's ship, held still on day 1's sea (null only with the test builds' ?motion=0). */
+  motion: ArenaMotion | null = null;
 
   constructor(private game: Game) {
     this.preview();
@@ -50,6 +55,8 @@ export class HeroScreen implements Screen {
     this.arena = new Arena(heroStartBuild(id, 1), dummy, 77 + this.i, null);
     this.arena.quiet = true;
     this.arena.show = [true, false];
+    // MOTION-2: a run starts on day 1, so the preview's sea is day 1's (CALM SEA); the ship is held still
+    this.motion = !MOTION_KNOBS || MOTION.on ? new ArenaMotion(stillSeaSeed(1), 1, MOTION, settings.reducedMotion, true) : null;
   }
 
   /** Tooling (bb.hero()): the hero on show and the roster. */
@@ -86,6 +93,7 @@ export class HeroScreen implements Screen {
   update(dt: number): void {
     this.t += dt;
     this.slide *= Math.pow(0.001, dt);
+    this.motion?.update(dt, settings.reducedMotion); // MOTION-2: held still (the clock runs; nothing moves)
     this.arena.update(dt);
     if (this.arena.b.t > 18 || this.arena.b.over) this.preview();
   }
@@ -125,8 +133,16 @@ export class HeroScreen implements Screen {
     const hx = hx0 + Math.round(this.slide);
     const pf = frameForHull(0, hx, hy);
     this.arena.setFrames([pf, frameForHull(2, hx, hy - 400)], [[0, 1], [0, -1]]);
-    this.bg.draw(g, W, H, { hulls: [hullBox(frameForHull(0, hx0, hy))], vertical: true, gapLine: false, pad: { x: hx0 - 6, y: hy - 6, w: HULL_A + 12, h: HULL_L + 12 } }, this.t);
-    drawArena(g, this.arena, W, H);
+    const m = this.motion;
+    if (m) {
+      // MOTION-2 (REQ-BFG-071): one world on every screen: the hero's own ship, held still on the sea, its board on top
+      m.drawSea(g, W, H, 0, 0, game.view.scale, game.view.dpr, m.model.seed);
+      m.draw(g, this.arena, W, H, settings.reducedMotion);
+    } else if (MOTION_KNOBS) {
+      // ?motion=0 (test builds only): 0.9.4's floor and tracked hull
+      this.bg.draw(g, W, H, { hulls: [hullBox(frameForHull(0, hx0, hy))], vertical: true, gapLine: false, pad: { x: hx0 - 6, y: hy - 6, w: HULL_A + 12, h: HULL_L + 12 } }, this.t);
+      drawArena(g, this.arena, W, H);
+    }
     g.restore();
     button(ui, g, "prev", { x: px0 - 2, y: py0 + ph / 2 - 12, w: 16, h: 24 }, "<", { onTap: () => this.shift(-1) });
     button(ui, g, "next", { x: px0 + pw - 14, y: py0 + ph / 2 - 12, w: 16, h: 24 }, ">", { onTap: () => this.shift(1) });

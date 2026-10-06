@@ -15,6 +15,9 @@ import { HULL_A, HULL_L, frameForHull, hullBox } from "../render/frame";
 import { cruiserModel, drawDim, drawHull, drawTurrets, type CruiserView } from "../render/cruiser";
 import { drawMachinery } from "../render/machinery";
 import { ArenaBg } from "../render/arenaBg";
+import { SeaBackdrop } from "../render/backdrop"; // MOTION-2 (REQ-BFG-071): the day's sea behind the summary
+import { MOTION, MOTION_KNOBS, seaForDay, stillSeaSeed } from "../render/motion";
+import { dimStillPlate, drawStillCarrier } from "../render/ship"; // MOTION-2: the player's ship, held still
 import { button, panel } from "../ui/ui";
 import { TIER_COLOR, TIER_LABEL, nameColor } from "../ui/captain";
 import type { BattleRecord } from "../sim/battle";
@@ -128,6 +131,8 @@ export class SummaryScreen implements Screen {
   private t = 0;
   private fx = new Fx();
   private bg = new ArenaBg();
+  /** MOTION-2 (REQ-BFG-071): the run's last day's sea, held still (one cached blit a frame). */
+  private sea = new SeaBackdrop();
   private view: CruiserView;
   private entered = false;
   /** 0.7.0a M4: per history index, the stored dusk record's replay (online runs only: offline dusks store none). */
@@ -211,11 +216,20 @@ export class SummaryScreen implements Screen {
     v.frame = frameForHull(0, hx, hy);
     v.t = this.t;
     v.tread = won ? this.t * 20 : 0;
-    this.bg.draw(g, W, H, { hulls: [hullBox(v.frame)], vertical: true, gapLine: false, pad: { x: hx - 6, y: hy - 6, w: HULL_A + 12, h: HULL_L + 12 } }, this.t);
-    drawHull(g, v);
+    // MOTION-2 (REQ-BFG-071): one world on every screen. The run's last day's sea, held still, and the player's own
+    // ship, held still under its board (a lost run's wreck dimmed as before). ?motion=0 (test builds only): 0.9.4's look.
+    const still = !MOTION_KNOBS || MOTION.on;
+    if (still) {
+      this.sea.drawStill(g, { W, H, kind: seaForDay(run.day), dist: 0, t: 0, reduced: false, seed: stillSeaSeed(run.day), scale: this.game.view.scale, dpr: this.game.view.dpr });
+      drawStillCarrier(g, v.model.hero, v.frame, won ? 0 : 0.55);
+    } else if (MOTION_KNOBS) {
+      this.bg.draw(g, W, H, { hulls: [hullBox(v.frame)], vertical: true, gapLine: false, pad: { x: hx - 6, y: hy - 6, w: HULL_A + 12, h: HULL_L + 12 } }, this.t);
+      drawHull(g, v);
+    }
     drawMachinery(g, v);
     drawTurrets(g, v);
-    if (!won) drawDim(g, v, 0.55);
+    if (!won && still) dimStillPlate(g, v.frame, 0.55);
+    else if (!won && MOTION_KNOBS) drawDim(g, v, 0.55);
     this.fx.draw(g, 0, 0);
     const { x, y, w, h } = card;
     const cx = x + w / 2;
