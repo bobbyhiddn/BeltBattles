@@ -14,13 +14,6 @@ Same battle rules as 0.9.5 (bb-0.9.3), so 0.9.5's ghosts and uploads still meet 
   board, taps and drags are where they were.
 - **REDUCED MOTION** (OPTIONS) sails straight: no turning, drifting or bobbing, a slower sea and no rain. Fights last
   just as long either way.
-- **The road and the fork** show the day's sea behind their cards too.
-- **Styles you earn (CUSTOMIZE):** play unlocks new looks for your carrier's floor panels, its belts and your stats panels:
-  four for each, beside today's look. CUSTOMIZE (on the title, beside OPTIONS) previews each one on your own ship; one tap
-  wears a style you have earned, and a locked one says how to earn it and how far you are. Your styles show on your
-  board in battle and on the build screen, your battle plate and part panel, the summary, replays and the hero select.
-  Styles change looks only: rules, ghosts and replays are unchanged. Players who already play start with what their saved
-  ghosts show they earned. A NEW dot on CUSTOMIZE and a NEW STYLE line on the run summary tell you when a style opens.
 
 ## 0.9.5: small fixes
 

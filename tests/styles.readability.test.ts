@@ -3,7 +3,8 @@
 // the belt and the floor, and apart from the speed and state colours), tile edges (seam contrast), stat numbers (text
 // contrast on the panel) and keyword colours (each against each panel style). Thresholds: src/render/styleContrast.ts
 // THRESHOLDS (no style may read worse than today's default; WCAG floors where today clears them). The rendered-pixel
-// half (sampling the drawn sprites) is CUSTOM-2's (REPORT section 6).
+// half (sampling the drawn sprites) is scripts/stylecheck.mjs (CUSTOM-2b): the same checks on the pixels CUSTOMIZE draws
+// in the built page, against these THRESHOLDS (tools/styleRefs.ts).
 import { describe, expect, it } from "vitest";
 import { BELTS, DEFAULT_SKIN, FLOORS, PANELS } from "../src/render/styles";
 import {

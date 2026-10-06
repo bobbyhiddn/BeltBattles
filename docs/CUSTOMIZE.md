@@ -45,7 +45,9 @@ cards, the result card, the foe card and the title's attract fight keep the defa
 | Panels | WARLORD'S PLUM (long goal) | WIN A RUN 10-0 | flawless 1 |
 
 `tests/styles.readability.test.ts` (with `src/render/styleContrast.ts`) checks every style's colours: belt direction,
-tile edges, stat numbers and keyword colours, against thresholds set at today's look.
+tile edges, stat numbers and keyword colours, against thresholds set at today's look. `scripts/stylecheck.mjs` is its
+rendered half: on the built page it reads back the pixels CUSTOMIZE draws for every style (the swatches, the preview's
+belts, plate and part-panel strip) and measures the same four checks against the same thresholds (tools/styleRefs.ts).
 
 ## The profile (src/game/profile.ts)
 
@@ -66,4 +68,5 @@ unseen). A preview of your carrier held still on the day's sea, three tabs, five
 (saved at once); a tap on a locked one previews it with `PREVIEW: NOT YOURS YET.` in its own band; BACK, ESC or another
 tab bring back what you wear. Locked rows show their earn line and progress (a number and a thin bar). The summary adds
 `NEW STYLE: <NAME>.` when the run unlocked one. `tests/customize.test.ts`, `tests/profile.test.ts`; stills:
-`scripts/customshots.mjs`.
+`scripts/customshots.mjs`; by real touch on every phone and the desk: `scripts/touchcheck.mjs` (its customize, newstyle
+and roadfork sections; `--profile mixed` for a player with open and locked styles).
