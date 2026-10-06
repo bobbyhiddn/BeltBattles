@@ -251,7 +251,8 @@ export function tooltipLines(text: string): RichLine[] {
 /** TXT-095 (REQ-BFG-070, REQ-BFG-046; ACCEPT-093's tooltip finding): a shop offer's hover tooltip text (chrome.ts), faces
  *  first, as the pack tooltip reads it: the piece's face's first rule line at ★1 (faceLines, with the run's TextOpts, as
  *  its panel draws the face, so a core's number is the run's gun's), else its kept text's opening sentence (abilityText;
- *  a piece without a face: the 4 faceless factories and the 13 guns), else "". Was abilityText(...).sentences[0] alone. */
+ *  a face with no rule line, a stat row only: the factories PRESS, DOUBLE STAMP, GANTRY and DRAG CHAIN, and the 13 guns),
+ *  else "". Was abilityText(...).sentences[0] alone. */
 export function offerTooltip(def: string, o: TextOpts = {}): string {
   return faceLines(def, 1, o)?.rules[0]?.text ?? abilityText(def, 1, o).sentences[0] ?? "";
 }
