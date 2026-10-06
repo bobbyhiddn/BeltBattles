@@ -1,7 +1,7 @@
 // Y6 (release Y; REQ-BFG-070, REQ-BFG-046; DESIGN-Y section 3 row 48 and section 4.1, R1's R2; REVIEW-STARD rulings R-1,
 // R-2, point 4 and the VENOM spot-check; BRIEF-Y6): VENOM DRIP lengthens BURN, and POISON leaves the switch-on game, with
 // the star switch on (content.ts STAR_RULES, withStarRules), against the same scene with it off where the base differs.
-// - The data: VENOM's poison 2/4/7 becomes burnPlus +3/+6/+9 s; no def holds poison with the switch on.
+// - The data: VENOM's poison 2/4/7 becomes burnPlus +2/+3/+5 s (Y7b1, ruling Y7A-R5; Y6: +3/+6/+9 s); no def holds poison with the switch on.
 // - The payload (Battle.applyHit, fireCore), on poison's paths: VENOMs on one belt add up, an OVERCLOCKER doubles it,
 //   SPLITTER copies keep it, a COMPOUND shell adds both loads'.
 // - The impact (Battle.impact): each BURN stack of that hit lasts BURN_TIME + burnPlus, and only then SLOW EMBERS' %
@@ -20,7 +20,7 @@ import { faceAt, hasFace, Y6_PIECES } from "../src/ui/faces";
 import { perkInfoOnly } from "../src/screens/build/faceBlocks";
 import { shopChip } from "../src/ui/chips";
 
-const PLUS = [3, 6, 9] as const; // DESIGN-Y row 48's ladder: the face's numbers, the sim's (no rounding)
+const PLUS = [2, 3, 5] as const; // Y7b1 (ruling Y7A-R5): was [3, 6, 9], DESIGN-Y row 48's ladder: the face's numbers, the sim's (no rounding)
 
 /** The barge with a hull no 20 s fight can empty, so every fight below runs its whole length. */
 const wall = (): Build => ({ ...barge(), hullBonus: 50000 });
@@ -78,8 +78,8 @@ function fight(b: Build, star: boolean, secs = 20) {
   }, star);
 }
 
-describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POISON leaves the switch-on game", () => {
-  it("data: on, burnPlus 3/6/9 and no poison (off: poison 2/4/7, no burnPlus); on, no def holds poison at any star", () => {
+describe("Y6 row 48: VENOM DRIP: each slug it hits burns +2/+3/+5 s longer (Y7b1, Y7A-R5; was +3/+6/+9); POISON leaves the switch-on game", () => {
+  it("data: on, burnPlus 2/3/5 (Y7A-R5) and no poison (off: poison 2/4/7, no burnPlus); on, no def holds poison at any star", () => {
     expect(on(() => STARS.map((s) => effectAt("venom", s).gate))).toEqual(PLUS.map((n) => ({ burnPlus: n })));
     expect(STARS.map((s) => effectAt("venom", s).gate)).toEqual([2, 4, 7].map((n) => ({ poison: n }))); // REVIEW-STARD's spot-check
     expect(on(() => Object.keys(ITEMS).filter((id) => STARS.some((s) => effectAt(id, s).gate?.poison)))).toEqual([]);
@@ -90,7 +90,7 @@ describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POIS
     expect(on(() => [ITEMS.venom.levels?.[2]?.perk, ITEMS.venom.levels?.[3]?.perk])).toEqual([undefined, undefined]);
   });
 
-  it("hook: a VENOM hit gives the slug burnPlus +3/+6/+9 and no poison (off: poison 2/4/7 and no burnPlus)", () => {
+  it("hook: a VENOM hit gives the slug burnPlus +2/+3/+5 and no poison (off: poison 2/4/7 and no burnPlus)", () => {
     for (const s of STARS) {
       const [onP] = hitAll(bench([["venom", 4, 3, s]]), true), [offP] = hitAll(bench([["venom", 4, 3, s]]), false);
       expect([onP.burnPlus, onP.poison, onP.burn, onP.flat], `★${s} on`).toEqual([PLUS[s - 1], undefined, 0, 0]);
@@ -98,13 +98,13 @@ describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POIS
     }
   });
 
-  it("two VENOMs on one belt add up: ★1 + ★2 = +9 (off: 2 + 4 poison)", () => {
+  it("two VENOMs on one belt add up: ★1 + ★2 = +5 (off: 2 + 4 poison)", () => {
     const b = () => bench([["venom", 4, 4, 1], ["venom", 4, 3, 2]]);
-    expect(hitAll(b(), true).map((p) => [p.burnPlus, p.poison])).toEqual([[9, undefined]]);
+    expect(hitAll(b(), true).map((p) => [p.burnPlus, p.poison])).toEqual([[5, undefined]]); // Y7b1 (Y7A-R5): was 9
     expect(hitAll(b(), false).map((p) => [p.burnPlus, p.poison])).toEqual([[undefined, 6]]);
   });
 
-  it("an OVERCLOCKER doubles it: its charge on the VENOM after it gives +6/+12/+18 (off: poison 4/8/14); a doubled hit too", () => {
+  it("an OVERCLOCKER doubles it: its charge on the VENOM after it gives +4/+6/+10 (Y7A-R5; was +6/+12/+18) (off: poison 4/8/14); a doubled hit too", () => {
     for (const s of STARS) {
       const b = () => bench([["overclocker", 4, 4, 1], ["venom", 4, 3, s]]);
       expect(hitAll(b(), true).map((p) => p.burnPlus), `★${s} on`).toEqual([2 * PLUS[s - 1]]);
@@ -117,9 +117,9 @@ describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POIS
 
   it("SPLITTER copies keep it, the VENOM before or after the split (off: the copies keep the poison)", () => {
     const before = hitAll(bench([["venom", 4, 4, 2], ["splitter", 4, 3, 1]]), true);
-    expect(before.map((p) => p.burnPlus)).toEqual([6, 6]);
+    expect(before.map((p) => p.burnPlus)).toEqual([3, 3]); // Y7b1 (Y7A-R5): was [6, 6]
     const after = hitAll(bench([["splitter", 4, 4, 1], ["venom", 4, 3, 2]]), true);
-    expect(after.map((p) => p.burnPlus)).toEqual([6, 6]);
+    expect(after.map((p) => p.burnPlus)).toEqual([3, 3]); // Y7b1 (Y7A-R5): was [6, 6]
     expect(hitAll(bench([["venom", 4, 4, 2], ["splitter", 4, 3, 1]]), false).map((p) => [p.burnPlus, p.poison])).toEqual([[undefined, 4], [undefined, 4]]);
   });
 
@@ -141,7 +141,7 @@ describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POIS
     expect(impactOnce(bench(), true, slug(3, 9))).toEqual([BURN_TIME + 9]);
   });
 
-  it("a COMPOUND battle: on a BURN belt through a VENOM ★1, once the VENOM works every shell packs two loads' +3: +6", () => {
+  it("a COMPOUND battle: on a BURN belt through a VENOM ★1, once the VENOM works every shell packs two loads' +2: +4 (Y7A-R5; was +3: +6)", () => {
     const shells: number[] = [];
     withStarRules(() => {
       const bt = new Battle(bench([["temper", 4, 4, 1], ["venom", 4, 3, 1]], [["compound", 1]]), wall(), SEED);
@@ -153,17 +153,17 @@ describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POIS
       }
     });
     expect(shells.length).toBeGreaterThan(0);
-    expect(new Set(shells)).toEqual(new Set([6]));
+    expect(new Set(shells)).toEqual(new Set([4])); // Y7b1 (Y7A-R5): was [6]
   });
 
-  it("impact: each BURN stack of that hit lasts BURN_TIME + burnPlus (3 s + 3/6/9); no VENOM: BURN_TIME, as before", () => {
+  it("impact: each BURN stack of that hit lasts BURN_TIME + burnPlus (3 s + 2/3/5); no VENOM: BURN_TIME, as before", () => {
     for (const s of STARS) expect(impactOnce(bench(), true, slug(4, PLUS[s - 1])), `★${s}`).toEqual([BURN_TIME + PLUS[s - 1]]);
     expect(impactOnce(bench(), true, slug(4))).toEqual([BURN_TIME]);
     expect(impactOnce(bench(), false, slug(4))).toEqual([BURN_TIME]);
     // a SCATTER pellet's share of the BURN (pr.burn) lasts as long: the payload's seconds
     expect(impactOnce(bench(), true, slug(4, 6), { burn: 2 })).toEqual([BURN_TIME + 6]);
-    // DESIGN-Y's example: a TEMPER ★3's 4 BURN deals 120 over BURN_TIME; with VENOM ★1, 240
-    expect([4 * BURN_DPS * BURN_TIME, 4 * BURN_DPS * (BURN_TIME + PLUS[0])]).toEqual([120, 240]);
+    // DESIGN-Y's example: a TEMPER ★3's 4 BURN deals 120 over BURN_TIME; with VENOM ★1, 200 (Y7b1, Y7A-R5: was 240 at +3)
+    expect([4 * BURN_DPS * BURN_TIME, 4 * BURN_DPS * (BURN_TIME + PLUS[0])]).toEqual([120, 200]);
   });
 
   it("SLOW EMBERS' % applies after: (BURN_TIME + burnPlus) x 1.75, not BURN_TIME x 1.75 + burnPlus", () => {
@@ -202,11 +202,12 @@ describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POIS
       expect(f.burnDealt, `★${s}: more BURN than the star below`).toBeGreaterThan(last);
       last = f.burnDealt;
     }
-    // ★1 lengthens each stack from 3 s to 6 s: at most twice the BURN, less where the fight's end cuts the last stacks
-    // (in this 20 s fight 2,080 against 1,200)
+    // ★1 lengthens each stack from 3 s to 5 s: at most 5/3 the BURN, less where the fight's end cuts the last stacks
+    // (in this 20 s fight 1,800 against 1,200; ★2 2,080, ★3 2,520). Y7b1 (Y7A-R5): was "from 3 s to 6 s: at most twice the
+    // BURN ... 2,080 against 1,200", with one <= 2 x none and one > 1.5 x none
     const one = fight(burnBelt(1), true).burnDealt;
-    expect(one).toBeLessThanOrEqual(2 * none.burnDealt);
-    expect(one).toBeGreaterThan(1.5 * none.burnDealt);
+    expect(one).toBeLessThanOrEqual(((BURN_TIME + PLUS[0]) / BURN_TIME) * none.burnDealt);
+    expect(one).toBeGreaterThanOrEqual(1.5 * none.burnDealt);
     // off: VENOM poisons (events, a pool), and its BURN is the plain belt's
     const off = fight(burnBelt(3), false);
     expect(off.poison).toBeGreaterThan(0);
@@ -233,8 +234,8 @@ describe("Y6 row 48: VENOM DRIP: each slug it hits burns +3/+6/+9 s longer; POIS
   });
 });
 
-describe("Y6 row 48: VENOM DRIP's face and ladder (DESIGN-Y: HIT: ITS [BURN]BURN LASTS +3[SEC]., 133 px; +3/+6/+9[SEC])", () => {
-  it("face: one line HIT: ITS {*BURN} LASTS +3/+6/+9{SEC}. (133 px at every star), BURN's reminder; off, no face (its RULES text)", () => {
+describe("Y6 row 48: VENOM DRIP's face and ladder (DESIGN-Y: HIT: ITS [BURN]BURN LASTS +3[SEC]., 133 px; Y7b1, Y7A-R5: +2/+3/+5[SEC])", () => {
+  it("face: one line HIT: ITS {*BURN} LASTS +2/+3/+5{SEC}. (133 px at every star), BURN's reminder; off, no face (its RULES text)", () => {
     expect(Y6_PIECES).toEqual(["venom"]);
     oneLine("venom"); // one line in the band, no clause, no caveat, no perk on the face; every ⓘ line in the band
     expect(lines("venom")).toEqual(PLUS.map((n) => [`HIT: ITS {*BURN} LASTS +${n}{SEC}.`]));
@@ -246,11 +247,12 @@ describe("Y6 row 48: VENOM DRIP's face and ladder (DESIGN-Y: HIT: ITS [BURN]BURN
     expect([perkInfoOnly("venom"), on(() => perkInfoOnly("venom"))]).toEqual([false, true]);
   });
 
-  it("ⓘ LEVELS: the ladder +3/+6/+9{SEC} (53 px) and NEXT★ (63 px); off, the legacy NEXT STAR: line", () => {
-    expect(levels("venom", 1)).toEqual(["[+3]/+6/+9{SEC}", next(2, "+6{SEC}")]);
-    expect(levels("venom", 2)).toEqual(["+3/[+6]/+9{SEC}", next(3, "+9{SEC}")]);
-    expect(levels("venom", 3)).toEqual(["+3/+6/[+9]{SEC}"]);
-    expect([px("+3/+6/+9{SEC}"), px(next(2, "+6{SEC}"))]).toEqual([53, 63]);
+  // Y7b1 (Y7A-R5): was the ladder +3/+6/+9{SEC} (53 px) with NEXT ★2 +6{SEC} and NEXT ★3 +9{SEC}
+  it("ⓘ LEVELS: the ladder +2/+3/+5{SEC} and NEXT★; off, the legacy NEXT STAR: line", () => {
+    expect(levels("venom", 1)).toEqual(["[+2]/+3/+5{SEC}", next(2, "+3{SEC}")]);
+    expect(levels("venom", 2)).toEqual(["+2/[+3]/+5{SEC}", next(3, "+5{SEC}")]);
+    expect(levels("venom", 3)).toEqual(["+2/+3/[+5]{SEC}"]);
+    expect([px("+2/+3/+5{SEC}"), px(next(2, "+3{SEC}"))]).toEqual([53, 63]);
     expect(levels("venom", 1, false)).toEqual(["NEXT STAR: ADDS 4 POISON."]);
   });
 

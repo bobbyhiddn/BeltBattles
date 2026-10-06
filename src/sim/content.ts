@@ -1358,10 +1358,12 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   },
   // ---- Y6 (DESIGN-Y section 3 row 48 and section 4.1, R1's R2; REVIEW-STARD point 4: VENOM feeds BURN length)
   // row 48, VENOM DRIP: its poison (2/4/7) goes, so POISON leaves the switch-on game (no payload or hull pool, no tick, no
-  // event: Battle.impact adds none); each slug it hits gains burnPlus +3/+6/+9 s instead, and each BURN stack of that slug's
+  // event: Battle.impact adds none); each slug it hits gains burnPlus +2/+3/+5 s instead, and each BURN stack of that slug's
   // hit lasts BURN_TIME + burnPlus (then SLOW EMBERS' %). Alone it deals nothing. Its catalogue desc stays (no panel draws
-  // it: flavour.ts KEPT_FLAVOUR venom [])
-  venom: { gate: { burnPlus: 3 }, levels: { 2: { gate: { burnPlus: 6 } }, 3: { gate: { burnPlus: 9 } } } },
+  // it: flavour.ts KEPT_FLAVOUR venom []). Y7b1 (ruling Y7A-R5, guarded): was +3/+6/+9 s, 2.0x the rare median lift per gold
+  // on (REVIEW-Y7A F1); back to 3/6/9 if its switch-on uptake falls under 12.0% or BASTION's bought under 45 pooled or 40 on
+  // day 10 (BRIEF-Y7B1 B1, B3)
+  venom: { gate: { burnPlus: 2 }, levels: { 2: { gate: { burnPlus: 3 } }, 3: { gate: { burnPlus: 5 } } } },
 };
 
 /** Y2: the base defs of the pieces STAR_DIFF changes (setStarRules puts them back when the switch turns off). */

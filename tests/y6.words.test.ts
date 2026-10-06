@@ -112,7 +112,7 @@ describe("Y6 words: POISON retires; no new keyword", () => {
 describe("Y6 texts: VENOM says BURN's seconds; the lines that named POISON drop it (off: byte for byte as before)", () => {
   it("VENOM: its kept sentences, gist, card and belt-timeline row (off: its POISON texts)", () => {
     for (const s of STARS) {
-      const n = [3, 6, 9][s - 1];
+      const n = [2, 3, 5][s - 1]; // Y7b1 (Y7A-R5): was [3, 6, 9]
       expect(on(() => abilityText("venom", s).sentences)).toEqual([
         `EACH BURN ON THE PAYLOADS IT HITS LASTS ${n} SECONDS LONGER.`, "IT ADDS NO BURN OF ITS OWN.", S.burn,
       ]);
@@ -125,7 +125,7 @@ describe("Y6 texts: VENOM says BURN's seconds; the lines that named POISON drop 
       expect(gist("venom", s)).toBe(`ADDS ${p} POISON`);
       expect(hitText({ def: "venom", stars: s, poison: p } as TimelineHit, "free")).toBe(`VENOM DRIP +${p} POISON`);
     }
-    expect([on(() => cardText("venom")), cardText("venom")]).toEqual(["BURN LASTS 3 SECONDS LONGER.", "ADDS 2 POISON."]);
+    expect([on(() => cardText("venom")), cardText("venom")]).toEqual(["BURN LASTS 2 SECONDS LONGER.", "ADDS 2 POISON."]); // Y7b1 (Y7A-R5): was BURN LASTS 3 SECONDS
     expect(S.burn).toBe("EACH BURN DEALS THE ENEMY HULL 10 DAMAGE A SECOND FOR 3 SECONDS.");
   });
 
@@ -200,13 +200,13 @@ describe("Y6 rating: VENOM's burnPlus priced by the belt's BURN, behind the swit
     expect(burnPlusGain(9, 0)).toBe(0);
   });
 
-  it("on a BURN belt it adds +3/+6/+9 s x the belt's BURN: linear in its seconds and in the stacks (off: EQ.poison's 30 a poison)", () => {
+  it("on a BURN belt it adds +2/+3/+5 s x the belt's BURN (Y7A-R5; was +3/+6/+9): linear in its seconds and in the stacks (off: EQ.poison's 30 a poison)", () => {
     const belt = (temper: number, venom?: number) => rigBench([["temper", 4, 4, temper], ...(venom ? [["venom", 4, 3, venom] as [string, number, number, number]] : [])]);
-    // the gain over the same belt without it, at each star: 1 : 2 : 3, the seconds 3 : 6 : 9
+    // the gain over the same belt without it, at each star: 1 : 1.5 : 2.5, the seconds 2 : 3 : 5 (Y7b1, Y7A-R5: was 1 : 2 : 3)
     const none = dmg(belt(3), true), gain = STARS.map((s) => dmg(belt(3, s), true) - none);
     expect(gain[0]).toBeGreaterThan(0);
-    expect(gain[1] / gain[0]).toBeCloseTo(2, 9);
-    expect(gain[2] / gain[0]).toBeCloseTo(3, 9);
+    expect(gain[1] / gain[0]).toBeCloseTo(1.5, 9);
+    expect(gain[2] / gain[0]).toBeCloseTo(2.5, 9);
     // the BURN stacks: TEMPER ★3 (4 BURN) against ★1 (1 BURN): 4 times the gain
     expect(gain[0] / (dmg(belt(1, 1), true) - dmg(belt(1), true))).toBeCloseTo(4, 9);
     // off: its poison's price, the same whatever the belt's BURN (EQ.poison x 2 at ★1)

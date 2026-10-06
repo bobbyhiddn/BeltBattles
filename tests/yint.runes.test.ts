@@ -51,7 +51,7 @@ const finish = (bt: Battle): Battle => { while (!bt.over && bt.ticks < 60 * 200)
 describe("Y-INT: SEARING (searBurn 5) under the star switch", () => {
   it("its start BURN comes from no hit: no VENOM burnPlus, as ASH KINDLE's (Y6); SLOW EMBERS' % still applies", () => {
     const start = (b: Build, star = true) => withStarRules(() => new Battle(b, barge(), 8).sides[1].hull.burns.map((x) => [x.dps, x.t]), star);
-    const venomBelt = () => bench([["venom", 4, 3, 3]]); // a VENOM ★3 (burnPlus 9 on) on the SEARING side's belt
+    const venomBelt = () => bench([["venom", 4, 3, 3]]); // a VENOM ★3 (burnPlus 5 on; Y7b1, Y7A-R5: was 9) on the SEARING side's belt
     expect(start(W(venomBelt(), "searing"))).toEqual([[n("searing"), BURN_TIME]]);
     expect(start(W(venomBelt(), "searing", "slow_embers"))).toEqual([[n("searing"), BURN_TIME * 1.75]]);
     expect(start(W(venomBelt(), "searing"), false)).toEqual([[n("searing"), BURN_TIME]]); // off: the base's
@@ -62,12 +62,12 @@ describe("Y-INT: SEARING (searBurn 5) under the star switch", () => {
     on(() => {
       const bt = new Battle(W(bench([["venom", 4, 3, 1]]), "searing"), barge(), 8), foe = bt.sides[1];
       foe.hull.burns = [];
-      const p = rigHit(bt); // the VENOM ★1's hit: burnPlus 3
-      expect(p.burnPlus).toBe(3);
+      const p = rigHit(bt); // the VENOM ★1's hit: burnPlus 2 (Y7b1, Y7A-R5: was 3)
+      expect(p.burnPlus).toBe(2);
       land(bt, 0, 10, { burn: 2, burnPlus: p.burnPlus });
-      expect(foe.hull.burns.map((x) => x.t)).toEqual([BURN_TIME + 3]); // the hit's stack lasts 6 s
+      expect(foe.hull.burns.map((x) => x.t)).toEqual([BURN_TIME + 2]); // the hit's stack lasts 5 s (Y7b1, Y7A-R5: was BURN_TIME + 3, 6 s)
       foe.hull.hp = foe.hull.max - 100;
-      foe.hull.burns[0].t = 0.5; // 5.5 s on: past BURN_TIME, inside BURN_TIME + 3
+      foe.hull.burns[0].t = 0.5; // 4.5 s on: past BURN_TIME, inside BURN_TIME + 2 (Y7b1, Y7A-R5: was 5.5 s, inside + 3)
       expect(bt.heal(foe, 40, "rune")).toBe(0);
       expect(foe.heals!.burnLost).toBe(40);
       foe.hull.burns = []; // the stack gone: it heals again

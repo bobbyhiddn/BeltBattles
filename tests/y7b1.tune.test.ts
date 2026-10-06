@@ -6,6 +6,8 @@
 // - Y7A-R3c / R3d, ANVIL BREECH and IRON WALL: their STAR_DIFF rows are deleted, so with the switch on each reads its base
 //   def (the same object as off): the sim, the rating, the ⓘ sentences and the timeline as off; each face states both parts
 //   on one line.
+// - Y7A-R4 / R5, the numbers on: DRAKE NOZZLE flatPerBurn 38 / 27 / 19, COUNTERWEIGHT perTile.each 2 / 5 / 7, VENOM DRIP
+//   burnPlus 2 / 3 / 5 s (guarded).
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
 import { ITEMS, STAR_ITEMS, withStarRules } from "../src/sim/content";
@@ -134,5 +136,13 @@ describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read thei
     expect(lines("counterweight")).toEqual([2, 5, 7].map((d) => [`HIT: +${d} {DMG} FOR EACH TILE RIDDEN.`]));
     expect(levels("counterweight", 2)).toEqual(["+2/[+5]/+7 {DMG} EACH", next(3, "+7 {DMG} EACH")]);
     expect(on(() => gist("counterweight", 1))).toBe("2 DAMAGE FOR EACH TILE");
+  });
+  it("VENOM DRIP (Y7A-R5, guarded): burnPlus 2 / 3 / 5 s on (Y6's 3 / 6 / 9); its face, ⓘ ladder, sentences and timeline say them; off, 0.9.2's poison 2 / 4 / 7", () => {
+    expect(on(() => STARS.map((s) => effectAt("venom", s).gate))).toEqual([2, 3, 5].map((burnPlus) => ({ burnPlus })));
+    expect(STARS.map((s) => effectAt("venom", s).gate)).toEqual([2, 4, 7].map((poison) => ({ poison })));
+    expect(lines("venom")).toEqual([2, 3, 5].map((n) => [`HIT: ITS {*BURN} LASTS +${n}{SEC}.`]));
+    expect(levels("venom", 1)).toEqual(["[+2]/+3/+5{SEC}", next(2, "+3{SEC}")]);
+    expect(on(() => abilityText("venom", 3).sentences[0])).toBe("EACH BURN ON THE PAYLOADS IT HITS LASTS 5 SECONDS LONGER.");
+    expect(on(() => hitText({ def: "venom", stars: 2 } as TimelineHit, "free"))).toBe("VENOM DRIP: ITS BURN LASTS +3 SEC");
   });
 });
