@@ -44,7 +44,10 @@
 //         in WebKit; the desk): the title's first tap opens it and it can't be skipped (Escape, taps beside it, an empty
 //         OK); its input's keyboard attributes, upper case as typed; OK at least 44 x 44 CSS px and tappable, Enter
 //         submits; the refusals on the screen; a reload keeps the name; the options card's NAME entry (title, build MENU).
-// Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names] [--tag after]
+// TAP-093b (backlog #340) bar: the top bar's checks alone (barChecks, no other touch check) on a DPR 2 phone, 375x667 @2 in
+//         Chromium (isMobile, hasTouch; x3, a finger's target 30 px; every touch view is DPR 3), with 0, 1, 3 and 10 runes:
+//         the corner MENU's target a full finger's square, 1 px clear of the rune chips, which start at tapPx + 1.
+// Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar] [--tag after]
 //        [--name touchcheck] [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
 
@@ -63,7 +66,7 @@ const opt = (name, fallback) => {
 };
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
-const ONLY = opt("only", "touch,mouse,319,names").split(",").map((s) => s.trim()); // PACKS M2: + names
+const ONLY = opt("only", "touch,mouse,319,names,bar").split(",").map((s) => s.trim()); // PACKS M2: + names; TAP-093b: + bar
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png" };
@@ -86,6 +89,8 @@ const VIEW = {
   "wk-op-690": { ...IPHONE, viewport: { width: 402, height: 690 } },
   small: VIEWS.small, // 360x640 @2
   desk: VIEWS.desk, // 1920x1080 @1, the mouse
+  // TAP-093b (backlog #340): a DPR 2 phone (the iPhone SE class: x3, a finger's target 30 px) for the bar-only section
+  "bar-667": { viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
 };
 /** shoptap2: the browser a view runs in. */
 const ENGINE = (vname) => (vname.startsWith("wk-") ? "webkit" : "chromium");
@@ -785,10 +790,14 @@ async function touchSection(browsers, origin, vname) {
  * has a SOUND toggle at least 44 CSS px tall. A real tap low in MENU's target opens the card; SOUND (or SND, low in its
  * target) cycles the setting, saved, and two more taps bring it back; RESUME closes the card. Landscape: both as drawn
  * (12 logical px tall), as in 0.9.2.
+ * TAP-093b (backlog #340): where the corner MENU is up, its target holds a full finger's square (tapPx both ways: 45 CSS
+ * px where tapPx gives 45), 1 px clear of every card, REROLL, pack and rune chip, the chips starting at tapPx + 1 (at
+ * least 28). `counts`: the runes held, 0 and 3 on the touch views; the bar section's DPR 2 view adds 1 and 10.
  */
-async function barChecks(page, cdp, V) {
-  const ids = ["coal_chute", "quick_latch", "tar_barrel"];
-  for (const n of [0, 3]) {
+async function barChecks(page, cdp, V, counts = [0, 3]) {
+  // furnace's ten (rivalBuilds.ts bulwark), in pick order (the first three as before)
+  const ids = ["coal_chute", "quick_latch", "tar_barrel", "heat_sink", "warlords_due", "fat_purse", "searing", "pyre_heart", "ward_stone", "shatter_shot"];
+  for (const n of counts) {
     await page.keyboard.press("Escape").catch(() => {});
     await page.evaluate((list) => {
       const g = window.bb.game, s = g.screen;
@@ -806,7 +815,7 @@ async function barChecks(page, cdp, V) {
       const others = [...L.cards, L.reroll, ...L.packs, ...(B ? [...B.chips, ...(B.more ? [B.more] : [])] : [])];
       const area = (id) => {
         const m = Array.from({ length: H0 }, () => new Uint8Array(W));
-        let n = 0, best = 0, x0 = W, y0 = H0, x1 = -1, y1 = -1, over = 0, bx = 0, by = 0;
+        let n = 0, best = 0, x0 = W, y0 = H0, x1 = -1, y1 = -1, over = 0, near = 0, bx = 0, by = 0;
         const dp = Array.from({ length: H0 }, () => new Uint16Array(W));
         for (let y = 0; y < H0; y++) for (let x = 0; x < W; x++) {
           if (g.ui.hit(x + 0.5, y + 0.5)?.id !== id) continue;
@@ -815,15 +824,19 @@ async function barChecks(page, cdp, V) {
           dp[y][x] = 1 + (x && y ? Math.min(dp[y - 1][x], dp[y][x - 1], dp[y - 1][x - 1]) : 0);
           if (dp[y][x] > best) { best = dp[y][x]; bx = x; by = y; }
           if (others.some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h)) over++;
+          // TAP-093b: on or next to another target (no 1 px gap)
+          if (others.some((o) => x >= o.x - 1 && x < o.x + o.w + 1 && y >= o.y - 1 && y < o.y + o.h + 1)) near++;
         }
         if (!n) return null;
         // the largest square's lowest point (a press there proves the grown part routes to the button), client px
         const low = window.bb.toClient(bx - best / 2 + 0.5, by - 1);
-        return { w: (x1 - x0 + 1) * k, h: (y1 - y0 + 1) * k, square: best * k, over, low };
+        return { w: (x1 - x0 + 1) * k, h: (y1 - y0 + 1) * k, square: best * k, squarePx: best, over, near, low };
       };
-      return { phone: !!L.phone, k, bar: L.bar.h, band: L.portrait ? L.info.h : null, runes: B ? B.chips.length : 0, menu: area("menu"), sound: area("sound"), mode: g.audio.mode };
+      // TAP-093b: a finger's target in logical px; the corner MENU (chrome.ts drawTopBar); the chips' x0 and count
+      const first = B ? B.chips[0] ?? B.more : null;
+      return { phone: !!L.phone, k, tap: Math.ceil(44 / k), corner: !!s.cornerMenu, x0: first ? first.x : null, shown: B ? B.shown : 0, more: B && B.more ? s.run.build.runes.length - B.shown : 0, bar: L.bar.h, band: L.portrait ? L.info.h : null, runes: B ? B.chips.length : 0, menu: area("menu"), sound: area("sound"), mode: g.audio.mode };
     });
-    const tag = `${V}, ${n ? `${n} runes held (the rune strip under the bar)` : "no rune held"}`;
+    const tag = `${V}, ${n ? `${n} rune${n === 1 ? "" : "s"} held (the rune strip under the bar)` : "no rune held"}`;
     const d = (a) => (a ? `${a.w.toFixed(1)}x${a.h.toFixed(1)} CSS px (its largest square ${a.square.toFixed(1)})${a.over ? `, OVER ${a.over} px of a card, REROLL, pack or rune chip` : ", clear of every card, REROLL, pack and rune chip"}` : "none");
     if (!m.phone) {
       check(m.menu && m.sound && Math.abs(m.menu.h - 12 * m.k) < 0.01 && Math.abs(m.sound.h - 12 * m.k) < 0.01,
@@ -831,6 +844,10 @@ async function barChecks(page, cdp, V) {
       continue;
     }
     check(m.menu && m.menu.square >= TAP_CSS && m.menu.over === 0, `${tag}: TAP-093: MENU's target is ${d(m.menu)}, at least 44x44 (bar ${m.bar} px, band ${m.band} px)`);
+    if (m.corner) {
+      check(m.menu && m.menu.squarePx >= m.tap && m.menu.near === 0 && (!n || m.x0 === Math.max(28, m.tap + 1)),
+        `${tag}: TAP-093b: the corner MENU's target holds a full finger's square, ${m.menu ? m.menu.squarePx : 0} px of tapPx ${m.tap} (${m.menu ? m.menu.square.toFixed(1) : 0} CSS px), ${m.menu && m.menu.near === 0 ? "1 px clear of" : `${m.menu ? m.menu.near : 0} px ON OR NEXT TO`} every card, REROLL, pack and rune chip${n ? `; the rune chips from x ${m.x0} (max(28, tapPx + 1) = ${Math.max(28, m.tap + 1)}): ${m.shown} shown${m.more ? ` + a "+${m.more}" chip` : ""}` : ""}`);
+    }
     if (m.sound) check(m.sound.square >= TAP_CSS && m.sound.over === 0, `${tag}: TAP-093: SND's target is ${d(m.sound)}, at least 44x44 (the lifted bar)`);
     if (!m.menu) continue;
     const mode0 = m.mode;
@@ -858,6 +875,29 @@ async function barChecks(page, cdp, V) {
     check(!s4.menu, `${tag}: TAP-093: RESUME closes the card`);
   }
   await page.evaluate(() => { const g = window.bb.game; window.bb.holdRunes([]); g.step(1 / 60); g.render(); });
+}
+
+/**
+ * TAP-093b (backlog #340): the bar's checks alone on a DPR 2 phone (375x667 @2, the iPhone SE class: x3, a finger's target
+ * 30 px), where the corner MENU's target was an L with runes held (its column 27 px: 40.5 CSS px, the first rune chip 28 px
+ * in) before the chips started at tapPx + 1. Cheap: FURNACE's deck, then barChecks with 0, 1, 3 and 10 runes.
+ */
+async function barSection(browsers, origin) {
+  const vname = "bar-667";
+  log("");
+  log(`## bar ${vname} (chromium ${browsers.chromium.version()}, ${VIEW[vname].viewport.width}x${VIEW[vname].viewport.height} @${VIEW[vname].deviceScaleFactor}, isMobile, hasTouch): TAP-093b, the top bar's checks alone`);
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `bar ${vname}`;
+  try {
+    await openDeck(page, FURNACE);
+    const kv = await kview(page);
+    log(`[${at()}] build screen ${kv.W}x${kv.H} at x${kv.scale} (dpr ${kv.dpr}): ${kv.k.toFixed(3)} CSS px per logical px; a finger's target ${Math.ceil(TAP_CSS / kv.k)} px`);
+    await barChecks(page, cdp, V, [0, 1, 3, 10]);
+  } catch (e) {
+    check(false, `${V}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+  }
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  await ctx.close();
 }
 
 // ------------------------------------------------------------------------------------------------------------ A2 mouse
@@ -1191,6 +1231,7 @@ async function main() {
     if (ONLY.includes("mouse")) await mouseSection(browsers, site.origin);
     if (ONLY.includes("319")) await summarySection(browsers, site.origin);
     if (ONLY.includes("names")) await namesSection(browsers, site.origin); // PACKS M2 (REQ-BFG-063)
+    if (ONLY.includes("bar")) await barSection(browsers, site.origin); // TAP-093b (backlog #340): the bar on a DPR 2 phone
   } finally {
     for (const b of Object.values(browsers)) await b.close();
     site.srv.close();
