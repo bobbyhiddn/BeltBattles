@@ -26,6 +26,7 @@ interface Anim {
   heavy: boolean;
   delay: number;
   color: string;
+  side: number; // MOTION-1: the board it rides with (-1: none)
 }
 
 interface Popup {
@@ -36,6 +37,7 @@ interface Popup {
   t: number;
   max: number;
   big: boolean;
+  side: number; // MOTION-1
 }
 
 interface Decal {
@@ -45,7 +47,11 @@ interface Decal {
   v: number;
   t: number;
   max: number;
+  side: number; // MOTION-1
 }
+
+/** MOTION-1 (REQ-BFG-071): draw every effect, whatever board it belongs to (the default: as before motion). */
+export const ALL_SIDES = -2;
 
 function pool<T>(n: number, make: () => T): T[] {
   const a: T[] = [];
@@ -59,12 +65,23 @@ const EMB0 = cid(C.fire4), EMB1 = cid(C.fire1);
 
 export class Fx {
   readonly parts = new Particles(1400);
-  private anims = pool<Anim>(128, () => ({ kind: 0, x: 0, y: 0, t: 0, fps: 0, frames: 0, size: 0, cool: false, dir: 0, heavy: false, delay: 0, color: C.white }));
+  private anims = pool<Anim>(128, () => ({ kind: 0, x: 0, y: 0, t: 0, fps: 0, frames: 0, size: 0, cool: false, dir: 0, heavy: false, delay: 0, color: C.white, side: -1 }));
   private na = 0;
-  private pops = pool<Popup>(48, () => ({ x: 0, y: 0, text: "", color: C.white, t: 0, max: 1, big: false }));
+  private pops = pool<Popup>(48, () => ({ x: 0, y: 0, text: "", color: C.white, t: 0, max: 1, big: false, side: -1 }));
   private np = 0;
-  private decals = pool<Decal>(40, () => ({ x: 0, y: 0, r: 0, v: 0, t: 0, max: 1 }));
+  private decals = pool<Decal>(40, () => ({ x: 0, y: 0, r: 0, v: 0, t: 0, max: 1, side: -1 }));
   private nd = 0;
+  private anchorSide = -1;
+  /** MOTION-1 (REQ-BFG-071, display only): the board the next spawns belong to (0, 1; -1 none). The arena's react() sets
+   *  it per event; a motion build draws each board's effects with that board's transform, so hits, flashes and numbers
+   *  stay on their tile while the ships move. Drawing without a side (the default) draws them all, as before. */
+  get anchor(): number {
+    return this.anchorSide;
+  }
+  set anchor(s: number) {
+    this.anchorSide = s;
+    this.parts.tag = s;
+  }
   trauma = 0;
   flash = 0; // screen flash 0..1
   flashColor: string = C.white;
@@ -197,6 +214,7 @@ export class Fx {
     const a = this.anims[this.na++];
     a.kind = kind; a.x = x; a.y = y; a.t = 0; a.fps = fps; a.frames = frames;
     a.size = 0; a.cool = false; a.dir = 0; a.heavy = false; a.delay = 0; a.color = C.white;
+    a.side = this.anchorSide;
     return a;
   }
 
@@ -285,11 +303,13 @@ export class Fx {
     if (this.np >= this.pops.length) return;
     const p = this.pops[this.np++];
     p.x = x; p.y = y; p.text = text; p.color = color; p.t = 0; p.max = big ? 1.15 : 0.85; p.big = big;
+    p.side = this.anchorSide;
   }
 
   scorch(x: number, y: number, r: number): void {
     const d = this.nd < this.decals.length ? this.decals[this.nd++] : this.decals[Math.floor(this.rnd() * this.decals.length)];
     d.x = x; d.y = y; d.r = r; d.v = Math.floor(this.rnd() * 4); d.t = 0; d.max = 5;
+    d.side = this.anchorSide;
   }
 
   screenFlash(color: string, amount: number): void {
@@ -299,9 +319,11 @@ export class Fx {
 
   // ------------------------------------------------------------ drawing
 
-  drawDecals(g: G, ox: number, oy: number): void {
+  /** MOTION-1: `only` draws one board's decals (-1: those of none); absent, all of them, as before. */
+  drawDecals(g: G, ox: number, oy: number, only = ALL_SIDES): void {
     for (let i = 0; i < this.nd; i++) {
       const d = this.decals[i];
+      if (only !== ALL_SIDES && d.side !== only) continue;
       const k = 1 - d.t / d.max;
       g.globalAlpha = Math.min(0.7, k * 1.2);
       const img = scorchSprite(d.r, d.v);
@@ -310,11 +332,13 @@ export class Fx {
     g.globalAlpha = 1;
   }
 
-  draw(g: G, ox: number, oy: number): void {
-    this.parts.draw(g, ox, oy);
+  /** MOTION-1: `only` draws one board's particles and animations (-1: those of none); absent, all, as before. */
+  draw(g: G, ox: number, oy: number, only = ALL_SIDES): void {
+    this.parts.draw(g, ox, oy, only);
     for (let i = 0; i < this.na; i++) {
       const a = this.anims[i];
       if (a.delay > 0) continue;
+      if (only !== ALL_SIDES && a.side !== only) continue;
       const f = Math.min(a.frames - 1, Math.floor(a.t * a.fps));
       let img: HTMLCanvasElement;
       if (a.kind === EX) img = explosion(a.size, f, a.cool);
@@ -326,9 +350,10 @@ export class Fx {
   }
 
   /** Damage numbers: pop up, hold, blink out. Drawn above everything in the world layer. */
-  drawPops(g: G, ox: number, oy: number): void {
+  drawPops(g: G, ox: number, oy: number, only = ALL_SIDES): void {
     for (let i = 0; i < this.np; i++) {
       const p = this.pops[i];
+      if (only !== ALL_SIDES && p.side !== only) continue;
       const k = p.t / p.max;
       const rise = (p.big ? 16 : 11) * Math.min(1, k * 2.2);
       if (k > 0.78 && Math.floor(p.t * 22) % 2) continue;

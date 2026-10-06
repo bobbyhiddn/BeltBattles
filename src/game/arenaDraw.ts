@@ -16,22 +16,23 @@ import type { Side } from "../sim/battle";
 import type { Arena } from "./arena";
 
 /** Crack polylines in hull-local space: start point + unit steps (dx,dy pairs). */
-const CRACKS_50: number[][] = [
+export const CRACKS_50: number[][] = [
   [22, 3, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0],
   [120, 136, 1, -1, 1, 0, 1, -1, 0, -1, 1, -1],
   [2, 60, 0, 1, 1, 1, 0, 1, 0, 1],
 ];
-const CRACKS_25: number[][] = [
+export const CRACKS_25: number[][] = [
   [104, 4, -1, 1, 0, 1, -1, 1, -1, 0, -1, 1, 0, 1],
   [153, 90, 0, 1, -1, 1, 0, 1, 0, 1, -1, 1],
   [40, 137, 1, -1, 1, 0, 0, -1, 1, -1, 1, 0],
 ];
 
-function cracks(g: G, f: DeckFrame, list: number[][]): void {
+/** MOTION-1 (REQ-BFG-071): `hx0`..`hx1` (hull-local, absent: all) keeps only the crack pixels on a board plate. */
+export function cracks(g: G, f: DeckFrame, list: number[][], hx0 = -Infinity, hx1 = Infinity): void {
   for (const c of list) {
     let hx = c[0], hy = c[1];
     for (let i = 2; i <= c.length; i += 2) {
-      rect(g, Math.round(hullX(f, hx, hy)), Math.round(hullY(f, hx, hy)), 1, 1, C.ink);
+      if (hx >= hx0 && hx < hx1) rect(g, Math.round(hullX(f, hx, hy)), Math.round(hullY(f, hx, hy)), 1, 1, C.ink);
       if (i < c.length) {
         hx += c[i];
         hy += c[i + 1];
@@ -85,15 +86,29 @@ export function drawArena(g: G, a: Arena, W: number, H: number): void {
   }
 }
 
-function drawShells(g: G, a: Arena): void {
+/** MOTION-1 (REQ-BFG-071): a board's map from rest-screen space (its deck frame's drawing) to the screen now. */
+export interface ShotMap {
+  toScreen(side: Side, x: number, y: number, out: number[]): number[];
+}
+const P0 = [0, 0], P1 = [0, 0];
+
+/** The shells in flight. MOTION-1: with `map` (a motion build), each frame a shot flies from its gun's current screen
+ *  position to its target's current position (both boards move), so it still lands on its tile or hull; without it,
+ *  exactly as before. */
+export function drawShells(g: G, a: Arena, map?: ShotMap): void {
   const b = a.b;
   for (let n = 0; n < b.projectiles.length; n++) {
     const pr = b.projectiles[n];
     if (!a.show[pr.from]) continue;
     const from = a.drawn[pr.from], to = a.drawn[(1 - pr.from) as Side];
     const hb = b.sides[pr.from].build; // 0.6.2s: the build's turret slots
-    const x0 = muzzleX(from, hb, pr.turret, pr.id), y0 = muzzleY(from, hb, pr.turret, pr.id);
-    const x1 = sx(to, pr.tx, pr.ty), y1 = sy(to, pr.tx, pr.ty);
+    let x0 = muzzleX(from, hb, pr.turret, pr.id), y0 = muzzleY(from, hb, pr.turret, pr.id);
+    let x1 = sx(to, pr.tx, pr.ty), y1 = sy(to, pr.tx, pr.ty);
+    if (map) {
+      map.toScreen(pr.from, x0, y0, P0);
+      map.toScreen((1 - pr.from) as Side, x1, y1, P1);
+      x0 = P0[0]; y0 = P0[1]; x1 = P1[0]; y1 = P1[1];
+    }
     const dx = x1 - x0, dy = y1 - y0;
     const dist = Math.abs(dx) + Math.abs(dy);
     const arc = pr.heavy || pr.core === "mortar" ? 8 + dist * 0.09 : 0;
