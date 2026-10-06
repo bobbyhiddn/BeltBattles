@@ -52,7 +52,10 @@
 //         0.38 s hold, which lifts a factory, so the drag carried the KILN or the LOOM instead of drawing a belt); a check
 //         reads the board once the game has registered the drag (each frame, up to about 1 s); a drag that registered
 //         nothing at all is made once more (a RETRY line); after a failed check, the rest of that board's checks are SKIP
-//         lines ("skipped after a failed drag"), not failures on a wrong board.
+//         lines ("skipped after a failed drag"), not failures on a wrong board. The 200 ms tap rule: count, median, p95
+//         and the longest; it fails when p95 is over 200 ms (or a tap was not one touch press), and each tap over 200 ms
+//         is a WARN line with the 1-min load then. LOAD lines: the 1-min load at the start and end of the run and of each
+//         view.
 // Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar] [--tag after]
 //        [--name touchcheck] [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
@@ -119,8 +122,11 @@ const check = (ok, what) => { checks.push({ ok: !!ok, what }); log(`${ok ? "PASS
 const shots = [];
 const tapMs = [];
 const mouseSeen = [];
-/** TCH-360: the host's 1-min load (os.loadavg). */
+/** TCH-360: the host's 1-min load (os.loadavg), and a LOAD line at the run's and each view's start and end. */
 const load1 = () => loadavg()[0].toFixed(2);
+const loadLine = (what) => { const [a, b, c] = loadavg(); log(`LOAD  [${at()}] ${what}: 1-min load ${a.toFixed(2)} (5-min ${b.toFixed(2)}, 15-min ${c.toFixed(2)})`); };
+/** TCH-360 (2d): the view whose taps are timed now (a WARN line names it). */
+let viewNow = "";
 /**
  * TCH-360 (2c): no cascade after a failed drag. Each board (openDeck) starts clean; once a check on it fails, the rest of
  * that board's checks (bcheck: the drag blocks and the upgrades between their drags) are SKIP lines, "skipped after a
@@ -397,7 +403,11 @@ async function tap(cdp, p, css = 0, deg = 0) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   const seen = await cdp.page.evaluate((n) => window.__taps.slice(n), n0);
   tapMs.push(seen.length === 1 && seen[0].type === "touch" ? seen[0].ms : Infinity); // one touch press a tap, timed
-  if (!(tapMs[tapMs.length - 1] < 150)) log(`[${at()}] a slow tap: ${JSON.stringify(seen)} at (${p.x.toFixed(0)}, ${p.y.toFixed(0)}), after "${(checks[checks.length - 1]?.what ?? "").slice(0, 140)}"`);
+  // TCH-360 (2d): a tap over 200 ms (or not one touch press) is a WARN line with the 1-min load now, so a real slow path
+  // still shows under the p95 rule; 150-200 ms as before
+  const ms = tapMs[tapMs.length - 1];
+  if (!(ms <= 200)) log(`WARN  [${at()}] ${viewNow}: a tap ${Number.isFinite(ms) ? `of ${ms.toFixed(1)} ms, over 200 ms` : `that was not one touch press (${JSON.stringify(seen)})`}, at (${p.x.toFixed(0)}, ${p.y.toFixed(0)}), after "${(checks[checks.length - 1]?.what ?? "").slice(0, 140)}"; 1-min load ${load1()}`);
+  else if (!(ms < 150)) log(`[${at()}] a slow tap: ${JSON.stringify(seen)} at (${p.x.toFixed(0)}, ${p.y.toFixed(0)}), after "${(checks[checks.length - 1]?.what ?? "").slice(0, 140)}"`);
   await sleep(150);
 }
 
@@ -550,8 +560,10 @@ async function touchSection(browsers, origin, vname) {
   log("");
   const engine = ENGINE(vname);
   log(`## touch ${vname} (${engine} ${browsers[engine]?.version() ?? "not running"}, ${VIEW[vname].viewport.width}x${VIEW[vname].viewport.height} @${VIEW[vname].deviceScaleFactor}, isMobile, hasTouch): real touch events, taps drifting 3, 5 and 8 CSS px`);
-  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
   const V = `touch ${vname}`;
+  viewNow = V;
+  loadLine(`${V}: start`);
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
   await openDeck(page, FURNACE);
   const kv = await kview(page);
   const env = await page.evaluate(() => ({ ua: navigator.userAgent, inner: `${innerWidth}x${innerHeight}`, vv: visualViewport ? `${visualViewport.width}x${visualViewport.height}` : "none", dpr: devicePixelRatio, band: window.bb.game.screen.L.portrait ? window.bb.game.screen.L.info.h : null }));
@@ -873,6 +885,7 @@ async function touchSection(browsers, origin, vname) {
 
   check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
   await ctx.close();
+  loadLine(`${V}: end`);
 }
 
 /**
@@ -979,8 +992,10 @@ async function barSection(browsers, origin) {
   const vname = "bar-667";
   log("");
   log(`## bar ${vname} (chromium ${browsers.chromium.version()}, ${VIEW[vname].viewport.width}x${VIEW[vname].viewport.height} @${VIEW[vname].deviceScaleFactor}, isMobile, hasTouch): TAP-093b, the top bar's checks alone`);
-  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
   const V = `bar ${vname}`;
+  viewNow = V;
+  loadLine(`${V}: start`);
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
   try {
     await openDeck(page, FURNACE);
     const kv = await kview(page);
@@ -991,12 +1006,14 @@ async function barSection(browsers, origin) {
   }
   check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
   await ctx.close();
+  loadLine(`${V}: end`);
 }
 
 // ------------------------------------------------------------------------------------------------------------ A2 mouse
 async function mouseSection(browsers, origin) {
   log("");
   log("## mouse desk (1920x1080 @1): the mouse as 69fe689");
+  loadLine("mouse desk: start");
   const { ctx, page, errors } = await openPage(browsers, origin, "desk");
   // what the mouse did, raw (the selection, gold, the build's parts and belts, what lifted): <name>-mouse.json, the same
   // on 69fe689's build but for "notice" (the one change for the mouse)
@@ -1118,6 +1135,7 @@ async function mouseSection(browsers, origin) {
   }
   check(errors.length === 0, `mouse: 0 console errors (${errors.length})`);
   await ctx.close();
+  loadLine("mouse desk: end");
 }
 
 // ------------------------------------------------------------------------------------------------------------- 319
@@ -1125,6 +1143,7 @@ async function summarySection(browsers, origin) {
   log("");
   log("## 319: the run summary offline, 20 rows (a warlord and a dusk each day): the card on the screen, NEW RUN and TITLE");
   for (const vname of ["phone", "phone-land", "small", "desk"]) {
+    loadLine(`319 ${vname}: start`);
     const { ctx, page, errors } = await openPage(browsers, origin, vname);
     await page.evaluate(() => window.bb.openEnd({ hero: "furnace", seed: 12345, results: "WWWWWWWWWW", roads: "EEEEEEEEEE" }));
     await settle(page, "summary");
@@ -1144,6 +1163,7 @@ async function summarySection(browsers, origin) {
     else check(Math.abs(m.again.h - 21 * m.k) < 0.01 && Math.abs(m.title.h - 21 * m.k) < 0.01, `319 ${vname}: NEW RUN and TITLE are 0.8.0's 21 px (${m.again.h.toFixed(1)} CSS px)`);
     check(errors.length === 0, `319 ${vname}: 0 console errors (${errors.length})`);
     await ctx.close();
+    loadLine(`319 ${vname}: end`);
   }
 }
 
@@ -1157,6 +1177,7 @@ async function namesSection(browsers, origin) {
   log("## PACKS M2 (REQ-BFG-063): required player names: the name screen, its input and OK, the options card's NAME entry");
   for (const vname of ["phone", "wk-op-690", "wk-iphone13", "desk"]) {
     if (!browsers[ENGINE(vname)]) continue;
+    loadLine(`names ${vname}: start`);
     const { ctx, page, errors } = await openPage(browsers, origin, vname);
     const touch = !!VIEW[vname].hasTouch, vp = page.viewportSize();
     const center = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
@@ -1295,6 +1316,7 @@ async function namesSection(browsers, origin) {
     }
     check(errors.length === 0, `names ${vname}: 0 console errors (${errors.length}${errors.length ? `: ${errors[0]}` : ""})`);
     await ctx.close();
+    loadLine(`names ${vname}: end`);
   }
 }
 
@@ -1312,6 +1334,7 @@ async function main() {
   }
   const site = await pageServer();
   log(`# touchcheck ${ONLY.join(", ")}: ${DIST} served at ${site.origin}; Chromium ${browsers.chromium.version()}${browsers.webkit ? `, WebKit ${browsers.webkit.version()}` : ""}; touch views ${views.join(", ") || "none"}; ${new Date().toISOString()}`);
+  loadLine("the run: start");
   try {
     for (const v of views) {
       if (!browsers[ENGINE(v)]) continue; // its browser didn't launch (a FAIL above)
@@ -1330,9 +1353,16 @@ async function main() {
     site.srv.close();
   }
   if (tapMs.length) {
-    const max = Math.max(...tapMs), mean = tapMs.reduce((s, v) => s + v, 0) / tapMs.length;
-    check(max < 200, `every touch tap was one touch press under 200 ms, pointerdown to pointerup as the page timed it (${tapMs.length} taps; the longest ${max.toFixed(1)} ms, mean ${mean.toFixed(1)} ms)`);
+    // TCH-360 (2d): the 200 ms rule on p95 (nearest rank), not the longest: a busy host stretches a few taps (TAP-093b
+    // runs 1 and 2: 390.3 and 266.2 ms, each one tap); each tap over 200 ms is a WARN line above. Every tap must still be
+    // one touch press
+    const v = [...tapMs].sort((a, b) => a - b), q = (f) => v[Math.min(v.length - 1, Math.max(0, Math.ceil(f * v.length) - 1))];
+    const one = tapMs.filter((t) => Number.isFinite(t)).length, over = tapMs.filter((t) => t > 200).length;
+    const fin = v.filter((t) => Number.isFinite(t)), mean = fin.reduce((s, t) => s + t, 0) / Math.max(1, fin.length);
+    check(one === tapMs.length && q(0.95) <= 200,
+      `every touch tap was one touch press${one === tapMs.length ? "" : ` (NOT ${tapMs.length - one} of them)`}, their p95 at most 200 ms, pointerdown to pointerup as the page timed it (${tapMs.length} taps: median ${q(0.5).toFixed(1)} ms, p95 ${q(0.95).toFixed(1)} ms, the longest ${v[v.length - 1].toFixed(1)} ms, mean ${mean.toFixed(1)} ms; ${over} over 200 ms, each a WARN line; 1-min load now ${load1()})`);
   }
+  loadLine("the run: end");
   const failed = checks.filter((c) => !c.ok);
   log("");
   // TCH-360 (2b, 2c): the retries and the skipped checks, counted apart (a SKIP line is no check)
