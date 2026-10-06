@@ -7,7 +7,10 @@
 import type { Game, Screen } from "../game/game";
 import { Arena } from "../game/arena";
 import { drawArena } from "../game/arenaDraw";
-import { battleLayout, battleScale, type BattleLayout } from "../game/battleLayout";
+import { battleLayout, battleScale, laneLayout, minGap, type BattleLayout } from "../game/battleLayout";
+import { ArenaMotion } from "../game/arenaMotion"; // MOTION-1 (REQ-BFG-071): battles in motion (VITE_MOTION builds)
+import { MOTION, MOTION_BUILD } from "../render/motion";
+import { settings } from "../core/settings";
 import { battleSeed, saveRun, type DayResult, type DuskFoe, type WarlordFight } from "../game/run";
 import { finishDay, foeTitle, ghostOf, startDusk, storedFoe } from "../game/day";
 import { raceReadout } from "../game/raceReadout"; // 0.8.0 H1 M3: the card's FOUNDRY and BASTION rows
@@ -68,6 +71,11 @@ export class BattleScreen implements Screen {
   private readonly note: string | null;
   readonly warlord: WarlordFight | null = null;
   private readonly wact: WarlordActions;
+  /** MOTION-1 (REQ-BFG-071; display only): the carriers in motion and the day's sea, in a VITE_MOTION=1 build unless
+   *  ?motion=0; null otherwise (the battle draws exactly as before). */
+  readonly motion: ArenaMotion | null = null;
+  /** The drive-in distances (px) each side starts at: today's, or (motion) far enough left to sail in from off screen. */
+  private driveIn: [number, number] = [60, 260];
 
   constructor(private game: Game, kind: "dusk" | "warlord" = "dusk") {
     const run = game.run!;
@@ -101,6 +109,7 @@ export class BattleScreen implements Screen {
     };
     this.arena = new Arena(run.build, this.foe.build, this.seed, game.audio, undefined, wins);
     this.arena.off = [60, 260];
+    if (MOTION_BUILD && MOTION.on) this.motion = new ArenaMotion(this.seed, this.foe.day, MOTION, settings.reducedMotion);
     this.bar = {
       speed: this.speed, compact: false, showSpeeds: true, paused: false,
       onSpeed: SPEEDS.map((_, i) => () => this.setSpeed(i)),
@@ -109,6 +118,7 @@ export class BattleScreen implements Screen {
       onPause: () => this.togglePause(),
     };
     this.relayout();
+    if (this.motion) this.arena.off = [this.driveIn[0], this.driveIn[1]];
     if (w?.result) {
       // reloaded on the result card: show the stored result, never fight or pay again
       this.arena.off = [0, 0];
@@ -205,6 +215,13 @@ export class BattleScreen implements Screen {
     const { W, H, portrait } = this.game;
     if (this.L && this.L.W === W && this.L.H === H && this.L.portrait === portrait) return;
     this.L = battleLayout(W, H, portrait);
+    if (this.motion) {
+      // MOTION-1: the lanes (portrait as today; landscape's enemy lane raised and a little ahead), the sail-in from the
+      // left, and the curves fitted so the gap never closes below the layout's minimum
+      this.L = laneLayout(this.L);
+      this.motion.setLanes(this.L, minGap(portrait ? H : W));
+      this.driveIn = [this.L.hulls[0].x + this.L.hulls[0].w + 12, this.L.hulls[1].x + this.L.hulls[1].w + 40];
+    }
     this.src = this.placeSource();
     this.arena.setFrames(this.L.frames, this.L.enter);
     this.bgSpec.hulls = this.L.hulls;
@@ -279,14 +296,15 @@ export class BattleScreen implements Screen {
   update(dt: number): void {
     this.relayout();
     if (this.menu || this.arena.paused) return; // paused: nothing moves, the sim holds its tick
+    this.motion?.update(dt, settings.reducedMotion); // MOTION-1: the display clock (frame time; never the sim's)
     this.pt += dt;
     const a = this.arena;
     if (this.phase === "intro") {
       const k = Math.min(1, this.pt / INTRO);
       const ease = Math.pow(1 - k, 3);
       const prev = a.off[1];
-      a.off[0] = Math.round(60 * ease);
-      a.off[1] = Math.round(260 * ease);
+      a.off[0] = Math.round(this.driveIn[0] * ease);
+      a.off[1] = Math.round(this.driveIn[1] * ease);
       a.tread += (prev - a.off[1]) * 0.5;
       a.syncFrames();
       a.update(dt, false);
@@ -324,9 +342,17 @@ export class BattleScreen implements Screen {
   draw(g: G): void {
     const { W, H } = this.game;
     const a = this.arena;
-    this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
-    drawArena(g, a, W, H);
+    const m = this.motion;
+    if (m) {
+      // MOTION-1: the day's sea, then the carriers, boards, shots and effects in motion
+      m.drawSea(g, W, H, a.fx.shakeX, a.fx.shakeY, this.game.view.scale, this.game.view.dpr, this.seed);
+      m.draw(g, a, W, H, settings.reducedMotion);
+    } else {
+      this.bg.draw(g, W, H, this.bgSpec, this.game.t, a.fx.shakeX, a.fx.shakeY);
+      drawArena(g, a, W, H);
+    }
     this.drawHud(g);
+    if (m?.perf) m.drawPerf(g, this.game);
     const run = this.game.run!;
     const cy = Math.round(H / 2);
     if (this.phase === "intro") {
@@ -446,6 +472,14 @@ export class BattleScreen implements Screen {
       rect: r, share: portrait ? r.w / cw : r.h / ch, longShare: portrait ? r.h / ch : r.w / cw,
       gap: { logical: this.L.gap, css: +gapCss.toFixed(2), share: +(gapCss / (this.L.portrait ? ch : cw)).toFixed(4) },
     };
+  }
+
+  /** MOTION-1 (REQ-BFG-071; motion builds only, display only): a tap on a board tile lights it, through the inverse of
+   *  (carrier x board), and is remembered for the probe (scripts/motiontap.mjs). Without motion a battle has no taps
+   *  off the HUD, as before. */
+  down(x: number, y: number): void {
+    if (!this.motion || this.menu || this.phase === "result") return;
+    this.motion.tap(this.arena, x, y);
   }
 
   key(k: string): void {

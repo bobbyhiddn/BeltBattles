@@ -119,6 +119,33 @@ export function battleLayout(W: number, H: number, portrait: boolean): BattleLay
   };
 }
 
+/** MOTION-1 (REQ-BFG-071): how far landscape lifts the enemy's lane and lowers the player's (logical px, at most). */
+export const LANE_LIFT = 24;
+
+/**
+ * MOTION-1 (REQ-BFG-071; VITE_MOTION builds): the lanes. Both carriers sail left to right and enter from the left.
+ * Portrait keeps today's stack exactly (the enemy's lane above, the player's below, so the screen doesn't flip). Landscape
+ * keeps today's side-by-side boards at today's size, with the enemy's lane raised and the player's lowered by the band's
+ * spare rows (at most LANE_LIFT each): two parallel lanes, the enemy's a little ahead (to the right). Plates and the bar
+ * move with them, so the HUD still sits fixed on screen during the fight. Pure (tests).
+ */
+export function laneLayout(L: BattleLayout): BattleLayout {
+  const enter: [number, number][] = [[-1, 0], [-1, 0]];
+  if (L.portrait) return { ...L, enter };
+  const [hp, he] = L.hulls;
+  const up = Math.max(0, Math.min(LANE_LIFT, he.y - PLATE_L));
+  const down = Math.max(0, Math.min(LANE_LIFT, L.H - BAR_L - (hp.y + HULL_A)));
+  const p = { ...L.frames[0], dy: L.frames[0].dy + down }, e = { ...L.frames[1], dy: L.frames[1].dy - up };
+  const hp2 = hullBox(p), he2 = hullBox(e);
+  return {
+    ...L, frames: [p, e], hulls: [hp2, he2], deckArea: union(hp2, he2),
+    gapBox: { x: hp2.x + HULL_L, y: Math.min(hp2.y, he2.y), w: L.gap, h: Math.max(hp2.y, he2.y) + HULL_A - Math.min(hp2.y, he2.y) },
+    plates: [{ ...L.plates[0], y: L.plates[0].y + down }, { ...L.plates[1], y: L.plates[1].y - up }],
+    bar: { ...L.bar, y: Math.min(L.H - BAR_L, hp2.y + HULL_A) },
+    enter,
+  };
+}
+
 /** Cruisers only, centred in a box (title attract loop, previews). The gap is clamped to the box. */
 export function arenaIn(r: Box, portrait: boolean, gap = 32): { frames: [DeckFrame, DeckFrame]; hulls: [Box, Box] } {
   const g = Math.max(GAP_MIN, Math.min(gap, (portrait ? r.h : r.w) - 2 * HULL_L));

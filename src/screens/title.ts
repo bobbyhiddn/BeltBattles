@@ -26,6 +26,7 @@ import { EventScreen } from "./event/event";
 import { ForkScreen } from "./fork/fork";
 import { BattleScreen } from "./battle";
 import { VERSION } from "../version";
+import { MOTION, MOTION_BUILD } from "../render/motion"; // MOTION-1 (REQ-BFG-071): the prototype's tag
 import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
 
 export const HELP = [ // exported for tests/joinpace.test.ts (0.6.2 TUNE-M: line 3 states RULE JOIN PACE)
@@ -156,6 +157,12 @@ export class TitleScreen implements Screen {
     button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => this.gate(() => { this.menu = true; }) });
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
+    if (MOTION_BUILD) {
+      // MOTION-1 (REQ-BFG-071): the prototype page says so, so nobody mistakes it for the live game
+      const tag = MOTION.on ? "MOTION PROTOTYPE" : "MOTION PROTOTYPE · OFF";
+      rect(g, 2, H - 10, textWidth(tag, "3") + 5, 9, C.ink);
+      drawText(g, tag, 4, H - 8, C.amber, { font: "3" });
+    }
     if (this.help) this.drawHelp(g);
     if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k);
   }
