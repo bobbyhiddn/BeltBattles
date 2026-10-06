@@ -16,6 +16,10 @@
 // (src/game/ghostSnapshot.ts isSnapshot) asks this gate too, the rules row and the hero row, so both checks stay equal.
 // FLIP-X2 (REQ-BFG-069, release X's one bump to bb-0.9.0): a third row, the sustain pieces and runes need bb-0.9.0.
 // BAL-2 (REQ-BFG-058, 0.9.1's bump to bb-0.9.1): a fourth row, FURNACE's four revived runes need bb-0.9.1.
+// Y7b2 (release Y's bump to bb-0.9.3; REQ-BFG-070, REQ-BFG-046): no row. Release Y adds no id: it changes the rules of
+// pieces bb-0.9.1 already carries (the star switch flipped, POISON gone, FOUNDRY's fuse), so there is no feature an older
+// rules version must refuse; the exact check (rules === RULES_VERSION) on every accepting path keeps bb-0.9.1's ghosts and
+// records out of bb-0.9.3's pools.
 
 import { isSustain, type HeroId } from "../sim/content";
 import { isSustainRune } from "../sim/runes"; // FLIP-X2: the sustain row (bb-0.9.0)

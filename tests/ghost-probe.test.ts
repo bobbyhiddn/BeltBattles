@@ -22,7 +22,7 @@ import { startFake, tigrisFor } from "./netStores";
 
 const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON"];
 const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400"];
-const ACCEPTS = "rules bb-0.9.1 accept only FURNACE, WEAVER, FOUNDRY, BASTION";
+const ACCEPTS = "rules bb-0.9.3 accept only FURNACE, WEAVER, FOUNDRY, BASTION"; // Y7b2: the bump (was bb-0.9.1)
 const KINDS = ["jsonl", "tigris"] as const;
 
 interface Held {
@@ -96,7 +96,7 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     expect(id).toMatch(/^[A-Za-z0-9_-]{43}\n$/); // a device key's player id, one line
     const player = id.trim();
     // the output: a header, one line per check (name, expected, got), the player id, then the summary with the stored count
-    expect(lines[0]).toBe(`probe: POST ${base}/v1/ghosts as a fresh device (rules bb-0.9.1); only the FURNACE, WEAVER, FOUNDRY and BASTION decks may be stored`);
+    expect(lines[0]).toBe(`probe: POST ${base}/v1/ghosts as a fresh device (rules bb-0.9.3); only the FURNACE, WEAVER, FOUNDRY and BASTION decks may be stored`);
     const checks = checkLines(lines);
     expect(checks.map((l) => l.split(/\s+/)[1])).toEqual(NAMES);
     for (const l of checks) expect(l).toMatch(/^PASS {2}\S+ +expected: \d{3} .+ \| got: \d{3} .+$/);
@@ -120,11 +120,11 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     expect(printed).toHaveLength(4);
     expect(recs.map((r) => r.id).sort()).toEqual([...printed].sort());
     expect(recs.map((r) => `${r.snapshot.hero} d${r.snapshot.day} ${r.snapshot.wins}W ${r.snapshot.lives}L ${r.snapshot.rules}`).sort())
-      .toEqual(["bastion d3 1W 5L bb-0.9.1", "foundry d3 1W 5L bb-0.9.1", "furnace d1 0W 5L bb-0.9.1", "weaver d3 1W 5L bb-0.9.1"]);
+      .toEqual(["bastion d3 1W 5L bb-0.9.3", "foundry d3 1W 5L bb-0.9.3", "furnace d1 0W 5L bb-0.9.3", "weaver d3 1W 5L bb-0.9.3"]); // Y7b2: the bump (was bb-0.9.1)
     for (const r of recs) {
       expect(r.snapshot.playerId).toBe(player);
       expect(ghostId(decodeSnapshot(JSON.stringify(r.snapshot)))).toBe(r.id);
-      if (kind === "tigris") expect(r.key).toBe(`ghosts/bb-0.9.1/d${String(r.snapshot.day).padStart(2, "0")}/player/${r.id}.json`);
+      if (kind === "tigris") expect(r.key).toBe(`ghosts/bb-0.9.3/d${String(r.snapshot.day).padStart(2, "0")}/player/${r.id}.json`);
     }
     // no secret and no key material in the output: nothing longer than a player id that looks like base64url
     expect(lines.join("\n")).not.toMatch(/[A-Za-z0-9_-]{60,}/);
@@ -188,7 +188,7 @@ describe("the uploads step's probe: refusals and its decks", () => {
       const s = p.snapshot;
       // FLIP-X2 (cap's ruling 5d6d83ef57d1494c): every deck holds its `day` dawn runes (the bots' picks on PROBE_SEED), so
       // it travels as v3 with the seed under bb-0.9.0 (was { v: 2, rules: "bb-0.8.7" }, rune-less)
-      expect(s).toMatchObject({ v: 3, rules: "bb-0.9.1", playerId: "probe-plan-player", createdAt: 1_790_000_000_000, seed: PROBE_SEED });
+      expect(s).toMatchObject({ v: 3, rules: "bb-0.9.3", playerId: "probe-plan-player", createdAt: 1_790_000_000_000, seed: PROBE_SEED });
       expect(s.build.runes?.length, p.name).toBe(s.day);
       expect(validateUpload(s.build, s.day, s.rules, { seed: s.seed }).errors.filter((e) => e.startsWith("rune: ")), p.name).toEqual([]);
       expect(validateBuild(s.build, s.day, "player").ok, p.name).toBe(p.name !== "dishonest-signed");
@@ -201,7 +201,7 @@ describe("the uploads step's probe: refusals and its decks", () => {
     expect(validateUpload(plan[2].snapshot.build, 1).errors[0]).toMatch(/^budget: /);
     expect(plan[3].snapshot.build).toEqual(plan[0].snapshot.build);
     expect(validateUpload(plan[3].snapshot.build, 1).ok).toBe(true);
-    // the heroes bb-0.9.1 takes: the bytes are exactly the game's encoder's (submitGhost's); each deck its own ghost id
+    // the heroes bb-0.9.3 takes (Y7b2: was bb-0.9.1): the bytes are exactly the game's encoder's (submitGhost's); each deck its own ghost id
     for (const p of plan.filter((q) => q.name !== "hero-METRONOME" && q.name !== "hero-SIPHON")) expect(p.text).toBe(encodeSnapshot(p.snapshot));
     expect(new Set(plan.slice(4, 7).map((p) => ghostId(p.snapshot))).size).toBe(3);
     // METRONOME and SIPHON: the encoder refuses them itself, and the strict decoder refuses their bytes for the hero only

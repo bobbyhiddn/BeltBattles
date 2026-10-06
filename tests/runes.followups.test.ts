@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { RULES_ROWS, RUNES_RULES, TURRETS_JOINS_RULES, rulesGateProblem, runeFeatures } from "../src/net/rulesGate";
 import { SUSTAIN_RULES } from "../src/net/rulesGate"; // FLIP-X2: the third row, bb-0.9.0
 import { FURNACE_RUNES_RULES, furnaceRuneFeatures } from "../src/net/rulesGate"; // BAL-2: the fourth row, bb-0.9.1
+import { rulesAtLeast } from "../src/net/rulesGate"; // Y7b2: bb-0.9.3 adds no row, so this build's rules are at or after every row
 import { checkSnapshot } from "../src/net/snapshot";
 import { isSnapshot } from "../src/game/ghostSnapshot";
 import { ghostOf, finishDay } from "../src/game/day";
@@ -36,8 +37,11 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     // FLIP-X2 (REQ-BFG-069, step 3's one bump): this build's rules are bb-0.9.0, SUSTAIN_RULES, the third row after the runes
     // row (was RULES_VERSION === RUNES_RULES and two rows); the runes row is unchanged.
     // BAL-2 (the bump to bb-0.9.1): this build's rules are FURNACE_RUNES_RULES, the fourth row after the sustain row (was
-    // RULES_VERSION === SUSTAIN_RULES and three rows); the runes and sustain rows are unchanged
-    expect(RULES_VERSION).toBe(FURNACE_RUNES_RULES);
+    // RULES_VERSION === SUSTAIN_RULES and three rows); the runes and sustain rows are unchanged.
+    // Y7b2 (the bump to bb-0.9.3): release Y adds no id (it changes the rules of pieces bb-0.9.1 already carries), so the
+    // gate gains no row: this build's rules are bb-0.9.3, at or after every row (was RULES_VERSION === FURNACE_RUNES_RULES)
+    expect(RULES_VERSION).toBe("bb-0.9.3");
+    expect(RULES_ROWS.every((r) => rulesAtLeast(RULES_VERSION, r.from))).toBe(true);
     expect(FURNACE_RUNES_RULES).toBe("bb-0.9.1");
     expect(SUSTAIN_RULES).toBe("bb-0.9.0");
     expect(RULES_ROWS.map((r) => r.from)).toEqual([TURRETS_JOINS_RULES, RUNES_RULES, SUSTAIN_RULES, FURNACE_RUNES_RULES]);
@@ -47,11 +51,13 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     expect(rulesGateProblem("bb-0.8.7", b)).toBeNull();
     expect(rulesGateProblem("bb-0.9.0", b)).toBeNull();
     expect(rulesGateProblem("bb-0.9.1", b)).toBeNull();
+    expect(rulesGateProblem("bb-0.9.3", b)).toBeNull(); // Y7b2: this build's rules
     // BAL-2: the fourth row. A FURNACE rune needs bb-0.9.1 (dormant under bb-0.9.0, other effects before it); others don't
     for (const id of ["coal_chute", "heat_sink", "searing", "shatter_shot"]) {
       const f: Build = { ...heroStartBuild("furnace"), runes: [{ id: "iron_skin" }, { id }] };
       expect(furnaceRuneFeatures(f), id).toEqual(["FURNACE's runes (COAL CHUTE, HEAT SINK, SEARING, SHATTER SHOT)"]);
       expect(rulesGateProblem("bb-0.9.1", f), id).toBeNull();
+      expect(rulesGateProblem("bb-0.9.3", f), id).toBeNull(); // Y7b2: this build's rules
       expect(rulesGateProblem("bb-0.9.0", f), id).toBe("rules bb-0.9.0 predate bb-0.9.1: FURNACE's runes (COAL CHUTE, HEAT SINK, SEARING, SHATTER SHOT) need bb-0.9.1 or later");
     }
     for (const none of [b, heroStartBuild("furnace"), null, 7, "x", { runes: "x" }, { runes: [{ id: 7 }] }]) expect(furnaceRuneFeatures(none)).toEqual([]);
