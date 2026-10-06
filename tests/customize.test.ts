@@ -9,6 +9,7 @@ import { PROFILE_KEY, emptyProfile, foldDusk, foldEnd, loadProfile, playerSkin, 
 import { textWidth, wrap } from "../src/render/font";
 import { BELTS, DEFAULT_SKIN, FLOORS, PANELS, styleKey } from "../src/render/styles";
 import { TAP_CSS, isPhone, tapPx } from "../src/ui/tap";
+import { NOTE_H, summaryButtonH, summaryLayout } from "../src/screens/summary";
 
 function mem(): Storage & { keys(): string[] } {
   const m = new Map<string, string>();
@@ -176,3 +177,30 @@ describe("CUSTOM-2a CUSTOMIZE: the frame", () => {
     expect(customizeScale(2532, 1170, false, 3)).toBe(3); // landscape keeps the menu scale
   });
 });
+
+describe("CUSTOM-2a the summary's NEW STYLE lines", () => {
+  it("two lines fit under the lives line without moving the card; above a phone's REPLAY strip the card grows by them", () => {
+    let checked = 0, strips = 0;
+    for (const [w, h, dpr] of [[390, 844, 3], [390, 660, 3], [360, 640, 2], [1920, 1080, 1], [844, 390, 3], [1280, 720, 1]] as const) {
+      const v = computeView(w, h, dpr);
+      for (const fights of [1, 5, 10, 14]) for (const replays of [0, 3, 10]) {
+        const base = summaryLayout(v, fights, replays), L2 = summaryLayout(v, fights, replays, 2);
+        if (!base.strip) {
+          expect(L2, `${w}x${h}: ${fights} fights`).toEqual(base); // the card is exactly as before
+          const rows = Math.max(1, fights), c = L2.card;
+          const ny = c.y + 58 + rows * L2.rowH + 12, by = c.y + c.h - summaryButtonH(v) - 6;
+          expect(ny, `${w}x${h}`).toBeGreaterThanOrEqual(c.y + 58 + rows * L2.rowH + 8); // under the lives line
+          expect(ny + NOTE_H + 5, `${w}x${h}`).toBeLessThanOrEqual(by); // the second line ends above NEW RUN / TITLE
+        } else {
+          strips++;
+          expect(L2.card.h).toBe(base.card.h + 2 * NOTE_H);
+          expect(L2.strip![0].y - L2.card.y).toBe(base.strip[0].y - base.card.y + 2 * NOTE_H);
+        }
+        checked++;
+      }
+    }
+    expect(checked).toBe(72);
+    expect(strips).toBeGreaterThan(0);
+  });
+});
+

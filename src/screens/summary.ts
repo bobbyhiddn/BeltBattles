@@ -81,7 +81,9 @@ export function summaryButtonH(v: SummaryView): number {
  * a card too tall for the screen slides up over the cruiser, offline too (R1's slide was for the REPLAY strip only: a
  * 360x640 phone's 20-row card ran 8 px off the screen offline).
  */
-/** CUSTOM-2a (REQ-BFG-072): a NEW STYLE line's pitch under the lives line (the card grows by it only when one shows). */
+/** CUSTOM-2a (REQ-BFG-072): a NEW STYLE line's pitch under the lives line. The lines sit in the 21 px the card already
+ *  leaves between the lives line and NEW RUN / TITLE (two lines fit), so the card doesn't move; only above a phone's
+ *  REPLAY strip does the card grow by them (the strip moves down). */
 export const NOTE_H = 8;
 
 export function summaryLayout(v: SummaryView, fights: number, replays: number, notes = 0): SummaryLayout {
@@ -99,8 +101,10 @@ export function summaryLayout(v: SummaryView, fights: number, replays: number, n
     grid = { cols, bw: Math.floor((inner - (cols - 1) * STRIP_GAP) / cols), bh, S: lines * bh + (lines - 1) * STRIP_GAP };
   }
   // the strip sits between the lives line and NEW RUN / TITLE; shoptap (D5): a phone's taller NEW RUN / TITLE (0 elsewhere)
-  // CUSTOM-2a (REQ-BFG-072): + the NEW STYLE lines (none: the card is exactly as before)
-  const extra = (grid ? grid.S - 8 : 0) + summaryButtonH(v) - 21 + notes * NOTE_H;
+  // CUSTOM-2a (REQ-BFG-072): + the NEW STYLE lines where a REPLAY strip takes the room under the lives line (no strip:
+  // they fit in the card's own gap, and the card is exactly as before)
+  const notesH = grid ? notes * NOTE_H : 0;
+  const extra = (grid ? grid.S - 8 : 0) + summaryButtonH(v) - 21 + notesH;
   const rowH = Math.max(6, Math.min(ROW, Math.floor((H - 8 - 110 - extra) / rows)));
   const h = 64 + rows * rowH + 12 + 38 + extra;
   const x = portrait ? Math.round(W / 2 - w / 2) : Math.round(W * 0.64 - w / 2);
@@ -111,7 +115,7 @@ export function summaryLayout(v: SummaryView, fights: number, replays: number, n
   const hy = Math.round(portrait ? Math.max(6, (y - HULL_L) / 2) : H / 2 - HULL_L / 2);
   let strip: SummaryLayout["strip"] = null;
   if (grid) {
-    const g = grid, top = y + 58 + rows * rowH + 13 + notes * NOTE_H; // 5 px under the lives line (and the NEW STYLE lines)
+    const g = grid, top = y + 58 + rows * rowH + 13 + notesH; // 5 px under the lives line (and the NEW STYLE lines)
     strip = Array.from({ length: replays }, (_, i) => ({
       x: x + 8 + (i % g.cols) * (g.bw + STRIP_GAP), y: top + Math.floor(i / g.cols) * (g.bh + STRIP_GAP), w: g.bw, h: g.bh,
     }));
