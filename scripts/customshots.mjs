@@ -11,7 +11,8 @@
 //  - build:            the build screen in TIMBER DECK, BLUED STEEL and BRASSBOUND, a factory's part panel open;
 //  - summary:          a 10-0 run's summary with its NEW STYLE line (an empty profile: the run's end unlocks four);
 //  - customize-land, customize-desk: the two-column CUSTOMIZE at 844x390 DPR 3 and 1280x720 DPR 1.
-// Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/customshots.mjs <page.html> <outDir> [--only a,b]
+// Usage: PLAYWRIGHT_BROWSERS_PATH=... node scripts/customshots.mjs <page.html> <outDir> [--only a,b] [--prefix custom2a]
+//        (CUSTOM-2b: --prefix names the files, <prefix>-<still>.png; custom2a by default, as CUSTOM-2a's)
 import { chromium } from "playwright-core";
 import { mkdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -23,6 +24,7 @@ const pos = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && argv[i - 1].
 const PAGE = resolve(pos[0] ?? "dist/index.html");
 const OUT = resolve(pos[1] ?? "shots/custom");
 const ONLY = opt("only", "");
+const PREFIX = opt("prefix", "custom2a");
 const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
 
 /** A player some runs in (CUSTOM-1's mock player): 4 runs, 1 finished, 9 dusk wins, best day 10, 2 warlord wins, 3 belts,
@@ -111,7 +113,7 @@ async function shot(browser, s) {
       notes: g.screen.noteLines ? g.screen.noteLines() : null, ...extra,
     };
   }, s);
-  const file = join(OUT, "stills", `custom2a-${s.name}.png`);
+  const file = join(OUT, "stills", `${PREFIX}-${s.name}.png`);
   await page.screenshot({ path: file });
   const bytes = (await stat(file)).size;
   log(`still ${s.name}: ${JSON.stringify(info)}; ${bytes} B -> ${file}; console errors ${errors.length}${errors.length ? `: ${errors.join(" | ")}` : ""}`);
