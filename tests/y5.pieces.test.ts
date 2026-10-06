@@ -180,7 +180,11 @@ describe("Y5 row 44: FINISHER RAM: the chamber's last slug +40%/+88%/+140%; no s
 });
 
 // ---------------------------------------------------------------------------------------------- row 45: IRON WALL
-describe("Y5 row 45: IRON WALL: +30/+66/+105 at 120 PLATE or more; its own plating goes", () => {
+// Y7b1 (ruling Y7A-R3d): IRON WALL's STAR_DIFF row is deleted, so with the switch on it reads its base def (0.9.2's rule: its
+// own plating 10/22/35 a slug, then +30/+66/+105 at 120 PLATE or more). Was "Y5 row 45: IRON WALL: +30/+66/+105 at 120 PLATE
+// or more; its own plating goes", with on no plate, a bare hull's hit [0, 0], 110 PLATE [0, 110], 0 plating gained in 15 s
+// and the face "HIT: +30 {DMG} AT 120 {*PLATE} OR MORE." (181 px; ladder {DMG} +30/+66/+105)
+describe("Y5 row 45: IRON WALL: Y7b1 (Y7A-R3d): +10/+22/+35 PLATE a slug, +30/+66/+105 at 120 PLATE or more, on as off", () => {
   const FLAT = [30, 66, 105];
   /** IRON WALL's hit on a slug with `plate` PLATE on side 0's hull: the slug's flat, and the hull's PLATE after. */
   const wallHit = (star: boolean, stars: number, plate: number): [number, number] => withStarRules(() => {
@@ -192,41 +196,41 @@ describe("Y5 row 45: IRON WALL: +30/+66/+105 at 120 PLATE or more; its own plati
     return [p.flat, s.plate.plate] as [number, number];
   }, star);
 
-  it("data: on, plated { min 120, flat 30/66/105 } and no plate (off: plate 10/22/35 too)", () => {
+  it("data: on, the base def: plate 10/22/35 and plated { min 120, flat 30/66/105 }, as off", () => {
     for (const s of STARS) {
-      expect(on(() => effectAt("shieldwall", s).gate), `★${s}`).toEqual({ plated: { min: 120, flat: FLAT[s - 1] } });
+      expect(on(() => effectAt("shieldwall", s).gate), `★${s}`).toEqual({ plate: [10, 22, 35][s - 1], plated: { min: 120, flat: FLAT[s - 1] } });
       expect(effectAt("shieldwall", s).gate, `★${s} off`).toEqual({ plate: [10, 22, 35][s - 1], plated: { min: 120, flat: FLAT[s - 1] } });
     }
   });
 
-  it("hook: it rolls no PLATE (off: 10/22/35 a slug), and pays at 120 PLATE or more, nothing below", () => {
+  it("hook: it rolls 10/22/35 PLATE a slug and pays at 120 PLATE or more, on as off (Y7A-R3d; Y5: no PLATE of its own)", () => {
     for (const s of STARS) {
-      expect(wallHit(true, s, 0), `★${s} on, bare`).toEqual([0, 0]);
+      expect(wallHit(true, s, 0), `★${s} on, bare`).toEqual([0, [10, 22, 35][s - 1]]); // Y7b1 (Y7A-R3d): was [0, 0]
       expect(wallHit(false, s, 0), `★${s} off, bare`).toEqual([0, [10, 22, 35][s - 1]]);
-      expect(wallHit(true, s, 150), `★${s} on, plated`).toEqual([FLAT[s - 1], 150]);
-      expect(wallHit(true, s, 119)[0], `★${s} on, 119`).toBe(0);
+      expect(wallHit(true, s, 150), `★${s} on, plated`).toEqual([FLAT[s - 1], 150 + [10, 22, 35][s - 1]]); // Y7b1 (Y7A-R3d): was [FLAT, 150]
+      expect(wallHit(true, s, 100)[0], `★${s} on, 100`).toBe(s === 1 ? 0 : FLAT[s - 1]); // 100 + 22 / 35 reaches 120 (★1: 110)
     }
-    // off, its own plating takes a hull at 110 PLATE past 120 before its bonus is read (Battle.applyHit's order)
+    // its own plating takes a hull at 110 PLATE past 120 before its bonus is read (Battle.applyHit's order), on as off
     expect(wallHit(false, 1, 110)).toEqual([30, 120]);
-    expect(wallHit(true, 1, 110)).toEqual([0, 110]);
+    expect(wallHit(true, 1, 110)).toEqual([30, 120]); // Y7b1 (Y7A-R3d): was [0, 110]
   });
 
-  it("battle: 15 s on the bench, its side rolls no PLATE (off: it plates the hull)", () => {
+  it("battle: 15 s on the bench, its side plates the hull, on as off (Y7A-R3d; Y5: no PLATE)", () => {
     const plated = (star: boolean): number => withStarRules(() => {
       const bt = new Battle(rigBench([["shieldwall", 4, 3, 1]]), barge(), SEED);
       while (bt.t < 15 && !bt.over) bt.step();
       return bt.sides[0].plate.gained;
     }, star);
-    expect(plated(true)).toBe(0);
-    expect(plated(false)).toBeGreaterThan(0);
+    expect(plated(true)).toBeGreaterThan(0); // Y7b1 (Y7A-R3d): was toBe(0)
+    expect(plated(true)).toBe(plated(false));
   });
 
-  it("face: one line, HIT: +30 {DMG} AT 120 {*PLATE} OR MORE. (181 px at ★3); ladder {DMG} +30/+66/+105", () => {
+  it("face: one line, HIT: +10 {*PLATE}, +30 {DMG} AT 120+ {*PLATE}. (both parts; 208 px at ★3); ladders {PLATE} +10/+22/+35 and {DMG} +30/+66/+105", () => {
     oneLine("shieldwall");
-    expect(lines("shieldwall")).toEqual(FLAT.map((d) => [`HIT: +${d} {DMG} AT 120 {*PLATE} OR MORE.`]));
-    expect(Math.max(...lines("shieldwall").map((l) => px(l[0])))).toBe(181);
-    expect(levels("shieldwall", 1)).toEqual(["{DMG} [+30]/+66/+105", next(2, "+66 {DMG}")]);
-    expect([hasFace("shieldwall"), on(() => hasFace("shieldwall"))]).toEqual([false, true]);
+    expect(lines("shieldwall")).toEqual(FLAT.map((d, i) => [`HIT: +${[10, 22, 35][i]} {*PLATE}, +${d} {DMG} AT 120+ {*PLATE}.`]));
+    expect(Math.max(...lines("shieldwall").map((l) => px(l[0])))).toBe(208);
+    expect(levels("shieldwall", 1)).toEqual(["{PLATE} [+10]/+22/+35", "{DMG} [+30]/+66/+105", next(2, "+22 {PLATE}, +66 {DMG}")]);
+    expect([hasFace("shieldwall"), on(() => hasFace("shieldwall"))]).toEqual([false, true]); // off: the RULES text, as before
   });
 });
 

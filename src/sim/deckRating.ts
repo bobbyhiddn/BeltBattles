@@ -141,8 +141,8 @@ export const ROUND_EQ: Readonly<Record<string, number>> = { sabot: 60, frost: 40
  * - CAPACITOR BANK uncapped: NOMINAL priced it with its 5 s cap (capacitorPaid, the base's maxSeconds); the charge past that
  *   is priced on top (capacitorTail): on a gun fed a load every more than its load time + 5 s, each shot's extra seconds,
  *   and the first shot's past 5 s when its first load comes later than that.
- * - IRON WALL without its plating: it rolls none (no `plate`: no repair), and its bonus at 120 PLATE counts only on a deck
- *   that plates its hull (platedDeck: BASTION, a plating rig or factory, a SEAM WELDER), at the base's half the fight.
+ * - IRON WALL: Y7b1 (ruling Y7A-R3d) deletes its row, so on it rates as off: its plating as repair and its bonus at 120
+ *   PLATE for half the fight. (Y5 had it roll none, no repair, and counted its bonus only on a deck that plates its hull.)
  * - POWDER KEG's repeating pulse without BURN (kegGain: a blast at every multiple of its fuse).
  * - SPALL CATCHER's single-count soak: on a deck that plates its hull its NOMINAL credit counts spallPlated of it (a soak is
  *   about a quarter of what such a hull takes, so its charge falls from 1.25 to 1 for each damage taken: 1 / 1.25 = 0.8);
@@ -299,9 +299,10 @@ function hitExtras(b: Build, hits: RigHit[][][], ri: number, fight: number, time
       // 0.8.0 P1, wave 3 (D1's proxies, tools/wave3.ts): plating per payload rated as RIVETER's repair; SHIELD WALL's
       // damage at 12+ plating for half the fight; BRACE FRAME as a guard like TOLLBOOTH's (1, 1.4, 1.7 at its stars)
       if (e.plate) repair += e.plate;
-      // Y5 (release Y; DESIGN-Y row 45): with the star switch on IRON WALL rolls no plating (no `plate` above), so its bonus
-      // counts only on a deck that plates its hull (platedDeck); off, as before
-      if (e.plated) eq += starRules() && !platedDeck(b) ? 0 : e.plated.flat * 0.5;
+      // Y7b1 (release Y; ruling Y7A-R3d): IRON WALL reads its base def with the switch on too (its own plating, `plate`
+      // above, is back), so its bonus is rated as off. Y5's switch-on rule (DESIGN-Y row 45: no plating of its own, so the
+      // bonus counted only on a deck that plates its hull, platedDeck) left with its STAR_DIFF row
+      if (e.plated) eq += e.plated.flat * 0.5;
       // Y2 (release Y): with the star switch on, BRACE FRAME guards its arrows' tiles only (braceShare)
       if (e.brace) eq += starRules() ? ((EQ.toll * (1 - e.brace.mul)) / 0.25) * braceShare(h.def) : (EQ.toll * (1 - e.brace.mul)) / 0.25;
     }

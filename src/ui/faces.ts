@@ -1003,12 +1003,14 @@ const STAR_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     return rules([shot(`THE CHAMBER'S LAST {SLUG} +${more} {DMG}.`)], [["more", `+${more} {DMG}`]]);
   },
   shieldwall: (e) => {
-    // DESIGN-Y row 45: Battle.applyHit: + plated.flat on each slug it hits while your hull holds plated.min PLATE or more;
-    // its own plating is gone (content.ts STAR_DIFF), so other pieces feed it. Was the RULES text "ROLLS 10 PLATING ONTO
-    // YOUR HULL FOR EACH PAYLOAD IT HITS." with "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO
-    // GAINS 30 DAMAGE." and PLATING's definition
-    const pl = gt(e).plated!, d = fmtDmg(pl.flat);
-    return rules([hit(`+${d} {DMG} AT ${fmtDmg(pl.min)} {*PLATE} OR MORE.`)], [["flat", `+${d} {DMG}`]], [REMINDER.PLATE()]);
+    // Y7b1 (release Y; ruling Y7A-R3d): its STAR_DIFF row is deleted, so with the switch on it reads its base def, 0.9.2's
+    // rule: Battle.applyHit: addPlate(plate) for each slug it hits, then + plated.flat while your hull holds plated.min PLATE
+    // or more (120+, as FURNACE's "8+ TILE BELTS"), both parts on one line (208 px at ★3), each on its own ⓘ ladder. Was
+    // Y5's "HIT: +30 {DMG} AT 120 {*PLATE} OR MORE." (DESIGN-Y row 45: its own plating gone). Off it has no face (the RULES
+    // text: "ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS." with the 120 sentence and PLATING's definition)
+    const pl = gt(e).plated!, d = fmtDmg(pl.flat), plate = fmtDmg(gt(e).plate!);
+    return rules([hit(`+${plate} {*PLATE}, +${d} {DMG} AT ${fmtDmg(pl.min)}+ {*PLATE}.`)], [["plate", `+${plate} {*PLATE}`], ["flat", `+${d} {DMG}`]],
+      [REMINDER.PLATE()]);
   },
   keg: (e) => {
     // DESIGN-Y row 46: Battle.kegTick: its fuse runs from the battle's start (a STUN or a wreck pauses it); each keg.fuse s it

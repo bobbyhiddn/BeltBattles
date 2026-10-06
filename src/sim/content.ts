@@ -1338,12 +1338,10 @@ const STAR_DIFF: Record<string, Partial<ItemDef>> = {
   // row 42, CAPACITOR BANK: the 5 s cap goes (no `maxSeconds`; battle.ts chambers charges for as long as the chamber sits
   // empty); +20/+44/+70 for each second
   capacitor: { core: { routine: "capacitor", perSecond: 20 } },
-  // row 45, IRON WALL: its own plating goes (no `plate`; was 10/22/35 for each slug it hits): a pure PLATE payoff, +30/+66/
-  // +105 while your hull holds 120 PLATE or more (REVIEW-STARD's note for Y7a: its own plating doesn't return)
-  shieldwall: {
-    gate: { plated: { min: 120, flat: 30 } },
-    levels: { 2: { gate: { plated: { min: 120, flat: 66 } } }, 3: { gate: { plated: { min: 120, flat: 105 } } } },
-  },
+  // row 45, IRON WALL: Y7b1 (ruling Y7A-R3d): its row is deleted, so with the switch on it is 0.9.2's rule, its base def:
+  // plate 10/22/35 for each slug it hits, plus plated { min 120, flat 30/66/105 }. This reverses REVIEW-STARD's note "its own
+  // plating doesn't return": without it no switch-on par deck held IRON WALL (REVIEW-Y7A F2), and no stat can size a lower
+  // threshold yet (a one-rule IRON WALL waits for a PLATE-at-hit stat: the design list)
   // row 46, POWDER KEG: it re-arms on a timer: every 12/10/8 s from the battle's start (a STUN or a wreck pauses the fuse)
   // it blasts +60/+130/+210 onto the slugs on its belts (battle.ts kegTick); its BURN (1/2/3) and ★3 WIDE BLAST's every
   // belt beside it go. The perk's name stays (ⓘ only)

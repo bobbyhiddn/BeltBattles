@@ -114,7 +114,7 @@ describe("Y5 words: the 7's kept sentences, gists, cards and timeline rows say t
     counterweight: /UP TO/,
     capacitor: /UP TO/,
     spallcatcher: /UP TO|TWICE|MAX/,
-    shieldwall: /ROLLS|ONTO YOUR HULL/,
+    shieldwall: /^$/, // Y7b1 (Y7A-R3d: its own plating is back on, so no rule of it left): was /ROLLS|ONTO YOUR HULL/
     keg: /BURN|ONLINE|ONCE|BESIDE|WIDE BLAST:/,
     ram: /^$/, // no rule change
     longcase: /^$/,
@@ -136,16 +136,21 @@ describe("Y5 words: the 7's kept sentences, gists, cards and timeline rows say t
         "DAMAGE YOUR PLATING SOAKS COUNTS TOO; THE DARK WIND DOESN'T COUNT.",
       ]);
       expect(gist("spallcatcher", 2)).toBe("22 DAMAGE FOR EVERY 40");
-      expect(abilityText("shieldwall", 1).sentences.slice(0, 1)).toEqual(["WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH PAYLOAD IT HITS GAINS 30 DAMAGE."]);
-      expect([gist("shieldwall", 2), cardText("shieldwall")]).toEqual(["66 DAMAGE AT 120 PLATING", "HITS HARDER WHILE PLATED."]);
+      // Y7b1 (Y7A-R3d): was ["WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH PAYLOAD IT HITS GAINS 30 DAMAGE."] and
+      // ["66 DAMAGE AT 120 PLATING", "HITS HARDER WHILE PLATED."]: on, the base's texts (PLATE's sentence without POISON)
+      expect(abilityText("shieldwall", 1).sentences.slice(0, 2)).toEqual(["ROLLS 10 PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.",
+        "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS 30 DAMAGE."]);
+      expect([gist("shieldwall", 2), cardText("shieldwall")]).toEqual(["22 PLATING A PAYLOAD, 66 DAMAGE AT 120 PLATING", "PLATES YOUR HULL, HITS HARDER."]);
       expect(abilityText("keg", 1).sentences).toEqual([
         "EVERY 12 SECONDS IT BLOWS UP, ADDING 60 DAMAGE TO EVERY PAYLOAD ON ITS BELTS.",
         "ITS FUSE RUNS FROM THE START OF THE BATTLE; A STUN PAUSES IT.",
       ]);
       expect([gist("keg", 3), cardText("keg")]).toEqual(["210 DAMAGE EVERY 8 SECONDS", "BLOWS UP EVERY 12 SECONDS."]);
       expect(hitText({ def: "keg", stars: 2 } as TimelineHit, "free")).toBe("POWDER KEG +130 DAMAGE EVERY 10 SEC");
-      expect(hitText({ def: "shieldwall", stars: 3 } as TimelineHit, "free")).toBe("IRON WALL +105 DAMAGE AT 120 PLATING");
     });
+    // Y7b1 (Y7A-R3d): IRON WALL's timeline row is the base's on as off (was on "IRON WALL +105 DAMAGE AT 120 PLATING")
+    const wallRow = { def: "shieldwall", stars: 3, plate: 35 } as TimelineHit;
+    expect(on(() => hitText(wallRow, "free"))).toBe(hitText(wallRow, "free"));
     // off: the base's texts
     expect(abilityText("counterweight", 1).sentences).toEqual(["ADDS 5 DAMAGE FOR EACH BELT TILE THE PAYLOAD HAS RIDDEN, UP TO 60 DAMAGE."]);
     expect(abilityText("capacitor", 1, { k: 1 }).sentences[1]).toBe("IT CHARGES FOR UP TO 5 SECONDS.");
@@ -192,13 +197,15 @@ describe("Y5 rating: each new rule priced behind the switch", () => {
     expect(rate(fed, true).offense).toBe(rate(fed, false).offense);
   });
 
-  it("IRON WALL: no plating (no repair), and its bonus only on a deck that plates its hull (off: plating and the bonus)", () => {
+  // Y7b1 (ruling Y7A-R3d): was "IRON WALL: no plating (no repair), and its bonus only on a deck that plates its hull (off:
+  // plating and the bonus)", with on wall = bare and both's defense = roller's; on, it reads its base def, so it rates as off
+  it("IRON WALL: on, its plating (repair) and its bonus, rated as off (Y7A-R3d)", () => {
     const bare = rigBench([]), wall = rigBench([["shieldwall", 4, 3, 1]]);
-    expect(rate(wall, true).value).toBe(rate(bare, true).value); // on a deck that doesn't plate its hull it adds nothing
-    expect(rate(wall, false).value).toBeGreaterThan(rate(bare, false).value);
+    expect(rate(wall, true)).toEqual(rate(wall, false));
+    expect(rate(wall, true).value).toBeGreaterThan(rate(bare, true).value);
     const roller = rigBench([["plateroller", 4, 1, 1]]), both = rigBench([["plateroller", 4, 1, 1], ["shieldwall", 4, 3, 1]]);
-    expect(rate(both, true).offense).toBeGreaterThan(rate(roller, true).offense); // fed by a PLATE ROLLER, its bonus counts
-    expect(rate(both, true).defense).toBe(rate(roller, true).defense); // and it rolls no plating of its own
+    expect(rate(both, true)).toEqual(rate(both, false));
+    expect(rate(both, true).defense).toBeGreaterThan(rate(roller, true).defense); // it rolls its own plating again
   });
 
   it("SPALL CATCHER: on a deck that plates its hull its credit counts spallPlated of it; elsewhere as off", () => {

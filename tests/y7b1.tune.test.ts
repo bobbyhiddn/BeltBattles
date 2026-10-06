@@ -3,16 +3,19 @@
 // With the switch off nothing here moves: every off reading is the base's (base092).
 // - Y7A-R1, STOKER: its cap holds with the switch on, at every star (battle.ts stokedPace, deckRating.ts rateDeck), as at
 //   0.9.2: no overfeed trap. The stoke stays 0.2 / 0.44 / 0.7; its face says the cap (UP TO), its ⓘ sentence names the gun.
+// - Y7A-R3c / R3d, ANVIL BREECH and IRON WALL: their STAR_DIFF rows are deleted, so with the switch on each reads its base
+//   def (the same object as off): the sim, the rating, the ⓘ sentences and the timeline as off; each face states both parts
+//   on one line.
 import { describe, expect, it } from "vitest";
 import { Battle } from "../src/sim/battle";
-import { withStarRules } from "../src/sim/content";
-import { type Build } from "../src/sim/deck";
+import { ITEMS, STAR_ITEMS, withStarRules } from "../src/sim/content";
+import { type Build, type TimelineHit } from "../src/sim/deck";
 import { rateDeck, stokeKeep } from "../src/sim/deckRating";
 import { effectAt } from "../src/sim/stars";
 import { heroStartBuild } from "../src/sim/heroBuilds";
-import { abilityText } from "../src/ui/abilityText";
+import { S, S_PLATING, abilityText, cardText, gist, hitText } from "../src/ui/abilityText";
 import { faceAt } from "../src/ui/faces";
-import { STARS, lines, on, oneLine } from "./y3.helpers";
+import { STARS, levels, lines, next, on, oneLine, rigBench } from "./y3.helpers";
 import { K, item, withItem, withMod } from "./wave3.helpers";
 
 const SEEDS = [1, 2, 3, 4, 5]; // wave3.decks' capRows: both sides +3000 hull, 120 s
@@ -78,5 +81,40 @@ describe("Y7b1 Y7A-R1: STOKER's cap holds with the switch on, at every star (no 
     expect(on(() => faceAt("stoker", 2)!.caveats)).toBeUndefined();
     for (const s of STARS) expect(on(() => abilityText("stoker", s).sentences), `★${s}`).toEqual(abilityText("stoker", s).sentences);
     expect(on(() => abilityText("stoker", 1).sentences[1])).toBe("IT NEVER MAKES A FACTORY OUTRUN ITS GUN.");
+  });
+});
+
+// ------------------------------------------------------------- Y7A-R3c / R3d: ANVIL BREECH and IRON WALL read their base defs
+describe("Y7b1 Y7A-R3c / R3d: ANVIL BREECH and IRON WALL read their base defs with the switch on", () => {
+  it("data: on, each def is the base's own object (no STAR_DIFF row), its numbers 0.9.2's at every star", () => {
+    expect(Object.keys(STAR_ITEMS)).not.toContain("anvil");
+    expect(Object.keys(STAR_ITEMS)).not.toContain("shieldwall");
+    for (const id of ["anvil", "shieldwall"]) expect(on(() => ITEMS[id]), id).toBe(ITEMS[id]);
+    for (const s of STARS) {
+      expect(on(() => effectAt("anvil", s).core), `anvil ★${s}`).toEqual({ routine: "anvil", anvilFlat: [25, 55, 88][s - 1], perPlate: [1, 2.2, 3.5][s - 1] });
+      expect(on(() => effectAt("shieldwall", s).gate), `shieldwall ★${s}`).toEqual({ plate: [10, 22, 35][s - 1], plated: { min: 120, flat: [30, 66, 105][s - 1] } });
+    }
+  });
+
+  it("every reader agrees on as off: the rating of a deck holding each (BASTION's start; the bench), the kept sentences, gists, cards and the timeline row", () => {
+    const anv = withMod(heroStartBuild("bastion", 1), 70, "anvil", 0, 1), wall = rigBench([["shieldwall", 4, 3, 1]]);
+    for (const b of [anv, wall]) expect(on(() => rateDeck(b))).toEqual(rateDeck(b));
+    for (const def of ["anvil", "shieldwall"]) for (const s of STARS) {
+      const o = def === "anvil" ? { k: 1 } : {};
+      const read = () => ({ t: abilityText(def, s, o).sentences.map((x) => x.replace(S_PLATING, S.plating)), g: gist(def, s, o), c: cardText(def, o) });
+      expect(on(read), `${def} ★${s}`).toEqual(read());
+    }
+    const row = { def: "shieldwall", stars: 2, plate: 22 } as TimelineHit;
+    expect(on(() => hitText(row, "free"))).toBe(hitText(row, "free"));
+  });
+
+  it("faces: on, each states both parts on one line inside the band; ANVIL's is 0.9.2's own face; ladders per part", () => {
+    expect(lines("anvil")).toEqual([[25, 100], [55, 220], [88, 350]].map(([d, p]) => [`SHOT: +${d} {DMG}, +${p}% OF YOUR {*PLATE}.`]));
+    expect(lines("anvil")).toEqual(lines("anvil", false));
+    expect(lines("shieldwall")).toEqual([[10, 30], [22, 66], [35, 105]].map(([p, d]) => [`HIT: +${p} {*PLATE}, +${d} {DMG} AT 120+ {*PLATE}.`]));
+    oneLine("anvil");
+    oneLine("shieldwall");
+    expect(levels("anvil", 1)).toEqual(["{DMG} [+25]/+55/+88", "[+100%]/+220%/+350% OF {PLATE}", next(2, "+55 {DMG}, +220% OF {PLATE}")]);
+    expect(levels("shieldwall", 3)).toEqual(["{PLATE} +10/+22/[+35]", "{DMG} +30/+66/[+105]"]);
   });
 });

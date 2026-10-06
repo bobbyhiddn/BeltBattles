@@ -6,7 +6,7 @@
 //   your BURN on the foe, a VENOM-lengthened stack too (Y6); its BURN's ticks charge a foe's SPALL CATCHER by Y5's rule.
 // - SHATTER SHOT's +n% sits in runeMul's % sum, so every Y rule's shot meets it as the other % runes' (WARLORD'S DUE);
 //   its broken SHIELD lets the hit land on PLATE, then HULL: a foe's SPALL CATCHER charges by Y5's rule, and the PLATE it
-//   eats can stop the foe's IRON WALL (Y5: 120 PLATE or more, its own plating gone).
+//   eats meets the foe's IRON WALL (120 PLATE or more; Y7b1, ruling Y7A-R3d: its own plating is back on, as off).
 // - COAL CHUTE and HEAT SINK (+n% HEAT) read the slug's ride, never a factory's pace or a rig's start: Y3's STOKER (Y7b1,
 //   ruling Y7A-R1: its cap holds on too) and ASSEMBLY LINE (no HOT START) change neither the rune's % nor what it multiplies; BELLOWS (Y3, the
 //   seconds ridden, uncapped) reads the ride, which the rune does not lengthen.
@@ -123,7 +123,10 @@ describe("Y-INT: SHATTER SHOT (shatterPct 14) under the star switch", () => {
     expect(hit(false, false)).toEqual([0, 1, 30, 0, 0]);
   });
 
-  it("its broken SHIELD meets Y5's IRON WALL: on, the hit eats the foe's PLATE below 120, so its IRON WALL stops paying and rolls no PLATE back (off: its +10 first, so it pays)", () => {
+  // Y7b1 (ruling Y7A-R3d): IRON WALL reads its base def on too, so its own +10 lifts the PLATE back first and it pays, as
+  // off. Was "on, the hit eats the foe's PLATE below 120, so its IRON WALL stops paying and rolls no PLATE back (off: its +10
+  // first, so it pays)", with on [0, 110, 0, 110] (the rune) and [0, 130, 30, 130] (no rune)
+  it("its broken SHIELD meets IRON WALL: the hit eats the foe's PLATE below 120, but its own +10 first lifts it back, so it pays, on as off (Y7A-R3d)", () => {
     const after = (star: boolean, rune: boolean) => withStarRules(() => {
       const bt = new Battle(rigBench([["shieldwall", 4, 3, 1]]), rune ? W(barge(), "shatter_shot") : barge(), 8), wall = bt.sides[0];
       bt.gainShield(wall, 1);
@@ -132,8 +135,8 @@ describe("Y-INT: SHATTER SHOT (shatterPct 14) under the star switch", () => {
       const plate = wall.plate.plate, p = rigHit(bt, 0); // then the IRON WALL hits a slug
       return [wall.shield, plate, p.flat, wall.plate.plate];
     }, star);
-    expect(after(true, true)).toEqual([0, 110, 0, 110]); // on: 110 < 120, no +30; no plating of its own
-    expect(after(true, false)).toEqual([0, 130, 30, 130]); // on, no rune: the SHIELD stops it, 130 PLATE, +30
+    expect(after(true, true)).toEqual([0, 110, 30, 120]); // on: its own plating (+10) first lifts 110 to 120, so it pays (Y7b1, Y7A-R3d: was [0, 110, 0, 110])
+    expect(after(true, false)).toEqual([0, 130, 30, 140]); // on, no rune: the SHIELD stops it, 130 PLATE, +10, +30 (Y7b1, Y7A-R3d: was [0, 130, 30, 130])
     expect(after(false, true)).toEqual([0, 110, 30, 120]); // off: its own plating (+10) first lifts 110 to 120, so it pays (Y5's off)
     expect(after(false, false)).toEqual([0, 130, 30, 140]);
   });

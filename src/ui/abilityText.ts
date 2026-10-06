@@ -1272,19 +1272,18 @@ const ENTRIES: Record<string, Entry> = {
     card: () => "TURNS PLATING INTO DAMAGE", // DESIGN 3.3's "TURNS YOUR PLATING INTO DAMAGE" takes three card lines
   },
   shieldwall: {
-    // Battle.applyHit: addPlate(plate) first, then + plated.flat while the hull holds plated.min plating or more. Y5 (release
-    // Y; DESIGN-Y row 45): with the star switch on its own plating is gone (no plate): a pure PLATE payoff
-    text: (e) => (starRules() ? [
-      `WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH PAYLOAD IT HITS GAINS ${damage(g(e).plated!.flat)}.`,
-      S_PLATING, // Y6: the switch is on here
-    ] : [
+    // Battle.applyHit: addPlate(plate) first, then + plated.flat while the hull holds plated.min plating or more. Y7b1
+    // (release Y; ruling Y7A-R3d): with the star switch on it reads its base def too (its STAR_DIFF row is deleted), so its
+    // texts are the base's, PLATING's sentence as the switch has it (plating(): no POISON on). Y5's switch-on texts (no
+    // plating of its own: "WHILE YOUR HULL HOLDS 120 PLATING OR MORE, EACH PAYLOAD IT HITS GAINS 30 DAMAGE.", gist "30 DAMAGE
+    // AT 120 PLATING", card "HITS HARDER WHILE PLATED") left with it
+    text: (e) => [
       `ROLLS ${fmtDmg(g(e).plate!)} PLATING ONTO YOUR HULL FOR EACH PAYLOAD IT HITS.`,
       `WHILE YOUR HULL HOLDS ${g(e).plated!.min} PLATING OR MORE, EACH OF THOSE PAYLOADS ALSO GAINS ${damage(g(e).plated!.flat)}.`,
-      S.plating,
-    ]),
-    gist: (e) => (starRules() ? `${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`
-      : `${fmtDmg(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`),
-    card: () => (starRules() ? "HITS HARDER WHILE PLATED" : "PLATES YOUR HULL, HITS HARDER"), // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
+      plating(),
+    ],
+    gist: (e) => `${fmtDmg(g(e).plate!)} PLATING A PAYLOAD, ${damage(g(e).plated!.flat)} AT ${g(e).plated!.min} PLATING`,
+    card: () => "PLATES YOUR HULL, HITS HARDER", // DESIGN 3.3's "..., HITS HARDER PLATED" takes three card lines
   },
   twinmould: {
     // Battle.produce (twin): one slug onto each of `pour` belts with room, on the same tick (races/foundry.ts pourAll);
@@ -1565,8 +1564,8 @@ export function hitText(h: TimelineHit, belt: BeltKind): string {
     if (e.pincer && !h.others) return `${name}: NO OTHER RIG ON ITS TILE`;
     if (e.latch) return `${name} HOLDS UP TO ${fmtSec(e.latch.hold)} SEC`;
     if (e.breaker) return `${name} +${damage(e.breaker.flat)} FOR 10 PLATING`; // NUM-1: 10 plating
-    // Y5 (DESIGN-Y row 45): IRON WALL rolls no plating any more; its bonus waits for its PLATE in the battle (not counted)
-    if (e.plated && !e.plate) return `${name} +${damage(e.plated.flat)} AT ${e.plated.min} PLATING`;
+    // Y5 (DESIGN-Y row 45) gave IRON WALL a row of its own here (no plating: "+30 DAMAGE AT 120 PLATING"); Y7b1 (ruling
+    // Y7A-R3d) puts its plating back with the switch on, so its row is the base's, below
     // Y5 (DESIGN-Y row 46): POWDER KEG re-arms (Battle.kegTick), with no BURN
     if (e.keg) return `${name} +${damage(e.keg.flat)} EVERY ${fmtSec(e.keg.fuse)} SEC`;
     // Y6 (DESIGN-Y 4.1): VENOM DRIP lengthens the slug's BURN (Battle.impact), no POISON
