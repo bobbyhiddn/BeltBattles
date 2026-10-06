@@ -178,10 +178,11 @@ describe("Y3 row 25: BARBED SPOOL: +1/+2/+3 FRAY; the hull keeps FRAY's own MAX 
     expect(a.fray).toBeLessThanOrEqual(15);
   });
 
-  it("face: today's line HIT: +1/+2/+3 FRAY, no RAZOR WIRE clause; ladder FRAY +1/+2/+3; RAZOR WIRE in the ⓘ view only", () => {
+  // Y7b2 (the words): was "face: ...; ladder FRAY +1/+2/+3; RAZOR WIRE in the ⓘ view only"
+  it("face: today's line HIT: +1/+2/+3 FRAY, no RAZOR WIRE clause; ladder FRAY +1/+2/+3; no RAZOR WIRE name, the ⓘ view's too (Y7b2: it left with its cap)", () => {
     expect(lines("barbed")).toEqual([1, 2, 3].map((n) => [`HIT: +${n} {*FRAY}.`]));
     oneLine("barbed");
-    expect(levels("barbed", 1)).toEqual(["{FRAY} [+1]/+2/+3", "★2 RAZOR WIRE", `${next(2, "+2 {*FRAY}")} ★2 RAZOR WIRE`]);
+    expect(levels("barbed", 1)).toEqual(["{FRAY} [+1]/+2/+3", next(2, "+2 {*FRAY}")]); // Y7b2 (the words): was ["{FRAY} [+1]/+2/+3", "★2 RAZOR WIRE", `${next(2, "+2 {*FRAY}")} ★2 RAZOR WIRE`]
   });
 });
 
@@ -229,10 +230,11 @@ describe("Y3 row 27: BRAKE SHOE ★2/★3 slow the belt to 40% / 30% and lose th
     expect(walkHit(b, "brake").flat).toBe(0);
   });
 
-  it("face: today's line ITS BELT RUNS AT 50%/40%/30% SPEED, no HOT SHOE clause; ladder 50%/40%/30% SPEED; perks in the ⓘ view only", () => {
+  // Y7b2 (the words): was "face: ...; ladder 50%/40%/30% SPEED; perks in the ⓘ view only"
+  it("face: today's line ITS BELT RUNS AT 50%/40%/30% SPEED, no HOT SHOE clause; ladder 50%/40%/30% SPEED; no perk names, the ⓘ view's too (Y7b2: they left with the flats)", () => {
     expect(lines("brake")).toEqual(["50%", "40%", "30%"].map((p) => [`ITS BELT RUNS AT ${p} SPEED.`]));
     oneLine("brake");
-    expect(levels("brake", 1)).toEqual(["[50%]/40%/30% SPEED", "★2 HOT SHOE", "★3 RED-HOT SHOE", `${next(2, "40% SPEED")} ★2 HOT SHOE`]);
+    expect(levels("brake", 1)).toEqual(["[50%]/40%/30% SPEED", next(2, "40% SPEED")]); // Y7b2 (the words): was ["[50%]/40%/30% SPEED", "★2 HOT SHOE", "★3 RED-HOT SHOE", `${next(2, "40% SPEED")} ★2 HOT SHOE`]
   });
 });
 
@@ -400,11 +402,13 @@ describe("Y3 row 32: ASSEMBLY LINE: your rigs start 50%/75%/100% sooner, its own
     expect(slugPast(asm(3), 2).flat).toBe(20);
   });
 
-  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; YOUR RIGS START 50%/75%/100% SOONER; ladders DMG 30/45/60, 50%/75%/100% SOONER; HOT START in the ⓘ view only", () => {
+  // Y7b2 (the words): was "face: ...; ladders DMG 30/45/60, 50%/75%/100% SOONER; HOT START in the ⓘ view only"
+  it("face: RATE 17, DMG 30/45/60, BELT 2/3/4; YOUR RIGS START 50%/75%/100% SOONER; ladders DMG 30/45/60, 50%/75%/100% SOONER; no HOT START name, the ⓘ view's too (Y7b2)", () => {
     expect(lines("assembly")).toEqual(["50%", "75%", "100%"].map((p) => [`YOUR RIGS START ${p} SOONER.`]));
     expect(faceAt("assembly", 1)!.stats).toEqual([["RATE", "17"], ["DMG", "30"], ["BELT", "2"]]);
     oneLine("assembly");
-    expect(levels("assembly", 1)).toEqual(["{DMG} [30]/45/60", "{BELT} [2]/3/4", "[50%]/75%/100% SOONER", "★3 HOT START",
+    // Y7b2 (the words): was [..., "[50%]/75%/100% SOONER", "★3 HOT START", `NEXT ★2: ...`] (the name left with its rule)
+    expect(levels("assembly", 1)).toEqual(["{DMG} [30]/45/60", "{BELT} [2]/3/4", "[50%]/75%/100% SOONER",
       `NEXT ★2: ${statRow([["DMG", "45"], ["BELT", "3"]])}, 75% SOONER`]);
     expect(hasFace("assembly")).toBe(true);
   });

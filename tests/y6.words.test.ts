@@ -106,7 +106,7 @@ describe("Y6 texts: VENOM says BURN's seconds; the lines that named POISON drop 
       ]);
       expect(gist("venom", s)).toBe(`BURN LASTS ${n} SECONDS LONGER`);
       expect([hitText({ def: "venom", stars: s } as TimelineHit, "free"), hitText({ def: "venom", stars: s } as TimelineHit, "locked")])
-        .toEqual([`VENOM DRIP: ITS BURN LASTS +${n} SEC`, `VENOM DRIP: ITS BURN LASTS +${n} SEC`]);
+        .toEqual([`VENOM DRIP +${n} SEC TO EACH BURN`, `VENOM DRIP +${n} SEC TO EACH BURN`]); // Y7b2 (the words): was [`VENOM DRIP: ITS BURN LASTS +${n} SEC`, `VENOM DRIP: ITS BURN LASTS +${n} SEC`]
     }
     expect(cardText("venom")).toBe("BURN LASTS 3 SECONDS LONGER.");
     expect(S.burn).toBe("EACH BURN DEALS THE ENEMY HULL 10 DAMAGE A SECOND FOR 3 SECONDS.");

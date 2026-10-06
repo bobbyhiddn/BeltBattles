@@ -2,6 +2,7 @@
 // the words and the bots' deck rating): with the star switch on (content.ts withStarRules), against the switch off.
 // - The words: no keyword joins; LOAD TIME stays (SALVO RACK's kept sentence and the TEMPO family's line still name it);
 //   BONUS DAMAGE stays (DRAKE NOZZLE's face names it); no switch-on text of the 8 names a rule that left.
+//   Y7b2 (the words): LOAD TIME retired since: its row is gone and neither SALVO RACK's sentence nor TEMPO's line names it.
 // - S2: TESLA ARC's SHOT tap says its arc's share of the shot's damage, read from its data (25 / 25 / 30%), in the band.
 // - S3: the SMUGGLER card's NONE ON OFFER line leaves (cards.ts cardNote); the guard stays (the choice is still blocked).
 // - The rating (deckRating.ts, STAR_EQ's note): SEAM WELDER on pairs only, EXT. CHAMBER's shot capped by its chamber, DRAKE
@@ -29,18 +30,22 @@ const k1 = (def: string) => (ITEMS[def].kind === "core" ? { k: 1 } : {});
 /** The rows the star switch retired (glossary.ts STAR_RETIRED until the flip, Y7b2, which deleted them from the table). */
 const RETIRED = ["HARASSMENT", "ONLINE", "POISON"];
 
-describe("Y4 words: no new keyword; LOAD TIME and BONUS DAMAGE stay", () => {
-  it("on, the glossary is Y3's: only HARASSMENT retires (Y5: and ONLINE; Y6: and POISON); LOAD TIME and BONUS DAMAGE stay; the 9 keywords", () => {
+describe("Y4 words: no new keyword; BONUS DAMAGE stays; Y7b2: LOAD TIME retires", () => { // Y7b2 (the words): was "...; LOAD TIME and BONUS DAMAGE stay"
+  // Y7b2 (the words): was "on, ...; LOAD TIME and BONUS DAMAGE stay; the 9 keywords"
+  it("on, the glossary is Y3's: only HARASSMENT retires (Y5: and ONLINE; Y6: and POISON); BONUS DAMAGE stays; Y7b2: LOAD TIME's row is gone; the 9 keywords", () => {
     // Y7b2 (the flip): was expect(STAR_RETIRED).toEqual(["HARASSMENT", "ONLINE", "POISON"]); the table holds none of them
     expect(GLOSSARY.map((r) => r.word).filter((w) => RETIRED.includes(w))).toEqual([]);
     for (const w of RETIRED) expect(glossaryEntry(w), w).toBeUndefined();
-    expect([glossaryEntry("LOAD TIME")?.word, glossaryEntry("BONUS DAMAGE")?.word]).toEqual(["LOAD TIME", "BONUS DAMAGE"]);
+    expect([glossaryEntry("LOAD TIME")?.word, glossaryEntry("BONUS DAMAGE")?.word]).toEqual([undefined, "BONUS DAMAGE"]); // Y7b2 (the words): was ["LOAD TIME", "BONUS DAMAGE"]
     expect(KEYWORDS).toEqual(["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"]);
   });
 
-  it("why LOAD TIME stays: SALVO RACK's kept sentence and the TEMPO family's line still name it with the switch on", () => {
-    expect(abilityText("salvo", 1, { k: 1 }).sentences.some((t) => t.includes("LOAD TIME"))).toBe(true);
-    expect(FAMILY.TEMPO.glossary).toContain("LOAD TIME");
+  // Y7b2 (the words): was "why LOAD TIME stays: SALVO RACK's kept sentence and the TEMPO family's line still name it with the switch on"
+  it("why LOAD TIME retires (Y7b2): neither SALVO RACK's kept sentence nor the TEMPO family's line names it; each says the wait itself", () => {
+    expect(abilityText("salvo", 1, { k: 1 }).sentences.some((t) => t.includes("LOAD TIME"))).toBe(false); // Y7b2 (the words): was toBe(true)
+    expect(abilityText("salvo", 1, { k: 1 }).sentences[1]).toBe("IT WAITS FOR A FULL CHAMBER, OR 3 SECONDS AFTER ITS FIRST LOAD."); // Y7b2 (the words): was "..., OR TWICE ITS LOAD TIME."
+    // Y7b2 (the words): was toContain("LOAD TIME") ("WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, LOAD TIME, COMMISSIONING, PULSES AND FUSES.")
+    expect(FAMILY.TEMPO.glossary).toBe("WHEN THINGS HAPPEN: BELT SPEED, FIRE RATE, HOW LONG A GUN WAITS TO FIRE, WHEN RIGS START, PULSES AND FUSES.");
   });
 
   it("DRAKE NOZZLE's face names BONUS DAMAGE (its glossary tap); the faces' keywords are the existing ones", () => {

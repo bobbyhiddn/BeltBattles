@@ -78,8 +78,8 @@ describe("Y2 row 8: TOLLBOOTH blocks STUNs on its belt's parts, its factory from
   it("face: BLOCKS 2/4/7 STUN ON ITS BELT'S PARTS, one line in the band; ladder BLOCKS 2/4/7", () => {
     expect(lines("tollbooth")).toEqual([2, 4, 7].map((n) => [`BLOCKS ${n} {*STUN} ON ITS BELT'S PARTS.`]));
     oneLine("tollbooth");
-    expect(levels("tollbooth", 1)).toEqual(["BLOCKS [2]/4/7", "★3 FACTORY GUARD", "NEXT ★2: BLOCKS 4"]);
-    expect(levels("tollbooth", 3)).toEqual(["BLOCKS 2/4/[7]", "★3 FACTORY GUARD"]);
+    expect(levels("tollbooth", 1)).toEqual(["BLOCKS [2]/4/7", "NEXT ★2: BLOCKS 4"]); // Y7b2 (the words): was ["BLOCKS [2]/4/7", "★3 FACTORY GUARD", "NEXT ★2: BLOCKS 4"] (the name left with its rule)
+    expect(levels("tollbooth", 3)).toEqual(["BLOCKS 2/4/[7]"]); // Y7b2 (the words): was ["BLOCKS 2/4/[7]", "★3 FACTORY GUARD"]
   });
 });
 
@@ -104,7 +104,8 @@ describe("Y2 row 9: SCRAPPER counts STUNs only, with no queue cap and no BIG HAU
   it("face: +1 SLUG FOR EACH STUN YOU LAND, no caveat, no BIG HAUL clause; ladders RATE 10/12/15, DMG 60/95/135", () => {
     expect(lines("scrapper")).toEqual(STARS.map(() => ["+1 {SLUG} FOR EACH {*STUN} YOU LAND."]));
     oneLine("scrapper");
-    expect(levels("scrapper", 1)).toEqual(["{RATE} [10]/12/15", "{DMG} [60]/95/135", "{BELT} [2]/3/4", "★3 BIG HAUL",
+    // Y7b2 (the words): was [..., "{BELT} [2]/3/4", "★3 BIG HAUL", `NEXT ★2: ...`] (the name left with its rule)
+    expect(levels("scrapper", 1)).toEqual(["{RATE} [10]/12/15", "{DMG} [60]/95/135", "{BELT} [2]/3/4",
       `NEXT ★2: ${statRow([["RATE", "12"], ["DMG", "95"], ["BELT", "3"]])}`]); // NEXT★'s changed stats are a stat row (glyphs)
   });
 });
@@ -159,7 +160,7 @@ describe("Y2 row 11: SABOT FOUNDRY ★3 drops SHRAPNEL and works at RATE 20", ()
   it("face: ITS ROUNDS WRECK RIGS FOR THE FIGHT at every star, no SHRAPNEL clause; ladder RATE 5/11/20", () => {
     expect(lines("sabot")).toEqual(STARS.map(() => ["ITS ROUNDS WRECK RIGS FOR THE FIGHT."]));
     oneLine("sabot");
-    expect(levels("sabot", 3)).toEqual(["{RATE} 5/11/[20]", "{BELT} 2/3/[4]", "★3 SHRAPNEL"]);
+    expect(levels("sabot", 3)).toEqual(["{RATE} 5/11/[20]", "{BELT} 2/3/[4]"]); // Y7b2 (the words): was ["{RATE} 5/11/[20]", "{BELT} 2/3/[4]", "★3 SHRAPNEL"]
     expect(faceAt("sabot", 3)!.stats2).toEqual([["STUN", "4"]]);
   });
 });
@@ -369,7 +370,8 @@ describe("Y2 row 17: SPOTTER re-aims 1/2/3 times, no factory weighting, no sure 
   it("face: SHOTS AT BARE HULL GET 1/2/3 MORE AIM(S), no clause; ladder 1/2/3 MORE AIMS", () => {
     expect(lines("spotter")).toEqual([["SHOTS AT BARE HULL GET 1 MORE AIM."], ["SHOTS AT BARE HULL GET 2 MORE AIMS."], ["SHOTS AT BARE HULL GET 3 MORE AIMS."]]);
     oneLine("spotter");
-    expect(levels("spotter", 1)).toEqual(["[1]/2/3 MORE AIMS", "★2 FACTORY SPOT", "★3 EAGLE EYE", "NEXT ★2: 2 MORE AIMS ★2 FACTORY SPOT"]);
+    // Y7b2 (the words): was ["[1]/2/3 MORE AIMS", "★2 FACTORY SPOT", "★3 EAGLE EYE", "NEXT ★2: 2 MORE AIMS ★2 FACTORY SPOT"]
+    expect(levels("spotter", 1)).toEqual(["[1]/2/3 MORE AIMS", "NEXT ★2: 2 MORE AIMS"]);
   });
 });
 
@@ -442,7 +444,7 @@ describe("Y2 row 19: GRAPNEL GUN ★3 drops SALVAGE, and a hit keg is no longer 
   it("face: RIPS 1/2/3 SLUG(S), no SALVAGE LINE clause at ★3; ladder RIPS 1/2/3; the tap drops the keg", () => {
     expect(lines("grapnel")).toEqual([["SHOT: RIPS 1 SLUG OFF AN ENEMY BELT."], ["SHOT: RIPS 2 SLUGS OFF AN ENEMY BELT."], ["SHOT: RIPS 3 SLUGS OFF AN ENEMY BELT."]]);
     oneLine("grapnel");
-    expect(levels("grapnel", 1)).toEqual(["RIPS [1]/2/3", "★3 SALVAGE LINE", "NEXT ★2: RIPS 2"]);
+    expect(levels("grapnel", 1)).toEqual(["RIPS [1]/2/3", "NEXT ★2: RIPS 2"]); // Y7b2 (the words): was ["RIPS [1]/2/3", "★3 SALVAGE LINE", "NEXT ★2: RIPS 2"]
     expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT RIPS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.");
   });
 });

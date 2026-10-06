@@ -83,7 +83,7 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(abilityText("stoker", 1).sentences[1]).toBe("IT NEVER MAKES A FACTORY OUTRUN ITS GUN."); // Y7b1 (Y7A-R1): was "A FACTORY IT STOKES MAY FEED ITS GUN MORE THAN IT TAKES, AND JAM IT."
     expect(abilityText("assembly", 1).sentences[0]).toBe("WHILE IT FEEDS A TURRET, YOUR RIGS START WORKING 50% SOONER, THOSE ON ITS OWN BELT TOO.");
     expect(abilityText("assembly", 3).sentences[0]).toBe("WHILE IT FEEDS A TURRET, ALL YOUR RIGS START WORKING AT ONCE, THOSE ON ITS OWN BELT TOO.");
-    expect(abilityText("assembly", 3).perk).toEqual({ name: "HOT START", stars: 3, after: 0 }); // the name stays (R-1: the ⓘ view and the desk's)
+    expect(abilityText("assembly", 3).perk).toEqual(undefined); // Y7b2 (the words): was .toEqual({ name: "HOT START", stars: 3, after: 0 }) (the name stayed: R-1, the ⓘ view and the desk's); it left with its rule
     expect(["pincer", "twingauge", "bellows", "surge", "assembly"].map((d) => cardText(d))).toEqual([
       "DAMAGE FOR EACH RIG ON ITS TILE.", "DAMAGE ON A MATCHED BELT.", "BURN FOR RIDE TIME.", "PULSES 10 DAMAGE ONTO ITS BELTS.", "RIGS START 50% SOONER."]);
     expect(["quench", "brake", "twinlatch", "platebreaker", "surge"].map((d) => gist(d, 2))).toEqual([
@@ -101,7 +101,7 @@ describe("Y3 words: the 13's texts say the new rules with the switch on", () => 
     expect(hitText(row("pincer", 2, { flat: 44, others: 1 }), "free")).toBe("PINCER +44 DAMAGE, CROSSFIRE WITH 1 RIG");
     expect(hitText(row("twinlatch", 3, { flat: 0 }), "free")).toBe("TWIN LATCH HOLDS UP TO 3 SEC");
     expect(hitText(row("platebreaker", 1, { flat: 0 }), "free")).toBe("PLATE BREAKER +40 DAMAGE FOR 10 PLATING");
-    expect(hitText(row("brake", 3), "free")).toBe("BRAKE SHOE 70% SLOWER");
+    expect(hitText(row("brake", 3), "free")).toBe("BRAKE SHOE AT 30% SPEED"); // Y7b2 (the words): was "BRAKE SHOE 70% SLOWER"
     expect(hitText(row("longhaul", 2, { flat: 160, prior: 8 }), "free")).toBe("LONG HAUL +160 DAMAGE (8 HITS BEFORE)");
     for (const def of Y3_PIECES.filter((d) => ITEMS[d].kind === "gate")) for (const s of STARS) {
       expect(hitText(row(def, s, { flat: 1, others: 1, matched: true }), "free"), `${def} ★${s}`).not.toMatch(GONE);

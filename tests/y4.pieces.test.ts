@@ -76,11 +76,12 @@ describe("Y4 row 33: HOPPER: its chamber holds +1/+2/+3; no load time, store or 
     expect([runOn.maxStore, typed(runOn.ev, "jam").length > 0]).toEqual([0, true]);
   });
 
-  it("face: ITS CHAMBER HOLDS +1/+2/+3 SLUG, one line in the band; ladder SLUG +1/+2/+3; BOTTOMLESS in the ⓘ view only", () => {
+  // Y7b2 (the words): was "face: ...; ladder SLUG +1/+2/+3; BOTTOMLESS in the ⓘ view only"
+  it("face: ITS CHAMBER HOLDS +1/+2/+3 SLUG, one line in the band; ladder SLUG +1/+2/+3; no BOTTOMLESS name, the ⓘ view's too (Y7b2: it left with the no-jam)", () => {
     expect(lines("hopper")).toEqual([1, 2, 3].map((n) => [`ITS CHAMBER HOLDS +${n} {SLUG}.`]));
     oneLine("hopper");
-    expect(levels("hopper", 1)).toEqual(["{SLUG} [+1]/+2/+3", "★3 BOTTOMLESS", next(2, "+2 {SLUG}")]);
-    expect(levels("hopper", 3)).toEqual(["{SLUG} +1/+2/[+3]", "★3 BOTTOMLESS"]);
+    expect(levels("hopper", 1)).toEqual(["{SLUG} [+1]/+2/+3", next(2, "+2 {SLUG}")]); // Y7b2 (the words): was ["{SLUG} [+1]/+2/+3", "★3 BOTTOMLESS", next(2, "+2 {SLUG}")]
+    expect(levels("hopper", 3)).toEqual(["{SLUG} +1/+2/[+3]"]); // Y7b2 (the words): was ["{SLUG} +1/+2/[+3]", "★3 BOTTOMLESS"]
     expect(hasFace("hopper")).toBe(true);
   });
 });
@@ -161,11 +162,12 @@ describe("Y4 row 35: SEAM WELDER: PAIR +10/+22/+35 PLATE; a lone load's plating 
 
 // --------------------------------------------------------------------------------------------- row 36: EXT. CHAMBER
 describe("Y4 row 36: EXT. CHAMBER: it fires 2/3/4 loads a shot; the +1 slot goes", () => {
-  it("data: on, mod { perShot: 2/3/4 } (off: 2/2/3, ★2/★3 + 1 slot); WIDE BREECH and TRIPLE BREECH stay names", () => {
+  // Y7b2 (the words): was "data: ...; WIDE BREECH and TRIPLE BREECH stay names"
+  it("data: on, mod { perShot: 2/3/4 } (off: 2/2/3, ★2/★3 + 1 slot); WIDE BREECH and TRIPLE BREECH left with the slot (Y7b2: no perk name)", () => {
     for (const s of STARS) {
       expect(effectAt("chamber", s).mod, `★${s}`).toEqual({ perShot: s + 1 });
     }
-    expect([2, 3].map((s) => ITEMS.chamber.levels![s as 2 | 3]!.perk)).toEqual(["WIDE BREECH", "TRIPLE BREECH"]);
+    expect([2, 3].map((s) => ITEMS.chamber.levels![s as 2 | 3]!.perk)).toEqual([undefined, undefined]); // Y7b2 (the words): was ["WIDE BREECH", "TRIPLE BREECH"]
   });
 
   it("turret: on, a SCRAP CANNON fires 2/3/4 a shot from its own 3 loads (off: 2/2/3 from 3/4/4)", () => {
@@ -184,10 +186,12 @@ describe("Y4 row 36: EXT. CHAMBER: it fires 2/3/4 loads a shot; the +1 slot goes
 
   // Y7b1 (ruling Y7A-R2): was "face: EACH SHOT FIRES 2/3/4 SLUG (today's line), ...; ladder FIRES 2/3/4 SLUG", with the lines
   // EACH SHOT FIRES 2/3/4 {SLUG}. and the ladder FIRES [2]/3/4 {SLUG} (NEXT ★2: FIRES 3 {SLUG})
-  it("face: EACH SHOT FIRES 2 / UP TO 3 / UP TO 4 SLUG (Y7A-R2: true on every gun), no WIDE BREECH clause; ladder FIRES UP TO 2/3/4 SLUG; the perk names in the ⓘ view only", () => {
+  // Y7b2 (the words): was "face: ...; ladder FIRES UP TO 2/3/4 SLUG; the perk names in the ⓘ view only"
+  it("face: EACH SHOT FIRES 2 / UP TO 3 / UP TO 4 SLUG (Y7A-R2: true on every gun), no WIDE BREECH clause; ladder FIRES UP TO 2/3/4 SLUG; no perk names, the ⓘ view's too (Y7b2)", () => {
     expect(lines("chamber")).toEqual([["EACH SHOT FIRES 2 {SLUG}."], ["EACH SHOT FIRES UP TO 3 {SLUG}."], ["EACH SHOT FIRES UP TO 4 {SLUG}."]]);
     oneLine("chamber");
-    expect(levels("chamber", 1)).toEqual(["FIRES UP TO [2]/3/4 {SLUG}", "★2 WIDE BREECH", "★3 TRIPLE BREECH", `${next(2, "FIRES UP TO 3 {SLUG}")} ★2 WIDE BREECH`]);
+    // Y7b2 (the words): was ["FIRES UP TO [2]/3/4 {SLUG}", "★2 WIDE BREECH", "★3 TRIPLE BREECH", `${next(2, "FIRES UP TO 3 {SLUG}")} ★2 WIDE BREECH`]
+    expect(levels("chamber", 1)).toEqual(["FIRES UP TO [2]/3/4 {SLUG}", next(2, "FIRES UP TO 3 {SLUG}")]);
     expect(faceAt("chamber", 2)!.clause).toBeUndefined(); // ★2: no clause
   });
 });
@@ -217,10 +221,12 @@ describe("Y4 row 37: ROTARY BREECH: part-full chambers fire 50/65/80% sooner; no
     }
   });
 
-  it("face: FIRES PART-FULL CHAMBERS 50/65/80% SOONER, no clause; ladder 50%/65%/80% SOONER; GREASED RACE and CLEAN FEED in the ⓘ view only", () => {
+  // Y7b2 (the words): was "face: ...; ladder 50%/65%/80% SOONER; GREASED RACE and CLEAN FEED in the ⓘ view only"
+  it("face: FIRES PART-FULL CHAMBERS 50/65/80% SOONER, no clause; ladder 50%/65%/80% SOONER; no GREASED RACE or CLEAN FEED name, the ⓘ view's too (Y7b2)", () => {
     expect(lines("rotary")).toEqual([50, 65, 80].map((p) => [`FIRES PART-FULL CHAMBERS ${p}% SOONER.`]));
     oneLine("rotary");
-    expect(levels("rotary", 1)).toEqual(["[50%]/65%/80% SOONER", "★2 GREASED RACE", "★3 CLEAN FEED", `${next(2, "65% SOONER")} ★2 GREASED RACE`]);
+    // Y7b2 (the words): was ["[50%]/65%/80% SOONER", "★2 GREASED RACE", "★3 CLEAN FEED", `${next(2, "65% SOONER")} ★2 GREASED RACE`]
+    expect(levels("rotary", 1)).toEqual(["[50%]/65%/80% SOONER", next(2, "65% SOONER")]);
   });
 });
 

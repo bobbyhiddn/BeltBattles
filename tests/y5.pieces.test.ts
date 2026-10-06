@@ -300,8 +300,9 @@ describe("Y5 row 46: POWDER KEG: every 12/10/8 s from the start, +60/+130/+210 t
     expect(lines("keg")).toEqual(STARS.map((s) => [`EVERY ${FUSE[s - 1]}{SEC}: +${FLAT[s - 1]} {DMG} TO SLUGS ON ITS BELTS.`]));
     expect(lines("keg").map((l) => px(l[0]))).toEqual([209, 215, 209]);
     for (const s of STARS) expect(JSON.stringify(faceAt("keg", s))).not.toMatch(/BURN|ONLINE|WIDE/);
-    // ★3 WIDE BLAST's name stays, in the ⓘ view only (R-1); its rule is gone
-    expect(levels("keg", 1)).toEqual(["EVERY [12]/10/8{SEC}", "{DMG} [+60]/+130/+210", "★3 WIDE BLAST", next(2, "EVERY 10{SEC}, +130 {DMG}")]);
+    // Y7b2 (the words): ★3 WIDE BLAST's name left with its rule (was: it stays, in the ⓘ view only (R-1); its rule is gone)
+    // Y7b2 (the words): was ["EVERY [12]/10/8{SEC}", "{DMG} [+60]/+130/+210", "★3 WIDE BLAST", next(2, "EVERY 10{SEC}, +130 {DMG}")]
+    expect(levels("keg", 1)).toEqual(["EVERY [12]/10/8{SEC}", "{DMG} [+60]/+130/+210", next(2, "EVERY 10{SEC}, +130 {DMG}")]);
     expect(hasFace("keg")).toBe(true);
   });
 });

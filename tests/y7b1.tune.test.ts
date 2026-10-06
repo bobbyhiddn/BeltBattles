@@ -126,7 +126,7 @@ describe("Y7b1 Y7A-R4 / R5: DRAKE NOZZLE, COUNTERWEIGHT and VENOM DRIP read thei
     expect(lines("venom")).toEqual([3, 6, 9].map((n) => [`HIT: ITS {*BURN} LASTS +${n}{SEC}.`]));
     expect(levels("venom", 1)).toEqual(["[+3]/+6/+9{SEC}", next(2, "+6{SEC}")]);
     expect(abilityText("venom", 3).sentences[0]).toBe("EACH BURN ON THE PAYLOADS IT HITS LASTS 9 SECONDS LONGER.");
-    expect(hitText({ def: "venom", stars: 2 } as TimelineHit, "free")).toBe("VENOM DRIP: ITS BURN LASTS +6 SEC");
+    expect(hitText({ def: "venom", stars: 2 } as TimelineHit, "free")).toBe("VENOM DRIP +6 SEC TO EACH BURN"); // Y7b2 (the words): was "VENOM DRIP: ITS BURN LASTS +6 SEC"
   });
 });
 
