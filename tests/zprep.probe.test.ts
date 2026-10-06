@@ -24,15 +24,15 @@ const ctx = (s: GhostSnapshot) => ({ seed: s.seed, ...(s.lastChance ? { lastChan
 afterEach(() => setLastChance(false));
 
 describe("Z-PREP: the probe's LAST CHANCE rows", () => {
-  it("switch off: the plan is today's nine rows in order, none carries a lastChance, and 4 decks are expected", () => {
+  it("switch off: the plan is today's nine rows in order, none carries a lastChance, and 4 decks are expected", () => withLastChance(() => {
     const plan = probePlan("p-zprep", NOW);
     expect(plan.map((p) => p.name)).toEqual(NINE);
     expect(plan.some((p) => p.snapshot.lastChance !== undefined || p.text.includes("lastChance"))).toBe(false);
     expect([probeStored(), PROBE_STORED]).toEqual([4, 4]);
-  });
+  }, false));
 
   it("switch on: the nine rows unchanged, then the two flip rows; the honest one passes POST's checks, the forged one fails only the record", () => {
-    const off = probePlan("p-zprep", NOW);
+    const off = withLastChance(() => probePlan("p-zprep", NOW), false);
     withLastChance(() => {
       const on = probePlan("p-zprep", NOW);
       expect(on.map((p) => p.name)).toEqual(ELEVEN);
@@ -55,7 +55,7 @@ describe("Z-PREP: the probe's LAST CHANCE rows", () => {
       expect([f.signed, f.expected]).toEqual([true, "422 record: 0W 2 lives is no record a run carries into dusk 6 after a LAST CHANCE on day 3"]);
       expect(probeStored()).toBe(5);
     });
-    expect(rows(probePlan("p-zprep", NOW))).toEqual(rows(off)); // and off again: today's
+    expect(rows(withLastChance(() => probePlan("p-zprep", NOW), false))).toEqual(rows(off)); // and off again: today's
   });
 
   it("switch on, end to end: eleven checks as expected against a fresh server, which stores five decks", async () => {

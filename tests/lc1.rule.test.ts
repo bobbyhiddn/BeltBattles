@@ -202,7 +202,7 @@ describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only 
   it("still deterministic, and a PART pick still moves no other stream: the next dawn's shop and rune offer are the switch-off run's", () => {
     for (let s = 1; s <= 30; s++) expect(withLastChance(() => lastChanceOffer(s, 7, "furnace", []))).toEqual(withLastChance(() => lastChanceOffer(s, 7, "furnace", [])));
     for (const [hero, seed] of [["foundry", 5], ["weaver", 12], ["bastion", 3], ["furnace", 8]] as [HeroId, number][]) {
-      const off = play("LLLLL", hero, seed);
+      const off = withLastChance(() => play("LLLLL", hero, seed), false);
       const on = withLastChance(() => play("LLLLL", hero, seed));
       expect(JSON.stringify(on.shop)).toBe(JSON.stringify(off.shop));
       const offer = withLastChance(() => pendingLastChance(on))!;
