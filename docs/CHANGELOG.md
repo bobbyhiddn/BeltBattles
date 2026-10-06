@@ -3,6 +3,38 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.3: one rule for each part, and easier taps on phones
+
+New battle rules: bb-0.9.3. Ghosts and uploads from 0.9.2 no longer meet 0.9.3 players. You'll fight a fresh pool of 120
+ghosts at first, then other players' 0.9.3 runs as they come in.
+- **One rule for each part:** a part does one thing, in one ability line with one trigger and one effect. A star changes
+  a number and never adds a rule. IRON WALL and ANVIL BREECH still have two parts in their one line.
+- **Perk names:** a star's perk name now shows only in the ⓘ levels view.
+- **POISON is gone:** VENOM DRIP makes BURN last longer instead, 3, 6 or 9 seconds more by star.
+- **HARASSMENT is gone:** only a STUN counts now. TOLLBOOTH blocks STUNS, FLAK SCREEN shoots down STUN shots, and
+  SCRAPPER counts the STUNS you land. A wreck or a rip still lands, but none of them counts it.
+- **LOAD TIME is gone from the cards:** SALVO RACK says it waits for a full chamber, or 3 seconds after its first load.
+  ROTARY BREECH fires part-full chambers 50%, 65% or 80% sooner by star.
+- **Payoff parts need their engine, and do nothing without it:** VENOM DRIP and QUENCH TANK work on BURN, PLATE BREAKER
+  spends PLATE and STEAM BREECH needs it, and TWIN GAUGE works on a matched belt.
+- **STOKER's factories still never outrun the gun they feed,** so stoking never jams it, and its card now says UP TO.
+  EXT. CHAMBER fires 2, 3 or 4 loads a shot by star, up to what its gun's chamber holds.
+- **BRAKE SHOE** only slows its belt now: to 50%, 40% or 30% speed by star. **MANTLET** keeps STUN off its gun and off
+  the last 1, 2 or 3 tiles of each belt into it.
+- **FOUNDRY:** when two blanks fuse, their VENOM DRIP seconds add up.
+- **30 parts were reworked this way:** SABOT FOUNDRY, HOT SWAP, LIMPET WORKS, MANTLET, LODESTONE, SPOTTER, OVERDRIVE,
+  PINCER, TWIN GAUGE, BELLOWS, QUENCH TANK, LONG HAUL, BARBED SPOOL, PLATE BREAKER, BRAKE SHOE, SURGE VALVE, TWIN LATCH,
+  ASSEMBLY LINE, HOPPER, TWIN TRIGGER, SEAM WELDER, EXT. CHAMBER, ROTARY BREECH, STEAM BREECH, DRAKE NOZZLE,
+  COUNTERWEIGHT, CAPACITOR BANK, POWDER KEG, SPALL CATCHER and VENOM DRIP. TOLLBOOTH, SCRAPPER, FLAK SCREEN, GRAPNEL GUN
+  and BRACE FRAME follow the same rule (BRACE FRAME no longer cuts STUNS more while you hold PLATE).
+- **Rivals were rebuilt for the new numbers:** the caravan's stand-ins and the starting ghosts were made again, and 13
+  captains' parts now come later to fit the new luck caps. Most come a day later and four come two days later.
+  LONGTOOTH's COUNTERWEIGHT comes on day 6 again, two or three days later (0.9.2 gave his stand-in it on day 4). The
+  captains' runes are unchanged.
+- **Phones:** MENU and SND are easier to tap. On shorter screens MENU moves to the top-left corner, and the SOUND switch
+  is in its menu. Where a phone has room, the top bar grows to a finger's height instead. The rune row no longer
+  catches taps meant for MENU or SND.
+
 ## 0.9.2: the captains' catch-up
 
 Same battle rules as 0.9.1 (bb-0.9.1), so 0.9.1 and 0.9.2 players meet each other's ghosts, and their uploads keep
